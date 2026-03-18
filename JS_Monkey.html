@@ -80,7 +80,7 @@
     }
 
     const currentPlayer = appState.monkey.players[appState.monkey.turnIndex];
-    document.getElementById('current-turn-name').innerText = currentPlayer ? currentPlayer.name : "---";
+    document.getElementById('current-turn-name').innerText = currentPlayer ? currentPlayer.name : "---"; // innerText is safe
 
     appState.monkey.players.forEach((p, idx) => {
       const isTurn = (idx === appState.monkey.turnIndex);
@@ -93,13 +93,13 @@
         actionBtn = `<button onclick="openSwitchModal('${p.row}', '${p.name}')" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold">${switchText}</button>`;
       }
       
-      const editBtn = `<button onclick="openEditStatus('${p.row}', '${p.name}')" class="ml-2 text-slate-400" title="Edit">✏️</button>`;
+      const editBtn = `<button onclick="openEditStatus('${p.row}', '${escapeHTML(p.name)}')" class="ml-2 text-slate-400" title="Edit">✏️</button>`;
 
       div.innerHTML += `
         <div class="flex justify-between items-center p-3 rounded-xl mb-2 ${style} ${turnBorder}">
            <div class="flex items-center">
              <div class="ml-2">
-                <div class="font-bold flex items-center gap-1 text-base">${p.name} ${isTurn ? '⏳' : ''}</div>
+                <div class="font-bold flex items-center gap-1 text-base">${escapeHTML(p.name)} ${isTurn ? '⏳' : ''}</div>
                 <div class="text-xs font-bold opacity-80 uppercase">${stages[p.col - 1]}</div>
              </div>
              ${editBtn}
@@ -235,10 +235,7 @@
         // Modal buttons are handled by playAgain and main_menu translations in Screw logic (shared modal)
         document.getElementById('winner-modal').classList.remove('hidden');
 
-        // Record wins
-        winners.forEach(w => {
-            google.script.run.withFailureHandler(handleServerFailure).recordWin(w, "ربع قرد");
-        });
+        // Record wins (Removed)
     }
   }
 

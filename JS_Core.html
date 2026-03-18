@@ -1,4 +1,18 @@
 <script>
+  /* --- SECURITY UTILS --- */
+  function escapeHTML(str) {
+      if (typeof str !== 'string') return str;
+      return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+      );
+  }
+
   /* --- AUDIO SYSTEM --- */
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   function playSound(type) {
@@ -574,7 +588,19 @@
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
-            appState = { ...appState, ...parsed };
+            
+            const deepMerge = (target, source) => {
+                for (const key in source) {
+                    if (source[key] instanceof Object && !Array.isArray(source[key]) && target[key] instanceof Object) {
+                        Object.assign(target[key], deepMerge(target[key], source[key]));
+                    } else {
+                        target[key] = source[key];
+                    }
+                }
+                return target;
+            };
+            appState = deepMerge(appState, parsed);
+            
             if (appState.cachedPlayers && appState.cachedPlayers.length > 0) {
                 allPlayers = appState.cachedPlayers;
                 dataLoaded = true; 
@@ -673,6 +699,10 @@
     if (typeof charadesState !== 'undefined' && charadesState.interval) clearInterval(charadesState.interval);
     if (typeof descState !== 'undefined' && descState.interval) clearInterval(descState.interval);
     if (typeof whoAmIState !== 'undefined' && whoAmIState.interval) clearInterval(whoAmIState.interval);
+    if (appState.timers && appState.timers.general && appState.timers.general.interval) clearInterval(appState.timers.general.interval);
+    if (appState.timers && appState.timers.general) appState.timers.general.running = false;
+    if (appState.timers && appState.timers.chess && appState.timers.chess.interval) clearInterval(appState.timers.chess.interval);
+    if (appState.timers && appState.timers.chess) appState.timers.chess.active = null;
 
     if(viewId.startsWith('setup-')) {
         const listId = viewId.replace('setup-', '') + '-player-list';

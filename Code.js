@@ -21,10 +21,9 @@ const doGet = (e) => {
 
   return template.evaluate()
       .setTitle('عشرى جيمينج 🎮')
-      .setFaviconUrl(iconUrl) 
+      .setFaviconUrl(iconUrl)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-};
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);};
 
 const include = (filename) => {
   // Always fetch the freshest code directly from the file!
@@ -95,51 +94,14 @@ const addGlobalPlayer = (name) => {
     throw new Error("الاسم لا يمكن أن يكون فارغاً");
   }
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('اللاعبين');
-  const data = sh.getDataRange().getValues().flat(); 
+  const lastRow = Math.max(1, sh.getLastRow());
+  const data = sh.getRange(1, 1, lastRow, 1).getValues().flat().filter(String);
   if (!data.includes(name)) {
     sh.appendRow([name]);
-  } else {
-    // Optionally throw error for duplicates if needed
+  } else {    // Optionally throw error for duplicates if needed
     // throw new Error("هذا اللاعب مسجل بالفعل");
   }
   return getPlayerList();
-};
-
-/**
- * Player Statistics & Leaderboard
- */
-const recordWin = (name, gameType) => {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('الإحصائيات');
-  if (!sheet) {
-    sheet = ss.insertSheet('الإحصائيات');
-    sheet.setRightToLeft(true);
-    sheet.getRange(1, 1, 1, 3).setValues([['اللاعب', 'اللعبة', 'التاريخ']]).setFontWeight("bold");
-  }
-  sheet.appendRow([name, gameType, new Date()]);
-  return true;
-};
-
-const getLeaderboard = () => {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('الإحصائيات');
-  if (!sheet) return [];
-  
-  const data = sheet.getDataRange().getValues();
-  if (data.length < 2) return [];
-  
-  const wins = {};
-  for (let i = 1; i < data.length; i++) {
-    const name = data[i][0];
-    if (name) {
-      wins[name] = (wins[name] || 0) + 1;
-    }
-  }
-  
-  return Object.keys(wins)
-    .map(name => ({ name: name, wins: wins[name] }))
-    .sort((a, b) => b.wins - a.wins)
-    .slice(0, 10);
 };
 
 /**

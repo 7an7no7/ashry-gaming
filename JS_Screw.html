@@ -96,13 +96,12 @@
         <div class="screw-card flex justify-between items-center p-3 rounded-xl mb-2 border border-slate-100 dark:border-slate-600 ${dealerClass}">
             <div class="flex flex-col">
                 <span class="font-bold text-lg flex items-center screw-name-text">
-                    ${crown} ${p.name} ${dealerIcon}
+                    ${crown} ${escapeHTML(p.name)} ${dealerIcon}
                 </span>
                 <span class="text-xs text-indigo-500 font-bold">${totalText}: ${p.total || 0}</span>
             </div>
-            <input type="number" 
-                   data-player="${p.name}" 
-                   class="score-input w-20 h-12 text-center text-xl font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg mb-0 dark:text-white" 
+            <input type="number"
+                   data-player="${escapeHTML(p.name)}"                   class="score-input w-20 h-12 text-center text-xl font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg mb-0 dark:text-white" 
                    placeholder="-" 
                    value="${currentScore}"
                    onchange="saveScrewScores()">
@@ -159,10 +158,9 @@
                 : 'dark:border-slate-700 text-slate-800 dark:text-white';
                 
             const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : ''));
-            
-            detailsHtml += `<tr class="border-b last:border-0 ${rowClass}"><td class="p-2">${medal || i+1}</td><td class="p-2">${p.name}</td><td class="p-2">${p.total}</td></tr>`;
-        });
-        detailsHtml += '</tbody></table>';
+
+            detailsHtml += `<tr class="border-b last:border-0 ${rowClass}"><td class="p-2">${medal || i+1}</td><td class="p-2">${escapeHTML(p.name)}</td><td class="p-2">${p.total}</td></tr>`;
+            });        detailsHtml += '</tbody></table>';
         
         const scoresContainer = document.getElementById('winner-scores-container');
         if (scoresContainer) {
@@ -206,7 +204,7 @@
         const modal = document.getElementById('winner-modal');
         if(modal) modal.classList.remove('hidden');
 
-        google.script.run.withFailureHandler(handleServerFailure).recordWin(winner.name, "سكرو");
+        // Record win (Removed)
 
     } else {
         appState.screw.activeRound++;

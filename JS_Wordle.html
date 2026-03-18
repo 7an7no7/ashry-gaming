@@ -1,0 +1,291 @@
+<script>
+/* --- WORDLE GAME LOGIC --- */
+
+// Word Databases (Grouped by strict length)
+const WORDLE_DB = {
+    ar: {
+        5: [
+            "بناية", "بنفسج", "تفاحة", "جامعة", "جزيرة", "حافلة", "حديقة", "حقيبة", "حيوان", "خريطة",
+            "خزانة", "رسامة", "زجاجة", "ستارة", "سجادة", "سحابة", "سروال", "سفينة", "سيارة", "شاحنة",
+            "صيدلي", "طائرة", "طاولة", "طبيعة", "طيارة", "عصفور", "عيادة", "فاكهة", "فستان", "قلادة",
+            "كاتبة", "كنيسة", "لاعبة", "ليمون", "محفظة", "مدربة", "مدرسة", "مدينة", "مسبحة", "مطرقة",
+            "مكتبة", "ملحمة", "ملعقة", "منارة", "منديل", "منشار", "مهندس", "ميزان", "نافذة", "نظارة"
+        ],
+        6: [
+            "أناناس", "اقليمي", "برتقال", "بروتين", "بسكويت", "بقدونس", "بندقية", "تليفون", "سلطانة", "صابونة",
+            "صيدلية", "فراولة", "كاميرا", "كهرباء", "ليموني", "محاسبة", "مستشار", "مستشفى", "مكتبات", "مكرونة",
+            "ملوخية", "نافورة"
+        ],
+        7: [
+            "أوكسجين", "اتصالات", "استخدام", "استخراج", "استراحة", "استعلام", "استقبال", "استيراد", "اكسسوار", "المنيوم",
+            "بطاريات", "بلاستيك", "تلفزيون", "سندويتش", "فاصوليا", "فيتامين", "قرطاسية", "كمبيوتر", "مجوهرات", "معكرونة",
+            "مكياجات", "ميدالية", "ميزانية", "ميكانيك", "هامبرغر"
+        ],
+        8: [
+            "ابتكارات", "احتفالات", "اختراعات", "اشتراكية", "الكتروني", "اماراتية", "امبراطور", "انتخابات", "انجليزية", "بريطانيا",
+            "ديكتاتور", "رأسمالية", "شوكولاتة", "فلسطينية", "ليبرالية", "مستحضرات", "مستشفيات", "مهرجانات", "نيتروجين"
+        ]
+    },
+    en: {
+        5: [
+            "APPLE", "BEACH", "BLACK", "BREAD", "CHAIR", "EARTH", "HOUSE", "LIGHT", "MONEY", "MOUSE",
+            "MUSIC", "NIGHT", "PHONE", "PLANT", "RIVER", "SOUND", "TABLE", "WATER", "WHITE", "WORLD"
+        ],
+        6: [
+            "ANIMAL", "BANANA", "CARROT", "COUSIN", "FAMILY", "FATHER", "FLOWER", "FRIEND", "GARDEN", "GARLIC",
+            "MOTHER", "NATURE", "ORANGE", "PENCIL", "PEPPER", "PLANET", "POTATO", "SCHOOL", "SISTER", "TOMATO"
+        ],
+        7: [
+            "ACCOUNT", "ADDRESS", "BEDROOM", "CLOTHES", "CONTACT", "DRESSES", "EVENING", "FASHION", "GLASSES", "HOLIDAY",
+            "JANUARY", "KITCHEN", "MORNING", "OCTOBER", "QUALITY", "SERVICE", "STUDENT", "SUPPORT", "TEACHER", "TUESDAY"
+        ],
+        8: [
+            "COMPUTER", "DATABASE", "DECEMBER", "FEBRUARY", "HARDWARE", "HOSPITAL", "INTERNET", "KEYBOARD", "LANGUAGE", "MEDICINE",
+            "NOVEMBER", "PASSWORD", "PHARMACY", "QUESTION", "SATURDAY", "SECURITY", "SOFTWARE", "SOLUTION", "THURSDAY", "USERNAME"
+        ]
+    }
+};
+
+let wordleState = {
+    targetWord: "",
+    currentGuess: "",
+    guesses: [], // Array of strings
+    maxTries: 6,
+    wordLength: 5,
+    status: "playing" // playing, won, lost
+};
+
+function setupWordle() {
+    setView('setup-wordle');
+}
+
+function startWordleGame(length) {
+    const lang = appState.lang;
+    const db = WORDLE_DB[lang][length];
+    
+    if(!db || db.length === 0) {
+        showToast("No words found for this length!", "Error");
+        return;
+    }
+
+    wordleState.wordLength = length;
+    // Rule: Increase tries to 7 if length > 6
+    wordleState.maxTries = length > 6 ? 7 : 6;
+    
+    wordleState.targetWord = db[Math.floor(Math.random() * db.length)].toUpperCase();
+    wordleState.currentGuess = "";
+    wordleState.guesses = [];
+    wordleState.status = "playing";
+
+    console.log("Target Word:", wordleState.targetWord); // For debugging
+
+    renderWordleBoard();
+    renderKeyboard();
+    setView('play-wordle');
+}
+
+function renderWordleBoard() {
+    const container = document.getElementById('wordle-grid');
+    container.style.gridTemplateColumns = `repeat(${wordleState.wordLength}, 1fr)`;
+    container.innerHTML = '';
+
+    // Render Previous Guesses
+    wordleState.guesses.forEach(guess => {
+        const result = checkGuess(guess);
+        for(let i=0; i<wordleState.wordLength; i++) {
+            const char = guess[i];
+            const status = result[i]; // 'correct', 'present', 'absent'
+            let bgClass = "bg-slate-500 border-slate-500";
+            if(status === 'correct') bgClass = "bg-green-600 border-green-600";
+            else if(status === 'present') bgClass = "bg-yellow-500 border-yellow-500";
+            
+            // Added 'wordle-cell' class
+            container.innerHTML += `
+                <div class="wordle-cell text-2xl font-bold text-white border-2 rounded-lg ${bgClass} animate-flip">
+                    ${char}
+                </div>`;
+        }
+    });
+
+    // Render Current Active Row
+    if(wordleState.status === 'playing') {
+        const remainingChars = wordleState.wordLength - wordleState.currentGuess.length;
+        
+        // Filled characters
+        for(let i=0; i<wordleState.currentGuess.length; i++) {
+            container.innerHTML += `
+                <div class="wordle-cell text-2xl font-bold text-slate-800 dark:text-white border-2 border-slate-400 dark:border-slate-500 rounded-lg animate-pop">
+                    ${wordleState.currentGuess[i]}
+                </div>`;
+        }
+        
+        // Empty slots (Using wordle-cell to force shape)
+        for(let i=0; i<remainingChars; i++) {
+            container.innerHTML += `
+                <div class="wordle-cell text-2xl font-bold border-2 border-slate-200 dark:border-slate-700 rounded-lg"></div>`;
+        }
+    }
+
+    // Render Empty Rows
+    const rowsLeft = wordleState.maxTries - wordleState.guesses.length - (wordleState.status === 'playing' ? 1 : 0);
+    for(let i=0; i < rowsLeft * wordleState.wordLength; i++) {
+         container.innerHTML += `
+            <div class="wordle-cell border-2 border-slate-100 dark:border-slate-800 rounded-lg"></div>`;
+    }
+}
+
+function renderKeyboard() {
+    const kbContainer = document.getElementById('wordle-keyboard');
+    kbContainer.innerHTML = '';
+    
+    // Define layouts
+    const layoutEn = [
+        "QWERTYUIOP",
+        "ASDFGHJKL",
+        "ZXCVBNM"
+    ];
+    
+    // CORRECTED ARABIC LAYOUT
+    const layoutAr = [
+        "ضصثقفغعهخحجد",
+        "شسيبلاتنمكط",
+        "ئءؤرذىةوزظ" 
+    ];
+
+    const layout = appState.lang === 'ar' ? layoutAr : layoutEn;
+    const keyState = getKeyboardState();
+
+    layout.forEach((row, rowIndex) => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = "flex justify-center gap-1 mb-1 w-full";
+        
+        // Add Enter on last row
+        if(rowIndex === 2) {
+             rowDiv.innerHTML += `<button onclick="handleWordleKey('ENTER')" class="flex-1 h-12 rounded bg-slate-300 dark:bg-slate-600 font-bold text-xs">✅</button>`;
+        }
+
+        row.split('').forEach(char => {
+            const status = keyState[char] || 'unused';
+            let bgClass = "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white";
+            if(status === 'correct') bgClass = "bg-green-600 text-white";
+            else if(status === 'present') bgClass = "bg-yellow-500 text-white";
+            else if(status === 'absent') bgClass = "bg-slate-800 dark:bg-slate-900 text-slate-500 opacity-50";
+
+            rowDiv.innerHTML += `<button onclick="handleWordleKey('${char}')" class="flex-1 h-12 rounded font-bold text-sm ${bgClass}">${char}</button>`;
+        });
+
+        // Add Backspace on last row
+        if(rowIndex === 2) {
+             rowDiv.innerHTML += `<button onclick="handleWordleKey('BACK')" class="flex-1 h-12 rounded bg-slate-300 dark:bg-slate-600 font-bold text-xs">⌫</button>`;
+        }
+        
+        kbContainer.appendChild(rowDiv);
+    });
+}
+
+function handleWordleKey(key) {
+    if(wordleState.status !== 'playing') return;
+
+    if(key === 'ENTER') {
+        submitWordleGuess();
+    } else if(key === 'BACK') {
+        if(wordleState.currentGuess.length > 0) {
+            wordleState.currentGuess = wordleState.currentGuess.slice(0, -1);
+            renderWordleBoard();
+        }
+    } else {
+        if(wordleState.currentGuess.length < wordleState.wordLength) {
+            wordleState.currentGuess += key;
+            renderWordleBoard();
+        }
+    }
+}
+
+function submitWordleGuess() {
+    if(wordleState.currentGuess.length !== wordleState.wordLength) {
+        playSound('alarm');
+        const msg = appState.lang === 'ar' ? "الكلمة قصيرة جداً!" : "Word too short!";
+        showToast(msg);
+        return;
+    }
+
+    wordleState.guesses.push(wordleState.currentGuess);
+    
+    // Check Win/Loss
+    if(wordleState.currentGuess === wordleState.targetWord) {
+        wordleState.status = "won";
+        playSound('success');
+        confetti({ particleCount: 200, spread: 100 });
+        setTimeout(() => showWordleResult(true), 1000);
+    } else if(wordleState.guesses.length >= wordleState.maxTries) {
+        wordleState.status = "lost";
+        playSound('alarm');
+        setTimeout(() => showWordleResult(false), 1000);
+    } else {
+        playSound('click');
+        wordleState.currentGuess = "";
+    }
+
+    renderWordleBoard();
+    renderKeyboard();
+}
+
+function checkGuess(guess) {
+    let result = Array(wordleState.wordLength).fill('absent');
+    let targetArr = wordleState.targetWord.split('');
+    let guessArr = guess.split('');
+
+    // 1. Check Greens (Correct position)
+    for(let i=0; i<wordleState.wordLength; i++) {
+        if(guessArr[i] === targetArr[i]) {
+            result[i] = 'correct';
+            targetArr[i] = null; // Mark as used
+            guessArr[i] = null;
+        }
+    }
+
+    // 2. Check Yellows (Wrong position)
+    for(let i=0; i<wordleState.wordLength; i++) {
+        if(guessArr[i] !== null) { // Skip already matched
+            const idx = targetArr.indexOf(guessArr[i]);
+            if(idx !== -1) {
+                result[i] = 'present';
+                targetArr[idx] = null; // Mark used
+            }
+        }
+    }
+    return result;
+}
+
+function getKeyboardState() {
+    let state = {};
+    wordleState.guesses.forEach(guess => {
+        const result = checkGuess(guess);
+        for(let i=0; i<guess.length; i++) {
+            const char = guess[i];
+            const status = result[i];
+            
+            // Priority: correct > present > absent > unused
+            if(state[char] === 'correct') continue;
+            if(status === 'correct') state[char] = 'correct';
+            else if(status === 'present' && state[char] !== 'correct') state[char] = 'present';
+            else if(status === 'absent' && !state[char]) state[char] = 'absent';
+        }
+    });
+    return state;
+}
+
+function showWordleResult(win) {
+    const title = win 
+        ? (appState.lang === 'ar' ? "🎉 مبروك!" : "🎉 You Won!") 
+        : (appState.lang === 'ar' ? "حظ أوفر!" : "Game Over!");
+    
+    const msg = appState.lang === 'ar' 
+        ? `الكلمة كانت: <br><b class="text-3xl text-blue-600">${wordleState.targetWord}</b>` 
+        : `The word was: <br><b class="text-3xl text-blue-600">${wordleState.targetWord}</b>`;
+
+    document.getElementById('alert-title').innerText = title;
+    document.getElementById('alert-msg').innerHTML = msg;
+    document.getElementById('alert-modal').classList.remove('hidden');
+}
+</script>

@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="عشرى جيمينج">
+    
+    <!-- iOS Icons -->
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/13/13973.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="https://cdn-icons-png.flaticon.com/512/13/13973.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="https://cdn-icons-png.flaticon.com/512/13/13973.png">
+    <link rel="apple-touch-icon-precomposed" href="https://cdn-icons-png.flaticon.com/512/13/13973.png">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+    <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" href="https://cdn-icons-png.flaticon.com/512/13/13973.png">
+    
+    <link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" href="https://cdn-icons-png.flaticon.com/512/13/13973.png">
+    
+    <link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" href="https://cdn-icons-png.flaticon.com/512/13/13973.png">
+    
+    <link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" href="https://cdn-icons-png.flaticon.com/512/13/13973.png">
+    
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" href="https://cdn-icons-png.flaticon.com/512/13/13973.png">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href='data:application/manifest+json,{
+      "name": "عشرى جيمينج - Ashry Gaming",
+      "short_name": "AshryGames",
+      "description": "مجموعة ألعاب جماعية وذكاء ممتعة",
+      "start_url": ".",
+      "display": "standalone",
+      "orientation": "portrait",
+      "background_color": "#0f172a",
+      "theme_color": "#6366f1",
+      "icons": [
+        {
+          "src": "https://cdn-icons-png.flaticon.com/512/13/13973.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any maskable"
+        },
+        {
+          "src": "https://cdn-icons-png.flaticon.com/128/13/13973.png",
+          "sizes": "128x128",
+          "type": "image/png"
+        }
+      ]
+    }'>
+
+    <meta name="theme-color" content="#6366f1">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    
+    <style>
+      /* Critical CSS for the loader to prevent white screen */
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8fafc;
+        transition: opacity 0.5s ease;
+      }
+      .dark #app-loader { background-color: #0f172a; }
+      #app-loader img { width: 128px; height: 128px; animation: loader-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+      @keyframes loader-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+      .loading-text { margin-top: 24px; font-family: 'Cairo', sans-serif; font-weight: 800; color: #64748b; }
+      .dark .loading-text { color: #ffffff; }
+    </style>
+
+    <?!= include('Style'); ?>
+    
+    <script>
+      // INJECTED DATA FROM SERVER
+      window.SERVER_DATA = {
+        players: <?!= initialPlayers ?>,
+        spyData: <?!= initialSpyData ?>
+      };
+    </script>
+</head>
+  <body class="transition-colors duration-300">
+
+    <div id="app-loader">
+        <div class="relative flex items-center justify-center">
+            <img src="https://cdn-icons-png.flaticon.com/512/13/13973.png" alt="Ashry Gaming">
+        </div>
+        <h2 class="text-2xl font-black text-slate-800 dark:text-white mt-6" data-i18n="title">عشرى جيمينج 🎮</h2>
+        <p class="loading-text" data-i18n="loading">جاري التحميل...</p>
+    </div>
+
+    <div id="sync-status" title="حالة الاتصال"></div>
+    
+    <div class="app-container">
+      
+      <header class="flex justify-between items-center mb-6 pt-2">
+        <h2 id="app-title" class="text-xl md:text-2xl font-black text-slate-800 dark:text-white" data-i18n="title">عشرى جيمينج 🎮</h2>
+        
+        <div class="flex gap-1">
+           <button onclick="playSound('click'); setView('menu')" class="w-8 h-8 flex items-center justify-center bg-blue-50 dark:bg-blue-900/20 rounded-xl shadow-sm border border-blue-100 dark:border-blue-900 transition-transform active:scale-95">
+            <span class="text-sm">🏠</span> 
+           </button>
+
+           <button onclick="openHelpModal()" class="w-8 h-8 flex items-center justify-center bg-indigo-100 dark:bg-indigo-900/30 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-800 transition-transform active:scale-95 text-indigo-600 dark:text-indigo-400 font-bold">
+            <span class="text-sm">?</span> 
+           </button>
+
+          <button onclick="toggleLanguage()" class="w-8 h-8 flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-transform active:scale-95">
+            <span class="text-sm">🌐</span> 
+          </button>
+
+          <button onclick="toggleDarkMode()" class="w-8 h-8 flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-transform active:scale-95">
+            <span id="dark-mode-icon" class="text-sm">🌙</span> 
+          </button>
+
+          <button onclick="hardResetApp()" class="w-8 h-8 flex items-center justify-center bg-red-50 dark:bg-red-900/20 rounded-xl shadow-sm border border-red-100 dark:border-red-900 transition-transform active:scale-95">
+              <span class="text-sm">🗑️</span>
+          </button>
+
+          <button onclick="playSound('click'); reloadApp()" class="w-8 h-8 flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-transform active:scale-95">
+             <span class="text-blue-500 text-sm">↻</span>
+          </button>
+        </div>
+      </header>
+
+      <div id="view-menu" class="space-y-4">
+        
+
+        <div class="card">
+          <h3 class="text-slate-400 text-xs uppercase tracking-widest mb-4" data-i18n="games_cards">ألعاب البطاقات</h3>
+          <div class="space-y-3">
+             <button onclick="playSound('click'); setView('setup-screw')" class="btn btn-blue" data-i18n="setup_screw">🃏 سكرو (Screw)</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="text-slate-400 text-xs uppercase tracking-widest mb-4" data-i18n="games_group">ألعاب جماعية</h3>
+          <div class="space-y-3">
+             <button onclick="playSound('click'); setView('setup-monkey')" class="btn btn-orange" data-i18n="setup_monkey">🐵 ربع قرد</button>
+             <button onclick="playSound('click'); setView('setup-imposter')" class="btn btn-purple" data-i18n="setup_imposter">🕵️‍♂️ الجاسوس</button>
+             <button onclick="playSound('click'); setView('setup-justone')" class="btn btn-purple bg-pink-600 text-white" data-i18n="setup_justone">🤫 كلمة واحدة</button>
+             <button onclick="playSound('click'); setupDescribe()" class="btn btn-purple bg-indigo-500 text-white" data-i18n="setup_describe">🗣️ أوصف لي</button>
+             <button onclick="playSound('click'); setupCharades()" class="btn btn-purple bg-purple-700 text-white" data-i18n="setup_charades">🎭 بدون كلام</button>
+             <button onclick="setupWhoAmI()" class="btn btn-purple bg-teal-600 text-white" data-i18n="setup_whoami">❓ من أنا؟</button>
+             <button onclick="playSound('click'); setView('setup-reaction')" class="btn btn-red bg-red-500 text-white shadow-md">⚡ اختبار السرعة</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="text-slate-400 text-xs uppercase tracking-widest mb-4" data-i18n="games_board">ألعاب طاولة</h3>
+          <button onclick="playSound('click'); setView('setup-domino')" class="btn btn-green" data-i18n="setup_domino">🀄 دومينو</button>
+        </div>
+
+        <div class="card">
+          <h3 class="text-slate-400 text-xs uppercase tracking-widest mb-4" data-i18n="games_puzzle">ألعاب ذهنية</h3>
+          <div class="space-y-3">
+             <button onclick="playSound('click'); setupWordle()" class="btn btn-green" data-i18n="setup_wordle">🔤 خمن الكلمة</button>
+             <button onclick="playSound('click'); setupGuessNumber()" class="btn btn-blue bg-cyan-600 text-white" data-i18n="setup_guessnum">🔢 خمن الرقم</button>
+          </div>
+        </div>
+
+        <div class="card">
+         <h3 class="text-slate-400 text-xs uppercase tracking-widest mb-4" data-i18n="extras">أدوات إضافية</h3>
+         <div class="space-y-3">
+            <button onclick="playSound('click'); setView('setup-spin')" class="btn btn-blue" data-i18n="setup_spin">🎡 الاختيار العشوائي (Spin)</button>
+            
+            <button onclick="playSound('click'); setView('setup-teams')" class="btn btn-indigo bg-indigo-500 text-white" data-i18n="team_generator">👥 مولد الفرق (Teams)</button>
+            <button onclick="playSound('click'); setupTournament()" class="btn btn-indigo bg-indigo-700 text-white" data-i18n="setup_tourney">🏆 منظم البطولات</button>
+            <button onclick="playSound('click'); setView('setup-universal')" class="btn btn-gray bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300" data-i18n="universal_counter">🔢 عداد عام</button>
+            <button onclick="playSound('click'); setView('timers')" class="btn btn-gray bg-pink-50 text-pink-700 dark:bg-pink-900/20 dark:text-pink-300">⏱️ مؤقت عام (General Timer)</button>
+<button onclick="playSound('click'); setView('play-chess'); updateChessUI();" class="btn btn-gray bg-slate-800 text-white border-none shadow-md">♟️ ساعة شطرنج (Chess Clock)</button>
+            <button onclick="playSound('click'); setView('tool-dice')" class="btn btn-gray bg-slate-200 text-slate-700" data-i18n="tool_dice">🎲 نرد وعملة (Dice & Coin)</button>
+         </div>
+        </div>
+
+        <div class="grid-2 mt-4">
+            <button onclick="toggleSoundboard()" class="btn btn-gray bg-yellow-50 text-yellow-700 border-none shadow-sm text-sm py-3 mt-0" data-i18n="sounds">🔊 أصوات مضحكة</button>
+            <button id="install-btn-menu" onclick="showInstallHelp()" class="btn btn-gray bg-slate-200 text-slate-700 border-none shadow-sm text-sm py-3 mt-0" data-i18n="install">📲 تثبيت التطبيق</button>
+        </div>
+
+        <div class="card">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-slate-700 dark:text-slate-300 font-bold" data-i18n="add_player_fast">إضافة لاعب سريع</h3>
+            <button onclick="reloadApp()" class="text-blue-500 text-xs font-bold" data-i18n="sync_cloud">تحديث القائمة ↻</button>
+          </div>
+          
+          <div class="flex gap-2">
+            <input type="text" id="new-player-name" data-i18n-ph="placeholder_name" placeholder="الاسم" class="flex-1 min-w-0 mb-0 border-transparent focus:border-blue-500 rounded-xl px-4">
+            
+            <button onclick="addPlayer()" class="btn btn-green mb-0 mt-0 flex items-center justify-center" style="width: auto !important; padding-left: 24px; padding-right: 24px; flex: none;" data-i18n="add">إضافة</button>
+          </div>
+        </div>
+      </div>
+
+
+      <div id="view-setup-domino" class="hidden">
+        <div class="card">
+           <h3 class="font-bold mb-6 text-green-600 text-center" data-i18n="setup_domino">إعداد دومينو</h3>
+           <label class="text-xs font-bold text-slate-400 mb-1 block" data-i18n="target_score">الهدف (مثلاً 101)</label>
+           <input type="number" id="domino-target" value="101" class="mb-6">
+           
+           <div class="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-teal-200 dark:border-slate-600">
+               <div class="flex justify-between items-center mb-3">
+                   <label class="text-sm font-bold text-slate-500 dark:text-slate-300" data-i18n="saved_groups_title">📂 المجموعات المحفوظة</label>
+                   <button onclick="saveCurrentGroup()" class="text-xs bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300 px-3 py-1 rounded-lg font-bold hover:scale-105 transition-transform shadow-sm" data-i18n="save_list_btn">+ حفظ القائمة</button>
+               </div>
+               <div class="flex gap-2">
+                   <select onchange="loadGroup(this.value)" class="saved-groups-select flex-1 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-bold text-sm outline-none focus:border-teal-500 text-slate-700 dark:text-slate-200">
+                       <option value="">-- اختر مجموعة --</option>
+                   </select>
+                   <button onclick="deleteGroup(this)" class="bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 px-4 rounded-xl font-bold hover:scale-105 transition-transform shadow-sm" title="حذف المجموعة">🗑️</button>
+               </div>
+           </div>
+
+           <label class="text-xs font-bold text-slate-400 mb-1 block" data-i18n="players">اللاعبين (2-4)</label>
+           <div id="domino-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+           <button onclick="runStartDomino()" class="btn btn-green" data-i18n="start">ابدأ اللعبة</button>
+           <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+      </div>
+      <div id="view-play-domino" class="hidden space-y-4">
+        <h3 class="text-center text-green-600 dark:text-green-400" data-i18n="games_board">لعبة الدومينو</h3>
+        <div id="domino-board" class="space-y-3"></div>
+        <button onclick="playSound('click'); setView('setup-domino')" class="btn btn-red mt-6" data-i18n="finish">إنهاء اللعبة</button>
+      </div>
+
+      <div id="view-setup-screw" class="hidden">
+        <div class="card">
+           <h3 class="font-bold mb-6 text-blue-600 text-center" data-i18n="setup_screw">إعداد سكرو</h3>
+           <div class="grid-2 mb-6">
+              <div>
+                 <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="rounds_count">عدد الجولات</label>
+                 <input type="number" id="screw-rounds" value="5" class="text-center font-bold">
+              </div>
+           </div>
+
+           <div class="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-teal-200 dark:border-slate-600">
+               <div class="flex justify-between items-center mb-3">
+                   <label class="text-sm font-bold text-slate-500 dark:text-slate-300" data-i18n="saved_groups_title">📂 المجموعات المحفوظة</label>
+                   <button onclick="saveCurrentGroup()" class="text-xs bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300 px-3 py-1 rounded-lg font-bold hover:scale-105 transition-transform shadow-sm" data-i18n="save_list_btn">+ حفظ القائمة</button>
+               </div>
+               <div class="flex gap-2">
+                   <select onchange="loadGroup(this.value)" class="saved-groups-select flex-1 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-bold text-sm outline-none focus:border-teal-500 text-slate-700 dark:text-slate-200">
+                       <option value="">-- اختر مجموعة --</option>
+                   </select>
+                   <button onclick="deleteGroup(this)" class="bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 px-4 rounded-xl font-bold hover:scale-105 transition-transform shadow-sm" title="حذف المجموعة">🗑️</button>
+               </div>
+           </div>
+
+           <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين</label>
+           <input type="text" data-i18n-ph="search_player" placeholder="🔍 بحث عن لاعب..." class="text-sm py-3 px-4 mb-3" onkeyup="filterList(this, 'screw-player-list')">
+           <div id="screw-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+           <button onclick="runStartScrew()" class="btn btn-blue" data-i18n="start">ابدأ</button>
+           <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+      </div>
+
+      <div id="view-play-screw" class="hidden">
+        <div class="card">
+           <h3 class="font-bold text-blue-800 dark:text-blue-400 mb-4 text-center">سكرو</h3>
+           <div id="screw-score-inputs" class="space-y-3"></div>
+           <button onclick="submitScores()" class="btn btn-green mt-6" data-i18n="save_results">حفظ النتائج ✅</button>
+           <button onclick="playSound('click'); setView('setup-screw')" class="btn btn-red mt-4 text-sm" data-i18n="exit">خروج</button>
+        </div>
+      </div>
+
+      <div id="view-setup-monkey" class="hidden">
+        <div class="card">
+          <h3 class="font-bold mb-6 text-orange-600 text-center" data-i18n="setup_monkey">إعداد ربع قرد</h3>
+          <div class="grid-2 mb-6">
+            <div>
+              <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="winners_count">عدد الفائزين</label>
+              <input type="number" id="monkey-winners" value="1" class="text-center font-bold">
+            </div>
+            <div>
+              <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="timer_sec">المؤقت (ثانية)</label>
+              <input type="number" id="monkey-timer" value="30" class="text-center font-bold">
+            </div>
+          </div>
+
+          <div class="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-teal-200 dark:border-slate-600">
+              <div class="flex justify-between items-center mb-3">
+                  <label class="text-sm font-bold text-slate-500 dark:text-slate-300" data-i18n="saved_groups_title">📂 المجموعات المحفوظة</label>
+                  <button onclick="saveCurrentGroup()" class="text-xs bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300 px-3 py-1 rounded-lg font-bold hover:scale-105 transition-transform shadow-sm" data-i18n="save_list_btn">+ حفظ القائمة</button>
+              </div>
+              <div class="flex gap-2">
+                  <select onchange="loadGroup(this.value)" class="saved-groups-select flex-1 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-bold text-sm outline-none focus:border-teal-500 text-slate-700 dark:text-slate-200">
+                      <option value="">-- اختر مجموعة --</option>
+                  </select>
+                  <button onclick="deleteGroup(this)" class="bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 px-4 rounded-xl font-bold hover:scale-105 transition-transform shadow-sm" title="حذف المجموعة">🗑️</button>
+              </div>
+          </div>
+
+          <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">المشاركين</label>
+          <input type="text" data-i18n-ph="search_player" placeholder="🔍 بحث عن لاعب..." class="text-sm py-3 px-4 mb-3" onkeyup="filterList(this, 'monkey-player-list')">
+          <div id="monkey-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+          <button onclick="runStartMonkey()" class="btn btn-orange" data-i18n="start">ابدأ اللعبة</button>
+          <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+      </div>
+
+      <div id="view-play-monkey" class="hidden space-y-4">
+        <div class="card border-orange-200 bg-orange-50 dark:bg-slate-900 overflow-hidden relative">
+            <div class="flex justify-between items-center relative z-10">
+                
+                <div class="text-center relative">
+                    <div id="timer-display" class="timer-display dark:text-orange-500" onclick="togglePause()">00</div>
+                    <div class="flex justify-center gap-2 mt-2">
+                        <button id="pause-btn" onclick="togglePause()" class="control-btn text-xs font-bold px-3 py-1.5 rounded-full shadow-sm" data-i18n="pause_btn">إيقاف</button>
+                        <button onclick="resetTimer()" class="control-btn text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">↺</button>
+                    </div>
+                </div>
+
+                <div class="text-right flex-grow px-6">
+                    <div class="text-xs text-slate-400 font-bold mb-1 uppercase tracking-tighter" data-i18n="current_turn">الدور الحالي</div>
+                    <div id="current-turn-name" class="text-2xl font-black text-orange-700 dark:text-orange-400">---</div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                   <button onclick="toggleAddPlayerModal()" class="control-btn w-12 h-12 rounded-2xl shadow-md flex items-center justify-center text-xl">➕</button>
+                   <button onclick="openMonkeyReorder()" class="control-btn w-12 h-12 rounded-2xl shadow-md flex items-center justify-center text-lg">☰</button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-2 mt-8">
+                <button id="liar-btn" onclick="liarButton()" class="btn btn-red mt-0 py-4 text-sm" data-i18n="liar">🤥 كذاب!</button>
+                <button onclick="penaltyAndPass()" class="btn btn-orange mt-0 py-4 text-sm font-bold" data-i18n="penalty_pass">+¼ وتخطي ⏭️</button>
+                <button onclick="nextTurn()" class="btn btn-blue mt-0 py-4 text-sm" data-i18n="next">التالي ➡</button>
+            </div>
+
+            <button onclick="toggleCountriesModal()" class="btn btn-green mt-4 py-4" data-i18n="country_log">🌍 سجل الدول</button>
+        </div>
+        
+        <div class="px-2">
+           <h3 class="font-bold text-slate-400 text-xs uppercase tracking-widest mb-4" data-i18n="player_status">حالة اللاعبين</h3>
+           <div id="monkey-board" class="space-y-3"></div>
+        </div>
+        <button onclick="finishMonkey()" class="btn btn-gray mt-10" data-i18n="finish">إنهاء اللعبة</button>
+      </div>
+
+      <div id="view-setup-universal" class="hidden">
+        <div class="card">
+           <h3 class="font-bold mb-6 text-indigo-600 text-center" data-i18n="setup_universal">إعداد العداد العام</h3>
+           <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين</label>
+           
+           <div class="flex gap-2 mb-4">
+                <input type="text" id="univ-new-player" data-i18n-ph="placeholder_name" placeholder="اسم.." class="flex-1 min-w-0 mb-0 border-transparent focus:border-indigo-500 rounded-xl px-4">
+                
+                <button onclick="addUniversalPlayer()" class="btn btn-indigo mb-0 mt-0 p-0 flex items-center justify-center bg-indigo-500 text-white rounded-xl text-2xl font-bold pb-1 shadow-md" style="width: 56px !important; flex: none;">+</button>
+           </div>
+           <div id="universal-setup-list" class="flex flex-wrap gap-2 mb-6"></div>
+           <button onclick="startUniversal()" class="btn btn-indigo bg-indigo-600 text-white" data-i18n="start_counter">ابدأ العداد</button>
+           <button onclick="setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+      </div>
+      <div id="view-play-universal" class="hidden space-y-4">
+         <h3 class="text-center font-bold text-indigo-600 text-xl" data-i18n="universal_counter">العداد العام</h3>
+         <div id="universal-board" class="space-y-3"></div>
+         <button onclick="setView('setup-universal')" class="btn btn-gray" data-i18n="finish">إنهاء</button>
+      </div>
+
+      <div id="view-timers" class="hidden space-y-4">
+          <div class="card text-center py-10">
+              <h3 class="font-bold text-slate-400 mb-6">مؤقت عام</h3>
+              <div id="gen-timer-display" class="text-7xl font-black text-slate-700 dark:text-white mb-8 tabular-nums">00:00</div>
+              <div class="flex justify-center gap-4 mb-6">
+                  <button onclick="adjustGenTimer(1)" class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-600 font-bold">+1د</button>
+                  <button onclick="adjustGenTimer(5)" class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-600 font-bold">+5د</button>
+                  <button onclick="adjustGenTimer(-1)" class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-600 font-bold">-1د</button>
+              </div>
+              <div class="flex gap-2">
+                  <button onclick="toggleGenTimer()" id="gen-start-btn" class="btn btn-green" data-i18n="start_btn">ابدأ</button>
+                  <button onclick="resetGenTimer()" class="btn btn-red" data-i18n="reset_btn">تصفير</button>
+              </div>
+          </div>
+          <button onclick="setView('menu')" class="btn btn-gray mt-4" data-i18n="exit">خروج</button>
+      </div>
+
+      <div id="view-play-chess" class="hidden fixed top-0 left-0 w-full h-full flex flex-col bg-gray-900 overflow-hidden select-none touch-none" style="z-index: 99999;">
+          
+          <div class="absolute top-1/2 left-0 w-full h-16 bg-gray-900 flex items-center justify-between px-4 transform -translate-y-1/2 border-t-4 border-b-4 border-gray-800 shadow-2xl" style="z-index: 100000;">
+              <button onclick="exitChessTimer(event)" class="bg-red-500 bg-opacity-20 text-red-400 px-4 py-2 rounded-xl font-bold text-sm shadow-sm" data-i18n="exit">خروج</button>
+              
+              <div class="flex gap-4">
+                  <button onclick="pauseChess(event)" class="w-12 h-12 rounded-full bg-yellow-500 text-white flex items-center justify-center text-xl shadow-lg">⏸️</button>
+                  <button onclick="resetChess(event)" class="w-12 h-12 rounded-full bg-blue-500 text-white flex items-center justify-center text-xl shadow-lg">🔄</button>
+              </div>
+
+              <button onclick="configChess(event)" class="bg-gray-700 text-white w-12 h-12 rounded-xl text-xl flex items-center justify-center shadow-sm">⚙️</button>
+          </div>
+
+          <div id="chess-btn-2" onclick="chessClick(2)" class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-150 transform rotate-180 bg-gray-800 text-gray-500">
+              <div class="text-sm font-bold opacity-50 mb-2 uppercase tracking-widest" data-i18n="players">اللاعب 2</div>
+              <div id="chess-time-2" class="text-7xl md:text-8xl font-black tabular-nums drop-shadow-lg">05:00</div>
+          </div>
+
+          <div id="chess-btn-1" onclick="chessClick(1)" class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-150 bg-gray-800 text-gray-500">
+              <div class="text-sm font-bold opacity-50 mb-2 uppercase tracking-widest" data-i18n="players">اللاعب 1</div>
+              <div id="chess-time-1" class="text-7xl md:text-8xl font-black tabular-nums drop-shadow-lg">05:00</div>
+          </div>
+      </div>
+
+      <div id="view-setup-imposter" class="hidden">
+        <div class="card">
+          <h3 class="font-bold mb-6 text-purple-600 text-center" data-i18n="setup_imposter">إعداد الجاسوس</h3>
+          <div class="space-y-4 mb-6">
+              <div>
+                <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="category">المجموعة</label>
+                <select id="imposter-category-select" class="font-bold bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800" onchange="toggleManualWordInput()">
+                </select>
+              </div>
+              <div id="manual-word-container" class="hidden">
+                  <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="secret_word">الكلمة السرية</label>
+                  <input type="text" id="imposter-manual-word" data-i18n-ph="secret_word" placeholder="اكتب الكلمة هنا..." class="border-purple-200">
+              </div>
+              <div>
+                 <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="imposter_count">عدد الجواسيس</label>
+                 <input type="number" id="imposter-count" value="1" min="1" class="text-center font-bold text-lg text-purple-700">
+              </div>
+          </div>
+
+          <div class="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-teal-200 dark:border-slate-600">
+              <div class="flex justify-between items-center mb-3">
+                  <label class="text-sm font-bold text-slate-500 dark:text-slate-300" data-i18n="saved_groups_title">📂 المجموعات المحفوظة</label>
+                  <button onclick="saveCurrentGroup()" class="text-xs bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300 px-3 py-1 rounded-lg font-bold hover:scale-105 transition-transform shadow-sm" data-i18n="save_list_btn">+ حفظ القائمة</button>
+              </div>
+              <div class="flex gap-2">
+                  <select onchange="loadGroup(this.value)" class="saved-groups-select flex-1 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-bold text-sm outline-none focus:border-teal-500 text-slate-700 dark:text-slate-200">
+                      <option value="">-- اختر مجموعة --</option>
+                  </select>
+                  <button onclick="deleteGroup(this)" class="bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 px-4 rounded-xl font-bold hover:scale-105 transition-transform shadow-sm" title="حذف المجموعة">🗑️</button>
+              </div>
+          </div>
+
+          <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">المشاركين</label>
+          <input type="text" data-i18n-ph="search_player" placeholder="🔍 بحث عن لاعب..." class="text-sm py-3 px-4 mb-3" onkeyup="filterList(this, 'imposter-player-list')">
+          <div id="imposter-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+          <button onclick="prepImposterGame()" class="btn btn-purple" data-i18n="start">ابدأ اللعبة</button>
+          <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+      </div>
+
+      <div id="view-imposter-reveal" class="hidden">
+        <div class="card text-center py-12 space-y-8">
+           <div id="reveal-step-pass" class="space-y-6">
+               <div class="text-7xl">📱</div>
+               <div>
+                  <h3 class="text-slate-400 text-sm font-bold uppercase mb-1" data-i18n="give_phone_to">أعط الهاتف لـ</h3>
+                  <h2 id="reveal-player-name" class="text-4xl font-black text-purple-600">---</h2>
+               </div>
+               <button onclick="showRole()" class="btn btn-purple py-6 text-xl" data-i18n="reveal_role">معرفة الدور</button>
+           </div>
+           <div id="reveal-step-show" class="hidden space-y-6">
+               <h3 class="text-slate-400 text-sm font-bold uppercase" data-i18n="you_are">أنت هو:</h3>
+               <div id="role-card-content" class="bg-slate-50 dark:bg-slate-800 p-10 rounded-3xl border-2 border-slate-200 dark:border-slate-700 shadow-inner">
+                   <div id="role-word" class="text-4xl font-black">---</div>
+               </div>
+               <button onclick="hideRole()" class="btn btn-green py-5" data-i18n="got_it_next">فهمت، التالي</button>
+           </div>
+        </div>
+      </div>
+      <div id="view-play-imposter" class="hidden space-y-6">
+        <div class="card border-purple-200 bg-purple-50 dark:bg-slate-900 text-center">
+           <div class="mb-8">
+               <div id="imposter-timer-display" class="text-6xl font-black text-purple-600 tabular-nums">00:00</div>
+               <button onclick="toggleImposterTimer()" id="imp-pause-btn" class="mt-4 bg-white dark:bg-slate-800 px-6 py-2 rounded-full shadow-sm font-bold text-purple-700 border border-purple-100 dark:border-slate-700" data-i18n="pause_btn">إيقاف مؤقت</button>
+           </div>
+           <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-4" data-i18n="players">قائمة اللاعبين</h3>
+           <div id="imposter-game-players" class="flex flex-wrap gap-2 justify-center mb-10"></div>
+           <button onclick="revealImposterResult()" class="btn btn-red" data-i18n="reveal_imposters">كشف الجواسيس 🕵️‍♂️</button>
+           <button onclick="playSound('click'); setView('setup-imposter')" class="btn btn-gray mt-4" data-i18n="exit">خروج</button>
+        </div>
+      </div>
+
+      <div id="view-setup-spin" class="hidden">
+        <div class="card">
+           <h3 class="font-bold mb-6 text-blue-600 text-center" data-i18n="setup_spin">إعداد الاختيار العشوائي</h3>
+           
+           <div class="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-teal-200 dark:border-slate-600">
+               <div class="flex justify-between items-center mb-3">
+                   <label class="text-sm font-bold text-slate-500 dark:text-slate-300" data-i18n="saved_groups_title">📂 المجموعات المحفوظة</label>
+                   <button onclick="saveCurrentGroup()" class="text-xs bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300 px-3 py-1 rounded-lg font-bold hover:scale-105 transition-transform shadow-sm" data-i18n="save_list_btn">+ حفظ القائمة</button>
+               </div>
+               <div class="flex gap-2">
+                   <select onchange="loadGroup(this.value)" class="saved-groups-select flex-1 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-bold text-sm outline-none focus:border-teal-500 text-slate-700 dark:text-slate-200">
+                       <option value="">-- اختر مجموعة --</option>
+                   </select>
+                   <button onclick="deleteGroup(this)" class="bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 px-4 rounded-xl font-bold hover:scale-105 transition-transform shadow-sm" title="حذف المجموعة">🗑️</button>
+               </div>
+           </div>
+
+           <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين</label>
+           <div id="spin-player-list" class="max-h-60 overflow-y-auto mb-8 space-y-1"></div>
+           <button onclick="runStartSpin()" class="btn btn-blue" data-i18n="start">ابدأ</button>
+           <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+      </div>
+      <div id="view-play-spin" class="hidden space-y-8">
+        <div class="card flex flex-col items-center py-12 min-h-[50vh] justify-center text-center">
+           <div id="picker-display" class="text-6xl font-black text-slate-300 mb-12 transition-all duration-200 transform">???</div>
+           <button id="spin-btn" onclick="pickRandomPlayer()" class="btn btn-blue w-64 py-5 text-xl shadow-xl" data-i18n="spin_btn">🎲 اختر عشوائياً</button>
+           <div id="spin-result-box" class="hidden mt-8 w-full animate-fade-in">
+               <div class="bg-blue-50 dark:bg-blue-900/30 p-6 rounded-3xl border border-blue-100 dark:border-blue-800">
+                  <div class="text-xs text-slate-400 font-bold mb-2 uppercase tracking-widest" data-i18n="picked_is">المختار هو</div>
+                  <div id="picked-player-name" class="text-4xl font-black text-blue-600 mb-4">---</div>
+                  <div id="picked-challenge" class="text-lg font-bold text-slate-700 dark:text-blue-200"></div>
+               </div>
+           </div>
+           <button onclick="playSound('click'); setView('setup-spin')" class="btn btn-gray mt-auto" data-i18n="change_players">تغيير اللاعبين</button>
+        </div>
+      </div>
+
+    <div id="countries-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="text-xl font-bold mb-4 dark:text-white">سجل الدول المستخدمة 🌍</h3>
+            
+            <div class="flex gap-2 mb-4 h-12">
+                <input type="text" id="new-country-input" placeholder="اكتب اسم الدولة..." 
+                       class="flex-1 min-w-0 h-full mb-0 border-transparent focus:border-green-500 rounded-xl px-4 bg-slate-50 dark:bg-slate-800 dark:text-white">
+                
+                <button onclick="addCountry()" class="btn btn-green mb-0 mt-0 flex items-center justify-center" 
+                        style="width: auto !important; padding-left: 24px; padding-right: 24px; flex: none;">
+                    إضافة
+                </button>
+            </div>
+
+            <div class="relative mb-4">
+                <input type="text" id="country-search-input" onkeyup="filterCountries()" 
+                       placeholder="ابحث في السجل..." 
+                       class="w-full h-10 px-4 rounded-xl border-2 border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:border-orange-500 transition-all text-sm">
+                <span class="absolute left-4 top-2 text-slate-400">🔍</span>
+            </div>
+
+            <div class="overflow-y-auto max-h-[40vh] rounded-xl border border-slate-100 dark:border-slate-700">
+                <table class="w-full text-right">
+                    <thead class="bg-slate-100 dark:bg-slate-800 text-xs text-slate-500 font-bold uppercase">
+                        <tr>
+                            <th class="px-4 py-2 w-16">#</th>
+                            <th class="px-4 py-2">الدولة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="used-countries-list" class="divide-y divide-slate-100 dark:divide-slate-700">
+                        </tbody>
+                </table>
+            </div>
+            
+            <button onclick="toggleCountriesModal()" class="btn btn-gray mt-4">إغلاق</button>
+        </div>
+    </div>
+
+    <div id="imposter-result-modal" class="modal-overlay hidden">
+        <div class="modal-content border-t-8 border-purple-500">
+            <h3 class="text-2xl font-black text-purple-800 dark:text-purple-400 mb-6">انتهت اللعبة!</h3>
+            <div class="space-y-4 mb-8">
+                <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl">
+                    <div class="text-xs text-green-600 font-bold mb-1">الكلمة السرية</div>
+                    <div id="result-secret-word" class="text-2xl font-black text-green-700 dark:text-green-400">---</div>
+                </div>
+                <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-2xl">
+                    <div class="text-xs text-red-600 font-bold mb-1">الجواسيس</div>
+                    <div id="result-imposters-list" class="font-bold text-red-800 dark:text-red-400 text-xl"></div>
+                </div>
+            </div>
+            <button onclick="prepImposterGame(lastSelectedPlayers)" class="btn btn-purple py-5">لعبة جديدة بنفس اللاعبين</button>
+            <button onclick="closeModal('imposter-result-modal'); setView('setup-imposter')" class="btn btn-gray mt-3">الإعدادات</button>
+        </div>
+    </div>
+
+    <div id="winner-modal" class="modal-overlay hidden">
+      <div class="modal-content border-t-8 border-yellow-400">
+        <div class="text-7xl mb-4">🏆</div>
+        <h3 class="text-2xl font-black text-yellow-700 dark:text-yellow-500 mb-6" data-i18n="win_title">انتهت اللعبة!</h3>
+        <div id="winners-list" class="text-2xl font-black text-slate-800 dark:text-white mb-8"></div>
+        <div id="screw-chart-container" class="hidden mb-6 bg-slate-50 dark:bg-slate-900 rounded-3xl p-4 border border-slate-100 dark:border-slate-800">
+            <canvas id="screw-chart"></canvas>
+        </div>
+        <div id="winner-scores-container" class="hidden mb-6 bg-slate-50 dark:bg-slate-900 rounded-3xl p-4 text-sm max-h-64 overflow-y-auto"></div>
+        <div class="space-y-3">
+            <button id="toggle-chart-btn" onclick="toggleScrewChart()" class="btn btn-blue hidden">إحصائيات النقاط 📊</button>
+            <button id="toggle-results-btn" onclick="toggleResults()" class="btn btn-orange shadow-sm" data-i18n="show_full_results">عرض النتائج كاملة</button>
+            <button onclick="playAgain()" class="btn btn-green" data-i18n="play_again">لعبة جديدة</button>
+            <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="main_menu">القائمة الرئيسية</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="custom-confirm-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="text-5xl mb-4">🤔</div>
+        <h3 class="font-bold text-xl mb-3" data-i18n="confirm_title">تأكيد</h3>
+        <p id="custom-confirm-msg" class="text-slate-500 dark:text-slate-400 mb-8" data-i18n="confirm_msg"></p>
+        <button onclick="onCustomConfirm()" class="btn btn-red py-5" data-i18n="yes">نعم، متأكد</button>
+        <button onclick="closeModal('custom-confirm-modal')" class="btn btn-gray mt-3" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="reorder-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 class="font-bold text-xl mb-2" data-i18n="reorder_title">ترتيب الأدوار</h3>
+        <p class="text-sm text-slate-500 mb-6 bg-slate-100 dark:bg-slate-800 py-2 rounded-lg font-bold" data-i18n="reorder_desc">
+            اضغط على لاعب، ثم اضغط على آخر للتبديل 🔄
+        </p>
+        <div id="reorder-list" class="max-h-80 overflow-y-auto mb-8 space-y-2 px-2"></div>
+        <button id="reorder-save-btn" onclick="saveNewOrder()" class="btn btn-blue py-5" data-i18n="reorder_save">حفظ الترتيب</button>
+        <button onclick="playSound('click'); closeModal('reorder-modal')" class="btn btn-gray mt-3" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="password-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="text-6xl mb-4">🔒</div>
+        <h3 class="font-black text-xl mb-2" data-i18n="locked_group">المجموعة مغلقة</h3>
+        <p class="text-sm text-slate-400 mb-8" data-i18n="enter_password">أدخل كلمة المرور للاستمرار</p>
+        <input type="password" id="category-password-input" data-i18n-ph="password_placeholder" placeholder="كلمة المرور" class="text-center text-2xl tracking-widest py-5">
+        <p id="password-error" class="text-xs text-red-500 font-bold mb-6 h-4"></p>
+        <button onclick="verifyCategoryPassword()" class="btn btn-purple py-5" data-i18n="start">دخول</button>
+        <button onclick="closeModal('password-modal')" class="btn btn-gray mt-3" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="switch-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+         <h3 class="font-bold text-xl mb-4">اختر لاعباً للتبديل معه</h3>
+         <input type="text" placeholder="🔍 بحث..." class="mb-4" onkeyup="filterButtons(this, 'switch-targets-list')">
+         <div id="switch-targets-list" class="space-y-2 max-h-60 overflow-y-auto px-1"></div>
+         <button onclick="closeModal('switch-modal')" class="btn btn-gray mt-6">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="switch-confirm-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+         <div class="text-6xl mb-4">🔄</div>
+         <h3 class="font-black text-xl mb-2">تأكيد التبديل</h3>
+         <p class="text-slate-500 mb-8">هل أنت متأكد من تبديل أماكن <br> <b id="confirm-monkey-name" class="text-red-500"></b> مع <b id="confirm-target-name" class="text-blue-500"></b>؟</p>
+         <button onclick="executeSwitch()" class="btn btn-purple py-5">نعم، بدل الأماكن</button>
+         <button onclick="closeModal('switch-confirm-modal')" class="btn btn-gray mt-3">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="add-midgame-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 class="font-bold text-xl mb-2">إضافة لاعب</h3>
+        <p class="text-xs text-slate-400 mb-6">اختر من المسجلين أو أضف جديداً</p>
+        <div id="midgame-existing-list" class="flex flex-wrap gap-2 justify-center mb-8 max-h-40 overflow-y-auto"></div>
+        <div class="border-t dark:border-slate-800 pt-6">
+            <input type="text" id="midgame-player-name" placeholder="اسم لاعب جديد">
+            <button onclick="submitMidGamePlayer()" class="btn btn-green py-4">إضافة ودخول</button>
+        </div>
+        <button onclick="closeModal('add-midgame-modal')" class="btn btn-gray mt-4">إلغاء</button>
+      </div>
+    </div>
+    
+    <div id="edit-status-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2" data-i18n="edit_status">تعديل حالة</h3>
+        <h4 id="edit-player-name" class="font-black text-2xl text-blue-600 mb-8"></h4>
+        <div class="grid gap-3">
+            <button onclick="submitStatusUpdate(1)" class="btn btn-gray bg-green-50 dark:bg-green-900/20 text-green-600 border border-green-100 dark:border-green-900 shadow-none" data-i18n="safe">آمن</button>
+            <button onclick="submitStatusUpdate(2)" class="btn btn-gray bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 border border-yellow-100 dark:border-yellow-900 shadow-none" data-i18n="quarter_monkey">1/4 قرد</button>
+            <button onclick="submitStatusUpdate(3)" class="btn btn-gray bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 border border-yellow-200 dark:border-yellow-800 shadow-none" data-i18n="half_monkey">1/2 قرد</button>
+            <button onclick="submitStatusUpdate(4)" class="btn btn-gray bg-orange-50 dark:bg-orange-900/20 text-orange-600 border border-orange-100 dark:border-orange-900 shadow-none" data-i18n="three_quarters_monkey">3/4 قرد</button>
+            <button onclick="submitStatusUpdate(5)" class="btn btn-gray bg-red-50 dark:bg-red-900/20 text-red-600 border border-red-100 dark:border-red-900 shadow-none" data-i18n="monkey_loser">قرد (خاسر)</button>
+        </div>
+        <button onclick="closeModal('edit-status-modal')" class="btn btn-gray mt-8" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+    
+
+    <div id="timeout-modal" class="modal-overlay hidden">
+  <div class="modal-content border-t-8 border-red-500">
+    <div class="text-6xl mb-4">⏰</div>
+    <h3 class="text-2xl font-black text-red-600 mb-2" data-i18n="timeout_title">انتهى الوقت!</h3>
+    <p class="mb-6 font-bold text-lg text-slate-700 dark:text-slate-300" id="timeout-player-name"></p>
+    
+    <button onclick="handleTimeoutAction('liar')" class="btn btn-red py-5" data-i18n="liar">كذاب مرة أخرى (السابق)</button>
+    <button onclick="handleTimeoutAction('penalty')" class="btn btn-orange py-5 mt-3" data-i18n="penalty_pass">عقاب (+1/4) وتخطي</button>
+    
+    <button onclick="handleTimeoutAction('next')" class="btn btn-blue py-5 mt-3">
+        <span data-i18n="next">التالي</span>
+    </button>
+  </div>
+</div>
+
+    <div id="alert-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="text-5xl mb-4">⚠️</div>
+        <h3 class="font-bold text-xl mb-4" id="alert-title" data-i18n="alert_title">تنبيه</h3>
+        <p id="alert-msg" class="text-slate-500 dark:text-slate-400 mb-8"></p>
+        <button onclick="closeModal('alert-modal')" class="btn btn-blue py-4" data-i18n="ok_btn">حسناً</button>
+      </div>
+    </div>
+
+    <div id="domino-input-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 class="font-bold text-xl mb-4">إدخال نقاط يدوية</h3>
+        <input type="number" id="manual-domino-points" placeholder="عدد النقاط" class="text-center text-xl font-bold">
+        <button onclick="submitDominoManual()" class="btn btn-green py-4">إضافة</button>
+        <button onclick="closeModal('domino-input-modal')" class="btn btn-gray mt-2">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="soundboard-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 class="font-bold text-xl mb-6">أصوات مضحكة 🤣</h3>
+        <div class="grid-2 gap-4" id="soundboard-grid"></div>
+        <button onclick="closeModal('soundboard-modal')" class="btn btn-gray mt-6">إغلاق</button>
+      </div>
+    </div>
+
+    <div id="install-help-modal" class="modal-overlay hidden">
+      <div class="modal-content text-right">
+        <h3 id="install-help-title" class="font-bold text-xl mb-4 text-center">تثبيت التطبيق 📲</h3>
+        <div id="ios-help" class="hidden space-y-3">
+            <p class="font-bold text-slate-800 dark:text-white">للآيفون (iOS):</p>
+            <ol class="list-decimal list-inside text-sm text-slate-500 space-y-2">
+                <li>اضغط زر المشاركة <span class="text-xl">⎋</span> في المتصفح.</li>
+                <li>اختر <b>"إضافة إلى الصفحة الرئيسية"</b> (Add to Home Screen).</li>
+            </ol>
+        </div>
+        <div id="android-help" class="hidden space-y-3">
+            <p class="font-bold text-slate-800 dark:text-white">للأندرويد (Chrome):</p>
+            <ol class="list-decimal list-inside text-sm text-slate-500 space-y-2">
+                <li>اضغط زر القائمة (ثلاث نقاط).</li>
+                <li>اختر <b>"تثبيت التطبيق"</b> أو <b>"الإضافة للشاشة الرئيسية"</b>.</li>
+            </ol>
+        </div>
+        <button onclick="closeModal('install-help-modal')" class="btn btn-blue mt-8">فهمت</button>
+      </div>
+    </div>
+
+    <div id="chess-config-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 class="font-bold text-xl mb-4">⏱️ ضبط وقت الشطرنج</h3>
+        <label class="text-xs text-slate-400 font-bold block mb-2">الوقت لكل لاعب (بالدقائق)</label>
+        <input type="number" id="chess-config-input" value="5" class="text-center text-3xl font-black mb-6 h-16 text-blue-600 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-blue-100 dark:border-slate-600">
+        <button onclick="submitChessConfig()" class="btn btn-blue py-4">حفظ وبدء اللعب</button>
+        <button onclick="closeModal('chess-config-modal')" class="btn btn-gray mt-3">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="domino-mode-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 class="font-bold text-xl mb-6">اختر نظام اللعب 🀄</h3>
+        <p class="text-sm text-slate-500 mb-6">لقد اخترت 4 لاعبين. كيف تريد اللعب؟</p>
+        <button onclick="setDominoMode('single')" class="btn btn-green py-4 mb-3">فردي (كل واحد لوحده)</button>
+        <button onclick="setDominoMode('teams')" class="btn btn-blue py-4">فرق (2 ضد 2) 👥</button>
+        <button onclick="closeModal('domino-mode-modal')" class="btn btn-gray mt-4">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="universal-input-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 class="font-bold text-xl mb-4">أدخل القيمة</h3>
+        <input type="number" id="univ-custom-input" placeholder="مثلاً: 50" class="text-center text-3xl font-black mb-6 h-16 w-full text-indigo-600 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-indigo-100 dark:border-slate-600">
+        
+        <div class="grid grid-cols-2 gap-3">
+            <button onclick="submitUniversalInput(1)" class="btn btn-green mt-0 py-4 font-bold text-lg">إضافة (+)</button>
+            <button onclick="submitUniversalInput(-1)" class="btn btn-red mt-0 py-4 font-bold text-lg">خصم (-)</button>
+        </div>
+        
+        <button onclick="closeModal('universal-input-modal')" class="btn btn-gray mt-4">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="view-setup-teams" class="hidden">
+        <div class="card">
+          <h3 class="font-bold mb-6 text-indigo-600 text-center" data-i18n="team_generator">مولد الفرق</h3>
+          
+          <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="teams_count">عدد الفرق</label> 
+          <div class="flex gap-2 mb-6">
+              <button onclick="setTeamCount(2)" id="team-btn-2" class="flex-1 btn mt-0 bg-indigo-600 text-white">2</button>
+              <button onclick="setTeamCount(3)" id="team-btn-3" class="flex-1 btn mt-0 bg-slate-200 text-slate-600">3</button>
+              <button onclick="setTeamCount(4)" id="team-btn-4" class="flex-1 btn mt-0 bg-slate-200 text-slate-600">4</button>
+          </div>
+
+          <div class="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-teal-200 dark:border-slate-600">
+              <div class="flex justify-between items-center mb-3">
+                  <label class="text-sm font-bold text-slate-500 dark:text-slate-300" data-i18n="saved_groups_title">📂 المجموعات المحفوظة</label>
+                  <button onclick="saveCurrentGroup()" class="text-xs bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300 px-3 py-1 rounded-lg font-bold hover:scale-105 transition-transform shadow-sm" data-i18n="save_list_btn">+ حفظ القائمة</button>
+              </div>
+              <div class="flex gap-2">
+                  <select onchange="loadGroup(this.value)" class="saved-groups-select flex-1 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-bold text-sm outline-none focus:border-teal-500 text-slate-700 dark:text-slate-200">
+                      <option value="">-- اختر مجموعة --</option>
+                  </select>
+                  <button onclick="deleteGroup(this)" class="bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 px-4 rounded-xl font-bold hover:scale-105 transition-transform shadow-sm" title="حذف المجموعة">🗑️</button>
+              </div>
+          </div>
+
+          <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين</label>
+          <div id="teams-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+          
+          <div class="grid grid-cols-2 gap-2 mt-4">
+              <button onclick="generateTeams()" class="btn btn-indigo mt-0" data-i18n="random_teams">🎲 عشوائي</button>
+              <button onclick="openSkillBalancer()" class="btn btn-orange mt-0" data-i18n="fair_teams">⚖️ مهارة</button>
+          </div>
+
+          <button onclick="playSound('click'); setView('menu')" class="btn btn-gray mt-3" data-i18n="back">رجوع</button>
+        </div>
+      </div>
+
+<div id="view-results-teams" class="hidden">
+    <h3 class="text-center text-2xl font-black text-indigo-600 mb-6" data-i18n="generated_teams">الفرق العشوائية</h3>
+    <div id="teams-container" class="space-y-4"></div>
+    <button onclick="generateTeams()" class="btn btn-indigo mt-6" data-i18n="reshuffle">إعادة التوزيع 🔄</button>
+    <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="main_menu">القائمة الرئيسية</button>
+</div>
+
+<div id="view-setup-justone" class="hidden">
+        <div class="card">
+          <h3 class="font-bold mb-6 text-pink-600 text-center" data-i18n="just_one_title">إعداد "كلمة واحدة"</h3>
+          
+          <div class="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-teal-200 dark:border-slate-600">
+              <div class="flex justify-between items-center mb-3">
+                  <label class="text-sm font-bold text-slate-500 dark:text-slate-300" data-i18n="saved_groups_title">📂 المجموعات المحفوظة</label>
+                  <button onclick="saveCurrentGroup()" class="text-xs bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300 px-3 py-1 rounded-lg font-bold hover:scale-105 transition-transform shadow-sm" data-i18n="save_list_btn">+ حفظ القائمة</button>
+              </div>
+              <div class="flex gap-2">
+                  <select onchange="loadGroup(this.value)" class="saved-groups-select flex-1 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-bold text-sm outline-none focus:border-teal-500 text-slate-700 dark:text-slate-200">
+                      <option value="">-- اختر مجموعة --</option>
+                  </select>
+                  <button onclick="deleteGroup(this)" class="bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 px-4 rounded-xl font-bold hover:scale-105 transition-transform shadow-sm" title="حذف المجموعة">🗑️</button>
+              </div>
+          </div>
+
+          <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين (3+)</label>
+          <div id="justone-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+          <button onclick="startJustOneGame()" class="btn btn-purple bg-pink-600" data-i18n="start">ابدأ اللعبة</button>
+          <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+      </div>
+
+<div id="view-play-justone" class="hidden">
+    <div id="jo-phase-pass" class="card text-center py-12 space-y-6">
+        <div class="text-6xl">📱</div>
+        <div>
+           <h3 class="text-slate-400 text-sm font-bold uppercase mb-1" data-i18n="pass_phone_title">أعط الهاتف لـ</h3>
+           <h2 id="jo-active-player" class="text-4xl font-black text-pink-600">---</h2>
+        </div>
+        <p id="jo-pass-instruction" class="text-sm text-slate-500" data-i18n="pass_instruction_static">أنت ستكتب تلميحاً!</p>
+        <button onclick="joRevealPhase()" class="btn btn-purple py-4" data-i18n="reveal_btn">أنا هو، أرني الكلمة</button>
+    </div>
+
+    <div id="jo-phase-write" class="hidden card text-center py-8">
+        <div class="text-xs font-bold text-slate-400 uppercase mb-2" data-i18n="secret_word_label">الكلمة السرية</div>
+        <h2 id="jo-secret-word-display" class="text-3xl font-black text-green-600 mb-8 border-2 border-green-100 bg-green-50 rounded-xl py-4">---</h2>
+        
+        <label class="text-xs font-bold text-slate-400 block mb-2 text-right" data-i18n="write_clue_label">اكتب تلميحاً واحداً (كلمة واحدة فقط!)</label>
+        <input type="text" id="jo-clue-input" data-i18n-ph="clue_placeholder" placeholder="التلميح..." class="text-center font-bold text-xl mb-4">
+        
+        <button onclick="joSubmitClue()" class="btn btn-purple bg-pink-600" data-i18n="confirm_clue_btn">تأكيد التلميح ✅</button>
+        <p class="text-xs text-red-400 mt-2 font-bold" data-i18n="forbidden_rule">⚠️ ممنوع: كتابة نفس الكلمة السرية أو ترجمتها!</p>
+    </div>
+
+    <div id="jo-phase-guess" class="hidden card text-center py-8">
+        <h3 class="text-xl font-bold text-slate-700 dark:text-white mb-2" data-i18n="guesser_turn_title">دور المخمن</h3>
+        <h2 id="jo-guesser-name" class="text-3xl font-black text-pink-600 mb-6">---</h2>
+        
+        <div class="text-left bg-slate-50 dark:bg-slate-800 p-4 rounded-xl mb-6">
+            <div class="text-xs font-bold text-slate-400 uppercase mb-3" data-i18n="available_clues_label">التلميحات المتاحة</div>
+            <div id="jo-clues-list" class="flex flex-wrap gap-2 justify-center"></div>
+            <div id="jo-collisions-note" class="text-xs text-red-400 font-bold mt-4 text-center hidden" data-i18n="clues_removed_msg">🚫 تم حذف تلميحات متشابهة!</div>
+        </div>
+
+        <p class="font-bold mb-4" data-i18n="what_is_word_label">ما هي الكلمة السرية؟</p>
+        <button onclick="joShowResult()" class="btn btn-green mb-2" data-i18n="show_answer_btn">إظهار الإجابة</button>
+    </div>
+
+    <div id="jo-phase-result" class="hidden card text-center py-8">
+        <div class="text-xs font-bold text-slate-400 uppercase mb-2" data-i18n="correct_word_was">الكلمة الصحيحة كانت</div>
+        <h2 id="jo-result-word" class="text-4xl font-black text-green-600 mb-8">---</h2>
+        
+        <div class="grid grid-cols-2 gap-3">
+            <button onclick="joFinishRound(true)" class="btn btn-green" data-i18n="got_it_btn">✅ عرفها!</button>
+            <button onclick="joFinishRound(false)" class="btn btn-red" data-i18n="missed_it_btn">❌ لم يعرفها</button>
+        </div>
+    </div>
+</div>
+
+<div id="skill-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h3 class="font-bold text-xl mb-2 text-indigo-700 dark:text-indigo-400" data-i18n="skill_rating">تقييم المهارات</h3>
+        <p class="text-xs text-slate-400 mb-4" data-i18n="skill_desc">قيم مستوى كل لاعب لضمان فرق متوازنة</p>
+        
+        <div id="skill-list" class="max-h-80 overflow-y-auto mb-6 space-y-2 px-1"></div>
+        
+        <button onclick="generateFairTeams()" class="btn btn-indigo py-4" data-i18n="generate_fair">✅ تكوين فرق عادلة</button>
+        <button onclick="closeModal('skill-modal')" class="btn btn-gray mt-2" data-i18n="cancel">إلغاء</button>
+    </div>
+</div>
+
+<div id="view-setup-wordle" class="hidden">
+        <div class="card text-center">
+            <h3 class="font-bold mb-6 text-green-600 text-2xl" data-i18n="setup_wordle">إعداد خمن الكلمة</h3>
+            <p class="text-slate-500 mb-6" data-i18n="word_length">اختر عدد أحرف الكلمة</p>
+            
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <button onclick="startWordleGame(5)" class="btn btn-blue py-6 text-xl">5</button>
+                <button onclick="startWordleGame(6)" class="btn btn-blue py-6 text-xl">6</button>
+                <button onclick="startWordleGame(7)" class="btn btn-orange py-6 text-xl">7</button>
+                <button onclick="startWordleGame(8)" class="btn btn-orange py-6 text-xl">8</button>
+            </div>
+            
+            <button onclick="setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+    </div>
+
+    <div id="view-play-wordle" class="hidden">
+        <div class="flex flex-col h-[90vh]">
+            <div class="flex justify-between items-center mb-4">
+                <button onclick="setView('setup-wordle')" class="text-slate-400 font-bold" data-i18n="exit">خروج</button>
+                <h3 class="font-bold text-green-600" data-i18n="setup_wordle">خمن الكلمة</h3>
+                <div class="w-8"></div> </div>
+
+            <div class="flex-grow flex items-center justify-center mb-4 overflow-y-auto">
+                <div id="wordle-grid" class="grid gap-1 w-full max-w-[350px] mx-auto p-2">
+                    </div>
+            </div>
+
+            <div id="wordle-keyboard" class="w-full pb-4">
+                </div>
+        </div>
+    </div>
+
+    <div id="help-modal" class="modal-overlay hidden">
+        <div class="modal-content h-[80vh] flex flex-col p-0 overflow-hidden">
+            <div class="bg-indigo-600 p-4 text-center shrink-0">
+                <h3 class="text-white font-black text-xl" data-i18n="help_title">الدليل والقوانين 📘</h3>
+            </div>
+            
+            <div class="overflow-y-auto p-6 space-y-8 text-right dark:text-slate-200" id="help-content-area">
+                
+                <div>
+                    <h4 class="font-black text-indigo-600 dark:text-indigo-400 text-lg mb-3 border-b border-indigo-100 pb-2" data-i18n="sec_interface">واجهة التطبيق</h4>
+                    <ul class="space-y-3 text-sm font-bold text-slate-600 dark:text-slate-300">
+                        <li class="flex items-center gap-3"><span class="bg-slate-100 dark:bg-slate-700 p-1 rounded">🌐</span> <span data-i18n="help_lang">تغيير اللغة (عربي / English)</span></li>
+                        <li class="flex items-center gap-3"><span class="bg-slate-100 dark:bg-slate-700 p-1 rounded">🌙</span> <span data-i18n="help_dark">الوضع الليلي (مريح للعين)</span></li>
+                        <li class="flex items-center gap-3"><span class="bg-red-50 dark:bg-red-900/20 p-1 rounded text-red-500">🗑️</span> <span data-i18n="help_reset">حذف جميع البيانات والبدء من الصفر</span></li>
+                        <li class="flex items-center gap-3"><span class="bg-slate-100 dark:bg-slate-700 p-1 rounded text-blue-500">↻</span> <span data-i18n="help_reload">تحديث التطبيق (لحل المشاكل)</span></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="font-black text-indigo-600 dark:text-indigo-400 text-lg mb-3 border-b border-indigo-100 pb-2" data-i18n="sec_games">شرح الألعاب</h4>
+                    
+                    <div class="space-y-3" id="help-games-container"></div>
+                </div>
+
+                <div>
+                    <h4 class="font-black text-indigo-600 dark:text-indigo-400 text-lg mb-3 border-b border-indigo-100 pb-2" data-i18n="extras">أدوات إضافية</h4>
+                    
+                    <div class="space-y-3" id="help-tools-container"></div>
+                </div>
+
+            </div>
+            
+            <div class="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                <button onclick="closeModal('help-modal')" class="btn btn-gray w-full" data-i18n="close">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-setup-describe" class="hidden">
+        <div class="card text-center">
+            <h3 class="font-bold mb-6 text-indigo-600 text-2xl" data-i18n="setup_describe">إعداد أوصف لي</h3>
+            <p class="text-slate-500 mb-6" data-i18n="select_time">اختر وقت الجولة</p>
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <button onclick="startDescribeGame(60)" class="btn btn-blue py-6 text-xl">60s</button>
+                <button onclick="startDescribeGame(90)" class="btn btn-blue py-6 text-xl">90s</button>
+            </div>
+            <button onclick="setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+    </div>
+
+    <div id="view-play-describe" class="hidden">
+        <div class="flex flex-col h-[85vh]">
+            
+            <div id="desc-ui-playing" class="flex flex-col h-full">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="text-3xl font-black text-slate-700 dark:text-white" id="desc-timer">60</div>
+                    <button onclick="finishDescribeGame()" class="text-red-400 font-bold text-sm" data-i18n="stop">إنهاء</button>
+                </div>
+
+                <div class="card flex-grow flex flex-col justify-center text-center border-4 border-indigo-500 shadow-2xl relative overflow-hidden">
+                    <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2" data-i18n="target_word">الكلمة المطلوبة</div>
+                    <h2 id="desc-main-word" class="text-4xl font-black text-indigo-700 dark:text-indigo-400 mb-8">---</h2>
+                    
+                    <div class="bg-red-50 dark:bg-slate-800 p-4 rounded-xl w-full">
+                        <div class="text-xs font-bold text-red-400 mb-3 flex justify-center items-center gap-2">
+                            <span>⛔</span> <span data-i18n="forbidden_words">كلمات ممنوعة</span>
+                        </div>
+                        <div id="desc-forbidden-list" class="space-y-2"></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mt-4">
+                    <button onclick="descAction('skip')" class="btn btn-gray bg-slate-200 text-slate-600 h-20 text-xl" data-i18n="skip">تخطي ⏭️</button>
+                    <button onclick="descAction('correct')" class="btn btn-green h-20 text-xl" data-i18n="correct">✅ صح!</button>
+                </div>
+            </div>
+
+            <div id="desc-ui-result" class="hidden flex-col h-full justify-center text-center">
+                <div class="text-6xl mb-4">🏁</div>
+                <h3 class="text-2xl font-black text-slate-700 dark:text-white mb-8">انتهى الوقت!</h3>
+                
+                <div class="card py-10 border-indigo-500 border-2">
+                    <div class="text-xs font-bold text-slate-400 uppercase mb-2">الكلمات الصحيحة</div>
+                    <div id="desc-final-score" class="text-7xl font-black text-green-600 dark:text-green-400">0</div>
+                </div>
+
+                <button onclick="startDescribeGame(descState.timer)" class="btn btn-indigo mt-8" data-i18n="play_again">جولة جديدة 🔄</button>
+                <button onclick="setView('setup-describe')" class="btn btn-gray mt-3" data-i18n="back">تغيير الإعدادات</button>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="view-tool-dice" class="hidden">
+        <div class="card text-center py-8">
+            <h3 class="font-bold text-slate-700 dark:text-white mb-8" data-i18n="tool_dice">نرد وعملة</h3>
+            
+            <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-8">
+                <button onclick="document.getElementById('tab-dice').classList.remove('hidden'); document.getElementById('tab-coin').classList.add('hidden');" class="flex-1 py-3 rounded-lg font-bold bg-white dark:bg-slate-700 shadow text-slate-800 dark:text-white">🎲 نرد</button>
+                <button onclick="document.getElementById('tab-coin').classList.remove('hidden'); document.getElementById('tab-dice').classList.add('hidden');" class="flex-1 py-3 rounded-lg font-bold text-slate-500">🪙 عملة</button>
+            </div>
+
+            <div id="tab-dice" class="min-h-[300px] flex flex-col items-center justify-center">
+                
+                <div class="flex gap-2 w-full max-w-[200px] mb-8 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    <button id="btn-d1" onclick="setDiceCount(1)" class="flex-1 py-2 rounded-lg font-bold bg-indigo-600 text-white shadow-md transition-all">1</button>
+                    <button id="btn-d2" onclick="setDiceCount(2)" class="flex-1 py-2 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400">2</button>
+                </div>
+
+                <div id="dice-container" class="flex gap-4 mb-6 min-h-[100px] items-center justify-center">
+                     <div class="text-6xl opacity-20">🎲</div>
+                </div>
+
+                <h2 id="dice-result" class="text-3xl font-black text-indigo-500 dark:text-indigo-400 mb-6">---</h2>
+                
+                <button onclick="rollDice()" class="btn btn-blue w-64 py-4 text-lg shadow-lg" data-i18n="roll">ارمي النرد</button>
+            </div>
+
+            <div id="tab-coin" class="hidden h-64 flex flex-col items-center justify-center">
+                <div id="coin-circle" class="w-32 h-32 bg-yellow-400 rounded-full flex items-center justify-center text-6xl border-4 border-yellow-600 shadow-xl mb-6 text-white">🪙</div>
+                <h2 id="coin-result" class="text-xl font-bold text-slate-400 mb-4">---</h2>
+                <button onclick="flipCoin()" class="btn btn-orange w-48" data-i18n="flip">ارمي العملة</button>
+            </div>
+
+            <button onclick="setView('menu')" class="btn btn-gray mt-8" data-i18n="back">رجوع</button>
+        </div>
+    </div>
+
+    <div id="view-setup-tourney" class="hidden">
+        <div class="card">
+            <h3 class="font-bold mb-6 text-indigo-600 text-center" data-i18n="setup_tourney">منظم البطولات</h3>
+            <p class="text-xs text-slate-400 mb-2 text-center" data-i18n="tourney_hint">أدخل 4 أو 8 أسماء</p>
+            
+            <datalist id="tourney-player-list-source"></datalist>
+
+            <div id="tourney-inputs" class="space-y-2 mb-4">
+                <input type="text" class="tourney-player-input" list="tourney-player-list-source" placeholder="1">
+                <input type="text" class="tourney-player-input" list="tourney-player-list-source" placeholder="2">
+                <input type="text" class="tourney-player-input" list="tourney-player-list-source" placeholder="3">
+                <input type="text" class="tourney-player-input" list="tourney-player-list-source" placeholder="4">
+            </div>
+            
+            <button onclick="addTourneyInput()" class="btn btn-gray text-sm mb-4" data-i18n="add_more">+ المزيد</button>
+            <button onclick="startTournament()" class="btn btn-indigo" data-i18n="start">ابدأ البطولة</button>
+            <button onclick="setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+    </div>
+
+    <div id="view-play-tourney" class="hidden">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-indigo-600">البطولة 🏆</h3>
+            <button onclick="setView('setup-tourney')" class="text-xs text-red-500 font-bold" data-i18n="exit">خروج</button>
+        </div>
+        <div id="tourney-bracket" class="overflow-y-auto max-h-[80vh] pb-10"></div>
+    </div>
+
+    <div id="view-setup-charades" class="hidden">
+        <div class="card text-center">
+            <h3 class="font-bold mb-6 text-purple-600 text-2xl" data-i18n="setup_charades">بدون كلام</h3>
+            
+            <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="category">القسم</label>
+            <select id="charades-cat-select" class="mb-4 font-bold"></select>
+            
+            <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="timer_sec">الوقت</label>
+            <input type="number" id="charades-timer-input" value="60" class="text-center font-bold text-xl mb-6">
+            
+            <button onclick="startCharades()" class="btn btn-purple" data-i18n="start">ابدأ</button>
+            <button onclick="setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+    </div>
+
+    <div id="view-play-charades" class="hidden">
+        <div class="flex flex-col h-[85vh]">
+            
+            <div id="charades-ui-playing" class="flex flex-col h-full">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="text-3xl font-black text-slate-700 dark:text-white" id="charades-timer">60</div>
+                    <button onclick="finishCharadesGame()" class="text-red-400 font-bold text-sm" data-i18n="stop">إنهاء</button>
+                </div>
+
+                <div onclick="nextCharadesCard('correct')" class="card flex-grow flex flex-col justify-center items-center text-center border-4 border-purple-500 shadow-2xl cursor-pointer active:scale-95 transition-transform bg-purple-50 dark:bg-slate-800">
+                    <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4" data-i18n="act_it_out">مثل الكلمة</div>
+                    <h2 id="charades-word" class="text-5xl font-black text-purple-700 dark:text-purple-300 leading-tight">---</h2>
+                    <p class="text-xs text-slate-400 mt-8">(Tap screen for Correct)</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mt-4">
+                    <button onclick="nextCharadesCard('pass')" class="btn btn-gray bg-slate-200 text-slate-600 h-20 text-xl" data-i18n="pass">تجاوز ⏭️</button>
+                    <button onclick="nextCharadesCard('correct')" class="btn btn-green h-20 text-xl" data-i18n="correct">✅ صح!</button>
+                </div>
+            </div>
+
+            <div id="charades-ui-result" class="hidden flex-col h-full justify-center text-center">
+                <div class="text-6xl mb-4">🎭</div>
+                <h3 class="text-2xl font-black text-slate-700 dark:text-white mb-8">انتهى الوقت!</h3>
+                
+                <div class="card py-10 border-purple-500 border-2">
+                    <div class="text-xs font-bold text-slate-400 uppercase mb-2">الكلمات الصحيحة</div>
+                    <div id="charades-final-score" class="text-7xl font-black text-green-600 dark:text-green-400">0</div>
+                </div>
+
+                <button onclick="startCharadesGame(charadesState.timer)" class="btn btn-purple mt-8" data-i18n="play_again">جولة جديدة 🔄</button>
+                <button onclick="setView('setup-charades')" class="btn btn-gray mt-3" data-i18n="back">تغيير الفئة</button>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="view-setup-guessnum" class="hidden">
+        <div class="card text-center">
+            <h3 class="font-bold mb-6 text-cyan-600 text-2xl" data-i18n="setup_guessnum">خمن الرقم</h3>
+            
+            <div class="flex gap-2 w-full mb-8 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <button id="btn-mode-comp" onclick="setGuessMode('computer')" class="flex-1 py-3 rounded-lg font-bold bg-cyan-600 text-white shadow-md">🤖 الكمبيوتر</button>
+                <button id="btn-mode-human" onclick="setGuessMode('human')" class="flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500">👤 صديق</button>
+            </div>
+
+            <div id="setup-comp-ui">
+                <p class="text-slate-500 mb-4" data-i18n="select_range">حدد المدى (من - إلى)</p>
+                <div class="flex gap-4 mb-6">
+                    <input type="number" id="gn-min" value="1" class="text-center font-bold text-xl" placeholder="Min">
+                    <input type="number" id="gn-max" value="100" class="text-center font-bold text-xl" placeholder="Max">
+                </div>
+            </div>
+
+            <div id="setup-human-ui" class="hidden">
+                <p class="text-slate-500 mb-4" data-i18n="enter_secret">أدخل الرقم السري (لا تخبر أحداً!)</p>
+                <input type="number" id="gn-secret" class="text-center font-black text-3xl mb-6 tracking-widest text-cyan-600" placeholder="***">
+            </div>
+            
+            <button onclick="startGuessNumber()" class="btn btn-blue bg-cyan-600" data-i18n="start">ابدأ اللعبة</button>
+            <button onclick="setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
+        </div>
+    </div>
+
+    <div id="view-play-guessnum" class="hidden">
+        <div class="card text-center min-h-[60vh] flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                 <div class="text-xs font-bold text-slate-400 uppercase" data-i18n="attempts">المحاولات</div>
+                 <div id="gn-attempts" class="bg-slate-200 dark:bg-slate-700 px-3 py-1 rounded-lg font-black text-slate-700 dark:text-white">0</div>
+            </div>
+
+            <h3 id="gn-range-display" class="text-2xl font-black text-slate-300 mb-8">1 - 100</h3>
+            
+            <div id="gn-feedback" class="text-xl font-bold mb-6 text-slate-500 animate-pop">...</div>
+
+            <div class="flex gap-2 mb-6">
+                <input type="number" id="gn-input" class="text-center font-black text-2xl" placeholder="?">
+                <button onclick="checkNumberGuess()" class="btn btn-green mt-0 w-24">✅</button>
+            </div>
+
+            <div id="gn-history" class="flex-grow overflow-y-auto max-h-60 border-t border-slate-100 dark:border-slate-800 pt-4"></div>
+
+            <button onclick="setView('setup-guessnum')" class="btn btn-gray mt-4" data-i18n="new_game">لعبة جديدة</button>
+        </div>
+    </div>
+
+    <div id="view-setup-whoami" class="hidden">
+        <div class="card">
+            <h3 class="font-bold mb-6 text-center" style="color: #0d9488;" data-i18n="setup_whoami">إعداد "من أنا؟"</h3>
+            
+            <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="category">المجموعة</label>
+            <select id="whoami-cat-select" onchange="handleWhoAmICatChange()" class="mb-4 font-bold bg-slate-50 text-slate-800 border-slate-200 w-full p-3 rounded-xl"></select>
+
+            <div id="whoami-manual-options" class="hidden mb-6 bg-slate-100 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                <label class="flex items-center justify-between cursor-pointer">
+                    <span id="whoami-shuffle-label" class="font-bold text-slate-700 dark:text-white">🔀 خلط الأدوار (Shuffle)</span>
+                    <div class="relative">
+                        <input type="checkbox" id="whoami-shuffle-check" class="sr-only" checked>
+                        <div class="w-10 h-6 bg-slate-300 rounded-full shadow-inner transition-colors"></div>
+                        <div class="dot absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transition-transform"></div>
+                    </div>
+                </label>
+                <p id="whoami-shuffle-desc" class="text-xs text-slate-400 mt-2">
+                    ✅ <b>مفعل:</b> يتم توزيع الكلمات عشوائياً.<br>
+                    ⬜ <b>غير مفعل:</b> تحتفظ بكلمتك (يبدأ الوقت فوراً).
+                </p>
+                <style>
+                    #whoami-shuffle-check:checked ~ .w-10 { background-color: #0d9488; }
+                    #whoami-shuffle-check:checked ~ .dot { transform: translateX(100%); }
+                </style>
+            </div>
+
+            <div id="whoami-mix-options" class="hidden mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600">
+                <p class="text-xs font-bold text-slate-500 mb-3 text-center">👇 اختر الأقسام المطلوبة 👇</p>
+                <div id="whoami-mix-list" class="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+                    </div>
+            </div>
+
+            <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players_count">عدد اللاعبين</label>
+            <div class="flex justify-center items-center gap-4 mb-8">
+                <button onclick="adjustWhoAmICount(-1)" class="w-12 h-12 rounded-xl font-bold text-xl" style="background-color: #e2e8f0; color: #334155;">-</button>
+                <input type="number" id="whoami-count" value="3" class="text-center font-black text-3xl w-24 bg-transparent border-none" style="color: #334155;" readonly>
+                <button onclick="adjustWhoAmICount(1)" class="w-12 h-12 rounded-xl font-bold text-xl" style="background-color: #ccfbf1; color: #0f766e;">+</button>
+            </div>
+
+            <button onclick="startWhoAmI()" class="btn w-full py-4 text-xl font-bold shadow-lg mb-2" style="background-color: #0d9488 !important; color: #ffffff !important;" data-i18n="start">ابدأ اللعبة</button>
+            <button onclick="setView('menu')" class="btn w-full" style="background-color: #cbd5e1 !important; color: #1e293b !important;" data-i18n="back">رجوع</button>
+        </div>
+    </div>
+
+    <div id="view-input-whoami" class="hidden">
+        <div class="card text-center min-h-[60vh] flex flex-col justify-center">
+            <div class="text-6xl mb-6">✍️</div>
+            
+            <h3 id="manual-instruction" class="font-bold text-slate-500 mb-2">أعط الهاتف لـ</h3>
+            <h2 id="manual-player-label" class="text-4xl font-black text-teal-600 mb-8">اللاعب 1</h2>
+            
+            <input type="text" id="manual-whoami-input" class="text-center text-xl font-bold mb-6 w-full p-4 rounded-xl border-2 border-teal-100 focus:border-teal-500 outline-none text-slate-800">
+            
+            <button onclick="submitManualWhoAmI()" class="btn w-full py-4 text-xl shadow-lg" style="background-color: #0d9488 !important; color: #ffffff !important;">تأكيد ✅</button>
+        </div>
+    </div>
+
+    <div id="view-play-whoami" class="hidden">
+        <div class="flex flex-col h-[85vh]">
+            
+            <div id="whoami-pass-container" class="flex-grow flex flex-col justify-center text-center">
+                
+                <div id="whoami-pass-ui">
+                    <div class="text-6xl mb-6">📱</div>
+                    <h3 class="text-slate-400 text-sm font-bold uppercase mb-2" data-i18n="pass_phone">مرر الهاتف</h3>
+                    <h2 id="whoami-player-label" class="text-4xl font-black mb-8 animate-pulse" style="color: #0d9488;">---</h2>
+                    
+                    <button onclick="whoAmIReveal()" class="btn py-5 text-xl shadow-lg w-full" style="background-color: #0d9488 !important; color: #ffffff !important;" data-i18n="reveal_identity">كشف الهوية 🕵️</button>
+                </div>
+
+                <div id="whoami-reveal-ui" class="hidden">
+                    <h3 class="text-slate-400 text-sm font-bold uppercase mb-4" data-i18n="you_are">أنت:</h3>
+                    
+                    <div class="p-8 rounded-3xl border-4 mb-8 mx-4 shadow-xl" style="background-color: #ffffff !important; border-color: #0d9488;">
+                        <div id="whoami-secret-word" class="text-5xl font-black" style="color: #000000 !important;">---</div>
+                    </div>
+                    
+                    <p class="text-xs text-slate-400 mb-6">(احفظ الكلمة ولا تخبرها لأحد!)</p>
+                    
+                    <button onclick="whoAmINext()" class="btn w-full" style="background-color: #cbd5e1 !important; color: #1e293b !important;" data-i18n="got_it_next">فهمت، التالي</button>
+                </div>
+            </div>
+
+            <div id="whoami-timer-ui" class="hidden flex-col h-full justify-center text-center">
+                <h3 class="font-bold text-xl mb-4" style="color: #0d9488;" data-i18n="discussion_time">وقت الأسئلة 🗣️</h3>
+                
+                <div class="card mb-8 py-10 bg-slate-50 dark:bg-slate-800">
+                    <div id="whoami-timer-display" class="text-7xl font-black text-slate-700 dark:text-white tabular-nums">00:00</div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <button onclick="toggleWhoAmITimer()" id="whoami-pause-btn" class="btn" style="background-color: #cbd5e1 !important; color: #1e293b !important;" data-i18n="pause_btn">إيقاف</button>
+                    <button onclick="finishWhoAmIGame()" class="btn shadow-lg" style="background-color: #0d9488 !important; color: #ffffff !important;" data-i18n="reveal_words">كشف الكلمات 🔓</button>
+                </div>
+                
+                <p class="text-xs text-slate-400">اسأل أسئلة "نعم" أو "لا" لتعرف من أنت!</p>
+            </div>
+
+            <div id="whoami-result-ui" class="hidden flex-col h-full">
+                <h3 class="text-center text-xl font-bold mb-6 mt-4" style="color: #0d9488;">ترتيب الهويات</h3>
+                <div id="whoami-final-list" class="flex-grow overflow-y-auto space-y-2 mb-6 px-2"></div>
+                
+                <div class="space-y-3 mt-auto pb-4">
+                    <button onclick="setupWhoAmI()" class="btn w-full" style="background-color: #0d9488 !important; color: #ffffff !important;" data-i18n="play_again">لعبة جديدة</button>
+                    <button onclick="setView('menu')" class="btn w-full" style="background-color: #cbd5e1 !important; color: #1e293b !important;" data-i18n="main_menu">القائمة الرئيسية</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    
+    <div id="group-name-modal" class="modal-overlay hidden">
+      <div class="modal-content border-t-8 border-teal-500 w-full max-w-sm">
+        <div class="flex justify-between items-center mb-6">
+            <div class="text-4xl">📂</div>
+            <button onclick="closeModal('group-name-modal')" class="text-slate-400 hover:text-red-500 text-2xl font-bold">&times;</button>
+        </div>
+        <h3 class="font-black text-2xl text-teal-700 dark:text-teal-400 mb-6" data-i18n="group_manage_title">إدارة المجموعات</h3>
+
+        <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-3 uppercase tracking-widest" data-i18n="group_create_new">إنشاء مجموعة جديدة</label>
+            <input type="text" id="custom-group-name-input" data-i18n-ph="group_name_placeholder" placeholder="اكتب اسم المجموعة..." class="w-full p-3 text-center font-bold text-lg rounded-xl border-2 border-teal-100 focus:border-teal-500 outline-none mb-3 dark:bg-slate-900 dark:text-white dark:border-slate-600">
+            <button onclick="saveAsNewGroup()" class="btn py-3 text-lg w-full mb-0 shadow-md" style="background-color: #0d9488 !important; color: #ffffff !important;" data-i18n="group_save_new">حفظ كجديدة 🆕</button>
+        </div>
+
+        <div class="flex items-center gap-4 mb-4 opacity-50">
+            <div class="h-[1px] bg-slate-400 flex-1"></div><span class="text-slate-500 text-xs font-bold" data-i18n="or">أو</span><div class="h-[1px] bg-slate-400 flex-1"></div>
+        </div>
+
+        <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-2 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-3 uppercase tracking-widest" data-i18n="group_update_saved">تحديث مجموعة محفوظة</label>
+            <select id="update-group-select" class="w-full p-3 rounded-xl border-2 border-slate-200 mb-4 dark:bg-slate-900 dark:text-white dark:border-slate-600 font-bold text-center outline-none focus:border-orange-400">
+                </select>
+            
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="updateExistingGroup('add')" class="btn btn-green mt-0 py-3 text-sm px-1 shadow-md" data-i18n="group_add_selected">إضافة المحددين ➕</button>
+                <button onclick="updateExistingGroup('replace')" class="btn btn-orange mt-0 py-3 text-sm px-1 shadow-md" data-i18n="group_replace">استبدال المجموعة 🔄</button>
+            </div>
+            <p class="text-[9px] text-slate-400 mt-3 text-center leading-tight" data-i18n="group_update_hint"><b>إضافة:</b> يضيف اللاعبين المحددين فوق المجموعة الحالية.<br><b>استبدال:</b> يمسح المجموعة الحالية ويضع المحددين فقط.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-setup-reaction" class="hidden">
+        <div class="card text-center py-8">
+            <div class="text-6xl mb-6">⚡</div>
+            <h3 class="font-black mb-4 text-red-500 text-3xl" data-i18n="setup_reaction">اختبار السرعة</h3>
+            <p class="text-slate-500 font-bold mb-8 leading-relaxed px-4" data-i18n="reaction_desc">
+                ضع الهاتف على الطاولة بينك وبين صديقك. عندما تتحول الشاشة للون الأخضر، اضغط بأسرع ما يمكن! لكن احذر أن تضغط قبل اللون الأخضر.
+            </p>
+            <button onclick="startReactionRound()" class="btn btn-red py-4 text-xl shadow-lg w-full" data-i18n="start">ابدأ التحدي</button>
+            <button onclick="setView('menu')" class="btn btn-gray mt-3 w-full" data-i18n="back">رجوع</button>
+        </div>
+      </div>
+
+      <div id="view-play-reaction" class="hidden fixed top-0 left-0 w-full h-full flex flex-col bg-gray-900 overflow-hidden select-none touch-none" style="z-index: 99999;">
+          
+          <button id="reaction-exit-btn" onclick="exitReactionGame(event)" class="absolute left-6 top-8 bg-white bg-opacity-20 hover:bg-opacity-40 text-white px-5 py-3 rounded-full font-bold transition-all shadow-xl hidden" style="z-index: 100000;" data-i18n="exit">
+              خروج
+          </button>
+
+          <div id="reaction-p2" onclick="handleReactionTap(2)" class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-100 transform rotate-180 p-4">
+              <div id="reaction-msg2" class="w-full"></div>
+          </div>
+
+          <div class="h-2 w-full bg-black bg-opacity-60 shadow-2xl" style="z-index: 100000;"></div>
+
+          <div id="reaction-p1" onclick="handleReactionTap(1)" class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-100 p-4">
+              <div id="reaction-msg1" class="w-full"></div>
+          </div>
+      </div>
+    
+    <?!= include('JS_WhoAmI'); ?>
+    <?!= include('JS_GuessNumber'); ?>
+    <?!= include('JS_Tournament'); ?>
+    <?!= include('JS_Charades'); ?>
+    <?!= include('JS_DescribeIt'); ?>
+    <?!= include('JS_Wordle'); ?>
+    <?!= include('JS_NewGames'); ?>
+    <?!= include('JS_Core'); ?>
+    <?!= include('JS_Utils'); ?>
+    <?!= include('JS_Screw'); ?>
+    <?!= include('JS_Monkey'); ?>
+    <?!= include('JS_Imposter'); ?>
+    <?!= include('JS_Domino'); ?>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </body>
+</html>

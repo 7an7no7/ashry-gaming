@@ -1,0 +1,138 @@
+<script>
+  /* --- DOMINO GAME LOGIC --- */
+  function runStartDomino() {
+      let selected = Array.from(document.querySelectorAll('#domino-player-list input:checked')).map(cb => cb.value);
+      if(selected.length < 2 || selected.length > 4) {
+          const msg = appState.lang === 'ar' ? 'اختر من 2 إلى 4 لاعبين' : 'Select 2 to 4 players';
+          return showToast(msg);
+      }
+      window._tempDominoPlayers = selected;
+      if (selected.length === 4) {
+          document.getElementById('domino-mode-modal').classList.remove('hidden');
+      } else {
+          startDominoGame('single', selected);
+      }
+  }
+
+  function setDominoMode(mode) {
+      closeModal('domino-mode-modal');
+      const players = window._tempDominoPlayers;
+      if (mode === 'teams') {
+          reorderContext = 'domino-teams';
+          tempReorderList = players.map(name => ({name: name}));
+          const modalBtn = document.getElementById('reorder-save-btn');
+          const btnText = appState.lang === 'ar' ? "اعتمد الفرق (الأول والثاني فريق 1)" : "Confirm Teams (First two are Team 1)";
+          if(modalBtn) modalBtn.innerText = btnText;
+          renderReorderList();
+          document.getElementById('reorder-modal').classList.remove('hidden');
+          
+          const alertMsg = appState.lang === 'ar' ? "قم بترتيب اللاعبين: أول اسمين (فريق 1) وآخر اسمين (فريق 2)" : "Order players: First two (Team 1), last two (Team 2)";
+          const alertTitle = appState.lang === 'ar' ? "ترتيب الفرق" : "Team Order";
+          showCustomAlert(alertMsg, alertTitle);
+      } else {
+          startDominoGame('single', players);
+      }
+  }
+
+  function finalizeDominoTeams(orderedNames) {
+      const team1Names = [orderedNames[0], orderedNames[1]];
+      const team2Names = [orderedNames[2], orderedNames[3]];
+      
+      const t1Label = appState.lang === 'ar' ? 'فريق 1' : 'Team 1';
+      const t2Label = appState.lang === 'ar' ? 'فريق 2' : 'Team 2';
+      const andLabel = appState.lang === 'ar' ? 'و' : '&';
+
+      const teamPlayers = [
+          { name: `${t1Label} (${team1Names[0]} ${andLabel} ${team1Names[1]})`, score: 0, isTeam: true },
+          { name: `${t2Label} (${team2Names[0]} ${andLabel} ${team2Names[1]})`, score: 0, isTeam: true }
+      ];
+      startDominoGame('teams', null, teamPlayers);
+  }
+
+  function startDominoGame(mode, playersNames, preConfiguredPlayers) {
+      appState.domino.target = parseInt(document.getElementById('domino-target').value) || 101;
+      appState.domino.mode = mode;
+      if (preConfiguredPlayers) {
+          appState.domino.players = preConfiguredPlayers;
+      } else {
+          appState.domino.players = playersNames.map(name => ({ name, score: 0, isTeam: false }));
+      }
+      setView('play-domino');
+      renderDominoBoard();
+  }
+
+  function renderDominoBoard() {
+      const container = document.getElementById('domino-board');
+      container.innerHTML = '';
+      appState.domino.players.forEach((p, idx) => {
+          let cardColor = "bg-white dark:bg-slate-700";
+          let scoreColor = "text-green-600";
+          let icon = "👤";
+          if (appState.domino.mode === 'teams') {
+              if (idx === 0) {
+                  cardColor = "bg-blue-50 dark:bg-blue-900/20 border-blue-200";
+                  scoreColor = "text-blue-600";
+                  icon = "🛡️";
+              } else {
+                  cardColor = "bg-red-50 dark:bg-red-900/20 border-red-200";
+                  scoreColor = "text-red-600";
+                  icon = "⚔️";
+              }
+          }
+          container.innerHTML += `
+            <div class="card flex justify-between items-center py-4 px-5 border ${cardColor} mb-3 shadow-sm">
+                <div class="flex-grow">
+                    <div class="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase mb-1 flex items-center gap-1">
+                        ${icon} ${p.name}
+                    </div>
+                    <div class="text-4xl font-black ${scoreColor}">${p.score}</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="addDominoPoints(${idx}, 10)" class="w-12 h-12 flex items-center justify-center bg-white dark:bg-slate-600 text-slate-700 dark:text-white rounded-2xl font-bold border border-slate-200 dark:border-slate-500 shadow-sm text-sm">+10</button>
+                    <button onclick="promptDominoPoints(${idx})" class="w-12 h-12 flex items-center justify-center bg-slate-800 text-white rounded-2xl font-bold shadow-sm">...</button>
+                    <button onclick="addDominoPoints(${idx}, -5)" class="w-10 h-10 flex items-center justify-center bg-red-100 text-red-500 rounded-xl font-bold text-lg" title="Undo">↺</button>
+                </div>
+            </div>`;
+      });
+  }
+
+  function addDominoPoints(idx, pts) {
+      appState.domino.players[idx].score += pts;
+      if(appState.domino.players[idx].score < 0) appState.domino.players[idx].score = 0;
+      playSound(pts > 0 ? 'success' : 'click');
+      renderDominoBoard();
+      checkDominoWin();
+      saveToLocal();
+  }
+
+  function checkDominoWin() {
+      const winner = appState.domino.players.find(p => p.score >= appState.domino.target);
+      if(winner) {
+          confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+          const pointsLabel = appState.lang === 'ar' ? 'النقاط' : 'Points';
+          document.getElementById('winners-list').innerHTML = `<div class="text-3xl mb-2">🥇 ${winner.name}</div><div class="text-sm text-gray-500 font-bold">${pointsLabel}: ${winner.score}</div>`;
+          document.getElementById('winner-scores-container').classList.add('hidden');
+          document.getElementById('winner-modal').classList.remove('hidden');
+          playSound('success');
+
+          // Record win
+          google.script.run.withFailureHandler(handleServerFailure).recordWin(winner.name, "دومينو");
+      }
+  }
+
+  let pendingDominoIdx = null;
+  function promptDominoPoints(idx) {
+      pendingDominoIdx = idx;
+      document.getElementById('manual-domino-points').value = '';
+      document.getElementById('domino-input-modal').classList.remove('hidden');
+      document.getElementById('manual-domino-points').focus();
+  }
+
+  function submitDominoManual() {
+      const val = document.getElementById('manual-domino-points').value;
+      if (val !== '' && pendingDominoIdx !== null) {
+          addDominoPoints(pendingDominoIdx, parseInt(val));
+          closeModal('domino-input-modal');
+      }
+  }
+</script>

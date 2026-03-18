@@ -1,0 +1,542 @@
+<script>
+/* ================= TEAM GENERATOR LOGIC ================= */
+let teamConfig = { count: 2 };
+let playerSkills = {}; 
+
+function setTeamCount(n) {
+    teamConfig.count = n;
+    [2,3,4].forEach(i => {
+        const btn = document.getElementById(`team-btn-${i}`);
+        if (i === n) {
+            btn.className = "flex-1 btn mt-0 bg-indigo-600 text-white shadow-lg transform scale-105";
+        } else {
+            btn.className = "flex-1 btn mt-0 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400";
+        }
+    });
+}
+
+function getSelectedPlayers() {
+    return Array.from(document.querySelectorAll('#teams-player-list input:checked')).map(cb => cb.value);
+}
+
+function generateTeams() {
+    let selected = getSelectedPlayers();
+    
+    if (selected.length < teamConfig.count) {
+        const msg = appState.lang === 'ar' ? "عدد اللاعبين غير كافٍ للفرق المختارة" : "Not enough players for selected teams";
+        showToast(msg);
+        return;
+    }
+
+    playSound('click');
+    
+    // Shuffle
+    for (let i = selected.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [selected[i], selected[j]] = [selected[j], selected[i]];
+    }
+
+    // Distribute
+    const teams = Array.from({ length: teamConfig.count }, () => []);
+    selected.forEach((player, index) => {
+        teams[index % teamConfig.count].push(player);
+    });
+
+    renderTeams(teams);
+}
+
+function openSkillBalancer() {
+    const selected = getSelectedPlayers();
+    if (selected.length < teamConfig.count) {
+        const msg = appState.lang === 'ar' ? "عدد اللاعبين غير كافٍ!" : "Not enough players!";
+        showToast(msg);
+        return;
+    }
+
+    const list = document.getElementById('skill-list');
+    list.innerHTML = '';
+
+    selected.forEach(p => {
+        const currentSkill = playerSkills[p] || 3;
+        let starsHtml = '';
+        for(let i=1; i<=5; i++) {
+            const opacity = i <= currentSkill ? 'opacity-100' : 'opacity-20 grayscale';
+            starsHtml += `<button onclick="setSkill('${p}', ${i})" class="text-2xl transition-all ${opacity} hover:scale-125">⭐</button>`;
+        }
+
+        list.innerHTML += `
+        <div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+            <span class="font-bold text-slate-700 dark:text-white truncate w-24">${p}</span>
+            <div class="flex gap-1" id="stars-${p}">${starsHtml}</div>
+        </div>`;
+    });
+
+    document.getElementById('skill-modal').classList.remove('hidden');
+}
+
+function setSkill(player, level) {
+    playerSkills[player] = level;
+    const container = document.getElementById(`stars-${player}`);
+    let starsHtml = '';
+    for(let i=1; i<=5; i++) {
+        const opacity = i <= level ? 'opacity-100' : 'opacity-20 grayscale';
+        starsHtml += `<button onclick="setSkill('${player}', ${i})" class="text-2xl transition-all ${opacity} hover:scale-125">⭐</button>`;
+    }
+    container.innerHTML = starsHtml;
+    playSound('click');
+}
+
+function generateFairTeams() {
+    const selected = getSelectedPlayers();
+    
+    let playersObj = selected.map(name => ({
+        name: name,
+        skill: (playerSkills[name] || 3) + Math.random() * 0.1 
+    }));
+
+    playersObj.sort((a, b) => b.skill - a.skill);
+
+    let teams = Array.from({ length: teamConfig.count }, () => ({ members: [], totalSkill: 0 }));
+
+    playersObj.forEach(p => {
+        teams.sort((a, b) => a.totalSkill - b.totalSkill);
+        teams[0].members.push(p.name);
+        teams[0].totalSkill += p.skill;
+    });
+
+    closeModal('skill-modal');
+    renderTeams(teams.map(t => t.members));
+}
+
+function renderTeams(teams) {
+    const container = document.getElementById('teams-container');
+    container.innerHTML = '';
+    
+    const colors = ['blue', 'red', 'green', 'orange'];
+    const names = ['أ', 'ب', 'ج', 'د'];
+    const teamPrefix = TRANSLATIONS[appState.lang].team_name_prefix || "Team";
+    
+    teams.forEach((team, idx) => {
+        const color = colors[idx];
+        const teamName = appState.lang === 'ar' 
+            ? `${teamPrefix} ${names[idx]}` 
+            : `${teamPrefix} ${idx + 1}`;
+        
+        const playersHtml = team.map(p => 
+            `<div class="team-text-color team-divider font-bold text-lg last:border-0 py-3 flex items-center gap-2">
+                <span class="text-xs opacity-50">●</span> ${p}
+             </div>`
+        ).join('');
+        
+        container.innerHTML += `
+            <div class="team-card-bg rounded-2xl p-0 border-t-8 border-${color}-500 shadow-lg overflow-hidden mb-4">
+                <div class="bg-${color}-50 dark:bg-${color}-900/20 p-4 border-b border-slate-100 dark:border-slate-700">
+                    <h3 class="text-2xl font-black text-${color}-600 dark:text-${color}-400 text-center">${teamName}</h3>
+                </div>
+                <div class="p-4">
+                    ${playersHtml}
+                </div>
+            </div>
+        `;
+    });
+
+    setView('results-teams');
+    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+}
+
+/* ================= JUST ONE LOGIC ================= */
+let joState = {
+    players: [],
+    guesserIndex: 0,
+    currentWriterIndex: 0,
+    secretWord: "",
+    clues: [],
+    score: 0
+};
+
+// --- EXPANDED WORD LIST (160+ Words) ---
+const JO_WORDS_AR = [
+    "أسد", "نمر", "فيل", "زرافة", "قرد", "كلب", "قطة", "فأر", "حصان", "جمل", 
+    "بقرة", "خروف", "دجاجة", "بطة", "عصفور", "نسر", "سمكة", "قرش", "حوت", "أخطبوط",
+    "سلحفاة", "ضفدع", "ثعبان", "تمساح", "عنكبوت", "نحلة", "فراشة", "نملة", "بيتزا", "برجر",
+    "مكرونة", "أرز", "خبز", "لحمة", "دجاج", "سمك", "بيض", "جبنة", "حليب", "قهوة",
+    "شاي", "عصير", "ماء", "تفاحة", "موزة", "برتقالة", "فراولة", "بطيخ", "عنب", "ليمون",
+    "طماطم", "بطاطس", "خيار", "جزر", "بصل", "ثوم", "شوكولاتة", "كيك", "آيس كريم", "فشار",
+    "منزل", "مدرسة", "مستشفى", "مطار", "مطعم", "فندق", "بنك", "مسجد", "سوق", "مكتبة",
+    "حديقة", "شاطئ", "بحر", "نهر", "جبل", "صحراء", "غابة", "مدينة", "مزرعة", "فضاء",
+    "قمر", "شمس", "نجمة", "كوكب", "سيارة", "تاكسي", "أوتوبيس", "قطار", "طائرة", "مركب",
+    "عجلة", "صاروخ", "تليفون", "كمبيوتر", "تلفزيون", "كاميرا", "ساعة", "نظارة", "مفتاح", "قفل",
+    "باب", "شباك", "كرسي", "طاولة", "سرير", "مصباح", "مروحة", "مكيف", "ثلاجة", "غسالة",
+    "قلم", "كتاب", "ورقة", "حقيبة", "حذاء", "قميص", "بنطلون", "فستان", "طاقية", "كرة",
+    "لعبة", "دكتور", "مهندس", "مدرس", "شرطي", "طباخ", "طيار", "رسام", "مغني", "لاعب",
+    "ملك", "ملكة", "أمير", "أميرة", "شبح", "روبوت", "زومبي", "مصاص دماء", "قرصان", "نينجا",
+    "مهرج", "ساحر", "عين", "أذن", "يد", "رجل", "شعر", "مطر", "ثلج", "نار",
+    "ذهب", "فضة", "ماس", "قلب", "ابتسامة", "دموع", "نوم", "حلم", "حب", "موسيقى"
+];
+
+const JO_WORDS_EN = [
+    "Lion", "Tiger", "Elephant", "Giraffe", "Monkey", "Dog", "Cat", "Mouse", "Horse", "Camel",
+    "Cow", "Sheep", "Chicken", "Duck", "Bird", "Eagle", "Fish", "Shark", "Whale", "Octopus",
+    "Turtle", "Frog", "Snake", "Crocodile", "Spider", "Bee", "Butterfly", "Ant", "Pizza", "Burger",
+    "Pasta", "Rice", "Bread", "Meat", "Chicken", "Fish", "Egg", "Cheese", "Milk", "Coffee",
+    "Tea", "Juice", "Water", "Apple", "Banana", "Orange", "Strawberry", "Watermelon", "Grapes", "Lemon",
+    "Tomato", "Potato", "Cucumber", "Carrot", "Onion", "Garlic", "Chocolate", "Cake", "Ice Cream", "Popcorn",
+    "House", "School", "Hospital", "Airport", "Restaurant", "Hotel", "Bank", "Mosque", "Market", "Library",
+    "Park", "Beach", "Sea", "River", "Mountain", "Desert", "Forest", "City", "Farm", "Space",
+    "Moon", "Sun", "Star", "Planet", "Car", "Taxi", "Bus", "Train", "Airplane", "Boat",
+    "Bicycle", "Rocket", "Phone", "Computer", "Television", "Camera", "Watch", "Glasses", "Key", "Lock",
+    "Door", "Window", "Chair", "Table", "Bed", "Lamp", "Fan", "AC", "Fridge", "Washing Machine",
+    "Pen", "Book", "Paper", "Bag", "Shoe", "Shirt", "Pants", "Dress", "Hat", "Ball",
+    "Toy", "Doctor", "Engineer", "Teacher", "Police Officer", "Chef", "Pilot", "Artist", "Singer", "Player",
+    "King", "Queen", "Prince", "Princess", "Ghost", "Robot", "Zombie", "Vampire", "Pirate", "Ninja",
+    "Clown", "Magician", "Eye", "Ear", "Hand", "Leg", "Hair", "Rain", "Snow", "Fire",
+    "Gold", "Silver", "Diamond", "Heart", "Smile", "Tears", "Sleep", "Dream", "Love", "Music"
+];
+
+function startJustOneGame() {
+    let selected = Array.from(document.querySelectorAll('#justone-player-list input:checked')).map(cb => cb.value);
+    
+    if (selected.length < 3) {
+        const msg = TRANSLATIONS[appState.lang].select_3_players || "Need at least 3 players!";
+        showToast(msg);
+        return;
+    }
+
+    joState.players = selected;
+    joState.guesserIndex = 0; 
+    joState.score = 0;
+    
+    nextJoRound();
+}
+
+function nextJoRound() {
+    joState.clues = [];
+    
+    // Choose word based on language
+    const wordList = appState.lang === 'ar' ? JO_WORDS_AR : JO_WORDS_EN;
+    joState.secretWord = wordList[Math.floor(Math.random() * wordList.length)];
+    
+    const guesser = joState.players[joState.guesserIndex];
+    joState.writers = joState.players.filter((_, i) => i !== joState.guesserIndex);
+    joState.currentWriterIndex = 0;
+
+    setView('play-justone');
+    document.getElementById('jo-phase-pass').classList.remove('hidden');
+    document.getElementById('jo-phase-write').classList.add('hidden');
+    document.getElementById('jo-phase-guess').classList.add('hidden');
+    document.getElementById('jo-phase-result').classList.add('hidden');
+    
+    joShowPassScreen();
+}
+
+function joShowPassScreen() {
+    const writer = joState.writers[joState.currentWriterIndex];
+    document.getElementById('jo-active-player').innerText = writer;
+    
+    const msg = appState.lang === 'ar' 
+        ? `يا ${writer}، خد الموبايل عشان تشوف الكلمة وتكتب تلميح!`
+        : `${writer}, take the phone to see the word and write a clue!`;
+        
+    document.getElementById('jo-pass-instruction').innerText = msg;
+    
+    document.getElementById('jo-phase-pass').classList.remove('hidden');
+    document.getElementById('jo-phase-write').classList.add('hidden');
+}
+
+function joRevealPhase() {
+    document.getElementById('jo-phase-pass').classList.add('hidden');
+    document.getElementById('jo-phase-write').classList.remove('hidden');
+    
+    document.getElementById('jo-secret-word-display').innerText = joState.secretWord;
+    const input = document.getElementById('jo-clue-input');
+    input.value = '';
+    input.focus();
+}
+
+function joSubmitClue() {
+    const input = document.getElementById('jo-clue-input');
+    const clue = input.value.trim().toLowerCase();
+    
+    const t = TRANSLATIONS[appState.lang];
+
+    if (!clue) return showToast(appState.lang === 'ar' ? "اكتب كلمة!" : "Write a word!");
+    if (clue.includes(' ')) return showToast(appState.lang === 'ar' ? "كلمة واحدة فقط!" : "One word only!");
+    if (clue === joState.secretWord.toLowerCase()) return showToast(t.forbidden_rule);
+
+    const writerName = joState.writers[joState.currentWriterIndex];
+    joState.clues.push({ player: writerName, text: clue });
+    
+    playSound('click');
+
+    joState.currentWriterIndex++;
+    if (joState.currentWriterIndex < joState.writers.length) {
+        joShowPassScreen();
+    } else {
+        joPrepareGuessPhase();
+    }
+}
+
+function joPrepareGuessPhase() {
+    // Collision Detection
+    const counts = {};
+    joState.clues.forEach(c => {
+        counts[c.text] = (counts[c.text] || 0) + 1;
+    });
+
+    const validClues = joState.clues.filter(c => counts[c.text] === 1);
+    const collisionsCount = joState.clues.length - validClues.length;
+
+    const list = document.getElementById('jo-clues-list');
+    list.innerHTML = '';
+    
+    if (validClues.length === 0) {
+        const msg = appState.lang === 'ar' ? "يا ساتر! كل التلميحات اتحذفت!" : "Oh no! All clues removed!";
+        list.innerHTML = `<div class="text-red-500 font-bold">${msg}</div>`;
+    } else {
+        validClues.forEach(c => {
+            list.innerHTML += `<div class="bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-white px-4 py-2 rounded-xl font-bold text-lg shadow-sm border border-indigo-200 dark:border-indigo-700">${c.text}</div>`;
+        });
+    }
+
+    const collisionNote = document.getElementById('jo-collisions-note');
+    if (collisionsCount > 0) {
+        collisionNote.classList.remove('hidden');
+        // This text is handled by data-i18n, but we can append count
+        const baseMsg = TRANSLATIONS[appState.lang].clues_removed_msg;
+        collisionNote.innerText = `${baseMsg} (${collisionsCount})`;
+    } else {
+        collisionNote.classList.add('hidden');
+    }
+
+    const guesserName = joState.players[joState.guesserIndex];
+    document.getElementById('jo-guesser-name').innerText = guesserName;
+    
+    document.getElementById('jo-phase-write').classList.add('hidden');
+    document.getElementById('jo-phase-guess').classList.remove('hidden');
+    
+    playSound('success'); 
+}
+
+function joShowResult() {
+    document.getElementById('jo-phase-guess').classList.add('hidden');
+    document.getElementById('jo-phase-result').classList.remove('hidden');
+    document.getElementById('jo-result-word').innerText = joState.secretWord;
+}
+
+function joFinishRound(success) {
+    if (success) {
+        joState.score++;
+        playSound('success');
+        confetti({ particleCount: 150 });
+    } else {
+        playSound('alarm');
+    }
+
+    joState.guesserIndex++;
+    if (joState.guesserIndex >= joState.players.length) {
+        joState.guesserIndex = 0; 
+    }
+
+    setTimeout(() => {
+        const nextGuesser = joState.players[joState.guesserIndex];
+        const t = TRANSLATIONS[appState.lang];
+        
+        const msg = success 
+            ? (appState.lang === 'ar' ? "ممتاز! " : "Excellent! ") 
+            : (appState.lang === 'ar' ? "حظ أوفر! " : "Hard luck! ");
+            
+        const nextMsg = appState.lang === 'ar' 
+            ? `المخمن التالي: ${nextGuesser}. جاهز؟`
+            : `Next guesser: ${nextGuesser}. Ready?`;
+            
+        showConfirmModal(`${msg} ${nextMsg}`, () => {
+             nextJoRound();
+        });
+    }, 1500);
+}
+
+/* ================= REACTION TEST LOGIC ================= */
+let reactionState = {
+    timeoutId: null,
+    startTime: 0,
+    status: 'idle' // 'waiting', 'ready', 'ended'
+};
+
+function startReactionRound() {
+    setView('play-reaction');
+    
+    const p1 = document.getElementById('reaction-p1');
+    const p2 = document.getElementById('reaction-p2');
+    const msg1 = document.getElementById('reaction-msg1');
+    const msg2 = document.getElementById('reaction-msg2');
+    const exitBtn = document.getElementById('reaction-exit-btn');
+    const t = TRANSLATIONS[appState.lang];
+
+    // Reset the click buttons back to "Gameplay Mode"
+    p1.onclick = () => handleReactionTap(1);
+    p2.onclick = () => handleReactionTap(2);
+
+    // Reset UI to RED (Waiting phase)
+    p1.className = "flex-1 flex flex-col items-center justify-center bg-red-500 cursor-pointer transition-colors duration-75 p-4";
+    p2.className = "flex-1 flex flex-col items-center justify-center bg-red-500 cursor-pointer transition-colors duration-75 transform rotate-180 p-4";
+    
+    // Centered Wait Text
+    msg1.innerHTML = `<div class="flex flex-col items-center justify-center text-center w-full"><div class="text-5xl font-black text-white drop-shadow-md">${t.reaction_wait}</div></div>`;
+    msg2.innerHTML = `<div class="flex flex-col items-center justify-center text-center w-full"><div class="text-5xl font-black text-white drop-shadow-md">${t.reaction_wait}</div></div>`;
+    
+    exitBtn.classList.add('hidden');
+
+    reactionState.status = 'waiting';
+    reactionState.firstTapInfo = null; // 👈 Reset the tie-breaker memory
+    
+    const delay = Math.floor(Math.random() * 4000) + 2000;
+    if (reactionState.timeoutId) clearTimeout(reactionState.timeoutId);
+
+    reactionState.timeoutId = setTimeout(() => {
+        if (reactionState.status === 'waiting') {
+            reactionState.status = 'ready';
+            reactionState.startTime = performance.now();
+            
+            // Turn GREEN!
+            p1.classList.replace('bg-red-500', 'bg-green-500');
+            p2.classList.replace('bg-red-500', 'bg-green-500');
+            
+            msg1.innerHTML = `<div class="flex flex-col items-center justify-center text-center w-full"><div class="text-6xl font-black text-white drop-shadow-md">${t.reaction_tap}</div></div>`;
+            msg2.innerHTML = `<div class="flex flex-col items-center justify-center text-center w-full"><div class="text-6xl font-black text-white drop-shadow-md">${t.reaction_tap}</div></div>`;
+            playSound('success'); 
+        }
+    }, delay);
+}
+
+function handleReactionTap(player) {
+    if (reactionState.status === 'ended') return;
+
+    if (reactionState.status === 'waiting') {
+        // FALSE START (Tapped on Red)
+        reactionState.status = 'ended';
+        clearTimeout(reactionState.timeoutId);
+        showReactionResult(player === 1 ? 2 : 1, 0, true, player, false);
+        return;
+    }
+
+    if (reactionState.status === 'ready') {
+        // THE FIRST PERSON TAPPED!
+        reactionState.status = 'resolving';
+        reactionState.firstTapInfo = { player: player, time: performance.now() };
+        
+        // Wait 30 milliseconds to see if the other player taps for a TIE!
+        setTimeout(() => {
+            if (reactionState.status === 'resolving') {
+                // No one else tapped, we have a clear winner!
+                reactionState.status = 'ended';
+                const reactionTime = Math.round(reactionState.firstTapInfo.time - reactionState.startTime);
+                showReactionResult(reactionState.firstTapInfo.player, reactionTime, false, null, false);
+            }
+        }, 30); 
+        return;
+    }
+
+    if (reactionState.status === 'resolving') {
+        // THE SECOND PERSON TAPPED WITHIN THE 30ms WINDOW! IT'S A TIE!
+        if (player !== reactionState.firstTapInfo.player) {
+            reactionState.status = 'ended';
+            const reactionTime = Math.round(reactionState.firstTapInfo.time - reactionState.startTime);
+            showReactionResult(null, reactionTime, false, null, true);
+        }
+    }
+}
+
+function showReactionResult(winner, timeMs, isFalseStart, falseStartPlayer, isTie = false) {
+    playSound(isFalseStart ? 'alarm' : 'click');
+    const p1 = document.getElementById('reaction-p1');
+    const p2 = document.getElementById('reaction-p2');
+    const msg1 = document.getElementById('reaction-msg1');
+    const msg2 = document.getElementById('reaction-msg2');
+    const t = TRANSLATIONS[appState.lang];
+
+    // Reset backgrounds
+    p1.className = "flex-1 flex flex-col items-center justify-center bg-gray-900 cursor-pointer transition-colors p-4";
+    p2.className = "flex-1 flex flex-col items-center justify-center bg-gray-900 cursor-pointer transition-colors transform rotate-180 p-4";
+
+    const restartText = appState.lang === 'ar' ? 'اضغط للعب مرة أخرى 🔄' : 'Tap to play again 🔄';
+
+    if (isTie) {
+        // 🤝 TIE LOGIC: BOTH SCREENS TURN YELLOW
+        playSound('success');
+        const tieText = appState.lang === 'ar' ? 'تعادل! 🤝' : 'TIE! 🤝';
+        const timeStr = `<span dir="ltr">${timeMs} ${t.reaction_ms}</span>`;
+        const tieHTML = `<div class="flex flex-col items-center justify-center text-center w-full space-y-3">
+                            <div class="text-5xl md:text-6xl font-black text-white drop-shadow-md">${tieText}</div>
+                            <div class="text-3xl text-yellow-100 font-bold">${timeStr}</div>
+                         </div>`;
+        
+        p1.classList.replace('bg-gray-900', 'bg-yellow-500');
+        p2.classList.replace('bg-gray-900', 'bg-yellow-500');
+        msg1.innerHTML = tieHTML;
+        msg2.innerHTML = tieHTML;
+
+    } else if (isFalseStart) {
+        const badHTML = `<div class="flex flex-col items-center justify-center text-center w-full space-y-4"><div class="text-4xl md:text-5xl font-black text-white drop-shadow-md">${t.reaction_too_soon}</div></div>`;
+        const goodHTML = `<div class="flex flex-col items-center justify-center text-center w-full space-y-4"><div class="text-4xl md:text-5xl font-black text-white drop-shadow-md">${t.reaction_winner}</div></div>`;
+        
+        if (falseStartPlayer === 1) {
+            p1.classList.replace('bg-gray-900', 'bg-red-600');
+            p2.classList.replace('bg-gray-900', 'bg-green-500');
+            msg1.innerHTML = badHTML;
+            msg2.innerHTML = goodHTML;
+        } else {
+            p2.classList.replace('bg-gray-900', 'bg-red-600');
+            p1.classList.replace('bg-gray-900', 'bg-green-500');
+            msg2.innerHTML = badHTML;
+            msg1.innerHTML = goodHTML;
+        }
+    } else {
+        const timeStr = `<span dir="ltr">${timeMs} ${t.reaction_ms}</span>`;
+        const winHTML = `<div class="flex flex-col items-center justify-center text-center w-full space-y-3">
+                            <div class="text-5xl md:text-6xl font-black text-white drop-shadow-md">${t.reaction_winner}</div>
+                            <div class="text-3xl text-green-100 font-bold">${timeStr}</div>
+                         </div>`;
+        const loseHTML = `<div class="flex flex-col items-center justify-center text-center w-full"><div class="text-6xl font-black text-white opacity-30">❌</div></div>`;
+
+        if (winner === 1) {
+            p1.classList.replace('bg-gray-900', 'bg-green-500');
+            msg1.innerHTML = winHTML;
+            msg2.innerHTML = loseHTML;
+        } else {
+            p2.classList.replace('bg-gray-900', 'bg-green-500');
+            msg2.innerHTML = winHTML;
+            msg1.innerHTML = loseHTML;
+        }
+    }
+
+    setTimeout(() => {
+        document.getElementById('reaction-exit-btn').classList.remove('hidden');
+        
+        const restartHTML = `<div class="mt-8 text-lg font-bold text-white text-opacity-80 animate-pulse drop-shadow-md">${restartText}</div>`;
+        msg1.children[0].innerHTML += restartHTML;
+        msg2.children[0].innerHTML += restartHTML;
+        
+        p1.onclick = () => startReactionRound();
+        p2.onclick = () => startReactionRound();
+    }, 1000);
+}
+
+function exitReactionGame(event) {
+    // 🛡️ THE SHIELD: This stops the click from going through the button to the screen underneath!
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    
+    clearTimeout(reactionState.timeoutId);
+    reactionState.status = 'idle';
+    
+    // Completely disable the screen taps so they don't accidentally trigger a restart
+    document.getElementById('reaction-p1').onclick = null;
+    document.getElementById('reaction-p2').onclick = null;
+    
+    // Safely return to the setup menu
+    setView('setup-reaction');
+}
+
+</script>

@@ -1,0 +1,168 @@
+<script>
+/* --- GUESS THE NUMBER LOGIC --- */
+
+let guessNumState = {
+    mode: 'computer', // 'computer' or 'human'
+    target: 0,
+    min: 1,
+    max: 100,
+    attempts: 0,
+    history: []
+};
+
+function setupGuessNumber() {
+    setGuessMode('computer'); // Default
+    setView('setup-guessnum');
+}
+
+function setGuessMode(mode) {
+    guessNumState.mode = mode;
+    
+    // UI Tabs Styling
+    const btnComp = document.getElementById('btn-mode-comp');
+    const btnHuman = document.getElementById('btn-mode-human');
+    const divComp = document.getElementById('setup-comp-ui');
+    const divHuman = document.getElementById('setup-human-ui');
+
+    if(mode === 'computer') {
+        btnComp.className = "flex-1 py-3 rounded-lg font-bold bg-cyan-600 text-white shadow-md transition-all";
+        btnHuman.className = "flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
+        divComp.classList.remove('hidden');
+        divHuman.classList.add('hidden');
+    } else {
+        btnHuman.className = "flex-1 py-3 rounded-lg font-bold bg-cyan-600 text-white shadow-md transition-all";
+        btnComp.className = "flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
+        divHuman.classList.remove('hidden');
+        divComp.classList.add('hidden');
+    }
+}
+
+function startGuessNumber() {
+    let min, max, target;
+    
+    if (guessNumState.mode === 'computer') {
+        // --- COMPUTER MODE ---
+        min = parseInt(document.getElementById('gn-min').value);
+        max = parseInt(document.getElementById('gn-max').value);
+
+        if (isNaN(min) || isNaN(max) || min >= max) {
+            showToast(appState.lang === 'ar' ? "المدى غير صحيح!" : "Invalid Range!");
+            return;
+        }
+        target = Math.floor(Math.random() * (max - min + 1)) + min;
+        
+        // Show range to player
+        document.getElementById('gn-range-display').innerText = `${min} - ${max}`;
+    
+    } else {
+        // --- HUMAN MODE ---
+        const secretInput = document.getElementById('gn-secret');
+        target = parseInt(secretInput.value);
+        
+        if (isNaN(target)) {
+            showToast(appState.lang === 'ar' ? "أدخل الرقم السري!" : "Enter Secret Number!");
+            return;
+        }
+        
+        // Clear input immediately for security
+        secretInput.value = ''; 
+        
+        // Hide range (it's a secret!)
+        document.getElementById('gn-range-display').innerText = "???";
+    }
+
+    // Init Game State
+    guessNumState.target = target;
+    guessNumState.attempts = 0;
+    guessNumState.history = [];
+
+    // UI Reset
+    document.getElementById('gn-input').value = '';
+    document.getElementById('gn-feedback').innerHTML = appState.lang === 'ar' ? 'ابدأ التخمين!' : 'Start Guessing!';
+    document.getElementById('gn-history').innerHTML = '';
+    document.getElementById('gn-attempts').innerText = '0';
+
+    setView('play-guessnum');
+}
+
+function checkNumberGuess() {
+    const inputEl = document.getElementById('gn-input');
+    const guess = parseInt(inputEl.value);
+
+    if (isNaN(guess)) return;
+
+    guessNumState.attempts++;
+    document.getElementById('gn-attempts').innerText = guessNumState.attempts;
+    
+    let feedback = "";
+    let colorClass = "";
+    
+    if (guess === guessNumState.target) {
+        // WIN
+        playSound('success');
+        confetti({ particleCount: 150, spread: 70 });
+        
+        const winMsg = appState.lang === 'ar' 
+            ? `🎉 صحيح! الرقم هو ${guess}` 
+            : `🎉 Correct! Number is ${guess}`;
+            
+        document.getElementById('gn-feedback').innerHTML = `<span class="text-green-600 font-black text-2xl">${winMsg}</span>`;
+        addToHistory(guess, "✅", "win");
+        inputEl.blur();
+        return; 
+    } 
+    else if (guess > guessNumState.target) {
+        // تخمينك 60 والرقم 50 -> نحتاج رقم "أقل"
+        playSound('click');
+        // التغيير هنا: بدلاً من "عالي جداً" نقول "أقل"
+        feedback = appState.lang === 'ar' ? "أقل! ⬇️" : "Lower! ⬇️";
+        colorClass = "text-red-500";
+        addToHistory(guess, "⬇️", "high");
+    } 
+    else {
+        // تخمينك 40 والرقم 50 -> نحتاج رقم "أعلى"
+        playSound('click');
+        // التغيير هنا: بدلاً من "منخفض جداً" نقول "أعلى"
+        feedback = appState.lang === 'ar' ? "أعلى! ⬆️" : "Higher! ⬆️";
+        colorClass = "text-blue-500";
+        addToHistory(guess, "⬆️", "low");
+    }
+
+    // Animate Feedback
+    const fbEl = document.getElementById('gn-feedback');
+    fbEl.className = `text-xl font-bold mb-6 ${colorClass} animate-pop`;
+    fbEl.innerText = feedback;
+    setTimeout(() => fbEl.classList.remove('animate-pop'), 200);
+
+    inputEl.value = '';
+    inputEl.focus();
+}
+
+function addToHistory(guess, icon, type) {
+    const container = document.getElementById('gn-history');
+    const div = document.createElement('div');
+    
+    let styles = "";
+    let textStyle = "";
+    
+    if (type === 'high') {
+        styles = "bg-red-50 border-red-200 dark:bg-red-900 dark:border-red-700";
+        textStyle = "text-red-700 dark:text-red-100";
+    } else if (type === 'low') {
+        styles = "bg-blue-50 border-blue-200 dark:bg-blue-900 dark:border-blue-700";
+        textStyle = "text-blue-700 dark:text-blue-100";
+    } else if (type === 'win') {
+        styles = "bg-green-100 border-green-500 dark:bg-green-900 dark:border-green-500";
+        textStyle = "text-green-800 dark:text-green-100";
+    }
+
+    div.className = `flex justify-between items-center p-3 rounded-xl border mb-2 ${styles}`;
+    
+    div.innerHTML = `
+        <span class="font-bold text-slate-500 dark:text-slate-400 text-sm">#${guessNumState.attempts}</span>
+        <span class="font-black text-2xl ${textStyle}">${guess}</span>
+        <span class="text-xl">${icon}</span>
+    `;
+    container.prepend(div);
+}
+</script>

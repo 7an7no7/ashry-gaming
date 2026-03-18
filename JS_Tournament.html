@@ -1,0 +1,188 @@
+<script>
+/* --- TOURNAMENT BRACKET LOGIC --- */
+
+let tourneyState = {
+    players: [],
+    matches: [], 
+    round: 0
+};
+
+function setupTournament() {
+    populateTourneyDatalist();
+    setView('setup-tourney');
+}
+
+function populateTourneyDatalist() {
+    const dataList = document.getElementById('tourney-player-list-source');
+    if(!dataList) return;
+    
+    dataList.innerHTML = ''; // Clear old list
+    
+    // FIX: Use the global 'allPlayers' array which contains the strings
+    // We use a Set to ensure names are unique
+    const uniqueNames = [...new Set(allPlayers)];
+    
+    uniqueNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        dataList.appendChild(option);
+    });
+}
+
+function startTournament() {
+    const inputs = document.querySelectorAll('.tourney-player-input');
+    let players = Array.from(inputs).map(i => i.value.trim()).filter(n => n !== "");
+
+    if (players.length !== 4 && players.length !== 8) {
+        showToast(appState.lang === 'ar' ? "يجب أن يكون العدد 4 أو 8 لاعبين!" : "Must be 4 or 8 players!");
+        return;
+    }
+
+    players.sort(() => Math.random() - 0.5); // Shuffle
+    tourneyState.players = players;
+    
+    generateBracket(players);
+    renderBracket();
+    setView('play-tourney');
+}
+
+function generateBracket(players) {
+    tourneyState.matches = [];
+    const totalPlayers = players.length;
+    let matchId = 0;
+
+    // Round 1
+    for(let i=0; i < totalPlayers; i+=2) {
+        tourneyState.matches.push({
+            id: matchId++,
+            round: 1,
+            p1: players[i],
+            p2: players[i+1],
+            winnerSlot: null, 
+            nextMatchId: totalPlayers === 8 ? (4 + Math.floor(i/4)) : 2
+        });
+    }
+
+    // Round 2
+    if(totalPlayers === 8) {
+        for(let i=0; i<2; i++) {
+            tourneyState.matches.push({
+                id: matchId++,
+                round: 2,
+                p1: "---",
+                p2: "---",
+                winnerSlot: null,
+                nextMatchId: 6
+            });
+        }
+    }
+
+    // Final
+    tourneyState.matches.push({
+        id: matchId,
+        round: totalPlayers === 8 ? 3 : 2,
+        p1: "---",
+        p2: "---",
+        winnerSlot: null,
+        nextMatchId: null 
+    });
+}
+
+function renderBracket() {
+    const container = document.getElementById('tourney-bracket');
+    container.innerHTML = '';
+    
+    const rounds = tourneyState.players.length === 8 ? 3 : 2;
+    
+    for(let r=1; r<=rounds; r++) {
+        const roundMatches = tourneyState.matches.filter(m => m.round === r);
+        const roundName = getRoundName(r, rounds);
+        
+        let html = `<div class="mb-6"><h4 class="text-center text-indigo-500 font-bold mb-3 text-lg">${roundName}</h4>`;
+        
+        roundMatches.forEach(m => {
+            const isReady = m.p1 !== "---" && m.p2 !== "---" && m.winnerSlot === null;
+            
+            // Logic for styling based on our new CSS classes
+            let p1Class = "bracket-btn";
+            let p2Class = "bracket-btn";
+
+            if (m.winnerSlot === 1) {
+                p1Class += " winner";
+                p2Class += " loser";
+            } else if (m.winnerSlot === 2) {
+                p1Class += " loser";
+                p2Class += " winner";
+            }
+
+            html += `
+            <div class="tourney-match-card">
+                <button onclick="${isReady ? `setWinner(${m.id}, 1)` : ''}" class="${p1Class}">
+                    <span>${m.p1}</span>
+                    ${m.winnerSlot === 1 ? '🏆' : ''}
+                </button>
+                
+                <div class="text-[10px] text-center text-slate-400 font-black uppercase tracking-widest my-1">VS</div>
+                
+                <button onclick="${isReady ? `setWinner(${m.id}, 2)` : ''}" class="${p2Class}">
+                    <span>${m.p2}</span>
+                    ${m.winnerSlot === 2 ? '🏆' : ''}
+                </button>
+            </div>`;
+        });
+        
+        html += `</div>`;
+        container.innerHTML += html;
+    }
+}
+
+function getRoundName(r, total) {
+    if(r === total) return appState.lang === 'ar' ? "النهائي 🏆" : "Final 🏆";
+    if(r === total - 1) return appState.lang === 'ar' ? "نصف النهائي" : "Semi-Final";
+    return appState.lang === 'ar' ? "ربع النهائي" : "Quarter-Final";
+}
+
+function setWinner(matchId, slot) {
+    const match = tourneyState.matches.find(m => m.id === matchId);
+    if(!match || match.winnerSlot !== null) return;
+
+    match.winnerSlot = slot;
+    const winnerName = slot === 1 ? match.p1 : match.p2;
+    
+    playSound('click');
+
+    if(match.nextMatchId !== null) {
+        const nextMatch = tourneyState.matches.find(m => m.id === match.nextMatchId);
+        // Feed winner to next bracket
+        if (match.id % 2 === 0) nextMatch.p1 = winnerName;
+        else nextMatch.p2 = winnerName;
+    } else {
+        // --- CHAMPION FOUND ---
+        playSound('success');
+        confetti({ particleCount: 200, spread: 100 });
+        
+        // UPGRADE: Use Toast so it doesn't block the confetti view!
+        const msg = appState.lang === 'ar' ? `البطل هو ${winnerName}! 👑` : `Champion is ${winnerName}! 👑`;
+        showToast(msg, 'success');
+    }
+
+    renderBracket();
+}
+
+function addTourneyInput() {
+    const list = document.getElementById('tourney-inputs');
+    const count = list.children.length + 1;
+    
+    if(count > 8) {
+        showToast(appState.lang==='ar'?'الحد الأقصى 8 لاعبين':'Max 8 players');
+        return;
+    }
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'tourney-player-input';
+    input.setAttribute('list', 'tourney-player-list-source'); 
+    input.placeholder = (appState.lang==='ar'?'لاعب':'Player') + ' ' + count;
+    list.appendChild(input);
+}
+</script>

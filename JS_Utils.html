@@ -1,0 +1,1111 @@
+<script>
+  /* --- UI HELPERS --- */
+
+  function closeAllModals() {
+      document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
+  }
+  function closeModal(id) { 
+    const el = document.getElementById(id);
+    if(el) el.classList.add('hidden'); 
+  }
+
+  function renderPlayerChecks(containerId) {
+    const div = document.getElementById(containerId);
+    if (!div) return; 
+    
+    // 1. Loading State
+    if (!dataLoaded) {
+        div.innerHTML = `<div class="text-center text-slate-400 py-4">Loading...</div>`;
+        return;
+    }
+    
+    // 2. Empty State
+    if (allPlayers.length === 0) {
+        div.innerHTML = `<div class="text-center text-slate-400 py-4">No players found.</div>`;
+        return;
+    }
+
+    // 3. FAST RENDERING (Map + Join)
+    const htmlString = allPlayers.map(p => `
+        <label class="player-check-item">
+            <input type="checkbox" value="${p}" class="mr-2 ml-2">
+            <span class="font-bold">${p}</span>
+        </label>
+    `).join('');
+
+    // 4. Paint only ONCE
+    div.innerHTML = htmlString;
+
+    // 5. 🛠️ Auto-reset all group dropdowns so they match this fresh Master List!
+    document.querySelectorAll('.saved-groups-select').forEach(select => {
+        select.value = '';
+    });
+  }
+
+  function filterList(input, listId) {
+    const filter = input.value.toLowerCase();
+    const list = document.getElementById(listId);
+    const items = list.getElementsByClassName('player-check-item');
+    for (let i = 0; i < items.length; i++) {
+      const text = items[i].innerText.toLowerCase();
+      items[i].style.display = text.includes(filter) ? "" : "none";
+    }
+  }
+
+/* --- REORDER LIST (TAP-TO-SWAP) --- */
+  let selectedReorderIndex = null; // Tracks the first tapped player
+
+  function renderReorderList() {
+    const list = document.getElementById('reorder-list');
+    list.innerHTML = '';
+    
+    const tapToSwapText = appState.lang === 'ar' ? 'بدّل مع... 🔄' : 'Swap with... 🔄';
+
+    tempReorderList.forEach((p, idx) => {
+        const isSelected = selectedReorderIndex === idx;
+        
+        // We add 'reorder-item' for our custom CSS, and 'selected' if it's clicked
+        const baseClasses = "reorder-item flex justify-between items-center p-4 rounded-xl border mb-2 cursor-pointer transition-all duration-200 active:scale-95 shadow-sm select-none ";
+        const selectedClass = isSelected ? "selected" : "border-slate-200 dark:border-slate-700";
+
+        list.innerHTML += `
+        <div onclick="handleReorderTap(${idx})" class="${baseClasses} ${selectedClass}">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${isSelected ? 'bg-white text-indigo-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}">
+                    ${idx + 1}
+                </div>
+                <span class="font-bold text-lg">${p.name}</span>
+            </div>
+            <div class="text-xs font-bold opacity-70">
+                ${isSelected ? tapToSwapText : '👆'}
+            </div>
+        </div>`;
+    });
+  }
+  
+  function handleReorderTap(index) {
+      if (selectedReorderIndex === null) {
+          // First tap: Select the player
+          selectedReorderIndex = index;
+          playSound('click');
+          renderReorderList();
+      } else if (selectedReorderIndex === index) {
+          // Tapped the exact same player: Cancel selection
+          selectedReorderIndex = null;
+          playSound('click');
+          renderReorderList();
+      } else {
+          // Second tap on a different player: SWAP!
+          const temp = tempReorderList[selectedReorderIndex];
+          tempReorderList[selectedReorderIndex] = tempReorderList[index];
+          tempReorderList[index] = temp;
+          
+          // Reset selection, play success sound, and re-render
+          selectedReorderIndex = null;
+          playSound('success'); 
+          renderReorderList();
+      }
+  }
+  
+  function saveNewOrder() {
+      selectedReorderIndex = null; // Clean up memory
+      document.getElementById('reorder-modal').classList.add('hidden');
+      
+      if (reorderContext === 'imposter') {
+          finalizeImposterGame(tempReorderList.map(p => p.name));
+      } else if (reorderContext === 'domino-teams') {
+          finalizeDominoTeams(tempReorderList.map(p => p.name));
+      } else {
+          appState.monkey.players = [...tempReorderList];
+          appState.monkey.turnIndex = 0; 
+          renderMonkeyBoard();
+          startTimer();
+      }
+  }
+
+  /* --- SPIN PICKER --- */
+  let pickerInterval = null;
+  function runStartSpin() {
+      let selected = Array.from(document.querySelectorAll('#spin-player-list input:checked')).map(cb => cb.value);
+      if(selected.length < 2) {
+          const msg = appState.lang === 'ar' ? 'اختر لاعبين على الأقل' : 'Select at least 2 players';
+          return showToast(msg);
+      }
+      appState.spin.players = selected;
+      setView('play-spin');
+      const display = document.getElementById('picker-display');
+      display.innerText = "???";
+      document.getElementById('spin-result-box').classList.add('hidden');
+      document.getElementById('spin-btn').disabled = false;
+  }
+
+  function pickRandomPlayer() {
+      const players = appState.spin.players;
+      if (players.length === 0) return;
+      const btn = document.getElementById('spin-btn');
+      const display = document.getElementById('picker-display');
+      btn.disabled = true;
+      document.getElementById('spin-result-box').classList.add('hidden');
+      playSound('click');
+      let counter = 0;
+      const totalShuffles = 15; 
+      const speed = 80; 
+      if(pickerInterval) clearInterval(pickerInterval);
+      pickerInterval = setInterval(() => {
+          const r = Math.floor(Math.random() * players.length);
+          display.innerText = players[r];
+          playSound('tick'); 
+          counter++;
+          if (counter >= totalShuffles) {
+              clearInterval(pickerInterval);
+              finalizePickerResult();
+          }
+      }, speed);
+  }
+
+  function finalizePickerResult() {
+      const players = appState.spin.players;
+      const winnerIdx = Math.floor(Math.random() * players.length);
+      const winner = players[winnerIdx];
+      const display = document.getElementById('picker-display');
+      const btn = document.getElementById('spin-btn');
+      
+      // عرض الاسم الفائز
+      display.innerText = winner;
+      display.style.color = "var(--primary)";
+      
+      // تحديث صندوق النتيجة (بدون تحدي)
+      document.getElementById('picked-player-name').innerText = winner;
+      
+      // تفريغ مكان التحدي القديم
+      const challengeEl = document.getElementById('picked-challenge');
+      if(challengeEl) challengeEl.innerText = ""; 
+      
+      setTimeout(() => {
+          document.getElementById('spin-result-box').classList.remove('hidden');
+          playSound('success');
+          confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+          btn.disabled = false;
+      }, 400);
+  }
+
+  /* --- UNIVERSAL COUNTER --- */
+  function addUniversalPlayer() {
+      const input = document.getElementById('univ-new-player');
+      const name = input.value.trim();
+      if(!name) return;
+      const chip = document.createElement('div');
+      chip.className = "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2 m-1";
+      chip.innerHTML = `<span>${name}</span><button onclick="this.parentElement.remove()" class="text-red-500 font-bold ml-1 mr-1">×</button>`;
+      document.getElementById('universal-setup-list').appendChild(chip);
+      input.value = '';
+  }
+  function startUniversal() {
+      const chips = document.querySelectorAll('#universal-setup-list > div > span');
+      const players = Array.from(chips).map(c => ({ name: c.innerText, score: 0 }));
+      if(players.length === 0) {
+          const msg = appState.lang === 'ar' ? 'أضف لاعبين أولاً' : 'Add players first';
+          return showToast(msg);
+      }
+      appState.universal.players = players;
+      renderUniversalBoard();
+      setView('play-universal');
+  }
+  function renderUniversalBoard() {
+      const div = document.getElementById('universal-board');
+      div.innerHTML = '';
+      appState.universal.players.forEach((p, idx) => {
+          div.innerHTML += `
+          <div class="flex justify-between items-center bg-white dark:bg-slate-700 p-4 rounded-xl border border-slate-100 dark:border-slate-600 mb-2">
+              <div class="font-bold text-lg w-1/3 truncate">${p.name}</div>
+              <div class="font-black text-3xl text-indigo-600 w-1/3 text-center" dir="ltr">${p.score}</div>
+              <div class="flex gap-2 w-1/3 justify-end">
+                  <button onclick="modUnivScore(${idx}, 1)" class="w-10 h-10 rounded-lg bg-green-100 text-green-600 font-bold">+</button>
+                  <button onclick="modUnivScore(${idx}, -1)" class="w-10 h-10 rounded-lg bg-red-100 text-red-600 font-bold">-</button>
+              </div>
+          </div>`;
+      });
+  }
+  function modUnivScore(idx, val) {
+      appState.universal.players[idx].score += val;
+      renderUniversalBoard();
+      playSound(val > 0 ? 'click' : 'tick');
+  }
+
+/* --- TIMERS --- */
+  function switchTimerMode(mode) {
+      document.getElementById('timer-general-ui').classList.add('hidden');
+      // Tab switching is no longer needed for chess since it has its own screen, 
+      // but we keep this for the General Timer view safely.
+      if(document.getElementById('tab-general')) {
+          document.getElementById('tab-general').className = "flex-1 py-2 rounded-lg text-sm font-bold bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow";
+      }
+      document.getElementById('timer-general-ui').classList.remove('hidden');
+  }
+
+  function adjustGenTimer(mins) {
+      appState.timers.general.time += (mins * 60);
+      if(appState.timers.general.time < 0) appState.timers.general.time = 0;
+      updateGenDisplay();
+  }
+
+  function updateGenDisplay() {
+      const t = appState.timers.general.time;
+      const m = Math.floor(t / 60).toString().padStart(2,'0');
+      const s = (t % 60).toString().padStart(2,'0');
+      document.getElementById('gen-timer-display').innerText = `${m}:${s}`;
+  }
+
+  function toggleGenTimer() {
+      const tm = appState.timers.general;
+      const btn = document.getElementById('gen-start-btn');
+      if(tm.running) {
+          clearInterval(tm.interval);
+          tm.running = false;
+          btn.innerText = TRANSLATIONS[appState.lang].start_btn;
+      } else {
+          if(tm.time <= 0) return;
+          tm.running = true;
+          btn.innerText = TRANSLATIONS[appState.lang].pause_btn;
+          tm.interval = setInterval(() => {
+              tm.time--;
+              updateGenDisplay();
+              if(tm.time <= 0) {
+                  clearInterval(tm.interval);
+                  tm.running = false;
+                  playSound('alarm');
+                  btn.innerText = TRANSLATIONS[appState.lang].start_btn;
+              }
+          }, 1000);
+      }
+  }
+
+  function resetGenTimer() {
+      const tm = appState.timers.general;
+      clearInterval(tm.interval);
+      tm.running = false;
+      tm.time = 0;
+      updateGenDisplay();
+      document.getElementById('gen-start-btn').innerText = TRANSLATIONS[appState.lang].start_btn;
+  }
+
+  /* --- UPGRADED FULL SCREEN CHESS LOGIC --- */
+  function exitChessTimer(event) {
+      if(event) { event.stopPropagation(); event.preventDefault(); }
+      pauseChess();
+      setView('menu');
+  }
+
+  function configChess(event) {
+      if(event) { event.stopPropagation(); event.preventDefault(); }
+      pauseChess();
+      const currentMins = Math.floor(appState.timers.chess.initial / 60);
+      document.getElementById('chess-config-input').value = currentMins;
+      document.getElementById('chess-config-modal').classList.remove('hidden');
+      document.getElementById('chess-config-input').select(); 
+  }
+
+  function submitChessConfig() {
+      const val = document.getElementById('chess-config-input').value;
+      if(val && !isNaN(val) && val > 0) {
+          const secs = parseInt(val) * 60;
+          appState.timers.chess.initial = secs;
+          resetChess(); 
+          closeModal('chess-config-modal'); 
+          playSound('success'); 
+      } else {
+          const msg = appState.lang === 'ar' ? 'الرجاء إدخال وقت صحيح!' : 'Please enter valid time!';
+          showToast(msg);
+      }
+  }
+
+  function resetChess(event) {
+      if(event) { event.stopPropagation(); event.preventDefault(); }
+      const tm = appState.timers.chess;
+      clearInterval(tm.interval);
+      tm.active = null;
+      tm.time1 = tm.initial;
+      tm.time2 = tm.initial;
+      updateChessUI();
+      playSound('click');
+  }
+
+  function chessClick(player) {
+      const tm = appState.timers.chess;
+      if(player === 1) {
+          if(tm.active === 1 || tm.active === null) startChessTimer(2); 
+      } else if (player === 2) {
+          if(tm.active === 2 || tm.active === null) startChessTimer(1); 
+      }
+      playSound('click');
+  }
+
+  function startChessTimer(activePlayer) {
+      const tm = appState.timers.chess;
+      clearInterval(tm.interval);
+      tm.active = activePlayer;
+      updateChessUI();
+      tm.interval = setInterval(() => {
+          if(tm.active === 1) {
+              tm.time1--;
+              if(tm.time1 <= 0) chessGameOver();
+          } else {
+              tm.time2--;
+              if(tm.time2 <= 0) chessGameOver();
+          }
+          updateChessUI();
+      }, 1000);
+  }
+
+  function pauseChess(event) {
+      if(event) { event.stopPropagation(); event.preventDefault(); }
+      clearInterval(appState.timers.chess.interval);
+      appState.timers.chess.active = null;
+      updateChessUI();
+  }
+
+  function updateChessUI() {
+      const tm = appState.timers.chess;
+      const fmt = (t) => {
+          const m = Math.floor(t / 60).toString().padStart(2,'0');
+          const s = (t % 60).toString().padStart(2,'0');
+          return `${m}:${s}`;
+      };
+      
+      const time1El = document.getElementById('chess-time-1');
+      const time2El = document.getElementById('chess-time-2');
+      if(time1El) time1El.innerText = fmt(tm.time1);
+      if(time2El) time2El.innerText = fmt(tm.time2);
+
+      const btn1 = document.getElementById('chess-btn-1');
+      const btn2 = document.getElementById('chess-btn-2');
+      if(!btn1 || !btn2) return;
+
+      const base1 = "flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-150 ";
+      const base2 = "flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-150 transform rotate-180 ";
+
+      if (tm.active === 1) {
+          btn1.className = base1 + "bg-green-500 text-white shadow-[inset_0_0_50px_rgba(0,0,0,0.3)]";
+          btn2.className = base2 + "bg-slate-900 text-slate-600 opacity-60";
+      } else if (tm.active === 2) {
+          btn2.className = base2 + "bg-green-500 text-white shadow-[inset_0_0_50px_rgba(0,0,0,0.3)]";
+          btn1.className = base1 + "bg-slate-900 text-slate-600 opacity-60";
+      } else {
+          // Paused / Idle State
+          btn1.className = base1 + "bg-slate-800 text-slate-300";
+          btn2.className = base2 + "bg-slate-800 text-slate-300";
+      }
+  }
+
+  function chessGameOver() {
+      clearInterval(appState.timers.chess.interval);
+      playSound('alarm');
+      const msg = appState.lang === 'ar' ? 'انتهى الوقت!' : "Time's up!";
+      showToast(msg);
+  }
+
+  /* --- ALERTS & CONFIRMS --- */
+  function showCustomAlert(msg, title) {
+      document.getElementById('alert-msg').innerText = msg;
+      const t = TRANSLATIONS[appState.lang];
+      document.getElementById('alert-title').innerText = title || t.alert_title;
+      document.getElementById('alert-modal').classList.remove('hidden');
+      playSound('alarm');
+  }
+  function showConfirmModal(msg, callback) {
+    document.getElementById('custom-confirm-msg').innerText = msg;
+    confirmCallback = callback;
+    document.getElementById('custom-confirm-modal').classList.remove('hidden');
+  }
+  function onCustomConfirm() {
+    playSound('click');
+    if (confirmCallback) {
+        confirmCallback();
+        confirmCallback = null;
+    }
+    closeModal('custom-confirm-modal');
+  }
+
+  /* --- MONKEY UTILS --- */
+  function openMonkeyReorder() {
+      reorderContext = 'monkey';
+      tempReorderList = [...appState.monkey.players];
+      const modalBtn = document.getElementById('reorder-save-btn');
+      if(modalBtn) modalBtn.innerText = TRANSLATIONS[appState.lang].reorder_save;
+      renderReorderList();
+      document.getElementById('reorder-modal').classList.remove('hidden');
+  }
+  function openSwitchModal(monkeyRow, monkeyName) {
+    stopTimer(); 
+    switchData.monkeyRow = monkeyRow;
+    switchData.monkeyName = monkeyName;
+    const list = document.getElementById('switch-targets-list');
+    list.innerHTML = '';
+    const targets = appState.monkey.players.filter(p => !p.isMonkey);
+    
+    const t = TRANSLATIONS[appState.lang];
+    const stagesMap = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
+
+    if(targets.length === 0) {
+        const noSafeMsg = appState.lang === 'ar' ? 'لا يوجد لاعبين آمنين' : 'No safe players';
+        list.innerHTML = `<p class="text-red-500">${noSafeMsg}</p>`;
+    } else {
+        targets.forEach(t => {
+            const stageName = stagesMap[t.col - 1] || t.safe;
+            list.innerHTML += `<button onclick="confirmSwitch('${t.row}', '${t.col}', '${t.name}')" class="btn btn-gray flex justify-between items-center w-full mb-2 h-12 mt-0">
+                <span class="font-bold text-slate-700 dark:text-slate-200">${t.name}</span> 
+                <span class="text-xs bg-white dark:bg-slate-600 px-2 py-1 rounded border border-slate-200 dark:border-slate-500 font-bold">${stageName}</span>
+            </button>`;
+        });
+    }
+    document.getElementById('switch-modal').classList.remove('hidden');
+  }
+  function confirmSwitch(targetRow, targetCol, targetName) {
+    switchData.targetRow = targetRow;
+    switchData.targetCol = targetCol;
+    document.getElementById('switch-modal').classList.add('hidden');
+    document.getElementById('confirm-monkey-name').innerText = switchData.monkeyName;
+    document.getElementById('confirm-target-name').innerText = targetName;
+    
+    // Switch confirm modal text needs localization too but it's hardcoded in HTML
+    // We can update it here
+    const msgEl = document.querySelector('#switch-confirm-modal p');
+    if(appState.lang === 'en') {
+        msgEl.innerHTML = `Are you sure you want to switch places between <br> <b id="confirm-monkey-name" class="text-red-500">${switchData.monkeyName}</b> and <b id="confirm-target-name" class="text-blue-500">${targetName}</b>?`;
+    } else {
+        msgEl.innerHTML = `هل أنت متأكد من تبديل أماكن <br> <b id="confirm-monkey-name" class="text-red-500">${switchData.monkeyName}</b> مع <b id="confirm-target-name" class="text-blue-500">${targetName}</b>؟`;
+    }
+
+    document.getElementById('switch-confirm-modal').classList.remove('hidden');
+  }
+  function executeSwitch() {
+    document.getElementById('switch-confirm-modal').classList.add('hidden');
+    const monkeyIdx = appState.monkey.players.findIndex(p => p.row == switchData.monkeyRow);
+    const targetIdx = appState.monkey.players.findIndex(p => p.row == switchData.targetRow);
+    if (monkeyIdx > -1 && targetIdx > -1) {
+        const tempCol = appState.monkey.players[targetIdx].col;
+        appState.monkey.players[targetIdx].col = 5; 
+        appState.monkey.players[targetIdx].isMonkey = true;
+        appState.monkey.players[monkeyIdx].col = tempCol; 
+        appState.monkey.players[monkeyIdx].isMonkey = false;
+        appState.monkey.turnIndex = monkeyIdx;
+        checkWinCondition();
+        renderMonkeyBoard();
+        startTimer(); 
+    }
+  }
+  function toggleAddPlayerModal() {
+    const listContainer = document.getElementById('midgame-existing-list');
+    listContainer.innerHTML = '';
+    const currentNames = appState.monkey.players.map(p => p.name);
+    const available = allPlayers.filter(p => !currentNames.includes(p));
+    if(available.length === 0) {
+        const allInMsg = appState.lang === 'ar' ? 'كل اللاعبين المسجلين يلعبون حالياً.' : 'All registered players are playing.';
+        listContainer.innerHTML = `<p class="text-xs text-slate-400 col-span-2 text-center">${allInMsg}</p>`;
+    } else {
+        available.forEach(name => {
+            const chip = document.createElement('div');
+            chip.className = 'bg-slate-100 dark:bg-slate-800 p-2 px-4 rounded-full text-xs font-bold cursor-pointer';
+            chip.innerText = name;
+            chip.onclick = () => {
+                document.getElementById('add-midgame-modal').classList.add('hidden');
+                addLocalPlayer(name);
+            };
+            listContainer.appendChild(chip);
+        });
+    }
+    document.getElementById('add-midgame-modal').classList.remove('hidden');
+  }
+  function addLocalPlayer(name) {
+      const newRow = appState.monkey.players.length + 2;
+      appState.monkey.players.push({ name: name, row: newRow, col: 1, isMonkey: false });
+      checkWinCondition();
+      renderMonkeyBoard();
+  }
+  function submitMidGamePlayer() {
+    const name = document.getElementById('midgame-player-name').value.trim();
+    if(!name) return;
+    document.getElementById('midgame-player-name').value = '';
+    document.getElementById('add-midgame-modal').classList.add('hidden');
+    addLocalPlayer(name);
+    if(!allPlayers.includes(name)) {
+        setSyncing(true);
+        google.script.run.withSuccessHandler(players => {
+            allPlayers = players;
+            saveToLocal();
+            setSyncing(false);
+        }).withFailureHandler(handleServerFailure).addGlobalPlayer(name);
+    }
+  }
+  function openEditStatus(row, name) {
+      editPlayerData.row = row;
+      document.getElementById('edit-player-name').innerText = name;
+      document.getElementById('edit-status-modal').classList.remove('hidden');
+  }
+  function submitStatusUpdate(newCol) {
+      document.getElementById('edit-status-modal').classList.add('hidden');
+      const player = appState.monkey.players.find(p => p.row == editPlayerData.row);
+      if (player) {
+          player.col = newCol;
+          player.isMonkey = (newCol === 5);
+          checkWinCondition();
+          renderMonkeyBoard();
+      }
+  }
+  function showTimeoutModal() {
+    closeAllModals();
+    const player = appState.monkey.players[appState.monkey.turnIndex];
+    document.getElementById('timeout-player-name').innerText = player ? player.name : '';
+    document.getElementById('timeout-modal').classList.remove('hidden');
+  }
+
+  function handleTimeoutAction(action) {
+    // 1. Hide the modal
+    document.getElementById('timeout-modal').classList.add('hidden');
+    
+    // 2. Decide what to do based on the button clicked
+    if (action === 'liar') {
+        liarButton();
+    } 
+    else if (action === 'penalty') {
+        penaltyAndPass();
+    } 
+    else if (action === 'next') {
+        // This is the new part!
+        nextTurn(); 
+    }
+}
+
+  function toggleCountriesModal() {
+      const modal = document.getElementById('countries-modal');
+      if (modal.classList.contains('hidden')) {
+          renderCountriesList();
+          const searchInput = document.getElementById('country-search-input');
+          if (searchInput) searchInput.value = '';
+          modal.classList.remove('hidden');
+      } else {
+          modal.classList.add('hidden');
+      }
+  }
+  function renderCountriesList() {
+      const tbody = document.getElementById('used-countries-list');
+      tbody.innerHTML = '';
+      appState.monkey.usedCountries.forEach((c, idx) => {
+          const num = appState.monkey.usedCountries.length - idx;
+          tbody.innerHTML += `<tr><td class="px-2 py-2 font-bold text-slate-400">${num}</td><td class="px-2 py-2 font-bold">${c}</td></tr>`;
+      });
+  }
+  function filterCountries() {
+      const filter = document.getElementById('country-search-input').value.toLowerCase();
+      const rows = document.getElementById('used-countries-list').getElementsByTagName('tr');
+      for (let i = 0; i < rows.length; i++) {
+          const td = rows[i].getElementsByTagName('td')[1];
+          if (td) {
+              const txtValue = td.textContent || td.innerText;
+              rows[i].classList.toggle('hidden', txtValue.toLowerCase().indexOf(filter) === -1);
+          }
+      }
+  }
+
+  /* --- OTHER UTILS --- */
+  function playAgain() {
+     closeAllModals();
+     if (appState.currentView === 'play-screw') {
+         runStartScrew(appState.screw.players.map(p => p.name), appState.screw.rounds);
+     } else if (appState.currentView === 'play-monkey') {
+         runStartMonkey(appState.monkey.players.map(p => p.name));
+     } else if (appState.currentView === 'play-imposter' || appState.currentView === 'imposter-reveal') {
+         prepImposterGame(lastSelectedPlayers);
+     }
+  }
+  /* Inside JS_Utils.html */
+
+function toggleResults() {
+    const el = document.getElementById('winner-scores-container');
+    // FIX: Select by ID instead of attribute
+    const btn = document.getElementById('toggle-results-btn'); 
+    
+    if (el) {
+        el.classList.toggle('hidden');
+        
+        if (btn) {
+            const hideText = appState.lang === 'ar' ? "إخفاء النتائج" : "Hide Results";
+            const showText = appState.lang === 'ar' ? "عرض النتائج كاملة" : "Show Full Results";
+            btn.innerText = el.classList.contains('hidden') ? showText : hideText;
+        }
+    }
+}
+  function hardResetApp() {
+    const msg = appState.lang === 'ar' ? 'هل أنت متأكد من حذف جميع البيانات والبدء من جديد؟' : 'Are you sure you want to reset all data and start over?';
+    
+    showConfirmModal(msg, () => {
+        // 1. Stop all running timers
+        if(typeof stopTimer === 'function') stopTimer(); 
+        if(typeof stopImposterTimer === 'function') stopImposterTimer();
+        if(typeof charadesState !== 'undefined' && charadesState.interval) clearInterval(charadesState.interval);
+        if(typeof descState !== 'undefined' && descState.interval) clearInterval(descState.interval);
+        if(typeof whoAmIState !== 'undefined' && whoAmIState.interval) clearInterval(whoAmIState.interval);
+        
+        // 2. Destroy Charts (Crucial for Soft Reload to prevent canvas errors)
+        if (typeof screwChart !== 'undefined' && screwChart) {
+            screwChart.destroy();
+            screwChart = null;
+        }
+
+        // 3. Clear Local Storage
+        localStorage.removeItem('gameTrackerState_v1');
+        
+        // 4. Reset Global Variables (Clean Slate)
+        allPlayers = []; 
+        dataLoaded = false;
+        lastSelectedPlayers = [];
+        switchData = { monkeyRow: null, targetRow: null, targetCol: null };
+        tempReorderList = [];
+        // 👇 ADDED WHO AM I RESET 👇
+        whoAmIState = { count: 3, assignments: [], currentIndex: 0, timer: 0, interval: null, isPaused: false, manualWords: [], isShuffle: true, inputIndex: 0 };
+        
+        // 5. Reset App State to Defaults
+        const isDark = appState.isDarkMode;
+        const currentLang = appState.lang; // Preserve language
+        
+        appState = {
+            currentView: 'menu',
+            isDarkMode: isDark,
+            lang: currentLang,
+            
+            // Old Games
+            screw: { rounds: 5, players: [] },
+            monkey: { players: [], config: { winners: 1, timer: 30 }, turnIndex: 0, turnCounter: 0, usedCountries: [] },
+            imposter: { players: [], config: { impostersCount: 1 }, secretWord: '', revealIndex: 0, timer: 0 },
+            domino: { players: [], target: 101, mode: 'single' },
+            spin: { players: [], currentRotation: 0 },
+            universal: { players: [] }, 
+            timers: { 
+                general: { time: 0, interval: null, running: false },
+                chess: { time1: 300, time2: 300, active: null, interval: null, initial: 300 }
+            },
+
+            // New Games
+            charades: { score: 0, timer: 60 },
+            describe: { score: 0, timer: 60 },
+            wordle: { wordLength: 5, guesses: [], gameOver: false },
+            guessnum: { min: 1, max: 100, target: 0 },
+            justone: { players: [], activePlayer: 0, phase: 'setup' },
+            teams: { players: [], count: 2, result: [] }
+        };
+        
+        // 6. Reset UI
+        document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+        document.getElementById('view-menu').classList.remove('hidden');
+        
+        // 7. Success Message
+        playSound('success');
+        const doneMsg = appState.lang === 'ar' ? 'تمت إعادة الضبط بنجاح ✨' : 'Reset Complete ✨';
+        showToast(doneMsg);
+
+        // 8. SOFT RELOAD: Re-initialize the app logic to fetch players/data again
+        if(typeof initializeApp === 'function') {
+            initializeApp(); 
+        }
+    });
+}
+  
+  function toggleSoundboard() {
+      const SOUNDS = [
+          { emoji: '🦗', name: appState.lang === 'ar' ? 'صرصور' : 'Cricket', url: 'https://www.myinstants.com/media/sounds/cricket-sound.mp3' },
+          { emoji: '🥁', name: appState.lang === 'ar' ? 'نكتة' : 'Joke', url: 'https://www.myinstants.com/media/sounds/ba-dum-tss-joke.mp3' },
+          { emoji: '🎺', name: appState.lang === 'ar' ? 'خسارة' : 'Fail', url: 'https://www.myinstants.com/media/sounds/spongebob-fail.mp3' },
+          { emoji: '👏', name: appState.lang === 'ar' ? 'تصفيق' : 'Clap', url: 'https://www.myinstants.com/media/sounds/aplausos_2.mp3' },
+          { emoji: '🚨', name: appState.lang === 'ar' ? 'إنذار' : 'Alarm', url: 'https://www.myinstants.com/media/sounds/police-siren.mp3' },
+          { emoji: '🎻', name: appState.lang === 'ar' ? 'حزين' : 'Sad', url: 'https://www.myinstants.com/media/sounds/sad-violin.mp3' }
+      ];
+      const grid = document.getElementById('soundboard-grid');
+      grid.innerHTML = '';
+      SOUNDS.forEach(s => {
+          grid.innerHTML += `<button onclick="new Audio('${s.url}').play()" class="btn btn-gray p-2 h-auto flex flex-col items-center justify-center rounded-2xl mt-0 shadow-none"><div class="text-2xl">${s.emoji}</div><div class="text-[10px] font-bold opacity-70">${s.name}</div></button>`;
+      });
+      document.getElementById('soundboard-modal').classList.remove('hidden');
+  }
+  function showInstallHelp() {
+      // Check if already in standalone mode
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      
+      if (isStandalone) {
+          const msg = appState.lang === 'ar' ? 'التطبيق مثبت بالفعل على جهازك! ✨' : 'App is already installed! ✨';
+          showToast(msg, 'success');
+          return;
+      }
+
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      const isAndroid = /Android/.test(navigator.userAgent);
+      
+      const iosEl = document.getElementById('ios-help');
+      const androidEl = document.getElementById('android-help');
+
+      iosEl.classList.toggle('hidden', !isIOS);
+      androidEl.classList.toggle('hidden', !isAndroid);
+      
+      // Update text content based on language without breaking icons
+      if (appState.lang === 'en') {
+          document.getElementById('install-help-title').innerText = "Install App 📲";
+          if (isIOS) {
+              iosEl.querySelector('p').innerText = "For iPhone (iOS):";
+              const items = iosEl.querySelectorAll('li');
+              items[0].innerHTML = `Tap the Share button <span class="text-xl">⎋</span> in your browser.`;
+              items[1].innerHTML = `Select <b>"Add to Home Screen"</b>.`;
+          }
+          if (isAndroid || (!isIOS && !isAndroid)) {
+              androidEl.querySelector('p').innerText = "For Android (Chrome):";
+              const items = androidEl.querySelectorAll('li');
+              items[0].innerHTML = `Tap the Menu button (3 dots).`;
+              items[1].innerHTML = `Select <b>"Install App"</b> or <b>"Add to Home Screen"</b>.`;
+              androidEl.classList.remove('hidden');
+          }
+      } else {
+          document.getElementById('install-help-title').innerText = "تثبيت التطبيق 📲";
+          if (isIOS) {
+              iosEl.querySelector('p').innerText = "للآيفون (iOS):";
+              const items = iosEl.querySelectorAll('li');
+              items[0].innerHTML = `اضغط زر المشاركة <span class="text-xl">⎋</span> في المتصفح.`;
+              items[1].innerHTML = `اختر <b>"إضافة إلى الصفحة الرئيسية"</b> (Add to Home Screen).`;
+          }
+          if (isAndroid || (!isIOS && !isAndroid)) {
+              androidEl.querySelector('p').innerText = "للأندرويد (Chrome):";
+              const items = androidEl.querySelectorAll('li');
+              items[0].innerHTML = `اضغط زر القائمة (ثلاث نقاط).`;
+              items[1].innerHTML = `اختر <b>"تثبيت التطبيق"</b> أو <b>"الإضافة للشاشة الرئيسية"</b>.`;
+              androidEl.classList.remove('hidden');
+          }
+      }
+
+      document.getElementById('install-help-modal').classList.remove('hidden');
+  }
+
+  // Auto-hide install button if already standalone
+  function checkInstallButton() {
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      const btn = document.getElementById('install-btn-menu');
+      if (btn && isStandalone) {
+          btn.style.display = 'none';
+      }
+  }
+
+  window.addEventListener('load', checkInstallButton);
+
+
+
+  function openHelpModal() {
+    renderHelpContent();
+    document.getElementById('help-modal').classList.remove('hidden');
+    // Ensure text direction fits the language (optional, handled by CSS usually)
+    const content = document.getElementById('help-content-area');
+    if(appState.lang === 'en') {
+        content.classList.remove('text-right');
+        content.classList.add('text-left');
+    } else {
+        content.classList.remove('text-left');
+        content.classList.add('text-right');
+    }
+}
+
+function renderHelpContent() {
+    const lang = appState.lang;
+    const rules = GAME_RULES[lang];
+    
+    // helper to create accordion item
+    const createItem = (titleKey, contentKey, colorClass, icon) => {
+        const title = TRANSLATIONS[lang][titleKey] || titleKey;
+        const content = rules[contentKey] || "---";
+        
+        return `
+        <details class="group help-game-card rounded-xl overflow-hidden border-r-4 ${colorClass}">
+            <summary class="flex justify-between items-center p-3 cursor-pointer select-none">
+                <h5 class="font-black text-slate-700 dark:text-white flex items-center gap-2">
+                    <span>${icon}</span> ${title}
+                </h5>
+                <span class="transition-transform group-open:rotate-180">▼</span>
+            </summary>
+            <div class="p-3 pt-0 text-slate-600 help-game-text border-t border-slate-100 dark:border-slate-700 mt-2 pt-2">
+                ${content}
+            </div>
+        </details>`;
+    };
+
+    // 1. Render Games
+    // 👇 ADDED WHO AM I AND REACTION TEST 👇
+    const gamesHTML = [
+        createItem('setup_screw', 'screw', 'border-blue-500', '🃏'),
+        createItem('setup_justone', 'justone', 'border-pink-500', '🤫'),
+        createItem('setup_describe', 'describe', 'border-indigo-500', '🗣️'),
+        createItem('setup_charades', 'charades', 'border-purple-700', '🎭'),
+        createItem('setup_whoami', 'whoami', 'border-teal-600', '❓'),
+        createItem('setup_imposter', 'imposter', 'border-purple-500', '🕵️'),
+        createItem('setup_monkey', 'monkey', 'border-orange-500', '🐵'),
+        createItem('setup_wordle', 'wordle', 'border-green-500', '🔤'),
+        createItem('setup_guessnum', 'guessnum', 'border-cyan-600', '🔢'),
+        createItem('setup_reaction', 'reaction', 'border-red-500', '⚡')
+    ].join('');
+    
+    document.getElementById('help-games-container').innerHTML = gamesHTML;
+
+    // 2. Render Tools
+    // 👇 ADDED CHESS CLOCK 👇
+    const toolsHTML = [
+        createItem('setup_tourney', 'tourney', 'border-indigo-600', '🏆'),
+        createItem('tool_dice', 'dice', 'border-slate-500', '🎲'),
+        createItem('chess_timer', 'chess', 'border-slate-800', '♟️')
+    ].join('');
+    
+    document.getElementById('help-tools-container').innerHTML = toolsHTML;
+}
+
+/* --- TOAST NOTIFICATION LOGIC --- */
+function showToast(msg, type = 'info') {
+    // 1. Create the element
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    
+    // 2. Select icon based on type
+    let icon = 'ℹ️';
+    if(type === 'success') icon = '✅';
+    if(type === 'error') icon = '⚠️';
+    
+    el.innerHTML = `<span>${icon}</span> <span>${msg}</span>`;
+    document.body.appendChild(el);
+
+    // 3. Trigger Animation (Wait 10ms for DOM to recognize element)
+    requestAnimationFrame(() => {
+        el.classList.add('show');
+    });
+
+    // 4. Remove after 3 seconds
+    setTimeout(() => {
+        el.classList.remove('show'); // Animate out
+        setTimeout(() => el.remove(), 400); // Remove from HTML
+    }, 3000);
+}
+
+/* --- KEEP SCREEN AWAKE (WAKE LOCK) --- */
+let wakeLock = null;
+
+async function requestWakeLock() {
+    if ('wakeLock' in navigator) {
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('💡 Screen Wake Lock Active');
+            
+            // If the user minimizes the app and comes back, the lock breaks.
+            // This listens for that and re-activates it automatically.
+            document.addEventListener('visibilitychange', async () => {
+                if (wakeLock !== null && document.visibilityState === 'visible') {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('💡 Screen Wake Lock Re-acquired');
+                }
+            });
+        } catch (err) {
+            console.log(`❌ Wake Lock Error: ${err.name}, ${err.message}`);
+        }
+    } else {
+        console.log('⚠️ Wake Lock API not supported on this browser.');
+    }
+}
+
+/* =========================================
+   SMART GROUP MANAGER LOGIC (FIXES ALL BUGS)
+   ========================================= */
+
+// 1. Opens the Modal and prepares the data
+function saveCurrentGroup() {
+    const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
+    if (!activeSetup) return;
+
+    const listContainer = activeSetup.querySelector('[id$="-player-list"]');
+    if (!listContainer) return;
+    
+    const checkedBoxes = listContainer.querySelectorAll('input[type="checkbox"]:checked');
+    
+    if (checkedBoxes.length < 1) {
+        showToast(appState.lang === 'ar' ? "اختر لاعباً واحداً على الأقل!" : "Select at least 1 player!", "error");
+        return;
+    }
+
+    // Populate the update dropdown
+    const updateSelect = document.getElementById('update-group-select');
+    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    
+    updateSelect.innerHTML = `<option value="">-- اختر لتحديث مجموعة --</option>`;
+    Object.keys(groups).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.innerText = name;
+        updateSelect.appendChild(opt);
+    });
+
+    document.getElementById('custom-group-name-input').value = "";
+    document.getElementById('group-name-modal').classList.remove('hidden');
+}
+
+// 2. Action: Create a Brand New Group
+function saveAsNewGroup() {
+    const inputEl = document.getElementById('custom-group-name-input');
+    const groupName = inputEl.value.trim();
+    
+    if (!groupName) {
+        showToast(appState.lang === 'ar' ? "اكتب اسماً للمجموعة!" : "Enter a group name!", "error");
+        return;
+    }
+
+    const checkedNames = getCurrentlyCheckedNames();
+    if (checkedNames.length < 2) {
+        showToast(appState.lang === 'ar' ? "المجموعة الجديدة تحتاج لاعبين (2) على الأقل!" : "New groups need at least 2 players!", "error");
+        return;
+    }
+
+    saveDataToGroup(groupName, checkedNames);
+}
+
+// 3. Action: Update an Existing Group (Add or Replace)
+function updateExistingGroup(mode) {
+    const selectEl = document.getElementById('update-group-select');
+    const groupName = selectEl.value;
+
+    if (!groupName) {
+        showToast(appState.lang === 'ar' ? "اختر مجموعة من القائمة لتحديثها!" : "Select a group to update!", "error");
+        return;
+    }
+
+    const checkedNames = getCurrentlyCheckedNames();
+    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let currentGroupPlayers = groups[groupName] || [];
+
+    if (mode === 'add') {
+        // Merge without duplicates
+        const newSet = new Set([...currentGroupPlayers, ...checkedNames]);
+        saveDataToGroup(groupName, Array.from(newSet));
+        showToast(appState.lang === 'ar' ? `تم إضافة ${checkedNames.length} لاعبين إلى ${groupName}` : `Added players to ${groupName}`, "success");
+    
+    } else if (mode === 'replace') {
+        if (checkedNames.length < 2) {
+            showToast(appState.lang === 'ar' ? "يجب اختيار لاعبين (2) على الأقل للاستبدال!" : "Select at least 2 players to replace!", "error");
+            return;
+        }
+        saveDataToGroup(groupName, checkedNames);
+        showToast(appState.lang === 'ar' ? `تم استبدال مجموعة ${groupName}` : `Replaced ${groupName}`, "success");
+    }
+}
+
+// Helper: Gets names of checked boxes
+function getCurrentlyCheckedNames() {
+    const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
+    const listContainer = activeSetup.querySelector('[id$="-player-list"]');
+    const checkedBoxes = listContainer.querySelectorAll('input[type="checkbox"]:checked');
+    return Array.from(checkedBoxes).map(cb => cb.value);
+}
+
+// Helper: Saves data and cleans up UI
+function saveDataToGroup(groupName, playersArray) {
+    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    groups[groupName] = playersArray;
+    localStorage.setItem('ashry_saved_groups', JSON.stringify(groups));
+    
+    closeModal('group-name-modal');
+    renderSavedGroups(); 
+    loadGroup(groupName); // Auto-load it to show the result
+    playSound('success');
+}
+
+// 4. Loading & Filtering Logic
+function loadGroup(groupName) {
+    const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
+    if (!activeSetup) return;
+
+    const listContainer = activeSetup.querySelector('[id$="-player-list"]');
+    if (!listContainer) return;
+
+    const allCheckboxes = listContainer.querySelectorAll('input[type="checkbox"]');
+    const gameId = activeSetup.id.replace('view-setup-', '');
+
+    document.querySelectorAll('.saved-groups-select').forEach(select => {
+        select.value = groupName || "";
+    });
+
+    if (!groupName || groupName === "") {
+        allCheckboxes.forEach(cb => {
+            const wrapper = cb.closest('label') || cb.parentElement;
+            if (wrapper) wrapper.style.display = ''; 
+            cb.checked = false;                      
+        });
+        if (appState[gameId]) appState[gameId].players = [];
+        return; 
+    }
+
+    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    const selectedNames = groups[groupName];
+
+    if (selectedNames && selectedNames.length > 0) {
+        allCheckboxes.forEach(cb => {
+            const wrapper = cb.closest('label') || cb.parentElement;
+            if (wrapper) {
+                if (selectedNames.includes(cb.value)) {
+                    wrapper.style.display = ''; 
+                    cb.checked = true;          
+                } else {
+                    wrapper.style.display = 'none'; 
+                    cb.checked = false;             
+                }
+            }
+        });
+
+        if (appState[gameId]) appState[gameId].players = [...selectedNames];
+        playSound('click');
+    }
+}
+
+// 5. Delete Logic
+function deleteGroup(btnElement) {
+    const select = btnElement.previousElementSibling;
+    const groupName = select.value;
+    
+    if (!groupName) {
+        showToast(appState.lang === 'ar' ? "اختر مجموعة أولاً!" : "Select a group!", "error");
+        return;
+    }
+    
+    const msg = appState.lang === 'ar' ? `هل أنت متأكد من حذف "${groupName}" نهائياً؟` : `Delete "${groupName}"?`;
+    
+    if (typeof showConfirmModal === 'function') {
+        showConfirmModal(msg, () => {
+            let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+            delete groups[groupName];
+            localStorage.setItem('ashry_saved_groups', JSON.stringify(groups));
+            renderSavedGroups(); 
+            loadGroup(""); 
+            showToast(appState.lang === 'ar' ? "تم الحذف" : "Deleted", "success");
+        });
+    }
+}
+
+function renderSavedGroups() {
+    const selects = document.querySelectorAll('.saved-groups-select');
+    if (selects.length === 0) return;
+
+    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    const defaultText = appState.lang === 'ar' ? '-- اختر مجموعة محفوظة --' : '-- Select Saved Group --';
+    
+    selects.forEach(select => {
+        select.innerHTML = `<option value="">${defaultText}</option>`;
+        Object.keys(groups).forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.innerText = `${name} (${groups[name].length} ${appState.lang === 'ar' ? 'لاعب' : 'players'})`;
+            select.appendChild(option);
+        });
+    });
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(renderSavedGroups, 1000);
+});
+
+</script>

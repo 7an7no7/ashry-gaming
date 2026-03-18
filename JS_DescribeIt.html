@@ -1,0 +1,305 @@
+<script>
+/* --- DESCRIBE IT (Taboo Style) --- */
+
+const DESCRIBE_DB = {
+    ar: [
+        // --- Original & Basic ---
+        { word: "كرة قدم", forbidden: ["رياضة", "جون", "ملعب"] },
+        { word: "بيتزا", forbidden: ["إيطاليا", "جبنة", "مدورة"] },
+        { word: "أهرامات", forbidden: ["مصر", "فراعنة", "الجيزة"] },
+        { word: "بحر", forbidden: ["مياه", "سمك", "صيف"] },
+        { word: "ثلاجة", forbidden: ["تبريد", "أكل", "مطبخ"] },
+        { word: "أسد", forbidden: ["حيوان", "ملك", "غابة"] },
+        { word: "طائرة", forbidden: ["سفر", "مطار", "جناح"] },
+        { word: "نظارة", forbidden: ["عين", "نظر", "شمس"] },
+        { word: "موبايل", forbidden: ["اتصال", "تليفون", "نت"] },
+        { word: "قهوة", forbidden: ["بن", "شرب", "صباح"] },
+        
+        // --- Animals ---
+        { word: "فيل", forbidden: ["خرطوم", "ضخم", "أنياب"] },
+        { word: "زرافة", forbidden: ["رقبة", "طويلة", "شجرة"] },
+        { word: "أرنب", forbidden: ["جزر", "أذن", "قفز"] },
+        { word: "سلحفاة", forbidden: ["بطيء", "صدفة", "زاحف"] },
+        { word: "نحلة", forbidden: ["عسل", "ملكة", "قرص"] },
+        { word: "عنكبوت", forbidden: ["شبكة", "خيوط", "أرجل"] },
+        { word: "تمساح", forbidden: ["نهر", "أسنان", "جلد"] },
+        { word: "بقرة", forbidden: ["حليب", "مزرعة", "لحم"] },
+        { word: "بطريق", forbidden: ["قطب", "ثلج", "طائر"] },
+        { word: "جمل", forbidden: ["صحراء", "سنام", "سفينة"] },
+
+        // --- Jobs ---
+        { word: "حلاق", forbidden: ["شعر", "مقص", "رأس"] },
+        { word: "نجار", forbidden: ["خشب", "مسمار", "شاكوش"] },
+        { word: "طباخ", forbidden: ["أكل", "مطبخ", "مطعم"] },
+        { word: "شرطي", forbidden: ["سجن", "حرامي", "بدلة"] },
+        { word: "اطفاء", forbidden: ["حريق", "نار", "خرطوم"] },
+        { word: "طبيب أسنان", forbidden: ["سنة", "خلع", "وجع"] },
+        { word: "ميكانيكي", forbidden: ["سيارة", "ورشة", "زيت"] },
+        { word: "رسام", forbidden: ["لوحة", "ألوان", "فرشاة"] },
+        { word: "حكم", forbidden: ["صفارة", "مباراة", "كارت"] },
+        { word: "طيار", forbidden: ["طائرة", "جو", "كابتن"] },
+
+        // --- Objects & Places ---
+        { word: "شمس", forbidden: ["حرارة", "سماء", "نهار"] },
+        { word: "قمر", forbidden: ["ليل", "هلال", "بدر"] },
+        { word: "سرير", forbidden: ["نوم", "مخدة", "غرفة"] },
+        { word: "كرسي", forbidden: ["جلوس", "خشب", "رجل"] },
+        { word: "حذاء", forbidden: ["رجل", "لبس", "جلد"] },
+        { word: "شجرة", forbidden: ["غصن", "ورق", "أخضر"] },
+        { word: "رمضان", forbidden: ["صيام", "فانوس", "شهر"] },
+        { word: "عيد ميلاد", forbidden: ["تورتة", "شمع", "سنة"] },
+        { word: "بنزينة", forbidden: ["سيارة", "تموين", "وقود"] },
+        { word: "سينما", forbidden: ["فيلم", "شاشة", "فشار"] },
+        
+        // --- Landmarks ---
+        { word: "برج إيفل", forbidden: ["فرنسا", "باريس", "حديد"] },
+        { word: "الكعبة", forbidden: ["مكة", "سعودية", "حج"] },
+        { word: "تمثال الحرية", forbidden: ["أمريكا", "شعلة", "نيويورك"] },
+        { word: "سور الصين", forbidden: ["طويل", "آسيا", "قديم"] },
+        { word: "برج خليفة", forbidden: ["دبي", "طويل", "إمارات"] }
+    ],
+    en: [
+        // --- Original & Basic ---
+        { word: "Football", forbidden: ["Sport", "Goal", "Ball"] },
+        { word: "Pizza", forbidden: ["Italy", "Cheese", "Round"] },
+        { word: "Pyramids", forbidden: ["Egypt", "Pharaohs", "Giza"] },
+        { word: "Sea", forbidden: ["Water", "Fish", "Summer"] },
+        { word: "Fridge", forbidden: ["Cold", "Food", "Kitchen"] },
+        { word: "Lion", forbidden: ["Animal", "King", "Jungle"] },
+        { word: "Airplane", forbidden: ["Travel", "Airport", "Fly"] },
+        { word: "Glasses", forbidden: ["Eyes", "Sight", "Sun"] },
+        { word: "Mobile", forbidden: ["Call", "Phone", "Internet"] },
+        { word: "Coffee", forbidden: ["Drink", "Morning", "Bean"] },
+
+        // --- Animals ---
+        { word: "Elephant", forbidden: ["Trunk", "Big", "Grey"] },
+        { word: "Giraffe", forbidden: ["Neck", "Tall", "Spots"] },
+        { word: "Rabbit", forbidden: ["Carrot", "Ears", "Jump"] },
+        { word: "Turtle", forbidden: ["Slow", "Shell", "Green"] },
+        { word: "Bee", forbidden: ["Honey", "Sting", "Yellow"] },
+        { word: "Spider", forbidden: ["Web", "Legs", "Scary"] },
+        { word: "Crocodile", forbidden: ["River", "Teeth", "Green"] },
+        { word: "Cow", forbidden: ["Milk", "Farm", "Moo"] },
+        { word: "Penguin", forbidden: ["Ice", "Bird", "Pole"] },
+        { word: "Camel", forbidden: ["Desert", "Hump", "Sand"] },
+
+        // --- Jobs ---
+        { word: "Barber", forbidden: ["Hair", "Cut", "Scissors"] },
+        { word: "Carpenter", forbidden: ["Wood", "Hammer", "Nail"] },
+        { word: "Chef", forbidden: ["Food", "Kitchen", "Cook"] },
+        { word: "Police", forbidden: ["Jail", "Cop", "Arrest"] },
+        { word: "Firefighter", forbidden: ["Fire", "Hose", "Truck"] },
+        { word: "Dentist", forbidden: ["Teeth", "Doctor", "Pain"] },
+        { word: "Mechanic", forbidden: ["Car", "Fix", "Oil"] },
+        { word: "Painter", forbidden: ["Art", "Brush", "Canvas"] },
+        { word: "Referee", forbidden: ["Whistle", "Game", "Foul"] },
+        { word: "Pilot", forbidden: ["Plane", "Fly", "Captain"] },
+
+        // --- Objects & Places ---
+        { word: "Sun", forbidden: ["Hot", "Sky", "Day"] },
+        { word: "Moon", forbidden: ["Night", "Space", "Crater"] },
+        { word: "Bed", forbidden: ["Sleep", "Pillow", "Room"] },
+        { word: "Chair", forbidden: ["Sit", "Wood", "Seat"] },
+        { word: "Shoes", forbidden: ["Feet", "Walk", "Laces"] },
+        { word: "Tree", forbidden: ["Green", "Leaves", "Wood"] },
+        { word: "Birthday", forbidden: ["Cake", "Candle", "Party"] },
+        { word: "Gas Station", forbidden: ["Car", "Fuel", "Fill"] },
+        { word: "Cinema", forbidden: ["Movie", "Screen", "Popcorn"] },
+        { word: "Computer", forbidden: ["Keyboard", "Screen", "Mouse"] },
+
+        // --- Landmarks ---
+        { word: "Eiffel Tower", forbidden: ["France", "Paris", "Iron"] },
+        { word: "Statue of Liberty", forbidden: ["USA", "New York", "Torch"] },
+        { word: "Great Wall", forbidden: ["China", "Long", "Stone"] },
+        { word: "Big Ben", forbidden: ["London", "Clock", "Time"] },
+        { word: "Taj Mahal", forbidden: ["India", "White", "Palace"] }
+    ]
+};
+
+let descState = {
+    score: 0,
+    timer: 60,
+    interval: null,
+    currentCard: null,
+    history: []
+};
+
+function setupDescribe() {
+    setView('setup-describe');
+}
+
+function startDescribeGame(time) {
+    descState.score = 0;
+    // If time is passed (from Replay button), use it. Else use default logic.
+    if(time) descState.timer = time; 
+    
+    descState.history = []; // Reset used words
+    
+    // UI RESET: Show Game, Hide Result
+    document.getElementById('desc-ui-playing').classList.remove('hidden');
+    document.getElementById('desc-ui-result').classList.add('hidden');
+    
+    setView('play-describe');
+    nextDescribeCard();
+    startDescribeTimer();
+}
+
+function startDescribeTimer() {
+    if(descState.interval) clearInterval(descState.interval);
+    document.getElementById('desc-timer').innerText = descState.timer;
+    
+    descState.interval = setInterval(() => {
+        descState.timer--;
+        document.getElementById('desc-timer').innerText = descState.timer;
+        
+        if(descState.timer <= 0) {
+            clearInterval(descState.interval);
+            finishDescribeGame();
+        }
+    }, 1000);
+}
+
+function nextDescribeCard() {
+    const lang = appState.lang;
+    const db = DESCRIBE_DB[lang];
+    
+    // Simple random selection (can be improved to avoid repeats)
+    let card;
+    let attempts = 0;
+    do {
+        card = db[Math.floor(Math.random() * db.length)];
+        attempts++;
+    } while (descState.history.includes(card.word) && attempts < 10);
+    
+    descState.history.push(card.word);
+    descState.currentCard = card;
+    
+    renderDescribeCard();
+}
+
+function renderDescribeCard() {
+    const card = descState.currentCard;
+    document.getElementById('desc-main-word').innerText = card.word;
+    
+    const forbiddenList = document.getElementById('desc-forbidden-list');
+    forbiddenList.innerHTML = '';
+    
+    card.forbidden.forEach(word => {
+        forbiddenList.innerHTML += `
+            <div class="text-red-500 font-bold bg-red-50 dark:bg-red-900/20 py-2 rounded-lg border border-red-100 dark:border-red-800">
+                ${word}
+            </div>
+        `;
+    });
+}
+
+function descAction(action) {
+    if(descState.timer <= 0) return;
+
+    if(action === 'correct') {
+        descState.score++;
+        playSound('success');
+    } else {
+        // Skip or Taboo (Optional: minus points? For now just skip)
+        playSound('click');
+    }
+    
+    // Update Score UI if you want to show it live
+    // document.getElementById('desc-score-live').innerText = descState.score;
+    
+    nextDescribeCard();
+}
+
+function finishDescribeGame() {
+    // 1. Stop Timer
+    if (descState.interval) clearInterval(descState.interval);
+    
+    playSound('alarm');
+    confetti({ particleCount: 200, spread: 100 });
+
+    // 2. Update Score in Result Screen
+    document.getElementById('desc-final-score').innerText = descState.score;
+
+    // 3. Switch Views: Hide Game, Show Result
+    document.getElementById('desc-ui-playing').classList.add('hidden');
+    document.getElementById('desc-ui-result').classList.remove('hidden');
+}
+
+/* --- DICE & COIN LOGIC --- */
+
+let diceState = { count: 1 };
+
+function setDiceCount(n) {
+    diceState.count = n;
+    
+    // Update Buttons UI
+    document.getElementById('btn-d1').className = n === 1 ? "flex-1 py-3 rounded-lg font-bold bg-indigo-600 text-white shadow-md transition-all" : "flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
+    document.getElementById('btn-d2').className = n === 2 ? "flex-1 py-3 rounded-lg font-bold bg-indigo-600 text-white shadow-md transition-all" : "flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
+    
+    // Reset Display
+    document.getElementById('dice-container').innerHTML = '<div class="text-6xl opacity-20">🎲</div>';
+    document.getElementById('dice-result').innerText = '---';
+}
+
+function rollDice() {
+    const container = document.getElementById('dice-container');
+    const resultEl = document.getElementById('dice-result');
+    const btn = document.querySelector('[onclick="rollDice()"]');
+    
+    // Disable button to prevent spam-clicking while rolling
+    if (btn) btn.disabled = true;
+
+    // 1. Clear & Start "Roll" Animation
+    container.innerHTML = '';
+    playSound('tick'); 
+    
+    for(let i=0; i<diceState.count; i++) {
+        // Changed animate-shake to animate-roll, and put a dice emoji while it spins!
+        container.innerHTML += `
+            <div class="w-24 h-24 bg-white border-4 border-slate-800 rounded-2xl flex items-center justify-center shadow-xl animate-roll">
+                <span style="color: black !important; font-size: 3rem; font-weight: 900;">🎲</span>
+            </div>`;
+    }
+
+    // 2. Reveal Result after 600ms (matches the new CSS animation perfectly)
+    setTimeout(() => {
+        container.innerHTML = '';
+        let total = 0;
+        
+        for(let i=0; i<diceState.count; i++) {
+            const num = Math.floor(Math.random() * 6) + 1;
+            total += num;
+            
+            // Render final dice with "Pop" animation
+            container.innerHTML += `
+                <div class="w-24 h-24 bg-white border-4 border-slate-800 rounded-2xl flex items-center justify-center shadow-xl animate-pop">
+                    <span style="color: black !important; font-size: 4rem; font-weight: 900;">${num}</span>
+                </div>`;
+        }
+        
+        resultEl.innerText = total;
+        playSound('success');
+        if (btn) btn.disabled = false; // Re-enable the button!
+    }, 600);
+}
+
+function flipCoin() {
+    const coinEl = document.getElementById('coin-circle');
+    const resultEl = document.getElementById('coin-result');
+    
+    coinEl.classList.add('animate-flip-fast');
+    playSound('click');
+    
+    setTimeout(() => {
+        const isHeads = Math.random() > 0.5;
+        const text = isHeads 
+            ? (appState.lang === 'ar' ? "ملك" : "Heads") 
+            : (appState.lang === 'ar' ? "كتابة" : "Tails");
+            
+        coinEl.classList.remove('animate-flip-fast');
+        coinEl.innerText = isHeads ? "👑" : "📝";
+        resultEl.innerText = text;
+        playSound('success');
+    }, 800);
+}
+</script>

@@ -1,0 +1,646 @@
+<script>
+/* --- WHO AM I LOGIC (Fixed Ghost UI & Dark Mode) --- */
+
+const WHOAMI_DB = {
+    ar: {
+        "حيوانات 🦁": [
+    // الحيوانات البرية
+    "أسد", "نمر", "فهد", "ذئب", "ثعلب", "دب", "ضبع", "فيل", "زرافة", "وحيد القرن", 
+    "فرس النهر", "جمل", "حصان", "حمار", "بغل", "غزال", "ظبي", "أيل", "كنغر", "كوالا",
+    "باندا", "قرد", "شمبانزي", "غوريلا", "دولفين", "حوت", "فقمة", "أسد البحر", "خرتيت",
+    
+    // الحيوانات الأليفة
+    "كلب", "قطة", "أرنب", "خروف", "ماعز", "بقرة", "جاموس", "دجاجة", "بطة", "وزة",
+    "حمام", "عصفور", "ببغاء", "سلحفاة", "سمك", "هامستر", "سنجاب",
+    
+    // حيوانات الغابة
+    "تمساح", "ثعبان", "سحلية", "ضفدع", "نسر", "صقر", "بومة", "غراب", "طاووس",
+    "نعامة", "بطريق", "خفاش", "قنفذ",
+    
+    // حشرات وعناكب
+    "نملة", "نحلة", "ذبابة", "ناموسة","صرصور","فراشة",
+    "خنفساء", "عنكبوت", "عقرب",
+    
+    // حيوانات البحر
+    "قرش", "أخطبوط", "حبار", "نجم البحر", "قنديل البحر","جمبري", "محارة",
+    
+    // حيوانات مشهورة
+    "ديناصور", "تنين"
+],
+        "جماد (أشياء) 🗿": [
+            "طاولة", "كرسي", "مروحة", "تلفزيون", "ثلاجة", "غسالة", "قلم", "كتاب", "نظارة", "ساعة",
+            "لابتوب", "موبايل", "مفتاح", "باب", "شباك", "سرير", "وسادة", "مرآة", "حقيبة", "حذاء",
+            "سيارة", "طيارة", "عجلة", "طبق", "كوب", "شوكة", "ملعقة", "سكين", "فرشاة أسنان", "مشط",
+            "صابونة", "منشفة", "شماعة", "سجادة", "ستارة", "مصباح", "ريموت", "شاحن", "سماعة", "كاميرا",
+            "برواز", "مزهرية", "كنبة", "دولاب", "بوتجاز", "ميكروويف", "خلاط", "مكواة", "دفاية", "تكييف",
+            "شمسية", "محفظة", "ولاعة", "طفاية", "علم", "سبورة", "أستيكة", "مسطرة", "آلة حاسبة", "كشكول",
+            "جرس", "سلك", "بطارية", "مصباح يدوي", "دلو", "مكنسة", "ممسحة", "سلة مهملات", "شمعدان", "بخور",
+            "سخان", "غلاية", "صنبور", "مغسلة", "مرحاض", "بانيو", "دش", "سلم", "سقالة",
+            "عربة تسوق", "عربة أطفال", "كرسي متحرك", "عكاز", "نظارة شمسية", "ساعة يد", "خاتم", "سلسلة", "أسورة", "حلق",
+            "دبوس", "زر", "سحابة", "رباط حذاء","طاقية", "وشاح", "قفاز", "جوراب","حقنة"
+        ],
+        "أنمي ⚔️": [
+            "Naruto Uzumaki|Naruto", "Sasuke Uchiha|Naruto", "Kakashi Hatake|Naruto", "Itachi Uchiha|Naruto", "Jiraiya|Naruto",
+            "Luffy|One Piece", "Zoro|One Piece", "Sanji|One Piece", "Nami|One Piece", "Shanks|One Piece", "Ace|One Piece",
+            "Goku|Dragon Ball", "Vegeta|Dragon Ball", "Gohan|Dragon Ball", "Frieza|Dragon Ball", "Majin Buu|Dragon Ball",
+            "Light Yagami|Death Note", "L|Death Note", "Ryuk|Death Note",
+            "Eren Yeager|Attack on Titan", "Mikasa Ackerman|Attack on Titan", "Levi Ackerman|Attack on Titan",
+            "Tanjiro|Demon Slayer", "Nezuko|Demon Slayer", "Zenitsu|Demon Slayer", "Inosuke|Demon Slayer", "Rengoku|Demon Slayer",
+            "Gon|Hunter x Hunter", "Killua|Hunter x Hunter", "Hisoka|Hunter x Hunter",
+            "Saitama|One Punch Man", "Deku|My Hero Academia", "Bakugo|My Hero Academia", "All Might|My Hero Academia",
+            "Edward Elric|Fullmetal Alchemist", "Ichigo|Bleach", "Aizen|Bleach", "Jotaro|Jojo", "Dio|Jojo",
+            "Gojo Satoru|Jujutsu Kaisen", "Sukuna|Jujutsu Kaisen", "Itadori|Jujutsu Kaisen", "Yor Forger|Spy x Family", "Anya|Spy x Family",
+            "Hinata Hyuga|Naruto", "Sakura Haruno|Naruto", "Gaara|Naruto", "Orochimaru|Naruto", "Tsunade|Naruto",
+            "Usopp|One Piece", "Robin|One Piece", "Chopper|One Piece", "Franky|One Piece", "Brook|One Piece",
+            "Piccolo|Dragon Ball", "Trunks|Dragon Ball", "Cell|Dragon Ball", "Beerus|Dragon Ball", "Whis|Dragon Ball",
+            "Misa Amane|Death Note", "Near|Death Note", "Mello|Death Note",
+            "Armin Arlert|AOT", "Hange Zoe|AOT", "Erwin Smith|AOT", "Jean Kirstein|AOT",
+            "Shinobu Kocho|Demon Slayer", "Giyu Tomioka|Demon Slayer", "Mitsuri Kanroji|Demon Slayer", "Obanai Iguro|Demon Slayer",
+            "Kurapika|Hunter x Hunter", "Leorio|Hunter x Hunter", "Meruem|Hunter x Hunter",
+            "Genos|One Punch Man", "Tatsumaki|One Punch Man", "King|One Punch Man",
+            "Todoroki|MHA", "Uraraka|MHA", "Endeavor|MHA", "Hawks|MHA",
+            "Alphonse Elric|FMA", "Roy Mustang|FMA", "Riza Hawkeye|FMA",
+            "Kenpachi Zaraki|Bleach", "Byakuya Kuchiki|Bleach", "Rukia Kuchiki|Bleach",
+            "Joseph Joestar|Jojo", "Giorno Giovanna|Jojo", "Jolyne Cujoh|Jojo",
+            "Megumi Fushiguro|JJK", "Nobara Kugisaki|JJK", "Maki Zenin|JJK", "Toge Inumaki|JJK",
+            "Loid Forger|Spy x Family", "Bond Forger|Spy x Family", "Yuri Briar|Spy x Family" , "Sung Jin-Woo|Solo Leveling"
+        ],
+        "League of Legends 🎮": [
+            "Yasuo", "Zed", "Ahri", "Lee Sin", "Thresh", "Jinx", "Ezreal", "Lux", "Darius", "Teemo",
+            "Garen", "Katarina", "Riven", "Vayne", "Kai'Sa", "Akali", "Yone", "Sett", "Jhin", "Miss Fortune",
+            "Blitzcrank", "Pyke", "Morgana", "Ashe", "Caitlyn", "Master Yi", "Jax", "Irelia", "Fiora", "Camille",
+            "Sylas", "Ekko", "Vi", "Warwick", "Nunu", "Volibear", "Ornn", "Sion", "Malphite", "Nasus",
+            "Renekton", "Aatrox", "Mordekaiser", "Urgot", "Draven", "Lucian", "Samira", "Leona", "Nautilus",
+            "Shaco", "Kayn", "Viego", "Hecarim", "Kha'Zix", "Rengar", "Soraka", "Lulu", "Yuumi", "Brand",
+            "Talon", "Kassadin", "Karthus", "Veigar", "Annie", "Orianna", "Syndra", "Vel'Koz", "Xerath", "Ziggs",
+            "Tristana", "Twitch", "Kog'Maw", "Varus", "Xayah", "Aphelios", "Senna", "Kalista", "Sivir", "Quinn",
+            "Amumu", "Zac", "Sejuani", "Rammus", "Skarner", "Trundle", "Udyr", "Shyvana", "Nocturne", "Evelynn",
+            "Fiddlesticks", "Elise", "Nidalee", "Kindred", "Lillia", "Briar", "Naafiri", "Milio", "Hwei", "Smolder",
+            "Ambessa", "Aurora", "K'Sante", "Zeri", "Renata Glasc", "Vex", "Gwen", "Lillia", "Yone", "Sett"
+        ],
+        "مشاهير 🌟": [
+            "محمد صلاح", "عادل إمام", "عمرو دياب", "ميسي", "كريستيانو", "أم كلثوم", "أحمد حلمي", "تامر حسني",
+            "نانسي عجرم", "شيرين", "إسماعيل ياسين", "أحمد مكي", "رامز جلال", "هيفاء وهبي", "ويل سميث", "توم كروز",
+            "أحمد عز", "كريم عبد العزيز", "محمد هنيدي", "ياسمين صبري", "أحمد السقا", "منى زكي", "دينا الشربيني",
+            "إيلون ماسك", "بيل جيتس", "مارك زوكربيرج", "أينشتاين", "أحمد زويل", "نجيب محفوظ", "محمد رمضان",
+            "جورج وسوف", "كاظم الساهر", "فيروز", "حسين الجسمي", "محمد منير", "يحيى الفخراني", "ليوناردو ديكابريو",
+            "عمر الشريف", "فاتن حمامة", "سعاد حسني", "شادية", "عبد الحليم حافظ", "فريد الأطرش", "وديع الصافي",
+            "صباح", "وردة الجزائرية", "ميادة الحناوي", "نجاة الصغيرة", "فايزة أحمد", "هاني شاكر", "أنغام",
+            "أصالة", "ماجدة الرومي", "ملحم بركات", "زياد الرحباني", "مارسيل خليفة", "جوليا بطرس",
+            "نيوستيد", "إيد شيران", "أديل", "بيونسيه", "ريهانا", "كاني ويست", "جاي زي", "دريك",
+            "كريس براون", "جاستن بيبر", "أريانا غراندي", "تايلور سويفت", "ليدي غاغا", "مادونا", "مايكل جاكسون",
+            "بريتني سبيرز", "كريستينا أغيليرا", "شاكيرا", "جينيفر لوبيز", "إيفا لونغوريا", "كيم كارداشيان","ويجز", "مرتضى منصور", "حسن شاكوش", "عنبة", "أحمد موزة","عمر مرموش",
+            "أيتن عامر", "هنا الزاهد", "أمينة خليل","محمد أنور", "محمد أسامة (أوس أوس)", "كريم فهمي", "بيومي فؤاد", "محمد سلام","مصطفى غريب",
+            "جميلة عوض", "هدى المفتي", "أسماء أبو اليزيد", "مي عمر", "هنادي مهنا","أحمد داش","طه الدسوقي","عصام عمر","محمد الشرنوبي"
+        ],
+        "أكلات و مشروبات 🍽️&🥤": [
+          // فواكه 🍎 (Fruits)
+         "تفاح", "موز", "برتقال", "يوسفي", "ليمون", "عنب", "بطيخ", "شمام", "كانتلوب", "فراولة",
+         "مانجو", "جوافة", "رمان", "بلح", "تين", "كمثرى", "مشمش", "خوخ", "كرز", "أناناس", "كيوي",
+    
+         // خضار 🥕 (Vegetables)
+         "طماطم", "خيار", "بطاطس", "بصل", "ثوم", "جزر", "باذنجان", "فلفل رومي", "فلفل حار", "كوسة",
+         "بامية", "ملوخية", "سبانخ", "خس", "جرجير", "كرنب", "قرنبيط", "بروكلي", "بسلة", "فاصوليا خضراء",
+         "لوبيا","قلقاس", "بطاطا","لفت", "بنجر", "فجل", "كرات", "خرشوف",
+    
+    
+         // الأكلات المصرية الشهيرة 🍲 (Famous Egyptian Dishes)
+         "كشري", "ملوخية", "فتة", "مسقعة", "بامية", "محشي", "محشي ورق عنب", "محشي كرنب", "محشي بصل",
+         "صيادية", "صينية بطاطس", "مكرونة بشاميل","طاجن لحم", "طاجن فراخ",
+         "فراخ مشوية", "فراخ محمرة", "كفتة", "كباب", "لحمة", "لحمة مفرومة",
+         "بفتيك","بانية", "رز معمر", "رز مفلفل", "عيش",
+         "فطير مشلتت","طعمية","فول", "بيض", "جبنة",
+    
+    // الأكلات الشعبية (Street Food)
+    "كبدة", "بطاطس مقلية", "شيبسي", "سمبوسك","لقمة قاضي", "زلابية",
+    
+    // الحلويات المصرية 🍰 (Egyptian Sweets)
+    "أم علي", "بسبوسة", "كنافة", "قطايف", "بلح الشام", "غريبة", "بيتي فور", "كحك",
+    "مهلبية", "أرز بلبن", "قشطة", "عسل", "عسل أسود", "ربع", "حلاوة طحينية",
+    "ملبن", "سمسمية", "فولية", "حمصية","بسكوت", "بسكويت","كيكة", "جاتوه",
+    
+    // المكسرات (Nuts)
+    "فول سوداني", "لوز", "بندق", "عين جمل","كاجو", "فستق","جوز الهند", "لب",
+    
+    // مشروبات مصرية ☕ (Egyptian Drinks)
+    "شاي", "قهوة", "كركديه", "عرق سوس", "تمر هندي", "خروب", "قمر الدين",
+    "عصير قصب", "عصير مانجو", "عصير برتقال", "عصير ليمون", "سوبيا", "خشاف", "يانسون", "حلبة", "كاكاو", "سحلب",
+    
+    // منتجات ألبان (Dairy Products)
+    "لبن", "زبادي",
+    
+    // مخللات (Pickles)
+    "طرشي"
+],
+        "مهن 👮": [
+            "شرطي", "دكتور", "مهندس", "طباخ", "طيار", "نجار", "حلاق", "مدرس", "جزار", "ميكانيكي", 
+            "رائد فضاء", "محامي", "رجل إطفاء", "حكم كرة قدم", "ممثل", "رسام", "سائق تاكسي", "ممرضة",
+            "صيدلي", "سباك", "كهربائي", "نقاش", "عامل نظافة", "مدير", "محاسب", "كاشير", "يوتيوبر",
+            "مبرمج", "مصور", "صحفي", "مذيع", "خياط", "ساعي بريد", "طبيب أسنان", "طبيب بيطري", "جرسون",
+            "طاهي", "خباز", "حلواني", "سائق شاحنة", "سائق حافلة", "سائق قطار", "ربان سفينة", "بحار", "غواص",
+            "عامل بناء", "حداد", "نجار مسلح", "دهان", "بلاط","مبلط",
+            "عالم", "باحث", "أستاذ جامعي", "معلم", "مدرب", "كابتن", "لاعب كرة قدم", "لاعب كرة سلة", "سباح",
+            "ملاكم", "مصارع", "حارس أمن", "حارس شخصي", "جندي", "ضابط", "قاض", "محقق", "مخبر",
+            "مترجم", "كاتب", "مؤلف", "شاعر", "ناقد", "مراسل", "مقدم برامج", "منتج", "مخرج"
+        ],
+        "شخصيات خيالية 🦸": [
+            "سبايدر مان", "باتمان", "سوبر مان", "الجوكر", "هاري بوتر", "توم وجيري", "ميكي ماوس", 
+            "سندريلا", "علاء الدين", "المحقق كونان", "كابتن ماجد", "سبونج بوب", "شريك",
+            "ديدبول", "ثانوس", "آيرون مان", "كابتن أمريكا", "هالك", "ثور", "وودي (توي ستوري)", "باز يطير",
+            "نيمو", "مارد وشوشني", "شلبي سلوفان", "طرزان", "سيمبا", "تيمون وبومبا", "ميني ماوس", "بطوط",
+            "سوبر ماريو", "سونيك", "بيكاتشو", "كراش", "بسيط|SpongeBob", "مستر سلطع", "شمشون",
+            "الرجل العنكبوت", "الرجل الوطواط", "الرجل الخارق", "المرأة المعجزة", "فلاش", "آكوامان",
+            "سكوبي دو", "فيلما", "دافني", "شاغي", "فريد", "عائلة سمبسون", "هومر سمبسون", "مارج سمبسون",
+            "بارت سمبسون", "ليزا سمبسون", "ماجي سمبسون", "فيوتشوراما", "فراي", "بندر", "ليلى",
+            "ريك ومورتي", "ريك سانشيز", "مورتي سميث", "الخيال العلمي", "ستيفن يونيفرس", "غارنيت", "أميثست",
+            "بيرل", "ستيفوني", "بن 10", "غوين تينيسون", "كيڤن ليفين", "مايتراكس",
+            "أفاتار: آخر مسخر هواء", "آنغ", "كاتارا", "سوكا", "توف", "زوكو", "آيروه",
+            "ذا ليجند أوف كورا", "كورا", "ميكو", "أسامي", "بولين", "تينزن"
+        ]
+    },
+    en: {
+        "Animals 🦁": [
+            "Lion", "Elephant", "Giraffe", "Monkey", "Tiger", "Cat", "Dog", "Bear", "Wolf", "Fox", "Panda",
+            "Kangaroo", "Shark", "Eagle", "Rabbit", "Squirrel", "Dolphin", "Whale", "Ant", "Falcon", "Gorilla",
+            "Cheetah", "Crocodile", "Snake", "Turtle", "Frog", "Zebra", "Rhino", "Hippo", "Bat", "Owl", "Peacock",
+            "Chicken", "Duck", "Ostrich", "Hedgehog", "Octopus", "Scorpion", "Spider", "Mosquito", "Fly", "Mouse",
+            "Buffalo", "Goat", "Donkey", "Deer", "Raccoon", "Sloth", "Koala", "Penguin", "Polar Bear",
+            "Leopard", "Jaguar", "Panther", "Lynx", "Cougar", "Bobcat", "Hyena", "Jackal", "Coyote", "Dingo",
+            "Beaver", "Otter", "Mink", "Weasel", "Ferret", "Badger", "Porcupine", "Skunk", "Raccoon", "Sable",
+            "Horse", "Zebra", "Donkey", "Mule", "Pony", "Camel", "Llama", "Alpaca", "Guanaco", "Vicuña",
+            "Cow", "Ox", "Bull", "Calf", "Yak", "Bison", "Water Buffalo", "Sheep", "Lamb", "Ram",
+            "Goat", "Kid", "Antelope", "Gazelle", "Springbok", "Impala", "Wildebeest", "Oryx", "Addax", "Ibex",
+            "Moose", "Elk", "Caribou", "Reindeer", "Stag", "Hind", "Fallow Deer", "Roe Deer", "Muntjac", "Chital"
+        ],
+        "Celebrities 🌟": [
+            "Messi", "Ronaldo", "The Rock", "Taylor Swift", "Batman", "Spider-Man", "Elon Musk", "Will Smith",
+            "Tom Cruise", "Beyonce", "Michael Jackson", "Eminem", "Justin Bieber", "Ariana Grande", "Kim Kardashian",
+            "Selena Gomez", "Leonardo DiCaprio", "Johnny Depp", "Brad Pitt", "Angelina Jolie", "Bill Gates",
+            "Mark Zuckerberg", "Steve Jobs", "Einstein", "Donald Trump", "Barack Obama", "Queen Elizabeth",
+            "Mohamed Salah", "Neymar", "Mbappe", "LeBron James", "Michael Jordan", "Snoop Dogg", "Rihanna",
+            "Kanye West", "Jay-Z", "Drake", "Kendrick Lamar", "Nicki Minaj", "Cardi B", "Megan Thee Stallion",
+            "Lady Gaga", "Madonna", "Britney Spears", "Christina Aguilera", "Shakira", "Jennifer Lopez",
+            "Robert Downey Jr.", "Chris Evans", "Chris Hemsworth", "Scarlett Johansson", "Mark Ruffalo",
+            "Tom Holland", "Zendaya", "Dwayne Johnson", "Vin Diesel", "Jason Statham", "Keanu Reeves",
+            "Morgan Freeman", "Denzel Washington", "Samuel L. Jackson", "Robert De Niro", "Al Pacino",
+            "Meryl Streep", "Julia Roberts", "Sandra Bullock", "Anne Hathaway", "Jennifer Lawrence",
+            "Oprah Winfrey", "Ellen DeGeneres", "Jimmy Fallon", "Jimmy Kimmel", "Stephen Colbert",
+            "David Beckham", "Cristiano Ronaldo", "Lionel Messi", "Kylian Mbappé", "Erling Haaland",
+            "Serena Williams", "Venus Williams", "Roger Federer", "Rafael Nadal", "Novak Djokovic",
+            "Tiger Woods", "Muhammad Ali", "Mike Tyson", "Floyd Mayweather", "Conor McGregor"
+        ],
+        "Food And Drinks 🍽️&🥤": [
+            "Apple", "Banana", "Watermelon", "Grapes", "Strawberry", "Mango", "Pineapple", "Kiwi", "Orange", "Lemon",
+            "Cucumber", "Tomato", "Potato", "Onion", "Carrot", "Eggplant", "Pepper", "Cherry", "Peach", "Apricot",
+            "Fig", "Pear", "Guava", "Tangerine", "Melon", "Garlic", "Lettuce", "Spinach", "Cabbage", "Broccoli",
+            "Peas", "Beans", "Zucchini", "Corn", "Radish", "Coconut", "Avocado", "Blueberry", "Raspberry",
+            "Blackberry", "Cranberry", "Strawberry", "Boysenberry", "Gooseberry", "Elderberry", "Mulberry",
+            "Pomegranate", "Grapefruit", "Lime", "Pomelo", "Cantaloupe", "Honeydew", "Gal", "Passion Fruit",
+            "Dragon Fruit", "Lychee", "Rambutan", "Durian", "Jackfruit", "Breadfruit", "Plantain", "Banana",
+            "Apple", "Green Apple", "Red Apple", "Granny Smith", "Fuji", "Gala", "Honeycrisp",
+            "Celery", "Parsley", "Cilantro", "Dill", "Thyme", "Rosemary", "Sage", "Oregano", "Basil", "Mint",
+            "Cauliflower", "Brussels Sprouts", "Kale", "Collard Greens", "Mustard Greens", "Turnip Greens",
+            "Beetroot", "Turnip", "Rutabaga", "Parsnip", "Horseradish", "Ginger", "Turmeric", "Wasabi",
+            "Bell Pepper", "Jalapeno", "Habanero", "Serrano", "Cayenne", "Chili Pepper", "Ghost Pepper"
+        ],
+        "Objects 💡": [
+            "Chair", "TV", "Pen", "Car", "Fridge", "Phone", "Glasses", "Watch", "Shoe", "Bed", "Laptop", "Key",
+            "Table", "Fan", "Book", "Door", "Window", "Pillow", "Mirror", "Bag", "Plane", "Bicycle", "Plate",
+            "Cup", "Fork", "Spoon", "Knife", "Toothbrush", "Comb", "Soap", "Towel", "Carpet", "Curtain", "Lamp",
+            "Remote", "Charger", "Headphones", "Camera", "Sofa", "Wardrobe", "Oven", "Microwave", "Blender", "Iron",
+            "Heater", "AC", "Umbrella", "Wallet", "Lighter", "Flag", "Blackboard", "Eraser", "Ruler", "Calculator",
+            "Pencil", "Marker", "Highlighter", "Crayon", "Chalk", "Notebook", "Folder", "Binder", "Stapler", "Tape",
+            "Scissors", "Glue", "Paper Clip", "Push Pin", "Rubber Band", "Envelope", "Stamp", "Post-it Note",
+            "Backpack", "Suitcase", "Trunk", "Briefcase", "Handbag", "Purse", "Wallet", "Coin Purse",
+            "Belt", "Hat", "Cap", "Beanie", "Beret", "Fedora", "Top Hat", "Helmet", "Headphones", "Earbuds",
+            "Watch", "Bracelet", "Necklace", "Earrings", "Ring", "Brooch", "Cufflinks", "Tie", "Bow Tie", "Scarf",
+            "Gloves", "Mittens", "Socks", "Stockings", "Tights", "Shoes", "Boots", "Sneakers", "Sandals", "Slippers"
+        ],
+        "Jobs 👮": [
+            "Police", "Doctor", "Engineer", "Chef", "Pilot", "Carpenter", "Teacher", "Firefighter", "Astronaut",
+            "Barber", "Butcher", "Mechanic", "Lawyer", "Referee", "Actor", "Painter", "Taxi Driver", "Nurse",
+            "Pharmacist", "Plumber", "Electrician", "Cleaner", "Manager", "Accountant", "Cashier", "YouTuber",
+            "Programmer", "Photographer", "Journalist", "Tailor", "Postman", "Dentist", "Vet", "Waiter", "Soldier",
+            "Baker", "Butcher", "Candlestick Maker", "Fisherman", "Farmer", "Gardener", "Landscaper", "Florist",
+            "Architect", "Surveyor", "Construction Worker", "Laborer", "Electrician", "Plumber", "Carpenter",
+            "Mason", "Roofer", "Painter", "Decorator", "Interior Designer", "Graphic Designer", "Web Designer",
+            "Software Developer", "Data Scientist", "AI Specialist", "Network Administrator", "Database Admin",
+            "Security Guard", "Bodyguard", "Detective", "Private Investigator", "Spy", "Secret Agent",
+            "Judge", "Lawyer", "Paralegal", "Legal Assistant", "Court Reporter", "Bailiff",
+            "Scientist", "Researcher", "Lab Technician", "Biologist", "Chemist", "Physicist", "Astronomer",
+            "Professor", "Lecturer", "Teacher", "Tutor", "Coach", "Trainer", "Instructor",
+            "Athlete", "Sports Player", "Coach", "Referee", "Umpire", "Commentator", "Sports Analyst"
+        ],
+        "Anime ⚔️": [
+            "Naruto|Naruto", "Sasuke|Naruto", "Kakashi|Naruto", "Itachi|Naruto", "Jiraiya|Naruto",
+            "Luffy|One Piece", "Zoro|One Piece", "Sanji|One Piece", "Nami|One Piece", "Shanks|One Piece",
+            "Goku|Dragon Ball", "Vegeta|Dragon Ball", "Gohan|Dragon Ball", "Frieza|Dragon Ball",
+            "Light Yagami|Death Note", "L|Death Note", "Ryuk|Death Note",
+            "Eren Yeager|AOT", "Mikasa|AOT", "Levi|AOT",
+            "Tanjiro|Demon Slayer", "Nezuko|Demon Slayer", "Zenitsu|Demon Slayer", "Inosuke|Demon Slayer",
+            "Gon|Hunter x Hunter", "Killua|Hunter x Hunter", "Hisoka|Hunter x Hunter",
+            "Saitama|One Punch Man", "Deku|MHA", "Bakugo|MHA", "All Might|MHA",
+            "Edward Elric|FMA", "Ichigo|Bleach", "Aizen|Bleach", "Jotaro|Jojo", "Dio|Jojo",
+            "Gojo|Jujutsu Kaisen", "Sukuna|Jujutsu Kaisen", "Yor|Spy x Family", "Anya|Spy x Family",
+            "Hinata|Naruto", "Sakura|Naruto", "Gaara|Naruto", "Orochimaru|Naruto", "Tsunade|Naruto",
+            "Usopp|One Piece", "Robin|One Piece", "Chopper|One Piece", "Franky|One Piece", "Brook|One Piece",
+            "Piccolo|Dragon Ball", "Trunks|Dragon Ball", "Cell|Dragon Ball", "Beerus|Dragon Ball", "Whis|Dragon Ball",
+            "Misa|Death Note", "Near|Death Note", "Mello|Death Note",
+            "Armin|AOT", "Hange|AOT", "Erwin|AOT", "Jean|AOT",
+            "Shinobu|Demon Slayer", "Giyu|Demon Slayer", "Mitsuri|Demon Slayer", "Obanai|Demon Slayer",
+            "Kurapika|Hunter x Hunter", "Leorio|Hunter x Hunter", "Meruem|Hunter x Hunter",
+            "Genos|One Punch Man", "Tatsumaki|One Punch Man", "King|One Punch Man",
+            "Todoroki|MHA", "Uraraka|MHA", "Endeavor|MHA", "Hawks|MHA",
+            "Alphonse|FMA", "Roy Mustang|FMA", "Riza Hawkeye|FMA",
+            "Kenpachi|Bleach", "Byakuya|Bleach", "Rukia|Bleach",
+            "Joseph|Jojo", "Giorno|Jojo", "Jolyne|Jojo",
+            "Megumi|JJK", "Nobara|JJK", "Maki|JJK", "Toge|JJK",
+            "Loid|Spy x Family", "Bond|Spy x Family", "Yuri|Spy x Family",
+            "Gintoki|Gintama", "Kagura|Gintama", "Shinpachi|Gintama",
+            "Lelouch|Code Geass", "C.C.|Code Geass", "Suzaku|Code Geass",
+            "Kirito|SAO", "Asuna|SAO", "Leafa|SAO",
+            "Naofumi|Shield Hero", "Raphtalia|Shield Hero", "Filo|Shield Hero",
+            "Subaru|Re:Zero", "Rem|Re:Zero", "Ram|Re:Zero", "Emilia|Re:Zero",
+            "Kazuma|Konosuba", "Aqua|Konosuba", "Megumin|Konosuba", "Darkness|Konosuba","Sung Jin-Woo|Solo Leveling"
+        ],
+        "League of Legends 🎮": [
+            "Yasuo", "Zed", "Ahri", "Lee Sin", "Thresh", "Jinx", "Ezreal", "Lux", "Darius", "Teemo",
+            "Garen", "Katarina", "Riven", "Vayne", "Kai'Sa", "Akali", "Yone", "Sett", "Jhin", "Miss Fortune",
+            "Blitzcrank", "Pyke", "Morgana", "Ashe", "Caitlyn", "Master Yi", "Jax", "Irelia", "Fiora", "Camille",
+            "Sylas", "Ekko", "Vi", "Warwick", "Nunu", "Volibear", "Ornn", "Sion", "Malphite", "Nasus",
+            "Renekton", "Aatrox", "Mordekaiser", "Urgot", "Draven", "Lucian", "Samira", "Leona", "Nautilus",
+            "Shaco", "Kayn", "Viego", "Hecarim", "Kha'Zix", "Rengar", "Soraka", "Lulu", "Yuumi", "Brand",
+            "Talon", "Zed", "Kassadin", "Katarina", "Akali", "Leblanc", "Fizz", "Ekko", "Diana", "Sylas",
+            "Ahri", "Annie", "Aurelion Sol", "Azir", "Cassiopeia", "Karthus", "Malzahar", "Orianna", "Ryze",
+            "Taliyah", "Twisted Fate", "Veigar", "Viktor", "Vladimir", "Xerath", "Ziggs", "Zoe", "Syndra",
+            "Aphelios", "Ashe", "Caitlyn", "Draven", "Ezreal", "Jhin", "Jinx", "Kai'Sa", "Kalista", "Kog'Maw",
+            "Lucian", "Miss Fortune", "Quinn", "Samira", "Senna", "Sivir", "Tristana", "Twitch", "Varus", "Vayne",
+            "Xayah", "Zeri", "Braum", "Leona", "Nautilus", "Thresh", "Blitzcrank", "Pyke", "Rakan", "Taric",
+            "Alistar"
+        ]
+    }
+};
+
+let whoAmIState = {
+    count: 3,
+    assignments: [], 
+    currentIndex: 0,
+    timer: 0,
+    interval: null,
+    isPaused: false,
+    manualWords: [],
+    isShuffle: true,
+    inputIndex: 0
+};
+
+function setupWhoAmI() {
+    const catSelect = document.getElementById('whoami-cat-select');
+    catSelect.innerHTML = '';
+    
+    // 1. Manual Option
+    const manualText = appState.lang === 'ar' ? '✍️ إدخال يدوي (Manual)' : '✍️ Manual Input';
+    const manualOpt = document.createElement('option');
+    manualOpt.value = 'manual';
+    manualOpt.innerText = manualText;
+    catSelect.appendChild(manualOpt);
+
+    // 2. Random / Mix Option
+    const randomText = appState.lang === 'ar' ? '🔀 كوكتيل (مخصص)' : '🔀 Mix (Custom)';
+    const randomOpt = document.createElement('option');
+    randomOpt.value = 'random';
+    randomOpt.innerText = randomText;
+    catSelect.appendChild(randomOpt);
+
+    // 3. Database Categories
+    const db = WHOAMI_DB[appState.lang];
+    if (db) {
+        Object.keys(db).forEach(key => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.innerText = key;
+            catSelect.appendChild(option);
+        });
+    }
+    
+    handleWhoAmICatChange(); // Initialize view
+    setView('setup-whoami');
+}
+
+function handleWhoAmICatChange() {
+    const select = document.getElementById('whoami-cat-select');
+    const manualOptions = document.getElementById('whoami-manual-options');
+    const mixOptions = document.getElementById('whoami-mix-options');
+    
+    // 1. Hide everything first
+    manualOptions.classList.add('hidden');
+    mixOptions.classList.add('hidden');
+    
+    // 2. Show based on selection
+    if (select.value === 'manual') {
+        manualOptions.classList.remove('hidden');
+        
+        // Update Manual Text
+        const labelMain = appState.lang === 'ar' ? '🔀 خلط الأدوار (Shuffle)' : '🔀 Shuffle Roles';
+        const labelDesc = appState.lang === 'ar' 
+            ? '✅ <b>مفعل:</b> يتم توزيع الكلمات عشوائياً.<br>⬜ <b>غير مفعل:</b> تحتفظ بكلمتك.'
+            : '✅ <b>ON:</b> Words are swapped randomly.<br>⬜ <b>OFF:</b> You keep your word.';
+        document.getElementById('whoami-shuffle-label').innerText = labelMain;
+        document.getElementById('whoami-shuffle-desc').innerHTML = labelDesc;
+
+    } else if (select.value === 'random') {
+        mixOptions.classList.remove('hidden');
+        renderMixCheckboxes();
+    }
+}
+
+function adjustWhoAmICount(delta) {
+    let input = document.getElementById('whoami-count');
+    let val = parseInt(input.value) + delta;
+    if (val < 2) val = 2;
+    if (val > 20) val = 20;
+    input.value = val;
+    playSound('click');
+}
+
+function startWhoAmI() {
+    const count = parseInt(document.getElementById('whoami-count').value);
+    const catSelect = document.getElementById('whoami-cat-select');
+    const selectedCat = catSelect.value;
+    
+    whoAmIState.count = count;
+    whoAmIState.assignments = [];
+    
+    const players = [];
+    for(let i=0; i<count; i++) {
+        players.push(appState.lang === 'ar' ? `اللاعب ${i+1}` : `Player ${i+1}`);
+    }
+
+    // --- CASE 1: MANUAL ---
+    if (selectedCat === 'manual') {
+        whoAmIState.manualWords = [];
+        whoAmIState.isShuffle = document.getElementById('whoami-shuffle-check').checked;
+        whoAmIState.inputIndex = 0;
+        whoAmIState.tempPlayers = players; 
+        renderManualInputScreen();
+        setView('input-whoami');
+        return;
+    }
+
+    let pool = [];
+
+    // --- CASE 2: RANDOM MIX (CUSTOM) ---
+    if (selectedCat === 'random') {
+        const db = WHOAMI_DB[appState.lang];
+        // Get all checked boxes
+        const checkboxes = document.querySelectorAll('.mix-check:checked');
+        
+        if (checkboxes.length === 0) {
+            const msg = appState.lang === 'ar' ? 'يجب اختيار قسم واحد على الأقل!' : 'Select at least one category!';
+            showToast(msg, 'error');
+            return;
+        }
+
+        checkboxes.forEach(box => {
+            const key = box.value;
+            if (db[key]) pool.push(...db[key]);
+        });
+
+    } else {
+    // --- CASE 3: SINGLE CATEGORY ---
+        pool = WHOAMI_DB[appState.lang][selectedCat] || ["Error"];
+    }
+    
+    // Shuffle and Start
+    let shuffledWords = pool.sort(() => 0.5 - Math.random());
+    
+    // Fallback if pool is smaller than players (rare)
+    while(shuffledWords.length < count) {
+        shuffledWords = shuffledWords.concat(pool);
+    }
+    
+    const selectedWords = shuffledWords.slice(0, count);
+    
+    for (let i = 0; i < count; i++) {
+        whoAmIState.assignments.push({ name: players[i], word: selectedWords[i] });
+    }
+    
+    document.getElementById('whoami-result-ui').classList.add('hidden');
+    startRevealPhase();
+}
+
+/* ================= MANUAL INPUT LOGIC ================= */
+
+function renderManualInputScreen() {
+    const idx = whoAmIState.inputIndex;
+    const playerNum = idx + 1;
+    const givePhoneText = appState.lang === 'ar' ? 'أعط الهاتف لـ' : 'Give phone to';
+    const playerLabel = appState.lang === 'ar' ? `اللاعب ${playerNum}` : `Player ${playerNum}`;
+    
+    document.getElementById('manual-instruction').innerText = givePhoneText;
+    document.getElementById('manual-player-label').innerText = playerLabel;
+    
+    const input = document.getElementById('manual-whoami-input');
+    input.value = '';
+    input.placeholder = appState.lang === 'ar' ? 'اكتب الشخصية هنا...' : 'Type character here...';
+    input.focus();
+}
+
+function submitManualWhoAmI() {
+    const input = document.getElementById('manual-whoami-input');
+    const val = input.value.trim();
+    
+    if(!val) {
+        showToast(appState.lang === 'ar' ? 'أدخل كلمة أولاً!' : 'Enter a word first!', 'error');
+        return;
+    }
+    
+    whoAmIState.manualWords.push(val);
+    whoAmIState.inputIndex++;
+    
+    playSound('click');
+    
+    if (whoAmIState.inputIndex < whoAmIState.count) {
+        renderManualInputScreen();
+    } else {
+        finalizeManualGame();
+    }
+}
+
+function finalizeManualGame() {
+    const words = [...whoAmIState.manualWords];
+    const players = whoAmIState.tempPlayers;
+
+    // FIX 1: Ensure previous results are hidden immediately
+    document.getElementById('whoami-result-ui').classList.add('hidden');
+
+    if (whoAmIState.isShuffle) {
+        // SCENARIO A: SHUFFLE ON -> Randomize -> Go to Reveal
+        words.sort(() => 0.5 - Math.random());
+        
+        for (let i = 0; i < whoAmIState.count; i++) {
+            whoAmIState.assignments.push({ name: players[i], word: words[i] });
+        }
+        startRevealPhase();
+        
+    } else {
+        // SCENARIO B: SHUFFLE OFF -> Keep Word -> SKIP REVEAL -> Go to Timer
+        for (let i = 0; i < whoAmIState.count; i++) {
+            whoAmIState.assignments.push({ name: players[i], word: words[i] });
+        }
+        
+        document.getElementById('whoami-pass-container').classList.add('hidden');
+        document.getElementById('whoami-timer-ui').classList.remove('hidden');
+        setView('play-whoami');
+        
+        startWhoAmITimer();
+    }
+}
+
+/* ================= REVEAL & GAMEPLAY ================= */
+
+function startRevealPhase() {
+    whoAmIState.currentIndex = 0;
+    document.getElementById('whoami-pass-container').classList.remove('hidden');
+    document.getElementById('whoami-pass-ui').classList.remove('hidden');
+    document.getElementById('whoami-reveal-ui').classList.add('hidden');
+    document.getElementById('whoami-timer-ui').classList.add('hidden');
+    document.getElementById('whoami-result-ui').classList.add('hidden');
+    
+    updateWhoAmIPassScreen();
+    setView('play-whoami');
+}
+
+function updateWhoAmIPassScreen() {
+    const currentPlayer = whoAmIState.assignments[whoAmIState.currentIndex];
+    document.getElementById('whoami-player-label').innerText = currentPlayer.name;
+    document.getElementById('whoami-pass-ui').classList.remove('hidden');
+    document.getElementById('whoami-reveal-ui').classList.add('hidden');
+}
+
+function whoAmIReveal() {
+    const item = whoAmIState.assignments[whoAmIState.currentIndex];
+    
+    let displayHtml = item.word;
+    
+    if (item.word.includes('|')) {
+        const parts = item.word.split('|');
+        displayHtml = `
+            <div class="flex flex-col items-center">
+                <span>${parts[0]}</span>
+                <span class="text-lg text-teal-600 mt-2 font-bold opacity-75">(${parts[1]})</span>
+            </div>
+        `;
+    }
+
+    document.getElementById('whoami-secret-word').innerHTML = displayHtml;
+    
+    document.getElementById('whoami-pass-ui').classList.add('hidden');
+    document.getElementById('whoami-reveal-ui').classList.remove('hidden');
+    playSound('click');
+}
+
+function whoAmINext() {
+    whoAmIState.currentIndex++;
+    
+    if (whoAmIState.currentIndex >= whoAmIState.assignments.length) {
+        startWhoAmITimer(); 
+    } else {
+        updateWhoAmIPassScreen();
+    }
+}
+
+// --- TIMER PHASE ---
+function startWhoAmITimer() {
+    document.getElementById('whoami-pass-container').classList.add('hidden');
+    document.getElementById('whoami-timer-ui').classList.remove('hidden');
+    
+    whoAmIState.timer = 120; 
+    whoAmIState.isPaused = false;
+    updateWhoAmITimerDisplay();
+    
+    if(whoAmIState.interval) clearInterval(whoAmIState.interval);
+    
+    whoAmIState.interval = setInterval(() => {
+        if(!whoAmIState.isPaused) {
+            whoAmIState.timer--;
+            updateWhoAmITimerDisplay();
+            
+            if(whoAmIState.timer <= 0) {
+                 clearInterval(whoAmIState.interval);
+                 playSound('alarm');
+            }
+        }
+    }, 1000);
+}
+
+function toggleWhoAmITimer() {
+    whoAmIState.isPaused = !whoAmIState.isPaused;
+    const btn = document.getElementById('whoami-pause-btn');
+    if(appState.lang === 'ar') btn.innerText = whoAmIState.isPaused ? "استئناف" : "إيقاف";
+    else btn.innerText = whoAmIState.isPaused ? "Resume" : "Pause";
+}
+
+function updateWhoAmITimerDisplay() {
+    const m = Math.floor(whoAmIState.timer / 60).toString().padStart(2, '0');
+    const s = (whoAmIState.timer % 60).toString().padStart(2, '0');
+    document.getElementById('whoami-timer-display').innerText = `${m}:${s}`;
+}
+
+// --- RESULT PHASE ---
+function finishWhoAmIGame() {
+    if(whoAmIState.interval) clearInterval(whoAmIState.interval);
+    
+    const listEl = document.getElementById('whoami-final-list');
+    listEl.innerHTML = '';
+    
+    whoAmIState.assignments.forEach((item, index) => {
+        let displayWord = item.word;
+        if (displayWord.includes('|')) {
+            const parts = displayWord.split('|');
+            displayWord = `${parts[0]} <span class="text-xs opacity-75">(${parts[1]})</span>`;
+        }
+
+        // FIX 2: Dark Mode Colors (Force slate-800/100 to ensure visibility)
+        const isEven = index % 2 === 0;
+        const bgClass = isEven ? 'bg-slate-100 dark:bg-slate-800' : 'bg-slate-200 dark:bg-slate-700';
+        const textClass = 'text-slate-800 dark:text-slate-100'; 
+
+        listEl.innerHTML += `
+            <div class="flex justify-between items-center ${bgClass} p-4 rounded-xl border-r-4 border-teal-500 shadow-sm">
+                <span class="font-bold text-slate-500 dark:text-slate-300">${item.name}</span>
+                <span class="${textClass} font-black text-xl text-right">${displayWord}</span>
+            </div>
+        `;
+    });
+
+    document.getElementById('whoami-timer-ui').classList.add('hidden');
+    document.getElementById('whoami-result-ui').classList.remove('hidden'); 
+    document.getElementById('whoami-result-ui').classList.add('flex');
+    
+    playSound('success');
+    confetti({ particleCount: 150, spread: 70 });
+}
+
+function renderMixCheckboxes() {
+    const container = document.getElementById('whoami-mix-list');
+    const db = WHOAMI_DB[appState.lang];
+    
+    // Don't re-render if already populated to keep selection
+    if (container.children.length > 0 && container.dataset.lang === appState.lang) return;
+    
+    container.innerHTML = '';
+    container.dataset.lang = appState.lang;
+
+    Object.keys(db).forEach(key => {
+        const div = document.createElement('div');
+        // USES NEW .mix-item CLASS
+        div.className = "flex items-center p-2 rounded-lg mix-item mb-2";
+        div.innerHTML = `
+            <input type="checkbox" id="mix-${key}" value="${key}" class="mix-check w-5 h-5 accent-teal-600 cursor-pointer" checked>
+            <label for="mix-${key}" class="mx-2 font-bold text-sm cursor-pointer flex-grow select-none">${key}</label>
+        `;
+        container.appendChild(div);
+    });
+}
+
+</script>

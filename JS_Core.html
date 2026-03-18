@@ -1,0 +1,911 @@
+<script>
+  /* --- AUDIO SYSTEM --- */
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    if (type === 'click') {
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+    } else if (type === 'tick') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, now);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+        osc.start(now); osc.stop(now + 0.05);
+    } else if (type === 'alarm') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(600, now + 0.1);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.6);
+        osc.start(now); osc.stop(now + 0.6);
+    } else if (type === 'success') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(800, now + 0.2);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+    }
+  }
+
+  /* --- GLOBAL STATE & STORAGE --- */
+  let allPlayers = []; 
+  let SPY_CATEGORIES = {}; 
+  let dataLoaded = false; 
+  
+  // Timers & Game Logic Variables
+  let timerInterval = null;
+  let imposterInterval = null;
+  let timeLeft = 0;
+  let isPaused = false;
+  let lastSelectedPlayers = [];
+  let switchData = { monkeyRow: null, targetRow: null, targetCol: null };
+  let screwChart = null;
+  let tempReorderList = [];
+  let reorderContext = '';
+  let editPlayerData = { row: null };
+  let confirmCallback = null;
+   
+  let appState = {
+    currentView: 'menu', 
+    isDarkMode: false,
+    lang: 'ar',
+    
+    // --- OLD GAMES ---
+    screw: { rounds: 5, players: [] },
+    monkey: { players: [], config: { winners: 1, timer: 30 }, turnIndex: 0, turnCounter: 0, usedCountries: [] },
+    imposter: { players: [], config: { impostersCount: 1 }, secretWord: '', revealIndex: 0, timer: 0 },
+    domino: { players: [], target: 101, mode: 'single' },
+    spin: { players: [], currentRotation: 0 },
+    universal: { players: [] }, 
+    timers: { 
+        general: { time: 0, interval: null, running: false },
+        chess: { time1: 300, time2: 300, active: null, interval: null, initial: 300 }
+    },
+
+    // --- NEW GAMES (Added) ---
+    charades: { score: 0, timer: 60 },
+    describe: { score: 0, timer: 60 },
+    wordle: { wordLength: 5, guesses: [], gameOver: false },
+    guessnum: { min: 1, max: 100, target: 0 },
+    justone: { players: [], activePlayer: 0, phase: 'setup' },
+    teams: { players: [], count: 2, result: [] }
+  };
+
+  const TRANSLATIONS = {
+    ar: {
+      title: "عشرى جيمينج 🎮",
+      games_cards: "ألعاب البطاقات",
+      games_group: "ألعاب جماعية",
+      games_board: "ألعاب طاولة",
+      extras: "أدوات إضافية",
+      add_player_fast: "إضافة لاعب سريع",
+      universal_counter: "🔢 عداد عام",
+      timers: "⏱️ مؤقتات (شطرنج/عام)",
+      sounds: "🔊 أصوات مضحكة",
+      install: "📲 تثبيت التطبيق",
+      add: "إضافة",
+      back: "رجوع",
+      start: "ابدأ",
+      finish: "إنهاء",
+      exit: "خروج",
+      save: "حفظ",
+      cancel: "إلغاء",
+      yes: "نعم",
+      no: "لا",
+      sync_cloud: "☁️ تزامن السحابة (Cloud Sync)",
+      setup_screw: "سكرو",
+      rounds_count: "عدد الجولات",
+      players: "اللاعبين",
+      search_player: "🔍 بحث عن لاعب...",
+      save_results: "حفظ النتائج ✅",
+      show_full_results: "عرض النتائج كاملة 📊",
+      setup_monkey: "ربع قرد",
+      winners_count: "عدد الفائزين",
+      timer_sec: "المؤقت (ثانية)",
+      current_turn: "الدور الحالي",
+      liar: "🤥 كذاب!",
+      penalty_pass: "+¼ وتخطي ⏭️",
+      next: "التالي ➡",
+      country_log: "🌍 سجل الدول",
+      player_status: "حالة اللاعبين",
+      setup_universal: "إعداد العداد العام",
+      start_counter: "ابدأ العداد",
+      gen_timer: "مؤقت عام",
+      chess_timer: "شطرنج",
+      start_btn: "ابدأ",
+      reset_btn: "تصفير",
+      pause_btn: "إيقاف",
+      setup_imposter: "الجاسوس",
+      category: "المجموعة",
+      manual_entry: "✍️ إدخال يدوي",
+      secret_word: "الكلمة السرية",
+      imposter_count: "عدد الجواسيس",
+      give_phone_to: "أعط الهاتف لـ",
+      reveal_role: "معرفة الدور",
+      you_are: "أنت هو:",
+      got_it_next: "فهمت، التالي",
+      reveal_imposters: "كشف الجواسيس 🕵️‍♂️",
+      setup_spin: "الاختيار العشوائي",
+      spin_btn: "🎲 اختر عشوائياً",
+      picked_is: "المختار هو",
+      change_players: "تغيير اللاعبين",
+      setup_domino: "دومينو",
+      target_score: "الهدف (مثلاً 101)",
+      points: "نقاط",
+      win_title: "انتهت اللعبة!",
+      play_again: "لعبة جديدة",
+      main_menu: "القائمة الرئيسية",
+      confirm_title: "تأكيد",
+      confirm_msg: "هل أنت متأكد؟",
+      reorder_title: "ترتيب الأدوار",
+      reorder_desc: "اضغط على لاعب، ثم اضغط على آخر لتبديل الأماكن 🔄",
+      reorder_save: "حفظ الترتيب",
+      locked_group: "المجموعة مغلقة",
+      enter_password: "أدخل كلمة المرور للاستمرار",
+      password_placeholder: "كلمة المرور",
+      edit_status: "تعديل حالة",
+      safe: "آمن",
+      quarter_monkey: "1/4 قرد",
+      half_monkey: "1/2 قرد",
+      three_quarters_monkey: "3/4 قرد",
+      monkey_loser: "قرد (خاسر)",
+      timeout_title: "انتهى الوقت!",
+      alert_title: "تنبيه",
+      ok_btn: "حسناً",
+      loading: "جاري التحميل...",
+      placeholder_name: "الاسم",
+      placeholder_search: "بحث...",
+      players_count: "عدد اللاعبين",
+      team_generator: "مولد الفرق",
+      random_teams: "🎲 عشوائي تماماً",
+      fair_teams: "⚖️ حسب المهارة",
+      skill_rating: "تقييم المهارات",
+      skill_desc: "قيم مستوى كل لاعب لضمان فرق متوازنة",
+      generate_fair: "✅ تكوين فرق عادلة",
+      generated_teams: "الفرق العشوائية",
+      reshuffle: "إعادة التوزيع 🔄",
+      teams_count: "عدد الفرق",
+      setup_justone: "🤫 كلمة واحدة",
+      just_one_title: "إعداد 'كلمة واحدة'",
+      pass_phone_title: "أعط الهاتف لـ",
+      pass_phone: "مرر الهاتف إلى",
+      pass_instruction_static: "أنت ستكتب تلميحاً!",
+      reveal_btn: "أنا هو، أرني الكلمة",
+      secret_word_label: "الكلمة السرية",
+      write_clue_label: "اكتب تلميحاً واحداً (كلمة واحدة فقط!)",
+      confirm_clue_btn: "تأكيد التلميح ✅",
+      forbidden_rule: "⚠️ ممنوع: كتابة نفس الكلمة السرية أو ترجمتها!",
+      guesser_turn_title: "دور المخمن",
+      available_clues_label: "التلميحات المتاحة",
+      clues_removed_msg: "🚫 تم حذف تلميحات متشابهة!",
+      what_is_word_label: "ما هي الكلمة السرية؟",
+      show_answer_btn: "إظهار الإجابة",
+      correct_word_was: "الكلمة الصحيحة كانت",
+      got_it_btn: "✅ عرفها!",
+      missed_it_btn: "❌ لم يعرفها",
+      clue_placeholder: "التلميح...",
+      team_name_prefix: "فريق",
+      games_puzzle: "ألعاب ذهنية",
+      setup_wordle: "خمن الكلمة",
+      word_length: "اختر طول الكلمة",
+      help_title: "الدليل والقوانين 📘",
+      sec_interface: "واجهة التطبيق",
+      sec_games: "شرح الألعاب",
+      help_lang: "تغيير اللغة (عربي / English)",
+      help_dark: "الوضع الليلي (مريح للعين)",
+      help_reset: "حذف جميع البيانات والبدء من الصفر",
+      help_reload: "تحديث التطبيق (لحل المشاكل)",
+      setup_whoami: "من أنا؟",
+      reveal_identity: "كشف الهوية 🕵️",
+      close: "إغلاق",
+      setup_describe: "أوصف لي",
+      select_time: "اختر وقت الجولة",
+      target_word: "الكلمة المطلوبة",
+      forbidden_words: "كلمات ممنوعة",
+      skip: "تخطي",
+      correct: "صح!",
+      tool_dice: "نرد وعملة",
+      roll: "ارمي النرد",
+      flip: "ارمي العملة",
+      setup_tourney: "منظم البطولات",
+      tourney_hint: "أدخل 4 أو 8 أسماء",
+      add_more: "+ إضافة خانة",
+      setup_charades: "بدون كلام",
+      next_word: "التالية 🔄",
+      stop: "توقف",
+      setup_guessnum: "خمن الرقم",
+      select_range: "حدد المدى (من - إلى)",
+      attempts: "المحاولات",
+      new_game: "لعبة جديدة",
+      discussion_time: "وقت الأسئلة 🗣️",
+      reveal_words: "كشف الكلمات 🔓",
+      enter_secret: "أدخل الرقم السري (لا تدع صديقك يراه!)",
+      group_manage_title: "إدارة المجموعات",
+      group_create_new: "إنشاء مجموعة جديدة",
+      group_name_placeholder: "اكتب اسم المجموعة...",
+      group_save_new: "حفظ كجديدة 🆕",
+      or: "أو",
+      group_update_saved: "تحديث مجموعة محفوظة",
+      group_add_selected: "إضافة المحددين ➕",
+      group_replace: "استبدال المجموعة 🔄",
+      group_update_hint: "<b>إضافة:</b> يضيف اللاعبين المحددين فوق المجموعة الحالية.<br><b>استبدال:</b> يمسح المجموعة الحالية ويضع المحددين فقط.",
+      saved_groups_title: "📂 المجموعات المحفوظة",
+      save_list_btn: "+ حفظ القائمة",
+      setup_reaction: "اختبار السرعة",
+      reaction_wait: "انتظر...",
+      reaction_tap: "اضغط!",
+      reaction_too_soon: "مبكر جداً! ❌",
+      reaction_winner: "الفائز! 🏆",
+      reaction_ms: "جزء من الثانية",
+      reaction_desc: "ضع الهاتف على الطاولة بينك وبين صديقك. عندما تتحول الشاشة للون الأخضر، اضغط بأسرع ما يمكن! لكن احذر أن تضغط قبل اللون الأخضر."
+    },
+    en: {
+      title: "Ashry Gaming 🎮",
+      games_cards: "Card Games",
+      games_group: "Group Games",
+      games_board: "Board Games",
+      extras: "Extra Tools",
+      add_player_fast: "Quick Add Player",
+      universal_counter: "🔢 Universal Counter",
+      timers: "⏱️ Timers (Chess/Gen)",
+      sounds: "🔊 Funny Sounds",
+      install: "📲 Install App",
+      add: "Add",
+      back: "Back",
+      start: "Start",
+      finish: "Finish",
+      exit: "Exit",
+      save: "Save",
+      cancel: "Cancel",
+      yes: "Yes",
+      no: "No",
+      sync_cloud: "☁️ Cloud Sync",
+      setup_screw: "Screw",
+      rounds_count: "Rounds Count",
+      players: "Players",
+      search_player: "🔍 Search player...",
+      save_results: "Save Results ✅",
+      show_full_results: "Show Full Results 📊",
+      setup_monkey: "Monkey",
+      winners_count: "Winners Count",
+      timer_sec: "Timer (sec)",
+      current_turn: "Current Turn",
+      liar: "🤥 Liar!",
+      penalty_pass: "+¼ & Skip ⏭️",
+      next: "Next ➡",
+      country_log: "🌍 Country Log",
+      player_status: "Player Status",
+      setup_universal: "Universal Counter Setup",
+      start_counter: "Start Counter",
+      gen_timer: "General Timer",
+      chess_timer: "Chess",
+      start_btn: "Start",
+      reset_btn: "Reset",
+      pause_btn: "Pause",
+      setup_imposter: "Imposter",
+      category: "Category",
+      manual_entry: "✍️ Manual Entry",
+      secret_word: "Secret Word",
+      imposter_count: "Imposters Count",
+      give_phone_to: "Give phone to",
+      reveal_role: "Reveal Role",
+      you_are: "You are:",
+      got_it_next: "Got it, Next",
+      reveal_imposters: "Reveal Imposters 🕵️‍♂️",
+      setup_spin: "Random Picker Setup",
+      spin_btn: "🎲 Pick Randomly",
+      picked_is: "Picked is",
+      change_players: "Change Players",
+      setup_domino: "Domino Setup",
+      target_score: "Target (e.g. 101)",
+      points: "Points",
+      win_title: "Game Over!",
+      play_again: "New Game",
+      main_menu: "Main Menu",
+      confirm_title: "Confirm",
+      confirm_msg: "Are you sure?",
+      reorder_title: "Turn Order",
+      reorder_desc: "Tap a player, then tap another to swap places 🔄",
+      reorder_save: "Save Order",
+      locked_group: "Locked Category",
+      enter_password: "Enter password to continue",
+      password_placeholder: "Password",
+      edit_status: "Edit Status",
+      safe: "Safe",
+      quarter_monkey: "1/4 Monkey",
+      half_monkey: "1/2 Monkey",
+      three_quarters_monkey: "3/4 Monkey",
+      monkey_loser: "Monkey (Loser)",
+      timeout_title: "Time's Up!",
+      alert_title: "Alert",
+      ok_btn: "OK",
+      loading: "Loading...",
+      placeholder_name: "Name",
+      placeholder_search: "Search...",
+      players_count: "Players Count",
+      team_generator: "Team Generator",
+      random_teams: "🎲 Random",
+      fair_teams: "⚖️ Skill Based",
+      skill_rating: "Skill Rating",
+      skill_desc: "Rate players for balanced teams",
+      generate_fair: "✅ Generate Fair Teams",
+      generated_teams: "Generated Teams",
+      reshuffle: "Reshuffle 🔄",
+      teams_count: "Number of Teams",
+      setup_justone: "🤫 Just One",
+      just_one_title: "Just One Setup",
+      pass_phone_title: "Pass phone to",
+      pass_phone: "Pass phone to",
+      pass_instruction_static: "You will write a clue!",
+      reveal_btn: "I am ready, show me",
+      secret_word_label: "Secret Word",
+      write_clue_label: "Write one clue (one word only!)",
+      confirm_clue_btn: "Confirm Clue ✅",
+      forbidden_rule: "⚠️ Forbidden: Same word or translation!",
+      guesser_turn_title: "Guesser's Turn",
+      available_clues_label: "Available Clues",
+      clues_removed_msg: "🚫 Duplicate clues removed!",
+      what_is_word_label: "What is the secret word?",
+      show_answer_btn: "Show Answer",
+      correct_word_was: "The word was",
+      got_it_btn: "✅ Got it!",
+      missed_it_btn: "❌ Missed it",
+      clue_placeholder: "Clue...",
+      team_name_prefix: "Team",
+      games_puzzle: "Puzzle Games",
+      setup_wordle: "Guess the Word (Wordle)",
+      word_length: "Choose Word Length",
+      help_title: "Guide & Rules 📘",
+      sec_interface: "App Interface",
+      sec_games: "Game Rules",
+      help_lang: "Switch Language (Arabic / English)",
+      help_dark: "Dark Mode (Eye comfort)",
+      help_reset: "Delete all data (Factory Reset)",
+      help_reload: "Reload App (Fix glitches)",
+      setup_whoami: "Who Am I?",
+      reveal_identity: "Reveal Identity 🕵️",
+      close: "Close",
+      setup_describe: "Describe It",
+      select_time: "Select Round Time",
+      target_word: "Target Word",
+      forbidden_words: "Forbidden Words",
+      skip: "Skip",
+      correct: "Correct!",
+      tool_dice: "Dice & Coin",
+      roll: "Roll Dice",
+      flip: "Flip Coin",
+      setup_tourney: "Tournament Maker",
+      tourney_hint: "Enter 4 or 8 names",
+      add_more: "+ Add Slot",
+      setup_charades: "Charades",
+      next_word: "Next 🔄",
+      stop: "Stop",
+      setup_guessnum: "Guess the Number",
+      select_range: "Set Range (Min - Max)",
+      attempts: "Attempts",
+      new_game: "New Game",
+      discussion_time: "Discussion Time 🗣️",
+      reveal_words: "Reveal Words 🔓",
+      enter_secret: "Enter Secret Number (Don't let them see!)",
+      group_manage_title: "Manage Groups",
+      group_create_new: "Create New Group",
+      group_name_placeholder: "Type group name...",
+      group_save_new: "Save as New 🆕",
+      or: "OR",
+      group_update_saved: "Update Saved Group",
+      group_add_selected: "Add Selected ➕",
+      group_replace: "Replace Group 🔄",
+      group_update_hint: "<b>Add:</b> Adds selected players to the current group.<br><b>Replace:</b> Overwrites the group with only selected players.",
+      saved_groups_title: "📂 Saved Groups",
+      save_list_btn: "+ Save List",
+      setup_reaction: "Reaction Test",
+      reaction_wait: "Wait...",
+      reaction_tap: "TAP!",
+      reaction_too_soon: "Too Soon! ❌",
+      reaction_winner: "Winner! 🏆",
+      reaction_ms: "ms",
+      reaction_desc: "Place the phone on the table between you and your friend. When the screen turns GREEN, tap as fast as you can! But don't tap before it turns green."
+    }
+  };
+
+  function toggleLanguage() {
+    appState.lang = appState.lang === 'ar' ? 'en' : 'ar';
+    document.documentElement.lang = appState.lang;
+    document.documentElement.dir = appState.lang === 'ar' ? 'rtl' : 'ltr';
+    applyTranslations();
+    saveToLocal();
+    playSound('click');
+  }
+
+  function applyTranslations() {
+    const t = TRANSLATIONS[appState.lang];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (t[key]) el.innerHTML = t[key];
+    });
+    
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      const key = el.getAttribute('data-i18n-ph');
+      if (t[key]) el.placeholder = t[key];
+    });
+
+    document.getElementById('app-title').innerText = t.title;
+  }
+
+  /* --- ERROR HANDLING --- */
+  function handleServerFailure(error) {
+    setSyncing(false);
+    console.error("Server Error:", error);
+    const msg = appState.lang === 'ar' ? "حدث خطأ في الاتصال بالسيرفر. يرجى المحاولة مرة أخرى." : "Connection error. Please try again.";
+    const title = appState.lang === 'ar' ? "خطأ في الاتصال" : "Connection Error";
+    showToast(error.message || msg, title);
+  }
+
+  const syncEl = document.getElementById('sync-status');
+  function setSyncing(isSyncing) {
+    if(isSyncing) syncEl.classList.add('syncing');
+    else syncEl.classList.remove('syncing');
+  }
+
+   /* --- INITIALIZATION --- */
+   document.addEventListener('DOMContentLoaded', function() {
+     initializeApp();
+     registerServiceWorker();
+ 
+     document.body.addEventListener('click', function initWakeLock() {
+         if (typeof requestWakeLock === 'function') {
+             requestWakeLock(); 
+         }
+     }, { once: true }); 
+ 
+     // Safety net: Save state whenever the app is hidden or closed
+     window.addEventListener('visibilitychange', () => {
+         if (document.visibilityState === 'hidden') saveToLocal();
+     });
+     window.addEventListener('beforeunload', saveToLocal);
+   });
+  function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        console.log("Service Worker registration attempted (PWA enabled)");
+      });
+    }
+  }
+
+  function initializeApp() {
+    setSyncing(true);
+    applyTranslations();
+
+    // Function to hide loader with transition
+    const hideLoader = () => {
+        const loader = document.getElementById('app-loader');
+        if(loader && !loader.classList.contains('opacity-0')) {
+            loader.style.opacity = '0';
+            setTimeout(() => {
+                loader.classList.add('hidden');
+                loader.style.display = 'none';
+            }, 500);
+        }
+    };
+
+    // Use Injected Data immediately if available
+    if (window.SERVER_DATA && window.SERVER_DATA.players) {
+        allPlayers = window.SERVER_DATA.players;
+        SPY_CATEGORIES = window.SERVER_DATA.spyData || {};
+        dataLoaded = true;
+        setSyncing(false);
+        
+        // Render UI if needed
+        const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
+        if (activeSetup) {
+            const listContainer = activeSetup.querySelector('[id$="-player-list"]');
+            if (listContainer && typeof renderPlayerChecks === 'function') {
+                renderPlayerChecks(listContainer.id);
+            }
+        }
+        
+        // Hide loader immediately!
+        hideLoader();
+    } else {
+        // Fallback for cases where injection failed or isn't present
+        google.script.run
+          .withSuccessHandler(data => {
+            if (data.players) allPlayers = data.players;
+            SPY_CATEGORIES = data.spyData || {};
+            dataLoaded = true;
+            setSyncing(false);
+            hideLoader();
+          })
+          .getInitialData();
+    }
+
+    loadFromLocal();
+    
+    // Safety timeout to hide loader if script calls take too long
+    setTimeout(hideLoader, 2000);
+    
+    document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
+  }
+
+  function reloadApp() {
+      initializeApp();
+  }
+
+  function saveToLocal() {
+    appState.cachedPlayers = allPlayers; 
+    localStorage.setItem('gameTrackerState_v1', JSON.stringify(appState));
+  }
+
+  function loadFromLocal() {
+    const saved = localStorage.getItem('gameTrackerState_v1');
+    
+    // 👇 FIX: Added 'input-whoami' and 'play-chess' to the safe list
+    const validViews = [
+        'menu', 
+        'setup-screw', 'play-screw', 
+        'setup-monkey', 'play-monkey', 
+        'setup-imposter', 'imposter-reveal', 'play-imposter', 
+        'setup-domino', 'play-domino', 
+        'setup-spin', 'play-spin', 
+        'setup-universal', 'play-universal', 
+        'timers',
+        'setup-whoami', 'input-whoami', 'play-whoami', 
+        'setup-charades', 'play-charades',
+        'setup-describe', 'play-describe',
+        'setup-wordle', 'play-wordle',
+        'setup-guessnum', 'play-guessnum',
+        'setup-justone', 'play-justone',
+        'setup-tourney', 'play-tourney',
+        'setup-teams', 'results-teams',
+        'setup-reaction', 'play-reaction',
+        'play-chess'
+    ];
+
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            appState = { ...appState, ...parsed };
+            if (appState.cachedPlayers && appState.cachedPlayers.length > 0) {
+                allPlayers = appState.cachedPlayers;
+                dataLoaded = true; 
+            }
+
+            if (!validViews.includes(appState.currentView)) {
+                appState.currentView = 'menu';
+            }
+            if(appState.isDarkMode) document.body.classList.add('dark');
+            
+            document.documentElement.lang = appState.lang || 'ar';
+            document.documentElement.dir = (appState.lang === 'en') ? 'ltr' : 'rtl';
+            applyTranslations();
+        } catch (e) {
+            console.error("Error loading state", e);
+            appState.currentView = 'menu';
+        }
+    } else {
+        appState.currentView = 'menu'; 
+    }
+    restoreView();
+  }
+
+  function toggleDarkMode() {
+      appState.isDarkMode = !appState.isDarkMode;
+      document.body.classList.toggle('dark');
+      document.getElementById('dark-mode-icon').innerText = appState.isDarkMode ? '☀️' : '🌙';
+      playSound('click');
+      saveToLocal();
+  }
+
+  function restoreView() {
+    document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+    
+    const viewEl = document.getElementById('view-' + appState.currentView);
+    
+    if (viewEl) {
+        // --- RESTORE GAME LOGIC ---
+        if (appState.currentView === 'play-screw') renderScrewBoard();
+        else if (appState.currentView === 'play-monkey') { renderMonkeyBoard(); updateTimerUI(); }
+        else if (appState.currentView === 'imposter-reveal') showRevealStep();
+        else if (appState.currentView === 'play-imposter') { renderImposterBoard(); isPaused = true; updateImposterTimerUI(); }
+        else if (appState.currentView === 'play-domino') renderDominoBoard();
+        else if (appState.currentView === 'play-universal') renderUniversalBoard();
+        else if (appState.currentView === 'timers') switchTimerMode('general');
+        else if (appState.currentView === 'play-tourney' && typeof renderTournamentBracket === 'function') renderTournamentBracket();
+        else if (appState.currentView === 'results-teams' && typeof renderTeams === 'function') renderTeams();
+        else if (appState.currentView === 'play-spin') {
+            document.getElementById('picker-display').innerText = "???";
+            document.getElementById('spin-result-box').classList.add('hidden');
+            document.getElementById('spin-btn').disabled = false;
+        }
+        // 👇 FIX: Full-Screen reload protections added here 👇
+        else if (appState.currentView === 'play-chess' && typeof updateChessUI === 'function') {
+            updateChessUI(); 
+        }
+        else if (appState.currentView === 'play-reaction') {
+            setTimeout(() => setView('setup-reaction'), 50); 
+        }
+        else if (appState.currentView === 'play-whoami' || appState.currentView === 'input-whoami') {
+            setTimeout(() => setView('setup-whoami'), 50); 
+        }
+        // 👆 END PROTECTIONS 👆
+        else if (appState.currentView.startsWith('setup-')) {
+            const listId = appState.currentView.replace('setup-', '') + '-player-list';
+            if(typeof renderPlayerChecks === 'function') renderPlayerChecks(listId);
+            if(appState.currentView === 'setup-imposter' && typeof renderSpyCategories === 'function') renderSpyCategories();
+            
+            if(appState.currentView === 'setup-charades' && typeof renderCharadesDropdown === 'function') {
+                renderCharadesDropdown(); 
+            }
+        }
+        
+        viewEl.classList.remove('hidden');
+    } else {
+        const menuEl = document.getElementById('view-menu');
+        if (menuEl) {
+            menuEl.classList.remove('hidden');
+            appState.currentView = 'menu';
+        }
+    }
+  }
+
+  function setView(viewId) {
+    appState.currentView = viewId;
+    saveToLocal();
+    
+    document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+    const viewEl = document.getElementById('view-' + viewId);
+    if(viewEl) viewEl.classList.remove('hidden');
+    
+    closeAllModals();
+    
+    if(typeof stopTimer === 'function') stopTimer(); 
+    if(typeof stopImposterTimer === 'function') stopImposterTimer(); 
+    if (typeof charadesState !== 'undefined' && charadesState.interval) clearInterval(charadesState.interval);
+    if (typeof descState !== 'undefined' && descState.interval) clearInterval(descState.interval);
+    if (typeof whoAmIState !== 'undefined' && whoAmIState.interval) clearInterval(whoAmIState.interval);
+
+    if(viewId.startsWith('setup-')) {
+        const listId = viewId.replace('setup-', '') + '-player-list';
+        if(typeof renderPlayerChecks === 'function') renderPlayerChecks(listId);
+        if(viewId === 'setup-imposter' && typeof renderSpyCategories === 'function') renderSpyCategories();
+        
+        if(viewId === 'setup-charades' && typeof renderCharadesDropdown === 'function') {
+            renderCharadesDropdown(); 
+        }
+    }
+    applyTranslations();
+  }
+  
+  function addPlayer() {
+    const nameInput = document.getElementById('new-player-name');
+    const name = nameInput.value.trim();
+    if(!name) return;
+    playSound('click');
+    if(allPlayers.includes(name)) {
+        const msg = appState.lang === 'ar' ? "هذا اللاعب موجود بالفعل" : "Player already exists";
+        showToast(msg, appState.lang === 'ar' ? "تنبيه" : "Alert");
+        return;
+    }
+    setSyncing(true);
+    google.script.run
+      .withSuccessHandler(players => {
+        allPlayers = players;
+        saveToLocal();
+        setSyncing(false);
+        nameInput.value = '';
+        const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
+        if (activeSetup) {
+            const list = activeSetup.querySelector('[id$="-player-list"]');
+            if(list && typeof renderPlayerChecks === 'function') renderPlayerChecks(list.id);
+        }
+      })
+      .withFailureHandler(handleServerFailure)
+      .addGlobalPlayer(name);
+  }
+
+// 👇 FIX: Rules added here 👇
+const GAME_RULES = {
+    ar: {
+        screw: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>يستلم كل لاعب 4 بطاقات (مقلوبة).</li>
+                <li>مسموح لك برؤية <b>أول بطاقتين فقط</b>.</li>
+                <li>اسحب بطاقة وبدلها مع بطاقاتك لتقليل مجموعك.</li>
+                <li><b>الكروت المميزة:</b> الأكابر (Kings) الحمر = صفر!</li>
+                <li><b>التطبيق:</b> أدخل مجموع كل لاعب بعد كل جولة، وسيقوم التطبيق بحساب الفائز (أقل مجموع).</li>
+            </ol>`,
+        justone: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>يغمض <b>"المخمن"</b> عينيه.</li>
+                <li>يختار باقي الفريق كلمة سرية.</li>
+                <li>يكتب كل لاعب <b>تلميحاً واحداً</b> (كلمة واحدة).</li>
+                <li><b>هام:</b> قارنوا التلميحات! أي تلميحات متشابهة <b>تُحذف</b> فوراً.</li>
+                <li>يفتح المخمن عينيه ويحاول معرفة الكلمة من التلميحات المتبقية.</li>
+            </ol>`,
+        imposter: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>اختر فئة (مثلاً: حيوانات) ومرر الهاتف.</li>
+                <li>سيرى الجميع نفس الكلمة (مثلاً: أسد)، ما عدا <b>الجاسوس</b> سيرى "أنت الجاسوس".</li>
+                <li>اطرحوا أسئلة ذكية على بعضكم (مثلاً: هل يعيش في البحر؟).</li>
+                <li>حاول كشف الجاسوس من إجاباته المتوتره، وحاول كجاسوس معرفة الكلمة!</li>
+            </ol>`,
+        monkey: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>الهدف: تكوين اسم دولة <b>حرفاً بحرف</b>.</li>
+                <li>لديك 30 ثانية لقول حرفك.</li>
+                <li>إذا شككت أن اللاعب قبلك يختلق حروفاً، اضغط <b>"كذاب"</b>.</li>
+                <li>إذا خسرت التحدي تحصل على <b>"ربع قرد"</b>.</li>
+                <li><b>قاعدة القرد:</b> الخاسر (4 أرباع) يصبح قرداً. لا تتحدث معه! من يكلمه يأخذ مكانه فوراً.</li>
+            </ol>`,
+        wordle: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>اكتب كلمة من 5 حروف.</li>
+                <li><span class="text-green-600 font-bold">أخضر:</span> حرف صحيح في مكان صحيح.</li>
+                <li><span class="text-yellow-500 font-bold">أصفر:</span> حرف صحيح لكن المكان خطأ.</li>
+                <li><span class="text-slate-400 font-bold">رمادي:</span> الحرف غير موجود.</li>
+                <li>لديك 6 محاولات فقط!</li>
+            </ol>`,
+        charades: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>اختر قسماً (أفلام، أفعال، إلخ).</li>
+                <li>ضع الهاتف على جبهتك (أو أمامك) ليراه فريقك.</li>
+                <li>يجب أن يمثل فريقك الكلمة <b>بدون كلام</b>.</li>
+                <li>إذا عرفتها اضغط "صح"، أو تجاوزها. السرعة مهمة!</li>
+            </ol>`,
+        describe: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>أنت "الواصف". صف الكلمة المطلوبة لفريقك.</li>
+                <li><b>ممنوع</b> استخدام "الكلمات المحظورة" المكتوبة باللون الأحمر.</li>
+                <li>إذا قلت كلمة ممنوعة، تخسر النقطة!</li>
+                <li>حاول جمع أكبر عدد من الكلمات قبل انتهاء الوقت.</li>
+            </ol>`,
+        tourney: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>أداة لعمل جدول مباريات (Bracket).</li>
+                <li>أدخل أسماء 4 أو 8 لاعبين.</li>
+                <li>يقوم التطبيق بعمل قرعة عشوائية للمواجهات.</li>
+                <li>اضغط على اسم الفائز لتصعيده للدور التالي حتى الكأس 🏆.</li>
+            </ul>`,
+        dice: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>بديل للنرد الحقيقي (الزهر).</li>
+                <li>يمكنك رمي نرد واحد أو نردين.</li>
+                <li>يمكنك أيضاً عمل قرعة (ملك / كتابة) بلمسة واحدة.</li>
+            </ul>`,
+        guessnum: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>حدد المدى (مثلاً من 1 إلى 100).</li>
+                <li>اكتب تخمينك واضغط تم.</li>
+                <li>راقب التلميح: ⬇️ يعني رقمك عالي (قلله)، ⬆️ يعني رقمك منخفض (زوده).</li>
+                <li>حاول الوصول للرقم بأقل عدد محاولات!</li>
+                <li>يمكن لعبها بلاعبين , واحد يكتب الرقم و واحد يخمنه</li>
+            </ol>`,
+        whoami: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>اختر قسماً أو اكتب الشخصيات يدوياً.</li>
+                <li>مرر الهاتف لكل لاعب ليرى شخصيته سراً.</li>
+                <li>بعد أن يرى الجميع شخصياتهم، يبدأ وقت الأسئلة!</li>
+                <li>اطرح أسئلة إجابتها (نعم/لا) لتعرف من أنت (مثال: هل أنا حيوان؟).</li>
+            </ol>`,
+        reaction: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>ضع الهاتف بينك وبين صديقك.</li>
+                <li>انتظر حتى تتحول الشاشة للون الأخضر.</li>
+                <li>أول من يضغط على النصف الخاص به يفوز!</li>
+                <li>الضغط المبكر (والشاشة حمراء) يعني الخسارة الفورية.</li>
+            </ul>`,
+        chess: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>ساعة شطرنج احترافية بملء الشاشة.</li>
+                <li>اضغط على نصفك لإنهاء دورك وبدء وقت خصمك.</li>
+                <li>زر الإعدادات ⚙️ يتيح لك تغيير الوقت (بالدقائق).</li>
+            </ul>`
+    },
+    en: {
+        screw: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Each player gets 4 cards (face down).</li>
+                <li>Peek at your <b>first 2 cards only</b>.</li>
+                <li>Draw & Swap to lower your score.</li>
+                <li><b>Specials:</b> Red Kings = 0 points.</li>
+                <li><b>App:</b> Enter scores each round. The app calculates the winner (Lowest Score).</li>
+            </ol>`,
+        justone: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>The <b>Guesser</b> closes their eyes.</li>
+                <li>Team picks a secret word.</li>
+                <li>Everyone writes <b>one clue</b>.</li>
+                <li><b>Important:</b> Compare clues! Duplicates are <b>deleted</b>.</li>
+                <li>Guesser tries to find the word from remaining clues.</li>
+            </ol>`,
+        imposter: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Pick a category & pass the phone.</li>
+                <li>Everyone sees the Secret Word, except the <b>Imposter</b>.</li>
+                <li>Ask each other questions related to the word.</li>
+                <li>Vote to catch the Imposter. Imposter wins if they guess the word!</li>
+            </ol>`,
+        monkey: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Build a Country name <b>letter by letter</b>.</li>
+                <li>You have 30s. Don't stutter!</li>
+                <li><b>Doubt</b> the previous player if they are bluffing.</li>
+                <li>4 Quarters = Monkey.</li>
+                <li><b>Monkey Rule:</b> The loser is invisible. If you talk to them, you swap places!</li>
+            </ol>`,
+        wordle: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Guess the 5-letter word.</li>
+                <li><span class="text-green-600 font-bold">Green:</span> Correct letter & spot.</li>
+                <li><span class="text-yellow-500 font-bold">Yellow:</span> Correct letter, wrong spot.</li>
+                <li><span class="text-slate-400 font-bold">Gray:</span> Wrong letter.</li>
+                <li>You have 6 tries!</li>
+            </ol>`,
+        charades: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Pick a category (Movies, Actions, etc).</li>
+                <li>Hold phone to forehead.</li>
+                <li>Team must <b>act out</b> the word silently.</li>
+                <li>Guess as many as you can before time runs out!</li>
+            </ol>`,
+        describe: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Describe the Main Word to your team.</li>
+                <li><b>FORBIDDEN:</b> Do not use the words in the Red Box.</li>
+                <li>If you slip up, you lose the point.</li>
+                <li>Speed and vocabulary are key!</li>
+            </ol>`,
+        tourney: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Creates a tournament bracket.</li>
+                <li>Enter 4 or 8 names.</li>
+                <li>App shuffles matches automatically.</li>
+                <li>Tap the winner to advance them to the Cup 🏆.</li>
+            </ul>`,
+        dice: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Virtual replacement for lost dice.</li>
+                <li>Roll 1 or 2 dice instantly.</li>
+                <li>Flip a coin (Heads/Tails) for decisions.</li>
+            </ul>`,
+        guessnum: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Set the range (e.g., 1 to 100).</li>
+                <li>Enter your guess.</li>
+                <li>Watch the hint: ⬇️ means Too High (go lower), ⬆️ means Too Low (go higher).</li>
+                <li>Try to find the number in fewest attempts!</li>
+                <li>It Can be played with 2 player , one type the number and the other guess it</li>
+            </ol>`,
+        whoami: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Pick a category or enter characters manually.</li>
+                <li>Pass the phone so everyone can secretly see who they are.</li>
+                <li>Once everyone knows their identity, the timer starts!</li>
+                <li>Ask Yes/No questions to figure out who you are (e.g., "Am I an animal?").</li>
+            </ol>`,
+        reaction: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Place the phone between you and a friend.</li>
+                <li>Wait for the screen to turn GREEN.</li>
+                <li>First to tap their side wins!</li>
+                <li>Tapping early (on red) is an instant loss.</li>
+            </ul>`,
+        chess: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Full-screen professional chess clock.</li>
+                <li>Tap your side to end your turn.</li>
+                <li>Use the ⚙️ gear icon to change the base time.</li>
+            </ul>`
+    }
+};
+</script>

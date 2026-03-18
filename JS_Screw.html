@@ -1,0 +1,218 @@
+<script>
+  /* --- SCREW GAME LOGIC --- */
+
+  /**
+   * Starts the Screw game.
+   */
+  function runStartScrew(playersToUse, roundsToUse) {
+    const rounds = roundsToUse || parseInt(document.getElementById('screw-rounds').value) || 5;
+    let selected = playersToUse || Array.from(document.querySelectorAll('#screw-player-list input:checked')).map(cb => cb.value);
+    
+    if(!selected || selected.length < 1) {
+        const msg = appState.lang === 'ar' ? 'اختر لاعبين' : 'Select players';
+        return showToast(msg);
+    }
+    playSound('click');
+    
+    // Initialize State
+    appState.screw.rounds = rounds;
+    appState.screw.players = selected.map(name => ({ name: name, scores: [], total: 0 }));
+    
+    // Reset round to 0
+    appState.screw.activeRound = 0;
+    
+    // Clear previous board
+    const board = document.getElementById('screw-score-inputs');
+    if(board) board.innerHTML = '';
+
+    renderScrewBoard();
+    setView('play-screw');
+  }
+
+  /**
+   * Handles round switching via dropdown.
+   */
+  function handleRoundChange(selectElement) {
+      saveScrewScores(); 
+      appState.screw.activeRound = parseInt(selectElement.value);
+      renderScrewBoard();
+  }
+
+  /**
+   * Renders the game board.
+   */
+  function renderScrewBoard() {
+    const div = document.getElementById('screw-score-inputs');
+    if (!div) return;
+
+    if (!appState.screw.players || appState.screw.players.length === 0) {
+        setView('setup-screw');
+        return;
+    }
+
+    if (appState.screw.activeRound === undefined || appState.screw.activeRound === null) {
+        appState.screw.activeRound = 0;
+    }
+
+    let currentRoundIdx = appState.screw.activeRound;
+    if (currentRoundIdx >= appState.screw.rounds) {
+        currentRoundIdx = 0;
+        appState.screw.activeRound = 0;
+    }
+
+    const roundText = appState.lang === 'ar' ? 'جولة' : 'Round';
+    const dealerText = appState.lang === 'ar' ? 'الموزع' : 'Dealer';
+    const totalText = appState.lang === 'ar' ? 'المجموع' : 'Total';
+
+    let html = `<div class="flex justify-between items-center mb-4">
+                  <select id="current-round-select" 
+                          class="font-bold text-indigo-600 bg-indigo-50 dark:bg-slate-800 border-none rounded-lg p-2 h-10 w-auto mb-0" 
+                          onchange="handleRoundChange(this)">`;
+    
+    for(let i=1; i<= appState.screw.rounds; i++) {
+        const selected = (i-1) === currentRoundIdx ? 'selected' : '';
+        html += `<option value="${i-1}" ${selected}>${roundText} ${i}</option>`;
+    }
+    html += `</select>
+             <div class="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">${dealerText}: 🃏</div>
+             </div>`;
+    
+    // Determine Dealer
+    const dealerIndex = currentRoundIdx % appState.screw.players.length;
+    const dealerNameRaw = appState.screw.players[dealerIndex].name;
+
+    // Display sorted by total
+    const sortedPlayers = [...appState.screw.players].sort((a,b) => a.total - b.total);
+
+    sortedPlayers.forEach((p, idx) => {
+        if (!p.scores) p.scores = [];
+        const currentScore = p.scores[currentRoundIdx] !== undefined ? p.scores[currentRoundIdx] : '';
+        const crown = idx === 0 ? '👑' : ''; 
+        const isDealer = (p.name === dealerNameRaw);
+        const dealerIcon = isDealer ? '<span class="mr-2 text-xl" title="Dealer">🃏</span>' : '';
+        const dealerClass = isDealer ? 'border-r-4 border-indigo-500' : '';
+
+        html += `
+        <div class="screw-card flex justify-between items-center p-3 rounded-xl mb-2 border border-slate-100 dark:border-slate-600 ${dealerClass}">
+            <div class="flex flex-col">
+                <span class="font-bold text-lg flex items-center screw-name-text">
+                    ${crown} ${p.name} ${dealerIcon}
+                </span>
+                <span class="text-xs text-indigo-500 font-bold">${totalText}: ${p.total || 0}</span>
+            </div>
+            <input type="number" 
+                   data-player="${p.name}" 
+                   class="score-input w-20 h-12 text-center text-xl font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg mb-0 dark:text-white" 
+                   placeholder="-" 
+                   value="${currentScore}"
+                   onchange="saveScrewScores()">
+        </div>`;
+    });
+    div.innerHTML = html;
+  }
+
+  /**
+   * Saves scores to state.
+   */
+  function saveScrewScores() {
+    const roundIdx = appState.screw.activeRound;
+    const inputs = document.querySelectorAll('.score-input');
+    
+    inputs.forEach(input => {
+        const val = input.value;
+        const pName = input.getAttribute('data-player');
+        const player = appState.screw.players.find(p => p.name === pName);
+        
+        if(player) {
+            if (val !== '') {
+                player.scores[roundIdx] = parseInt(val);
+            }
+            player.total = player.scores.reduce((a, b) => (a || 0) + (b || 0), 0);
+        }
+    });
+    saveToLocal();
+  }
+
+  /**
+   * Submits scores & Checks Game Over.
+   */
+  function submitScores() {
+    saveScrewScores(); 
+    playSound('success');
+    
+    const totalText = appState.lang === 'ar' ? 'المجموع' : 'Total';
+    
+    if (appState.screw.activeRound >= appState.screw.rounds - 1) {
+        // --- GAME OVER ---
+        appState.screw.players.sort((a,b) => a.total - b.total);
+        const winner = appState.screw.players[0];
+        
+        const nameHeader = appState.lang === 'ar' ? 'الاسم' : 'Name';
+        const pointsHeader = appState.lang === 'ar' ? 'النقاط' : 'Points';
+
+        let detailsHtml = `<table class="w-full text-center"><thead><tr class="border-b text-slate-400 text-xs uppercase"><th class="p-2">#</th><th class="p-2">${nameHeader}</th><th class="p-2">${pointsHeader}</th></tr></thead><tbody>`;
+        
+        appState.screw.players.forEach((p, i) => {
+            // FIX: Force black text on the yellow winner row so it is visible
+            const rowClass = i === 0 
+                ? 'bg-yellow-200 text-black font-bold border-none rounded' 
+                : 'dark:border-slate-700 text-slate-800 dark:text-white';
+                
+            const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : ''));
+            
+            detailsHtml += `<tr class="border-b last:border-0 ${rowClass}"><td class="p-2">${medal || i+1}</td><td class="p-2">${p.name}</td><td class="p-2">${p.total}</td></tr>`;
+        });
+        detailsHtml += '</tbody></table>';
+        
+        const scoresContainer = document.getElementById('winner-scores-container');
+        if (scoresContainer) {
+            scoresContainer.innerHTML = detailsHtml;
+            scoresContainer.classList.add('hidden');
+        }
+
+        const winnersList = document.getElementById('winners-list');
+        if (winnersList) {
+            winnersList.innerHTML = `
+                <div class="text-3xl mb-2">🥇 ${winner.name}</div>
+                <div class="text-sm text-gray-500 font-bold">${totalText}: ${winner.total}</div>
+            `;
+        }
+        
+        const modalActions = document.querySelector('#winner-modal .space-y-3');
+        if(modalActions) {
+            modalActions.innerHTML = '';
+            
+            const toggleBtnText = appState.lang === 'ar' ? "عرض النتائج كاملة" : "Full Results";
+            const resultsBtn = document.createElement('button');
+            resultsBtn.id = "toggle-results-btn";
+            resultsBtn.className = "btn btn-orange";
+            resultsBtn.innerText = toggleBtnText;
+            resultsBtn.onclick = toggleResults;
+            modalActions.appendChild(resultsBtn);
+            
+            const playAgainBtn = document.createElement('button');
+            playAgainBtn.className = "btn btn-green";
+            playAgainBtn.innerText = TRANSLATIONS[appState.lang].play_again;
+            playAgainBtn.onclick = playAgain;
+            modalActions.appendChild(playAgainBtn);
+
+            const mainMenuBtn = document.createElement('button');
+            mainMenuBtn.className = "btn btn-gray";
+            mainMenuBtn.innerText = TRANSLATIONS[appState.lang].main_menu;
+            mainMenuBtn.onclick = () => setView('menu');
+            modalActions.appendChild(mainMenuBtn);
+        }
+
+        const modal = document.getElementById('winner-modal');
+        if(modal) modal.classList.remove('hidden');
+
+        google.script.run.withFailureHandler(handleServerFailure).recordWin(winner.name, "سكرو");
+
+    } else {
+        appState.screw.activeRound++;
+        renderScrewBoard(); 
+    }
+  }
+
+  function initScrewChart() {}
+</script>

@@ -1,0 +1,352 @@
+<script>
+  /* --- MONKEY GAME LOGIC --- */
+
+  const COUNTRIES_DB = [
+    "أفغانستان", "ألبانيا", "الجزائر", "أندورا", "أنغولا", "أنتيغوا وباربودا", "الأرجنتين", "أرمينيا", "أستراليا", "النمسا",
+    "أذربيجان", "باهاماس", "البحرين", "بنغلاديش", "بربادوس", "بيلاروس", "بلجيكا", "بليز", "بنين", "بوتان",
+    "بوليفيا", "البوسنة والهرسك (البوسنة)", "بوتسوانا", "البرازيل", "بروناي", "بلغاريا", "بوركينا فاسو", "بوروندي", "الرأس الأخضر (كابو فيردي)", "كمبوديا",
+    "الكاميرون", "كندا", "جمهورية أفريقيا الوسطى", "تشاد", "تشيلي", "الصين", "كولومبيا", "جزر القمر", "جمهورية الكونغو الديمقراطية", "جمهورية الكونغو",
+    "كوستاريكا", "ساحل العاج (كوت ديفوار)", "كرواتيا", "كوبا", "قبرص", "جمهورية التشيك (تشيكيا)", "الدنمارك", "جيبوتي", "دومينيكا", "جمهورية الدومينيكان",
+    "الإكوادور", "مصر", "السلفادور", "غينيا الاستوائية", "إريتريا", "إستونيا", "إسواتيني (سوازيلاند)", "إثيوبيا", "فيجي", "فنلندا",
+    "فرنسا", "الغابون", "غامبيا", "جورجيا", "ألمانيا", "غانا", "اليونان", "غرينادا", "غواتيمالا", "غينيا",
+    "غينيا بيساو", "غيانا", "هايتي", "هندوراس", "المجر", "آيسلندا", "الهند", "إندونيسيا", "إيران", "العراق",
+    "أيرلندا", "إسرائيل", "إيطاليا", "جامايكا", "اليابان", "الأردن", "كازاخستان", "كينيا", "كيريباتي", "كوريا الشمالية",
+    "كوريا الجنوبية", "الكويت", "قيرغيزستان", "لاوس", "لاتفيا", "لبنان", "ليسوتو", "ليبيريا", "ليبيا", "ليختنشتاين",
+    "ليتوانيا", "لوتسمبورغ", "مدغشقر", "مالاوي", "ماليزيا", "جزر المالديف", "مالي", "مالطا", "جزر مارشال", "موريتانيا",
+    "موريشيوس", "المكسيك", "ميكرونيزيا", "مولدوفا", "موناكو", "منغوليا", "الجبل الأسود", "المغرب", "موزمبيق", "ميانمار (بورما)",
+    "ناميبيا", "ناورو", "نيبال", "هولندا", "نيوزيلندا", "نيكاراغوا", "النيجر", "نيجيريا", "مقدونيا الشمالية (مقدونيا)", "النرويج",
+    "سلطنة عمان", "باكستان", "بالاو", "فلسطين", "بنما", "بابوا غينيا الجديدة", "باراغواي", "بيرو", "الفلبين", "بولندا",
+    "البرتغال", "قطر", "رومانيا", "روسيا", "رواندا", "سانت كيتس ونيفيس", "سانت لوسيا", "سانت فينسنت والغرينادين", "ساموا", "سان مارينو",
+    "ساو تومي وبرينسيبي", "السعودية", "السنغال", "صربيا", "سيشل", "سيراليون", "سنغافورة", "سلوفاكيا", "سلوفينيا", "جزر سليمان",
+    "الصومال", "جنوب أفريقيا", "جنوب السودان", "إسبانيا", "سريلانكا", "السودان", "سورينام", "السويد", "سويسرا", "سوريا",
+    "تايوان", "طاجيكستان", "تنزانيا", "تايلاند", "تيمور الشرقية (تيمور)", "توغو", "تونغا", "ترينيداد وتوباغو", "تونس", "تركيا",
+    "تركمانستان", "توفالو", "أوغندا", "أوكرانيا", "الإمارات العربية المتحدة (الامارات)", "المملكة المتحدة", "الولايات المتحدة الأمريكية (امريكا)", "أوروغواي", "أوزبكستان", "فانواتو",
+    "الفاتيكان (الكرسي الرسولي)", "فنزويلا", "فيتنام", "اليمن", "زامبيا", "زيمبابوي", "كوسوفو", "الصحراء الغربية (الجمهورية العربية الصحراوية الديمقراطية)", "أبخازيا", "أوسيتيا الجنوبية",
+    "قبرص الشمالية", "ترانسنيستريا", "صوماليلاند", "أرتساخ (جمهورية ناغورنو قرة باغ)", "المملكة العربية الأورينية (أورينيا)", "جزر كوك", "نيوي",
+    "إنجلترا", "اسكتلندا", "ويلز", "أيرلندا الشمالية"
+  ];
+
+  function runStartMonkey(playersToUse) {
+    let selected = playersToUse || Array.from(document.querySelectorAll('#monkey-player-list input:checked')).map(cb => cb.value);
+    if (selected.length === 0) {
+        const msg = appState.lang === 'ar' ? 'اختر اللاعبين!' : 'Select players!';
+        return showToast(msg);
+    }
+    playSound('click');
+    
+    appState.monkey.config.winners = parseInt(document.getElementById('monkey-winners').value) || 1;
+    appState.monkey.config.timer = parseInt(document.getElementById('monkey-timer').value) || 30;
+    
+    appState.monkey.players = selected.map((name, idx) => ({
+        name: name,
+        row: idx + 2, 
+        col: 1,        
+        isMonkey: false
+    }));
+    
+    appState.monkey.turnIndex = 0;
+    appState.monkey.turnCounter = 0;
+    appState.monkey.usedCountries = []; 
+    
+    renderMonkeyBoard();
+    setView('play-monkey');
+    startTimer();
+  }
+
+  function renderMonkeyBoard() {
+    const div = document.getElementById('monkey-board');
+    div.innerHTML = '';
+    
+    const t = TRANSLATIONS[appState.lang];
+    const stages = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
+    
+    const colors = [
+        'border-green-500 bg-green-50 text-green-700',   
+        'border-yellow-400 bg-yellow-50 text-yellow-700', 
+        'border-yellow-600 bg-yellow-100 text-yellow-800',      
+        'border-orange-500 bg-orange-50 text-orange-700',   
+        'border-red-600 bg-red-50 text-red-700'             
+    ];
+
+    if (appState.monkey.turnIndex >= appState.monkey.players.length) appState.monkey.turnIndex = 0;
+    
+    const liarBtn = document.getElementById('liar-btn');
+    if (appState.monkey.turnCounter === 0) {
+        liarBtn.disabled = true;
+        liarBtn.style.opacity = '0.5';
+    } else {
+        liarBtn.disabled = false;
+        liarBtn.style.opacity = '1';
+    }
+
+    const currentPlayer = appState.monkey.players[appState.monkey.turnIndex];
+    document.getElementById('current-turn-name').innerText = currentPlayer ? currentPlayer.name : "---";
+
+    appState.monkey.players.forEach((p, idx) => {
+      const isTurn = (idx === appState.monkey.turnIndex);
+      const style = colors[p.col - 1] || colors[0];
+      const turnBorder = isTurn ? 'border-2 border-indigo-600 shadow-md' : 'border';
+
+      let actionBtn = '';
+      if (p.isMonkey) {
+        const switchText = appState.lang === 'ar' ? 'تبديل' : 'Switch';
+        actionBtn = `<button onclick="openSwitchModal('${p.row}', '${p.name}')" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold">${switchText}</button>`;
+      }
+      
+      const editBtn = `<button onclick="openEditStatus('${p.row}', '${p.name}')" class="ml-2 text-slate-400" title="Edit">✏️</button>`;
+
+      div.innerHTML += `
+        <div class="flex justify-between items-center p-3 rounded-xl mb-2 ${style} ${turnBorder}">
+           <div class="flex items-center">
+             <div class="ml-2">
+                <div class="font-bold flex items-center gap-1 text-base">${p.name} ${isTurn ? '⏳' : ''}</div>
+                <div class="text-xs font-bold opacity-80 uppercase">${stages[p.col - 1]}</div>
+             </div>
+             ${editBtn}
+           </div>
+           <div>${actionBtn}</div>
+        </div>
+      `;
+    });
+    saveToLocal(); 
+  }
+
+  function startTimer() {
+    stopTimer();
+    isPaused = false;
+    timeLeft = appState.monkey.config.timer;
+    updateTimerUI();
+    timerInterval = setInterval(() => {
+      if(!isPaused) {
+          timeLeft--;
+          updateTimerUI();
+          if(timeLeft <= 5 && timeLeft > 0) playSound('tick');
+          if (timeLeft <= 0) {
+            stopTimer();
+            playSound('alarm');
+            showTimeoutModal();
+          }
+      }
+    }, 1000);
+  }
+
+  function stopTimer() { if(timerInterval) clearInterval(timerInterval); }
+
+  function finishMonkey() {
+    playSound('click');
+    const msg = appState.lang === 'ar' ? "هل أنت متأكد من إنهاء اللعبة؟" : "Are you sure you want to finish the game?";
+    showConfirmModal(msg, () => {
+        stopTimer();
+        setView('setup-monkey');
+    });
+  }
+
+  function resetTimer() { playSound('click'); startTimer(); }
+  function togglePause() {
+    if(!timerInterval && timeLeft <= 0) return;
+    playSound('click'); isPaused = !isPaused; updateTimerUI();
+  }
+
+  function updateTimerUI() {
+    const el = document.getElementById('timer-display');
+    const btn = document.getElementById('pause-btn');
+    if(!el) return;
+    el.innerText = timeLeft;
+    const t = TRANSLATIONS[appState.lang];
+    if(isPaused) {
+        btn.innerText = appState.lang === 'ar' ? 'استئناف' : 'Resume';
+    } else {
+        btn.innerText = t.pause_btn;
+    }
+  }
+
+  function nextTurn() {
+    playSound('click');
+    let loopCount = 0;
+    let nextIndex = appState.monkey.turnIndex;
+    do {
+        nextIndex++;
+        if (nextIndex >= appState.monkey.players.length) nextIndex = 0;
+        loopCount++;
+    } while (appState.monkey.players[nextIndex].isMonkey && loopCount < appState.monkey.players.length);
+    appState.monkey.turnIndex = nextIndex;
+    appState.monkey.turnCounter++;
+    renderMonkeyBoard();
+    startTimer(); 
+  }
+
+  function liarButton() {
+    playSound('click');
+    let loopCount = 0;
+    let prevIndex = appState.monkey.turnIndex;
+    do {
+        prevIndex--;
+        if (prevIndex < 0) prevIndex = appState.monkey.players.length - 1;
+        loopCount++;
+    } while (appState.monkey.players[prevIndex].isMonkey && loopCount < appState.monkey.players.length);
+    const prevPlayer = appState.monkey.players[prevIndex];
+    if(prevPlayer.col < 5) {
+         prevPlayer.col++;
+         if(prevPlayer.col === 5) prevPlayer.isMonkey = true;
+         checkWinCondition();
+         renderMonkeyBoard();
+         startTimer(); 
+    }
+  }
+
+  function penaltyAndPass() {
+      const player = appState.monkey.players[appState.monkey.turnIndex];
+      if (player.col < 5) {
+          player.col++;
+          if(player.col === 5) player.isMonkey = true;
+          checkWinCondition();
+      }
+      nextTurn();
+  }
+
+  function checkWinCondition() {
+    const stats = (() => {
+        const total = appState.monkey.players.length;
+        const monkeys = appState.monkey.players.filter(p => p.isMonkey).length;
+        const safe = total - monkeys;
+        return { total, monkeys, safe };
+    })();
+
+    if (stats.safe <= appState.monkey.config.winners && stats.total > appState.monkey.config.winners) {
+        stopTimer();
+        playSound('success');
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        const winners = appState.monkey.players.filter(p => !p.isMonkey).map(p => p.name);
+        
+        const winnersLabel = appState.lang === 'ar' ? 'الفائزون:' : 'Winners:';
+        let detailsHtml = '<div class="space-y-1">';
+        appState.monkey.players.forEach(p => {
+            const status = p.isMonkey ? (appState.lang === 'ar' ? '🔴 قرد' : '🔴 Monkey') : (appState.lang === 'ar' ? '🟢 فائز' : '🟢 Winner');
+            const bgClass = p.isMonkey ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700';
+            detailsHtml += `<div class="flex justify-between px-3 py-2 rounded ${bgClass}"><span>${p.name}</span><span class="font-bold">${status}</span></div>`;
+        });
+        detailsHtml += '</div>';
+        
+        document.getElementById('winner-scores-container').innerHTML = detailsHtml;
+        document.getElementById('winner-scores-container').classList.add('hidden');
+        
+        document.getElementById('winners-list').innerHTML = `<div class="text-green-600 font-bold mb-2">${winnersLabel}</div>` + winners.map(w => `<div class="text-xl mb-1">${w}</div>`).join('');
+        
+        // Modal buttons are handled by playAgain and main_menu translations in Screw logic (shared modal)
+        document.getElementById('winner-modal').classList.remove('hidden');
+
+        // Record wins
+        winners.forEach(w => {
+            google.script.run.withFailureHandler(handleServerFailure).recordWin(w, "ربع قرد");
+        });
+    }
+  }
+
+  function addCountry() {
+    // Already mostly uses showCustomAlert which is language aware now
+    const input = document.getElementById('new-country-input');
+    const rawInput = input.value.trim(); 
+    if (typeof COUNTRIES_DB === 'undefined' || !COUNTRIES_DB) {
+        const msg = appState.lang === 'ar' ? "⚠️ قاعدة بيانات الدول غير محملة بعد." : "⚠️ Database not loaded.";
+        showToast(msg);
+        return;
+    }
+    if (rawInput) {
+        if (!appState.monkey.usedCountries) appState.monkey.usedCountries = [];
+        const normalize = (str) => {
+            if (!str) return '';
+            let clean = str.toLowerCase()
+                      .replace(/[أإآ]/g, 'ا').replace(/[ة]/g, 'ه').replace(/[ى]/g, 'ي')
+                      .replace(/[^\w\s\u0621-\u064A]/g, ' ').replace(/\s+/g, ' ').trim();
+            return clean.split(' ').map(word => {
+                if (word.startsWith('ال') && word.length > 3) return word.substring(2);
+                return word;
+            }).join(' ');
+        };
+        const getPossibleNames = (name) => {
+            let names = [normalize(name)];
+            const match = name.match(/\(([^)]+)\)/); 
+            if (match) names.push(normalize(match[1]));
+            return names;
+        };
+        const newCountryNames = getPossibleNames(rawInput);
+        const foundInOfficial = COUNTRIES_DB.find(official => {
+            const officialNames = getPossibleNames(official);
+            return newCountryNames.some(newName => officialNames.includes(newName));
+        });
+        if (foundInOfficial) {
+            const isDuplicate = appState.monkey.usedCountries.some(existing => {
+                const existingNames = getPossibleNames(existing);
+                return newCountryNames.some(newName => existingNames.includes(newName));
+            });
+            if (isDuplicate) {
+                playSound('alarm');
+                const msg = appState.lang === 'ar' ? `🚫 الدولة "${foundInOfficial}" مسجلة مسبقاً!` : `🚫 "${foundInOfficial}" already registered!`;
+                showToast(msg);
+                return;
+            }
+            appState.monkey.usedCountries.unshift(foundInOfficial);
+            saveToLocal();
+            renderCountriesList();
+            input.value = '';
+            input.focus();
+            const searchInput = document.getElementById('country-search-input');
+            if (searchInput) searchInput.value = '';
+            filterCountries();
+            return;
+        }
+        let bestMatch = null;
+        let highestScore = 0;
+        COUNTRIES_DB.forEach(official => {
+            const officialNames = getPossibleNames(official);
+            newCountryNames.forEach(newName => {
+                officialNames.forEach(offName => {
+                    let score = getSimilarity(newName, offName);
+                    if (score > highestScore) {
+                        highestScore = score;
+                        bestMatch = official;
+                    }
+                });
+            });
+        });
+        if (highestScore > 0.6) {
+            playSound('click');
+            const confirmMsg = appState.lang === 'ar' ? `❓ هل تقصد: "${bestMatch}"؟` : `❓ Did you mean: "${bestMatch}"?`;
+            showConfirmModal(confirmMsg, () => {
+                const input = document.getElementById('new-country-input');
+                input.value = bestMatch;
+                addCountry();
+            });
+        } else {
+            playSound('alarm');
+            const msg = appState.lang === 'ar' ? `❌ لم يتم العثور على دولة بهذا الاسم.` : `❌ Country not found.`;
+            showToast(msg);
+        }
+    }
+  }
+
+  function getSimilarity(s1, s2) {
+    let longer = s1.length < s2.length ? s2 : s1;
+    let shorter = s1.length < s2.length ? s1 : s2;
+    if (longer.length === 0) return 1.0;
+    const editDistance = (s1, s2) => {
+        let costs = new Array();
+        for (let i = 0; i <= s1.length; i++) {
+            let lastValue = i;
+            for (let j = 0; j <= s2.length; j++) {
+                if (i == 0) costs[j] = j;
+                else if (j > 0) {
+                    let newValue = costs[j - 1];
+                    if (s1.charAt(i - 1) != s2.charAt(j - 1))
+                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                    costs[j - 1] = lastValue;
+                    lastValue = newValue;
+                }
+            }
+            if (i > 0) costs[s2.length] = lastValue;
+        }
+        return costs[s2.length];
+    };
+    return (longer.length - editDistance(longer, shorter)) / parseFloat(longer.length);
+  }
+</script>

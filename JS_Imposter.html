@@ -1,0 +1,237 @@
+<script>
+  /* --- IMPOSTER GAME LOGIC --- */
+
+  function renderSpyCategories() {
+      const select = document.getElementById('imposter-category-select');
+      if(!select) return;
+      const countriesLabel = appState.lang === 'ar' ? '🌍 دول العالم (تلقائي)' : '🌍 World Countries (Auto)';
+      const manualLabel = appState.lang === 'ar' ? '✍️ إدخال يدوي' : '✍️ Manual Entry';
+      
+      let html = `<option value="countries">${countriesLabel}</option><option value="manual">${manualLabel}</option>`;
+      for(const cat in SPY_CATEGORIES) {
+          html += `<option value="${cat}">${cat}</option>`;
+      }
+      select.innerHTML = html;
+  }
+
+  function toggleManualWordInput() {
+      const select = document.getElementById('imposter-category-select');
+      const container = document.getElementById('manual-word-container');
+      if (select.value === 'manual') {
+          container.classList.remove('hidden');
+          document.getElementById('imposter-manual-word').focus();
+      } else {
+          container.classList.add('hidden');
+      }
+  }
+
+  function prepImposterGame(playersToUse) {
+      const catSelect = document.getElementById('imposter-category-select');
+      const category = catSelect.value;
+      if (category.includes('🔒')) {
+          const expectedPw = SPY_CATEGORIES[category][0]; 
+          if (appState.imposter.unlockedCategories && 
+              !Array.isArray(appState.imposter.unlockedCategories) && 
+              appState.imposter.unlockedCategories[category] === expectedPw) {
+               continuePrepImposter(playersToUse);
+               return;
+          }
+          if (expectedPw) {
+              document.getElementById('password-error').innerText = '';
+              document.getElementById('category-password-input').value = '';
+              document.getElementById('password-modal').classList.remove('hidden');
+              document.getElementById('category-password-input').focus();
+              window._pendingImposterPlayers = playersToUse;
+              return;
+          }
+      }
+      continuePrepImposter(playersToUse);
+  }
+
+  function verifyCategoryPassword() {
+      const input = document.getElementById('category-password-input').value;
+      const catSelect = document.getElementById('imposter-category-select');
+      const category = catSelect.value;
+      const expectedPw = SPY_CATEGORIES[category][0];
+      if (input === expectedPw) {
+          playSound('success');
+          if (!appState.imposter.unlockedCategories || Array.isArray(appState.imposter.unlockedCategories)) {
+              appState.imposter.unlockedCategories = {}; 
+          }
+          appState.imposter.unlockedCategories[category] = input;
+          saveToLocal();
+          closeModal('password-modal');
+          continuePrepImposter(window._pendingImposterPlayers);
+          delete window._pendingImposterPlayers;
+      } else {
+          playSound('alarm');
+          const errorMsg = appState.lang === 'ar' ? 'كلمة مرور خاطئة!' : 'Incorrect password!';
+          document.getElementById('password-error').innerText = errorMsg;
+      }
+  }
+
+  function continuePrepImposter(playersToUse) {
+      let selected = playersToUse || Array.from(document.querySelectorAll('#imposter-player-list input:checked')).map(cb => cb.value);
+      const countInput = document.getElementById('imposter-count');
+      const count = parseInt(countInput.value) || 1;
+      
+      if(selected.length < 3) {
+          const msg = appState.lang === 'ar' ? 'الحد الأدنى 3 لاعبين' : 'Minimum 3 players';
+          return showToast(msg);
+      }
+      if(count >= selected.length) {
+          const msg = appState.lang === 'ar' ? 'عدد الجواسيس كبير جداً' : 'Too many imposters';
+          return showToast(msg);
+      }
+      
+      appState.imposter.config.impostersCount = count;
+      lastSelectedPlayers = selected;
+      playSound('click');
+      reorderContext = 'imposter'; 
+      tempReorderList = selected.map(name => ({name: name})); 
+      
+      const modalBtn = document.getElementById('reorder-save-btn');
+      if(modalBtn) modalBtn.innerText = TRANSLATIONS[appState.lang].start;
+      
+      renderReorderList();
+      document.getElementById('reorder-modal').classList.remove('hidden');
+  }
+
+  function finalizeImposterGame(orderedNames) {
+      lastSelectedPlayers = orderedNames;
+      const catSelect = document.getElementById('imposter-category-select');
+      const category = catSelect.value;
+      let secretWord = "";
+      if (category === 'manual') {
+          secretWord = document.getElementById('imposter-manual-word').value.trim();
+          if (!secretWord) {
+              const msg = appState.lang === 'ar' ? 'يرجى إدخال الكلمة السرية' : 'Please enter the secret word';
+              showToast(msg);
+              setView('setup-imposter');
+              return;
+          }
+      } else if (category === 'countries') {
+          const r = Math.floor(Math.random() * COUNTRIES_DB.length);
+          secretWord = COUNTRIES_DB[r];
+      } else if (SPY_CATEGORIES[category]) {
+          let list = SPY_CATEGORIES[category];
+          if (category.includes('🔒')) list = list.slice(1);
+          const r = Math.floor(Math.random() * list.length);
+          secretWord = list[r];
+      }
+      const count = appState.imposter.config.impostersCount;
+      const total = orderedNames.length;
+      let roles = Array(count).fill('Imposter').concat(Array(total - count).fill('Civilian'));
+      roles = roles.sort(() => 0.5 - Math.random());
+      appState.imposter.players = orderedNames.map((name, idx) => ({ name: name, role: roles[idx] }));
+      appState.imposter.secretWord = secretWord;
+      appState.imposter.revealIndex = 0;
+      appState.imposter.timer = 0;
+      showRevealStep();
+      setView('imposter-reveal');
+  }
+
+  function showRevealStep() {
+      const player = appState.imposter.players[appState.imposter.revealIndex];
+      document.getElementById('reveal-player-name').innerText = player.name;
+      document.getElementById('reveal-step-pass').classList.remove('hidden');
+      document.getElementById('reveal-step-show').classList.add('hidden');
+  }
+
+  function showRole() {
+      const player = appState.imposter.players[appState.imposter.revealIndex];
+      const wordDiv = document.getElementById('role-word');
+      if (player.role === 'Imposter') {
+          wordDiv.innerText = appState.lang === 'ar' ? "🕵️‍♂️ أنت الجاسوس!" : "🕵️‍♂️ You are the Imposter!";
+          wordDiv.className = "text-3xl font-bold text-red-600";
+      } else {
+          wordDiv.innerText = appState.imposter.secretWord;
+          wordDiv.className = "text-3xl font-bold text-green-700";
+      }
+      document.getElementById('reveal-step-pass').classList.add('hidden');
+      document.getElementById('reveal-step-show').classList.remove('hidden');
+      playSound('click');
+  }
+
+  function hideRole() {
+      appState.imposter.revealIndex++;
+      if (appState.imposter.revealIndex >= appState.imposter.players.length) {
+          playSound('success');
+          renderImposterBoard();
+          setView('play-imposter');
+          startImposterTimer();
+      } else {
+          playSound('click');
+          showRevealStep();
+      }
+  }
+
+  function renderImposterBoard() {
+      const container = document.getElementById('imposter-game-players');
+      container.innerHTML = '';
+      appState.imposter.players.forEach(p => {
+          container.innerHTML += `<div class="imposter-card m-1">${p.name}</div>`;
+      });
+  }
+
+  function startImposterTimer() {
+      stopImposterTimer();
+      isPaused = false;
+      updateImposterTimerUI();
+      imposterInterval = setInterval(() => {
+          if(!isPaused) {
+              appState.imposter.timer++;
+              updateImposterTimerUI();
+          }
+      }, 1000);
+  }
+  
+  function stopImposterTimer() { if(imposterInterval) clearInterval(imposterInterval); }
+  
+  function toggleImposterTimer() {
+      playSound('click');
+      isPaused = !isPaused;
+      updateImposterTimerUI();
+  }
+
+  function updateImposterTimerUI() {
+      const display = document.getElementById('imposter-timer-display');
+      const btn = document.getElementById('imp-pause-btn');
+      const mins = Math.floor(appState.imposter.timer / 60).toString().padStart(2, '0');
+      const secs = (appState.imposter.timer % 60).toString().padStart(2, '0');
+      display.innerText = `${mins}:${secs}`;
+      if(isPaused) {
+          btn.innerText = appState.lang === 'ar' ? "استئناف" : "Resume";
+      } else {
+          btn.innerText = TRANSLATIONS[appState.lang].pause_btn;
+      }
+  }
+
+  function revealImposterResult() {
+      stopImposterTimer();
+      playSound('success');
+      
+      const wordTitle = appState.lang === 'ar' ? 'الكلمة السرية' : 'Secret Word';
+      const impTitle = appState.lang === 'ar' ? 'الجواسيس' : 'Imposters';
+      const andText = appState.lang === 'ar' ? ' و ' : ' & ';
+
+      const imposters = appState.imposter.players.filter(p => p.role === 'Imposter').map(p => p.name).join(andText);
+      
+      document.getElementById('winners-list').innerHTML = `
+        <div class="mb-4">
+            <div class="text-xs text-slate-400 font-bold uppercase">${wordTitle}</div>
+            <div class="text-2xl font-black text-green-600">${appState.imposter.secretWord}</div>
+        </div>
+        <div>
+            <div class="text-xs text-slate-400 font-bold uppercase">${impTitle}</div>
+            <div class="text-2xl font-black text-red-600">${imposters}</div>
+        </div>
+      `;
+      
+      // Clear specific screw chart stuff if any
+      document.getElementById('screw-chart-container').classList.add('hidden');
+      document.getElementById('winner-scores-container').classList.add('hidden');
+      
+      document.getElementById('winner-modal').classList.remove('hidden');
+  }
+</script>

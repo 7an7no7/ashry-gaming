@@ -650,17 +650,16 @@ function toggleResults() {
         switchData = { monkeyRow: null, targetRow: null, targetCol: null };
         tempReorderList = [];
         
-        // 5. Reset App State to Defaults
+        // 5. Reset App State to Defaults (MATCHES JS_CORE DEFINITION)
         const isDark = appState.isDarkMode;
-        const currentLang = appState.lang; // Preserve language
+        const currentLang = appState.lang; 
         
         appState = {
             currentView: 'menu',
             isDarkMode: isDark,
             lang: currentLang,
             
-            // Old Games
-            screw: { rounds: 5, players: [] },
+            screw: { rounds: 5, players: [], activeRound: 0 },
             monkey: { players: [], config: { winners: 1, timer: 30 }, turnIndex: 0, turnCounter: 0, usedCountries: [] },
             imposter: { players: [], config: { impostersCount: 1 }, secretWord: '', revealIndex: 0, timer: 0 },
             domino: { players: [], target: 101, mode: 'single' },
@@ -670,14 +669,16 @@ function toggleResults() {
                 general: { time: 0, interval: null, running: false },
                 chess: { time1: 300, time2: 300, active: null, interval: null, initial: 300 }
             },
-
-            // New Games
-            charades: { score: 0, timer: 60 },
-            describe: { score: 0, timer: 60 },
-            wordle: { wordLength: 5, guesses: [], gameOver: false },
-            guessnum: { min: 1, max: 100, target: 0 },
-            justone: { players: [], activePlayer: 0, phase: 'setup' },
-            teams: { players: [], count: 2, result: [] }
+            charades: { score: 0, timer: 60, interval: null, currentCategory: [], history: [] },
+            describe: { score: 0, timer: 60, interval: null, currentCard: null, history: [] },
+            wordle: { targetWord: "", currentGuess: "", guesses: [], maxTries: 6, wordLength: 5, status: 'playing' },
+            guessnum: { mode: 'computer', target: 0, min: 1, max: 100, attempts: 0, history: [] },
+            justone: { players: [], writers: [], guesserIndex: 0, currentWriterIndex: 0, secretWord: "", clues: [], phase: 'setup' },
+            teams: { players: [], count: 2, result: [] },
+            tourney: { players: [], matches: [], round: 0 },
+            reaction: { timeoutId: null, startTime: 0, status: 'idle', firstTapInfo: null },
+            dice: { count: 1 },
+            whoami: { count: 3, assignments: [], currentIndex: 0, timer: 0, interval: null, isPaused: false, manualWords: [], isShuffle: true, inputIndex: 0, tempPlayers: [] }
         };
         
         // 6. Reset UI

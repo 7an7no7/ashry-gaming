@@ -46,15 +46,6 @@ const WORDLE_DB = {
     }
 };
 
-let wordleState = {
-    targetWord: "",
-    currentGuess: "",
-    guesses: [], // Array of strings
-    maxTries: 6,
-    wordLength: 5,
-    status: "playing" // playing, won, lost
-};
-
 function setupWordle() {
     setView('setup-wordle');
 }
@@ -68,16 +59,16 @@ function startWordleGame(length) {
         return;
     }
 
-    wordleState.wordLength = length;
+    appState.wordle.wordLength = length;
     // Rule: Increase tries to 7 if length > 6
-    wordleState.maxTries = length > 6 ? 7 : 6;
+    appState.wordle.maxTries = length > 6 ? 7 : 6;
     
-    wordleState.targetWord = db[Math.floor(Math.random() * db.length)].toUpperCase();
-    wordleState.currentGuess = "";
-    wordleState.guesses = [];
-    wordleState.status = "playing";
+    appState.wordle.targetWord = db[Math.floor(Math.random() * db.length)].toUpperCase();
+    appState.wordle.currentGuess = "";
+    appState.wordle.guesses = [];
+    appState.wordle.status = "playing";
 
-    console.log("Target Word:", wordleState.targetWord); // For debugging
+    console.log("Target Word:", appState.wordle.targetWord); // For debugging
 
     renderWordleBoard();
     renderKeyboard();
@@ -86,13 +77,13 @@ function startWordleGame(length) {
 
 function renderWordleBoard() {
     const container = document.getElementById('wordle-grid');
-    container.style.gridTemplateColumns = `repeat(${wordleState.wordLength}, 1fr)`;
+    container.style.gridTemplateColumns = `repeat(${appState.wordle.wordLength}, 1fr)`;
     container.innerHTML = '';
 
     // Render Previous Guesses
-    wordleState.guesses.forEach(guess => {
+    appState.wordle.guesses.forEach(guess => {
         const result = checkGuess(guess);
-        for(let i=0; i<wordleState.wordLength; i++) {
+        for(let i=0; i<appState.wordle.wordLength; i++) {
             const char = guess[i];
             const status = result[i]; // 'correct', 'present', 'absent'
             let bgClass = "bg-slate-500 border-slate-500";
@@ -108,14 +99,14 @@ function renderWordleBoard() {
     });
 
     // Render Current Active Row
-    if(wordleState.status === 'playing') {
-        const remainingChars = wordleState.wordLength - wordleState.currentGuess.length;
+    if(appState.wordle.status === 'playing') {
+        const remainingChars = appState.wordle.wordLength - appState.wordle.currentGuess.length;
         
         // Filled characters
-        for(let i=0; i<wordleState.currentGuess.length; i++) {
+        for(let i=0; i<appState.wordle.currentGuess.length; i++) {
             container.innerHTML += `
                 <div class="wordle-cell text-2xl font-bold text-slate-800 dark:text-white border-2 border-slate-400 dark:border-slate-500 rounded-lg animate-pop">
-                    ${wordleState.currentGuess[i]}
+                    ${appState.wordle.currentGuess[i]}
                 </div>`;
         }
         
@@ -127,8 +118,8 @@ function renderWordleBoard() {
     }
 
     // Render Empty Rows
-    const rowsLeft = wordleState.maxTries - wordleState.guesses.length - (wordleState.status === 'playing' ? 1 : 0);
-    for(let i=0; i < rowsLeft * wordleState.wordLength; i++) {
+    const rowsLeft = appState.wordle.maxTries - appState.wordle.guesses.length - (appState.wordle.status === 'playing' ? 1 : 0);
+    for(let i=0; i < rowsLeft * appState.wordle.wordLength; i++) {
          container.innerHTML += `
             <div class="wordle-cell border-2 border-slate-100 dark:border-slate-800 rounded-lg"></div>`;
     }
@@ -184,46 +175,46 @@ function renderKeyboard() {
 }
 
 function handleWordleKey(key) {
-    if(wordleState.status !== 'playing') return;
+    if(appState.wordle.status !== 'playing') return;
 
     if(key === 'ENTER') {
         submitWordleGuess();
     } else if(key === 'BACK') {
-        if(wordleState.currentGuess.length > 0) {
-            wordleState.currentGuess = wordleState.currentGuess.slice(0, -1);
+        if(appState.wordle.currentGuess.length > 0) {
+            appState.wordle.currentGuess = appState.wordle.currentGuess.slice(0, -1);
             renderWordleBoard();
         }
     } else {
-        if(wordleState.currentGuess.length < wordleState.wordLength) {
-            wordleState.currentGuess += key;
+        if(appState.wordle.currentGuess.length < appState.wordle.wordLength) {
+            appState.wordle.currentGuess += key;
             renderWordleBoard();
         }
     }
 }
 
 function submitWordleGuess() {
-    if(wordleState.currentGuess.length !== wordleState.wordLength) {
+    if(appState.wordle.currentGuess.length !== appState.wordle.wordLength) {
         playSound('alarm');
         const msg = appState.lang === 'ar' ? "الكلمة قصيرة جداً!" : "Word too short!";
         showToast(msg);
         return;
     }
 
-    wordleState.guesses.push(wordleState.currentGuess);
+    appState.wordle.guesses.push(appState.wordle.currentGuess);
     
     // Check Win/Loss
-    if(wordleState.currentGuess === wordleState.targetWord) {
-        wordleState.status = "won";
+    if(appState.wordle.currentGuess === appState.wordle.targetWord) {
+        appState.wordle.status = "won";
         playSound('success');
         confetti({ particleCount: 200, spread: 100 });
         setTimeout(() => showWordleResult(true), 1000);
-    } else if(wordleState.guesses.length >= wordleState.maxTries) {
-        wordleState.status = "lost";
+    } else if(appState.wordle.guesses.length >= appState.wordle.maxTries) {
+        appState.wordle.status = "lost";
         playSound('alarm');
         setTimeout(() => showWordleResult(false), 1000);
     } else {
         playSound('click');
-        wordleState.currentGuess = "";
+        appState.wordle.currentGuess = "";
     }
 
     renderWordleBoard();
@@ -231,12 +222,12 @@ function submitWordleGuess() {
 }
 
 function checkGuess(guess) {
-    let result = Array(wordleState.wordLength).fill('absent');
-    let targetArr = wordleState.targetWord.split('');
+    let result = Array(appState.wordle.wordLength).fill('absent');
+    let targetArr = appState.wordle.targetWord.split('');
     let guessArr = guess.split('');
 
     // 1. Check Greens (Correct position)
-    for(let i=0; i<wordleState.wordLength; i++) {
+    for(let i=0; i<appState.wordle.wordLength; i++) {
         if(guessArr[i] === targetArr[i]) {
             result[i] = 'correct';
             targetArr[i] = null; // Mark as used
@@ -245,7 +236,7 @@ function checkGuess(guess) {
     }
 
     // 2. Check Yellows (Wrong position)
-    for(let i=0; i<wordleState.wordLength; i++) {
+    for(let i=0; i<appState.wordle.wordLength; i++) {
         if(guessArr[i] !== null) { // Skip already matched
             const idx = targetArr.indexOf(guessArr[i]);
             if(idx !== -1) {
@@ -259,7 +250,7 @@ function checkGuess(guess) {
 
 function getKeyboardState() {
     let state = {};
-    wordleState.guesses.forEach(guess => {
+    appState.wordle.guesses.forEach(guess => {
         const result = checkGuess(guess);
         for(let i=0; i<guess.length; i++) {
             const char = guess[i];
@@ -281,8 +272,8 @@ function showWordleResult(win) {
         : (appState.lang === 'ar' ? "حظ أوفر!" : "Game Over!");
     
     const msg = appState.lang === 'ar' 
-        ? `الكلمة كانت: <br><b class="text-3xl text-blue-600">${wordleState.targetWord}</b>` 
-        : `The word was: <br><b class="text-3xl text-blue-600">${wordleState.targetWord}</b>`;
+        ? `الكلمة كانت: <br><b class="text-3xl text-blue-600">${appState.wordle.targetWord}</b>` 
+        : `The word was: <br><b class="text-3xl text-blue-600">${appState.wordle.targetWord}</b>`;
 
     document.getElementById('alert-title').innerText = title;
     document.getElementById('alert-msg').innerHTML = msg;

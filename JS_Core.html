@@ -93,7 +93,8 @@
     teams: { players: [], count: 2, result: [] },
     tourney: { players: [], matches: [], round: 0 },
     reaction: { timeoutId: null, startTime: 0, status: 'idle', firstTapInfo: null },
-    dice: { count: 1 }
+    dice: { count: 1 },
+    whoami: { count: 3, assignments: [], currentIndex: 0, timer: 0, interval: null, isPaused: false, manualWords: [], isShuffle: true, inputIndex: 0, tempPlayers: [] }
   };
 
   function clearAllIntervals() {
@@ -106,16 +107,13 @@
           appState.timers.chess.interval,
           appState.charades.interval,
           appState.describe.interval,
-          typeof whoAmIState !== 'undefined' ? whoAmIState.interval : null,
-          appState.reaction.timeoutId
+          appState.whoami.interval,
+          appState.reaction.timeoutId,
+          typeof pickerInterval !== 'undefined' ? pickerInterval : null
       ];
       
       intervals.forEach(inv => { if(inv) clearInterval(inv); });
-      
-      // Manual cleanup for specific objects if they aren't fully migrated yet
-      if (typeof charadesState !== 'undefined' && charadesState.interval) clearInterval(charadesState.interval);
-      if (typeof descState !== 'undefined' && descState.interval) clearInterval(descState.interval);
-      if (typeof whoAmIState !== 'undefined' && whoAmIState.interval) clearInterval(whoAmIState.interval);
+      if(typeof pickerInterval !== 'undefined') pickerInterval = null;
   }
 
   const TRANSLATIONS = {
@@ -650,7 +648,14 @@
   function toggleDarkMode() {
       appState.isDarkMode = !appState.isDarkMode;
       document.body.classList.toggle('dark');
-      document.getElementById('dark-mode-icon').innerText = appState.isDarkMode ? '☀️' : '🌙';
+      
+      const icon = appState.isDarkMode ? '☀️' : '🌙';
+      const headerIcon = document.getElementById('dark-mode-icon');
+      const bottomIcon = document.getElementById('bottom-dark-mode-icon');
+      
+      if (headerIcon) headerIcon.innerText = icon;
+      if (bottomIcon) bottomIcon.innerText = icon;
+      
       playSound('click');
       saveToLocal();
   }
@@ -728,6 +733,36 @@
         }
     }
     applyTranslations();
+  }
+
+  /* --- CORE UI HELPERS --- */
+  function closeAllModals() {
+      document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
+  }
+  function closeModal(id) { 
+    const el = document.getElementById(id);
+    if(el) el.classList.add('hidden'); 
+  }
+
+  function showToast(msg, type = 'info') {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    let icon = 'ℹ️';
+    if(type === 'success') icon = '✅';
+    if(type === 'error') icon = '⚠️';
+    const iconSpan = document.createElement('span');
+    iconSpan.innerText = icon;
+    const msgSpan = document.createElement('span');
+    msgSpan.innerText = msg;
+    el.appendChild(iconSpan);
+    el.appendChild(document.createTextNode(' '));
+    el.appendChild(msgSpan);
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => {
+        el.classList.remove('show');
+        setTimeout(() => el.remove(), 400);
+    }, 3000);
   }
   
   function addPlayer() {

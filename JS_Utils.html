@@ -1,14 +1,6 @@
 <script>
   /* --- UI HELPERS --- */
 
-  function closeAllModals() {
-      document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
-  }
-  function closeModal(id) { 
-    const el = document.getElementById(id);
-    if(el) el.classList.add('hidden'); 
-  }
-
   function renderPlayerChecks(containerId) {
     const div = document.getElementById(containerId);
     if (!div) return; 
@@ -640,12 +632,8 @@ function toggleResults() {
     
     showConfirmModal(msg, () => {
         // 1. Stop all running timers
-        if(typeof stopTimer === 'function') stopTimer(); 
-        if(typeof stopImposterTimer === 'function') stopImposterTimer();
-        if(typeof charadesState !== 'undefined' && charadesState.interval) clearInterval(charadesState.interval);
-        if(typeof descState !== 'undefined' && descState.interval) clearInterval(descState.interval);
-        if(typeof whoAmIState !== 'undefined' && whoAmIState.interval) clearInterval(whoAmIState.interval);
-        
+        clearAllIntervals();
+
         // 2. Destroy Charts (Crucial for Soft Reload to prevent canvas errors)
         if (typeof screwChart !== 'undefined' && screwChart) {
             screwChart.destroy();
@@ -661,8 +649,6 @@ function toggleResults() {
         lastSelectedPlayers = [];
         switchData = { monkeyRow: null, targetRow: null, targetCol: null };
         tempReorderList = [];
-        // 👇 ADDED WHO AM I RESET 👇
-        whoAmIState = { count: 3, assignments: [], currentIndex: 0, timer: 0, interval: null, isPaused: false, manualWords: [], isShuffle: true, inputIndex: 0 };
         
         // 5. Reset App State to Defaults
         const isDark = appState.isDarkMode;
@@ -857,32 +843,6 @@ function renderHelpContent() {
     ].join('');
     
     document.getElementById('help-tools-container').innerHTML = toolsHTML;
-}
-
-/* --- TOAST NOTIFICATION LOGIC --- */
-function showToast(msg, type = 'info') {
-    // 1. Create the element
-    const el = document.createElement('div');
-    el.className = `toast ${type}`;
-    
-    // 2. Select icon based on type
-    let icon = 'ℹ️';
-    if(type === 'success') icon = '✅';
-    if(type === 'error') icon = '⚠️';
-    
-    el.innerHTML = `<span>${icon}</span> <span>${msg}</span>`;
-    document.body.appendChild(el);
-
-    // 3. Trigger Animation (Wait 10ms for DOM to recognize element)
-    requestAnimationFrame(() => {
-        el.classList.add('show');
-    });
-
-    // 4. Remove after 3 seconds
-    setTimeout(() => {
-        el.classList.remove('show'); // Animate out
-        setTimeout(() => el.remove(), 400); // Remove from HTML
-    }, 3000);
 }
 
 /* --- KEEP SCREEN AWAKE (WAKE LOCK) --- */

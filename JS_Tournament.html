@@ -1,12 +1,6 @@
 <script>
 /* --- TOURNAMENT BRACKET LOGIC --- */
 
-let tourneyState = {
-    players: [],
-    matches: [], 
-    round: 0
-};
-
 function setupTournament() {
     populateTourneyDatalist();
     setView('setup-tourney');
@@ -39,7 +33,7 @@ function startTournament() {
     }
 
     players.sort(() => Math.random() - 0.5); // Shuffle
-    tourneyState.players = players;
+    appState.tourney.players = players;
     
     generateBracket(players);
     renderBracket();
@@ -47,13 +41,13 @@ function startTournament() {
 }
 
 function generateBracket(players) {
-    tourneyState.matches = [];
+    appState.tourney.matches = [];
     const totalPlayers = players.length;
     let matchId = 0;
 
     // Round 1
     for(let i=0; i < totalPlayers; i+=2) {
-        tourneyState.matches.push({
+        appState.tourney.matches.push({
             id: matchId++,
             round: 1,
             p1: players[i],
@@ -66,7 +60,7 @@ function generateBracket(players) {
     // Round 2
     if(totalPlayers === 8) {
         for(let i=0; i<2; i++) {
-            tourneyState.matches.push({
+            appState.tourney.matches.push({
                 id: matchId++,
                 round: 2,
                 p1: "---",
@@ -78,7 +72,7 @@ function generateBracket(players) {
     }
 
     // Final
-    tourneyState.matches.push({
+    appState.tourney.matches.push({
         id: matchId,
         round: totalPlayers === 8 ? 3 : 2,
         p1: "---",
@@ -92,10 +86,10 @@ function renderBracket() {
     const container = document.getElementById('tourney-bracket');
     container.innerHTML = '';
     
-    const rounds = tourneyState.players.length === 8 ? 3 : 2;
+    const rounds = appState.tourney.players.length === 8 ? 3 : 2;
     
     for(let r=1; r<=rounds; r++) {
-        const roundMatches = tourneyState.matches.filter(m => m.round === r);
+        const roundMatches = appState.tourney.matches.filter(m => m.round === r);
         const roundName = getRoundName(r, rounds);
         
         let html = `<div class="mb-6"><h4 class="text-center text-indigo-500 font-bold mb-3 text-lg">${roundName}</h4>`;
@@ -143,7 +137,7 @@ function getRoundName(r, total) {
 }
 
 function setWinner(matchId, slot) {
-    const match = tourneyState.matches.find(m => m.id === matchId);
+    const match = appState.tourney.matches.find(m => m.id === matchId);
     if(!match || match.winnerSlot !== null) return;
 
     match.winnerSlot = slot;
@@ -152,7 +146,7 @@ function setWinner(matchId, slot) {
     playSound('click');
 
     if(match.nextMatchId !== null) {
-        const nextMatch = tourneyState.matches.find(m => m.id === match.nextMatchId);
+        const nextMatch = appState.tourney.matches.find(m => m.id === match.nextMatchId);
         // Feed winner to next bracket
         if (match.id % 2 === 0) nextMatch.p1 = winnerName;
         else nextMatch.p2 = winnerName;

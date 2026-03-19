@@ -281,18 +281,6 @@ const WHOAMI_DB = {
     }
 };
 
-let whoAmIState = {
-    count: 3,
-    assignments: [], 
-    currentIndex: 0,
-    timer: 0,
-    interval: null,
-    isPaused: false,
-    manualWords: [],
-    isShuffle: true,
-    inputIndex: 0
-};
-
 function setupWhoAmI() {
     const catSelect = document.getElementById('whoami-cat-select');
     catSelect.innerHTML = '';
@@ -367,8 +355,8 @@ function startWhoAmI() {
     const catSelect = document.getElementById('whoami-cat-select');
     const selectedCat = catSelect.value;
     
-    whoAmIState.count = count;
-    whoAmIState.assignments = [];
+    appState.whoami.count = count;
+    appState.whoami.assignments = [];
     
     const players = [];
     for(let i=0; i<count; i++) {
@@ -377,10 +365,10 @@ function startWhoAmI() {
 
     // --- CASE 1: MANUAL ---
     if (selectedCat === 'manual') {
-        whoAmIState.manualWords = [];
-        whoAmIState.isShuffle = document.getElementById('whoami-shuffle-check').checked;
-        whoAmIState.inputIndex = 0;
-        whoAmIState.tempPlayers = players; 
+        appState.whoami.manualWords = [];
+        appState.whoami.isShuffle = document.getElementById('whoami-shuffle-check').checked;
+        appState.whoami.inputIndex = 0;
+        appState.whoami.tempPlayers = players; 
         renderManualInputScreen();
         setView('input-whoami');
         return;
@@ -421,7 +409,7 @@ function startWhoAmI() {
     const selectedWords = shuffledWords.slice(0, count);
     
     for (let i = 0; i < count; i++) {
-        whoAmIState.assignments.push({ name: players[i], word: selectedWords[i] });
+        appState.whoami.assignments.push({ name: players[i], word: selectedWords[i] });
     }
     
     document.getElementById('whoami-result-ui').classList.add('hidden');
@@ -431,7 +419,7 @@ function startWhoAmI() {
 /* ================= MANUAL INPUT LOGIC ================= */
 
 function renderManualInputScreen() {
-    const idx = whoAmIState.inputIndex;
+    const idx = appState.whoami.inputIndex;
     const playerNum = idx + 1;
     const givePhoneText = appState.lang === 'ar' ? 'أعط الهاتف لـ' : 'Give phone to';
     const playerLabel = appState.lang === 'ar' ? `اللاعب ${playerNum}` : `Player ${playerNum}`;
@@ -454,12 +442,12 @@ function submitManualWhoAmI() {
         return;
     }
     
-    whoAmIState.manualWords.push(val);
-    whoAmIState.inputIndex++;
+    appState.whoami.manualWords.push(val);
+    appState.whoami.inputIndex++;
     
     playSound('click');
     
-    if (whoAmIState.inputIndex < whoAmIState.count) {
+    if (appState.whoami.inputIndex < appState.whoami.count) {
         renderManualInputScreen();
     } else {
         finalizeManualGame();
@@ -467,25 +455,25 @@ function submitManualWhoAmI() {
 }
 
 function finalizeManualGame() {
-    const words = [...whoAmIState.manualWords];
-    const players = whoAmIState.tempPlayers;
+    const words = [...appState.whoami.manualWords];
+    const players = appState.whoami.tempPlayers;
 
     // FIX 1: Ensure previous results are hidden immediately
     document.getElementById('whoami-result-ui').classList.add('hidden');
 
-    if (whoAmIState.isShuffle) {
+    if (appState.whoami.isShuffle) {
         // SCENARIO A: SHUFFLE ON -> Randomize -> Go to Reveal
         words.sort(() => 0.5 - Math.random());
         
-        for (let i = 0; i < whoAmIState.count; i++) {
-            whoAmIState.assignments.push({ name: players[i], word: words[i] });
+        for (let i = 0; i < appState.whoami.count; i++) {
+            appState.whoami.assignments.push({ name: players[i], word: words[i] });
         }
         startRevealPhase();
         
     } else {
         // SCENARIO B: SHUFFLE OFF -> Keep Word -> SKIP REVEAL -> Go to Timer
-        for (let i = 0; i < whoAmIState.count; i++) {
-            whoAmIState.assignments.push({ name: players[i], word: words[i] });
+        for (let i = 0; i < appState.whoami.count; i++) {
+            appState.whoami.assignments.push({ name: players[i], word: words[i] });
         }
         
         document.getElementById('whoami-pass-container').classList.add('hidden');
@@ -499,7 +487,7 @@ function finalizeManualGame() {
 /* ================= REVEAL & GAMEPLAY ================= */
 
 function startRevealPhase() {
-    whoAmIState.currentIndex = 0;
+    appState.whoami.currentIndex = 0;
     document.getElementById('whoami-pass-container').classList.remove('hidden');
     document.getElementById('whoami-pass-ui').classList.remove('hidden');
     document.getElementById('whoami-reveal-ui').classList.add('hidden');
@@ -511,14 +499,14 @@ function startRevealPhase() {
 }
 
 function updateWhoAmIPassScreen() {
-    const currentPlayer = whoAmIState.assignments[whoAmIState.currentIndex];
+    const currentPlayer = appState.whoami.assignments[appState.whoami.currentIndex];
     document.getElementById('whoami-player-label').innerText = currentPlayer.name; // innerText is safe
     document.getElementById('whoami-pass-ui').classList.remove('hidden');
     document.getElementById('whoami-reveal-ui').classList.add('hidden');
 }
 
 function whoAmIReveal() {
-    const item = whoAmIState.assignments[whoAmIState.currentIndex];
+    const item = appState.whoami.assignments[appState.whoami.currentIndex];
     
     let displayHtml = escapeHTML(item.word);
     
@@ -540,9 +528,9 @@ function whoAmIReveal() {
 }
 
 function whoAmINext() {
-    whoAmIState.currentIndex++;
+    appState.whoami.currentIndex++;
     
-    if (whoAmIState.currentIndex >= whoAmIState.assignments.length) {
+    if (appState.whoami.currentIndex >= appState.whoami.assignments.length) {
         startWhoAmITimer(); 
     } else {
         updateWhoAmIPassScreen();
@@ -554,19 +542,19 @@ function startWhoAmITimer() {
     document.getElementById('whoami-pass-container').classList.add('hidden');
     document.getElementById('whoami-timer-ui').classList.remove('hidden');
     
-    whoAmIState.timer = 120; 
-    whoAmIState.isPaused = false;
+    appState.whoami.timer = 120; 
+    appState.whoami.isPaused = false;
     updateWhoAmITimerDisplay();
     
-    if(whoAmIState.interval) clearInterval(whoAmIState.interval);
+    if(appState.whoami.interval) clearInterval(appState.whoami.interval);
     
-    whoAmIState.interval = setInterval(() => {
-        if(!whoAmIState.isPaused) {
-            whoAmIState.timer--;
+    appState.whoami.interval = setInterval(() => {
+        if(!appState.whoami.isPaused) {
+            appState.whoami.timer--;
             updateWhoAmITimerDisplay();
             
-            if(whoAmIState.timer <= 0) {
-                 clearInterval(whoAmIState.interval);
+            if(appState.whoami.timer <= 0) {
+                 clearInterval(appState.whoami.interval);
                  playSound('alarm');
             }
         }
@@ -574,26 +562,26 @@ function startWhoAmITimer() {
 }
 
 function toggleWhoAmITimer() {
-    whoAmIState.isPaused = !whoAmIState.isPaused;
+    appState.whoami.isPaused = !appState.whoami.isPaused;
     const btn = document.getElementById('whoami-pause-btn');
-    if(appState.lang === 'ar') btn.innerText = whoAmIState.isPaused ? "استئناف" : "إيقاف";
-    else btn.innerText = whoAmIState.isPaused ? "Resume" : "Pause";
+    if(appState.lang === 'ar') btn.innerText = appState.whoami.isPaused ? "استئناف" : "إيقاف";
+    else btn.innerText = appState.whoami.isPaused ? "Resume" : "Pause";
 }
 
 function updateWhoAmITimerDisplay() {
-    const m = Math.floor(whoAmIState.timer / 60).toString().padStart(2, '0');
-    const s = (whoAmIState.timer % 60).toString().padStart(2, '0');
+    const m = Math.floor(appState.whoami.timer / 60).toString().padStart(2, '0');
+    const s = (appState.whoami.timer % 60).toString().padStart(2, '0');
     document.getElementById('whoami-timer-display').innerText = `${m}:${s}`;
 }
 
 // --- RESULT PHASE ---
 function finishWhoAmIGame() {
-    if(whoAmIState.interval) clearInterval(whoAmIState.interval);
+    if(appState.whoami.interval) clearInterval(appState.whoami.interval);
     
     const listEl = document.getElementById('whoami-final-list');
     listEl.innerHTML = '';
     
-    whoAmIState.assignments.forEach((item, index) => {
+    appState.whoami.assignments.forEach((item, index) => {
         let displayWord = escapeHTML(item.word);
         if (item.word.includes('|')) {
             const parts = item.word.split('|');

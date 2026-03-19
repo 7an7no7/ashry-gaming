@@ -106,14 +106,6 @@ const CHARADES_DB = {
     }
 };
 
-let charadesState = {
-    score: 0,
-    timer: 60,
-    interval: null,
-    currentCategory: [],
-    history: []
-};
-
 // --- 1. RENDER FUNCTION (Safe to call anytime) ---
 function renderCharadesDropdown() {
     const catSelect = document.getElementById('charades-cat-select');
@@ -141,19 +133,19 @@ function startCharades(time) {
     const catSelect = document.getElementById('charades-cat-select');
     const catKey = catSelect ? catSelect.value : null;
     
-    if (charadesState.currentCategory.length > 0 && time) {
+    if (appState.charades.currentCategory.length > 0 && time) {
          // Replay mode
     } else if (catKey && CHARADES_DB[appState.lang][catKey]) {
-        charadesState.currentCategory = [...CHARADES_DB[appState.lang][catKey]];
+        appState.charades.currentCategory = [...CHARADES_DB[appState.lang][catKey]];
     } else {
-        charadesState.currentCategory = ["Error: No Category"];
+        appState.charades.currentCategory = ["Error: No Category"];
     }
 
-    charadesState.score = 0;
-    charadesState.history = []; 
+    appState.charades.score = 0;
+    appState.charades.history = []; 
     
-    if(time) charadesState.timer = time;
-    else charadesState.timer = parseInt(document.getElementById('charades-timer-input').value);
+    if(time) appState.charades.timer = time;
+    else appState.charades.timer = parseInt(document.getElementById('charades-timer-input').value);
 
     document.getElementById('charades-ui-playing').classList.remove('hidden');
     document.getElementById('charades-ui-result').classList.add('hidden');
@@ -161,11 +153,11 @@ function startCharades(time) {
     setView('play-charades');
     nextCharadesCard();
     
-    document.getElementById('charades-timer').innerText = charadesState.timer;
-    if (charadesState.interval) clearInterval(charadesState.interval);
+    document.getElementById('charades-timer').innerText = appState.charades.timer;
+    if (appState.charades.interval) clearInterval(appState.charades.interval);
     
-    let timeLeft = charadesState.timer;
-    charadesState.interval = setInterval(() => {
+    let timeLeft = appState.charades.timer;
+    appState.charades.interval = setInterval(() => {
         timeLeft--;
         const timerEl = document.getElementById('charades-timer');
         if(timerEl) timerEl.innerText = timeLeft;
@@ -181,14 +173,14 @@ function startCharadesGame(time) {
 
 function nextCharadesCard(action) {
     if (action === 'correct') {
-        charadesState.score++;
+        appState.charades.score++;
         playSound('success');
     } else if (action === 'pass') {
         playSound('click');
     }
 
-    const words = charadesState.currentCategory;
-    const available = words.filter(w => !charadesState.history.includes(w));
+    const words = appState.charades.currentCategory;
+    const available = words.filter(w => !appState.charades.history.includes(w));
 
     if (available.length === 0) {
         finishCharadesGame();
@@ -198,7 +190,7 @@ function nextCharadesCard(action) {
     const randIndex = Math.floor(Math.random() * available.length);
     const word = available[randIndex];
     
-    charadesState.history.push(word);
+    appState.charades.history.push(word);
     
     const cardTitle = document.getElementById('charades-word');
     if(cardTitle) {
@@ -209,12 +201,12 @@ function nextCharadesCard(action) {
 }
 
 function finishCharadesGame() {
-    if (charadesState.interval) clearInterval(charadesState.interval);
+    if (appState.charades.interval) clearInterval(appState.charades.interval);
     
     playSound('alarm');
     confetti({ particleCount: 200, spread: 100 });
 
-    document.getElementById('charades-final-score').innerText = charadesState.score;
+    document.getElementById('charades-final-score').innerText = appState.charades.score;
     
     document.getElementById('charades-ui-playing').classList.add('hidden');
     document.getElementById('charades-ui-result').classList.remove('hidden');

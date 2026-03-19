@@ -1,10 +1,8 @@
 <script>
 /* ================= TEAM GENERATOR LOGIC ================= */
-let teamConfig = { count: 2 };
-let playerSkills = {}; 
 
 function setTeamCount(n) {
-    teamConfig.count = n;
+    appState.teams.count = n;
     [2,3,4].forEach(i => {
         const btn = document.getElementById(`team-btn-${i}`);
         if (i === n) {
@@ -22,7 +20,7 @@ function getSelectedPlayers() {
 function generateTeams() {
     let selected = getSelectedPlayers();
     
-    if (selected.length < teamConfig.count) {
+    if (selected.length < appState.teams.count) {
         const msg = appState.lang === 'ar' ? "عدد اللاعبين غير كافٍ للفرق المختارة" : "Not enough players for selected teams";
         showToast(msg);
         return;
@@ -37,9 +35,9 @@ function generateTeams() {
     }
 
     // Distribute
-    const teams = Array.from({ length: teamConfig.count }, () => []);
+    const teams = Array.from({ length: appState.teams.count }, () => []);
     selected.forEach((player, index) => {
-        teams[index % teamConfig.count].push(player);
+        teams[index % appState.teams.count].push(player);
     });
 
     renderTeams(teams);
@@ -47,7 +45,7 @@ function generateTeams() {
 
 function openSkillBalancer() {
     const selected = getSelectedPlayers();
-    if (selected.length < teamConfig.count) {
+    if (selected.length < appState.teams.count) {
         const msg = appState.lang === 'ar' ? "عدد اللاعبين غير كافٍ!" : "Not enough players!";
         showToast(msg);
         return;
@@ -57,7 +55,7 @@ function openSkillBalancer() {
     list.innerHTML = '';
 
     selected.forEach(p => {
-        const currentSkill = playerSkills[p] || 3;
+        const currentSkill = appState.teams.playerSkills ? (appState.teams.playerSkills[p] || 3) : 3;
         let starsHtml = '';
         for(let i=1; i<=5; i++) {
             const opacity = i <= currentSkill ? 'opacity-100' : 'opacity-20 grayscale';
@@ -75,7 +73,8 @@ function openSkillBalancer() {
 }
 
 function setSkill(player, level) {
-    playerSkills[player] = level;
+    if(!appState.teams.playerSkills) appState.teams.playerSkills = {};
+    appState.teams.playerSkills[player] = level;
     const container = document.getElementById(`stars-${player}`);
     let starsHtml = '';
     for(let i=1; i<=5; i++) {
@@ -91,12 +90,12 @@ function generateFairTeams() {
     
     let playersObj = selected.map(name => ({
         name: name,
-        skill: (playerSkills[name] || 3) + Math.random() * 0.1 
+        skill: (appState.teams.playerSkills ? (appState.teams.playerSkills[name] || 3) : 3) + Math.random() * 0.1 
     }));
 
     playersObj.sort((a, b) => b.skill - a.skill);
 
-    let teams = Array.from({ length: teamConfig.count }, () => ({ members: [], totalSkill: 0 }));
+    let teams = Array.from({ length: appState.teams.count }, () => ({ members: [], totalSkill: 0 }));
 
     playersObj.forEach(p => {
         teams.sort((a, b) => a.totalSkill - b.totalSkill);
@@ -145,14 +144,6 @@ function renderTeams(teams) {
 }
 
 /* ================= JUST ONE LOGIC ================= */
-let joState = {
-    players: [],
-    guesserIndex: 0,
-    currentWriterIndex: 0,
-    secretWord: "",
-    clues: [],
-    score: 0
-};
 
 // --- EXPANDED WORD LIST (160+ Words) ---
 const JO_WORDS_AR = [
@@ -202,23 +193,23 @@ function startJustOneGame() {
         return;
     }
 
-    joState.players = selected;
-    joState.guesserIndex = 0; 
-    joState.score = 0;
+    appState.justone.players = selected;
+    appState.justone.guesserIndex = 0; 
+    appState.justone.score = 0;
     
     nextJoRound();
 }
 
 function nextJoRound() {
-    joState.clues = [];
+    appState.justone.clues = [];
     
     // Choose word based on language
     const wordList = appState.lang === 'ar' ? JO_WORDS_AR : JO_WORDS_EN;
-    joState.secretWord = wordList[Math.floor(Math.random() * wordList.length)];
+    appState.justone.secretWord = wordList[Math.floor(Math.random() * wordList.length)];
     
-    const guesser = joState.players[joState.guesserIndex];
-    joState.writers = joState.players.filter((_, i) => i !== joState.guesserIndex);
-    joState.currentWriterIndex = 0;
+    const guesser = appState.justone.players[appState.justone.guesserIndex];
+    appState.justone.writers = appState.justone.players.filter((_, i) => i !== appState.justone.guesserIndex);
+    appState.justone.currentWriterIndex = 0;
 
     setView('play-justone');
     document.getElementById('jo-phase-pass').classList.remove('hidden');
@@ -230,7 +221,7 @@ function nextJoRound() {
 }
 
 function joShowPassScreen() {
-    const writer = joState.writers[joState.currentWriterIndex];
+    const writer = appState.justone.writers[appState.justone.currentWriterIndex];
     document.getElementById('jo-active-player').innerText = writer;
     
     const msg = appState.lang === 'ar' 
@@ -247,7 +238,7 @@ function joRevealPhase() {
     document.getElementById('jo-phase-pass').classList.add('hidden');
     document.getElementById('jo-phase-write').classList.remove('hidden');
     
-    document.getElementById('jo-secret-word-display').innerText = joState.secretWord;
+    document.getElementById('jo-secret-word-display').innerText = appState.justone.secretWord;
     const input = document.getElementById('jo-clue-input');
     input.value = '';
     input.focus();
@@ -261,15 +252,15 @@ function joSubmitClue() {
 
     if (!clue) return showToast(appState.lang === 'ar' ? "اكتب كلمة!" : "Write a word!");
     if (clue.includes(' ')) return showToast(appState.lang === 'ar' ? "كلمة واحدة فقط!" : "One word only!");
-    if (clue === joState.secretWord.toLowerCase()) return showToast(t.forbidden_rule);
+    if (clue === appState.justone.secretWord.toLowerCase()) return showToast(t.forbidden_rule);
 
-    const writerName = joState.writers[joState.currentWriterIndex];
-    joState.clues.push({ player: writerName, text: clue });
+    const writerName = appState.justone.writers[appState.justone.currentWriterIndex];
+    appState.justone.clues.push({ player: writerName, text: clue });
     
     playSound('click');
 
-    joState.currentWriterIndex++;
-    if (joState.currentWriterIndex < joState.writers.length) {
+    appState.justone.currentWriterIndex++;
+    if (appState.justone.currentWriterIndex < appState.justone.writers.length) {
         joShowPassScreen();
     } else {
         joPrepareGuessPhase();
@@ -279,12 +270,12 @@ function joSubmitClue() {
 function joPrepareGuessPhase() {
     // Collision Detection
     const counts = {};
-    joState.clues.forEach(c => {
+    appState.justone.clues.forEach(c => {
         counts[c.text] = (counts[c.text] || 0) + 1;
     });
 
-    const validClues = joState.clues.filter(c => counts[c.text] === 1);
-    const collisionsCount = joState.clues.length - validClues.length;
+    const validClues = appState.justone.clues.filter(c => counts[c.text] === 1);
+    const collisionsCount = appState.justone.clues.length - validClues.length;
 
     const list = document.getElementById('jo-clues-list');
     list.innerHTML = '';
@@ -308,7 +299,7 @@ function joPrepareGuessPhase() {
         collisionNote.classList.add('hidden');
     }
 
-    const guesserName = joState.players[joState.guesserIndex];
+    const guesserName = appState.justone.players[appState.justone.guesserIndex];
     document.getElementById('jo-guesser-name').innerText = guesserName;
     
     document.getElementById('jo-phase-write').classList.add('hidden');
@@ -320,25 +311,25 @@ function joPrepareGuessPhase() {
 function joShowResult() {
     document.getElementById('jo-phase-guess').classList.add('hidden');
     document.getElementById('jo-phase-result').classList.remove('hidden');
-    document.getElementById('jo-result-word').innerText = joState.secretWord;
+    document.getElementById('jo-result-word').innerText = appState.justone.secretWord;
 }
 
 function joFinishRound(success) {
     if (success) {
-        joState.score++;
+        appState.justone.score++;
         playSound('success');
         confetti({ particleCount: 150 });
     } else {
         playSound('alarm');
     }
 
-    joState.guesserIndex++;
-    if (joState.guesserIndex >= joState.players.length) {
-        joState.guesserIndex = 0; 
+    appState.justone.guesserIndex++;
+    if (appState.justone.guesserIndex >= appState.justone.players.length) {
+        appState.justone.guesserIndex = 0; 
     }
 
     setTimeout(() => {
-        const nextGuesser = joState.players[joState.guesserIndex];
+        const nextGuesser = appState.justone.players[appState.justone.guesserIndex];
         const t = TRANSLATIONS[appState.lang];
         
         const msg = success 
@@ -356,11 +347,6 @@ function joFinishRound(success) {
 }
 
 /* ================= REACTION TEST LOGIC ================= */
-let reactionState = {
-    timeoutId: null,
-    startTime: 0,
-    status: 'idle' // 'waiting', 'ready', 'ended'
-};
 
 function startReactionRound() {
     setView('play-reaction');
@@ -386,16 +372,16 @@ function startReactionRound() {
     
     exitBtn.classList.add('hidden');
 
-    reactionState.status = 'waiting';
-    reactionState.firstTapInfo = null; // 👈 Reset the tie-breaker memory
+    appState.reaction.status = 'waiting';
+    appState.reaction.firstTapInfo = null; // 👈 Reset the tie-breaker memory
     
     const delay = Math.floor(Math.random() * 4000) + 2000;
-    if (reactionState.timeoutId) clearTimeout(reactionState.timeoutId);
+    if (appState.reaction.timeoutId) clearTimeout(appState.reaction.timeoutId);
 
-    reactionState.timeoutId = setTimeout(() => {
-        if (reactionState.status === 'waiting') {
-            reactionState.status = 'ready';
-            reactionState.startTime = performance.now();
+    appState.reaction.timeoutId = setTimeout(() => {
+        if (appState.reaction.status === 'waiting') {
+            appState.reaction.status = 'ready';
+            appState.reaction.startTime = performance.now();
             
             // Turn GREEN!
             p1.classList.replace('bg-red-500', 'bg-green-500');
@@ -409,38 +395,38 @@ function startReactionRound() {
 }
 
 function handleReactionTap(player) {
-    if (reactionState.status === 'ended') return;
+    if (appState.reaction.status === 'ended') return;
 
-    if (reactionState.status === 'waiting') {
+    if (appState.reaction.status === 'waiting') {
         // FALSE START (Tapped on Red)
-        reactionState.status = 'ended';
-        clearTimeout(reactionState.timeoutId);
+        appState.reaction.status = 'ended';
+        clearTimeout(appState.reaction.timeoutId);
         showReactionResult(player === 1 ? 2 : 1, 0, true, player, false);
         return;
     }
 
-    if (reactionState.status === 'ready') {
+    if (appState.reaction.status === 'ready') {
         // THE FIRST PERSON TAPPED!
-        reactionState.status = 'resolving';
-        reactionState.firstTapInfo = { player: player, time: performance.now() };
+        appState.reaction.status = 'resolving';
+        appState.reaction.firstTapInfo = { player: player, time: performance.now() };
         
         // Wait 30 milliseconds to see if the other player taps for a TIE!
         setTimeout(() => {
-            if (reactionState.status === 'resolving') {
+            if (appState.reaction.status === 'resolving') {
                 // No one else tapped, we have a clear winner!
-                reactionState.status = 'ended';
-                const reactionTime = Math.round(reactionState.firstTapInfo.time - reactionState.startTime);
-                showReactionResult(reactionState.firstTapInfo.player, reactionTime, false, null, false);
+                appState.reaction.status = 'ended';
+                const reactionTime = Math.round(appState.reaction.firstTapInfo.time - appState.reaction.startTime);
+                showReactionResult(appState.reaction.firstTapInfo.player, reactionTime, false, null, false);
             }
         }, 30); 
         return;
     }
 
-    if (reactionState.status === 'resolving') {
+    if (appState.reaction.status === 'resolving') {
         // THE SECOND PERSON TAPPED WITHIN THE 30ms WINDOW! IT'S A TIE!
-        if (player !== reactionState.firstTapInfo.player) {
-            reactionState.status = 'ended';
-            const reactionTime = Math.round(reactionState.firstTapInfo.time - reactionState.startTime);
+        if (player !== appState.reaction.firstTapInfo.player) {
+            appState.reaction.status = 'ended';
+            const reactionTime = Math.round(appState.reaction.firstTapInfo.time - appState.reaction.startTime);
             showReactionResult(null, reactionTime, false, null, true);
         }
     }
@@ -528,8 +514,8 @@ function exitReactionGame(event) {
         event.preventDefault();
     }
     
-    clearTimeout(reactionState.timeoutId);
-    reactionState.status = 'idle';
+    clearTimeout(appState.reaction.timeoutId);
+    appState.reaction.status = 'idle';
     
     // Completely disable the screen taps so they don't accidentally trigger a restart
     document.getElementById('reaction-p1').onclick = null;

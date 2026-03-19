@@ -116,24 +116,16 @@ const DESCRIBE_DB = {
     ]
 };
 
-let descState = {
-    score: 0,
-    timer: 60,
-    interval: null,
-    currentCard: null,
-    history: []
-};
-
 function setupDescribe() {
     setView('setup-describe');
 }
 
 function startDescribeGame(time) {
-    descState.score = 0;
+    appState.describe.score = 0;
     // If time is passed (from Replay button), use it. Else use default logic.
-    if(time) descState.timer = time; 
+    if(time) appState.describe.timer = time; 
     
-    descState.history = []; // Reset used words
+    appState.describe.history = []; // Reset used words
     
     // UI RESET: Show Game, Hide Result
     document.getElementById('desc-ui-playing').classList.remove('hidden');
@@ -145,15 +137,15 @@ function startDescribeGame(time) {
 }
 
 function startDescribeTimer() {
-    if(descState.interval) clearInterval(descState.interval);
-    document.getElementById('desc-timer').innerText = descState.timer;
+    if(appState.describe.interval) clearInterval(appState.describe.interval);
+    document.getElementById('desc-timer').innerText = appState.describe.timer;
     
-    descState.interval = setInterval(() => {
-        descState.timer--;
-        document.getElementById('desc-timer').innerText = descState.timer;
+    appState.describe.interval = setInterval(() => {
+        appState.describe.timer--;
+        document.getElementById('desc-timer').innerText = appState.describe.timer;
         
-        if(descState.timer <= 0) {
-            clearInterval(descState.interval);
+        if(appState.describe.timer <= 0) {
+            clearInterval(appState.describe.interval);
             finishDescribeGame();
         }
     }, 1000);
@@ -169,16 +161,16 @@ function nextDescribeCard() {
     do {
         card = db[Math.floor(Math.random() * db.length)];
         attempts++;
-    } while (descState.history.includes(card.word) && attempts < 10);
+    } while (appState.describe.history.includes(card.word) && attempts < 10);
     
-    descState.history.push(card.word);
-    descState.currentCard = card;
+    appState.describe.history.push(card.word);
+    appState.describe.currentCard = card;
     
     renderDescribeCard();
 }
 
 function renderDescribeCard() {
-    const card = descState.currentCard;
+    const card = appState.describe.currentCard;
     document.getElementById('desc-main-word').innerText = card.word;
     
     const forbiddenList = document.getElementById('desc-forbidden-list');
@@ -194,10 +186,10 @@ function renderDescribeCard() {
 }
 
 function descAction(action) {
-    if(descState.timer <= 0) return;
+    if(appState.describe.timer <= 0) return;
 
     if(action === 'correct') {
-        descState.score++;
+        appState.describe.score++;
         playSound('success');
     } else {
         // Skip or Taboo (Optional: minus points? For now just skip)
@@ -205,20 +197,20 @@ function descAction(action) {
     }
     
     // Update Score UI if you want to show it live
-    // document.getElementById('desc-score-live').innerText = descState.score;
+    // document.getElementById('desc-score-live').innerText = appState.describe.score;
     
     nextDescribeCard();
 }
 
 function finishDescribeGame() {
     // 1. Stop Timer
-    if (descState.interval) clearInterval(descState.interval);
+    if (appState.describe.interval) clearInterval(appState.describe.interval);
     
     playSound('alarm');
     confetti({ particleCount: 200, spread: 100 });
 
     // 2. Update Score in Result Screen
-    document.getElementById('desc-final-score').innerText = descState.score;
+    document.getElementById('desc-final-score').innerText = appState.describe.score;
 
     // 3. Switch Views: Hide Game, Show Result
     document.getElementById('desc-ui-playing').classList.add('hidden');
@@ -227,10 +219,8 @@ function finishDescribeGame() {
 
 /* --- DICE & COIN LOGIC --- */
 
-let diceState = { count: 1 };
-
 function setDiceCount(n) {
-    diceState.count = n;
+    appState.dice.count = n;
     
     // Update Buttons UI
     document.getElementById('btn-d1').className = n === 1 ? "flex-1 py-3 rounded-lg font-bold bg-indigo-600 text-white shadow-md transition-all" : "flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
@@ -253,7 +243,7 @@ function rollDice() {
     container.innerHTML = '';
     playSound('tick'); 
     
-    for(let i=0; i<diceState.count; i++) {
+    for(let i=0; i<appState.dice.count; i++) {
         // Changed animate-shake to animate-roll, and put a dice emoji while it spins!
         container.innerHTML += `
             <div class="w-24 h-24 bg-white border-4 border-slate-800 rounded-2xl flex items-center justify-center shadow-xl animate-roll">
@@ -266,7 +256,7 @@ function rollDice() {
         container.innerHTML = '';
         let total = 0;
         
-        for(let i=0; i<diceState.count; i++) {
+        for(let i=0; i<appState.dice.count; i++) {
             const num = Math.floor(Math.random() * 6) + 1;
             total += num;
             

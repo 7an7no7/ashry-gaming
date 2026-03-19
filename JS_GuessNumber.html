@@ -1,22 +1,13 @@
 <script>
 /* --- GUESS THE NUMBER LOGIC --- */
 
-let guessNumState = {
-    mode: 'computer', // 'computer' or 'human'
-    target: 0,
-    min: 1,
-    max: 100,
-    attempts: 0,
-    history: []
-};
-
 function setupGuessNumber() {
     setGuessMode('computer'); // Default
     setView('setup-guessnum');
 }
 
 function setGuessMode(mode) {
-    guessNumState.mode = mode;
+    appState.guessnum.mode = mode;
     
     // UI Tabs Styling
     const btnComp = document.getElementById('btn-mode-comp');
@@ -40,7 +31,7 @@ function setGuessMode(mode) {
 function startGuessNumber() {
     let min, max, target;
     
-    if (guessNumState.mode === 'computer') {
+    if (appState.guessnum.mode === 'computer') {
         // --- COMPUTER MODE ---
         min = parseInt(document.getElementById('gn-min').value);
         max = parseInt(document.getElementById('gn-max').value);
@@ -72,9 +63,9 @@ function startGuessNumber() {
     }
 
     // Init Game State
-    guessNumState.target = target;
-    guessNumState.attempts = 0;
-    guessNumState.history = [];
+    appState.guessnum.target = target;
+    appState.guessnum.attempts = 0;
+    appState.guessnum.history = [];
 
     // UI Reset
     document.getElementById('gn-input').value = '';
@@ -91,13 +82,13 @@ function checkNumberGuess() {
 
     if (isNaN(guess)) return;
 
-    guessNumState.attempts++;
-    document.getElementById('gn-attempts').innerText = guessNumState.attempts;
+    appState.guessnum.attempts++;
+    document.getElementById('gn-attempts').innerText = appState.guessnum.attempts;
     
     let feedback = "";
     let colorClass = "";
     
-    if (guess === guessNumState.target) {
+    if (guess === appState.guessnum.target) {
         // WIN
         playSound('success');
         confetti({ particleCount: 150, spread: 70 });
@@ -111,7 +102,7 @@ function checkNumberGuess() {
         inputEl.blur();
         return; 
     } 
-    else if (guess > guessNumState.target) {
+    else if (guess > appState.guessnum.target) {
         // تخمينك 60 والرقم 50 -> نحتاج رقم "أقل"
         playSound('click');
         // التغيير هنا: بدلاً من "عالي جداً" نقول "أقل"
@@ -159,7 +150,7 @@ function addToHistory(guess, icon, type) {
     div.className = `flex justify-between items-center p-3 rounded-xl border mb-2 ${styles}`;
     
     div.innerHTML = `
-        <span class="font-bold text-slate-500 dark:text-slate-400 text-sm">#${guessNumState.attempts}</span>
+        <span class="font-bold text-slate-500 dark:text-slate-400 text-sm">#${appState.guessnum.attempts}</span>
         <span class="font-black text-2xl ${textStyle}">${guess}</span>
         <span class="text-xl">${icon}</span>
     `;

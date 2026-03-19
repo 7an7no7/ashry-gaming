@@ -74,8 +74,8 @@
     isDarkMode: false,
     lang: 'ar',
     
-    // --- OLD GAMES ---
-    screw: { rounds: 5, players: [] },
+    // --- STATE REPOSITORY ---
+    screw: { rounds: 5, players: [], activeRound: 0 },
     monkey: { players: [], config: { winners: 1, timer: 30 }, turnIndex: 0, turnCounter: 0, usedCountries: [] },
     imposter: { players: [], config: { impostersCount: 1 }, secretWord: '', revealIndex: 0, timer: 0 },
     domino: { players: [], target: 101, mode: 'single' },
@@ -85,15 +85,38 @@
         general: { time: 0, interval: null, running: false },
         chess: { time1: 300, time2: 300, active: null, interval: null, initial: 300 }
     },
-
-    // --- NEW GAMES (Added) ---
-    charades: { score: 0, timer: 60 },
-    describe: { score: 0, timer: 60 },
-    wordle: { wordLength: 5, guesses: [], gameOver: false },
-    guessnum: { min: 1, max: 100, target: 0 },
-    justone: { players: [], activePlayer: 0, phase: 'setup' },
-    teams: { players: [], count: 2, result: [] }
+    charades: { score: 0, timer: 60, interval: null, currentCategory: [], history: [] },
+    describe: { score: 0, timer: 60, interval: null, currentCard: null, history: [] },
+    wordle: { targetWord: "", currentGuess: "", guesses: [], maxTries: 6, wordLength: 5, status: 'playing' },
+    guessnum: { mode: 'computer', target: 0, min: 1, max: 100, attempts: 0, history: [] },
+    justone: { players: [], writers: [], guesserIndex: 0, currentWriterIndex: 0, secretWord: "", clues: [], phase: 'setup' },
+    teams: { players: [], count: 2, result: [] },
+    tourney: { players: [], matches: [], round: 0 },
+    reaction: { timeoutId: null, startTime: 0, status: 'idle', firstTapInfo: null },
+    dice: { count: 1 }
   };
+
+  function clearAllIntervals() {
+      if(typeof stopTimer === 'function') stopTimer(); 
+      if(typeof stopImposterTimer === 'function') stopImposterTimer(); 
+      
+      // Dynamic intervals
+      const intervals = [
+          appState.timers.general.interval,
+          appState.timers.chess.interval,
+          appState.charades.interval,
+          appState.describe.interval,
+          typeof whoAmIState !== 'undefined' ? whoAmIState.interval : null,
+          appState.reaction.timeoutId
+      ];
+      
+      intervals.forEach(inv => { if(inv) clearInterval(inv); });
+      
+      // Manual cleanup for specific objects if they aren't fully migrated yet
+      if (typeof charadesState !== 'undefined' && charadesState.interval) clearInterval(charadesState.interval);
+      if (typeof descState !== 'undefined' && descState.interval) clearInterval(descState.interval);
+      if (typeof whoAmIState !== 'undefined' && whoAmIState.interval) clearInterval(whoAmIState.interval);
+  }
 
   const TRANSLATIONS = {
     ar: {
@@ -693,16 +716,7 @@
     if(viewEl) viewEl.classList.remove('hidden');
     
     closeAllModals();
-    
-    if(typeof stopTimer === 'function') stopTimer(); 
-    if(typeof stopImposterTimer === 'function') stopImposterTimer(); 
-    if (typeof charadesState !== 'undefined' && charadesState.interval) clearInterval(charadesState.interval);
-    if (typeof descState !== 'undefined' && descState.interval) clearInterval(descState.interval);
-    if (typeof whoAmIState !== 'undefined' && whoAmIState.interval) clearInterval(whoAmIState.interval);
-    if (appState.timers && appState.timers.general && appState.timers.general.interval) clearInterval(appState.timers.general.interval);
-    if (appState.timers && appState.timers.general) appState.timers.general.running = false;
-    if (appState.timers && appState.timers.chess && appState.timers.chess.interval) clearInterval(appState.timers.chess.interval);
-    if (appState.timers && appState.timers.chess) appState.timers.chess.active = null;
+    clearAllIntervals();
 
     if(viewId.startsWith('setup-')) {
         const listId = viewId.replace('setup-', '') + '-player-list';

@@ -96,8 +96,12 @@ const addGlobalPlayer = (name) => {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('اللاعبين');
   const lastRow = Math.max(1, sh.getLastRow());
   const data = sh.getRange(1, 1, lastRow, 1).getValues().flat().filter(String);
-  if (!data.includes(name)) {
-    sh.appendRow([name]);
+  
+  const normalizedName = name.toLowerCase().trim();
+  const isDuplicate = data.some(p => p.toLowerCase().trim() === normalizedName);
+  
+  if (!isDuplicate) {
+    sh.appendRow([name.trim()]);
   } else {    // Optionally throw error for duplicates if needed
     // throw new Error("هذا اللاعب مسجل بالفعل");
   }

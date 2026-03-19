@@ -718,28 +718,60 @@
   
   function addPlayer() {
     const nameInput = document.getElementById('new-player-name');
+    const btn = document.getElementById('add-player-btn');
+    const textSpan = document.getElementById('add-player-text');
+    const spinner = document.getElementById('add-player-spinner');
+    
     const name = nameInput.value.trim();
     if(!name) return;
     playSound('click');
-    if(allPlayers.includes(name)) {
-        const msg = appState.lang === 'ar' ? "هذا اللاعب موجود بالفعل" : "Player already exists";
+    
+    // Check for duplicates case-insensitively and ignore trailing spaces
+    const normalizedName = name.toLowerCase();
+    const isDuplicate = allPlayers.some(p => p.toLowerCase().trim() === normalizedName);
+    
+    if(isDuplicate) {
+        const msg = appState.lang === 'ar' ? "هذا اللاعب مسجل بالفعل" : "Player already exists";
         showToast(msg, appState.lang === 'ar' ? "تنبيه" : "Alert");
         return;
     }
-    setSyncing(true);
+    
+    // UI Loading State
+    btn.disabled = true;
+    textSpan.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    nameInput.disabled = true;
+
     google.script.run
       .withSuccessHandler(players => {
         allPlayers = players;
         saveToLocal();
-        setSyncing(false);
+        
+        // Reset UI
+        btn.disabled = false;
+        textSpan.classList.remove('hidden');
+        spinner.classList.add('hidden');
+        nameInput.disabled = false;
         nameInput.value = '';
+        
+        // Success Message
+        const successMsg = appState.lang === 'ar' ? `تم إضافة ${name} بنجاح!` : `Added ${name} successfully!`;
+        showToast(successMsg, appState.lang === 'ar' ? "نجاح" : "Success");
+
         const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
         if (activeSetup) {
             const list = activeSetup.querySelector('[id$="-player-list"]');
             if(list && typeof renderPlayerChecks === 'function') renderPlayerChecks(list.id);
         }
       })
-      .withFailureHandler(handleServerFailure)
+      .withFailureHandler((error) => {
+          // Reset UI on failure
+          btn.disabled = false;
+          textSpan.classList.remove('hidden');
+          spinner.classList.add('hidden');
+          nameInput.disabled = false;
+          handleServerFailure(error);
+      })
       .addGlobalPlayer(name);
   }
 

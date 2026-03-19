@@ -124,7 +124,7 @@ function renderTeams(teams) {
         
         const playersHtml = team.map(p => 
             `<div class="team-text-color team-divider font-bold text-lg last:border-0 py-3 flex items-center gap-2">
-                <span class="text-xs opacity-50">●</span> ${p}
+                <span class="text-xs opacity-50">●</span> ${escapeHTML(p)}
              </div>`
         ).join('');
         
@@ -294,7 +294,7 @@ function joPrepareGuessPhase() {
         list.innerHTML = `<div class="text-red-500 font-bold">${msg}</div>`;
     } else {
         validClues.forEach(c => {
-            list.innerHTML += `<div class="bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-white px-4 py-2 rounded-xl font-bold text-lg shadow-sm border border-indigo-200 dark:border-indigo-700">${c.text}</div>`;
+            list.innerHTML += `<div class="bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-white px-4 py-2 rounded-xl font-bold text-lg shadow-sm border border-indigo-200 dark:border-indigo-700">${escapeHTML(c.text)}</div>`;
         });
     }
 
@@ -346,8 +346,8 @@ function joFinishRound(success) {
             : (appState.lang === 'ar' ? "حظ أوفر! " : "Hard luck! ");
             
         const nextMsg = appState.lang === 'ar' 
-            ? `المخمن التالي: ${nextGuesser}. جاهز؟`
-            : `Next guesser: ${nextGuesser}. Ready?`;
+            ? `المخمن التالي: ${escapeHTML(nextGuesser)}. جاهز؟`
+            : `Next guesser: ${escapeHTML(nextGuesser)}. Ready?`;
             
         showConfirmModal(`${msg} ${nextMsg}`, () => {
              nextJoRound();

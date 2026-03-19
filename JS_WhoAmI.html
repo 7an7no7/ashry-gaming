@@ -512,7 +512,7 @@ function startRevealPhase() {
 
 function updateWhoAmIPassScreen() {
     const currentPlayer = whoAmIState.assignments[whoAmIState.currentIndex];
-    document.getElementById('whoami-player-label').innerText = currentPlayer.name;
+    document.getElementById('whoami-player-label').innerText = currentPlayer.name; // innerText is safe
     document.getElementById('whoami-pass-ui').classList.remove('hidden');
     document.getElementById('whoami-reveal-ui').classList.add('hidden');
 }
@@ -520,14 +520,14 @@ function updateWhoAmIPassScreen() {
 function whoAmIReveal() {
     const item = whoAmIState.assignments[whoAmIState.currentIndex];
     
-    let displayHtml = item.word;
+    let displayHtml = escapeHTML(item.word);
     
     if (item.word.includes('|')) {
         const parts = item.word.split('|');
         displayHtml = `
             <div class="flex flex-col items-center">
-                <span>${parts[0]}</span>
-                <span class="text-lg text-teal-600 mt-2 font-bold opacity-75">(${parts[1]})</span>
+                <span>${escapeHTML(parts[0])}</span>
+                <span class="text-lg text-teal-600 mt-2 font-bold opacity-75">(${escapeHTML(parts[1])})</span>
             </div>
         `;
     }
@@ -594,10 +594,10 @@ function finishWhoAmIGame() {
     listEl.innerHTML = '';
     
     whoAmIState.assignments.forEach((item, index) => {
-        let displayWord = item.word;
-        if (displayWord.includes('|')) {
-            const parts = displayWord.split('|');
-            displayWord = `${parts[0]} <span class="text-xs opacity-75">(${parts[1]})</span>`;
+        let displayWord = escapeHTML(item.word);
+        if (item.word.includes('|')) {
+            const parts = item.word.split('|');
+            displayWord = `${escapeHTML(parts[0])} <span class="text-xs opacity-75">(${escapeHTML(parts[1])})</span>`;
         }
 
         // FIX 2: Dark Mode Colors (Force slate-800/100 to ensure visibility)
@@ -607,7 +607,7 @@ function finishWhoAmIGame() {
 
         listEl.innerHTML += `
             <div class="flex justify-between items-center ${bgClass} p-4 rounded-xl border-r-4 border-teal-500 shadow-sm">
-                <span class="font-bold text-slate-500 dark:text-slate-300">${item.name}</span>
+                <span class="font-bold text-slate-500 dark:text-slate-300">${escapeHTML(item.name)}</span>
                 <span class="${textClass} font-black text-xl text-right">${displayWord}</span>
             </div>
         `;

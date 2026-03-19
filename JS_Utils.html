@@ -2,37 +2,63 @@
   /* --- UI HELPERS --- */
 
   function renderPlayerChecks(containerId) {
-    const div = document.getElementById(containerId);
-    if (!div) return; 
-    
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
     // 1. Loading State
-    if (!dataLoaded) {
-        div.innerHTML = `<div class="text-center text-slate-400 py-4">Loading...</div>`;
+    if (typeof dataLoaded !== 'undefined' && !dataLoaded) {
+        const loadingText = appState.lang === 'ar' ? 'جاري التحميل...' : 'Loading...';
+        container.innerHTML = `<div class="text-center text-slate-400 py-6 font-bold animate-pulse">⏳ ${loadingText}</div>`;
         return;
     }
     
     // 2. Empty State
-    if (allPlayers.length === 0) {
-        div.innerHTML = `<div class="text-center text-slate-400 py-4">No players found.</div>`;
+    if (typeof allPlayers === 'undefined' || allPlayers.length === 0) {
+        const emptyText = appState.lang === 'ar' ? 'لا يوجد لاعبين مسجلين.' : 'No players found.';
+        container.innerHTML = `<div class="text-center text-slate-400 py-6 font-bold">❌ ${emptyText}</div>`;
         return;
     }
 
-    // 3. FAST RENDERING (Map + Join)
-    const htmlString = allPlayers.map(p => `
-        <label class="player-check-item">
-            <input type="checkbox" value="${escapeHTML(p)}" class="mr-2 ml-2">
-            <span class="font-bold">${escapeHTML(p)}</span>
-        </label>
-    `).join('');
+    // 3. Separate players into "Active/Pinned" and "Others"
+    const activeSet = new Set(appState.activePlayers || []);
+    const pinnedPlayers = (appState.activePlayers || []).filter(name => allPlayers.includes(name));
+    const otherPlayers = allPlayers.filter(name => !activeSet.has(name));
 
-    // 4. Paint only ONCE
-    div.innerHTML = htmlString;
+    let htmlString = '';
 
-    // 5. 🛠️ Auto-reset all group dropdowns so they match this fresh Master List!
+    // 4. Build Pinned Players string (Checked by default)
+    if (pinnedPlayers.length > 0) {
+        const pinnedLabel = appState.lang === 'ar' ? 'اللاعبون المحددون مسبقاً' : 'Previously Selected';
+        htmlString += `<div class="text-xs font-bold text-indigo-500 mb-2 mt-2 px-1 border-b border-indigo-100 dark:border-slate-700 pb-1">${pinnedLabel}</div>`;
+        
+        // 🔥 FAST RENDERING: Build string in memory instead of looping innerHTML
+        htmlString += pinnedPlayers.map(p => createPlayerCheckboxHTML(p, true)).join('');
+        
+        const otherLabel = appState.lang === 'ar' ? 'باقي اللاعبين' : 'Other Players';
+        htmlString += `<div class="text-xs font-bold text-slate-400 mb-2 mt-4 px-1 border-b border-slate-100 dark:border-slate-700 pb-1">${otherLabel}</div>`;
+    }
+
+    // 5. Build Other Players string (Unchecked by default)
+    htmlString += otherPlayers.map(p => createPlayerCheckboxHTML(p, false)).join('');
+
+    // 6. Paint only ONCE to the DOM for maximum performance
+    container.innerHTML = htmlString;
+
+    // 7. Auto-reset all group dropdowns so they match this fresh Master List
     document.querySelectorAll('.saved-groups-select').forEach(select => {
         select.value = '';
     });
-  }
+}
+
+// Helper function to keep HTML clean
+function createPlayerCheckboxHTML(playerName, isChecked) {
+    const checkedAttr = isChecked ? 'checked' : '';
+    return `
+    <label class="flex items-center p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl mb-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+        <input type="checkbox" value="${escapeHTML(playerName)}" class="form-checkbox h-5 w-5 text-indigo-600 rounded border-slate-300 mr-3 rtl:ml-3 rtl:mr-0" ${checkedAttr}>
+        <span class="font-bold text-slate-800 dark:text-white text-lg">${escapeHTML(playerName)}</span>
+    </label>`;
+}
 
   function filterList(input, listId) {
     const filter = input.value.toLowerCase();
@@ -119,6 +145,7 @@
   let pickerInterval = null;
   function runStartSpin() {
       let selected = Array.from(document.querySelectorAll('#spin-player-list input:checked')).map(cb => cb.value);
+      saveActivePlayers(selected);
       if(selected.length < 2) {
           const msg = appState.lang === 'ar' ? 'اختر لاعبين على الأقل' : 'Select at least 2 players';
           return showToast(msg);

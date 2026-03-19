@@ -73,6 +73,7 @@
     currentView: 'menu', 
     isDarkMode: false,
     lang: 'ar',
+    activePlayers: [],
     
     // --- STATE REPOSITORY ---
     screw: { rounds: 5, players: [], activeRound: 0 },
@@ -453,6 +454,34 @@
     }
   };
 
+  function goToCurrentSetup() {
+    closeAllModals();
+    playSound('click');
+    
+    // Map current active game views back to their setup views
+    const viewMap = {
+        'play-screw': 'setup-screw',
+        'play-monkey': 'setup-monkey',
+        'play-imposter': 'setup-imposter',
+        'imposter-reveal': 'setup-imposter',
+        'play-domino': 'setup-domino',
+        'play-spin': 'setup-spin',
+        'play-universal': 'setup-universal',
+        'play-whoami': 'setup-whoami',
+        'play-charades': 'setup-charades',
+        'play-describe': 'setup-describe',
+        'play-wordle': 'setup-wordle',
+        'play-guessnum': 'setup-guessnum',
+        'play-justone': 'setup-justone',
+        'play-tourney': 'setup-tourney',
+        'results-teams': 'setup-teams',
+        'play-reaction': 'setup-reaction'
+    };
+
+    const targetSetup = viewMap[appState.currentView] || 'menu';
+    setView(targetSetup);
+}
+
   function toggleLanguage() {
     appState.lang = appState.lang === 'ar' ? 'en' : 'ar';
     document.documentElement.lang = appState.lang;
@@ -516,6 +545,13 @@
       });
     }
   }
+
+  function saveActivePlayers(selectedArray) {
+    if (selectedArray && selectedArray.length > 0) {
+        appState.activePlayers = selectedArray;
+        saveToLocal();
+    }
+}
 
   function initializeApp() {
     setSyncing(true);
@@ -716,9 +752,19 @@
     appState.currentView = viewId;
     saveToLocal();
     
-    document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+    // 1. Hide all views and remove animation class
+    document.querySelectorAll('[id^="view-"]').forEach(el => {
+        el.classList.add('hidden');
+        el.classList.remove('view-enter');
+    });
+    
+    // 2. Show new view and trigger animation
     const viewEl = document.getElementById('view-' + viewId);
-    if(viewEl) viewEl.classList.remove('hidden');
+    if(viewEl) {
+        viewEl.classList.remove('hidden');
+        void viewEl.offsetWidth; // Magic trick: Forces browser to reflow so animation restarts
+        viewEl.classList.add('view-enter');
+    }
     
     closeAllModals();
     clearAllIntervals();
@@ -727,13 +773,10 @@
         const listId = viewId.replace('setup-', '') + '-player-list';
         if(typeof renderPlayerChecks === 'function') renderPlayerChecks(listId);
         if(viewId === 'setup-imposter' && typeof renderSpyCategories === 'function') renderSpyCategories();
-        
-        if(viewId === 'setup-charades' && typeof renderCharadesDropdown === 'function') {
-            renderCharadesDropdown(); 
-        }
+        if(viewId === 'setup-charades' && typeof renderCharadesDropdown === 'function') renderCharadesDropdown();
     }
     applyTranslations();
-  }
+}
 
   /* --- CORE UI HELPERS --- */
   function closeAllModals() {

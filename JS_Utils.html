@@ -51,7 +51,7 @@ function updateGlobalDatalist(filter = "") {
     if (!datalist || !allPlayers) return;
     
     if (!filter) {
-        datalist.innerHTML = ''; // Hide suggestions when empty
+        datalist.innerHTML = ''; 
         return;
     }
     
@@ -62,16 +62,25 @@ function updateGlobalDatalist(filter = "") {
 
 function checkAutoAdd(input) {
     const val = input.value.trim();
-    updateGlobalDatalist(val); // Only show suggestions matching input
+    if (!val) {
+        updateGlobalDatalist("");
+        return;
+    }
+
+    updateGlobalDatalist(val); 
     
-    if (!val) return;
     const datalist = document.getElementById('global-player-datalist');
     if (!datalist) return;
     const opts = datalist.options;
     for (let i = 0; i < opts.length; i++) {
         if (opts[i].value === val) {
+            // MATCH FOUND
             const btn = input.parentElement.querySelector('button');
-            if (btn) btn.click();
+            if (btn) {
+                // Clear datalist immediately to force iOS to hide suggestions
+                datalist.innerHTML = ''; 
+                btn.click();
+            }
             break;
         }
     }
@@ -90,10 +99,22 @@ function addPlayerFromSetup(btn) {
     const list = activeSetup.querySelector('[id$="-player-list"]');
     if (!list) return;
 
+    // HELPER to reset input safely (especially for iOS)
+    const resetInput = () => {
+        input.value = '';
+        const datalist = document.getElementById('global-player-datalist');
+        if (datalist) datalist.innerHTML = ''; // Force clear suggestions
+        input.blur(); // Dismiss keyboard/dropdown state
+        setTimeout(() => {
+            if (document.activeElement !== input) {
+                input.focus(); // Refocus after a small delay
+            }
+        }, 150);
+    };
+
     // Check for duplicates in active list
     if (appState.activePlayers.includes(name)) {
-        input.value = '';
-        input.focus();
+        resetInput();
         showToast(appState.lang === 'ar' ? 'اللاعب موجود بالفعل في القائمة' : 'Player already in list', 'warn');
         return;
     }
@@ -106,8 +127,7 @@ function addPlayerFromSetup(btn) {
         appState.activePlayers.push(existingName);
         saveToLocal();
         renderActiveChips(list.id);
-        input.value = '';
-        input.focus();
+        resetInput();
         return;
     }
 
@@ -126,8 +146,7 @@ function addPlayerFromSetup(btn) {
             
             btn.disabled = false;
             btn.innerHTML = originalContent;
-            input.value = '';
-            input.focus();
+            resetInput();
             
             renderActiveChips(list.id);
             showToast(appState.lang === 'ar' ? `تم إضافة ${name}` : `Added ${name}`);

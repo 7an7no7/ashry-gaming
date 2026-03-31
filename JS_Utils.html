@@ -32,15 +32,13 @@
     
     htmlString += '</div>';
     container.innerHTML = htmlString;
-
-    // Reset dropdowns
-    document.querySelectorAll('.saved-groups-select').forEach(select => {
-        select.value = '';
-    });
 }
 
 function removeActivePlayer(name, containerId) {
     appState.activePlayers = appState.activePlayers.filter(p => p !== name);
+    // When manually removing a player, we are no longer strictly in the saved group
+    appState.currentGroup = ""; 
+    renderSavedGroups(); 
     saveToLocal();
     renderActiveChips(containerId);
     playSound('click');
@@ -1091,14 +1089,13 @@ function loadGroup(groupName) {
     const listContainer = activeSetup.querySelector('[id$="-player-list"]');
     if (!listContainer) return;
 
-    document.querySelectorAll('.saved-groups-select').forEach(select => {
-        select.value = groupName || "";
-    });
+    appState.currentGroup = groupName || "";
 
     if (!groupName || groupName === "") {
         appState.activePlayers = [];
         saveToLocal();
         renderActiveChips(listContainer.id);
+        renderSavedGroups(); // Sync other dropdowns
         return; 
     }
 
@@ -1109,13 +1106,14 @@ function loadGroup(groupName) {
         appState.activePlayers = [...selectedNames];
         saveToLocal();
         renderActiveChips(listContainer.id);
+        renderSavedGroups(); // Sync other dropdowns
         playSound('click');
     }
 }
 
 // 5. Delete Logic
 function deleteGroup(btnElement) {
-    const select = btnElement.previousElementSibling;
+    const select = btnElement.parentElement.querySelector('select');
     const groupName = select.value;
     
     if (!groupName) {
@@ -1130,8 +1128,12 @@ function deleteGroup(btnElement) {
             let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
             delete groups[groupName];
             localStorage.setItem('ashry_saved_groups', JSON.stringify(groups));
+            
+            if (appState.currentGroup === groupName) {
+                appState.currentGroup = "";
+            }
+            
             renderSavedGroups(); 
-            loadGroup(""); 
             showToast(appState.lang === 'ar' ? "تم الحذف" : "Deleted", "success");
         });
     }
@@ -1152,6 +1154,9 @@ function renderSavedGroups() {
             option.innerText = `${name} (${groups[name].length} ${appState.lang === 'ar' ? 'لاعب' : 'players'})`;
             select.appendChild(option);
         });
+        
+        // Restore selection
+        select.value = appState.currentGroup || "";
     });
 }
 

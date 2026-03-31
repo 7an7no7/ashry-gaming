@@ -587,8 +587,8 @@
         const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
         if (activeSetup) {
             const listContainer = activeSetup.querySelector('[id$="-player-list"]');
-            if (listContainer && typeof renderPlayerChecks === 'function') {
-                renderPlayerChecks(listContainer.id);
+            if (listContainer && typeof renderActiveChips === 'function') {
+                renderActiveChips(listContainer.id);
             }
         }
         
@@ -737,7 +737,7 @@
         // 👆 END PROTECTIONS 👆
         else if (appState.currentView.startsWith('setup-')) {
             const listId = appState.currentView.replace('setup-', '') + '-player-list';
-            if(typeof renderPlayerChecks === 'function') renderPlayerChecks(listId);
+            if(typeof renderActiveChips === 'function') renderActiveChips(listId);
             if(appState.currentView === 'setup-imposter' && typeof renderSpyCategories === 'function') renderSpyCategories();
             
             if(appState.currentView === 'setup-charades' && typeof renderCharadesDropdown === 'function') {
@@ -778,7 +778,7 @@
 
     if(viewId.startsWith('setup-')) {
         const listId = viewId.replace('setup-', '') + '-player-list';
-        if(typeof renderPlayerChecks === 'function') renderPlayerChecks(listId);
+        if(typeof renderActiveChips === 'function') renderActiveChips(listId);
         if(viewId === 'setup-imposter' && typeof renderSpyCategories === 'function') renderSpyCategories();
         if(viewId === 'setup-charades' && typeof renderCharadesDropdown === 'function') renderCharadesDropdown();
     }
@@ -815,65 +815,6 @@
     }, 3000);
   }
   
-  function addPlayer() {
-    const nameInput = document.getElementById('new-player-name');
-    const btn = document.getElementById('add-player-btn');
-    const textSpan = document.getElementById('add-player-text');
-    const spinner = document.getElementById('add-player-spinner');
-    
-    const name = nameInput.value.trim();
-    if(!name) return;
-    playSound('click');
-    
-    // Check for duplicates case-insensitively and ignore trailing spaces
-    const normalizedName = name.toLowerCase();
-    const isDuplicate = allPlayers.some(p => p.toLowerCase().trim() === normalizedName);
-    
-    if(isDuplicate) {
-        const msg = appState.lang === 'ar' ? "هذا اللاعب مسجل بالفعل" : "Player already exists";
-        showToast(msg, appState.lang === 'ar' ? "تنبيه" : "Alert");
-        return;
-    }
-    
-    // UI Loading State
-    btn.disabled = true;
-    textSpan.classList.add('hidden');
-    spinner.classList.remove('hidden');
-    nameInput.disabled = true;
-
-    google.script.run
-      .withSuccessHandler(players => {
-        allPlayers = players;
-        saveToLocal();
-        
-        // Reset UI
-        btn.disabled = false;
-        textSpan.classList.remove('hidden');
-        spinner.classList.add('hidden');
-        nameInput.disabled = false;
-        nameInput.value = '';
-        
-        // Success Message
-        const successMsg = appState.lang === 'ar' ? `تم إضافة ${name} بنجاح!` : `Added ${name} successfully!`;
-        showToast(successMsg, appState.lang === 'ar' ? "نجاح" : "Success");
-
-        const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
-        if (activeSetup) {
-            const list = activeSetup.querySelector('[id$="-player-list"]');
-            if(list && typeof renderPlayerChecks === 'function') renderPlayerChecks(list.id);
-        }
-      })
-      .withFailureHandler((error) => {
-          // Reset UI on failure
-          btn.disabled = false;
-          textSpan.classList.remove('hidden');
-          spinner.classList.add('hidden');
-          nameInput.disabled = false;
-          handleServerFailure(error);
-      })
-      .addGlobalPlayer(name);
-  }
-
 // 👇 FIX: Rules added here 👇
 const GAME_RULES = {
     ar: {

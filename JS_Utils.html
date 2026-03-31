@@ -1,7 +1,7 @@
 <script>
   /* --- UI HELPERS --- */
 
-  function renderPlayerChecks(containerId) {
+  function renderActiveChips(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
@@ -12,63 +12,134 @@
         return;
     }
     
-    // 2. Empty State
-    if (typeof allPlayers === 'undefined' || allPlayers.length === 0) {
-        const emptyText = appState.lang === 'ar' ? 'لا يوجد لاعبين مسجلين.' : 'No players found.';
-        container.innerHTML = `<div class="text-center text-slate-400 py-6 font-bold">❌ ${emptyText}</div>`;
-        return;
+    // Ensure activePlayers exists
+    if (!appState.activePlayers) appState.activePlayers = [];
+
+    // 2. Render horizontal chips
+    let htmlString = '<div class="flex flex-wrap gap-2 mb-4">';
+    
+    if (appState.activePlayers.length === 0) {
+        const emptyText = appState.lang === 'ar' ? 'لم يتم اختيار لاعبين بعد' : 'No players selected yet';
+        htmlString += `<div class="text-slate-400 text-sm font-bold w-full text-center py-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">${emptyText}</div>`;
+    } else {
+        htmlString += appState.activePlayers.map(p => `
+            <div class="bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 border border-indigo-200 dark:border-indigo-800 animate-pop">
+                <span>${escapeHTML(p)}</span>
+                <button onclick="removeActivePlayer('${escapeHTML(p)}', '${containerId}')" class="text-red-500 hover:text-red-700 font-bold ml-1 transition-colors">×</button>
+            </div>
+        `).join('');
     }
-
-    // 3. Separate players into "Active/Pinned" and "Others"
-    const activeSet = new Set(appState.activePlayers || []);
-    const pinnedPlayers = (appState.activePlayers || []).filter(name => allPlayers.includes(name));
-    const otherPlayers = allPlayers.filter(name => !activeSet.has(name));
-
-    let htmlString = '';
-
-    // 4. Build Pinned Players string (Checked by default)
-    if (pinnedPlayers.length > 0) {
-        const pinnedLabel = appState.lang === 'ar' ? 'اللاعبون المحددون مسبقاً' : 'Previously Selected';
-        htmlString += `<div class="text-xs font-bold text-indigo-500 mb-2 mt-2 px-1 border-b border-indigo-100 dark:border-slate-700 pb-1">${pinnedLabel}</div>`;
-        
-        // 🔥 FAST RENDERING: Build string in memory instead of looping innerHTML
-        htmlString += pinnedPlayers.map(p => createPlayerCheckboxHTML(p, true)).join('');
-        
-        const otherLabel = appState.lang === 'ar' ? 'باقي اللاعبين' : 'Other Players';
-        htmlString += `<div class="text-xs font-bold text-slate-400 mb-2 mt-4 px-1 border-b border-slate-100 dark:border-slate-700 pb-1">${otherLabel}</div>`;
-    }
-
-    // 5. Build Other Players string (Unchecked by default)
-    htmlString += otherPlayers.map(p => createPlayerCheckboxHTML(p, false)).join('');
-
-    // 6. Paint only ONCE to the DOM for maximum performance
+    
+    htmlString += '</div>';
     container.innerHTML = htmlString;
 
-    // 7. Auto-reset all group dropdowns so they match this fresh Master List
+    // Reset dropdowns
     document.querySelectorAll('.saved-groups-select').forEach(select => {
         select.value = '';
     });
 }
 
-// Helper function to keep HTML clean
-function createPlayerCheckboxHTML(playerName, isChecked) {
-    const checkedAttr = isChecked ? 'checked' : '';
-    return `
-    <label class="flex items-center p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl mb-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-        <input type="checkbox" value="${escapeHTML(playerName)}" class="form-checkbox h-5 w-5 text-indigo-600 rounded border-slate-300 mr-3 rtl:ml-3 rtl:mr-0" ${checkedAttr}>
-        <span class="font-bold text-slate-800 dark:text-white text-lg">${escapeHTML(playerName)}</span>
-    </label>`;
+function removeActivePlayer(name, containerId) {
+    appState.activePlayers = appState.activePlayers.filter(p => p !== name);
+    saveToLocal();
+    renderActiveChips(containerId);
+    playSound('click');
 }
 
-  function filterList(input, listId) {
-    const filter = input.value.toLowerCase();
-    const list = document.getElementById(listId);
-    const items = list.getElementsByClassName('player-check-item');
-    for (let i = 0; i < items.length; i++) {
-      const text = items[i].innerText.toLowerCase();
-      items[i].style.display = text.includes(filter) ? "" : "none";
+function updateGlobalDatalist(filter = "") {
+    const datalist = document.getElementById('global-player-datalist');
+    if (!datalist || !allPlayers) return;
+    
+    if (!filter) {
+        datalist.innerHTML = ''; // Hide suggestions when empty
+        return;
     }
-  }
+    
+    const search = filter.toLowerCase();
+    const matches = allPlayers.filter(p => p.toLowerCase().includes(search));
+    datalist.innerHTML = matches.map(p => `<option value="${escapeHTML(p)}">`).join('');
+}
+
+function checkAutoAdd(input) {
+    const val = input.value.trim();
+    updateGlobalDatalist(val); // Only show suggestions matching input
+    
+    if (!val) return;
+    const datalist = document.getElementById('global-player-datalist');
+    if (!datalist) return;
+    const opts = datalist.options;
+    for (let i = 0; i < opts.length; i++) {
+        if (opts[i].value === val) {
+            const btn = input.parentElement.querySelector('button');
+            if (btn) btn.click();
+            break;
+        }
+    }
+}
+
+function addPlayerFromSetup(btn) {
+    const parent = btn.parentElement;
+    const input = parent.querySelector('input');
+    const name = input.value.trim();
+    if (!name) return;
+
+    playSound('click');
+
+    const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
+    if (!activeSetup) return;
+    const list = activeSetup.querySelector('[id$="-player-list"]');
+    if (!list) return;
+
+    // Check for duplicates in active list
+    if (appState.activePlayers.includes(name)) {
+        input.value = '';
+        input.focus();
+        showToast(appState.lang === 'ar' ? 'اللاعب موجود بالفعل في القائمة' : 'Player already in list', 'warn');
+        return;
+    }
+
+    // Check if player exists in database (allPlayers)
+    const existingName = allPlayers.find(p => p.toLowerCase().trim() === name.toLowerCase());
+    
+    if (existingName) {
+        // Player exists in database, just add to active list
+        appState.activePlayers.push(existingName);
+        saveToLocal();
+        renderActiveChips(list.id);
+        input.value = '';
+        input.focus();
+        return;
+    }
+
+    // Player is NEW - Save to server
+    btn.disabled = true;
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = '<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span>';
+
+    google.script.run
+        .withSuccessHandler(players => {
+            allPlayers = players;
+            if (!appState.activePlayers.includes(name)) {
+                appState.activePlayers.push(name);
+            }
+            saveToLocal();
+            
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+            input.value = '';
+            input.focus();
+            
+            renderActiveChips(list.id);
+            showToast(appState.lang === 'ar' ? `تم إضافة ${name}` : `Added ${name}`);
+        })
+        .withFailureHandler(error => {
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+            handleServerFailure(error);
+            input.focus();
+        })
+        .addGlobalPlayer(name);
+}
 
 /* --- REORDER LIST (TAP-TO-SWAP) --- */
   let selectedReorderIndex = null; // Tracks the first tapped player
@@ -144,13 +215,12 @@ function createPlayerCheckboxHTML(playerName, isChecked) {
   /* --- SPIN PICKER --- */
   let pickerInterval = null;
   function runStartSpin() {
-      let selected = Array.from(document.querySelectorAll('#spin-player-list input:checked')).map(cb => cb.value);
-      saveActivePlayers(selected);
+      const selected = appState.activePlayers || [];
       if(selected.length < 2) {
           const msg = appState.lang === 'ar' ? 'اختر لاعبين على الأقل' : 'Select at least 2 players';
-          return showToast(msg);
+          return showToast(msg, 'warn');
       }
-      appState.spin.players = selected;
+      appState.spin.players = [...selected];
       setView('play-spin');
       const display = document.getElementById('picker-display');
       display.innerText = "???";
@@ -218,6 +288,7 @@ function createPlayerCheckboxHTML(playerName, isChecked) {
       chip.innerHTML = `<span>${escapeHTML(name)}</span><button onclick="this.parentElement.remove()" class="text-red-500 font-bold ml-1 mr-1">×</button>`;
       document.getElementById('universal-setup-list').appendChild(chip);
       input.value = '';
+      input.focus();
   }
   function startUniversal() {
       const chips = document.querySelectorAll('#universal-setup-list > div > span');
@@ -904,16 +975,8 @@ async function requestWakeLock() {
 
 // 1. Opens the Modal and prepares the data
 function saveCurrentGroup() {
-    const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
-    if (!activeSetup) return;
-
-    const listContainer = activeSetup.querySelector('[id$="-player-list"]');
-    if (!listContainer) return;
-    
-    const checkedBoxes = listContainer.querySelectorAll('input[type="checkbox"]:checked');
-    
-    if (checkedBoxes.length < 1) {
-        showToast(appState.lang === 'ar' ? "اختر لاعباً واحداً على الأقل!" : "Select at least 1 player!", "error");
+    if (!appState.activePlayers || appState.activePlayers.length === 0) {
+        showToast(appState.lang === 'ar' ? "أضف لاعباً واحداً على الأقل!" : "Add at least 1 player!", "error");
         return;
     }
 
@@ -943,13 +1006,12 @@ function saveAsNewGroup() {
         return;
     }
 
-    const checkedNames = getCurrentlyCheckedNames();
-    if (checkedNames.length < 2) {
+    if (appState.activePlayers.length < 2) {
         showToast(appState.lang === 'ar' ? "المجموعة الجديدة تحتاج لاعبين (2) على الأقل!" : "New groups need at least 2 players!", "error");
         return;
     }
 
-    saveDataToGroup(groupName, checkedNames);
+    saveDataToGroup(groupName, [...appState.activePlayers]);
 }
 
 // 3. Action: Update an Existing Group (Add or Replace)
@@ -962,32 +1024,23 @@ function updateExistingGroup(mode) {
         return;
     }
 
-    const checkedNames = getCurrentlyCheckedNames();
     let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
     let currentGroupPlayers = groups[groupName] || [];
 
     if (mode === 'add') {
         // Merge without duplicates
-        const newSet = new Set([...currentGroupPlayers, ...checkedNames]);
+        const newSet = new Set([...currentGroupPlayers, ...appState.activePlayers]);
         saveDataToGroup(groupName, Array.from(newSet));
-        showToast(appState.lang === 'ar' ? `تم إضافة ${checkedNames.length} لاعبين إلى ${groupName}` : `Added players to ${groupName}`, "success");
+        showToast(appState.lang === 'ar' ? `تم تحديث ${groupName}` : `Updated ${groupName}`, "success");
     
     } else if (mode === 'replace') {
-        if (checkedNames.length < 2) {
+        if (appState.activePlayers.length < 2) {
             showToast(appState.lang === 'ar' ? "يجب اختيار لاعبين (2) على الأقل للاستبدال!" : "Select at least 2 players to replace!", "error");
             return;
         }
-        saveDataToGroup(groupName, checkedNames);
+        saveDataToGroup(groupName, [...appState.activePlayers]);
         showToast(appState.lang === 'ar' ? `تم استبدال مجموعة ${groupName}` : `Replaced ${groupName}`, "success");
     }
-}
-
-// Helper: Gets names of checked boxes
-function getCurrentlyCheckedNames() {
-    const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
-    const listContainer = activeSetup.querySelector('[id$="-player-list"]');
-    const checkedBoxes = listContainer.querySelectorAll('input[type="checkbox"]:checked');
-    return Array.from(checkedBoxes).map(cb => cb.value);
 }
 
 // Helper: Saves data and cleans up UI
@@ -1002,7 +1055,7 @@ function saveDataToGroup(groupName, playersArray) {
     playSound('success');
 }
 
-// 4. Loading & Filtering Logic
+// 4. Loading Logic
 function loadGroup(groupName) {
     const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
     if (!activeSetup) return;
@@ -1010,20 +1063,14 @@ function loadGroup(groupName) {
     const listContainer = activeSetup.querySelector('[id$="-player-list"]');
     if (!listContainer) return;
 
-    const allCheckboxes = listContainer.querySelectorAll('input[type="checkbox"]');
-    const gameId = activeSetup.id.replace('view-setup-', '');
-
     document.querySelectorAll('.saved-groups-select').forEach(select => {
         select.value = groupName || "";
     });
 
     if (!groupName || groupName === "") {
-        allCheckboxes.forEach(cb => {
-            const wrapper = cb.closest('label') || cb.parentElement;
-            if (wrapper) wrapper.style.display = ''; 
-            cb.checked = false;                      
-        });
-        if (appState[gameId]) appState[gameId].players = [];
+        appState.activePlayers = [];
+        saveToLocal();
+        renderActiveChips(listContainer.id);
         return; 
     }
 
@@ -1031,20 +1078,9 @@ function loadGroup(groupName) {
     const selectedNames = groups[groupName];
 
     if (selectedNames && selectedNames.length > 0) {
-        allCheckboxes.forEach(cb => {
-            const wrapper = cb.closest('label') || cb.parentElement;
-            if (wrapper) {
-                if (selectedNames.includes(cb.value)) {
-                    wrapper.style.display = ''; 
-                    cb.checked = true;          
-                } else {
-                    wrapper.style.display = 'none'; 
-                    cb.checked = false;             
-                }
-            }
-        });
-
-        if (appState[gameId]) appState[gameId].players = [...selectedNames];
+        appState.activePlayers = [...selectedNames];
+        saveToLocal();
+        renderActiveChips(listContainer.id);
         playSound('click');
     }
 }

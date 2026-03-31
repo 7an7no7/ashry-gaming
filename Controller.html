@@ -260,21 +260,6 @@
             <button onclick="toggleSoundboard()" class="btn btn-gray bg-yellow-50 text-yellow-700 border-none shadow-sm text-sm py-3 mt-0" data-i18n="sounds">🔊 أصوات مضحكة</button>
             <button id="install-btn-menu" onclick="showInstallHelp()" class="btn btn-gray bg-slate-200 text-slate-700 border-none shadow-sm text-sm py-3 mt-0" data-i18n="install">📲 تثبيت التطبيق</button>
         </div>
-
-        <div class="card mt-6">          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-slate-700 dark:text-slate-300 font-bold" data-i18n="add_player_fast">إضافة لاعب سريع</h3>
-            <button onclick="reloadApp()" class="text-blue-500 text-xs font-bold" data-i18n="sync_cloud">تحديث القائمة ↻</button>
-          </div>
-          
-          <div class="flex gap-2">
-            <input type="text" id="new-player-name" data-i18n-ph="placeholder_name" placeholder="الاسم" class="flex-1 min-w-0 mb-0 border-transparent focus:border-blue-500 rounded-xl px-4">
-            
-            <button id="add-player-btn" onclick="addPlayer()" class="btn btn-green mb-0 mt-0 flex items-center justify-center relative" style="width: auto !important; padding-left: 24px; padding-right: 24px; flex: none;">
-                <span id="add-player-text" data-i18n="add">إضافة</span>
-                <span id="add-player-spinner" class="hidden w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-            </button>
-          </div>
-        </div>
       </div>
 
 
@@ -319,7 +304,13 @@
 </div>
 
            <label class="text-xs font-bold text-slate-400 mb-1 block" data-i18n="players">اللاعبين (2-4)</label>
-           <div id="domino-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+           
+           <div class="flex gap-2 mb-4">
+               <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" list="global-player-datalist" oninput="checkAutoAdd(this)" class="flex-1 min-w-0 mb-0 border-transparent focus:border-green-500 rounded-xl px-4">
+               <button onclick="addPlayerFromSetup(this)" class="btn btn-green mb-0 mt-0 p-0 flex items-center justify-center bg-green-500 text-white rounded-xl text-2xl font-bold pb-1 shadow-md" style="width: 56px !important; flex: none;">+</button>
+           </div>
+           
+           <div id="domino-player-list" class="mb-6"></div>
            <button onclick="runStartDomino()" class="btn btn-green" data-i18n="start">ابدأ اللعبة</button>
            <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
         </div>
@@ -378,8 +369,13 @@
 </div>
 
            <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين</label>
-           <input type="text" data-i18n-ph="search_player" placeholder="🔍 بحث عن لاعب..." class="text-sm py-3 px-4 mb-3" onkeyup="filterList(this, 'screw-player-list')">
-           <div id="screw-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+           
+           <div class="flex gap-2 mb-4">
+               <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" list="global-player-datalist" oninput="checkAutoAdd(this)" class="flex-1 min-w-0 mb-0 border-transparent focus:border-blue-500 rounded-xl px-4">
+               <button onclick="addPlayerFromSetup(this)" class="btn btn-blue mb-0 mt-0 p-0 flex items-center justify-center bg-blue-500 text-white rounded-xl text-2xl font-bold pb-1 shadow-md" style="width: 56px !important; flex: none;">+</button>
+           </div>
+           
+           <div id="screw-player-list" class="mb-6"></div>
            <button onclick="runStartScrew()" class="btn btn-blue" data-i18n="start">ابدأ</button>
            <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
         </div>
@@ -448,8 +444,13 @@
 </div>
 
           <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">المشاركين</label>
-          <input type="text" data-i18n-ph="search_player" placeholder="🔍 بحث عن لاعب..." class="text-sm py-3 px-4 mb-3" onkeyup="filterList(this, 'monkey-player-list')">
-          <div id="monkey-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+          
+          <div class="flex gap-2 mb-4">
+              <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" list="global-player-datalist" oninput="checkAutoAdd(this)" class="flex-1 min-w-0 mb-0 border-transparent focus:border-orange-500 rounded-xl px-4">
+              <button onclick="addPlayerFromSetup(this)" class="btn btn-orange mb-0 mt-0 p-0 flex items-center justify-center bg-orange-500 text-white rounded-xl text-2xl font-bold pb-1 shadow-md" style="width: 56px !important; flex: none;">+</button>
+          </div>
+          
+          <div id="monkey-player-list" class="mb-6"></div>
           <button onclick="runStartMonkey()" class="btn btn-orange" data-i18n="start">ابدأ اللعبة</button>
           <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
         </div>
@@ -500,7 +501,7 @@
            <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين</label>
            
            <div class="flex gap-2 mb-4">
-                <input type="text" id="univ-new-player" data-i18n-ph="placeholder_name" placeholder="اسم.." class="flex-1 min-w-0 mb-0 border-transparent focus:border-indigo-500 rounded-xl px-4">
+                <input type="text" id="univ-new-player" data-i18n-ph="placeholder_name" placeholder="اسم.." list="global-player-datalist" oninput="checkAutoAdd(this)" class="flex-1 min-w-0 mb-0 border-transparent focus:border-indigo-500 rounded-xl px-4">
                 
                 <button onclick="addUniversalPlayer()" class="btn btn-indigo mb-0 mt-0 p-0 flex items-center justify-center bg-indigo-500 text-white rounded-xl text-2xl font-bold pb-1 shadow-md" style="width: 56px !important; flex: none;">+</button>
            </div>
@@ -610,8 +611,13 @@
 </div>
 
           <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">المشاركين</label>
-          <input type="text" data-i18n-ph="search_player" placeholder="🔍 بحث عن لاعب..." class="text-sm py-3 px-4 mb-3" onkeyup="filterList(this, 'imposter-player-list')">
-          <div id="imposter-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+          
+          <div class="flex gap-2 mb-4">
+              <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" list="global-player-datalist" oninput="checkAutoAdd(this)" class="flex-1 min-w-0 mb-0 border-transparent focus:border-purple-500 rounded-xl px-4">
+              <button onclick="addPlayerFromSetup(this)" class="btn btn-purple mb-0 mt-0 p-0 flex items-center justify-center bg-purple-500 text-white rounded-xl text-2xl font-bold pb-1 shadow-md" style="width: 56px !important; flex: none;">+</button>
+          </div>
+          
+          <div id="imposter-player-list" class="mb-6"></div>
           <button onclick="prepImposterGame()" class="btn btn-purple" data-i18n="start">ابدأ اللعبة</button>
           <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
         </div>
@@ -688,7 +694,13 @@
 </div>
 
            <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين</label>
-           <div id="spin-player-list" class="max-h-60 overflow-y-auto mb-8 space-y-1"></div>
+           
+           <div class="flex gap-2 mb-4">
+               <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" list="global-player-datalist" oninput="checkAutoAdd(this)" class="flex-1 min-w-0 mb-0 border-transparent focus:border-blue-500 rounded-xl px-4">
+               <button onclick="addPlayerFromSetup(this)" class="btn btn-blue mb-0 mt-0 p-0 flex items-center justify-center bg-blue-500 text-white rounded-xl text-2xl font-bold pb-1 shadow-md" style="width: 56px !important; flex: none;">+</button>
+           </div>
+           
+           <div id="spin-player-list" class="mb-8"></div>
            <button onclick="runStartSpin()" class="btn btn-blue" data-i18n="start">ابدأ</button>
            <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
         </div>
@@ -842,7 +854,7 @@
         <p class="text-xs text-slate-400 mb-6">اختر من المسجلين أو أضف جديداً</p>
         <div id="midgame-existing-list" class="flex flex-wrap gap-2 justify-center mb-8 max-h-40 overflow-y-auto"></div>
         <div class="border-t dark:border-slate-800 pt-6">
-            <input type="text" id="midgame-player-name" placeholder="اسم لاعب جديد">
+            <input type="text" id="midgame-player-name" placeholder="اسم لاعب جديد" list="global-player-datalist" oninput="checkAutoAdd(this)">
             <button onclick="submitMidGamePlayer()" class="btn btn-green py-4">إضافة ودخول</button>
         </div>
         <button onclick="closeModal('add-midgame-modal')" class="btn btn-gray mt-4">إلغاء</button>
@@ -1007,7 +1019,13 @@
 </div>
 
           <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين</label>
-          <div id="teams-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+          
+          <div class="flex gap-2 mb-4">
+              <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" list="global-player-datalist" oninput="checkAutoAdd(this)" class="flex-1 min-w-0 mb-0 border-transparent focus:border-indigo-500 rounded-xl px-4">
+              <button onclick="addPlayerFromSetup(this)" class="btn btn-indigo mb-0 mt-0 p-0 flex items-center justify-center bg-indigo-500 text-white rounded-xl text-2xl font-bold pb-1 shadow-md" style="width: 56px !important; flex: none;">+</button>
+          </div>
+          
+          <div id="teams-player-list" class="mb-6"></div>
           
           <div class="grid grid-cols-2 gap-2 mt-4">
               <button onclick="generateTeams()" class="btn btn-indigo mt-0" data-i18n="random_teams">🎲 عشوائي</button>
@@ -1064,7 +1082,13 @@
 </div>
 
           <label class="text-xs font-bold text-slate-400 block mb-1" data-i18n="players">اللاعبين (3+)</label>
-          <div id="justone-player-list" class="max-h-60 overflow-y-auto mb-6 space-y-1"></div>
+          
+          <div class="flex gap-2 mb-4">
+              <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" list="global-player-datalist" oninput="checkAutoAdd(this)" class="flex-1 min-w-0 mb-0 border-transparent focus:border-pink-500 rounded-xl px-4">
+              <button onclick="addPlayerFromSetup(this)" class="btn btn-purple bg-pink-600 mb-0 mt-0 p-0 flex items-center justify-center text-white rounded-xl text-2xl font-bold pb-1 shadow-md" style="width: 56px !important; flex: none;">+</button>
+          </div>
+          
+          <div id="justone-player-list" class="mb-6"></div>
           <button onclick="startJustOneGame()" class="btn btn-purple bg-pink-600" data-i18n="start">ابدأ اللعبة</button>
           <button onclick="playSound('click'); setView('menu')" class="btn btn-gray" data-i18n="back">رجوع</button>
         </div>
@@ -1302,13 +1326,11 @@
             <h3 class="font-bold mb-6 text-indigo-600 text-center" data-i18n="setup_tourney">منظم البطولات</h3>
             <p class="text-xs text-slate-400 mb-2 text-center" data-i18n="tourney_hint">أدخل 4 أو 8 أسماء</p>
             
-            <datalist id="tourney-player-list-source"></datalist>
-
             <div id="tourney-inputs" class="space-y-2 mb-4">
-                <input type="text" class="tourney-player-input" list="tourney-player-list-source" placeholder="1">
-                <input type="text" class="tourney-player-input" list="tourney-player-list-source" placeholder="2">
-                <input type="text" class="tourney-player-input" list="tourney-player-list-source" placeholder="3">
-                <input type="text" class="tourney-player-input" list="tourney-player-list-source" placeholder="4">
+                <input type="text" class="tourney-player-input" list="global-player-datalist" placeholder="1">
+                <input type="text" class="tourney-player-input" list="global-player-datalist" placeholder="2">
+                <input type="text" class="tourney-player-input" list="global-player-datalist" placeholder="3">
+                <input type="text" class="tourney-player-input" list="global-player-datalist" placeholder="4">
             </div>
             
             <button onclick="addTourneyInput()" class="btn btn-gray text-sm mb-4" data-i18n="add_more">+ المزيد</button>
@@ -1633,6 +1655,7 @@
     <?!= include('JS_Monkey'); ?>
     <?!= include('JS_Imposter'); ?>
     <?!= include('JS_Domino'); ?>
+    <datalist id="global-player-datalist"></datalist>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </body>

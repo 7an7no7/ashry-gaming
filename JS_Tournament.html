@@ -9,6 +9,11 @@ function startTournament() {
     const inputs = document.querySelectorAll('.tourney-player-input');
     let players = Array.from(inputs).map(i => i.value.trim()).filter(n => n !== "");
 
+    // Fallback: If no manual inputs, use appState.activePlayers (if 4 or 8)
+    if (players.length === 0 && appState.activePlayers && (appState.activePlayers.length === 4 || appState.activePlayers.length === 8)) {
+        players = [...appState.activePlayers];
+    }
+
     if (players.length !== 4 && players.length !== 8) {
         showToast(appState.lang === 'ar' ? "يجب أن يكون العدد 4 أو 8 لاعبين!" : "Must be 4 or 8 players!");
         return;

@@ -358,9 +358,16 @@ function startWhoAmI() {
     appState.whoami.count = count;
     appState.whoami.assignments = [];
     
-    const players = [];
-    for(let i=0; i<count; i++) {
-        players.push(appState.lang === 'ar' ? `اللاعب ${i+1}` : `Player ${i+1}`);
+    let players = appState.activePlayers ? [...appState.activePlayers] : [];
+    
+    // If fewer players than count, pad with generic names
+    if (players.length < count) {
+        for(let i=players.length; i<count; i++) {
+            players.push(appState.lang === 'ar' ? `اللاعب ${i+1}` : `Player ${i+1}`);
+        }
+    } else if (players.length > count) {
+        // If more players than count, take first N
+        players = players.slice(0, count);
     }
 
     // --- CASE 1: MANUAL ---

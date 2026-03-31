@@ -292,7 +292,13 @@ function addPlayerFromSetup(btn) {
   }
   function startUniversal() {
       const chips = document.querySelectorAll('#universal-setup-list > div > span');
-      const players = Array.from(chips).map(c => ({ name: c.innerText, score: 0 }));
+      let players = Array.from(chips).map(c => ({ name: c.innerText, score: 0 }));
+      
+      // Fallback: If no manual chips, use appState.activePlayers
+      if (players.length === 0 && appState.activePlayers && appState.activePlayers.length > 0) {
+          players = appState.activePlayers.map(name => ({ name: name, score: 0 }));
+      }
+
       if(players.length === 0) {
           const msg = appState.lang === 'ar' ? 'أضف لاعبين أولاً' : 'Add players first';
           return showToast(msg);

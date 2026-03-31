@@ -101,15 +101,18 @@ function addPlayerFromSetup(btn) {
 
     // HELPER to reset input safely (especially for iOS)
     const resetInput = () => {
-        input.value = '';
         const datalist = document.getElementById('global-player-datalist');
         if (datalist) datalist.innerHTML = ''; // Force clear suggestions
-        input.blur(); // Dismiss keyboard/dropdown state
+        
+        input.value = '';
+        input.blur(); 
+
+        // Reliable refocus for iOS
         setTimeout(() => {
-            if (document.activeElement !== input) {
-                input.focus(); // Refocus after a small delay
-            }
-        }, 150);
+            input.focus();
+            // Scroll to top helps iOS decide to put suggestions BELOW the input
+            input.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50); 
     };
 
     // Check for duplicates in active list
@@ -730,7 +733,7 @@ function addPlayerFromSetup(btn) {
      } else if (appState.currentView === 'play-monkey') {
          runStartMonkey(appState.monkey.players.map(p => p.name));
      } else if (appState.currentView === 'play-imposter' || appState.currentView === 'imposter-reveal') {
-         prepImposterGame(lastSelectedPlayers);
+         startImposterGame(lastSelectedPlayers);
      }
   }
   /* Inside JS_Utils.html */
@@ -1155,6 +1158,16 @@ function renderSavedGroups() {
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(renderSavedGroups, 1000);
+    
+    // Global listener to fix iOS Datalist positioning
+    document.addEventListener('focusin', (e) => {
+        if (e.target.tagName === 'INPUT' && e.target.getAttribute('list') === 'global-player-datalist') {
+            // Delay slightly to allow keyboard to start appearing
+            setTimeout(() => {
+                e.target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+        }
+    });
 });
 
 </script>

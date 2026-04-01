@@ -1111,7 +1111,45 @@ function loadGroup(groupName) {
     }
 }
 
-// 5. Delete Logic
+// 5. Delete Logic (From Modal)
+function deleteGroupFromModal() {
+    const select = document.getElementById('update-group-select');
+    const groupName = select.value;
+    
+    if (!groupName) {
+        showToast(appState.lang === 'ar' ? "اختر مجموعة أولاً!" : "Select a group!", "error");
+        return;
+    }
+    
+    const msg = appState.lang === 'ar' ? `هل أنت متأكد من حذف "${groupName}" نهائياً؟` : `Delete "${groupName}"?`;
+    
+    if (typeof showConfirmModal === 'function') {
+        showConfirmModal(msg, () => {
+            let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+            delete groups[groupName];
+            localStorage.setItem('ashry_saved_groups', JSON.stringify(groups));
+            
+            if (appState.currentGroup === groupName) {
+                appState.currentGroup = "";
+            }
+            
+            renderSavedGroups(); 
+            // Re-populate modal select
+            const updateSelect = document.getElementById('update-group-select');
+            updateSelect.innerHTML = `<option value="">-- اختر لتحديث مجموعة --</option>`;
+            Object.keys(groups).forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.innerText = name;
+                updateSelect.appendChild(opt);
+            });
+            
+            showToast(appState.lang === 'ar' ? "تم الحذف" : "Deleted", "success");
+        });
+    }
+}
+
+// 5. Delete Logic (Original - used from within setup views)
 function deleteGroup(btnElement) {
     const select = btnElement.parentElement.querySelector('select');
     const groupName = select.value;

@@ -411,7 +411,7 @@ function handleReactionTap(player) {
         appState.reaction.status = 'resolving';
         appState.reaction.firstTapInfo = { player: player, time: performance.now() };
         
-        // Wait 30 milliseconds to see if the other player taps for a TIE!
+        // Wait 60 milliseconds to see if the other player taps for a TIE!
         setTimeout(() => {
             if (appState.reaction.status === 'resolving') {
                 // No one else tapped, we have a clear winner!
@@ -419,12 +419,12 @@ function handleReactionTap(player) {
                 const reactionTime = Math.round(appState.reaction.firstTapInfo.time - appState.reaction.startTime);
                 showReactionResult(appState.reaction.firstTapInfo.player, reactionTime, false, null, false);
             }
-        }, 30); 
+        }, 60); 
         return;
     }
 
     if (appState.reaction.status === 'resolving') {
-        // THE SECOND PERSON TAPPED WITHIN THE 30ms WINDOW! IT'S A TIE!
+        // THE SECOND PERSON TAPPED WITHIN THE WINDOW! IT'S A TIE!
         if (player !== appState.reaction.firstTapInfo.player) {
             appState.reaction.status = 'ended';
             const reactionTime = Math.round(appState.reaction.firstTapInfo.time - appState.reaction.startTime);

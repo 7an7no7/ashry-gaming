@@ -9,7 +9,7 @@
 - **Frontend:** HTML5, CSS3, Vanilla JavaScript
 - **UI Framework:** Tailwind CSS (via CDN)
 - **Deployment & Management:** `clasp` (Command Line Apps Script Projects)
-- **External Libraries:** `canvas-confetti`, `Chart.js`
+- **External Libraries:** `canvas-confetti`
 
 ### Architecture
 - **Server-side (`Code.js`):** Handles `doGet` for serving the web app, manages Google Sheets interactions (CRUD for players, scores, and game data), and injects initial data into the template to reduce client-side loading times.

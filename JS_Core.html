@@ -548,7 +548,49 @@
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        console.log("Service Worker registration attempted (PWA enabled)");
+        // We use a Blob to create the service worker script since we can't host a separate JS file easily in GAS
+        const swCode = `
+          const CACHE_NAME = 'ashry-gaming-v1';
+          const ASSETS_TO_CACHE = [
+            'https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap',
+            'https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css',
+            'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js',
+            'https://cdn-icons-png.flaticon.com/512/13/13973.png'
+          ];
+
+          self.addEventListener('install', (event) => {
+            event.waitUntil(
+              caches.open(CACHE_NAME).then((cache) => {
+                return cache.addAll(ASSETS_TO_CACHE);
+              })
+            );
+          });
+
+          self.addEventListener('fetch', (event) => {
+            // For external assets, try cache first, then network
+            if (ASSETS_TO_CACHE.some(url => event.request.url.includes(url))) {
+              event.respondWith(
+                caches.match(event.request).then((response) => {
+                  return response || fetch(event.request).then(networkResponse => {
+                    return caches.open(CACHE_NAME).then(cache => {
+                      cache.put(event.request, networkResponse.clone());
+                      return networkResponse;
+                    });
+                  });
+                })
+              );
+            }
+          });
+        `;
+
+        const blob = new Blob([swCode], { type: 'text/javascript' });
+        const swUrl = URL.createObjectURL(blob);
+
+        navigator.serviceWorker.register(swUrl).then((registration) => {
+          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        }, (err) => {
+          console.log('ServiceWorker registration failed: ', err);
+        });
       });
     }
   }

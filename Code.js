@@ -29,7 +29,11 @@ const doGet = (e) => {
       .setTitle('عشرى جيمينج 🎮')
       .setFaviconUrl(iconUrl)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);};
+      // ALLOWALL so docs/index.html can show the app in a full-window iframe.
+      // That wrapper is the only way to control the iOS home-screen icon: Apps
+      // Script serves this page inside its own iframe, so "Add to Home Screen"
+      // reads script.google.com's document and never sees the icon links here.
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);};
 
 const include = (filename) => {
   // Always fetch the freshest code directly from the file!

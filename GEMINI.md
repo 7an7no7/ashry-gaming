@@ -300,6 +300,30 @@ is playing without scrolling. That re-sort happens on arrival and when you add
 someone, **never on a toggle** — chips that move under your finger are worse
 than chips in a stale order. `pickerOrder` is what holds them still.
 
+### The home-screen icon lives outside the app
+
+`docs/` is a small static site — icons, a manifest, and a page that shows the
+app in a full-window iframe. It exists because **the icon cannot be set from
+inside the app at all**.
+
+Apps Script serves a web app inside its own iframe, so `/exec` is two documents:
+Google's wrapper on top, this app underneath. "Add to Home Screen" reads only
+the top one, which means every `apple-touch-icon` link, the manifest and the
+splash tags in `Controller.html` were invisible to Safari — iOS found nothing
+and screenshotted the page instead, which is why the icon appeared only
+sometimes. Apps Script offers no way to put a `<link>` on its wrapper page:
+`addMetaTag()` takes a short whitelist of `<meta>` names, and `setFaviconUrl()`
+only reaches the browser tab.
+
+So `Code.js` uses `XFrameOptionsMode.ALLOWALL` and `docs/index.html` embeds the
+app, keeping the top-level origin somewhere you control. It forwards any query
+string, so a `?room=` link still joins. Setup steps are in `docs/README.md`.
+
+Icons are **drawn**, by `npm run build:icons` — iOS fetches an apple-touch-icon
+exactly once, at the moment you tap Add to Home Screen, and a slow or blocked
+CDN at that instant means a screenshot with no way to retry. `icon-180.png` is
+full-bleed and square on purpose: iOS rounds it itself.
+
 ### The Help sheet
 
 Help is one of the two things in the bottom nav, so it has to earn that slot.

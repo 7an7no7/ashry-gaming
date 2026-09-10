@@ -19,7 +19,23 @@
 
 const DRAW_GRID = 255;
 const DRAW_FLUSH_MS = 550;      // how often a batch of strokes is sent
-const DRAW_COLOURS = ['#111827', '#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed'];
+const DRAW_COLOURS = ['#111827', '#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed',
+                      '#db2777', '#0891b2', '#65a30d', '#78350f', '#94a3b8', '#ffffff'];
+/* The canvas is white in both themes — the drawing is shared, so it cannot
+   follow one person's theme. The eraser paints this colour. */
+const DRAW_PAPER = '#ffffff';
+const DRAW_ROUND_CHOICES = [60, 90, 120, 180];
+
+/* p=pen  l=line  r=rectangle  o=ellipse  b=fill  e=eraser.
+   The first four and the eraser all send as strokes; only the letters differ. */
+const DRAW_TOOLBOX = [
+  { id: 'p', icon: '✏️', key: 'draw_tool_pen' },
+  { id: 'l', icon: '╱',  key: 'draw_tool_line' },
+  { id: 'r', icon: '▭',  key: 'draw_tool_rect' },
+  { id: 'o', icon: '◯',  key: 'draw_tool_circle' },
+  { id: 'b', icon: '🪣', key: 'draw_tool_fill' },
+  { id: 'e', icon: '🧽', key: 'draw_tool_erase' }
+];
 
 const draw = {
   canvas: null, ctx: null,
@@ -29,6 +45,8 @@ const draw = {
   painted: 0,           // how many server strokes we've already drawn
   colour: DRAW_COLOURS[0],
   width: 4,
+  tool: 'p',
+  snapshot: null,      // canvas before a shape started, for the rubber band
   flushTimer: null,
   clock: null,
   clockEndsAt: null    // deadline the live clock belongs to
@@ -38,9 +56,27 @@ ROOM_GAMES.drawguess = {
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
     const t = TRANSLATIONS[appState.lang];
-    return `<p class="field__hint" style="text-align:center">${t.draw_hint || ''}</p>`;
+    // Whatever was used last round is the default, so changing it once sticks.
+    const current = (state.shared && state.shared.roundSeconds) || 90;
+    return `
+      <div class="card card--tight">
+        <label class="field__label" for="draw-seconds">${t.draw_round_length || ''}</label>
+        <select id="draw-seconds">
+          ${DRAW_ROUND_CHOICES.map(sec => `
+            <option value="${sec}" ${sec === current ? 'selected' : ''}>
+              ${sec} ${t.seconds_short || ''}${sec === 90 ? ' · ' + (t.default_label || '') : ''}
+            </option>`).join('')}
+        </select>
+        <p class="field__hint" style="text-align:center">${t.draw_hint || ''}</p>
+      </div>`;
   },
-  startPayload: () => ({ lang: appState.lang === 'en' ? 'en' : 'ar' }),
+  startPayload: () => {
+    const sel = document.getElementById('draw-seconds');
+    return {
+      lang: appState.lang === 'en' ? 'en' : 'ar',
+      seconds: sel ? Number(sel.value) : 90
+    };
+  },
 
   pollHint(state) {
     // The drawer is the one being waited on; guessers are watching the picture
@@ -107,13 +143,33 @@ function drawFrame(state, amDrawer, over, t) {
 
   const tools = (amDrawer && !over) ? `
       <div class="draw-tools">
-        ${DRAW_COLOURS.map(c => `
-          <button class="draw-swatch ${c === draw.colour ? 'is-active' : ''}"
-                  style="background:${c}" aria-label="${c}"
-                  onclick="setDrawColour('${c}')"></button>`).join('')}
-        <button class="btn btn--ghost btn--xs btn--auto" onclick="setDrawWidth(4)">•</button>
-        <button class="btn btn--ghost btn--xs btn--auto" onclick="setDrawWidth(12)">⬤</button>
-        <button class="btn btn--ghost btn--xs btn--auto" onclick="clearDrawCanvas()">🗑️</button>
+        <div class="draw-tools__row" role="group" aria-label="${escapeHTML(t.draw_tools || '')}">
+          ${DRAW_TOOLBOX.map(tool => `
+            <button class="draw-tool ${tool.id === draw.tool ? 'is-active' : ''}"
+                    aria-pressed="${tool.id === draw.tool}"
+                    title="${escapeHTML(t[tool.key] || '')}" aria-label="${escapeHTML(t[tool.key] || '')}"
+                    onclick="setDrawTool('${tool.id}')">${tool.icon}</button>`).join('')}
+        </div>
+
+        <div class="draw-tools__row draw-tools__row--scroll">
+          ${DRAW_COLOURS.map(c => `
+            <button class="draw-swatch ${c === draw.colour ? 'is-active' : ''}"
+                    style="background:${c}" aria-label="${c}"
+                    onclick="setDrawColour('${c}')"></button>`).join('')}
+        </div>
+
+        <div class="draw-tools__row">
+          ${[2, 4, 10, 20].map(w => `
+            <button class="draw-width ${w === draw.width ? 'is-active' : ''}"
+                    aria-label="${w}" onclick="setDrawWidth(${w})">
+              <span class="draw-width__dot" style="width:${Math.min(22, w + 4)}px;height:${Math.min(22, w + 4)}px"></span>
+            </button>`).join('')}
+          <span class="draw-tools__gap"></span>
+          <button class="draw-tool draw-tool--act" onclick="undoDrawStroke()"
+                  title="${escapeHTML(t.draw_undo || '')}" aria-label="${escapeHTML(t.draw_undo || '')}">↶</button>
+          <button class="draw-tool draw-tool--danger" onclick="clearDrawCanvas()"
+                  title="${escapeHTML(t.draw_clear || '')}" aria-label="${escapeHTML(t.draw_clear || '')}">🗑️</button>
+        </div>
       </div>` : '';
 
   const guessBox = (!amDrawer && !over) ? `
@@ -154,41 +210,155 @@ function paintStrokes(strokes) {
   const c = draw.canvas, ctx = draw.ctx;
   if (!c || !ctx) return;
 
-  // A shrinking list means the drawer cleared: start the canvas again.
+  // Never repaint under a stroke in progress. A poll landing mid-drag would
+  // wipe the line being drawn, and for a shape it also throws away the
+  // snapshot the rubber band restores from — which made the preview stack on
+  // itself and left the drawer with darker edges than everyone else saw.
+  // The drawer is the only one who can add strokes, so nothing is missed:
+  // the next poll after the drag catches up.
+  if (draw.drawing) return;
+
+  // A shrinking list means the drawer cleared or undid: start again. Replaying
+  // from the beginning also keeps fills correct, since a fill depends on
+  // everything painted before it.
   if (strokes.length < draw.painted) { clearSurface(); draw.painted = 0; }
   if (strokes.length === draw.painted) return;
 
   for (let i = draw.painted; i < strokes.length; i++) drawStroke(ctx, strokes[i], c.width);
   draw.painted = strokes.length;
+  // The snapshot the shape preview restores from is now stale.
+  draw.snapshot = null;
 }
 
+/** Draws one stroke. `t` picks the tool; absent means freehand. */
 function drawStroke(ctx, st, size) {
   const pts = st.p || [];
+  const k = size / DRAW_GRID;
+  const X = (i) => pts[i] * k;
+
+  if (st.t === 'b') {
+    if (pts.length >= 2) floodFill(ctx, Math.round(X(0)), Math.round(X(1)), st.c || '#111');
+    return;
+  }
+
   if (pts.length < 2) return;
   ctx.strokeStyle = st.c || '#111';
-  ctx.lineWidth = (st.w || 4) * (size / DRAW_GRID);
+  ctx.lineWidth = (st.w || 4) * k;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo(pts[0] / DRAW_GRID * size, pts[1] / DRAW_GRID * size);
-  for (let i = 2; i < pts.length; i += 2) {
-    ctx.lineTo(pts[i] / DRAW_GRID * size, pts[i + 1] / DRAW_GRID * size);
+
+  if (st.t === 'l' && pts.length >= 4) {
+    ctx.moveTo(X(0), X(1));
+    ctx.lineTo(X(2), X(3));
+  } else if (st.t === 'r' && pts.length >= 4) {
+    ctx.rect(X(0), X(1), X(2) - X(0), X(3) - X(1));
+  } else if (st.t === 'o' && pts.length >= 4) {
+    const cx = (X(0) + X(2)) / 2, cy = (X(1) + X(3)) / 2;
+    ctx.ellipse(cx, cy, Math.abs(X(2) - X(0)) / 2, Math.abs(X(3) - X(1)) / 2, 0, 0, Math.PI * 2);
+  } else {
+    // Segment by segment, deliberately — the drawer's own canvas is painted one
+    // segment at a time as the finger moves, and a single joined polyline
+    // blends its corners differently. Same commands both sides, same pixels.
+    for (let i = 2; i < pts.length; i += 2) {
+      ctx.moveTo(X(i - 2), X(i - 1));
+      ctx.lineTo(X(i), X(i + 1));
+      ctx.stroke();
+      ctx.beginPath();
+    }
+    return;
   }
   ctx.stroke();
 }
 
+/**
+ * Paint-bucket fill, replayed identically on every phone.
+ *
+ * It runs against whatever is already on the canvas, and strokes are always
+ * replayed in order, so every viewer fills the same region. The tolerance is
+ * what makes that hold in practice: a stroke's antialiased edge is not the same
+ * pixel value everywhere, and without slack the fill would seep through the
+ * soft edge on one device and not another.
+ */
+function floodFill(ctx, x0, y0, hex) {
+  const w = ctx.canvas.width, h = ctx.canvas.height;
+  if (x0 < 0 || y0 < 0 || x0 >= w || y0 >= h) return;
+
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const at = (x, y) => (y * w + x) * 4;
+
+  const start = at(x0, y0);
+  const sr = d[start], sg = d[start + 1], sb = d[start + 2];
+
+  const to = hexToRgb(hex);
+  if (!to) return;
+  // Filling with the colour already there would spin over the whole canvas for
+  // no visible change.
+  if (Math.abs(sr - to.r) < 4 && Math.abs(sg - to.g) < 4 && Math.abs(sb - to.b) < 4) return;
+
+  const TOL = 40;
+  const matches = (i) =>
+    Math.abs(d[i] - sr) <= TOL && Math.abs(d[i + 1] - sg) <= TOL && Math.abs(d[i + 2] - sb) <= TOL;
+
+  // Scanline flood: fills a whole row at a time, so a 512×512 canvas is a few
+  // milliseconds rather than a stack of a quarter of a million pixels.
+  const stack = [[x0, y0]];
+  while (stack.length) {
+    const [sx, sy] = stack.pop();
+    let x = sx;
+    while (x > 0 && matches(at(x - 1, sy))) x--;
+    let spanUp = false, spanDown = false;
+    for (; x < w && matches(at(x, sy)); x++) {
+      const i = at(x, sy);
+      d[i] = to.r; d[i + 1] = to.g; d[i + 2] = to.b; d[i + 3] = 255;
+
+      if (sy > 0) {
+        const up = matches(at(x, sy - 1));
+        if (up && !spanUp) { stack.push([x, sy - 1]); spanUp = true; }
+        else if (!up) spanUp = false;
+      }
+      if (sy < h - 1) {
+        const dn = matches(at(x, sy + 1));
+        if (dn && !spanDown) { stack.push([x, sy + 1]); spanDown = true; }
+        else if (!dn) spanDown = false;
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function hexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex).trim());
+  return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : null;
+}
+
 function clearSurface() {
   if (!draw.ctx || !draw.canvas) return;
-  draw.ctx.fillStyle = '#ffffff';
+  draw.ctx.fillStyle = DRAW_PAPER;
   draw.ctx.fillRect(0, 0, draw.canvas.width, draw.canvas.height);
+  draw.snapshot = null;
 }
 
 /* --- input --------------------------------------------------------------- */
 
+/** The colour a stroke is actually made with — the eraser paints the paper. */
+function activeColour() {
+  return draw.tool === 'e' ? DRAW_PAPER : draw.colour;
+}
+/** The width to use — the eraser is deliberately fatter than the pen. */
+function activeWidth() {
+  return draw.tool === 'e' ? Math.max(12, draw.width * 3) : draw.width;
+}
+/** Freehand and eraser both record as freehand; the eraser is just white. */
+function activeToolLetter() {
+  return (draw.tool === 'p' || draw.tool === 'e') ? 'f' : draw.tool;
+}
+
 function bindDrawSurface(canDraw) {
   draw.canvas = document.getElementById('draw-canvas');
   if (!draw.canvas) return;
-  draw.ctx = draw.canvas.getContext('2d');
+  draw.ctx = draw.canvas.getContext('2d', { willReadFrequently: true });
   clearSurface();
   draw.painted = 0;
   if (!canDraw) return;
@@ -203,28 +373,77 @@ function bindDrawSurface(canDraw) {
 
   draw.canvas.onpointerdown = (e) => {
     e.preventDefault();
+    const [x, y] = pos(e);
+
+    // A fill is a single tap: no drag, nothing to preview.
+    if (draw.tool === 'b') {
+      const stroke = { t: 'b', c: draw.colour, w: 1, p: [x, y] };
+      drawStroke(draw.ctx, stroke, draw.canvas.width);
+      draw.pending.push(stroke);
+      draw.snapshot = null;
+      playSound('tick');
+      scheduleFlush();
+      return;
+    }
+
     draw.canvas.setPointerCapture(e.pointerId);
     draw.drawing = true;
-    draw.current = { c: draw.colour, w: draw.width, p: pos(e) };
+    const letter = activeToolLetter();
+    draw.current = { c: activeColour(), w: activeWidth(), p: [x, y] };
+    if (letter !== 'f') {
+      draw.current.t = letter;
+      draw.current.p = [x, y, x, y];
+      // Shapes rubber-band, so keep the canvas as it was to restore from.
+      draw.snapshot = draw.ctx.getImageData(0, 0, draw.canvas.width, draw.canvas.height);
+    }
   };
 
   draw.canvas.onpointermove = (e) => {
     if (!draw.drawing || !draw.current) return;
     e.preventDefault();
     const [x, y] = pos(e);
-    const p = draw.current.p;
+    const cur = draw.current;
+
+    if (cur.t) {
+      // Rubber-band: put back the canvas from before the shape, draw the shape
+      // at its current size. Repainting every stroke instead would get slower
+      // the more there is on screen.
+      cur.p[2] = x; cur.p[3] = y;
+      if (!draw.snapshot) {
+        // Lost it somehow. Rebuild from the strokes rather than drawing on top
+        // of the last preview, which would darken the shape's edges.
+        const keep = draw.drawing; draw.drawing = false;
+        paintStrokesFromScratch();
+        draw.drawing = keep;
+        draw.snapshot = draw.ctx.getImageData(0, 0, draw.canvas.width, draw.canvas.height);
+      }
+      draw.ctx.putImageData(draw.snapshot, 0, 0);
+      drawStroke(draw.ctx, cur, draw.canvas.width);
+      return;
+    }
+
+    const p = cur.p;
     // Skip points that add nothing — keeps the payload small.
     if (Math.abs(p[p.length - 2] - x) < 2 && Math.abs(p[p.length - 1] - y) < 2) return;
     p.push(x, y);
     // Paint locally at once: the drawer never waits on the network.
-    drawStroke(draw.ctx, { c: draw.current.c, w: draw.current.w, p: p.slice(-4) }, draw.canvas.width);
+    drawStroke(draw.ctx, { c: cur.c, w: cur.w, p: p.slice(-4) }, draw.canvas.width);
   };
 
   const finish = () => {
     if (!draw.drawing) return;
     draw.drawing = false;
-    if (draw.current && draw.current.p.length >= 2) draw.pending.push(draw.current);
+    const cur = draw.current;
     draw.current = null;
+    draw.snapshot = null;
+    if (!cur) return;
+
+    // A shape with no drag is a stray tap, not a zero-sized rectangle.
+    if (cur.t && cur.p[0] === cur.p[2] && cur.p[1] === cur.p[3]) {
+      paintStrokesFromScratch();
+      return;
+    }
+    if (cur.p.length >= 2) draw.pending.push(cur);
     scheduleFlush();
   };
   draw.canvas.onpointerup = finish;
@@ -232,21 +451,28 @@ function bindDrawSurface(canDraw) {
   draw.canvas.onpointerleave = finish;
 }
 
+/** Repaints everything the room has, plus anything not yet sent. */
+function paintStrokesFromScratch() {
+  if (!draw.ctx) return;
+  const shared = (Room.state && Room.state.shared) || {};
+  const wasDrawing = draw.drawing;
+  draw.drawing = false;              // paintStrokes defers while a drag is live
+  clearSurface();
+  draw.painted = 0;
+  paintStrokes(shared.strokes || []);
+  draw.pending.forEach(st => drawStroke(draw.ctx, st, draw.canvas.width));
+  draw.drawing = wasDrawing;
+}
+
+
 /** Batches strokes instead of sending each one — one request per ~0.5s. */
 function scheduleFlush() {
   if (draw.flushTimer) return;
   draw.flushTimer = setTimeout(async () => {
     draw.flushTimer = null;
     if (!draw.pending.length) return;
-    const batch = draw.pending.splice(0, draw.pending.length);
     try {
-      const state = await Room.act('addStrokes', { strokes: batch });
-      // Adopt the server's count. Adding batch.length overshot - act() already
-      // re-rendered with the new strokes, so painted was current - and the next
-      // repaint then saw fewer strokes than painted and cleared the canvas.
-      // The server may also truncate a batch to stay inside the point budget.
-      const strokes = state && state.shared && state.shared.strokes;
-      if (strokes) draw.painted = strokes.length;
+      await flushDrawNow();
     } catch (e) {
       showToast(e.message || 'تعذر إرسال الرسمة', 'error');
     }
@@ -255,15 +481,93 @@ function scheduleFlush() {
 
 function setDrawColour(c) {
   draw.colour = c;
-  document.querySelectorAll('.draw-swatch').forEach(b =>
-    b.classList.toggle('is-active', b.style.background === c || b.getAttribute('aria-label') === c));
+  // Picking a colour means you want to paint with it, not keep rubbing out.
+  if (draw.tool === 'e') draw.tool = 'p';
+  refreshDrawTools();
+  playSound('click');
 }
-function setDrawWidth(w) { draw.width = w; }
+
+function setDrawWidth(w) {
+  draw.width = w;
+  refreshDrawTools();
+  playSound('click');
+}
+
+function setDrawTool(id) {
+  draw.tool = id;
+  refreshDrawTools();
+  playSound('click');
+  haptic('light');
+}
+
+/** Repaints the toolbar's pressed states without rebuilding the canvas. */
+function refreshDrawTools() {
+  document.querySelectorAll('.draw-tool[onclick^="setDrawTool"]').forEach(b => {
+    const on = b.getAttribute('onclick').indexOf("'" + draw.tool + "'") !== -1;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  document.querySelectorAll('.draw-swatch').forEach(b =>
+    b.classList.toggle('is-active', b.getAttribute('aria-label') === draw.colour));
+  document.querySelectorAll('.draw-width').forEach(b =>
+    b.classList.toggle('is-active', Number(b.getAttribute('aria-label')) === draw.width));
+}
+
+/**
+ * Sends anything still queued right now, rather than on the next tick.
+ *
+ * `painted` is advanced *before* the request, not after: Room.act emits the new
+ * state to the renderer before it returns, and with the old count still in
+ * place the drawer's own strokes came back and were painted a second time on
+ * top of themselves. Nobody else saw that, so the drawer's canvas slowly
+ * diverged from everyone else's.
+ */
+async function flushDrawNow() {
+  clearTimeout(draw.flushTimer);
+  draw.flushTimer = null;
+  if (!draw.pending.length) return;
+
+  const batch = draw.pending.splice(0, draw.pending.length);
+  draw.painted += batch.length;          // already on this canvas
+
+  const state = await Room.act('addStrokes', { strokes: batch });
+  const strokes = state && state.shared && state.shared.strokes;
+  if (!strokes) return;
+  draw.painted = strokes.length;
+
+  // Then redraw from the shared list outright, rather than trusting that the
+  // canvas already matches it. The drawer's canvas is built from live input and
+  // the viewers' from a replay, and the two drift for small reasons — an echoed
+  // batch, a stroke the point budget truncated, a poll landing at the wrong
+  // moment. Replaying makes the drawer see exactly what the room sees, by
+  // construction. It costs well under a millisecond and happens twice a second.
+  if (!draw.drawing) paintStrokesFromScratch();
+}
+
+/**
+ * Takes back the last thing drawn.
+ *
+ * Anything still waiting in the batch is sent first, so "the last stroke" means
+ * the same thing here as it does on everyone else's screen.
+ */
+async function undoDrawStroke() {
+  try {
+    await flushDrawNow();
+    await Room.act('undoStroke', {});
+    paintStrokesFromScratch();
+    playSound('tick');
+    haptic('light');
+  } catch (e) {
+    showToast(e.message || 'تعذر التراجع', 'error');
+  }
+}
 
 async function clearDrawCanvas() {
   clearSurface();
   draw.pending = [];
   draw.painted = 0;
+  clearTimeout(draw.flushTimer);
+  draw.flushTimer = null;
   await roomAct('clearCanvas');
 }
 
@@ -315,6 +619,8 @@ function stopDrawClock() {
 }
 
 function resetDrawSurface() {
+  draw.tool = 'p';
+  draw.snapshot = null;
   stopDrawClock();
   clearTimeout(draw.flushTimer);
   draw.flushTimer = null;

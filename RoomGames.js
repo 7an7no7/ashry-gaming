@@ -862,7 +862,15 @@ const scoreFibbage = (room) => {
    ========================================================================== */
 
 const DRAW_MAX_POINTS = 2600;     // ~15KB of JSON; well inside the 100KB cache
-const DRAW_ROUND_SECONDS = 90;
+const DRAW_ROUND_SECONDS = 90;    // the default the host can change
+const DRAW_ROUND_MIN = 30;
+const DRAW_ROUND_MAX = 240;
+
+/* Tools a stroke may carry. Absent means freehand, which is what every stroke
+   made before this existed is, so old rooms replay unchanged. */
+const DRAW_TOOLS = ['f', 'l', 'r', 'o', 'b'];
+/* How many numbers each tool's `p` must hold. Freehand is variable. */
+const DRAW_TOOL_POINTS = { l: 4, r: 4, o: 4, b: 2 };
 
 const drawGuessAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
@@ -872,6 +880,12 @@ const drawGuessAction = (room, playerId, action, payload) => {
     const lang = payload.lang === 'en' ? 'en' : 'ar';
     const round = ((room.shared && room.shared.round) || 0) + 1;
     const scores = (room.shared && room.shared.scores) || {};
+
+    // The host picks the length in the lobby; later rounds reuse it rather than
+    // asking again. Clamped here because the client is not the authority on it.
+    const asked = Number(payload.seconds) || (room.shared && room.shared.roundSeconds);
+    const seconds = Math.max(DRAW_ROUND_MIN,
+                             Math.min(DRAW_ROUND_MAX, Math.round(asked || DRAW_ROUND_SECONDS)));
 
     // The drawer rotates so everyone gets a turn.
     const drawer = room.players[(round - 1) % room.players.length];
@@ -890,7 +904,8 @@ const drawGuessAction = (room, playerId, action, payload) => {
       strokes: [],
       guesses: [],
       winnerId: null,
-      endsAt: Date.now() + DRAW_ROUND_SECONDS * 1000,
+      roundSeconds: seconds,
+      endsAt: Date.now() + seconds * 1000,
       scores: scores,
       roster: room.players.map(p => p.id)
     };
@@ -910,12 +925,31 @@ const drawGuessAction = (room, playerId, action, payload) => {
     batch.forEach(st => {
       const room_left = DRAW_MAX_POINTS - points;
       if (room_left < 2) return;
+
+      const tool = DRAW_TOOLS.indexOf(String(st.t || 'f')) !== -1 ? String(st.t || 'f') : 'f';
       let pts = (st.p || []).map(n => Math.max(0, Math.min(255, Math.round(Number(n) || 0))));
-      // Truncate rather than reject, and keep pairs intact, so a long stroke
-      // still draws as far as the budget allows instead of overshooting it.
-      if (pts.length > room_left) pts = pts.slice(0, room_left - (room_left % 2));
-      if (pts.length < 2) return;
-      s.strokes.push({ c: String(st.c || '#111').slice(0, 8), w: Math.max(1, Math.min(24, Number(st.w) || 4)), p: pts });
+
+      const exact = DRAW_TOOL_POINTS[tool];
+      if (exact) {
+        // A shape is its two corners. Truncating one would draw nonsense, so a
+        // shape that does not fit the budget is dropped instead.
+        if (pts.length !== exact || room_left < exact) return;
+      } else {
+        // Freehand truncates rather than being rejected, keeping pairs intact,
+        // so a long stroke draws as far as the budget allows.
+        if (pts.length > room_left) pts = pts.slice(0, room_left - (room_left % 2));
+        if (pts.length < 2) return;
+      }
+
+      const stroke = {
+        c: String(st.c || '#111').slice(0, 8),
+        w: Math.max(1, Math.min(48, Number(st.w) || 4)),
+        p: pts
+      };
+      // Only carried when it means something, so freehand stays as compact as
+      // it was and rooms mid-round keep working.
+      if (tool !== 'f') stroke.t = tool;
+      s.strokes.push(stroke);
       points += pts.length;
     });
     return;
@@ -923,7 +957,18 @@ const drawGuessAction = (room, playerId, action, payload) => {
 
   if (action === 'clearCanvas') {
     if (playerId !== room.shared.drawerId) throw new Error('الرسام فقط');
+    if (room.shared.word) return;      // the round is over
     room.shared.strokes = [];
+    return;
+  }
+
+  if (action === 'undoStroke') {
+    const s = room.shared;
+    if (playerId !== s.drawerId) throw new Error('الرسام فقط');
+    if (s.word) return;
+    // One step per press. Viewers see the list shrink and repaint from scratch,
+    // which is already how a clear is handled.
+    if (s.strokes.length) s.strokes.pop();
     return;
   }
 

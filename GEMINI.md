@@ -214,6 +214,33 @@ Fibbage stops you voting for your own lie.
 A vote closes on its own once every eligible player has voted, or when the host
 presses `closeVote`.
 
+**Draw & Guess strokes carry a tool letter.** `t` is absent for freehand — which
+is what every stroke made before the tools existed is, so old rooms replay
+unchanged — and `l`/`r`/`o`/`b` for line, rectangle, ellipse and fill. Shapes
+store their two corners (4 numbers) and a fill stores one point, so they are far
+cheaper than the freehand strokes they replace: a hand-drawn circle is fifty
+points, the circle tool is four. The eraser is not a tool letter at all, just a
+freehand stroke in the paper colour, which replays with no special case.
+
+**The drawer must see exactly what the room sees.** That property is easy to
+lose and worth testing by rendering the shared list onto a blank canvas and
+diffing it against the drawer's own, pixel by pixel. Three separate things broke
+it while this was being built, all of the same shape — the drawer's canvas is
+built from live input, everyone else's from a replay:
+
+  * `Room.act` emits the new state to the renderer *before* it returns, so the
+    drawer's own batch came back and was painted a second time on top of itself;
+  * a poll landing mid-drag repainted underneath the stroke being drawn and
+    threw away the snapshot the shape rubber-band restores from, so the preview
+    stacked on itself and the edges went dark;
+  * freehand was drawn segment by segment live but as one joined polyline on
+    replay, which blends corners differently.
+
+The first is now handled by replaying the shared list after every send rather
+than trusting the canvas to already match, the second by refusing to repaint
+while `draw.drawing`, and the third by replaying freehand segment by segment
+too. A full replay costs well under a millisecond and happens twice a second.
+
 **Draw & Guess and the latency ceiling.** This is the one game the polling model
 is genuinely bad at, and it's built around that rather than pretending otherwise:
 the drawer paints locally and immediately, strokes are **batched** and sent about

@@ -2288,6 +2288,14 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
 .draw-wrap {
   width: 100%;
   aspect-ratio: 1;
+  /* Square, but never so tall that the toolbar drops off the screen — the
+     drawer needs the canvas and the tools at the same time, and you cannot
+     scroll while you are drawing. What is subtracted is the score row, the
+     word card and the three toolbar rows; the guess list below may scroll.
+     Measured on a 375x667 phone, which is the one this has to fit. */
+  max-height: calc(100dvh - 460px);
+  max-width: calc(100dvh - 460px);
+  margin-inline: auto;
   margin-bottom: var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -2304,16 +2312,78 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
   cursor: crosshair;
 }
 
-/* Every control in here is a single glyph, so give them an explicit floor
-   rather than letting the text decide how tappable they are. */
-.draw-tools .btn { min-width: 44px; min-height: 44px; }
+/* Three rows: what you draw with, what colour, how thick. Every control is a
+   single glyph, so they get an explicit floor rather than letting the text
+   decide how tappable they are. */
 .draw-tools {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--sp-2);
-  flex-wrap: wrap;
   margin-bottom: var(--sp-2);
 }
+.draw-tools__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+/* Twelve colours will not fit a phone in one row, and wrapping them costs a
+   whole row of height that the canvas needs more. They scroll instead. */
+.draw-tools__row--scroll {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 2px;
+  margin: -2px;
+}
+.draw-tools__row--scroll::-webkit-scrollbar { display: none; }
+.draw-tools .btn { min-width: 44px; min-height: 44px; }
+
+.draw-tool {
+  flex: none;
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out),
+              background-color var(--dur-2) var(--ease-out),
+              border-color var(--dur-2) var(--ease-out);
+}
+.draw-tool:active { transform: scale(0.92); }
+.draw-tool.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+}
+.draw-tool--act { color: var(--accent-ink); border-color: var(--accent-border); }
+.draw-tool--danger { color: var(--danger-ink); border-color: var(--danger); background: var(--danger-soft); }
+
+/* Thickness, shown as the dot it will draw. */
+.draw-width {
+  flex: none;
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.draw-width:active { transform: scale(0.92); }
+.draw-width.is-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.draw-width__dot { display: block; border-radius: 50%; background: var(--text-strong); }
+/* Pushes undo and clear away from the thickness buttons they share a row with. */
+.draw-tools__gap { width: var(--sp-3); }
 .draw-swatch {
   width: 44px; height: 44px;
   flex: none;
@@ -2323,6 +2393,8 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
   transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
 .draw-swatch.is-active { border-color: var(--text-strong); transform: scale(1.15); }
+/* White-on-white would be an invisible button. */
+.draw-swatch[aria-label="#ffffff"] { border-color: var(--border-strong); }
 
 .draw-guesses { display: flex; flex-direction: column; gap: 4px; margin-top: var(--sp-2); }
 .draw-guess {

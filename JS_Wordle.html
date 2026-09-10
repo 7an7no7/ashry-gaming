@@ -68,8 +68,6 @@ function startWordleGame(length) {
     appState.wordle.guesses = [];
     appState.wordle.status = "playing";
 
-    console.log("Target Word:", appState.wordle.targetWord); // For debugging
-
     renderWordleBoard();
     renderKeyboard();
     setView('play-wordle');
@@ -77,101 +75,84 @@ function startWordleGame(length) {
 
 function renderWordleBoard() {
     const container = document.getElementById('wordle-grid');
-    container.style.gridTemplateColumns = `repeat(${appState.wordle.wordLength}, 1fr)`;
-    container.innerHTML = '';
+    const len = appState.wordle.wordLength;
+    const cell = (cls, char) => `<div class="wordle-cell ${cls}">${char || ''}</div>`;
+    const rows = [];
 
-    // Render Previous Guesses
+    // Completed guesses
     appState.wordle.guesses.forEach(guess => {
         const result = checkGuess(guess);
-        for(let i=0; i<appState.wordle.wordLength; i++) {
-            const char = guess[i];
-            const status = result[i]; // 'correct', 'present', 'absent'
-            let bgClass = "bg-slate-500 border-slate-500";
-            if(status === 'correct') bgClass = "bg-green-600 border-green-600";
-            else if(status === 'present') bgClass = "bg-yellow-500 border-yellow-500";
-            
-            // Added 'wordle-cell' class
-            container.innerHTML += `
-                <div class="wordle-cell text-2xl font-bold text-white border-2 rounded-lg ${bgClass} animate-flip">
-                    ${char}
-                </div>`;
+        let cells = '';
+        for (let i = 0; i < len; i++) {
+            cells += cell('wordle-cell--' + result[i] + ' animate-flip', guess[i]);
         }
+        rows.push(cells);
     });
 
-    // Render Current Active Row
-    if(appState.wordle.status === 'playing') {
-        const remainingChars = appState.wordle.wordLength - appState.wordle.currentGuess.length;
-        
-        // Filled characters
-        for(let i=0; i<appState.wordle.currentGuess.length; i++) {
-            container.innerHTML += `
-                <div class="wordle-cell text-2xl font-bold text-slate-800 dark:text-white border-2 border-slate-400 dark:border-slate-500 rounded-lg animate-pop">
-                    ${appState.wordle.currentGuess[i]}
-                </div>`;
+    // The row being typed
+    if (appState.wordle.status === 'playing') {
+        let cells = '';
+        for (let i = 0; i < len; i++) {
+            const char = appState.wordle.currentGuess[i];
+            cells += char
+                ? cell('wordle-cell--filled animate-pop', char)
+                : cell('wordle-cell--empty');
         }
-        
-        // Empty slots (Using wordle-cell to force shape)
-        for(let i=0; i<remainingChars; i++) {
-            container.innerHTML += `
-                <div class="wordle-cell text-2xl font-bold border-2 border-slate-200 dark:border-slate-700 rounded-lg"></div>`;
-        }
+        rows.push(cells);
     }
 
-    // Render Empty Rows
-    const rowsLeft = appState.wordle.maxTries - appState.wordle.guesses.length - (appState.wordle.status === 'playing' ? 1 : 0);
-    for(let i=0; i < rowsLeft * appState.wordle.wordLength; i++) {
-         container.innerHTML += `
-            <div class="wordle-cell border-2 border-slate-100 dark:border-slate-800 rounded-lg"></div>`;
+    // Rows still to come
+    const rowsLeft = appState.wordle.maxTries - appState.wordle.guesses.length -
+                     (appState.wordle.status === 'playing' ? 1 : 0);
+    for (let r = 0; r < rowsLeft; r++) {
+        rows.push(cell('wordle-cell--empty').repeat(len));
     }
+
+    // Real rows rather than one long grid, so each row can size independently
+    // and the board stays square at any word length.
+    container.style.gridTemplateColumns = '';
+    // The stylesheet caps the board by height as well as width, and needs the
+    // shape to do it — an 8-letter board gets a seventh row.
+    container.style.setProperty('--wordle-cols', len);
+    container.style.setProperty('--wordle-rows', appState.wordle.maxTries);
+    container.innerHTML = rows.map(cells =>
+        `<div class="wordle-row" style="grid-template-columns: repeat(${len}, 1fr)">${cells}</div>`
+    ).join('');
 }
 
 function renderKeyboard() {
     const kbContainer = document.getElementById('wordle-keyboard');
-    kbContainer.innerHTML = '';
-    
-    // Define layouts
-    const layoutEn = [
-        "QWERTYUIOP",
-        "ASDFGHJKL",
-        "ZXCVBNM"
-    ];
-    
-    // CORRECTED ARABIC LAYOUT
-    const layoutAr = [
-        "ضصثقفغعهخحجد",
-        "شسيبلاتنمكط",
-        "ئءؤرذىةوزظ" 
-    ];
 
+    const layoutEn = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+    const layoutAr = ['ضصثقفغعهخحجد', 'شسيبلاتنمكط', 'ئءؤرذىةوزظ'];
     const layout = appState.lang === 'ar' ? layoutAr : layoutEn;
     const keyState = getKeyboardState();
 
-    layout.forEach((row, rowIndex) => {
-        const rowDiv = document.createElement('div');
-        rowDiv.className = "flex justify-center gap-1 mb-1 w-full";
-        
-        // Add Enter on last row
-        if(rowIndex === 2) {
-             rowDiv.innerHTML += `<button onclick="handleWordleKey('ENTER')" class="flex-1 h-12 rounded bg-slate-300 dark:bg-slate-600 font-bold text-xs">✅</button>`;
-        }
+    const keyClass = (char) => {
+        const status = keyState[char];
+        return status ? ' key--' + status : '';
+    };
 
-        row.split('').forEach(char => {
-            const status = keyState[char] || 'unused';
-            let bgClass = "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white";
-            if(status === 'correct') bgClass = "bg-green-600 text-white";
-            else if(status === 'present') bgClass = "bg-yellow-500 text-white";
-            else if(status === 'absent') bgClass = "bg-slate-800 dark:bg-slate-900 text-slate-500 opacity-50";
+    // Enter and Backspace get their own row: on the widest Arabic row (12 keys)
+    // squeezing them in alongside dropped every key well under a 44px target.
+    const rows = layout.map(row =>
+        `<div class="keypad__row">` +
+        row.split('').map(char =>
+            `<button class="key${keyClass(char)}" onclick="handleWordleKey('${char}')">${char}</button>`
+        ).join('') +
+        `</div>`
+    );
 
-            rowDiv.innerHTML += `<button onclick="handleWordleKey('${char}')" class="flex-1 h-12 rounded font-bold text-sm ${bgClass}">${char}</button>`;
-        });
+    const enterLabel = appState.lang === 'ar' ? 'تحقق' : 'Enter';
+    rows.push(
+        `<div class="keypad__row">` +
+        `<button class="key key--wide" onclick="handleWordleKey('BACK')" aria-label="Backspace">⌫</button>` +
+        `<button class="key key--wide" onclick="handleWordleKey('ENTER')">${enterLabel}</button>` +
+        `</div>`
+    );
 
-        // Add Backspace on last row
-        if(rowIndex === 2) {
-             rowDiv.innerHTML += `<button onclick="handleWordleKey('BACK')" class="flex-1 h-12 rounded bg-slate-300 dark:bg-slate-600 font-bold text-xs">⌫</button>`;
-        }
-        
-        kbContainer.appendChild(rowDiv);
-    });
+    kbContainer.className = 'keypad';
+    kbContainer.innerHTML = rows.join('');
 }
 
 function handleWordleKey(key) {
@@ -205,11 +186,13 @@ function submitWordleGuess() {
     // Check Win/Loss
     if(appState.wordle.currentGuess === appState.wordle.targetWord) {
         appState.wordle.status = "won";
+        appState.wordle.currentGuess = "";   // don't leave a half-row in state
         playSound('success');
         confetti({ particleCount: 200, spread: 100 });
         setTimeout(() => showWordleResult(true), 1000);
     } else if(appState.wordle.guesses.length >= appState.wordle.maxTries) {
         appState.wordle.status = "lost";
+        appState.wordle.currentGuess = "";
         playSound('alarm');
         setTimeout(() => showWordleResult(false), 1000);
     } else {
@@ -219,6 +202,7 @@ function submitWordleGuess() {
 
     renderWordleBoard();
     renderKeyboard();
+    saveToLocal();
 }
 
 function checkGuess(guess) {
@@ -272,8 +256,8 @@ function showWordleResult(win) {
         : (appState.lang === 'ar' ? "حظ أوفر!" : "Game Over!");
     
     const msg = appState.lang === 'ar' 
-        ? `الكلمة كانت: <br><b class="text-3xl text-blue-600">${appState.wordle.targetWord}</b>` 
-        : `The word was: <br><b class="text-3xl text-blue-600">${appState.wordle.targetWord}</b>`;
+        ? `الكلمة كانت: <br><b class="text-3xl tx-accent">${appState.wordle.targetWord}</b>` 
+        : `The word was: <br><b class="text-3xl tx-accent">${appState.wordle.targetWord}</b>`;
 
     document.getElementById('alert-title').innerText = title;
     document.getElementById('alert-msg').innerHTML = msg;

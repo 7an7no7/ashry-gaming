@@ -122,9 +122,13 @@ function setupDescribe() {
 
 function startDescribeGame(time) {
     appState.describe.score = 0;
-    // If time is passed (from Replay button), use it. Else use default logic.
-    if(time) appState.describe.timer = time; 
-    
+    // `timer` is the live countdown - onTick drives it to 0 - so the round
+    // length is remembered separately. "Play again" passed the ticked-out timer
+    // back in, which was 0, and the new round ended the instant it started.
+    const seconds = Number(time) || appState.describe.duration || 60;
+    appState.describe.duration = seconds;
+    appState.describe.timer = seconds;
+        
     appState.describe.history = []; // Reset used words
     
     // UI RESET: Show Game, Hide Result
@@ -137,18 +141,21 @@ function startDescribeGame(time) {
 }
 
 function startDescribeTimer() {
-    if(appState.describe.interval) clearInterval(appState.describe.interval);
+    if(appState.describe.interval) appState.describe.interval.stop();
     document.getElementById('desc-timer').innerText = appState.describe.timer;
-    
-    appState.describe.interval = setInterval(() => {
-        appState.describe.timer--;
-        document.getElementById('desc-timer').innerText = appState.describe.timer;
-        
-        if(appState.describe.timer <= 0) {
-            clearInterval(appState.describe.interval);
+
+    appState.describe.interval = createClock({
+        seconds: appState.describe.timer,
+        onTick: (left) => {
+            appState.describe.timer = left;
+            const el = document.getElementById('desc-timer');
+            if (el) el.innerText = left;
+        },
+        onEnd: () => {
+            appState.describe.interval = null;
             finishDescribeGame();
         }
-    }, 1000);
+    });
 }
 
 function nextDescribeCard() {
@@ -178,7 +185,7 @@ function renderDescribeCard() {
     
     card.forbidden.forEach(word => {
         forbiddenList.innerHTML += `
-            <div class="text-red-500 font-bold bg-red-50 dark:bg-red-900/20 py-2 rounded-lg border border-red-100 dark:border-red-800">
+            <div class="plate-danger font-bold py-2 rounded-lg">
                 ${word}
             </div>
         `;
@@ -204,7 +211,8 @@ function descAction(action) {
 
 function finishDescribeGame() {
     // 1. Stop Timer
-    if (appState.describe.interval) clearInterval(appState.describe.interval);
+    if (appState.describe.interval) appState.describe.interval.stop();
+    appState.describe.interval = null;
     
     playSound('alarm');
     confetti({ particleCount: 200, spread: 100 });
@@ -221,14 +229,34 @@ function finishDescribeGame() {
 
 function setDiceCount(n) {
     appState.dice.count = n;
-    
-    // Update Buttons UI
-    document.getElementById('btn-d1').className = n === 1 ? "flex-1 py-3 rounded-lg font-bold bg-indigo-600 text-white shadow-md transition-all" : "flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
-    document.getElementById('btn-d2').className = n === 2 ? "flex-1 py-3 rounded-lg font-bold bg-indigo-600 text-white shadow-md transition-all" : "flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
-    
-    // Reset Display
-    document.getElementById('dice-container').innerHTML = '<div class="text-6xl opacity-20">🎲</div>';
-    document.getElementById('dice-result').innerText = '---';
+    [1, 2].forEach(i => {
+        const btn = document.getElementById('btn-d' + i);
+        if (btn) {
+            btn.classList.toggle('is-active', i === n);
+            btn.setAttribute('aria-pressed', String(i === n));
+        }
+    });
+
+    // Changing the dice count invalidates whatever was last rolled.
+    const container = document.getElementById('dice-container');
+    if (container) container.innerHTML = '<div class="dice-placeholder" aria-hidden="true">🎲</div>';
+    const result = document.getElementById('dice-result');
+    if (result) result.innerText = '---';
+}
+
+/** Dice / coin tab switch, previously inline DOM juggling in the markup. */
+function setDiceTab(which) {
+    const isDice = (which === 'dice');
+    const pane = (id, on) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden', !on);
+    };
+    pane('tab-dice', isDice);
+    pane('tab-coin', !isDice);
+    const bd = document.getElementById('tab-btn-dice');
+    const bc = document.getElementById('tab-btn-coin');
+    if (bd) bd.classList.toggle('is-active', isDice);
+    if (bc) bc.classList.toggle('is-active', !isDice);
 }
 
 function rollDice() {
@@ -247,7 +275,7 @@ function rollDice() {
         // Changed animate-shake to animate-roll, and put a dice emoji while it spins!
         container.innerHTML += `
             <div class="w-24 h-24 bg-white border-4 border-slate-800 rounded-2xl flex items-center justify-center shadow-xl animate-roll">
-                <span style="color: black !important; font-size: 3rem; font-weight: 900;">🎲</span>
+                <span class="dice-face dice-face--emoji">🎲</span>
             </div>`;
     }
 
@@ -263,7 +291,7 @@ function rollDice() {
             // Render final dice with "Pop" animation
             container.innerHTML += `
                 <div class="w-24 h-24 bg-white border-4 border-slate-800 rounded-2xl flex items-center justify-center shadow-xl animate-pop">
-                    <span style="color: black !important; font-size: 4rem; font-weight: 900;">${num}</span>
+                    <span class="dice-face">${num}</span>
                 </div>`;
         }
         

@@ -1,0 +1,196 @@
+<script>
+/* ============================================================================
+   أسماء الرموز — CODENAMES
+   ----------------------------------------------------------------------------
+   Two teams, a 5×5 board everyone can see, and a key card only the two
+   spymasters get. That split is the entire game, which is why this one is
+   multiplayer-only: on a single phone there is nowhere to hide the key.
+
+   Every rule is enforced in RoomGames.js. This file only draws what the server
+   says the current player is allowed to see.
+   ========================================================================= */
+
+let codenamesLang = 'ar';
+
+function setCodenamesLang(lang) {
+  codenamesLang = lang === 'en' ? 'en' : 'ar';
+  document.querySelectorAll('#codenames-lang .segmented__item').forEach(b => {
+    b.classList.toggle('is-active', b.dataset.cnLang === codenamesLang);
+  });
+}
+
+const CN_TEAM_LABEL = {
+  ar: { red: 'الأحمر', blue: 'الأزرق' },
+  en: { red: 'Red', blue: 'Blue' }
+};
+
+ROOM_GAMES.codenames = {
+  /** Everyone picks their own side and role — not just the host. */
+  lobbyOptions(state) {
+    const mine = (state.shared.teams || {})[Room.me] || {};
+    const L = CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar;
+    const t = TRANSLATIONS[appState.lang];
+
+    const roster = (team) => state.players
+      .filter(p => (state.shared.teams || {})[p.id] && state.shared.teams[p.id].team === team)
+      .map(p => {
+        const r = state.shared.teams[p.id];
+        return `<span class="chip chip--plain"><span class="chip__label">${
+          r.role === 'spymaster' ? '🕵️ ' : ''}${escapeHTML(p.name)}</span></span>`;
+      }).join('');
+
+    const btn = (team, role, label) => `
+      <button class="btn ${mine.team === team && mine.role === role ? 'btn--primary' : 'btn--ghost'} btn--sm"
+              onclick="roomAct('setTeam', { team: '${team}', role: '${role}' })">${label}</button>`;
+
+    return `
+      <div class="card card--tight">
+        <div class="cn-team cn-team--red">
+          <div class="cn-team__head"><span class="cn-dot cn-dot--red"></span>${L.red}</div>
+          <div class="chip-set">${roster('red') || `<span class="tool-desc">${t.cn_empty || 'لا أحد بعد'}</span>`}</div>
+          <div class="btn-row" style="margin-top: var(--sp-2)">
+            ${btn('red', 'spymaster', t.cn_spymaster || 'قائد')}
+            ${btn('red', 'operative', t.cn_operative || 'لاعب')}
+          </div>
+        </div>
+
+        <div class="cn-team cn-team--blue" style="margin-top: var(--sp-3)">
+          <div class="cn-team__head"><span class="cn-dot cn-dot--blue"></span>${L.blue}</div>
+          <div class="chip-set">${roster('blue') || `<span class="tool-desc">${t.cn_empty || 'لا أحد بعد'}</span>`}</div>
+          <div class="btn-row" style="margin-top: var(--sp-2)">
+            ${btn('blue', 'spymaster', t.cn_spymaster || 'قائد')}
+            ${btn('blue', 'operative', t.cn_operative || 'لاعب')}
+          </div>
+        </div>
+
+        <p class="field__hint">${t.cn_lobby_hint || 'كل فريق يحتاج قائداً واحداً ولاعباً واحداً على الأقل.'}</p>
+      </div>`;
+  },
+
+  startPayload() { return { lang: codenamesLang }; },
+
+  /**
+   * A spymaster composing a clue, and operatives holding the current turn, are
+   * the people being waited on. Everyone else is watching the board change.
+   */
+  pollHint(state) {
+    const s = state.shared;
+    if (s.winner) return 'idle';
+    const mine = (s.teams || {})[Room.me] || {};
+    const myTurn = mine.team === s.turn;
+    if (!myTurn) return 'watching';
+    if (mine.role === 'spymaster' && !s.clue) return 'acting';   // typing a clue
+    if (mine.role === 'operative' && s.clue) return 'acting';    // about to tap
+    return 'watching';
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-codenames') setView('room-codenames');
+    const el = document.getElementById('view-room-codenames');
+    if (!el) return;
+
+    const t = TRANSLATIONS[appState.lang];
+    const L = CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar;
+    const s = state.shared;
+    const mine = (s.teams || {})[Room.me] || {};
+    const isSpymaster = mine.role === 'spymaster';
+    const key = state.you && state.you.key;      // spymasters only
+    const myTurn = mine.team === s.turn && !s.winner;
+
+    /* --- board ---------------------------------------------------------- */
+    const board = (s.board || []).map((cell, i) => {
+      const colour = cell.revealed ? cell.colour : (isSpymaster && key ? key[i] : null);
+      const classes = ['cn-card'];
+      if (cell.revealed) classes.push('cn-card--revealed', 'cn-card--' + cell.colour);
+      else if (colour) classes.push('cn-card--peek', 'cn-peek--' + colour);
+
+      const clickable = !cell.revealed && !s.winner && myTurn && mine.role === 'operative' && s.clue;
+      return `<button class="${classes.join(' ')}" ${clickable ? '' : 'disabled'}
+                      onclick="roomAct('guess', { index: ${i} })">
+                <span class="cn-card__word">${escapeHTML(cell.word)}</span>
+              </button>`;
+    }).join('');
+
+    /* --- status banner --------------------------------------------------- */
+    let banner;
+    if (s.winner) {
+      const reason = s.endReason === 'assassin'
+        ? (t.cn_assassin_hit || 'انكشف القاتل!')
+        : (t.cn_cleared || 'كل الكلمات ظهرت');
+      banner = `<div class="cn-banner cn-banner--${s.winner}">
+                  <div class="cn-banner__title">🏆 ${t.cn_wins || 'فاز الفريق'} ${L[s.winner]}</div>
+                  <div class="cn-banner__sub">${reason}</div>
+                </div>`;
+    } else if (s.clue) {
+      banner = `<div class="cn-banner cn-banner--${s.turn}">
+                  <div class="cn-banner__title">${escapeHTML(s.clue.word)} · ${s.clue.count}</div>
+                  <div class="cn-banner__sub">${t.cn_guesses_left || 'محاولات متبقية'}: ${s.guessesLeft}</div>
+                </div>`;
+    } else {
+      banner = `<div class="cn-banner cn-banner--${s.turn}">
+                  <div class="cn-banner__title">${t.cn_turn || 'دور الفريق'} ${L[s.turn]}</div>
+                  <div class="cn-banner__sub">${t.cn_await_clue || 'في انتظار تلميح القائد'}</div>
+                </div>`;
+    }
+
+    /* --- controls -------------------------------------------------------- */
+    let controls = '';
+    if (s.winner) {
+      controls = state.youAreHost
+        ? `<div class="btn-stack">
+             <button onclick="roomAct('restart')" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>
+             <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
+           </div>`
+        : `<div class="waiting-note">${t.room_wait_host}</div>`;
+    } else if (isSpymaster && myTurn && !s.clue) {
+      controls = `
+        <div class="card card--tight">
+          <label class="field__label">${t.cn_your_clue || 'تلميحك'}</label>
+          <div class="input-group">
+            <input type="text" id="cn-clue-word" autocomplete="off" placeholder="${t.cn_clue_ph || 'كلمة واحدة'}">
+            <input type="number" id="cn-clue-count" value="1" min="0" max="9" style="width:72px; flex:none">
+          </div>
+          <button onclick="submitCodenamesClue()" class="btn btn--primary">${t.cn_give_clue || 'أعط التلميح'}</button>
+        </div>`;
+    } else if (isSpymaster && myTurn && s.clue) {
+      controls = `<div class="waiting-note">${t.cn_team_guessing || 'فريقك يخمّن الآن…'}</div>`;
+    } else if (mine.role === 'operative' && myTurn && s.clue) {
+      controls = `<button onclick="roomAct('endTurn')" class="btn btn--ghost">${t.cn_end_turn || 'إنهاء الدور'}</button>`;
+    } else if (!myTurn) {
+      controls = `<div class="waiting-note">${t.cn_other_turn || 'دور الفريق الآخر'}</div>`;
+    }
+
+    // The spymaster types a clue into this frame, so it may only be rebuilt
+    // when the board itself changed - not when a phone locks and its dot dims.
+    const sig = [
+      s.turn, s.winner || '', s.guessesLeft,
+      s.clue ? s.clue.word + ':' + s.clue.count : '',
+      (s.board || []).map(c => (c.revealed ? c.colour[0] : '.')).join(''),
+      mine.team + mine.role, isSpymaster && key ? '1' : '0'
+    ].join('|');
+
+    renderRoomFrame(el, sig, () => `
+      <div class="cn-score">
+        <span class="cn-score__side cn-score__side--red ${s.turn === 'red' ? 'is-turn' : ''}">
+          <span class="cn-dot cn-dot--red"></span>${s.remaining ? s.remaining.red : 0}
+        </span>
+        <span class="cn-score__role">${isSpymaster ? '🕵️ ' + (t.cn_spymaster || 'قائد') : (t.cn_operative || 'لاعب')}</span>
+        <span class="cn-score__side cn-score__side--blue ${s.turn === 'blue' ? 'is-turn' : ''}">
+          ${s.remaining ? s.remaining.blue : 0}<span class="cn-dot cn-dot--blue"></span>
+        </span>
+      </div>
+      ${banner}
+      <div class="cn-board">${board}</div>
+      ${controls}
+      ${renderRoomPlayerStrip(state)}`);
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+async function submitCodenamesClue() {
+  const word = (document.getElementById('cn-clue-word').value || '').trim();
+  const count = Number(document.getElementById('cn-clue-count').value) || 0;
+  if (!word) return showToast(TRANSLATIONS[appState.lang].cn_clue_needed || 'اكتب التلميح', 'error');
+  await roomAct('giveClue', { word: word, count: count });
+}
+</script>

@@ -1,0 +1,326 @@
+<script>
+/* ============================================================================
+   رسم وتخمين — DRAW & GUESS
+   ----------------------------------------------------------------------------
+   The honest constraint: with no push channel the drawing cannot stream. The
+   drawer's strokes are batched and sent about twice a second, so viewers watch
+   it arrive in chunks rather than as a moving line.
+
+   The design leans into that instead of fighting it:
+     - the drawer's own canvas is always instant, because it paints locally and
+       only *then* sends,
+     - viewers re-paint from the full stroke list, so a dropped batch repairs
+       itself on the next poll rather than leaving a gap,
+     - the round is won by the first correct guess, not by watching the line.
+
+   Coordinates are quantised to a 0–255 grid before sending, which keeps a whole
+   drawing small enough to live in the room's cache entry.
+   ========================================================================= */
+
+const DRAW_GRID = 255;
+const DRAW_FLUSH_MS = 550;      // how often a batch of strokes is sent
+const DRAW_COLOURS = ['#111827', '#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed'];
+
+const draw = {
+  canvas: null, ctx: null,
+  drawing: false,
+  current: null,        // stroke being drawn right now
+  pending: [],          // finished strokes not yet sent
+  painted: 0,           // how many server strokes we've already drawn
+  colour: DRAW_COLOURS[0],
+  width: 4,
+  flushTimer: null,
+  clock: null,
+  clockEndsAt: null    // deadline the live clock belongs to
+};
+
+ROOM_GAMES.drawguess = {
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    const t = TRANSLATIONS[appState.lang];
+    return `<p class="field__hint" style="text-align:center">${t.draw_hint || ''}</p>`;
+  },
+  startPayload: () => ({ lang: appState.lang === 'en' ? 'en' : 'ar' }),
+
+  pollHint(state) {
+    // The drawer is the one being waited on; guessers are watching the picture
+    // appear and want it as fast as it can come.
+    return state.shared.drawerId === Room.me ? 'acting' : 'watching';
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-drawguess') {
+      resetDrawSurface();
+      setView('room-drawguess');
+    }
+    const el = document.getElementById('view-room-drawguess');
+    if (!el) return;
+
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const amDrawer = s.drawerId === Room.me;
+    const over = !!s.word;   // published only when the round ends
+
+    // Rebuild the frame only when the phase changes; otherwise just repaint,
+    // so an in-progress stroke isn't wiped by a poll.
+    const sig = [s.round, amDrawer, over, s.winnerId || ''].join('|');
+    if (el.dataset.sig !== sig) {
+      el.dataset.sig = sig;
+      el.innerHTML = drawFrame(state, amDrawer, over, t);
+      bindDrawSurface(amDrawer && !over);
+      draw.painted = 0;
+    }
+
+    paintStrokes(s.strokes || []);
+    paintGuessList(s.guesses || []);
+    refreshRoomPlayerStrip(el, state);
+    if (!over) startDrawClock(s.endsAt);
+    else stopDrawClock();
+
+    if (over) {
+      const board = document.getElementById('draw-board');
+      if (board) board.innerHTML = renderScoreboard(s.board);
+    }
+  }
+};
+
+function drawFrame(state, amDrawer, over, t) {
+  const s = state.shared;
+
+  const header = over
+    ? `<div class="card card--accent" style="text-align:center">
+         <div class="eyebrow">${s.winnerId ? (t.draw_guessed_by || 'خمّنها') : (t.draw_nobody || 'محدش عرفها')}</div>
+         <div class="metric metric--md metric--accent">${escapeHTML(s.word || '')}</div>
+       </div>`
+    : `<div class="cn-score">
+         <span class="cn-score__role">${amDrawer
+            ? '✏️ ' + (t.draw_you_draw || 'أنت الرسام')
+            : (t.draw_drawer || 'الرسام') + ': ' + escapeHTML(s.drawerName || '')}</span>
+         <span id="draw-timer" class="badge badge--accent">--</span>
+       </div>
+       ${amDrawer
+          ? `<div class="card card--accent" style="text-align:center; margin-bottom: var(--sp-2)">
+               <div class="eyebrow">${t.draw_your_word || 'ارسم هذه الكلمة'}</div>
+               <div class="metric metric--md metric--accent">${escapeHTML((state.you && state.you.word) || '')}</div>
+             </div>`
+          : ''}`;
+
+  const tools = (amDrawer && !over) ? `
+      <div class="draw-tools">
+        ${DRAW_COLOURS.map(c => `
+          <button class="draw-swatch ${c === draw.colour ? 'is-active' : ''}"
+                  style="background:${c}" aria-label="${c}"
+                  onclick="setDrawColour('${c}')"></button>`).join('')}
+        <button class="btn btn--ghost btn--xs btn--auto" onclick="setDrawWidth(4)">•</button>
+        <button class="btn btn--ghost btn--xs btn--auto" onclick="setDrawWidth(12)">⬤</button>
+        <button class="btn btn--ghost btn--xs btn--auto" onclick="clearDrawCanvas()">🗑️</button>
+      </div>` : '';
+
+  const guessBox = (!amDrawer && !over) ? `
+      <div class="input-group" style="margin-top: var(--sp-3)">
+        <input type="text" id="draw-guess" autocomplete="off" maxlength="40"
+               placeholder="${t.draw_guess_ph || 'اكتب تخمينك'}"
+               onkeydown="if(event.key==='Enter') submitDrawGuess()">
+        <button onclick="submitDrawGuess()" class="btn btn--primary">${t.send || 'إرسال'}</button>
+      </div>` : '';
+
+  const footer = over
+    ? (state.youAreHost
+        ? `<div class="btn-stack" style="margin-top: var(--sp-3)">
+             <button onclick="roomAct('nextRound', { lang: '${appState.lang === 'en' ? 'en' : 'ar'}' })" class="btn btn--primary btn--lg">${t.draw_next || 'جولة جديدة'}</button>
+             <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
+           </div>`
+        : `<div class="waiting-note">${t.room_wait_host}</div>`)
+    : ((amDrawer || state.youAreHost)
+        // The server lets the drawer reveal too, and they are the one who knows
+        // it is hopeless. This used to need host AND drawer, so when the host
+        // was not drawing nobody could end the round early.
+        ? `<button onclick="roomAct('giveUp')" class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)">${t.draw_reveal || 'كشف الكلمة'}</button>`
+        : '');
+
+  return `${header}
+    <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>
+    ${tools}
+    ${guessBox}
+    <div id="draw-guesses" class="draw-guesses"></div>
+    <div id="draw-board"></div>
+    ${footer}
+    ${renderRoomPlayerStrip(state)}`;
+}
+
+/* --- painting ------------------------------------------------------------ */
+
+function paintStrokes(strokes) {
+  const c = draw.canvas, ctx = draw.ctx;
+  if (!c || !ctx) return;
+
+  // A shrinking list means the drawer cleared: start the canvas again.
+  if (strokes.length < draw.painted) { clearSurface(); draw.painted = 0; }
+  if (strokes.length === draw.painted) return;
+
+  for (let i = draw.painted; i < strokes.length; i++) drawStroke(ctx, strokes[i], c.width);
+  draw.painted = strokes.length;
+}
+
+function drawStroke(ctx, st, size) {
+  const pts = st.p || [];
+  if (pts.length < 2) return;
+  ctx.strokeStyle = st.c || '#111';
+  ctx.lineWidth = (st.w || 4) * (size / DRAW_GRID);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pts[0] / DRAW_GRID * size, pts[1] / DRAW_GRID * size);
+  for (let i = 2; i < pts.length; i += 2) {
+    ctx.lineTo(pts[i] / DRAW_GRID * size, pts[i + 1] / DRAW_GRID * size);
+  }
+  ctx.stroke();
+}
+
+function clearSurface() {
+  if (!draw.ctx || !draw.canvas) return;
+  draw.ctx.fillStyle = '#ffffff';
+  draw.ctx.fillRect(0, 0, draw.canvas.width, draw.canvas.height);
+}
+
+/* --- input --------------------------------------------------------------- */
+
+function bindDrawSurface(canDraw) {
+  draw.canvas = document.getElementById('draw-canvas');
+  if (!draw.canvas) return;
+  draw.ctx = draw.canvas.getContext('2d');
+  clearSurface();
+  draw.painted = 0;
+  if (!canDraw) return;
+
+  const pos = (e) => {
+    const r = draw.canvas.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * DRAW_GRID;
+    const y = ((e.clientY - r.top) / r.height) * DRAW_GRID;
+    return [Math.max(0, Math.min(DRAW_GRID, Math.round(x))),
+            Math.max(0, Math.min(DRAW_GRID, Math.round(y)))];
+  };
+
+  draw.canvas.onpointerdown = (e) => {
+    e.preventDefault();
+    draw.canvas.setPointerCapture(e.pointerId);
+    draw.drawing = true;
+    draw.current = { c: draw.colour, w: draw.width, p: pos(e) };
+  };
+
+  draw.canvas.onpointermove = (e) => {
+    if (!draw.drawing || !draw.current) return;
+    e.preventDefault();
+    const [x, y] = pos(e);
+    const p = draw.current.p;
+    // Skip points that add nothing — keeps the payload small.
+    if (Math.abs(p[p.length - 2] - x) < 2 && Math.abs(p[p.length - 1] - y) < 2) return;
+    p.push(x, y);
+    // Paint locally at once: the drawer never waits on the network.
+    drawStroke(draw.ctx, { c: draw.current.c, w: draw.current.w, p: p.slice(-4) }, draw.canvas.width);
+  };
+
+  const finish = () => {
+    if (!draw.drawing) return;
+    draw.drawing = false;
+    if (draw.current && draw.current.p.length >= 2) draw.pending.push(draw.current);
+    draw.current = null;
+    scheduleFlush();
+  };
+  draw.canvas.onpointerup = finish;
+  draw.canvas.onpointercancel = finish;
+  draw.canvas.onpointerleave = finish;
+}
+
+/** Batches strokes instead of sending each one — one request per ~0.5s. */
+function scheduleFlush() {
+  if (draw.flushTimer) return;
+  draw.flushTimer = setTimeout(async () => {
+    draw.flushTimer = null;
+    if (!draw.pending.length) return;
+    const batch = draw.pending.splice(0, draw.pending.length);
+    try {
+      const state = await Room.act('addStrokes', { strokes: batch });
+      // Adopt the server's count. Adding batch.length overshot - act() already
+      // re-rendered with the new strokes, so painted was current - and the next
+      // repaint then saw fewer strokes than painted and cleared the canvas.
+      // The server may also truncate a batch to stay inside the point budget.
+      const strokes = state && state.shared && state.shared.strokes;
+      if (strokes) draw.painted = strokes.length;
+    } catch (e) {
+      showToast(e.message || 'تعذر إرسال الرسمة', 'error');
+    }
+  }, DRAW_FLUSH_MS);
+}
+
+function setDrawColour(c) {
+  draw.colour = c;
+  document.querySelectorAll('.draw-swatch').forEach(b =>
+    b.classList.toggle('is-active', b.style.background === c || b.getAttribute('aria-label') === c));
+}
+function setDrawWidth(w) { draw.width = w; }
+
+async function clearDrawCanvas() {
+  clearSurface();
+  draw.pending = [];
+  draw.painted = 0;
+  await roomAct('clearCanvas');
+}
+
+async function submitDrawGuess() {
+  const input = document.getElementById('draw-guess');
+  const guess = (input.value || '').trim();
+  if (!guess) return;
+  input.value = '';
+  await roomAct('guess', { guess: guess });
+}
+
+function paintGuessList(guesses) {
+  const el = document.getElementById('draw-guesses');
+  if (!el) return;
+  const html = guesses.slice(-6).reverse().map(g => `
+      <div class="draw-guess ${g.right ? 'is-right' : ''}">
+        <span class="draw-guess__who">${escapeHTML(g.name)}</span>
+        <span>${escapeHTML(g.text)}</span>
+        ${g.right ? '<span aria-hidden="true">✅</span>' : ''}
+      </div>`).join('');
+  if (el.dataset.sig !== html) { el.innerHTML = html; el.dataset.sig = html; }
+}
+
+/* --- round clock, anchored to the shared deadline ------------------------ */
+function startDrawClock(endsAt) {
+  if (!endsAt) return;
+  // Keyed on the deadline, not on "is a clock running": a new round brings a new
+  // deadline, and the old guard kept round one's expired clock on screen.
+  if (draw.clockEndsAt === endsAt) return;
+  stopDrawClock();
+  draw.clockEndsAt = endsAt;
+  const paint = () => {
+    const el = document.getElementById('draw-timer');
+    if (!el) return;
+    const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    el.innerText = left + 's';
+  };
+  paint();
+  draw.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: paint,
+    onEnd: () => { draw.clock = null; if (Room.isHost) roomAct('giveUp'); }
+  });
+}
+
+function stopDrawClock() {
+  if (draw.clock) { draw.clock.stop(); draw.clock = null; }
+  draw.clockEndsAt = null;
+}
+
+function resetDrawSurface() {
+  stopDrawClock();
+  clearTimeout(draw.flushTimer);
+  draw.flushTimer = null;
+  draw.pending = [];
+  draw.current = null;
+  draw.drawing = false;
+  draw.painted = 0;
+}
+</script>

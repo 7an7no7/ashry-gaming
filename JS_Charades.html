@@ -155,17 +155,19 @@ function startCharades(time) {
     nextCharadesCard();
     
     document.getElementById('charades-timer').innerText = appState.charades.timer;
-    if (appState.charades.interval) clearInterval(appState.charades.interval);
-    
-    let timeLeft = appState.charades.timer;
-    appState.charades.interval = setInterval(() => {
-        timeLeft--;
-        const timerEl = document.getElementById('charades-timer');
-        if(timerEl) timerEl.innerText = timeLeft;
-        if (timeLeft <= 0) {
+    if (appState.charades.interval) appState.charades.interval.stop();
+
+    appState.charades.interval = createClock({
+        seconds: appState.charades.timer,
+        onTick: (left) => {
+            const timerEl = document.getElementById('charades-timer');
+            if (timerEl) timerEl.innerText = left;
+        },
+        onEnd: () => {
+            appState.charades.interval = null;
             finishCharadesGame();
         }
-    }, 1000);
+    });
 }
 
 function startCharadesGame(time) {
@@ -202,7 +204,8 @@ function nextCharadesCard(action) {
 }
 
 function finishCharadesGame() {
-    if (appState.charades.interval) clearInterval(appState.charades.interval);
+    if (appState.charades.interval) appState.charades.interval.stop();
+    appState.charades.interval = null;
     
     playSound('alarm');
     confetti({ particleCount: 200, spread: 100 });

@@ -1,165 +1,173 @@
 <script>
   /* --- UI HELPERS --- */
 
-  function renderActiveChips(containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
+/* ==========================================================================
+   PLAYER PICKER
+   --------------------------------------------------------------------------
+   Every setup screen shows the names this phone knows, as chips. Tap one to
+   put that person in the round, tap again to take them out. Typing is only
+   for someone new.
 
-    // 1. Loading State
-    if (typeof dataLoaded !== 'undefined' && !dataLoaded) {
-        const loadingText = appState.lang === 'ar' ? 'جاري التحميل...' : 'Loading...';
-        container.innerHTML = `<div class="text-center text-slate-400 py-6 font-bold animate-pulse">⏳ ${loadingText}</div>`;
-        return;
-    }
-    
-    // Ensure activePlayers exists
-    if (!appState.activePlayers) appState.activePlayers = [];
+   The list is local to the device (see PLAYER_LIBRARY_KEY in JS_Core.html) —
+   it used to be a shared column in the spreadsheet, which meant one group's
+   names showed up for every other group.
+   ========================================================================== */
 
-    // 2. Render horizontal chips
-    let htmlString = '<div class="flex flex-wrap gap-2 mb-4">';
-    
-    if (appState.activePlayers.length === 0) {
-        const emptyText = appState.lang === 'ar' ? 'لم يتم اختيار لاعبين بعد' : 'No players selected yet';
-        htmlString += `<div class="text-slate-400 text-sm font-bold w-full text-center py-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">${emptyText}</div>`;
-    } else {
-        htmlString += appState.activePlayers.map(p => `
-            <div class="bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 border border-indigo-200 dark:border-indigo-800 animate-pop">
-                <span>${escapeHTML(p)}</span>
-                <button onclick="removeActivePlayer('${escapeHTML(p)}', '${containerId}')" class="text-red-500 hover:text-red-700 font-bold ml-1 transition-colors">×</button>
-            </div>
-        `).join('');
+let pickerEditMode = false;
+
+/**
+ * The order chips are drawn in, held still between renders.
+ *
+ * Whoever is playing is floated to the top — with thirty saved names you should
+ * not have to hunt for the four people in the round. But it is only recomputed
+ * when you arrive at a screen or add someone, never while you are tapping:
+ * chips that reshuffle under your finger are worse than chips in a stale order.
+ */
+let pickerOrder = [];
+
+function resortPicker() { pickerOrder = []; }
+
+function renderActiveChips(containerId, resort) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  if (!appState.activePlayers) appState.activePlayers = [];
+  const t = TRANSLATIONS[appState.lang];
+  const active = appState.activePlayers;
+  const isOn = (name) => active.some(p => samePlayer(p, name));
+
+  // Anyone loaded from a saved group who is not in the library still belongs on
+  // screen, or they would be in the round with no way to see or remove them.
+  const pool = allPlayers.slice();
+  active.forEach(p => { if (!pool.some(k => samePlayer(k, p))) pool.push(p); });
+
+  if (resort || !pickerOrder.length) {
+    pickerOrder = pool.slice().sort((a, b) => (isOn(b) ? 1 : 0) - (isOn(a) ? 1 : 0));
+  } else {
+    // Keep the order we had, minus anyone deleted, plus anyone new.
+    pickerOrder = pickerOrder.filter(n => pool.some(p => samePlayer(p, n)));
+    pool.forEach(p => { if (!pickerOrder.some(n => samePlayer(n, p))) pickerOrder.push(p); });
+  }
+  const known = pickerOrder;
+
+  const head = `
+    <div class="picker__head">
+      <span class="eyebrow">${escapeHTML(t.picker_saved || '')}</span>
+      ${known.length ? `<button type="button" class="picker__edit ${pickerEditMode ? 'is-on' : ''}"
+              onclick="togglePickerEdit('${jsStringAttr(containerId)}')">
+          ${escapeHTML(pickerEditMode ? (t.done || 'تم') : (t.edit || 'تعديل'))}
+        </button>` : ''}
+    </div>`;
+
+  if (!known.length) {
+    container.innerHTML = head + `
+      <div class="picker__empty">${escapeHTML(t.picker_empty || '')}</div>`;
+    return;
+  }
+
+  const chips = known.map(name => {
+    const on = isOn(name);
+    if (pickerEditMode) {
+      return `<button type="button" class="pick-chip pick-chip--del"
+                onclick="deletePlayerFromLibrary('${jsStringAttr(name)}', '${jsStringAttr(containerId)}')">
+                <span aria-hidden="true">✕</span>
+                <span class="pick-chip__name">${escapeHTML(name)}</span>
+              </button>`;
     }
-    
-    htmlString += '</div>';
-    container.innerHTML = htmlString;
+    return `<button type="button" class="pick-chip ${on ? 'is-on' : ''}" aria-pressed="${on}"
+              onclick="togglePlayerInRound('${jsStringAttr(name)}', '${jsStringAttr(containerId)}')">
+              ${on ? '<span class="pick-chip__tick" aria-hidden="true">✓</span>' : ''}
+              <span class="pick-chip__name">${escapeHTML(name)}</span>
+            </button>`;
+  }).join('');
+
+  const count = active.length
+    ? `${escapeHTML(t.picker_in_round || '')} <b>${active.length}</b>`
+    : escapeHTML(t.picker_none || '');
+
+  container.innerHTML = head +
+    `<div class="picker__chips"><div class="chip-set">${chips}</div></div>` +
+    (pickerEditMode ? '' : `<div class="picker__count">${count}</div>`);
+
+  // The fade only belongs there when something is actually cut off.
+  const box = container.querySelector('.picker__chips');
+  if (box) box.classList.toggle('is-scrollable', box.scrollHeight > box.clientHeight + 1);
+}
+
+/** Put someone in this round, or take them out. */
+function togglePlayerInRound(name, containerId) {
+  if (!appState.activePlayers) appState.activePlayers = [];
+  const wasOn = appState.activePlayers.some(p => samePlayer(p, name));
+
+  appState.activePlayers = wasOn
+    ? appState.activePlayers.filter(p => !samePlayer(p, name))
+    : appState.activePlayers.concat([name]);
+
+  // Hand-picking someone means you are no longer playing "that saved group".
+  appState.currentGroup = '';
+  saveToLocal();
+  renderSavedGroups();
+  renderActiveChips(containerId);
+  playSound('click');
+  haptic('light');
+}
+
+function togglePickerEdit(containerId) {
+  pickerEditMode = !pickerEditMode;
+  renderActiveChips(containerId);
+  playSound('click');
+}
+
+/** Forget a name on this phone. Saved groups keep theirs. */
+function deletePlayerFromLibrary(name, containerId) {
+  removeFromPlayerLibrary(name);
+  renderActiveChips(containerId);
+  playSound('tick');
+  haptic('light');
+}
+
+/**
+ * The "+" next to the name box. Adds to the library and to this round in one
+ * step — nobody types a name they don't want to play with.
+ */
+function addPlayerFromSetup(btn) {
+  const parent = btn.parentElement;
+  const input = parent.querySelector('input');
+  const typed = input.value.trim();
+  if (!typed) { input.focus(); return; }
+
+  const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
+  const list = activeSetup && activeSetup.querySelector('[id$="-player-list"]');
+
+  // addToPlayerLibrary returns the spelling already stored, so typing "احمد"
+  // when "أحمد" is saved reuses the one you have rather than making a twin.
+  const name = addToPlayerLibrary(typed);
+  const t = TRANSLATIONS[appState.lang];
+
+  if (!appState.activePlayers) appState.activePlayers = [];
+  if (appState.activePlayers.some(p => samePlayer(p, name))) {
+    showToast(t.player_already || '', 'warn');
+  } else {
+    appState.activePlayers.push(name);
+    appState.currentGroup = '';
+  }
+
+  saveToLocal();
+  input.value = '';
+  pickerEditMode = false;
+  // Re-sort so the name you just typed is at the top rather than at the end of
+  // a forty-chip list you would have to scroll to find.
+  if (list) renderActiveChips(list.id, true);
+  renderSavedGroups();
+  playSound('click');
+  haptic('light');
+  input.focus();
 }
 
 function removeActivePlayer(name, containerId) {
-    appState.activePlayers = appState.activePlayers.filter(p => p !== name);
-    // When manually removing a player, we are no longer strictly in the saved group
-    appState.currentGroup = ""; 
-    renderSavedGroups(); 
-    saveToLocal();
-    renderActiveChips(containerId);
-    playSound('click');
+  togglePlayerInRound(name, containerId);
 }
 
-function updateGlobalDatalist(filter = "") {
-    const datalist = document.getElementById('global-player-datalist');
-    if (!datalist || !allPlayers) return;
-    
-    if (!filter) {
-        datalist.innerHTML = ''; 
-        return;
-    }
-    
-    const search = filter.toLowerCase();
-    const matches = allPlayers.filter(p => p.toLowerCase().includes(search));
-    datalist.innerHTML = matches.map(p => `<option value="${escapeHTML(p)}">`).join('');
-}
-
-function checkAutoAdd(input) {
-    const val = input.value.trim();
-    if (!val) {
-        updateGlobalDatalist("");
-        return;
-    }
-
-    updateGlobalDatalist(val); 
-    
-    const datalist = document.getElementById('global-player-datalist');
-    if (!datalist) return;
-    const opts = datalist.options;
-    for (let i = 0; i < opts.length; i++) {
-        if (opts[i].value === val) {
-            // MATCH FOUND
-            const btn = input.parentElement.querySelector('button');
-            if (btn) {
-                // Clear datalist immediately to force iOS to hide suggestions
-                datalist.innerHTML = ''; 
-                btn.click();
-            }
-            break;
-        }
-    }
-}
-
-function addPlayerFromSetup(btn) {
-    const parent = btn.parentElement;
-    const input = parent.querySelector('input');
-    const name = input.value.trim();
-    if (!name) return;
-
-    playSound('click');
-
-    const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
-    if (!activeSetup) return;
-    const list = activeSetup.querySelector('[id$="-player-list"]');
-    if (!list) return;
-
-    // HELPER to reset input safely (especially for iOS)
-    const resetInput = () => {
-        const datalist = document.getElementById('global-player-datalist');
-        if (datalist) datalist.innerHTML = ''; // Force clear suggestions
-        
-        input.value = '';
-        input.blur(); 
-
-        // Reliable refocus for iOS
-        setTimeout(() => {
-            input.focus();
-            // Scroll to top helps iOS decide to put suggestions BELOW the input
-            input.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 50); 
-    };
-
-    // Check for duplicates in active list
-    if (appState.activePlayers.includes(name)) {
-        resetInput();
-        showToast(appState.lang === 'ar' ? 'اللاعب موجود بالفعل في القائمة' : 'Player already in list', 'warn');
-        return;
-    }
-
-    // Check if player exists in database (allPlayers)
-    const existingName = allPlayers.find(p => p.toLowerCase().trim() === name.toLowerCase());
-    
-    if (existingName) {
-        // Player exists in database, just add to active list
-        appState.activePlayers.push(existingName);
-        saveToLocal();
-        renderActiveChips(list.id);
-        resetInput();
-        return;
-    }
-
-    // Player is NEW - Save to server
-    btn.disabled = true;
-    const originalContent = btn.innerHTML;
-    btn.innerHTML = '<span class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span>';
-
-    google.script.run
-        .withSuccessHandler(players => {
-            allPlayers = players;
-            if (!appState.activePlayers.includes(name)) {
-                appState.activePlayers.push(name);
-            }
-            saveToLocal();
-            
-            btn.disabled = false;
-            btn.innerHTML = originalContent;
-            resetInput();
-            
-            renderActiveChips(list.id);
-            showToast(appState.lang === 'ar' ? `تم إضافة ${name}` : `Added ${name}`);
-        })
-        .withFailureHandler(error => {
-            btn.disabled = false;
-            btn.innerHTML = originalContent;
-            handleServerFailure(error);
-            input.focus();
-        })
-        .addGlobalPlayer(name);
-}
 
 /* --- REORDER LIST (TAP-TO-SWAP) --- */
   let selectedReorderIndex = null; // Tracks the first tapped player
@@ -180,10 +188,8 @@ function addPlayerFromSetup(btn) {
         list.innerHTML += `
         <div onclick="handleReorderTap(${idx})" class="${baseClasses} ${selectedClass}">
             <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${isSelected ? 'bg-white text-indigo-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}">
-                    ${idx + 1}
-                </div>
-                <span class="font-bold text-lg">${p.name}</span>
+                <div class="reorder-num">${idx + 1}</div>
+                <span class="font-bold text-lg">${escapeHTML(p.name)}</span>
             </div>
             <div class="text-xs font-bold opacity-70">
                 ${isSelected ? tapToSwapText : '👆'}
@@ -192,6 +198,22 @@ function addPlayerFromSetup(btn) {
     });
   }
   
+  /**
+   * Opens the reorder list, always with nothing selected.
+   *
+   * That reset is the point: the armed row used to survive a Cancel, so the
+   * next tap swapped a pair instead of selecting one, silently.
+   */
+  function openReorderModal(context, items, buttonLabel) {
+    selectedReorderIndex = null;
+    reorderContext = context;
+    tempReorderList = items;
+    const btn = document.getElementById('reorder-save-btn');
+    if (btn && buttonLabel) btn.innerText = buttonLabel;
+    renderReorderList();
+    document.getElementById('reorder-modal').classList.remove('hidden');
+  }
+
   function handleReorderTap(index) {
       if (selectedReorderIndex === null) {
           // First tap: Select the player
@@ -242,60 +264,152 @@ function addPlayerFromSetup(btn) {
       }
       appState.spin.players = [...selected];
       setView('play-spin');
+      wheelRotation = 0;
+      renderWheel();
       const display = document.getElementById('picker-display');
-      display.innerText = "???";
+      if (display) display.innerText = '???';
       document.getElementById('spin-result-box').classList.add('hidden');
       document.getElementById('spin-btn').disabled = false;
   }
 
-  function pickRandomPlayer() {
-      const players = appState.spin.players;
-      if (players.length === 0) return;
-      const btn = document.getElementById('spin-btn');
-      const display = document.getElementById('picker-display');
-      btn.disabled = true;
-      document.getElementById('spin-result-box').classList.add('hidden');
-      playSound('click');
-      let counter = 0;
-      const totalShuffles = 15; 
-      const speed = 80; 
-      if(pickerInterval) clearInterval(pickerInterval);
-      pickerInterval = setInterval(() => {
-          const r = Math.floor(Math.random() * players.length);
-          display.innerText = players[r];
-          playSound('tick'); 
-          counter++;
-          if (counter >= totalShuffles) {
-              clearInterval(pickerInterval);
-              finalizePickerResult();
+  /* --- RANDOM PICKER (WHEEL) ------------------------------------------------
+   * The tool was always described as a wheel of fortune but rendered as "???"
+   * and a button. The wheel below is drawn as SVG, and the result is decided up
+   * front so the wheel can be spun to land on it — the same trick a real prize
+   * wheel animation uses.
+   * ---------------------------------------------------------------------- */
+
+  // Segment colours, walked in order so neighbours never share one.
+  const WHEEL_COLORS = [
+      '#6d28d9', '#0d9488', '#ea580c', '#2563eb',
+      '#e11d48', '#059669', '#7c3aed', '#d97706'
+  ];
+
+  let wheelRotation = 0;
+
+  /**
+   * Paints the wheel as SVG. Angles run clockwise from twelve o'clock, which is
+   * where the needle sits, so slice i covers [i*slice, (i+1)*slice).
+   */
+  function renderWheel() {
+      const wheel = document.getElementById('spin-wheel');
+      if (!wheel) return;
+
+      const players = appState.spin.players || [];
+      if (players.length === 0) { wheel.innerHTML = ''; return; }
+
+      const R = 50;                 // viewBox is 100x100
+      const CX = 50, CY = 50;
+      const slice = 360 / players.length;
+      const textR = R * 0.66;       // how far out the names sit
+
+      // Polar -> cartesian, 0deg at twelve o'clock, going clockwise.
+      const pt = (angle, radius) => {
+          const rad = (angle - 90) * Math.PI / 180;
+          return [CX + radius * Math.cos(rad), CY + radius * Math.sin(rad)];
+      };
+      const fmt = (n) => n.toFixed(3);
+
+      let svg = '<svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden="true">';
+
+      players.forEach((name, i) => {
+          const color = WHEEL_COLORS[i % WHEEL_COLORS.length];
+          const a0 = i * slice;
+          const a1 = (i + 1) * slice;
+
+          if (players.length === 1) {
+              svg += '<circle cx="' + CX + '" cy="' + CY + '" r="' + R + '" fill="' + color + '"/>';
+          } else {
+              const [x0, y0] = pt(a0, R);
+              const [x1, y1] = pt(a1, R);
+              const largeArc = slice > 180 ? 1 : 0;
+              svg += '<path d="M ' + CX + ' ' + CY +
+                     ' L ' + fmt(x0) + ' ' + fmt(y0) +
+                     ' A ' + R + ' ' + R + ' 0 ' + largeArc + ' 1 ' + fmt(x1) + ' ' + fmt(y1) +
+                     ' Z" fill="' + color + '"/>';
           }
-      }, speed);
+      });
+
+      // Labels on top of every slice, so a name can never be hidden by the
+      // neighbouring path's edge.
+      players.forEach((name, i) => {
+          const mid = i * slice + slice / 2;
+          const [tx, ty] = pt(mid, textR);
+          // Radial text points back at the viewer past the horizontal; turn
+          // those the other way up.
+          const flip = mid > 90 && mid < 270;
+          const rot = flip ? mid + 90 : mid - 90;
+          const short = name.length > 11 ? name.slice(0, 10) + '\u2026' : name;
+
+          svg += '<text x="' + fmt(tx) + '" y="' + fmt(ty) + '"' +
+                 ' transform="rotate(' + fmt(rot) + ' ' + fmt(tx) + ' ' + fmt(ty) + ')"' +
+                 ' text-anchor="middle" dominant-baseline="central"' +
+                 ' fill="#fff" font-size="5.4" font-weight="800"' +
+                 ' font-family="Cairo, sans-serif"' +
+                 ' style="paint-order: stroke; stroke: rgba(0,0,0,.28); stroke-width: 1.1px">' +
+                 escapeHTML(short) + '</text>';
+      });
+
+      svg += '</svg>';
+      wheel.innerHTML = svg;
+      wheel.style.transform = 'rotate(' + wheelRotation + 'deg)';
   }
 
-  function finalizePickerResult() {
+  function pickRandomPlayer() {
       const players = appState.spin.players;
-      const winnerIdx = Math.floor(Math.random() * players.length);
-      const winner = players[winnerIdx];
-      const display = document.getElementById('picker-display');
+      if (!players || players.length === 0) return;
+
       const btn = document.getElementById('spin-btn');
-      
-      // عرض الاسم الفائز
-      display.innerText = winner;
-      display.style.color = "var(--primary)";
-      
-      // تحديث صندوق النتيجة (بدون تحدي)
-      document.getElementById('picked-player-name').innerText = winner;
-      
-      // تفريغ مكان التحدي القديم
+      const wheel = document.getElementById('spin-wheel');
+      const resultBox = document.getElementById('spin-result-box');
+      if (btn) btn.disabled = true;
+      if (resultBox) resultBox.classList.add('hidden');
+
+      const winnerIdx = Math.floor(Math.random() * players.length);
+      const slice = 360 / players.length;
+
+      // The needle sits at the top (0deg). To bring the winning slice's centre
+      // under it, rotate by -(centre) and add whole turns for the spin itself.
+      const target = 360 - (winnerIdx * slice + slice / 2);
+      const turns = 4 + Math.floor(Math.random() * 2);
+      wheelRotation += turns * 360 + ((target - (wheelRotation % 360)) + 360) % 360;
+
+      if (wheel) wheel.style.transform = 'rotate(' + wheelRotation + 'deg)';
+      haptic('medium');
+
+      // Tick while it slows down, then settle.
+      let ticks = 0;
+      if (pickerInterval) clearInterval(pickerInterval);
+      pickerInterval = setInterval(() => {
+          playSound('tick');
+          if (++ticks > 14) { clearInterval(pickerInterval); pickerInterval = null; }
+      }, 150);
+
+      const settle = () => {
+          if (pickerInterval) { clearInterval(pickerInterval); pickerInterval = null; }
+          finalizePickerResult(players[winnerIdx]);
+      };
+      // Matches the .wheel transition; a timer rather than transitionend so a
+      // reduced-motion user (no transition, no event) still gets a result.
+      setTimeout(settle, prefersReducedMotion() ? 200 : 3700);
+  }
+
+  function finalizePickerResult(winner) {
+      const nameEl = document.getElementById('picked-player-name');
+      const liveEl = document.getElementById('picker-display');
       const challengeEl = document.getElementById('picked-challenge');
-      if(challengeEl) challengeEl.innerText = ""; 
-      
-      setTimeout(() => {
-          document.getElementById('spin-result-box').classList.remove('hidden');
-          playSound('success');
-          confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-          btn.disabled = false;
-      }, 400);
+      const btn = document.getElementById('spin-btn');
+
+      if (nameEl) nameEl.innerText = winner;
+      if (liveEl) liveEl.innerText = winner;
+      if (challengeEl) challengeEl.innerText = '';
+
+      const box = document.getElementById('spin-result-box');
+      if (box) box.classList.remove('hidden');
+      playSound('success');
+      haptic('double');
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+      if (btn) btn.disabled = false;
   }
 
   /* --- UNIVERSAL COUNTER --- */
@@ -332,12 +446,12 @@ function addPlayerFromSetup(btn) {
       div.innerHTML = '';
       appState.universal.players.forEach((p, idx) => {
           div.innerHTML += `
-          <div class="flex justify-between items-center bg-white dark:bg-slate-700 p-4 rounded-xl border border-slate-100 dark:border-slate-600 mb-2">
-              <div class="font-bold text-lg w-1/3 truncate">${escapeHTML(p.name)}</div>
-              <div class="font-black text-3xl text-indigo-600 w-1/3 text-center" dir="ltr">${p.score}</div>
-              <div class="flex gap-2 w-1/3 justify-end">
-                  <button onclick="modUnivScore(${idx}, 1)" class="w-10 h-10 rounded-lg bg-green-100 text-green-600 font-bold">+</button>
-                  <button onclick="modUnivScore(${idx}, -1)" class="w-10 h-10 rounded-lg bg-red-100 text-red-600 font-bold">-</button>
+          <div class="status-row">
+              <div class="status-row__name w-1/3 truncate">${escapeHTML(p.name)}</div>
+              <div class="metric metric--md tx-accent w-1/3 text-center">${p.score}</div>
+              <div class="status-row__actions">
+                  <button onclick="modUnivScore(${idx}, 1)" class="control-btn" aria-label="+1">+</button>
+                  <button onclick="modUnivScore(${idx}, -1)" class="control-btn control-btn--danger" aria-label="-1">−</button>
               </div>
           </div>`;
       });
@@ -362,9 +476,19 @@ function addPlayerFromSetup(btn) {
   }
 
   function adjustGenTimer(mins) {
-      appState.timers.general.time += (mins * 60);
-      if(appState.timers.general.time < 0) appState.timers.general.time = 0;
+      const tm = appState.timers.general;
+      tm.time += (mins * 60);
+      if(tm.time < 0) tm.time = 0;
       updateGenDisplay();
+
+      // A clock's length is fixed when it is created, so adjusting the time while
+      // it runs means restarting it from the new value.
+      if (tm.running) {
+          if (tm.interval) tm.interval.stop();
+          tm.interval = null;
+          tm.running = false;
+          toggleGenTimer();
+      }
   }
 
   function updateGenDisplay() {
@@ -378,29 +502,36 @@ function addPlayerFromSetup(btn) {
       const tm = appState.timers.general;
       const btn = document.getElementById('gen-start-btn');
       if(tm.running) {
-          clearInterval(tm.interval);
+          if (tm.interval) tm.interval.stop();
+          tm.interval = null;
           tm.running = false;
           btn.innerText = TRANSLATIONS[appState.lang].start_btn;
       } else {
           if(tm.time <= 0) return;
           tm.running = true;
           btn.innerText = TRANSLATIONS[appState.lang].pause_btn;
-          tm.interval = setInterval(() => {
-              tm.time--;
-              updateGenDisplay();
-              if(tm.time <= 0) {
-                  clearInterval(tm.interval);
+          tm.interval = createClock({
+              seconds: tm.time,
+              onTick: (left) => {
+                  tm.time = left;
+                  updateGenDisplay();
+              },
+              onEnd: () => {
+                  tm.interval = null;
+                  tm.time = 0;
                   tm.running = false;
+                  updateGenDisplay();
                   playSound('alarm');
                   btn.innerText = TRANSLATIONS[appState.lang].start_btn;
               }
-          }, 1000);
+          });
       }
   }
 
   function resetGenTimer() {
       const tm = appState.timers.general;
-      clearInterval(tm.interval);
+      if (tm.interval) tm.interval.stop();
+      tm.interval = null;
       tm.running = false;
       tm.time = 0;
       updateGenDisplay();
@@ -440,7 +571,7 @@ function addPlayerFromSetup(btn) {
   function resetChess(event) {
       if(event) { event.stopPropagation(); event.preventDefault(); }
       const tm = appState.timers.chess;
-      clearInterval(tm.interval);
+      stopChessClock();
       tm.active = null;
       tm.time1 = tm.initial;
       tm.time2 = tm.initial;
@@ -450,34 +581,53 @@ function addPlayerFromSetup(btn) {
 
   function chessClick(player) {
       const tm = appState.timers.chess;
+      // A side that has run out ends the game. Tapping used to start a fresh
+      // clock seeded with 0 seconds, which fired the alarm again immediately.
+      if (tm.time1 <= 0 || tm.time2 <= 0) {
+          const over = appState.lang === 'ar' ? 'انتهى الوقت — أعد الضبط' : "Time's up — reset to play again";
+          return showToast(over, 'warn');
+      }
       if(player === 1) {
-          if(tm.active === 1 || tm.active === null) startChessTimer(2); 
+          if(tm.active === 1 || tm.active === null) startChessTimer(2);
       } else if (player === 2) {
-          if(tm.active === 2 || tm.active === null) startChessTimer(1); 
+          if(tm.active === 2 || tm.active === null) startChessTimer(1);
       }
       playSound('click');
   }
 
+  function stopChessClock() {
+      const tm = appState.timers.chess;
+      if (tm.interval) tm.interval.stop();
+      tm.interval = null;
+  }
+
   function startChessTimer(activePlayer) {
       const tm = appState.timers.chess;
-      clearInterval(tm.interval);
+      stopChessClock();
       tm.active = activePlayer;
       updateChessUI();
-      tm.interval = setInterval(() => {
-          if(tm.active === 1) {
-              tm.time1--;
-              if(tm.time1 <= 0) chessGameOver();
-          } else {
-              tm.time2--;
-              if(tm.time2 <= 0) chessGameOver();
+
+      // One clock per turn, seeded with whatever that player has banked. A chess
+      // clock is the case where counting ticks hurt most: a phone that throttled
+      // the tab handed back time the player had actually used.
+      const remaining = activePlayer === 1 ? tm.time1 : tm.time2;
+      tm.interval = createClock({
+          seconds: remaining,
+          onTick: (left) => {
+              if (activePlayer === 1) tm.time1 = left; else tm.time2 = left;
+              updateChessUI();
+          },
+          onEnd: () => {
+              if (activePlayer === 1) tm.time1 = 0; else tm.time2 = 0;
+              updateChessUI();
+              chessGameOver();
           }
-          updateChessUI();
-      }, 1000);
+      });
   }
 
   function pauseChess(event) {
       if(event) { event.stopPropagation(); event.preventDefault(); }
-      clearInterval(appState.timers.chess.interval);
+      stopChessClock();
       appState.timers.chess.active = null;
       updateChessUI();
   }
@@ -495,28 +645,33 @@ function addPlayerFromSetup(btn) {
       if(time1El) time1El.innerText = fmt(tm.time1);
       if(time2El) time2El.innerText = fmt(tm.time2);
 
+      // Both halves used to carry data-i18n="players", so switching language
+      // relabelled them both "Players" instead of "Player 1" / "Player 2".
+      const who = appState.lang === 'ar' ? 'اللاعب' : 'Player';
+      const l1 = document.getElementById('chess-label-1');
+      const l2 = document.getElementById('chess-label-2');
+      if (l1) l1.innerText = who + ' 1';
+      if (l2) l2.innerText = who + ' 2';
+
       const btn1 = document.getElementById('chess-btn-1');
       const btn2 = document.getElementById('chess-btn-2');
       if(!btn1 || !btn2) return;
 
-      const base1 = "flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-150 ";
-      const base2 = "flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-150 transform rotate-180 ";
-
-      if (tm.active === 1) {
-          btn1.className = base1 + "bg-green-500 text-white shadow-[inset_0_0_50px_rgba(0,0,0,0.3)]";
-          btn2.className = base2 + "bg-slate-900 text-slate-600 opacity-60";
-      } else if (tm.active === 2) {
-          btn2.className = base2 + "bg-green-500 text-white shadow-[inset_0_0_50px_rgba(0,0,0,0.3)]";
-          btn1.className = base1 + "bg-slate-900 text-slate-600 opacity-60";
-      } else {
-          // Paused / Idle State
-          btn1.className = base1 + "bg-slate-800 text-slate-300";
-          btn2.className = base2 + "bg-slate-800 text-slate-300";
-      }
+      // Both halves stay readable: you need to see the opponent's clock, and
+      // the old idle styling (slate-600 on slate-900, 60% opacity) was invisible.
+      const stateOf = (side) => {
+          const left = side === 1 ? tm.time1 : tm.time2;
+          if (left <= 0) return 'is-out';
+          if (tm.active === side) return 'is-active';
+          return 'is-idle';
+      };
+      btn1.className = 'chess-half ' + stateOf(1);
+      btn2.className = 'chess-half chess-half--flip ' + stateOf(2);
   }
 
   function chessGameOver() {
-      clearInterval(appState.timers.chess.interval);
+      stopChessClock();
+      appState.timers.chess.active = null;
       playSound('alarm');
       const msg = appState.lang === 'ar' ? 'انتهى الوقت!' : "Time's up!";
       showToast(msg);
@@ -546,12 +701,8 @@ function addPlayerFromSetup(btn) {
 
   /* --- MONKEY UTILS --- */
   function openMonkeyReorder() {
-      reorderContext = 'monkey';
-      tempReorderList = [...appState.monkey.players];
-      const modalBtn = document.getElementById('reorder-save-btn');
-      if(modalBtn) modalBtn.innerText = TRANSLATIONS[appState.lang].reorder_save;
-      renderReorderList();
-      document.getElementById('reorder-modal').classList.remove('hidden');
+      openReorderModal('monkey', [...appState.monkey.players],
+                       TRANSLATIONS[appState.lang].reorder_save);
   }
   function openSwitchModal(monkeyRow, monkeyName) {
     stopTimer(); 
@@ -566,13 +717,16 @@ function addPlayerFromSetup(btn) {
 
     if(targets.length === 0) {
         const noSafeMsg = appState.lang === 'ar' ? 'لا يوجد لاعبين آمنين' : 'No safe players';
-        list.innerHTML = `<p class="text-red-500">${noSafeMsg}</p>`;
+        list.innerHTML = `<p class="tx-danger">${noSafeMsg}</p>`;
     } else {
-        targets.forEach(t => {
-            const stageName = stagesMap[t.col - 1] || t.safe;
-            list.innerHTML += `<button onclick="confirmSwitch('${t.row}', '${t.col}', '${t.name}')" class="btn btn-gray flex justify-between items-center w-full mb-2 h-12 mt-0">
-                <span class="font-bold text-slate-700 dark:text-slate-200">${t.name}</span> 
-                <span class="text-xs bg-white dark:bg-slate-600 px-2 py-1 rounded border border-slate-200 dark:border-slate-500 font-bold">${stageName}</span>
+        // `target`, not `t`: the old loop variable shadowed the translations
+        // object, so the `|| t.safe` fallback read a property off the player and
+        // printed "undefined" as the stage name.
+        targets.forEach(target => {
+            const stageName = stagesMap[target.col - 1] || t.safe;
+            list.innerHTML += `<button onclick="confirmSwitch('${jsStringAttr(target.row)}', '${jsStringAttr(target.col)}', '${jsStringAttr(target.name)}')" class="btn btn--ghost flex justify-between items-center w-full mb-2 h-12 mt-0">
+                <span class="font-bold tx-strong">${escapeHTML(target.name)}</span>
+                <span class="badge">${escapeHTML(stageName)}</span>
             </button>`;
         });
     }
@@ -589,9 +743,9 @@ function addPlayerFromSetup(btn) {
     // We can update it here
     const msgEl = document.querySelector('#switch-confirm-modal p');
     if(appState.lang === 'en') {
-        msgEl.innerHTML = `Are you sure you want to switch places between <br> <b id="confirm-monkey-name" class="text-red-500">${switchData.monkeyName}</b> and <b id="confirm-target-name" class="text-blue-500">${targetName}</b>?`;
+        msgEl.innerHTML = `Are you sure you want to switch places between <br> <b id="confirm-monkey-name" class="text-red-500">${escapeHTML(switchData.monkeyName)}</b> and <b id="confirm-target-name" class="text-blue-500">${escapeHTML(targetName)}</b>?`;
     } else {
-        msgEl.innerHTML = `هل أنت متأكد من تبديل أماكن <br> <b id="confirm-monkey-name" class="text-red-500">${switchData.monkeyName}</b> مع <b id="confirm-target-name" class="text-blue-500">${targetName}</b>؟`;
+        msgEl.innerHTML = `هل أنت متأكد من تبديل أماكن <br> <b id="confirm-monkey-name" class="text-red-500">${escapeHTML(switchData.monkeyName)}</b> مع <b id="confirm-target-name" class="text-blue-500">${escapeHTML(targetName)}</b>؟`;
     }
 
     document.getElementById('switch-confirm-modal').classList.remove('hidden');
@@ -619,7 +773,7 @@ function addPlayerFromSetup(btn) {
     const available = allPlayers.filter(p => !currentNames.includes(p));
     if(available.length === 0) {
         const allInMsg = appState.lang === 'ar' ? 'كل اللاعبين المسجلين يلعبون حالياً.' : 'All registered players are playing.';
-        listContainer.innerHTML = `<p class="text-xs text-slate-400 col-span-2 text-center">${allInMsg}</p>`;
+        listContainer.innerHTML = `<p class="text-xs tx-muted col-span-2 text-center">${allInMsg}</p>`;
     } else {
         available.forEach(name => {
             const chip = document.createElement('div');
@@ -635,7 +789,11 @@ function addPlayerFromSetup(btn) {
     document.getElementById('add-midgame-modal').classList.remove('hidden');
   }
   function addLocalPlayer(name) {
-      const newRow = appState.monkey.players.length + 2;
+      // Rows are the identity used by every switch and status edit, so they have
+      // to stay unique. Counting players broke that as soon as one was removed:
+      // the new row collided and the switch hit the wrong person.
+      const used = appState.monkey.players.map(p => Number(p.row) || 0);
+      const newRow = (used.length ? Math.max.apply(null, used) : 1) + 1;
       appState.monkey.players.push({ name: name, row: newRow, col: 1, isMonkey: false });
       checkWinCondition();
       renderMonkeyBoard();
@@ -645,15 +803,9 @@ function addPlayerFromSetup(btn) {
     if(!name) return;
     document.getElementById('midgame-player-name').value = '';
     document.getElementById('add-midgame-modal').classList.add('hidden');
-    addLocalPlayer(name);
-    if(!allPlayers.includes(name)) {
-        setSyncing(true);
-        google.script.run.withSuccessHandler(players => {
-            allPlayers = players;
-            saveToLocal();
-            setSyncing(false);
-        }).withFailureHandler(handleServerFailure).addGlobalPlayer(name);
-    }
+    // Local and instant. This used to wait on a spreadsheet write before the
+    // name was usable anywhere else.
+    addLocalPlayer(addToPlayerLibrary(name));
   }
   function openEditStatus(row, name) {
       editPlayerData.row = row;
@@ -710,7 +862,7 @@ function addPlayerFromSetup(btn) {
       tbody.innerHTML = '';
       appState.monkey.usedCountries.forEach((c, idx) => {
           const num = appState.monkey.usedCountries.length - idx;
-          tbody.innerHTML += `<tr><td class="px-2 py-2 font-bold text-slate-400">${num}</td><td class="px-2 py-2 font-bold">${c}</td></tr>`;
+          tbody.innerHTML += `<tr><td class="px-2 py-2 font-bold tx-muted">${num}</td><td class="px-2 py-2 font-bold">${escapeHTML(c)}</td></tr>`;
       });
   }
   function filterCountries() {
@@ -760,9 +912,17 @@ function toggleResults() {
         // 1. Stop all running timers
         clearAllIntervals();
 
-        // 2. Clear Local Storage
+        // 2. Clear Local Storage. The room session lives under its own key, so
+        // without this a "reset everything" still silently rejoined the old room
+        // on the next load.
         localStorage.removeItem('gameTrackerState_v1');
-        
+        try { if (typeof Room !== 'undefined' && Room.isIn) Room.leave(); } catch (e) {}
+        localStorage.removeItem('ashryRoom_v1');
+        // The saved names and groups are this phone's too, and "start from
+        // scratch" has to mean it.
+        localStorage.removeItem(PLAYER_LIBRARY_KEY);
+        localStorage.removeItem('ashry_saved_groups');
+
         // 4. Reset Global Variables (Clean Slate)
         allPlayers = []; 
         dataLoaded = false;
@@ -829,7 +989,7 @@ function toggleResults() {
       const grid = document.getElementById('soundboard-grid');
       grid.innerHTML = '';
       SOUNDS.forEach(s => {
-          grid.innerHTML += `<button onclick="new Audio('${s.url}').play()" class="btn btn-gray p-2 h-auto flex flex-col items-center justify-center rounded-2xl mt-0 shadow-none"><div class="text-2xl">${s.emoji}</div><div class="text-[10px] font-bold opacity-70">${s.name}</div></button>`;
+          grid.innerHTML += `<button onclick="new Audio('${s.url}').play()" class="btn btn--ghost p-2 h-auto flex flex-col items-center justify-center rounded-2xl mt-0 shadow-none"><div class="text-2xl">${s.emoji}</div><div class="text-[10px] font-bold opacity-70">${s.name}</div></button>`;
       });
       document.getElementById('soundboard-modal').classList.remove('hidden');
   }
@@ -901,94 +1061,297 @@ function toggleResults() {
 
 
 
-  function openHelpModal() {
-    renderHelpContent();
-    document.getElementById('help-modal').classList.remove('hidden');
-    // Ensure text direction fits the language (optional, handled by CSS usually)
-    const content = document.getElementById('help-content-area');
-    if(appState.lang === 'en') {
-        content.classList.remove('text-right');
-        content.classList.add('text-left');
-    } else {
-        content.classList.remove('text-left');
-        content.classList.add('text-right');
-    }
+/* ==========================================================================
+   HELP
+   --------------------------------------------------------------------------
+   The sheet answers two different questions and used to answer only the
+   second: "what do I do on this screen right now?" and "what games are
+   there?". Opening it from a game now leads with that game's rules; the full
+   list stays underneath, searchable.
+   ========================================================================== */
+
+/**
+ * One registry for the whole sheet — title, icon, accent, and which list an
+ * entry belongs to. The rules text itself lives in GAME_RULES (JS_Core.html)
+ * under the same key.
+ */
+const HELP_ENTRIES = [
+  // Rooms first: it explains the "same room, any game" model that the
+  // multiplayer entries below assume.
+  { key: 'rooms',       title: 'room_help_title',   icon: '📱', accent: 'violet', group: 'games' },
+  { key: 'screw',       title: 'setup_screw',       icon: '🃏', accent: 'blue',   group: 'games' },
+  { key: 'justone',     title: 'setup_justone',     icon: '🤫', accent: 'rose',   group: 'games', room: true },
+  { key: 'describe',    title: 'setup_describe',    icon: '🗣️', accent: 'indigo', group: 'games' },
+  { key: 'charades',    title: 'setup_charades',    icon: '🎭', accent: 'violet', group: 'games' },
+  { key: 'whoami',      title: 'setup_whoami',      icon: '❓', accent: 'teal',   group: 'games', room: true },
+  { key: 'imposter',    title: 'setup_imposter',    icon: '🕵️', accent: 'violet', group: 'games', room: true },
+  { key: 'codenames',   title: 'setup_codenames',   icon: '🔠', accent: 'indigo', group: 'games', roomOnly: true },
+  { key: 'drawguess',   title: 'setup_drawguess',   icon: '🎨', accent: 'blue',   group: 'games', roomOnly: true },
+  { key: 'fibbage',     title: 'setup_fibbage',     icon: '🤥', accent: 'rose',   group: 'games', roomOnly: true },
+  { key: 'wouldyou',    title: 'setup_wouldyou',    icon: '⚖️', accent: 'violet', group: 'games', roomOnly: true },
+  { key: 'mostlikely',  title: 'setup_mostlikely',  icon: '👉', accent: 'amber',  group: 'games', roomOnly: true },
+  { key: 'connections', title: 'setup_connections', icon: '🔗', accent: 'green',  group: 'games' },
+  { key: 'monkey',      title: 'setup_monkey',      icon: '🐵', accent: 'amber',  group: 'games' },
+  { key: 'wordle',      title: 'setup_wordle',      icon: '🔤', accent: 'green',  group: 'games' },
+  { key: 'guessnum',    title: 'setup_guessnum',    icon: '🔢', accent: 'blue',   group: 'games' },
+  { key: 'domino',      title: 'setup_domino',      icon: '🀏', accent: 'green',  group: 'games' },
+  { key: 'reaction',    title: 'setup_reaction',    icon: '⚡', accent: 'rose',   group: 'games' },
+
+  { key: 'teams',     title: 'team_generator',  icon: '🤝', accent: 'teal',   group: 'tools' },
+  { key: 'tourney',   title: 'setup_tourney',   icon: '🏆', accent: 'amber',  group: 'tools' },
+  { key: 'spin',      title: 'setup_spin',      icon: '🎡', accent: 'orange', group: 'tools' },
+  { key: 'universal', title: 'setup_universal', icon: '🧮', accent: 'green',  group: 'tools' },
+  { key: 'dice',      title: 'tool_dice',       icon: '🎲', accent: 'indigo', group: 'tools' },
+  { key: 'timers',    title: 'timers',          icon: '⏱️', accent: 'orange', group: 'tools' },
+  { key: 'chess',     title: 'chess_timer',     icon: '♟️', accent: 'indigo', group: 'tools' },
+
+  // Not games or tools, but the two things people get stuck on that are
+  // neither: where the player names come from, and what is behind the gear.
+  { key: 'players',  title: 'help_players',  icon: '👥', accent: 'teal',   group: 'tools' },
+  { key: 'settings', title: 'help_settings', icon: '⚙️', accent: 'blue',   group: 'tools' }
+];
+
+/** Which entry belongs to which screen. Every view the app can sit on is here. */
+const HELP_FOR_VIEW = {
+  'room-join': 'rooms', 'room-lobby': 'rooms',
+  'room-imposter': 'imposter', 'room-justone': 'justone', 'room-whoami': 'whoami',
+  'room-codenames': 'codenames', 'setup-codenames': 'codenames',
+  'room-wouldyou': 'wouldyou', 'room-mostlikely': 'mostlikely',
+  'room-fibbage': 'fibbage', 'room-drawguess': 'drawguess',
+  'setup-connections': 'connections', 'play-connections': 'connections',
+  'setup-monkey': 'monkey', 'play-monkey': 'monkey',
+  'setup-imposter': 'imposter', 'imposter-reveal': 'imposter', 'play-imposter': 'imposter',
+  'setup-justone': 'justone', 'play-justone': 'justone',
+  'setup-describe': 'describe', 'play-describe': 'describe',
+  'setup-charades': 'charades', 'play-charades': 'charades',
+  'setup-whoami': 'whoami', 'input-whoami': 'whoami', 'play-whoami': 'whoami',
+  'setup-screw': 'screw', 'play-screw': 'screw',
+  'setup-domino': 'domino', 'play-domino': 'domino',
+  'setup-wordle': 'wordle', 'play-wordle': 'wordle',
+  'setup-guessnum': 'guessnum', 'play-guessnum': 'guessnum',
+  'setup-reaction': 'reaction', 'play-reaction': 'reaction',
+  'setup-spin': 'spin', 'play-spin': 'spin',
+  'setup-teams': 'teams', 'results-teams': 'teams',
+  'setup-tourney': 'tourney', 'play-tourney': 'tourney',
+  'setup-universal': 'universal', 'play-universal': 'universal',
+  'timers': 'timers', 'play-chess': 'chess', 'tool-dice': 'dice'
+};
+
+const helpEntry = (key) => HELP_ENTRIES.find(e => e.key === key) || null;
+
+/**
+ * What this player most likely wants explained.
+ *
+ * Sitting in a room lobby with a game already chosen, the question is about
+ * that game — the lobby itself is self-explanatory once you are looking at it.
+ */
+function helpContextKey() {
+  const view = appState.currentView;
+  if (view === 'room-lobby' && typeof Room !== 'undefined' && Room.isIn
+      && Room.state && Room.state.game && helpEntry(Room.state.game)) {
+    return Room.state.game;
+  }
+  return HELP_FOR_VIEW[view] || null;
+}
+
+/* --- Search --------------------------------------------------------------
+   Arabic writes the same word several ways — أ إ آ for ا, ة for ه, ى for ي —
+   and diacritics are optional. Matching raw strings means a search for
+   "اسماء" misses "أسماء".
+   ------------------------------------------------------------------------- */
+function helpNormalise(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[ً-ْٰ]/g, '')      // harakat
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/[ىي]/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ء')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+let helpSearchTerm = '';
+
+function openHelpModal() {
+  helpSearchTerm = '';
+  const box = document.getElementById('help-search');
+  if (box) box.value = '';
+  const clear = document.getElementById('help-search-clear');
+  if (clear) clear.classList.add('hidden');
+
+  renderHelpContent();
+  document.getElementById('help-modal').classList.remove('hidden');
+  // Light up the nav item while the sheet is open, the way Home does — it is
+  // the only nav button that never showed you it had done anything.
+  document.getElementById('nav-help')?.classList.add('is-active');
+  playSound('click');
+  haptic('light');
+
+  // Always open at the top: the context card is the answer, and the sheet
+  // would otherwise still be scrolled to wherever it was left.
+  const body = document.getElementById('help-content-area');
+  if (body) body.scrollTop = 0;
+}
+
+/** Jump from the context card to a related entry and open it. */
+function helpJumpTo(key) {
+  const card = document.getElementById('help-card-' + key);
+  if (!card) return;
+  card.open = true;
+  card.scrollIntoView({
+    behavior: (typeof prefersReducedMotion === 'function' && prefersReducedMotion()) ? 'auto' : 'smooth',
+    block: 'center'
+  });
+  playSound('click');
+}
+
+function filterHelp(value) {
+  helpSearchTerm = helpNormalise(value);
+  const clear = document.getElementById('help-search-clear');
+  if (clear) clear.classList.toggle('hidden', !value);
+  renderHelpContent();
+}
+
+function clearHelpSearch() {
+  const box = document.getElementById('help-search');
+  if (box) { box.value = ''; box.focus(); }
+  filterHelp('');
 }
 
 function renderHelpContent() {
-    const lang = appState.lang;
-    const rules = GAME_RULES[lang];
-    
-    // helper to create accordion item
-    const createItem = (titleKey, contentKey, colorClass, icon) => {
-        const title = TRANSLATIONS[lang][titleKey] || titleKey;
-        const content = rules[contentKey] || "---";
-        
-        return `
-        <details class="group help-game-card rounded-xl overflow-hidden border-r-4 ${colorClass}">
-            <summary class="flex justify-between items-center p-3 cursor-pointer select-none">
-                <h5 class="font-black text-slate-700 dark:text-white flex items-center gap-2">
-                    <span>${icon}</span> ${title}
-                </h5>
-                <span class="transition-transform group-open:rotate-180">▼</span>
-            </summary>
-            <div class="p-3 pt-0 text-slate-600 help-game-text border-t border-slate-100 dark:border-slate-700 mt-2 pt-2">
-                ${content}
-            </div>
-        </details>`;
-    };
+  const lang = appState.lang;
+  const t = TRANSLATIONS[lang];
+  const rules = GAME_RULES[lang] || {};
+  const searching = !!helpSearchTerm;
 
-    // 1. Render Games
-    // 👇 ADDED WHO AM I AND REACTION TEST 👇
-    const gamesHTML = [
-        createItem('setup_screw', 'screw', 'border-blue-500', '🃏'),
-        createItem('setup_justone', 'justone', 'border-pink-500', '🤫'),
-        createItem('setup_describe', 'describe', 'border-indigo-500', '🗣️'),
-        createItem('setup_charades', 'charades', 'border-purple-700', '🎭'),
-        createItem('setup_whoami', 'whoami', 'border-teal-600', '❓'),
-        createItem('setup_imposter', 'imposter', 'border-purple-500', '🕵️'),
-        createItem('setup_monkey', 'monkey', 'border-orange-500', '🐵'),
-        createItem('setup_wordle', 'wordle', 'border-green-500', '🔤'),
-        createItem('setup_guessnum', 'guessnum', 'border-cyan-600', '🔢'),
-        createItem('setup_reaction', 'reaction', 'border-red-500', '⚡')
-    ].join('');
-    
-    document.getElementById('help-games-container').innerHTML = gamesHTML;
+  const titleOf = (e) => t[e.title] || e.key;
 
-    // 2. Render Tools
-    // 👇 ADDED CHESS CLOCK 👇
-    const toolsHTML = [
-        createItem('setup_tourney', 'tourney', 'border-indigo-600', '🏆'),
-        createItem('tool_dice', 'dice', 'border-slate-500', '🎲'),
-        createItem('chess_timer', 'chess', 'border-slate-800', '♟️')
-    ].join('');
-    
-    document.getElementById('help-tools-container').innerHTML = toolsHTML;
+  /** One accordion row. The accent comes from data-accent on the card. */
+  const createItem = (e) => {
+    const content = rules[e.key];
+    // An entry with no rules written yet is left out entirely rather than
+    // rendered as an accordion that opens onto nothing.
+    if (!content) return '';
+    return `
+      <details class="help-game-card" id="help-card-${e.key}" data-accent="${e.accent}">
+        <summary>
+          <span class="help-game-card__icon" aria-hidden="true">${e.icon}</span>
+          <span class="help-game-card__name">${escapeHTML(titleOf(e))}</span>
+          <span class="help-game-card__chev" aria-hidden="true">▾</span>
+        </summary>
+        <div class="help-game-text" style="padding: 0 var(--sp-3) var(--sp-3)">
+          ${content}
+        </div>
+      </details>`;
+  };
+
+  // Searching looks inside the rules too, not just the names — people search
+  // for the thing they are stuck on ("assassin", "قاتلة"), not the title.
+  const matches = (e) => {
+    if (!searching) return true;
+    const body = String(rules[e.key] || '').replace(/<[^>]+>/g, ' ');
+    return helpNormalise(titleOf(e) + ' ' + body).indexOf(helpSearchTerm) !== -1;
+  };
+
+  const games = HELP_ENTRIES.filter(e => e.group === 'games' && matches(e));
+  const tools = HELP_ENTRIES.filter(e => e.group === 'tools' && matches(e));
+
+  document.getElementById('help-games-container').innerHTML = games.map(createItem).join('');
+  document.getElementById('help-tools-container').innerHTML = tools.map(createItem).join('');
+
+  // A section with nothing in it would otherwise show a bare heading.
+  const show = (id, on) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', !on);
+  };
+  show('help-games-section', games.length > 0);
+  show('help-tools-section', tools.length > 0);
+  show('help-empty', searching && !games.length && !tools.length);
+
+  // A single hit gets opened for you rather than asking for one more tap.
+  if (searching && games.length + tools.length === 1) {
+    const only = document.querySelector('#help-content-area .help-game-card');
+    if (only) only.open = true;
+  }
+
+  renderHelpContext(helpContextKey(), rules, t, searching);
 }
+
+/** The card for the screen help was opened from. */
+function renderHelpContext(key, rules, t, searching) {
+  const slot = document.getElementById('help-context');
+  if (!slot) return;
+
+  // While searching, the results are the answer — a card about the screen
+  // behind the sheet is just something in the way of them.
+  if (searching) { slot.innerHTML = ''; return; }
+
+  const entry = key ? helpEntry(key) : null;
+
+  if (!entry || !rules[entry.key]) {
+    // No particular screen — the menu, or a search in progress. On the menu,
+    // say what the app is for rather than leaving a gap where the answer goes.
+    slot.innerHTML = (appState.currentView === 'menu') ? `
+      <div class="help-hero" data-accent="violet">
+        <div class="help-hero__head">
+          <span class="help-hero__icon" aria-hidden="true">👋</span>
+          <div class="help-hero__meta">
+            <div class="help-hero__title">${escapeHTML(t.help_welcome || '')}</div>
+          </div>
+        </div>
+        <div class="help-hero__body">${t.help_intro || ''}</div>
+      </div>` : '';
+    return;
+  }
+
+  const title = t[entry.title] || entry.key;
+  // A game that also plays over the room layer gets a way through to how that
+  // works, because it is the next thing people ask.
+  const jump = (entry.room || entry.roomOnly)
+    ? `<button class="help-jump" onclick="helpJumpTo('rooms')">
+         <span aria-hidden="true">📱</span>
+         <span>${escapeHTML(entry.roomOnly ? (t.help_room_only || '') : (t.help_room_too || ''))}</span>
+       </button>`
+    : '';
+
+  slot.innerHTML = `
+    <div class="help-hero" data-accent="${entry.accent}">
+      <div class="help-hero__head">
+        <span class="help-hero__icon" aria-hidden="true">${entry.icon}</span>
+        <div class="help-hero__meta">
+          <div class="help-hero__eyebrow">${escapeHTML(t.help_here || '')}</div>
+          <div class="help-hero__title">${escapeHTML(title)}</div>
+        </div>
+      </div>
+      <div class="help-hero__body">${rules[entry.key]}</div>
+      ${jump}
+    </div>`;
+}
+
 
 /* --- KEEP SCREEN AWAKE (WAKE LOCK) --- */
 let wakeLock = null;
 
+let wakeLockWatching = false;
+
 async function requestWakeLock() {
-    if ('wakeLock' in navigator) {
-        try {
-            wakeLock = await navigator.wakeLock.request('screen');
-            console.log('💡 Screen Wake Lock Active');
-            
-            // If the user minimizes the app and comes back, the lock breaks.
-            // This listens for that and re-activates it automatically.
-            document.addEventListener('visibilitychange', async () => {
-                if (wakeLock !== null && document.visibilityState === 'visible') {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('💡 Screen Wake Lock Re-acquired');
-                }
-            });
-        } catch (err) {
-            console.log(`❌ Wake Lock Error: ${err.name}, ${err.message}`);
-        }
-    } else {
-        console.log('⚠️ Wake Lock API not supported on this browser.');
+    if (!('wakeLock' in navigator)) return;
+    try {
+        wakeLock = await navigator.wakeLock.request('screen');
+    } catch (err) {
+        return;   // denied, or the tab isn't visible yet - not worth surfacing
     }
+
+    // Registered once. It used to be added inside requestWakeLock, so every
+    // game start stacked another listener on the same event.
+    if (wakeLockWatching) return;
+    wakeLockWatching = true;
+    document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState !== 'visible') return;
+        try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+    });
 }
 
 /* =========================================
@@ -1006,7 +1369,7 @@ function saveCurrentGroup() {
     const updateSelect = document.getElementById('update-group-select');
     let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
     
-    updateSelect.innerHTML = `<option value="">-- اختر لتحديث مجموعة --</option>`;
+    updateSelect.innerHTML = `<option value="">${groupPickerLabel()}</option>`;
     Object.keys(groups).forEach(name => {
         const opt = document.createElement('option');
         opt.value = name;
@@ -1016,6 +1379,11 @@ function saveCurrentGroup() {
 
     document.getElementById('custom-group-name-input').value = "";
     document.getElementById('group-name-modal').classList.remove('hidden');
+}
+
+/** The one placeholder both group dropdowns share; it was Arabic-only. */
+function groupPickerLabel() {
+    return appState.lang === 'ar' ? '-- اختر لتحديث مجموعة --' : '-- Select a group to update --';
 }
 
 // 2. Action: Create a Brand New Group
@@ -1132,7 +1500,7 @@ function deleteGroupFromModal() {
             renderSavedGroups(); 
             // Re-populate modal select
             const updateSelect = document.getElementById('update-group-select');
-            updateSelect.innerHTML = `<option value="">-- اختر لتحديث مجموعة --</option>`;
+            updateSelect.innerHTML = `<option value="">${groupPickerLabel()}</option>`;
             Object.keys(groups).forEach(name => {
                 const opt = document.createElement('option');
                 opt.value = name;
@@ -1195,18 +1563,10 @@ function renderSavedGroups() {
 }
 
 
+// The iOS datalist-positioning workaround that used to live here went with the
+// datalist itself: saved names are chips you tap now, so nothing autocompletes.
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(renderSavedGroups, 1000);
-    
-    // Global listener to fix iOS Datalist positioning
-    document.addEventListener('focusin', (e) => {
-        if (e.target.tagName === 'INPUT' && e.target.getAttribute('list') === 'global-player-datalist') {
-            // Delay slightly to allow keyboard to start appearing
-            setTimeout(() => {
-                e.target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 300);
-        }
-    });
 });
 
 </script>

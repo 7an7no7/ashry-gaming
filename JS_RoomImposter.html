@@ -1,0 +1,215 @@
+<script>
+/* ============================================================================
+   الجاسوس — MULTIPLAYER
+   ----------------------------------------------------------------------------
+   The same game as the pass-the-phone version, except each player's card lives
+   on their own screen. That removes the whole awkward ritual of handing the
+   phone around and shielding it while you look.
+
+   Nothing here decides who the spy is — the server does, and it only ever sends
+   a player their own role.
+   ========================================================================= */
+
+let imposterCardOpen = false;   // has this player flipped their card this round
+
+ROOM_GAMES.imposter = {
+  /** Host-only controls shown in the lobby. */
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    // Locked categories are behind a password on the single-device screen and
+    // there is no password step here, so they simply aren't offered.
+    const cats = Object.keys(SPY_CATEGORIES || {}).filter(c => c.indexOf('🔒') === -1);
+    if (!cats.length) return '';
+    const maxSpies = Math.max(1, state.players.length - 2);
+    const t = TRANSLATIONS[appState.lang];
+    return `
+      <div class="card card--tight">
+        <label class="field__label">${t.category || 'المجموعة'}</label>
+        <select id="room-imp-category">
+          ${cats.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('')}
+        </select>
+        <label class="field__label">${t.imposters_count || 'عدد الجواسيس'}</label>
+        <select id="room-imp-spies">
+          ${Array.from({ length: maxSpies }, (_, i) =>
+            `<option value="${i + 1}">${i + 1}</option>`).join('')}
+        </select>
+      </div>`;
+  },
+
+  startPayload() {
+    const cat = document.getElementById('room-imp-category');
+    const spies = document.getElementById('room-imp-spies');
+    return {
+      category: cat ? cat.value : '',
+      spies: spies ? Number(spies.value) : 1
+    };
+  },
+
+  /**
+   * During the discussion nothing on screen changes until the host reveals —
+   * and that can be minutes — so back right off. The reveal step is different:
+   * players are waiting for the host to move things on.
+   */
+  pollHint(state) {
+    if (state.phase === 'discuss') return 'idle';
+    if (state.phase === 'result') return 'idle';
+    return state.youAreHost ? 'acting' : 'watching';
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-imposter') {
+      imposterCardOpen = false;
+      setView('room-imposter');
+    }
+    const el = document.getElementById('view-room-imposter');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+
+    if (state.phase === 'reveal')  renderImposterReveal(el, state, t);
+    else if (state.phase === 'discuss') renderImposterDiscuss(el, state, t);
+    else if (state.phase === 'result')  renderImposterResult(el, state, t);
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/** Your card, face down until you tap it. */
+function renderImposterReveal(el, state, t) {
+  const you = state.you || {};
+  const isSpy = you.role === 'spy';
+
+  const face = imposterCardOpen
+    ? `<div class="role-card ${isSpy ? 'role-card--spy' : ''} animate-pop">
+         <div class="role-card__label">${isSpy ? (t.you_are_spy || 'أنت الجاسوس') : (t.secret_word || 'الكلمة السرية')}</div>
+         <div class="role-card__value">${isSpy ? '🕵️‍♂️' : escapeHTML(you.word || '')}</div>
+         ${isSpy ? `<div class="role-card__hint">${t.spy_hint || 'حاول أن تعرف الكلمة دون أن ينكشف أمرك'}</div>` : ''}
+       </div>`
+    : `<button class="role-card role-card--closed" onclick="imposterFlipCard()">
+         <div class="role-card__value">🎴</div>
+         <div class="role-card__label">${t.tap_to_reveal || 'اضغط لكشف دورك'}</div>
+       </button>`;
+
+  renderRoomFrame(el, 'reveal|' + imposterCardOpen + '|' + isSpy + '|' + state.youAreHost, () => `
+    <div class="card" style="text-align:center">
+      <div class="eyebrow">${escapeHTML(state.shared.category || '')}</div>
+      ${face}
+    </div>
+    ${state.youAreHost
+      ? `<button onclick="roomAct('beginDiscussion')" class="btn btn--primary btn--lg">${t.start_discussion || 'ابدأ النقاش'}</button>`
+      : `<div class="waiting-note"><span class="animate-pulse">⏳</span> ${t.room_wait_host}</div>`}
+    ${renderRoomPlayerStrip(state)}`);
+}
+
+function imposterFlipCard() {
+  imposterCardOpen = true;
+  playSound('success');
+  haptic('medium');
+  if (Room.state) ROOM_GAMES.imposter.render(Room.state);
+}
+
+function renderImposterDiscuss(el, state, t) {
+  renderRoomFrame(el, 'discuss|' + state.youAreHost, () => `
+    <div class="card" style="text-align:center">
+      <div class="eyebrow">${t.discussion_time || 'وقت النقاش'}</div>
+      <div id="room-imp-timer" class="metric metric--xl metric--accent">00:00</div>
+      <p class="card__subtitle" style="margin-bottom:0">${t.imposter_discuss_hint || 'اسألوا بعضكم واكتشفوا الجاسوس'}</p>
+    </div>
+    ${state.youAreHost
+      ? `<button onclick="roomAct('revealResult')" class="btn btn--danger btn--lg">${t.reveal_imposters || 'كشف الجواسيس'}</button>`
+      : `<div class="waiting-note">${t.room_wait_host}</div>`}
+    ${renderRoomPlayerStrip(state)}`);
+
+  startRoomDiscussClock(state.shared.startedAt);
+}
+
+/** Counts up from the shared start time, so every phone shows the same number. */
+let roomDiscussClock = null;
+let roomDiscussBase = null;
+function startRoomDiscussClock(startedAt) {
+  const base = startedAt || Date.now();
+  // Restarting on every render threw the tick away each poll for no gain; the
+  // reading is anchored to the shared start time either way.
+  if (roomDiscussClock && roomDiscussBase === base) return;
+  if (roomDiscussClock) roomDiscussClock.stop();
+  roomDiscussBase = base;
+  const paint = () => {
+    const el = document.getElementById('room-imp-timer');
+    if (!el) return;
+    const secs = Math.max(0, Math.floor((Date.now() - base) / 1000));
+    const m = String(Math.floor(secs / 60)).padStart(2, '0');
+    const s = String(secs % 60).padStart(2, '0');
+    el.innerText = `${m}:${s}`;
+  };
+  paint();
+  roomDiscussClock = createClock({ countUp: true, onTick: paint });
+}
+
+function renderImposterResult(el, state, t) {
+  if (roomDiscussClock) { roomDiscussClock.stop(); roomDiscussClock = null; roomDiscussBase = null; }
+  const spies = state.shared.spies || [];
+  const fresh = renderRoomFrame(el, 'result|' + spies.join(',') + '|' + state.youAreHost, () => `
+    <div class="card" style="text-align:center">
+      <div class="eyebrow">${t.the_spies || 'الجواسيس'}</div>
+      <div class="metric metric--md" style="color: var(--danger); margin-bottom: var(--sp-4)">
+        ${spies.map(escapeHTML).join('، ')}
+      </div>
+      <div class="eyebrow">${t.secret_word || 'الكلمة السرية'}</div>
+      <div class="metric metric--md metric--accent">${escapeHTML(state.shared.secretWord || '')}</div>
+    </div>
+    ${state.youAreHost
+      ? `<div class="btn-stack">
+           <button onclick="roomAct('restart')" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>
+           <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
+         </div>`
+      : `<div class="waiting-note">${t.room_wait_host}</div>`}`);
+  // Only on the round that actually just ended. This used to re-fire every time
+  // anyone's presence flickered, which is every few seconds in a real room.
+  if (fresh) confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+}
+
+/* --- shared helpers used by every room game ----------------------------- */
+
+/**
+ * Rebuilds a room view only when what it shows has actually changed.
+ *
+ * Every poll re-emits as soon as anyone's presence flips - which is constant in
+ * a room full of phones locking and waking - and a blind innerHTML rewrite at
+ * that moment throws away whatever the player was in the middle of typing. So
+ * each screen declares the signature it really depends on, and presence is
+ * refreshed on its own below.
+ *
+ * Returns true when it rebuilt, for anything that should only fire on a change.
+ */
+function renderRoomFrame(el, sig, build) {
+  if (el.dataset.sig === sig) return false;
+  el.dataset.sig = sig;
+  el.innerHTML = build();
+  return true;
+}
+
+/** Updates just the presence strip, leaving the rest of the view alone. */
+function refreshRoomPlayerStrip(el, state) {
+  const strip = el.querySelector('[data-room-strip]');
+  if (strip) strip.outerHTML = renderRoomPlayerStrip(state);
+}
+
+/** A compact who's-here strip, so players can see the room is still alive. */
+function renderRoomPlayerStrip(state) {
+  return `
+    <div class="chip-set" data-room-strip style="justify-content:center; margin-top: var(--sp-4)">
+      ${state.players.map(p => `
+        <span class="chip chip--plain ${p.online ? '' : 'is-away'}">
+          <span class="presence-dot ${p.online ? 'is-online' : ''}"></span>
+          <span class="chip__label">${escapeHTML(p.name)}</span>
+        </span>`).join('')}
+    </div>`;
+}
+
+/** Thin wrapper so inline handlers can fire a room action and surface errors. */
+async function roomAct(action, payload) {
+  try {
+    await Room.act(action, payload || {});
+  } catch (err) {
+    showToast(err.message || 'تعذر تنفيذ الإجراء', 'error');
+  }
+}
+</script>

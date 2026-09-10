@@ -13,9 +13,41 @@
       );
   }
 
+  /**
+   * Escapes a value for use as a single-quoted JS string inside an inline
+   * handler attribute, e.g. onclick="fn('${jsStringAttr(name)}')".
+   *
+   * escapeHTML is the wrong tool here: it turns ' into &#39;, and the HTML parser
+   * decodes that back to a bare ' before the JS is ever compiled — so a player
+   * called O'Brien produced fn('O'Brien'), a syntax error that left the button
+   * silently dead. Backslash-escaping has to happen first (the HTML parser leaves
+   * backslashes alone, so JS receives them), then the characters that would end
+   * the attribute get entity-encoded.
+   */
+  function jsStringAttr(value) {
+      return String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r?\n/g, '\\n')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+  }
+
   /* --- AUDIO SYSTEM --- */
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let lastClickAt = 0;
+
   function playSound(type) {
+    // The delegated pointerdown handler clicks for every control, and a few
+    // handlers still click for themselves; collapse the overlap rather than
+    // hunting down every call site.
+    if (type === 'click') {
+      const now = Date.now();
+      if (now - lastClickAt < 70) return;
+      lastClickAt = now;
+    }
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -51,10 +83,252 @@
     }
   }
 
+  /* --- TACTILE FEEDBACK ------------------------------------------------------
+   * Two channels, both cheap and both optional: a short vibration where the
+   * device supports it, and a ripple that starts at the finger. Between them a
+   * tap feels acknowledged before any state has changed.
+   * ------------------------------------------------------------------------ */
+
+  const HAPTIC_PATTERNS = { light: 8, medium: 14, heavy: 22, double: [12, 40, 12] };
+  const prefersReducedMotion = () =>
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /** Vibrates if the device and browser allow it. iOS Safari has no vibrate. */
+  function haptic(kind = 'light') {
+      if (!navigator.vibrate || prefersReducedMotion()) return;
+      try { navigator.vibrate(HAPTIC_PATTERNS[kind] || HAPTIC_PATTERNS.light); } catch (e) {}
+  }
+
+  /* Every host listed here must be `position: relative; overflow: hidden` in
+     Style.html, or the ripple escapes its box. See the ".ripple" rule there. */
+  const RIPPLE_TARGETS = '.btn, .game-card, .tool-item, .row--interactive, .setting-row, .nav-item, .key';
+
+  document.addEventListener('pointerdown', (e) => {
+      const host = e.target.closest && e.target.closest(RIPPLE_TARGETS);
+      if (!host || host.disabled || prefersReducedMotion()) return;
+
+      const rect = host.getBoundingClientRect();
+      // One circle big enough to cover the element from wherever it started.
+      const size = Math.max(rect.width, rect.height) * 1.1;
+      const ripple = document.createElement('span');
+      ripple.className = 'ripple';
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+      ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+
+      // The ripple is absolutely positioned, so the host has to be a stacking
+      // context for it; .btn and the tiles already are.
+      if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+      host.appendChild(ripple);
+
+      // animationend is the normal path, but never the only one: if the
+      // animation doesn't run the node would stay in the DOM forever, and in a
+      // flex host that means it keeps taking up space.
+      const drop = () => ripple.remove();
+      ripple.addEventListener('animationend', drop);
+      setTimeout(drop, 800);
+  }, { passive: true });
+
+  /* Every tap on a control gets a click and a nudge from here, so individual
+     handlers don't each have to remember playSound('click'). They still raise
+     the meaningful sounds themselves — success, alarm, tick. */
+  document.addEventListener('pointerdown', (e) => {
+      const host = e.target.closest && e.target.closest(RIPPLE_TARGETS);
+      if (!host || host.disabled) return;
+      playSound('click');
+      haptic('light');
+  }, { passive: true });
+
+  /* --- CLOCKS --- */
+
+  // Every live clock, so clearAllIntervals() can stop them and so they can all be
+  // re-read when the tab comes back to the foreground.
+  const activeClocks = new Set();
+
+  /**
+   * A pausable clock anchored to Date.now().
+   *
+   * Every timer in the app used to sit on setInterval(..., 1000) and decrement a
+   * counter. That drifts, and on mobile it does worse than drift: browsers
+   * throttle or suspend timers in backgrounded tabs, so locking the screen or
+   * switching apps mid-round quietly froze the clock and it resumed as if no time
+   * had passed. Reading elapsed time from the clock instead of counting ticks
+   * keeps it honest, and each tick is scheduled at the next whole-second boundary
+   * rather than 1000ms after the last one, so the display cannot slide.
+   *
+   *   seconds  countdown length (ignored when countUp is set)
+   *   countUp  count up from zero instead of down (imposter's discussion timer)
+   *   onTick   called with the whole-second value whenever it changes
+   *   onEnd    called once when a countdown reaches zero
+   */
+  function createClock(options) {
+      const countUp = !!options.countUp;
+      const totalMs = Math.max(0, Math.round(options.seconds || 0)) * 1000;
+      const onTick = options.onTick || function() {};
+      const onEnd = options.onEnd || function() {};
+
+      let elapsedBefore = 0;        // ms banked from previous (pre-pause) runs
+      let startedAt = Date.now();   // when the current run began
+      let timeoutId = null;
+      let paused = false;
+      let finished = false;
+      let lastValue = null;
+
+      const elapsedMs = () =>
+          elapsedBefore + ((paused || finished) ? 0 : Date.now() - startedAt);
+
+      const value = () => countUp
+          ? Math.floor(elapsedMs() / 1000)
+          : Math.max(0, Math.ceil((totalMs - elapsedMs()) / 1000));
+
+      const emit = () => {
+          const v = value();
+          if (v !== lastValue) {
+              lastValue = v;
+              onTick(v);
+          }
+      };
+
+      const cancel = () => {
+          if (timeoutId) clearTimeout(timeoutId);
+          timeoutId = null;
+      };
+
+      // Aim at the next whole-second boundary of the elapsed time, so a late
+      // wake-up is absorbed instead of accumulating.
+      const schedule = () => {
+          cancel();
+          timeoutId = setTimeout(step, Math.max(25, 1000 - (elapsedMs() % 1000)));
+      };
+
+      function step() {
+          timeoutId = null;
+          if (paused || finished) return;
+          emit();
+          if (!countUp && elapsedMs() >= totalMs) {
+              finished = true;
+              activeClocks.delete(clock);
+              onEnd();
+              return;
+          }
+          schedule();
+      }
+
+      const clock = {
+          /** Re-read the clock right now (used when the tab regains focus). */
+          sync() {
+              if (!paused && !finished) step();
+              return clock;
+          },
+          pause() {
+              if (paused || finished) return clock;
+              elapsedBefore = elapsedMs();
+              paused = true;
+              cancel();
+              return clock;
+          },
+          resume() {
+              if (!paused || finished) return clock;
+              paused = false;
+              startedAt = Date.now();
+              emit();
+              schedule();
+              return clock;
+          },
+          /** Pause or resume; returns true if the clock is now paused. */
+          toggle() {
+              if (paused) clock.resume(); else clock.pause();
+              return paused;
+          },
+          stop() {
+              finished = true;
+              cancel();
+              activeClocks.delete(clock);
+              return clock;
+          },
+          isPaused: () => paused,
+          isRunning: () => !paused && !finished,
+          value: value
+      };
+
+      activeClocks.add(clock);
+      emit();
+      schedule();
+      return clock;
+  }
+
+  /** Stops every running clock. */
+  function stopAllClocks() {
+      [...activeClocks].forEach(c => c.stop());
+  }
+
+  // A backgrounded tab may not have been able to fire its pending tick, so
+  // re-read every clock the moment we are visible again.
+  document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+          [...activeClocks].forEach(c => c.sync());
+      }
+  });
+
   /* --- GLOBAL STATE & STORAGE --- */
-  let allPlayers = []; 
-  let SPY_CATEGORIES = {}; 
-  let dataLoaded = false; 
+
+  /**
+   * The names this phone knows. Local, and local only.
+   *
+   * This used to be a column in the `اللاعبين` sheet — one list shared by every
+   * device that ever opened the app, so playing once with your family put their
+   * names in front of your friends the next time they opened it. It also meant
+   * every new name waited on a spreadsheet write before the + button came back.
+   */
+  const PLAYER_LIBRARY_KEY = 'ashryPlayers_v1';
+  let allPlayers = [];
+  let SPY_CATEGORIES = {};
+  let dataLoaded = false;
+
+  /** Case- and spelling-insensitive, so أحمد and احمد are the same person. */
+  function samePlayer(a, b) {
+    const fold = (x) => String(x || '').trim().toLowerCase()
+      .replace(/[\u064b-\u0652\u0670]/g, '')
+      .replace(/[\u0623\u0625\u0622\u0671]/g, '\u0627')
+      .replace(/\u0629/g, '\u0647')
+      .replace(/[\u0649\u064a]/g, '\u064a')
+      .replace(/\s+/g, ' ');
+    return fold(a) === fold(b);
+  }
+
+  function loadPlayerLibrary() {
+    try {
+      const raw = localStorage.getItem(PLAYER_LIBRARY_KEY);
+      allPlayers = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(allPlayers)) allPlayers = [];
+    } catch (e) { allPlayers = []; }
+    return allPlayers;
+  }
+
+  function savePlayerLibrary() {
+    try { localStorage.setItem(PLAYER_LIBRARY_KEY, JSON.stringify(allPlayers)); } catch (e) {}
+  }
+
+  /** Returns the stored spelling, so a second "احمد" reuses the first "أحمد". */
+  function addToPlayerLibrary(rawName) {
+    const name = String(rawName || '').trim().slice(0, 24);
+    if (!name) return '';
+    const existing = allPlayers.find(p => samePlayer(p, name));
+    if (existing) return existing;
+    allPlayers.push(name);
+    savePlayerLibrary();
+    return name;
+  }
+
+  function removeFromPlayerLibrary(name) {
+    allPlayers = allPlayers.filter(p => !samePlayer(p, name));
+    savePlayerLibrary();
+    // Someone deleted from the library shouldn't stay selected for the round.
+    if (appState.activePlayers) {
+      appState.activePlayers = appState.activePlayers.filter(p => !samePlayer(p, name));
+      saveToLocal();
+    }
+  }
   
   // Timers & Game Logic Variables
   let timerInterval = null;
@@ -104,38 +378,172 @@
 
 
   function clearAllIntervals() {
-      if(typeof stopTimer === 'function') stopTimer(); 
-      if(typeof stopImposterTimer === 'function') stopImposterTimer(); 
+      // Every countdown and clock in the app now runs through createClock, so one
+      // call covers monkey, imposter, charades, describe, who-am-I, the general
+      // timer and both chess clocks.
+      stopAllClocks();
 
-      appState.timers.general.running = false;
-      
-      // Dynamic intervals
-      const intervals = [
-          appState.timers.general.interval,
-          appState.timers.chess.interval,
-          appState.charades.interval,
-          appState.describe.interval,
-          appState.whoami.interval,
-          appState.reaction.timeoutId,
-          typeof pickerInterval !== 'undefined' ? pickerInterval : null
-      ];
-      
-      intervals.forEach(inv => { if(inv) clearInterval(inv); });
-      if(typeof pickerInterval !== 'undefined') pickerInterval = null;
+      // ...then drop the handles, so nothing is left holding a stopped clock.
+      if (typeof stopTimer === 'function') stopTimer();
+      if (typeof stopImposterTimer === 'function') stopImposterTimer();
+      dropTimerHandles();
+
+      // Still plain timers: the picker's spin animation and the reaction game's
+      // random start delay.
+      if (appState.reaction.timeoutId) clearTimeout(appState.reaction.timeoutId);
+      if (typeof pickerInterval !== 'undefined' && pickerInterval) {
+          clearInterval(pickerInterval);
+          pickerInterval = null;
+      }
   }
 
   const TRANSLATIONS = {
     ar: {
       title: "عشرى جيمينج 🎮",
+      settings: "الإعدادات",
+      room_join_title: "انضم لغرفة",
+      room_pick_game: "اختر لعبة",
+      help_here: "أنت هنا دلوقتي",
+      help_search_ph: "ابحث عن لعبة أو أداة…",
+      help_no_results: "مفيش حاجة بالاسم ده",
+      help_welcome: "أهلاً بيك في عشرى جيمينج",
+      help_intro: "اختار لعبة من القائمة والعبوا على موبايل واحد، أو <b>افتح غرفة</b> وكل واحد يدخل من موبايله.<br><br>وفي أي وقت، اضغط <b>مساعدة ❓</b> وهتلاقي قوانين اللعبة اللي أنت فيها فوق علطول.",
+      help_room_too: "تتلعب كمان على موبايلات منفصلة",
+      help_room_only: "تتلعب على موبايلات منفصلة فقط",
+      help_players: "اللاعبين والمجموعات",
+      help_settings: "إعدادات التطبيق",
+      room_help_title: "الغرف واللعب مع بعض",
+      setup_wouldyou: "لو خيروك",
+      act_it_out: "مثل الكلمة",
+      pass: "تجاوز ⏭️",
+      setup_mostlikely: "مين أكثر واحد",
+      setup_fibbage: "كذبة وصدقة",
+      setup_drawguess: "ارسم وخمّن",
+      setup_connections: "تشابه",
+      wyr_hint: "سؤال، اختيارين، وكل واحد يصوّت من هاتفه. الحلو في النقاش اللي بعده.",
+      mlt_hint: "سؤال عن المجموعة، وكل واحد يختار مين. اللي يجيب أكتر أصوات ياخد نقطة.",
+      fib_hint: "كل واحد يخترع إجابة، وبعدين تدوروا على الإجابة الحقيقية وسط الكذب.",
+      draw_hint: "واحد يرسم والباقي يخمّنوا. أول واحد يعرفها ياخد نقطتين.",
+      conn_desc: "16 كلمة، وأربع مجموعات مخبية. اعثر على المجموعات الأربعة قبل ما تخلص محاولاتك.",
+      vote_waiting: "في انتظار باقي الأصوات",
+      vote_spectating: "تتفرج على هذه الجولة",
+      vote_count: "صوّت",
+      vote_close: "اقفل التصويت",
+      vote_your_answer: "إجابتك",
+      scoreboard: "الترتيب",
+      next_question: "سؤال جديد",
+      fib_your_lie: "اخترع إجابة مقنعة",
+      fib_lie_hint: "الهدف إن الناس تصدقها وتختارها",
+      fib_need_lie: "اكتب إجابة",
+      fib_truth: "الإجابة الصحيحة",
+      draw_you_draw: "أنت الرسام",
+      draw_drawer: "الرسام",
+      draw_your_word: "ارسم هذه الكلمة",
+      draw_guess_ph: "اكتب تخمينك",
+      draw_guessed_by: "خمّنها",
+      draw_nobody: "محدش عرفها",
+      draw_next: "جولة جديدة",
+      draw_reveal: "كشف الكلمة",
+      conn_submit: "تأكيد",
+      conn_shuffle: "خلط",
+      conn_mistakes: "محاولات متبقية",
+      conn_one_away: "قريب! ثلاثة من نفس المجموعة",
+      conn_wrong: "مش صح",
+      name_hint: "سيظهر هذا الاسم لباقي اللاعبين",
+      name_needed: "اكتب اسمك",
+      confirm: "تأكيد",
+      room_hub_wait: "المضيف يختار اللعبة…",
+      room_change_game: "تغيير",
+      room_another_game: "لعبة أخرى",
+      room_spectating: "جولة جارية — ستنضم في الجولة القادمة",
+      room_open: "افتح غرفة",
+      room_open_desc: "غرفة واحدة، والعبوا فيها ما تشاؤون",
+      setup_codenames: "أسماء الرموز",
+      codenames_desc: "فريقان، لوحة من 25 كلمة، وقائد لكل فريق يرى الحل. اللعبة تحتاج هاتفاً لكل لاعب.",
+      codenames_lang: "لغة الكلمات",
+      cn_spymaster: "قائد",
+      cn_operative: "لاعب",
+      cn_empty: "لا أحد بعد",
+      cn_lobby_hint: "كل فريق يحتاج قائداً واحداً ولاعباً واحداً على الأقل.",
+      cn_turn: "دور الفريق",
+      cn_await_clue: "في انتظار تلميح القائد",
+      cn_your_clue: "تلميحك",
+      cn_clue_ph: "كلمة واحدة",
+      cn_give_clue: "أعط التلميح",
+      cn_clue_needed: "اكتب التلميح",
+      cn_guesses_left: "محاولات متبقية",
+      cn_end_turn: "إنهاء الدور",
+      cn_team_guessing: "فريقك يخمّن الآن…",
+      cn_other_turn: "دور الفريق الآخر",
+      cn_wins: "فاز الفريق",
+      cn_assassin_hit: "انكشف القاتل!",
+      cn_cleared: "كل الكلمات ظهرت",
+      tap_to_reveal: "اضغط لكشف دورك",
+      you_are_spy: "أنت الجاسوس",
+      spy_hint: "حاول أن تعرف الكلمة دون أن ينكشف أمرك",
+      start_discussion: "ابدأ النقاش",
+      imposter_discuss_hint: "اسألوا بعضكم واكتشفوا الجاسوس",
+      the_spies: "الجواسيس",
+      jo_lobby_hint: "كل جولة يخمّن لاعب مختلف، والباقي يكتبون تلميحاً واحداً.",
+      jo_you_guess: "أنت المخمّن هذه الجولة",
+      jo_wait_clues: "انتظر حتى يكتب الجميع تلميحاتهم",
+      jo_your_clue: "تلميحك (كلمة واحدة)",
+      jo_your_guess: "تخمينك",
+      jo_waiting_guess: "في انتظار تخمين",
+      jo_no_clues: "لم يتبق أي تلميح!",
+      jo_the_guess: "التخمين",
+      jo_need_clue: "اكتب تلميحاً",
+      whoami_you: "هويتك",
+      whoami_hint: "اسأل الآخرين أسئلة بنعم أو لا لتعرف من أنت",
+      whoami_others: "هويات الآخرين",
+      whoami_reveal: "الهويات",
+      round: "جولة",
+      score: "النقاط",
+      send: "إرسال",
+      wrong: "خاطئة",
+      next_round: "الجولة التالية",
+      room_lobby_title: "غرفة اللعب",
+      room_code: "كود الغرفة",
+      room_join_hint: "اكتب كود الغرفة الظاهر على جهاز المضيف",
+      room_scan_hint: "امسح الكود أو اكتبه في خانة \"انضم لغرفة\"",
+      room_join_btn: "دخول الغرفة",
+      room_players: "اللاعبون",
+      room_leave: "مغادرة الغرفة",
+      room_wait_host: "في انتظار أن يبدأ المضيف اللعبة…",
+      room_create: "إنشاء غرفة",
+      join_room_menu: "انضم لغرفة",
+      join_room_desc: "ادخل بكود من صديقك",
+      your_name: "اسمك",
+      mode_device: "على هذا الجهاز",
+      mode_online: "أجهزة متعددة",
+      mode_hint_device: "هاتف واحد يتنقل بين اللاعبين",
+      mode_hint_online: "كل لاعب على هاتفه",
+      waiting_others: "في انتظار باقي اللاعبين…",
+      spin_desc: "عجلة حظ للقرعة والتحديات",
+      teams_desc: "تقسيم اللاعبين عشوائياً أو بالمهارة",
+      tourney_desc: "قرعة وتتبع خروج المغلوب",
+      universal_desc: "تتبع نقاط أي لعبة خارجية",
+      timers_desc: "مؤقت تنازلي مع منبه",
+      chess_desc: "مؤقت احترافي للاعبين",
+      dice_desc: "رمي النرد أو العملة المعدنية",
+      timers_title: "مؤقت عام",
+      chess_title: "ساعة شطرنج",
+      theme: "المظهر",
+      lang: "اللغة",
+      help: "مساعدة",
+      refresh_data: "تحديث البيانات",
+      reset_all: "حذف جميع البيانات",
+      theme_light: "نهاري",
+      theme_dark: "ليلي",
       games_cards: "ألعاب البطاقات",
       games_group: "ألعاب جماعية",
       games_board: "ألعاب طاولة",
       extras: "أدوات إضافية",
       add_player_fast: "إضافة لاعب سريع",
-      universal_counter: "🔢 عداد عام",
-      timers: "⏱️ مؤقتات (شطرنج/عام)",
-      sounds: "🔊 أصوات مضحكة",
-      install: "📲 تثبيت التطبيق",
+      universal_counter: "العداد العام",
+      timers: "المؤقتات",
+      sounds: "أصوات مضحكة",
+      install: "تثبيت التطبيق",
       add: "إضافة",
       back: "رجوع",
       start: "ابدأ",
@@ -145,7 +553,6 @@
       cancel: "إلغاء",
       yes: "نعم",
       no: "لا",
-      sync_cloud: "☁️ تزامن السحابة (Cloud Sync)",
       setup_screw: "سكرو",
       rounds_count: "عدد الجولات",
       players: "اللاعبين",
@@ -161,7 +568,7 @@
       next: "التالي ➡",
       country_log: "🌍 سجل الدول",
       player_status: "حالة اللاعبين",
-      setup_universal: "إعداد العداد العام",
+      setup_universal: "العداد العام",
       start_counter: "ابدأ العداد",
       gen_timer: "مؤقت عام",
       chess_timer: "شطرنج",
@@ -206,6 +613,13 @@
       alert_title: "تنبيه",
       ok_btn: "حسناً",
       loading: "جاري التحميل...",
+      picker_saved: "اللاعبين المحفوظين",
+      picker_empty: "مفيش أسماء محفوظة لسة — اكتب أول اسم تحت وهيتحفظ هنا للمرات الجاية.",
+      picker_in_round: "في الجولة دي:",
+      picker_none: "اضغط على الأسماء اللي هتلعب معاهم",
+      player_already: "اللاعب ده موجود في الجولة بالفعل",
+      edit: "تعديل",
+      done: "تم",
       placeholder_name: "الاسم",
       placeholder_search: "بحث...",
       players_count: "عدد اللاعبين",
@@ -218,7 +632,7 @@
       generated_teams: "الفرق العشوائية",
       reshuffle: "إعادة التوزيع 🔄",
       teams_count: "عدد الفرق",
-      setup_justone: "🤫 كلمة واحدة",
+      setup_justone: "كلمة واحدة",
       just_one_title: "إعداد 'كلمة واحدة'",
       pass_phone_title: "أعط الهاتف لـ",
       pass_phone: "مرر الهاتف إلى",
@@ -242,12 +656,7 @@
       setup_wordle: "خمن الكلمة",
       word_length: "اختر طول الكلمة",
       help_title: "الدليل والقوانين 📘",
-      sec_interface: "واجهة التطبيق",
       sec_games: "شرح الألعاب",
-      help_lang: "تغيير اللغة (عربي / English)",
-      help_dark: "الوضع الليلي (مريح للعين)",
-      help_reset: "حذف جميع البيانات والبدء من الصفر",
-      help_reload: "تحديث التطبيق (لحل المشاكل)",
       setup_whoami: "من أنا؟",
       reveal_identity: "كشف الهوية 🕵️",
       close: "إغلاق",
@@ -294,15 +703,150 @@
     },
     en: {
       title: "Ashry Gaming 🎮",
+      settings: "Settings",
+      room_join_title: "Join a room",
+      room_pick_game: "Pick a game",
+      help_here: "You're on this screen",
+      help_search_ph: "Search games and tools…",
+      help_no_results: "Nothing matches that",
+      help_welcome: "Welcome to Ashry Gaming",
+      help_intro: "Pick a game from the menu and play it on one phone, or <b>open a room</b> so everyone joins from their own.<br><br>At any point, press <b>Help ❓</b> and the rules for whatever you are playing are at the top.",
+      help_room_too: "Also plays on separate phones",
+      help_room_only: "Plays on separate phones only",
+      help_players: "Players & saved groups",
+      help_settings: "App settings",
+      room_help_title: "Rooms & playing together",
+      setup_wouldyou: "Would You Rather",
+      act_it_out: "Act it out",
+      pass: "Pass ⏭️",
+      setup_mostlikely: "Most Likely To",
+      setup_fibbage: "Fibbage",
+      setup_drawguess: "Draw & Guess",
+      setup_connections: "Connections",
+      wyr_hint: "One question, two options, everyone votes from their own phone. The argument afterwards is the point.",
+      mlt_hint: "A question about the group; everyone picks a person. Most votes takes the point.",
+      fib_hint: "Everyone invents an answer, then you hunt for the real one among the lies.",
+      draw_hint: "One person draws, the rest guess. First correct answer takes two points.",
+      conn_desc: "Sixteen words, four hidden groups. Find all four before your guesses run out.",
+      vote_waiting: "Waiting for the rest of the votes",
+      vote_spectating: "Watching this round",
+      vote_count: "Voted",
+      vote_close: "Close the vote",
+      vote_your_answer: "Yours",
+      scoreboard: "Standings",
+      next_question: "Next question",
+      fib_your_lie: "Invent a convincing answer",
+      fib_lie_hint: "You want people to believe it and pick it",
+      fib_need_lie: "Type an answer",
+      fib_truth: "The real answer",
+      draw_you_draw: "You're drawing",
+      draw_drawer: "Drawing",
+      draw_your_word: "Draw this word",
+      draw_guess_ph: "Type your guess",
+      draw_guessed_by: "Guessed by",
+      draw_nobody: "Nobody got it",
+      draw_next: "Next round",
+      draw_reveal: "Reveal the word",
+      conn_submit: "Submit",
+      conn_shuffle: "Shuffle",
+      conn_mistakes: "Guesses left",
+      conn_one_away: "One away — three are from the same group",
+      conn_wrong: "Not quite",
+      name_hint: "This is what the other players will see",
+      name_needed: "Type your name",
+      confirm: "Confirm",
+      room_hub_wait: "The host is choosing a game…",
+      room_change_game: "Change",
+      room_another_game: "Another game",
+      room_spectating: "Round in progress — you'll join the next one",
+      room_open: "Open a room",
+      room_open_desc: "One room, play as many games as you like",
+      setup_codenames: "Codenames",
+      codenames_desc: "Two teams, a 25-word board, and one spymaster per team who can see the key. Needs a phone each.",
+      codenames_lang: "Word language",
+      cn_spymaster: "Spymaster",
+      cn_operative: "Operative",
+      cn_empty: "Nobody yet",
+      cn_lobby_hint: "Each team needs one spymaster and at least one operative.",
+      cn_turn: "Turn:",
+      cn_await_clue: "Waiting for the spymaster's clue",
+      cn_your_clue: "Your clue",
+      cn_clue_ph: "one word",
+      cn_give_clue: "Give clue",
+      cn_clue_needed: "Type a clue",
+      cn_guesses_left: "Guesses left",
+      cn_end_turn: "End turn",
+      cn_team_guessing: "Your team is guessing…",
+      cn_other_turn: "Other team's turn",
+      cn_wins: "Winner:",
+      cn_assassin_hit: "The assassin was revealed!",
+      cn_cleared: "All their words were found",
+      tap_to_reveal: "Tap to see your role",
+      you_are_spy: "You are the spy",
+      spy_hint: "Work out the word without giving yourself away",
+      start_discussion: "Start discussion",
+      imposter_discuss_hint: "Question each other and find the spy",
+      the_spies: "The spies",
+      jo_lobby_hint: "Each round a different player guesses; everyone else writes one clue.",
+      jo_you_guess: "You are guessing this round",
+      jo_wait_clues: "Wait while everyone writes their clue",
+      jo_your_clue: "Your clue (one word)",
+      jo_your_guess: "Your guess",
+      jo_waiting_guess: "Waiting for a guess from",
+      jo_no_clues: "No clues survived!",
+      jo_the_guess: "The guess",
+      jo_need_clue: "Type a clue",
+      whoami_you: "Your identity",
+      whoami_hint: "Ask yes/no questions to work out who you are",
+      whoami_others: "Everyone else",
+      whoami_reveal: "Identities",
+      round: "Round",
+      score: "Score",
+      send: "Send",
+      wrong: "Wrong",
+      next_round: "Next round",
+      room_lobby_title: "Game room",
+      room_code: "Room code",
+      room_join_hint: "Type the code shown on the host's screen",
+      room_scan_hint: "Scan the code, or type it under \"Join a room\"",
+      room_join_btn: "Enter room",
+      room_players: "Players",
+      room_leave: "Leave room",
+      room_wait_host: "Waiting for the host to start…",
+      room_create: "Create a room",
+      join_room_menu: "Join a room",
+      join_room_desc: "Enter a code from a friend",
+      your_name: "Your name",
+      mode_device: "This device",
+      mode_online: "Separate phones",
+      mode_hint_device: "One phone passed around the group",
+      mode_hint_online: "Everyone plays on their own phone",
+      waiting_others: "Waiting for the others…",
+      spin_desc: "Spin the wheel to pick or dare",
+      teams_desc: "Split players at random or by skill",
+      tourney_desc: "Draw and track a knockout bracket",
+      universal_desc: "Keep score for any other game",
+      timers_desc: "Countdown with an alarm",
+      chess_desc: "Two-player match clock",
+      dice_desc: "Roll a die or flip a coin",
+      timers_title: "Timer",
+      chess_title: "Chess Clock",
+      theme: "Appearance",
+      lang: "Language",
+      help: "Help",
+      refresh_data: "Refresh data",
+      reset_all: "Erase all data",
+      theme_light: "Light",
+      theme_dark: "Dark",
       games_cards: "Card Games",
       games_group: "Group Games",
       games_board: "Board Games",
       extras: "Extra Tools",
       add_player_fast: "Quick Add Player",
-      universal_counter: "🔢 Universal Counter",
-      timers: "⏱️ Timers (Chess/Gen)",
-      sounds: "🔊 Funny Sounds",
-      install: "📲 Install App",
+      universal_counter: "Universal Counter",
+      timers: "Timers",
+      sounds: "Funny Sounds",
+      install: "Install App",
       add: "Add",
       back: "Back",
       start: "Start",
@@ -312,7 +856,6 @@
       cancel: "Cancel",
       yes: "Yes",
       no: "No",
-      sync_cloud: "☁️ Cloud Sync",
       setup_screw: "Screw",
       rounds_count: "Rounds Count",
       players: "Players",
@@ -328,7 +871,7 @@
       next: "Next ➡",
       country_log: "🌍 Country Log",
       player_status: "Player Status",
-      setup_universal: "Universal Counter Setup",
+      setup_universal: "Universal Counter",
       start_counter: "Start Counter",
       gen_timer: "General Timer",
       chess_timer: "Chess",
@@ -345,11 +888,11 @@
       you_are: "You are:",
       got_it_next: "Got it, Next",
       reveal_imposters: "Reveal Imposters 🕵️‍♂️",
-      setup_spin: "Random Picker Setup",
+      setup_spin: "Random Picker",
       spin_btn: "🎲 Pick Randomly",
       picked_is: "Picked is",
       change_players: "Change Players",
-      setup_domino: "Domino Setup",
+      setup_domino: "Domino",
       target_score: "Target (e.g. 101)",
       points: "Points",
       win_title: "Game Over!",
@@ -373,6 +916,13 @@
       alert_title: "Alert",
       ok_btn: "OK",
       loading: "Loading...",
+      picker_saved: "Your saved players",
+      picker_empty: "No saved names yet — type one below and it will be here next time.",
+      picker_in_round: "In this round:",
+      picker_none: "Tap the people who are playing",
+      player_already: "That player is already in this round",
+      edit: "Edit",
+      done: "Done",
       placeholder_name: "Name",
       placeholder_search: "Search...",
       players_count: "Players Count",
@@ -385,7 +935,7 @@
       generated_teams: "Generated Teams",
       reshuffle: "Reshuffle 🔄",
       teams_count: "Number of Teams",
-      setup_justone: "🤫 Just One",
+      setup_justone: "Just One",
       just_one_title: "Just One Setup",
       pass_phone_title: "Pass phone to",
       pass_phone: "Pass phone to",
@@ -409,12 +959,7 @@
       setup_wordle: "Guess the Word (Wordle)",
       word_length: "Choose Word Length",
       help_title: "Guide & Rules 📘",
-      sec_interface: "App Interface",
       sec_games: "Game Rules",
-      help_lang: "Switch Language (Arabic / English)",
-      help_dark: "Dark Mode (Eye comfort)",
-      help_reset: "Delete all data (Factory Reset)",
-      help_reload: "Reload App (Fix glitches)",
       setup_whoami: "Who Am I?",
       reveal_identity: "Reveal Identity 🕵️",
       close: "Close",
@@ -491,15 +1036,22 @@
 
   function toggleLanguage() {
     appState.lang = appState.lang === 'ar' ? 'en' : 'ar';
-    document.documentElement.lang = appState.lang;
-    document.documentElement.dir = appState.lang === 'ar' ? 'rtl' : 'ltr';
     applyTranslations();
     saveToLocal();
     playSound('click');
+    haptic('light');
   }
 
   function applyTranslations() {
     const t = TRANSLATIONS[appState.lang];
+
+    // Direction belongs here, not only in toggleLanguage: every logical
+    // property in the stylesheet and the `html[lang="ar"]` typography rules
+    // key off these two attributes, so anything that changes the language
+    // without going through the toggle would leave the app mirrored.
+    document.documentElement.lang = appState.lang;
+    document.documentElement.dir = appState.lang === 'en' ? 'ltr' : 'rtl';
+
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');
       if (t[key]) el.innerHTML = t[key];
@@ -510,7 +1062,10 @@
       if (t[key]) el.placeholder = t[key];
     });
 
-    document.getElementById('app-title').innerText = t.title;
+    // The header shows the current screen's name, not the app name, so it is
+    // owned by syncChrome rather than by the generic [data-i18n] sweep.
+    syncChrome(appState.currentView);
+    updateSettingsLabels();
   }
 
   /* --- ERROR HANDLING --- */
@@ -533,6 +1088,9 @@
      initializeApp();
      registerServiceWorker();
  
+     // Honour a scanned ?room= link, or quietly rejoin the last room.
+     if (typeof initRooms === 'function') initRooms();
+
      document.body.addEventListener('click', function initWakeLock() {
          if (typeof requestWakeLock === 'function') {
              requestWakeLock(); 
@@ -574,9 +1132,10 @@
         }
     };
 
-    // Use Injected Data immediately if available
-    if (window.SERVER_DATA && window.SERVER_DATA.players) {
-        allPlayers = window.SERVER_DATA.players;
+    // Names are local; only the spy words still come from the sheet.
+    loadPlayerLibrary();
+
+    if (window.SERVER_DATA && window.SERVER_DATA.spyData) {
         SPY_CATEGORIES = window.SERVER_DATA.spyData || {};
         dataLoaded = true;
         setSyncing(false);
@@ -596,7 +1155,6 @@
         // Fallback for cases where injection failed or isn't present
         google.script.run
           .withSuccessHandler(data => {
-            if (data.players) allPlayers = data.players;
             SPY_CATEGORIES = data.spyData || {};
             dataLoaded = true;
             setSyncing(false);
@@ -617,9 +1175,34 @@
       initializeApp();
   }
 
+  // Clock handles and timeout ids are parked on appState, but they mean nothing
+  // outside the current page: dropping them keeps a revived save from handing back
+  // something that merely looks like a live clock.
+  const OMIT_FROM_SAVE = ['interval', 'timeoutId'];
+
   function saveToLocal() {
-    appState.cachedPlayers = allPlayers; 
-    localStorage.setItem('gameTrackerState_v1', JSON.stringify(appState));
+    localStorage.setItem('gameTrackerState_v1', JSON.stringify(appState,
+      (key, value) => OMIT_FROM_SAVE.includes(key) ? undefined : value));
+  }
+
+  /**
+   * Clears every timer handle parked on appState, and the flags that go with them.
+   *
+   * Called when leaving a view and again after loading a saved state - a save from
+   * an older version holds setInterval ids (plain numbers) where a clock handle is
+   * now expected, and either would pass a truthiness check and then blow up on
+   * .stop().
+   */
+  function dropTimerHandles() {
+    appState.charades.interval = null;
+    appState.describe.interval = null;
+    appState.whoami.interval = null;
+    appState.whoami.isPaused = false;
+    appState.timers.general.interval = null;
+    appState.timers.general.running = false;
+    appState.timers.chess.interval = null;
+    appState.timers.chess.active = null;
+    appState.reaction.timeoutId = null;
   }
 
   function loadFromLocal() {
@@ -662,11 +1245,11 @@
                 return target;
             };
             appState = deepMerge(appState, parsed);
-            
-            if (appState.cachedPlayers && appState.cachedPlayers.length > 0) {
-                allPlayers = appState.cachedPlayers;
-                dataLoaded = true; 
-            }
+            dropTimerHandles();
+
+            // cachedPlayers was a copy of the shared sheet list; the library
+            // is its own store now and is loaded by initializeApp.
+            delete appState.cachedPlayers;
 
             if (!validViews.includes(appState.currentView)) {
                 appState.currentView = 'menu';
@@ -686,10 +1269,22 @@
     restoreView();
   }
 
+  // Held so a rapid double-toggle doesn't strip .theme-transition mid-fade.
+  let themeTransitionTimer = null;
+
   function toggleDarkMode() {
       appState.isDarkMode = !appState.isDarkMode;
+
+      // Colour transitions are scoped to this class rather than living in the
+      // global `*` rule, so they only apply while the theme is switching.
+      document.body.classList.add('theme-transition');
+      clearTimeout(themeTransitionTimer);
+      themeTransitionTimer = setTimeout(() => {
+          document.body.classList.remove('theme-transition');
+      }, 350);
+
       document.body.classList.toggle('dark');
-      
+
       const icon = appState.isDarkMode ? '☀️' : '🌙';
       const headerIcon = document.getElementById('dark-mode-icon');
       const bottomIcon = document.getElementById('bottom-dark-mode-icon');
@@ -697,7 +1292,9 @@
       if (headerIcon) headerIcon.innerText = icon;
       if (bottomIcon) bottomIcon.innerText = icon;
       
+      updateSettingsLabels();
       playSound('click');
+      haptic('light');
       saveToLocal();
   }
 
@@ -712,11 +1309,28 @@
         else if (appState.currentView === 'play-monkey') { renderMonkeyBoard(); updateTimerUI(); }
         else if (appState.currentView === 'imposter-reveal') showRevealStep();
         else if (appState.currentView === 'play-imposter') { renderImposterBoard(); isPaused = true; updateImposterTimerUI(); }
-        else if (appState.currentView === 'play-domino') renderDominoBoard();
-        else if (appState.currentView === 'play-universal') renderUniversalBoard();
+        else if (appState.currentView === 'play-domino') {
+            if ((appState.domino.players || []).length) renderDominoBoard();
+            else setTimeout(() => setView('setup-domino'), 50);
+        }
+        else if (appState.currentView === 'play-universal') {
+            if ((appState.universal.players || []).length) renderUniversalBoard();
+            else setTimeout(() => setView('setup-universal'), 50);
+        }
         else if (appState.currentView === 'timers') switchTimerMode('general');
-        else if (appState.currentView === 'play-tourney' && typeof renderTournamentBracket === 'function') renderTournamentBracket();
-        else if (appState.currentView === 'results-teams' && typeof renderTeams === 'function') renderTeams();
+        // The bracket lives entirely in appState, so it redraws exactly. (The
+        // old call named a function that does not exist, and the typeof guard
+        // meant it failed silently and showed an empty bracket.)
+        else if (appState.currentView === 'play-tourney') {
+            if ((appState.tourney.matches || []).length && typeof renderBracket === 'function') renderBracket();
+            else setTimeout(() => setView('setup-tourney'), 50);
+        }
+        // paintTeams, not renderTeams: the latter re-rolls, re-navigates and
+        // re-fires confetti, and called with no argument it threw outright.
+        else if (appState.currentView === 'results-teams') {
+            if ((appState.teams.result || []).length && typeof paintTeams === 'function') paintTeams(appState.teams.result);
+            else setTimeout(() => setView('setup-teams'), 50);
+        }
         else if (appState.currentView === 'play-spin') {
             const pickerDisplay = document.getElementById('picker-display');
             if(pickerDisplay) pickerDisplay.innerText = "???";
@@ -733,12 +1347,45 @@
             setTimeout(() => setView('setup-reaction'), 50); 
         }
         else if (appState.currentView === 'play-whoami' || appState.currentView === 'input-whoami') {
-            setTimeout(() => setView('setup-whoami'), 50); 
+            setTimeout(() => setView('setup-whoami'), 50);
+        }
+        // Fully restorable: the whole game is in appState, it just needs drawing.
+        else if (appState.currentView === 'play-wordle' && typeof renderWordleBoard === 'function') {
+            renderWordleBoard();
+            renderKeyboard();
+        }
+        else if (appState.currentView === 'play-guessnum' && typeof renderGuessNumHistory === 'function') {
+            renderGuessNumHistory();
+        }
+        // Room screens are drawn by the server's next projection. If the saved
+        // session cannot be resumed there is nothing to draw, so don't strand
+        // the player on a blank view - initRooms() decides which it is.
+        else if (appState.currentView.indexOf('room-') === 0) {
+            setTimeout(() => {
+                if (typeof Room === 'undefined' || !Room.isIn) setView('menu');
+            }, 1500);
+        }
+        else if (appState.currentView === 'play-connections') {
+            // The puzzle lives in a module variable, not appState, so a reload
+            // has nothing to draw — start a fresh one rather than show a blank grid.
+            setTimeout(() => setView('setup-connections'), 50);
+        }
+        // Timer-driven: the time left was never persisted, so resuming would be
+        // a lie. Send them back to setup and say so rather than showing a dead
+        // card and a frozen clock.
+        else if (appState.currentView === 'play-charades') {
+            setTimeout(() => { setView('setup-charades'); toastRoundLost(); }, 50);
+        }
+        else if (appState.currentView === 'play-describe') {
+            setTimeout(() => { setView('setup-describe'); toastRoundLost(); }, 50);
+        }
+        else if (appState.currentView === 'play-justone') {
+            setTimeout(() => { setView('setup-justone'); toastRoundLost(); }, 50);
         }
         // 👆 END PROTECTIONS 👆
         else if (appState.currentView.startsWith('setup-')) {
             const listId = appState.currentView.replace('setup-', '') + '-player-list';
-            if(typeof renderActiveChips === 'function') renderActiveChips(listId);
+            if(typeof renderActiveChips === 'function') renderActiveChips(listId, true);
             if(appState.currentView === 'setup-imposter' && typeof renderSpyCategories === 'function') renderSpyCategories();
             
             if(appState.currentView === 'setup-charades' && typeof renderCharadesDropdown === 'function') {
@@ -746,53 +1393,226 @@
             }
         }
         
+        const meta = VIEW_META[appState.currentView];
+        if (meta && meta.accent) viewEl.setAttribute('data-accent', meta.accent);
         viewEl.classList.remove('hidden');
+        syncChrome(appState.currentView);
     } else {
         const menuEl = document.getElementById('view-menu');
         if (menuEl) {
             menuEl.classList.remove('hidden');
             appState.currentView = 'menu';
+            syncChrome('menu');
         }
     }
   }
 
+  /* --- VIEW REGISTRY ---------------------------------------------------------
+   * title  i18n key for the header (falls back to the raw string)
+   * up     where the header's back button goes; absent means it's a root view
+   * accent palette the screen tints itself with (see [data-accent] in Style)
+   * ------------------------------------------------------------------------ */
+  const VIEW_META = {
+    'menu':            { title: 'title',            accent: 'violet' },
+
+    'room-join':       { title: 'room_join_title',  up: 'menu',        accent: 'teal' },
+    'room-lobby':      { title: 'room_lobby_title', up: 'menu',        accent: 'teal' },
+    'room-imposter':   { title: 'setup_imposter',   up: 'menu',        accent: 'violet' },
+    'room-justone':    { title: 'just_one_title',   up: 'menu',        accent: 'rose' },
+    'room-whoami':     { title: 'setup_whoami',     up: 'menu',        accent: 'teal' },
+    'setup-codenames': { title: 'setup_codenames',  up: 'menu',        accent: 'indigo' },
+    'room-codenames':  { title: 'setup_codenames',  up: 'menu',        accent: 'indigo' },
+    'room-wouldyou':   { title: 'setup_wouldyou',   up: 'menu',        accent: 'violet' },
+    'room-mostlikely': { title: 'setup_mostlikely', up: 'menu',        accent: 'amber' },
+    'room-fibbage':    { title: 'setup_fibbage',    up: 'menu',        accent: 'rose' },
+    'room-drawguess':  { title: 'setup_drawguess',  up: 'menu',        accent: 'blue' },
+    'setup-connections': { title: 'setup_connections', up: 'menu',     accent: 'teal' },
+    'play-connections':  { title: 'setup_connections', up: 'setup-connections', accent: 'teal' },
+
+    'setup-monkey':    { title: 'setup_monkey',     up: 'menu',           accent: 'amber' },
+    'play-monkey':     { title: 'setup_monkey',     up: 'setup-monkey',   accent: 'amber' },
+    'setup-imposter':  { title: 'setup_imposter',   up: 'menu',           accent: 'violet' },
+    'imposter-reveal': { title: 'setup_imposter',   up: 'setup-imposter', accent: 'violet' },
+    'play-imposter':   { title: 'setup_imposter',   up: 'setup-imposter', accent: 'violet' },
+    'setup-justone':   { title: 'just_one_title',   up: 'menu',           accent: 'rose' },
+    'play-justone':    { title: 'just_one_title',   up: 'setup-justone',  accent: 'rose' },
+    'setup-describe':  { title: 'setup_describe',   up: 'menu',           accent: 'indigo' },
+    'play-describe':   { title: 'setup_describe',   up: 'setup-describe', accent: 'indigo' },
+    'setup-charades':  { title: 'setup_charades',   up: 'menu',           accent: 'violet' },
+    'play-charades':   { title: 'setup_charades',   up: 'setup-charades', accent: 'violet' },
+    'setup-whoami':    { title: 'setup_whoami',     up: 'menu',           accent: 'teal' },
+    'input-whoami':    { title: 'setup_whoami',     up: 'setup-whoami',   accent: 'teal' },
+    'play-whoami':     { title: 'setup_whoami',     up: 'setup-whoami',   accent: 'teal' },
+    'setup-screw':     { title: 'setup_screw',      up: 'menu',           accent: 'blue' },
+    'play-screw':      { title: 'setup_screw',      up: 'setup-screw',    accent: 'blue' },
+    'setup-domino':    { title: 'setup_domino',     up: 'menu',           accent: 'green' },
+    'play-domino':     { title: 'setup_domino',     up: 'setup-domino',   accent: 'green' },
+
+    'setup-wordle':    { title: 'setup_wordle',     up: 'menu',           accent: 'green' },
+    'play-wordle':     { title: 'setup_wordle',     up: 'setup-wordle',   accent: 'green' },
+    'setup-guessnum':  { title: 'setup_guessnum',   up: 'menu',           accent: 'blue' },
+    'play-guessnum':   { title: 'setup_guessnum',   up: 'setup-guessnum', accent: 'blue' },
+    'setup-reaction':  { title: 'setup_reaction',   up: 'menu',           accent: 'rose' },
+    'play-reaction':   { title: 'setup_reaction',   up: 'setup-reaction', accent: 'rose' },
+
+    'setup-spin':      { title: 'setup_spin',       up: 'menu',           accent: 'orange' },
+    'play-spin':       { title: 'setup_spin',       up: 'setup-spin',     accent: 'orange' },
+    'setup-teams':     { title: 'team_generator',   up: 'menu',           accent: 'indigo' },
+    'results-teams':   { title: 'generated_teams',  up: 'setup-teams',    accent: 'indigo' },
+    'setup-tourney':   { title: 'setup_tourney',    up: 'menu',           accent: 'amber' },
+    'play-tourney':    { title: 'setup_tourney',    up: 'setup-tourney',  accent: 'amber' },
+    'setup-universal': { title: 'universal_counter', up: 'menu',          accent: 'blue' },
+    'play-universal':  { title: 'universal_counter', up: 'setup-universal', accent: 'blue' },
+    'timers':          { title: 'timers_title',     up: 'menu',           accent: 'rose' },
+    'play-chess':      { title: 'chess_title',      up: 'menu',           accent: 'indigo' },
+    'tool-dice':       { title: 'tool_dice',        up: 'menu',           accent: 'green' }
+  };
+
+  // Depth is what makes the slide directional: deeper = forward, shallower = back.
+  function viewDepth(viewId) {
+    let depth = 0;
+    let cursor = viewId;
+    while (cursor && VIEW_META[cursor] && VIEW_META[cursor].up && depth < 8) {
+      cursor = VIEW_META[cursor].up;
+      depth++;
+    }
+    return depth;
+  }
+
+  let titleSwapTimer = null;
+  let pendingTitle = '';
+
+  /** Header title, back button and nav state for the view now on screen. */
+  function syncChrome(viewId) {
+    const meta = VIEW_META[viewId] || {};
+    const t = TRANSLATIONS[appState.lang];
+    const titleEl = document.getElementById('app-title');
+    const backEl = document.getElementById('nav-back');
+    const homeEl = document.getElementById('nav-home');
+
+    if (titleEl) {
+      const text = (meta.title && t[meta.title]) || t.title;
+      if (titleEl.innerText !== text) {
+        // Cross-fade rather than snapping the text. One timer, so navigating
+        // twice in quick succession can't land the writes out of order.
+        pendingTitle = text;
+        titleEl.classList.add('is-swapping');
+        clearTimeout(titleSwapTimer);
+        titleSwapTimer = setTimeout(() => {
+          titleEl.innerText = pendingTitle;
+          titleEl.classList.remove('is-swapping');
+        }, 110);
+      }
+    }
+    if (backEl) backEl.classList.toggle('is-hidden', !meta.up);
+    if (homeEl) homeEl.classList.toggle('is-active', viewId === 'menu');
+  }
+
+  /** The header back button. Falls back to the menu for unregistered views. */
+  function goBack() {
+    const meta = VIEW_META[appState.currentView];
+    setView(meta && meta.up ? meta.up : 'menu');
+  }
+
+  /** Told to the player when a reload cost them a timed round. */
+  function toastRoundLost() {
+    showToast(appState.lang === 'ar'
+      ? 'انتهت الجولة بسبب إعادة تحميل الصفحة'
+      : 'The round ended because the page reloaded');
+  }
+
+  let viewEnterFallback = null;
+
   function setView(viewId) {
+    const previous = appState.currentView;
+    const goingBack = viewDepth(viewId) < viewDepth(previous);
+
     appState.currentView = viewId;
     saveToLocal();
-    
-    // 1. Hide all views and remove animation class
+
     document.querySelectorAll('[id^="view-"]').forEach(el => {
         el.classList.add('hidden');
-        el.classList.remove('view-enter');
+        el.classList.remove('view-enter', 'view-enter-fwd', 'view-enter-back');
     });
-    
-    // 2. Show new view and trigger animation
+
     const viewEl = document.getElementById('view-' + viewId);
-    if(viewEl) {
+    if (viewEl) {
+        const meta = VIEW_META[viewId];
+        if (meta && meta.accent) viewEl.setAttribute('data-accent', meta.accent);
+
         viewEl.classList.remove('hidden');
-        void viewEl.offsetWidth; // Magic trick: Forces browser to reflow so animation restarts
-        viewEl.classList.add('view-enter');
+        void viewEl.offsetWidth;   // restart the animation
+        viewEl.classList.add('view-enter', goingBack ? 'view-enter-back' : 'view-enter-fwd');
+
+        // animationend is the normal path, but never the only one — a very
+        // short or suppressed animation fires no events at all, and the class
+        // would then hold its transform forever (see the handler below).
+        clearTimeout(viewEnterFallback);
+        viewEnterFallback = setTimeout(() => {
+            viewEl.classList.remove('view-enter', 'view-enter-fwd', 'view-enter-back');
+        }, 600);
     }
-    
+
+    // A view arrives scrolled to wherever the last one was left otherwise.
+    const main = document.getElementById('shell-main');
+    if (main) main.scrollTop = 0;
+
     closeAllModals();
     clearAllIntervals();
+    syncChrome(viewId);
 
     if(viewId.startsWith('setup-')) {
         const listId = viewId.replace('setup-', '') + '-player-list';
-        if(typeof renderActiveChips === 'function') renderActiveChips(listId);
+        if(typeof renderActiveChips === 'function') renderActiveChips(listId, true);
         if(viewId === 'setup-imposter' && typeof renderSpyCategories === 'function') renderSpyCategories();
         if(viewId === 'setup-charades' && typeof renderCharadesDropdown === 'function') renderCharadesDropdown();
     }
     applyTranslations();
 }
 
+  /* The enter animation must not leave its transform behind: a transformed
+     element becomes the containing block for its position:fixed descendants,
+     which detached the floating action bars from the viewport. */
+  document.addEventListener('animationend', (e) => {
+      if (e.animationName === 'viewEnter' && e.target.id && e.target.id.startsWith('view-')) {
+          e.target.classList.remove('view-enter', 'view-enter-fwd', 'view-enter-back');
+      }
+  });
+
+  /* --- SETTINGS SHEET --- */
+  function openSettings() {
+      playSound('click');
+      updateSettingsLabels();
+      const el = document.getElementById('settings-modal');
+      if (el) el.classList.remove('hidden');
+  }
+
+  function updateSettingsLabels() {
+      const t = TRANSLATIONS[appState.lang];
+      const icon = document.getElementById('settings-theme-icon');
+      const themeVal = document.getElementById('settings-theme-value');
+      const langVal = document.getElementById('settings-lang-value');
+      if (icon) icon.innerText = appState.isDarkMode ? '☀️' : '🌙';
+      if (themeVal) themeVal.innerText = appState.isDarkMode ? t.theme_dark : t.theme_light;
+      if (langVal) langVal.innerText = appState.lang === 'ar' ? 'العربية' : 'English';
+  }
+
   /* --- CORE UI HELPERS --- */
   function closeAllModals() {
       document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
+      // setView() closes everything, so the help nav item has to be released
+      // here too or it stays lit after navigating away.
+      const nav = document.getElementById('nav-help');
+      if (nav) nav.classList.remove('is-active');
   }
-  function closeModal(id) { 
+  function closeModal(id) {
     const el = document.getElementById(id);
-    if(el) el.classList.add('hidden'); 
+    if (el) el.classList.add('hidden');
+    // The help sheet lights its nav item while it is open.
+    if (id === 'help-modal') {
+      const nav = document.getElementById('nav-help');
+      if (nav) nav.classList.remove('is-active');
+    }
   }
 
   function showToast(msg, type = 'info') {
@@ -841,7 +1661,13 @@ const GAME_RULES = {
                 <li>سيرى الجميع نفس الكلمة (مثلاً: أسد)، ما عدا <b>الجاسوس</b> سيرى "أنت الجاسوس".</li>
                 <li>اطرحوا أسئلة ذكية على بعضكم (مثلاً: هل يعيش في البحر؟).</li>
                 <li>حاول كشف الجاسوس من إجاباته المتوتره، وحاول كجاسوس معرفة الكلمة!</li>
-            </ol>`,
+            </ol>
+            <p style="margin-top:12px"><b>عن الكلمات:</b></p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>المجموعات والكلمات متخزنة في ملف Google Sheets المربوط بالتطبيق — تقدر تزود أو تعدل زي ما تحب.</li>
+                <li>أي مجموعة اسمها فيه <b>🔒</b> مقفولة بكلمة مرور (أول خلية في العمود). تتكتب مرة واحدة وتفضل مفتوحة على الجهاز ده.</li>
+                <li>في الغرف (موبايلات منفصلة) المجموعات المقفولة مش بتظهر، لأن مفيش مكان تكتب فيه كلمة المرور.</li>
+            </ul>`,
         monkey: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>الهدف: تكوين اسم دولة <b>حرفاً بحرف</b>.</li>
@@ -849,13 +1675,20 @@ const GAME_RULES = {
                 <li>إذا شككت أن اللاعب قبلك يختلق حروفاً، اضغط <b>"كذاب"</b>.</li>
                 <li>إذا خسرت التحدي تحصل على <b>"ربع قرد"</b>.</li>
                 <li><b>قاعدة القرد:</b> الخاسر (4 أرباع) يصبح قرداً. لا تتحدث معه! من يكلمه يأخذ مكانه فوراً.</li>
-            </ol>`,
+            </ol>
+            <p style="margin-top:12px"><b>الأزرار اللي فوق اللوحة:</b></p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>➕</b> إضافة لاعب واللعبة شغالة — يدخل من غير ما تبدأوا من الأول.</li>
+                <li><b>☰</b> ترتيب اللاعبين: اضغط على اسم، ثم على اسم تاني عشان يتبدلوا.</li>
+                <li><b>🌍 سجل الدول</b> يوريك كل الدول اللي اتقالت خلاص، عشان محدش يعيدها.</li>
+                <li>لو حد بقى قرد واتكلم معاه حد، اضغط على اسم القرد واختار مين يبدل معاه.</li>
+            </ul>`,
         wordle: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>اكتب كلمة من 5 حروف.</li>
-                <li><span class="text-green-600 font-bold">أخضر:</span> حرف صحيح في مكان صحيح.</li>
-                <li><span class="text-yellow-500 font-bold">أصفر:</span> حرف صحيح لكن المكان خطأ.</li>
-                <li><span class="text-slate-400 font-bold">رمادي:</span> الحرف غير موجود.</li>
+                <li><span class="tx-success font-bold">أخضر:</span> حرف صحيح في مكان صحيح.</li>
+                <li><span class="tx-warning font-bold">أصفر:</span> حرف صحيح لكن المكان خطأ.</li>
+                <li><span class="tx-muted font-bold">رمادي:</span> الحرف غير موجود.</li>
                 <li>لديك 6 محاولات فقط!</li>
             </ol>`,
         charades: `
@@ -912,6 +1745,117 @@ const GAME_RULES = {
                 <li>ساعة شطرنج احترافية بملء الشاشة.</li>
                 <li>اضغط على نصفك لإنهاء دورك وبدء وقت خصمك.</li>
                 <li>زر الإعدادات ⚙️ يتيح لك تغيير الوقت (بالدقائق).</li>
+            </ul>`,
+        players: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>أول مرة بس، اكتب الاسم واضغط <b>+</b>.</li>
+                <li>بعد كده الاسم بيفضل ظاهر في <b>اللاعبين المحفوظين</b> في كل الألعاب — <b>اضغط عليه</b> عشان تدخله الجولة، واضغط تاني عشان تطلعه.</li>
+                <li>اللي في الجولة بيبقى <b>ملوّن وعليه ✓</b>.</li>
+                <li>عشان تمسح اسم خالص، اضغط <b>تعديل</b> جنب العنوان ثم <b>✕</b> على الاسم.</li>
+            </ol>
+            <p style="margin-top:12px"><b>الأسماء دي على موبايلك إنت بس:</b></p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>محدش تاني بيشوفها. لو صاحبك فتح التطبيق على موبايله، هيبدأ بقايمة فاضية ويبني قايمته.</li>
+                <li>يعني لو لعبت مرة مع العيلة، أسماءهم مش هتظهر لأصحابك.</li>
+                <li>لو مسحت بيانات المتصفح أو ضغطت "حذف جميع البيانات"، القايمة بتروح.</li>
+            </ul>
+            <p style="margin-top:12px"><b>📂 المجموعات المحفوظة:</b></p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>لو بتلعب مع نفس الشلة كل مرة، اختارهم واضغط <b>📂</b> واحفظهم باسم (مثلاً "شلة الجمعة").</li>
+                <li>المرة الجاية اختار المجموعة من القايمة وهيتحطوا كلهم مرة واحدة.</li>
+                <li>جوه نافذة المجموعات: <b>إضافة</b> بتزود المحددين على المجموعة، و<b>استبدال</b> بتمسح القديم وتحط المحددين بس.</li>
+                <li>المجموعات محفوظة على الموبايل ده لوحده.</li>
+            </ul>`,
+        settings: `
+            <p class="text-xs">اضغط <b>⚙️</b> فوق على الشمال في أي شاشة.</p>
+            <ul class="list-disc list-inside space-y-1 text-xs" style="margin-top:8px">
+                <li><b>المظهر</b> — فاتح أو ليلي.</li>
+                <li><b>اللغة</b> — عربي أو إنجليزي. بيغير كل حاجة، حتى كلمات الألعاب.</li>
+                <li><b>أصوات مضحكة</b> — أزرار صوت (تصفيق، صرصور، درامز) تستخدمها وسط اللعب.</li>
+                <li><b>تثبيت التطبيق</b> — يحطه على الشاشة الرئيسية زي أي تطبيق، ويفتح من غير متصفح.</li>
+                <li><b>تحديث البيانات</b> — يعيد تحميل التطبيق ويجيب آخر أسماء وكلمات من الشيت. استخدمه لو حاجة ظهرت غلط.</li>
+                <li><b>حذف جميع البيانات</b> — يمسح كل حاجة على الموبايل ده (المجموعات، النتايج، الإعدادات) ويبدأ من الصفر. مش بيمسح الشيت.</li>
+            </ul>`,
+        rooms: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>واحد يفتح غرفة، والباقي يدخلوا بمسح الكود أو بكتابة الرمز المكوّن من 4 حروف.</li>
+                <li>الغرفة مش مربوطة بلعبة واحدة: كلكم تفضلوا فيها وتلعبوا اللي تحبوه.</li>
+                <li>كل واحد يشوف على موبايله بس اللي من حقه يشوفه — الكلمة السرية، دوره، أو مفتاح الفريق.</li>
+                <li>اللي يدخل في نص جولة يتفرج، وينضم تلقائياً في الجولة اللي بعدها.</li>
+                <li>لو قفل الموبايل ورجع، يكمل من نفس المكان — الغرفة تفضل شغالة 6 ساعات.</li>
+            </ol>`,
+        codenames: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>فريقان: كل فريق فيه <b>قائد</b> واحد و<b>لاعب</b> أو أكثر.</li>
+                <li>على الطاولة 25 كلمة. القائد وحده يشوف ألوانها.</li>
+                <li>القائد يقول <b>كلمة واحدة ورقم</b>: الكلمة تربط بين كلمات فريقه، والرقم عددها.</li>
+                <li>اللاعبون يضغطون الكلمات. كلمة فريقهم = يكملوا، كلمة محايدة أو كلمة الخصم = ينتهي الدور.</li>
+                <li>فيه كلمة <b>قاتلة</b> واحدة — اللي يضغطها يخسر فوراً.</li>
+                <li>تُلعب على الموبايلات فقط: مفيش طريقة تخفي المفتاح على موبايل واحد.</li>
+            </ol>`,
+        drawguess: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>واحد يرسم على موبايله، والباقي يشوفوا الرسمة وهي بتتكون.</li>
+                <li>الكلمة تظهر للرسام بس. ممنوع الكتابة أو الأرقام.</li>
+                <li>أول واحد يكتب التخمين الصح ياخد نقطتين، والرسام ياخد نقطة.</li>
+                <li>لو محدش عرفها في 90 ثانية، الكلمة تتكشف ومحدش ياخد نقاط.</li>
+                <li>الرسمة بتوصل على دفعات كل نص ثانية تقريباً، فطبيعي تلاقيها بتظهر على مراحل.</li>
+            </ol>`,
+        wouldyou: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>سؤال واحد، اختيارين، وكل واحد يصوّت من موبايله.</li>
+                <li>الأصوات تفضل مخفية لحد ما يصوّت الجميع — عشان محدش يمشي مع الأغلبية.</li>
+                <li>مفيش نقاط: النقاش نفسه هو اللعبة.</li>
+            </ul>`,
+        mostlikely: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>يظهر موقف، وكل واحد يختار مين في الغرفة أقرب له.</li>
+                <li>مسموح تصوّت لنفسك.</li>
+                <li>اللي ياخد أكتر أصوات ياخد نقطة، ولو فيه تعادل الكل ياخد نقطة.</li>
+            </ul>`,
+        fibbage: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>يظهر سؤال ناقص فيه فراغ، والإجابة الحقيقية غريبة فعلاً.</li>
+                <li>كل واحد يخترع إجابة مقنعة من عنده.</li>
+                <li>بعدها تظهر كل الإجابات مخلوطة مع الحقيقية — اختار اللي تفتكرها صح.</li>
+                <li>تصيب الحقيقية = 1000 نقطة. حد يختار كذبتك = 500 نقطة لك عن كل واحد.</li>
+                <li>مش هتقدر تصوّت لكذبتك أنت.</li>
+            </ol>`,
+        connections: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>16 كلمة، ورا كل 4 منهم رابط مشترك.</li>
+                <li>اختار 4 واضغط تأكيد. الرابط ممكن يكون أي حاجة — معنى، وزن، أو حتى نكتة.</li>
+                <li>عندك 4 محاولات خاطئة بس.</li>
+                <li>لو 3 من الأربعة صح التطبيق يقولك، بس من غير ما يقول مين الغلط.</li>
+                <li>على موبايل واحد — لعبة هادية للاثنين أو الثلاثة.</li>
+            </ol>`,
+        domino: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>لوحة نتايج للدومينو — التطبيق يحسب بس، اللعب على الطاولة.</li>
+                <li>من 2 إلى 4 لاعبين، ومع 4 تقدروا تلعبوا فرق (اتنين واتنين).</li>
+                <li>زر +10 للسريع، وزر … لأي رقم تاني، وزر ↺ يرجّع 5.</li>
+                <li>أول واحد يوصل للهدف (101 افتراضياً) يكسب.</li>
+            </ul>`,
+        teams: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>يقسم أي عدد لاعبين على 2 أو 3 أو 4 فرق بالتساوي.</li>
+                <li><b>عشوائي:</b> خلط كامل ونزيه.</li>
+                <li><b>متوازن:</b> تدّي كل واحد تقييم من 1 لـ 5 نجوم، والتطبيق يوزّعهم عشان الفرق تطلع متقاربة.</li>
+            </ul>`,
+        spin: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>عجلة بأسماء اللاعبين — للي هيبدأ، أو للي هيدفع الحساب.</li>
+                <li>اضغط ودّور، والنتيجة تتحدد من الأول عشان العجلة تقف عليها بالظبط.</li>
+            </ul>`,
+        universal: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>عدّاد نقاط لأي لعبة مش موجودة في التطبيق.</li>
+                <li>زوّد أو قلّل نقطة لأي لاعب — مفيش قواعد ومفيش هدف.</li>
+            </ul>`,
+        timers: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>مؤقّت تنازلي عادي لأي جولة.</li>
+                <li>الوقت مربوط بساعة الجهاز، يعني لو الشاشة قفلت أو التطبيق راح ورا، العدّ بيفضل صح.</li>
             </ul>`
     },
     en: {
@@ -937,7 +1881,13 @@ const GAME_RULES = {
                 <li>Everyone sees the Secret Word, except the <b>Imposter</b>.</li>
                 <li>Ask each other questions related to the word.</li>
                 <li>Vote to catch the Imposter. Imposter wins if they guess the word!</li>
-            </ol>`,
+            </ol>
+            <p style="margin-top:12px"><b>About the words:</b></p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Categories and words live in the Google Sheet behind the app — add or edit them freely.</li>
+                <li>A category with <b>🔒</b> in its name is password-protected (the password is the first cell of its column). You type it once and it stays unlocked on that device.</li>
+                <li>Locked categories are not offered in rooms, because there is nowhere to type the password.</li>
+            </ul>`,
         monkey: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Build a Country name <b>letter by letter</b>.</li>
@@ -945,13 +1895,20 @@ const GAME_RULES = {
                 <li><b>Doubt</b> the previous player if they are bluffing.</li>
                 <li>4 Quarters = Monkey.</li>
                 <li><b>Monkey Rule:</b> The loser is invisible. If you talk to them, you swap places!</li>
-            </ol>`,
+            </ol>
+            <p style="margin-top:12px"><b>The buttons above the board:</b></p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>➕</b> adds a player mid-game — no need to start over.</li>
+                <li><b>☰</b> reorders: tap one name, then another, to swap them.</li>
+                <li><b>🌍 Country log</b> lists every country already used, so nobody repeats one.</li>
+                <li>When someone talks to the monkey, tap the monkey's name and pick who swaps in.</li>
+            </ul>`,
         wordle: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Guess the 5-letter word.</li>
-                <li><span class="text-green-600 font-bold">Green:</span> Correct letter & spot.</li>
-                <li><span class="text-yellow-500 font-bold">Yellow:</span> Correct letter, wrong spot.</li>
-                <li><span class="text-slate-400 font-bold">Gray:</span> Wrong letter.</li>
+                <li><span class="tx-success font-bold">Green:</span> Correct letter & spot.</li>
+                <li><span class="tx-warning font-bold">Yellow:</span> Correct letter, wrong spot.</li>
+                <li><span class="tx-muted font-bold">Gray:</span> Wrong letter.</li>
                 <li>You have 6 tries!</li>
             </ol>`,
         charades: `
@@ -1008,6 +1965,117 @@ const GAME_RULES = {
                 <li>Full-screen professional chess clock.</li>
                 <li>Tap your side to end your turn.</li>
                 <li>Use the ⚙️ gear icon to change the base time.</li>
+            </ul>`,
+        players: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Type a name and press <b>+</b> — once, ever.</li>
+                <li>From then on it sits under <b>Your saved players</b> on every game's setup screen. <b>Tap it</b> to put them in the round, tap again to take them out.</li>
+                <li>Whoever is in the round is <b>filled in and ticked</b>.</li>
+                <li>To forget a name completely, press <b>Edit</b> beside the heading, then <b>✕</b> on the name.</li>
+            </ol>
+            <p style="margin-top:12px"><b>This list is on your phone only:</b></p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Nobody else sees it. A friend opening the app on their phone starts with an empty list and builds their own.</li>
+                <li>So playing once with your family does not put their names in front of your friends.</li>
+                <li>Clearing your browser data, or pressing "Delete all data", takes the list with it.</li>
+            </ul>
+            <p style="margin-top:12px"><b>📂 Saved groups:</b></p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>If you play with the same people every time, select them, press <b>📂</b> and save them under a name ("Friday crew").</li>
+                <li>Next time, pick the group from the dropdown and everyone is added at once.</li>
+                <li>Inside that window: <b>Add</b> appends the selected players to the group, <b>Replace</b> throws the old list away and keeps only the selected ones.</li>
+                <li>Groups are stored on this phone only.</li>
+            </ul>`,
+        settings: `
+            <p class="text-xs">Press <b>⚙️</b> at the top of any screen.</p>
+            <ul class="list-disc list-inside space-y-1 text-xs" style="margin-top:8px">
+                <li><b>Theme</b> — light or dark.</li>
+                <li><b>Language</b> — Arabic or English. It switches everything, including the game words.</li>
+                <li><b>Funny sounds</b> — a soundboard (applause, crickets, drums) to use mid-game.</li>
+                <li><b>Install app</b> — puts it on your home screen like a real app, with no browser bar.</li>
+                <li><b>Refresh data</b> — reloads and re-fetches the latest names and words from the sheet. Use it if something looks wrong.</li>
+                <li><b>Delete all data</b> — wipes everything on this phone (groups, scores, settings) and starts fresh. It does not touch the sheet.</li>
+            </ul>`,
+        rooms: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>One person opens a room; everyone else scans the code or types the 4-letter code.</li>
+                <li>A room isn't tied to one game — stay in it and play whatever you like.</li>
+                <li>Each phone only ever receives what that player is allowed to see: their word, their role, their team's key.</li>
+                <li>Join mid-round and you spectate, then you're dealt in automatically next round.</li>
+                <li>Lock your phone and come back and you pick up where you were. Rooms live for 6 hours.</li>
+            </ol>`,
+        codenames: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Two teams, each with one <b>spymaster</b> and at least one <b>operative</b>.</li>
+                <li>25 words on the table. Only the spymasters see which colour each one is.</li>
+                <li>The spymaster gives <b>one word and a number</b>: the word links their team's cards, the number says how many.</li>
+                <li>Operatives tap words. Own colour keeps the turn; neutral or the other team's ends it.</li>
+                <li>One card is the <b>assassin</b> — tap it and your team loses on the spot.</li>
+                <li>Separate phones only: there is nowhere to hide the key on a single screen.</li>
+            </ol>`,
+        drawguess: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>One player draws on their phone; everyone else watches it appear.</li>
+                <li>Only the drawer sees the word. No letters, no numbers.</li>
+                <li>First correct guess takes 2 points; the drawer takes 1.</li>
+                <li>90 seconds a round. Nobody scores if the time runs out.</li>
+                <li>Strokes travel in batches about twice a second, so the picture arrives in chunks.</li>
+            </ol>`,
+        wouldyou: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>One question, two options, everyone votes from their own phone.</li>
+                <li>Votes stay hidden until everyone has answered, so nobody follows the crowd.</li>
+                <li>No scoring — the argument is the point.</li>
+            </ul>`,
+        mostlikely: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>A situation appears and everyone picks who in the room fits it best.</li>
+                <li>You may vote for yourself.</li>
+                <li>Most votes takes a point; a tie gives all of them a point.</li>
+            </ul>`,
+        fibbage: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>A question appears with a blank in it, and the real answer is genuinely strange.</li>
+                <li>Everyone invents a convincing answer of their own.</li>
+                <li>All the lies are shuffled in with the truth — pick the one you think is real.</li>
+                <li>Find the truth: 1000 points. Every player who falls for your lie: 500 points to you.</li>
+                <li>You can't vote for your own lie.</li>
+            </ol>`,
+        connections: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>16 words; every 4 of them share something.</li>
+                <li>Pick 4 and submit. The link can be meaning, wordplay, or a joke.</li>
+                <li>You get 4 wrong guesses, no more.</li>
+                <li>Three out of four right and it tells you — without telling you which one is wrong.</li>
+                <li>Single device: a quieter game for two or three.</li>
+            </ol>`,
+        domino: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>A scoreboard for dominoes — the app counts, the game stays on the table.</li>
+                <li>2 to 4 players, and with 4 you can play as two teams.</li>
+                <li>+10 for the common case, … for any other number, ↺ to take 5 back.</li>
+                <li>First to the target (101 by default) wins.</li>
+            </ul>`,
+        teams: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Splits any number of players evenly into 2, 3 or 4 teams.</li>
+                <li><b>Random:</b> a genuine, unbiased shuffle.</li>
+                <li><b>Balanced:</b> rate each player 1–5 stars and the app spreads the strong ones out.</li>
+            </ul>`,
+        spin: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>A wheel of the players' names — for who starts, or who pays.</li>
+                <li>Tap to spin. The result is decided first, then the wheel is spun to land on it.</li>
+            </ul>`,
+        universal: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>A score counter for any game the app doesn't have.</li>
+                <li>Add or remove a point for anyone. No rules, no target.</li>
+            </ul>`,
+        timers: `
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>A plain countdown for any round.</li>
+                <li>It's anchored to the clock, not to ticks, so a locked screen or a backgrounded tab doesn't hand time back.</li>
             </ul>`
     }
 };

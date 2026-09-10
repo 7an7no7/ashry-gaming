@@ -5,11 +5,10 @@ function setTeamCount(n) {
     appState.teams.count = n;
     [2,3,4].forEach(i => {
         const btn = document.getElementById(`team-btn-${i}`);
-        if (i === n) {
-            btn.className = "flex-1 btn mt-0 bg-indigo-600 text-white shadow-lg transform scale-105";
-        } else {
-            btn.className = "flex-1 btn mt-0 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400";
-        }
+        if (!btn) return;
+        // Selection is a button tier, not a hand-written colour pair.
+        btn.className = (i === n) ? 'btn btn--primary' : 'btn btn--ghost';
+        btn.setAttribute('aria-pressed', String(i === n));
     });
 }
 
@@ -59,13 +58,13 @@ function openSkillBalancer() {
         let starsHtml = '';
         for(let i=1; i<=5; i++) {
             const opacity = i <= currentSkill ? 'opacity-100' : 'opacity-20 grayscale';
-            starsHtml += `<button onclick="setSkill('${p}', ${i})" class="text-2xl transition-all ${opacity} hover:scale-125">⭐</button>`;
+            starsHtml += `<button onclick="setSkill('${jsStringAttr(p)}', ${i})" class="text-2xl transition-all ${opacity} hover:scale-125">⭐</button>`;
         }
 
         list.innerHTML += `
         <div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-            <span class="font-bold text-slate-700 dark:text-white truncate w-24">${p}</span>
-            <div class="flex gap-1" id="stars-${p}">${starsHtml}</div>
+            <span class="font-bold text-slate-700 dark:text-white truncate w-24">${escapeHTML(p)}</span>
+            <div class="flex gap-1" id="stars-${escapeHTML(p)}">${starsHtml}</div>
         </div>`;
     });
 
@@ -79,7 +78,7 @@ function setSkill(player, level) {
     let starsHtml = '';
     for(let i=1; i<=5; i++) {
         const opacity = i <= level ? 'opacity-100' : 'opacity-20 grayscale';
-        starsHtml += `<button onclick="setSkill('${player}', ${i})" class="text-2xl transition-all ${opacity} hover:scale-125">⭐</button>`;
+        starsHtml += `<button onclick="setSkill('${jsStringAttr(player)}', ${i})" class="text-2xl transition-all ${opacity} hover:scale-125">⭐</button>`;
     }
     container.innerHTML = starsHtml;
     playSound('click');
@@ -108,7 +107,20 @@ function generateFairTeams() {
 }
 
 function renderTeams(teams) {
+    // Remembered so the screen can be rebuilt after a reload without
+    // re-rolling the teams - the whole point of the screen is that this is the
+    // draw everyone already agreed to.
+    appState.teams.result = teams;
+    saveToLocal();
+    paintTeams(teams);
+    setView('results-teams');
+    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+}
+
+/** Draws the team cards. Split out so a reload can redraw without re-rolling. */
+function paintTeams(teams) {
     const container = document.getElementById('teams-container');
+    if (!container || !teams || !teams.length) return;
     container.innerHTML = '';
     
     const colors = ['blue', 'red', 'green', 'orange'];
@@ -138,9 +150,6 @@ function renderTeams(teams) {
             </div>
         `;
     });
-
-    setView('results-teams');
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
 }
 
 /* ================= JUST ONE LOGIC ================= */
@@ -283,7 +292,7 @@ function joPrepareGuessPhase() {
     
     if (validClues.length === 0) {
         const msg = appState.lang === 'ar' ? "يا ساتر! كل التلميحات اتحذفت!" : "Oh no! All clues removed!";
-        list.innerHTML = `<div class="text-red-500 font-bold">${msg}</div>`;
+        list.innerHTML = `<div class="tx-danger font-bold">${msg}</div>`;
     } else {
         validClues.forEach(c => {
             list.innerHTML += `<div class="bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-white px-4 py-2 rounded-xl font-bold text-lg shadow-sm border border-indigo-200 dark:border-indigo-700">${escapeHTML(c.text)}</div>`;
@@ -337,9 +346,11 @@ function joFinishRound(success) {
             ? (appState.lang === 'ar' ? "ممتاز! " : "Excellent! ") 
             : (appState.lang === 'ar' ? "حظ أوفر! " : "Hard luck! ");
             
-        const nextMsg = appState.lang === 'ar' 
-            ? `المخمن التالي: ${escapeHTML(nextGuesser)}. جاهز؟`
-            : `Next guesser: ${escapeHTML(nextGuesser)}. Ready?`;
+        // showConfirmModal writes with innerText, so escaping here would print
+        // the entities themselves for a name containing & or a quote.
+        const nextMsg = appState.lang === 'ar'
+            ? `المخمن التالي: ${nextGuesser}. جاهز؟`
+            : `Next guesser: ${nextGuesser}. Ready?`;
             
         showConfirmModal(`${msg} ${nextMsg}`, () => {
              nextJoRound();
@@ -496,13 +507,16 @@ function showReactionResult(winner, timeMs, isFalseStart, falseStartPlayer, isTi
         }
     }
 
-    setTimeout(() => {
+    clearTimeout(appState.reaction.resultTimeoutId);
+    appState.reaction.resultTimeoutId = setTimeout(() => {
+        // Leaving during this second used to re-arm the panels behind the menu.
+        if (appState.reaction.status !== 'ended') return;
         document.getElementById('reaction-exit-btn').classList.remove('hidden');
-        
+
         const restartHTML = `<div class="mt-8 text-lg font-bold text-white text-opacity-80 animate-pulse drop-shadow-md">${restartText}</div>`;
-        msg1.children[0].innerHTML += restartHTML;
-        msg2.children[0].innerHTML += restartHTML;
-        
+        if (msg1.children[0]) msg1.children[0].innerHTML += restartHTML;
+        if (msg2.children[0]) msg2.children[0].innerHTML += restartHTML;
+
         p1.onclick = () => startReactionRound();
         p2.onclick = () => startReactionRound();
     }, 1000);
@@ -516,6 +530,7 @@ function exitReactionGame(event) {
     }
     
     clearTimeout(appState.reaction.timeoutId);
+    clearTimeout(appState.reaction.resultTimeoutId);
     appState.reaction.status = 'idle';
     
     // Completely disable the screen taps so they don't accidentally trigger a restart

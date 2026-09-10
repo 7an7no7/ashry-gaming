@@ -15,17 +15,11 @@ function setGuessMode(mode) {
     const divComp = document.getElementById('setup-comp-ui');
     const divHuman = document.getElementById('setup-human-ui');
 
-    if(mode === 'computer') {
-        btnComp.className = "flex-1 py-3 rounded-lg font-bold bg-cyan-600 text-white shadow-md transition-all";
-        btnHuman.className = "flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
-        divComp.classList.remove('hidden');
-        divHuman.classList.add('hidden');
-    } else {
-        btnHuman.className = "flex-1 py-3 rounded-lg font-bold bg-cyan-600 text-white shadow-md transition-all";
-        btnComp.className = "flex-1 py-3 rounded-lg font-bold bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400";
-        divHuman.classList.remove('hidden');
-        divComp.classList.add('hidden');
-    }
+    const isComputer = (mode === 'computer');
+    btnComp.classList.toggle('is-active', isComputer);
+    btnHuman.classList.toggle('is-active', !isComputer);
+    divComp.classList.toggle('hidden', !isComputer);
+    divHuman.classList.toggle('hidden', isComputer);
 }
 
 function startGuessNumber() {
@@ -47,6 +41,7 @@ function startGuessNumber() {
     
     } else {
         // --- HUMAN MODE ---
+        min = null; max = null;      // the range is the secret here
         const secretInput = document.getElementById('gn-secret');
         target = parseInt(secretInput.value);
         
@@ -66,6 +61,9 @@ function startGuessNumber() {
     appState.guessnum.target = target;
     appState.guessnum.attempts = 0;
     appState.guessnum.history = [];
+    appState.guessnum.status = 'playing';
+    appState.guessnum.min = min;
+    appState.guessnum.max = max;
 
     // UI Reset
     document.getElementById('gn-input').value = '';
@@ -77,6 +75,10 @@ function startGuessNumber() {
 }
 
 function checkNumberGuess() {
+    // The round is over; further guesses would keep inflating the attempt
+    // count and re-firing the win.
+    if (appState.guessnum.status === 'won') return;
+
     const inputEl = document.getElementById('gn-input');
     const guess = parseInt(inputEl.value);
 
@@ -97,9 +99,12 @@ function checkNumberGuess() {
             ? `🎉 صحيح! الرقم هو ${guess}` 
             : `🎉 Correct! Number is ${guess}`;
             
-        document.getElementById('gn-feedback').innerHTML = `<span class="text-green-600 font-black text-2xl">${winMsg}</span>`;
+        document.getElementById('gn-feedback').innerHTML = `<span class="tx-success font-black text-2xl">${winMsg}</span>`;
         addToHistory(guess, "✅", "win");
+        appState.guessnum.status = 'won';
+        inputEl.value = '';
         inputEl.blur();
+        saveToLocal();
         return; 
     } 
     else if (guess > appState.guessnum.target) {
@@ -107,7 +112,7 @@ function checkNumberGuess() {
         playSound('click');
         // التغيير هنا: بدلاً من "عالي جداً" نقول "أقل"
         feedback = appState.lang === 'ar' ? "أقل! ⬇️" : "Lower! ⬇️";
-        colorClass = "text-red-500";
+        colorClass = "tx-danger";
         addToHistory(guess, "⬇️", "high");
     } 
     else {
@@ -130,6 +135,28 @@ function checkNumberGuess() {
 }
 
 function addToHistory(guess, icon, type) {
+    // Record it as well as draw it: this list is what renderGuessNumHistory
+    // rebuilds the screen from after a reload.
+    if (!appState.guessnum.history) appState.guessnum.history = [];
+    appState.guessnum.history.push({ n: appState.guessnum.attempts, guess: guess, icon: icon, type: type });
+    drawGuessRow(guess, icon, type, appState.guessnum.attempts);
+}
+
+/** Redraws the whole guess list from saved state. */
+function renderGuessNumHistory() {
+    const container = document.getElementById('gn-history');
+    if (container) container.innerHTML = '';
+    document.getElementById('gn-attempts').innerText = appState.guessnum.attempts || 0;
+    const range = document.getElementById('gn-range-display');
+    if (range) {
+        range.innerText = (appState.guessnum.mode === 'computer' && appState.guessnum.min != null)
+            ? `${appState.guessnum.min} - ${appState.guessnum.max}`
+            : '???';
+    }
+    (appState.guessnum.history || []).forEach(h => drawGuessRow(h.guess, h.icon, h.type, h.n));
+}
+
+function drawGuessRow(guess, icon, type, attemptNo) {
     const container = document.getElementById('gn-history');
     const div = document.createElement('div');
     
@@ -150,7 +177,7 @@ function addToHistory(guess, icon, type) {
     div.className = `flex justify-between items-center p-3 rounded-xl border mb-2 ${styles}`;
     
     div.innerHTML = `
-        <span class="font-bold text-slate-500 dark:text-slate-400 text-sm">#${appState.guessnum.attempts}</span>
+        <span class="font-bold tx-muted text-sm">#${attemptNo}</span>
         <span class="font-black text-2xl ${textStyle}">${guess}</span>
         <span class="text-xl">${icon}</span>
     `;

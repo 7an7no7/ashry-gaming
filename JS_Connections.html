@@ -1,0 +1,258 @@
+<script>
+/* ============================================================================
+   تشابه — CONNECTIONS
+   ----------------------------------------------------------------------------
+   Sixteen words, four hidden groups of four. Single-device by nature: everyone
+   is looking at the same grid and arguing, so there is nothing to hide and no
+   room needed.
+
+   Difficulty is carried by the order of the groups in each puzzle — the first
+   is meant to be findable, the last to look like several of the others.
+   ========================================================================= */
+
+const CONNECTIONS_DB = {
+  ar: [
+    { groups: [
+      { name: 'فواكه', words: ['تفاح', 'موز', 'عنب', 'مانجو'] },
+      { name: 'ألوان', words: ['أحمر', 'أزرق', 'أخضر', 'أصفر'] },
+      { name: 'أيام الأسبوع', words: ['أحد', 'اتنين', 'تلات', 'خميس'] },
+      { name: 'وسائل مواصلات', words: ['قطار', 'أتوبيس', 'مترو', 'تاكسي'] } ] },
+    { groups: [
+      { name: 'أعضاء في الوش', words: ['عين', 'أنف', 'فم', 'ودن'] },
+      { name: 'طيور', words: ['نسر', 'حمامة', 'بومة', 'غراب'] },
+      { name: 'أدوات مطبخ', words: ['ملعقة', 'شوكة', 'سكينة', 'طبق'] },
+      { name: 'كواكب', words: ['مريخ', 'زحل', 'عطارد', 'المشتري'] } ] },
+    { groups: [
+      { name: 'رياضات', words: ['سباحة', 'جري', 'ملاكمة', 'تنس'] },
+      { name: 'مشروبات', words: ['شاي', 'قهوة', 'عصير', 'لبن'] },
+      { name: 'مهن', words: ['طبيب', 'مهندس', 'مدرس', 'نجار'] },
+      { name: 'فصول السنة', words: ['صيف', 'شتا', 'ربيع', 'خريف'] } ] },
+    { groups: [
+      { name: 'حاجات بتلف', words: ['عجلة', 'مروحة', 'غسالة', 'كوكب'] },
+      { name: 'أشكال هندسية', words: ['مربع', 'دايرة', 'مثلث', 'مستطيل'] },
+      { name: 'حيوانات بحرية', words: ['قرش', 'دلفين', 'حوت', 'أخطبوط'] },
+      { name: 'أدوات كتابة', words: ['قلم', 'أستيكة', 'مسطرة', 'دفتر'] } ] },
+    { groups: [
+      { name: 'أعياد ومناسبات', words: ['رمضان', 'عيد', 'مولد', 'رأس السنة'] },
+      { name: 'أماكن في البيت', words: ['مطبخ', 'صالة', 'بلكونة', 'سطح'] },
+      { name: 'أكلات مصرية', words: ['كشري', 'ملوخية', 'فتة', 'محشي'] },
+      { name: 'آلات موسيقية', words: ['عود', 'ناي', 'طبلة', 'كمان'] } ] },
+    { groups: [
+      { name: 'حاجات بتضوي', words: ['شمس', 'لمبة', 'شمعة', 'نجمة'] },
+      { name: 'معادن', words: ['دهب', 'فضة', 'حديد', 'نحاس'] },
+      { name: 'أثاث', words: ['كرسي', 'ترابيزة', 'سرير', 'دولاب'] },
+      { name: 'ظواهر جوية', words: ['مطر', 'ثلج', 'برق', 'رياح'] } ] },
+    { groups: [
+      { name: 'حاجات في الشنطة', words: ['محفظة', 'مفاتيح', 'موبايل', 'نظارة'] },
+      { name: 'حشرات', words: ['نملة', 'نحلة', 'ذبابة', 'فراشة'] },
+      { name: 'ملابس', words: ['قميص', 'بنطلون', 'جاكيت', 'طرحة'] },
+      { name: 'أرقام', words: ['واحد', 'اتنين', 'عشرة', 'مية'] } ] },
+    { groups: [
+      { name: 'حاجات ليها مفتاح', words: ['باب', 'عربية', 'خزنة', 'بيانو'] },
+      { name: 'حاجات ليها ورق', words: ['كتاب', 'شجرة', 'جرنان', 'كوتشينة'] },
+      { name: 'حاجات ليها رقبة', words: ['زرافة', 'زجاجة', 'جيتار', 'قميص'] },
+      { name: 'حاجات ليها عين', words: ['إبرة', 'إعصار', 'بطاطس', 'سنارة'] } ] },
+    { groups: [
+      { name: 'بلاد عربية', words: ['مصر', 'المغرب', 'لبنان', 'الأردن'] },
+      { name: 'عواصم', words: ['باريس', 'روما', 'لندن', 'برلين'] },
+      { name: 'قارات', words: ['آسيا', 'أوروبا', 'أفريقيا', 'أستراليا'] },
+      { name: 'محيطات وبحار', words: ['الأحمر', 'المتوسط', 'الهادي', 'الأسود'] } ] },
+    { groups: [
+      { name: 'حاجات بتتشحن', words: ['موبايل', 'لابتوب', 'بطارية', 'عربية'] },
+      { name: 'حاجات بتتقطع', words: ['نور', 'مياه', 'طريق', 'أمل'] },
+      { name: 'حاجات بتتفتح', words: ['شباك', 'حساب', 'محل', 'شهية'] },
+      { name: 'حاجات بتتكسر', words: ['قلب', 'رقم قياسي', 'صمت', 'كوب'] } ] },
+    { groups: [
+      { name: 'أدوات نجارة', words: ['مطرقة', 'منشار', 'مسمار', 'شاكوش'] },
+      { name: 'أجزاء الشجرة', words: ['جذر', 'ساق', 'فرع', 'ورقة'] },
+      { name: 'حاجات في المدرسة', words: ['سبورة', 'طباشير', 'جرس', 'فصل'] },
+      { name: 'مراحل العمر', words: ['طفولة', 'شباب', 'كهولة', 'شيخوخة'] } ] },
+    { groups: [
+      { name: 'حاجات بتطير', words: ['طيارة', 'بالون', 'طيارة ورق', 'صقر'] },
+      { name: 'حاجات بتعوم', words: ['مركب', 'خشبة', 'بطة', 'ثلج'] },
+      { name: 'حاجات بتحفر', words: ['مجرفة', 'خلد', 'حفار', 'نملة'] },
+      { name: 'حاجات بتلسع', words: ['نحلة', 'عقرب', 'قرصة', 'شطة'] } ] }
+  ],
+  en: [
+    { groups: [
+      { name: 'Fruit', words: ['Apple', 'Banana', 'Grape', 'Mango'] },
+      { name: 'Colours', words: ['Red', 'Blue', 'Green', 'Yellow'] },
+      { name: 'Days', words: ['Sunday', 'Monday', 'Friday', 'Tuesday'] },
+      { name: 'Transport', words: ['Train', 'Bus', 'Metro', 'Taxi'] } ] },
+    { groups: [
+      { name: 'On a face', words: ['Eye', 'Nose', 'Mouth', 'Ear'] },
+      { name: 'Birds', words: ['Eagle', 'Dove', 'Owl', 'Crow'] },
+      { name: 'Cutlery', words: ['Spoon', 'Fork', 'Knife', 'Plate'] },
+      { name: 'Planets', words: ['Mars', 'Saturn', 'Mercury', 'Jupiter'] } ] },
+    { groups: [
+      { name: 'Things that spin', words: ['Wheel', 'Fan', 'Planet', 'Record'] },
+      { name: 'Shapes', words: ['Square', 'Circle', 'Triangle', 'Diamond'] },
+      { name: 'Sea life', words: ['Shark', 'Dolphin', 'Whale', 'Octopus'] },
+      { name: 'Stationery', words: ['Pen', 'Eraser', 'Ruler', 'Notebook'] } ] },
+    { groups: [
+      { name: 'Things with keys', words: ['Door', 'Piano', 'Safe', 'Keyboard'] },
+      { name: 'Things with leaves', words: ['Book', 'Tree', 'Tea', 'Table'] },
+      { name: 'Things with necks', words: ['Giraffe', 'Bottle', 'Guitar', 'Shirt'] },
+      { name: 'Things with eyes', words: ['Needle', 'Storm', 'Potato', 'Hook'] } ] },
+    { groups: [
+      { name: 'Things that light up', words: ['Sun', 'Lamp', 'Candle', 'Star'] },
+      { name: 'Metals', words: ['Gold', 'Silver', 'Iron', 'Copper'] },
+      { name: 'Furniture', words: ['Chair', 'Table', 'Bed', 'Wardrobe'] },
+      { name: 'Weather', words: ['Rain', 'Snow', 'Thunder', 'Wind'] } ] },
+    { groups: [
+      { name: 'Things that get charged', words: ['Phone', 'Laptop', 'Battery', 'Suspect'] },
+      { name: 'Things that get broken', words: ['Heart', 'Record', 'Silence', 'Promise'] },
+      { name: 'Things that get cut', words: ['Hair', 'Cake', 'Corner', 'Deal'] },
+      { name: 'Things that get opened', words: ['Window', 'Account', 'Shop', 'Case'] } ] },
+    { groups: [
+      { name: 'Insects', words: ['Ant', 'Bee', 'Fly', 'Moth'] },
+      { name: 'Clothing', words: ['Shirt', 'Trousers', 'Jacket', 'Scarf'] },
+      { name: 'In a bag', words: ['Wallet', 'Keys', 'Phone', 'Glasses'] },
+      { name: 'Card games', words: ['Poker', 'Bridge', 'Rummy', 'Solitaire'] } ] },
+    { groups: [
+      { name: 'Countries', words: ['Egypt', 'Morocco', 'Jordan', 'Lebanon'] },
+      { name: 'Capitals', words: ['Paris', 'Rome', 'London', 'Berlin'] },
+      { name: 'Continents', words: ['Asia', 'Europe', 'Africa', 'Australia'] },
+      { name: 'Seas', words: ['Red', 'Black', 'Dead', 'Caspian'] } ] },
+    { groups: [
+      { name: 'Things that fly', words: ['Plane', 'Balloon', 'Kite', 'Falcon'] },
+      { name: 'Things that float', words: ['Boat', 'Cork', 'Duck', 'Ice'] },
+      { name: 'Things that dig', words: ['Shovel', 'Mole', 'Digger', 'Badger'] },
+      { name: 'Things that sting', words: ['Bee', 'Scorpion', 'Nettle', 'Chilli'] } ] },
+    { groups: [
+      { name: 'Carpentry', words: ['Hammer', 'Saw', 'Nail', 'Chisel'] },
+      { name: 'Parts of a tree', words: ['Root', 'Trunk', 'Branch', 'Bark'] },
+      { name: 'At school', words: ['Board', 'Chalk', 'Bell', 'Desk'] },
+      { name: 'Life stages', words: ['Childhood', 'Youth', 'Adulthood', 'Old age'] } ] }
+  ]
+};
+
+const connections = { puzzle: null, solved: [], selected: [], mistakes: 0, lang: 'ar' };
+const CONNECT_MAX_MISTAKES = 4;
+
+function setupConnections() { setView('setup-connections'); }
+
+function startConnections() {
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const pool = CONNECTIONS_DB[lang];
+  const puzzle = pool[Math.floor(Math.random() * pool.length)];
+
+  connections.lang = lang;
+  connections.puzzle = puzzle;
+  connections.solved = [];
+  connections.selected = [];
+  connections.mistakes = 0;
+
+  // Group index travels with each word so a guess can be checked without
+  // searching the puzzle every time.
+  connections.tiles = shuffleArray(
+    puzzle.groups.flatMap((g, gi) => g.words.map(w => ({ word: w, group: gi })))
+  );
+
+  setView('play-connections');
+  renderConnections();
+}
+
+function shuffleArray(arr) {
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function toggleConnectTile(word) {
+  if (connections.selected.includes(word)) {
+    connections.selected = connections.selected.filter(w => w !== word);
+  } else {
+    if (connections.selected.length >= 4) return;
+    connections.selected.push(word);
+  }
+  renderConnections();
+}
+
+function submitConnectGuess() {
+  if (connections.selected.length !== 4) return;
+  const tiles = connections.tiles.filter(t => connections.selected.includes(t.word));
+  const groups = [...new Set(tiles.map(t => t.group))];
+
+  if (groups.length === 1) {
+    connections.solved.push(groups[0]);
+    connections.selected = [];
+    playSound('success');
+    haptic('medium');
+    renderConnections();
+    if (connections.solved.length === 4) finishConnections(true);
+    return;
+  }
+
+  // "One away" is the feedback that makes the game feel fair.
+  const counts = {};
+  tiles.forEach(t => { counts[t.group] = (counts[t.group] || 0) + 1; });
+  const best = Math.max(...Object.values(counts));
+
+  connections.mistakes++;
+  // Clear the selection so the same wrong guess can't be resubmitted by a
+  // stray second tap, burning another life for nothing.
+  connections.selected = [];
+  playSound('alarm');
+  haptic('heavy');
+  const t = TRANSLATIONS[appState.lang];
+  showToast(best === 3 ? (t.conn_one_away || 'قريب! ثلاثة من نفس المجموعة') : (t.conn_wrong || 'مش صح'),
+            best === 3 ? 'info' : 'error');
+
+  const grid = document.getElementById('connect-grid');
+  if (grid) { grid.classList.add('animate-shake'); setTimeout(() => grid.classList.remove('animate-shake'), 500); }
+
+  renderConnections();
+  if (connections.mistakes >= CONNECT_MAX_MISTAKES) finishConnections(false);
+}
+
+function finishConnections(won) {
+  // Losing still reveals the answer — otherwise the puzzle just nags at you.
+  connections.solved = [0, 1, 2, 3];
+  connections.selected = [];
+  renderConnections(true);
+  if (won) confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
+  else playSound('alarm');
+}
+
+function renderConnections(finished) {
+  const el = document.getElementById('connect-grid');
+  const meta = document.getElementById('connect-meta');
+  if (!el || !connections.puzzle) return;
+  const t = TRANSLATIONS[appState.lang];
+
+  const solvedHtml = connections.solved.map(gi => {
+    const g = connections.puzzle.groups[gi];
+    return `<div class="connect-group connect-group--${gi}">
+        <div class="connect-group__name">${escapeHTML(g.name)}</div>
+        <div class="connect-group__words">${g.words.map(escapeHTML).join(' · ')}</div>
+      </div>`;
+  }).join('');
+
+  const remaining = connections.tiles.filter(x => !connections.solved.includes(x.group));
+  const tilesHtml = remaining.map(x => `
+      <button class="connect-tile ${connections.selected.includes(x.word) ? 'is-selected' : ''}"
+              onclick="toggleConnectTile('${jsStringAttr(x.word)}')">${escapeHTML(x.word)}</button>`).join('');
+
+  el.innerHTML = solvedHtml + (remaining.length ? `<div class="connect-grid">${tilesHtml}</div>` : '');
+
+  if (meta) {
+    const left = CONNECT_MAX_MISTAKES - connections.mistakes;
+    meta.innerHTML = finished || connections.solved.length === 4
+      ? `<button onclick="startConnections()" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>`
+      : `<div class="connect-lives">${t.conn_mistakes || 'محاولات متبقية'}:
+           ${'●'.repeat(Math.max(0, left))}${'○'.repeat(connections.mistakes)}</div>
+         <button onclick="submitConnectGuess()" class="btn btn--primary"
+                 ${connections.selected.length === 4 ? '' : 'disabled'}>${t.conn_submit || 'تأكيد'}</button>
+         <button onclick="shuffleConnections()" class="btn btn--ghost btn--sm">${t.conn_shuffle || 'خلط'}</button>`;
+  }
+}
+
+function shuffleConnections() {
+  connections.tiles = shuffleArray(connections.tiles);
+  renderConnections();
+}
+</script>

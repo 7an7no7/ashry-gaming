@@ -343,15 +343,22 @@ function handleWhoAmICatChange() {
 
 function adjustWhoAmICount(delta) {
     let input = document.getElementById('whoami-count');
-    let val = parseInt(input.value) + delta;
-    if (val < 2) val = 2;
+    // An emptied field gives NaN, and NaN survives both clamps - the stepper
+    // then wrote "NaN" into the box and startWhoAmI dealt nobody in.
+    const current = parseInt(input.value, 10);
+    let val = (isFinite(current) ? current : 2) + delta;
+    if (!isFinite(val) || val < 2) val = 2;
     if (val > 20) val = 20;
     input.value = val;
     playSound('click');
 }
 
 function startWhoAmI() {
-    const count = parseInt(document.getElementById('whoami-count').value);
+    const countEl = document.getElementById('whoami-count');
+    let count = parseInt(countEl.value, 10);
+    if (!isFinite(count) || count < 2) count = 2;
+    if (count > 20) count = 20;
+    countEl.value = count;
     const catSelect = document.getElementById('whoami-cat-select');
     const selectedCat = catSelect.value;
     
@@ -402,7 +409,9 @@ function startWhoAmI() {
 
     } else {
     // --- CASE 3: SINGLE CATEGORY ---
-        pool = WHOAMI_DB[appState.lang][selectedCat] || ["Error"];
+        // Copied, because the shuffle below sorts in place and would otherwise
+        // reorder the shared database array.
+        pool = (WHOAMI_DB[appState.lang][selectedCat] || ["Error"]).slice();
     }
     
     // Shuffle and Start
@@ -553,23 +562,27 @@ function startWhoAmITimer() {
     appState.whoami.isPaused = false;
     updateWhoAmITimerDisplay();
     
-    if(appState.whoami.interval) clearInterval(appState.whoami.interval);
-    
-    appState.whoami.interval = setInterval(() => {
-        if(!appState.whoami.isPaused) {
-            appState.whoami.timer--;
+    if(appState.whoami.interval) appState.whoami.interval.stop();
+
+    appState.whoami.interval = createClock({
+        seconds: 120,
+        onTick: (left) => {
+            appState.whoami.timer = left;
             updateWhoAmITimerDisplay();
-            
-            if(appState.whoami.timer <= 0) {
-                 clearInterval(appState.whoami.interval);
-                 playSound('alarm');
-            }
+        },
+        onEnd: () => {
+            appState.whoami.interval = null;
+            appState.whoami.timer = 0;
+            updateWhoAmITimerDisplay();
+            playSound('alarm');
         }
-    }, 1000);
+    });
 }
 
 function toggleWhoAmITimer() {
-    appState.whoami.isPaused = !appState.whoami.isPaused;
+    appState.whoami.isPaused = appState.whoami.interval
+        ? appState.whoami.interval.toggle()
+        : !appState.whoami.isPaused;
     const btn = document.getElementById('whoami-pause-btn');
     if(appState.lang === 'ar') btn.innerText = appState.whoami.isPaused ? "استئناف" : "إيقاف";
     else btn.innerText = appState.whoami.isPaused ? "Resume" : "Pause";
@@ -583,7 +596,8 @@ function updateWhoAmITimerDisplay() {
 
 // --- RESULT PHASE ---
 function finishWhoAmIGame() {
-    if(appState.whoami.interval) clearInterval(appState.whoami.interval);
+    if(appState.whoami.interval) appState.whoami.interval.stop();
+    appState.whoami.interval = null;
     
     const listEl = document.getElementById('whoami-final-list');
     listEl.innerHTML = '';
@@ -602,7 +616,7 @@ function finishWhoAmIGame() {
 
         listEl.innerHTML += `
             <div class="flex justify-between items-center ${bgClass} p-4 rounded-xl border-r-4 border-teal-500 shadow-sm">
-                <span class="font-bold text-slate-500 dark:text-slate-300">${escapeHTML(item.name)}</span>
+                <span class="font-bold tx-muted">${escapeHTML(item.name)}</span>
                 <span class="${textClass} font-black text-xl text-right">${displayWord}</span>
             </div>
         `;

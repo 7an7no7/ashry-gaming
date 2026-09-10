@@ -11,13 +11,19 @@ const doGet = (e) => {
   // PRE-FETCH DATA: This injects data directly into the page to avoid "Loading..." screens
   try {
     const initialData = getInitialData();
-    template.initialPlayers = JSON.stringify(initialData.players);
     template.initialSpyData = JSON.stringify(initialData.spyData);
-  } catch (e) {
-    template.initialPlayers = "[]";
+  } catch (err) {
     template.initialSpyData = "{}";
-    console.error("Data Injection failed", e);
+    console.error("Data Injection failed", err);
   }
+
+  // A join link looks like .../exec?room=ARNB. The page runs in a sandboxed
+  // iframe and cannot read its own query string, so the code is injected here.
+  const roomParam = (e && e.parameter && e.parameter.room)
+    ? String(e.parameter.room).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
+    : '';
+  template.initialRoom = JSON.stringify(roomParam);
+  template.webAppUrl = JSON.stringify(getWebAppUrl());
 
   return template.evaluate()
       .setTitle('عشرى جيمينج 🎮')
@@ -76,37 +82,16 @@ const setupSheets = () => {
  */
 const getInitialData = () => {
   return {
-    players: getPlayerList(),
     spyData: getSpyData()
   };
 };
 
-const getPlayerList = () => {
-  setupSheets(); // Ensure sheets exist
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('اللاعبين');
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) return [];
-  return sh.getRange(2, 1, lastRow - 1, 1).getValues().flat().filter(String);
-};
+/* The `اللاعبين` sheet is no longer read or written. Names live on each phone
+   (PLAYER_LIBRARY_KEY in JS_Core.html): one shared column meant every device
+   that opened the app saw every name anyone had ever typed, so one group's
+   names were in front of every other group. The sheet is left untouched in
+   case you want what is in it. */
 
-const addGlobalPlayer = (name) => {
-  if (!name || name.trim() === "") {
-    throw new Error("الاسم لا يمكن أن يكون فارغاً");
-  }
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('اللاعبين');
-  const lastRow = Math.max(1, sh.getLastRow());
-  const data = sh.getRange(1, 1, lastRow, 1).getValues().flat().filter(String);
-  
-  const normalizedName = name.toLowerCase().trim();
-  const isDuplicate = data.some(p => p.toLowerCase().trim() === normalizedName);
-  
-  if (!isDuplicate) {
-    sh.appendRow([name.trim()]);
-  } else {    // Optionally throw error for duplicates if needed
-    // throw new Error("هذا اللاعب مسجل بالفعل");
-  }
-  return getPlayerList();
-};
 
 /**
  * Fetches categories and words from the "كلمات الجاسوس" sheet.

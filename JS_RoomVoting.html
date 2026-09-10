@@ -1,0 +1,246 @@
+<script>
+/* ============================================================================
+   لو خيروك · مين أكثر واحد · فيبج
+   ----------------------------------------------------------------------------
+   Three games over one voting engine. The shared pieces — the ballot, the
+   waiting state, the results bars and the scoreboard — live at the top; each
+   game below only describes what is different about it.
+
+   While a vote is open the server tells us who has voted but not what they
+   chose, so none of these renderers can leak a running tally even by accident.
+   ========================================================================= */
+
+const VOTE_LANG = () => (appState.lang === 'en' ? 'en' : 'ar');
+
+/** The ballot: one big tappable row per option. */
+function renderBallot(state, opts) {
+  const v = state.shared.vote;
+  const t = TRANSLATIONS[appState.lang];
+  const iVoted = v.voted.indexOf(Room.me) !== -1;
+  const canVote = v.eligible.indexOf(Room.me) !== -1;
+
+  if (!canVote) {
+    return `<div class="waiting-note">${t.vote_spectating || 'تتفرج على هذه الجولة'}</div>`
+         + renderVoteProgress(state);
+  }
+  if (iVoted) {
+    return `<div class="waiting-note"><span class="animate-pulse">🗳️</span> ${t.vote_waiting || 'في انتظار باقي الأصوات'}</div>`
+         + renderVoteProgress(state);
+  }
+
+  return `<div class="btn-stack">
+      ${v.options.map(o => {
+        const mine = o.ownerId && o.ownerId === Room.me;
+        return `<button class="ballot-option ${mine ? 'is-own' : ''}" ${mine ? 'disabled' : ''}
+                        onclick="roomAct('vote', { option: '${jsStringAttr(o.id)}' })">
+                  <span class="ballot-option__label">${escapeHTML(o.label)}</span>
+                  ${mine ? `<span class="badge">${t.vote_your_answer || 'إجابتك'}</span>` : ''}
+                </button>`;
+      }).join('')}
+    </div>` + renderVoteProgress(state);
+}
+
+function renderVoteProgress(state) {
+  const v = state.shared.vote;
+  const t = TRANSLATIONS[appState.lang];
+  return `
+    <div class="vote-progress">
+      <span>${t.vote_count || 'صوّت'}: ${v.voted.length} / ${v.eligible.length}</span>
+      ${state.youAreHost && v.phase === 'voting'
+        ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('closeVote')">${t.vote_close || 'اقفل التصويت'}</button>`
+        : ''}
+    </div>`;
+}
+
+/** Result bars, sorted highest first, with who voted for what. */
+function renderVoteResults(state, opts) {
+  const v = state.shared.vote;
+  const total = Math.max(1, v.totalVotes || 0);
+  const rows = v.results.slice().sort((a, b) => b.count - a.count);
+  const highlight = (opts && opts.highlightId) || null;
+
+  return `<div class="result-list">
+      ${rows.map(r => {
+        const pct = Math.round((r.count / total) * 100);
+        const win = highlight ? r.id === highlight : r.count === rows[0].count && r.count > 0;
+        return `
+          <div class="result-row ${win ? 'is-top' : ''}">
+            <div class="result-row__bar" style="width:${pct}%"></div>
+            <div class="result-row__body">
+              <span class="result-row__label">${escapeHTML(r.label)}</span>
+              <span class="result-row__count">${r.count}</span>
+            </div>
+            ${r.voters.length ? `<div class="result-row__voters">${r.voters.map(escapeHTML).join('، ')}</div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderScoreboard(board) {
+  if (!board || !board.length) return '';
+  const t = TRANSLATIONS[appState.lang];
+  return `
+    <div class="section">
+      <div class="section__head">
+        <h2 class="section__title">${t.scoreboard || 'الترتيب'}</h2>
+        <span class="section__rule"></span>
+      </div>
+      ${board.map((p, i) => `
+        <div class="status-row ${i === 0 && p.score > 0 ? 'status-row--turn' : ''}">
+          <div class="status-row__body">
+            <div class="status-row__name">${i === 0 && p.score > 0 ? '👑 ' : ''}${escapeHTML(p.name)}</div>
+          </div>
+          <span class="badge badge--accent">${p.score}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+/** Host gets "next round" and "another game"; everyone else waits. */
+function renderRoundFooter(state, nextLabel) {
+  const t = TRANSLATIONS[appState.lang];
+  if (!state.youAreHost) return `<div class="waiting-note">${t.room_wait_host}</div>`;
+  return `<div class="btn-stack">
+      <button onclick="roomAct('nextRound', { lang: '${VOTE_LANG()}' })" class="btn btn--primary btn--lg">${nextLabel}</button>
+      <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
+    </div>`;
+}
+
+const langLobbyOptions = (state, hintKey) => {
+  if (!state.youAreHost) return '';
+  const t = TRANSLATIONS[appState.lang];
+  return `<p class="field__hint" style="text-align:center">${t[hintKey] || ''}</p>`;
+};
+
+/* ==========================================================================
+   لو خيروك — no scoring, the argument is the point
+   ========================================================================== */
+ROOM_GAMES.wouldyou = {
+  lobbyOptions: (s) => langLobbyOptions(s, 'wyr_hint'),
+  startPayload: () => ({ lang: VOTE_LANG() }),
+  pollHint: (s) => (s.shared.vote && s.shared.vote.voted.indexOf(Room.me) === -1) ? 'acting' : 'watching',
+
+  render(state) {
+    if (appState.currentView !== 'room-wouldyou') setView('room-wouldyou');
+    const el = document.getElementById('view-room-wouldyou');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const v = state.shared.vote;
+
+    renderRoomFrame(el, ['wyr', state.shared.round, v.phase, v.voted.length, state.youAreHost].join('|'), () => `
+      <div class="card" style="text-align:center">
+        <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
+        <div class="card__title" style="margin-bottom:0">${t.setup_wouldyou || 'لو خيروك'}</div>
+      </div>
+      ${v.phase === 'voting' ? renderBallot(state) : renderVoteResults(state)}
+      ${v.phase === 'results' ? renderRoundFooter(state, t.next_question || 'سؤال جديد') : ''}
+      ${renderRoomPlayerStrip(state)}`);
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/* ==========================================================================
+   مين أكثر واحد — the ballot is the room itself
+   ========================================================================== */
+ROOM_GAMES.mostlikely = {
+  lobbyOptions: (s) => langLobbyOptions(s, 'mlt_hint'),
+  startPayload: () => ({ lang: VOTE_LANG() }),
+  pollHint: (s) => (s.shared.vote && s.shared.vote.voted.indexOf(Room.me) === -1) ? 'acting' : 'watching',
+
+  render(state) {
+    if (appState.currentView !== 'room-mostlikely') setView('room-mostlikely');
+    const el = document.getElementById('view-room-mostlikely');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const v = state.shared.vote;
+
+    renderRoomFrame(el, ['mlt', state.shared.round, v.phase, v.voted.length, state.youAreHost].join('|'), () => `
+      <div class="card" style="text-align:center">
+        <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
+        <div class="prompt-text">${escapeHTML(state.shared.prompt || '')}</div>
+      </div>
+      ${v.phase === 'voting' ? renderBallot(state) : renderVoteResults(state)}
+      ${v.phase === 'results' ? renderScoreboard(state.shared.board) + renderRoundFooter(state, t.next_question || 'سؤال جديد') : ''}
+      ${renderRoomPlayerStrip(state)}`);
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/* ==========================================================================
+   فيبج — invent an answer, then find the real one
+   ========================================================================== */
+ROOM_GAMES.fibbage = {
+  lobbyOptions: (s) => langLobbyOptions(s, 'fib_hint'),
+  startPayload: () => ({ lang: VOTE_LANG() }),
+  pollHint(state) {
+    const s = state.shared;
+    if (s.phase === 'writing') return (s.submitted || []).indexOf(Room.me) === -1 ? 'acting' : 'watching';
+    if (s.phase === 'voting') return s.vote.voted.indexOf(Room.me) === -1 ? 'acting' : 'watching';
+    return 'watching';
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-fibbage') setView('room-fibbage');
+    const el = document.getElementById('view-room-fibbage');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+
+    const question = `
+      <div class="card" style="text-align:center">
+        <div class="eyebrow">${t.round || 'جولة'} ${s.round}</div>
+        <div class="prompt-text">${escapeHTML(s.question || '')}</div>
+      </div>`;
+
+    if (s.phase === 'writing') {
+      // Only roster members still in the room, or the counter sticks at 3/4
+      // forever once a phone drops - the server stopped waiting on them.
+      const here = state.players.map(p => p.id);
+      const active = (s.roster || here).filter(id => here.indexOf(id) !== -1);
+      const done = (s.submitted || []).filter(id => active.indexOf(id) !== -1).length;
+      const need = active.length;
+      const iSubmitted = (s.submitted || []).indexOf(Room.me) !== -1;
+      // Same rule as Just One: while you are inventing a lie, other people
+      // finishing theirs must not rebuild the box out from under you.
+      const wsig = 'writing|' + s.round + '|' + iSubmitted + (iSubmitted ? '|' + done + '/' + need : '');
+      renderRoomFrame(el, wsig, () => question + `
+        <div class="card">
+          ${iSubmitted
+            ? `<div class="waiting-note"><span class="animate-pulse">✍️</span> ${t.waiting_others} (${done}/${need})</div>`
+            : `<label class="field__label">${t.fib_your_lie || 'اخترع إجابة مقنعة'}</label>
+               <input type="text" id="fib-lie" autocomplete="off" maxlength="40"
+                      onkeydown="if(event.key==='Enter') submitFibbageLie()">
+               <button onclick="submitFibbageLie()" class="btn btn--primary btn--lg">${t.send || 'إرسال'}</button>
+               <p class="field__hint">${t.fib_lie_hint || 'الهدف إن الناس تصدقها وتختارها'}</p>`}
+        </div>` + renderRoomPlayerStrip(state));
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    if (s.phase === 'voting' || (s.vote && s.vote.phase === 'voting')) {
+      renderRoomFrame(el, ['fibvote', s.round, s.vote.voted.length, state.youAreHost].join('|'),
+                      () => question + renderBallot(state) + renderRoomPlayerStrip(state));
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    // Results: mark the real answer, then show who fooled whom.
+    renderRoomFrame(el, ['fibresult', s.round, state.youAreHost].join('|'), () => question + `
+      <div class="card card--accent" style="text-align:center">
+        <div class="eyebrow">${t.fib_truth || 'الإجابة الصحيحة'}</div>
+        <div class="metric metric--md metric--accent">${escapeHTML(s.truth || '')}</div>
+      </div>
+      ${renderVoteResults(state, { highlightId: 'truth' })}
+      ${renderScoreboard(s.board)}
+      ${renderRoundFooter(state, t.next_question || 'سؤال جديد')}
+      ${renderRoomPlayerStrip(state)}`);
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+async function submitFibbageLie() {
+  const input = document.getElementById('fib-lie');
+  const lie = (input.value || '').trim();
+  if (!lie) return showToast(TRANSLATIONS[appState.lang].fib_need_lie || 'اكتب إجابة', 'error');
+  await roomAct('submitLie', { lie: lie });
+}
+</script>

@@ -64,50 +64,53 @@
     const roundText = appState.lang === 'ar' ? 'جولة' : 'Round';
     const dealerText = appState.lang === 'ar' ? 'الموزع' : 'Dealer';
     const totalText = appState.lang === 'ar' ? 'المجموع' : 'Total';
+    const scoreLabel = appState.lang === 'ar' ? 'نقاط' : 'Score';
 
-    let html = `<div class="flex justify-between items-center mb-4">
-                  <select id="current-round-select" 
-                          class="font-bold text-indigo-600 bg-indigo-50 dark:bg-slate-800 border-none rounded-lg p-2 h-10 w-auto mb-0" 
-                          onchange="handleRoundChange(this)">`;
-    
-    for(let i=1; i<= appState.screw.rounds; i++) {
-        const selected = (i-1) === currentRoundIdx ? 'selected' : '';
-        html += `<option value="${i-1}" ${selected}>${roundText} ${i}</option>`;
-    }
-    html += `</select>
-             <div class="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">${dealerText}: 🃏</div>
-             </div>`;
-    
-    // Determine Dealer
     const dealerIndex = currentRoundIdx % appState.screw.players.length;
     const dealerNameRaw = appState.screw.players[dealerIndex].name;
 
-    // Display sorted by total
-    const sortedPlayers = [...appState.screw.players].sort((a,b) => a.total - b.total);
+    // Round picker + who is dealing.
+    let html = '<div class="card card--tight"><div class="round-bar">' +
+               '<select id="current-round-select" onchange="handleRoundChange(this)" aria-label="' + roundText + '">';
+    for (let i = 1; i <= appState.screw.rounds; i++) {
+        const selected = (i - 1) === currentRoundIdx ? ' selected' : '';
+        html += '<option value="' + (i - 1) + '"' + selected + '>' + roundText + ' ' + i + '</option>';
+    }
+    html += '</select>';
+    html += '<span class="badge badge--accent">🃏 ' + dealerText + ': ' + escapeHTML(dealerNameRaw) + '</span>';
+    html += '</div></div>';
+
+    // Lowest total leads in screw, so sort ascending and crown the top row.
+    const sortedPlayers = [...appState.screw.players].sort((a, b) => a.total - b.total);
 
     sortedPlayers.forEach((p, idx) => {
         if (!p.scores) p.scores = [];
         const currentScore = p.scores[currentRoundIdx] !== undefined ? p.scores[currentRoundIdx] : '';
-        const crown = idx === 0 ? '👑' : ''; 
         const isDealer = (p.name === dealerNameRaw);
-        const dealerIcon = isDealer ? '<span class="mr-2 text-xl" title="Dealer">🃏</span>' : '';
-        const dealerClass = isDealer ? 'border-r-4 border-indigo-500' : '';
+        const leading = idx === 0;
 
         html += `
-        <div class="screw-card flex justify-between items-center p-3 rounded-xl mb-2 border border-slate-100 dark:border-slate-600 ${dealerClass}">
-            <div class="flex flex-col">
-                <span class="font-bold text-lg flex items-center screw-name-text">
-                    ${crown} ${escapeHTML(p.name)} ${dealerIcon}
-                </span>
-                <span class="text-xs text-indigo-500 font-bold">${totalText}: ${p.total || 0}</span>
+        <div class="status-row ${leading ? 'status-row--turn' : ''}">
+            <div class="status-row__body">
+                <div class="status-row__name">
+                    ${leading ? '<span aria-hidden="true">👑</span>' : ''}${escapeHTML(p.name)}
+                </div>
+                <div class="status-row__tags">
+                    <span class="badge">${totalText}: ${p.total || 0}</span>
+                    ${isDealer ? '<span class="badge badge--accent">🃏 ' + dealerText + '</span>' : ''}
+                </div>
             </div>
             <input type="number"
-                   data-player="${escapeHTML(p.name)}"                   class="score-input w-20 h-12 text-center text-xl font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg mb-0 dark:text-white" 
-                   placeholder="-" 
+                   inputmode="numeric"
+                   data-player="${escapeHTML(p.name)}"
+                   class="score-input"
+                   aria-label="${scoreLabel} ${escapeHTML(p.name)}"
+                   placeholder="-"
                    value="${currentScore}"
                    onchange="saveScrewScores()">
         </div>`;
     });
+
     div.innerHTML = html;
   }
 
@@ -144,15 +147,16 @@
     
     if (appState.screw.activeRound >= appState.screw.rounds - 1) {
         // --- GAME OVER ---
-        appState.screw.players.sort((a,b) => a.total - b.total);
-        const winner = appState.screw.players[0];
+        // Sort a copy: mutating the roster would also re-order who deals.
+        const standings = [...appState.screw.players].sort((a,b) => a.total - b.total);
+        const winner = standings[0];
         
         const nameHeader = appState.lang === 'ar' ? 'الاسم' : 'Name';
         const pointsHeader = appState.lang === 'ar' ? 'النقاط' : 'Points';
 
-        let detailsHtml = `<table class="w-full text-center"><thead><tr class="border-b text-slate-400 text-xs uppercase"><th class="p-2">#</th><th class="p-2">${nameHeader}</th><th class="p-2">${pointsHeader}</th></tr></thead><tbody>`;
+        let detailsHtml = `<table class="w-full text-center"><thead><tr class="border-b tx-muted text-xs uppercase"><th class="p-2">#</th><th class="p-2">${nameHeader}</th><th class="p-2">${pointsHeader}</th></tr></thead><tbody>`;
         
-        appState.screw.players.forEach((p, i) => {
+        standings.forEach((p, i) => {
             // FIX: Force black text on the yellow winner row so it is visible
             const rowClass = i === 0 
                 ? 'bg-yellow-200 text-black font-bold border-none rounded' 
@@ -173,7 +177,7 @@
         if (winnersList) {
             winnersList.innerHTML = `
                 <div class="text-3xl mb-2">🥇 ${escapeHTML(winner.name)}</div>
-                <div class="text-sm text-gray-500 font-bold">${totalText}: ${winner.total}</div>
+                <div class="text-sm tx-muted font-bold">${totalText}: ${winner.total}</div>
             `;
         }
         
@@ -184,19 +188,19 @@
             const toggleBtnText = appState.lang === 'ar' ? "عرض النتائج كاملة" : "Full Results";
             const resultsBtn = document.createElement('button');
             resultsBtn.id = "toggle-results-btn";
-            resultsBtn.className = "btn btn-orange";
+            resultsBtn.className = "btn btn--primary";
             resultsBtn.innerText = toggleBtnText;
             resultsBtn.onclick = toggleResults;
             modalActions.appendChild(resultsBtn);
             
             const playAgainBtn = document.createElement('button');
-            playAgainBtn.className = "btn btn-green";
+            playAgainBtn.className = "btn btn--primary";
             playAgainBtn.innerText = TRANSLATIONS[appState.lang].play_again;
             playAgainBtn.onclick = playAgain;
             modalActions.appendChild(playAgainBtn);
 
             const mainMenuBtn = document.createElement('button');
-            mainMenuBtn.className = "btn btn-gray";
+            mainMenuBtn.className = "btn btn--ghost";
             mainMenuBtn.innerText = TRANSLATIONS[appState.lang].main_menu;
             mainMenuBtn.onclick = () => setView('menu');
             modalActions.appendChild(mainMenuBtn);

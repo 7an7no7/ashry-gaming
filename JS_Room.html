@@ -1,0 +1,553 @@
+<script>
+/* ============================================================================
+   MULTIPLAYER CLIENT
+   ----------------------------------------------------------------------------
+   Talks to the room API in Rooms.js. Apps Script gives us no push channel, so
+   this polls — but it polls carefully:
+
+     - the interval adapts (fast while you're expected to act, slow while
+       waiting, stopped entirely when the tab is hidden),
+     - a poll in flight is never doubled up,
+     - the UI only re-renders when the room's version or its online set actually
+       changed, so an idle lobby costs nothing to display.
+
+   Games register a renderer with Room.onChange, so this file knows nothing
+   about any particular game.
+   ========================================================================= */
+
+const Room = (() => {
+  const STORE_KEY = 'ashryRoom_v1';
+
+  // Latency is only felt by whoever is waiting, so cadence follows attention
+  // rather than role: you poll quickly when the screen is about to change under
+  // you, and slowly when everyone is waiting on *you*.
+  const POLL_WATCHING = 1200;   // someone else is about to change this screen
+  const POLL_ACTING   = 2600;   // you're the one being waited on; you're typing
+  const POLL_IDLE     = 3200;   // nothing changes until a deliberate action
+  const POLL_BACKOFF_MAX = 15000;
+
+  let session = null;      // { code, playerId, game }
+  let state = null;        // last projection from the server
+  let timer = null;
+  let inFlight = false;
+  let failures = 0;
+  let listeners = [];
+  let lastSignature = '';
+
+  /* --- persistence: survive a lock screen or an accidental reload --------- */
+  const remember = () => {
+    try {
+      if (session) localStorage.setItem(STORE_KEY, JSON.stringify(session));
+      else localStorage.removeItem(STORE_KEY);
+    } catch (e) {}
+  };
+  const recall = () => {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  };
+
+  /** Promise wrapper around google.script.run, which is callback-based. */
+  const call = (fn, ...args) => new Promise((resolve, reject) => {
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      reject(new Error('لا يوجد اتصال بالخادم'));
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(reject)
+      [fn](...args);
+  });
+
+  /* --- change notification ----------------------------------------------- */
+  const signatureOf = (s) => !s ? '' :
+      s.version + '|' + s.phase + '|' + s.players.map(p => p.id + (p.online ? '1' : '0')).join(',');
+
+  const emit = (force) => {
+    const sig = signatureOf(state);
+    if (!force && sig === lastSignature) return;
+    lastSignature = sig;
+    listeners.forEach(fn => { try { fn(state); } catch (e) { console.error('room listener', e); } });
+  };
+
+  /* --- polling ------------------------------------------------------------ */
+  const nextDelay = () => {
+    if (failures) return Math.min(POLL_IDLE * Math.pow(2, failures), POLL_BACKOFF_MAX);
+    if (!state) return POLL_WATCHING;
+
+    // The lobby is where people stare waiting for names to appear, so it always
+    // gets the fast cadence regardless of who they are.
+    if (state.phase === 'lobby') return POLL_WATCHING;
+
+    // Games declare their own cadence, because only they know whether this
+    // player is currently acting or waiting.
+    const game = ROOM_GAMES[state.game];
+    const hint = (game && game.pollHint) ? game.pollHint(state) : 'watching';
+    if (hint === 'acting') return POLL_ACTING;
+    if (hint === 'idle') return POLL_IDLE;
+    return POLL_WATCHING;
+  };
+
+  const schedule = () => {
+    clearTimeout(timer);
+    if (!session) return;
+    timer = setTimeout(poll, nextDelay());
+  };
+
+  const poll = async () => {
+    if (!session || inFlight || document.hidden) { schedule(); return; }
+    inFlight = true;
+    try {
+      // Send the version we hold; an unchanged room replies with presence only.
+      const res = await call('pollRoom', session.code, session.playerId,
+                             state ? state.version : 0);
+      failures = 0;
+      if (res.gone)   { handleDropped('انتهت الغرفة'); return; }
+      if (res.kicked) { handleDropped('تمت إزالتك من الغرفة'); return; }
+
+      if (res.same && state) {
+        // Nothing moved. Fold in who is still connected and keep the rest.
+        state.players.forEach(p => { p.online = res.online.indexOf(p.id) !== -1; });
+      } else if (res.state) {
+        state = res.state;
+      }
+      setSyncing(false);
+      emit(false);
+    } catch (err) {
+      failures++;
+      // Three misses in a row is a real connection problem, not a blip.
+      if (failures >= 3) setSyncing(true);
+    } finally {
+      inFlight = false;
+      schedule();
+    }
+  };
+
+  const handleDropped = (message) => {
+    const wasIn = !!session;
+    session = null; state = null; lastSignature = '';
+    clearTimeout(timer);
+    remember();
+    if (wasIn) {
+      showToast(message, 'error');
+      emit(true);
+      setView('menu');
+    }
+  };
+
+  /* --- public API --------------------------------------------------------- */
+  return {
+    get state() { return state; },
+    get session() { return session; },
+    get isIn() { return !!session; },
+    get isHost() { return !!(state && state.youAreHost); },
+    get me() { return session ? session.playerId : null; },
+
+    onChange(fn) { listeners.push(fn); return () => { listeners = listeners.filter(f => f !== fn); }; },
+
+    async create(name, gameId) {
+      const res = await call('createRoom', name, gameId);
+      session = { code: res.state.code, playerId: res.playerId, game: gameId };
+      state = res.state;
+      remember();
+      emit(true);
+      schedule();
+      return res;
+    },
+
+    async join(code, name) {
+      const res = await call('joinRoom', code, name);
+      session = { code: String(code).toUpperCase(), playerId: res.playerId, game: res.state.game };
+      state = res.state;
+      remember();
+      emit(true);
+      schedule();
+      return res;
+    },
+
+    /** Send a move. The server is authoritative, so we adopt whatever it returns. */
+    async act(action, payload) {
+      if (!session) throw new Error('لست في غرفة');
+      const s = await call('roomAction', session.code, session.playerId, action, payload || {});
+      state = s;
+      emit(false);
+      // A move usually changes what others should see; look again promptly.
+      clearTimeout(timer);
+      timer = setTimeout(poll, 350);
+      return s;
+    },
+
+    async leave() {
+      if (!session) return;
+      const { code, playerId } = session;
+      session = null; state = null; lastSignature = '';
+      clearTimeout(timer);
+      remember();
+      emit(true);
+      try { await call('leaveRoom', code, playerId); } catch (e) {}
+    },
+
+    /** Called on load: silently rejoin the room this device was last in. */
+    async resume() {
+      const saved = recall();
+      if (!saved || !saved.code || !saved.playerId) return false;
+      session = saved;
+      try {
+        const res = await call('pollRoom', saved.code, saved.playerId);
+        if (res.gone || res.kicked) { session = null; remember(); return false; }
+        state = res.state;
+        emit(true);
+        schedule();
+        return true;
+      } catch (err) {
+        session = null;
+        remember();
+        return false;
+      }
+    },
+
+    /** Force an immediate refresh (used when a screen becomes visible again). */
+    refresh() { clearTimeout(timer); timer = setTimeout(poll, 0); }
+  };
+})();
+
+// A backgrounded phone shouldn't poll; catching up the moment it returns is
+// both cheaper and feels faster than polling through the pause.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && Room.isIn) Room.refresh();
+});
+
+/* ==========================================================================
+   QR CODE
+   --------------------------------------------------------------------------
+   Rendered locally from the join URL. If the library fails to load the code is
+   simply not drawn — the 4-letter room code is always shown as well and is
+   usually the faster way in anyway.
+   ========================================================================== */
+function renderJoinQR(containerId, url) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '';
+  if (!url || typeof qrcode === 'undefined') { el.classList.add('hidden'); return; }
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    el.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+    el.classList.remove('hidden');
+  } catch (err) {
+    el.classList.add('hidden');
+  }
+}
+
+/* ==========================================================================
+   LOBBY UI
+   --------------------------------------------------------------------------
+   Generic: creating a room, joining one, showing who's in and handing off to
+   the game once the host starts. Each game supplies its own lobby options and
+   its own start payload through ROOM_GAMES.
+   ========================================================================== */
+
+/** Registered per game in its own JS_*.html file. */
+const ROOM_GAMES = {};
+
+/** Remembering the name means a returning player types it once, ever. */
+const roomName = {
+  get() { try { return localStorage.getItem('ashryName') || ''; } catch (e) { return ''; } },
+  set(v) { try { localStorage.setItem('ashryName', v); } catch (e) {} }
+};
+
+let pendingRoomGame = null;   // game id chosen before the room exists
+
+/**
+ * The games a room can play. The room itself is just the group — the host picks
+ * from these, they play, and it comes back here for the next one.
+ */
+const ROOM_HUB_GAMES = [
+  { id: 'imposter',  icon: '🕵️‍♂️', key: 'setup_imposter',  accent: 'violet', min: 3 },
+  { id: 'justone',   icon: '🤫',   key: 'setup_justone',   accent: 'rose',   min: 3 },
+  { id: 'whoami',    icon: '❓',   key: 'setup_whoami',    accent: 'teal',   min: 2 },
+  { id: 'codenames', icon: '🔠',   key: 'setup_codenames', accent: 'indigo', min: 4 },
+  { id: 'fibbage',    icon: '🤥',  key: 'setup_fibbage',    accent: 'rose',   min: 3 },
+  { id: 'wouldyou',   icon: '⚖️',  key: 'setup_wouldyou',   accent: 'violet', min: 2 },
+  { id: 'mostlikely', icon: '👉',  key: 'setup_mostlikely', accent: 'amber',  min: 3 },
+  { id: 'drawguess',  icon: '🎨',  key: 'setup_drawguess',  accent: 'blue',   min: 2 }
+];
+
+/** Create an empty room from the menu — no game chosen yet. */
+async function roomCreateEmpty() { return roomCreateFor(null); }
+
+/** Entry point from a game's setup screen: "play on separate phones". */
+async function roomCreateFor(gameId) {
+  const name = roomName.get() || (await promptForName());
+  if (!name) return;
+  roomName.set(name);
+  pendingRoomGame = gameId;
+  try {
+    setSyncing(true);
+    await Room.create(name, gameId);
+    setSyncing(false);
+    setView('room-lobby');
+  } catch (err) {
+    setSyncing(false);
+    showToast(err.message || 'تعذر إنشاء الغرفة', 'error');
+  }
+}
+
+/** Opens the join screen, pre-filled if we arrived from a scanned link. */
+function roomOpenJoin(prefillCode) {
+  const codeEl = document.getElementById('room-join-code');
+  const nameEl = document.getElementById('room-join-name');
+  if (codeEl) codeEl.value = (prefillCode || '').toUpperCase();
+  if (nameEl) nameEl.value = roomName.get();
+  setView('room-join');
+  // Send focus to whichever field is still empty.
+  setTimeout(() => {
+    const target = (codeEl && !codeEl.value) ? codeEl : nameEl;
+    if (target) target.focus();
+  }, 300);
+}
+
+async function roomJoinFromForm() {
+  const code = (document.getElementById('room-join-code').value || '').trim().toUpperCase();
+  const name = (document.getElementById('room-join-name').value || '').trim();
+  if (code.length < 4) return showToast('اكتب كود الغرفة', 'error');
+  if (!name) return showToast('اكتب اسمك', 'error');
+
+  roomName.set(name);
+  try {
+    setSyncing(true);
+    await Room.join(code, name);
+    setSyncing(false);
+    playSound('success');
+    setView('room-lobby');
+  } catch (err) {
+    setSyncing(false);
+    const msg = String(err.message || '');
+    showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? 'لا توجد غرفة بهذا الكود' : msg, 'error');
+  }
+}
+
+async function roomLeave() {
+  const msg = appState.lang === 'ar' ? 'هل تريد مغادرة الغرفة؟' : 'Leave this room?';
+  showConfirmModal(msg, async () => {
+    await Room.leave();
+    setView('menu');
+  });
+}
+
+async function roomStartGame() {
+  const game = ROOM_GAMES[Room.state && Room.state.game];
+  if (!game) return showToast('لعبة غير مدعومة', 'error');
+  try {
+    await Room.act('start', game.startPayload ? game.startPayload() : {});
+  } catch (err) {
+    showToast(err.message || 'تعذر بدء اللعبة', 'error');
+  }
+}
+
+/* --- rendering ----------------------------------------------------------- */
+
+function renderRoomLobby(state) {
+  const codeEl = document.getElementById('room-code-display');
+  if (codeEl) codeEl.innerText = state.code;
+
+  const url = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl)
+    ? window.SERVER_DATA.webAppUrl + '?room=' + state.code
+    : '';
+  renderJoinQR('room-qr', url);
+
+  const list = document.getElementById('room-player-list');
+  const count = document.getElementById('room-player-count');
+  if (count) count.innerText = state.players.length;
+  if (list) {
+    const hostLabel = appState.lang === 'ar' ? 'المضيف' : 'Host';
+    const youLabel = appState.lang === 'ar' ? 'أنت' : 'You';
+    list.innerHTML = state.players.map(p => `
+      <div class="status-row ${p.online ? '' : 'status-row--out'}">
+        <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
+        <div class="status-row__body">
+          <div class="status-row__name">${escapeHTML(p.name)}</div>
+        </div>
+        <div class="status-row__actions">
+          ${p.id === Room.me ? `<span class="badge badge--accent">${youLabel}</span>` : ''}
+          ${p.id === state.hostId ? `<span class="badge">${hostLabel}</span>` : ''}
+        </div>
+      </div>`).join('');
+  }
+
+  const startBtn = document.getElementById('room-start-btn');
+  const waitNote = document.getElementById('room-wait-note');
+  const setup = document.getElementById('room-host-setup');
+  const game = ROOM_GAMES[state.game];
+
+  // No game picked yet: the lobby shows the hub instead of a start button.
+  const inHub = !state.game;
+  if (startBtn) startBtn.classList.toggle('hidden', inHub || !state.youAreHost);
+  if (waitNote) waitNote.classList.toggle('hidden', !!state.youAreHost);
+
+  if (setup) {
+    const html = inHub
+      ? renderRoomHub(state)
+      : renderChosenGame(state, game);
+    // Only rewrite when it changed, so an open <select> isn't reset every poll.
+    if (setup.dataset.sig !== html) { setup.innerHTML = html; setup.dataset.sig = html; }
+  }
+}
+
+/** The game picker. Everyone sees it; only the host can act on it. */
+function renderRoomHub(state) {
+  const t = TRANSLATIONS[appState.lang];
+  const count = state.players.length;
+
+  if (!state.youAreHost) {
+    return `<div class="waiting-note">${t.room_hub_wait || 'المضيف يختار اللعبة…'}</div>`;
+  }
+
+  return `
+    <div class="section">
+      <div class="section__head">
+        <h2 class="section__title">${t.room_pick_game || 'اختر لعبة'}</h2>
+        <span class="section__rule"></span>
+      </div>
+      <div class="game-grid">
+        ${ROOM_HUB_GAMES.map(g => {
+          const enough = count >= g.min;
+          return `
+            <div class="game-card ${enough ? '' : 'is-disabled'}" data-accent="${g.accent}"
+                 ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : ''}>
+              <div class="game-icon" aria-hidden="true">${g.icon}</div>
+              <div class="game-title">${t[g.key] || g.id}</div>
+              ${enough ? '' : `<div class="game-card__need">${g.min}+</div>`}
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+/** Once a game is chosen: its own options, plus a way back to the hub. */
+function renderChosenGame(state, game) {
+  const t = TRANSLATIONS[appState.lang];
+  const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
+  const name = entry ? (t[entry.key] || state.game) : state.game;
+  const options = (game && game.lobbyOptions) ? game.lobbyOptions(state) : '';
+
+  return `
+    <div class="chosen-game">
+      <span class="chosen-game__icon" aria-hidden="true">${entry ? entry.icon : '🎮'}</span>
+      <span class="chosen-game__name">${name}</span>
+      ${state.youAreHost
+        ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('backToHub')">${t.room_change_game || 'تغيير'}</button>`
+        : ''}
+    </div>
+    ${options}`;
+}
+
+/**
+ * The single place the room state reaches the UI. Routes to the lobby while
+ * waiting and to the game's own renderer once play starts.
+ */
+Room.onChange((state) => {
+  if (!state) return;
+  const game = ROOM_GAMES[state.game];
+
+  if (state.phase === 'lobby') {
+    if (appState.currentView !== 'room-lobby') setView('room-lobby');
+    renderRoomLobby(state);
+    return;
+  }
+
+  // Joined after this round was dealt: watch, don't break the game.
+  if (state.inGame === false) {
+    renderRoomSpectator(state);
+    return;
+  }
+
+  if (game && game.render) game.render(state);
+});
+
+/**
+ * Shown to someone who joined mid-round. They're already in the room and will
+ * be dealt into the next game — this just keeps them from seeing a half-built
+ * screen for a game they aren't holding cards in.
+ */
+function renderRoomSpectator(state) {
+  if (appState.currentView !== 'room-lobby') setView('room-lobby');
+  const t = TRANSLATIONS[appState.lang];
+  const setup = document.getElementById('room-host-setup');
+  const startBtn = document.getElementById('room-start-btn');
+  const waitNote = document.getElementById('room-wait-note');
+
+  // Lobby first: it rewrites the same nodes, so writing the spectator note
+  // before it meant the note was replaced by the game picker straight away and
+  // a mid-round joiner never saw why they were waiting.
+  renderRoomLobby(state);
+
+  if (startBtn) startBtn.classList.add('hidden');
+  if (waitNote) waitNote.classList.add('hidden');
+  if (setup) {
+    const html = `<div class="waiting-note">
+        <span class="animate-pulse">⏳</span> ${t.room_spectating || 'جولة جارية — ستنضم في الجولة القادمة'}
+      </div>`;
+    if (setup.dataset.sig !== html) { setup.innerHTML = html; setup.dataset.sig = html; }
+  }
+}
+
+/**
+ * Asks for the player's name in a sheet rather than window.prompt(), which is
+ * blocked in some embedded contexts — including the one this app is served in.
+ */
+let nameModalResolve = null;
+
+function promptForName() {
+  return new Promise(resolve => {
+    nameModalResolve = resolve;
+    const input = document.getElementById('name-modal-input');
+    const modal = document.getElementById('name-modal');
+    if (!input || !modal) { resolve(''); return; }
+
+    input.value = roomName.get();
+    modal.classList.remove('hidden');
+    setTimeout(() => { input.focus(); input.select(); }, 320);
+  });
+}
+
+function submitNameModal() {
+  const input = document.getElementById('name-modal-input');
+  const value = (input.value || '').trim().slice(0, 24);
+  if (!value) { showToast(TRANSLATIONS[appState.lang].name_needed || 'اكتب اسمك', 'error'); return; }
+  closeModal('name-modal');
+  const done = nameModalResolve;
+  nameModalResolve = null;
+  if (done) done(value);
+}
+
+function cancelNameModal() {
+  closeModal('name-modal');
+  const done = nameModalResolve;
+  nameModalResolve = null;
+  if (done) done('');
+}
+
+/* --- boot ---------------------------------------------------------------- */
+
+/**
+ * On load: honour a scanned ?room= link first, otherwise silently rejoin
+ * whatever room this device was last in.
+ */
+async function initRooms() {
+  const injected = (window.SERVER_DATA && window.SERVER_DATA.room) || '';
+  if (injected) {
+    // Arriving from a QR/link beats any stale session on this device.
+    if (Room.isIn) await Room.leave();
+    roomOpenJoin(injected);
+    return;
+  }
+  const resumed = await Room.resume();
+  if (resumed && Room.state) {
+    const state = Room.state;
+    if (state.phase === 'lobby') setView('room-lobby');
+  }
+}
+</script>

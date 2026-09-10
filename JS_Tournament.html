@@ -19,7 +19,12 @@ function startTournament() {
         return;
     }
 
-    players.sort(() => Math.random() - 0.5); // Shuffle
+    // Fisher-Yates. `sort(() => Math.random() - 0.5)` is not a shuffle: it
+    // leaves early entries near the front, which decides the whole bracket.
+    for (let i = players.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [players[i], players[j]] = [players[j], players[i]];
+    }
     appState.tourney.players = players;
     
     generateBracket(players);
@@ -79,7 +84,7 @@ function renderBracket() {
         const roundMatches = appState.tourney.matches.filter(m => m.round === r);
         const roundName = getRoundName(r, rounds);
         
-        let html = `<div class="mb-6"><h4 class="text-center text-indigo-500 font-bold mb-3 text-lg">${roundName}</h4>`;
+        let html = `<div class="mb-6"><h4 class="section__title" style="text-align:center; margin-bottom: var(--sp-3)">${roundName}</h4>`;
         
         roundMatches.forEach(m => {
             const isReady = m.p1 !== "---" && m.p2 !== "---" && m.winnerSlot === null;
@@ -98,14 +103,14 @@ function renderBracket() {
 
             html += `
             <div class="tourney-match-card">
-                <button onclick="${isReady ? `setWinner(${m.id}, 1)` : ''}" class="${p1Class}">
+                <button ${isReady ? `onclick="setWinner(${m.id}, 1)"` : 'disabled'} class="${p1Class}">
                     <span>${escapeHTML(m.p1)}</span>
                     ${m.winnerSlot === 1 ? '🏆' : ''}
                 </button>
                 
-                <div class="text-[10px] text-center text-slate-400 font-black uppercase tracking-widest my-1">VS</div>
+                <div class="text-[10px] text-center tx-muted font-black uppercase tracking-widest my-1">VS</div>
                 
-                <button onclick="${isReady ? `setWinner(${m.id}, 2)` : ''}" class="${p2Class}">
+                <button ${isReady ? `onclick="setWinner(${m.id}, 2)"` : 'disabled'} class="${p2Class}">
                     <span>${escapeHTML(m.p2)}</span>
                     ${m.winnerSlot === 2 ? '🏆' : ''}
                 </button>
@@ -135,8 +140,10 @@ function setWinner(matchId, slot) {
     if(match.nextMatchId !== null) {
         const nextMatch = appState.tourney.matches.find(m => m.id === match.nextMatchId);
         // Feed winner to next bracket
-        if (match.id % 2 === 0) nextMatch.p1 = winnerName;
-        else nextMatch.p2 = winnerName;
+        if (nextMatch) {
+            if (match.id % 2 === 0) nextMatch.p1 = winnerName;
+            else nextMatch.p2 = winnerName;
+        }
     } else {
         // --- CHAMPION FOUND ---
         playSound('success');
@@ -162,7 +169,6 @@ function addTourneyInput() {
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'tourney-player-input';
-    input.setAttribute('list', 'global-player-datalist'); 
     input.placeholder = (appState.lang==='ar'?'لاعب':'Player') + ' ' + count;
     list.appendChild(input);
 }

@@ -74,7 +74,10 @@
       let selected = playersToUse || (appState.activePlayers ? [...appState.activePlayers] : []);
       saveActivePlayers(selected);
       const countInput = document.getElementById('imposter-count');
-      const count = parseInt(countInput.value) || 1;
+      // An emptied or negative field used to reach Array(count) and throw.
+      let count = parseInt(countInput.value, 10);
+      if (!isFinite(count) || count < 1) count = 1;
+      countInput.value = count;
       
       if(selected.length < 3) {
           const msg = appState.lang === 'ar' ? 'الحد الأدنى 3 لاعبين' : 'Minimum 3 players';
@@ -88,14 +91,8 @@
       appState.imposter.config.impostersCount = count;
       lastSelectedPlayers = selected;
       playSound('click');
-      reorderContext = 'imposter'; 
-      tempReorderList = selected.map(name => ({name: name})); 
-      
-      const modalBtn = document.getElementById('reorder-save-btn');
-      if(modalBtn) modalBtn.innerText = TRANSLATIONS[appState.lang].start;
-      
-      renderReorderList();
-      document.getElementById('reorder-modal').classList.remove('hidden');
+      openReorderModal('imposter', selected.map(name => ({ name: name })),
+                       TRANSLATIONS[appState.lang].start);
   }
 
   function finalizeImposterGame(orderedNames) {
@@ -142,13 +139,15 @@
   function showRole() {
       const player = appState.imposter.players[appState.imposter.revealIndex];
       const wordDiv = document.getElementById('role-word');
-      if (player.role === 'Imposter') {
-          wordDiv.innerText = appState.lang === 'ar' ? "🕵️‍♂️ أنت الجاسوس!" : "🕵️‍♂️ You are the Imposter!";
-          wordDiv.className = "text-3xl font-bold text-red-600";
-      } else {
-          wordDiv.innerText = appState.imposter.secretWord;
-          wordDiv.className = "text-3xl font-bold text-green-700";
-      }
+      const card = document.getElementById('role-card-content');
+      const spy = player.role === 'Imposter';
+      wordDiv.innerText = spy
+          ? (appState.lang === 'ar' ? "🕵️‍♂️ أنت الجاسوس!" : "🕵️‍♂️ You are the Imposter!")
+          : appState.imposter.secretWord;
+      // Tokens, not palette classes: green-700 on the dark card was 2.6:1, and
+      // overwriting className also dropped the card's own sizing.
+      wordDiv.className = 'metric metric--lg ' + (spy ? 'tx-danger' : 'tx-success');
+      if (card) card.classList.toggle('is-spy', spy);
       document.getElementById('reveal-step-pass').classList.add('hidden');
       document.getElementById('reveal-step-show').classList.remove('hidden');
       playSound('click');
@@ -178,20 +177,26 @@
   function startImposterTimer() {
       stopImposterTimer();
       isPaused = false;
+      appState.imposter.timer = 0;
       updateImposterTimerUI();
-      imposterInterval = setInterval(() => {
-          if(!isPaused) {
-              appState.imposter.timer++;
+      // Counts up: this is the discussion timer, it has no fixed length.
+      imposterInterval = createClock({
+          countUp: true,
+          onTick: (elapsed) => {
+              appState.imposter.timer = elapsed;
               updateImposterTimerUI();
           }
-      }, 1000);
+      });
   }
-  
-  function stopImposterTimer() { if(imposterInterval) clearInterval(imposterInterval); }
-  
+
+  function stopImposterTimer() {
+      if (imposterInterval) imposterInterval.stop();
+      imposterInterval = null;
+  }
+
   function toggleImposterTimer() {
       playSound('click');
-      isPaused = !isPaused;
+      isPaused = imposterInterval ? imposterInterval.toggle() : !isPaused;
       updateImposterTimerUI();
   }
 
@@ -220,12 +225,12 @@
       
       document.getElementById('winners-list').innerHTML = `
         <div class="mb-4">
-            <div class="text-xs text-slate-400 font-bold uppercase">${wordTitle}</div>
-            <div class="text-2xl font-black text-green-600">${escapeHTML(appState.imposter.secretWord)}</div>
+            <div class="eyebrow">${wordTitle}</div>
+            <div class="metric metric--md tx-success">${escapeHTML(appState.imposter.secretWord)}</div>
         </div>
         <div>
-            <div class="text-xs text-slate-400 font-bold uppercase">${impTitle}</div>
-            <div class="text-2xl font-black text-red-600">${imposters}</div>
+            <div class="eyebrow">${impTitle}</div>
+            <div class="metric metric--md tx-danger">${imposters}</div>
         </div>
       `;
       

@@ -64,6 +64,38 @@ clasp deploy -i <your deployment id> -d "wrapper"
 **Safari** (Chrome on iOS cannot add to the home screen), Share → Add to Home
 Screen. The gamepad icon and the name are already filled in.
 
+## Where to host it — checked, not guessed
+
+`*.netlify.app` is **blocked on this connection** (an ISP-level block; common in
+Egypt). The Netlify dashboard loads fine, which makes it look like the deploy
+failed when it hasn't — the site is up, the domain just cannot be reached, and
+friends on the same ISP would hit the same wall. Netlify Drop is not an option
+here.
+
+Measured from this machine:
+
+| host | result |
+| --- | --- |
+| `octocat.github.io` | 200 — GitHub Pages works |
+| `firebase.web.app` | 404 — connects fine, Firebase Hosting works |
+| `vercel.app` | 308 — works |
+| `surge.sh` | 200 — works |
+| `example.netlify.app` | timed out — **blocked** |
+| `cloudflare pages.dev` | failed |
+
+Firebase Hosting is the pick: reachable, free on the Spark plan, nothing has to
+be made public (GitHub Pages on the free plan needs a public repo, which would
+publish the spy words and the script id), and it shares a login with the
+Firebase work being considered for the room layer.
+
+**Creating the project from the CLI returns `403 PERMISSION_DENIED` on an
+account that has never used Firebase** — the Google Cloud project gets created
+and then `addFirebase` is refused, leaving an empty project behind. Make the
+project once in console.firebase.google.com instead; that accepts the terms.
+Then `firebase.json` + `.firebaserc` at the repo root (add both to
+`.claspignore`, or clasp will push them to Apps Script) and
+`firebase deploy --only hosting`.
+
 ## Things that will bite
 
 - **It must be Safari on iOS.** Chrome, Firefox and in-app browsers on iPhone

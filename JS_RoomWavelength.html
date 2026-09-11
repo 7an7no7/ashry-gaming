@@ -1,0 +1,250 @@
+<script>
+/* ============================================================================
+   على نفس الموجة — WAVELENGTH
+   ----------------------------------------------------------------------------
+   Cooperative spectrum mind-reading. One player (the Psychic) sees a secret
+   bullseye position on a spectrum between two opposite concepts, and gives
+   a single clue. The rest of the team discusses and moves the dial to match!
+   ========================================================================= */
+
+let wavelengthDialTimeout = null;
+
+ROOM_GAMES.wavelength = {
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    const t = TRANSLATIONS[appState.lang];
+    return `
+      <div class="card card--tight text-center">
+        <p class="field__hint">
+          ${t.setup_wavelength}: ${t.game_rules_wavelength_desc || (appState.lang === 'en'
+            ? '2+ players. Read minds on a spectrum between opposite concepts!'
+            : 'لاعبان أو أكثر. اقرأ أفكار زملائك على طيف بين مفهومين متناقضين!')}
+        </p>
+      </div>`;
+  },
+
+  startPayload() {
+    return {
+      lang: appState.lang === 'en' ? 'en' : 'ar'
+    };
+  },
+
+  pollHint(state) {
+    const s = state.shared;
+    if (s.phase === 'clue' && s.psychicId === Room.me) return 'acting';
+    return 'watching';
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-wavelength') {
+      setView('room-wavelength');
+    }
+    const el = document.getElementById('view-room-wavelength');
+    if (!el) return;
+
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const you = state.you || {};
+    const isPsychic = s.psychicId === Room.me;
+    const scores = s.scores || { team: 0 };
+
+    let html = '';
+
+    // 1. TOP HEADER: ROUND & TEAM SCORE
+    html += `
+      <div class="flex items-center justify-between bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm mb-4">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🌊</span>
+          <div>
+            <div class="text-xs text-slate-400 font-bold uppercase tracking-wider">${appState.lang === 'en' ? 'Round' : 'الجولة'} ${s.round}</div>
+            <div class="text-sm font-extrabold text-slate-800 dark:text-slate-100">
+              ${isPsychic ? t.psychic_role : `${appState.lang === 'en' ? 'Psychic:' : 'القارئ الذهني:'} ${escapeHTML(s.psychicName || '')}`}
+            </div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs text-slate-400 font-bold uppercase tracking-wider">${t.trivia_score || 'النقاط'}</div>
+          <div class="text-xl font-black text-teal-600 dark:text-teal-400">${scores.team || 0}</div>
+        </div>
+      </div>`;
+
+    // 2. SPECTRUM SPECS (LEFT VS RIGHT CONCEPT)
+    html += `
+      <div class="card bg-gradient-to-r from-teal-500/10 via-slate-500/5 to-cyan-500/10 border border-teal-200 dark:border-teal-800/60 p-4 rounded-3xl shadow-sm mb-4">
+        <div class="flex items-center justify-between gap-2 mb-3">
+          <span class="px-3 py-1.5 rounded-xl bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 text-xs font-black shadow-sm text-center max-w-[45%]">
+            ${escapeHTML(s.leftLabel || '')}
+          </span>
+          <span class="text-slate-400 font-black text-xs">⟷</span>
+          <span class="px-3 py-1.5 rounded-xl bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-200 text-xs font-black shadow-sm text-center max-w-[45%]">
+            ${escapeHTML(s.rightLabel || '')}
+          </span>
+        </div>
+
+        <!-- SPECTRUM BAR DISPLAY -->
+        <div class="relative w-full h-12 rounded-2xl bg-gradient-to-r from-teal-400 via-sky-300 to-cyan-400 shadow-inner overflow-hidden border border-white/40 my-3">
+          ${s.phase === 'results' ? `
+            <!-- Bullseye zone on results -->
+            <div class="absolute top-0 bottom-0 bg-yellow-300/60 border-x-2 border-yellow-500 shadow-lg"
+                 style="left: ${Math.max(0, s.target - 8)}%; width: 16%;"></div>
+            <div class="absolute top-0 bottom-0 bg-amber-400 border-x-2 border-amber-600 shadow-lg"
+                 style="left: ${Math.max(0, s.target - 3)}%; width: 6%;"></div>
+            <!-- Target pin -->
+            <div class="absolute top-0 bottom-0 w-1 bg-red-600 z-10" style="left: ${s.target}%;">
+              <div class="absolute -top-1 -left-2.5 text-xs">🎯</div>
+            </div>
+          ` : ''}
+
+          ${(s.phase === 'clue' && you.target !== undefined) ? `
+            <!-- Psychic secret view of target -->
+            <div class="absolute top-0 bottom-0 bg-amber-400/80 border-x-2 border-amber-600 shadow-lg"
+                 style="left: ${Math.max(0, you.target - 4)}%; width: 8%;"></div>
+            <div class="absolute top-0 bottom-0 w-1 bg-red-600 z-10" style="left: ${you.target}%;">
+              <div class="absolute -top-1 -left-2.5 text-xs">🎯</div>
+            </div>
+          ` : ''}
+
+          <!-- Dial pointer -->
+          <div class="absolute top-0 bottom-0 w-1.5 bg-slate-900 dark:bg-white z-20 transition-all shadow-md"
+               style="left: ${s.dial || 50}%;">
+            <div class="absolute -bottom-2 -left-2 w-5 h-5 rounded-full bg-slate-900 dark:bg-white border-2 border-teal-500 flex items-center justify-center text-[9px] font-black text-white dark:text-slate-900 shadow-md">
+              ▲
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-between text-[11px] font-bold text-slate-400 px-1">
+          <span>0%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
+      </div>`;
+
+    // 3. PHASE-SPECIFIC CONTROLS
+    if (s.phase === 'clue') {
+      if (isPsychic) {
+        html += `
+          <div class="card bg-white dark:bg-slate-800 p-4 border border-teal-200 dark:border-teal-800 rounded-2xl shadow-sm mb-4">
+            <div class="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider mb-1" data-i18n="psychic_role">
+              ${t.psychic_role}
+            </div>
+            <div class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3" data-i18n="psychic_hint">
+              ${t.psychic_hint}
+            </div>
+            <div class="flex gap-2">
+              <input id="wavelength-clue-input" type="text" class="field__input flex-1 text-sm py-2 px-3"
+                     placeholder="${t.enter_clue_ph}">
+              <button onclick="submitWavelengthClue()" class="btn btn--primary text-xs px-4" data-i18n="send_clue_btn">
+                ${t.send_clue_btn}
+              </button>
+            </div>
+          </div>`;
+      } else {
+        html += `
+          <div class="card bg-white dark:bg-slate-800 p-6 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm text-center mb-4">
+            <div class="text-3xl mb-2 animate-bounce">🧠</div>
+            <div class="text-sm font-bold text-slate-700 dark:text-slate-200">
+              ${appState.lang === 'en'
+                ? `Waiting for ${escapeHTML(s.psychicName || 'Psychic')} to give a clue...`
+                : `في انتظار تلميح القارئ الذهني (${escapeHTML(s.psychicName || '')})…`}
+            </div>
+          </div>`;
+      }
+    } else if (s.phase === 'dial') {
+      html += `
+        <div class="card bg-white dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm mb-4">
+          <div class="text-xs font-bold text-slate-400 uppercase tracking-wider text-center mb-1">
+            ${appState.lang === 'en' ? 'Psychic\'s Clue' : 'تلميح القارئ الذهني'}
+          </div>
+          <div class="text-2xl font-black text-teal-600 dark:text-teal-400 text-center mb-4">
+            "${escapeHTML(s.clue || '')}"
+          </div>
+
+          <div class="space-y-3">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-200 text-center" data-i18n="team_adjust_dial">
+              ${t.team_adjust_dial}
+            </label>
+            <input type="range" min="0" max="100" value="${s.dial || 50}"
+                   class="w-full accent-teal-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                   oninput="onWavelengthDialChange(this.value)">
+          </div>
+
+          ${state.youAreHost ? `
+            <div class="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700 text-center">
+              <button onclick="lockWavelengthDial()" class="btn btn--primary w-full py-2.5 text-xs font-black shadow-lg" data-i18n="lock_dial_btn">
+                ${t.lock_dial_btn}
+              </button>
+            </div>
+          ` : `
+            <p class="text-xs text-center text-slate-400 mt-4">
+              ${appState.lang === 'en' ? 'Host locks dial when team is ready.' : 'المضيف يقفل المؤشر عند انتهاء التشاور.'}
+            </p>
+          `}
+        </div>`;
+    } else if (s.phase === 'results') {
+      let resultText = t.miss_points;
+      let resultColor = 'text-rose-600 dark:text-rose-400';
+      if (s.pointsEarned === 4) {
+        resultText = t.bullseye;
+        resultColor = 'text-amber-500 dark:text-amber-400';
+      } else if (s.pointsEarned === 3) {
+        resultText = t.very_close;
+        resultColor = 'text-teal-600 dark:text-teal-400';
+      } else if (s.pointsEarned === 2) {
+        resultText = t.close_points;
+        resultColor = 'text-sky-600 dark:text-sky-400';
+      }
+
+      html += `
+        <div class="card bg-white dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm text-center mb-4">
+          <div class="text-xs uppercase font-extrabold tracking-wider text-slate-400 mb-1">
+            ${appState.lang === 'en' ? 'Clue Was' : 'التلميح كان'}
+          </div>
+          <div class="text-xl font-black text-slate-800 dark:text-slate-100 mb-3">
+            "${escapeHTML(s.clue || '')}"
+          </div>
+
+          <div class="text-lg font-black ${resultColor} mb-2">
+            ${resultText}
+          </div>
+
+          <div class="flex justify-center gap-4 text-xs font-bold text-slate-500 mb-4">
+            <span>${appState.lang === 'en' ? 'Team Dial:' : 'مؤشر الفريق:'} ${s.dial}%</span>
+            <span>${appState.lang === 'en' ? 'Target:' : 'الهدف:'} ${s.target}%</span>
+          </div>
+
+          ${state.youAreHost ? `
+            <div class="flex gap-2">
+              <button onclick="Room.act('nextRound')" class="btn btn--primary flex-1 text-xs py-2">
+                ${appState.lang === 'en' ? 'Next Round ⏭️' : 'الجولة التالية ⏭️'}
+              </button>
+              <button onclick="Room.act('backToHub')" class="btn btn--ghost flex-1 text-xs py-2">
+                ${appState.lang === 'en' ? 'Hub 🏠' : 'الرئيسية 🏠'}
+              </button>
+            </div>
+          ` : ''}
+        </div>`;
+    }
+
+    el.innerHTML = html;
+  }
+};
+
+function submitWavelengthClue() {
+  const inp = document.getElementById('wavelength-clue-input');
+  const clue = inp ? inp.value.trim() : '';
+  if (!clue) return;
+  Room.act('giveClue', { clue: clue });
+}
+
+function onWavelengthDialChange(val) {
+  clearTimeout(wavelengthDialTimeout);
+  wavelengthDialTimeout = setTimeout(() => {
+    Room.act('setDial', { dial: val });
+  }, 250);
+}
+
+function lockWavelengthDial() {
+  Room.act('lockDial');
+}
+</script>

@@ -1,0 +1,381 @@
+<script>
+/* --- SPYFALL (الموقع السري) GAME LOGIC --- */
+
+const SPYFALL_DB = {
+  ar: [
+    {"location": "قلعة تاريخية 🏰", "roles": ["حارس برج", "ملك", "مؤرخ سياحي", "مرشد", "طاهي قلعة", "زائر متحمس", "حارس خندق"]},
+    {"location": "ملهى ليلي 🪩", "roles": ["دي جي", "حارس بوابة", "نادل", "راقص", "زبون مميز", "عامل بار", "مغني"]},
+    {"location": "محطة إطفاء 🚒", "roles": ["قائد فرقة إطفاء", "سائق سيارة إطفاء", "مسعف", "متدرب", "ضابط اتصالات", "منقذ محاصرين", "فني خراطيم"]},
+    {"location": "منتجع تزلج ⛷️", "roles": ["مدرب تزلج", "مشغل تلفريك", "سائح مستمتع", "منقذ جليد", "عامل صيانة زلاجات", "طبيب كسور", "صاحب كوخ"]},
+    {"location": "محطة نووية ☢️", "roles": ["مهندس مفاعل", "خبير أمان إشعاعي", "مدير محطة", "حارس أمني", "فني تبريد", "عالم فيزياء", "عامل صيانة"]},
+    {"location": "منصة نفط 🛢️", "roles": ["حفار بترول", "قبطان مروحية نقل", "مهندس منصة", "طباخ المنصة", "غطاس أعماق", "فني ميكانيك", "ضابط بيئة"]},
+    {"location": "استوديو تلفزيون 📺", "roles": ["مذيع أخبار", "مخرج بث", "مصور كاميرا", "ضيف برنامج", "مهندس صوت", "أخصائي مكياج", "معد برامج"]},
+    {"location": "قاعة محكمة ⚖️", "roles": ["قاضي", "محامي دفاع", "مدعي عام", "متهم", "شاهد إثبات", "حاجب محكمة", "أمين سر"]},
+    {"location": "مخبز وحلواني 🥐", "roles": ["خباز بلدي", "شيف حلويات", "كاشير", "عامل عجانة", "زبون جائع", "عامل توصيل", "مسؤول تزيين كيك"]},
+    {"location": "تفتيش أمن المطار 🛂", "roles": ["ضابط جمارك", "مفتش حقائب", "مسافر متأخر", "دليل كلاب بوليسية", "مسؤول أشعة", "مشرف صالة", "راكب مضطرب"]},
+    {"location": "حوض أسماك عملاق 🐠", "roles": ["غواص إطعام أسماك", "طبيب أحياء بحرية", "مرشد أطفال", "بائع تذاكر", "عامل نظافة أحواض", "مصور تحت الماء", "زائر مبهور"]},
+    {"location": "صالة ألعاب جيم 🏋️", "roles": ["مدرب كمال أجسام", "متدرب جديد", "موظف استقبال", "بائع بروتين", "أخصائي علاج طبيعي", "لاعب محترف", "عامل نظافة"]},
+    {"location": "ورشة تصليح سيارات 🔧", "roles": ["ميكانيكي", "كهربائي سيارات", "سمكري ودهان", "زبون قلق", "محاسب ورشة", "صاحب الورشة", "سائق ونش"]},
+    {"location": "دار أوبرا 🎭", "roles": ["مغني تينور", "مايسترو أوركسترا", "عازف كمان", "مشاهد في البلكون", "مصمم أزياء", "قاطع تذاكر", "مهندس إضاءة"]},
+    {"location": "ميناء سفن بضائع ⚓", "roles": ["سائق رافعة عملاقة", "قبطان قاطرة", "موظف جمارك", "بحار أجنبي", "حارس بوابة الميناء", "تاجر مستورد", "مفتش حاويات"]},
+    {"location": "مزرعة ريفية 🚜", "roles": ["مزارع صاحب الأرض", "حلاب أبقار", "سائق جرار", "طبيب بيطري", "جامع ثمار", "حارس مزرعة", "زائر من المدينة"]},
+    {"location": "مكتبة عامة 📖", "roles": ["أمين مكتبة", "باحث دكتوراه", "طالب يذاكر", "قارئ روايات", "عامل أرشيف", "موظف استعارة", "كاتب يبحث عن إلهام"]},
+    {"location": "معمل أبحاث أدوية 🧪", "roles": ["عالم كيمياء حيوية", "باحث أدوية", "فني مختبر", "مدير أبحاث", "خبير جينات", "مساعد تجارب", "مسؤول سلامة حيوية"]},
+    {"location": "قصر رئاسي 🏛️", "roles": ["حارس شرف", "مستشار رئاسي", "سكرتير خاص", "صحفي معتمد", "رئيس التشريفات", "طاهي القصر", "دبلوماسي أجنبي"]},
+    {"location": "مركز تسوق ضخم 🛍️", "roles": ["حارس أمن المول", "متسوق مهووس", "بائع عطور", "عامل كشك مثلجات", "عامل نظافة", "طفل ضائع", "مدير أمن المول"]},
+    {"location": "محطة أتوبيسات 🚌", "roles": ["سائق حافلة", "كمسرى", "مسافر غافي", "بائع مناديل", "ناظر محطة", "حمال شنط", "راكب ينتظر خطه"]},
+    {"location": "سفينة شحن في عاصفة 🌊", "roles": ["قبطان مستنفر", "رئيس بحارة", "ضابط ملاحة", "فني محركات", "طاهي متأرجح", "مساعد بحار خائف", "ضابط رادار"]},
+    {"location": "موقع أثري تحت الحفر ⛏️", "roles": ["عالم آثار رئيسي", "منقب تراب", "مصور نقوش", "مرمم فخار", "حارس الموقع", "طالب بعثة", "أستاذ تاريخ"]},
+    {"location": "مهرجان طعام شوارع 🌮", "roles": ["طاهي تاكوز", "زبون يجرب كل شيء", "ناقد سوشيال ميديا", "عامل تنظيف طاولات", "منظم مهرجان", "بائع مشروبات مثلجة", "عازف جيتار متجول"]},
+    { location: "طائرة ✈️", roles: ["طيار", "مضيفة", "مسافر درجة أولى", "راكب خائف", "مارشال جوي", "ميكانيكي طيران", "مساعد طيار"] },
+    { location: "سفينة سياحية 🚢", roles: ["قبطان", "نادل بوفيه", "مسافر ثري", "منقذ مسبح", "موسيقي", "طباخ سفينة", "موظف استقبال"] },
+    { location: "مستشفى 🏥", roles: ["طبيب جراح", "ممرضة", "مريض", "طبيب تخدير", "زائر", "موظف استقبال", "صيدلي مشفى"] },
+    { location: "بنك 🏦", roles: ["مدير فرع", "صراف", "حارس أمن", "عميل", "محاسب", "سارق متنكر", "خبير قروض"] },
+    { location: "محطة فضاء 🚀", roles: ["رائد فضاء", "قائد مهمة", "عالم أحياء", "مهندس ميكانيكي", "سائح فضاء", "أخصائي اتصالات", "طبيب فضاء"] },
+    { location: "سوبرماركت 🛒", roles: ["كاشير", "زبون", "موظف رص بضائع", "مدير فرع", "حارس أمن", "جزار", "بائع خضار"] },
+    { location: "سينما 🍿", roles: ["قاطع تذاكر", "زائر مع فشار", "عامل نظافة", "مشغل العرض", "مدير صالة", "صانع فشار", "متفرج متأخر"] },
+    { location: "فندق 🏨", roles: ["موظف استقبال", "حامل حقائب", "نزيل", "عاملة نظافة", "طاهي", "مدير الفندق", "حارس أمن"] },
+    { location: "سفينة قراصنة 🏴‍☠️", roles: ["قبطان قرصان", "بحار مدفعي", "أسير", "مراقب الصاري", "طباخ قراصنة", "قرصان خائن", "ملاح"] },
+    { location: "قسم شرطة 🚓", roles: ["ضابط تحقيق", "محامي", "شرطي دورية", "سجين", "شاهد", "كاتب بلاغات", "خبير بصمات"] },
+    { location: "مطعم فاخر 🍽️", roles: ["شيف تنفيذي", "جرسون", "زبون ناقد", "ناقد طعام", "جلي صحون", "مدير مطعم", "ساقي مشروبات"] },
+    { location: "مدرسة 🏫", roles: ["معلم رياضيات", "طالب مشاغب", "مدير مدرسة", "حارس أمن", "أمين مكتبة", "طالب متفوق", "أخصائي اجتماعي"] },
+    { location: "غواصة 🌊", roles: ["قبطان غواصة", "مسؤول سونار", "مهندس توربينات", "بحار", "طباخ", "ضابط أسلحة", "طبيب"] },
+    { location: "قاعدة عسكرية 🎖️", roles: ["جنرال", "جندي حراسة", "قناص", "مدرب لياقة", "طبيب ميداني", "مسؤول مخزن أسلحة", "طيار حربي"] },
+    { location: "كازينو 🎰", roles: ["موزع ورق", "حارس أمن", "لاعب مقامر", "مدير صالة", "نادل بار", "فائز محظوظ", "محقق احتيال"] },
+    { location: "شاطئ 🏖️", roles: ["منقذ", "مصطاف", "بائع مثلجات", "راكب أمواج", "غواص", "بائع شمسيات", "طفل يبني قصر رمل"] },
+    { location: "حديقة حيوان 🦁", roles: ["حارس أقفاص", "طبيب بيطري", "زائر مع أطفاله", "بائع تذاكر", "مرشد سياحي", "مصور", "خبير تغذية"] },
+    { location: "متحف 🏛️", roles: ["مرشد سياحي", "أمين متحف", "حارس أمن", "زائر أجنبي", "مؤرخ", "خبير ترميم", "طالب فنون"] },
+    { location: "سيرك 🎪", roles: ["لاعب خفة", "مهرج", "مروض أسود", "لاعب بهلوان", "بائع تذاكر", "منسق موسيقى", "متفرج متحمس"] },
+    { location: "سبا ومنتجع 💆", roles: ["أخصائي مساج", "نزيل مسترخي", "موظف استقبال", "مدرب ساونا", "خبير عناية بشرة", "عامل نظافة", "مدرب يوجا"] },
+    { location: "محطة قطار 🚆", roles: ["سائق قطار", "كمسرى", "مسافر في عجلة", "عامل شحن", "حارس محطة", "بائع جرائد", "مشغل تحويلات"] },
+    { location: "جامعة 🎓", roles: ["أستاذ دكتور", "معيد", "طالب سنة أولى", "عميد الكلية", "طالب دراسات عليا", "أمين مكتبة", "موظف شؤون طلاب"] },
+    { location: "حفل زفاف 👰", roles: ["عريس", "عروس", "مصور فوتوغرافي", "دي جي", "والد العروس", "نادل قاعة", "ضيف غير مدعو"] },
+    { location: "ملاهي 🎡", roles: ["مشغل قطار الموت", "زائر خائف", "بائع غزل بنات", "منظم طوابير", "فني صيانة", "طفل متحمس", "مصور"] },
+    { location: "مخيم صحراوي ⛺", roles: ["مرشد بدوي", "سائح مغامر", "طباخ نار", "حطاب", "مراقب نجوم", "مسافر تائه", "مسعف"] },
+    { location: "معرض فنون 🎨", roles: ["فنان تشكيلي", "جامع لوحات ثري", "ناقد فني", "زائر حائر", "حارس أمن المعرض", "مصور صحفي", "مشتري في مزاد"] }
+  ],
+  en: [
+    {"location": "Medieval Castle 🏰", "roles": ["Tower Guard", "King", "Historical Guide", "Tourist", "Castle Cook", "Excited Visitor", "Moat Keeper"]},
+    {"location": "Nightclub 🪩", "roles": ["DJ", "Bouncer", "Bartender", "Dancer", "VIP Guest", "Barback", "Singer"]},
+    {"location": "Fire Station 🚒", "roles": ["Fire Chief", "Fire Truck Driver", "Paramedic", "Rookie Firefighter", "Dispatcher", "Rescue Specialist", "Hose Technician"]},
+    {"location": "Ski Resort ⛷️", "roles": ["Ski Instructor", "Lift Operator", "Excited Tourist", "Ski Patrol", "Equipment Technician", "Orthopedic Doctor", "Chalet Owner"]},
+    {"location": "Nuclear Power Plant ☢️", "roles": ["Reactor Engineer", "Radiation Safety Officer", "Plant Director", "Security Guard", "Cooling Tech", "Nuclear Physicist", "Maintenance Worker"]},
+    {"location": "Offshore Oil Rig 🛢️", "roles": ["Roughneck Driller", "Helicopter Pilot", "Platform Engineer", "Rig Cook", "Deep Sea Diver", "Mechanic", "Safety Officer"]},
+    {"location": "TV News Studio 📺", "roles": ["News Anchor", "Broadcast Director", "Camera Operator", "Interview Guest", "Audio Engineer", "Makeup Artist", "Producer"]},
+    {"location": "Courtroom ⚖️", "roles": ["Judge", "Defense Attorney", "Prosecutor", "Defendant", "Key Witness", "Bailiff", "Court Reporter"]},
+    {"location": "Bakery 🥐", "roles": ["Head Baker", "Pastry Chef", "Cashier", "Dough Mixer", "Hungry Customer", "Delivery Driver", "Cake Decorator"]},
+    {"location": "Airport Security 🛂", "roles": ["Customs Officer", "Baggage Screener", "Late Traveler", "K9 Handler", "X-Ray Monitor", "Terminal Supervisor", "Nervous Passenger"]},
+    {"location": "Giant Aquarium 🐠", "roles": ["Scuba Feeder", "Marine Biologist", "Tour Guide", "Ticket Agent", "Tank Cleaner", "Underwater Photographer", "Awed Visitor"]},
+    {"location": "Fitness Gym 🏋️", "roles": ["Personal Trainer", "Gym Newbie", "Front Desk Clerk", "Protein Shake Maker", "Physical Therapist", "Bodybuilder", "Cleaner"]},
+    {"location": "Auto Repair Garage 🔧", "roles": ["Lead Mechanic", "Auto Electrician", "Body Shop Painter", "Worried Car Owner", "Service Writer", "Shop Owner", "Tow Truck Driver"]},
+    {"location": "Opera House 🎭", "roles": ["Tenor Singer", "Orchestra Conductor", "Violinist", "Balcony Patron", "Costume Designer", "Usher", "Lighting Technician"]},
+    {"location": "Container Cargo Port ⚓", "roles": ["Gantry Crane Operator", "Tugboat Captain", "Customs Inspector", "Foreign Sailor", "Port Gate Guard", "Freight Forwarder", "Cargo Inspector"]},
+    {"location": "Country Farm 🚜", "roles": ["Farm Owner", "Dairy Milker", "Tractor Driver", "Veterinarian", "Harvester", "Farmhand", "City Visitor"]},
+    {"location": "Public Library 📖", "roles": ["Librarian", "PhD Researcher", "Studying Student", "Novel Reader", "Archivist", "Check-out Clerk", "Inspired Writer"]},
+    {"location": "Pharma Research Lab 🧪", "roles": ["Biochemist", "Pharmacologist", "Lab Tech", "Research Director", "Geneticist", "Trial Assistant", "Bio-Safety Officer"]},
+    {"location": "Presidential Palace 🏛️", "roles": ["Honor Guard", "Senior Advisor", "Chief of Staff", "Press Reporter", "Protocol Chief", "Palace Chef", "Foreign Ambassador"]},
+    {"location": "Mega Shopping Mall 🛍️", "roles": ["Mall Security", "Shopaholic", "Perfume Salesperson", "Ice Cream Vendor", "Janitor", "Lost Child", "Loss Prevention Officer"]},
+    {"location": "Bus Terminal 🚌", "roles": ["Bus Driver", "Ticket Inspector", "Sleeping Passenger", "Snack Vendor", "Station Master", "Luggage Porter", "Waiting Commuter"]},
+    {"location": "Cargo Ship in Storm 🌊", "roles": ["Alert Captain", "Chief Mate", "Navigating Officer", "Engine Tech", "Dizzy Cook", "Panicking Deckhand", "Radar Operator"]},
+    {"location": "Archaeological Dig Site ⛏️", "roles": ["Lead Archaeologist", "Excavation Worker", "Field Photographer", "Pottery Restorer", "Site Guard", "Grad Student", "Historian"]},
+    {"location": "Street Food Festival 🌮", "roles": ["Taco Chef", "Foodie Trying Everything", "Social Media Critic", "Table Busser", "Festival Organizer", "Cold Drinks Vendor", "Busker Guitarist"]},
+    { location: "Airplane ✈️", roles: ["Pilot", "Flight Attendant", "First Class Passenger", "Nervous Flyer", "Air Marshal", "Mechanic", "Co-Pilot"] },
+    { location: "Cruise Ship 🚢", roles: ["Captain", "Buffet Waiter", "Wealthy Traveler", "Lifeguard", "Musician", "Ship Cook", "Receptionist"] },
+    { location: "Hospital 🏥", roles: ["Surgeon", "Nurse", "Patient", "Anesthesiologist", "Visitor", "Receptionist", "Pharmacist"] },
+    { location: "Bank 🏦", roles: ["Branch Manager", "Teller", "Security Guard", "Customer", "Accountant", "Disguised Robber", "Loan Officer"] },
+    { location: "Space Station 🚀", roles: ["Astronaut", "Mission Commander", "Biologist", "Flight Engineer", "Space Tourist", "Communications Officer", "Doctor"] },
+    { location: "Supermarket 🛒", roles: ["Cashier", "Customer", "Stock Clerk", "Store Manager", "Security Guard", "Butcher", "Produce Seller"] },
+    { location: "Cinema 🍿", roles: ["Ticket Taker", "Customer with Popcorn", "Janitor", "Projectionist", "Theater Manager", "Popcorn Maker", "Late Viewer"] },
+    { location: "Hotel 🏨", roles: ["Front Desk Agent", "Bellhop", "Guest", "Housekeeper", "Chef", "General Manager", "Security Guard"] },
+    { location: "Pirate Ship 🏴‍☠️", roles: ["Pirate Captain", "Cannoneer", "Captive", "Crow's Nest Lookout", "Cook", "Mutineer", "Navigator"] },
+    { location: "Police Station 🚓", roles: ["Detective", "Lawyer", "Patrol Officer", "Prisoner", "Witness", "Desk Sergeant", "Forensics Expert"] },
+    { location: "Fine Restaurant 🍽️", roles: ["Executive Chef", "Waiter", "Picky Diner", "Food Critic", "Dishwasher", "Host", "Sommelier"] },
+    { location: "School 🏫", roles: ["Math Teacher", "Troublemaker Student", "Principal", "Security Guard", "Librarian", "Top Student", "Counselor"] },
+    { location: "Submarine 🌊", roles: ["Captain", "Sonar Tech", "Turbine Engineer", "Sailor", "Cook", "Weapons Officer", "Medic"] },
+    { location: "Military Base 🎖️", roles: ["General", "Guard Soldier", "Sniper", "Drill Instructor", "Field Medic", "Armory Chief", "Fighter Pilot"] },
+    { location: "Casino 🎰", roles: ["Dealer", "Bouncer", "High Roller", "Floor Manager", "Bartender", "Lucky Winner", "Fraud Investigator"] },
+    { location: "Beach 🏖️", roles: ["Lifeguard", "Sunbather", "Ice Cream Vendor", "Surfer", "Scuba Diver", "Umbrella Renter", "Sandcastle Kid"] },
+    { location: "Zoo 🦁", roles: ["Zookeeper", "Veterinarian", "Visiting Parent", "Ticket Seller", "Tour Guide", "Photographer", "Nutritionist"] },
+    { location: "Museum 🏛️", roles: ["Tour Guide", "Curator", "Security Guard", "Tourist", "Historian", "Art Restorer", "Art Student"] },
+    { location: "Circus 🎪", roles: ["Magician", "Clown", "Lion Tamer", "Acrobat", "Ticket Seller", "Music Director", "Excited Fan"] },
+    { location: "Spa Resort 💆", roles: ["Massage Therapist", "Relaxed Guest", "Receptionist", "Sauna Master", "Esthetician", "Cleaner", "Yoga Instructor"] },
+    { location: "Train Station 🚆", roles: ["Train Driver", "Conductor", "Rushing Traveler", "Porter", "Station Guard", "Newsstand Clerk", "Dispatcher"] },
+    { location: "University 🎓", roles: ["Professor", "Teaching Assistant", "Freshman", "Dean", "Grad Student", "Librarian", "Registrar"] },
+    { location: "Wedding 👰", roles: ["Groom", "Bride", "Photographer", "DJ", "Father of the Bride", "Catering Waiter", "Wedding Crasher"] },
+    { location: "Amusement Park 🎡", roles: ["Roller Coaster Operator", "Terrified Rider", "Cotton Candy Vendor", "Queue Manager", "Technician", "Excited Kid", "Photographer"] },
+    { location: "Campsite ⛺", roles: ["Camp Guide", "Adventurous Tourist", "Campfire Cook", "Woodcutter", "Stargazer", "Lost Camper", "Medic"] },
+    { location: "Art Gallery 🎨", roles: ["Painter", "Wealthy Collector", "Art Critic", "Puzzled Tourist", "Gallery Guard", "Photojournalist", "Auction Bidder"] }
+  ]
+};
+
+const spyfallState = {
+  players: [],
+  location: null,
+  spies: [],
+  playerRoles: {},
+  revealIndex: 0,
+  timerSeconds: 480,
+  timerClock: null,
+  crossedLocations: new Set()
+};
+
+function setupSpyfall() {
+  setView('setup-spyfall');
+}
+
+function startSpyfallGame() {
+  const selected = appState.activePlayers ? [...appState.activePlayers] : [];
+  saveActivePlayers(selected);
+
+  if (selected.length < 3) {
+    const msg = appState.lang === 'en' ? "Need at least 3 players!" : "تحتاج إلى 3 لاعبين على الأقل!";
+    showToast(msg);
+    return;
+  }
+
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const db = SPYFALL_DB[lang] || SPYFALL_DB.ar;
+  const loc = db[Math.floor(Math.random() * db.length)];
+  spyfallState.location = loc;
+
+  // Spies count (default 1, or 2 if selected)
+  const spyCount = parseInt(document.getElementById('spyfall-spies-count')?.value || '1', 10);
+  const shuffledPlayers = shuffleArray(selected);
+  spyfallState.players = shuffledPlayers;
+  spyfallState.spies = shuffledPlayers.slice(0, spyCount);
+
+  // Assign roles to civilians
+  const civilianRoles = shuffleArray(loc.roles);
+  spyfallState.playerRoles = {};
+  let roleIdx = 0;
+  shuffledPlayers.forEach(p => {
+    if (spyfallState.spies.includes(p)) {
+      spyfallState.playerRoles[p] = { isSpy: true };
+    } else {
+      const r = civilianRoles[roleIdx % civilianRoles.length];
+      roleIdx++;
+      spyfallState.playerRoles[p] = { isSpy: false, role: r };
+    }
+  });
+
+  const durationMin = parseInt(document.getElementById('spyfall-duration')?.value || '8', 10);
+  spyfallState.timerSeconds = durationMin * 60;
+  spyfallState.revealIndex = 0;
+  spyfallState.crossedLocations = new Set();
+
+  playSound('click');
+  showSpyfallRevealStep();
+  setView('reveal-spyfall');
+}
+
+function showSpyfallRevealStep() {
+  if (spyfallState.revealIndex >= spyfallState.players.length) {
+    startSpyfallDiscussion();
+    return;
+  }
+
+  const playerName = spyfallState.players[spyfallState.revealIndex];
+  document.getElementById('spyfall-reveal-name').innerText = playerName;
+  document.getElementById('spyfall-step-pass').classList.remove('hidden');
+  document.getElementById('spyfall-step-card').classList.add('hidden');
+}
+
+function revealSpyfallSecret() {
+  const playerName = spyfallState.players[spyfallState.revealIndex];
+  const info = spyfallState.playerRoles[playerName];
+  const titleEl = document.getElementById('spyfall-card-title');
+  const detailEl = document.getElementById('spyfall-card-detail');
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+
+  if (info.isSpy) {
+    playSound('alarm');
+    titleEl.innerText = lang === 'en' ? "🕵️ YOU ARE THE SPY!" : "🕵️ أنت الجاسوس!";
+    detailEl.innerHTML = `
+      <div class="space-y-2">
+        <div class="text-xs uppercase tracking-wider text-rose-400 font-bold">${lang === 'en' ? 'Location: Unknown' : 'الموقع: غير معروف'}</div>
+        <p class="text-sm opacity-90">${lang === 'en' ? 'Listen closely, deduce the location from others, and blend in!' : 'استمع بذكاء لأسئلة وأجوبة الآخرين، خمن الموقع، ولا تجعل أحداً يكتشفك!'}</p>
+      </div>
+    `;
+  } else {
+    playSound('success');
+    titleEl.innerText = lang === 'en' ? "🏢 CIVILIAN" : "🏢 مواطن في الموقع";
+    detailEl.innerHTML = `
+      <div class="space-y-2">
+        <div class="text-xs uppercase tracking-wider opacity-75">${lang === 'en' ? 'Location' : 'الموقع'}</div>
+        <div class="text-2xl font-black text-amber-300">${escapeHTML(spyfallState.location.location)}</div>
+        <div class="text-xs uppercase tracking-wider opacity-75">${lang === 'en' ? 'Your Role' : 'دورك'}</div>
+        <div class="text-xl font-bold">${escapeHTML(info.role)}</div>
+      </div>
+    `;
+  }
+
+  document.getElementById('spyfall-step-pass').classList.add('hidden');
+  document.getElementById('spyfall-step-card').classList.remove('hidden');
+}
+
+function doneSpyfallRevealStep() {
+  spyfallState.revealIndex++;
+  showSpyfallRevealStep();
+}
+
+function startSpyfallDiscussion() {
+  setView('play-spyfall');
+  renderSpyfallLocationBoard();
+
+  if (spyfallState.timerClock) spyfallState.timerClock.stop();
+
+  let left = spyfallState.timerSeconds;
+  updateSpyfallTimerUI(left);
+
+  spyfallState.timerClock = createClock({
+    seconds: left,
+    onTick: (val) => {
+      updateSpyfallTimerUI(val);
+      if (val === 60) playSound('tick');
+      if (val === 0) {
+        playSound('alarm');
+        openSpyfallAccuseModal();
+      }
+    },
+    onEnd: () => {
+      openSpyfallAccuseModal();
+    }
+  });
+}
+
+function updateSpyfallTimerUI(sec) {
+  const el = document.getElementById('spyfall-timer-display');
+  if (!el) return;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  el.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+function toggleSpyfallPause() {
+  if (spyfallState.timerClock) {
+    const isPaused = spyfallState.timerClock.toggle();
+    const btn = document.getElementById('spyfall-pause-btn');
+    const lang = appState.lang === 'en' ? 'en' : 'ar';
+    if (btn) btn.innerText = isPaused ? (lang === 'en' ? 'Resume' : 'استئناف') : (lang === 'en' ? 'Pause' : 'إيقاف مؤقت');
+  }
+}
+
+function renderSpyfallLocationBoard() {
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const db = SPYFALL_DB[lang] || SPYFALL_DB.ar;
+  const list = document.getElementById('spyfall-locations-list');
+  if (!list) return;
+
+  list.innerHTML = db.map(item => {
+    const crossed = spyfallState.crossedLocations.has(item.location);
+    return `
+      <button type="button" onclick="toggleSpyfallCrossLocation('${jsStringAttr(item.location)}')"
+              class="p-2.5 rounded-xl text-xs font-bold text-center transition-all ${crossed ? 'opacity-30 line-through bg-black/10 dark:bg-white/10' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 shadow-sm border border-black/5 dark:border-white/5'}">
+        ${escapeHTML(item.location)}
+      </button>
+    `;
+  }).join('');
+}
+
+function toggleSpyfallCrossLocation(locName) {
+  if (spyfallState.crossedLocations.has(locName)) {
+    spyfallState.crossedLocations.delete(locName);
+  } else {
+    spyfallState.crossedLocations.add(locName);
+  }
+  renderSpyfallLocationBoard();
+}
+
+function openSpyfallAccuseModal() {
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const list = document.getElementById('spyfall-accuse-list');
+  if (list) {
+    list.innerHTML = spyfallState.players.map(p => `
+      <button onclick="voteSpyfallAccused('${jsStringAttr(p)}')"
+              class="w-full text-left px-4 py-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-rose-500 hover:text-white font-bold flex items-center justify-between transition-colors">
+        <span>${escapeHTML(p)}</span>
+        <span class="text-xs opacity-75">${lang === 'en' ? 'Vote as Spy' : 'اتهام بالجاسوسية'}</span>
+      </button>
+    `).join('');
+  }
+  document.getElementById('spyfall-accuse-modal').classList.remove('hidden');
+}
+
+function voteSpyfallAccused(player) {
+  closeModal('spyfall-accuse-modal');
+  if (spyfallState.timerClock) spyfallState.timerClock.stop();
+  const isSpy = spyfallState.spies.includes(player);
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+
+  if (isSpy) {
+    // Spy caught! Spy gets one chance to guess the location!
+    playSound('alarm');
+    openSpyfallGuessModal(player);
+  } else {
+    // Civilians executed an innocent player! Spy wins!
+    playSound('alarm');
+    finishSpyfallGame(false, lang === 'en' ? `The innocent player (${player}) was voted out! The Spy wins!` : `تم التصويت على مواطن بريء (${player})! الجاسوس يفوز!`);
+  }
+}
+
+function openSpyfallGuessModal(spyName) {
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const db = SPYFALL_DB[lang] || SPYFALL_DB.ar;
+  const list = document.getElementById('spyfall-spy-guess-grid');
+  if (list) {
+    list.innerHTML = db.map(item => `
+      <button onclick="spySubmitLocationGuess('${jsStringAttr(item.location)}', '${jsStringAttr(spyName)}')"
+              class="p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-amber-500 hover:text-black font-bold text-xs transition-colors text-center">
+        ${escapeHTML(item.location)}
+      </button>
+    `).join('');
+  }
+  document.getElementById('spyfall-spy-guess-modal').classList.remove('hidden');
+}
+
+function spySubmitLocationGuess(locName, spyName) {
+  closeModal('spyfall-spy-guess-modal');
+  const isCorrect = (locName === spyfallState.location.location);
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+
+  if (isCorrect) {
+    playSound('alarm');
+    finishSpyfallGame(false, lang === 'en' ? `${spyName} correctly guessed the location (${locName}) and won the game!` : `نجح ${spyName} في تخمين الموقع (${locName}) وسرق الفوز!`);
+  } else {
+    playSound('success');
+    confetti({ particleCount: 150 });
+    finishSpyfallGame(true, lang === 'en' ? `${spyName} was caught and failed to guess the location! Civilians win!` : `تم كشف ${spyName} وفشل في تخمين الموقع! فاز المواطنون!`);
+  }
+}
+
+function finishSpyfallGame(civiliansWon, message) {
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const resultModal = document.getElementById('spyfall-result-modal');
+  const titleEl = document.getElementById('spyfall-result-title');
+  const detailEl = document.getElementById('spyfall-result-detail');
+
+  if (civiliansWon) {
+    titleEl.innerText = lang === 'en' ? "🎉 CIVILIANS WIN!" : "🎉 فوز المواطنين!";
+    titleEl.className = "text-3xl font-black text-emerald-500 mb-2";
+  } else {
+    titleEl.innerText = lang === 'en' ? "🕵️ SPY WINS!" : "🕵️ فوز الجاسوس!";
+    titleEl.className = "text-3xl font-black text-rose-500 mb-2";
+  }
+
+  detailEl.innerHTML = `
+    <p class="text-base mb-4 font-semibold">${escapeHTML(message)}</p>
+    <div class="p-4 rounded-xl bg-black/5 dark:bg-white/5 space-y-1 text-sm">
+      <div><b>${lang === 'en' ? 'Secret Location:' : 'الموقع السري:'}</b> ${escapeHTML(spyfallState.location.location)}</div>
+      <div><b>${lang === 'en' ? 'The Spy:' : 'الجاسوس:'}</b> ${spyfallState.spies.map(escapeHTML).join(', ')}</div>
+    </div>
+  `;
+
+  resultModal.classList.remove('hidden');
+}
+
+function resetSpyfallPlay() {
+  if (spyfallState.timerClock) spyfallState.timerClock.stop();
+  closeModal('spyfall-result-modal');
+  setupSpyfall();
+}
+</script>

@@ -1,0 +1,453 @@
+<script>
+/* --- THE CHAMELEON (الحرباء) GAME LOGIC --- */
+
+const CHAMELEON_DB = {
+  ar: [
+    {"category": "وسائل مواصلات 🚗", "words": ["سيارة", "قطار", "طائرة", "دراجة", "سفينة", "مترو", "حافلة", "تاكسي", "شاحنة", "صاروخ", "غواصة", "ترام", "منطاد", "سكوتر", "موتوسيكل", "هليكوبتر"]},
+    {"category": "كواكب وفضاء 🪐", "words": ["شمس", "قمر", "أرض", "مريخ", "مشتري", "زحل", "عطارد", "زهرة", "نبتون", "أورانوس", "نيزك", "مجرة", "نجم", "ثقب أسود", "مذنب", "محطة فضاء"]},
+    {"category": "شخصيات كرتونية 🦸", "words": ["ميكي ماوس", "سبونج بوب", "توم", "جيري", "باتمان", "سبايدرمان", "سندريلا", "سيمبا", "علاء الدين", "طرزان", "شريك", "المحقق كونان", "ماوكلي", "بسيط", "بينوكيو", "باباي"]},
+    {"category": "أدوات ومعدات 🔨", "words": ["شاكوش", "مفك", "منشار", "كماشة", "مسمار", "متر قياس", "مبرد", "ميزان ماء", "شنيور", "مقص", "فرشاة دهان", "سلم", "صامولة", "مفتاح إنجليزي", "فأس", "مسدس شمع"]},
+    {"category": "أجهزة إلكترونية 📱", "words": ["موبايل", "لابتوب", "تابلت", "سماعات", "تلفزيون", "كاميرا", "بلايستيشن", "راوتر", "ساعة ذكية", "طابعة", "ماوس", "كيبورد", "فلاش ميموري", "باور بانك", "بروجكتور", "ميكروفون"]},
+    {"category": "عجائب ومعالم 🗽", "words": ["الأهرامات", "برج إيفل", "تمثال الحرية", "برج خليفة", "سور الصين", "تاج محل", "برج بيزا", "الكولوسيوم", "ساعة بيج بن", "أبو الهول", "قلعة قايتباي", "البتراء", "أكروبوليس", "شلالات نياجرا", "جبل إفرست", "قصر الحمراء"]},
+    {"category": "ألعاب وتسالي 🎲", "words": ["شطرنج", "طاولة زهر", "دومينو", "كوتشينة", "مونوبولي", "أونو", "بنك الحظ", "غميضة", "صلح", "أولمبياد", "مكعب روبيك", "بازل", "بلياردو", "بولينج", "بينج بونج", "كرة سرعة"]},
+    {"category": "أماكن ترفيهية 🎡", "words": ["ملاهي", "حديقة حيوان", "شاطئ", "سينما", "سيرك", "مول", "متحف", "مسرح", "مطعم", "كافيه", "حديقة عامة", "مسبح", "نادي رياضي", "مكتبة", "أكوا بارك", "صالة بولينج"]},
+    {"category": "مشروبات منعشة 🍹", "words": ["عصير مانجو", "ليمون بالنعناع", "شاي بلبن", "قهوة تركي", "موكا", "ميلك شيك", "سحلب", "كركديه", "قصب", "سوبيا", "تمر هندي", "شوكولاتة ساخنة", "كابتشينو", "عصير قصب", "برتقال فريش", "آيس كوفي"]},
+    {"category": "مستلزمات الحمام 🛁", "words": ["صابون", "شامبو", "معجون أسنان", "فرشاة", "فوطة", "دش", "بانيو", "مرآة", "مشط", "مجفف شعر", "غسالة", "برنس", "مناديل", "لوفة", "مقص أظافر", "عطر"]},
+    {"category": "طيور وحشرات 🦅", "words": ["صقر", "نسر", "حمامة", "بومة", "طاووس", "بطة", "ببغاء", "عصفور", "نحلة", "فراشة", "نملة", "يعسوب", "خنفساء", "غراب", "هدهد", "نعامة"]},
+    {"category": "مطبخ وأدواته 🍳", "words": ["سكين", "شوكة", "ملعقة", "طاسة", "حلة", "طبق", "كوباية", "خلاط", "بوتاجاز", "ميكروويف", "ثلاجة", "صينية", "فتاحة", "مبشرة", "غلاية", "مصفاة"]},
+    {"category": "في الحديقة 🌳", "words": ["شجرة", "وردة", "عشب", "مقعد", "نافورة", "سياج", "أرجوحة", "خرطوم ماء", "أوراق شجر", "فراشة", "نحلة", "طائر", "أصيص زرع", "مقص شجر", "دراجة", "ممر مشاة"]},
+    {"category": "أجزاء الجسم 🖐️", "words": ["عين", "أنف", "فم", "أذن", "يد", "قدم", "رأس", "قلب", "لسان", "أسنان", "ركبة", "ذراع", "بطن", "ظهر", "أصبع", "كتف"]},
+    {"category": "ألوان وأشكال 🎨", "words": ["أحمر", "أزرق", "أخضر", "أصفر", "أسود", "أبيض", "برتقالي", "بنفسجي", "دائرة", "مربع", "مثلث", "مستطيل", "نجمة", "قلب", "ماسي", "بيضاوي"]},
+    {"category": "عواطف ومشاعـر 🎭", "words": ["سعادة", "حزن", "غضب", "خوف", "مفاجأة", "حب", "ملل", "حماس", "خجل", "غيره", "هدوء", "توتر", "ندم", "فخر", "راحة", "أمل"]},
+    {
+      category: "حيوانات 🦁",
+      words: ["قطة", "كلب", "أسد", "نمر", "فيل", "زرافة", "قرد", "دب", "ذئب", "ثعلب", "أرنب", "غزال", "تمساح", "جمل", "صقر", "بطريق"]
+    },
+    {
+      category: "أكلات وأطعمة 🍕",
+      words: ["بيتزا", "برجر", "كشري", "ملوخية", "شاورما", "فلافل", "محشي", "مكرونة", "كباب", "سوشي", "سلطة", "بطاطس", "حواوشي", "شوربة", "ستيك", "طاجن"]
+    },
+    {
+      category: "سينما وأفلام 🎬",
+      words: ["أكشن", "رعب", "كوميدي", "دراما", "مخرج", "ممثل", "كاميرا", "شاشة", "فشار", "تذكرة", "أوسكار", "سيناريو", "دوبلاج", "كواليس", "موسيقى", "إضاءة"]
+    },
+    {
+      category: "مهن ووظائف 👮",
+      words: ["طبيب", "مهندس", "معلم", "طيار", "ضابط", "محامي", "محاسب", "قاضي", "مبرمج", "صيدلي", "نجار", "سباك", "طباخ", "مزارع", "فنان", "صحفي"]
+    },
+    {
+      category: "اختراعات وتكنولوجيا 💡",
+      words: ["طيارة", "سيارة", "تلفزيون", "إنترنت", "موبايل", "كهرباء", "قطار", "غواصة", "صاروخ", "بوصلة", "ميكروسكوب", "روبوت", "طباعة", "رادار", "كاميرا", "بطارية"]
+    },
+    {
+      category: "دول وعواصم 🌍",
+      words: ["مصر", "السعودية", "المغرب", "فرنسا", "إيطاليا", "البرازيل", "اليابان", "ألمانيا", "إسبانيا", "كندا", "تركيا", "الأرجنتين", "إنجلترا", "الصين", "اليونان", "أستراليا"]
+    },
+    {
+      category: "مدرسة وتعليم 📚",
+      words: ["كتاب", "قلم", "سبورة", "مسطرة", "حقيبة", "امتحان", "جرس", "فسحة", "معلم", "مكتبة", "خريطة", "واجب", "درجات", "دفتر", "براية", "حاسبة"]
+    },
+    {
+      category: "رياضات ⚽",
+      words: ["كرة قدم", "سلة", "تنس", "سباحة", "ملاكمة", "ركض", "إسكواش", "جمباز", "دراجات", "جودو", "رماية", "تزلج", "كاراتيه", "كرة يد", "طائرة", "فروسية"]
+    },
+    {
+      category: "آلات موسيقية 🎸",
+      words: ["جيتار", "بيانو", "طبلة", "كمان", "عود", "قانون", "ناي", "مزمار", "دف", "تشيلو", "ترومبيت", "ساكسفون", "هارمونيكا", "درامز", "كيبورد", "سمسمية"]
+    },
+    {
+      category: "في المنزل 🏠",
+      words: ["سرير", "كنبة", "ثلاجة", "تلفزيون", "طاولة", "مرآة", "دولاب", "شباك", "سجادة", "ستارة", "مروحة", "غسالة", "بوتاجاز", "مصباح", "لوحة", "وسادة"]
+    },
+    {
+      category: "طبيعة وطقس 🌦️",
+      words: ["شمس", "مطر", "ثلج", "سحاب", "رعد", "برق", "قوس قزح", "ريح", "إعصار", "ضباب", "شاطئ", "جبل", "غابة", "صحراء", "جزيرة", "نهر"]
+    },
+    {
+      category: "ملابس وإكسسوارات 👔",
+      words: ["قميص", "بنطلون", "حذاء", "قبعة", "نظارة", "جاكيت", "كرافتة", "ساعة", "حزام", "فستان", "شراب", "وشاح", "خاتم", "سلسلة", "كاب", "معطف"]
+    },
+    {
+      category: "حلويات وتسالي 🧁",
+      words: ["كنافة", "بسبوسة", "بقلاوة", "كيك", "دونات", "آيس كريم", "شوكولاتة", "غزل بنات", "كب كيك", "أم علي", "مهلبية", "قطايف", "بونبون", "فشار", "وافل", "تشيز كيك"]
+    },
+    {
+      category: "فواكه وخضروات 🍎",
+      words: ["تفاح", "موز", "فراولة", "مانجو", "برتقال", "عنب", "بطيخ", "ليمون", "طماطم", "خيار", "جزر", "بطاطس", "بصل", "فلفل", "خس", "ذرة"]
+    },
+    {
+      category: "أبطال وخيال 🦸",
+      words: ["طيران", "قوة خارقة", "اختفاء", "درع", "ليزر", "سرعة", "عباءة", "قناع", "ذكاء", "شرير", "فضاء", "تليباثي", "سحر", "تنين", "بطل", "نيزك"]
+    },
+    {
+      category: "في المدينة 🏙️",
+      words: ["مستشفى", "حديقة", "بنك", "مطعم", "فندق", "سينما", "محطة", "مطار", "صيدلية", "سوبرماركت", "مسجد", "مدرسة", "برج", "كوبري", "نفق", "مول"]
+    }
+  ],
+  en: [
+    {"category": "Vehicles & Transport 🚗", "words": ["Car", "Train", "Airplane", "Bicycle", "Ship", "Subway", "Bus", "Taxi", "Truck", "Rocket", "Submarine", "Helicopter", "Scooter", "Motorcycle", "Hot Air Balloon", "Tram"]},
+    {"category": "Space & Cosmos 🪐", "words": ["Sun", "Moon", "Earth", "Mars", "Jupiter", "Saturn", "Mercury", "Venus", "Neptune", "Uranus", "Meteor", "Galaxy", "Star", "Black Hole", "Comet", "Space Station"]},
+    {"category": "Cartoon Characters 🦸", "words": ["Mickey Mouse", "SpongeBob", "Tom", "Jerry", "Batman", "Spider-Man", "Cinderella", "Simba", "Aladdin", "Tarzan", "Shrek", "Scooby-Doo", "Pikachu", "Donald Duck", "Pinocchio", "Popeye"]},
+    {"category": "Tools & Hardware 🔨", "words": ["Hammer", "Screwdriver", "Handsaw", "Pliers", "Nail", "Tape Measure", "Wrench", "Level", "Power Drill", "Scissors", "Paintbrush", "Ladder", "Nut & Bolt", "Axe", "Glue Gun", "Crowbar"]},
+    {"category": "Tech Gadgets 📱", "words": ["Smartphone", "Laptop", "Tablet", "Headphones", "Television", "Camera", "Game Console", "Wi-Fi Router", "Smartwatch", "Printer", "Mouse", "Keyboard", "USB Drive", "Power Bank", "Projector", "Microphone"]},
+    {"category": "World Landmarks 🗽", "words": ["Great Pyramids", "Eiffel Tower", "Statue of Liberty", "Burj Khalifa", "Great Wall", "Taj Mahal", "Leaning Tower", "Colosseum", "Big Ben", "Great Sphinx", "Petra", "Acropolis", "Niagara Falls", "Mount Everest", "Alhambra", "Sydney Opera"]},
+    {"category": "Games & Pastimes 🎲", "words": ["Chess", "Checkers", "Dominoes", "Playing Cards", "Monopoly", "Uno", "Scrabble", "Hide & Seek", "Trivia", "Rubik's Cube", "Jigsaw Puzzle", "Billiards", "Bowling", "Table Tennis", "Darts", "Video Games"]},
+    {"category": "Fun Places 🎡", "words": ["Amusement Park", "Zoo", "Beach", "Cinema", "Circus", "Shopping Mall", "Museum", "Theater", "Restaurant", "Cafe", "Public Park", "Swimming Pool", "Sports Stadium", "Library", "Water Park", "Arcade"]},
+    {"category": "Refreshing Drinks 🍹", "words": ["Mango Juice", "Lemonade", "Iced Tea", "Espresso", "Milkshake", "Hot Chocolate", "Orange Juice", "Cappuccino", "Smoothie", "Apple Cider", "Green Tea", "Iced Coffee", "Ginger Ale", "Coconut Water", "Sparkling Water", "Latte"]},
+    {"category": "Bathroom Items 🛁", "words": ["Soap", "Shampoo", "Toothpaste", "Toothbrush", "Towel", "Shower", "Bathtub", "Mirror", "Comb", "Hair Dryer", "Washing Machine", "Bathrobe", "Tissues", "Loofah", "Nail Clipper", "Perfume"]},
+    {"category": "Birds & Insects 🦅", "words": ["Falcon", "Eagle", "Pigeon", "Owl", "Peacock", "Duck", "Parrot", "Sparrow", "Honeybee", "Butterfly", "Ant", "Dragonfly", "Beetle", "Crow", "Flamingo", "Ostrich"]},
+    {"category": "Kitchen Utensils 🍳", "words": ["Kitchen Knife", "Fork", "Spoon", "Frying Pan", "Cooking Pot", "Dinner Plate", "Drinking Glass", "Blender", "Stove", "Microwave", "Refrigerator", "Baking Tray", "Can Opener", "Cheese Grater", "Kettle", "Colander"]},
+    {"category": "In the Garden 🌳", "words": ["Oak Tree", "Rose Flower", "Green Grass", "Park Bench", "Water Fountain", "Wooden Fence", "Garden Swing", "Water Hose", "Falling Leaves", "Butterfly", "Bumblebee", "Songbird", "Flower Pot", "Pruning Shears", "Lawn Mower", "Stone Path"]},
+    {"category": "Human Body 🖐️", "words": ["Eye", "Nose", "Mouth", "Ear", "Hand", "Foot", "Head", "Heart", "Tongue", "Teeth", "Knee", "Arm", "Stomach", "Back", "Finger", "Shoulder"]},
+    {"category": "Colors & Shapes 🎨", "words": ["Ruby Red", "Deep Blue", "Emerald Green", "Sunny Yellow", "Pitch Black", "Pure White", "Bright Orange", "Royal Purple", "Circle", "Square", "Triangle", "Rectangle", "Star Shape", "Heart Shape", "Diamond", "Oval"]},
+    {"category": "Emotions & Moods 🎭", "words": ["Joy", "Sadness", "Anger", "Fear", "Surprise", "True Love", "Boredom", "Excitement", "Shyness", "Jealousy", "Peaceful", "Anxiety", "Regret", "Pride", "Relief", "Hope"]},
+    {
+      category: "Animals 🦁",
+      words: ["Cat", "Dog", "Lion", "Tiger", "Elephant", "Giraffe", "Monkey", "Bear", "Wolf", "Fox", "Rabbit", "Deer", "Crocodile", "Camel", "Falcon", "Penguin"]
+    },
+    {
+      category: "Foods & Dishes 🍕",
+      words: ["Pizza", "Burger", "Pasta", "Sushi", "Shawarma", "Steak", "Salad", "Fries", "Soup", "Tacos", "Sandwich", "Curry", "Rice", "Pie", "Noodles", "Kebab"]
+    },
+    {
+      category: "Cinema & Movies 🎬",
+      words: ["Action", "Horror", "Comedy", "Drama", "Director", "Actor", "Camera", "Screen", "Popcorn", "Ticket", "Oscar", "Script", "Stunt", "Premiere", "Soundtrack", "Lighting"]
+    },
+    {
+      category: "Professions 👮",
+      words: ["Doctor", "Engineer", "Teacher", "Pilot", "Police", "Lawyer", "Accountant", "Judge", "Programmer", "Pharmacist", "Carpenter", "Plumber", "Chef", "Farmer", "Artist", "Journalist"]
+    },
+    {
+      category: "Inventions & Tech 💡",
+      words: ["Airplane", "Car", "Television", "Internet", "Smartphone", "Electricity", "Train", "Submarine", "Rocket", "Compass", "Microscope", "Robot", "Printer", "Radar", "Camera", "Battery"]
+    },
+    {
+      category: "Countries & Capitals 🌍",
+      words: ["Egypt", "Saudi Arabia", "Morocco", "France", "Italy", "Brazil", "Japan", "Germany", "Spain", "Canada", "Turkey", "Argentina", "England", "China", "Greece", "Australia"]
+    },
+    {
+      category: "School & Education 📚",
+      words: ["Book", "Pen", "Blackboard", "Ruler", "Backpack", "Exam", "Bell", "Recess", "Teacher", "Library", "Map", "Homework", "Grades", "Notebook", "Sharpener", "Calculator"]
+    },
+    {
+      category: "Sports ⚽",
+      words: ["Football", "Basketball", "Tennis", "Swimming", "Boxing", "Running", "Squash", "Gymnastics", "Cycling", "Judo", "Archery", "Skiing", "Karate", "Handball", "Volleyball", "Equestrian"]
+    },
+    {
+      category: "Musical Instruments 🎸",
+      words: ["Guitar", "Piano", "Drums", "Violin", "Oud", "Flute", "Trumpet", "Saxophone", "Harmonica", "Cello", "Harp", "Clarinet", "Tambourine", "Keyboard", "Bagpipes", "Accordion"]
+    },
+    {
+      category: "At Home 🏠",
+      words: ["Bed", "Sofa", "Fridge", "TV", "Table", "Mirror", "Closet", "Window", "Carpet", "Curtain", "Fan", "Washer", "Stove", "Lamp", "Painting", "Pillow"]
+    },
+    {
+      category: "Nature & Weather 🌦️",
+      words: ["Sun", "Rain", "Snow", "Cloud", "Thunder", "Lightning", "Rainbow", "Wind", "Storm", "Fog", "Beach", "Mountain", "Forest", "Desert", "Island", "River"]
+    },
+    {
+      category: "Clothing & Fashion 👔",
+      words: ["Shirt", "Pants", "Shoes", "Hat", "Glasses", "Jacket", "Tie", "Watch", "Belt", "Dress", "Socks", "Scarf", "Ring", "Necklace", "Cap", "Coat"]
+    },
+    {
+      category: "Sweets & Desserts 🧁",
+      words: ["Cake", "Donut", "Ice Cream", "Chocolate", "Cotton Candy", "Cupcake", "Candy", "Popcorn", "Waffle", "Cheesecake", "Pancake", "Brownie", "Cookie", "Pudding", "Croissant", "Muffin"]
+    },
+    {
+      category: "Fruits & Veggies 🍎",
+      words: ["Apple", "Banana", "Strawberry", "Mango", "Orange", "Grapes", "Watermelon", "Lemon", "Tomato", "Cucumber", "Carrot", "Potato", "Onion", "Pepper", "Lettuce", "Corn"]
+    },
+    {
+      category: "Superheroes & Sci-Fi 🦸",
+      words: ["Flight", "Super Strength", "Invisibility", "Shield", "Laser", "Super Speed", "Cape", "Mask", "Genius", "Villain", "Space", "Telepathy", "Magic", "Dragon", "Hero", "Meteor"]
+    },
+    {
+      category: "In the City 🏙️",
+      words: ["Hospital", "Park", "Bank", "Restaurant", "Hotel", "Cinema", "Station", "Airport", "Pharmacy", "Supermarket", "Mosque", "School", "Tower", "Bridge", "Tunnel", "Mall"]
+    }
+  ]
+};
+
+const chameleonState = {
+  players: [],
+  category: "",
+  words: [],
+  rowIdx: 0,
+  colIdx: 0,
+  secretCoord: "",
+  secretWord: "",
+  chameleonPlayer: "",
+  revealIndex: 0,
+  accusedPlayer: ""
+};
+
+const ROW_LETTERS = ["A", "B", "C", "D"];
+
+function setupChameleon() {
+  const catSelect = document.getElementById('chameleon-cat-select');
+  if (catSelect) {
+    catSelect.innerHTML = '';
+    const lang = appState.lang === 'en' ? 'en' : 'ar';
+    const db = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
+    const optRandom = document.createElement('option');
+    optRandom.value = 'random';
+    optRandom.innerText = lang === 'en' ? '🎲 Random Category' : '🎲 فئة عشوائية';
+    catSelect.appendChild(optRandom);
+    db.forEach((item, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.innerText = item.category;
+      catSelect.appendChild(opt);
+    });
+  }
+  setView('setup-chameleon');
+}
+
+function startChameleonGame() {
+  const selected = appState.activePlayers ? [...appState.activePlayers] : [];
+  saveActivePlayers(selected);
+
+  if (selected.length < 3) {
+    const msg = appState.lang === 'en' ? "Need at least 3 players!" : "تحتاج إلى 3 لاعبين على الأقل!";
+    showToast(msg);
+    return;
+  }
+
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const db = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
+  const catSelect = document.getElementById('chameleon-cat-select');
+  let chosen = null;
+  if (!catSelect || catSelect.value === 'random') {
+    chosen = db[Math.floor(Math.random() * db.length)];
+  } else {
+    const idx = parseInt(catSelect.value, 10);
+    chosen = db[idx] || db[0];
+  }
+
+  chameleonState.category = chosen.category;
+  chameleonState.words = [...chosen.words];
+
+  // Coordinates: 0..3 for row (A-D) and 0..3 for col (1-4)
+  chameleonState.rowIdx = Math.floor(Math.random() * 4);
+  chameleonState.colIdx = Math.floor(Math.random() * 4);
+  chameleonState.secretCoord = ROW_LETTERS[chameleonState.rowIdx] + (chameleonState.colIdx + 1);
+  chameleonState.secretWord = chameleonState.words[chameleonState.rowIdx * 4 + chameleonState.colIdx];
+
+  // Pick random chameleon
+  const shuffledPlayers = shuffleArray(selected);
+  chameleonState.players = shuffledPlayers;
+  chameleonState.chameleonPlayer = shuffledPlayers[Math.floor(Math.random() * shuffledPlayers.length)];
+  chameleonState.revealIndex = 0;
+
+  playSound('click');
+  showChameleonRevealStep();
+  setView('reveal-chameleon');
+}
+
+function showChameleonRevealStep() {
+  if (chameleonState.revealIndex >= chameleonState.players.length) {
+    startChameleonTablePlay();
+    return;
+  }
+
+  const playerName = chameleonState.players[chameleonState.revealIndex];
+  document.getElementById('chameleon-reveal-name').innerText = playerName;
+  document.getElementById('chameleon-step-pass').classList.remove('hidden');
+  document.getElementById('chameleon-step-card').classList.add('hidden');
+}
+
+function revealChameleonSecret() {
+  const playerName = chameleonState.players[chameleonState.revealIndex];
+  const isChameleon = (playerName === chameleonState.chameleonPlayer);
+  const cardTitle = document.getElementById('chameleon-card-role');
+  const cardDetail = document.getElementById('chameleon-card-detail');
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+
+  if (isChameleon) {
+    playSound('alarm');
+    cardTitle.innerText = lang === 'en' ? "🦎 YOU ARE THE CHAMELEON!" : "🦎 أنت الحرباء!";
+    cardDetail.innerHTML = `<p class="text-sm font-semibold opacity-90">${lang === 'en' ? "You don't know the secret word! Listen closely to others, say a fitting clue, and don't get caught!" : "أنت لا تعرف الكلمة السرية! استمع بذكاء للآخرين، قل كلمة مناسبة للموضوع ولا تجعلهم يشكون فيك!"}</p>`;
+  } else {
+    playSound('success');
+    cardTitle.innerText = lang === 'en' ? "🕵️ CIVILIAN" : "🕵️ مواطن عادي";
+    cardDetail.innerHTML = `
+      <div class="space-y-2">
+        <div class="text-xs uppercase tracking-wider opacity-75">${lang === 'en' ? "Coordinates & Secret Word" : "الإحداثيات والكلمة السرية"}</div>
+        <div class="text-2xl font-black text-amber-300 tracking-widest">${chameleonState.secretCoord}</div>
+        <div class="text-3xl font-black">${escapeHTML(chameleonState.secretWord)}</div>
+      </div>
+    `;
+  }
+
+  document.getElementById('chameleon-step-pass').classList.add('hidden');
+  document.getElementById('chameleon-step-card').classList.remove('hidden');
+}
+
+function doneChameleonRevealStep() {
+  chameleonState.revealIndex++;
+  showChameleonRevealStep();
+}
+
+function startChameleonTablePlay() {
+  setView('play-chameleon');
+  renderChameleonGrid();
+
+  document.getElementById('chameleon-play-category').innerText = chameleonState.category;
+
+  // Turn order: First player speaks first
+  const turnsList = document.getElementById('chameleon-turn-order');
+  if (turnsList) {
+    turnsList.innerHTML = chameleonState.players.map((p, idx) => `
+      <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold ${idx === 0 ? 'bg-amber-500 text-black shadow' : 'bg-black/10 dark:bg-white/10'}">
+        <span>${idx + 1}.</span>
+        <span>${escapeHTML(p)}</span>
+      </div>
+    `).join('');
+  }
+}
+
+function renderChameleonGrid(interactive) {
+  const gridEl = document.getElementById('chameleon-4x4-grid');
+  if (!gridEl) return;
+
+  let html = `
+    <div class="grid grid-cols-5 gap-1.5 text-center font-bold text-sm">
+      <div class="p-2"></div>
+      <div class="p-2 text-amber-500">1</div>
+      <div class="p-2 text-amber-500">2</div>
+      <div class="p-2 text-amber-500">3</div>
+      <div class="p-2 text-amber-500">4</div>
+  `;
+
+  for (let r = 0; r < 4; r++) {
+    const rowLetter = ROW_LETTERS[r];
+    html += `<div class="p-2 flex items-center justify-center text-amber-500">${rowLetter}</div>`;
+    for (let c = 0; c < 4; c++) {
+      const idx = r * 4 + c;
+      const word = chameleonState.words[idx];
+      if (interactive) {
+        html += `
+          <button type="button" onclick="chameleonGuessWord('${jsStringAttr(word)}')"
+                  class="p-2 rounded-lg bg-black/10 dark:bg-white/10 hover:bg-amber-500 hover:text-black font-semibold text-xs transition-colors flex items-center justify-center min-h-[52px]">
+            ${escapeHTML(word)}
+          </button>
+        `;
+      } else {
+        html += `
+          <div class="p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 font-semibold text-xs flex items-center justify-center min-h-[52px]">
+            ${escapeHTML(word)}
+          </div>
+        `;
+      }
+    }
+  }
+
+  html += `</div>`;
+  gridEl.innerHTML = html;
+}
+
+function openChameleonAccuseModal() {
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const list = document.getElementById('chameleon-accuse-list');
+  if (list) {
+    list.innerHTML = chameleonState.players.map(p => `
+      <button onclick="voteChameleonAccused('${jsStringAttr(p)}')"
+              class="w-full text-left px-4 py-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-rose-500 hover:text-white font-bold flex items-center justify-between transition-colors">
+        <span>${escapeHTML(p)}</span>
+        <span class="text-xs opacity-75">${lang === 'en' ? 'Accuse' : 'اتهام'}</span>
+      </button>
+    `).join('');
+  }
+  document.getElementById('chameleon-accuse-modal').classList.remove('hidden');
+}
+
+function voteChameleonAccused(player) {
+  closeModal('chameleon-accuse-modal');
+  chameleonState.accusedPlayer = player;
+  const isCorrectCatch = (player === chameleonState.chameleonPlayer);
+
+  if (isCorrectCatch) {
+    // Chameleon was caught! But they get one last guess!
+    playSound('alarm');
+    openChameleonGuessPhase();
+  } else {
+    // Wrong accusation! Chameleon wins automatically!
+    playSound('alarm');
+    finishChameleonGame(false, false);
+  }
+}
+
+function openChameleonGuessPhase() {
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  document.getElementById('chameleon-guess-instruction').innerText = lang === 'en'
+    ? `${chameleonState.chameleonPlayer} is the Chameleon and was caught! But they can steal the win by guessing the secret word:`
+    : `تم كشف الحرباء (${chameleonState.chameleonPlayer})! لكن لديه فرصة أخيرة لسرقة الفوز بتخمين الكلمة السرية:`;
+
+  renderChameleonGrid(true); // make tiles clickable
+  document.getElementById('chameleon-play-actions').classList.add('hidden');
+  document.getElementById('chameleon-guess-box').classList.remove('hidden');
+}
+
+function chameleonGuessWord(word) {
+  const isCorrectWord = (word === chameleonState.secretWord);
+  finishChameleonGame(true, isCorrectWord);
+}
+
+function finishChameleonGame(wasCaught, chameleonGuessedWord) {
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const resultModal = document.getElementById('chameleon-result-modal');
+  const titleEl = document.getElementById('chameleon-result-title');
+  const detailEl = document.getElementById('chameleon-result-detail');
+
+  let chameleonWon = false;
+  let summary = "";
+
+  if (!wasCaught) {
+    // Civilians voted wrong person
+    chameleonWon = true;
+    summary = lang === 'en'
+      ? `The civilians accused ${chameleonState.accusedPlayer}, but ${chameleonState.chameleonPlayer} was the Chameleon!`
+      : `اتهم اللاعبون ${chameleonState.accusedPlayer}، بينما الحرباء الحقيقية كانت ${chameleonState.chameleonPlayer}!`;
+  } else if (chameleonGuessedWord) {
+    // Caught, but correctly guessed word
+    chameleonWon = true;
+    summary = lang === 'en'
+      ? `${chameleonState.chameleonPlayer} was caught, but correctly guessed the secret word ("${chameleonState.secretWord}") and stole the win!`
+      : `تم كشف ${chameleonState.chameleonPlayer}، ولكنه خمن الكلمة السرية بنجاح ("${chameleonState.secretWord}") وسرق الفوز!`;
+  } else {
+    // Caught and failed guess
+    chameleonWon = false;
+    summary = lang === 'en'
+      ? `The civilians caught ${chameleonState.chameleonPlayer}, and the Chameleon failed to guess the secret word ("${chameleonState.secretWord}")!`
+      : `نجح اللاعبون في كشف ${chameleonState.chameleonPlayer}، وفشلت الحرباء في تخمين الكلمة السرية ("${chameleonState.secretWord}")!`;
+  }
+
+  if (chameleonWon) {
+    playSound('alarm');
+    titleEl.innerText = lang === 'en' ? "🦎 THE CHAMELEON WINS!" : "🦎 الحرباء تفوز!";
+    titleEl.className = "text-3xl font-black text-amber-500 mb-2";
+  } else {
+    playSound('success');
+    confetti({ particleCount: 150 });
+    titleEl.innerText = lang === 'en' ? "🎉 CIVILIANS WIN!" : "🎉 فوز اللاعبين!";
+    titleEl.className = "text-3xl font-black text-emerald-500 mb-2";
+  }
+
+  detailEl.innerHTML = `
+    <p class="text-base mb-4">${escapeHTML(summary)}</p>
+    <div class="p-4 rounded-xl bg-black/5 dark:bg-white/5 space-y-1 text-sm">
+      <div><b>${lang === 'en' ? 'Secret Word:' : 'الكلمة السرية:'}</b> ${escapeHTML(chameleonState.secretWord)} (${chameleonState.secretCoord})</div>
+      <div><b>${lang === 'en' ? 'Chameleon:' : 'الحرباء:'}</b> ${escapeHTML(chameleonState.chameleonPlayer)}</div>
+    </div>
+  `;
+
+  resultModal.classList.remove('hidden');
+}
+
+function resetChameleonPlay() {
+  closeModal('chameleon-result-modal');
+  document.getElementById('chameleon-guess-box').classList.add('hidden');
+  document.getElementById('chameleon-play-actions').classList.remove('hidden');
+  setupChameleon();
+}
+</script>

@@ -1,0 +1,382 @@
+<script>
+/* ============================================================================
+   الفنان المزيف — A FAKE ARTIST GOES TO NEW YORK
+   ----------------------------------------------------------------------------
+   Each player is assigned a unique color. All players know the secret word
+   except the Fake Artist. Everyone takes turns drawing ONE continuous line
+   on the canvas across two rounds, followed by voting and a guess attempt.
+   ========================================================================= */
+
+const fakeArtDraw = {
+  canvas: null,
+  ctx: null,
+  drawing: false,
+  points: [],
+  currentStroke: null,
+  serverStrokes: [],
+  myColor: '#111'
+};
+
+ROOM_GAMES.fakeartist = {
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    const t = TRANSLATIONS[appState.lang];
+    return `
+      <div class="card card--tight text-center">
+        <p class="field__hint">
+          ${t.setup_fakeartist}: ${t.game_rules_fakeartist_desc || (appState.lang === 'en'
+            ? '3+ players. One fake artist draws blindly in their own color!'
+            : '3 لاعبين أو أكثر. فنان مزيف يرسم دون معرفة الكلمة بلونه الخاص!')}
+        </p>
+      </div>`;
+  },
+
+  startPayload() {
+    return {
+      lang: appState.lang === 'en' ? 'en' : 'ar'
+    };
+  },
+
+  pollHint(state) {
+    const s = state.shared;
+    if (s.phase === 'drawing' && s.currentDrawerId === Room.me) return 'acting';
+    if (s.phase === 'voting' && !(s.vote && s.vote.votes && s.vote.votes[Room.me])) return 'acting';
+    if (s.phase === 'results' && state.you && state.you.isFake && s.fakeCaught && !s.fakeGuessWord) return 'acting';
+    return 'watching';
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-fakeartist') {
+      setView('room-fakeartist');
+    }
+    const el = document.getElementById('view-room-fakeartist');
+    if (!el) return;
+
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const you = state.you || {};
+    const isMyTurn = s.phase === 'drawing' && s.currentDrawerId === Room.me;
+
+    // Roster names map
+    const nameMap = {};
+    (state.players || []).forEach(p => { nameMap[p.id] = p.name; });
+
+    let html = '';
+
+    // 1. TOP STATUS & ROLE CARD
+    if (you.isFake) {
+      html += `
+        <div class="card bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-center p-3 mb-3">
+          <div class="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1" data-i18n="fake_artist_role">${t.fake_artist_role}</div>
+          <div class="text-sm text-rose-800 dark:text-rose-200" data-i18n="fake_artist_hint">${t.fake_artist_hint}</div>
+        </div>`;
+    } else {
+      html += `
+        <div class="card bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 text-center p-3 mb-3">
+          <div class="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1" data-i18n="real_artist_word">${t.real_artist_word}</div>
+          <div class="text-xl font-black text-emerald-800 dark:text-emerald-200">${escapeHTML(you.word || '')}</div>
+        </div>`;
+    }
+
+    // 2. ROUND / TURN HEADER
+    if (s.phase === 'drawing') {
+      const drawerName = nameMap[s.currentDrawerId] || '';
+      const drawerColor = (s.colors && s.colors[s.currentDrawerId]) || '#111';
+
+      html += `
+        <div class="flex items-center justify-between bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded-full border border-black/20" style="background:${drawerColor}"></span>
+            <span class="text-xs font-bold text-slate-800 dark:text-slate-100">
+              ${isMyTurn ? t.your_stroke_turn : `${t.wait_drawer} (${escapeHTML(drawerName)})`}
+            </span>
+          </div>
+          <span class="text-xs font-extrabold px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300">
+            ${appState.lang === 'en' ? `Round ${s.round}/${s.totalRounds}` : `الجولة ${s.round} من ${s.totalRounds}`}
+          </span>
+        </div>`;
+    }
+
+    // 3. CANVAS CONTAINER
+    html += `
+      <div class="flex flex-col items-center justify-center mb-3">
+        <canvas id="fake-artist-canvas" width="280" height="280"
+                class="touch-none bg-white rounded-2xl shadow-md border-2 border-slate-300 dark:border-slate-700 mx-auto"></canvas>
+      </div>`;
+
+    // 4. MY TURN ACTION CONTROLS
+    if (isMyTurn) {
+      const myColor = (s.colors && s.colors[Room.me]) || '#111';
+      html += `
+        <div class="flex flex-col gap-2 max-w-xs mx-auto mb-4">
+          <div class="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span>${appState.lang === 'en' ? 'Your color:' : 'لونك:'}</span>
+            <span class="w-4 h-4 rounded-full border border-black/20 inline-block" style="background:${myColor}"></span>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="clearMyFakeStroke()" class="btn btn--ghost flex-1 text-xs py-2">
+              ${appState.lang === 'en' ? 'Clear Line 🔄' : 'مسح الخط 🔄'}
+            </button>
+            <button id="send-fake-stroke-btn" onclick="submitFakeStroke()" class="btn btn--primary flex-1 text-xs py-2" disabled>
+              ${t.send_stroke_btn}
+            </button>
+          </div>
+        </div>`;
+    }
+
+    // 5. VOTING PHASE
+    if (s.phase === 'voting') {
+      const voteObj = s.vote || {};
+      const myVotedOption = (voteObj.votes && voteObj.votes[Room.me]) || null;
+      html += `
+        <div class="card bg-white dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm mb-3">
+          <div class="text-sm font-extrabold text-slate-800 dark:text-slate-100 text-center mb-3">
+            ${appState.lang === 'en' ? '🔍 Vote for the Fake Artist:' : '🔍 صوّت على الفنان المزيف:'}
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            ${(s.drawerOrder || []).map(pid => {
+              const pName = nameMap[pid] || pid;
+              const pColor = (s.colors && s.colors[pid]) || '#111';
+              const isSelected = myVotedOption === pid;
+              return `
+                <button onclick="castFakeArtistVote('${pid}')"
+                        class="p-2.5 rounded-xl border flex items-center justify-between text-xs font-bold transition-all ${
+                          isSelected
+                            ? 'border-pink-500 bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 ring-2 ring-pink-500/20'
+                            : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200'
+                        }">
+                  <span class="truncate">${escapeHTML(pName)}</span>
+                  <span class="w-3.5 h-3.5 rounded-full border border-black/20 flex-shrink-0" style="background:${pColor}"></span>
+                </button>`;
+            }).join('')}
+          </div>
+          ${state.youAreHost ? `
+            <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700 text-center">
+              <button onclick="closeFakeArtistVote()" class="btn btn--primary btn--sm w-full">
+                ${appState.lang === 'en' ? 'End Voting 🔒' : 'إنهاء التصويت 🔒'}
+              </button>
+            </div>` : ''}
+        </div>`;
+    }
+
+    // 6. RESULTS PHASE
+    if (s.phase === 'results') {
+      const fakeName = nameMap[s.fakeId] || s.fakeId;
+      const fakeColor = (s.colors && s.colors[s.fakeId]) || '#111';
+
+      html += `
+        <div class="card bg-white dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm text-center mb-3">
+          <div class="text-xs uppercase font-extrabold tracking-wider text-slate-400 mb-1">
+            ${appState.lang === 'en' ? 'The Secret Word Was' : 'الكلمة السرية كانت'}
+          </div>
+          <div class="text-2xl font-black text-pink-600 dark:text-pink-400 mb-3">
+            ${escapeHTML(s.secretWord || '')}
+          </div>
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 mb-4">
+            <span class="w-3 h-3 rounded-full" style="background:${fakeColor}"></span>
+            <span>${appState.lang === 'en' ? 'Fake Artist:' : 'الفنان المزيف:'} ${escapeHTML(fakeName)}</span>
+          </div>`;
+
+      if (s.fakeCaught) {
+        html += `
+          <div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 mb-3">
+            <div class="text-sm font-bold text-amber-800 dark:text-amber-200">
+              ${appState.lang === 'en' ? '🕵️‍♂️ Fake Artist was caught!' : '🕵️‍♂️ تم كشف الفنان المزيف!'}
+            </div>
+            ${s.fakeStoleWin !== undefined ? `
+              <div class="text-xs mt-1 font-semibold ${s.fakeStoleWin ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
+                ${s.fakeStoleWin
+                  ? (appState.lang === 'en' ? `🎉 Guessed "${escapeHTML(s.fakeGuessWord)}" & stole the win!` : `🎉 خمّن "${escapeHTML(s.fakeGuessWord)}" وسرق الفوز!`)
+                  : (appState.lang === 'en' ? `❌ Guessed "${escapeHTML(s.fakeGuessWord)}" wrong! Real artists win!` : `❌ خمن "${escapeHTML(s.fakeGuessWord)}" خطأ! فاز الفنانون الحقيقيون!`)}
+              </div>` : ''}
+          </div>`;
+
+        // If you are the caught Fake Artist and haven't guessed yet
+        if (you.isFake && s.fakeStoleWin === undefined) {
+          html += `
+            <div class="p-3 bg-pink-50 dark:bg-pink-950/40 rounded-xl border border-pink-200 dark:border-pink-800 mb-3">
+              <label class="block text-xs font-bold text-pink-700 dark:text-pink-300 mb-1" data-i18n="fake_guess_prompt">
+                ${t.fake_guess_prompt}
+              </label>
+              <div class="flex gap-2">
+                <input id="fake-artist-guess-input" type="text" class="field__input flex-1 text-sm py-1.5 px-3"
+                       placeholder="${appState.lang === 'en' ? 'Type guess...' : 'اكتب تخمينك...'}">
+                <button onclick="submitFakeArtistGuess()" class="btn btn--primary text-xs px-3">
+                  ${t.submit_guess_btn}
+                </button>
+              </div>
+            </div>`;
+        }
+      } else {
+        html += `
+          <div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 text-rose-800 dark:text-rose-200 text-sm font-bold mb-3">
+            ${appState.lang === 'en' ? '🦹 Fake Artist escaped undetected and WON!' : '🦹 نجا الفنان المزيف وفاز بالجولة!'}
+          </div>`;
+      }
+
+      if (state.youAreHost) {
+        html += `
+          <div class="flex gap-2 mt-4">
+            <button onclick="Room.act('nextRound')" class="btn btn--primary flex-1 text-xs py-2">
+              ${appState.lang === 'en' ? 'Next Round ⏭️' : 'الجولة التالية ⏭️'}
+            </button>
+            <button onclick="Room.act('backToHub')" class="btn btn--ghost flex-1 text-xs py-2">
+              ${appState.lang === 'en' ? 'Hub 🏠' : 'الرئيسية 🏠'}
+            </button>
+          </div>`;
+      }
+
+      html += `</div>`;
+    }
+
+    el.innerHTML = html;
+
+    // Attach Canvas and Replay
+    bindFakeArtistCanvas(isMyTurn, (s.colors && s.colors[Room.me]) || '#111');
+    replayFakeArtistStrokes(s.strokes || []);
+  }
+};
+
+function bindFakeArtistCanvas(interactive, myColor) {
+  const canvas = document.getElementById('fake-artist-canvas');
+  if (!canvas) return;
+  fakeArtDraw.canvas = canvas;
+  fakeArtDraw.ctx = canvas.getContext('2d');
+  fakeArtDraw.myColor = myColor;
+
+  if (!interactive) return;
+
+  const getPos = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : e;
+    const scaleX = 255 / rect.width;
+    const scaleY = 255 / rect.height;
+    const x = Math.max(0, Math.min(255, Math.round((touch.clientX - rect.left) * scaleX)));
+    const y = Math.max(0, Math.min(255, Math.round((touch.clientY - rect.top) * scaleY)));
+    return [x, y];
+  };
+
+  const onStart = (e) => {
+    e.preventDefault();
+    if (fakeArtDraw.currentStroke) return; // One stroke only!
+    fakeArtDraw.drawing = true;
+    const [x, y] = getPos(e);
+    fakeArtDraw.points = [x, y];
+  };
+
+  const onMove = (e) => {
+    if (!fakeArtDraw.drawing) return;
+    e.preventDefault();
+    const [x, y] = getPos(e);
+    const lastX = fakeArtDraw.points[fakeArtDraw.points.length - 2];
+    const lastY = fakeArtDraw.points[fakeArtDraw.points.length - 1];
+
+    if (Math.abs(x - lastX) >= 2 || Math.abs(y - lastY) >= 2) {
+      fakeArtDraw.points.push(x, y);
+
+      // Draw segment locally
+      const ctx = fakeArtDraw.ctx;
+      const scale = canvas.width / 255;
+      ctx.strokeStyle = fakeArtDraw.myColor;
+      ctx.lineWidth = 4 * scale;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(lastX * scale, lastY * scale);
+      ctx.lineTo(x * scale, y * scale);
+      ctx.stroke();
+    }
+  };
+
+  const onEnd = (e) => {
+    if (!fakeArtDraw.drawing) return;
+    e.preventDefault();
+    fakeArtDraw.drawing = false;
+    if (fakeArtDraw.points.length >= 4) {
+      fakeArtDraw.currentStroke = { p: fakeArtDraw.points.slice() };
+      const btn = document.getElementById('send-fake-stroke-btn');
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  canvas.onpointerdown = onStart;
+  canvas.onpointermove = onMove;
+  canvas.onpointerup = onEnd;
+  canvas.onpointercancel = onEnd;
+}
+
+function replayFakeArtistStrokes(strokes) {
+  const canvas = fakeArtDraw.canvas;
+  const ctx = fakeArtDraw.ctx;
+  if (!canvas || !ctx) return;
+
+  // Clear canvas
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const scale = canvas.width / 255;
+
+  (strokes || []).forEach(st => {
+    const pts = st.p;
+    if (!pts || pts.length < 4) return;
+    ctx.strokeStyle = st.c || '#111';
+    ctx.lineWidth = 4 * scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pts[0] * scale, pts[1] * scale);
+    for (let i = 2; i < pts.length; i += 2) {
+      ctx.lineTo(pts[i] * scale, pts[i + 1] * scale);
+    }
+    ctx.stroke();
+  });
+
+  // If user drew a stroke that isn't submitted yet, draw it
+  if (fakeArtDraw.currentStroke && fakeArtDraw.currentStroke.p) {
+    const pts = fakeArtDraw.currentStroke.p;
+    ctx.strokeStyle = fakeArtDraw.myColor || '#111';
+    ctx.lineWidth = 4 * scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pts[0] * scale, pts[1] * scale);
+    for (let i = 2; i < pts.length; i += 2) {
+      ctx.lineTo(pts[i] * scale, pts[i + 1] * scale);
+    }
+    ctx.stroke();
+  }
+}
+
+function clearMyFakeStroke() {
+  fakeArtDraw.currentStroke = null;
+  fakeArtDraw.points = [];
+  const btn = document.getElementById('send-fake-stroke-btn');
+  if (btn) btn.disabled = true;
+  if (Room.state) {
+    replayFakeArtistStrokes(Room.state.shared.strokes || []);
+  }
+}
+
+function submitFakeStroke() {
+  if (!fakeArtDraw.currentStroke) return;
+  const stroke = fakeArtDraw.currentStroke;
+  fakeArtDraw.currentStroke = null;
+  fakeArtDraw.points = [];
+  Room.act('sendStroke', { stroke: stroke });
+}
+
+function castFakeArtistVote(optionId) {
+  Room.act('vote', { option: optionId });
+}
+
+function closeFakeArtistVote() {
+  Room.act('closeVote');
+}
+
+function submitFakeArtistGuess() {
+  const inp = document.getElementById('fake-artist-guess-input');
+  const guess = inp ? inp.value.trim() : '';
+  if (!guess) return;
+  Room.act('fakeGuess', { guess: guess });
+}
+</script>

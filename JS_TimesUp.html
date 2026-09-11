@@ -1,0 +1,303 @@
+<script>
+/* --- TIME'S UP! / MONIKERS (ثلاث جولات) GAME LOGIC --- */
+
+const TIMESUP_DB = {
+  ar: [
+    "صلاح الدين الأيوبي", "ابن بطوطة", "ابن رشد", "المتنبي", "طه حسين", "عباس العقاد", "فيروز", "وديع الصافي", "صباح", "فريد الأطرش", "محمد عبد الوهاب", "سيد درويش", "رشدي أباظة", "نادية لطفي", "مريم فخر الدين", "محمود المليجي", "توفيق الدقن", "استيفان روستي", "أحمد مظهر", "حسن حسني", "طلعت زكريا", "علاء ولي الدين", "ماجد الكدواني", "بيومي فؤاد", "أمير كرارة", "أحمد عز", "محمد رمضان", "دنيا سمير غانم", "منى زكي", "ياسمين عبد العزيز", "محمد علي كلاي", "مايكل جوردان", "يوسين بولت", "بيليه", "زين الدين زيدان", "كريم بنزيما", "روجيه فيدرر", "رافاييل نادال", "مايك تايسون", "أندرتيكر", "جون سينا", "بروس لي", "جاكي شان", "توم كروز", "ويل سميث", "روبرت دي نيرو", "آل باتشينو", "مورجان فريمان", "كيانو ريفز", "جوني ديب", "إيما واتسون", "أنجلينا جولي", "سكارليت جوهانسون", "ميريل ستريب", "بينوكيو", "سيمبا", "باباي", "ميكي ماوس", "بطوط", "سبونج بوب", "بسيط نجم البحر", "شفيق", "وودي", "باظ يطير", "مارد وشوشني", "شلبي سلفان", "شريك", "القط ذو الحذاء", "الدب بو", "سوبرمان", "الرجل الحديدي", "هالك", "ثور", "كابتن أمريكا", "جوكر", "ديدبول", "وولفرين", "فيلم الفيل الأزرق", "فيلم الجزيرة", "فيلم الكيف", "فيلم العار", "فيلم صعيدي في الجامعة الأمريكية", "مسرحية مدرسة المشاغبين", "مسرحية العيال كبرت", "مسرحية الزعيم", "مسرحية شاهد ما شفش حاجة", "برج القاهرة", "قلعة صلاح الدين", "معبد الكرنك", "وادي الملوك", "مكتبة الإسكندرية", "المتحف المصري الكبير", "مكة المكرمة", "المسجد النبوي", "المسجد الأقصى", "مضيق جبل طارق", "قناة السويس", "البحر الميت", "تلسكوب جيمس ويب", "مكوك فضاء", "سيارة تسلا", "طابعة ثلاثية الأبعاد", "نظارة واقع افتراضي", "درون", "سماعة بلوتوث", "سكوتر كهربائي", "شاحن لاسلكي", "ميكروفون لاسلكي", "مكواة بخار", "فرن كهربائي", "قلاية هوائية", "عجانة", "مضرب بيض", "ميزان ديجيتال", "سخان ماء", "تكييف صحراوي", "كنغر أسترالي", "كوالا", "كسلان", "قندس", "ثعلب قطبي", "قنديل البحر", "فرس البحر", "حرباء متلونة", "طائر الطنان", "فلامنجو وردي", "لقلق", "ببغاء ناطق", "حداية", "وطواط", "عقرب سام", "أم أربعة وأربعين", "عصفور باليد خير من عشرة على الشجرة", "من راقب الناس مات هما", "إذا كان حبيبك عسل لا تلحسه كله", "على قد لحافك مد رجليك", "ابن الوز عوام", "القرش الأبيض ينفع في اليوم الأسود", "يا خبر بفلوس بكرة ببلاش", "سوشي ياباني", "فاهيتا مكسيكي", "طاجن ورق عنب", "ملوخية بالأرانب", "حمام محشي", "أم علي بالمكسرات", "زلابية بالسكر", "غزل البنات", "لقمة القاضي", "بلح الشام", "عصير قصب مثلج", "قهوة فرنساوي",
+    // Famous figures & Artists
+    "أم كلثوم", "عادل إمام", "محمد صلاح", "أحمد زويل", "نجيب محفوظ", "ألبرت أينشتاين",
+    "مارادونا", "شارلي شابلن", "ليوناردو دي كابريو", "نابليون بونابرت", "كليوباترا", "شكسبير",
+    "بيل جيتس", "نيلسون مانديلا", "ستيف جوبز", "مايكل جاكسون", "كريستيانو رونالدو", "ليونيل ميسي",
+    "والت ديزني", "إسماعيل ياسين", "نجيب الريحاني", "فؤاد المهندس", "عبد الحليم حافظ", "شادية",
+    "سعاد حسني", "عمر الشريف", "أحمد زكي", "محمود عبد العزيز", "يحيى الفخراني", "سمير غانم",
+    "محمد هنيدي", "أحمد حلمي", "كريم عبد العزيز", "شيرين عبد الوهاب", "عمرو دياب", "تامر حسني",
+    // Movies & Stories
+    "فيلم تيتانيك", "فيلم الأسد الملك", "فيلم هاري بوتر", "سبايدرمان", "باتمان", "علاء الدين",
+    "سندريلا", "سنو وايت", "مستر بين", "توم وجيري", "سلاحف النينجا", "طرزان",
+    // Wonders, Landmarks & Places
+    "الأهرامات", "أبو الهول", "برج إيفل", "تمثال الحرية", "برج خليفة", "سور الصين العظيم",
+    "تاج محل", "برج بيزا المائل", "الكعبة المشرفة", "نهر النيل", "جبل إفرست", "شلالات نياجرا",
+    // Everyday Objects & Fun Inventions
+    "تلفزيون", "ميكروويف", "غسالة", "مكنسة", "مروحة", "بوتاجاز", "ثلاجة", "موبايل",
+    "لابتوب", "شمسية", "نظارة شمسية", "كاميرا", "سماعات", "سيارة إسعاف", "طائرة هليكوبتر",
+    "سفينة فضاء", "قطار سريع", "دراجة نارية", "غواصة", "بالون طائر", "كرسي متحرك",
+    // Animals & Creatures
+    "ديناصور", "فيل", "زرافة", "أسد", "قرد", "باندا", "كنغر", "بطريق", "دولفين", "حوت",
+    "تمساح", "ثعبان", "نسر", "بومة", "فراشة", "أخطبوط", "حرباء", "طاووس", "سلحفاة",
+    // Famous Proverbs & Actions
+    "القرد في عين أمه غزال", "الباب يفوت جمل", "عصفور في اليد", "ضرب عصفورين بحجر",
+    "الصبر مفتاح الفرج", "الوقت كالسيف", "من جد وجد", "لسانك حصانك", "رجعت ريما لعادتها",
+    // Pop Culture & Fun
+    "سيلفي", "بيتزا", "شاورما", "كشري", "آيس كريم", "شوكولاتة", "فشار", "بلايستيشن",
+    "كرة قدم", "ملاكمة", "كاراتيه", "تزلج", "يوجا", "شطرنج", "مونوبولي", "بينج بونج"
+  ],
+  en: [
+    "Robin Williams", "Morgan Freeman", "Keanu Reeves", "Will Smith", "Tom Cruise", "Robert Downey Jr", "Johnny Depp", "Denzel Washington", "Meryl Streep", "Angelina Jolie", "Scarlett Johansson", "Emma Watson", "Jennifer Aniston", "Jim Carrey", "Rowan Atkinson", "Steve Carell", "Harrison Ford", "Samuel L Jackson", "Michael Jordan", "Kobe Bryant", "LeBron James", "Pele", "Zinedine Zidane", "Mike Tyson", "Muhammad Ali", "Roger Federer", "Rafael Nadal", "Serena Williams", "Tiger Woods", "Lewis Hamilton", "Ludwig van Beethoven", "Wolfgang Amadeus Mozart", "Vincent van Gogh", "Pablo Picasso", "Isaac Newton", "Nikola Tesla", "Galileo Galilei", "Charles Darwin", "Marie Curie", "Stephen Hawking", "Alexander the Great", "Julius Caesar", "Queen Elizabeth II", "Winston Churchill", "George Washington", "Mahatma Gandhi", "Martin Luther King Jr", "Princess Diana", "Superman", "Captain America", "Thor", "Hulk", "Black Widow", "Wolverine", "Deadpool", "Joker", "Frodo Baggins", "Gandalf", "Gollum", "Katniss Everdeen", "Luke Skywalker", "Princess Leia", "Han Solo", "Peter Pan", "Captain Hook", "Pinocchio", "Simba", "Woody", "Buzz Lightyear", "Mike Wazowski", "Sulley", "Wall-E", "Elsa", "Moana", "Shrek", "Donkey", "Po the Panda", "Paddington Bear", "Scooby-Doo", "The Godfather", "Pulp Fiction", "Forrest Gump", "The Dark Knight", "Inception", "Interstellar", "Gladiator", "Avatar", "Avengers Endgame", "The Lord of the Rings", "Back to the Future", "Finding Nemo", "Empire State Building", "Golden Gate Bridge", "Sydney Opera House", "Machu Picchu", "Christ the Redeemer", "Stonehenge", "Tower Bridge", "Louvre Museum", "Grand Bazaar", "Burj Khalifa", "Mount Fuji", "Table Mountain", "Smartwatch", "Wireless Earbuds", "Electric Scooter", "Air Fryer", "3D Printer", "Robotic Vacuum", "Solar Panel", "Hovercraft", "Segway", "Game Boy", "Walkman", "Pocket Knife", "Campfire", "Hammock", "Compass", "Binoculars", "Boombox", "Ukulele", "Saxophone", "Harmonica", "Koala", "Sloth", "Platypus", "Chameleon", "Meerkat", "Flamingo", "Hummingbird", "Sea Turtle", "Great White Shark", "Seahorse", "Polar Bear", "Grizzly Bear", "Bald Eagle", "Cheetah", "Jaguar", "Piece of cake", "Bite the bullet", "Break a leg", "Under the weather", "Spill the beans", "Once in a blue moon", "Cheeseburger", "Pepperoni Pizza", "Fish and Chips", "French Fries", "Tacos", "Pancakes with Syrup", "Belgian Waffles", "Cotton Candy", "Churros", "Cupcake", "Chocolate Chip Cookie", "Popcorn Bucket",
+    // Famous figures & Icons
+    "Michael Jackson", "Albert Einstein", "Leonardo da Vinci", "William Shakespeare", "Cleopatra",
+    "Napoleon Bonaparte", "Marilyn Monroe", "Elvis Presley", "Charlie Chaplin", "Abraham Lincoln",
+    "Nelson Mandela", "Steve Jobs", "Bill Gates", "Walt Disney", "Cristiano Ronaldo", "Lionel Messi",
+    "Muhammad Ali", "Usain Bolt", "Tom Hanks", "Leonardo DiCaprio", "Brad Pitt", "Taylor Swift",
+    "Beyonce", "Freddie Mercury", "Madonna", "Bob Marley", "Gordon Ramsay", "JK Rowling",
+    // Characters & Movies
+    "Harry Potter", "Spider-Man", "Batman", "Sherlock Holmes", "James Bond", "Darth Vader",
+    "Mickey Mouse", "Mario", "Pikachu", "Shrek", "Yoda", "Iron Man", "Jack Sparrow", "Barbie",
+    "Titanic", "Jurassic Park", "Star Wars", "The Lion King", "Home Alone", "The Matrix",
+    // Wonders & Places
+    "Eiffel Tower", "Statue of Liberty", "Great Pyramids", "Colosseum", "Great Wall of China",
+    "Taj Mahal", "Big Ben", "Mount Everest", "Niagara Falls", "Grand Canyon", "Amazon River",
+    // Fun Objects & Inventions
+    "Smartphone", "Helicopter", "Submarine", "Microwave", "Telescope", "Skateboard",
+    "Hot Air Balloon", "Roller Coaster", "Boomerang", "Parachute", "Hoverboard", "Chainsaw",
+    "Espresso Machine", "Headphones", "Drone", "VR Headset", "Electric Guitar", "Trombone",
+    // Animals
+    "T-Rex", "Kangaroo", "Penguin", "Octopus", "Giraffe", "Chameleon", "Platypus",
+    "Flamingo", "Gorilla", "Koala", "Sloth", "Hammerhead Shark", "Bald Eagle", "Peacock",
+    // Pop Culture & Actions
+    "Moonwalk", "Selfie", "Karaoke", "Bungee Jump", "Surfing", "Breakdancing", "Juggling",
+    "Arm Wrestling", "Scuba Diving", "Magic Trick", "CPR", "Bowling", "High Five", "Yawn"
+  ]
+};
+
+const timesUpState = {
+  deck: [],
+  currentRoundDeck: [],
+  round: 1, // 1: Any words, 2: One word, 3: Pantomime/Charades
+  scores: { 1: 0, 2: 0 },
+  teams: { 1: [], 2: [] },
+  activeTeam: 1,
+  activePlayerIndex: { 1: 0, 2: 0 },
+  turnTimerSeconds: 40,
+  turnClock: null,
+  currentCard: "",
+  turnProcessing: false
+};
+
+function setupTimesUp() {
+  setView('setup-timesup');
+}
+
+function startTimesUpGame() {
+  const selected = appState.activePlayers ? [...appState.activePlayers] : [];
+  saveActivePlayers(selected);
+
+  if (selected.length < 4) {
+    const msg = appState.lang === 'en' ? "Need at least 4 players (2 vs 2)!" : "تحتاج إلى 4 لاعبين على الأقل (2 ضد 2)!";
+    showToast(msg);
+    return;
+  }
+
+  // Shuffle and split into 2 teams
+  const shuffled = shuffleArray(selected);
+  timesUpState.teams[1] = [];
+  timesUpState.teams[2] = [];
+  shuffled.forEach((p, idx) => {
+    timesUpState.teams[(idx % 2) + 1].push(p);
+  });
+
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const db = TIMESUP_DB[lang] || TIMESUP_DB.ar;
+  const deckSize = parseInt(document.getElementById('timesup-deck-size')?.value || '35', 10);
+  timesUpState.turnTimerSeconds = parseInt(document.getElementById('timesup-turn-timer')?.value || '40', 10);
+
+  // Pick unique deck
+  timesUpState.deck = shuffleArray(db).slice(0, Math.min(deckSize, db.length));
+  timesUpState.currentRoundDeck = [...timesUpState.deck];
+  timesUpState.round = 1;
+  timesUpState.scores = { 1: 0, 2: 0 };
+  timesUpState.activeTeam = 1;
+  timesUpState.activePlayerIndex = { 1: 0, 2: 0 };
+  timesUpState.turnProcessing = false;
+
+  playSound('click');
+  startTimesUpRound(1);
+}
+
+function startTimesUpRound(roundNum) {
+  timesUpState.round = roundNum;
+  timesUpState.currentRoundDeck = shuffleArray([...timesUpState.deck]);
+
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const roundTitles = {
+    1: lang === 'en' ? "Round 1: Describe with Any Words" : "الجولة 1: اشرح بأي كلام (بدون اسم الكلمة)",
+    2: lang === 'en' ? "Round 2: Exactly ONE Word!" : "الجولة 2: كلمة واحدة فقط!",
+    3: lang === 'en' ? "Round 3: Pantomime & Mime Only!" : "الجولة 3: تمثيل وبدون كلام نهائياً!"
+  };
+
+  const modalMsg = roundTitles[roundNum];
+  showConfirmModal(`${lang === 'en' ? 'Ready for ' : 'استعد لـ '}${modalMsg}`, () => {
+    setView('play-timesup');
+    prepareTimesUpTurn();
+  });
+}
+
+function prepareTimesUpTurn() {
+  timesUpState.turnProcessing = false;
+  const team = timesUpState.activeTeam;
+  const playerList = timesUpState.teams[team];
+  const pIdx = timesUpState.activePlayerIndex[team] % playerList.length;
+  const activeClueGiver = playerList[pIdx];
+
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  document.getElementById('timesup-round-badge').innerText = `${lang === 'en' ? 'Round' : 'جولة'} ${timesUpState.round}/3`;
+  document.getElementById('timesup-team-turn-name').innerText = `${lang === 'en' ? 'Team' : 'فريق'} ${team} (${activeClueGiver})`;
+  document.getElementById('timesup-cards-left').innerText = timesUpState.currentRoundDeck.length;
+
+  // Update scores
+  document.getElementById('timesup-score-team1').innerText = timesUpState.scores[1];
+  document.getElementById('timesup-score-team2').innerText = timesUpState.scores[2];
+
+  // Show "Ready to start turn" overlay
+  document.getElementById('timesup-turn-ready-card').classList.remove('hidden');
+  document.getElementById('timesup-turn-live-card').classList.add('hidden');
+  document.getElementById('timesup-ready-player-name').innerText = activeClueGiver;
+}
+
+function beginTimesUpLiveTurn() {
+  document.getElementById('timesup-turn-ready-card').classList.add('hidden');
+  document.getElementById('timesup-turn-live-card').classList.remove('hidden');
+
+  drawNextTimesUpCard();
+
+  let left = timesUpState.turnTimerSeconds;
+  updateTimesUpClockUI(left);
+
+  if (timesUpState.turnClock) timesUpState.turnClock.stop();
+  timesUpState.turnClock = createClock({
+    seconds: left,
+    onTick: (val) => {
+      updateTimesUpClockUI(val);
+      if (val <= 5 && val > 0) playSound('tick');
+      if (val === 0) {
+        playSound('alarm');
+        endTimesUpTurn(true);
+      }
+    },
+    onEnd: () => {
+      endTimesUpTurn(true);
+    }
+  });
+}
+
+function updateTimesUpClockUI(sec) {
+  const el = document.getElementById('timesup-clock-display');
+  if (el) el.innerText = sec;
+}
+
+function drawNextTimesUpCard() {
+  if (timesUpState.currentRoundDeck.length === 0) {
+    // Round ended mid-turn!
+    endTimesUpRound();
+    return;
+  }
+  timesUpState.currentCard = timesUpState.currentRoundDeck[0];
+  const cardEl = document.getElementById('timesup-word-display');
+  if (cardEl) {
+    cardEl.innerText = timesUpState.currentCard;
+  }
+  document.getElementById('timesup-cards-left').innerText = timesUpState.currentRoundDeck.length;
+}
+
+function timesUpAction(action) {
+  if (timesUpState.turnProcessing) return;
+  if (!timesUpState.currentCard) return;
+
+  if (action === 'correct') {
+    timesUpState.turnProcessing = true;
+    playSound('success');
+    timesUpState.scores[timesUpState.activeTeam]++;
+    document.getElementById(`timesup-score-team${timesUpState.activeTeam}`).innerText = timesUpState.scores[timesUpState.activeTeam];
+
+    // Remove from current round deck
+    timesUpState.currentRoundDeck.shift();
+
+    if (timesUpState.currentRoundDeck.length === 0) {
+      endTimesUpRound();
+      return;
+    }
+
+    drawNextTimesUpCard();
+    setTimeout(() => { timesUpState.turnProcessing = false; }, 200);
+  } else if (action === 'pass') {
+    playSound('click');
+    // Rotate card to back of deck
+    const passed = timesUpState.currentRoundDeck.shift();
+    timesUpState.currentRoundDeck.push(passed);
+    drawNextTimesUpCard();
+  }
+}
+
+function endTimesUpTurn(timeRanOut) {
+  if (timesUpState.turnClock) timesUpState.turnClock.stop();
+
+  // Rotate player and switch team
+  timesUpState.activePlayerIndex[timesUpState.activeTeam]++;
+  timesUpState.activeTeam = (timesUpState.activeTeam === 1) ? 2 : 1;
+
+  if (timesUpState.currentRoundDeck.length > 0) {
+    prepareTimesUpTurn();
+  }
+}
+
+function endTimesUpRound() {
+  if (timesUpState.turnClock) timesUpState.turnClock.stop();
+  playSound('success');
+  confetti({ particleCount: 100 });
+
+  const nextRound = timesUpState.round + 1;
+  if (nextRound <= 3) {
+    startTimesUpRound(nextRound);
+  } else {
+    // Game completed!
+    finishTimesUpGrandFinale();
+  }
+}
+
+function finishTimesUpGrandFinale() {
+  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const modal = document.getElementById('timesup-result-modal');
+  const titleEl = document.getElementById('timesup-result-title');
+  const detailEl = document.getElementById('timesup-result-detail');
+
+  const score1 = timesUpState.scores[1];
+  const score2 = timesUpState.scores[2];
+
+  let winnerText = "";
+  if (score1 > score2) {
+    winnerText = lang === 'en' ? "🏆 TEAM 1 WINS!" : "🏆 فوز الفريق 1!";
+    titleEl.className = "text-3xl font-black text-blue-500 mb-2";
+  } else if (score2 > score1) {
+    winnerText = lang === 'en' ? "🏆 TEAM 2 WINS!" : "🏆 فوز الفريق 2!";
+    titleEl.className = "text-3xl font-black text-amber-500 mb-2";
+  } else {
+    winnerText = lang === 'en' ? "🤝 IT'S A TIE!" : "🤝 تعادل رائع!";
+    titleEl.className = "text-3xl font-black text-emerald-500 mb-2";
+  }
+
+  titleEl.innerText = winnerText;
+  confetti({ particleCount: 200, spread: 90 });
+
+  detailEl.innerHTML = `
+    <div class="grid grid-cols-2 gap-3 my-4">
+      <div class="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 text-center">
+        <div class="text-xs uppercase font-bold text-blue-500">${lang === 'en' ? 'Team 1' : 'فريق 1'}</div>
+        <div class="text-3xl font-black my-1">${score1}</div>
+        <div class="text-xs opacity-75">${timesUpState.teams[1].map(escapeHTML).join(', ')}</div>
+      </div>
+      <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
+        <div class="text-xs uppercase font-bold text-amber-500">${lang === 'en' ? 'Team 2' : 'فريق 2'}</div>
+        <div class="text-3xl font-black my-1">${score2}</div>
+        <div class="text-xs opacity-75">${timesUpState.teams[2].map(escapeHTML).join(', ')}</div>
+      </div>
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+}
+
+function resetTimesUpPlay() {
+  if (timesUpState.turnClock) timesUpState.turnClock.stop();
+  closeModal('timesup-result-modal');
+  setupTimesUp();
+}
+</script>

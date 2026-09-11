@@ -57,7 +57,8 @@ const rememberedTeams = (room) => {
 
 const ROOM_GAME_IDS = [
   'imposter', 'justone', 'whoami', 'codenames',
-  'wouldyou', 'mostlikely', 'fibbage', 'drawguess'
+  'wouldyou', 'mostlikely', 'fibbage', 'drawguess',
+  'fakeartist', 'wavelength', 'trivia'
 ];
 
 const applyRoomAction = (room, playerId, action, payload) => {
@@ -103,6 +104,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'mostlikely': mostLikelyAction(room, playerId, action, payload); break;
     case 'fibbage':    fibbageAction(room, playerId, action, payload); break;
     case 'drawguess':  drawGuessAction(room, playerId, action, payload); break;
+    case 'fakeartist': fakeArtistAction(room, playerId, action, payload); break;
+    case 'wavelength': wavelengthAction(room, playerId, action, payload); break;
+    case 'trivia':     triviaAction(room, playerId, action, payload); break;
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -1015,4 +1019,315 @@ const drawGuessAction = (room, playerId, action, payload) => {
   }
 
   throw new Error('إجراء غير معروف');
+};
+
+/* ==========================================================================
+   الفنان المزيف — A FAKE ARTIST GOES TO NEW YORK
+   ========================================================================== */
+const fakeArtistAction = (room, playerId, action, payload) => {
+  const lang = (payload && payload.lang === 'en') ? 'en' : 'ar';
+
+  if (action === 'start' || action === 'nextRound') {
+    requireHost(room, playerId);
+    if (room.players.length < 3) throw new Error('الحد الأدنى 3 لاعبين');
+
+    const order = shuffled(room.players.map(p => p.id));
+    const fakeId = order[Math.floor(Math.random() * order.length)];
+    const word = nextPrompt(room, DRAW_WORDS[lang], 'draw_' + lang);
+
+    room.secrets = {};
+    order.forEach(id => {
+      if (id === fakeId) {
+        room.secrets[id] = { isFake: true };
+      } else {
+        room.secrets[id] = { isFake: false, word: word };
+      }
+    });
+
+    room._word = word;
+    room._fakeId = fakeId;
+
+    const colors = {};
+    order.forEach((id, i) => {
+      colors[id] = DRAW_COLOURS[i % DRAW_COLOURS.length];
+    });
+
+    room.shared = {
+      round: 1,
+      totalRounds: 2,
+      drawerOrder: order,
+      turnIndex: 0,
+      currentDrawerId: order[0],
+      colors: colors,
+      strokes: [],
+      phase: 'drawing',
+      lang: lang,
+      roster: order
+    };
+    room.phase = 'play';
+    return;
+  }
+
+  if (action === 'sendStroke') {
+    const s = room.shared;
+    if (s.phase !== 'drawing') throw new Error('ليس وقت الرسم');
+    if (playerId !== s.currentDrawerId) throw new Error('ليس دورك في الرسم');
+
+    const stroke = payload && payload.stroke;
+    if (stroke && stroke.p && stroke.p.length >= 2) {
+      stroke.c = s.colors[playerId] || '#111';
+      stroke.w = 4;
+      s.strokes.push(stroke);
+    }
+
+    s.turnIndex++;
+    if (s.turnIndex >= s.drawerOrder.length) {
+      s.turnIndex = 0;
+      s.round++;
+    }
+
+    if (s.round > s.totalRounds) {
+      s.phase = 'voting';
+      const options = s.drawerOrder.map(id => {
+        const p = room.players.find(x => x.id === id);
+        return { id: id, label: p ? p.name : id };
+      });
+      openVote(room, options);
+    } else {
+      s.currentDrawerId = s.drawerOrder[s.turnIndex];
+    }
+    return;
+  }
+
+  if (action === 'vote') {
+    castVote(room, playerId, String(payload.option || ''));
+    return;
+  }
+
+  if (action === 'closeVote') {
+    requireHost(room, playerId);
+    closeVote(room);
+    const s = room.shared;
+    s.phase = 'results';
+
+    const top = s.vote && s.vote.results && s.vote.results[0];
+    const caught = top && top.id === room._fakeId && top.count > 0;
+    s.fakeCaught = caught;
+    s.fakeId = room._fakeId;
+    s.secretWord = room._word;
+    return;
+  }
+
+  if (action === 'fakeGuess') {
+    if (playerId !== room._fakeId) throw new Error('الفنان المزيف فقط');
+    const guess = String((payload && payload.guess) || '').trim();
+    const correct = room._word;
+    const won = normaliseClue(guess) === normaliseClue(correct);
+    room.shared.fakeStoleWin = won;
+    room.shared.fakeGuessWord = guess;
+    return;
+  }
+
+  throw new Error('إجراء غير معروف');
+};
+
+/* ==========================================================================
+   على نفس الموجة — WAVELENGTH
+   ========================================================================== */
+const wavelengthAction = (room, playerId, action, payload) => {
+  const lang = (payload && payload.lang === 'en') ? 'en' : 'ar';
+
+  if (action === 'start' || action === 'nextRound') {
+    requireHost(room, playerId);
+    if (room.players.length < 2) throw new Error('الحد الأدنى لاعبان');
+
+    const round = ((room.shared && room.shared.round) || 0) + 1;
+    const scores = (room.shared && room.shared.scores) || { team: 0 };
+    const psychicIdx = (round - 1) % room.players.length;
+    const psychic = room.players[psychicIdx];
+
+    const pairs = WAVELENGTH_PAIRS[lang] || WAVELENGTH_PAIRS.ar;
+    const pair = pairs[Math.floor(Math.random() * pairs.length)];
+    const target = Math.floor(Math.random() * 75) + 12;
+
+    room.secrets = {};
+    room.secrets[psychic.id] = { target: target };
+    room._target = target;
+
+    room.shared = {
+      round: round,
+      psychicId: psychic.id,
+      psychicName: psychic.name,
+      leftLabel: pair.left,
+      rightLabel: pair.right,
+      clue: null,
+      dial: 50,
+      phase: 'clue',
+      scores: scores,
+      lang: lang,
+      roster: room.players.map(p => p.id)
+    };
+    room.phase = 'play';
+    return;
+  }
+
+  if (action === 'giveClue') {
+    const s = room.shared;
+    if (playerId !== s.psychicId) throw new Error('القارئ الذهني فقط');
+    const clue = String((payload && payload.clue) || '').trim();
+    if (!clue) throw new Error('اكتب تلميحاً');
+    s.clue = clue;
+    s.phase = 'dial';
+    return;
+  }
+
+  if (action === 'setDial') {
+    const s = room.shared;
+    if (s.phase !== 'dial') throw new Error('المؤشر مقفل');
+    s.dial = Math.max(0, Math.min(100, Math.round(Number(payload && payload.dial) || 50)));
+    return;
+  }
+
+  if (action === 'lockDial') {
+    requireHost(room, playerId);
+    const s = room.shared;
+    s.phase = 'results';
+    s.target = room._target;
+
+    const diff = Math.abs(s.dial - s.target);
+    let pts = 0;
+    if (diff <= 3) pts = 4;
+    else if (diff <= 8) pts = 3;
+    else if (diff <= 15) pts = 2;
+
+    s.pointsEarned = pts;
+    s.scores.team = (s.scores.team || 0) + pts;
+    return;
+  }
+
+  throw new Error('إجراء غير معروف');
+};
+
+/* ==========================================================================
+   مسابقة المعلومات — TRIVIA NIGHT
+   ========================================================================== */
+const triviaAction = (room, playerId, action, payload) => {
+  const lang = (payload && payload.lang === 'en') ? 'en' : 'ar';
+
+  if (action === 'start') {
+    requireHost(room, playerId);
+    const db = TRIVIA_QUESTIONS[lang] || TRIVIA_QUESTIONS.ar;
+    const poolKey = 'trivia_' + lang;
+    room._used = room._used || {};
+    if (Array.isArray(room._used)) room._used = {};
+    let used = room._used[poolKey] || [];
+    if (used.length + 10 > db.length) used = [];
+
+    const available = [];
+    for (let i = 0; i < db.length; i++) {
+      if (used.indexOf(i) === -1) available.push(i);
+    }
+    const chosen = shuffled(available).slice(0, 10);
+    used = used.concat(chosen);
+    room._used[poolKey] = used;
+
+    room._deck = chosen.map(i => db[i]);
+    room._qIdx = 0;
+    room.shared = room.shared || {};
+    room.shared.scores = {};
+    room.players.forEach(p => { room.shared.scores[p.id] = 0; });
+    dealTriviaQuestion(room, 0);
+    return;
+  }
+
+  if (action === 'nextQuestion') {
+    requireHost(room, playerId);
+    room._qIdx++;
+    if (room._qIdx >= room._deck.length) {
+      room.shared.phase = 'gameover';
+      room.shared.board = scoreboardOf(room);
+      return;
+    }
+    dealTriviaQuestion(room, room._qIdx);
+    return;
+  }
+
+  if (action === 'answer') {
+    const s = room.shared;
+    if (s.phase !== 'answering') throw new Error('انتهى وقت الإجابة');
+    room._answers = room._answers || {};
+    if (room._answers[playerId] !== undefined) return;
+
+    const choiceIdx = Number(payload && payload.choice);
+    const now = Date.now();
+    room._answers[playerId] = {
+      choice: choiceIdx,
+      time: now
+    };
+
+    if (s.answered.indexOf(playerId) === -1) {
+      s.answered.push(playerId);
+    }
+
+    if (s.answered.length >= room.players.length) {
+      closeTriviaQuestion(room);
+    }
+    return;
+  }
+
+  if (action === 'closeQuestion') {
+    requireHost(room, playerId);
+    closeTriviaQuestion(room);
+    return;
+  }
+
+  throw new Error('إجراء غير معروف');
+};
+
+const dealTriviaQuestion = (room, idx) => {
+  const q = room._deck[idx];
+  room._currentQ = q;
+  room._answers = {};
+  room._qStart = Date.now();
+
+  room.shared = {
+    qIndex: idx,
+    totalQuestions: room._deck.length,
+    question: q.q,
+    choices: q.choices,
+    phase: 'answering',
+    answered: [],
+    endsAt: Date.now() + 15000,
+    scores: room.shared.scores || {},
+    board: scoreboardOf(room),
+    roster: room.players.map(p => p.id)
+  };
+  room.phase = 'play';
+};
+
+const closeTriviaQuestion = (room) => {
+  const s = room.shared;
+  if (s.phase !== 'answering') return;
+
+  s.phase = 'results';
+  s.correctAnswer = room._currentQ.answer;
+
+  const choiceCounts = [0, 0, 0, 0];
+  const qStart = room._qStart;
+
+  room.players.forEach(p => {
+    const ans = (room._answers || {})[p.id];
+    if (ans) {
+      choiceCounts[ans.choice] = (choiceCounts[ans.choice] || 0) + 1;
+      if (ans.choice === s.correctAnswer) {
+        const elapsed = Math.max(0, ans.time - qStart);
+        const speedRatio = Math.max(0, (15000 - elapsed) / 15000);
+        const pts = 1000 + Math.round(speedRatio * 500);
+        addScore(room, p.id, pts);
+      }
+    }
+  });
+
+  s.choiceCounts = choiceCounts;
+  s.board = scoreboardOf(room);
 };

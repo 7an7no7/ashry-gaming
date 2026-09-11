@@ -153,6 +153,19 @@
                     <div class="game-icon" aria-hidden="true">🀄</div>
                     <div class="game-title" data-i18n="setup_domino">دومينو</div>
                 </div>
+                <div class="game-card" data-accent="amber" onclick="setupChameleon()">
+                    <div class="game-icon" aria-hidden="true">🦎</div>
+                    <div class="game-title" data-i18n="setup_chameleon">الحرباء</div>
+                </div>
+                <div class="game-card" data-accent="rose" onclick="setupSpyfall()">
+                    <div class="game-icon" aria-hidden="true">🏢</div>
+                    <div class="game-title" data-i18n="setup_spyfall">الموقع السري</div>
+                </div>
+                <div class="game-card" data-accent="blue" onclick="setupTimesUp()">
+                    <div class="game-icon" aria-hidden="true">⏱️</div>
+                    <div class="game-title" data-i18n="setup_timesup">ثلاث جولات</div>
+                </div>
+
             </div>
         </section>
 
@@ -285,6 +298,9 @@
       <div id="view-room-mostlikely" class="hidden" data-accent="amber"></div>
       <div id="view-room-fibbage"    class="hidden" data-accent="rose"></div>
       <div id="view-room-drawguess"  class="hidden" data-accent="blue"></div>
+      <div id="view-room-fakeartist" class="hidden" data-accent="pink"></div>
+      <div id="view-room-wavelength" class="hidden" data-accent="teal"></div>
+      <div id="view-room-trivia"     class="hidden" data-accent="indigo"></div>
 
       <!-- ============ تشابه — single device ============ -->
       <div id="view-setup-connections" class="hidden" data-accent="teal">
@@ -1074,6 +1090,212 @@
     </div>
 </div>
 
+      <!-- ============ THE CHAMELEON (الحرباء) ============ -->
+      <div id="view-setup-chameleon" class="hidden" data-accent="amber">
+        <div class="card">
+          <label class="field__label" data-i18n="category">المجموعة</label>
+          <select id="chameleon-cat-select" class="mb-4"></select>
+
+          <div class="group-picker">
+            <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+              <option value="">-- اختر مجموعة --</option>
+            </select>
+            <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+          </div>
+
+          <label class="field__label" data-i18n="players">اللاعبين</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="chameleon-player-list" class="mb-6"></div>
+
+          <button onclick="startChameleonGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
+        </div>
+      </div>
+
+      <div id="view-reveal-chameleon" class="hidden" data-accent="amber">
+        <div id="chameleon-step-pass" class="card text-center py-12 space-y-6">
+          <div class="eyebrow" data-i18n="pass_phone_to">مرر الهاتف إلى</div>
+          <h2 id="chameleon-reveal-name" class="text-4xl font-black text-amber-500">---</h2>
+          <button onclick="revealChameleonSecret()" class="btn btn--primary btn--lg" data-i18n="show_my_secret">إظهار سري 👁️</button>
+        </div>
+        <div id="chameleon-step-card" class="hidden card text-center py-8 space-y-6">
+          <div id="chameleon-card-role" class="text-2xl font-black">---</div>
+          <div id="chameleon-card-detail" class="p-6 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10"></div>
+          <button onclick="doneChameleonRevealStep()" class="btn btn--primary btn--lg" data-i18n="hide_and_pass">إخفاء وتمرير الهاتف 🔒</button>
+        </div>
+      </div>
+
+      <div id="view-play-chameleon" class="hidden" data-accent="amber">
+        <div class="card card--tight text-center mb-4">
+          <div class="eyebrow" data-i18n="category">الموضوع</div>
+          <h2 id="chameleon-play-category" class="text-2xl font-black text-amber-500">---</h2>
+        </div>
+
+        <div class="card mb-4">
+          <div id="chameleon-4x4-grid" class="mb-4"></div>
+          <div class="eyebrow text-center mb-2" data-i18n="speaking_order">ترتيب الأدوار لإعطاء الكلمة</div>
+          <div id="chameleon-turn-order" class="flex flex-wrap gap-2 justify-center"></div>
+        </div>
+
+        <div id="chameleon-guess-box" class="hidden card card--accent text-center mb-4">
+          <p id="chameleon-guess-instruction" class="font-bold text-sm mb-3 text-amber-500"></p>
+        </div>
+
+        <div id="chameleon-play-actions" class="view-actions">
+          <button onclick="openChameleonAccuseModal()" class="btn btn--danger btn--lg" data-i18n="accuse_chameleon">اتهام الحرباء 🦎</button>
+          <button onclick="setupChameleon()" class="btn btn--ghost" data-i18n="finish">إنهاء</button>
+        </div>
+      </div>
+
+      <!-- ============ SPYFALL (الموقع السري) ============ -->
+      <div id="view-setup-spyfall" class="hidden" data-accent="rose">
+        <div class="card">
+          <div class="grid-2 mb-4">
+            <div>
+              <label class="field__label" data-i18n="spy_count">عدد الجواسيس</label>
+              <select id="spyfall-spies-count" class="text-center font-bold">
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </div>
+            <div>
+              <label class="field__label" data-i18n="spyfall_time">وقت النقاش (دقائق)</label>
+              <select id="spyfall-duration" class="text-center font-bold">
+                <option value="5">5</option>
+                <option value="8" selected>8</option>
+                <option value="10">10</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="group-picker">
+            <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+              <option value="">-- اختر مجموعة --</option>
+            </select>
+            <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+          </div>
+
+          <label class="field__label" data-i18n="players">اللاعبين</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="spyfall-player-list" class="mb-6"></div>
+
+          <button onclick="startSpyfallGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
+        </div>
+      </div>
+
+      <div id="view-reveal-spyfall" class="hidden" data-accent="rose">
+        <div id="spyfall-step-pass" class="card text-center py-12 space-y-6">
+          <div class="eyebrow" data-i18n="pass_phone_to">مرر الهاتف إلى</div>
+          <h2 id="spyfall-reveal-name" class="text-4xl font-black text-rose-500">---</h2>
+          <button onclick="revealSpyfallSecret()" class="btn btn--primary btn--lg" data-i18n="show_my_secret">إظهار سري 👁️</button>
+        </div>
+        <div id="spyfall-step-card" class="hidden card text-center py-8 space-y-6">
+          <div id="spyfall-card-title" class="text-2xl font-black">---</div>
+          <div id="spyfall-card-detail" class="p-6 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10"></div>
+          <button onclick="doneSpyfallRevealStep()" class="btn btn--primary btn--lg" data-i18n="hide_and_pass">إخفاء وتمرير الهاتف 🔒</button>
+        </div>
+      </div>
+
+      <div id="view-play-spyfall" class="hidden" data-accent="rose">
+        <div class="card card--tight flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl font-black tabular-nums text-rose-500" id="spyfall-timer-display">08:00</span>
+            <button id="spyfall-pause-btn" onclick="toggleSpyfallPause()" class="btn btn--ghost btn--xs" data-i18n="pause_btn">إيقاف مؤقت</button>
+          </div>
+          <button onclick="openSpyfallAccuseModal()" class="btn btn--danger btn--sm" data-i18n="accuse_player">اتهام لاعب 🚨</button>
+        </div>
+
+        <div class="card mb-4">
+          <div class="eyebrow text-center mb-2" data-i18n="possible_locations">قائمة المواقع المحتملة (انقر للشطب)</div>
+          <div id="spyfall-locations-list" class="grid grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+
+        <div class="view-actions">
+          <button onclick="setupSpyfall()" class="btn btn--ghost" data-i18n="finish">إنهاء</button>
+        </div>
+      </div>
+
+      <!-- ============ TIME'S UP! (ثلاث جولات) ============ -->
+      <div id="view-setup-timesup" class="hidden" data-accent="blue">
+        <div class="card">
+          <div class="grid-2 mb-4">
+            <div>
+              <label class="field__label" data-i18n="deck_size">عدد الكلمات</label>
+              <select id="timesup-deck-size" class="text-center font-bold">
+                <option value="25">25</option>
+                <option value="35" selected>35</option>
+                <option value="45">45</option>
+              </select>
+            </div>
+            <div>
+              <label class="field__label" data-i18n="turn_duration">وقت الدور (ثواني)</label>
+              <select id="timesup-turn-timer" class="text-center font-bold">
+                <option value="30">30</option>
+                <option value="40" selected>40</option>
+                <option value="60">60</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="group-picker">
+            <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+              <option value="">-- اختر مجموعة --</option>
+            </select>
+            <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+          </div>
+
+          <label class="field__label" data-i18n="players">اللاعبين (4 على الأقل)</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="timesup-player-list" class="mb-6"></div>
+
+          <button onclick="startTimesUpGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
+        </div>
+      </div>
+
+      <div id="view-play-timesup" class="hidden" data-accent="blue">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex gap-2">
+            <span id="timesup-round-badge" class="badge badge--accent">جولة 1/3</span>
+            <span class="badge">🃏 <span id="timesup-cards-left">0</span></span>
+          </div>
+          <div class="flex gap-2 font-bold text-sm">
+            <span class="text-blue-500">فريق 1: <span id="timesup-score-team1">0</span></span>
+            <span class="opacity-40">|</span>
+            <span class="text-amber-500">فريق 2: <span id="timesup-score-team2">0</span></span>
+          </div>
+        </div>
+
+        <div id="timesup-turn-ready-card" class="card text-center py-10 space-y-6">
+          <div class="eyebrow" data-i18n="turn_of">دور الشارح</div>
+          <h2 id="timesup-ready-player-name" class="text-4xl font-black text-blue-500">---</h2>
+          <button onclick="beginTimesUpLiveTurn()" class="btn btn--primary btn--lg" data-i18n="start_turn">ابدأ الدور ⏱️</button>
+        </div>
+
+        <div id="timesup-turn-live-card" class="hidden space-y-4">
+          <div class="card card--tight flex items-center justify-between">
+            <span id="timesup-team-turn-name" class="font-bold">---</span>
+            <span id="timesup-clock-display" class="text-3xl font-black text-blue-500 tabular-nums">40</span>
+          </div>
+
+          <div class="card text-center py-12">
+            <div id="timesup-word-display" class="text-3xl md:text-4xl font-black text-indigo-600 dark:text-indigo-300">---</div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <button onclick="timesUpAction('correct')" class="btn btn--primary py-5 text-lg" data-i18n="correct_btn">✅ صح!</button>
+            <button onclick="timesUpAction('pass')" class="btn btn--ghost py-5 text-lg" data-i18n="pass_btn">تخطي ↷</button>
+          </div>
+        </div>
+      </div>
+
 <div id="skill-modal" class="modal-overlay hidden">
     <div class="modal-content">
         <h2 class="card__title" data-i18n="skill_rating">تقييم المهارات</h2>
@@ -1569,7 +1791,60 @@
 
     </div>
 
-    <!-- NAME SHEET — used before creating or joining a room. -->
+        <!-- CHAMELEON MODALS -->
+    <div id="chameleon-accuse-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('chameleon-accuse-modal')">
+      <div class="modal-content">
+        <h2 class="card__title" data-i18n="accuse_chameleon">من هي الحرباء؟</h2>
+        <p class="field__hint" data-i18n="accuse_hint">صوتوا على اللاعب الذي تشكون في أنه الحرباء:</p>
+        <div id="chameleon-accuse-list" class="space-y-2 mb-4"></div>
+        <button onclick="closeModal('chameleon-accuse-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="chameleon-result-modal" class="modal-overlay hidden">
+      <div class="modal-content text-center">
+        <h2 id="chameleon-result-title" class="text-3xl font-black mb-2">---</h2>
+        <div id="chameleon-result-detail" class="mb-6"></div>
+        <button onclick="resetChameleonPlay()" class="btn btn--primary btn--lg w-full" data-i18n="play_again">العب مرة أخرى</button>
+      </div>
+    </div>
+
+    <!-- SPYFALL MODALS -->
+    <div id="spyfall-accuse-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('spyfall-accuse-modal')">
+      <div class="modal-content">
+        <h2 class="card__title" data-i18n="accuse_player">اتهام لاعب بالجاسوسية</h2>
+        <p class="field__hint" data-i18n="accuse_spy_hint">صوتوا بالإجماع على المشتبه به:</p>
+        <div id="spyfall-accuse-list" class="space-y-2 mb-4"></div>
+        <button onclick="closeModal('spyfall-accuse-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+
+    <div id="spyfall-spy-guess-modal" class="modal-overlay hidden">
+      <div class="modal-content text-center">
+        <h2 class="card__title text-rose-500" data-i18n="spy_guess_title">فرصة الجاسوس الأخيرة!</h2>
+        <p class="field__hint mb-4" data-i18n="spy_guess_hint">اختر الموقع الذي تعتقد أن الجميع فيه:</p>
+        <div id="spyfall-spy-guess-grid" class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-72 overflow-y-auto mb-4"></div>
+      </div>
+    </div>
+
+    <div id="spyfall-result-modal" class="modal-overlay hidden">
+      <div class="modal-content text-center">
+        <h2 id="spyfall-result-title" class="text-3xl font-black mb-2">---</h2>
+        <div id="spyfall-result-detail" class="mb-6"></div>
+        <button onclick="resetSpyfallPlay()" class="btn btn--primary btn--lg w-full" data-i18n="play_again">العب مرة أخرى</button>
+      </div>
+    </div>
+
+    <!-- TIME'S UP MODALS -->
+    <div id="timesup-result-modal" class="modal-overlay hidden">
+      <div class="modal-content text-center">
+        <h2 id="timesup-result-title" class="text-3xl font-black mb-2">---</h2>
+        <div id="timesup-result-detail" class="mb-6"></div>
+        <button onclick="resetTimesUpPlay()" class="btn btn--primary btn--lg w-full" data-i18n="play_again">العب مرة أخرى</button>
+      </div>
+    </div>
+
+<!-- NAME SHEET — used before creating or joining a room. -->
     <div id="name-modal" class="modal-overlay hidden" data-accent="teal">
       <div class="modal-content modal-content--simple">
         <div class="sheet__title" data-i18n="your_name">اسمك</div>
@@ -1643,8 +1918,14 @@
     <?!= include('JS_RoomGames'); ?>
     <?!= include('JS_RoomVoting'); ?>
     <?!= include('JS_RoomDraw'); ?>
+    <?!= include('JS_RoomFakeArtist'); ?>
+    <?!= include('JS_RoomWavelength'); ?>
+    <?!= include('JS_RoomTrivia'); ?>
     <?!= include('JS_Connections'); ?>
     <?!= include('JS_Domino'); ?>
+    <?!= include('JS_Chameleon'); ?>
+    <?!= include('JS_Spyfall'); ?>
+    <?!= include('JS_TimesUp'); ?>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- QR for room join links. Optional: the 4-letter code is always shown too. -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>

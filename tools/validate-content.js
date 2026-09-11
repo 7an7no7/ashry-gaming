@@ -98,6 +98,28 @@ for (const [lang, list] of Object.entries(CN)) {
   console.log(`codenames.${lang}: ${list.length} words`);
 }
 
+/* ------------------------------------------------ Wavelength & Trivia */
+const WL = load(PC, 'WAVELENGTH_PAIRS');
+for (const [lang, list] of Object.entries(WL)) {
+  list.forEach((pair, i) => {
+    if (!pair.left || !pair.left.trim()) note(`wavelength.${lang}[${i}]: empty left`);
+    if (!pair.right || !pair.right.trim()) note(`wavelength.${lang}[${i}]: empty right`);
+  });
+  console.log(`wavelength.${lang}: ${list.length} pairs`);
+}
+
+const TRIV = load(PC, 'TRIVIA_QUESTIONS');
+for (const [lang, list] of Object.entries(TRIV)) {
+  list.forEach((item, i) => {
+    if (!item.q || !item.q.trim()) note(`trivia.${lang}[${i}]: empty question`);
+    if (!Array.isArray(item.choices) || item.choices.length !== 4) note(`trivia.${lang}[${i}]: expected 4 choices`);
+    if (typeof item.answer !== 'number' || item.answer < 0 || item.answer > 3) note(`trivia.${lang}[${i}]: invalid answer index`);
+  });
+  const dup = list.map(x => x.q).filter((v, i, a) => a.indexOf(v) !== i);
+  if (dup.length) note(`trivia.${lang}: duplicate questions ${JSON.stringify(dup)}`);
+  console.log(`trivia.${lang}: ${list.length} questions`);
+}
+
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));
 process.exit(problems.length ? 1 : 0);

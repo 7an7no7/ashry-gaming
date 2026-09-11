@@ -128,6 +128,7 @@ const Room = (() => {
     session = null; state = null; lastSignature = '';
     clearTimeout(timer);
     remember();
+    if (typeof updateRoomBanner === 'function') updateRoomBanner();
     if (wasIn) {
       showToast(message, 'error');
       emit(true);
@@ -184,6 +185,7 @@ const Room = (() => {
       clearTimeout(timer);
       remember();
       emit(true);
+      if (typeof updateRoomBanner === 'function') updateRoomBanner();
       try { await call('leaveRoom', code, playerId); } catch (e) {}
     },
 
@@ -451,7 +453,28 @@ function renderChosenGame(state, game) {
  * waiting and to the game's own renderer once play starts.
  */
 Room.onChange((state) => {
-  if (!state) return;
+  if (!state) {
+    if (typeof updateRoomBanner === 'function') updateRoomBanner();
+    return;
+  }
+  if (typeof updateRoomBanner === 'function') updateRoomBanner();
+
+  // If user stepped away to menu or another screen, don't yank them back to lobby on routine polls
+  if (appState.currentView && !appState.currentView.startsWith('room-')) {
+    if (state.phase !== 'lobby') {
+      const game = ROOM_GAMES[state.game];
+      if (game && game.render) {
+        if (state.inGame === false) {
+          renderRoomSpectator(state);
+        } else {
+          setView('room-' + state.game);
+          game.render(state);
+        }
+      }
+    }
+    return;
+  }
+
   const game = ROOM_GAMES[state.game];
 
   if (state.phase === 'lobby') {
@@ -468,6 +491,65 @@ Room.onChange((state) => {
 
   if (game && game.render) game.render(state);
 });
+
+/**
+ * Returns the player to their currently active room screen (game or lobby).
+ */
+function roomReturnToActive() {
+  if (!Room.isIn || !Room.state) return;
+  const s = Room.state;
+  if (s.phase === 'lobby' || !s.game) {
+    setView('room-lobby');
+  } else {
+    const viewId = 'room-' + s.game;
+    setView(viewId);
+    const g = ROOM_GAMES[s.game];
+    if (g && g.render) g.render(s);
+  }
+  if (typeof updateRoomBanner === 'function') updateRoomBanner();
+}
+
+/**
+ * Updates or hides the active room bar at the top of the app.
+ */
+function updateRoomBanner() {
+  const banner = document.getElementById('active-room-banner');
+  if (!banner) return;
+
+  if (!Room || !Room.isIn || !Room.session) {
+    banner.classList.add('hidden');
+    return;
+  }
+
+  // If already on a room view, hide the banner to avoid clutter
+  if (appState.currentView && appState.currentView.startsWith('room-')) {
+    banner.classList.add('hidden');
+    return;
+  }
+
+  // Player is on menu or another view while a room is active: reveal banner
+  banner.classList.remove('hidden');
+  const s = Room.state;
+  const codeEl = document.getElementById('arb-code');
+  const descEl = document.getElementById('arb-desc');
+  const t = TRANSLATIONS[appState.lang] || {};
+
+  if (codeEl) codeEl.innerText = Room.session.code || '';
+  if (descEl) {
+    if (!s || s.phase === 'lobby') {
+      const pCount = (s && s.players) ? s.players.length : 1;
+      const countLabel = appState.lang === 'ar' ? `${pCount} لاعبين` : `${pCount} players`;
+      const lobbyLabel = t.room_in_lobby || (appState.lang === 'ar' ? 'قاعة الانتظار' : 'In Lobby');
+      descEl.innerText = `${lobbyLabel} • ${countLabel}`;
+    } else {
+      const entry = (typeof ROOM_HUB_GAMES !== 'undefined') ? ROOM_HUB_GAMES.find(g => g.id === s.game) : null;
+      const gName = entry ? (t[entry.titleKey] || entry.id) : (s.game || '');
+      const icon = entry ? entry.icon : '🎮';
+      const playLabel = t.room_playing_status || (appState.lang === 'ar' ? 'جارٍ اللعب' : 'Playing');
+      descEl.innerText = `${playLabel}: ${icon} ${gName}`;
+    }
+  }
+}
 
 /**
  * Shown to someone who joined mid-round. They're already in the room and will
@@ -549,7 +631,27 @@ async function initRooms() {
   const resumed = await Room.resume();
   if (resumed && Room.state) {
     const state = Room.state;
-    if (state.phase === 'lobby') setView('room-lobby');
+    // If reloading while inside a room view, restore to that room screen
+    if (appState.currentView && appState.currentView.startsWith('room-')) {
+      if (state.phase === 'lobby') {
+        setView('room-lobby');
+      } else {
+        const game = ROOM_GAMES[state.game];
+        if (game && game.render) {
+          if (state.inGame === false) {
+            renderRoomSpectator(state);
+          } else {
+            setView('room-' + state.game);
+            game.render(state);
+          }
+        }
+      }
+    } else {
+      // Reloaded while on menu or another view: stay there and show the active banner
+      updateRoomBanner();
+    }
+  } else {
+    updateRoomBanner();
   }
 }
 </script>

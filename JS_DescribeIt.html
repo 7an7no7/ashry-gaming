@@ -436,17 +436,18 @@ function startDescribeTimer() {
 }
 
 function nextDescribeCard() {
-    const lang = appState.lang;
-    const db = DESCRIBE_DB[lang];
-    
-    // Simple random selection (can be improved to avoid repeats)
-    let card;
-    let attempts = 0;
-    do {
-        card = db[Math.floor(Math.random() * db.length)];
-        attempts++;
-    } while (appState.describe.history.includes(card.word) && attempts < 10);
-    
+    const lang = appState.lang === 'en' ? 'en' : 'ar';
+    const db = DESCRIBE_DB[lang] || [];
+    if (!db.length) return;
+
+    if (!appState.describe.history) appState.describe.history = [];
+    let available = db.filter(c => !appState.describe.history.includes(c.word));
+    if (available.length === 0) {
+        appState.describe.history = [];
+        available = db;
+    }
+
+    const card = available[Math.floor(Math.random() * available.length)];
     appState.describe.history.push(card.word);
     appState.describe.currentCard = card;
     

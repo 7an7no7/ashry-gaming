@@ -211,6 +211,8 @@ const JO_WORDS_EN = [
     "Guitar", "Piano", "Drum", "Violin", "Microphone", "Headphones", "Radio", "Painting", "Sculpture", "Gift"
 ];
 
+let joProcessing = false;
+
 function startJustOneGame() {
     let selected = appState.activePlayers ? [...appState.activePlayers] : [];
     saveActivePlayers(selected);
@@ -224,11 +226,13 @@ function startJustOneGame() {
     appState.justone.players = selected;
     appState.justone.guesserIndex = 0; 
     appState.justone.score = 0;
+    joProcessing = false;
     
     nextJoRound();
 }
 
 function nextJoRound() {
+    joProcessing = false;
     appState.justone.clues = [];
     
     // Choose word based on language
@@ -343,6 +347,9 @@ function joShowResult() {
 }
 
 function joFinishRound(success) {
+    if (joProcessing) return;
+    joProcessing = true;
+
     if (success) {
         appState.justone.score++;
         playSound('success');
@@ -371,6 +378,7 @@ function joFinishRound(success) {
             : `Next guesser: ${nextGuesser}. Ready?`;
             
         showConfirmModal(`${msg} ${nextMsg}`, () => {
+             joProcessing = false;
              nextJoRound();
         });
     }, 1500);

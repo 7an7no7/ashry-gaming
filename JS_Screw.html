@@ -127,8 +127,10 @@
         const player = appState.screw.players.find(p => p.name === pName);
         
         if(player) {
-            if (val !== '') {
-                player.scores[roundIdx] = parseInt(val);
+            if (val !== '' && !isNaN(parseInt(val, 10))) {
+                player.scores[roundIdx] = parseInt(val, 10);
+            } else {
+                delete player.scores[roundIdx];
             }
             player.total = player.scores.reduce((a, b) => (a || 0) + (b || 0), 0);
         }

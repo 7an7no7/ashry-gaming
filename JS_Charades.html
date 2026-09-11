@@ -206,13 +206,20 @@ function nextCharadesCard(action) {
     
     const cardTitle = document.getElementById('charades-word');
     if(cardTitle) {
-        cardTitle.parentElement.classList.add('animate-flip');
-        setTimeout(() => cardTitle.parentElement.classList.remove('animate-flip'), 500);
-        setTimeout(() => { cardTitle.innerText = word; }, 250);
+        if (appState.charades.flipTimer) clearTimeout(appState.charades.flipTimer);
+        if (appState.charades.classTimer) clearTimeout(appState.charades.classTimer);
+        const cardParent = cardTitle.parentElement;
+        cardParent.classList.remove('animate-flip');
+        void cardParent.offsetWidth;
+        cardParent.classList.add('animate-flip');
+        appState.charades.classTimer = setTimeout(() => cardParent.classList.remove('animate-flip'), 500);
+        appState.charades.flipTimer = setTimeout(() => { cardTitle.innerText = word; }, 250);
     }
 }
 
 function finishCharadesGame() {
+    if (appState.charades.flipTimer) clearTimeout(appState.charades.flipTimer);
+    if (appState.charades.classTimer) clearTimeout(appState.charades.classTimer);
     if (appState.charades.interval) appState.charades.interval.stop();
     appState.charades.interval = null;
     

@@ -159,8 +159,18 @@
    *   seconds  countdown length (ignored when countUp is set)
    *   countUp  count up from zero instead of down (imposter's discussion timer)
    *   onTick   called with the whole-second value whenever it changes
-   *   onEnd    called once when a countdown reaches zero
+  /**
+   * Fisher-Yates uniform array shuffle.
    */
+  function shuffleArray(arr) {
+    const out = arr.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+
   function createClock(options) {
       const countUp = !!options.countUp;
       const totalMs = Math.max(0, Math.round(options.seconds || 0)) * 1000;

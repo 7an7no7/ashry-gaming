@@ -42,6 +42,13 @@ const clearGameState = (room) => {
   room._lies = null;
   room._word = null;
   room._ballots = null;
+  room._fakeId = null;
+  room._target = null;
+  room._deck = null;
+  room._qIdx = null;
+  room._currentQ = null;
+  room._answers = null;
+  room._qStart = null;
 };
 
 /** The stashed sides, minus anyone who has since left. */
@@ -1023,137 +1030,220 @@ const drawGuessAction = (room, playerId, action, payload) => {
 
 /* ==========================================================================
    الفنان المزيف — A FAKE ARTIST GOES TO NEW YORK
+   Everyone but one draws the same word, one line per turn, two laps round the
+   table. The fake only has everyone else's lines to go on.
    ========================================================================== */
-const fakeArtistAction = (room, playerId, action, payload) => {
-  const lang = (payload && payload.lang === 'en') ? 'en' : 'ar';
 
+/** The language a round is dealt in: what the host sent, else what the game already uses. */
+const roomLangOf = (room, payload) => {
+  const asked = payload && payload.lang;
+  if (asked === 'en' || asked === 'ar') return asked;
+  return (room.shared && room.shared.lang === 'en') ? 'en' : 'ar';
+};
+
+// Kept here rather than borrowed from DRAW_COLOURS: that list lives in
+// JS_RoomDraw.html, which is client code the server never sees. (The preview
+// concatenates client and server into one page, which is what hid it.)
+// Every colour reads on white paper, and none of them is white.
+const FAKE_ARTIST_COLOURS = ['#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2',
+                             '#db2777', '#65a30d', '#111827', '#78350f', '#ea580c', '#64748b'];
+const FAKE_ARTIST_ROUNDS = 2;
+// Points per line. The whole room is one cache entry (100 KB), and twelve
+// artists × two laps × this many points has to fit alongside everything else.
+const FAKE_ARTIST_MAX_POINTS = 150;
+
+const fakeArtistAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
     requireHost(room, playerId);
+    // Only from the results screen, so a double tap can't deal two rounds.
+    if (action === 'nextRound' && room.shared.phase !== 'results') return;
     if (room.players.length < 3) throw new Error('الحد الأدنى 3 لاعبين');
 
+    const lang = roomLangOf(room, payload);
+    const scores = action === 'nextRound' ? (room.shared.scores || {}) : {};
     const order = shuffled(room.players.map(p => p.id));
     const fakeId = order[Math.floor(Math.random() * order.length)];
+    // Opening with nothing on the page to copy is a giveaway, so the fake never goes first.
+    if (order[0] === fakeId) order.push(order.shift());
     const word = nextPrompt(room, DRAW_WORDS[lang], 'draw_' + lang);
 
     room.secrets = {};
     order.forEach(id => {
-      if (id === fakeId) {
-        room.secrets[id] = { isFake: true };
-      } else {
-        room.secrets[id] = { isFake: false, word: word };
-      }
+      room.secrets[id] = id === fakeId ? { isFake: true } : { isFake: false, word: word };
     });
-
     room._word = word;
     room._fakeId = fakeId;
 
     const colors = {};
-    order.forEach((id, i) => {
-      colors[id] = DRAW_COLOURS[i % DRAW_COLOURS.length];
-    });
+    order.forEach((id, i) => { colors[id] = FAKE_ARTIST_COLOURS[i % FAKE_ARTIST_COLOURS.length]; });
 
     room.shared = {
       round: 1,
-      totalRounds: 2,
+      totalRounds: FAKE_ARTIST_ROUNDS,
       drawerOrder: order,
       turnIndex: 0,
       currentDrawerId: order[0],
       colors: colors,
       strokes: [],
       phase: 'drawing',
+      scores: scores,
       lang: lang,
-      roster: order
+      roster: order.slice()
     };
     room.phase = 'play';
     return;
   }
 
+  const s = room.shared;
+
   if (action === 'sendStroke') {
-    const s = room.shared;
     if (s.phase !== 'drawing') throw new Error('ليس وقت الرسم');
     if (playerId !== s.currentDrawerId) throw new Error('ليس دورك في الرسم');
+    const raw = payload && payload.stroke && payload.stroke.p;
+    if (!Array.isArray(raw) || raw.length < 4) throw new Error('ارسم خطاً أولاً');
 
-    const stroke = payload && payload.stroke;
-    if (stroke && stroke.p && stroke.p.length >= 2) {
-      stroke.c = s.colors[playerId] || '#111';
-      stroke.w = 4;
-      s.strokes.push(stroke);
+    const grid = (v) => Math.max(0, Math.min(255, Math.round(Number(v) || 0)));
+    const p = [];
+    for (let i = 0; i + 1 < raw.length && p.length < FAKE_ARTIST_MAX_POINTS * 2; i += 2) {
+      p.push(grid(raw[i]), grid(raw[i + 1]));
     }
+    s.strokes.push({ c: s.colors[playerId] || '#111827', p: p });
+    advanceFakeArtistTurn(room);
+    return;
+  }
 
-    s.turnIndex++;
-    if (s.turnIndex >= s.drawerOrder.length) {
-      s.turnIndex = 0;
-      s.round++;
-    }
-
-    if (s.round > s.totalRounds) {
-      s.phase = 'voting';
-      const options = s.drawerOrder.map(id => {
-        const p = room.players.find(x => x.id === id);
-        return { id: id, label: p ? p.name : id };
-      });
-      openVote(room, options);
-    } else {
-      s.currentDrawerId = s.drawerOrder[s.turnIndex];
-    }
+  // A drawer whose phone died would hold the table forever; the host moves on.
+  if (action === 'skipTurn') {
+    requireHost(room, playerId);
+    if (s.phase === 'drawing') advanceFakeArtistTurn(room);
     return;
   }
 
   if (action === 'vote') {
-    castVote(room, playerId, String(payload.option || ''));
+    if (s.phase !== 'voting') throw new Error('لا يوجد تصويت الآن');
+    // castVote closes the vote by itself once the last ballot is in, and the
+    // reveal has to follow it or the table sits on a finished vote.
+    if (castVote(room, playerId, String((payload && payload.option) || ''))) revealFakeArtist(room);
     return;
   }
 
   if (action === 'closeVote') {
     requireHost(room, playerId);
+    if (s.phase !== 'voting') return;
     closeVote(room);
-    const s = room.shared;
-    s.phase = 'results';
-
-    const top = s.vote && s.vote.results && s.vote.results[0];
-    const caught = top && top.id === room._fakeId && top.count > 0;
-    s.fakeCaught = caught;
-    s.fakeId = room._fakeId;
-    s.secretWord = room._word;
+    revealFakeArtist(room);
     return;
   }
 
   if (action === 'fakeGuess') {
+    if (s.phase !== 'guessing') throw new Error('ليس وقت التخمين');
     if (playerId !== room._fakeId) throw new Error('الفنان المزيف فقط');
-    const guess = String((payload && payload.guess) || '').trim();
-    const correct = room._word;
-    const won = normaliseClue(guess) === normaliseClue(correct);
-    room.shared.fakeStoleWin = won;
-    room.shared.fakeGuessWord = guess;
+    const guess = String((payload && payload.guess) || '').trim().slice(0, 40);
+    if (!guess) throw new Error('اكتب تخمينك');
+    s.fakeGuessWord = guess;
+    finishFakeArtist(room, normaliseClue(guess) === normaliseClue(room._word) ? 'fake' : 'artists');
+    return;
+  }
+
+  // The caught fake left, or won't answer: the host settles it for the artists.
+  if (action === 'skipGuess') {
+    requireHost(room, playerId);
+    if (s.phase === 'guessing') finishFakeArtist(room, 'artists');
     return;
   }
 
   throw new Error('إجراء غير معروف');
 };
 
+/** Hands the pen on, skipping anyone who has left. After the last lap: the vote. */
+const advanceFakeArtistTurn = (room) => {
+  const s = room.shared;
+  const present = room.players.map(p => p.id);
+  const turns = s.drawerOrder.length * s.totalRounds;
+
+  for (let guard = 0; guard < turns; guard++) {
+    s.turnIndex++;
+    if (s.turnIndex >= s.drawerOrder.length) { s.turnIndex = 0; s.round++; }
+    if (s.round > s.totalRounds) break;
+    if (present.indexOf(s.drawerOrder[s.turnIndex]) !== -1) {
+      s.currentDrawerId = s.drawerOrder[s.turnIndex];
+      return;
+    }
+  }
+
+  s.round = s.totalRounds;
+  s.currentDrawerId = null;
+  s.phase = 'voting';
+  const options = s.drawerOrder
+    .filter(id => present.indexOf(id) !== -1)
+    .map(id => ({ id: id, label: (room.players.find(p => p.id === id) || {}).name || id }));
+  openVote(room, options, activeRoster(room, s.roster));
+};
+
+/**
+ * Caught only by a clear plurality — a tie at the top means the table couldn't
+ * agree, and the fake walks. A caught fake still gets to guess, so the word is
+ * not published until they have: it would otherwise be on their own screen.
+ */
+const revealFakeArtist = (room) => {
+  const s = room.shared;
+  const results = (s.vote && s.vote.results) || [];
+  const top = results.reduce((most, r) => Math.max(most, r.count), 0);
+  const leaders = results.filter(r => top > 0 && r.count === top);
+
+  s.fakeId = room._fakeId;
+  s.fakeCaught = leaders.length === 1 && leaders[0].id === room._fakeId;
+  if (s.fakeCaught) s.phase = 'guessing';
+  else finishFakeArtist(room, 'fake');
+};
+
+/** Publishes the word and scores it: 2 to a fake who wins, 1 to each artist otherwise. */
+const finishFakeArtist = (room, winner) => {
+  const s = room.shared;
+  s.phase = 'results';
+  s.winner = winner;
+  s.secretWord = room._word;
+  (s.roster || []).forEach(id => {
+    const isFake = id === room._fakeId;
+    if (winner === 'fake' && isFake) addScore(room, id, 2);
+    if (winner === 'artists' && !isFake) addScore(room, id, 1);
+  });
+  s.board = scoreboardOf(room);
+};
+
 /* ==========================================================================
    على نفس الموجة — WAVELENGTH
+   One psychic sees where the target sits between two opposites and gives a
+   clue; everyone else turns the dial. Co-operative, with one shared score.
    ========================================================================== */
-const wavelengthAction = (room, playerId, action, payload) => {
-  const lang = (payload && payload.lang === 'en') ? 'en' : 'ar';
 
+// Distance from the target on a 0–100 dial → points. The client draws the same
+// bands on the reveal, so the zone you see is the zone that scored.
+const WAVELENGTH_BANDS = [
+  { within: 3, points: 4 },
+  { within: 8, points: 3 },
+  { within: 15, points: 2 }
+];
+
+const wavelengthAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
     requireHost(room, playerId);
+    const prev = room.shared || {};
+    // From the results only (a double tap must not skip someone's turn as
+    // psychic) — unless the host is deliberately skipping a silent psychic.
+    if (action === 'nextRound' && prev.phase !== 'results' && !(payload && payload.skip)) return;
     if (room.players.length < 2) throw new Error('الحد الأدنى لاعبان');
 
-    const round = ((room.shared && room.shared.round) || 0) + 1;
-    const scores = (room.shared && room.shared.scores) || { team: 0 };
-    const psychicIdx = (round - 1) % room.players.length;
-    const psychic = room.players[psychicIdx];
-
-    const pairs = WAVELENGTH_PAIRS[lang] || WAVELENGTH_PAIRS.ar;
-    const pair = pairs[Math.floor(Math.random() * pairs.length)];
-    const target = Math.floor(Math.random() * 75) + 12;
+    const lang = roomLangOf(room, payload);
+    const round = action === 'start' ? 1 : (prev.round || 0) + 1;
+    const psychic = room.players[(round - 1) % room.players.length];
+    const pair = nextPrompt(room, WAVELENGTH_PAIRS[lang] || WAVELENGTH_PAIRS.ar, 'wavelength_' + lang);
+    // Kept off the very ends, where any clue at all gives it away.
+    const target = 8 + Math.floor(Math.random() * 85);
 
     room.secrets = {};
     room.secrets[psychic.id] = { target: target };
     room._target = target;
-
     room.shared = {
       round: round,
       psychicId: psychic.id,
@@ -1163,7 +1253,7 @@ const wavelengthAction = (room, playerId, action, payload) => {
       clue: null,
       dial: 50,
       phase: 'clue',
-      scores: scores,
+      scores: action === 'start' ? { team: 0 } : (prev.scores || { team: 0 }),
       lang: lang,
       roster: room.players.map(p => p.id)
     };
@@ -1171,10 +1261,12 @@ const wavelengthAction = (room, playerId, action, payload) => {
     return;
   }
 
+  const s = room.shared;
+
   if (action === 'giveClue') {
-    const s = room.shared;
+    if (s.phase !== 'clue') throw new Error('التلميح اتبعت خلاص');
     if (playerId !== s.psychicId) throw new Error('القارئ الذهني فقط');
-    const clue = String((payload && payload.clue) || '').trim();
+    const clue = String((payload && payload.clue) || '').trim().slice(0, 60);
     if (!clue) throw new Error('اكتب تلميحاً');
     s.clue = clue;
     s.phase = 'dial';
@@ -1182,26 +1274,27 @@ const wavelengthAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'setDial') {
-    const s = room.shared;
-    if (s.phase !== 'dial') throw new Error('المؤشر مقفل');
-    s.dial = Math.max(0, Math.min(100, Math.round(Number(payload && payload.dial) || 50)));
+    // A drag that lands just after the lock is not an error worth a toast.
+    if (s.phase !== 'dial') return;
+    // The psychic knows where the target is; letting them steer ends the game.
+    if (playerId === s.psychicId) throw new Error('القارئ الذهني لا يحرك المؤشر');
+    const dial = Number(payload && payload.dial);
+    if (!isFinite(dial)) throw new Error('قيمة غير صحيحة');
+    // Not `|| 50`: zero is a real position, the far left end.
+    s.dial = Math.max(0, Math.min(100, Math.round(dial)));
     return;
   }
 
   if (action === 'lockDial') {
     requireHost(room, playerId);
-    const s = room.shared;
-    s.phase = 'results';
+    // Once only: a second tap must not score the same round twice.
+    if (s.phase !== 'dial') return;
+    const diff = Math.abs(s.dial - room._target);
+    const band = WAVELENGTH_BANDS.find(b => diff <= b.within);
+    s.pointsEarned = band ? band.points : 0;
+    s.scores.team = (s.scores.team || 0) + s.pointsEarned;
     s.target = room._target;
-
-    const diff = Math.abs(s.dial - s.target);
-    let pts = 0;
-    if (diff <= 3) pts = 4;
-    else if (diff <= 8) pts = 3;
-    else if (diff <= 15) pts = 2;
-
-    s.pointsEarned = pts;
-    s.scores.team = (s.scores.team || 0) + pts;
+    s.phase = 'results';
     return;
   }
 
@@ -1209,75 +1302,77 @@ const wavelengthAction = (room, playerId, action, payload) => {
 };
 
 /* ==========================================================================
-   مسابقة المعلومات — TRIVIA NIGHT
+   تحدي المعلومات — TRIVIA
+   Ten questions to everyone at once. Right answers score, quick ones more.
    ========================================================================== */
+const TRIVIA_PER_GAME = 10;
+const TRIVIA_SECONDS = 15;
+// A round trip to Apps Script takes a second or two, so an answer tapped as
+// the clock hits zero still has to count.
+const TRIVIA_GRACE_MS = 2500;
+
 const triviaAction = (room, playerId, action, payload) => {
-  const lang = (payload && payload.lang === 'en') ? 'en' : 'ar';
-
-  if (action === 'start') {
+  if (action === 'start' || action === 'playAgain') {
     requireHost(room, playerId);
-    const db = TRIVIA_QUESTIONS[lang] || TRIVIA_QUESTIONS.ar;
-    const poolKey = 'trivia_' + lang;
-    room._used = room._used || {};
-    if (Array.isArray(room._used)) room._used = {};
-    let used = room._used[poolKey] || [];
-    if (used.length + 10 > db.length) used = [];
+    // 'start' is refused outside the lobby, so a finished game restarts here.
+    if (action === 'playAgain' && room.shared.phase !== 'gameover') return;
 
-    const available = [];
-    for (let i = 0; i < db.length; i++) {
-      if (used.indexOf(i) === -1) available.push(i);
+    const lang = roomLangOf(room, payload);
+    const pool = TRIVIA_QUESTIONS[lang] || TRIVIA_QUESTIONS.ar;
+    // The bank puts the right answer second three times in four, so the
+    // choices are reordered for every question — otherwise "always B" wins.
+    room._deck = [];
+    for (let i = 0; i < Math.min(TRIVIA_PER_GAME, pool.length); i++) {
+      const q = nextPrompt(room, pool, 'trivia_' + lang);
+      const order = shuffled(q.choices.map((_, k) => k));
+      room._deck.push({ q: q.q, choices: order.map(k => q.choices[k]), answer: order.indexOf(q.answer) });
     }
-    const chosen = shuffled(available).slice(0, 10);
-    used = used.concat(chosen);
-    room._used[poolKey] = used;
-
-    room._deck = chosen.map(i => db[i]);
-    room._qIdx = 0;
-    room.shared = room.shared || {};
-    room.shared.scores = {};
-    room.players.forEach(p => { room.shared.scores[p.id] = 0; });
+    room.shared = { scores: {}, lang: lang, roster: room.players.map(p => p.id) };
     dealTriviaQuestion(room, 0);
+    return;
+  }
+
+  const s = room.shared;
+
+  if (action === 'answer') {
+    if (s.phase !== 'answering') throw new Error('انتهى وقت الإجابة');
+    if ((s.roster || []).indexOf(playerId) === -1) throw new Error('لست ضمن هذه الجولة');
+    const choice = Number(payload && payload.choice);
+    if (!(choice >= 0 && choice < s.choices.length && choice === Math.floor(choice))) {
+      throw new Error('اختيار غير صحيح');
+    }
+    const now = Date.now();
+    if (now > s.endsAt + TRIVIA_GRACE_MS) {
+      closeTriviaQuestion(room);
+      return;
+    }
+    room._answers = room._answers || {};
+    if (room._answers[playerId]) return;
+    room._answers[playerId] = { choice: choice, time: Math.min(now, s.endsAt) };
+    s.answered.push(playerId);
+    if (activeRoster(room, s.roster).every(id => s.answered.indexOf(id) !== -1)) closeTriviaQuestion(room);
+    return;
+  }
+
+  if (action === 'closeQuestion') {
+    // The host can end a question early. Once time is up anyone can, so a host
+    // whose phone went to sleep doesn't leave the question open for good.
+    if (room.hostId !== playerId && Date.now() < s.endsAt) throw new Error('المضيف فقط يمكنه فعل ذلك');
+    closeTriviaQuestion(room);
     return;
   }
 
   if (action === 'nextQuestion') {
     requireHost(room, playerId);
-    room._qIdx++;
-    if (room._qIdx >= room._deck.length) {
-      room.shared.phase = 'gameover';
-      room.shared.board = scoreboardOf(room);
+    // From the results only: a double tap must not skip a question unseen.
+    if (s.phase !== 'results') return;
+    const next = (room._qIdx || 0) + 1;
+    if (next >= (room._deck || []).length) {
+      s.phase = 'gameover';
+      s.board = scoreboardOf(room);
       return;
     }
-    dealTriviaQuestion(room, room._qIdx);
-    return;
-  }
-
-  if (action === 'answer') {
-    const s = room.shared;
-    if (s.phase !== 'answering') throw new Error('انتهى وقت الإجابة');
-    room._answers = room._answers || {};
-    if (room._answers[playerId] !== undefined) return;
-
-    const choiceIdx = Number(payload && payload.choice);
-    const now = Date.now();
-    room._answers[playerId] = {
-      choice: choiceIdx,
-      time: now
-    };
-
-    if (s.answered.indexOf(playerId) === -1) {
-      s.answered.push(playerId);
-    }
-
-    if (s.answered.length >= room.players.length) {
-      closeTriviaQuestion(room);
-    }
-    return;
-  }
-
-  if (action === 'closeQuestion') {
-    requireHost(room, playerId);
-    closeTriviaQuestion(room);
+    dealTriviaQuestion(room, next);
     return;
   }
 
@@ -1286,10 +1381,11 @@ const triviaAction = (room, playerId, action, payload) => {
 
 const dealTriviaQuestion = (room, idx) => {
   const q = room._deck[idx];
+  const prev = room.shared || {};
+  room._qIdx = idx;
   room._currentQ = q;
   room._answers = {};
   room._qStart = Date.now();
-
   room.shared = {
     qIndex: idx,
     totalQuestions: room._deck.length,
@@ -1297,37 +1393,42 @@ const dealTriviaQuestion = (room, idx) => {
     choices: q.choices,
     phase: 'answering',
     answered: [],
-    endsAt: Date.now() + 15000,
-    scores: room.shared.scores || {},
-    board: scoreboardOf(room),
-    roster: room.players.map(p => p.id)
+    seconds: TRIVIA_SECONDS,
+    endsAt: room._qStart + TRIVIA_SECONDS * 1000,
+    scores: prev.scores || {},
+    lang: prev.lang,
+    roster: prev.roster || room.players.map(p => p.id)
   };
+  room.shared.board = scoreboardOf(room);
   room.phase = 'play';
 };
 
+/** Marks the answer, scores it and shows who picked what. Safe to call twice. */
 const closeTriviaQuestion = (room) => {
   const s = room.shared;
   if (s.phase !== 'answering') return;
+  const q = room._currentQ;
+  const answers = room._answers || {};
+  const windowMs = TRIVIA_SECONDS * 1000;
+  const counts = s.choices.map(() => 0);
+  const picks = {};
+  const gained = {};
 
-  s.phase = 'results';
-  s.correctAnswer = room._currentQ.answer;
-
-  const choiceCounts = [0, 0, 0, 0];
-  const qStart = room._qStart;
-
-  room.players.forEach(p => {
-    const ans = (room._answers || {})[p.id];
-    if (ans) {
-      choiceCounts[ans.choice] = (choiceCounts[ans.choice] || 0) + 1;
-      if (ans.choice === s.correctAnswer) {
-        const elapsed = Math.max(0, ans.time - qStart);
-        const speedRatio = Math.max(0, (15000 - elapsed) / 15000);
-        const pts = 1000 + Math.round(speedRatio * 500);
-        addScore(room, p.id, pts);
-      }
-    }
+  Object.keys(answers).forEach(pid => {
+    const a = answers[pid];
+    counts[a.choice]++;
+    picks[pid] = a.choice;
+    if (a.choice !== q.answer) return;
+    // 1000 for being right, and up to 500 more for being quick about it.
+    const elapsed = Math.max(0, a.time - room._qStart);
+    gained[pid] = 1000 + Math.round(Math.max(0, windowMs - elapsed) / windowMs * 500);
+    addScore(room, pid, gained[pid]);
   });
 
-  s.choiceCounts = choiceCounts;
+  s.phase = 'results';
+  s.correctAnswer = q.answer;
+  s.choiceCounts = counts;
+  s.picks = picks;
+  s.gained = gained;
   s.board = scoreboardOf(room);
 };

@@ -37,11 +37,11 @@ const TIMESUP_DB = {
     "Michael Jackson", "Albert Einstein", "Leonardo da Vinci", "William Shakespeare", "Cleopatra",
     "Napoleon Bonaparte", "Marilyn Monroe", "Elvis Presley", "Charlie Chaplin", "Abraham Lincoln",
     "Nelson Mandela", "Steve Jobs", "Bill Gates", "Walt Disney", "Cristiano Ronaldo", "Lionel Messi",
-    "Muhammad Ali", "Usain Bolt", "Tom Hanks", "Leonardo DiCaprio", "Brad Pitt", "Taylor Swift",
+    "Usain Bolt", "Tom Hanks", "Leonardo DiCaprio", "Brad Pitt", "Taylor Swift",
     "Beyonce", "Freddie Mercury", "Madonna", "Bob Marley", "Gordon Ramsay", "JK Rowling",
     // Characters & Movies
     "Harry Potter", "Spider-Man", "Batman", "Sherlock Holmes", "James Bond", "Darth Vader",
-    "Mickey Mouse", "Mario", "Pikachu", "Shrek", "Yoda", "Iron Man", "Jack Sparrow", "Barbie",
+    "Mickey Mouse", "Mario", "Pikachu", "Yoda", "Iron Man", "Jack Sparrow", "Barbie",
     "Titanic", "Jurassic Park", "Star Wars", "The Lion King", "Home Alone", "The Matrix",
     // Wonders & Places
     "Eiffel Tower", "Statue of Liberty", "Great Pyramids", "Colosseum", "Great Wall of China",
@@ -51,8 +51,8 @@ const TIMESUP_DB = {
     "Hot Air Balloon", "Roller Coaster", "Boomerang", "Parachute", "Hoverboard", "Chainsaw",
     "Espresso Machine", "Headphones", "Drone", "VR Headset", "Electric Guitar", "Trombone",
     // Animals
-    "T-Rex", "Kangaroo", "Penguin", "Octopus", "Giraffe", "Chameleon", "Platypus",
-    "Flamingo", "Gorilla", "Koala", "Sloth", "Hammerhead Shark", "Bald Eagle", "Peacock",
+    "T-Rex", "Kangaroo", "Penguin", "Octopus", "Giraffe", 
+    "Gorilla", "Hammerhead Shark", "Peacock",
     // Pop Culture & Actions
     "Moonwalk", "Selfie", "Karaoke", "Bungee Jump", "Surfing", "Breakdancing", "Juggling",
     "Arm Wrestling", "Scuba Diving", "Magic Trick", "CPR", "Bowling", "High Five", "Yawn"
@@ -96,7 +96,8 @@ function startTimesUpGame() {
   });
 
   const lang = appState.lang === 'en' ? 'en' : 'ar';
-  const db = TIMESUP_DB[lang] || TIMESUP_DB.ar;
+  // A repeat would put the same card in the deck twice - a free point.
+  const db = [...new Set(TIMESUP_DB[lang] || TIMESUP_DB.ar)];
   const deckSize = parseInt(document.getElementById('timesup-deck-size')?.value || '35', 10);
   timesUpState.turnTimerSeconds = parseInt(document.getElementById('timesup-turn-timer')?.value || '40', 10);
 
@@ -113,22 +114,14 @@ function startTimesUpGame() {
   startTimesUpRound(1);
 }
 
-function startTimesUpRound(roundNum) {
+function startTimesUpRound(roundNum, carrySeconds) {
   timesUpState.round = roundNum;
   timesUpState.currentRoundDeck = shuffleArray([...timesUpState.deck]);
-
-  const lang = appState.lang === 'en' ? 'en' : 'ar';
-  const roundTitles = {
-    1: lang === 'en' ? "Round 1: Describe with Any Words" : "الجولة 1: اشرح بأي كلام (بدون اسم الكلمة)",
-    2: lang === 'en' ? "Round 2: Exactly ONE Word!" : "الجولة 2: كلمة واحدة فقط!",
-    3: lang === 'en' ? "Round 3: Pantomime & Mime Only!" : "الجولة 3: تمثيل وبدون كلام نهائياً!"
-  };
-
-  const modalMsg = roundTitles[roundNum];
-  showConfirmModal(`${lang === 'en' ? 'Ready for ' : 'استعد لـ '}${modalMsg}`, () => {
-    setView('play-timesup');
-    prepareTimesUpTurn();
-  });
+  timesUpState.carrySeconds = carrySeconds || 0;
+  // No confirm dialog between rounds: cancelling it left the last card on
+  // screen with no clock and no way on. The ready card names the round instead.
+  setView('play-timesup');
+  prepareTimesUpTurn();
 }
 
 function prepareTimesUpTurn() {
@@ -151,6 +144,14 @@ function prepareTimesUpTurn() {
   document.getElementById('timesup-turn-ready-card').classList.remove('hidden');
   document.getElementById('timesup-turn-live-card').classList.add('hidden');
   document.getElementById('timesup-ready-player-name').innerText = activeClueGiver;
+
+  const rule = document.getElementById('timesup-round-rule');
+  if (rule) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    const carry = timesUpState.carrySeconds;
+    rule.textContent = ([t.timesup_r1, t.timesup_r2, t.timesup_r3][timesUpState.round - 1] || '')
+      + (carry ? ' · ⏱️ ' + (t.timesup_carry || '').replace('{n}', carry) : '');
+  }
 }
 
 function beginTimesUpLiveTurn() {
@@ -159,7 +160,8 @@ function beginTimesUpLiveTurn() {
 
   drawNextTimesUpCard();
 
-  let left = timesUpState.turnTimerSeconds;
+  let left = timesUpState.carrySeconds || timesUpState.turnTimerSeconds;
+  timesUpState.carrySeconds = 0;
   updateTimesUpClockUI(left);
 
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
@@ -240,17 +242,29 @@ function endTimesUpTurn(timeRanOut) {
 }
 
 function endTimesUpRound() {
+  // Read the clock before stopping it: whoever emptied the deck keeps their time.
+  const left = timesUpState.turnClock ? timesUpState.turnClock.value() : 0;
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
+  timesUpState.turnClock = null;
   playSound('success');
-  confetti({ particleCount: 100 });
 
-  const nextRound = timesUpState.round + 1;
-  if (nextRound <= 3) {
-    startTimesUpRound(nextRound);
-  } else {
-    // Game completed!
+  if (timesUpState.round >= 3) {
     finishTimesUpGrandFinale();
+    return;
   }
+
+  confetti({ particleCount: 100 });
+  const t = TRANSLATIONS[appState.lang] || {};
+  showToast((t.timesup_round_done || '').replace('{n}', timesUpState.round), 'success');
+
+  // The rule: the clue giver who cleared the deck carries straight on into the
+  // next round with the time they had left. With next to none left, it is
+  // simply the other team's turn.
+  if (left < 3) {
+    timesUpState.activePlayerIndex[timesUpState.activeTeam]++;
+    timesUpState.activeTeam = timesUpState.activeTeam === 1 ? 2 : 1;
+  }
+  startTimesUpRound(timesUpState.round + 1, left >= 3 ? left : 0);
 }
 
 function finishTimesUpGrandFinale() {
@@ -265,13 +279,13 @@ function finishTimesUpGrandFinale() {
   let winnerText = "";
   if (score1 > score2) {
     winnerText = lang === 'en' ? "🏆 TEAM 1 WINS!" : "🏆 فوز الفريق 1!";
-    titleEl.className = "text-3xl font-black text-blue-500 mb-2";
+    titleEl.className = "text-3xl font-black tx-accent mb-2";
   } else if (score2 > score1) {
     winnerText = lang === 'en' ? "🏆 TEAM 2 WINS!" : "🏆 فوز الفريق 2!";
-    titleEl.className = "text-3xl font-black text-amber-500 mb-2";
+    titleEl.className = "text-3xl font-black tx-warning mb-2";
   } else {
     winnerText = lang === 'en' ? "🤝 IT'S A TIE!" : "🤝 تعادل رائع!";
-    titleEl.className = "text-3xl font-black text-emerald-500 mb-2";
+    titleEl.className = "text-3xl font-black tx-success mb-2";
   }
 
   titleEl.innerText = winnerText;
@@ -280,12 +294,12 @@ function finishTimesUpGrandFinale() {
   detailEl.innerHTML = `
     <div class="grid grid-cols-2 gap-3 my-4">
       <div class="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 text-center">
-        <div class="text-xs uppercase font-bold text-blue-500">${lang === 'en' ? 'Team 1' : 'فريق 1'}</div>
+        <div class="text-xs uppercase font-bold tx-accent">${lang === 'en' ? 'Team 1' : 'فريق 1'}</div>
         <div class="text-3xl font-black my-1">${score1}</div>
         <div class="text-xs opacity-75">${timesUpState.teams[1].map(escapeHTML).join(', ')}</div>
       </div>
       <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
-        <div class="text-xs uppercase font-bold text-amber-500">${lang === 'en' ? 'Team 2' : 'فريق 2'}</div>
+        <div class="text-xs uppercase font-bold tx-warning">${lang === 'en' ? 'Team 2' : 'فريق 2'}</div>
         <div class="text-3xl font-black my-1">${score2}</div>
         <div class="text-xs opacity-75">${timesUpState.teams[2].map(escapeHTML).join(', ')}</div>
       </div>

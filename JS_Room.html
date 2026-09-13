@@ -448,106 +448,101 @@ function renderChosenGame(state, game) {
     ${options}`;
 }
 
-/**
- * The single place the room state reaches the UI. Routes to the lobby while
- * waiting and to the game's own renderer once play starts.
- */
-Room.onChange((state) => {
-  if (!state) {
-    if (typeof updateRoomBanner === 'function') updateRoomBanner();
-    return;
-  }
-  if (typeof updateRoomBanner === 'function') updateRoomBanner();
-
-  // If user stepped away to menu or another screen, don't yank them back to lobby on routine polls
-  if (appState.currentView && !appState.currentView.startsWith('room-')) {
-    if (state.phase !== 'lobby') {
-      const game = ROOM_GAMES[state.game];
-      if (game && game.render) {
-        if (state.inGame === false) {
-          renderRoomSpectator(state);
-        } else {
-          setView('room-' + state.game);
-          game.render(state);
-        }
-      }
-    }
-    return;
-  }
-
-  const game = ROOM_GAMES[state.game];
-
+/** Draws whatever the room is doing now: its lobby, a spectator note, or the game. */
+function routeRoomState(state) {
   if (state.phase === 'lobby') {
     if (appState.currentView !== 'room-lobby') setView('room-lobby');
     renderRoomLobby(state);
     return;
   }
-
   // Joined after this round was dealt: watch, don't break the game.
   if (state.inGame === false) {
     renderRoomSpectator(state);
     return;
   }
-
+  const game = ROOM_GAMES[state.game];
   if (game && game.render) game.render(state);
-});
-
-/**
- * Returns the player to their currently active room screen (game or lobby).
- */
-function roomReturnToActive() {
-  if (!Room.isIn || !Room.state) return;
-  const s = Room.state;
-  if (s.phase === 'lobby' || !s.game) {
-    setView('room-lobby');
-  } else {
-    const viewId = 'room-' + s.game;
-    setView(viewId);
-    const g = ROOM_GAMES[s.game];
-    if (g && g.render) g.render(s);
-  }
-  if (typeof updateRoomBanner === 'function') updateRoomBanner();
 }
 
+const onRoomView = () => (appState.currentView || '').indexOf('room-') === 0;
+
+let roomStageSeen = '';
+
 /**
- * Updates or hides the active room bar at the top of the app.
+ * The single place the room state reaches the UI.
+ *
+ * Someone who has stepped out of the room screens - to the menu, a timer, the
+ * rules - is left where they are. Drawing the room would call setView and drag
+ * them straight back, which is what every poll used to do. The banner keeps
+ * them in touch; only a game actually starting is worth a nudge.
  */
+Room.onChange((state) => {
+  updateRoomBanner();
+  if (!state) { roomStageSeen = ''; return; }
+
+  const stage = state.phase + '|' + (state.game || '');
+  const moved = roomStageSeen !== '' && roomStageSeen !== stage;
+  roomStageSeen = stage;
+
+  if (!onRoomView()) {
+    if (moved && state.phase !== 'lobby') {
+      const t = TRANSLATIONS[appState.lang] || {};
+      showToast(t.room_started_away || 'اللعبة بدأت في الغرفة');
+      haptic('light');
+    }
+    return;
+  }
+  routeRoomState(state);
+});
+
+/** The banner's "return": back to whatever the room is doing now. */
+function roomReturnToActive() {
+  const state = Room.state;
+  if (!Room.isIn || !state) return;
+  // The hidden view still holds the frame from when they left. Drop its
+  // signature so it is rebuilt from the current state rather than trusted.
+  if (state.phase !== 'lobby' && state.game) {
+    const view = document.getElementById('view-room-' + state.game);
+    if (view) delete view.dataset.sig;
+  }
+  routeRoomState(state);
+  updateRoomBanner();
+}
+
+/** The strip under the header while you are in a room but looking at something else. */
 function updateRoomBanner() {
   const banner = document.getElementById('active-room-banner');
   if (!banner) return;
-
-  if (!Room || !Room.isIn || !Room.session) {
+  const session = Room.session;
+  if (!session || onRoomView()) {
     banner.classList.add('hidden');
     return;
   }
 
-  // If already on a room view, hide the banner to avoid clutter
-  if (appState.currentView && appState.currentView.startsWith('room-')) {
-    banner.classList.add('hidden');
-    return;
-  }
-
-  // Player is on menu or another view while a room is active: reveal banner
-  banner.classList.remove('hidden');
-  const s = Room.state;
-  const codeEl = document.getElementById('arb-code');
-  const descEl = document.getElementById('arb-desc');
   const t = TRANSLATIONS[appState.lang] || {};
+  const s = Room.state;
+  banner.classList.remove('hidden');
+  banner.setAttribute('aria-label', t.active_room_label || '');
 
-  if (codeEl) codeEl.innerText = Room.session.code || '';
-  if (descEl) {
-    if (!s || s.phase === 'lobby') {
-      const pCount = (s && s.players) ? s.players.length : 1;
-      const countLabel = appState.lang === 'ar' ? `${pCount} لاعبين` : `${pCount} players`;
-      const lobbyLabel = t.room_in_lobby || (appState.lang === 'ar' ? 'قاعة الانتظار' : 'In Lobby');
-      descEl.innerText = `${lobbyLabel} • ${countLabel}`;
-    } else {
-      const entry = (typeof ROOM_HUB_GAMES !== 'undefined') ? ROOM_HUB_GAMES.find(g => g.id === s.game) : null;
-      const gName = entry ? (t[entry.titleKey] || entry.id) : (s.game || '');
-      const icon = entry ? entry.icon : '🎮';
-      const playLabel = t.room_playing_status || (appState.lang === 'ar' ? 'جارٍ اللعب' : 'Playing');
-      descEl.innerText = `${playLabel}: ${icon} ${gName}`;
-    }
+  const codeEl = document.getElementById('arb-code');
+  if (codeEl) codeEl.textContent = session.code || '';
+
+  let desc;
+  if (!s || s.phase === 'lobby' || !s.game) {
+    desc = (t.room_in_lobby || '') + ' \u2022 \ud83d\udc65 ' + ((s && s.players) ? s.players.length : 1);
+  } else {
+    const entry = ROOM_HUB_GAMES.find(g => g.id === s.game);
+    desc = (t.room_playing_status || '') + ': ' + (entry ? entry.icon + ' ' + (t[entry.key] || entry.id) : s.game);
+  }
+  const descEl = document.getElementById('arb-desc');
+  if (descEl) descEl.textContent = desc;
+
+  const back = banner.querySelector('.arb__btn--return');
+  if (back) back.title = t.room_return || '';
+  const leave = banner.querySelector('.arb__btn--leave');
+  if (leave) {
+    leave.title = t.room_leave || '';
+    leave.setAttribute('aria-label', leave.title);
   }
 }
 
@@ -629,29 +624,9 @@ async function initRooms() {
     return;
   }
   const resumed = await Room.resume();
-  if (resumed && Room.state) {
-    const state = Room.state;
-    // If reloading while inside a room view, restore to that room screen
-    if (appState.currentView && appState.currentView.startsWith('room-')) {
-      if (state.phase === 'lobby') {
-        setView('room-lobby');
-      } else {
-        const game = ROOM_GAMES[state.game];
-        if (game && game.render) {
-          if (state.inGame === false) {
-            renderRoomSpectator(state);
-          } else {
-            setView('room-' + state.game);
-            game.render(state);
-          }
-        }
-      }
-    } else {
-      // Reloaded while on menu or another view: stay there and show the active banner
-      updateRoomBanner();
-    }
-  } else {
-    updateRoomBanner();
-  }
+  // Reloaded on a room screen: draw it. Anywhere else, stay put - the banner
+  // is the way back.
+  if (resumed && Room.state && onRoomView()) routeRoomState(Room.state);
+  updateRoomBanner();
 }
 </script>

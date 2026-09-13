@@ -296,6 +296,15 @@ p { margin: 0; }
   padding-right: var(--safe-right);
 }
 
+/* Rows are pinned. The room banner is display:none most of the time, and with
+   nothing placed explicitly the main area slid up into the banner's auto row
+   and the nav into the 1fr one: a stretched nav on short screens, and on long
+   ones a nav pushed off the bottom. */
+.shell__header      { grid-row: 1; }
+.active-room-banner { grid-row: 2; }
+.shell__main        { grid-row: 3; }
+.shell__nav         { grid-row: 4; }
+
 /* --- Header --- */
 .shell__header {
   display: grid;
@@ -330,7 +339,7 @@ p { margin: 0; }
   background: linear-gradient(135deg, rgba(13, 148, 136, 0.18), rgba(99, 102, 241, 0.16));
   border: 1px solid rgba(20, 184, 166, 0.38);
   box-shadow: 0 4px 16px -2px rgba(13, 148, 136, 0.22);
-  border-radius: var(--rad-lg);
+  border-radius: var(--r-lg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: flex;
@@ -368,7 +377,7 @@ p { margin: 0; }
   background: rgba(13, 148, 136, 0.25);
   border: 1px solid rgba(20, 184, 166, 0.45);
   padding: 2px 8px;
-  border-radius: var(--rad-full);
+  border-radius: var(--r-full);
   flex-shrink: 0;
 }
 
@@ -405,7 +414,7 @@ p { margin: 0; }
 .arb__desc {
   font-size: var(--fs-xs);
   font-weight: 700;
-  color: var(--text-1);
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -424,7 +433,7 @@ p { margin: 0; }
   font-family: inherit;
   font-weight: 700;
   font-size: var(--fs-xs);
-  border-radius: var(--rad-md);
+  border-radius: var(--r-md);
   transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
@@ -433,9 +442,11 @@ p { margin: 0; }
 }
 
 .arb__btn--return {
-  background: linear-gradient(135deg, #0d9488, #059669);
-  color: #fff;
+  /* The token pair, not white on teal-600: that was 3.7:1 for 12px text. */
+  background: var(--success-btn);
+  color: var(--success-on);
   padding: 5px 12px;
+  min-height: 36px;
   box-shadow: 0 2px 8px rgba(13, 148, 136, 0.35);
 }
 
@@ -454,21 +465,17 @@ p { margin: 0; }
 }
 
 .arb__btn--leave {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.28);
-  width: 28px;
-  height: 28px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  border: 1px solid var(--danger);
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border-radius: var(--rad-full);
+  border-radius: var(--r-full);
   font-size: 13px;
 }
 
-.arb__btn--leave:hover {
-  background: rgba(239, 68, 68, 0.22);
-  color: #dc2626;
-  border-color: rgba(239, 68, 68, 0.45);
-}
+.arb__btn--leave:hover { filter: brightness(0.95); }
 
 /* --- Main scroll area --- */
 .shell__main {
@@ -2751,7 +2758,134 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
   .view-enter, .view-stagger > *, .animate-pop, .animate-fade-in {
     animation: none !important;
   }
+  .active-room-banner, .arb__pulse { animation: none !important; }
 }
+
+/* --- Fake Artist ---------------------------------------------------------- */
+/* No toolbar to fit, so the canvas can take more of the screen than Draw &
+   Guess gives it. */
+.fa-wrap {
+  max-height: calc(100dvh - 360px);
+  max-width: calc(100dvh - 360px);
+  min-height: 220px;
+  min-width: 220px;
+}
+#fa-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.fa-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: none;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.fa-legend { justify-content: center; margin-bottom: var(--sp-3); }
+.fa-legend .chip { height: 32px; padding-inline: var(--sp-2); }
+.fa-legend .chip.is-turn { box-shadow: 0 0 0 2px var(--accent); }
+
+/* --- Wavelength ----------------------------------------------------------- */
+.wl-spectrum { margin-top: var(--sp-3); }
+.wl-labels { display: flex; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.wl-label {
+  max-width: 48%;
+  padding: 4px var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.wl-labels .wl-label:last-child { text-align: right; }
+.wl-bar {
+  position: relative;
+  height: 56px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: linear-gradient(90deg, #38bdf8, #a78bfa 50%, #fb7185);
+  box-shadow: var(--sh-inset);
+}
+.wl-zone { position: absolute; top: 0; bottom: 0; }
+.wl-zone--2 { background: rgba(255, 255, 255, 0.35); }
+.wl-zone--3 { background: rgba(255, 255, 255, 0.6); }
+.wl-zone--4 { background: rgba(255, 255, 255, 0.92); }
+.wl-target { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #111827; }
+.wl-needle {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: #111827;
+  box-shadow: 0 0 0 2px #ffffff;
+  transition: left var(--dur-2) var(--ease-out);
+}
+/* Its own look: the app's text-field rules otherwise turn the range into an
+   empty input box with a dot in it. */
+.wl-spectrum input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 44px;
+  min-height: 0;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  touch-action: pan-y;
+}
+.wl-spectrum input[type="range"]::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+}
+.wl-spectrum input[type="range"]::-moz-range-track {
+  height: 10px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+}
+.wl-spectrum input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 30px;
+  height: 30px;
+  margin-top: -10px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid #ffffff;
+  box-shadow: var(--sh-2);
+}
+.wl-spectrum input[type="range"]::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid #ffffff;
+  box-shadow: var(--sh-2);
+}
+
+/* --- Trivia ----------------------------------------------------------------- */
+.trivia-choice { justify-content: flex-start; }
+.trivia-letter {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-weight: 900;
+}
+.trivia-choice.is-picked { border-color: var(--accent); background: var(--accent-soft); }
+.trivia-choice.is-picked .trivia-letter { background: var(--accent); color: var(--accent-on); }
+.trivia-choice:disabled:not(.is-picked) { opacity: 0.55; }
+.trivia-result.is-correct { border-color: var(--success); box-shadow: 0 0 0 1px var(--success); }
+.trivia-result.is-correct .result-row__bar { background: var(--success-soft); }
+.trivia-result.is-wrong { border-color: var(--danger); }
 
 /* Very small phones (SE-class, 320px) — tighten before anything overflows. */
 @media (max-width: 359px) {

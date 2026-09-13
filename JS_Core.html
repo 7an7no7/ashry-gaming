@@ -139,6 +139,19 @@
       haptic('light');
   }, { passive: true });
 
+  /**
+   * Fisher-Yates shuffle into a new array. Every "random order" in the app goes
+   * through this: sort(() => Math.random() - 0.5) is biased towards the start.
+   */
+  function shuffleArray(arr) {
+    const out = arr.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+
   /* --- CLOCKS --- */
 
   // Every live clock, so clearAllIntervals() can stop them and so they can all be
@@ -159,18 +172,8 @@
    *   seconds  countdown length (ignored when countUp is set)
    *   countUp  count up from zero instead of down (imposter's discussion timer)
    *   onTick   called with the whole-second value whenever it changes
-  /**
-   * Fisher-Yates uniform array shuffle.
+   *   onEnd    called once when a countdown reaches zero
    */
-  function shuffleArray(arr) {
-    const out = arr.slice();
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [out[i], out[j]] = [out[j], out[i]];
-    }
-    return out;
-  }
-
   function createClock(options) {
       const countUp = !!options.countUp;
       const totalMs = Math.max(0, Math.round(options.seconds || 0)) * 1000;
@@ -623,7 +626,6 @@
       fake_artist_hint: "أنت لا تعرف الكلمة! ارسم خطاً مقنعاً ولا تجعلهم يكتشفوك!",
       real_artist_word: "الكلمة السرية للرسم:",
       your_stroke_turn: "دورك في رسم خط واحد!",
-      wait_drawer: "في انتظار خط اللاعب…",
       send_stroke_btn: "إرسال الخط ✍️",
       fake_guess_prompt: "تم كشفك! خمن الكلمة لسرقة الفوز:",
       submit_guess_btn: "تخمين الكلمة",
@@ -637,7 +639,6 @@
       very_close: "✨ قريب جداً! (+3 نقاط)",
       close_points: "👍 قريب! (+2 نقاط)",
       miss_points: "❌ بعيد! (0 نقاط)",
-      trivia_score: "النقاط",
       trivia_q_of: "السؤال",
       next_q_btn: "السؤال التالي ⏭️",
       setup_chameleon: "الحرباء",
@@ -662,9 +663,51 @@
       start_turn: "ابدأ الدور ⏱️",
       correct_btn: "✅ صح!",
       pass_btn: "تخطي ↷",
-      chameleon_desc: "لعبة ذكاء وتمويه: الجميع يعرف الكلمة السرية ما عدا الحرباء!",
-      spyfall_desc: "الجميع في موقع محدد ويعرفون وظائفهم، والجاسوس لا يعرف أين هو!",
-      timesup_desc: "لعبة فرق سريعة في 3 جولات: كلام حر، ثم كلمة واحدة، ثم تمثيل فقط!",
+      fa_hint: "3 لاعبين أو أكتر. الكل بيرسم نفس الكلمة، خط واحد في كل دور — ماعدا الفنان المزيف اللي مايعرفهاش.",
+      fa_is_drawing: "بيرسم…",
+      fa_redo: "↺ ارسم تاني",
+      fa_one_line: "خط واحد متصل — ارسم من غير ما ترفع صباعك",
+      fa_one_line_toast: "خط واحد بس — اضغط «ارسم تاني» لو عايز تعيده",
+      fa_skip_turn: "تخطي دوره ⏭️",
+      fa_vote_title: "🔍 مين الفنان المزيف؟",
+      fa_end_vote: "إنهاء التصويت 🔒",
+      fa_caught: "🕵️ اتكشف!",
+      fa_guessing_wait: "بيحاول يخمّن الكلمة عشان يسرق الفوز…",
+      fa_skip_guess: "إنهاء من غير تخمين",
+      fa_escaped: "الفنان المزيف عدّى من غير ما حد يكشفه!",
+      fa_stole: "اتكشف، بس خمّن الكلمة وسرق الفوز!",
+      fa_artists_win: "اتكشف وماعرفش الكلمة — الفنانين كسبوا!",
+      fa_word_was: "الكلمة كانت",
+      fa_fake_was: "الفنان المزيف:",
+      fa_guessed: "خمّن",
+      wl_hint: "لاعبين أو أكتر. واحد يشوف مكان الهدف ويدي تلميح، والباقي يحركوا المؤشر.",
+      wl_psychic: "القارئ الذهني",
+      wl_clue: "التلميح",
+      wl_team_score: "نقاط الفريق",
+      wl_zone_hint: "🎯 الهدف هو المنطقة البيضاء — كل ما الفريق يقرب من نصها، نقط أكتر",
+      wl_waiting_clue: "مستنيين تلميح",
+      wl_skip_psychic: "تخطي القارئ ⏭️",
+      wl_psychic_quiet: "خليك ساكت — الفريق هو اللي بيحرك المؤشر",
+      wl_host_locks: "المضيف بيقفل المؤشر لما الفريق يتفق",
+      wl_dial: "المؤشر",
+      wl_target: "الهدف",
+      trivia_hint: "10 أسئلة للكل في نفس الوقت — الإجابة الصح بنقط، والأسرع بنقط أكتر.",
+      trivia_locked: "إجابتك اتسجلت",
+      trivia_answered: "جاوبوا",
+      trivia_close_early: "إنهاء السؤال ⏱️",
+      trivia_no_answer: "⏰ ماجاوبتش",
+      trivia_wrong: "❌ إجابة غلط",
+      trivia_final: "النتيجة النهائية 🏆",
+      trivia_champion: "بطل المعلومات",
+      room_started_away: "اللعبة بدأت في الغرفة — اضغط «عودة»",
+      resume_btn: "استئناف",
+      timesup_team_1: "فريق 1",
+      timesup_team_2: "فريق 2",
+      timesup_r1: "الجولة 1: اشرح بأي كلام (من غير الكلمة نفسها)",
+      timesup_r2: "الجولة 2: كلمة واحدة بس!",
+      timesup_r3: "الجولة 3: تمثيل من غير ولا صوت!",
+      timesup_carry: "مكمّل بـ {n} ثانية",
+      timesup_round_done: "خلصت الجولة {n}! 🎉",
       target_score: "الهدف (مثلاً 101)",
       points: "نقاط",
       win_title: "انتهت اللعبة!",
@@ -991,7 +1034,6 @@
       fake_artist_hint: "You don't know the word! Draw a believable stroke and don't get caught!",
       real_artist_word: "Secret word to draw:",
       your_stroke_turn: "Your turn to draw ONE stroke!",
-      wait_drawer: "Waiting for player's stroke…",
       send_stroke_btn: "Submit Stroke ✍️",
       fake_guess_prompt: "You were caught! Guess the word to steal the win:",
       submit_guess_btn: "Guess Word",
@@ -1005,7 +1047,6 @@
       very_close: "✨ Very Close! (+3 pts)",
       close_points: "👍 Close! (+2 pts)",
       miss_points: "❌ Miss! (0 pts)",
-      trivia_score: "Score",
       trivia_q_of: "Question",
       next_q_btn: "Next Question ⏭️",
       setup_chameleon: "The Chameleon",
@@ -1030,9 +1071,51 @@
       start_turn: "Start Turn ⏱️",
       correct_btn: "✅ Correct!",
       pass_btn: "Pass ↷",
-      chameleon_desc: "A game of wits & deception: Everyone knows the word except the Chameleon!",
-      spyfall_desc: "Everyone is in a location with a role, except the Spy who doesn't know where they are!",
-      timesup_desc: "Fast team game in 3 rounds: Any words, One word only, then Mime only!",
+      fa_hint: "3+ players. Everyone draws the same word, one line a turn — except the Fake Artist, who doesn't know it.",
+      fa_is_drawing: "is drawing…",
+      fa_redo: "↺ Redo line",
+      fa_one_line: "One continuous line — don't lift your finger",
+      fa_one_line_toast: "Just one line — tap Redo to try again",
+      fa_skip_turn: "Skip their turn ⏭️",
+      fa_vote_title: "🔍 Who is the Fake Artist?",
+      fa_end_vote: "End voting 🔒",
+      fa_caught: "🕵️ Caught!",
+      fa_guessing_wait: "Trying to guess the word to steal the win…",
+      fa_skip_guess: "End without a guess",
+      fa_escaped: "The Fake Artist got away with it!",
+      fa_stole: "Caught — but guessed the word and stole the win!",
+      fa_artists_win: "Caught, and missed the word — the artists win!",
+      fa_word_was: "The word was",
+      fa_fake_was: "Fake Artist:",
+      fa_guessed: "guessed",
+      wl_hint: "2+ players. One sees where the target is and gives a clue; the rest turn the dial.",
+      wl_psychic: "Psychic",
+      wl_clue: "Clue",
+      wl_team_score: "Team",
+      wl_zone_hint: "🎯 The target is the white zone — the closer the team gets to its centre, the more points",
+      wl_waiting_clue: "Waiting for a clue from",
+      wl_skip_psychic: "Skip psychic ⏭️",
+      wl_psychic_quiet: "Stay quiet — the team turns the dial",
+      wl_host_locks: "The host locks the dial when the team agrees",
+      wl_dial: "Dial",
+      wl_target: "Target",
+      trivia_hint: "10 questions to everyone at once — right answers score, faster ones score more.",
+      trivia_locked: "Answer locked in",
+      trivia_answered: "answered",
+      trivia_close_early: "Close question ⏱️",
+      trivia_no_answer: "⏰ No answer",
+      trivia_wrong: "❌ Wrong answer",
+      trivia_final: "Final results 🏆",
+      trivia_champion: "Trivia champion",
+      room_started_away: "The game started in your room — tap Return",
+      resume_btn: "Resume",
+      timesup_team_1: "Team 1",
+      timesup_team_2: "Team 2",
+      timesup_r1: "Round 1: describe it any way you like (not the word itself)",
+      timesup_r2: "Round 2: exactly ONE word!",
+      timesup_r3: "Round 3: act it out, no sound at all!",
+      timesup_carry: "carrying on with {n}s",
+      timesup_round_done: "Round {n} done! 🎉",
       target_score: "Target (e.g. 101)",
       points: "Points",
       win_title: "Game Over!",
@@ -1351,6 +1434,7 @@
     // 👇 FIX: Added 'input-whoami' and 'play-chess' to the safe list
     const validViews = [
         'menu', 
+        'setup-chameleon', 'reveal-chameleon', 'play-chameleon', 'setup-spyfall', 'reveal-spyfall', 'play-spyfall', 'setup-timesup', 'play-timesup',
         'setup-screw', 'play-screw', 
         'setup-monkey', 'play-monkey', 
         'setup-imposter', 'imposter-reveal', 'play-imposter', 
@@ -1391,7 +1475,10 @@
             // is its own store now and is loaded by initializeApp.
             delete appState.cachedPlayers;
 
-            if (!validViews.includes(appState.currentView)) {
+            // Room screens come back too: initRooms() redraws them once the session
+            // resumes, and restoreView() sends the player to the menu if it can't.
+            // Left out, a reload mid-game always landed on the menu.
+            if (!validViews.includes(appState.currentView) && String(appState.currentView || '').indexOf('room-') !== 0) {
                 appState.currentView = 'menu';
             }
             if(appState.isDarkMode) document.body.classList.add('dark');
@@ -1522,11 +1609,18 @@
         else if (appState.currentView === 'play-justone') {
             setTimeout(() => { setView('setup-justone'); toastRoundLost(); }, 50);
         }
+        // The pass-the-phone deals live in module variables, not appState, so a
+        // reload has no deal to show - and the reveal screens hold the secrets.
+        else if (/^(reveal|play)-(chameleon|spyfall)$/.test(appState.currentView) || appState.currentView === 'play-timesup') {
+            const game = appState.currentView.split('-')[1];
+            setTimeout(() => { setView('setup-' + game); toastRoundLost(); }, 50);
+        }
         // 👆 END PROTECTIONS 👆
         else if (appState.currentView.startsWith('setup-')) {
             const listId = appState.currentView.replace('setup-', '') + '-player-list';
             if(typeof renderActiveChips === 'function') renderActiveChips(listId, true);
             if(appState.currentView === 'setup-imposter' && typeof renderSpyCategories === 'function') renderSpyCategories();
+            if(appState.currentView === 'setup-chameleon' && typeof renderChameleonCategories === 'function') renderChameleonCategories();
             
             if(appState.currentView === 'setup-charades' && typeof renderCharadesDropdown === 'function') {
                 renderCharadesDropdown(); 
@@ -1720,6 +1814,7 @@
         const listId = viewId.replace('setup-', '') + '-player-list';
         if(typeof renderActiveChips === 'function') renderActiveChips(listId, true);
         if(viewId === 'setup-imposter' && typeof renderSpyCategories === 'function') renderSpyCategories();
+        if(viewId === 'setup-chameleon' && typeof renderChameleonCategories === 'function') renderChameleonCategories();
         if(viewId === 'setup-charades' && typeof renderCharadesDropdown === 'function') renderCharadesDropdown();
     }
     applyTranslations();
@@ -1800,13 +1895,14 @@ const GAME_RULES = {
                 <li>يمر الدور على كل لاعب لرسم <b>خط واحد متصل</b> على اللوحة بلونه الخاص.</li>
                 <li>تُلعب جولتان من الخطوط لكل لاعب.</li>
                 <li><b>التصويت:</b> يصوت الجميع لكشف الفنان المزيف. إذا تم كشفه، فلديه فرصة أخيرة لتخمين الكلمة وسرقة الفوز!</li>
+                <li>لو الأصوات اتعادلت على الأول، الفنان المزيف بيهرب. والمضيف يقدر يتخطى دور أي حد النت فصل عنده.</li>
             </ol>`,
         wavelength: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>يظهر طيف بين مفهومين متناقضين (مثلاً: بارد ↔ ساخن).</li>
                 <li>يرى <b>القارئ الذهني</b> موضع الهدف السري بدقة، ويعطي تلميحاً مناسباً.</li>
                 <li>يتشاور باقي الفريق ويسحبون المؤشر إلى المكان المتوقع.</li>
-                <li>يتم قفل المؤشر وكشف الهدف واحتساب النقاط حسب دقة التخمين!</li>
+                <li>القارئ مايحركش المؤشر. المضيف يقفله لما الفريق يتفق: في الصميم 4 نقاط، قريب جداً 3، قريب 2.</li>
             </ol>`,
         trivia: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -2039,6 +2135,7 @@ const GAME_RULES = {
                     <li><b>الجولة 2 (كلمة واحدة):</b> لا يحق للشارح قول سوى <b>كلمة واحدة فقط</b> كتلميح!</li>
                     <li><b>الجولة 3 (تمثيل وبدون صوت):</b> حركات وتمثيل صامت فقط، يمنع إصدار أي صوت نهائياً!</li>
                 </ul>
+                <li>لو الكروت خلصت في نص دورك، بتكمل على طول في الجولة اللي بعدها بالوقت اللي فاضلك.</li>
                 <li>الفريق الذي يجمع أكبر عدد نقاط بعد نهاية الجولات الثلاث يفوز بالبطولة!</li>
             </ol>`,
         domino: `
@@ -2077,13 +2174,14 @@ const GAME_RULES = {
                 <li>Players take turns adding <b>one continuous stroke</b> to the shared canvas in their designated color.</li>
                 <li>Everyone draws two strokes across two complete rounds.</li>
                 <li><b>Voting:</b> Everyone votes on who the Fake Artist is. If caught, the Fake Artist gets one chance to guess the word to steal the win!</li>
+                <li>A tie for the most votes lets the Fake Artist escape. The host can skip anyone whose phone drops out.</li>
             </ol>`,
         wavelength: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>A spectrum between two opposite concepts appears (e.g. Freezing ↔ Boiling Hot).</li>
                 <li>The <b>Psychic</b> sees the secret bullseye location and provides a single clue.</li>
                 <li>The team discusses and rotates the dial to match where they think the clue lands.</li>
-                <li>The target is revealed and points awarded based on accuracy!</li>
+                <li>The psychic can't touch the dial. The host locks it when the team agrees: bullseye 4 points, very close 3, close 2.</li>
             </ol>`,
         trivia: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -2316,6 +2414,7 @@ const GAME_RULES = {
                     <li><b>Round 2 (One Word):</b> The clue giver can say strictly <b>ONE word only</b>!</li>
                     <li><b>Round 3 (Mime Only):</b> Pure pantomime / charades. Zero sounds or words allowed!</li>
                 </ul>
+                <li>Empty the deck mid-turn and you carry straight on into the next round with the time you had left.</li>
                 <li>The team with the most points after all 3 rounds wins the game!</li>
             </ol>`,
         domino: `

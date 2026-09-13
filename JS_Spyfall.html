@@ -139,7 +139,13 @@ function startSpyfallGame() {
   spyfallState.location = loc;
 
   // Spies count (default 1, or 2 if selected)
-  const spyCount = parseInt(document.getElementById('spyfall-spies-count')?.value || '1', 10);
+  // Two spies among three to five players leaves too few people who know the
+  // place for the questions to catch anyone.
+  const askedSpies = parseInt(document.getElementById('spyfall-spies-count')?.value || '1', 10);
+  const spyCount = selected.length >= 6 ? Math.min(Math.max(askedSpies, 1), 2) : 1;
+  if (askedSpies > spyCount) {
+    showToast(appState.lang === 'en' ? 'Two spies need 6+ players — playing with one.' : 'جاسوسين محتاجين 6 لاعبين أو أكتر — هنلعب بجاسوس واحد.');
+  }
   const shuffledPlayers = shuffleArray(selected);
   spyfallState.players = shuffledPlayers;
   spyfallState.spies = shuffledPlayers.slice(0, spyCount);
@@ -192,7 +198,7 @@ function revealSpyfallSecret() {
     titleEl.innerText = lang === 'en' ? "🕵️ YOU ARE THE SPY!" : "🕵️ أنت الجاسوس!";
     detailEl.innerHTML = `
       <div class="space-y-2">
-        <div class="text-xs uppercase tracking-wider text-rose-400 font-bold">${lang === 'en' ? 'Location: Unknown' : 'الموقع: غير معروف'}</div>
+        <div class="text-xs uppercase tracking-wider tx-danger font-bold">${lang === 'en' ? 'Location: Unknown' : 'الموقع: غير معروف'}</div>
         <p class="text-sm opacity-90">${lang === 'en' ? 'Listen closely, deduce the location from others, and blend in!' : 'استمع بذكاء لأسئلة وأجوبة الآخرين، خمن الموقع، ولا تجعل أحداً يكتشفك!'}</p>
       </div>
     `;
@@ -202,7 +208,7 @@ function revealSpyfallSecret() {
     detailEl.innerHTML = `
       <div class="space-y-2">
         <div class="text-xs uppercase tracking-wider opacity-75">${lang === 'en' ? 'Location' : 'الموقع'}</div>
-        <div class="text-2xl font-black text-amber-300">${escapeHTML(spyfallState.location.location)}</div>
+        <div class="text-2xl font-black tx-warning">${escapeHTML(spyfallState.location.location)}</div>
         <div class="text-xs uppercase tracking-wider opacity-75">${lang === 'en' ? 'Your Role' : 'دورك'}</div>
         <div class="text-xl font-bold">${escapeHTML(info.role)}</div>
       </div>
@@ -221,6 +227,7 @@ function doneSpyfallRevealStep() {
 function startSpyfallDiscussion() {
   setView('play-spyfall');
   renderSpyfallLocationBoard();
+  setSpyfallPauseLabel(false);
 
   if (spyfallState.timerClock) spyfallState.timerClock.stop();
 
@@ -232,12 +239,11 @@ function startSpyfallDiscussion() {
     onTick: (val) => {
       updateSpyfallTimerUI(val);
       if (val === 60) playSound('tick');
-      if (val === 0) {
-        playSound('alarm');
-        openSpyfallAccuseModal();
-      }
     },
+    // Only here: the tick for 0 arrives as well, and opening the vote from
+    // both played the alarm and built the list twice.
     onEnd: () => {
+      playSound('alarm');
       openSpyfallAccuseModal();
     }
   });
@@ -248,16 +254,21 @@ function updateSpyfallTimerUI(sec) {
   if (!el) return;
   const m = Math.floor(sec / 60);
   const s = sec % 60;
-  el.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+  el.innerText = `${String(m).padStart(2, '0')}:${s < 10 ? '0' : ''}${s}`;
 }
 
 function toggleSpyfallPause() {
-  if (spyfallState.timerClock) {
-    const isPaused = spyfallState.timerClock.toggle();
-    const btn = document.getElementById('spyfall-pause-btn');
-    const lang = appState.lang === 'en' ? 'en' : 'ar';
-    if (btn) btn.innerText = isPaused ? (lang === 'en' ? 'Resume' : 'استئناف') : (lang === 'en' ? 'Pause' : 'إيقاف مؤقت');
-  }
+  if (spyfallState.timerClock) setSpyfallPauseLabel(spyfallState.timerClock.toggle());
+}
+
+function setSpyfallPauseLabel(paused) {
+  const btn = document.getElementById('spyfall-pause-btn');
+  if (!btn) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  // The key moves with the label, or the next applyTranslations would put
+  // "pause" back on a clock that is already paused.
+  btn.setAttribute('data-i18n', paused ? 'resume_btn' : 'pause_btn');
+  btn.textContent = paused ? (t.resume_btn || '') : (t.pause_btn || '');
 }
 
 function renderSpyfallLocationBoard() {
@@ -291,10 +302,9 @@ function openSpyfallAccuseModal() {
   const list = document.getElementById('spyfall-accuse-list');
   if (list) {
     list.innerHTML = spyfallState.players.map(p => `
-      <button onclick="voteSpyfallAccused('${jsStringAttr(p)}')"
-              class="w-full text-left px-4 py-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-rose-500 hover:text-white font-bold flex items-center justify-between transition-colors">
-        <span>${escapeHTML(p)}</span>
-        <span class="text-xs opacity-75">${lang === 'en' ? 'Vote as Spy' : 'اتهام بالجاسوسية'}</span>
+      <button class="ballot-option" onclick="voteSpyfallAccused('${jsStringAttr(p)}')">
+        <span class="ballot-option__label">${escapeHTML(p)}</span>
+        <span class="badge badge--danger">${lang === 'en' ? 'Spy?' : 'جاسوس؟'}</span>
       </button>
     `).join('');
   }
@@ -325,7 +335,7 @@ function openSpyfallGuessModal(spyName) {
   if (list) {
     list.innerHTML = db.map(item => `
       <button onclick="spySubmitLocationGuess('${jsStringAttr(item.location)}', '${jsStringAttr(spyName)}')"
-              class="p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-amber-500 hover:text-black font-bold text-xs transition-colors text-center">
+              class="p-3 rounded-xl bg-black/5 dark:bg-white/5 active:bg-amber-500 active:text-black font-bold text-xs transition-colors text-center">
         ${escapeHTML(item.location)}
       </button>
     `).join('');
@@ -356,10 +366,10 @@ function finishSpyfallGame(civiliansWon, message) {
 
   if (civiliansWon) {
     titleEl.innerText = lang === 'en' ? "🎉 CIVILIANS WIN!" : "🎉 فوز المواطنين!";
-    titleEl.className = "text-3xl font-black text-emerald-500 mb-2";
+    titleEl.className = "text-3xl font-black tx-success mb-2";
   } else {
     titleEl.innerText = lang === 'en' ? "🕵️ SPY WINS!" : "🕵️ فوز الجاسوس!";
-    titleEl.className = "text-3xl font-black text-rose-500 mb-2";
+    titleEl.className = "text-3xl font-black tx-danger mb-2";
   }
 
   detailEl.innerHTML = `

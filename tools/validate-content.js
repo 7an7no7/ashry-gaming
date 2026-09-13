@@ -120,6 +120,42 @@ for (const [lang, list] of Object.entries(TRIV)) {
   console.log(`trivia.${lang}: ${list.length} questions`);
 }
 
+/* ------------------------------------------- Pass-the-phone deduction games */
+const G = 'C:/Users/TPC/Apps Script/G/';
+
+// The Chameleon's board is a 4×4 grid: exactly 16 words, and a repeat would
+// make the chameleon's final guess ambiguous. The two languages are listed in
+// the same order, which is what lets a category pick survive a language switch.
+const CHAM = load(G + 'JS_Chameleon.html', 'CHAMELEON_DB');
+for (const [lang, cats] of Object.entries(CHAM)) {
+  cats.forEach((c, i) => {
+    if (c.words.length !== 16) note(`chameleon.${lang}[${i}] ${c.category}: ${c.words.length} words, the grid needs 16`);
+    const dup = c.words.filter((w, k, a) => a.indexOf(w) !== k);
+    if (dup.length) note(`chameleon.${lang}[${i}] ${c.category}: duplicates ${JSON.stringify(dup)}`);
+  });
+  console.log(`chameleon.${lang}: ${cats.length} categories`);
+}
+if (CHAM.ar.length !== CHAM.en.length) note(`chameleon: ${CHAM.ar.length} ar categories vs ${CHAM.en.length} en`);
+
+// The spy's guess is matched on the location's name, so names must be unique.
+const SPY = load(G + 'JS_Spyfall.html', 'SPYFALL_DB');
+for (const [lang, locs] of Object.entries(SPY)) {
+  const names = locs.map(l => l.location);
+  const dup = names.filter((w, k, a) => a.indexOf(w) !== k);
+  if (dup.length) note(`spyfall.${lang}: duplicate locations ${JSON.stringify(dup)}`);
+  locs.forEach(l => { if (!l.roles || l.roles.length < 4) note(`spyfall.${lang} ${l.location}: too few roles`); });
+  console.log(`spyfall.${lang}: ${locs.length} locations`);
+}
+
+// A repeated card goes into the deck twice.
+const TU = load(G + 'JS_TimesUp.html', 'TIMESUP_DB');
+for (const [lang, list] of Object.entries(TU)) {
+  const dup = list.filter((w, k, a) => a.indexOf(w) !== k);
+  if (dup.length) note(`timesup.${lang}: duplicates ${JSON.stringify([...new Set(dup)])}`);
+  console.log(`timesup.${lang}: ${list.length} cards`);
+}
+
+// The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));
 process.exit(problems.length ? 1 : 0);

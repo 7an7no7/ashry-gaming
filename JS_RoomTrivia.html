@@ -2,290 +2,209 @@
 /* ============================================================================
    تحدي المعلومات — LIVE GROUP TRIVIA
    ----------------------------------------------------------------------------
-   Real-time group trivia with 10 questions. 15-second countdown, instant
-   lock-in, speed bonuses, live vote distribution, and running leaderboards!
+   Ten questions to everyone at once. Right answers score 1000, quick ones up
+   to 500 more. The server shuffles each question's choices and holds the
+   answer until the question closes.
    ========================================================================= */
 
-let triviaTimerInterval = null;
-let triviaSelectedChoice = null;
+const trivia = {
+  picked: null,      // { q: question index, choice } — what this phone tapped
+  clock: null,
+  clockKey: null,    // the deadline the running clock belongs to
+  fired: false       // that deadline has already been acted on
+};
 
 ROOM_GAMES.trivia = {
-  lobbyOptions(state) {
-    if (!state.youAreHost) return '';
-    const t = TRANSLATIONS[appState.lang];
-    return `
-      <div class="card card--tight text-center">
-        <p class="field__hint">
-          ${t.setup_trivia}: ${t.game_rules_trivia_desc || (appState.lang === 'en'
-            ? '10 real-time questions. 15 seconds per question with speed bonus!'
-            : '10 أسئلة سريعة لجميع اللاعبين مع نقاط إضافية على سرعة الإجابة!')}
-        </p>
-      </div>`;
-  },
-
-  startPayload() {
-    return {
-      lang: appState.lang === 'en' ? 'en' : 'ar'
-    };
-  },
+  lobbyOptions: (state) => langLobbyOptions(state, 'trivia_hint'),
+  startPayload: () => ({ lang: VOTE_LANG() }),
 
   pollHint(state) {
     const s = state.shared;
-    if (s.phase === 'answering') {
-      const answered = (s.answered || []).indexOf(Room.me) !== -1;
-      return answered ? 'watching' : 'acting';
-    }
+    if (s.phase === 'answering' && (s.answered || []).indexOf(Room.me) === -1) return 'acting';
     return 'watching';
   },
 
   render(state) {
-    if (appState.currentView !== 'room-trivia') {
-      setView('room-trivia');
-    }
+    if (appState.currentView !== 'room-trivia') setView('room-trivia');
     const el = document.getElementById('view-room-trivia');
     if (!el) return;
-
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
-    const isAnswered = (s.answered || []).indexOf(Room.me) !== -1;
+    const iAnswered = (s.answered || []).indexOf(Room.me) !== -1;
 
-    // Player names
-    const nameMap = {};
-    (state.players || []).forEach(p => { nameMap[p.id] = p.name; });
-
-    let html = '';
-
-    // 1. TOP STATS BAR
-    html += `
-      <div class="flex items-center justify-between bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm mb-4">
-        <div class="flex items-center gap-2">
-          <span class="text-xl">🧠</span>
-          <div>
-            <div class="text-xs text-slate-400 font-bold uppercase tracking-wider">${t.trivia_q_of || 'السؤال'}</div>
-            <div class="text-sm font-extrabold text-slate-800 dark:text-slate-100">
-              ${s.phase === 'gameover' ? (appState.lang === 'en' ? 'Game Over' : 'النهاية') : `${s.qIndex + 1} / ${s.totalQuestions}`}
-            </div>
-          </div>
-        </div>
-        ${s.phase === 'answering' ? `
-          <div id="trivia-countdown-badge" class="px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-black text-sm">
-            15s
-          </div>
-        ` : ''}
-      </div>`;
-
-    // 2. PHASE: ANSWERING
-    if (s.phase === 'answering') {
-      html += `
-        <div class="card bg-white dark:bg-slate-800 p-5 border border-indigo-200 dark:border-indigo-900/50 rounded-3xl shadow-sm mb-4">
-          <h2 class="text-lg font-black text-slate-800 dark:text-slate-100 text-center mb-6 leading-snug">
-            ${escapeHTML(s.question || '')}
-          </h2>
-
-          <div class="grid grid-cols-1 gap-3 mb-4">
-            ${(s.choices || []).map((c, i) => {
-              const letter = ['A', 'B', 'C', 'D'][i];
-              const isSelected = triviaSelectedChoice === i;
-              return `
-                <button onclick="chooseTriviaAnswer(${i})"
-                        ${isAnswered ? 'disabled' : ''}
-                        class="p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all ${
-                          isSelected
-                            ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200 ring-2 ring-indigo-500/20 shadow-md font-bold'
-                            : isAnswered
-                              ? 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 text-slate-400 opacity-60'
-                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-indigo-400 text-slate-700 dark:text-slate-200 font-semibold active:scale-[0.98]'
-                        }">
-                  <span class="w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs ${
-                    isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                  }">${letter}</span>
-                  <span class="text-sm leading-tight flex-1">${escapeHTML(c)}</span>
-                </button>`;
-            }).join('')}
-          </div>
-
-          <!-- Answered players badges -->
-          <div class="pt-3 border-t border-slate-100 dark:border-slate-700/60">
-            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">
-              ${appState.lang === 'en' ? 'Answered Players' : 'اللاعبون الذين أجابوا'} (${(s.answered || []).length}/${(state.players || []).length})
-            </div>
-            <div class="flex flex-wrap justify-center gap-1.5">
-              ${(state.players || []).map(p => {
-                const done = (s.answered || []).indexOf(p.id) !== -1;
-                return `
-                  <span class="px-2.5 py-0.5 rounded-full text-xs font-bold transition-all ${
-                    done
-                      ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300'
-                      : 'bg-slate-100 dark:bg-slate-700/50 text-slate-400'
-                  }">
-                    ${escapeHTML(p.name)} ${done ? '✓' : '…'}
-                  </span>`;
-              }).join('')}
-            </div>
-          </div>
-
-          ${state.youAreHost ? `
-            <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700 text-center">
-              <button onclick="Room.act('closeQuestion')" class="btn btn--ghost btn--sm">
-                ${appState.lang === 'en' ? 'Close Early ⏱️' : 'إنهاء السؤال مبكراً ⏱️'}
-              </button>
-            </div>
-          ` : ''}
-        </div>`;
+    const sig = ['trivia', s.phase, s.qIndex, iAnswered, (s.answered || []).length, state.youAreHost].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => triviaFrame(state, t, iAnswered));
+    if (rebuilt && s.phase === 'gameover' && typeof confetti === 'function') {
+      confetti({ particleCount: 160, spread: 80 });
     }
+    refreshRoomPlayerStrip(el, state);
 
-    // 3. PHASE: RESULTS
-    if (s.phase === 'results') {
-      const counts = s.choiceCounts || [0, 0, 0, 0];
-      const totalVotes = counts.reduce((a, b) => a + b, 0);
-
-      html += `
-        <div class="card bg-white dark:bg-slate-800 p-5 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm mb-4">
-          <div class="text-xs uppercase font-extrabold tracking-wider text-slate-400 mb-1 text-center">
-            ${t.trivia_q_of || 'السؤال'} ${s.qIndex + 1}
-          </div>
-          <h2 class="text-base font-black text-slate-800 dark:text-slate-100 text-center mb-4 leading-snug">
-            ${escapeHTML(s.question || '')}
-          </h2>
-
-          <div class="space-y-2.5 mb-5">
-            ${(s.choices || []).map((c, i) => {
-              const isCorrect = i === s.correctAnswer;
-              const count = counts[i] || 0;
-              const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-              return `
-                <div class="p-3 rounded-2xl border transition-all ${
-                  isCorrect
-                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 ring-2 ring-emerald-500/20'
-                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 text-slate-500'
-                }">
-                  <div class="flex items-center justify-between text-xs font-bold mb-1.5">
-                    <span class="flex items-center gap-1.5">
-                      <span>${isCorrect ? '✅' : '⚪'}</span>
-                      <span>${escapeHTML(c)}</span>
-                    </span>
-                    <span>${count} (${pct}%)</span>
-                  </div>
-                  <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                    <div class="h-1.5 rounded-full ${isCorrect ? 'bg-emerald-500' : 'bg-slate-400'}" style="width: ${pct}%"></div>
-                  </div>
-                </div>`;
-            }).join('')}
-          </div>
-
-          <!-- LEADERBOARD -->
-          <div class="pt-3 border-t border-slate-100 dark:border-slate-700">
-            <div class="text-xs font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-2 text-center">
-              🏆 ${appState.lang === 'en' ? 'Live Leaderboard' : 'لوحة الصدارة'}
-            </div>
-            <div class="space-y-1.5">
-              ${(s.board || []).map((entry, idx) => `
-                <div class="flex items-center justify-between p-2 rounded-xl ${
-                  idx === 0 ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40' : 'bg-slate-50 dark:bg-slate-900/30'
-                }">
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs font-black w-5 text-center text-slate-400">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</span>
-                    <span class="text-xs font-bold text-slate-700 dark:text-slate-200">${escapeHTML(entry.name)}</span>
-                  </div>
-                  <span class="text-xs font-black text-indigo-600 dark:text-indigo-400">${entry.score} pts</span>
-                </div>`).join('')}
-            </div>
-          </div>
-
-          ${state.youAreHost ? `
-            <div class="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700 text-center">
-              <button onclick="Room.act('nextQuestion')" class="btn btn--primary w-full py-2.5 text-xs font-black shadow-lg" data-i18n="next_q_btn">
-                ${t.next_q_btn}
-              </button>
-            </div>
-          ` : ''}
-        </div>`;
-    }
-
-    // 4. PHASE: GAMEOVER
-    if (s.phase === 'gameover') {
-      const sorted = s.board || [];
-      const winner = sorted[0];
-
-      html += `
-        <div class="card bg-white dark:bg-slate-800 p-6 border border-indigo-200 dark:border-indigo-800 rounded-3xl shadow-lg text-center mb-4">
-          <div class="text-4xl mb-2 animate-bounce">🏆</div>
-          <div class="text-xs font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-1">
-            ${appState.lang === 'en' ? 'Trivia Champion' : 'بطل مسابقة المعلومات'}
-          </div>
-          <div class="text-2xl font-black text-slate-800 dark:text-slate-100 mb-6">
-            ${winner ? escapeHTML(winner.name) : ''}
-          </div>
-
-          <div class="space-y-2 mb-6">
-            ${sorted.map((entry, idx) => `
-              <div class="flex items-center justify-between p-2.5 rounded-2xl ${
-                idx === 0 ? 'bg-amber-100/80 dark:bg-amber-900/40 font-black' : 'bg-slate-50 dark:bg-slate-900/40 text-slate-600 dark:text-slate-300'
-              }">
-                <div class="flex items-center gap-2">
-                  <span>${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}</span>
-                  <span class="text-sm">${escapeHTML(entry.name)}</span>
-                </div>
-                <span class="text-sm font-black text-indigo-600 dark:text-indigo-400">${entry.score} pts</span>
-              </div>`).join('')}
-          </div>
-
-          ${state.youAreHost ? `
-            <div class="flex gap-2">
-              <button onclick="Room.act('start')" class="btn btn--primary flex-1 text-xs py-2">
-                ${appState.lang === 'en' ? 'Play Again 🔄' : 'لعب مجدداً 🔄'}
-              </button>
-              <button onclick="Room.act('backToHub')" class="btn btn--ghost flex-1 text-xs py-2">
-                ${appState.lang === 'en' ? 'Hub 🏠' : 'الرئيسية 🏠'}
-              </button>
-            </div>
-          ` : ''}
-        </div>`;
-    }
-
-    el.innerHTML = html;
-
-    // Start 15s Countdown in answering phase
-    if (s.phase === 'answering') {
-      startTriviaCountdown(s.endsAt);
-    } else {
-      stopTriviaCountdown();
-    }
+    if (s.phase === 'answering') startTriviaClock(s);
+    else stopTriviaClock();
   }
 };
 
-function chooseTriviaAnswer(choiceIdx) {
-  triviaSelectedChoice = choiceIdx;
-  Room.act('answer', { choice: choiceIdx });
-}
+function triviaFrame(state, t, iAnswered) {
+  const s = state.shared;
+  const letters = ['A', 'B', 'C', 'D'];
+  const inRound = (s.roster || []).indexOf(Room.me) !== -1;
 
-function startTriviaCountdown(endsAt) {
-  stopTriviaCountdown();
-  const badge = document.getElementById('trivia-countdown-badge');
-  if (!badge) return;
-
-  const update = () => {
-    const remain = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
-    const el = document.getElementById('trivia-countdown-badge');
-    if (el) {
-      el.textContent = `${remain}s`;
-      if (remain <= 5) {
-        el.className = 'px-3 py-1 rounded-full bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-black text-sm animate-pulse';
-      }
-    }
-    if (remain <= 0) {
-      stopTriviaCountdown();
-    }
-  };
-
-  update();
-  triviaTimerInterval = setInterval(update, 500);
-}
-
-function stopTriviaCountdown() {
-  if (triviaTimerInterval) {
-    clearInterval(triviaTimerInterval);
-    triviaTimerInterval = null;
+  if (s.phase === 'gameover') {
+    const board = s.board || [];
+    const best = board.length ? board[0].score : 0;
+    const champs = board.filter(p => best > 0 && p.score === best).map(p => escapeHTML(p.name));
+    return `
+      <div class="card card--accent" style="text-align:center">
+        <div class="eyebrow">${t.trivia_champion || ''}</div>
+        <div class="metric metric--md metric--accent">🏆 ${champs.join(' · ') || '—'}</div>
+      </div>
+      ${renderScoreboard(board)}
+      ${state.youAreHost
+        ? `<div class="btn-stack">
+             <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', { lang: '${VOTE_LANG()}' })">${t.play_again || ''}</button>
+             <button class="btn btn--ghost" onclick="roomAct('backToHub')">${t.room_another_game || ''}</button>
+           </div>`
+        : `<div class="waiting-note">${t.room_wait_host || ''}</div>`}
+      ${renderRoomPlayerStrip(state)}`;
   }
+
+  const header = `
+    <div class="cn-score">
+      <span class="cn-score__role">🧠 ${t.trivia_q_of || ''} ${s.qIndex + 1} / ${s.totalQuestions}</span>
+      ${s.phase === 'answering' ? `<span id="trivia-timer" class="badge badge--accent">${s.seconds || ''}</span>` : ''}
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="prompt-text">${escapeHTML(s.question || '')}</div>
+    </div>`;
+
+  if (s.phase === 'answering') {
+    const mine = (trivia.picked && trivia.picked.q === s.qIndex) ? trivia.picked.choice : null;
+    const present = state.players.map(p => p.id);
+    const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1).length;
+    return header + `
+      <div class="btn-stack">
+        ${s.choices.map((c, i) => `
+          <button class="ballot-option trivia-choice ${mine === i ? 'is-picked' : ''}"
+                  ${iAnswered || !inRound ? 'disabled' : ''} onclick="chooseTriviaAnswer(${i})">
+            <span class="trivia-letter">${letters[i]}</span>
+            <span class="ballot-option__label">${escapeHTML(c)}</span>
+          </button>`).join('')}
+      </div>
+      <div class="vote-progress">
+        <span>${iAnswered ? '🔒 ' + (t.trivia_locked || '') : (inRound ? '' : (t.vote_spectating || ''))}</span>
+        <span>${(s.answered || []).length}/${expected} ${t.trivia_answered || ''}</span>
+      </div>
+      ${state.youAreHost ? `
+        <div class="btn-stack" style="margin-top: var(--sp-3)">
+          <button class="btn btn--ghost btn--sm" onclick="roomAct('closeQuestion')">${t.trivia_close_early || ''}</button>
+        </div>` : ''}
+      ${renderRoomPlayerStrip(state)}`;
+  }
+
+  // results
+  const counts = s.choiceCounts || [];
+  const total = Math.max(1, counts.reduce((a, b) => a + b, 0));
+  const myPick = (s.picks || {})[Room.me];
+  const gained = (s.gained || {})[Room.me];
+  const last = s.qIndex + 1 >= s.totalQuestions;
+
+  let verdict = '';
+  if (inRound) {
+    verdict = typeof myPick !== 'number'
+      ? `<span class="tx-muted">${t.trivia_no_answer || ''}</span>`
+      : (myPick === s.correctAnswer
+          ? `<span class="tx-success">🎉 +${gained || 0}</span>`
+          : `<span class="tx-danger">${t.trivia_wrong || ''}</span>`);
+  }
+
+  return header + `
+    <div class="result-list">
+      ${s.choices.map((c, i) => {
+        const right = i === s.correctAnswer;
+        const wrongPick = myPick === i && !right;
+        const pct = Math.round(((counts[i] || 0) / total) * 100);
+        return `
+          <div class="result-row trivia-result ${right ? 'is-correct' : ''} ${wrongPick ? 'is-wrong' : ''}">
+            <div class="result-row__bar" style="width:${pct}%"></div>
+            <div class="result-row__body">
+              <span class="result-row__label">${right ? '✅' : (wrongPick ? '❌' : letters[i])} ${escapeHTML(c)}</span>
+              <span class="result-row__count">${counts[i] || 0}</span>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+    ${verdict ? `<div class="waiting-note">${verdict}</div>` : ''}
+    ${renderScoreboard(s.board)}
+    ${state.youAreHost
+      ? `<div class="btn-stack">
+           <button class="btn btn--primary btn--lg" onclick="roomAct('nextQuestion')">${last ? (t.trivia_final || '') : (t.next_q_btn || '')}</button>
+         </div>`
+      : `<div class="waiting-note">${t.room_wait_host || ''}</div>`}
+    ${renderRoomPlayerStrip(state)}`;
+}
+
+function chooseTriviaAnswer(choice) {
+  const s = Room.state && Room.state.shared;
+  if (!s || s.phase !== 'answering') return;
+  trivia.picked = { q: s.qIndex, choice: choice };
+  // Lock the buttons now; the round trip takes a second and a second tap on
+  // another choice would otherwise look like it changed the answer.
+  document.querySelectorAll('#view-room-trivia .trivia-choice').forEach((b, i) => {
+    b.disabled = true;
+    b.classList.toggle('is-picked', i === choice);
+  });
+  playSound('click');
+  haptic('light');
+  Room.act('answer', { choice: choice }).catch(err => {
+    trivia.picked = null;
+    showToast(err.message || 'تعذر الإرسال', 'error');
+    const el = document.getElementById('view-room-trivia');
+    if (el) delete el.dataset.sig;
+    if (Room.state) ROOM_GAMES.trivia.render(Room.state);
+  });
+}
+
+function paintTriviaTimer(endsAt) {
+  const el = document.getElementById('trivia-timer');
+  if (!el) return;
+  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  el.textContent = left;
+  el.classList.toggle('badge--danger', left <= 5);
+  el.classList.toggle('badge--accent', left > 5);
+}
+
+function startTriviaClock(s) {
+  // A rebuilt frame has a fresh timer badge that needs its number straight away.
+  paintTriviaTimer(s.endsAt);
+  if (trivia.clockKey === s.endsAt && (trivia.clock ? trivia.clock.isRunning() : trivia.fired)) return;
+
+  stopTriviaClock();
+  trivia.clockKey = s.endsAt;
+  trivia.fired = false;
+  const endsAt = s.endsAt;
+  trivia.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => paintTriviaTimer(endsAt),
+    onEnd: () => {
+      trivia.clock = null;
+      trivia.fired = true;
+      const close = () => {
+        const st = Room.state;
+        if (!st || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
+        Room.act('closeQuestion').catch(() => {});
+      };
+      // The host closes on time. Anyone else only if the host hasn't a few
+      // seconds later — a host whose phone slept can't freeze the question.
+      if (Room.isHost) close();
+      else setTimeout(close, 3000);
+    }
+  });
+}
+
+function stopTriviaClock() {
+  if (trivia.clock) trivia.clock.stop();
+  trivia.clock = null;
+  trivia.clockKey = null;
+  trivia.fired = false;
 }
 </script>

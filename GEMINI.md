@@ -449,6 +449,53 @@ the spy sheet keeps its password in the first cell of the column. Use
 `getSpyData()` directly, or the password gets dealt as a secret word — and note
 that `getSpyData()` hits the spreadsheet on every call, so fetch once and reuse.
 
+**Code in `JS_*.html` does not exist on the server.** Fake Artist dealt its
+colours from `DRAW_COLOURS`, which is declared in `JS_RoomDraw.html`. Apps Script
+never loads that file, so the first `start` on the real deployment threw a
+ReferenceError - while the preview worked perfectly, because it concatenates
+client and server into one page and they share globals. A constant both sides
+need is declared in a server file (`FAKE_ARTIST_COLOURS` in `RoomGames.js`). To
+catch this, evaluate `CodenamesWords.js PartyContent.js RoomGames.js Rooms.js
+Code.js` on their own in a fresh `vm` context and look for `undefined`.
+
+**`castVote` can close the vote by itself.** When the last eligible player votes
+it calls `closeVote` and returns `true`. A game whose own close action does more
+than close - Fake Artist reveals the fake and moves on to the guess - has to do
+that same work when `castVote` returns `true`, or the table sits on a finished
+vote with no way forward. And "most votes" is not `results[0]`: `results` is in
+option order. Find the maximum, and decide what a tie means (in Fake Artist, a
+tie lets the fake escape).
+
+**A secret is published when it stops mattering, not when the round ends.** A
+caught Fake Artist still gets to guess the word, so `secretWord` reaches
+`shared` only after the guess, or after the host skips it. Put it in `shared`
+at the vote and it is printed on the fake's own screen while they type.
+
+**Ordered content leaks.** The trivia bank had the right answer second in 115 of
+150 questions, so tapping B every time won. The server reorders each question's
+choices as it deals. Anything with a positional answer is shuffled at deal time
+rather than trusted to have been varied by hand.
+
+**A physical axis stays left-to-right in Arabic.** Under `dir="rtl"` a range
+input runs right to left while `left: 40%` still measures from the left, so
+Wavelength's slider, needle and end labels disagreed in Arabic. The spectrum is
+wrapped in `dir="ltr"`. The same goes for anything that maps a value to a
+position on screen.
+
+**Leaving a room screen does not leave the room.** A player can go to the menu,
+a timer or the rules mid-game; `#active-room-banner` under the header shows the
+code and a way back. `Room.onChange` draws nothing while `appState.currentView`
+is not a `room-*` view: every game's `render` calls `setView`, and that used to
+drag people back on each poll. `roomReturnToActive()` drops the hidden view's
+frame signature and goes through `routeRoomState(state)`. The shell grid pins
+each child to its row, because a hidden banner otherwise lets the main area and
+the nav slide up a row (a stretched nav, or none at all on a long page).
+
+**Per-round buttons get double-tapped.** `nextRound`, `nextQuestion`, `lockDial`,
+`closeVote` and `playAgain` each check the phase they are allowed from and return
+quietly otherwise. Without that, a second tap skipped a trivia question, dealt two
+rounds, or scored a Wavelength round twice.
+
 ### Reloading mid-game
 
 `restoreView` in `JS_Core.html` decides what happens when the page reloads while a

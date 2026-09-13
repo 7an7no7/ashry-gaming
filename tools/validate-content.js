@@ -155,6 +155,62 @@ for (const [lang, list] of Object.entries(TU)) {
   console.log(`timesup.${lang}: ${list.length} cards`);
 }
 
+/* ------------------------------------------------ single-device word games */
+// The same spelling rules people use: alef forms, taa marbuta, harakat.
+const fold = (t) => String(t).toLowerCase().replace(/[\u064B-\u0652\u0640]/g, '')
+  .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').trim();
+const repeats = (list, key = fold) => [...new Set(list.map(key).filter((v, i, a) => a.indexOf(v) !== i))];
+
+// Wordle only works if every word is exactly its length and typeable on the
+// keypad (hamza-on-alef is folded to plain alef when a word is dealt).
+const WORD = load(G + 'JS_Wordle.html', 'WORDLE_DB');
+for (const [lang, byLen] of Object.entries(WORD)) {
+  for (const [len, list] of Object.entries(byLen)) {
+    const bad = list.filter(w => [...w].length !== Number(len)
+      || (lang === 'en' ? !/^[A-Za-z]+$/.test(w) : !/^[\u0621-\u064A]+$/.test(w)));
+    if (bad.length) note(`wordle.${lang}.${len}: wrong length or letters ${JSON.stringify(bad)}`);
+    const dup = repeats(list, w => fold(w).replace(/[أإآ]/g, 'ا'));
+    if (dup.length) note(`wordle.${lang}.${len}: duplicates ${JSON.stringify(dup)}`);
+  }
+  console.log(`wordle.${lang}: ${Object.values(byLen).reduce((n, l) => n + l.length, 0)} words`);
+}
+
+// Describe It: three forbidden words, and no card twice.
+const DESC = load(G + 'JS_DescribeIt.html', 'DESCRIBE_DB');
+for (const [lang, cards] of Object.entries(DESC)) {
+  cards.forEach(c => {
+    if (!Array.isArray(c.forbidden) || c.forbidden.length !== 3) note(`describe.${lang} "${c.word}": ${c.forbidden && c.forbidden.length} forbidden words, expected 3`);
+  });
+  const dup = repeats(cards.map(c => c.word));
+  if (dup.length) note(`describe.${lang}: duplicate cards ${JSON.stringify(dup)}`);
+  console.log(`describe.${lang}: ${cards.length} cards`);
+}
+
+// Charades: a card appears in one category only.
+const CHAR = load(G + 'JS_Charades.html', 'CHARADES_DB');
+for (const [lang, cats] of Object.entries(CHAR)) {
+  const all = Object.values(cats).flat();
+  const dup = repeats(all);
+  if (dup.length) note(`charades.${lang}: in more than one place ${JSON.stringify(dup)}`);
+  console.log(`charades.${lang}: ${all.length} cards in ${Object.keys(cats).length} categories`);
+}
+
+for (const name of ['JO_WORDS_AR', 'JO_WORDS_EN']) {
+  const list = load(G + 'JS_NewGames.html', name);
+  const dup = repeats(list);
+  if (dup.length) note(`${name}: duplicates ${JSON.stringify(dup)}`);
+  console.log(`${name}: ${list.length} words`);
+}
+
+// Trivia: four different choices. Written as data, "10" and "-10" read the same.
+for (const [lang, list] of Object.entries(TRIV)) {
+  list.forEach((item, i) => {
+    if (Array.isArray(item.choices) && repeats(item.choices, c => fold(c).replace(/[^\p{L}\p{N}]/gu, '')).length) {
+      note(`trivia.${lang}[${i}]: two choices read the same`);
+    }
+  });
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

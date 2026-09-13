@@ -152,6 +152,69 @@
     return out;
   }
 
+  /* --- NO-REPEAT MEMORY --- */
+
+  // Most word games picked at random, or forgot what they had shown the moment a
+  // new round began, so the same cards came back within a couple of games however
+  // long the list was. This remembers, per phone and per list, what has been
+  // dealt; a list only starts over once all of it has been seen.
+  const SEEN_KEY = 'ashrySeen_v1';
+  let seenLists = null;
+
+  function readSeenLists() {
+    if (seenLists) return seenLists;
+    try { seenLists = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') || {}; }
+    catch (e) { seenLists = {}; }
+    return seenLists;
+  }
+
+  /** "Reset everything" has to mean this too. */
+  function forgetSeenLists() {
+    seenLists = {};
+    try { localStorage.removeItem(SEEN_KEY); } catch (e) {}
+  }
+
+  /**
+   * Deals `count` items from `pool` that this phone has not had from `listId`.
+   *
+   *   key    how an item is identified (default: the string itself, or its JSON)
+   *   avoid  keys to leave out this time only - the cards already up in the
+   *          current round - without counting them as dealt
+   *
+   * Several pools can share one list (Who Am I's categories): starting over only
+   * forgets the items of the pool being dealt from.
+   */
+  function freshPick(listId, pool, count, options) {
+    const opts = options || {};
+    const keyOf = opts.key || (x => typeof x === 'string' ? x : JSON.stringify(x));
+    const avoid = new Set(opts.avoid || []);
+    const candidates = (pool || []).filter(x => !avoid.has(keyOf(x)));
+    const want = Math.max(0, Math.min(count === undefined ? 1 : count, candidates.length));
+    if (!want) return [];
+
+    const lists = readSeenLists();
+    const dealt = new Set(lists[listId] || []);
+    const unseen = candidates.filter(x => !dealt.has(keyOf(x)));
+    let picks;
+
+    if (unseen.length >= want) {
+      picks = shuffleArray(unseen).slice(0, want);
+      picks.forEach(x => dealt.add(keyOf(x)));
+    } else {
+      // The list has run out: deal what is left of it, then start it over for
+      // the rest, and the new cycle begins with just those.
+      const leftKeys = new Set(unseen.map(keyOf));
+      const refill = shuffleArray(candidates.filter(x => !leftKeys.has(keyOf(x)))).slice(0, want - unseen.length);
+      picks = shuffleArray(unseen).concat(refill);
+      pool.forEach(x => dealt.delete(keyOf(x)));
+      refill.forEach(x => dealt.add(keyOf(x)));
+    }
+
+    lists[listId] = [...dealt];
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify(lists)); } catch (e) {}
+    return picks;
+  }
+
   /* --- CLOCKS --- */
 
   // Every live clock, so clearAllIntervals() can stop them and so they can all be

@@ -42,6 +42,14 @@
 
   window.CacheService = { getScriptCache: () => fakeCache, getUserCache: () => fakeCache };
 
+  /* --- Fake PropertiesService: the prompt history outlives any one room --- */
+  window.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty(key) { try { return localStorage.getItem('previewProps_' + key); } catch (e) { return null; } },
+      setProperty(key, value) { try { localStorage.setItem('previewProps_' + key, String(value)); } catch (e) {} }
+    })
+  };
+
   // The browser is single-threaded per tab, so a lock is a no-op here. The real
   // contention this guards against only exists on the server.
   window.LockService = {

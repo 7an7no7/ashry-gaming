@@ -428,7 +428,8 @@ const codenamesAction = (room, playerId, action, payload) => {
     }
 
     const lang = payload.lang === 'en' ? 'en' : 'ar';
-    const pool = shuffled(CODENAMES_WORDS[lang]).slice(0, 25);
+    // Words from the last boards sit out until the list has gone round.
+    const pool = nextPrompts(room, CODENAMES_WORDS[lang], 'codenames_' + lang, 25);
     const startingTeam = Math.random() < 0.5 ? 'red' : 'blue';
     const other = startingTeam === 'red' ? 'blue' : 'red';
 
@@ -657,30 +658,73 @@ const scoreboardOf = (room) =>
     .sort((a, b) => b.score - a.score);
 
 /**
- * Pulls a prompt this room hasn't seen, reshuffling once a pool is exhausted.
+ * Pulls a prompt that hasn't been dealt lately, reshuffling once a pool is exhausted.
  *
  * The history is kept per pool: indices into the Would You Rather list mean
  * nothing in the Most Likely To list, and sharing one list made switching games
  * skip prompts that had never been shown.
  */
-const nextPrompt = (room, pool, poolKey) => {
+/*
+ * What has been dealt is remembered for the whole deployment, not per room. A
+ * room lives in the cache for a few hours and its history went with it, so the
+ * next evening's room started every list from the top again. Script Properties
+ * persist. Each list is stored as "length|i,j,k": once a list is edited its
+ * length changes and it starts over, rather than trusting indices that now
+ * point at different prompts.
+ */
+const SEEN_PROPERTY_PREFIX = 'seen_';
+
+const readSeen = (key, size) => {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty(SEEN_PROPERTY_PREFIX + key);
+    if (!raw) return null;
+    const bar = raw.indexOf('|');
+    if (Number(raw.slice(0, bar)) !== size) return [];
+    const rest = raw.slice(bar + 1);
+    return rest ? rest.split(',').map(Number) : [];
+  } catch (e) {
+    return null;   // Properties unavailable: the room's own memory still works
+  }
+};
+
+const writeSeen = (key, size, used) => {
+  try {
+    PropertiesService.getScriptProperties().setProperty(SEEN_PROPERTY_PREFIX + key, size + '|' + used.join(','));
+  } catch (e) {}
+};
+
+/**
+ * Deals `count` prompts from `pool` that haven't been dealt lately, starting the
+ * list over once all of it has been used. One read and one write however many
+ * are dealt, since each Properties call is a round trip.
+ */
+const nextPrompts = (room, pool, poolKey, count) => {
   const key = poolKey || ('pool' + pool.length);
   room._used = room._used || {};
   // Older rooms may hold an array from before this was keyed.
   if (Array.isArray(room._used)) room._used = {};
-  const used = room._used[key] || [];
-  if (used.length >= pool.length) used.length = 0;
 
-  let idx;
-  let guard = 0;
-  do {
-    idx = Math.floor(Math.random() * pool.length);
-  } while (used.indexOf(idx) !== -1 && guard++ < 200);
-
-  used.push(idx);
+  let used = readSeen(key, pool.length) || room._used[key] || [];
+  const picks = [];
+  const want = Math.min(count, pool.length);
+  for (let n = 0; n < want; n++) {
+    if (used.length >= pool.length) used = [];
+    const taken = {};
+    used.forEach(i => { taken[i] = true; });
+    picks.forEach(i => { taken[i] = true; });
+    const open = [];
+    for (let i = 0; i < pool.length; i++) if (!taken[i]) open.push(i);
+    const idx = open.length ? open[Math.floor(Math.random() * open.length)] : Math.floor(Math.random() * pool.length);
+    picks.push(idx);
+    used.push(idx);
+  }
   room._used[key] = used;
-  return pool[idx];
+  writeSeen(key, pool.length, used);
+  return picks.map(i => pool[i]);
 };
+
+/** A single prompt; see nextPrompts. */
+const nextPrompt = (room, pool, poolKey) => nextPrompts(room, pool, poolKey, 1)[0];
 
 /** Roster members who are still in the room — used for "has everyone answered?". */
 const activeRoster = (room, roster) => {
@@ -1321,12 +1365,10 @@ const triviaAction = (room, playerId, action, payload) => {
     const pool = TRIVIA_QUESTIONS[lang] || TRIVIA_QUESTIONS.ar;
     // The bank puts the right answer second three times in four, so the
     // choices are reordered for every question — otherwise "always B" wins.
-    room._deck = [];
-    for (let i = 0; i < Math.min(TRIVIA_PER_GAME, pool.length); i++) {
-      const q = nextPrompt(room, pool, 'trivia_' + lang);
+    room._deck = nextPrompts(room, pool, 'trivia_' + lang, TRIVIA_PER_GAME).map(q => {
       const order = shuffled(q.choices.map((_, k) => k));
-      room._deck.push({ q: q.q, choices: order.map(k => q.choices[k]), answer: order.indexOf(q.answer) });
-    }
+      return { q: q.q, choices: order.map(k => q.choices[k]), answer: order.indexOf(q.answer) };
+    });
     room.shared = { scores: {}, lang: lang, roster: room.players.map(p => p.id) };
     dealTriviaQuestion(room, 0);
     return;

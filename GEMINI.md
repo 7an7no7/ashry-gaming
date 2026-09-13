@@ -496,6 +496,25 @@ the nav slide up a row (a stretched nav, or none at all on a long page).
 quietly otherwise. Without that, a second tap skipped a trivia question, dealt two
 rounds, or scored a Wavelength round twice.
 
+**Random is not "new".** Players kept seeing the same cards after a couple of
+games, and a longer list didn't fix it: most games picked with `Math.random()`,
+and Charades and Describe It wiped their "already shown" list at the start of
+every round. Every single-device game now deals through `freshPick(listId, pool,
+count, { key, avoid })` in `JS_Core.html`, which remembers per phone
+(`localStorage['ashrySeen_v1']`) what each list has dealt and only starts a list
+over once all of it has been seen. `avoid` is for "already up this round" without
+counting it as dealt. Rooms do the same on the server: `nextPrompts(room, pool,
+key, count)` keeps the history in Script Properties, because a room's own memory
+died with the room and the next evening started every list from the top. A new
+word game should deal through one of these, never `Math.random()` directly.
+
+**Content goes in through the validator.** `npm run check` in `tools/` checks
+every bank: Wordle words are exactly their length in letters the keypad has,
+Describe It cards have three forbidden words, trivia choices are four different
+answers, Connections tiles don't repeat inside a puzzle, and nothing is listed
+twice (Arabic spelling variants count as the same word). Run it after editing any
+list - a wrong-length Wordle word makes that game unwinnable, not just odd.
+
 ### Reloading mid-game
 
 `restoreView` in `JS_Core.html` decides what happens when the page reloads while a

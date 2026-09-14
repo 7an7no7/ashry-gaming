@@ -525,7 +525,9 @@ async function roomCreateEmpty() { return roomCreateFor(null); }
 
 /** Entry point from a game's setup screen: "play on separate phones". */
 async function roomCreateFor(gameId) {
-  const name = roomName.get() || (await promptForName());
+  // Always asked, already filled in with the name used last time: one tap to
+  // keep it, or type over it and the new one is remembered instead.
+  const name = await promptForName();
   if (!name) return;
   roomName.set(name);
   pendingRoomGame = gameId;
@@ -546,7 +548,7 @@ async function roomCreateFor(gameId) {
 function roomOpenJoin(prefillCode) {
   const codeEl = document.getElementById('room-join-code');
   const nameEl = document.getElementById('room-join-name');
-  if (codeEl) codeEl.value = (prefillCode || '').toUpperCase();
+  if (codeEl) codeEl.value = extractRoomCode(prefillCode);
   if (nameEl) nameEl.value = roomName.get();
   setView('room-join');
   // Send focus to whichever field is still empty.
@@ -556,8 +558,67 @@ function roomOpenJoin(prefillCode) {
   }, 300);
 }
 
+/**
+ * The room code in whatever was typed or pasted: a code, or a whole join link
+ * someone sent ("…/?room=ABCD"), in any case and with stray spaces.
+ */
+function extractRoomCode(text) {
+  const raw = String(text || '');
+  const fromLink = /[?&]room=([A-Za-z0-9]{4,8})/.exec(raw);
+  return (fromLink ? fromLink[1] : raw.replace(/[^A-Za-z0-9]/g, '')).toUpperCase().slice(0, 4);
+}
+
+/** Keeps the code field down to a clean code while typing or pasting. */
+function tidyRoomCodeInput(el) {
+  const code = extractRoomCode(el.value);
+  if (el.value !== code) el.value = code;
+  // Code complete and no name yet: carry on to the name.
+  const nameEl = document.getElementById('room-join-name');
+  if (code.length === 4 && nameEl && !nameEl.value && document.activeElement === el) nameEl.focus();
+}
+
+/**
+ * Sends the join link through the phone's share sheet (WhatsApp and the rest),
+ * or copies it where there is none - for friends who can't scan the QR code
+ * because they aren't in the same place.
+ */
+async function roomShareLink() {
+  const state = Room.state;
+  const base = window.SERVER_DATA && window.SERVER_DATA.webAppUrl;
+  if (!state || !base) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const url = base + '?room=' + state.code;
+  const text = (t.room_share_text || '') + ' ' + state.code;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: t.title || 'عشرى جيمينج', text: text, url: url });
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;   // closed the share sheet
+    }
+  }
+  const message = text + '\n' + url;
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(message);
+    copied = true;
+  } catch (err) {
+    // No clipboard API here (an older browser, or an embedded one): the old way.
+    const area = document.createElement('textarea');
+    area.value = message;
+    area.setAttribute('readonly', '');
+    area.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(area);
+    area.select();
+    try { copied = document.execCommand('copy'); } catch (e) {}
+    area.remove();
+  }
+  if (copied) showToast(t.room_link_copied || 'تم نسخ رابط الغرفة', 'success');
+  else showToast(url, 'info');
+}
+
 async function roomJoinFromForm() {
-  const code = (document.getElementById('room-join-code').value || '').trim().toUpperCase();
+  const code = extractRoomCode(document.getElementById('room-join-code').value);
   const name = (document.getElementById('room-join-name').value || '').trim();
   if (code.length < 4) return showToast('اكتب كود الغرفة', 'error');
   if (!name) return showToast('اكتب اسمك', 'error');
@@ -843,6 +904,15 @@ function submitNameModal() {
   const done = nameModalResolve;
   nameModalResolve = null;
   if (done) done(value);
+}
+
+/** Settings → your name: change the name rooms use without joining one. */
+async function changeSavedName() {
+  closeModal('settings-modal');
+  const name = await promptForName();
+  if (!name) return;
+  roomName.set(name);
+  showToast((TRANSLATIONS[appState.lang] || {}).name_saved || 'تم حفظ الاسم', 'success');
 }
 
 function cancelNameModal() {

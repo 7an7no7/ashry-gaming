@@ -366,13 +366,16 @@
           <p class="card__subtitle" data-i18n="room_join_hint">اكتب كود الغرفة الظاهر على جهاز المضيف</p>
 
           <label class="field__label" data-i18n="room_code">كود الغرفة</label>
-          <input type="text" id="room-join-code" class="room-code-input" maxlength="4"
-                 inputmode="latin" autocapitalize="characters" autocomplete="off"
-                 placeholder="ABCD" oninput="this.value=this.value.toUpperCase()">
+          <!-- Long enough to take a whole pasted join link; tidyRoomCodeInput keeps just the code. -->
+          <input type="text" id="room-join-code" class="room-code-input" maxlength="120"
+                 inputmode="latin" autocapitalize="characters" autocomplete="off" enterkeyhint="next"
+                 placeholder="ABCD" oninput="tidyRoomCodeInput(this)"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('room-join-name').focus();}">
 
           <label class="field__label" data-i18n="your_name">اسمك</label>
-          <input type="text" id="room-join-name" autocomplete="off"
-                 data-i18n-ph="placeholder_name" placeholder="الاسم">
+          <input type="text" id="room-join-name" autocomplete="off" maxlength="24" enterkeyhint="go"
+                 data-i18n-ph="placeholder_name" placeholder="الاسم"
+                 onkeydown="if(event.key==='Enter') roomJoinFromForm()">
 
           <button onclick="roomJoinFromForm()" class="btn btn--primary btn--lg" data-i18n="room_join_btn">دخول الغرفة</button>
         </div>
@@ -385,9 +388,13 @@
           <div id="room-code-display" class="room-code">----</div>
 
           <div id="room-qr" class="room-qr hidden" aria-hidden="true"></div>
-          <p class="card__subtitle" style="margin-bottom:0" data-i18n="room_scan_hint">
+          <p class="card__subtitle" data-i18n="room_scan_hint">
             امسح الكود أو اكتبه في خانة "انضم لغرفة"
           </p>
+          <!-- For friends who aren't in the room with you: send them the link. -->
+          <button id="room-share-btn" class="btn btn--secondary btn--auto" onclick="roomShareLink()">
+            <span aria-hidden="true">🔗</span> <span data-i18n="room_share_link">مشاركة رابط الغرفة</span>
+          </button>
         </div>
 
         <div class="section">
@@ -1882,6 +1889,11 @@
             <span class="setting-row__icon" aria-hidden="true">🌐</span>
             <span data-i18n="lang">اللغة</span>
             <span class="setting-row__value" id="settings-lang-value"></span>
+          </button>
+          <button class="setting-row" onclick="changeSavedName()">
+            <span class="setting-row__icon" aria-hidden="true">👤</span>
+            <span data-i18n="your_name">اسمك</span>
+            <span class="setting-row__value" id="settings-name-value"></span>
           </button>
           <button class="setting-row" onclick="toggleSoundboard()">
             <span class="setting-row__icon" aria-hidden="true">🔊</span>

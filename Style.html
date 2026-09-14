@@ -1567,6 +1567,24 @@ select {
 /* Sheets that keep the old single-block layout still need breathing room. */
 .modal-content--simple { padding: var(--sp-7) var(--sp-5) calc(var(--sp-5) + var(--safe-bottom)); }
 
+/* Tablets and desktop: a sheet stuck to the bottom of a big window reads as a
+   toolbar, not a question, and sits far from where the eye is. There it is a
+   centred dialog instead; phones keep the bottom sheet, in thumb reach. */
+@media (min-width: 640px) and (min-height: 560px) {
+  .modal-overlay { align-items: center; padding: var(--sp-6); }
+  .modal-content {
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--r-2xl);
+    animation-name: dialogIn;
+  }
+  .modal-content::before { display: none; }   /* no grab handle on a dialog */
+  .modal-content--simple { max-width: 440px; }
+}
+@keyframes dialogIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
 /* --- Settings sheet rows ------------------------------------------------ */
 .setting-row {
   display: flex;

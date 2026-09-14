@@ -310,7 +310,17 @@ grid ambiguous. There is a validator for this; run it after editing content.
    in `rooms-worker/` and `npm run build:site` in `tools/`.
 
 Ask for the player's name with `promptForName()`, which opens the name sheet.
-Never use `window.prompt` — it is blocked in some embedded browsers.
+Never use `window.prompt` — it is blocked in some embedded browsers. The sheet
+always opens, filled in with the name last used (`roomName`, localStorage
+`ashryName`), so keeping it is one tap and a new name replaces the old one; the
+join screen and Settings → your name read and write the same value. On tablets
+and desktop every sheet is a centred dialog (the `min-width: 640px` block in
+*Sheets, modals, toasts*); phones keep the bottom sheet.
+
+**Getting people in.** The lobby's share button (`roomShareLink`) sends the join
+link through the phone's share sheet, or copies it where there is none, for
+friends who aren't in the room to scan the QR. The join field takes a pasted
+link as well as a code: `extractRoomCode` pulls the code out of either.
 
 `?room=CODE` is read from the page's own address by the build
 (`window.SERVER_DATA.room`), then removed from the address bar so a reload

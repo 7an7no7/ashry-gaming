@@ -312,7 +312,9 @@ time the server received each answer, ties going to whoever arrived first
 The team board (*دوري المعرفة*) is single-screen: `JS_TriviaBoard.html`, with its
 own bank in `JS_TriviaBoardBank.html` — ten categories, six questions at each of
 100–500, the higher the harder. Only facts that don't change (no records, current
-title holders or "the latest").
+title holders or "the latest"). `npm run export:trivia -- <path>` in `tools/`
+writes the same bank as `trivia_bank.js` for the standalone trivia page
+(`trivia.html`).
 
 **Adding a game to the room layer**
 

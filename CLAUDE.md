@@ -19,6 +19,7 @@ The full guide is GEMINI.md — read it before changing anything:
 ```bash
 cd tools && npm run check           # content + translations
 cd tools && npm run build:site      # rebuild docs/ (commit it)
+cd tools && npm run export:trivia -- <path>  # the board bank as trivia_bank.js
 cd rooms-worker && npm run dev      # local rooms server on :8787
 cd rooms-worker && npm test         # robot players, every room game (needs npm run dev)
 cd rooms-worker && npm run test:rules  # trivia scoring, no server needed

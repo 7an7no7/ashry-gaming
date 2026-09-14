@@ -4,6 +4,14 @@
 const doGet = (e) => {
   // Removed setupSheets() from here. It will run only if data is missing during a call.
   
+  // The static site (docs/) has no google.script.run of its own. It loads this
+  // tiny page in a hidden iframe and relays its room calls through it; the page
+  // makes them with google.script.run and posts the answers back (Bridge.html).
+  if (e && e.parameter && e.parameter.bridge) {
+    return HtmlService.createHtmlOutputFromFile('Bridge')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
   const iconUrl = "https://cdn-icons-png.flaticon.com/128/13/13973.png"; 
 
   const template = HtmlService.createTemplateFromFile('Controller');
@@ -40,96 +48,16 @@ const include = (filename) => {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 };
 
-/* --- SETUP --- */
-
-const setupSheets = () => {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // 1. Setup Players Sheet
-  let playerSheet = ss.getSheetByName('اللاعبين');
-  if (!playerSheet) {
-    playerSheet = ss.insertSheet('اللاعبين');
-    playerSheet.setRightToLeft(true);
-    playerSheet.getRange(1, 1).setValue("قائمة الأسماء").setFontWeight("bold");
-  }
-
-  // 2. Setup Spy Words Sheet (If missing)
-  let spySheet = ss.getSheetByName('كلمات الجاسوس');
-  if (!spySheet) {
-    spySheet = ss.insertSheet('كلمات الجاسوس');
-    spySheet.setRightToLeft(true);
-    
-    // Default Data
-    const headers = ['حيوانات', 'أكلات', 'مهن', 'أماكن', 'أشياء'];
-    const data = [
-      ['أسد', 'بيتزا', 'مهندس', 'مدرسة', 'قلم'],
-      ['فيل', 'برجر', 'طبيب', 'مستشفى', 'تليفون'],
-      ['زرافة', 'كشري', 'نجار', 'نادي', 'مفتاح'],
-      ['قطة', 'شاورما', 'مدرس', 'سينما', 'نظارة'],
-      ['كلب', 'فلافل', 'طيار', 'سوق', 'ساعة'],
-      ['صقر', 'محشي', 'سباك', 'مطار', 'حقيبة'],
-      ['حوت', 'كبسة', 'محامي', 'حديقة', 'كتاب'],
-      ['دلفين', 'مانسف', 'طباخ', 'مطعم', 'لابتوب'],
-      ['حصان', 'ملوخية', 'ميكانيكي', 'فندق', 'شاحن'],
-      ['نمر', 'مسقعة', 'كهربائي', 'بنك', 'محفظة']
-    ];
-    
-    spySheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#e0f2fe");
-    spySheet.getRange(2, 1, data.length, data[0].length).setValues(data);
-    spySheet.autoResizeColumns(1, headers.length);
-  }
-};
+/**
+ * Everything the page needs before it starts, in one call. Only the spy words
+ * now: player names live on each phone (PLAYER_LIBRARY_KEY in JS_Core.html).
+ */
+const getInitialData = () => ({ spyData: getSpyData() });
 
 /**
- * Combined Initial Data Fetch
- * Reduces multiple round-trips to one single call.
+ * The spy words. They used to be read from the "كلمات الجاسوس" sheet on every
+ * page load; they are code now (SpyWords.js), shared by this page, the room
+ * server and the static site, and checked by tools/validate-content.js. No
+ * spreadsheet is read anywhere any more - the sheets can be deleted.
  */
-const getInitialData = () => {
-  return {
-    spyData: getSpyData()
-  };
-};
-
-/* The `اللاعبين` sheet is no longer read or written. Names live on each phone
-   (PLAYER_LIBRARY_KEY in JS_Core.html): one shared column meant every device
-   that opened the app saw every name anyone had ever typed, so one group's
-   names were in front of every other group. The sheet is left untouched in
-   case you want what is in it. */
-
-
-/**
- * Fetches categories and words from the "كلمات الجاسوس" sheet.
- * Returns object: { "CategoryName": ["Word1", "Word2"], ... }
- */
-const getSpyData = () => {
-  setupSheets(); // Ensure sheets exist
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('كلمات الجاسوس');
-  
-  const lastCol = sheet.getLastColumn();
-  const lastRow = sheet.getLastRow();
-  
-  if (lastCol < 1 || lastRow < 2) return {};
-  
-  // Read all data
-  const values = sheet.getRange(1, 1, lastRow, lastCol).getValues();
-  const headers = values[0]; // First row is categories
-  const categories = {};
-  
-  for (let c = 0; c < headers.length; c++) {
-    const categoryName = headers[c];
-    if (categoryName) {
-      const words = [];
-      for (let r = 1; r < values.length; r++) {
-        if (values[r][c]) {
-          words.push(values[r][c]);
-        }
-      }
-      if (words.length > 0) {
-        categories[categoryName] = words;
-      }
-    }
-  }
-  
-  return categories;
-};
+const getSpyData = () => SPY_WORDS;

@@ -211,6 +211,15 @@ for (const [lang, list] of Object.entries(TRIV)) {
   });
 }
 
+// الجاسوس: every category has words, and none twice.
+const SPY_WORDS = load(G + 'SpyWords.js', 'SPY_WORDS');
+for (const [cat, words] of Object.entries(SPY_WORDS)) {
+  if (!Array.isArray(words) || words.length < 10) note(`spy "${cat}": ${words && words.length} words, wants 10+`);
+  const dup = repeats(words || []);
+  if (dup.length) note(`spy "${cat}": duplicates ${JSON.stringify(dup)}`);
+}
+console.log(`spy: ${Object.keys(SPY_WORDS).length} categories, ${Object.values(SPY_WORDS).reduce((n, w) => n + w.length, 0)} words`);
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

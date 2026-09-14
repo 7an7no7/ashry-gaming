@@ -5,14 +5,14 @@
 
 ### Main Technologies
 - **Backend:** Google Apps Script (V8 Runtime)
-- **Database:** Google Sheets (for players, word categories, and statistics)
+- **Storage:** no database. Word lists are code (`SpyWords.js`, `PartyContent.js`, the `JS_*.html` banks); names, groups and the "already dealt" memory live in each phone's `localStorage`; rooms use Apps Script's CacheService and Script Properties.
 - **Frontend:** HTML5, CSS3, Vanilla JavaScript
 - **UI Framework:** Tailwind CSS v3, compiled locally to `Tailwind.html` (see *Styling*)
 - **Deployment & Management:** `clasp` (Command Line Apps Script Projects)
 - **External Libraries:** `canvas-confetti`
 
 ### Architecture
-- **Server-side (`Code.js`):** Handles `doGet` for serving the web app, manages Google Sheets interactions (CRUD for players, scores, and game data), and injects initial data into the template to reduce client-side loading times.
+- **Server-side (`Code.js`, `Rooms.js`, `RoomGames.js`):** `doGet` serves the Apps Script copy of the page with the spy words injected; `doPost` answers room calls from the static site. No spreadsheet is read anywhere.
 - **Frontend Entry Point (`Controller.html`):** The main HTML structure that includes styles, scripts, and various game views.
 - **Modular JavaScript (`JS_*.html`):** Game logic is organized into separate HTML files acting as JS modules (e.g., `JS_Core.html`, `JS_Monkey.html`, `JS_Utils.html`), included into the main template.
 - **Styling (`Tailwind.html` + `Style.html`):** `Tailwind.html` is generated - it holds
@@ -327,29 +327,42 @@ is playing without scrolling. That re-sort happens on arrival and when you add
 someone, **never on a toggle** — chips that move under your finger are worse
 than chips in a stale order. `pickerOrder` is what holds them still.
 
-### The home-screen icon lives outside the app
+### The static site (docs/)
 
-`docs/` is a small static site — icons, a manifest, and a page that shows the
-app in a full-window iframe. It exists because **the icon cannot be set from
-inside the app at all**.
+The app ships two ways from the same source files:
 
-Apps Script serves a web app inside its own iframe, so `/exec` is two documents:
-Google's wrapper on top, this app underneath. "Add to Home Screen" reads only
-the top one, which means every `apple-touch-icon` link, the manifest and the
-splash tags in `Controller.html` were invisible to Safari — iOS found nothing
-and screenshotted the page instead, which is why the icon appeared only
-sometimes. Apps Script offers no way to put a `<link>` on its wrapper page:
-`addMetaTag()` takes a short whitelist of `<meta>` names, and `setFaviconUrl()`
-only reaches the browser tab.
+- **`docs/`** - a static site built by `npm run build:site` (tools/build-site.mjs),
+  published on GitHub Pages. This is the one to share. It is the top-level page,
+  so the home-screen icon, the manifest, `?room=` links and the offline service
+  worker (`docs/sw.js`) all work, none of which Apps Script's sandboxed frame
+  allows.
+- **The Apps Script `/exec` link** - still works and serves the same app.
 
-So `Code.js` uses `XFrameOptionsMode.ALLOWALL` and `docs/index.html` embeds the
-app, keeping the top-level origin somewhere you control. It forwards any query
-string, so a `?room=` link still joins. Setup steps are in `docs/README.md`.
+Rooms need a server either way. On the static site, the build replaces
+`google.script.run` with a stand-in that, on the first room call, loads the
+deployment's `/exec?bridge=1` page (`Bridge.html`) in a hidden iframe and relays
+each call to it by `postMessage`; the bridge makes the real `google.script.run`
+call and posts the answer back. Only `createRoom`, `joinRoom`, `pollRoom`,
+`leaveRoom` and `roomAction` are relayed.
 
-Icons are **drawn**, by `npm run build:icons` — iOS fetches an apple-touch-icon
-exactly once, at the moment you tap Add to Home Screen, and a slow or blocked
-CDN at that instant means a screenshot with no way to retry. `icon-180.png` is
-full-bleed and square on purpose: iOS rounds it itself.
+**Don't replace the bridge with `fetch` + `doPost`.** That was built and
+measured first. Apps Script answers every POST with a 302 to
+script.googleusercontent.com, which browsers follow as a GET; each call paid
+about a second for that hop, and under a burst of calls the redirect returned
+the whole 1.3 MB app page or a Drive "file not found" page instead of the JSON.
+The bridge uses Apps Script's own client transport, with no redirect.
+
+So a change can need two releases. Client files only: rebuild `docs/` and push.
+Anything the room server runs (`Rooms.js`, `RoomGames.js`, `Code.js`,
+`PartyContent.js`, `CodenamesWords.js`, `SpyWords.js`): also `clasp push` and
+`clasp deploy -i <production id>`, or rooms keep the old rules. `docs/README.md`
+has the steps.
+
+The spy words used to be read from the `كلمات الجاسوس` sheet on every page load.
+They are `SpyWords.js` now - shared by the page, the room server and the static
+build - and the locked "+18" category was removed at the owner's request. A 🔒
+category would ship inside the public site anyway, so a lock only hides words from
+the menu; it cannot keep them secret.
 
 ### The Help sheet
 

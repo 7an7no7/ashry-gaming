@@ -15,17 +15,12 @@ import path from 'node:path';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const read = (name) => readFile(path.join(root, `${name}.html`), 'utf8');
 
-const SAMPLE_SPY_DATA = {
-  حيوانات: ['أسد', 'فيل', 'زرافة', 'قطة', 'كلب'],
-  أكلات: ['بيتزا', 'برجر', 'كشري', 'شاورما', 'فلافل'],
-  أماكن: ['مدرسة', 'مستشفى', 'نادي', 'سينما', 'سوق'],
-};
 
 // Stand in for the Apps Script runtime. The real server files are evaluated in
 // the browser against fake Cache/Lock/ScriptApp services, so the preview runs
 // the same room rules the deployment will — and because the fake cache is
 // localStorage, two browser tabs behave like two phones in one room.
-const SERVER_FILES = ['CodenamesWords.js', 'PartyContent.js', 'RoomGames.js', 'Rooms.js'];
+const SERVER_FILES = ['SpyWords.js', 'CodenamesWords.js', 'PartyContent.js', 'RoomGames.js', 'Rooms.js'];
 const serverSource = (
   await Promise.all(SERVER_FILES.map((f) => readFile(path.join(root, f), 'utf8')))
 ).join('\n\n');
@@ -33,6 +28,11 @@ const stubSource = await readFile(
   path.join(root, 'tools', 'preview-server-stub.js'),
   'utf8'
 );
+
+// The real spy words, the same ones doGet injects.
+const SPY_WORDS = new Function(
+  (await readFile(path.join(root, 'SpyWords.js'), 'utf8')) + '\nreturn SPY_WORDS;'
+)();
 
 const STUB =
   '<script>\n' + stubSource + '\n</script>\n' +
@@ -53,7 +53,7 @@ const previewRoom = process.argv.includes('--room')
   : '';
 
 html = html
-  .replace('<?!= initialSpyData ?>', JSON.stringify(SAMPLE_SPY_DATA))
+  .replace('<?!= initialSpyData ?>', JSON.stringify(SPY_WORDS))
   .replace('<?!= initialRoom ?>', JSON.stringify(previewRoom))
   .replace('<?!= webAppUrl ?>', JSON.stringify('http://127.0.0.1:8777/index.html'))
   .replace('</head>', `${STUB}\n</head>`);

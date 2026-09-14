@@ -1390,9 +1390,11 @@
      window.addEventListener('beforeunload', saveToLocal);
    });
   function registerServiceWorker() {
-    // Note: True Service Worker registration is currently restricted by the Google Apps Script sandbox environment (googleusercontent.com).
-    // We keep the manifest and meta tags in Controller.html to support "Add to Home Screen" with correct icons.
-    console.log("PWA Manifest active for 'Add to Home Screen' support.");
+    // Only the static site can: Apps Script serves the page from a sandboxed
+    // googleusercontent.com frame that is not allowed one. docs/sw.js keeps an
+    // offline copy of the app; tools/build-site.mjs writes it.
+    if (!window.STATIC_SITE || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
   function saveActivePlayers(selectedArray) {
@@ -1418,7 +1420,7 @@
         }
     };
 
-    // Names are local; only the spy words still come from the sheet.
+    // Names are local, and the spy words arrive with the page (SpyWords.js).
     loadPlayerLibrary();
 
     if (window.SERVER_DATA && window.SERVER_DATA.spyData) {
@@ -1651,7 +1653,12 @@
         // session cannot be resumed there is nothing to draw, so don't strand
         // the player on a blank view - initRooms() decides which it is.
         else if (appState.currentView.indexOf('room-') === 0) {
+            const restored = appState.currentView;
             setTimeout(() => {
+                // Only if nothing has moved on meanwhile. A join link opens
+                // room-join during this wait, and bouncing then threw the join
+                // screen away; room-join itself needs no session to stay on.
+                if (restored === 'room-join' || appState.currentView !== restored) return;
                 if (typeof Room === 'undefined' || !Room.isIn) setView('menu');
             }, 1500);
         }

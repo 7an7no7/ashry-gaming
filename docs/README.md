@@ -34,6 +34,8 @@ The page learns the rooms server's address from `tools/site.config.json`
 - **The rooms server itself** (`rooms-worker/src/`): `npm run deploy` there.
 - Run `npm run check` in `tools/` first, and `npm test` in `rooms-worker/` (with
   `npm run dev` running) after touching anything rooms use.
+- Afterwards, `npm run check:live` in `tools/` confirms the link serves the new
+  build and the rooms server is up.
 
 `SpyWords.js` is on both lists: the page shows the words, and the room server
 deals them.

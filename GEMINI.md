@@ -96,16 +96,19 @@ Two browser tabs on the preview behave like two phones in one room.
 
 ### Publishing
 - **The app:** `npm run build:site` in `tools/`, then commit and push (`docs/`
-  included). GitHub Pages redeploys in about a minute.
+  included). GitHub Pages redeploys in about a minute; `npm run check:live` in
+  `tools/` waits for it and confirms the link serves the build in `docs/`.
 - **The rooms server:** `npm run deploy` in `rooms-worker/`. Needed whenever
   `RoomGames.js`, the room word lists (`SpyWords.js`, `CodenamesWords.js`,
   `PartyContent.js`) or `rooms-worker/src/` change. Build `docs/` first: the
-  deploy also uploads it as the copy of the app the Worker serves.
+  deploy also uploads it as the copy of the app the Worker serves. A deploy
+  restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
 
 ### Testing
 
-Three checks run outside the browser and should pass before a push:
+These run outside the browser and should pass before a push (CLAUDE.md has the
+full order of steps for a change):
 
 ```bash
 npm run check        # content + i18n
@@ -149,7 +152,7 @@ will make that pass lie to you:
 ### Code Structure
 - **No `google.script.run`:** the page talks to nothing but the rooms server, through `Room` in `JS_Room.html`.
 - **Frontend Modularization:** When adding a new game, create a new `JS_GameName.html` file and include it in `Controller.html` using `<?!= include('JS_GameName'); ?>`.
-- **Translations:** All UI text should be managed via the `TRANSLATIONS` object (likely in `JS_Core.html`) to support both Arabic and English.
+- **Translations:** All UI text goes through the `TRANSLATIONS` object in `JS_Core.html`, with the same key in `ar` and `en` (`npm run check:i18n` compares them).
 
 ### Multiplayer rooms
 
@@ -331,8 +334,9 @@ writes the same bank as `trivia_bank.js` for the standalone trivia page
    a list, deal through `nextPrompts` from an action named `start`, `nextRound`
    or `playAgain` (`DEAL_ACTIONS` in `room.js`), so the shared prompt memory is
    loaded for it.
-6. Add a round of it to `rooms-worker/test/play-all.mjs`, then `npm run deploy`
-   in `rooms-worker/` and `npm run build:site` in `tools/`.
+6. Add a round of it to `rooms-worker/test/play-all.mjs`, then `npm run build:site`
+   in `tools/` and `npm run deploy` in `rooms-worker/` — in that order, because the
+   deploy uploads `docs/`.
 
 Ask for the player's name with `promptForName()`, which opens the name sheet.
 Never use `window.prompt` — it is blocked in some embedded browsers. The sheet
@@ -364,9 +368,7 @@ ever typed. Play once with family and the next friend to open it is looking at
 your relatives. It also cost a spreadsheet write per new name before the `+`
 button came back.
 
-`getPlayerList` and `addGlobalPlayer` are gone from `Code.js` and the sheet is
-neither read nor written. It is left in place in case there is something in it
-worth keeping, but nothing in the app depends on it.
+The app no longer reads or writes that sheet; nothing depends on it.
 
 **Names are matched, not compared.** `samePlayer(a, b)` folds case, spaces,
 diacritics and the interchangeable Arabic letters (أ إ آ → ا, ة → ه, ى → ي), so

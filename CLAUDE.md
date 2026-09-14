@@ -21,6 +21,7 @@ cd tools && npm run check           # content + translations
 cd tools && npm run build:site      # rebuild docs/ (commit it)
 cd rooms-worker && npm run dev      # local rooms server on :8787
 cd rooms-worker && npm test         # robot players, every room game (needs npm run dev)
+cd rooms-worker && npm run test:rules  # trivia scoring, no server needed
 cd rooms-worker && npm run deploy   # publish the rooms server (build the site first)
 cd rooms-worker && npm run test:live
 ```

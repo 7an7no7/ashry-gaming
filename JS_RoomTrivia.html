@@ -2,8 +2,9 @@
 /* ============================================================================
    تحدي المعلومات — LIVE GROUP TRIVIA
    ----------------------------------------------------------------------------
-   Ten questions to everyone at once. Right answers score 1000, quick ones up
-   to 500 more. The server shuffles each question's choices and holds the
+   The host picks how many questions (5 to 20); everyone answers at once. A
+   right answer is 10 points and the fastest right answers get up to 5 more
+   (RoomGames.js). The server shuffles each question's choices and holds the
    answer until the question closes.
    ========================================================================= */
 
@@ -14,9 +15,40 @@ const trivia = {
   fired: false       // that deadline has already been acted on
 };
 
+const TRIVIA_COUNTS = [5, 10, 15, 20];   // must match TRIVIA_COUNTS in RoomGames.js
+const TRIVIA_COUNT_KEY = 'ashryTriviaCount';
+
+/** The host's choice: the picker if it is on screen, else what they chose last time. */
+function triviaCountChoice() {
+  const select = document.getElementById('trivia-count');
+  if (select) return Number(select.value);
+  try {
+    const saved = Number(localStorage.getItem(TRIVIA_COUNT_KEY));
+    return TRIVIA_COUNTS.indexOf(saved) !== -1 ? saved : 10;
+  } catch (e) {
+    return 10;
+  }
+}
+
+function rememberTriviaCount(value) {
+  try { localStorage.setItem(TRIVIA_COUNT_KEY, String(value)); } catch (e) {}
+}
+
 ROOM_GAMES.trivia = {
-  lobbyOptions: (state) => langLobbyOptions(state, 'trivia_hint'),
-  startPayload: () => ({ lang: VOTE_LANG() }),
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    const t = TRANSLATIONS[appState.lang];
+    const chosen = triviaCountChoice();
+    return `
+      <div class="card card--tight">
+        <label class="field__label" for="trivia-count">${t.trivia_count || ''}</label>
+        <select id="trivia-count" onchange="rememberTriviaCount(this.value)">
+          ${TRIVIA_COUNTS.map(n => `<option value="${n}" ${n === chosen ? 'selected' : ''}>${n}</option>`).join('')}
+        </select>
+        <p class="field__hint" style="text-align:center">${t.trivia_hint || ''}</p>
+      </div>`;
+  },
+  startPayload: () => ({ lang: VOTE_LANG(), count: triviaCountChoice() }),
 
   render(state) {
     if (appState.currentView !== 'room-trivia') setView('room-trivia');
@@ -107,7 +139,7 @@ function triviaFrame(state, t, iAnswered) {
     verdict = typeof myPick !== 'number'
       ? `<span class="tx-muted">${t.trivia_no_answer || ''}</span>`
       : (myPick === s.correctAnswer
-          ? `<span class="tx-success">🎉 +${gained || 0}</span>`
+          ? `<span class="tx-success">🎉 +${gained || 0}${(s.order || []).indexOf(Room.me) !== -1 ? ' · ' + (t.trivia_rank || '#{n}').replace('{n}', (s.order || []).indexOf(Room.me) + 1) : ''}</span>`
           : `<span class="tx-danger">${t.trivia_wrong || ''}</span>`);
   }
 

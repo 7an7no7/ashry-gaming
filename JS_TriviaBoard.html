@@ -1,0 +1,273 @@
+<script>
+/* ============================================================================
+   دوري المعرفة — THE TEAM BOARD
+   ----------------------------------------------------------------------------
+   Two teams, one screen, a host. Each round puts five categories on the board
+   with a question at 100, 200, 300, 400 and 500 points in each; the higher the
+   value, the harder the question. A team picks a card, the host reads it,
+   reveals the answer and gives the points to whoever got it right.
+
+   The questions are TRIVIA_BOARD_BANK (JS_TriviaBoardBank.html). Every card is
+   dealt through freshPick, so the same question doesn't come back until its
+   category and level have been played through.
+
+   The whole game lives in appState.triviaBoard, so a reload puts the board back
+   exactly as it was (restoreView in JS_Core.html).
+   ========================================================================= */
+
+const TB_LEVELS = [100, 200, 300, 400, 500];
+const TB_CATEGORIES_PER_ROUND = 5;
+const TB_ADJUST_STEP = 100;
+const TB_TEAMS_KEY = 'ashryTriviaTeams';
+
+function tbText() { return TRANSLATIONS[appState.lang] || {}; }
+function tbLang() { return appState.lang === 'en' ? 'en' : 'ar'; }
+function tbCategory(id) { return TRIVIA_BOARD_BANK.find(c => c.id === id); }
+
+/** Opens the trivia setup screen: the team board here, rooms one tap away. */
+function setupTrivia() {
+  setView('setup-trivia');
+  setPlayMode('trivia', 'device');
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(TB_TEAMS_KEY) || '{}') || {}; } catch (e) {}
+  const a = document.getElementById('tb-team-a');
+  const b = document.getElementById('tb-team-b');
+  const rounds = document.getElementById('tb-rounds');
+  if (a) a.value = saved.a || '';
+  if (b) b.value = saved.b || '';
+  if (rounds && saved.rounds) rounds.value = String(saved.rounds);
+}
+
+function startTriviaBoard() {
+  const t = tbText();
+  const nameA = ((document.getElementById('tb-team-a') || {}).value || '').trim().slice(0, 20);
+  const nameB = ((document.getElementById('tb-team-b') || {}).value || '').trim().slice(0, 20);
+  const rounds = Math.max(1, Math.min(4, Number((document.getElementById('tb-rounds') || {}).value) || 2));
+  try { localStorage.setItem(TB_TEAMS_KEY, JSON.stringify({ a: nameA, b: nameB, rounds: rounds })); } catch (e) {}
+
+  appState.triviaBoard = {
+    // An empty name follows the language instead of freezing the default in.
+    teams: [{ name: nameA, score: 0 }, { name: nameB, score: 0 }],
+    round: 1,
+    rounds: rounds,
+    board: dealTriviaRound([]),
+    finished: false
+  };
+  saveToLocal();
+  setView('play-trivia');
+  renderTriviaBoard();
+  playSound('success');
+}
+
+/** Five categories - different from the last board where the bank allows - with one question per level. */
+function dealTriviaRound(previousIds) {
+  const fresh = shuffleArray(TRIVIA_BOARD_BANK.filter(c => previousIds.indexOf(c.id) === -1));
+  const rest = shuffleArray(TRIVIA_BOARD_BANK.filter(c => previousIds.indexOf(c.id) !== -1));
+  const categories = fresh.concat(rest).slice(0, TB_CATEGORIES_PER_ROUND);
+  return categories.map(cat => ({
+    cat: cat.id,
+    cells: TB_LEVELS.map(points => {
+      const pool = cat.levels[points];
+      // Keyed on the English question: stable, and the same card in either language.
+      const pick = freshPick('triviaBoard:' + cat.id + ':' + points, pool, 1, { key: q => q[2] })[0];
+      return { points: points, q: pool.indexOf(pick), team: null, done: false };
+    })
+  }));
+}
+
+function tbTeamName(index) {
+  const s = appState.triviaBoard;
+  const t = tbText();
+  const name = s && s.teams[index] && s.teams[index].name;
+  return name || (index === 0 ? (t.tb_team_a || 'الفريق الأحمر') : (t.tb_team_b || 'الفريق الأزرق'));
+}
+
+function renderTriviaBoard() {
+  const s = appState.triviaBoard;
+  const root = document.getElementById('tb-root');
+  if (!root) return;
+  if (!s) { setView('setup-trivia'); return; }
+  const t = tbText();
+  const lang = tbLang();
+
+  if (s.finished) { root.innerHTML = triviaBoardResults(s, t); return; }
+
+  const team = (i) => `
+    <div class="tb-team tb-team--${i === 0 ? 'a' : 'b'}">
+      <div class="tb-team__name">${escapeHTML(tbTeamName(i))}</div>
+      <div class="tb-team__score">${s.teams[i].score}</div>
+      <div class="tb-team__adjust">
+        <button class="iconbtn" onclick="adjustTriviaScore(${i}, -1)" aria-label="−${TB_ADJUST_STEP}">−</button>
+        <button class="iconbtn" onclick="adjustTriviaScore(${i}, 1)" aria-label="+${TB_ADJUST_STEP}">+</button>
+      </div>
+    </div>`;
+
+  const headers = s.board.map(col => {
+    const cat = tbCategory(col.cat) || {};
+    return `<div class="tb-cat"><span class="tb-cat__icon" aria-hidden="true">${cat.icon || ''}</span>${escapeHTML(cat[lang] || '')}</div>`;
+  }).join('');
+
+  let cells = '';
+  TB_LEVELS.forEach((points, row) => {
+    s.board.forEach((col, c) => {
+      const cell = col.cells[row];
+      if (cell.done) {
+        const dot = cell.team === 0 ? 'a' : (cell.team === 1 ? 'b' : 'none');
+        cells += `<button class="tb-cell is-done" disabled aria-label="${points}"><span class="tb-dot tb-dot--${dot}"></span></button>`;
+      } else {
+        cells += `<button class="tb-cell" onclick="openTriviaCell(${c}, ${row})">${points}</button>`;
+      }
+    });
+  });
+
+  const lastRound = s.round >= s.rounds;
+  root.innerHTML = `
+    <div class="tb-scores">
+      ${team(0)}
+      <div class="tb-round">
+        <span class="eyebrow">${t.tb_round || 'الجولة'}</span>
+        <span class="tb-round__value">${s.round} / ${s.rounds}</span>
+      </div>
+      ${team(1)}
+    </div>
+    <div class="tb-board">${headers}${cells}</div>
+    <div class="btn-stack tb-actions">
+      <button class="btn btn--secondary" onclick="nextTriviaRound()">${lastRound ? (t.tb_finish || 'إنهاء اللعبة') : (t.tb_next_round || 'الجولة التالية')}</button>
+    </div>`;
+}
+
+/* --- one card ------------------------------------------------------------ */
+
+function openTriviaCell(c, row) {
+  const s = appState.triviaBoard;
+  if (!s || !s.board[c] || !s.board[c].cells[row] || s.board[c].cells[row].done) return;
+  s.open = { c: c, row: row };
+  const t = tbText();
+  const cat = tbCategory(s.board[c].cat);
+  const cell = s.board[c].cells[row];
+  const item = cat.levels[cell.points][cell.q];
+  const en = tbLang() === 'en';
+
+  document.getElementById('tb-q-cat').textContent = (cat.icon ? cat.icon + ' ' : '') + (en ? cat.en : cat.ar);
+  document.getElementById('tb-q-points').textContent = cell.points;
+  document.getElementById('tb-q-text').textContent = en ? item[2] : item[0];
+  document.getElementById('tb-q-answer-text').textContent = en ? item[3] : item[1];
+  document.getElementById('tb-q-answer').classList.add('hidden');
+  document.getElementById('tb-q-actions').innerHTML = `
+    <button class="btn btn--primary btn--lg" onclick="revealTriviaAnswer()">${t.tb_show_answer || 'إظهار الإجابة'}</button>
+    <button class="btn btn--ghost" onclick="closeTriviaCell()">${t.tb_back || 'رجوع'}</button>`;
+  document.getElementById('tb-question-modal').classList.remove('hidden');
+  playSound('click');
+}
+
+function revealTriviaAnswer() {
+  const t = tbText();
+  document.getElementById('tb-q-answer').classList.remove('hidden');
+  document.getElementById('tb-q-actions').innerHTML = `
+    <div class="eyebrow">${t.tb_points_to || 'النقاط لـ'}</div>
+    <div class="btn-row">
+      <button class="btn btn--lg tb-award tb-award--a" onclick="awardTriviaCell(0)">${escapeHTML(tbTeamName(0))}</button>
+      <button class="btn btn--lg tb-award tb-award--b" onclick="awardTriviaCell(1)">${escapeHTML(tbTeamName(1))}</button>
+    </div>
+    <button class="btn btn--ghost" onclick="awardTriviaCell(-1)">${t.tb_nobody || 'محدش جاوب'}</button>`;
+}
+
+/** Closes the card without playing it - the host opened the wrong one. */
+function closeTriviaCell() {
+  const s = appState.triviaBoard;
+  if (s) s.open = null;
+  closeModal('tb-question-modal');
+}
+
+function awardTriviaCell(teamIndex) {
+  const s = appState.triviaBoard;
+  if (!s || !s.open) return;
+  const cell = s.board[s.open.c].cells[s.open.row];
+  cell.done = true;
+  cell.team = teamIndex >= 0 ? teamIndex : null;
+  if (teamIndex >= 0) {
+    s.teams[teamIndex].score += cell.points;
+    playSound('success');
+    haptic('medium');
+  } else {
+    playSound('alarm');
+  }
+  s.open = null;
+  closeModal('tb-question-modal');
+  saveToLocal();
+  renderTriviaBoard();
+
+  // A cleared board moves on by itself.
+  if (s.board.every(col => col.cells.every(x => x.done))) setTimeout(advanceTriviaBoard, 700);
+}
+
+function adjustTriviaScore(teamIndex, direction) {
+  const s = appState.triviaBoard;
+  if (!s) return;
+  s.teams[teamIndex].score = Math.max(0, s.teams[teamIndex].score + direction * TB_ADJUST_STEP);
+  saveToLocal();
+  renderTriviaBoard();
+}
+
+/* --- rounds and the end ---------------------------------------------------- */
+
+/** The button under the board. Unplayed cards are asked about first. */
+function nextTriviaRound() {
+  const s = appState.triviaBoard;
+  if (!s) return;
+  const unplayed = s.board.some(col => col.cells.some(x => !x.done));
+  if (unplayed) showConfirmModal(tbText().tb_skip_confirm || 'لسه فيه أسئلة ما اتلعبتش. نكمل؟', advanceTriviaBoard);
+  else advanceTriviaBoard();
+}
+
+function advanceTriviaBoard() {
+  const s = appState.triviaBoard;
+  if (!s || s.finished) return;
+  if (s.round >= s.rounds) {
+    s.finished = true;
+    saveToLocal();
+    renderTriviaBoard();
+    if (typeof confetti === 'function') confetti({ particleCount: 180, spread: 90, origin: { y: 0.6 } });
+    playSound('success');
+    return;
+  }
+  s.round++;
+  s.board = dealTriviaRound(s.board.map(col => col.cat));
+  saveToLocal();
+  renderTriviaBoard();
+  showToast((tbText().tb_round || 'الجولة') + ' ' + s.round, 'info');
+}
+
+function triviaBoardResults(s, t) {
+  const [a, b] = s.teams;
+  const headline = a.score === b.score
+    ? (t.tb_draw || 'تعادل!')
+    : `🏆 ${escapeHTML(tbTeamName(a.score > b.score ? 0 : 1))} ${t.tb_wins || 'فاز!'}`;
+  return `
+    <div class="card" style="text-align:center">
+      <div class="modal-icon" aria-hidden="true">🏆</div>
+      <div class="card__title">${headline}</div>
+      <div class="tb-scores tb-scores--final">
+        <div class="tb-team tb-team--a"><div class="tb-team__name">${escapeHTML(tbTeamName(0))}</div><div class="tb-team__score">${a.score}</div></div>
+        <div class="tb-round"><span class="eyebrow">${t.tb_final || 'النتيجة'}</span></div>
+        <div class="tb-team tb-team--b"><div class="tb-team__name">${escapeHTML(tbTeamName(1))}</div><div class="tb-team__score">${b.score}</div></div>
+      </div>
+      <div class="btn-stack">
+        <button class="btn btn--primary btn--lg" onclick="replayTriviaBoard()">${t.play_again || 'لعبة جديدة'}</button>
+        <button class="btn btn--ghost" onclick="setupTrivia()">${t.tb_settings || 'تغيير الإعدادات'}</button>
+      </div>
+    </div>`;
+}
+
+/** Same teams, same number of rounds, fresh board. */
+function replayTriviaBoard() {
+  const s = appState.triviaBoard;
+  if (!s) { setupTrivia(); return; }
+  s.teams.forEach(x => { x.score = 0; });
+  s.round = 1;
+  s.finished = false;
+  s.board = dealTriviaRound([]);
+  saveToLocal();
+  renderTriviaBoard();
+}
+</script>

@@ -181,7 +181,7 @@
                     <div class="game-icon" aria-hidden="true">🌊</div>
                     <div class="game-title" data-i18n="setup_wavelength">على نفس الموجة</div>
                 </div>
-                <div class="game-card" data-accent="indigo" onclick="roomCreateFor('trivia')">
+                <div class="game-card" data-accent="indigo" onclick="setupTrivia()">
                     <div class="game-icon" aria-hidden="true">🧠</div>
                     <div class="game-title" data-i18n="setup_trivia">تحدي المعلومات</div>
                 </div>
@@ -324,9 +324,16 @@
       <!-- ============ تشابه — single device ============ -->
       <div id="view-setup-connections" class="hidden" data-accent="teal">
         <div class="card">
-          <p class="card__subtitle" data-i18n="conn_desc">
-            16 كلمة، وأربع مجموعات مخبية. اعثر على المجموعات الأربعة قبل ما تخلص محاولاتك.
-          </p>
+          <p class="card__subtitle" data-i18n="conn_desc">كل 4 كلمات من نفس النوع. اعثر على كل المجموعات قبل ما تخلص محاولاتك.</p>
+          <div class="field">
+            <label class="field__label" data-i18n="conn_level">الصعوبة</label>
+            <div class="segmented" id="conn-level" role="group">
+              <button class="segmented__item" data-level="easy" onclick="setConnectLevel('easy')" data-i18n="level_easy">سهل</button>
+              <button class="segmented__item is-active" data-level="medium" onclick="setConnectLevel('medium')" data-i18n="level_medium">متوسط</button>
+              <button class="segmented__item" data-level="hard" onclick="setConnectLevel('hard')" data-i18n="level_hard">صعب</button>
+            </div>
+            <p class="field__hint" id="conn-level-hint" style="text-align:center"></p>
+          </div>
           <button onclick="startConnections()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
         </div>
       </div>
@@ -334,6 +341,52 @@
       <div id="view-play-connections" class="hidden" data-accent="teal">
         <div id="connect-grid"></div>
         <div id="connect-meta" class="btn-stack" style="margin-top: var(--sp-4)"></div>
+      </div>
+
+      <!-- ============ تحدي المعلومات: the team board here, or a room ============ -->
+      <div id="view-setup-trivia" class="hidden" data-accent="indigo">
+        <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device"
+                    onclick="setPlayMode('trivia', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online"
+                    onclick="setPlayMode('trivia', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="trivia_online_desc">كل لاعب يجاوب من موبايله في نفس اللحظة.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('trivia')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+
+          <div class="mode-device-panel">
+            <p class="card__subtitle" data-i18n="tb_desc">فريقين على موبايل أو شاشة واحدة.</p>
+            <div class="field">
+              <label class="field__label" for="tb-team-a" data-i18n="tb_team_names">أسماء الفريقين</label>
+              <div class="tb-team-inputs">
+                <input type="text" id="tb-team-a" maxlength="20" autocomplete="off" class="tb-input--a" data-i18n-ph="tb_team_a" placeholder="الفريق الأحمر">
+                <input type="text" id="tb-team-b" maxlength="20" autocomplete="off" class="tb-input--b" data-i18n-ph="tb_team_b" placeholder="الفريق الأزرق">
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label" for="tb-rounds" data-i18n="tb_rounds">عدد الجولات</label>
+              <select id="tb-rounds">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+              <p class="field__hint" data-i18n="tb_rounds_hint">كل جولة: 5 فئات × 5 أسئلة</p>
+            </div>
+            <button onclick="startTriviaBoard()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-play-trivia" class="hidden" data-accent="indigo">
+        <div id="tb-root"></div>
       </div>
 
       <div id="view-room-imposter" class="hidden" data-accent="violet"></div>
@@ -1873,6 +1926,22 @@
       </div>
     </div>
 
+<!-- دوري المعرفة — one question card, opened from the board. -->
+    <div id="tb-question-modal" class="modal-overlay hidden" data-accent="indigo">
+      <div class="modal-content modal-content--simple">
+        <div class="tb-q-meta">
+          <span id="tb-q-cat" class="eyebrow"></span>
+          <span id="tb-q-points" class="badge badge--accent"></span>
+        </div>
+        <p id="tb-q-text" class="prompt-text"></p>
+        <div id="tb-q-answer" class="tb-answer hidden">
+          <div class="eyebrow" data-i18n="tb_answer">الإجابة</div>
+          <div id="tb-q-answer-text" class="sheet__title"></div>
+        </div>
+        <div id="tb-q-actions" class="modal-actions"></div>
+      </div>
+    </div>
+
 <!-- NAME SHEET — used before creating or joining a room. -->
     <div id="name-modal" class="modal-overlay hidden" data-accent="teal">
       <div class="modal-content modal-content--simple">
@@ -1956,6 +2025,8 @@
     <?!= include('JS_RoomWavelength'); ?>
     <?!= include('JS_RoomTrivia'); ?>
     <?!= include('JS_Connections'); ?>
+    <?!= include('JS_TriviaBoardBank'); ?>
+    <?!= include('JS_TriviaBoard'); ?>
     <?!= include('JS_Domino'); ?>
     <?!= include('JS_Chameleon'); ?>
     <?!= include('JS_Spyfall'); ?>

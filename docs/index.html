@@ -2696,6 +2696,7 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
 .connect-group--1 { background: #a7f3d0; }
 .connect-group--2 { background: #bfdbfe; }
 .connect-group--3 { background: #ddd6fe; }
+.connect-group--4 { background: #fbcfe8; }
 .connect-group__name { font-weight: 900; font-size: var(--fs-sm); }
 .connect-group__words { font-size: var(--fs-xs); font-weight: 700; opacity: 0.8; }
 
@@ -2974,6 +2975,85 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 .trivia-result.is-correct .result-row__bar { background: var(--success-soft); }
 .trivia-result.is-wrong { border-color: var(--danger); }
 
+/* --- دوري المعرفة (the team trivia board) ------------------------------- */
+.tb-team-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.tb-input--a { border-color: var(--danger); }
+.tb-input--b { border-color: #2563eb; }
+.tb-scores {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: stretch;
+  margin-bottom: var(--sp-3);
+}
+.tb-scores--final { margin: var(--sp-4) 0; }
+.tb-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--sp-2);
+  border: 2px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.tb-team--a { border-color: var(--danger); }
+.tb-team--b { border-color: #2563eb; }
+.tb-team__name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
+.tb-team__score { font-size: 1.5rem; font-weight: 900; line-height: 1.1; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.tb-team__adjust { display: flex; gap: var(--sp-1); }
+.tb-team__adjust .iconbtn { width: 40px; height: 40px; }
+.tb-round { display: flex; flex-direction: column; align-items: center; justify-content: center; padding-inline: var(--sp-1); }
+.tb-round .eyebrow { margin: 0; }
+.tb-round__value { font-size: var(--fs-h3); font-weight: 900; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.tb-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.tb-cat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  padding: 4px 2px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.tb-cat__icon { font-size: 1rem; line-height: 1; }
+.tb-cell {
+  min-height: 52px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  font-size: 1rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.tb-cell:active { transform: scale(0.94); }
+.tb-cell.is-done { background: var(--surface-3); border-color: var(--border); cursor: default; }
+.tb-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; }
+.tb-dot--a { background: var(--danger); }
+.tb-dot--b { background: #2563eb; }
+.tb-dot--none { background: var(--border-strong); }
+.tb-actions { margin-top: var(--sp-4); }
+.tb-q-meta { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); }
+.tb-q-meta .eyebrow { margin: 0; }
+.tb-answer { padding: var(--sp-4); border: 1px solid var(--accent-border); border-radius: var(--r-lg); background: var(--accent-soft); }
+.tb-award { color: #fff; }
+.tb-award--a { background: var(--danger-btn); color: var(--danger-on); }
+/* A fixed blue: the theme's lighter dark-mode blue is too pale for white text. */
+.tb-award--b { background: #2563eb; }
+
 /* Very small phones (SE-class, 320px) — tighten before anything overflows. */
 @media (max-width: 359px) {
   :root { --sp-4: 12px; --sp-5: 16px; --fs-h1: 1.25rem; }
@@ -3141,7 +3221,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
                     <div class="game-icon" aria-hidden="true">🌊</div>
                     <div class="game-title" data-i18n="setup_wavelength">على نفس الموجة</div>
                 </div>
-                <div class="game-card" data-accent="indigo" onclick="roomCreateFor('trivia')">
+                <div class="game-card" data-accent="indigo" onclick="setupTrivia()">
                     <div class="game-icon" aria-hidden="true">🧠</div>
                     <div class="game-title" data-i18n="setup_trivia">تحدي المعلومات</div>
                 </div>
@@ -3284,9 +3364,16 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       <!-- ============ تشابه — single device ============ -->
       <div id="view-setup-connections" class="hidden" data-accent="teal">
         <div class="card">
-          <p class="card__subtitle" data-i18n="conn_desc">
-            16 كلمة، وأربع مجموعات مخبية. اعثر على المجموعات الأربعة قبل ما تخلص محاولاتك.
-          </p>
+          <p class="card__subtitle" data-i18n="conn_desc">كل 4 كلمات من نفس النوع. اعثر على كل المجموعات قبل ما تخلص محاولاتك.</p>
+          <div class="field">
+            <label class="field__label" data-i18n="conn_level">الصعوبة</label>
+            <div class="segmented" id="conn-level" role="group">
+              <button class="segmented__item" data-level="easy" onclick="setConnectLevel('easy')" data-i18n="level_easy">سهل</button>
+              <button class="segmented__item is-active" data-level="medium" onclick="setConnectLevel('medium')" data-i18n="level_medium">متوسط</button>
+              <button class="segmented__item" data-level="hard" onclick="setConnectLevel('hard')" data-i18n="level_hard">صعب</button>
+            </div>
+            <p class="field__hint" id="conn-level-hint" style="text-align:center"></p>
+          </div>
           <button onclick="startConnections()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
         </div>
       </div>
@@ -3294,6 +3381,52 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       <div id="view-play-connections" class="hidden" data-accent="teal">
         <div id="connect-grid"></div>
         <div id="connect-meta" class="btn-stack" style="margin-top: var(--sp-4)"></div>
+      </div>
+
+      <!-- ============ تحدي المعلومات: the team board here, or a room ============ -->
+      <div id="view-setup-trivia" class="hidden" data-accent="indigo">
+        <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device"
+                    onclick="setPlayMode('trivia', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online"
+                    onclick="setPlayMode('trivia', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="trivia_online_desc">كل لاعب يجاوب من موبايله في نفس اللحظة.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('trivia')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+
+          <div class="mode-device-panel">
+            <p class="card__subtitle" data-i18n="tb_desc">فريقين على موبايل أو شاشة واحدة.</p>
+            <div class="field">
+              <label class="field__label" for="tb-team-a" data-i18n="tb_team_names">أسماء الفريقين</label>
+              <div class="tb-team-inputs">
+                <input type="text" id="tb-team-a" maxlength="20" autocomplete="off" class="tb-input--a" data-i18n-ph="tb_team_a" placeholder="الفريق الأحمر">
+                <input type="text" id="tb-team-b" maxlength="20" autocomplete="off" class="tb-input--b" data-i18n-ph="tb_team_b" placeholder="الفريق الأزرق">
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label" for="tb-rounds" data-i18n="tb_rounds">عدد الجولات</label>
+              <select id="tb-rounds">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+              <p class="field__hint" data-i18n="tb_rounds_hint">كل جولة: 5 فئات × 5 أسئلة</p>
+            </div>
+            <button onclick="startTriviaBoard()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-play-trivia" class="hidden" data-accent="indigo">
+        <div id="tb-root"></div>
       </div>
 
       <div id="view-room-imposter" class="hidden" data-accent="violet"></div>
@@ -4833,6 +4966,22 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       </div>
     </div>
 
+<!-- دوري المعرفة — one question card, opened from the board. -->
+    <div id="tb-question-modal" class="modal-overlay hidden" data-accent="indigo">
+      <div class="modal-content modal-content--simple">
+        <div class="tb-q-meta">
+          <span id="tb-q-cat" class="eyebrow"></span>
+          <span id="tb-q-points" class="badge badge--accent"></span>
+        </div>
+        <p id="tb-q-text" class="prompt-text"></p>
+        <div id="tb-q-answer" class="tb-answer hidden">
+          <div class="eyebrow" data-i18n="tb_answer">الإجابة</div>
+          <div id="tb-q-answer-text" class="sheet__title"></div>
+        </div>
+        <div id="tb-q-actions" class="modal-actions"></div>
+      </div>
+    </div>
+
 <!-- NAME SHEET — used before creating or joining a room. -->
     <div id="name-modal" class="modal-overlay hidden" data-accent="teal">
       <div class="modal-content modal-content--simple">
@@ -5412,7 +5561,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       mlt_hint: "سؤال عن المجموعة، وكل واحد يختار مين. اللي يجيب أكتر أصوات ياخد نقطة.",
       fib_hint: "كل واحد يخترع إجابة، وبعدين تدوروا على الإجابة الحقيقية وسط الكذب.",
       draw_hint: "واحد يرسم والباقي يخمّنوا. أول واحد يعرفها ياخد نقطتين.",
-      conn_desc: "16 كلمة، وأربع مجموعات مخبية. اعثر على المجموعات الأربعة قبل ما تخلص محاولاتك.",
+      conn_desc: "كل 4 كلمات من نفس النوع. اعثر على كل المجموعات قبل ما تخلص محاولاتك.",
       vote_waiting: "في انتظار باقي الأصوات",
       vote_spectating: "تتفرج على هذه الجولة",
       vote_count: "صوّت",
@@ -5655,7 +5804,35 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       wl_host_locks: "المضيف بيقفل المؤشر لما الفريق يتفق",
       wl_dial: "المؤشر",
       wl_target: "الهدف",
-      trivia_hint: "10 أسئلة للكل في نفس الوقت — الإجابة الصح بنقط، والأسرع بنقط أكتر.",
+      trivia_hint: "الإجابة الصح بـ10 نقط، وأسرع إجابات صح بتاخد لحد 5 نقط زيادة.",
+      trivia_count: "عدد الأسئلة",
+      trivia_rank: "الأسرع رقم {n}",
+      trivia_online_desc: "كل لاعب يجاوب من موبايله في نفس اللحظة، والأسرع في الإجابة الصح ياخد نقط أكتر.",
+      tb_title: "دوري المعرفة",
+      tb_desc: "فريقين على موبايل أو شاشة واحدة: الفريق يختار فئة ونقاط، والمقدم يقرأ السؤال ويدي النقاط للي جاوب صح.",
+      tb_team_names: "أسماء الفريقين",
+      tb_team_a: "الفريق الأحمر",
+      tb_team_b: "الفريق الأزرق",
+      tb_rounds: "عدد الجولات",
+      tb_rounds_hint: "كل جولة: 5 فئات × 5 أسئلة من 100 لـ500 نقطة",
+      tb_round: "الجولة",
+      tb_show_answer: "إظهار الإجابة",
+      tb_answer: "الإجابة",
+      tb_back: "رجوع",
+      tb_points_to: "النقاط لمين؟",
+      tb_nobody: "محدش جاوب صح",
+      tb_next_round: "الجولة التالية",
+      tb_finish: "إنهاء اللعبة",
+      tb_skip_confirm: "لسه فيه أسئلة ما اتلعبتش في الجولة دي. نكمل؟",
+      tb_wins: "فاز!",
+      tb_draw: "تعادل!",
+      tb_final: "النتيجة",
+      tb_settings: "تغيير الإعدادات",
+      conn_level: "الصعوبة",
+      level_easy: "سهل",
+      level_medium: "متوسط",
+      level_hard: "صعب",
+      conn_level_hint: "{cards} كلمة · {groups} مجموعات",
       trivia_locked: "إجابتك اتسجلت",
       trivia_answered: "جاوبوا",
       trivia_close_early: "إنهاء السؤال ⏱️",
@@ -5825,7 +6002,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       mlt_hint: "A question about the group; everyone picks a person. Most votes takes the point.",
       fib_hint: "Everyone invents an answer, then you hunt for the real one among the lies.",
       draw_hint: "One person draws, the rest guess. First correct answer takes two points.",
-      conn_desc: "Sixteen words, four hidden groups. Find all four before your guesses run out.",
+      conn_desc: "Every 4 words are the same kind of thing. Find all the groups before your guesses run out.",
       vote_waiting: "Waiting for the rest of the votes",
       vote_spectating: "Watching this round",
       vote_count: "Voted",
@@ -6068,7 +6245,35 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       wl_host_locks: "The host locks the dial when the team agrees",
       wl_dial: "Dial",
       wl_target: "Target",
-      trivia_hint: "10 questions to everyone at once — right answers score, faster ones score more.",
+      trivia_hint: "A right answer is 10 points, and the fastest right answers get up to 5 more.",
+      trivia_count: "Number of questions",
+      trivia_rank: "fastest #{n}",
+      trivia_online_desc: "Everyone answers on their own phone at the same time, and the fastest right answer scores most.",
+      tb_title: "Trivia Board",
+      tb_desc: "Two teams, one phone or screen: a team picks a category and a value, the host reads the question and gives the points to whoever got it right.",
+      tb_team_names: "Team names",
+      tb_team_a: "Red team",
+      tb_team_b: "Blue team",
+      tb_rounds: "Rounds",
+      tb_rounds_hint: "Each round: 5 categories × 5 questions from 100 to 500 points",
+      tb_round: "Round",
+      tb_show_answer: "Show answer",
+      tb_answer: "Answer",
+      tb_back: "Back",
+      tb_points_to: "Who gets the points?",
+      tb_nobody: "Nobody got it",
+      tb_next_round: "Next round",
+      tb_finish: "Finish game",
+      tb_skip_confirm: "Some questions in this round haven't been played. Carry on?",
+      tb_wins: "wins!",
+      tb_draw: "It's a draw!",
+      tb_final: "Final score",
+      tb_settings: "Change settings",
+      conn_level: "Difficulty",
+      level_easy: "Easy",
+      level_medium: "Medium",
+      level_hard: "Hard",
+      conn_level_hint: "{cards} words · {groups} groups",
       trivia_locked: "Answer locked in",
       trivia_answered: "answered",
       trivia_close_early: "Close question ⏱️",
@@ -6219,7 +6424,8 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
         'play-justone': 'setup-justone',
         'play-tourney': 'setup-tourney',
         'results-teams': 'setup-teams',
-        'play-reaction': 'setup-reaction'
+        'play-reaction': 'setup-reaction',
+        'play-trivia': 'setup-trivia'
     };
 
     const targetSetup = viewMap[appState.currentView] || 'menu';
@@ -6229,6 +6435,9 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
   function toggleLanguage() {
     appState.lang = appState.lang === 'ar' ? 'en' : 'ar';
     applyTranslations();
+    // Screens drawn in JS carry their own text; redraw the ones on show.
+    if (appState.currentView === 'play-trivia' && typeof renderTriviaBoard === 'function') renderTriviaBoard();
+    if (appState.currentView === 'setup-connections' && typeof paintConnectLevel === 'function') paintConnectLevel();
     saveToLocal();
     playSound('click');
     haptic('light');
@@ -6423,6 +6632,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
         'setup-tourney', 'play-tourney',
         'setup-teams', 'results-teams',
         'setup-reaction', 'play-reaction',
+        'setup-trivia', 'play-trivia',
         'play-chess'
     ];
 
@@ -6572,7 +6782,12 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
         else if (appState.currentView === 'play-connections') {
             // The puzzle lives in a module variable, not appState, so a reload
             // has nothing to draw — start a fresh one rather than show a blank grid.
-            setTimeout(() => setView('setup-connections'), 50);
+            setTimeout(() => setupConnections(), 50);
+        }
+        // The team board is all in appState: draw it as it was left.
+        else if (appState.currentView === 'play-trivia' && typeof renderTriviaBoard === 'function') {
+            if (appState.triviaBoard) appState.triviaBoard.open = null;
+            renderTriviaBoard();
         }
         // Timer-driven: the time left was never persisted, so resuming would be
         // a lie. Send them back to setup and say so rather than showing a dead
@@ -6642,6 +6857,8 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
     'room-trivia':     { title: 'setup_trivia',     up: 'menu',        accent: 'indigo' },
     'setup-connections': { title: 'setup_connections', up: 'menu',     accent: 'teal' },
     'play-connections':  { title: 'setup_connections', up: 'setup-connections', accent: 'teal' },
+    'setup-trivia':      { title: 'setup_trivia',      up: 'menu',           accent: 'indigo' },
+    'play-trivia':       { title: 'tb_title',          up: 'setup-trivia',   accent: 'indigo' },
 
     'setup-monkey':    { title: 'setup_monkey',     up: 'menu',           accent: 'amber' },
     'play-monkey':     { title: 'setup_monkey',     up: 'setup-monkey',   accent: 'amber' },
@@ -6888,11 +7105,19 @@ const GAME_RULES = {
                 <li>القارئ مايحركش المؤشر. المضيف يقفله لما الفريق يتفق: في الصميم 4 نقاط، قريب جداً 3، قريب 2.</li>
             </ol>`,
         trivia: `
+            <p class="text-xs font-bold">📱 كل واحد من موبايله</p>
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>10 أسئلة سريعة باختيارات متعددة لجميع اللاعبين في نفس اللحظة.</li>
-                <li>لديك 15 ثانية للإجابة على كل سؤال.</li>
-                <li>الإجابة الصحيحة تمنحك 1000 نقطة أساسية + نقاط إضافية على سرعة الإجابة!</li>
-                <li>تظهر لوحة الصدارة بعد كل سؤال لتحديد بطل المعلومات.</li>
+                <li>المضيف يختار عدد الأسئلة (5 أو 10 أو 15 أو 20)، والكل يجاوب في نفس اللحظة.</li>
+                <li>عندك 15 ثانية لكل سؤال.</li>
+                <li>الإجابة الصح = <b>10 نقاط</b>. وأسرع إجابات صح بتاخد زيادة: الأولى <b>+5</b>، التانية +4، التالتة +3، الرابعة +2، الخامسة +1.</li>
+                <li>الإجابة الغلط أو اللي بعد الوقت = صفر. والترتيب بيظهر بعد كل سؤال.</li>
+            </ol>
+            <p class="text-xs font-bold" style="margin-top: var(--sp-3)">📺 دوري المعرفة (فريقين على جهاز واحد)</p>
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>فريقين ومقدم واحد بيدير اللعبة من موبايل أو شاشة.</li>
+                <li>كل جولة فيها 5 فئات، وفي كل فئة أسئلة بـ100 و200 و300 و400 و500 نقطة — كل ما النقاط أعلى، السؤال أصعب.</li>
+                <li>الفريق يختار فئة ونقاط، المقدم يقرأ السؤال ويظهر الإجابة، ويدي النقاط للفريق اللي جاوب صح.</li>
+                <li>أزرار + و − لتصحيح النقاط. الفريق صاحب النقاط الأعلى في آخر جولة يكسب.</li>
             </ol>`,
         screw: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -7088,8 +7313,8 @@ const GAME_RULES = {
             </ol>`,
         connections: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>16 كلمة، ورا كل 4 منهم رابط مشترك.</li>
-                <li>اختار 4 واضغط تأكيد. الرابط ممكن يكون أي حاجة — معنى، وزن، أو حتى نكتة.</li>
+                <li>اختار الصعوبة: <b>سهل</b> 12 كلمة (3 مجموعات)، <b>متوسط</b> 16 كلمة (4)، <b>صعب</b> 20 كلمة (5) ومجموعاته أقرب لبعض.</li>
+                <li>كل 4 كلمات من نفس النوع — زي «زواحف» أو «أندية كورة». اختار 4 واضغط تأكيد.</li>
                 <li>عندك 4 محاولات خاطئة بس.</li>
                 <li>لو 3 من الأربعة صح التطبيق يقولك، بس من غير ما يقول مين الغلط.</li>
                 <li>على موبايل واحد — لعبة هادية للاثنين أو الثلاثة.</li>
@@ -7167,11 +7392,19 @@ const GAME_RULES = {
                 <li>The psychic can't touch the dial. The host locks it when the team agrees: bullseye 4 points, very close 3, close 2.</li>
             </ol>`,
         trivia: `
+            <p class="text-xs font-bold">📱 Everyone on their own phone</p>
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>10 fast-paced multiple choice questions for all players in real time.</li>
-                <li>15 seconds to lock in your answer on each question.</li>
-                <li>Correct answers get 1,000 base points + bonus points for fast reaction time!</li>
-                <li>Live leaderboard updates after every question to crown the Trivia Master.</li>
+                <li>The host picks how many questions (5, 10, 15 or 20), and everyone answers at the same time.</li>
+                <li>You get 15 seconds per question.</li>
+                <li>A right answer is <b>10 points</b>. The fastest right answers get more: first <b>+5</b>, second +4, third +3, fourth +2, fifth +1.</li>
+                <li>A wrong or late answer scores nothing. The standings show after every question.</li>
+            </ol>
+            <p class="text-xs font-bold" style="margin-top: var(--sp-3)">📺 Trivia Board (two teams, one screen)</p>
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Two teams and a host running the game from one phone or screen.</li>
+                <li>Each round has 5 categories, each with questions worth 100, 200, 300, 400 and 500 — the more points, the harder the question.</li>
+                <li>A team picks a category and a value; the host reads the question, shows the answer and gives the points to the team that got it right.</li>
+                <li>The + and − buttons fix a score. The team with the most points after the last round wins.</li>
             </ol>`,
         screw: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -7367,8 +7600,8 @@ const GAME_RULES = {
             </ol>`,
         connections: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>16 words; every 4 of them share something.</li>
-                <li>Pick 4 and submit. The link can be meaning, wordplay, or a joke.</li>
+                <li>Pick a difficulty: <b>Easy</b> 12 words (3 groups), <b>Medium</b> 16 (4), <b>Hard</b> 20 (5), with groups closer to each other.</li>
+                <li>Every 4 words are the same kind of thing — like "Reptiles" or "Football clubs". Pick 4 and submit.</li>
                 <li>You get 4 wrong guesses, no more.</li>
                 <li>Three out of four right and it tells you — without telling you which one is wrong.</li>
                 <li>Single device: a quieter game for two or three.</li>
@@ -9475,7 +9708,7 @@ const HELP_ENTRIES = [
   { key: 'mostlikely',  title: 'setup_mostlikely',  icon: '👉', accent: 'amber',  group: 'games', roomOnly: true },
   { key: 'fakeartist',  title: 'setup_fakeartist',  icon: '👨‍🎨', accent: 'pink',   group: 'games', roomOnly: true },
   { key: 'wavelength',  title: 'setup_wavelength',  icon: '🌊', accent: 'teal',   group: 'games', roomOnly: true },
-  { key: 'trivia',      title: 'setup_trivia',      icon: '🧠', accent: 'indigo', group: 'games', roomOnly: true },
+  { key: 'trivia',      title: 'setup_trivia',      icon: '🧠', accent: 'indigo', group: 'games', room: true },
   { key: 'connections', title: 'setup_connections', icon: '🔗', accent: 'green',  group: 'games' },
   { key: 'monkey',      title: 'setup_monkey',      icon: '🐵', accent: 'amber',  group: 'games' },
   { key: 'wordle',      title: 'setup_wordle',      icon: '🔤', accent: 'green',  group: 'games' },
@@ -9508,6 +9741,7 @@ const HELP_FOR_VIEW = {
   'room-wouldyou': 'wouldyou', 'room-mostlikely': 'mostlikely',
   'room-fibbage': 'fibbage', 'room-drawguess': 'drawguess',
   'room-fakeartist': 'fakeartist', 'room-wavelength': 'wavelength', 'room-trivia': 'trivia',
+  'setup-trivia': 'trivia', 'play-trivia': 'trivia',
   'setup-connections': 'connections', 'play-connections': 'connections',
   'setup-monkey': 'monkey', 'play-monkey': 'monkey',
   'setup-imposter': 'imposter', 'imposter-reveal': 'imposter', 'play-imposter': 'imposter',
@@ -16331,8 +16565,9 @@ async function lockWavelengthDial() {
 /* ============================================================================
    تحدي المعلومات — LIVE GROUP TRIVIA
    ----------------------------------------------------------------------------
-   Ten questions to everyone at once. Right answers score 1000, quick ones up
-   to 500 more. The server shuffles each question's choices and holds the
+   The host picks how many questions (5 to 20); everyone answers at once. A
+   right answer is 10 points and the fastest right answers get up to 5 more
+   (RoomGames.js). The server shuffles each question's choices and holds the
    answer until the question closes.
    ========================================================================= */
 
@@ -16343,9 +16578,40 @@ const trivia = {
   fired: false       // that deadline has already been acted on
 };
 
+const TRIVIA_COUNTS = [5, 10, 15, 20];   // must match TRIVIA_COUNTS in RoomGames.js
+const TRIVIA_COUNT_KEY = 'ashryTriviaCount';
+
+/** The host's choice: the picker if it is on screen, else what they chose last time. */
+function triviaCountChoice() {
+  const select = document.getElementById('trivia-count');
+  if (select) return Number(select.value);
+  try {
+    const saved = Number(localStorage.getItem(TRIVIA_COUNT_KEY));
+    return TRIVIA_COUNTS.indexOf(saved) !== -1 ? saved : 10;
+  } catch (e) {
+    return 10;
+  }
+}
+
+function rememberTriviaCount(value) {
+  try { localStorage.setItem(TRIVIA_COUNT_KEY, String(value)); } catch (e) {}
+}
+
 ROOM_GAMES.trivia = {
-  lobbyOptions: (state) => langLobbyOptions(state, 'trivia_hint'),
-  startPayload: () => ({ lang: VOTE_LANG() }),
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    const t = TRANSLATIONS[appState.lang];
+    const chosen = triviaCountChoice();
+    return `
+      <div class="card card--tight">
+        <label class="field__label" for="trivia-count">${t.trivia_count || ''}</label>
+        <select id="trivia-count" onchange="rememberTriviaCount(this.value)">
+          ${TRIVIA_COUNTS.map(n => `<option value="${n}" ${n === chosen ? 'selected' : ''}>${n}</option>`).join('')}
+        </select>
+        <p class="field__hint" style="text-align:center">${t.trivia_hint || ''}</p>
+      </div>`;
+  },
+  startPayload: () => ({ lang: VOTE_LANG(), count: triviaCountChoice() }),
 
   render(state) {
     if (appState.currentView !== 'room-trivia') setView('room-trivia');
@@ -16436,7 +16702,7 @@ function triviaFrame(state, t, iAnswered) {
     verdict = typeof myPick !== 'number'
       ? `<span class="tx-muted">${t.trivia_no_answer || ''}</span>`
       : (myPick === s.correctAnswer
-          ? `<span class="tx-success">🎉 +${gained || 0}</span>`
+          ? `<span class="tx-success">🎉 +${gained || 0}${(s.order || []).indexOf(Room.me) !== -1 ? ' · ' + (t.trivia_rank || '#{n}').replace('{n}', (s.order || []).indexOf(Room.me) + 1) : ''}</span>`
           : `<span class="tx-danger">${t.trivia_wrong || ''}</span>`);
   }
 
@@ -16922,17 +17188,386 @@ const CONNECTIONS_DB = {
   ]
 };
 
-const connections = { puzzle: null, solved: [], selected: [], mistakes: 0, lang: 'ar' };
+/* Easier and harder boards. Easy is three everyday groups (12 words). Hard is
+   five narrower groups side by side (20 words), and the groups in a hard board
+   are deliberately close - capitals of different continents, parts of
+   different machines - so the words are harder to sort. Every group is still a
+   kind of thing, never a riddle. */
+const CONNECTIONS_EASY = {
+  ar: [
+    { groups: [
+      { name: 'ألوان', words: ['أحمر', 'أزرق', 'أخضر', 'أصفر'] },
+      { name: 'حيوانات', words: ['قطة', 'كلب', 'أسد', 'فيل'] },
+      { name: 'فواكه', words: ['تفاح', 'موز', 'برتقال', 'عنب'] } ] },
+    { groups: [
+      { name: 'أيام الأسبوع', words: ['السبت', 'الأحد', 'الاتنين', 'الجمعة'] },
+      { name: 'أشكال', words: ['مربع', 'دايرة', 'مثلث', 'نجمة'] },
+      { name: 'مشروبات', words: ['شاي', 'قهوة', 'عصير', 'مياه'] } ] },
+    { groups: [
+      { name: 'أعضاء الجسم', words: ['إيد', 'رجل', 'راس', 'بطن'] },
+      { name: 'مواصلات', words: ['عربية', 'قطر', 'طيارة', 'مركب'] },
+      { name: 'خضار', words: ['طماطم', 'خيار', 'بصل', 'جزر'] } ] },
+    { groups: [
+      { name: 'طيور', words: ['حمامة', 'عصفورة', 'بطة', 'ديك'] },
+      { name: 'لبس', words: ['قميص', 'بنطلون', 'جزمة', 'طاقية'] },
+      { name: 'أدوات المدرسة', words: ['قلم', 'كراسة', 'شنطة', 'مسطرة'] } ] },
+    { groups: [
+      { name: 'أرقام', words: ['واحد', 'اتنين', 'تلاتة', 'أربعة'] },
+      { name: 'فصول السنة', words: ['صيف', 'شتا', 'ربيع', 'خريف'] },
+      { name: 'أثاث', words: ['كرسي', 'ترابيزة', 'سرير', 'كنبة'] } ] },
+    { groups: [
+      { name: 'حيوانات البحر', words: ['سمكة', 'حوت', 'دلفين', 'كابوريا'] },
+      { name: 'حلويات', words: ['كيك', 'بسبوسة', 'كنافة', 'شيكولاتة'] },
+      { name: 'رياضات', words: ['كورة', 'سباحة', 'تنس', 'جري'] } ] },
+    { groups: [
+      { name: 'أجهزة البيت', words: ['تلاجة', 'غسالة', 'تليفزيون', 'مروحة'] },
+      { name: 'حشرات', words: ['نملة', 'نحلة', 'دبانة', 'فراشة'] },
+      { name: 'أفراد العيلة', words: ['أب', 'أم', 'أخت', 'جدة'] } ] },
+    { groups: [
+      { name: 'وظايف', words: ['دكتور', 'مدرس', 'طباخ', 'ظابط'] },
+      { name: 'أدوات الأكل', words: ['معلقة', 'شوكة', 'سكينة', 'طبق'] },
+      { name: 'أماكن', words: ['مدرسة', 'مستشفى', 'سوق', 'جنينة'] } ] },
+    { groups: [
+      { name: 'حيوانات المزرعة', words: ['بقرة', 'خروف', 'حصان', 'معزة'] },
+      { name: 'أكل الفطار', words: ['فول', 'طعمية', 'بيض', 'جبنة'] },
+      { name: 'أجزاء الوش', words: ['عين', 'مناخير', 'بق', 'ودن'] } ] },
+    { groups: [
+      { name: 'في السما', words: ['شمس', 'قمر', 'نجوم', 'سحاب'] },
+      { name: 'لعب الأطفال', words: ['كورة', 'عروسة', 'مكعبات', 'بلونة'] },
+      { name: 'أدوات النظافة', words: ['مقشة', 'صابون', 'سفنجة', 'جردل'] } ] },
+    { groups: [
+      { name: 'حيوانات أليفة', words: ['قطة', 'كلب', 'أرنب', 'سلحفاة'] },
+      { name: 'لبس الشتا', words: ['جاكيت', 'كوفية', 'جوانتي', 'بلوفر'] },
+      { name: 'فاكهة الصيف', words: ['بطيخ', 'مانجو', 'خوخ', 'عنب'] } ] },
+    { groups: [
+      { name: 'أماكن في البيت', words: ['مطبخ', 'أوضة', 'حمام', 'بلكونة'] },
+      { name: 'أكلات مصرية', words: ['كشري', 'ملوخية', 'محشي', 'فتة'] },
+      { name: 'أدوات الرسم', words: ['فرشاة', 'ألوان', 'ورقة', 'أستيكة'] } ] },
+    { groups: [
+      { name: 'دول', words: ['مصر', 'السعودية', 'فرنسا', 'اليابان'] },
+      { name: 'حيوانات الغابة', words: ['قرد', 'زرافة', 'نمر', 'دب'] },
+      { name: 'أدوات النجار', words: ['شاكوش', 'مفك', 'منشار', 'مسمار'] } ] },
+    { groups: [
+      { name: 'شهور', words: ['يناير', 'فبراير', 'مارس', 'أبريل'] },
+      { name: 'ألعاب بالكورة', words: ['كورة قدم', 'كورة سلة', 'كورة طايرة', 'كورة يد'] },
+      { name: 'أكلات سريعة', words: ['بيتزا', 'برجر', 'شاورما', 'هوت دوج'] } ] },
+    { groups: [
+      { name: 'أجزاء العربية', words: ['عجلة', 'باب', 'مراية', 'دريكسيون'] },
+      { name: 'آلات موسيقية', words: ['طبلة', 'عود', 'بيانو', 'جيتار'] },
+      { name: 'مشروبات سخنة', words: ['شاي', 'قهوة', 'كاكاو', 'سحلب'] } ] }
+  ],
+  en: [
+    { groups: [
+      { name: 'Colours', words: ['Red', 'Blue', 'Green', 'Yellow'] },
+      { name: 'Animals', words: ['Cat', 'Dog', 'Lion', 'Elephant'] },
+      { name: 'Fruit', words: ['Apple', 'Banana', 'Orange', 'Grape'] } ] },
+    { groups: [
+      { name: 'Days of the week', words: ['Monday', 'Tuesday', 'Friday', 'Sunday'] },
+      { name: 'Shapes', words: ['Square', 'Circle', 'Triangle', 'Star'] },
+      { name: 'Drinks', words: ['Tea', 'Coffee', 'Juice', 'Water'] } ] },
+    { groups: [
+      { name: 'Body parts', words: ['Hand', 'Foot', 'Head', 'Knee'] },
+      { name: 'Transport', words: ['Car', 'Train', 'Plane', 'Boat'] },
+      { name: 'Vegetables', words: ['Tomato', 'Cucumber', 'Onion', 'Carrot'] } ] },
+    { groups: [
+      { name: 'Birds', words: ['Pigeon', 'Sparrow', 'Duck', 'Parrot'] },
+      { name: 'Clothes', words: ['Shirt', 'Trousers', 'Shoes', 'Hat'] },
+      { name: 'School things', words: ['Pen', 'Notebook', 'Backpack', 'Ruler'] } ] },
+    { groups: [
+      { name: 'Numbers', words: ['One', 'Two', 'Three', 'Four'] },
+      { name: 'Seasons', words: ['Summer', 'Winter', 'Spring', 'Autumn'] },
+      { name: 'Furniture', words: ['Chair', 'Table', 'Bed', 'Sofa'] } ] },
+    { groups: [
+      { name: 'Sea animals', words: ['Fish', 'Whale', 'Dolphin', 'Crab'] },
+      { name: 'Sweets', words: ['Cake', 'Cookie', 'Candy', 'Chocolate'] },
+      { name: 'Sports', words: ['Football', 'Swimming', 'Tennis', 'Running'] } ] },
+    { groups: [
+      { name: 'Home appliances', words: ['Fridge', 'Washing machine', 'TV', 'Fan'] },
+      { name: 'Insects', words: ['Ant', 'Bee', 'Fly', 'Butterfly'] },
+      { name: 'Family', words: ['Dad', 'Mum', 'Sister', 'Grandma'] } ] },
+    { groups: [
+      { name: 'Jobs', words: ['Doctor', 'Teacher', 'Chef', 'Police officer'] },
+      { name: 'Cutlery', words: ['Spoon', 'Fork', 'Knife', 'Plate'] },
+      { name: 'Places', words: ['School', 'Hospital', 'Market', 'Park'] } ] },
+    { groups: [
+      { name: 'Farm animals', words: ['Cow', 'Sheep', 'Horse', 'Goat'] },
+      { name: 'Breakfast', words: ['Eggs', 'Toast', 'Cereal', 'Pancakes'] },
+      { name: 'Face', words: ['Eye', 'Nose', 'Mouth', 'Ear'] } ] },
+    { groups: [
+      { name: 'In the sky', words: ['Sun', 'Moon', 'Stars', 'Clouds'] },
+      { name: 'Toys', words: ['Ball', 'Doll', 'Blocks', 'Balloon'] },
+      { name: 'Cleaning', words: ['Broom', 'Soap', 'Sponge', 'Bucket'] } ] },
+    { groups: [
+      { name: 'Pets', words: ['Rabbit', 'Hamster', 'Goldfish', 'Turtle'] },
+      { name: 'Winter clothes', words: ['Coat', 'Scarf', 'Gloves', 'Jumper'] },
+      { name: 'Summer fruit', words: ['Watermelon', 'Mango', 'Peach', 'Cherry'] } ] },
+    { groups: [
+      { name: 'Rooms', words: ['Kitchen', 'Bedroom', 'Bathroom', 'Garage'] },
+      { name: 'Fast food', words: ['Pizza', 'Burger', 'Fries', 'Hot dog'] },
+      { name: 'Art supplies', words: ['Brush', 'Paint', 'Paper', 'Crayon'] } ] },
+    { groups: [
+      { name: 'Countries', words: ['Egypt', 'France', 'Japan', 'Brazil'] },
+      { name: 'Jungle animals', words: ['Monkey', 'Giraffe', 'Tiger', 'Zebra'] },
+      { name: 'Tools', words: ['Hammer', 'Screwdriver', 'Saw', 'Nail'] } ] },
+    { groups: [
+      { name: 'Months', words: ['January', 'February', 'March', 'April'] },
+      { name: 'Ball sports', words: ['Basketball', 'Volleyball', 'Handball', 'Rugby'] },
+      { name: 'Snacks', words: ['Crisps', 'Popcorn', 'Nuts', 'Biscuits'] } ] },
+    { groups: [
+      { name: 'Car parts', words: ['Wheel', 'Door', 'Mirror', 'Seat'] },
+      { name: 'Instruments', words: ['Drum', 'Piano', 'Guitar', 'Violin'] },
+      { name: 'Hot drinks', words: ['Hot chocolate', 'Tea', 'Coffee', 'Warm milk'] } ] }
+  ]
+};
+
+const CONNECTIONS_HARD = {
+  ar: [
+    { groups: [
+      { name: 'عواصم أوروبية', words: ['مدريد', 'أثينا', 'فيينا', 'لشبونة'] },
+      { name: 'عواصم عربية', words: ['عمّان', 'مسقط', 'الدوحة', 'بيروت'] },
+      { name: 'عواصم أفريقية', words: ['نيروبي', 'داكار', 'أكرا', 'أديس أبابا'] },
+      { name: 'عواصم آسيوية', words: ['بانكوك', 'سيول', 'هانوي', 'مانيلا'] },
+      { name: 'عواصم أمريكا الجنوبية', words: ['ليما', 'كاراكاس', 'سانتياجو', 'بوجوتا'] } ] },
+    { groups: [
+      { name: 'أنواع أجبان', words: ['شيدر', 'موتزاريلا', 'رومي', 'فيتا'] },
+      { name: 'أنواع عيش', words: ['بلدي', 'شامي', 'فينو', 'باجيت'] },
+      { name: 'أنواع مكرونة', words: ['بيني', 'فوسيلي', 'لازانيا', 'اسباجيتي'] },
+      { name: 'أنواع رز', words: ['بسمتي', 'مصري', 'ياسمين', 'أربوريو'] },
+      { name: 'أنواع شوربة', words: ['عدس', 'لسان عصفور', 'كريمة مشروم', 'حريرة'] } ] },
+    { groups: [
+      { name: 'أعضاء داخلية', words: ['كبد', 'طحال', 'بنكرياس', 'مرارة'] },
+      { name: 'عظام', words: ['جمجمة', 'ترقوة', 'قص', 'عمود فقري'] },
+      { name: 'عضلات الجيم', words: ['باي', 'تراي', 'بطن', 'سمانة'] },
+      { name: 'أجزاء العين', words: ['قرنية', 'شبكية', 'عدسة', 'قزحية'] },
+      { name: 'أجزاء الودن', words: ['طبلة', 'قوقعة', 'ركاب', 'صيوان'] } ] },
+    { groups: [
+      { name: 'أنواع ورد', words: ['جوري', 'فل', 'تيوليب', 'ياسمين'] },
+      { name: 'أشجار', words: ['نخلة', 'زيتون', 'صفصاف', 'جميز'] },
+      { name: 'خضار جذري', words: ['فجل', 'بنجر', 'لفت', 'جزر'] },
+      { name: 'أعشاب', words: ['نعناع', 'ريحان', 'زعتر', 'شبت'] },
+      { name: 'بقوليات', words: ['عدس', 'فول', 'لوبيا', 'حمص'] } ] },
+    { groups: [
+      { name: 'آلات وترية', words: ['عود', 'قانون', 'كمان', 'تشيلو'] },
+      { name: 'آلات نفخ', words: ['ناي', 'مزمار', 'ساكسفون', 'ترومبيت'] },
+      { name: 'آلات إيقاع', words: ['طبلة', 'رق', 'دف', 'إكسيليفون'] },
+      { name: 'مطربين مصريين', words: ['محمد منير', 'علي الحجار', 'عمرو دياب', 'هاني شاكر'] },
+      { name: 'مطربات عربيات', words: ['فيروز', 'وردة', 'شادية', 'نجاة'] } ] },
+    { groups: [
+      { name: 'أجزاء العربية', words: ['كبوت', 'شكمان', 'دبرياج', 'رديتر'] },
+      { name: 'أجزاء الموبايل', words: ['شاشة', 'بطارية', 'سماعة', 'شريحة'] },
+      { name: 'أجزاء الكمبيوتر', words: ['رامات', 'هارد', 'بروسيسور', 'باور'] },
+      { name: 'أجزاء الطيارة', words: ['جناح', 'ذيل', 'كابينة', 'محرك'] },
+      { name: 'أجزاء المركب', words: ['دفة', 'صاري', 'قلع', 'مرساة'] } ] },
+    { groups: [
+      { name: 'أبراج', words: ['الحمل', 'الثور', 'الجوزاء', 'السرطان'] },
+      { name: 'كواكب', words: ['عطارد', 'الزهرة', 'زحل', 'أورانوس'] },
+      { name: 'شهور هجرية', words: ['محرم', 'صفر', 'رجب', 'شعبان'] },
+      { name: 'شهور قبطية', words: ['توت', 'بابه', 'هاتور', 'كيهك'] },
+      { name: 'مواسم مصرية', words: ['شم النسيم', 'المولد', 'رأس السنة', 'وفاء النيل'] } ] },
+    { groups: [
+      { name: 'رياضات فردية', words: ['مبارزة', 'رماية', 'جمباز', 'رفع أثقال'] },
+      { name: 'رياضات جماعية', words: ['هوكي', 'رجبي', 'بولو', 'كرة ماء'] },
+      { name: 'رياضات بالمضرب', words: ['سكواش', 'تنس', 'بادل', 'ريشة'] },
+      { name: 'فنون قتالية', words: ['جودو', 'كاراتيه', 'تايكوندو', 'كيك بوكس'] },
+      { name: 'رياضات مائية', words: ['تجديف', 'غطس', 'سيرف', 'كاياك'] } ] },
+    { groups: [
+      { name: 'أحجار كريمة', words: ['ياقوت', 'زمرد', 'فيروز', 'عقيق'] },
+      { name: 'معادن', words: ['نحاس', 'قصدير', 'رصاص', 'زنك'] },
+      { name: 'غازات', words: ['هيليوم', 'نيون', 'أرجون', 'كلور'] },
+      { name: 'أحجار البناء', words: ['جبس', 'رخام', 'جرانيت', 'حجر جيري'] },
+      { name: 'مجوهرات', words: ['خاتم', 'دبلة', 'سوار', 'خلخال'] } ] },
+    { groups: [
+      { name: 'عملات', words: ['ين', 'روبية', 'بيزو', 'يوان'] },
+      { name: 'لغات', words: ['أوردو', 'سواحيلي', 'فارسي', 'تركي'] },
+      { name: 'رقصات', words: ['تانجو', 'سالسا', 'فلامنكو', 'دبكة'] },
+      { name: 'أكلات عالمية', words: ['سوشي', 'تاكو', 'باييا', 'كاري'] },
+      { name: 'معالم عالمية', words: ['بيج بن', 'تاج محل', 'الكولوسيوم', 'برج بيزا'] } ] },
+    { groups: [
+      { name: 'أدوات طبية', words: ['مشرط', 'سماعة طبية', 'جبيرة', 'حقنة'] },
+      { name: 'تخصصات طبية', words: ['جراحة', 'باطنة', 'أطفال', 'عظام'] },
+      { name: 'أمراض', words: ['سكر', 'ضغط', 'ربو', 'أنيميا'] },
+      { name: 'أشعات وفحوصات', words: ['أشعة', 'سونار', 'رسم قلب', 'رنين'] },
+      { name: 'أدوية', words: ['باراسيتامول', 'أسبرين', 'إيبوبروفين', 'مضاد حيوي'] } ] },
+    { groups: [
+      { name: 'ماركات ألمانية', words: ['مرسيدس', 'بي إم دبليو', 'أودي', 'فولكس فاجن'] },
+      { name: 'ماركات يابانية', words: ['تويوتا', 'نيسان', 'هوندا', 'مازدا'] },
+      { name: 'ماركات كورية', words: ['هيونداي', 'كيا', 'سامسونج', 'إل جي'] },
+      { name: 'ماركات أمريكية', words: ['فورد', 'شيفروليه', 'تسلا', 'جيب'] },
+      { name: 'ماركات إيطالية', words: ['فيراري', 'فيات', 'لامبورجيني', 'مازيراتي'] } ] },
+    { groups: [
+      { name: 'أبطال مارفل', words: ['آيرون مان', 'ثور', 'هالك', 'كابتن أمريكا'] },
+      { name: 'أبطال دي سي', words: ['باتمان', 'سوبرمان', 'فلاش', 'أكوامان'] },
+      { name: 'أشرار ديزني', words: ['جعفر', 'سكار', 'أورسولا', 'كرويلا'] },
+      { name: 'أميرات ديزني', words: ['سندريلا', 'ياسمين', 'آريل', 'بيل'] },
+      { name: 'شخصيات بيكسار', words: ['وودي', 'باز', 'نيمو', 'ماكوين'] } ] },
+    { groups: [
+      { name: 'أدوات الخبيز', words: ['نشابة', 'مضرب بيض', 'قالب كيك', 'منخل'] },
+      { name: 'أجهزة المطبخ', words: ['خلاط', 'كبة', 'ميكروويف', 'قلاية هوائية'] },
+      { name: 'أواني الطبخ', words: ['حلة', 'طاسة', 'صينية', 'كسرولة'] },
+      { name: 'توابل', words: ['كمون', 'كزبرة', 'شطة', 'فلفل أسود'] },
+      { name: 'صوصات', words: ['كاتشب', 'مايونيز', 'طحينة', 'مستردة'] } ] },
+    { groups: [
+      { name: 'طيور جارحة', words: ['صقر', 'نسر', 'باز', 'عقاب'] },
+      { name: 'طيور مائية', words: ['بجعة', 'بشاروش', 'نورس', 'بلشون'] },
+      { name: 'دواجن', words: ['فراخ', 'بط', 'وز', 'رومي'] },
+      { name: 'حيوانات ليلية', words: ['بومة', 'خفاش', 'راكون', 'قنفد'] },
+      { name: 'طيور مغردة', words: ['كناري', 'بلبل', 'عندليب', 'كروان'] } ] }
+  ],
+  en: [
+    { groups: [
+      { name: 'European capitals', words: ['Madrid', 'Athens', 'Vienna', 'Lisbon'] },
+      { name: 'Arab capitals', words: ['Amman', 'Muscat', 'Doha', 'Beirut'] },
+      { name: 'African capitals', words: ['Nairobi', 'Dakar', 'Accra', 'Addis Ababa'] },
+      { name: 'Asian capitals', words: ['Bangkok', 'Seoul', 'Hanoi', 'Manila'] },
+      { name: 'South American capitals', words: ['Lima', 'Caracas', 'Santiago', 'Bogotá'] } ] },
+    { groups: [
+      { name: 'Cheeses', words: ['Cheddar', 'Mozzarella', 'Brie', 'Feta'] },
+      { name: 'Breads', words: ['Baguette', 'Pita', 'Sourdough', 'Naan'] },
+      { name: 'Pasta', words: ['Penne', 'Fusilli', 'Lasagne', 'Spaghetti'] },
+      { name: 'Rice', words: ['Basmati', 'Jasmine', 'Arborio', 'Wild rice'] },
+      { name: 'Soups', words: ['Lentil', 'Minestrone', 'Gazpacho', 'Chowder'] } ] },
+    { groups: [
+      { name: 'Organs', words: ['Liver', 'Spleen', 'Pancreas', 'Gallbladder'] },
+      { name: 'Bones', words: ['Skull', 'Femur', 'Collarbone', 'Sternum'] },
+      { name: 'Muscles', words: ['Biceps', 'Triceps', 'Calf', 'Quadriceps'] },
+      { name: 'Parts of the eye', words: ['Cornea', 'Retina', 'Lens', 'Iris'] },
+      { name: 'Parts of the ear', words: ['Eardrum', 'Cochlea', 'Stirrup', 'Earlobe'] } ] },
+    { groups: [
+      { name: 'Flowers', words: ['Rose', 'Tulip', 'Jasmine', 'Orchid'] },
+      { name: 'Trees', words: ['Palm', 'Olive', 'Willow', 'Oak'] },
+      { name: 'Root vegetables', words: ['Radish', 'Beetroot', 'Turnip', 'Parsnip'] },
+      { name: 'Herbs', words: ['Mint', 'Basil', 'Thyme', 'Dill'] },
+      { name: 'Pulses', words: ['Lentils', 'Chickpeas', 'Broad beans', 'Black-eyed peas'] } ] },
+    { groups: [
+      { name: 'String instruments', words: ['Oud', 'Harp', 'Cello', 'Banjo'] },
+      { name: 'Wind instruments', words: ['Flute', 'Saxophone', 'Trumpet', 'Clarinet'] },
+      { name: 'Percussion', words: ['Tabla', 'Tambourine', 'Xylophone', 'Snare drum'] },
+      { name: 'Singers', words: ['Adele', 'Beyoncé', 'Shakira', 'Rihanna'] },
+      { name: 'Bands', words: ['Coldplay', 'Queen', 'ABBA', 'U2'] } ] },
+    { groups: [
+      { name: 'Car parts', words: ['Bonnet', 'Exhaust', 'Clutch', 'Radiator'] },
+      { name: 'Phone parts', words: ['Screen', 'Battery', 'Speaker', 'SIM card'] },
+      { name: 'Computer parts', words: ['RAM', 'Hard drive', 'Processor', 'Power supply'] },
+      { name: 'Aircraft parts', words: ['Wing', 'Tail', 'Cockpit', 'Fuselage'] },
+      { name: 'Boat parts', words: ['Rudder', 'Mast', 'Sail', 'Anchor'] } ] },
+    { groups: [
+      { name: 'Zodiac signs', words: ['Aries', 'Taurus', 'Gemini', 'Cancer'] },
+      { name: 'Planets', words: ['Mercury', 'Venus', 'Saturn', 'Uranus'] },
+      { name: 'Hijri months', words: ['Muharram', 'Safar', 'Rajab', 'Shaban'] },
+      { name: 'Coptic months', words: ['Thout', 'Paopi', 'Hathor', 'Koiak'] },
+      { name: 'Greek letters', words: ['Alpha', 'Beta', 'Gamma', 'Delta'] } ] },
+    { groups: [
+      { name: 'Individual Olympic sports', words: ['Fencing', 'Archery', 'Gymnastics', 'Weightlifting'] },
+      { name: 'Team sports', words: ['Hockey', 'Rugby', 'Polo', 'Water polo'] },
+      { name: 'Racket sports', words: ['Squash', 'Tennis', 'Padel', 'Badminton'] },
+      { name: 'Martial arts', words: ['Judo', 'Karate', 'Taekwondo', 'Kickboxing'] },
+      { name: 'Water sports', words: ['Rowing', 'Diving', 'Surfing', 'Kayaking'] } ] },
+    { groups: [
+      { name: 'Gemstones', words: ['Ruby', 'Emerald', 'Sapphire', 'Topaz'] },
+      { name: 'Metals', words: ['Copper', 'Tin', 'Lead', 'Zinc'] },
+      { name: 'Gases', words: ['Helium', 'Neon', 'Argon', 'Chlorine'] },
+      { name: 'Building stone', words: ['Marble', 'Granite', 'Limestone', 'Sandstone'] },
+      { name: 'Jewellery', words: ['Ring', 'Bracelet', 'Anklet', 'Brooch'] } ] },
+    { groups: [
+      { name: 'Currencies', words: ['Yen', 'Rupee', 'Peso', 'Yuan'] },
+      { name: 'Languages', words: ['Urdu', 'Swahili', 'Persian', 'Turkish'] },
+      { name: 'Dances', words: ['Tango', 'Salsa', 'Flamenco', 'Dabke'] },
+      { name: 'World dishes', words: ['Sushi', 'Taco', 'Paella', 'Curry'] },
+      { name: 'Landmarks', words: ['Big Ben', 'Taj Mahal', 'Colosseum', 'Leaning Tower of Pisa'] } ] },
+    { groups: [
+      { name: 'Medical tools', words: ['Scalpel', 'Stethoscope', 'Splint', 'Syringe'] },
+      { name: 'Medical fields', words: ['Surgery', 'Paediatrics', 'Cardiology', 'Orthopaedics'] },
+      { name: 'Illnesses', words: ['Diabetes', 'Asthma', 'Anaemia', 'Migraine'] },
+      { name: 'Scans and tests', words: ['X-ray', 'Ultrasound', 'ECG', 'MRI'] },
+      { name: 'Medicines', words: ['Paracetamol', 'Aspirin', 'Ibuprofen', 'Antibiotic'] } ] },
+    { groups: [
+      { name: 'German car brands', words: ['Mercedes', 'BMW', 'Audi', 'Volkswagen'] },
+      { name: 'Japanese car brands', words: ['Toyota', 'Nissan', 'Honda', 'Mazda'] },
+      { name: 'Korean brands', words: ['Hyundai', 'Kia', 'Samsung', 'LG'] },
+      { name: 'American car brands', words: ['Ford', 'Chevrolet', 'Tesla', 'Jeep'] },
+      { name: 'Italian car brands', words: ['Ferrari', 'Fiat', 'Lamborghini', 'Maserati'] } ] },
+    { groups: [
+      { name: 'Marvel heroes', words: ['Iron Man', 'Thor', 'Hulk', 'Captain America'] },
+      { name: 'DC heroes', words: ['Batman', 'Superman', 'The Flash', 'Aquaman'] },
+      { name: 'Disney villains', words: ['Jafar', 'Scar', 'Ursula', 'Cruella'] },
+      { name: 'Disney princesses', words: ['Cinderella', 'Jasmine', 'Ariel', 'Belle'] },
+      { name: 'Pixar characters', words: ['Woody', 'Buzz', 'Nemo', 'Lightning McQueen'] } ] },
+    { groups: [
+      { name: 'Baking tools', words: ['Rolling pin', 'Whisk', 'Cake tin', 'Sieve'] },
+      { name: 'Kitchen appliances', words: ['Blender', 'Food processor', 'Microwave', 'Air fryer'] },
+      { name: 'Cookware', words: ['Saucepan', 'Frying pan', 'Wok', 'Casserole dish'] },
+      { name: 'Spices', words: ['Cumin', 'Coriander', 'Paprika', 'Black pepper'] },
+      { name: 'Sauces', words: ['Ketchup', 'Mayonnaise', 'Tahini', 'Mustard'] } ] },
+    { groups: [
+      { name: 'Birds of prey', words: ['Falcon', 'Eagle', 'Hawk', 'Vulture'] },
+      { name: 'Water birds', words: ['Swan', 'Flamingo', 'Seagull', 'Heron'] },
+      { name: 'Poultry', words: ['Chicken', 'Duck', 'Goose', 'Turkey'] },
+      { name: 'Night animals', words: ['Owl', 'Bat', 'Raccoon', 'Hedgehog'] },
+      { name: 'Songbirds', words: ['Canary', 'Nightingale', 'Robin', 'Lark'] } ] }
+  ]
+};
+
+const connections = { puzzle: null, solved: [], selected: [], mistakes: 0, lang: 'ar', level: 'medium' };
 const CONNECT_MAX_MISTAKES = 4;
 
-function setupConnections() { setView('setup-connections'); }
+/** The three boards. Medium keeps its old list id, so its "already played" memory carries over. */
+const CONNECT_LEVELS = {
+  easy:   { db: () => CONNECTIONS_EASY, list: 'connections-easy:' },
+  medium: { db: () => CONNECTIONS_DB,   list: 'connections:' },
+  hard:   { db: () => CONNECTIONS_HARD, list: 'connections-hard:' }
+};
+const CONNECT_LEVEL_KEY = 'ashryConnectLevel';
+
+function connectLevel() {
+  try {
+    const saved = localStorage.getItem(CONNECT_LEVEL_KEY);
+    return CONNECT_LEVELS[saved] ? saved : 'medium';
+  } catch (e) {
+    return 'medium';
+  }
+}
+
+function setConnectLevel(level) {
+  if (!CONNECT_LEVELS[level]) return;
+  try { localStorage.setItem(CONNECT_LEVEL_KEY, level); } catch (e) {}
+  paintConnectLevel();
+  playSound('click');
+}
+
+/** Marks the chosen level and says how many words and groups it deals. */
+function paintConnectLevel() {
+  const level = connectLevel();
+  document.querySelectorAll('#conn-level .segmented__item').forEach(b => {
+    b.classList.toggle('is-active', b.dataset.level === level);
+  });
+  const hint = document.getElementById('conn-level-hint');
+  if (!hint) return;
+  const first = CONNECT_LEVELS[level].db()[appState.lang === 'en' ? 'en' : 'ar'][0];
+  const groups = first ? first.groups.length : 4;
+  const t = TRANSLATIONS[appState.lang] || {};
+  hint.textContent = (t.conn_level_hint || '{cards} · {groups}')
+    .replace('{cards}', groups * 4)
+    .replace('{groups}', groups);
+}
+
+function setupConnections() {
+  setView('setup-connections');
+  paintConnectLevel();
+}
+
+// The content check loads this file in Node, where there is no page.
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => { try { paintConnectLevel(); } catch (e) {} });
+}
 
 function startConnections() {
   const lang = appState.lang === 'en' ? 'en' : 'ar';
-  const pool = CONNECTIONS_DB[lang];
-  const puzzle = freshPick('connections:' + lang, pool, 1, { key: p => p.groups.map(g => g.name).join('|') })[0];
+  const level = connectLevel();
+  const pool = CONNECT_LEVELS[level].db()[lang];
+  const puzzle = freshPick(CONNECT_LEVELS[level].list + lang, pool, 1, { key: p => p.groups.map(g => g.name).join('|') })[0];
 
   connections.lang = lang;
+  connections.level = level;
   connections.puzzle = puzzle;
   connections.solved = [];
   connections.selected = [];
@@ -16969,7 +17604,7 @@ function submitConnectGuess() {
     playSound('success');
     haptic('medium');
     renderConnections();
-    if (connections.solved.length === 4) finishConnections(true);
+    if (connections.solved.length === connections.puzzle.groups.length) finishConnections(true);
     return;
   }
 
@@ -16997,7 +17632,7 @@ function submitConnectGuess() {
 
 function finishConnections(won) {
   // Losing still reveals the answer — otherwise the puzzle just nags at you.
-  connections.solved = [0, 1, 2, 3];
+  connections.solved = connections.puzzle.groups.map((g, i) => i);
   connections.selected = [];
   renderConnections(true);
   if (won) confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
@@ -17027,7 +17662,7 @@ function renderConnections(finished) {
 
   if (meta) {
     const left = CONNECT_MAX_MISTAKES - connections.mistakes;
-    meta.innerHTML = finished || connections.solved.length === 4
+    meta.innerHTML = finished || connections.solved.length === connections.puzzle.groups.length
       ? `<button onclick="startConnections()" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>`
       : `<div class="connect-lives">${t.conn_mistakes || 'محاولات متبقية'}:
            ${'●'.repeat(Math.max(0, left))}${'○'.repeat(connections.mistakes)}</div>
@@ -17040,6 +17675,751 @@ function renderConnections(finished) {
 function shuffleConnections() {
   connections.tiles = shuffleArray(connections.tiles);
   renderConnections();
+}
+</script>
+
+    <script>
+/* ============================================================================
+   دوري المعرفة — THE BOARD QUESTIONS
+   ----------------------------------------------------------------------------
+   Ten categories, five levels each: 100 is something almost everyone knows,
+   500 is for the one who reads everything. Every item is
+     [question (ar), answer (ar), question (en), answer (en)]
+   so one board plays in either language.
+
+   Rules for adding questions (tools/validate-content.js checks the shape):
+     - a fact that doesn't change: no "current champion", "latest phone",
+       "how many times has X won" for anything still being played;
+     - the answer must not be inside the question;
+     - put it at the level of how many people at a family gathering would know
+       it, not at how long the answer is.
+   ========================================================================= */
+
+const TRIVIA_BOARD_BANK = [
+  {
+    id: 'film', icon: '🎬', ar: 'سينما وتلفزيون', en: 'Film & TV',
+    levels: {
+      100: [
+        ["مين الممثل اللي قام ببطولة مسرحية «الزعيم»؟", "عادل إمام", "Which actor starred in the Egyptian play 'El Zaeem'?", "Adel Emam"],
+        ["ما اسم البطة الشهيرة صديقة ميكي ماوس؟", "بطوط (دونالد داك)", "What is the name of Mickey Mouse's famous duck friend?", "Donald Duck"],
+        ["ما اسم الأسد الصغير بطل فيلم «الأسد الملك»؟", "سيمبا", "What is the name of the lion cub in 'The Lion King'?", "Simba"],
+        ["في أي دولة تقع هوليوود؟", "الولايات المتحدة", "In which country is Hollywood?", "The United States"],
+        ["ما لون شخصية «سبونج بوب»؟", "أصفر", "What colour is SpongeBob SquarePants?", "Yellow"],
+        ["أي شخصية كرتونية تصرخ «يابا دابا دو»؟", "فريد فلينستون", "Which cartoon character shouts 'Yabba Dabba Doo'?", "Fred Flintstone"]
+      ],
+      200: [
+        ["ما اسم فيلم ليوناردو دي كابريو عن السفينة التي غرقت سنة 1912؟", "تايتانيك", "Which Leonardo DiCaprio film is about the ship that sank in 1912?", "Titanic"],
+        ["أي مطرب وممثل مصري لُقّب بـ«العندليب الأسمر»؟", "عبد الحليم حافظ", "Which Egyptian singer and actor was nicknamed 'The Dark Nightingale'?", "Abdel Halim Hafez"],
+        ["ما اسم مدرسة السحر في سلسلة «هاري بوتر»؟", "هوجورتس", "What is the school of magic called in 'Harry Potter'?", "Hogwarts"],
+        ["مين الممثل اللي قدّم شخصية «اللمبي»؟", "محمد سعد", "Which actor played the character 'El Limby'?", "Mohamed Saad"],
+        ["ما اسم الغول الأخضر بطل أفلام دريم ووركس الشهيرة؟", "شريك", "What is the name of the green ogre in DreamWorks' famous films?", "Shrek"],
+        ["ما اسم أشهر جائزة سينمائية أمريكية تمثالها ذهبي؟", "الأوسكار", "What is the most famous American film award, with a golden statuette?", "The Oscar (Academy Award)"]
+      ],
+      300: [
+        ["مين أخرج فيلم «باب الحديد»؟", "يوسف شاهين", "Who directed the Egyptian film 'Cairo Station' (Bab El Hadid)?", "Youssef Chahine"],
+        ["أي ممثل مصري شارك في «لورانس العرب» وصار نجماً عالمياً؟", "عمر الشريف", "Which Egyptian actor appeared in 'Lawrence of Arabia' and became a world star?", "Omar Sharif"],
+        ["في أي دولة يُقام مهرجان «كان» السينمائي؟", "فرنسا", "In which country is the Cannes Film Festival held?", "France"],
+        ["في «حرب النجوم»، مين والد لوك سكايووكر؟", "دارث فيدر", "In 'Star Wars', who is Luke Skywalker's father?", "Darth Vader"],
+        ["مين الممثل اللي لعب دور «رأفت الهجان»؟", "محمود عبد العزيز", "Who played the spy 'Raafat El Haggan' in the Egyptian series?", "Mahmoud Abdel Aziz"],
+        ["ما اسم الروبوت الصغير في فيلم بيكسار الذي ينظّف الأرض وحيداً؟", "وول-إي", "What is the name of the little Pixar robot left cleaning up Earth?", "WALL-E"]
+      ],
+      400: [
+        ["ما أول فيلم رسوم متحركة طويل من ديزني (1937)؟", "سنو وايت والأقزام السبعة", "What was Disney's first full-length animated film (1937)?", "Snow White and the Seven Dwarfs"],
+        ["مين أخرج فيلم «حديقة الديناصورات» (Jurassic Park)؟", "ستيفن سبيلبرج", "Who directed 'Jurassic Park'?", "Steven Spielberg"],
+        ["أي ممثلة لُقّبت بـ«سيدة الشاشة العربية»؟", "فاتن حمامة", "Which actress was called 'The Lady of the Arab Screen'?", "Faten Hamama"],
+        ["أي شركة أنتجت أفلام «حكاية لعبة» (Toy Story)؟", "بيكسار", "Which studio made the 'Toy Story' films?", "Pixar"],
+        ["في فيلم «الناظر»، مين الممثل اللي لعب دور الناظر وأبوه وأمه؟", "علاء ولي الدين", "In the comedy 'El Nazer', which actor played the headmaster and both his parents?", "Alaa Wali El-Din"],
+        ["كم فيلماً أخرج بيتر جاكسون في سلسلة «سيد الخواتم» الأصلية؟", "3", "How many films did Peter Jackson make in the original 'Lord of the Rings' series?", "Three"]
+      ],
+      500: [
+        ["مين أخرج فيلم «المومياء» (1969) الذي يُعد من أهم الأفلام المصرية؟", "شادي عبد السلام", "Who directed 'The Night of Counting the Years' (Al-Mumiya, 1969)?", "Shadi Abdel Salam"],
+        ["مين فاز بأوسكار أفضل ممثل عن فيلم «الجوكر» (2019)؟", "خواكين فينيكس", "Who won the Best Actor Oscar for 'Joker' (2019)?", "Joaquin Phoenix"],
+        ["مين المخرج الياباني صاحب فيلم «المخطوفة» (Spirited Away)؟", "هاياو ميازاكي", "Which Japanese director made 'Spirited Away'?", "Hayao Miyazaki"],
+        ["ما أول فيلم غير ناطق بالإنجليزية يفوز بأوسكار أفضل فيلم (2020)؟", "باراسايت (طفيلي)", "What was the first non-English-language film to win Best Picture (2020)?", "Parasite"],
+        ["في أي سنة عُرض أول فيلم من سلسلة «حرب النجوم»؟", "1977", "In which year was the first 'Star Wars' film released?", "1977"],
+        ["فيلم «دعاء الكروان» مأخوذ عن رواية لأي كاتب مصري؟", "طه حسين", "The film 'The Nightingale's Prayer' is based on a novel by which Egyptian writer?", "Taha Hussein"]
+      ]
+    }
+  },
+  {
+    id: 'sport', icon: '⚽', ar: 'رياضة', en: 'Sport',
+    levels: {
+      100: [
+        ["كم لاعباً في فريق كرة القدم داخل الملعب؟", "11", "How many players does a football team have on the pitch?", "11"],
+        ["في أي رياضة يُستخدم مضرب وريشة؟", "الريشة الطائرة (البادمنتون)", "Which sport is played with a racket and a shuttlecock?", "Badminton"],
+        ["كل كم سنة تُقام كأس العالم لكرة القدم؟", "كل 4 سنوات", "How often is the FIFA World Cup held?", "Every 4 years"],
+        ["ما لون البطاقة التي يُطرد بها اللاعب في كرة القدم؟", "أحمر", "What colour card sends a footballer off?", "Red"],
+        ["في أي لعبة يُقال «كش ملك»؟", "الشطرنج", "In which game do you say 'checkmate'?", "Chess"],
+        ["أي لاعب مصري يلقّبه جمهور ليفربول بـ«الملك المصري»؟", "محمد صلاح", "Which Egyptian player do Liverpool fans call 'The Egyptian King'?", "Mohamed Salah"]
+      ],
+      200: [
+        ["كم دقيقة مدة الشوط الواحد في كرة القدم؟", "45 دقيقة", "How long is one half of a football match?", "45 minutes"],
+        ["أي منتخب فاز بكأس العالم 2022 في قطر؟", "الأرجنتين", "Which country won the 2022 World Cup in Qatar?", "Argentina"],
+        ["كم حلقة في شعار الألعاب الأولمبية؟", "5", "How many rings are in the Olympic symbol?", "5"],
+        ["في كرة السلة، كم نقطة للتسديدة من خارج القوس؟", "3", "In basketball, how many points is a shot from outside the arc worth?", "3"],
+        ["أي نادٍ مصري اختاره الاتحاد الأفريقي «نادي القرن»؟", "الأهلي", "Which Egyptian club did the African confederation name 'Club of the Century'?", "Al Ahly"],
+        ["كم لاعباً في فريق كرة السلة داخل الملعب؟", "5", "How many players does a basketball team have on court?", "5"]
+      ],
+      300: [
+        ["في أي دولة أُقيمت أول دورة ألعاب أولمبية حديثة سنة 1896؟", "اليونان", "Which country hosted the first modern Olympic Games in 1896?", "Greece"],
+        ["كم لاعباً في فريق الكرة الطائرة داخل الملعب؟", "6", "How many players does a volleyball team have on court?", "6"],
+        ["ما اسم بطولة التنس التي تُلعب على العشب في لندن؟", "ويمبلدون", "Which tennis tournament is played on grass in London?", "Wimbledon"],
+        ["أي دولة استضافت كأس العالم 2010، أول كأس عالم في أفريقيا؟", "جنوب أفريقيا", "Which country hosted the 2010 World Cup, the first in Africa?", "South Africa"],
+        ["في الملاكمة، ماذا يعني الاختصار K.O؟", "الضربة القاضية", "In boxing, what does K.O. stand for?", "Knockout"],
+        ["أي ملاكم قال «أطير كالفراشة وألسع كالنحلة»؟", "محمد علي", "Which boxer said 'Float like a butterfly, sting like a bee'?", "Muhammad Ali"]
+      ],
+      400: [
+        ["في أي سنة شارك منتخب مصر في كأس العالم لأول مرة؟", "1934", "In which year did Egypt first play at a World Cup?", "1934"],
+        ["في الجولف، ماذا تُسمى الحفرة التي تُنهى بضربة أقل من المعدل؟", "بيردي", "In golf, what is a hole finished one stroke under par called?", "A birdie"],
+        ["كم كيلومتراً طول سباق الماراثون؟", "42.195 كم", "How long is a marathon in kilometres?", "42.195 km"],
+        ["مين الرياضي صاحب أكبر عدد من الميداليات الأولمبية في التاريخ؟", "مايكل فيلبس", "Which athlete has won the most Olympic medals in history?", "Michael Phelps"],
+        ["كم قطعة لكل لاعب في بداية مباراة الشطرنج؟", "16", "How many pieces does each player start a chess game with?", "16"],
+        ["في أي مدينة أُقيمت دورة الألعاب الأولمبية 2008؟", "بكين", "Which city hosted the 2008 Olympic Games?", "Beijing"]
+      ],
+      500: [
+        ["أي رباع مصري فاز بذهبية أولمبياد أمستردام 1928؟", "السيد نصير", "Which Egyptian weightlifter won gold at the 1928 Amsterdam Olympics?", "El Sayed Nosseir"],
+        ["في التنس، ماذا تُسمى النتيجة 40-40؟", "ديوس", "In tennis, what is a score of 40-40 called?", "Deuce"],
+        ["كم دقيقة مدة الشوط الواحد في كرة اليد للكبار؟", "30 دقيقة", "How long is one half of an adult handball match?", "30 minutes"],
+        ["في أي سنة اخترع جيمس نايسميث كرة السلة؟", "1891", "In which year did James Naismith invent basketball?", "1891"],
+        ["ما الاسم الجديد لبطولة «كأس الأندية الأوروبية البطلة» منذ 1992؟", "دوري أبطال أوروبا", "What has the European Champion Clubs' Cup been called since 1992?", "The UEFA Champions League"],
+        ["كم حفرة في ملعب الجولف القياسي؟", "18", "How many holes does a standard golf course have?", "18"]
+      ]
+    }
+  },
+  {
+    id: 'history', icon: '🏛️', ar: 'تاريخ', en: 'History',
+    levels: {
+      100: [
+        ["أي ملكة فرعونية شهيرة ماتت بلدغة ثعبان حسب الرواية المشهورة؟", "كليوباترا", "Which famous queen of Egypt, the story goes, died from a snake bite?", "Cleopatra"],
+        ["في أي دولة تقع أهرامات الجيزة؟", "مصر", "In which country are the Pyramids of Giza?", "Egypt"],
+        ["مين أول إنسان مشى على سطح القمر؟", "نيل أرمسترونج", "Who was the first person to walk on the Moon?", "Neil Armstrong"],
+        ["ما اسم السور الطويل الشهير في الصين؟", "سور الصين العظيم", "What is the famous long wall in China called?", "The Great Wall of China"],
+        ["مين القائد الذي استعاد القدس من الصليبيين سنة 1187؟", "صلاح الدين الأيوبي", "Which leader retook Jerusalem from the Crusaders in 1187?", "Saladin"],
+        ["أي حضارة قديمة كتبت بالهيروغليفية؟", "المصرية القديمة", "Which ancient civilisation wrote in hieroglyphs?", "Ancient Egypt"]
+      ],
+      200: [
+        ["في أي سنة انتهت الحرب العالمية الثانية؟", "1945", "In which year did the Second World War end?", "1945"],
+        ["أي فرعون اكتشف هوارد كارتر مقبرته سنة 1922؟", "توت عنخ آمون", "Whose tomb did Howard Carter discover in 1922?", "Tutankhamun"],
+        ["في أي سنة قامت ثورة يوليو في مصر؟", "1952", "In which year did Egypt's July Revolution take place?", "1952"],
+        ["أي رئيس مصري أمّم قناة السويس سنة 1956؟", "جمال عبد الناصر", "Which Egyptian president nationalised the Suez Canal in 1956?", "Gamal Abdel Nasser"],
+        ["ما اسم الحجر الذي ساعد على فك رموز الهيروغليفية؟", "حجر رشيد", "Which stone helped decode Egyptian hieroglyphs?", "The Rosetta Stone"],
+        ["في أي سنة سقط جدار برلين؟", "1989", "In which year did the Berlin Wall fall?", "1989"]
+      ],
+      300: [
+        ["ما اسم الحرب التي عبر فيها الجيش المصري قناة السويس سنة 1973؟", "حرب أكتوبر", "What is the name of the 1973 war in which the Egyptian army crossed the Suez Canal?", "The October War"],
+        ["مين أول رئيس لجمهورية مصر؟", "محمد نجيب", "Who was the first president of the Republic of Egypt?", "Mohamed Naguib"],
+        ["أي عالم مسلم كتب «القانون في الطب»؟", "ابن سينا", "Which Muslim scholar wrote 'The Canon of Medicine'?", "Ibn Sina (Avicenna)"],
+        ["في أي مدينة اغتيل يوليوس قيصر؟", "روما", "In which city was Julius Caesar assassinated?", "Rome"],
+        ["أي قائد فرنسي قاد الحملة على مصر سنة 1798؟", "نابليون بونابرت", "Which French commander led the 1798 expedition to Egypt?", "Napoleon Bonaparte"],
+        ["لأي ملك بُني الهرم الأكبر في الجيزة؟", "خوفو", "For which king was the Great Pyramid of Giza built?", "Khufu"]
+      ],
+      400: [
+        ["في أي معركة هزم المماليك المغول سنة 1260؟", "عين جالوت", "In which battle did the Mamluks defeat the Mongols in 1260?", "Ain Jalut"],
+        ["في أي سنة افتُتحت قناة السويس للملاحة؟", "1869", "In which year did the Suez Canal open to shipping?", "1869"],
+        ["أي قائد فاطمي أسس مدينة القاهرة؟", "جوهر الصقلي", "Which Fatimid general founded the city of Cairo?", "Jawhar al-Siqilli"],
+        ["أي ملك فرعوني وحّد مصر العليا والسفلى؟", "مينا (نارمر)", "Which pharaoh united Upper and Lower Egypt?", "Menes (Narmer)"],
+        ["في أي سنة بدأت الحرب العالمية الأولى؟", "1914", "In which year did the First World War begin?", "1914"],
+        ["أي إمبراطورية حكمت مصر رسمياً من 1517 حتى 1914؟", "الدولة العثمانية", "Which empire formally ruled Egypt from 1517 until 1914?", "The Ottoman Empire"]
+      ],
+      500: [
+        ["ما اسم المعاهدة التي أنهت الحرب العالمية الأولى مع ألمانيا سنة 1919؟", "معاهدة فرساي", "Which treaty ended the First World War with Germany in 1919?", "The Treaty of Versailles"],
+        ["أي مؤرخ يوناني قال «مصر هبة النيل»؟", "هيرودوت", "Which Greek historian called Egypt 'the gift of the Nile'?", "Herodotus"],
+        ["أي ملكة حكمت مصر فرعوناً وبنت معبد الدير البحري؟", "حتشبسوت", "Which queen ruled Egypt as pharaoh and built the temple at Deir el-Bahari?", "Hatshepsut"],
+        ["ما اسم عاصمة مصر الموحدة في عصر الأسرات الأولى؟", "منف", "What was the capital of united Egypt under the first dynasties?", "Memphis"],
+        ["مين أول امرأة فازت بجائزة نوبل؟", "ماري كوري", "Who was the first woman to win a Nobel Prize?", "Marie Curie"],
+        ["في أي سنة فتح العثمانيون القسطنطينية؟", "1453", "In which year did the Ottomans take Constantinople?", "1453"]
+      ]
+    }
+  },
+  {
+    id: 'geography', icon: '🌍', ar: 'جغرافيا', en: 'Geography',
+    levels: {
+      100: [
+        ["ما أطول نهر في أفريقيا؟", "النيل", "What is the longest river in Africa?", "The Nile"],
+        ["ما عاصمة فرنسا؟", "باريس", "What is the capital of France?", "Paris"],
+        ["ما أكبر قارة في العالم؟", "آسيا", "What is the largest continent?", "Asia"],
+        ["ما أكبر محيط في العالم؟", "المحيط الهادئ", "What is the largest ocean?", "The Pacific Ocean"],
+        ["ما عاصمة السعودية؟", "الرياض", "What is the capital of Saudi Arabia?", "Riyadh"],
+        ["في أي قارة تقع معظم أراضي مصر؟", "أفريقيا", "On which continent is most of Egypt?", "Africa"]
+      ],
+      200: [
+        ["ما أعلى جبل في العالم؟", "إيفرست", "What is the highest mountain in the world?", "Mount Everest"],
+        ["ما عاصمة اليابان؟", "طوكيو", "What is the capital of Japan?", "Tokyo"],
+        ["ما أكبر صحراء حارة في العالم؟", "الصحراء الكبرى", "What is the largest hot desert in the world?", "The Sahara"],
+        ["أي بحر تصل إليه السفن من قناة السويس جنوباً؟", "البحر الأحمر", "Which sea do ships reach heading south through the Suez Canal?", "The Red Sea"],
+        ["ما عاصمة المغرب؟", "الرباط", "What is the capital of Morocco?", "Rabat"],
+        ["ما أكبر دولة في العالم مساحة؟", "روسيا", "What is the largest country by area?", "Russia"]
+      ],
+      300: [
+        ["ما عاصمة أستراليا؟", "كانبرا", "What is the capital of Australia?", "Canberra"],
+        ["ما أصغر دولة في العالم مساحة؟", "الفاتيكان", "What is the smallest country in the world?", "Vatican City"],
+        ["ما أطول نهر في أوروبا؟", "الفولجا", "What is the longest river in Europe?", "The Volga"],
+        ["ما عاصمة كندا؟", "أوتاوا", "What is the capital of Canada?", "Ottawa"],
+        ["في أي مدينة مصرية يقع السد العالي؟", "أسوان", "In which Egyptian city is the High Dam?", "Aswan"],
+        ["كم دولة عضو في جامعة الدول العربية؟", "22", "How many member states does the Arab League have?", "22"]
+      ],
+      400: [
+        ["ما أعمق بحيرة في العالم؟", "بحيرة بايكال", "What is the deepest lake in the world?", "Lake Baikal"],
+        ["ما عاصمة البرازيل؟", "برازيليا", "What is the capital of Brazil?", "Brasília"],
+        ["ما أخفض نقطة على سطح اليابسة؟", "البحر الميت", "What is the lowest point on land?", "The Dead Sea"],
+        ["ما اسم البحيرة الصناعية الكبيرة خلف السد العالي؟", "بحيرة ناصر", "What is the large reservoir behind the Aswan High Dam called?", "Lake Nasser"],
+        ["ما عاصمة نيجيريا؟", "أبوجا", "What is the capital of Nigeria?", "Abuja"],
+        ["أي مضيق يفصل أوروبا عن أفريقيا؟", "مضيق جبل طارق", "Which strait separates Europe from Africa?", "The Strait of Gibraltar"]
+      ],
+      500: [
+        ["ما عاصمة كازاخستان؟", "أستانا", "What is the capital of Kazakhstan?", "Astana"],
+        ["ما أعلى جبل في أفريقيا؟", "كليمنجارو", "What is the highest mountain in Africa?", "Kilimanjaro"],
+        ["ما أعلى قمة جبلية في مصر؟", "جبل كاترين", "What is the highest mountain in Egypt?", "Mount Catherine"],
+        ["كم دولة في حوض نهر النيل؟", "11", "How many countries are in the Nile Basin?", "11"],
+        ["ما عاصمة ميانمار؟", "نايبيداو", "What is the capital of Myanmar?", "Naypyidaw"],
+        ["ما أطول نهر في آسيا؟", "اليانجتسي", "What is the longest river in Asia?", "The Yangtze"]
+      ]
+    }
+  },
+  {
+    id: 'science', icon: '🔬', ar: 'علوم', en: 'Science',
+    levels: {
+      100: [
+        ["أي كوكب يُعرف بالكوكب الأحمر؟", "المريخ", "Which planet is known as the Red Planet?", "Mars"],
+        ["كم رجلاً للعنكبوت؟", "8", "How many legs does a spider have?", "8"],
+        ["أي غاز نتنفسه لنعيش؟", "الأكسجين", "Which gas do we breathe in to live?", "Oxygen"],
+        ["عند كم درجة مئوية يغلي الماء عند سطح البحر؟", "100", "At what temperature in °C does water boil at sea level?", "100"],
+        ["ما أكبر كوكب في المجموعة الشمسية؟", "المشتري", "What is the largest planet in the Solar System?", "Jupiter"],
+        ["أي عضو يضخ الدم في الجسم؟", "القلب", "Which organ pumps blood around the body?", "The heart"]
+      ],
+      200: [
+        ["ما الصيغة الكيميائية للماء؟", "H2O", "What is the chemical formula of water?", "H2O"],
+        ["ما أقرب نجم إلى الأرض؟", "الشمس", "What is the nearest star to Earth?", "The Sun"],
+        ["كم عظمة في جسم الإنسان البالغ؟", "206", "How many bones are in the adult human body?", "206"],
+        ["ما أقرب كوكب إلى الشمس؟", "عطارد", "Which planet is closest to the Sun?", "Mercury"],
+        ["ما الجهاز الذي نرى به الأشياء الدقيقة جداً؟", "الميكروسكوب (المجهر)", "Which instrument do we use to see very tiny things?", "A microscope"],
+        ["أي غاز تمتصه النباتات من الهواء؟", "ثاني أكسيد الكربون", "Which gas do plants take in from the air?", "Carbon dioxide"]
+      ],
+      300: [
+        ["ما الرمز الكيميائي للذهب؟", "Au", "What is the chemical symbol for gold?", "Au"],
+        ["مين صاحب نظرية النسبية؟", "ألبرت أينشتاين", "Who developed the theory of relativity?", "Albert Einstein"],
+        ["ما أكبر عضو في جسم الإنسان؟", "الجلد", "What is the largest organ of the human body?", "The skin"],
+        ["كم تبلغ سرعة الضوء تقريباً؟", "300 ألف كم في الثانية", "Roughly how fast does light travel?", "About 300,000 km per second"],
+        ["أي كوكب يشتهر بحلقاته الواضحة؟", "زحل", "Which planet is famous for its bright rings?", "Saturn"],
+        ["أي عنصر رمزه الكيميائي Fe؟", "الحديد", "Which element has the chemical symbol Fe?", "Iron"]
+      ],
+      400: [
+        ["مين العالم الذي اكتشف البنسلين؟", "ألكسندر فليمنج", "Which scientist discovered penicillin?", "Alexander Fleming"],
+        ["ما وحدة قياس القوة؟", "النيوتن", "What is the unit of force?", "The newton"],
+        ["ما أصلب مادة طبيعية؟", "الألماس", "What is the hardest natural material?", "Diamond"],
+        ["كم كروموسوماً في الخلية البشرية العادية؟", "46", "How many chromosomes are in a normal human cell?", "46"],
+        ["ما الغاز الأكثر وفرة في هواء الأرض؟", "النيتروجين", "What is the most abundant gas in Earth's air?", "Nitrogen"],
+        ["أي عالم عربي لُقّب بـ«أبو الكيمياء»؟", "جابر بن حيان", "Which Arab scholar is called 'the father of chemistry'?", "Jabir ibn Hayyan"]
+      ],
+      500: [
+        ["ما العدد الذري للكربون؟", "6", "What is the atomic number of carbon?", "6"],
+        ["مين العالم المصري الذي فاز بجائزة نوبل في الكيمياء سنة 1999؟", "أحمد زويل", "Which Egyptian scientist won the 1999 Nobel Prize in Chemistry?", "Ahmed Zewail"],
+        ["ما اسم أصغر عظمة في جسم الإنسان؟", "عظمة الركاب (في الأذن)", "What is the smallest bone in the human body?", "The stapes (in the ear)"],
+        ["كم دقيقة تقريباً يستغرق ضوء الشمس ليصل إلى الأرض؟", "8 دقائق تقريباً", "Roughly how long does sunlight take to reach Earth?", "About 8 minutes"],
+        ["ما الغاز النبيل الأكثر وفرة في الغلاف الجوي؟", "الأرجون", "Which noble gas is most abundant in the atmosphere?", "Argon"],
+        ["مين العالم الذي رتّب العناصر في أول جدول دوري حديث؟", "ديمتري مندلييف", "Which scientist arranged the elements into the first modern periodic table?", "Dmitri Mendeleev"]
+      ]
+    }
+  },
+  {
+    id: 'tech', icon: '💻', ar: 'تكنولوجيا', en: 'Technology',
+    levels: {
+      100: [
+        ["أي شركة تصنع هاتف آيفون؟", "آبل", "Which company makes the iPhone?", "Apple"],
+        ["ما أشهر محرك بحث في العالم؟", "جوجل", "What is the most famous search engine in the world?", "Google"],
+        ["ما نظام تشغيل هواتف سامسونج؟", "أندرويد", "Which operating system runs on Samsung phones?", "Android"],
+        ["ما الجهاز الذي نحرك به المؤشر على شاشة الكمبيوتر؟", "الماوس", "Which device moves the pointer on a computer screen?", "The mouse"],
+        ["مين أشهر مؤسسي شركة مايكروسوفت؟", "بيل جيتس", "Who is the best-known founder of Microsoft?", "Bill Gates"],
+        ["أي تطبيق مراسلة أخضر نرسل فيه رسائل صوتية ونعمل جروبات؟", "واتساب", "Which green messaging app do we use for voice notes and group chats?", "WhatsApp"]
+      ],
+      200: [
+        ["مين مؤسس فيسبوك؟", "مارك زوكربيرج", "Who founded Facebook?", "Mark Zuckerberg"],
+        ["ما اسم المساعد الصوتي في أجهزة آبل؟", "سيري", "What is Apple's voice assistant called?", "Siri"],
+        ["أي منصة فيديو تملكها جوجل؟", "يوتيوب", "Which video platform does Google own?", "YouTube"],
+        ["أي شركة تصنع جهاز بلايستيشن؟", "سوني", "Which company makes the PlayStation?", "Sony"],
+        ["ما اسم نظام تشغيل أجهزة آيفون؟", "iOS", "What is the iPhone's operating system called?", "iOS"],
+        ["ما اسم متجر التطبيقات في هواتف أندرويد؟", "جوجل بلاي", "What is the app store on Android phones called?", "Google Play"]
+      ],
+      300: [
+        ["ماذا يعني الاختصار CPU؟", "وحدة المعالجة المركزية", "What does CPU stand for?", "Central Processing Unit"],
+        ["كم بايت في الكيلوبايت؟", "1024 (أو 1000 بالنظام العشري)", "How many bytes are in a kilobyte?", "1024 (or 1000 in decimal units)"],
+        ["مين مؤسس شركة أمازون؟", "جيف بيزوس", "Who founded Amazon?", "Jeff Bezos"],
+        ["أي لغة برمجة تحمل اسم نوع من الثعابين؟", "بايثون", "Which programming language is named after a snake?", "Python"],
+        ["أي شركة تصنع معالجات «Core i7»؟", "إنتل", "Which company makes 'Core i7' processors?", "Intel"],
+        ["في أي سنة أُطلق أول آيفون؟", "2007", "In which year was the first iPhone launched?", "2007"]
+      ],
+      400: [
+        ["ماذا يعني الاختصار HTML؟", "لغة ترميز النص التشعبي", "What does HTML stand for?", "HyperText Markup Language"],
+        ["مين يُعد «أبو الحاسوب» وصمم المحرك التحليلي؟", "تشارلز باباج", "Who is called 'the father of the computer' and designed the Analytical Engine?", "Charles Babbage"],
+        ["ما اسم أول متصفح إنترنت انتشر بين الناس سنة 1993؟", "موزاييك", "Which web browser, released in 1993, first brought the web to the public?", "Mosaic"],
+        ["مين اخترع شبكة الويب العالمية (WWW)؟", "تيم بيرنرز لي", "Who invented the World Wide Web?", "Tim Berners-Lee"],
+        ["أي شركة أسسها ستيف جوبز بعد خروجه من آبل سنة 1985؟", "نكست (NeXT)", "Which company did Steve Jobs found after leaving Apple in 1985?", "NeXT"],
+        ["كم بت في البايت الواحد؟", "8", "How many bits are in one byte?", "8"]
+      ],
+      500: [
+        ["مين تُعد أول مبرمجة في التاريخ؟", "آدا لوفليس", "Who is considered the first computer programmer?", "Ada Lovelace"],
+        ["ما اسم أول حاسوب إلكتروني عام الأغراض (1945)؟", "إينياك (ENIAC)", "What was the first general-purpose electronic computer (1945)?", "ENIAC"],
+        ["أي عالم بريطاني فك شفرة «إنجما» الألمانية ويُعد أبا علوم الحاسوب؟", "آلان تورنج", "Which British scientist helped break the German Enigma code and is a father of computer science?", "Alan Turing"],
+        ["في أي سنة تأسست شركة جوجل؟", "1998", "In which year was Google founded?", "1998"],
+        ["أي لغة برمجة أطلقتها شركة صن مايكروسيستمز سنة 1995 وشعارها فنجان قهوة؟", "جافا", "Which programming language did Sun Microsystems release in 1995, with a coffee-cup logo?", "Java"],
+        ["كم بايت تقريباً في الجيجابايت؟", "مليار بايت تقريباً", "Roughly how many bytes are in a gigabyte?", "About a billion"]
+      ]
+    }
+  },
+  {
+    id: 'food', icon: '🍽️', ar: 'أكل ومطبخ', en: 'Food & Cooking',
+    levels: {
+      100: [
+        ["ما المكون الأساسي للطعمية المصرية؟", "الفول", "What is the main ingredient of Egyptian taameya (falafel)?", "Fava beans"],
+        ["ما الفاكهة الصفراء الطويلة التي تحبها القرود؟", "الموز", "Which long yellow fruit do monkeys love?", "The banana"],
+        ["أي طائر يعطينا البيض الذي نأكله عادةً؟", "الدجاجة", "Which bird gives us the eggs we usually eat?", "The chicken"],
+        ["أي دولة تشتهر بالبيتزا؟", "إيطاليا", "Which country is famous for pizza?", "Italy"],
+        ["من أي خضار يُصنع «البابا غنوج»؟", "الباذنجان", "Which vegetable is baba ghanoush made from?", "Eggplant"],
+        ["ما الخضار البرتقالي الذي تحبه الأرانب في الكرتون؟", "الجزر", "Which orange vegetable do cartoon rabbits love?", "The carrot"]
+      ],
+      200: [
+        ["أي أكلة مصرية فيها أرز ومكرونة وعدس وصلصة ودقة؟", "الكشري", "Which Egyptian dish mixes rice, pasta, lentils and tomato sauce?", "Koshary"],
+        ["من أي دولة أصل السوشي؟", "اليابان", "Which country does sushi come from?", "Japan"],
+        ["ما النبات الذي يُصنع منه معظم السكر في مصر؟", "قصب السكر", "Which plant is most of Egypt's sugar made from?", "Sugar cane"],
+        ["أي أكلة مصرية خضراء تُطبخ بالطشة؟", "الملوخية", "Which green Egyptian dish is finished with fried garlic ('tasha')?", "Molokhia"],
+        ["ما الصوص الذي يُصنع من السمسم المطحون؟", "الطحينة", "Which sauce is made from ground sesame seeds?", "Tahini"],
+        ["أي حلوى شرقية تُصنع من طبقات عجين رقيقة ومكسرات وشربات؟", "البقلاوة", "Which sweet is made of thin pastry layers, nuts and syrup?", "Baklava"]
+      ],
+      300: [
+        ["ما أغلى بهار في العالم؟", "الزعفران", "What is the most expensive spice in the world?", "Saffron"],
+        ["من أي دولة أصل طبق «الباييا»؟", "إسبانيا", "Which country does paella come from?", "Spain"],
+        ["أي جبنة إيطالية تُوضع على البيتزا وتتمدد؟", "الموتزاريلا", "Which stretchy Italian cheese goes on pizza?", "Mozzarella"],
+        ["من أي فاكهة يُصنع «الجواكامولي»؟", "الأفوكادو", "Which fruit is guacamole made from?", "Avocado"],
+        ["من ماذا يُصنع «الكافيار»؟", "بيض سمك الحفش", "What is caviar?", "Sturgeon eggs"],
+        ["أي مشروب شتوي ساخن يُصنع من النشا واللبن ويُزين بالمكسرات والقرفة؟", "السحلب", "Which hot winter drink is made with starch and milk and topped with nuts and cinnamon?", "Sahlab"]
+      ],
+      400: [
+        ["من أي منطقة أصل طبق «الكسكسي»؟", "المغرب العربي", "Which region does couscous come from?", "North Africa (the Maghreb)"],
+        ["أي نوع عجين يُصنع منه الكرواسون؟", "عجين مورّق بالزبدة", "What kind of dough is a croissant made from?", "Laminated butter dough"],
+        ["أي بهار يعطي الكاري لونه الأصفر؟", "الكركم", "Which spice gives curry its yellow colour?", "Turmeric"],
+        ["من أي نبات يُصنع الشاي الأخضر؟", "نفس نبات الشاي الأسود", "Which plant does green tea come from?", "The same tea plant as black tea"],
+        ["أي أكلة يابانية هي شرائح سمك نيء بدون أرز؟", "الساشيمي", "Which Japanese dish is sliced raw fish served without rice?", "Sashimi"],
+        ["ما اسم الجبنة اليونانية البيضاء المالحة؟", "فيتا", "What is the salty white Greek cheese called?", "Feta"]
+      ],
+      500: [
+        ["ما اسم الطبق الفرنسي من الخضار المطهية الذي سُمي به فيلم لبيكسار؟", "راتاتوي", "Which French stewed-vegetable dish gave its name to a Pixar film?", "Ratatouille"],
+        ["من أي مدينة إيطالية أصل صوص «البولونيز»؟", "بولونيا", "Which Italian city does Bolognese sauce come from?", "Bologna"],
+        ["أي دولة هي الأكبر إنتاجاً للبن في العالم؟", "البرازيل", "Which country produces the most coffee in the world?", "Brazil"],
+        ["ما المكون الذي تُصنع منه الشوكولاتة البيضاء رغم خلوها من الكاكاو الصلب؟", "زبدة الكاكاو", "White chocolate has no cocoa solids — which part of the cocoa bean is it made from?", "Cocoa butter"],
+        ["أي حلوى إيطالية تُصنع من البسكويت والقهوة وجبنة الماسكاربوني؟", "التيراميسو", "Which Italian dessert is made with sponge fingers, coffee and mascarpone?", "Tiramisu"],
+        ["أي نوع أرز يُستخدم في الريزوتو الإيطالي؟", "أرز أربوريو", "Which rice is used for Italian risotto?", "Arborio rice"]
+      ]
+    }
+  },
+  {
+    id: 'nature', icon: '🦁', ar: 'حيوانات وطبيعة', en: 'Animals & Nature',
+    levels: {
+      100: [
+        ["ما أكبر حيوان بري في العالم؟", "الفيل", "What is the largest land animal?", "The elephant"],
+        ["أي حيوان يُلقب بملك الغابة؟", "الأسد", "Which animal is called the king of the jungle?", "The lion"],
+        ["ما أطول حيوان في العالم؟", "الزرافة", "What is the tallest animal in the world?", "The giraffe"],
+        ["أي حيوان يُلقب بـ«سفينة الصحراء»؟", "الجمل", "Which animal is called 'the ship of the desert'?", "The camel"],
+        ["كم رجلاً للحشرة؟", "6", "How many legs does an insect have?", "6"],
+        ["أي طائر يستطيع تقليد كلام الإنسان؟", "الببغاء", "Which bird can copy human speech?", "The parrot"]
+      ],
+      200: [
+        ["ما أسرع حيوان بري؟", "الفهد (الشيتا)", "What is the fastest land animal?", "The cheetah"],
+        ["ما أكبر حيوان في العالم؟", "الحوت الأزرق", "What is the largest animal in the world?", "The blue whale"],
+        ["ماذا يُسمى صغير الأسد؟", "الشبل", "What is a baby lion called?", "A cub"],
+        ["أي حيوان يغيّر لونه ليتخفّى؟", "الحرباء", "Which animal changes colour to hide?", "The chameleon"],
+        ["ما أكبر طائر في العالم، وهو لا يطير؟", "النعامة", "What is the largest bird in the world, one that cannot fly?", "The ostrich"],
+        ["أي حيوان أسترالي يحمل صغيره في جراب؟", "الكنغر", "Which Australian animal carries its baby in a pouch?", "The kangaroo"]
+      ],
+      300: [
+        ["كم قلباً للأخطبوط؟", "3", "How many hearts does an octopus have?", "3"],
+        ["ما الحيوان الثديي الوحيد القادر على الطيران؟", "الخفاش", "Which is the only mammal that can truly fly?", "The bat"],
+        ["ماذا يأكل الباندا العملاق غالباً؟", "الخيزران (البامبو)", "What does the giant panda mostly eat?", "Bamboo"],
+        ["ما أكبر نوع من القطط في العالم؟", "النمر", "What is the largest species of cat?", "The tiger"],
+        ["ماذا يُسمى صغير الحصان؟", "المهر", "What is a baby horse called?", "A foal"],
+        ["من لحاء أي شجرة يُصنع الفلين؟", "البلوط الفليني", "Cork comes from the bark of which tree?", "The cork oak"]
+      ],
+      400: [
+        ["أي حيوان أسترالي يأكل أوراق الكافور وينام معظم اليوم؟", "الكوالا", "Which Australian animal eats eucalyptus leaves and sleeps most of the day?", "The koala"],
+        ["ما أطول نوع من الثعابين في العالم؟", "الأصلة الشبكية", "What is the longest species of snake?", "The reticulated python"],
+        ["أي حيوان زاحف قد يعيش أكثر من 100 سنة؟", "السلحفاة العملاقة", "Which reptile can live for more than 100 years?", "The giant tortoise"],
+        ["ما أسرع طائر عند الانقضاض على فريسته؟", "الشاهين الجوال", "Which bird is the fastest when it dives on its prey?", "The peregrine falcon"],
+        ["كم عيناً للنحلة؟", "5", "How many eyes does a bee have?", "5"],
+        ["أي حيوان هو أقرب أقارب الإنسان جينياً؟", "الشمبانزي (والبونوبو)", "Which animal is the human's closest living relative?", "The chimpanzee (and the bonobo)"]
+      ],
+      500: [
+        ["ما أكبر شعاب مرجانية في العالم؟", "الحاجز المرجاني العظيم", "What is the largest coral reef in the world?", "The Great Barrier Reef"],
+        ["أي حيوان يملك أكبر عين في المملكة الحيوانية؟", "الحبار الهائل", "Which animal has the largest eye in the animal kingdom?", "The colossal squid"],
+        ["ما أطول نوع من الأشجار في العالم؟", "السيكويا الساحلية", "What is the tallest species of tree?", "The coast redwood"],
+        ["أي حيوان ثديي كبير لا يستطيع القفز؟", "الفيل", "Which large mammal cannot jump?", "The elephant"],
+        ["أي طائر يضع أكبر بيضة بالنسبة لحجم جسمه؟", "الكيوي", "Which bird lays the largest egg compared with its body size?", "The kiwi"],
+        ["ما الحيوان الدقيق المُلقب بـ«دب الماء» ويتحمل ظروفاً قاسية جداً؟", "بطيء الخطو (تارديجراد)", "Which tiny animal, nicknamed the 'water bear', survives extreme conditions?", "The tardigrade"]
+      ]
+    }
+  },
+  {
+    id: 'egypt', icon: '🇪🇬', ar: 'مصر', en: 'Egypt',
+    levels: {
+      100: [
+        ["ما عاصمة مصر؟", "القاهرة", "What is the capital of Egypt?", "Cairo"],
+        ["ما اسم عملة مصر؟", "الجنيه المصري", "What is Egypt's currency called?", "The Egyptian pound"],
+        ["ما اسم التمثال الذي جسمه أسد ورأسه إنسان في الجيزة؟", "أبو الهول", "What is the statue at Giza with a lion's body and a human head?", "The Sphinx"],
+        ["ما ألوان علم مصر؟", "أحمر وأبيض وأسود", "What colours are on Egypt's flag?", "Red, white and black"],
+        ["أي مدينة مصرية تُلقب بـ«عروس البحر المتوسط»؟", "الإسكندرية", "Which Egyptian city is called 'the Bride of the Mediterranean'?", "Alexandria"],
+        ["ما اسم القناة التي تربط البحر المتوسط بالبحر الأحمر؟", "قناة السويس", "Which canal links the Mediterranean to the Red Sea?", "The Suez Canal"]
+      ],
+      200: [
+        ["أي طائر يتوسط علم مصر؟", "نسر صلاح الدين", "Which bird is in the middle of Egypt's flag?", "The Eagle of Saladin"],
+        ["كم هرماً رئيسياً في منطقة أهرامات الجيزة؟", "3", "How many main pyramids stand at Giza?", "3"],
+        ["ما اسم المسجد الكبير فوق قلعة صلاح الدين؟", "مسجد محمد علي", "Which great mosque stands on top of the Cairo Citadel?", "The Mosque of Muhammad Ali"],
+        ["في أي مدينة يقع معبد الكرنك؟", "الأقصر", "In which city is Karnak Temple?", "Luxor"],
+        ["أي كاتب مصري فاز بجائزة نوبل في الأدب؟", "نجيب محفوظ", "Which Egyptian writer won the Nobel Prize in Literature?", "Naguib Mahfouz"],
+        ["ما اسم السوق القديم الأشهر في القاهرة الفاطمية؟", "خان الخليلي", "What is the most famous old bazaar in Islamic Cairo?", "Khan el-Khalili"]
+      ],
+      300: [
+        ["أي مطربة مصرية لُقبت بـ«كوكب الشرق»؟", "أم كلثوم", "Which Egyptian singer was called 'the Star of the East'?", "Umm Kulthum"],
+        ["في أي سنة فاز نجيب محفوظ بجائزة نوبل؟", "1988", "In which year did Naguib Mahfouz win the Nobel Prize?", "1988"],
+        ["أي معبد نُقل من مكانه لإنقاذه من مياه بحيرة السد العالي؟", "معبد أبو سمبل", "Which temple was moved to save it from the High Dam's lake?", "Abu Simbel"],
+        ["ما أقدم جامعة في مصر، وهي من أقدم جامعات العالم؟", "الأزهر", "What is Egypt's oldest university, one of the oldest in the world?", "Al-Azhar"],
+        ["كم محافظة في مصر؟", "27", "How many governorates does Egypt have?", "27"],
+        ["ما اسم البحيرة المالحة الكبيرة في الفيوم؟", "بحيرة قارون", "What is the large salt lake in Fayoum called?", "Lake Qarun"]
+      ],
+      400: [
+        ["مين المهندس الذي صمم الهرم المدرج في سقارة؟", "إمحوتب", "Who designed the Step Pyramid at Saqqara?", "Imhotep"],
+        ["أي مدينة على قناة السويس سُميت على اسم الخديوي إسماعيل؟", "الإسماعيلية", "Which Suez Canal city is named after Khedive Ismail?", "Ismailia"],
+        ["أي ملك فرعوني بنى معبد أبو سمبل؟", "رمسيس الثاني", "Which pharaoh built the temples of Abu Simbel?", "Ramses II"],
+        ["في أي محافظة تقع واحة سيوة؟", "مطروح", "In which governorate is the Siwa Oasis?", "Matrouh"],
+        ["ما اسم أول جامعة مصرية حديثة (1908)، والتي صارت جامعة القاهرة؟", "الجامعة المصرية", "What was Egypt's first modern university (1908), which became Cairo University, originally called?", "The Egyptian University"],
+        ["أي حي قاهري أنشأه البارون إمبان؟", "مصر الجديدة", "Which Cairo district did Baron Empain build?", "Heliopolis"]
+      ],
+      500: [
+        ["أي ملكة فرعونية يُعرض تمثالها النصفي الشهير في متحف برلين؟", "نفرتيتي", "Which queen's famous bust is displayed in a Berlin museum?", "Nefertiti"],
+        ["في أي سنة افتُتح المتحف المصري في ميدان التحرير؟", "1902", "In which year did the Egyptian Museum in Tahrir Square open?", "1902"],
+        ["أي فرعون دعا إلى عبادة إله واحد هو «آتون»؟", "أخناتون", "Which pharaoh promoted the worship of a single god, the Aten?", "Akhenaten"],
+        ["كم يبلغ طول قناة السويس تقريباً؟", "حوالي 193 كم", "Roughly how long is the Suez Canal?", "About 193 km"],
+        ["في أي مدينة وُلد جمال عبد الناصر؟", "الإسكندرية", "In which city was Gamal Abdel Nasser born?", "Alexandria"],
+        ["في أي مدينة يقع وادي الملوك؟", "الأقصر (البر الغربي)", "In which city is the Valley of the Kings?", "Luxor (West Bank)"]
+      ]
+    }
+  },
+  {
+    id: 'general', icon: '💡', ar: 'معلومات عامة', en: 'General Knowledge',
+    levels: {
+      100: [
+        ["كم يوماً في الأسبوع؟", "7", "How many days are in a week?", "7"],
+        ["كم شهراً في السنة؟", "12", "How many months are in a year?", "12"],
+        ["ما اللون الذي ينتج من خلط الأزرق مع الأصفر؟", "الأخضر", "Which colour do you get by mixing blue and yellow?", "Green"],
+        ["كم دقيقة في الساعة؟", "60", "How many minutes are in an hour?", "60"],
+        ["كم لوناً في قوس قزح؟", "7", "How many colours are in a rainbow?", "7"],
+        ["أي شهر قد يكون 28 أو 29 يوماً؟", "فبراير", "Which month can have 28 or 29 days?", "February"]
+      ],
+      200: [
+        ["كم ثانية في الساعة؟", "3600", "How many seconds are in an hour?", "3600"],
+        ["ما اللغة الأكثر تحدثاً كلغة أم في العالم؟", "الصينية (الماندرين)", "Which language has the most native speakers?", "Mandarin Chinese"],
+        ["كم ضلعاً للشكل السداسي؟", "6", "How many sides does a hexagon have?", "6"],
+        ["كم قطعة في طقم الدومينو العادي؟", "28", "How many tiles are in a standard domino set?", "28"],
+        ["كم قيراطاً في الذهب الخالص؟", "24", "How many carats is pure gold?", "24"],
+        ["ما اسم عملة اليابان؟", "الين", "What is Japan's currency called?", "The yen"]
+      ],
+      300: [
+        ["كم مفتاحاً في البيانو القياسي؟", "88", "How many keys does a standard piano have?", "88"],
+        ["كيف يُكتب الرقم 10 بالأرقام الرومانية؟", "X", "How is the number 10 written in Roman numerals?", "X"],
+        ["كم سنة يمثل اليوبيل الذهبي؟", "50", "How many years does a golden jubilee mark?", "50"],
+        ["كم ساعة في الأسبوع؟", "168", "How many hours are in a week?", "168"],
+        ["أي منظمة دولية يقع مقرها الرئيسي في نيويورك وتضم معظم دول العالم؟", "الأمم المتحدة", "Which international organisation of nearly every country has its headquarters in New York?", "The United Nations"],
+        ["كم حرفاً في الأبجدية العربية؟", "28", "How many letters are in the Arabic alphabet?", "28"]
+      ],
+      400: [
+        ["ما قيمة الرقم الروماني L؟", "50", "What number is L in Roman numerals?", "50"],
+        ["كم سناً دائمة للإنسان البالغ؟", "32", "How many permanent teeth does an adult have?", "32"],
+        ["ما اسم علم رسم الخرائط؟", "الكارتوغرافيا", "What is the science of making maps called?", "Cartography"],
+        ["كم يوماً في السنة الكبيسة؟", "366", "How many days are in a leap year?", "366"],
+        ["ما المعدن الذي يكون سائلاً في درجة حرارة الغرفة؟", "الزئبق", "Which metal is liquid at room temperature?", "Mercury"],
+        ["ما اسم الخوف المرضي من الأماكن المرتفعة؟", "رهاب المرتفعات (الأكروفوبيا)", "What is the fear of heights called?", "Acrophobia"]
+      ],
+      500: [
+        ["ما قيمة الرقم الروماني M؟", "1000", "What number is M in Roman numerals?", "1000"],
+        ["كم مربعاً في رقعة الشطرنج؟", "64", "How many squares are on a chessboard?", "64"],
+        ["ماذا يُسمى هاوي جمع الطوابع؟", "فيلاتيلي", "What is a stamp collector called?", "A philatelist"],
+        ["كم دولة عضو في الأمم المتحدة؟", "193", "How many member states does the United Nations have?", "193"],
+        ["ما اسم العلم الذي يدرس الحشرات؟", "علم الحشرات (الإنتومولوجيا)", "What is the study of insects called?", "Entomology"],
+        ["كم سنة يمثل اليوبيل الماسي عادةً؟", "60", "How many years does a diamond jubilee usually mark?", "60"]
+      ]
+    }
+  }
+];
+</script>
+
+    <script>
+/* ============================================================================
+   دوري المعرفة — THE TEAM BOARD
+   ----------------------------------------------------------------------------
+   Two teams, one screen, a host. Each round puts five categories on the board
+   with a question at 100, 200, 300, 400 and 500 points in each; the higher the
+   value, the harder the question. A team picks a card, the host reads it,
+   reveals the answer and gives the points to whoever got it right.
+
+   The questions are TRIVIA_BOARD_BANK (JS_TriviaBoardBank.html). Every card is
+   dealt through freshPick, so the same question doesn't come back until its
+   category and level have been played through.
+
+   The whole game lives in appState.triviaBoard, so a reload puts the board back
+   exactly as it was (restoreView in JS_Core.html).
+   ========================================================================= */
+
+const TB_LEVELS = [100, 200, 300, 400, 500];
+const TB_CATEGORIES_PER_ROUND = 5;
+const TB_ADJUST_STEP = 100;
+const TB_TEAMS_KEY = 'ashryTriviaTeams';
+
+function tbText() { return TRANSLATIONS[appState.lang] || {}; }
+function tbLang() { return appState.lang === 'en' ? 'en' : 'ar'; }
+function tbCategory(id) { return TRIVIA_BOARD_BANK.find(c => c.id === id); }
+
+/** Opens the trivia setup screen: the team board here, rooms one tap away. */
+function setupTrivia() {
+  setView('setup-trivia');
+  setPlayMode('trivia', 'device');
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(TB_TEAMS_KEY) || '{}') || {}; } catch (e) {}
+  const a = document.getElementById('tb-team-a');
+  const b = document.getElementById('tb-team-b');
+  const rounds = document.getElementById('tb-rounds');
+  if (a) a.value = saved.a || '';
+  if (b) b.value = saved.b || '';
+  if (rounds && saved.rounds) rounds.value = String(saved.rounds);
+}
+
+function startTriviaBoard() {
+  const t = tbText();
+  const nameA = ((document.getElementById('tb-team-a') || {}).value || '').trim().slice(0, 20);
+  const nameB = ((document.getElementById('tb-team-b') || {}).value || '').trim().slice(0, 20);
+  const rounds = Math.max(1, Math.min(4, Number((document.getElementById('tb-rounds') || {}).value) || 2));
+  try { localStorage.setItem(TB_TEAMS_KEY, JSON.stringify({ a: nameA, b: nameB, rounds: rounds })); } catch (e) {}
+
+  appState.triviaBoard = {
+    // An empty name follows the language instead of freezing the default in.
+    teams: [{ name: nameA, score: 0 }, { name: nameB, score: 0 }],
+    round: 1,
+    rounds: rounds,
+    board: dealTriviaRound([]),
+    finished: false
+  };
+  saveToLocal();
+  setView('play-trivia');
+  renderTriviaBoard();
+  playSound('success');
+}
+
+/** Five categories - different from the last board where the bank allows - with one question per level. */
+function dealTriviaRound(previousIds) {
+  const fresh = shuffleArray(TRIVIA_BOARD_BANK.filter(c => previousIds.indexOf(c.id) === -1));
+  const rest = shuffleArray(TRIVIA_BOARD_BANK.filter(c => previousIds.indexOf(c.id) !== -1));
+  const categories = fresh.concat(rest).slice(0, TB_CATEGORIES_PER_ROUND);
+  return categories.map(cat => ({
+    cat: cat.id,
+    cells: TB_LEVELS.map(points => {
+      const pool = cat.levels[points];
+      // Keyed on the English question: stable, and the same card in either language.
+      const pick = freshPick('triviaBoard:' + cat.id + ':' + points, pool, 1, { key: q => q[2] })[0];
+      return { points: points, q: pool.indexOf(pick), team: null, done: false };
+    })
+  }));
+}
+
+function tbTeamName(index) {
+  const s = appState.triviaBoard;
+  const t = tbText();
+  const name = s && s.teams[index] && s.teams[index].name;
+  return name || (index === 0 ? (t.tb_team_a || 'الفريق الأحمر') : (t.tb_team_b || 'الفريق الأزرق'));
+}
+
+function renderTriviaBoard() {
+  const s = appState.triviaBoard;
+  const root = document.getElementById('tb-root');
+  if (!root) return;
+  if (!s) { setView('setup-trivia'); return; }
+  const t = tbText();
+  const lang = tbLang();
+
+  if (s.finished) { root.innerHTML = triviaBoardResults(s, t); return; }
+
+  const team = (i) => `
+    <div class="tb-team tb-team--${i === 0 ? 'a' : 'b'}">
+      <div class="tb-team__name">${escapeHTML(tbTeamName(i))}</div>
+      <div class="tb-team__score">${s.teams[i].score}</div>
+      <div class="tb-team__adjust">
+        <button class="iconbtn" onclick="adjustTriviaScore(${i}, -1)" aria-label="−${TB_ADJUST_STEP}">−</button>
+        <button class="iconbtn" onclick="adjustTriviaScore(${i}, 1)" aria-label="+${TB_ADJUST_STEP}">+</button>
+      </div>
+    </div>`;
+
+  const headers = s.board.map(col => {
+    const cat = tbCategory(col.cat) || {};
+    return `<div class="tb-cat"><span class="tb-cat__icon" aria-hidden="true">${cat.icon || ''}</span>${escapeHTML(cat[lang] || '')}</div>`;
+  }).join('');
+
+  let cells = '';
+  TB_LEVELS.forEach((points, row) => {
+    s.board.forEach((col, c) => {
+      const cell = col.cells[row];
+      if (cell.done) {
+        const dot = cell.team === 0 ? 'a' : (cell.team === 1 ? 'b' : 'none');
+        cells += `<button class="tb-cell is-done" disabled aria-label="${points}"><span class="tb-dot tb-dot--${dot}"></span></button>`;
+      } else {
+        cells += `<button class="tb-cell" onclick="openTriviaCell(${c}, ${row})">${points}</button>`;
+      }
+    });
+  });
+
+  const lastRound = s.round >= s.rounds;
+  root.innerHTML = `
+    <div class="tb-scores">
+      ${team(0)}
+      <div class="tb-round">
+        <span class="eyebrow">${t.tb_round || 'الجولة'}</span>
+        <span class="tb-round__value">${s.round} / ${s.rounds}</span>
+      </div>
+      ${team(1)}
+    </div>
+    <div class="tb-board">${headers}${cells}</div>
+    <div class="btn-stack tb-actions">
+      <button class="btn btn--secondary" onclick="nextTriviaRound()">${lastRound ? (t.tb_finish || 'إنهاء اللعبة') : (t.tb_next_round || 'الجولة التالية')}</button>
+    </div>`;
+}
+
+/* --- one card ------------------------------------------------------------ */
+
+function openTriviaCell(c, row) {
+  const s = appState.triviaBoard;
+  if (!s || !s.board[c] || !s.board[c].cells[row] || s.board[c].cells[row].done) return;
+  s.open = { c: c, row: row };
+  const t = tbText();
+  const cat = tbCategory(s.board[c].cat);
+  const cell = s.board[c].cells[row];
+  const item = cat.levels[cell.points][cell.q];
+  const en = tbLang() === 'en';
+
+  document.getElementById('tb-q-cat').textContent = (cat.icon ? cat.icon + ' ' : '') + (en ? cat.en : cat.ar);
+  document.getElementById('tb-q-points').textContent = cell.points;
+  document.getElementById('tb-q-text').textContent = en ? item[2] : item[0];
+  document.getElementById('tb-q-answer-text').textContent = en ? item[3] : item[1];
+  document.getElementById('tb-q-answer').classList.add('hidden');
+  document.getElementById('tb-q-actions').innerHTML = `
+    <button class="btn btn--primary btn--lg" onclick="revealTriviaAnswer()">${t.tb_show_answer || 'إظهار الإجابة'}</button>
+    <button class="btn btn--ghost" onclick="closeTriviaCell()">${t.tb_back || 'رجوع'}</button>`;
+  document.getElementById('tb-question-modal').classList.remove('hidden');
+  playSound('click');
+}
+
+function revealTriviaAnswer() {
+  const t = tbText();
+  document.getElementById('tb-q-answer').classList.remove('hidden');
+  document.getElementById('tb-q-actions').innerHTML = `
+    <div class="eyebrow">${t.tb_points_to || 'النقاط لـ'}</div>
+    <div class="btn-row">
+      <button class="btn btn--lg tb-award tb-award--a" onclick="awardTriviaCell(0)">${escapeHTML(tbTeamName(0))}</button>
+      <button class="btn btn--lg tb-award tb-award--b" onclick="awardTriviaCell(1)">${escapeHTML(tbTeamName(1))}</button>
+    </div>
+    <button class="btn btn--ghost" onclick="awardTriviaCell(-1)">${t.tb_nobody || 'محدش جاوب'}</button>`;
+}
+
+/** Closes the card without playing it - the host opened the wrong one. */
+function closeTriviaCell() {
+  const s = appState.triviaBoard;
+  if (s) s.open = null;
+  closeModal('tb-question-modal');
+}
+
+function awardTriviaCell(teamIndex) {
+  const s = appState.triviaBoard;
+  if (!s || !s.open) return;
+  const cell = s.board[s.open.c].cells[s.open.row];
+  cell.done = true;
+  cell.team = teamIndex >= 0 ? teamIndex : null;
+  if (teamIndex >= 0) {
+    s.teams[teamIndex].score += cell.points;
+    playSound('success');
+    haptic('medium');
+  } else {
+    playSound('alarm');
+  }
+  s.open = null;
+  closeModal('tb-question-modal');
+  saveToLocal();
+  renderTriviaBoard();
+
+  // A cleared board moves on by itself.
+  if (s.board.every(col => col.cells.every(x => x.done))) setTimeout(advanceTriviaBoard, 700);
+}
+
+function adjustTriviaScore(teamIndex, direction) {
+  const s = appState.triviaBoard;
+  if (!s) return;
+  s.teams[teamIndex].score = Math.max(0, s.teams[teamIndex].score + direction * TB_ADJUST_STEP);
+  saveToLocal();
+  renderTriviaBoard();
+}
+
+/* --- rounds and the end ---------------------------------------------------- */
+
+/** The button under the board. Unplayed cards are asked about first. */
+function nextTriviaRound() {
+  const s = appState.triviaBoard;
+  if (!s) return;
+  const unplayed = s.board.some(col => col.cells.some(x => !x.done));
+  if (unplayed) showConfirmModal(tbText().tb_skip_confirm || 'لسه فيه أسئلة ما اتلعبتش. نكمل؟', advanceTriviaBoard);
+  else advanceTriviaBoard();
+}
+
+function advanceTriviaBoard() {
+  const s = appState.triviaBoard;
+  if (!s || s.finished) return;
+  if (s.round >= s.rounds) {
+    s.finished = true;
+    saveToLocal();
+    renderTriviaBoard();
+    if (typeof confetti === 'function') confetti({ particleCount: 180, spread: 90, origin: { y: 0.6 } });
+    playSound('success');
+    return;
+  }
+  s.round++;
+  s.board = dealTriviaRound(s.board.map(col => col.cat));
+  saveToLocal();
+  renderTriviaBoard();
+  showToast((tbText().tb_round || 'الجولة') + ' ' + s.round, 'info');
+}
+
+function triviaBoardResults(s, t) {
+  const [a, b] = s.teams;
+  const headline = a.score === b.score
+    ? (t.tb_draw || 'تعادل!')
+    : `🏆 ${escapeHTML(tbTeamName(a.score > b.score ? 0 : 1))} ${t.tb_wins || 'فاز!'}`;
+  return `
+    <div class="card" style="text-align:center">
+      <div class="modal-icon" aria-hidden="true">🏆</div>
+      <div class="card__title">${headline}</div>
+      <div class="tb-scores tb-scores--final">
+        <div class="tb-team tb-team--a"><div class="tb-team__name">${escapeHTML(tbTeamName(0))}</div><div class="tb-team__score">${a.score}</div></div>
+        <div class="tb-round"><span class="eyebrow">${t.tb_final || 'النتيجة'}</span></div>
+        <div class="tb-team tb-team--b"><div class="tb-team__name">${escapeHTML(tbTeamName(1))}</div><div class="tb-team__score">${b.score}</div></div>
+      </div>
+      <div class="btn-stack">
+        <button class="btn btn--primary btn--lg" onclick="replayTriviaBoard()">${t.play_again || 'لعبة جديدة'}</button>
+        <button class="btn btn--ghost" onclick="setupTrivia()">${t.tb_settings || 'تغيير الإعدادات'}</button>
+      </div>
+    </div>`;
+}
+
+/** Same teams, same number of rounds, fresh board. */
+function replayTriviaBoard() {
+  const s = appState.triviaBoard;
+  if (!s) { setupTrivia(); return; }
+  s.teams.forEach(x => { x.score = 0; });
+  s.round = 1;
+  s.finished = false;
+  s.board = dealTriviaRound([]);
+  saveToLocal();
+  renderTriviaBoard();
 }
 </script>
 

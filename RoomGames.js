@@ -49,6 +49,7 @@ const clearGameState = (room) => {
   room._currentQ = null;
   room._answers = null;
   room._qStart = null;
+  room._triviaCount = null;
 };
 
 /** The stashed sides, minus anyone who has since left. */
@@ -1353,9 +1354,16 @@ const wavelengthAction = (room, playerId, action, payload) => {
 
 /* ==========================================================================
    تحدي المعلومات — TRIVIA
-   Ten questions to everyone at once. Right answers score, quick ones more.
+   The host picks how many questions (5, 10, 15 or 20); everyone answers at
+   once. A right answer is 10 points, and the fastest right answers get more:
+   +5 for the first, +4 for the second, down to +1 for the fifth.
    ========================================================================== */
-const TRIVIA_PER_GAME = 10;
+const TRIVIA_COUNTS = [5, 10, 15, 20];   // what the host can pick
+const TRIVIA_PER_GAME = 10;               // when they don't
+// Points for a right answer, and the bonus for being among the fastest right
+// answers: the first gets all of it, each next one a point less.
+const TRIVIA_POINTS = 10;
+const TRIVIA_SPEED_BONUS = 5;
 const TRIVIA_SECONDS = 15;
 // An answer tapped as the clock hits zero is still on its way, and still
 // counts. Once this has passed too, the server closes the question itself.
@@ -1369,9 +1377,13 @@ const triviaAction = (room, playerId, action, payload) => {
 
     const lang = roomLangOf(room, payload);
     const pool = TRIVIA_QUESTIONS[lang] || TRIVIA_QUESTIONS.ar;
+    // Play again comes without a count: it keeps the one this game had.
+    const asked = Number(payload && payload.count);
+    const count = TRIVIA_COUNTS.indexOf(asked) !== -1 ? asked : (room._triviaCount || TRIVIA_PER_GAME);
+    room._triviaCount = count;
     // The bank puts the right answer second three times in four, so the
     // choices are reordered for every question — otherwise "always B" wins.
-    room._deck = nextPrompts(room, pool, 'trivia_' + lang, TRIVIA_PER_GAME).map(q => {
+    room._deck = nextPrompts(room, pool, 'trivia_' + lang, count).map(q => {
       const order = shuffled(q.choices.map((_, k) => k));
       return { q: q.q, choices: order.map(k => q.choices[k]), answer: order.indexOf(q.answer) };
     });
@@ -1396,7 +1408,8 @@ const triviaAction = (room, playerId, action, payload) => {
     }
     room._answers = room._answers || {};
     if (room._answers[playerId]) return;
-    room._answers[playerId] = { choice: choice, time: Math.min(now, s.endsAt) };
+    // seq breaks a tie when two answers land in the same millisecond.
+    room._answers[playerId] = { choice: choice, time: Math.min(now, s.endsAt), seq: s.answered.length };
     s.answered.push(playerId);
     if (activeRoster(room, s.roster).every(id => s.answered.indexOf(id) !== -1)) closeTriviaQuestion(room);
     return;
@@ -1457,19 +1470,22 @@ const closeTriviaQuestion = (room) => {
   if (s.phase !== 'answering') return;
   const q = room._currentQ;
   const answers = room._answers || {};
-  const windowMs = TRIVIA_SECONDS * 1000;
   const counts = s.choices.map(() => 0);
   const picks = {};
   const gained = {};
 
   Object.keys(answers).forEach(pid => {
-    const a = answers[pid];
-    counts[a.choice]++;
-    picks[pid] = a.choice;
-    if (a.choice !== q.answer) return;
-    // 1000 for being right, and up to 500 more for being quick about it.
-    const elapsed = Math.max(0, a.time - room._qStart);
-    gained[pid] = 1000 + Math.round(Math.max(0, windowMs - elapsed) / windowMs * 500);
+    counts[answers[pid].choice]++;
+    picks[pid] = answers[pid].choice;
+  });
+
+  // Right answers from fastest to slowest. The fastest gets 10 + 5, the next
+  // 10 + 4 ... from the sixth on, the plain 10 - so nobody ties by accident.
+  const right = Object.keys(answers)
+    .filter(pid => answers[pid].choice === q.answer)
+    .sort((a, b) => (answers[a].time - answers[b].time) || ((answers[a].seq || 0) - (answers[b].seq || 0)));
+  right.forEach((pid, rank) => {
+    gained[pid] = TRIVIA_POINTS + Math.max(0, TRIVIA_SPEED_BONUS - rank);
     addScore(room, pid, gained[pid]);
   });
 
@@ -1478,6 +1494,7 @@ const closeTriviaQuestion = (room) => {
   s.choiceCounts = counts;
   s.picks = picks;
   s.gained = gained;
+  s.order = right;
   s.board = scoreboardOf(room);
 };
 

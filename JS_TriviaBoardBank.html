@@ -1,0 +1,470 @@
+<script>
+/* ============================================================================
+   دوري المعرفة — THE BOARD QUESTIONS
+   ----------------------------------------------------------------------------
+   Ten categories, five levels each: 100 is something almost everyone knows,
+   500 is for the one who reads everything. Every item is
+     [question (ar), answer (ar), question (en), answer (en)]
+   so one board plays in either language.
+
+   Rules for adding questions (tools/validate-content.js checks the shape):
+     - a fact that doesn't change: no "current champion", "latest phone",
+       "how many times has X won" for anything still being played;
+     - the answer must not be inside the question;
+     - put it at the level of how many people at a family gathering would know
+       it, not at how long the answer is.
+   ========================================================================= */
+
+const TRIVIA_BOARD_BANK = [
+  {
+    id: 'film', icon: '🎬', ar: 'سينما وتلفزيون', en: 'Film & TV',
+    levels: {
+      100: [
+        ["مين الممثل اللي قام ببطولة مسرحية «الزعيم»؟", "عادل إمام", "Which actor starred in the Egyptian play 'El Zaeem'?", "Adel Emam"],
+        ["ما اسم البطة الشهيرة صديقة ميكي ماوس؟", "بطوط (دونالد داك)", "What is the name of Mickey Mouse's famous duck friend?", "Donald Duck"],
+        ["ما اسم الأسد الصغير بطل فيلم «الأسد الملك»؟", "سيمبا", "What is the name of the lion cub in 'The Lion King'?", "Simba"],
+        ["في أي دولة تقع هوليوود؟", "الولايات المتحدة", "In which country is Hollywood?", "The United States"],
+        ["ما لون شخصية «سبونج بوب»؟", "أصفر", "What colour is SpongeBob SquarePants?", "Yellow"],
+        ["أي شخصية كرتونية تصرخ «يابا دابا دو»؟", "فريد فلينستون", "Which cartoon character shouts 'Yabba Dabba Doo'?", "Fred Flintstone"]
+      ],
+      200: [
+        ["ما اسم فيلم ليوناردو دي كابريو عن السفينة التي غرقت سنة 1912؟", "تايتانيك", "Which Leonardo DiCaprio film is about the ship that sank in 1912?", "Titanic"],
+        ["أي مطرب وممثل مصري لُقّب بـ«العندليب الأسمر»؟", "عبد الحليم حافظ", "Which Egyptian singer and actor was nicknamed 'The Dark Nightingale'?", "Abdel Halim Hafez"],
+        ["ما اسم مدرسة السحر في سلسلة «هاري بوتر»؟", "هوجورتس", "What is the school of magic called in 'Harry Potter'?", "Hogwarts"],
+        ["مين الممثل اللي قدّم شخصية «اللمبي»؟", "محمد سعد", "Which actor played the character 'El Limby'?", "Mohamed Saad"],
+        ["ما اسم الغول الأخضر بطل أفلام دريم ووركس الشهيرة؟", "شريك", "What is the name of the green ogre in DreamWorks' famous films?", "Shrek"],
+        ["ما اسم أشهر جائزة سينمائية أمريكية تمثالها ذهبي؟", "الأوسكار", "What is the most famous American film award, with a golden statuette?", "The Oscar (Academy Award)"]
+      ],
+      300: [
+        ["مين أخرج فيلم «باب الحديد»؟", "يوسف شاهين", "Who directed the Egyptian film 'Cairo Station' (Bab El Hadid)?", "Youssef Chahine"],
+        ["أي ممثل مصري شارك في «لورانس العرب» وصار نجماً عالمياً؟", "عمر الشريف", "Which Egyptian actor appeared in 'Lawrence of Arabia' and became a world star?", "Omar Sharif"],
+        ["في أي دولة يُقام مهرجان «كان» السينمائي؟", "فرنسا", "In which country is the Cannes Film Festival held?", "France"],
+        ["في «حرب النجوم»، مين والد لوك سكايووكر؟", "دارث فيدر", "In 'Star Wars', who is Luke Skywalker's father?", "Darth Vader"],
+        ["مين الممثل اللي لعب دور «رأفت الهجان»؟", "محمود عبد العزيز", "Who played the spy 'Raafat El Haggan' in the Egyptian series?", "Mahmoud Abdel Aziz"],
+        ["ما اسم الروبوت الصغير في فيلم بيكسار الذي ينظّف الأرض وحيداً؟", "وول-إي", "What is the name of the little Pixar robot left cleaning up Earth?", "WALL-E"]
+      ],
+      400: [
+        ["ما أول فيلم رسوم متحركة طويل من ديزني (1937)؟", "سنو وايت والأقزام السبعة", "What was Disney's first full-length animated film (1937)?", "Snow White and the Seven Dwarfs"],
+        ["مين أخرج فيلم «حديقة الديناصورات» (Jurassic Park)؟", "ستيفن سبيلبرج", "Who directed 'Jurassic Park'?", "Steven Spielberg"],
+        ["أي ممثلة لُقّبت بـ«سيدة الشاشة العربية»؟", "فاتن حمامة", "Which actress was called 'The Lady of the Arab Screen'?", "Faten Hamama"],
+        ["أي شركة أنتجت أفلام «حكاية لعبة» (Toy Story)؟", "بيكسار", "Which studio made the 'Toy Story' films?", "Pixar"],
+        ["في فيلم «الناظر»، مين الممثل اللي لعب دور الناظر وأبوه وأمه؟", "علاء ولي الدين", "In the comedy 'El Nazer', which actor played the headmaster and both his parents?", "Alaa Wali El-Din"],
+        ["كم فيلماً أخرج بيتر جاكسون في سلسلة «سيد الخواتم» الأصلية؟", "3", "How many films did Peter Jackson make in the original 'Lord of the Rings' series?", "Three"]
+      ],
+      500: [
+        ["مين أخرج فيلم «المومياء» (1969) الذي يُعد من أهم الأفلام المصرية؟", "شادي عبد السلام", "Who directed 'The Night of Counting the Years' (Al-Mumiya, 1969)?", "Shadi Abdel Salam"],
+        ["مين فاز بأوسكار أفضل ممثل عن فيلم «الجوكر» (2019)؟", "خواكين فينيكس", "Who won the Best Actor Oscar for 'Joker' (2019)?", "Joaquin Phoenix"],
+        ["مين المخرج الياباني صاحب فيلم «المخطوفة» (Spirited Away)؟", "هاياو ميازاكي", "Which Japanese director made 'Spirited Away'?", "Hayao Miyazaki"],
+        ["ما أول فيلم غير ناطق بالإنجليزية يفوز بأوسكار أفضل فيلم (2020)؟", "باراسايت (طفيلي)", "What was the first non-English-language film to win Best Picture (2020)?", "Parasite"],
+        ["في أي سنة عُرض أول فيلم من سلسلة «حرب النجوم»؟", "1977", "In which year was the first 'Star Wars' film released?", "1977"],
+        ["فيلم «دعاء الكروان» مأخوذ عن رواية لأي كاتب مصري؟", "طه حسين", "The film 'The Nightingale's Prayer' is based on a novel by which Egyptian writer?", "Taha Hussein"]
+      ]
+    }
+  },
+  {
+    id: 'sport', icon: '⚽', ar: 'رياضة', en: 'Sport',
+    levels: {
+      100: [
+        ["كم لاعباً في فريق كرة القدم داخل الملعب؟", "11", "How many players does a football team have on the pitch?", "11"],
+        ["في أي رياضة يُستخدم مضرب وريشة؟", "الريشة الطائرة (البادمنتون)", "Which sport is played with a racket and a shuttlecock?", "Badminton"],
+        ["كل كم سنة تُقام كأس العالم لكرة القدم؟", "كل 4 سنوات", "How often is the FIFA World Cup held?", "Every 4 years"],
+        ["ما لون البطاقة التي يُطرد بها اللاعب في كرة القدم؟", "أحمر", "What colour card sends a footballer off?", "Red"],
+        ["في أي لعبة يُقال «كش ملك»؟", "الشطرنج", "In which game do you say 'checkmate'?", "Chess"],
+        ["أي لاعب مصري يلقّبه جمهور ليفربول بـ«الملك المصري»؟", "محمد صلاح", "Which Egyptian player do Liverpool fans call 'The Egyptian King'?", "Mohamed Salah"]
+      ],
+      200: [
+        ["كم دقيقة مدة الشوط الواحد في كرة القدم؟", "45 دقيقة", "How long is one half of a football match?", "45 minutes"],
+        ["أي منتخب فاز بكأس العالم 2022 في قطر؟", "الأرجنتين", "Which country won the 2022 World Cup in Qatar?", "Argentina"],
+        ["كم حلقة في شعار الألعاب الأولمبية؟", "5", "How many rings are in the Olympic symbol?", "5"],
+        ["في كرة السلة، كم نقطة للتسديدة من خارج القوس؟", "3", "In basketball, how many points is a shot from outside the arc worth?", "3"],
+        ["أي نادٍ مصري اختاره الاتحاد الأفريقي «نادي القرن»؟", "الأهلي", "Which Egyptian club did the African confederation name 'Club of the Century'?", "Al Ahly"],
+        ["كم لاعباً في فريق كرة السلة داخل الملعب؟", "5", "How many players does a basketball team have on court?", "5"]
+      ],
+      300: [
+        ["في أي دولة أُقيمت أول دورة ألعاب أولمبية حديثة سنة 1896؟", "اليونان", "Which country hosted the first modern Olympic Games in 1896?", "Greece"],
+        ["كم لاعباً في فريق الكرة الطائرة داخل الملعب؟", "6", "How many players does a volleyball team have on court?", "6"],
+        ["ما اسم بطولة التنس التي تُلعب على العشب في لندن؟", "ويمبلدون", "Which tennis tournament is played on grass in London?", "Wimbledon"],
+        ["أي دولة استضافت كأس العالم 2010، أول كأس عالم في أفريقيا؟", "جنوب أفريقيا", "Which country hosted the 2010 World Cup, the first in Africa?", "South Africa"],
+        ["في الملاكمة، ماذا يعني الاختصار K.O؟", "الضربة القاضية", "In boxing, what does K.O. stand for?", "Knockout"],
+        ["أي ملاكم قال «أطير كالفراشة وألسع كالنحلة»؟", "محمد علي", "Which boxer said 'Float like a butterfly, sting like a bee'?", "Muhammad Ali"]
+      ],
+      400: [
+        ["في أي سنة شارك منتخب مصر في كأس العالم لأول مرة؟", "1934", "In which year did Egypt first play at a World Cup?", "1934"],
+        ["في الجولف، ماذا تُسمى الحفرة التي تُنهى بضربة أقل من المعدل؟", "بيردي", "In golf, what is a hole finished one stroke under par called?", "A birdie"],
+        ["كم كيلومتراً طول سباق الماراثون؟", "42.195 كم", "How long is a marathon in kilometres?", "42.195 km"],
+        ["مين الرياضي صاحب أكبر عدد من الميداليات الأولمبية في التاريخ؟", "مايكل فيلبس", "Which athlete has won the most Olympic medals in history?", "Michael Phelps"],
+        ["كم قطعة لكل لاعب في بداية مباراة الشطرنج؟", "16", "How many pieces does each player start a chess game with?", "16"],
+        ["في أي مدينة أُقيمت دورة الألعاب الأولمبية 2008؟", "بكين", "Which city hosted the 2008 Olympic Games?", "Beijing"]
+      ],
+      500: [
+        ["أي رباع مصري فاز بذهبية أولمبياد أمستردام 1928؟", "السيد نصير", "Which Egyptian weightlifter won gold at the 1928 Amsterdam Olympics?", "El Sayed Nosseir"],
+        ["في التنس، ماذا تُسمى النتيجة 40-40؟", "ديوس", "In tennis, what is a score of 40-40 called?", "Deuce"],
+        ["كم دقيقة مدة الشوط الواحد في كرة اليد للكبار؟", "30 دقيقة", "How long is one half of an adult handball match?", "30 minutes"],
+        ["في أي سنة اخترع جيمس نايسميث كرة السلة؟", "1891", "In which year did James Naismith invent basketball?", "1891"],
+        ["ما الاسم الجديد لبطولة «كأس الأندية الأوروبية البطلة» منذ 1992؟", "دوري أبطال أوروبا", "What has the European Champion Clubs' Cup been called since 1992?", "The UEFA Champions League"],
+        ["كم حفرة في ملعب الجولف القياسي؟", "18", "How many holes does a standard golf course have?", "18"]
+      ]
+    }
+  },
+  {
+    id: 'history', icon: '🏛️', ar: 'تاريخ', en: 'History',
+    levels: {
+      100: [
+        ["أي ملكة فرعونية شهيرة ماتت بلدغة ثعبان حسب الرواية المشهورة؟", "كليوباترا", "Which famous queen of Egypt, the story goes, died from a snake bite?", "Cleopatra"],
+        ["في أي دولة تقع أهرامات الجيزة؟", "مصر", "In which country are the Pyramids of Giza?", "Egypt"],
+        ["مين أول إنسان مشى على سطح القمر؟", "نيل أرمسترونج", "Who was the first person to walk on the Moon?", "Neil Armstrong"],
+        ["ما اسم السور الطويل الشهير في الصين؟", "سور الصين العظيم", "What is the famous long wall in China called?", "The Great Wall of China"],
+        ["مين القائد الذي استعاد القدس من الصليبيين سنة 1187؟", "صلاح الدين الأيوبي", "Which leader retook Jerusalem from the Crusaders in 1187?", "Saladin"],
+        ["أي حضارة قديمة كتبت بالهيروغليفية؟", "المصرية القديمة", "Which ancient civilisation wrote in hieroglyphs?", "Ancient Egypt"]
+      ],
+      200: [
+        ["في أي سنة انتهت الحرب العالمية الثانية؟", "1945", "In which year did the Second World War end?", "1945"],
+        ["أي فرعون اكتشف هوارد كارتر مقبرته سنة 1922؟", "توت عنخ آمون", "Whose tomb did Howard Carter discover in 1922?", "Tutankhamun"],
+        ["في أي سنة قامت ثورة يوليو في مصر؟", "1952", "In which year did Egypt's July Revolution take place?", "1952"],
+        ["أي رئيس مصري أمّم قناة السويس سنة 1956؟", "جمال عبد الناصر", "Which Egyptian president nationalised the Suez Canal in 1956?", "Gamal Abdel Nasser"],
+        ["ما اسم الحجر الذي ساعد على فك رموز الهيروغليفية؟", "حجر رشيد", "Which stone helped decode Egyptian hieroglyphs?", "The Rosetta Stone"],
+        ["في أي سنة سقط جدار برلين؟", "1989", "In which year did the Berlin Wall fall?", "1989"]
+      ],
+      300: [
+        ["ما اسم الحرب التي عبر فيها الجيش المصري قناة السويس سنة 1973؟", "حرب أكتوبر", "What is the name of the 1973 war in which the Egyptian army crossed the Suez Canal?", "The October War"],
+        ["مين أول رئيس لجمهورية مصر؟", "محمد نجيب", "Who was the first president of the Republic of Egypt?", "Mohamed Naguib"],
+        ["أي عالم مسلم كتب «القانون في الطب»؟", "ابن سينا", "Which Muslim scholar wrote 'The Canon of Medicine'?", "Ibn Sina (Avicenna)"],
+        ["في أي مدينة اغتيل يوليوس قيصر؟", "روما", "In which city was Julius Caesar assassinated?", "Rome"],
+        ["أي قائد فرنسي قاد الحملة على مصر سنة 1798؟", "نابليون بونابرت", "Which French commander led the 1798 expedition to Egypt?", "Napoleon Bonaparte"],
+        ["لأي ملك بُني الهرم الأكبر في الجيزة؟", "خوفو", "For which king was the Great Pyramid of Giza built?", "Khufu"]
+      ],
+      400: [
+        ["في أي معركة هزم المماليك المغول سنة 1260؟", "عين جالوت", "In which battle did the Mamluks defeat the Mongols in 1260?", "Ain Jalut"],
+        ["في أي سنة افتُتحت قناة السويس للملاحة؟", "1869", "In which year did the Suez Canal open to shipping?", "1869"],
+        ["أي قائد فاطمي أسس مدينة القاهرة؟", "جوهر الصقلي", "Which Fatimid general founded the city of Cairo?", "Jawhar al-Siqilli"],
+        ["أي ملك فرعوني وحّد مصر العليا والسفلى؟", "مينا (نارمر)", "Which pharaoh united Upper and Lower Egypt?", "Menes (Narmer)"],
+        ["في أي سنة بدأت الحرب العالمية الأولى؟", "1914", "In which year did the First World War begin?", "1914"],
+        ["أي إمبراطورية حكمت مصر رسمياً من 1517 حتى 1914؟", "الدولة العثمانية", "Which empire formally ruled Egypt from 1517 until 1914?", "The Ottoman Empire"]
+      ],
+      500: [
+        ["ما اسم المعاهدة التي أنهت الحرب العالمية الأولى مع ألمانيا سنة 1919؟", "معاهدة فرساي", "Which treaty ended the First World War with Germany in 1919?", "The Treaty of Versailles"],
+        ["أي مؤرخ يوناني قال «مصر هبة النيل»؟", "هيرودوت", "Which Greek historian called Egypt 'the gift of the Nile'?", "Herodotus"],
+        ["أي ملكة حكمت مصر فرعوناً وبنت معبد الدير البحري؟", "حتشبسوت", "Which queen ruled Egypt as pharaoh and built the temple at Deir el-Bahari?", "Hatshepsut"],
+        ["ما اسم عاصمة مصر الموحدة في عصر الأسرات الأولى؟", "منف", "What was the capital of united Egypt under the first dynasties?", "Memphis"],
+        ["مين أول امرأة فازت بجائزة نوبل؟", "ماري كوري", "Who was the first woman to win a Nobel Prize?", "Marie Curie"],
+        ["في أي سنة فتح العثمانيون القسطنطينية؟", "1453", "In which year did the Ottomans take Constantinople?", "1453"]
+      ]
+    }
+  },
+  {
+    id: 'geography', icon: '🌍', ar: 'جغرافيا', en: 'Geography',
+    levels: {
+      100: [
+        ["ما أطول نهر في أفريقيا؟", "النيل", "What is the longest river in Africa?", "The Nile"],
+        ["ما عاصمة فرنسا؟", "باريس", "What is the capital of France?", "Paris"],
+        ["ما أكبر قارة في العالم؟", "آسيا", "What is the largest continent?", "Asia"],
+        ["ما أكبر محيط في العالم؟", "المحيط الهادئ", "What is the largest ocean?", "The Pacific Ocean"],
+        ["ما عاصمة السعودية؟", "الرياض", "What is the capital of Saudi Arabia?", "Riyadh"],
+        ["في أي قارة تقع معظم أراضي مصر؟", "أفريقيا", "On which continent is most of Egypt?", "Africa"]
+      ],
+      200: [
+        ["ما أعلى جبل في العالم؟", "إيفرست", "What is the highest mountain in the world?", "Mount Everest"],
+        ["ما عاصمة اليابان؟", "طوكيو", "What is the capital of Japan?", "Tokyo"],
+        ["ما أكبر صحراء حارة في العالم؟", "الصحراء الكبرى", "What is the largest hot desert in the world?", "The Sahara"],
+        ["أي بحر تصل إليه السفن من قناة السويس جنوباً؟", "البحر الأحمر", "Which sea do ships reach heading south through the Suez Canal?", "The Red Sea"],
+        ["ما عاصمة المغرب؟", "الرباط", "What is the capital of Morocco?", "Rabat"],
+        ["ما أكبر دولة في العالم مساحة؟", "روسيا", "What is the largest country by area?", "Russia"]
+      ],
+      300: [
+        ["ما عاصمة أستراليا؟", "كانبرا", "What is the capital of Australia?", "Canberra"],
+        ["ما أصغر دولة في العالم مساحة؟", "الفاتيكان", "What is the smallest country in the world?", "Vatican City"],
+        ["ما أطول نهر في أوروبا؟", "الفولجا", "What is the longest river in Europe?", "The Volga"],
+        ["ما عاصمة كندا؟", "أوتاوا", "What is the capital of Canada?", "Ottawa"],
+        ["في أي مدينة مصرية يقع السد العالي؟", "أسوان", "In which Egyptian city is the High Dam?", "Aswan"],
+        ["كم دولة عضو في جامعة الدول العربية؟", "22", "How many member states does the Arab League have?", "22"]
+      ],
+      400: [
+        ["ما أعمق بحيرة في العالم؟", "بحيرة بايكال", "What is the deepest lake in the world?", "Lake Baikal"],
+        ["ما عاصمة البرازيل؟", "برازيليا", "What is the capital of Brazil?", "Brasília"],
+        ["ما أخفض نقطة على سطح اليابسة؟", "البحر الميت", "What is the lowest point on land?", "The Dead Sea"],
+        ["ما اسم البحيرة الصناعية الكبيرة خلف السد العالي؟", "بحيرة ناصر", "What is the large reservoir behind the Aswan High Dam called?", "Lake Nasser"],
+        ["ما عاصمة نيجيريا؟", "أبوجا", "What is the capital of Nigeria?", "Abuja"],
+        ["أي مضيق يفصل أوروبا عن أفريقيا؟", "مضيق جبل طارق", "Which strait separates Europe from Africa?", "The Strait of Gibraltar"]
+      ],
+      500: [
+        ["ما عاصمة كازاخستان؟", "أستانا", "What is the capital of Kazakhstan?", "Astana"],
+        ["ما أعلى جبل في أفريقيا؟", "كليمنجارو", "What is the highest mountain in Africa?", "Kilimanjaro"],
+        ["ما أعلى قمة جبلية في مصر؟", "جبل كاترين", "What is the highest mountain in Egypt?", "Mount Catherine"],
+        ["كم دولة في حوض نهر النيل؟", "11", "How many countries are in the Nile Basin?", "11"],
+        ["ما عاصمة ميانمار؟", "نايبيداو", "What is the capital of Myanmar?", "Naypyidaw"],
+        ["ما أطول نهر في آسيا؟", "اليانجتسي", "What is the longest river in Asia?", "The Yangtze"]
+      ]
+    }
+  },
+  {
+    id: 'science', icon: '🔬', ar: 'علوم', en: 'Science',
+    levels: {
+      100: [
+        ["أي كوكب يُعرف بالكوكب الأحمر؟", "المريخ", "Which planet is known as the Red Planet?", "Mars"],
+        ["كم رجلاً للعنكبوت؟", "8", "How many legs does a spider have?", "8"],
+        ["أي غاز نتنفسه لنعيش؟", "الأكسجين", "Which gas do we breathe in to live?", "Oxygen"],
+        ["عند كم درجة مئوية يغلي الماء عند سطح البحر؟", "100", "At what temperature in °C does water boil at sea level?", "100"],
+        ["ما أكبر كوكب في المجموعة الشمسية؟", "المشتري", "What is the largest planet in the Solar System?", "Jupiter"],
+        ["أي عضو يضخ الدم في الجسم؟", "القلب", "Which organ pumps blood around the body?", "The heart"]
+      ],
+      200: [
+        ["ما الصيغة الكيميائية للماء؟", "H2O", "What is the chemical formula of water?", "H2O"],
+        ["ما أقرب نجم إلى الأرض؟", "الشمس", "What is the nearest star to Earth?", "The Sun"],
+        ["كم عظمة في جسم الإنسان البالغ؟", "206", "How many bones are in the adult human body?", "206"],
+        ["ما أقرب كوكب إلى الشمس؟", "عطارد", "Which planet is closest to the Sun?", "Mercury"],
+        ["ما الجهاز الذي نرى به الأشياء الدقيقة جداً؟", "الميكروسكوب (المجهر)", "Which instrument do we use to see very tiny things?", "A microscope"],
+        ["أي غاز تمتصه النباتات من الهواء؟", "ثاني أكسيد الكربون", "Which gas do plants take in from the air?", "Carbon dioxide"]
+      ],
+      300: [
+        ["ما الرمز الكيميائي للذهب؟", "Au", "What is the chemical symbol for gold?", "Au"],
+        ["مين صاحب نظرية النسبية؟", "ألبرت أينشتاين", "Who developed the theory of relativity?", "Albert Einstein"],
+        ["ما أكبر عضو في جسم الإنسان؟", "الجلد", "What is the largest organ of the human body?", "The skin"],
+        ["كم تبلغ سرعة الضوء تقريباً؟", "300 ألف كم في الثانية", "Roughly how fast does light travel?", "About 300,000 km per second"],
+        ["أي كوكب يشتهر بحلقاته الواضحة؟", "زحل", "Which planet is famous for its bright rings?", "Saturn"],
+        ["أي عنصر رمزه الكيميائي Fe؟", "الحديد", "Which element has the chemical symbol Fe?", "Iron"]
+      ],
+      400: [
+        ["مين العالم الذي اكتشف البنسلين؟", "ألكسندر فليمنج", "Which scientist discovered penicillin?", "Alexander Fleming"],
+        ["ما وحدة قياس القوة؟", "النيوتن", "What is the unit of force?", "The newton"],
+        ["ما أصلب مادة طبيعية؟", "الألماس", "What is the hardest natural material?", "Diamond"],
+        ["كم كروموسوماً في الخلية البشرية العادية؟", "46", "How many chromosomes are in a normal human cell?", "46"],
+        ["ما الغاز الأكثر وفرة في هواء الأرض؟", "النيتروجين", "What is the most abundant gas in Earth's air?", "Nitrogen"],
+        ["أي عالم عربي لُقّب بـ«أبو الكيمياء»؟", "جابر بن حيان", "Which Arab scholar is called 'the father of chemistry'?", "Jabir ibn Hayyan"]
+      ],
+      500: [
+        ["ما العدد الذري للكربون؟", "6", "What is the atomic number of carbon?", "6"],
+        ["مين العالم المصري الذي فاز بجائزة نوبل في الكيمياء سنة 1999؟", "أحمد زويل", "Which Egyptian scientist won the 1999 Nobel Prize in Chemistry?", "Ahmed Zewail"],
+        ["ما اسم أصغر عظمة في جسم الإنسان؟", "عظمة الركاب (في الأذن)", "What is the smallest bone in the human body?", "The stapes (in the ear)"],
+        ["كم دقيقة تقريباً يستغرق ضوء الشمس ليصل إلى الأرض؟", "8 دقائق تقريباً", "Roughly how long does sunlight take to reach Earth?", "About 8 minutes"],
+        ["ما الغاز النبيل الأكثر وفرة في الغلاف الجوي؟", "الأرجون", "Which noble gas is most abundant in the atmosphere?", "Argon"],
+        ["مين العالم الذي رتّب العناصر في أول جدول دوري حديث؟", "ديمتري مندلييف", "Which scientist arranged the elements into the first modern periodic table?", "Dmitri Mendeleev"]
+      ]
+    }
+  },
+  {
+    id: 'tech', icon: '💻', ar: 'تكنولوجيا', en: 'Technology',
+    levels: {
+      100: [
+        ["أي شركة تصنع هاتف آيفون؟", "آبل", "Which company makes the iPhone?", "Apple"],
+        ["ما أشهر محرك بحث في العالم؟", "جوجل", "What is the most famous search engine in the world?", "Google"],
+        ["ما نظام تشغيل هواتف سامسونج؟", "أندرويد", "Which operating system runs on Samsung phones?", "Android"],
+        ["ما الجهاز الذي نحرك به المؤشر على شاشة الكمبيوتر؟", "الماوس", "Which device moves the pointer on a computer screen?", "The mouse"],
+        ["مين أشهر مؤسسي شركة مايكروسوفت؟", "بيل جيتس", "Who is the best-known founder of Microsoft?", "Bill Gates"],
+        ["أي تطبيق مراسلة أخضر نرسل فيه رسائل صوتية ونعمل جروبات؟", "واتساب", "Which green messaging app do we use for voice notes and group chats?", "WhatsApp"]
+      ],
+      200: [
+        ["مين مؤسس فيسبوك؟", "مارك زوكربيرج", "Who founded Facebook?", "Mark Zuckerberg"],
+        ["ما اسم المساعد الصوتي في أجهزة آبل؟", "سيري", "What is Apple's voice assistant called?", "Siri"],
+        ["أي منصة فيديو تملكها جوجل؟", "يوتيوب", "Which video platform does Google own?", "YouTube"],
+        ["أي شركة تصنع جهاز بلايستيشن؟", "سوني", "Which company makes the PlayStation?", "Sony"],
+        ["ما اسم نظام تشغيل أجهزة آيفون؟", "iOS", "What is the iPhone's operating system called?", "iOS"],
+        ["ما اسم متجر التطبيقات في هواتف أندرويد؟", "جوجل بلاي", "What is the app store on Android phones called?", "Google Play"]
+      ],
+      300: [
+        ["ماذا يعني الاختصار CPU؟", "وحدة المعالجة المركزية", "What does CPU stand for?", "Central Processing Unit"],
+        ["كم بايت في الكيلوبايت؟", "1024 (أو 1000 بالنظام العشري)", "How many bytes are in a kilobyte?", "1024 (or 1000 in decimal units)"],
+        ["مين مؤسس شركة أمازون؟", "جيف بيزوس", "Who founded Amazon?", "Jeff Bezos"],
+        ["أي لغة برمجة تحمل اسم نوع من الثعابين؟", "بايثون", "Which programming language is named after a snake?", "Python"],
+        ["أي شركة تصنع معالجات «Core i7»؟", "إنتل", "Which company makes 'Core i7' processors?", "Intel"],
+        ["في أي سنة أُطلق أول آيفون؟", "2007", "In which year was the first iPhone launched?", "2007"]
+      ],
+      400: [
+        ["ماذا يعني الاختصار HTML؟", "لغة ترميز النص التشعبي", "What does HTML stand for?", "HyperText Markup Language"],
+        ["مين يُعد «أبو الحاسوب» وصمم المحرك التحليلي؟", "تشارلز باباج", "Who is called 'the father of the computer' and designed the Analytical Engine?", "Charles Babbage"],
+        ["ما اسم أول متصفح إنترنت انتشر بين الناس سنة 1993؟", "موزاييك", "Which web browser, released in 1993, first brought the web to the public?", "Mosaic"],
+        ["مين اخترع شبكة الويب العالمية (WWW)؟", "تيم بيرنرز لي", "Who invented the World Wide Web?", "Tim Berners-Lee"],
+        ["أي شركة أسسها ستيف جوبز بعد خروجه من آبل سنة 1985؟", "نكست (NeXT)", "Which company did Steve Jobs found after leaving Apple in 1985?", "NeXT"],
+        ["كم بت في البايت الواحد؟", "8", "How many bits are in one byte?", "8"]
+      ],
+      500: [
+        ["مين تُعد أول مبرمجة في التاريخ؟", "آدا لوفليس", "Who is considered the first computer programmer?", "Ada Lovelace"],
+        ["ما اسم أول حاسوب إلكتروني عام الأغراض (1945)؟", "إينياك (ENIAC)", "What was the first general-purpose electronic computer (1945)?", "ENIAC"],
+        ["أي عالم بريطاني فك شفرة «إنجما» الألمانية ويُعد أبا علوم الحاسوب؟", "آلان تورنج", "Which British scientist helped break the German Enigma code and is a father of computer science?", "Alan Turing"],
+        ["في أي سنة تأسست شركة جوجل؟", "1998", "In which year was Google founded?", "1998"],
+        ["أي لغة برمجة أطلقتها شركة صن مايكروسيستمز سنة 1995 وشعارها فنجان قهوة؟", "جافا", "Which programming language did Sun Microsystems release in 1995, with a coffee-cup logo?", "Java"],
+        ["كم بايت تقريباً في الجيجابايت؟", "مليار بايت تقريباً", "Roughly how many bytes are in a gigabyte?", "About a billion"]
+      ]
+    }
+  },
+  {
+    id: 'food', icon: '🍽️', ar: 'أكل ومطبخ', en: 'Food & Cooking',
+    levels: {
+      100: [
+        ["ما المكون الأساسي للطعمية المصرية؟", "الفول", "What is the main ingredient of Egyptian taameya (falafel)?", "Fava beans"],
+        ["ما الفاكهة الصفراء الطويلة التي تحبها القرود؟", "الموز", "Which long yellow fruit do monkeys love?", "The banana"],
+        ["أي طائر يعطينا البيض الذي نأكله عادةً؟", "الدجاجة", "Which bird gives us the eggs we usually eat?", "The chicken"],
+        ["أي دولة تشتهر بالبيتزا؟", "إيطاليا", "Which country is famous for pizza?", "Italy"],
+        ["من أي خضار يُصنع «البابا غنوج»؟", "الباذنجان", "Which vegetable is baba ghanoush made from?", "Eggplant"],
+        ["ما الخضار البرتقالي الذي تحبه الأرانب في الكرتون؟", "الجزر", "Which orange vegetable do cartoon rabbits love?", "The carrot"]
+      ],
+      200: [
+        ["أي أكلة مصرية فيها أرز ومكرونة وعدس وصلصة ودقة؟", "الكشري", "Which Egyptian dish mixes rice, pasta, lentils and tomato sauce?", "Koshary"],
+        ["من أي دولة أصل السوشي؟", "اليابان", "Which country does sushi come from?", "Japan"],
+        ["ما النبات الذي يُصنع منه معظم السكر في مصر؟", "قصب السكر", "Which plant is most of Egypt's sugar made from?", "Sugar cane"],
+        ["أي أكلة مصرية خضراء تُطبخ بالطشة؟", "الملوخية", "Which green Egyptian dish is finished with fried garlic ('tasha')?", "Molokhia"],
+        ["ما الصوص الذي يُصنع من السمسم المطحون؟", "الطحينة", "Which sauce is made from ground sesame seeds?", "Tahini"],
+        ["أي حلوى شرقية تُصنع من طبقات عجين رقيقة ومكسرات وشربات؟", "البقلاوة", "Which sweet is made of thin pastry layers, nuts and syrup?", "Baklava"]
+      ],
+      300: [
+        ["ما أغلى بهار في العالم؟", "الزعفران", "What is the most expensive spice in the world?", "Saffron"],
+        ["من أي دولة أصل طبق «الباييا»؟", "إسبانيا", "Which country does paella come from?", "Spain"],
+        ["أي جبنة إيطالية تُوضع على البيتزا وتتمدد؟", "الموتزاريلا", "Which stretchy Italian cheese goes on pizza?", "Mozzarella"],
+        ["من أي فاكهة يُصنع «الجواكامولي»؟", "الأفوكادو", "Which fruit is guacamole made from?", "Avocado"],
+        ["من ماذا يُصنع «الكافيار»؟", "بيض سمك الحفش", "What is caviar?", "Sturgeon eggs"],
+        ["أي مشروب شتوي ساخن يُصنع من النشا واللبن ويُزين بالمكسرات والقرفة؟", "السحلب", "Which hot winter drink is made with starch and milk and topped with nuts and cinnamon?", "Sahlab"]
+      ],
+      400: [
+        ["من أي منطقة أصل طبق «الكسكسي»؟", "المغرب العربي", "Which region does couscous come from?", "North Africa (the Maghreb)"],
+        ["أي نوع عجين يُصنع منه الكرواسون؟", "عجين مورّق بالزبدة", "What kind of dough is a croissant made from?", "Laminated butter dough"],
+        ["أي بهار يعطي الكاري لونه الأصفر؟", "الكركم", "Which spice gives curry its yellow colour?", "Turmeric"],
+        ["من أي نبات يُصنع الشاي الأخضر؟", "نفس نبات الشاي الأسود", "Which plant does green tea come from?", "The same tea plant as black tea"],
+        ["أي أكلة يابانية هي شرائح سمك نيء بدون أرز؟", "الساشيمي", "Which Japanese dish is sliced raw fish served without rice?", "Sashimi"],
+        ["ما اسم الجبنة اليونانية البيضاء المالحة؟", "فيتا", "What is the salty white Greek cheese called?", "Feta"]
+      ],
+      500: [
+        ["ما اسم الطبق الفرنسي من الخضار المطهية الذي سُمي به فيلم لبيكسار؟", "راتاتوي", "Which French stewed-vegetable dish gave its name to a Pixar film?", "Ratatouille"],
+        ["من أي مدينة إيطالية أصل صوص «البولونيز»؟", "بولونيا", "Which Italian city does Bolognese sauce come from?", "Bologna"],
+        ["أي دولة هي الأكبر إنتاجاً للبن في العالم؟", "البرازيل", "Which country produces the most coffee in the world?", "Brazil"],
+        ["ما المكون الذي تُصنع منه الشوكولاتة البيضاء رغم خلوها من الكاكاو الصلب؟", "زبدة الكاكاو", "White chocolate has no cocoa solids — which part of the cocoa bean is it made from?", "Cocoa butter"],
+        ["أي حلوى إيطالية تُصنع من البسكويت والقهوة وجبنة الماسكاربوني؟", "التيراميسو", "Which Italian dessert is made with sponge fingers, coffee and mascarpone?", "Tiramisu"],
+        ["أي نوع أرز يُستخدم في الريزوتو الإيطالي؟", "أرز أربوريو", "Which rice is used for Italian risotto?", "Arborio rice"]
+      ]
+    }
+  },
+  {
+    id: 'nature', icon: '🦁', ar: 'حيوانات وطبيعة', en: 'Animals & Nature',
+    levels: {
+      100: [
+        ["ما أكبر حيوان بري في العالم؟", "الفيل", "What is the largest land animal?", "The elephant"],
+        ["أي حيوان يُلقب بملك الغابة؟", "الأسد", "Which animal is called the king of the jungle?", "The lion"],
+        ["ما أطول حيوان في العالم؟", "الزرافة", "What is the tallest animal in the world?", "The giraffe"],
+        ["أي حيوان يُلقب بـ«سفينة الصحراء»؟", "الجمل", "Which animal is called 'the ship of the desert'?", "The camel"],
+        ["كم رجلاً للحشرة؟", "6", "How many legs does an insect have?", "6"],
+        ["أي طائر يستطيع تقليد كلام الإنسان؟", "الببغاء", "Which bird can copy human speech?", "The parrot"]
+      ],
+      200: [
+        ["ما أسرع حيوان بري؟", "الفهد (الشيتا)", "What is the fastest land animal?", "The cheetah"],
+        ["ما أكبر حيوان في العالم؟", "الحوت الأزرق", "What is the largest animal in the world?", "The blue whale"],
+        ["ماذا يُسمى صغير الأسد؟", "الشبل", "What is a baby lion called?", "A cub"],
+        ["أي حيوان يغيّر لونه ليتخفّى؟", "الحرباء", "Which animal changes colour to hide?", "The chameleon"],
+        ["ما أكبر طائر في العالم، وهو لا يطير؟", "النعامة", "What is the largest bird in the world, one that cannot fly?", "The ostrich"],
+        ["أي حيوان أسترالي يحمل صغيره في جراب؟", "الكنغر", "Which Australian animal carries its baby in a pouch?", "The kangaroo"]
+      ],
+      300: [
+        ["كم قلباً للأخطبوط؟", "3", "How many hearts does an octopus have?", "3"],
+        ["ما الحيوان الثديي الوحيد القادر على الطيران؟", "الخفاش", "Which is the only mammal that can truly fly?", "The bat"],
+        ["ماذا يأكل الباندا العملاق غالباً؟", "الخيزران (البامبو)", "What does the giant panda mostly eat?", "Bamboo"],
+        ["ما أكبر نوع من القطط في العالم؟", "النمر", "What is the largest species of cat?", "The tiger"],
+        ["ماذا يُسمى صغير الحصان؟", "المهر", "What is a baby horse called?", "A foal"],
+        ["من لحاء أي شجرة يُصنع الفلين؟", "البلوط الفليني", "Cork comes from the bark of which tree?", "The cork oak"]
+      ],
+      400: [
+        ["أي حيوان أسترالي يأكل أوراق الكافور وينام معظم اليوم؟", "الكوالا", "Which Australian animal eats eucalyptus leaves and sleeps most of the day?", "The koala"],
+        ["ما أطول نوع من الثعابين في العالم؟", "الأصلة الشبكية", "What is the longest species of snake?", "The reticulated python"],
+        ["أي حيوان زاحف قد يعيش أكثر من 100 سنة؟", "السلحفاة العملاقة", "Which reptile can live for more than 100 years?", "The giant tortoise"],
+        ["ما أسرع طائر عند الانقضاض على فريسته؟", "الشاهين الجوال", "Which bird is the fastest when it dives on its prey?", "The peregrine falcon"],
+        ["كم عيناً للنحلة؟", "5", "How many eyes does a bee have?", "5"],
+        ["أي حيوان هو أقرب أقارب الإنسان جينياً؟", "الشمبانزي (والبونوبو)", "Which animal is the human's closest living relative?", "The chimpanzee (and the bonobo)"]
+      ],
+      500: [
+        ["ما أكبر شعاب مرجانية في العالم؟", "الحاجز المرجاني العظيم", "What is the largest coral reef in the world?", "The Great Barrier Reef"],
+        ["أي حيوان يملك أكبر عين في المملكة الحيوانية؟", "الحبار الهائل", "Which animal has the largest eye in the animal kingdom?", "The colossal squid"],
+        ["ما أطول نوع من الأشجار في العالم؟", "السيكويا الساحلية", "What is the tallest species of tree?", "The coast redwood"],
+        ["أي حيوان ثديي كبير لا يستطيع القفز؟", "الفيل", "Which large mammal cannot jump?", "The elephant"],
+        ["أي طائر يضع أكبر بيضة بالنسبة لحجم جسمه؟", "الكيوي", "Which bird lays the largest egg compared with its body size?", "The kiwi"],
+        ["ما الحيوان الدقيق المُلقب بـ«دب الماء» ويتحمل ظروفاً قاسية جداً؟", "بطيء الخطو (تارديجراد)", "Which tiny animal, nicknamed the 'water bear', survives extreme conditions?", "The tardigrade"]
+      ]
+    }
+  },
+  {
+    id: 'egypt', icon: '🇪🇬', ar: 'مصر', en: 'Egypt',
+    levels: {
+      100: [
+        ["ما عاصمة مصر؟", "القاهرة", "What is the capital of Egypt?", "Cairo"],
+        ["ما اسم عملة مصر؟", "الجنيه المصري", "What is Egypt's currency called?", "The Egyptian pound"],
+        ["ما اسم التمثال الذي جسمه أسد ورأسه إنسان في الجيزة؟", "أبو الهول", "What is the statue at Giza with a lion's body and a human head?", "The Sphinx"],
+        ["ما ألوان علم مصر؟", "أحمر وأبيض وأسود", "What colours are on Egypt's flag?", "Red, white and black"],
+        ["أي مدينة مصرية تُلقب بـ«عروس البحر المتوسط»؟", "الإسكندرية", "Which Egyptian city is called 'the Bride of the Mediterranean'?", "Alexandria"],
+        ["ما اسم القناة التي تربط البحر المتوسط بالبحر الأحمر؟", "قناة السويس", "Which canal links the Mediterranean to the Red Sea?", "The Suez Canal"]
+      ],
+      200: [
+        ["أي طائر يتوسط علم مصر؟", "نسر صلاح الدين", "Which bird is in the middle of Egypt's flag?", "The Eagle of Saladin"],
+        ["كم هرماً رئيسياً في منطقة أهرامات الجيزة؟", "3", "How many main pyramids stand at Giza?", "3"],
+        ["ما اسم المسجد الكبير فوق قلعة صلاح الدين؟", "مسجد محمد علي", "Which great mosque stands on top of the Cairo Citadel?", "The Mosque of Muhammad Ali"],
+        ["في أي مدينة يقع معبد الكرنك؟", "الأقصر", "In which city is Karnak Temple?", "Luxor"],
+        ["أي كاتب مصري فاز بجائزة نوبل في الأدب؟", "نجيب محفوظ", "Which Egyptian writer won the Nobel Prize in Literature?", "Naguib Mahfouz"],
+        ["ما اسم السوق القديم الأشهر في القاهرة الفاطمية؟", "خان الخليلي", "What is the most famous old bazaar in Islamic Cairo?", "Khan el-Khalili"]
+      ],
+      300: [
+        ["أي مطربة مصرية لُقبت بـ«كوكب الشرق»؟", "أم كلثوم", "Which Egyptian singer was called 'the Star of the East'?", "Umm Kulthum"],
+        ["في أي سنة فاز نجيب محفوظ بجائزة نوبل؟", "1988", "In which year did Naguib Mahfouz win the Nobel Prize?", "1988"],
+        ["أي معبد نُقل من مكانه لإنقاذه من مياه بحيرة السد العالي؟", "معبد أبو سمبل", "Which temple was moved to save it from the High Dam's lake?", "Abu Simbel"],
+        ["ما أقدم جامعة في مصر، وهي من أقدم جامعات العالم؟", "الأزهر", "What is Egypt's oldest university, one of the oldest in the world?", "Al-Azhar"],
+        ["كم محافظة في مصر؟", "27", "How many governorates does Egypt have?", "27"],
+        ["ما اسم البحيرة المالحة الكبيرة في الفيوم؟", "بحيرة قارون", "What is the large salt lake in Fayoum called?", "Lake Qarun"]
+      ],
+      400: [
+        ["مين المهندس الذي صمم الهرم المدرج في سقارة؟", "إمحوتب", "Who designed the Step Pyramid at Saqqara?", "Imhotep"],
+        ["أي مدينة على قناة السويس سُميت على اسم الخديوي إسماعيل؟", "الإسماعيلية", "Which Suez Canal city is named after Khedive Ismail?", "Ismailia"],
+        ["أي ملك فرعوني بنى معبد أبو سمبل؟", "رمسيس الثاني", "Which pharaoh built the temples of Abu Simbel?", "Ramses II"],
+        ["في أي محافظة تقع واحة سيوة؟", "مطروح", "In which governorate is the Siwa Oasis?", "Matrouh"],
+        ["ما اسم أول جامعة مصرية حديثة (1908)، والتي صارت جامعة القاهرة؟", "الجامعة المصرية", "What was Egypt's first modern university (1908), which became Cairo University, originally called?", "The Egyptian University"],
+        ["أي حي قاهري أنشأه البارون إمبان؟", "مصر الجديدة", "Which Cairo district did Baron Empain build?", "Heliopolis"]
+      ],
+      500: [
+        ["أي ملكة فرعونية يُعرض تمثالها النصفي الشهير في متحف برلين؟", "نفرتيتي", "Which queen's famous bust is displayed in a Berlin museum?", "Nefertiti"],
+        ["في أي سنة افتُتح المتحف المصري في ميدان التحرير؟", "1902", "In which year did the Egyptian Museum in Tahrir Square open?", "1902"],
+        ["أي فرعون دعا إلى عبادة إله واحد هو «آتون»؟", "أخناتون", "Which pharaoh promoted the worship of a single god, the Aten?", "Akhenaten"],
+        ["كم يبلغ طول قناة السويس تقريباً؟", "حوالي 193 كم", "Roughly how long is the Suez Canal?", "About 193 km"],
+        ["في أي مدينة وُلد جمال عبد الناصر؟", "الإسكندرية", "In which city was Gamal Abdel Nasser born?", "Alexandria"],
+        ["في أي مدينة يقع وادي الملوك؟", "الأقصر (البر الغربي)", "In which city is the Valley of the Kings?", "Luxor (West Bank)"]
+      ]
+    }
+  },
+  {
+    id: 'general', icon: '💡', ar: 'معلومات عامة', en: 'General Knowledge',
+    levels: {
+      100: [
+        ["كم يوماً في الأسبوع؟", "7", "How many days are in a week?", "7"],
+        ["كم شهراً في السنة؟", "12", "How many months are in a year?", "12"],
+        ["ما اللون الذي ينتج من خلط الأزرق مع الأصفر؟", "الأخضر", "Which colour do you get by mixing blue and yellow?", "Green"],
+        ["كم دقيقة في الساعة؟", "60", "How many minutes are in an hour?", "60"],
+        ["كم لوناً في قوس قزح؟", "7", "How many colours are in a rainbow?", "7"],
+        ["أي شهر قد يكون 28 أو 29 يوماً؟", "فبراير", "Which month can have 28 or 29 days?", "February"]
+      ],
+      200: [
+        ["كم ثانية في الساعة؟", "3600", "How many seconds are in an hour?", "3600"],
+        ["ما اللغة الأكثر تحدثاً كلغة أم في العالم؟", "الصينية (الماندرين)", "Which language has the most native speakers?", "Mandarin Chinese"],
+        ["كم ضلعاً للشكل السداسي؟", "6", "How many sides does a hexagon have?", "6"],
+        ["كم قطعة في طقم الدومينو العادي؟", "28", "How many tiles are in a standard domino set?", "28"],
+        ["كم قيراطاً في الذهب الخالص؟", "24", "How many carats is pure gold?", "24"],
+        ["ما اسم عملة اليابان؟", "الين", "What is Japan's currency called?", "The yen"]
+      ],
+      300: [
+        ["كم مفتاحاً في البيانو القياسي؟", "88", "How many keys does a standard piano have?", "88"],
+        ["كيف يُكتب الرقم 10 بالأرقام الرومانية؟", "X", "How is the number 10 written in Roman numerals?", "X"],
+        ["كم سنة يمثل اليوبيل الذهبي؟", "50", "How many years does a golden jubilee mark?", "50"],
+        ["كم ساعة في الأسبوع؟", "168", "How many hours are in a week?", "168"],
+        ["أي منظمة دولية يقع مقرها الرئيسي في نيويورك وتضم معظم دول العالم؟", "الأمم المتحدة", "Which international organisation of nearly every country has its headquarters in New York?", "The United Nations"],
+        ["كم حرفاً في الأبجدية العربية؟", "28", "How many letters are in the Arabic alphabet?", "28"]
+      ],
+      400: [
+        ["ما قيمة الرقم الروماني L؟", "50", "What number is L in Roman numerals?", "50"],
+        ["كم سناً دائمة للإنسان البالغ؟", "32", "How many permanent teeth does an adult have?", "32"],
+        ["ما اسم علم رسم الخرائط؟", "الكارتوغرافيا", "What is the science of making maps called?", "Cartography"],
+        ["كم يوماً في السنة الكبيسة؟", "366", "How many days are in a leap year?", "366"],
+        ["ما المعدن الذي يكون سائلاً في درجة حرارة الغرفة؟", "الزئبق", "Which metal is liquid at room temperature?", "Mercury"],
+        ["ما اسم الخوف المرضي من الأماكن المرتفعة؟", "رهاب المرتفعات (الأكروفوبيا)", "What is the fear of heights called?", "Acrophobia"]
+      ],
+      500: [
+        ["ما قيمة الرقم الروماني M؟", "1000", "What number is M in Roman numerals?", "1000"],
+        ["كم مربعاً في رقعة الشطرنج؟", "64", "How many squares are on a chessboard?", "64"],
+        ["ماذا يُسمى هاوي جمع الطوابع؟", "فيلاتيلي", "What is a stamp collector called?", "A philatelist"],
+        ["كم دولة عضو في الأمم المتحدة؟", "193", "How many member states does the United Nations have?", "193"],
+        ["ما اسم العلم الذي يدرس الحشرات؟", "علم الحشرات (الإنتومولوجيا)", "What is the study of insects called?", "Entomology"],
+        ["كم سنة يمثل اليوبيل الماسي عادةً؟", "60", "How many years does a diamond jubilee usually mark?", "60"]
+      ]
+    }
+  }
+];
+</script>

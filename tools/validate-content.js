@@ -23,25 +23,31 @@ const problems = [];
 const note = (msg) => problems.push(msg);
 
 /* ---------------------------------------------------------- Connections */
-const CONN = load(ROOT + 'JS_Connections.html', 'CONNECTIONS_DB');
-for (const [lang, puzzles] of Object.entries(CONN)) {
-  puzzles.forEach((p, pi) => {
-    const tag = `connections.${lang}[${pi}]`;
-    if (p.groups.length !== 4) note(`${tag}: ${p.groups.length} groups, expected 4`);
-    const all = [];
-    p.groups.forEach((g, gi) => {
-      if (g.words.length !== 4) note(`${tag}.${g.name}: ${g.words.length} words, expected 4`);
-      if (!g.name) note(`${tag} group ${gi} has no name`);
-      g.words.forEach(w => all.push({ w, g: g.name }));
+// Three difficulties, one shape: every group is 4 words, and a word appears once per board.
+for (const [dbName, groupCount] of [['CONNECTIONS_EASY', 3], ['CONNECTIONS_DB', 4], ['CONNECTIONS_HARD', 5]]) {
+  const CONN = load(ROOT + 'JS_Connections.html', dbName);
+  for (const [lang, puzzles] of Object.entries(CONN)) {
+    puzzles.forEach((p, pi) => {
+      const tag = `${dbName}.${lang}[${pi}]`;
+      if (p.groups.length !== groupCount) note(`${tag}: ${p.groups.length} groups, expected ${groupCount}`);
+      const all = [];
+      const names = {};
+      p.groups.forEach((g, gi) => {
+        if (g.words.length !== 4) note(`${tag}.${g.name}: ${g.words.length} words, expected 4`);
+        if (!g.name) note(`${tag} group ${gi} has no name`);
+        if (names[g.name]) note(`${tag}: two groups called "${g.name}"`);
+        names[g.name] = true;
+        g.words.forEach(w => all.push({ w, g: g.name }));
+      });
+      if (all.length !== groupCount * 4) note(`${tag}: ${all.length} tiles, expected ${groupCount * 4}`);
+      const seen = {};
+      all.forEach(({ w, g }) => {
+        if (seen[w]) note(`${tag}: DUPLICATE "${w}" in both "${seen[w]}" and "${g}"`);
+        else seen[w] = g;
+      });
     });
-    if (all.length !== 16) note(`${tag}: ${all.length} tiles, expected 16`);
-    const seen = {};
-    all.forEach(({ w, g }) => {
-      if (seen[w]) note(`${tag}: DUPLICATE "${w}" in both "${seen[w]}" and "${g}"`);
-      else seen[w] = g;
-    });
-  });
-  console.log(`connections.${lang}: ${puzzles.length} puzzles`);
+    console.log(`${dbName}.${lang}: ${puzzles.length} puzzles`);
+  }
 }
 
 /* -------------------------------------------------------- Party content */
@@ -122,6 +128,46 @@ for (const [lang, list] of Object.entries(TRIV)) {
   const dup = list.map(x => x.q).filter((v, i, a) => a.indexOf(v) !== i);
   if (dup.length) note(`trivia.${lang}: duplicate questions ${JSON.stringify(dup)}`);
   console.log(`trivia.${lang}: ${list.length} questions`);
+}
+
+/* ------------------------------------------------------ دوري المعرفة board */
+// Each category has every level, each level enough questions for a few games,
+// every item is [question ar, answer ar, question en, answer en], no question
+// is asked twice, and no answer gives itself away inside its question.
+{
+  const BOARD = load(ROOT + 'JS_TriviaBoardBank.html', 'TRIVIA_BOARD_BANK');
+  const fold = (s) => String(s || '').toLowerCase()
+    .replace(/[\u064B-\u0652\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+    .replace(/^the\s+/, '').replace(/[^a-z0-9\u0621-\u064A]/g, '');
+  const ids = {};
+  const asked = { ar: {}, en: {} };
+  let total = 0;
+  BOARD.forEach((cat) => {
+    if (!cat.id || ids[cat.id]) note(`board: category id "${cat.id}" missing or repeated`);
+    ids[cat.id] = true;
+    if (!cat.ar || !cat.en) note(`board.${cat.id}: needs an Arabic and an English name`);
+    [100, 200, 300, 400, 500].forEach((level) => {
+      const list = (cat.levels || {})[level] || [];
+      if (list.length < 5) note(`board.${cat.id}.${level}: ${list.length} questions, wants 5+`);
+      list.forEach((item, i) => {
+        const tag = `board.${cat.id}.${level}[${i}]`;
+        total++;
+        if (!Array.isArray(item) || item.length !== 4 || item.some(s => typeof s !== 'string' || !s.trim())) {
+          note(`${tag}: must be [question ar, answer ar, question en, answer en]`);
+          return;
+        }
+        [['ar', 0], ['en', 2]].forEach(([lang, k]) => {
+          const question = fold(item[k]);
+          const answer = fold(item[k + 1]);
+          if (asked[lang][question]) note(`${tag}: same ${lang} question as ${asked[lang][question]}`);
+          else asked[lang][question] = tag;
+          if (answer.length >= 4 && question.indexOf(answer) !== -1) note(`${tag}: the ${lang} answer is inside the question`);
+        });
+      });
+    });
+  });
+  if (BOARD.length < 5) note(`board: ${BOARD.length} categories, a round needs 5`);
+  console.log(`trivia board: ${BOARD.length} categories, ${total} questions`);
 }
 
 /* ------------------------------------------- Pass-the-phone deduction games */

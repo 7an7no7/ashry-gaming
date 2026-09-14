@@ -34,6 +34,10 @@
   - 🤫 **Just One (كلمة واحدة):** Cooperative word guessing.
   - 🃏 **Screw (سكرو):** Card game scoring.
   - 🎭 **Charades (بدون كلام), 🗣️ Describe It (أوصف لي), ❓ Who Am I? (من أنا؟)**
+  - 🧠 **Trivia (تحدي المعلومات):** two ways to play. *دوري المعرفة* is a board for
+    two teams on one screen (five categories × 100–500 points, a host reads and
+    awards); a room has everyone answer on their own phone, faster right answers
+    scoring more.
 - **Multiplayer-only (separate phones, see *Multiplayer rooms*):**
   - 🔠 **Codenames (أسماء الرموز):** two teams, a shared 5×5 board, a key only
     the spymasters hold. There is nowhere to hide that key on one phone.
@@ -41,7 +45,8 @@
   - 🤥 **Fibbage (كذبة وصدقة):** invent an answer, then find the real one.
   - ⚖️ **Would You Rather (لو خيروك)** and 👉 **Most Likely To (مين أكثر واحد):**
     the voting engine; votes stay hidden until the round closes.
-- **Puzzle/Logic Games:** Wordle, Guess the Number, 🔗 Connections (تشابه).
+- **Puzzle/Logic Games:** Wordle, Guess the Number, 🔗 Connections (تشابه) in three
+  levels: easy (3 groups, 12 cards), medium (4 groups, 16) and hard (5 groups, 20).
 - **Utility Tools:** 
   - 🏆 Tournament Organizer, 👥 Team Generator, 🎡 Random Picker.
   - ♟️ Chess Clock, ⏱️ General Timers, 🎲 Dice & Coin.
@@ -106,11 +111,13 @@ Three checks run outside the browser and should pass before a push:
 npm run check        # content + i18n
 ```
 
-- `check:content` validates the game content: a Connections puzzle must be four
-  groups of four with **no word repeated across groups** (a duplicate renders two
+- `check:content` validates the game content: a Connections puzzle must have its
+  level's number of groups (3 / 4 / 5), four words each, with **no word repeated across groups** (a duplicate renders two
   identical tiles and makes the grid ambiguous), Fibbage questions must contain
   a `___` blank, and the Draw & Guess / Codenames banks must be duplicate-free
-  and large enough to deal from.
+  and large enough to deal from. The trivia board bank needs at least five
+  questions per category and level, no question twice, and no answer written
+  inside its own question.
 - `check:i18n` compares the `ar` and `en` blocks key by key, fails on a key
   defined **twice** in one block (legal JS, and the last one silently wins — four
   strings were quietly the wrong ones before this check existed), and checks that
@@ -119,6 +126,8 @@ npm run check        # content + i18n
   game with robot players: turns, votes, scores, that secrets never reach the
   wrong phone, reconnects, the server's clocks and the shared prompt memory.
   `npm run test:live` runs the same against the deployed server.
+- `npm run test:rules` in `rooms-worker/` checks the trivia scoring and question
+  count straight against `RoomGames.js`, no server needed.
 - Everything else is exercised in the local preview.
 
 Client-side logs are in the browser console; the rooms server's are
@@ -287,9 +296,23 @@ it used to borrow `CODENAMES_WORDS`, which is full of things nobody can draw
 Connections lives client-side in `JS_Connections.html`, because it is
 single-device and has nothing to hide.
 
-A Connections puzzle must have exactly four groups of four with **no word
+Connections has three lists, one per level: `CONNECTIONS_EASY` (3 groups),
+`CONNECTIONS_DB` (4) and `CONNECTIONS_HARD` (5 groups of close neighbours, like
+capitals of different continents). Every group is four words with **no word
 repeated across groups** — a duplicate renders two identical tiles and makes the
 grid ambiguous. There is a validator for this; run it after editing content.
+
+**Trivia, two modes.** The room version deals from `TRIVIA_QUESTIONS` on the
+server. The host picks 5, 10, 15 or 20 questions (`TRIVIA_COUNTS`). A right
+answer is `TRIVIA_POINTS` (10) plus a speed bonus: +5 for the first right
+answer, +4 for the second, down to nothing from the sixth. The order is the
+time the server received each answer, ties going to whoever arrived first
+(`seq`), and `shared.order` publishes it so every phone can show its place.
+
+The team board (*دوري المعرفة*) is single-screen: `JS_TriviaBoard.html`, with its
+own bank in `JS_TriviaBoardBank.html` — ten categories, six questions at each of
+100–500, the higher the harder. Only facts that don't change (no records, current
+title holders or "the latest").
 
 **Adding a game to the room layer**
 

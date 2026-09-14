@@ -387,17 +387,386 @@ const CONNECTIONS_DB = {
   ]
 };
 
-const connections = { puzzle: null, solved: [], selected: [], mistakes: 0, lang: 'ar' };
+/* Easier and harder boards. Easy is three everyday groups (12 words). Hard is
+   five narrower groups side by side (20 words), and the groups in a hard board
+   are deliberately close - capitals of different continents, parts of
+   different machines - so the words are harder to sort. Every group is still a
+   kind of thing, never a riddle. */
+const CONNECTIONS_EASY = {
+  ar: [
+    { groups: [
+      { name: 'ألوان', words: ['أحمر', 'أزرق', 'أخضر', 'أصفر'] },
+      { name: 'حيوانات', words: ['قطة', 'كلب', 'أسد', 'فيل'] },
+      { name: 'فواكه', words: ['تفاح', 'موز', 'برتقال', 'عنب'] } ] },
+    { groups: [
+      { name: 'أيام الأسبوع', words: ['السبت', 'الأحد', 'الاتنين', 'الجمعة'] },
+      { name: 'أشكال', words: ['مربع', 'دايرة', 'مثلث', 'نجمة'] },
+      { name: 'مشروبات', words: ['شاي', 'قهوة', 'عصير', 'مياه'] } ] },
+    { groups: [
+      { name: 'أعضاء الجسم', words: ['إيد', 'رجل', 'راس', 'بطن'] },
+      { name: 'مواصلات', words: ['عربية', 'قطر', 'طيارة', 'مركب'] },
+      { name: 'خضار', words: ['طماطم', 'خيار', 'بصل', 'جزر'] } ] },
+    { groups: [
+      { name: 'طيور', words: ['حمامة', 'عصفورة', 'بطة', 'ديك'] },
+      { name: 'لبس', words: ['قميص', 'بنطلون', 'جزمة', 'طاقية'] },
+      { name: 'أدوات المدرسة', words: ['قلم', 'كراسة', 'شنطة', 'مسطرة'] } ] },
+    { groups: [
+      { name: 'أرقام', words: ['واحد', 'اتنين', 'تلاتة', 'أربعة'] },
+      { name: 'فصول السنة', words: ['صيف', 'شتا', 'ربيع', 'خريف'] },
+      { name: 'أثاث', words: ['كرسي', 'ترابيزة', 'سرير', 'كنبة'] } ] },
+    { groups: [
+      { name: 'حيوانات البحر', words: ['سمكة', 'حوت', 'دلفين', 'كابوريا'] },
+      { name: 'حلويات', words: ['كيك', 'بسبوسة', 'كنافة', 'شيكولاتة'] },
+      { name: 'رياضات', words: ['كورة', 'سباحة', 'تنس', 'جري'] } ] },
+    { groups: [
+      { name: 'أجهزة البيت', words: ['تلاجة', 'غسالة', 'تليفزيون', 'مروحة'] },
+      { name: 'حشرات', words: ['نملة', 'نحلة', 'دبانة', 'فراشة'] },
+      { name: 'أفراد العيلة', words: ['أب', 'أم', 'أخت', 'جدة'] } ] },
+    { groups: [
+      { name: 'وظايف', words: ['دكتور', 'مدرس', 'طباخ', 'ظابط'] },
+      { name: 'أدوات الأكل', words: ['معلقة', 'شوكة', 'سكينة', 'طبق'] },
+      { name: 'أماكن', words: ['مدرسة', 'مستشفى', 'سوق', 'جنينة'] } ] },
+    { groups: [
+      { name: 'حيوانات المزرعة', words: ['بقرة', 'خروف', 'حصان', 'معزة'] },
+      { name: 'أكل الفطار', words: ['فول', 'طعمية', 'بيض', 'جبنة'] },
+      { name: 'أجزاء الوش', words: ['عين', 'مناخير', 'بق', 'ودن'] } ] },
+    { groups: [
+      { name: 'في السما', words: ['شمس', 'قمر', 'نجوم', 'سحاب'] },
+      { name: 'لعب الأطفال', words: ['كورة', 'عروسة', 'مكعبات', 'بلونة'] },
+      { name: 'أدوات النظافة', words: ['مقشة', 'صابون', 'سفنجة', 'جردل'] } ] },
+    { groups: [
+      { name: 'حيوانات أليفة', words: ['قطة', 'كلب', 'أرنب', 'سلحفاة'] },
+      { name: 'لبس الشتا', words: ['جاكيت', 'كوفية', 'جوانتي', 'بلوفر'] },
+      { name: 'فاكهة الصيف', words: ['بطيخ', 'مانجو', 'خوخ', 'عنب'] } ] },
+    { groups: [
+      { name: 'أماكن في البيت', words: ['مطبخ', 'أوضة', 'حمام', 'بلكونة'] },
+      { name: 'أكلات مصرية', words: ['كشري', 'ملوخية', 'محشي', 'فتة'] },
+      { name: 'أدوات الرسم', words: ['فرشاة', 'ألوان', 'ورقة', 'أستيكة'] } ] },
+    { groups: [
+      { name: 'دول', words: ['مصر', 'السعودية', 'فرنسا', 'اليابان'] },
+      { name: 'حيوانات الغابة', words: ['قرد', 'زرافة', 'نمر', 'دب'] },
+      { name: 'أدوات النجار', words: ['شاكوش', 'مفك', 'منشار', 'مسمار'] } ] },
+    { groups: [
+      { name: 'شهور', words: ['يناير', 'فبراير', 'مارس', 'أبريل'] },
+      { name: 'ألعاب بالكورة', words: ['كورة قدم', 'كورة سلة', 'كورة طايرة', 'كورة يد'] },
+      { name: 'أكلات سريعة', words: ['بيتزا', 'برجر', 'شاورما', 'هوت دوج'] } ] },
+    { groups: [
+      { name: 'أجزاء العربية', words: ['عجلة', 'باب', 'مراية', 'دريكسيون'] },
+      { name: 'آلات موسيقية', words: ['طبلة', 'عود', 'بيانو', 'جيتار'] },
+      { name: 'مشروبات سخنة', words: ['شاي', 'قهوة', 'كاكاو', 'سحلب'] } ] }
+  ],
+  en: [
+    { groups: [
+      { name: 'Colours', words: ['Red', 'Blue', 'Green', 'Yellow'] },
+      { name: 'Animals', words: ['Cat', 'Dog', 'Lion', 'Elephant'] },
+      { name: 'Fruit', words: ['Apple', 'Banana', 'Orange', 'Grape'] } ] },
+    { groups: [
+      { name: 'Days of the week', words: ['Monday', 'Tuesday', 'Friday', 'Sunday'] },
+      { name: 'Shapes', words: ['Square', 'Circle', 'Triangle', 'Star'] },
+      { name: 'Drinks', words: ['Tea', 'Coffee', 'Juice', 'Water'] } ] },
+    { groups: [
+      { name: 'Body parts', words: ['Hand', 'Foot', 'Head', 'Knee'] },
+      { name: 'Transport', words: ['Car', 'Train', 'Plane', 'Boat'] },
+      { name: 'Vegetables', words: ['Tomato', 'Cucumber', 'Onion', 'Carrot'] } ] },
+    { groups: [
+      { name: 'Birds', words: ['Pigeon', 'Sparrow', 'Duck', 'Parrot'] },
+      { name: 'Clothes', words: ['Shirt', 'Trousers', 'Shoes', 'Hat'] },
+      { name: 'School things', words: ['Pen', 'Notebook', 'Backpack', 'Ruler'] } ] },
+    { groups: [
+      { name: 'Numbers', words: ['One', 'Two', 'Three', 'Four'] },
+      { name: 'Seasons', words: ['Summer', 'Winter', 'Spring', 'Autumn'] },
+      { name: 'Furniture', words: ['Chair', 'Table', 'Bed', 'Sofa'] } ] },
+    { groups: [
+      { name: 'Sea animals', words: ['Fish', 'Whale', 'Dolphin', 'Crab'] },
+      { name: 'Sweets', words: ['Cake', 'Cookie', 'Candy', 'Chocolate'] },
+      { name: 'Sports', words: ['Football', 'Swimming', 'Tennis', 'Running'] } ] },
+    { groups: [
+      { name: 'Home appliances', words: ['Fridge', 'Washing machine', 'TV', 'Fan'] },
+      { name: 'Insects', words: ['Ant', 'Bee', 'Fly', 'Butterfly'] },
+      { name: 'Family', words: ['Dad', 'Mum', 'Sister', 'Grandma'] } ] },
+    { groups: [
+      { name: 'Jobs', words: ['Doctor', 'Teacher', 'Chef', 'Police officer'] },
+      { name: 'Cutlery', words: ['Spoon', 'Fork', 'Knife', 'Plate'] },
+      { name: 'Places', words: ['School', 'Hospital', 'Market', 'Park'] } ] },
+    { groups: [
+      { name: 'Farm animals', words: ['Cow', 'Sheep', 'Horse', 'Goat'] },
+      { name: 'Breakfast', words: ['Eggs', 'Toast', 'Cereal', 'Pancakes'] },
+      { name: 'Face', words: ['Eye', 'Nose', 'Mouth', 'Ear'] } ] },
+    { groups: [
+      { name: 'In the sky', words: ['Sun', 'Moon', 'Stars', 'Clouds'] },
+      { name: 'Toys', words: ['Ball', 'Doll', 'Blocks', 'Balloon'] },
+      { name: 'Cleaning', words: ['Broom', 'Soap', 'Sponge', 'Bucket'] } ] },
+    { groups: [
+      { name: 'Pets', words: ['Rabbit', 'Hamster', 'Goldfish', 'Turtle'] },
+      { name: 'Winter clothes', words: ['Coat', 'Scarf', 'Gloves', 'Jumper'] },
+      { name: 'Summer fruit', words: ['Watermelon', 'Mango', 'Peach', 'Cherry'] } ] },
+    { groups: [
+      { name: 'Rooms', words: ['Kitchen', 'Bedroom', 'Bathroom', 'Garage'] },
+      { name: 'Fast food', words: ['Pizza', 'Burger', 'Fries', 'Hot dog'] },
+      { name: 'Art supplies', words: ['Brush', 'Paint', 'Paper', 'Crayon'] } ] },
+    { groups: [
+      { name: 'Countries', words: ['Egypt', 'France', 'Japan', 'Brazil'] },
+      { name: 'Jungle animals', words: ['Monkey', 'Giraffe', 'Tiger', 'Zebra'] },
+      { name: 'Tools', words: ['Hammer', 'Screwdriver', 'Saw', 'Nail'] } ] },
+    { groups: [
+      { name: 'Months', words: ['January', 'February', 'March', 'April'] },
+      { name: 'Ball sports', words: ['Basketball', 'Volleyball', 'Handball', 'Rugby'] },
+      { name: 'Snacks', words: ['Crisps', 'Popcorn', 'Nuts', 'Biscuits'] } ] },
+    { groups: [
+      { name: 'Car parts', words: ['Wheel', 'Door', 'Mirror', 'Seat'] },
+      { name: 'Instruments', words: ['Drum', 'Piano', 'Guitar', 'Violin'] },
+      { name: 'Hot drinks', words: ['Hot chocolate', 'Tea', 'Coffee', 'Warm milk'] } ] }
+  ]
+};
+
+const CONNECTIONS_HARD = {
+  ar: [
+    { groups: [
+      { name: 'عواصم أوروبية', words: ['مدريد', 'أثينا', 'فيينا', 'لشبونة'] },
+      { name: 'عواصم عربية', words: ['عمّان', 'مسقط', 'الدوحة', 'بيروت'] },
+      { name: 'عواصم أفريقية', words: ['نيروبي', 'داكار', 'أكرا', 'أديس أبابا'] },
+      { name: 'عواصم آسيوية', words: ['بانكوك', 'سيول', 'هانوي', 'مانيلا'] },
+      { name: 'عواصم أمريكا الجنوبية', words: ['ليما', 'كاراكاس', 'سانتياجو', 'بوجوتا'] } ] },
+    { groups: [
+      { name: 'أنواع أجبان', words: ['شيدر', 'موتزاريلا', 'رومي', 'فيتا'] },
+      { name: 'أنواع عيش', words: ['بلدي', 'شامي', 'فينو', 'باجيت'] },
+      { name: 'أنواع مكرونة', words: ['بيني', 'فوسيلي', 'لازانيا', 'اسباجيتي'] },
+      { name: 'أنواع رز', words: ['بسمتي', 'مصري', 'ياسمين', 'أربوريو'] },
+      { name: 'أنواع شوربة', words: ['عدس', 'لسان عصفور', 'كريمة مشروم', 'حريرة'] } ] },
+    { groups: [
+      { name: 'أعضاء داخلية', words: ['كبد', 'طحال', 'بنكرياس', 'مرارة'] },
+      { name: 'عظام', words: ['جمجمة', 'ترقوة', 'قص', 'عمود فقري'] },
+      { name: 'عضلات الجيم', words: ['باي', 'تراي', 'بطن', 'سمانة'] },
+      { name: 'أجزاء العين', words: ['قرنية', 'شبكية', 'عدسة', 'قزحية'] },
+      { name: 'أجزاء الودن', words: ['طبلة', 'قوقعة', 'ركاب', 'صيوان'] } ] },
+    { groups: [
+      { name: 'أنواع ورد', words: ['جوري', 'فل', 'تيوليب', 'ياسمين'] },
+      { name: 'أشجار', words: ['نخلة', 'زيتون', 'صفصاف', 'جميز'] },
+      { name: 'خضار جذري', words: ['فجل', 'بنجر', 'لفت', 'جزر'] },
+      { name: 'أعشاب', words: ['نعناع', 'ريحان', 'زعتر', 'شبت'] },
+      { name: 'بقوليات', words: ['عدس', 'فول', 'لوبيا', 'حمص'] } ] },
+    { groups: [
+      { name: 'آلات وترية', words: ['عود', 'قانون', 'كمان', 'تشيلو'] },
+      { name: 'آلات نفخ', words: ['ناي', 'مزمار', 'ساكسفون', 'ترومبيت'] },
+      { name: 'آلات إيقاع', words: ['طبلة', 'رق', 'دف', 'إكسيليفون'] },
+      { name: 'مطربين مصريين', words: ['محمد منير', 'علي الحجار', 'عمرو دياب', 'هاني شاكر'] },
+      { name: 'مطربات عربيات', words: ['فيروز', 'وردة', 'شادية', 'نجاة'] } ] },
+    { groups: [
+      { name: 'أجزاء العربية', words: ['كبوت', 'شكمان', 'دبرياج', 'رديتر'] },
+      { name: 'أجزاء الموبايل', words: ['شاشة', 'بطارية', 'سماعة', 'شريحة'] },
+      { name: 'أجزاء الكمبيوتر', words: ['رامات', 'هارد', 'بروسيسور', 'باور'] },
+      { name: 'أجزاء الطيارة', words: ['جناح', 'ذيل', 'كابينة', 'محرك'] },
+      { name: 'أجزاء المركب', words: ['دفة', 'صاري', 'قلع', 'مرساة'] } ] },
+    { groups: [
+      { name: 'أبراج', words: ['الحمل', 'الثور', 'الجوزاء', 'السرطان'] },
+      { name: 'كواكب', words: ['عطارد', 'الزهرة', 'زحل', 'أورانوس'] },
+      { name: 'شهور هجرية', words: ['محرم', 'صفر', 'رجب', 'شعبان'] },
+      { name: 'شهور قبطية', words: ['توت', 'بابه', 'هاتور', 'كيهك'] },
+      { name: 'مواسم مصرية', words: ['شم النسيم', 'المولد', 'رأس السنة', 'وفاء النيل'] } ] },
+    { groups: [
+      { name: 'رياضات فردية', words: ['مبارزة', 'رماية', 'جمباز', 'رفع أثقال'] },
+      { name: 'رياضات جماعية', words: ['هوكي', 'رجبي', 'بولو', 'كرة ماء'] },
+      { name: 'رياضات بالمضرب', words: ['سكواش', 'تنس', 'بادل', 'ريشة'] },
+      { name: 'فنون قتالية', words: ['جودو', 'كاراتيه', 'تايكوندو', 'كيك بوكس'] },
+      { name: 'رياضات مائية', words: ['تجديف', 'غطس', 'سيرف', 'كاياك'] } ] },
+    { groups: [
+      { name: 'أحجار كريمة', words: ['ياقوت', 'زمرد', 'فيروز', 'عقيق'] },
+      { name: 'معادن', words: ['نحاس', 'قصدير', 'رصاص', 'زنك'] },
+      { name: 'غازات', words: ['هيليوم', 'نيون', 'أرجون', 'كلور'] },
+      { name: 'أحجار البناء', words: ['جبس', 'رخام', 'جرانيت', 'حجر جيري'] },
+      { name: 'مجوهرات', words: ['خاتم', 'دبلة', 'سوار', 'خلخال'] } ] },
+    { groups: [
+      { name: 'عملات', words: ['ين', 'روبية', 'بيزو', 'يوان'] },
+      { name: 'لغات', words: ['أوردو', 'سواحيلي', 'فارسي', 'تركي'] },
+      { name: 'رقصات', words: ['تانجو', 'سالسا', 'فلامنكو', 'دبكة'] },
+      { name: 'أكلات عالمية', words: ['سوشي', 'تاكو', 'باييا', 'كاري'] },
+      { name: 'معالم عالمية', words: ['بيج بن', 'تاج محل', 'الكولوسيوم', 'برج بيزا'] } ] },
+    { groups: [
+      { name: 'أدوات طبية', words: ['مشرط', 'سماعة طبية', 'جبيرة', 'حقنة'] },
+      { name: 'تخصصات طبية', words: ['جراحة', 'باطنة', 'أطفال', 'عظام'] },
+      { name: 'أمراض', words: ['سكر', 'ضغط', 'ربو', 'أنيميا'] },
+      { name: 'أشعات وفحوصات', words: ['أشعة', 'سونار', 'رسم قلب', 'رنين'] },
+      { name: 'أدوية', words: ['باراسيتامول', 'أسبرين', 'إيبوبروفين', 'مضاد حيوي'] } ] },
+    { groups: [
+      { name: 'ماركات ألمانية', words: ['مرسيدس', 'بي إم دبليو', 'أودي', 'فولكس فاجن'] },
+      { name: 'ماركات يابانية', words: ['تويوتا', 'نيسان', 'هوندا', 'مازدا'] },
+      { name: 'ماركات كورية', words: ['هيونداي', 'كيا', 'سامسونج', 'إل جي'] },
+      { name: 'ماركات أمريكية', words: ['فورد', 'شيفروليه', 'تسلا', 'جيب'] },
+      { name: 'ماركات إيطالية', words: ['فيراري', 'فيات', 'لامبورجيني', 'مازيراتي'] } ] },
+    { groups: [
+      { name: 'أبطال مارفل', words: ['آيرون مان', 'ثور', 'هالك', 'كابتن أمريكا'] },
+      { name: 'أبطال دي سي', words: ['باتمان', 'سوبرمان', 'فلاش', 'أكوامان'] },
+      { name: 'أشرار ديزني', words: ['جعفر', 'سكار', 'أورسولا', 'كرويلا'] },
+      { name: 'أميرات ديزني', words: ['سندريلا', 'ياسمين', 'آريل', 'بيل'] },
+      { name: 'شخصيات بيكسار', words: ['وودي', 'باز', 'نيمو', 'ماكوين'] } ] },
+    { groups: [
+      { name: 'أدوات الخبيز', words: ['نشابة', 'مضرب بيض', 'قالب كيك', 'منخل'] },
+      { name: 'أجهزة المطبخ', words: ['خلاط', 'كبة', 'ميكروويف', 'قلاية هوائية'] },
+      { name: 'أواني الطبخ', words: ['حلة', 'طاسة', 'صينية', 'كسرولة'] },
+      { name: 'توابل', words: ['كمون', 'كزبرة', 'شطة', 'فلفل أسود'] },
+      { name: 'صوصات', words: ['كاتشب', 'مايونيز', 'طحينة', 'مستردة'] } ] },
+    { groups: [
+      { name: 'طيور جارحة', words: ['صقر', 'نسر', 'باز', 'عقاب'] },
+      { name: 'طيور مائية', words: ['بجعة', 'بشاروش', 'نورس', 'بلشون'] },
+      { name: 'دواجن', words: ['فراخ', 'بط', 'وز', 'رومي'] },
+      { name: 'حيوانات ليلية', words: ['بومة', 'خفاش', 'راكون', 'قنفد'] },
+      { name: 'طيور مغردة', words: ['كناري', 'بلبل', 'عندليب', 'كروان'] } ] }
+  ],
+  en: [
+    { groups: [
+      { name: 'European capitals', words: ['Madrid', 'Athens', 'Vienna', 'Lisbon'] },
+      { name: 'Arab capitals', words: ['Amman', 'Muscat', 'Doha', 'Beirut'] },
+      { name: 'African capitals', words: ['Nairobi', 'Dakar', 'Accra', 'Addis Ababa'] },
+      { name: 'Asian capitals', words: ['Bangkok', 'Seoul', 'Hanoi', 'Manila'] },
+      { name: 'South American capitals', words: ['Lima', 'Caracas', 'Santiago', 'Bogotá'] } ] },
+    { groups: [
+      { name: 'Cheeses', words: ['Cheddar', 'Mozzarella', 'Brie', 'Feta'] },
+      { name: 'Breads', words: ['Baguette', 'Pita', 'Sourdough', 'Naan'] },
+      { name: 'Pasta', words: ['Penne', 'Fusilli', 'Lasagne', 'Spaghetti'] },
+      { name: 'Rice', words: ['Basmati', 'Jasmine', 'Arborio', 'Wild rice'] },
+      { name: 'Soups', words: ['Lentil', 'Minestrone', 'Gazpacho', 'Chowder'] } ] },
+    { groups: [
+      { name: 'Organs', words: ['Liver', 'Spleen', 'Pancreas', 'Gallbladder'] },
+      { name: 'Bones', words: ['Skull', 'Femur', 'Collarbone', 'Sternum'] },
+      { name: 'Muscles', words: ['Biceps', 'Triceps', 'Calf', 'Quadriceps'] },
+      { name: 'Parts of the eye', words: ['Cornea', 'Retina', 'Lens', 'Iris'] },
+      { name: 'Parts of the ear', words: ['Eardrum', 'Cochlea', 'Stirrup', 'Earlobe'] } ] },
+    { groups: [
+      { name: 'Flowers', words: ['Rose', 'Tulip', 'Jasmine', 'Orchid'] },
+      { name: 'Trees', words: ['Palm', 'Olive', 'Willow', 'Oak'] },
+      { name: 'Root vegetables', words: ['Radish', 'Beetroot', 'Turnip', 'Parsnip'] },
+      { name: 'Herbs', words: ['Mint', 'Basil', 'Thyme', 'Dill'] },
+      { name: 'Pulses', words: ['Lentils', 'Chickpeas', 'Broad beans', 'Black-eyed peas'] } ] },
+    { groups: [
+      { name: 'String instruments', words: ['Oud', 'Harp', 'Cello', 'Banjo'] },
+      { name: 'Wind instruments', words: ['Flute', 'Saxophone', 'Trumpet', 'Clarinet'] },
+      { name: 'Percussion', words: ['Tabla', 'Tambourine', 'Xylophone', 'Snare drum'] },
+      { name: 'Singers', words: ['Adele', 'Beyoncé', 'Shakira', 'Rihanna'] },
+      { name: 'Bands', words: ['Coldplay', 'Queen', 'ABBA', 'U2'] } ] },
+    { groups: [
+      { name: 'Car parts', words: ['Bonnet', 'Exhaust', 'Clutch', 'Radiator'] },
+      { name: 'Phone parts', words: ['Screen', 'Battery', 'Speaker', 'SIM card'] },
+      { name: 'Computer parts', words: ['RAM', 'Hard drive', 'Processor', 'Power supply'] },
+      { name: 'Aircraft parts', words: ['Wing', 'Tail', 'Cockpit', 'Fuselage'] },
+      { name: 'Boat parts', words: ['Rudder', 'Mast', 'Sail', 'Anchor'] } ] },
+    { groups: [
+      { name: 'Zodiac signs', words: ['Aries', 'Taurus', 'Gemini', 'Cancer'] },
+      { name: 'Planets', words: ['Mercury', 'Venus', 'Saturn', 'Uranus'] },
+      { name: 'Hijri months', words: ['Muharram', 'Safar', 'Rajab', 'Shaban'] },
+      { name: 'Coptic months', words: ['Thout', 'Paopi', 'Hathor', 'Koiak'] },
+      { name: 'Greek letters', words: ['Alpha', 'Beta', 'Gamma', 'Delta'] } ] },
+    { groups: [
+      { name: 'Individual Olympic sports', words: ['Fencing', 'Archery', 'Gymnastics', 'Weightlifting'] },
+      { name: 'Team sports', words: ['Hockey', 'Rugby', 'Polo', 'Water polo'] },
+      { name: 'Racket sports', words: ['Squash', 'Tennis', 'Padel', 'Badminton'] },
+      { name: 'Martial arts', words: ['Judo', 'Karate', 'Taekwondo', 'Kickboxing'] },
+      { name: 'Water sports', words: ['Rowing', 'Diving', 'Surfing', 'Kayaking'] } ] },
+    { groups: [
+      { name: 'Gemstones', words: ['Ruby', 'Emerald', 'Sapphire', 'Topaz'] },
+      { name: 'Metals', words: ['Copper', 'Tin', 'Lead', 'Zinc'] },
+      { name: 'Gases', words: ['Helium', 'Neon', 'Argon', 'Chlorine'] },
+      { name: 'Building stone', words: ['Marble', 'Granite', 'Limestone', 'Sandstone'] },
+      { name: 'Jewellery', words: ['Ring', 'Bracelet', 'Anklet', 'Brooch'] } ] },
+    { groups: [
+      { name: 'Currencies', words: ['Yen', 'Rupee', 'Peso', 'Yuan'] },
+      { name: 'Languages', words: ['Urdu', 'Swahili', 'Persian', 'Turkish'] },
+      { name: 'Dances', words: ['Tango', 'Salsa', 'Flamenco', 'Dabke'] },
+      { name: 'World dishes', words: ['Sushi', 'Taco', 'Paella', 'Curry'] },
+      { name: 'Landmarks', words: ['Big Ben', 'Taj Mahal', 'Colosseum', 'Leaning Tower of Pisa'] } ] },
+    { groups: [
+      { name: 'Medical tools', words: ['Scalpel', 'Stethoscope', 'Splint', 'Syringe'] },
+      { name: 'Medical fields', words: ['Surgery', 'Paediatrics', 'Cardiology', 'Orthopaedics'] },
+      { name: 'Illnesses', words: ['Diabetes', 'Asthma', 'Anaemia', 'Migraine'] },
+      { name: 'Scans and tests', words: ['X-ray', 'Ultrasound', 'ECG', 'MRI'] },
+      { name: 'Medicines', words: ['Paracetamol', 'Aspirin', 'Ibuprofen', 'Antibiotic'] } ] },
+    { groups: [
+      { name: 'German car brands', words: ['Mercedes', 'BMW', 'Audi', 'Volkswagen'] },
+      { name: 'Japanese car brands', words: ['Toyota', 'Nissan', 'Honda', 'Mazda'] },
+      { name: 'Korean brands', words: ['Hyundai', 'Kia', 'Samsung', 'LG'] },
+      { name: 'American car brands', words: ['Ford', 'Chevrolet', 'Tesla', 'Jeep'] },
+      { name: 'Italian car brands', words: ['Ferrari', 'Fiat', 'Lamborghini', 'Maserati'] } ] },
+    { groups: [
+      { name: 'Marvel heroes', words: ['Iron Man', 'Thor', 'Hulk', 'Captain America'] },
+      { name: 'DC heroes', words: ['Batman', 'Superman', 'The Flash', 'Aquaman'] },
+      { name: 'Disney villains', words: ['Jafar', 'Scar', 'Ursula', 'Cruella'] },
+      { name: 'Disney princesses', words: ['Cinderella', 'Jasmine', 'Ariel', 'Belle'] },
+      { name: 'Pixar characters', words: ['Woody', 'Buzz', 'Nemo', 'Lightning McQueen'] } ] },
+    { groups: [
+      { name: 'Baking tools', words: ['Rolling pin', 'Whisk', 'Cake tin', 'Sieve'] },
+      { name: 'Kitchen appliances', words: ['Blender', 'Food processor', 'Microwave', 'Air fryer'] },
+      { name: 'Cookware', words: ['Saucepan', 'Frying pan', 'Wok', 'Casserole dish'] },
+      { name: 'Spices', words: ['Cumin', 'Coriander', 'Paprika', 'Black pepper'] },
+      { name: 'Sauces', words: ['Ketchup', 'Mayonnaise', 'Tahini', 'Mustard'] } ] },
+    { groups: [
+      { name: 'Birds of prey', words: ['Falcon', 'Eagle', 'Hawk', 'Vulture'] },
+      { name: 'Water birds', words: ['Swan', 'Flamingo', 'Seagull', 'Heron'] },
+      { name: 'Poultry', words: ['Chicken', 'Duck', 'Goose', 'Turkey'] },
+      { name: 'Night animals', words: ['Owl', 'Bat', 'Raccoon', 'Hedgehog'] },
+      { name: 'Songbirds', words: ['Canary', 'Nightingale', 'Robin', 'Lark'] } ] }
+  ]
+};
+
+const connections = { puzzle: null, solved: [], selected: [], mistakes: 0, lang: 'ar', level: 'medium' };
 const CONNECT_MAX_MISTAKES = 4;
 
-function setupConnections() { setView('setup-connections'); }
+/** The three boards. Medium keeps its old list id, so its "already played" memory carries over. */
+const CONNECT_LEVELS = {
+  easy:   { db: () => CONNECTIONS_EASY, list: 'connections-easy:' },
+  medium: { db: () => CONNECTIONS_DB,   list: 'connections:' },
+  hard:   { db: () => CONNECTIONS_HARD, list: 'connections-hard:' }
+};
+const CONNECT_LEVEL_KEY = 'ashryConnectLevel';
+
+function connectLevel() {
+  try {
+    const saved = localStorage.getItem(CONNECT_LEVEL_KEY);
+    return CONNECT_LEVELS[saved] ? saved : 'medium';
+  } catch (e) {
+    return 'medium';
+  }
+}
+
+function setConnectLevel(level) {
+  if (!CONNECT_LEVELS[level]) return;
+  try { localStorage.setItem(CONNECT_LEVEL_KEY, level); } catch (e) {}
+  paintConnectLevel();
+  playSound('click');
+}
+
+/** Marks the chosen level and says how many words and groups it deals. */
+function paintConnectLevel() {
+  const level = connectLevel();
+  document.querySelectorAll('#conn-level .segmented__item').forEach(b => {
+    b.classList.toggle('is-active', b.dataset.level === level);
+  });
+  const hint = document.getElementById('conn-level-hint');
+  if (!hint) return;
+  const first = CONNECT_LEVELS[level].db()[appState.lang === 'en' ? 'en' : 'ar'][0];
+  const groups = first ? first.groups.length : 4;
+  const t = TRANSLATIONS[appState.lang] || {};
+  hint.textContent = (t.conn_level_hint || '{cards} · {groups}')
+    .replace('{cards}', groups * 4)
+    .replace('{groups}', groups);
+}
+
+function setupConnections() {
+  setView('setup-connections');
+  paintConnectLevel();
+}
+
+// The content check loads this file in Node, where there is no page.
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => { try { paintConnectLevel(); } catch (e) {} });
+}
 
 function startConnections() {
   const lang = appState.lang === 'en' ? 'en' : 'ar';
-  const pool = CONNECTIONS_DB[lang];
-  const puzzle = freshPick('connections:' + lang, pool, 1, { key: p => p.groups.map(g => g.name).join('|') })[0];
+  const level = connectLevel();
+  const pool = CONNECT_LEVELS[level].db()[lang];
+  const puzzle = freshPick(CONNECT_LEVELS[level].list + lang, pool, 1, { key: p => p.groups.map(g => g.name).join('|') })[0];
 
   connections.lang = lang;
+  connections.level = level;
   connections.puzzle = puzzle;
   connections.solved = [];
   connections.selected = [];
@@ -434,7 +803,7 @@ function submitConnectGuess() {
     playSound('success');
     haptic('medium');
     renderConnections();
-    if (connections.solved.length === 4) finishConnections(true);
+    if (connections.solved.length === connections.puzzle.groups.length) finishConnections(true);
     return;
   }
 
@@ -462,7 +831,7 @@ function submitConnectGuess() {
 
 function finishConnections(won) {
   // Losing still reveals the answer — otherwise the puzzle just nags at you.
-  connections.solved = [0, 1, 2, 3];
+  connections.solved = connections.puzzle.groups.map((g, i) => i);
   connections.selected = [];
   renderConnections(true);
   if (won) confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
@@ -492,7 +861,7 @@ function renderConnections(finished) {
 
   if (meta) {
     const left = CONNECT_MAX_MISTAKES - connections.mistakes;
-    meta.innerHTML = finished || connections.solved.length === 4
+    meta.innerHTML = finished || connections.solved.length === connections.puzzle.groups.length
       ? `<button onclick="startConnections()" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>`
       : `<div class="connect-lives">${t.conn_mistakes || 'محاولات متبقية'}:
            ${'●'.repeat(Math.max(0, left))}${'○'.repeat(connections.mistakes)}</div>

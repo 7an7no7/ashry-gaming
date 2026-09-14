@@ -345,23 +345,28 @@ async function main() {
   /* --- تحدي المعلومات ------------------------------------------------------- */
   console.log('• trivia (waits ~17s for the server clock)');
   await A.must('chooseGame', { game: 'trivia' });
-  await A.must('start', { lang: 'ar' });
-  await all(bots, (s) => s.shared.phase === 'answering', 'trivia question 1');
+  await A.must('start', { lang: 'ar', count: 5 });
+  await all(bots, (s) => s.shared.phase === 'answering' && s.shared.totalQuestions === 5, 'trivia starts with the chosen 5 questions');
   check(!bots.some((b) => 'correctAnswer' in b.state.shared), 'the answer stays on the server while answering');
-  for (const b of bots) await b.must('answer', { choice: 0 });
+  // Each bot picks a different choice, so exactly one of them is right.
+  for (let i = 0; i < 4; i++) await bots[i].must('answer', { choice: i });
   await all(bots, (s) => s.shared.phase === 'results' && typeof s.shared.correctAnswer === 'number', 'all answered closes the question');
+  const firstQ = A.state.shared;
+  const rightBot = bots[firstQ.correctAnswer];
+  check(firstQ.gained[rightBot.pid] === 15 && Object.keys(firstQ.gained).length === 1,
+        'the one right answer scores 10 + 5 for being the fastest');
   await A.must('nextQuestion');
   await all(bots, (s) => s.shared.phase === 'answering' && s.shared.qIndex === 1, 'trivia question 2');
   // Nobody answers and nobody closes it: the server's own clock must.
   await all(bots, (s) => s.shared.phase === 'results' && s.shared.qIndex === 1, 'the server closes a question when time is up', 22000);
-  for (let q = 2; q < 10; q++) {
+  for (let q = 2; q < 5; q++) {
     await A.must('nextQuestion');
     await all(bots, (s) => s.shared.qIndex === q && s.shared.phase === 'answering', `trivia question ${q + 1}`, 3000);
     for (const b of bots) await b.must('answer', { choice: 1 });
     await A.waitFor((s) => s.shared.phase === 'results', `question ${q + 1} closes`, 3000);
   }
   await A.must('nextQuestion');
-  await all(bots, (s) => s.shared.phase === 'gameover' && s.shared.board.length === 4, 'trivia game over with a scoreboard');
+  await all(bots, (s) => s.shared.phase === 'gameover' && s.shared.board.length === 4, 'trivia game over after the chosen 5 questions');
   await A.must('backToHub');
 
   /* --- prompt memory across rooms ---------------------------------------- */

@@ -48,13 +48,12 @@ const HEAD = `<title>عشرى جيمينج 🎮</title>
     <!-- Opens the connection to the rooms server early, so creating or joining a room doesn't wait for it. -->
     <link rel="preconnect" href="${roomsUrl}" crossorigin>`;
 
-// Apps Script's version explains why it cannot set a home-screen icon. This
-// page is the top-level document, so it simply sets one.
-const iconNote = /<!-- The home-screen icon cannot be set from here\.[\s\S]*?-->/;
+// Controller.html marks where the title, icons and manifest links go.
+const iconNote = /<!-- tools\/build-site\.mjs writes the title, home-screen icons and manifest links in here\. -->/;
 if (!iconNote.test(html)) throw new Error('Controller.html: icon comment not found');
 html = html.replace(iconNote, HEAD);
 
-// The page can read its own address here, unlike inside Apps Script's frame.
+// The join code and the page's own address are read when the page loads.
 html = html
   .replace('<?!= initialSpyData ?>', scriptJson(SPY_WORDS))
   .replace('<?!= initialRoom ?>',
@@ -62,7 +61,7 @@ html = html
   .replace('<?!= webAppUrl ?>', 'location.origin + location.pathname');
 
 const RUNTIME = `<script>
-      /* Static site: there is no Apps Script page around this one. */
+      /* The published site. The local preview leaves this out, so it never registers the offline cache. */
       window.STATIC_SITE = true;
       // The rooms server (rooms-worker/), from tools/site.config.json.
       window.ROOMS_URL = ${JSON.stringify(roomsUrl)};

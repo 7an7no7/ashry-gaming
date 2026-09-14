@@ -7,8 +7,8 @@
  * or blocked you get a screenshot of the page instead of an icon — with no way
  * to retry short of removing and re-adding.
  *
- * Run with `npm run build:icons`. Writes into ../docs/, which is the wrapper
- * site GitHub Pages serves (see docs/README.md for why a wrapper is needed).
+ * Run with `npm run build:icons`. Writes into ../docs/, the site GitHub Pages
+ * serves.
  *
  * Sizes:
  *   180  apple-touch-icon. iOS rounds the corners itself, so this is drawn

@@ -2969,7 +2969,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       };
     </script>
 <script>
-      /* Static site: there is no Apps Script page around this one. */
+      /* The published site. The local preview leaves this out, so it never registers the offline cache. */
       window.STATIC_SITE = true;
       // The rooms server (rooms-worker/), from tools/site.config.json.
       window.ROOMS_URL = "https://ashry-rooms.rooms-worker.workers.dev";
@@ -3893,20 +3893,6 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
         <button onclick="setDominoMode('single')" class="btn btn--primary py-4 mb-3">فردي (كل واحد لوحده)</button>
         <button onclick="setDominoMode('teams')" class="btn btn--primary py-4">فرق (2 ضد 2) 👥</button>
         <button onclick="closeModal('domino-mode-modal')" class="btn btn--ghost mt-4">إلغاء</button>
-      </div>
-    </div>
-
-    <div id="universal-input-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <h3 class="font-bold text-xl mb-4">أدخل القيمة</h3>
-        <input type="number" id="univ-custom-input" placeholder="مثلاً: 50" class="text-center text-3xl font-black mb-6 h-16 w-full tx-accent">
-        
-        <div class="grid grid-cols-2 gap-3">
-            <button onclick="submitUniversalInput(1)" class="btn btn--primary mt-0 py-4 font-bold text-lg">إضافة (+)</button>
-            <button onclick="submitUniversalInput(-1)" class="btn btn--danger mt-0 py-4 font-bold text-lg">خصم (-)</button>
-        </div>
-        
-        <button onclick="closeModal('universal-input-modal')" class="btn btn--ghost mt-4">إلغاء</button>
       </div>
     </div>
 
@@ -6203,15 +6189,6 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
     updateSettingsLabels();
   }
 
-  /* --- ERROR HANDLING --- */
-  function handleServerFailure(error) {
-    setSyncing(false);
-    console.error("Server Error:", error);
-    const msg = appState.lang === 'ar' ? "حدث خطأ في الاتصال بالسيرفر. يرجى المحاولة مرة أخرى." : "Connection error. Please try again.";
-    const title = appState.lang === 'ar' ? "خطأ في الاتصال" : "Connection Error";
-    showToast(error.message || msg, title);
-  }
-
   const syncEl = document.getElementById('sync-status');
   function setSyncing(isSyncing) {
     if(isSyncing) syncEl.classList.add('syncing');
@@ -6239,9 +6216,9 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
      window.addEventListener('beforeunload', saveToLocal);
    });
   function registerServiceWorker() {
-    // Only the static site can: Apps Script serves the page from a sandboxed
-    // googleusercontent.com frame that is not allowed one. docs/sw.js keeps an
-    // offline copy of the app; tools/build-site.mjs writes it.
+    // The published site only: the local preview sets no STATIC_SITE, so testing
+    // never runs against a cached copy. docs/sw.js keeps an offline copy of the
+    // app; tools/build-site.mjs writes it.
     if (!window.STATIC_SITE || !('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
@@ -8266,8 +8243,6 @@ let pickerEditMode = false;
  */
 let pickerOrder = [];
 
-function resortPicker() { pickerOrder = []; }
-
 function renderActiveChips(containerId, resort) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -8403,10 +8378,6 @@ function addPlayerFromSetup(btn) {
   playSound('click');
   haptic('light');
   input.focus();
-}
-
-function removeActivePlayer(name, containerId) {
-  togglePlayerInRound(name, containerId);
 }
 
 
@@ -9760,34 +9731,6 @@ function deleteGroupFromModal() {
                 updateSelect.appendChild(opt);
             });
             
-            showToast(appState.lang === 'ar' ? "تم الحذف" : "Deleted", "success");
-        });
-    }
-}
-
-// 5. Delete Logic (Original - used from within setup views)
-function deleteGroup(btnElement) {
-    const select = btnElement.parentElement.querySelector('select');
-    const groupName = select.value;
-    
-    if (!groupName) {
-        showToast(appState.lang === 'ar' ? "اختر مجموعة أولاً!" : "Select a group!", "error");
-        return;
-    }
-    
-    const msg = appState.lang === 'ar' ? `هل أنت متأكد من حذف "${groupName}" نهائياً؟` : `Delete "${groupName}"?`;
-    
-    if (typeof showConfirmModal === 'function') {
-        showConfirmModal(msg, () => {
-            let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
-            delete groups[groupName];
-            localStorage.setItem('ashry_saved_groups', JSON.stringify(groups));
-            
-            if (appState.currentGroup === groupName) {
-                appState.currentGroup = "";
-            }
-            
-            renderSavedGroups(); 
             showToast(appState.lang === 'ar' ? "تم الحذف" : "Deleted", "success");
         });
     }

@@ -133,8 +133,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
 /**
  * The words in one category, minus the password.
  *
- * A category whose name carries 🔒 keeps its password in the first cell of the
- * column, and the single-device screen slices it off before drawing a word. The
+ * A category whose name carries 🔒 keeps its password as its first word, and
+ * the single-device screen slices it off before drawing a word. The
  * room layer did not, so the password could be dealt as the secret word.
  */
 const spyWords = (category) => {
@@ -143,9 +143,9 @@ const spyWords = (category) => {
   return words;
 };
 
-/** Every unlocked category folded into one bank, read in a single fetch. */
+/** Every unlocked category folded into one bank. */
 const unlockedSpyWords = () => {
-  const data = getSpyData();     // one spreadsheet read, not one per category
+  const data = getSpyData();
   return Object.keys(data)
     .filter(k => k.indexOf('🔒') === -1)
     .reduce((all, k) => all.concat(data[k]), []);

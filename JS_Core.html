@@ -1354,15 +1354,6 @@
     updateSettingsLabels();
   }
 
-  /* --- ERROR HANDLING --- */
-  function handleServerFailure(error) {
-    setSyncing(false);
-    console.error("Server Error:", error);
-    const msg = appState.lang === 'ar' ? "حدث خطأ في الاتصال بالسيرفر. يرجى المحاولة مرة أخرى." : "Connection error. Please try again.";
-    const title = appState.lang === 'ar' ? "خطأ في الاتصال" : "Connection Error";
-    showToast(error.message || msg, title);
-  }
-
   const syncEl = document.getElementById('sync-status');
   function setSyncing(isSyncing) {
     if(isSyncing) syncEl.classList.add('syncing');
@@ -1390,9 +1381,9 @@
      window.addEventListener('beforeunload', saveToLocal);
    });
   function registerServiceWorker() {
-    // Only the static site can: Apps Script serves the page from a sandboxed
-    // googleusercontent.com frame that is not allowed one. docs/sw.js keeps an
-    // offline copy of the app; tools/build-site.mjs writes it.
+    // The published site only: the local preview sets no STATIC_SITE, so testing
+    // never runs against a cached copy. docs/sw.js keeps an offline copy of the
+    // app; tools/build-site.mjs writes it.
     if (!window.STATIC_SITE || !('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }

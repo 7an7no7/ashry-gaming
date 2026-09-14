@@ -1,10 +1,10 @@
 /* ============================================================================
    الجاسوس — THE SPY WORDS
    ----------------------------------------------------------------------------
-   One list per category. These used to live in the "كلمات الجاسوس" sheet and
-   were read from it on every page load. They are code now, shared by the Apps
-   Script page (injected by doGet), the room server (RoomGames.js) and the
-   static site (tools/build-site.mjs), and checked by tools/validate-content.js.
+   One list per category (they used to be read from the "كلمات الجاسوس" sheet on
+   every page load). Shared by the site, which writes them into the page
+   (tools/build-site.mjs), and the rooms server, which deals them
+   (RoomGames.js). Checked by tools/validate-content.js.
 
    A category whose name contains 🔒 is locked: its first entry is the password.
    Anything here ships inside the public site, so a lock only keeps words out

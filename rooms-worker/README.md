@@ -47,6 +47,11 @@ npm run logs       # live logs from the deployed server
 
 `npx wrangler login` once per computer.
 
+A deploy restarts every open room. Phones reconnect by themselves, but a move
+sent in that moment fails and has to be tapped again, and `npm run test:live`
+can time out if started within about a minute of a deploy. Deploy when nobody
+is playing.
+
 ## Why it keeps working untouched
 
 - `compatibility_date` in `wrangler.toml` pins the runtime's behaviour, so

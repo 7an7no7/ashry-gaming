@@ -1,7 +1,7 @@
 /**
  * Wraps the compiled tailwind output in a <style> tag as Tailwind.html, which
- * Controller.html pulls in with include(). Apps Script has no static file
- * hosting, so CSS has to reach the page as an inlined include.
+ * Controller.html pulls in with include(), so the CSS is inlined into the
+ * built page and arrives with it, in one file.
  */
 import { readFile, writeFile, unlink } from 'node:fs/promises';
 

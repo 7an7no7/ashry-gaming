@@ -29,7 +29,8 @@ const cacheName = (text) => (String(text).match(/ashry-\d{8,}/) || [])[0] || nul
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const git = (args) => {
   try {
-    return execSync('git ' + args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    // trimEnd, not trim: `git status --porcelain` starts lines with a space.
+    return execSync('git ' + args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trimEnd();
   } catch (e) {
     return null;
   }

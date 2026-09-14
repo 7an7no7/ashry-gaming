@@ -562,6 +562,12 @@ Object (through the `PropertiesService`-shaped calls it always made, which
 the next evening started every list from the top. A new word game should deal
 through one of these, never `Math.random()` directly.
 
+**Categories name a kind of thing.** Connections groups and the Chameleon, Who
+Am I and Charades categories are kinds anyone recognises (زواحف, أندية كورة,
+Months) - never riddles about a property ("حاجات بتدور", "Things with keys",
+"Sea ___"), which were removed at the owner's request because players couldn't
+see the link.
+
 **Content goes in through the validator.** `npm run check` in `tools/` checks
 every bank: Wordle words are exactly their length in letters the keypad has,
 Describe It cards have three forbidden words, trivia choices are four different
@@ -635,6 +641,22 @@ Other components: `.card`, `.section` + `.section__title`, `.eyebrow`,
 `.metric`, `.empty`, `.field` + `.field__label`, `.input-group`, `.stepper`,
 `.segmented`, `.keypad` + `.key`, `.wheel`, `.view-actions`, and the
 `.modal-content` sheet (`.sheet__header` / `__body` / `__footer`).
+
+**Popups are centred dialogs, and live under `<body>`.** `hoistModals()` in
+`JS_Core.html` moves every `.modal-overlay` there at start-up: most are written
+inside `<main>`, and on iPhone a fixed element inside that scrolling area is drawn
+inside it - the header and the bottom nav covered the "leave room?" buttons. A
+simple dialog is `.modal-content.modal-content--simple`, built only from
+`.modal-icon`, `.sheet__title`, `.sheet__subtitle`, fields, `.modal-list` and
+`.modal-actions` (main action first and `btn--lg`, cancel `btn--ghost`). Its gap
+does all the spacing, so don't add `mt-*` / `mb-*` inside one. Help and Settings
+keep the header / body / footer sheet. Full-screen tools (`FULLSCREEN_VIEWS` in
+`setView`) hide the header and nav through `body.is-fullscreen-view`.
+
+**Buttons and fields size themselves.** `.btn` is 48px (`btn--lg` 54, `btn--sm`
+42), fields are 48px with one font. Don't put `py-*`, `h-*`, `text-xl` or
+`font-*` utilities on them - pick a size class. The Charades and Describe It
+play buttons (`h-20`) are the one deliberate exception.
 
 ### Layout: the app shell
 

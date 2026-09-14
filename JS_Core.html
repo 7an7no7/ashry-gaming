@@ -1364,6 +1364,19 @@
     updateSettingsLabels();
   }
 
+  /**
+   * Popups belong to the page, not to the screen they are written next to. Most
+   * sit inside <main> in Controller.html, and on iPhone a position:fixed element
+   * inside that scrolling area is drawn inside it: the header and the bottom nav
+   * covered the popup and its buttons. Moved under <body> once at start-up,
+   * every popup covers the whole screen.
+   */
+  function hoistModals() {
+    document.querySelectorAll('.modal-overlay').forEach(el => {
+      if (el.parentElement !== document.body) document.body.appendChild(el);
+    });
+  }
+
   const syncEl = document.getElementById('sync-status');
   function setSyncing(isSyncing) {
     if(isSyncing) syncEl.classList.add('syncing');
@@ -1372,6 +1385,7 @@
 
    /* --- INITIALIZATION --- */
    document.addEventListener('DOMContentLoaded', function() {
+     hoistModals();
      initializeApp();
      registerServiceWorker();
  
@@ -1839,8 +1853,12 @@
 
   let viewEnterFallback = null;
 
+  /** Tools that take the whole screen; the header and nav step aside for them. */
+  const FULLSCREEN_VIEWS = ['play-chess', 'play-reaction'];
+
   function setView(viewId) {
     const previous = appState.currentView;
+    document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(viewId) !== -1);
     const goingBack = viewDepth(viewId) < viewDepth(previous);
 
     appState.currentView = viewId;

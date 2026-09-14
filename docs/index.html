@@ -985,11 +985,11 @@ html[lang="ar"] .eyebrow { text-transform: none; letter-spacing: normal; font-si
 .group-picker select {
   flex: 1;
   min-width: 0;
-  min-height: var(--tap);
+  min-height: 48px;
   font-size: var(--fs-sm);
   background: var(--surface-2);
 }
-.group-picker .iconbtn { flex: none; background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-ink); }
+.group-picker .iconbtn { flex: none; width: 48px; height: auto; background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-ink); }
 
 /* --- Game tiles (menu grid) --------------------------------------------- */
 .game-grid {
@@ -1536,13 +1536,20 @@ select {
 /* ==========================================================================
    8. SHEETS, MODALS, TOASTS
    ========================================================================== */
+/* Every popup is a centred dialog, on phones too. As a bottom sheet it sat
+   under the bottom nav on iPhone; centred it is plainly a question, and the
+   overlay's padding keeps it clear of notches and the home indicator. Overlays
+   are moved under <body> at start-up (hoistModals in JS_Core.html), so no part
+   of the page can trap one or draw over it. */
 .modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 100;
   display: flex;
   justify-content: center;
-  align-items: flex-end;
+  align-items: center;
+  padding: max(var(--sp-4), var(--safe-top)) max(var(--sp-4), var(--safe-right))
+           max(var(--sp-4), var(--safe-bottom)) max(var(--sp-4), var(--safe-left));
   background: rgba(2, 6, 23, 0.5);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -1553,41 +1560,29 @@ select {
 #alert-modal { z-index: 200; }
 #custom-confirm-modal { z-index: 250; }
 
-/* A bottom sheet: header and footer pinned, body scrolls between them. The old
-   version let a sticky footer sit on top of the scrolling content. */
+/* The dialog. Sheets with a header, a scrolling body and a footer (help,
+   settings) keep those pinned and get the wider column; everything else is a
+   simple dialog that scrolls as one block. */
 .modal-content {
   position: relative;
   width: 100%;
-  max-width: var(--shell-max);
-  max-height: min(88dvh, 720px);
+  max-width: 440px;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   padding: 0;
   background: var(--elevated);
   border: 1px solid var(--border);
-  border-bottom: 0;
-  border-radius: var(--r-2xl) var(--r-2xl) 0 0;
+  border-radius: var(--r-2xl);
   box-shadow: var(--sh-4);
   text-align: center;
   overflow: hidden;
-  animation: sheetUp var(--dur-3) var(--ease-out) both;
+  animation: dialogIn var(--dur-3) var(--ease-out) both;
 }
-@keyframes sheetUp {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
-}
-
-/* Grab handle */
-.modal-content::before {
-  content: '';
-  position: absolute;
-  top: var(--sp-2);
-  inset-inline-start: 50%;
-  transform: translateX(-50%);
-  width: 38px; height: 4px;
-  border-radius: var(--r-full);
-  background: var(--border-strong);
-  z-index: 3;
+.modal-content:has(> .sheet__body) { max-width: var(--shell-max); }
+@keyframes dialogIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
 }
 
 .sheet__header {
@@ -1596,7 +1591,7 @@ select {
   border-bottom: 1px solid var(--hairline);
 }
 .sheet__title { font-size: var(--fs-h1); font-weight: 900; color: var(--text-strong); }
-.sheet__subtitle { margin-top: var(--sp-1); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
+.sheet__subtitle { margin-top: var(--sp-1); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; }
 
 .sheet__body {
   flex: 1;
@@ -1610,7 +1605,7 @@ select {
 
 .sheet__footer {
   flex: none;
-  padding: var(--sp-3) var(--sp-5) calc(var(--sp-4) + var(--safe-bottom));
+  padding: var(--sp-3) var(--sp-5) var(--sp-4);
   border-top: 1px solid var(--hairline);
   background: var(--elevated);
   display: flex;
@@ -1618,26 +1613,46 @@ select {
   gap: var(--sp-2);
 }
 
-/* Sheets that keep the old single-block layout still need breathing room. */
-.modal-content--simple { padding: var(--sp-7) var(--sp-5) calc(var(--sp-5) + var(--safe-bottom)); }
+/* Simple dialogs: one rhythm for everything inside - icon, title, text,
+   fields, lists and buttons are spaced by the gap alone, so no two dialogs
+   drift apart the way the old utility margins (mb-4 in one, mb-8 in the
+   next) made them. Build a new one from these pieces:
+     .modal-icon  .sheet__title  .sheet__subtitle  fields  .modal-list
+     .modal-actions (the buttons, main action first). */
+.modal-content--simple {
+  padding: var(--sp-6) var(--sp-5) var(--sp-5);
+  gap: var(--sp-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.modal-content--simple > * { margin: 0; }
+.modal-content--simple > .modal-actions { margin-top: var(--sp-2); }
+.modal-icon { font-size: 2.75rem; line-height: 1.1; }
+.modal-actions { display: flex; flex-direction: column; gap: var(--sp-2); }
+.modal-list { max-height: min(45dvh, 320px); overflow-y: auto; overscroll-behavior: contain; text-align: start; }
+.modal-plate { padding: var(--sp-4); border-radius: var(--r-lg); }
+.modal-well { background: var(--surface-3); border: 1px solid var(--border); }
+.modal-section { display: flex; flex-direction: column; gap: var(--sp-2); text-align: start; }
+.modal-section > * { margin: 0; }
+.modal-steps { text-align: start; }
+.modal-close { position: absolute; top: var(--sp-2); inset-inline-end: var(--sp-2); }
+.modal-divider { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-xs); font-weight: 700; color: var(--text-3); }
+.modal-divider::before, .modal-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-/* Tablets and desktop: a sheet stuck to the bottom of a big window reads as a
-   toolbar, not a question, and sits far from where the eye is. There it is a
-   centred dialog instead; phones keep the bottom sheet, in thumb reach. */
-@media (min-width: 640px) and (min-height: 560px) {
-  .modal-overlay { align-items: center; padding: var(--sp-6); }
-  .modal-content {
-    border-bottom: 1px solid var(--border);
-    border-radius: var(--r-2xl);
-    animation-name: dialogIn;
-  }
-  .modal-content::before { display: none; }   /* no grab handle on a dialog */
-  .modal-content--simple { max-width: 440px; }
-}
-@keyframes dialogIn {
-  from { opacity: 0; transform: translateY(12px) scale(0.97); }
-  to   { opacity: 1; transform: none; }
-}
+/* Fields that hold one big number (points, minutes, a guess). */
+.field-big { font-size: 1.5rem; font-weight: 900; text-align: center; }
+.field-error { font-size: var(--fs-xs); font-weight: 700; color: var(--danger); }
+.field-error:empty { display: none; }
+.input-group > select { flex: 1; min-width: 0; }
+.input-group > .iconbtn { width: 48px; height: auto; flex: none; }
+
+/* Full-screen tools (chess clock, reaction duel) cover the whole screen: the
+   header, room banner and nav step aside while one is showing. On iPhone a
+   fixed view inside the scrolling main area is drawn inside it, so hiding them
+   is what makes the tool really full screen there. */
+body.is-fullscreen-view .shell__header,
+body.is-fullscreen-view .active-room-banner,
+body.is-fullscreen-view .shell__nav { display: none !important; }
 
 /* --- Settings sheet rows ------------------------------------------------ */
 .setting-row {
@@ -2106,7 +2121,7 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
 .bracket-btn.loser  { opacity: 0.45; text-decoration: line-through; }
 
 .tourney-player-input {
-  min-height: var(--tap);
+  min-height: 48px;
   margin-bottom: var(--sp-2);
   text-align: center;
 }
@@ -3363,7 +3378,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       <div id="view-setup-domino" class="hidden">
         <div class="card">
            <label class="field__label" data-i18n="target_score">الهدف (مثلاً 101)</label>
-           <input type="number" id="domino-target" value="101" class="mb-6">
+           <input type="number" id="domino-target" value="101" class="mb-4">
            
            <div class="group-picker">
     <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
@@ -3397,7 +3412,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
            <div class="grid-2 mb-6">
               <div>
                  <label class="field__label" data-i18n="rounds_count">عدد الجولات</label>
-                 <input type="number" id="screw-rounds" value="5" class="text-center font-bold">
+                 <input type="number" id="screw-rounds" value="5" class="text-center">
               </div>
            </div>
 
@@ -3432,11 +3447,11 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
           <div class="grid-2 mb-6">
             <div>
               <label class="field__label" data-i18n="winners_count">عدد الفائزين</label>
-              <input type="number" id="monkey-winners" value="1" class="text-center font-bold">
+              <input type="number" id="monkey-winners" value="1" class="text-center">
             </div>
             <div>
               <label class="field__label" data-i18n="timer_sec">المؤقت (ثانية)</label>
-              <input type="number" id="monkey-timer" value="30" class="text-center font-bold">
+              <input type="number" id="monkey-timer" value="30" class="text-center">
             </div>
           </div>
 
@@ -3580,7 +3595,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
           <div class="space-y-4 mb-6">
               <div>
                 <label class="field__label" data-i18n="category">المجموعة</label>
-                <select id="imposter-category-select" class="font-bold bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800" onchange="toggleManualWordInput()">
+                <select id="imposter-category-select" class="bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800" onchange="toggleManualWordInput()">
                 </select>
               </div>
               <div id="manual-word-container" class="hidden">
@@ -3589,7 +3604,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
               </div>
               <div>
                  <label class="field__label" data-i18n="imposter_count">عدد الجواسيس</label>
-                 <input type="number" id="imposter-count" value="1" min="1" max="9" inputmode="numeric" class="text-center font-bold text-lg tx-accent">
+                 <input type="number" id="imposter-count" value="1" min="1" max="9" inputmode="numeric" class="text-center tx-accent">
               </div>
           </div>
 
@@ -3621,14 +3636,14 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
                   <h3 class="eyebrow" data-i18n="give_phone_to">أعط الهاتف لـ</h3>
                   <h2 id="reveal-player-name" class="metric metric--lg metric--accent">---</h2>
                </div>
-               <button onclick="showRole()" class="btn btn--primary py-6 text-xl" data-i18n="reveal_role">معرفة الدور</button>
+               <button onclick="showRole()" class="btn btn--primary btn--lg" data-i18n="reveal_role">معرفة الدور</button>
            </div>
            <div id="reveal-step-show" class="hidden space-y-6">
                <h3 class="eyebrow" data-i18n="you_are">أنت هو:</h3>
                <div id="role-card-content" class="reveal-plate">
                    <div id="role-word" class="text-4xl font-black">---</div>
                </div>
-               <button onclick="hideRole()" class="btn btn--primary py-5" data-i18n="got_it_next">فهمت، التالي</button>
+               <button onclick="hideRole()" class="btn btn--primary btn--lg" data-i18n="got_it_next">فهمت، التالي</button>
            </div>
         </div>
       </div>
@@ -3692,232 +3707,244 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       </div>
 
     <div id="countries-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <h3 class="text-xl font-bold mb-4 dark:text-white">سجل الدول المستخدمة 🌍</h3>
-            
-            <div class="input-group" style="margin-bottom: var(--sp-4)">
-                <input type="text" id="new-country-input" placeholder="اكتب اسم الدولة..." autocomplete="off">
-                <button onclick="addCountry()" class="btn btn--primary btn--auto" style="width:auto; padding-inline: var(--sp-5)">إضافة</button>
-            </div>
-
-            <div class="relative mb-4">
-                <input type="text" id="country-search-input" onkeyup="filterCountries()" 
-                       placeholder="ابحث في السجل..." 
-                       class="w-full h-10 px-4 rounded-xl border-2 border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:border-orange-500 transition-all text-sm">
-                <span class="absolute left-4 top-2 tx-muted">🔍</span>
-            </div>
-
-            <div class="overflow-y-auto max-h-[40vh] rounded-xl border border-slate-100 dark:border-slate-700">
-                <table class="w-full text-right">
-                    <thead class="bg-slate-100 dark:bg-slate-800 text-xs tx-muted font-bold uppercase">
-                        <tr>
-                            <th class="px-4 py-2 w-16">#</th>
-                            <th class="px-4 py-2">الدولة</th>
-                        </tr>
-                    </thead>
-                    <tbody id="used-countries-list" class="divide-y divide-slate-100 dark:divide-slate-700">
-                        </tbody>
-                </table>
-            </div>
-            
-            <button onclick="toggleCountriesModal()" class="btn btn--ghost mt-4">إغلاق</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title">سجل الدول المستخدمة 🌍</div>
+        <div class="input-group">
+          <input type="text" id="new-country-input" placeholder="اكتب اسم الدولة..." autocomplete="off">
+          <button onclick="addCountry()" class="btn btn--primary btn--auto" style="width:auto; padding-inline: var(--sp-5)">إضافة</button>
         </div>
+        <input type="search" id="country-search-input" onkeyup="filterCountries()" placeholder="🔍 ابحث في السجل..." autocomplete="off">
+        <div class="modal-list rounded-xl border border-slate-100 dark:border-slate-700">
+          <table class="w-full text-right">
+            <thead class="bg-slate-100 dark:bg-slate-800 text-xs tx-muted font-bold uppercase">
+              <tr>
+                <th class="px-4 py-2 w-16">#</th>
+                <th class="px-4 py-2">الدولة</th>
+              </tr>
+            </thead>
+            <tbody id="used-countries-list" class="divide-y divide-slate-100 dark:divide-slate-700"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions">
+          <button onclick="toggleCountriesModal()" class="btn btn--ghost">إغلاق</button>
+        </div>
+      </div>
     </div>
 
     <div id="imposter-result-modal" class="modal-overlay hidden">
-        <div class="modal-content border-t-8 border-purple-500">
-            <h2 class="card__title">انتهت اللعبة!</h2>
-            <div class="space-y-4 mb-8">
-                <div class="plate-success p-4 rounded-2xl">
-                    <div class="eyebrow" data-i18n="secret_word">الكلمة السرية</div>
-                    <div id="result-secret-word" class="metric metric--md tx-success">---</div>
-                </div>
-                <div class="plate-danger p-4 rounded-2xl">
-                    <div class="eyebrow" data-i18n="the_spies">الجواسيس</div>
-                    <div id="result-imposters-list" class="metric metric--md tx-danger"></div>
-                </div>
-            </div>
-            <button onclick="startImposterGame(lastSelectedPlayers)" class="btn btn--primary py-5">لعبة جديدة بنفس اللاعبين</button>
-            <button onclick="closeModal('imposter-result-modal'); setView('setup-imposter')" class="btn btn--ghost mt-3">الإعدادات</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title">انتهت اللعبة!</div>
+        <div class="plate-success modal-plate">
+          <div class="eyebrow" data-i18n="secret_word">الكلمة السرية</div>
+          <div id="result-secret-word" class="metric metric--md tx-success">---</div>
         </div>
+        <div class="plate-danger modal-plate">
+          <div class="eyebrow" data-i18n="the_spies">الجواسيس</div>
+          <div id="result-imposters-list" class="metric metric--md tx-danger"></div>
+        </div>
+        <div class="modal-actions">
+          <button onclick="startImposterGame(lastSelectedPlayers)" class="btn btn--primary btn--lg">لعبة جديدة بنفس اللاعبين</button>
+          <button onclick="closeModal('imposter-result-modal'); setView('setup-imposter')" class="btn btn--ghost">الإعدادات</button>
+        </div>
+      </div>
     </div>
 
     <div id="winner-modal" class="modal-overlay hidden">
-      <div class="modal-content border-t-8 border-yellow-400">
-        <div class="text-7xl mb-4">🏆</div>
-        <h2 class="card__title" data-i18n="win_title">انتهت اللعبة!</h2>
-        <div id="winners-list" class="text-2xl font-black text-slate-800 dark:text-white mb-8"></div>
-        <div id="winner-scores-container" class="hidden mb-6 bg-slate-50 dark:bg-slate-900 rounded-3xl p-4 text-sm max-h-64 overflow-y-auto"></div>
-        <div class="space-y-3">
-            <button id="toggle-results-btn" onclick="toggleResults()" class="btn btn--primary shadow-sm" data-i18n="show_full_results">عرض النتائج كاملة</button>
-            <button onclick="playAgain()" class="btn btn--primary" data-i18n="play_again">لعبة جديدة</button>
-            <button onclick="goToCurrentSetup()" class="btn btn--primary">⚙️ تغيير الإعدادات</button>
-            <button onclick="setView('menu')" class="btn btn--ghost" data-i18n="main_menu">القائمة الرئيسية</button>
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">🏆</div>
+        <div class="sheet__title" data-i18n="win_title">انتهت اللعبة!</div>
+        <div id="winners-list" class="text-2xl font-black tx-strong"></div>
+        <div id="winner-scores-container" class="hidden modal-list modal-plate modal-well text-sm"></div>
+        <div class="modal-actions">
+          <button onclick="playAgain()" class="btn btn--primary btn--lg" data-i18n="play_again">لعبة جديدة</button>
+          <button id="toggle-results-btn" onclick="toggleResults()" class="btn btn--secondary" data-i18n="show_full_results">عرض النتائج كاملة</button>
+          <button onclick="goToCurrentSetup()" class="btn btn--secondary">⚙️ تغيير الإعدادات</button>
+          <button onclick="setView('menu')" class="btn btn--ghost" data-i18n="main_menu">القائمة الرئيسية</button>
         </div>
       </div>
     </div>
 
     <div id="custom-confirm-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <div class="text-5xl mb-4">🤔</div>
-        <h3 class="font-bold text-xl mb-3" data-i18n="confirm_title">تأكيد</h3>
-        <p id="custom-confirm-msg" class="tx-muted mb-8" data-i18n="confirm_msg"></p>
-        <button onclick="onCustomConfirm()" class="btn btn--danger py-5" data-i18n="yes">نعم، متأكد</button>
-        <button onclick="closeModal('custom-confirm-modal')" class="btn btn--ghost mt-3" data-i18n="cancel">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">🤔</div>
+        <div class="sheet__title" data-i18n="confirm_title">تأكيد</div>
+        <p id="custom-confirm-msg" class="sheet__subtitle" data-i18n="confirm_msg"></p>
+        <div class="modal-actions">
+          <button onclick="onCustomConfirm()" class="btn btn--danger btn--lg" data-i18n="yes">نعم، متأكد</button>
+          <button onclick="closeModal('custom-confirm-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
       </div>
     </div>
 
     <div id="reorder-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <h3 class="font-bold text-xl mb-2" data-i18n="reorder_title">ترتيب الأدوار</h3>
-        <p class="text-sm tx-muted mb-6 bg-slate-100 dark:bg-slate-800 py-2 rounded-lg font-bold" data-i18n="reorder_desc">
-            اضغط على لاعب، ثم اضغط على آخر للتبديل 🔄
-        </p>
-        <div id="reorder-list" class="max-h-80 overflow-y-auto mb-8 space-y-2 px-2"></div>
-        <button id="reorder-save-btn" onclick="saveNewOrder()" class="btn btn--primary py-5" data-i18n="reorder_save">حفظ الترتيب</button>
-        <button onclick="closeModal('reorder-modal')" class="btn btn--ghost mt-3" data-i18n="cancel">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title" data-i18n="reorder_title">ترتيب الأدوار</div>
+        <p class="sheet__subtitle" data-i18n="reorder_desc">اضغط على لاعب، ثم اضغط على آخر للتبديل 🔄</p>
+        <div id="reorder-list" class="modal-list px-1"></div>
+        <div class="modal-actions">
+          <button id="reorder-save-btn" onclick="saveNewOrder()" class="btn btn--primary btn--lg" data-i18n="reorder_save">حفظ الترتيب</button>
+          <button onclick="closeModal('reorder-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
       </div>
     </div>
 
     <div id="password-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <div class="text-6xl mb-4">🔒</div>
-        <h3 class="font-black text-xl mb-2" data-i18n="locked_group">المجموعة مغلقة</h3>
-        <p class="field__hint" data-i18n="enter_password">أدخل كلمة المرور للاستمرار</p>
-        <input type="password" id="category-password-input" data-i18n-ph="password_placeholder" placeholder="كلمة المرور" class="text-center text-2xl tracking-widest py-5">
-        <p id="password-error" class="text-xs text-red-500 font-bold mb-6 h-4"></p>
-        <button onclick="verifyCategoryPassword()" class="btn btn--primary py-5" data-i18n="start">دخول</button>
-        <button onclick="closeModal('password-modal')" class="btn btn--ghost mt-3" data-i18n="cancel">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">🔒</div>
+        <div class="sheet__title" data-i18n="locked_group">المجموعة مغلقة</div>
+        <p class="sheet__subtitle" data-i18n="enter_password">أدخل كلمة المرور للاستمرار</p>
+        <input type="password" id="category-password-input" data-i18n-ph="password_placeholder" placeholder="كلمة المرور" class="text-center">
+        <p id="password-error" class="field-error"></p>
+        <div class="modal-actions">
+          <button onclick="verifyCategoryPassword()" class="btn btn--primary btn--lg" data-i18n="start">دخول</button>
+          <button onclick="closeModal('password-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
       </div>
     </div>
 
     <div id="switch-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-         <h3 class="font-bold text-xl mb-4">اختر لاعباً للتبديل معه</h3>
-         <input type="text" placeholder="🔍 بحث..." class="mb-4" onkeyup="filterButtons(this, 'switch-targets-list')">
-         <div id="switch-targets-list" class="space-y-2 max-h-60 overflow-y-auto px-1"></div>
-         <button onclick="closeModal('switch-modal')" class="btn btn--ghost mt-6">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title">اختر لاعباً للتبديل معه</div>
+        <input type="search" placeholder="🔍 بحث..." autocomplete="off" oninput="filterButtons(this, 'switch-targets-list')">
+        <div id="switch-targets-list" class="modal-list space-y-2 px-1"></div>
+        <div class="modal-actions">
+          <button onclick="closeModal('switch-modal')" class="btn btn--ghost">إلغاء</button>
+        </div>
       </div>
     </div>
 
     <div id="switch-confirm-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-         <div class="text-6xl mb-4">🔄</div>
-         <h3 class="font-black text-xl mb-2">تأكيد التبديل</h3>
-         <p class="field__hint mb-8">هل أنت متأكد من تبديل أماكن <br> <b id="confirm-monkey-name" class="text-red-500"></b> مع <b id="confirm-target-name" class="text-blue-500"></b>؟</p>
-         <button onclick="executeSwitch()" class="btn btn--primary py-5">نعم، بدل الأماكن</button>
-         <button onclick="closeModal('switch-confirm-modal')" class="btn btn--ghost mt-3">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">🔄</div>
+        <div class="sheet__title">تأكيد التبديل</div>
+        <p class="sheet__subtitle">هل أنت متأكد من تبديل أماكن <b id="confirm-monkey-name" class="tx-danger"></b> مع <b id="confirm-target-name" class="tx-accent"></b>؟</p>
+        <div class="modal-actions">
+          <button onclick="executeSwitch()" class="btn btn--primary btn--lg">نعم، بدل الأماكن</button>
+          <button onclick="closeModal('switch-confirm-modal')" class="btn btn--ghost">إلغاء</button>
+        </div>
       </div>
     </div>
 
     <div id="add-midgame-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <h3 class="font-bold text-xl mb-2">إضافة لاعب</h3>
-        <p class="field__hint">اختر من المسجلين أو أضف جديداً</p>
-        <div id="midgame-existing-list" class="flex flex-wrap gap-2 justify-center mb-8 max-h-40 overflow-y-auto"></div>
-        <div class="border-t dark:border-slate-800 pt-6">
-            <input type="text" id="midgame-player-name" placeholder="اسم لاعب جديد">
-            <button onclick="submitMidGamePlayer()" class="btn btn--primary py-4">إضافة ودخول</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title">إضافة لاعب</div>
+        <p class="sheet__subtitle">اختر من المسجلين أو أضف جديداً</p>
+        <div id="midgame-existing-list" class="modal-list flex flex-wrap gap-2 justify-center"></div>
+        <input type="text" id="midgame-player-name" placeholder="اسم لاعب جديد">
+        <div class="modal-actions">
+          <button onclick="submitMidGamePlayer()" class="btn btn--primary btn--lg">إضافة ودخول</button>
+          <button onclick="closeModal('add-midgame-modal')" class="btn btn--ghost">إلغاء</button>
         </div>
-        <button onclick="closeModal('add-midgame-modal')" class="btn btn--ghost mt-4">إلغاء</button>
       </div>
     </div>
     
     <div id="edit-status-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <h3 class="eyebrow" data-i18n="edit_status">تعديل حالة</h3>
-        <h4 id="edit-player-name" class="font-black text-2xl text-blue-600 mb-8"></h4>
-        <div class="grid gap-3">
-            <button onclick="submitStatusUpdate(1)" class="btn btn--ghost bg-green-50 dark:bg-green-900/20 text-green-600 border border-green-100 dark:border-green-900 shadow-none" data-i18n="safe">آمن</button>
-            <button onclick="submitStatusUpdate(2)" class="btn btn--ghost bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 border border-yellow-100 dark:border-yellow-900 shadow-none" data-i18n="quarter_monkey">1/4 قرد</button>
-            <button onclick="submitStatusUpdate(3)" class="btn btn--ghost bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 border border-yellow-200 dark:border-yellow-800 shadow-none" data-i18n="half_monkey">1/2 قرد</button>
-            <button onclick="submitStatusUpdate(4)" class="btn btn--ghost bg-orange-50 dark:bg-orange-900/20 text-orange-600 border border-orange-100 dark:border-orange-900 shadow-none" data-i18n="three_quarters_monkey">3/4 قرد</button>
-            <button onclick="submitStatusUpdate(5)" class="btn btn--ghost bg-red-50 dark:bg-red-900/20 text-red-600 border border-red-100 dark:border-red-900 shadow-none" data-i18n="monkey_loser">قرد (خاسر)</button>
+      <div class="modal-content modal-content--simple">
+        <div class="eyebrow" data-i18n="edit_status">تعديل حالة</div>
+        <div id="edit-player-name" class="sheet__title tx-accent"></div>
+        <div class="modal-actions">
+          <button onclick="submitStatusUpdate(1)" class="btn btn--ghost bg-green-50 dark:bg-green-900/20 text-green-600 border border-green-100 dark:border-green-900" data-i18n="safe">آمن</button>
+          <button onclick="submitStatusUpdate(2)" class="btn btn--ghost bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 border border-yellow-100 dark:border-yellow-900" data-i18n="quarter_monkey">1/4 قرد</button>
+          <button onclick="submitStatusUpdate(3)" class="btn btn--ghost bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 border border-yellow-200 dark:border-yellow-800" data-i18n="half_monkey">1/2 قرد</button>
+          <button onclick="submitStatusUpdate(4)" class="btn btn--ghost bg-orange-50 dark:bg-orange-900/20 text-orange-600 border border-orange-100 dark:border-orange-900" data-i18n="three_quarters_monkey">3/4 قرد</button>
+          <button onclick="submitStatusUpdate(5)" class="btn btn--ghost bg-red-50 dark:bg-red-900/20 text-red-600 border border-red-100 dark:border-red-900" data-i18n="monkey_loser">قرد (خاسر)</button>
         </div>
-        <button onclick="closeModal('edit-status-modal')" class="btn btn--ghost mt-8" data-i18n="cancel">إلغاء</button>
+        <div class="modal-actions">
+          <button onclick="closeModal('edit-status-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
       </div>
     </div>
     
 
     <div id="timeout-modal" class="modal-overlay hidden">
-  <div class="modal-content border-t-8 border-red-500">
-    <div class="text-6xl mb-4">⏰</div>
-    <h2 class="card__title" data-i18n="timeout_title">انتهى الوقت!</h2>
-    <p class="mb-6 font-bold text-lg text-slate-700 dark:text-slate-300" id="timeout-player-name"></p>
-    
-    <button onclick="handleTimeoutAction('liar')" class="btn btn--danger py-5" data-i18n="liar">كذاب مرة أخرى (السابق)</button>
-    <button onclick="handleTimeoutAction('penalty')" class="btn btn--primary py-5 mt-3" data-i18n="penalty_pass">عقاب (+1/4) وتخطي</button>
-    
-    <button onclick="handleTimeoutAction('next')" class="btn btn--primary py-5 mt-3">
-        <span data-i18n="next">التالي</span>
-    </button>
-  </div>
-</div>
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">⏰</div>
+        <div class="sheet__title" data-i18n="timeout_title">انتهى الوقت!</div>
+        <p id="timeout-player-name" class="text-lg font-bold tx-strong"></p>
+        <div class="modal-actions">
+          <button onclick="handleTimeoutAction('liar')" class="btn btn--danger" data-i18n="liar">كذاب مرة أخرى (السابق)</button>
+          <button onclick="handleTimeoutAction('penalty')" class="btn btn--primary" data-i18n="penalty_pass">عقاب (+1/4) وتخطي</button>
+          <button onclick="handleTimeoutAction('next')" class="btn btn--primary"><span data-i18n="next">التالي</span></button>
+        </div>
+      </div>
+    </div>
 
     <div id="alert-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <div class="text-5xl mb-4">⚠️</div>
-        <h3 class="font-bold text-xl mb-4" id="alert-title" data-i18n="alert_title">تنبيه</h3>
-        <p id="alert-msg" class="tx-muted mb-8"></p>
-        <button onclick="closeModal('alert-modal')" class="btn btn--primary py-4" data-i18n="ok_btn">حسناً</button>
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">⚠️</div>
+        <div class="sheet__title" id="alert-title" data-i18n="alert_title">تنبيه</div>
+        <p id="alert-msg" class="sheet__subtitle"></p>
+        <div class="modal-actions">
+          <button onclick="closeModal('alert-modal')" class="btn btn--primary btn--lg" data-i18n="ok_btn">حسناً</button>
+        </div>
       </div>
     </div>
 
     <div id="domino-input-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <h3 class="font-bold text-xl mb-4">إدخال نقاط يدوية</h3>
-        <input type="number" id="manual-domino-points" placeholder="عدد النقاط" class="text-center text-xl font-bold">
-        <button onclick="submitDominoManual()" class="btn btn--primary py-4">إضافة</button>
-        <button onclick="closeModal('domino-input-modal')" class="btn btn--ghost mt-2">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title">إدخال نقاط يدوية</div>
+        <input type="number" id="manual-domino-points" placeholder="عدد النقاط" inputmode="numeric" class="field-big">
+        <div class="modal-actions">
+          <button onclick="submitDominoManual()" class="btn btn--primary btn--lg">إضافة</button>
+          <button onclick="closeModal('domino-input-modal')" class="btn btn--ghost">إلغاء</button>
+        </div>
       </div>
     </div>
 
     <div id="soundboard-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <h3 class="font-bold text-xl mb-6">أصوات مضحكة 🤣</h3>
-        <div class="grid-2 gap-4" id="soundboard-grid"></div>
-        <button onclick="closeModal('soundboard-modal')" class="btn btn--ghost mt-6">إغلاق</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title">أصوات مضحكة 🤣</div>
+        <div class="grid-2" id="soundboard-grid"></div>
+        <div class="modal-actions">
+          <button onclick="closeModal('soundboard-modal')" class="btn btn--ghost">إغلاق</button>
+        </div>
       </div>
     </div>
 
     <div id="install-help-modal" class="modal-overlay hidden">
-      <div class="modal-content text-right">
-        <h3 id="install-help-title" class="font-bold text-xl mb-4 text-center">تثبيت التطبيق 📲</h3>
-        <div id="ios-help" class="hidden space-y-3">
-            <p class="font-bold text-slate-800 dark:text-white">للآيفون (iOS):</p>
-            <ol class="list-decimal list-inside text-sm tx-muted space-y-2">
-                <li>اضغط زر المشاركة <span class="text-xl">⎋</span> في المتصفح.</li>
-                <li>اختر <b>"إضافة إلى الصفحة الرئيسية"</b> (Add to Home Screen).</li>
-            </ol>
+      <div class="modal-content modal-content--simple">
+        <div id="install-help-title" class="sheet__title">تثبيت التطبيق 📲</div>
+        <div id="ios-help" class="hidden modal-steps space-y-3">
+          <p class="font-bold tx-strong">للآيفون (iOS):</p>
+          <ol class="list-decimal list-inside text-sm tx-muted space-y-2">
+            <li>اضغط زر المشاركة <span class="text-xl">⎋</span> في المتصفح.</li>
+            <li>اختر <b>"إضافة إلى الصفحة الرئيسية"</b> (Add to Home Screen).</li>
+          </ol>
         </div>
-        <div id="android-help" class="hidden space-y-3">
-            <p class="font-bold text-slate-800 dark:text-white">للأندرويد (Chrome):</p>
-            <ol class="list-decimal list-inside text-sm tx-muted space-y-2">
-                <li>اضغط زر القائمة (ثلاث نقاط).</li>
-                <li>اختر <b>"تثبيت التطبيق"</b> أو <b>"الإضافة للشاشة الرئيسية"</b>.</li>
-            </ol>
+        <div id="android-help" class="hidden modal-steps space-y-3">
+          <p class="font-bold tx-strong">للأندرويد (Chrome):</p>
+          <ol class="list-decimal list-inside text-sm tx-muted space-y-2">
+            <li>اضغط زر القائمة (ثلاث نقاط).</li>
+            <li>اختر <b>"تثبيت التطبيق"</b> أو <b>"الإضافة للشاشة الرئيسية"</b>.</li>
+          </ol>
         </div>
-        <button onclick="closeModal('install-help-modal')" class="btn btn--primary mt-8">فهمت</button>
+        <div class="modal-actions">
+          <button onclick="closeModal('install-help-modal')" class="btn btn--primary btn--lg">فهمت</button>
+        </div>
       </div>
     </div>
 
     <div id="chess-config-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <h3 class="font-bold text-xl mb-4">⏱️ ضبط وقت الشطرنج</h3>
-        <label class="eyebrow">الوقت لكل لاعب (بالدقائق)</label>
-        <input type="number" id="chess-config-input" value="5" class="text-center text-3xl font-black mb-6 h-16 text-blue-600 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-blue-100 dark:border-slate-600">
-        <button onclick="submitChessConfig()" class="btn btn--primary py-4">حفظ وبدء اللعب</button>
-        <button onclick="closeModal('chess-config-modal')" class="btn btn--ghost mt-3">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title">⏱️ ضبط وقت الشطرنج</div>
+        <label class="field__label" for="chess-config-input">الوقت لكل لاعب (بالدقائق)</label>
+        <input type="number" id="chess-config-input" value="5" inputmode="numeric" class="field-big">
+        <div class="modal-actions">
+          <button onclick="submitChessConfig()" class="btn btn--primary btn--lg">حفظ وبدء اللعب</button>
+          <button onclick="closeModal('chess-config-modal')" class="btn btn--ghost">إلغاء</button>
+        </div>
       </div>
     </div>
 
     <div id="domino-mode-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <h3 class="font-bold text-xl mb-6">اختر نظام اللعب 🀄</h3>
-        <p class="text-sm tx-muted mb-6">لقد اخترت 4 لاعبين. كيف تريد اللعب؟</p>
-        <button onclick="setDominoMode('single')" class="btn btn--primary py-4 mb-3">فردي (كل واحد لوحده)</button>
-        <button onclick="setDominoMode('teams')" class="btn btn--primary py-4">فرق (2 ضد 2) 👥</button>
-        <button onclick="closeModal('domino-mode-modal')" class="btn btn--ghost mt-4">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title">اختر نظام اللعب 🀄</div>
+        <p class="sheet__subtitle">لقد اخترت 4 لاعبين. كيف تريد اللعب؟</p>
+        <div class="modal-actions">
+          <button onclick="setDominoMode('single')" class="btn btn--primary">فردي (كل واحد لوحده)</button>
+          <button onclick="setDominoMode('teams')" class="btn btn--primary">فرق (2 ضد 2) 👥</button>
+          <button onclick="closeModal('domino-mode-modal')" class="btn btn--ghost">إلغاء</button>
+        </div>
       </div>
     </div>
 
@@ -3948,8 +3975,8 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
           <div id="teams-player-list" class="mb-6"></div>
           
           <div class="grid grid-cols-2 gap-2 mt-4">
-              <button onclick="generateTeams()" class="btn btn--primary mt-0" data-i18n="random_teams">🎲 عشوائي</button>
-              <button onclick="openSkillBalancer()" class="btn btn--primary mt-0" data-i18n="fair_teams">⚖️ مهارة</button>
+              <button onclick="generateTeams()" class="btn btn--primary" data-i18n="random_teams">🎲 عشوائي</button>
+              <button onclick="openSkillBalancer()" class="btn btn--primary" data-i18n="fair_teams">⚖️ مهارة</button>
           </div>
 
           <button onclick="setView('menu')" class="btn btn--ghost mt-3" data-i18n="back">رجوع</button>
@@ -3959,7 +3986,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 <div id="view-results-teams" class="hidden">
     <h2 class="card__title" data-i18n="generated_teams">الفرق العشوائية</h2>
     <div id="teams-container" class="space-y-4"></div>
-    <button onclick="generateTeams()" class="btn btn--primary mt-6" data-i18n="reshuffle">إعادة التوزيع 🔄</button>
+    <button onclick="generateTeams()" class="btn btn--primary mt-4" data-i18n="reshuffle">إعادة التوزيع 🔄</button>
     <button onclick="setView('menu')" class="btn btn--ghost" data-i18n="main_menu">القائمة الرئيسية</button>
 </div>
 
@@ -4008,7 +4035,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
            <h2 id="jo-active-player" class="text-4xl font-black text-pink-600">---</h2>
         </div>
         <p id="jo-pass-instruction" class="field__hint" data-i18n="pass_instruction_static">أنت ستكتب تلميحاً!</p>
-        <button onclick="joRevealPhase()" class="btn btn--primary py-4" data-i18n="reveal_btn">أنا هو، أرني الكلمة</button>
+        <button onclick="joRevealPhase()" class="btn btn--primary btn--lg" data-i18n="reveal_btn">أنا هو، أرني الكلمة</button>
     </div>
 
     <div id="jo-phase-write" class="hidden card text-center py-8">
@@ -4016,7 +4043,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
         <h2 id="jo-secret-word-display" class="text-3xl font-black text-green-600 mb-8 border-2 border-green-100 bg-green-50 rounded-xl py-4">---</h2>
         
         <label class="eyebrow" data-i18n="write_clue_label">اكتب تلميحاً واحداً (كلمة واحدة فقط!)</label>
-        <input type="text" id="jo-clue-input" data-i18n-ph="clue_placeholder" placeholder="التلميح..." class="text-center font-bold text-xl mb-4">
+        <input type="text" id="jo-clue-input" data-i18n-ph="clue_placeholder" placeholder="التلميح..." class="text-center mb-4">
         
         <button onclick="joSubmitClue()" class="btn btn--primary bg-pink-600" data-i18n="confirm_clue_btn">تأكيد التلميح ✅</button>
         <p class="text-xs text-red-400 mt-2 font-bold" data-i18n="forbidden_rule">⚠️ ممنوع: كتابة نفس الكلمة السرية أو ترجمتها!</p>
@@ -4112,14 +4139,14 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
           <div class="grid-2 mb-4">
             <div>
               <label class="field__label" data-i18n="spy_count">عدد الجواسيس</label>
-              <select id="spyfall-spies-count" class="text-center font-bold">
+              <select id="spyfall-spies-count" class="text-center">
                 <option value="1">1</option>
                 <option value="2">2</option>
               </select>
             </div>
             <div>
               <label class="field__label" data-i18n="spyfall_time">وقت النقاش (دقائق)</label>
-              <select id="spyfall-duration" class="text-center font-bold">
+              <select id="spyfall-duration" class="text-center">
                 <option value="5">5</option>
                 <option value="8" selected>8</option>
                 <option value="10">10</option>
@@ -4183,7 +4210,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
           <div class="grid-2 mb-4">
             <div>
               <label class="field__label" data-i18n="deck_size">عدد الكلمات</label>
-              <select id="timesup-deck-size" class="text-center font-bold">
+              <select id="timesup-deck-size" class="text-center">
                 <option value="25">25</option>
                 <option value="35" selected>35</option>
                 <option value="45">45</option>
@@ -4191,7 +4218,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
             </div>
             <div>
               <label class="field__label" data-i18n="turn_duration">وقت الدور (ثواني)</label>
-              <select id="timesup-turn-timer" class="text-center font-bold">
+              <select id="timesup-turn-timer" class="text-center">
                 <option value="30">30</option>
                 <option value="40" selected>40</option>
                 <option value="60">60</option>
@@ -4248,33 +4275,33 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
           </div>
 
           <div class="grid grid-cols-2 gap-3">
-            <button onclick="timesUpAction('correct')" class="btn btn--primary py-5 text-lg" data-i18n="correct_btn">✅ صح!</button>
-            <button onclick="timesUpAction('pass')" class="btn btn--ghost py-5 text-lg" data-i18n="pass_btn">تخطي ↷</button>
+            <button onclick="timesUpAction('correct')" class="btn btn--primary btn--lg" data-i18n="correct_btn">✅ صح!</button>
+            <button onclick="timesUpAction('pass')" class="btn btn--ghost btn--lg" data-i18n="pass_btn">تخطي ↷</button>
           </div>
         </div>
       </div>
 
-<div id="skill-modal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <h2 class="card__title" data-i18n="skill_rating">تقييم المهارات</h2>
-        <p class="field__hint" data-i18n="skill_desc">قيم مستوى كل لاعب لضمان فرق متوازنة</p>
-        
-        <div id="skill-list" class="max-h-80 overflow-y-auto mb-6 space-y-2 px-1"></div>
-        
-        <button onclick="generateFairTeams()" class="btn btn--primary py-4" data-i18n="generate_fair">✅ تكوين فرق عادلة</button>
-        <button onclick="closeModal('skill-modal')" class="btn btn--ghost mt-2" data-i18n="cancel">إلغاء</button>
+    <div id="skill-modal" class="modal-overlay hidden">
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title" data-i18n="skill_rating">تقييم المهارات</div>
+        <p class="sheet__subtitle" data-i18n="skill_desc">قيم مستوى كل لاعب لضمان فرق متوازنة</p>
+        <div id="skill-list" class="modal-list space-y-2 px-1"></div>
+        <div class="modal-actions">
+          <button onclick="generateFairTeams()" class="btn btn--primary btn--lg" data-i18n="generate_fair">✅ تكوين فرق عادلة</button>
+          <button onclick="closeModal('skill-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
+      </div>
     </div>
-</div>
 
 <div id="view-setup-wordle" class="hidden">
         <div class="card text-center">
             <p class="field__hint mb-6" data-i18n="word_length">اختر عدد أحرف الكلمة</p>
             
             <div class="grid grid-cols-2 gap-3 mb-6">
-                <button onclick="startWordleGame(5)" class="btn btn--primary py-6 text-xl">5</button>
-                <button onclick="startWordleGame(6)" class="btn btn--primary py-6 text-xl">6</button>
-                <button onclick="startWordleGame(7)" class="btn btn--primary py-6 text-xl">7</button>
-                <button onclick="startWordleGame(8)" class="btn btn--primary py-6 text-xl">8</button>
+                <button onclick="startWordleGame(5)" class="btn btn--primary btn--lg">5</button>
+                <button onclick="startWordleGame(6)" class="btn btn--primary btn--lg">6</button>
+                <button onclick="startWordleGame(7)" class="btn btn--primary btn--lg">7</button>
+                <button onclick="startWordleGame(8)" class="btn btn--primary btn--lg">8</button>
             </div>
         </div>
     </div>
@@ -4340,8 +4367,8 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
         <div class="card text-center">
             <p class="field__hint mb-6" data-i18n="select_time">اختر وقت الجولة</p>
             <div class="grid grid-cols-2 gap-3 mb-6">
-                <button onclick="startDescribeGame(60)" class="btn btn--primary py-6 text-xl">60s</button>
-                <button onclick="startDescribeGame(90)" class="btn btn--primary py-6 text-xl">90s</button>
+                <button onclick="startDescribeGame(60)" class="btn btn--primary btn--lg">60s</button>
+                <button onclick="startDescribeGame(90)" class="btn btn--primary btn--lg">90s</button>
             </div>
         </div>
     </div>
@@ -4382,7 +4409,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
                     <div id="desc-final-score" class="text-7xl font-black text-green-600 dark:text-green-400">0</div>
                 </div>
 
-                <button onclick="startDescribeGame()" class="btn btn--primary mt-8" data-i18n="play_again">جولة جديدة 🔄</button>
+                <button onclick="startDescribeGame()" class="btn btn--primary mt-4" data-i18n="play_again">جولة جديدة 🔄</button>
                 <button onclick="setView('setup-describe')" class="btn btn--ghost mt-3" data-i18n="back">تغيير الإعدادات</button>
             </div>
 
@@ -4411,7 +4438,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 
                 <h2 id="dice-result" class="metric metric--md metric--accent mb-6">---</h2>
                 
-                <button onclick="rollDice()" class="btn btn--primary w-64 py-4 text-lg shadow-lg" data-i18n="roll">ارمي النرد</button>
+                <button onclick="rollDice()" class="btn btn--primary btn--lg" data-i18n="roll">ارمي النرد</button>
             </div>
 
             <div id="tab-coin" class="hidden h-64 flex flex-col items-center justify-center">
@@ -4420,7 +4447,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
                 <button onclick="flipCoin()" class="btn btn--primary w-48" data-i18n="flip">ارمي العملة</button>
             </div>
 
-            <button onclick="setView('menu')" class="btn btn--ghost mt-8" data-i18n="back">رجوع</button>
+            <button onclick="setView('menu')" class="btn btn--ghost mt-4" data-i18n="back">رجوع</button>
         </div>
     </div>
 
@@ -4435,7 +4462,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
                 <input type="text" class="tourney-player-input" placeholder="4">
             </div>
             
-            <button onclick="addTourneyInput()" class="btn btn--ghost text-sm mb-4" data-i18n="add_more">+ المزيد</button>
+            <button onclick="addTourneyInput()" class="btn btn--ghost mb-4 btn--sm" data-i18n="add_more">+ المزيد</button>
             <button onclick="startTournament()" class="btn btn--primary" data-i18n="start">ابدأ البطولة</button>
         </div>
     </div>
@@ -4452,10 +4479,10 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
         <div class="card text-center">
             
             <label class="field__label" data-i18n="category">القسم</label>
-            <select id="charades-cat-select" class="mb-4 font-bold"></select>
+            <select id="charades-cat-select" class="mb-4"></select>
             
             <label class="field__label" data-i18n="timer_sec">الوقت</label>
-            <input type="number" id="charades-timer-input" value="60" class="text-center font-bold text-xl mb-6">
+            <input type="number" id="charades-timer-input" value="60" class="text-center mb-4">
             
             <button onclick="startCharades()" class="btn btn--primary" data-i18n="start">ابدأ</button>
         </div>
@@ -4491,7 +4518,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
                     <div id="charades-final-score" class="text-7xl font-black text-green-600 dark:text-green-400">0</div>
                 </div>
 
-                <button onclick="startCharadesGame(appState.charades.timer)" class="btn btn--primary mt-8" data-i18n="play_again">جولة جديدة 🔄</button>
+                <button onclick="startCharadesGame(appState.charades.timer)" class="btn btn--primary mt-4" data-i18n="play_again">جولة جديدة 🔄</button>
                 <button onclick="setView('setup-charades')" class="btn btn--ghost mt-3" data-i18n="back">تغيير الفئة</button>
             </div>
 
@@ -4509,14 +4536,14 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
             <div id="setup-comp-ui">
                 <p class="field__hint mb-4" data-i18n="select_range">حدد المدى (من - إلى)</p>
                 <div class="flex gap-4 mb-6">
-                    <input type="number" id="gn-min" value="1" class="text-center font-bold text-xl" placeholder="Min">
-                    <input type="number" id="gn-max" value="100" class="text-center font-bold text-xl" placeholder="Max">
+                    <input type="number" id="gn-min" value="1" class="text-center" placeholder="Min">
+                    <input type="number" id="gn-max" value="100" class="text-center" placeholder="Max">
                 </div>
             </div>
 
             <div id="setup-human-ui" class="hidden">
                 <p class="field__hint mb-4" data-i18n="enter_secret">أدخل الرقم السري (لا تخبر أحداً!)</p>
-                <input type="number" id="gn-secret" class="text-center font-black text-3xl mb-6 tracking-widest text-cyan-600" placeholder="***">
+                <input type="number" id="gn-secret" class="text-center mb-4 tracking-widest text-cyan-600" placeholder="***">
             </div>
             
             <button onclick="startGuessNumber()" class="btn btn--primary bg-cyan-600" data-i18n="start">ابدأ اللعبة</button>
@@ -4535,8 +4562,8 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
             <div id="gn-feedback" class="text-xl font-bold mb-6 tx-muted animate-pop">...</div>
 
             <div class="flex gap-2 mb-6">
-                <input type="number" id="gn-input" class="text-center font-black text-2xl" placeholder="?">
-                <button onclick="checkNumberGuess()" class="btn btn--primary mt-0 w-24">✅</button>
+                <input type="number" id="gn-input" class="text-center field-big" placeholder="?">
+                <button onclick="checkNumberGuess()" class="btn btn--primary w-24">✅</button>
             </div>
 
             <div id="gn-history" class="flex-grow overflow-y-auto max-h-60 border-t border-slate-100 dark:border-slate-800 pt-4"></div>
@@ -4609,7 +4636,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
             <h3 id="manual-instruction" class="font-bold tx-muted mb-2">أعط الهاتف لـ</h3>
             <h2 id="manual-player-label" class="text-4xl font-black text-teal-600 mb-8">اللاعب 1</h2>
             
-            <input type="text" id="manual-whoami-input" class="text-center text-xl font-bold mb-6 w-full p-4 rounded-xl border-2 border-teal-100 focus:border-teal-500 outline-none text-slate-800">
+            <input type="text" id="manual-whoami-input" class="text-center mb-4">
             
             <button onclick="submitManualWhoAmI()" class="btn btn--primary btn--lg">تأكيد ✅</button>
         </div>
@@ -4670,38 +4697,32 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
     </div>
     
     <div id="group-name-modal" class="modal-overlay hidden">
-      <div class="modal-content border-t-8 border-teal-500 w-full max-w-sm">
-        <div class="flex justify-between items-center mb-6">
-            <div class="text-4xl">📂</div>
-            <button onclick="closeModal('group-name-modal')" class="iconbtn iconbtn--plain" aria-label="إغلاق">&times;</button>
-        </div>
-        <h2 class="card__title" data-i18n="group_manage_title">إدارة المجموعات</h2>
+      <div class="modal-content modal-content--simple">
+        <button onclick="closeModal('group-name-modal')" class="iconbtn iconbtn--plain modal-close" aria-label="إغلاق">&times;</button>
+        <div class="modal-icon" aria-hidden="true">📂</div>
+        <div class="sheet__title" data-i18n="group_manage_title">إدارة المجموعات</div>
 
-        <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700 shadow-sm">
-            <label class="eyebrow" data-i18n="group_create_new">إنشاء مجموعة جديدة</label>
-            <input type="text" id="custom-group-name-input" data-i18n-ph="group_name_placeholder" placeholder="اكتب اسم المجموعة..." class="w-full p-3 text-center font-bold text-lg rounded-xl border-2 border-teal-100 focus:border-teal-500 outline-none mb-3 dark:bg-slate-900 dark:text-white dark:border-slate-600">
-            <button onclick="saveAsNewGroup()" class="btn btn--primary" data-i18n="group_save_new">حفظ كجديدة 🆕</button>
+        <div class="modal-section modal-plate modal-well">
+          <label class="field__label" for="custom-group-name-input" data-i18n="group_create_new">إنشاء مجموعة جديدة</label>
+          <input type="text" id="custom-group-name-input" data-i18n-ph="group_name_placeholder" placeholder="اكتب اسم المجموعة..." class="text-center">
+          <button onclick="saveAsNewGroup()" class="btn btn--primary" data-i18n="group_save_new">حفظ كجديدة 🆕</button>
         </div>
 
-        <div class="flex items-center gap-4 mb-4 opacity-50">
-            <div class="h-[1px] bg-slate-400 flex-1"></div><span class="tx-muted text-xs font-bold" data-i18n="or">أو</span><div class="h-[1px] bg-slate-400 flex-1"></div>
-        </div>
+        <div class="modal-divider"><span data-i18n="or">أو</span></div>
 
-        <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-2 border border-slate-200 dark:border-slate-700 shadow-sm">
-            <label class="eyebrow" data-i18n="group_update_saved">تحديث مجموعة محفوظة</label>
-            <div class="flex gap-2 mb-4">
-                <select id="update-group-select" class="flex-1 p-3 rounded-xl border-2 border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-600 font-bold text-center outline-none focus:border-orange-400">
-                </select>
-                <button onclick="deleteGroupFromModal()" class="iconbtn" style="color: var(--danger)" title="حذف المجموعة" aria-label="حذف المجموعة">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                </button>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-2">
-                <button onclick="updateExistingGroup('add')" class="btn btn--primary mt-0 py-3 text-sm px-1 shadow-md" data-i18n="group_add_selected">إضافة المحددين ➕</button>
-                <button onclick="updateExistingGroup('replace')" class="btn btn--primary mt-0 py-3 text-sm px-1 shadow-md" data-i18n="group_replace">استبدال المجموعة 🔄</button>
-            </div>
-            <p class="field__hint" data-i18n="group_update_hint"><b>إضافة:</b> يضيف اللاعبين المحددين فوق المجموعة الحالية.<br><b>استبدال:</b> يمسح المجموعة الحالية ويضع المحددين فقط.</p>
+        <div class="modal-section modal-plate modal-well">
+          <label class="field__label" for="update-group-select" data-i18n="group_update_saved">تحديث مجموعة محفوظة</label>
+          <div class="input-group">
+            <select id="update-group-select"></select>
+            <button onclick="deleteGroupFromModal()" class="iconbtn" style="color: var(--danger)" title="حذف المجموعة" aria-label="حذف المجموعة">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+          </div>
+          <div class="modal-actions">
+            <button onclick="updateExistingGroup('add')" class="btn btn--secondary" data-i18n="group_add_selected">إضافة المحددين ➕</button>
+            <button onclick="updateExistingGroup('replace')" class="btn btn--secondary" data-i18n="group_replace">استبدال المجموعة 🔄</button>
+          </div>
+          <p class="field__hint" data-i18n="group_update_hint"><b>إضافة:</b> يضيف اللاعبين المحددين فوق المجموعة الحالية.<br><b>استبدال:</b> يمسح المجموعة الحالية ويضع المحددين فقط.</p>
         </div>
       </div>
     </div>
@@ -4712,7 +4733,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
             <p class="tx-muted font-bold mb-8 leading-relaxed px-4" data-i18n="reaction_desc">
                 ضع الهاتف على الطاولة بينك وبين صديقك. عندما تتحول الشاشة للون الأخضر، اضغط بأسرع ما يمكن! لكن احذر أن تضغط قبل اللون الأخضر.
             </p>
-            <button onclick="startReactionRound()" class="btn btn--danger py-4 text-xl shadow-lg w-full" data-i18n="start">ابدأ التحدي</button>
+            <button onclick="startReactionRound()" class="btn btn--danger w-full btn--lg" data-i18n="start">ابدأ التحدي</button>
             <button onclick="setView('menu')" class="btn btn--ghost mt-3 w-full" data-i18n="back">رجوع</button>
         </div>
       </div>
@@ -4751,54 +4772,64 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 
         <!-- CHAMELEON MODALS -->
     <div id="chameleon-accuse-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('chameleon-accuse-modal')">
-      <div class="modal-content">
-        <h2 class="card__title" data-i18n="accuse_chameleon">من هي الحرباء؟</h2>
-        <p class="field__hint" data-i18n="accuse_hint">صوتوا على اللاعب الذي تشكون في أنه الحرباء:</p>
-        <div id="chameleon-accuse-list" class="space-y-2 mb-4"></div>
-        <button onclick="closeModal('chameleon-accuse-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title" data-i18n="accuse_chameleon">من هي الحرباء؟</div>
+        <p class="sheet__subtitle" data-i18n="accuse_hint">صوتوا على اللاعب الذي تشكون في أنه الحرباء:</p>
+        <div id="chameleon-accuse-list" class="modal-list space-y-2"></div>
+        <div class="modal-actions">
+          <button onclick="closeModal('chameleon-accuse-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
       </div>
     </div>
 
     <div id="chameleon-result-modal" class="modal-overlay hidden">
-      <div class="modal-content text-center">
-        <h2 id="chameleon-result-title" class="text-3xl font-black mb-2">---</h2>
-        <div id="chameleon-result-detail" class="mb-6"></div>
-        <button onclick="resetChameleonPlay()" class="btn btn--primary btn--lg w-full" data-i18n="play_again">العب مرة أخرى</button>
+      <div class="modal-content modal-content--simple">
+        <div id="chameleon-result-title" class="sheet__title">---</div>
+        <div id="chameleon-result-detail"></div>
+        <div class="modal-actions">
+          <button onclick="resetChameleonPlay()" class="btn btn--primary btn--lg" data-i18n="play_again">العب مرة أخرى</button>
+        </div>
       </div>
     </div>
 
     <!-- SPYFALL MODALS -->
     <div id="spyfall-accuse-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('spyfall-accuse-modal')">
-      <div class="modal-content">
-        <h2 class="card__title" data-i18n="accuse_player">اتهام لاعب بالجاسوسية</h2>
-        <p class="field__hint" data-i18n="accuse_spy_hint">صوتوا بالإجماع على المشتبه به:</p>
-        <div id="spyfall-accuse-list" class="space-y-2 mb-4"></div>
-        <button onclick="closeModal('spyfall-accuse-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title" data-i18n="accuse_player">اتهام لاعب بالجاسوسية</div>
+        <p class="sheet__subtitle" data-i18n="accuse_spy_hint">صوتوا بالإجماع على المشتبه به:</p>
+        <div id="spyfall-accuse-list" class="modal-list space-y-2"></div>
+        <div class="modal-actions">
+          <button onclick="closeModal('spyfall-accuse-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
       </div>
     </div>
 
     <div id="spyfall-spy-guess-modal" class="modal-overlay hidden">
-      <div class="modal-content text-center">
-        <h2 class="card__title tx-danger" data-i18n="spy_guess_title">فرصة الجاسوس الأخيرة!</h2>
-        <p class="field__hint mb-4" data-i18n="spy_guess_hint">اختر الموقع الذي تعتقد أن الجميع فيه:</p>
-        <div id="spyfall-spy-guess-grid" class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-72 overflow-y-auto mb-4"></div>
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title tx-danger" data-i18n="spy_guess_title">فرصة الجاسوس الأخيرة!</div>
+        <p class="sheet__subtitle" data-i18n="spy_guess_hint">اختر الموقع الذي تعتقد أن الجميع فيه:</p>
+        <div id="spyfall-spy-guess-grid" class="modal-list grid grid-cols-2 gap-2"></div>
       </div>
     </div>
 
     <div id="spyfall-result-modal" class="modal-overlay hidden">
-      <div class="modal-content text-center">
-        <h2 id="spyfall-result-title" class="text-3xl font-black mb-2">---</h2>
-        <div id="spyfall-result-detail" class="mb-6"></div>
-        <button onclick="resetSpyfallPlay()" class="btn btn--primary btn--lg w-full" data-i18n="play_again">العب مرة أخرى</button>
+      <div class="modal-content modal-content--simple">
+        <div id="spyfall-result-title" class="sheet__title">---</div>
+        <div id="spyfall-result-detail"></div>
+        <div class="modal-actions">
+          <button onclick="resetSpyfallPlay()" class="btn btn--primary btn--lg" data-i18n="play_again">العب مرة أخرى</button>
+        </div>
       </div>
     </div>
 
     <!-- TIME'S UP MODALS -->
     <div id="timesup-result-modal" class="modal-overlay hidden">
-      <div class="modal-content text-center">
-        <h2 id="timesup-result-title" class="text-3xl font-black mb-2">---</h2>
-        <div id="timesup-result-detail" class="mb-6"></div>
-        <button onclick="resetTimesUpPlay()" class="btn btn--primary btn--lg w-full" data-i18n="play_again">العب مرة أخرى</button>
+      <div class="modal-content modal-content--simple">
+        <div id="timesup-result-title" class="sheet__title">---</div>
+        <div id="timesup-result-detail"></div>
+        <div class="modal-actions">
+          <button onclick="resetTimesUpPlay()" class="btn btn--primary btn--lg" data-i18n="play_again">العب مرة أخرى</button>
+        </div>
       </div>
     </div>
 
@@ -4806,11 +4837,11 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
     <div id="name-modal" class="modal-overlay hidden" data-accent="teal">
       <div class="modal-content modal-content--simple">
         <div class="sheet__title" data-i18n="your_name">اسمك</div>
-        <p class="card__subtitle" data-i18n="name_hint">سيظهر هذا الاسم لباقي اللاعبين</p>
+        <p class="sheet__subtitle" data-i18n="name_hint">سيظهر هذا الاسم لباقي اللاعبين</p>
         <input type="text" id="name-modal-input" maxlength="24" autocomplete="off"
                data-i18n-ph="placeholder_name" placeholder="الاسم"
                onkeydown="if(event.key==='Enter') submitNameModal()">
-        <div class="btn-stack" style="margin-top: var(--sp-4)">
+        <div class="modal-actions">
           <button onclick="submitNameModal()" class="btn btn--primary btn--lg" data-i18n="confirm">تأكيد</button>
           <button onclick="cancelNameModal()" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
@@ -6229,6 +6260,19 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
     updateSettingsLabels();
   }
 
+  /**
+   * Popups belong to the page, not to the screen they are written next to. Most
+   * sit inside <main> in Controller.html, and on iPhone a position:fixed element
+   * inside that scrolling area is drawn inside it: the header and the bottom nav
+   * covered the popup and its buttons. Moved under <body> once at start-up,
+   * every popup covers the whole screen.
+   */
+  function hoistModals() {
+    document.querySelectorAll('.modal-overlay').forEach(el => {
+      if (el.parentElement !== document.body) document.body.appendChild(el);
+    });
+  }
+
   const syncEl = document.getElementById('sync-status');
   function setSyncing(isSyncing) {
     if(isSyncing) syncEl.classList.add('syncing');
@@ -6237,6 +6281,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 
    /* --- INITIALIZATION --- */
    document.addEventListener('DOMContentLoaded', function() {
+     hoistModals();
      initializeApp();
      registerServiceWorker();
  
@@ -6704,8 +6749,12 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 
   let viewEnterFallback = null;
 
+  /** Tools that take the whole screen; the header and nav step aside for them. */
+  const FULLSCREEN_VIEWS = ['play-chess', 'play-reaction'];
+
   function setView(viewId) {
     const previous = appState.currentView;
+    document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(viewId) !== -1);
     const goingBack = viewDepth(viewId) < viewDepth(previous);
 
     appState.currentView = viewId;
@@ -9213,6 +9262,15 @@ function addPlayerFromSetup(btn) {
      }
   }
   /* Inside JS_Utils.html */
+
+/** Search box over a list of buttons (the Monkey switch list): hides what doesn't match. */
+function filterButtons(input, listId) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  const fold = (s) => (typeof helpNormalise === 'function' ? helpNormalise(s) : String(s || '').toLowerCase());
+  const query = fold(input.value).trim();
+  [...list.children].forEach(el => el.classList.toggle('hidden', !!query && fold(el.innerText).indexOf(query) === -1));
+}
 
 function toggleResults() {
     const el = document.getElementById('winner-scores-container');
@@ -13544,7 +13602,7 @@ function exitReactionGame(event) {
             `;
         }
         
-        const modalActions = document.querySelector('#winner-modal .space-y-3');
+        const modalActions = document.querySelector('#winner-modal .modal-actions');
         if(modalActions) {
             modalActions.innerHTML = '';
             
@@ -16505,7 +16563,7 @@ const CONNECTIONS_DB = {
       { name: 'مهن', words: ['طبيب', 'مهندس', 'مدرس', 'نجار'] },
       { name: 'فصول السنة', words: ['صيف', 'شتا', 'ربيع', 'خريف'] } ] },
     { groups: [
-      { name: 'حاجات بتلف', words: ['عجلة', 'مروحة', 'غسالة', 'كوكب'] },
+      { name: 'خضروات', words: ['طماطم', 'خيار', 'بطاطس', 'جزر'] },
       { name: 'أشكال هندسية', words: ['مربع', 'دايرة', 'مثلث', 'مستطيل'] },
       { name: 'حيوانات بحرية', words: ['قرش', 'دلفين', 'حوت', 'أخطبوط'] },
       { name: 'أدوات كتابة', words: ['قلم', 'أستيكة', 'مسطرة', 'دفتر'] } ] },
@@ -16515,120 +16573,120 @@ const CONNECTIONS_DB = {
       { name: 'أكلات مصرية', words: ['كشري', 'ملوخية', 'فتة', 'محشي'] },
       { name: 'آلات موسيقية', words: ['عود', 'ناي', 'طبلة', 'كمان'] } ] },
     { groups: [
-      { name: 'حاجات بتضوي', words: ['شمس', 'لمبة', 'شمعة', 'نجمة'] },
+      { name: 'مكسرات', words: ['لوز', 'بندق', 'كاجو', 'فستق'] },
       { name: 'معادن', words: ['دهب', 'فضة', 'حديد', 'نحاس'] },
       { name: 'أثاث', words: ['كرسي', 'ترابيزة', 'سرير', 'دولاب'] },
       { name: 'ظواهر جوية', words: ['مطر', 'ثلج', 'برق', 'رياح'] } ] },
     { groups: [
-      { name: 'حاجات في الشنطة', words: ['محفظة', 'مفاتيح', 'موبايل', 'نظارة'] },
+      { name: 'في الشنطة', words: ['محفظة', 'مفاتيح', 'موبايل', 'نظارة'] },
       { name: 'حشرات', words: ['نملة', 'نحلة', 'ذبابة', 'فراشة'] },
       { name: 'ملابس', words: ['قميص', 'بنطلون', 'جاكيت', 'طرحة'] },
       { name: 'أرقام', words: ['واحد', 'اتنين', 'عشرة', 'مية'] } ] },
     { groups: [
-      { name: 'حاجات ليها مفتاح', words: ['باب', 'عربية', 'خزنة', 'بيانو'] },
-      { name: 'حاجات ليها ورق', words: ['كتاب', 'شجرة', 'جرنان', 'كوتشينة'] },
-      { name: 'حاجات ليها رقبة', words: ['زرافة', 'زجاجة', 'جيتار', 'قميص'] },
-      { name: 'حاجات ليها عين', words: ['إبرة', 'إعصار', 'بطاطس', 'سنارة'] } ] },
+      { name: 'حيوانات أليفة', words: ['قطة', 'كلب', 'أرنب', 'هامستر'] },
+      { name: 'أدوات النظافة', words: ['مقشة', 'جاروف', 'ممسحة', 'سفنجة'] },
+      { name: 'أجزاء الكمبيوتر', words: ['شاشة', 'كيبورد', 'ماوس', 'سماعات'] },
+      { name: 'أصابع الإيد', words: ['إبهام', 'سبابة', 'وسطى', 'خنصر'] } ] },
     { groups: [
       { name: 'بلاد عربية', words: ['مصر', 'المغرب', 'لبنان', 'الأردن'] },
       { name: 'عواصم', words: ['باريس', 'روما', 'لندن', 'برلين'] },
       { name: 'قارات', words: ['آسيا', 'أوروبا', 'أفريقيا', 'أستراليا'] },
       { name: 'محيطات وبحار', words: ['الأحمر', 'المتوسط', 'الهادي', 'الأسود'] } ] },
     { groups: [
-      { name: 'حاجات بتتشحن', words: ['موبايل', 'لابتوب', 'بطارية', 'عربية'] },
-      { name: 'حاجات بتتقطع', words: ['نور', 'مياه', 'طريق', 'أمل'] },
-      { name: 'حاجات بتتفتح', words: ['شباك', 'حساب', 'محل', 'شهية'] },
-      { name: 'حاجات بتتكسر', words: ['قلب', 'رقم قياسي', 'صمت', 'كوب'] } ] },
+      { name: 'أندية كورة مصرية', words: ['الأهلي', 'الزمالك', 'المصري', 'الإسماعيلي'] },
+      { name: 'مراكز في الكورة', words: ['حارس مرمى', 'مدافع', 'وسط', 'مهاجم'] },
+      { name: 'تطبيقات موبايل', words: ['واتساب', 'فيسبوك', 'إنستجرام', 'تيك توك'] },
+      { name: 'شهور السنة', words: ['يناير', 'مارس', 'يوليو', 'أكتوبر'] } ] },
     { groups: [
-      { name: 'أدوات نجارة', words: ['مطرقة', 'منشار', 'مسمار', 'شاكوش'] },
+      { name: 'أدوات نجارة', words: ['شاكوش', 'منشار', 'مسمار', 'مبرد'] },
       { name: 'أجزاء الشجرة', words: ['جذر', 'ساق', 'فرع', 'ورقة'] },
-      { name: 'حاجات في المدرسة', words: ['سبورة', 'طباشير', 'جرس', 'فصل'] },
+      { name: 'في المدرسة', words: ['سبورة', 'طباشير', 'جرس', 'فصل'] },
       { name: 'مراحل العمر', words: ['طفولة', 'شباب', 'كهولة', 'شيخوخة'] } ] },
     { groups: [
-      { name: 'حاجات بتطير', words: ['طيارة', 'بالون', 'طيارة ورق', 'صقر'] },
-      { name: 'حاجات بتعوم', words: ['مركب', 'خشبة', 'بطة', 'ثلج'] },
-      { name: 'حاجات بتحفر', words: ['مجرفة', 'خلد', 'حفار', 'نملة'] },
-      { name: 'حاجات بتلسع', words: ['نحلة', 'عقرب', 'قرصة', 'شطة'] } ] },
+      { name: 'زواحف', words: ['ثعبان', 'سحلية', 'تمساح', 'سلحفاة'] },
+      { name: 'طيور البيت', words: ['فراخ', 'بط', 'وز', 'حمام'] },
+      { name: 'إكسسوارات', words: ['خاتم', 'سلسلة', 'حلق', 'أسورة'] },
+      { name: 'أدوات الحلاق', words: ['مقص', 'مشط', 'موس', 'سشوار'] } ] },
     { groups: [
       { name: 'أحجار كريمة', words: ['ألماس', 'زمرد', 'ياقوت', 'فيروز'] },
       { name: 'بهارات وتوابل', words: ['كمون', 'كزبرة', 'قرفة', 'كركم'] },
       { name: 'ماركات سيارات', words: ['مرسيدس', 'تويوتا', 'هيونداي', 'نيسان'] },
-      { name: 'حاجات بتطقطق', words: ['أصابع', 'فشار', 'خشب', 'لبان'] } ] },
+      { name: 'حبوب', words: ['قمح', 'شعير', 'ذرة', 'أرز'] } ] },
     { groups: [
       { name: 'رياضات فيها مضرب', words: ['تنس', 'إسكواش', 'بينج بونج', 'ريشة'] },
       { name: 'معالم مصرية', words: ['القلعة', 'الأقصر', 'خان الخليلي', 'السد العالي'] },
       { name: 'حلويات شرقية', words: ['كنافة', 'بسبوسة', 'بقلاوة', 'قطايف'] },
-      { name: 'حاجات ليها ذيل', words: ['فأر', 'طائرة', 'فستان', 'مذنب'] } ] },
+      { name: 'حيوانات صحراوية', words: ['جمل', 'ضب', 'عقرب', 'فنك'] } ] },
     { groups: [
       { name: 'أدوات سباكة', words: ['ماسورة', 'حنفية', 'محبس', 'جلدة'] },
       { name: 'مصادر طاقة', words: ['شمسية', 'رياح', 'نووية', 'بترول'] },
       { name: 'حيوانات مفترسة', words: ['ذئب', 'ضبع', 'فهد', 'تمساح'] },
-      { name: 'حاجات بتنقط', words: ['عرق', 'حبر', 'دموع', 'مطر'] } ] },
+      { name: 'أفراد العيلة', words: ['أب', 'أم', 'أخ', 'جد'] } ] },
     { groups: [
       { name: 'أعضاء داخلية', words: ['كبد', 'كلى', 'رئة', 'معدة'] },
       { name: 'أوقات اليوم', words: ['فجر', 'ظهر', 'مغرب', 'منتصف الليل'] },
       { name: 'ألعاب فيديو شهيرة', words: ['فيفا', 'ماينكرافت', 'ببجي', 'ماريو'] },
-      { name: 'حاجات بتنور في الضلمة', words: ['شمعة', 'يراعة', 'فوسفور', 'قمر'] } ] },
+      { name: 'أدوات المكياج', words: ['روج', 'ماسكرا', 'كحل', 'بودرة'] } ] },
     { groups: [
       { name: 'خضروات ورقية', words: ['جرجير', 'خس', 'سبانخ', 'بقدونس'] },
       { name: 'لغات', words: ['عربية', 'إنجليزية', 'فرنسية', 'إسبانية'] },
-      { name: 'حاجات ليها أجنحة', words: ['طائر', 'فراشة', 'مستشفى', 'فندق'] },
-      { name: 'حاجات بتغلي', words: ['مياه', 'لبن', 'دم', 'زيت'] } ] },
+      { name: 'محلات', words: ['صيدلية', 'مخبز', 'جزارة', 'بقالة'] },
+      { name: 'أبطال خارقين', words: ['سوبرمان', 'باتمان', 'سبايدرمان', 'آيرون مان'] } ] },
     { groups: [
       { name: 'غازات', words: ['أكسجين', 'نيتروجين', 'هيليوم', 'هيدروجين'] },
       { name: 'آلات إيقاعية', words: ['طبلة', 'دف', 'صاجات', 'مثلث'] },
-      { name: 'حاجات ليها سنان', words: ['مشط', 'منشار', 'ترس', 'قرش'] },
-      { name: 'حاجات بتتلبس في الرجل', words: ['كوتشي', 'صندل', 'شراب', 'بوت'] } ] },
+      { name: 'إسعافات أولية', words: ['شاش', 'بلاستر', 'قطن', 'مطهر'] },
+      { name: 'لبس الرجلين', words: ['كوتشي', 'صندل', 'شراب', 'بوت'] } ] },
     { groups: [
       { name: 'أجهزة المطبخ', words: ['بوتجاز', 'تلاجة', 'خلاط', 'ميكروويف'] },
       { name: 'أدوات هندسية', words: ['منقلة', 'برجل', 'مسطرة', 'مثلث قائم'] },
       { name: 'مشروبات ساخنة', words: ['قهوة تركي', 'سحلب', 'ينسون', 'كاكاو'] },
-      { name: 'حاجات بتسيل', words: ['دموع', 'لعاب', 'شمع', 'حبر'] } ] },
+      { name: 'فنون قتالية', words: ['كاراتيه', 'جودو', 'تايكوندو', 'كونغ فو'] } ] },
     { groups: [
       { name: 'كائنات قطبية', words: ['دب قطبي', 'بطريق', 'فقمة', 'حوت قاتل'] },
-      { name: 'حاجات بنربطها', words: ['حذاء', 'شريطة', 'حزام أمان', 'كرافتة'] },
-      { name: 'حاجات بتطير بدون طيار', words: ['درون', 'صاروخ', 'قمر صناعي', 'طبق طائر'] },
+      { name: 'أجهزة الجيم', words: ['مشاية', 'دمبل', 'عجلة ثابتة', 'بار حديد'] },
+      { name: 'أكلات شارع', words: ['شاورما', 'حواوشي', 'كبدة', 'سجق'] },
       { name: 'أنواع الخط العربي', words: ['رقعة', 'نسخ', 'كوفي', 'ديواني'] } ] },
     { groups: [
-      { name: 'حاجات ليها شوارب', words: ['قطة', 'جمبري', 'راجل', 'سمك قط'] },
+      { name: 'صغار الحيوانات', words: ['كتكوت', 'عجل', 'شبل', 'مهر'] },
       { name: 'أجهزة منزلية', words: ['غسالة', 'مكواة', 'سخان', 'مكنسة'] },
       { name: 'ألعاب ملاهي', words: ['قطار الموت', 'عجلة دوارة', 'سفينة نوح', 'سيارات تصادم'] },
-      { name: 'حاجات ليها ريش', words: ['نعامة', 'سهم', 'مروحة قديمة', 'وسادة'] } ] },
+      { name: 'أماكن العبادة', words: ['مسجد', 'كنيسة', 'معبد', 'دير'] } ] },
     { groups: [
       { name: 'أسماك وبحريات', words: ['بلطي', 'جمبري', 'سبيط', 'كابوريا'] },
-      { name: 'حاجات بتتقاس بالمتر', words: ['قماش', 'طول', 'أرض', 'عمق'] },
+      { name: 'وحدات قياس', words: ['متر', 'كيلو', 'لتر', 'جرام'] },
       { name: 'شخصيات كرتون', words: ['ميكي', 'بطوط', 'علاء الدين', 'سيمبا'] },
-      { name: 'حاجات بتتزرع', words: ['ورد', 'أمل', 'فكرة', 'شجرة'] } ] },
+      { name: 'مواد بناء', words: ['طوب', 'أسمنت', 'رمل', 'زلط'] } ] },
     { groups: [
-      { name: 'حاجات بتعمل صوت صفير', words: ['قطار', 'رياح', 'غلاية', 'صفارة'] },
-      { name: 'حاجات في شنطة السفر', words: ['جواز سفر', 'تذكرة', 'فرشاة أسنان', 'شاحن سفري'] },
+      { name: 'مواصلات بحرية', words: ['مركب', 'يخت', 'عبارة', 'غواصة'] },
+      { name: 'في شنطة السفر', words: ['جواز سفر', 'تذكرة', 'فرشاة أسنان', 'شاحن سفري'] },
       { name: 'أشكال مكرونة', words: ['قلم', 'شعرية', 'إسباجيتي', 'لازانيا'] },
-      { name: 'حاجات ليها غطاء', words: ['حلة', 'قلم جاف', 'سرير', 'برطمان'] } ] },
+      { name: 'أواني الطبخ', words: ['حلة', 'طاسة', 'صينية', 'كسرولة'] } ] },
     { groups: [
-      { name: 'حاجات بنعصرها', words: ['ليمون', 'برتقال', 'مخ', 'غسيل'] },
+      { name: 'أنواع العصير', words: ['برتقال', 'جوافة', 'فراولة', 'قصب'] },
       { name: 'أنواع القهوة', words: ['إسبريسو', 'لاتيه', 'كابتشينو', 'أمريكانو'] },
-      { name: 'حاجات بتتقفل', words: ['باب', 'سكة', 'حساب', 'موضوع'] },
+      { name: 'رتب عسكرية', words: ['ملازم', 'نقيب', 'رائد', 'عقيد'] },
       { name: 'أجرام سماوية', words: ['نجم', 'كويكب', 'مذنب', 'ثقب أسود'] } ] },
     { groups: [
-      { name: 'حاجات بتسخن', words: ['شمس', 'فرن', 'ماتور', 'نقاش'] },
+      { name: 'مشروبات غازية', words: ['كوكاكولا', 'بيبسي', 'سبرايت', 'فانتا'] },
       { name: 'أدوات مكتبية', words: ['دباسة', 'خرامة', 'شريط لاصق', 'مشبك ورق'] },
       { name: 'فنون جميلة', words: ['رسم', 'نحت', 'تصوير', 'عمارة'] },
-      { name: 'حاجات ليها ظهر', words: ['كرسي', 'كتاب', 'إنسان', 'عملة'] } ] },
+      { name: 'أوراق الكوتشينة', words: ['شايب', 'بنت', 'ولد', 'آس'] } ] },
     { groups: [
-      { name: 'حاجات بتذوب', words: ['ثلج', 'سكر', 'شوكولاتة', 'زبدة'] },
+      { name: 'حلويات غربية', words: ['كيك', 'دونات', 'براونيز', 'تشيز كيك'] },
       { name: 'أماكن ترفيه', words: ['حديقة', 'شاطئ', 'نادي', 'سينما'] },
       { name: 'مكونات سندوتش برجر', words: ['عيش كايزر', 'شريحة لحم', 'جبنة شيدر', 'خس'] },
-      { name: 'حاجات بتتسجل', words: ['صوت', 'هدف', 'مخالفة', 'اسم'] } ] },
+      { name: 'قطع الشطرنج', words: ['ملك', 'وزير', 'طابية', 'حصان'] } ] },
     { groups: [
       { name: 'عناصر الطقس', words: ['رطوبة', 'حرارة', 'ضغط جوي', 'رياح'] },
-      { name: 'حاجات ليها فروع', words: ['شجرة', 'بنك', 'شركة', 'عائلة'] },
+      { name: 'دول أوروبية', words: ['إيطاليا', 'إسبانيا', 'ألمانيا', 'هولندا'] },
       { name: 'ألوان مركبة', words: ['برتقالي', 'بنفسجي', 'بني', 'رمادي'] },
-      { name: 'حاجات بتدور', words: ['أرض', 'ساعة', 'مروحة', 'أسطوانة'] } ] },
+      { name: 'أنهار', words: ['النيل', 'الفرات', 'الأمازون', 'الدانوب'] } ] },
     { groups: [
-      { name: 'حاجات بتتلبس في الرأس', words: ['قبعة', 'عمامة', 'تاج', 'طاقية'] },
+      { name: 'أغطية الراس', words: ['قبعة', 'عمامة', 'تاج', 'طاقية'] },
       { name: 'أنواع أجبان', words: ['رومي', 'فيتا', 'موتزاريلا', 'شيدر'] },
-      { name: 'حاجات بتطبع', words: ['بصمة', 'طابعة', 'ذاكرة', 'كتاب'] },
-      { name: 'حاجات بنشرب منها', words: ['فنجان', 'كوب', 'مج', 'زجاجة'] } ] },
+      { name: 'مدن مصرية', words: ['أسوان', 'المنصورة', 'طنطا', 'أسيوط'] },
+      { name: 'أواني الشرب', words: ['فنجان', 'كوب', 'مج', 'زجاجة'] } ] },
     { groups: [
       { name: 'أنواع العيش', words: ['بلدي', 'شامي', 'فينو', 'سن'] },
       { name: 'أدوات الخياطة', words: ['إبرة', 'خيط', 'كستبان', 'مازورة'] },
@@ -16636,48 +16694,48 @@ const CONNECTIONS_DB = {
       { name: 'أنواع الشاي', words: ['أخضر', 'بالنعناع', 'كشري', 'بلبن'] } ] },
     { groups: [
       { name: 'أدوات مدرسية', words: ['براية', 'أستيكة', 'كشكول', 'مقلمة'] },
-      { name: 'حاجات بنلمها', words: ['شمل', 'فلوس', 'غسيل', 'ورق'] },
+      { name: 'بقوليات', words: ['فول', 'عدس', 'حمص', 'فاصوليا'] },
       { name: 'أنواع السمك', words: ['بوري', 'بلطي', 'دنيس', 'قاروص'] },
       { name: 'أنواع الرقص', words: ['باليه', 'تحطيب', 'سالسا', 'تانجو'] } ] },
     { groups: [
       { name: 'أجزاء العربية', words: ['كبوت', 'شكمان', 'دريكسيون', 'فتيس'] },
-      { name: 'حاجات بتتاخد', words: ['صورة', 'دش', 'قرار', 'نفس'] },
+      { name: 'ممثلين كوميديا', words: ['عادل إمام', 'محمد هنيدي', 'أحمد حلمي', 'محمد سعد'] },
       { name: 'عملات عربية', words: ['جنيه', 'ريال', 'دينار', 'درهم'] },
       { name: 'أبراج فلكية', words: ['الحمل', 'الأسد', 'العقرب', 'الميزان'] } ] },
     { groups: [
-      { name: 'حاجات في الحمام', words: ['سخان', 'دش', 'بانيو', 'حوض'] },
-      { name: 'حاجات بتتفك', words: ['عقدة', 'شفرة', 'لغز', 'زراير'] },
+      { name: 'في الحمام', words: ['سخان', 'دش', 'بانيو', 'حوض'] },
+      { name: 'ملوك مصر القديمة', words: ['رمسيس', 'توت عنخ آمون', 'خوفو', 'أحمس'] },
       { name: 'فواكه صيفي', words: ['خوخ', 'مشمش', 'تين', 'عنب'] },
-      { name: 'قبل كلمة البحر', words: ['عروسة', 'حصان', 'نجم', 'قنديل'] } ] },
+      { name: 'آلات وترية', words: ['عود', 'قانون', 'كمان', 'جيتار'] } ] },
     { groups: [
       { name: 'رياضات مائية', words: ['تجديف', 'غطس', 'سباحة', 'ركوب أمواج'] },
-      { name: 'حاجات ليها قشر', words: ['بيض', 'موز', 'بصل', 'سوداني'] },
+      { name: 'لاعيبة كورة مصريين', words: ['محمد صلاح', 'أبو تريكة', 'حسام حسن', 'الحضري'] },
       { name: 'ماركات موبايلات', words: ['سامسونج', 'شاومي', 'أوبو', 'هواوي'] },
-      { name: 'حاجات بتتحط في الشاي', words: ['سكر', 'نعناع', 'لبن', 'ليمون'] } ] },
+      { name: 'إضافات الشاي', words: ['سكر', 'نعناع', 'لبن', 'ليمون'] } ] },
     { groups: [
-      { name: 'حاجات بتتقاس', words: ['ضغط', 'سكر', 'حرارة', 'نبض'] },
+      { name: 'أدوات القياس', words: ['مسطرة', 'شريط قياس', 'ميزان', 'ترمومتر'] },
       { name: 'أدوات الشاطئ', words: ['شمسية', 'كرسي بحر', 'منشفة', 'عوامة'] },
-      { name: 'مهن بتبدأ بحرف الميم', words: ['ميكانيكي', 'محامي', 'مدرس', 'مهندس'] },
+      { name: 'مهن طبية', words: ['جراح', 'ممرضة', 'صيدلي', 'طبيب أسنان'] },
       { name: 'أنواع الأرز', words: ['بسمتي', 'مصري', 'أمريكاني', 'بخاري'] } ] },
     { groups: [
       { name: 'كلام بنقوله في المناسبات', words: ['مبروك', 'ألف سلامة', 'كل سنة وأنت طيب', 'نعيماً'] },
       { name: 'أدوات مطبخ حادة', words: ['سكينة', 'مبشرة', 'ساطور', 'مقشرة'] },
       { name: 'أنواع اللحمة', words: ['كندوز', 'ضاني', 'بتلو', 'جملي'] },
-      { name: 'حاجات بتدق', words: ['قلب', 'جرس', 'طبلة', 'ساعة'] } ] },
+      { name: 'ألعاب زمان', words: ['استغماية', 'نط الحبل', 'بلي', 'سبع طوبات'] } ] },
     { groups: [
       { name: 'ألوان علم مصر', words: ['أحمر', 'أبيض', 'أسود', 'دهبي'] },
       { name: 'آلات نفخ', words: ['ناي', 'مزمار', 'ترومبيت', 'ساكسفون'] },
-      { name: 'حاجات بتتنفخ', words: ['بالونة', 'كاوتش', 'كورة', 'مرتبة هوا'] },
+      { name: 'لبس الشتا', words: ['جاكيت', 'كوفية', 'جوانتي', 'بلوفر'] },
       { name: 'مدن ساحلية مصرية', words: ['إسكندرية', 'مرسى مطروح', 'الغردقة', 'دمياط'] } ] },
     { groups: [
       { name: 'أنواع الورد', words: ['فل', 'ياسمين', 'تيوليب', 'جوري'] },
-      { name: 'حاجات بنستناها', words: ['عيد', 'مرتب', 'نتيجة', 'أتوبيس'] },
+      { name: 'منصات مشاهدة', words: ['نتفليكس', 'يوتيوب', 'شاهد', 'واتش إت'] },
       { name: 'أدوات الرسم', words: ['فرشاة', 'ألوان', 'لوحة', 'حامل'] },
       { name: 'أكلات بالبيض', words: ['شكشوكة', 'عجة', 'أومليت', 'بيض بالبسطرمة'] } ] },
     { groups: [
-      { name: 'حاجات في السما', words: ['سحاب', 'قمر', 'نجوم', 'طيارة'] },
+      { name: 'في السما', words: ['سحاب', 'قمر', 'نجوم', 'طيارة'] },
       { name: 'أجزاء الجزمة', words: ['نعل', 'رباط', 'كعب', 'لسان'] },
-      { name: 'حاجات بتتقفل بسوستة', words: ['جاكيت', 'شنطة', 'مقلمة', 'خيمة'] },
+      { name: 'مطربين مصريين', words: ['عمرو دياب', 'محمد منير', 'أم كلثوم', 'عبد الحليم'] },
       { name: 'مفاصل الجسم', words: ['كوع', 'ركبة', 'كتف', 'رسغ'] } ] }
   ],
   en: [
@@ -16692,25 +16750,25 @@ const CONNECTIONS_DB = {
       { name: 'Cutlery', words: ['Spoon', 'Fork', 'Knife', 'Plate'] },
       { name: 'Planets', words: ['Mars', 'Saturn', 'Mercury', 'Jupiter'] } ] },
     { groups: [
-      { name: 'Things that spin', words: ['Wheel', 'Fan', 'Planet', 'Record'] },
+      { name: 'Vegetables', words: ['Carrot', 'Potato', 'Onion', 'Tomato'] },
       { name: 'Shapes', words: ['Square', 'Circle', 'Triangle', 'Diamond'] },
       { name: 'Sea life', words: ['Shark', 'Dolphin', 'Whale', 'Octopus'] },
       { name: 'Stationery', words: ['Pen', 'Eraser', 'Ruler', 'Notebook'] } ] },
     { groups: [
-      { name: 'Things with keys', words: ['Door', 'Piano', 'Safe', 'Keyboard'] },
-      { name: 'Things with leaves', words: ['Book', 'Tree', 'Tea', 'Table'] },
-      { name: 'Things with necks', words: ['Giraffe', 'Bottle', 'Guitar', 'Shirt'] },
-      { name: 'Things with eyes', words: ['Needle', 'Storm', 'Potato', 'Hook'] } ] },
+      { name: 'Pets', words: ['Cat', 'Dog', 'Rabbit', 'Hamster'] },
+      { name: 'Cleaning tools', words: ['Broom', 'Mop', 'Sponge', 'Bucket'] },
+      { name: 'Computer accessories', words: ['Monitor', 'Keyboard', 'Mouse', 'Headphones'] },
+      { name: 'Fingers', words: ['Thumb', 'Index finger', 'Ring finger', 'Little finger'] } ] },
     { groups: [
-      { name: 'Things that light up', words: ['Sun', 'Lamp', 'Candle', 'Star'] },
+      { name: 'Nuts', words: ['Almond', 'Walnut', 'Cashew', 'Pistachio'] },
       { name: 'Metals', words: ['Gold', 'Silver', 'Iron', 'Copper'] },
       { name: 'Furniture', words: ['Chair', 'Table', 'Bed', 'Wardrobe'] },
       { name: 'Weather', words: ['Rain', 'Snow', 'Thunder', 'Wind'] } ] },
     { groups: [
-      { name: 'Things that get charged', words: ['Phone', 'Laptop', 'Battery', 'Suspect'] },
-      { name: 'Things that get broken', words: ['Heart', 'Record', 'Silence', 'Promise'] },
-      { name: 'Things that get cut', words: ['Hair', 'Cake', 'Corner', 'Deal'] },
-      { name: 'Things that get opened', words: ['Window', 'Account', 'Shop', 'Case'] } ] },
+      { name: 'Football clubs', words: ['Real Madrid', 'Barcelona', 'Liverpool', 'Bayern Munich'] },
+      { name: 'Football positions', words: ['Goalkeeper', 'Defender', 'Midfielder', 'Striker'] },
+      { name: 'Phone apps', words: ['WhatsApp', 'Instagram', 'TikTok', 'Snapchat'] },
+      { name: 'Months', words: ['January', 'March', 'July', 'October'] } ] },
     { groups: [
       { name: 'Insects', words: ['Ant', 'Bee', 'Fly', 'Moth'] },
       { name: 'Clothing', words: ['Shirt', 'Trousers', 'Jacket', 'Scarf'] },
@@ -16722,10 +16780,10 @@ const CONNECTIONS_DB = {
       { name: 'Continents', words: ['Asia', 'Europe', 'Africa', 'Australia'] },
       { name: 'Seas', words: ['Red', 'Black', 'Dead', 'Caspian'] } ] },
     { groups: [
-      { name: 'Things that fly', words: ['Plane', 'Balloon', 'Kite', 'Falcon'] },
-      { name: 'Things that float', words: ['Boat', 'Cork', 'Duck', 'Ice'] },
-      { name: 'Things that dig', words: ['Shovel', 'Mole', 'Digger', 'Badger'] },
-      { name: 'Things that sting', words: ['Bee', 'Scorpion', 'Nettle', 'Chilli'] } ] },
+      { name: 'Reptiles', words: ['Snake', 'Lizard', 'Crocodile', 'Tortoise'] },
+      { name: 'Poultry', words: ['Chicken', 'Duck', 'Goose', 'Turkey'] },
+      { name: 'Jewellery', words: ['Ring', 'Necklace', 'Earring', 'Bracelet'] },
+      { name: 'At the barber', words: ['Scissors', 'Comb', 'Razor', 'Hairdryer'] } ] },
     { groups: [
       { name: 'Carpentry', words: ['Hammer', 'Saw', 'Nail', 'Chisel'] },
       { name: 'Parts of a tree', words: ['Root', 'Trunk', 'Branch', 'Bark'] },
@@ -16734,132 +16792,132 @@ const CONNECTIONS_DB = {
     { groups: [
       { name: 'Gems', words: ['Diamond', 'Ruby', 'Emerald', 'Sapphire'] },
       { name: 'Spices', words: ['Cinnamon', 'Pepper', 'Cumin', 'Turmeric'] },
-      { name: 'Things with tails', words: ['Kite', 'Coin', 'Comet', 'Monkey'] },
+      { name: 'Grains', words: ['Wheat', 'Barley', 'Oats', 'Corn'] },
       { name: 'Car brands', words: ['Ford', 'Tesla', 'Toyota', 'BMW'] } ] },
     { groups: [
       { name: 'Racket sports', words: ['Tennis', 'Squash', 'Badminton', 'Pickleball'] },
       { name: 'Disney characters', words: ['Mickey', 'Goofy', 'Simba', 'Aladdin'] },
-      { name: 'Things that whistle', words: ['Kettle', 'Referee', 'Train', 'Wind'] },
+      { name: 'Desert animals', words: ['Camel', 'Scorpion', 'Fennec fox', 'Vulture'] },
       { name: 'Types of cheese', words: ['Cheddar', 'Brie', 'Gouda', 'Parmesan'] } ] },
     { groups: [
       { name: 'Kitchen appliances', words: ['Toaster', 'Blender', 'Microwave', 'Mixer'] },
-      { name: 'Things with bark', words: ['Tree', 'Dog', 'Seal', 'Log'] },
+      { name: 'Family members', words: ['Mother', 'Father', 'Brother', 'Grandma'] },
       { name: 'Hot drinks', words: ['Coffee', 'Tea', 'Cocoa', 'Cider'] },
       { name: 'Internal organs', words: ['Liver', 'Heart', 'Kidney', 'Lung'] } ] },
     { groups: [
-      { name: 'Things you squeeze', words: ['Lemon', 'Stress ball', 'Sponge', 'Tube'] },
+      { name: 'Make-up', words: ['Lipstick', 'Mascara', 'Eyeliner', 'Blush'] },
       { name: 'Pasta shapes', words: ['Penne', 'Fusilli', 'Spaghetti', 'Ravioli'] },
-      { name: 'Things that tick', words: ['Clock', 'Bomb', 'Metronome', 'Box'] },
+      { name: 'Shops', words: ['Bakery', 'Butcher', 'Pharmacy', 'Florist'] },
       { name: 'Musical instruments', words: ['Guitar', 'Violin', 'Trumpet', 'Drums'] } ] },
     { groups: [
-      { name: 'Things that melt', words: ['Ice', 'Butter', 'Wax', 'Chocolate'] },
+      { name: 'Superheroes', words: ['Superman', 'Batman', 'Spider-Man', 'Iron Man'] },
       { name: 'Video games', words: ['Mario', 'Zelda', 'Sonic', 'Pokemon'] },
       { name: 'Coffee drinks', words: ['Espresso', 'Latte', 'Mocha', 'Americano'] },
-      { name: 'Things with horns', words: ['Bull', 'Rhino', 'Car', 'Saxophone'] } ] },
+      { name: 'First aid kit', words: ['Bandage', 'Plaster', 'Gauze', 'Antiseptic'] } ] },
     { groups: [
-      { name: 'Things you tie', words: ['Shoes', 'Knot', 'Necktie', 'Ribbon'] },
+      { name: 'Martial arts', words: ['Karate', 'Judo', 'Taekwondo', 'Kung Fu'] },
       { name: 'School supplies', words: ['Ruler', 'Stapler', 'Folder', 'Scissors'] },
       { name: 'Celestial bodies', words: ['Planet', 'Comet', 'Asteroid', 'Galaxy'] },
-      { name: 'Things that freeze', words: ['Water', 'Computer', 'Frame', 'Account'] } ] },
+      { name: 'Gym equipment', words: ['Treadmill', 'Dumbbell', 'Barbell', 'Exercise bike'] } ] },
     { groups: [
       { name: 'Fast food staples', words: ['Burger', 'Fries', 'Nuggets', 'Sundae'] },
-      { name: 'Things with needles', words: ['Pine', 'Compass', 'Cactus', 'Syringe'] },
+      { name: 'Baby animals', words: ['Puppy', 'Kitten', 'Calf', 'Foal'] },
       { name: 'Forest animals', words: ['Deer', 'Fox', 'Squirrel', 'Bear'] },
       { name: 'Types of bread', words: ['Baguette', 'Sourdough', 'Brioche', 'Pita'] } ] },
     { groups: [
-      { name: 'Things that can run', words: ['Nose', 'River', 'Engine', 'Athlete'] },
+      { name: 'Places of worship', words: ['Mosque', 'Church', 'Temple', 'Synagogue'] },
       { name: 'Board games', words: ['Monopoly', 'Scrabble', 'Clue', 'Risk'] },
       { name: 'Writing tools', words: ['Pencil', 'Pen', 'Marker', 'Crayon'] },
-      { name: 'Things with wings', words: ['Airplane', 'Angel', 'Butterfly', 'Hospital'] } ] },
+      { name: 'Units of measure', words: ['Metre', 'Kilogram', 'Litre', 'Gram'] } ] },
     { groups: [
       { name: 'Winter sports', words: ['Skiing', 'Bobsled', 'Curling', 'Hockey'] },
-      { name: 'Things that ring', words: ['Bell', 'Phone', 'Alarm', 'Ear'] },
+      { name: 'Building materials', words: ['Brick', 'Cement', 'Sand', 'Steel'] },
       { name: 'Types of shoes', words: ['Sneaker', 'Sandal', 'Boot', 'Loafer'] },
-      { name: 'Things with roots', words: ['Tooth', 'Hair', 'Plant', 'Word'] } ] },
+      { name: 'Boats', words: ['Yacht', 'Ferry', 'Canoe', 'Submarine'] } ] },
     { groups: [
-      { name: 'Things you fold', words: ['Origami', 'Laundry', 'Poker hand', 'Napkin'] },
+      { name: 'Cookware', words: ['Saucepan', 'Frying pan', 'Wok', 'Baking tray'] },
       { name: 'Ocean life', words: ['Crab', 'Lobster', 'Starfish', 'Jellyfish'] },
-      { name: 'Things with teeth', words: ['Comb', 'Gear', 'Saw', 'Zipper'] },
+      { name: 'Soft drinks', words: ['Coca-Cola', 'Pepsi', 'Sprite', 'Fanta'] },
       { name: 'Card suits', words: ['Clubs', 'Diamonds', 'Hearts', 'Spades'] } ] },
     { groups: [
       { name: 'Breakfast foods', words: ['Waffle', 'Pancake', 'Oatmeal', 'Omelette'] },
-      { name: 'Things with a crown', words: ['King', 'Tooth', 'Tree', 'Watch'] },
+      { name: 'Rivers', words: ['Nile', 'Amazon', 'Thames', 'Danube'] },
       { name: 'Precious metals', words: ['Platinum', 'Gold', 'Silver', 'Palladium'] },
-      { name: 'Things that explode', words: ['Volcano', 'Firework', 'Temper', 'Dynamite'] } ] },
+      { name: 'European countries', words: ['France', 'Spain', 'Germany', 'Netherlands'] } ] },
     { groups: [
-      { name: 'Things you cast', words: ['Spell', 'Vote', 'Fishing line', 'Shadow'] },
+      { name: 'Desserts', words: ['Cake', 'Donut', 'Brownie', 'Cheesecake'] },
       { name: 'Stone fruits', words: ['Peach', 'Plum', 'Cherry', 'Apricot'] },
       { name: 'Parts of a book', words: ['Cover', 'Spine', 'Page', 'Index'] },
-      { name: 'Things that glow', words: ['Firefly', 'Neon', 'Ember', 'Moon'] } ] },
+      { name: 'Playing cards', words: ['King', 'Queen', 'Jack', 'Ace'] } ] },
     { groups: [
       { name: 'Film genres', words: ['Comedy', 'Horror', 'Action', 'Drama'] },
-      { name: 'Things that can be sharp', words: ['Knife', 'Wit', 'Tongue', 'Turn'] },
-      { name: 'Things with wheels', words: ['Car', 'Bicycle', 'Skateboard', 'Stroller'] },
-      { name: 'Things you peel', words: ['Banana', 'Onion', 'Sticker', 'Sunburn'] } ] },
+      { name: 'Streaming apps', words: ['Netflix', 'YouTube', 'Disney+', 'Spotify'] },
+      { name: 'Aircraft', words: ['Aeroplane', 'Helicopter', 'Glider', 'Hot-air balloon'] },
+      { name: 'Beans and pulses', words: ['Lentils', 'Chickpeas', 'Kidney beans', 'Peas'] } ] },
     { groups: [
       { name: 'Dog breeds', words: ['Poodle', 'Beagle', 'Bulldog', 'Husky'] },
-      { name: 'Things with strings', words: ['Harp', 'Puppet', 'Racket', 'Package'] },
+      { name: 'String instruments', words: ['Violin', 'Cello', 'Harp', 'Guitar'] },
       { name: 'Green vegetables', words: ['Broccoli', 'Spinach', 'Zucchini', 'Cucumber'] },
-      { name: 'Things that bounce', words: ['Ball', 'Check', 'Email', 'Trampoline'] } ] },
+      { name: 'Measuring tools', words: ['Ruler', 'Tape measure', 'Scales', 'Thermometer'] } ] },
     { groups: [
-      { name: 'Things with screens', words: ['Tablet', 'Monitor', 'Television', 'Smartwatch'] },
+      { name: 'Gadgets', words: ['Tablet', 'Monitor', 'Television', 'Smartwatch'] },
       { name: 'Atmospheric gases', words: ['Oxygen', 'Nitrogen', 'Argon', 'Neon'] },
-      { name: 'Things that drip', words: ['Faucet', 'Paint', 'Candle', 'Sweat'] },
+      { name: 'Toys', words: ['Doll', 'Yo-yo', 'Teddy bear', 'Lego'] },
       { name: 'Units of time', words: ['Second', 'Minute', 'Hour', 'Century'] } ] },
     { groups: [
-      { name: 'Things you flip', words: ['Coin', 'Pancake', 'Switch', 'House'] },
+      { name: 'Party supplies', words: ['Balloons', 'Candles', 'Confetti', 'Party hat'] },
       { name: 'Farm animals', words: ['Horse', 'Pig', 'Goat', 'Sheep'] },
-      { name: 'Things with pockets', words: ['Jeans', 'Billiards table', 'Coat', 'Kangaroo'] },
+      { name: 'In the bedroom', words: ['Pillow', 'Blanket', 'Mattress', 'Lamp'] },
       { name: 'Precipitation', words: ['Hail', 'Rain', 'Sleet', 'Snow'] } ] },
     { groups: [
       { name: 'Types of bread', words: ['Bagel', 'Rye', 'Naan', 'Ciabatta'] },
       { name: 'Sewing kit', words: ['Needle', 'Thread', 'Thimble', 'Pin'] },
       { name: 'Chess pieces', words: ['Knight', 'Bishop', 'Rook', 'Pawn'] },
-      { name: 'Things with shells', words: ['Egg', 'Snail', 'Turtle', 'Peanut'] } ] },
+      { name: 'Famous footballers', words: ['Salah', 'Messi', 'Ronaldo', 'Neymar'] } ] },
     { groups: [
-      { name: 'Things you pitch', words: ['Tent', 'Idea', 'Ball', 'Product'] },
+      { name: 'Egyptian cities', words: ['Cairo', 'Luxor', 'Aswan', 'Giza'] },
       { name: 'Fish', words: ['Salmon', 'Tuna', 'Trout', 'Cod'] },
       { name: 'Dances', words: ['Ballet', 'Salsa', 'Tango', 'Waltz'] },
-      { name: 'Things with a bill', words: ['Duck', 'Platypus', 'Restaurant', 'Parliament'] } ] },
+      { name: 'Ancient Egyptian rulers', words: ['Ramses', 'Tutankhamun', 'Cleopatra', 'Khufu'] } ] },
     { groups: [
       { name: 'Car parts', words: ['Bonnet', 'Bumper', 'Exhaust', 'Clutch'] },
-      { name: 'Things you take', words: ['Photo', 'Shower', 'Break', 'Breath'] },
+      { name: 'Garden tools', words: ['Rake', 'Hose', 'Shovel', 'Shears'] },
       { name: 'Currencies', words: ['Dollar', 'Euro', 'Yen', 'Rupee'] },
       { name: 'Zodiac signs', words: ['Leo', 'Scorpio', 'Libra', 'Aries'] } ] },
     { groups: [
       { name: 'In the bathroom', words: ['Tap', 'Towel', 'Toothbrush', 'Bathtub'] },
-      { name: 'Things you crack', words: ['Code', 'Joke', 'Egg', 'Knuckles'] },
+      { name: 'Winter clothes', words: ['Coat', 'Scarf', 'Gloves', 'Beanie'] },
       { name: 'Summer fruits', words: ['Watermelon', 'Mango', 'Cherry', 'Peach'] },
-      { name: 'Sea ___', words: ['Horse', 'Lion', 'Shell', 'Weed'] } ] },
+      { name: 'Italian food', words: ['Pizza', 'Lasagne', 'Risotto', 'Carbonara'] } ] },
     { groups: [
       { name: 'Water sports', words: ['Rowing', 'Diving', 'Surfing', 'Sailing'] },
-      { name: 'Things that pop', words: ['Popcorn', 'Balloon', 'Bubble', 'Cork'] },
+      { name: 'Emotions', words: ['Happy', 'Sad', 'Angry', 'Scared'] },
       { name: 'Phone brands', words: ['Samsung', 'Nokia', 'Motorola', 'Huawei'] },
-      { name: 'Things in tea', words: ['Sugar', 'Milk', 'Lemon', 'Honey'] } ] },
+      { name: 'Tea add-ins', words: ['Sugar', 'Milk', 'Lemon', 'Honey'] } ] },
     { groups: [
-      { name: 'Things you measure', words: ['Pressure', 'Temperature', 'Pulse', 'Height'] },
+      { name: 'Medical jobs', words: ['Surgeon', 'Nurse', 'Pharmacist', 'Dentist'] },
       { name: 'Beach gear', words: ['Umbrella', 'Towel', 'Bucket', 'Spade'] },
-      { name: 'Jobs ending in -er', words: ['Baker', 'Farmer', 'Painter', 'Plumber'] },
+      { name: 'Sportswear brands', words: ['Nike', 'Adidas', 'Puma', 'Reebok'] },
       { name: 'Types of rice', words: ['Basmati', 'Jasmine', 'Arborio', 'Brown'] } ] },
     { groups: [
       { name: 'Greetings', words: ['Hello', 'Hi', 'Hey', 'Howdy'] },
       { name: 'Sharp kitchen tools', words: ['Knife', 'Grater', 'Cleaver', 'Peeler'] },
-      { name: 'Things you beat', words: ['Drum', 'Eggs', 'Record', 'Traffic'] },
+      { name: 'Fast food chains', words: ['McDonald\'s', 'KFC', 'Burger King', 'Subway'] },
       { name: 'Birds of prey', words: ['Eagle', 'Hawk', 'Falcon', 'Owl'] } ] },
     { groups: [
       { name: 'Colours on Egypt\'s flag', words: ['Red', 'White', 'Black', 'Gold'] },
       { name: 'Wind instruments', words: ['Flute', 'Clarinet', 'Trumpet', 'Oboe'] },
-      { name: 'Things you inflate', words: ['Balloon', 'Tyre', 'Ball', 'Air mattress'] },
+      { name: 'Cooking methods', words: ['Boil', 'Fry', 'Grill', 'Bake'] },
       { name: 'Egyptian coastal cities', words: ['Alexandria', 'Hurghada', 'Damietta', 'Port Said'] } ] },
     { groups: [
       { name: 'Flowers', words: ['Tulip', 'Daisy', 'Jasmine', 'Lily'] },
-      { name: 'Things you wait for', words: ['Bus', 'Results', 'Payday', 'Weekend'] },
+      { name: 'Tools', words: ['Hammer', 'Screwdriver', 'Wrench', 'Pliers'] },
       { name: 'Art supplies', words: ['Brush', 'Easel', 'Canvas', 'Palette'] },
       { name: 'Egg dishes', words: ['Omelette', 'Frittata', 'Shakshuka', 'Quiche'] } ] },
     { groups: [
-      { name: 'Things in the sky', words: ['Cloud', 'Moon', 'Kite', 'Plane'] },
+      { name: 'In the sky', words: ['Cloud', 'Moon', 'Kite', 'Plane'] },
       { name: 'Parts of a shoe', words: ['Sole', 'Lace', 'Heel', 'Tongue'] },
-      { name: 'Things with zips', words: ['Jacket', 'Tent', 'Suitcase', 'Pencil case'] },
+      { name: 'Asian countries', words: ['Japan', 'China', 'India', 'Thailand'] },
       { name: 'Joints', words: ['Elbow', 'Knee', 'Wrist', 'Shoulder'] } ] }
   ]
 };
@@ -17199,8 +17257,8 @@ const CHAMELEON_DB = {
       words: ["تفاح", "موز", "فراولة", "مانجو", "برتقال", "عنب", "بطيخ", "ليمون", "طماطم", "خيار", "جزر", "بطاطس", "بصل", "فلفل", "خس", "ذرة"]
     },
     {
-      category: "أبطال وخيال 🦸",
-      words: ["طيران", "قوة خارقة", "اختفاء", "درع", "ليزر", "سرعة", "عباءة", "قناع", "ذكاء", "شرير", "فضاء", "تليباثي", "سحر", "تنين", "بطل", "نيزك"]
+      category: "حيوانات البحر 🐠",
+      words: ["سمكة", "قرش", "حوت", "دلفين", "أخطبوط", "كابوريا", "جمبري", "قنديل البحر", "نجم البحر", "حصان البحر", "فقمة", "سلحفاة بحرية", "محار", "سبيط", "لخمة", "استاكوزا"]
     },
     {
       category: "في المدينة 🏙️",
@@ -17232,9 +17290,9 @@ const CHAMELEON_DB = {
     {"category": "Bathroom Items 🛁", "words": ["Soap", "Shampoo", "Toothpaste", "Toothbrush", "Towel", "Shower", "Bathtub", "Mirror", "Comb", "Hair Dryer", "Washing Machine", "Bathrobe", "Tissues", "Loofah", "Nail Clipper", "Perfume"]},
     {"category": "Birds & Insects 🦅", "words": ["Falcon", "Eagle", "Pigeon", "Owl", "Peacock", "Duck", "Parrot", "Sparrow", "Honeybee", "Butterfly", "Ant", "Dragonfly", "Beetle", "Crow", "Flamingo", "Ostrich"]},
     {"category": "Kitchen Utensils 🍳", "words": ["Kitchen Knife", "Fork", "Spoon", "Frying Pan", "Cooking Pot", "Dinner Plate", "Drinking Glass", "Blender", "Stove", "Microwave", "Refrigerator", "Baking Tray", "Can Opener", "Cheese Grater", "Kettle", "Colander"]},
-    {"category": "In the Garden 🌳", "words": ["Oak Tree", "Rose Flower", "Green Grass", "Park Bench", "Water Fountain", "Wooden Fence", "Garden Swing", "Water Hose", "Falling Leaves", "Butterfly", "Bumblebee", "Songbird", "Flower Pot", "Pruning Shears", "Lawn Mower", "Stone Path"]},
+    {"category": "In the Garden 🌳", "words": ["Tree", "Rose", "Grass", "Bench", "Fountain", "Fence", "Swing", "Hose", "Leaves", "Butterfly", "Bee", "Bird", "Flower Pot", "Shears", "Lawn Mower", "Path"]},
     {"category": "Human Body 🖐️", "words": ["Eye", "Nose", "Mouth", "Ear", "Hand", "Foot", "Head", "Heart", "Tongue", "Teeth", "Knee", "Arm", "Stomach", "Back", "Finger", "Shoulder"]},
-    {"category": "Colors & Shapes 🎨", "words": ["Ruby Red", "Deep Blue", "Emerald Green", "Sunny Yellow", "Pitch Black", "Pure White", "Bright Orange", "Royal Purple", "Circle", "Square", "Triangle", "Rectangle", "Star Shape", "Heart Shape", "Diamond", "Oval"]},
+    {"category": "Colors & Shapes 🎨", "words": ["Red", "Blue", "Green", "Yellow", "Black", "White", "Orange", "Purple", "Circle", "Square", "Triangle", "Rectangle", "Star", "Heart", "Diamond", "Oval"]},
     {"category": "Emotions & Moods 🎭", "words": ["Joy", "Sadness", "Anger", "Fear", "Surprise", "True Love", "Boredom", "Excitement", "Shyness", "Jealousy", "Peaceful", "Anxiety", "Regret", "Pride", "Relief", "Hope"]},
     {
       category: "Animals 🦁",
@@ -17293,8 +17351,8 @@ const CHAMELEON_DB = {
       words: ["Apple", "Banana", "Strawberry", "Mango", "Orange", "Grapes", "Watermelon", "Lemon", "Tomato", "Cucumber", "Carrot", "Potato", "Onion", "Pepper", "Lettuce", "Corn"]
     },
     {
-      category: "Superheroes & Sci-Fi 🦸",
-      words: ["Flight", "Super Strength", "Invisibility", "Shield", "Laser", "Super Speed", "Cape", "Mask", "Genius", "Villain", "Space", "Telepathy", "Magic", "Dragon", "Hero", "Meteor"]
+      category: "Sea Creatures 🐠",
+      words: ["Fish", "Shark", "Whale", "Dolphin", "Octopus", "Crab", "Shrimp", "Jellyfish", "Starfish", "Seahorse", "Seal", "Sea Turtle", "Oyster", "Squid", "Stingray", "Lobster"]
     },
     {
       category: "In the City 🏙️",

@@ -884,6 +884,15 @@ function addPlayerFromSetup(btn) {
   }
   /* Inside JS_Utils.html */
 
+/** Search box over a list of buttons (the Monkey switch list): hides what doesn't match. */
+function filterButtons(input, listId) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  const fold = (s) => (typeof helpNormalise === 'function' ? helpNormalise(s) : String(s || '').toLowerCase());
+  const query = fold(input.value).trim();
+  [...list.children].forEach(el => el.classList.toggle('hidden', !!query && fold(el.innerText).indexOf(query) === -1));
+}
+
 function toggleResults() {
     const el = document.getElementById('winner-scores-container');
     // FIX: Select by ID instead of attribute

@@ -69,21 +69,6 @@ ROOM_GAMES.codenames = {
 
   startPayload() { return { lang: codenamesLang }; },
 
-  /**
-   * A spymaster composing a clue, and operatives holding the current turn, are
-   * the people being waited on. Everyone else is watching the board change.
-   */
-  pollHint(state) {
-    const s = state.shared;
-    if (s.winner) return 'idle';
-    const mine = (s.teams || {})[Room.me] || {};
-    const myTurn = mine.team === s.turn;
-    if (!myTurn) return 'watching';
-    if (mine.role === 'spymaster' && !s.clue) return 'acting';   // typing a clue
-    if (mine.role === 'operative' && s.clue) return 'acting';    // about to tap
-    return 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-codenames') setView('room-codenames');
     const el = document.getElementById('view-room-codenames');

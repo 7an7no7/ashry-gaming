@@ -1,18 +1,25 @@
 # GEMINI.md - Ashry Gaming (عشرى جيمينج) 🎮
 
 ## Project Overview
-**Ashry Gaming** is a versatile Google Apps Script (GAS) web application designed for group entertainment. It serves as a central hub for various social games and utility tools, featuring a modern, responsive UI with multilingual support (Arabic and English) and dark mode.
+**Ashry Gaming** is a party-games web app for phones: a hub of social games and utility tools with a responsive UI in Arabic and English, and dark mode. It began as a Google Apps Script web app; it is now a static site on GitHub Pages, with multiplayer rooms on Cloudflare.
+
+- **App:** https://7an7no7.github.io/ashry-gaming/ (GitHub Pages, `master` → `/docs`)
+- **Rooms server:** https://ashry-rooms.rooms-worker.workers.dev (`rooms-worker/`)
+- **The old Apps Script version** is a frozen copy in `C:\Users\TPC\Apps Script\G`
+  (git tag `apps-script-v177`). Its `/exec` link still works, with its own rooms; nothing
+  changed here reaches it.
 
 ### Main Technologies
-- **Backend:** Google Apps Script (V8 Runtime)
-- **Storage:** no database. Word lists are code (`SpyWords.js`, `PartyContent.js`, the `JS_*.html` banks); names, groups and the "already dealt" memory live in each phone's `localStorage`; rooms use Apps Script's CacheService and Script Properties.
+- **Hosting:** GitHub Pages (static files in `docs/`, built by `tools/build-site.mjs`)
+- **Rooms:** Cloudflare Workers + Durable Objects over WebSockets (`rooms-worker/`, free plan)
+- **Storage:** no database. Word lists are code (`SpyWords.js`, `PartyContent.js`, the `JS_*.html` banks); names, groups and the "already dealt" memory live in each phone's `localStorage`; a room lives in its Durable Object's storage while it is played.
 - **Frontend:** HTML5, CSS3, Vanilla JavaScript
 - **UI Framework:** Tailwind CSS v3, compiled locally to `Tailwind.html` (see *Styling*)
-- **Deployment & Management:** `clasp` (Command Line Apps Script Projects)
-- **External Libraries:** `canvas-confetti`
+- **External Libraries:** `canvas-confetti` and a QR code generator, pinned on jsDelivr
 
 ### Architecture
-- **Server-side (`Code.js`, `Rooms.js`, `RoomGames.js`):** `doGet` serves the Apps Script copy of the page with the spy words injected; `doPost` answers room calls from the static site. No spreadsheet is read anywhere.
+- **Source files at the root** are still written the Apps Script way: `Controller.html` pulls the other `.html` files in with `<?!= include('X'); ?>` and has a few `<?!= … ?>` template values. Nothing runs them on Apps Script any more; `tools/build-site.mjs` (and `build-preview.mjs`) inline the includes and fill the values in.
+- **Rooms server (`rooms-worker/`):** one Durable Object per room code. The game rules are `RoomGames.js` at the root, bundled into the Worker with the word lists by `rooms-worker/build.mjs`. See *Multiplayer rooms*.
 - **Frontend Entry Point (`Controller.html`):** The main HTML structure that includes styles, scripts, and various game views.
 - **Modular JavaScript (`JS_*.html`):** Game logic is organized into separate HTML files acting as JS modules (e.g., `JS_Core.html`, `JS_Monkey.html`, `JS_Utils.html`), included into the main template.
 - **Styling (`Tailwind.html` + `Style.html`):** `Tailwind.html` is generated - it holds
@@ -43,8 +50,9 @@
 ## Building and Running
 
 ### Development Requirements
-- Node.js and npm (for `clasp`)
-- A Google account with access to Google Apps Script.
+- Node.js 22+ and npm.
+- For the rooms server: a Cloudflare login on this computer (`npx wrangler login`, once).
+- For publishing the site: push access to https://github.com/7an7no7/ashry-gaming.
 
 ### Styling: rebuild the CSS after changing markup
 
@@ -65,25 +73,30 @@ a class that is not in a scanned file will simply not exist at runtime. Use
 (`` `bg-${color}-500` ``) cannot be seen by the scanner and must be added to
 `safelist` in `tools/tailwind.config.js`.
 
-`tools/` and `.preview/` are excluded from `clasp push` by `.claspignore`.
-
 ### Previewing locally
 
-`npm run build:preview` (in `tools/`) inlines the `include()` calls, stubs
-`google.script.run` and writes `.preview/index.html`, so the whole app can be
-opened in a browser without deploying. Serve it over HTTP - the app writes to
-`localStorage`, which is blocked on `file://`:
+`npm run build:preview` (in `tools/`) inlines the `include()` calls and writes
+`.preview/index.html`, so the whole app can be opened in a browser without
+publishing. Its rooms talk to a local rooms server (`npm run dev` in
+`rooms-worker/`, port 8787; `ROOMS_URL=… npm run build:preview` points it
+elsewhere). Serve it over HTTP - the app writes to `localStorage`, which is
+blocked on `file://`:
 
 ```bash
-cd tools && npm run build && npx http-server ../.preview -p 8777
+cd rooms-worker && npm run dev                          # one terminal
+cd tools && npm run build && npx http-server ../.preview -p 4321
 ```
 
-### Deployment Commands
-- `clasp login`: Authenticate with your Google account.
-- `clasp clone <scriptId>`: Clone the project.
-- `clasp push`: Push local changes to the Apps Script project.
-- `clasp open`: Open the project in the Apps Script online editor.
-- `clasp deploy`: Create a new version/deployment for the web app.
+Two browser tabs on the preview behave like two phones in one room.
+
+### Publishing
+- **The app:** `npm run build:site` in `tools/`, then commit and push (`docs/`
+  included). GitHub Pages redeploys in about a minute.
+- **The rooms server:** `npm run deploy` in `rooms-worker/`. Needed whenever
+  `RoomGames.js`, the room word lists (`SpyWords.js`, `CodenamesWords.js`,
+  `PartyContent.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  deploy also uploads it as the copy of the app the Worker serves.
+- `docs/README.md` and `rooms-worker/README.md` have the details.
 
 ### Testing
 
@@ -102,12 +115,14 @@ npm run check        # content + i18n
   defined **twice** in one block (legal JS, and the last one silently wins — four
   strings were quietly the wrong ones before this check existed), and checks that
   every `data-i18n` attribute in the markup names a real key.
-- Everything else is exercised in the local preview, which runs the real server
-  files against a fake CacheService — see *Testing it locally* above.
+- `npm test` in `rooms-worker/` (with `npm run dev` running) plays every room
+  game with robot players: turns, votes, scores, that secrets never reach the
+  wrong phone, reconnects, the server's clocks and the shared prompt memory.
+  `npm run test:live` runs the same against the deployed server.
+- Everything else is exercised in the local preview.
 
-Beyond that: deploy as a web app, or use "Test deployments" in the GAS editor.
-Client-side logs are in the browser console; server-side logs are in the Apps
-Script dashboard.
+Client-side logs are in the browser console; the rooms server's are
+`npm run logs` in `rooms-worker/`.
 
 **Sweeping the UI.** The useful regression check is a computed-style pass over
 every view in both themes, not a read of the markup: contrast ratio against the
@@ -123,7 +138,7 @@ will make that pass lie to you:
 ## Development Conventions
 
 ### Code Structure
-- **Server-Side (`Code.js`):** Keep logic related to Spreadsheet interactions here. Use `google.script.run` for client-server communication.
+- **No `google.script.run`:** the page talks to nothing but the rooms server, through `Room` in `JS_Room.html`.
 - **Frontend Modularization:** When adding a new game, create a new `JS_GameName.html` file and include it in `Controller.html` using `<?!= include('JS_GameName'); ?>`.
 - **Translations:** All UI text should be managed via the `TRANSLATIONS` object (likely in `JS_Core.html`) to support both Arabic and English.
 
@@ -155,50 +170,59 @@ is nowhere to hide the key card.
 
 | File | Role |
 |---|---|
-| `Rooms.js` | Transport: create / join / poll / act / leave. Knows no game rules. |
+| `rooms-worker/src/index.js` | The Worker: `/create`, `/join`, `/act`, `/poll`, `/leave`, `/ws`. Knows no game rules. |
+| `rooms-worker/src/room.js` | `Room` Durable Object, one per code: players, keys, sockets, saving, clocks, `project()`. |
+| `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
-| `CodenamesWords.js` | Board words, ar + en. Server-side so the deck never ships to a client. |
-| `JS_Room.html` | Client engine (polling, reconnect) + the generic lobby UI. |
-| `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html` | Per-game renderers. |
+| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js` | Word lists the rules deal from, bundled into the Worker. |
+| `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
+| `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, … | Per-game renderers. |
 
 **The rule that matters: hidden information is enforced on the server.**
 Anything a player must not see goes in `room.secrets[playerId]`, and
-`projectRoom` sends a player only their own slice. A Codenames operative's poll
-response contains no colour information at all, and an imposter's payload never
+`Room.project()` sends a player only their own slice. A Codenames operative's
+state contains no colour information at all, and an imposter's payload never
 contains the secret word — so there is nothing to find by inspecting network
-traffic. Never move that logic client-side.
+traffic. Never move that logic client-side. Player ids are visible to everyone,
+so each phone also holds a `key` the server issued to it alone; the socket and
+every HTTP call must present it.
 
-**Polls send the version they hold.** A room that has not moved answers with the
-presence set alone — about 165 bytes against the 2.2 KB a full Codenames
-projection costs, a 93% saving on the overwhelmingly common case. Measured: at
-the watching cadence, eight players over a two-hour session went from ~13 MB
-each to well under 2 MB. `pollRoom(code, playerId, knownVersion)` returns
-`{ same: true, version, online }` on a match, and the client folds the online
-flags into the state it already has. Presence has to travel either way — it is
-the one thing that changes without bumping the version.
+**How a move travels.** Each phone keeps one WebSocket to its room
+(`/ws?code&pid&key`). On connecting it is sent the full state; after that the
+room pushes a fresh projection to every phone whenever anything changes —
+presence included, which is simply "has an open socket". A move is
+`{ t: 'act', id, action, payload }`; the phone that moved gets `{ t: 'ack', id,
+ok, state | error }` and everyone else `{ t: 'state' }`. `Room.act()` resolves
+with the new state, as it always did.
 
-**Why polling.** Apps Script has no WebSockets, so `JS_Room.html` polls. Sync
-lands in roughly 1-2 seconds, which suits turn-based games and nothing faster.
+- **Heartbeat:** the phone sends `ping` every 25s and Cloudflare answers `pong`
+  itself (`setWebSocketAutoResponse`) without waking the room. A socket that
+  doesn't answer is replaced — a phone back from the lock screen can hold one
+  that looks open and is dead. Waking the screen or getting the network back
+  calls `Room.refresh()`.
+- **Reconnect:** a dropped socket retries after 0.3s, 1s, 2s, 4s, 8s. From the
+  second miss the phone also keeps playing over HTTP (`/act`, `/poll` every
+  2.5s) until a socket connects again.
+- **Strokes travel as patches.** `addStrokes` goes out as `{ t: 'strokes', from,
+  v, add }` — just the new strokes, applied only onto exactly version `from`;
+  anything else asks the room for a full `sync`. Resending a whole drawing to
+  every phone several times a second would be most of a phone's data.
+- **The line under the drawer's finger** goes out as `{ t: 'live' }` through
+  `Room.sendLive` / `Room.onLive`: relayed to the other phones, never stored,
+  and only accepted from the current drawer.
 
-Cadence follows **attention, not role**: you poll fast (1.2s) when the screen is
-about to change under you, and slow (2.6s) when everyone is waiting on *you* - a
-spymaster typing a clue does not need updates, the operatives watching the board
-do. Games declare this themselves via an optional `pollHint(state)` returning
-`watching` | `acting` | `idle`; screens that only change on a deliberate button
-press (the imposter discussion, the who-am-I board) return `idle` and back off to
-3.2s. The lobby always polls fast, because that is where people watch for names
-to appear.
+**Where state lives.** The room object is kept in memory and saved to the
+Durable Object's storage on every move (drawing and the Wavelength dial at most
+once a second). A sleeping room costs nothing and wakes with its state intact.
+A room deletes itself after 6 hours with no moves and nobody connected, or 24
+hours with no moves at all. A host whose phone has been gone 2 minutes hands the
+room to someone still here.
 
-Two things deliberately do **not** wait on a poll: whoever acts gets the new
-state straight back from their own action call, and the imposter discussion clock
-is computed locally from a shared start timestamp - so it ticks smoothly and
-reads the same on every phone without any traffic at all.
-
-**Where state lives.** `CacheService.getScriptCache()` — shared across all users,
-100KB per key, 6h maximum, and no documented quota. `PropertiesService` is
-deliberately **not** on the polling path: it is capped at 50,000 reads+writes per
-day on a consumer account. Rooms are ephemeral by design; when one expires the
-player is told the room ended rather than the app pretending to recover it.
+**Clocks the server keeps.** A timed round has to end even when no phone is
+awake to end it. `roomDeadline(room)` in `RoomGames.js` says when to look again
+and `roomTimeout(room, now)` acts on it: a Trivia question closes, a Draw & Guess
+round reveals its word. Phones still end rounds on time themselves; the server is
+the backstop a moment later.
 
 **The voting engine.** لو خيروك, مين أكثر واحد and فيبج all run on one
 implementation in `RoomGames.js`: `openVote` / `castVote` / `closeVote`, plus
@@ -239,14 +263,17 @@ built from live input, everyone else's from a replay:
 The first is now handled by replaying the shared list after every send rather
 than trusting the canvas to already match, the second by refusing to repaint
 while `draw.drawing`, and the third by replaying freehand segment by segment
-too. A full replay costs well under a millisecond and happens twice a second.
+too. A full replay costs well under a millisecond and happens after every send.
 
-**Draw & Guess and the latency ceiling.** This is the one game the polling model
-is genuinely bad at, and it's built around that rather than pretending otherwise:
-the drawer paints locally and immediately, strokes are **batched** and sent about
-twice a second, and viewers repaint from the full stroke list so a dropped batch
-repairs itself on the next poll. Expect the picture to arrive in chunks. If you
-ever move the room layer to Firebase, this is the game that would improve most.
+**Draw & Guess draws live.** The drawer paints locally and immediately, shares
+the line under the finger every 80ms (`Room.sendLive`), and sends each finished
+stroke 0.2s after the finger lifts (`addStrokes`). Viewers draw the live line as
+it arrives, then repaint from the room's stroke list once the finished stroke
+lands (`paintStrokes` replays from the paper up when a live line was showing),
+so every phone ends with the same pixels and a lost piece repairs itself. Live
+pieces overlap by one point and carry their start index, so a piece arriving
+out of order is dropped rather than drawn in the wrong place. Shapes and fills
+are not shared live; they appear when finished.
 
 Coordinates are quantised to a 0–255 grid and packed flat (`[x,y,x,y,…]`), with a
 hard budget of `DRAW_MAX_POINTS`; a stroke that would exceed it is truncated, not
@@ -275,18 +302,23 @@ grid ambiguous. There is a validator for this; run it after editing content.
    minimum player count that greys out its hub tile) and to `ROOM_GAME_IDS` in
    `RoomGames.js`.
 
+5. If it has a clock, add it to `roomDeadline` / `roomTimeout`. If it deals from
+   a list, deal through `nextPrompts` from an action named `start`, `nextRound`
+   or `playAgain` (`DEAL_ACTIONS` in `room.js`), so the shared prompt memory is
+   loaded for it.
+6. Add a round of it to `rooms-worker/test/play-all.mjs`, then `npm run deploy`
+   in `rooms-worker/` and `npm run build:site` in `tools/`.
+
 Ask for the player's name with `promptForName()`, which opens the name sheet.
-Never use `window.prompt` — it is blocked in embedded contexts, including the
-sandboxed iframe Apps Script serves this app in.
+Never use `window.prompt` — it is blocked in some embedded browsers.
 
-`?room=CODE` reaches the page through `doGet` → `template.initialRoom`, because
-the app runs in a sandboxed iframe and cannot read its own query string.
+`?room=CODE` is read from the page's own address by the build
+(`window.SERVER_DATA.room`), then removed from the address bar so a reload
+doesn't reopen the join screen.
 
-**Testing it locally.** `npm run build:preview` inlines the *real* server files
-and runs them against fake Cache/Lock/ScriptApp services, so the preview
-exercises the same rules the deployment will. The fake cache is `localStorage`,
-which is shared across tabs on one origin — so two browser tabs behave like two
-phones in one room. `resetPreviewRooms()` in the console clears them.
+**Testing it locally.** Run the rooms server with `npm run dev` in
+`rooms-worker/` and play in two tabs of the preview, or let the robots do it:
+`npm test` in `rooms-worker/`.
 
 ### Player names live on the phone
 
@@ -329,40 +361,33 @@ than chips in a stale order. `pickerOrder` is what holds them still.
 
 ### The static site (docs/)
 
-The app ships two ways from the same source files:
-
-- **`docs/`** - a static site built by `npm run build:site` (tools/build-site.mjs),
-  published on GitHub Pages. This is the one to share. It is the top-level page,
-  so the home-screen icon, the manifest, `?room=` links and the offline service
-  worker (`docs/sw.js`) all work, none of which Apps Script's sandboxed frame
-  allows.
-- **The Apps Script `/exec` link** - still works and serves the same app.
-
-Rooms need a server either way. On the static site, the build replaces
-`google.script.run` with a stand-in that, on the first room call, loads the
-deployment's `/exec?bridge=1` page (`Bridge.html`) in a hidden iframe and relays
-each call to it by `postMessage`; the bridge makes the real `google.script.run`
-call and posts the answer back. Only `createRoom`, `joinRoom`, `pollRoom`,
-`leaveRoom` and `roomAction` are relayed.
-
-**Don't replace the bridge with `fetch` + `doPost`.** That was built and
-measured first. Apps Script answers every POST with a 302 to
-script.googleusercontent.com, which browsers follow as a GET; each call paid
-about a second for that hop, and under a burst of calls the redirect returned
-the whole 1.3 MB app page or a Drive "file not found" page instead of the JSON.
-The bridge uses Apps Script's own client transport, with no redirect.
+The app ships as a static site: `npm run build:site` (tools/build-site.mjs)
+writes `docs/`, and GitHub Pages publishes it. It is the top-level page, so the
+home-screen icon, the manifest, `?room=` links and the offline service worker
+(`docs/sw.js`) all work. The build also writes the rooms server's address
+(`roomsUrl` in `tools/site.config.json`) into the page as `window.ROOMS_URL`,
+with a `preconnect` so creating a room doesn't wait for the connection.
 
 So a change can need two releases. Client files only: rebuild `docs/` and push.
-Anything the room server runs (`Rooms.js`, `RoomGames.js`, `Code.js`,
-`PartyContent.js`, `CodenamesWords.js`, `SpyWords.js`): also `clasp push` and
-`clasp deploy -i <production id>`, or rooms keep the old rules. `docs/README.md`
-has the steps.
+Anything the rooms server runs (`RoomGames.js`, `PartyContent.js`,
+`CodenamesWords.js`, `SpyWords.js`, `rooms-worker/src/`): also `npm run deploy`
+in `rooms-worker/`, or rooms keep the old rules. `docs/README.md` has the steps.
+
+The rooms server also serves a copy of `docs/` at its own address, uploaded on
+every deploy — a second address for the app if `github.io` is ever blocked.
+
+**History: rooms used to run on Apps Script.** The page relayed calls through a
+hidden iframe of the `/exec?bridge=1` page (`Bridge.html`): Apps Script has no
+WebSockets, and a `fetch` to `doPost` went through a 302 that, under load,
+returned the whole app page instead of the answer. Moves took 2–4 seconds to
+reach the other phones. That version is frozen in the `G` folder (git tag
+`apps-script-v177`).
 
 The spy words used to be read from the `كلمات الجاسوس` sheet on every page load.
-They are `SpyWords.js` now - shared by the page, the room server and the static
-build - and the locked "+18" category was removed at the owner's request. A 🔒
-category would ship inside the public site anyway, so a lock only hides words from
-the menu; it cannot keep them secret.
+They are `SpyWords.js` now - shared by the page and the rooms server - and the
+locked "+18" category was removed at the owner's request. A 🔒 category would
+ship inside the public site anyway, so a lock only hides words from the menu; it
+cannot keep them secret.
 
 ### The Help sheet
 
@@ -432,7 +457,7 @@ next tap silently swapped two people instead of selecting one. All three callers
 go through `openReorderModal(context, items, label)` now, which resets first.
 Anything else with staged state across an open/close needs the same treatment.
 
-**A poll re-renders on presence, not just on moves.** `Room`'s change signature
+**A room re-renders on presence, not just on moves.** `Room`'s change signature
 includes every player's online flag, so it fires whenever any phone locks or
 wakes — several times a minute in a real room. A room screen that rewrites
 `innerHTML` unconditionally will therefore throw away whatever the player is
@@ -456,20 +481,24 @@ sets the former and not the latter. Anything asking "is this round over?" must
 read `word`, or it will keep accepting strokes and guesses for a word that is
 already printed on every screen.
 
-**Locked word categories carry their password in the data.** A `🔒` category in
-the spy sheet keeps its password in the first cell of the column. Use
+**Locked word categories carry their password in the data.** A `🔒` category
+keeps its password as its first word (there are none now). Use
 `spyWords(category)` / `unlockedSpyWords()` on the server rather than reading
-`getSpyData()` directly, or the password gets dealt as a secret word — and note
-that `getSpyData()` hits the spreadsheet on every call, so fetch once and reuse.
+`getSpyData()` directly, or the password gets dealt as a secret word.
 
-**Code in `JS_*.html` does not exist on the server.** Fake Artist dealt its
-colours from `DRAW_COLOURS`, which is declared in `JS_RoomDraw.html`. Apps Script
-never loads that file, so the first `start` on the real deployment threw a
-ReferenceError - while the preview worked perfectly, because it concatenates
-client and server into one page and they share globals. A constant both sides
-need is declared in a server file (`FAKE_ARTIST_COLOURS` in `RoomGames.js`). To
-catch this, evaluate `CodenamesWords.js PartyContent.js RoomGames.js Rooms.js
-Code.js` on their own in a fresh `vm` context and look for `undefined`.
+**Code in `JS_*.html` does not exist on the server.** Fake Artist once dealt its
+colours from `DRAW_COLOURS`, which is declared in `JS_RoomDraw.html`, and the
+first `start` on the real server threw a ReferenceError. The rooms server has
+only what `rooms-worker/build.mjs` bundles: `SpyWords.js`, `CodenamesWords.js`,
+`PartyContent.js` and `RoomGames.js`. A constant both sides need is declared in
+one of those (`FAKE_ARTIST_COLOURS` in `RoomGames.js`). `npm test` in
+`rooms-worker/` starts every game, which is what catches this.
+
+**The rules run in strict mode, on a copy.** The bundle is an ES module, so an
+assignment to an undeclared variable in `RoomGames.js` throws on the server. The
+rules work on a `structuredClone` of the room that only replaces it when the
+move didn't throw, so a rule may throw halfway through without leaving the room
+half-changed.
 
 **`castVote` can close the vote by itself.** When the last eligible player votes
 it calls `closeVote` and returns `true`. A game whose own close action does more
@@ -517,9 +546,11 @@ count, { key, avoid })` in `JS_Core.html`, which remembers per phone
 (`localStorage['ashrySeen_v1']`) what each list has dealt and only starts a list
 over once all of it has been seen. `avoid` is for "already up this round" without
 counting it as dealt. Rooms do the same on the server: `nextPrompts(room, pool,
-key, count)` keeps the history in Script Properties, because a room's own memory
-died with the room and the next evening started every list from the top. A new
-word game should deal through one of these, never `Math.random()` directly.
+key, count)` keeps the history across all rooms in the `PromptMemory` Durable
+Object (through the `PropertiesService`-shaped calls it always made, which
+`build.mjs` points there), because a room's own memory died with the room and
+the next evening started every list from the top. A new word game should deal
+through one of these, never `Math.random()` directly.
 
 **Content goes in through the validator.** `npm run check` in `tools/` checks
 every bank: Wordle words are exactly their length in letters the keypad has,
@@ -671,5 +702,6 @@ fixed layer so it costs no repaints.
 - **RTL Support:** The app defaults to RTL (`dir="rtl"`) but handles LTR for English.
 
 ### Data Management
-- **Sheets:** Ensure `setupSheets()` is updated if new sheets or columns are required for a game.
+- **No sheets, no database.** Content is code, checked by `npm run check`.
 - **LocalStorage:** Use local storage for transient game state (like current round scores) that doesn't need to persist across devices.
+- **Rooms:** anything several phones must share goes through the rooms server; anything a player must not see stays in `room.secrets`.

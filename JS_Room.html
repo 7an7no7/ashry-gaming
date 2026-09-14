@@ -2,62 +2,100 @@
 /* ============================================================================
    MULTIPLAYER CLIENT
    ----------------------------------------------------------------------------
-   Talks to the room API in Rooms.js. Apps Script gives us no push channel, so
-   this polls — but it polls carefully:
+   Talks to the rooms server on Cloudflare (rooms-worker/). Creating and joining
+   a room are plain requests. After that every phone keeps one WebSocket open
+   to its room, and the room sends each phone what it may see the moment
+   anything changes - nobody asks "anything new?" every few seconds.
 
-     - the interval adapts (fast while you're expected to act, slow while
-       waiting, stopped entirely when the tab is hidden),
-     - a poll in flight is never doubled up,
-     - the UI only re-renders when the room's version or its online set actually
-       changed, so an idle lobby costs nothing to display.
+     - A move goes over the socket, and its answer comes back on it.
+     - A dropped connection (lock screen, WiFi to mobile data, a tunnel)
+       reconnects by itself, and the room sends the current state on arrival.
+     - On a network where WebSockets won't connect at all, the phone falls back
+       to asking over plain HTTP every few seconds until one does.
 
    Games register a renderer with Room.onChange, so this file knows nothing
-   about any particular game.
+   about any particular game. The server's address is window.ROOMS_URL, set by
+   tools/build-site.mjs (and by build-preview.mjs for local testing).
    ========================================================================= */
 
 const Room = (() => {
-  const STORE_KEY = 'ashryRoom_v1';
+  // v2 sessions carry the key the server issued to this phone. v1 sessions
+  // were Apps Script rooms, which the new server has never heard of.
+  const STORE_KEY = 'ashryRoom_v2';
+  const OLD_STORE_KEY = 'ashryRoom_v1';
 
-  // Latency is only felt by whoever is waiting, so cadence follows attention
-  // rather than role: you poll quickly when the screen is about to change under
-  // you, and slowly when everyone is waiting on *you*.
-  const POLL_WATCHING = 1200;   // someone else is about to change this screen
-  const POLL_ACTING   = 2600;   // you're the one being waited on; you're typing
-  const POLL_IDLE     = 3200;   // nothing changes until a deliberate action
-  const POLL_BACKOFF_MAX = 15000;
+  const BASE = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+  const REQUEST_TIMEOUT = 12000;
+  const ACK_TIMEOUT = 10000;
+  const CONNECT_TIMEOUT = 8000;
+  const HEARTBEAT_MS = 25000;        // a quiet socket is checked this often...
+  const PONG_TIMEOUT = 6000;         // ...and replaced if it hasn't answered by then
+  const RETRY_DELAYS = [300, 1000, 2000, 4000, 8000];
+  const POLL_MS = 2500;              // the HTTP fallback's pace
+  const OFFLINE_NOTICE_MS = 2000;    // a drop this short doesn't flash the sync dot
 
-  let session = null;      // { code, playerId, game }
+  const DROPPED = { gone: 'انتهت الغرفة', kicked: 'تمت إزالتك من الغرفة' };
+
+  let session = null;      // { code, playerId, key, game }
   let state = null;        // last projection from the server
-  let timer = null;
-  let inFlight = false;
-  let failures = 0;
   let listeners = [];
+  let liveListeners = [];
   let lastSignature = '';
+
+  let socket = null;
+  let retries = 0;
+  let retryTimer = null;
+  let connectTimer = null;
+  let heartbeatTimer = null;
+  let pongTimer = null;
+  let offlineTimer = null;
+  let pollTimer = null;
+  let pollInFlight = false;
+  let nextId = 1;
+  const pending = new Map();   // ack id -> { resolve, reject, timer }
 
   /* --- persistence: survive a lock screen or an accidental reload --------- */
   const remember = () => {
     try {
+      localStorage.removeItem(OLD_STORE_KEY);
       if (session) localStorage.setItem(STORE_KEY, JSON.stringify(session));
       else localStorage.removeItem(STORE_KEY);
     } catch (e) {}
   };
   const recall = () => {
     try {
+      localStorage.removeItem(OLD_STORE_KEY);
       const raw = localStorage.getItem(STORE_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   };
 
-  /** Promise wrapper around google.script.run, which is callback-based. */
-  const call = (fn, ...args) => new Promise((resolve, reject) => {
-    if (typeof google === 'undefined' || !google.script || !google.script.run) {
-      reject(new Error('لا يوجد اتصال بالخادم'));
-      return;
+  /* --- HTTP: create, join, leave, and the fallback --------------------------- */
+
+  /** POSTs to the rooms server and resolves with its answer ({ ok, ... }). */
+  const request = async (path, body) => {
+    if (!BASE) throw new Error('لا يوجد اتصال بالخادم');
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => { if (controller) controller.abort(); }, REQUEST_TIMEOUT);
+    let res;
+    try {
+      // text/plain keeps this a "simple" request: no CORS preflight round trip.
+      res = await fetch(BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify(body),
+        signal: controller ? controller.signal : undefined
+      });
+    } catch (err) {
+      throw new Error(err && err.name === 'AbortError' ? 'انتهت مهلة الاتصال' : 'تعذر الاتصال بالخادم');
+    } finally {
+      clearTimeout(timer);
     }
-    google.script.run
-      .withSuccessHandler(resolve)
-      .withFailureHandler(reject)[fn](...args);
-  });
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!data) throw new Error('تعذر الاتصال بالخادم');
+    return data;
+  };
 
   /* --- change notification ----------------------------------------------- */
   const signatureOf = (s) => !s ? '' :
@@ -70,63 +108,11 @@ const Room = (() => {
     listeners.forEach(fn => { try { fn(state); } catch (e) { console.error('room listener', e); } });
   };
 
-  /* --- polling ------------------------------------------------------------ */
-  const nextDelay = () => {
-    if (failures) return Math.min(POLL_IDLE * Math.pow(2, failures), POLL_BACKOFF_MAX);
-    if (!state) return POLL_WATCHING;
-
-    // The lobby is where people stare waiting for names to appear, so it always
-    // gets the fast cadence regardless of who they are.
-    if (state.phase === 'lobby') return POLL_WATCHING;
-
-    // Games declare their own cadence, because only they know whether this
-    // player is currently acting or waiting.
-    const game = ROOM_GAMES[state.game];
-    const hint = (game && game.pollHint) ? game.pollHint(state) : 'watching';
-    if (hint === 'acting') return POLL_ACTING;
-    if (hint === 'idle') return POLL_IDLE;
-    return POLL_WATCHING;
-  };
-
-  const schedule = () => {
-    clearTimeout(timer);
-    if (!session) return;
-    timer = setTimeout(poll, nextDelay());
-  };
-
-  const poll = async () => {
-    if (!session || inFlight || document.hidden) { schedule(); return; }
-    inFlight = true;
-    try {
-      // Send the version we hold; an unchanged room replies with presence only.
-      const res = await call('pollRoom', session.code, session.playerId,
-                             state ? state.version : 0);
-      failures = 0;
-      if (res.gone)   { handleDropped('انتهت الغرفة'); return; }
-      if (res.kicked) { handleDropped('تمت إزالتك من الغرفة'); return; }
-
-      if (res.same && state) {
-        // Nothing moved. Fold in who is still connected and keep the rest.
-        state.players.forEach(p => { p.online = res.online.indexOf(p.id) !== -1; });
-      } else if (res.state) {
-        state = res.state;
-      }
-      setSyncing(false);
-      emit(false);
-    } catch (err) {
-      failures++;
-      // Three misses in a row is a real connection problem, not a blip.
-      if (failures >= 3) setSyncing(true);
-    } finally {
-      inFlight = false;
-      schedule();
-    }
-  };
-
   const handleDropped = (message) => {
     const wasIn = !!session;
     session = null; state = null; lastSignature = '';
-    clearTimeout(timer);
+    disconnect();
+    failPending(message);
     remember();
     if (typeof updateRoomBanner === 'function') updateRoomBanner();
     if (wasIn) {
@@ -136,6 +122,222 @@ const Room = (() => {
     }
   };
 
+  /* --- the live connection ------------------------------------------------- */
+  const connected = () => !!socket && socket.readyState === 1;
+
+  const send = (msg) => {
+    if (!connected()) return false;
+    try {
+      socket.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const socketUrl = () => BASE.replace(/^http/i, 'ws') + '/ws?code=' + encodeURIComponent(session.code) +
+      '&pid=' + encodeURIComponent(session.playerId) + '&key=' + encodeURIComponent(session.key);
+
+  function connect() {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+    if (!session || !BASE || socket) return;
+    let ws;
+    try { ws = new WebSocket(socketUrl()); } catch (e) { scheduleReconnect(); return; }
+    socket = ws;
+    clearTimeout(connectTimer);
+    connectTimer = setTimeout(() => { if (socket === ws && ws.readyState !== 1) dropSocket(ws); }, CONNECT_TIMEOUT);
+
+    ws.onopen = () => {
+      if (socket !== ws) return;
+      clearTimeout(connectTimer);
+      retries = 0;
+      stopPolling();
+      clearTimeout(offlineTimer);
+      offlineTimer = null;
+      setSyncing(false);
+      startHeartbeat();
+    };
+    ws.onmessage = (event) => { if (socket === ws) onMessage(event.data); };
+    ws.onclose = () => dropSocket(ws);
+    ws.onerror = () => {};     // a close always follows
+  }
+
+  /** Forgets a socket that died, fails the moves waiting on it, and tries again. */
+  function dropSocket(ws) {
+    if (socket !== ws) return;
+    socket = null;
+    clearTimeout(connectTimer);
+    stopHeartbeat();
+    try { ws.onopen = ws.onmessage = ws.onclose = null; ws.close(); } catch (e) {}
+    failPending('انقطع الاتصال، حاول مرة أخرى');
+    if (!session) return;
+    if (!offlineTimer) {
+      offlineTimer = setTimeout(() => {
+        offlineTimer = null;
+        if (session && !connected()) setSyncing(true);
+      }, OFFLINE_NOTICE_MS);
+    }
+    scheduleReconnect();
+  }
+
+  function scheduleReconnect() {
+    if (!session || retryTimer) return;
+    // A hidden page waits: coming back to the screen reconnects at once.
+    if (document.hidden) return;
+    const delay = RETRY_DELAYS[Math.min(retries, RETRY_DELAYS.length - 1)];
+    retries++;
+    // Missed twice: keep the game moving over HTTP while the socket retries.
+    if (retries >= 2) startPolling();
+    retryTimer = setTimeout(() => { retryTimer = null; connect(); }, delay);
+  }
+
+  function disconnect() {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+    clearTimeout(offlineTimer);
+    offlineTimer = null;
+    clearTimeout(connectTimer);
+    stopPolling();
+    stopHeartbeat();
+    retries = 0;
+    const ws = socket;
+    socket = null;
+    if (ws) { try { ws.onopen = ws.onmessage = ws.onclose = null; ws.close(1000); } catch (e) {} }
+  }
+
+  function startHeartbeat() {
+    stopHeartbeat();
+    heartbeatTimer = setInterval(() => ping(PONG_TIMEOUT), HEARTBEAT_MS);
+  }
+
+  function stopHeartbeat() {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+    clearTimeout(pongTimer);
+    pongTimer = null;
+  }
+
+  /**
+   * Asks for a "pong" (Cloudflare answers it without waking the room). A socket
+   * that doesn't answer in time is replaced - after a lock screen a phone can
+   * hold a socket that looks open but is long dead.
+   */
+  function ping(timeout) {
+    const ws = socket;
+    if (!ws || ws.readyState !== 1 || pongTimer) return;
+    if (!send('ping')) { dropSocket(ws); return; }
+    pongTimer = setTimeout(() => {
+      pongTimer = null;
+      dropSocket(ws);
+    }, timeout);
+  }
+
+  function onMessage(raw) {
+    if (raw === 'pong') {
+      clearTimeout(pongTimer);
+      pongTimer = null;
+      return;
+    }
+    let msg;
+    try { msg = JSON.parse(raw); } catch (e) { return; }
+    if (!msg || !session) return;
+
+    if (msg.t === 'state') {
+      state = msg.state;
+      emit(false);
+    } else if (msg.t === 'strokes') {
+      applyStrokes(msg);
+    } else if (msg.t === 'ack') {
+      settleAck(msg);
+    } else if (msg.t === 'live') {
+      liveListeners.forEach(fn => { try { fn(msg.d); } catch (e) { console.error('room live listener', e); } });
+    } else if (msg.t === 'gone') {
+      handleDropped(DROPPED.gone);
+    } else if (msg.t === 'kicked' || msg.t === 'left') {
+      handleDropped(DROPPED.kicked);
+    }
+  }
+
+  /**
+   * New strokes arrive as just the strokes, so a drawing isn't resent to every
+   * phone several times a second. They only fit onto the exact version they
+   * were cut from; anything else asks the room for a full copy.
+   */
+  function applyStrokes(patch) {
+    const strokes = state && state.shared && state.shared.strokes;
+    if (state && state.version === patch.from && Array.isArray(strokes)) {
+      patch.add.forEach(st => strokes.push(st));
+      state.version = patch.v;
+      emit(false);
+      return;
+    }
+    send({ t: 'sync' });
+  }
+
+  function settleAck(msg) {
+    if (msg.patch) applyStrokes(msg.patch);
+    else if (msg.state) { state = msg.state; emit(false); }
+
+    const waiter = pending.get(msg.id);
+    if (!waiter) return;
+    pending.delete(msg.id);
+    clearTimeout(waiter.timer);
+    if (msg.ok) { waiter.resolve(state); return; }
+    if (msg.gone || msg.kicked) handleDropped(msg.gone ? DROPPED.gone : DROPPED.kicked);
+    waiter.reject(new Error(msg.error || 'تعذر تنفيذ الإجراء'));
+  }
+
+  function failPending(message) {
+    pending.forEach(w => { clearTimeout(w.timer); w.reject(new Error(message)); });
+    pending.clear();
+  }
+
+  /* --- HTTP fallback, only while the socket can't connect ------------------ */
+  function startPolling() {
+    if (pollTimer || !session) return;
+    const tick = async () => {
+      pollTimer = setTimeout(tick, POLL_MS);
+      if (!session || connected() || pollInFlight || document.hidden) return;
+      pollInFlight = true;
+      try {
+        const res = await request('/poll', {
+          code: session.code, pid: session.playerId, key: session.key, v: state ? state.version : 0
+        });
+        if (!session || connected()) return;
+        if (res.gone) { handleDropped(DROPPED.gone); return; }
+        if (res.kicked) { handleDropped(DROPPED.kicked); return; }
+        if (res.same && state) {
+          state.players.forEach(p => { p.online = res.online.indexOf(p.id) !== -1; });
+        } else if (res.state) {
+          state = res.state;
+        }
+        setSyncing(false);
+        emit(false);
+      } catch (e) {
+        // Still offline; the socket and this both keep trying.
+      } finally {
+        pollInFlight = false;
+      }
+    };
+    pollTimer = setTimeout(tick, 0);
+  }
+
+  function stopPolling() {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
+  const adoptSession = (res, game) => {
+    disconnect();
+    session = { code: res.state.code, playerId: res.playerId, key: res.key, game: game };
+    state = res.state;
+    lastSignature = '';
+    remember();
+    emit(true);
+    connect();
+  };
+
   /* --- public API --------------------------------------------------------- */
   return {
     get state() { return state; },
@@ -143,81 +345,120 @@ const Room = (() => {
     get isIn() { return !!session; },
     get isHost() { return !!(state && state.youAreHost); },
     get me() { return session ? session.playerId : null; },
+    get connected() { return connected(); },
 
     onChange(fn) { listeners.push(fn); return () => { listeners = listeners.filter(f => f !== fn); }; },
 
+    /** Messages the room relays between phones without keeping (the line being drawn). */
+    onLive(fn) { liveListeners.push(fn); return () => { liveListeners = liveListeners.filter(f => f !== fn); }; },
+    sendLive(data) { return send({ t: 'live', d: data }); },
+
     async create(name, gameId) {
-      const res = await call('createRoom', name, gameId);
-      session = { code: res.state.code, playerId: res.playerId, game: gameId };
-      state = res.state;
-      remember();
-      emit(true);
-      schedule();
+      const res = await request('/create', { name: name, game: gameId || null });
+      if (!res.ok) throw new Error(res.error || 'تعذر إنشاء الغرفة');
+      adoptSession(res, gameId);
       return res;
     },
 
     async join(code, name) {
-      const res = await call('joinRoom', code, name);
-      session = { code: String(code).toUpperCase(), playerId: res.playerId, game: res.state.game };
-      state = res.state;
-      remember();
-      emit(true);
-      schedule();
+      const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name });
+      if (!res.ok) throw new Error(res.error || 'تعذر الانضمام للغرفة');
+      adoptSession(res, res.state.game);
       return res;
     },
 
-    /** Send a move. The server is authoritative, so we adopt whatever it returns. */
-    async act(action, payload) {
-      if (!session) throw new Error('لست في غرفة');
-      const s = await call('roomAction', session.code, session.playerId, action, payload || {});
-      state = s;
-      emit(false);
-      // A move usually changes what others should see; look again promptly.
-      clearTimeout(timer);
-      timer = setTimeout(poll, 350);
-      return s;
+    /** Send a move. The server is authoritative: this resolves with the state after it. */
+    act(action, payload) {
+      if (!session) return Promise.reject(new Error('لست في غرفة'));
+
+      if (connected()) {
+        return new Promise((resolve, reject) => {
+          const id = nextId++;
+          const timer = setTimeout(() => {
+            pending.delete(id);
+            reject(new Error('انتهت مهلة الاتصال'));
+            ping(3000);
+          }, ACK_TIMEOUT);
+          pending.set(id, { resolve, reject, timer });
+          if (!send({ t: 'act', id: id, action: action, payload: payload || {} })) {
+            pending.delete(id);
+            clearTimeout(timer);
+            reject(new Error('انقطع الاتصال، حاول مرة أخرى'));
+          }
+        });
+      }
+
+      // No socket right now: the same move over plain HTTP.
+      const { code, playerId, key } = session;
+      return request('/act', { code: code, pid: playerId, key: key, action: action, payload: payload || {} })
+        .then(res => {
+          if (res.gone || res.kicked) {
+            handleDropped(res.gone ? DROPPED.gone : DROPPED.kicked);
+            throw new Error(res.gone ? DROPPED.gone : DROPPED.kicked);
+          }
+          if (!res.ok) throw new Error(res.error || 'تعذر تنفيذ الإجراء');
+          if (res.state && session) { state = res.state; emit(false); }
+          connect();
+          return state;
+        });
     },
 
     async leave() {
       if (!session) return;
-      const { code, playerId } = session;
+      const { code, playerId, key } = session;
       session = null; state = null; lastSignature = '';
-      clearTimeout(timer);
+      disconnect();
+      failPending('لست في غرفة');
       remember();
       emit(true);
       if (typeof updateRoomBanner === 'function') updateRoomBanner();
-      try { await call('leaveRoom', code, playerId); } catch (e) {}
+      try { await request('/leave', { code: code, pid: playerId, key: key }); } catch (e) {}
     },
 
     /** Called on load: silently rejoin the room this device was last in. */
     async resume() {
       const saved = recall();
-      if (!saved || !saved.code || !saved.playerId) return false;
+      if (!saved || !saved.code || !saved.playerId || !saved.key) return false;
       session = saved;
       try {
-        const res = await call('pollRoom', saved.code, saved.playerId);
-        if (res.gone || res.kicked) { session = null; remember(); return false; }
+        const res = await request('/poll', { code: saved.code, pid: saved.playerId, key: saved.key, v: 0 });
+        if (session !== saved) return false;
+        if (!res.ok || res.gone || res.kicked || !res.state) {
+          session = null;
+          remember();
+          return false;
+        }
         state = res.state;
         emit(true);
-        schedule();
+        connect();
         return true;
       } catch (err) {
-        session = null;
-        remember();
+        // No connection right now. The room may well still be there, so keep
+        // the session and let the socket keep trying; the state arrives with it.
+        if (session === saved) connect();
         return false;
       }
     },
 
-    /** Force an immediate refresh (used when a screen becomes visible again). */
-    refresh() { clearTimeout(timer); timer = setTimeout(poll, 0); }
+    /** Catch up now: the screen woke, the network came back, or something looks stale. */
+    refresh() {
+      if (!session) return;
+      if (connected()) {
+        send({ t: 'sync' });
+        ping(3000);
+      } else if (!socket) {
+        connect();
+      }
+    }
   };
 })();
 
-// A backgrounded phone shouldn't poll; catching up the moment it returns is
-// both cheaper and feels faster than polling through the pause.
+// A phone that wakes up, or gets its network back, catches up at once.
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && Room.isIn) Room.refresh();
 });
+window.addEventListener('online', () => { if (Room.isIn) Room.refresh(); });
+window.addEventListener('pageshow', (event) => { if (event.persisted && Room.isIn) Room.refresh(); });
 
 /* ==========================================================================
    QR CODE
@@ -395,7 +636,7 @@ function renderRoomLobby(state) {
     const html = inHub
       ? renderRoomHub(state)
       : renderChosenGame(state, game);
-    // Only rewrite when it changed, so an open <select> isn't reset every poll.
+    // Only rewrite when it changed, so an open <select> isn't reset by every update.
     if (setup.dataset.sig !== html) { setup.innerHTML = html; setup.dataset.sig = html; }
   }
 }

@@ -2,23 +2,24 @@
 /* ============================================================================
    رسم وتخمين — DRAW & GUESS
    ----------------------------------------------------------------------------
-   The honest constraint: with no push channel the drawing cannot stream. The
-   drawer's strokes are batched and sent about twice a second, so viewers watch
-   it arrive in chunks rather than as a moving line.
-
-   The design leans into that instead of fighting it:
-     - the drawer's own canvas is always instant, because it paints locally and
-       only *then* sends,
-     - viewers re-paint from the full stroke list, so a dropped batch repairs
-       itself on the next poll rather than leaving a gap,
-     - the round is won by the first correct guess, not by watching the line.
+   The drawer's own canvas is always instant: it paints locally and only then
+   sends. Two things go to the room:
+     - the line still under the finger, a few points every DRAW_LIVE_MS, which
+       the room relays to the other phones without keeping (Room.sendLive),
+     - each finished stroke, a moment after the finger lifts (addStrokes),
+       which is what the room keeps.
+   Viewers draw the live line as it arrives, then repaint from the room's
+   stroke list once the finished stroke lands, so every phone ends up with
+   exactly the same picture - and a piece that went missing repairs itself.
+   The round is won by the first correct guess.
 
    Coordinates are quantised to a 0–255 grid before sending, which keeps a whole
-   drawing small enough to live in the room's cache entry.
+   drawing small.
    ========================================================================= */
 
 const DRAW_GRID = 255;
-const DRAW_FLUSH_MS = 550;      // how often a batch of strokes is sent
+const DRAW_FLUSH_MS = 200;      // how soon a finished stroke is sent
+const DRAW_LIVE_MS = 80;        // how often the line under the finger is shared
 const DRAW_COLOURS = ['#111827', '#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed',
                       '#db2777', '#0891b2', '#65a30d', '#78350f', '#94a3b8', '#ffffff'];
 /* The canvas is white in both themes — the drawing is shared, so it cannot
@@ -49,7 +50,12 @@ const draw = {
   snapshot: null,      // canvas before a shape started, for the rubber band
   flushTimer: null,
   clock: null,
-  clockEndsAt: null    // deadline the live clock belongs to
+  clockEndsAt: null,   // deadline the live clock belongs to
+  liveSeq: 0,          // drawer: which stroke the live line belongs to
+  liveSent: 0,         // drawer: how many of its numbers have been shared
+  liveAt: 0,           // drawer: when the live line was last shared
+  live: null,          // viewer: the drawer's line in progress { s, n, c, w, p }
+  liveShown: false     // viewer: that line is painted on the canvas
 };
 
 ROOM_GAMES.drawguess = {
@@ -76,12 +82,6 @@ ROOM_GAMES.drawguess = {
       lang: appState.lang === 'en' ? 'en' : 'ar',
       seconds: sel ? Number(sel.value) : 90
     };
-  },
-
-  pollHint(state) {
-    // The drawer is the one being waited on; guessers are watching the picture
-    // appear and want it as fast as it can come.
-    return state.shared.drawerId === Room.me ? 'acting' : 'watching';
   },
 
   render(state) {
@@ -210,22 +210,43 @@ function paintStrokes(strokes) {
   const c = draw.canvas, ctx = draw.ctx;
   if (!c || !ctx) return;
 
-  // Never repaint under a stroke in progress. A poll landing mid-drag would
+  // Never repaint under a stroke in progress. An update landing mid-drag would
   // wipe the line being drawn, and for a shape it also throws away the
   // snapshot the rubber band restores from — which made the preview stack on
   // itself and left the drawer with darker edges than everyone else saw.
   // The drawer is the only one who can add strokes, so nothing is missed:
-  // the next poll after the drag catches up.
+  // the next update after the drag catches up.
   if (draw.drawing) return;
 
   // A shrinking list means the drawer cleared or undid: start again. Replaying
   // from the beginning also keeps fills correct, since a fill depends on
   // everything painted before it.
-  if (strokes.length < draw.painted) { clearSurface(); draw.painted = 0; }
+  if (strokes.length < draw.painted) {
+    clearSurface();
+    draw.painted = 0;
+    draw.live = null;
+    draw.liveShown = false;
+  }
   if (strokes.length === draw.painted) return;
+
+  // The finished stroke for a live line has landed. Painting it over the live
+  // line would darken its soft edges, so replay from the paper up instead.
+  if (draw.liveShown) {
+    clearSurface();
+    draw.painted = 0;
+    draw.liveShown = false;
+  }
 
   for (let i = draw.painted; i < strokes.length; i++) drawStroke(ctx, strokes[i], c.width);
   draw.painted = strokes.length;
+
+  // A line the drawer is still drawing goes back on top.
+  if (draw.live && draw.live.n >= strokes.length) {
+    drawStroke(ctx, draw.live, c.width);
+    draw.liveShown = true;
+  } else {
+    draw.live = null;
+  }
   // The snapshot the shape preview restores from is now stale.
   draw.snapshot = null;
 }
@@ -361,6 +382,8 @@ function bindDrawSurface(canDraw) {
   draw.ctx = draw.canvas.getContext('2d', { willReadFrequently: true });
   clearSurface();
   draw.painted = 0;
+  draw.live = null;
+  draw.liveShown = false;
   if (!canDraw) return;
 
   const pos = (e) => {
@@ -390,6 +413,9 @@ function bindDrawSurface(canDraw) {
     draw.drawing = true;
     const letter = activeToolLetter();
     draw.current = { c: activeColour(), w: activeWidth(), p: [x, y] };
+    draw.liveSeq++;
+    draw.liveSent = 0;
+    draw.liveAt = 0;
     if (letter !== 'f') {
       draw.current.t = letter;
       draw.current.p = [x, y, x, y];
@@ -428,6 +454,7 @@ function bindDrawSurface(canDraw) {
     p.push(x, y);
     // Paint locally at once: the drawer never waits on the network.
     drawStroke(draw.ctx, { c: cur.c, w: cur.w, p: p.slice(-4) }, draw.canvas.width);
+    shareLiveStroke(false, cur);
   };
 
   const finish = () => {
@@ -443,6 +470,8 @@ function bindDrawSurface(canDraw) {
       paintStrokesFromScratch();
       return;
     }
+    // The last few points, so the live line ends where the stroke does.
+    if (!cur.t) shareLiveStroke(true, cur);
     if (cur.p.length >= 2) draw.pending.push(cur);
     scheduleFlush();
   };
@@ -465,7 +494,58 @@ function paintStrokesFromScratch() {
 }
 
 
-/** Batches strokes instead of sending each one — one request per ~0.5s. */
+/**
+ * Shares the stroke still under the drawer's finger. Each piece starts with the
+ * last point of the one before, so the pieces join into one line on the other
+ * phones. `n` is the place the finished stroke will take in the room's list.
+ */
+function shareLiveStroke(force, cur) {
+  if (!cur || cur.t || !Room.isIn) return;
+  const now = Date.now();
+  if (!force && now - draw.liveAt < DRAW_LIVE_MS) return;
+  if (cur.p.length <= draw.liveSent) return;
+  const from = Math.max(0, draw.liveSent - 2);
+  const sent = Room.sendLive({
+    s: draw.liveSeq,
+    n: draw.painted + draw.pending.length,
+    i: from,
+    c: cur.c,
+    w: cur.w,
+    p: cur.p.slice(from)
+  });
+  if (sent) {
+    draw.liveSent = cur.p.length;
+    draw.liveAt = now;
+  }
+}
+
+/** A viewer's side: draws each piece of the drawer's line as it arrives. */
+function onDrawLive(d) {
+  const state = Room.state;
+  if (!d || !state || state.game !== 'drawguess' || appState.currentView !== 'room-drawguess') return;
+  const s = state.shared || {};
+  if (!draw.ctx || !draw.canvas || s.drawerId === Room.me || s.word) return;
+  if (!Array.isArray(d.p) || d.p.length < 2 || d.p.length > 6000) return;
+  // That stroke is already finished and painted from the room's list.
+  if ((s.strokes || []).length > d.n) return;
+
+  let live = draw.live;
+  if (!live || live.s !== d.s) {
+    if (d.i !== 0) return;       // missed its start; the finished stroke will show it
+    live = draw.live = { s: d.s, n: d.n, c: String(d.c || '#111'), w: Number(d.w) || 4, p: [] };
+  }
+  // Pieces overlap by one point; any other start arrived out of order.
+  const start = Math.max(0, live.p.length - 2);
+  if (d.i !== start) return;
+  const pts = d.p.map(v => Math.max(0, Math.min(DRAW_GRID, Math.round(Number(v) || 0))));
+  live.p = live.p.slice(0, start).concat(pts);
+  drawStroke(draw.ctx, { c: live.c, w: live.w, p: live.p.slice(start) }, draw.canvas.width);
+  draw.liveShown = true;
+}
+
+Room.onLive(onDrawLive);
+
+/** Batches finished strokes: at most one message every DRAW_FLUSH_MS. */
 function scheduleFlush() {
   if (draw.flushTimer) return;
   draw.flushTimer = setTimeout(async () => {
@@ -538,9 +618,9 @@ async function flushDrawNow() {
   // Then redraw from the shared list outright, rather than trusting that the
   // canvas already matches it. The drawer's canvas is built from live input and
   // the viewers' from a replay, and the two drift for small reasons — an echoed
-  // batch, a stroke the point budget truncated, a poll landing at the wrong
+  // batch, a stroke the point budget truncated, an update landing at the wrong
   // moment. Replaying makes the drawer see exactly what the room sees, by
-  // construction. It costs well under a millisecond and happens twice a second.
+  // construction. It costs well under a millisecond.
   if (!draw.drawing) paintStrokesFromScratch();
 }
 

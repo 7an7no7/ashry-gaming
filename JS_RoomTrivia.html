@@ -18,12 +18,6 @@ ROOM_GAMES.trivia = {
   lobbyOptions: (state) => langLobbyOptions(state, 'trivia_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
 
-  pollHint(state) {
-    const s = state.shared;
-    if (s.phase === 'answering' && (s.answered || []).indexOf(Room.me) === -1) return 'acting';
-    return 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-trivia') setView('room-trivia');
     const el = document.getElementById('view-room-trivia');
@@ -147,8 +141,8 @@ function chooseTriviaAnswer(choice) {
   const s = Room.state && Room.state.shared;
   if (!s || s.phase !== 'answering') return;
   trivia.picked = { q: s.qIndex, choice: choice };
-  // Lock the buttons now; the round trip takes a second and a second tap on
-  // another choice would otherwise look like it changed the answer.
+  // Lock the buttons now: a second tap on another choice before the answer is
+  // back would otherwise look like it changed the answer.
   document.querySelectorAll('#view-room-trivia .trivia-choice').forEach((b, i) => {
     b.disabled = true;
     b.classList.toggle('is-picked', i === choice);
@@ -193,8 +187,9 @@ function startTriviaClock(s) {
         if (!st || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
         Room.act('closeQuestion').catch(() => {});
       };
-      // The host closes on time. Anyone else only if the host hasn't a few
-      // seconds later — a host whose phone slept can't freeze the question.
+      // The host closes on time; anyone else a few seconds later if the host
+      // hasn't. The server closes it as well (roomTimeout), even if every
+      // phone is asleep.
       if (Room.isHost) close();
       else setTimeout(close, 3000);
     }

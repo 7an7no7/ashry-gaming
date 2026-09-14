@@ -30,13 +30,6 @@ ROOM_GAMES.wavelength = {
   lobbyOptions: (state) => langLobbyOptions(state, 'wl_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
 
-  pollHint(state) {
-    const s = state.shared;
-    if (s.phase === 'clue') return s.psychicId === Room.me ? 'acting' : 'watching';
-    // Everyone watches the dial move, including the one moving it.
-    return 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-wavelength') setView('room-wavelength');
     const el = document.getElementById('view-room-wavelength');
@@ -147,18 +140,23 @@ function wavelengthFrame(state, t, psychicAway) {
   return header + spectrum + panel + renderRoomPlayerStrip(state);
 }
 
+// The dial is shared while it moves, a few times a second, so everyone watches
+// the needle travel instead of seeing it jump once the finger lifts.
+const WAVE_SEND_MS = 150;
+
 function onWavelengthDial(value) {
   const v = Math.max(0, Math.min(100, Math.round(Number(value))));
   wave.lastInput = Date.now();
   wave.pending = v;
   const needle = document.getElementById('wl-needle');
   if (needle) needle.style.left = v + '%';
-  clearTimeout(wave.sendTimer);
+  if (wave.sendTimer) return;          // the send already queued takes the newest value
   wave.sendTimer = setTimeout(() => {
     wave.sendTimer = null;
+    const next = wave.pending;
     wave.pending = null;
-    roomAct('setDial', { dial: v });
-  }, 300);
+    if (next !== null) roomAct('setDial', { dial: next });
+  }, WAVE_SEND_MS);
 }
 
 function endWavelengthDrag() {

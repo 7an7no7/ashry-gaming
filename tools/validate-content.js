@@ -6,6 +6,10 @@
  * and tapping either would ambiguously satisfy two groups.
  */
 const fs = require('fs');
+const path = require('path');
+
+// The project root: the content files sit next to tools/.
+const ROOT = path.join(__dirname, '..') + path.sep;
 
 const load = (file, name) => {
   // JS_*.html files wrap their code in a <script> tag; strip it before eval.
@@ -19,7 +23,7 @@ const problems = [];
 const note = (msg) => problems.push(msg);
 
 /* ---------------------------------------------------------- Connections */
-const CONN = load('JS_Connections.html'.replace(/^/, 'C:/Users/TPC/Apps Script/G/'), 'CONNECTIONS_DB');
+const CONN = load(ROOT + 'JS_Connections.html', 'CONNECTIONS_DB');
 for (const [lang, puzzles] of Object.entries(CONN)) {
   puzzles.forEach((p, pi) => {
     const tag = `connections.${lang}[${pi}]`;
@@ -41,7 +45,7 @@ for (const [lang, puzzles] of Object.entries(CONN)) {
 }
 
 /* -------------------------------------------------------- Party content */
-const PC = 'C:/Users/TPC/Apps Script/G/PartyContent.js';
+const PC = ROOT + 'PartyContent.js';
 const WYR = load(PC, 'WOULD_YOU_RATHER');
 const MLT = load(PC, 'MOST_LIKELY_TO');
 const FIB = load(PC, 'FIBBAGE');
@@ -77,7 +81,7 @@ for (const [lang, list] of Object.entries(FIB)) {
 
 /* --------------------------------------------------- Word banks (server) */
 const DRAW = load(PC, 'DRAW_WORDS');
-const CN = load('C:/Users/TPC/Apps Script/G/CodenamesWords.js', 'CODENAMES_WORDS');
+const CN = load(ROOT + 'CodenamesWords.js', 'CODENAMES_WORDS');
 
 // Draw & Guess needs enough words that a long session never repeats, and every
 // entry has to be something you can actually draw — the reason it stopped
@@ -121,7 +125,7 @@ for (const [lang, list] of Object.entries(TRIV)) {
 }
 
 /* ------------------------------------------- Pass-the-phone deduction games */
-const G = 'C:/Users/TPC/Apps Script/G/';
+const G = ROOT;
 
 // The Chameleon's board is a 4×4 grid: exactly 16 words, and a repeat would
 // make the chameleon's final guess ambiguous. The two languages are listed in

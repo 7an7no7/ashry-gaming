@@ -15,6 +15,8 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
     <meta name="application-name" content="عشرى جيمينج">
+    <!-- Opens the connection to the rooms server early, so creating or joining a room doesn't wait for it. -->
+    <link rel="preconnect" href="https://ashry-rooms.rooms-worker.workers.dev" crossorigin>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
@@ -2969,142 +2971,12 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 <script>
       /* Static site: there is no Apps Script page around this one. */
       window.STATIC_SITE = true;
+      // The rooms server (rooms-worker/), from tools/site.config.json.
+      window.ROOMS_URL = "https://ashry-rooms.rooms-worker.workers.dev";
 
       // A join link has done its job once read; leaving ?room= in the address
       // would send a reload straight back to the join screen.
       if (/[?&]room=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
-
-      /*
-       * google.script.run, for a page Apps Script doesn't serve.
-       *
-       * The room code calls it exactly as before. Calls are relayed through a
-       * hidden iframe of the deployment's ?bridge=1 page (Bridge.html), which
-       * makes the real google.script.run call and posts the answer back.
-       *
-       * A fetch to a doPost was tried first and dropped. Apps Script answers
-       * every POST with a redirect that browsers follow as a GET, and under
-       * load that GET came back as the whole app page or a Drive "file not
-       * found" instead of the answer. The bridge uses the transport the Apps
-       * Script page itself uses, and skips the redirect's extra second.
-       */
-      (function () {
-        var APP_URL = "https://script.google.com/macros/s/AKfycbwmOEPloksDkrGoegi7k3kaQcM6PlMg3JGybKfyVv0qhlcUfxA0tvwkSdl8YrsYvcqY/exec";
-        var CALLS = ['createRoom', 'joinRoom', 'pollRoom', 'leaveRoom', 'roomAction'];
-        // A poll is cheap and repeats anyway, so a lost one gives up quickly; a move
-        // may legitimately wait on the room lock (LOCK_WAIT_MS in Rooms.js).
-        var LOAD_TIMEOUT = 25000, POLL_TIMEOUT = 12000, CALL_TIMEOUT = 25000;
-        var frame = null, bridge = null, bridgeOrigin = '*', queue = [], pending = {}, nextId = 1, loadTimer = null, lastHeard = 0;
-
-        function settle(id, ok, value) {
-          var call = pending[id];
-          if (!call) return;
-          delete pending[id];
-          clearTimeout(call.timer);
-          // Off the message handler's stack: a bug in a handler is not a lost connection.
-          setTimeout(function () {
-            if (ok) { if (call.onOk) call.onOk(value); }
-            else if (call.onFail) call.onFail(new Error(value || 'تعذر الاتصال بالخادم'));
-          }, 0);
-        }
-
-        // Forget the bridge; the next call builds a fresh one. After a timeout the
-        // frame may be gone (a phone that slept, a dropped connection).
-        function reset() {
-          clearTimeout(loadTimer);
-          if (frame && frame.parentNode) frame.parentNode.removeChild(frame);
-          frame = null;
-          bridge = null;
-        }
-
-        function open() {
-          if (frame) return;
-          frame = document.createElement('iframe');
-          frame.src = APP_URL + '?bridge=1';
-          frame.title = 'rooms';
-          frame.setAttribute('aria-hidden', 'true');
-          frame.tabIndex = -1;
-          frame.style.cssText = 'position:fixed;width:1px;height:1px;left:-9px;top:-9px;border:0;opacity:0;pointer-events:none';
-          document.body.appendChild(frame);
-          loadTimer = setTimeout(function () {
-            if (bridge) return;
-            var waiting = queue.splice(0);
-            reset();
-            waiting.forEach(function (m) { settle(m.id, false, 'تعذر الاتصال بالخادم'); });
-          }, LOAD_TIMEOUT);
-        }
-
-        // Apps Script wraps the page in frames of its own, so the bridge sits a
-        // level or two inside our iframe rather than being it.
-        function insideFrame(win) {
-          for (var i = 0; win && i < 4; i++) {
-            if (frame && win === frame.contentWindow) return true;
-            if (win === win.parent) return false;
-            win = win.parent;
-          }
-          return false;
-        }
-
-        window.addEventListener('message', function (event) {
-          var data = event.data;
-          if (!data || typeof data !== 'object') return;
-          if (data.type === 'ashry-bridge-ready') {
-            if (!insideFrame(event.source)) return;
-            bridge = event.source;
-            lastHeard = Date.now();
-            bridgeOrigin = event.origin && event.origin !== 'null' ? event.origin : '*';
-            clearTimeout(loadTimer);
-            queue.splice(0).forEach(function (m) { bridge.postMessage(m, bridgeOrigin); });
-          } else if (data.type === 'ashry-result' && event.source === bridge) {
-            lastHeard = Date.now();
-            settle(data.id, data.ok, data.value);
-          }
-        });
-
-        // A lost answer fails only its own call - the next poll just tries again.
-        // The bridge is rebuilt only once it has gone quiet altogether, and then
-        // everything still waiting on it fails at once instead of each call
-        // sitting out its own timer. While it is still loading, the load timer
-        // decides.
-        function timedOut(id) {
-          if (!bridge) {
-            queue = queue.filter(function (m) { return m.id !== id; });
-            settle(id, false, 'انتهت مهلة الاتصال');
-            return;
-          }
-          if (Date.now() - lastHeard > POLL_TIMEOUT) {
-            reset();
-            queue = [];
-            Object.keys(pending).forEach(function (other) { settle(Number(other), false, 'انتهت مهلة الاتصال'); });
-          } else {
-            settle(id, false, 'انتهت مهلة الاتصال');
-          }
-        }
-
-        function runner() {
-          var onOk = null, onFail = null;
-          var r = {
-            withSuccessHandler: function (fn) { onOk = fn; return r; },
-            withFailureHandler: function (fn) { onFail = fn; return r; }
-          };
-          CALLS.forEach(function (name) {
-            r[name] = function () {
-              var id = nextId++;
-              var message = { type: 'ashry-call', id: id, fn: name, args: Array.prototype.slice.call(arguments) };
-              pending[id] = {
-                onOk: onOk,
-                onFail: onFail,
-                timer: setTimeout(function () { timedOut(id); }, name === 'pollRoom' ? POLL_TIMEOUT : CALL_TIMEOUT)
-              };
-              if (bridge) bridge.postMessage(message, bridgeOrigin);
-              else { queue.push(message); open(); }
-              return r;
-            };
-          });
-          return r;
-        }
-
-        window.google = { script: { get run() { return runner(); }, host: { close: function () {}, setHeight: function () {} } } };
-      })();
     </script>
 </head>
   <body class="transition-colors duration-300">
@@ -6417,15 +6289,11 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
         // Hide loader immediately!
         hideLoader();
     } else {
-        // Fallback for cases where injection failed or isn't present
-        google.script.run
-          .withSuccessHandler(data => {
-            SPY_CATEGORIES = data.spyData || {};
-            dataLoaded = true;
-            setSyncing(false);
-            hideLoader();
-          })
-          .getInitialData();
+        // The build always puts the spy words in the page; carry on without them.
+        SPY_CATEGORIES = {};
+        dataLoaded = true;
+        setSyncing(false);
+        hideLoader();
     }
 
     loadFromLocal();
@@ -7499,62 +7367,100 @@ const GAME_RULES = {
 /* ============================================================================
    MULTIPLAYER CLIENT
    ----------------------------------------------------------------------------
-   Talks to the room API in Rooms.js. Apps Script gives us no push channel, so
-   this polls — but it polls carefully:
+   Talks to the rooms server on Cloudflare (rooms-worker/). Creating and joining
+   a room are plain requests. After that every phone keeps one WebSocket open
+   to its room, and the room sends each phone what it may see the moment
+   anything changes - nobody asks "anything new?" every few seconds.
 
-     - the interval adapts (fast while you're expected to act, slow while
-       waiting, stopped entirely when the tab is hidden),
-     - a poll in flight is never doubled up,
-     - the UI only re-renders when the room's version or its online set actually
-       changed, so an idle lobby costs nothing to display.
+     - A move goes over the socket, and its answer comes back on it.
+     - A dropped connection (lock screen, WiFi to mobile data, a tunnel)
+       reconnects by itself, and the room sends the current state on arrival.
+     - On a network where WebSockets won't connect at all, the phone falls back
+       to asking over plain HTTP every few seconds until one does.
 
    Games register a renderer with Room.onChange, so this file knows nothing
-   about any particular game.
+   about any particular game. The server's address is window.ROOMS_URL, set by
+   tools/build-site.mjs (and by build-preview.mjs for local testing).
    ========================================================================= */
 
 const Room = (() => {
-  const STORE_KEY = 'ashryRoom_v1';
+  // v2 sessions carry the key the server issued to this phone. v1 sessions
+  // were Apps Script rooms, which the new server has never heard of.
+  const STORE_KEY = 'ashryRoom_v2';
+  const OLD_STORE_KEY = 'ashryRoom_v1';
 
-  // Latency is only felt by whoever is waiting, so cadence follows attention
-  // rather than role: you poll quickly when the screen is about to change under
-  // you, and slowly when everyone is waiting on *you*.
-  const POLL_WATCHING = 1200;   // someone else is about to change this screen
-  const POLL_ACTING   = 2600;   // you're the one being waited on; you're typing
-  const POLL_IDLE     = 3200;   // nothing changes until a deliberate action
-  const POLL_BACKOFF_MAX = 15000;
+  const BASE = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+  const REQUEST_TIMEOUT = 12000;
+  const ACK_TIMEOUT = 10000;
+  const CONNECT_TIMEOUT = 8000;
+  const HEARTBEAT_MS = 25000;        // a quiet socket is checked this often...
+  const PONG_TIMEOUT = 6000;         // ...and replaced if it hasn't answered by then
+  const RETRY_DELAYS = [300, 1000, 2000, 4000, 8000];
+  const POLL_MS = 2500;              // the HTTP fallback's pace
+  const OFFLINE_NOTICE_MS = 2000;    // a drop this short doesn't flash the sync dot
 
-  let session = null;      // { code, playerId, game }
+  const DROPPED = { gone: 'انتهت الغرفة', kicked: 'تمت إزالتك من الغرفة' };
+
+  let session = null;      // { code, playerId, key, game }
   let state = null;        // last projection from the server
-  let timer = null;
-  let inFlight = false;
-  let failures = 0;
   let listeners = [];
+  let liveListeners = [];
   let lastSignature = '';
+
+  let socket = null;
+  let retries = 0;
+  let retryTimer = null;
+  let connectTimer = null;
+  let heartbeatTimer = null;
+  let pongTimer = null;
+  let offlineTimer = null;
+  let pollTimer = null;
+  let pollInFlight = false;
+  let nextId = 1;
+  const pending = new Map();   // ack id -> { resolve, reject, timer }
 
   /* --- persistence: survive a lock screen or an accidental reload --------- */
   const remember = () => {
     try {
+      localStorage.removeItem(OLD_STORE_KEY);
       if (session) localStorage.setItem(STORE_KEY, JSON.stringify(session));
       else localStorage.removeItem(STORE_KEY);
     } catch (e) {}
   };
   const recall = () => {
     try {
+      localStorage.removeItem(OLD_STORE_KEY);
       const raw = localStorage.getItem(STORE_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   };
 
-  /** Promise wrapper around google.script.run, which is callback-based. */
-  const call = (fn, ...args) => new Promise((resolve, reject) => {
-    if (typeof google === 'undefined' || !google.script || !google.script.run) {
-      reject(new Error('لا يوجد اتصال بالخادم'));
-      return;
+  /* --- HTTP: create, join, leave, and the fallback --------------------------- */
+
+  /** POSTs to the rooms server and resolves with its answer ({ ok, ... }). */
+  const request = async (path, body) => {
+    if (!BASE) throw new Error('لا يوجد اتصال بالخادم');
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => { if (controller) controller.abort(); }, REQUEST_TIMEOUT);
+    let res;
+    try {
+      // text/plain keeps this a "simple" request: no CORS preflight round trip.
+      res = await fetch(BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify(body),
+        signal: controller ? controller.signal : undefined
+      });
+    } catch (err) {
+      throw new Error(err && err.name === 'AbortError' ? 'انتهت مهلة الاتصال' : 'تعذر الاتصال بالخادم');
+    } finally {
+      clearTimeout(timer);
     }
-    google.script.run
-      .withSuccessHandler(resolve)
-      .withFailureHandler(reject)[fn](...args);
-  });
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!data) throw new Error('تعذر الاتصال بالخادم');
+    return data;
+  };
 
   /* --- change notification ----------------------------------------------- */
   const signatureOf = (s) => !s ? '' :
@@ -7567,63 +7473,11 @@ const Room = (() => {
     listeners.forEach(fn => { try { fn(state); } catch (e) { console.error('room listener', e); } });
   };
 
-  /* --- polling ------------------------------------------------------------ */
-  const nextDelay = () => {
-    if (failures) return Math.min(POLL_IDLE * Math.pow(2, failures), POLL_BACKOFF_MAX);
-    if (!state) return POLL_WATCHING;
-
-    // The lobby is where people stare waiting for names to appear, so it always
-    // gets the fast cadence regardless of who they are.
-    if (state.phase === 'lobby') return POLL_WATCHING;
-
-    // Games declare their own cadence, because only they know whether this
-    // player is currently acting or waiting.
-    const game = ROOM_GAMES[state.game];
-    const hint = (game && game.pollHint) ? game.pollHint(state) : 'watching';
-    if (hint === 'acting') return POLL_ACTING;
-    if (hint === 'idle') return POLL_IDLE;
-    return POLL_WATCHING;
-  };
-
-  const schedule = () => {
-    clearTimeout(timer);
-    if (!session) return;
-    timer = setTimeout(poll, nextDelay());
-  };
-
-  const poll = async () => {
-    if (!session || inFlight || document.hidden) { schedule(); return; }
-    inFlight = true;
-    try {
-      // Send the version we hold; an unchanged room replies with presence only.
-      const res = await call('pollRoom', session.code, session.playerId,
-                             state ? state.version : 0);
-      failures = 0;
-      if (res.gone)   { handleDropped('انتهت الغرفة'); return; }
-      if (res.kicked) { handleDropped('تمت إزالتك من الغرفة'); return; }
-
-      if (res.same && state) {
-        // Nothing moved. Fold in who is still connected and keep the rest.
-        state.players.forEach(p => { p.online = res.online.indexOf(p.id) !== -1; });
-      } else if (res.state) {
-        state = res.state;
-      }
-      setSyncing(false);
-      emit(false);
-    } catch (err) {
-      failures++;
-      // Three misses in a row is a real connection problem, not a blip.
-      if (failures >= 3) setSyncing(true);
-    } finally {
-      inFlight = false;
-      schedule();
-    }
-  };
-
   const handleDropped = (message) => {
     const wasIn = !!session;
     session = null; state = null; lastSignature = '';
-    clearTimeout(timer);
+    disconnect();
+    failPending(message);
     remember();
     if (typeof updateRoomBanner === 'function') updateRoomBanner();
     if (wasIn) {
@@ -7633,6 +7487,222 @@ const Room = (() => {
     }
   };
 
+  /* --- the live connection ------------------------------------------------- */
+  const connected = () => !!socket && socket.readyState === 1;
+
+  const send = (msg) => {
+    if (!connected()) return false;
+    try {
+      socket.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const socketUrl = () => BASE.replace(/^http/i, 'ws') + '/ws?code=' + encodeURIComponent(session.code) +
+      '&pid=' + encodeURIComponent(session.playerId) + '&key=' + encodeURIComponent(session.key);
+
+  function connect() {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+    if (!session || !BASE || socket) return;
+    let ws;
+    try { ws = new WebSocket(socketUrl()); } catch (e) { scheduleReconnect(); return; }
+    socket = ws;
+    clearTimeout(connectTimer);
+    connectTimer = setTimeout(() => { if (socket === ws && ws.readyState !== 1) dropSocket(ws); }, CONNECT_TIMEOUT);
+
+    ws.onopen = () => {
+      if (socket !== ws) return;
+      clearTimeout(connectTimer);
+      retries = 0;
+      stopPolling();
+      clearTimeout(offlineTimer);
+      offlineTimer = null;
+      setSyncing(false);
+      startHeartbeat();
+    };
+    ws.onmessage = (event) => { if (socket === ws) onMessage(event.data); };
+    ws.onclose = () => dropSocket(ws);
+    ws.onerror = () => {};     // a close always follows
+  }
+
+  /** Forgets a socket that died, fails the moves waiting on it, and tries again. */
+  function dropSocket(ws) {
+    if (socket !== ws) return;
+    socket = null;
+    clearTimeout(connectTimer);
+    stopHeartbeat();
+    try { ws.onopen = ws.onmessage = ws.onclose = null; ws.close(); } catch (e) {}
+    failPending('انقطع الاتصال، حاول مرة أخرى');
+    if (!session) return;
+    if (!offlineTimer) {
+      offlineTimer = setTimeout(() => {
+        offlineTimer = null;
+        if (session && !connected()) setSyncing(true);
+      }, OFFLINE_NOTICE_MS);
+    }
+    scheduleReconnect();
+  }
+
+  function scheduleReconnect() {
+    if (!session || retryTimer) return;
+    // A hidden page waits: coming back to the screen reconnects at once.
+    if (document.hidden) return;
+    const delay = RETRY_DELAYS[Math.min(retries, RETRY_DELAYS.length - 1)];
+    retries++;
+    // Missed twice: keep the game moving over HTTP while the socket retries.
+    if (retries >= 2) startPolling();
+    retryTimer = setTimeout(() => { retryTimer = null; connect(); }, delay);
+  }
+
+  function disconnect() {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+    clearTimeout(offlineTimer);
+    offlineTimer = null;
+    clearTimeout(connectTimer);
+    stopPolling();
+    stopHeartbeat();
+    retries = 0;
+    const ws = socket;
+    socket = null;
+    if (ws) { try { ws.onopen = ws.onmessage = ws.onclose = null; ws.close(1000); } catch (e) {} }
+  }
+
+  function startHeartbeat() {
+    stopHeartbeat();
+    heartbeatTimer = setInterval(() => ping(PONG_TIMEOUT), HEARTBEAT_MS);
+  }
+
+  function stopHeartbeat() {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+    clearTimeout(pongTimer);
+    pongTimer = null;
+  }
+
+  /**
+   * Asks for a "pong" (Cloudflare answers it without waking the room). A socket
+   * that doesn't answer in time is replaced - after a lock screen a phone can
+   * hold a socket that looks open but is long dead.
+   */
+  function ping(timeout) {
+    const ws = socket;
+    if (!ws || ws.readyState !== 1 || pongTimer) return;
+    if (!send('ping')) { dropSocket(ws); return; }
+    pongTimer = setTimeout(() => {
+      pongTimer = null;
+      dropSocket(ws);
+    }, timeout);
+  }
+
+  function onMessage(raw) {
+    if (raw === 'pong') {
+      clearTimeout(pongTimer);
+      pongTimer = null;
+      return;
+    }
+    let msg;
+    try { msg = JSON.parse(raw); } catch (e) { return; }
+    if (!msg || !session) return;
+
+    if (msg.t === 'state') {
+      state = msg.state;
+      emit(false);
+    } else if (msg.t === 'strokes') {
+      applyStrokes(msg);
+    } else if (msg.t === 'ack') {
+      settleAck(msg);
+    } else if (msg.t === 'live') {
+      liveListeners.forEach(fn => { try { fn(msg.d); } catch (e) { console.error('room live listener', e); } });
+    } else if (msg.t === 'gone') {
+      handleDropped(DROPPED.gone);
+    } else if (msg.t === 'kicked' || msg.t === 'left') {
+      handleDropped(DROPPED.kicked);
+    }
+  }
+
+  /**
+   * New strokes arrive as just the strokes, so a drawing isn't resent to every
+   * phone several times a second. They only fit onto the exact version they
+   * were cut from; anything else asks the room for a full copy.
+   */
+  function applyStrokes(patch) {
+    const strokes = state && state.shared && state.shared.strokes;
+    if (state && state.version === patch.from && Array.isArray(strokes)) {
+      patch.add.forEach(st => strokes.push(st));
+      state.version = patch.v;
+      emit(false);
+      return;
+    }
+    send({ t: 'sync' });
+  }
+
+  function settleAck(msg) {
+    if (msg.patch) applyStrokes(msg.patch);
+    else if (msg.state) { state = msg.state; emit(false); }
+
+    const waiter = pending.get(msg.id);
+    if (!waiter) return;
+    pending.delete(msg.id);
+    clearTimeout(waiter.timer);
+    if (msg.ok) { waiter.resolve(state); return; }
+    if (msg.gone || msg.kicked) handleDropped(msg.gone ? DROPPED.gone : DROPPED.kicked);
+    waiter.reject(new Error(msg.error || 'تعذر تنفيذ الإجراء'));
+  }
+
+  function failPending(message) {
+    pending.forEach(w => { clearTimeout(w.timer); w.reject(new Error(message)); });
+    pending.clear();
+  }
+
+  /* --- HTTP fallback, only while the socket can't connect ------------------ */
+  function startPolling() {
+    if (pollTimer || !session) return;
+    const tick = async () => {
+      pollTimer = setTimeout(tick, POLL_MS);
+      if (!session || connected() || pollInFlight || document.hidden) return;
+      pollInFlight = true;
+      try {
+        const res = await request('/poll', {
+          code: session.code, pid: session.playerId, key: session.key, v: state ? state.version : 0
+        });
+        if (!session || connected()) return;
+        if (res.gone) { handleDropped(DROPPED.gone); return; }
+        if (res.kicked) { handleDropped(DROPPED.kicked); return; }
+        if (res.same && state) {
+          state.players.forEach(p => { p.online = res.online.indexOf(p.id) !== -1; });
+        } else if (res.state) {
+          state = res.state;
+        }
+        setSyncing(false);
+        emit(false);
+      } catch (e) {
+        // Still offline; the socket and this both keep trying.
+      } finally {
+        pollInFlight = false;
+      }
+    };
+    pollTimer = setTimeout(tick, 0);
+  }
+
+  function stopPolling() {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
+  const adoptSession = (res, game) => {
+    disconnect();
+    session = { code: res.state.code, playerId: res.playerId, key: res.key, game: game };
+    state = res.state;
+    lastSignature = '';
+    remember();
+    emit(true);
+    connect();
+  };
+
   /* --- public API --------------------------------------------------------- */
   return {
     get state() { return state; },
@@ -7640,81 +7710,120 @@ const Room = (() => {
     get isIn() { return !!session; },
     get isHost() { return !!(state && state.youAreHost); },
     get me() { return session ? session.playerId : null; },
+    get connected() { return connected(); },
 
     onChange(fn) { listeners.push(fn); return () => { listeners = listeners.filter(f => f !== fn); }; },
 
+    /** Messages the room relays between phones without keeping (the line being drawn). */
+    onLive(fn) { liveListeners.push(fn); return () => { liveListeners = liveListeners.filter(f => f !== fn); }; },
+    sendLive(data) { return send({ t: 'live', d: data }); },
+
     async create(name, gameId) {
-      const res = await call('createRoom', name, gameId);
-      session = { code: res.state.code, playerId: res.playerId, game: gameId };
-      state = res.state;
-      remember();
-      emit(true);
-      schedule();
+      const res = await request('/create', { name: name, game: gameId || null });
+      if (!res.ok) throw new Error(res.error || 'تعذر إنشاء الغرفة');
+      adoptSession(res, gameId);
       return res;
     },
 
     async join(code, name) {
-      const res = await call('joinRoom', code, name);
-      session = { code: String(code).toUpperCase(), playerId: res.playerId, game: res.state.game };
-      state = res.state;
-      remember();
-      emit(true);
-      schedule();
+      const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name });
+      if (!res.ok) throw new Error(res.error || 'تعذر الانضمام للغرفة');
+      adoptSession(res, res.state.game);
       return res;
     },
 
-    /** Send a move. The server is authoritative, so we adopt whatever it returns. */
-    async act(action, payload) {
-      if (!session) throw new Error('لست في غرفة');
-      const s = await call('roomAction', session.code, session.playerId, action, payload || {});
-      state = s;
-      emit(false);
-      // A move usually changes what others should see; look again promptly.
-      clearTimeout(timer);
-      timer = setTimeout(poll, 350);
-      return s;
+    /** Send a move. The server is authoritative: this resolves with the state after it. */
+    act(action, payload) {
+      if (!session) return Promise.reject(new Error('لست في غرفة'));
+
+      if (connected()) {
+        return new Promise((resolve, reject) => {
+          const id = nextId++;
+          const timer = setTimeout(() => {
+            pending.delete(id);
+            reject(new Error('انتهت مهلة الاتصال'));
+            ping(3000);
+          }, ACK_TIMEOUT);
+          pending.set(id, { resolve, reject, timer });
+          if (!send({ t: 'act', id: id, action: action, payload: payload || {} })) {
+            pending.delete(id);
+            clearTimeout(timer);
+            reject(new Error('انقطع الاتصال، حاول مرة أخرى'));
+          }
+        });
+      }
+
+      // No socket right now: the same move over plain HTTP.
+      const { code, playerId, key } = session;
+      return request('/act', { code: code, pid: playerId, key: key, action: action, payload: payload || {} })
+        .then(res => {
+          if (res.gone || res.kicked) {
+            handleDropped(res.gone ? DROPPED.gone : DROPPED.kicked);
+            throw new Error(res.gone ? DROPPED.gone : DROPPED.kicked);
+          }
+          if (!res.ok) throw new Error(res.error || 'تعذر تنفيذ الإجراء');
+          if (res.state && session) { state = res.state; emit(false); }
+          connect();
+          return state;
+        });
     },
 
     async leave() {
       if (!session) return;
-      const { code, playerId } = session;
+      const { code, playerId, key } = session;
       session = null; state = null; lastSignature = '';
-      clearTimeout(timer);
+      disconnect();
+      failPending('لست في غرفة');
       remember();
       emit(true);
       if (typeof updateRoomBanner === 'function') updateRoomBanner();
-      try { await call('leaveRoom', code, playerId); } catch (e) {}
+      try { await request('/leave', { code: code, pid: playerId, key: key }); } catch (e) {}
     },
 
     /** Called on load: silently rejoin the room this device was last in. */
     async resume() {
       const saved = recall();
-      if (!saved || !saved.code || !saved.playerId) return false;
+      if (!saved || !saved.code || !saved.playerId || !saved.key) return false;
       session = saved;
       try {
-        const res = await call('pollRoom', saved.code, saved.playerId);
-        if (res.gone || res.kicked) { session = null; remember(); return false; }
+        const res = await request('/poll', { code: saved.code, pid: saved.playerId, key: saved.key, v: 0 });
+        if (session !== saved) return false;
+        if (!res.ok || res.gone || res.kicked || !res.state) {
+          session = null;
+          remember();
+          return false;
+        }
         state = res.state;
         emit(true);
-        schedule();
+        connect();
         return true;
       } catch (err) {
-        session = null;
-        remember();
+        // No connection right now. The room may well still be there, so keep
+        // the session and let the socket keep trying; the state arrives with it.
+        if (session === saved) connect();
         return false;
       }
     },
 
-    /** Force an immediate refresh (used when a screen becomes visible again). */
-    refresh() { clearTimeout(timer); timer = setTimeout(poll, 0); }
+    /** Catch up now: the screen woke, the network came back, or something looks stale. */
+    refresh() {
+      if (!session) return;
+      if (connected()) {
+        send({ t: 'sync' });
+        ping(3000);
+      } else if (!socket) {
+        connect();
+      }
+    }
   };
 })();
 
-// A backgrounded phone shouldn't poll; catching up the moment it returns is
-// both cheaper and feels faster than polling through the pause.
+// A phone that wakes up, or gets its network back, catches up at once.
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && Room.isIn) Room.refresh();
 });
+window.addEventListener('online', () => { if (Room.isIn) Room.refresh(); });
+window.addEventListener('pageshow', (event) => { if (event.persisted && Room.isIn) Room.refresh(); });
 
 /* ==========================================================================
    QR CODE
@@ -7892,7 +8001,7 @@ function renderRoomLobby(state) {
     const html = inHub
       ? renderRoomHub(state)
       : renderChosenGame(state, game);
-    // Only rewrite when it changed, so an open <select> isn't reset every poll.
+    // Only rewrite when it changed, so an open <select> isn't reset by every update.
     if (setup.dataset.sig !== html) { setup.innerHTML = html; setup.dataset.sig = html; }
   }
 }
@@ -14073,17 +14182,6 @@ ROOM_GAMES.imposter = {
     };
   },
 
-  /**
-   * During the discussion nothing on screen changes until the host reveals —
-   * and that can be minutes — so back right off. The reveal step is different:
-   * players are waiting for the host to move things on.
-   */
-  pollHint(state) {
-    if (state.phase === 'discuss') return 'idle';
-    if (state.phase === 'result') return 'idle';
-    return state.youAreHost ? 'acting' : 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-imposter') {
       imposterCardOpen = false;
@@ -14313,21 +14411,6 @@ ROOM_GAMES.codenames = {
 
   startPayload() { return { lang: codenamesLang }; },
 
-  /**
-   * A spymaster composing a clue, and operatives holding the current turn, are
-   * the people being waited on. Everyone else is watching the board change.
-   */
-  pollHint(state) {
-    const s = state.shared;
-    if (s.winner) return 'idle';
-    const mine = (s.teams || {})[Room.me] || {};
-    const myTurn = mine.team === s.turn;
-    if (!myTurn) return 'watching';
-    if (mine.role === 'spymaster' && !s.clue) return 'acting';   // typing a clue
-    if (mine.role === 'operative' && s.clue) return 'acting';    // about to tap
-    return 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-codenames') setView('room-codenames');
     const el = document.getElementById('view-room-codenames');
@@ -14486,18 +14569,6 @@ ROOM_GAMES.justone = {
     return { words: all };
   },
 
-  /** Writing your clue or typing your guess: you're the one being waited on. */
-  pollHint(state) {
-    const s = state.shared;
-    const amGuesser = Room.me === s.guesserId;
-    if (s.phase === 'writing') {
-      const submitted = (s.submitted || []).indexOf(Room.me) !== -1;
-      return (!amGuesser && !submitted) ? 'acting' : 'watching';
-    }
-    if (s.phase === 'guessing') return amGuesser ? 'acting' : 'watching';
-    return 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-justone') setView('room-justone');
     const el = document.getElementById('view-room-justone');
@@ -14641,9 +14712,6 @@ ROOM_GAMES.whoami = {
     const cat = sel ? sel.value : Object.keys(db)[0];
     return { words: (db[cat] || []).slice() };
   },
-
-  // The board is static until the host reveals, so nobody needs fast updates.
-  pollHint() { return 'idle'; },
 
   render(state) {
     if (appState.currentView !== 'room-whoami') setView('room-whoami');
@@ -14820,8 +14888,6 @@ const langLobbyOptions = (state, hintKey) => {
 ROOM_GAMES.wouldyou = {
   lobbyOptions: (s) => langLobbyOptions(s, 'wyr_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
-  pollHint: (s) => (s.shared.vote && s.shared.vote.voted.indexOf(Room.me) === -1) ? 'acting' : 'watching',
-
   render(state) {
     if (appState.currentView !== 'room-wouldyou') setView('room-wouldyou');
     const el = document.getElementById('view-room-wouldyou');
@@ -14847,8 +14913,6 @@ ROOM_GAMES.wouldyou = {
 ROOM_GAMES.mostlikely = {
   lobbyOptions: (s) => langLobbyOptions(s, 'mlt_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
-  pollHint: (s) => (s.shared.vote && s.shared.vote.voted.indexOf(Room.me) === -1) ? 'acting' : 'watching',
-
   render(state) {
     if (appState.currentView !== 'room-mostlikely') setView('room-mostlikely');
     const el = document.getElementById('view-room-mostlikely');
@@ -14874,13 +14938,6 @@ ROOM_GAMES.mostlikely = {
 ROOM_GAMES.fibbage = {
   lobbyOptions: (s) => langLobbyOptions(s, 'fib_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
-  pollHint(state) {
-    const s = state.shared;
-    if (s.phase === 'writing') return (s.submitted || []).indexOf(Room.me) === -1 ? 'acting' : 'watching';
-    if (s.phase === 'voting') return s.vote.voted.indexOf(Room.me) === -1 ? 'acting' : 'watching';
-    return 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-fibbage') setView('room-fibbage');
     const el = document.getElementById('view-room-fibbage');
@@ -14952,23 +15009,24 @@ async function submitFibbageLie() {
 /* ============================================================================
    رسم وتخمين — DRAW & GUESS
    ----------------------------------------------------------------------------
-   The honest constraint: with no push channel the drawing cannot stream. The
-   drawer's strokes are batched and sent about twice a second, so viewers watch
-   it arrive in chunks rather than as a moving line.
-
-   The design leans into that instead of fighting it:
-     - the drawer's own canvas is always instant, because it paints locally and
-       only *then* sends,
-     - viewers re-paint from the full stroke list, so a dropped batch repairs
-       itself on the next poll rather than leaving a gap,
-     - the round is won by the first correct guess, not by watching the line.
+   The drawer's own canvas is always instant: it paints locally and only then
+   sends. Two things go to the room:
+     - the line still under the finger, a few points every DRAW_LIVE_MS, which
+       the room relays to the other phones without keeping (Room.sendLive),
+     - each finished stroke, a moment after the finger lifts (addStrokes),
+       which is what the room keeps.
+   Viewers draw the live line as it arrives, then repaint from the room's
+   stroke list once the finished stroke lands, so every phone ends up with
+   exactly the same picture - and a piece that went missing repairs itself.
+   The round is won by the first correct guess.
 
    Coordinates are quantised to a 0–255 grid before sending, which keeps a whole
-   drawing small enough to live in the room's cache entry.
+   drawing small.
    ========================================================================= */
 
 const DRAW_GRID = 255;
-const DRAW_FLUSH_MS = 550;      // how often a batch of strokes is sent
+const DRAW_FLUSH_MS = 200;      // how soon a finished stroke is sent
+const DRAW_LIVE_MS = 80;        // how often the line under the finger is shared
 const DRAW_COLOURS = ['#111827', '#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed',
                       '#db2777', '#0891b2', '#65a30d', '#78350f', '#94a3b8', '#ffffff'];
 /* The canvas is white in both themes — the drawing is shared, so it cannot
@@ -14999,7 +15057,12 @@ const draw = {
   snapshot: null,      // canvas before a shape started, for the rubber band
   flushTimer: null,
   clock: null,
-  clockEndsAt: null    // deadline the live clock belongs to
+  clockEndsAt: null,   // deadline the live clock belongs to
+  liveSeq: 0,          // drawer: which stroke the live line belongs to
+  liveSent: 0,         // drawer: how many of its numbers have been shared
+  liveAt: 0,           // drawer: when the live line was last shared
+  live: null,          // viewer: the drawer's line in progress { s, n, c, w, p }
+  liveShown: false     // viewer: that line is painted on the canvas
 };
 
 ROOM_GAMES.drawguess = {
@@ -15026,12 +15089,6 @@ ROOM_GAMES.drawguess = {
       lang: appState.lang === 'en' ? 'en' : 'ar',
       seconds: sel ? Number(sel.value) : 90
     };
-  },
-
-  pollHint(state) {
-    // The drawer is the one being waited on; guessers are watching the picture
-    // appear and want it as fast as it can come.
-    return state.shared.drawerId === Room.me ? 'acting' : 'watching';
   },
 
   render(state) {
@@ -15160,22 +15217,43 @@ function paintStrokes(strokes) {
   const c = draw.canvas, ctx = draw.ctx;
   if (!c || !ctx) return;
 
-  // Never repaint under a stroke in progress. A poll landing mid-drag would
+  // Never repaint under a stroke in progress. An update landing mid-drag would
   // wipe the line being drawn, and for a shape it also throws away the
   // snapshot the rubber band restores from — which made the preview stack on
   // itself and left the drawer with darker edges than everyone else saw.
   // The drawer is the only one who can add strokes, so nothing is missed:
-  // the next poll after the drag catches up.
+  // the next update after the drag catches up.
   if (draw.drawing) return;
 
   // A shrinking list means the drawer cleared or undid: start again. Replaying
   // from the beginning also keeps fills correct, since a fill depends on
   // everything painted before it.
-  if (strokes.length < draw.painted) { clearSurface(); draw.painted = 0; }
+  if (strokes.length < draw.painted) {
+    clearSurface();
+    draw.painted = 0;
+    draw.live = null;
+    draw.liveShown = false;
+  }
   if (strokes.length === draw.painted) return;
+
+  // The finished stroke for a live line has landed. Painting it over the live
+  // line would darken its soft edges, so replay from the paper up instead.
+  if (draw.liveShown) {
+    clearSurface();
+    draw.painted = 0;
+    draw.liveShown = false;
+  }
 
   for (let i = draw.painted; i < strokes.length; i++) drawStroke(ctx, strokes[i], c.width);
   draw.painted = strokes.length;
+
+  // A line the drawer is still drawing goes back on top.
+  if (draw.live && draw.live.n >= strokes.length) {
+    drawStroke(ctx, draw.live, c.width);
+    draw.liveShown = true;
+  } else {
+    draw.live = null;
+  }
   // The snapshot the shape preview restores from is now stale.
   draw.snapshot = null;
 }
@@ -15311,6 +15389,8 @@ function bindDrawSurface(canDraw) {
   draw.ctx = draw.canvas.getContext('2d', { willReadFrequently: true });
   clearSurface();
   draw.painted = 0;
+  draw.live = null;
+  draw.liveShown = false;
   if (!canDraw) return;
 
   const pos = (e) => {
@@ -15340,6 +15420,9 @@ function bindDrawSurface(canDraw) {
     draw.drawing = true;
     const letter = activeToolLetter();
     draw.current = { c: activeColour(), w: activeWidth(), p: [x, y] };
+    draw.liveSeq++;
+    draw.liveSent = 0;
+    draw.liveAt = 0;
     if (letter !== 'f') {
       draw.current.t = letter;
       draw.current.p = [x, y, x, y];
@@ -15378,6 +15461,7 @@ function bindDrawSurface(canDraw) {
     p.push(x, y);
     // Paint locally at once: the drawer never waits on the network.
     drawStroke(draw.ctx, { c: cur.c, w: cur.w, p: p.slice(-4) }, draw.canvas.width);
+    shareLiveStroke(false, cur);
   };
 
   const finish = () => {
@@ -15393,6 +15477,8 @@ function bindDrawSurface(canDraw) {
       paintStrokesFromScratch();
       return;
     }
+    // The last few points, so the live line ends where the stroke does.
+    if (!cur.t) shareLiveStroke(true, cur);
     if (cur.p.length >= 2) draw.pending.push(cur);
     scheduleFlush();
   };
@@ -15415,7 +15501,58 @@ function paintStrokesFromScratch() {
 }
 
 
-/** Batches strokes instead of sending each one — one request per ~0.5s. */
+/**
+ * Shares the stroke still under the drawer's finger. Each piece starts with the
+ * last point of the one before, so the pieces join into one line on the other
+ * phones. `n` is the place the finished stroke will take in the room's list.
+ */
+function shareLiveStroke(force, cur) {
+  if (!cur || cur.t || !Room.isIn) return;
+  const now = Date.now();
+  if (!force && now - draw.liveAt < DRAW_LIVE_MS) return;
+  if (cur.p.length <= draw.liveSent) return;
+  const from = Math.max(0, draw.liveSent - 2);
+  const sent = Room.sendLive({
+    s: draw.liveSeq,
+    n: draw.painted + draw.pending.length,
+    i: from,
+    c: cur.c,
+    w: cur.w,
+    p: cur.p.slice(from)
+  });
+  if (sent) {
+    draw.liveSent = cur.p.length;
+    draw.liveAt = now;
+  }
+}
+
+/** A viewer's side: draws each piece of the drawer's line as it arrives. */
+function onDrawLive(d) {
+  const state = Room.state;
+  if (!d || !state || state.game !== 'drawguess' || appState.currentView !== 'room-drawguess') return;
+  const s = state.shared || {};
+  if (!draw.ctx || !draw.canvas || s.drawerId === Room.me || s.word) return;
+  if (!Array.isArray(d.p) || d.p.length < 2 || d.p.length > 6000) return;
+  // That stroke is already finished and painted from the room's list.
+  if ((s.strokes || []).length > d.n) return;
+
+  let live = draw.live;
+  if (!live || live.s !== d.s) {
+    if (d.i !== 0) return;       // missed its start; the finished stroke will show it
+    live = draw.live = { s: d.s, n: d.n, c: String(d.c || '#111'), w: Number(d.w) || 4, p: [] };
+  }
+  // Pieces overlap by one point; any other start arrived out of order.
+  const start = Math.max(0, live.p.length - 2);
+  if (d.i !== start) return;
+  const pts = d.p.map(v => Math.max(0, Math.min(DRAW_GRID, Math.round(Number(v) || 0))));
+  live.p = live.p.slice(0, start).concat(pts);
+  drawStroke(draw.ctx, { c: live.c, w: live.w, p: live.p.slice(start) }, draw.canvas.width);
+  draw.liveShown = true;
+}
+
+Room.onLive(onDrawLive);
+
+/** Batches finished strokes: at most one message every DRAW_FLUSH_MS. */
 function scheduleFlush() {
   if (draw.flushTimer) return;
   draw.flushTimer = setTimeout(async () => {
@@ -15488,9 +15625,9 @@ async function flushDrawNow() {
   // Then redraw from the shared list outright, rather than trusting that the
   // canvas already matches it. The drawer's canvas is built from live input and
   // the viewers' from a replay, and the two drift for small reasons — an echoed
-  // batch, a stroke the point budget truncated, a poll landing at the wrong
+  // batch, a stroke the point budget truncated, an update landing at the wrong
   // moment. Replaying makes the drawer see exactly what the room sees, by
-  // construction. It costs well under a millisecond and happens twice a second.
+  // construction. It costs well under a millisecond.
   if (!draw.drawing) paintStrokesFromScratch();
 }
 
@@ -15590,9 +15727,9 @@ function resetDrawSurface() {
    wins by guessing the word, which is why the server keeps the word back until
    they have guessed.
 
-   The frame is rebuilt only when the screen changes shape: a poll landing in
-   the middle of a line, or while the fake is typing a guess, must not replace
-   the canvas or the input under them.
+   The frame is rebuilt only when the screen changes shape: an update landing
+   in the middle of a line, or while the fake is typing a guess, must not
+   replace the canvas or the input under them.
    ========================================================================= */
 
 const FA_GRID = 255;
@@ -15610,14 +15747,6 @@ const fakeArt = {
 ROOM_GAMES.fakeartist = {
   lobbyOptions: (state) => langLobbyOptions(state, 'fa_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
-
-  pollHint(state) {
-    const s = state.shared;
-    if (s.phase === 'drawing') return s.currentDrawerId === Room.me ? 'acting' : 'watching';
-    if (s.phase === 'voting') return (s.vote && s.vote.voted.indexOf(Room.me) === -1) ? 'acting' : 'watching';
-    if (s.phase === 'guessing') return s.fakeId === Room.me ? 'acting' : 'watching';
-    return 'watching';
-  },
 
   render(state) {
     if (appState.currentView !== 'room-fakeartist') setView('room-fakeartist');
@@ -15910,13 +16039,6 @@ ROOM_GAMES.wavelength = {
   lobbyOptions: (state) => langLobbyOptions(state, 'wl_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
 
-  pollHint(state) {
-    const s = state.shared;
-    if (s.phase === 'clue') return s.psychicId === Room.me ? 'acting' : 'watching';
-    // Everyone watches the dial move, including the one moving it.
-    return 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-wavelength') setView('room-wavelength');
     const el = document.getElementById('view-room-wavelength');
@@ -16027,18 +16149,23 @@ function wavelengthFrame(state, t, psychicAway) {
   return header + spectrum + panel + renderRoomPlayerStrip(state);
 }
 
+// The dial is shared while it moves, a few times a second, so everyone watches
+// the needle travel instead of seeing it jump once the finger lifts.
+const WAVE_SEND_MS = 150;
+
 function onWavelengthDial(value) {
   const v = Math.max(0, Math.min(100, Math.round(Number(value))));
   wave.lastInput = Date.now();
   wave.pending = v;
   const needle = document.getElementById('wl-needle');
   if (needle) needle.style.left = v + '%';
-  clearTimeout(wave.sendTimer);
+  if (wave.sendTimer) return;          // the send already queued takes the newest value
   wave.sendTimer = setTimeout(() => {
     wave.sendTimer = null;
+    const next = wave.pending;
     wave.pending = null;
-    roomAct('setDial', { dial: v });
-  }, 300);
+    if (next !== null) roomAct('setDial', { dial: next });
+  }, WAVE_SEND_MS);
 }
 
 function endWavelengthDrag() {
@@ -16104,12 +16231,6 @@ const trivia = {
 ROOM_GAMES.trivia = {
   lobbyOptions: (state) => langLobbyOptions(state, 'trivia_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
-
-  pollHint(state) {
-    const s = state.shared;
-    if (s.phase === 'answering' && (s.answered || []).indexOf(Room.me) === -1) return 'acting';
-    return 'watching';
-  },
 
   render(state) {
     if (appState.currentView !== 'room-trivia') setView('room-trivia');
@@ -16234,8 +16355,8 @@ function chooseTriviaAnswer(choice) {
   const s = Room.state && Room.state.shared;
   if (!s || s.phase !== 'answering') return;
   trivia.picked = { q: s.qIndex, choice: choice };
-  // Lock the buttons now; the round trip takes a second and a second tap on
-  // another choice would otherwise look like it changed the answer.
+  // Lock the buttons now: a second tap on another choice before the answer is
+  // back would otherwise look like it changed the answer.
   document.querySelectorAll('#view-room-trivia .trivia-choice').forEach((b, i) => {
     b.disabled = true;
     b.classList.toggle('is-picked', i === choice);
@@ -16280,8 +16401,9 @@ function startTriviaClock(s) {
         if (!st || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
         Room.act('closeQuestion').catch(() => {});
       };
-      // The host closes on time. Anyone else only if the host hasn't a few
-      // seconds later — a host whose phone slept can't freeze the question.
+      // The host closes on time; anyone else a few seconds later if the host
+      // hasn't. The server closes it as well (roomTimeout), even if every
+      // phone is asleep.
       if (Room.isHost) close();
       else setTimeout(close, 3000);
     }

@@ -45,18 +45,6 @@ ROOM_GAMES.justone = {
     return { words: all };
   },
 
-  /** Writing your clue or typing your guess: you're the one being waited on. */
-  pollHint(state) {
-    const s = state.shared;
-    const amGuesser = Room.me === s.guesserId;
-    if (s.phase === 'writing') {
-      const submitted = (s.submitted || []).indexOf(Room.me) !== -1;
-      return (!amGuesser && !submitted) ? 'acting' : 'watching';
-    }
-    if (s.phase === 'guessing') return amGuesser ? 'acting' : 'watching';
-    return 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-justone') setView('room-justone');
     const el = document.getElementById('view-room-justone');
@@ -200,9 +188,6 @@ ROOM_GAMES.whoami = {
     const cat = sel ? sel.value : Object.keys(db)[0];
     return { words: (db[cat] || []).slice() };
   },
-
-  // The board is static until the host reveals, so nobody needs fast updates.
-  pollHint() { return 'idle'; },
 
   render(state) {
     if (appState.currentView !== 'room-whoami') setView('room-whoami');

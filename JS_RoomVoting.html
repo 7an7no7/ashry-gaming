@@ -117,8 +117,6 @@ const langLobbyOptions = (state, hintKey) => {
 ROOM_GAMES.wouldyou = {
   lobbyOptions: (s) => langLobbyOptions(s, 'wyr_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
-  pollHint: (s) => (s.shared.vote && s.shared.vote.voted.indexOf(Room.me) === -1) ? 'acting' : 'watching',
-
   render(state) {
     if (appState.currentView !== 'room-wouldyou') setView('room-wouldyou');
     const el = document.getElementById('view-room-wouldyou');
@@ -144,8 +142,6 @@ ROOM_GAMES.wouldyou = {
 ROOM_GAMES.mostlikely = {
   lobbyOptions: (s) => langLobbyOptions(s, 'mlt_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
-  pollHint: (s) => (s.shared.vote && s.shared.vote.voted.indexOf(Room.me) === -1) ? 'acting' : 'watching',
-
   render(state) {
     if (appState.currentView !== 'room-mostlikely') setView('room-mostlikely');
     const el = document.getElementById('view-room-mostlikely');
@@ -171,13 +167,6 @@ ROOM_GAMES.mostlikely = {
 ROOM_GAMES.fibbage = {
   lobbyOptions: (s) => langLobbyOptions(s, 'fib_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
-  pollHint(state) {
-    const s = state.shared;
-    if (s.phase === 'writing') return (s.submitted || []).indexOf(Room.me) === -1 ? 'acting' : 'watching';
-    if (s.phase === 'voting') return s.vote.voted.indexOf(Room.me) === -1 ? 'acting' : 'watching';
-    return 'watching';
-  },
-
   render(state) {
     if (appState.currentView !== 'room-fibbage') setView('room-fibbage');
     const el = document.getElementById('view-room-fibbage');

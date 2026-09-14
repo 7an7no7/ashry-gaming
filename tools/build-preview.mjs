@@ -1,8 +1,8 @@
 /**
  * Assembles the Apps Script templates into one static page under .preview/ so
  * the app can be opened in a normal browser: include() calls are inlined, the
- * server-injected template vars get sample data and google.script.run is
- * stubbed. Serve it over http (not file://) — the app writes to localStorage,
+ * server-injected template vars are filled in, and rooms talk to a rooms
+ * server - by default wrangler dev (npm run dev in rooms-worker/). Serve it over http (not file://) — the app writes to localStorage,
  * which is blocked on file:// and data: URLs.
  *
  *   npm run build:preview
@@ -15,28 +15,17 @@ import path from 'node:path';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const read = (name) => readFile(path.join(root, `${name}.html`), 'utf8');
 
-
-// Stand in for the Apps Script runtime. The real server files are evaluated in
-// the browser against fake Cache/Lock/ScriptApp services, so the preview runs
-// the same room rules the deployment will — and because the fake cache is
-// localStorage, two browser tabs behave like two phones in one room.
-const SERVER_FILES = ['SpyWords.js', 'CodenamesWords.js', 'PartyContent.js', 'RoomGames.js', 'Rooms.js'];
-const serverSource = (
-  await Promise.all(SERVER_FILES.map((f) => readFile(path.join(root, f), 'utf8')))
-).join('\n\n');
-const stubSource = await readFile(
-  path.join(root, 'tools', 'preview-server-stub.js'),
-  'utf8'
-);
+// Rooms need the rooms server. Locally that is `npm run dev` in rooms-worker/
+// (wrangler dev, port 8787); ROOMS_URL=... points the preview elsewhere, such
+// as the live server. Two browser tabs then behave like two phones in one room.
+const ROOMS_URL = process.env.ROOMS_URL || 'http://127.0.0.1:8787';
 
 // The real spy words, the same ones doGet injects.
 const SPY_WORDS = new Function(
   (await readFile(path.join(root, 'SpyWords.js'), 'utf8')) + '\nreturn SPY_WORDS;'
 )();
 
-const STUB =
-  '<script>\n' + stubSource + '\n</script>\n' +
-  '<script>\n' + serverSource + '\n</script>';
+const STUB = `<script>window.ROOMS_URL = ${JSON.stringify(ROOMS_URL)};</script>`;
 
 let html = await read('Controller');
 
@@ -84,5 +73,5 @@ const IFRAME_HARNESS = `<!doctype html>
 `;
 await writeFile(path.join(outDir, 'iframe-test.html'), IFRAME_HARNESS, 'utf8');
 
-console.log(`.preview/index.html written (${(html.length / 1024).toFixed(0)} KB)`);
+console.log(`.preview/index.html written (${(html.length / 1024).toFixed(0)} KB), rooms via ${ROOMS_URL}`);
 console.log('.preview/iframe-test.html written (Apps Script iframe simulation)');

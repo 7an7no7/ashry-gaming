@@ -7,9 +7,9 @@
    wins by guessing the word, which is why the server keeps the word back until
    they have guessed.
 
-   The frame is rebuilt only when the screen changes shape: a poll landing in
-   the middle of a line, or while the fake is typing a guess, must not replace
-   the canvas or the input under them.
+   The frame is rebuilt only when the screen changes shape: an update landing
+   in the middle of a line, or while the fake is typing a guess, must not
+   replace the canvas or the input under them.
    ========================================================================= */
 
 const FA_GRID = 255;
@@ -27,14 +27,6 @@ const fakeArt = {
 ROOM_GAMES.fakeartist = {
   lobbyOptions: (state) => langLobbyOptions(state, 'fa_hint'),
   startPayload: () => ({ lang: VOTE_LANG() }),
-
-  pollHint(state) {
-    const s = state.shared;
-    if (s.phase === 'drawing') return s.currentDrawerId === Room.me ? 'acting' : 'watching';
-    if (s.phase === 'voting') return (s.vote && s.vote.voted.indexOf(Room.me) === -1) ? 'acting' : 'watching';
-    if (s.phase === 'guessing') return s.fakeId === Room.me ? 'acting' : 'watching';
-    return 'watching';
-  },
 
   render(state) {
     if (appState.currentView !== 'room-fakeartist') setView('room-fakeartist');

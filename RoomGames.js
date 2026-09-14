@@ -1,8 +1,8 @@
 /* ============================================================================
    ROOM GAME RULES
    ----------------------------------------------------------------------------
-   One branch per game, all reached through applyRoomAction. The transport in
-   Rooms.js never needs to know what any of these games are.
+   One branch per game, all reached through applyRoomAction. The room server
+   (rooms-worker/) never needs to know what any of these games are.
 
    The rule that shapes everything here: anything a player must not see goes in
    `room.secrets[playerId]`, which the server only ever sends back to that one
@@ -665,11 +665,12 @@ const scoreboardOf = (room) =>
  * skip prompts that had never been shown.
  */
 /*
- * What has been dealt is remembered for the whole deployment, not per room. A
- * room lives in the cache for a few hours and its history went with it, so the
- * next evening's room started every list from the top again. Script Properties
- * persist. Each list is stored as "length|i,j,k": once a list is edited its
- * length changes and it starts over, rather than trusting indices that now
+ * What has been dealt is remembered across all rooms, not per room: a room only
+ * lasts an evening, and its history used to go with it, so the next evening's
+ * room started every list from the top again. The calls below are Apps Script's
+ * Script Properties; rooms-worker/build.mjs points them at the PromptMemory
+ * Durable Object. Each list is stored as "length|i,j,k": once a list is edited
+ * its length changes and it starts over, rather than trusting indices that now
  * point at different prompts.
  */
 const SEEN_PROPERTY_PREFIX = 'seen_';
@@ -906,17 +907,16 @@ const scoreFibbage = (room) => {
 /* ==========================================================================
    رسم وتخمين — DRAW & GUESS
    --------------------------------------------------------------------------
-   One player draws, everyone else types guesses. With no push channel the
-   drawing cannot stream smoothly — viewers see it arrive in ~1.5s chunks, more
-   like a fax than a live canvas. That is a real limitation and the game is
-   designed around it: strokes are appended in batches, never re-sent, and the
-   round is scored on who gets there first rather than on watching a line move.
+   One player draws, everyone else types guesses. Finished strokes are appended
+   in small batches and never re-sent; the line still under the drawer's finger
+   is relayed live by the room server without being stored (JS_RoomDraw.html).
+   The round goes to whoever gets there first.
 
-   Coordinates are quantised to 0–255 and packed flat ([x,y,x,y,…]) so a full
-   drawing stays inside the cache entry alongside the rest of the room.
+   Coordinates are quantised to 0–255 and packed flat ([x,y,x,y,…]) so a whole
+   drawing stays small: a phone that reconnects is sent all of it again.
    ========================================================================== */
 
-const DRAW_MAX_POINTS = 2600;     // ~15KB of JSON; well inside the 100KB cache
+const DRAW_MAX_POINTS = 2600;     // ~15KB of JSON, however long the round
 const DRAW_ROUND_SECONDS = 90;    // the default the host can change
 const DRAW_ROUND_MIN = 30;
 const DRAW_ROUND_MAX = 240;
@@ -1061,15 +1061,21 @@ const drawGuessAction = (room, playerId, action, payload) => {
     if (room.hostId !== playerId && room.shared.drawerId !== playerId) {
       throw new Error('المضيف أو الرسام فقط');
     }
-    const s = room.shared;
-    if (s.word) return;         // already revealed
-    s.word = room._word;
-    s.board = scoreboardOf(room);
-    room.phase = 'result';
+    revealDrawWord(room);
     return;
   }
 
   throw new Error('إجراء غير معروف');
+};
+
+/** Ends a round nobody guessed: the word goes public. False if it already was. */
+const revealDrawWord = (room) => {
+  const s = room.shared;
+  if (s.word) return false;
+  s.word = room._word;
+  s.board = scoreboardOf(room);
+  room.phase = 'result';
+  return true;
 };
 
 /* ==========================================================================
@@ -1092,8 +1098,8 @@ const roomLangOf = (room, payload) => {
 const FAKE_ARTIST_COLOURS = ['#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2',
                              '#db2777', '#65a30d', '#111827', '#78350f', '#ea580c', '#64748b'];
 const FAKE_ARTIST_ROUNDS = 2;
-// Points per line. The whole room is one cache entry (100 KB), and twelve
-// artists × two laps × this many points has to fit alongside everything else.
+// Points per line. A phone that reconnects is sent the whole room again, so
+// twelve artists × two laps × this many points is kept small.
 const FAKE_ARTIST_MAX_POINTS = 150;
 
 const fakeArtistAction = (room, playerId, action, payload) => {
@@ -1351,9 +1357,9 @@ const wavelengthAction = (room, playerId, action, payload) => {
    ========================================================================== */
 const TRIVIA_PER_GAME = 10;
 const TRIVIA_SECONDS = 15;
-// A round trip to Apps Script takes a second or two, so an answer tapped as
-// the clock hits zero still has to count.
-const TRIVIA_GRACE_MS = 2500;
+// An answer tapped as the clock hits zero is still on its way, and still
+// counts. Once this has passed too, the server closes the question itself.
+const TRIVIA_GRACE_MS = 2000;
 
 const triviaAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'playAgain') {
@@ -1473,4 +1479,38 @@ const closeTriviaQuestion = (room) => {
   s.picks = picks;
   s.gained = gained;
   s.board = scoreboardOf(room);
+};
+
+/* ==========================================================================
+   CLOCKS THE SERVER KEEPS
+   --------------------------------------------------------------------------
+   A timed round has to end even when no phone is awake to end it. The room
+   server asks roomDeadline when to look at a room again, and calls
+   roomTimeout at that moment. Phones still end rounds on time themselves;
+   this is the backstop, a moment later.
+   ========================================================================== */
+const DRAW_TIMEOUT_GRACE_MS = 1500;
+
+/** When this room next needs the server to act on its own, or null. */
+const roomDeadline = (room) => {
+  const s = room.shared || {};
+  if (room.game === 'trivia' && s.phase === 'answering' && s.endsAt) {
+    return s.endsAt + TRIVIA_GRACE_MS;
+  }
+  if (room.game === 'drawguess' && room.phase === 'drawing' && !s.word && s.endsAt) {
+    return s.endsAt + DRAW_TIMEOUT_GRACE_MS;
+  }
+  return null;
+};
+
+/** Acts on a deadline that has passed. True when the room changed. */
+const roomTimeout = (room, now) => {
+  const due = roomDeadline(room);
+  if (!due || now < due) return false;
+  if (room.game === 'trivia') {
+    closeTriviaQuestion(room);
+    return true;
+  }
+  if (room.game === 'drawguess') return revealDrawWord(room);
+  return false;
 };

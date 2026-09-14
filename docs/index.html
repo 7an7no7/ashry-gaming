@@ -7899,6 +7899,8 @@ async function roomCreateFor(gameId) {
     await Room.create(name, gameId);
     setSyncing(false);
     setView('room-lobby');
+    // The room arrived while another screen was showing, so nothing has drawn it yet.
+    if (Room.state) routeRoomState(Room.state);
   } catch (err) {
     setSyncing(false);
     showToast(err.message || 'تعذر إنشاء الغرفة', 'error');

@@ -91,6 +91,39 @@ check(cn.shared.turn === firstTurn && cn.shared.clue === null, 'codenames: a neu
 applyRoomAction(cn, masterOf(firstTurn), 'giveClue', { word: 'wide', count: 0 });
 check(cn.shared.guessesLeft === -1, 'codenames: a clue of 0 has no guess limit');
 
+/* أتوبيس كومبليت: spelling is folded before answers are compared. */
+const stopRound = (letter, sheets) => {
+  const r = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'stop' });
+  applyRoomAction(r, 'a', 'start', { lang: /^[a-z]$/i.test(letter) ? 'en' : 'ar', cats: ['name', 'animal', 'country'], timer: 0, rounds: 1 });
+  r.shared.letter = letter;
+  for (const pid of ['a', 'b', 'c']) applyRoomAction(r, pid, 'submit', { answers: sheets[pid] });
+  const pts = (pid) => ['name', 'animal', 'country'].map((c) => r.shared.results[pid][c].pts).join(',');
+  return { pts, ok: (pid, c) => r.shared.results[pid][c].ok };
+};
+const alef = stopRound('ا', {
+  a: { name: 'أحمد', animal: 'أسد', country: 'ألمانيا' },
+  b: { name: 'احمد', animal: 'الأسد', country: 'المانيا' },
+  c: { name: 'إيهاب', animal: ' اسد ', country: 'إيطاليا' }
+});
+check(alef.pts('a') === '5,5,5' && alef.pts('b') === '5,5,5' && alef.pts('c') === '10,5,10',
+      'stop: أحمد/احمد, أسد/الأسد/اسد and ألمانيا/المانيا are the same answer');
+check(alef.ok('a', 'country') && alef.ok('c', 'name'), 'stop: ألمانيا and إيهاب count as ا words');
+const seen = stopRound('س', {
+  a: { name: 'سامي', animal: 'السمك', country: 'سوريا' },
+  b: { name: 'سَامِي', animal: 'ســمك', country: 'الأسد' },
+  c: { name: 'سلمى', animal: 'سمكة', country: 'سلوفاكيا' }
+});
+check(seen.pts('a') === '5,5,10' && seen.pts('b') === '5,5,0' && seen.pts('c') === '10,10,10',
+      'stop: diacritics and the tatweel are ignored, السمك is a س word, الأسد is not');
+const ess = stopRound('S', {
+  a: { name: 'Sam', animal: 'the seal', country: 'Spain' },
+  b: { name: 'SAM', animal: 'Seal', country: 'the Sudan' },
+  c: { name: 'Sara', animal: 'Snake', country: 'Sudan' }
+});
+check(ess.pts('a') === '5,5,10' && ess.pts('b') === '5,5,5' && ess.pts('c') === '10,10,5',
+      'stop: case and "the" are ignored in English');
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

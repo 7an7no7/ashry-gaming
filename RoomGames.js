@@ -206,15 +206,22 @@ const STOP_COLLECT_MS = 4000;     // after وقف, the other phones send what th
 const STOP_GRACE_MS = 1500;       // the clock ran out: how late a submit still counts
 
 /** One spelling for comparing answers: case, diacritics, hamza forms, the article. */
-const foldStopAnswer = (text, lang) => {
-  let out = String(text || '').trim().toLowerCase()
-    .replace(/[\u064B-\u0652\u0670]/g, '')
-    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+const foldStopAnswer = (text, lang, letter) => {
+  const raw = String(text || '').trim();
+  let out = raw.toLowerCase()
+    .replace(/[\u064B-\u0652\u0670\u0640]/g, '')                 // diacritics and the tatweel
+    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي')   // أسد = اسد, مكتبة = مكتبه, مصطفى = مصطفي
+    .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ک/g, 'ك')
     .replace(/[^\p{L}\p{N} ]/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
   // The definite article is not the initial: "الأسد" is an أ word, "the sea" an S word.
-  if (lang === 'ar' && out.length > 3 && out.indexOf('ال') === 0) out = out.slice(2);
+  // In a round on ا itself a bare "ال…" stays: ألمانيا and إلهام are ا words, and typed
+  // without the hamza they look exactly like an article. Only "ال" + a hamza letter
+  // (الأسد, الإمارات) is an article for certain there.
+  const article = lang === 'ar' && out.length > 3 && out.indexOf('ال') === 0
+    && (letter !== 'ا' || /^ال[أإآ]/.test(raw));
+  if (article) out = out.slice(2);
   if (lang === 'en' && out.indexOf('the ') === 0) out = out.slice(4);
   return out;
 };
@@ -348,7 +355,7 @@ const scoreStopRound = (room) => {
     const folded = {};
     roster.forEach(pid => {
       const raw = (answers[pid] || {})[cat] || '';
-      const f = foldStopAnswer(raw, s.lang);
+      const f = foldStopAnswer(raw, s.lang, letter);
       const ok = f.length >= 2 && f.charAt(0) === letter;
       folded[pid] = { raw: raw, f: f, ok: ok };
     });

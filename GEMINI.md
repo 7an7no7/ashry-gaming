@@ -396,8 +396,11 @@ their frame is redrawn, because the inputs go with it (`ROOM_GAMES.stop.render`
 does this first) - and the server scores once all are in or after
 `STOP_COLLECT_MS`. Answers wait in `room._answers`, never projected, so a
 phone that finished early cannot show its sheet. Scoring is by comparison
-(`foldStopAnswer`: case, diacritics, hamza forms and the definite article are
-folded before comparing, and an answer must start with the letter): 10 for an
+(`foldStopAnswer`: case, diacritics, the tatweel, hamza forms, ة/ه, ى/ي and
+the definite article are folded before comparing, and an answer must start
+with the letter; in a round on ا itself a bare "ال…" is kept, because ألمانيا
+typed without its hamza is indistinguishable from an article, and only
+"ال" + a hamza letter is stripped there): 10 for an
 answer nobody else had, 5 for a shared one, 0 for a blank or a wrong initial.
 The table is `shared.results`; the host taps a cell to cycle its points
 (`adjust`, marked `manual`), and `nextRound` banks `roundTotals` into the

@@ -548,6 +548,8 @@
       room_change_game: "تغيير",
       room_another_game: "لعبة أخرى",
       room_spectating: "جولة جارية — ستنضم في الجولة القادمة",
+      ui_scale: "حجم الواجهة",
+      ui_scale_auto: "تلقائي",
       tv_title: "شاشة العرض",
       tv_open: "شاشة العرض (تلفزيون)",
       tv_open_desc: "افتح الغرفة على التلفزيون أو اللابتوب، والكل يلعب من موبايله",
@@ -1045,6 +1047,8 @@
       room_change_game: "Change",
       room_another_game: "Another game",
       room_spectating: "Round in progress — you'll join the next one",
+      ui_scale: "Screen size",
+      ui_scale_auto: "Auto",
       tv_title: "Big screen",
       tv_open: "Big screen (TV)",
       tv_open_desc: "Show the room on a TV or laptop while everyone plays on their phone",
@@ -2058,6 +2062,39 @@
      the bottom with nothing to scroll. innerHeight is current once resize
      fires; the late re-read covers a turn that reports its size after the
      event. */
+  /* --- SCREEN SIZE -----------------------------------------------------------
+   * Every size in Style.html is in rem, so the font size on <html> scales the
+   * whole app. "auto" leaves it to the screen (the ANY SCREEN block). A laptop
+   * driving a TV can report a small screen, so a size can also be picked here.
+   * ------------------------------------------------------------------------ */
+  const UI_SCALES = ['auto', '100', '125', '150', '200'];
+  const UI_SCALE_KEY = 'ashryUiScale';
+
+  function uiScale() {
+    try {
+      const saved = localStorage.getItem(UI_SCALE_KEY);
+      return UI_SCALES.indexOf(saved) !== -1 ? saved : 'auto';
+    } catch (e) {
+      return 'auto';
+    }
+  }
+
+  function applyUiScale() {
+    const scale = uiScale();
+    if (scale === 'auto') delete document.documentElement.dataset.uiScale;
+    else document.documentElement.dataset.uiScale = scale;
+  }
+
+  function cycleUiScale() {
+    const next = UI_SCALES[(UI_SCALES.indexOf(uiScale()) + 1) % UI_SCALES.length];
+    try { localStorage.setItem(UI_SCALE_KEY, next); } catch (e) {}
+    applyUiScale();
+    updateSettingsLabels();
+    haptic('light');
+  }
+
+  applyUiScale();
+
   function syncAppHeight() {
     document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
   }
@@ -2153,6 +2190,8 @@
       if (langVal) langVal.innerText = appState.lang === 'ar' ? 'العربية' : 'English';
       const nameVal = document.getElementById('settings-name-value');
       if (nameVal) nameVal.innerText = (typeof roomName !== 'undefined' && roomName.get()) || t.name_not_set || '';
+      const scaleVal = document.getElementById('settings-scale-value');
+      if (scaleVal) scaleVal.innerText = uiScale() === 'auto' ? (t.ui_scale_auto || '') : uiScale() + '%';
   }
 
   /* --- CORE UI HELPERS --- */
@@ -2360,6 +2399,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs" style="margin-top:8px">
                 <li><b>المظهر</b> — فاتح أو ليلي.</li>
                 <li><b>اللغة</b> — عربي أو إنجليزي. بيغير كل حاجة، حتى كلمات الألعاب.</li>
+                <li><b>حجم الواجهة</b> — «تلقائي» بيكبّر التطبيق لوحده على اللابتوب والتلفزيون. لو اللابتوب متوصل بتلفزيون والكلام صغير، اضغطها لحد 200%.</li>
                 <li><b>أصوات مضحكة</b> — أزرار صوت (تصفيق، صرصور، درامز) تستخدمها وسط اللعب.</li>
                 <li><b>تثبيت التطبيق</b> — يحطه على الشاشة الرئيسية زي أي تطبيق، ويفتح من غير متصفح.</li>
                 <li><b>تحديث البيانات</b> — يعيد تحميل التطبيق ويجيب آخر أسماء وكلمات من الشيت. استخدمه لو حاجة ظهرت غلط.</li>
@@ -2658,6 +2698,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs" style="margin-top:8px">
                 <li><b>Theme</b> — light or dark.</li>
                 <li><b>Language</b> — Arabic or English. It switches everything, including the game words.</li>
+                <li><b>Screen size</b> — "Auto" makes the app bigger by itself on a laptop or TV. On a laptop plugged into a TV where it still looks small, press it up to 200%.</li>
                 <li><b>Funny sounds</b> — a soundboard (applause, crickets, drums) to use mid-game.</li>
                 <li><b>Install app</b> — puts it on your home screen like a real app, with no browser bar.</li>
                 <li><b>Refresh data</b> — reloads and re-fetches the latest names and words from the sheet. Use it if something looks wrong.</li>

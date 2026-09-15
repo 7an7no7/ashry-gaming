@@ -818,6 +818,30 @@ look at 667×375 as well as 375×667. `docs/manifest.webmanifest` says
 `"orientation": "any"` so an installed app turns too; nothing generates that
 file, so it is the one thing in `docs/` edited by hand.
 
+**Tablets, laptops and TVs.** Every size in `Style.html` is in rem: spacing,
+radii, button and field heights, widths. So the font size on `<html>` scales the
+whole app, while a phone keeps the default 16px.
+
+- **Root size.** The ANY SCREEN block picks a larger one on big screens: 17px
+  from 1024×700, up to 32px on a 4K TV.
+- **Override.** Settings → Screen size (`html[data-ui-scale]`, `cycleUiScale` in
+  `JS_Core.html`) sets it by hand, for a laptop driving a TV.
+- **New sizes.** Write them in rem: a px size stays phone-sized next to text that
+  grew. Borders and hairlines under 4px stay px.
+
+The layout blocks:
+
+- **Shared** (a phone on its side, and any screen at least 900 wide): the rail,
+  the centred column, and the boards beside their controls.
+- **Short** (a phone on its side, 500px tall at most): tightens spacing that only
+  fills a tall phone screen.
+- **Wide** (at least 900 wide): more padding, wider views and bigger keys.
+- **Tablet held upright:** a 45rem column.
+- **Big screen view** (`room-tv`): pins the root back to 16px, because it sizes
+  itself in vmin.
+
+Check a change at 375×812, 667×375, 1280×720 and 1920×1080.
+
 ### Navigation
 
 `VIEW_META` in `JS_Core.html` is the single registry of screens: `title` (an

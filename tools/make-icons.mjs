@@ -1,12 +1,13 @@
 /**
  * The brand mark, and every icon made from it.
  *
- * One SVG is the source of truth: a rounded square with a bold ع (the first
- * letter of عشرى) and a small round token sitting in its bowl. The letter is
- * the outline of Cairo Black's ع (assets/ain-path.txt, the app's own typeface,
- * extracted once with fontTools; the font itself is not kept here), so the
- * mark needs no font at all - it renders the same in the loader before Cairo
- * has loaded, on a home screen, and in this script.
+ * One SVG is the source of truth: a rounded square carrying the name twice,
+ * "Ashry" large with an amber full stop, and عشري smaller underneath with
+ * its five dots in the same amber. The words are outlines
+ * (assets/wordmark.json, written by shape-wordmark.py from Poppins Black and
+ * Reem Kufi; the fonts are not kept here), so the mark needs no font at all:
+ * it renders the same in the loader before Cairo has loaded, on a home screen
+ * and in this script.
  *
  * The colours come from a variant (VARIANTS below); `iconVariant` in
  * site.config.json says which one the app ships with. To compare them all:
@@ -31,7 +32,8 @@
  *
  * Icons are drawn here rather than downloaded so the app never depends on
  * someone else's CDN for its own face: iOS fetches the apple-touch-icon
- * exactly once, when you tap "Add to Home Screen".
+ * exactly once, when you tap "Add to Home Screen". Bump `iconVersion` in
+ * site.config.json whenever the mark changes (see GEMINI.md).
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -42,24 +44,43 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const out = path.join(root, 'docs');
 
-// Cairo Black's ع, in font units (1000/em, y up). Bounds x 40..520, y -327..503.
-const AIN = (await readFile(path.join(here, 'assets', 'ain-path.txt'), 'utf8')).trim();
-const AIN_CX = 280;   // centre of the glyph's bounding box
-const AIN_CY = 88;
+/* The two words as outlines, in font units (y up): { en: { bbox, body }, ar: { bbox, body, dots } }. */
+const WORDMARK = JSON.parse(await readFile(path.join(here, 'assets', 'wordmark.json'), 'utf8'));
 
 /**
- * The looks. `bg` is the three stops of the diagonal gradient, `glyph` the
- * letter (a colour, or two stops for a gradient), `token` the ball in its
- * bowl, `light` how strong the top-left sheen is, `shadow` the letter's
+ * The looks. `bg` is the three stops of the diagonal gradient, `ink` the
+ * words (a colour, or two stops for a gradient), `token` the full stop and
+ * the dots, `light` how strong the top-left sheen is, `shadow` the words'
  * drop shadow and its opacity.
  */
 const VARIANTS = {
-  violet:   { bg: ['#8b5cf6', '#6d28d9', '#3b2fa8'], glyph: '#ffffff',              token: '#fbbf24', light: 0.34, shadow: ['#1e1145', 0.5] },
-  midnight: { bg: ['#1f2a44', '#0f172a', '#0b1224'], glyph: ['#c4b5fd', '#f0abfc'], token: '#fbbf24', light: 0.10, shadow: ['#000000', 0.6] },
-  paper:    { bg: ['#ffffff', '#f7f5ff', '#ebe7fb'], glyph: ['#7c3aed', '#4338ca'], token: '#f59e0b', light: 0.0,  shadow: ['#4c1d95', 0.22] },
-  ocean:    { bg: ['#2dd4bf', '#0f9488', '#1e40af'], glyph: '#ffffff',              token: '#fbbf24', light: 0.30, shadow: ['#042f2e', 0.5] },
-  sunset:   { bg: ['#fbbf24', '#f97316', '#e11d48'], glyph: '#ffffff',              token: '#4c1d95', light: 0.30, shadow: ['#7c2d12', 0.45] }
+  deep:     { bg: ['#6d28d9', '#4c1d95', '#2e1065'], ink: '#ffffff',              token: '#fbbf24', light: 0.22, shadow: ['#120a2e', 0.5] },
+  violet:   { bg: ['#8b5cf6', '#6d28d9', '#3b2fa8'], ink: '#ffffff',              token: '#fbbf24', light: 0.34, shadow: ['#1e1145', 0.45] },
+  midnight: { bg: ['#1f2a44', '#0f172a', '#0b1224'], ink: ['#c4b5fd', '#f0abfc'], token: '#fbbf24', light: 0.10, shadow: ['#000000', 0.6] },
+  paper:    { bg: ['#ffffff', '#f7f5ff', '#ebe7fb'], ink: ['#7c3aed', '#4338ca'], token: '#f59e0b', light: 0.0,  shadow: ['#4c1d95', 0.22] },
+  ocean:    { bg: ['#2dd4bf', '#0f9488', '#1e40af'], ink: '#ffffff',              token: '#fbbf24', light: 0.30, shadow: ['#042f2e', 0.5] },
+  sunset:   { bg: ['#fbbf24', '#f97316', '#e11d48'], ink: '#ffffff',              token: '#4c1d95', light: 0.30, shadow: ['#7c2d12', 0.45] }
 };
+
+const S = 512;
+
+/**
+ * Fits a word's bounding box into `share` of the icon's width (and at most
+ * `maxH` tall), centred on (cx, cy), and returns the transform that puts the
+ * font-unit outline there, y flipped.
+ */
+function place(word, share, cx, cy, maxH) {
+  const [x0, y0, x1, y1] = word.bbox;
+  const w = x1 - x0, h = y1 - y0;
+  const s = Math.min(S * share / w, maxH / h);
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  return {
+    s, h: h * s,
+    transform: `translate(${cx} ${cy}) scale(${s} ${-s}) translate(${-mx} ${-my})`,
+    baselineY: cy + my * s,          // y = 0 in font units, on the icon
+    rightX: cx + (x1 - mx) * s
+  };
+}
 
 /**
  * The mark on a 512×512 canvas.
@@ -68,19 +89,30 @@ const VARIANTS = {
  *   inset    scale the artwork towards the centre (the maskable icon)
  *   ids      suffix for gradient ids, so several marks can share one page
  */
-function mark({ variant = 'violet', rounded = true, inset = 1, ids = '' } = {}) {
+function mark({ variant = 'deep', rounded = true, inset = 1, ids = '' } = {}) {
   const v = VARIANTS[variant];
   if (!v) throw new Error(`unknown icon variant "${variant}" (${Object.keys(VARIANTS).join(', ')})`);
   const rx = rounded ? 112 : 0;
-  const glyphScale = 0.415 * inset;                  // ~345px tall at 512
-  const token = { x: 256 + 72 * inset, y: 256 - 54 * inset, r: 27 * inset };
-  const glyphFill = Array.isArray(v.glyph) ? `url(#ashry-t${ids})` : v.glyph;
-  const glyphGrad = Array.isArray(v.glyph) ? `
+  const inkFill = Array.isArray(v.ink) ? `url(#ashry-t${ids})` : v.ink;
+  const inkGrad = Array.isArray(v.ink) ? `
     <linearGradient id="ashry-t${ids}" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="${v.glyph[0]}"/>
-      <stop offset="1" stop-color="${v.glyph[1]}"/>
+      <stop offset="0" stop-color="${v.ink[0]}"/>
+      <stop offset="1" stop-color="${v.ink[1]}"/>
     </linearGradient>` : '';
   const paper = variant === 'paper';
+
+  // "Ashry" across 72% of the width, a little above centre; عشري under it.
+  const en = place(WORDMARK.en, 0.72 * inset, 256, 256 - 31 * inset, 215 * inset);
+  const ar = place(WORDMARK.ar, 0.46 * inset, 256, 256 - 31 * inset + en.h / 2 + 67 * inset, 82 * inset);
+  const dotR = Math.max(10, Math.min(30, en.h * 0.11));
+  const stop = { x: en.rightX + dotR * 1.9, y: en.baselineY - dotR * 0.9, r: dotR };
+
+  const words = (fill, dots) => `
+    <path transform="${en.transform}" d="${WORDMARK.en.body}" fill="${fill}"/>
+    <circle cx="${stop.x}" cy="${stop.y}" r="${stop.r}" fill="${dots}"/>
+    <path transform="${ar.transform}" d="${WORDMARK.ar.body}" fill="${fill}"/>
+    <path transform="${ar.transform}" d="${WORDMARK.ar.dots}" fill="${dots}"/>`;
+
   return `
   <defs>
     <linearGradient id="ashry-g${ids}" x1="0" y1="0" x2="1" y2="1">
@@ -91,9 +123,9 @@ function mark({ variant = 'violet', rounded = true, inset = 1, ids = '' } = {}) 
     <radialGradient id="ashry-hl${ids}" cx="0.2" cy="0.12" r="0.8">
       <stop offset="0" stop-color="#ffffff" stop-opacity="${v.light}"/>
       <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>${glyphGrad}
+    </radialGradient>${inkGrad}
     <filter id="ashry-sh${ids}" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="${10 * inset}" stdDeviation="${11 * inset}" flood-color="${v.shadow[0]}" flood-opacity="${v.shadow[1]}"/>
+      <feDropShadow dx="0" dy="${8 * inset}" stdDeviation="${9 * inset}" flood-color="${v.shadow[0]}" flood-opacity="${v.shadow[1]}"/>
     </filter>
   </defs>
   <rect width="512" height="512" rx="${rx}" fill="url(#ashry-g${ids})"/>
@@ -101,12 +133,8 @@ function mark({ variant = 'violet', rounded = true, inset = 1, ids = '' } = {}) 
   ${paper ? `<rect x="6" y="6" width="500" height="500" rx="${Math.max(0, rx - 6)}" fill="none" stroke="#7c3aed" stroke-opacity="0.12" stroke-width="12"/>` : ''}
   <circle cx="${256 + 190 * inset}" cy="${256 + 200 * inset}" r="${170 * inset}" fill="${paper ? '#7c3aed' : '#ffffff'}" fill-opacity="${paper ? 0.04 : 0.06}"/>
   <circle cx="${256 - 200 * inset}" cy="${256 - 210 * inset}" r="${120 * inset}" fill="${paper ? '#7c3aed' : '#ffffff'}" fill-opacity="${paper ? 0.03 : 0.05}"/>
-  <g filter="url(#ashry-sh${ids})">
-    <path transform="translate(256 ${256 + 6 * inset}) scale(${glyphScale} ${-glyphScale}) translate(${-AIN_CX} ${-AIN_CY})"
-          d="${AIN}" fill="${glyphFill}"/>
-  </g>
-  <circle cx="${token.x}" cy="${token.y}" r="${token.r}" fill="${v.token}"/>
-  <circle cx="${token.x - token.r * 0.28}" cy="${token.y - token.r * 0.3}" r="${token.r * 0.34}" fill="#ffffff" fill-opacity="0.55"/>`;
+  <g filter="url(#ashry-sh${ids})">${words(inkFill, v.token)}
+  </g>`;
 }
 
 const svg = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${inner}\n</svg>`;
@@ -116,7 +144,7 @@ const png = (size, options) => sharp(Buffer.from(svg(mark(options)))).resize(siz
 const args = process.argv.slice(2);
 const argVariant = (args.find(a => a.startsWith('--variant=')) || '').slice('--variant='.length);
 const config = JSON.parse(await readFile(path.join(here, 'site.config.json'), 'utf8'));
-const variant = argVariant || process.env.ICON_VARIANT || config.iconVariant || 'violet';
+const variant = argVariant || process.env.ICON_VARIANT || config.iconVariant || 'deep';
 
 /* --- preview: every variant, side by side --- */
 const previewAt = args.indexOf('--preview');

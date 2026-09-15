@@ -618,19 +618,25 @@ cannot keep them secret.
 
 ### The brand mark and the icons
 
-The mark is the letter ع of عشرى on the app's violet, with an amber token in
-its bowl. `tools/make-icons.mjs` is the one source: it writes `Logo.html` (an
-`<svg><symbol id="ashry-mark">` the page includes once) and every PNG in
-`docs/` (`icon-180` full-bleed for iOS, `icon-192` / `icon-512` rounded,
-`icon-maskable-512` with the artwork inside the safe 80%, `favicon-64`).
-Anywhere in the app draws it with `<svg class="mark"><use href="#ashry-mark"/></svg>`:
-the loader, the header on the home screen (`.shell__title--brand`) and the home
-hero. The letter is the outline of Cairo Black's ع (`tools/assets/ain-path.txt`,
-extracted once with fontTools from Cairo Black; the font file itself is not
-kept in the repo), so the mark
-needs no font and renders identically before Cairo loads, on a home screen and
-in the script. `npm run build:icons` in `tools/` (sharp rasterises the SVG).
-Do not edit `Logo.html` or the PNGs by hand.
+The mark is the name twice on a deep violet: "Ashry" large in Poppins Black
+with an amber full stop, and عشري smaller underneath in Reem Kufi with its
+five dots in the same amber. `tools/make-icons.mjs` is the one source: it
+writes `Logo.html` (an `<svg><symbol id="ashry-mark">` the page includes
+once) and every PNG in `docs/` (`icon-180` full-bleed for iOS, `icon-192` /
+`icon-512` rounded, `icon-maskable-512` with the artwork inside the safe
+80%, `favicon-64`). Anywhere in the app draws it with
+`<svg class="mark"><use href="#ashry-mark"/></svg>`: the loader, the header
+on the home screen (`.shell__title--brand`) and the home hero. The words are
+outlines in `tools/assets/wordmark.json`, written by
+`tools/shape-wordmark.py` (fontTools + HarfBuzz, so the Arabic joins
+properly; the five dots are whatever the dotless spelling عسرى lacks) from
+the two fonts as downloaded from Google Fonts - the font files are not kept
+in the repo - so the mark needs no font and renders identically before Cairo
+loads, on a home screen and in the script. `npm run build:icons` in `tools/`
+(sharp rasterises the SVG). Do not edit `Logo.html` or the PNGs by hand.
+
+The owner chose this design (number 28) from a sheet of 28 wordmarks on
+15 Sep 2026; the ع monogram it replaced is in the history before that commit.
 
 **The icon has a version** (`iconVersion` in `tools/site.config.json`). The
 build puts it on every icon address (`icon-192.png?v=2`, in the head links and
@@ -647,11 +653,11 @@ it counts as the old icon; a fresh install counts as the current one. "Later"
 snoozes a week; "Done" or "keep it" writes the current version. Bump
 `iconVersion` whenever the mark changes.
 
-The mark comes in five colourways (`VARIANTS` in the script: violet, midnight,
-paper, ocean, sunset); `iconVariant` in `tools/site.config.json` is the one
-the app ships with, and `node make-icons.mjs --preview <dir>` renders them all
-side by side to choose from. The token in the ع's bowl and the letter itself
-are the same in every one - only the colours change.
+The mark comes in six colourways (`VARIANTS` in the script: deep, violet,
+midnight, paper, ocean, sunset); `iconVariant` in `tools/site.config.json` is
+the one the app ships with (deep), and `node make-icons.mjs --preview <dir>`
+renders them all side by side to choose from. The words, the full stop and
+the dots are the same in every one - only the colours change.
 
 ### The catalog and the home screen
 
@@ -927,6 +933,15 @@ over whole cards; section titles are sentence case in the text colour; the
 selected filter chip is ink on paper rather than another colour. Radii are
 20px on cards and 12-14px on controls. When adding a screen, spend colour the
 same way: one accented element, the rest neutral.
+
+**The finish** is section 11 of `Style.html`: a still glow behind the top of
+the page, a header that turns frosted with a hairline once the page has
+scrolled under it (`.shell.is-scrolled`, set by a scroll listener in
+`initializeApp`), a top light on `.btn--primary`, icon tiles with a soft
+gradient and a hairline of the game's colour, grain on the home hero, hover
+lifts only under a real mouse (`hover: hover` and `pointer: fine`), and the
+home's cards rising in sequence. Nothing in it moves by itself; keep it that
+way, and keep any new polish in that section rather than scattered.
 
 `Style.html` is a token-driven design system. Read its section header before
 changing anything: colour, spacing, radius, duration and elevation all come from

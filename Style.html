@@ -5008,4 +5008,130 @@ button.spy-place:active { transform: scale(0.95); }
 
 .role-card--done { background: var(--success-soft); border-color: var(--success); }
 
+
+/* ==========================================================================
+   11. FINISH
+   --------------------------------------------------------------------------
+   The details that read as "made with care", all of them still: a soft glow
+   behind the top of the page, a header that gains a frosted hairline once
+   the page has scrolled under it (JS_Core.html sets .is-scrolled on the
+   shell), a top light on the primary button, icon tiles with a soft gradient
+   and a hairline of the game's colour, grain on the home hero, cards that
+   lift under a mouse, and the home's cards rising in sequence. Nothing here
+   moves on its own, and phones keep the press feedback they had.
+   ========================================================================== */
+body::before {
+  background:
+    radial-gradient(60rem 26rem at 50% -10rem, rgba(124, 58, 237, 0.11), transparent 62%),
+    linear-gradient(170deg, #f4f2fc 0%, #f3f4f8 42%, #f2f4f7 100%);
+}
+body.dark::before {
+  background:
+    radial-gradient(60rem 26rem at 50% -10rem, rgba(139, 92, 246, 0.18), transparent 62%),
+    linear-gradient(170deg, #131a30 0%, #0f172a 48%, #0e1526 100%);
+}
+
+/* The header: bare at the top of a page, frosted once content has run under it. */
+.shell__header {
+  transition: background-color var(--dur-2) var(--ease-out);
+}
+.shell__header::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: var(--hairline);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.shell.is-scrolled .shell__header {
+  background: var(--surface);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+.shell.is-scrolled .shell__header::after { opacity: 1; }
+body.is-fullscreen-view .shell__header::after { display: none; }
+
+/* The primary button: lit along the top, a shade deeper at the foot. */
+.btn--primary {
+  background: var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff) 0%, var(--accent) 48%, color-mix(in srgb, var(--accent) 90%, #000000) 100%);
+  box-shadow: 0 8px 20px -8px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+}
+.btn--primary:active { box-shadow: 0 2px 8px -4px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.1); }
+
+/* Icon tiles: a soft gradient and a hairline of the game's own colour. */
+.gcard__icon, .tool-icon, .game-hero__icon, .tab-hero__icon {
+  background: linear-gradient(145deg, var(--accent-soft), color-mix(in srgb, var(--accent-soft) 45%, var(--surface-solid)));
+  border: 1px solid color-mix(in srgb, var(--accent-border) 70%, transparent);
+  box-shadow: var(--sh-inset);
+}
+
+/* The home hero: grain, a glow in the corner, a highlight along the top edge. */
+.home-hero {
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.055 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+    radial-gradient(120% 100% at 100% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
+    linear-gradient(135deg, #6c5ce7 0%, #5b4bd6 52%, #4a48c2 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 16px 36px -18px rgba(76, 29, 149, 0.6);
+}
+body.dark .home-hero {
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.055 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+    radial-gradient(120% 100% at 100% 0%, rgba(255, 255, 255, 0.12), transparent 55%),
+    linear-gradient(135deg, #5847c4 0%, #4a3fb0 52%, #3b3a9c 100%);
+}
+
+/* A setup screen's hero: a faint wash of the game's colour behind its icon. */
+.game-hero { background: radial-gradient(16rem 7rem at 0% 0%, var(--accent-soft), transparent 70%), var(--surface-solid); }
+[dir="rtl"] .game-hero { background: radial-gradient(16rem 7rem at 100% 0%, var(--accent-soft), transparent 70%), var(--surface-solid); }
+
+/* The active tab: a lit pill, and its icon lifts a little. */
+.nav-icon { transition: transform var(--dur-2) var(--ease-spring); }
+.nav-item.is-active { box-shadow: inset 0 0 0 1px var(--accent-border); }
+.nav-item.is-active .nav-icon { transform: translateY(-1px) scale(1.08); }
+
+/* Dialogs catch the light along their top edge too. */
+.modal-content { box-shadow: var(--sh-4), var(--sh-inset); }
+
+/* Under a mouse, cards and rows lift; phones keep the press. */
+@media (hover: hover) and (pointer: fine) {
+  .gcard:hover, .tool-item:hover, .game-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sh-3);
+    border-color: var(--accent-border);
+  }
+  .recent-tile:hover { transform: translateY(-1px); }
+  .filter-chip:hover:not(.is-active) { border-color: var(--border-strong); color: var(--text); }
+  .btn--primary:hover { box-shadow: 0 12px 26px -10px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.26); filter: brightness(1.03); }
+  .btn--ghost:hover, .btn--neutral:hover, .iconbtn:hover { background: var(--surface-3); }
+  .nav-item:hover:not(.is-active) { background: var(--surface-3); color: var(--text); }
+}
+
+/* The home's cards and the tool rows rise in sequence when a tab is drawn. */
+@media (prefers-reduced-motion: no-preference) {
+  .gcard-grid > .gcard, .tools-list > .tool-item { animation: riseIn var(--dur-3) var(--ease-out) both; }
+  .gcard-grid > .gcard:nth-child(1), .tools-list > .tool-item:nth-child(1) { animation-delay: 30ms; }
+  .gcard-grid > .gcard:nth-child(2), .tools-list > .tool-item:nth-child(2) { animation-delay: 70ms; }
+  .gcard-grid > .gcard:nth-child(3), .tools-list > .tool-item:nth-child(3) { animation-delay: 110ms; }
+  .gcard-grid > .gcard:nth-child(4), .tools-list > .tool-item:nth-child(4) { animation-delay: 150ms; }
+  .gcard-grid > .gcard:nth-child(n+5), .tools-list > .tool-item:nth-child(n+5) { animation-delay: 180ms; }
+}
+
+
+/* On a phone held upright the bottom nav floats as a pill inside its row: it
+   is still a grid row (nothing can hide under it), just drawn detached. The
+   landscape rail and the wide layouts are left as they are. */
+@media (max-width: 899px) and (min-height: 501px) {
+  .shell__nav {
+    margin: 0 var(--sp-3) calc(var(--sp-2) + var(--safe-bottom));
+    padding: var(--sp-1) var(--sp-2);
+    min-height: calc(var(--nav-h) - 0.25rem);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2xl);
+    box-shadow: var(--sh-3), var(--sh-inset);
+  }
+  .nav-item { border-radius: var(--r-lg); }
+}
+
 </style>

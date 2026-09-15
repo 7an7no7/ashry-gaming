@@ -2207,6 +2207,17 @@
     applyTranslations();
     if (typeof renderHome === 'function') renderHome();
 
+    // The header gains its frosted hairline once the page has scrolled under it.
+    const shellMain = document.getElementById('shell-main');
+    const shellEl = document.querySelector('.shell');
+    if (shellMain && shellEl) {
+      let scrolled = false;
+      shellMain.addEventListener('scroll', () => {
+        const on = shellMain.scrollTop > 4;
+        if (on !== scrolled) { scrolled = on; shellEl.classList.toggle('is-scrolled', on); }
+      }, { passive: true });
+    }
+
     // Function to hide loader with transition
     const hideLoader = () => {
         const loader = document.getElementById('app-loader');

@@ -305,6 +305,26 @@ capitals of different continents). Every group is four words with **no word
 repeated across groups** — a duplicate renders two identical tiles and makes the
 grid ambiguous. There is a validator for this; run it after editing content.
 
+**Codenames.** Only the key is secret. Everything else is in `shared`:
+
+- `settings`: the host's options from the lobby. A turn clock (`CODENAMES_TIMERS`),
+  spymasters rotating each game, and the room's own words, which go on the board
+  first.
+- `wins`: the evening's score.
+- `marks`: who suspects which card. They are public, and cleared when that card
+  turns or the turn ends.
+- `log`: each clue, with the cards turned under it.
+
+A clue can't be a word still on the board (compared through `normaliseClue`). A
+clue of 0 or ∞ sets `guessesLeft` to -1: no limit. With a clock, `endsAt` covers
+the clue and then the guessing, and `roomTimeout` passes the turn when it runs
+out.
+
+On a phone a tap marks the card and picks it. Revealing is a second, deliberate
+press (`cnLocal.pending`), so a mis-tap never costs the turn. The sides, the
+options and the score survive "play again" and a trip to the hub (`_teamsMemo`,
+`_cnMemo`).
+
 **Trivia, two modes.** The room version deals from `TRIVIA_QUESTIONS` on the
 server. The host picks 5, 10, 15 or 20 questions (`TRIVIA_COUNTS`). A right
 answer is `TRIVIA_POINTS` (10) plus a speed bonus: +5 for the first right

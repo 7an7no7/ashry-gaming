@@ -2348,12 +2348,15 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
 /* --- Codenames ------------------------------------------------------------ */
 .cn-dot {
   display: inline-block;
+  flex: none;
   width: 10px; height: 10px;
   border-radius: 50%;
   margin-inline: 4px;
 }
-.cn-dot--red  { background: #e11d48; }
-.cn-dot--blue { background: #2563eb; }
+.cn-dot--red      { background: #e11d48; }
+.cn-dot--blue     { background: #2563eb; }
+.cn-dot--neutral  { background: var(--n-400); }
+.cn-dot--assassin { background: var(--n-950); box-shadow: 0 0 0 1.5px var(--n-400); }
 
 .cn-score {
   display: flex;
@@ -2372,7 +2375,9 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
 .cn-score__side.is-turn { opacity: 1; }
 .cn-score__side--red  { color: #e11d48; }
 .cn-score__side--blue { color: #2563eb; }
-.cn-score__role { font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
+.cn-score__role { font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); text-align: center; }
+/* Games each side has won this evening. */
+.cn-score__wins { margin-inline: 6px; font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
 
 .cn-banner {
   padding: var(--sp-3);
@@ -2384,7 +2389,26 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
 .cn-banner--red  { background: rgba(225, 29, 72, 0.12);  border-color: rgba(225, 29, 72, 0.35); }
 .cn-banner--blue { background: rgba(37, 99, 235, 0.12);  border-color: rgba(37, 99, 235, 0.35); }
 .cn-banner__title { font-size: var(--fs-h2); font-weight: 900; color: var(--text-strong); overflow-wrap: anywhere; }
-.cn-banner__sub { font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); margin-top: 2px; }
+.cn-banner__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-2);
+}
+.cn-timer { font-variant-numeric: tabular-nums; }
+
+/* Portrait: the banner, the board, then everything else. .cn-side is only a
+   box on a phone held sideways (the LANDSCAPE block), where it is the column
+   beside the board. */
+.cn-layout { display: flex; flex-direction: column; }
+.cn-side { display: contents; }
+.cn-side > * { order: 1; }
+.cn-side > .cn-banner { order: -1; }
 
 /* 5 columns have to fit a 320px screen, so the cards scale with the viewport
    and the words shrink rather than overflow. */
@@ -2395,6 +2419,7 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
   margin-bottom: var(--sp-4);
 }
 .cn-card {
+  position: relative;
   aspect-ratio: 3 / 4;
   min-width: 0;
   padding: 2px;
@@ -2438,6 +2463,146 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
 /* n-400 put white text at 2.1:1; n-500 still reads as the inert card. */
 .cn-card--neutral  { background: var(--n-500); border-color: var(--n-500); }
 .cn-card--assassin { background: var(--n-950); border-color: var(--n-950); }
+
+/* A card turned over: its agent, bystander or assassin, with the word smaller
+   underneath, so the board still reads as words. */
+.cn-card__cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1.1rem, 6vw, 2rem);
+  opacity: 0.3;
+  pointer-events: none;
+}
+.cn-card--revealed .cn-card__word {
+  position: relative;
+  align-self: flex-end;
+  font-size: clamp(0.6rem, 2.6vw, 0.78rem);
+}
+.cn-card.is-flipping { animation: cn-flip 420ms var(--ease-out); }
+@keyframes cn-flip {
+  from { transform: perspective(500px) rotateY(85deg) scale(0.94); opacity: 0.3; }
+  to   { transform: none; opacity: 1; }
+}
+
+/* Marks: this operative's own ring, the card about to be revealed, and how
+   many on the team suspect a card. */
+.cn-card.is-marked  { box-shadow: inset 0 0 0 2px var(--warning); }
+.cn-card.is-pending {
+  box-shadow: inset 0 0 0 3px var(--warning);
+  animation: cn-pending 700ms var(--ease-in-out) infinite alternate;
+}
+@keyframes cn-pending { to { transform: scale(0.93); } }
+.cn-card__marks {
+  position: absolute;
+  top: 2px;
+  inset-inline-end: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  background: var(--warning-btn);
+  color: var(--warning-on);
+  font-size: 0.625rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.cn-card.is-swappable { border-style: dashed; border-color: var(--accent); }
+/* The rest of the key, laid open once the game is over. */
+.cn-card--ended { opacity: 0.6; }
+
+/* Revealing is its own press, with the word large enough to catch a mis-tap. */
+.cn-confirm {
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  text-align: center;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.cn-confirm__word {
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-h1);
+  font-weight: 900;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.cn-hint { text-align: center; }
+.cn-tools { justify-content: center; margin-top: var(--sp-2); }
+.cn-options > .btn { margin-bottom: var(--sp-3); }
+
+/* Clue history: each clue with the cards its team turned over under it. */
+.cn-log {
+  margin-top: var(--sp-3);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.cn-log__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  padding: 0 var(--sp-3);
+  font-weight: 800;
+  color: var(--text-strong);
+  cursor: pointer;
+  list-style: none;
+}
+.cn-log__summary::-webkit-details-marker { display: none; }
+.cn-log__list {
+  display: grid;
+  gap: var(--sp-2);
+  max-height: 260px;
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-3);
+  overflow-y: auto;
+  list-style: none;
+}
+.cn-log__item {
+  --cn-team: #e11d48;
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 var(--cn-team);
+}
+[dir="rtl"] .cn-log__item { box-shadow: inset -3px 0 0 var(--cn-team); }
+.cn-log__item--blue { --cn-team: #2563eb; }
+.cn-log__clue { font-weight: 900; color: var(--text-strong); overflow-wrap: anywhere; }
+.cn-log__guesses { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.cn-log__guess {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px 2px 2px;
+  border-radius: var(--r-xs);
+  background: var(--surface-solid);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+/* End of a game: words left, clues it took, games won. */
+.cn-stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-4);
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-variant-numeric: tabular-nums;
+}
+.cn-stats__label { font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); }
+.cn-stats__num { min-width: 2.5ch; text-align: center; font-weight: 900; color: var(--text-strong); }
+.cn-stats__num--red  { color: #e11d48; }
+.cn-stats__num--blue { color: #2563eb; }
 
 .cn-team { padding: var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); }
 .cn-team__head { display: flex; align-items: center; gap: var(--sp-1); font-weight: 900; margin-bottom: var(--sp-2); }
@@ -3320,16 +3485,16 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
   .draw-layout__head .card { padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); }
   .draw-layout__head .metric--md { font-size: 1.35rem; }
 
-  /* --- Codenames: the board beside the clue and the controls --- */
+  /* --- Codenames: the board beside the clue, the controls and the log --- */
   .cn-layout {
     display: grid;
     grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
     column-gap: var(--sp-4);
     align-items: start;
   }
-  .cn-layout > .cn-board { grid-column: 1; grid-row: 1 / span 2; margin-bottom: 0; }
-  .cn-layout > :not(.cn-board) { grid-column: 2; }
+  .cn-layout > .cn-board { margin-bottom: 0; }
+  .cn-side { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .cn-side > * { margin: 0; }
   .cn-card { aspect-ratio: auto; min-height: 48px; }
 
   /* --- دوري المعرفة: the board beside the scores --- */
@@ -5928,6 +6093,34 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       cn_wins: "فاز الفريق",
       cn_assassin_hit: "انكشف القاتل!",
       cn_cleared: "كل الكلمات ظهرت",
+      cn_mark_hint: "اضغط كلمة عشان تعلّمها قدام فريقك، وبعدين اكشفها.",
+      cn_reveal: "اكشف الكلمة",
+      cn_hide_key: "إخفاء المفتاح",
+      cn_show_key: "إظهار المفتاح",
+      cn_swap_word: "تبديل كلمة",
+      cn_swap_hint: "اضغط الكلمة اللي عايز تبدلها. التبديل قبل أول تلميح بس.",
+      cn_clue_on_board: "التلميح لا يمكن أن يكون كلمة على اللوحة",
+      cn_clue_count: "عدد الكلمات",
+      cn_clue_hint: "كلمة واحدة ورقم. ∞ أو 0: الفريق يخمّن لحد ما يغلط.",
+      cn_log: "سجل التلميحات",
+      cn_no_guesses: "بدون تخمين",
+      cn_options: "إعدادات اللعبة",
+      cn_shuffle: "قسّم الفرق عشوائياً",
+      cn_timer: "وقت كل دور (ثانية)",
+      cn_timer_off: "بدون",
+      cn_timer_hint: "للقائد عشان يدّي التلميح، ونفس الوقت للفريق عشان يخمّن. لو الوقت خلص الدور ينتقل.",
+      cn_timer_summary: "{n} ثانية لكل دور",
+      cn_rotate: "تبديل القائد كل لعبة",
+      cn_rotate_hint: "في اللعبة الجاية القيادة تروح للي بعده في نفس الفريق.",
+      cn_rotate_summary: "القائد يتبدّل كل لعبة",
+      cn_custom: "كلماتكم الخاصة (اختياري)",
+      cn_custom_ph: "كلمة في كل سطر: أسماء، أماكن، ذكريات…",
+      cn_custom_save: "حفظ الكلمات",
+      cn_custom_count: "{n} كلمة خاصة",
+      cn_custom_saved: "تم حفظ الكلمات",
+      cn_left: "كلمات باقية",
+      cn_clues_given: "تلميحات",
+      cn_series: "مرات الفوز",
       tap_to_reveal: "اضغط لكشف دورك",
       you_are_spy: "أنت الجاسوس",
       spy_hint: "حاول أن تعرف الكلمة دون أن ينكشف أمرك",
@@ -6374,6 +6567,34 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       cn_wins: "Winner:",
       cn_assassin_hit: "The assassin was revealed!",
       cn_cleared: "All their words were found",
+      cn_mark_hint: "Tap a word to mark it for your team, then reveal it.",
+      cn_reveal: "Reveal",
+      cn_hide_key: "Hide key",
+      cn_show_key: "Show key",
+      cn_swap_word: "Swap a word",
+      cn_swap_hint: "Tap the word to replace. Only before the first clue.",
+      cn_clue_on_board: "A word on the board can't be the clue",
+      cn_clue_count: "How many words",
+      cn_clue_hint: "One word and a number. ∞ or 0: the team guesses until it misses.",
+      cn_log: "Clue history",
+      cn_no_guesses: "No guesses",
+      cn_options: "Game settings",
+      cn_shuffle: "Shuffle teams",
+      cn_timer: "Time per turn (seconds)",
+      cn_timer_off: "Off",
+      cn_timer_hint: "For the spymaster to give a clue, and the same again for the team to guess. When it runs out, the turn passes.",
+      cn_timer_summary: "{n} seconds a turn",
+      cn_rotate: "New spymaster each game",
+      cn_rotate_hint: "Next game, the role moves to the next player on the same team.",
+      cn_rotate_summary: "Spymasters rotate",
+      cn_custom: "Your own words (optional)",
+      cn_custom_ph: "One per line: names, places, family jokes…",
+      cn_custom_save: "Save words",
+      cn_custom_count: "{n} own words",
+      cn_custom_saved: "Words saved",
+      cn_left: "Words left",
+      cn_clues_given: "Clues",
+      cn_series: "Wins",
       tap_to_reveal: "Tap to see your role",
       you_are_spy: "You are the spy",
       spy_hint: "Work out the word without giving yourself away",
@@ -6761,6 +6982,15 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
     // Screens drawn in JS carry their own text; redraw the ones on show.
     if (appState.currentView === 'play-trivia' && typeof renderTriviaBoard === 'function') renderTriviaBoard();
     if (appState.currentView === 'setup-connections' && typeof paintConnectLevel === 'function') paintConnectLevel();
+    // A room screen only redraws when the room changes, so it kept the old
+    // language until the next move. Drop its signatures and draw it now.
+    if ((appState.currentView || '').indexOf('room-') === 0 && typeof Room !== 'undefined' && Room.state) {
+      const view = document.getElementById('view-' + appState.currentView);
+      if (view) delete view.dataset.sig;
+      const setup = document.getElementById('room-host-setup');
+      if (setup) delete setup.dataset.sig;
+      routeRoomState(Room.state);
+    }
     saveToLocal();
     playSound('click');
     haptic('light');
@@ -7615,12 +7845,13 @@ const GAME_RULES = {
             </ol>`,
         codenames: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>فريقان: كل فريق فيه <b>قائد</b> واحد و<b>لاعب</b> أو أكثر.</li>
-                <li>على الطاولة 25 كلمة. القائد وحده يشوف ألوانها.</li>
-                <li>القائد يقول <b>كلمة واحدة ورقم</b>: الكلمة تربط بين كلمات فريقه، والرقم عددها.</li>
-                <li>اللاعبون يضغطون الكلمات. كلمة فريقهم = يكملوا، كلمة محايدة أو كلمة الخصم = ينتهي الدور.</li>
-                <li>فيه كلمة <b>قاتلة</b> واحدة — اللي يضغطها يخسر فوراً.</li>
-                <li>تُلعب على الموبايلات فقط: مفيش طريقة تخفي المفتاح على موبايل واحد.</li>
+                <li>فريقان: كل فريق فيه <b>قائد</b> واحد و<b>لاعب</b> أو أكثر. «قسّم الفرق عشوائياً» يوزعكم في ثانية.</li>
+                <li>على الطاولة 25 كلمة. القائد وحده يشوف ألوانها، ويقدر يخفيها لو حد بيبص على موبايله.</li>
+                <li>القائد يقول <b>كلمة واحدة ورقم</b>: الكلمة تربط بين كلمات فريقه، والرقم عددها. ممنوع تكون كلمة من اللي على اللوحة. <b>∞</b> أو <b>0</b> = الفريق يخمّن لحد ما يغلط.</li>
+                <li>اللاعب يضغط كلمة عشان <b>يعلّمها</b> قدام فريقه، وبعدين يضغط «اكشف الكلمة». كلمة فريقهم = يكملوا، كلمة محايدة أو كلمة الخصم = ينتهي الدور.</li>
+                <li>فيه كلمة <b>قاتلة</b> واحدة — اللي يكشفها يخسر فوراً.</li>
+                <li>المضيف يقدر يحط <b>وقت لكل دور</b> و<b>كلماتكم الخاصة</b>، ويبدّل كلمة مش واضحة قبل أول تلميح. مرات الفوز بتتجمع من لعبة للتانية، والقيادة تتبدّل لو اخترتوا كده.</li>
+                <li>تُلعب على الموبايلات: مفيش طريقة تخفي المفتاح على موبايل واحد.</li>
             </ol>`,
         drawguess: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -7903,12 +8134,13 @@ const GAME_RULES = {
             </ol>`,
         codenames: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>Two teams, each with one <b>spymaster</b> and at least one <b>operative</b>.</li>
-                <li>25 words on the table. Only the spymasters see which colour each one is.</li>
-                <li>The spymaster gives <b>one word and a number</b>: the word links their team's cards, the number says how many.</li>
-                <li>Operatives tap words. Own colour keeps the turn; neutral or the other team's ends it.</li>
-                <li>One card is the <b>assassin</b> — tap it and your team loses on the spot.</li>
-                <li>Separate phones only: there is nowhere to hide the key on a single screen.</li>
+                <li>Two teams, each with one <b>spymaster</b> and at least one <b>operative</b>. "Shuffle teams" deals everyone out in a second.</li>
+                <li>25 words on the table. Only the spymasters see which colour each one is, and can hide it if someone is peeking.</li>
+                <li>The spymaster gives <b>one word and a number</b>: the word links their team's cards, the number says how many. It can't be a word on the board. <b>∞</b> or <b>0</b> means keep guessing until you miss.</li>
+                <li>An operative taps a word to <b>mark</b> it for the team, then presses "Reveal". Own colour keeps the turn; neutral or the other team's ends it.</li>
+                <li>One card is the <b>assassin</b> — reveal it and your team loses on the spot.</li>
+                <li>The host can set <b>a time per turn</b>, add <b>your own words</b>, and swap an unclear word before the first clue. Wins add up from game to game, and the spymaster role can rotate.</li>
+                <li>Separate phones: there is nowhere to hide the key on a single screen.</li>
             </ol>`,
         drawguess: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -17300,8 +17532,10 @@ async function roomAct(action, payload) {
    spymasters get. That split is the entire game, which is why this one is
    multiplayer-only: on a single phone there is nowhere to hide the key.
 
-   Every rule is enforced in RoomGames.js. This file only draws what the server
-   says the current player is allowed to see.
+   Every rule is enforced in RoomGames.js. This file draws what the server says
+   this phone may see, plus the few things only this phone knows: the card its
+   player is about to reveal, whether the key is hidden, and which flips it has
+   already played a sound for.
    ========================================================================= */
 
 let codenamesLang = 'ar';
@@ -17317,48 +17551,90 @@ const CN_TEAM_LABEL = {
   ar: { red: 'الأحمر', blue: 'الأزرق' },
   en: { red: 'Red', blue: 'Blue' }
 };
+const CN_TIMERS = [0, 60, 90, 120, 180];   // must match CODENAMES_TIMERS in RoomGames.js
+const CN_UNLIMITED = -1;                   // guessesLeft after a clue of 0 or ∞
+const CN_COVER = { red: '🕵️', blue: '🕵️', neutral: '🚶', assassin: '☠️' };
+const CN_CONFETTI = { red: ['#e11d48', '#fda4af', '#facc15'], blue: ['#2563eb', '#93c5fd', '#facc15'] };
+
+/** What only this phone knows. Reset whenever a new board is dealt. */
+const cnLocal = {
+  deal: null,         // the board all of this belongs to (shared.dealtAt)
+  pending: null,      // the card this operative tapped and may now reveal
+  seen: null,         // which cards were face up when last drawn
+  hideKey: false,
+  swapMode: false,
+  logOpen: false,
+  cheered: null,      // the finished board its win was already celebrated for
+  customDraft: null,  // the host's word list while it is still being typed
+  clock: null,
+  clockKey: null
+};
+
+/** Folds the spellings the server counts as one word (normaliseClue in RoomGames.js). */
+const cnFold = (text) => String(text || '')
+  .toLowerCase()
+  .replace(/[ً-ْـ]/g, '')
+  .replace(/[أإآ]/g, 'ا')
+  .replace(/ى/g, 'ي')
+  .replace(/ة/g, 'ه')
+  .replace(/\s+/g, '')
+  .trim();
+
+function cnSettings(s) {
+  const raw = (s && s.settings) || {};
+  return {
+    timer: CN_TIMERS.indexOf(raw.timer) !== -1 ? raw.timer : 0,
+    rotate: raw.rotate !== false,
+    custom: Array.isArray(raw.custom) ? raw.custom : []
+  };
+}
+
+function cnClockText(seconds) {
+  return seconds >= 60 ? Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0') : String(seconds);
+}
+
+function cnWinsBadge(s, team) {
+  const wins = s.wins || {};
+  return (wins.red || wins.blue) ? `<span class="cn-score__wins">🏆 ${wins[team] || 0}</span>` : '';
+}
 
 ROOM_GAMES.codenames = {
-  /** Everyone picks their own side and role — not just the host. */
+  /** Everyone picks their own side and role; the host also sets the game up. */
   lobbyOptions(state) {
-    const mine = (state.shared.teams || {})[Room.me] || {};
+    stopCodenamesClock();
+    const s = state.shared;
+    const teams = s.teams || {};
+    const mine = teams[Room.me] || {};
     const L = CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar;
-    const t = TRANSLATIONS[appState.lang];
+    const t = TRANSLATIONS[appState.lang] || {};
 
     const roster = (team) => state.players
-      .filter(p => (state.shared.teams || {})[p.id] && state.shared.teams[p.id].team === team)
-      .map(p => {
-        const r = state.shared.teams[p.id];
-        return `<span class="chip chip--plain"><span class="chip__label">${
-          r.role === 'spymaster' ? '🕵️ ' : ''}${escapeHTML(p.name)}</span></span>`;
-      }).join('');
+      .filter(p => teams[p.id] && teams[p.id].team === team)
+      .map(p => `<span class="chip chip--plain"><span class="chip__label">${
+        teams[p.id].role === 'spymaster' ? '🕵️ ' : ''}${escapeHTML(p.name)}</span></span>`)
+      .join('');
 
     const btn = (team, role, label) => `
       <button class="btn ${mine.team === team && mine.role === role ? 'btn--primary' : 'btn--ghost'} btn--sm"
               onclick="roomAct('setTeam', { team: '${team}', role: '${role}' })">${label}</button>`;
 
+    const side = (team, extra) => `
+      <div class="cn-team cn-team--${team}"${extra}>
+        <div class="cn-team__head"><span class="cn-dot cn-dot--${team}"></span>${L[team]}${cnWinsBadge(s, team)}</div>
+        <div class="chip-set">${roster(team) || `<span class="tool-desc">${t.cn_empty || 'لا أحد بعد'}</span>`}</div>
+        <div class="btn-row" style="margin-top: var(--sp-2)">
+          ${btn(team, 'spymaster', t.cn_spymaster || 'قائد')}
+          ${btn(team, 'operative', t.cn_operative || 'لاعب')}
+        </div>
+      </div>`;
+
     return `
       <div class="card card--tight">
-        <div class="cn-team cn-team--red">
-          <div class="cn-team__head"><span class="cn-dot cn-dot--red"></span>${L.red}</div>
-          <div class="chip-set">${roster('red') || `<span class="tool-desc">${t.cn_empty || 'لا أحد بعد'}</span>`}</div>
-          <div class="btn-row" style="margin-top: var(--sp-2)">
-            ${btn('red', 'spymaster', t.cn_spymaster || 'قائد')}
-            ${btn('red', 'operative', t.cn_operative || 'لاعب')}
-          </div>
-        </div>
-
-        <div class="cn-team cn-team--blue" style="margin-top: var(--sp-3)">
-          <div class="cn-team__head"><span class="cn-dot cn-dot--blue"></span>${L.blue}</div>
-          <div class="chip-set">${roster('blue') || `<span class="tool-desc">${t.cn_empty || 'لا أحد بعد'}</span>`}</div>
-          <div class="btn-row" style="margin-top: var(--sp-2)">
-            ${btn('blue', 'spymaster', t.cn_spymaster || 'قائد')}
-            ${btn('blue', 'operative', t.cn_operative || 'لاعب')}
-          </div>
-        </div>
-
+        ${side('red', '')}
+        ${side('blue', ' style="margin-top: var(--sp-3)"')}
         <p class="field__hint">${t.cn_lobby_hint || 'كل فريق يحتاج قائداً واحداً ولاعباً واحداً على الأقل.'}</p>
-      </div>`;
+      </div>
+      ${state.youAreHost ? cnHostOptions(t, cnSettings(s)) : cnOptionsSummary(t, cnSettings(s))}`;
   },
 
   startPayload() { return { lang: codenamesLang }; },
@@ -17368,111 +17644,464 @@ ROOM_GAMES.codenames = {
     const el = document.getElementById('view-room-codenames');
     if (!el) return;
 
-    const t = TRANSLATIONS[appState.lang];
-    const L = CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar;
     const s = state.shared;
-    const mine = (s.teams || {})[Room.me] || {};
-    const isSpymaster = mine.role === 'spymaster';
-    const key = state.you && state.you.key;      // spymasters only
-    const myTurn = mine.team === s.turn && !s.winner;
+    const t = TRANSLATIONS[appState.lang] || {};
 
-    /* --- board ---------------------------------------------------------- */
-    const board = (s.board || []).map((cell, i) => {
-      const colour = cell.revealed ? cell.colour : (isSpymaster && key ? key[i] : null);
-      const classes = ['cn-card'];
-      if (cell.revealed) classes.push('cn-card--revealed', 'cn-card--' + cell.colour);
-      else if (colour) classes.push('cn-card--peek', 'cn-peek--' + colour);
-
-      const clickable = !cell.revealed && !s.winner && myTurn && mine.role === 'operative' && s.clue;
-      return `<button class="${classes.join(' ')}" ${clickable ? '' : 'disabled'}
-                      onclick="roomAct('guess', { index: ${i} })">
-                <span class="cn-card__word">${escapeHTML(cell.word)}</span>
-              </button>`;
-    }).join('');
-
-    /* --- status banner --------------------------------------------------- */
-    let banner;
-    if (s.winner) {
-      const reason = s.endReason === 'assassin'
-        ? (t.cn_assassin_hit || 'انكشف القاتل!')
-        : (t.cn_cleared || 'كل الكلمات ظهرت');
-      banner = `<div class="cn-banner cn-banner--${s.winner}">
-                  <div class="cn-banner__title">🏆 ${t.cn_wins || 'فاز الفريق'} ${L[s.winner]}</div>
-                  <div class="cn-banner__sub">${reason}</div>
-                </div>`;
-    } else if (s.clue) {
-      banner = `<div class="cn-banner cn-banner--${s.turn}">
-                  <div class="cn-banner__title">${escapeHTML(s.clue.word)} · ${s.clue.count}</div>
-                  <div class="cn-banner__sub">${t.cn_guesses_left || 'محاولات متبقية'}: ${s.guessesLeft}</div>
-                </div>`;
-    } else {
-      banner = `<div class="cn-banner cn-banner--${s.turn}">
-                  <div class="cn-banner__title">${t.cn_turn || 'دور الفريق'} ${L[s.turn]}</div>
-                  <div class="cn-banner__sub">${t.cn_await_clue || 'في انتظار تلميح القائد'}</div>
-                </div>`;
+    // A new board: forget the card picked, the flips heard and the swap mode.
+    if (cnLocal.deal !== s.dealtAt) {
+      cnLocal.deal = s.dealtAt;
+      cnLocal.pending = null;
+      cnLocal.seen = null;
+      cnLocal.swapMode = false;
     }
 
-    /* --- controls -------------------------------------------------------- */
-    let controls = '';
-    if (s.winner) {
-      controls = state.youAreHost
-        ? `<div class="btn-stack">
-             <button onclick="roomAct('restart')" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>
-             <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
-           </div>`
-        : `<div class="waiting-note">${t.room_wait_host}</div>`;
-    } else if (isSpymaster && myTurn && !s.clue) {
-      controls = `
-        <div class="card card--tight">
-          <label class="field__label">${t.cn_your_clue || 'تلميحك'}</label>
-          <div class="input-group">
-            <input type="text" id="cn-clue-word" autocomplete="off" placeholder="${t.cn_clue_ph || 'كلمة واحدة'}">
-            <input type="number" id="cn-clue-count" value="1" min="0" max="9" style="width:72px; flex:none">
-          </div>
-          <button onclick="submitCodenamesClue()" class="btn btn--primary">${t.cn_give_clue || 'أعط التلميح'}</button>
-        </div>`;
-    } else if (isSpymaster && myTurn && s.clue) {
-      controls = `<div class="waiting-note">${t.cn_team_guessing || 'فريقك يخمّن الآن…'}</div>`;
-    } else if (mine.role === 'operative' && myTurn && s.clue) {
-      controls = `<button onclick="roomAct('endTurn')" class="btn btn--ghost">${t.cn_end_turn || 'إنهاء الدور'}</button>`;
-    } else if (!myTurn) {
-      controls = `<div class="waiting-note">${t.cn_other_turn || 'دور الفريق الآخر'}</div>`;
-    }
+    const v = cnView(state);
+    const faceUp = (s.board || []).map(c => !!c.revealed);
+    const fresh = faceUp.map((up, i) => !!(up && cnLocal.seen && !cnLocal.seen[i]));
 
     // The spymaster types a clue into this frame, so it may only be rebuilt
     // when the board itself changed - not when a phone locks and its dot dims.
     const sig = [
-      s.turn, s.winner || '', s.guessesLeft,
+      s.dealtAt, s.turn, s.winner || '', s.guessesLeft, s.endsAt || '',
       s.clue ? s.clue.word + ':' + s.clue.count : '',
-      (s.board || []).map(c => (c.revealed ? c.colour[0] : '.')).join(''),
-      mine.team + mine.role, isSpymaster && key ? '1' : '0'
+      (s.board || []).map(c => (c.revealed ? c.colour[0] : '.') + c.word).join(','),
+      JSON.stringify(s.marks || {}), (s.log || []).length,
+      v.mine.team + v.mine.role, v.key ? 1 : 0, cnLocal.hideKey, cnLocal.swapMode, v.pending,
+      state.youAreHost, s.wins ? s.wins.red + '-' + s.wins.blue : '', appState.lang
     ].join('|');
 
-    renderRoomFrame(el, sig, () => `
-      <div class="cn-score">
-        <span class="cn-score__side cn-score__side--red ${s.turn === 'red' ? 'is-turn' : ''}">
-          <span class="cn-dot cn-dot--red"></span>${s.remaining ? s.remaining.red : 0}
-        </span>
-        <span class="cn-score__role">${isSpymaster ? '🕵️ ' + (t.cn_spymaster || 'قائد') : (t.cn_operative || 'لاعب')}</span>
-        <span class="cn-score__side cn-score__side--blue ${s.turn === 'blue' ? 'is-turn' : ''}">
-          ${s.remaining ? s.remaining.blue : 0}<span class="cn-dot cn-dot--blue"></span>
-        </span>
-      </div>
-      <div class="cn-layout">
-        ${banner}
-        <div class="cn-board">${board}</div>
-        ${controls}
-      </div>
-      ${renderRoomPlayerStrip(state)}`);
+    const rebuilt = renderRoomFrame(el, sig, () => cnFrame(state, v, t, fresh));
     refreshRoomPlayerStrip(el, state);
+    if (rebuilt) cnFeedback(state, v, fresh);
+    cnLocal.seen = faceUp;
+
+    if (s.endsAt && !s.winner) startCodenamesClock(s.endsAt);
+    else stopCodenamesClock();
   }
 };
 
+/** Everything a frame needs to know about this phone's part in the game. */
+function cnView(state) {
+  const s = state.shared;
+  const mine = (s.teams || {})[Room.me] || {};
+  const key = (state.you && state.you.key) || null;
+  const isSpymaster = mine.role === 'spymaster';
+  const myTurn = !!mine.team && mine.team === s.turn && !s.winner;
+  const canGuess = myTurn && mine.role === 'operative' && !!s.clue;
+  const board = s.board || [];
+  const pending = canGuess && cnLocal.pending !== null && board[cnLocal.pending] && !board[cnLocal.pending].revealed
+    ? cnLocal.pending : null;
+  return {
+    s: s,
+    mine: mine,
+    key: key,
+    isSpymaster: isSpymaster,
+    myTurn: myTurn,
+    canGuess: canGuess,
+    pending: pending,
+    showKey: isSpymaster && !!key && !cnLocal.hideKey,
+    // A word nobody knows can be swapped until the first clue is given.
+    canSwap: !s.winner && !(s.log || []).length && (state.youAreHost || isSpymaster)
+  };
+}
+
+function cnFrame(state, v, t, fresh) {
+  const s = v.s;
+  const L = CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar;
+  return `
+    ${cnScoreBar(v, t)}
+    <div class="cn-layout">
+      <div class="cn-board">${(s.board || []).map((cell, i) => cnCard(cell, i, v, fresh[i])).join('')}</div>
+      <div class="cn-side">
+        ${cnBanner(s, t, L)}
+        ${cnControls(state, v, t, L)}
+        ${cnTools(v, t)}
+        ${cnLog(s, t)}
+      </div>
+    </div>
+    ${renderRoomPlayerStrip(state)}`;
+}
+
+function cnScoreBar(v, t) {
+  const s = v.s;
+  const side = (team) => `
+    <span class="cn-score__side cn-score__side--${team} ${s.turn === team && !s.winner ? 'is-turn' : ''}">
+      <span class="cn-dot cn-dot--${team}"></span>${s.remaining ? s.remaining[team] : 0}${cnWinsBadge(s, team)}
+    </span>`;
+  const role = v.isSpymaster
+    ? '🕵️ ' + (t.cn_spymaster || 'قائد')
+    : (v.mine.team ? (t.cn_operative || 'لاعب') : (t.vote_spectating || ''));
+  return `<div class="cn-score">${side('red')}<span class="cn-score__role">${role}</span>${side('blue')}</div>`;
+}
+
+function cnCard(cell, i, v, fresh) {
+  const s = v.s;
+  const classes = ['cn-card'];
+  if (cell.revealed) {
+    classes.push('cn-card--revealed', 'cn-card--' + cell.colour);
+    if (fresh) classes.push('is-flipping');
+  } else if (s.winner && cell.colour) {
+    classes.push('cn-card--ended', 'cn-peek--' + cell.colour);
+  } else if (v.showKey) {
+    classes.push('cn-card--peek', 'cn-peek--' + v.key[i]);
+  }
+
+  const marks = cell.revealed ? [] : ((s.marks || {})[i] || []);
+  if (marks.indexOf(Room.me) !== -1) classes.push('is-marked');
+  if (v.pending === i) classes.push('is-pending');
+  const swapping = v.canSwap && cnLocal.swapMode && !cell.revealed;
+  if (swapping) classes.push('is-swappable');
+  const tappable = !cell.revealed && (v.canGuess || swapping);
+
+  return `
+    <button class="${classes.join(' ')}" ${tappable ? '' : 'disabled'} onclick="tapCodenamesCard(${i})">
+      ${cell.revealed ? `<span class="cn-card__cover" aria-hidden="true">${CN_COVER[cell.colour] || ''}</span>` : ''}
+      <span class="cn-card__word">${escapeHTML(cell.word)}</span>
+      ${marks.length ? `<span class="cn-card__marks" aria-hidden="true">${marks.length}</span>` : ''}
+    </button>`;
+}
+
+function cnBanner(s, t, L) {
+  const timer = s.endsAt && !s.winner
+    ? `<span id="cn-timer" class="badge badge--accent cn-timer">${cnClockText(Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000)))}</span>`
+    : '';
+
+  if (s.winner) {
+    const reason = s.endReason === 'assassin'
+      ? (t.cn_assassin_hit || 'انكشف القاتل!')
+      : (t.cn_cleared || 'كل الكلمات ظهرت');
+    return `<div class="cn-banner cn-banner--${s.winner}">
+              <div class="cn-banner__title">${s.endReason === 'assassin' ? '☠️' : '🏆'} ${t.cn_wins || 'فاز الفريق'} ${L[s.winner]}</div>
+              <div class="cn-banner__sub">${reason}</div>
+            </div>`;
+  }
+  if (s.clue) {
+    const count = s.clue.count === 'inf' ? '∞' : s.clue.count;
+    const left = s.guessesLeft === CN_UNLIMITED ? '∞' : s.guessesLeft;
+    return `<div class="cn-banner cn-banner--${s.turn}">
+              <div class="cn-banner__title">${escapeHTML(s.clue.word)} · ${count}</div>
+              <div class="cn-banner__sub"><span>${L[s.turn]} · ${t.cn_guesses_left || 'محاولات متبقية'}: ${left}</span>${timer}</div>
+            </div>`;
+  }
+  return `<div class="cn-banner cn-banner--${s.turn}">
+            <div class="cn-banner__title">${t.cn_turn || 'دور الفريق'} ${L[s.turn]}</div>
+            <div class="cn-banner__sub"><span>${t.cn_await_clue || 'في انتظار تلميح القائد'}</span>${timer}</div>
+          </div>`;
+}
+
+function cnControls(state, v, t, L) {
+  const s = v.s;
+
+  if (s.winner) {
+    return cnStats(s, t) + (state.youAreHost
+      ? `<div class="btn-stack">
+           <button onclick="roomAct('restart')" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>
+           <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
+         </div>`
+      : `<div class="waiting-note">${t.room_wait_host || ''}</div>`);
+  }
+
+  if (v.isSpymaster && v.myTurn && !s.clue) {
+    return `
+      <div class="card card--tight">
+        <label class="field__label" for="cn-clue-word">${t.cn_your_clue || 'تلميحك'}</label>
+        <div class="input-group">
+          <input type="text" id="cn-clue-word" autocomplete="off" maxlength="24" enterkeyhint="send"
+                 placeholder="${escapeHTML(t.cn_clue_ph || 'كلمة واحدة')}"
+                 onkeydown="if (event.key === 'Enter') { event.preventDefault(); submitCodenamesClue(); }">
+          <select id="cn-clue-count" aria-label="${escapeHTML(t.cn_clue_count || '')}" style="width:84px; flex:none">
+            ${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<option value="${n}" ${n === 1 ? 'selected' : ''}>${n}</option>`).join('')}
+            <option value="inf">∞</option>
+          </select>
+        </div>
+        <p class="field__hint">${t.cn_clue_hint || ''}</p>
+        <button onclick="submitCodenamesClue()" class="btn btn--primary">${t.cn_give_clue || 'أعط التلميح'}</button>
+      </div>`;
+  }
+
+  if (v.isSpymaster && v.myTurn) {
+    return `<div class="waiting-note">${t.cn_team_guessing || 'فريقك يخمّن الآن…'}</div>`;
+  }
+
+  if (v.canGuess) {
+    if (v.pending !== null) {
+      return `
+        <div class="cn-confirm">
+          <div class="cn-confirm__word">${escapeHTML(s.board[v.pending].word)}</div>
+          <div class="btn-stack">
+            <button class="btn btn--primary btn--lg" onclick="revealCodenamesPending()">${t.cn_reveal || 'اكشف الكلمة'}</button>
+            <button class="btn btn--ghost" onclick="cancelCodenamesPending()">${t.cancel || 'إلغاء'}</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <p class="field__hint cn-hint">${t.cn_mark_hint || ''}</p>
+      <button onclick="roomAct('endTurn')" class="btn btn--ghost">${t.cn_end_turn || 'إنهاء الدور'}</button>`;
+  }
+
+  if (v.myTurn) return `<div class="waiting-note">${t.cn_await_clue || ''}</div>`;
+  if (v.mine.team) return `<div class="waiting-note">${t.cn_other_turn || 'دور الفريق الآخر'}</div>`;
+  return '';
+}
+
+/** The end of a game: words left, clues it took, and the evening's score. */
+function cnStats(s, t) {
+  const clues = (team) => (s.log || []).filter(e => e.type === 'clue' && e.team === team).length;
+  const wins = s.wins || {};
+  const row = (label, red, blue) => `
+    <span class="cn-stats__label">${label}</span>
+    <span class="cn-stats__num cn-stats__num--red">${red}</span>
+    <span class="cn-stats__num cn-stats__num--blue">${blue}</span>`;
+  return `
+    <div class="cn-stats">
+      <span></span>
+      <span class="cn-stats__num"><span class="cn-dot cn-dot--red"></span></span>
+      <span class="cn-stats__num"><span class="cn-dot cn-dot--blue"></span></span>
+      ${row(t.cn_left || '', s.remaining ? s.remaining.red : 0, s.remaining ? s.remaining.blue : 0)}
+      ${row(t.cn_clues_given || '', clues('red'), clues('blue'))}
+      ${row('🏆 ' + (t.cn_series || ''), wins.red || 0, wins.blue || 0)}
+    </div>`;
+}
+
+function cnTools(v, t) {
+  const s = v.s;
+  const tools = [];
+  if (v.isSpymaster && v.key && !s.winner) {
+    tools.push(`<button class="btn btn--ghost btn--sm btn--auto" onclick="toggleCodenamesKey()">${
+      cnLocal.hideKey ? '👁️ ' + (t.cn_show_key || '') : '🙈 ' + (t.cn_hide_key || '')}</button>`);
+  }
+  if (v.canSwap) {
+    tools.push(`<button class="btn ${cnLocal.swapMode ? 'btn--primary' : 'btn--ghost'} btn--sm btn--auto"
+                        onclick="toggleCodenamesSwap()">🔁 ${t.cn_swap_word || ''}</button>`);
+  }
+  if (!tools.length) return '';
+  return `<div class="btn-row cn-tools">${tools.join('')}</div>` +
+    (cnLocal.swapMode && v.canSwap ? `<p class="field__hint cn-hint">${t.cn_swap_hint || ''}</p>` : '');
+}
+
+/** Each clue with the cards its team turned over under it, newest first. */
+function cnLog(s, t) {
+  const groups = [];
+  (s.log || []).forEach(e => {
+    const last = groups[groups.length - 1];
+    if (e.type === 'clue' || !last || last.team !== e.team) {
+      groups.push({ team: e.team, clue: e.type === 'clue' ? e : null, guesses: [] });
+    }
+    if (e.type === 'guess') groups[groups.length - 1].guesses.push(e);
+  });
+  if (!groups.length) return '';
+
+  const items = groups.slice().reverse().map(g => `
+    <li class="cn-log__item cn-log__item--${g.team}">
+      <div class="cn-log__clue">${g.clue ? escapeHTML(g.clue.word) + ' · ' + (g.clue.count === 'inf' ? '∞' : g.clue.count) : '—'}</div>
+      <div class="cn-log__guesses">${g.guesses.length
+        ? g.guesses.map(x => `<span class="cn-log__guess"><span class="cn-dot cn-dot--${x.colour}"></span>${escapeHTML(x.word)}</span>`).join('')
+        : `<span class="tx-muted">${t.cn_no_guesses || ''}</span>`}</div>
+    </li>`).join('');
+
+  return `
+    <details class="cn-log" ${cnLocal.logOpen ? 'open' : ''} ontoggle="cnLocal.logOpen = this.open">
+      <summary class="cn-log__summary">📜 ${t.cn_log || ''} <span class="badge">${groups.filter(g => g.clue).length}</span></summary>
+      <ol class="cn-log__list">${items}</ol>
+    </details>`;
+}
+
+/** Sound and a buzz for a card someone just turned over; confetti for a win. */
+function cnFeedback(state, v, fresh) {
+  const s = state.shared;
+  const flipped = fresh.map((f, i) => (f ? i : -1)).filter(i => i !== -1);
+  if (flipped.length && !s.winner) {
+    const colour = s.board[flipped[flipped.length - 1]].colour;
+    // Good news is your own colour; someone watching hears any team's card as good.
+    const good = v.mine.team ? colour === v.mine.team : colour !== 'neutral';
+    playSound(good ? 'success' : 'alarm');
+    haptic(good ? 'medium' : 'heavy');
+  }
+  if (s.winner && cnLocal.cheered !== s.dealtAt) {
+    cnLocal.cheered = s.dealtAt;
+    const assassin = s.endReason === 'assassin';
+    if (assassin) { playSound('alarm'); haptic('heavy'); }
+    else playSound('success');
+    if (typeof confetti === 'function') {
+      setTimeout(() => confetti({ particleCount: 150, spread: 85, origin: { y: 0.6 }, colors: CN_CONFETTI[s.winner] }),
+                 assassin ? 500 : 0);
+    }
+  }
+}
+
+/* --- this phone's actions ----------------------------------------------- */
+
+function cnRedraw() {
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/**
+ * An operative's tap marks the card for the team and picks it; revealing it is
+ * a second, deliberate press. A tap on the picked card takes the pick back.
+ */
+function tapCodenamesCard(i) {
+  const state = Room.state;
+  if (!state) return;
+  const v = cnView(state);
+  const cell = (v.s.board || [])[i];
+  if (!cell || cell.revealed) return;
+
+  if (cnLocal.swapMode && v.canSwap) {
+    cnLocal.swapMode = false;
+    roomAct('swapWord', { index: i });
+    cnRedraw();
+    return;
+  }
+  if (!v.canGuess) return;
+
+  const marked = ((v.s.marks || {})[i] || []).indexOf(Room.me) !== -1;
+  if (v.pending === i) {
+    cnLocal.pending = null;
+    if (marked) roomAct('mark', { index: i, on: false });
+  } else {
+    cnLocal.pending = i;
+    if (!marked) roomAct('mark', { index: i, on: true });
+  }
+  haptic('light');
+  cnRedraw();
+}
+
+function cancelCodenamesPending() {
+  const s = Room.state && Room.state.shared;
+  const i = cnLocal.pending;
+  cnLocal.pending = null;
+  if (s && i !== null && ((s.marks || {})[i] || []).indexOf(Room.me) !== -1) {
+    roomAct('mark', { index: i, on: false });
+  }
+  cnRedraw();
+}
+
+async function revealCodenamesPending() {
+  const i = cnLocal.pending;
+  if (i === null) return;
+  cnLocal.pending = null;
+  cnRedraw();
+  await roomAct('guess', { index: i });
+}
+
+function toggleCodenamesKey() {
+  cnLocal.hideKey = !cnLocal.hideKey;
+  cnRedraw();
+}
+
+function toggleCodenamesSwap() {
+  cnLocal.swapMode = !cnLocal.swapMode;
+  cnRedraw();
+}
+
 async function submitCodenamesClue() {
+  const t = TRANSLATIONS[appState.lang] || {};
   const word = (document.getElementById('cn-clue-word').value || '').trim();
-  const count = Number(document.getElementById('cn-clue-count').value) || 0;
-  if (!word) return showToast(TRANSLATIONS[appState.lang].cn_clue_needed || 'اكتب التلميح', 'error');
-  await roomAct('giveClue', { word: word, count: count });
+  const count = document.getElementById('cn-clue-count').value;
+  if (!word) return showToast(t.cn_clue_needed || 'اكتب التلميح', 'error');
+  const s = Room.state && Room.state.shared;
+  const folded = cnFold(word);
+  if (s && (s.board || []).some(c => !c.revealed && cnFold(c.word) === folded)) {
+    return showToast(t.cn_clue_on_board || '', 'error');
+  }
+  await roomAct('giveClue', { word: word, count: count === 'inf' ? 'inf' : Number(count) });
+}
+
+async function saveCodenamesWords() {
+  const box = document.getElementById('cn-custom');
+  const text = box ? box.value : (cnLocal.customDraft || '');
+  try {
+    await Room.act('setOptions', { custom: text });
+    cnLocal.customDraft = null;
+    showToast((TRANSLATIONS[appState.lang] || {}).cn_custom_saved || '', 'success');
+    cnRedraw();
+  } catch (err) {
+    showToast(err.message || 'تعذر الحفظ', 'error');
+  }
+}
+
+/* --- the host's settings ------------------------------------------------ */
+
+function cnHostOptions(t, settings) {
+  const draft = cnLocal.customDraft !== null ? cnLocal.customDraft : settings.custom.join('\n');
+  return `
+    <div class="card card--tight cn-options">
+      <div class="card__title">${t.cn_options || ''}</div>
+      <button class="btn btn--secondary" onclick="roomAct('shuffleTeams')">🎲 ${t.cn_shuffle || ''}</button>
+
+      <div class="field">
+        <span class="field__label">${t.cn_timer || ''}</span>
+        <div class="segmented" role="group">
+          ${CN_TIMERS.map(n => `
+            <button type="button" class="segmented__item ${settings.timer === n ? 'is-active' : ''}"
+                    onclick="roomAct('setOptions', { timer: ${n} })">${n || (t.cn_timer_off || '—')}</button>`).join('')}
+        </div>
+        <p class="field__hint">${t.cn_timer_hint || ''}</p>
+      </div>
+
+      <div class="field">
+        <label class="switch-row" for="cn-rotate">
+          <span class="field__label">${t.cn_rotate || ''}</span>
+          <span class="switch">
+            <input type="checkbox" id="cn-rotate" role="switch" ${settings.rotate ? 'checked' : ''}
+                   onchange="roomAct('setOptions', { rotate: this.checked })">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </label>
+        <p class="field__hint">${t.cn_rotate_hint || ''}</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="cn-custom">${t.cn_custom || ''}</label>
+        <textarea id="cn-custom" rows="3" placeholder="${escapeHTML(t.cn_custom_ph || '')}"
+                  oninput="cnLocal.customDraft = this.value">${escapeHTML(draft)}</textarea>
+        <p class="field__hint">${(t.cn_custom_count || '{n}').replace('{n}', settings.custom.length)}</p>
+        <button class="btn btn--ghost btn--sm" onclick="saveCodenamesWords()">${t.cn_custom_save || ''}</button>
+      </div>
+    </div>`;
+}
+
+/** What the host chose, for everyone else in the lobby. */
+function cnOptionsSummary(t, settings) {
+  const bits = [];
+  if (settings.timer) bits.push('⏱️ ' + (t.cn_timer_summary || '{n}').replace('{n}', settings.timer));
+  if (settings.rotate) bits.push('🔄 ' + (t.cn_rotate_summary || ''));
+  if (settings.custom.length) bits.push('✍️ ' + (t.cn_custom_count || '{n}').replace('{n}', settings.custom.length));
+  return bits.length ? `<p class="field__hint cn-hint">${bits.join(' · ')}</p>` : '';
+}
+
+/* --- the turn clock ------------------------------------------------------ */
+
+function paintCodenamesTimer(endsAt) {
+  const el = document.getElementById('cn-timer');
+  if (!el) return 0;
+  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  el.textContent = cnClockText(left);
+  el.classList.toggle('badge--danger', left <= 10);
+  el.classList.toggle('badge--accent', left > 10);
+  return left;
+}
+
+/** Only draws the countdown: the server passes the turn when it runs out. */
+function startCodenamesClock(endsAt) {
+  paintCodenamesTimer(endsAt);
+  if (cnLocal.clockKey === endsAt && cnLocal.clock) return;
+  stopCodenamesClock();
+  cnLocal.clockKey = endsAt;
+  cnLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paintCodenamesTimer(endsAt);
+      if (left > 0 && left <= 5 && document.getElementById('cn-timer')) playSound('tick');
+    },
+    onEnd: () => { cnLocal.clock = null; }
+  });
+}
+
+function stopCodenamesClock() {
+  if (cnLocal.clock) cnLocal.clock.stop();
+  cnLocal.clock = null;
+  cnLocal.clockKey = null;
 }
 </script>
 

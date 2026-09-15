@@ -570,6 +570,34 @@
       cn_wins: "فاز الفريق",
       cn_assassin_hit: "انكشف القاتل!",
       cn_cleared: "كل الكلمات ظهرت",
+      cn_mark_hint: "اضغط كلمة عشان تعلّمها قدام فريقك، وبعدين اكشفها.",
+      cn_reveal: "اكشف الكلمة",
+      cn_hide_key: "إخفاء المفتاح",
+      cn_show_key: "إظهار المفتاح",
+      cn_swap_word: "تبديل كلمة",
+      cn_swap_hint: "اضغط الكلمة اللي عايز تبدلها. التبديل قبل أول تلميح بس.",
+      cn_clue_on_board: "التلميح لا يمكن أن يكون كلمة على اللوحة",
+      cn_clue_count: "عدد الكلمات",
+      cn_clue_hint: "كلمة واحدة ورقم. ∞ أو 0: الفريق يخمّن لحد ما يغلط.",
+      cn_log: "سجل التلميحات",
+      cn_no_guesses: "بدون تخمين",
+      cn_options: "إعدادات اللعبة",
+      cn_shuffle: "قسّم الفرق عشوائياً",
+      cn_timer: "وقت كل دور (ثانية)",
+      cn_timer_off: "بدون",
+      cn_timer_hint: "للقائد عشان يدّي التلميح، ونفس الوقت للفريق عشان يخمّن. لو الوقت خلص الدور ينتقل.",
+      cn_timer_summary: "{n} ثانية لكل دور",
+      cn_rotate: "تبديل القائد كل لعبة",
+      cn_rotate_hint: "في اللعبة الجاية القيادة تروح للي بعده في نفس الفريق.",
+      cn_rotate_summary: "القائد يتبدّل كل لعبة",
+      cn_custom: "كلماتكم الخاصة (اختياري)",
+      cn_custom_ph: "كلمة في كل سطر: أسماء، أماكن، ذكريات…",
+      cn_custom_save: "حفظ الكلمات",
+      cn_custom_count: "{n} كلمة خاصة",
+      cn_custom_saved: "تم حفظ الكلمات",
+      cn_left: "كلمات باقية",
+      cn_clues_given: "تلميحات",
+      cn_series: "مرات الفوز",
       tap_to_reveal: "اضغط لكشف دورك",
       you_are_spy: "أنت الجاسوس",
       spy_hint: "حاول أن تعرف الكلمة دون أن ينكشف أمرك",
@@ -1016,6 +1044,34 @@
       cn_wins: "Winner:",
       cn_assassin_hit: "The assassin was revealed!",
       cn_cleared: "All their words were found",
+      cn_mark_hint: "Tap a word to mark it for your team, then reveal it.",
+      cn_reveal: "Reveal",
+      cn_hide_key: "Hide key",
+      cn_show_key: "Show key",
+      cn_swap_word: "Swap a word",
+      cn_swap_hint: "Tap the word to replace. Only before the first clue.",
+      cn_clue_on_board: "A word on the board can't be the clue",
+      cn_clue_count: "How many words",
+      cn_clue_hint: "One word and a number. ∞ or 0: the team guesses until it misses.",
+      cn_log: "Clue history",
+      cn_no_guesses: "No guesses",
+      cn_options: "Game settings",
+      cn_shuffle: "Shuffle teams",
+      cn_timer: "Time per turn (seconds)",
+      cn_timer_off: "Off",
+      cn_timer_hint: "For the spymaster to give a clue, and the same again for the team to guess. When it runs out, the turn passes.",
+      cn_timer_summary: "{n} seconds a turn",
+      cn_rotate: "New spymaster each game",
+      cn_rotate_hint: "Next game, the role moves to the next player on the same team.",
+      cn_rotate_summary: "Spymasters rotate",
+      cn_custom: "Your own words (optional)",
+      cn_custom_ph: "One per line: names, places, family jokes…",
+      cn_custom_save: "Save words",
+      cn_custom_count: "{n} own words",
+      cn_custom_saved: "Words saved",
+      cn_left: "Words left",
+      cn_clues_given: "Clues",
+      cn_series: "Wins",
       tap_to_reveal: "Tap to see your role",
       you_are_spy: "You are the spy",
       spy_hint: "Work out the word without giving yourself away",
@@ -1403,6 +1459,15 @@
     // Screens drawn in JS carry their own text; redraw the ones on show.
     if (appState.currentView === 'play-trivia' && typeof renderTriviaBoard === 'function') renderTriviaBoard();
     if (appState.currentView === 'setup-connections' && typeof paintConnectLevel === 'function') paintConnectLevel();
+    // A room screen only redraws when the room changes, so it kept the old
+    // language until the next move. Drop its signatures and draw it now.
+    if ((appState.currentView || '').indexOf('room-') === 0 && typeof Room !== 'undefined' && Room.state) {
+      const view = document.getElementById('view-' + appState.currentView);
+      if (view) delete view.dataset.sig;
+      const setup = document.getElementById('room-host-setup');
+      if (setup) delete setup.dataset.sig;
+      routeRoomState(Room.state);
+    }
     saveToLocal();
     playSound('click');
     haptic('light');
@@ -2257,12 +2322,13 @@ const GAME_RULES = {
             </ol>`,
         codenames: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>فريقان: كل فريق فيه <b>قائد</b> واحد و<b>لاعب</b> أو أكثر.</li>
-                <li>على الطاولة 25 كلمة. القائد وحده يشوف ألوانها.</li>
-                <li>القائد يقول <b>كلمة واحدة ورقم</b>: الكلمة تربط بين كلمات فريقه، والرقم عددها.</li>
-                <li>اللاعبون يضغطون الكلمات. كلمة فريقهم = يكملوا، كلمة محايدة أو كلمة الخصم = ينتهي الدور.</li>
-                <li>فيه كلمة <b>قاتلة</b> واحدة — اللي يضغطها يخسر فوراً.</li>
-                <li>تُلعب على الموبايلات فقط: مفيش طريقة تخفي المفتاح على موبايل واحد.</li>
+                <li>فريقان: كل فريق فيه <b>قائد</b> واحد و<b>لاعب</b> أو أكثر. «قسّم الفرق عشوائياً» يوزعكم في ثانية.</li>
+                <li>على الطاولة 25 كلمة. القائد وحده يشوف ألوانها، ويقدر يخفيها لو حد بيبص على موبايله.</li>
+                <li>القائد يقول <b>كلمة واحدة ورقم</b>: الكلمة تربط بين كلمات فريقه، والرقم عددها. ممنوع تكون كلمة من اللي على اللوحة. <b>∞</b> أو <b>0</b> = الفريق يخمّن لحد ما يغلط.</li>
+                <li>اللاعب يضغط كلمة عشان <b>يعلّمها</b> قدام فريقه، وبعدين يضغط «اكشف الكلمة». كلمة فريقهم = يكملوا، كلمة محايدة أو كلمة الخصم = ينتهي الدور.</li>
+                <li>فيه كلمة <b>قاتلة</b> واحدة — اللي يكشفها يخسر فوراً.</li>
+                <li>المضيف يقدر يحط <b>وقت لكل دور</b> و<b>كلماتكم الخاصة</b>، ويبدّل كلمة مش واضحة قبل أول تلميح. مرات الفوز بتتجمع من لعبة للتانية، والقيادة تتبدّل لو اخترتوا كده.</li>
+                <li>تُلعب على الموبايلات: مفيش طريقة تخفي المفتاح على موبايل واحد.</li>
             </ol>`,
         drawguess: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -2545,12 +2611,13 @@ const GAME_RULES = {
             </ol>`,
         codenames: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>Two teams, each with one <b>spymaster</b> and at least one <b>operative</b>.</li>
-                <li>25 words on the table. Only the spymasters see which colour each one is.</li>
-                <li>The spymaster gives <b>one word and a number</b>: the word links their team's cards, the number says how many.</li>
-                <li>Operatives tap words. Own colour keeps the turn; neutral or the other team's ends it.</li>
-                <li>One card is the <b>assassin</b> — tap it and your team loses on the spot.</li>
-                <li>Separate phones only: there is nowhere to hide the key on a single screen.</li>
+                <li>Two teams, each with one <b>spymaster</b> and at least one <b>operative</b>. "Shuffle teams" deals everyone out in a second.</li>
+                <li>25 words on the table. Only the spymasters see which colour each one is, and can hide it if someone is peeking.</li>
+                <li>The spymaster gives <b>one word and a number</b>: the word links their team's cards, the number says how many. It can't be a word on the board. <b>∞</b> or <b>0</b> means keep guessing until you miss.</li>
+                <li>An operative taps a word to <b>mark</b> it for the team, then presses "Reveal". Own colour keeps the turn; neutral or the other team's ends it.</li>
+                <li>One card is the <b>assassin</b> — reveal it and your team loses on the spot.</li>
+                <li>The host can set <b>a time per turn</b>, add <b>your own words</b>, and swap an unclear word before the first clue. Wins add up from game to game, and the spymaster role can rotate.</li>
+                <li>Separate phones: there is nowhere to hide the key on a single screen.</li>
             </ol>`,
         drawguess: `
             <ol class="list-decimal list-inside space-y-1 text-xs">

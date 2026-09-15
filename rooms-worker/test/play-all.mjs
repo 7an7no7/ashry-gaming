@@ -221,25 +221,69 @@ async function main() {
   /* --- أسماء الرموز --------------------------------------------------------- */
   console.log('• codenames');
   await A.must('chooseGame', { game: 'codenames' });
+  check((await B.act('setOptions', { timer: 60 })).ok === false, 'only the host sets the codenames options');
+  await A.must('setOptions', { timer: 60, rotate: true, custom: 'بابا\nماما، تيتا, بابا' });
+  check(A.state.shared.settings.timer === 60 && A.state.shared.settings.custom.join('|') === 'بابا|ماما|تيتا',
+        'own words are split, trimmed and counted once');
+  await A.must('shuffleTeams');
+  const dealtSides = Object.values(A.state.shared.teams);
+  check(dealtSides.length === 4 && dealtSides.filter((t) => t.role === 'spymaster').length === 2,
+        'shuffling puts everyone on a side, with a spymaster each');
+  for (const b of bots) await b.must('setTeam', { team: b === A || b === B ? 'red' : 'blue', role: 'operative' });
   await A.must('setTeam', { team: 'red', role: 'spymaster' });
-  await B.must('setTeam', { team: 'red', role: 'operative' });
   await C.must('setTeam', { team: 'blue', role: 'spymaster' });
   check((await D.act('setTeam', { team: 'blue', role: 'spymaster' })).ok === false, 'a second spymaster per team is refused');
-  await D.must('setTeam', { team: 'blue', role: 'operative' });
   await A.must('start', { lang: 'ar' });
   await all(bots, (s) => s.phase === 'playing' && s.shared.board.length === 25, 'codenames board dealt');
+  check(['بابا', 'ماما', 'تيتا'].every((w) => A.state.shared.board.some((c) => c.word === w)), "the room's own words are on the board");
+  // The list's words only: the room's own ones never go through the shared memory.
+  const firstBoard = A.state.shared.board.map((c) => c.word).filter((w) => ['بابا', 'ماما', 'تيتا'].indexOf(w) === -1);
+  check(typeof A.state.shared.endsAt === 'number', 'the clue clock is running');
   check(A.state.you.key.length === 25 && C.state.you.key.length === 25, 'spymasters get the key');
   check(B.state.you === null && D.state.you === null && !leaks(B, 'assassin') && !leaks(D, 'assassin'), "operatives' phones never receive the key");
-  const firstBoard = A.state.shared.board.map((c) => c.word);
+
   const turn = A.state.shared.turn;
   const master = turn === 'red' ? A : C;
   const operative = turn === 'red' ? B : D;
-  await master.must('giveClue', { word: 'حيوان', count: 1 });
+  const otherMaster = turn === 'red' ? C : A;
+  const otherOperative = turn === 'red' ? D : B;
+
+  const swapAt = A.state.shared.board.findIndex((c) => ['بابا', 'ماما', 'تيتا'].indexOf(c.word) === -1);
+  const oldWord = A.state.shared.board[swapAt].word;
+  check((await operative.act('swapWord', { index: swapAt })).ok === false, 'an operative cannot swap a word');
+  await A.must('swapWord', { index: swapAt });
+  await all(bots, (s) => s.shared.board[swapAt].word !== oldWord, 'the host swaps a word before the first clue');
+
+  const boardWord = master.state.shared.board[0].word;
+  check((await master.act('giveClue', { word: ' ' + boardWord + ' ', count: 1 })).ok === false, 'a word on the board is refused as a clue');
+  await master.must('giveClue', { word: 'xyzclue', count: 'inf' });
+  await all(bots, (s) => s.shared.clue && s.shared.guessesLeft === -1, 'an ∞ clue leaves the guesses open');
+  check((await A.act('swapWord', { index: swapAt })).ok === false, 'no swapping once a clue is given');
+
   const mine = master.state.you.key.findIndex((colour) => colour === turn);
+  check((await master.act('mark', { index: mine })).ok === false, 'a spymaster cannot mark cards');
+  await operative.must('mark', { index: mine, on: true });
+  await all(bots, (s) => (s.shared.marks[mine] || []).indexOf(operative.pid) !== -1, 'a mark reaches every phone');
   await operative.must('guess', { index: mine });
-  await all(bots, (s) => s.shared.board[mine].revealed && s.shared.remaining[turn] === (turn === s.shared.startingTeam ? 8 : 7), 'a right guess is revealed and counted');
+  await all(bots, (s) => s.shared.board[mine].revealed && !s.shared.marks[mine] &&
+    s.shared.remaining[turn] === (turn === s.shared.startingTeam ? 8 : 7), 'a right guess is revealed, counted and unmarked');
   await operative.must('endTurn');
   await all(bots, (s) => s.shared.turn !== turn, 'ending the turn passes it');
+
+  await otherMaster.must('giveClue', { word: 'abcclue', count: 1 });
+  const assassin = otherMaster.state.you.key.indexOf('assassin');
+  await otherOperative.must('guess', { index: assassin });
+  await all(bots, (s) => s.shared.winner === turn && s.shared.endReason === 'assassin' && s.shared.wins[turn] === 1,
+            'the assassin loses the game and the win is counted');
+  check(B.state.shared.board.every((c) => c.colour), 'the whole key is shown once the game is over');
+
+  await A.must('restart');
+  await all(bots, (s) => s.phase === 'lobby' && s.shared.wins[turn] === 1 && s.shared.settings.timer === 60 &&
+    s.shared.teams[B.pid].role === 'spymaster' && s.shared.teams[D.pid].role === 'spymaster',
+    'play again keeps the score and the options, and rotates the spymasters');
+  await A.must('backToHub');
+  await A.must('chooseGame', { game: 'codenames' });
+  await all(bots, (s) => s.shared.wins && s.shared.wins[turn] === 1, 'the score survives a trip to the hub');
   await A.must('backToHub');
 
   /* --- voting games ------------------------------------------------------ */

@@ -117,7 +117,311 @@ const CODENAMES_WORDS = {
     'عميل', 'كمين', 'سلاح', 'هليكوبتر', 'سفينة', 'كثبان',
     'قمة', 'سفح', 'قطب', 'عنقود', 'كرمة', 'زيتون',
     'نخيل', 'بستان', 'حقل', 'فزاعة', 'جرار', 'ساقية',
-    'فرن بلدي', 'كنافة', 'قطايف', 'مسحراتي'
+    'فرن بلدي', 'كنافة', 'قطايف', 'مسحراتي',
+
+    // بيت وحاجات
+    'مطبخ', 'صالة', 'جنينة', 'حيطة', 'سقف', 'أرضية',
+    'عمود', 'ركن', 'رف', 'مخزن', 'بدروم', 'سلك',
+    'شريط', 'علبة', 'كيس', 'برطمان', 'قزازة', 'كوباية',
+    'صحن', 'حلة', 'سكينة', 'مغرفة', 'هون', 'موقد',
+    'لمبة', 'نجفة', 'أباجورة', 'مكيف', 'دفاية', 'سخان',
+    'غسالة', 'مكواة', 'ممسحة', 'جردل', 'سجادة', 'مخدة',
+    'بطانية', 'ملاية', 'مرتبة', 'دولاب', 'شماعة', 'منبه',
+    'ريموت', 'ألبوم', 'فازة', 'أصيص', 'زرع',
+
+    // أكل وشرب
+    'كمون', 'شطة', 'خل', 'سمنة', 'زبدة', 'زبادي',
+    'بسلة', 'رز', 'مكرونة', 'خس', 'كرنب', 'قرنبيط',
+    'سبانخ', 'ملوخية', 'بامية', 'يوسفي', 'جوافة', 'بلح',
+    'شمام', 'برقوق', 'أناناس', 'جوز هند', 'لوز', 'بندق',
+    'فستق', 'كاجو', 'سوداني', 'كيك', 'بسكويت', 'جاتوه',
+    'بسبوسة', 'زلابية', 'مهلبية', 'أم علي', 'كحك', 'فطير',
+    'كفتة', 'كباب', 'حواوشي', 'سجق', 'بسطرمة', 'تونة',
+    'سردين', 'سمك', 'فراخ', 'بط', 'حمام', 'لحمة',
+    'كبدة', 'شوربة', 'سلطة', 'مخلل', 'طحينة', 'سحلب',
+    'ينسون', 'كركديه', 'تمر هندي', 'عرقسوس', 'قصب', 'سوبيا',
+    'كاكاو', 'عصير', 'صودا', 'فشار', 'لبان',
+
+    // طبيعة وفضاء
+    'نجم', 'سما', 'سحاب', 'حجر', 'زهرة', 'عشب',
+    'شوك', 'فرع', 'ثمرة', 'بحيرة', 'شط', 'مرجان',
+    'صدف', 'مغرب', 'ليل', 'هلال', 'مريخ', 'زحل',
+    'عطارد', 'أوزون', 'خط الاستواء',
+
+    // حيوانات
+    'غوريلا', 'جاموسة', 'معزة', 'أرنب', 'فار', 'خفاش',
+    'ضفدع', 'عصفور', 'وزة', 'ديك', 'فرخة', 'كتكوت',
+    'ذبابة', 'ناموسة', 'استاكوزا', 'فقمة', 'باندا', 'كوالا',
+    'عنقاء', 'يونيكورن', 'حرباية', 'جرادة',
+
+    // أماكن
+    'بوسطة', 'قسم', 'شارع', 'ميدان', 'كوبري', 'سوبرماركت',
+    'بقالة', 'جزارة', 'كافيه', 'نادي', 'جيم', 'حمام سباحة',
+    'محطة بنزين', 'مسجد', 'فنار', 'مخيم', 'قرية', 'مدينة',
+    'عاصمة', 'حدود', 'جمارك', 'برلمان', 'وزارة', 'معمل',
+    'مغارة', 'سرداب', 'أسانسير', 'بوابة',
+
+    // ناس ومهن
+    'دكتور', 'ممرض', 'طالب', 'ظابط', 'عسكري', 'صياد',
+    'مزارع', 'حداد', 'ميكانيكي', 'سواق', 'جرسون', 'خباز',
+    'جزار', 'بقال', 'خياط', 'بواب', 'مخبر', 'صحفي',
+    'مذيع', 'مصور', 'ملحن', 'نحات', 'شاعر', 'مدرب',
+    'رئيس', 'وزير', 'سفير', 'أمير', 'ساحر', 'مهرج',
+    'بهلوان', 'رائد فضاء', 'عالم', 'مخترع', 'مبرمج', 'محاسب',
+    'سكرتير', 'عريس', 'جد', 'جدة', 'عم', 'خالة',
+    'حماة', 'حفيد', 'توأم', 'أميرة', 'زومبي', 'غول',
+    'عملاق', 'قزم', 'حورية', 'كائن فضائي', 'كليوباترا', 'بياع',
+
+    // جسم
+    'راس', 'ودن', 'مناخير', 'بق', 'سنة', 'لسان',
+    'شفايف', 'رقبة', 'كتف', 'دراع', 'كوع', 'إيد',
+    'صباع', 'ضافر', 'صدر', 'ضهر', 'بطن', 'وسط',
+    'ركبة', 'عضم', 'عرق', 'نفس', 'عقل', 'ضحكة',
+    'دمعة', 'شنب', 'دقن',
+
+    // رياضة ولعب
+    'كورة', 'جون', 'كارت', 'مدرج', 'دوري', 'ماتش',
+    'ركنية', 'ضربة جزاء', 'تسلل', 'سباحة', 'جري', 'قفز',
+    'ملاكمة', 'مصارعة', 'كاراتيه', 'جودو', 'تنس', 'طايرة',
+    'هوكي', 'جولف', 'طاولة', 'كوتشينة', 'بلي', 'استغماية',
+    'نط الحبل', 'بولينج', 'بلياردو', 'زلاجة', 'ترامبولين', 'مرجيحة',
+    'عروسة لعبة', 'بازل',
+
+    // تكنولوجيا وعلوم
+    'موبايل', 'لابتوب', 'تابلت', 'ماوس', 'كيبورد', 'راوتر',
+    'واي فاي', 'بلوتوث', 'إيميل', 'مكالمة', 'فيديو', 'سيلفي',
+    'هاشتاج', 'لايك', 'تطبيق', 'برنامج', 'هاكر', 'باسورد',
+    'ذكاء صناعي', 'قمر صناعي', 'كهربا', 'تليسكوب', 'خلية', 'جين',
+    'مصل', 'بكتيريا', 'أكسجين', 'هيدروجين', 'كربون', 'زئبق',
+    'منشور', 'معادلة', 'صفر', 'مليون', 'كسر', 'زاوية',
+    'دايرة', 'مربع', 'مثلث', 'مكعب', 'تجربة', 'اختراع',
+
+    // مواصلات ولبس
+    'عربية', 'ميكروباص', 'توكتوك', 'عجلة', 'قطر', 'ترام',
+    'فلوكة', 'يخت', 'منطاد', 'باراشوت', 'ونش', 'تريلا',
+    'حنطور', 'سكوتر', 'مطافي', 'بنطلون', 'جلابية', 'كوفية',
+    'برنيطة', 'كاب', 'جاكيت', 'بالطو', 'كرافتة', 'جيبة',
+    'شورت', 'بيجامة', 'مايوه', 'جزمة', 'صندل', 'عكاز',
+    'باروكة',
+
+    // معاني وحاجات مختلفة
+    'نور', 'ضلمة', 'مية', 'هوا', 'فكرة', 'حظ',
+    'فرصة', 'أمل', 'خوف', 'حب', 'سلام', 'حرب',
+    'ثورة', 'فرح', 'مفاجأة', 'كذبة', 'حقيقة', 'وعد',
+    'قانون', 'ضريبة', 'فلوس', 'جنيه', 'دولار', 'دهب',
+    'قماش', 'عرش', 'تاريخ', 'مستقبل', 'ماضي', 'صدفة',
+    'موضة', 'ضجة', 'سكوت', 'كابوس',
+
+    // مدرسة
+    'كراسة', 'أستيكة', 'براية', 'واجب', 'حصة', 'فسحة',
+    'ناظر', 'تلميذ', 'ملخص', 'شعر عربي', 'نحو', 'حساب',
+    'رسم', 'ألعاب',
+
+    // مصر ورمضان
+    'نيل', 'أبو الهول', 'مسلة', 'بردية', 'جعران', 'الأقصر',
+    'أسوان', 'إسكندرية', 'بورسعيد', 'سيناء', 'الغردقة', 'الفيوم',
+    'طنطا', 'المنصورة', 'الزمالك', 'الأهلي', 'الإسماعيلي', 'عيدية',
+    'زينة', 'رمضان', 'سحور', 'فطار', 'أذان', 'قهوة بلدي',
+    'كوشة', 'زفة', 'مهر', 'حنة', 'عربية فول', 'ربابة',
+    'مزمار', 'تنورة', 'خيامية', 'فخار', 'نحاس أحمر', 'سبحة',
+    'مسبحة', 'فانوس رمضان',
+
+    // mammals
+    'دب قطبي', 'وحيد القرن', 'فرس النهر', 'حمار وحشي', 'أيل', 'رنة',
+    'وعل', 'عجل', 'ناقة', 'بغل', 'نعجة', 'جدي',
+    'جرذ', 'هامستر', 'خلد', 'شمبانزي', 'إنسان الغاب', 'بابون',
+    'نمس', 'ابن عرس', 'راكون', 'قندس', 'قضاعة', 'آكل النمل',
+    'حيوان الكسل', 'لاما', 'ألبكة', 'نيص', 'خنزير بري', 'أسد البحر',
+    'فظ', 'حوت قاتل', 'خروف البحر', 'سنجاب طائر', 'فأر الحقل', 'جربوع',
+
+    // birds
+    'عقاب', 'يمامة', 'بجعة', 'بطة', 'ديك رومي', 'هدهد',
+    'نورس', 'بلشون', 'أبو قردان', 'فلامنجو', 'طوقان', 'طائر الطنان',
+    'نقار الخشب', 'كروان', 'بلبل', 'سنونو', 'حدأة', 'نسر أصلع',
+    'كوكاتو', 'عندليب', 'طائر الرفراف', 'بجع أبيض', 'ديك بري',
+
+    // sea
+    'حبار', 'سبيط', 'قنديل البحر', 'نجم البحر', 'قنفذ البحر', 'حصان البحر',
+    'محار', 'سلحفاة بحرية', 'سمكة المهرج', 'لخمة', 'ثعبان البحر', 'سلمون',
+    'بلطي', 'بوري', 'دنيس', 'سمكة ذهبية', 'حوت أزرق', 'كركند',
+    'بلح البحر', 'سمكة منفوخة',
+
+    // reptiles
+    'كوبرا', 'أفعى', 'برص', 'ورل', 'إغوانا', 'سمندل',
+    'تنين كومودو', 'أناكوندا', 'أصلة', 'سلحفاة الماء', 'ضفدع الشجر', 'تمساح أمريكي',
+    'الثعبان الجرسي', 'سحلية الصحراء',
+
+    // bugs
+    'عثة', 'دعسوقة', 'يراعة', 'دودة القز', 'برغوث', 'فرس النبي',
+    'يرقة', 'نمل أبيض', 'رتيلاء', 'قملة', 'بق الفراش', 'جندب',
+    'نحلة ملكة', 'زنبور', 'سوسة',
+
+    // extinct
+    'ماموث', 'تي ريكس', 'ترايسيراتوبس', 'ستيجوسورس', 'تيروداكتيل', 'طائر الدودو',
+
+    // fruit
+    'جريب فروت', 'توت', 'كمثرى', 'كيوي', 'كانتالوب', 'تين شوكي',
+    'أفوكادو', 'بابايا', 'قشطة', 'نبق', 'كاكا', 'ليتشي',
+    'توت أزرق', 'فاكهة التنين', 'زبيب', 'قراصيا', 'يوستفندي', 'بوملي',
+    'كومكوات', 'باشن فروت',
+
+    // vegetables
+    'بطاطا', 'فلفل رومي', 'قرع', 'بروكلي', 'فاصوليا خضرا', 'لوبيا',
+    'فول أخضر', 'فجل', 'لفت', 'بنجر', 'كرفس', 'بقدونس',
+    'شبت', 'كزبرة', 'جرجير', 'مشروم', 'خرشوف', 'قلقاس',
+    'فلفل حار', 'كرات',
+
+    // dishes
+    'فتة', 'محشي', 'ورق عنب', 'مسقعة', 'مكرونة بشاميل', 'فول مدمس',
+    'شكشوكة', 'كبدة إسكندراني', 'ممبار', 'رقاق', 'فطير مشلتت', 'عيش بلدي',
+    'عيش شامي', 'حمام محشي', 'بط مشوي', 'فراخ مشوية', 'سمك مشوي', 'صيادية',
+    'كاليماري', 'شوربة عدس', 'طاجن', 'رز معمر', 'فسيخ', 'رنجة',
+    'بصارة', 'برجر', 'هوت دوج', 'سوشي', 'لازانيا', 'تاكو',
+    'نودلز', 'كاري', 'برياني', 'كبسة', 'مندي', 'منسف',
+    'مقلوبة', 'متبل', 'تبولة', 'فتوش', 'كبة', 'سمبوسة',
+    'شيش طاووق', 'كرواسون', 'بان كيك', 'وافل', 'ساندوتش', 'توست',
+    'ناجتس', 'ستيك', 'أومليت', 'بيض مسلوق', 'بيض مقلي', 'جبنة رومي',
+    'جبنة بيضاء', 'جبنة شيدر', 'موتزاريلا', 'لانشون', 'لبنة', 'بطاطس محمرة',
+    'مكرونة بالصلصة', 'مكرونة إسباجتي', 'رز بالشعرية', 'ملوخية بالفراخ', 'بامية باللحمة', 'كوارع',
+    'لحمة راس', 'فشة', 'ممبار مشوي', 'عجة',
+
+    // sweets
+    'لقمة القاضي', 'رز بلبن', 'جيلي', 'كريم كراميل', 'بلح الشام', 'غريبة',
+    'بيتي فور', 'تورتة', 'كب كيك', 'دونات', 'براونيز', 'تشيز كيك',
+    'مصاصة', 'غزل البنات', 'ملبن', 'حلاوة طحينية', 'عسل أسود', 'فطيرة تفاح',
+    'سينابون', 'بقلاوة', 'هريسة', 'مارشميلو', 'عسلية', 'حمصية',
+    'سمسمية', 'فولية', 'بودنج', 'موس شوكولاتة',
+
+    // drinks
+    'نسكافيه', 'كابتشينو', 'لاتيه', 'إسبريسو', 'شوكولاتة ساخنة', 'عصير قصب',
+    'خروب', 'عصير برتقال', 'عصير مانجو', 'عصير جوافة', 'ليمون بالنعناع', 'ميلك شيك',
+    'سموذي', 'مياه غازية', 'مياه معدنية', 'عصير فراولة', 'كوكتيل', 'قمر الدين',
+    'آيس تي', 'شاي أخضر', 'قرفة باللبن',
+
+    // pantry
+    'فلفل أسود', 'حبهان', 'زعفران', 'كركم', 'زيت زيتون', 'دقيق',
+    'نشا', 'خميرة', 'بيكنج باودر', 'فانيليا', 'عسل نحل', 'مربى',
+    'صلصة', 'كاتشب', 'مايونيز', 'مستردة', 'برغل', 'شوفان',
+    'كورن فليكس', 'لبن رايب',
+
+    // household
+    'جرس الباب', 'كنبة', 'فوتيه', 'ترابيزة سفرة', 'كومودينو', 'تسريحة',
+    'مراية', 'تلاجة', 'فريزر', 'بوتاجاز', 'ميكروويف', 'غسالة أطباق',
+    'مكنسة كهربا', 'جاروف', 'منشر غسيل', 'مشبك غسيل', 'سلة غسيل', 'كسرولة',
+    'براد شاي', 'كنكة', 'معلقة', 'توستر', 'لوح تقطيع', 'نشابة',
+    'منخل', 'ميزان مطبخ', 'فوطة', 'صابونة', 'شامبو', 'معجون سنان',
+    'فرشة سنان', 'فرشة شعر', 'مجفف شعر', 'مقص أظافر', 'ماكينة حلاقة', 'بانيو',
+    'دش', 'حوض', 'حنفية', 'سيفون', 'شطاف', 'برنس',
+    'مناديل', 'ليفة', 'ساعة حائط', 'أصيص زرع', 'شمعدان', 'تليفزيون',
+    'رسيفر', 'دش ستالايت', 'فيشة', 'مشترك كهربا', 'شمسية', 'سلسلة مفاتيح',
+    'كرتونة', 'كيس بلاستيك', 'مخدة كنبة', 'سجادة صلاة', 'مصحف', 'مبخرة',
+    'زرع صناعي', 'حصالة', 'ألبوم صور', 'لعبة أطفال', 'عربية أطفال',
+
+    // tools
+    'مسمار قلاووظ', 'زرادية', 'شنيور', 'متر', 'ميزان مية', 'مبرد',
+    'إزميل', 'كوريك', 'مقص شجر', 'مرشة', 'عربية يد', 'سلم خشب',
+    'فرشة دهان', 'رول دهان', 'جردل بوية', 'شريط لاصق', 'غرا', 'صنفرة',
+    'كاوية لحام', 'مسدس شمع', 'منشار كهربا', 'مسامير', 'عدة', 'شنطة عدة',
+    'جوانتي شغل', 'نظارة لحام', 'مقص صاج', 'منجل',
+
+    // clothes
+    'تيشيرت', 'جينز', 'بلوزة', 'بلوفر', 'جاكت جلد', 'صديري',
+    'بابيون', 'روب', 'كولون', 'بوت', 'كعب عالي', 'إيشارب',
+    'نظارة شمس', 'دبلة', 'خلخال', 'بروش', 'شنطة يد', 'شنطة ضهر',
+    'منديل', 'مريلة', 'يونيفورم', 'زي مدرسة', 'عمة', 'طربوش',
+    'جلباب',
+
+    // school
+    'قلم رصاص', 'قلم جاف', 'قلم ألوان', 'كشكول', 'شنطة مدرسة', 'مقلمة',
+    'ماركر', 'دباسة', 'خرامة', 'مشبك ورق', 'ظرف', 'كرة أرضية',
+    'آلة حاسبة', 'برجل', 'منقلة', 'مثلث هندسة', 'دفتر', 'مكتب',
+    'كرسي مكتب', 'درج', 'ملف', 'حافظة ورق', 'لوحة إعلانات', 'جرس المدرسة',
+    'زمزمية',
+
+    // tech
+    'سماعات', 'سماعة بلوتوث', 'باور بانك', 'فلاشة', 'هارد', 'كاميرا مراقبة',
+    'ساعة ذكية', 'بلايستيشن', 'ذراع تحكم', 'سماعة مكالمات', 'بروجكتور', 'سبيكر',
+    'درون', 'روبوت مكنسة', 'آلة تصوير', 'ماكينة صراف',
+
+    // vehicles
+    'لانش', 'عربية إسعاف', 'عربية مطافي', 'عربية شرطة', 'لودر', 'نقل',
+    'ربع نقل', 'سكيت بورد', 'جيت سكي', 'عبارة', 'تلفريك', 'قطر سريع',
+    'عربية سباق',
+
+    // places
+    'بيت', 'عمارة', 'حارة', 'رصيف', 'إشارة مرور', 'موقف أتوبيس',
+    'محطة قطر', 'محطة مترو', 'موقف عربيات', 'حضانة', 'عيادة', 'معمل تحاليل',
+    'مكتب بريد', 'قسم شرطة', 'مجلس الشعب', 'بلدية', 'مقابر', 'كشك',
+    'محل هدوم', 'محل جزم', 'محل موبايلات', 'مكتبة أدوات', 'فكهاني', 'خضري',
+    'محل عصير', 'محل كشري', 'شاليه', 'منتجع', 'استاد', 'صالة بولينج',
+    'أوبرا', 'معرض', 'أكوا بارك', 'غيط', 'حظيرة', 'إسطبل',
+    'شركة', 'ناطحة سحاب', 'بير', 'معبد فرعوني', 'صالون حلاقة', 'كوافير',
+    'مغسلة', 'ستوديو تصوير', 'قاعة أفراح', 'دار مناسبات', 'محل ألعاب', 'سايبر',
+    'بنزينة', 'مغسلة عربيات', 'أوضة نوم', 'جنينة البيت', 'أوضة أطفال', 'أوضة مكتب',
+
+    // jobs
+    'دكتور أسنان', 'جراح', 'صيدلي', 'مهندس معماري', 'أستاذ جامعة', 'ناظر مدرسة',
+    'ظابط شرطة', 'مضيفة طيران', 'فلاح', 'راعي غنم', 'نقاش', 'بناء',
+    'سواق تاكسي', 'سواق أتوبيس', 'شيف', 'فران', 'كوافيرة', 'ترزي',
+    'حارس أمن', 'جنايني', 'عامل نظافة', 'ساعي بريد', 'موسيقار', 'مترجم',
+    'موظف بنك', 'كاشير', 'تاجر', 'سمسار', 'عالم آثار', 'مرشد سياحي',
+    'رجل مطافي', 'منقذ', 'غطاس', 'بيطري', 'لاعب كورة', 'معلق رياضي',
+    'عارض أزياء', 'مصمم أزياء', 'مصمم جرافيك', 'يوتيوبر', 'طيار حربي', 'ظابط جيش',
+    'دبلوماسي', 'عمدة', 'إمام مسجد', 'مؤذن', 'قسيس', 'شيخ',
+    'طبيب نفسي', 'دكتور عيون', 'دكتور أطفال', 'صانع حلويات', 'ساعاتي', 'صائغ',
+    'جواهرجي', 'منجد',
+
+    // sports
+    'كورة قدم', 'كورة سلة', 'كورة طايرة', 'كورة يد', 'تنس طاولة', 'إسكواش',
+    'بادل', 'غطس', 'كرة ماء', 'تجديف', 'ركوب الأمواج', 'إبحار',
+    'ماراثون', 'قفز عالي', 'قفز طويل', 'قفز بالزانة', 'رمي الرمح', 'رمي الجلة',
+    'رفع أثقال', 'كمال أجسام', 'جمباز', 'تايكوندو', 'كونغ فو', 'مبارزة',
+    'رماية', 'رماية بالقوس', 'فروسية', 'سباق خيل', 'ركوب دراجات', 'سباق عربيات',
+    'تسلق جبال', 'يوجا', 'أيروبكس', 'زومبا', 'رقص باليه', 'كريكيت',
+    'بيسبول', 'رجبي', 'سباق حواجز', 'مشي سريع', 'ترايثلون', 'باركور',
+
+    // instruments
+    'عود', 'تشيلو', 'كونترباص', 'جيتار كهربا', 'أورج', 'طبلة',
+    'رق', 'درامز', 'إكسيليفون', 'ترومبيت', 'ساكسفون', 'كلارينيت',
+    'فلوت', 'ترومبون', 'هارب', 'هارمونيكا', 'بزق', 'صاجات',
+    'مثلث موسيقى', 'بوق',
+
+    // nature
+    'برد', 'شبورة', 'عاصفة ترابية', 'ورقة شجر', 'نجم لامع', 'بدر',
+    'شروق', 'نهار', 'جبل جليد', 'قطب شمالي', 'قطب جنوبي',
+
+    // body
+    'وش', 'جبهة', 'حواجب', 'رموش', 'خد', 'سنان',
+    'كف', 'صباع كبير', 'سرة', 'كاحل', 'قدم', 'صباع رجل',
+    'مخ', 'كلية', 'عمود فقري', 'عضلة', 'شريان', 'زايدة',
+
+    // countries
+    'مصر', 'السعودية', 'الإمارات', 'الكويت', 'البحرين', 'عمان',
+    'اليمن', 'الأردن', 'فلسطين', 'لبنان', 'سوريا', 'العراق',
+    'ليبيا', 'تونس', 'الجزائر', 'المغرب', 'السودان', 'موريتانيا',
+    'الصومال', 'جيبوتي', 'جزر القمر', 'تركيا', 'إيران', 'باكستان',
+    'الهند', 'الصين', 'اليابان', 'كوريا الجنوبية', 'إندونيسيا', 'ماليزيا',
+    'تايلاند', 'الفلبين', 'فيتنام', 'روسيا', 'ألمانيا', 'فرنسا',
+    'إيطاليا', 'إسبانيا', 'البرتغال', 'إنجلترا', 'اليونان', 'هولندا',
+    'بلجيكا', 'سويسرا', 'السويد', 'النرويج', 'الدنمارك', 'فنلندا',
+    'بولندا', 'أوكرانيا', 'أمريكا', 'كندا', 'المكسيك', 'البرازيل',
+    'الأرجنتين', 'تشيلي', 'كولومبيا', 'بيرو', 'كوبا', 'أستراليا',
+    'نيوزيلندا', 'جنوب أفريقيا', 'نيجيريا', 'كينيا', 'إثيوبيا', 'غانا',
+    'السنغال', 'الكاميرون', 'كوت ديفوار', 'أيرلندا', 'اسكتلندا', 'النمسا',
+    'المجر', 'التشيك', 'كرواتيا', 'صربيا', 'رومانيا', 'بلغاريا',
+    'أيسلندا',
+
+    // cities
+    'القاهرة', 'الإسكندرية', 'الجيزة', 'السويس', 'الإسماعيلية', 'الزقازيق',
+    'دمياط', 'المنيا', 'أسيوط', 'سوهاج', 'قنا', 'شرم الشيخ',
+    'مرسى مطروح', 'سيوة', 'الرياض', 'مكة', 'دبي', 'أبوظبي',
+    'الدوحة', 'مسقط', 'بيروت', 'بغداد', 'دمشق', 'القدس',
+    'تونس العاصمة', 'الرباط', 'الدار البيضاء', 'مراكش', 'الخرطوم', 'لندن',
+    'باريس', 'روما', 'مدريد', 'برشلونة', 'ميلانو', 'برلين',
+    'ميونخ', 'أمستردام', 'إسطنبول', 'موسكو', 'أثينا', 'فيينا',
+    'جنيف', 'نيويورك', 'لوس أنجلوس', 'واشنطن', 'شيكاغو', 'تورونتو',
+    'بوينس آيرس', 'طوكيو', 'بكين', 'شنغهاي', 'سيول', 'بانكوك',
+    'سنغافورة', 'مومباي', 'سيدني', 'كيب تاون'
   ],
 
   en: [
@@ -234,6 +538,315 @@ const CODENAMES_WORDS = {
     'String', 'Superhero', 'Tag', 'Tail', 'Tap', 'Tick',
     'Track', 'Triangle', 'Trip', 'Trunk', 'Tube', 'Turkey',
     'Unicorn', 'Vacuum', 'Van', 'Vet', 'Wake', 'Wall',
-    'War', 'Web', 'Whip', 'Witch', 'Yard'
+    'War', 'Web', 'Whip', 'Witch', 'Yard',
+
+    // around the house
+    'Attic', 'Apron', 'Bench', 'Blanket', 'Bucket', 'Cabinet',
+    'Carpet', 'Ceiling', 'Chimney', 'Closet', 'Cushion', 'Curtain',
+    'Desk', 'Doorbell', 'Drawer', 'Fence', 'Floor', 'Gate',
+    'Hammock', 'Hanger', 'Jar', 'Mat', 'Pillow', 'Porch',
+    'Rug', 'Shelf', 'Shower', 'Sofa', 'Sponge', 'Stairs',
+    'Stool', 'Stove', 'Tile', 'Vase', 'Wardrobe', 'Whistle',
+
+    // food and drink
+    'Avocado', 'Bacon', 'Bagel', 'Biscuit', 'Butter', 'Candy',
+    'Chili', 'Cocoa', 'Coconut', 'Cookie', 'Cream', 'Curry',
+    'Dough', 'Flour', 'Gravy', 'Ham', 'Ice Cream', 'Jelly',
+    'Juice', 'Ketchup', 'Lime', 'Lollipop', 'Maple', 'Muffin',
+    'Mushroom', 'Mustard', 'Noodle', 'Oat', 'Pancake', 'Pasta',
+    'Peanut', 'Pear', 'Pickle', 'Pineapple', 'Plum', 'Popcorn',
+    'Potato', 'Pretzel', 'Pudding', 'Salad', 'Sandwich', 'Sauce',
+    'Sausage', 'Soup', 'Spice', 'Steak', 'Sushi', 'Syrup',
+    'Taco', 'Toast', 'Tuna', 'Vanilla', 'Vinegar', 'Waffle',
+    'Walnut', 'Watermelon', 'Yogurt', 'Zucchini',
+
+    // nature and space
+    'Air', 'Asteroid', 'Avalanche', 'Bamboo', 'Blossom', 'Branch',
+    'Canyon', 'Coast', 'Coral', 'Crater', 'Dust', 'Earth',
+    'Flood', 'Flower', 'Fossil', 'Galaxy', 'Glacier', 'Grass',
+    'Lake', 'Lava', 'Lightning', 'Meadow', 'Mist', 'Mud',
+    'Nebula', 'Oak', 'Orbit', 'Pebble', 'Pine', 'Planet',
+    'Reef', 'Shell', 'Sky', 'Soil', 'Stone', 'Summer',
+    'Sunset', 'Weed', 'Winter',
+
+    // animals
+    'Alligator', 'Ape', 'Beaver', 'Bison', 'Buffalo', 'Cobra',
+    'Eel', 'Falcon', 'Ferret', 'Frog', 'Gecko', 'Gorilla',
+    'Hamster', 'Hen', 'Hippo', 'Jaguar', 'Koala', 'Ladybug',
+    'Lamb', 'Llama', 'Lobster', 'Moose', 'Mule', 'Otter',
+    'Ox', 'Panda', 'Panther', 'Pig', 'Pigeon', 'Pony',
+    'Poodle', 'Puppy', 'Rabbit', 'Raccoon', 'Rat', 'Raven',
+    'Rhino', 'Rooster', 'Salmon', 'Seal', 'Skunk', 'Sloth',
+    'Slug', 'Sparrow', 'Squid', 'Toad', 'Tortoise', 'Viper',
+    'Vulture', 'Walrus', 'Zebra',
+
+    // places
+    'Academy', 'Arena', 'Barn', 'Border', 'Café', 'Camp',
+    'Canal', 'Cathedral', 'Cellar', 'City', 'Clinic',
+    'College', 'Cottage', 'Dock', 'Ferry', 'Garden', 'Gym',
+    'Highway', 'Hut', 'Igloo', 'Jail', 'Kingdom', 'Kitchen',
+    'Lighthouse', 'Mill', 'Motel', 'Office', 'Pier', 'Playground',
+    'Ranch', 'Road', 'Ruins', 'Subway', 'Supermarket', 'Theater',
+    'Town', 'University', 'Village', 'Workshop', 'Volcano Island', 'Treehouse',
+    'Laboratory',
+
+    // people and characters
+    'Admiral', 'Archer', 'Artist', 'Astronaut', 'Athlete', 'Author',
+    'Baby', 'Baker', 'Bandit', 'Boss', 'Butcher', 'Captain',
+    'Champion', 'Clown', 'Coach', 'Cowboy', 'Detective', 'Diver',
+    'Driver', 'Duke', 'Emperor', 'Farmer', 'Firefighter', 'Fisherman',
+    'Genie', 'Guard', 'Guide', 'Hero', 'Hunter', 'Inventor',
+    'Jester', 'Joker', 'Juggler', 'Magician', 'Maid', 'Mayor',
+    'Mechanic', 'Mermaid', 'Miner', 'Monk', 'Mummy', 'Neighbour',
+    'Ogre', 'Pharaoh', 'Pirate', 'Poet', 'President', 'Prince',
+    'Professor', 'Sailor', 'Sheriff', 'Student', 'Surgeon', 'Tailor',
+    'Troll', 'Twin', 'Vampire', 'Villain', 'Waiter', 'Wizard',
+    'Zombie', 'Giant Robot', 'Detective Dog', 'Grandma', 'Grandpa', 'Uncle',
+    'Cousin',
+
+    // body
+    'Ankle', 'Beard', 'Bone', 'Cheek', 'Chin', 'Elbow',
+    'Finger', 'Fist', 'Forehead', 'Heel', 'Hip', 'Jaw',
+    'Knee', 'Leg', 'Lip', 'Lung', 'Muscle', 'Neck',
+    'Rib', 'Shoulder', 'Skin', 'Skull', 'Spine', 'Stomach',
+    'Thumb', 'Toe', 'Tongue', 'Waist', 'Wrist', 'Smile',
+    'Tear', 'Sneeze',
+
+    // sport and games
+    'Dart', 'Dive', 'Golf', 'Hockey', 'Hoop', 'Jump',
+    'Kick', 'League', 'Marathon', 'Olympics', 'Paddle', 'Penalty',
+    'Puck', 'Rugby', 'Score', 'Serve', 'Skate', 'Ski',
+    'Soccer', 'Sprint', 'Surf', 'Team', 'Tennis', 'Throw',
+    'Umpire', 'Volley', 'Wrestling',
+
+    // tech and science
+    'Alarm', 'Antenna', 'App', 'Atom', 'Blog', 'Bluetooth',
+    'Calculator', 'Circuit', 'Crystal', 'Data', 'Drone', 'Electric',
+    'Email', 'Formula', 'Gadget', 'Germ', 'Hacker', 'Keyboard',
+    'Laptop', 'Lens', 'Machine', 'Magnet', 'Meter', 'Microchip',
+    'Microscope', 'Modem', 'Monitor', 'Motor', 'Password', 'Pixel',
+    'Radar', 'Router', 'Scanner', 'Signal', 'Sensor', 'Server',
+    'Tablet', 'Test Tube', 'Virus', 'Website', 'Wire', 'Wifi',
+
+    // getting around and clothes
+    'Anchor', 'Canoe', 'Cart', 'Helicopter', 'Kayak', 'Limousine',
+    'Motorbike', 'Parachute', 'Raft', 'Rocket Ship', 'Sailboat', 'Scooter',
+    'Tractor', 'Tram', 'Wagon', 'Wheel', 'Yacht', 'Backpack',
+    'Cape', 'Collar', 'Jacket', 'Jeans', 'Mask', 'Pajamas',
+    'Robe', 'Skirt', 'Sweater', 'Uniform', 'Wig', 'Slipper',
+    'Purse',
+
+    // ideas and other things
+    'Age', 'Art', 'Bubble', 'Chance', 'Charm', 'Choice',
+    'Crowd', 'Energy', 'Fame', 'Fashion', 'Fear', 'Flag',
+    'Fortune', 'Future', 'Hope', 'Idea', 'Joke', 'Journey',
+    'Justice', 'Law', 'Legend', 'Luck', 'Magic', 'Mystery',
+    'Myth', 'Nightmare', 'Noise', 'Past', 'Peace', 'Power',
+    'Prize', 'Promise', 'Riddle', 'Rumor', 'Silence', 'Song',
+    'Story', 'Surprise', 'Truth', 'Wish', 'Balloon', 'Barrel',
+    'Bomb Shelter', 'Bubble Wrap', 'Cage', 'Crystal Ball', 'Envelope', 'Feather',
+    'Flashlight', 'Glue', 'Knot', 'Newspaper', 'Paint', 'Pencil',
+    'Statue', 'Tape', 'Wand',
+
+    // mammals
+    'Cheetah', 'Lynx', 'Polar Bear', 'Wallaby', 'Reindeer', 'Antelope',
+    'Gazelle', 'Hare', 'Chipmunk', 'Guinea Pig', 'Porcupine', 'Chimpanzee',
+    'Orangutan', 'Baboon', 'Lemur', 'Anteater', 'Armadillo', 'Badger',
+    'Weasel', 'Meerkat', 'Mongoose', 'Alpaca', 'Yak', 'Kitten',
+    'Warthog', 'Wild Boar', 'Sea Lion', 'Orca', 'Manatee', 'Jerboa',
+    'Donkey Foal', 'Mountain Goat',
+
+    // birds
+    'Canary', 'Emu', 'Quail', 'Hoopoe', 'Heron', 'Toucan',
+    'Hummingbird', 'Woodpecker', 'Nightingale', 'Swallow', 'Kingfisher', 'Magpie',
+    'Cockatoo', 'Kiwi Bird',
+
+    // sea
+    'Cuttlefish', 'Sea Urchin', 'Seahorse', 'Oyster', 'Clam', 'Sea Turtle',
+    'Clownfish', 'Swordfish', 'Stingray', 'Sardine', 'Cod', 'Narwhal',
+    'Goldfish', 'Blue Whale', 'Whale Shark', 'Mussel', 'Pufferfish',
+
+    // reptiles
+    'Python', 'Iguana', 'Komodo Dragon', 'Salamander', 'Newt', 'Anaconda',
+    'Rattlesnake', 'Tree Frog',
+
+    // bugs
+    'Mosquito', 'Ladybird', 'Cockroach', 'Grasshopper', 'Locust', 'Firefly',
+    'Silkworm', 'Praying Mantis', 'Centipede', 'Caterpillar', 'Termite', 'Tarantula',
+    'Hornet', 'Queen Bee', 'Earthworm',
+
+    // extinct
+    'T-Rex', 'Triceratops', 'Stegosaurus', 'Pterodactyl', 'Dodo',
+
+    // fruit
+    'Tangerine', 'Grapefruit', 'Grapes', 'Raspberry', 'Blueberry', 'Blackberry',
+    'Apricot', 'Guava', 'Cantaloupe', 'Prickly Pear', 'Dates', 'Papaya',
+    'Lychee', 'Dragon Fruit', 'Raisins', 'Prunes', 'Passion Fruit', 'Cranberry',
+    'Nectarine', 'Persimmon',
+
+    // vegetables
+    'Sweet Potato', 'Bell Pepper', 'Aubergine', 'Courgette', 'Okra', 'Spinach',
+    'Lettuce', 'Cabbage', 'Cauliflower', 'Broccoli', 'Peas', 'Green Beans',
+    'Sweetcorn', 'Radish', 'Turnip', 'Beetroot', 'Celery', 'Parsley',
+    'Dill', 'Coriander', 'Thyme', 'Artichoke', 'Chilli Pepper', 'Leek',
+    'Asparagus', 'Kale', 'Spring Onion',
+
+    // dishes
+    'Burger', 'Hot Dog', 'Spaghetti', 'Lasagne', 'Burrito', 'Noodles',
+    'Biryani', 'Kabsa', 'Falafel', 'Hummus', 'Tabbouleh', 'Fattoush',
+    'Kibbeh', 'Samosa', 'Shawarma', 'Kebab', 'Meatballs', 'Roast Chicken',
+    'Grilled Fish', 'Fried Rice', 'Omelette', 'Scrambled Eggs', 'Boiled Egg', 'Fried Egg',
+    'Pancakes', 'Waffles', 'Croissant', 'French Fries', 'Stew', 'Paella',
+    'Ramen', 'Dumplings', 'Spring Rolls', 'Kofta', 'Moussaka', 'Koshari',
+    'Ful Medames', 'Shakshuka', 'Porridge', 'Cereal', 'Quiche', 'Risotto',
+    'Nachos', 'Quesadilla', 'Sausage Roll', 'Club Sandwich', 'Grilled Cheese', 'Cheeseburger',
+    'Chicken Wings', 'Pasta Salad', 'Tomato Soup', 'Lentil Soup', 'Roast Beef', 'Lamb Chops',
+    'Fajitas',
+
+    // sweets
+    'Cupcake', 'Donut', 'Brownie', 'Cheesecake', 'Candyfloss', 'Marshmallow',
+    'Apple Pie', 'Cinnamon Roll', 'Baklava', 'Kunafa', 'Basbousa', 'Rice Pudding',
+    'Custard', 'Crème Caramel', 'Chewing Gum', 'Toffee', 'Caramel', 'Fudge',
+    'Honey Cake', 'Macaron', 'Tiramisu', 'Trifle', 'Candy Cane', 'Gingerbread',
+    'Waffle Cone', 'Jam Tart', 'Eclair', 'Profiterole', 'Sundae',
+
+    // drinks
+    'Cappuccino', 'Latte', 'Espresso', 'Hot Chocolate', 'Milkshake', 'Smoothie',
+    'Lemonade', 'Orange Juice', 'Apple Juice', 'Mango Juice', 'Iced Tea', 'Green Tea',
+    'Mint Tea', 'Fizzy Drink', 'Mineral Water', 'Cola', 'Hibiscus Tea', 'Tamarind Juice',
+    'Coconut Water', 'Chocolate Milk', 'Iced Coffee', 'Mocha', 'Herbal Tea',
+
+    // pantry
+    'Black Pepper', 'Cumin', 'Cardamom', 'Saffron', 'Turmeric', 'Paprika',
+    'Olive Oil', 'Ghee', 'Cornflour', 'Yeast', 'Baking Powder', 'Tahini',
+    'Tomato Paste', 'Mayonnaise', 'Olives', 'Pickles', 'Lentils', 'Beans',
+    'Chickpeas', 'Bulgur', 'Oats', 'Cornflakes', 'Eggs', 'Yoghurt',
+
+    // household
+    'Padlock', 'Lift', 'Armchair', 'Dining Table', 'Mattress', 'Bedsheet',
+    'Bedside Table', 'Dressing Table', 'Coat Hanger', 'Bookcase', 'Chandelier', 'Light Bulb',
+    'Heater', 'Water Heater', 'Freezer', 'Cooker', 'Microwave', 'Dishwasher',
+    'Vacuum Cleaner', 'Dustpan', 'Mop', 'Clothes Horse', 'Clothes Peg', 'Laundry Basket',
+    'Saucepan', 'Frying Pan', 'Casserole Dish', 'Baking Tray', 'Jug', 'Coffee Pot',
+    'Flask', 'Ladle', 'Colander', 'Bottle Opener', 'Food Processor', 'Juicer',
+    'Toaster', 'Chopping Board', 'Rolling Pin', 'Sieve', 'Kitchen Scales', 'Shampoo',
+    'Toothpaste', 'Toothbrush', 'Hairbrush', 'Hairdryer', 'Nail Clippers', 'Razor',
+    'Bathtub', 'Toilet', 'Bathrobe', 'Tissues', 'Loofah', 'Toilet Roll',
+    'Bath Mat', 'Wall Clock', 'Alarm Clock', 'Picture Frame', 'Flower Pot', 'Candlestick',
+    'Matches', 'Remote Control', 'Satellite Dish', 'Extension Lead', 'Smoke Alarm', 'Keyring',
+    'Cardboard Box', 'Plastic Bag', 'Tin', 'Prayer Mat', 'Doormat', 'Piggy Bank',
+    'Photo Album', 'Pram', 'Cot', 'Rocking Chair', 'Bin',
+
+    // tools
+    'Screw', 'Spanner', 'Tape Measure', 'Spirit Level', 'Chisel', 'Spade',
+    'Rake', 'Hedge Trimmer', 'Watering Can', 'Paintbrush', 'Paint Roller', 'Paint Tin',
+    'Sticky Tape', 'Sandpaper', 'Soldering Iron', 'Glue Gun', 'Chainsaw', 'Toolbox',
+    'Hard Hat', 'Work Gloves', 'Welding Mask', 'Tin Snips', 'Sickle', 'Pickaxe',
+    'Crowbar', 'Wheelbarrow',
+
+    // clothes
+    'T-shirt', 'Trousers', 'Shorts', 'Blouse', 'Jumper', 'Hoodie',
+    'Leather Jacket', 'Waistcoat', 'Bow Tie', 'Pyjamas', 'Dressing Gown', 'Swimsuit',
+    'Socks', 'Tights', 'Shoes', 'Trainers', 'Slippers', 'Sandals',
+    'Boots', 'High Heels', 'Flip-flops', 'Beanie', 'Headscarf', 'Gloves',
+    'Mittens', 'Sunglasses', 'Wedding Ring', 'Earrings', 'Anklet', 'Brooch',
+    'Zip', 'Handbag', 'Handkerchief', 'School Uniform', 'Turban', 'Fez',
+    'Raincoat',
+
+    // school
+    'Ballpoint Pen', 'Sharpener', 'Notebook', 'Exercise Book', 'Textbook', 'School Bag',
+    'Pencil Case', 'Whiteboard', 'Marker', 'Stapler', 'Hole Punch', 'Paper Clip',
+    'Globe', 'Protractor', 'Set Square', 'Dictionary', 'Atlas', 'Diary',
+    'Office Chair', 'Folder', 'Rubber Stamp', 'Noticeboard', 'School Bell', 'Water Bottle',
+
+    // tech
+    'Mobile Phone', 'Power Bank', 'USB Cable', 'USB Stick', 'Hard Drive', 'CCTV Camera',
+    'Smartwatch', 'VR Headset', 'Games Console', 'Controller', 'Earphones', 'Projector',
+    'Robot Vacuum', 'Photocopier', 'Cash Machine',
+
+    // vehicles
+    'Minibus', 'Tuk-tuk', 'Aeroplane', 'Felucca', 'Speedboat', 'Fire Engine',
+    'Police Car', 'Digger', 'Lorry', 'Pickup Truck', 'Horse Carriage', 'Donkey Cart',
+    'Skateboard', 'Sledge', 'Jet Ski', 'Cable Car', 'Bullet Train', 'Racing Car',
+    'Jeep',
+
+    // places
+    'House', 'Campsite', 'Street', 'Pavement', 'Traffic Lights', 'Bus Stop',
+    'Petrol Station', 'Car Park', 'Nursery', 'Post Office', 'Police Station', 'Town Hall',
+    'Fire Station', 'Cemetery', 'Corner Shop', 'Kiosk', 'Clothes Shop', 'Shoe Shop',
+    'Phone Shop', 'Butcher\'s', 'Greengrocer', 'Juice Bar', 'Chalet', 'Resort',
+    'Swimming Pool', 'Sports Club', 'Football Pitch', 'Bowling Alley', 'Opera House', 'Art Gallery',
+    'Funfair', 'Water Park', 'Stable', 'Well', 'Fountain', 'Obelisk',
+    'Ancient Temple', 'Barber\'s', 'Hairdresser\'s', 'Launderette', 'Photo Studio', 'Wedding Hall',
+    'Toy Shop', 'Internet Café', 'Car Wash', 'Living Room', 'Bedroom', 'Bathroom',
+    'Basement', 'Back Garden', 'Playroom', 'Study',
+
+    // jobs
+    'Dentist', 'Pharmacist', 'Architect', 'Programmer', 'Head Teacher', 'Police Officer',
+    'Shepherd', 'Blacksmith', 'Electrician', 'Builder', 'Taxi Driver', 'Bus Driver',
+    'Shopkeeper', 'Hairdresser', 'Doorman', 'Security Guard', 'Gardener', 'Cleaner',
+    'Postman', 'Journalist', 'News Reader', 'Photographer', 'Film Director', 'Composer',
+    'Musician', 'Sculptor', 'Translator', 'Accountant', 'Secretary', 'Bank Clerk',
+    'Cashier', 'Salesperson', 'Trader', 'Estate Agent', 'Archaeologist', 'Tour Guide',
+    'Lifeguard', 'Footballer', 'Commentator', 'Acrobat', 'Model', 'YouTuber',
+    'Fighter Pilot', 'Army Officer', 'Diplomat', 'Ambassador', 'Minister', 'Imam',
+    'Priest', 'Psychologist', 'Optician', 'Paediatrician', 'Pastry Chef', 'Watchmaker',
+    'Jeweller', 'Upholsterer', 'Librarian', 'Zookeeper', 'Beekeeper', 'Park Ranger',
+    'Judge\'s Clerk',
+
+    // sports
+    'Football', 'Basketball', 'Volleyball', 'Handball', 'Table Tennis', 'Squash',
+    'Padel', 'Swimming', 'Diving', 'Water Polo', 'Rowing', 'Water Skiing',
+    'Surfing', 'Sailing', 'Running', 'High Jump', 'Long Jump', 'Pole Vault',
+    'Javelin', 'Shot Put', 'Weightlifting', 'Bodybuilding', 'Gymnastics', 'Boxing',
+    'Karate', 'Judo', 'Taekwondo', 'Kung Fu', 'Fencing', 'Shooting',
+    'Archery', 'Horse Riding', 'Horse Racing', 'Cycling', 'Motor Racing', 'Ice Skating',
+    'Skiing', 'Yoga', 'Aerobics', 'Zumba', 'Bowling', 'Snooker',
+    'Ballet', 'Baseball', 'Hurdles', 'Race Walking', 'Triathlon', 'Parkour',
+    'Skateboarding', 'Skipping',
+
+    // instruments
+    'Oud', 'Qanun', 'Ney Flute', 'Cello', 'Double Bass', 'Drum Kit',
+    'Xylophone', 'Saxophone', 'Trombone', 'Harmonica', 'Bagpipes', 'Banjo',
+    'Ukulele', 'Maracas', 'Tuba', 'French Horn', 'Recorder',
+
+    // nature
+    'Hail', 'Sandstorm', 'Hurricane', 'Palm Tree', 'Coral Reef', 'Crescent',
+    'Full Moon', 'Solar Eclipse', 'Lunar Eclipse', 'Sunrise', 'Iceberg', 'North Pole',
+    'South Pole',
+
+    // body
+    'Eyebrows', 'Eyelashes', 'Lips', 'Teeth', 'Fingernail', 'Tummy',
+    'Belly Button', 'Lungs', 'Liver', 'Kidney', 'Artery', 'Tonsils',
+    'Appendix',
+
+    // countries
+    'Egypt', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Bahrain', 'Oman',
+    'Yemen', 'Jordan', 'Palestine', 'Lebanon', 'Syria', 'Iraq',
+    'Libya', 'Tunisia', 'Algeria', 'Morocco', 'Sudan', 'Mauritania',
+    'Somalia', 'Djibouti', 'Comoros', 'Iran', 'Pakistan', 'India',
+    'China', 'Japan', 'South Korea', 'Indonesia', 'Malaysia', 'Thailand',
+    'Philippines', 'Vietnam', 'Russia', 'Germany', 'France', 'Italy',
+    'Spain', 'Portugal', 'England', 'Greece', 'Netherlands', 'Belgium',
+    'Switzerland', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland',
+    'Ukraine', 'United States', 'Canada', 'Mexico', 'Brazil', 'Argentina',
+    'Chile', 'Colombia', 'Peru', 'Cuba', 'Australia', 'New Zealand',
+    'South Africa', 'Nigeria', 'Kenya', 'Ethiopia', 'Ghana', 'Senegal',
+    'Cameroon', 'Ivory Coast', 'Ireland', 'Scotland', 'Austria', 'Hungary',
+    'Czech Republic', 'Croatia', 'Serbia', 'Romania', 'Bulgaria', 'Iceland',
+
+    // cities
+    'Cairo', 'Alexandria', 'Giza', 'Aswan', 'Luxor', 'Port Said',
+    'Suez', 'Ismailia', 'Mansoura', 'Tanta', 'Hurghada', 'Dahab',
+    'Siwa', 'Riyadh', 'Jeddah', 'Mecca', 'Medina', 'Dubai',
+    'Abu Dhabi', 'Doha', 'Muscat', 'Beirut', 'Amman', 'Baghdad',
+    'Damascus', 'Jerusalem', 'Tunis', 'Rabat', 'Casablanca', 'Marrakesh',
+    'Khartoum', 'London', 'Paris', 'Rome', 'Madrid', 'Barcelona',
+    'Milan', 'Berlin', 'Munich', 'Amsterdam', 'Istanbul', 'Moscow',
+    'Athens', 'Vienna', 'Geneva', 'New York', 'Los Angeles', 'Washington',
+    'Chicago', 'Toronto', 'Buenos Aires', 'Tokyo', 'Beijing', 'Shanghai',
+    'Seoul', 'Bangkok', 'Singapore', 'Mumbai', 'Sydney', 'Cape Town',
+    'Manchester', 'Liverpool', 'Venice', 'Florence', 'Lisbon', 'Dublin',
+    'Edinburgh', 'San Francisco'
   ]
 };

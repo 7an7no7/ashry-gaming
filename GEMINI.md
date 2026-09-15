@@ -313,9 +313,13 @@ time the server received each answer, ties going to whoever arrived first
 (`seq`), and `shared.order` publishes it so every phone can show its place.
 
 The team board (*دوري المعرفة*) is single-screen: `JS_TriviaBoard.html`, with its
-own bank in `JS_TriviaBoardBank.html` — ten categories, six questions at each of
-100–500, the higher the harder. Only facts that don't change (no records, current
-title holders or "the latest"). `npm run export:trivia -- <path>` in `tools/`
+own bank in `JS_TriviaBoardBank.html` — ten categories, sixteen or more questions
+at each of 100–500, the higher the harder. Only facts that don't change (no
+records, current title holders or "the latest"). The validator only catches a
+question written twice word for word, so before adding, compare new answers with
+the existing ones across *all* categories: most repeats are the same fact asked
+the other way round ("what is tahini made from?" against "which sauce is made
+from sesame? — tahini"). `npm run export:trivia -- <path>` in `tools/`
 writes the same bank as `trivia_bank.js` for the standalone trivia page
 (`trivia.html`).
 
@@ -614,6 +618,11 @@ list - a wrong-length Wordle word makes that game unwinnable, not just odd.
 `restoreView` in `JS_Core.html` decides what happens when the page reloads while a
 game is on screen. Every play view needs a branch there, or the player lands on a
 blank template with no clock running and no way forward.
+
+The view also has to be listed in `validViews` in `loadFromLocal`. A saved screen
+missing from that list is reset to the menu *before* `restoreView` runs, so its
+branch never fires: Connections had a branch and still reloaded to the menu until
+both of its screens were added.
 
 Two shapes:
 

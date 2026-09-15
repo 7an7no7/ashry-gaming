@@ -3,8 +3,8 @@
  *
  * The app (GitHub Pages) talks to this address:
  *
- *   POST /create  { name, game }                 -> { playerId, key, state }
- *   POST /join    { code, name }                 -> { playerId, key, state }
+ *   POST /create  { name, game, screen }         -> { playerId, key, state }
+ *   POST /join    { code, name, screen }         -> { playerId, key, state }
  *   POST /act     { code, pid, key, action, payload }
  *   POST /poll    { code, pid, key, v }          (fallback when WebSockets fail)
  *   POST /leave   { code, pid, key }
@@ -57,7 +57,7 @@ async function handle(env, path, body) {
     // Codes are short, so a live one may already hold the name; try another.
     for (let attempt = 0; attempt < 8; attempt++) {
       const code = randomCode();
-      const res = await roomStub(env, code).create(code, body.name, body.game);
+      const res = await roomStub(env, code).create(code, body.name, body.game, !!body.screen);
       if (!res.taken) return res;
     }
     return { ok: false, error: 'تعذر إنشاء غرفة، حاول مرة أخرى' };
@@ -70,7 +70,7 @@ async function handle(env, path, body) {
     return path === '/poll' || path === '/leave' ? { ok: true, gone: true } : { ok: false, error: 'ROOM_NOT_FOUND' };
   }
   const room = roomStub(env, code);
-  if (path === '/join') return room.join(body.name);
+  if (path === '/join') return room.join(body.name, !!body.screen);
   if (path === '/act') return room.act(pid, key, body.action, body.payload);
   if (path === '/poll') return room.poll(pid, key, body.v);
   return room.leave(pid, key);

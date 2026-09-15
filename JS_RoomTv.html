@@ -1,0 +1,932 @@
+<script>
+/* ============================================================================
+   شاشة العرض — THE ROOM ON A BIG SCREEN
+   ----------------------------------------------------------------------------
+   A TV, or a laptop plugged into one, joins a room as a screen instead of a
+   player (room.screens on the server). It is dealt nothing and never receives
+   a secret, so it can face everyone. In the lobby it shows the code and the QR
+   big enough to scan from the sofa; during a game, the public side of it.
+
+   A screen can be the host, so every game here also draws the host's buttons:
+   a room run from a laptop must never get stuck waiting for a phone.
+
+   Sizes come from the screen itself (vmin, the BIG SCREEN block in Style.html),
+   so one page reads on a 55" TV, a laptop, and a phone mirrored to a TV.
+   ========================================================================= */
+
+const tv = {
+  wake: null,
+  clock: null,
+  clockKey: null,
+  cnPick: null,     // the card picked on the TV, waiting for "reveal"
+  cnDeal: null,
+  cnSeen: null,
+  cheered: ''
+};
+
+/** Per game: sig(state) says when to rebuild, frame(state, t) builds, after() paints. */
+const TV_GAMES = {};
+
+function roomJoinUrl(code) {
+  const base = window.SERVER_DATA && window.SERVER_DATA.webAppUrl;
+  return base && code ? base + '?room=' + code : '';
+}
+
+const tvBtn = (label, onclick, kind) =>
+  `<button class="btn btn--${kind || 'primary'} btn--auto" onclick="${onclick}">${label || ''}</button>`;
+
+function tvRedraw() {
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/* --- entry points ----------------------------------------------------------- */
+
+/** From the menu: this device opens a room as its big screen, and hosts it. */
+async function roomOpenScreen() {
+  try {
+    setSyncing(true);
+    await Room.create('', null, true);
+    setSyncing(false);
+    setView('room-tv');
+    if (Room.state) routeRoomState(Room.state);
+  } catch (err) {
+    setSyncing(false);
+    showToast(err.message || 'تعذر إنشاء الغرفة', 'error');
+  }
+}
+
+/** The join screen's second button: show that room here instead of playing in it. */
+async function roomJoinAsScreen() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const code = extractRoomCode((document.getElementById('room-join-code') || {}).value);
+  if (code.length < 4) return showToast(t.tv_code_needed || 'اكتب كود الغرفة', 'error');
+  try {
+    setSyncing(true);
+    await Room.join(code, '', true);
+    setSyncing(false);
+    setView('room-tv');
+    if (Room.state) routeRoomState(Room.state);
+  } catch (err) {
+    setSyncing(false);
+    const msg = String(err.message || '');
+    showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? 'لا توجد غرفة بهذا الكود' : msg, 'error');
+  }
+}
+
+/** In a lobby: a phone mirrored to the TV, or a laptop that joined as a player. */
+function roomBecomeScreen() {
+  roomAct('becomeScreen');
+}
+
+async function roomBecomePlayer() {
+  const name = await promptForName();
+  if (!name) return;
+  roomName.set(name);
+  roomAct('becomePlayer', { name: name });
+}
+
+function toggleTvFullscreen() {
+  const d = document;
+  if (d.fullscreenElement || d.webkitFullscreenElement) {
+    (d.exitFullscreen || d.webkitExitFullscreen || function () {}).call(d);
+  } else {
+    const root = d.documentElement;
+    const go = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (go) {
+      try { const p = go.call(root); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    }
+  }
+}
+
+/** A TV that dims in the middle of a game is the one thing nobody can fix from the sofa. */
+async function keepTvAwake() {
+  if (tv.wake || document.hidden || !('wakeLock' in navigator)) return;
+  try {
+    tv.wake = await navigator.wakeLock.request('screen');
+    tv.wake.addEventListener('release', () => { tv.wake = null; });
+  } catch (e) {
+    tv.wake = null;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && appState.currentView === 'room-tv') keepTvAwake();
+});
+
+/** Room screens share element ids (the canvas, the timers), so only one kind is ever drawn. */
+function clearRoomTvView() {
+  const el = document.getElementById('view-room-tv');
+  if (el && el.innerHTML) {
+    el.innerHTML = '';
+    delete el.dataset.sig;
+  }
+}
+
+function clearPhoneRoomViews() {
+  document.querySelectorAll('[id^="view-room-"]').forEach(v => {
+    if (v.id === 'view-room-tv' || v.id === 'view-room-join' || v.id === 'view-room-lobby') return;
+    if (v.innerHTML) {
+      v.innerHTML = '';
+      delete v.dataset.sig;
+    }
+  });
+  const setup = document.getElementById('room-host-setup');
+  if (setup && setup.innerHTML) {
+    setup.innerHTML = '';
+    delete setup.dataset.sig;
+  }
+}
+
+/* --- the frame ----------------------------------------------------------------- */
+
+function renderRoomTv(state) {
+  if (appState.currentView !== 'room-tv') setView('room-tv');
+  // Already on the view (a reload): make sure the page is laid out as a screen.
+  document.body.classList.add('is-fullscreen-view', 'is-tv-view');
+  const el = document.getElementById('view-room-tv');
+  if (!el) return;
+  keepTvAwake();
+
+  const t = TRANSLATIONS[appState.lang] || {};
+  const lobby = state.phase === 'lobby';
+  const game = lobby ? null : (TV_GAMES[state.game] || null);
+  const inner = lobby ? tvLobbySig(state) : (game ? game.sig(state) : state.phase);
+  const sig = ['tv', state.game || '', state.phase, state.youAreHost, appState.lang, inner].join('#');
+
+  const rebuilt = renderRoomFrame(el, sig, () => {
+    clearPhoneRoomViews();
+    return `
+      <div class="tv">
+        ${tvBar(state, t)}
+        <div class="tv-stage">${lobby ? tvLobby(state, t) : (game ? game.frame(state, t) : tvLookAtPhones(t))}</div>
+        ${tvStrip(state, t)}
+      </div>`;
+  });
+  if (!rebuilt) refreshTvStrip(el, state, t);
+
+  if (lobby) {
+    tvClock(null);
+    if (rebuilt) renderJoinQR('tv-qr', roomJoinUrl(state.code));
+  } else if (game && game.after) {
+    game.after(state, rebuilt);
+  }
+}
+
+function tvBar(state, t) {
+  const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
+  const title = entry
+    ? `<span aria-hidden="true">${entry.icon}</span> ${t[entry.key] || entry.id}`
+    : `<span aria-hidden="true">📺</span> ${t.tv_title || ''}`;
+  const icon = (glyph, label, onclick, extra) =>
+    `<button class="tv-icon ${extra || ''}" onclick="${onclick}" title="${escapeHTML(label || '')}" aria-label="${escapeHTML(label || '')}">${glyph}</button>`;
+  return `
+    <header class="tv-bar">
+      <div class="tv-bar__title">${title}</div>
+      <div class="tv-bar__code">
+        <span class="tv-bar__label">${t.room_code || ''}</span>
+        <span class="tv-bar__value">${escapeHTML(state.code || '')}</span>
+      </div>
+      <div class="tv-bar__actions">
+        ${state.phase === 'lobby' ? icon('🎮', t.tv_become_player, 'roomBecomePlayer()') : ''}
+        ${icon('❔', t.help || 'Help', 'openHelpModal()')}
+        ${icon('🌐', t.tv_language, 'toggleLanguage()')}
+        ${icon('🌓', t.tv_theme, 'toggleDarkMode()')}
+        ${icon('⛶', t.tv_fullscreen, 'toggleTvFullscreen()')}
+        ${icon('✕', t.room_leave, 'roomLeave()', 'tv-icon--leave')}
+      </div>
+    </header>`;
+}
+
+function tvStrip(state, t) {
+  const s = state.shared || {};
+  // Only a player scoreboard (trivia, fibbage…); Codenames' board is its cards.
+  const scores = {};
+  const board = state.phase !== 'lobby' && Array.isArray(s.board) && s.board.length && s.board[0].score !== undefined
+    ? s.board : null;
+  if (board) board.forEach(r => { scores[r.id] = r.score; });
+  const chips = state.players.map(p => `
+    <span class="tv-chip ${p.online ? '' : 'is-away'}">
+      <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
+      <span class="tv-chip__name">${escapeHTML(p.name)}</span>
+      ${board ? `<b class="tv-chip__score">${scores[p.id] || 0}</b>` : ''}
+    </span>`).join('');
+  return `<footer class="tv-strip" data-tv-strip>${chips || `<span class="tv-note">${t.tv_waiting_players || ''}</span>`}</footer>`;
+}
+
+function refreshTvStrip(el, state, t) {
+  const strip = el.querySelector('[data-tv-strip]');
+  if (strip) strip.outerHTML = tvStrip(state, t);
+}
+
+function tvLookAtPhones(t) {
+  return `<div class="tv-center"><div class="tv-big-icon" aria-hidden="true">📱</div><div class="tv-title">${t.tv_look_phones || ''}</div></div>`;
+}
+
+/** Counts down on the big screen. The server keeps the real clock; this only draws it. */
+function tvClock(id, endsAt) {
+  if (!id || !endsAt) {
+    if (tv.clock) tv.clock.stop();
+    tv.clock = null;
+    tv.clockKey = null;
+    return;
+  }
+  const paint = () => {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    el.textContent = cnClockText(left);
+    el.classList.toggle('is-low', left <= 10);
+    return left;
+  };
+  paint();
+  if (tv.clockKey === id + endsAt && tv.clock) return;
+  if (tv.clock) tv.clock.stop();
+  tv.clockKey = id + endsAt;
+  tv.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      if (left > 0 && left <= 5) playSound('tick');
+    },
+    onEnd: () => { tv.clock = null; }
+  });
+}
+
+/* --- lobby ------------------------------------------------------------------- */
+
+function tvLobbySig(state) {
+  return [
+    state.code,
+    state.players.map(p => p.id + ':' + p.name).join(','),
+    (state.screens || []).length,
+    JSON.stringify(state.shared || {})
+  ].join('|');
+}
+
+function tvLobby(state, t) {
+  const url = roomJoinUrl(state.code);
+  const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
+  let control;
+
+  if (!state.youAreHost) {
+    control = `<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
+  } else if (!state.game) {
+    const count = state.players.length;
+    control = `
+      <div class="tv-hub">
+        ${ROOM_HUB_GAMES.map(g => {
+          const enough = count >= g.min;
+          return `
+            <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : 'disabled'}>
+              <span class="tv-hub__icon" aria-hidden="true">${g.icon}</span>
+              <span class="tv-hub__name">${t[g.key] || g.id}</span>
+              ${enough ? '' : `<span class="tv-hub__need">${g.min}+</span>`}
+            </button>`;
+        }).join('')}
+      </div>`;
+  } else {
+    const game = ROOM_GAMES[state.game];
+    control = `
+      <div class="tv-chosen">
+        <span class="tv-chosen__name">${entry ? entry.icon + ' ' + (t[entry.key] || entry.id) : escapeHTML(state.game)}</span>
+        ${tvBtn(t.room_change_game, "roomAct('backToHub')", 'ghost')}
+      </div>
+      <div class="tv-scale">${game && game.lobbyOptions ? game.lobbyOptions(state) : ''}</div>
+      <div class="tv-actions">${tvBtn(t.start, 'roomStartGame()')}</div>`;
+  }
+
+  return `
+    <div class="tv-lobby">
+      <section class="tv-join">
+        <div id="tv-qr" class="tv-qr" aria-hidden="true"></div>
+        <div class="tv-join__code">${escapeHTML(state.code || '')}</div>
+        <p class="tv-join__hint">${t.tv_join_hint || ''}</p>
+        ${url ? `<p class="tv-join__url" dir="ltr">${escapeHTML(url.replace(/^https?:\/\//, ''))}</p>` : ''}
+      </section>
+      <section class="tv-lobby__side">
+        <h2 class="tv-h">${t.room_players || ''} <span class="tv-count">${state.players.length}</span></h2>
+        ${control}
+      </section>
+    </div>`;
+}
+
+/* --- أسماء الرموز ------------------------------------------------------------- */
+
+TV_GAMES.codenames = {
+  sig(state) {
+    const s = state.shared;
+    return [s.dealtAt, s.turn, s.winner || '', s.guessesLeft, s.endsAt || '',
+      s.clue ? s.clue.word + ':' + s.clue.count : '',
+      (s.board || []).map(c => (c.revealed ? c.colour[0] : '.') + c.word).join(','),
+      JSON.stringify(s.marks || {}), (s.log || []).length,
+      s.wins ? s.wins.red + '-' + s.wins.blue : '', tv.cnPick].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    if (tv.cnDeal !== s.dealtAt) { tv.cnDeal = s.dealtAt; tv.cnPick = null; tv.cnSeen = null; }
+    const L = CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar;
+    const canGuess = !!s.clue && !s.winner;
+    const board = s.board || [];
+    const pick = canGuess && tv.cnPick !== null && board[tv.cnPick] && !board[tv.cnPick].revealed ? tv.cnPick : null;
+    const wins = s.wins || {};
+
+    const team = (side) => `
+      <div class="tv-team tv-team--${side} ${s.turn === side && !s.winner ? 'is-turn' : ''}">
+        <span class="tv-team__num">${s.remaining ? s.remaining[side] : 0}</span>
+        <span class="tv-team__name">${L[side]}</span>
+        ${(wins.red || wins.blue) ? `<span class="tv-team__wins">🏆 ${wins[side] || 0}</span>` : ''}
+      </div>`;
+
+    let banner;
+    if (s.winner) {
+      banner = `<div class="tv-cn__clue">${s.endReason === 'assassin' ? '☠️' : '🏆'} ${t.cn_wins || ''} ${L[s.winner]}</div>
+                <div class="tv-cn__sub">${s.endReason === 'assassin' ? (t.cn_assassin_hit || '') : (t.cn_cleared || '')}</div>`;
+    } else if (s.clue) {
+      banner = `<div class="tv-cn__clue">${escapeHTML(s.clue.word)} · ${s.clue.count === 'inf' ? '∞' : s.clue.count}</div>
+                <div class="tv-cn__sub"><span>${L[s.turn]} · ${t.cn_guesses_left || ''}: ${s.guessesLeft === CN_UNLIMITED ? '∞' : s.guessesLeft}</span><span id="tv-cn-timer" class="tv-timer"></span></div>`;
+    } else {
+      banner = `<div class="tv-cn__clue">${t.cn_turn || ''} ${L[s.turn]}</div>
+                <div class="tv-cn__sub"><span>${t.cn_await_clue || ''}</span><span id="tv-cn-timer" class="tv-timer"></span></div>`;
+    }
+
+    const cards = board.map((cell, i) => {
+      const cls = ['tv-card'];
+      if (cell.revealed) {
+        cls.push('is-revealed', 'tv-card--' + cell.colour);
+        if (tv.cnSeen && !tv.cnSeen[i]) cls.push('is-flipping');
+      } else if (s.winner && cell.colour) {
+        cls.push('tv-card--ended', 'tv-peek--' + cell.colour);
+      }
+      if (pick === i) cls.push('is-pending');
+      const marks = cell.revealed ? 0 : ((s.marks || {})[i] || []).length;
+      return `
+        <button class="${cls.join(' ')}" ${canGuess && !cell.revealed ? '' : 'disabled'} onclick="tvTapCodenames(${i})">
+          ${cell.revealed ? `<span class="tv-card__cover" aria-hidden="true">${CN_COVER[cell.colour] || ''}</span>` : ''}
+          <span class="tv-card__word">${escapeHTML(cell.word)}</span>
+          ${marks ? `<span class="tv-card__marks" aria-hidden="true">${marks}</span>` : ''}
+        </button>`;
+    }).join('');
+
+    let actions = '';
+    if (s.winner) {
+      actions = state.youAreHost
+        ? tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')
+        : '';
+    } else if (pick !== null) {
+      actions = `<span class="tv-confirm">${(t.tv_reveal_q || '{w}').replace('{w}', escapeHTML(board[pick].word))}</span>` +
+        tvBtn(t.cn_reveal, 'tvRevealCodenames()') + tvBtn(t.cancel, 'tvCancelCodenames()', 'ghost');
+    } else if (s.clue) {
+      actions = `<span class="tv-note">${(t.tv_cn_tap || '{team}').replace('{team}', L[s.turn])}</span>` +
+        tvBtn(t.cn_end_turn, "roomAct('endTurn')", 'ghost');
+    }
+
+    const log = cnLog(s, t).replace('<details class="cn-log" ', '<details class="cn-log" open ');
+    return `
+      <div class="tv-cn">
+        <div class="tv-cn__head">
+          ${team('red')}
+          <div class="tv-cn__banner tv-cn__banner--${s.winner || s.turn}">${banner}</div>
+          ${team('blue')}
+        </div>
+        <div class="tv-cn__body">
+          <div class="tv-cn__board">${cards}</div>
+          <aside class="tv-cn__log">${log || `<div class="tv-panel tv-note">📜 ${t.cn_log || ''}</div>`}</aside>
+        </div>
+        ${actions ? `<div class="tv-actions">${actions}</div>` : ''}
+      </div>`;
+  },
+
+  after(state, rebuilt) {
+    const s = state.shared;
+    const faceUp = (s.board || []).map(c => !!c.revealed);
+    if (rebuilt && tv.cnSeen && !s.winner) {
+      const flipped = faceUp.map((up, i) => (up && !tv.cnSeen[i] ? i : -1)).filter(i => i !== -1);
+      if (flipped.length) {
+        const colour = s.board[flipped[flipped.length - 1]].colour;
+        playSound(colour === 'red' || colour === 'blue' ? 'success' : 'alarm');
+      }
+    }
+    tv.cnSeen = faceUp;
+    if (rebuilt && s.winner && tv.cheered !== 'cn' + s.dealtAt) {
+      tv.cheered = 'cn' + s.dealtAt;
+      if (s.endReason === 'assassin') playSound('alarm');
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 240, spread: 110, origin: { y: 0.6 }, colors: CN_CONFETTI[s.winner] });
+      }
+    }
+    tvClock(!s.winner && s.endsAt ? 'tv-cn-timer' : null, s.endsAt);
+  }
+};
+
+/** A click picks the card for the team gathered at the screen; "reveal" turns it. */
+function tvTapCodenames(i) {
+  const s = Room.state && Room.state.shared;
+  if (!s || !s.clue || s.winner || !s.board[i] || s.board[i].revealed) return;
+  tv.cnPick = tv.cnPick === i ? null : i;
+  tvRedraw();
+}
+
+async function tvRevealCodenames() {
+  const i = tv.cnPick;
+  if (i === null) return;
+  tv.cnPick = null;
+  tvRedraw();
+  await roomAct('guess', { index: i });
+}
+
+function tvCancelCodenames() {
+  tv.cnPick = null;
+  tvRedraw();
+}
+
+/* --- تحدي المعلومات ----------------------------------------------------------- */
+
+TV_GAMES.trivia = {
+  sig(state) {
+    const s = state.shared;
+    return [s.phase, s.qIndex, (s.answered || []).length].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    const letters = ['A', 'B', 'C', 'D'];
+
+    if (s.phase === 'gameover') {
+      const medals = ['🥇', '🥈', '🥉'];
+      return `
+        <div class="tv-trivia">
+          <div class="tv-title tv-center-text">🏆 ${t.trivia_champion || ''}</div>
+          <div class="tv-podium">
+            ${(s.board || []).slice(0, 3).map((p, i) => `
+              <div class="tv-podium__place tv-podium__place--${i + 1}">
+                <span class="tv-podium__medal" aria-hidden="true">${medals[i]}</span>
+                <span class="tv-podium__name">${escapeHTML(p.name)}</span>
+                <span class="tv-podium__score">${p.score}</span>
+              </div>`).join('')}
+          </div>
+          ${state.youAreHost ? `<div class="tv-actions">${
+            tvBtn(t.play_again, `roomAct('playAgain', { lang: '${VOTE_LANG()}' })`) +
+            tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}
+        </div>`;
+    }
+
+    const answering = s.phase === 'answering';
+    const present = state.players.map(p => p.id);
+    const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1).length;
+    const answered = (s.answered || []).length;
+    const counts = s.choiceCounts || [];
+
+    const choices = (s.choices || []).map((c, i) => `
+      <div class="tv-choice tv-choice--${i} ${answering ? '' : (i === s.correctAnswer ? 'is-correct' : 'is-dim')}">
+        <span class="tv-choice__letter">${letters[i]}</span>
+        <span class="tv-choice__text">${escapeHTML(c)}</span>
+        ${answering ? '' : `<span class="tv-choice__count">${counts[i] || 0}</span>`}
+      </div>`).join('');
+
+    let foot;
+    if (answering) {
+      foot = `
+        <div class="tv-progress"><div class="tv-progress__fill" style="width:${expected ? Math.round(answered / expected * 100) : 0}%"></div></div>
+        <div class="tv-note">${answered} / ${expected} ${t.trivia_answered || ''}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.trivia_close_early, "roomAct('closeQuestion')", 'ghost')}</div>` : ''}`;
+    } else {
+      const fastest = (s.order || []).slice(0, 5).map((id, i) => {
+        const p = state.players.find(x => x.id === id);
+        return p ? `<span class="tv-fast"><b>${i + 1}</b> ${escapeHTML(p.name)} <small>+${(s.gained || {})[id] || 0}</small></span>` : '';
+      }).join('');
+      const last = s.qIndex + 1 >= s.totalQuestions;
+      foot = `
+        ${fastest
+          ? `<div class="tv-fastest"><span class="tv-fastest__label">⚡ ${t.tv_fastest || ''}</span>${fastest}</div>`
+          : `<div class="tv-note">${t.tv_nobody_right || ''}</div>`}
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(last ? t.trivia_final : t.next_q_btn, "roomAct('nextQuestion')")}</div>` : ''}`;
+    }
+
+    return `
+      <div class="tv-trivia">
+        <div class="tv-top">
+          <span class="tv-pill">🧠 ${s.qIndex + 1} / ${s.totalQuestions}</span>
+          ${answering ? `<span id="tv-trivia-timer" class="tv-timer tv-timer--big">${s.seconds || ''}</span>` : ''}
+        </div>
+        <div class="tv-question">${escapeHTML(s.question || '')}</div>
+        <div class="tv-choices">${choices}</div>
+        <div class="tv-foot">${foot}</div>
+      </div>`;
+  },
+
+  after(state, rebuilt) {
+    const s = state.shared;
+    if (s.phase === 'answering') startTriviaClock(s);
+    else stopTriviaClock();
+    if (rebuilt && s.phase === 'results') playSound('success');
+    if (rebuilt && s.phase === 'gameover' && tv.cheered !== 'trivia' + state.version && typeof confetti === 'function') {
+      tv.cheered = 'trivia' + state.version;
+      confetti({ particleCount: 240, spread: 110, origin: { y: 0.6 } });
+    }
+  }
+};
+
+/* --- ارسم وخمّن ---------------------------------------------------------------- */
+
+TV_GAMES.drawguess = {
+  sig(state) {
+    const s = state.shared;
+    return [s.round, !!s.word, s.winnerId || ''].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    const over = !!s.word;
+    const winner = over && s.winnerId ? state.players.find(p => p.id === s.winnerId) : null;
+    const head = over
+      ? `<div class="tv-eyebrow">${s.winnerId ? (t.draw_guessed_by || '') + (winner ? ' · ' + escapeHTML(winner.name) : '') : (t.draw_nobody || '')}</div>
+         <div class="tv-title">${escapeHTML(s.word || '')}</div>`
+      : `<div class="tv-eyebrow">✏️ ${t.draw_drawer || ''}</div>
+         <div class="tv-title">${escapeHTML(s.drawerName || '')}</div>
+         <div id="draw-timer" class="tv-timer tv-timer--big">--</div>`;
+    const actions = !state.youAreHost ? '' : (over
+      ? tvBtn(t.draw_next, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`) + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')
+      : tvBtn(t.draw_reveal, "roomAct('giveUp')", 'ghost'));
+    return `
+      <div class="tv-split">
+        <div class="tv-split__main"><div class="tv-canvas draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div></div>
+        <aside class="tv-split__side">
+          <div class="tv-panel">${head}</div>
+          <div id="draw-guesses" class="draw-guesses tv-guesses"></div>
+          <div id="draw-board" class="tv-scale"></div>
+          ${actions ? `<div class="tv-actions tv-actions--stack">${actions}</div>` : ''}
+        </aside>
+      </div>`;
+  },
+
+  after(state, rebuilt) {
+    const s = state.shared;
+    if (rebuilt) {
+      resetDrawSurface();
+      bindDrawSurface(false);
+    }
+    paintStrokes(s.strokes || []);
+    paintGuessList(s.guesses || []);
+    if (!s.word) startDrawClock(s.endsAt);
+    else stopDrawClock();
+    if (s.word) {
+      const board = document.getElementById('draw-board');
+      if (board) board.innerHTML = renderScoreboard(s.board);
+      if (rebuilt && s.winnerId) playSound('success');
+    }
+  }
+};
+
+/* --- الفنان المزيف --------------------------------------------------------------- */
+
+TV_GAMES.fakeartist = {
+  sig(state) {
+    const s = state.shared;
+    return [s.round, s.turnIndex, s.phase, (s.strokes || []).length, s.vote ? s.vote.voted.length : ''].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    const who = (id) => `${faDot(state, id)} ${escapeHTML(faName(state, id))}`;
+    let panel;
+    if (s.phase === 'drawing') {
+      panel = `
+        <div class="tv-eyebrow">${t.round || ''} ${s.round}/${s.totalRounds}</div>
+        <div class="tv-title">${who(s.currentDrawerId)}</div>
+        <div class="tv-note">${t.fa_is_drawing || ''}</div>
+        ${state.youAreHost && !faOnline(state, s.currentDrawerId)
+          ? `<div class="tv-actions">${tvBtn(t.fa_skip_turn, "roomAct('skipTurn')", 'ghost')}</div>` : ''}`;
+    } else if (s.phase === 'voting') {
+      panel = `
+        <div class="tv-title">🗳️ ${t.fa_vote_title || ''}</div>
+        <div class="tv-note">${t.vote_count || ''}: ${s.vote.voted.length} / ${s.vote.eligible.length}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_end_vote, "roomAct('closeVote')", 'ghost')}</div>` : ''}`;
+    } else if (s.phase === 'guessing') {
+      panel = `
+        <div class="tv-eyebrow">${t.fa_caught || ''}</div>
+        <div class="tv-title">${who(s.fakeId)}</div>
+        <div class="tv-note">🤔 ${t.fa_guessing_wait || ''}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>` : ''}`;
+    } else {
+      const fakeWon = s.winner === 'fake';
+      const line = !s.fakeCaught ? t.fa_escaped : (fakeWon ? t.fa_stole : t.fa_artists_win);
+      panel = `
+        <div class="tv-eyebrow">${t.fa_word_was || ''}</div>
+        <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
+        <div class="tv-note">${fakeWon ? '🦹' : '🎉'} ${line || ''}</div>
+        <div class="tv-note">${t.fa_fake_was || ''} ${who(s.fakeId)}${s.fakeGuessWord ? ` · ${t.fa_guessed || ''} «${escapeHTML(s.fakeGuessWord)}»` : ''}</div>
+        <div class="tv-scale">${renderScoreboard(s.board)}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${
+          tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`) +
+          tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+    }
+    const legend = (s.drawerOrder || []).map(id => `
+      <span class="tv-chip ${id === s.currentDrawerId && s.phase === 'drawing' ? 'is-turn' : ''}">
+        ${faDot(state, id)}<span class="tv-chip__name">${escapeHTML(faName(state, id))}</span>
+      </span>`).join('');
+    return `
+      <div class="tv-split">
+        <div class="tv-split__main"><div class="tv-canvas draw-wrap fa-wrap"><canvas id="fa-canvas" width="512" height="512"></canvas></div></div>
+        <aside class="tv-split__side">
+          <div class="tv-panel">${panel}</div>
+          <div class="tv-legend">${legend}</div>
+        </aside>
+      </div>`;
+  },
+
+  after(state, rebuilt) {
+    if (!rebuilt) return;
+    fakeArt.line = null;
+    bindFakeArtistCanvas(false, '#111827');
+    paintFakeArtist(state.shared.strokes || []);
+  }
+};
+
+/* --- على نفس الموجة ------------------------------------------------------------ */
+
+TV_GAMES.wavelength = {
+  sig(state) {
+    const s = state.shared;
+    return [s.round, s.phase, s.clue || ''].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    const target = s.phase === 'results' ? s.target : null;
+    const band = (b) => {
+      const from = Math.max(0, target - b.within);
+      const to = Math.min(100, target + b.within);
+      return `<div class="wl-zone wl-zone--${b.points}" style="left:${from}%; width:${to - from}%"></div>`;
+    };
+
+    let panel;
+    if (s.phase === 'clue') {
+      panel = `<div class="tv-note">🧠 ${t.wl_waiting_clue || ''} ${escapeHTML(s.psychicName || '')}…</div>`;
+    } else if (s.phase === 'dial') {
+      panel = `<div class="tv-note">${t.team_adjust_dial || ''}</div>` + (state.youAreHost
+        ? `<div class="tv-actions">${tvBtn(t.lock_dial_btn, 'lockWavelengthDial()')}</div>`
+        : `<div class="tv-note">${t.wl_host_locks || ''}</div>`);
+    } else {
+      const verdict = { 4: t.bullseye, 3: t.very_close, 2: t.close_points }[s.pointsEarned] || t.miss_points;
+      panel = `
+        <div class="tv-title tv-center-text">${verdict || ''}</div>
+        <div class="tv-note">${t.wl_dial || ''} ${s.dial} · ${t.wl_target || ''} ${s.target}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${
+          tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`) +
+          tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+    }
+
+    return `
+      <div class="tv-wl">
+        <div class="tv-top">
+          <span class="tv-pill">🧠 ${t.wl_psychic || ''}: ${escapeHTML(s.psychicName || '')}</span>
+          <span class="tv-pill">${t.round || ''} ${s.round} · ${t.wl_team_score || ''} ${(s.scores && s.scores.team) || 0}</span>
+        </div>
+        ${s.clue ? `<div class="tv-question">«${escapeHTML(s.clue)}»</div>` : ''}
+        <div class="wl-spectrum tv-spectrum" dir="ltr">
+          <div class="wl-labels">
+            <span class="wl-label">${escapeHTML(s.leftLabel || '')}</span>
+            <span class="wl-label">${escapeHTML(s.rightLabel || '')}</span>
+          </div>
+          <div class="wl-bar">
+            ${target !== null ? WL_BANDS.map(band).join('') + `<div class="wl-target" style="left:${target}%"></div>` : ''}
+            <div class="wl-needle" id="wl-needle" style="left:${s.dial}%"></div>
+          </div>
+          ${s.phase === 'dial' ? `
+            <input type="range" id="wl-dial" min="0" max="100" step="1" value="${s.dial}"
+                   aria-label="${escapeHTML(t.team_adjust_dial || '')}"
+                   oninput="onWavelengthDial(this.value)" onpointerdown="wave.dragging = true"
+                   onpointerup="endWavelengthDrag()" onpointercancel="endWavelengthDrag()" onchange="endWavelengthDrag()">` : ''}
+        </div>
+        <div class="tv-foot">${panel}</div>
+      </div>`;
+  },
+
+  after(state) {
+    paintWavelengthDial(state.shared.dial);
+  }
+};
+
+/* --- the voting games ------------------------------------------------------------ */
+
+function tvVoteProgress(state, t) {
+  const v = state.shared.vote;
+  const voters = v.voted.map(id => {
+    const p = state.players.find(x => x.id === id);
+    return p ? `<span class="tv-chip is-done">✓ <span class="tv-chip__name">${escapeHTML(p.name)}</span></span>` : '';
+  }).join('');
+  return `
+    <div class="tv-note">${t.vote_count || ''}: ${v.voted.length} / ${v.eligible.length}</div>
+    ${voters ? `<div class="tv-legend">${voters}</div>` : ''}
+    ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.vote_close, "roomAct('closeVote')", 'ghost')}</div>` : ''}`;
+}
+
+function tvNextFooter(state, t, label) {
+  return state.youAreHost ? `<div class="tv-actions">${
+    tvBtn(label, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`) +
+    tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '';
+}
+
+TV_GAMES.wouldyou = {
+  sig: (state) => [state.shared.round, state.shared.vote.phase, state.shared.vote.voted.length].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const v = s.vote;
+    const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>`;
+    if (v.phase === 'voting') {
+      return `
+        <div class="tv-vote">
+          ${head}
+          <div class="tv-versus">
+            ${v.options.map((o, i) => `<div class="tv-option tv-option--${i % 2}">${escapeHTML(o.label)}</div>${
+              i === 0 && v.options.length > 1 ? `<div class="tv-versus__or">${t.tv_or || ''}</div>` : ''}`).join('')}
+          </div>
+          ${tvVoteProgress(state, t)}
+        </div>`;
+    }
+    return `<div class="tv-vote">${head}<div class="tv-scale">${renderVoteResults(state)}</div>${tvNextFooter(state, t, t.next_question)}</div>`;
+  }
+};
+
+TV_GAMES.mostlikely = {
+  sig: (state) => [state.shared.round, state.shared.vote.phase, state.shared.vote.voted.length].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const v = s.vote;
+    const head = `
+      <div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>
+      <div class="tv-question">${escapeHTML(s.prompt || '')}</div>`;
+    if (v.phase === 'voting') return `<div class="tv-vote">${head}${tvVoteProgress(state, t)}</div>`;
+    return `
+      <div class="tv-vote">${head}
+        <div class="tv-scale">${renderVoteResults(state)}${renderScoreboard(s.board)}</div>
+        ${tvNextFooter(state, t, t.next_question)}
+      </div>`;
+  }
+};
+
+TV_GAMES.fibbage = {
+  sig(state) {
+    const s = state.shared;
+    return [s.round, s.phase, (s.submitted || []).length, s.vote ? s.vote.phase + s.vote.voted.length : ''].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared;
+    const head = `
+      <div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>
+      <div class="tv-question">${escapeHTML(s.question || '')}</div>`;
+    if (s.phase === 'writing') {
+      const here = state.players.map(p => p.id);
+      const active = (s.roster || here).filter(id => here.indexOf(id) !== -1);
+      const done = (s.submitted || []).filter(id => active.indexOf(id) !== -1).length;
+      return `
+        <div class="tv-vote">${head}
+          <div class="tv-note">✍️ ${t.fib_your_lie || ''}</div>
+          <div class="tv-note">${done} / ${active.length}</div>
+        </div>`;
+    }
+    if (s.vote && s.vote.phase === 'voting') {
+      return `
+        <div class="tv-vote">${head}
+          <div class="tv-list">${s.vote.options.map(o => `<div class="tv-list__item">${escapeHTML(o.label)}</div>`).join('')}</div>
+          ${tvVoteProgress(state, t)}
+        </div>`;
+    }
+    return `
+      <div class="tv-vote">${head}
+        <div class="tv-panel tv-center-text">
+          <div class="tv-eyebrow">${t.fib_truth || ''}</div>
+          <div class="tv-title">${escapeHTML(s.truth || '')}</div>
+        </div>
+        <div class="tv-scale">${renderVoteResults(state, { highlightId: 'truth' })}${renderScoreboard(s.board)}</div>
+        ${tvNextFooter(state, t, t.next_question)}
+      </div>`;
+  }
+};
+
+/* --- الجاسوس · كلمة واحدة · من أنا؟ ------------------------------------------------ */
+
+TV_GAMES.imposter = {
+  sig: (state) => [state.phase, (state.shared.spies || []).join(',')].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (state.phase === 'reveal') {
+      return `
+        <div class="tv-center">
+          <div class="tv-eyebrow">${escapeHTML(s.category || '')}</div>
+          <div class="tv-big-icon" aria-hidden="true">🎴</div>
+          <div class="tv-title">${t.tv_check_cards || ''}</div>
+          ${host(tvBtn(t.start_discussion, "roomAct('beginDiscussion')"))}
+        </div>`;
+    }
+    if (state.phase === 'discuss') {
+      return `
+        <div class="tv-center">
+          <div class="tv-eyebrow">${t.discussion_time || ''}</div>
+          <div id="room-imp-timer" class="tv-clock">00:00</div>
+          <div class="tv-note">${t.imposter_discuss_hint || ''}</div>
+          ${host(tvBtn(t.reveal_imposters, "roomAct('revealResult')", 'danger'))}
+        </div>`;
+    }
+    return `
+      <div class="tv-center">
+        <div class="tv-eyebrow">${t.the_spies || ''}</div>
+        <div class="tv-title tv-danger">🕵️ ${(s.spies || []).map(escapeHTML).join('، ')}</div>
+        <div class="tv-eyebrow">${t.secret_word || ''}</div>
+        <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
+        ${host(tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+      </div>`;
+  },
+  after(state, rebuilt) {
+    if (state.phase === 'discuss') {
+      startRoomDiscussClock(state.shared.startedAt);
+    } else if (roomDiscussClock) {
+      roomDiscussClock.stop();
+      roomDiscussClock = null;
+      roomDiscussBase = null;
+    }
+    if (rebuilt && state.phase === 'result' && typeof confetti === 'function') {
+      confetti({ particleCount: 180, spread: 100, origin: { y: 0.6 } });
+    }
+  }
+};
+
+TV_GAMES.justone = {
+  sig(state) {
+    const s = state.shared;
+    return [s.phase, s.round, (s.submitted || []).length, s.guess || '', s.lastResult || ''].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared;
+    const top = `
+      <div class="tv-top">
+        <span class="tv-pill">${t.round || ''} ${s.round}</span>
+        <span class="tv-pill">${t.score || ''}: ${s.score || 0}</span>
+      </div>`;
+    if (s.phase === 'writing') {
+      const here = state.players.map(p => p.id);
+      const active = (s.roster || here).filter(id => here.indexOf(id) !== -1);
+      const done = (s.submitted || []).filter(id => active.indexOf(id) !== -1).length;
+      return `
+        <div class="tv-trivia">${top}
+          <div class="tv-center">
+            <div class="tv-big-icon" aria-hidden="true">🤔</div>
+            <div class="tv-title">${escapeHTML(s.guesserName || '')} · ${t.tv_jo_guessing || ''}</div>
+            <div class="tv-note">✍️ ${t.tv_jo_writing || ''} (${done} / ${Math.max(0, active.length - 1)})</div>
+          </div>
+        </div>`;
+    }
+    if (s.phase === 'guessing') {
+      const clues = (s.clues || []).filter(c => !c.removed);
+      return `
+        <div class="tv-trivia">${top}
+          <div class="tv-clues">${clues.map(c => `<span class="tv-clue">${escapeHTML(c.text)}</span>`).join('')
+            || `<span class="tv-note">${t.jo_no_clues || ''}</span>`}</div>
+          ${s.removedCount ? `<div class="tv-note">🚫 ${t.clues_removed_msg || ''} (${s.removedCount})</div>` : ''}
+          <div class="tv-note">${t.jo_waiting_guess || ''} ${escapeHTML(s.guesserName || '')}…</div>
+        </div>`;
+    }
+    const right = s.lastResult === 'correct';
+    return `
+      <div class="tv-trivia">${top}
+        <div class="tv-center">
+          <div class="tv-eyebrow">${t.jo_the_guess || ''}</div>
+          <div class="tv-title">${escapeHTML(s.guess || '—')}</div>
+          <div class="tv-eyebrow">${t.secret_word || ''}</div>
+          <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
+          ${s.phase === 'result' ? `<div class="tv-title ${right ? 'tv-success' : 'tv-danger'}">${right ? '✅ ' + (t.correct || '') : '❌ ' + (t.wrong || '')}</div>` : ''}
+          ${!state.youAreHost ? '' : `<div class="tv-actions">${s.phase === 'judging'
+            ? tvBtn(t.correct, "roomAct('judge', { correct: true })", 'success') + tvBtn(t.wrong, "roomAct('judge', { correct: false })", 'danger')
+            : tvBtn(t.next_round, "roomAct('nextRound', ROOM_GAMES.justone.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>`}
+        </div>
+      </div>`;
+  }
+};
+
+TV_GAMES.whoami = {
+  sig: (state) => [state.phase, !!state.shared.revealed].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (!s.revealed) {
+      return `
+        <div class="tv-center">
+          <div class="tv-big-icon" aria-hidden="true">❓</div>
+          <div class="tv-title">${t.tv_whoami_play || ''}</div>
+          <div class="tv-note">${t.whoami_hint || ''}</div>
+          ${host(tvBtn(t.reveal_words, "roomAct('reveal')", 'danger'))}
+        </div>`;
+    }
+    return `
+      <div class="tv-trivia">
+        <div class="tv-title tv-center-text">${t.whoami_reveal || ''}</div>
+        <div class="tv-ids">${(s.all || []).map(x => `
+          <div class="tv-panel"><div class="tv-eyebrow">${escapeHTML(x.name)}</div><div class="tv-title">${escapeHTML(x.word)}</div></div>`).join('')}
+        </div>
+        ${host(tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+      </div>`;
+  }
+};
+</script>

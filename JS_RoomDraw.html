@@ -528,7 +528,9 @@ function shareLiveStroke(force, cur) {
 /** A viewer's side: draws each piece of the drawer's line as it arrives. */
 function onDrawLive(d) {
   const state = Room.state;
-  if (!d || !state || state.game !== 'drawguess' || appState.currentView !== 'room-drawguess') return;
+  // The big screen (JS_RoomTv.html) watches the line being drawn too.
+  const watching = appState.currentView === 'room-drawguess' || appState.currentView === 'room-tv';
+  if (!d || !state || state.game !== 'drawguess' || !watching) return;
   const s = state.shared || {};
   if (!draw.ctx || !draw.canvas || s.drawerId === Room.me || s.word) return;
   if (!Array.isArray(d.p) || d.p.length < 2 || d.p.length > 6000) return;

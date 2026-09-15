@@ -99,7 +99,8 @@ const Room = (() => {
 
   /* --- change notification ----------------------------------------------- */
   const signatureOf = (s) => !s ? '' :
-      s.version + '|' + s.phase + '|' + s.players.map(p => p.id + (p.online ? '1' : '0')).join(',');
+      s.version + '|' + s.phase + '|' + s.players.map(p => p.id + (p.online ? '1' : '0')).join(',') +
+      '|' + (s.screens || []).map(x => x.id + (x.online ? '1' : '0')).join(',');
 
   const emit = (force) => {
     const sig = signatureOf(state);
@@ -344,6 +345,7 @@ const Room = (() => {
     get session() { return session; },
     get isIn() { return !!session; },
     get isHost() { return !!(state && state.youAreHost); },
+    get isScreen() { return !!(state && state.youAreScreen); },
     get me() { return session ? session.playerId : null; },
     get connected() { return connected(); },
 
@@ -353,15 +355,16 @@ const Room = (() => {
     onLive(fn) { liveListeners.push(fn); return () => { liveListeners = liveListeners.filter(f => f !== fn); }; },
     sendLive(data) { return send({ t: 'live', d: data }); },
 
-    async create(name, gameId) {
-      const res = await request('/create', { name: name, game: gameId || null });
+    /** `screen`: this device shows the room on a big screen instead of playing in it. */
+    async create(name, gameId, screen) {
+      const res = await request('/create', { name: name, game: gameId || null, screen: !!screen });
       if (!res.ok) throw new Error(res.error || 'تعذر إنشاء الغرفة');
       adoptSession(res, gameId);
       return res;
     },
 
-    async join(code, name) {
-      const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name });
+    async join(code, name, screen) {
+      const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name, screen: !!screen });
       if (!res.ok) throw new Error(res.error || 'تعذر الانضمام للغرفة');
       adoptSession(res, res.state.game);
       return res;
@@ -685,6 +688,21 @@ function renderRoomLobby(state) {
       </div>`).join('');
   }
 
+  // Big screens in the room, listed under the players: they hold no seat.
+  if (list && (state.screens || []).length) {
+    const tt = TRANSLATIONS[appState.lang] || {};
+    list.insertAdjacentHTML('beforeend', state.screens.map(sc => `
+      <div class="status-row ${sc.online ? '' : 'status-row--out'}">
+        <span class="presence-dot ${sc.online ? 'is-online' : ''}" aria-hidden="true"></span>
+        <div class="status-row__body">
+          <div class="status-row__name">📺 ${tt.tv_screen_badge || ''}</div>
+        </div>
+        <div class="status-row__actions">
+          ${sc.id === state.hostId ? `<span class="badge">${appState.lang === 'ar' ? 'المضيف' : 'Host'}</span>` : ''}
+        </div>
+      </div>`).join(''));
+  }
+
   const startBtn = document.getElementById('room-start-btn');
   const waitNote = document.getElementById('room-wait-note');
   const setup = document.getElementById('room-host-setup');
@@ -754,6 +772,14 @@ function renderChosenGame(state, game) {
 
 /** Draws whatever the room is doing now: its lobby, a spectator note, or the game. */
 function routeRoomState(state) {
+  // A big screen draws every phase itself (JS_RoomTv.html).
+  if (state.youAreScreen) {
+    renderRoomTv(state);
+    return;
+  }
+  // This device was the big screen a moment ago. Its frame uses the same
+  // element ids as the phone screens, so it goes before they are drawn.
+  if (typeof clearRoomTvView === 'function') clearRoomTvView();
   if (state.phase === 'lobby') {
     if (appState.currentView !== 'room-lobby') setView('room-lobby');
     renderRoomLobby(state);

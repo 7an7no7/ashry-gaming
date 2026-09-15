@@ -3523,6 +3523,618 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
   .tb-cat { min-height: 44px; }
   .tb-cell { min-height: 42px; }
 }
+
+/* ==========================================================================
+   THE BIG SCREEN (شاشة العرض)
+   --------------------------------------------------------------------------
+   A room on a TV or a laptop (JS_RoomTv.html). It is read from across a room,
+   so every size here comes from the screen (vmin) rather than the phone type
+   scale, and the one page fits a 55" TV, a laptop, and a phone mirrored to a
+   TV in either orientation. Last in the file so it wins over the landscape
+   phone rail. Phone components reused on it (a scoreboard, a game's lobby
+   options) sit in .tv-scale, which zooms them in steps instead.
+   ========================================================================== */
+body.is-tv-view .shell {
+  display: block;
+  max-width: none;
+  height: var(--app-h, 100dvh);
+  padding: 0;
+}
+body.is-tv-view .shell__header,
+body.is-tv-view .shell__nav,
+body.is-tv-view .active-room-banner { display: none; }
+body.is-tv-view .shell__main {
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+body.is-tv-view #view-room-tv:not(.hidden) { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+/* The landscape-phone block centres views in a 760px column; the screen is all of it. */
+body.is-tv-view .shell__main > #view-room-tv { width: 100%; max-width: none; margin: 0; }
+
+.tv {
+  --tv-gap: clamp(8px, 1.6vmin, 28px);
+  --tv-xs: clamp(0.72rem, 1.7vmin, 1.4rem);
+  --tv-sm: clamp(0.85rem, 2.2vmin, 1.9rem);
+  --tv-md: clamp(1rem, 3vmin, 2.6rem);
+  --tv-lg: clamp(1.25rem, 4.6vmin, 4rem);
+  --tv-xl: clamp(1.8rem, 8vmin, 7.5rem);
+  --tv-r: clamp(10px, 1.6vmin, 26px);
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--tv-gap);
+  padding: calc(var(--tv-gap) + var(--safe-top)) calc(var(--tv-gap) + var(--safe-right))
+           calc(var(--tv-gap) + var(--safe-bottom)) calc(var(--tv-gap) + var(--safe-left));
+  font-size: var(--tv-sm);
+  color: var(--text);
+}
+.tv-stage { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.tv-stage > * { flex: 1 1 auto; min-height: 0; }
+
+.tv-scale { zoom: 1; }
+@media (min-width: 900px) and (min-height: 560px)   { .tv-scale { zoom: 1.2; } }
+@media (min-width: 1280px) and (min-height: 700px)  { .tv-scale { zoom: 1.45; } }
+@media (min-width: 1700px) and (min-height: 950px)  { .tv-scale { zoom: 1.9; } }
+@media (min-width: 2500px) and (min-height: 1400px) { .tv-scale { zoom: 2.6; } }
+
+/* --- bar and strip --- */
+.tv-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--tv-gap);
+}
+.tv-bar__title {
+  overflow: hidden;
+  font-size: var(--tv-md);
+  font-weight: 900;
+  color: var(--text-strong);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tv-bar__code {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.2em 0.9em;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+}
+.tv-bar__label { font-size: var(--tv-xs); font-weight: 800; color: var(--text-2); }
+.tv-bar__value {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-size: var(--tv-md);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: var(--accent-ink);
+}
+.tv-bar__actions { display: flex; justify-content: flex-end; gap: calc(var(--tv-gap) / 2); }
+.tv-icon {
+  flex: none;
+  width: clamp(40px, 5.4vmin, 90px);
+  height: clamp(40px, 5.4vmin, 90px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--tv-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out);
+}
+.tv-icon:hover, .tv-icon:focus-visible { border-color: var(--accent); }
+.tv-icon--leave:hover, .tv-icon--leave:focus-visible { border-color: var(--danger); color: var(--danger); }
+
+.tv-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(var(--tv-gap) / 2);
+  max-height: 22vh;
+  overflow: hidden;
+}
+.tv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.25em 0.8em;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  font-size: var(--tv-xs);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+.tv-chip.is-away { opacity: 0.45; }
+.tv-chip.is-turn { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.tv-chip.is-done { border-color: var(--success); color: var(--success-ink); }
+.tv-chip__score {
+  padding: 0 0.45em;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.tv .presence-dot { width: 0.6em; height: 0.6em; }
+.tv .fa-dot { width: 0.75em; height: 0.75em; }
+
+/* --- type and shared pieces --- */
+.tv-eyebrow { font-size: var(--tv-sm); font-weight: 800; color: var(--text-2); }
+.tv-title {
+  font-size: var(--tv-lg);
+  font-weight: 900;
+  line-height: 1.2;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.tv-note { font-size: var(--tv-sm); font-weight: 700; color: var(--text-2); text-align: center; }
+.tv-center-text { text-align: center; }
+.tv-success { color: var(--success-ink); }
+.tv-danger { color: var(--danger); }
+.tv-big-icon { font-size: calc(var(--tv-xl) * 1.3); line-height: 1; }
+.tv-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tv-gap);
+  text-align: center;
+}
+.tv-panel {
+  padding: var(--tv-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  text-align: center;
+}
+.tv-top { display: flex; align-items: center; justify-content: space-between; gap: var(--tv-gap); flex-wrap: wrap; }
+.tv-pill {
+  padding: 0.25em 0.9em;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  font-size: var(--tv-sm);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+.tv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tv-gap);
+}
+.tv-actions--stack { flex-direction: column; align-items: stretch; }
+.tv-actions .btn, .tv-chosen .btn {
+  min-height: clamp(44px, 6.6vmin, 112px);
+  padding-inline: clamp(16px, 2.8vmin, 52px);
+  border-radius: var(--tv-r);
+  font-size: var(--tv-sm);
+}
+.tv-timer { font-weight: 900; font-variant-numeric: tabular-nums; color: var(--accent-ink); }
+.tv-timer--big {
+  min-width: 2.6ch;
+  padding: 0.05em 0.5em;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  font-size: var(--tv-lg);
+  text-align: center;
+}
+.tv-timer.is-low { color: var(--danger); }
+.tv-timer--big.is-low { background: var(--danger-soft); }
+.tv-clock {
+  direction: ltr;
+  font-size: calc(var(--tv-xl) * 1.4);
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
+}
+.tv-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--tv-gap) / 2); }
+.tv-question {
+  padding: 0 2vw;
+  font-size: var(--tv-lg);
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.tv-foot { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); }
+
+/* --- lobby --- */
+.tv-lobby {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: calc(var(--tv-gap) * 2);
+}
+.tv-join { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); text-align: center; }
+.tv-qr {
+  width: min(42vmin, 520px);
+  padding: calc(var(--tv-gap) * 0.8);
+  border-radius: var(--tv-r);
+  background: #fff;          /* scanners want a light quiet zone in either theme */
+  box-shadow: var(--sh-2);
+}
+.tv-qr svg { display: block; width: 100%; height: auto; }
+.tv-join__code {
+  direction: ltr;
+  font-size: var(--tv-xl);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  color: var(--accent-ink);
+}
+.tv-join__hint { max-width: 34ch; margin: 0; font-size: var(--tv-sm); font-weight: 700; color: var(--text-2); }
+.tv-join__url { margin: 0; font-size: var(--tv-xs); font-weight: 700; color: var(--text-3); overflow-wrap: anywhere; }
+.tv-lobby__side { display: flex; flex-direction: column; gap: var(--tv-gap); min-width: 0; }
+.tv-h { display: flex; align-items: center; gap: 0.5em; margin: 0; font-size: var(--tv-md); font-weight: 900; color: var(--text-strong); }
+.tv-count {
+  padding: 0 0.55em;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.tv-hub {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 16vmin, 260px), 1fr));
+  gap: var(--tv-gap);
+}
+.tv-hub__game {
+  position: relative;
+  min-height: clamp(92px, 15vmin, 240px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  padding: var(--tv-gap);
+  border: 2px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.tv-hub__game:hover:not(:disabled), .tv-hub__game:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+.tv-hub__game:disabled { opacity: 0.4; cursor: default; }
+.tv-hub__icon { font-size: var(--tv-lg); line-height: 1; }
+.tv-hub__name { font-size: var(--tv-xs); font-weight: 800; text-align: center; }
+.tv-hub__need { position: absolute; top: 0.35em; inset-inline-end: 0.5em; font-size: var(--tv-xs); font-weight: 900; color: var(--text-2); }
+.tv-chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--tv-gap);
+  padding: 0.4em 0.8em;
+  border-radius: var(--tv-r);
+  background: var(--accent-soft);
+}
+.tv-chosen__name { font-size: var(--tv-md); font-weight: 900; color: var(--accent-ink); }
+
+/* --- Codenames --- */
+.tv-cn { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--tv-gap); }
+.tv-cn__head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: stretch; gap: var(--tv-gap); }
+.tv-team {
+  min-width: clamp(80px, 13vmin, 230px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2em 0.8em;
+  border-radius: var(--tv-r);
+  color: #fff;
+  opacity: 0.5;
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.tv-team.is-turn { opacity: 1; transform: scale(1.04); }
+.tv-team--red  { background: #e11d48; }
+.tv-team--blue { background: #2563eb; }
+.tv-team__num { font-size: var(--tv-xl); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.tv-team__name, .tv-team__wins { font-size: var(--tv-xs); font-weight: 800; }
+.tv-cn__banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2em 1em;
+  border: 2px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  text-align: center;
+}
+.tv-cn__banner--red  { border-color: rgba(225, 29, 72, 0.5); background: rgba(225, 29, 72, 0.1); }
+.tv-cn__banner--blue { border-color: rgba(37, 99, 235, 0.5); background: rgba(37, 99, 235, 0.1); }
+.tv-cn__clue { font-size: var(--tv-lg); font-weight: 900; line-height: 1.15; color: var(--text-strong); overflow-wrap: anywhere; }
+.tv-cn__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  font-size: var(--tv-sm);
+  font-weight: 800;
+  color: var(--text-2);
+}
+.tv-cn__body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(170px, 24vmin, 440px);
+  gap: var(--tv-gap);
+}
+.tv-cn__board {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  gap: clamp(4px, 1vmin, 16px);
+}
+.tv-card {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2em;
+  border: 2px solid var(--border-strong);
+  border-radius: clamp(6px, 1vmin, 16px);
+  background: var(--surface-solid);
+  box-shadow: 0 0.35vmin 0 var(--border-strong);
+  color: var(--text-strong);
+  font-family: var(--font);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.tv-card:disabled { cursor: default; }
+.tv-card:not(:disabled):hover, .tv-card:not(:disabled):focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+.tv-card__word {
+  position: relative;
+  font-size: clamp(0.8rem, 2.3vmin + 0.45vw, 2.9rem);
+  font-weight: 900;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.tv-card.is-revealed { color: #fff; box-shadow: none; }
+.tv-card.is-revealed .tv-card__word { align-self: flex-end; font-size: clamp(0.65rem, 1.5vmin + 0.25vw, 1.7rem); }
+.tv-card--red      { background: #e11d48; border-color: #e11d48; }
+.tv-card--blue     { background: #2563eb; border-color: #2563eb; }
+.tv-card--neutral  { background: var(--n-500); border-color: var(--n-500); }
+.tv-card--assassin { background: var(--n-950); border-color: var(--n-950); }
+.tv-card__cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1.4rem, 7vmin, 7rem);
+  opacity: 0.3;
+  pointer-events: none;
+}
+.tv-card--ended { opacity: 0.6; }
+.tv-peek--red      { border-color: #e11d48; background: rgba(225, 29, 72, 0.14); }
+.tv-peek--blue     { border-color: #2563eb; background: rgba(37, 99, 235, 0.14); }
+.tv-peek--neutral  { border-color: var(--n-500); background: rgba(148, 163, 184, 0.18); }
+.tv-peek--assassin { border-color: var(--n-900); background: rgba(15, 23, 42, 0.8); color: #fff; }
+.tv-card.is-pending {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 4px var(--warning);
+  animation: cn-pending 700ms var(--ease-in-out) infinite alternate;
+}
+.tv-card.is-flipping { animation: cn-flip 480ms var(--ease-out); }
+.tv-card__marks {
+  position: absolute;
+  top: 0.3em;
+  inset-inline-end: 0.3em;
+  min-width: 1.6em;
+  height: 1.6em;
+  padding: 0 0.35em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  background: var(--warning-btn);
+  color: var(--warning-on);
+  font-size: var(--tv-xs);
+  font-weight: 900;
+}
+.tv-cn__log { min-height: 0; overflow-y: auto; }
+.tv-cn__log .cn-log { margin: 0; }
+.tv-cn__log .cn-log__summary { font-size: var(--tv-sm); }
+.tv-cn__log .cn-log__list { max-height: none; }
+.tv-cn__log .cn-log__clue { font-size: var(--tv-sm); }
+.tv-cn__log .cn-log__guess { font-size: var(--tv-xs); }
+.tv-confirm { font-size: var(--tv-md); font-weight: 900; color: var(--text-strong); }
+
+/* --- trivia, justone, whoami --- */
+.tv-trivia, .tv-wl, .tv-vote {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--tv-gap);
+}
+.tv-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tv-gap); }
+.tv-choice {
+  position: relative;
+  min-height: clamp(64px, 13vmin, 230px);
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.4em 0.8em;
+  border-radius: var(--tv-r);
+  color: #fff;
+  font-size: var(--tv-md);
+  font-weight: 900;
+  transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out);
+}
+.tv-choice--0 { background: #e11d48; }
+.tv-choice--1 { background: #2563eb; }
+.tv-choice--2 { background: #b45309; }
+.tv-choice--3 { background: #047857; }
+.tv-choice__letter {
+  flex: none;
+  width: 1.8em;
+  height: 1.8em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 0.85em;
+}
+.tv-choice__text { flex: 1; line-height: 1.2; overflow-wrap: anywhere; }
+.tv-choice__count {
+  flex: none;
+  min-width: 1.8em;
+  padding: 0 0.4em;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.25);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.tv-choice.is-dim { opacity: 0.35; transform: scale(0.97); }
+.tv-choice.is-correct { box-shadow: 0 0 0 0.6vmin #fff, 0 0 0 1.2vmin #047857; transform: scale(1.02); }
+.tv-progress {
+  width: min(80%, 900px);
+  height: clamp(8px, 1.4vmin, 22px);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.tv-progress__fill { height: 100%; background: var(--accent); transition: width var(--dur-3) var(--ease-out); }
+.tv-fastest { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: calc(var(--tv-gap) / 2); }
+.tv-fastest__label { font-size: var(--tv-sm); font-weight: 900; color: var(--text-2); }
+.tv-fast {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.2em 0.7em;
+  border-radius: var(--r-full);
+  background: var(--success-soft);
+  color: var(--success-ink);
+  font-size: var(--tv-sm);
+  font-weight: 800;
+}
+.tv-podium { display: flex; align-items: flex-end; justify-content: center; gap: var(--tv-gap); }
+.tv-podium__place {
+  min-width: clamp(100px, 20vmin, 340px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.2em;
+  padding: var(--tv-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--tv-r) var(--tv-r) 0 0;
+  background: var(--surface-solid);
+}
+.tv-podium__place--1 { order: 2; min-height: 34vmin; background: var(--accent-soft); }
+.tv-podium__place--2 { order: 1; min-height: 26vmin; }
+.tv-podium__place--3 { order: 3; min-height: 20vmin; }
+.tv-podium__medal { font-size: var(--tv-xl); line-height: 1; }
+.tv-podium__name { font-size: var(--tv-md); font-weight: 900; color: var(--text-strong); text-align: center; overflow-wrap: anywhere; }
+.tv-podium__score { font-size: var(--tv-lg); font-weight: 900; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.tv-clues { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--tv-gap); }
+.tv-clue {
+  padding: 0.3em 0.9em;
+  border: 2px solid var(--accent-border, var(--border));
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  font-size: var(--tv-lg);
+  font-weight: 900;
+  color: var(--text-strong);
+}
+.tv-ids {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(160px, 26vmin, 440px), 1fr));
+  gap: var(--tv-gap);
+}
+
+/* --- canvas games --- */
+.tv-split {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
+  align-items: stretch;
+  gap: calc(var(--tv-gap) * 1.5);
+}
+.tv-split__main { min-height: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
+.tv .tv-canvas {
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
+  max-width: none;
+  max-height: none;
+  margin: 0;
+}
+.tv .tv-canvas canvas { width: 100%; height: 100%; }
+.tv-split__side { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--tv-gap); }
+.tv-guesses .draw-guess { font-size: var(--tv-sm); }
+
+/* --- Wavelength and the votes --- */
+.tv-spectrum { width: min(92%, 1500px); align-self: center; }
+.tv-spectrum .wl-label { padding: 0.3em 0.7em; font-size: var(--tv-sm); }
+.tv-spectrum .wl-bar { height: clamp(56px, 12vmin, 200px); border-radius: var(--tv-r); }
+.tv-spectrum .wl-needle { width: clamp(4px, 0.8vmin, 12px); }
+.tv-spectrum input[type="range"] { height: clamp(44px, 7vmin, 110px); }
+.tv-versus { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: var(--tv-gap); }
+.tv-option {
+  min-height: clamp(90px, 22vmin, 380px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--tv-gap);
+  border-radius: var(--tv-r);
+  color: #fff;
+  font-size: var(--tv-md);
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.tv-option--0 { background: #7c3aed; }
+.tv-option--1 { background: #0e7490; }
+.tv-versus__or { align-self: center; font-size: var(--tv-lg); font-weight: 900; color: var(--text-2); }
+.tv-list { width: min(92%, 1400px); align-self: center; display: grid; gap: calc(var(--tv-gap) / 2); }
+.tv-list__item {
+  padding: 0.4em 0.9em;
+  border: 1px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  font-size: var(--tv-md);
+  font-weight: 800;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.tv-vote > .tv-scale, .tv-trivia > .tv-scale, .tv-split__side > .tv-scale { width: min(92%, 900px); align-self: center; }
+
+/* A phone mirrored upright, or a portrait monitor: one column. */
+@media (orientation: portrait) {
+  .tv-lobby { grid-template-columns: minmax(0, 1fr); align-content: start; }
+  .tv-cn__body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .tv-cn__log { max-height: 24vh; }
+  .tv-choices, .tv-versus { grid-template-columns: minmax(0, 1fr); }
+  .tv-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .tv-bar { grid-template-columns: minmax(0, 1fr) auto; }
+  .tv-bar__code { display: none; }
+}
+
 </style>
 
     
@@ -3737,6 +4349,15 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
                     <span class="tool-chev" aria-hidden="true">›</span>
                 </div>
 
+                <div class="tool-item" data-accent="indigo" onclick="roomOpenScreen()">
+                    <div class="tool-icon" aria-hidden="true">📺</div>
+                    <div class="tool-info">
+                        <span class="tool-name" data-i18n="tv_open">شاشة العرض (تلفزيون)</span>
+                        <span class="tool-desc" data-i18n="tv_open_desc">افتح الغرفة على التلفزيون أو اللابتوب، والكل يلعب من موبايله</span>
+                    </div>
+                    <span class="tool-chev" aria-hidden="true">›</span>
+                </div>
+
                 <div class="tool-item" data-accent="orange" onclick="setView('setup-spin')">
                     <div class="tool-icon" aria-hidden="true">🎡</div>
                     <div class="tool-info">
@@ -3926,6 +4547,9 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 
       <div id="view-room-codenames" class="hidden" data-accent="indigo"></div>
 
+      <!-- The room on a TV or laptop (JS_RoomTv.html): full screen, drawn from the room state. -->
+      <div id="view-room-tv" class="hidden" data-accent="indigo"></div>
+
       <div id="view-room-join" class="hidden" data-accent="teal">
         <div class="card">
           <div class="card__title" data-i18n="room_join_title">انضم لغرفة</div>
@@ -3944,6 +4568,8 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
                  onkeydown="if(event.key==='Enter') roomJoinFromForm()">
 
           <button onclick="roomJoinFromForm()" class="btn btn--primary btn--lg" data-i18n="room_join_btn">دخول الغرفة</button>
+          <!-- A TV or laptop: show the room here instead of playing in it. -->
+          <button onclick="roomJoinAsScreen()" class="btn btn--ghost" data-i18n="tv_join_btn">📺 انضم كشاشة عرض</button>
         </div>
       </div>
 
@@ -3977,6 +4603,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
         <div class="btn-stack">
           <button id="room-start-btn" onclick="roomStartGame()" class="btn btn--primary btn--lg hidden" data-i18n="start">ابدأ اللعبة</button>
           <p id="room-wait-note" class="card__subtitle hidden" style="margin:0" data-i18n="room_wait_host">في انتظار أن يبدأ المضيف اللعبة…</p>
+          <button onclick="roomBecomeScreen()" class="btn btn--ghost btn--sm" data-i18n="tv_become">📺 اجعل هذا الجهاز شاشة العرض</button>
           <button onclick="roomLeave()" class="btn btn--ghost" data-i18n="room_leave">مغادرة الغرفة</button>
         </div>
       </div>
@@ -6071,6 +6698,29 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       room_change_game: "تغيير",
       room_another_game: "لعبة أخرى",
       room_spectating: "جولة جارية — ستنضم في الجولة القادمة",
+      tv_title: "شاشة العرض",
+      tv_open: "شاشة العرض (تلفزيون)",
+      tv_open_desc: "افتح الغرفة على التلفزيون أو اللابتوب، والكل يلعب من موبايله",
+      tv_join_btn: "📺 انضم كشاشة عرض",
+      tv_become: "📺 اجعل هذا الجهاز شاشة العرض",
+      tv_become_player: "العب من هذا الجهاز",
+      tv_screen_badge: "شاشة عرض",
+      tv_join_hint: "افتحوا التطبيق على موبايلاتكم ← «انضم لغرفة» واكتبوا الكود، أو امسحوا الكود بالكاميرا.",
+      tv_waiting_players: "في انتظار اللاعبين…",
+      tv_fullscreen: "ملء الشاشة",
+      tv_language: "اللغة",
+      tv_theme: "الوضع الليلي",
+      tv_look_phones: "العبوا من موبايلاتكم 📱",
+      tv_reveal_q: "نكشف «{w}»؟",
+      tv_cn_tap: "فريق {team}: اختاروا الكلمة من هنا أو من موبايلاتكم",
+      tv_fastest: "الأسرع",
+      tv_nobody_right: "محدش جاوب صح",
+      tv_or: "أو",
+      tv_check_cards: "كل واحد يشوف كارته على موبايله",
+      tv_jo_guessing: "بيخمّن الكلمة",
+      tv_jo_writing: "الباقيين بيكتبوا التلميحات",
+      tv_whoami_play: "كل واحد شايف هويات الباقيين على موبايله",
+      tv_code_needed: "اكتب كود الغرفة",
       room_open: "افتح غرفة",
       room_open_desc: "غرفة واحدة، والعبوا فيها ما تشاؤون",
       setup_codenames: "أسماء الرموز",
@@ -6545,6 +7195,29 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
       room_change_game: "Change",
       room_another_game: "Another game",
       room_spectating: "Round in progress — you'll join the next one",
+      tv_title: "Big screen",
+      tv_open: "Big screen (TV)",
+      tv_open_desc: "Show the room on a TV or laptop while everyone plays on their phone",
+      tv_join_btn: "📺 Join as the big screen",
+      tv_become: "📺 Make this device the big screen",
+      tv_become_player: "Play on this device",
+      tv_screen_badge: "Big screen",
+      tv_join_hint: "On your phones: open the app → Join a room and type the code, or scan it with the camera.",
+      tv_waiting_players: "Waiting for players…",
+      tv_fullscreen: "Full screen",
+      tv_language: "Language",
+      tv_theme: "Dark mode",
+      tv_look_phones: "Play on your phones 📱",
+      tv_reveal_q: "Reveal “{w}”?",
+      tv_cn_tap: "{team} team: pick the word here or on your phones",
+      tv_fastest: "Fastest",
+      tv_nobody_right: "Nobody got it right",
+      tv_or: "or",
+      tv_check_cards: "Everyone, look at your card on your phone",
+      tv_jo_guessing: "is guessing",
+      tv_jo_writing: "Everyone else is writing clues",
+      tv_whoami_play: "Each phone shows everyone else's identity",
+      tv_code_needed: "Type the room code",
       room_open: "Open a room",
       room_open_desc: "One room, play as many games as you like",
       setup_codenames: "Codenames",
@@ -7263,6 +7936,11 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 
   function restoreView() {
     document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+    // setView sets these, but a reload restores the screen without it: the
+    // chess clock came back with the header and nav, and the big screen as a
+    // 520px phone column.
+    document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(appState.currentView) !== -1);
+    document.body.classList.toggle('is-tv-view', appState.currentView === 'room-tv');
     
     const viewEl = document.getElementById('view-' + appState.currentView);
     
@@ -7402,6 +8080,7 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 
     'room-join':       { title: 'room_join_title',  up: 'menu',        accent: 'teal' },
     'room-lobby':      { title: 'room_lobby_title', up: 'menu',        accent: 'teal' },
+    'room-tv':         { title: 'tv_title',         up: 'menu',        accent: 'indigo' },
     'room-imposter':   { title: 'setup_imposter',   up: 'menu',        accent: 'violet' },
     'room-justone':    { title: 'just_one_title',   up: 'menu',        accent: 'rose' },
     'room-whoami':     { title: 'setup_whoami',     up: 'menu',        accent: 'teal' },
@@ -7545,11 +8224,12 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
   let viewEnterFallback = null;
 
   /** Tools that take the whole screen; the header and nav step aside for them. */
-  const FULLSCREEN_VIEWS = ['play-chess', 'play-reaction'];
+  const FULLSCREEN_VIEWS = ['play-chess', 'play-reaction', 'room-tv'];
 
   function setView(viewId) {
     const previous = appState.currentView;
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(viewId) !== -1);
+    document.body.classList.toggle('is-tv-view', viewId === 'room-tv');
     const goingBack = viewDepth(viewId) < viewDepth(previous);
 
     appState.currentView = viewId;
@@ -7843,6 +8523,15 @@ const GAME_RULES = {
                 <li>اللي يدخل في نص جولة يتفرج، وينضم تلقائياً في الجولة اللي بعدها.</li>
                 <li>لو قفل الموبايل ورجع، يكمل من نفس المكان — الغرفة تفضل شغالة 6 ساعات.</li>
             </ol>`,
+        tv: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>افتح التطبيق على التلفزيون أو اللابتوب واختار <b>شاشة العرض</b> من القائمة، أو من «انضم لغرفة» اضغط <b>انضم كشاشة عرض</b>. الموبايل المعروض على التلفزيون ينفع كمان.</li>
+                <li>الشاشة مش لاعب: مش بتاخد كارت ولا كلمة سرية، فممكن الكل يبص عليها. بتعرض الكود والـQR، وبعدين الجزء اللي الكل مسموح يشوفه من اللعبة بخط كبير.</li>
+                <li>الشاشة ممكن تكون المضيف: تختار اللعبة وتبدأها وتنقل للجولة اللي بعدها بالماوس أو باللمس.</li>
+                <li>في <b>أسماء الرموز</b> الفريق يقدر يختار الكلمة من على الشاشة، وفي <b>على نفس الموجة</b> يحرك المؤشر من عليها.</li>
+                <li>زرار ⛶ يملى الشاشة، والشاشة مش بتطفي طول ما الغرفة مفتوحة عليها.</li>
+                <li>أي موبايل في الغرفة يقدر يبقى شاشة العرض بزرار «اجعل هذا الجهاز شاشة العرض»، ويرجع لاعب بزرار 🎮.</li>
+            </ol>`,
         codenames: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>فريقان: كل فريق فيه <b>قائد</b> واحد و<b>لاعب</b> أو أكثر. «قسّم الفرق عشوائياً» يوزعكم في ثانية.</li>
@@ -8132,6 +8821,15 @@ const GAME_RULES = {
                 <li>Join mid-round and you spectate, then you're dealt in automatically next round.</li>
                 <li>Lock your phone and come back and you pick up where you were. Rooms live for 6 hours.</li>
             </ol>`,
+        tv: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Open the app on a TV or laptop and pick <b>Big screen</b> from the menu, or on "Join a room" press <b>Join as the big screen</b>. A phone mirrored to the TV works too.</li>
+                <li>The screen isn't a player: it gets no card and no secret word, so everyone can look at it. It shows the code and the QR, then the part of each game everyone may see, in large type.</li>
+                <li>The screen can be the host: pick the game, start it and move on to the next round with a mouse or a touch.</li>
+                <li>In <b>Codenames</b> the team can pick its word on the screen; in <b>Wavelength</b> it can turn the dial there.</li>
+                <li>⛶ fills the screen, and it won't dim while the room is open on it.</li>
+                <li>Any phone in the room can become the big screen with "Make this device the big screen", and go back to playing with 🎮.</li>
+            </ol>`,
         codenames: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Two teams, each with one <b>spymaster</b> and at least one <b>operative</b>. "Shuffle teams" deals everyone out in a second.</li>
@@ -8347,7 +9045,8 @@ const Room = (() => {
 
   /* --- change notification ----------------------------------------------- */
   const signatureOf = (s) => !s ? '' :
-      s.version + '|' + s.phase + '|' + s.players.map(p => p.id + (p.online ? '1' : '0')).join(',');
+      s.version + '|' + s.phase + '|' + s.players.map(p => p.id + (p.online ? '1' : '0')).join(',') +
+      '|' + (s.screens || []).map(x => x.id + (x.online ? '1' : '0')).join(',');
 
   const emit = (force) => {
     const sig = signatureOf(state);
@@ -8592,6 +9291,7 @@ const Room = (() => {
     get session() { return session; },
     get isIn() { return !!session; },
     get isHost() { return !!(state && state.youAreHost); },
+    get isScreen() { return !!(state && state.youAreScreen); },
     get me() { return session ? session.playerId : null; },
     get connected() { return connected(); },
 
@@ -8601,15 +9301,16 @@ const Room = (() => {
     onLive(fn) { liveListeners.push(fn); return () => { liveListeners = liveListeners.filter(f => f !== fn); }; },
     sendLive(data) { return send({ t: 'live', d: data }); },
 
-    async create(name, gameId) {
-      const res = await request('/create', { name: name, game: gameId || null });
+    /** `screen`: this device shows the room on a big screen instead of playing in it. */
+    async create(name, gameId, screen) {
+      const res = await request('/create', { name: name, game: gameId || null, screen: !!screen });
       if (!res.ok) throw new Error(res.error || 'تعذر إنشاء الغرفة');
       adoptSession(res, gameId);
       return res;
     },
 
-    async join(code, name) {
-      const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name });
+    async join(code, name, screen) {
+      const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name, screen: !!screen });
       if (!res.ok) throw new Error(res.error || 'تعذر الانضمام للغرفة');
       adoptSession(res, res.state.game);
       return res;
@@ -8933,6 +9634,21 @@ function renderRoomLobby(state) {
       </div>`).join('');
   }
 
+  // Big screens in the room, listed under the players: they hold no seat.
+  if (list && (state.screens || []).length) {
+    const tt = TRANSLATIONS[appState.lang] || {};
+    list.insertAdjacentHTML('beforeend', state.screens.map(sc => `
+      <div class="status-row ${sc.online ? '' : 'status-row--out'}">
+        <span class="presence-dot ${sc.online ? 'is-online' : ''}" aria-hidden="true"></span>
+        <div class="status-row__body">
+          <div class="status-row__name">📺 ${tt.tv_screen_badge || ''}</div>
+        </div>
+        <div class="status-row__actions">
+          ${sc.id === state.hostId ? `<span class="badge">${appState.lang === 'ar' ? 'المضيف' : 'Host'}</span>` : ''}
+        </div>
+      </div>`).join(''));
+  }
+
   const startBtn = document.getElementById('room-start-btn');
   const waitNote = document.getElementById('room-wait-note');
   const setup = document.getElementById('room-host-setup');
@@ -9002,6 +9718,14 @@ function renderChosenGame(state, game) {
 
 /** Draws whatever the room is doing now: its lobby, a spectator note, or the game. */
 function routeRoomState(state) {
+  // A big screen draws every phase itself (JS_RoomTv.html).
+  if (state.youAreScreen) {
+    renderRoomTv(state);
+    return;
+  }
+  // This device was the big screen a moment ago. Its frame uses the same
+  // element ids as the phone screens, so it goes before they are drawn.
+  if (typeof clearRoomTvView === 'function') clearRoomTvView();
   if (state.phase === 'lobby') {
     if (appState.currentView !== 'room-lobby') setView('room-lobby');
     renderRoomLobby(state);
@@ -10277,6 +11001,7 @@ const HELP_ENTRIES = [
   // Rooms first: it explains the "same room, any game" model that the
   // multiplayer entries below assume.
   { key: 'rooms',       title: 'room_help_title',   icon: '📱', accent: 'violet', group: 'games' },
+  { key: 'tv',          title: 'tv_title',          icon: '📺', accent: 'indigo', group: 'games' },
   { key: 'screw',       title: 'setup_screw',       icon: '🃏', accent: 'blue',   group: 'games' },
   { key: 'justone',     title: 'setup_justone',     icon: '🤫', accent: 'rose',   group: 'games', room: true },
   { key: 'describe',    title: 'setup_describe',    icon: '🗣️', accent: 'indigo', group: 'games' },
@@ -10317,7 +11042,7 @@ const HELP_ENTRIES = [
 
 /** Which entry belongs to which screen. Every view the app can sit on is here. */
 const HELP_FOR_VIEW = {
-  'room-join': 'rooms', 'room-lobby': 'rooms',
+  'room-join': 'rooms', 'room-lobby': 'rooms', 'room-tv': 'tv',
   'room-imposter': 'imposter', 'room-justone': 'justone', 'room-whoami': 'whoami',
   'room-codenames': 'codenames', 'setup-codenames': 'codenames',
   'room-wouldyou': 'wouldyou', 'room-mostlikely': 'mostlikely',
@@ -17622,10 +18347,10 @@ ROOM_GAMES.codenames = {
       <div class="cn-team cn-team--${team}"${extra}>
         <div class="cn-team__head"><span class="cn-dot cn-dot--${team}"></span>${L[team]}${cnWinsBadge(s, team)}</div>
         <div class="chip-set">${roster(team) || `<span class="tool-desc">${t.cn_empty || 'لا أحد بعد'}</span>`}</div>
-        <div class="btn-row" style="margin-top: var(--sp-2)">
+        ${state.youAreScreen ? '' : `<div class="btn-row" style="margin-top: var(--sp-2)">
           ${btn(team, 'spymaster', t.cn_spymaster || 'قائد')}
           ${btn(team, 'operative', t.cn_operative || 'لاعب')}
-        </div>
+        </div>`}
       </div>`;
 
     return `
@@ -19118,7 +19843,9 @@ function shareLiveStroke(force, cur) {
 /** A viewer's side: draws each piece of the drawer's line as it arrives. */
 function onDrawLive(d) {
   const state = Room.state;
-  if (!d || !state || state.game !== 'drawguess' || appState.currentView !== 'room-drawguess') return;
+  // The big screen (JS_RoomTv.html) watches the line being drawn too.
+  const watching = appState.currentView === 'room-drawguess' || appState.currentView === 'room-tv';
+  if (!d || !state || state.game !== 'drawguess' || !watching) return;
   const s = state.shared || {};
   if (!draw.ctx || !draw.canvas || s.drawerId === Room.me || s.word) return;
   if (!Array.isArray(d.p) || d.p.length < 2 || d.p.length > 6000) return;
@@ -19997,12 +20724,19 @@ function chooseTriviaAnswer(choice) {
 }
 
 function paintTriviaTimer(endsAt) {
-  const el = document.getElementById('trivia-timer');
-  if (!el) return;
   const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
-  el.textContent = left;
-  el.classList.toggle('badge--danger', left <= 5);
-  el.classList.toggle('badge--accent', left > 5);
+  const el = document.getElementById('trivia-timer');
+  if (el) {
+    el.textContent = left;
+    el.classList.toggle('badge--danger', left <= 5);
+    el.classList.toggle('badge--accent', left > 5);
+  }
+  // The same clock on a big screen (JS_RoomTv.html).
+  const big = document.getElementById('tv-trivia-timer');
+  if (big) {
+    big.textContent = left;
+    big.classList.toggle('is-low', left <= 5);
+  }
 }
 
 function startTriviaClock(s) {
@@ -20040,6 +20774,939 @@ function stopTriviaClock() {
   trivia.clockKey = null;
   trivia.fired = false;
 }
+</script>
+
+    <script>
+/* ============================================================================
+   شاشة العرض — THE ROOM ON A BIG SCREEN
+   ----------------------------------------------------------------------------
+   A TV, or a laptop plugged into one, joins a room as a screen instead of a
+   player (room.screens on the server). It is dealt nothing and never receives
+   a secret, so it can face everyone. In the lobby it shows the code and the QR
+   big enough to scan from the sofa; during a game, the public side of it.
+
+   A screen can be the host, so every game here also draws the host's buttons:
+   a room run from a laptop must never get stuck waiting for a phone.
+
+   Sizes come from the screen itself (vmin, the BIG SCREEN block in Style.html),
+   so one page reads on a 55" TV, a laptop, and a phone mirrored to a TV.
+   ========================================================================= */
+
+const tv = {
+  wake: null,
+  clock: null,
+  clockKey: null,
+  cnPick: null,     // the card picked on the TV, waiting for "reveal"
+  cnDeal: null,
+  cnSeen: null,
+  cheered: ''
+};
+
+/** Per game: sig(state) says when to rebuild, frame(state, t) builds, after() paints. */
+const TV_GAMES = {};
+
+function roomJoinUrl(code) {
+  const base = window.SERVER_DATA && window.SERVER_DATA.webAppUrl;
+  return base && code ? base + '?room=' + code : '';
+}
+
+const tvBtn = (label, onclick, kind) =>
+  `<button class="btn btn--${kind || 'primary'} btn--auto" onclick="${onclick}">${label || ''}</button>`;
+
+function tvRedraw() {
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/* --- entry points ----------------------------------------------------------- */
+
+/** From the menu: this device opens a room as its big screen, and hosts it. */
+async function roomOpenScreen() {
+  try {
+    setSyncing(true);
+    await Room.create('', null, true);
+    setSyncing(false);
+    setView('room-tv');
+    if (Room.state) routeRoomState(Room.state);
+  } catch (err) {
+    setSyncing(false);
+    showToast(err.message || 'تعذر إنشاء الغرفة', 'error');
+  }
+}
+
+/** The join screen's second button: show that room here instead of playing in it. */
+async function roomJoinAsScreen() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const code = extractRoomCode((document.getElementById('room-join-code') || {}).value);
+  if (code.length < 4) return showToast(t.tv_code_needed || 'اكتب كود الغرفة', 'error');
+  try {
+    setSyncing(true);
+    await Room.join(code, '', true);
+    setSyncing(false);
+    setView('room-tv');
+    if (Room.state) routeRoomState(Room.state);
+  } catch (err) {
+    setSyncing(false);
+    const msg = String(err.message || '');
+    showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? 'لا توجد غرفة بهذا الكود' : msg, 'error');
+  }
+}
+
+/** In a lobby: a phone mirrored to the TV, or a laptop that joined as a player. */
+function roomBecomeScreen() {
+  roomAct('becomeScreen');
+}
+
+async function roomBecomePlayer() {
+  const name = await promptForName();
+  if (!name) return;
+  roomName.set(name);
+  roomAct('becomePlayer', { name: name });
+}
+
+function toggleTvFullscreen() {
+  const d = document;
+  if (d.fullscreenElement || d.webkitFullscreenElement) {
+    (d.exitFullscreen || d.webkitExitFullscreen || function () {}).call(d);
+  } else {
+    const root = d.documentElement;
+    const go = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (go) {
+      try { const p = go.call(root); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    }
+  }
+}
+
+/** A TV that dims in the middle of a game is the one thing nobody can fix from the sofa. */
+async function keepTvAwake() {
+  if (tv.wake || document.hidden || !('wakeLock' in navigator)) return;
+  try {
+    tv.wake = await navigator.wakeLock.request('screen');
+    tv.wake.addEventListener('release', () => { tv.wake = null; });
+  } catch (e) {
+    tv.wake = null;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && appState.currentView === 'room-tv') keepTvAwake();
+});
+
+/** Room screens share element ids (the canvas, the timers), so only one kind is ever drawn. */
+function clearRoomTvView() {
+  const el = document.getElementById('view-room-tv');
+  if (el && el.innerHTML) {
+    el.innerHTML = '';
+    delete el.dataset.sig;
+  }
+}
+
+function clearPhoneRoomViews() {
+  document.querySelectorAll('[id^="view-room-"]').forEach(v => {
+    if (v.id === 'view-room-tv' || v.id === 'view-room-join' || v.id === 'view-room-lobby') return;
+    if (v.innerHTML) {
+      v.innerHTML = '';
+      delete v.dataset.sig;
+    }
+  });
+  const setup = document.getElementById('room-host-setup');
+  if (setup && setup.innerHTML) {
+    setup.innerHTML = '';
+    delete setup.dataset.sig;
+  }
+}
+
+/* --- the frame ----------------------------------------------------------------- */
+
+function renderRoomTv(state) {
+  if (appState.currentView !== 'room-tv') setView('room-tv');
+  // Already on the view (a reload): make sure the page is laid out as a screen.
+  document.body.classList.add('is-fullscreen-view', 'is-tv-view');
+  const el = document.getElementById('view-room-tv');
+  if (!el) return;
+  keepTvAwake();
+
+  const t = TRANSLATIONS[appState.lang] || {};
+  const lobby = state.phase === 'lobby';
+  const game = lobby ? null : (TV_GAMES[state.game] || null);
+  const inner = lobby ? tvLobbySig(state) : (game ? game.sig(state) : state.phase);
+  const sig = ['tv', state.game || '', state.phase, state.youAreHost, appState.lang, inner].join('#');
+
+  const rebuilt = renderRoomFrame(el, sig, () => {
+    clearPhoneRoomViews();
+    return `
+      <div class="tv">
+        ${tvBar(state, t)}
+        <div class="tv-stage">${lobby ? tvLobby(state, t) : (game ? game.frame(state, t) : tvLookAtPhones(t))}</div>
+        ${tvStrip(state, t)}
+      </div>`;
+  });
+  if (!rebuilt) refreshTvStrip(el, state, t);
+
+  if (lobby) {
+    tvClock(null);
+    if (rebuilt) renderJoinQR('tv-qr', roomJoinUrl(state.code));
+  } else if (game && game.after) {
+    game.after(state, rebuilt);
+  }
+}
+
+function tvBar(state, t) {
+  const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
+  const title = entry
+    ? `<span aria-hidden="true">${entry.icon}</span> ${t[entry.key] || entry.id}`
+    : `<span aria-hidden="true">📺</span> ${t.tv_title || ''}`;
+  const icon = (glyph, label, onclick, extra) =>
+    `<button class="tv-icon ${extra || ''}" onclick="${onclick}" title="${escapeHTML(label || '')}" aria-label="${escapeHTML(label || '')}">${glyph}</button>`;
+  return `
+    <header class="tv-bar">
+      <div class="tv-bar__title">${title}</div>
+      <div class="tv-bar__code">
+        <span class="tv-bar__label">${t.room_code || ''}</span>
+        <span class="tv-bar__value">${escapeHTML(state.code || '')}</span>
+      </div>
+      <div class="tv-bar__actions">
+        ${state.phase === 'lobby' ? icon('🎮', t.tv_become_player, 'roomBecomePlayer()') : ''}
+        ${icon('❔', t.help || 'Help', 'openHelpModal()')}
+        ${icon('🌐', t.tv_language, 'toggleLanguage()')}
+        ${icon('🌓', t.tv_theme, 'toggleDarkMode()')}
+        ${icon('⛶', t.tv_fullscreen, 'toggleTvFullscreen()')}
+        ${icon('✕', t.room_leave, 'roomLeave()', 'tv-icon--leave')}
+      </div>
+    </header>`;
+}
+
+function tvStrip(state, t) {
+  const s = state.shared || {};
+  // Only a player scoreboard (trivia, fibbage…); Codenames' board is its cards.
+  const scores = {};
+  const board = state.phase !== 'lobby' && Array.isArray(s.board) && s.board.length && s.board[0].score !== undefined
+    ? s.board : null;
+  if (board) board.forEach(r => { scores[r.id] = r.score; });
+  const chips = state.players.map(p => `
+    <span class="tv-chip ${p.online ? '' : 'is-away'}">
+      <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
+      <span class="tv-chip__name">${escapeHTML(p.name)}</span>
+      ${board ? `<b class="tv-chip__score">${scores[p.id] || 0}</b>` : ''}
+    </span>`).join('');
+  return `<footer class="tv-strip" data-tv-strip>${chips || `<span class="tv-note">${t.tv_waiting_players || ''}</span>`}</footer>`;
+}
+
+function refreshTvStrip(el, state, t) {
+  const strip = el.querySelector('[data-tv-strip]');
+  if (strip) strip.outerHTML = tvStrip(state, t);
+}
+
+function tvLookAtPhones(t) {
+  return `<div class="tv-center"><div class="tv-big-icon" aria-hidden="true">📱</div><div class="tv-title">${t.tv_look_phones || ''}</div></div>`;
+}
+
+/** Counts down on the big screen. The server keeps the real clock; this only draws it. */
+function tvClock(id, endsAt) {
+  if (!id || !endsAt) {
+    if (tv.clock) tv.clock.stop();
+    tv.clock = null;
+    tv.clockKey = null;
+    return;
+  }
+  const paint = () => {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    el.textContent = cnClockText(left);
+    el.classList.toggle('is-low', left <= 10);
+    return left;
+  };
+  paint();
+  if (tv.clockKey === id + endsAt && tv.clock) return;
+  if (tv.clock) tv.clock.stop();
+  tv.clockKey = id + endsAt;
+  tv.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      if (left > 0 && left <= 5) playSound('tick');
+    },
+    onEnd: () => { tv.clock = null; }
+  });
+}
+
+/* --- lobby ------------------------------------------------------------------- */
+
+function tvLobbySig(state) {
+  return [
+    state.code,
+    state.players.map(p => p.id + ':' + p.name).join(','),
+    (state.screens || []).length,
+    JSON.stringify(state.shared || {})
+  ].join('|');
+}
+
+function tvLobby(state, t) {
+  const url = roomJoinUrl(state.code);
+  const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
+  let control;
+
+  if (!state.youAreHost) {
+    control = `<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
+  } else if (!state.game) {
+    const count = state.players.length;
+    control = `
+      <div class="tv-hub">
+        ${ROOM_HUB_GAMES.map(g => {
+          const enough = count >= g.min;
+          return `
+            <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : 'disabled'}>
+              <span class="tv-hub__icon" aria-hidden="true">${g.icon}</span>
+              <span class="tv-hub__name">${t[g.key] || g.id}</span>
+              ${enough ? '' : `<span class="tv-hub__need">${g.min}+</span>`}
+            </button>`;
+        }).join('')}
+      </div>`;
+  } else {
+    const game = ROOM_GAMES[state.game];
+    control = `
+      <div class="tv-chosen">
+        <span class="tv-chosen__name">${entry ? entry.icon + ' ' + (t[entry.key] || entry.id) : escapeHTML(state.game)}</span>
+        ${tvBtn(t.room_change_game, "roomAct('backToHub')", 'ghost')}
+      </div>
+      <div class="tv-scale">${game && game.lobbyOptions ? game.lobbyOptions(state) : ''}</div>
+      <div class="tv-actions">${tvBtn(t.start, 'roomStartGame()')}</div>`;
+  }
+
+  return `
+    <div class="tv-lobby">
+      <section class="tv-join">
+        <div id="tv-qr" class="tv-qr" aria-hidden="true"></div>
+        <div class="tv-join__code">${escapeHTML(state.code || '')}</div>
+        <p class="tv-join__hint">${t.tv_join_hint || ''}</p>
+        ${url ? `<p class="tv-join__url" dir="ltr">${escapeHTML(url.replace(/^https?:\/\//, ''))}</p>` : ''}
+      </section>
+      <section class="tv-lobby__side">
+        <h2 class="tv-h">${t.room_players || ''} <span class="tv-count">${state.players.length}</span></h2>
+        ${control}
+      </section>
+    </div>`;
+}
+
+/* --- أسماء الرموز ------------------------------------------------------------- */
+
+TV_GAMES.codenames = {
+  sig(state) {
+    const s = state.shared;
+    return [s.dealtAt, s.turn, s.winner || '', s.guessesLeft, s.endsAt || '',
+      s.clue ? s.clue.word + ':' + s.clue.count : '',
+      (s.board || []).map(c => (c.revealed ? c.colour[0] : '.') + c.word).join(','),
+      JSON.stringify(s.marks || {}), (s.log || []).length,
+      s.wins ? s.wins.red + '-' + s.wins.blue : '', tv.cnPick].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    if (tv.cnDeal !== s.dealtAt) { tv.cnDeal = s.dealtAt; tv.cnPick = null; tv.cnSeen = null; }
+    const L = CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar;
+    const canGuess = !!s.clue && !s.winner;
+    const board = s.board || [];
+    const pick = canGuess && tv.cnPick !== null && board[tv.cnPick] && !board[tv.cnPick].revealed ? tv.cnPick : null;
+    const wins = s.wins || {};
+
+    const team = (side) => `
+      <div class="tv-team tv-team--${side} ${s.turn === side && !s.winner ? 'is-turn' : ''}">
+        <span class="tv-team__num">${s.remaining ? s.remaining[side] : 0}</span>
+        <span class="tv-team__name">${L[side]}</span>
+        ${(wins.red || wins.blue) ? `<span class="tv-team__wins">🏆 ${wins[side] || 0}</span>` : ''}
+      </div>`;
+
+    let banner;
+    if (s.winner) {
+      banner = `<div class="tv-cn__clue">${s.endReason === 'assassin' ? '☠️' : '🏆'} ${t.cn_wins || ''} ${L[s.winner]}</div>
+                <div class="tv-cn__sub">${s.endReason === 'assassin' ? (t.cn_assassin_hit || '') : (t.cn_cleared || '')}</div>`;
+    } else if (s.clue) {
+      banner = `<div class="tv-cn__clue">${escapeHTML(s.clue.word)} · ${s.clue.count === 'inf' ? '∞' : s.clue.count}</div>
+                <div class="tv-cn__sub"><span>${L[s.turn]} · ${t.cn_guesses_left || ''}: ${s.guessesLeft === CN_UNLIMITED ? '∞' : s.guessesLeft}</span><span id="tv-cn-timer" class="tv-timer"></span></div>`;
+    } else {
+      banner = `<div class="tv-cn__clue">${t.cn_turn || ''} ${L[s.turn]}</div>
+                <div class="tv-cn__sub"><span>${t.cn_await_clue || ''}</span><span id="tv-cn-timer" class="tv-timer"></span></div>`;
+    }
+
+    const cards = board.map((cell, i) => {
+      const cls = ['tv-card'];
+      if (cell.revealed) {
+        cls.push('is-revealed', 'tv-card--' + cell.colour);
+        if (tv.cnSeen && !tv.cnSeen[i]) cls.push('is-flipping');
+      } else if (s.winner && cell.colour) {
+        cls.push('tv-card--ended', 'tv-peek--' + cell.colour);
+      }
+      if (pick === i) cls.push('is-pending');
+      const marks = cell.revealed ? 0 : ((s.marks || {})[i] || []).length;
+      return `
+        <button class="${cls.join(' ')}" ${canGuess && !cell.revealed ? '' : 'disabled'} onclick="tvTapCodenames(${i})">
+          ${cell.revealed ? `<span class="tv-card__cover" aria-hidden="true">${CN_COVER[cell.colour] || ''}</span>` : ''}
+          <span class="tv-card__word">${escapeHTML(cell.word)}</span>
+          ${marks ? `<span class="tv-card__marks" aria-hidden="true">${marks}</span>` : ''}
+        </button>`;
+    }).join('');
+
+    let actions = '';
+    if (s.winner) {
+      actions = state.youAreHost
+        ? tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')
+        : '';
+    } else if (pick !== null) {
+      actions = `<span class="tv-confirm">${(t.tv_reveal_q || '{w}').replace('{w}', escapeHTML(board[pick].word))}</span>` +
+        tvBtn(t.cn_reveal, 'tvRevealCodenames()') + tvBtn(t.cancel, 'tvCancelCodenames()', 'ghost');
+    } else if (s.clue) {
+      actions = `<span class="tv-note">${(t.tv_cn_tap || '{team}').replace('{team}', L[s.turn])}</span>` +
+        tvBtn(t.cn_end_turn, "roomAct('endTurn')", 'ghost');
+    }
+
+    const log = cnLog(s, t).replace('<details class="cn-log" ', '<details class="cn-log" open ');
+    return `
+      <div class="tv-cn">
+        <div class="tv-cn__head">
+          ${team('red')}
+          <div class="tv-cn__banner tv-cn__banner--${s.winner || s.turn}">${banner}</div>
+          ${team('blue')}
+        </div>
+        <div class="tv-cn__body">
+          <div class="tv-cn__board">${cards}</div>
+          <aside class="tv-cn__log">${log || `<div class="tv-panel tv-note">📜 ${t.cn_log || ''}</div>`}</aside>
+        </div>
+        ${actions ? `<div class="tv-actions">${actions}</div>` : ''}
+      </div>`;
+  },
+
+  after(state, rebuilt) {
+    const s = state.shared;
+    const faceUp = (s.board || []).map(c => !!c.revealed);
+    if (rebuilt && tv.cnSeen && !s.winner) {
+      const flipped = faceUp.map((up, i) => (up && !tv.cnSeen[i] ? i : -1)).filter(i => i !== -1);
+      if (flipped.length) {
+        const colour = s.board[flipped[flipped.length - 1]].colour;
+        playSound(colour === 'red' || colour === 'blue' ? 'success' : 'alarm');
+      }
+    }
+    tv.cnSeen = faceUp;
+    if (rebuilt && s.winner && tv.cheered !== 'cn' + s.dealtAt) {
+      tv.cheered = 'cn' + s.dealtAt;
+      if (s.endReason === 'assassin') playSound('alarm');
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 240, spread: 110, origin: { y: 0.6 }, colors: CN_CONFETTI[s.winner] });
+      }
+    }
+    tvClock(!s.winner && s.endsAt ? 'tv-cn-timer' : null, s.endsAt);
+  }
+};
+
+/** A click picks the card for the team gathered at the screen; "reveal" turns it. */
+function tvTapCodenames(i) {
+  const s = Room.state && Room.state.shared;
+  if (!s || !s.clue || s.winner || !s.board[i] || s.board[i].revealed) return;
+  tv.cnPick = tv.cnPick === i ? null : i;
+  tvRedraw();
+}
+
+async function tvRevealCodenames() {
+  const i = tv.cnPick;
+  if (i === null) return;
+  tv.cnPick = null;
+  tvRedraw();
+  await roomAct('guess', { index: i });
+}
+
+function tvCancelCodenames() {
+  tv.cnPick = null;
+  tvRedraw();
+}
+
+/* --- تحدي المعلومات ----------------------------------------------------------- */
+
+TV_GAMES.trivia = {
+  sig(state) {
+    const s = state.shared;
+    return [s.phase, s.qIndex, (s.answered || []).length].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    const letters = ['A', 'B', 'C', 'D'];
+
+    if (s.phase === 'gameover') {
+      const medals = ['🥇', '🥈', '🥉'];
+      return `
+        <div class="tv-trivia">
+          <div class="tv-title tv-center-text">🏆 ${t.trivia_champion || ''}</div>
+          <div class="tv-podium">
+            ${(s.board || []).slice(0, 3).map((p, i) => `
+              <div class="tv-podium__place tv-podium__place--${i + 1}">
+                <span class="tv-podium__medal" aria-hidden="true">${medals[i]}</span>
+                <span class="tv-podium__name">${escapeHTML(p.name)}</span>
+                <span class="tv-podium__score">${p.score}</span>
+              </div>`).join('')}
+          </div>
+          ${state.youAreHost ? `<div class="tv-actions">${
+            tvBtn(t.play_again, `roomAct('playAgain', { lang: '${VOTE_LANG()}' })`) +
+            tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}
+        </div>`;
+    }
+
+    const answering = s.phase === 'answering';
+    const present = state.players.map(p => p.id);
+    const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1).length;
+    const answered = (s.answered || []).length;
+    const counts = s.choiceCounts || [];
+
+    const choices = (s.choices || []).map((c, i) => `
+      <div class="tv-choice tv-choice--${i} ${answering ? '' : (i === s.correctAnswer ? 'is-correct' : 'is-dim')}">
+        <span class="tv-choice__letter">${letters[i]}</span>
+        <span class="tv-choice__text">${escapeHTML(c)}</span>
+        ${answering ? '' : `<span class="tv-choice__count">${counts[i] || 0}</span>`}
+      </div>`).join('');
+
+    let foot;
+    if (answering) {
+      foot = `
+        <div class="tv-progress"><div class="tv-progress__fill" style="width:${expected ? Math.round(answered / expected * 100) : 0}%"></div></div>
+        <div class="tv-note">${answered} / ${expected} ${t.trivia_answered || ''}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.trivia_close_early, "roomAct('closeQuestion')", 'ghost')}</div>` : ''}`;
+    } else {
+      const fastest = (s.order || []).slice(0, 5).map((id, i) => {
+        const p = state.players.find(x => x.id === id);
+        return p ? `<span class="tv-fast"><b>${i + 1}</b> ${escapeHTML(p.name)} <small>+${(s.gained || {})[id] || 0}</small></span>` : '';
+      }).join('');
+      const last = s.qIndex + 1 >= s.totalQuestions;
+      foot = `
+        ${fastest
+          ? `<div class="tv-fastest"><span class="tv-fastest__label">⚡ ${t.tv_fastest || ''}</span>${fastest}</div>`
+          : `<div class="tv-note">${t.tv_nobody_right || ''}</div>`}
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(last ? t.trivia_final : t.next_q_btn, "roomAct('nextQuestion')")}</div>` : ''}`;
+    }
+
+    return `
+      <div class="tv-trivia">
+        <div class="tv-top">
+          <span class="tv-pill">🧠 ${s.qIndex + 1} / ${s.totalQuestions}</span>
+          ${answering ? `<span id="tv-trivia-timer" class="tv-timer tv-timer--big">${s.seconds || ''}</span>` : ''}
+        </div>
+        <div class="tv-question">${escapeHTML(s.question || '')}</div>
+        <div class="tv-choices">${choices}</div>
+        <div class="tv-foot">${foot}</div>
+      </div>`;
+  },
+
+  after(state, rebuilt) {
+    const s = state.shared;
+    if (s.phase === 'answering') startTriviaClock(s);
+    else stopTriviaClock();
+    if (rebuilt && s.phase === 'results') playSound('success');
+    if (rebuilt && s.phase === 'gameover' && tv.cheered !== 'trivia' + state.version && typeof confetti === 'function') {
+      tv.cheered = 'trivia' + state.version;
+      confetti({ particleCount: 240, spread: 110, origin: { y: 0.6 } });
+    }
+  }
+};
+
+/* --- ارسم وخمّن ---------------------------------------------------------------- */
+
+TV_GAMES.drawguess = {
+  sig(state) {
+    const s = state.shared;
+    return [s.round, !!s.word, s.winnerId || ''].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    const over = !!s.word;
+    const winner = over && s.winnerId ? state.players.find(p => p.id === s.winnerId) : null;
+    const head = over
+      ? `<div class="tv-eyebrow">${s.winnerId ? (t.draw_guessed_by || '') + (winner ? ' · ' + escapeHTML(winner.name) : '') : (t.draw_nobody || '')}</div>
+         <div class="tv-title">${escapeHTML(s.word || '')}</div>`
+      : `<div class="tv-eyebrow">✏️ ${t.draw_drawer || ''}</div>
+         <div class="tv-title">${escapeHTML(s.drawerName || '')}</div>
+         <div id="draw-timer" class="tv-timer tv-timer--big">--</div>`;
+    const actions = !state.youAreHost ? '' : (over
+      ? tvBtn(t.draw_next, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`) + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')
+      : tvBtn(t.draw_reveal, "roomAct('giveUp')", 'ghost'));
+    return `
+      <div class="tv-split">
+        <div class="tv-split__main"><div class="tv-canvas draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div></div>
+        <aside class="tv-split__side">
+          <div class="tv-panel">${head}</div>
+          <div id="draw-guesses" class="draw-guesses tv-guesses"></div>
+          <div id="draw-board" class="tv-scale"></div>
+          ${actions ? `<div class="tv-actions tv-actions--stack">${actions}</div>` : ''}
+        </aside>
+      </div>`;
+  },
+
+  after(state, rebuilt) {
+    const s = state.shared;
+    if (rebuilt) {
+      resetDrawSurface();
+      bindDrawSurface(false);
+    }
+    paintStrokes(s.strokes || []);
+    paintGuessList(s.guesses || []);
+    if (!s.word) startDrawClock(s.endsAt);
+    else stopDrawClock();
+    if (s.word) {
+      const board = document.getElementById('draw-board');
+      if (board) board.innerHTML = renderScoreboard(s.board);
+      if (rebuilt && s.winnerId) playSound('success');
+    }
+  }
+};
+
+/* --- الفنان المزيف --------------------------------------------------------------- */
+
+TV_GAMES.fakeartist = {
+  sig(state) {
+    const s = state.shared;
+    return [s.round, s.turnIndex, s.phase, (s.strokes || []).length, s.vote ? s.vote.voted.length : ''].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    const who = (id) => `${faDot(state, id)} ${escapeHTML(faName(state, id))}`;
+    let panel;
+    if (s.phase === 'drawing') {
+      panel = `
+        <div class="tv-eyebrow">${t.round || ''} ${s.round}/${s.totalRounds}</div>
+        <div class="tv-title">${who(s.currentDrawerId)}</div>
+        <div class="tv-note">${t.fa_is_drawing || ''}</div>
+        ${state.youAreHost && !faOnline(state, s.currentDrawerId)
+          ? `<div class="tv-actions">${tvBtn(t.fa_skip_turn, "roomAct('skipTurn')", 'ghost')}</div>` : ''}`;
+    } else if (s.phase === 'voting') {
+      panel = `
+        <div class="tv-title">🗳️ ${t.fa_vote_title || ''}</div>
+        <div class="tv-note">${t.vote_count || ''}: ${s.vote.voted.length} / ${s.vote.eligible.length}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_end_vote, "roomAct('closeVote')", 'ghost')}</div>` : ''}`;
+    } else if (s.phase === 'guessing') {
+      panel = `
+        <div class="tv-eyebrow">${t.fa_caught || ''}</div>
+        <div class="tv-title">${who(s.fakeId)}</div>
+        <div class="tv-note">🤔 ${t.fa_guessing_wait || ''}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>` : ''}`;
+    } else {
+      const fakeWon = s.winner === 'fake';
+      const line = !s.fakeCaught ? t.fa_escaped : (fakeWon ? t.fa_stole : t.fa_artists_win);
+      panel = `
+        <div class="tv-eyebrow">${t.fa_word_was || ''}</div>
+        <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
+        <div class="tv-note">${fakeWon ? '🦹' : '🎉'} ${line || ''}</div>
+        <div class="tv-note">${t.fa_fake_was || ''} ${who(s.fakeId)}${s.fakeGuessWord ? ` · ${t.fa_guessed || ''} «${escapeHTML(s.fakeGuessWord)}»` : ''}</div>
+        <div class="tv-scale">${renderScoreboard(s.board)}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${
+          tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`) +
+          tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+    }
+    const legend = (s.drawerOrder || []).map(id => `
+      <span class="tv-chip ${id === s.currentDrawerId && s.phase === 'drawing' ? 'is-turn' : ''}">
+        ${faDot(state, id)}<span class="tv-chip__name">${escapeHTML(faName(state, id))}</span>
+      </span>`).join('');
+    return `
+      <div class="tv-split">
+        <div class="tv-split__main"><div class="tv-canvas draw-wrap fa-wrap"><canvas id="fa-canvas" width="512" height="512"></canvas></div></div>
+        <aside class="tv-split__side">
+          <div class="tv-panel">${panel}</div>
+          <div class="tv-legend">${legend}</div>
+        </aside>
+      </div>`;
+  },
+
+  after(state, rebuilt) {
+    if (!rebuilt) return;
+    fakeArt.line = null;
+    bindFakeArtistCanvas(false, '#111827');
+    paintFakeArtist(state.shared.strokes || []);
+  }
+};
+
+/* --- على نفس الموجة ------------------------------------------------------------ */
+
+TV_GAMES.wavelength = {
+  sig(state) {
+    const s = state.shared;
+    return [s.round, s.phase, s.clue || ''].join('|');
+  },
+
+  frame(state, t) {
+    const s = state.shared;
+    const target = s.phase === 'results' ? s.target : null;
+    const band = (b) => {
+      const from = Math.max(0, target - b.within);
+      const to = Math.min(100, target + b.within);
+      return `<div class="wl-zone wl-zone--${b.points}" style="left:${from}%; width:${to - from}%"></div>`;
+    };
+
+    let panel;
+    if (s.phase === 'clue') {
+      panel = `<div class="tv-note">🧠 ${t.wl_waiting_clue || ''} ${escapeHTML(s.psychicName || '')}…</div>`;
+    } else if (s.phase === 'dial') {
+      panel = `<div class="tv-note">${t.team_adjust_dial || ''}</div>` + (state.youAreHost
+        ? `<div class="tv-actions">${tvBtn(t.lock_dial_btn, 'lockWavelengthDial()')}</div>`
+        : `<div class="tv-note">${t.wl_host_locks || ''}</div>`);
+    } else {
+      const verdict = { 4: t.bullseye, 3: t.very_close, 2: t.close_points }[s.pointsEarned] || t.miss_points;
+      panel = `
+        <div class="tv-title tv-center-text">${verdict || ''}</div>
+        <div class="tv-note">${t.wl_dial || ''} ${s.dial} · ${t.wl_target || ''} ${s.target}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${
+          tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`) +
+          tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+    }
+
+    return `
+      <div class="tv-wl">
+        <div class="tv-top">
+          <span class="tv-pill">🧠 ${t.wl_psychic || ''}: ${escapeHTML(s.psychicName || '')}</span>
+          <span class="tv-pill">${t.round || ''} ${s.round} · ${t.wl_team_score || ''} ${(s.scores && s.scores.team) || 0}</span>
+        </div>
+        ${s.clue ? `<div class="tv-question">«${escapeHTML(s.clue)}»</div>` : ''}
+        <div class="wl-spectrum tv-spectrum" dir="ltr">
+          <div class="wl-labels">
+            <span class="wl-label">${escapeHTML(s.leftLabel || '')}</span>
+            <span class="wl-label">${escapeHTML(s.rightLabel || '')}</span>
+          </div>
+          <div class="wl-bar">
+            ${target !== null ? WL_BANDS.map(band).join('') + `<div class="wl-target" style="left:${target}%"></div>` : ''}
+            <div class="wl-needle" id="wl-needle" style="left:${s.dial}%"></div>
+          </div>
+          ${s.phase === 'dial' ? `
+            <input type="range" id="wl-dial" min="0" max="100" step="1" value="${s.dial}"
+                   aria-label="${escapeHTML(t.team_adjust_dial || '')}"
+                   oninput="onWavelengthDial(this.value)" onpointerdown="wave.dragging = true"
+                   onpointerup="endWavelengthDrag()" onpointercancel="endWavelengthDrag()" onchange="endWavelengthDrag()">` : ''}
+        </div>
+        <div class="tv-foot">${panel}</div>
+      </div>`;
+  },
+
+  after(state) {
+    paintWavelengthDial(state.shared.dial);
+  }
+};
+
+/* --- the voting games ------------------------------------------------------------ */
+
+function tvVoteProgress(state, t) {
+  const v = state.shared.vote;
+  const voters = v.voted.map(id => {
+    const p = state.players.find(x => x.id === id);
+    return p ? `<span class="tv-chip is-done">✓ <span class="tv-chip__name">${escapeHTML(p.name)}</span></span>` : '';
+  }).join('');
+  return `
+    <div class="tv-note">${t.vote_count || ''}: ${v.voted.length} / ${v.eligible.length}</div>
+    ${voters ? `<div class="tv-legend">${voters}</div>` : ''}
+    ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.vote_close, "roomAct('closeVote')", 'ghost')}</div>` : ''}`;
+}
+
+function tvNextFooter(state, t, label) {
+  return state.youAreHost ? `<div class="tv-actions">${
+    tvBtn(label, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`) +
+    tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '';
+}
+
+TV_GAMES.wouldyou = {
+  sig: (state) => [state.shared.round, state.shared.vote.phase, state.shared.vote.voted.length].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const v = s.vote;
+    const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>`;
+    if (v.phase === 'voting') {
+      return `
+        <div class="tv-vote">
+          ${head}
+          <div class="tv-versus">
+            ${v.options.map((o, i) => `<div class="tv-option tv-option--${i % 2}">${escapeHTML(o.label)}</div>${
+              i === 0 && v.options.length > 1 ? `<div class="tv-versus__or">${t.tv_or || ''}</div>` : ''}`).join('')}
+          </div>
+          ${tvVoteProgress(state, t)}
+        </div>`;
+    }
+    return `<div class="tv-vote">${head}<div class="tv-scale">${renderVoteResults(state)}</div>${tvNextFooter(state, t, t.next_question)}</div>`;
+  }
+};
+
+TV_GAMES.mostlikely = {
+  sig: (state) => [state.shared.round, state.shared.vote.phase, state.shared.vote.voted.length].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const v = s.vote;
+    const head = `
+      <div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>
+      <div class="tv-question">${escapeHTML(s.prompt || '')}</div>`;
+    if (v.phase === 'voting') return `<div class="tv-vote">${head}${tvVoteProgress(state, t)}</div>`;
+    return `
+      <div class="tv-vote">${head}
+        <div class="tv-scale">${renderVoteResults(state)}${renderScoreboard(s.board)}</div>
+        ${tvNextFooter(state, t, t.next_question)}
+      </div>`;
+  }
+};
+
+TV_GAMES.fibbage = {
+  sig(state) {
+    const s = state.shared;
+    return [s.round, s.phase, (s.submitted || []).length, s.vote ? s.vote.phase + s.vote.voted.length : ''].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared;
+    const head = `
+      <div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>
+      <div class="tv-question">${escapeHTML(s.question || '')}</div>`;
+    if (s.phase === 'writing') {
+      const here = state.players.map(p => p.id);
+      const active = (s.roster || here).filter(id => here.indexOf(id) !== -1);
+      const done = (s.submitted || []).filter(id => active.indexOf(id) !== -1).length;
+      return `
+        <div class="tv-vote">${head}
+          <div class="tv-note">✍️ ${t.fib_your_lie || ''}</div>
+          <div class="tv-note">${done} / ${active.length}</div>
+        </div>`;
+    }
+    if (s.vote && s.vote.phase === 'voting') {
+      return `
+        <div class="tv-vote">${head}
+          <div class="tv-list">${s.vote.options.map(o => `<div class="tv-list__item">${escapeHTML(o.label)}</div>`).join('')}</div>
+          ${tvVoteProgress(state, t)}
+        </div>`;
+    }
+    return `
+      <div class="tv-vote">${head}
+        <div class="tv-panel tv-center-text">
+          <div class="tv-eyebrow">${t.fib_truth || ''}</div>
+          <div class="tv-title">${escapeHTML(s.truth || '')}</div>
+        </div>
+        <div class="tv-scale">${renderVoteResults(state, { highlightId: 'truth' })}${renderScoreboard(s.board)}</div>
+        ${tvNextFooter(state, t, t.next_question)}
+      </div>`;
+  }
+};
+
+/* --- الجاسوس · كلمة واحدة · من أنا؟ ------------------------------------------------ */
+
+TV_GAMES.imposter = {
+  sig: (state) => [state.phase, (state.shared.spies || []).join(',')].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (state.phase === 'reveal') {
+      return `
+        <div class="tv-center">
+          <div class="tv-eyebrow">${escapeHTML(s.category || '')}</div>
+          <div class="tv-big-icon" aria-hidden="true">🎴</div>
+          <div class="tv-title">${t.tv_check_cards || ''}</div>
+          ${host(tvBtn(t.start_discussion, "roomAct('beginDiscussion')"))}
+        </div>`;
+    }
+    if (state.phase === 'discuss') {
+      return `
+        <div class="tv-center">
+          <div class="tv-eyebrow">${t.discussion_time || ''}</div>
+          <div id="room-imp-timer" class="tv-clock">00:00</div>
+          <div class="tv-note">${t.imposter_discuss_hint || ''}</div>
+          ${host(tvBtn(t.reveal_imposters, "roomAct('revealResult')", 'danger'))}
+        </div>`;
+    }
+    return `
+      <div class="tv-center">
+        <div class="tv-eyebrow">${t.the_spies || ''}</div>
+        <div class="tv-title tv-danger">🕵️ ${(s.spies || []).map(escapeHTML).join('، ')}</div>
+        <div class="tv-eyebrow">${t.secret_word || ''}</div>
+        <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
+        ${host(tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+      </div>`;
+  },
+  after(state, rebuilt) {
+    if (state.phase === 'discuss') {
+      startRoomDiscussClock(state.shared.startedAt);
+    } else if (roomDiscussClock) {
+      roomDiscussClock.stop();
+      roomDiscussClock = null;
+      roomDiscussBase = null;
+    }
+    if (rebuilt && state.phase === 'result' && typeof confetti === 'function') {
+      confetti({ particleCount: 180, spread: 100, origin: { y: 0.6 } });
+    }
+  }
+};
+
+TV_GAMES.justone = {
+  sig(state) {
+    const s = state.shared;
+    return [s.phase, s.round, (s.submitted || []).length, s.guess || '', s.lastResult || ''].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared;
+    const top = `
+      <div class="tv-top">
+        <span class="tv-pill">${t.round || ''} ${s.round}</span>
+        <span class="tv-pill">${t.score || ''}: ${s.score || 0}</span>
+      </div>`;
+    if (s.phase === 'writing') {
+      const here = state.players.map(p => p.id);
+      const active = (s.roster || here).filter(id => here.indexOf(id) !== -1);
+      const done = (s.submitted || []).filter(id => active.indexOf(id) !== -1).length;
+      return `
+        <div class="tv-trivia">${top}
+          <div class="tv-center">
+            <div class="tv-big-icon" aria-hidden="true">🤔</div>
+            <div class="tv-title">${escapeHTML(s.guesserName || '')} · ${t.tv_jo_guessing || ''}</div>
+            <div class="tv-note">✍️ ${t.tv_jo_writing || ''} (${done} / ${Math.max(0, active.length - 1)})</div>
+          </div>
+        </div>`;
+    }
+    if (s.phase === 'guessing') {
+      const clues = (s.clues || []).filter(c => !c.removed);
+      return `
+        <div class="tv-trivia">${top}
+          <div class="tv-clues">${clues.map(c => `<span class="tv-clue">${escapeHTML(c.text)}</span>`).join('')
+            || `<span class="tv-note">${t.jo_no_clues || ''}</span>`}</div>
+          ${s.removedCount ? `<div class="tv-note">🚫 ${t.clues_removed_msg || ''} (${s.removedCount})</div>` : ''}
+          <div class="tv-note">${t.jo_waiting_guess || ''} ${escapeHTML(s.guesserName || '')}…</div>
+        </div>`;
+    }
+    const right = s.lastResult === 'correct';
+    return `
+      <div class="tv-trivia">${top}
+        <div class="tv-center">
+          <div class="tv-eyebrow">${t.jo_the_guess || ''}</div>
+          <div class="tv-title">${escapeHTML(s.guess || '—')}</div>
+          <div class="tv-eyebrow">${t.secret_word || ''}</div>
+          <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
+          ${s.phase === 'result' ? `<div class="tv-title ${right ? 'tv-success' : 'tv-danger'}">${right ? '✅ ' + (t.correct || '') : '❌ ' + (t.wrong || '')}</div>` : ''}
+          ${!state.youAreHost ? '' : `<div class="tv-actions">${s.phase === 'judging'
+            ? tvBtn(t.correct, "roomAct('judge', { correct: true })", 'success') + tvBtn(t.wrong, "roomAct('judge', { correct: false })", 'danger')
+            : tvBtn(t.next_round, "roomAct('nextRound', ROOM_GAMES.justone.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>`}
+        </div>
+      </div>`;
+  }
+};
+
+TV_GAMES.whoami = {
+  sig: (state) => [state.phase, !!state.shared.revealed].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (!s.revealed) {
+      return `
+        <div class="tv-center">
+          <div class="tv-big-icon" aria-hidden="true">❓</div>
+          <div class="tv-title">${t.tv_whoami_play || ''}</div>
+          <div class="tv-note">${t.whoami_hint || ''}</div>
+          ${host(tvBtn(t.reveal_words, "roomAct('reveal')", 'danger'))}
+        </div>`;
+    }
+    return `
+      <div class="tv-trivia">
+        <div class="tv-title tv-center-text">${t.whoami_reveal || ''}</div>
+        <div class="tv-ids">${(s.all || []).map(x => `
+          <div class="tv-panel"><div class="tv-eyebrow">${escapeHTML(x.name)}</div><div class="tv-title">${escapeHTML(x.word)}</div></div>`).join('')}
+        </div>
+        ${host(tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+      </div>`;
+  }
+};
 </script>
 
     <script>

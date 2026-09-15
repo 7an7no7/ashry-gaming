@@ -146,6 +146,12 @@ will make that pass lie to you:
   `* { transition: none !important; animation: none !important }` first.
 - **Emoji.** They carry their own colour and ignore `color`, so every icon reads
   as a contrast failure. Skip elements whose text is only pictographic.
+- **A hidden browser window.** Under `prefers-reduced-motion` every property
+  change is a 0.01ms transition, and a window that isn't painting never finishes
+  one. So padding, heights and a card's flip read as their old values, as if a
+  rule weren't applying. Disable transitions and animations (as above) before
+  measuring anything. An emulated resize also fires no `resize` event:
+  dispatch one yourself, or `--app-h` keeps the old height.
 
 ## Development Conventions
 
@@ -349,6 +355,37 @@ A board question can run on a clock: the setup screen's switch and 15–60 secon
 shows by itself, and the host still gives the points. The open card lives in
 `appState.triviaBoard.open` with a deadline (`endsAt`, or `left` while paused),
 so a reload reopens it with the time it really had left.
+
+**Big screens (شاشة العرض).** A TV, or a laptop plugged into one, joins a room
+as a *screen* rather than a player: `/create` or `/join` with `screen: true`
+puts it in `room.screens`, not `room.players`.
+
+- Nothing deals to a screen: it counts toward no player minimum and is on no
+  roster.
+- `project()` never gives it a secret: `you` is always null and `youAreScreen` is
+  true.
+- It can still be the host.
+- `becomeScreen` and `becomePlayer` switch a device between the two in the lobby,
+  for a phone mirrored to the TV, say.
+
+On the client, `routeRoomState` hands a screen to `renderRoomTv` in
+`JS_RoomTv.html`. It draws the lobby (the code, the QR, the game picker), and
+each game through its `TV_GAMES.<id>` renderer:
+
+- `sig(state)`: when to rebuild.
+- `frame(state, t)`: the markup.
+- `after(state, rebuilt)`: canvases and clocks.
+
+Every renderer draws the host's buttons too, because a room hosted from a laptop
+has no phone to press them on. Rules that let the table act from the screen check
+`isRoomScreen`: a Codenames guess or pass counts for the team whose turn it is.
+The Wavelength dial accepts anyone except the psychic.
+
+The view is `room-tv`: full screen, with `body.is-tv-view` and sizes from `vmin`
+in the BIG SCREEN block at the end of `Style.html`. Phone components reused there
+sit in `.tv-scale`, which zooms them in steps. Phone and TV frames share element
+ids (the canvas, the timers), so drawing one kind clears the other. A new room
+game needs its `TV_GAMES` entry as well.
 
 **Adding a game to the room layer**
 

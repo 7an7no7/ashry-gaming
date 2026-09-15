@@ -42,18 +42,18 @@ class Bot {
     this.closedWith = null;
   }
 
-  static async host(name, game) {
+  static async host(name, game, screen = false) {
     const bot = new Bot(name);
-    const res = await api('/create', { name, game });
+    const res = await api('/create', { name, game, screen });
     if (!res.ok) throw new Error('create failed: ' + res.error);
     Object.assign(bot, { code: res.state.code, pid: res.playerId, key: res.key, state: res.state });
     await bot.connect();
     return bot;
   }
 
-  static async join(code, name) {
+  static async join(code, name, screen = false) {
     const bot = new Bot(name);
-    const res = await api('/join', { code, name });
+    const res = await api('/join', { code, name, screen });
     if (!res.ok) throw new Error('join failed: ' + res.error);
     Object.assign(bot, { code, pid: res.playerId, key: res.key, state: res.state });
     await bot.connect();
@@ -285,6 +285,49 @@ async function main() {
   await A.must('chooseGame', { game: 'codenames' });
   await all(bots, (s) => s.shared.wins && s.shared.wins[turn] === 1, 'the score survives a trip to the hub');
   await A.must('backToHub');
+
+  /* --- big screens --------------------------------------------------------- */
+  console.log('• tv screen');
+  const TV = await Bot.join(A.code, '', true);
+  await all([A, TV], (s) => s.screens.length === 1 && s.players.length === 4, 'a screen joins without taking a player slot');
+  check(TV.state.youAreScreen === true && TV.state.you === null && A.state.youAreScreen === false, 'the screen knows it is one');
+  await A.must('chooseGame', { game: 'codenames' });
+  check((await TV.act('setTeam', { team: 'red', role: 'operative' })).ok === false, 'a screen cannot join a team');
+  await A.must('start', { lang: 'en' });
+  await all([A, TV], (s) => s.phase === 'playing', 'codenames starts with a screen in the room');
+  check(TV.state.you === null && !leaks(TV, 'assassin'), 'the screen never receives the key');
+  const tvTurn = TV.state.shared.turn;
+  const tvMaster = bots.find((b) => (b.state.shared.teams[b.pid] || {}).team === tvTurn && b.state.shared.teams[b.pid].role === 'spymaster');
+  await tvMaster.must('giveClue', { word: 'screenclue', count: 1 });
+  const tvPick = tvMaster.state.you.key.findIndex((colour) => colour === tvTurn);
+  await TV.must('guess', { index: tvPick });
+  await all([A, TV], (s) => s.shared.board[tvPick].revealed, 'the team can guess from the big screen');
+  await A.must('backToHub');
+  check((await TV.act('chooseGame', { game: 'trivia' })).ok === false, 'a screen that is not the host cannot pick a game');
+
+  await D.must('becomeScreen');
+  await A.waitFor((s) => s.players.length === 3 && s.screens.length === 2, 'a phone becomes a screen in the lobby');
+  check((await D.act('becomePlayer', { name: 'سارة' })).ok === false, 'a taken name is refused when a screen becomes a player');
+  await D.must('becomePlayer', { name: 'منى' });
+  await A.waitFor((s) => s.players.length === 4 && s.screens.length === 1, 'and back into a player');
+  TV.close();
+  await api('/leave', { code: A.code, pid: TV.pid, key: TV.key });
+  await A.waitFor((s) => s.screens.length === 0, 'a screen that leaves is removed');
+
+  const S = await Bot.host('', null, true);
+  check(S.state.youAreScreen && S.state.youAreHost && S.state.players.length === 0, 'a screen can open a room and host it');
+  const P1 = await Bot.join(S.code, 'لاعب ١');
+  const P2 = await Bot.join(S.code, 'لاعب ٢');
+  await S.must('chooseGame', { game: 'trivia' });
+  await S.must('start', { lang: 'ar', count: 5 });
+  await all([S, P1, P2], (s) => s.shared.phase === 'answering' && s.shared.roster.length === 2, 'the screen deals trivia to the phones only');
+  check((await S.act('answer', { choice: 0 })).ok === false, 'the screen cannot answer');
+  await P1.must('answer', { choice: 0 });
+  await P2.must('answer', { choice: 1 });
+  await S.waitFor((s) => s.shared.phase === 'results', 'the question closes once both phones answer');
+  await S.must('nextQuestion');
+  await all([S, P1, P2], (s) => s.shared.qIndex === 1, 'the screen moves everyone to the next question');
+  [S, P1, P2].forEach((b) => b.close());
 
   /* --- voting games ------------------------------------------------------ */
   console.log('• would you rather, most likely, fibbage');

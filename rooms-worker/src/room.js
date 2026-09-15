@@ -15,6 +15,8 @@ import { DurableObject } from 'cloudflare:workers';
 import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory } from '../generated/rules.js';
 
 const MAX_PLAYERS = 12;
+// Big screens (a TV, a laptop) showing the room. They take no player seat.
+const MAX_SCREENS = 3;
 // A phone on the HTTP fallback (no WebSocket) counts as here this long after it last asked.
 const ONLINE_WINDOW_MS = 20000;
 // A host gone this long while others are still here hands the room on.
@@ -114,7 +116,7 @@ export class Room extends DurableObject {
   check(pid, key) {
     const room = this.room;
     if (!room) return 'gone';
-    if (!room.players.some((p) => p.id === pid)) return 'kicked';
+    if (!room.players.some((p) => p.id === pid) && !(room.screens || []).some((s) => s.id === pid)) return 'kicked';
     if (key !== undefined && (!key || !room.keys || room.keys[pid] !== key)) return 'kicked';
     return null;
   }
@@ -122,6 +124,8 @@ export class Room extends DurableObject {
   /** What one player may see: the shared state and their own secret. */
   project(pid, online) {
     const room = this.room;
+    const screens = room.screens || [];
+    const isScreen = screens.some((s) => s.id === pid);
     return {
       code: room.code,
       version: room.version,
@@ -130,10 +134,14 @@ export class Room extends DurableObject {
       hostId: room.hostId,
       youAreHost: room.hostId === pid,
       players: room.players.map((p) => ({ id: p.id, name: p.name, online: online.has(p.id) })),
+      // Big screens showing the room. Not players: dealt nothing, counted nowhere.
+      screens: screens.map((s) => ({ id: s.id, online: online.has(s.id) })),
+      youAreScreen: isScreen,
       shared: room.shared || {},
-      you: (room.secrets && room.secrets[pid]) || null,
+      // A screen faces everyone, so it never receives a secret.
+      you: isScreen ? null : ((room.secrets && room.secrets[pid]) || null),
       // False for someone who joined after this game was dealt.
-      inGame: !room.shared || !room.shared.roster ? true : room.shared.roster.indexOf(pid) !== -1
+      inGame: isScreen || !room.shared || !room.shared.roster ? true : room.shared.roster.indexOf(pid) !== -1
     };
   }
 
@@ -222,7 +230,7 @@ export class Room extends DurableObject {
     if (!online.has(hostId)) {
       this.room.lastSeen = this.room.lastSeen || {};
       const leftAt = this.room.lastSeen[hostId];
-      const heir = this.room.players.find((p) => online.has(p.id));
+      const heir = this.room.players.find((p) => online.has(p.id)) || (this.room.screens || []).find((s) => online.has(s.id));
       if (!leftAt) {
         // Never seen leaving (the HTTP fallback, or a restart): the wait starts now.
         this.room.lastSeen[hostId] = now;
@@ -247,7 +255,7 @@ export class Room extends DurableObject {
 
   /* --- the API (called by the Worker in index.js) -------------------------- */
 
-  async create(code, name, game) {
+  async create(code, name, game, screen) {
     await this.load();
     if (this.room) {
       // A code is only reused once its old room has been left for good.
@@ -264,7 +272,9 @@ export class Room extends DurableObject {
       game: ROOM_GAME_IDS.indexOf(game) !== -1 ? game : null,
       phase: 'lobby',
       hostId,
-      players: [{ id: hostId, name: String(name || '').trim().slice(0, 24) || 'Host' }],
+      // A room opened from a TV has that screen as its host and no players yet.
+      players: screen ? [] : [{ id: hostId, name: String(name || '').trim().slice(0, 24) || 'Host' }],
+      screens: screen ? [{ id: hostId }] : [],
       shared: {},
       secrets: {},
       keys: { [hostId]: key },
@@ -278,21 +288,28 @@ export class Room extends DurableObject {
     return { ok: true, playerId: hostId, key, state: this.project(hostId, this.onlineIds()) };
   }
 
-  async join(rawName) {
+  async join(rawName, screen) {
     await this.load();
     const room = this.room;
     if (!room) return { ok: false, error: 'ROOM_NOT_FOUND' };
-    const name = String(rawName || '').trim().slice(0, 24);
-    if (!name) return { ok: false, error: 'اكتب اسمك أولاً' };
-    if (room.players.length >= MAX_PLAYERS) return { ok: false, error: 'الغرفة ممتلئة' };
-    // Joining mid-game is allowed: the newcomer watches until the next round.
-    if (room.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
-      return { ok: false, error: 'الاسم مستخدم بالفعل في هذه الغرفة' };
-    }
 
     const pid = newPlayerId();
     const key = newKey();
-    room.players.push({ id: pid, name });
+    if (screen) {
+      // A big screen: no name, no seat, and never a secret.
+      room.screens = room.screens || [];
+      if (room.screens.length >= MAX_SCREENS) return { ok: false, error: 'اكتمل عدد الشاشات في الغرفة' };
+      room.screens.push({ id: pid });
+    } else {
+      const name = String(rawName || '').trim().slice(0, 24);
+      if (!name) return { ok: false, error: 'اكتب اسمك أولاً' };
+      if (room.players.length >= MAX_PLAYERS) return { ok: false, error: 'الغرفة ممتلئة' };
+      // Joining mid-game is allowed: the newcomer watches until the next round.
+      if (room.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+        return { ok: false, error: 'الاسم مستخدم بالفعل في هذه الغرفة' };
+      }
+      room.players.push({ id: pid, name });
+    }
     room.keys = room.keys || {};
     room.keys[pid] = key;
     this.touch();
@@ -377,13 +394,17 @@ export class Room extends DurableObject {
     if (this.check(pid, key)) return { ok: true };
     const room = this.room;
     room.players = room.players.filter((p) => p.id !== pid);
+    room.screens = (room.screens || []).filter((s) => s.id !== pid);
     if (room.secrets) delete room.secrets[pid];
     if (room.keys) delete room.keys[pid];
     this.polled.delete(pid);
-    // Hand the room to whoever is left rather than orphaning it.
-    if (room.hostId === pid && room.players.length) {
+    // Hand the room to whoever is left rather than orphaning it: a player if
+    // there is one, otherwise a screen.
+    if (room.hostId === pid && (room.players.length || room.screens.length)) {
       const online = this.onlineIds();
-      room.hostId = (room.players.find((p) => online.has(p.id)) || room.players[0]).id;
+      const heir = room.players.find((p) => online.has(p.id)) || room.players[0] ||
+        room.screens.find((s) => online.has(s.id)) || room.screens[0];
+      room.hostId = heir.id;
     }
 
     for (const ws of this.openSockets()) {
@@ -391,7 +412,7 @@ export class Room extends DurableObject {
       try { ws.send(JSON.stringify({ t: 'left' })); ws.close(4001, 'left'); } catch (e) {}
     }
 
-    if (!room.players.length) {
+    if (!room.players.length && !room.screens.length) {
       await this.destroy();
       return { ok: true };
     }

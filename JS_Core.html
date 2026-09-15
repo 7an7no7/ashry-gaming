@@ -548,6 +548,29 @@
       room_change_game: "تغيير",
       room_another_game: "لعبة أخرى",
       room_spectating: "جولة جارية — ستنضم في الجولة القادمة",
+      tv_title: "شاشة العرض",
+      tv_open: "شاشة العرض (تلفزيون)",
+      tv_open_desc: "افتح الغرفة على التلفزيون أو اللابتوب، والكل يلعب من موبايله",
+      tv_join_btn: "📺 انضم كشاشة عرض",
+      tv_become: "📺 اجعل هذا الجهاز شاشة العرض",
+      tv_become_player: "العب من هذا الجهاز",
+      tv_screen_badge: "شاشة عرض",
+      tv_join_hint: "افتحوا التطبيق على موبايلاتكم ← «انضم لغرفة» واكتبوا الكود، أو امسحوا الكود بالكاميرا.",
+      tv_waiting_players: "في انتظار اللاعبين…",
+      tv_fullscreen: "ملء الشاشة",
+      tv_language: "اللغة",
+      tv_theme: "الوضع الليلي",
+      tv_look_phones: "العبوا من موبايلاتكم 📱",
+      tv_reveal_q: "نكشف «{w}»؟",
+      tv_cn_tap: "فريق {team}: اختاروا الكلمة من هنا أو من موبايلاتكم",
+      tv_fastest: "الأسرع",
+      tv_nobody_right: "محدش جاوب صح",
+      tv_or: "أو",
+      tv_check_cards: "كل واحد يشوف كارته على موبايله",
+      tv_jo_guessing: "بيخمّن الكلمة",
+      tv_jo_writing: "الباقيين بيكتبوا التلميحات",
+      tv_whoami_play: "كل واحد شايف هويات الباقيين على موبايله",
+      tv_code_needed: "اكتب كود الغرفة",
       room_open: "افتح غرفة",
       room_open_desc: "غرفة واحدة، والعبوا فيها ما تشاؤون",
       setup_codenames: "أسماء الرموز",
@@ -1022,6 +1045,29 @@
       room_change_game: "Change",
       room_another_game: "Another game",
       room_spectating: "Round in progress — you'll join the next one",
+      tv_title: "Big screen",
+      tv_open: "Big screen (TV)",
+      tv_open_desc: "Show the room on a TV or laptop while everyone plays on their phone",
+      tv_join_btn: "📺 Join as the big screen",
+      tv_become: "📺 Make this device the big screen",
+      tv_become_player: "Play on this device",
+      tv_screen_badge: "Big screen",
+      tv_join_hint: "On your phones: open the app → Join a room and type the code, or scan it with the camera.",
+      tv_waiting_players: "Waiting for players…",
+      tv_fullscreen: "Full screen",
+      tv_language: "Language",
+      tv_theme: "Dark mode",
+      tv_look_phones: "Play on your phones 📱",
+      tv_reveal_q: "Reveal “{w}”?",
+      tv_cn_tap: "{team} team: pick the word here or on your phones",
+      tv_fastest: "Fastest",
+      tv_nobody_right: "Nobody got it right",
+      tv_or: "or",
+      tv_check_cards: "Everyone, look at your card on your phone",
+      tv_jo_guessing: "is guessing",
+      tv_jo_writing: "Everyone else is writing clues",
+      tv_whoami_play: "Each phone shows everyone else's identity",
+      tv_code_needed: "Type the room code",
       room_open: "Open a room",
       room_open_desc: "One room, play as many games as you like",
       setup_codenames: "Codenames",
@@ -1740,6 +1786,11 @@
 
   function restoreView() {
     document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+    // setView sets these, but a reload restores the screen without it: the
+    // chess clock came back with the header and nav, and the big screen as a
+    // 520px phone column.
+    document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(appState.currentView) !== -1);
+    document.body.classList.toggle('is-tv-view', appState.currentView === 'room-tv');
     
     const viewEl = document.getElementById('view-' + appState.currentView);
     
@@ -1879,6 +1930,7 @@
 
     'room-join':       { title: 'room_join_title',  up: 'menu',        accent: 'teal' },
     'room-lobby':      { title: 'room_lobby_title', up: 'menu',        accent: 'teal' },
+    'room-tv':         { title: 'tv_title',         up: 'menu',        accent: 'indigo' },
     'room-imposter':   { title: 'setup_imposter',   up: 'menu',        accent: 'violet' },
     'room-justone':    { title: 'just_one_title',   up: 'menu',        accent: 'rose' },
     'room-whoami':     { title: 'setup_whoami',     up: 'menu',        accent: 'teal' },
@@ -2022,11 +2074,12 @@
   let viewEnterFallback = null;
 
   /** Tools that take the whole screen; the header and nav step aside for them. */
-  const FULLSCREEN_VIEWS = ['play-chess', 'play-reaction'];
+  const FULLSCREEN_VIEWS = ['play-chess', 'play-reaction', 'room-tv'];
 
   function setView(viewId) {
     const previous = appState.currentView;
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(viewId) !== -1);
+    document.body.classList.toggle('is-tv-view', viewId === 'room-tv');
     const goingBack = viewDepth(viewId) < viewDepth(previous);
 
     appState.currentView = viewId;
@@ -2320,6 +2373,15 @@ const GAME_RULES = {
                 <li>اللي يدخل في نص جولة يتفرج، وينضم تلقائياً في الجولة اللي بعدها.</li>
                 <li>لو قفل الموبايل ورجع، يكمل من نفس المكان — الغرفة تفضل شغالة 6 ساعات.</li>
             </ol>`,
+        tv: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>افتح التطبيق على التلفزيون أو اللابتوب واختار <b>شاشة العرض</b> من القائمة، أو من «انضم لغرفة» اضغط <b>انضم كشاشة عرض</b>. الموبايل المعروض على التلفزيون ينفع كمان.</li>
+                <li>الشاشة مش لاعب: مش بتاخد كارت ولا كلمة سرية، فممكن الكل يبص عليها. بتعرض الكود والـQR، وبعدين الجزء اللي الكل مسموح يشوفه من اللعبة بخط كبير.</li>
+                <li>الشاشة ممكن تكون المضيف: تختار اللعبة وتبدأها وتنقل للجولة اللي بعدها بالماوس أو باللمس.</li>
+                <li>في <b>أسماء الرموز</b> الفريق يقدر يختار الكلمة من على الشاشة، وفي <b>على نفس الموجة</b> يحرك المؤشر من عليها.</li>
+                <li>زرار ⛶ يملى الشاشة، والشاشة مش بتطفي طول ما الغرفة مفتوحة عليها.</li>
+                <li>أي موبايل في الغرفة يقدر يبقى شاشة العرض بزرار «اجعل هذا الجهاز شاشة العرض»، ويرجع لاعب بزرار 🎮.</li>
+            </ol>`,
         codenames: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>فريقان: كل فريق فيه <b>قائد</b> واحد و<b>لاعب</b> أو أكثر. «قسّم الفرق عشوائياً» يوزعكم في ثانية.</li>
@@ -2608,6 +2670,15 @@ const GAME_RULES = {
                 <li>Each phone only ever receives what that player is allowed to see: their word, their role, their team's key.</li>
                 <li>Join mid-round and you spectate, then you're dealt in automatically next round.</li>
                 <li>Lock your phone and come back and you pick up where you were. Rooms live for 6 hours.</li>
+            </ol>`,
+        tv: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Open the app on a TV or laptop and pick <b>Big screen</b> from the menu, or on "Join a room" press <b>Join as the big screen</b>. A phone mirrored to the TV works too.</li>
+                <li>The screen isn't a player: it gets no card and no secret word, so everyone can look at it. It shows the code and the QR, then the part of each game everyone may see, in large type.</li>
+                <li>The screen can be the host: pick the game, start it and move on to the next round with a mouse or a touch.</li>
+                <li>In <b>Codenames</b> the team can pick its word on the screen; in <b>Wavelength</b> it can turn the dial there.</li>
+                <li>⛶ fills the screen, and it won't dim while the room is open on it.</li>
+                <li>Any phone in the room can become the big screen with "Make this device the big screen", and go back to playing with 🎮.</li>
             </ol>`,
         codenames: `
             <ol class="list-decimal list-inside space-y-1 text-xs">

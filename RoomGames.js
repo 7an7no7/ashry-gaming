@@ -73,8 +73,38 @@ const ROOM_GAME_IDS = [
   'fakeartist', 'wavelength', 'trivia'
 ];
 
+// Must match MAX_PLAYERS and MAX_SCREENS in rooms-worker/src/room.js.
+const ROOM_MAX_PLAYERS = 12;
+const ROOM_MAX_SCREENS = 3;
+
 const applyRoomAction = (room, playerId, action, payload) => {
   // Room-level actions come first: they're about the group, not the game.
+
+  // A device switches between playing and showing the room on a big screen.
+  // Between games only: in the middle of a round a player may hold a card.
+  if (action === 'becomeScreen' || action === 'becomePlayer') {
+    if (room.phase !== 'lobby') throw new Error('غيّر نوع الجهاز بين الجولات');
+    room.screens = room.screens || [];
+    if (action === 'becomeScreen') {
+      if (!room.players.some(p => p.id === playerId)) return;          // already a screen
+      if (room.screens.length >= ROOM_MAX_SCREENS) throw new Error('اكتمل عدد الشاشات في الغرفة');
+      room.players = room.players.filter(p => p.id !== playerId);
+      room.screens.push({ id: playerId });
+      if (room.shared && room.shared.teams) delete room.shared.teams[playerId];
+      return;
+    }
+    if (!room.screens.some(s => s.id === playerId)) return;              // already a player
+    const name = String((payload && payload.name) || '').trim().slice(0, 24);
+    if (!name) throw new Error('اكتب اسمك أولاً');
+    if (room.players.length >= ROOM_MAX_PLAYERS) throw new Error('الغرفة ممتلئة');
+    if (room.players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+      throw new Error('الاسم مستخدم بالفعل في هذه الغرفة');
+    }
+    room.screens = room.screens.filter(s => s.id !== playerId);
+    room.players.push({ id: playerId, name: name });
+    return;
+  }
+
   if (action === 'chooseGame') {
     requireHost(room, playerId);
     const game = String(payload.game || '');

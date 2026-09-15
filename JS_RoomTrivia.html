@@ -191,12 +191,19 @@ function chooseTriviaAnswer(choice) {
 }
 
 function paintTriviaTimer(endsAt) {
-  const el = document.getElementById('trivia-timer');
-  if (!el) return;
   const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
-  el.textContent = left;
-  el.classList.toggle('badge--danger', left <= 5);
-  el.classList.toggle('badge--accent', left > 5);
+  const el = document.getElementById('trivia-timer');
+  if (el) {
+    el.textContent = left;
+    el.classList.toggle('badge--danger', left <= 5);
+    el.classList.toggle('badge--accent', left > 5);
+  }
+  // The same clock on a big screen (JS_RoomTv.html).
+  const big = document.getElementById('tv-trivia-timer');
+  if (big) {
+    big.textContent = left;
+    big.classList.toggle('is-low', left <= 5);
+  }
 }
 
 function startTriviaClock(s) {

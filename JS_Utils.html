@@ -1053,6 +1053,72 @@ function toggleResults() {
       document.getElementById('install-help-modal').classList.remove('hidden');
   }
 
+  /* --- The icon on an iPhone home screen ----------------------------------
+     iOS fetches the apple-touch-icon once, when the app is added, and no
+     page can add itself again. So when the icon changes, a copy on the home
+     screen keeps the old one until it is removed and re-added. This notices
+     such a copy - an iPhone, running standalone, whose marker is older than
+     the icon this build ships (window.ICON_VERSION, from
+     tools/site.config.json) - and shows one banner with the steps. Android
+     needs none of this: the versioned icon addresses refresh it by themselves.
+     ------------------------------------------------------------------------ */
+  const ICON_INSTALLED_KEY = 'ashryInstalledIcon';
+  const ICON_SNOOZE_KEY = 'ashryIconSnooze';
+  const isIOSDevice = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandaloneApp = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+  /** Shows the banner when the installed copy is older than the icon. `force` is for looking at it. */
+  function checkIconBanner(force) {
+      const current = Number(window.ICON_VERSION || 0);
+      if (!force && (!current || !isIOSDevice() || !isStandaloneApp())) return;
+      let installed = Number(localStorage.getItem(ICON_INSTALLED_KEY) || 0);
+      if (!installed) {
+          // No marker yet. A copy that already holds names or a saved game was
+          // added before the marker existed, so with the old icon; a fresh
+          // install carries the current one.
+          const usedBefore = !!(localStorage.getItem('gameTrackerState_v1') || localStorage.getItem(PLAYER_LIBRARY_KEY));
+          installed = usedBefore ? 1 : current;
+          try { localStorage.setItem(ICON_INSTALLED_KEY, String(installed)); } catch (e) {}
+      }
+      if (!force && installed >= current) return;
+      if (!force && Number(localStorage.getItem(ICON_SNOOZE_KEY) || 0) > Date.now()) return;
+      const el = document.getElementById('icon-banner');
+      if (el) el.classList.remove('hidden');
+  }
+  function hideIconBanner() {
+      const el = document.getElementById('icon-banner');
+      if (el) el.classList.add('hidden');
+  }
+  /** "Later": a week of quiet. */
+  function snoozeIconBanner() {
+      try { localStorage.setItem(ICON_SNOOZE_KEY, String(Date.now() + 7 * 24 * 3600 * 1000)); } catch (e) {}
+      hideIconBanner();
+  }
+  /** "Done", or "leave it": either way this copy is not asked again for this icon. */
+  function iconBannerDone() {
+      try { localStorage.setItem(ICON_INSTALLED_KEY, String(window.ICON_VERSION || 0)); } catch (e) {}
+      closeModal('icon-steps-modal');
+      hideIconBanner();
+  }
+  function openIconSteps() {
+      const el = document.getElementById('icon-steps-modal');
+      if (el) el.classList.remove('hidden');
+  }
+  const appLink = () => (window.SERVER_DATA && window.SERVER_DATA.webAppUrl) || (location.origin + location.pathname);
+  /** From a home-screen copy a _blank link opens in Safari; ?install=1 opens the steps there. */
+  function openInSafari() {
+      window.open(appLink() + '?install=1', '_blank');
+  }
+  async function copyAppLink() {
+      const t = TRANSLATIONS[appState.lang];
+      try {
+          await navigator.clipboard.writeText(appLink());
+          showToast(t.icon_link_copied || '', 'success');
+      } catch (e) {
+          showToast(appLink());
+      }
+  }
+
   // Auto-hide install button if already standalone
   function checkInstallButton() {
       const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;

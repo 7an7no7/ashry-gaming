@@ -597,6 +597,21 @@ needs no font and renders identically before Cairo loads, on a home screen and
 in the script. `npm run build:icons` in `tools/` (sharp rasterises the SVG).
 Do not edit `Logo.html` or the PNGs by hand.
 
+**The icon has a version** (`iconVersion` in `tools/site.config.json`). The
+build puts it on every icon address (`icon-192.png?v=2`, in the head links and
+in `docs/manifest.webmanifest`, which it rewrites) and into the page as
+`window.ICON_VERSION`. A changed address is what makes Android refresh an
+installed icon by itself. iOS fetches the apple-touch-icon once, when the app
+is added, and no page can add itself again, so `checkIconBanner` in
+`JS_Utils.html` notices an iPhone copy running standalone whose marker
+(`ashryInstalledIcon`) is older than the build's icon and shows one banner
+with the steps: remove, "open in Safari" (a `_blank` link to
+`?install=1`, which opens the add-to-home-screen sheet there), add again. A
+copy with saved names but no marker was added before the marker existed, so
+it counts as the old icon; a fresh install counts as the current one. "Later"
+snoozes a week; "Done" or "keep it" writes the current version. Bump
+`iconVersion` whenever the mark changes.
+
 The mark comes in five colourways (`VARIANTS` in the script: violet, midnight,
 paper, ocean, sunset); `iconVariant` in `tools/site.config.json` is the one
 the app ships with, and `node make-icons.mjs --preview <dir>` renders them all

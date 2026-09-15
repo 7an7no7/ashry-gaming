@@ -22,6 +22,11 @@ const read = (name) => readFile(path.join(root, `${name}.html`), 'utf8');
 
 const config = JSON.parse(await readFile(path.join(here, 'site.config.json'), 'utf8'));
 const roomsUrl = String(process.env.ROOMS_URL || config.roomsUrl || '').replace(/\/+$/, '');
+// The icon's version goes on its addresses: a changed address is what makes
+// Android refresh an installed icon, and the page compares it with the one an
+// iPhone copy was added with (checkIconBanner in JS_Utils.html).
+const iconVersion = Number(config.iconVersion || 1);
+const V = `?v=${iconVersion}`;
 if (!/^https?:\/\/[^\s"'<>]+$/.test(roomsUrl)) {
   throw new Error('site.config.json: roomsUrl must be the rooms server address');
 }
@@ -40,10 +45,10 @@ for (const [tag, name] of [...html.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?
 
 const HEAD = `<title>عشرى جيمينج</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="apple-touch-icon" href="icon-180.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-    <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+    <link rel="apple-touch-icon" href="icon-180.png${V}">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png${V}">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png${V}">
+    <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png${V}">
     <meta name="application-name" content="عشرى جيمينج">
     <!-- Opens the connection to the rooms server early, so creating or joining a room doesn't wait for it. -->
     <link rel="preconnect" href="${roomsUrl}" crossorigin>`;
@@ -65,10 +70,15 @@ const RUNTIME = `<script>
       window.STATIC_SITE = true;
       // The rooms server (rooms-worker/), from tools/site.config.json.
       window.ROOMS_URL = ${JSON.stringify(roomsUrl)};
+      // Which icon this build ships (tools/site.config.json, iconVersion).
+      window.ICON_VERSION = ${iconVersion};
+      // ?install=1 is the "open in Safari" link from the icon banner: the
+      // page opens straight onto the add-to-home-screen steps.
+      window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
 
       // A join link has done its job once read; leaving ?room= in the address
-      // would send a reload straight back to the join screen.
-      if (/[?&]room=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+      // would send a reload straight back to the join screen. The same for ?install=.
+      if (/[?&](room|install)=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
     </script>
 </head>`;
 if (html.indexOf('</head>') === -1) throw new Error('Controller.html: no </head>');
@@ -130,6 +140,14 @@ self.addEventListener('fetch', (event) => {
 });
 `;
 await writeFile(path.join(out, 'sw.js'), SW, 'utf8');
+
+// The manifest is written by hand, but its icon addresses carry the version.
+const manifestPath = path.join(out, 'manifest.webmanifest');
+if (existsSync(manifestPath)) {
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  (manifest.icons || []).forEach((icon) => { icon.src = icon.src.replace(/\?v=\d+$/, '') + V; });
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+}
 // GitHub Pages runs Jekyll otherwise, which skips files and slows the build.
 await writeFile(path.join(out, '.nojekyll'), '', 'utf8');
 

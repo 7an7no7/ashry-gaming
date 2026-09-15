@@ -10,10 +10,10 @@
     
     <title>عشرى جيمينج</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="apple-touch-icon" href="icon-180.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-    <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+    <link rel="apple-touch-icon" href="icon-180.png?v=2">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=2">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=2">
+    <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=2">
     <meta name="application-name" content="عشرى جيمينج">
     <!-- Opens the connection to the rooms server early, so creating or joining a room doesn't wait for it. -->
     <link rel="preconnect" href="https://ashry-rooms.rooms-worker.workers.dev" crossorigin>
@@ -353,7 +353,7 @@ p { margin: 0; }
      with nothing to scroll. */
   height: var(--app-h, 100dvh);
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
 }
@@ -364,8 +364,9 @@ p { margin: 0; }
    ones a nav pushed off the bottom. */
 .shell__header      { grid-row: 1; }
 .active-room-banner { grid-row: 2; }
-.shell__main        { grid-row: 3; }
-.shell__nav         { grid-row: 4; }
+.icon-banner        { grid-row: 3; }
+.shell__main        { grid-row: 4; }
+.shell__nav         { grid-row: 5; }
 
 /* --- Header --- */
 .shell__header {
@@ -3392,11 +3393,12 @@ html:has(> body.is-tv-view) { font-size: 100% !important; }
   .shell {
     max-width: none;
     grid-template-columns: var(--rail-w) minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
   }
   .shell__header      { grid-column: 2; grid-row: 1; }
   .active-room-banner { grid-column: 2; grid-row: 2; }
-  .shell__main        { grid-column: 2; grid-row: 3; padding-bottom: var(--sp-4); }
+  .icon-banner        { grid-column: 2; grid-row: 3; }
+  .shell__main        { grid-column: 2; grid-row: 4; padding-bottom: var(--sp-4); }
   .shell__nav {
     grid-column: 1;
     grid-row: 1 / -1;
@@ -5031,6 +5033,26 @@ button.spy-place:active { transform: scale(0.95); }
 .help-hero__body .help-lead { color: var(--accent-ink); }
 .help-hero__meta .help-meta { margin-top: 2px; }
 
+
+/* --- The icon banner (an iPhone copy on the home screen with an older icon) --- */
+.icon-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: 0 var(--sp-3) var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  animation: slideDownFade 0.25s var(--ease-out);
+}
+.icon-banner__text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: var(--fs-xs); font-weight: 600; line-height: 1.35; color: var(--text); }
+.icon-banner__text b { font-size: var(--fs-sm); color: var(--text-strong); }
+.icon-banner__actions { flex: none; display: flex; flex-direction: column; gap: 4px; }
+.mark--banner { width: 2.25rem; height: 2.25rem; border-radius: 0.6rem; }
+.icon-steps { margin: 0; padding-inline-start: var(--sp-5); text-align: start; font-size: var(--fs-sm); color: var(--text); }
+.icon-steps li + li { margin-top: var(--sp-2); }
+
 </style>
 
     
@@ -5647,10 +5669,15 @@ const BOMB_LETTERS = {
       window.STATIC_SITE = true;
       // The rooms server (rooms-worker/), from tools/site.config.json.
       window.ROOMS_URL = "https://ashry-rooms.rooms-worker.workers.dev";
+      // Which icon this build ships (tools/site.config.json, iconVersion).
+      window.ICON_VERSION = 2;
+      // ?install=1 is the "open in Safari" link from the icon banner: the
+      // page opens straight onto the add-to-home-screen steps.
+      window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
 
       // A join link has done its job once read; leaving ?room= in the address
-      // would send a reload straight back to the join screen.
-      if (/[?&]room=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+      // would send a reload straight back to the join screen. The same for ?install=.
+      if (/[?&](room|install)=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
     </script>
 </head>
   <body class="transition-colors duration-300">
@@ -5725,6 +5752,20 @@ const BOMB_LETTERS = {
           <button class="arb__btn arb__btn--leave" onclick="roomLeave()" title="مغادرة الغرفة" aria-label="مغادرة">
             <span aria-hidden="true">✕</span>
           </button>
+        </div>
+      </aside>
+
+      <!-- iPhone only, and only when the copy on the home screen was added with
+           an older icon: checkIconBanner in JS_Utils.html. -->
+      <aside id="icon-banner" class="icon-banner hidden" aria-live="polite">
+        <svg class="mark mark--banner" aria-hidden="true"><use href="#ashry-mark"/></svg>
+        <div class="icon-banner__text">
+          <b data-i18n="icon_banner_title">أيقونة التطبيق اتجددت</b>
+          <span data-i18n="icon_banner_text">عشان تظهر على شاشتك الرئيسية، لازم تمسح التطبيق وتضيفه تاني.</span>
+        </div>
+        <div class="icon-banner__actions">
+          <button class="btn btn--primary btn--xs btn--auto" onclick="openIconSteps()" data-i18n="icon_banner_how">إزاي؟</button>
+          <button class="btn btn--ghost btn--xs btn--auto" onclick="snoozeIconBanner()" data-i18n="icon_banner_later">لاحقاً</button>
         </div>
       </aside>
 
@@ -7638,6 +7679,26 @@ const BOMB_LETTERS = {
 
     </div>
 
+    <!-- The new icon on an iPhone home screen: the steps, since iOS cannot do it for us. -->
+    <div id="icon-steps-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('icon-steps-modal')">
+      <div class="modal-content modal-content--simple">
+        <svg class="mark mark--hero" style="margin: 0 auto" aria-hidden="true"><use href="#ashry-mark"/></svg>
+        <div class="sheet__title" data-i18n="icon_steps_title">الأيقونة الجديدة على شاشتك</div>
+        <p class="sheet__subtitle" data-i18n="icon_steps_sub">الآيفون بيحفظ الأيقونة مرة واحدة وقت الإضافة، ومفيش طريقة تتغير لوحدها. الخطوات دقيقة واحدة:</p>
+        <ol class="modal-list icon-steps">
+          <li data-i18n="icon_step1">اضغط مطوّلاً على أيقونة التطبيق في الشاشة الرئيسية واختر <b>إزالة التطبيق</b>.</li>
+          <li data-i18n="icon_step2">اضغط <b>افتح في Safari</b> تحت.</li>
+          <li data-i18n="icon_step3">في Safari: زر المشاركة ⎋ ثم <b>إضافة إلى الصفحة الرئيسية</b>.</li>
+        </ol>
+        <p class="field__hint" data-i18n="icon_steps_warn">تنبيه: الأسماء والمجموعات المحفوظة جوه النسخة القديمة بتتمسح معاها. لو عايز تحتفظ بيها، سيب الأيقونة زي ما هي.</p>
+        <div class="modal-actions">
+          <button class="btn btn--primary btn--lg" onclick="openInSafari()" data-i18n="icon_open_safari">افتح في Safari</button>
+          <button class="btn btn--secondary" onclick="copyAppLink()" data-i18n="icon_copy_link">نسخ الرابط</button>
+          <button class="btn btn--ghost" onclick="iconBannerDone()" data-i18n="icon_banner_done">تم، أو خليها زي ما هي</button>
+        </div>
+      </div>
+    </div>
+
     <!-- STOP / MEMORY RESULTS -->
     <div id="stop-result-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
@@ -8292,6 +8353,20 @@ const BOMB_LETTERS = {
   const TRANSLATIONS = {
     ar: {
       title: "عشرى جيمينج",
+      icon_banner_title: "أيقونة التطبيق اتجددت",
+      icon_banner_text: "عشان تظهر على شاشتك الرئيسية، لازم تمسح التطبيق وتضيفه تاني.",
+      icon_banner_how: "إزاي؟",
+      icon_banner_later: "لاحقاً",
+      icon_banner_done: "تم، أو خليها زي ما هي",
+      icon_steps_title: "الأيقونة الجديدة على شاشتك",
+      icon_steps_sub: "الآيفون بيحفظ الأيقونة مرة واحدة وقت الإضافة، ومفيش طريقة تتغير لوحدها. الخطوات دقيقة واحدة:",
+      icon_step1: "اضغط مطوّلاً على أيقونة التطبيق في الشاشة الرئيسية واختر <b>إزالة التطبيق</b>.",
+      icon_step2: "اضغط <b>افتح في Safari</b> تحت.",
+      icon_step3: "في Safari: زر المشاركة ⎋ ثم <b>إضافة إلى الصفحة الرئيسية</b>.",
+      icon_steps_warn: "تنبيه: الأسماء والمجموعات المحفوظة جوه النسخة القديمة بتتمسح معاها. لو عايز تحتفظ بيها، سيب الأيقونة زي ما هي.",
+      icon_open_safari: "افتح في Safari",
+      icon_copy_link: "نسخ الرابط",
+      icon_link_copied: "اتنسخ الرابط",
       nav_home: "الرئيسية",
       nav_together: "مع بعض",
       nav_tools: "الأدوات",
@@ -9042,6 +9117,20 @@ const BOMB_LETTERS = {
     },
     en: {
       title: "Ashry Gaming",
+      icon_banner_title: "The app icon has changed",
+      icon_banner_text: "To see it on your home screen, the app has to be removed and added again.",
+      icon_banner_how: "How?",
+      icon_banner_later: "Later",
+      icon_banner_done: "Done, or keep it as it is",
+      icon_steps_title: "The new icon on your home screen",
+      icon_steps_sub: "iPhone saves the icon once, when the app is added, and there is no way for it to change by itself. One minute of steps:",
+      icon_step1: "Press and hold the app icon on the home screen and choose <b>Remove app</b>.",
+      icon_step2: "Press <b>Open in Safari</b> below.",
+      icon_step3: "In Safari: the Share button ⎋, then <b>Add to Home Screen</b>.",
+      icon_steps_warn: "Note: the names and groups saved inside the old copy are deleted with it. If you want to keep them, leave the icon as it is.",
+      icon_open_safari: "Open in Safari",
+      icon_copy_link: "Copy the link",
+      icon_link_copied: "Link copied",
       nav_home: "Home",
       nav_together: "Together",
       nav_tools: "Tools",
@@ -9973,7 +10062,14 @@ const BOMB_LETTERS = {
     }
 
     loadFromLocal();
-    
+
+    // An iPhone copy on the home screen with an older icon (JS_Utils.html).
+    if (typeof checkIconBanner === 'function') checkIconBanner();
+    // The "open in Safari" link from that banner lands on the install steps.
+    if ((window.OPEN_INSTALL || /[?&]install=1/.test(location.search)) && typeof showInstallHelp === 'function') {
+        setTimeout(showInstallHelp, 700);
+    }
+
     // Safety timeout to hide loader if script calls take too long
     setTimeout(hideLoader, 2000);
     
@@ -13874,6 +13970,72 @@ function toggleResults() {
       }
 
       document.getElementById('install-help-modal').classList.remove('hidden');
+  }
+
+  /* --- The icon on an iPhone home screen ----------------------------------
+     iOS fetches the apple-touch-icon once, when the app is added, and no
+     page can add itself again. So when the icon changes, a copy on the home
+     screen keeps the old one until it is removed and re-added. This notices
+     such a copy - an iPhone, running standalone, whose marker is older than
+     the icon this build ships (window.ICON_VERSION, from
+     tools/site.config.json) - and shows one banner with the steps. Android
+     needs none of this: the versioned icon addresses refresh it by themselves.
+     ------------------------------------------------------------------------ */
+  const ICON_INSTALLED_KEY = 'ashryInstalledIcon';
+  const ICON_SNOOZE_KEY = 'ashryIconSnooze';
+  const isIOSDevice = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandaloneApp = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+  /** Shows the banner when the installed copy is older than the icon. `force` is for looking at it. */
+  function checkIconBanner(force) {
+      const current = Number(window.ICON_VERSION || 0);
+      if (!force && (!current || !isIOSDevice() || !isStandaloneApp())) return;
+      let installed = Number(localStorage.getItem(ICON_INSTALLED_KEY) || 0);
+      if (!installed) {
+          // No marker yet. A copy that already holds names or a saved game was
+          // added before the marker existed, so with the old icon; a fresh
+          // install carries the current one.
+          const usedBefore = !!(localStorage.getItem('gameTrackerState_v1') || localStorage.getItem(PLAYER_LIBRARY_KEY));
+          installed = usedBefore ? 1 : current;
+          try { localStorage.setItem(ICON_INSTALLED_KEY, String(installed)); } catch (e) {}
+      }
+      if (!force && installed >= current) return;
+      if (!force && Number(localStorage.getItem(ICON_SNOOZE_KEY) || 0) > Date.now()) return;
+      const el = document.getElementById('icon-banner');
+      if (el) el.classList.remove('hidden');
+  }
+  function hideIconBanner() {
+      const el = document.getElementById('icon-banner');
+      if (el) el.classList.add('hidden');
+  }
+  /** "Later": a week of quiet. */
+  function snoozeIconBanner() {
+      try { localStorage.setItem(ICON_SNOOZE_KEY, String(Date.now() + 7 * 24 * 3600 * 1000)); } catch (e) {}
+      hideIconBanner();
+  }
+  /** "Done", or "leave it": either way this copy is not asked again for this icon. */
+  function iconBannerDone() {
+      try { localStorage.setItem(ICON_INSTALLED_KEY, String(window.ICON_VERSION || 0)); } catch (e) {}
+      closeModal('icon-steps-modal');
+      hideIconBanner();
+  }
+  function openIconSteps() {
+      const el = document.getElementById('icon-steps-modal');
+      if (el) el.classList.remove('hidden');
+  }
+  const appLink = () => (window.SERVER_DATA && window.SERVER_DATA.webAppUrl) || (location.origin + location.pathname);
+  /** From a home-screen copy a _blank link opens in Safari; ?install=1 opens the steps there. */
+  function openInSafari() {
+      window.open(appLink() + '?install=1', '_blank');
+  }
+  async function copyAppLink() {
+      const t = TRANSLATIONS[appState.lang];
+      try {
+          await navigator.clipboard.writeText(appLink());
+          showToast(t.icon_link_copied || '', 'success');
+      } catch (e) {
+          showToast(appLink());
+      }
   }
 
   // Auto-hide install button if already standalone

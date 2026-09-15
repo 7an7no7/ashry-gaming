@@ -1,0 +1,186 @@
+<script>
+/* ============================================================================
+   القنبلة — ON THE TV (and every phone)
+   ----------------------------------------------------------------------------
+   The category is on the big screen and on every phone; the bomb itself is
+   whatever the table passes round. The fuse is a server clock nobody can
+   read: phones get `heat` (0-3) and tick faster with it, and the server
+   says when it goes off. Then the host marks who was holding it, and the
+   strikes are the board. Rules: bombRoomAction in RoomGames.js.
+   ========================================================================= */
+
+const bombRoom = { tickTimer: null, tickingKey: '' };
+const BOMB_ROOM_OPTS_KEY = 'ashryBombRoomOpts';
+const BOMB_TICK_MS = [1000, 700, 450, 250];   // by heat
+
+function bombRoomOpts() {
+  const base = { mode: 'category', fuse: 'normal' };
+  try {
+    const saved = JSON.parse(localStorage.getItem(BOMB_ROOM_OPTS_KEY) || 'null');
+    if (saved && ['category', 'letter', 'mix'].indexOf(saved.mode) !== -1) base.mode = saved.mode;
+    if (saved && ['short', 'normal', 'long'].indexOf(saved.fuse) !== -1) base.fuse = saved.fuse;
+  } catch (e) {}
+  return base;
+}
+
+function setBombRoomOpt(key, value) {
+  const o = bombRoomOpts();
+  o[key] = value;
+  try { localStorage.setItem(BOMB_ROOM_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+ROOM_GAMES.bomb = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_room_hint || '')}</p>`;
+    const o = bombRoomOpts();
+    const seg = (key, values, current) => `
+      <div class="segmented" role="group">
+        ${values.map(([v, label]) => `<button type="button" class="segmented__item ${v === current ? 'is-active' : ''}" onclick="setBombRoomOpt('${key}', '${v}')">${escapeHTML(label)}</button>`).join('')}
+      </div>`;
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.bomb_mode_label || '')}</label>
+          ${seg('mode', [['category', t.bomb_mode_category], ['letter', t.bomb_mode_letter], ['mix', t.bomb_mode_mix]], o.mode)}
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.bomb_fuse_label || '')}</label>
+          ${seg('fuse', [['short', t.bomb_fuse_short], ['normal', t.bomb_fuse_normal], ['long', t.bomb_fuse_long]], o.fuse)}
+        </div>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_room_hint || '')}</p>
+      </div>`;
+  },
+  startPayload() {
+    const o = bombRoomOpts();
+    return { lang: VOTE_LANG(), mode: o.mode, fuse: o.fuse };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-bomb') setView('room-bomb');
+    const el = document.getElementById('view-room-bomb');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const sig = ['bomb', s.phase, s.round, s.prompt, s.heat, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => bombRoomFrame(state, t));
+    refreshRoomPlayerStrip(el, state);
+    bombRoomTicking(state, rebuilt);
+  }
+};
+
+/** The card with the category, shared by the phone and the TV. */
+function bombRoomCardHtml(s, t) {
+  const kindLabel = s.kind === 'letter' ? (t.bomb_letter_label || '') : (t.bomb_category_label || '');
+  if (s.phase === 'boom') {
+    return `
+      <div class="bomb-card bomb-card--boom" id="bomb-card">
+        <div class="bomb-boom" aria-hidden="true">💥</div>
+        <div class="bomb-card__title">${escapeHTML(t.bomb_boom || '')}</div>
+        <div class="bomb-card__sub">${escapeHTML(s.loserName ? (t.bomb_room_loser || '').replace('{name}', s.loserName) : (t.bomb_boom_hint || ''))}</div>
+        <div class="bomb-card__prompt-small">${escapeHTML(kindLabel)}: <b>${escapeHTML(s.prompt || '')}</b></div>
+      </div>`;
+  }
+  return `
+    <div class="bomb-card ${s.heat >= 3 ? 'is-urgent' : ''}" id="bomb-card">
+      <div class="bomb-fuse" aria-hidden="true"><span class="bomb-emoji">💣</span></div>
+      <div class="eyebrow">${escapeHTML(kindLabel)}</div>
+      <div class="bomb-card__prompt ${s.kind === 'letter' ? 'bomb-card__prompt--letter' : ''}">${escapeHTML(s.prompt || '')}</div>
+      <div class="bomb-card__sub">${escapeHTML(s.kind === 'letter' ? (t.bomb_letter_hint || '') : (t.bomb_category_hint || ''))}</div>
+    </div>`;
+}
+
+/** Strikes, fewest first; whoever has most is losing. */
+function bombStrikesHtml(s, t) {
+  const board = s.board || [];
+  if (!board.length) return '';
+  return `
+    <div class="card card--tight">
+      <div class="eyebrow">💥 ${escapeHTML(t.bomb_room_strikes || '')}</div>
+      ${board.map(p => `
+        <div class="status-row">
+          <div class="status-row__body"><div class="status-row__name">${escapeHTML(p.name)}</div></div>
+          <span class="badge ${p.score ? 'badge--danger' : ''}">${p.score ? '💥'.repeat(Math.min(p.score, 5)) + (p.score > 5 ? ' ' + p.score : '') : '—'}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function bombRoomFrame(state, t) {
+  const s = state.shared;
+  const head = `<div class="play-head"><span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span></div>`;
+  if (s.phase === 'ticking') {
+    return head + bombRoomCardHtml(s, t) + `
+      ${state.youAreHost
+        ? `<div class="btn-stack">
+             <button class="btn btn--secondary" onclick="roomAct('swap')">${escapeHTML(t.bomb_swap || '')}</button>
+             <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+           </div>`
+        : ''}
+      ${bombStrikesHtml(s, t)}
+      ${renderRoomPlayerStrip(state)}`;
+  }
+  // boom
+  const marking = state.youAreHost && !s.loserId;
+  return head + bombRoomCardHtml(s, t) + `
+    ${marking ? `
+      <div class="card card--tight">
+        <div class="eyebrow">${escapeHTML(t.bomb_room_who || '')}</div>
+        <div class="btn-stack">
+          ${state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1).map(p => `
+            <button class="btn btn--neutral" onclick="roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })">${escapeHTML(p.name)}</button>`).join('')}
+        </div>
+      </div>` : ''}
+    ${state.youAreHost
+      ? `<div class="btn-stack">
+           <button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { lang: '${VOTE_LANG()}' })">${escapeHTML(t.bomb_next_round || '')}</button>
+           <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+         </div>`
+      : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+    ${bombStrikesHtml(s, t)}
+    ${renderRoomPlayerStrip(state)}`;
+}
+
+/** The ticking: faster with every heat step the server sends. */
+function bombRoomTicking(state, rebuilt) {
+  const s = state.shared || {};
+  const key = s.phase === 'ticking' ? state.code + '#' + s.round + '#' + s.heat : '';
+  if (key === bombRoom.tickingKey && !rebuilt) return;
+  if (bombRoom.tickTimer) clearTimeout(bombRoom.tickTimer);
+  bombRoom.tickTimer = null;
+  bombRoom.tickingKey = key;
+  if (!key) {
+    if (rebuilt && s.phase === 'boom') { playSound('alarm'); haptic('heavy'); }
+    return;
+  }
+  const tick = () => {
+    const st = Room.state;
+    if (!st || st.shared.phase !== 'ticking' || state.code + '#' + st.shared.round + '#' + st.shared.heat !== bombRoom.tickingKey) return;
+    playSound('tick');
+    const card = document.getElementById('bomb-card');
+    if (card) { card.classList.remove('is-tick'); void card.offsetWidth; card.classList.add('is-tick'); }
+    bombRoom.tickTimer = setTimeout(tick, BOMB_TICK_MS[Math.min(3, st.shared.heat || 0)]);
+  };
+  tick();
+}
+
+/* --- the big screen --- */
+TV_GAMES.bomb = {
+  sig(state) {
+    const s = state.shared || {};
+    return [s.phase, s.round, s.prompt, s.heat, s.loserId, JSON.stringify(s.strikes || {})].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>`;
+    const host = !state.youAreHost ? '' : (s.phase === 'ticking'
+      ? `<div class="tv-actions">${tvBtn(t.bomb_swap, "roomAct('swap')", 'secondary')}</div>`
+      : `<div class="tv-actions">${!s.loserId ? state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1).map(p => tvBtn(p.name, `roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })`, 'neutral')).join('') : ''}${tvBtn(t.bomb_next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}</div>`);
+    return `<div class="tv-vote">${head}<div class="tv-bomb tv-scale">${bombRoomCardHtml(s, t)}</div>${host}<div class="tv-scale">${bombStrikesHtml(s, t)}</div></div>`;
+  },
+  after(state, rebuilt) { bombRoomTicking(state, rebuilt); }
+};
+</script>

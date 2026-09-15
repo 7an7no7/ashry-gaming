@@ -53,6 +53,7 @@
         webAppUrl: <?!= webAppUrl ?>
       };
     </script>
+    <!-- tools/build-site.mjs and build-preview.mjs inline the word lists shared with the rooms server here (SHARED_LISTS). -->
 </head>
   <body class="transition-colors duration-300">
 
@@ -111,6 +112,22 @@
       <!-- ============ NEW GAMES: القنبلة · أتوبيس كومبليت · الذاكرة · إكس أو · مين يبدأ ============ -->
       <div id="view-setup-bomb" class="hidden" data-accent="orange">
         <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device"
+                    onclick="setPlayMode('bomb', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online"
+                    onclick="setPlayMode('bomb', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="bomb_online_desc">الفئة تظهر على التلفزيون وعلى كل موبايل، والقنبلة تتمرر على الطاولة. لما تفرقع المضيف يعلّم مين كانت في إيده.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('bomb')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+
+          <div class="mode-device-panel">
           <div class="field">
             <label class="field__label" data-i18n="bomb_mode_label">نوع اللعب</label>
             <div class="segmented" id="bomb-mode" role="group">
@@ -129,6 +146,7 @@
             <p class="field__hint" data-i18n="bomb_setup_hint">الوقت عشوائي ومحدش يعرفه. التكتكة بتسرع لما القنبلة تقرّب تفرقع.</p>
           </div>
           <button onclick="startBombRound()" class="btn btn--primary btn--lg" data-i18n="bomb_start">ولّع القنبلة</button>
+          </div>
         </div>
       </div>
       <div id="view-play-bomb" class="hidden" data-accent="orange"><div id="bomb-stage"></div></div>
@@ -271,6 +289,9 @@
 
       <div id="view-room-buzzer" class="hidden" data-accent="rose"></div>
       <div id="view-room-stop" class="hidden" data-accent="green"></div>
+      <div id="view-room-chameleon" class="hidden" data-accent="amber"></div>
+      <div id="view-room-spyfall" class="hidden" data-accent="rose"></div>
+      <div id="view-room-bomb" class="hidden" data-accent="orange"></div>
 
       <!-- ============ MULTIPLAYER: JOIN ============ -->
       <!-- Multiplayer game surfaces. Each is filled by its game's renderer. -->
@@ -1180,6 +1201,22 @@
       <!-- ============ THE CHAMELEON (الحرباء) ============ -->
       <div id="view-setup-chameleon" class="hidden" data-accent="amber">
         <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device"
+                    onclick="setPlayMode('chameleon', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online"
+                    onclick="setPlayMode('chameleon', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="cham_online_desc">الكلمات الـ16 على كل موبايل وعلى التلفزيون، وكل واحد يشوف كلمته السرية على موبايله من غير تمرير. التصويت من الموبايلات.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('chameleon')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+
+          <div class="mode-device-panel">
           <label class="field__label" data-i18n="category">المجموعة</label>
           <select id="chameleon-cat-select" class="mb-4"></select>
 
@@ -1198,6 +1235,7 @@
           <div id="chameleon-player-list" class="mb-6"></div>
 
           <button onclick="startChameleonGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
+          </div>
         </div>
       </div>
 
@@ -1239,6 +1277,22 @@
       <!-- ============ SPYFALL (الموقع السري) ============ -->
       <div id="view-setup-spyfall" class="hidden" data-accent="rose">
         <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device"
+                    onclick="setPlayMode('spyfall', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online"
+                    onclick="setPlayMode('spyfall', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="spy_online_desc">كل واحد يشوف المكان ودوره على موبايله، والجاسوس يشوف إنه الجاسوس. مؤقت على السيرفر، والتصويت من الموبايلات.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('spyfall')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+
+          <div class="mode-device-panel">
           <div class="grid-2 mb-4">
             <div>
               <label class="field__label" data-i18n="spy_count">عدد الجواسيس</label>
@@ -1272,6 +1326,7 @@
           <div id="spyfall-player-list" class="mb-6"></div>
 
           <button onclick="startSpyfallGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
+          </div>
         </div>
       </div>
 
@@ -1438,15 +1493,10 @@
                 <!-- Rules for the screen help was opened from; filled by openHelpModal. -->
                 <div id="help-context"></div>
 
-                <section class="section" id="help-games-section">
-                    <h3 class="eyebrow" data-i18n="sec_games">شرح الألعاب</h3>
-                    <div id="help-games-container"></div>
-                </section>
-
-                <section class="section" id="help-tools-section">
-                    <h3 class="eyebrow" data-i18n="extras">أدوات إضافية</h3>
-                    <div id="help-tools-container"></div>
-                </section>
+                <!-- The full list, grouped the way the home is: rooms and basics
+                     first, then a section per kind of game, then the tools.
+                     Filled by renderHelpContent from HELP_ENTRIES and GAME_CATALOG. -->
+                <div id="help-sections"></div>
 
                 <!-- The three bare rows that used to sit here (language, dark
                      mode, reload) are now the "App settings" entry above, which
@@ -1468,6 +1518,31 @@
 
     <div id="view-setup-describe" class="hidden">
         <div class="card text-center">
+            <div class="field">
+              <label class="field__label" data-i18n="relay_mode_label">اللعب</label>
+              <div class="segmented" id="desc-mode" role="group">
+                <button type="button" class="segmented__item is-active" data-value="single" onclick="setRelayMode('desc', appState.describe, 'single')" data-i18n="relay_single">فردي</button>
+                <button type="button" class="segmented__item" data-value="teams" onclick="setRelayMode('desc', appState.describe, 'teams')" data-i18n="relay_teams">فريقين</button>
+              </div>
+            </div>
+            <div id="desc-team-opts" class="hidden">
+              <div class="field">
+                <label class="field__label" data-i18n="relay_team_names">أسماء الفريقين</label>
+                <div class="tb-team-inputs">
+                  <input type="text" id="desc-team-a" maxlength="20" autocomplete="off" class="tb-input--a" data-i18n-ph="tb_team_a" placeholder="الفريق الأحمر" oninput="setRelayName(appState.describe, 0, this.value)">
+                  <input type="text" id="desc-team-b" maxlength="20" autocomplete="off" class="tb-input--b" data-i18n-ph="tb_team_b" placeholder="الفريق الأزرق" oninput="setRelayName(appState.describe, 1, this.value)">
+                </div>
+              </div>
+              <div class="field">
+                <label class="field__label" data-i18n="relay_turns">أدوار لكل فريق</label>
+                <div class="segmented" id="desc-turns" role="group">
+                  <button type="button" class="segmented__item" data-value="2" onclick="setRelayTurns('desc', appState.describe, 2)">2</button>
+                  <button type="button" class="segmented__item is-active" data-value="3" onclick="setRelayTurns('desc', appState.describe, 3)">3</button>
+                  <button type="button" class="segmented__item" data-value="4" onclick="setRelayTurns('desc', appState.describe, 4)">4</button>
+                  <button type="button" class="segmented__item" data-value="5" onclick="setRelayTurns('desc', appState.describe, 5)">5</button>
+                </div>
+              </div>
+            </div>
             <p class="field__hint mb-6" data-i18n="select_time">اختر وقت الجولة</p>
             <div class="grid grid-cols-2 gap-3 mb-6">
                 <button onclick="startDescribeGame(60)" class="btn btn--primary btn--lg">60s</button>
@@ -1515,6 +1590,8 @@
                 <button onclick="startDescribeGame()" class="btn btn--primary mt-4" data-i18n="play_again">جولة جديدة 🔄</button>
                 <button onclick="setView('setup-describe')" class="btn btn--ghost mt-3" data-i18n="back">تغيير الإعدادات</button>
             </div>
+
+            <div id="desc-ui-relay" class="hidden"></div>
 
         </div>
     </div>
@@ -1593,6 +1670,31 @@
             </div>
             <input type="number" id="charades-timer-input" value="60" class="hidden" aria-hidden="true" tabindex="-1">
             
+            <div class="field">
+              <label class="field__label" data-i18n="relay_mode_label">اللعب</label>
+              <div class="segmented" id="charades-mode" role="group">
+                <button type="button" class="segmented__item is-active" data-value="single" onclick="setRelayMode('charades', appState.charades, 'single')" data-i18n="relay_single">فردي</button>
+                <button type="button" class="segmented__item" data-value="teams" onclick="setRelayMode('charades', appState.charades, 'teams')" data-i18n="relay_teams">فريقين</button>
+              </div>
+            </div>
+            <div id="charades-team-opts" class="hidden">
+              <div class="field">
+                <label class="field__label" data-i18n="relay_team_names">أسماء الفريقين</label>
+                <div class="tb-team-inputs">
+                  <input type="text" id="charades-team-a" maxlength="20" autocomplete="off" class="tb-input--a" data-i18n-ph="tb_team_a" placeholder="الفريق الأحمر" oninput="setRelayName(appState.charades, 0, this.value)">
+                  <input type="text" id="charades-team-b" maxlength="20" autocomplete="off" class="tb-input--b" data-i18n-ph="tb_team_b" placeholder="الفريق الأزرق" oninput="setRelayName(appState.charades, 1, this.value)">
+                </div>
+              </div>
+              <div class="field">
+                <label class="field__label" data-i18n="relay_turns">أدوار لكل فريق</label>
+                <div class="segmented" id="charades-turns" role="group">
+                  <button type="button" class="segmented__item" data-value="2" onclick="setRelayTurns('charades', appState.charades, 2)">2</button>
+                  <button type="button" class="segmented__item is-active" data-value="3" onclick="setRelayTurns('charades', appState.charades, 3)">3</button>
+                  <button type="button" class="segmented__item" data-value="4" onclick="setRelayTurns('charades', appState.charades, 4)">4</button>
+                  <button type="button" class="segmented__item" data-value="5" onclick="setRelayTurns('charades', appState.charades, 5)">5</button>
+                </div>
+              </div>
+            </div>
             <button onclick="startCharades()" class="btn btn--primary" data-i18n="start">ابدأ</button>
         </div>
     </div>
@@ -1630,6 +1732,8 @@
                 <button onclick="startCharadesGame(appState.charades.timer)" class="btn btn--primary mt-4" data-i18n="play_again">جولة جديدة 🔄</button>
                 <button onclick="setView('setup-charades')" class="btn btn--ghost mt-3" data-i18n="back">تغيير الفئة</button>
             </div>
+
+            <div id="charades-ui-relay" class="hidden"></div>
 
         </div>
     </div>
@@ -2120,6 +2224,10 @@
     <?!= include('JS_RoomBuzzer'); ?>
     <?!= include('JS_RoomStop'); ?>
     <?!= include('JS_Director'); ?>
+    <?!= include('JS_RoomChameleon'); ?>
+    <?!= include('JS_RoomSpyfall'); ?>
+    <?!= include('JS_RoomBomb'); ?>
+    <?!= include('JS_TeamRelay'); ?>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- QR for room join links. Optional: the 4-letter code is always shown too. -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>

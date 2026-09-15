@@ -1739,23 +1739,55 @@ function setupDescribe() {
 }
 
 function startDescribeGame(time) {
-    appState.describe.score = 0;
     // `timer` is the live countdown - onTick drives it to 0 - so the round
     // length is remembered separately. "Play again" passed the ticked-out timer
     // back in, which was 0, and the new round ended the instant it started.
     const seconds = Number(time) || appState.describe.duration || 60;
     appState.describe.duration = seconds;
-    appState.describe.timer = seconds;
-        
+
+    // Team mode (JS_TeamRelay.html): a fresh relay and the handover card
+    // before the first turn; a finished match starts over the same way.
+    const o = relayOptsOf(appState.describe);
+    if (o.mode === 'teams') {
+        if (!relayActive(appState.describe)) {
+            relayStart(appState.describe, relayNames(appState.describe, TRANSLATIONS[appState.lang]), o.turns);
+        }
+        setView('play-describe');
+        describeShowRelay();
+        return;
+    }
+    appState.describe.relay = null;
+    describeRunTurn();
+}
+
+/** One timed round, for one player or for the team whose turn it is. */
+function describeRunTurn() {
+    appState.describe.score = 0;
+    appState.describe.timer = appState.describe.duration || 60;
     appState.describe.history = []; // Reset used words
-    
+
     // UI RESET: Show Game, Hide Result
     document.getElementById('desc-ui-playing').classList.remove('hidden');
     document.getElementById('desc-ui-result').classList.add('hidden');
-    
-    setView('play-describe');
+    document.getElementById('desc-ui-relay').classList.add('hidden');
+
+    if (appState.currentView !== 'play-describe') setView('play-describe');
     nextDescribeCard();
     startDescribeTimer();
+}
+
+/** The card between team turns: whose turn, hand the phone over. */
+function describeShowRelay() {
+    const t = TRANSLATIONS[appState.lang];
+    document.getElementById('desc-ui-playing').classList.add('hidden');
+    document.getElementById('desc-ui-result').classList.add('hidden');
+    const box = document.getElementById('desc-ui-relay');
+    box.classList.remove('hidden');
+    box.innerHTML = relayHandoverHtml(appState.describe, t, 'describeRunTurn()');
+}
+
+function paintDescribeSetup() {
+    paintRelaySetup('desc', appState.describe);
 }
 
 function startDescribeTimer() {
@@ -1833,11 +1865,20 @@ function finishDescribeGame() {
     playSound('alarm');
     confetti({ particleCount: 200, spread: 100 });
 
-    // 2. Update Score in Result Screen
-    document.getElementById('desc-final-score').innerText = appState.describe.score;
-
-    // 3. Switch Views: Hide Game, Show Result
     document.getElementById('desc-ui-playing').classList.add('hidden');
+
+    // Team mode: bank the turn, then the next handover or the final board.
+    if (relayActive(appState.describe)) {
+        const t = TRANSLATIONS[appState.lang];
+        const phase = relayTurnDone(appState.describe, appState.describe.score);
+        const box = document.getElementById('desc-ui-relay');
+        box.classList.remove('hidden');
+        box.innerHTML = relaySummaryHtml(appState.describe, t,
+            phase === 'done' ? 'startDescribeGame()' : 'describeShowRelay()', "setView('setup-describe')");
+        return;
+    }
+
+    document.getElementById('desc-final-score').innerText = appState.describe.score;
     document.getElementById('desc-ui-result').classList.remove('hidden');
 }
 

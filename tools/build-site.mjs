@@ -74,6 +74,14 @@ const RUNTIME = `<script>
 if (html.indexOf('</head>') === -1) throw new Error('Controller.html: no </head>');
 html = html.replace('</head>', RUNTIME);
 
+// Word lists the page shares with the rooms server: one file, both sides.
+const SHARED_LISTS = ['ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js'];
+const sharedListsHtml = (await Promise.all(SHARED_LISTS.map(async (name) =>
+  `<script>\n${await readFile(path.join(root, name), 'utf8')}\n</script>`))).join('\n    ');
+const listsMark = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;
+if (!listsMark.test(html)) throw new Error('Controller.html: SHARED_LISTS comment not found');
+html = html.replace(listsMark, sharedListsHtml);
+
 const leftover = html.match(/<\?!?=?[\s\S]{0,40}\?>/);
 if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);
 

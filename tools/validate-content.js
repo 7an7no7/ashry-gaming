@@ -176,7 +176,7 @@ const G = ROOT;
 // The Chameleon's board is a 4×4 grid: exactly 16 words, and a repeat would
 // make the chameleon's final guess ambiguous. The two languages are listed in
 // the same order, which is what lets a category pick survive a language switch.
-const CHAM = load(G + 'JS_Chameleon.html', 'CHAMELEON_DB');
+const CHAM = load(G + 'ChameleonWords.js', 'CHAMELEON_DB');
 for (const [lang, cats] of Object.entries(CHAM)) {
   cats.forEach((c, i) => {
     if (c.words.length !== 16) note(`chameleon.${lang}[${i}] ${c.category}: ${c.words.length} words, the grid needs 16`);
@@ -188,7 +188,7 @@ for (const [lang, cats] of Object.entries(CHAM)) {
 if (CHAM.ar.length !== CHAM.en.length) note(`chameleon: ${CHAM.ar.length} ar categories vs ${CHAM.en.length} en`);
 
 // The spy's guess is matched on the location's name, so names must be unique.
-const SPY = load(G + 'JS_Spyfall.html', 'SPYFALL_DB');
+const SPY = load(G + 'SpyfallPlaces.js', 'SPYFALL_DB');
 for (const [lang, locs] of Object.entries(SPY)) {
   const names = locs.map(l => l.location);
   const dup = names.filter((w, k, a) => a.indexOf(w) !== k);
@@ -271,7 +271,7 @@ for (const [cat, words] of Object.entries(SPY_WORDS)) {
 console.log(`spy: ${Object.keys(SPY_WORDS).length} categories, ${Object.values(SPY_WORDS).reduce((n, w) => n + w.length, 0)} words`);
 
 // القنبلة: a category is listed once, and there are enough to last an evening.
-const BOMB = load(G + 'JS_Bomb.html', 'BOMB_PROMPTS');
+const BOMB = load(G + 'BombPrompts.js', 'BOMB_PROMPTS');
 for (const [lang, list] of Object.entries(BOMB)) {
   const dup = repeats(list);
   if (dup.length) note(`bomb.${lang}: duplicates ${JSON.stringify(dup)}`);

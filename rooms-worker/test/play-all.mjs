@@ -417,6 +417,75 @@ async function main() {
   await all(bots, (s) => s.shared.phase === 'writing' && s.shared.round === 2 && s.shared.totals[A.pid] === 20 && s.shared.letter !== L, 'next round banks the points and deals a new letter');
   await A.must('backToHub');
 
+  /* --- الحرباء ----------------------------------------------------------------- */
+  console.log('• chameleon');
+  await A.must('chooseGame', { game: 'chameleon' });
+  await A.must('start', { lang: 'ar' });
+  await all(bots, (s) => s.shared.phase === 'clues' && s.shared.words.length === 16 && s.shared.order.length === 4, 'chameleon deals a board and an order');
+  const chams = bots.filter((b) => b.state.you && b.state.you.role === 'chameleon');
+  check(chams.length === 1, 'exactly one chameleon');
+  const cham = chams[0];
+  const restBots = bots.filter((b) => b !== cham);
+  const secret = restBots[0].state.you.secret;
+  check(restBots.every((b) => b.state.you.secret === secret), 'everyone else is told the same secret index');
+  check(cham.state.you.secret === undefined && !('secretWord' in cham.state.shared), 'the chameleon is told nothing');
+  await A.must('startVote');
+  await all(bots, (s) => s.shared.phase === 'voting', 'the host opens the vote');
+  check((await cham.act('vote', { option: cham.pid })).ok === false, 'you cannot accuse yourself');
+  for (const b of bots) await b.must('vote', { option: b === cham ? restBots[0].pid : cham.pid });
+  await all(bots, (s) => s.shared.phase === 'guess' && s.shared.chameleonId === cham.pid, 'a caught chameleon gets a guess');
+  check((await restBots[0].act('guess', { index: secret })).ok === false, 'only the chameleon guesses');
+  await cham.must('guess', { index: (secret + 1) % 16 });
+  await all(bots, (s) => s.shared.phase === 'results' && s.shared.outcome === 'caught' && s.shared.secretWord === s.shared.words[secret] && s.shared.scores[restBots[0].pid] === 1,
+    'a wrong guess: the players score and the word is revealed');
+  await A.must('nextRound', { lang: 'ar' });
+  await all(bots, (s) => s.shared.phase === 'clues' && s.shared.round === 2, 'next round deals again');
+  await A.must('backToHub');
+
+  /* --- الموقع السري --------------------------------------------------------- */
+  console.log('• spyfall');
+  await A.must('chooseGame', { game: 'spyfall' });
+  await A.must('start', { lang: 'ar', minutes: 5, spyBots: 1 });
+  await all(bots, (s) => s.shared.phase === 'play' && s.shared.locations.length > 20 && s.shared.endsAt > Date.now(), 'spyfall deals a place and starts the clock');
+  const spyBots = bots.filter((b) => b.state.you && b.state.you.role === 'spy');
+  check(spyBots.length === 1, 'one spy');
+  const theSpy = spyBots[0];
+  const agents = bots.filter((b) => b !== theSpy);
+  const place = agents[0].state.you.location;
+  check(!!place && agents.every((b) => b.state.you.location === place && b.state.you.job), 'agents share the place and have jobs');
+  check(!theSpy.state.you.location && !('location' in theSpy.state.shared), 'the theSpy is not told the place');
+  check((await agents[0].act('spyGuess', { location: place })).ok === false, 'only the theSpy guesses');
+  await theSpy.must('spyGuess', { location: theSpy.state.shared.locations.find((l) => l !== place) });
+  await all(bots, (s) => s.shared.phase === 'results' && s.shared.outcome === 'caught' && s.shared.location === place && s.shared.scores[agents[0].pid] === 1,
+    'a wrong guess by the theSpy: the agents score');
+  await A.must('nextRound', { lang: 'ar' });
+  await all(bots, (s) => s.shared.phase === 'play' && s.shared.round === 2, 'next round deals again');
+  await A.must('startVote');
+  await all(bots, (s) => s.shared.phase === 'voting', 'the host opens the vote');
+  const spy2 = bots.find((b) => b.state.you.role === 'spy');
+  const agent2 = bots.find((b) => b.state.you.role !== 'spy');
+  const spyBefore = spy2.state.shared.scores[spy2.pid] || 0;
+  for (const b of bots) await b.must('vote', { option: b === agent2 ? spy2.pid : agent2.pid });
+  await all(bots, (s) => s.shared.phase === 'results' && s.shared.outcome === 'escaped' && s.shared.scores[spy2.pid] === spyBefore + 2, 'accusing the wrong player: the spy escapes with two points');
+  await A.must('backToHub');
+
+  /* --- القنبلة (waits for a short fuse, up to ~32s) ------------------------- */
+  console.log('• bomb (waits for a short fuse on the server clock)');
+  await A.must('chooseGame', { game: 'bomb' });
+  await A.must('start', { lang: 'ar', mode: 'category', fuse: 'short' });
+  await all(bots, (s) => s.shared.phase === 'ticking' && !!s.shared.prompt && s.shared.heat === 0, 'the bomb starts ticking');
+  check(!JSON.stringify(A.state).includes('bombEndsAt'), 'the fuse length stays on the server');
+  const prompt0 = A.state.shared.prompt;
+  await A.must('swap');
+  await all(bots, (s) => s.shared.prompt !== prompt0, 'the host can swap the category');
+  await all(bots, (s) => s.shared.heat >= 1, 'the server raises the heat as the fuse burns', 20000);
+  await all(bots, (s) => s.shared.phase === 'boom', 'the server sets it off', 35000);
+  await A.must('markLoser', { playerId: B.pid });
+  await all(bots, (s) => s.shared.strikes[B.pid] === 1 && s.shared.loserId === B.pid && s.shared.board[s.shared.board.length - 1].id === B.pid, 'the host marks who was holding it');
+  await A.must('nextRound', { lang: 'ar' });
+  await all(bots, (s) => s.shared.phase === 'ticking' && s.shared.round === 2 && s.shared.strikes[B.pid] === 1, 'next round keeps the strikes');
+  await A.must('backToHub');
+
   /* --- رسم وتخمين ----------------------------------------------------------- */
   console.log('• draw & guess (strokes, live line, guesses)');
   await A.must('chooseGame', { game: 'drawguess' });

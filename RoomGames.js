@@ -57,6 +57,12 @@ const clearGameState = (room) => {
   room._stopOpts = null;
   room._stopTotals = null;
   room._stopRound = null;
+  room._chamSecret = null;
+  room._chamId = null;
+  room._spyLoc = null;
+  room._spyIds = null;
+  room._bombStart = null;
+  room._bombEndsAt = null;
 };
 
 /** The stashed sides, minus anyone who has since left. */
@@ -73,7 +79,8 @@ const rememberedTeams = (room) => {
 const ROOM_GAME_IDS = [
   'imposter', 'justone', 'whoami', 'codenames',
   'wouldyou', 'mostlikely', 'fibbage', 'drawguess',
-  'fakeartist', 'wavelength', 'trivia', 'buzzer', 'stop'
+  'fakeartist', 'wavelength', 'trivia', 'buzzer', 'stop',
+  'chameleon', 'spyfall', 'bomb'
 ];
 
 // Must match MAX_PLAYERS and MAX_SCREENS in rooms-worker/src/room.js.
@@ -156,6 +163,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'trivia':     triviaAction(room, playerId, action, payload); break;
     case 'buzzer':     buzzerAction(room, playerId, action, payload); break;
     case 'stop':       stopAction(room, playerId, action, payload); break;
+    case 'chameleon':  chameleonRoomAction(room, playerId, action, payload); break;
+    case 'spyfall':    spyfallRoomAction(room, playerId, action, payload); break;
+    case 'bomb':       bombRoomAction(room, playerId, action, payload); break;
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -367,6 +377,363 @@ const stopBoard = (room) =>
   room.players
     .map(p => ({ id: p.id, name: p.name, score: (room._stopTotals || {})[p.id] || 0 }))
     .sort((a, b) => b.score - a.score);
+
+/* ==========================================================================
+   الحرباء — THE CHAMELEON (rooms)
+   Sixteen words on every phone and the big screen. Everyone but the chameleon
+   is told which one is secret (an index in their own secret slice); the
+   chameleon's slice says only that. Clues go round in `order`, the host opens
+   the vote, and a caught chameleon gets one guess at the word. The word itself
+   reaches `shared` only when the round is over.
+   ========================================================================== */
+const CHAMELEON_GRID = 16;
+
+const chameleonRoomAction = (room, playerId, action, payload) => {
+  if (action === 'start' || action === 'nextRound') {
+    requireHost(room, playerId);
+    if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
+    const prev = room.shared || {};
+    if (action === 'nextRound' && prev.phase !== 'results') return;
+    const lang = roomLangOf(room, payload);
+    const pool = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
+    const entry = nextPrompt(room, pool, 'cham_' + lang);
+    const words = entry.words.slice(0, CHAMELEON_GRID);
+    const secret = Math.floor(Math.random() * words.length);
+    const roster = room.players.map(p => p.id);
+    const cham = roster[Math.floor(Math.random() * roster.length)];
+    room.secrets = {};
+    roster.forEach(id => { room.secrets[id] = id === cham ? { role: 'chameleon' } : { role: 'player', secret: secret }; });
+    room._chamSecret = secret;
+    room._chamId = cham;
+    room.shared = {
+      round: (prev.round || 0) + 1,
+      lang: lang,
+      category: entry.category,
+      words: words,
+      order: shuffled(roster),
+      phase: 'clues',
+      scores: action === 'start' ? {} : (prev.scores || {}),
+      roster: roster,
+      vote: null,
+      outcome: null
+    };
+    room.shared.board = scoreboardOf(room);
+    room.phase = 'play';
+    return;
+  }
+
+  const s = room.shared;
+  if (!s || room.phase !== 'play') throw new Error('اللعبة لم تبدأ بعد');
+
+  if (action === 'startVote') {
+    requireHost(room, playerId);
+    if (s.phase !== 'clues') return;
+    openVote(room, room.players.filter(p => s.roster.indexOf(p.id) !== -1).map(p => ({ id: p.id, label: p.name, ownerId: p.id })), s.roster);
+    s.phase = 'voting';
+    return;
+  }
+  if (action === 'vote') {
+    if (s.phase !== 'voting') throw new Error('لا يوجد تصويت الآن');
+    if (castVote(room, playerId, String((payload && payload.option) || ''))) resolveChameleonVote(room);
+    return;
+  }
+  if (action === 'closeVote') {
+    requireHost(room, playerId);
+    if (s.phase !== 'voting') return;
+    if (closeVote(room)) resolveChameleonVote(room);
+    return;
+  }
+  if (action === 'guess') {
+    if (s.phase !== 'guess') throw new Error('ليس وقت التخمين');
+    if (playerId !== room._chamId) throw new Error('الحرباء فقط تخمّن');
+    const i = Number(payload && payload.index);
+    if (!(i >= 0 && i < s.words.length && i === Math.floor(i))) throw new Error('اختيار غير صحيح');
+    finishChameleon(room, i === room._chamSecret ? 'stole' : 'caught', i);
+    return;
+  }
+  if (action === 'skipGuess') {
+    requireHost(room, playerId);
+    if (s.phase !== 'guess') return;
+    finishChameleon(room, 'caught', null);
+    return;
+  }
+  throw new Error('إجراء غير معروف');
+};
+
+const roomPlayerName = (room, id) => {
+  const p = room.players.find(x => x.id === id);
+  return p ? p.name : '';
+};
+
+/** Most votes is accused; a tie lets the chameleon slip away. */
+const resolveChameleonVote = (room) => {
+  const s = room.shared;
+  const results = s.vote.results || [];
+  const top = results.reduce((m, r) => Math.max(m, r.count), 0);
+  const leaders = results.filter(r => top > 0 && r.count === top);
+  const accused = leaders.length === 1 ? leaders[0] : null;
+  s.accusedId = accused ? accused.id : null;
+  s.accusedName = accused ? accused.label : '';
+  if (accused && accused.id === room._chamId) {
+    s.chameleonId = room._chamId;
+    s.chameleonName = roomPlayerName(room, room._chamId);
+    s.phase = 'guess';
+    return;
+  }
+  finishChameleon(room, 'escaped', null);
+};
+
+/** Caught: a point to everyone else. Escaped or stole the word: two to the chameleon. */
+const finishChameleon = (room, outcome, guessIndex) => {
+  const s = room.shared;
+  const cham = room._chamId;
+  s.outcome = outcome;
+  s.guessIndex = guessIndex;
+  s.chameleonId = cham;
+  s.chameleonName = roomPlayerName(room, cham);
+  s.secretIndex = room._chamSecret;
+  s.secretWord = s.words[room._chamSecret];
+  if (outcome === 'caught') {
+    s.roster.forEach(id => { if (id !== cham && room.players.some(p => p.id === id)) addScore(room, id, 1); });
+  } else {
+    addScore(room, cham, 2);
+  }
+  s.board = scoreboardOf(room);
+  s.phase = 'results';
+};
+
+/* ==========================================================================
+   الموقع السري — SPYFALL (rooms)
+   Everyone is told the place and a job there, in their own secret slice; the
+   spy is told only that they are the spy. The full list of places is public
+   (it is what the spy guesses from). A clock runs on the server: when it
+   runs out the vote opens by itself. The spy may stop the game at any time
+   to guess the place.
+   ========================================================================== */
+const SPYFALL_MINUTES = [5, 8, 10];
+const SPYFALL_GRACE_MS = 1500;
+const SPYFALL_CARD = 24;         // places shown per round, the real one among them
+
+const spyfallRoomAction = (room, playerId, action, payload) => {
+  if (action === 'start' || action === 'nextRound') {
+    requireHost(room, playerId);
+    if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
+    const prev = room.shared || {};
+    if (action === 'nextRound' && prev.phase !== 'results') return;
+    const lang = roomLangOf(room, payload);
+    const pool = SPYFALL_DB[lang] || SPYFALL_DB.ar;
+    const loc = nextPrompt(room, pool, 'spyfall_' + lang);
+    const askedMinutes = Number(payload && payload.minutes);
+    const minutes = SPYFALL_MINUTES.indexOf(askedMinutes) !== -1 ? askedMinutes : (prev.minutes || 8);
+    let spyCount = Number(payload && payload.spies) === 2 ? 2 : (payload && payload.spies ? 1 : (prev.spyCount || 1));
+    // Two spies among five leave too few who know the place to catch anyone.
+    if (room.players.length < 6) spyCount = 1;
+    const roster = room.players.map(p => p.id);
+    const order = shuffled(roster);
+    const spyIds = order.slice(0, spyCount);
+    const jobs = shuffled(loc.roles || []);
+    room.secrets = {};
+    let j = 0;
+    roster.forEach(id => {
+      room.secrets[id] = spyIds.indexOf(id) !== -1
+        ? { role: 'spy' }
+        : { role: 'agent', location: loc.location, job: jobs.length ? jobs[j++ % jobs.length] : '' };
+    });
+    room._spyLoc = loc.location;
+    room._spyIds = spyIds;
+    room.shared = {
+      round: (prev.round || 0) + 1,
+      lang: lang,
+      minutes: minutes,
+      spyCount: spyCount,
+      phase: 'play',
+      endsAt: Date.now() + minutes * 60000,
+      // A card of 24 places to guess from, the real one among them: the whole
+      // list is too long to read on a phone and too dense on a TV.
+      locations: shuffled(shuffled(pool.map(l => l.location).filter(l => l !== loc.location)).slice(0, SPYFALL_CARD - 1).concat([loc.location])),
+      firstId: order[spyCount] || order[0],
+      scores: action === 'start' ? {} : (prev.scores || {}),
+      roster: roster,
+      vote: null,
+      outcome: null
+    };
+    room.shared.board = scoreboardOf(room);
+    room.phase = 'play';
+    return;
+  }
+
+  const s = room.shared;
+  if (!s || room.phase !== 'play') throw new Error('اللعبة لم تبدأ بعد');
+
+  if (action === 'startVote') {
+    requireHost(room, playerId);
+    if (s.phase !== 'play') return;
+    openSpyfallVote(room);
+    return;
+  }
+  if (action === 'vote') {
+    if (s.phase !== 'voting') throw new Error('لا يوجد تصويت الآن');
+    if (castVote(room, playerId, String((payload && payload.option) || ''))) resolveSpyfallVote(room);
+    return;
+  }
+  if (action === 'closeVote') {
+    requireHost(room, playerId);
+    if (s.phase !== 'voting') return;
+    if (closeVote(room)) resolveSpyfallVote(room);
+    return;
+  }
+  if (action === 'spyGuess') {
+    if ((room._spyIds || []).indexOf(playerId) === -1) throw new Error('الجاسوس فقط يخمّن');
+    const mayGuess = s.phase === 'play' || (s.phase === 'guess' && s.guesserId === playerId);
+    if (!mayGuess) throw new Error('ليس وقت التخمين');
+    const guess = String((payload && payload.location) || '');
+    if (s.locations.indexOf(guess) === -1) throw new Error('اختيار غير صحيح');
+    finishSpyfall(room, guess === room._spyLoc ? 'stole' : 'caught', guess, playerId);
+    return;
+  }
+  if (action === 'skipGuess') {
+    requireHost(room, playerId);
+    if (s.phase !== 'guess') return;
+    finishSpyfall(room, 'caught', null, s.guesserId);
+    return;
+  }
+  throw new Error('إجراء غير معروف');
+};
+
+const openSpyfallVote = (room) => {
+  const s = room.shared;
+  openVote(room, room.players.filter(p => s.roster.indexOf(p.id) !== -1).map(p => ({ id: p.id, label: p.name, ownerId: p.id })), s.roster);
+  s.phase = 'voting';
+};
+
+/** Most votes is accused; a tie lets the spy escape. An accused spy gets one guess. */
+const resolveSpyfallVote = (room) => {
+  const s = room.shared;
+  const results = s.vote.results || [];
+  const top = results.reduce((m, r) => Math.max(m, r.count), 0);
+  const leaders = results.filter(r => top > 0 && r.count === top);
+  const accused = leaders.length === 1 ? leaders[0] : null;
+  s.accusedId = accused ? accused.id : null;
+  s.accusedName = accused ? accused.label : '';
+  if (accused && (room._spyIds || []).indexOf(accused.id) !== -1) {
+    s.guesserId = accused.id;
+    s.guesserName = accused.label;
+    s.phase = 'guess';
+    return;
+  }
+  finishSpyfall(room, 'escaped', null, null);
+};
+
+/** Caught: a point to every agent. Escaped or guessed the place: two to each spy. */
+const finishSpyfall = (room, outcome, guess, spyId) => {
+  const s = room.shared;
+  const spies = room._spyIds || [];
+  s.outcome = outcome;
+  s.guess = guess;
+  s.guesserId = spyId || s.guesserId || null;
+  s.location = room._spyLoc;
+  s.spyIds = spies.slice();
+  s.spyNames = spies.map(id => roomPlayerName(room, id));
+  if (outcome === 'caught') {
+    s.roster.forEach(id => { if (spies.indexOf(id) === -1 && room.players.some(p => p.id === id)) addScore(room, id, 1); });
+  } else {
+    spies.forEach(id => addScore(room, id, 2));
+  }
+  s.board = scoreboardOf(room);
+  s.phase = 'results';
+};
+
+/* ==========================================================================
+   القنبلة — PASS THE BOMB (rooms)
+   The category is on the big screen and on every phone; the phone (or any
+   object) is passed round the table as before. The fuse is a server clock
+   nobody can read: the deadline stays in room._bombEndsAt, and what phones
+   get is `heat` (0-3), bumped by the alarm at 40%, 65% and 85% of the fuse,
+   which is what makes the ticking speed up. When it goes off the host marks
+   who was holding it, and the strikes are the scoreboard - fewest wins.
+   ========================================================================== */
+const BOMB_FUSES_ROOM = { short: [15, 30], normal: [25, 55], long: [40, 80] };
+const BOMB_HEAT_AT = [0.4, 0.65, 0.85];
+
+const bombRoomAction = (room, playerId, action, payload) => {
+  if (action === 'start' || action === 'nextRound' || action === 'playAgain') {
+    requireHost(room, playerId);
+    if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
+    const prev = room.shared || {};
+    if (action === 'nextRound' && prev.phase !== 'boom') return;
+    const askedMode = payload && payload.mode;
+    const askedFuse = payload && payload.fuse;
+    dealBomb(room, {
+      lang: roomLangOf(room, payload),
+      mode: ['category', 'letter', 'mix'].indexOf(askedMode) !== -1 ? askedMode : (prev.mode || 'category'),
+      fuse: BOMB_FUSES_ROOM[askedFuse] ? askedFuse : (prev.fuse || 'normal'),
+      round: action === 'nextRound' ? (prev.round || 0) + 1 : 1,
+      strikes: action === 'nextRound' ? (prev.strikes || {}) : {}
+    });
+    return;
+  }
+
+  const s = room.shared;
+  if (!s || room.phase !== 'play') throw new Error('اللعبة لم تبدأ بعد');
+
+  if (action === 'swap') {
+    requireHost(room, playerId);
+    if (s.phase !== 'ticking') return;
+    const next = bombPrompt(room, s.lang, s.mode);
+    s.prompt = next.text;
+    s.kind = next.kind;
+    return;
+  }
+  if (action === 'markLoser') {
+    requireHost(room, playerId);
+    if (s.phase !== 'boom') return;
+    const id = String((payload && payload.playerId) || '');
+    if (!room.players.some(p => p.id === id)) throw new Error('لاعب غير معروف');
+    s.strikes[id] = (s.strikes[id] || 0) + 1;
+    s.loserId = id;
+    s.loserName = roomPlayerName(room, id);
+    s.board = bombBoard(room);
+    return;
+  }
+  throw new Error('إجراء غير معروف');
+};
+
+const bombPrompt = (room, lang, mode) => {
+  const wantLetter = mode === 'letter' || (mode === 'mix' && Math.random() < 0.35);
+  if (wantLetter) return { kind: 'letter', text: nextPrompt(room, BOMB_LETTERS[lang] || BOMB_LETTERS.ar, 'bombl_' + lang) };
+  return { kind: 'category', text: nextPrompt(room, BOMB_PROMPTS[lang] || BOMB_PROMPTS.ar, 'bomb_' + lang) };
+};
+
+const dealBomb = (room, o) => {
+  const range = BOMB_FUSES_ROOM[o.fuse] || BOMB_FUSES_ROOM.normal;
+  const seconds = range[0] + Math.floor(Math.random() * (range[1] - range[0] + 1));
+  const prompt = bombPrompt(room, o.lang, o.mode);
+  room._bombStart = Date.now();
+  room._bombEndsAt = room._bombStart + seconds * 1000;
+  room.secrets = {};
+  room.shared = {
+    round: o.round,
+    lang: o.lang,
+    mode: o.mode,
+    fuse: o.fuse,
+    prompt: prompt.text,
+    kind: prompt.kind,
+    phase: 'ticking',
+    heat: 0,
+    strikes: o.strikes,
+    loserId: null,
+    loserName: '',
+    roster: room.players.map(p => p.id)
+  };
+  room.shared.board = bombBoard(room);
+  room.phase = 'play';
+};
+
+/** Fewest strikes first: this board is who is losing least. */
+const bombBoard = (room) =>
+  room.players
+    .map(p => ({ id: p.id, name: p.name, score: (room.shared.strikes || {})[p.id] || 0 }))
+    .sort((a, b) => a.score - b.score);
 
 /* ==========================================================================
    الجرس — THE BUZZER
@@ -2000,6 +2367,12 @@ const roomDeadline = (room) => {
   if (room.game === 'codenames' && room.phase === 'playing' && !s.winner && s.endsAt) {
     return s.endsAt + CODENAMES_GRACE_MS;
   }
+  if (room.game === 'spyfall' && s.phase === 'play' && s.endsAt) return s.endsAt + SPYFALL_GRACE_MS;
+  if (room.game === 'bomb' && s.phase === 'ticking' && room._bombEndsAt) {
+    const total = room._bombEndsAt - room._bombStart;
+    const heat = s.heat || 0;
+    return heat < BOMB_HEAT_AT.length ? room._bombStart + total * BOMB_HEAT_AT[heat] : room._bombEndsAt;
+  }
   if (room.game === 'stop' && s.phase === 'writing' && s.endsAt) return s.endsAt + STOP_GRACE_MS;
   if (room.game === 'stop' && s.phase === 'collecting' && s.collectEndsAt) return s.collectEndsAt + STOP_GRACE_MS;
   return null;
@@ -2018,6 +2391,24 @@ const roomTimeout = (room, now) => {
     // No clue, or no guesses, in time: the other team is up.
     endCodenamesTurn(room);
     return true;
+  }
+  if (room.game === 'spyfall') {
+    // Time's up: the table has to vote now.
+    if (room.shared.phase !== 'play') return false;
+    openSpyfallVote(room);
+    return true;
+  }
+  if (room.game === 'bomb') {
+    const s = room.shared;
+    if (s.phase !== 'ticking') return false;
+    if (now >= room._bombEndsAt) { s.phase = 'boom'; return true; }
+    const total = room._bombEndsAt - room._bombStart;
+    let bumped = false;
+    while ((s.heat || 0) < BOMB_HEAT_AT.length && now >= room._bombStart + total * BOMB_HEAT_AT[s.heat || 0]) {
+      s.heat = (s.heat || 0) + 1;
+      bumped = true;
+    }
+    return bumped;
   }
   if (room.game === 'stop') {
     const s = room.shared;

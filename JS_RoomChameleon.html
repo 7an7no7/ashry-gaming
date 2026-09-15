@@ -1,0 +1,149 @@
+<script>
+/* ============================================================================
+   الحرباء — ON SEPARATE PHONES, AND ON THE TV
+   ----------------------------------------------------------------------------
+   Sixteen words on every screen. Each player's own phone marks the secret one
+   for them (state.you.secret); the chameleon's phone marks nothing. Clues go
+   round in the order shown, the host opens the vote, and a caught chameleon
+   taps a word to guess. Rules: chameleonRoomAction in RoomGames.js.
+   ========================================================================= */
+
+ROOM_GAMES.chameleon = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.cham_room_hint || '')}</p>`;
+  },
+  startPayload: () => ({ lang: VOTE_LANG() }),
+
+  render(state) {
+    if (appState.currentView !== 'room-chameleon') setView('room-chameleon');
+    const el = document.getElementById('view-room-chameleon');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const v = s.vote || {};
+    const sig = ['cham', s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, s.guessIndex,
+                 state.youAreHost, appState.lang, JSON.stringify(s.scores || {})].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => chameleonFrame(state, t));
+    if (rebuilt && s.phase === 'results' && s.outcome === 'caught' && typeof confetti === 'function') confetti({ particleCount: 120, spread: 70 });
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/** The 4×4 board. `mine` marks the secret for a player, `pick` makes cells tappable. */
+function chameleonGridHtml(s, opts) {
+  const o = opts || {};
+  return `
+    <div class="cham-grid">
+      ${s.words.map((w, i) => {
+        const cls = [
+          o.mine === i ? 'is-mine' : '',
+          s.phase === 'results' && s.secretIndex === i ? 'is-secret' : '',
+          s.phase === 'results' && s.guessIndex === i && s.guessIndex !== s.secretIndex ? 'is-wrong' : ''
+        ].join(' ');
+        return o.pick
+          ? `<button type="button" class="cham-cell ${cls}" onclick="${o.pick}(${i})">${escapeHTML(w)}</button>`
+          : `<div class="cham-cell ${cls}">${escapeHTML(w)}</div>`;
+      }).join('')}
+    </div>`;
+}
+
+function chameleonFrame(state, t) {
+  const s = state.shared;
+  const you = state.you || {};
+  const iAmCham = you.role === 'chameleon';
+  const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+  const head = `
+    <div class="play-head">
+      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
+      <span class="badge badge--accent">${escapeHTML(s.category || '')}</span>
+    </div>`;
+  const role = !inRound ? '' : (iAmCham
+    ? `<div class="role-card role-card--spy"><div class="role-card__label">🦎 ${escapeHTML(t.cham_you_are || '')}</div><div class="role-card__hint">${escapeHTML(t.cham_you_hint || '')}</div></div>`
+    : `<p class="field__hint" style="text-align:center">${escapeHTML(t.cham_your_word_hint || '')}</p>`);
+
+  if (s.phase === 'clues') {
+    return head + role + chameleonGridHtml(s, { mine: iAmCham ? -1 : you.secret }) + `
+      <div class="card card--tight">
+        <div class="eyebrow">${escapeHTML(t.speaking_order || '')}</div>
+        <div class="chip-set">${(s.order || []).map((id, i) => `<span class="chip chip--plain"><b class="metric">${i + 1}</b>&nbsp;${escapeHTML(nameOf(id))}</span>`).join('')}</div>
+      </div>
+      ${state.youAreHost
+        ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('startVote')">${escapeHTML(t.cham_start_vote || '')}</button></div>`
+        : `<div class="waiting-note">${escapeHTML(t.cham_wait_vote || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}`;
+  }
+  if (s.phase === 'voting') {
+    return head + chameleonGridHtml(s, { mine: iAmCham ? -1 : you.secret }) + `
+      <div class="card card--tight">
+        <div class="eyebrow">${escapeHTML(t.accuse_chameleon || '')}</div>
+        ${renderBallot(state)}
+      </div>` + renderRoomPlayerStrip(state);
+  }
+  if (s.phase === 'guess') {
+    return head + `
+      <div class="card card--accent" style="text-align:center">
+        <div class="metric metric--md">🦎 ${escapeHTML(s.chameleonName || '')}</div>
+        <p class="sheet__subtitle">${escapeHTML(iAmCham ? (t.cham_guess_hint || '') : (t.cham_guessing || ''))}</p>
+      </div>
+      ${chameleonGridHtml(s, iAmCham ? { pick: 'chameleonGuess' } : { mine: you.secret })}
+      ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${escapeHTML(t.fa_skip_guess || '')}</button></div>` : ''}
+      ${renderRoomPlayerStrip(state)}`;
+  }
+  // results
+  const won = s.outcome === 'caught';
+  const line = s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
+  return head + `
+    <div class="card ${won ? 'card--accent' : ''}" style="text-align:center">
+      <div class="metric metric--md ${won ? 'tx-success' : 'tx-warning'}">${won ? '🎉' : '🦎'} ${escapeHTML(line.replace('{name}', s.chameleonName || ''))}</div>
+      <p class="sheet__subtitle">${escapeHTML(t.secret_word || '')}: <b>${escapeHTML(s.secretWord || '')}</b>${s.accusedName ? ` · ${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}` : ''}</p>
+    </div>
+    ${chameleonGridHtml(s, {})}
+    ${renderScoreboard(s.board)}
+    ${state.youAreHost
+      ? `<div class="btn-stack">
+           <button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { lang: '${VOTE_LANG()}' })">${escapeHTML(t.next_round || '')}</button>
+           <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+         </div>`
+      : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+    ${renderRoomPlayerStrip(state)}`;
+}
+
+function chameleonGuess(index) {
+  const s = Room.state && Room.state.shared;
+  if (!s || s.phase !== 'guess') return;
+  const word = s.words[index];
+  showConfirmModal((TRANSLATIONS[appState.lang].cham_confirm_guess || '{word}').replace('{word}', word), () => roomAct('guess', { index: index }));
+}
+
+/* --- the big screen --- */
+TV_GAMES.chameleon = {
+  sig(state) {
+    const s = state.shared || {};
+    const v = s.vote || {};
+    return [s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, s.guessIndex, JSON.stringify(s.scores || {})].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+    const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round} · ${escapeHTML(s.category || '')}</div>`;
+    const grid = `<div class="tv-cham">${chameleonGridHtml(s, {})}</div>`;
+    if (s.phase === 'clues') {
+      return `<div class="tv-vote">${head}${grid}
+        <div class="tv-strip-inline">${(s.order || []).map((id, i) => `<span class="tv-chip"><b>${i + 1}</b> ${escapeHTML(nameOf(id))}</span>`).join('')}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.cham_start_vote, "roomAct('startVote')")}</div>` : `<div class="tv-note">${t.cham_wait_vote || ''}</div>`}</div>`;
+    }
+    if (s.phase === 'voting') return `<div class="tv-vote">${head}${grid}${tvVoteProgress(state, t)}</div>`;
+    if (s.phase === 'guess') {
+      return `<div class="tv-vote">${head}<div class="tv-question">🦎 ${escapeHTML(s.chameleonName || '')} · ${t.cham_guessing || ''}</div>${grid}
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>` : ''}</div>`;
+    }
+    const line = s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
+    return `<div class="tv-vote">${head}
+      <div class="tv-question">${s.outcome === 'caught' ? '🎉' : '🦎'} ${escapeHTML(line.replace('{name}', s.chameleonName || ''))} · ${escapeHTML(s.secretWord || '')}</div>
+      ${grid}<div class="tv-scale">${renderScoreboard(s.board)}</div>
+      ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}</div>`;
+  }
+};
+</script>

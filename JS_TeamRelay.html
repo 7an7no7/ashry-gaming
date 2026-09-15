@@ -1,0 +1,134 @@
+<script>
+/* ============================================================================
+   TEAM RELAY — two teams take turns with one phone
+   ----------------------------------------------------------------------------
+   بدون كلام and أوصف لي were one timed round for one player. Team mode wraps
+   that round: the phone names whose team is up, the round runs as it always
+   did, the words guessed are that team's points, and the phone is handed to
+   the other team. After the chosen number of turns each, a final board.
+
+   The relay lives in the game's own slice of appState (`store.relay`), so
+   the tally survives a trip to the menu. A round in progress does not (it
+   never did): a reload lands on the setup screen.
+   ========================================================================= */
+
+function relayStart(store, names, turns) {
+  store.relay = { names: [names[0], names[1]], turns: turns, i: 0, scores: [0, 0], last: null, phase: 'handover' };
+  if (typeof saveToLocal === 'function') saveToLocal();
+}
+
+const relayActive = (store) => !!(store && store.relay && store.relay.phase !== 'done');
+const relayTeam = (store) => store.relay.i % 2;
+
+/** The card between turns: whose turn, hand the phone over, the score so far. */
+function relayHandoverHtml(store, t, startFn) {
+  const r = store.relay;
+  const team = relayTeam(store);
+  const turnNo = Math.floor(r.i / 2) + 1;
+  return `
+    <div class="relay">
+      ${relayScoresHtml(store, team)}
+      <div class="relay__pass">
+        <div class="eyebrow">${escapeHTML(t.relay_turn_of || '')} · ${turnNo} / ${r.turns}</div>
+        <div class="relay__team relay__team--${team}">${escapeHTML(r.names[team])}</div>
+        <p class="field__hint">📱 ${escapeHTML(t.relay_pass_to || '')} ${escapeHTML(r.names[team])}</p>
+      </div>
+      <button type="button" class="btn btn--primary btn--lg" onclick="${startFn}">${escapeHTML(t.relay_start_turn || '')}</button>
+    </div>`;
+}
+
+/** After a turn: what this team scored, and on to the next one or the final board. */
+function relayTurnDone(store, points) {
+  const r = store.relay;
+  const team = relayTeam(store);
+  r.scores[team] += points;
+  r.last = { team: team, points: points };
+  r.i += 1;
+  r.phase = r.i >= r.turns * 2 ? 'done' : 'handover';
+  if (typeof saveToLocal === 'function') saveToLocal();
+  return r.phase;
+}
+
+function relaySummaryHtml(store, t, nextFn, exitFn) {
+  const r = store.relay;
+  const last = r.last || { team: 0, points: 0 };
+  if (r.phase === 'done') {
+    const [a, b] = r.scores;
+    const title = a === b ? (t.relay_tie || '') : `🏆 ${r.names[a > b ? 0 : 1]}`;
+    return `
+      <div class="relay">
+        <div class="relay__result">
+          <div class="eyebrow">${escapeHTML(t.relay_final || '')}</div>
+          <div class="metric metric--md metric--accent">${escapeHTML(title)}</div>
+        </div>
+        ${relayScoresHtml(store, -1)}
+        <button type="button" class="btn btn--primary btn--lg" onclick="${nextFn}">${escapeHTML(t.play_again || '')}</button>
+        <button type="button" class="btn btn--ghost" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
+      </div>`;
+  }
+  return `
+    <div class="relay">
+      <div class="relay__result">
+        <div class="eyebrow">${escapeHTML(t.relay_turn_done || '')}</div>
+        <div class="relay__team relay__team--${last.team}">${escapeHTML(r.names[last.team])}</div>
+        <div class="metric metric--lg tx-success">+${last.points}</div>
+      </div>
+      ${relayScoresHtml(store, -1)}
+      <button type="button" class="btn btn--primary btn--lg" onclick="${nextFn}">${escapeHTML(t.relay_next_team || '')} ⏭</button>
+      <button type="button" class="btn btn--ghost btn--sm" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+function relayScoresHtml(store, activeTeam) {
+  const r = store.relay;
+  return `
+    <div class="relay__scores">
+      ${[0, 1].map(i => `
+        <div class="relay__score relay__score--${i} ${activeTeam === i ? 'is-turn' : ''}">
+          <span class="relay__score-name">${escapeHTML(r.names[i])}</span>
+          <b class="metric">${r.scores[i]}</b>
+        </div>`).join('')}
+    </div>`;
+}
+
+/* --- the switch on a setup screen ------------------------------------------- */
+
+/** Options saved per game: mode ('single' | 'teams'), the two names, turns each. */
+function relayOptsOf(store) {
+  if (!store.teamOpts) store.teamOpts = { mode: 'single', names: ['', ''], turns: 3 };
+  return store.teamOpts;
+}
+
+function relayNames(store, t) {
+  const o = relayOptsOf(store);
+  return [o.names[0] || t.tb_team_a || 'A', o.names[1] || t.tb_team_b || 'B'];
+}
+
+/** Paints the mode switch, the team fields and the turns picker for a game prefix. */
+function paintRelaySetup(prefix, store) {
+  const o = relayOptsOf(store);
+  document.querySelectorAll(`#${prefix}-mode .segmented__item`).forEach(b => b.classList.toggle('is-active', b.dataset.value === o.mode));
+  const box = document.getElementById(`${prefix}-team-opts`);
+  if (box) box.classList.toggle('hidden', o.mode !== 'teams');
+  const a = document.getElementById(`${prefix}-team-a`), b = document.getElementById(`${prefix}-team-b`);
+  if (a && document.activeElement !== a) a.value = o.names[0] || '';
+  if (b && document.activeElement !== b) b.value = o.names[1] || '';
+  document.querySelectorAll(`#${prefix}-turns .segmented__item`).forEach(el => el.classList.toggle('is-active', Number(el.dataset.value) === o.turns));
+}
+
+function setRelayMode(prefix, store, mode) {
+  relayOptsOf(store).mode = mode;
+  saveToLocal();
+  paintRelaySetup(prefix, store);
+  haptic('light');
+}
+function setRelayTurns(prefix, store, turns) {
+  relayOptsOf(store).turns = Number(turns);
+  saveToLocal();
+  paintRelaySetup(prefix, store);
+}
+function setRelayName(store, index, value) {
+  relayOptsOf(store).names[index] = String(value || '').trim().slice(0, 20);
+  saveToLocal();
+}
+</script>

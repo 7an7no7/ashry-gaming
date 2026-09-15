@@ -627,16 +627,35 @@ function startCharades(time) {
         appState.charades.currentCategory = ["Error: No Category"];
     }
 
-    appState.charades.score = 0;
-    appState.charades.history = []; 
-    
     if(time) appState.charades.timer = time;
     else appState.charades.timer = parseInt(document.getElementById('charades-timer-input').value);
 
+    // From the setup screen in team mode: a fresh relay, and the handover
+    // card before the first turn (JS_TeamRelay.html). A replay (`time` set)
+    // in single mode is just another round.
+    if (!time) {
+        const o = relayOptsOf(appState.charades);
+        if (o.mode === 'teams') {
+            relayStart(appState.charades, relayNames(appState.charades, TRANSLATIONS[appState.lang]), o.turns);
+            setView('play-charades');
+            charadesShowRelay();
+            return;
+        }
+        appState.charades.relay = null;
+    }
+    charadesRunTurn();
+}
+
+/** One timed round, for one player or for the team whose turn it is. */
+function charadesRunTurn() {
+    appState.charades.score = 0;
+    appState.charades.history = [];
+
     document.getElementById('charades-ui-playing').classList.remove('hidden');
     document.getElementById('charades-ui-result').classList.add('hidden');
-    
-    setView('play-charades');
+    document.getElementById('charades-ui-relay').classList.add('hidden');
+
+    if (appState.currentView !== 'play-charades') setView('play-charades');
     nextCharadesCard();
     
     document.getElementById('charades-timer').innerText = appState.charades.timer;
@@ -656,7 +675,23 @@ function startCharades(time) {
 }
 
 function startCharadesGame(time) {
+    // "Play again" after a team match starts the match over from the setup.
+    if (relayOptsOf(appState.charades).mode === 'teams' && appState.charades.relay && appState.charades.relay.phase === 'done') { startCharades(); return; }
     startCharades(time);
+}
+
+/** The card between team turns: whose turn, hand the phone over. */
+function charadesShowRelay() {
+    const t = TRANSLATIONS[appState.lang];
+    document.getElementById('charades-ui-playing').classList.add('hidden');
+    document.getElementById('charades-ui-result').classList.add('hidden');
+    const box = document.getElementById('charades-ui-relay');
+    box.classList.remove('hidden');
+    box.innerHTML = relayHandoverHtml(appState.charades, t, 'charadesRunTurn()');
+}
+
+function paintCharadesSetup() {
+    paintRelaySetup('charades', appState.charades);
 }
 
 function nextCharadesCard(action) {
@@ -702,9 +737,20 @@ function finishCharadesGame() {
     playSound('alarm');
     confetti({ particleCount: 200, spread: 100 });
 
-    document.getElementById('charades-final-score').innerText = appState.charades.score;
-    
     document.getElementById('charades-ui-playing').classList.add('hidden');
+
+    // Team mode: bank the turn, then the next handover or the final board.
+    if (relayActive(appState.charades)) {
+        const t = TRANSLATIONS[appState.lang];
+        const phase = relayTurnDone(appState.charades, appState.charades.score);
+        const box = document.getElementById('charades-ui-relay');
+        box.classList.remove('hidden');
+        box.innerHTML = relaySummaryHtml(appState.charades, t,
+            phase === 'done' ? 'startCharades()' : 'charadesShowRelay()', "setView('setup-charades')");
+        return;
+    }
+
+    document.getElementById('charades-final-score').innerText = appState.charades.score;
     document.getElementById('charades-ui-result').classList.remove('hidden');
 }
 </script>

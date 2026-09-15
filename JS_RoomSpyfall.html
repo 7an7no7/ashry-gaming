@@ -1,0 +1,250 @@
+<script>
+/* ============================================================================
+   الموقع السري — ON SEPARATE PHONES, AND ON THE TV
+   ----------------------------------------------------------------------------
+   Every phone shows its owner the place and their job there; the spy's phone
+   says only that they are the spy. The list of all the places is on every
+   screen (it is what the spy guesses from), and can be crossed out locally
+   as suspects are ruled out. A clock runs on the server: when it runs out
+   the vote opens by itself. Rules: spyfallRoomAction in RoomGames.js.
+   ========================================================================= */
+
+const spyfallRoom = { crossed: new Set(), crossedRound: '', guessing: false, clock: null, clockKey: null };
+const SPYFALL_ROOM_OPTS_KEY = 'ashrySpyfallRoomOpts';
+
+function spyfallRoomOpts() {
+  const base = { minutes: 8, spies: 1 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(SPYFALL_ROOM_OPTS_KEY) || 'null');
+    if (saved && [5, 8, 10].indexOf(saved.minutes) !== -1) base.minutes = saved.minutes;
+    if (saved && [1, 2].indexOf(saved.spies) !== -1) base.spies = saved.spies;
+  } catch (e) {}
+  return base;
+}
+
+function setSpyfallRoomOpt(key, value) {
+  const o = spyfallRoomOpts();
+  o[key] = Number(value);
+  try { localStorage.setItem(SPYFALL_ROOM_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+ROOM_GAMES.spyfall = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.spy_room_hint || '')}</p>`;
+    const o = spyfallRoomOpts();
+    const seg = (key, values, current, labelOf) => `
+      <div class="segmented" role="group">
+        ${values.map(v => `<button type="button" class="segmented__item ${v === current ? 'is-active' : ''}" onclick="setSpyfallRoomOpt('${key}', ${v})">${labelOf(v)}</button>`).join('')}
+      </div>`;
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.spy_minutes || '')}</label>
+          ${seg('minutes', [5, 8, 10], o.minutes, v => v)}
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.spy_room_count || '')}</label>
+          ${seg('spies', [1, 2], o.spies, v => v)}
+          <p class="field__hint">${escapeHTML(t.spy_two_hint || '')}</p>
+        </div>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.spy_room_hint || '')}</p>
+      </div>`;
+  },
+  startPayload() {
+    const o = spyfallRoomOpts();
+    return { lang: VOTE_LANG(), minutes: o.minutes, spies: o.spies };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-spyfall') setView('room-spyfall');
+    const el = document.getElementById('view-room-spyfall');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const v = s.vote || {};
+    const roundKey = state.code + '#' + s.round;
+    if (spyfallRoom.crossedRound !== roundKey) { spyfallRoom.crossed = new Set(); spyfallRoom.crossedRound = roundKey; spyfallRoom.guessing = false; }
+    const sig = ['spy', s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, state.youAreHost, appState.lang,
+                 spyfallRoom.guessing, [...spyfallRoom.crossed].join(','), JSON.stringify(s.scores || {})].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => spyfallFrame(state, t));
+    if (rebuilt && s.phase === 'results' && s.outcome === 'caught' && typeof confetti === 'function') confetti({ particleCount: 120, spread: 70 });
+    refreshRoomPlayerStrip(el, state);
+    if (s.phase === 'play' && s.endsAt) startSpyfallRoomClock(s); else stopSpyfallRoomClock();
+  }
+};
+
+/** The places, as chips; tapping crosses one out on this phone only. */
+function spyfallPlacesHtml(s, opts) {
+  const o = opts || {};
+  return `
+    <div class="spy-places">
+      ${(s.locations || []).map(loc => {
+        const crossed = spyfallRoom.crossed.has(loc);
+        const secret = s.phase === 'results' && loc === s.location;
+        const cls = ['spy-place', crossed ? 'is-crossed' : '', secret ? 'is-secret' : '', s.phase === 'results' && s.guess === loc && !secret ? 'is-wrong' : ''].join(' ');
+        const onclick = o.guess ? `spyfallGuessPlace('${jsStringAttr(loc)}')` : (o.cross ? `spyfallCross('${jsStringAttr(loc)}')` : '');
+        return onclick ? `<button type="button" class="${cls}" onclick="${onclick}">${escapeHTML(loc)}</button>` : `<span class="${cls}">${escapeHTML(loc)}</span>`;
+      }).join('')}
+    </div>`;
+}
+
+function spyfallFrame(state, t) {
+  const s = state.shared;
+  const you = state.you || {};
+  const iAmSpy = you.role === 'spy';
+  const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+  const head = `
+    <div class="play-head">
+      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
+      ${s.phase === 'play' && s.endsAt ? `<span id="spy-room-timer" class="badge badge--accent metric">${spyfallClockText(s.endsAt)}</span>` : ''}
+    </div>`;
+  const card = !inRound ? `<div class="waiting-note">${escapeHTML(t.vote_spectating || '')}</div>` : (iAmSpy
+    ? `<div class="role-card role-card--spy"><div class="role-card__label">🕵️ ${escapeHTML(t.spy_you_are || '')}</div><div class="role-card__hint">${escapeHTML(t.spy_you_hint || '')}</div></div>`
+    : `<div class="role-card"><div class="role-card__label">📍 ${escapeHTML(t.spy_location || '')}</div><div class="role-card__value">${escapeHTML(you.location || '')}</div><div class="role-card__hint">🧑‍💼 ${escapeHTML(t.spy_your_job || '')}: <b>${escapeHTML(you.job || '')}</b></div></div>`);
+
+  if (s.phase === 'play') {
+    const guessBtn = iAmSpy && inRound
+      ? `<button class="btn ${spyfallRoom.guessing ? 'btn--ghost' : 'btn--danger-soft'}" onclick="spyfallToggleGuess()">${escapeHTML(spyfallRoom.guessing ? (t.cancel || '') : (t.spy_guess_btn || ''))}</button>`
+      : '';
+    return head + card + `
+      <p class="field__hint" style="text-align:center">🎤 ${escapeHTML(t.spy_first || '')}: <b>${escapeHTML(nameOf(s.firstId))}</b></p>
+      <div class="card card--tight">
+        <div class="eyebrow">${escapeHTML(spyfallRoom.guessing ? (t.spy_pick_place || '') : (t.spy_places || ''))}</div>
+        ${spyfallPlacesHtml(s, spyfallRoom.guessing ? { guess: true } : { cross: true })}
+        ${spyfallRoom.guessing ? '' : `<p class="field__hint">${escapeHTML(t.spy_cross_hint || '')}</p>`}
+      </div>
+      <div class="btn-stack">
+        ${guessBtn}
+        ${state.youAreHost ? `<button class="btn btn--primary btn--lg" onclick="roomAct('startVote')">${escapeHTML(t.spy_start_vote || '')}</button>` : ''}
+      </div>
+      ${state.youAreHost ? '' : `<div class="waiting-note">${escapeHTML(t.spy_wait_vote || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}`;
+  }
+  if (s.phase === 'voting') {
+    return head + card + `
+      <div class="card card--tight">
+        <div class="eyebrow">${escapeHTML(t.accuse_player || '')}</div>
+        ${renderBallot(state)}
+      </div>` + renderRoomPlayerStrip(state);
+  }
+  if (s.phase === 'guess') {
+    const mine = s.guesserId === Room.me;
+    return head + `
+      <div class="card card--accent" style="text-align:center">
+        <div class="metric metric--md">🕵️ ${escapeHTML(s.guesserName || '')}</div>
+        <p class="sheet__subtitle">${escapeHTML(mine ? (t.spy_room_guess_hint || '') : (t.spy_guessing || ''))}</p>
+      </div>
+      <div class="card card--tight">${spyfallPlacesHtml(s, mine ? { guess: true } : {})}</div>
+      ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${escapeHTML(t.fa_skip_guess || '')}</button></div>` : ''}
+      ${renderRoomPlayerStrip(state)}`;
+  }
+  const won = s.outcome === 'caught';
+  const line = s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
+  return head + `
+    <div class="card ${won ? 'card--accent' : ''}" style="text-align:center">
+      <div class="metric metric--md ${won ? 'tx-success' : 'tx-danger'}">${won ? '🎉' : '🕵️'} ${escapeHTML(line.replace('{name}', (s.spyNames || []).join(' · ')))}</div>
+      <p class="sheet__subtitle">📍 ${escapeHTML(s.location || '')}${s.accusedName ? ` · ${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}` : ''}${s.guess ? ` · ${escapeHTML(t.spy_guess_was || '')}: ${escapeHTML(s.guess)}` : ''}</p>
+    </div>
+    ${renderScoreboard(s.board)}
+    ${state.youAreHost
+      ? `<div class="btn-stack">
+           <button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { lang: '${VOTE_LANG()}' })">${escapeHTML(t.next_round || '')}</button>
+           <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+         </div>`
+      : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+    ${renderRoomPlayerStrip(state)}`;
+}
+
+function spyfallCross(loc) {
+  if (spyfallRoom.crossed.has(loc)) spyfallRoom.crossed.delete(loc); else spyfallRoom.crossed.add(loc);
+  haptic('light');
+  if (Room.state) ROOM_GAMES.spyfall.render(Room.state);
+}
+
+function spyfallToggleGuess() {
+  spyfallRoom.guessing = !spyfallRoom.guessing;
+  if (Room.state) ROOM_GAMES.spyfall.render(Room.state);
+}
+
+function spyfallGuessPlace(loc) {
+  showConfirmModal((TRANSLATIONS[appState.lang].spy_confirm_guess || '{place}').replace('{place}', loc), () => {
+    spyfallRoom.guessing = false;
+    roomAct('spyGuess', { location: loc });
+  });
+}
+
+function spyfallClockText(endsAt) {
+  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+}
+
+function paintSpyfallRoomTimer(endsAt) {
+  const text = spyfallClockText(endsAt);
+  const low = endsAt - Date.now() <= 30000;
+  const el = document.getElementById('spy-room-timer');
+  if (el) { el.textContent = text; el.classList.toggle('badge--danger', low); el.classList.toggle('badge--accent', !low); }
+  const big = document.getElementById('tv-spy-timer');
+  if (big) { big.textContent = text; big.classList.toggle('is-low', low); }
+}
+
+function startSpyfallRoomClock(s) {
+  paintSpyfallRoomTimer(s.endsAt);
+  if (spyfallRoom.clockKey === s.endsAt && spyfallRoom.clock && spyfallRoom.clock.isRunning()) return;
+  stopSpyfallRoomClock();
+  spyfallRoom.clockKey = s.endsAt;
+  const endsAt = s.endsAt;
+  spyfallRoom.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => paintSpyfallRoomTimer(endsAt),
+    onEnd: () => { spyfallRoom.clock = null; playSound('alarm'); }
+  });
+}
+
+function stopSpyfallRoomClock() {
+  if (spyfallRoom.clock) spyfallRoom.clock.stop();
+  spyfallRoom.clock = null;
+  spyfallRoom.clockKey = null;
+}
+
+/* --- the big screen --- */
+TV_GAMES.spyfall = {
+  sig(state) {
+    const s = state.shared || {};
+    const v = s.vote || {};
+    return [s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, JSON.stringify(s.scores || {})].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+    const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>`;
+    const places = `<div class="tv-spy-places">${(s.locations || []).map(loc => `<span class="tv-chip ${s.phase === 'results' && loc === s.location ? 'is-done' : ''}">${escapeHTML(loc)}</span>`).join('')}</div>`;
+    if (s.phase === 'play') {
+      return `<div class="tv-vote">${head}
+        <div class="tv-timer tv-timer--big" id="tv-spy-timer">${spyfallClockText(s.endsAt)}</div>
+        <div class="tv-note">🎤 ${t.spy_first || ''}: ${escapeHTML(nameOf(s.firstId))} · ${t.spy_tv_hint || ''}</div>
+        ${places}
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.spy_start_vote, "roomAct('startVote')")}</div>` : ''}</div>`;
+    }
+    if (s.phase === 'voting') return `<div class="tv-vote">${head}<div class="tv-question">${t.accuse_player || ''}</div>${tvVoteProgress(state, t)}</div>`;
+    if (s.phase === 'guess') {
+      return `<div class="tv-vote">${head}<div class="tv-question">🕵️ ${escapeHTML(s.guesserName || '')} · ${t.spy_guessing || ''}</div>${places}
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>` : ''}</div>`;
+    }
+    const line = s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
+    return `<div class="tv-vote">${head}
+      <div class="tv-question">${s.outcome === 'caught' ? '🎉' : '🕵️'} ${escapeHTML(line.replace('{name}', (s.spyNames || []).join(' · ')))} · 📍 ${escapeHTML(s.location || '')}</div>
+      <div class="tv-scale">${renderScoreboard(s.board)}</div>
+      ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}</div>`;
+  },
+  after(state) {
+    const s = state.shared || {};
+    if (s.phase === 'play' && s.endsAt) startSpyfallRoomClock(s); else stopSpyfallRoomClock();
+  }
+};
+</script>

@@ -29,7 +29,7 @@ const ABANDONED_MS = 24 * 3600 * 1000;
 const QUICK_SAVE_MS = 1000;
 const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial']);
 // The actions that deal prompts, which need the shared prompt memory.
-const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain']);
+const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap']);
 const MAX_MESSAGE = 64 * 1024;
 const MAX_LIVE = 8 * 1024;
 

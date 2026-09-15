@@ -1104,11 +1104,11 @@ const HELP_ENTRIES = [
   { key: 'wordle',      title: 'setup_wordle',      icon: '🔤', accent: 'green',  group: 'games' },
   { key: 'guessnum',    title: 'setup_guessnum',    icon: '🔢', accent: 'blue',   group: 'games' },
   { key: 'domino',      title: 'setup_domino',      icon: '🀏', accent: 'green',  group: 'games' },
-  { key: 'chameleon',   title: 'setup_chameleon',   icon: '🦎', accent: 'amber',  group: 'games' },
-  { key: 'spyfall',     title: 'setup_spyfall',     icon: '🏢', accent: 'rose',   group: 'games' },
+  { key: 'chameleon',   title: 'setup_chameleon',   icon: '🦎', accent: 'amber',  group: 'games', room: true },
+  { key: 'spyfall',     title: 'setup_spyfall',     icon: '🏢', accent: 'rose',   group: 'games', room: true },
   { key: 'timesup',     title: 'setup_timesup',     icon: '⏱️', accent: 'blue',   group: 'games' },
   { key: 'reaction',    title: 'setup_reaction',    icon: '⚡', accent: 'rose',   group: 'games' },
-  { key: 'bomb',        title: 'setup_bomb',        icon: '💣', accent: 'orange', group: 'games' },
+  { key: 'bomb',        title: 'setup_bomb',        icon: '💣', accent: 'orange', group: 'games', room: true },
   { key: 'stop',        title: 'setup_stop',        icon: '🚏', accent: 'green',  group: 'games', room: true },
   { key: 'memory',      title: 'setup_memory',      icon: '🎴', accent: 'violet', group: 'games' },
   { key: 'xo',          title: 'setup_xo',          icon: '⭕', accent: 'blue',   group: 'games' },
@@ -1162,7 +1162,8 @@ const HELP_FOR_VIEW = {
   'setup-stop': 'stop', 'play-stop': 'stop',
   'setup-memory': 'memory', 'play-memory': 'memory',
   'setup-xo': 'xo', 'play-xo': 'xo',
-  'play-chooser': 'chooser', 'room-buzzer': 'buzzer', 'room-stop': 'stop'
+  'play-chooser': 'chooser', 'room-buzzer': 'buzzer', 'room-stop': 'stop',
+  'room-chameleon': 'chameleon', 'room-spyfall': 'spyfall', 'room-bomb': 'bomb'
 };
 
 const helpEntry = (key) => HELP_ENTRIES.find(e => e.key === key) || null;
@@ -1248,6 +1249,40 @@ function clearHelpSearch() {
   filterHelp('');
 }
 
+/**
+ * The sections of the list: the rooms and the basics first, then a section
+ * per kind of game in the order the home uses (CATALOG_GROUPS), then the
+ * tools. HELP_ENTRIES stays the registry of what each entry looks like;
+ * the catalog says where it sits.
+ */
+function helpSections() {
+  const start = ['rooms', 'tv', 'players', 'settings'].map(helpEntry).filter(Boolean);
+  const groups = (typeof CATALOG_GROUPS !== 'undefined' ? CATALOG_GROUPS : []).map(grp => ({
+    id: grp.id, icon: grp.icon, title: grp.title,
+    entries: (typeof GAME_CATALOG !== 'undefined' ? GAME_CATALOG : []).filter(g => g.group === grp.id).map(g => helpEntry(g.id)).filter(Boolean)
+  }));
+  const placed = {};
+  start.concat(...groups.map(g => g.entries)).forEach(e => { placed[e.key] = true; });
+  const rest = HELP_ENTRIES.filter(e => !placed[e.key]);
+  return [{ id: 'start', icon: '🚀', title: 'help_sec_start', entries: start }]
+    .concat(groups)
+    .concat(rest.length ? [{ id: 'more', icon: '📎', title: 'help_sec_more', entries: rest }] : []);
+}
+
+/** "👥 3–12 · ⏱ 10 min · 📱📲" for an entry that is a game in the catalog. */
+function helpMetaHtml(key, t) {
+  const g = (typeof CATALOG_BY_ID !== 'undefined') ? CATALOG_BY_ID[key] : null;
+  if (!g || typeof catalogMeta !== 'function') return '';
+  return `<span class="help-meta">${catalogMeta(g, t, false)}</span>`;
+}
+
+/** The one-line pitch from the catalog, above the rules. */
+function helpLeadHtml(key, t) {
+  const g = (typeof CATALOG_BY_ID !== 'undefined') ? CATALOG_BY_ID[key] : null;
+  const desc = g ? (t[g.desc] || '') : '';
+  return desc ? `<p class="help-lead">${escapeHTML(desc)}</p>` : '';
+}
+
 function renderHelpContent() {
   const lang = appState.lang;
   const t = TRANSLATIONS[lang];
@@ -1266,10 +1301,14 @@ function renderHelpContent() {
       <details class="help-game-card" id="help-card-${e.key}" data-accent="${e.accent}">
         <summary>
           <span class="help-game-card__icon" aria-hidden="true">${e.icon}</span>
-          <span class="help-game-card__name">${escapeHTML(titleOf(e))}</span>
+          <span class="help-game-card__text">
+            <span class="help-game-card__name">${escapeHTML(titleOf(e))}</span>
+            ${helpMetaHtml(e.key, t)}
+          </span>
           <span class="help-game-card__chev" aria-hidden="true">▾</span>
         </summary>
         <div class="help-game-text" style="padding: 0 var(--sp-3) var(--sp-3)">
+          ${helpLeadHtml(e.key, t)}
           ${content}
         </div>
       </details>`;
@@ -1280,26 +1319,35 @@ function renderHelpContent() {
   const matches = (e) => {
     if (!searching) return true;
     const body = String(rules[e.key] || '').replace(/<[^>]+>/g, ' ');
-    return helpNormalise(titleOf(e) + ' ' + body).indexOf(helpSearchTerm) !== -1;
+    const g = (typeof CATALOG_BY_ID !== 'undefined') ? CATALOG_BY_ID[e.key] : null;
+    const desc = g ? (t[g.desc] || '') : '';
+    return helpNormalise(titleOf(e) + ' ' + desc + ' ' + body).indexOf(helpSearchTerm) !== -1;
   };
 
-  const games = HELP_ENTRIES.filter(e => e.group === 'games' && matches(e));
-  const tools = HELP_ENTRIES.filter(e => e.group === 'tools' && matches(e));
+  let shown = 0;
+  const html = helpSections().map(sec => {
+    const entries = sec.entries.filter(matches).filter(e => rules[e.key]);
+    if (!entries.length) return '';
+    shown += entries.length;
+    return `
+      <section class="section help-section">
+        <div class="section__head">
+          <span class="section__emoji" aria-hidden="true">${sec.icon}</span>
+          <h2 class="section__title">${escapeHTML(t[sec.title] || sec.id)}</h2>
+          <span class="section__rule"></span>
+          <span class="section__count metric">${entries.length}</span>
+        </div>
+        ${entries.map(createItem).join('')}
+      </section>`;
+  }).join('');
 
-  document.getElementById('help-games-container').innerHTML = games.map(createItem).join('');
-  document.getElementById('help-tools-container').innerHTML = tools.map(createItem).join('');
-
-  // A section with nothing in it would otherwise show a bare heading.
-  const show = (id, on) => {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle('hidden', !on);
-  };
-  show('help-games-section', games.length > 0);
-  show('help-tools-section', tools.length > 0);
-  show('help-empty', searching && !games.length && !tools.length);
+  const box = document.getElementById('help-sections');
+  if (box) box.innerHTML = html;
+  const empty = document.getElementById('help-empty');
+  if (empty) empty.classList.toggle('hidden', !(searching && shown === 0));
 
   // A single hit gets opened for you rather than asking for one more tap.
-  if (searching && games.length + tools.length === 1) {
+  if (searching && shown === 1) {
     const only = document.querySelector('#help-content-area .help-game-card');
     if (only) only.open = true;
   }
@@ -1351,9 +1399,10 @@ function renderHelpContext(key, rules, t, searching) {
         <div class="help-hero__meta">
           <div class="help-hero__eyebrow">${escapeHTML(t.help_here || '')}</div>
           <div class="help-hero__title">${escapeHTML(title)}</div>
+          ${helpMetaHtml(entry.key, t)}
         </div>
       </div>
-      <div class="help-hero__body">${rules[entry.key]}</div>
+      <div class="help-hero__body">${helpLeadHtml(entry.key, t)}${rules[entry.key]}</div>
       ${jump}
     </div>`;
 }

@@ -12,7 +12,7 @@
 ### Main Technologies
 - **Hosting:** GitHub Pages (static files in `docs/`, built by `tools/build-site.mjs`)
 - **Rooms:** Cloudflare Workers + Durable Objects over WebSockets (`rooms-worker/`, free plan)
-- **Storage:** no database. Word lists are code (`SpyWords.js`, `PartyContent.js`, the `JS_*.html` banks); names, groups and the "already dealt" memory live in each phone's `localStorage`; a room lives in its Durable Object's storage while it is played.
+- **Storage:** no database. Word lists are code (`SpyWords.js`, `PartyContent.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, the `JS_*.html` banks); names, groups and the "already dealt" memory live in each phone's `localStorage`; a room lives in its Durable Object's storage while it is played.
 - **Frontend:** HTML5, CSS3, Vanilla JavaScript
 - **UI Framework:** Tailwind CSS v3, compiled locally to `Tailwind.html` (see *Styling*)
 - **External Libraries:** `canvas-confetti` and a QR code generator, pinned on jsDelivr
@@ -201,7 +201,7 @@ is nowhere to hide the key card.
 | `rooms-worker/src/room.js` | `Room` Durable Object, one per code: players, keys, sockets, saving, clocks, `project()`. |
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
-| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js` | Word lists the rules deal from, bundled into the Worker. |
+| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js` | Word lists the rules deal from, bundled into the Worker. The last three are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -340,6 +340,26 @@ press (`cnLocal.pending`), so a mis-tap never costs the turn. The sides, the
 options and the score survive "play again" and a trip to the hub (`_teamsMemo`,
 `_cnMemo`).
 
+**الحرباء, الموقع السري and القنبلة in rooms** (`chameleonRoomAction`,
+`spyfallRoomAction`, `bombRoomAction`). The chameleon's board is public; each
+player's secret slice carries the index of the secret word, the chameleon's
+carries only its role, and the word reaches `shared` only with the result.
+The spy's slice is just `role: 'spy'`; everyone else's holds the place and a
+job, and `shared.locations` is a card of 24 places with the real one among
+them (`SPYFALL_CARD`), so the spy has something to guess from. Both vote
+through the voting engine with `ownerId` set on every option, so nobody can
+accuse themselves; a tie lets the impostor slip away, and an accused
+impostor gets one guess (`guess` / `spyGuess`, `skipGuess` for the host). The
+spy may also `spyGuess` at any time during `play`. The Spyfall clock is a
+server deadline that opens the vote by itself. The bomb's fuse is
+`room._bombEndsAt`, never projected: phones get `shared.heat` (0-3), bumped by
+the alarm at 40%, 65% and 85% of the fuse, and tick faster with it
+(`BOMB_TICK_MS`); the alarm sets it off, then the host marks who was holding
+it (`markLoser`) and the strikes are the board, fewest first. `swap` deals a
+new category, so it is in `DEAL_ACTIONS` in `room.js`. The three phone
+renderers carry their own `TV_GAMES` entries (`JS_RoomChameleon.html`,
+`JS_RoomSpyfall.html`, `JS_RoomBomb.html`).
+
 **The Buzzer (الجرس)** has no content at all: the host asks their own questions
 out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps
 `shared.buzzes` in the order the presses reached the server, which is the one
@@ -466,6 +486,19 @@ doesn't reopen the join screen.
 **Testing it locally.** Run the rooms server with `npm run dev` in
 `rooms-worker/` and play in two tabs of the preview, or let the robots do it:
 `npm test` in `rooms-worker/`.
+
+### Team mode for بدون كلام and أوصف لي (the relay)
+
+Both were one timed round for one player. `JS_TeamRelay.html` wraps that
+round for two teams: `relayStart` names the teams and the turns each, a
+handover card (`relayHandoverHtml`) says whose turn it is and starts the
+round the game always ran (`charadesRunTurn`, `describeRunTurn`),
+`relayTurnDone` banks the words guessed as that team's points, and the
+summary card shows the turn's points and the next handover, or the final
+board once every turn is played. The relay lives in the game's own slice
+of `appState` (`appState.charades.relay`), the options (`teamOpts`: mode,
+names, turns) too, painted back onto the setup screen by
+`paintSetupOptions`. ثلاث جولات already split into teams on its own.
 
 ### Who asks whom (the ask director)
 
@@ -646,6 +679,19 @@ The registry covers more than games and tools: `players` (the name field, the
 shared name list, the 📂 saved-groups picker) and `settings` (everything behind
 the gear) are entries too, because those were the two things with no explanation
 anywhere in the app and no obvious place to put one.
+
+**The list is grouped the way the home is.** `helpSections()` in
+`JS_Utils.html` puts the rooms, the big screen, the players and the settings
+under "start here", then a section per `CATALOG_GROUPS` group with its games
+in catalog order, then the tools; `HELP_ENTRIES` stays the registry of icon
+and accent, and anything registered but not in the catalog lands in a "more"
+section at the end. Every card's summary carries the catalog meta (players,
+minutes, mode icons) and its body opens with the catalog's one-line pitch
+(`.help-lead`) before the rules. The rules themselves have one shape: an
+ordered list of how a round goes, then `.help-sub` sub-heads for
+📱 separate phones, 📺 the TV, 👥 teams, 🎤 the director or 💡 tips where
+they apply. Keep new rules in that shape, and never mention where content is
+stored: it is code, and the sheet is not for that.
 
 **Search reads the rules, not just the titles** — people search for the thing
 they are stuck on ("assassin", "قاتلة"), not for the game's name. It runs

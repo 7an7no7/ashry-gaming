@@ -38,14 +38,24 @@
   /* --- AUDIO SYSTEM --- */
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   let lastClickAt = 0;
+  let lastTapClickAt = 0;
 
-  function playSound(type) {
-    // The delegated pointerdown handler clicks for every control, and a few
-    // handlers still click for themselves; collapse the overlap rather than
-    // hunting down every call site.
+  /**
+   * `fromTap` marks the click the delegated pointerdown handler plays for
+   * every control. A handler that still clicks for itself runs on the click
+   * event, 100-200ms after that pointerdown - which used to sound like a
+   * double click on every such button - so a handler's click is dropped for
+   * half a second after a tap's, and taps only collapse among themselves.
+   */
+  function playSound(type, fromTap) {
     if (type === 'click') {
       const now = Date.now();
-      if (now - lastClickAt < 70) return;
+      if (fromTap) {
+        if (now - lastTapClickAt < 70) return;
+        lastTapClickAt = now;
+      } else if (now - lastTapClickAt < 500 || now - lastClickAt < 70) {
+        return;
+      }
       lastClickAt = now;
     }
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -135,7 +145,7 @@
   document.addEventListener('pointerdown', (e) => {
       const host = e.target.closest && e.target.closest(RIPPLE_TARGETS);
       if (!host || host.disabled) return;
-      playSound('click');
+      playSound('click', true);
       haptic('light');
   }, { passive: true });
 

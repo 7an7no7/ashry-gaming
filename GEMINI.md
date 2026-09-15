@@ -1109,7 +1109,18 @@ Taps are acknowledged centrally: a delegated `pointerdown` handler in
 `JS_Core.html` plays the click, fires `haptic()` and paints a ripple for
 everything matching `RIPPLE_TARGETS`. Individual handlers should **not** add
 `playSound('click')` — they only raise meaningful sounds (`success`, `alarm`,
-`tick`). `playSound` de-duplicates clicks within 70ms.
+`tick`). The delegated handler calls `playSound('click', true)`; a handler
+that still clicks for itself runs on the click event, 100-200ms after the
+pointerdown, which sounded like a double click on every such button, so a
+click without that flag is dropped for half a second after a tap's, and taps
+only collapse among themselves within 70ms.
+
+**Icons stand on their own.** The game and tool icons (`.gcard__icon`,
+`.tool-icon`, the setup and tab heroes, the help sheet) are drawn without a
+tile or frame: a little bigger, a soft drop shadow, and a faint round halo
+of the game's colour behind them (a radial gradient with no edge), which
+the owner asked for in place of the squares. A game's icon has to be the
+same in `GAME_CATALOG`, `HELP_ENTRIES` and `ROOM_HUB_GAMES`.
 
 Motion uses the `--ease-*` and `--dur-*` tokens. Everything is gated behind
 `prefers-reduced-motion`, and the drifting background animates `opacity` on a

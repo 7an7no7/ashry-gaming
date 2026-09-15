@@ -112,7 +112,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
     const name = String((payload && payload.name) || '').trim().slice(0, 24);
     if (!name) throw new Error('اكتب اسمك أولاً');
     if (room.players.length >= ROOM_MAX_PLAYERS) throw new Error('الغرفة ممتلئة');
-    if (room.players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+    const sameName = (a, b) => foldArabicLetters(a).replace(/\s+/g, ' ').trim() === foldArabicLetters(b).replace(/\s+/g, ' ').trim();
+    if (room.players.some(p => sameName(p.name, name))) {
       throw new Error('الاسم مستخدم بالفعل في هذه الغرفة');
     }
     room.screens = room.screens.filter(s => s.id !== playerId);
@@ -206,12 +207,20 @@ const STOP_COLLECT_MS = 4000;     // after وقف, the other phones send what th
 const STOP_GRACE_MS = 1500;       // the clock ran out: how late a submit still counts
 
 /** One spelling for comparing answers: case, diacritics, hamza forms, the article. */
+/**
+ * The letters people spell the same word with. Every comparison of typed text
+ * goes through this: أسد and اسد, مكتبة and مكتبه, مصطفى and مصطفي, with or
+ * without diacritics or a tatweel. The client has the same list in
+ * foldWord (JS_Core.html); keep the two identical.
+ */
+const foldArabicLetters = (text) => String(text || '').toLowerCase()
+  .replace(/[\u064B-\u0652\u0670\u0640]/g, '')
+  .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي')
+  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ک/g, 'ك');
+
 const foldStopAnswer = (text, lang, letter) => {
   const raw = String(text || '').trim();
-  let out = raw.toLowerCase()
-    .replace(/[\u064B-\u0652\u0670\u0640]/g, '')                 // diacritics and the tatweel
-    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي')   // أسد = اسد, مكتبة = مكتبه, مصطفى = مصطفي
-    .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ک/g, 'ك')
+  let out = foldArabicLetters(raw)
     .replace(/[^\p{L}\p{N} ]/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -1144,16 +1153,23 @@ const justOneAction = (room, playerId, action, payload) => {
   throw new Error('إجراء غير معروف');
 };
 
-/** Duplicate detection ignores case, tatweel and Arabic diacritics. */
-const normaliseClue = (text) =>
-  String(text || '')
-    .toLowerCase()
-    .replace(/[ً-ْـ]/g, '')
-    .replace(/[أإآ]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/\s+/g, '')
+/**
+ * One typed word against another: a Just One clue against the others, a
+ * Codenames clue against the board, a Fibbage lie against the truth, a
+ * Draw & Guess or Fake Artist guess against the word. Spelling, punctuation,
+ * spaces and a leading "ال" or "the" are all folded away, so الأسد, أسد and
+ * اسد are one word. (Stop the Bus has its own fold: there the first letter matters.)
+ */
+const normaliseClue = (text) => {
+  let out = foldArabicLetters(text)
+    .replace(/[^\p{L}\p{N} ]/gu, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
+  if (out.indexOf('the ') === 0) out = out.slice(4);
+  // Twice, because "الألعاب" folds to "الالعاب" and has to meet "ألعاب" and "العاب".
+  for (let i = 0; i < 2 && out.length > 3 && out.indexOf('ال') === 0; i++) out = out.slice(2);
+  return out.replace(/\s+/g, '');
+};
 
 /* ==========================================================================
    من أنا؟ — WHO AM I

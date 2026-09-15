@@ -317,7 +317,7 @@ const JO_WORDS_AR = [
     // tools
     "مفك", "مسمار قلاووظ", "كماشة", "زرادية", "مفتاح إنجليزي", "شنيور",
     "متر", "ميزان مية", "مبرد", "إزميل", "فأس", "كوريك",
-    "مقص شجر", "خرطوم", "مرشة", "عربية يد", "سلم خشب", "فرشة دهان",
+    "مقص شجر", "مرشة", "عربية يد", "سلم خشب", "فرشة دهان",
     "رول دهان", "جردل بوية", "شريط لاصق", "غرا", "صنفرة", "كاوية لحام",
     "مسدس شمع", "منشار كهربا", "صامولة", "مسامير", "عدة", "شنطة عدة",
     "خوذة", "جوانتي شغل", "نظارة لحام", "مقص صاج", "منجل",
@@ -823,13 +823,14 @@ function joRevealPhase() {
 
 function joSubmitClue() {
     const input = document.getElementById('jo-clue-input');
-    const clue = input.value.trim().toLowerCase();
-    
+    const clue = input.value.trim();
+
     const t = TRANSLATIONS[appState.lang];
 
     if (!clue) return showToast(appState.lang === 'ar' ? "اكتب كلمة!" : "Write a word!");
     if (clue.includes(' ')) return showToast(appState.lang === 'ar' ? "كلمة واحدة فقط!" : "One word only!");
-    if (clue === appState.justone.secretWord.toLowerCase()) return showToast(t.forbidden_rule);
+    // The same fold a room uses: الأسد, أسد and اسد are the word itself.
+    if (foldWord(clue) === foldWord(appState.justone.secretWord)) return showToast(t.forbidden_rule);
 
     const writerName = appState.justone.writers[appState.justone.currentWriterIndex];
     appState.justone.clues.push({ player: writerName, text: clue });
@@ -848,10 +849,10 @@ function joPrepareGuessPhase() {
     // Collision Detection
     const counts = {};
     appState.justone.clues.forEach(c => {
-        counts[c.text] = (counts[c.text] || 0) + 1;
+        counts[foldWord(c.text)] = (counts[foldWord(c.text)] || 0) + 1;
     });
 
-    const validClues = appState.justone.clues.filter(c => counts[c.text] === 1);
+    const validClues = appState.justone.clues.filter(c => counts[foldWord(c.text)] === 1);
     const collisionsCount = appState.justone.clues.length - validClues.length;
 
     const list = document.getElementById('jo-clues-list');

@@ -372,6 +372,26 @@
     return fold(a) === fold(b);
   }
 
+  /**
+   * The spellings of one word, folded: أسد and اسد, مكتبة and مكتبه, مصطفى and
+   * مصطفي, diacritics, the tatweel, punctuation, spaces, and a leading "ال" or
+   * "the". Mirrors normaliseClue in RoomGames.js - keep the two identical - so a
+   * phone refuses the same Codenames clue the server would, and the one-phone
+   * Just One removes the same duplicate clues a room does.
+   */
+  function foldWord(text) {
+    let out = String(text || '').toLowerCase()
+      .replace(/[\u064B-\u0652\u0670\u0640]/g, '')
+      .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي')
+      .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ک/g, 'ك')
+      .replace(/[^\p{L}\p{N} ]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (out.indexOf('the ') === 0) out = out.slice(4);
+    for (let i = 0; i < 2 && out.length > 3 && out.indexOf('ال') === 0; i++) out = out.slice(2);
+    return out.replace(/\s+/g, '');
+  }
+
   function loadPlayerLibrary() {
     try {
       const raw = localStorage.getItem(PLAYER_LIBRARY_KEY);
@@ -3094,7 +3114,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>واحد هو <b>المخمّن</b> ومش بيشوف الكلمة. الباقي يشوفوها.</li>
                 <li>كل واحد يكتب <b>تلميحاً واحداً</b> من كلمة واحدة.</li>
-                <li>التلميحات المتشابهة <b>بتتشال</b> قبل ما المخمّن يشوفها، فحاولوا تفكروا مختلف عن بعض.</li>
+                <li>التلميحات المتشابهة <b>بتتشال</b> قبل ما المخمّن يشوفها، فحاولوا تفكروا مختلف عن بعض. الإملاء مش فارقة: شمس والشمس وأسد واسد نفس التلميح.</li>
                 <li>المخمّن يحاول من التلميحات الباقية. صح = نقطة للفريق كله.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
@@ -3105,7 +3125,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>فريقان، كل فريق فيه <b>قائد</b> واحد و<b>لاعب</b> أو أكتر. «قسّم الفرق عشوائياً» يوزعكم في ثانية.</li>
                 <li>على الطاولة 25 كلمة. القائد وحده يشوف ألوانها.</li>
-                <li>القائد يقول <b>كلمة واحدة ورقم</b>: الكلمة تربط كلمات فريقه، والرقم عددها. ممنوع كلمة من اللي على اللوحة. <b>∞</b> أو <b>0</b> = خمّنوا لحد ما تغلطوا.</li>
+                <li>القائد يقول <b>كلمة واحدة ورقم</b>: الكلمة تربط كلمات فريقه، والرقم عددها. ممنوع كلمة من اللي على اللوحة، ولا هي بإملاء تاني أو بأل التعريف. <b>∞</b> أو <b>0</b> = خمّنوا لحد ما تغلطوا.</li>
                 <li>اللاعب يضغط كلمة عشان يعلّمها لفريقه، وبعدين «اكشف الكلمة». كلمة فريقكم = كمّلوا. محايدة أو للخصم = خلص دوركم.</li>
                 <li>فيه كلمة <b>قاتلة</b> واحدة: اللي يكشفها يخسر فوراً.</li>
                 <li>المضيف يقدر يحط وقت لكل دور وكلماتكم الخاصة. مرات الفوز بتتجمع طول السهرة.</li>
@@ -3118,6 +3138,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>واحد يرسم على موبايله، والباقي يشوفوا الرسمة وهي بتتكون ويكتبوا تخمينهم.</li>
                 <li>الكلمة تظهر للرسام بس. ممنوع الكتابة أو الأرقام.</li>
+                <li>الإملاء مش فارقة في التخمين: أسد واسد والأسد كلهم صح.</li>
                 <li>أول واحد يكتب التخمين الصح ياخد نقطتين، والرسام ياخد نقطة. لو محدش عرفها في الوقت، الكلمة تتكشف.</li>
                 <li>المضيف يختار طول الجولة (من 60 لـ 180 ثانية).</li>
             </ol>
@@ -3448,7 +3469,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>One player is the <b>guesser</b> and doesn't see the word. Everyone else does.</li>
                 <li>Each player writes <b>one clue</b> of one word.</li>
-                <li>Matching clues are <b>removed</b> before the guesser sees them, so think differently from each other.</li>
+                <li>Matching clues are <b>removed</b> before the guesser sees them, so think differently from each other. Spelling doesn't matter: شمس and الشمس, أسد and اسد are the same clue.</li>
                 <li>The guesser tries from the clues left. Right = a point for the whole team.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
@@ -3459,7 +3480,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Two teams, each with one <b>spymaster</b> and one or more <b>operatives</b>. "Split teams randomly" does it in a second.</li>
                 <li>25 words on the table. Only the spymasters see their colours.</li>
-                <li>The spymaster gives <b>one word and a number</b>: the word links their team's words, the number says how many. Not a word on the board. <b>∞</b> or <b>0</b> = guess until you miss.</li>
+                <li>The spymaster gives <b>one word and a number</b>: the word links their team's words, the number says how many. Not a word on the board, nor one of them spelled differently or with "the". <b>∞</b> or <b>0</b> = guess until you miss.</li>
                 <li>An operative taps a word to mark it for the team, then "Reveal". Your team's word = keep going. Neutral or the other team's = your turn ends.</li>
                 <li>There is one <b>assassin</b>: whoever reveals it loses at once.</li>
                 <li>The host can set a turn clock and add your own words. Wins add up all evening.</li>
@@ -3472,6 +3493,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>One player draws on their phone; everyone else watches it appear and types their guess.</li>
                 <li>Only the drawer sees the word. No letters or numbers.</li>
+                <li>Spelling doesn't matter in a guess: أسد, اسد and الأسد all count.</li>
                 <li>The first right guess scores two points and the drawer one. If nobody gets it in time, the word is revealed.</li>
                 <li>The host picks the round length (60 to 180 seconds).</li>
             </ol>

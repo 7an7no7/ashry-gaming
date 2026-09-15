@@ -268,6 +268,21 @@ presses `closeVote`. On the client, `renderBallot(state, opts)` draws the ballot
 second one; a vote on people passes `{ ownLabel: t.vote_you }` so your own row
 says "you" rather than "your answer".
 
+**One fold for typed text.** Every place one typed word meets another goes
+through `normaliseClue` in `RoomGames.js`: a Just One clue against the other
+clues, a Codenames clue against the board (and a room's own words against
+the bank), a Fibbage lie against the truth and the other lies, a Draw & Guess
+or Fake Artist guess against the word. It folds case, diacritics, the
+tatweel, أ/إ/آ/ٱ to ا, ة to ه, ى to ي, ؤ to و, ئ to ي, punctuation, spaces,
+and a leading "ال" or "the", so الأسد, أسد and اسد are one word. The client
+has the same function as `foldWord` in `JS_Core.html` (the Codenames clue
+check on the phone, the one-phone Just One) - keep the two identical - and
+`tools/validate-content.js` folds the banks the same way, so a list cannot
+hold one word in two spellings. `foldStopAnswer` is the exception because in
+Stop the Bus the first letter matters (see *أتوبيس كومبليت on separate
+phones*). Player names fold through `samePlayer` on the phone and the same
+letters on the server's join.
+
 **Draw & Guess strokes carry a tool letter.** `t` is absent for freehand — which
 is what every stroke made before the tools existed is, so old rooms replay
 unchanged — and `l`/`r`/`o`/`b` for line, rectangle, ellipse and fill. Shapes

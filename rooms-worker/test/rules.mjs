@@ -5,7 +5,7 @@
  *
  *   npm run test:rules      (builds generated/rules.js first)
  */
-import { applyRoomAction, roomDeadline, roomTimeout } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue } from '../generated/rules.js';
 
 let failed = 0;
 const check = (ok, label) => {
@@ -123,6 +123,14 @@ const ess = stopRound('S', {
 });
 check(ess.pts('a') === '5,5,10' && ess.pts('b') === '5,5,5' && ess.pts('c') === '10,10,5',
       'stop: case and "the" are ignored in English');
+
+/* One typed word against another, everywhere but Stop: spelling is folded away. */
+const same = (a, b) => normaliseClue(a) === normaliseClue(b);
+check(same('أسد', 'اسد') && same('الأسد!', 'اسد') && same(' الاسد ', 'أسد'), 'clues: أسد, اسد, الأسد and الاسد are one word');
+check(same('ألعاب', 'العاب') && same('الألعاب', 'ألعاب') && same('إلهام', 'الهام'), 'clues: ألعاب, العاب and الألعاب are one word');
+check(same('مكتبة', 'مكتبه') && same('مصطفى', 'مصطفي') && same('مَدْرَسَة', 'مدرسه') && same('ســمك', 'سمك'), 'clues: ة/ه, ى/ي, diacritics and the tatweel are ignored');
+check(same('The Sea', 'sea') && same('Ice cream', 'icecream') && same('sea-horse', 'seahorse'), 'clues: case, "the", spaces and punctuation are ignored');
+check(!same('سمك', 'سمكة') && !same('قطة', 'قط'), 'clues: different words stay different');
 
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');

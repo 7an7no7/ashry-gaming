@@ -206,9 +206,16 @@ for (const [lang, list] of Object.entries(TU)) {
 }
 
 /* ------------------------------------------------ single-device word games */
-// The same spelling rules people use: alef forms, taa marbuta, harakat.
-const fold = (t) => String(t).toLowerCase().replace(/[\u064B-\u0652\u0640]/g, '')
-  .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').trim();
+// The same spelling rules the games compare with (normaliseClue in RoomGames.js):
+// alef forms, taa marbuta, harakat, ؤ/ئ, and a leading "ال" or "the", so a bank
+// cannot hold a word twice in two spellings the game would call one answer.
+const fold = (t) => {
+  let out = String(t).toLowerCase().replace(/[\u064B-\u0652\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا').replace(/[ىی]/g, 'ي').replace(/ة/g, 'ه').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').trim();
+  if (out.indexOf('the ') === 0) out = out.slice(4);
+  for (let i = 0; i < 2 && out.length > 3 && out.indexOf('ال') === 0; i++) out = out.slice(2);
+  return out;
+};
 const repeats = (list, key = fold) => [...new Set(list.map(key).filter((v, i, a) => a.indexOf(v) !== i))];
 
 // Wordle only works if every word is exactly its length and typeable on the

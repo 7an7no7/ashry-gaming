@@ -54,6 +54,9 @@ const clearGameState = (room) => {
   room._answers = null;
   room._qStart = null;
   room._triviaCount = null;
+  room._stopOpts = null;
+  room._stopTotals = null;
+  room._stopRound = null;
 };
 
 /** The stashed sides, minus anyone who has since left. */
@@ -70,7 +73,7 @@ const rememberedTeams = (room) => {
 const ROOM_GAME_IDS = [
   'imposter', 'justone', 'whoami', 'codenames',
   'wouldyou', 'mostlikely', 'fibbage', 'drawguess',
-  'fakeartist', 'wavelength', 'trivia', 'buzzer'
+  'fakeartist', 'wavelength', 'trivia', 'buzzer', 'stop'
 ];
 
 // Must match MAX_PLAYERS and MAX_SCREENS in rooms-worker/src/room.js.
@@ -152,6 +155,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'wavelength': wavelengthAction(room, playerId, action, payload); break;
     case 'trivia':     triviaAction(room, playerId, action, payload); break;
     case 'buzzer':     buzzerAction(room, playerId, action, payload); break;
+    case 'stop':       stopAction(room, playerId, action, payload); break;
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -161,6 +165,208 @@ const applyRoomAction = (room, playerId, action, payload) => {
     room.shared.roster = room.players.map(p => p.id);
   }
 };
+
+/* ==========================================================================
+   أتوبيس كومبليت — STOP THE BUS (rooms)
+   The same paper game, with every phone as the paper. A letter is dealt,
+   everyone types an answer per category, and the first to press وقف closes
+   the round for the whole table: the other phones get a few seconds to send
+   what they had typed. The server then scores by comparing the answers -
+   10 for an answer nobody else had, 5 for one somebody shared, 0 for a
+   blank or a word that doesn't start with the letter - and the host can
+   correct any cell before the points are banked.
+
+   Answers stay in room._answers (never projected) until the round closes,
+   so a phone that finished early cannot show its list to the table.
+   ========================================================================== */
+const STOP_CAT_IDS = ['name', 'animal', 'plant', 'thing', 'country', 'city', 'food', 'brand', 'job', 'color'];
+const STOP_LETTERS_BY_LANG = {
+  ar: 'ا ب ت ث ج ح خ د ر ز س ش ص ض ط ع غ ف ق ك ل م ن ه و ي'.split(' '),
+  en: 'A B C D E F G H I J K L M N O P R S T V W'.split(' ')
+};
+const STOP_TIMERS = [60, 90, 120, 0];
+const STOP_ROUNDS = [3, 5, 7, 10];
+const STOP_POINT_STEPS = [10, 5, 0];
+const STOP_COLLECT_MS = 4000;     // after وقف, the other phones send what they typed
+const STOP_GRACE_MS = 1500;       // the clock ran out: how late a submit still counts
+
+/** One spelling for comparing answers: case, diacritics, hamza forms, the article. */
+const foldStopAnswer = (text, lang) => {
+  let out = String(text || '').trim().toLowerCase()
+    .replace(/[\u064B-\u0652\u0670]/g, '')
+    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+    .replace(/[^\p{L}\p{N} ]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // The definite article is not the initial: "الأسد" is an أ word, "the sea" an S word.
+  if (lang === 'ar' && out.length > 3 && out.indexOf('ال') === 0) out = out.slice(2);
+  if (lang === 'en' && out.indexOf('the ') === 0) out = out.slice(4);
+  return out;
+};
+
+const stopAction = (room, playerId, action, payload) => {
+  if (action === 'start' || action === 'nextRound' || action === 'playAgain') {
+    requireHost(room, playerId);
+    if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
+    const prev = room.shared || {};
+
+    if (action === 'start') {
+      const lang = roomLangOf(room, payload);
+      const cats = (Array.isArray(payload && payload.cats) ? payload.cats : [])
+        .map(String).filter((c, i, arr) => STOP_CAT_IDS.indexOf(c) !== -1 && arr.indexOf(c) === i);
+      const timer = Number(payload && payload.timer);
+      const rounds = Number(payload && payload.rounds);
+      room._stopOpts = {
+        lang: lang,
+        cats: cats.length >= 2 ? cats : ['name', 'animal', 'plant', 'thing', 'country'],
+        timer: STOP_TIMERS.indexOf(timer) !== -1 ? timer : 90,
+        rounds: STOP_ROUNDS.indexOf(rounds) !== -1 ? rounds : 5
+      };
+      room._stopTotals = {};
+      room._stopRound = 0;
+    } else if (action === 'nextRound') {
+      // From the review only, and the points as corrected are banked here.
+      if (prev.phase !== 'review') return;
+      bankStopRound(room);
+      if (room._stopRound >= room._stopOpts.rounds) {
+        prev.phase = 'done';
+        prev.board = stopBoard(room);
+        prev.results = null;
+        return;
+      }
+    } else {
+      if (prev.phase !== 'done') return;
+      room._stopTotals = {};
+      room._stopRound = 0;
+    }
+    dealStopLetter(room);
+    return;
+  }
+
+  const s = room.shared;
+  if (!s || room.game !== 'stop') throw new Error('اللعبة لم تبدأ بعد');
+
+  if (action === 'submit') {
+    if (s.phase !== 'writing' && s.phase !== 'collecting') return;
+    if ((s.roster || []).indexOf(playerId) === -1) throw new Error('لست ضمن هذه الجولة');
+    if (s.submitted.indexOf(playerId) !== -1) return;
+    const given = (payload && payload.answers) || {};
+    const answers = {};
+    s.cats.forEach(c => { answers[c] = String(given[c] || '').trim().slice(0, 30); });
+    room._answers = room._answers || {};
+    room._answers[playerId] = answers;
+    s.submitted.push(playerId);
+    if (s.phase === 'writing' && payload && payload.stop) {
+      s.stopperId = playerId;
+      s.stopperName = (room.players.find(p => p.id === playerId) || {}).name || '';
+      s.phase = 'collecting';
+      s.collectEndsAt = Date.now() + STOP_COLLECT_MS;
+    }
+    if (activeRoster(room, s.roster).every(id => s.submitted.indexOf(id) !== -1)) scoreStopRound(room);
+    return;
+  }
+
+  if (action === 'timeUp') {
+    // Anyone may say the clock ran out, but only once it has.
+    if (s.phase !== 'writing' || !s.endsAt || Date.now() < s.endsAt) return;
+    s.phase = 'collecting';
+    s.collectEndsAt = Date.now() + STOP_COLLECT_MS;
+    return;
+  }
+
+  if (action === 'adjust') {
+    requireHost(room, playerId);
+    if (s.phase !== 'review') return;
+    const pid = String((payload && payload.playerId) || '');
+    const cat = String((payload && payload.cat) || '');
+    const pts = Number(payload && payload.pts);
+    const row = s.results && s.results[pid];
+    if (!row || !row[cat] || STOP_POINT_STEPS.indexOf(pts) === -1) return;
+    row[cat].pts = pts;
+    row[cat].manual = true;
+    s.roundTotals[pid] = s.cats.reduce((sum, c) => sum + (row[c] ? row[c].pts : 0), 0);
+    return;
+  }
+
+  throw new Error('إجراء غير معروف');
+};
+
+const dealStopLetter = (room) => {
+  const o = room._stopOpts;
+  room._stopRound += 1;
+  room._answers = {};
+  const letter = nextPrompt(room, STOP_LETTERS_BY_LANG[o.lang] || STOP_LETTERS_BY_LANG.ar, 'stop_' + o.lang);
+  room.secrets = {};
+  room.shared = {
+    lang: o.lang,
+    cats: o.cats.slice(),
+    timer: o.timer,
+    rounds: o.rounds,
+    round: room._stopRound,
+    letter: letter,
+    phase: 'writing',
+    endsAt: o.timer ? Date.now() + o.timer * 1000 : 0,
+    collectEndsAt: 0,
+    submitted: [],
+    stopperId: null,
+    stopperName: '',
+    results: null,
+    roundTotals: {},
+    totals: Object.assign({}, room._stopTotals),
+    roster: room.players.map(p => p.id),
+    board: stopBoard(room)
+  };
+  room.phase = 'play';
+};
+
+/** Compares the answers and writes the table everybody sees. Safe to call twice. */
+const scoreStopRound = (room) => {
+  const s = room.shared;
+  if (s.phase !== 'writing' && s.phase !== 'collecting') return;
+  const answers = room._answers || {};
+  const letter = foldStopAnswer(s.letter, s.lang);
+  const results = {};
+  const roundTotals = {};
+  const roster = s.roster || [];
+
+  s.cats.forEach(cat => {
+    const folded = {};
+    roster.forEach(pid => {
+      const raw = (answers[pid] || {})[cat] || '';
+      const f = foldStopAnswer(raw, s.lang);
+      const ok = f.length >= 2 && f.charAt(0) === letter;
+      folded[pid] = { raw: raw, f: f, ok: ok };
+    });
+    const counts = {};
+    roster.forEach(pid => { if (folded[pid].ok) counts[folded[pid].f] = (counts[folded[pid].f] || 0) + 1; });
+    roster.forEach(pid => {
+      const a = folded[pid];
+      const pts = !a.ok ? 0 : (counts[a.f] > 1 ? 5 : 10);
+      results[pid] = results[pid] || {};
+      results[pid][cat] = { text: a.raw, pts: pts, ok: a.ok, manual: false };
+    });
+  });
+  roster.forEach(pid => {
+    roundTotals[pid] = s.cats.reduce((sum, c) => sum + results[pid][c].pts, 0);
+  });
+  s.results = results;
+  s.roundTotals = roundTotals;
+  s.phase = 'review';
+};
+
+const bankStopRound = (room) => {
+  const s = room.shared;
+  Object.keys(s.roundTotals || {}).forEach(pid => {
+    room._stopTotals[pid] = (room._stopTotals[pid] || 0) + (s.roundTotals[pid] || 0);
+  });
+  s.totals = Object.assign({}, room._stopTotals);
+  s.board = stopBoard(room);
+};
+
+const stopBoard = (room) =>
+  room.players
+    .map(p => ({ id: p.id, name: p.name, score: (room._stopTotals || {})[p.id] || 0 }))
+    .sort((a, b) => b.score - a.score);
 
 /* ==========================================================================
    الجرس — THE BUZZER
@@ -1794,6 +2000,8 @@ const roomDeadline = (room) => {
   if (room.game === 'codenames' && room.phase === 'playing' && !s.winner && s.endsAt) {
     return s.endsAt + CODENAMES_GRACE_MS;
   }
+  if (room.game === 'stop' && s.phase === 'writing' && s.endsAt) return s.endsAt + STOP_GRACE_MS;
+  if (room.game === 'stop' && s.phase === 'collecting' && s.collectEndsAt) return s.collectEndsAt + STOP_GRACE_MS;
   return null;
 };
 
@@ -1810,6 +2018,17 @@ const roomTimeout = (room, now) => {
     // No clue, or no guesses, in time: the other team is up.
     endCodenamesTurn(room);
     return true;
+  }
+  if (room.game === 'stop') {
+    const s = room.shared;
+    if (s.phase === 'writing') {
+      // Time's up: give the phones a moment to send what they have.
+      s.phase = 'collecting';
+      s.collectEndsAt = now + STOP_COLLECT_MS;
+      return true;
+    }
+    if (s.phase === 'collecting') { scoreStopRound(room); return true; }
+    return false;
   }
   return false;
 };

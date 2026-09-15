@@ -135,6 +135,22 @@
 
       <div id="view-setup-stop" class="hidden" data-accent="green">
         <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device"
+                    onclick="setPlayMode('stop', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online"
+                    onclick="setPlayMode('stop', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="stop_online_desc">الحرف يظهر على كل موبايل، كل واحد يكتب إجاباته، وأول واحد يخلص يوقّف الجولة. التطبيق يقارن الإجابات ويحسب النقاط لوحده.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('stop')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+
+          <div class="mode-device-panel">
           <div class="field">
             <label class="field__label" data-i18n="stop_cats_label">الفئات</label>
             <div class="chip-set" id="stop-cats"></div>
@@ -173,6 +189,7 @@
           <div id="stop-player-list" class="mb-6"></div>
 
           <button onclick="startStopGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
+          </div>
         </div>
       </div>
       <div id="view-play-stop" class="hidden" data-accent="green"><div id="stop-stage"></div></div>
@@ -253,6 +270,7 @@
       </div>
 
       <div id="view-room-buzzer" class="hidden" data-accent="rose"></div>
+      <div id="view-room-stop" class="hidden" data-accent="green"></div>
 
       <!-- ============ MULTIPLAYER: JOIN ============ -->
       <!-- Multiplayer game surfaces. Each is filled by its game's renderer. -->
@@ -675,6 +693,22 @@
                  <input type="number" id="imposter-count" value="1" min="1" max="9" inputmode="numeric" class="text-center tx-accent">
               </div>
           </div>
+          <div class="field">
+            <label class="switch-row" for="imposter-director-on">
+              <span class="field__label" data-i18n="director_label">مين يسأل مين؟</span>
+              <span class="switch">
+                <input type="checkbox" id="imposter-director-on" role="switch" onchange="syncDirectorField('imposter')">
+                <span class="switch__track" aria-hidden="true"></span>
+              </span>
+            </label>
+            <div id="imposter-director-choices" class="hidden">
+              <div class="segmented" id="imposter-director-mode" role="group">
+                <button type="button" class="segmented__item is-active" data-value="order" onclick="setDirectorMode('imposter', 'order')" data-i18n="director_order">بالترتيب</button>
+                <button type="button" class="segmented__item" data-value="random" onclick="setDirectorMode('imposter', 'random')" data-i18n="director_random">عشوائي</button>
+              </div>
+              <p class="field__hint" data-i18n="director_hint">الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = وقت حر بالمؤقت بس.</p>
+            </div>
+          </div>
 
           <div class="group-picker">
     <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
@@ -721,6 +755,7 @@
                <div id="imposter-timer-display" class="metric metric--xl metric--accent">00:00</div>
                <button onclick="toggleImposterTimer()" id="imp-pause-btn" class="btn btn--secondary btn--sm btn--auto" data-i18n="pause_btn">إيقاف مؤقت</button>
            </div>
+           <div id="imposter-director" class="hidden"></div>
            <h3 class="eyebrow" data-i18n="players">قائمة اللاعبين</h3>
            <div id="imposter-game-players" class="flex flex-wrap gap-2 justify-center mb-10"></div>
            <button onclick="revealImposterResult()" class="btn btn--danger" data-i18n="reveal_imposters">كشف الجواسيس 🕵️‍♂️</button>
@@ -1690,6 +1725,22 @@
                     </div>
             </div>
 
+          <div class="field">
+            <label class="switch-row" for="whoami-director-on">
+              <span class="field__label" data-i18n="director_label">مين يسأل مين؟</span>
+              <span class="switch">
+                <input type="checkbox" id="whoami-director-on" role="switch" onchange="syncDirectorField('whoami')">
+                <span class="switch__track" aria-hidden="true"></span>
+              </span>
+            </label>
+            <div id="whoami-director-choices" class="hidden">
+              <div class="segmented" id="whoami-director-mode" role="group">
+                <button type="button" class="segmented__item is-active" data-value="order" onclick="setDirectorMode('whoami', 'order')" data-i18n="director_order">بالترتيب</button>
+                <button type="button" class="segmented__item" data-value="random" onclick="setDirectorMode('whoami', 'random')" data-i18n="director_random">عشوائي</button>
+              </div>
+              <p class="field__hint" data-i18n="director_hint">الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = وقت حر بالمؤقت بس.</p>
+            </div>
+          </div>
             <label class="field__label" data-i18n="players_count">عدد اللاعبين</label>
             <div class="stepper" style="margin-bottom: var(--sp-6)">
                 <button onclick="adjustWhoAmICount(-1)" class="stepper__btn" aria-label="أقل">−</button>
@@ -1748,6 +1799,7 @@
                 <div class="card mb-8 py-10 bg-slate-50 dark:bg-slate-800">
                     <div id="whoami-timer-display" class="text-7xl font-black text-slate-700 dark:text-white tabular-nums">00:00</div>
                 </div>
+                <div id="whoami-director" class="hidden"></div>
 
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <button onclick="toggleWhoAmITimer()" id="whoami-pause-btn" class="btn btn--ghost" data-i18n="pause_btn">إيقاف</button>
@@ -2066,6 +2118,8 @@
     <?!= include('JS_XO'); ?>
     <?!= include('JS_Chooser'); ?>
     <?!= include('JS_RoomBuzzer'); ?>
+    <?!= include('JS_RoomStop'); ?>
+    <?!= include('JS_Director'); ?>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- QR for room join links. Optional: the 4-letter code is always shown too. -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>

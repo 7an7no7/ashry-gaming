@@ -1,0 +1,124 @@
+<script>
+/* ============================================================================
+   مين يسأل مين — THE ASK DIRECTOR
+   ----------------------------------------------------------------------------
+   An option on the discussion phases of الجاسوس and من أنا؟. Left off, the
+   table talks freely against the clock, as it always did. Switched on, the
+   phone names who asks whom next, so nobody is grilled twice and nobody
+   hides: `order` walks the table in seating order and rotates the target
+   each lap, `random` always picks the player who has asked least and the
+   one who has been asked least.
+
+   The state lives in the game's own slice of appState (`store.dir`), so a
+   reload keeps the count.
+   ========================================================================= */
+
+const DIRECTOR_MODES = ['off', 'order', 'random'];
+
+/** Starts a fresh rotation for these players; `mode` off means no director. */
+function directorStart(store, names, mode) {
+  if (!store || DIRECTOR_MODES.indexOf(mode) === -1 || mode === 'off' || (names || []).length < 2) {
+    if (store) store.dir = null;
+    return;
+  }
+  const asked = {}, targeted = {};
+  names.forEach(n => { asked[n] = 0; targeted[n] = 0; });
+  store.dir = { mode: mode, names: names.slice(), asked: asked, targeted: targeted, i: -1, lap: 0, turn: 0, current: null };
+  directorNext(store);
+}
+
+/** The next pair. */
+function directorNext(store) {
+  const d = store && store.dir;
+  if (!d) return null;
+  const n = d.names.length;
+  let asker, target;
+  if (d.mode === 'order') {
+    d.i = (d.i + 1) % n;
+    if (d.i === 0 && d.turn > 0) d.lap += 1;
+    asker = d.names[d.i];
+    // Each lap the target moves one seat further round, so A does not ask B
+    // every single time.
+    target = d.names[(d.i + 1 + (d.lap % (n - 1))) % n];
+  } else {
+    const least = (counts, pool) => {
+      const min = Math.min(...pool.map(p => counts[p]));
+      const ties = pool.filter(p => counts[p] === min);
+      return ties[Math.floor(Math.random() * ties.length)];
+    };
+    const prev = d.current ? d.current.asker : null;
+    asker = least(d.asked, d.names.filter(p => p !== prev || n < 3));
+    target = least(d.targeted, d.names.filter(p => p !== asker));
+  }
+  d.asked[asker] = (d.asked[asker] || 0) + 1;
+  d.targeted[target] = (d.targeted[target] || 0) + 1;
+  d.turn += 1;
+  d.current = { asker: asker, target: target };
+  if (typeof saveToLocal === 'function') saveToLocal();
+  return d.current;
+}
+
+/** Draws the "X asks Y" card into a container; empty when the director is off. */
+function paintDirector(containerId, store, nextFn) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const d = store && store.dir;
+  if (!d || !d.current) { el.innerHTML = ''; el.classList.add('hidden'); return; }
+  const t = TRANSLATIONS[appState.lang];
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="director">
+      <div class="director__label">🎤 ${escapeHTML(t.director_turn || '')} <span class="metric">${d.turn}</span></div>
+      <div class="director__pair">
+        <span class="director__name">${escapeHTML(d.current.asker)}</span>
+        <span class="director__verb">${escapeHTML(t.director_asks_verb || '')}</span>
+        <span class="director__name director__name--target">${escapeHTML(d.current.target)}</span>
+      </div>
+      <div class="director__hint">${escapeHTML(t.director_asks || '')}</div>
+      <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="${nextFn}">${escapeHTML(t.director_next || '')} ⏭</button>
+    </div>`;
+}
+
+/* --- the switch on a setup screen ------------------------------------------- */
+
+/** The saved mode for a game: appState.imposter.config.director / appState.whoami.director. */
+function directorModeOf(game) {
+  if (game === 'imposter') return (appState.imposter.config && appState.imposter.config.director) || 'off';
+  if (game === 'whoami') return appState.whoami.director || 'off';
+  return 'off';
+}
+function setDirectorModeOf(game, mode) {
+  if (game === 'imposter') { appState.imposter.config = appState.imposter.config || {}; appState.imposter.config.director = mode; }
+  if (game === 'whoami') appState.whoami.director = mode;
+  saveToLocal();
+}
+
+/** The switch was flipped: off, or the segmented choice. */
+function syncDirectorField(game) {
+  const on = document.getElementById(game + '-director-on');
+  const chosen = document.querySelector(`#${game}-director-mode .segmented__item.is-active`);
+  const mode = on && on.checked ? ((chosen && chosen.dataset.value) || 'order') : 'off';
+  setDirectorModeOf(game, mode);
+  paintDirectorSetup(game);
+}
+
+function setDirectorMode(game, mode) {
+  setDirectorModeOf(game, mode);
+  paintDirectorSetup(game);
+  haptic('light');
+}
+
+function paintImposterSetup() { paintDirectorSetup('imposter'); }
+function paintWhoAmISetup() { paintDirectorSetup('whoami'); }
+
+function paintDirectorSetup(game) {
+  const mode = directorModeOf(game);
+  const on = document.getElementById(game + '-director-on');
+  if (on) on.checked = mode !== 'off';
+  const choices = document.getElementById(game + '-director-choices');
+  if (choices) choices.classList.toggle('hidden', mode === 'off');
+  document.querySelectorAll(`#${game}-director-mode .segmented__item`).forEach(b => {
+    b.classList.toggle('is-active', b.dataset.value === (mode === 'off' ? 'order' : mode));
+  });
+}
+</script>

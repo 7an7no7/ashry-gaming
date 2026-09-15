@@ -950,6 +950,11 @@ function whoAmINext() {
 function startWhoAmITimer() {
     document.getElementById('whoami-pass-container').classList.add('hidden');
     document.getElementById('whoami-timer-ui').classList.remove('hidden');
+    // Who asks whom, if the table asked for it (JS_Director.html).
+    if (typeof directorStart === 'function') {
+        directorStart(appState.whoami, appState.whoami.assignments.map(a => a.name), directorModeOf('whoami'));
+        paintDirector('whoami-director', appState.whoami, 'whoamiDirectorNext()');
+    }
     
     appState.whoami.timer = 120; 
     appState.whoami.isPaused = false;
@@ -970,6 +975,12 @@ function startWhoAmITimer() {
             playSound('alarm');
         }
     });
+}
+
+function whoamiDirectorNext() {
+    directorNext(appState.whoami);
+    paintDirector('whoami-director', appState.whoami, 'whoamiDirectorNext()');
+    haptic('light');
 }
 
 function toggleWhoAmITimer() {

@@ -1,0 +1,303 @@
+<script>
+/* ============================================================================
+   أتوبيس كومبليت — ON SEPARATE PHONES
+   ----------------------------------------------------------------------------
+   The letter is on every phone, each player types an answer per category,
+   and the first to press وقف closes the round for the table. The server then
+   compares the answers (RoomGames.js: 10 unique, 5 shared, 0 blank or wrong
+   initial) and the host corrects any cell before the points are banked.
+
+   The one thing to get right here: a phone that has not submitted yet must
+   send what it has typed the moment the round closes, before its screen is
+   redrawn - the inputs are gone once the frame is rebuilt.
+   ========================================================================= */
+
+const stopRoom = { sentFor: '', clock: null, clockKey: null, fired: false };
+const STOP_ROOM_OPTS_KEY = 'ashryStopRoomOpts';
+
+/** The host's options, remembered on this phone between evenings. */
+function stopRoomOpts() {
+  const base = { cats: STOP_DEFAULT_CATS.slice(), timer: 90, rounds: 5 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(STOP_ROOM_OPTS_KEY) || 'null');
+    if (saved && Array.isArray(saved.cats) && saved.cats.length >= 2) base.cats = saved.cats;
+    if (saved && [60, 90, 120, 0].indexOf(saved.timer) !== -1) base.timer = saved.timer;
+    if (saved && [3, 5, 7, 10].indexOf(saved.rounds) !== -1) base.rounds = saved.rounds;
+  } catch (e) {}
+  return base;
+}
+
+function setStopRoomOpt(key, value) {
+  const o = stopRoomOpts();
+  if (key === 'cat') {
+    const on = o.cats.indexOf(value) !== -1;
+    if (on && o.cats.length <= 2) { showToast(TRANSLATIONS[appState.lang].stop_min_cats || '', 'warn'); return; }
+    o.cats = on ? o.cats.filter(c => c !== value) : STOP_CATEGORIES.map(c => c.id).filter(c => c === value || o.cats.indexOf(c) !== -1);
+  } else {
+    o[key] = Number(value);
+  }
+  try { localStorage.setItem(STOP_ROOM_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+  // The lobby only rewrites its options when they change; make it.
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+ROOM_GAMES.stop = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_hint || '')}</p>`;
+    const o = stopRoomOpts();
+    const seg = (id, values, current, labelOf) => `
+      <div class="segmented" role="group">
+        ${values.map(v => `<button type="button" class="segmented__item ${v === current ? 'is-active' : ''}"
+            onclick="setStopRoomOpt('${id}', ${v})">${labelOf(v)}</button>`).join('')}
+      </div>`;
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.stop_cats_label || '')}</label>
+          <div class="chip-set">
+            ${STOP_CATEGORIES.map(c => `
+              <button type="button" class="opt-chip ${o.cats.indexOf(c.id) !== -1 ? 'is-active' : ''}"
+                      onclick="setStopRoomOpt('cat', '${c.id}')"><span aria-hidden="true">${c.icon}</span>${escapeHTML(stopCatLabel(c.id))}</button>`).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.stop_timer_label || '')}</label>
+          ${seg('timer', [60, 90, 120, 0], o.timer, v => v === 0 ? escapeHTML(t.stop_no_timer || '') : v)}
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.stop_rounds_label || '')}</label>
+          ${seg('rounds', [3, 5, 7, 10], o.rounds, v => v)}
+        </div>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_hint || '')}</p>
+      </div>`;
+  },
+
+  startPayload() {
+    const o = stopRoomOpts();
+    return { cats: o.cats, timer: o.timer, rounds: o.rounds, lang: VOTE_LANG() };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-stop') setView('room-stop');
+    const el = document.getElementById('view-room-stop');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const roundKey = state.code + '#' + s.round;
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+    const iSubmitted = (s.submitted || []).indexOf(Room.me) !== -1;
+
+    // The round closed under me: send what is typed before the frame goes.
+    if (s.phase === 'collecting' && inRound && !iSubmitted && stopRoom.sentFor !== roundKey) {
+      submitStopRoom(false);
+    }
+
+    const sig = ['stop', s.phase, s.round, s.letter, iSubmitted, state.youAreHost, appState.lang,
+                 iSubmitted || s.phase !== 'writing' ? (s.submitted || []).length : '',
+                 s.phase === 'review' ? JSON.stringify(s.roundTotals) + JSON.stringify(s.results) : '',
+                 s.phase === 'done' ? JSON.stringify(s.board) : ''].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => stopRoomFrame(state, t, inRound, iSubmitted));
+    if (rebuilt && s.phase === 'done' && typeof confetti === 'function') confetti({ particleCount: 160, spread: 80 });
+    refreshRoomPlayerStrip(el, state);
+
+    if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
+    if (rebuilt && s.phase === 'writing' && !iSubmitted) {
+      const first = el.querySelector('.stop-room-input');
+      if (first && window.innerWidth >= 900) first.focus();
+    }
+  }
+};
+
+function stopRoomFrame(state, t, inRound, iSubmitted) {
+  const s = state.shared;
+  const present = state.players.map(p => p.id);
+  const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1).length;
+  const done = (s.submitted || []).filter(id => present.indexOf(id) !== -1).length;
+  const nameOf = (id) => { const p = state.players.find(x => x.id === id); return p ? p.name : '…'; };
+  const head = `
+    <div class="play-head">
+      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span> / <span class="metric">${s.rounds}</span></span>
+      ${s.phase === 'writing' && s.endsAt ? `<span id="stop-room-timer" class="badge badge--accent metric">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>` : ''}
+      ${s.phase === 'writing' && !s.endsAt ? `<span class="badge">${escapeHTML(t.stop_no_timer || '')}</span>` : ''}
+    </div>`;
+  const letterCard = (hint) => `
+    <div class="stop-letter-card">
+      <div class="eyebrow">${escapeHTML(t.stop_letter || '')}</div>
+      <div class="stop-letter">${escapeHTML(s.letter)}</div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+
+  if (s.phase === 'writing' || s.phase === 'collecting') {
+    if (!inRound) return head + letterCard('') + `<div class="waiting-note">${escapeHTML(t.vote_spectating || '')}</div>` + renderRoomPlayerStrip(state);
+    if (s.phase === 'collecting' || iSubmitted) {
+      return head + letterCard('') + `
+        <div class="card" style="text-align:center">
+          ${s.phase === 'collecting'
+            ? `<div class="waiting-note"><span class="animate-pulse">⏳</span> ${escapeHTML(t.stop_room_collecting || '')}</div>
+               ${s.stopperName ? `<p class="field__hint">✋ ${escapeHTML(s.stopperName)} ${escapeHTML(t.stop_room_stopped_by || '')}</p>` : ''}`
+            : `<div class="waiting-note"><span class="animate-pulse">✍️</span> ${escapeHTML(t.waiting_others || '')} (${done}/${expected})</div>`}
+        </div>` + renderRoomPlayerStrip(state);
+    }
+    return head + letterCard(t.stop_room_write_hint || '') + `
+      <div class="card card--tight stop-room-form">
+        ${s.cats.map((c, i) => `
+          <div class="field">
+            <label class="field__label" for="stop-in-${c}">${escapeHTML(stopCatLabel(c))}</label>
+            <input type="text" id="stop-in-${c}" class="stop-room-input" data-cat="${c}" maxlength="30" autocomplete="off"
+                   autocapitalize="off" spellcheck="false" enterkeyhint="${i === s.cats.length - 1 ? 'done' : 'next'}"
+                   onkeydown="stopRoomKey(event, ${i})">
+          </div>`).join('')}
+        <button type="button" class="btn btn--danger btn--lg" onclick="submitStopRoom(true)">${escapeHTML(t.stop_stop_btn || '')}</button>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_stop_hint || '')}</p>
+      </div>` + renderRoomPlayerStrip(state);
+  }
+
+  if (s.phase === 'review') {
+    const last = s.round >= s.rounds;
+    return head + `
+      <div class="card card--tight">
+        <div class="card__title">${escapeHTML(t.stop_scoring || '')} · <span class="metric">${escapeHTML(s.letter)}</span></div>
+        ${s.stopperName ? `<p class="card__subtitle">✋ ${escapeHTML(s.stopperName)} ${escapeHTML(t.stop_room_stopped_by || '')}</p>` : ''}
+        <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (t.stop_room_adjust_hint || '') : (t.stop_room_review_hint || ''))}</p>
+        ${stopReviewTable(state, t, state.youAreHost)}
+      </div>
+      ${s.round > 1 ? renderScoreboard(s.board) : ''}
+      ${state.youAreHost
+        ? `<div class="btn-stack">
+             <button class="btn btn--primary btn--lg" onclick="roomAct('nextRound')">${escapeHTML(last ? (t.stop_finish || '') : (t.stop_next_letter || ''))}</button>
+           </div>`
+        : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}`;
+  }
+
+  // done
+  const board = s.board || [];
+  const best = board.length ? board[0].score : 0;
+  const champs = board.filter(p => best > 0 && p.score === best).map(p => escapeHTML(p.name));
+  return `
+    <div class="card card--accent" style="text-align:center">
+      <div class="eyebrow">${escapeHTML(t.stop_finish || '')}</div>
+      <div class="metric metric--md metric--accent">🏆 ${champs.join(' · ') || '—'}</div>
+    </div>
+    ${renderScoreboard(board)}
+    ${state.youAreHost
+      ? `<div class="btn-stack">
+           <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
+           <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+         </div>`
+      : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+    ${renderRoomPlayerStrip(state)}`;
+}
+
+/** The scored round as a table; the host's cells are buttons that cycle 10 → 5 → 0. */
+function stopReviewTable(state, t, canAdjust) {
+  const s = state.shared;
+  const roster = (s.roster || []).filter(id => s.results && s.results[id]);
+  const nameOf = (id) => { const p = state.players.find(x => x.id === id); return p ? p.name : '…'; };
+  const cell = (pid, c) => {
+    const r = s.results[pid][c];
+    const cls = r.pts === 10 ? 'is-10' : r.pts === 5 ? 'is-5' : '';
+    const inner = `<span class="stop-ans ${r.ok ? '' : 'is-bad'}">${escapeHTML(r.text || '—')}</span><span class="stop-pts ${cls}">${r.pts}</span>`;
+    return canAdjust
+      ? `<button type="button" class="stop-rcell ${r.manual ? 'is-manual' : ''}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${r.pts})">${inner}</button>`
+      : `<div class="stop-rcell ${r.manual ? 'is-manual' : ''}">${inner}</div>`;
+  };
+  return `
+    <div class="stop-table-wrap">
+      <table class="stop-table">
+        <thead><tr>
+          <th class="stop-th stop-th--name">${escapeHTML(t.players || '')}</th>
+          ${s.cats.map(c => `<th class="stop-th">${escapeHTML(stopCatLabel(c))}</th>`).join('')}
+          <th class="stop-th">Σ</th>
+        </tr></thead>
+        <tbody>
+          ${roster.map(pid => `
+            <tr class="${pid === Room.me ? 'is-me' : ''}">
+              <td class="stop-td stop-td--name">${escapeHTML(nameOf(pid))}</td>
+              ${s.cats.map(c => `<td class="stop-td">${cell(pid, c)}</td>`).join('')}
+              <td class="stop-td"><b class="metric">${s.roundTotals[pid] || 0}</b></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="stop-legend">
+      <span><span class="stop-dot is-10"></span> 10 ${escapeHTML(t.stop_pts_unique || '')}</span>
+      <span><span class="stop-dot is-5"></span> 5 ${escapeHTML(t.stop_pts_shared || '')}</span>
+      <span><span class="stop-dot"></span> 0 ${escapeHTML(t.stop_pts_none || '')}</span>
+    </div>`;
+}
+
+/** Enter moves down the list; on the last box it is وقف. */
+function stopRoomKey(event, index) {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const inputs = [...document.querySelectorAll('#view-room-stop .stop-room-input')];
+  if (index < inputs.length - 1) inputs[index + 1].focus();
+  else submitStopRoom(true);
+}
+
+/** Sends what is typed; with `stop`, closes the round for everyone. */
+function submitStopRoom(stop) {
+  const s = Room.state && Room.state.shared;
+  if (!s || (s.phase !== 'writing' && s.phase !== 'collecting')) return;
+  const roundKey = Room.state.code + '#' + s.round;
+  if (stopRoom.sentFor === roundKey) return;
+  const answers = {};
+  document.querySelectorAll('#view-room-stop .stop-room-input').forEach(inp => { answers[inp.dataset.cat] = inp.value; });
+  stopRoom.sentFor = roundKey;
+  if (stop) { playSound('alarm'); haptic('medium'); }
+  Room.act('submit', { answers: answers, stop: !!stop }).catch(err => {
+    stopRoom.sentFor = '';
+    showToast(err.message || 'تعذر الإرسال', 'error');
+  });
+}
+
+/** The host taps a cell: 10 → 5 → 0 → 10. */
+function adjustStopRoom(pid, cat, current) {
+  const next = current === 10 ? 5 : current === 5 ? 0 : 10;
+  haptic('light');
+  roomAct('adjust', { playerId: pid, cat: cat, pts: next });
+}
+
+function paintStopRoomTimer(endsAt) {
+  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  const el = document.getElementById('stop-room-timer');
+  if (el) { el.textContent = left; el.classList.toggle('badge--danger', left <= 10); el.classList.toggle('badge--accent', left > 10); }
+  const big = document.getElementById('tv-stop-timer');
+  if (big) { big.textContent = left; big.classList.toggle('is-low', left <= 10); }
+  return left;
+}
+
+function startStopRoomClock(s) {
+  paintStopRoomTimer(s.endsAt);
+  if (stopRoom.clockKey === s.endsAt && (stopRoom.clock ? stopRoom.clock.isRunning() : stopRoom.fired)) return;
+  stopStopRoomClock();
+  stopRoom.clockKey = s.endsAt;
+  const endsAt = s.endsAt;
+  stopRoom.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => { const left = paintStopRoomTimer(endsAt); if (left > 0 && left <= 5) playSound('tick'); },
+    onEnd: () => {
+      stopRoom.clock = null;
+      stopRoom.fired = true;
+      const st = Room.state;
+      if (!st || st.shared.phase !== 'writing' || st.shared.endsAt !== endsAt) return;
+      // Everyone sends their sheet as the clock hits zero; the host also closes
+      // the round, and the server does the same a moment later regardless.
+      if ((st.shared.roster || []).indexOf(Room.me) !== -1 && (st.shared.submitted || []).indexOf(Room.me) === -1) submitStopRoom(false);
+      if (Room.isHost) setTimeout(() => Room.act('timeUp').catch(() => {}), 300);
+    }
+  });
+}
+
+function stopStopRoomClock() {
+  if (stopRoom.clock) stopRoom.clock.stop();
+  stopRoom.clock = null;
+  stopRoom.clockKey = null;
+  stopRoom.fired = false;
+}
+</script>

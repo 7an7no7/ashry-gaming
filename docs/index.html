@@ -4902,6 +4902,51 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
   .together-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
+
+/* --- أتوبيس كومبليت on separate phones, and the ask director --------------- */
+.stop-room-form .field { margin-bottom: var(--sp-3); }
+.stop-rcell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 4.5rem;
+  max-width: 7rem;
+  min-height: var(--tap);
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-family: var(--font);
+}
+button.stop-rcell { cursor: pointer; transition: transform var(--dur-1) var(--ease-out); }
+button.stop-rcell:active { transform: scale(0.95); }
+.stop-rcell.is-manual { border-style: dashed; border-color: var(--accent); }
+.stop-ans { max-width: 100%; font-size: var(--fs-xs); font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stop-ans.is-bad { color: var(--text-3); text-decoration: line-through; }
+.stop-pts { padding: 0 0.4rem; border-radius: var(--r-full); background: var(--surface-3); color: var(--text-3); font-size: 0.7rem; font-weight: 900; }
+.stop-pts.is-10 { background: var(--success-btn); color: var(--success-on); }
+.stop-pts.is-5 { background: var(--warning-btn); color: var(--warning-on); }
+.stop-table tr.is-me .stop-td--name { color: var(--accent-ink); }
+.tv-stop-letter { font-size: 22vmin; font-weight: 900; line-height: 1; color: var(--accent-ink); }
+.tv-chip.is-done { background: var(--success-soft); }
+body.is-tv-view .stop-rcell { min-width: 8vmin; font-size: 2vmin; }
+
+.director {
+  text-align: center;
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+}
+.director__label { margin-bottom: 4px; font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
+.director__pair { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: var(--sp-2); }
+.director__name { font-size: var(--fs-h2); font-weight: 900; color: var(--text-strong); }
+.director__name--target { color: var(--accent-ink); }
+.director__verb { font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); }
+.director__hint { margin: 2px 0 var(--sp-2); font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }
+
 </style>
 
     
@@ -5036,6 +5081,22 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 
       <div id="view-setup-stop" class="hidden" data-accent="green">
         <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device"
+                    onclick="setPlayMode('stop', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online"
+                    onclick="setPlayMode('stop', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="stop_online_desc">الحرف يظهر على كل موبايل، كل واحد يكتب إجاباته، وأول واحد يخلص يوقّف الجولة. التطبيق يقارن الإجابات ويحسب النقاط لوحده.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('stop')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+
+          <div class="mode-device-panel">
           <div class="field">
             <label class="field__label" data-i18n="stop_cats_label">الفئات</label>
             <div class="chip-set" id="stop-cats"></div>
@@ -5074,6 +5135,7 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
           <div id="stop-player-list" class="mb-6"></div>
 
           <button onclick="startStopGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
+          </div>
         </div>
       </div>
       <div id="view-play-stop" class="hidden" data-accent="green"><div id="stop-stage"></div></div>
@@ -5154,6 +5216,7 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
       </div>
 
       <div id="view-room-buzzer" class="hidden" data-accent="rose"></div>
+      <div id="view-room-stop" class="hidden" data-accent="green"></div>
 
       <!-- ============ MULTIPLAYER: JOIN ============ -->
       <!-- Multiplayer game surfaces. Each is filled by its game's renderer. -->
@@ -5576,6 +5639,22 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
                  <input type="number" id="imposter-count" value="1" min="1" max="9" inputmode="numeric" class="text-center tx-accent">
               </div>
           </div>
+          <div class="field">
+            <label class="switch-row" for="imposter-director-on">
+              <span class="field__label" data-i18n="director_label">مين يسأل مين؟</span>
+              <span class="switch">
+                <input type="checkbox" id="imposter-director-on" role="switch" onchange="syncDirectorField('imposter')">
+                <span class="switch__track" aria-hidden="true"></span>
+              </span>
+            </label>
+            <div id="imposter-director-choices" class="hidden">
+              <div class="segmented" id="imposter-director-mode" role="group">
+                <button type="button" class="segmented__item is-active" data-value="order" onclick="setDirectorMode('imposter', 'order')" data-i18n="director_order">بالترتيب</button>
+                <button type="button" class="segmented__item" data-value="random" onclick="setDirectorMode('imposter', 'random')" data-i18n="director_random">عشوائي</button>
+              </div>
+              <p class="field__hint" data-i18n="director_hint">الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = وقت حر بالمؤقت بس.</p>
+            </div>
+          </div>
 
           <div class="group-picker">
     <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
@@ -5622,6 +5701,7 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
                <div id="imposter-timer-display" class="metric metric--xl metric--accent">00:00</div>
                <button onclick="toggleImposterTimer()" id="imp-pause-btn" class="btn btn--secondary btn--sm btn--auto" data-i18n="pause_btn">إيقاف مؤقت</button>
            </div>
+           <div id="imposter-director" class="hidden"></div>
            <h3 class="eyebrow" data-i18n="players">قائمة اللاعبين</h3>
            <div id="imposter-game-players" class="flex flex-wrap gap-2 justify-center mb-10"></div>
            <button onclick="revealImposterResult()" class="btn btn--danger" data-i18n="reveal_imposters">كشف الجواسيس 🕵️‍♂️</button>
@@ -6591,6 +6671,22 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
                     </div>
             </div>
 
+          <div class="field">
+            <label class="switch-row" for="whoami-director-on">
+              <span class="field__label" data-i18n="director_label">مين يسأل مين؟</span>
+              <span class="switch">
+                <input type="checkbox" id="whoami-director-on" role="switch" onchange="syncDirectorField('whoami')">
+                <span class="switch__track" aria-hidden="true"></span>
+              </span>
+            </label>
+            <div id="whoami-director-choices" class="hidden">
+              <div class="segmented" id="whoami-director-mode" role="group">
+                <button type="button" class="segmented__item is-active" data-value="order" onclick="setDirectorMode('whoami', 'order')" data-i18n="director_order">بالترتيب</button>
+                <button type="button" class="segmented__item" data-value="random" onclick="setDirectorMode('whoami', 'random')" data-i18n="director_random">عشوائي</button>
+              </div>
+              <p class="field__hint" data-i18n="director_hint">الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = وقت حر بالمؤقت بس.</p>
+            </div>
+          </div>
             <label class="field__label" data-i18n="players_count">عدد اللاعبين</label>
             <div class="stepper" style="margin-bottom: var(--sp-6)">
                 <button onclick="adjustWhoAmICount(-1)" class="stepper__btn" aria-label="أقل">−</button>
@@ -6649,6 +6745,7 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
                 <div class="card mb-8 py-10 bg-slate-50 dark:bg-slate-800">
                     <div id="whoami-timer-display" class="text-7xl font-black text-slate-700 dark:text-white tabular-nums">00:00</div>
                 </div>
+                <div id="whoami-director" class="hidden"></div>
 
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <button onclick="toggleWhoAmITimer()" id="whoami-pause-btn" class="btn btn--ghost" data-i18n="pause_btn">إيقاف</button>
@@ -7467,6 +7564,22 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
       bomb_boom_hint: "اللي القنبلة في إيده خسر الجولة",
       bomb_next_round: "جولة جديدة",
       bomb_swap: "فئة تانية",
+      stop_online_desc: "الحرف يظهر على كل موبايل، كل واحد يكتب إجاباته، وأول واحد يخلص يوقّف الجولة. التطبيق يقارن الإجابات ويحسب النقاط لوحده.",
+      stop_room_hint: "كل واحد يكتب على موبايله. أول واحد يخلص يضغط وقف، والتطبيق يحسب: 10 لإجابة مميزة، 5 لمكررة، 0 لفاضية أو مش بتبدأ بالحرف.",
+      stop_room_write_hint: "اكتب كلمة تبدأ بالحرف في كل خانة",
+      stop_room_stop_hint: "أول واحد يضغط وقف يقفل الجولة على الكل",
+      stop_room_collecting: "بنجمع الإجابات…",
+      stop_room_stopped_by: "وقّف الجولة",
+      stop_room_adjust_hint: "اضغط على أي خانة عشان تعدّل نقاطها: 10 ← 5 ← 0",
+      stop_room_review_hint: "المضيف يراجع النقاط قبل ما تتحسب",
+      director_label: "مين يسأل مين؟",
+      director_order: "بالترتيب",
+      director_random: "عشوائي",
+      director_hint: "الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = وقت حر بالمؤقت بس.",
+      director_turn: "الدور",
+      director_asks_verb: "يسأل",
+      director_asks: "سؤال واحد، وبعدين التالي",
+      director_next: "التالي",
       stop_cats_label: "الفئات",
       stop_timer_label: "الوقت لكل حرف (ثانية)",
       stop_no_timer: "بدون",
@@ -8144,6 +8257,22 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
       bomb_boom_hint: "Whoever is holding the bomb loses the round",
       bomb_next_round: "New round",
       bomb_swap: "Another category",
+      stop_online_desc: "The letter shows on every phone, everyone types their answers, and the first one done stops the round. The app compares the answers and scores them itself.",
+      stop_room_hint: "Everyone writes on their own phone. The first one done presses Stop, and the app scores: 10 for a unique answer, 5 for a shared one, 0 for blank or not starting with the letter.",
+      stop_room_write_hint: "Write a word starting with the letter in every box",
+      stop_room_stop_hint: "The first to press Stop closes the round for everyone",
+      stop_room_collecting: "Collecting the answers…",
+      stop_room_stopped_by: "stopped the round",
+      stop_room_adjust_hint: "Tap any cell to change its points: 10 → 5 → 0",
+      stop_room_review_hint: "The host checks the points before they count",
+      director_label: "Who asks whom?",
+      director_order: "In order",
+      director_random: "Random",
+      director_hint: "The phone names who asks whom each turn, so nobody asks more than the rest and nobody hides. Off = free talk against the clock.",
+      director_turn: "Turn",
+      director_asks_verb: "asks",
+      director_asks: "One question, then next",
+      director_next: "Next",
       stop_cats_label: "Categories",
       stop_timer_label: "Time per letter (seconds)",
       stop_no_timer: "None",
@@ -9335,7 +9464,8 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
     'setup-xo':        { title: 'setup_xo',         up: 'menu',           accent: 'blue' },
     'play-xo':         { title: 'setup_xo',         up: 'setup-xo',       accent: 'blue' },
     'play-chooser':    { title: 'tool_chooser',     up: 'menu',           accent: 'orange' },
-    'room-buzzer':     { title: 'setup_buzzer',     up: 'menu',           accent: 'rose' }
+    'room-buzzer':     { title: 'setup_buzzer',     up: 'menu',           accent: 'rose' },
+    'room-stop':       { title: 'setup_stop',       up: 'menu',           accent: 'green' }
   };
 
   // Depth is what makes the slide directional: deeper = forward, shallower = back.
@@ -9485,7 +9615,9 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
     'setup-bomb': 'paintBombSetup',
     'setup-stop': 'paintStopSetup',
     'setup-memory': 'paintMemorySetup',
-    'setup-xo': 'paintXOSetup'
+    'setup-xo': 'paintXOSetup',
+    'setup-imposter': 'paintImposterSetup',
+    'setup-whoami': 'paintWhoAmISetup'
   };
   function paintSetupOptions(viewId) {
     const fn = SETUP_PAINTERS[viewId];
@@ -9655,7 +9787,8 @@ const GAME_RULES = {
                 <li>أول واحد يخلص يضغط <b>وقف!</b> والكل يرفع القلم. أو الوقت بيخلص لوحده.</li>
                 <li>الحساب: <b>10</b> لإجابة محدش غيرك كتبها، <b>5</b> لإجابة اتكررت، <b>0</b> لو فاضية أو غلط. اضغط على الخانة عشان تغيرها.</li>
                 <li>بعد الجولات كلها، أعلى مجموع يكسب.</li>
-            </ol>`,
+            </ol>
+            <p style="margin-top:8px" class="text-xs"><b>على موبايلات منفصلة:</b> نفس الحرف يظهر لكل واحد، اكتب إجاباتك في الخانات، وأول واحد يخلص يضغط وقف. التطبيق يقارن الإجابات ويحسب لوحده (10 مميزة، 5 مكررة، 0 فاضية أو مش بتبدأ بالحرف)، والمضيف يقدر يعدّل أي خانة قبل ما تتحسب.</p>`,
         memory: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>الكروت كلها مقلوبة، وكل صورة ليها <b>كارت تاني زيها</b>.</li>
@@ -10000,7 +10133,8 @@ const GAME_RULES = {
                 <li>The first one finished presses <b>Stop!</b> and everyone puts their pen down. Or the clock runs out.</li>
                 <li>Scoring: <b>10</b> for an answer nobody else had, <b>5</b> for a shared one, <b>0</b> for blank or wrong. Tap a cell to change it.</li>
                 <li>After all the rounds, the highest total wins.</li>
-            </ol>`,
+            </ol>
+            <p style="margin-top:8px" class="text-xs"><b>On separate phones:</b> the same letter shows to everyone, you type your answers in the boxes, and the first one done presses Stop. The app compares the answers and scores them (10 unique, 5 shared, 0 blank or wrong initial), and the host can change any cell before the points count.</p>`,
         memory: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>All the cards are face down, and every picture has a <b>twin</b>.</li>
@@ -10380,7 +10514,7 @@ const GAME_CATALOG = [
 
   /* --- حفلة وضحك --- */
   { id: 'bomb',       icon: '💣',   title: 'setup_bomb',       desc: 'cat_bomb',       accent: 'orange', players: [2, 12], mins: 5,  modes: ['device'],               group: 'party', setup: 'setup-bomb',      open: () => setupBomb() },
-  { id: 'stop',       icon: '🚏',   title: 'setup_stop',       desc: 'cat_stop',       accent: 'green',  players: [2, 10], mins: 15, modes: ['device'],               group: 'party', setup: 'setup-stop',      open: () => setupStop() },
+  { id: 'stop',       icon: '🚏',   title: 'setup_stop',       desc: 'cat_stop',       accent: 'green',  players: [2, 10], mins: 15, modes: ['device', 'room', 'tv'], group: 'party', setup: 'setup-stop',      open: () => setupStop() },
   { id: 'wouldyou',   icon: '⚖️',  title: 'setup_wouldyou',   desc: 'cat_wouldyou',   accent: 'violet', players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wouldyou') },
   { id: 'mostlikely', icon: '👉',   title: 'setup_mostlikely', desc: 'cat_mostlikely', accent: 'amber',  players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('mostlikely') },
   { id: 'wavelength', icon: '🌊',   title: 'setup_wavelength', desc: 'cat_wavelength', accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wavelength') },
@@ -11314,7 +11448,8 @@ const ROOM_HUB_GAMES = [
   { id: 'fakeartist', icon: '👨‍🎨', key: 'setup_fakeartist', accent: 'pink',   min: 3 },
   { id: 'wavelength', icon: '🌊', key: 'setup_wavelength', accent: 'teal',   min: 2 },
   { id: 'trivia',     icon: '🧠', key: 'setup_trivia',     accent: 'indigo', min: 2 },
-  { id: 'buzzer',     icon: '🔔', key: 'setup_buzzer',     accent: 'rose',   min: 2 }
+  { id: 'buzzer',     icon: '🔔', key: 'setup_buzzer',     accent: 'rose',   min: 2 },
+  { id: 'stop',       icon: '🚏', key: 'setup_stop',       accent: 'green',  min: 2 }
 ];
 
 /** Create an empty room from the menu — no game chosen yet. */
@@ -12875,7 +13010,7 @@ const HELP_ENTRIES = [
   { key: 'timesup',     title: 'setup_timesup',     icon: '⏱️', accent: 'blue',   group: 'games' },
   { key: 'reaction',    title: 'setup_reaction',    icon: '⚡', accent: 'rose',   group: 'games' },
   { key: 'bomb',        title: 'setup_bomb',        icon: '💣', accent: 'orange', group: 'games' },
-  { key: 'stop',        title: 'setup_stop',        icon: '🚏', accent: 'green',  group: 'games' },
+  { key: 'stop',        title: 'setup_stop',        icon: '🚏', accent: 'green',  group: 'games', room: true },
   { key: 'memory',      title: 'setup_memory',      icon: '🎴', accent: 'violet', group: 'games' },
   { key: 'xo',          title: 'setup_xo',          icon: '⭕', accent: 'blue',   group: 'games' },
   { key: 'buzzer',      title: 'setup_buzzer',      icon: '🔔', accent: 'rose',   group: 'games', roomOnly: true },
@@ -12928,7 +13063,7 @@ const HELP_FOR_VIEW = {
   'setup-stop': 'stop', 'play-stop': 'stop',
   'setup-memory': 'memory', 'play-memory': 'memory',
   'setup-xo': 'xo', 'play-xo': 'xo',
-  'play-chooser': 'chooser', 'room-buzzer': 'buzzer'
+  'play-chooser': 'chooser', 'room-buzzer': 'buzzer', 'room-stop': 'stop'
 };
 
 const helpEntry = (key) => HELP_ENTRIES.find(e => e.key === key) || null;
@@ -14289,6 +14424,11 @@ function whoAmINext() {
 function startWhoAmITimer() {
     document.getElementById('whoami-pass-container').classList.add('hidden');
     document.getElementById('whoami-timer-ui').classList.remove('hidden');
+    // Who asks whom, if the table asked for it (JS_Director.html).
+    if (typeof directorStart === 'function') {
+        directorStart(appState.whoami, appState.whoami.assignments.map(a => a.name), directorModeOf('whoami'));
+        paintDirector('whoami-director', appState.whoami, 'whoamiDirectorNext()');
+    }
     
     appState.whoami.timer = 120; 
     appState.whoami.isPaused = false;
@@ -14309,6 +14449,12 @@ function startWhoAmITimer() {
             playSound('alarm');
         }
     });
+}
+
+function whoamiDirectorNext() {
+    directorNext(appState.whoami);
+    paintDirector('whoami-director', appState.whoami, 'whoamiDirectorNext()');
+    haptic('light');
 }
 
 function toggleWhoAmITimer() {
@@ -19781,6 +19927,8 @@ function exitReactionGame(event) {
       let roles = Array(count).fill('Imposter').concat(Array(total - count).fill('Civilian'));
       roles = shuffleArray(roles);
       appState.imposter.players = orderedNames.map((name, idx) => ({ name: name, role: roles[idx] }));
+      // Who asks whom, if the table asked for it (JS_Director.html).
+      if (typeof directorStart === 'function') directorStart(appState.imposter, orderedNames, directorModeOf('imposter'));
       appState.imposter.secretWord = secretWord;
       appState.imposter.revealIndex = 0;
       appState.imposter.timer = 0;
@@ -19831,6 +19979,13 @@ function exitReactionGame(event) {
       appState.imposter.players.forEach(p => {
           container.innerHTML += `<div class="imposter-card m-1">${escapeHTML(p.name)}</div>`;
       });
+      if (typeof paintDirector === 'function') paintDirector('imposter-director', appState.imposter, 'imposterDirectorNext()');
+  }
+
+  function imposterDirectorNext() {
+      directorNext(appState.imposter);
+      paintDirector('imposter-director', appState.imposter, 'imposterDirectorNext()');
+      haptic('light');
   }
 
   function startImposterTimer() {
@@ -23594,6 +23749,58 @@ TV_GAMES.buzzer = {
         ${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}
       </div>`;
     return `<div class="tv-vote">${head}${status}${queue ? `<div class="tv-strip-inline">${queue}</div>` : ''}${last}<div class="tv-scale">${renderScoreboard(s.board)}</div>${host}</div>`;
+  }
+};
+
+/* --- أتوبيس كومبليت --------------------------------------------------------- */
+TV_GAMES.stop = {
+  sig(state) {
+    const s = state.shared || {};
+    return [s.phase, s.round, s.letter, (s.submitted || []).length,
+            s.phase === 'review' ? JSON.stringify(s.roundTotals) + JSON.stringify(s.results) : '',
+            s.phase === 'done' ? JSON.stringify(s.board) : ''].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+    const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round} / ${s.rounds}</div>`;
+    if (s.phase === 'writing' || s.phase === 'collecting') {
+      const done = s.submitted || [];
+      const chips = (s.roster || []).map(id => `<span class="tv-chip ${done.indexOf(id) !== -1 ? 'is-done' : ''}">${done.indexOf(id) !== -1 ? '✅' : '✍️'} ${escapeHTML(nameOf(id))}</span>`).join('');
+      return `
+        <div class="tv-center">
+          ${head}
+          <div class="tv-eyebrow">${t.stop_letter || ''}</div>
+          <div class="tv-stop-letter">${escapeHTML(s.letter || '')}</div>
+          ${s.phase === 'writing' && s.endsAt ? `<div class="tv-timer tv-timer--big" id="tv-stop-timer">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</div>` : ''}
+          ${s.phase === 'collecting' ? `<div class="tv-note">⏳ ${t.stop_room_collecting || ''}${s.stopperName ? ' · ✋ ' + escapeHTML(s.stopperName) : ''}</div>` : ''}
+          <div class="tv-strip-inline">${chips}</div>
+        </div>`;
+    }
+    if (s.phase === 'review') {
+      const last = s.round >= s.rounds;
+      return `
+        <div class="tv-vote">
+          ${head}
+          <div class="tv-question">${t.stop_scoring || ''} · ${escapeHTML(s.letter || '')}</div>
+          <div class="tv-scale">${stopReviewTable(state, t, false)}</div>
+          ${state.youAreHost ? `<div class="tv-actions">${tvBtn(last ? t.stop_finish : t.stop_next_letter, "roomAct('nextRound')")}</div>` : ''}
+        </div>`;
+    }
+    const board = s.board || [];
+    const best = board.length ? board[0].score : 0;
+    const champs = board.filter(p => best > 0 && p.score === best).map(p => escapeHTML(p.name));
+    return `
+      <div class="tv-vote">
+        ${head}
+        <div class="tv-question">🏆 ${champs.join(' · ') || '—'}</div>
+        <div class="tv-scale">${renderScoreboard(board)}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again, "roomAct('playAgain')")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}
+      </div>`;
+  },
+  after(state) {
+    const s = state.shared || {};
+    if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
   }
 };
 
@@ -30721,6 +30928,435 @@ function pressBuzzer(btn) {
   if (btn) { btn.classList.add('is-pressed'); btn.disabled = true; }
   haptic('heavy');
   roomAct('buzz');
+}
+</script>
+
+    <script>
+/* ============================================================================
+   أتوبيس كومبليت — ON SEPARATE PHONES
+   ----------------------------------------------------------------------------
+   The letter is on every phone, each player types an answer per category,
+   and the first to press وقف closes the round for the table. The server then
+   compares the answers (RoomGames.js: 10 unique, 5 shared, 0 blank or wrong
+   initial) and the host corrects any cell before the points are banked.
+
+   The one thing to get right here: a phone that has not submitted yet must
+   send what it has typed the moment the round closes, before its screen is
+   redrawn - the inputs are gone once the frame is rebuilt.
+   ========================================================================= */
+
+const stopRoom = { sentFor: '', clock: null, clockKey: null, fired: false };
+const STOP_ROOM_OPTS_KEY = 'ashryStopRoomOpts';
+
+/** The host's options, remembered on this phone between evenings. */
+function stopRoomOpts() {
+  const base = { cats: STOP_DEFAULT_CATS.slice(), timer: 90, rounds: 5 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(STOP_ROOM_OPTS_KEY) || 'null');
+    if (saved && Array.isArray(saved.cats) && saved.cats.length >= 2) base.cats = saved.cats;
+    if (saved && [60, 90, 120, 0].indexOf(saved.timer) !== -1) base.timer = saved.timer;
+    if (saved && [3, 5, 7, 10].indexOf(saved.rounds) !== -1) base.rounds = saved.rounds;
+  } catch (e) {}
+  return base;
+}
+
+function setStopRoomOpt(key, value) {
+  const o = stopRoomOpts();
+  if (key === 'cat') {
+    const on = o.cats.indexOf(value) !== -1;
+    if (on && o.cats.length <= 2) { showToast(TRANSLATIONS[appState.lang].stop_min_cats || '', 'warn'); return; }
+    o.cats = on ? o.cats.filter(c => c !== value) : STOP_CATEGORIES.map(c => c.id).filter(c => c === value || o.cats.indexOf(c) !== -1);
+  } else {
+    o[key] = Number(value);
+  }
+  try { localStorage.setItem(STOP_ROOM_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+  // The lobby only rewrites its options when they change; make it.
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+ROOM_GAMES.stop = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_hint || '')}</p>`;
+    const o = stopRoomOpts();
+    const seg = (id, values, current, labelOf) => `
+      <div class="segmented" role="group">
+        ${values.map(v => `<button type="button" class="segmented__item ${v === current ? 'is-active' : ''}"
+            onclick="setStopRoomOpt('${id}', ${v})">${labelOf(v)}</button>`).join('')}
+      </div>`;
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.stop_cats_label || '')}</label>
+          <div class="chip-set">
+            ${STOP_CATEGORIES.map(c => `
+              <button type="button" class="opt-chip ${o.cats.indexOf(c.id) !== -1 ? 'is-active' : ''}"
+                      onclick="setStopRoomOpt('cat', '${c.id}')"><span aria-hidden="true">${c.icon}</span>${escapeHTML(stopCatLabel(c.id))}</button>`).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.stop_timer_label || '')}</label>
+          ${seg('timer', [60, 90, 120, 0], o.timer, v => v === 0 ? escapeHTML(t.stop_no_timer || '') : v)}
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.stop_rounds_label || '')}</label>
+          ${seg('rounds', [3, 5, 7, 10], o.rounds, v => v)}
+        </div>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_hint || '')}</p>
+      </div>`;
+  },
+
+  startPayload() {
+    const o = stopRoomOpts();
+    return { cats: o.cats, timer: o.timer, rounds: o.rounds, lang: VOTE_LANG() };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-stop') setView('room-stop');
+    const el = document.getElementById('view-room-stop');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const roundKey = state.code + '#' + s.round;
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+    const iSubmitted = (s.submitted || []).indexOf(Room.me) !== -1;
+
+    // The round closed under me: send what is typed before the frame goes.
+    if (s.phase === 'collecting' && inRound && !iSubmitted && stopRoom.sentFor !== roundKey) {
+      submitStopRoom(false);
+    }
+
+    const sig = ['stop', s.phase, s.round, s.letter, iSubmitted, state.youAreHost, appState.lang,
+                 iSubmitted || s.phase !== 'writing' ? (s.submitted || []).length : '',
+                 s.phase === 'review' ? JSON.stringify(s.roundTotals) + JSON.stringify(s.results) : '',
+                 s.phase === 'done' ? JSON.stringify(s.board) : ''].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => stopRoomFrame(state, t, inRound, iSubmitted));
+    if (rebuilt && s.phase === 'done' && typeof confetti === 'function') confetti({ particleCount: 160, spread: 80 });
+    refreshRoomPlayerStrip(el, state);
+
+    if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
+    if (rebuilt && s.phase === 'writing' && !iSubmitted) {
+      const first = el.querySelector('.stop-room-input');
+      if (first && window.innerWidth >= 900) first.focus();
+    }
+  }
+};
+
+function stopRoomFrame(state, t, inRound, iSubmitted) {
+  const s = state.shared;
+  const present = state.players.map(p => p.id);
+  const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1).length;
+  const done = (s.submitted || []).filter(id => present.indexOf(id) !== -1).length;
+  const nameOf = (id) => { const p = state.players.find(x => x.id === id); return p ? p.name : '…'; };
+  const head = `
+    <div class="play-head">
+      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span> / <span class="metric">${s.rounds}</span></span>
+      ${s.phase === 'writing' && s.endsAt ? `<span id="stop-room-timer" class="badge badge--accent metric">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>` : ''}
+      ${s.phase === 'writing' && !s.endsAt ? `<span class="badge">${escapeHTML(t.stop_no_timer || '')}</span>` : ''}
+    </div>`;
+  const letterCard = (hint) => `
+    <div class="stop-letter-card">
+      <div class="eyebrow">${escapeHTML(t.stop_letter || '')}</div>
+      <div class="stop-letter">${escapeHTML(s.letter)}</div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+
+  if (s.phase === 'writing' || s.phase === 'collecting') {
+    if (!inRound) return head + letterCard('') + `<div class="waiting-note">${escapeHTML(t.vote_spectating || '')}</div>` + renderRoomPlayerStrip(state);
+    if (s.phase === 'collecting' || iSubmitted) {
+      return head + letterCard('') + `
+        <div class="card" style="text-align:center">
+          ${s.phase === 'collecting'
+            ? `<div class="waiting-note"><span class="animate-pulse">⏳</span> ${escapeHTML(t.stop_room_collecting || '')}</div>
+               ${s.stopperName ? `<p class="field__hint">✋ ${escapeHTML(s.stopperName)} ${escapeHTML(t.stop_room_stopped_by || '')}</p>` : ''}`
+            : `<div class="waiting-note"><span class="animate-pulse">✍️</span> ${escapeHTML(t.waiting_others || '')} (${done}/${expected})</div>`}
+        </div>` + renderRoomPlayerStrip(state);
+    }
+    return head + letterCard(t.stop_room_write_hint || '') + `
+      <div class="card card--tight stop-room-form">
+        ${s.cats.map((c, i) => `
+          <div class="field">
+            <label class="field__label" for="stop-in-${c}">${escapeHTML(stopCatLabel(c))}</label>
+            <input type="text" id="stop-in-${c}" class="stop-room-input" data-cat="${c}" maxlength="30" autocomplete="off"
+                   autocapitalize="off" spellcheck="false" enterkeyhint="${i === s.cats.length - 1 ? 'done' : 'next'}"
+                   onkeydown="stopRoomKey(event, ${i})">
+          </div>`).join('')}
+        <button type="button" class="btn btn--danger btn--lg" onclick="submitStopRoom(true)">${escapeHTML(t.stop_stop_btn || '')}</button>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_stop_hint || '')}</p>
+      </div>` + renderRoomPlayerStrip(state);
+  }
+
+  if (s.phase === 'review') {
+    const last = s.round >= s.rounds;
+    return head + `
+      <div class="card card--tight">
+        <div class="card__title">${escapeHTML(t.stop_scoring || '')} · <span class="metric">${escapeHTML(s.letter)}</span></div>
+        ${s.stopperName ? `<p class="card__subtitle">✋ ${escapeHTML(s.stopperName)} ${escapeHTML(t.stop_room_stopped_by || '')}</p>` : ''}
+        <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (t.stop_room_adjust_hint || '') : (t.stop_room_review_hint || ''))}</p>
+        ${stopReviewTable(state, t, state.youAreHost)}
+      </div>
+      ${s.round > 1 ? renderScoreboard(s.board) : ''}
+      ${state.youAreHost
+        ? `<div class="btn-stack">
+             <button class="btn btn--primary btn--lg" onclick="roomAct('nextRound')">${escapeHTML(last ? (t.stop_finish || '') : (t.stop_next_letter || ''))}</button>
+           </div>`
+        : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}`;
+  }
+
+  // done
+  const board = s.board || [];
+  const best = board.length ? board[0].score : 0;
+  const champs = board.filter(p => best > 0 && p.score === best).map(p => escapeHTML(p.name));
+  return `
+    <div class="card card--accent" style="text-align:center">
+      <div class="eyebrow">${escapeHTML(t.stop_finish || '')}</div>
+      <div class="metric metric--md metric--accent">🏆 ${champs.join(' · ') || '—'}</div>
+    </div>
+    ${renderScoreboard(board)}
+    ${state.youAreHost
+      ? `<div class="btn-stack">
+           <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
+           <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+         </div>`
+      : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+    ${renderRoomPlayerStrip(state)}`;
+}
+
+/** The scored round as a table; the host's cells are buttons that cycle 10 → 5 → 0. */
+function stopReviewTable(state, t, canAdjust) {
+  const s = state.shared;
+  const roster = (s.roster || []).filter(id => s.results && s.results[id]);
+  const nameOf = (id) => { const p = state.players.find(x => x.id === id); return p ? p.name : '…'; };
+  const cell = (pid, c) => {
+    const r = s.results[pid][c];
+    const cls = r.pts === 10 ? 'is-10' : r.pts === 5 ? 'is-5' : '';
+    const inner = `<span class="stop-ans ${r.ok ? '' : 'is-bad'}">${escapeHTML(r.text || '—')}</span><span class="stop-pts ${cls}">${r.pts}</span>`;
+    return canAdjust
+      ? `<button type="button" class="stop-rcell ${r.manual ? 'is-manual' : ''}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${r.pts})">${inner}</button>`
+      : `<div class="stop-rcell ${r.manual ? 'is-manual' : ''}">${inner}</div>`;
+  };
+  return `
+    <div class="stop-table-wrap">
+      <table class="stop-table">
+        <thead><tr>
+          <th class="stop-th stop-th--name">${escapeHTML(t.players || '')}</th>
+          ${s.cats.map(c => `<th class="stop-th">${escapeHTML(stopCatLabel(c))}</th>`).join('')}
+          <th class="stop-th">Σ</th>
+        </tr></thead>
+        <tbody>
+          ${roster.map(pid => `
+            <tr class="${pid === Room.me ? 'is-me' : ''}">
+              <td class="stop-td stop-td--name">${escapeHTML(nameOf(pid))}</td>
+              ${s.cats.map(c => `<td class="stop-td">${cell(pid, c)}</td>`).join('')}
+              <td class="stop-td"><b class="metric">${s.roundTotals[pid] || 0}</b></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="stop-legend">
+      <span><span class="stop-dot is-10"></span> 10 ${escapeHTML(t.stop_pts_unique || '')}</span>
+      <span><span class="stop-dot is-5"></span> 5 ${escapeHTML(t.stop_pts_shared || '')}</span>
+      <span><span class="stop-dot"></span> 0 ${escapeHTML(t.stop_pts_none || '')}</span>
+    </div>`;
+}
+
+/** Enter moves down the list; on the last box it is وقف. */
+function stopRoomKey(event, index) {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const inputs = [...document.querySelectorAll('#view-room-stop .stop-room-input')];
+  if (index < inputs.length - 1) inputs[index + 1].focus();
+  else submitStopRoom(true);
+}
+
+/** Sends what is typed; with `stop`, closes the round for everyone. */
+function submitStopRoom(stop) {
+  const s = Room.state && Room.state.shared;
+  if (!s || (s.phase !== 'writing' && s.phase !== 'collecting')) return;
+  const roundKey = Room.state.code + '#' + s.round;
+  if (stopRoom.sentFor === roundKey) return;
+  const answers = {};
+  document.querySelectorAll('#view-room-stop .stop-room-input').forEach(inp => { answers[inp.dataset.cat] = inp.value; });
+  stopRoom.sentFor = roundKey;
+  if (stop) { playSound('alarm'); haptic('medium'); }
+  Room.act('submit', { answers: answers, stop: !!stop }).catch(err => {
+    stopRoom.sentFor = '';
+    showToast(err.message || 'تعذر الإرسال', 'error');
+  });
+}
+
+/** The host taps a cell: 10 → 5 → 0 → 10. */
+function adjustStopRoom(pid, cat, current) {
+  const next = current === 10 ? 5 : current === 5 ? 0 : 10;
+  haptic('light');
+  roomAct('adjust', { playerId: pid, cat: cat, pts: next });
+}
+
+function paintStopRoomTimer(endsAt) {
+  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  const el = document.getElementById('stop-room-timer');
+  if (el) { el.textContent = left; el.classList.toggle('badge--danger', left <= 10); el.classList.toggle('badge--accent', left > 10); }
+  const big = document.getElementById('tv-stop-timer');
+  if (big) { big.textContent = left; big.classList.toggle('is-low', left <= 10); }
+  return left;
+}
+
+function startStopRoomClock(s) {
+  paintStopRoomTimer(s.endsAt);
+  if (stopRoom.clockKey === s.endsAt && (stopRoom.clock ? stopRoom.clock.isRunning() : stopRoom.fired)) return;
+  stopStopRoomClock();
+  stopRoom.clockKey = s.endsAt;
+  const endsAt = s.endsAt;
+  stopRoom.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => { const left = paintStopRoomTimer(endsAt); if (left > 0 && left <= 5) playSound('tick'); },
+    onEnd: () => {
+      stopRoom.clock = null;
+      stopRoom.fired = true;
+      const st = Room.state;
+      if (!st || st.shared.phase !== 'writing' || st.shared.endsAt !== endsAt) return;
+      // Everyone sends their sheet as the clock hits zero; the host also closes
+      // the round, and the server does the same a moment later regardless.
+      if ((st.shared.roster || []).indexOf(Room.me) !== -1 && (st.shared.submitted || []).indexOf(Room.me) === -1) submitStopRoom(false);
+      if (Room.isHost) setTimeout(() => Room.act('timeUp').catch(() => {}), 300);
+    }
+  });
+}
+
+function stopStopRoomClock() {
+  if (stopRoom.clock) stopRoom.clock.stop();
+  stopRoom.clock = null;
+  stopRoom.clockKey = null;
+  stopRoom.fired = false;
+}
+</script>
+
+    <script>
+/* ============================================================================
+   مين يسأل مين — THE ASK DIRECTOR
+   ----------------------------------------------------------------------------
+   An option on the discussion phases of الجاسوس and من أنا؟. Left off, the
+   table talks freely against the clock, as it always did. Switched on, the
+   phone names who asks whom next, so nobody is grilled twice and nobody
+   hides: `order` walks the table in seating order and rotates the target
+   each lap, `random` always picks the player who has asked least and the
+   one who has been asked least.
+
+   The state lives in the game's own slice of appState (`store.dir`), so a
+   reload keeps the count.
+   ========================================================================= */
+
+const DIRECTOR_MODES = ['off', 'order', 'random'];
+
+/** Starts a fresh rotation for these players; `mode` off means no director. */
+function directorStart(store, names, mode) {
+  if (!store || DIRECTOR_MODES.indexOf(mode) === -1 || mode === 'off' || (names || []).length < 2) {
+    if (store) store.dir = null;
+    return;
+  }
+  const asked = {}, targeted = {};
+  names.forEach(n => { asked[n] = 0; targeted[n] = 0; });
+  store.dir = { mode: mode, names: names.slice(), asked: asked, targeted: targeted, i: -1, lap: 0, turn: 0, current: null };
+  directorNext(store);
+}
+
+/** The next pair. */
+function directorNext(store) {
+  const d = store && store.dir;
+  if (!d) return null;
+  const n = d.names.length;
+  let asker, target;
+  if (d.mode === 'order') {
+    d.i = (d.i + 1) % n;
+    if (d.i === 0 && d.turn > 0) d.lap += 1;
+    asker = d.names[d.i];
+    // Each lap the target moves one seat further round, so A does not ask B
+    // every single time.
+    target = d.names[(d.i + 1 + (d.lap % (n - 1))) % n];
+  } else {
+    const least = (counts, pool) => {
+      const min = Math.min(...pool.map(p => counts[p]));
+      const ties = pool.filter(p => counts[p] === min);
+      return ties[Math.floor(Math.random() * ties.length)];
+    };
+    const prev = d.current ? d.current.asker : null;
+    asker = least(d.asked, d.names.filter(p => p !== prev || n < 3));
+    target = least(d.targeted, d.names.filter(p => p !== asker));
+  }
+  d.asked[asker] = (d.asked[asker] || 0) + 1;
+  d.targeted[target] = (d.targeted[target] || 0) + 1;
+  d.turn += 1;
+  d.current = { asker: asker, target: target };
+  if (typeof saveToLocal === 'function') saveToLocal();
+  return d.current;
+}
+
+/** Draws the "X asks Y" card into a container; empty when the director is off. */
+function paintDirector(containerId, store, nextFn) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const d = store && store.dir;
+  if (!d || !d.current) { el.innerHTML = ''; el.classList.add('hidden'); return; }
+  const t = TRANSLATIONS[appState.lang];
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="director">
+      <div class="director__label">🎤 ${escapeHTML(t.director_turn || '')} <span class="metric">${d.turn}</span></div>
+      <div class="director__pair">
+        <span class="director__name">${escapeHTML(d.current.asker)}</span>
+        <span class="director__verb">${escapeHTML(t.director_asks_verb || '')}</span>
+        <span class="director__name director__name--target">${escapeHTML(d.current.target)}</span>
+      </div>
+      <div class="director__hint">${escapeHTML(t.director_asks || '')}</div>
+      <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="${nextFn}">${escapeHTML(t.director_next || '')} ⏭</button>
+    </div>`;
+}
+
+/* --- the switch on a setup screen ------------------------------------------- */
+
+/** The saved mode for a game: appState.imposter.config.director / appState.whoami.director. */
+function directorModeOf(game) {
+  if (game === 'imposter') return (appState.imposter.config && appState.imposter.config.director) || 'off';
+  if (game === 'whoami') return appState.whoami.director || 'off';
+  return 'off';
+}
+function setDirectorModeOf(game, mode) {
+  if (game === 'imposter') { appState.imposter.config = appState.imposter.config || {}; appState.imposter.config.director = mode; }
+  if (game === 'whoami') appState.whoami.director = mode;
+  saveToLocal();
+}
+
+/** The switch was flipped: off, or the segmented choice. */
+function syncDirectorField(game) {
+  const on = document.getElementById(game + '-director-on');
+  const chosen = document.querySelector(`#${game}-director-mode .segmented__item.is-active`);
+  const mode = on && on.checked ? ((chosen && chosen.dataset.value) || 'order') : 'off';
+  setDirectorModeOf(game, mode);
+  paintDirectorSetup(game);
+}
+
+function setDirectorMode(game, mode) {
+  setDirectorModeOf(game, mode);
+  paintDirectorSetup(game);
+  haptic('light');
+}
+
+function paintImposterSetup() { paintDirectorSetup('imposter'); }
+function paintWhoAmISetup() { paintDirectorSetup('whoami'); }
+
+function paintDirectorSetup(game) {
+  const mode = directorModeOf(game);
+  const on = document.getElementById(game + '-director-on');
+  if (on) on.checked = mode !== 'off';
+  const choices = document.getElementById(game + '-director-choices');
+  if (choices) choices.classList.toggle('hidden', mode === 'off');
+  document.querySelectorAll(`#${game}-director-mode .segmented__item`).forEach(b => {
+    b.classList.toggle('is-active', b.dataset.value === (mode === 'off' ? 'order' : mode));
+  });
 }
 </script>
 

@@ -959,4 +959,56 @@ TV_GAMES.buzzer = {
   }
 };
 
+/* --- أتوبيس كومبليت --------------------------------------------------------- */
+TV_GAMES.stop = {
+  sig(state) {
+    const s = state.shared || {};
+    return [s.phase, s.round, s.letter, (s.submitted || []).length,
+            s.phase === 'review' ? JSON.stringify(s.roundTotals) + JSON.stringify(s.results) : '',
+            s.phase === 'done' ? JSON.stringify(s.board) : ''].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+    const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round} / ${s.rounds}</div>`;
+    if (s.phase === 'writing' || s.phase === 'collecting') {
+      const done = s.submitted || [];
+      const chips = (s.roster || []).map(id => `<span class="tv-chip ${done.indexOf(id) !== -1 ? 'is-done' : ''}">${done.indexOf(id) !== -1 ? '✅' : '✍️'} ${escapeHTML(nameOf(id))}</span>`).join('');
+      return `
+        <div class="tv-center">
+          ${head}
+          <div class="tv-eyebrow">${t.stop_letter || ''}</div>
+          <div class="tv-stop-letter">${escapeHTML(s.letter || '')}</div>
+          ${s.phase === 'writing' && s.endsAt ? `<div class="tv-timer tv-timer--big" id="tv-stop-timer">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</div>` : ''}
+          ${s.phase === 'collecting' ? `<div class="tv-note">⏳ ${t.stop_room_collecting || ''}${s.stopperName ? ' · ✋ ' + escapeHTML(s.stopperName) : ''}</div>` : ''}
+          <div class="tv-strip-inline">${chips}</div>
+        </div>`;
+    }
+    if (s.phase === 'review') {
+      const last = s.round >= s.rounds;
+      return `
+        <div class="tv-vote">
+          ${head}
+          <div class="tv-question">${t.stop_scoring || ''} · ${escapeHTML(s.letter || '')}</div>
+          <div class="tv-scale">${stopReviewTable(state, t, false)}</div>
+          ${state.youAreHost ? `<div class="tv-actions">${tvBtn(last ? t.stop_finish : t.stop_next_letter, "roomAct('nextRound')")}</div>` : ''}
+        </div>`;
+    }
+    const board = s.board || [];
+    const best = board.length ? board[0].score : 0;
+    const champs = board.filter(p => best > 0 && p.score === best).map(p => escapeHTML(p.name));
+    return `
+      <div class="tv-vote">
+        ${head}
+        <div class="tv-question">🏆 ${champs.join(' · ') || '—'}</div>
+        <div class="tv-scale">${renderScoreboard(board)}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again, "roomAct('playAgain')")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}
+      </div>`;
+  },
+  after(state) {
+    const s = state.shared || {};
+    if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
+  }
+};
+
 </script>

@@ -120,6 +120,8 @@
       let roles = Array(count).fill('Imposter').concat(Array(total - count).fill('Civilian'));
       roles = shuffleArray(roles);
       appState.imposter.players = orderedNames.map((name, idx) => ({ name: name, role: roles[idx] }));
+      // Who asks whom, if the table asked for it (JS_Director.html).
+      if (typeof directorStart === 'function') directorStart(appState.imposter, orderedNames, directorModeOf('imposter'));
       appState.imposter.secretWord = secretWord;
       appState.imposter.revealIndex = 0;
       appState.imposter.timer = 0;
@@ -170,6 +172,13 @@
       appState.imposter.players.forEach(p => {
           container.innerHTML += `<div class="imposter-card m-1">${escapeHTML(p.name)}</div>`;
       });
+      if (typeof paintDirector === 'function') paintDirector('imposter-director', appState.imposter, 'imposterDirectorNext()');
+  }
+
+  function imposterDirectorNext() {
+      directorNext(appState.imposter);
+      paintDirector('imposter-director', appState.imposter, 'imposterDirectorNext()');
+      haptic('light');
   }
 
   function startImposterTimer() {

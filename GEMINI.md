@@ -351,6 +351,24 @@ in `room.players` is ignored. Everything is in `shared` (`board` is the sorted
 scoreboard the TV strip reads), and `TV_GAMES.buzzer` draws the first buzzer
 big, the queue, the scores and the host's buttons when the screen is the host.
 
+**أتوبيس كومبليت on separate phones** (`stopAction`). The same letter goes to
+every phone, each player types an answer per category, and the first to press
+وقف (`submit` with `stop: true`) moves the round to `collecting`: the other
+phones send whatever they have typed the moment they see that phase - before
+their frame is redrawn, because the inputs go with it (`ROOM_GAMES.stop.render`
+does this first) - and the server scores once all are in or after
+`STOP_COLLECT_MS`. Answers wait in `room._answers`, never projected, so a
+phone that finished early cannot show its sheet. Scoring is by comparison
+(`foldStopAnswer`: case, diacritics, hamza forms and the definite article are
+folded before comparing, and an answer must start with the letter): 10 for an
+answer nobody else had, 5 for a shared one, 0 for a blank or a wrong initial.
+The table is `shared.results`; the host taps a cell to cycle its points
+(`adjust`, marked `manual`), and `nextRound` banks `roundTotals` into the
+totals as corrected. A timer, when the host set one, is a server clock like
+the trivia one (`roomDeadline` / `roomTimeout` move `writing` to `collecting`
+and then score). The host's categories, timer and rounds are remembered on
+their phone (`ashryStopRoomOpts`) and sent with `start`.
+
 **Trivia, two modes.** The room version deals from `TRIVIA_QUESTIONS` on the
 server. The host picks 5, 10, 15 or 20 questions (`TRIVIA_COUNTS`). A right
 answer is `TRIVIA_POINTS` (10) plus a speed bonus: +5 for the first right
@@ -448,6 +466,20 @@ doesn't reopen the join screen.
 **Testing it locally.** Run the rooms server with `npm run dev` in
 `rooms-worker/` and play in two tabs of the preview, or let the robots do it:
 `npm test` in `rooms-worker/`.
+
+### Who asks whom (the ask director)
+
+الجاسوس and من أنا؟ both end in a free discussion against a clock, and the
+same two people always end up asking everything. The setup screens of both
+carry a `مين يسأل مين؟` switch (`JS_Director.html`): off is the old free
+discussion; `order` walks the seating order and moves the target one seat
+each lap; `random` always picks the player who has asked least and the one
+who has been asked least. The rotation lives in the game's own slice of
+`appState` (`appState.imposter.dir`, `appState.whoami.dir`), so a reload keeps
+the count, and `paintDirector` draws the "X يسأل Y" card into the play screen
+(`#imposter-director`, `#whoami-director`) with a Next button. The mode is
+saved per game (`appState.imposter.config.director`, `appState.whoami.director`)
+and painted back onto the switch by `paintSetupOptions`.
 
 ### Player names live on the phone
 

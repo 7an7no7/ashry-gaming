@@ -476,6 +476,18 @@
   const TRANSLATIONS = {
     ar: {
       title: "عشرى جيمينج",
+      nav_home: "الرئيسية",
+      nav_together: "مع بعض",
+      nav_tools: "الأدوات",
+      together_title: "العبوا مع بعض",
+      together_sub: "كل واحد من موبايله، أو على شاشة التلفزيون. غرفة واحدة تفضل مفتوحة طول السهرة، والعبوا فيها اللي تحبوه.",
+      together_games: "ألعاب الغرف",
+      together_how: "إزاي بتشتغل؟",
+      together_step1: "افتح غرفة من موبايلك، أو من اللابتوب الموصّل بالتلفزيون.",
+      together_step2: "الباقي يدخلوا بالكود أو بمسح الـ QR، كل واحد من موبايله.",
+      together_step3: "اختاروا لعبة والعبوا. لما تخلص، الغرفة بتفضل مفتوحة للعبة اللي بعدها.",
+      together_more: "اعرف أكتر عن الغرف",
+      tools_sub: "عدادات ومؤقتات وقرعة لأي لعبة على الطاولة.",
       home_title: "يلا نلعب!",
       home_tagline: "على موبايل واحد، أو كل واحد من موبايله، أو على التلفزيون.",
       together_open_desc: "الكل يدخل بكود",
@@ -1141,6 +1153,18 @@
     },
     en: {
       title: "Ashry Gaming",
+      nav_home: "Home",
+      nav_together: "Together",
+      nav_tools: "Tools",
+      together_title: "Play together",
+      together_sub: "Everyone on their own phone, or up on the TV. One room stays open all evening; play whatever you like in it.",
+      together_games: "Room games",
+      together_how: "How it works",
+      together_step1: "Open a room from your phone, or from a laptop plugged into the TV.",
+      together_step2: "Everyone else joins with the code or by scanning the QR, each on their own phone.",
+      together_step3: "Pick a game and play. When it ends, the room stays open for the next one.",
+      together_more: "More about rooms",
+      tools_sub: "Counters, timers and pickers for any game at the table.",
       home_title: "Let's play!",
       home_tagline: "On one phone, everyone on their own phone, or up on the TV.",
       together_open_desc: "Everyone joins with a code",
@@ -1882,7 +1906,7 @@
 
     // The home screen and the hero on a setup screen are drawn from the
     // catalog in this language (JS_Catalog.html).
-    if (typeof renderHome === 'function' && homeRenderedLang !== appState.lang) renderHome();
+    if (typeof renderCatalogViews === 'function' && homeRenderedLang !== appState.lang) renderCatalogViews();
     if (typeof syncGameHero === 'function') syncGameHero(appState.currentView);
   }
   let homeRenderedLang = null;
@@ -2033,7 +2057,7 @@
     
     // 👇 FIX: Added 'input-whoami' and 'play-chess' to the safe list
     const validViews = [
-        'menu', 
+        'menu', 'together', 'tools',
         'setup-chameleon', 'reveal-chameleon', 'play-chameleon', 'setup-spyfall', 'reveal-spyfall', 'play-spyfall', 'setup-timesup', 'play-timesup',
         'setup-screw', 'play-screw', 
         'setup-monkey', 'play-monkey', 
@@ -2144,7 +2168,9 @@
     
     if (viewEl) {
         // --- RESTORE GAME LOGIC ---
-        if (appState.currentView === 'play-screw') renderScrewBoard();
+        if (appState.currentView === 'together' && typeof renderTogether === 'function') renderTogether();
+        else if (appState.currentView === 'tools' && typeof renderTools === 'function') renderTools();
+        else if (appState.currentView === 'play-screw') renderScrewBoard();
         else if (appState.currentView === 'play-monkey') { renderMonkeyBoard(); updateTimerUI(); }
         else if (appState.currentView === 'imposter-reveal') showRevealStep();
         else if (appState.currentView === 'play-imposter') { renderImposterBoard(); isPaused = true; updateImposterTimerUI(); }
@@ -2295,6 +2321,8 @@
    * ------------------------------------------------------------------------ */
   const VIEW_META = {
     'menu':            { title: 'title',            accent: 'violet' },
+    'together':        { title: 'nav_together',     accent: 'teal' },
+    'tools':           { title: 'nav_tools',        accent: 'indigo' },
 
     'room-join':       { title: 'room_join_title',  up: 'menu',        accent: 'teal' },
     'room-lobby':      { title: 'room_lobby_title', up: 'menu',        accent: 'teal' },
@@ -2417,8 +2445,34 @@
       }
     }
     if (backEl) backEl.classList.toggle('is-hidden', !meta.up);
-    if (homeEl) homeEl.classList.toggle('is-active', viewId === 'menu');
+    const tab = navTabFor(viewId);
+    ['home', 'together', 'tools'].forEach(name => {
+      const el = document.getElementById('nav-' + name);
+      if (el) el.classList.toggle('is-active', name === tab);
+    });
+    // The screen's own icon beside its name; the home shows the mark instead.
+    const iconEl = document.getElementById('app-title-icon');
+    if (iconEl) iconEl.textContent = viewId === 'menu' ? '' : screenIcon(viewId);
     if (typeof updateRoomBanner === 'function') updateRoomBanner();
+  }
+
+  /** Which bottom tab a screen sits under: the rooms, the tools, or the games. */
+  function navTabFor(viewId) {
+    const id = String(viewId || '');
+    if (id === 'together' || id.indexOf('room-') === 0 || id === 'setup-codenames') return 'together';
+    if (id === 'tools') return 'tools';
+    const key = (typeof HELP_FOR_VIEW !== 'undefined') ? HELP_FOR_VIEW[id] : null;
+    const entry = (key && typeof helpEntry === 'function') ? helpEntry(key) : null;
+    return entry && entry.group === 'tools' ? 'tools' : 'home';
+  }
+
+  /** The emoji for a screen, from its help entry - every screen has one. */
+  function screenIcon(viewId) {
+    if (viewId === 'together') return '📲';
+    if (viewId === 'tools') return '🛠️';
+    const key = (typeof HELP_FOR_VIEW !== 'undefined') ? HELP_FOR_VIEW[viewId] : null;
+    const entry = (key && typeof helpEntry === 'function') ? helpEntry(key) : null;
+    return entry ? entry.icon : '';
   }
 
   /** The header back button. Falls back to the menu for unregistered views. */
@@ -2535,6 +2589,8 @@
     saveToLocal();
 
     if (viewId === 'menu' && typeof renderHome === 'function') renderHome();
+    if (viewId === 'together' && typeof renderTogether === 'function') renderTogether();
+    if (viewId === 'tools' && typeof renderTools === 'function') renderTools();
 
     document.querySelectorAll('[id^="view-"]').forEach(el => {
         el.classList.add('hidden');

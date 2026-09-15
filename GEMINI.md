@@ -532,6 +532,12 @@ needs no font and renders identically before Cairo loads, on a home screen and
 in the script. `npm run build:icons` in `tools/` (sharp rasterises the SVG).
 Do not edit `Logo.html` or the PNGs by hand.
 
+The mark comes in five colourways (`VARIANTS` in the script: violet, midnight,
+paper, ocean, sunset); `iconVariant` in `tools/site.config.json` is the one
+the app ships with, and `node make-icons.mjs --preview <dir>` renders them all
+side by side to choose from. The token in the ع's bowl and the letter itself
+are the same in every one - only the colours change.
+
 ### The catalog and the home screen
 
 `GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can
@@ -545,9 +551,12 @@ Three things are drawn from it:
 - **The home** (`renderHome`): a hero with the three ways of playing together
   (open a room, join, big screen), a search box, filter chips by how you want
   to play (`HOME_FILTERS`: one phone, own phones, on the TV, two players,
-  solo, tools), the games opened recently on this phone (`ashryRecent_v1`,
-  newest first, `catalogOpen` records it) and a section per group of rich
-  cards - description, player count, minutes and mode badges. `setView('menu')`
+  solo), the games opened recently on this phone (`ashryRecent_v1`, newest
+  first, `catalogOpen` records it) and a section per group of cards -
+  description, player count, minutes and mode badges. The tools are not on
+  it: they have the الأدوات tab (`renderTools`), and the room games are
+  listed again under مع بعض (`renderTogether`) with the three ways in and how
+  a room works in three lines. `setView('menu')`
   redraws it, so the recent row is current and a search left behind is
   cleared; a language change redraws it through `applyTranslations`
   (`homeRenderedLang`). Search and the chips only toggle `hidden` on the cards
@@ -782,6 +791,15 @@ running behind it.
 
 ### The design system
 
+**Calm by default.** The backdrop is one still wash (the two cross-fading
+gradient layers were a screen that never sat still); cards are white with a
+hairline border and a soft shadow; the game's own colour sits on its icon
+tile, the accent edge of a setup hero and the primary button, not washed
+over whole cards; section titles are sentence case in the text colour; the
+selected filter chip is ink on paper rather than another colour. Radii are
+20px on cards and 12-14px on controls. When adding a screen, spend colour the
+same way: one accented element, the rest neutral.
+
 `Style.html` is a token-driven design system. Read its section header before
 changing anything: colour, spacing, radius, duration and elevation all come from
 custom properties in section 1, so a change happens in one place.
@@ -928,6 +946,16 @@ i18n key for the header), `up` (where the header's back button goes) and
 title, the back button and the nav state from it, and the slide direction comes
 from comparing `up`-chain depth, so a screen with no entry gets no back button
 and no title.
+
+**The bottom bar has four tabs**: الرئيسية (the games, `menu`), مع بعض (the
+rooms: `together`, or the room this phone is already in - `goTogether()`),
+الأدوات (`tools`) and مساعدة. `navTabFor(viewId)` in `JS_Core.html` decides
+which one a screen lights: `room-*` screens and the Codenames setup belong to
+مع بعض, a screen whose help entry is in the `tools` group to الأدوات,
+everything else to الرئيسية. The header shows the screen's own emoji beside
+its name (`screenIcon`, from the same help entry); the home shows the brand
+mark instead. `together` and `tools` are root views drawn by `renderTogether`
+and `renderTools` in `JS_Catalog.html`.
 
 Theme, language and app-level actions live in the settings sheet
 (`openSettings()`), not in the bottom bar.

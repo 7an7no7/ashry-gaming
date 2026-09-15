@@ -1,0 +1,267 @@
+<script>
+/* ============================================================================
+   ربع قرد — MONKEY (rooms and the TV)
+   ----------------------------------------------------------------------------
+   The letters, the chain and the names on separate phones. Only the player
+   up can type; anyone can call كذاب on the last letter; the host has undo,
+   skip, penalty and the swap. The word and the quarters are on every phone
+   and the TV, and a monkey's own phone tells them to keep quiet. Rules:
+   monkeyRoomAction in RoomGames.js.
+   ========================================================================= */
+
+const MONKEY_ROOM_KEY = 'ashryMonkeyRoomOpts';
+const mkRoom = { clock: null, clockKey: null, swapFor: null };
+
+function monkeyRoomOpts() {
+  const base = { mode: 'letters', category: 'countries', timer: 30, winners: 1, autoPenalty: true };
+  try {
+    const saved = JSON.parse(localStorage.getItem(MONKEY_ROOM_KEY) || 'null') || {};
+    if (['letters', 'chain', 'names'].indexOf(saved.mode) !== -1) base.mode = saved.mode;
+    if (MONKEY_CATEGORIES.some(c => c.id === saved.category)) base.category = saved.category;
+    if ([0, 15, 30, 45, 60].indexOf(saved.timer) !== -1) base.timer = saved.timer;
+    if (saved.winners >= 1 && saved.winners <= 5) base.winners = saved.winners;
+    if (typeof saved.autoPenalty === 'boolean') base.autoPenalty = saved.autoPenalty;
+  } catch (e) {}
+  return base;
+}
+function setMonkeyRoomOpt(key, value) {
+  const o = monkeyRoomOpts();
+  o[key] = (key === 'timer' || key === 'winners') ? Number(value) : key === 'autoPenalty' ? !!value : value;
+  try { localStorage.setItem(MONKEY_ROOM_KEY, JSON.stringify(o)); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+function mkCatLabel(id) {
+  const c = MONKEY_CATEGORIES.find(x => x.id === id) || MONKEY_CATEGORIES[0];
+  return c.icon + ' ' + (appState.lang === 'en' ? c.en : c.ar);
+}
+const MK_ICONS = ['', '◔', '◑', '◕', '🐵'];
+
+function mkVerdictText(v, t) {
+  if (!v) return '';
+  const ex = (v.examples || []).join('، ');
+  if (v.kind === 'closed') return (t.mk_v_closed || '').replace('{name}', v.loser).replace('{word}', v.word);
+  if (v.kind === 'liar-right') return (t.mk_v_liar_right || '').replace('{name}', v.loser).replace('{word}', v.word);
+  if (v.kind === 'liar-wrong') return (t.mk_v_liar_wrong || '').replace('{name}', v.loser).replace('{word}', v.word).replace('{examples}', ex);
+  if (v.kind === 'giveup') return (t.mk_v_giveup || '').replace('{name}', v.loser);
+  if (v.kind === 'timeout') return (t.mk_v_timeout || '').replace('{name}', v.loser);
+  if (v.kind === 'swap') return (t.mk_v_swap || '').replace('{name}', v.loser).replace('{other}', v.other || '');
+  if (v.kind === 'flipped') return (t.mk_v_flipped || '').replace('{name}', v.loser);
+  return '';
+}
+
+function mkBoardHtml(s, state, t) {
+  const rows = (s.board || []).map(r => {
+    const icon = MK_ICONS[Math.min(4, r.quarters)] || '';
+    const stages = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
+    const turn = r.id === s.turnId;
+    const swap = state.youAreHost && r.monkey && s.phase === 'play'
+      ? `<button class="btn btn--secondary btn--xs btn--auto" onclick="mkSwapPick('${jsStringAttr(r.id)}')">${escapeHTML(t.mk_switch || '')}</button>` : '';
+    const picker = mkRoom.swapFor === r.id
+      ? `<div class="chip-set" style="margin-top: var(--sp-2)">${(s.board || []).filter(x => !x.monkey).map(x => `<button class="chip" onclick="roomAct('swap', { monkeyId: '${jsStringAttr(r.id)}', targetId: '${jsStringAttr(x.id)}' }); mkRoom.swapFor = null;"><span class="chip__label">↔ ${escapeHTML(x.name)}</span></button>`).join('')}</div>` : '';
+    return `<div class="status-row ${turn ? 'status-row--turn' : ''} ${r.monkey ? 'status-row--out' : ''}">
+      <div class="status-row__body">
+        <div class="status-row__name">${escapeHTML(r.name)}${turn ? ' ⏳' : ''}</div>
+        <div><span class="badge ${r.monkey ? 'badge--danger' : r.quarters ? 'badge--warning' : 'badge--success'}">${icon ? icon + ' ' : ''}${escapeHTML(stages[Math.min(4, r.quarters)])}</span>${picker}</div>
+      </div>
+      <div class="status-row__actions">${swap}</div>
+    </div>`;
+  }).join('');
+  return `<div class="section"><div class="section__head"><h2 class="section__title">${escapeHTML(t.player_status || '')}</h2><span class="section__rule"></span></div>${rows}</div>`;
+}
+function mkSwapPick(id) { mkRoom.swapFor = mkRoom.swapFor === id ? null : id; if (Room.state) { const el = document.getElementById('view-room-monkey'); if (el) delete el.dataset.sig; routeRoomState(Room.state); } }
+
+function armMkClock(endsAt) {
+  const paint = () => {
+    const el = document.getElementById('mk-clock');
+    if (el) el.textContent = endsAt ? String(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))) : '∞';
+  };
+  paint();
+  if (!endsAt) { stopMkClock(); return; }
+  if (mkRoom.clockKey === endsAt && mkRoom.clock) return;
+  stopMkClock();
+  mkRoom.clockKey = endsAt;
+  mkRoom.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: (left) => { paint(); if (left <= 5 && left > 0 && Room.state && Room.state.shared.turnId === Room.me) playSound('tick'); },
+    onEnd: () => { mkRoom.clock = null; paint(); }
+  });
+}
+function stopMkClock() { if (mkRoom.clock) mkRoom.clock.stop(); mkRoom.clock = null; mkRoom.clockKey = null; }
+
+async function mkSendName() {
+  const input = document.getElementById('mk-name');
+  const text = (input && input.value || '').trim();
+  if (!text) return;
+  try {
+    await Room.act('name', { text: text });
+    if (input) input.value = '';
+    playSound('tick');
+  } catch (e) {
+    playSound('alarm');
+    showToast(e.message || '', 'error');
+  }
+}
+
+ROOM_GAMES.monkey = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.mk_lobby_hint || '')}</p>`;
+    const o = monkeyRoomOpts();
+    const seg = (key, values, current) => `<div class="segmented" role="group">${values.map(([v, label]) => `<button type="button" class="segmented__item ${String(v) === String(current) ? 'is-active' : ''}" onclick="setMonkeyRoomOpt('${key}', ${typeof v === 'number' ? v : "'" + v + "'"})">${escapeHTML(String(label))}</button>`).join('')}</div>`;
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.mk_mode_label || '')}</label>
+          ${seg('mode', [['letters', t.mk_mode_letters], ['chain', t.mk_mode_chain], ['names', t.mk_mode_names]], o.mode)}
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.mk_category_label || '')}</label>
+          ${seg('category', MONKEY_CATEGORIES.map(c => [c.id, mkCatLabel(c.id)]), o.category)}
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.timer_sec || '')}</label>
+          ${seg('timer', [[15, 15], [30, 30], [45, 45], [60, 60], [0, t.stop_no_timer]], o.timer)}
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.winners_count || '')}</label>
+          ${seg('winners', [[1, 1], [2, 2], [3, 3]], o.winners)}
+        </div>
+        <label class="switch-row" for="mk-autopen">
+          <span class="field__label">${escapeHTML(t.mk_autopen || '')}</span>
+          <span class="switch"><input type="checkbox" id="mk-autopen" role="switch" ${o.autoPenalty ? 'checked' : ''} onchange="setMonkeyRoomOpt('autoPenalty', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+        </label>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.mk_lobby_hint || '')}</p>
+      </div>`;
+  },
+  startPayload() { const o = monkeyRoomOpts(); return { lang: contentLang(), mode: o.mode, category: o.category, timer: o.timer, winners: o.winners, autoPenalty: o.autoPenalty }; },
+
+  render(state) {
+    if (appState.currentView !== 'room-monkey') setView('room-monkey');
+    const el = document.getElementById('view-room-monkey');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const lang = s.lang === 'en' ? 'en' : 'ar';
+    const myTurn = s.turnId === Room.me;
+    const myQ = (s.quarters || {})[Room.me] || 0;
+    const amMonkey = myQ >= 4;
+    const word = (s.letters || []).map(l => l.ch).join('');
+    const lastMine = s.letters && s.letters.length && s.letters[s.letters.length - 1].by === Room.me;
+
+    if (s.phase === 'gameover') {
+      stopMkClock();
+      const fresh = renderRoomFrame(el, ['mk-over', state.youAreHost, appState.lang].join('|'), () => `
+        <div class="card card--accent" style="text-align:center">
+          <div class="eyebrow">${escapeHTML(t.mk_winners || '')}</div>
+          <div class="metric metric--md">🏆 ${escapeHTML((s.winnerNames || []).join('، '))}</div>
+        </div>
+        ${mkBoardHtml(s, state, t)}
+        ${state.youAreHost
+          ? `<div class="btn-stack">
+               <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.monkey.startPayload())">${t.play_again || ''}</button>
+               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${t.room_another_game || ''}</button>
+             </div>`
+          : `<div class="waiting-note">${t.room_wait_host}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && typeof confetti === 'function') confetti({ particleCount: 140, spread: 90 });
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    const head = `<div class="card card--accent play-head">
+        <div class="play-head__turn"><div class="eyebrow">${escapeHTML(t.current_turn || '')}</div><div class="play-head__name">${escapeHTML(s.turnName || '')}</div></div>
+        <div class="play-head__clock"><div id="mk-clock" class="timer-display">${s.timer || '∞'}</div></div>
+      </div>`;
+    const verdict = s.verdict ? `<div class="mk-verdict">${escapeHTML(mkVerdictText(s.verdict, t))}${state.youAreHost && s.verdict.canFlip && !s.verdict.flipped ? ` <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('flip')">${escapeHTML(t.mk_flip || '')}</button>` : ''}</div>` : '';
+    const monkeyNote = amMonkey ? `<div class="mk-verdict mk-verdict--monkey">${escapeHTML(t.mk_you_monkey || '')}</div>` : '';
+    const hostRow = state.youAreHost ? `
+      <div class="btn-row" style="margin-bottom: var(--sp-4)">
+        ${s.mode === 'letters' ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('undo')" ${word ? '' : 'disabled'}>↶ ${escapeHTML(t.draw_undo || '')}</button>` : ''}
+        <button class="btn btn--ghost btn--sm" onclick="roomAct('skip')">${escapeHTML(t.mk_skip || '')}</button>
+        <button class="btn btn--ghost btn--sm" onclick="roomAct('penalty')">${escapeHTML(t.mk_penalty || '')}</button>
+      </div>` : '';
+    const cat = `<span class="badge badge--accent">${escapeHTML(mkCatLabel(s.category))}</span>`;
+    // The input survives presence flickers: the signature carries only what the screen shows.
+    const sig = ['mk', s.mode, s.turnId, word, s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {}), myTurn, state.youAreHost, mkRoom.swapFor, appState.lang].join('|');
+
+    renderRoomFrame(el, sig, () => {
+      let stage = '';
+      if (s.mode === 'letters') {
+        const wordHtml = (s.letters || []).length
+          ? (s.letters || []).map(l => `<span class="mk-letter" title="${escapeHTML(l.name || '')}">${escapeHTML(l.ch)}</span>`).join('')
+          : `<span class="mk-word__empty">${escapeHTML(t.mk_word_empty || '')}</span>`;
+        const keys = myTurn && !amMonkey ? (MONKEY_KEYS[lang] || MONKEY_KEYS.ar).map(row =>
+          `<div class="keypad__row">${row.split('').map(ch => `<button type="button" class="key" onclick="roomAct('letter', { ch: '${ch}' })">${ch}</button>`).join('')}</div>`).join('') : '';
+        stage = `
+          <div class="card card--tight" style="text-align:center">
+            <div class="mk-word__head">${cat}<span class="field__hint">${escapeHTML(myTurn ? (t.mk_your_letter || '') : (t.mk_turn_letter || '').replace('{name}', s.turnName || ''))}</span></div>
+            <div class="mk-word" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${wordHtml}</div>
+            ${keys ? `<div class="keypad mk-keypad" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${keys}</div>` : ''}
+          </div>
+          <div class="btn-row" style="margin-bottom: var(--sp-2)">
+            <button type="button" class="btn btn--danger-soft" onclick="roomAct('liar')" ${word && !lastMine && !amMonkey ? '' : 'disabled'}>🤥 ${escapeHTML(t.mk_liar || '')}</button>
+            ${myTurn && !amMonkey ? `<button type="button" class="btn btn--secondary" onclick="roomAct('giveUp')">🐵 ${escapeHTML(t.mk_giveup || '')}</button>` : ''}
+          </div>`;
+      } else {
+        stage = `
+          <div class="card card--tight" style="text-align:center">
+            <div class="mk-word__head">${cat}<span class="field__hint">${escapeHTML(myTurn ? (t.mk_your_name || '') : (t.mk_turn_name || '').replace('{name}', s.turnName || ''))}</span></div>
+            ${s.mode === 'chain' && s.required
+              ? `<div class="eyebrow">${escapeHTML(t.mk_required || '')}</div><div class="mk-required">${escapeHTML(s.required)}</div>`
+              : `<div class="eyebrow">${escapeHTML(s.mode === 'chain' ? (t.mk_chain_first || '') : (t.mk_any_name || ''))}</div>`}
+            ${myTurn && !amMonkey ? `
+              <div class="input-group" style="margin-top: var(--sp-3)">
+                <input type="text" id="mk-name" autocomplete="off" maxlength="40" placeholder="${escapeHTML(t.mk_name_ph || '')}" onkeydown="if(event.key==='Enter') mkSendName()">
+                <button type="button" class="btn btn--primary" onclick="mkSendName()">${escapeHTML(t.send || '')}</button>
+              </div>
+              <button type="button" class="btn btn--secondary btn--sm" style="margin-top: var(--sp-2)" onclick="roomAct('giveUp')">🐵 ${escapeHTML(t.mk_giveup || '')}</button>` : ''}
+            ${(s.used || []).length ? `<div class="chip-set mk-used">${(s.used || []).slice(0, 8).map(n => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(n)}</span></span>`).join('')}</div>` : ''}
+          </div>`;
+      }
+      return `${head}${verdict}${monkeyNote}${stage}${hostRow}${mkBoardHtml(s, state, t)}${renderRoomPlayerStrip(state)}`;
+    });
+    armMkClock(s.endsAt);
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/* --- the TV ------------------------------------------------------------------ */
+TV_GAMES.monkey = {
+  sig: (state) => { const s = state.shared; return [s.phase, s.turnId, (s.letters || []).map(l => l.ch).join(''), s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {})].join('|'); },
+  frame(state, t) {
+    const s = state.shared;
+    const lang = s.lang === 'en' ? 'en' : 'ar';
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    const boardStrip = `<div class="tv-strip-inline">${(s.board || []).map(r => `<span class="tv-chip ${r.id === s.turnId ? 'is-turn' : ''} ${r.monkey ? 'is-away' : ''}">${MK_ICONS[Math.min(4, r.quarters)] || '✅'} ${escapeHTML(r.name)}</span>`).join('')}</div>`;
+    if (s.phase === 'gameover') {
+      return `<div class="tv-vote">
+        <div class="tv-eyebrow tv-center-text">${escapeHTML(t.mk_winners || '')}</div>
+        <div class="tv-title tv-center-text">🏆 ${escapeHTML((s.winnerNames || []).join('، '))}</div>
+        ${boardStrip}
+        ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.monkey.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+      </div>`;
+    }
+    const verdict = s.verdict ? `<div class="tv-note">${escapeHTML(mkVerdictText(s.verdict, t))}</div>` : '';
+    const word = s.mode === 'letters'
+      ? `<div class="mk-word mk-word--tv" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${(s.letters || []).length ? (s.letters || []).map(l => `<span class="mk-letter">${escapeHTML(l.ch)}</span>`).join('') : `<span class="mk-word__empty">${escapeHTML(t.mk_word_empty || '')}</span>`}</div>`
+      : `${s.mode === 'chain' && s.required ? `<div class="tv-eyebrow">${escapeHTML(t.mk_required || '')}</div><div class="tv-title">${escapeHTML(s.required)}</div>` : ''}
+         <div class="tv-clues">${(s.used || []).slice(0, 10).map(n => `<span class="tv-clue">${escapeHTML(n)}</span>`).join('')}</div>`;
+    return `<div class="tv-trivia">
+      <div class="tv-top"><span class="tv-pill">${escapeHTML(mkCatLabel(s.category))}</span><span id="mk-clock" class="tv-pill tv-pill--clock">${s.timer || '∞'}</span></div>
+      <div class="tv-center">
+        <div class="tv-eyebrow">${escapeHTML(t.current_turn || '')}</div>
+        <div class="tv-title">${escapeHTML(s.turnName || '')}</div>
+        ${word}
+        ${verdict}
+      </div>
+      ${boardStrip}
+      ${host((s.mode === 'letters' ? tvBtn('↶ ' + (t.draw_undo || ''), "roomAct('undo')", 'ghost') : '') + tvBtn(t.mk_skip, "roomAct('skip')", 'ghost') + tvBtn(t.mk_penalty, "roomAct('penalty')", 'danger-soft'))}
+    </div>`;
+  },
+  after(state) { armMkClock(state.shared.phase === 'play' ? state.shared.endsAt : null); }
+};
+</script>

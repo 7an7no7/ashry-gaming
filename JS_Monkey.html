@@ -1,128 +1,497 @@
 <script>
-  /* --- MONKEY GAME LOGIC --- */
+  /* ==========================================================================
+     ربع قرد — MONKEY (one phone)
+     --------------------------------------------------------------------------
+     The phone is the referee now, not just the clock. Three ways to play:
 
-  const COUNTRIES_DB = [
-    "أفغانستان", "ألبانيا", "الجزائر", "أندورا", "أنغولا", "أنتيغوا وباربودا", "الأرجنتين", "أرمينيا", "أستراليا", "النمسا",
-    "أذربيجان", "باهاماس", "البحرين", "بنغلاديش", "بربادوس", "بيلاروس", "بلجيكا", "بليز", "بنين", "بوتان",
-    "بوليفيا", "البوسنة والهرسك (البوسنة)", "بوتسوانا", "البرازيل", "بروناي", "بلغاريا", "بوركينا فاسو", "بوروندي", "الرأس الأخضر (كابو فيردي)", "كمبوديا",
-    "الكاميرون", "كندا", "جمهورية أفريقيا الوسطى", "تشاد", "تشيلي", "الصين", "كولومبيا", "جزر القمر", "جمهورية الكونغو الديمقراطية", "جمهورية الكونغو",
-    "كوستاريكا", "ساحل العاج (كوت ديفوار)", "كرواتيا", "كوبا", "قبرص", "جمهورية التشيك (تشيكيا)", "الدنمارك", "جيبوتي", "دومينيكا", "جمهورية الدومينيكان",
-    "الإكوادور", "مصر", "السلفادور", "غينيا الاستوائية", "إريتريا", "إستونيا", "إسواتيني (سوازيلاند)", "إثيوبيا", "فيجي", "فنلندا",
-    "فرنسا", "الغابون", "غامبيا", "جورجيا", "ألمانيا", "غانا", "اليونان", "غرينادا", "غواتيمالا", "غينيا",
-    "غينيا بيساو", "غيانا", "هايتي", "هندوراس", "المجر", "آيسلندا", "الهند", "إندونيسيا", "إيران", "العراق",
-    "أيرلندا", "إسرائيل", "إيطاليا", "جامايكا", "اليابان", "الأردن", "كازاخستان", "كينيا", "كيريباتي", "كوريا الشمالية",
-    "كوريا الجنوبية", "الكويت", "قيرغيزستان", "لاوس", "لاتفيا", "لبنان", "ليسوتو", "ليبيريا", "ليبيا", "ليختنشتاين",
-    "ليتوانيا", "لوتسمبورغ", "مدغشقر", "مالاوي", "ماليزيا", "جزر المالديف", "مالي", "مالطا", "جزر مارشال", "موريتانيا",
-    "موريشيوس", "المكسيك", "ميكرونيزيا", "مولدوفا", "موناكو", "منغوليا", "الجبل الأسود", "المغرب", "موزمبيق", "ميانمار (بورما)",
-    "ناميبيا", "ناورو", "نيبال", "هولندا", "نيوزيلندا", "نيكاراغوا", "النيجر", "نيجيريا", "مقدونيا الشمالية (مقدونيا)", "النرويج",
-    "سلطنة عمان", "باكستان", "بالاو", "فلسطين", "بنما", "بابوا غينيا الجديدة", "باراغواي", "بيرو", "الفلبين", "بولندا",
-    "البرتغال", "قطر", "رومانيا", "روسيا", "رواندا", "سانت كيتس ونيفيس", "سانت لوسيا", "سانت فينسنت والغرينادين", "ساموا", "سان مارينو",
-    "ساو تومي وبرينسيبي", "السعودية", "السنغال", "صربيا", "سيشل", "سيراليون", "سنغافورة", "سلوفاكيا", "سلوفينيا", "جزر سليمان",
-    "الصومال", "جنوب أفريقيا", "جنوب السودان", "إسبانيا", "سريلانكا", "السودان", "سورينام", "السويد", "سويسرا", "سوريا",
-    "تايوان", "طاجيكستان", "تنزانيا", "تايلاند", "تيمور الشرقية (تيمور)", "توغو", "تونغا", "ترينيداد وتوباغو", "تونس", "تركيا",
-    "تركمانستان", "توفالو", "أوغندا", "أوكرانيا", "الإمارات العربية المتحدة (الامارات)", "المملكة المتحدة", "الولايات المتحدة الأمريكية (امريكا)", "أوروغواي", "أوزبكستان", "فانواتو",
-    "الفاتيكان (الكرسي الرسولي)", "فنزويلا", "فيتنام", "اليمن", "زامبيا", "زيمبابوي", "كوسوفو", "الصحراء الغربية (الجمهورية العربية الصحراوية الديمقراطية)", "أبخازيا", "أوسيتيا الجنوبية",
-    "قبرص الشمالية", "ترانسنيستريا", "صوماليلاند", "أرتساخ (جمهورية ناغورنو قرة باغ)", "المملكة العربية الأورينية (أورينيا)", "جزر كوك", "نيوي",
-    "إنجلترا", "اسكتلندا", "ويلز", "أيرلندا الشمالية"
-  ];
+       letters  the classic: a name is spelt one letter per turn on the keypad.
+                Close a real name and you take a quarter; call كذاب on the
+                letter before yours and the dictionary settles it (no name
+                starts like that: the bluffer takes the quarter; one does: you
+                do, and the phone shows what it could have been).
+       chain    آخر حرف: name something that starts with the last letter of
+                the name before it. Real, unused, right letter, or nothing.
+       names    one name a turn, real and not said before.
+
+     Four quarters make a monkey: skipped in the order, and swapped back in
+     by whoever talks to them (the switch button). The dictionaries and the
+     folding (MonkeyWords.js) are shared with the rooms server, so a room
+     referees with the same lists. Everything is in appState.monkey, so a
+     reload comes back to the board; the clock does not resume by itself.
+     ========================================================================== */
+
+  const MONKEY_MODES = ['letters', 'chain', 'names'];
+  const MONKEY_STAGE_ICONS = ['', '◔', '◑', '◕', '🐵'];
+
+  function monkeyState() {
+    const m = appState.monkey;
+    if (!m.config) m.config = {};
+    const c = m.config;
+    if (MONKEY_MODES.indexOf(c.mode) === -1) c.mode = 'letters';
+    if (!c.category) c.category = 'countries';
+    if (typeof c.autoPenalty !== 'boolean') c.autoPenalty = true;
+    if (typeof c.timer !== 'number') c.timer = 30;
+    if (!c.winners) c.winners = 1;
+    if (!m.usedCountries) m.usedCountries = [];
+    if (!m.letters) m.letters = [];
+    if (!m.history) m.history = [];
+    if (!m.required) m.required = '';
+    return m;
+  }
+
+  /* --- setup ----------------------------------------------------------------- */
+  function setupMonkey() {
+    stopTimer();
+    setView('setup-monkey');
+    paintMonkeySetup();
+  }
+
+  function monkeyCategoryLabel(id) {
+    const c = MONKEY_CATEGORIES.find(x => x.id === id) || MONKEY_CATEGORIES[0];
+    return (c.icon + ' ' + (appState.lang === 'en' ? c.en : c.ar));
+  }
+
+  function paintMonkeySetup() {
+    const m = monkeyState();
+    const c = m.config;
+    document.querySelectorAll('#monkey-mode .segmented__item').forEach(b => b.classList.toggle('is-active', b.dataset.value === c.mode));
+    const sel = document.getElementById('monkey-category');
+    if (sel) {
+      sel.innerHTML = MONKEY_CATEGORIES.map(x => `<option value="${x.id}">${escapeHTML(monkeyCategoryLabel(x.id))}</option>`).join('');
+      sel.value = c.category;
+    }
+    const timerInput = document.getElementById('monkey-timer');
+    if (timerInput) {
+      timerInput.value = c.timer;
+      document.querySelectorAll('#monkey-time .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === c.timer));
+    }
+    const winners = document.getElementById('monkey-winners');
+    if (winners) winners.value = c.winners;
+    const auto = document.getElementById('monkey-autopen');
+    if (auto) auto.checked = !!c.autoPenalty;
+    const hint = document.getElementById('monkey-mode-hint');
+    if (hint) {
+      const t = TRANSLATIONS[appState.lang];
+      hint.textContent = c.mode === 'letters' ? (t.mk_mode_letters_hint || '') : c.mode === 'chain' ? (t.mk_mode_chain_hint || '') : (t.mk_mode_names_hint || '');
+    }
+  }
+
+  function setMonkeyOption(key, value) {
+    const c = monkeyState().config;
+    if (key === 'timer' || key === 'winners') value = Number(value);
+    if (key === 'autoPenalty') value = !!value;
+    c[key] = value;
+    saveToLocal();
+    paintMonkeySetup();
+    haptic('light');
+  }
 
   function runStartMonkey(playersToUse) {
+    const m = monkeyState();
     let selected = playersToUse || (appState.activePlayers ? [...appState.activePlayers] : []);
     saveActivePlayers(selected);
-    if (selected.length === 0) {
-        const msg = appState.lang === 'ar' ? 'اختر اللاعبين!' : 'Select players!';
+    if (selected.length < 2) {
+        const msg = appState.lang === 'ar' ? 'اختر لاعبين على الأقل' : 'Select at least two players';
         return showToast(msg);
     }
-    playSound('click');
-    
-    // At least one player has to end up a monkey, or checkWinCondition can never
-    // fire: the game becomes unwinnable and the turn lands on an eliminated
-    // player.
-    const askedWinners = parseInt(document.getElementById('monkey-winners').value) || 1;
+    // At least one player has to end up a monkey, or the game can never end.
+    const askedWinners = parseInt((document.getElementById('monkey-winners') || {}).value) || m.config.winners || 1;
     const maxWinners = Math.max(1, selected.length - 1);
     if (askedWinners > maxWinners) {
         showToast(appState.lang === 'ar'
           ? `عدد الفائزين لا يمكن أن يزيد عن ${maxWinners}`
           : `At most ${maxWinners} winner(s) for ${selected.length} players`);
     }
-    appState.monkey.config.winners = Math.min(askedWinners, maxWinners);
-    appState.monkey.config.timer = parseInt(document.getElementById('monkey-timer').value) || 30;
-    
-    appState.monkey.players = selected.map((name, idx) => ({
-        name: name,
-        row: idx + 2, 
-        col: 1,        
-        isMonkey: false
-    }));
-    
-    appState.monkey.turnIndex = 0;
-    appState.monkey.turnCounter = 0;
-    appState.monkey.usedCountries = []; 
-    
+    m.config.winners = Math.min(askedWinners, maxWinners);
+    const timerEl = document.getElementById('monkey-timer');
+    if (timerEl) m.config.timer = Number(timerEl.value) || 0;
+
+    m.players = selected.map((name, idx) => ({ name: name, row: idx + 2, col: 1, isMonkey: false }));
+    m.turnIndex = 0;
+    m.turnCounter = 0;
+    m.usedCountries = [];
+    m.letters = [];
+    m.history = [];
+    m.required = '';
+    m.verdict = null;
+    m.phase = 'play';
+    saveToLocal();
     renderMonkeyBoard();
     setView('play-monkey');
     startTimer();
   }
 
+  /* --- the dictionary -------------------------------------------------------- */
+  function monkeyLang() { return contentLang(); }
+  function monkeyCat() { return monkeyState().config.category; }
+  function monkeyWordKey() { return monkeyState().letters.map(l => l.ch).join(''); }
+  function monkeyPlayer() { const m = monkeyState(); return m.players[m.turnIndex]; }
+  function monkeyPlayerByRow(row) { return monkeyState().players.find(p => String(p.row) === String(row)); }
+
+  /* --- the board and the stage ------------------------------------------------ */
   function renderMonkeyBoard() {
+    const m = monkeyState();
     const div = document.getElementById('monkey-board');
-    div.innerHTML = '';
-    
+    if (!div) return;
     const t = TRANSLATIONS[appState.lang];
     const stages = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
-    
-    // Stage drives a semantic badge rather than five bespoke colour combos, so
-    // the row itself stays neutral and only the badge carries the warning.
-    const stageBadge = [
-        'badge--success',   // safe
-        'badge--warning',   // quarter
-        'badge--warning',   // half
-        'badge--warning',   // three quarters
-        'badge--danger'     // out
-    ];
+    const stageBadge = ['badge--success', 'badge--warning', 'badge--warning', 'badge--warning', 'badge--danger'];
 
-    if (appState.monkey.turnIndex >= appState.monkey.players.length) appState.monkey.turnIndex = 0;
+    if (m.turnIndex >= m.players.length) m.turnIndex = 0;
+    const currentPlayer = m.players[m.turnIndex];
+    const nameEl = document.getElementById('current-turn-name');
+    if (nameEl) nameEl.innerText = currentPlayer ? currentPlayer.name : "---";
 
-    const liarBtn = document.getElementById('liar-btn');
-    if (liarBtn) liarBtn.disabled = appState.monkey.turnCounter === 0;
+    const switchText = t.mk_switch || 'تبديل';
+    const editLabel = t.edit_status || 'تعديل الحالة';
 
-    const currentPlayer = appState.monkey.players[appState.monkey.turnIndex];
-    document.getElementById('current-turn-name').innerText = currentPlayer ? currentPlayer.name : "---";
-
-    const switchText = appState.lang === 'ar' ? 'تبديل' : 'Switch';
-    const editLabel = appState.lang === 'ar' ? 'تعديل الحالة' : 'Edit status';
-
-    div.innerHTML = appState.monkey.players.map((p, idx) => {
-      const isTurn = (idx === appState.monkey.turnIndex);
+    div.innerHTML = m.players.map((p, idx) => {
+      const isTurn = (idx === m.turnIndex);
       const stage = Math.min(Math.max((p.col || 1) - 1, 0), 4);
-
       const actionBtn = p.isMonkey
-        ? `<button onclick="openSwitchModal('${jsStringAttr(p.row)}', '${jsStringAttr(p.name)}')" class="btn btn--secondary btn--xs btn--auto">${switchText}</button>`
+        ? `<button onclick="openSwitchModal('${jsStringAttr(p.row)}', '${jsStringAttr(p.name)}')" class="btn btn--secondary btn--xs btn--auto">${escapeHTML(switchText)}</button>`
         : '';
-
       return `
         <div class="status-row ${isTurn ? 'status-row--turn' : ''} ${stage === 4 ? 'status-row--out' : ''}">
            <div class="status-row__body">
              <div class="status-row__name">${escapeHTML(p.name)}${isTurn ? ' <span aria-hidden="true">⏳</span>' : ''}</div>
-             <div><span class="badge ${stageBadge[stage]}">${stages[stage]}</span></div>
+             <div><span class="badge ${stageBadge[stage]}">${MONKEY_STAGE_ICONS[stage] ? MONKEY_STAGE_ICONS[stage] + ' ' : ''}${stages[stage]}</span></div>
            </div>
            <div class="status-row__actions">
              ${actionBtn}
-             <button onclick="openEditStatus('${jsStringAttr(p.row)}', '${jsStringAttr(p.name)}')" class="iconbtn iconbtn--plain" aria-label="${editLabel}">✏️</button>
+             <button onclick="openEditStatus('${jsStringAttr(p.row)}', '${jsStringAttr(p.name)}')" class="iconbtn iconbtn--plain" aria-label="${escapeHTML(editLabel)}">✏️</button>
            </div>
         </div>`;
     }).join('');
 
-    saveToLocal(); 
+    paintMonkeyStage();
+    saveToLocal();
   }
 
+  function monkeyVerdictHtml(v, t) {
+    if (!v) return '';
+    let text = '';
+    if (v.kind === 'closed') text = (t.mk_v_closed || '').replace('{name}', v.loser).replace('{word}', v.word);
+    else if (v.kind === 'liar-right') text = (t.mk_v_liar_right || '').replace('{name}', v.loser).replace('{word}', v.word);
+    else if (v.kind === 'liar-wrong') text = (t.mk_v_liar_wrong || '').replace('{name}', v.loser).replace('{word}', v.word).replace('{examples}', (v.examples || []).join('، '));
+    else if (v.kind === 'giveup') text = (t.mk_v_giveup || '').replace('{name}', v.loser);
+    else if (v.kind === 'timeout') text = (t.mk_v_timeout || '').replace('{name}', v.loser);
+    else if (v.kind === 'monkey') text = (t.mk_v_monkey || '').replace('{name}', v.loser);
+    else if (v.kind === 'flipped') text = (t.mk_v_flipped || '').replace('{name}', v.loser);
+    const bad = v.kind === 'monkey';
+    return `<div class="mk-verdict ${bad ? 'mk-verdict--monkey' : ''}">
+      <span>${escapeHTML(text)}</span>
+      ${v.canFlip && !v.flipped ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="monkeyFlipVerdict()">${escapeHTML(t.mk_flip || '')}</button>` : ''}
+    </div>`;
+  }
+
+  function paintMonkeyStage() {
+    const m = monkeyState();
+    const stage = document.getElementById('monkey-stage');
+    if (!stage) return;
+    const t = TRANSLATIONS[appState.lang];
+    const lang = monkeyLang();
+    const p = monkeyPlayer();
+    const cat = `<span class="badge badge--accent">${escapeHTML(monkeyCategoryLabel(monkeyCat()))}</span>`;
+    const verdict = monkeyVerdictHtml(m.verdict, t);
+
+    if (m.config.mode === 'letters') {
+      const letters = m.letters;
+      const word = letters.length
+        ? letters.map(l => `<span class="mk-letter" title="${escapeHTML(l.name || '')}">${escapeHTML(l.ch)}</span>`).join('')
+        : `<span class="mk-word__empty">${escapeHTML(t.mk_word_empty || '')}</span>`;
+      const rows = (MONKEY_KEYS[lang] || MONKEY_KEYS.ar).map(row =>
+        `<div class="keypad__row">${row.split('').map(ch => `<button type="button" class="key" onclick="monkeyTapLetter('${ch}')">${ch}</button>`).join('')}</div>`).join('');
+      stage.innerHTML = `
+        ${verdict}
+        <div class="card card--tight" style="text-align:center">
+          <div class="mk-word__head">${cat}<span class="field__hint">${escapeHTML((t.mk_turn_letter || '').replace('{name}', p ? p.name : ''))}</span></div>
+          <div class="mk-word" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${word}</div>
+          <div class="keypad mk-keypad" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${rows}</div>
+        </div>
+        <div class="btn-row" style="margin-bottom: var(--sp-2)">
+          <button type="button" class="btn btn--danger-soft" onclick="liarButton()" ${letters.length ? '' : 'disabled'}>🤥 ${escapeHTML(t.mk_liar || '')}</button>
+          <button type="button" class="btn btn--secondary" onclick="monkeyGiveUp()">🐵 ${escapeHTML(t.mk_giveup || '')}</button>
+        </div>
+        <div class="btn-row" style="margin-bottom: var(--sp-4)">
+          <button type="button" class="btn btn--ghost btn--sm" onclick="monkeyUndoLetter()" ${letters.length ? '' : 'disabled'}>↶ ${escapeHTML(t.draw_undo || '')}</button>
+          <button type="button" class="btn btn--ghost btn--sm" onclick="nextTurn()">${escapeHTML(t.mk_skip || '')}</button>
+        </div>`;
+      return;
+    }
+
+    const chain = m.config.mode === 'chain';
+    const used = m.usedCountries.slice(0, 8);
+    stage.innerHTML = `
+      ${verdict}
+      <div class="card card--tight" style="text-align:center">
+        <div class="mk-word__head">${cat}<span class="field__hint">${escapeHTML((t.mk_turn_name || '').replace('{name}', p ? p.name : ''))}</span></div>
+        ${chain && m.required
+          ? `<div class="eyebrow">${escapeHTML(t.mk_required || '')}</div><div class="mk-required">${escapeHTML(m.required)}</div>`
+          : `<div class="eyebrow">${escapeHTML(chain ? (t.mk_chain_first || '') : (t.mk_any_name || ''))}</div>`}
+        <div class="input-group" style="margin-top: var(--sp-3)">
+          <input type="text" id="monkey-name-input" autocomplete="off" maxlength="40" placeholder="${escapeHTML(t.mk_name_ph || '')}" onkeydown="if(event.key==='Enter') monkeySubmitName()">
+          <button type="button" class="btn btn--primary" onclick="monkeySubmitName()">${escapeHTML(t.send || '')}</button>
+        </div>
+        ${used.length ? `<div class="chip-set mk-used">${used.map(n => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(n)}</span></span>`).join('')}</div>` : ''}
+      </div>
+      <div class="btn-row" style="margin-bottom: var(--sp-4)">
+        <button type="button" class="btn btn--secondary" onclick="monkeyGiveUp()">🐵 ${escapeHTML(t.mk_giveup || '')}</button>
+        <button type="button" class="btn btn--ghost btn--sm" onclick="nextTurn()">${escapeHTML(t.mk_skip || '')}</button>
+      </div>`;
+  }
+
+  /* --- letters: the referee ---------------------------------------------------- */
+  function monkeyTapLetter(ch) {
+    const m = monkeyState();
+    if (m.phase !== 'play' || m.config.mode !== 'letters') return;
+    const p = monkeyPlayer();
+    if (!p || p.isMonkey) return;
+    const f = monkeyFold(ch);
+    if (!f) return;
+    m.letters.push({ ch: f, by: p.row, name: p.name });
+    m.verdict = null;
+    const word = monkeyWordKey();
+    const exact = monkeyExact(monkeyLang(), monkeyCat(), word);
+    if (exact) {
+      // The letters spell a real name: whoever closed it takes the quarter.
+      monkeyGiveQuarter(p);
+      m.history.unshift({ kind: 'word', text: exact, by: p.name });
+      m.usedCountries.unshift(exact);
+      m.verdict = { kind: 'closed', word: exact, loser: p.name, loserRow: p.row, canFlip: false };
+      m.letters = [];
+      playSound('alarm');
+      haptic('heavy');
+      if (monkeyMaybeMonkey(p)) return;
+      nextTurn();
+      return;
+    }
+    playSound('tick');
+    nextTurn();
+  }
+
+  /** The current player says the letter before theirs leads nowhere. */
+  function liarButton() {
+    const m = monkeyState();
+    if (m.config.mode !== 'letters') return;
+    if (!m.letters.length) { showToast(TRANSLATIONS[appState.lang].mk_no_letters || ''); return; }
+    const last = m.letters[m.letters.length - 1];
+    const author = monkeyPlayerByRow(last.by) || monkeyPlayer();
+    const challenger = monkeyPlayer();
+    if (author === challenger) { showToast(TRANSLATIONS[appState.lang].mk_own_letter || ''); return; }
+    const word = monkeyWordKey();
+    const matches = monkeyPrefixWords(monkeyLang(), monkeyCat(), word);
+    let loser, other;
+    if (matches.length) {
+      loser = challenger; other = author;
+      m.verdict = { kind: 'liar-wrong', word: word, examples: matches.slice(0, 3), loser: loser.name, loserRow: loser.row, otherRow: other.row, canFlip: true };
+    } else {
+      loser = author; other = challenger;
+      m.verdict = { kind: 'liar-right', word: word, loser: loser.name, loserRow: loser.row, otherRow: other.row, canFlip: true };
+    }
+    monkeyGiveQuarter(loser);
+    m.history.unshift({ kind: 'liar', text: word, by: loser.name });
+    m.letters = [];
+    playSound('alarm');
+    if (monkeyMaybeMonkey(loser)) return;
+    // The new name starts with the player after the one who lost.
+    m.turnIndex = m.players.indexOf(loser);
+    nextTurn();
+  }
+
+  /** The table disagrees with the dictionary: the quarter moves to the other party. */
+  function monkeyFlipVerdict() {
+    const m = monkeyState();
+    const v = m.verdict;
+    if (!v || !v.canFlip || v.flipped) return;
+    const loser = monkeyPlayerByRow(v.loserRow), other = monkeyPlayerByRow(v.otherRow);
+    if (!loser || !other) return;
+    if (loser.col > 1) { loser.col--; loser.isMonkey = loser.col === 5; }
+    monkeyGiveQuarter(other);
+    v.flipped = true;
+    v.loser = other.name;
+    v.kind = 'flipped';
+    haptic('light');
+    checkWinCondition();
+    renderMonkeyBoard();
+  }
+
+  function monkeyUndoLetter() {
+    const m = monkeyState();
+    const l = m.letters.pop();
+    if (!l) return;
+    const idx = m.players.findIndex(p => p.row === l.by);
+    if (idx !== -1) m.turnIndex = idx;
+    m.verdict = null;
+    haptic('light');
+    renderMonkeyBoard();
+    startTimer();
+  }
+
+  /* --- chain and names --------------------------------------------------------- */
+  function monkeySubmitName() {
+    const m = monkeyState();
+    const t = TRANSLATIONS[appState.lang];
+    const input = document.getElementById('monkey-name-input');
+    const text = (input && input.value || '').trim();
+    if (!text) return;
+    const lang = monkeyLang(), cat = monkeyCat();
+    const f = monkeyFold(text);
+    const pool = monkeyPool(lang, cat);
+    let hit = pool.find(n => monkeyFold(n) === f) || null;
+    if (!hit) {
+      let best = null, score = 0;
+      pool.forEach(n => { const s = monkeySimilarity(f, monkeyFold(n)); if (s > score) { score = s; best = n; } });
+      if (best && score > 0.6) {
+        showConfirmModal((t.mk_did_you_mean || '').replace('{name}', best), () => { input.value = best; monkeySubmitName(); });
+      } else {
+        playSound('alarm');
+        showToast(t.mk_not_found || '', 'error');
+      }
+      return;
+    }
+    if (m.usedCountries.some(n => monkeyFold(n) === monkeyFold(hit))) {
+      playSound('alarm');
+      showToast((t.mk_used || '').replace('{name}', hit), 'error');
+      return;
+    }
+    if (m.config.mode === 'chain' && m.required && monkeyFold(hit).charAt(0) !== m.required) {
+      playSound('alarm');
+      showToast((t.mk_wrong_letter || '').replace('{letter}', m.required), 'error');
+      return;
+    }
+    const p = monkeyPlayer();
+    m.usedCountries.unshift(hit);
+    m.required = monkeyFold(hit).slice(-1);
+    m.history.unshift({ kind: 'name', text: hit, by: p ? p.name : '' });
+    m.verdict = null;
+    input.value = '';
+    playSound('tick');
+    nextTurn();
+  }
+
+  function monkeySimilarity(a, b) {
+    const longer = a.length < b.length ? b : a, shorter = a.length < b.length ? a : b;
+    if (!longer.length) return 1;
+    const costs = [];
+    for (let i = 0; i <= a.length; i++) {
+      let last = i;
+      for (let j = 0; j <= b.length; j++) {
+        if (i === 0) costs[j] = j;
+        else if (j > 0) {
+          let v = costs[j - 1];
+          if (a.charAt(i - 1) !== b.charAt(j - 1)) v = Math.min(v, last, costs[j]) + 1;
+          costs[j - 1] = last; last = v;
+        }
+      }
+      if (i > 0) costs[b.length] = last;
+    }
+    return (longer.length - costs[b.length]) / longer.length;
+  }
+
+  /* --- quarters, monkeys, turns ---------------------------------------------- */
+  function monkeyGiveQuarter(p) {
+    if (!p || p.col >= 5) return;
+    p.col++;
+    if (p.col === 5) p.isMonkey = true;
+  }
+
+  /** Announces a new monkey; returns true when the game ended with it. */
+  function monkeyMaybeMonkey(p) {
+    const m = monkeyState();
+    if (p && p.isMonkey && p.col === 5 && !p.announced) {
+      p.announced = true;
+      m.verdict = { kind: 'monkey', loser: p.name };
+      if (typeof playFx === 'function') playFx('boo');
+    }
+    const before = appState.currentView;
+    checkWinCondition();
+    if (document.getElementById('winner-modal') && !document.getElementById('winner-modal').classList.contains('hidden')) {
+      renderMonkeyBoard();
+      return true;
+    }
+    return false;
+  }
+
+  function monkeyGiveUp() {
+    const m = monkeyState();
+    const p = monkeyPlayer();
+    if (!p) return;
+    monkeyGiveQuarter(p);
+    m.verdict = { kind: 'giveup', loser: p.name };
+    m.history.unshift({ kind: 'giveup', text: m.config.mode === 'letters' ? monkeyWordKey() : (m.required || ''), by: p.name });
+    if (m.config.mode === 'letters') m.letters = [];
+    playSound('alarm');
+    if (monkeyMaybeMonkey(p)) return;
+    nextTurn();
+  }
+
+  /** Kept for the timeout sheet and the old helpers: a quarter to the player up, and on. */
+  function penaltyAndPass() {
+    const m = monkeyState();
+    const p = monkeyPlayer();
+    if (p) {
+      monkeyGiveQuarter(p);
+      m.verdict = { kind: 'timeout', loser: p.name };
+      if (m.config.mode === 'letters') m.letters = [];
+      if (monkeyMaybeMonkey(p)) return;
+    }
+    nextTurn();
+  }
+
+  function nextTurn() {
+    const m = monkeyState();
+    let loopCount = 0;
+    let nextIndex = m.turnIndex;
+    do {
+        nextIndex++;
+        if (nextIndex >= m.players.length) nextIndex = 0;
+        loopCount++;
+    } while (m.players[nextIndex].isMonkey && loopCount < m.players.length);
+    m.turnIndex = nextIndex;
+    m.turnCounter++;
+    renderMonkeyBoard();
+    startTimer();
+  }
+
+  function checkWinCondition() {
+    const m = monkeyState();
+    const total = m.players.length;
+    const monkeys = m.players.filter(p => p.isMonkey).length;
+    const safe = total - monkeys;
+    if (!(safe <= m.config.winners && total > m.config.winners)) return;
+
+    stopTimer();
+    m.phase = 'done';
+    playSound('success');
+    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    const t = TRANSLATIONS[appState.lang];
+    const winners = m.players.filter(p => !p.isMonkey).map(p => p.name);
+    const stagesMap = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
+    const rows = m.players.slice().sort((a, b) => a.col - b.col).map(p => {
+      const stage = Math.min(Math.max((p.col || 1) - 1, 0), 4);
+      return `<div class="flex justify-between px-3 py-2 rounded ${p.isMonkey ? 'plate-danger' : 'plate-success'}"><span>${escapeHTML(p.name)}</span><span class="font-bold">${MONKEY_STAGE_ICONS[stage] || '✅'} ${escapeHTML(stagesMap[stage])}</span></div>`;
+    }).join('');
+    const words = m.history.filter(h => h.kind === 'word' || h.kind === 'name').map(h => h.text);
+    const summary = words.length ? `<p class="field__hint" style="margin-top: var(--sp-2)">${escapeHTML(t.mk_words_said || '')}: ${escapeHTML(words.slice(0, 12).join('، '))}${words.length > 12 ? '…' : ''}</p>` : '';
+    const box = document.getElementById('winner-scores-container');
+    if (box) { box.innerHTML = `<div class="space-y-1">${rows}</div>${summary}`; box.classList.add('hidden'); }
+    const list = document.getElementById('winners-list');
+    if (list) list.innerHTML = `<div class="tx-success font-bold mb-2">${escapeHTML(t.mk_winners || '')}</div>` + winners.map(w => `<div class="text-xl mb-1">${escapeHTML(w)}</div>`).join('');
+    document.getElementById('winner-modal').classList.remove('hidden');
+    saveToLocal();
+  }
+
+  /* --- the clock --------------------------------------------------------------- */
   function startTimer() {
     stopTimer();
+    const m = monkeyState();
     isPaused = false;
-    timeLeft = appState.monkey.config.timer;
+    if (!m.config.timer) { timeLeft = 0; updateTimerUI(); return; }
+    timeLeft = m.config.timer;
     updateTimerUI();
     timerInterval = createClock({
-      seconds: appState.monkey.config.timer,
+      seconds: m.config.timer,
       onTick: (left) => {
         timeLeft = left;
         updateTimerUI();
@@ -133,7 +502,8 @@
         timerInterval = null;
         updateTimerUI();
         playSound('alarm');
-        showTimeoutModal();
+        if (monkeyState().config.autoPenalty) penaltyAndPass();
+        else showTimeoutModal();
       }
     });
   }
@@ -144,18 +514,17 @@
   }
 
   function finishMonkey() {
-    playSound('click');
     const msg = appState.lang === 'ar' ? "هل أنت متأكد من إنهاء اللعبة؟" : "Are you sure you want to finish the game?";
     showConfirmModal(msg, () => {
         stopTimer();
+        monkeyState().phase = 'setup';
         setView('setup-monkey');
     });
   }
 
-  function resetTimer() { playSound('click'); startTimer(); }
+  function resetTimer() { startTimer(); }
   function togglePause() {
-    if(!timerInterval && timeLeft <= 0) return;
-    playSound('click');
+    if (!timerInterval && timeLeft <= 0) return;
     isPaused = timerInterval ? timerInterval.toggle() : !isPaused;
     updateTimerUI();
   }
@@ -163,204 +532,9 @@
   function updateTimerUI() {
     const el = document.getElementById('timer-display');
     const btn = document.getElementById('pause-btn');
-    if(!el) return;
-    el.innerText = timeLeft;
+    if (!el) return;
+    el.innerText = monkeyState().config.timer ? timeLeft : '∞';
     const t = TRANSLATIONS[appState.lang];
-    if(isPaused) {
-        btn.innerText = appState.lang === 'ar' ? 'استئناف' : 'Resume';
-    } else {
-        btn.innerText = t.pause_btn;
-    }
-  }
-
-  function nextTurn() {
-    playSound('click');
-    let loopCount = 0;
-    let nextIndex = appState.monkey.turnIndex;
-    do {
-        nextIndex++;
-        if (nextIndex >= appState.monkey.players.length) nextIndex = 0;
-        loopCount++;
-    } while (appState.monkey.players[nextIndex].isMonkey && loopCount < appState.monkey.players.length);
-    appState.monkey.turnIndex = nextIndex;
-    appState.monkey.turnCounter++;
-    renderMonkeyBoard();
-    startTimer(); 
-  }
-
-  function liarButton() {
-    playSound('click');
-    let loopCount = 0;
-    let prevIndex = appState.monkey.turnIndex;
-    do {
-        prevIndex--;
-        if (prevIndex < 0) prevIndex = appState.monkey.players.length - 1;
-        loopCount++;
-    } while (appState.monkey.players[prevIndex].isMonkey && loopCount < appState.monkey.players.length);
-    const prevPlayer = appState.monkey.players[prevIndex];
-    if(prevPlayer.col < 5) {
-         prevPlayer.col++;
-         if(prevPlayer.col === 5) prevPlayer.isMonkey = true;
-         checkWinCondition();
-         renderMonkeyBoard();
-         startTimer(); 
-    } else {
-         // Everyone behind the current player is already out — say so rather
-         // than having the button do nothing at all.
-         showToast(appState.lang === 'ar' ? 'لا يوجد لاعب سابق متاح' : 'No previous player left in play');
-    }
-  }
-
-  function penaltyAndPass() {
-      const player = appState.monkey.players[appState.monkey.turnIndex];
-      if (player.col < 5) {
-          player.col++;
-          if(player.col === 5) player.isMonkey = true;
-          checkWinCondition();
-      }
-      nextTurn();
-  }
-
-  function checkWinCondition() {
-    const stats = (() => {
-        const total = appState.monkey.players.length;
-        const monkeys = appState.monkey.players.filter(p => p.isMonkey).length;
-        const safe = total - monkeys;
-        return { total, monkeys, safe };
-    })();
-
-    if (stats.safe <= appState.monkey.config.winners && stats.total > appState.monkey.config.winners) {
-        stopTimer();
-        playSound('success');
-        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-        const winners = appState.monkey.players.filter(p => !p.isMonkey).map(p => p.name);
-        
-        const winnersLabel = appState.lang === 'ar' ? 'الفائزون:' : 'Winners:';
-        let detailsHtml = '<div class="space-y-1">';
-        appState.monkey.players.forEach(p => {
-            const status = p.isMonkey ? (appState.lang === 'ar' ? '🔴 قرد' : '🔴 Monkey') : (appState.lang === 'ar' ? '🟢 فائز' : '🟢 Winner');
-            const bgClass = p.isMonkey ? 'plate-danger' : 'plate-success';
-            detailsHtml += `<div class="flex justify-between px-3 py-2 rounded ${bgClass}"><span>${escapeHTML(p.name)}</span><span class="font-bold">${status}</span></div>`;
-        });
-        detailsHtml += '</div>';
-        
-        document.getElementById('winner-scores-container').innerHTML = detailsHtml;
-        document.getElementById('winner-scores-container').classList.add('hidden');
-        
-        document.getElementById('winners-list').innerHTML = `<div class="tx-success font-bold mb-2">${winnersLabel}</div>` + winners.map(w => `<div class="text-xl mb-1">${escapeHTML(w)}</div>`).join('');
-        
-        // Modal buttons are handled by playAgain and main_menu translations in Screw logic (shared modal)
-        document.getElementById('winner-modal').classList.remove('hidden');
-
-        // Record wins (Removed)
-    }
-  }
-
-  function addCountry() {
-    // Already mostly uses showCustomAlert which is language aware now
-    const input = document.getElementById('new-country-input');
-    const rawInput = input.value.trim(); 
-    if (typeof COUNTRIES_DB === 'undefined' || !COUNTRIES_DB) {
-        const msg = appState.lang === 'ar' ? "⚠️ قاعدة بيانات الدول غير محملة بعد." : "⚠️ Database not loaded.";
-        showToast(msg);
-        return;
-    }
-    if (rawInput) {
-        if (!appState.monkey.usedCountries) appState.monkey.usedCountries = [];
-        const normalize = (str) => {
-            if (!str) return '';
-            let clean = str.toLowerCase()
-                      .replace(/[أإآ]/g, 'ا').replace(/[ة]/g, 'ه').replace(/[ى]/g, 'ي')
-                      .replace(/[^\w\s\u0621-\u064A]/g, ' ').replace(/\s+/g, ' ').trim();
-            return clean.split(' ').map(word => {
-                if (word.startsWith('ال') && word.length > 3) return word.substring(2);
-                return word;
-            }).join(' ');
-        };
-        const getPossibleNames = (name) => {
-            let names = [normalize(name)];
-            const match = name.match(/\(([^)]+)\)/); 
-            if (match) names.push(normalize(match[1]));
-            return names;
-        };
-        const newCountryNames = getPossibleNames(rawInput);
-        const foundInOfficial = COUNTRIES_DB.find(official => {
-            const officialNames = getPossibleNames(official);
-            return newCountryNames.some(newName => officialNames.includes(newName));
-        });
-        if (foundInOfficial) {
-            const isDuplicate = appState.monkey.usedCountries.some(existing => {
-                const existingNames = getPossibleNames(existing);
-                return newCountryNames.some(newName => existingNames.includes(newName));
-            });
-            if (isDuplicate) {
-                playSound('alarm');
-                const msg = appState.lang === 'ar' ? `🚫 الدولة "${foundInOfficial}" مسجلة مسبقاً!` : `🚫 "${foundInOfficial}" already registered!`;
-                showToast(msg);
-                return;
-            }
-            appState.monkey.usedCountries.unshift(foundInOfficial);
-            saveToLocal();
-            renderCountriesList();
-            input.value = '';
-            input.focus();
-            const searchInput = document.getElementById('country-search-input');
-            if (searchInput) searchInput.value = '';
-            filterCountries();
-            return;
-        }
-        let bestMatch = null;
-        let highestScore = 0;
-        COUNTRIES_DB.forEach(official => {
-            const officialNames = getPossibleNames(official);
-            newCountryNames.forEach(newName => {
-                officialNames.forEach(offName => {
-                    let score = getSimilarity(newName, offName);
-                    if (score > highestScore) {
-                        highestScore = score;
-                        bestMatch = official;
-                    }
-                });
-            });
-        });
-        if (highestScore > 0.6) {
-            playSound('click');
-            const confirmMsg = appState.lang === 'ar' ? `❓ هل تقصد: "${bestMatch}"؟` : `❓ Did you mean: "${bestMatch}"?`;
-            showConfirmModal(confirmMsg, () => {
-                const input = document.getElementById('new-country-input');
-                input.value = bestMatch;
-                addCountry();
-            });
-        } else {
-            playSound('alarm');
-            const msg = appState.lang === 'ar' ? `❌ لم يتم العثور على دولة بهذا الاسم.` : `❌ Country not found.`;
-            showToast(msg);
-        }
-    }
-  }
-
-  function getSimilarity(s1, s2) {
-    let longer = s1.length < s2.length ? s2 : s1;
-    let shorter = s1.length < s2.length ? s1 : s2;
-    if (longer.length === 0) return 1.0;
-    const editDistance = (s1, s2) => {
-        let costs = new Array();
-        for (let i = 0; i <= s1.length; i++) {
-            let lastValue = i;
-            for (let j = 0; j <= s2.length; j++) {
-                if (i == 0) costs[j] = j;
-                else if (j > 0) {
-                    let newValue = costs[j - 1];
-                    if (s1.charAt(i - 1) != s2.charAt(j - 1))
-                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-                    costs[j - 1] = lastValue;
-                    lastValue = newValue;
-                }
-            }
-            if (i > 0) costs[s2.length] = lastValue;
-        }
-        return costs[s2.length];
-    };
-    return (longer.length - editDistance(longer, shorter)) / parseFloat(longer.length);
+    if (btn) btn.innerText = isPaused ? (appState.lang === 'ar' ? 'استئناف' : 'Resume') : t.pause_btn;
   }
 </script>

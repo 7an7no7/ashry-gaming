@@ -316,6 +316,19 @@ for (const [lang, list] of Object.entries(PROV)) {
   console.log(`proverbs.${lang}: ${list.length} proverbs`);
 }
 
+// The monkey's dictionaries: nothing empty, nothing twice once the letters are folded.
+const MONKEY = load(G + 'MonkeyWords.js', 'MONKEY_LISTS');
+const mfold = (t) => String(t).toLowerCase().replace(/[\u064B-\u0652\u0670\u0640]/g, '')
+  .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[^\p{L}\p{N}]/gu, '');
+for (const [lang, lists] of Object.entries(MONKEY)) {
+  for (const [kind, list] of Object.entries(lists)) {
+    if (list.some(w => !mfold(w))) note(`monkey.${lang}.${kind}: an empty name`);
+    const dup = repeats(list, mfold);
+    if (dup.length) note(`monkey.${lang}.${kind}: names listed twice ${JSON.stringify(dup)}`);
+    console.log(`monkey.${lang}.${kind}: ${list.length} names`);
+  }
+}
+
 const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 {
   const ids = STOP_CATS.map(c => c.id);

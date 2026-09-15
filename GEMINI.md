@@ -30,7 +30,8 @@
 ## Key Features & Games
 - **Group Games:** 
   - 🕵️‍♂️ **Imposter (الجاسوس):** Social deduction game.
-  - 🐵 **Monkey (ربع قرد):** Turn-based group game.
+  - 🐵 **Monkey (ربع قرد):** the letter game with the phone as referee, plus
+    the last-letter chain and one-name-a-turn; on one phone, in a room, on the TV.
   - 🤫 **Just One (كلمة واحدة):** Cooperative word guessing.
   - 🃏 **Screw (سكرو):** Card game scoring.
   - 🎭 **Charades (بدون كلام), 🗣️ Describe It (أوصف لي), ❓ Who Am I? (من أنا؟)**
@@ -209,7 +210,7 @@ is nowhere to hide the key card.
 | `rooms-worker/src/room.js` | `Room` Durable Object, one per code: players, keys, sockets, saving, clocks, `project()`. |
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
-| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js` | Word lists the rules deal from, bundled into the Worker. The last five are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists. |
+| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js` | Word lists the rules deal from, bundled into the Worker. The last six are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -435,6 +436,24 @@ renderers carry their own `TV_GAMES` entries (`JS_RoomChameleon.html`,
   `collecting` grace like Stop's. The reveal publishes one chain at a
   time (`publishTelephoneChain`): a whole evening's drawings in every
   state push would be most of a phone's data. No scores.
+
+**ربع قرد** (`JS_Monkey.html` on one phone, `monkeyRoomAction` and
+`JS_RoomMonkey.html` in rooms) referees with `MonkeyWords.js`: countries and
+cities in both languages, English animals and foods, and the spy words for
+Arabic animals and foods (`monkeyPool`). `monkeyFold` keeps the letters only
+(hamza forms, ة/ه, ى/ي, spaces and punctuation go; the article stays, since
+الجزائر is spelt with it). Three modes: `letters` spells a name one letter a
+turn - a prefix that equals a name (`monkeyExact`) is closed and costs its
+closer a quarter; `liar` checks the prefix against the list
+(`monkeyPrefixWords`): nothing starts like that and the bluffer pays,
+something does and the caller pays and sees three examples; the table can
+`flip` the verdict. `chain` and `names` take one real, unused name a turn,
+the chain requiring the last letter of the name before. Four quarters make
+a monkey, skipped in the order and unable to act, and the host's `swap`
+puts them back in someone's place. A turn clock is a server deadline; with
+`autoPenalty` it costs a quarter, otherwise it only flags `timedOut` for the
+host. One-phone Monkey keeps its old helpers in `JS_Utils.html` (the reorder,
+the switch, mid-game players, the status edit, the timeout sheet).
 
 **The Buzzer (الجرس)** has no content at all: the host asks their own questions
 out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps

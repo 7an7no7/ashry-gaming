@@ -396,6 +396,7 @@
       <div id="view-room-proverbs" class="hidden" data-accent="teal"></div>
       <div id="view-room-fiveseconds" class="hidden" data-accent="orange"></div>
       <div id="view-room-telephone" class="hidden" data-accent="blue"></div>
+      <div id="view-room-monkey" class="hidden" data-accent="amber"></div>
 
       <!-- ============ MULTIPLAYER: JOIN ============ -->
       <!-- Multiplayer game surfaces. Each is filled by its game's renderer. -->
@@ -647,45 +648,70 @@
         </div>
       </div>
 
-      <div id="view-setup-monkey" class="hidden">
+      <div id="view-setup-monkey" class="hidden" data-accent="amber">
         <div class="card">
-          <div class="grid-2 mb-6">
-            <div>
-              <label class="field__label" data-i18n="winners_count">عدد الفائزين</label>
-              <input type="number" id="monkey-winners" value="1" class="text-center">
-            </div>
-            <div>
-              <label class="field__label" data-i18n="timer_sec">المؤقت (ثانية)</label>
-              <div class="segmented time-pick" data-for="monkey-timer" role="group">
-                <button type="button" class="segmented__item" onclick="pickTime(this, 15)">15</button>
-                <button type="button" class="segmented__item is-active" onclick="pickTime(this, 30)">30</button>
-                <button type="button" class="segmented__item" onclick="pickTime(this, 45)">45</button>
-                <button type="button" class="segmented__item" onclick="pickTime(this, 60)">60</button>
-              </div>
-              <input type="number" id="monkey-timer" value="30" class="hidden" aria-hidden="true" tabindex="-1">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('monkey', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online" onclick="setPlayMode('monkey', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="mk_online_desc">كل واحد يكتب حرفه أو اسمه من موبايله، والكلمة وأرباع القرد على كل الموبايلات وعلى التلفزيون. السيرفر هو الحكم.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('monkey')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
             </div>
           </div>
-
+          <div class="mode-device-panel">
+          <div class="field">
+            <label class="field__label" data-i18n="mk_mode_label">طريقة اللعب</label>
+            <div class="segmented" id="monkey-mode" role="group">
+              <button type="button" class="segmented__item is-active" data-value="letters" onclick="setMonkeyOption('mode', 'letters')" data-i18n="mk_mode_letters">حرف حرف</button>
+              <button type="button" class="segmented__item" data-value="chain" onclick="setMonkeyOption('mode', 'chain')" data-i18n="mk_mode_chain">آخر حرف</button>
+              <button type="button" class="segmented__item" data-value="names" onclick="setMonkeyOption('mode', 'names')" data-i18n="mk_mode_names">اسم اسم</button>
+            </div>
+            <p class="field__hint" id="monkey-mode-hint"></p>
+          </div>
+          <div class="grid-2 mb-6">
+            <div class="field">
+              <label class="field__label" for="monkey-category" data-i18n="mk_category_label">النوع</label>
+              <select id="monkey-category" onchange="setMonkeyOption('category', this.value)"></select>
+            </div>
+            <div class="field">
+              <label class="field__label" for="monkey-winners" data-i18n="winners_count">عدد الفائزين</label>
+              <input type="number" id="monkey-winners" value="1" min="1" max="5" class="text-center" onchange="setMonkeyOption('winners', this.value)">
+            </div>
+          </div>
+          <div class="field">
+            <label class="field__label" data-i18n="timer_sec">المؤقت (ثانية)</label>
+            <div class="segmented" id="monkey-time" role="group">
+              <button type="button" class="segmented__item" data-value="15" onclick="setMonkeyOption('timer', 15)">15</button>
+              <button type="button" class="segmented__item is-active" data-value="30" onclick="setMonkeyOption('timer', 30)">30</button>
+              <button type="button" class="segmented__item" data-value="45" onclick="setMonkeyOption('timer', 45)">45</button>
+              <button type="button" class="segmented__item" data-value="60" onclick="setMonkeyOption('timer', 60)">60</button>
+              <button type="button" class="segmented__item" data-value="0" onclick="setMonkeyOption('timer', 0)" data-i18n="stop_no_timer">بدون</button>
+            </div>
+          </div>
+          <label class="switch-row" for="monkey-autopen" style="margin-bottom: var(--sp-4)">
+            <span class="field__label" data-i18n="mk_autopen">ربع قرد لما الوقت يخلص</span>
+            <span class="switch"><input type="checkbox" id="monkey-autopen" role="switch" checked onchange="setMonkeyOption('autoPenalty', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
           <div class="group-picker">
     <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
         <option value="">-- اختر مجموعة --</option>
     </select>
     <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
 </div>
-
           <label class="field__label" data-i18n="players">المشاركين</label>
-          
           <div class="input-group" style="margin-bottom: var(--sp-4)">
               <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
               <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
           </div>
-          
           <div id="monkey-player-list" class="mb-6"></div>
-          <button onclick="runStartMonkey()" class="btn btn--primary" data-i18n="start">ابدأ اللعبة</button>
+          <button onclick="runStartMonkey()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
+          </div>
         </div>
       </div>
-
-      <div id="view-play-monkey" class="hidden">
+      <div id="view-play-monkey" class="hidden" data-accent="amber">
 
         <!-- Turn + clock. The name is the biggest thing on the screen because
              it's what the room is looking at; the clock sits beside it. -->
@@ -703,15 +729,7 @@
             </div>
         </div>
 
-        <!-- One primary action, one supporting, one destructive. -->
-        <div class="btn-stack" style="margin-bottom: var(--sp-4)">
-            <button onclick="nextTurn()" class="btn btn--primary btn--lg" data-i18n="next">التالي ➡</button>
-            <div class="btn-row">
-                <button onclick="penaltyAndPass()" class="btn btn--secondary btn--sm" data-i18n="penalty_pass">+¼ وتخطي ⏭️</button>
-                <button id="liar-btn" onclick="liarButton()" class="btn btn--danger-soft btn--sm" data-i18n="liar">🤥 كذاب!</button>
-            </div>
-        </div>
-
+        <div id="monkey-stage"></div>
         <div class="section">
             <div class="section__head">
                 <h2 class="section__title" data-i18n="player_status">حالة اللاعبين</h2>
@@ -936,11 +954,7 @@
 
     <div id="countries-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
-        <div class="sheet__title">سجل الدول المستخدمة 🌍</div>
-        <div class="input-group">
-          <input type="text" id="new-country-input" placeholder="اكتب اسم الدولة..." autocomplete="off">
-          <button onclick="addCountry()" class="btn btn--primary btn--auto" style="width:auto; padding-inline: var(--sp-5)">إضافة</button>
-        </div>
+        <div class="sheet__title" data-i18n="mk_log">اللي اتقال 📝</div>
         <input type="search" id="country-search-input" onkeyup="filterCountries()" placeholder="🔍 ابحث في السجل..." autocomplete="off">
         <div class="modal-list rounded-xl border border-slate-100 dark:border-slate-700">
           <table class="w-full text-right">
@@ -2376,6 +2390,7 @@
     <?!= include('JS_RoomFiveSeconds'); ?>
     <?!= include('JS_RoomTelephone'); ?>
     <?!= include('JS_Sounds'); ?>
+    <?!= include('JS_RoomMonkey'); ?>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- QR for room join links. Optional: the 4-letter code is always shown too. -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>

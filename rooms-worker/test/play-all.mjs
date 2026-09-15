@@ -631,6 +631,54 @@ async function main() {
   await all(bots, (s) => s.shared.phase === 'done' && s.shared.summary.length === 4, 'after the last chain, the summary');
   await A.must('backToHub');
 
+  /* --- ربع قرد ------------------------------------------------------------------- */
+  console.log('• monkey (letters, liar, chain)');
+  await A.must('chooseGame', { game: 'monkey' });
+  await A.must('start', { lang: 'ar', mode: 'letters', category: 'countries', timer: 0, winners: 1, autoPenalty: true });
+  await all(bots, (s) => s.shared.phase === 'play' && s.shared.mode === 'letters' && !!s.shared.turnId, 'monkey: letters, a first player is up');
+  const up = () => byId(bots, A.state.shared.turnId);
+  check((await bots.find((b) => b !== up()).act('letter', { ch: 'م' })).ok === false, 'only the player up adds a letter');
+  await up().must('letter', { ch: 'م' });
+  await all(bots, (s) => s.shared.letters.length === 1, 'a letter is on the word');
+  await up().must('letter', { ch: 'ص' });
+  await all(bots, (s) => s.shared.letters.length === 2, 'two letters on the word');
+  const closer = up();
+  await closer.must('letter', { ch: 'ر' });
+  await all(bots, (s) => s.shared.letters.length === 0 && s.shared.verdict && s.shared.verdict.kind === 'closed' && s.shared.verdict.word === 'مصر' && s.shared.quarters[closer.pid] === 1,
+    'مصر is closed: a quarter to the one who closed it');
+  const bluffer = up();
+  await bluffer.must('letter', { ch: 'ذ' });
+  await all(bots, (s) => s.shared.letters.length === 1 && s.shared.turnId !== bluffer.pid, 'the bluff is on the word and the turn moved on');
+  check((await bluffer.act('liar', {})).ok === false, 'you cannot call your own letter');
+  const caller = bots.find((b) => b !== bluffer);
+  await caller.must('liar', {});
+  await all(bots, (s) => s.shared.verdict.kind === 'liar-right' && s.shared.letters.length === 0, 'كذاب: no country starts with ذ, the bluffer takes the quarter');
+  const honest = up();
+  await honest.must('letter', { ch: 'ا' });
+  await all(bots, (s) => s.shared.letters.length === 1 && s.shared.turnId !== honest.pid, 'an honest letter, and the turn moved on');
+  const caller2 = bots.find((b) => b !== honest);
+  const before2 = A.state.shared.quarters[caller2.pid] || 0;
+  await caller2.must('liar', {});
+  await all(bots, (s) => s.shared.verdict.kind === 'liar-wrong' && s.shared.quarters[caller2.pid] === before2 + 1 && s.shared.verdict.examples.length > 0,
+    'a wrong كذاب: the caller takes the quarter and sees what it could have been');
+  await A.must('flip', {});
+  await all(bots, (s) => s.shared.verdict.flipped && s.shared.quarters[caller2.pid] === before2, 'the host can overrule the verdict');
+  await A.must('backToHub');
+  await A.must('chooseGame', { game: 'monkey' });
+  await A.must('start', { lang: 'ar', mode: 'chain', category: 'countries', timer: 0, winners: 1 });
+  await all(bots, (s) => s.shared.mode === 'chain' && !s.shared.required, 'monkey: the chain starts open');
+  check((await up().act('name', { text: 'بلد وهمية' })).ok === false, 'an unknown name is refused');
+  await up().must('name', { text: 'مصر' });
+  await all(bots, (s) => s.shared.required === 'ر' && s.shared.used[0] === 'مصر', 'مصر: the next name must start with ر');
+  check((await up().act('name', { text: 'فرنسا' })).ok === false, 'a name on the wrong letter is refused');
+  check((await up().act('name', { text: 'مصر' })).ok === false, 'a name said before is refused');
+  await up().must('name', { text: 'روسيا' });
+  await all(bots, (s) => s.shared.required === 'ا' && s.shared.used.length === 2, 'روسيا: the next name must start with ا');
+  const giver = up();
+  await giver.must('giveUp', {});
+  await all(bots, (s) => s.shared.quarters[giver.pid] === 1 && s.shared.verdict.kind === 'giveup', 'giving up is a quarter');
+  await A.must('backToHub');
+
   /* --- الفنان المزيف -------------------------------------------------------- */
   console.log('• fake artist');
   await A.must('chooseGame', { game: 'fakeartist' });

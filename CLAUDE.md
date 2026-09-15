@@ -66,6 +66,7 @@ cd tools && npm run build:preview   # the app in .preview/, rooms on :8787
 cd tools && npm run build:site      # rebuild docs/ (commit it)
 cd tools && npm run check:live      # is the link serving this build?
 cd tools && npm run export:trivia -- <path>  # the board bank as trivia_bank.js
+cd tools && npm run build:icons     # the brand mark (Logo.html) and the icons in docs/
 cd rooms-worker && npm run dev      # local rooms server on :8787
 cd rooms-worker && npm test         # robot players, every room game (needs npm run dev)
 cd rooms-worker && npm run test:rules  # trivia scoring, no server needed

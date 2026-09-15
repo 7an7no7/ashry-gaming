@@ -1,0 +1,111 @@
+<script>
+/* ============================================================================
+   الجرس — THE BUZZER (multiplayer)
+   ----------------------------------------------------------------------------
+   Quiz night with the host's own questions. The host asks out loud, every
+   phone is a buzzer, and the server keeps the order the presses arrived in -
+   so "who was first" is never an argument. The host marks the answer right
+   or wrong from their phone, or from the TV if the room is run from one.
+
+   Nothing here is secret; the whole game is in state.shared:
+     phase   armed (buzzers live) or locked (the host is reading)
+     buzzes  who pressed, in order
+     scores  the running tally, and board the same sorted for the screen
+     last    the last verdict, so everyone sees who got it and how
+   ========================================================================= */
+
+ROOM_GAMES.buzzer = {
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    const t = TRANSLATIONS[appState.lang];
+    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.bz_lobby_hint || '')}</p>`;
+  },
+
+  startPayload() { return {}; },
+
+  render(state) {
+    if (appState.currentView !== 'room-buzzer') setView('room-buzzer');
+    const el = document.getElementById('view-room-buzzer');
+    if (!el) return;
+
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared || {};
+    const buzzes = s.buzzes || [];
+    const armed = s.phase === 'armed';
+    const rank = buzzes.findIndex(b => b.id === Room.me);
+    const first = buzzes[0];
+
+    const sig = ['bz', s.phase, s.round, buzzes.map(b => b.id).join(','),
+                 JSON.stringify(s.scores || {}), state.youAreHost, JSON.stringify(s.last || null), appState.lang].join('|');
+
+    renderRoomFrame(el, sig, () => {
+      const head = `
+        <div class="play-head">
+          <span class="badge">${escapeHTML(t.bz_question || '')} <span class="metric">${s.round || 1}</span></span>
+          <span class="badge ${armed ? 'badge--success' : ''}">${armed ? '🔔 ' + escapeHTML(t.bz_open || '') : '🔒 ' + escapeHTML(t.bz_locked || '')}</span>
+        </div>`;
+
+      let stage;
+      if (!armed) {
+        stage = `<div class="bz-stage"><div class="bz-locked"><span aria-hidden="true">🔒</span><p>${escapeHTML(t.bz_locked_hint || '')}</p></div></div>`;
+      } else if (rank === -1) {
+        stage = `<div class="bz-stage">
+          <button type="button" class="bz-button" id="bz-button" onclick="pressBuzzer(this)" aria-label="${escapeHTML(t.bz_press || '')}">
+            <span class="bz-button__icon" aria-hidden="true">🔔</span>
+            <span class="bz-button__label">${escapeHTML(t.bz_press || '')}</span>
+          </button></div>`;
+      } else {
+        const medal = ['🥇', '🥈', '🥉'][rank] || '🔔';
+        stage = `<div class="bz-stage">
+          <div class="bz-rank ${rank === 0 ? 'is-first' : ''}">
+            <span class="bz-rank__medal" aria-hidden="true">${medal}</span>
+            <span class="bz-rank__n">${escapeHTML(t.bz_you_are || '')} <b class="metric">${rank + 1}</b></span>
+            <p>${escapeHTML(rank === 0 ? (t.bz_answer_now || '') : (t.bz_wait_turn || ''))}</p>
+          </div></div>`;
+      }
+
+      const last = s.last
+        ? `<div class="bz-last ${s.last.ok ? 'tx-success' : 'tx-danger'}">${s.last.ok ? '✅' : '❌'} ${escapeHTML(s.last.name)}</div>`
+        : '';
+
+      const order = `
+        <div class="card card--tight">
+          <div class="eyebrow">${escapeHTML(t.bz_order || '')}</div>
+          ${buzzes.length ? buzzes.slice(0, 6).map((b, i) => `
+            <div class="status-row ${i === 0 ? 'status-row--turn' : ''}">
+              <div class="status-row__body"><div class="status-row__name">${['🥇', '🥈', '🥉'][i] || (i + 1) + '.'} ${escapeHTML(b.name)}</div></div>
+              ${i === 0 ? `<span class="badge badge--accent">${escapeHTML(t.bz_answering || '')}</span>` : ''}
+            </div>`).join('')
+          : `<div class="waiting-note">${escapeHTML(armed ? (t.bz_nobody || '') : (t.bz_locked_hint || ''))}</div>`}
+        </div>`;
+
+      const host = !state.youAreHost ? '' : `
+        <div class="card card--tight">
+          <div class="eyebrow">${escapeHTML(t.bz_host_controls || '')}</div>
+          <div class="btn-row" style="margin-bottom: var(--sp-2)">
+            <button class="btn btn--success" onclick="roomAct('correct')" ${first ? '' : 'disabled'}>✅ ${escapeHTML(t.bz_correct || '')}</button>
+            <button class="btn btn--danger-soft" onclick="roomAct('wrong')" ${first ? '' : 'disabled'}>❌ ${escapeHTML(t.bz_wrong || '')}</button>
+          </div>
+          <div class="btn-row" style="margin-bottom: var(--sp-2)">
+            <button class="btn btn--secondary btn--sm" onclick="roomAct('${armed ? 'lock' : 'arm'}')">${armed ? '🔒 ' + escapeHTML(t.bz_lock || '') : '🔔 ' + escapeHTML(t.bz_arm || '')}</button>
+            <button class="btn btn--ghost btn--sm" onclick="roomAct('reset')">🔄 ${escapeHTML(t.bz_reset || '')}</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn--ghost btn--xs" onclick="roomAct('playAgain')">${escapeHTML(t.bz_reset_scores || '')}</button>
+            <button class="btn btn--ghost btn--xs" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+          </div>
+        </div>`;
+
+      return head + stage + last + order + host + renderScoreboard(s.board) + renderRoomPlayerStrip(state);
+    });
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/** The press has to feel instant: the button locks before the server answers. */
+function pressBuzzer(btn) {
+  if (btn) { btn.classList.add('is-pressed'); btn.disabled = true; }
+  haptic('heavy');
+  roomAct('buzz');
+}
+</script>

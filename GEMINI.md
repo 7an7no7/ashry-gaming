@@ -47,7 +47,16 @@
     the voting engine; votes stay hidden until the round closes.
 - **Puzzle/Logic Games:** Wordle, Guess the Number, 🔗 Connections (تشابه) in three
   levels: easy (3 groups, 12 cards), medium (4 groups, 16) and hard (5 groups, 20).
-- **Utility Tools:** 
+- **Party, one phone:** 💣 **The Bomb (القنبلة):** a category and a hidden,
+  accelerating fuse, pass the phone; 🚏 **Stop the Bus (أتوبيس كومبليت):** the
+  paper game with the phone as letter, clock and scorer.
+- **Multiplayer-only, also:** 🔔 **Buzzer (الجرس):** the host asks out loud,
+  every phone is a buzzer, the server keeps the order of presses.
+- **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
+  or two on one phone; ⭕ **Tic Tac Toe (إكس أو)** against a friend or an
+  unbeatable minimax.
+- **Utility Tools:**
+  - 👆 Who starts? (مين يبدأ؟), the finger chooser: one starts, two teams, or an order.
   - 🏆 Tournament Organizer, 👥 Team Generator, 🎡 Random Picker.
   - ♟️ Chess Clock, ⏱️ General Timers, 🎲 Dice & Coin.
   - 🀄 Domino Scorer, 🔢 Universal Counter.
@@ -194,7 +203,7 @@ is nowhere to hide the key card.
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
 | `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js` | Word lists the rules deal from, bundled into the Worker. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
-| `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, … | Per-game renderers. |
+| `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
 **The rule that matters: hidden information is enforced on the server.**
 Anything a player must not see goes in `room.secrets[playerId]`, and
@@ -331,6 +340,17 @@ press (`cnLocal.pending`), so a mis-tap never costs the turn. The sides, the
 options and the score survive "play again" and a trip to the hub (`_teamsMemo`,
 `_cnMemo`).
 
+**The Buzzer (الجرس)** has no content at all: the host asks their own questions
+out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps
+`shared.buzzes` in the order the presses reached the server, which is the one
+thing a phone cannot be trusted with. The host's verdict (`correct` scores the
+first in line and clears the queue; `wrong` drops them so the next in line
+answers the same question) and `lock` / `arm` (buzzers off while the question
+is read) are host-only. A screen never buzzes: `buzz` from a device that is not
+in `room.players` is ignored. Everything is in `shared` (`board` is the sorted
+scoreboard the TV strip reads), and `TV_GAMES.buzzer` draws the first buzzer
+big, the queue, the scores and the host's buttons when the screen is the host.
+
 **Trivia, two modes.** The room version deals from `TRIVIA_QUESTIONS` on the
 server. The host picks 5, 10, 15 or 20 questions (`TRIVIA_COUNTS`). A right
 answer is `TRIVIA_POINTS` (10) plus a speed bonus: +5 for the first right
@@ -405,6 +425,8 @@ game needs its `TV_GAMES` entry as well.
 6. Add a round of it to `rooms-worker/test/play-all.mjs`, then `npm run build:site`
    in `tools/` and `npm run deploy` in `rooms-worker/` — in that order, because the
    deploy uploads `docs/`.
+7. Give it a `GAME_CATALOG` entry (see *The catalog and the home screen*) with
+   `modes: ['room', 'tv']`, or it is not on the menu, and a `TV_GAMES` entry.
 
 Ask for the player's name with `promptForName()`, which opens the name sheet.
 Never use `window.prompt` — it is blocked in some embedded browsers. The sheet
@@ -493,6 +515,60 @@ They are `SpyWords.js` now - shared by the page and the rooms server - and the
 locked "+18" category was removed at the owner's request. A 🔒 category would
 ship inside the public site anyway, so a lock only hides words from the menu; it
 cannot keep them secret.
+
+### The brand mark and the icons
+
+The mark is the letter ع of عشرى on the app's violet, with an amber token in
+its bowl. `tools/make-icons.mjs` is the one source: it writes `Logo.html` (an
+`<svg><symbol id="ashry-mark">` the page includes once) and every PNG in
+`docs/` (`icon-180` full-bleed for iOS, `icon-192` / `icon-512` rounded,
+`icon-maskable-512` with the artwork inside the safe 80%, `favicon-64`).
+Anywhere in the app draws it with `<svg class="mark"><use href="#ashry-mark"/></svg>`:
+the loader, the header on the home screen (`.shell__title--brand`) and the home
+hero. The letter is the outline of Cairo Black's ع (`tools/assets/ain-path.txt`,
+extracted once with fontTools from Cairo Black; the font file itself is not
+kept in the repo), so the mark
+needs no font and renders identically before Cairo loads, on a home screen and
+in the script. `npm run build:icons` in `tools/` (sharp rasterises the SVG).
+Do not edit `Logo.html` or the PNGs by hand.
+
+### The catalog and the home screen
+
+`GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can
+play: id, icon, title and description keys, accent, `players: [min, max]`,
+`mins`, `modes` (`device` = pass one phone, `room` = everyone on their own
+phone, `tv` = a room shown on a big screen), `group` (one of
+`CATALOG_GROUPS`: deduce, words, party, quiz, table, duo, tools), the `setup`
+view and an `open` function. **A game that is not in it is not on the menu.**
+Three things are drawn from it:
+
+- **The home** (`renderHome`): a hero with the three ways of playing together
+  (open a room, join, big screen), a search box, filter chips by how you want
+  to play (`HOME_FILTERS`: one phone, own phones, on the TV, two players,
+  solo, tools), the games opened recently on this phone (`ashryRecent_v1`,
+  newest first, `catalogOpen` records it) and a section per group of rich
+  cards - description, player count, minutes and mode badges. `setView('menu')`
+  redraws it, so the recent row is current and a search left behind is
+  cleared; a language change redraws it through `applyTranslations`
+  (`homeRenderedLang`). Search and the chips only toggle `hidden` on the cards
+  and sections (`applyHomeFilter`), so the box keeps focus while you type.
+- **The hero on every setup screen** (`syncGameHero`, called from
+  `applyTranslations`, so it follows every `setView` and every language
+  change): the icon, the one-line pitch, players, minutes, the modes as words
+  and a 📘 rules button that opens the help sheet on that game. The setup
+  screens themselves carry none of this.
+- **The help sheet's** "is this a room game?" jump and the search both keep
+  working from `HELP_ENTRIES`; the catalog does not replace them.
+
+Descriptions are `cat_<id>` keys: one line, what you do, no emoji (the card
+draws the icon). Titles are the game's `setup_<id>` key. A game's card, its
+hero and its help entry must all agree on the icon and accent.
+
+Setup screens whose options live in `appState` (a segmented control, the Stop
+categories) are painted by `paintSetupOptions(viewId)` (`SETUP_PAINTERS` in
+`JS_Core.html`) whenever the screen is reached - from a card, the back button
+or a reload - so a game's `setupX()` entry point is not the only way in that
+shows the saved options.
 
 ### The Help sheet
 
@@ -684,8 +760,10 @@ both of its screens were added.
 Two shapes:
 
 - **Restorable** (Wordle, Guess the Number, Screw, Monkey, Domino, the counter,
-  the bracket, the trivia board): the whole game is in `appState`, so the branch
-  just redraws it.
+  the bracket, the trivia board, and the Bomb, Stop the Bus, Memory and Tic Tac
+  Toe through their `restoreX()` functions): the whole game is in `appState`,
+  so the branch just redraws it. The Bomb's fuse and a Stop round's clock are
+  deadlines, so they come back with the time they really had left.
   Anything that renders from state needs a `render…()` that rebuilds from
   `appState` alone — not one that only appends as events happen.
 - **Not restorable** (Charades, Describe It, Just One, Who Am I, the reaction

@@ -1,0 +1,237 @@
+<script>
+/* ============================================================================
+   القنبلة — PASS THE BOMB
+   ----------------------------------------------------------------------------
+   One phone, passed round the table. A category is on the screen and a fuse
+   nobody can see is burning: say something in the category, pass the phone,
+   and whoever is holding it when it goes off loses the round. The ticking
+   gets faster as the fuse runs down, which is the only warning anyone gets.
+
+   The fuse is a deadline (appState.bomb.endsAt), so a reload mid-round comes
+   back with the time it really had left.
+   ========================================================================= */
+
+/* Kinds of things anyone can list out loud. Never a riddle: the whole table
+   has to hear the category and start naming things at once. */
+const BOMB_PROMPTS = {
+  ar: [
+    'ماركات عربيات', 'أكلات مصرية', 'دول عربية', 'دول أوروبية', 'دول أفريقية', 'دول آسيوية', 'عواصم دول',
+    'مدن مصرية', 'محافظات مصرية', 'مناطق في القاهرة', 'معالم سياحية', 'لغات', 'عملات',
+    'حاجات موجودة في المطبخ', 'أكل موجود في التلاجة', 'حاجات موجودة في الحمام', 'حاجات موجودة في أوضة النوم',
+    'حاجات موجودة في العربية', 'حاجات موجودة في المدرسة', 'حاجات موجودة في المستشفى', 'حاجات موجودة في المكتب',
+    'حاجات بتتباع في السوبر ماركت', 'حاجات بتتباع في الصيدلية', 'حاجات بتتباع في الكشك', 'حاجات في المطار',
+    'حاجات على الشاطئ', 'حاجات في الجنينة', 'حاجات في المطعم', 'حاجات في الكافيه', 'حاجات في الجيم',
+    'حاجات في شنطة السفر', 'حاجات في الفضاء', 'حاجات في الصحرا', 'حاجات في البحر', 'حاجات في السما',
+    'فواكه', 'خضراوات', 'مكسرات', 'حلويات', 'أنواع كيك وتورت', 'أنواع آيس كريم', 'مشروبات ساخنة', 'مشروبات باردة',
+    'أنواع عصير', 'أنواع جبنة', 'أنواع مكرونة', 'توابل وبهارات', 'أكلات الفطار', 'أنواع خبز ومخبوزات', 'أنواع سمك',
+    'أكلات إيطالية', 'أكلات على الشارع', 'حاجات بتتحط على البيتزا', 'حاجات بتتحط في الساندويتش', 'مطاعم وسلاسل أكل',
+    'حيوانات الغابة', 'حيوانات المزرعة', 'حيوانات بحرية', 'طيور', 'حشرات', 'زواحف', 'حيوانات ليها أربع رجلين',
+    'ألوان', 'مهن', 'أسماء ولاد', 'أسماء بنات', 'أعضاء الجسم', 'أنواع رقص', 'رياضات', 'أدوات رياضية',
+    'ماركات موبايلات', 'ماركات ملابس ورياضة', 'ماركات شيكولاتة', 'أجهزة كهربائية', 'أجهزة في البيت',
+    'أندية كورة مصرية', 'أندية كورة أوروبية', 'لاعيبة كورة', 'منتخبات كورة',
+    'أفلام مصرية', 'أفلام أجنبية', 'أفلام كرتون', 'أفلام ديزني', 'مسلسلات', 'برامج أطفال', 'شخصيات كرتون', 'أبطال خارقين',
+    'مطربين ومطربات', 'ممثلين وممثلات', 'آلات موسيقية', 'ألعاب أطفال', 'ألعاب فيديو', 'ألعاب طاولة وورق',
+    'أدوات مدرسية', 'مواد دراسية', 'أدوات شغل', 'وسائل مواصلات', 'حاجات ليها عجل', 'حاجات ليها زراير',
+    'قطع ملابس', 'إكسسوارات', 'حاجات بتتلبس في الرجل', 'أعياد ومناسبات', 'حاجات بتتعمل في الأجازة',
+    'حاجات بتطير', 'حاجات بتعوم', 'حاجات بتنور', 'حاجات مدورة', 'حاجات باردة', 'حاجات سخنة',
+    'حاجات لونها أحمر', 'حاجات لونها أصفر', 'حاجات لونها أخضر', 'حاجات معمولة من ورق', 'حاجات معمولة من خشب',
+    'أنواع ورد وزهور', 'أشجار ونباتات', 'كلمات إنجليزي بنقولها في العربي'
+  ],
+  en: [
+    'Car brands', 'Middle Eastern dishes', 'Arab countries', 'European countries', 'African countries', 'Asian countries', 'Capital cities',
+    'Cities in Egypt', 'Famous landmarks', 'Languages', 'Currencies', 'Islands',
+    'Things in a kitchen', 'Food in the fridge', 'Things in a bathroom', 'Things in a bedroom',
+    'Things in a car', 'Things in a school', 'Things in a hospital', 'Things in an office',
+    'Things sold at a supermarket', 'Things sold at a pharmacy', 'Things at an airport',
+    'Things at the beach', 'Things in a garden', 'Things in a restaurant', 'Things in a café', 'Things in a gym',
+    'Things in a suitcase', 'Things in space', 'Things in the desert', 'Things in the sea', 'Things in the sky',
+    'Fruits', 'Vegetables', 'Nuts', 'Desserts', 'Cakes and pastries', 'Ice cream flavours', 'Hot drinks', 'Cold drinks',
+    'Juices', 'Cheeses', 'Pasta shapes', 'Spices', 'Breakfast foods', 'Breads and baked goods', 'Fish',
+    'Italian dishes', 'Street food', 'Pizza toppings', 'Sandwich fillings', 'Fast-food chains',
+    'Jungle animals', 'Farm animals', 'Sea creatures', 'Birds', 'Insects', 'Reptiles', 'Animals with four legs',
+    'Colours', 'Jobs', "Boys' names", "Girls' names", 'Body parts', 'Dance styles', 'Sports', 'Sports equipment',
+    'Phone brands', 'Clothing and sports brands', 'Chocolate brands', 'Electrical appliances', 'Things around the house',
+    'Football clubs', 'National football teams', 'Footballers', 'Olympic sports',
+    'Movies', 'Cartoon movies', 'Disney movies', 'TV series', "Kids' shows", 'Cartoon characters', 'Superheroes',
+    'Singers', 'Actors', 'Musical instruments', "Kids' games", 'Video games', 'Board and card games',
+    'School supplies', 'School subjects', 'Tools', 'Means of transport', 'Things with wheels', 'Things with buttons',
+    'Clothes', 'Accessories', 'Things you wear on your feet', 'Holidays and celebrations', 'Holiday activities',
+    'Things that fly', 'Things that float', 'Things that glow', 'Round things', 'Cold things', 'Hot things',
+    'Red things', 'Yellow things', 'Green things', 'Things made of paper', 'Things made of wood',
+    'Flowers', 'Trees and plants', 'Words borrowed from other languages'
+  ]
+};
+
+/* "Any word starting with…" - the letter mode. Rare initials are left out. */
+const BOMB_LETTERS = {
+  ar: 'ا ب ت ث ج ح خ د ر ز س ش ص ض ط ع غ ف ق ك ل م ن ه و ي'.split(' '),
+  en: 'A B C D E F G H I J K L M N O P R S T W'.split(' ')
+};
+
+/* How long the fuse burns, in seconds, [shortest, longest]. Nobody sees it. */
+const BOMB_FUSES = { short: [15, 30], normal: [25, 55], long: [40, 80] };
+
+let bombTickTimer = null;
+let bombClock = null;
+
+function bombState() {
+  if (!appState.bomb) appState.bomb = { fuse: 'normal', mode: 'category', prompt: '', endsAt: 0, total: 0, phase: 'idle', rounds: 0 };
+  return appState.bomb;
+}
+
+function setupBomb() {
+  const b = bombState();
+  bombStop();
+  b.phase = 'idle';
+  setView('setup-bomb');
+  paintBombSetup();
+}
+
+function paintBombSetup() {
+  const b = bombState();
+  document.querySelectorAll('#bomb-mode .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === b.mode));
+  document.querySelectorAll('#bomb-fuse .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === b.fuse));
+}
+
+function setBombOption(key, value) {
+  bombState()[key] = value;
+  saveToLocal();
+  paintBombSetup();
+}
+
+/** Pulls a category or a letter this phone hasn't dealt lately. */
+function bombNextPrompt() {
+  const b = bombState();
+  const lang = appState.lang;
+  const wantLetter = b.mode === 'letter' || (b.mode === 'mix' && Math.random() < 0.35);
+  if (wantLetter) {
+    const letter = freshPick('bomb:letters:' + lang, BOMB_LETTERS[lang], 1)[0];
+    return { kind: 'letter', text: letter };
+  }
+  const pool = BOMB_PROMPTS[lang] || BOMB_PROMPTS.ar;
+  return { kind: 'category', text: freshPick('bomb:' + lang, pool, 1)[0] };
+}
+
+function startBombRound() {
+  const b = bombState();
+  const range = BOMB_FUSES[b.fuse] || BOMB_FUSES.normal;
+  const seconds = range[0] + Math.floor(Math.random() * (range[1] - range[0] + 1));
+  const prompt = bombNextPrompt();
+  b.prompt = prompt.text;
+  b.kind = prompt.kind;
+  b.total = seconds;
+  b.endsAt = Date.now() + seconds * 1000;
+  b.phase = 'ticking';
+  b.rounds = (b.rounds || 0) + 1;
+  saveToLocal();
+  if (appState.currentView !== 'play-bomb') setView('play-bomb');
+  paintBomb();
+  bombArm();
+}
+
+/** A new category on the same fuse - the table was stuck, not out of time. */
+function bombSwapPrompt() {
+  const b = bombState();
+  if (b.phase !== 'ticking') return;
+  const prompt = bombNextPrompt();
+  b.prompt = prompt.text;
+  b.kind = prompt.kind;
+  saveToLocal();
+  paintBomb();
+  haptic('light');
+}
+
+/** The clock that ends the round, and the ticking that gets faster. */
+function bombArm() {
+  const b = bombState();
+  bombStop();
+  const left = Math.max(0, Math.ceil((b.endsAt - Date.now()) / 1000));
+  if (left <= 0) { bombExplode(); return; }
+  bombClock = createClock({ seconds: left, onEnd: () => { bombClock = null; bombExplode(); } });
+  bombTick();
+}
+
+function bombTick() {
+  const b = bombState();
+  if (b.phase !== 'ticking') return;
+  const total = Math.max(1, b.total * 1000);
+  const remaining = Math.max(0, b.endsAt - Date.now());
+  const frac = Math.min(1, remaining / total);
+  playSound('tick');
+  const card = document.getElementById('bomb-card');
+  if (card) {
+    card.classList.remove('is-tick');
+    void card.offsetWidth;
+    card.classList.add('is-tick');
+    card.classList.toggle('is-urgent', remaining < 8000);
+  }
+  // A second between ticks at the start, a quarter of one at the end.
+  const delay = 250 + 750 * Math.pow(frac, 1.4);
+  bombTickTimer = setTimeout(bombTick, delay);
+}
+
+function bombStop() {
+  if (bombTickTimer) clearTimeout(bombTickTimer);
+  bombTickTimer = null;
+  if (bombClock) bombClock.stop();
+  bombClock = null;
+}
+
+function bombExplode() {
+  const b = bombState();
+  bombStop();
+  b.phase = 'boom';
+  saveToLocal();
+  playSound('alarm');
+  haptic('heavy');
+  paintBomb();
+}
+
+function exitBomb() {
+  bombStop();
+  bombState().phase = 'idle';
+  saveToLocal();
+  setView('setup-bomb');
+}
+
+function paintBomb() {
+  const b = bombState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('bomb-stage');
+  if (!el) return;
+  const kindLabel = b.kind === 'letter' ? (t.bomb_letter_label || '') : (t.bomb_category_label || '');
+  if (b.phase === 'boom') {
+    el.innerHTML = `
+      <div class="bomb-card bomb-card--boom" id="bomb-card">
+        <div class="bomb-boom" aria-hidden="true">💥</div>
+        <div class="bomb-card__title">${escapeHTML(t.bomb_boom || '')}</div>
+        <div class="bomb-card__sub">${escapeHTML(t.bomb_boom_hint || '')}</div>
+        <div class="bomb-card__prompt-small">${escapeHTML(kindLabel)}: <b>${escapeHTML(b.prompt)}</b></div>
+      </div>
+      <div class="view-actions">
+        <button class="btn btn--primary btn--lg" onclick="startBombRound()">${escapeHTML(t.bomb_next_round || '')}</button>
+        <button class="btn btn--ghost" onclick="exitBomb()">${escapeHTML(t.exit || '')}</button>
+      </div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="bomb-card" id="bomb-card">
+      <div class="bomb-fuse" aria-hidden="true"><span class="bomb-emoji">💣</span></div>
+      <div class="eyebrow">${escapeHTML(kindLabel)}</div>
+      <div class="bomb-card__prompt ${b.kind === 'letter' ? 'bomb-card__prompt--letter' : ''}">${escapeHTML(b.prompt)}</div>
+      <div class="bomb-card__sub">${escapeHTML(b.kind === 'letter' ? (t.bomb_letter_hint || '') : (t.bomb_category_hint || ''))}</div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--secondary btn--lg" onclick="bombSwapPrompt()">${escapeHTML(t.bomb_swap || '')}</button>
+      <button class="btn btn--ghost" onclick="exitBomb()">${escapeHTML(t.stop || '')}</button>
+    </div>`;
+}
+
+/** After a reload: carry on if the fuse is still burning. */
+function restoreBomb() {
+  const b = bombState();
+  if (b.phase === 'ticking' && b.endsAt > Date.now()) { paintBomb(); bombArm(); return true; }
+  if (b.phase === 'boom') { paintBomb(); return true; }
+  return false;
+}
+</script>

@@ -929,4 +929,34 @@ TV_GAMES.whoami = {
       </div>`;
   }
 };
+/* --- الجرس ------------------------------------------------------------------ */
+TV_GAMES.buzzer = {
+  sig(state) {
+    const s = state.shared || {};
+    return [s.phase, s.round, (s.buzzes || []).map(b => b.id).join(','), JSON.stringify(s.scores || {}), JSON.stringify(s.last || null)].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    const buzzes = s.buzzes || [];
+    const armed = s.phase === 'armed';
+    const first = buzzes[0];
+    const head = `<div class="tv-eyebrow tv-center-text">${t.bz_question || ''} ${s.round || 1}</div>`;
+    const status = !armed
+      ? `<div class="tv-center"><div class="tv-big-icon" aria-hidden="true">🔒</div><div class="tv-title">${t.bz_tv_locked || ''}</div></div>`
+      : first
+        ? `<div class="tv-center tv-buzz-first"><div class="tv-big-icon" aria-hidden="true">🥇</div><div class="tv-title">${escapeHTML(first.name)}</div><div class="tv-note">${t.bz_answer_now || ''}</div></div>`
+        : `<div class="tv-center"><div class="tv-big-icon tv-pulse" aria-hidden="true">🔔</div><div class="tv-title">${t.bz_tv_armed || ''}</div></div>`;
+    const queue = buzzes.slice(1, 6).map((b, i) => `<span class="tv-chip"><b>${i + 2}.</b> ${escapeHTML(b.name)}</span>`).join('');
+    const last = s.last ? `<div class="tv-note tv-center-text">${s.last.ok ? '✅' : '❌'} ${escapeHTML(s.last.name)}</div>` : '';
+    const host = !state.youAreHost ? '' : `
+      <div class="tv-actions">
+        ${first ? tvBtn('✅ ' + (t.bz_correct || ''), "roomAct('correct')", 'success') + tvBtn('❌ ' + (t.bz_wrong || ''), "roomAct('wrong')", 'danger-soft') : ''}
+        ${tvBtn(armed ? '🔒 ' + (t.bz_lock || '') : '🔔 ' + (t.bz_arm || ''), armed ? "roomAct('lock')" : "roomAct('arm')", 'secondary')}
+        ${tvBtn('🔄 ' + (t.bz_reset || ''), "roomAct('reset')", 'ghost')}
+        ${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}
+      </div>`;
+    return `<div class="tv-vote">${head}${status}${queue ? `<div class="tv-strip-inline">${queue}</div>` : ''}${last}<div class="tv-scale">${renderScoreboard(s.board)}</div>${host}</div>`;
+  }
+};
+
 </script>

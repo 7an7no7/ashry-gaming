@@ -1,0 +1,171 @@
+<script>
+/* ============================================================================
+   مين يبدأ؟ — THE FINGER CHOOSER
+   ----------------------------------------------------------------------------
+   Everyone puts a finger on the screen. When the fingers have been still for
+   a couple of seconds the phone picks one (who starts), splits them into two
+   sides, or numbers them into an order. Full screen, no setup.
+
+   Touches are tracked by pointerId, so ten fingers are ten circles. A mouse
+   has one pointer, so on a laptop a click plants a finger that stays until it
+   is clicked again - which is also how this is tested.
+   ========================================================================= */
+
+const CHOOSER_COLORS = ['#f43f5e', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#84cc16', '#06b6d4'];
+const CHOOSER_HOLD_MS = 2400;
+
+const chooser = { mode: 'one', fingers: new Map(), timer: null, locked: false, bound: false, nextColor: 0 };
+
+function openChooser() {
+  setView('play-chooser');
+  chooserBind();
+  chooserReset();
+  paintChooserMode();
+}
+
+function exitChooser(event) {
+  if (event) { event.stopPropagation(); event.preventDefault(); }
+  chooserReset();
+  setView('menu');
+}
+
+function setChooserMode(mode) {
+  chooser.mode = mode;
+  chooserReset();
+  paintChooserMode();
+}
+
+function paintChooserMode() {
+  document.querySelectorAll('#chooser-modes .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === chooser.mode));
+}
+
+function chooserBind() {
+  if (chooser.bound) return;
+  const stage = document.getElementById('chooser-stage');
+  if (!stage) return;
+  chooser.bound = true;
+  stage.addEventListener('pointerdown', chooserDown);
+  stage.addEventListener('pointermove', chooserMove);
+  stage.addEventListener('pointerup', chooserUp);
+  stage.addEventListener('pointercancel', chooserUp);
+  stage.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+function chooserPoint(e) {
+  const stage = document.getElementById('chooser-stage');
+  const r = stage.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function chooserDown(e) {
+  if (chooser.locked) { chooserReset(); return; }
+  const p = chooserPoint(e);
+  // A laptop: clicking a planted finger lifts it.
+  if (e.pointerType === 'mouse') {
+    for (const [id, f] of chooser.fingers) {
+      if (Math.hypot(f.x - p.x, f.y - p.y) < 44) { chooserRemove(id); chooserSchedule(); return; }
+    }
+  }
+  const stage = document.getElementById('chooser-stage');
+  try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+  const id = e.pointerType === 'mouse' ? 'm' + Date.now() : e.pointerId;
+  const el = document.createElement('div');
+  el.className = 'finger';
+  el.style.setProperty('--finger', CHOOSER_COLORS[chooser.nextColor++ % CHOOSER_COLORS.length]);
+  el.style.left = p.x + 'px';
+  el.style.top = p.y + 'px';
+  el.innerHTML = '<span class="finger__ring"></span><span class="finger__dot"></span><span class="finger__label"></span>';
+  stage.appendChild(el);
+  chooser.fingers.set(id, { x: p.x, y: p.y, el: el, pointer: e.pointerId });
+  haptic('light');
+  chooserSchedule();
+}
+
+function chooserMove(e) {
+  if (chooser.locked) return;
+  for (const f of chooser.fingers.values()) {
+    if (f.pointer !== e.pointerId || e.pointerType === 'mouse') continue;
+    const p = chooserPoint(e);
+    f.x = p.x; f.y = p.y;
+    f.el.style.left = p.x + 'px';
+    f.el.style.top = p.y + 'px';
+  }
+}
+
+function chooserUp(e) {
+  if (chooser.locked || e.pointerType === 'mouse') return;
+  for (const [id, f] of chooser.fingers) {
+    if (f.pointer === e.pointerId) { chooserRemove(id); break; }
+  }
+  chooserSchedule();
+}
+
+function chooserRemove(id) {
+  const f = chooser.fingers.get(id);
+  if (f && f.el) f.el.remove();
+  chooser.fingers.delete(id);
+}
+
+/** Enough fingers, and still: start the count. Any change starts it over. */
+function chooserSchedule() {
+  if (chooser.timer) clearTimeout(chooser.timer);
+  chooser.timer = null;
+  const n = chooser.fingers.size;
+  const t = TRANSLATIONS[appState.lang];
+  const hint = document.getElementById('chooser-hint');
+  chooser.fingers.forEach(f => f.el.classList.remove('is-counting'));
+  if (n < 2) {
+    if (hint) hint.textContent = n === 0 ? (t.ch_hint_start || '') : (t.ch_hint_more || '');
+    return;
+  }
+  if (hint) hint.textContent = t.ch_hint_hold || '';
+  chooser.fingers.forEach(f => f.el.classList.add('is-counting'));
+  chooser.timer = setTimeout(chooserDecide, CHOOSER_HOLD_MS);
+}
+
+function chooserDecide() {
+  chooser.timer = null;
+  const fingers = [...chooser.fingers.values()];
+  if (fingers.length < 2) { chooserSchedule(); return; }
+  chooser.locked = true;
+  const t = TRANSLATIONS[appState.lang];
+  const order = shuffleArray(fingers.slice());
+  fingers.forEach(f => f.el.classList.remove('is-counting'));
+
+  if (chooser.mode === 'one') {
+    const pick = order[0];
+    fingers.forEach(f => f.el.classList.add(f === pick ? 'is-chosen' : 'is-out'));
+    pick.el.querySelector('.finger__label').textContent = t.ch_starts || '';
+  } else if (chooser.mode === 'teams') {
+    const half = Math.ceil(order.length / 2);
+    order.forEach((f, i) => {
+      f.el.classList.add(i < half ? 'is-team-a' : 'is-team-b');
+      f.el.querySelector('.finger__label').textContent = i < half ? (t.ch_team_a || '') : (t.ch_team_b || '');
+    });
+  } else {
+    order.forEach((f, i) => {
+      f.el.classList.add('is-ordered');
+      f.el.querySelector('.finger__label').textContent = String(i + 1);
+    });
+  }
+  playSound('success');
+  haptic('heavy');
+  const hint = document.getElementById('chooser-hint');
+  if (hint) hint.textContent = t.ch_hint_again || '';
+  const again = document.getElementById('chooser-again');
+  if (again) again.classList.remove('hidden');
+}
+
+function chooserReset() {
+  if (chooser.timer) clearTimeout(chooser.timer);
+  chooser.timer = null;
+  chooser.locked = false;
+  chooser.fingers.forEach(f => f.el.remove());
+  chooser.fingers.clear();
+  const again = document.getElementById('chooser-again');
+  if (again) again.classList.add('hidden');
+  const t = TRANSLATIONS[appState.lang];
+  const hint = document.getElementById('chooser-hint');
+  if (hint) hint.textContent = t.ch_hint_start || '';
+}
+</script>

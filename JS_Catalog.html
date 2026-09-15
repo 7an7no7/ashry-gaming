@@ -1,0 +1,383 @@
+<script>
+/* ============================================================================
+   THE GAME CATALOG
+   ----------------------------------------------------------------------------
+   One registry of everything the app can play, and the home screen, the hero
+   on every setup screen and the "recently played" row are all drawn from it.
+   A game that is not in here is not on the menu.
+
+     id       what the help sheet and the recent list know it by
+     icon     the emoji on its card (the card draws it; translation strings
+              must not carry one - see "Arabic and RTL" in GEMINI.md)
+     title    i18n key of its name;  desc  i18n key of its one-line pitch
+     accent   its palette (see [data-accent] in Style.html)
+     players  [min, max];  mins  how long a round takes, roughly
+     modes    how it can be played: device (pass one phone), room (everyone
+              on their own phone), tv (a room shown on a big screen)
+     group    which section of the home it sits in (CATALOG_GROUPS)
+     setup    the view the hero is drawn on; absent for full-screen tools
+     open     what the card does
+   ========================================================================= */
+const CATALOG_GROUPS = [
+  { id: 'deduce', icon: '🕵️', title: 'grp_deduce' },
+  { id: 'words',  icon: '🗣️', title: 'grp_words' },
+  { id: 'party',  icon: '🎉', title: 'grp_party' },
+  { id: 'quiz',   icon: '🧠', title: 'grp_quiz' },
+  { id: 'table',  icon: '🃏', title: 'grp_table' },
+  { id: 'duo',    icon: '🤝', title: 'grp_duo' },
+  { id: 'tools',  icon: '🛠️', title: 'grp_tools' }
+];
+
+const GAME_CATALOG = [
+  /* --- خداع وتخمين --- */
+  { id: 'imposter',   icon: '🕵️‍♂️', title: 'setup_imposter',   desc: 'cat_imposter',   accent: 'violet', players: [3, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'deduce', setup: 'setup-imposter',  open: () => setView('setup-imposter') },
+  { id: 'chameleon',  icon: '🦎',   title: 'setup_chameleon',  desc: 'cat_chameleon',  accent: 'amber',  players: [3, 10], mins: 10, modes: ['device'],               group: 'deduce', setup: 'setup-chameleon', open: () => setupChameleon() },
+  { id: 'spyfall',    icon: '🏢',   title: 'setup_spyfall',    desc: 'cat_spyfall',    accent: 'rose',   players: [3, 10], mins: 10, modes: ['device'],               group: 'deduce', setup: 'setup-spyfall',   open: () => setupSpyfall() },
+  { id: 'fakeartist', icon: '👨‍🎨', title: 'setup_fakeartist', desc: 'cat_fakeartist', accent: 'pink',   players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('fakeartist') },
+  { id: 'fibbage',    icon: '🤥',   title: 'setup_fibbage',    desc: 'cat_fibbage',    accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('fibbage') },
+
+  /* --- كلمات، رسم وتمثيل --- */
+  { id: 'charades',   icon: '🎭',   title: 'setup_charades',   desc: 'cat_charades',   accent: 'violet', players: [2, 20], mins: 5,  modes: ['device'],               group: 'words', setup: 'setup-charades',  open: () => setupCharades() },
+  { id: 'describe',   icon: '🗣️',  title: 'setup_describe',   desc: 'cat_describe',   accent: 'indigo', players: [2, 20], mins: 5,  modes: ['device'],               group: 'words', setup: 'setup-describe',  open: () => setupDescribe() },
+  { id: 'timesup',    icon: '⏱️',  title: 'setup_timesup',    desc: 'cat_timesup',    accent: 'blue',   players: [4, 20], mins: 20, modes: ['device'],               group: 'words', setup: 'setup-timesup',   open: () => setupTimesUp() },
+  { id: 'whoami',     icon: '❓',   title: 'setup_whoami',     desc: 'cat_whoami',     accent: 'teal',   players: [2, 10], mins: 10, modes: ['device', 'room'],       group: 'words', setup: 'setup-whoami',    open: () => setupWhoAmI() },
+  { id: 'justone',    icon: '🤫',   title: 'setup_justone',    desc: 'cat_justone',    accent: 'rose',   players: [3, 10], mins: 15, modes: ['device', 'room'],       group: 'words', setup: 'setup-justone',   open: () => setView('setup-justone') },
+  { id: 'codenames',  icon: '🔠',   title: 'setup_codenames',  desc: 'cat_codenames',  accent: 'indigo', players: [4, 12], mins: 20, modes: ['room', 'tv'],           group: 'words', setup: 'setup-codenames', open: () => setView('setup-codenames') },
+  { id: 'drawguess',  icon: '🎨',   title: 'setup_drawguess',  desc: 'cat_drawguess',  accent: 'blue',   players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'words', open: () => roomCreateFor('drawguess') },
+
+  /* --- حفلة وضحك --- */
+  { id: 'bomb',       icon: '💣',   title: 'setup_bomb',       desc: 'cat_bomb',       accent: 'orange', players: [2, 12], mins: 5,  modes: ['device'],               group: 'party', setup: 'setup-bomb',      open: () => setupBomb() },
+  { id: 'stop',       icon: '🚏',   title: 'setup_stop',       desc: 'cat_stop',       accent: 'green',  players: [2, 10], mins: 15, modes: ['device'],               group: 'party', setup: 'setup-stop',      open: () => setupStop() },
+  { id: 'wouldyou',   icon: '⚖️',  title: 'setup_wouldyou',   desc: 'cat_wouldyou',   accent: 'violet', players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wouldyou') },
+  { id: 'mostlikely', icon: '👉',   title: 'setup_mostlikely', desc: 'cat_mostlikely', accent: 'amber',  players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('mostlikely') },
+  { id: 'wavelength', icon: '🌊',   title: 'setup_wavelength', desc: 'cat_wavelength', accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wavelength') },
+
+  /* --- معلومات --- */
+  { id: 'trivia',     icon: '🧠',   title: 'setup_trivia',     desc: 'cat_trivia',     accent: 'indigo', players: [2, 12], mins: 15, modes: ['device', 'room', 'tv'], group: 'quiz', setup: 'setup-trivia',     open: () => setupTrivia() },
+  { id: 'buzzer',     icon: '🔔',   title: 'setup_buzzer',     desc: 'cat_buzzer',     accent: 'rose',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'quiz', open: () => roomCreateFor('buzzer') },
+
+  /* --- ورق وطاولة --- */
+  { id: 'screw',      icon: '🃏',   title: 'setup_screw',      desc: 'cat_screw',      accent: 'blue',   players: [2, 8],  mins: 30, modes: ['device'],               group: 'table', setup: 'setup-screw',     open: () => setView('setup-screw') },
+  { id: 'domino',     icon: '🀄',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device'],               group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
+  { id: 'monkey',     icon: '🐵',   title: 'setup_monkey',     desc: 'cat_monkey',     accent: 'amber',  players: [2, 10], mins: 15, modes: ['device'],               group: 'table', setup: 'setup-monkey',    open: () => setView('setup-monkey') },
+
+  /* --- ثنائي وذهني --- */
+  { id: 'wordle',     icon: '🔤',   title: 'setup_wordle',     desc: 'cat_wordle',     accent: 'green',  players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-wordle',      open: () => setupWordle() },
+  { id: 'connections', icon: '🧩',  title: 'setup_connections', desc: 'cat_connections', accent: 'teal', players: [1, 4],  mins: 10, modes: ['device'],               group: 'duo', setup: 'setup-connections', open: () => setupConnections() },
+  { id: 'memory',     icon: '🎴',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory',      open: () => setupMemory() },
+  { id: 'xo',         icon: '⭕',   title: 'setup_xo',         desc: 'cat_xo',         accent: 'blue',   players: [1, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-xo',          open: () => setupXO() },
+  { id: 'guessnum',   icon: '🔢',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 2],  mins: 3,  modes: ['device'],               group: 'duo', setup: 'setup-guessnum',    open: () => setupGuessNumber() },
+  { id: 'reaction',   icon: '⚡',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-reaction',    open: () => setView('setup-reaction') },
+
+  /* --- أدوات --- */
+  { id: 'chooser',   icon: '👆',   title: 'tool_chooser',      desc: 'cat_chooser',    accent: 'orange', group: 'tools', open: () => openChooser() },
+  { id: 'spin',      icon: '🎡',   title: 'setup_spin',        desc: 'spin_desc',      accent: 'orange', group: 'tools', setup: 'setup-spin',      open: () => setView('setup-spin') },
+  { id: 'teams',     icon: '👥',   title: 'team_generator',    desc: 'teams_desc',     accent: 'indigo', group: 'tools', setup: 'setup-teams',     open: () => setView('setup-teams') },
+  { id: 'tourney',   icon: '🏆',   title: 'setup_tourney',     desc: 'tourney_desc',   accent: 'amber',  group: 'tools', setup: 'setup-tourney',   open: () => setupTournament() },
+  { id: 'universal', icon: '🔢',   title: 'universal_counter', desc: 'universal_desc', accent: 'blue',   group: 'tools', setup: 'setup-universal', open: () => setView('setup-universal') },
+  { id: 'timers',    icon: '⏱️',  title: 'timers_title',      desc: 'timers_desc',    accent: 'rose',   group: 'tools', setup: 'timers',          open: () => setView('timers') },
+  { id: 'chess',     icon: '♟️',  title: 'chess_title',       desc: 'chess_desc',     accent: 'indigo', group: 'tools', open: () => { setView('play-chess'); updateChessUI(); } },
+  { id: 'dice',      icon: '🎲',   title: 'tool_dice',         desc: 'dice_desc',      accent: 'green',  group: 'tools', setup: 'tool-dice',       open: () => setView('tool-dice') }
+];
+
+const CATALOG_BY_ID = {};
+GAME_CATALOG.forEach(g => { CATALOG_BY_ID[g.id] = g; });
+
+/* The three ways of playing, as the badges on a card and the chips in the
+   filter row. tv is a room shown on a big screen, so a game that plays in a
+   room and has a TV layout carries both. */
+const PLAY_MODES = {
+  device: { icon: '📱', label: 'mode_badge_device' },
+  room:   { icon: '📲', label: 'mode_badge_room' },
+  tv:     { icon: '📺', label: 'mode_badge_tv' }
+};
+
+const HOME_FILTERS = [
+  { id: 'all',    icon: '✨', label: 'flt_all' },
+  { id: 'device', icon: '📱', label: 'flt_device' },
+  { id: 'room',   icon: '📲', label: 'flt_room' },
+  { id: 'tv',     icon: '📺', label: 'flt_tv' },
+  { id: 'duo',    icon: '🤝', label: 'flt_duo' },
+  { id: 'solo',   icon: '🧘', label: 'flt_solo' },
+  { id: 'tools',  icon: '🛠️', label: 'flt_tools' }
+];
+
+/** Does a catalog entry pass a filter chip? */
+function catalogMatchesFilter(g, filter) {
+  switch (filter) {
+    case 'all':    return true;
+    case 'tools':  return g.group === 'tools';
+    case 'device': return (g.modes || []).indexOf('device') !== -1;
+    case 'room':   return (g.modes || []).indexOf('room') !== -1;
+    case 'tv':     return (g.modes || []).indexOf('tv') !== -1;
+    case 'duo':    return !!g.players && g.players[0] <= 2 && g.players[1] <= 4;
+    case 'solo':   return !!g.players && g.players[0] === 1;
+  }
+  return true;
+}
+
+/* --- Recently played -------------------------------------------------------
+   The last few games opened on this phone, newest first. A family that plays
+   the same three games most evenings should not scroll for them.
+   -------------------------------------------------------------------------- */
+const RECENT_KEY = 'ashryRecent_v1';
+const RECENT_MAX = 6;
+
+function readRecent() {
+  try { return (JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') || []).filter(id => CATALOG_BY_ID[id]); }
+  catch (e) { return []; }
+}
+
+function rememberRecent(id) {
+  const list = [id].concat(readRecent().filter(x => x !== id)).slice(0, RECENT_MAX);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) {}
+}
+
+function forgetRecent() {
+  try { localStorage.removeItem(RECENT_KEY); } catch (e) {}
+}
+
+/** Every card and every recent tile goes through here. */
+function catalogOpen(id) {
+  const g = CATALOG_BY_ID[id];
+  if (!g) return;
+  rememberRecent(id);
+  g.open();
+}
+
+/* --- Pieces shared by the home and the heroes ----------------------------- */
+
+const catalogTitle = (g, t) => t[g.title] || g.id;
+const catalogDesc = (g, t) => t[g.desc] || '';
+
+/** "👥 3–12 · ⏱ 10 min" plus the mode badges. */
+function catalogMeta(g, t, withModeLabels) {
+  const bits = [];
+  if (g.players) {
+    const [min, max] = g.players;
+    bits.push(`<span class="meta-bit"><span aria-hidden="true">👥</span><span class="metric">${min === max ? min : min + '–' + max}</span></span>`);
+  }
+  if (g.mins) {
+    bits.push(`<span class="meta-bit"><span aria-hidden="true">⏱</span><span class="metric">${g.mins}</span> ${escapeHTML(t.meta_min || '')}</span>`);
+  }
+  (g.modes || []).forEach(m => {
+    const mode = PLAY_MODES[m];
+    if (!mode) return;
+    bits.push(withModeLabels
+      ? `<span class="meta-bit meta-bit--mode"><span aria-hidden="true">${mode.icon}</span>${escapeHTML(t[mode.label] || '')}</span>`
+      : `<span class="meta-bit meta-bit--mode" title="${escapeHTML(t[mode.label] || '')}" aria-label="${escapeHTML(t[mode.label] || '')}">${mode.icon}</span>`);
+  });
+  return bits.join('');
+}
+
+function catalogCard(g, t) {
+  return `
+    <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}')">
+      <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
+      <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
+      <span class="gcard__desc">${escapeHTML(catalogDesc(g, t))}</span>
+      <span class="gcard__meta">${catalogMeta(g, t, false)}</span>
+    </button>`;
+}
+
+function catalogToolRow(g, t) {
+  return `
+    <button type="button" class="tool-item" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}')">
+      <span class="tool-icon" aria-hidden="true">${g.icon}</span>
+      <span class="tool-info">
+        <span class="tool-name">${escapeHTML(catalogTitle(g, t))}</span>
+        <span class="tool-desc">${escapeHTML(catalogDesc(g, t))}</span>
+      </span>
+      <span class="tool-chev" aria-hidden="true">›</span>
+    </button>`;
+}
+
+/* --- The home screen -------------------------------------------------------- */
+
+let homeFilter = 'all';
+let homeSearch = '';
+
+function renderHome() {
+  const view = document.getElementById('view-menu');
+  if (!view) return;
+  const t = TRANSLATIONS[appState.lang];
+  const recent = readRecent();
+
+  const together = `
+    <section class="home-hero" data-accent="violet">
+      <div class="home-hero__head">
+        <svg class="mark mark--hero" aria-hidden="true"><use href="#ashry-mark"/></svg>
+        <div class="home-hero__text">
+          <h2 class="home-hero__title">${escapeHTML(t.home_title || '')}</h2>
+          <p class="home-hero__sub">${escapeHTML(t.home_tagline || '')}</p>
+        </div>
+      </div>
+      <div class="together">
+        <button type="button" class="together__tile" onclick="roomCreateEmpty()">
+          <span class="together__icon" aria-hidden="true">🎮</span>
+          <span class="together__name">${escapeHTML(t.room_open || '')}</span>
+          <span class="together__desc">${escapeHTML(t.together_open_desc || '')}</span>
+        </button>
+        <button type="button" class="together__tile" onclick="roomOpenJoin('')">
+          <span class="together__icon" aria-hidden="true">📱</span>
+          <span class="together__name">${escapeHTML(t.join_room_menu || '')}</span>
+          <span class="together__desc">${escapeHTML(t.together_join_desc || '')}</span>
+        </button>
+        <button type="button" class="together__tile" onclick="roomOpenScreen()">
+          <span class="together__icon" aria-hidden="true">📺</span>
+          <span class="together__name">${escapeHTML(t.together_tv || '')}</span>
+          <span class="together__desc">${escapeHTML(t.together_tv_desc || '')}</span>
+        </button>
+      </div>
+    </section>`;
+
+  const search = `
+    <div class="home-tools">
+      <label class="home-search">
+        <span class="home-search__icon" aria-hidden="true">🔍</span>
+        <input type="search" id="home-search" autocomplete="off" enterkeyhint="search"
+               placeholder="${escapeHTML(t.home_search_ph || '')}" value="${escapeHTML(homeSearch)}"
+               oninput="setHomeSearch(this.value)">
+      </label>
+      <div class="filter-row" role="tablist">
+        ${HOME_FILTERS.map(f => `
+          <button type="button" role="tab" class="filter-chip ${f.id === homeFilter ? 'is-active' : ''}"
+                  data-filter="${f.id}" aria-selected="${f.id === homeFilter}" onclick="setHomeFilter('${f.id}')">
+            <span aria-hidden="true">${f.icon}</span>${escapeHTML(t[f.label] || f.id)}
+          </button>`).join('')}
+      </div>
+    </div>`;
+
+  const recentRow = recent.length ? `
+    <section class="section" id="home-recent">
+      <div class="section__head">
+        <span class="section__emoji" aria-hidden="true">🕘</span>
+        <h2 class="section__title">${escapeHTML(t.home_recent || '')}</h2>
+        <span class="section__rule"></span>
+      </div>
+      <div class="recent-row">
+        ${recent.map(id => {
+          const g = CATALOG_BY_ID[id];
+          return `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}')">
+                    <span class="recent-tile__icon" aria-hidden="true">${g.icon}</span>
+                    <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
+                  </button>`;
+        }).join('')}
+      </div>
+    </section>` : '';
+
+  const groups = CATALOG_GROUPS.map(grp => {
+    const games = GAME_CATALOG.filter(g => g.group === grp.id);
+    if (!games.length) return '';
+    const body = grp.id === 'tools'
+      ? `<div class="tools-list">${games.map(g => catalogToolRow(g, t)).join('')}</div>`
+      : `<div class="gcard-grid">${games.map(g => catalogCard(g, t)).join('')}</div>`;
+    return `
+      <section class="section" data-group="${grp.id}">
+        <div class="section__head">
+          <span class="section__emoji" aria-hidden="true">${grp.icon}</span>
+          <h2 class="section__title">${escapeHTML(t[grp.title] || grp.id)}</h2>
+          <span class="section__rule"></span>
+          <span class="section__count metric">${games.length}</span>
+        </div>
+        ${body}
+      </section>`;
+  }).join('');
+
+  view.innerHTML = together + search + recentRow + groups +
+    `<div class="empty hidden" id="home-empty">${escapeHTML(t.home_empty || '')}</div>`;
+  homeRenderedLang = appState.lang;
+  applyHomeFilter();
+}
+
+/** Only the recent row changes after a game is opened; redraw just that. */
+function refreshHomeRecent() {
+  if (appState.currentView !== 'menu') return;
+  renderHome();
+}
+
+function setHomeFilter(id) {
+  homeFilter = id;
+  document.querySelectorAll('#view-menu .filter-chip').forEach(b => {
+    const on = b.dataset.filter === id;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-selected', on);
+  });
+  applyHomeFilter();
+  haptic('light');
+}
+
+function setHomeSearch(value) {
+  homeSearch = value || '';
+  applyHomeFilter();
+}
+
+/** Hides the cards, rows and sections the chip and the search box rule out. */
+function applyHomeFilter() {
+  const view = document.getElementById('view-menu');
+  if (!view) return;
+  const t = TRANSLATIONS[appState.lang];
+  const other = TRANSLATIONS[appState.lang === 'ar' ? 'en' : 'ar'];
+  const term = helpNormalise(homeSearch);
+  const searching = !!term;
+  let shown = 0;
+
+  view.querySelectorAll('[data-game]').forEach(el => {
+    const g = CATALOG_BY_ID[el.dataset.game];
+    if (!g) return;
+    let ok = catalogMatchesFilter(g, homeFilter);
+    if (ok && searching) {
+      const hay = helpNormalise([catalogTitle(g, t), catalogDesc(g, t), catalogTitle(g, other), catalogDesc(g, other)].join(' '));
+      ok = hay.indexOf(term) !== -1;
+    }
+    el.classList.toggle('hidden', !ok);
+    if (ok) shown++;
+  });
+
+  view.querySelectorAll('section[data-group]').forEach(sec => {
+    const any = sec.querySelector('[data-game]:not(.hidden)');
+    sec.classList.toggle('hidden', !any);
+  });
+  // The recent row is a shortcut, not a search result.
+  const recent = document.getElementById('home-recent');
+  if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all');
+  const empty = document.getElementById('home-empty');
+  if (empty) empty.classList.toggle('hidden', shown > 0);
+}
+
+/* --- The hero on a setup screen ---------------------------------------------
+   Every setup screen opens with the same card: what the game is in one line,
+   how many people, how long, how it can be played, and a way to the rules.
+   It is drawn by setView (and again on a language change), so the screens
+   themselves carry none of it.
+   -------------------------------------------------------------------------- */
+function catalogHeroHtml(g, t) {
+  return `
+    <span class="game-hero__icon" aria-hidden="true">${g.icon}</span>
+    <span class="game-hero__text">
+      <span class="game-hero__title">${escapeHTML(catalogTitle(g, t))}</span>
+      <span class="game-hero__desc">${escapeHTML(catalogDesc(g, t))}</span>
+      <span class="game-hero__meta">${catalogMeta(g, t, true)}</span>
+    </span>
+    <button type="button" class="game-hero__rules" onclick="openHelpModal()"
+            title="${escapeHTML(t.hero_rules || '')}" aria-label="${escapeHTML(t.hero_rules || '')}">
+      <span aria-hidden="true">📘</span>
+      <span class="game-hero__rules-label">${escapeHTML(t.hero_rules || '')}</span>
+    </button>`;
+}
+
+function syncGameHero(viewId) {
+  const view = document.getElementById('view-' + viewId);
+  if (!view) return;
+  const g = GAME_CATALOG.find(x => x.setup === viewId);
+  let hero = view.querySelector(':scope > .game-hero');
+  if (!g) { if (hero) hero.remove(); return; }
+  const t = TRANSLATIONS[appState.lang];
+  if (!hero) {
+    hero = document.createElement('div');
+    hero.className = 'game-hero';
+    view.insertBefore(hero, view.firstChild);
+  }
+  hero.innerHTML = catalogHeroHtml(g, t);
+}
+</script>

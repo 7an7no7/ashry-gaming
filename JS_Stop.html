@@ -1,0 +1,339 @@
+<script>
+/* ============================================================================
+   أتوبيس كومبليت — STOP THE BUS
+   ----------------------------------------------------------------------------
+   The paper game, with the phone as the letter, the clock and the scorer. A
+   letter is drawn, everyone writes a name, an animal, a plant, an object and a
+   country starting with it, and the first one done shouts وقف. Then the phone
+   goes round the table once more to score: 10 for an answer nobody else had,
+   5 for one somebody shared, 0 for a blank.
+
+   Everything lives in appState.stop, with the round's deadline as a timestamp,
+   so a reload mid-round comes back mid-round.
+   ========================================================================= */
+
+const STOP_CATEGORIES = [
+  { id: 'name',    icon: '🧑', ar: 'اسم',    en: 'Name' },
+  { id: 'animal',  icon: '🐾', ar: 'حيوان',  en: 'Animal' },
+  { id: 'plant',   icon: '🌿', ar: 'نبات',   en: 'Plant' },
+  { id: 'thing',   icon: '📦', ar: 'جماد',   en: 'Object' },
+  { id: 'country', icon: '🌍', ar: 'بلد',    en: 'Country' },
+  { id: 'city',    icon: '🏙️', ar: 'مدينة',  en: 'City' },
+  { id: 'food',    icon: '🍽️', ar: 'أكلة',   en: 'Food' },
+  { id: 'brand',   icon: '🏷️', ar: 'ماركة',  en: 'Brand' },
+  { id: 'job',     icon: '👷', ar: 'مهنة',   en: 'Job' },
+  { id: 'color',   icon: '🎨', ar: 'لون',    en: 'Colour' }
+];
+const STOP_DEFAULT_CATS = ['name', 'animal', 'plant', 'thing', 'country'];
+
+/* Initials with enough words behind them. ء ة ى never start a word; ذ ظ do,
+   but a table of five will sit on them in silence. */
+const STOP_LETTERS = {
+  ar: 'ا ب ت ث ج ح خ د ر ز س ش ص ض ط ع غ ف ق ك ل م ن ه و ي'.split(' '),
+  en: 'A B C D E F G H I J K L M N O P R S T V W'.split(' ')
+};
+const STOP_POINTS = [0, 10, 5];   // a tap cycles a cell through these
+
+let stopClock = null;
+
+function stopState() {
+  if (!appState.stop) {
+    appState.stop = { cats: STOP_DEFAULT_CATS.slice(), timer: 90, rounds: 5, round: 0, letter: '',
+                      endsAt: 0, phase: 'setup', players: [], roundScores: {}, totals: {} };
+  }
+  return appState.stop;
+}
+
+const stopCatLabel = (id) => {
+  const c = STOP_CATEGORIES.find(x => x.id === id);
+  return c ? (appState.lang === 'ar' ? c.ar : c.en) : id;
+};
+
+function setupStop() {
+  const s = stopState();
+  if (stopClock) stopClock.stop();
+  stopClock = null;
+  s.phase = 'setup';
+  saveToLocal();
+  setView('setup-stop');
+  paintStopSetup();
+}
+
+function paintStopSetup() {
+  const s = stopState();
+  const cats = document.getElementById('stop-cats');
+  if (cats) {
+    cats.innerHTML = STOP_CATEGORIES.map(c => `
+      <button type="button" class="opt-chip ${s.cats.indexOf(c.id) !== -1 ? 'is-active' : ''}"
+              aria-pressed="${s.cats.indexOf(c.id) !== -1}" onclick="toggleStopCat('${c.id}')">
+        <span aria-hidden="true">${c.icon}</span>${escapeHTML(appState.lang === 'ar' ? c.ar : c.en)}
+      </button>`).join('');
+  }
+  document.querySelectorAll('#stop-timer .segmented__item').forEach(el => el.classList.toggle('is-active', Number(el.dataset.value) === s.timer));
+  document.querySelectorAll('#stop-rounds .segmented__item').forEach(el => el.classList.toggle('is-active', Number(el.dataset.value) === s.rounds));
+}
+
+function toggleStopCat(id) {
+  const s = stopState();
+  const on = s.cats.indexOf(id) !== -1;
+  if (on && s.cats.length <= 2) { showToast(TRANSLATIONS[appState.lang].stop_min_cats || '', 'warn'); return; }
+  // Keep the picked ones in the list's own order, so the score table reads the
+  // same way on every phone.
+  s.cats = on ? s.cats.filter(c => c !== id) : STOP_CATEGORIES.map(c => c.id).filter(c => c === id || s.cats.indexOf(c) !== -1);
+  saveToLocal();
+  paintStopSetup();
+}
+
+function setStopOption(key, value) {
+  stopState()[key] = Number(value);
+  saveToLocal();
+  paintStopSetup();
+}
+
+function startStopGame() {
+  const s = stopState();
+  const t = TRANSLATIONS[appState.lang];
+  const players = (appState.activePlayers || []).slice();
+  if (players.length < 2) { showToast(t.stop_need_players || '', 'error'); return; }
+  s.players = players;
+  s.round = 0;
+  s.totals = {};
+  players.forEach(p => { s.totals[p] = 0; });
+  nextStopLetter();
+}
+
+function nextStopLetter() {
+  const s = stopState();
+  s.round += 1;
+  s.letter = freshPick('stop:letters:' + appState.lang, STOP_LETTERS[appState.lang] || STOP_LETTERS.ar, 1)[0];
+  s.endsAt = s.timer ? Date.now() + s.timer * 1000 : 0;
+  s.phase = 'play';
+  s.roundScores = {};
+  saveToLocal();
+  if (appState.currentView !== 'play-stop') setView('play-stop');
+  paintStopPlay();
+  armStopClock();
+  playSound('success');
+}
+
+/** The same round, a fresh letter: the table agreed the last one was hopeless. */
+function redrawStopLetter() {
+  const s = stopState();
+  if (s.phase !== 'play') return;
+  s.round -= 1;
+  nextStopLetter();
+}
+
+function armStopClock() {
+  const s = stopState();
+  if (stopClock) stopClock.stop();
+  stopClock = null;
+  if (!s.endsAt) return;
+  const left = Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000));
+  if (left <= 0) { stopRound(); return; }
+  stopClock = createClock({
+    seconds: left,
+    onTick: (v) => {
+      const el = document.getElementById('stop-clock');
+      if (el) { el.textContent = v; el.classList.toggle('is-low', v <= 10); }
+      if (v <= 5 && v > 0) playSound('tick');
+    },
+    onEnd: () => { stopClock = null; stopRound(); }
+  });
+}
+
+/** وقف! - or the clock ran out. On to the scoring. */
+function stopRound() {
+  const s = stopState();
+  if (s.phase !== 'play') return;
+  if (stopClock) stopClock.stop();
+  stopClock = null;
+  s.phase = 'score';
+  s.roundScores = {};
+  s.players.forEach(p => {
+    s.roundScores[p] = {};
+    s.cats.forEach(c => { s.roundScores[p][c] = 0; });
+  });
+  saveToLocal();
+  playSound('alarm');
+  haptic('medium');
+  paintStopScore();
+}
+
+function paintStopPlay() {
+  const s = stopState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('stop-stage');
+  if (!el) return;
+  const left = s.endsAt ? Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000)) : null;
+  el.innerHTML = `
+    <div class="play-head">
+      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span> / <span class="metric">${s.rounds}</span></span>
+      ${left === null
+        ? `<span class="badge badge--plain">${escapeHTML(t.stop_no_timer || '')}</span>`
+        : `<span class="metric metric--md metric--accent" id="stop-clock">${left}</span>`}
+    </div>
+    <div class="stop-letter-card">
+      <div class="eyebrow">${escapeHTML(t.stop_letter || '')}</div>
+      <div class="stop-letter">${escapeHTML(s.letter)}</div>
+      <div class="chip-set stop-cats-row">
+        ${s.cats.map(c => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(stopCatLabel(c))}</span></span>`).join('')}
+      </div>
+      <p class="field__hint">${escapeHTML(t.stop_play_hint || '')}</p>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--danger btn--lg" onclick="stopRound()">${escapeHTML(t.stop_stop_btn || '')}</button>
+      <div class="btn-row">
+        <button class="btn btn--ghost btn--sm" onclick="redrawStopLetter()">${escapeHTML(t.stop_redraw || '')}</button>
+        <button class="btn btn--ghost btn--sm" onclick="setupStop()">${escapeHTML(t.exit || '')}</button>
+      </div>
+    </div>`;
+}
+
+function cycleStopCell(pi, cat) {
+  const s = stopState();
+  const p = s.players[pi];
+  if (!p || !s.roundScores[p]) return;
+  const cur = s.roundScores[p][cat] || 0;
+  const next = STOP_POINTS[(STOP_POINTS.indexOf(cur) + 1) % STOP_POINTS.length];
+  s.roundScores[p][cat] = next;
+  saveToLocal();
+  const cell = document.getElementById(`stop-cell-${pi}-${cat}`);
+  if (cell) {
+    cell.textContent = next;
+    cell.className = 'stop-cell ' + (next === 10 ? 'is-10' : next === 5 ? 'is-5' : '');
+  }
+  const total = document.getElementById(`stop-rowtotal-${pi}`);
+  if (total) total.textContent = stopRoundTotal(p);
+  haptic('light');
+}
+
+const stopRoundTotal = (p) => {
+  const s = stopState();
+  const row = s.roundScores[p] || {};
+  return s.cats.reduce((sum, c) => sum + (row[c] || 0), 0);
+};
+
+function paintStopScore() {
+  const s = stopState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('stop-stage');
+  if (!el) return;
+  const last = s.round >= s.rounds;
+  el.innerHTML = `
+    <div class="play-head">
+      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span> / <span class="metric">${s.rounds}</span></span>
+      <span class="badge badge--plain">${escapeHTML(t.stop_letter || '')} <b>${escapeHTML(s.letter)}</b></span>
+    </div>
+    <div class="card card--tight">
+      <div class="card__title">${escapeHTML(t.stop_scoring || '')}</div>
+      <p class="card__subtitle">${escapeHTML(t.stop_scoring_hint || '')}</p>
+      <div class="stop-table-wrap">
+        <table class="stop-table">
+          <thead><tr>
+            <th class="stop-th stop-th--name">${escapeHTML(t.players || '')}</th>
+            ${s.cats.map(c => `<th class="stop-th">${escapeHTML(stopCatLabel(c))}</th>`).join('')}
+            <th class="stop-th">Σ</th>
+          </tr></thead>
+          <tbody>
+            ${s.players.map((p, pi) => `
+              <tr>
+                <td class="stop-td stop-td--name">${escapeHTML(p)}</td>
+                ${s.cats.map(c => {
+                  const v = (s.roundScores[p] || {})[c] || 0;
+                  return `<td class="stop-td"><button type="button" id="stop-cell-${pi}-${c}"
+                    class="stop-cell ${v === 10 ? 'is-10' : v === 5 ? 'is-5' : ''}"
+                    onclick="cycleStopCell(${pi}, '${c}')">${v}</button></td>`;
+                }).join('')}
+                <td class="stop-td"><b class="metric" id="stop-rowtotal-${pi}">${stopRoundTotal(p)}</b></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="stop-legend">
+        <span><span class="stop-dot is-10"></span> 10 ${escapeHTML(t.stop_pts_unique || '')}</span>
+        <span><span class="stop-dot is-5"></span> 5 ${escapeHTML(t.stop_pts_shared || '')}</span>
+        <span><span class="stop-dot"></span> 0 ${escapeHTML(t.stop_pts_none || '')}</span>
+      </div>
+    </div>
+    ${stopStandingsHtml(t)}
+    <div class="view-actions">
+      <button class="btn btn--primary btn--lg" onclick="finishStopRound()">${escapeHTML(last ? (t.stop_finish || '') : (t.stop_next_letter || ''))}</button>
+      <button class="btn btn--ghost btn--sm" onclick="setupStop()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+/** The running board, best first, with this round's points not yet added. */
+function stopStandingsHtml(t) {
+  const s = stopState();
+  const rows = s.players.slice().sort((a, b) => (s.totals[b] || 0) - (s.totals[a] || 0));
+  if (s.round <= 1) return '';
+  return `
+    <div class="card card--tight">
+      <div class="eyebrow">${escapeHTML(t.scoreboard || '')}</div>
+      ${rows.map((p, i) => `
+        <div class="status-row">
+          <span class="status-row__name">${i === 0 ? '🥇 ' : ''}${escapeHTML(p)}</span>
+          <b class="metric">${s.totals[p] || 0}</b>
+        </div>`).join('')}
+    </div>`;
+}
+
+function finishStopRound() {
+  const s = stopState();
+  if (s.phase !== 'score') return;
+  s.players.forEach(p => { s.totals[p] = (s.totals[p] || 0) + stopRoundTotal(p); });
+  if (s.round >= s.rounds) {
+    s.phase = 'done';
+    saveToLocal();
+    showStopResult();
+    return;
+  }
+  nextStopLetter();
+}
+
+function showStopResult() {
+  const s = stopState();
+  const t = TRANSLATIONS[appState.lang];
+  const rows = s.players.slice().sort((a, b) => (s.totals[b] || 0) - (s.totals[a] || 0));
+  const top = s.totals[rows[0]] || 0;
+  const winners = rows.filter(p => (s.totals[p] || 0) === top);
+  const title = document.getElementById('stop-result-title');
+  const detail = document.getElementById('stop-result-detail');
+  if (title) title.textContent = winners.length > 1 ? (t.stop_tie || '') : `🏆 ${winners[0]}`;
+  if (detail) {
+    detail.innerHTML = `<div class="modal-list">${rows.map((p, i) => `
+      <div class="status-row">
+        <span class="status-row__name">${['🥇', '🥈', '🥉'][i] || ''} ${escapeHTML(p)}</span>
+        <b class="metric">${s.totals[p] || 0}</b>
+      </div>`).join('')}</div>`;
+  }
+  const modal = document.getElementById('stop-result-modal');
+  if (modal) modal.classList.remove('hidden');
+  playSound('success');
+  if (typeof confetti === 'function') confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
+}
+
+function replayStop() {
+  closeModal('stop-result-modal');
+  const s = stopState();
+  s.round = 0;
+  s.totals = {};
+  s.players.forEach(p => { s.totals[p] = 0; });
+  nextStopLetter();
+}
+
+/** After a reload: the round, the scoring table or the result, as it was. */
+function restoreStop() {
+  const s = stopState();
+  if (!s.players || !s.players.length) return false;
+  if (s.phase === 'play') {
+    paintStopPlay();
+    if (s.endsAt && s.endsAt <= Date.now()) stopRound(); else armStopClock();
+    return true;
+  }
+  if (s.phase === 'score') { paintStopScore(); return true; }
+  if (s.phase === 'done') { paintStopScore(); setTimeout(showStopResult, 0); return true; }
+  return false;
+}
+</script>

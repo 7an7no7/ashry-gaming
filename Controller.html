@@ -32,10 +32,12 @@
         transition: opacity 0.5s ease;
       }
       .dark #app-loader { background-color: #0f172a; }
-      #app-loader img { width: 128px; height: 128px; animation: loader-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-      @keyframes loader-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-      .loading-text { margin-top: 24px; font-family: 'Cairo', sans-serif; font-weight: 800; color: #64748b; }
-      .dark .loading-text { color: #ffffff; }
+      #app-loader .mark--loader { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 18px 40px -12px rgba(76, 29, 149, 0.55); animation: loader-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+      @keyframes loader-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.94); } }
+      .loader-title { margin-top: 22px; font-family: 'Cairo', sans-serif; font-size: 24px; font-weight: 900; color: #1e293b; }
+      .dark .loader-title { color: #ffffff; }
+      .loading-text { margin-top: 6px; font-family: 'Cairo', sans-serif; font-weight: 700; color: #64748b; }
+      .dark .loading-text { color: #cbd5e1; }
     </style>
 
     <!-- Only the utilities this app uses, built by tools/ (npm run build:css) -->
@@ -54,11 +56,12 @@
 </head>
   <body class="transition-colors duration-300">
 
+    <!-- The brand mark, drawn once; every <use href="#ashry-mark"> in the page is a copy. -->
+    <?!= include('Logo'); ?>
+
     <div id="app-loader">
-        <div class="relative flex items-center justify-center">
-            <img src="https://cdn-icons-png.flaticon.com/512/13/13973.png" alt="Ashry Gaming">
-        </div>
-        <h2 class="text-2xl font-black text-slate-800 dark:text-white mt-6" data-i18n="title">عشرى جيمينج 🎮</h2>
+        <svg class="mark mark--loader" aria-hidden="true"><use href="#ashry-mark"/></svg>
+        <h2 class="loader-title" data-i18n="title">عشرى جيمينج</h2>
         <p class="loading-text" data-i18n="loading">جاري التحميل...</p>
     </div>
 
@@ -70,7 +73,7 @@
         <button id="nav-back" class="iconbtn iconbtn--back iconbtn--plain is-hidden" onclick="goBack()" aria-label="رجوع">
           <span class="chev" aria-hidden="true">‹</span>
         </button>
-        <h1 id="app-title" class="shell__title" data-i18n="title">عشرى جيمينج 🎮</h1>
+        <h1 id="app-title" class="shell__title"><svg class="mark mark--title" aria-hidden="true"><use href="#ashry-mark"/></svg><span id="app-title-text">عشرى جيمينج</span></h1>
         <button id="nav-settings" class="iconbtn iconbtn--plain" onclick="openSettings()" aria-label="الإعدادات">
           <span aria-hidden="true">⚙️</span>
         </button>
@@ -98,226 +101,155 @@
 
       <main class="shell__main" id="shell-main">
 
-      <div id="view-menu" class="view-stagger" data-accent="violet">
+      <!-- The home screen. Drawn by renderHome() in JS_Catalog.html from GAME_CATALOG. -->
+      <div id="view-menu" class="view-stagger" data-accent="violet"></div>
 
-        <!-- GROUP GAMES -->
-        <section class="section">
-            <div class="section__head">
-                <span class="section__emoji" aria-hidden="true">👨‍👩‍👧‍👦</span>
-                <h2 class="section__title" data-i18n="games_group">ألعاب جماعية</h2>
-                <span class="section__rule"></span>
+
+      <!-- ============ NEW GAMES: القنبلة · أتوبيس كومبليت · الذاكرة · إكس أو · مين يبدأ ============ -->
+      <div id="view-setup-bomb" class="hidden" data-accent="orange">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="bomb_mode_label">نوع اللعب</label>
+            <div class="segmented" id="bomb-mode" role="group">
+              <button type="button" class="segmented__item is-active" data-value="category" onclick="setBombOption('mode', 'category')" data-i18n="bomb_mode_category">فئات</button>
+              <button type="button" class="segmented__item" data-value="letter" onclick="setBombOption('mode', 'letter')" data-i18n="bomb_mode_letter">حروف</button>
+              <button type="button" class="segmented__item" data-value="mix" onclick="setBombOption('mode', 'mix')" data-i18n="bomb_mode_mix">مزيج</button>
             </div>
-
-            <div class="game-grid">
-                <div class="game-card" data-accent="amber" onclick="setView('setup-monkey')">
-                    <div class="game-icon" aria-hidden="true">🐵</div>
-                    <div class="game-title" data-i18n="setup_monkey">ربع قرد</div>
-                </div>
-                <div class="game-card" data-accent="violet" onclick="setView('setup-imposter')">
-                    <div class="game-icon" aria-hidden="true">🕵️‍♂️</div>
-                    <div class="game-title" data-i18n="setup_imposter">الجاسوس</div>
-                </div>
-                <div class="game-card" data-accent="rose" onclick="setView('setup-justone')">
-                    <div class="game-icon" aria-hidden="true">🤫</div>
-                    <div class="game-title" data-i18n="setup_justone">كلمة واحدة</div>
-                </div>
-                <div class="game-card" data-accent="indigo" onclick="setupDescribe()">
-                    <div class="game-icon" aria-hidden="true">🗣️</div>
-                    <div class="game-title" data-i18n="setup_describe">أوصف لي</div>
-                </div>
-                <div class="game-card" data-accent="violet" onclick="setupCharades()">
-                    <div class="game-icon" aria-hidden="true">🎭</div>
-                    <div class="game-title" data-i18n="setup_charades">بدون كلام</div>
-                </div>
-                <div class="game-card" data-accent="teal" onclick="setupWhoAmI()">
-                    <div class="game-icon" aria-hidden="true">❓</div>
-                    <div class="game-title" data-i18n="setup_whoami">من أنا؟</div>
-                </div>
-                <div class="game-card" data-accent="rose" onclick="roomCreateFor('fibbage')">
-                    <div class="game-icon" aria-hidden="true">🤥</div>
-                    <div class="game-title" data-i18n="setup_fibbage">كذبة وصدقة</div>
-                </div>
-                <div class="game-card" data-accent="violet" onclick="roomCreateFor('wouldyou')">
-                    <div class="game-icon" aria-hidden="true">⚖️</div>
-                    <div class="game-title" data-i18n="setup_wouldyou">لو خيروك</div>
-                </div>
-                <div class="game-card" data-accent="amber" onclick="roomCreateFor('mostlikely')">
-                    <div class="game-icon" aria-hidden="true">👉</div>
-                    <div class="game-title" data-i18n="setup_mostlikely">مين أكثر واحد</div>
-                </div>
-                <div class="game-card" data-accent="blue" onclick="roomCreateFor('drawguess')">
-                    <div class="game-icon" aria-hidden="true">🎨</div>
-                    <div class="game-title" data-i18n="setup_drawguess">ارسم وخمّن</div>
-                </div>
-                <div class="game-card" data-accent="indigo" onclick="setView('setup-codenames')">
-                    <div class="game-icon" aria-hidden="true">🔠</div>
-                    <div class="game-title" data-i18n="setup_codenames">أسماء الرموز</div>
-                </div>
-                <div class="game-card" data-accent="blue" onclick="setView('setup-screw')">
-                    <div class="game-icon" aria-hidden="true">🃏</div>
-                    <div class="game-title" data-i18n="setup_screw">سكرو</div>
-                </div>
-                <div class="game-card" data-accent="green" onclick="setView('setup-domino')">
-                    <div class="game-icon" aria-hidden="true">🀄</div>
-                    <div class="game-title" data-i18n="setup_domino">دومينو</div>
-                </div>
-                <div class="game-card" data-accent="amber" onclick="setupChameleon()">
-                    <div class="game-icon" aria-hidden="true">🦎</div>
-                    <div class="game-title" data-i18n="setup_chameleon">الحرباء</div>
-                </div>
-                <div class="game-card" data-accent="rose" onclick="setupSpyfall()">
-                    <div class="game-icon" aria-hidden="true">🏢</div>
-                    <div class="game-title" data-i18n="setup_spyfall">الموقع السري</div>
-                </div>
-                <div class="game-card" data-accent="blue" onclick="setupTimesUp()">
-                    <div class="game-icon" aria-hidden="true">⏱️</div>
-                    <div class="game-title" data-i18n="setup_timesup">ثلاث جولات</div>
-                </div>
-                <div class="game-card" data-accent="pink" onclick="roomCreateFor('fakeartist')">
-                    <div class="game-icon" aria-hidden="true">👨‍🎨</div>
-                    <div class="game-title" data-i18n="setup_fakeartist">الفنان المزيف</div>
-                </div>
-                <div class="game-card" data-accent="teal" onclick="roomCreateFor('wavelength')">
-                    <div class="game-icon" aria-hidden="true">🌊</div>
-                    <div class="game-title" data-i18n="setup_wavelength">على نفس الموجة</div>
-                </div>
-                <div class="game-card" data-accent="indigo" onclick="setupTrivia()">
-                    <div class="game-icon" aria-hidden="true">🧠</div>
-                    <div class="game-title" data-i18n="setup_trivia">تحدي المعلومات</div>
-                </div>
+          </div>
+          <div class="field">
+            <label class="field__label" data-i18n="bomb_fuse_label">طول الفتيل</label>
+            <div class="segmented" id="bomb-fuse" role="group">
+              <button type="button" class="segmented__item" data-value="short" onclick="setBombOption('fuse', 'short')" data-i18n="bomb_fuse_short">قصير</button>
+              <button type="button" class="segmented__item is-active" data-value="normal" onclick="setBombOption('fuse', 'normal')" data-i18n="bomb_fuse_normal">عادي</button>
+              <button type="button" class="segmented__item" data-value="long" onclick="setBombOption('fuse', 'long')" data-i18n="bomb_fuse_long">طويل</button>
             </div>
-        </section>
+            <p class="field__hint" data-i18n="bomb_setup_hint">الوقت عشوائي ومحدش يعرفه. التكتكة بتسرع لما القنبلة تقرّب تفرقع.</p>
+          </div>
+          <button onclick="startBombRound()" class="btn btn--primary btn--lg" data-i18n="bomb_start">ولّع القنبلة</button>
+        </div>
+      </div>
+      <div id="view-play-bomb" class="hidden" data-accent="orange"><div id="bomb-stage"></div></div>
 
-        <!-- DUO & PUZZLE GAMES -->
-        <section class="section">
-            <div class="section__head">
-                <span class="section__emoji" aria-hidden="true">🤝</span>
-                <h2 class="section__title" data-i18n="games_puzzle">ألعاب ثنائية وذهنية</h2>
-                <span class="section__rule"></span>
+      <div id="view-setup-stop" class="hidden" data-accent="green">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="stop_cats_label">الفئات</label>
+            <div class="chip-set" id="stop-cats"></div>
+          </div>
+          <div class="field">
+            <label class="field__label" data-i18n="stop_timer_label">الوقت لكل حرف (ثانية)</label>
+            <div class="segmented" id="stop-timer" role="group">
+              <button type="button" class="segmented__item" data-value="60" onclick="setStopOption('timer', 60)">60</button>
+              <button type="button" class="segmented__item is-active" data-value="90" onclick="setStopOption('timer', 90)">90</button>
+              <button type="button" class="segmented__item" data-value="120" onclick="setStopOption('timer', 120)">120</button>
+              <button type="button" class="segmented__item" data-value="0" onclick="setStopOption('timer', 0)" data-i18n="stop_no_timer">بدون</button>
             </div>
-
-            <div class="game-grid">
-                <div class="game-card" data-accent="green" onclick="setupWordle()">
-                    <div class="game-icon" aria-hidden="true">🔤</div>
-                    <div class="game-title" data-i18n="setup_wordle">خمن الكلمة</div>
-                </div>
-                <div class="game-card" data-accent="blue" onclick="setupGuessNumber()">
-                    <div class="game-icon" aria-hidden="true">🔢</div>
-                    <div class="game-title" data-i18n="setup_guessnum">خمن الرقم</div>
-                </div>
-                <div class="game-card" data-accent="teal" onclick="setupConnections()">
-                    <div class="game-icon" aria-hidden="true">🧩</div>
-                    <div class="game-title" data-i18n="setup_connections">تشابه</div>
-                </div>
-                <div class="game-card" data-accent="rose" onclick="setView('setup-reaction')">
-                    <div class="game-icon" aria-hidden="true">⚡</div>
-                    <div class="game-title" data-i18n="setup_reaction">اختبار السرعة</div>
-                </div>
+          </div>
+          <div class="field">
+            <label class="field__label" data-i18n="stop_rounds_label">عدد الجولات</label>
+            <div class="segmented" id="stop-rounds" role="group">
+              <button type="button" class="segmented__item" data-value="3" onclick="setStopOption('rounds', 3)">3</button>
+              <button type="button" class="segmented__item is-active" data-value="5" onclick="setStopOption('rounds', 5)">5</button>
+              <button type="button" class="segmented__item" data-value="7" onclick="setStopOption('rounds', 7)">7</button>
+              <button type="button" class="segmented__item" data-value="10" onclick="setStopOption('rounds', 10)">10</button>
             </div>
-        </section>
+          </div>
 
-        <!-- TOOLS -->
-        <section class="section">
-            <div class="section__head">
-                <span class="section__emoji" aria-hidden="true">🛠️</span>
-                <h2 class="section__title" data-i18n="extras">الأدوات</h2>
-                <span class="section__rule"></span>
+          <div class="group-picker">
+            <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+              <option value="">-- اختر مجموعة --</option>
+            </select>
+            <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+          </div>
+
+          <label class="field__label" data-i18n="players">اللاعبين</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="stop-player-list" class="mb-6"></div>
+
+          <button onclick="startStopGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
+        </div>
+      </div>
+      <div id="view-play-stop" class="hidden" data-accent="green"><div id="stop-stage"></div></div>
+
+      <div id="view-setup-memory" class="hidden" data-accent="violet">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="mem_mode_label">اللعب</label>
+            <div class="segmented" id="memory-mode" role="group">
+              <button type="button" class="segmented__item is-active" data-value="solo" onclick="setMemoryOption('mode', 'solo')" data-i18n="mem_solo">لوحدك</button>
+              <button type="button" class="segmented__item" data-value="duo" onclick="setMemoryOption('mode', 'duo')" data-i18n="mem_duo">لاعبين اتنين</button>
             </div>
-
-            <div class="tools-list">
-                <div class="tool-item" data-accent="teal" onclick="roomCreateEmpty()">
-                    <div class="tool-icon" aria-hidden="true">🎮</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="room_open">افتح غرفة</span>
-                        <span class="tool-desc" data-i18n="room_open_desc">غرفة واحدة، والعبوا فيها ما تشاؤون</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
-
-                <div class="tool-item" data-accent="teal" onclick="roomOpenJoin('')">
-                    <div class="tool-icon" aria-hidden="true">📱</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="join_room_menu">انضم لغرفة</span>
-                        <span class="tool-desc" data-i18n="join_room_desc">ادخل بكود من صديقك</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
-
-                <div class="tool-item" data-accent="indigo" onclick="roomOpenScreen()">
-                    <div class="tool-icon" aria-hidden="true">📺</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="tv_open">شاشة العرض (تلفزيون)</span>
-                        <span class="tool-desc" data-i18n="tv_open_desc">افتح الغرفة على التلفزيون أو اللابتوب، والكل يلعب من موبايله</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
-
-                <div class="tool-item" data-accent="orange" onclick="setView('setup-spin')">
-                    <div class="tool-icon" aria-hidden="true">🎡</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="setup_spin">الاختيار العشوائي</span>
-                        <span class="tool-desc" data-i18n="spin_desc">عجلة حظ للقرعة والتحديات</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
-
-                <div class="tool-item" data-accent="indigo" onclick="setView('setup-teams')">
-                    <div class="tool-icon" aria-hidden="true">👥</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="team_generator">مولد الفرق</span>
-                        <span class="tool-desc" data-i18n="teams_desc">تقسيم اللاعبين عشوائياً أو بالمهارة</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
-
-                <div class="tool-item" data-accent="amber" onclick="setupTournament()">
-                    <div class="tool-icon" aria-hidden="true">🏆</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="setup_tourney">منظم البطولات</span>
-                        <span class="tool-desc" data-i18n="tourney_desc">قرعة وتتبع خروج المغلوب</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
-
-                <div class="tool-item" data-accent="blue" onclick="setView('setup-universal')">
-                    <div class="tool-icon" aria-hidden="true">🔢</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="universal_counter">عداد عام</span>
-                        <span class="tool-desc" data-i18n="universal_desc">تتبع نقاط أي لعبة خارجية</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
-
-                <div class="tool-item" data-accent="rose" onclick="setView('timers')">
-                    <div class="tool-icon" aria-hidden="true">⏱️</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="timers_title">مؤقت عام</span>
-                        <span class="tool-desc" data-i18n="timers_desc">مؤقت تنازلي مع منبه</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
-
-                <div class="tool-item" data-accent="indigo" onclick="setView('play-chess'); updateChessUI();">
-                    <div class="tool-icon" aria-hidden="true">♟️</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="chess_title">ساعة شطرنج</span>
-                        <span class="tool-desc" data-i18n="chess_desc">مؤقت احترافي للاعبين</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
-
-                <div class="tool-item" data-accent="green" onclick="setView('tool-dice')">
-                    <div class="tool-icon" aria-hidden="true">🎲</div>
-                    <div class="tool-info">
-                        <span class="tool-name" data-i18n="tool_dice">نرد وعملة</span>
-                        <span class="tool-desc" data-i18n="dice_desc">رمي النرد أو العملة المعدنية</span>
-                    </div>
-                    <span class="tool-chev" aria-hidden="true">›</span>
-                </div>
+          </div>
+          <div class="field">
+            <label class="field__label" data-i18n="mem_size_label">الحجم</label>
+            <div class="segmented" id="memory-size" role="group">
+              <button type="button" class="segmented__item" data-value="s" onclick="setMemoryOption('size', 's')" data-i18n="mem_size_s">سهل · 12</button>
+              <button type="button" class="segmented__item is-active" data-value="m" onclick="setMemoryOption('size', 'm')" data-i18n="mem_size_m">متوسط · 16</button>
+              <button type="button" class="segmented__item" data-value="l" onclick="setMemoryOption('size', 'l')" data-i18n="mem_size_l">صعب · 30</button>
             </div>
-        </section>
+          </div>
+          <div class="field">
+            <label class="field__label" data-i18n="mem_theme_label">الشكل</label>
+            <div class="segmented" id="memory-theme" role="group">
+              <button type="button" class="segmented__item is-active" data-value="animals" onclick="setMemoryOption('theme', 'animals')" data-i18n="mem_theme_animals">حيوانات</button>
+              <button type="button" class="segmented__item" data-value="food" onclick="setMemoryOption('theme', 'food')" data-i18n="mem_theme_food">أكل</button>
+              <button type="button" class="segmented__item" data-value="things" onclick="setMemoryOption('theme', 'things')" data-i18n="mem_theme_things">حاجات</button>
+            </div>
+            <p class="field__hint" id="memory-best"></p>
+          </div>
+          <button onclick="startMemory()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-memory" class="hidden" data-accent="violet"><div id="memory-stage"></div></div>
+
+      <div id="view-setup-xo" class="hidden" data-accent="blue">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="xo_vs_label">ضد مين؟</label>
+            <div class="segmented" id="xo-vs" role="group">
+              <button type="button" class="segmented__item is-active" data-value="phone" onclick="setXOOption('vs', 'phone')" data-i18n="xo_vs_phone">الموبايل</button>
+              <button type="button" class="segmented__item" data-value="friend" onclick="setXOOption('vs', 'friend')" data-i18n="xo_vs_friend">صاحبك</button>
+            </div>
+          </div>
+          <div class="field" id="xo-level-field">
+            <label class="field__label" data-i18n="xo_level_label">المستوى</label>
+            <div class="segmented" id="xo-level" role="group">
+              <button type="button" class="segmented__item" data-value="easy" onclick="setXOOption('level', 'easy')" data-i18n="xo_easy">سهل</button>
+              <button type="button" class="segmented__item is-active" data-value="hard" onclick="setXOOption('level', 'hard')" data-i18n="xo_hard">صعب</button>
+            </div>
+          </div>
+          <div class="field" id="xo-side-field">
+            <label class="field__label" data-i18n="xo_side_label">أنت تلعب بـ</label>
+            <div class="segmented" id="xo-side" role="group">
+              <button type="button" class="segmented__item is-active" data-value="X" onclick="setXOOption('human', 'X')">X</button>
+              <button type="button" class="segmented__item" data-value="O" onclick="setXOOption('human', 'O')">O</button>
+            </div>
+          </div>
+          <button onclick="startXO()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-xo" class="hidden" data-accent="blue"><div id="xo-stage"></div></div>
+
+      <div id="view-play-chooser" class="hidden" data-accent="orange">
+        <div class="chooser__bar">
+          <div class="segmented chooser__modes" id="chooser-modes" role="group">
+            <button type="button" class="segmented__item is-active" data-value="one" onclick="setChooserMode('one')" data-i18n="ch_one">واحد يبدأ</button>
+            <button type="button" class="segmented__item" data-value="teams" onclick="setChooserMode('teams')" data-i18n="ch_teams">فريقين</button>
+            <button type="button" class="segmented__item" data-value="order" onclick="setChooserMode('order')" data-i18n="ch_order">ترتيب</button>
+          </div>
+          <button class="iconbtn" onclick="exitChooser(event)" aria-label="خروج">✕</button>
+        </div>
+        <div class="chooser__stage" id="chooser-stage">
+          <div class="chooser__hint" id="chooser-hint"></div>
+          <button class="btn btn--secondary btn--auto chooser__again hidden" id="chooser-again"
+                  onpointerdown="event.stopPropagation()" onclick="event.stopPropagation(); chooserReset()" data-i18n="ch_again">من جديد</button>
+        </div>
       </div>
 
+      <div id="view-room-buzzer" class="hidden" data-accent="rose"></div>
 
       <!-- ============ MULTIPLAYER: JOIN ============ -->
       <!-- Multiplayer game surfaces. Each is filled by its game's renderer. -->
@@ -578,7 +510,13 @@
             </div>
             <div>
               <label class="field__label" data-i18n="timer_sec">المؤقت (ثانية)</label>
-              <input type="number" id="monkey-timer" value="30" class="text-center">
+              <div class="segmented time-pick" data-for="monkey-timer" role="group">
+                <button type="button" class="segmented__item" onclick="pickTime(this, 15)">15</button>
+                <button type="button" class="segmented__item is-active" onclick="pickTime(this, 30)">30</button>
+                <button type="button" class="segmented__item" onclick="pickTime(this, 45)">45</button>
+                <button type="button" class="segmented__item" onclick="pickTime(this, 60)">60</button>
+              </div>
+              <input type="number" id="monkey-timer" value="30" class="hidden" aria-hidden="true" tabindex="-1">
             </div>
           </div>
 
@@ -1609,7 +1547,13 @@
             <select id="charades-cat-select" class="mb-4"></select>
             
             <label class="field__label" data-i18n="timer_sec">الوقت</label>
-            <input type="number" id="charades-timer-input" value="60" class="text-center mb-4">
+            <div class="segmented time-pick mb-4" data-for="charades-timer-input" role="group">
+              <button type="button" class="segmented__item" onclick="pickTime(this, 30)">30</button>
+              <button type="button" class="segmented__item is-active" onclick="pickTime(this, 60)">60</button>
+              <button type="button" class="segmented__item" onclick="pickTime(this, 90)">90</button>
+              <button type="button" class="segmented__item" onclick="pickTime(this, 120)">120</button>
+            </div>
+            <input type="number" id="charades-timer-input" value="60" class="hidden" aria-hidden="true" tabindex="-1">
             
             <button onclick="startCharades()" class="btn btn--primary" data-i18n="start">ابدأ</button>
         </div>
@@ -1897,6 +1841,31 @@
 
     </div>
 
+    <!-- STOP / MEMORY RESULTS -->
+    <div id="stop-result-modal" class="modal-overlay hidden">
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">🏆</div>
+        <div id="stop-result-title" class="sheet__title">---</div>
+        <div id="stop-result-detail"></div>
+        <div class="modal-actions">
+          <button onclick="replayStop()" class="btn btn--primary btn--lg" data-i18n="play_again">العب مرة أخرى</button>
+          <button onclick="closeModal('stop-result-modal'); setupStop()" class="btn btn--ghost" data-i18n="exit">خروج</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="memory-result-modal" class="modal-overlay hidden">
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">🎴</div>
+        <div id="memory-result-title" class="sheet__title">---</div>
+        <div id="memory-result-detail"></div>
+        <div class="modal-actions">
+          <button onclick="replayMemory()" class="btn btn--primary btn--lg" data-i18n="play_again">العب مرة أخرى</button>
+          <button onclick="closeModal('memory-result-modal'); setupMemory()" class="btn btn--ghost" data-i18n="exit">خروج</button>
+        </div>
+      </div>
+    </div>
+
         <!-- CHAMELEON MODALS -->
     <div id="chameleon-accuse-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('chameleon-accuse-modal')">
       <div class="modal-content modal-content--simple">
@@ -2049,6 +2018,7 @@
     </div>
 
     <?!= include('JS_Core'); ?>
+    <?!= include('JS_Catalog'); ?>
     <?!= include('JS_Room'); ?>
     <?!= include('JS_Utils'); ?>
     <?!= include('JS_WhoAmI'); ?>
@@ -2077,6 +2047,12 @@
     <?!= include('JS_Chameleon'); ?>
     <?!= include('JS_Spyfall'); ?>
     <?!= include('JS_TimesUp'); ?>
+    <?!= include('JS_Bomb'); ?>
+    <?!= include('JS_Stop'); ?>
+    <?!= include('JS_Memory'); ?>
+    <?!= include('JS_XO'); ?>
+    <?!= include('JS_Chooser'); ?>
+    <?!= include('JS_RoomBuzzer'); ?>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- QR for room join links. Optional: the 4-letter code is always shown too. -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>

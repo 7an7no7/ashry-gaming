@@ -1,0 +1,251 @@
+<script>
+/* ============================================================================
+   لعبة الذاكرة — MEMORY
+   ----------------------------------------------------------------------------
+   Pairs of cards face down. Turn two over: a match stays up (and, with two
+   players, the finder goes again); a miss turns back. Solo plays against the
+   clock and the move counter, and the phone remembers its best; two players
+   take turns on one phone.
+
+   The board lives in appState.memory, so a reload comes back to the same
+   cards, the same pairs found and the same clock.
+   ========================================================================= */
+
+const MEMORY_THEMES = {
+  animals: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🦆', '🦉', '🐺', '🐴', '🦄', '🐝', '🐢'],
+  food:    ['🍎', '🍌', '🍇', '🍓', '🍒', '🍑', '🥭', '🍍', '🥝', '🍅', '🥑', '🍆', '🥕', '🌽', '🍞', '🧀', '🍕', '🍔', '🍟', '🌭', '🍿', '🍩', '🍪', '🎂'],
+  things:  ['⚽', '🏀', '🎾', '🎲', '🎸', '🎺', '🎧', '📷', '☎️', '💡', '🔑', '✂️', '📚', '✏️', '🧸', '🎈', '🎁', '⏰', '🚗', '✈️', '🚀', '⛵', '🏠', '🌂']
+};
+const MEMORY_SIZES = {
+  s: { cols: 4, pairs: 6 },     // 12 cards
+  m: { cols: 4, pairs: 8 },     // 16
+  l: { cols: 5, pairs: 15 }     // 30
+};
+const MEMORY_BEST_KEY = 'ashryMemoryBest_v1';
+
+let memoryClock = null;
+let memoryFlipTimer = null;
+
+function memoryState() {
+  if (!appState.memory) {
+    appState.memory = { mode: 'solo', size: 'm', theme: 'animals', cards: [], flipped: [], moves: 0,
+                        turn: 0, scores: [0, 0], startedAt: 0, elapsed: 0, phase: 'setup' };
+  }
+  return appState.memory;
+}
+
+function setupMemory() {
+  const m = memoryState();
+  memoryStopClock();
+  m.phase = 'setup';
+  saveToLocal();
+  setView('setup-memory');
+  paintMemorySetup();
+}
+
+function paintMemorySetup() {
+  const m = memoryState();
+  ['mode', 'size', 'theme'].forEach(key => {
+    document.querySelectorAll(`#memory-${key} .segmented__item`).forEach(el => el.classList.toggle('is-active', el.dataset.value === m[key]));
+  });
+  const best = memoryBest()[m.size];
+  const el = document.getElementById('memory-best');
+  const t = TRANSLATIONS[appState.lang];
+  if (el) el.textContent = best ? `${t.mem_best || ''}: ${best.moves} ${t.mem_moves || ''} · ${memoryClockText(best.seconds)}` : '';
+}
+
+function setMemoryOption(key, value) {
+  memoryState()[key] = value;
+  saveToLocal();
+  paintMemorySetup();
+}
+
+function memoryBest() {
+  try { return JSON.parse(localStorage.getItem(MEMORY_BEST_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function startMemory() {
+  const m = memoryState();
+  const size = MEMORY_SIZES[m.size] || MEMORY_SIZES.m;
+  const pool = MEMORY_THEMES[m.theme] || MEMORY_THEMES.animals;
+  const faces = shuffleArray(pool.slice()).slice(0, size.pairs);
+  m.cards = shuffleArray(faces.concat(faces)).map(e => ({ e: e, m: false }));
+  m.flipped = [];
+  m.moves = 0;
+  m.turn = 0;
+  m.scores = [0, 0];
+  m.startedAt = Date.now();
+  m.elapsed = 0;
+  m.phase = 'play';
+  saveToLocal();
+  setView('play-memory');
+  paintMemory();
+  memoryArmClock();
+}
+
+function memoryClockText(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function memoryArmClock() {
+  memoryStopClock();
+  const m = memoryState();
+  memoryClock = createClock({
+    countUp: true,
+    onTick: () => {
+      const el = document.getElementById('mem-time');
+      if (el) el.textContent = memoryClockText((Date.now() - m.startedAt) / 1000);
+    }
+  });
+}
+
+function memoryStopClock() {
+  if (memoryClock) memoryClock.stop();
+  memoryClock = null;
+  if (memoryFlipTimer) clearTimeout(memoryFlipTimer);
+  memoryFlipTimer = null;
+}
+
+function paintMemory() {
+  const m = memoryState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('memory-stage');
+  if (!el) return;
+  const size = MEMORY_SIZES[m.size] || MEMORY_SIZES.m;
+  const two = m.mode === 'duo';
+  el.innerHTML = `
+    <div class="mem-bar">
+      ${two ? `
+        <div class="mem-player ${m.turn === 0 ? 'is-turn' : ''}" id="mem-p0">
+          <span class="mem-player__name">${escapeHTML(t.mem_player1 || '')}</span>
+          <b class="metric" id="mem-s0">${m.scores[0]}</b>
+        </div>
+        <div class="mem-player ${m.turn === 1 ? 'is-turn' : ''}" id="mem-p1">
+          <span class="mem-player__name">${escapeHTML(t.mem_player2 || '')}</span>
+          <b class="metric" id="mem-s1">${m.scores[1]}</b>
+        </div>` : `
+        <div class="mem-player"><span class="mem-player__name">${escapeHTML(t.mem_moves || '')}</span><b class="metric" id="mem-moves">${m.moves}</b></div>
+        <div class="mem-player"><span class="mem-player__name">${escapeHTML(t.mem_time || '')}</span><b class="metric" id="mem-time">${memoryClockText((Date.now() - m.startedAt) / 1000)}</b></div>`}
+    </div>
+    <div class="mem-grid" style="--mem-cols: ${size.cols}">
+      ${m.cards.map((c, i) => `
+        <button type="button" class="mem-card ${c.m ? 'is-matched' : ''} ${m.flipped.indexOf(i) !== -1 ? 'is-flipped' : ''}"
+                id="mem-card-${i}" onclick="flipMemory(${i})" aria-label="${escapeHTML(t.mem_card || '')} ${i + 1}">
+          <span class="mem-card__inner">
+            <span class="mem-card__face mem-card__face--back" aria-hidden="true">?</span>
+            <span class="mem-card__face mem-card__face--front" aria-hidden="true">${c.e}</span>
+          </span>
+        </button>`).join('')}
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupMemory()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+function flipMemory(i) {
+  const m = memoryState();
+  if (m.phase !== 'play') return;
+  const card = m.cards[i];
+  if (!card || card.m || m.flipped.indexOf(i) !== -1 || m.flipped.length >= 2) return;
+  m.flipped.push(i);
+  const el = document.getElementById('mem-card-' + i);
+  if (el) el.classList.add('is-flipped');
+  playSound('click');
+
+  if (m.flipped.length < 2) { saveToLocal(); return; }
+
+  m.moves += 1;
+  const [a, b] = m.flipped;
+  const hit = m.cards[a].e === m.cards[b].e;
+  if (hit) {
+    m.cards[a].m = m.cards[b].m = true;
+    m.flipped = [];
+    m.scores[m.turn] += 1;
+    [a, b].forEach(k => { const c = document.getElementById('mem-card-' + k); if (c) c.classList.add('is-matched'); });
+    playSound('success');
+    haptic('light');
+    memoryPaintBar();
+    saveToLocal();
+    if (m.cards.every(c => c.m)) memoryFinish();
+    return;
+  }
+  // A miss: leave both up long enough to see them, then turn them back and,
+  // with two players, hand the turn over.
+  saveToLocal();
+  memoryFlipTimer = setTimeout(() => {
+    memoryFlipTimer = null;
+    m.flipped = [];
+    [a, b].forEach(k => { const c = document.getElementById('mem-card-' + k); if (c) c.classList.remove('is-flipped'); });
+    if (m.mode === 'duo') m.turn = 1 - m.turn;
+    memoryPaintBar();
+    saveToLocal();
+  }, 750);
+  memoryPaintBar();
+}
+
+function memoryPaintBar() {
+  const m = memoryState();
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('mem-moves', m.moves);
+  set('mem-s0', m.scores[0]);
+  set('mem-s1', m.scores[1]);
+  const p0 = document.getElementById('mem-p0'), p1 = document.getElementById('mem-p1');
+  if (p0) p0.classList.toggle('is-turn', m.turn === 0);
+  if (p1) p1.classList.toggle('is-turn', m.turn === 1);
+}
+
+function memoryFinish() {
+  const m = memoryState();
+  const t = TRANSLATIONS[appState.lang];
+  memoryStopClock();
+  m.elapsed = Math.round((Date.now() - m.startedAt) / 1000);
+  m.phase = 'done';
+
+  let title, detail;
+  if (m.mode === 'duo') {
+    const [x, y] = m.scores;
+    title = x === y ? (t.mem_tie || '') : `🏆 ${x > y ? (t.mem_player1 || '') : (t.mem_player2 || '')}`;
+    detail = `<div class="metric metric--md">${x} – ${y}</div>`;
+  } else {
+    const best = memoryBest();
+    const prev = best[m.size];
+    const record = !prev || m.moves < prev.moves || (m.moves === prev.moves && m.elapsed < prev.seconds);
+    if (record) {
+      best[m.size] = { moves: m.moves, seconds: m.elapsed };
+      try { localStorage.setItem(MEMORY_BEST_KEY, JSON.stringify(best)); } catch (e) {}
+    }
+    title = record ? (t.mem_new_best || '') : (t.mem_done || '');
+    detail = `<div class="metric metric--md">${m.moves} ${escapeHTML(t.mem_moves || '')} · ${memoryClockText(m.elapsed)}</div>` +
+             (prev && !record ? `<p class="sheet__subtitle">${escapeHTML(t.mem_best || '')}: ${prev.moves} ${escapeHTML(t.mem_moves || '')} · ${memoryClockText(prev.seconds)}</p>` : '');
+  }
+  saveToLocal();
+  const tEl = document.getElementById('memory-result-title');
+  const dEl = document.getElementById('memory-result-detail');
+  if (tEl) tEl.textContent = title;
+  if (dEl) dEl.innerHTML = detail;
+  const modal = document.getElementById('memory-result-modal');
+  if (modal) modal.classList.remove('hidden');
+  playSound('success');
+  if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 75, origin: { y: 0.6 } });
+}
+
+function replayMemory() {
+  closeModal('memory-result-modal');
+  startMemory();
+}
+
+/** After a reload: the same board. A pair left face up is turned back. */
+function restoreMemory() {
+  const m = memoryState();
+  if (!m.cards || !m.cards.length) return false;
+  if (m.phase === 'play') {
+    if (m.flipped.length >= 2) m.flipped = [];
+    paintMemory();
+    memoryArmClock();
+    return true;
+  }
+  if (m.phase === 'done') { paintMemory(); setTimeout(memoryFinish, 0); return true; }
+  return false;
+}
+</script>

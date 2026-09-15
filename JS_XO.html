@@ -1,0 +1,197 @@
+<script>
+/* ============================================================================
+   إكس أو — TIC TAC TOE
+   ----------------------------------------------------------------------------
+   Two on one phone, or one against the phone. The phone plays a full minimax
+   on hard (it cannot be beaten, only drawn) and throws in a random move a
+   third of the time on easy, which is what lets a child win now and then.
+   The board is in appState.xo, so a reload keeps the game and the tally.
+   ========================================================================= */
+
+const XO_LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+let xoPhoneTimer = null;
+
+function xoState() {
+  if (!appState.xo) {
+    appState.xo = { vs: 'phone', level: 'hard', board: Array(9).fill(''), turn: 'X', first: 'X', human: 'X',
+                    phase: 'setup', winner: '', line: null, scores: { X: 0, O: 0, D: 0 } };
+  }
+  return appState.xo;
+}
+
+function setupXO() {
+  const x = xoState();
+  if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
+  x.phase = 'setup';
+  saveToLocal();
+  setView('setup-xo');
+  paintXOSetup();
+}
+
+function paintXOSetup() {
+  const x = xoState();
+  document.querySelectorAll('#xo-vs .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === x.vs));
+  document.querySelectorAll('#xo-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === x.level));
+  document.querySelectorAll('#xo-side .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === x.human));
+  const levelField = document.getElementById('xo-level-field');
+  if (levelField) levelField.classList.toggle('hidden', x.vs !== 'phone');
+  const sideField = document.getElementById('xo-side-field');
+  if (sideField) sideField.classList.toggle('hidden', x.vs !== 'phone');
+}
+
+function setXOOption(key, value) {
+  xoState()[key] = value;
+  saveToLocal();
+  paintXOSetup();
+}
+
+/** A new match: the tally starts over. */
+function startXO() {
+  const x = xoState();
+  x.scores = { X: 0, O: 0, D: 0 };
+  x.first = 'X';
+  xoNewRound();
+}
+
+/** The next round of the same match; the other side opens. */
+function xoNewRound() {
+  const x = xoState();
+  if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
+  x.board = Array(9).fill('');
+  x.turn = x.first;
+  x.winner = '';
+  x.line = null;
+  x.phase = 'play';
+  saveToLocal();
+  if (appState.currentView !== 'play-xo') setView('play-xo');
+  paintXO();
+  xoMaybePhone();
+}
+
+const xoOther = (m) => (m === 'X' ? 'O' : 'X');
+
+function xoWinner(board) {
+  for (const line of XO_LINES) {
+    const [a, b, c] = line;
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return { mark: board[a], line: line };
+  }
+  return board.every(Boolean) ? { mark: 'D', line: null } : null;
+}
+
+function xoPlay(i) {
+  const x = xoState();
+  if (x.phase !== 'play' || x.board[i]) return;
+  if (x.vs === 'phone' && x.turn !== x.human) return;
+  xoPlace(i);
+}
+
+function xoPlace(i) {
+  const x = xoState();
+  x.board[i] = x.turn;
+  playSound('click');
+  const result = xoWinner(x.board);
+  if (result) {
+    x.phase = 'done';
+    x.winner = result.mark;
+    x.line = result.line;
+    x.scores[result.mark] = (x.scores[result.mark] || 0) + 1;
+    x.first = xoOther(x.first);
+    saveToLocal();
+    paintXO();
+    if (result.mark !== 'D' && (x.vs === 'friend' || result.mark === x.human)) {
+      playSound('success');
+      if (typeof confetti === 'function') confetti({ particleCount: 90, spread: 60, origin: { y: 0.7 } });
+    } else {
+      playSound('tick');
+    }
+    return;
+  }
+  x.turn = xoOther(x.turn);
+  saveToLocal();
+  paintXO();
+  xoMaybePhone();
+}
+
+function xoMaybePhone() {
+  const x = xoState();
+  if (x.vs !== 'phone' || x.phase !== 'play' || x.turn === x.human) return;
+  if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
+  xoPhoneTimer = setTimeout(() => {
+    xoPhoneTimer = null;
+    if (x.phase !== 'play' || x.turn === x.human) return;
+    xoPlace(xoPhoneMove(x));
+  }, 420);
+}
+
+function xoPhoneMove(x) {
+  const empty = x.board.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
+  if (x.level === 'easy' && Math.random() < 0.35) return empty[Math.floor(Math.random() * empty.length)];
+  const me = x.turn;
+  let best = -Infinity, choice = empty[0];
+  for (const i of empty) {
+    x.board[i] = me;
+    const score = xoMinimax(x.board, xoOther(me), me, 0);
+    x.board[i] = '';
+    if (score > best) { best = score; choice = i; }
+  }
+  return choice;
+}
+
+function xoMinimax(board, turn, me, depth) {
+  const r = xoWinner(board);
+  if (r) return r.mark === 'D' ? 0 : (r.mark === me ? 10 - depth : depth - 10);
+  const scores = [];
+  for (let i = 0; i < 9; i++) {
+    if (board[i]) continue;
+    board[i] = turn;
+    scores.push(xoMinimax(board, xoOther(turn), me, depth + 1));
+    board[i] = '';
+  }
+  return turn === me ? Math.max(...scores) : Math.min(...scores);
+}
+
+function paintXO() {
+  const x = xoState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('xo-stage');
+  if (!el) return;
+  const nameOf = (m) => x.vs === 'phone' ? (m === x.human ? (t.xo_you || '') : (t.xo_phone || '')) : `${t.xo_player || ''} ${m}`;
+  let status;
+  if (x.phase === 'done') {
+    status = x.winner === 'D' ? (t.xo_draw || '') : `🏆 ${nameOf(x.winner)}`;
+  } else {
+    status = x.vs === 'phone' && x.turn !== x.human ? (t.xo_thinking || '') : `${t.xo_turn || ''} ${nameOf(x.turn)}`;
+  }
+  el.innerHTML = `
+    <div class="xo-tally">
+      <div class="xo-tally__item xo-tally__item--x ${x.turn === 'X' && x.phase === 'play' ? 'is-turn' : ''}">
+        <span>${escapeHTML(nameOf('X'))}</span><b class="metric">${x.scores.X}</b><small>X</small>
+      </div>
+      <div class="xo-tally__item"><span>${escapeHTML(t.xo_draws || '')}</span><b class="metric">${x.scores.D}</b><small>=</small></div>
+      <div class="xo-tally__item xo-tally__item--o ${x.turn === 'O' && x.phase === 'play' ? 'is-turn' : ''}">
+        <span>${escapeHTML(nameOf('O'))}</span><b class="metric">${x.scores.O}</b><small>O</small>
+      </div>
+    </div>
+    <div class="xo-status ${x.phase === 'done' ? 'is-done' : ''}">${escapeHTML(status)}</div>
+    <div class="xo-board ${x.phase === 'done' ? 'is-done' : ''}">
+      ${x.board.map((v, i) => `
+        <button type="button" class="xo-cell ${v ? 'is-' + v.toLowerCase() : ''} ${x.line && x.line.indexOf(i) !== -1 ? 'is-win' : ''}"
+                onclick="xoPlay(${i})" ${v || x.phase !== 'play' ? 'disabled' : ''} aria-label="${i + 1}">${v}</button>`).join('')}
+    </div>
+    <div class="view-actions">
+      ${x.phase === 'done'
+        ? `<button class="btn btn--primary btn--lg" onclick="xoNewRound()">${escapeHTML(t.xo_next_round || '')}</button>`
+        : ''}
+      <button class="btn btn--ghost btn--sm" onclick="setupXO()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+/** After a reload: the board as it was; the phone moves if it was its turn. */
+function restoreXO() {
+  const x = xoState();
+  if (x.phase !== 'play' && x.phase !== 'done') return false;
+  paintXO();
+  xoMaybePhone();
+  return true;
+}
+</script>

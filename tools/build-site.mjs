@@ -38,7 +38,7 @@ for (const [tag, name] of [...html.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?
   html = html.replace(tag, await read(name));
 }
 
-const HEAD = `<title>عشرى جيمينج 🎮</title>
+const HEAD = `<title>عشرى جيمينج</title>
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="icon-180.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">

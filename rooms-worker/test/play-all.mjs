@@ -360,6 +360,37 @@ async function main() {
   await all(bots, (s) => s.shared.phase === 'results' && s.shared.scores[A.pid] === 1500, 'fibbage scores truth + fooling');
   await A.must('backToHub');
 
+  /* --- الجرس ----------------------------------------------------------------- */
+  console.log('• buzzer');
+  await A.must('chooseGame', { game: 'buzzer' });
+  await A.must('start', {});
+  await all(bots, (s) => s.shared.phase === 'armed' && s.shared.round === 1, 'buzzer arms on start');
+  await C.must('buzz');
+  await B.must('buzz');
+  await D.must('buzz');
+  await all(bots, (s) => s.shared.buzzes.length === 3 && s.shared.buzzes[0].id === C.pid && s.shared.buzzes[1].id === B.pid && s.shared.buzzes[2].id === D.pid,
+    'buzzes keep their arrival order');
+  await C.must('buzz');
+  check(C.state.shared.buzzes.length === 3, 'a second press by the same player is ignored');
+  check((await B.act('correct')).ok === false, 'only the host judges an answer');
+  await A.must('wrong');
+  await all(bots, (s) => s.shared.buzzes[0].id === B.pid && s.shared.last && s.shared.last.ok === false && s.shared.last.id === C.pid,
+    'a wrong answer passes the question to the next in line');
+  await A.must('correct');
+  await all(bots, (s) => s.shared.scores[B.pid] === 1 && s.shared.buzzes.length === 0 && s.shared.round === 2 && s.shared.board[0].id === B.pid,
+    'a right answer scores, clears the line and moves on');
+  await A.must('lock');
+  await all(bots, (s) => s.shared.phase === 'locked', 'the host can lock the buzzers');
+  await D.must('buzz');
+  check(D.state.shared.buzzes.length === 0, 'a press while locked is ignored');
+  await A.must('arm');
+  await all(bots, (s) => s.shared.phase === 'armed', 'and open them again');
+  await A.must('adjust', { id: D.pid, delta: 2 });
+  await all(bots, (s) => s.shared.scores[D.pid] === 2 && s.shared.board[0].id === D.pid, 'the host can adjust a score by hand');
+  await A.must('playAgain');
+  await all(bots, (s) => s.shared.round === 1 && !s.shared.scores[B.pid] && !s.shared.scores[D.pid], 'play again clears the scores');
+  await A.must('backToHub');
+
   /* --- رسم وتخمين ----------------------------------------------------------- */
   console.log('• draw & guess (strokes, live line, guesses)');
   await A.must('chooseGame', { game: 'drawguess' });

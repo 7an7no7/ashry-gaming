@@ -1,91 +1,105 @@
 /**
- * Generates the home-screen icons.
+ * The brand mark, and every icon made from it.
  *
- * They are drawn rather than downloaded so the app does not depend on a
- * third-party CDN for its own icon: iOS fetches an apple-touch-icon exactly
- * once, at the moment you tap "Add to Home Screen", and if that fetch is slow
- * or blocked you get a screenshot of the page instead of an icon — with no way
- * to retry short of removing and re-adding.
+ * One SVG is the source of truth: a rounded square in the app's violet with a
+ * bold ع (the first letter of عشرى) and an amber token sitting in its bowl.
+ * The letter is the outline of Cairo Black's ع (assets/ain-path.txt, the
+ * app's own typeface, extracted once with fontTools; the font itself is not
+ * kept here), so the mark needs no
+ * font at all - it renders the same in the loader before Cairo has loaded,
+ * on a home screen, and in this script.
  *
- * Run with `npm run build:icons`. Writes into ../docs/, the site GitHub Pages
- * serves.
+ * Written from it:
+ *   ../Logo.html           an <svg><symbol id="ashry-mark"> the page includes
+ *                          once; anywhere in the app draws it with
+ *                          <svg class="mark"><use href="#ashry-mark"/></svg>
+ *   ../docs/icon-180.png   apple-touch-icon. iOS rounds the corners itself,
+ *                          so this one is drawn full-bleed.
+ *   ../docs/icon-192.png   the Android/Chrome install prompt (rounded).
+ *   ../docs/icon-512.png   splash screens and the app listing (rounded).
+ *   ../docs/icon-maskable-512.png  Android crops to a circle on some
+ *                          launchers: the artwork stays inside the middle 80%
+ *                          and the gradient runs to the edge.
+ *   ../docs/favicon-64.png the tab icon.
  *
- * Sizes:
- *   180  apple-touch-icon. iOS rounds the corners itself, so this is drawn
- *        full-bleed — a pre-rounded source gets rounded twice and looks wrong.
- *   192  the Android/Chrome install prompt.
- *   512  splash screens and the app listing.
- *   512 maskable: Android crops to a circle on some launchers, so the artwork
- *        stays inside the middle 80% and the gradient runs to the edge.
+ * Run with `npm run build:icons`. Icons are drawn here rather than downloaded
+ * so the app never depends on someone else's CDN for its own face: iOS fetches
+ * the apple-touch-icon exactly once, when you tap "Add to Home Screen".
  */
-import { writeFile, mkdir } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 
-const run = promisify(execFile);
 const here = path.dirname(fileURLToPath(import.meta.url));
-const out = path.join(here, '..', 'docs');
+const root = path.join(here, '..');
+const out = path.join(root, 'docs');
 
-// Pillow does the drawing: Node has no image library here, and Windows ships
-// Segoe UI Emoji, which renders 🎮 in colour.
-const PY = String.raw`
-import sys
-from PIL import Image, ImageDraw, ImageFont
+// Cairo Black's ع, in font units (1000/em, y up). Bounds x 40..520, y -327..503.
+const AIN = (await readFile(path.join(here, 'assets', 'ain-path.txt'), 'utf8')).trim();
+const AIN_CX = 280;   // centre of the glyph's bounding box
+const AIN_CY = 88;
 
-OUT = sys.argv[1]
+/**
+ * The mark on a 512×512 canvas.
+ *   rounded  transparent corners (a rounded square) or full-bleed
+ *   inset    scale the artwork towards the centre (the maskable icon)
+ *   ids      suffix for gradient ids, so several marks can share one page
+ */
+function mark({ rounded = true, inset = 1, ids = '' } = {}) {
+  const rx = rounded ? 112 : 0;
+  const glyphScale = 0.415 * inset;                  // ~345px tall at 512
+  const token = { x: 256 + 72 * inset, y: 256 - 54 * inset, r: 27 * inset };
+  return `
+  <defs>
+    <linearGradient id="ashry-g${ids}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b5cf6"/>
+      <stop offset="0.52" stop-color="#6d28d9"/>
+      <stop offset="1" stop-color="#3b2fa8"/>
+    </linearGradient>
+    <radialGradient id="ashry-hl${ids}" cx="0.2" cy="0.12" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="ashry-sh${ids}" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="${10 * inset}" stdDeviation="${11 * inset}" flood-color="#1e1145" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="${rx}" fill="url(#ashry-g${ids})"/>
+  <rect width="512" height="512" rx="${rx}" fill="url(#ashry-hl${ids})"/>
+  <circle cx="${256 + 190 * inset}" cy="${256 + 200 * inset}" r="${170 * inset}" fill="#ffffff" fill-opacity="0.06"/>
+  <circle cx="${256 - 200 * inset}" cy="${256 - 210 * inset}" r="${120 * inset}" fill="#ffffff" fill-opacity="0.05"/>
+  <g filter="url(#ashry-sh${ids})">
+    <path transform="translate(256 ${256 + 6 * inset}) scale(${glyphScale} ${-glyphScale}) translate(${-AIN_CX} ${-AIN_CY})"
+          d="${AIN}" fill="#ffffff"/>
+  </g>
+  <circle cx="${token.x}" cy="${token.y}" r="${token.r}" fill="#fbbf24"/>
+  <circle cx="${token.x - token.r * 0.28}" cy="${token.y - token.r * 0.3}" r="${token.r * 0.34}" fill="#ffffff" fill-opacity="0.55"/>`;
+}
 
-# The app's own violet, top-left to bottom-right.
-TOP    = (109, 40, 217)
-BOTTOM = (139, 92, 246)
-
-def gradient(size):
-    img = Image.new('RGB', (size, size))
-    px = img.load()
-    for y in range(size):
-        for x in range(size):
-            # Diagonal ramp, so it matches the app's 155deg backdrop.
-            t = (x + y) / (2 * (size - 1))
-            px[x, y] = tuple(int(TOP[i] + (BOTTOM[i] - TOP[i]) * t) for i in range(3))
-    return img
-
-def draw_icon(size, glyph_ratio):
-    img = gradient(size)
-    d = ImageDraw.Draw(img)
-    target = int(size * glyph_ratio)
-    # Segoe UI Emoji only has bitmap strikes at certain sizes; ask for the
-    # nearest and scale, rather than getting a blank box.
-    font = ImageFont.truetype('C:/Windows/Fonts/seguiemj.ttf', 109)
-    layer = Image.new('RGBA', (160, 160), (0, 0, 0, 0))
-    ImageDraw.Draw(layer).text((80, 80), '\U0001F3AE', font=font,
-                               anchor='mm', embedded_color=True)
-    layer = layer.crop(layer.getbbox())
-    # Segoe's gamepad is near-black, which sits muddily on the violet. Keep the
-    # shape and its antialiasing, throw the colour away: a white silhouette on
-    # the brand colour is what reads at 40px on a home screen.
-    alpha = layer.split()[3]
-    layer = Image.new('RGBA', layer.size, (255, 255, 255, 255))
-    layer.putalpha(alpha)
-    w, h = layer.size
-    scale = target / max(w, h)
-    layer = layer.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
-    img.paste(layer, ((size - layer.width) // 2, (size - layer.height) // 2), layer)
-    return img
-
-for size, ratio, name in [
-    (180, 0.62, 'icon-180.png'),
-    (192, 0.62, 'icon-192.png'),
-    (512, 0.62, 'icon-512.png'),
-    (512, 0.46, 'icon-maskable-512.png'),   # artwork inside the safe circle
-    (64,  0.66, 'favicon-64.png'),
-]:
-    draw_icon(size, ratio).save(OUT + '/' + name, 'PNG', optimize=True)
-    print('  ' + name)
-`;
+const svg = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${inner}\n</svg>`;
 
 await mkdir(out, { recursive: true });
-console.log('drawing icons into docs/');
-const { stdout, stderr } = await run('python', ['-c', PY, out]);
-if (stderr.trim()) console.error(stderr);
-process.stdout.write(stdout);
+
+/* The in-page symbol. Every mark in the app is a <use> of this, so the loader,
+   the header and the home hero all draw exactly the icon on the home screen. */
+const symbol = `<!-- The brand mark (generated by tools/make-icons.mjs; do not edit). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="ashry-mark" viewBox="0 0 512 512">${mark({ ids: '-m' })}
+  </symbol>
+</svg>
+`;
+await writeFile(path.join(root, 'Logo.html'), symbol, 'utf8');
+
+const render = async (name, size, options) => {
+  const png = await sharp(Buffer.from(svg(mark(options)))).resize(size, size).png().toBuffer();
+  await writeFile(path.join(out, name), png);
+  console.log(`docs/${name} (${size}px, ${(png.length / 1024).toFixed(0)} KB)`);
+};
+
+await render('icon-180.png', 180, { rounded: false });
+await render('icon-192.png', 192, { rounded: true });
+await render('icon-512.png', 512, { rounded: true });
+await render('icon-maskable-512.png', 512, { rounded: false, inset: 0.8 });
+await render('favicon-64.png', 64, { rounded: true });
+console.log('Logo.html written');

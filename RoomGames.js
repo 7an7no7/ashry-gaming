@@ -70,7 +70,7 @@ const rememberedTeams = (room) => {
 const ROOM_GAME_IDS = [
   'imposter', 'justone', 'whoami', 'codenames',
   'wouldyou', 'mostlikely', 'fibbage', 'drawguess',
-  'fakeartist', 'wavelength', 'trivia'
+  'fakeartist', 'wavelength', 'trivia', 'buzzer'
 ];
 
 // Must match MAX_PLAYERS and MAX_SCREENS in rooms-worker/src/room.js.
@@ -151,6 +151,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'fakeartist': fakeArtistAction(room, playerId, action, payload); break;
     case 'wavelength': wavelengthAction(room, playerId, action, payload); break;
     case 'trivia':     triviaAction(room, playerId, action, payload); break;
+    case 'buzzer':     buzzerAction(room, playerId, action, payload); break;
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -159,6 +160,82 @@ const applyRoomAction = (room, playerId, action, payload) => {
   if ((action === 'start' || action === 'nextRound') && room.shared && !room.shared.roster) {
     room.shared.roster = room.players.map(p => p.id);
   }
+};
+
+/* ==========================================================================
+   الجرس — THE BUZZER
+   The host asks questions out loud; every phone is a buzzer. The server keeps
+   the order the presses arrived in, so "who was first" is settled here and
+   nowhere else. Nothing is secret: the order, the verdicts and the scores are
+   all in shared, and the TV shows them.
+   ========================================================================== */
+const buzzerAction = (room, playerId, action, payload) => {
+  if (action === 'start') {
+    requireHost(room, playerId);
+    if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
+    room.secrets = {};
+    room.shared = { round: 1, phase: 'armed', buzzes: [], scores: {}, last: null, roster: room.players.map(p => p.id) };
+    room.shared.board = scoreboardOf(room);
+    room.phase = 'playing';
+    return;
+  }
+
+  const s = room.shared;
+  if (!s || room.phase !== 'playing') throw new Error('اللعبة لم تبدأ بعد');
+
+  if (action === 'buzz') {
+    // A press after the host locked, or a second press: nothing to record.
+    if (s.phase !== 'armed') return;
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) return;                                     // a screen can't buzz
+    if (s.buzzes.some(b => b.id === playerId)) return;
+    s.buzzes.push({ id: playerId, name: player.name, at: Date.now() });
+    return;
+  }
+
+  requireHost(room, playerId);
+
+  // The first in line answered. Right: a point and a fresh question. Wrong:
+  // out of the line, and the next one gets a go at the same question.
+  if (action === 'correct') {
+    const first = s.buzzes[0];
+    if (!first) return;
+    addScore(room, first.id, 1);
+    s.last = { id: first.id, name: first.name, ok: true };
+    s.buzzes = [];
+    s.round += 1;
+    s.board = scoreboardOf(room);
+    return;
+  }
+  if (action === 'wrong') {
+    const first = s.buzzes.shift();
+    if (!first) return;
+    if (payload && payload.penalty) addScore(room, first.id, -1);
+    s.last = { id: first.id, name: first.name, ok: false };
+    s.board = scoreboardOf(room);
+    return;
+  }
+  if (action === 'reset') { s.buzzes = []; s.last = null; s.round += 1; return; }
+  if (action === 'lock')  { s.phase = 'locked'; s.buzzes = []; return; }
+  if (action === 'arm')   { s.phase = 'armed'; s.last = null; return; }
+  if (action === 'adjust') {
+    const id = String((payload && payload.id) || '');
+    const delta = Number((payload && payload.delta) || 0);
+    if (!room.players.some(p => p.id === id) || !delta) return;
+    addScore(room, id, delta);
+    s.board = scoreboardOf(room);
+    return;
+  }
+  if (action === 'playAgain') {
+    s.scores = {};
+    s.buzzes = [];
+    s.last = null;
+    s.round = 1;
+    s.phase = 'armed';
+    s.board = scoreboardOf(room);
+    return;
+  }
+  throw new Error('إجراء غير معروف');
 };
 
 /* ==========================================================================

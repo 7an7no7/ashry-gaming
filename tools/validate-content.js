@@ -270,6 +270,26 @@ for (const [cat, words] of Object.entries(SPY_WORDS)) {
 }
 console.log(`spy: ${Object.keys(SPY_WORDS).length} categories, ${Object.values(SPY_WORDS).reduce((n, w) => n + w.length, 0)} words`);
 
+// القنبلة: a category is listed once, and there are enough to last an evening.
+const BOMB = load(G + 'JS_Bomb.html', 'BOMB_PROMPTS');
+for (const [lang, list] of Object.entries(BOMB)) {
+  const dup = repeats(list);
+  if (dup.length) note(`bomb.${lang}: duplicates ${JSON.stringify(dup)}`);
+  if (list.length < 60) note(`bomb.${lang}: ${list.length} categories, wants 60+`);
+  if (list.some(x => !String(x || '').trim())) note(`bomb.${lang}: an empty category`);
+  console.log(`bomb.${lang}: ${list.length} categories`);
+}
+
+// أتوبيس كومبليت: every category has an id and both names, none twice.
+const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
+{
+  const ids = STOP_CATS.map(c => c.id);
+  const dup = repeats(ids);
+  if (dup.length) note(`stop: duplicate category ids ${JSON.stringify(dup)}`);
+  STOP_CATS.forEach(c => { if (!c.id || !c.ar || !c.en) note(`stop: category ${JSON.stringify(c)} is missing a field`); });
+  console.log(`stop: ${STOP_CATS.length} categories`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

@@ -292,6 +292,28 @@ Stop the Bus the first letter matters (see *أتوبيس كومبليت on separ
 phones*). Player names fold through `samePlayer` on the phone and the same
 letters on the server's join.
 
+**The room chat.** `chat` is a room-level action in `applyRoomAction`, next
+to `chooseGame`: a message (`ROOM_CHAT_MAX_LEN` characters, five per five
+seconds per phone) goes on `room.chat`, the last `ROOM_CHAT_MAX`, outside any
+game, so it survives the hub and every deal, and `project()` sends it to
+everyone. `JS_RoomChat.html` draws the 💬 button in the header (`body.has-chat`
+with the soundboard's `has-fx`, never on the TV), the sheet, the unread badge, and a
+toast for a message that arrives while the sheet is closed - once, with the
+history at join counted as read.
+
+**The drawing tools** are one builder, `drawToolsHtml` in `JS_RoomDraw.html`,
+used by Draw & Guess (undo on the server) and ارسم واكتب (undo on the phone):
+pen, line, rectangle, circle, fill and eraser; fifteen colours and a custom
+swatch over the phone's colour picker, in two rows of eight; four
+thicknesses with undo, redo (`draw.redo`, the strokes undo took, until the
+next new stroke) and clear; Ctrl+Z / Ctrl+Y on a laptop through
+`draw.onUndo` / `onRedo`.
+Freehand replays as one smooth path through the midpoints (`drawStroke`);
+the finger's live preview is still segment by segment, and every canvas is
+replayed from the list when the stroke lands, so the pixels agree. The
+guessers get the word's shape (`shared.hint`, a dash per letter) and a
+near miss is flagged `close` (`stringSimilarity` ≥ 0.7 on the folded words).
+
 **Draw & Guess strokes carry a tool letter.** `t` is absent for freehand — which
 is what every stroke made before the tools existed is, so old rooms replay
 unchanged — and `l`/`r`/`o`/`b` for line, rectangle, ellipse and fill. Shapes
@@ -781,8 +803,10 @@ keypad follows the content language too, since it types the word.
 trombone, a sad violin, crickets, boo, an air horn, a siren, a whistle.
 Nothing is downloaded (the old board pulled mp3s from a meme site), so
 they play at once and offline. `openSoundboard()` is the sheet; a 🔊
-button (`#fx-fab`, shown through `body.has-fx` which `setView` sets on
-`play-*` and `room-*` screens) keeps it one tap away mid-game; and
+button in the header beside the gear (`#fx-fab`, shown through
+`body.has-fx` which `setView` sets on `play-*` and `room-*` screens) keeps
+it one tap away mid-game - it floated over the page once, where it covered
+the drawing tools; and
 `confetti` is wrapped so every celebration in the app brings the fanfare.
 
 ### The Help sheet

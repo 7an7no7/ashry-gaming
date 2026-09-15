@@ -95,6 +95,9 @@ const ROOM_GAME_IDS = [
   'twotruths', 'emoji', 'proverbs', 'fiveseconds', 'telephone', 'monkey'
 ];
 
+const ROOM_CHAT_MAX = 40;       // messages a room keeps
+const ROOM_CHAT_MAX_LEN = 200;  // characters in one
+
 // Must match MAX_PLAYERS and MAX_SCREENS in rooms-worker/src/room.js.
 const ROOM_MAX_PLAYERS = 12;
 const ROOM_MAX_SCREENS = 3;
@@ -125,6 +128,23 @@ const applyRoomAction = (room, playerId, action, payload) => {
     }
     room.screens = room.screens.filter(s => s.id !== playerId);
     room.players.push({ id: playerId, name: name });
+    return;
+  }
+
+  if (action === 'chat') {
+    // Short messages between the phones, for a table that isn't at one table.
+    // Kept on the room, outside any game, so it survives the hub and every deal.
+    const text = String((payload && payload.text) || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, ROOM_CHAT_MAX_LEN);
+    if (!text) throw new Error('اكتب رسالة');
+    const who = room.players.find(p => p.id === playerId) || (room.screens || []).find(x => x.id === playerId);
+    if (!who) throw new Error('لست في الغرفة');
+    const now = Date.now();
+    const chat = (room.chat || []).slice(-(ROOM_CHAT_MAX - 1));
+    // Five in five seconds is a person; more is a stuck key.
+    if (chat.filter(m => m.from === playerId && now - m.at < 5000).length >= 5) throw new Error('على مهلك شوية');
+    const last = chat[chat.length - 1];
+    chat.push({ id: (last ? last.id : 0) + 1, from: playerId, name: who.name || '📺', text: text, at: now });
+    room.chat = chat;
     return;
   }
 
@@ -1959,6 +1979,29 @@ const scoreFibbage = (room) => {
    drawing stays small: a phone that reconnects is sent all of it again.
    ========================================================================== */
 
+/** The word's shape for the guessers: a dash per letter, spaces kept. */
+const drawHint = (word) => String(word || '').split('').map(ch => ch === ' ' ? ' ' : '_').join(' ');
+
+/** How alike two folded words are, 0 to 1 (Levenshtein). */
+const stringSimilarity = (a, b) => {
+  const longer = a.length < b.length ? b : a, shorter = a.length < b.length ? a : b;
+  if (!longer.length) return 1;
+  const costs = [];
+  for (let i = 0; i <= a.length; i++) {
+    let last = i;
+    for (let j = 0; j <= b.length; j++) {
+      if (i === 0) costs[j] = j;
+      else if (j > 0) {
+        let v = costs[j - 1];
+        if (a.charAt(i - 1) !== b.charAt(j - 1)) v = Math.min(v, last, costs[j]) + 1;
+        costs[j - 1] = last; last = v;
+      }
+    }
+    if (i > 0) costs[b.length] = last;
+  }
+  return (longer.length - costs[b.length]) / longer.length;
+};
+
 const DRAW_MAX_POINTS = 2600;     // ~15KB of JSON, however long the round
 const DRAW_ROUND_SECONDS = 90;    // the default the host can change
 const DRAW_ROUND_MIN = 30;
@@ -2005,7 +2048,8 @@ const drawGuessAction = (room, playerId, action, payload) => {
       roundSeconds: seconds,
       endsAt: Date.now() + seconds * 1000,
       scores: scores,
-      roster: room.players.map(p => p.id)
+      roster: room.players.map(p => p.id),
+      hint: drawHint(word)
     };
     room.phase = 'drawing';
     return;
@@ -2083,8 +2127,10 @@ const drawGuessAction = (room, playerId, action, payload) => {
     if (!text) return;
     const player = room.players.find(p => p.id === playerId);
     const right = normaliseClue(text) === normaliseClue(room._word);
+    // A near miss gets a nudge: the word with a letter off, or a longer form of it.
+    const close = !right && stringSimilarity(normaliseClue(text), normaliseClue(room._word)) >= 0.7;
 
-    s.guesses.push({ name: player ? player.name : '', text: text, right: right });
+    s.guesses.push({ name: player ? player.name : '', text: text, right: right, close: close });
     if (s.guesses.length > 30) s.guesses = s.guesses.slice(-30);
 
     if (right) {

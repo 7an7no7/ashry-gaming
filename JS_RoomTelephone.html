@@ -56,32 +56,32 @@ async function teleSubmit(auto) {
 }
 
 function teleUndo() {
-  draw.pending.pop();
+  const st = draw.pending.pop();
+  if (!st) return;
+  draw.redo.push(st);
+  paintStrokesFromScratch();
+  playSound('tick');
+  haptic('light');
+}
+function teleRedo() {
+  const st = draw.redo.pop();
+  if (!st) return;
+  draw.pending.push(st);
   paintStrokesFromScratch();
   playSound('tick');
   haptic('light');
 }
 function teleClear() {
   draw.pending = [];
+  draw.redo = [];
   clearSurface();
   draw.painted = 0;
   haptic('light');
 }
 
-/** The drawing tools, without the shape tools: a phrase in 75 seconds wants a pen. */
+/** The same toolbox as Draw & Guess, undoing on the phone rather than the server. */
 function teleToolsHtml(t) {
-  return `
-    <div class="draw-tools">
-      <div class="draw-tools__row draw-tools__row--scroll">
-        ${DRAW_COLOURS.map(c => `<button class="draw-swatch ${c === draw.colour ? 'is-active' : ''}" style="background:${c}" aria-label="${c}" onclick="setDrawColour('${c}')"></button>`).join('')}
-      </div>
-      <div class="draw-tools__row">
-        ${[2, 4, 10, 20].map(w => `<button class="draw-width ${w === draw.width ? 'is-active' : ''}" aria-label="${w}" onclick="setDrawWidth(${w})"><span class="draw-width__dot" style="width:${Math.min(22, w + 4)}px;height:${Math.min(22, w + 4)}px"></span></button>`).join('')}
-        <span class="draw-tools__gap"></span>
-        <button class="draw-tool draw-tool--act" onclick="teleUndo()" title="${escapeHTML(t.draw_undo || '')}" aria-label="${escapeHTML(t.draw_undo || '')}">↶</button>
-        <button class="draw-tool draw-tool--danger" onclick="teleClear()" title="${escapeHTML(t.draw_clear || '')}" aria-label="${escapeHTML(t.draw_clear || '')}">🗑️</button>
-      </div>
-    </div>`;
+  return drawToolsHtml(t, { undo: 'teleUndo()', redo: 'teleRedo()', clear: 'teleClear()' });
 }
 
 /** A finished step of a chain, for the reveal: the phrase, or the drawing. */
@@ -167,6 +167,8 @@ ROOM_GAMES.telephone = {
         draw.local = true;
         if (task.kind === 'draw') {
           bindDrawSurface(true);
+          draw.onUndo = teleUndo;
+          draw.onRedo = teleRedo;
         } else {
           bindDrawSurface(false);
           paintStrokes(task.prev.strokes || []);

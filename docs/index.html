@@ -371,7 +371,7 @@ p { margin: 0; }
 /* --- Header --- */
 .shell__header {
   display: grid;
-  grid-template-columns: var(--tap) 1fr var(--tap);
+  grid-template-columns: minmax(auto, 1fr) auto minmax(auto, 1fr);
   align-items: center;
   gap: var(--sp-2);
   min-height: var(--header-h);
@@ -400,6 +400,8 @@ p { margin: 0; }
 
 /* The title cross-fades on navigation so it doesn't pop. */
 .shell__title.is-swapping { opacity: 0; }
+#nav-back { grid-column: 1; justify-self: start; }
+.shell__tools { grid-column: 3; justify-self: end; display: flex; align-items: center; }
 
 /* --- Active Room Banner --- */
 .active-room-banner {
@@ -5285,25 +5287,11 @@ body.dark .home-hero {
 .fx-btn__emoji { font-size: 1.6rem; line-height: 1; }
 .fx-btn__name { font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
 /* The 🔊 button: on play and room screens only, out of the way of the nav. */
-.fx-fab {
-  position: fixed;
-  inset-inline-end: calc(var(--sp-3) + var(--safe-right));
-  bottom: calc(var(--nav-h) + var(--sp-3) + var(--safe-bottom));
-  z-index: 30;
-  width: 2.75rem; height: 2.75rem;
-  display: none; align-items: center; justify-content: center;
-  border: 1px solid var(--border); border-radius: 50%;
-  background: var(--surface); color: var(--text);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--sh-3);
-  font-size: 1.15rem; cursor: pointer;
-  opacity: 0.85;
-  transition: transform var(--dur-1) var(--ease-out), opacity var(--dur-2) var(--ease-out);
-}
-.fx-fab:active { transform: scale(0.92); opacity: 1; }
-body.has-fx:not(.is-tv-view) .fx-fab { display: flex; }
-@media (max-width: 899px) and (min-height: 501px) { .fx-fab { bottom: calc(var(--nav-h) + var(--sp-4) + var(--safe-bottom)); } }
-@media (orientation: landscape) and (max-height: 500px) { .fx-fab { bottom: calc(var(--sp-3) + var(--safe-bottom)); } }
+/* The sound and chat buttons sit in the header beside the gear (they used to
+   float over the page, where they covered the drawing tools). */
+.fx-fab, .chat-fab { display: none; position: relative; width: 2.25rem; font-size: 1.05rem; }
+body.has-fx:not(.is-tv-view) .fx-fab { display: inline-flex; }
+body.has-fx.has-chat:not(.is-tv-view) .chat-fab { display: inline-flex; }
 
 
 /* --- ربع قرد ------------------------------------------------------------------- */
@@ -5329,6 +5317,46 @@ body.has-fx:not(.is-tv-view) .fx-fab { display: flex; }
 .mk-used { justify-content: center; margin-top: var(--sp-3); }
 .mk-word--tv { gap: 1vmin; margin: 2vmin 0; min-height: 12vmin; }
 .mk-word--tv .mk-letter { width: 9vmin; height: 11vmin; font-size: 6vmin; border-radius: 1.5vmin; }
+
+
+/* --- Drawing tools, the palette and the near-miss --------------------------- */
+.draw-tools__row--palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(2.3rem, 1fr)); gap: 3px; }
+.draw-tools__row--palette .draw-swatch { width: auto; height: auto; aspect-ratio: 1; max-width: 3rem; }
+.draw-tools__row--palette .draw-swatch.is-active { transform: scale(1.1); }
+/* Thicknesses, then undo, redo and clear: seven buttons in one row on a phone. */
+.draw-tools__row--acts { gap: 0.3rem; }
+.draw-tools__row--acts .draw-width, .draw-tools__row--acts .draw-tool { width: 2.5rem; height: 2.5rem; }
+.draw-swatch--custom {
+  position: relative; overflow: hidden;
+  background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444);
+}
+.draw-swatch--custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.draw-hint { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); margin-bottom: var(--sp-2); }
+.draw-hint__slots { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem; }
+.draw-hint__slot { display: block; width: 0.9rem; height: 0.9rem; border-bottom: 3px solid var(--accent); }
+.draw-hint__gap { display: block; width: 0.75rem; }
+.tv-panel .draw-hint { margin-top: 1.5vmin; }
+.tv-panel .draw-hint__slot { width: 2.2vmin; height: 2.2vmin; border-bottom-width: 0.5vmin; }
+.tv-panel .draw-hint__gap { width: 1.8vmin; }
+.draw-guess.is-close { background: var(--warning-soft); }
+.draw-guess__close { font-size: var(--fs-xs); font-weight: 800; color: var(--warning-ink); }
+
+/* --- Room chat -------------------------------------------------------------- */
+.chat-fab__badge {
+  position: absolute; top: 2px; inset-inline-end: 0;
+  min-width: 1.05rem; height: 1.05rem; padding: 0 3px;
+  display: grid; place-items: center;
+  border-radius: var(--r-full);
+  background: var(--danger); color: #ffffff;
+  font-size: 0.6rem; font-weight: 900; line-height: 1;
+}
+.chat-fab__badge[hidden] { display: none; }
+#chat-list { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); min-height: min(14rem, 35vh); }
+.chat-msg { max-width: 85%; align-self: flex-start; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); text-align: start; }
+.chat-msg.is-mine { align-self: flex-end; background: var(--accent-soft); }
+.chat-msg__meta { margin-bottom: 2px; font-size: var(--fs-xs); font-weight: 700; color: var(--text-3); }
+.chat-msg__text { font-size: var(--fs-sm); font-weight: 600; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+#chat-modal .sheet__footer { display: flex; flex-direction: column; gap: var(--sp-2); }
 
 </style>
 
@@ -6762,9 +6790,13 @@ const MONKEY_KEYS = {
           <span class="chev" aria-hidden="true">‹</span>
         </button>
         <h1 id="app-title" class="shell__title"><svg class="mark mark--title" aria-hidden="true"><use href="#ashry-mark"/></svg><span id="app-title-icon" class="shell__title-icon" aria-hidden="true"></span><span id="app-title-text">عشرى جيمينج</span></h1>
-        <button id="nav-settings" class="iconbtn iconbtn--plain" onclick="openSettings()" aria-label="الإعدادات">
-          <span aria-hidden="true">⚙️</span>
-        </button>
+        <div class="shell__tools">
+          <button type="button" id="chat-fab" class="iconbtn iconbtn--plain chat-fab" onclick="openRoomChat()" aria-label="💬" title="💬">💬<span id="chat-fab-badge" class="chat-fab__badge" hidden></span></button>
+          <button type="button" id="fx-fab" class="iconbtn iconbtn--plain fx-fab" onclick="openSoundboard()" aria-label="🔊" title="🔊">🔊</button>
+          <button id="nav-settings" class="iconbtn iconbtn--plain" onclick="openSettings()" aria-label="الإعدادات">
+            <span aria-hidden="true">⚙️</span>
+          </button>
+        </div>
       </header>
 
       <!-- ACTIVE ROOM BANNER -->
@@ -7820,7 +7852,22 @@ const MONKEY_KEYS = {
       </div>
     </div>
 
-    <button type="button" id="fx-fab" class="fx-fab" onclick="openSoundboard()" aria-label="🔊" title="🔊">🔊</button>
+    <div id="chat-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="sheet__header">
+          <div class="sheet__title" data-i18n="chat_title">شات الغرفة</div>
+          <div class="sheet__subtitle" data-i18n="chat_hint">للي بيلعبوا من بعيد. الكل في الغرفة بيشوفه.</div>
+        </div>
+        <div class="sheet__body" id="chat-list"></div>
+        <div class="sheet__footer">
+          <div class="input-group">
+            <input type="text" id="chat-input" maxlength="200" autocomplete="off" data-i18n-ph="chat_ph" placeholder="اكتب رسالة…" onkeydown="if(event.key==='Enter') sendRoomChat()">
+            <button type="button" class="btn btn--primary" onclick="sendRoomChat()" data-i18n="send">إرسال</button>
+          </div>
+          <button class="btn btn--ghost" onclick="closeRoomChat()" data-i18n="close">إغلاق</button>
+        </div>
+      </div>
+    </div>
     <div id="soundboard-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
         <div class="sheet__title" id="soundboard-title">لوحة الأصوات</div>
@@ -9814,6 +9861,15 @@ const MONKEY_KEYS = {
       mk_words_said: "اللي اتقال",
       mk_winners: "الفائزون",
       mk_log: "اللي اتقال 📝",
+      draw_redo: "إعادة",
+      draw_colours: "الألوان",
+      draw_custom_colour: "لون تاني",
+      draw_hint_label: "الكلمة",
+      draw_close: "قريب!",
+      chat_title: "شات الغرفة",
+      chat_hint: "للي بيلعبوا من بعيد. الكل في الغرفة بيشوفه.",
+      chat_ph: "اكتب رسالة…",
+      chat_empty: "مفيش رسايل لسه. ابدأ إنت!",
       cham_online_desc: "الكلمات الـ16 على كل موبايل وعلى التلفزيون، وكل واحد يشوف كلمته السرية على موبايله من غير تمرير. التصويت من الموبايلات.",
       cham_room_hint: "الكل يشوف نفس الـ16 كلمة. كل واحد يشوف الكلمة السرية على موبايله إلا الحرباء. قولوا كلمة بالدور، وبعدين المضيف يفتح التصويت.",
       cham_you_are: "أنت الحرباء!",
@@ -10752,6 +10808,15 @@ const MONKEY_KEYS = {
       mk_words_said: "What was said",
       mk_winners: "Winners",
       mk_log: "What was said 📝",
+      draw_redo: "Redo",
+      draw_colours: "Colours",
+      draw_custom_colour: "Another colour",
+      draw_hint_label: "The word",
+      draw_close: "Close!",
+      chat_title: "Room chat",
+      chat_hint: "For the ones playing from afar. Everyone in the room sees it.",
+      chat_ph: "Type a message…",
+      chat_empty: "No messages yet. Say hi!",
       cham_online_desc: "The 16 words on every phone and the TV; each player sees their secret word on their own phone, no passing. Voting from the phones.",
       cham_room_hint: "Everyone sees the same 16 words. Each phone marks the secret one, except the chameleon's. Give a clue each in turn, then the host opens the vote.",
       cham_you_are: "You are the chameleon!",
@@ -11788,6 +11853,8 @@ const MONKEY_KEYS = {
     // 520px phone column.
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(appState.currentView) !== -1);
     document.body.classList.toggle('is-tv-view', appState.currentView === 'room-tv');
+    // A room screen restored after a reload is not reached through setView.
+    if (typeof syncFxButton === 'function') syncFxButton(appState.currentView);
     
     const viewEl = document.getElementById('view-' + appState.currentView);
     
@@ -12380,6 +12447,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>لو خرجت من الغرفة لشاشة تانية، شريط أخضر فوق بيرجّعك لها، وتبويب <b>مع بعض</b> كمان.</li>
                 <li>أي لعبة على كارتها علامة 📲 بتتلعب في الغرف، و📺 يعني ليها شاشة للتلفزيون.</li>
+                <li>💬 زر الشات على شاشات الغرفة: رسايل قصيرة بين اللاعبين، للي بيلعبوا من بعيد. اللي يوصلك وانت في شاشة تانية بيظهر في إشعار.</li>
             </ul>`,
         tv: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -12549,6 +12617,8 @@ const GAME_RULES = {
                 <li>واحد يرسم على موبايله، والباقي يشوفوا الرسمة وهي بتتكون ويكتبوا تخمينهم.</li>
                 <li>الكلمة تظهر للرسام بس. ممنوع الكتابة أو الأرقام.</li>
                 <li>الإملاء مش فارقة في التخمين: أسد واسد والأسد كلهم صح.</li>
+                <li>اللي بيخمنوا شايفين شكل الكلمة (شرطة لكل حرف)، ولما تخمينك يبقى قريب التطبيق يقولك 🔥 قريب.</li>
+                <li>أدوات الرسام: قلم، خط، مستطيل، دايرة، دلو تلوين، ممحاة، 15 لون ولون من اختيارك، 4 سماكات، تراجع وإعادة. على اللابتوب Ctrl+Z وCtrl+Y.</li>
                 <li>أول واحد يكتب التخمين الصح ياخد نقطتين، والرسام ياخد نقطة. لو محدش عرفها في الوقت، الكلمة تتكشف.</li>
                 <li>المضيف يختار طول الجولة (من 60 لـ 180 ثانية).</li>
             </ol>
@@ -12793,6 +12863,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>If you leave the room for another screen, the green bar at the top takes you back, and so does the <b>Together</b> tab.</li>
                 <li>A 📲 on a game's card means it plays in rooms; 📺 means it has a TV layout.</li>
+                <li>💬 The chat button on the room screens: short messages between players, for those playing from afar. A message that arrives while you are on another screen shows as a notice.</li>
             </ul>`,
         tv: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -12962,6 +13033,8 @@ const GAME_RULES = {
                 <li>One player draws on their phone; everyone else watches it appear and types their guess.</li>
                 <li>Only the drawer sees the word. No letters or numbers.</li>
                 <li>Spelling doesn't matter in a guess: أسد, اسد and الأسد all count.</li>
+                <li>Guessers see the word's shape (a dash per letter), and a near miss gets a 🔥 Close!</li>
+                <li>The drawer's tools: pen, line, rectangle, circle, fill, eraser, 15 colours and one of your own, 4 thicknesses, undo and redo. On a laptop, Ctrl+Z and Ctrl+Y.</li>
                 <li>The first right guess scores two points and the drawer one. If nobody gets it in time, the word is revealed.</li>
                 <li>The host picks the round length (60 to 180 seconds).</li>
             </ol>
@@ -24532,8 +24605,11 @@ async function submitFibbageLie() {
 const DRAW_GRID = 255;
 const DRAW_FLUSH_MS = 200;      // how soon a finished stroke is sent
 const DRAW_LIVE_MS = 80;        // how often the line under the finger is shared
-const DRAW_COLOURS = ['#111827', '#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed',
-                      '#db2777', '#0891b2', '#65a30d', '#78350f', '#94a3b8', '#ffffff'];
+/* Fifteen, in two rows of eight with the custom swatch as the sixteenth: darks
+   and greys, warm and cool, a skin tone for faces, and white (which is what
+   the eraser paints). Anything else comes from the custom swatch's picker. */
+const DRAW_COLOURS = ['#111827', '#6b7280', '#78350f', '#e11d48', '#f97316', '#facc15', '#65a30d', '#059669',
+                      '#0891b2', '#2563eb', '#1e3a8a', '#7c3aed', '#db2777', '#f5cba7', '#ffffff'];
 /* The canvas is white in both themes — the drawing is shared, so it cannot
    follow one person's theme. The eraser paints this colour. */
 const DRAW_PAPER = '#ffffff';
@@ -24555,10 +24631,13 @@ const draw = {
   drawing: false,
   current: null,        // stroke being drawn right now
   pending: [],          // finished strokes not yet sent
+  redo: [],             // strokes taken back by undo, until the next new one
+  onUndo: null,         // what Ctrl+Z does on this screen
+  onRedo: null,
   local: false,         // ارسم واكتب: strokes stay here until the player is done
   painted: 0,           // how many server strokes we've already drawn
   colour: DRAW_COLOURS[0],
-  width: 4,
+  width: 5,
   tool: 'p',
   snapshot: null,      // canvas before a shape started, for the rubber band
   flushTimer: null,
@@ -24647,6 +24726,7 @@ function drawFrame(state, amDrawer, over, t) {
             : (t.draw_drawer || 'الرسام') + ': ' + escapeHTML(s.drawerName || '')}</span>
          <span id="draw-timer" class="badge badge--accent">--</span>
        </div>
+       ${!amDrawer && s.hint ? drawHintHtml(s.hint, t) : ''}
        ${amDrawer
           ? `<div class="card card--accent" style="text-align:center; margin-bottom: var(--sp-2)">
                <div class="eyebrow">${t.draw_your_word || 'ارسم هذه الكلمة'}</div>
@@ -24654,36 +24734,7 @@ function drawFrame(state, amDrawer, over, t) {
              </div>`
           : ''}`;
 
-  const tools = (amDrawer && !over) ? `
-      <div class="draw-tools">
-        <div class="draw-tools__row" role="group" aria-label="${escapeHTML(t.draw_tools || '')}">
-          ${DRAW_TOOLBOX.map(tool => `
-            <button class="draw-tool ${tool.id === draw.tool ? 'is-active' : ''}"
-                    aria-pressed="${tool.id === draw.tool}"
-                    title="${escapeHTML(t[tool.key] || '')}" aria-label="${escapeHTML(t[tool.key] || '')}"
-                    onclick="setDrawTool('${tool.id}')">${tool.icon}</button>`).join('')}
-        </div>
-
-        <div class="draw-tools__row draw-tools__row--scroll">
-          ${DRAW_COLOURS.map(c => `
-            <button class="draw-swatch ${c === draw.colour ? 'is-active' : ''}"
-                    style="background:${c}" aria-label="${c}"
-                    onclick="setDrawColour('${c}')"></button>`).join('')}
-        </div>
-
-        <div class="draw-tools__row">
-          ${[2, 4, 10, 20].map(w => `
-            <button class="draw-width ${w === draw.width ? 'is-active' : ''}"
-                    aria-label="${w}" onclick="setDrawWidth(${w})">
-              <span class="draw-width__dot" style="width:${Math.min(22, w + 4)}px;height:${Math.min(22, w + 4)}px"></span>
-            </button>`).join('')}
-          <span class="draw-tools__gap"></span>
-          <button class="draw-tool draw-tool--act" onclick="undoDrawStroke()"
-                  title="${escapeHTML(t.draw_undo || '')}" aria-label="${escapeHTML(t.draw_undo || '')}">↶</button>
-          <button class="draw-tool draw-tool--danger" onclick="clearDrawCanvas()"
-                  title="${escapeHTML(t.draw_clear || '')}" aria-label="${escapeHTML(t.draw_clear || '')}">🗑️</button>
-        </div>
-      </div>` : '';
+  const tools = (amDrawer && !over) ? drawToolsHtml(t, { undo: 'undoDrawStroke()', redo: 'redoDrawStroke()', clear: 'clearDrawCanvas()' }) : '';
 
   const guessBox = (!amDrawer && !over) ? `
       <div class="input-group" style="margin-top: var(--sp-3)">
@@ -24721,6 +24772,67 @@ function drawFrame(state, amDrawer, over, t) {
       </div>
     </div>
     ${renderRoomPlayerStrip(state)}`;
+}
+
+/**
+ * The toolbox, shared with ارسم واكتب: the six tools; fifteen colours and a
+ * custom swatch that opens the phone's colour picker, in two rows of eight;
+ * then the four thicknesses with undo, redo and clear. `h` carries the handlers as onclick
+ * strings, because Draw & Guess undoes on the server and the telephone
+ * undoes on the phone.
+ */
+function drawToolsHtml(t, h) {
+  const custom = DRAW_COLOURS.indexOf(draw.colour) === -1;
+  return `
+      <div class="draw-tools">
+        <div class="draw-tools__row" role="group" aria-label="${escapeHTML(t.draw_tools || '')}">
+          ${DRAW_TOOLBOX.map(tool => `
+            <button class="draw-tool ${tool.id === draw.tool ? 'is-active' : ''}"
+                    aria-pressed="${tool.id === draw.tool}"
+                    title="${escapeHTML(t[tool.key] || '')}" aria-label="${escapeHTML(t[tool.key] || '')}"
+                    onclick="setDrawTool('${tool.id}')">${tool.icon}</button>`).join('')}
+        </div>
+        <div class="draw-tools__row draw-tools__row--palette" role="group" aria-label="${escapeHTML(t.draw_colours || '')}">
+          ${DRAW_COLOURS.map(c => `
+            <button class="draw-swatch ${c === draw.colour ? 'is-active' : ''}"
+                    style="background:${c}" aria-label="${c}"
+                    onclick="setDrawColour('${c}')"></button>`).join('')}
+          <label class="draw-swatch draw-swatch--custom ${custom ? 'is-active' : ''}" style="${custom ? 'background:' + draw.colour : ''}"
+                 title="${escapeHTML(t.draw_custom_colour || '')}" aria-label="${escapeHTML(t.draw_custom_colour || '')}">
+            <input type="color" value="${custom ? draw.colour : '#ff8800'}" oninput="setDrawColour(this.value)">
+          </label>
+        </div>
+        <div class="draw-tools__row draw-tools__row--acts">
+          ${[2, 5, 10, 20].map(w => `
+            <button class="draw-width ${w === draw.width ? 'is-active' : ''}"
+                    aria-label="${w}" onclick="setDrawWidth(${w})">
+              <span class="draw-width__dot" style="width:${Math.min(22, w + 4)}px;height:${Math.min(22, w + 4)}px"></span>
+            </button>`).join('')}
+          <span class="draw-tools__gap"></span>
+          <button class="draw-tool draw-tool--act" onclick="${h.undo}" title="${escapeHTML(t.draw_undo || '')}" aria-label="${escapeHTML(t.draw_undo || '')}">↶</button>
+          <button class="draw-tool draw-tool--act" onclick="${h.redo}" title="${escapeHTML(t.draw_redo || '')}" aria-label="${escapeHTML(t.draw_redo || '')}">↷</button>
+          <button class="draw-tool draw-tool--danger" onclick="${h.clear}" title="${escapeHTML(t.draw_clear || '')}" aria-label="${escapeHTML(t.draw_clear || '')}">🗑️</button>
+        </div>
+      </div>`;
+}
+
+/* Ctrl+Z / Ctrl+Y (or Cmd) on a laptop, while a drawing surface is on screen. */
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || !draw.canvas || !draw.canvas.isConnected || !draw.canvas.offsetParent) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
+  const k = String(e.key || '').toLowerCase();
+  if (k === 'z' && !e.shiftKey) { if (draw.onUndo) { e.preventDefault(); draw.onUndo(); } }
+  else if (k === 'y' || (k === 'z' && e.shiftKey)) { if (draw.onRedo) { e.preventDefault(); draw.onRedo(); } }
+});
+
+/** The word's shape for the guessers: a slot per letter, a gap between words. */
+function drawHintHtml(hint, t) {
+  const marks = String(hint || '').replace(/ +/g, m => m.length > 1 ? '|' : '').split('');
+  const letters = marks.filter(m => m === '_').length;
+  return `<div class="draw-hint">
+      <span class="eyebrow">${escapeHTML(t.draw_hint_label || '')} · <span class="metric">${letters}</span></span>
+      <span class="draw-hint__slots" dir="ltr">${marks.map(m => m === '_' ? '<i class="draw-hint__slot"></i>' : '<i class="draw-hint__gap"></i>').join('')}</span>
+    </div>`;
 }
 
 /* --- painting ------------------------------------------------------------ */
@@ -24797,15 +24909,23 @@ function drawStroke(ctx, st, size) {
     const cx = (X(0) + X(2)) / 2, cy = (X(1) + X(3)) / 2;
     ctx.ellipse(cx, cy, Math.abs(X(2) - X(0)) / 2, Math.abs(X(3) - X(1)) / 2, 0, 0, Math.PI * 2);
   } else {
-    // Segment by segment, deliberately — the drawer's own canvas is painted one
-    // segment at a time as the finger moves, and a single joined polyline
-    // blends its corners differently. Same commands both sides, same pixels.
-    for (let i = 2; i < pts.length; i += 2) {
-      ctx.moveTo(X(i - 2), X(i - 1));
-      ctx.lineTo(X(i), X(i + 1));
+    // Freehand: one smooth path, curving through the midpoints between the
+    // sampled points. The finger's live preview is painted segment by segment
+    // (it has to be, point by point), and every canvas - the drawer's too -
+    // is replayed from the stroke list the moment the stroke lands, so the
+    // same command list draws the same pixels everywhere.
+    if (pts.length < 6) {
+      ctx.moveTo(X(0), X(1));
+      ctx.lineTo(X(2), X(3));
       ctx.stroke();
-      ctx.beginPath();
+      return;
     }
+    ctx.moveTo(X(0), X(1));
+    for (let i = 2; i < pts.length - 2; i += 2) {
+      ctx.quadraticCurveTo(X(i), X(i + 1), (X(i) + X(i + 2)) / 2, (X(i + 1) + X(i + 3)) / 2);
+    }
+    ctx.lineTo(X(pts.length - 2), X(pts.length - 1));
+    ctx.stroke();
     return;
   }
   ctx.stroke();
@@ -24903,6 +25023,7 @@ function bindDrawSurface(canDraw) {
   draw.painted = 0;
   draw.live = null;
   draw.liveShown = false;
+  if (!draw.local) { draw.onUndo = undoDrawStroke; draw.onRedo = redoDrawStroke; }
   if (!canDraw) return;
 
   const pos = (e) => {
@@ -24922,6 +25043,7 @@ function bindDrawSurface(canDraw) {
       const stroke = { t: 'b', c: draw.colour, w: 1, p: [x, y] };
       drawStroke(draw.ctx, stroke, draw.canvas.width);
       draw.pending.push(stroke);
+      draw.redo = [];
       draw.snapshot = null;
       playSound('tick');
       scheduleFlush();
@@ -24991,7 +25113,7 @@ function bindDrawSurface(canDraw) {
     }
     // The last few points, so the live line ends where the stroke does.
     if (!cur.t) shareLiveStroke(true, cur);
-    if (cur.p.length >= 2) draw.pending.push(cur);
+    if (cur.p.length >= 2) { draw.pending.push(cur); draw.redo = []; }
     scheduleFlush();
   };
   draw.canvas.onpointerup = finish;
@@ -25112,6 +25234,12 @@ function refreshDrawTools() {
     b.classList.toggle('is-active', b.getAttribute('aria-label') === draw.colour));
   document.querySelectorAll('.draw-width').forEach(b =>
     b.classList.toggle('is-active', Number(b.getAttribute('aria-label')) === draw.width));
+  const custom = document.querySelector('.draw-swatch--custom');
+  if (custom) {
+    const on = DRAW_COLOURS.indexOf(draw.colour) === -1;
+    custom.classList.toggle('is-active', on);
+    custom.style.background = on ? draw.colour : '';
+  }
 }
 
 /**
@@ -25154,6 +25282,9 @@ async function flushDrawNow() {
 async function undoDrawStroke() {
   try {
     await flushDrawNow();
+    const shared = (Room.state && Room.state.shared) || {};
+    const last = (shared.strokes || [])[(shared.strokes || []).length - 1];
+    if (last) draw.redo.push(last);
     await Room.act('undoStroke', {});
     paintStrokesFromScratch();
     playSound('tick');
@@ -25161,6 +25292,17 @@ async function undoDrawStroke() {
   } catch (e) {
     showToast(e.message || 'تعذر التراجع', 'error');
   }
+}
+
+/** Puts back what undo took, as a new stroke at the end of the list. */
+async function redoDrawStroke() {
+  const st = draw.redo.pop();
+  if (!st) return;
+  draw.pending.push(st);
+  paintStrokesFromScratch();
+  try { await flushDrawNow(); } catch (e) { showToast(e.message || 'تعذر الإعادة', 'error'); }
+  playSound('tick');
+  haptic('light');
 }
 
 async function clearDrawCanvas() {
@@ -25184,10 +25326,10 @@ function paintGuessList(guesses) {
   const el = document.getElementById('draw-guesses');
   if (!el) return;
   const html = guesses.slice(-6).reverse().map(g => `
-      <div class="draw-guess ${g.right ? 'is-right' : ''}">
+      <div class="draw-guess ${g.right ? 'is-right' : ''} ${g.close ? 'is-close' : ''}">
         <span class="draw-guess__who">${escapeHTML(g.name)}</span>
         <span>${escapeHTML(g.text)}</span>
-        ${g.right ? '<span aria-hidden="true">✅</span>' : ''}
+        ${g.right ? '<span aria-hidden="true">✅</span>' : g.close ? `<span class="draw-guess__close">🔥 ${escapeHTML((TRANSLATIONS[appState.lang] || {}).draw_close || '')}</span>` : ''}
       </div>`).join('');
   if (el.dataset.sig !== html) { el.innerHTML = html; el.dataset.sig = html; }
 }
@@ -25227,6 +25369,9 @@ function resetDrawSurface() {
   clearTimeout(draw.flushTimer);
   draw.flushTimer = null;
   draw.pending = [];
+  draw.redo = [];
+  draw.onUndo = null;
+  draw.onRedo = null;
   draw.current = null;
   draw.drawing = false;
   draw.painted = 0;
@@ -26517,7 +26662,8 @@ TV_GAMES.drawguess = {
          <div class="tv-title">${escapeHTML(s.word || '')}</div>`
       : `<div class="tv-eyebrow">✏️ ${t.draw_drawer || ''}</div>
          <div class="tv-title">${escapeHTML(s.drawerName || '')}</div>
-         <div id="draw-timer" class="tv-timer tv-timer--big">--</div>`;
+         <div id="draw-timer" class="tv-timer tv-timer--big">--</div>
+         ${s.hint ? drawHintHtml(s.hint, t) : ''}`;
     const actions = !state.youAreHost ? '' : (over
       ? tvBtn(t.draw_next, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`) + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')
       : tvBtn(t.draw_reveal, "roomAct('giveUp')", 'ghost'));
@@ -35818,32 +35964,32 @@ async function teleSubmit(auto) {
 }
 
 function teleUndo() {
-  draw.pending.pop();
+  const st = draw.pending.pop();
+  if (!st) return;
+  draw.redo.push(st);
+  paintStrokesFromScratch();
+  playSound('tick');
+  haptic('light');
+}
+function teleRedo() {
+  const st = draw.redo.pop();
+  if (!st) return;
+  draw.pending.push(st);
   paintStrokesFromScratch();
   playSound('tick');
   haptic('light');
 }
 function teleClear() {
   draw.pending = [];
+  draw.redo = [];
   clearSurface();
   draw.painted = 0;
   haptic('light');
 }
 
-/** The drawing tools, without the shape tools: a phrase in 75 seconds wants a pen. */
+/** The same toolbox as Draw & Guess, undoing on the phone rather than the server. */
 function teleToolsHtml(t) {
-  return `
-    <div class="draw-tools">
-      <div class="draw-tools__row draw-tools__row--scroll">
-        ${DRAW_COLOURS.map(c => `<button class="draw-swatch ${c === draw.colour ? 'is-active' : ''}" style="background:${c}" aria-label="${c}" onclick="setDrawColour('${c}')"></button>`).join('')}
-      </div>
-      <div class="draw-tools__row">
-        ${[2, 4, 10, 20].map(w => `<button class="draw-width ${w === draw.width ? 'is-active' : ''}" aria-label="${w}" onclick="setDrawWidth(${w})"><span class="draw-width__dot" style="width:${Math.min(22, w + 4)}px;height:${Math.min(22, w + 4)}px"></span></button>`).join('')}
-        <span class="draw-tools__gap"></span>
-        <button class="draw-tool draw-tool--act" onclick="teleUndo()" title="${escapeHTML(t.draw_undo || '')}" aria-label="${escapeHTML(t.draw_undo || '')}">↶</button>
-        <button class="draw-tool draw-tool--danger" onclick="teleClear()" title="${escapeHTML(t.draw_clear || '')}" aria-label="${escapeHTML(t.draw_clear || '')}">🗑️</button>
-      </div>
-    </div>`;
+  return drawToolsHtml(t, { undo: 'teleUndo()', redo: 'teleRedo()', clear: 'teleClear()' });
 }
 
 /** A finished step of a chain, for the reveal: the phrase, or the drawing. */
@@ -35929,6 +36075,8 @@ ROOM_GAMES.telephone = {
         draw.local = true;
         if (task.kind === 'draw') {
           bindDrawSurface(true);
+          draw.onUndo = teleUndo;
+          draw.onRedo = teleRedo;
         } else {
           bindDrawSurface(false);
           paintStrokes(task.prev.strokes || []);
@@ -36502,6 +36650,98 @@ TV_GAMES.monkey = {
   },
   after(state) { armMkClock(state.shared.phase === 'play' ? state.shared.endsAt : null); }
 };
+</script>
+
+    <script>
+/* ============================================================================
+   ROOM CHAT — short messages between the phones
+   ----------------------------------------------------------------------------
+   For a table that isn't at one table. The messages live on the room, outside
+   any game (`chat` in the projection; the `chat` action in applyRoomAction),
+   so they survive the hub and every deal. A 💬 button sits on the room screens
+   with a badge for what you haven't read; a message that arrives while the
+   sheet is closed shows as a toast. The TV never shows it.
+   ========================================================================= */
+
+const roomChat = { seen: 0, notified: 0, inRoom: false };
+
+const roomChatOpen = () => {
+  const m = document.getElementById('chat-modal');
+  return !!m && !m.classList.contains('hidden');
+};
+
+function roomChatTime(at) {
+  try { return new Date(at).toLocaleTimeString(appState.lang === 'ar' ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
+}
+
+function renderRoomChat(state) {
+  const list = document.getElementById('chat-list');
+  if (!list) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const msgs = (state && state.chat) || [];
+  list.innerHTML = msgs.length
+    ? msgs.map(m => `
+        <div class="chat-msg ${m.from === Room.me ? 'is-mine' : ''}">
+          <div class="chat-msg__meta">${escapeHTML(m.name || '')} · <span class="metric">${roomChatTime(m.at)}</span></div>
+          <div class="chat-msg__text">${escapeHTML(m.text || '')}</div>
+        </div>`).join('')
+    : `<div class="empty"><span class="empty__icon" aria-hidden="true">💬</span>${escapeHTML(t.chat_empty || '')}</div>`;
+  list.scrollTop = list.scrollHeight;
+}
+
+/** Runs on every room state: the badge, the open sheet, and a toast for a message that just came in. */
+function syncRoomChat(state) {
+  const inRoom = !!(state && Room.isIn && !state.youAreScreen);
+  document.body.classList.toggle('has-chat', inRoom);
+  const msgs = (state && state.chat) || [];
+  const last = msgs.length ? msgs[msgs.length - 1] : null;
+  if (!inRoom) { roomChat.inRoom = false; roomChat.seen = 0; roomChat.notified = 0; return; }
+  if (!roomChat.inRoom) {
+    // Just arrived: what is already here is history, not news.
+    roomChat.inRoom = true;
+    roomChat.seen = last ? last.id : 0;
+    roomChat.notified = roomChat.seen;
+  }
+  if (roomChatOpen()) {
+    renderRoomChat(state);
+    if (last) roomChat.seen = last.id;
+  } else if (last && last.id > roomChat.notified && last.from !== Room.me) {
+    showToast('💬 ' + (last.name || '') + ': ' + String(last.text || '').slice(0, 80));
+    playSound('tick');
+  }
+  if (last) roomChat.notified = Math.max(roomChat.notified, last.id);
+  const unread = msgs.filter(m => m.id > roomChat.seen && m.from !== Room.me).length;
+  const badge = document.getElementById('chat-fab-badge');
+  if (badge) { badge.textContent = unread ? String(unread) : ''; badge.hidden = !unread; }
+}
+
+function openRoomChat() {
+  const m = document.getElementById('chat-modal');
+  if (!m || !Room.isIn) return;
+  m.classList.remove('hidden');
+  syncRoomChat(Room.state);
+  const input = document.getElementById('chat-input');
+  if (input) setTimeout(() => input.focus(), 50);
+}
+function closeRoomChat() {
+  closeModal('chat-modal');
+  syncRoomChat(Room.state);
+}
+
+async function sendRoomChat() {
+  const input = document.getElementById('chat-input');
+  const text = (input && input.value || '').trim();
+  if (!text) return;
+  try {
+    await Room.act('chat', { text: text });
+    if (input) { input.value = ''; input.focus(); }
+    playSound('tick');
+  } catch (e) {
+    showToast(e.message || '', 'error');
+  }
+}
+
+Room.onChange((state) => syncRoomChat(state));
 </script>
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>

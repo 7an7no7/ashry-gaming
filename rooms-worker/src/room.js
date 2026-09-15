@@ -138,6 +138,7 @@ export class Room extends DurableObject {
       screens: screens.map((s) => ({ id: s.id, online: online.has(s.id) })),
       youAreScreen: isScreen,
       shared: room.shared || {},
+      chat: room.chat || [],
       // A screen faces everyone, so it never receives a secret.
       you: isScreen ? null : ((room.secrets && room.secrets[pid]) || null),
       // False for someone who joined after this game was dealt.

@@ -1,0 +1,91 @@
+<script>
+/* ============================================================================
+   ROOM CHAT — short messages between the phones
+   ----------------------------------------------------------------------------
+   For a table that isn't at one table. The messages live on the room, outside
+   any game (`chat` in the projection; the `chat` action in applyRoomAction),
+   so they survive the hub and every deal. A 💬 button sits on the room screens
+   with a badge for what you haven't read; a message that arrives while the
+   sheet is closed shows as a toast. The TV never shows it.
+   ========================================================================= */
+
+const roomChat = { seen: 0, notified: 0, inRoom: false };
+
+const roomChatOpen = () => {
+  const m = document.getElementById('chat-modal');
+  return !!m && !m.classList.contains('hidden');
+};
+
+function roomChatTime(at) {
+  try { return new Date(at).toLocaleTimeString(appState.lang === 'ar' ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
+}
+
+function renderRoomChat(state) {
+  const list = document.getElementById('chat-list');
+  if (!list) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const msgs = (state && state.chat) || [];
+  list.innerHTML = msgs.length
+    ? msgs.map(m => `
+        <div class="chat-msg ${m.from === Room.me ? 'is-mine' : ''}">
+          <div class="chat-msg__meta">${escapeHTML(m.name || '')} · <span class="metric">${roomChatTime(m.at)}</span></div>
+          <div class="chat-msg__text">${escapeHTML(m.text || '')}</div>
+        </div>`).join('')
+    : `<div class="empty"><span class="empty__icon" aria-hidden="true">💬</span>${escapeHTML(t.chat_empty || '')}</div>`;
+  list.scrollTop = list.scrollHeight;
+}
+
+/** Runs on every room state: the badge, the open sheet, and a toast for a message that just came in. */
+function syncRoomChat(state) {
+  const inRoom = !!(state && Room.isIn && !state.youAreScreen);
+  document.body.classList.toggle('has-chat', inRoom);
+  const msgs = (state && state.chat) || [];
+  const last = msgs.length ? msgs[msgs.length - 1] : null;
+  if (!inRoom) { roomChat.inRoom = false; roomChat.seen = 0; roomChat.notified = 0; return; }
+  if (!roomChat.inRoom) {
+    // Just arrived: what is already here is history, not news.
+    roomChat.inRoom = true;
+    roomChat.seen = last ? last.id : 0;
+    roomChat.notified = roomChat.seen;
+  }
+  if (roomChatOpen()) {
+    renderRoomChat(state);
+    if (last) roomChat.seen = last.id;
+  } else if (last && last.id > roomChat.notified && last.from !== Room.me) {
+    showToast('💬 ' + (last.name || '') + ': ' + String(last.text || '').slice(0, 80));
+    playSound('tick');
+  }
+  if (last) roomChat.notified = Math.max(roomChat.notified, last.id);
+  const unread = msgs.filter(m => m.id > roomChat.seen && m.from !== Room.me).length;
+  const badge = document.getElementById('chat-fab-badge');
+  if (badge) { badge.textContent = unread ? String(unread) : ''; badge.hidden = !unread; }
+}
+
+function openRoomChat() {
+  const m = document.getElementById('chat-modal');
+  if (!m || !Room.isIn) return;
+  m.classList.remove('hidden');
+  syncRoomChat(Room.state);
+  const input = document.getElementById('chat-input');
+  if (input) setTimeout(() => input.focus(), 50);
+}
+function closeRoomChat() {
+  closeModal('chat-modal');
+  syncRoomChat(Room.state);
+}
+
+async function sendRoomChat() {
+  const input = document.getElementById('chat-input');
+  const text = (input && input.value || '').trim();
+  if (!text) return;
+  try {
+    await Room.act('chat', { text: text });
+    if (input) { input.value = ''; input.focus(); }
+    playSound('tick');
+  } catch (e) {
+    showToast(e.message || '', 'error');
+  }
+}
+
+Room.onChange((state) => syncRoomChat(state));
+</script>

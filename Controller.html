@@ -75,9 +75,13 @@
           <span class="chev" aria-hidden="true">‹</span>
         </button>
         <h1 id="app-title" class="shell__title"><svg class="mark mark--title" aria-hidden="true"><use href="#ashry-mark"/></svg><span id="app-title-icon" class="shell__title-icon" aria-hidden="true"></span><span id="app-title-text">عشرى جيمينج</span></h1>
-        <button id="nav-settings" class="iconbtn iconbtn--plain" onclick="openSettings()" aria-label="الإعدادات">
-          <span aria-hidden="true">⚙️</span>
-        </button>
+        <div class="shell__tools">
+          <button type="button" id="chat-fab" class="iconbtn iconbtn--plain chat-fab" onclick="openRoomChat()" aria-label="💬" title="💬">💬<span id="chat-fab-badge" class="chat-fab__badge" hidden></span></button>
+          <button type="button" id="fx-fab" class="iconbtn iconbtn--plain fx-fab" onclick="openSoundboard()" aria-label="🔊" title="🔊">🔊</button>
+          <button id="nav-settings" class="iconbtn iconbtn--plain" onclick="openSettings()" aria-label="الإعدادات">
+            <span aria-hidden="true">⚙️</span>
+          </button>
+        </div>
       </header>
 
       <!-- ACTIVE ROOM BANNER -->
@@ -1133,7 +1137,22 @@
       </div>
     </div>
 
-    <button type="button" id="fx-fab" class="fx-fab" onclick="openSoundboard()" aria-label="🔊" title="🔊">🔊</button>
+    <div id="chat-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="sheet__header">
+          <div class="sheet__title" data-i18n="chat_title">شات الغرفة</div>
+          <div class="sheet__subtitle" data-i18n="chat_hint">للي بيلعبوا من بعيد. الكل في الغرفة بيشوفه.</div>
+        </div>
+        <div class="sheet__body" id="chat-list"></div>
+        <div class="sheet__footer">
+          <div class="input-group">
+            <input type="text" id="chat-input" maxlength="200" autocomplete="off" data-i18n-ph="chat_ph" placeholder="اكتب رسالة…" onkeydown="if(event.key==='Enter') sendRoomChat()">
+            <button type="button" class="btn btn--primary" onclick="sendRoomChat()" data-i18n="send">إرسال</button>
+          </div>
+          <button class="btn btn--ghost" onclick="closeRoomChat()" data-i18n="close">إغلاق</button>
+        </div>
+      </div>
+    </div>
     <div id="soundboard-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
         <div class="sheet__title" id="soundboard-title">لوحة الأصوات</div>
@@ -2391,6 +2410,7 @@
     <?!= include('JS_RoomTelephone'); ?>
     <?!= include('JS_Sounds'); ?>
     <?!= include('JS_RoomMonkey'); ?>
+    <?!= include('JS_RoomChat'); ?>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- QR for room join links. Optional: the 4-letter code is always shown too. -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>

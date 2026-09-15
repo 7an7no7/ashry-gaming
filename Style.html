@@ -315,7 +315,7 @@ p { margin: 0; }
 /* --- Header --- */
 .shell__header {
   display: grid;
-  grid-template-columns: var(--tap) 1fr var(--tap);
+  grid-template-columns: minmax(auto, 1fr) auto minmax(auto, 1fr);
   align-items: center;
   gap: var(--sp-2);
   min-height: var(--header-h);
@@ -344,6 +344,8 @@ p { margin: 0; }
 
 /* The title cross-fades on navigation so it doesn't pop. */
 .shell__title.is-swapping { opacity: 0; }
+#nav-back { grid-column: 1; justify-self: start; }
+.shell__tools { grid-column: 3; justify-self: end; display: flex; align-items: center; }
 
 /* --- Active Room Banner --- */
 .active-room-banner {
@@ -5229,25 +5231,11 @@ body.dark .home-hero {
 .fx-btn__emoji { font-size: 1.6rem; line-height: 1; }
 .fx-btn__name { font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
 /* The 🔊 button: on play and room screens only, out of the way of the nav. */
-.fx-fab {
-  position: fixed;
-  inset-inline-end: calc(var(--sp-3) + var(--safe-right));
-  bottom: calc(var(--nav-h) + var(--sp-3) + var(--safe-bottom));
-  z-index: 30;
-  width: 2.75rem; height: 2.75rem;
-  display: none; align-items: center; justify-content: center;
-  border: 1px solid var(--border); border-radius: 50%;
-  background: var(--surface); color: var(--text);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--sh-3);
-  font-size: 1.15rem; cursor: pointer;
-  opacity: 0.85;
-  transition: transform var(--dur-1) var(--ease-out), opacity var(--dur-2) var(--ease-out);
-}
-.fx-fab:active { transform: scale(0.92); opacity: 1; }
-body.has-fx:not(.is-tv-view) .fx-fab { display: flex; }
-@media (max-width: 899px) and (min-height: 501px) { .fx-fab { bottom: calc(var(--nav-h) + var(--sp-4) + var(--safe-bottom)); } }
-@media (orientation: landscape) and (max-height: 500px) { .fx-fab { bottom: calc(var(--sp-3) + var(--safe-bottom)); } }
+/* The sound and chat buttons sit in the header beside the gear (they used to
+   float over the page, where they covered the drawing tools). */
+.fx-fab, .chat-fab { display: none; position: relative; width: 2.25rem; font-size: 1.05rem; }
+body.has-fx:not(.is-tv-view) .fx-fab { display: inline-flex; }
+body.has-fx.has-chat:not(.is-tv-view) .chat-fab { display: inline-flex; }
 
 
 /* --- ربع قرد ------------------------------------------------------------------- */
@@ -5273,5 +5261,45 @@ body.has-fx:not(.is-tv-view) .fx-fab { display: flex; }
 .mk-used { justify-content: center; margin-top: var(--sp-3); }
 .mk-word--tv { gap: 1vmin; margin: 2vmin 0; min-height: 12vmin; }
 .mk-word--tv .mk-letter { width: 9vmin; height: 11vmin; font-size: 6vmin; border-radius: 1.5vmin; }
+
+
+/* --- Drawing tools, the palette and the near-miss --------------------------- */
+.draw-tools__row--palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(2.3rem, 1fr)); gap: 3px; }
+.draw-tools__row--palette .draw-swatch { width: auto; height: auto; aspect-ratio: 1; max-width: 3rem; }
+.draw-tools__row--palette .draw-swatch.is-active { transform: scale(1.1); }
+/* Thicknesses, then undo, redo and clear: seven buttons in one row on a phone. */
+.draw-tools__row--acts { gap: 0.3rem; }
+.draw-tools__row--acts .draw-width, .draw-tools__row--acts .draw-tool { width: 2.5rem; height: 2.5rem; }
+.draw-swatch--custom {
+  position: relative; overflow: hidden;
+  background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444);
+}
+.draw-swatch--custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.draw-hint { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); margin-bottom: var(--sp-2); }
+.draw-hint__slots { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem; }
+.draw-hint__slot { display: block; width: 0.9rem; height: 0.9rem; border-bottom: 3px solid var(--accent); }
+.draw-hint__gap { display: block; width: 0.75rem; }
+.tv-panel .draw-hint { margin-top: 1.5vmin; }
+.tv-panel .draw-hint__slot { width: 2.2vmin; height: 2.2vmin; border-bottom-width: 0.5vmin; }
+.tv-panel .draw-hint__gap { width: 1.8vmin; }
+.draw-guess.is-close { background: var(--warning-soft); }
+.draw-guess__close { font-size: var(--fs-xs); font-weight: 800; color: var(--warning-ink); }
+
+/* --- Room chat -------------------------------------------------------------- */
+.chat-fab__badge {
+  position: absolute; top: 2px; inset-inline-end: 0;
+  min-width: 1.05rem; height: 1.05rem; padding: 0 3px;
+  display: grid; place-items: center;
+  border-radius: var(--r-full);
+  background: var(--danger); color: #ffffff;
+  font-size: 0.6rem; font-weight: 900; line-height: 1;
+}
+.chat-fab__badge[hidden] { display: none; }
+#chat-list { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); min-height: min(14rem, 35vh); }
+.chat-msg { max-width: 85%; align-self: flex-start; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); text-align: start; }
+.chat-msg.is-mine { align-self: flex-end; background: var(--accent-soft); }
+.chat-msg__meta { margin-bottom: 2px; font-size: var(--fs-xs); font-weight: 700; color: var(--text-3); }
+.chat-msg__text { font-size: var(--fs-sm); font-weight: 600; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+#chat-modal .sheet__footer { display: flex; flex-direction: column; gap: var(--sp-2); }
 
 </style>

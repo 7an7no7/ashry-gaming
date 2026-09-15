@@ -171,6 +171,17 @@ async function main() {
   const httpAct = await api('/act', { code: A.code, pid: A.pid, key: A.key, action: 'chooseGame', payload: { game: 'imposter' } });
   check(httpAct.ok && httpAct.state.game === 'imposter', 'a move over HTTP works');
 
+  /* --- the chat ------------------------------------------------------------------- */
+  console.log('• chat');
+  await A.must('chat', { text: 'أهلا يا جماعة' });
+  await all(bots, (s) => s.chat && s.chat.length === 1 && s.chat[0].text === 'أهلا يا جماعة' && s.chat[0].name === A.name, 'a message reaches every phone with its sender');
+  await B.must('chat', { text: 'x'.repeat(300) });
+  await all(bots, (s) => s.chat.length === 2 && s.chat[1].text.length === 200, 'a message is cut at 200 characters');
+  check((await C.act('chat', { text: '   ' })).ok === false, 'an empty message is refused');
+  let refused = false;
+  for (let i = 0; i < 6; i++) { const r = await D.act('chat', { text: 'spam ' + i }); if (!r.ok) refused = true; }
+  check(refused, 'the sixth message in five seconds is refused');
+
   /* --- الجاسوس ------------------------------------------------------------ */
   console.log('• imposter');
   await all(bots, (s) => s.game === 'imposter', 'imposter chosen');
@@ -520,6 +531,7 @@ async function main() {
   const viewers = bots.filter((b) => b !== drawer);
   const drawWord = drawer.state.you.word;
   check(drawWord && viewers.every((b) => !leaks(b, drawWord)), "only the drawer's phone gets the word");
+  check(viewers.every((b) => b.state.shared.hint && b.state.shared.hint.replace(/[_ ]/g, '') === ''), "guessers get the word's shape, never a letter of it");
   for (let i = 0; i < 5; i++) {
     await drawer.must('addStrokes', { strokes: [{ c: '#111111', w: 4, p: [i, i, i + 40, i + 40] }] });
   }
@@ -537,6 +549,11 @@ async function main() {
   late.close();
   await viewers[1].connect();
   await viewers[0].must('guess', { guess: 'غلط' });
+  await all(viewers, (s) => s.shared.guesses.length === 1 && !s.shared.guesses[0].right, 'a wrong guess is not right');
+  if (drawWord.length >= 3) {
+    await viewers[0].must('guess', { guess: drawWord + 'ا' });
+    await all(viewers, (s) => s.shared.guesses.length === 2 && s.shared.guesses[1].close === true, 'a near miss is marked close');
+  }
   await viewers[0].must('guess', { guess: drawWord });
   await all(bots, (s) => s.phase === 'result' && s.shared.word === drawWord, 'a right guess ends the round');
   check(A.state.shared.scores[viewers[0].pid] === 2 && A.state.shared.scores[drawer.pid] === 1, 'guesser and drawer score');

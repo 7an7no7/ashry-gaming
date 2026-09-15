@@ -785,6 +785,15 @@
       mk_words_said: "اللي اتقال",
       mk_winners: "الفائزون",
       mk_log: "اللي اتقال 📝",
+      draw_redo: "إعادة",
+      draw_colours: "الألوان",
+      draw_custom_colour: "لون تاني",
+      draw_hint_label: "الكلمة",
+      draw_close: "قريب!",
+      chat_title: "شات الغرفة",
+      chat_hint: "للي بيلعبوا من بعيد. الكل في الغرفة بيشوفه.",
+      chat_ph: "اكتب رسالة…",
+      chat_empty: "مفيش رسايل لسه. ابدأ إنت!",
       cham_online_desc: "الكلمات الـ16 على كل موبايل وعلى التلفزيون، وكل واحد يشوف كلمته السرية على موبايله من غير تمرير. التصويت من الموبايلات.",
       cham_room_hint: "الكل يشوف نفس الـ16 كلمة. كل واحد يشوف الكلمة السرية على موبايله إلا الحرباء. قولوا كلمة بالدور، وبعدين المضيف يفتح التصويت.",
       cham_you_are: "أنت الحرباء!",
@@ -1723,6 +1732,15 @@
       mk_words_said: "What was said",
       mk_winners: "Winners",
       mk_log: "What was said 📝",
+      draw_redo: "Redo",
+      draw_colours: "Colours",
+      draw_custom_colour: "Another colour",
+      draw_hint_label: "The word",
+      draw_close: "Close!",
+      chat_title: "Room chat",
+      chat_hint: "For the ones playing from afar. Everyone in the room sees it.",
+      chat_ph: "Type a message…",
+      chat_empty: "No messages yet. Say hi!",
       cham_online_desc: "The 16 words on every phone and the TV; each player sees their secret word on their own phone, no passing. Voting from the phones.",
       cham_room_hint: "Everyone sees the same 16 words. Each phone marks the secret one, except the chameleon's. Give a clue each in turn, then the host opens the vote.",
       cham_you_are: "You are the chameleon!",
@@ -2759,6 +2777,8 @@
     // 520px phone column.
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(appState.currentView) !== -1);
     document.body.classList.toggle('is-tv-view', appState.currentView === 'room-tv');
+    // A room screen restored after a reload is not reached through setView.
+    if (typeof syncFxButton === 'function') syncFxButton(appState.currentView);
     
     const viewEl = document.getElementById('view-' + appState.currentView);
     
@@ -3351,6 +3371,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>لو خرجت من الغرفة لشاشة تانية، شريط أخضر فوق بيرجّعك لها، وتبويب <b>مع بعض</b> كمان.</li>
                 <li>أي لعبة على كارتها علامة 📲 بتتلعب في الغرف، و📺 يعني ليها شاشة للتلفزيون.</li>
+                <li>💬 زر الشات على شاشات الغرفة: رسايل قصيرة بين اللاعبين، للي بيلعبوا من بعيد. اللي يوصلك وانت في شاشة تانية بيظهر في إشعار.</li>
             </ul>`,
         tv: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -3520,6 +3541,8 @@ const GAME_RULES = {
                 <li>واحد يرسم على موبايله، والباقي يشوفوا الرسمة وهي بتتكون ويكتبوا تخمينهم.</li>
                 <li>الكلمة تظهر للرسام بس. ممنوع الكتابة أو الأرقام.</li>
                 <li>الإملاء مش فارقة في التخمين: أسد واسد والأسد كلهم صح.</li>
+                <li>اللي بيخمنوا شايفين شكل الكلمة (شرطة لكل حرف)، ولما تخمينك يبقى قريب التطبيق يقولك 🔥 قريب.</li>
+                <li>أدوات الرسام: قلم، خط، مستطيل، دايرة، دلو تلوين، ممحاة، 15 لون ولون من اختيارك، 4 سماكات، تراجع وإعادة. على اللابتوب Ctrl+Z وCtrl+Y.</li>
                 <li>أول واحد يكتب التخمين الصح ياخد نقطتين، والرسام ياخد نقطة. لو محدش عرفها في الوقت، الكلمة تتكشف.</li>
                 <li>المضيف يختار طول الجولة (من 60 لـ 180 ثانية).</li>
             </ol>
@@ -3764,6 +3787,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>If you leave the room for another screen, the green bar at the top takes you back, and so does the <b>Together</b> tab.</li>
                 <li>A 📲 on a game's card means it plays in rooms; 📺 means it has a TV layout.</li>
+                <li>💬 The chat button on the room screens: short messages between players, for those playing from afar. A message that arrives while you are on another screen shows as a notice.</li>
             </ul>`,
         tv: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -3933,6 +3957,8 @@ const GAME_RULES = {
                 <li>One player draws on their phone; everyone else watches it appear and types their guess.</li>
                 <li>Only the drawer sees the word. No letters or numbers.</li>
                 <li>Spelling doesn't matter in a guess: أسد, اسد and الأسد all count.</li>
+                <li>Guessers see the word's shape (a dash per letter), and a near miss gets a 🔥 Close!</li>
+                <li>The drawer's tools: pen, line, rectangle, circle, fill, eraser, 15 colours and one of your own, 4 thicknesses, undo and redo. On a laptop, Ctrl+Z and Ctrl+Y.</li>
                 <li>The first right guess scores two points and the drawer one. If nobody gets it in time, the word is revealed.</li>
                 <li>The host picks the round length (60 to 180 seconds).</li>
             </ol>

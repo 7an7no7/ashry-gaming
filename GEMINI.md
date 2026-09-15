@@ -354,8 +354,11 @@ spy may also `spyGuess` at any time during `play`. The Spyfall clock is a
 server deadline that opens the vote by itself. The bomb's fuse is
 `room._bombEndsAt`, never projected: phones get `shared.heat` (0-3), bumped by
 the alarm at 40%, 65% and 85% of the fuse, and tick faster with it
-(`BOMB_TICK_MS`); the alarm sets it off, then the host marks who was holding
-it (`markLoser`) and the strikes are the board, fewest first. `swap` deals a
+(`BOMB_TICK_MS`); the bomb itself is on one phone at a time (`shared.holderId`, moved along
+`shared.order` by the holder's `pass`), so when the alarm sets it off the
+server strikes the holder itself (`explodeBomb`); `markLoser` lets the host
+move that strike, and the loser starts the next round. Only the holder's
+phone and the TV tick out loud. The strikes are the board, fewest first. `swap` deals a
 new category, so it is in `DEAL_ACTIONS` in `room.js`. The three phone
 renderers carry their own `TV_GAMES` entries (`JS_RoomChameleon.html`,
 `JS_RoomSpyfall.html`, `JS_RoomBomb.html`).

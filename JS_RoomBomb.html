@@ -2,14 +2,15 @@
 /* ============================================================================
    القنبلة — ON THE TV (and every phone)
    ----------------------------------------------------------------------------
-   The category is on the big screen and on every phone; the bomb itself is
-   whatever the table passes round. The fuse is a server clock nobody can
-   read: phones get `heat` (0-3) and tick faster with it, and the server
-   says when it goes off. Then the host marks who was holding it, and the
-   strikes are the board. Rules: bombRoomAction in RoomGames.js.
+   The category is on the big screen and on every phone, and the bomb is on
+   one phone at a time: the holder's phone ticks and carries the pass button,
+   the others show who has it. The fuse is a server clock nobody can read:
+   phones get `heat` (0-3) and tick faster with it, and the server says when
+   it goes off - in whoever's hands it is. The strikes are the board. Rules:
+   bombRoomAction in RoomGames.js.
    ========================================================================= */
 
-const bombRoom = { tickTimer: null, tickingKey: '' };
+const bombRoom = { tickTimer: null, tickingKey: '', fixing: false };
 const BOMB_ROOM_OPTS_KEY = 'ashryBombRoomOpts';
 const BOMB_TICK_MS = [1000, 700, 450, 250];   // by heat
 
@@ -66,7 +67,7 @@ ROOM_GAMES.bomb = {
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
-    const sig = ['bomb', s.phase, s.round, s.prompt, s.heat, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang].join('|');
+    const sig = ['bomb', s.phase, s.round, s.prompt, s.heat, s.holderId, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang, bombRoom.fixing].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => bombRoomFrame(state, t));
     refreshRoomPlayerStrip(el, state);
     bombRoomTicking(state, rebuilt);
@@ -109,39 +110,68 @@ function bombStrikesHtml(s, t) {
     </div>`;
 }
 
+/** Who has the bomb, as a row of the seating order with the holder lit. */
+function bombOrderHtml(s, state) {
+  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+  return `
+    <div class="chip-set bomb-order">
+      ${(s.order || []).filter(id => state.players.some(p => p.id === id)).map(id => `
+        <span class="chip ${id === s.holderId ? 'bomb-order__holder' : 'chip--plain'}">${id === s.holderId ? '💣 ' : ''}${escapeHTML(nameOf(id))}</span>`).join('')}
+    </div>`;
+}
+
 function bombRoomFrame(state, t) {
   const s = state.shared;
-  const head = `<div class="play-head"><span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span></div>`;
+  const iHold = s.holderId === Room.me;
+  const head = `<div class="play-head"><span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
+    ${s.phase === 'ticking' ? `<span class="badge ${iHold ? 'badge--danger' : ''}">💣 ${escapeHTML(iHold ? (t.bomb_room_yours || '') : (s.holderName || ''))}</span>` : ''}</div>`;
   if (s.phase === 'ticking') {
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
     return head + bombRoomCardHtml(s, t) + `
-      ${state.youAreHost
+      ${iHold
         ? `<div class="btn-stack">
-             <button class="btn btn--secondary" onclick="roomAct('swap')">${escapeHTML(t.bomb_swap || '')}</button>
+             <button class="btn btn--danger btn--lg bomb-pass" onclick="passBomb(this)">${escapeHTML(t.bomb_room_pass || '')} ➡</button>
+             <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_room_pass_hint || '')}</p>
+           </div>`
+        : (inRound ? `<div class="waiting-note">${escapeHTML((t.bomb_room_with || '').replace('{name}', s.holderName || ''))}</div>` : '')}
+      ${bombOrderHtml(s, state)}
+      ${state.youAreHost
+        ? `<div class="btn-row" style="margin-top: var(--sp-3)">
+             <button class="btn btn--secondary btn--sm" onclick="roomAct('swap')">${escapeHTML(t.bomb_swap || '')}</button>
              <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
            </div>`
         : ''}
       ${bombStrikesHtml(s, t)}
       ${renderRoomPlayerStrip(state)}`;
   }
-  // boom
-  const marking = state.youAreHost && !s.loserId;
+  // boom: the server already knows who was holding it; the host can correct.
   return head + bombRoomCardHtml(s, t) + `
-    ${marking ? `
-      <div class="card card--tight">
-        <div class="eyebrow">${escapeHTML(t.bomb_room_who || '')}</div>
-        <div class="btn-stack">
-          ${state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1).map(p => `
-            <button class="btn btn--neutral" onclick="roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })">${escapeHTML(p.name)}</button>`).join('')}
-        </div>
-      </div>` : ''}
     ${state.youAreHost
       ? `<div class="btn-stack">
            <button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { lang: '${VOTE_LANG()}' })">${escapeHTML(t.bomb_next_round || '')}</button>
-           <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+           <div class="btn-row">
+             <button class="btn btn--ghost btn--sm" onclick="bombRoom.fixing = !bombRoom.fixing; ROOM_GAMES.bomb.render(Room.state)">${escapeHTML(bombRoom.fixing ? (t.cancel || '') : (t.bomb_room_fix || ''))}</button>
+             <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+           </div>
+           ${bombRoom.fixing ? `
+             <div class="card card--tight">
+               <div class="eyebrow">${escapeHTML(t.bomb_room_who || '')}</div>
+               <div class="btn-stack">
+                 ${state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1).map(p => `
+                   <button class="btn btn--neutral ${p.id === s.loserId ? 'is-active' : ''}" onclick="bombRoom.fixing = false; roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })">${escapeHTML(p.name)}</button>`).join('')}
+               </div>
+             </div>` : ''}
          </div>`
       : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
     ${bombStrikesHtml(s, t)}
     ${renderRoomPlayerStrip(state)}`;
+}
+
+/** The press has to feel instant: the button locks before the server answers. */
+function passBomb(btn) {
+  if (btn) btn.disabled = true;
+  haptic('medium');
+  roomAct('pass');
 }
 
 /** The ticking: faster with every heat step the server sends. */
@@ -159,7 +189,7 @@ function bombRoomTicking(state, rebuilt) {
   const tick = () => {
     const st = Room.state;
     if (!st || st.shared.phase !== 'ticking' || state.code + '#' + st.shared.round + '#' + st.shared.heat !== bombRoom.tickingKey) return;
-    playSound('tick');
+    if (st.youAreScreen || st.shared.holderId === Room.me) playSound('tick');
     const card = document.getElementById('bomb-card');
     if (card) { card.classList.remove('is-tick'); void card.offsetWidth; card.classList.add('is-tick'); }
     bombRoom.tickTimer = setTimeout(tick, BOMB_TICK_MS[Math.min(3, st.shared.heat || 0)]);
@@ -171,15 +201,18 @@ function bombRoomTicking(state, rebuilt) {
 TV_GAMES.bomb = {
   sig(state) {
     const s = state.shared || {};
-    return [s.phase, s.round, s.prompt, s.heat, s.loserId, JSON.stringify(s.strikes || {})].join('|');
+    return [s.phase, s.round, s.prompt, s.heat, s.holderId, s.loserId, JSON.stringify(s.strikes || {})].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};
     const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>`;
+    const holder = s.phase === 'ticking'
+      ? `<div class="tv-question">💣 ${escapeHTML((t.bomb_room_with || '').replace('{name}', s.holderName || ''))}</div>`
+      : '';
     const host = !state.youAreHost ? '' : (s.phase === 'ticking'
       ? `<div class="tv-actions">${tvBtn(t.bomb_swap, "roomAct('swap')", 'secondary')}</div>`
-      : `<div class="tv-actions">${!s.loserId ? state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1).map(p => tvBtn(p.name, `roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })`, 'neutral')).join('') : ''}${tvBtn(t.bomb_next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}</div>`);
-    return `<div class="tv-vote">${head}<div class="tv-bomb tv-scale">${bombRoomCardHtml(s, t)}</div>${host}<div class="tv-scale">${bombStrikesHtml(s, t)}</div></div>`;
+      : `<div class="tv-actions">${tvBtn(t.bomb_next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1 && p.id !== s.loserId).map(p => tvBtn('↩ ' + p.name, `roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })`, 'ghost')).join('')}</div>`);
+    return `<div class="tv-vote">${head}${holder}<div class="tv-bomb tv-scale">${bombRoomCardHtml(s, t)}</div><div class="tv-strip-inline">${bombOrderHtml(s, state).replace('chip-set bomb-order', 'tv-order')}</div>${host}<div class="tv-scale">${bombStrikesHtml(s, t)}</div></div>`;
   },
   after(state, rebuilt) { bombRoomTicking(state, rebuilt); }
 };

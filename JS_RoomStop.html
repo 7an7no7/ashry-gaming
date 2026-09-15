@@ -12,7 +12,7 @@
    redrawn - the inputs are gone once the frame is rebuilt.
    ========================================================================= */
 
-const stopRoom = { sentFor: '', clock: null, clockKey: null, fired: false };
+const stopRoom = { sentFor: '', clock: null, clockKey: null, fired: false, letterKey: '' };
 const STOP_ROOM_OPTS_KEY = 'ashryStopRoomOpts';
 
 /** The host's options, remembered on this phone between evenings. */
@@ -102,6 +102,8 @@ ROOM_GAMES.stop = {
                  s.phase === 'done' ? JSON.stringify(s.board) : ''].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => stopRoomFrame(state, t, inRound, iSubmitted));
     if (rebuilt && s.phase === 'done' && typeof confetti === 'function') confetti({ particleCount: 160, spread: 80 });
+    // A new letter: a cue, so a table looking at its papers looks up.
+    if (s.phase === 'writing' && stopRoom.letterKey !== roundKey) { stopRoom.letterKey = roundKey; playSound('success'); haptic('light'); }
     refreshRoomPlayerStrip(el, state);
 
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();

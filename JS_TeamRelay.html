@@ -37,7 +37,7 @@ function relayHandoverHtml(store, t, startFn) {
     </div>`;
 }
 
-/** After a turn: what this team scored, and on to the next one or the final board. */
+/** After a turn: what this team scored, whose turn is next, and the button that starts it. */
 function relayTurnDone(store, points) {
   const r = store.relay;
   const team = relayTeam(store);
@@ -66,15 +66,21 @@ function relaySummaryHtml(store, t, nextFn, exitFn) {
         <button type="button" class="btn btn--ghost" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
       </div>`;
   }
+  const team = relayTeam(store);
+  const turnNo = Math.floor(r.i / 2) + 1;
   return `
     <div class="relay">
-      <div class="relay__result">
-        <div class="eyebrow">${escapeHTML(t.relay_turn_done || '')}</div>
-        <div class="relay__team relay__team--${last.team}">${escapeHTML(r.names[last.team])}</div>
-        <div class="metric metric--lg tx-success">+${last.points}</div>
+      <div class="relay__result relay__result--last">
+        <div class="eyebrow">${escapeHTML(t.relay_turn_done || '')} · ${escapeHTML(r.names[last.team])}</div>
+        <div class="metric metric--md tx-success">+${last.points}</div>
       </div>
-      ${relayScoresHtml(store, -1)}
-      <button type="button" class="btn btn--primary btn--lg" onclick="${nextFn}">${escapeHTML(t.relay_next_team || '')} ⏭</button>
+      ${relayScoresHtml(store, team)}
+      <div class="relay__pass">
+        <div class="eyebrow">${escapeHTML(t.relay_turn_of || '')} · ${turnNo} / ${r.turns}</div>
+        <div class="relay__team relay__team--${team}">${escapeHTML(r.names[team])}</div>
+        <p class="field__hint">📱 ${escapeHTML(t.relay_pass_to || '')} ${escapeHTML(r.names[team])}</p>
+      </div>
+      <button type="button" class="btn btn--primary btn--lg" onclick="${nextFn}">${escapeHTML(t.relay_start_turn || '')}</button>
       <button type="button" class="btn btn--ghost btn--sm" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
     </div>`;
 }

@@ -473,17 +473,26 @@ async function main() {
   console.log('• bomb (waits for a short fuse on the server clock)');
   await A.must('chooseGame', { game: 'bomb' });
   await A.must('start', { lang: 'ar', mode: 'category', fuse: 'short' });
-  await all(bots, (s) => s.shared.phase === 'ticking' && !!s.shared.prompt && s.shared.heat === 0, 'the bomb starts ticking');
+  await all(bots, (s) => s.shared.phase === 'ticking' && !!s.shared.prompt && s.shared.heat === 0 && s.shared.order.length === 4 && !!s.shared.holderId, 'the bomb starts ticking in someone\'s hands');
   check(!JSON.stringify(A.state).includes('bombEndsAt'), 'the fuse length stays on the server');
   const prompt0 = A.state.shared.prompt;
   await A.must('swap');
   await all(bots, (s) => s.shared.prompt !== prompt0, 'the host can swap the category');
+  const holder0 = byId(bots, A.state.shared.holderId);
+  const notHolder = bots.find((b) => b !== holder0);
+  check((await notHolder.act('pass')).ok === false, 'only the holder can pass the bomb');
+  await holder0.must('pass');
+  const order = A.state.shared.order;
+  const expectedNext = order[(order.indexOf(holder0.pid) + 1) % order.length];
+  await all(bots, (s) => s.shared.holderId === expectedNext && s.shared.passes === 1, 'a pass moves the bomb to the next in order');
   await all(bots, (s) => s.shared.heat >= 1, 'the server raises the heat as the fuse burns', 20000);
-  await all(bots, (s) => s.shared.phase === 'boom', 'the server sets it off', 35000);
-  await A.must('markLoser', { playerId: B.pid });
-  await all(bots, (s) => s.shared.strikes[B.pid] === 1 && s.shared.loserId === B.pid && s.shared.board[s.shared.board.length - 1].id === B.pid, 'the host marks who was holding it');
+  await all(bots, (s) => s.shared.phase === 'boom' && s.shared.loserId === s.shared.holderId && s.shared.strikes[s.shared.holderId] === 1, 'the server sets it off in the holder\'s hands', 35000);
+  const loser0 = A.state.shared.loserId;
+  const other = bots.find((b) => b.pid !== loser0);
+  await A.must('markLoser', { playerId: other.pid });
+  await all(bots, (s) => s.shared.loserId === other.pid && s.shared.strikes[other.pid] === 1 && !s.shared.strikes[loser0], 'the host can move the strike to someone else');
   await A.must('nextRound', { lang: 'ar' });
-  await all(bots, (s) => s.shared.phase === 'ticking' && s.shared.round === 2 && s.shared.strikes[B.pid] === 1, 'next round keeps the strikes');
+  await all(bots, (s) => s.shared.phase === 'ticking' && s.shared.round === 2 && s.shared.strikes[other.pid] === 1 && s.shared.holderId === other.pid, 'next round keeps the strikes and the loser starts');
   await A.must('backToHub');
 
   /* --- رسم وتخمين ----------------------------------------------------------- */

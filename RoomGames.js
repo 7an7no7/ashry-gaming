@@ -645,12 +645,14 @@ const finishSpyfall = (room, outcome, guess, spyId) => {
 
 /* ==========================================================================
    القنبلة — PASS THE BOMB (rooms)
-   The category is on the big screen and on every phone; the phone (or any
-   object) is passed round the table as before. The fuse is a server clock
-   nobody can read: the deadline stays in room._bombEndsAt, and what phones
-   get is `heat` (0-3), bumped by the alarm at 40%, 65% and 85% of the fuse,
-   which is what makes the ticking speed up. When it goes off the host marks
-   who was holding it, and the strikes are the scoreboard - fewest wins.
+   The category is on the big screen and on every phone, and the bomb is on
+   one phone at a time: the holder says a word and presses pass, and it jumps
+   to the next player in `order`. The fuse is a server clock nobody can read:
+   the deadline stays in room._bombEndsAt, and what phones get is `heat`
+   (0-3), bumped by the alarm at 40%, 65% and 85% of the fuse, which is what
+   makes the ticking speed up. When it goes off the server knows who was
+   holding it, so the strike is automatic; the host can still correct it.
+   The strikes are the scoreboard - fewest wins.
    ========================================================================== */
 const BOMB_FUSES_ROOM = { short: [15, 30], normal: [25, 55], long: [40, 80] };
 const BOMB_HEAT_AT = [0.4, 0.65, 0.85];
@@ -684,18 +686,43 @@ const bombRoomAction = (room, playerId, action, payload) => {
     s.kind = next.kind;
     return;
   }
+  if (action === 'pass') {
+    // Only the holder passes, and only to the next player still in the room.
+    if (s.phase !== 'ticking') return;
+    if (playerId !== s.holderId) throw new Error('القنبلة مش معاك');
+    const present = s.order.filter(id => room.players.some(p => p.id === id));
+    if (present.length < 2) return;
+    const at = present.indexOf(s.holderId);
+    s.holderId = present[(at + 1) % present.length];
+    s.holderName = roomPlayerName(room, s.holderId);
+    s.passes = (s.passes || 0) + 1;
+    return;
+  }
   if (action === 'markLoser') {
+    // The host corrects who was holding it: the automatic strike moves.
     requireHost(room, playerId);
     if (s.phase !== 'boom') return;
     const id = String((payload && payload.playerId) || '');
     if (!room.players.some(p => p.id === id)) throw new Error('لاعب غير معروف');
-    s.strikes[id] = (s.strikes[id] || 0) + 1;
+    if (s.loserId && s.loserId !== id) s.strikes[s.loserId] = Math.max(0, (s.strikes[s.loserId] || 0) - 1);
+    if (s.loserId !== id) s.strikes[id] = (s.strikes[id] || 0) + 1;
     s.loserId = id;
     s.loserName = roomPlayerName(room, id);
     s.board = bombBoard(room);
     return;
   }
   throw new Error('إجراء غير معروف');
+};
+
+/** The bomb went off in the holder's hands. */
+const explodeBomb = (room) => {
+  const s = room.shared;
+  s.phase = 'boom';
+  const holder = s.holderId && room.players.some(p => p.id === s.holderId) ? s.holderId : null;
+  s.loserId = holder;
+  s.loserName = holder ? roomPlayerName(room, holder) : '';
+  if (holder) s.strikes[holder] = (s.strikes[holder] || 0) + 1;
+  s.board = bombBoard(room);
 };
 
 const bombPrompt = (room, lang, mode) => {
@@ -708,6 +735,13 @@ const dealBomb = (room, o) => {
   const range = BOMB_FUSES_ROOM[o.fuse] || BOMB_FUSES_ROOM.normal;
   const seconds = range[0] + Math.floor(Math.random() * (range[1] - range[0] + 1));
   const prompt = bombPrompt(room, o.lang, o.mode);
+  const prev = room.shared || {};
+  const roster = room.players.map(p => p.id);
+  // The seating order, kept from round to round so people don't shuffle;
+  // anyone new goes on the end. The last loser starts the next round.
+  const kept = (prev.order || []).filter(id => roster.indexOf(id) !== -1);
+  const order = kept.length >= 2 ? kept.concat(roster.filter(id => kept.indexOf(id) === -1)) : shuffled(roster);
+  const holder = prev.loserId && roster.indexOf(prev.loserId) !== -1 ? prev.loserId : order[Math.floor(Math.random() * order.length)];
   room._bombStart = Date.now();
   room._bombEndsAt = room._bombStart + seconds * 1000;
   room.secrets = {};
@@ -720,10 +754,14 @@ const dealBomb = (room, o) => {
     kind: prompt.kind,
     phase: 'ticking',
     heat: 0,
+    order: order,
+    holderId: holder,
+    holderName: roomPlayerName(room, holder),
+    passes: 0,
     strikes: o.strikes,
     loserId: null,
     loserName: '',
-    roster: room.players.map(p => p.id)
+    roster: roster
   };
   room.shared.board = bombBoard(room);
   room.phase = 'play';
@@ -2401,7 +2439,7 @@ const roomTimeout = (room, now) => {
   if (room.game === 'bomb') {
     const s = room.shared;
     if (s.phase !== 'ticking') return false;
-    if (now >= room._bombEndsAt) { s.phase = 'boom'; return true; }
+    if (now >= room._bombEndsAt) { explodeBomb(room); return true; }
     const total = room._bombEndsAt - room._bombStart;
     let bumped = false;
     while ((s.heat || 0) < BOMB_HEAT_AT.length && now >= room._bombStart + total * BOMB_HEAT_AT[s.heat || 0]) {

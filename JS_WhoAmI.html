@@ -956,14 +956,19 @@ function startWhoAmITimer() {
         paintDirector('whoami-director', appState.whoami, 'whoamiDirectorNext()');
     }
     
-    appState.whoami.timer = 120; 
+    // The clock the setup screen chose; 0 counts up instead, for a table
+    // that would rather not be hurried.
+    const chosen = Number(appState.whoami.timerChoice);
+    const seconds = [60, 120, 180, 0].indexOf(chosen) !== -1 ? chosen : 120;
+    appState.whoami.timer = seconds;
     appState.whoami.isPaused = false;
     updateWhoAmITimerDisplay();
-    
+
     if(appState.whoami.interval) appState.whoami.interval.stop();
 
     appState.whoami.interval = createClock({
-        seconds: 120,
+        countUp: seconds === 0,
+        seconds: seconds,
         onTick: (left) => {
             appState.whoami.timer = left;
             updateWhoAmITimerDisplay();
@@ -980,6 +985,13 @@ function startWhoAmITimer() {
 function whoamiDirectorNext() {
     directorNext(appState.whoami);
     paintDirector('whoami-director', appState.whoami, 'whoamiDirectorNext()');
+    haptic('light');
+}
+
+function setWhoAmITimer(seconds) {
+    appState.whoami.timerChoice = Number(seconds);
+    saveToLocal();
+    paintWhoAmISetup();
     haptic('light');
 }
 

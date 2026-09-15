@@ -263,7 +263,10 @@ change its mind. `openVote` takes an optional `ownerId` per option, which is how
 Fibbage stops you voting for your own lie.
 
 A vote closes on its own once every eligible player has voted, or when the host
-presses `closeVote`.
+presses `closeVote`. On the client, `renderBallot(state, opts)` draws the ballot
+*and* the host's close button in its progress row, so a game must not add a
+second one; a vote on people passes `{ ownLabel: t.vote_you }` so your own row
+says "you" rather than "your answer".
 
 **Draw & Guess strokes carry a tool letter.** `t` is absent for freehand — which
 is what every stroke made before the tools existed is, so old rooms replay
@@ -339,6 +342,17 @@ On a phone a tap marks the card and picks it. Revealing is a second, deliberate
 press (`cnLocal.pending`), so a mis-tap never costs the turn. The sides, the
 options and the score survive "play again" and a trip to the hub (`_teamsMemo`,
 `_cnMemo`).
+
+**الجاسوس in rooms** ends in a vote, like the Chameleon and Spyfall rooms:
+after the discussion the host opens it (`startVote`), nobody can accuse
+themselves, a tie lets the spy escape, and an accused spy picks the word from
+six (`shared.options`, the secret among five others of the same category).
+Caught and wrong, a point to every player; escaped or guessed, two to each spy.
+`revealResult` is the host's way out without a vote and scores nothing. The
+word is dealt through `nextPrompt`, and `restart` keeps the scores in
+`room._impScores`. **من أنا؟ in rooms** has `gotIt`: the first to press
+scores 3, the second 2, the rest 1 (`WHOAMI_ORDER_POINTS`), and the round
+reveals itself once everyone present has pressed.
 
 **الحرباء, الموقع السري and القنبلة in rooms** (`chameleonRoomAction`,
 `spyfallRoomAction`, `bombRoomAction`). The chameleon's board is public; each

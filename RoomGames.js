@@ -59,6 +59,11 @@ const clearGameState = (room) => {
   room._stopRound = null;
   room._chamSecret = null;
   room._chamId = null;
+  room._impSecret = null;
+  room._impSpies = null;
+  room._impWords = null;
+  room._impScores = null;
+  room._waScores = null;
   room._spyLoc = null;
   room._spyIds = null;
   room._bombStart = null;
@@ -876,6 +881,8 @@ const unlockedSpyWords = () => {
     .reduce((all, k) => all.concat(data[k]), []);
 };
 
+const IMPOSTER_GUESS_OPTIONS = 6;
+
 const imposterAction = (room, playerId, action, payload) => {
   if (action === 'start') {
     requireHost(room, playerId);
@@ -885,7 +892,8 @@ const imposterAction = (room, playerId, action, payload) => {
     const words = spyWords(category);
     if (!words.length) throw new Error('اختر مجموعة كلمات');
 
-    const secret = words[Math.floor(Math.random() * words.length)];
+    // Dealt through the shared memory, so an evening doesn't repeat itself.
+    const secret = nextPrompt(room, words, 'imp_' + category);
     const spyCount = Math.max(1, Math.min(Number(payload.spies) || 1, room.players.length - 2));
     const order = shuffled(room.players.map(p => p.id));
     const spies = order.slice(0, spyCount);
@@ -899,41 +907,122 @@ const imposterAction = (room, playerId, action, payload) => {
         category: category
       };
     });
+    room._impSecret = secret;
+    room._impSpies = spies;
+    room._impWords = words;
 
-    room.shared = { category: category, spyCount: spyCount, revealed: false };
+    room.shared = {
+      category: category,
+      spyCount: spyCount,
+      revealed: false,
+      scores: room._impScores || {},
+      roster: room.players.map(p => p.id),
+      vote: null,
+      outcome: null
+    };
+    room.shared.board = scoreboardOf(room);
     room.phase = 'reveal';
     return;
   }
 
+  const s = room.shared;
+
   if (action === 'beginDiscussion') {
     requireHost(room, playerId);
+    if (room.phase !== 'reveal') return;
     room.phase = 'discuss';
-    room.shared.startedAt = Date.now();
+    s.startedAt = Date.now();
     return;
   }
 
-  if (action === 'revealResult') {
+  if (action === 'startVote') {
     requireHost(room, playerId);
-    // Only now does the answer become public.
-    const anyPlayer = room.players.find(p => room.secrets[p.id] && room.secrets[p.id].role === 'player');
-    room.shared.revealed = true;
-    room.shared.secretWord = anyPlayer ? room.secrets[anyPlayer.id].word : null;
-    room.shared.spies = room.players
-      .filter(p => room.secrets[p.id] && room.secrets[p.id].role === 'spy')
-      .map(p => p.name);
-    room.phase = 'result';
+    if (room.phase !== 'discuss') return;
+    openVote(room, room.players.filter(p => s.roster.indexOf(p.id) !== -1).map(p => ({ id: p.id, label: p.name, ownerId: p.id })), s.roster);
+    room.phase = 'voting';
     return;
   }
-
+  if (action === 'vote') {
+    if (room.phase !== 'voting') throw new Error('لا يوجد تصويت الآن');
+    if (castVote(room, playerId, String((payload && payload.option) || ''))) resolveImposterVote(room);
+    return;
+  }
+  if (action === 'closeVote') {
+    requireHost(room, playerId);
+    if (room.phase !== 'voting') return;
+    if (closeVote(room)) resolveImposterVote(room);
+    return;
+  }
+  if (action === 'guess') {
+    if (room.phase !== 'guess') throw new Error('ليس وقت التخمين');
+    if (playerId !== s.guesserId) throw new Error('الجاسوس المتهم فقط يخمّن');
+    const word = String((payload && payload.word) || '');
+    if ((s.options || []).indexOf(word) === -1) throw new Error('اختيار غير صحيح');
+    finishImposter(room, word === room._impSecret ? 'stole' : 'caught', word);
+    return;
+  }
+  if (action === 'skipGuess') {
+    requireHost(room, playerId);
+    if (room.phase !== 'guess') return;
+    finishImposter(room, 'caught', null);
+    return;
+  }
+  if (action === 'revealResult') {
+    // The host ends it without a vote: the answer is shown, nobody scores.
+    requireHost(room, playerId);
+    if (room.phase !== 'discuss' && room.phase !== 'voting') return;
+    finishImposter(room, 'revealed', null);
+    return;
+  }
   if (action === 'restart') {
     requireHost(room, playerId);
+    room._impScores = (s && s.scores) || room._impScores || {};
     room.phase = 'lobby';
     room.secrets = {};
-    room.shared = {};
+    room.shared = { scores: room._impScores };
     return;
   }
 
   throw new Error('إجراء غير معروف');
+};
+
+/** Most votes is accused; a tie lets the spy escape. An accused spy gets one guess at the word. */
+const resolveImposterVote = (room) => {
+  const s = room.shared;
+  const results = s.vote.results || [];
+  const top = results.reduce((m, r) => Math.max(m, r.count), 0);
+  const leaders = results.filter(r => top > 0 && r.count === top);
+  const accused = leaders.length === 1 ? leaders[0] : null;
+  s.accusedId = accused ? accused.id : null;
+  s.accusedName = accused ? accused.label : '';
+  if (accused && (room._impSpies || []).indexOf(accused.id) !== -1) {
+    const others = shuffled((room._impWords || []).filter(w => w !== room._impSecret)).slice(0, IMPOSTER_GUESS_OPTIONS - 1);
+    s.options = shuffled(others.concat([room._impSecret]));
+    s.guesserId = accused.id;
+    s.guesserName = accused.label;
+    room.phase = 'guess';
+    return;
+  }
+  finishImposter(room, 'escaped', null);
+};
+
+/** Caught: a point to every player. Escaped or guessed the word: two to each spy. Revealed: nothing. */
+const finishImposter = (room, outcome, guess) => {
+  const s = room.shared;
+  const spies = room._impSpies || [];
+  s.outcome = outcome;
+  s.guess = guess;
+  s.revealed = true;
+  s.secretWord = room._impSecret;
+  s.spies = spies.map(id => roomPlayerName(room, id));
+  s.spyIds = spies.slice();
+  if (outcome === 'caught') {
+    (s.roster || []).forEach(id => { if (spies.indexOf(id) === -1 && room.players.some(p => p.id === id)) addScore(room, id, 1); });
+  } else if (outcome === 'escaped' || outcome === 'stole') {
+    spies.forEach(id => addScore(room, id, 2));
+  }
+  s.board = scoreboardOf(room);
+  room.phase = 'result';
 };
 
 /* ==========================================================================
@@ -1064,6 +1153,8 @@ const normaliseClue = (text) =>
    Each phone shows everyone else's identity and hides its own, which is
    exactly what the sticky-note version does.
    ========================================================================== */
+const WHOAMI_ORDER_POINTS = [3, 2, 1];   // the first to get it, the second, everyone after
+
 const whoAmIAction = (room, playerId, action, payload) => {
   if (action === 'start') {
     requireHost(room, playerId);
@@ -1085,31 +1176,61 @@ const whoAmIAction = (room, playerId, action, payload) => {
     });
 
     room._assignments = assignments;
-    room.shared = { revealed: false, startedAt: Date.now() };
+    room.shared = {
+      revealed: false,
+      startedAt: Date.now(),
+      guessed: [],
+      scores: room._waScores || {},
+      roster: room.players.map(p => p.id)
+    };
+    room.shared.board = scoreboardOf(room);
     room.phase = 'playing';
+    return;
+  }
+
+  const s = room.shared;
+
+  // "I've got it": points for the order, and the round ends by itself once everyone has.
+  if (action === 'gotIt') {
+    if (room.phase !== 'playing') return;
+    if ((s.roster || []).indexOf(playerId) === -1) throw new Error('لست ضمن هذه الجولة');
+    if (s.guessed.indexOf(playerId) !== -1) return;
+    s.guessed.push(playerId);
+    const at = s.guessed.length - 1;
+    addScore(room, playerId, WHOAMI_ORDER_POINTS[Math.min(at, WHOAMI_ORDER_POINTS.length - 1)]);
+    s.board = scoreboardOf(room);
+    if (activeRoster(room, s.roster).every(id => s.guessed.indexOf(id) !== -1)) revealWhoAmI(room);
     return;
   }
 
   if (action === 'reveal') {
     requireHost(room, playerId);
-    room.shared.revealed = true;
-    const assigned = room._assignments || {};
-    room.shared.all = room.players
-      .filter(p => assigned[p.id])          // skips anyone who joined mid-game
-      .map(p => ({ name: p.name, word: assigned[p.id] }));
-    room.phase = 'result';
+    if (room.phase !== 'playing') return;
+    revealWhoAmI(room);
     return;
   }
 
   if (action === 'restart') {
     requireHost(room, playerId);
+    room._waScores = (s && s.scores) || room._waScores || {};
     room.phase = 'lobby';
     room.secrets = {};
-    room.shared = {};
+    room.shared = { scores: room._waScores };
     return;
   }
 
   throw new Error('إجراء غير معروف');
+};
+
+const revealWhoAmI = (room) => {
+  const s = room.shared;
+  s.revealed = true;
+  const assigned = room._assignments || {};
+  s.all = room.players
+    .filter(p => assigned[p.id])          // skips anyone who joined mid-game
+    .map(p => ({ id: p.id, name: p.name, word: assigned[p.id], got: s.guessed.indexOf(p.id) + 1 }));
+  s.board = scoreboardOf(room);
+  room.phase = 'result';
 };
 
 /* ==========================================================================

@@ -14,11 +14,33 @@
      last    the last verdict, so everyone sees who got it and how
    ========================================================================= */
 
+const BUZZER_PENALTY_KEY = 'ashryBuzzerPenalty';
+/** The host's choice: does a wrong answer cost a point? Remembered on their phone. */
+function buzzerPenalty() {
+  try { return localStorage.getItem(BUZZER_PENALTY_KEY) === '1'; } catch (e) { return false; }
+}
+function setBuzzerPenalty(on) {
+  try { localStorage.setItem(BUZZER_PENALTY_KEY, on ? '1' : '0'); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
 ROOM_GAMES.buzzer = {
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
     const t = TRANSLATIONS[appState.lang];
-    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.bz_lobby_hint || '')}</p>`;
+    return `
+      <div class="card card--tight">
+        <label class="switch-row" for="bz-penalty">
+          <span class="field__label">${escapeHTML(t.bz_penalty || '')}</span>
+          <span class="switch">
+            <input type="checkbox" id="bz-penalty" role="switch" ${buzzerPenalty() ? 'checked' : ''} onchange="setBuzzerPenalty(this.checked)">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </label>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.bz_lobby_hint || '')}</p>
+      </div>`;
   },
 
   startPayload() { return {}; },
@@ -84,7 +106,7 @@ ROOM_GAMES.buzzer = {
           <div class="eyebrow">${escapeHTML(t.bz_host_controls || '')}</div>
           <div class="btn-row" style="margin-bottom: var(--sp-2)">
             <button class="btn btn--success" onclick="roomAct('correct')" ${first ? '' : 'disabled'}>✅ ${escapeHTML(t.bz_correct || '')}</button>
-            <button class="btn btn--danger-soft" onclick="roomAct('wrong')" ${first ? '' : 'disabled'}>❌ ${escapeHTML(t.bz_wrong || '')}</button>
+            <button class="btn btn--danger-soft" onclick="roomAct('wrong', { penalty: buzzerPenalty() })" ${first ? '' : 'disabled'}>❌ ${escapeHTML(t.bz_wrong || '')}${buzzerPenalty() ? ' (−1)' : ''}</button>
           </div>
           <div class="btn-row" style="margin-bottom: var(--sp-2)">
             <button class="btn btn--secondary btn--sm" onclick="roomAct('${armed ? 'lock' : 'arm'}')">${armed ? '🔒 ' + escapeHTML(t.bz_lock || '') : '🔔 ' + escapeHTML(t.bz_arm || '')}</button>

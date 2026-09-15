@@ -5053,6 +5053,17 @@ button.spy-place:active { transform: scale(0.95); }
 .icon-steps { margin: 0; padding-inline-start: var(--sp-5); text-align: start; font-size: var(--fs-sm); color: var(--text); }
 .icon-steps li + li { margin-top: var(--sp-2); }
 
+
+/* --- القنبلة in rooms: the holder --- */
+.bomb-order { justify-content: center; margin: var(--sp-3) 0; }
+.bomb-order__holder { background: var(--danger-soft); color: var(--danger-ink); border-color: var(--danger); }
+.bomb-pass { animation: bzPulse 1.2s ease-in-out infinite; }
+.tv-order .chip { font-size: 2.2vmin; height: auto; padding: 0.6vmin 1.6vmin; }
+.relay__result--last { padding: var(--sp-3) var(--sp-4); }
+
+
+.role-card--done { background: var(--success-soft); border-color: var(--success); }
+
 </style>
 
     
@@ -5789,7 +5800,7 @@ const BOMB_LETTERS = {
           </div>
 
           <div class="mode-online-panel hidden">
-            <p class="card__subtitle" data-i18n="bomb_online_desc">الفئة تظهر على التلفزيون وعلى كل موبايل، والقنبلة تتمرر على الطاولة. لما تفرقع المضيف يعلّم مين كانت في إيده.</p>
+            <p class="card__subtitle" data-i18n="bomb_online_desc">الفئة على التلفزيون وعلى كل موبايل، والقنبلة على موبايل واحد منكم: قول كلمة واضغط مرّر وتنط للي بعدك. لما تفرقع، التطبيق عارف مين كانت في إيده.</p>
             <div class="btn-stack">
               <button onclick="roomCreateFor('bomb')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
               <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
@@ -7514,6 +7525,15 @@ const BOMB_LETTERS = {
               <p class="field__hint" data-i18n="director_hint">الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = وقت حر بالمؤقت بس.</p>
             </div>
           </div>
+            <div class="field">
+              <label class="field__label" data-i18n="wa_timer_label">وقت الأسئلة (ثانية)</label>
+              <div class="segmented" id="whoami-timer" role="group">
+                <button type="button" class="segmented__item" data-value="60" onclick="setWhoAmITimer(60)">60</button>
+                <button type="button" class="segmented__item is-active" data-value="120" onclick="setWhoAmITimer(120)">120</button>
+                <button type="button" class="segmented__item" data-value="180" onclick="setWhoAmITimer(180)">180</button>
+                <button type="button" class="segmented__item" data-value="0" onclick="setWhoAmITimer(0)" data-i18n="stop_no_timer">بدون</button>
+              </div>
+            </div>
             <label class="field__label" data-i18n="players_count">عدد اللاعبين</label>
             <div class="stepper" style="margin-bottom: var(--sp-6)">
                 <button onclick="adjustWhoAmICount(-1)" class="stepper__btn" aria-label="أقل">−</button>
@@ -8441,6 +8461,21 @@ const BOMB_LETTERS = {
       director_asks_verb: "يسأل",
       director_asks: "سؤال واحد، وبعدين التالي",
       director_next: "التالي",
+      imp_start_vote: "التصويت على الجاسوس",
+      imp_reveal_direct: "كشف من غير تصويت",
+      imp_wait_vote: "لما تتفقوا، المضيف يفتح التصويت",
+      imp_guess_hint: "اتمسكت! فرصة أخيرة: اختار الكلمة السرية.",
+      imp_guessing: "الجاسوس اتمسك وبيخمّن الكلمة…",
+      imp_escaped: "الجاسوس هرب! كان {name}",
+      imp_stole: "{name} عرف الكلمة وسرق الفوز",
+      imp_caught: "مسكتوا {name} وغلط في الكلمة",
+      imp_revealed: "المضيف كشف الجواسيس",
+      wa_got_it: "عرفت مين أنا!",
+      wa_you_got: "عرفت! رقم {n}",
+      wa_progress: "{n} من {m} عرفوا",
+      wa_wait: "لما الكل يعرف، الجولة تخلص لوحدها. أو المضيف يكشف.",
+      wa_timer_label: "وقت الأسئلة (ثانية)",
+      bz_penalty: "خصم نقطة على الإجابة الغلط",
       cham_online_desc: "الكلمات الـ16 على كل موبايل وعلى التلفزيون، وكل واحد يشوف كلمته السرية على موبايله من غير تمرير. التصويت من الموبايلات.",
       cham_room_hint: "الكل يشوف نفس الـ16 كلمة. كل واحد يشوف الكلمة السرية على موبايله إلا الحرباء. قولوا كلمة بالدور، وبعدين المضيف يفتح التصويت.",
       cham_you_are: "أنت الحرباء!",
@@ -8479,8 +8514,13 @@ const BOMB_LETTERS = {
       spy_guess_was: "تخمينه",
       spy_confirm_guess: "المكان هو {place}؟",
       spy_tv_hint: "الجاسوس واحد منكم",
-      bomb_online_desc: "الفئة تظهر على التلفزيون وعلى كل موبايل، والقنبلة تتمرر على الطاولة. لما تفرقع المضيف يعلّم مين كانت في إيده.",
-      bomb_room_hint: "الفئة على الشاشة، والقنبلة أي حاجة تتمرر على الطاولة. لما تفرقع، علّم مين كانت في إيده.",
+      bomb_online_desc: "الفئة على التلفزيون وعلى كل موبايل، والقنبلة على موبايل واحد منكم: قول كلمة واضغط مرّر وتنط للي بعدك. لما تفرقع، التطبيق عارف مين كانت في إيده.",
+      bomb_room_hint: "الفئة على الشاشة، والقنبلة على موبايل واحد منكم: اللي معاه يقول كلمة ويضغط مرّر. لما تفرقع، اللي كانت في إيده ياخد ضربة.",
+      bomb_room_yours: "معاك!",
+      bomb_room_pass: "مرّرها",
+      bomb_room_pass_hint: "قول حاجة من الفئة، وبعدين مرّر",
+      bomb_room_with: "القنبلة عند {name}",
+      bomb_room_fix: "مش هو؟ صحّح",
       bomb_room_loser: "💥 كانت في إيد {name}",
       bomb_room_strikes: "الضربات (الأقل أحسن)",
       bomb_room_who: "مين كانت في إيده؟",
@@ -8664,6 +8704,7 @@ const BOMB_LETTERS = {
       vote_count: "صوّت",
       vote_close: "اقفل التصويت",
       vote_your_answer: "إجابتك",
+      vote_you: "أنت",
       scoreboard: "الترتيب",
       next_question: "سؤال جديد",
       fib_your_lie: "اخترع إجابة مقنعة",
@@ -9205,6 +9246,21 @@ const BOMB_LETTERS = {
       director_asks_verb: "asks",
       director_asks: "One question, then next",
       director_next: "Next",
+      imp_start_vote: "Vote on the imposter",
+      imp_reveal_direct: "Reveal without a vote",
+      imp_wait_vote: "When you agree, the host opens the vote",
+      imp_guess_hint: "Caught! One last chance: pick the secret word.",
+      imp_guessing: "The imposter was caught and is guessing the word…",
+      imp_escaped: "The imposter got away! It was {name}",
+      imp_stole: "{name} knew the word and stole the win",
+      imp_caught: "You caught {name}, and they got the word wrong",
+      imp_revealed: "The host revealed the imposters",
+      wa_got_it: "I know who I am!",
+      wa_you_got: "Got it! Number {n}",
+      wa_progress: "{n} of {m} have it",
+      wa_wait: "When everyone has it, the round ends by itself. Or the host reveals.",
+      wa_timer_label: "Question time (seconds)",
+      bz_penalty: "A wrong answer costs a point",
       cham_online_desc: "The 16 words on every phone and the TV; each player sees their secret word on their own phone, no passing. Voting from the phones.",
       cham_room_hint: "Everyone sees the same 16 words. Each phone marks the secret one, except the chameleon's. Give a clue each in turn, then the host opens the vote.",
       cham_you_are: "You are the chameleon!",
@@ -9243,8 +9299,13 @@ const BOMB_LETTERS = {
       spy_guess_was: "Their guess",
       spy_confirm_guess: "The place is {place}?",
       spy_tv_hint: "The spy is one of you",
-      bomb_online_desc: "The category shows on the TV and every phone; the bomb is passed around the table. When it goes off, the host marks who was holding it.",
-      bomb_room_hint: "The category is on the screen; the bomb is anything you pass around the table. When it goes off, mark who was holding it.",
+      bomb_online_desc: "The category on the TV and every phone, and the bomb on one of your phones: say a word, press pass, and it jumps to the next player. When it goes off, the app knows who was holding it.",
+      bomb_room_hint: "The category is on the screen and the bomb is on one phone: whoever has it says a word and presses pass. When it goes off, the holder takes a strike.",
+      bomb_room_yours: "It's yours!",
+      bomb_room_pass: "Pass it",
+      bomb_room_pass_hint: "Say something in the category, then pass",
+      bomb_room_with: "{name} has the bomb",
+      bomb_room_fix: "Not them? Correct it",
       bomb_room_loser: "💥 {name} was holding it",
       bomb_room_strikes: "Strikes (fewer is better)",
       bomb_room_who: "Who was holding it?",
@@ -9428,6 +9489,7 @@ const BOMB_LETTERS = {
       vote_count: "Voted",
       vote_close: "Close the vote",
       vote_your_answer: "Yours",
+      vote_you: "You",
       scoreboard: "Standings",
       next_question: "Next question",
       fib_your_lie: "Invent a convincing answer",
@@ -10839,7 +10901,7 @@ const GAME_RULES = {
             </ul>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>نفس اللعبة من غير تمرير: كل واحد يشوف كلمته على موبايله، والتصويت على الجاسوس من الموبايلات.</li>
+                <li>نفس اللعبة من غير تمرير: كل واحد يشوف كلمته على موبايله. بعد النقاش المضيف يفتح <b>التصويت</b>؛ لو مسكتوا الجاسوس عنده فرصة أخيرة يختار الكلمة من 6 كلمات. مسكتوه وغلط = نقطة لكل واحد، هرب أو عرف الكلمة = نقطتين له. النقاط بتتجمع على طول السهرة.</li>
             </ul>`,
         chameleon: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -10914,7 +10976,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>اختار فئة (مشاهير، حيوانات…) أو اكتب الشخصيات بنفسك.</li>
                 <li>مرر الموبايل: كل واحد يشوف <b>شخصية غيره</b> ويحفظها، من غير ما يعرف شخصيته هو.</li>
-                <li>يبدأ الوقت: كل واحد يسأل أسئلة إجابتها نعم أو لا («أنا حيوان؟») عشان يعرف هو مين.</li>
+                <li>يبدأ الوقت (60 أو 120 أو 180 ثانية، أو من غير وقت): كل واحد يسأل أسئلة إجابتها نعم أو لا («أنا حيوان؟») عشان يعرف هو مين.</li>
                 <li>في الآخر <b>كشف الكلمات</b> يوريكم كل واحد كان مين.</li>
             </ol>
             <p class="help-sub">🎤 مين يسأل مين؟</p>
@@ -10923,7 +10985,7 @@ const GAME_RULES = {
             </ul>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>كل واحد يشوف على موبايله شخصيات الباقي كلهم، وشخصيته هو مخفية.</li>
+                <li>كل واحد يشوف على موبايله شخصيات الباقي كلهم، وشخصيته هو مخفية. لما تعرف، اضغط <b>عرفت مين أنا!</b>: الأول ياخد 3 نقاط، التاني 2، والباقي نقطة. لما الكل يعرف الجولة تخلص لوحدها.</li>
             </ul>`,
         justone: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -10970,7 +11032,7 @@ const GAME_RULES = {
             </ol>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>افتح غرفة: الفئة تظهر على الشاشة وعلى كل موبايل، والقنبلة أي حاجة تتمرر على الطاولة. لما تفرقع، المضيف يعلّم مين كانت في إيده، والضربات تتحسب: الأقل يكسب.</li>
+                <li>افتح غرفة: الفئة تظهر على الشاشة وعلى كل موبايل، والقنبلة على موبايل واحد منكم. اللي معاه يقول كلمة ويضغط <b>مرّرها</b>، وتنط للي بعده بالترتيب اللي على الشاشة. لما تفرقع، اللي كانت في إيده ياخد ضربة لوحده، والأقل ضربات يكسب. الخسران يبدأ الجولة اللي بعدها.</li>
             </ul>`,
         stop: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -11019,7 +11081,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>المضيف بيسأل بصوته أي سؤال، من كتاب أو من دماغه.</li>
                 <li>كل واحد معاه <b>جرس</b> على موبايله. أول واحد يضغط يجاوب، والسيرفر بيحفظ ترتيب الضغط بالظبط.</li>
-                <li>المضيف يضغط <b>صح</b> (نقطة وسؤال جديد) أو <b>غلط</b> (الدور ينتقل للي بعده).</li>
+                <li>المضيف يضغط <b>صح</b> (نقطة وسؤال جديد) أو <b>غلط</b> (الدور ينتقل للي بعده، وبتخصم نقطة لو المضيف شغّل الخصم).</li>
                 <li><b>قفل الجرس</b> وأنت بتقرأ السؤال، وافتحه لما تخلص. على التلفزيون بيظهر مين ضغط الأول والترتيب والنقاط.</li>
             </ol>`,
 
@@ -11192,7 +11254,7 @@ const GAME_RULES = {
             </ul>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>The same game with no passing: everyone sees their word on their own phone, and the vote on the imposter is from the phones.</li>
+                <li>The same game with no passing: everyone sees their word on their own phone. After the discussion the host opens the <b>vote</b>; a caught imposter gets one last pick of the word from six. Caught and wrong = a point each; escaped or guessed = two for the imposter. Points add up all evening.</li>
             </ul>`,
         chameleon: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -11267,7 +11329,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Pick a category (celebrities, animals…) or type the characters yourself.</li>
                 <li>Pass the phone: each player sees <b>someone else's</b> character and remembers it, without knowing their own.</li>
-                <li>The clock starts: everyone asks yes-or-no questions ("Am I an animal?") to work out who they are.</li>
+                <li>The clock starts (60, 120 or 180 seconds, or none): everyone asks yes-or-no questions ("Am I an animal?") to work out who they are.</li>
                 <li>At the end, <b>Reveal</b> shows who everyone was.</li>
             </ol>
             <p class="help-sub">🎤 Who asks whom?</p>
@@ -11276,7 +11338,7 @@ const GAME_RULES = {
             </ul>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>Each phone shows everyone else's character and hides its owner's.</li>
+                <li>Each phone shows everyone else's character and hides its owner's. Once you know, press <b>I know who I am!</b>: the first gets 3 points, the second 2, the rest 1. When everyone has it, the round ends by itself.</li>
             </ul>`,
         justone: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -11323,7 +11385,7 @@ const GAME_RULES = {
             </ol>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>Open a room: the category shows on the screen and on every phone, and the bomb is anything you pass around the table. When it goes off the host marks who was holding it, and the strikes add up: fewest wins.</li>
+                <li>Open a room: the category shows on the screen and on every phone, and the bomb is on one of your phones. Whoever has it says a word and presses <b>Pass it</b>, and it jumps to the next player in the order on the screen. When it goes off, the holder takes a strike, and fewest strikes wins. The loser starts the next round.</li>
             </ul>`,
         stop: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -11372,7 +11434,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>The host asks questions out loud, from a book or from memory.</li>
                 <li>Every phone is a <b>buzzer</b>. The first to press answers, and the server keeps the exact order of presses.</li>
-                <li>The host presses <b>Right</b> (a point and a new question) or <b>Wrong</b> (the next in line gets a go).</li>
+                <li>The host presses <b>Right</b> (a point and a new question) or <b>Wrong</b> (the next in line gets a go, and a point is deducted if the host turned that on).</li>
                 <li><b>Lock the buzzers</b> while you read the question, and open them when you're done. The TV shows who buzzed first, the order and the scores.</li>
             </ol>`,
 
@@ -15563,14 +15625,19 @@ function startWhoAmITimer() {
         paintDirector('whoami-director', appState.whoami, 'whoamiDirectorNext()');
     }
     
-    appState.whoami.timer = 120; 
+    // The clock the setup screen chose; 0 counts up instead, for a table
+    // that would rather not be hurried.
+    const chosen = Number(appState.whoami.timerChoice);
+    const seconds = [60, 120, 180, 0].indexOf(chosen) !== -1 ? chosen : 120;
+    appState.whoami.timer = seconds;
     appState.whoami.isPaused = false;
     updateWhoAmITimerDisplay();
-    
+
     if(appState.whoami.interval) appState.whoami.interval.stop();
 
     appState.whoami.interval = createClock({
-        seconds: 120,
+        countUp: seconds === 0,
+        seconds: seconds,
         onTick: (left) => {
             appState.whoami.timer = left;
             updateWhoAmITimerDisplay();
@@ -15587,6 +15654,13 @@ function startWhoAmITimer() {
 function whoamiDirectorNext() {
     directorNext(appState.whoami);
     paintDirector('whoami-director', appState.whoami, 'whoamiDirectorNext()');
+    haptic('light');
+}
+
+function setWhoAmITimer(seconds) {
+    appState.whoami.timerChoice = Number(seconds);
+    saveToLocal();
+    paintWhoAmISetup();
     haptic('light');
 }
 
@@ -16773,7 +16847,7 @@ function finishCharadesGame() {
         const box = document.getElementById('charades-ui-relay');
         box.classList.remove('hidden');
         box.innerHTML = relaySummaryHtml(appState.charades, t,
-            phase === 'done' ? 'startCharades()' : 'charadesShowRelay()', "setView('setup-charades')");
+            phase === 'done' ? 'startCharades()' : 'charadesRunTurn()', "setView('setup-charades')");
         return;
     }
 
@@ -18657,7 +18731,7 @@ function finishDescribeGame() {
         const box = document.getElementById('desc-ui-relay');
         box.classList.remove('hidden');
         box.innerHTML = relaySummaryHtml(appState.describe, t,
-            phase === 'done' ? 'startDescribeGame()' : 'describeShowRelay()', "setView('setup-describe')");
+            phase === 'done' ? 'startDescribeGame()' : 'describeRunTurn()', "setView('setup-describe')");
         return;
     }
 
@@ -21337,6 +21411,8 @@ ROOM_GAMES.imposter = {
 
     if (state.phase === 'reveal')  renderImposterReveal(el, state, t);
     else if (state.phase === 'discuss') renderImposterDiscuss(el, state, t);
+    else if (state.phase === 'voting')  renderImposterVoting(el, state, t);
+    else if (state.phase === 'guess')   renderImposterGuess(el, state, t);
     else if (state.phase === 'result')  renderImposterResult(el, state, t);
     refreshRoomPlayerStrip(el, state);
   }
@@ -21384,11 +21460,51 @@ function renderImposterDiscuss(el, state, t) {
       <p class="card__subtitle" style="margin-bottom:0">${t.imposter_discuss_hint || 'اسألوا بعضكم واكتشفوا الجاسوس'}</p>
     </div>
     ${state.youAreHost
-      ? `<button onclick="roomAct('revealResult')" class="btn btn--danger btn--lg">${t.reveal_imposters || 'كشف الجواسيس'}</button>`
-      : `<div class="waiting-note">${t.room_wait_host}</div>`}
+      ? `<div class="btn-stack">
+           <button onclick="roomAct('startVote')" class="btn btn--primary btn--lg">${escapeHTML(t.imp_start_vote || '')}</button>
+           <button onclick="roomAct('revealResult')" class="btn btn--ghost btn--sm">${escapeHTML(t.imp_reveal_direct || '')}</button>
+         </div>`
+      : `<div class="waiting-note">${escapeHTML(t.imp_wait_vote || '')}</div>`}
     ${renderRoomPlayerStrip(state)}`);
 
   startRoomDiscussClock(state.shared.startedAt);
+}
+
+/** Everyone accuses someone; the choices stay hidden until the vote closes. */
+function renderImposterVoting(el, state, t) {
+  if (roomDiscussClock) { roomDiscussClock.stop(); roomDiscussClock = null; roomDiscussBase = null; }
+  const v = state.shared.vote || {};
+  renderRoomFrame(el, 'voting|' + (v.voted || []).length + '|' + state.youAreHost + '|' + appState.lang, () => `
+    <div class="card card--tight">
+      <div class="eyebrow">${escapeHTML(t.accuse_player || '')}</div>
+      ${renderBallot(state, { ownLabel: t.vote_you })}
+    </div>
+    ${renderRoomPlayerStrip(state)}`);
+}
+
+/** A caught spy picks the word from six; everyone else waits. */
+function renderImposterGuess(el, state, t) {
+  const s = state.shared;
+  const mine = s.guesserId === Room.me;
+  renderRoomFrame(el, 'guess|' + s.guesserId + '|' + mine + '|' + state.youAreHost + '|' + appState.lang, () => `
+    <div class="card card--accent" style="text-align:center">
+      <div class="metric metric--md">🕵️ ${escapeHTML(s.guesserName || '')}</div>
+      <p class="sheet__subtitle">${escapeHTML(mine ? (t.imp_guess_hint || '') : (t.imp_guessing || ''))}</p>
+    </div>
+    ${mine
+      ? `<div class="btn-stack">${(s.options || []).map(w => `<button class="ballot-option" onclick="roomAct('guess', { word: '${jsStringAttr(w)}' })"><span class="ballot-option__label">${escapeHTML(w)}</span></button>`).join('')}</div>`
+      : `<div class="chip-set" style="justify-content:center">${(s.options || []).map(w => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(w)}</span></span>`).join('')}</div>`}
+    ${state.youAreHost ? `<div class="btn-stack" style="margin-top: var(--sp-3)"><button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${escapeHTML(t.fa_skip_guess || '')}</button></div>` : ''}
+    ${renderRoomPlayerStrip(state)}`);
+}
+
+/** The line that says how the round went. */
+function imposterOutcomeLine(s, t) {
+  const names = (s.spies || []).join(' · ');
+  if (s.outcome === 'escaped') return (t.imp_escaped || '').replace('{name}', names);
+  if (s.outcome === 'stole') return (t.imp_stole || '').replace('{name}', names);
+  if (s.outcome === 'caught') return (t.imp_caught || '').replace('{name}', names);
+  return t.imp_revealed || '';
 }
 
 /** Counts up from the shared start time, so every phone shows the same number. */
@@ -21415,16 +21531,17 @@ function startRoomDiscussClock(startedAt) {
 
 function renderImposterResult(el, state, t) {
   if (roomDiscussClock) { roomDiscussClock.stop(); roomDiscussClock = null; roomDiscussBase = null; }
-  const spies = state.shared.spies || [];
-  const fresh = renderRoomFrame(el, 'result|' + spies.join(',') + '|' + state.youAreHost, () => `
-    <div class="card" style="text-align:center">
-      <div class="eyebrow">${t.the_spies || 'الجواسيس'}</div>
-      <div class="metric metric--md" style="color: var(--danger); margin-bottom: var(--sp-4)">
-        ${spies.map(escapeHTML).join('، ')}
-      </div>
+  const s = state.shared;
+  const spies = s.spies || [];
+  const won = s.outcome === 'caught';
+  const fresh = renderRoomFrame(el, 'result|' + spies.join(',') + '|' + s.outcome + '|' + state.youAreHost + '|' + appState.lang, () => `
+    <div class="card ${won ? 'card--accent' : ''}" style="text-align:center">
+      <div class="metric metric--md ${won ? 'tx-success' : (s.outcome === 'revealed' ? '' : 'tx-danger')}" style="margin-bottom: var(--sp-3)">${won ? '🎉' : '🕵️'} ${escapeHTML(imposterOutcomeLine(s, t))}</div>
       <div class="eyebrow">${t.secret_word || 'الكلمة السرية'}</div>
-      <div class="metric metric--md metric--accent">${escapeHTML(state.shared.secretWord || '')}</div>
+      <div class="metric metric--md metric--accent">${escapeHTML(s.secretWord || '')}</div>
+      ${s.accusedName ? `<p class="sheet__subtitle">${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}${s.guess ? ` · ${escapeHTML(t.spy_guess_was || '')}: ${escapeHTML(s.guess)}` : ''}</p>` : ''}
     </div>
+    ${renderScoreboard(s.board)}
     ${state.youAreHost
       ? `<div class="btn-stack">
            <button onclick="roomAct('restart')" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>
@@ -21433,7 +21550,7 @@ function renderImposterResult(el, state, t) {
       : `<div class="waiting-note">${t.room_wait_host}</div>`}`);
   // Only on the round that actually just ended. This used to re-fire every time
   // anyone's presence flickered, which is every few seconds in a real room.
-  if (fresh) confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+  if (fresh && won) confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
 }
 
 /* --- shared helpers used by every room game ----------------------------- */
@@ -22261,53 +22378,74 @@ ROOM_GAMES.whoami = {
     const el = document.getElementById('view-room-whoami');
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const guessed = s.guessed || [];
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+    const myPlace = guessed.indexOf(Room.me);
+    const present = state.players.map(p => p.id);
+    const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1);
+    const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
 
-    if (state.shared.revealed) {
-      el.innerHTML = `
+    if (s.revealed) {
+      const fresh = renderRoomFrame(el, ['wa-result', JSON.stringify(s.all || []), state.youAreHost, appState.lang].join('|'), () => `
         <div class="card">
           <div class="card__title">${t.whoami_reveal || 'الهويات'}</div>
-          ${(state.shared.all || []).map(x => `
+          ${(s.all || []).map(x => `
             <div class="status-row">
               <div class="status-row__body">
-                <div class="status-row__name">${escapeHTML(x.name)}</div>
+                <div class="status-row__name">${x.got ? ['🥇', '🥈', '🥉'][x.got - 1] || '✅' : '❔'} ${escapeHTML(x.name)}</div>
                 <div><span class="badge badge--accent">${escapeHTML(x.word)}</span></div>
               </div>
             </div>`).join('')}
         </div>
+        ${renderScoreboard(s.board)}
         ${state.youAreHost
           ? `<div class="btn-stack">
                <button onclick="roomAct('restart')" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>
                <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
              </div>`
-          : `<div class="waiting-note">${t.room_wait_host}</div>`}`;
+          : `<div class="waiting-note">${t.room_wait_host}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && typeof confetti === 'function') confetti({ particleCount: 120, spread: 70 });
+      refreshRoomPlayerStrip(el, state);
       return;
     }
 
     const others = (state.you && state.you.others) || [];
-    el.innerHTML = `
+    renderRoomFrame(el, ['wa-play', guessed.join(','), myPlace, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
-        <div class="role-card">
+        <div class="role-card ${myPlace !== -1 ? 'role-card--done' : ''}">
           <div class="role-card__label">${t.whoami_you || 'هويتك'}</div>
-          <div class="role-card__value">❓</div>
-          <div class="role-card__hint">${t.whoami_hint || 'اسأل الآخرين أسئلة بنعم أو لا لتعرف من أنت'}</div>
+          <div class="role-card__value">${myPlace !== -1 ? '✅' : '❓'}</div>
+          <div class="role-card__hint">${myPlace !== -1 ? escapeHTML((t.wa_you_got || '').replace('{n}', myPlace + 1)) : (t.whoami_hint || '')}</div>
         </div>
+        ${inRound && myPlace === -1
+          ? `<button class="btn btn--success btn--lg" style="margin-top: var(--sp-3)" onclick="roomAct('gotIt')">${escapeHTML(t.wa_got_it || '')}</button>`
+          : ''}
+        <p class="field__hint" style="margin-top: var(--sp-2)">${escapeHTML((t.wa_progress || '').replace('{n}', guessed.length).replace('{m}', expected.length))}</p>
       </div>
       <div class="section">
         <div class="section__head">
           <h2 class="section__title">${t.whoami_others || 'هويات الآخرين'}</h2>
           <span class="section__rule"></span>
         </div>
-        ${others.map(o => `
+        ${others.map(o => {
+          const id = (state.players.find(p => p.name === o.name) || {}).id;
+          const got = id ? guessed.indexOf(id) : -1;
+          return `
           <div class="status-row">
             <div class="status-row__body">
-              <div class="status-row__name">${escapeHTML(o.name)}</div>
+              <div class="status-row__name">${got !== -1 ? '✅ ' : ''}${escapeHTML(o.name)}</div>
               <div><span class="badge badge--accent">${escapeHTML(o.word)}</span></div>
             </div>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>
       ${state.youAreHost
-        ? `<button onclick="roomAct('reveal')" class="btn btn--danger btn--lg">${t.reveal_words || 'كشف الكلمات'}</button>`
-        : `<div class="waiting-note">${t.room_wait_host}</div>`}`;
+        ? `<button onclick="roomAct('reveal')" class="btn btn--danger" >${t.reveal_words || 'كشف الكلمات'}</button>`
+        : `<div class="waiting-note">${escapeHTML(t.wa_wait || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}`);
+    refreshRoomPlayerStrip(el, state);
   }
 };
 </script>
@@ -22348,7 +22486,7 @@ function renderBallot(state, opts) {
         return `<button class="ballot-option ${mine ? 'is-own' : ''}" ${mine ? 'disabled' : ''}
                         onclick="roomAct('vote', { option: '${jsStringAttr(o.id)}' })">
                   <span class="ballot-option__label">${escapeHTML(o.label)}</span>
-                  ${mine ? `<span class="badge">${t.vote_your_answer || 'إجابتك'}</span>` : ''}
+                  ${mine ? `<span class="badge">${escapeHTML((opts && opts.ownLabel) || t.vote_your_answer || 'إجابتك')}</span>` : ''}
                 </button>`;
       }).join('')}
     </div>` + renderVoteProgress(state);
@@ -23385,11 +23523,7 @@ function fakeArtistFrame(state, t, myTurn, drawerAway) {
   const voting = s.phase === 'voting' ? `
       <div class="card">
         <div class="card__title" style="text-align:center">${t.fa_vote_title || ''}</div>
-        ${renderBallot(state)}
-        ${state.youAreHost ? `
-          <div class="btn-stack" style="margin-top: var(--sp-3)">
-            <button class="btn btn--ghost" onclick="roomAct('closeVote')">${t.fa_end_vote || ''}</button>
-          </div>` : ''}
+        ${renderBallot(state, { ownLabel: t.vote_you })}
       </div>` : '';
 
   let guessing = '';
@@ -24821,7 +24955,7 @@ TV_GAMES.fibbage = {
 /* --- الجاسوس · كلمة واحدة · من أنا؟ ------------------------------------------------ */
 
 TV_GAMES.imposter = {
-  sig: (state) => [state.phase, (state.shared.spies || []).join(',')].join('|'),
+  sig: (state) => [state.phase, (state.shared.spies || []).join(','), state.shared.outcome, (state.shared.vote && state.shared.vote.voted || []).length, JSON.stringify(state.shared.scores || {})].join('|'),
   frame(state, t) {
     const s = state.shared;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
@@ -24840,15 +24974,24 @@ TV_GAMES.imposter = {
           <div class="tv-eyebrow">${t.discussion_time || ''}</div>
           <div id="room-imp-timer" class="tv-clock">00:00</div>
           <div class="tv-note">${t.imposter_discuss_hint || ''}</div>
-          ${host(tvBtn(t.reveal_imposters, "roomAct('revealResult')", 'danger'))}
+          ${host(tvBtn(t.imp_start_vote, "roomAct('startVote')") + tvBtn(t.imp_reveal_direct, "roomAct('revealResult')", 'ghost'))}
+        </div>`;
+    }
+    if (state.phase === 'voting') return `<div class="tv-vote"><div class="tv-question">${t.accuse_player || ''}</div>${tvVoteProgress(state, t)}</div>`;
+    if (state.phase === 'guess') {
+      return `
+        <div class="tv-vote">
+          <div class="tv-question">🕵️ ${escapeHTML(s.guesserName || '')} · ${t.imp_guessing || ''}</div>
+          <div class="tv-strip-inline">${(s.options || []).map(w => `<span class="tv-chip">${escapeHTML(w)}</span>`).join('')}</div>
+          ${host(tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost'))}
         </div>`;
     }
     return `
-      <div class="tv-center">
-        <div class="tv-eyebrow">${t.the_spies || ''}</div>
-        <div class="tv-title tv-danger">🕵️ ${(s.spies || []).map(escapeHTML).join('، ')}</div>
-        <div class="tv-eyebrow">${t.secret_word || ''}</div>
-        <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
+      <div class="tv-vote">
+        <div class="tv-question">${s.outcome === 'caught' ? '🎉' : '🕵️'} ${escapeHTML(imposterOutcomeLine(s, t))}</div>
+        <div class="tv-eyebrow tv-center-text">${t.secret_word || ''}</div>
+        <div class="tv-title tv-center-text">${escapeHTML(s.secretWord || '')}</div>
+        <div class="tv-scale">${renderScoreboard(s.board)}</div>
         ${host(tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
       </div>`;
   },
@@ -24860,7 +25003,7 @@ TV_GAMES.imposter = {
       roomDiscussClock = null;
       roomDiscussBase = null;
     }
-    if (rebuilt && state.phase === 'result' && typeof confetti === 'function') {
+    if (rebuilt && state.phase === 'result' && state.shared.outcome === 'caught' && typeof confetti === 'function') {
       confetti({ particleCount: 180, spread: 100, origin: { y: 0.6 } });
     }
   }
@@ -24919,16 +25062,21 @@ TV_GAMES.justone = {
 };
 
 TV_GAMES.whoami = {
-  sig: (state) => [state.phase, !!state.shared.revealed].join('|'),
+  sig: (state) => [state.phase, !!state.shared.revealed, (state.shared.guessed || []).join(','), JSON.stringify(state.shared.scores || {})].join('|'),
   frame(state, t) {
     const s = state.shared;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
     if (!s.revealed) {
+      const guessed = s.guessed || [];
+      const present = state.players.map(p => p.id);
+      const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1);
       return `
         <div class="tv-center">
           <div class="tv-big-icon" aria-hidden="true">❓</div>
           <div class="tv-title">${t.tv_whoami_play || ''}</div>
-          <div class="tv-note">${t.whoami_hint || ''}</div>
+          <div class="tv-note">${escapeHTML((t.wa_progress || '').replace('{n}', guessed.length).replace('{m}', expected.length))}</div>
+          <div class="tv-strip-inline">${guessed.map((id, i) => `<span class="tv-chip is-done">${['🥇', '🥈', '🥉'][i] || '✅'} ${escapeHTML(nameOf(id))}</span>`).join('')}</div>
           ${host(tvBtn(t.reveal_words, "roomAct('reveal')", 'danger'))}
         </div>`;
     }
@@ -24936,8 +25084,9 @@ TV_GAMES.whoami = {
       <div class="tv-trivia">
         <div class="tv-title tv-center-text">${t.whoami_reveal || ''}</div>
         <div class="tv-ids">${(s.all || []).map(x => `
-          <div class="tv-panel"><div class="tv-eyebrow">${escapeHTML(x.name)}</div><div class="tv-title">${escapeHTML(x.word)}</div></div>`).join('')}
+          <div class="tv-panel"><div class="tv-eyebrow">${x.got ? ['🥇', '🥈', '🥉'][x.got - 1] || '✅' : '❔'} ${escapeHTML(x.name)}</div><div class="tv-title">${escapeHTML(x.word)}</div></div>`).join('')}
         </div>
+        <div class="tv-scale">${renderScoreboard(s.board)}</div>
         ${host(tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
       </div>`;
   }
@@ -24963,7 +25112,7 @@ TV_GAMES.buzzer = {
     const last = s.last ? `<div class="tv-note tv-center-text">${s.last.ok ? '✅' : '❌'} ${escapeHTML(s.last.name)}</div>` : '';
     const host = !state.youAreHost ? '' : `
       <div class="tv-actions">
-        ${first ? tvBtn('✅ ' + (t.bz_correct || ''), "roomAct('correct')", 'success') + tvBtn('❌ ' + (t.bz_wrong || ''), "roomAct('wrong')", 'danger-soft') : ''}
+        ${first ? tvBtn('✅ ' + (t.bz_correct || ''), "roomAct('correct')", 'success') + tvBtn('❌ ' + (t.bz_wrong || ''), "roomAct('wrong', { penalty: buzzerPenalty() })", 'danger-soft') : ''}
         ${tvBtn(armed ? '🔒 ' + (t.bz_lock || '') : '🔔 ' + (t.bz_arm || ''), armed ? "roomAct('lock')" : "roomAct('arm')", 'secondary')}
         ${tvBtn('🔄 ' + (t.bz_reset || ''), "roomAct('reset')", 'ghost')}
         ${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}
@@ -31489,11 +31638,33 @@ function chooserReset() {
      last    the last verdict, so everyone sees who got it and how
    ========================================================================= */
 
+const BUZZER_PENALTY_KEY = 'ashryBuzzerPenalty';
+/** The host's choice: does a wrong answer cost a point? Remembered on their phone. */
+function buzzerPenalty() {
+  try { return localStorage.getItem(BUZZER_PENALTY_KEY) === '1'; } catch (e) { return false; }
+}
+function setBuzzerPenalty(on) {
+  try { localStorage.setItem(BUZZER_PENALTY_KEY, on ? '1' : '0'); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
 ROOM_GAMES.buzzer = {
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
     const t = TRANSLATIONS[appState.lang];
-    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.bz_lobby_hint || '')}</p>`;
+    return `
+      <div class="card card--tight">
+        <label class="switch-row" for="bz-penalty">
+          <span class="field__label">${escapeHTML(t.bz_penalty || '')}</span>
+          <span class="switch">
+            <input type="checkbox" id="bz-penalty" role="switch" ${buzzerPenalty() ? 'checked' : ''} onchange="setBuzzerPenalty(this.checked)">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </label>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.bz_lobby_hint || '')}</p>
+      </div>`;
   },
 
   startPayload() { return {}; },
@@ -31559,7 +31730,7 @@ ROOM_GAMES.buzzer = {
           <div class="eyebrow">${escapeHTML(t.bz_host_controls || '')}</div>
           <div class="btn-row" style="margin-bottom: var(--sp-2)">
             <button class="btn btn--success" onclick="roomAct('correct')" ${first ? '' : 'disabled'}>✅ ${escapeHTML(t.bz_correct || '')}</button>
-            <button class="btn btn--danger-soft" onclick="roomAct('wrong')" ${first ? '' : 'disabled'}>❌ ${escapeHTML(t.bz_wrong || '')}</button>
+            <button class="btn btn--danger-soft" onclick="roomAct('wrong', { penalty: buzzerPenalty() })" ${first ? '' : 'disabled'}>❌ ${escapeHTML(t.bz_wrong || '')}${buzzerPenalty() ? ' (−1)' : ''}</button>
           </div>
           <div class="btn-row" style="margin-bottom: var(--sp-2)">
             <button class="btn btn--secondary btn--sm" onclick="roomAct('${armed ? 'lock' : 'arm'}')">${armed ? '🔒 ' + escapeHTML(t.bz_lock || '') : '🔔 ' + escapeHTML(t.bz_arm || '')}</button>
@@ -31599,7 +31770,7 @@ function pressBuzzer(btn) {
    redrawn - the inputs are gone once the frame is rebuilt.
    ========================================================================= */
 
-const stopRoom = { sentFor: '', clock: null, clockKey: null, fired: false };
+const stopRoom = { sentFor: '', clock: null, clockKey: null, fired: false, letterKey: '' };
 const STOP_ROOM_OPTS_KEY = 'ashryStopRoomOpts';
 
 /** The host's options, remembered on this phone between evenings. */
@@ -31689,6 +31860,8 @@ ROOM_GAMES.stop = {
                  s.phase === 'done' ? JSON.stringify(s.board) : ''].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => stopRoomFrame(state, t, inRound, iSubmitted));
     if (rebuilt && s.phase === 'done' && typeof confetti === 'function') confetti({ particleCount: 160, spread: 80 });
+    // A new letter: a cue, so a table looking at its papers looks up.
+    if (s.phase === 'writing' && stopRoom.letterKey !== roundKey) { stopRoom.letterKey = roundKey; playSound('success'); haptic('light'); }
     refreshRoomPlayerStrip(el, state);
 
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
@@ -32000,7 +32173,11 @@ function setDirectorMode(game, mode) {
 }
 
 function paintImposterSetup() { paintDirectorSetup('imposter'); }
-function paintWhoAmISetup() { paintDirectorSetup('whoami'); }
+function paintWhoAmISetup() {
+  paintDirectorSetup('whoami');
+  const chosen = [60, 120, 180, 0].indexOf(Number(appState.whoami.timerChoice)) !== -1 ? Number(appState.whoami.timerChoice) : 120;
+  document.querySelectorAll('#whoami-timer .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === chosen));
+}
 
 function paintDirectorSetup(game) {
   const mode = directorModeOf(game);
@@ -32094,7 +32271,7 @@ function chameleonFrame(state, t) {
     return head + chameleonGridHtml(s, { mine: iAmCham ? -1 : you.secret }) + `
       <div class="card card--tight">
         <div class="eyebrow">${escapeHTML(t.accuse_chameleon || '')}</div>
-        ${renderBallot(state)}
+        ${renderBallot(state, { ownLabel: t.vote_you })}
       </div>` + renderRoomPlayerStrip(state);
   }
   if (s.phase === 'guess') {
@@ -32296,7 +32473,7 @@ function spyfallFrame(state, t) {
     return head + card + `
       <div class="card card--tight">
         <div class="eyebrow">${escapeHTML(t.accuse_player || '')}</div>
-        ${renderBallot(state)}
+        ${renderBallot(state, { ownLabel: t.vote_you })}
       </div>` + renderRoomPlayerStrip(state);
   }
   if (s.phase === 'guess') {
@@ -32419,14 +32596,15 @@ TV_GAMES.spyfall = {
 /* ============================================================================
    القنبلة — ON THE TV (and every phone)
    ----------------------------------------------------------------------------
-   The category is on the big screen and on every phone; the bomb itself is
-   whatever the table passes round. The fuse is a server clock nobody can
-   read: phones get `heat` (0-3) and tick faster with it, and the server
-   says when it goes off. Then the host marks who was holding it, and the
-   strikes are the board. Rules: bombRoomAction in RoomGames.js.
+   The category is on the big screen and on every phone, and the bomb is on
+   one phone at a time: the holder's phone ticks and carries the pass button,
+   the others show who has it. The fuse is a server clock nobody can read:
+   phones get `heat` (0-3) and tick faster with it, and the server says when
+   it goes off - in whoever's hands it is. The strikes are the board. Rules:
+   bombRoomAction in RoomGames.js.
    ========================================================================= */
 
-const bombRoom = { tickTimer: null, tickingKey: '' };
+const bombRoom = { tickTimer: null, tickingKey: '', fixing: false };
 const BOMB_ROOM_OPTS_KEY = 'ashryBombRoomOpts';
 const BOMB_TICK_MS = [1000, 700, 450, 250];   // by heat
 
@@ -32483,7 +32661,7 @@ ROOM_GAMES.bomb = {
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
-    const sig = ['bomb', s.phase, s.round, s.prompt, s.heat, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang].join('|');
+    const sig = ['bomb', s.phase, s.round, s.prompt, s.heat, s.holderId, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang, bombRoom.fixing].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => bombRoomFrame(state, t));
     refreshRoomPlayerStrip(el, state);
     bombRoomTicking(state, rebuilt);
@@ -32526,39 +32704,68 @@ function bombStrikesHtml(s, t) {
     </div>`;
 }
 
+/** Who has the bomb, as a row of the seating order with the holder lit. */
+function bombOrderHtml(s, state) {
+  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+  return `
+    <div class="chip-set bomb-order">
+      ${(s.order || []).filter(id => state.players.some(p => p.id === id)).map(id => `
+        <span class="chip ${id === s.holderId ? 'bomb-order__holder' : 'chip--plain'}">${id === s.holderId ? '💣 ' : ''}${escapeHTML(nameOf(id))}</span>`).join('')}
+    </div>`;
+}
+
 function bombRoomFrame(state, t) {
   const s = state.shared;
-  const head = `<div class="play-head"><span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span></div>`;
+  const iHold = s.holderId === Room.me;
+  const head = `<div class="play-head"><span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
+    ${s.phase === 'ticking' ? `<span class="badge ${iHold ? 'badge--danger' : ''}">💣 ${escapeHTML(iHold ? (t.bomb_room_yours || '') : (s.holderName || ''))}</span>` : ''}</div>`;
   if (s.phase === 'ticking') {
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
     return head + bombRoomCardHtml(s, t) + `
-      ${state.youAreHost
+      ${iHold
         ? `<div class="btn-stack">
-             <button class="btn btn--secondary" onclick="roomAct('swap')">${escapeHTML(t.bomb_swap || '')}</button>
+             <button class="btn btn--danger btn--lg bomb-pass" onclick="passBomb(this)">${escapeHTML(t.bomb_room_pass || '')} ➡</button>
+             <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_room_pass_hint || '')}</p>
+           </div>`
+        : (inRound ? `<div class="waiting-note">${escapeHTML((t.bomb_room_with || '').replace('{name}', s.holderName || ''))}</div>` : '')}
+      ${bombOrderHtml(s, state)}
+      ${state.youAreHost
+        ? `<div class="btn-row" style="margin-top: var(--sp-3)">
+             <button class="btn btn--secondary btn--sm" onclick="roomAct('swap')">${escapeHTML(t.bomb_swap || '')}</button>
              <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
            </div>`
         : ''}
       ${bombStrikesHtml(s, t)}
       ${renderRoomPlayerStrip(state)}`;
   }
-  // boom
-  const marking = state.youAreHost && !s.loserId;
+  // boom: the server already knows who was holding it; the host can correct.
   return head + bombRoomCardHtml(s, t) + `
-    ${marking ? `
-      <div class="card card--tight">
-        <div class="eyebrow">${escapeHTML(t.bomb_room_who || '')}</div>
-        <div class="btn-stack">
-          ${state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1).map(p => `
-            <button class="btn btn--neutral" onclick="roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })">${escapeHTML(p.name)}</button>`).join('')}
-        </div>
-      </div>` : ''}
     ${state.youAreHost
       ? `<div class="btn-stack">
            <button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { lang: '${VOTE_LANG()}' })">${escapeHTML(t.bomb_next_round || '')}</button>
-           <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+           <div class="btn-row">
+             <button class="btn btn--ghost btn--sm" onclick="bombRoom.fixing = !bombRoom.fixing; ROOM_GAMES.bomb.render(Room.state)">${escapeHTML(bombRoom.fixing ? (t.cancel || '') : (t.bomb_room_fix || ''))}</button>
+             <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+           </div>
+           ${bombRoom.fixing ? `
+             <div class="card card--tight">
+               <div class="eyebrow">${escapeHTML(t.bomb_room_who || '')}</div>
+               <div class="btn-stack">
+                 ${state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1).map(p => `
+                   <button class="btn btn--neutral ${p.id === s.loserId ? 'is-active' : ''}" onclick="bombRoom.fixing = false; roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })">${escapeHTML(p.name)}</button>`).join('')}
+               </div>
+             </div>` : ''}
          </div>`
       : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
     ${bombStrikesHtml(s, t)}
     ${renderRoomPlayerStrip(state)}`;
+}
+
+/** The press has to feel instant: the button locks before the server answers. */
+function passBomb(btn) {
+  if (btn) btn.disabled = true;
+  haptic('medium');
+  roomAct('pass');
 }
 
 /** The ticking: faster with every heat step the server sends. */
@@ -32576,7 +32783,7 @@ function bombRoomTicking(state, rebuilt) {
   const tick = () => {
     const st = Room.state;
     if (!st || st.shared.phase !== 'ticking' || state.code + '#' + st.shared.round + '#' + st.shared.heat !== bombRoom.tickingKey) return;
-    playSound('tick');
+    if (st.youAreScreen || st.shared.holderId === Room.me) playSound('tick');
     const card = document.getElementById('bomb-card');
     if (card) { card.classList.remove('is-tick'); void card.offsetWidth; card.classList.add('is-tick'); }
     bombRoom.tickTimer = setTimeout(tick, BOMB_TICK_MS[Math.min(3, st.shared.heat || 0)]);
@@ -32588,15 +32795,18 @@ function bombRoomTicking(state, rebuilt) {
 TV_GAMES.bomb = {
   sig(state) {
     const s = state.shared || {};
-    return [s.phase, s.round, s.prompt, s.heat, s.loserId, JSON.stringify(s.strikes || {})].join('|');
+    return [s.phase, s.round, s.prompt, s.heat, s.holderId, s.loserId, JSON.stringify(s.strikes || {})].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};
     const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round}</div>`;
+    const holder = s.phase === 'ticking'
+      ? `<div class="tv-question">💣 ${escapeHTML((t.bomb_room_with || '').replace('{name}', s.holderName || ''))}</div>`
+      : '';
     const host = !state.youAreHost ? '' : (s.phase === 'ticking'
       ? `<div class="tv-actions">${tvBtn(t.bomb_swap, "roomAct('swap')", 'secondary')}</div>`
-      : `<div class="tv-actions">${!s.loserId ? state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1).map(p => tvBtn(p.name, `roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })`, 'neutral')).join('') : ''}${tvBtn(t.bomb_next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}</div>`);
-    return `<div class="tv-vote">${head}<div class="tv-bomb tv-scale">${bombRoomCardHtml(s, t)}</div>${host}<div class="tv-scale">${bombStrikesHtml(s, t)}</div></div>`;
+      : `<div class="tv-actions">${tvBtn(t.bomb_next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1 && p.id !== s.loserId).map(p => tvBtn('↩ ' + p.name, `roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })`, 'ghost')).join('')}</div>`);
+    return `<div class="tv-vote">${head}${holder}<div class="tv-bomb tv-scale">${bombRoomCardHtml(s, t)}</div><div class="tv-strip-inline">${bombOrderHtml(s, state).replace('chip-set bomb-order', 'tv-order')}</div>${host}<div class="tv-scale">${bombStrikesHtml(s, t)}</div></div>`;
   },
   after(state, rebuilt) { bombRoomTicking(state, rebuilt); }
 };
@@ -32641,7 +32851,7 @@ function relayHandoverHtml(store, t, startFn) {
     </div>`;
 }
 
-/** After a turn: what this team scored, and on to the next one or the final board. */
+/** After a turn: what this team scored, whose turn is next, and the button that starts it. */
 function relayTurnDone(store, points) {
   const r = store.relay;
   const team = relayTeam(store);
@@ -32670,15 +32880,21 @@ function relaySummaryHtml(store, t, nextFn, exitFn) {
         <button type="button" class="btn btn--ghost" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
       </div>`;
   }
+  const team = relayTeam(store);
+  const turnNo = Math.floor(r.i / 2) + 1;
   return `
     <div class="relay">
-      <div class="relay__result">
-        <div class="eyebrow">${escapeHTML(t.relay_turn_done || '')}</div>
-        <div class="relay__team relay__team--${last.team}">${escapeHTML(r.names[last.team])}</div>
-        <div class="metric metric--lg tx-success">+${last.points}</div>
+      <div class="relay__result relay__result--last">
+        <div class="eyebrow">${escapeHTML(t.relay_turn_done || '')} · ${escapeHTML(r.names[last.team])}</div>
+        <div class="metric metric--md tx-success">+${last.points}</div>
       </div>
-      ${relayScoresHtml(store, -1)}
-      <button type="button" class="btn btn--primary btn--lg" onclick="${nextFn}">${escapeHTML(t.relay_next_team || '')} ⏭</button>
+      ${relayScoresHtml(store, team)}
+      <div class="relay__pass">
+        <div class="eyebrow">${escapeHTML(t.relay_turn_of || '')} · ${turnNo} / ${r.turns}</div>
+        <div class="relay__team relay__team--${team}">${escapeHTML(r.names[team])}</div>
+        <p class="field__hint">📱 ${escapeHTML(t.relay_pass_to || '')} ${escapeHTML(r.names[team])}</p>
+      </div>
+      <button type="button" class="btn btn--primary btn--lg" onclick="${nextFn}">${escapeHTML(t.relay_start_turn || '')}</button>
       <button type="button" class="btn btn--ghost btn--sm" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
     </div>`;
 }

@@ -194,53 +194,74 @@ ROOM_GAMES.whoami = {
     const el = document.getElementById('view-room-whoami');
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const guessed = s.guessed || [];
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+    const myPlace = guessed.indexOf(Room.me);
+    const present = state.players.map(p => p.id);
+    const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1);
+    const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
 
-    if (state.shared.revealed) {
-      el.innerHTML = `
+    if (s.revealed) {
+      const fresh = renderRoomFrame(el, ['wa-result', JSON.stringify(s.all || []), state.youAreHost, appState.lang].join('|'), () => `
         <div class="card">
           <div class="card__title">${t.whoami_reveal || 'الهويات'}</div>
-          ${(state.shared.all || []).map(x => `
+          ${(s.all || []).map(x => `
             <div class="status-row">
               <div class="status-row__body">
-                <div class="status-row__name">${escapeHTML(x.name)}</div>
+                <div class="status-row__name">${x.got ? ['🥇', '🥈', '🥉'][x.got - 1] || '✅' : '❔'} ${escapeHTML(x.name)}</div>
                 <div><span class="badge badge--accent">${escapeHTML(x.word)}</span></div>
               </div>
             </div>`).join('')}
         </div>
+        ${renderScoreboard(s.board)}
         ${state.youAreHost
           ? `<div class="btn-stack">
                <button onclick="roomAct('restart')" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>
                <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
              </div>`
-          : `<div class="waiting-note">${t.room_wait_host}</div>`}`;
+          : `<div class="waiting-note">${t.room_wait_host}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && typeof confetti === 'function') confetti({ particleCount: 120, spread: 70 });
+      refreshRoomPlayerStrip(el, state);
       return;
     }
 
     const others = (state.you && state.you.others) || [];
-    el.innerHTML = `
+    renderRoomFrame(el, ['wa-play', guessed.join(','), myPlace, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
-        <div class="role-card">
+        <div class="role-card ${myPlace !== -1 ? 'role-card--done' : ''}">
           <div class="role-card__label">${t.whoami_you || 'هويتك'}</div>
-          <div class="role-card__value">❓</div>
-          <div class="role-card__hint">${t.whoami_hint || 'اسأل الآخرين أسئلة بنعم أو لا لتعرف من أنت'}</div>
+          <div class="role-card__value">${myPlace !== -1 ? '✅' : '❓'}</div>
+          <div class="role-card__hint">${myPlace !== -1 ? escapeHTML((t.wa_you_got || '').replace('{n}', myPlace + 1)) : (t.whoami_hint || '')}</div>
         </div>
+        ${inRound && myPlace === -1
+          ? `<button class="btn btn--success btn--lg" style="margin-top: var(--sp-3)" onclick="roomAct('gotIt')">${escapeHTML(t.wa_got_it || '')}</button>`
+          : ''}
+        <p class="field__hint" style="margin-top: var(--sp-2)">${escapeHTML((t.wa_progress || '').replace('{n}', guessed.length).replace('{m}', expected.length))}</p>
       </div>
       <div class="section">
         <div class="section__head">
           <h2 class="section__title">${t.whoami_others || 'هويات الآخرين'}</h2>
           <span class="section__rule"></span>
         </div>
-        ${others.map(o => `
+        ${others.map(o => {
+          const id = (state.players.find(p => p.name === o.name) || {}).id;
+          const got = id ? guessed.indexOf(id) : -1;
+          return `
           <div class="status-row">
             <div class="status-row__body">
-              <div class="status-row__name">${escapeHTML(o.name)}</div>
+              <div class="status-row__name">${got !== -1 ? '✅ ' : ''}${escapeHTML(o.name)}</div>
               <div><span class="badge badge--accent">${escapeHTML(o.word)}</span></div>
             </div>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>
       ${state.youAreHost
-        ? `<button onclick="roomAct('reveal')" class="btn btn--danger btn--lg">${t.reveal_words || 'كشف الكلمات'}</button>`
-        : `<div class="waiting-note">${t.room_wait_host}</div>`}`;
+        ? `<button onclick="roomAct('reveal')" class="btn btn--danger" >${t.reveal_words || 'كشف الكلمات'}</button>`
+        : `<div class="waiting-note">${escapeHTML(t.wa_wait || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}`);
+    refreshRoomPlayerStrip(el, state);
   }
 };
 </script>

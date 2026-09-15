@@ -56,6 +56,8 @@ ROOM_GAMES.imposter = {
 
     if (state.phase === 'reveal')  renderImposterReveal(el, state, t);
     else if (state.phase === 'discuss') renderImposterDiscuss(el, state, t);
+    else if (state.phase === 'voting')  renderImposterVoting(el, state, t);
+    else if (state.phase === 'guess')   renderImposterGuess(el, state, t);
     else if (state.phase === 'result')  renderImposterResult(el, state, t);
     refreshRoomPlayerStrip(el, state);
   }
@@ -103,11 +105,51 @@ function renderImposterDiscuss(el, state, t) {
       <p class="card__subtitle" style="margin-bottom:0">${t.imposter_discuss_hint || 'اسألوا بعضكم واكتشفوا الجاسوس'}</p>
     </div>
     ${state.youAreHost
-      ? `<button onclick="roomAct('revealResult')" class="btn btn--danger btn--lg">${t.reveal_imposters || 'كشف الجواسيس'}</button>`
-      : `<div class="waiting-note">${t.room_wait_host}</div>`}
+      ? `<div class="btn-stack">
+           <button onclick="roomAct('startVote')" class="btn btn--primary btn--lg">${escapeHTML(t.imp_start_vote || '')}</button>
+           <button onclick="roomAct('revealResult')" class="btn btn--ghost btn--sm">${escapeHTML(t.imp_reveal_direct || '')}</button>
+         </div>`
+      : `<div class="waiting-note">${escapeHTML(t.imp_wait_vote || '')}</div>`}
     ${renderRoomPlayerStrip(state)}`);
 
   startRoomDiscussClock(state.shared.startedAt);
+}
+
+/** Everyone accuses someone; the choices stay hidden until the vote closes. */
+function renderImposterVoting(el, state, t) {
+  if (roomDiscussClock) { roomDiscussClock.stop(); roomDiscussClock = null; roomDiscussBase = null; }
+  const v = state.shared.vote || {};
+  renderRoomFrame(el, 'voting|' + (v.voted || []).length + '|' + state.youAreHost + '|' + appState.lang, () => `
+    <div class="card card--tight">
+      <div class="eyebrow">${escapeHTML(t.accuse_player || '')}</div>
+      ${renderBallot(state, { ownLabel: t.vote_you })}
+    </div>
+    ${renderRoomPlayerStrip(state)}`);
+}
+
+/** A caught spy picks the word from six; everyone else waits. */
+function renderImposterGuess(el, state, t) {
+  const s = state.shared;
+  const mine = s.guesserId === Room.me;
+  renderRoomFrame(el, 'guess|' + s.guesserId + '|' + mine + '|' + state.youAreHost + '|' + appState.lang, () => `
+    <div class="card card--accent" style="text-align:center">
+      <div class="metric metric--md">🕵️ ${escapeHTML(s.guesserName || '')}</div>
+      <p class="sheet__subtitle">${escapeHTML(mine ? (t.imp_guess_hint || '') : (t.imp_guessing || ''))}</p>
+    </div>
+    ${mine
+      ? `<div class="btn-stack">${(s.options || []).map(w => `<button class="ballot-option" onclick="roomAct('guess', { word: '${jsStringAttr(w)}' })"><span class="ballot-option__label">${escapeHTML(w)}</span></button>`).join('')}</div>`
+      : `<div class="chip-set" style="justify-content:center">${(s.options || []).map(w => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(w)}</span></span>`).join('')}</div>`}
+    ${state.youAreHost ? `<div class="btn-stack" style="margin-top: var(--sp-3)"><button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${escapeHTML(t.fa_skip_guess || '')}</button></div>` : ''}
+    ${renderRoomPlayerStrip(state)}`);
+}
+
+/** The line that says how the round went. */
+function imposterOutcomeLine(s, t) {
+  const names = (s.spies || []).join(' · ');
+  if (s.outcome === 'escaped') return (t.imp_escaped || '').replace('{name}', names);
+  if (s.outcome === 'stole') return (t.imp_stole || '').replace('{name}', names);
+  if (s.outcome === 'caught') return (t.imp_caught || '').replace('{name}', names);
+  return t.imp_revealed || '';
 }
 
 /** Counts up from the shared start time, so every phone shows the same number. */
@@ -134,16 +176,17 @@ function startRoomDiscussClock(startedAt) {
 
 function renderImposterResult(el, state, t) {
   if (roomDiscussClock) { roomDiscussClock.stop(); roomDiscussClock = null; roomDiscussBase = null; }
-  const spies = state.shared.spies || [];
-  const fresh = renderRoomFrame(el, 'result|' + spies.join(',') + '|' + state.youAreHost, () => `
-    <div class="card" style="text-align:center">
-      <div class="eyebrow">${t.the_spies || 'الجواسيس'}</div>
-      <div class="metric metric--md" style="color: var(--danger); margin-bottom: var(--sp-4)">
-        ${spies.map(escapeHTML).join('، ')}
-      </div>
+  const s = state.shared;
+  const spies = s.spies || [];
+  const won = s.outcome === 'caught';
+  const fresh = renderRoomFrame(el, 'result|' + spies.join(',') + '|' + s.outcome + '|' + state.youAreHost + '|' + appState.lang, () => `
+    <div class="card ${won ? 'card--accent' : ''}" style="text-align:center">
+      <div class="metric metric--md ${won ? 'tx-success' : (s.outcome === 'revealed' ? '' : 'tx-danger')}" style="margin-bottom: var(--sp-3)">${won ? '🎉' : '🕵️'} ${escapeHTML(imposterOutcomeLine(s, t))}</div>
       <div class="eyebrow">${t.secret_word || 'الكلمة السرية'}</div>
-      <div class="metric metric--md metric--accent">${escapeHTML(state.shared.secretWord || '')}</div>
+      <div class="metric metric--md metric--accent">${escapeHTML(s.secretWord || '')}</div>
+      ${s.accusedName ? `<p class="sheet__subtitle">${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}${s.guess ? ` · ${escapeHTML(t.spy_guess_was || '')}: ${escapeHTML(s.guess)}` : ''}</p>` : ''}
     </div>
+    ${renderScoreboard(s.board)}
     ${state.youAreHost
       ? `<div class="btn-stack">
            <button onclick="roomAct('restart')" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>
@@ -152,7 +195,7 @@ function renderImposterResult(el, state, t) {
       : `<div class="waiting-note">${t.room_wait_host}</div>`}`);
   // Only on the round that actually just ended. This used to re-fire every time
   // anyone's presence flickered, which is every few seconds in a real room.
-  if (fresh) confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+  if (fresh && won) confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
 }
 
 /* --- shared helpers used by every room game ----------------------------- */

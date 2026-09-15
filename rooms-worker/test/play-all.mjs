@@ -184,8 +184,19 @@ async function main() {
   check(!leaks(spies[0], word), "the spy's phone never receives the word");
   check((await A.act('start', { category: 'حيوانات' })).ok === false, 'a second start is refused');
   await A.must('beginDiscussion');
-  await A.must('revealResult');
-  await all(bots, (s) => s.phase === 'result' && s.shared.secretWord === word, 'imposter result shows the word');
+  await A.must('startVote');
+  await all(bots, (s) => s.phase === 'voting', 'the host opens the vote on the imposter');
+  const theSpyBot = spies[0];
+  check((await theSpyBot.act('vote', { option: theSpyBot.pid })).ok === false, 'you cannot accuse yourself');
+  for (const b of bots) await b.must('vote', { option: b === theSpyBot ? players[0].pid : theSpyBot.pid });
+  await all(bots, (s) => s.phase === 'guess' && s.shared.guesserId === theSpyBot.pid && s.shared.options.length === 6 && s.shared.options.indexOf(word) !== -1,
+    'a caught imposter gets six words to pick from');
+  check(!('secretWord' in theSpyBot.state.shared), 'the word is still not published while the spy guesses');
+  await theSpyBot.must('guess', { word: theSpyBot.state.shared.options.find((w) => w !== word) });
+  await all(bots, (s) => s.phase === 'result' && s.shared.outcome === 'caught' && s.shared.secretWord === word && s.shared.scores[players[0].pid] === 1,
+    'a wrong guess: the players score and the word is shown');
+  await A.must('restart');
+  await all(bots, (s) => s.phase === 'lobby' && s.shared.scores && s.shared.scores[players[0].pid] === 1, 'restart keeps the scores');
   await A.must('backToHub');
 
   /* --- كلمة واحدة ----------------------------------------------------------- */
@@ -214,8 +225,13 @@ async function main() {
   await A.must('start', { words: ['أسد', 'قمر', 'بحر', 'نار', 'شمس'] });
   await all(bots, (s) => s.phase === 'playing', 'who am i dealt');
   check(bots.every((b) => b.state.you.others.length === 3), 'each phone sees the other three');
+  await B.must('gotIt');
+  await C.must('gotIt');
+  await all(bots, (s) => s.shared.guessed.length === 2 && s.shared.scores[B.pid] === 3 && s.shared.scores[C.pid] === 2, 'the first to get it scores 3, the second 2');
+  await B.must('gotIt');
+  check(B.state.shared.scores[B.pid] === 3, 'a second press changes nothing');
   await A.must('reveal');
-  await all(bots, (s) => s.phase === 'result' && s.shared.all.length === 4, 'who am i reveal');
+  await all(bots, (s) => s.phase === 'result' && s.shared.all.length === 4 && s.shared.all.find((x) => x.id === B.pid).got === 1, 'who am i reveal shows who got it in what order');
   await A.must('backToHub');
 
   /* --- أسماء الرموز --------------------------------------------------------- */

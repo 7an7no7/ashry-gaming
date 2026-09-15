@@ -1,0 +1,196 @@
+<script>
+/* ============================================================================
+   THE SOUNDBOARD — twelve sounds the table can throw in mid-game
+   ----------------------------------------------------------------------------
+   Every sound is made here with the Web Audio API, on the audio context the
+   click sounds already use: nothing is downloaded, so they play at once,
+   offline, and never depend on someone else's server (the old board pulled
+   mp3s from a meme site). playFx(name) plays one; the sheet
+   (openSoundboard) lists them all; a small 🔊 button sits on every play and
+   room screen so the host doesn't have to dig for it, and every burst of
+   confetti in the app brings a fanfare with it.
+   ========================================================================= */
+
+const FX_LIST = [
+  { id: 'applause', emoji: '👏', key: 'fx_applause' },
+  { id: 'tada',     emoji: '🎉', key: 'fx_tada' },
+  { id: 'ding',     emoji: '✅', key: 'fx_ding' },
+  { id: 'buzzer',   emoji: '❌', key: 'fx_buzzer' },
+  { id: 'drum',     emoji: '🥁', key: 'fx_drum' },
+  { id: 'fail',     emoji: '🎺', key: 'fx_fail' },
+  { id: 'sad',      emoji: '🎻', key: 'fx_sad' },
+  { id: 'crickets', emoji: '🦗', key: 'fx_crickets' },
+  { id: 'boo',      emoji: '👎', key: 'fx_boo' },
+  { id: 'airhorn',  emoji: '📣', key: 'fx_airhorn' },
+  { id: 'siren',    emoji: '🚨', key: 'fx_siren' },
+  { id: 'whistle',  emoji: '😗', key: 'fx_whistle' }
+];
+
+/* --- the instruments ----------------------------------------------------- */
+function fxCtx() {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+/** A tone: type, a frequency ramp [[time, hz], ...], a gain envelope [[time, level], ...]. */
+function fxTone(type, freqs, gains, at, detune) {
+  const ctx = fxCtx();
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type;
+  if (detune) osc.detune.value = detune;
+  freqs.forEach(([t, hz], i) => (i === 0 ? osc.frequency.setValueAtTime(hz, at + t) : osc.frequency.exponentialRampToValueAtTime(hz, at + t)));
+  gains.forEach(([t, lv], i) => (i === 0 ? g.gain.setValueAtTime(lv, at + t) : g.gain.linearRampToValueAtTime(lv, at + t)));
+  osc.connect(g); g.connect(ctx.destination);
+  const end = Math.max(freqs[freqs.length - 1][0], gains[gains.length - 1][0]);
+  osc.start(at); osc.stop(at + end + 0.05);
+}
+
+/** A burst of noise through a filter: type, frequency, Q, envelope. */
+function fxNoise(filterType, hz, q, gains, at) {
+  const ctx = fxCtx();
+  const end = gains[gains.length - 1][0];
+  const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * (end + 0.05)), ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const f = ctx.createBiquadFilter();
+  f.type = filterType; f.frequency.value = hz; f.Q.value = q;
+  const g = ctx.createGain();
+  gains.forEach(([t, lv], i) => (i === 0 ? g.gain.setValueAtTime(lv, at + t) : g.gain.linearRampToValueAtTime(lv, at + t)));
+  src.connect(f); f.connect(g); g.connect(ctx.destination);
+  src.start(at); src.stop(at + end + 0.05);
+}
+
+const FX = {
+  applause(at) {
+    // Many small claps: noise bursts at random moments, swelling then fading.
+    for (let i = 0; i < 46; i++) {
+      const t = at + Math.random() * 1.6;
+      const lv = 0.05 + Math.random() * 0.12 * (1 - Math.abs(t - at - 0.7) / 1.2);
+      fxNoise('bandpass', 1600 + Math.random() * 1800, 1.2, [[0, 0], [0.005, lv], [0.05, 0.001]], t);
+    }
+  },
+  tada(at) {
+    [523, 659, 784, 1047].forEach((hz, i) => fxTone('triangle', [[0, hz]], [[0, 0], [0.01, 0.16], [0.28, 0.12], [0.5, 0.001]], at + i * 0.09));
+    fxTone('triangle', [[0, 1047]], [[0, 0], [0.02, 0.2], [0.5, 0.15], [1.0, 0.001]], at + 0.36);
+    fxNoise('highpass', 6000, 0.7, [[0, 0], [0.02, 0.08], [0.5, 0.001]], at + 0.36);
+  },
+  ding(at) {
+    fxTone('sine', [[0, 880]], [[0, 0], [0.01, 0.2], [0.35, 0.001]], at);
+    fxTone('sine', [[0, 1320]], [[0, 0], [0.01, 0.16], [0.5, 0.001]], at + 0.12);
+  },
+  buzzer(at) {
+    fxTone('square', [[0, 130], [0.45, 110]], [[0, 0], [0.01, 0.12], [0.4, 0.12], [0.45, 0.001]], at);
+    fxTone('square', [[0, 131], [0.45, 111]], [[0, 0], [0.01, 0.08], [0.4, 0.08], [0.45, 0.001]], at, 12);
+  },
+  drum(at) {
+    // Ba-dum-tss: two kicks, a snare, a cymbal.
+    const kick = (t) => fxTone('sine', [[0, 160], [0.14, 45]], [[0, 0], [0.005, 0.5], [0.15, 0.001]], t);
+    kick(at); kick(at + 0.2);
+    fxNoise('bandpass', 1800, 0.8, [[0, 0], [0.005, 0.35], [0.12, 0.001]], at + 0.42);
+    fxTone('triangle', [[0, 220], [0.1, 180]], [[0, 0], [0.005, 0.2], [0.1, 0.001]], at + 0.42);
+    fxNoise('highpass', 5000, 0.5, [[0, 0], [0.01, 0.3], [0.9, 0.001]], at + 0.6);
+  },
+  fail(at) {
+    // The sad trombone: four notes sliding down.
+    [[0, 311], [0.45, 293], [0.9, 277], [1.35, 261]].forEach(([t, hz], i) => {
+      const last = i === 3;
+      fxTone('sawtooth', [[0, hz * 1.02], [0.08, hz], [last ? 0.9 : 0.4, last ? hz * 0.85 : hz * 0.99]],
+             [[0, 0], [0.03, 0.14], [last ? 0.7 : 0.35, 0.12], [last ? 1.0 : 0.42, 0.001]], at + t);
+    });
+  },
+  sad(at) {
+    // A violin sighing: a slow slide down with vibrato.
+    const ctx = fxCtx();
+    const osc = ctx.createOscillator(), g = ctx.createGain(), vib = ctx.createOscillator(), vg = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(440, at);
+    osc.frequency.exponentialRampToValueAtTime(330, at + 1.6);
+    osc.frequency.exponentialRampToValueAtTime(262, at + 2.4);
+    vib.frequency.value = 5.5; vg.gain.value = 6;
+    vib.connect(vg); vg.connect(osc.frequency);
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800;
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(0.14, at + 0.3); g.gain.linearRampToValueAtTime(0.1, at + 2.0); g.gain.linearRampToValueAtTime(0.001, at + 2.6);
+    osc.connect(f); f.connect(g); g.connect(ctx.destination);
+    vib.start(at); osc.start(at); osc.stop(at + 2.7); vib.stop(at + 2.7);
+  },
+  crickets(at) {
+    for (let i = 0; i < 8; i++) {
+      const t = at + i * 0.22 + Math.random() * 0.05;
+      for (let k = 0; k < 3; k++) fxTone('sine', [[0, 4200 + Math.random() * 300]], [[0, 0], [0.005, 0.05], [0.03, 0.001]], t + k * 0.04);
+    }
+  },
+  boo(at) {
+    for (let i = 0; i < 5; i++) {
+      const t = at + i * 0.06;
+      fxTone('sawtooth', [[0, 190 - i * 8], [0.7, 120 - i * 6]], [[0, 0], [0.05, 0.05], [0.5, 0.05], [0.75, 0.001]], t, (i - 2) * 25);
+    }
+    fxNoise('lowpass', 500, 0.5, [[0, 0], [0.1, 0.12], [0.6, 0.08], [0.8, 0.001]], at);
+  },
+  airhorn(at) {
+    [0, 7, -5].forEach(d => fxTone('sawtooth', [[0, 233], [0.05, 220], [0.9, 205]], [[0, 0], [0.02, 0.12], [0.75, 0.12], [0.95, 0.001]], at, d));
+    fxTone('square', [[0, 440], [0.9, 410]], [[0, 0], [0.02, 0.04], [0.75, 0.04], [0.95, 0.001]], at);
+  },
+  siren(at) {
+    const ctx = fxCtx();
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = 'square';
+    for (let i = 0; i < 4; i++) {
+      osc.frequency.setValueAtTime(600, at + i * 0.4);
+      osc.frequency.linearRampToValueAtTime(950, at + i * 0.4 + 0.2);
+      osc.frequency.linearRampToValueAtTime(600, at + i * 0.4 + 0.4);
+    }
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(0.08, at + 0.05); g.gain.setValueAtTime(0.08, at + 1.5); g.gain.linearRampToValueAtTime(0.001, at + 1.6);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(at); osc.stop(at + 1.65);
+  },
+  whistle(at) {
+    fxTone('sine', [[0, 1800], [0.15, 2600], [0.45, 1700]], [[0, 0], [0.02, 0.14], [0.4, 0.12], [0.5, 0.001]], at);
+    fxNoise('bandpass', 2200, 6, [[0, 0], [0.02, 0.05], [0.45, 0.001]], at);
+  }
+};
+
+function playFx(name) {
+  const fn = FX[name];
+  if (!fn) return;
+  try { fn(fxCtx().currentTime + 0.01); } catch (e) {}
+}
+
+/* --- the sheet and the button ---------------------------------------------- */
+function openSoundboard() {
+  const t = TRANSLATIONS[appState.lang];
+  const grid = document.getElementById('soundboard-grid');
+  if (grid) {
+    grid.innerHTML = FX_LIST.map(fx => `
+      <button type="button" class="fx-btn" onclick="playFx('${fx.id}')">
+        <span class="fx-btn__emoji" aria-hidden="true">${fx.emoji}</span>
+        <span class="fx-btn__name">${escapeHTML(t[fx.key] || fx.id)}</span>
+      </button>`).join('');
+  }
+  const title = document.getElementById('soundboard-title');
+  if (title) title.textContent = t.sounds || '';
+  document.getElementById('soundboard-modal').classList.remove('hidden');
+}
+function toggleSoundboard() { openSoundboard(); }
+
+/** The 🔊 button: shown on play and room screens (setView toggles body.has-fx). */
+function syncFxButton(viewId) {
+  const on = /^(play-|room-)/.test(viewId || '') && viewId !== 'room-tv';
+  document.body.classList.toggle('has-fx', on);
+}
+
+/* Every burst of confetti in the app brings a fanfare with it. */
+(function () {
+  const wrap = () => {
+    if (typeof window.confetti !== 'function' || window.confetti.__fx) return false;
+    const real = window.confetti;
+    const wrapped = function () { playFx('tada'); return real.apply(this, arguments); };
+    wrapped.__fx = true;
+    window.confetti = wrapped;
+    return true;
+  };
+  if (!wrap()) window.addEventListener('load', wrap);
+})();
+</script>

@@ -68,6 +68,12 @@ const clearGameState = (room) => {
   room._spyIds = null;
   room._bombStart = null;
   room._bombEndsAt = null;
+  room._tt = null;
+  room._card = null;
+  room._quizCount = null;
+  room._fiveDeck = null;
+  room._fiveRounds = null;
+  room._chains = null;
 };
 
 /** The stashed sides, minus anyone who has since left. */
@@ -85,7 +91,8 @@ const ROOM_GAME_IDS = [
   'imposter', 'justone', 'whoami', 'codenames',
   'wouldyou', 'mostlikely', 'fibbage', 'drawguess',
   'fakeartist', 'wavelength', 'trivia', 'buzzer', 'stop',
-  'chameleon', 'spyfall', 'bomb'
+  'chameleon', 'spyfall', 'bomb',
+  'twotruths', 'emoji', 'proverbs', 'fiveseconds', 'telephone'
 ];
 
 // Must match MAX_PLAYERS and MAX_SCREENS in rooms-worker/src/room.js.
@@ -172,6 +179,11 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'chameleon':  chameleonRoomAction(room, playerId, action, payload); break;
     case 'spyfall':    spyfallRoomAction(room, playerId, action, payload); break;
     case 'bomb':       bombRoomAction(room, playerId, action, payload); break;
+    case 'twotruths':  twoTruthsAction(room, playerId, action, payload); break;
+    case 'emoji':
+    case 'proverbs':   quizAction(room, playerId, action, payload); break;
+    case 'fiveseconds': fiveSecondsAction(room, playerId, action, payload); break;
+    case 'telephone':  telephoneAction(room, playerId, action, payload); break;
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -2557,6 +2569,10 @@ const roomDeadline = (room) => {
   }
   if (room.game === 'stop' && s.phase === 'writing' && s.endsAt) return s.endsAt + STOP_GRACE_MS;
   if (room.game === 'stop' && s.phase === 'collecting' && s.collectEndsAt) return s.collectEndsAt + STOP_GRACE_MS;
+  if (QUIZ_GAMES[room.game] && s.phase === 'answering' && s.endsAt) return s.endsAt + QUIZ_GRACE_MS;
+  if (room.game === 'fiveseconds' && s.phase === 'counting' && s.endsAt) return s.endsAt + FIVE_GRACE_MS;
+  if (room.game === 'telephone' && s.phase === 'working' && s.endsAt) return s.endsAt + TELE_GRACE_MS;
+  if (room.game === 'telephone' && s.phase === 'collecting' && s.collectEndsAt) return s.collectEndsAt + TELE_GRACE_MS;
   return null;
 };
 
@@ -2603,5 +2619,539 @@ const roomTimeout = (room, now) => {
     if (s.phase === 'collecting') { scoreStopRound(room); return true; }
     return false;
   }
+  if (QUIZ_GAMES[room.game]) { closeQuizCard(room); return true; }
+  if (room.game === 'fiveseconds') {
+    if (room.shared.phase !== 'counting') return false;
+    room.shared.phase = 'judging';
+    return true;
+  }
+  if (room.game === 'telephone') {
+    const s = room.shared;
+    if (s.phase === 'working') {
+      // Time's up: give the phones a moment to send what they have.
+      s.phase = 'collecting';
+      s.collectEndsAt = now + TELE_COLLECT_MS;
+      return true;
+    }
+    if (s.phase === 'collecting') { finishTelephoneStep(room); return true; }
+    return false;
+  }
   return false;
+};
+
+/* ==========================================================================
+   صدق ولا كذب — TWO TRUTHS AND A LIE
+   Everyone writes two true things and one lie about themselves. One player
+   at a time, the others vote for the lie: a point for spotting it, and a
+   point to the storyteller for every voter fooled. No content bank at all.
+   ========================================================================== */
+const TT_CATCH_POINTS = 1;
+const TT_FOOL_POINTS = 1;
+const TT_MAX_LEN = 80;
+
+const twoTruthsAction = (room, playerId, action, payload) => {
+  if (action === 'start' || action === 'playAgain') {
+    requireHost(room, playerId);
+    if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
+    if (action === 'playAgain' && room.shared.phase !== 'gameover') return;
+    room._tt = {};
+    room.secrets = {};
+    room.shared = {
+      phase: 'writing',
+      submitted: [],
+      roster: room.players.map(p => p.id),
+      scores: (room.shared && room.shared.scores) || {},
+      order: [],
+      turn: -1
+    };
+    room.shared.board = scoreboardOf(room);
+    room.phase = 'writing';
+    return;
+  }
+
+  const s = room.shared;
+
+  if (action === 'submit') {
+    if (s.phase !== 'writing') throw new Error('انتهى وقت الكتابة');
+    if (s.roster.indexOf(playerId) === -1) throw new Error('ستدخل من الجولة القادمة');
+    const list = (Array.isArray(payload && payload.statements) ? payload.statements : [])
+      .map(x => String(x || '').trim().slice(0, TT_MAX_LEN));
+    const lie = Number(payload && payload.lie);
+    if (list.length !== 3 || list.some(x => !x)) throw new Error('اكتب الجمل الثلاث');
+    if (!(lie >= 0 && lie <= 2 && lie === Math.floor(lie))) throw new Error('اختر الكذبة');
+    // Shuffled once here, so the lie is never "always the third one".
+    const order = shuffled([0, 1, 2]);
+    room._tt[playerId] = { items: order.map(i => list[i]), lie: order.indexOf(lie) };
+    if (s.submitted.indexOf(playerId) === -1) s.submitted.push(playerId);
+    if (activeRoster(room, s.roster).every(id => s.submitted.indexOf(id) !== -1)) {
+      s.order = shuffled(s.submitted.slice());
+      nextTwoTruthsTurn(room);
+    }
+    return;
+  }
+
+  if (action === 'closeWriting') {
+    // The host starts with whoever has written; a phone that never sends
+    // must not hold the table.
+    requireHost(room, playerId);
+    if (s.phase !== 'writing') return;
+    if (s.submitted.length < 1) throw new Error('محدش كتب لسه');
+    s.order = shuffled(s.submitted.slice());
+    nextTwoTruthsTurn(room);
+    return;
+  }
+
+  if (action === 'vote') {
+    if (s.phase !== 'voting') throw new Error('لا يوجد تصويت الآن');
+    if (castVote(room, playerId, String((payload && payload.option) || ''))) resolveTwoTruths(room);
+    return;
+  }
+
+  if (action === 'closeVote') {
+    requireHost(room, playerId);
+    if (s.phase !== 'voting') return;
+    if (closeVote(room)) resolveTwoTruths(room);
+    return;
+  }
+
+  if (action === 'next') {
+    requireHost(room, playerId);
+    if (s.phase !== 'result') return;
+    nextTwoTruthsTurn(room);
+    return;
+  }
+
+  throw new Error('إجراء غير معروف');
+};
+
+const nextTwoTruthsTurn = (room) => {
+  const s = room.shared;
+  s.turn = s.turn < 0 ? 0 : s.turn + 1;
+  s.lieIndex = null;
+  s.caught = null;
+  s.fooled = null;
+  if (s.turn >= s.order.length) {
+    s.phase = 'gameover';
+    s.subjectId = null;
+    s.subjectName = '';
+    s.items = null;
+    s.vote = null;
+    s.board = scoreboardOf(room);
+    room.phase = 'gameover';
+    return;
+  }
+  const subject = s.order[s.turn];
+  const entry = room._tt[subject];
+  s.subjectId = subject;
+  s.subjectName = roomPlayerName(room, subject);
+  s.items = entry.items;
+  // Every option belongs to the storyteller, so the voting engine keeps them out of it.
+  openVote(room, entry.items.map((text, i) => ({ id: 'i' + i, label: text, ownerId: subject })),
+           s.roster.filter(id => id !== subject));
+  s.phase = 'voting';
+  room.phase = 'voting';
+};
+
+const resolveTwoTruths = (room) => {
+  const s = room.shared;
+  const entry = room._tt[s.subjectId] || { lie: 0 };
+  const lieId = 'i' + entry.lie;
+  const ballots = room._ballots || {};
+  const caught = [], fooled = [];
+  Object.keys(ballots).forEach(pid => { (ballots[pid] === lieId ? caught : fooled).push(pid); });
+  caught.forEach(pid => addScore(room, pid, TT_CATCH_POINTS));
+  if (fooled.length) addScore(room, s.subjectId, TT_FOOL_POINTS * fooled.length);
+  s.lieIndex = entry.lie;
+  s.caught = caught.map(id => roomPlayerName(room, id));
+  s.fooled = fooled.map(id => roomPlayerName(room, id));
+  s.board = scoreboardOf(room);
+  s.phase = 'result';
+  room.phase = 'result';
+};
+
+/* ==========================================================================
+   فوازير إيموجي · كمّل المثل — TYPED QUIZZES
+   One engine for both: a card everyone sees, an answer that stays on the
+   server until the card closes, a clock, and speed points for the right
+   answers (like the trivia). The emoji riddles allow retries and show the
+   wrong guesses to everyone; a proverb takes one answer from each player.
+   ========================================================================== */
+const QUIZ_COUNTS = [5, 10, 15, 20];
+const QUIZ_POINTS = 10;
+const QUIZ_SPEED_BONUS = 5;
+const QUIZ_GRACE_MS = 2000;
+const QUIZ_GAMES = {
+  emoji:    { bank: () => EMOJI_RIDDLES, seconds: 45, retry: true,  perGame: 10 },
+  proverbs: { bank: () => PROVERBS,      seconds: 25, retry: false, perGame: 10 }
+};
+
+const quizAnswerMatches = (item, text) => {
+  const f = normaliseClue(text);
+  if (!f) return false;
+  return [item.a].concat(item.alt || []).some(a => normaliseClue(a) === f);
+};
+
+const quizAction = (room, playerId, action, payload) => {
+  const cfg = QUIZ_GAMES[room.game];
+  if (action === 'start' || action === 'playAgain') {
+    requireHost(room, playerId);
+    if (action === 'playAgain' && room.shared.phase !== 'gameover') return;
+    const lang = roomLangOf(room, payload);
+    const bank = cfg.bank();
+    const pool = bank[lang] || bank.ar;
+    const asked = Number(payload && payload.count);
+    const count = QUIZ_COUNTS.indexOf(asked) !== -1 ? asked : (room._quizCount || cfg.perGame);
+    room._quizCount = count;
+    room._deck = nextPrompts(room, pool, room.game + '_' + lang, count);
+    room.shared = { scores: {}, lang: lang, roster: room.players.map(p => p.id) };
+    dealQuizCard(room, 0);
+    return;
+  }
+
+  const s = room.shared;
+
+  if (action === 'guess') {
+    if (s.phase !== 'answering') throw new Error('انتهى وقت الإجابة');
+    if ((s.roster || []).indexOf(playerId) === -1) throw new Error('لست ضمن هذه الجولة');
+    const text = String((payload && payload.text) || '').trim().slice(0, 60);
+    if (!text) return;
+    const now = Date.now();
+    if (now > s.endsAt + QUIZ_GRACE_MS) { closeQuizCard(room); return; }
+    room._answers = room._answers || {};
+    if (room._answers[playerId]) return;       // already right, or the one try is used
+    const right = quizAnswerMatches(room._card, text);
+    const name = roomPlayerName(room, playerId);
+    if (right) {
+      room._answers[playerId] = { text: text, time: Math.min(now, s.endsAt), seq: s.solved.length };
+      s.solved.push(playerId);
+      s.feed.push({ name: name, right: true });
+    } else if (cfg.retry) {
+      // A wrong guess is fun for the table to see, and the player tries again.
+      s.feed.push({ name: name, text: text, right: false });
+    } else {
+      room._answers[playerId] = { text: text, wrong: true };
+      s.tried.push(playerId);
+    }
+    if (s.feed.length > 30) s.feed = s.feed.slice(-30);
+    if (activeRoster(room, s.roster).every(id => room._answers[id])) closeQuizCard(room);
+    return;
+  }
+
+  if (action === 'closeQuestion') {
+    // The host can end a card early. Once time is up anyone can.
+    if (room.hostId !== playerId && Date.now() < s.endsAt) throw new Error('المضيف فقط يمكنه فعل ذلك');
+    closeQuizCard(room);
+    return;
+  }
+
+  if (action === 'nextQuestion') {
+    requireHost(room, playerId);
+    if (s.phase !== 'results') return;
+    const next = (room._qIdx || 0) + 1;
+    if (next >= (room._deck || []).length) {
+      s.phase = 'gameover';
+      s.board = scoreboardOf(room);
+      return;
+    }
+    dealQuizCard(room, next);
+    return;
+  }
+
+  throw new Error('إجراء غير معروف');
+};
+
+const dealQuizCard = (room, idx) => {
+  const cfg = QUIZ_GAMES[room.game];
+  const item = room._deck[idx];
+  const prev = room.shared || {};
+  room._qIdx = idx;
+  room._card = item;
+  room._answers = {};
+  // Everything about the card but its answer.
+  const card = {};
+  Object.keys(item).forEach(k => { if (k !== 'a' && k !== 'alt') card[k] = item[k]; });
+  room.shared = {
+    qIndex: idx,
+    total: room._deck.length,
+    card: card,
+    phase: 'answering',
+    seconds: cfg.seconds,
+    endsAt: Date.now() + cfg.seconds * 1000,
+    retry: cfg.retry,
+    solved: [],
+    tried: [],
+    feed: [],
+    scores: prev.scores || {},
+    lang: prev.lang,
+    roster: prev.roster || room.players.map(p => p.id)
+  };
+  room.shared.board = scoreboardOf(room);
+  room.phase = 'play';
+};
+
+const closeQuizCard = (room) => {
+  const s = room.shared;
+  if (s.phase !== 'answering') return;
+  const answers = room._answers || {};
+  const right = Object.keys(answers)
+    .filter(pid => !answers[pid].wrong)
+    .sort((a, b) => (answers[a].time - answers[b].time) || (answers[a].seq - answers[b].seq));
+  const gained = {};
+  right.forEach((pid, rank) => {
+    gained[pid] = QUIZ_POINTS + Math.max(0, QUIZ_SPEED_BONUS - rank);
+    addScore(room, pid, gained[pid]);
+  });
+  s.phase = 'results';
+  s.answer = room._card.a;
+  s.gained = gained;
+  s.order = right;
+  // What everyone typed, now that it no longer matters.
+  s.answers = Object.keys(answers).map(pid => ({ name: roomPlayerName(room, pid), text: answers[pid].text, right: !answers[pid].wrong }));
+  s.board = scoreboardOf(room);
+};
+
+/* ==========================================================================
+   خمس ثواني — FIVE SECONDS
+   One player at a time: a category, five seconds on the server's clock to
+   name three things out loud, and the host (or the screen) says whether
+   they made it. The categories are the bomb's, dealt for the whole game at
+   the start.
+   ========================================================================== */
+const FIVE_SECONDS_MS = 5000;
+const FIVE_ROUNDS = [1, 2, 3];
+const FIVE_GRACE_MS = 300;
+
+const fiveSecondsAction = (room, playerId, action, payload) => {
+  if (action === 'start' || action === 'playAgain') {
+    requireHost(room, playerId);
+    if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
+    if (action === 'playAgain' && room.shared.phase !== 'gameover') return;
+    const lang = roomLangOf(room, payload);
+    const asked = Number(payload && payload.rounds);
+    const rounds = FIVE_ROUNDS.indexOf(asked) !== -1 ? asked : (room._fiveRounds || 2);
+    room._fiveRounds = rounds;
+    const order = shuffled(room.players.map(p => p.id));
+    const pool = BOMB_PROMPTS[lang] || BOMB_PROMPTS.ar;
+    room._fiveDeck = nextPrompts(room, pool, 'five_' + lang, order.length * rounds);
+    room.shared = {
+      phase: 'ready', lang: lang, rounds: rounds, round: 1,
+      order: order, turn: 0, scores: {}, roster: order.slice(),
+      prompt: null, endsAt: null, verdict: null, lastName: ''
+    };
+    setFiveTurn(room);
+    room.phase = 'play';
+    return;
+  }
+
+  const s = room.shared;
+
+  if (action === 'go') {
+    if (s.phase !== 'ready') return;
+    if (playerId !== s.turnId && playerId !== room.hostId) throw new Error('دور لاعب آخر');
+    s.prompt = room._fiveDeck.length ? room._fiveDeck.shift() : (BOMB_PROMPTS[s.lang] || BOMB_PROMPTS.ar)[0];
+    s.phase = 'counting';
+    s.startedAt = Date.now();
+    s.endsAt = s.startedAt + FIVE_SECONDS_MS;
+    return;
+  }
+
+  if (action === 'judge') {
+    // From the judging phase, or early: a player who named three things in two
+    // seconds doesn't have to wait for the clock.
+    requireHost(room, playerId);
+    if (s.phase !== 'judging' && s.phase !== 'counting') return;
+    const ok = !!(payload && payload.ok);
+    if (ok) addScore(room, s.turnId, 1);
+    s.verdict = ok;
+    s.lastName = s.turnName;
+    s.lastPrompt = s.prompt;
+    advanceFive(room);
+    return;
+  }
+
+  if (action === 'skipTurn') {
+    requireHost(room, playerId);
+    if (s.phase !== 'ready') return;
+    advanceFive(room);
+    return;
+  }
+
+  throw new Error('إجراء غير معروف');
+};
+
+const setFiveTurn = (room) => {
+  const s = room.shared;
+  s.turnId = s.order[s.turn];
+  s.turnName = roomPlayerName(room, s.turnId);
+  s.prompt = null;
+  s.endsAt = null;
+  s.phase = 'ready';
+  s.board = scoreboardOf(room);
+};
+
+const advanceFive = (room) => {
+  const s = room.shared;
+  s.turn += 1;
+  if (s.turn >= s.order.length) { s.turn = 0; s.round += 1; }
+  if (s.round > s.rounds) {
+    s.phase = 'gameover';
+    s.turnId = null;
+    s.turnName = '';
+    s.prompt = null;
+    s.endsAt = null;
+    s.board = scoreboardOf(room);
+    return;
+  }
+  setFiveTurn(room);
+};
+
+/* ==========================================================================
+   ارسم واكتب — DRAWING TELEPHONE
+   Every player starts a chain with a phrase. The next player draws it, the
+   one after describes the drawing, the next draws that description... Each
+   step everyone works on a different chain at once, and at the end the
+   host walks the table through each chain. Nothing is scored: the reveal
+   is the game.
+   ========================================================================== */
+const TELE_MAX_STEPS = 6;          // the phrase and five more
+const TELE_DRAW_SECONDS = 75;
+const TELE_WRITE_SECONDS = 35;
+const TELE_GRACE_MS = 1500;
+const TELE_COLLECT_MS = 3000;
+
+/** The same limits Draw & Guess puts on a stroke list, for a whole drawing at once. */
+const cleanStrokes = (batch) => {
+  const out = [];
+  let points = 0;
+  (Array.isArray(batch) ? batch : []).forEach(st => {
+    const left = DRAW_MAX_POINTS - points;
+    if (left < 2) return;
+    const tool = DRAW_TOOLS.indexOf(String((st && st.t) || 'f')) !== -1 ? String(st.t || 'f') : 'f';
+    let pts = ((st && st.p) || []).map(n => Math.max(0, Math.min(255, Math.round(Number(n) || 0))));
+    const exact = DRAW_TOOL_POINTS[tool];
+    if (exact) {
+      if (pts.length !== exact || left < exact) return;
+    } else {
+      if (pts.length > left) pts = pts.slice(0, left - (left % 2));
+      if (pts.length < 2) return;
+    }
+    const stroke = { c: String(st.c || '#111').slice(0, 8), w: Math.max(1, Math.min(48, Number(st.w) || 4)), p: pts };
+    if (tool !== 'f') stroke.t = tool;
+    out.push(stroke);
+    points += pts.length;
+  });
+  return out;
+};
+
+const telephoneAction = (room, playerId, action, payload) => {
+  if (action === 'start' || action === 'playAgain') {
+    requireHost(room, playerId);
+    if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
+    if (action === 'playAgain' && room.shared.phase !== 'done') return;
+    const lang = roomLangOf(room, payload);
+    const roster = room.players.map(p => p.id);
+    const phrases = nextPrompts(room, DRAW_WORDS[lang] || DRAW_WORDS.ar, 'tele_' + lang, roster.length);
+    room._chains = roster.map((pid, i) => ({ owner: pid, steps: [{ kind: 'text', by: pid, text: phrases[i] }] }));
+    room.shared = {
+      phase: 'working', lang: lang, roster: roster,
+      steps: Math.min(roster.length, TELE_MAX_STEPS),
+      step: 0, kind: null, submitted: [], endsAt: null, seconds: 0
+    };
+    room.phase = 'play';
+    startTelephoneStep(room, 1);
+    return;
+  }
+
+  const s = room.shared;
+
+  if (action === 'submit') {
+    if (s.phase !== 'working' && s.phase !== 'collecting') throw new Error('انتهت هذه الخطوة');
+    const task = (room.secrets[playerId] || {}).task;
+    if (!task) throw new Error('لست ضمن هذه الجولة');
+    if (s.submitted.indexOf(playerId) !== -1) return;
+    const chain = room._chains[task.chain];
+    chain.steps[s.step] = task.kind === 'draw'
+      ? { kind: 'draw', by: playerId, strokes: cleanStrokes(payload && payload.strokes) }
+      : { kind: 'text', by: playerId, text: String((payload && payload.text) || '').trim().slice(0, 60) };
+    s.submitted.push(playerId);
+    if (activeRoster(room, s.roster).every(id => s.submitted.indexOf(id) !== -1)) finishTelephoneStep(room);
+    return;
+  }
+
+  if (action === 'revealNext' || action === 'revealBack') {
+    requireHost(room, playerId);
+    if (s.phase !== 'reveal') return;
+    const r = s.reveal;
+    const last = room._chains[r.chain].steps.length - 1;
+    if (action === 'revealBack') {
+      if (r.step > 0) r.step -= 1;
+      else if (r.chain > 0) { r.chain -= 1; r.step = room._chains[r.chain].steps.length - 1; publishTelephoneChain(room); }
+      return;
+    }
+    if (r.step < last) { r.step += 1; return; }
+    if (r.chain < room._chains.length - 1) { r.chain += 1; r.step = 0; publishTelephoneChain(room); return; }
+    s.phase = 'done';
+    s.chain = null;
+    s.summary = room._chains.map(ch => ({
+      ownerName: roomPlayerName(room, ch.owner),
+      first: ch.steps[0].text,
+      last: (ch.steps.filter(st => st.kind === 'text').slice(-1)[0] || {}).text || ''
+    }));
+    return;
+  }
+
+  throw new Error('إجراء غير معروف');
+};
+
+const startTelephoneStep = (room, k) => {
+  const s = room.shared;
+  const n = s.roster.length;
+  s.step = k;
+  s.kind = k % 2 === 1 ? 'draw' : 'write';
+  s.submitted = [];
+  s.phase = 'working';
+  s.seconds = s.kind === 'draw' ? TELE_DRAW_SECONDS : TELE_WRITE_SECONDS;
+  s.endsAt = Date.now() + s.seconds * 1000;
+  s.collectEndsAt = null;
+  room.secrets = {};
+  room._chains.forEach((chain, c) => {
+    const pid = s.roster[(c + k) % n];
+    const prev = chain.steps[k - 1] || { kind: 'text', text: '' };
+    room.secrets[pid] = {
+      task: {
+        chain: c,
+        kind: s.kind,
+        prev: prev.kind === 'draw' ? { kind: 'draw', strokes: prev.strokes || [] } : { kind: 'text', text: prev.text || '' }
+      }
+    };
+  });
+};
+
+const finishTelephoneStep = (room) => {
+  const s = room.shared;
+  // Whoever never sent leaves a blank in their chain rather than holding the table.
+  room._chains.forEach(chain => {
+    if (!chain.steps[s.step]) chain.steps[s.step] = s.kind === 'draw' ? { kind: 'draw', by: null, strokes: [] } : { kind: 'text', by: null, text: '' };
+  });
+  if (s.step + 1 >= s.steps) {
+    s.phase = 'reveal';
+    s.reveal = { chain: 0, step: 0 };
+    s.endsAt = null;
+    s.collectEndsAt = null;
+    room.secrets = {};
+    publishTelephoneChain(room);
+    return;
+  }
+  startTelephoneStep(room, s.step + 1);
+};
+
+/** One chain at a time reaches the phones: a whole evening's drawings at once would be most of a phone's data. */
+const publishTelephoneChain = (room) => {
+  const s = room.shared;
+  const ch = room._chains[s.reveal.chain];
+  s.chainCount = room._chains.length;
+  s.chain = {
+    ownerName: roomPlayerName(room, ch.owner),
+    steps: ch.steps.map(st => ({ kind: st.kind, byName: st.by ? roomPlayerName(room, st.by) : '', text: st.text, strokes: st.strokes }))
+  };
 };

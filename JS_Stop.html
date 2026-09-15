@@ -46,7 +46,7 @@ function stopState() {
 
 const stopCatLabel = (id) => {
   const c = STOP_CATEGORIES.find(x => x.id === id);
-  return c ? (appState.lang === 'ar' ? c.ar : c.en) : id;
+  return c ? (contentLang() === 'ar' ? c.ar : c.en) : id;
 };
 
 function setupStop() {
@@ -66,7 +66,7 @@ function paintStopSetup() {
     cats.innerHTML = STOP_CATEGORIES.map(c => `
       <button type="button" class="opt-chip ${s.cats.indexOf(c.id) !== -1 ? 'is-active' : ''}"
               aria-pressed="${s.cats.indexOf(c.id) !== -1}" onclick="toggleStopCat('${c.id}')">
-        <span aria-hidden="true">${c.icon}</span>${escapeHTML(appState.lang === 'ar' ? c.ar : c.en)}
+        <span aria-hidden="true">${c.icon}</span>${escapeHTML(contentLang() === 'ar' ? c.ar : c.en)}
       </button>`).join('');
   }
   document.querySelectorAll('#stop-timer .segmented__item').forEach(el => el.classList.toggle('is-active', Number(el.dataset.value) === s.timer));
@@ -105,7 +105,7 @@ function startStopGame() {
 function nextStopLetter() {
   const s = stopState();
   s.round += 1;
-  s.letter = freshPick('stop:letters:' + appState.lang, STOP_LETTERS[appState.lang] || STOP_LETTERS.ar, 1)[0];
+  s.letter = freshPick('stop:letters:' + contentLang(), STOP_LETTERS[contentLang()] || STOP_LETTERS.ar, 1)[0];
   s.endsAt = s.timer ? Date.now() + s.timer * 1000 : 0;
   s.phase = 'play';
   s.roundScores = {};

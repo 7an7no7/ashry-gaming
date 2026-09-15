@@ -1,0 +1,278 @@
+<script>
+/* ============================================================================
+   ارسم واكتب — DRAWING TELEPHONE (rooms and the TV)
+   ----------------------------------------------------------------------------
+   Every phone starts a chain with a phrase; the next phone draws it, the
+   one after describes the drawing, the next draws that... At the end the
+   host walks the table through each chain on every phone and the TV.
+
+   The drawing surface is Draw & Guess's (JS_RoomDraw.html) in its local
+   mode: strokes stay on the phone and go to the room in one piece when the
+   player is done, or when the step's clock runs out. Rules: telephoneAction
+   in RoomGames.js.
+   ========================================================================= */
+
+const tele = { clock: null, clockKey: null, sentFor: null };
+
+function armTeleClock(endsAt) {
+  const paint = () => {
+    const el = document.getElementById('tele-clock');
+    if (el) el.textContent = String(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+  };
+  paint();
+  if (tele.clockKey === endsAt && tele.clock) return;
+  stopTeleClock();
+  tele.clockKey = endsAt;
+  tele.clock = createClock({ seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)), onTick: paint, onEnd: () => { tele.clock = null; } });
+}
+function stopTeleClock() {
+  if (tele.clock) tele.clock.stop();
+  tele.clock = null;
+  tele.clockKey = null;
+}
+
+/** What this phone has: the strokes drawn so far, or the text typed. */
+async function teleSubmit(auto) {
+  const st = Room.state;
+  if (!st || !st.you || !st.you.task) return;
+  const task = st.you.task;
+  const key = st.shared.step + ':' + task.chain;
+  if (tele.sentFor === key) return;
+  tele.sentFor = key;
+  try {
+    if (task.kind === 'draw') {
+      await Room.act('submit', { strokes: draw.pending.slice() });
+    } else {
+      const input = document.getElementById('tele-text');
+      const text = (input && input.value || '').trim();
+      if (!text && !auto) { tele.sentFor = null; showToast(TRANSLATIONS[appState.lang].tele_write_first || '', 'error'); return; }
+      await Room.act('submit', { text: text });
+    }
+    playSound('success');
+  } catch (e) {
+    tele.sentFor = null;
+    showToast(e.message || 'تعذر الإرسال', 'error');
+  }
+}
+
+function teleUndo() {
+  draw.pending.pop();
+  paintStrokesFromScratch();
+  playSound('tick');
+  haptic('light');
+}
+function teleClear() {
+  draw.pending = [];
+  clearSurface();
+  draw.painted = 0;
+  haptic('light');
+}
+
+/** The drawing tools, without the shape tools: a phrase in 75 seconds wants a pen. */
+function teleToolsHtml(t) {
+  return `
+    <div class="draw-tools">
+      <div class="draw-tools__row draw-tools__row--scroll">
+        ${DRAW_COLOURS.map(c => `<button class="draw-swatch ${c === draw.colour ? 'is-active' : ''}" style="background:${c}" aria-label="${c}" onclick="setDrawColour('${c}')"></button>`).join('')}
+      </div>
+      <div class="draw-tools__row">
+        ${[2, 4, 10, 20].map(w => `<button class="draw-width ${w === draw.width ? 'is-active' : ''}" aria-label="${w}" onclick="setDrawWidth(${w})"><span class="draw-width__dot" style="width:${Math.min(22, w + 4)}px;height:${Math.min(22, w + 4)}px"></span></button>`).join('')}
+        <span class="draw-tools__gap"></span>
+        <button class="draw-tool draw-tool--act" onclick="teleUndo()" title="${escapeHTML(t.draw_undo || '')}" aria-label="${escapeHTML(t.draw_undo || '')}">↶</button>
+        <button class="draw-tool draw-tool--danger" onclick="teleClear()" title="${escapeHTML(t.draw_clear || '')}" aria-label="${escapeHTML(t.draw_clear || '')}">🗑️</button>
+      </div>
+    </div>`;
+}
+
+/** A finished step of a chain, for the reveal: the phrase, or the drawing. */
+function teleStepHtml(step, t, big) {
+  if (!step) return '';
+  if (step.kind === 'text') {
+    return `<div class="card card--accent" style="text-align:center">
+      <div class="eyebrow">${escapeHTML(step.byName ? (t.tele_wrote || '').replace('{name}', step.byName) : (t.tele_started_with || ''))}</div>
+      <div class="metric metric--md metric--accent">${escapeHTML(step.text || '') || '—'}</div>
+    </div>`;
+  }
+  return `<div class="eyebrow" style="text-align:center">${escapeHTML((t.tele_drew || '').replace('{name}', step.byName || '…'))}</div>
+    <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>`;
+}
+
+ROOM_GAMES.telephone = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.tele_lobby_hint || '')}</p>`;
+  },
+  startPayload() { return { lang: contentLang() }; },
+
+  render(state) {
+    if (appState.currentView !== 'room-telephone') setView('room-telephone');
+    const el = document.getElementById('view-room-telephone');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const task = state.you && state.you.task;
+    const sent = (s.submitted || []).indexOf(Room.me) !== -1;
+
+    if (s.phase === 'working' || s.phase === 'collecting') {
+      // Time's up: send what is here before the frame changes under it.
+      if (s.phase === 'collecting' && task && !sent) teleSubmit(true);
+      const head = `<div class="cn-score">
+          <span class="cn-score__role">${escapeHTML(t.tele_step || '')} ${s.step} / ${s.steps - 1}</span>
+          <span id="tele-clock" class="badge badge--accent">${s.seconds || ''}</span>
+        </div>`;
+      const fresh = renderRoomFrame(el, ['tele', s.step, s.kind, !!task, sent, appState.lang].join('|'), () => {
+        if (!task || sent) {
+          return `${head}
+            <div class="card" style="text-align:center">
+              <div class="metric metric--md">${sent ? '✅' : '👀'}</div>
+              <p class="sheet__subtitle">${escapeHTML(sent ? (t.tele_waiting || '') : (t.vote_spectating || ''))}</p>
+              <div id="tele-progress" class="vote-progress"></div>
+            </div>
+            ${renderRoomPlayerStrip(state)}`;
+        }
+        if (task.kind === 'draw') {
+          return `${head}
+            <div class="draw-layout">
+              <div class="draw-layout__head">
+                <div class="card card--accent" style="text-align:center; margin-bottom: var(--sp-2)">
+                  <div class="eyebrow">${escapeHTML(t.tele_draw_this || '')}</div>
+                  <div class="metric metric--md metric--accent">${escapeHTML(task.prev.text || '')}</div>
+                </div>
+              </div>
+              <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>
+              <div class="draw-layout__side">
+                ${teleToolsHtml(t)}
+                <button class="btn btn--primary btn--lg" style="margin-top: var(--sp-3)" onclick="teleSubmit(false)">${escapeHTML(t.tele_done || '')}</button>
+              </div>
+            </div>
+            ${renderRoomPlayerStrip(state)}`;
+        }
+        return `${head}
+          <div class="draw-layout">
+            <div class="draw-layout__head">
+              <div class="eyebrow" style="text-align:center">${escapeHTML(t.tele_describe_this || '')}</div>
+            </div>
+            <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>
+            <div class="draw-layout__side">
+              <div class="input-group" style="margin-top: var(--sp-3)">
+                <input type="text" id="tele-text" autocomplete="off" maxlength="60" placeholder="${escapeHTML(t.tele_write_ph || '')}" onkeydown="if(event.key==='Enter') teleSubmit(false)">
+                <button class="btn btn--primary" onclick="teleSubmit(false)">${escapeHTML(t.send || '')}</button>
+              </div>
+            </div>
+          </div>
+          ${renderRoomPlayerStrip(state)}`;
+      });
+      if (fresh && task && !sent) {
+        resetDrawSurface();
+        draw.local = true;
+        if (task.kind === 'draw') {
+          bindDrawSurface(true);
+        } else {
+          bindDrawSurface(false);
+          paintStrokes(task.prev.strokes || []);
+        }
+      }
+      const prog = document.getElementById('tele-progress');
+      if (prog) prog.innerHTML = `<span>${escapeHTML(t.tele_progress || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</span>`;
+      if (s.endsAt) armTeleClock(s.endsAt); else stopTeleClock();
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    stopTeleClock();
+    if (s.phase === 'reveal') {
+      const r = s.reveal || { chain: 0, step: 0 };
+      const chain = s.chain || { steps: [] };
+      const step = chain.steps[r.step];
+      const fresh = renderRoomFrame(el, ['tele-reveal', r.chain, r.step, state.youAreHost, appState.lang].join('|'), () => `
+        <div class="cn-score">
+          <span class="cn-score__role">${escapeHTML((t.tele_chain_of || '').replace('{name}', chain.ownerName || ''))}</span>
+          <span class="badge badge--accent">${r.chain + 1} / ${s.chainCount || 1} · ${r.step + 1} / ${chain.steps.length}</span>
+        </div>
+        ${r.step > 0 && chain.steps[0] ? `<p class="field__hint" style="text-align:center">${escapeHTML(t.tele_started_with || '')}: <b>${escapeHTML(chain.steps[0].text || '')}</b></p>` : ''}
+        ${teleStepHtml(step, t)}
+        ${state.youAreHost
+          ? `<div class="btn-row" style="margin-top: var(--sp-3)">
+               <button class="btn btn--ghost" onclick="roomAct('revealBack')" ${r.chain === 0 && r.step === 0 ? 'disabled' : ''}>${escapeHTML(t.tele_back || '')}</button>
+               <button class="btn btn--primary" onclick="roomAct('revealNext')">${escapeHTML(t.tele_next || '')}</button>
+             </div>`
+          : `<div class="waiting-note">${t.room_wait_host}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && step && step.kind === 'draw') {
+        resetDrawSurface();
+        bindDrawSurface(false);
+        paintStrokes(step.strokes || []);
+      }
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    // done
+    renderRoomFrame(el, ['tele-done', state.youAreHost, appState.lang].join('|'), () => `
+      <div class="card">
+        <div class="card__title">${escapeHTML(t.tele_done_title || '')}</div>
+        ${(s.summary || []).map(row => `
+          <div class="status-row"><div class="status-row__body">
+            <div class="status-row__name">${escapeHTML(row.ownerName)}</div>
+            <div class="tele-summary"><b>${escapeHTML(row.first || '')}</b> ← <span>${escapeHTML(row.last || '—')}</span></div>
+          </div></div>`).join('')}
+      </div>
+      ${state.youAreHost
+        ? `<div class="btn-stack">
+             <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.telephone.startPayload())">${t.play_again || ''}</button>
+             <button class="btn btn--ghost" onclick="roomAct('backToHub')">${t.room_another_game || ''}</button>
+           </div>`
+        : `<div class="waiting-note">${t.room_wait_host}</div>`}
+      ${renderRoomPlayerStrip(state)}`);
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/* --- the TV ------------------------------------------------------------------ */
+TV_GAMES.telephone = {
+  sig: (state) => {
+    const s = state.shared, r = s.reveal || {};
+    return [s.phase, s.step, (s.submitted || []).length, r.chain, r.step].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (s.phase === 'working' || s.phase === 'collecting') {
+      return `
+        <div class="tv-center">
+          <div class="tv-big-icon" aria-hidden="true">${s.kind === 'draw' ? '🎨' : '✍️'}</div>
+          <div class="tv-title">${escapeHTML(s.kind === 'draw' ? (t.tele_tv_working_draw || '') : (t.tele_tv_working_write || ''))}</div>
+          <div class="tv-note">${escapeHTML(t.tele_step || '')} ${s.step} / ${s.steps - 1} · ${escapeHTML(t.tele_progress || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</div>
+          <div id="tele-clock" class="tv-clock">${s.seconds || ''}</div>
+        </div>`;
+    }
+    if (s.phase === 'reveal') {
+      const r = s.reveal || { chain: 0, step: 0 };
+      const chain = s.chain || { steps: [] };
+      const step = chain.steps[r.step] || {};
+      return `
+        <div class="tv-trivia">
+          <div class="tv-top"><span class="tv-pill">${escapeHTML((t.tele_chain_of || '').replace('{name}', chain.ownerName || ''))}</span><span class="tv-pill">${r.chain + 1} / ${s.chainCount || 1} · ${r.step + 1} / ${chain.steps.length}</span></div>
+          ${step.kind === 'text'
+            ? `<div class="tv-center"><div class="tv-eyebrow">${escapeHTML(step.byName ? (t.tele_wrote || '').replace('{name}', step.byName) : (t.tele_started_with || ''))}</div><div class="tv-title">${escapeHTML(step.text || '') || '—'}</div></div>`
+            : `<div class="tv-eyebrow tv-center-text">${escapeHTML((t.tele_drew || '').replace('{name}', step.byName || '…'))}</div><div class="tv-canvas"><canvas id="draw-canvas" width="512" height="512"></canvas></div>`}
+          ${host(tvBtn(t.tele_back, "roomAct('revealBack')", 'ghost') + tvBtn(t.tele_next, "roomAct('revealNext')"))}
+        </div>`;
+    }
+    return `
+      <div class="tv-trivia">
+        <div class="tv-title tv-center-text">${escapeHTML(t.tele_done_title || '')}</div>
+        <div class="tv-ids">${(s.summary || []).map(row => `<div class="tv-panel"><div class="tv-eyebrow">${escapeHTML(row.ownerName)}</div><div class="tv-title">${escapeHTML(row.first || '')} ← ${escapeHTML(row.last || '—')}</div></div>`).join('')}</div>
+        ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.telephone.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+      </div>`;
+  },
+  after(state, rebuilt) {
+    const s = state.shared;
+    if (s.phase === 'working' && s.endsAt) armTeleClock(s.endsAt); else stopTeleClock();
+    if (rebuilt && s.phase === 'reveal') {
+      const step = ((s.chain || {}).steps || [])[(s.reveal || {}).step];
+      if (step && step.kind === 'draw') { resetDrawSurface(); bindDrawSurface(false); paintStrokes(step.strokes || []); }
+    }
+  }
+};
+</script>

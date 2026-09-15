@@ -1,0 +1,107 @@
+<script>
+/* ============================================================================
+   فوازير إيموجي — EMOJI RIDDLES (one phone)
+   ----------------------------------------------------------------------------
+   A riddle on the screen for the whole table, whoever shouts it first wins
+   it, a tap reveals the answer, the next tap deals another. The riddles
+   (EMOJI_RIDDLES) live in EmojiRiddles.js, shared with the rooms server.
+   Restorable: the riddle on screen is in appState, so a reload comes back to it.
+   ========================================================================= */
+
+function emojiState() {
+  if (!appState.emoji) appState.emoji = { phase: 'idle', cat: 'all', riddle: null, revealed: false, n: 0 };
+  return appState.emoji;
+}
+
+function setupEmoji() {
+  emojiState().phase = 'idle';
+  setView('setup-emoji');
+  paintEmojiSetup();
+}
+
+function emojiBank() { return EMOJI_RIDDLES[contentLang()] || EMOJI_RIDDLES.ar; }
+
+function paintEmojiSetup() {
+  const e = emojiState();
+  const sel = document.getElementById('emoji-cat');
+  if (!sel) return;
+  const t = TRANSLATIONS[appState.lang];
+  const cats = [];
+  emojiBank().forEach(r => { if (cats.indexOf(r.c) === -1) cats.push(r.c); });
+  sel.innerHTML = `<option value="all">${escapeHTML(t.emoji_all_cats || '')}</option>` +
+    cats.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('');
+  sel.value = cats.indexOf(e.cat) !== -1 ? e.cat : 'all';
+}
+
+function setEmojiCat(value) {
+  emojiState().cat = value || 'all';
+  saveToLocal();
+}
+
+function emojiPool() {
+  const e = emojiState();
+  const list = emojiBank();
+  return e.cat === 'all' ? list : list.filter(r => r.c === e.cat);
+}
+
+function startEmojiGame() {
+  const e = emojiState();
+  e.n = 0;
+  e.phase = 'play';
+  nextEmojiRiddle();
+}
+
+function nextEmojiRiddle() {
+  const e = emojiState();
+  const pool = emojiPool();
+  if (!pool.length) { e.cat = 'all'; }
+  e.riddle = freshPick('emoji:' + contentLang() + ':' + e.cat, emojiPool(), 1)[0];
+  e.revealed = false;
+  e.n += 1;
+  saveToLocal();
+  if (appState.currentView !== 'play-emoji') setView('play-emoji');
+  paintEmoji();
+}
+
+function revealEmoji() {
+  const e = emojiState();
+  e.revealed = true;
+  saveToLocal();
+  paintEmoji();
+  playSound('success');
+}
+
+function paintEmoji() {
+  const e = emojiState();
+  const stage = document.getElementById('emoji-stage');
+  if (!stage || !e.riddle) return;
+  const t = TRANSLATIONS[appState.lang];
+  const r = e.riddle;
+  stage.innerHTML = `
+    <div class="cn-score">
+      <span class="cn-score__role">${escapeHTML(t.emoji_riddle_n || '')} ${e.n}</span>
+      <span class="badge badge--accent">${escapeHTML(r.c || '')}</span>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="emoji-card"><div class="emoji-card__e">${escapeHTML(r.e)}</div></div>
+      ${e.revealed
+        ? `<div class="eyebrow" style="margin-top: var(--sp-3)">${escapeHTML(t.quiz_answer || '')}</div>
+           <div class="metric metric--md metric--accent">${escapeHTML(r.a)}</div>`
+        : `<p class="sheet__subtitle">${escapeHTML(t.emoji_device_hint || '')}</p>`}
+    </div>
+    <div class="btn-stack">
+      ${e.revealed
+        ? `<button class="btn btn--primary btn--lg" onclick="nextEmojiRiddle()">${escapeHTML(t.emoji_next || '')}</button>`
+        : `<button class="btn btn--primary btn--lg" onclick="revealEmoji()">${escapeHTML(t.emoji_reveal || '')}</button>
+           <button class="btn btn--ghost btn--sm" onclick="nextEmojiRiddle()">${escapeHTML(t.emoji_skip || '')}</button>`}
+      <button class="btn btn--ghost" onclick="setupEmoji()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+function restoreEmoji() {
+  const e = emojiState();
+  if (e.phase !== 'play' || !e.riddle) return false;
+  paintEmoji();
+  return true;
+}
+</script>

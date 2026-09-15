@@ -1,0 +1,180 @@
+<script>
+/* ============================================================================
+   صدق ولا كذب — TWO TRUTHS AND A LIE (rooms and the TV)
+   ----------------------------------------------------------------------------
+   Everyone types two true things and one lie on their own phone. Then one
+   player at a time: their three statements on every phone and the TV, the
+   others vote for the lie, and the result says who was fooled. Rules:
+   twoTruthsAction in RoomGames.js.
+   ========================================================================= */
+
+ROOM_GAMES.twotruths = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.tt_lobby_hint || '')}</p>`;
+  },
+  startPayload() { return {}; },
+
+  render(state) {
+    if (appState.currentView !== 'room-twotruths') setView('room-twotruths');
+    const el = document.getElementById('view-room-twotruths');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const mine = s.submitted && s.submitted.indexOf(Room.me) !== -1;
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+
+    if (s.phase === 'writing') {
+      // The count of who else has finished is left out of the signature while
+      // you are still typing: a rebuild would take your sentences with it.
+      const sig = ['tt-write', mine, inRound, state.youAreHost, appState.lang].join('|');
+      renderRoomFrame(el, sig, () => mine || !inRound ? `
+        <div class="card" style="text-align:center">
+          <div class="metric metric--md">✍️</div>
+          <p class="sheet__subtitle">${escapeHTML(inRound ? (t.tt_wait_others || '') : (t.tt_spectating || ''))}</p>
+          <div id="tt-progress" class="vote-progress"></div>
+        </div>
+        ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('closeWriting')">${escapeHTML(t.tt_start_anyway || '')}</button></div>` : ''}
+        ${renderRoomPlayerStrip(state)}` : `
+        <div class="card">
+          <div class="card__title">${escapeHTML(t.tt_write_title || '')}</div>
+          <p class="card__subtitle">${escapeHTML(t.tt_write_hint || '')}</p>
+          ${[0, 1, 2].map(i => `
+            <div class="field">
+              <label class="field__label" for="tt-s${i}">${escapeHTML(t.tt_statement || '')} ${i + 1}</label>
+              <div class="tt-row">
+                <input type="text" id="tt-s${i}" maxlength="80" autocomplete="off" placeholder="${escapeHTML(t.tt_placeholder || '')}">
+                <button type="button" class="tt-lie ${i === 0 ? 'is-on' : ''}" data-i="${i}" onclick="ttPickLie(${i})" aria-pressed="${i === 0}">${escapeHTML(t.tt_this_is_lie || '')}</button>
+              </div>
+            </div>`).join('')}
+          <button class="btn btn--primary btn--lg" onclick="ttSubmit()">${escapeHTML(t.send || '')}</button>
+        </div>
+        ${renderRoomPlayerStrip(state)}`);
+      const prog = document.getElementById('tt-progress');
+      if (prog) prog.innerHTML = `<span>${escapeHTML(t.tt_written || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</span>`;
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    if (s.phase === 'voting') {
+      const subject = s.subjectId === Room.me;
+      const v = s.vote || {};
+      renderRoomFrame(el, ['tt-vote', s.turn, subject, (v.voted || []).length, state.youAreHost, appState.lang].join('|'), () => `
+        <div class="card card--accent" style="text-align:center">
+          <div class="eyebrow">${escapeHTML(t.tt_turn_of || '')} · ${s.turn + 1} / ${(s.order || []).length}</div>
+          <div class="metric metric--md">${escapeHTML(s.subjectName || '')}</div>
+          <p class="sheet__subtitle">${escapeHTML(subject ? (t.tt_they_vote_you || '') : (t.tt_pick_lie || ''))}</p>
+        </div>
+        ${subject
+          ? `<div class="card card--tight">${(s.items || []).map((x, i) => `<div class="tt-item"><span class="tt-item__n">${i + 1}</span><span>${escapeHTML(x)}</span></div>`).join('')}</div>${renderVoteProgress(state)}`
+          : `<div class="card card--tight">${renderBallot(state)}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    if (s.phase === 'result') {
+      const fresh = renderRoomFrame(el, ['tt-result', s.turn, state.youAreHost, appState.lang].join('|'), () => `
+        <div class="card" style="text-align:center">
+          <div class="eyebrow">${escapeHTML(s.subjectName || '')}</div>
+          ${(s.items || []).map((x, i) => `<div class="tt-item ${i === s.lieIndex ? 'is-lie' : 'is-true'}"><span class="tt-item__n">${i === s.lieIndex ? '🤥' : '✅'}</span><span>${escapeHTML(x)}</span></div>`).join('')}
+          <p class="sheet__subtitle" style="margin-top: var(--sp-3)">
+            ${(s.caught || []).length ? `🎯 ${escapeHTML(t.tt_caught_by || '')}: ${(s.caught || []).map(escapeHTML).join('، ')}<br>` : ''}
+            ${(s.fooled || []).length ? `🤡 ${escapeHTML(t.tt_fooled || '')}: ${(s.fooled || []).map(escapeHTML).join('، ')}` : (s.caught || []).length ? '' : escapeHTML(t.tt_nobody_voted || '')}
+          </p>
+        </div>
+        ${renderScoreboard(s.board)}
+        ${state.youAreHost
+          ? `<button class="btn btn--primary btn--lg" onclick="roomAct('next')">${escapeHTML(s.turn + 1 >= (s.order || []).length ? (t.tt_final || '') : (t.tt_next || ''))}</button>`
+          : `<div class="waiting-note">${t.room_wait_host}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && s.subjectId === Room.me && (s.fooled || []).length && typeof confetti === 'function') confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    // gameover
+    const fresh = renderRoomFrame(el, ['tt-over', state.youAreHost, appState.lang].join('|'), () => `
+      <div class="card card--accent" style="text-align:center">
+        <div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>
+        <p class="sheet__subtitle">${escapeHTML(t.tt_over || '')}</p>
+      </div>
+      ${renderScoreboard(s.board)}
+      ${state.youAreHost
+        ? `<div class="btn-stack">
+             <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${t.play_again || ''}</button>
+             <button class="btn btn--ghost" onclick="roomAct('backToHub')">${t.room_another_game || ''}</button>
+           </div>`
+        : `<div class="waiting-note">${t.room_wait_host}</div>`}
+      ${renderRoomPlayerStrip(state)}`);
+    if (fresh && typeof confetti === 'function') confetti({ particleCount: 140, spread: 90 });
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+let ttLie = 0;
+function ttPickLie(i) {
+  ttLie = i;
+  document.querySelectorAll('.tt-lie').forEach(b => {
+    const on = Number(b.dataset.i) === i;
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  haptic('light');
+}
+
+async function ttSubmit() {
+  const t = TRANSLATIONS[appState.lang];
+  const statements = [0, 1, 2].map(i => ((document.getElementById('tt-s' + i) || {}).value || '').trim());
+  if (statements.some(x => !x)) { showToast(t.tt_need_three || '', 'error'); return; }
+  await roomAct('submit', { statements: statements, lie: ttLie });
+  ttLie = 0;
+}
+
+/* --- the TV ------------------------------------------------------------------ */
+TV_GAMES.twotruths = {
+  sig: (state) => [state.shared.phase, state.shared.turn, (state.shared.submitted || []).length, (state.shared.vote && state.shared.vote.voted || []).length, JSON.stringify(state.shared.scores || {})].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (s.phase === 'writing') {
+      return `
+        <div class="tv-center">
+          <div class="tv-big-icon" aria-hidden="true">✍️</div>
+          <div class="tv-title">${escapeHTML(t.tt_tv_writing || '')}</div>
+          <div class="tv-note">${escapeHTML(t.tt_written || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</div>
+          ${host(tvBtn(t.tt_start_anyway, "roomAct('closeWriting')", 'ghost'))}
+        </div>`;
+    }
+    if (s.phase === 'voting') {
+      return `
+        <div class="tv-vote">
+          <div class="tv-eyebrow tv-center-text">${escapeHTML(t.tt_turn_of || '')} · ${s.turn + 1} / ${(s.order || []).length}</div>
+          <div class="tv-title tv-center-text">${escapeHTML(s.subjectName || '')}</div>
+          <div class="tv-ids">${(s.items || []).map((x, i) => `<div class="tv-panel"><div class="tv-eyebrow">${i + 1}</div><div class="tv-title">${escapeHTML(x)}</div></div>`).join('')}</div>
+          ${tvVoteProgress(state, t)}
+        </div>`;
+    }
+    if (s.phase === 'result') {
+      return `
+        <div class="tv-vote">
+          <div class="tv-title tv-center-text">${escapeHTML(s.subjectName || '')}</div>
+          <div class="tv-ids">${(s.items || []).map((x, i) => `<div class="tv-panel ${i === s.lieIndex ? 'is-lie' : ''}"><div class="tv-eyebrow">${i === s.lieIndex ? '🤥 ' + escapeHTML(t.tt_the_lie || '') : '✅'}</div><div class="tv-title">${escapeHTML(x)}</div></div>`).join('')}</div>
+          <div class="tv-note">${(s.caught || []).length ? '🎯 ' + escapeHTML(t.tt_caught_by || '') + ': ' + (s.caught || []).map(escapeHTML).join('، ') : ''}
+            ${(s.fooled || []).length ? ' · 🤡 ' + escapeHTML(t.tt_fooled || '') + ': ' + (s.fooled || []).map(escapeHTML).join('، ') : ''}</div>
+          <div class="tv-scale">${renderScoreboard(s.board)}</div>
+          ${host(tvBtn(s.turn + 1 >= (s.order || []).length ? t.tt_final : t.tt_next, "roomAct('next')"))}
+        </div>`;
+    }
+    return `
+      <div class="tv-vote">
+        <div class="tv-title tv-center-text">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>
+        <div class="tv-scale">${renderScoreboard(s.board)}</div>
+        ${host(tvBtn(t.play_again, "roomAct('playAgain')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+      </div>`;
+  },
+  after(state, rebuilt) {
+    if (rebuilt && state.shared.phase === 'gameover' && typeof confetti === 'function') confetti({ particleCount: 180, spread: 100, origin: { y: 0.6 } });
+  }
+};
+</script>

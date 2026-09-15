@@ -1,0 +1,196 @@
+<script>
+/* ============================================================================
+   خمس ثواني — FIVE SECONDS (rooms and the TV)
+   ----------------------------------------------------------------------------
+   One player at a time. Their phone (or the host's) starts the clock, the
+   category shows everywhere with five seconds counting down, and the host
+   or the screen says whether they named three things. Rules:
+   fiveSecondsAction in RoomGames.js.
+   ========================================================================= */
+
+const FIVE_ROUND_CHOICES = [1, 2, 3];
+const FIVE_ROUNDS_KEY = 'ashryFiveRounds';
+const five = { clock: null, clockKey: null };
+
+function fiveRounds() {
+  try { const n = Number(localStorage.getItem(FIVE_ROUNDS_KEY)); return FIVE_ROUND_CHOICES.indexOf(n) !== -1 ? n : 2; } catch (e) { return 2; }
+}
+function setFiveRounds(n) {
+  try { localStorage.setItem(FIVE_ROUNDS_KEY, String(n)); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/** The ring: five seconds counting down, ticking on the player's own phone and the TV. */
+function armFiveClock(endsAt, loud, onEnd) {
+  const paint = () => {
+    const left = Math.max(0, (endsAt - Date.now()) / 1000);
+    const ring = document.getElementById('five-ring');
+    const num = document.getElementById('five-num');
+    if (ring) ring.style.setProperty('--five-p', String(Math.max(0, Math.min(1, left / 5))));
+    if (num) num.textContent = String(Math.ceil(left));
+  };
+  paint();
+  if (five.clockKey === endsAt && five.clock) return;
+  stopFiveClock();
+  five.clockKey = endsAt;
+  let raf = null;
+  const smooth = () => { paint(); if (five.clockKey === endsAt) raf = requestAnimationFrame(smooth); };
+  raf = requestAnimationFrame(smooth);
+  five.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => { if (loud) playSound('tick'); },
+    onEnd: () => { cancelAnimationFrame(raf); paint(); if (loud) playSound('alarm'); five.clock = null; if (onEnd) onEnd(); }
+  });
+  five.stopRaf = () => cancelAnimationFrame(raf);
+}
+function stopFiveClock() {
+  if (five.clock) five.clock.stop();
+  if (five.stopRaf) five.stopRaf();
+  five.clock = null;
+  five.clockKey = null;
+}
+
+function fiveRingHtml(s, big) {
+  return `<div class="five-ring ${big ? 'five-ring--big' : ''}" id="five-ring" style="--five-p:1"><span id="five-num" class="metric">5</span></div>`;
+}
+
+function fivePromptHtml(s, t, big) {
+  return `<div class="five-prompt ${big ? 'five-prompt--big' : ''}">
+    <div class="eyebrow">${escapeHTML(t.five_say3 || '')}</div>
+    <div class="five-prompt__text">${escapeHTML(s.prompt || '')}</div>
+  </div>`;
+}
+
+ROOM_GAMES.fiveseconds = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.five_lobby_hint || '')}</p>`;
+    const cur = fiveRounds();
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.five_rounds_label || '')}</label>
+          <div class="segmented" role="group">
+            ${FIVE_ROUND_CHOICES.map(n => `<button type="button" class="segmented__item ${n === cur ? 'is-active' : ''}" onclick="setFiveRounds(${n})">${n}</button>`).join('')}
+          </div>
+        </div>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.five_lobby_hint || '')}</p>
+      </div>`;
+  },
+  startPayload() { return { lang: contentLang(), rounds: fiveRounds() }; },
+
+  render(state) {
+    if (appState.currentView !== 'room-fiveseconds') setView('room-fiveseconds');
+    const el = document.getElementById('view-room-fiveseconds');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const me = s.turnId === Room.me;
+    const judge = state.youAreHost ? `
+      <div class="btn-row" style="margin-top: var(--sp-3)">
+        <button class="btn btn--success" onclick="roomAct('judge', { ok: true })">✅ ${escapeHTML(t.five_ok || '')}</button>
+        <button class="btn btn--danger-soft" onclick="roomAct('judge', { ok: false })">❌ ${escapeHTML(t.five_fail || '')}</button>
+      </div>` : `<div class="waiting-note">${escapeHTML(t.five_wait_judge || '')}</div>`;
+    const round = `<div class="cn-score"><span class="cn-score__role">${escapeHTML(t.five_round || '')} ${s.round} / ${s.rounds}</span></div>`;
+    const last = s.lastName ? `<p class="field__hint" style="text-align:center">${escapeHTML(s.lastName)} ${s.verdict ? '✅' : '❌'} · ${escapeHTML(s.lastPrompt || '')}</p>` : '';
+
+    if (s.phase === 'ready') {
+      stopFiveClock();
+      renderRoomFrame(el, ['five-ready', s.round, s.turn, me, state.youAreHost, appState.lang].join('|'), () => `
+        ${round}
+        <div class="card card--accent" style="text-align:center">
+          <div class="eyebrow">${escapeHTML(t.five_turn || '')}</div>
+          <div class="metric metric--md">${escapeHTML(s.turnName || '')}</div>
+          ${me || state.youAreHost
+            ? `<button class="btn btn--primary btn--lg" style="margin-top: var(--sp-3)" onclick="roomAct('go')">${escapeHTML(me ? (t.five_go || '') : (t.five_go_for || '').replace('{name}', s.turnName || ''))}</button>`
+            : `<p class="sheet__subtitle">${escapeHTML(t.five_wait_turn || '')}</p>`}
+        </div>
+        ${last}
+        ${renderScoreboard(s.board)}
+        ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn')">${escapeHTML(t.five_skip || '')}</button>` : ''}
+        ${renderRoomPlayerStrip(state)}`);
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    if (s.phase === 'counting' || s.phase === 'judging') {
+      renderRoomFrame(el, ['five-go', s.round, s.turn, s.phase, state.youAreHost, appState.lang].join('|'), () => `
+        ${round}
+        <div class="card" style="text-align:center">
+          <div class="eyebrow">${escapeHTML(s.turnName || '')}</div>
+          ${fivePromptHtml(s, t)}
+          ${s.phase === 'counting' ? fiveRingHtml(s) : `<div class="metric metric--md tx-danger" style="margin: var(--sp-3) 0">⏰ ${escapeHTML(t.five_times_up || '')}</div>`}
+          ${judge}
+        </div>
+        ${renderRoomPlayerStrip(state)}`);
+      if (s.phase === 'counting') armFiveClock(s.endsAt, me); else stopFiveClock();
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    stopFiveClock();
+    const fresh = renderRoomFrame(el, ['five-over', state.youAreHost, appState.lang].join('|'), () => `
+      <div class="card card--accent" style="text-align:center">
+        <div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>
+        <p class="sheet__subtitle">${escapeHTML(t.five_over || '')}</p>
+      </div>
+      ${renderScoreboard(s.board)}
+      ${state.youAreHost
+        ? `<div class="btn-stack">
+             <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.fiveseconds.startPayload())">${t.play_again || ''}</button>
+             <button class="btn btn--ghost" onclick="roomAct('backToHub')">${t.room_another_game || ''}</button>
+           </div>`
+        : `<div class="waiting-note">${t.room_wait_host}</div>`}
+      ${renderRoomPlayerStrip(state)}`);
+    if (fresh && typeof confetti === 'function') confetti({ particleCount: 140, spread: 90 });
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/* --- the TV ------------------------------------------------------------------ */
+TV_GAMES.fiveseconds = {
+  sig: (state) => [state.shared.phase, state.shared.round, state.shared.turn, state.shared.lastName, JSON.stringify(state.shared.scores || {})].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    const top = `<div class="tv-top"><span class="tv-pill">${escapeHTML(t.five_round || '')} ${s.round} / ${s.rounds}</span></div>`;
+    if (s.phase === 'ready') {
+      return `
+        <div class="tv-trivia">${top}
+          <div class="tv-center">
+            <div class="tv-eyebrow">${escapeHTML(t.five_turn || '')}</div>
+            <div class="tv-title">${escapeHTML(s.turnName || '')}</div>
+            ${s.lastName ? `<div class="tv-note">${escapeHTML(s.lastName)} ${s.verdict ? '✅' : '❌'} · ${escapeHTML(s.lastPrompt || '')}</div>` : ''}
+            ${host(tvBtn((t.five_go_for || '').replace('{name}', s.turnName || ''), "roomAct('go')") + tvBtn(t.five_skip, "roomAct('skipTurn')", 'ghost'))}
+          </div>
+          <div class="tv-scale">${renderScoreboard(s.board)}</div>
+        </div>`;
+    }
+    if (s.phase === 'counting' || s.phase === 'judging') {
+      return `
+        <div class="tv-trivia">${top}
+          <div class="tv-center">
+            <div class="tv-eyebrow">${escapeHTML(s.turnName || '')}</div>
+            ${fivePromptHtml(s, t, true)}
+            ${s.phase === 'counting' ? fiveRingHtml(s, true) : `<div class="tv-title tv-danger">⏰ ${escapeHTML(t.five_times_up || '')}</div>`}
+            ${host(tvBtn('✅ ' + (t.five_ok || ''), "roomAct('judge', { ok: true })", 'success') + tvBtn('❌ ' + (t.five_fail || ''), "roomAct('judge', { ok: false })", 'danger-soft'))}
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="tv-vote">
+        <div class="tv-title tv-center-text">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>
+        <div class="tv-scale">${renderScoreboard(s.board)}</div>
+        ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.fiveseconds.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+      </div>`;
+  },
+  after(state, rebuilt) {
+    const s = state.shared;
+    if (s.phase === 'counting') armFiveClock(s.endsAt, true); else stopFiveClock();
+    if (rebuilt && s.phase === 'gameover' && typeof confetti === 'function') confetti({ particleCount: 180, spread: 100, origin: { y: 0.6 } });
+  }
+};
+</script>

@@ -288,6 +288,34 @@ for (const [lang, list] of Object.entries(BOMB)) {
 }
 
 // أتوبيس كومبليت: every category has an id and both names, none twice.
+// Emoji riddles: emoji, an answer, a kind; no answer twice in a language.
+const EMOJI = load(G + 'EmojiRiddles.js', 'EMOJI_RIDDLES');
+for (const [lang, list] of Object.entries(EMOJI)) {
+  list.forEach((r, i) => {
+    if (!r.e || !r.a || !r.c) note(`emoji.${lang} #${i}: missing emoji, answer or kind ${JSON.stringify(r)}`);
+    if (/[A-Za-z\u0600-\u06FF]/.test(r.e || '')) note(`emoji.${lang} "${r.a}": letters in the emoji`);
+    if (r.alt && !Array.isArray(r.alt)) note(`emoji.${lang} "${r.a}": alt must be a list`);
+  });
+  const dup = repeats(list.map(r => r.a));
+  if (dup.length) note(`emoji.${lang}: answers listed twice ${JSON.stringify(dup)}`);
+  const dupE = repeats(list.map(r => r.e), e => e);
+  if (dupE.length) note(`emoji.${lang}: the same emoji twice ${JSON.stringify(dupE)}`);
+  console.log(`emoji.${lang}: ${list.length} riddles`);
+}
+
+// Proverbs: one blank, a word that isn't already written in the proverb, no proverb twice.
+const PROV = load(G + 'Proverbs.js', 'PROVERBS');
+for (const [lang, list] of Object.entries(PROV)) {
+  list.forEach((r, i) => {
+    if ((r.p || '').split('___').length !== 2) note(`proverbs.${lang} #${i}: needs exactly one ___ ${JSON.stringify(r.p)}`);
+    if (!r.a) note(`proverbs.${lang} #${i}: no answer`);
+    else if (fold(r.p || '').indexOf(fold(r.a)) !== -1) note(`proverbs.${lang} "${r.p}": the answer is written in the proverb`);
+  });
+  const dup = repeats(list.map(r => r.p));
+  if (dup.length) note(`proverbs.${lang}: proverbs listed twice ${JSON.stringify(dup)}`);
+  console.log(`proverbs.${lang}: ${list.length} proverbs`);
+}
+
 const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 {
   const ids = STOP_CATS.map(c => c.id);

@@ -12,12 +12,12 @@
    already played a sound for.
    ========================================================================= */
 
-let codenamesLang = 'ar';
+let codenamesLang = null;   // null until the lobby is drawn: then the content language, unless the host picks one
 
 function setCodenamesLang(lang) {
   codenamesLang = lang === 'en' ? 'en' : 'ar';
   document.querySelectorAll('#codenames-lang .segmented__item').forEach(b => {
-    b.classList.toggle('is-active', b.dataset.cnLang === codenamesLang);
+    b.classList.toggle('is-active', b.dataset.cnLang === (codenamesLang || contentLang()));
   });
 }
 
@@ -104,7 +104,7 @@ ROOM_GAMES.codenames = {
       ${state.youAreHost ? cnHostOptions(t, cnSettings(s)) : cnOptionsSummary(t, cnSettings(s))}`;
   },
 
-  startPayload() { return { lang: codenamesLang }; },
+  startPayload() { return { lang: codenamesLang || contentLang() }; },
 
   render(state) {
     if (appState.currentView !== 'room-codenames') setView('room-codenames');

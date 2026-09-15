@@ -49,7 +49,15 @@
   levels: easy (3 groups, 12 cards), medium (4 groups, 16) and hard (5 groups, 20).
 - **Party, one phone:** 💣 **The Bomb (القنبلة):** a category and a hidden,
   accelerating fuse, pass the phone; 🚏 **Stop the Bus (أتوبيس كومبليت):** the
-  paper game with the phone as letter, clock and scorer.
+  paper game with the phone as letter, clock and scorer; 5️⃣ **Five Seconds
+  (خمس ثواني):** name three things in a category before the ring runs out.
+- **Quiz cards, one phone or a room:** 🤔 **Emoji Riddles (فوازير إيموجي):**
+  a film, a proverb, a dish or a place in emoji (`EmojiRiddles.js`); 📜
+  **Complete the Proverb (كمّل المثل):** a proverb with one word missing
+  (`Proverbs.js`).
+- **Rooms only, no content at all:** 🙊 **Two Truths and a Lie (صدق ولا
+  كذب):** everyone writes, everyone votes; 🖍️ **Draw & Write (ارسم واكتب):**
+  the drawing telephone, drawn on phones and revealed on the TV.
 - **Multiplayer-only, also:** 🔔 **Buzzer (الجرس):** the host asks out loud,
   every phone is a buzzer, the server keeps the order of presses.
 - **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
@@ -201,7 +209,7 @@ is nowhere to hide the key card.
 | `rooms-worker/src/room.js` | `Room` Durable Object, one per code: players, keys, sockets, saving, clocks, `project()`. |
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
-| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js` | Word lists the rules deal from, bundled into the Worker. The last three are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists. |
+| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js` | Word lists the rules deal from, bundled into the Worker. The last five are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -391,6 +399,42 @@ phone and the TV tick out loud. The strikes are the board, fewest first. `swap` 
 new category, so it is in `DEAL_ACTIONS` in `room.js`. The three phone
 renderers carry their own `TV_GAMES` entries (`JS_RoomChameleon.html`,
 `JS_RoomSpyfall.html`, `JS_RoomBomb.html`).
+
+**The five games of 15 Sep 2026** share what was already there:
+
+- **صدق ولا كذب** (`twoTruthsAction`): each phone `submit`s three statements
+  and the index of the lie; the server shuffles the three (so the lie is
+  never "always the third") and keeps the index in `room._tt`. One
+  storyteller at a time: their statements become vote options that all
+  carry `ownerId: subject`, so the voting engine keeps them out of their
+  own vote. `resolveTwoTruths` gives `TT_CATCH_POINTS` to each voter who
+  picked the lie and `TT_FOOL_POINTS` per fooled voter to the storyteller.
+  `closeWriting` lets the host start with whoever has written.
+- **فوازير إيموجي and كمّل المثل** run on one engine (`quizAction`,
+  `QUIZ_GAMES`): the deck is dealt at `start` through `nextPrompts`, each
+  card reaches `shared.card` with its answer and alternatives stripped,
+  `guess` compares through `normaliseClue` against `a` and `alt`, and the
+  right answers score like the trivia (`QUIZ_POINTS` plus a speed bonus by
+  order). `retry: true` (emoji) lets a wrong guess be shown to the table
+  in `shared.feed` and tried again; `retry: false` (proverbs) takes one
+  answer each. The card closes when everyone has answered, when the host
+  presses `closeQuestion`, or by the server clock (`QUIZ_GRACE_MS`).
+- **خمس ثواني** (`fiveSecondsAction`) deals its whole game from
+  `BOMB_PROMPTS` at `start` (`room._fiveDeck`, `order × rounds`), so no
+  per-turn action has to be a `DEAL_ACTION`. `go` (the player up, or the
+  host) starts a five-second server clock; `roomTimeout` moves it to
+  `judging`, and the host's `judge` (allowed early too) scores and advances.
+- **ارسم واكتب** (`telephoneAction`) starts one chain per player with a
+  phrase from `DRAW_WORDS`. Step k gives chain c to player `(c + k) % n`,
+  drawing on odd steps and writing on even ones; the previous step
+  travels in `room.secrets[pid].task.prev`. Drawings arrive whole
+  (`submit` with `strokes`, cleaned by `cleanStrokes` under the same
+  budget as Draw & Guess) because the phone keeps them locally
+  (`draw.local` in `JS_RoomDraw.html` turns the per-stroke flush off).
+  A step ends when everyone has sent, or by the clock through a
+  `collecting` grace like Stop's. The reveal publishes one chain at a
+  time (`publishTelephoneChain`): a whole evening's drawings in every
+  state push would be most of a phone's data. No scores.
 
 **The Buzzer (الجرس)** has no content at all: the host asks their own questions
 out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps
@@ -699,6 +743,28 @@ categories) are painted by `paintSetupOptions(viewId)` (`SETUP_PAINTERS` in
 `JS_Core.html`) whenever the screen is reached - from a card, the back button
 or a reload - so a game's `setupX()` entry point is not the only way in that
 shows the saved options.
+
+### The games' language
+
+`contentLang()` in `JS_Core.html` is the language the games' *content* comes
+in: Settings → "لغة الألعاب" (`appState.gameLang`: `auto`, `ar`, `en`,
+cycled by `cycleGameLang`) can pin it, for a table that reads the app in
+English but plays with Arabic words, or the reverse; `auto` follows the
+app. Every bank lookup, `freshPick` key and room start payload goes through
+it - `VOTE_LANG()` is now just `contentLang()` - and never through
+`appState.lang`, which is the language of the interface only. The Wordle
+keypad follows the content language too, since it types the word.
+
+### The soundboard
+
+`JS_Sounds.html` makes twelve sounds with the Web Audio API (`FX`,
+`playFx(name)`): applause, ta-da, right, wrong, ba-dum-tss, the sad
+trombone, a sad violin, crickets, boo, an air horn, a siren, a whistle.
+Nothing is downloaded (the old board pulled mp3s from a meme site), so
+they play at once and offline. `openSoundboard()` is the sheet; a 🔊
+button (`#fx-fab`, shown through `body.has-fx` which `setView` sets on
+`play-*` and `room-*` screens) keeps it one tap away mid-game; and
+`confetti` is wrapped so every celebration in the app brings the fanfare.
 
 ### The Help sheet
 

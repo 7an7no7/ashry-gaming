@@ -23,7 +23,7 @@ function renderChameleonCategories() {
   const catSelect = document.getElementById('chameleon-cat-select');
   if (!catSelect) return;
   const previous = catSelect.value;
-  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const lang = contentLang();
   const db = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
   catSelect.innerHTML = '';
   const optRandom = document.createElement('option');
@@ -56,7 +56,7 @@ function startChameleonGame() {
     return;
   }
 
-  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const lang = contentLang();
   const db = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
   const catSelect = document.getElementById('chameleon-cat-select');
   let chosen = null;
@@ -104,7 +104,7 @@ function revealChameleonSecret() {
   const isChameleon = (playerName === chameleonState.chameleonPlayer);
   const cardTitle = document.getElementById('chameleon-card-role');
   const cardDetail = document.getElementById('chameleon-card-detail');
-  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const lang = contentLang();
 
   if (isChameleon) {
     playSound('alarm');
@@ -190,7 +190,7 @@ function renderChameleonGrid(interactive) {
 }
 
 function openChameleonAccuseModal() {
-  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const lang = contentLang();
   const list = document.getElementById('chameleon-accuse-list');
   if (list) {
     list.innerHTML = chameleonState.players.map(p => `
@@ -220,7 +220,7 @@ function voteChameleonAccused(player) {
 }
 
 function openChameleonGuessPhase() {
-  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const lang = contentLang();
   document.getElementById('chameleon-guess-instruction').innerText = lang === 'en'
     ? `${chameleonState.chameleonPlayer} is the Chameleon and was caught! But they can steal the win by guessing the secret word:`
     : `تم كشف الحرباء (${chameleonState.chameleonPlayer})! لكن لديه فرصة أخيرة لسرقة الفوز بتخمين الكلمة السرية:`;
@@ -236,7 +236,7 @@ function chameleonGuessWord(word) {
 }
 
 function finishChameleonGame(wasCaught, chameleonGuessedWord) {
-  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const lang = contentLang();
   const resultModal = document.getElementById('chameleon-result-modal');
   const titleEl = document.getElementById('chameleon-result-title');
   const detailEl = document.getElementById('chameleon-result-detail');

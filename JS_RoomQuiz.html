@@ -1,0 +1,240 @@
+<script>
+/* ============================================================================
+   فوازير إيموجي · كمّل المثل — TYPED QUIZZES (rooms and the TV)
+   ----------------------------------------------------------------------------
+   One card on every phone and the TV, everyone types on their own phone,
+   the server keeps the answer until the card closes and scores the right
+   answers by speed. The emoji riddles allow retries and show every wrong
+   guess to the table; a proverb takes one answer each. Rules: quizAction
+   in RoomGames.js.
+   ========================================================================= */
+
+const QUIZ_UI = {
+  emoji:    { view: 'room-emoji',    ph: 'emoji_guess_ph', hint: 'emoji_lobby_hint', key: 'ashryQuizCount_emoji' },
+  proverbs: { view: 'room-proverbs', ph: 'prov_guess_ph',  hint: 'prov_lobby_hint',  key: 'ashryQuizCount_proverbs' }
+};
+const QUIZ_COUNT_CHOICES = [5, 10, 15, 20];
+const quiz = { clock: null, clockKey: null };
+
+function quizCount(game) {
+  try {
+    const n = Number(localStorage.getItem(QUIZ_UI[game].key));
+    return QUIZ_COUNT_CHOICES.indexOf(n) !== -1 ? n : 10;
+  } catch (e) { return 10; }
+}
+function setQuizCount(game, n) {
+  try { localStorage.setItem(QUIZ_UI[game].key, String(n)); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/** The card itself: the emoji big with its kind, or the proverb with its blank. */
+function quizCardHtml(game, card, big) {
+  if (game === 'emoji') {
+    return `<div class="emoji-card ${big ? 'emoji-card--big' : ''}">
+      <div class="emoji-card__e">${escapeHTML(card.e || '')}</div>
+      ${card.c ? `<span class="badge badge--accent">${escapeHTML(card.c)}</span>` : ''}
+    </div>`;
+  }
+  const parts = String(card.p || '').split('___');
+  return `<div class="prov-card ${big ? 'prov-card--big' : ''}">${escapeHTML(parts[0] || '')}<span class="prov-blank">......</span>${escapeHTML(parts[1] || '')}</div>`;
+}
+
+function quizFeedHtml(s, t) {
+  const rows = (s.feed || []).slice(-8).reverse();
+  if (!rows.length) return '';
+  return rows.map(f => `<div class="quiz-feed__row ${f.right ? 'is-right' : ''}">${f.right ? '✅ ' : '❌ '}<b>${escapeHTML(f.name)}</b>${f.right ? '' : ': ' + escapeHTML(f.text || '')}</div>`).join('');
+}
+
+function armQuizClock(endsAt) {
+  const paint = () => {
+    const el = document.getElementById('quiz-clock');
+    if (el) el.textContent = String(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+  };
+  paint();
+  if (quiz.clockKey === endsAt && quiz.clock) return;
+  stopQuizClock();
+  quiz.clockKey = endsAt;
+  quiz.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: paint,
+    onEnd: () => {
+      quiz.clock = null;
+      const close = () => {
+        const st = Room.state;
+        if (!st || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
+        Room.act('closeQuestion').catch(() => {});
+      };
+      // The host closes on time, anyone else a moment later; the server too.
+      if (Room.isHost) close(); else setTimeout(close, 3000);
+    }
+  });
+}
+function stopQuizClock() {
+  if (quiz.clock) quiz.clock.stop();
+  quiz.clock = null;
+  quiz.clockKey = null;
+}
+
+async function quizSend() {
+  const input = document.getElementById('quiz-input');
+  const text = (input && input.value || '').trim();
+  if (!text) return;
+  input.value = '';
+  await roomAct('guess', { text: text });
+}
+
+function quizGame(game) {
+  const ui = QUIZ_UI[game];
+  return {
+    lobbyOptions(state) {
+      const t = TRANSLATIONS[appState.lang];
+      if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t[ui.hint] || '')}</p>`;
+      const cur = quizCount(game);
+      return `
+        <div class="card card--tight">
+          <div class="field">
+            <label class="field__label">${escapeHTML(t.quiz_count_label || '')}</label>
+            <div class="segmented" role="group">
+              ${QUIZ_COUNT_CHOICES.map(n => `<button type="button" class="segmented__item ${n === cur ? 'is-active' : ''}" onclick="setQuizCount('${game}', ${n})">${n}</button>`).join('')}
+            </div>
+          </div>
+          <p class="field__hint" style="text-align:center">${escapeHTML(t[ui.hint] || '')}</p>
+        </div>`;
+    },
+    startPayload() { return { lang: contentLang(), count: quizCount(game) }; },
+
+    render(state) {
+      if (appState.currentView !== ui.view) setView(ui.view);
+      const el = document.getElementById('view-' + ui.view);
+      if (!el) return;
+      const t = TRANSLATIONS[appState.lang];
+      const s = state.shared;
+      const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+      const head = `<div class="cn-score">
+          <span class="cn-score__role">${s.qIndex + 1} / ${s.total}</span>
+          <span id="quiz-clock" class="badge badge--accent">${s.seconds || ''}</span>
+        </div>`;
+
+      if (s.phase === 'answering') {
+        const done = (s.solved || []).indexOf(Room.me) !== -1;
+        const used = (s.tried || []).indexOf(Room.me) !== -1;
+        const canType = inRound && !done && !used;
+        // The feed and the count of who has answered are refreshed in place:
+        // a rebuild would take what you are typing with it.
+        renderRoomFrame(el, ['quiz', s.qIndex, canType, done, used, state.youAreHost, appState.lang].join('|'), () => `
+          ${head}
+          <div class="card" style="text-align:center">${quizCardHtml(game, s.card)}</div>
+          ${canType ? `
+            <div class="input-group">
+              <input type="text" id="quiz-input" autocomplete="off" maxlength="60" placeholder="${escapeHTML(t[ui.ph] || '')}" onkeydown="if(event.key==='Enter') quizSend()">
+              <button class="btn btn--primary" onclick="quizSend()">${escapeHTML(t.send || '')}</button>
+            </div>`
+            : `<div class="waiting-note">${escapeHTML(done ? (t.quiz_you_got_it || '') : used ? (t.quiz_one_try_used || '') : (t.vote_spectating || ''))}</div>`}
+          <div id="quiz-feed" class="quiz-feed"></div>
+          ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)" onclick="roomAct('closeQuestion')">${escapeHTML(t.quiz_close || '')}</button>` : ''}
+          ${renderRoomPlayerStrip(state)}`);
+        const feed = document.getElementById('quiz-feed');
+        if (feed) feed.innerHTML = quizFeedHtml(s, t);
+        armQuizClock(s.endsAt);
+        refreshRoomPlayerStrip(el, state);
+        return;
+      }
+
+      stopQuizClock();
+      if (s.phase === 'results') {
+        const gotIt = (s.order || []).indexOf(Room.me) !== -1;
+        const fresh = renderRoomFrame(el, ['quiz-res', s.qIndex, state.youAreHost, appState.lang].join('|'), () => `
+          ${head.replace('id="quiz-clock"', 'hidden')}
+          <div class="card ${gotIt ? 'card--accent' : ''}" style="text-align:center">
+            ${quizCardHtml(game, s.card)}
+            <div class="eyebrow" style="margin-top: var(--sp-3)">${escapeHTML(t.quiz_answer || '')}</div>
+            <div class="metric metric--md metric--accent">${escapeHTML(s.answer || '')}</div>
+          </div>
+          ${(s.order || []).length
+            ? `<div class="card card--tight">${(s.order || []).map((pid, i) => `<div class="status-row"><div class="status-row__body"><div class="status-row__name">${['🥇', '🥈', '🥉'][i] || '✅'} ${escapeHTML(((state.players.find(p => p.id === pid)) || {}).name || '')}</div><div class="tx-success"><b>+${(s.gained || {})[pid] || 0}</b></div></div></div>`).join('')}</div>`
+            : `<div class="waiting-note">${escapeHTML(t.quiz_nobody || '')}</div>`}
+          ${!s.retry && (s.answers || []).some(a => !a.right) ? `<div class="quiz-feed">${(s.answers || []).filter(a => !a.right).map(a => `<div class="quiz-feed__row">❌ <b>${escapeHTML(a.name)}</b>: ${escapeHTML(a.text || '')}</div>`).join('')}</div>` : ''}
+          ${renderScoreboard(s.board)}
+          ${state.youAreHost
+            ? `<button class="btn btn--primary btn--lg" onclick="roomAct('nextQuestion')">${escapeHTML(s.qIndex + 1 >= s.total ? (t.quiz_last || '') : (t.quiz_next || ''))}</button>`
+            : `<div class="waiting-note">${t.room_wait_host}</div>`}
+          ${renderRoomPlayerStrip(state)}`);
+        if (fresh && gotIt) playSound('success');
+        refreshRoomPlayerStrip(el, state);
+        return;
+      }
+
+      // gameover
+      const fresh = renderRoomFrame(el, ['quiz-over', state.youAreHost, appState.lang].join('|'), () => `
+        <div class="card card--accent" style="text-align:center">
+          <div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>
+        </div>
+        ${renderScoreboard(s.board)}
+        ${state.youAreHost
+          ? `<div class="btn-stack">
+               <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ${JSON.stringify({ lang: contentLang() }).replace(/"/g, '&quot;')})">${t.play_again || ''}</button>
+               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${t.room_another_game || ''}</button>
+             </div>`
+          : `<div class="waiting-note">${t.room_wait_host}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && typeof confetti === 'function') confetti({ particleCount: 140, spread: 90 });
+      refreshRoomPlayerStrip(el, state);
+    }
+  };
+}
+
+ROOM_GAMES.emoji = quizGame('emoji');
+ROOM_GAMES.proverbs = quizGame('proverbs');
+
+/* --- the TV ------------------------------------------------------------------ */
+function quizTv(game) {
+  return {
+    sig: (state) => [state.shared.phase, state.shared.qIndex, (state.shared.feed || []).length, (state.shared.solved || []).length, (state.shared.tried || []).length, JSON.stringify(state.shared.scores || {})].join('|'),
+    frame(state, t) {
+      const s = state.shared;
+      const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+      const top = `<div class="tv-top"><span class="tv-pill">${s.qIndex + 1} / ${s.total}</span>${s.phase === 'answering' ? `<span id="quiz-clock" class="tv-pill tv-pill--clock">${s.seconds}</span>` : ''}</div>`;
+      if (s.phase === 'answering') {
+        const names = (id) => ((state.players.find(p => p.id === id)) || {}).name || '';
+        return `
+          <div class="tv-trivia">${top}
+            <div class="tv-center">${quizCardHtml(game, s.card, true)}</div>
+            <div class="tv-note">${escapeHTML(t.quiz_tv_type || '')}</div>
+            <div class="tv-strip-inline">${(s.solved || []).map((id, i) => `<span class="tv-chip is-done">${['🥇', '🥈', '🥉'][i] || '✅'} ${escapeHTML(names(id))}</span>`).join('')}</div>
+            <div class="tv-clues">${(s.feed || []).filter(f => !f.right).slice(-6).map(f => `<span class="tv-clue">${escapeHTML(f.name)}: ${escapeHTML(f.text || '')}</span>`).join('')}</div>
+            ${host(tvBtn(t.quiz_close, "roomAct('closeQuestion')", 'ghost'))}
+          </div>`;
+      }
+      if (s.phase === 'results') {
+        return `
+          <div class="tv-trivia">${top}
+            <div class="tv-center">
+              ${quizCardHtml(game, s.card, true)}
+              <div class="tv-eyebrow">${escapeHTML(t.quiz_answer || '')}</div>
+              <div class="tv-title">${escapeHTML(s.answer || '')}</div>
+              <div class="tv-strip-inline">${(s.order || []).map((id, i) => `<span class="tv-chip is-done">${['🥇', '🥈', '🥉'][i] || '✅'} ${escapeHTML(((state.players.find(p => p.id === id)) || {}).name || '')} +${(s.gained || {})[id] || 0}</span>`).join('') || `<span class="tv-note">${escapeHTML(t.quiz_nobody || '')}</span>`}</div>
+            </div>
+            <div class="tv-scale">${renderScoreboard(s.board)}</div>
+            ${host(tvBtn(s.qIndex + 1 >= s.total ? t.quiz_last : t.quiz_next, "roomAct('nextQuestion')"))}
+          </div>`;
+      }
+      return `
+        <div class="tv-vote">
+          <div class="tv-title tv-center-text">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>
+          <div class="tv-scale">${renderScoreboard(s.board)}</div>
+          ${host(tvBtn(t.play_again, "roomAct('playAgain', { lang: '" + (contentLang()) + "' })") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+        </div>`;
+    },
+    after(state, rebuilt) {
+      const s = state.shared;
+      if (s.phase === 'answering') armQuizClock(s.endsAt); else stopQuizClock();
+      if (rebuilt && s.phase === 'gameover' && typeof confetti === 'function') confetti({ particleCount: 180, spread: 100, origin: { y: 0.6 } });
+    }
+  };
+}
+TV_GAMES.emoji = quizTv('emoji');
+TV_GAMES.proverbs = quizTv('proverbs');
+</script>

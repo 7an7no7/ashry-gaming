@@ -598,7 +598,7 @@ function renderCharadesDropdown() {
     if(!catSelect) return;
     
     catSelect.innerHTML = ''; 
-    const db = CHARADES_DB[appState.lang];
+    const db = CHARADES_DB[contentLang()];
     if (db) {
         Object.keys(db).forEach(key => {
             const option = document.createElement('option');
@@ -621,8 +621,8 @@ function startCharades(time) {
     
     if (appState.charades.currentCategory.length > 0 && time) {
          // Replay mode
-    } else if (catKey && CHARADES_DB[appState.lang][catKey]) {
-        appState.charades.currentCategory = [...CHARADES_DB[appState.lang][catKey]];
+    } else if (catKey && CHARADES_DB[contentLang()][catKey]) {
+        appState.charades.currentCategory = [...CHARADES_DB[contentLang()][catKey]];
     } else {
         appState.charades.currentCategory = ["Error: No Category"];
     }
@@ -711,7 +711,7 @@ function nextCharadesCard(action) {
 
     // Remembered across games on this phone, so a new round doesn't open with
     // the cards the last one just used.
-    const word = freshPick('charades:' + appState.lang, words, 1, { avoid: appState.charades.history })[0];
+    const word = freshPick('charades:' + contentLang(), words, 1, { avoid: appState.charades.history })[0];
     
     appState.charades.history.push(word);
     

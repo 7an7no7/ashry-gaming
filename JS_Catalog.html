@@ -35,6 +35,7 @@ const GAME_CATALOG = [
   { id: 'spyfall',    icon: '📍',   title: 'setup_spyfall',    desc: 'cat_spyfall',    accent: 'rose',   players: [3, 10], mins: 10, modes: ['device', 'room', 'tv'],               group: 'deduce', setup: 'setup-spyfall',   open: () => setupSpyfall() },
   { id: 'fakeartist', icon: '👨‍🎨', title: 'setup_fakeartist', desc: 'cat_fakeartist', accent: 'pink',   players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('fakeartist') },
   { id: 'fibbage',    icon: '🤥',   title: 'setup_fibbage',    desc: 'cat_fibbage',    accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('fibbage') },
+  { id: 'twotruths',  icon: '🙊',   title: 'setup_twotruths',  desc: 'cat_twotruths',  accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('twotruths') },
 
   /* --- كلمات، رسم وتمثيل --- */
   { id: 'charades',   icon: '🎭',   title: 'setup_charades',   desc: 'cat_charades',   accent: 'violet', players: [2, 20], mins: 5,  modes: ['device'],               group: 'words', setup: 'setup-charades',  open: () => setupCharades() },
@@ -44,6 +45,7 @@ const GAME_CATALOG = [
   { id: 'justone',    icon: '🤫',   title: 'setup_justone',    desc: 'cat_justone',    accent: 'rose',   players: [3, 10], mins: 15, modes: ['device', 'room'],       group: 'words', setup: 'setup-justone',   open: () => setView('setup-justone') },
   { id: 'codenames',  icon: '🔠',   title: 'setup_codenames',  desc: 'cat_codenames',  accent: 'indigo', players: [4, 12], mins: 20, modes: ['room', 'tv'],           group: 'words', setup: 'setup-codenames', open: () => setView('setup-codenames') },
   { id: 'drawguess',  icon: '🎨',   title: 'setup_drawguess',  desc: 'cat_drawguess',  accent: 'blue',   players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'words', open: () => roomCreateFor('drawguess') },
+  { id: 'telephone',  icon: '🖍️',  title: 'setup_telephone',  desc: 'cat_telephone',  accent: 'blue',   players: [3, 8],  mins: 15, modes: ['room', 'tv'],           group: 'words', open: () => roomCreateFor('telephone') },
 
   /* --- حفلة وضحك --- */
   { id: 'bomb',       icon: '💣',   title: 'setup_bomb',       desc: 'cat_bomb',       accent: 'orange', players: [2, 12], mins: 5,  modes: ['device', 'room', 'tv'],               group: 'party', setup: 'setup-bomb',      open: () => setupBomb() },
@@ -51,10 +53,13 @@ const GAME_CATALOG = [
   { id: 'wouldyou',   icon: '⚖️',  title: 'setup_wouldyou',   desc: 'cat_wouldyou',   accent: 'violet', players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wouldyou') },
   { id: 'mostlikely', icon: '👉',   title: 'setup_mostlikely', desc: 'cat_mostlikely', accent: 'amber',  players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('mostlikely') },
   { id: 'wavelength', icon: '🌊',   title: 'setup_wavelength', desc: 'cat_wavelength', accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wavelength') },
+  { id: 'fiveseconds', icon: '5️⃣',  title: 'setup_fiveseconds', desc: 'cat_fiveseconds', accent: 'orange', players: [2, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'party', setup: 'setup-fiveseconds', open: () => setupFiveSeconds() },
 
   /* --- معلومات --- */
   { id: 'trivia',     icon: '🧠',   title: 'setup_trivia',     desc: 'cat_trivia',     accent: 'indigo', players: [2, 12], mins: 15, modes: ['device', 'room', 'tv'], group: 'quiz', setup: 'setup-trivia',     open: () => setupTrivia() },
   { id: 'buzzer',     icon: '🔔',   title: 'setup_buzzer',     desc: 'cat_buzzer',     accent: 'rose',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'quiz', open: () => roomCreateFor('buzzer') },
+  { id: 'emoji',      icon: '🤔',   title: 'setup_emoji',      desc: 'cat_emoji',      accent: 'amber',  players: [2, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'quiz', setup: 'setup-emoji',    open: () => setupEmoji() },
+  { id: 'proverbs',   icon: '📜',   title: 'setup_proverbs',   desc: 'cat_proverbs',   accent: 'teal',   players: [2, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'quiz', setup: 'setup-proverbs', open: () => setupProverbs() },
 
   /* --- ورق وطاولة --- */
   { id: 'screw',      icon: '🃏',   title: 'setup_screw',      desc: 'cat_screw',      accent: 'blue',   players: [2, 8],  mins: 30, modes: ['device'],               group: 'table', setup: 'setup-screw',     open: () => setView('setup-screw') },
@@ -208,7 +213,7 @@ function renderHome() {
         <svg class="mark mark--hero" aria-hidden="true"><use href="#ashry-mark"/></svg>
         <div class="home-hero__text">
           <h2 class="home-hero__title">${escapeHTML(t.home_title || '')}</h2>
-          <p class="home-hero__sub">${escapeHTML(t.home_tagline || '')}</p>
+          <p class="home-hero__sub">${escapeHTML((t.home_tagline || '').replace('{n}', String(GAME_CATALOG.filter(g => g.group !== 'tools').length)))}</p>
         </div>
       </div>
       <div class="together">

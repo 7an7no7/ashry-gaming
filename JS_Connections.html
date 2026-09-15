@@ -1851,7 +1851,7 @@ function paintConnectLevel() {
   });
   const hint = document.getElementById('conn-level-hint');
   if (!hint) return;
-  const first = CONNECT_LEVELS[level].db()[appState.lang === 'en' ? 'en' : 'ar'][0];
+  const first = CONNECT_LEVELS[level].db()[contentLang()][0];
   const groups = first ? first.groups.length : 4;
   const t = TRANSLATIONS[appState.lang] || {};
   hint.textContent = (t.conn_level_hint || '{cards} · {groups}')
@@ -1870,7 +1870,7 @@ if (typeof document !== 'undefined') {
 }
 
 function startConnections() {
-  const lang = appState.lang === 'en' ? 'en' : 'ar';
+  const lang = contentLang();
   const level = connectLevel();
   const pool = CONNECT_LEVELS[level].db()[lang];
   const puzzle = freshPick(CONNECT_LEVELS[level].list + lang, pool, 1, { key: p => p.groups.map(g => g.name).join('|') })[0];

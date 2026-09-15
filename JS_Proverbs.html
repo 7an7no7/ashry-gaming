@@ -1,0 +1,79 @@
+<script>
+/* ============================================================================
+   كمّل المثل — COMPLETE THE PROVERB (one phone)
+   ----------------------------------------------------------------------------
+   A proverb with a word missing, for the whole table to finish out loud; a
+   tap shows the word, the next tap deals another. The proverbs (PROVERBS)
+   live in Proverbs.js, shared with the rooms server. Restorable.
+   ========================================================================= */
+
+function provState() {
+  if (!appState.proverbs) appState.proverbs = { phase: 'idle', item: null, revealed: false, n: 0 };
+  return appState.proverbs;
+}
+
+function setupProverbs() {
+  provState().phase = 'idle';
+  setView('setup-proverbs');
+}
+
+function provBank() { return PROVERBS[contentLang()] || PROVERBS.ar; }
+
+function startProverbsGame() {
+  const p = provState();
+  p.n = 0;
+  p.phase = 'play';
+  nextProverb();
+}
+
+function nextProverb() {
+  const p = provState();
+  p.item = freshPick('proverbs:' + contentLang(), provBank(), 1)[0];
+  p.revealed = false;
+  p.n += 1;
+  saveToLocal();
+  if (appState.currentView !== 'play-proverbs') setView('play-proverbs');
+  paintProverb();
+}
+
+function revealProverb() {
+  const p = provState();
+  p.revealed = true;
+  saveToLocal();
+  paintProverb();
+  playSound('success');
+}
+
+function paintProverb() {
+  const p = provState();
+  const stage = document.getElementById('proverbs-stage');
+  if (!stage || !p.item) return;
+  const t = TRANSLATIONS[appState.lang];
+  const parts = String(p.item.p).split('___');
+  const blank = p.revealed
+    ? `<span class="prov-blank is-shown">${escapeHTML(p.item.a)}</span>`
+    : `<span class="prov-blank">......</span>`;
+  stage.innerHTML = `
+    <div class="cn-score">
+      <span class="cn-score__role">${escapeHTML(t.prov_n || '')} ${p.n}</span>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="prov-card">${escapeHTML(parts[0] || '')}${blank}${escapeHTML(parts[1] || '')}</div>
+      ${p.revealed ? '' : `<p class="sheet__subtitle">${escapeHTML(t.prov_device_hint || '')}</p>`}
+    </div>
+    <div class="btn-stack">
+      ${p.revealed
+        ? `<button class="btn btn--primary btn--lg" onclick="nextProverb()">${escapeHTML(t.prov_next || '')}</button>`
+        : `<button class="btn btn--primary btn--lg" onclick="revealProverb()">${escapeHTML(t.prov_reveal || '')}</button>
+           <button class="btn btn--ghost btn--sm" onclick="nextProverb()">${escapeHTML(t.emoji_skip || '')}</button>`}
+      <button class="btn btn--ghost" onclick="setupProverbs()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+function restoreProverbs() {
+  const p = provState();
+  if (p.phase !== 'play' || !p.item) return false;
+  paintProverb();
+  return true;
+}
+</script>

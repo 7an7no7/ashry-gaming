@@ -43,6 +43,7 @@ const draw = {
   drawing: false,
   current: null,        // stroke being drawn right now
   pending: [],          // finished strokes not yet sent
+  local: false,         // ارسم واكتب: strokes stay here until the player is done
   painted: 0,           // how many server strokes we've already drawn
   colour: DRAW_COLOURS[0],
   width: 4,
@@ -79,7 +80,7 @@ ROOM_GAMES.drawguess = {
   startPayload: () => {
     const sel = document.getElementById('draw-seconds');
     return {
-      lang: appState.lang === 'en' ? 'en' : 'ar',
+      lang: contentLang(),
       seconds: sel ? Number(sel.value) : 90
     };
   },
@@ -183,7 +184,7 @@ function drawFrame(state, amDrawer, over, t) {
   const footer = over
     ? (state.youAreHost
         ? `<div class="btn-stack" style="margin-top: var(--sp-3)">
-             <button onclick="roomAct('nextRound', { lang: '${appState.lang === 'en' ? 'en' : 'ar'}' })" class="btn btn--primary btn--lg">${t.draw_next || 'جولة جديدة'}</button>
+             <button onclick="roomAct('nextRound', { lang: '${contentLang()}' })" class="btn btn--primary btn--lg">${t.draw_next || 'جولة جديدة'}</button>
              <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
            </div>`
         : `<div class="waiting-note">${t.room_wait_host}</div>`)
@@ -555,7 +556,7 @@ Room.onLive(onDrawLive);
 
 /** Batches finished strokes: at most one message every DRAW_FLUSH_MS. */
 function scheduleFlush() {
-  if (draw.flushTimer) return;
+  if (draw.local || draw.flushTimer) return;
   draw.flushTimer = setTimeout(async () => {
     draw.flushTimer = null;
     if (!draw.pending.length) return;
@@ -613,7 +614,7 @@ function refreshDrawTools() {
 async function flushDrawNow() {
   clearTimeout(draw.flushTimer);
   draw.flushTimer = null;
-  if (!draw.pending.length) return;
+  if (draw.local || !draw.pending.length) return;
 
   const batch = draw.pending.splice(0, draw.pending.length);
   draw.painted += batch.length;          // already on this canvas
@@ -708,6 +709,7 @@ function stopDrawClock() {
 
 function resetDrawSurface() {
   draw.tool = 'p';
+  draw.local = false;
   draw.snapshot = null;
   stopDrawClock();
   clearTimeout(draw.flushTimer);

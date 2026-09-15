@@ -542,6 +542,95 @@ async function main() {
   check(A.state.shared.scores[viewers[0].pid] === 2 && A.state.shared.scores[drawer.pid] === 1, 'guesser and drawer score');
   await A.must('backToHub');
 
+  /* --- صدق ولا كذب ------------------------------------------------------------- */
+  console.log('• two truths and a lie');
+  await A.must('chooseGame', { game: 'twotruths' });
+  await A.must('start', {});
+  await all(bots, (s) => s.shared.phase === 'writing', 'two truths: everyone writes');
+  check((await A.act('submit', { statements: ['a', '', 'c'], lie: 1 })).ok === false, 'three statements are required');
+  for (const b of bots) await b.must('submit', { statements: [b.name + ' 1', b.name + ' 2', b.name + ' 3'], lie: 2 });
+  await all(bots, (s) => s.shared.phase === 'voting' && !!s.shared.subjectId && s.shared.items.length === 3, 'the last sheet in opens the first vote');
+  const subject = byId(bots, A.state.shared.subjectId);
+  const voters = bots.filter((b) => b !== subject);
+  check(!('lieIndex' in subject.state.shared) || subject.state.shared.lieIndex === null, 'the lie is not published while the vote is open');
+  check((await subject.act('vote', { option: 'i0' })).ok === false, 'the storyteller cannot vote on their own statements');
+  const lieText = subject.name + ' 3';
+  const lieOpt = 'i' + subject.state.shared.items.indexOf(lieText);
+  await voters[0].must('vote', { option: lieOpt });
+  await voters[1].must('vote', { option: lieOpt === 'i0' ? 'i1' : 'i0' });
+  await voters[2].must('vote', { option: lieOpt === 'i0' ? 'i1' : 'i0' });
+  await all(bots, (s) => s.shared.phase === 'result' && s.shared.items[s.shared.lieIndex] === lieText, 'the vote closes and the lie is shown');
+  check(A.state.shared.scores[voters[0].pid] === 1 && A.state.shared.scores[subject.pid] === 2, 'a point for catching it, one per voter fooled');
+  await A.must('next');
+  await all(bots, (s) => s.shared.phase === 'voting' && s.shared.turn === 1, 'next storyteller');
+  await A.must('backToHub');
+
+  /* --- فوازير إيموجي ------------------------------------------------------------ */
+  console.log('• emoji riddles');
+  await A.must('chooseGame', { game: 'emoji' });
+  await A.must('start', { lang: 'ar', count: 5 });
+  await all(bots, (s) => s.shared.phase === 'answering' && !!s.shared.card.e && s.shared.total === 5, 'emoji deals a riddle with a clock');
+  check(bots.every((b) => !('a' in b.state.shared.card) && !('answer' in b.state.shared)), 'the answer stays on the server');
+  await B.must('guess', { text: 'غلط تماما' });
+  await all(bots, (s) => s.shared.feed.length === 1 && s.shared.feed[0].right === false, 'a wrong guess is shown to the table');
+  await A.must('closeQuestion');
+  await all(bots, (s) => s.shared.phase === 'results' && !!s.shared.answer, 'the host closes the riddle and the answer shows');
+  const emojiAnswer = A.state.shared.answer;
+  await A.must('nextQuestion');
+  await all(bots, (s) => s.shared.phase === 'answering' && s.shared.qIndex === 1, 'next riddle');
+  check(A.state.shared.card.e !== undefined && emojiAnswer !== A.state.shared.answer, 'a new card');
+  await A.must('backToHub');
+
+  /* --- كمّل المثل --------------------------------------------------------------- */
+  console.log('• proverbs');
+  await A.must('chooseGame', { game: 'proverbs' });
+  await A.must('start', { lang: 'en', count: 5 });
+  await all(bots, (s) => s.shared.phase === 'answering' && s.shared.card.p.indexOf('___') !== -1, 'a proverb with a blank');
+  await B.must('guess', { text: 'nonsense' });
+  await all(bots, (s) => s.shared.tried.length === 1, 'one wrong answer is one try used');
+  await B.must('guess', { text: 'nonsense again' });
+  check(B.state.shared.tried.length === 1, 'a second answer is ignored');
+  await A.must('closeQuestion');
+  await all(bots, (s) => s.shared.phase === 'results' && !!s.shared.answer && s.shared.answers.length === 1, 'the answer and what was typed are shown');
+  await A.must('backToHub');
+
+  /* --- خمس ثواني ----------------------------------------------------------------- */
+  console.log('• five seconds (waits for the server clock)');
+  await A.must('chooseGame', { game: 'fiveseconds' });
+  await A.must('start', { lang: 'ar', rounds: 1 });
+  await all(bots, (s) => s.shared.phase === 'ready' && !!s.shared.turnId, 'five seconds: a first player is up');
+  const upBot = byId(bots, A.state.shared.turnId);
+  const notUp = bots.find((b) => b !== upBot && b !== A);
+  check((await notUp.act('go', {})).ok === false, 'only the player up (or the host) starts the clock');
+  await upBot.must('go', {});
+  await all(bots, (s) => s.shared.phase === 'counting' && !!s.shared.prompt && !!s.shared.endsAt, 'a category and five seconds');
+  await all(bots, (s) => s.shared.phase === 'judging', 'the server clock ends the five seconds', 8000);
+  await A.must('judge', { ok: true });
+  await all(bots, (s) => s.shared.phase === 'ready' && s.shared.turn === 1 && s.shared.scores[upBot.pid] === 1, 'a point, and the next player is up');
+  await A.must('backToHub');
+
+  /* --- ارسم واكتب ---------------------------------------------------------------- */
+  console.log('• drawing telephone');
+  await A.must('chooseGame', { game: 'telephone' });
+  await A.must('start', { lang: 'ar' });
+  await all(bots, (s) => s.shared.phase === 'working' && s.shared.kind === 'draw' && s.shared.step === 1 && s.shared.steps === 4, 'telephone: everyone draws a phrase');
+  check(bots.every((b) => b.state.you.task && b.state.you.task.kind === 'draw' && b.state.you.task.prev.kind === 'text' && b.state.you.task.prev.text), 'each phone has a phrase to draw');
+  const chainsSeen = new Set(bots.map((b) => b.state.you.task.chain));
+  check(chainsSeen.size === 4, 'four different chains');
+  for (const b of bots) await b.must('submit', { strokes: [{ c: '#111111', w: 4, p: [10, 10, 100, 100] }] });
+  await all(bots, (s) => s.shared.step === 2 && s.shared.kind === 'write', 'everyone in: the next step is to write');
+  check(bots.every((b) => b.state.you.task.kind === 'write' && b.state.you.task.prev.kind === 'draw' && b.state.you.task.prev.strokes.length === 1), 'each phone gets a drawing to describe');
+  for (const b of bots) await b.must('submit', { text: 'وصف ' + b.name });
+  await all(bots, (s) => s.shared.step === 3 && s.shared.kind === 'draw', 'and draws again');
+  for (const b of bots) await b.must('submit', { strokes: [] });
+  await all(bots, (s) => s.shared.phase === 'reveal' && s.shared.chain && s.shared.chain.steps.length === 4 && s.shared.reveal.chain === 0, 'the last step opens the reveal');
+  check(bots.every((b) => !b.state.you || !b.state.you.task), 'no tasks left on the phones');
+  await A.must('revealNext');
+  await all(bots, (s) => s.shared.reveal.step === 1, 'the host steps through a chain');
+  for (let i = 0; i < 3 + 4 * 3; i++) await A.must('revealNext');
+  await all(bots, (s) => s.shared.phase === 'done' && s.shared.summary.length === 4, 'after the last chain, the summary');
+  await A.must('backToHub');
+
   /* --- الفنان المزيف -------------------------------------------------------- */
   console.log('• fake artist');
   await A.must('chooseGame', { game: 'fakeartist' });

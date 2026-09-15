@@ -691,7 +691,7 @@ function setupWhoAmI() {
     catSelect.appendChild(randomOpt);
 
     // 3. Database Categories
-    const db = WHOAMI_DB[appState.lang];
+    const db = WHOAMI_DB[contentLang()];
     if (db) {
         Object.keys(db).forEach(key => {
             const option = document.createElement('option');
@@ -783,7 +783,7 @@ function startWhoAmI() {
 
     // --- CASE 2: RANDOM MIX (CUSTOM) ---
     if (selectedCat === 'random') {
-        const db = WHOAMI_DB[appState.lang];
+        const db = WHOAMI_DB[contentLang()];
         // Get all checked boxes
         const checkboxes = document.querySelectorAll('.mix-check:checked');
         
@@ -802,13 +802,13 @@ function startWhoAmI() {
     // --- CASE 3: SINGLE CATEGORY ---
         // Copied, because the shuffle below sorts in place and would otherwise
         // reorder the shared database array.
-        pool = (WHOAMI_DB[appState.lang][selectedCat] || ["Error"]).slice();
+        pool = (WHOAMI_DB[contentLang()][selectedCat] || ["Error"]).slice();
     }
     
     // Shuffle and Start
     // Characters this phone hasn't dealt yet come first; one memory is shared by
     // every category, so a mix doesn't bring back what a single category just used.
-    let shuffledWords = freshPick('whoami:' + appState.lang, pool, Math.min(count, pool.length));
+    let shuffledWords = freshPick('whoami:' + contentLang(), pool, Math.min(count, pool.length));
     
     // Fallback if pool is smaller than players (rare)
     while(shuffledWords.length < count) {
@@ -1048,7 +1048,7 @@ function finishWhoAmIGame() {
 
 function renderMixCheckboxes() {
     const container = document.getElementById('whoami-mix-list');
-    const db = WHOAMI_DB[appState.lang];
+    const db = WHOAMI_DB[contentLang()];
     
     // Don't re-render if already populated to keep selection
     if (container.children.length > 0 && container.dataset.lang === appState.lang) return;

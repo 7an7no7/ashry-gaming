@@ -194,13 +194,19 @@ function drawFrame(state, amDrawer, over, t) {
         ? `<button onclick="roomAct('giveUp')" class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)">${t.draw_reveal || 'كشف الكلمة'}</button>`
         : '');
 
-  return `${header}
-    <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>
-    ${tools}
-    ${guessBox}
-    <div id="draw-guesses" class="draw-guesses"></div>
-    <div id="draw-board"></div>
-    ${footer}
+  // One column on a phone held upright. On its side (Style.html, landscape)
+  // the canvas runs down one side and everything else sits beside it.
+  return `<div class="draw-layout">
+      <div class="draw-layout__head">${header}</div>
+      <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>
+      <div class="draw-layout__side">
+        ${tools}
+        ${guessBox}
+        <div id="draw-guesses" class="draw-guesses"></div>
+        <div id="draw-board"></div>
+        ${footer}
+      </div>
+    </div>
     ${renderRoomPlayerStrip(state)}`;
 }
 

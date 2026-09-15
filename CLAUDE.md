@@ -17,7 +17,8 @@ The full guide is GEMINI.md — read it before changing anything:
 ## The owner's rules
 
 - People play on phones (the owner tests on iPhone), mostly in Arabic. A change
-  has to look right at 375px wide, in Arabic (RTL) and English, light and dark.
+  has to look right at 375px wide and on a phone turned sideways (667×375), in
+  Arabic (RTL) and English, light and dark.
 - Popups are centred dialogs. Buttons and fields keep the app's sizes and
   spacing (*The design system* in GEMINI.md) — no one-off paddings.
 - Content has to be clear to a family at a party: categories name a kind of
@@ -42,7 +43,8 @@ The full guide is GEMINI.md — read it before changing anything:
    `npm test`. Every check must pass.
 5. **Look at it in the browser.** `cd tools && npm run build:preview`, then start
    `rooms-worker` and `preview` from `.claude/launch.json` (http://localhost:4321).
-   At phone width, in Arabic and English: play what you changed to the end,
+   At phone width and sideways (375×667 and 667×375), in Arabic and English:
+   play what you changed to the end,
    reload in the middle (it should come back, see *Reloading mid-game*), open
    Help 📘 on that screen, and check the console has no errors. A new game or
    rule needs its text in `GAME_RULES`, `HELP_ENTRIES` and `HELP_FOR_VIEW`.

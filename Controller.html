@@ -380,6 +380,25 @@
               </select>
               <p class="field__hint" data-i18n="tb_rounds_hint">كل جولة: 5 فئات × 5 أسئلة</p>
             </div>
+            <div class="field">
+              <label class="switch-row" for="tb-timer-on">
+                <span class="field__label" data-i18n="tb_timer">مؤقت لكل سؤال</span>
+                <span class="switch">
+                  <input type="checkbox" id="tb-timer-on" role="switch" checked onchange="syncTriviaTimerField()">
+                  <span class="switch__track" aria-hidden="true"></span>
+                </span>
+              </label>
+              <div id="tb-timer-choices">
+                <div class="segmented" id="tb-timer-seconds" role="group" data-value="30">
+                  <button type="button" class="segmented__item" data-seconds="15" onclick="setTriviaTimerSeconds(15)">15</button>
+                  <button type="button" class="segmented__item" data-seconds="20" onclick="setTriviaTimerSeconds(20)">20</button>
+                  <button type="button" class="segmented__item is-active" data-seconds="30" onclick="setTriviaTimerSeconds(30)">30</button>
+                  <button type="button" class="segmented__item" data-seconds="45" onclick="setTriviaTimerSeconds(45)">45</button>
+                  <button type="button" class="segmented__item" data-seconds="60" onclick="setTriviaTimerSeconds(60)">60</button>
+                </div>
+                <p class="field__hint" data-i18n="tb_timer_hint">بالثواني. لما الوقت يخلص، الإجابة بتظهر لوحدها.</p>
+              </div>
+            </div>
             <button onclick="startTriviaBoard()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
           </div>
         </div>
@@ -647,10 +666,10 @@
 
       <div id="view-play-chess" class="hidden fixed top-0 left-0 w-full h-full flex flex-col bg-gray-900 overflow-hidden select-none touch-none" style="z-index: 99999;">
           
-          <div class="absolute top-1/2 left-0 w-full h-16 bg-gray-900 flex items-center justify-between px-4 transform -translate-y-1/2 border-t-4 border-b-4 border-gray-800 shadow-2xl" style="z-index: 100000;">
+          <div class="chess-bar absolute top-1/2 left-0 w-full h-16 bg-gray-900 flex items-center justify-between px-4 transform -translate-y-1/2 border-t-4 border-b-4 border-gray-800 shadow-2xl" style="z-index: 100000;">
               <button onclick="exitChessTimer(event)" class="btn btn--danger-soft btn--sm btn--auto" data-i18n="exit">خروج</button>
               
-              <div class="flex gap-4">
+              <div class="chess-bar__tools flex gap-4">
                   <button onclick="pauseChess(event)" class="iconbtn" aria-label="إيقاف مؤقت">⏸️</button>
                   <button onclick="resetChess(event)" class="iconbtn" aria-label="إعادة">🔄</button>
               </div>
@@ -1466,16 +1485,16 @@
         </div>
     </div>
 
-    <div id="view-play-describe" class="hidden">
-        <div class="flex flex-col h-[85vh]">
+    <div id="view-play-describe" class="hidden view--stage">
+        <div class="play-stage">
             
-            <div id="desc-ui-playing" class="flex flex-col h-full">
-                <div class="flex justify-between items-center mb-4">
+            <div id="desc-ui-playing" class="play-stage__playing flex flex-col">
+                <div class="play-stage__head flex justify-between items-center mb-4">
                     <div class="text-3xl font-black text-slate-700 dark:text-white" id="desc-timer">60</div>
                     <button onclick="finishDescribeGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
                 </div>
 
-                <div class="card flex-grow flex flex-col justify-center text-center border-4 border-indigo-500 shadow-2xl relative overflow-hidden">
+                <div class="play-stage__card card flex-grow flex flex-col justify-center text-center border-4 border-indigo-500 shadow-2xl relative">
                     <div class="eyebrow" data-i18n="target_word">الكلمة المطلوبة</div>
                     <h2 id="desc-main-word" class="text-4xl font-black text-indigo-700 dark:text-indigo-400 mb-8">---</h2>
                     
@@ -1487,13 +1506,13 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 mt-4">
+                <div class="play-stage__actions grid grid-cols-2 gap-4 mt-4">
                     <button onclick="descAction('skip')" class="btn btn--ghost bg-slate-200 text-slate-600 h-20 text-xl" data-i18n="skip">تخطي ⏭️</button>
                     <button onclick="descAction('correct')" class="btn btn--primary h-20 text-xl" data-i18n="correct">✅ صح!</button>
                 </div>
             </div>
 
-            <div id="desc-ui-result" class="hidden flex-col h-full justify-center text-center">
+            <div id="desc-ui-result" class="hidden flex-col justify-center text-center">
                 <div class="text-6xl mb-4">🏁</div>
                 <h2 class="card__title card__title--neutral">انتهى الوقت!</h2>
                 
@@ -1581,28 +1600,28 @@
         </div>
     </div>
 
-    <div id="view-play-charades" class="hidden">
-        <div class="flex flex-col h-[85vh]">
+    <div id="view-play-charades" class="hidden view--stage">
+        <div class="play-stage">
             
-            <div id="charades-ui-playing" class="flex flex-col h-full">
-                <div class="flex justify-between items-center mb-4">
+            <div id="charades-ui-playing" class="play-stage__playing flex flex-col">
+                <div class="play-stage__head flex justify-between items-center mb-4">
                     <div class="text-3xl font-black text-slate-700 dark:text-white" id="charades-timer">60</div>
                     <button onclick="finishCharadesGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
                 </div>
 
-                <div onclick="nextCharadesCard('correct')" class="card flex-grow flex flex-col justify-center items-center text-center border-4 border-purple-500 shadow-2xl cursor-pointer active:scale-95 transition-transform bg-purple-50 dark:bg-slate-800">
+                <div onclick="nextCharadesCard('correct')" class="play-stage__card card flex-grow flex flex-col justify-center items-center text-center border-4 border-purple-500 shadow-2xl cursor-pointer active:scale-95 transition-transform bg-purple-50 dark:bg-slate-800">
                     <div class="eyebrow" data-i18n="act_it_out">مثل الكلمة</div>
                     <h2 id="charades-word" class="text-5xl font-black text-purple-700 dark:text-purple-300 leading-tight">---</h2>
                     <p class="field__hint">(Tap screen for Correct)</p>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 mt-4">
+                <div class="play-stage__actions grid grid-cols-2 gap-4 mt-4">
                     <button onclick="nextCharadesCard('pass')" class="btn btn--ghost bg-slate-200 text-slate-600 h-20 text-xl" data-i18n="pass">تجاوز ⏭️</button>
                     <button onclick="nextCharadesCard('correct')" class="btn btn--primary h-20 text-xl" data-i18n="correct">✅ صح!</button>
                 </div>
             </div>
 
-            <div id="charades-ui-result" class="hidden flex-col h-full justify-center text-center">
+            <div id="charades-ui-result" class="hidden flex-col justify-center text-center">
                 <div class="text-6xl mb-4">🎭</div>
                 <h2 class="card__title card__title--neutral">انتهى الوقت!</h2>
                 
@@ -1735,8 +1754,8 @@
         </div>
     </div>
 
-    <div id="view-play-whoami" class="hidden">
-        <div class="flex flex-col h-[85vh]">
+    <div id="view-play-whoami" class="hidden view--stage">
+        <div class="play-stage">
             
             <div id="whoami-pass-container" class="flex-grow flex flex-col justify-center text-center">
                 
@@ -1761,7 +1780,7 @@
                 </div>
             </div>
 
-            <div id="whoami-timer-ui" class="hidden flex-col h-full justify-center text-center">
+            <div id="whoami-timer-ui" class="hidden flex-col justify-center text-center">
                 <h3 class="card__title" data-i18n="discussion_time">وقت الأسئلة 🗣️</h3>
                 
                 <div class="card mb-8 py-10 bg-slate-50 dark:bg-slate-800">
@@ -1776,7 +1795,7 @@
                 <p class="field__hint">اسأل أسئلة "نعم" أو "لا" لتعرف من أنت!</p>
             </div>
 
-            <div id="whoami-result-ui" class="hidden flex-col h-full">
+            <div id="whoami-result-ui" class="hidden flex-col">
                 <h3 class="card__title">ترتيب الهويات</h3>
                 <div id="whoami-final-list" class="flex-grow overflow-y-auto space-y-2 mb-6 px-2"></div>
                 
@@ -1841,7 +1860,7 @@
               <div id="reaction-msg2" class="w-full"></div>
           </div>
 
-          <div class="h-2 w-full bg-black bg-opacity-60 shadow-2xl" style="z-index: 100000;"></div>
+          <div class="reaction-divider h-2 w-full bg-black bg-opacity-60 shadow-2xl" style="z-index: 100000;"></div>
 
           <div id="reaction-p1" onclick="handleReactionTap(1)" class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-100 p-4">
               <div id="reaction-msg1" class="w-full"></div>
@@ -1933,6 +1952,11 @@
           <span id="tb-q-cat" class="eyebrow"></span>
           <span id="tb-q-points" class="badge badge--accent"></span>
         </div>
+        <button type="button" id="tb-q-timer" class="tb-timer hidden" onclick="toggleTriviaTimer()">
+          <span id="tb-q-timer-value" class="tb-timer__value metric">30</span>
+          <span class="tb-timer__bar" aria-hidden="true"><span id="tb-q-timer-fill" class="tb-timer__fill"></span></span>
+          <span id="tb-q-timer-state" class="tb-timer__state" aria-hidden="true">⏸</span>
+        </button>
         <p id="tb-q-text" class="prompt-text"></p>
         <div id="tb-q-answer" class="tb-answer hidden">
           <div class="eyebrow" data-i18n="tb_answer">الإجابة</div>

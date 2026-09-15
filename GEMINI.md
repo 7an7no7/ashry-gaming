@@ -319,6 +319,13 @@ title holders or "the latest"). `npm run export:trivia -- <path>` in `tools/`
 writes the same bank as `trivia_bank.js` for the standalone trivia page
 (`trivia.html`).
 
+A board question can run on a clock: the setup screen's switch and 15–60 seconds
+(`TB_TIMER_CHOICES`, on at 30 by default, remembered with the team names in
+`ashryTriviaTeams`). Tapping the clock pauses it; when it runs out the answer
+shows by itself, and the host still gives the points. The open card lives in
+`appState.triviaBoard.open` with a deadline (`endsAt`, or `left` while paused),
+so a reload reopens it with the time it really had left.
+
 **Adding a game to the room layer**
 
 1. Add a branch to `applyRoomAction` in `RoomGames.js`. Put anything private in
@@ -611,7 +618,8 @@ blank template with no clock running and no way forward.
 Two shapes:
 
 - **Restorable** (Wordle, Guess the Number, Screw, Monkey, Domino, the counter,
-  the bracket): the whole game is in `appState`, so the branch just redraws it.
+  the bracket, the trivia board): the whole game is in `appState`, so the branch
+  just redraws it.
   Anything that renders from state needs a `render…()` that rebuilds from
   `appState` alone — not one that only appends as events happen.
 - **Not restorable** (Charades, Describe It, Just One, Who Am I, the reaction
@@ -620,7 +628,13 @@ Two shapes:
   `toastRoundLost()` to say why.
 
 When adding a timed game, prefer persisting a deadline (`Date.now() + ms`) over a
-remaining-seconds count — then it becomes restorable for free.
+remaining-seconds count — then it becomes restorable for free. The trivia board
+does this for an open question card.
+
+A branch that reopens a popup has to wait a tick (`setTimeout(…, 0)`):
+`initializeApp` closes every `.modal-overlay` *after* `loadFromLocal` has run
+`restoreView`, so a card opened straight away is shut again with its clock still
+running behind it.
 
 ### The design system
 
@@ -666,7 +680,8 @@ still renders as a button — do not add new uses.
 Other components: `.card`, `.section` + `.section__title`, `.eyebrow`,
 `.game-card`, `.tool-item`, `.row` / `.status-row`, `.chip`, `.badge`,
 `.metric`, `.empty`, `.field` + `.field__label`, `.input-group`, `.stepper`,
-`.segmented`, `.keypad` + `.key`, `.wheel`, `.view-actions`, and the
+`.segmented`, `.switch` (inside a `<label class="switch-row">`), `.keypad` +
+`.key`, `.wheel`, `.view-actions`, and the
 `.modal-content` sheet (`.sheet__header` / `__body` / `__footer`).
 
 **Popups are centred dialogs, and live under `<body>`.** `hoistModals()` in
@@ -702,6 +717,40 @@ of every long player list.
   guessing at notch padding.
 - Minimum touch target is 44px (`--tap`); nothing interactive should measure
   under ~40px on a 375px-wide screen.
+- Never size a play screen off the viewport height (`h-[85vh]`,
+  `calc(100dvh - 460px)`). Both were taller than the main area, so on a phone
+  held sideways the Describe It card clipped its own forbidden words with nothing
+  to scroll to, and the Draw & Guess canvas got a negative size. A timed card
+  screen is `.view--stage` + `.play-stage`, which fills the main area and only
+  ever grows past it.
+- The shell's height is `--app-h`, which `syncAppHeight` in `JS_Core.html`
+  keeps at `window.innerHeight`: iOS goes on reporting the old `100dvh` for a
+  moment after the phone turns.
+
+**Landscape phones.** A phone on its side is 360–430px tall, and laid out like
+portrait the app stayed a 520px column in the middle of the screen with a third
+of the height gone to the header and nav. The *LANDSCAPE PHONES* block at the end
+of `Style.html` (`orientation: landscape` and `max-height: 500px`, so tablets
+keep portrait's layout) makes the app full width, turns the nav into a rail at
+the inline-start edge, centres views in a readable column (the menu gets more
+tiles per row) and tightens spacing that only existed to fill a tall screen.
+
+Screens with a board and its controls put them side by side there, each through
+a wrapper that is plain flow in portrait:
+
+| wrapper | screen |
+| --- | --- |
+| `.play-stage__playing` (`__head` / `__card` / `__actions`) | Charades, Describe It |
+| `.wordle-layout` | Wordle: board beside the keyboard |
+| `.draw-layout` (`__head` / `.draw-wrap` / `__side`) | Draw & Guess, Fake Artist; the canvas is sticky so the tools can scroll |
+| `.cn-layout` | Codenames: board beside the clue and controls |
+| `.tb-play` | دوري المعرفة: board beside the scores |
+| `#view-play-chess`, `#view-play-reaction` | the two halves split left and right |
+
+A new screen like these needs its rule in that block, and every change gets a
+look at 667×375 as well as 375×667. `docs/manifest.webmanifest` says
+`"orientation": "any"` so an installed app turns too; nothing generates that
+file, so it is the one thing in `docs/` edited by hand.
 
 ### Navigation
 

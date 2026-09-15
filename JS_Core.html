@@ -783,6 +783,11 @@
       tb_draw: "تعادل!",
       tb_final: "النتيجة",
       tb_settings: "تغيير الإعدادات",
+      tb_timer: "مؤقت لكل سؤال",
+      tb_timer_hint: "بالثواني. لما الوقت يخلص، الإجابة بتظهر لوحدها.",
+      tb_time_up: "الوقت خلص!",
+      tb_timer_pause: "إيقاف المؤقت",
+      tb_timer_resume: "كمّل المؤقت",
       conn_level: "الصعوبة",
       level_easy: "سهل",
       level_medium: "متوسط",
@@ -1224,6 +1229,11 @@
       tb_draw: "It's a draw!",
       tb_final: "Final score",
       tb_settings: "Change settings",
+      tb_timer: "Timer per question",
+      tb_timer_hint: "In seconds. When time runs out, the answer shows by itself.",
+      tb_time_up: "Time's up!",
+      tb_timer_pause: "Pause the timer",
+      tb_timer_resume: "Resume the timer",
       conn_level: "Difficulty",
       level_easy: "Easy",
       level_medium: "Medium",
@@ -1741,8 +1751,13 @@
         }
         // The team board is all in appState: draw it as it was left.
         else if (appState.currentView === 'play-trivia' && typeof renderTriviaBoard === 'function') {
-            if (appState.triviaBoard) appState.triviaBoard.open = null;
             renderTriviaBoard();
+            // A card that was open comes back with the time it had left. Not
+            // straight away: initializeApp closes every overlay once this has
+            // run, and a ?room= link may have moved the screen on meanwhile.
+            if (appState.triviaBoard && appState.triviaBoard.open && typeof showTriviaCell === 'function') {
+                setTimeout(() => { if (appState.currentView === 'play-trivia') showTriviaCell(); }, 0);
+            }
         }
         // Timer-driven: the time left was never persisted, so resuming would be
         // a lie. Send them back to setup and say so rather than showing a dead
@@ -1919,6 +1934,25 @@
       : 'The round ended because the page reloaded');
   }
 
+  /* The shell's height (--app-h in Style.html). 100dvh is right nearly always,
+     but iOS keeps reporting the old value for a moment after the phone turns,
+     and a landscape screen laid out at portrait height has half of itself off
+     the bottom with nothing to scroll. innerHeight is current once resize
+     fires; the late re-read covers a turn that reports its size after the
+     event. */
+  function syncAppHeight() {
+    document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
+  }
+  syncAppHeight();
+  window.addEventListener('resize', syncAppHeight);
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      syncAppHeight();
+      // Turning can leave the page itself scrolled, which shifts the whole app.
+      window.scrollTo(0, 0);
+    }, 300);
+  });
+
   let viewEnterFallback = null;
 
   /** Tools that take the whole screen; the header and nav step aside for them. */
@@ -2072,6 +2106,7 @@ const GAME_RULES = {
                 <li>فريقين ومقدم واحد بيدير اللعبة من موبايل أو شاشة.</li>
                 <li>كل جولة فيها 5 فئات، وفي كل فئة أسئلة بـ100 و200 و300 و400 و500 نقطة — كل ما النقاط أعلى، السؤال أصعب.</li>
                 <li>الفريق يختار فئة ونقاط، المقدم يقرأ السؤال ويظهر الإجابة، ويدي النقاط للفريق اللي جاوب صح.</li>
+                <li>لو المؤقت شغال، كل سؤال له وقت (30 ثانية لو ما غيرتوش). اضغط على العداد عشان توقفه، ولما الوقت يخلص الإجابة بتظهر لوحدها.</li>
                 <li>أزرار + و − لتصحيح النقاط. الفريق صاحب النقاط الأعلى في آخر جولة يكسب.</li>
             </ol>`,
         screw: `
@@ -2359,6 +2394,7 @@ const GAME_RULES = {
                 <li>Two teams and a host running the game from one phone or screen.</li>
                 <li>Each round has 5 categories, each with questions worth 100, 200, 300, 400 and 500 — the more points, the harder the question.</li>
                 <li>A team picks a category and a value; the host reads the question, shows the answer and gives the points to the team that got it right.</li>
+                <li>With the timer on, every question has a clock (30 seconds unless you pick another). Tap it to pause; when it runs out, the answer shows by itself.</li>
                 <li>The + and − buttons fix a score. The team with the most points after the last round wins.</li>
             </ol>`,
         screw: `

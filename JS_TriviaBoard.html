@@ -11,14 +11,25 @@
    dealt through freshPick, so the same question doesn't come back until its
    category and level have been played through.
 
+   Each question can run on a clock (TB_TIMER_CHOICES, 30 seconds unless the
+   host picks another, or off). When it runs out the answer shows by itself
+   and the host still gives the points.
+
    The whole game lives in appState.triviaBoard, so a reload puts the board back
-   exactly as it was (restoreView in JS_Core.html).
+   exactly as it was (restoreView in JS_Core.html). That includes an open card:
+   `open` holds its deadline (or the seconds left, while paused) rather than a
+   count, so it comes back with the time it really had left.
    ========================================================================= */
 
 const TB_LEVELS = [100, 200, 300, 400, 500];
 const TB_CATEGORIES_PER_ROUND = 5;
 const TB_ADJUST_STEP = 100;
 const TB_TEAMS_KEY = 'ashryTriviaTeams';
+const TB_TIMER_CHOICES = [15, 20, 30, 45, 60];
+const TB_TIMER_DEFAULT = 30;
+
+/** The open card's clock (createClock), or null. */
+let tbClock = null;
 
 function tbText() { return TRANSLATIONS[appState.lang] || {}; }
 function tbLang() { return appState.lang === 'en' ? 'en' : 'ar'; }
@@ -36,21 +47,55 @@ function setupTrivia() {
   if (a) a.value = saved.a || '';
   if (b) b.value = saved.b || '';
   if (rounds && saved.rounds) rounds.value = String(saved.rounds);
+
+  // On, at 30 seconds, until the host chooses otherwise; then as they left it.
+  const timerOn = document.getElementById('tb-timer-on');
+  if (timerOn) timerOn.checked = saved.timerOn !== false;
+  setTriviaTimerSeconds(TB_TIMER_CHOICES.indexOf(saved.timerSeconds) !== -1 ? saved.timerSeconds : TB_TIMER_DEFAULT);
+  syncTriviaTimerField();
+}
+
+/** The seconds only show while the timer switch is on. */
+function syncTriviaTimerField() {
+  const on = !!(document.getElementById('tb-timer-on') || {}).checked;
+  const choices = document.getElementById('tb-timer-choices');
+  if (choices) choices.classList.toggle('hidden', !on);
+}
+
+function setTriviaTimerSeconds(seconds) {
+  const group = document.getElementById('tb-timer-seconds');
+  if (!group) return;
+  group.dataset.value = String(seconds);
+  group.querySelectorAll('[data-seconds]').forEach(btn => {
+    const active = Number(btn.dataset.seconds) === seconds;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
 }
 
 function startTriviaBoard() {
-  const t = tbText();
   const nameA = ((document.getElementById('tb-team-a') || {}).value || '').trim().slice(0, 20);
   const nameB = ((document.getElementById('tb-team-b') || {}).value || '').trim().slice(0, 20);
   const rounds = Math.max(1, Math.min(4, Number((document.getElementById('tb-rounds') || {}).value) || 2));
-  try { localStorage.setItem(TB_TEAMS_KEY, JSON.stringify({ a: nameA, b: nameB, rounds: rounds })); } catch (e) {}
+  const timerOn = !!(document.getElementById('tb-timer-on') || {}).checked;
+  const picked = Number(((document.getElementById('tb-timer-seconds') || {}).dataset || {}).value);
+  const timerSeconds = TB_TIMER_CHOICES.indexOf(picked) !== -1 ? picked : TB_TIMER_DEFAULT;
+  try {
+    localStorage.setItem(TB_TEAMS_KEY, JSON.stringify({
+      a: nameA, b: nameB, rounds: rounds, timerOn: timerOn, timerSeconds: timerSeconds
+    }));
+  } catch (e) {}
 
+  stopTriviaTimer();
   appState.triviaBoard = {
     // An empty name follows the language instead of freezing the default in.
     teams: [{ name: nameA, score: 0 }, { name: nameB, score: 0 }],
     round: 1,
     rounds: rounds,
+    // Seconds per question; 0 is no timer.
+    timer: timerOn ? timerSeconds : 0,
     board: dealTriviaRound([]),
+    open: null,
     finished: false
   };
   saveToLocal();
@@ -121,18 +166,22 @@ function renderTriviaBoard() {
   });
 
   const lastRound = s.round >= s.rounds;
+  // .tb-play stacks on a phone held upright and puts the scores beside the
+  // board on its side (Style.html, landscape).
   root.innerHTML = `
-    <div class="tb-scores">
-      ${team(0)}
-      <div class="tb-round">
-        <span class="eyebrow">${t.tb_round || 'الجولة'}</span>
-        <span class="tb-round__value">${s.round} / ${s.rounds}</span>
+    <div class="tb-play">
+      <div class="tb-scores">
+        ${team(0)}
+        <div class="tb-round">
+          <span class="eyebrow">${t.tb_round || 'الجولة'}</span>
+          <span class="tb-round__value">${s.round} / ${s.rounds}</span>
+        </div>
+        ${team(1)}
       </div>
-      ${team(1)}
-    </div>
-    <div class="tb-board">${headers}${cells}</div>
-    <div class="btn-stack tb-actions">
-      <button class="btn btn--secondary" onclick="nextTriviaRound()">${lastRound ? (t.tb_finish || 'إنهاء اللعبة') : (t.tb_next_round || 'الجولة التالية')}</button>
+      <div class="tb-board">${headers}${cells}</div>
+      <div class="btn-stack tb-actions">
+        <button class="btn btn--secondary" onclick="nextTriviaRound()">${lastRound ? (t.tb_finish || 'إنهاء اللعبة') : (t.tb_next_round || 'الجولة التالية')}</button>
+      </div>
     </div>`;
 }
 
@@ -141,26 +190,63 @@ function renderTriviaBoard() {
 function openTriviaCell(c, row) {
   const s = appState.triviaBoard;
   if (!s || !s.board[c] || !s.board[c].cells[row] || s.board[c].cells[row].done) return;
-  s.open = { c: c, row: row };
-  const t = tbText();
-  const cat = tbCategory(s.board[c].cat);
-  const cell = s.board[c].cells[row];
-  const item = cat.levels[cell.points][cell.q];
+  s.open = {
+    c: c,
+    row: row,
+    revealed: false,
+    timeUp: false,
+    // A running clock keeps its deadline; a paused one keeps the seconds left.
+    endsAt: s.timer ? Date.now() + s.timer * 1000 : null,
+    left: null
+  };
+  saveToLocal();
+  showTriviaCell();
+  playSound('click');
+}
+
+/** Draws the open card: when it is opened, and again after a reload. */
+function showTriviaCell() {
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  const col = o && s.board[o.c];
+  const cell = col && col.cells[o.row];
+  const cat = col && tbCategory(col.cat);
+  const item = cat && cell && (cat.levels[cell.points] || [])[cell.q];
+  if (!item || cell.done) {
+    if (s) s.open = null;
+    return;
+  }
   const en = tbLang() === 'en';
 
   document.getElementById('tb-q-cat').textContent = (cat.icon ? cat.icon + ' ' : '') + (en ? cat.en : cat.ar);
   document.getElementById('tb-q-points').textContent = cell.points;
   document.getElementById('tb-q-text').textContent = en ? item[2] : item[0];
   document.getElementById('tb-q-answer-text').textContent = en ? item[3] : item[1];
-  document.getElementById('tb-q-answer').classList.add('hidden');
-  document.getElementById('tb-q-actions').innerHTML = `
-    <button class="btn btn--primary btn--lg" onclick="revealTriviaAnswer()">${t.tb_show_answer || 'إظهار الإجابة'}</button>
-    <button class="btn btn--ghost" onclick="closeTriviaCell()">${t.tb_back || 'رجوع'}</button>`;
+  if (o.revealed) paintTriviaAnswer();
+  else {
+    const t = tbText();
+    document.getElementById('tb-q-answer').classList.add('hidden');
+    document.getElementById('tb-q-actions').innerHTML = `
+      <button class="btn btn--primary btn--lg" onclick="revealTriviaAnswer()">${t.tb_show_answer || 'إظهار الإجابة'}</button>
+      <button class="btn btn--ghost" onclick="closeTriviaCell()">${t.tb_back || 'رجوع'}</button>`;
+  }
   document.getElementById('tb-question-modal').classList.remove('hidden');
-  playSound('click');
+  startTriviaTimer();
 }
 
+/** The host's button, or the clock running out. */
 function revealTriviaAnswer() {
+  const s = appState.triviaBoard;
+  if (!s || !s.open) return;
+  s.open.revealed = true;
+  stopTriviaTimer();
+  // Shown early, the clock has nothing more to say; run out, it stays up saying so.
+  if (!s.open.timeUp) document.getElementById('tb-q-timer').classList.add('hidden');
+  saveToLocal();
+  paintTriviaAnswer();
+}
+
+function paintTriviaAnswer() {
   const t = tbText();
   document.getElementById('tb-q-answer').classList.remove('hidden');
   document.getElementById('tb-q-actions').innerHTML = `
@@ -175,13 +261,18 @@ function revealTriviaAnswer() {
 /** Closes the card without playing it - the host opened the wrong one. */
 function closeTriviaCell() {
   const s = appState.triviaBoard;
-  if (s) s.open = null;
+  stopTriviaTimer();
+  if (s) {
+    s.open = null;
+    saveToLocal();
+  }
   closeModal('tb-question-modal');
 }
 
 function awardTriviaCell(teamIndex) {
   const s = appState.triviaBoard;
   if (!s || !s.open) return;
+  stopTriviaTimer();
   const cell = s.board[s.open.c].cells[s.open.row];
   cell.done = true;
   cell.team = teamIndex >= 0 ? teamIndex : null;
@@ -209,6 +300,104 @@ function adjustTriviaScore(teamIndex, direction) {
   renderTriviaBoard();
 }
 
+/* --- the question clock ---------------------------------------------------- */
+
+/** Starts (or, after a reload, resumes) the open card's clock, if the game has one. */
+function startTriviaTimer() {
+  stopTriviaTimer();
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  const box = document.getElementById('tb-q-timer');
+  if (!box) return;
+  box.classList.remove('is-up', 'is-urgent', 'is-paused');
+  if (!o || !s.timer || (o.revealed && !o.timeUp)) {
+    box.classList.add('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  if (o.timeUp) {
+    paintTriviaTimer(0);
+    paintTriviaTimerState();
+    return;
+  }
+
+  const paused = typeof o.left === 'number';
+  const left = paused ? o.left : Math.ceil((o.endsAt - Date.now()) / 1000);
+  if (!(left > 0)) {
+    triviaTimeUp();
+    return;
+  }
+  tbClock = createClock({ seconds: left, onTick: paintTriviaTimer, onEnd: triviaTimeUp });
+  if (paused) tbClock.pause();
+  paintTriviaTimerState();
+}
+
+function stopTriviaTimer() {
+  if (tbClock) tbClock.stop();
+  tbClock = null;
+}
+
+function paintTriviaTimer(seconds) {
+  const s = appState.triviaBoard;
+  if (!s || !s.timer) return;
+  const box = document.getElementById('tb-q-timer');
+  const value = document.getElementById('tb-q-timer-value');
+  const fill = document.getElementById('tb-q-timer-fill');
+  if (value) value.textContent = seconds;
+  if (fill) fill.style.transform = 'scaleX(' + Math.max(0, Math.min(1, seconds / s.timer)) + ')';
+  const urgent = seconds > 0 && seconds <= 5;
+  if (box) box.classList.toggle('is-urgent', urgent);
+  if (urgent && tbClock && tbClock.isRunning()) playSound('tick');
+}
+
+/** Paused, running or run out: the icon, the label and the colour. */
+function paintTriviaTimerState() {
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  const box = document.getElementById('tb-q-timer');
+  const state = document.getElementById('tb-q-timer-state');
+  if (!box || !state) return;
+  const t = tbText();
+  const up = !!(o && o.timeUp);
+  const paused = !up && !!(tbClock && tbClock.isPaused());
+  box.classList.toggle('is-up', up);
+  box.classList.toggle('is-paused', paused);
+  if (up) box.classList.remove('is-urgent');
+  box.disabled = up;
+  state.textContent = up ? (t.tb_time_up || 'الوقت خلص!') : (paused ? '▶' : '⏸');
+  box.setAttribute('aria-label', up ? (t.tb_time_up || '') : (paused ? (t.tb_timer_resume || '') : (t.tb_timer_pause || '')));
+}
+
+/** Tapping the clock pauses it - and tapping again carries on. */
+function toggleTriviaTimer() {
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  if (!tbClock || !o || o.revealed) return;
+  const paused = tbClock.toggle();
+  if (paused) {
+    o.left = tbClock.value();
+    o.endsAt = null;
+  } else {
+    o.endsAt = Date.now() + tbClock.value() * 1000;
+    o.left = null;
+  }
+  saveToLocal();
+  paintTriviaTimerState();
+}
+
+function triviaTimeUp() {
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  if (!o || o.revealed) return;
+  tbClock = null;
+  o.timeUp = true;
+  paintTriviaTimer(0);
+  paintTriviaTimerState();
+  playSound('alarm');
+  haptic('heavy');
+  revealTriviaAnswer();
+}
+
 /* --- rounds and the end ---------------------------------------------------- */
 
 /** The button under the board. Unplayed cards are asked about first. */
@@ -223,6 +412,8 @@ function nextTriviaRound() {
 function advanceTriviaBoard() {
   const s = appState.triviaBoard;
   if (!s || s.finished) return;
+  stopTriviaTimer();
+  s.open = null;
   if (s.round >= s.rounds) {
     s.finished = true;
     saveToLocal();
@@ -259,13 +450,15 @@ function triviaBoardResults(s, t) {
     </div>`;
 }
 
-/** Same teams, same number of rounds, fresh board. */
+/** Same teams, same number of rounds, same clock, fresh board. */
 function replayTriviaBoard() {
   const s = appState.triviaBoard;
   if (!s) { setupTrivia(); return; }
+  stopTriviaTimer();
   s.teams.forEach(x => { x.score = 0; });
   s.round = 1;
   s.finished = false;
+  s.open = null;
   s.board = dealTriviaRound([]);
   saveToLocal();
   renderTriviaBoard();

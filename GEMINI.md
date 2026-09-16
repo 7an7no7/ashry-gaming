@@ -70,6 +70,111 @@
   - ♟️ Chess Clock, ⏱️ General Timers, 🎲 Dice & Coin.
   - 🀄 Domino Scorer, 🔢 Universal Counter.
 
+## Where the app is going: ideas, decisions and the log
+
+This part is the memory of the project for whoever picks it up next, person
+or AI: what the owner has decided, what is waiting, and what each batch of
+work changed. Add to it when a decision is made or a batch ships.
+
+### Waiting
+
+- **مافيا (Mafia / Werewolf)** - explained on 16 Sep 2026; the owner has edits
+  of their own to bring before it is built. The outline agreed so far: rooms
+  first, the app as the narrator (night choices made silently on each phone,
+  the server resolves them), the voting engine for the day, the TV for night
+  and day, 6+ players, Mafia + Doctor + Detective to start, family wording
+  ("خرج من اللعبة", no killing words). One phone only as a narrator's helper
+  (hold-to-reveal roles), since passing a phone at night shows who acts.
+
+### Ideas not built yet (researched 16 Sep 2026)
+
+Solo is the gap: the solo games are Wordle, Connections, Memory, X-O against
+the phone and Guess the Number. Candidates, each within the owner's rules
+(free, offline where possible, nothing adult, content that doesn't go stale,
+categories that name a kind of thing):
+
+- **تحدي اليوم (a daily challenge)** across the solo games: the same puzzle
+  for everyone on a date (seeded by the date), a streak, and a result to share
+  on WhatsApp as a grid of emoji, the way Wordle spread.
+- **خيوط (Strands-style themed word search)**: find the words of one category
+  in a letter grid; the categories already exist in the Connections and
+  Chameleon banks.
+- **كلمات من حروف (a letter wheel + crossword, like the Arabic "كلمات كراش")**:
+  the words come from the app's own banks, the letters from those words.
+- **Logic puzzles generated on the phone** - no content at all: Sudoku, 2048,
+  Queens (one per row, column and colour region), Tango (suns and moons),
+  Nonogram (a picture from number clues), Minesweeper.
+- **خمّن الدولة / العلم (Worldle / Flagle)**: a country from its flag or shape,
+  with distance and direction after each guess; needs each country's
+  coordinates, which never change.
+- **Pinpoint-style "إيه اللي يجمعهم؟"**: a category's words revealed one at a
+  time, fewer clues = more points; reuses the Connections groups.
+- **A solo quiz streak**: the trivia, emoji and proverb banks with three lives
+  and a best score.
+- **الترتيب الأعمى (blind ranking)**: five things of a kind revealed one at a
+  time, each placed 1-5 before seeing the next; solo, and in a room to compare.
+
+Group candidates:
+
+- **زي الكل (Herd Mentality)**: everyone answers the same open question
+  ("أحسن أكلة في العيد؟"), the majority scores, the odd one out gets the
+  token; answers grouped through `normaliseClue`, the host merges near ones.
+- **على راسك (Heads Up)**: the phone on your forehead, the table describes,
+  tilt down for right and up to pass (device motion; iOS asks permission on a
+  tap); the Charades and Describe It cards.
+- **العقل (The Mind)**: cooperative, each phone holds secret numbers and the
+  table must play them in rising order without talking; no content.
+- **الرقم السري (Ito)**: a secret number 1-100 each and a scale ("حيوانات من
+  الأصغر للأكبر"); each says a thing at their number, the table orders itself.
+- **قبل ولا بعد (Timeline)**: place events and inventions in order; dates
+  never change, which fits the trivia rule.
+- **المختلف (Undercover)** as a mode of الجاسوس: the impostor gets a close word
+  instead of none.
+- **Card game scorers** as tools, next to سكرو and الدومينو: إستميشن, طرنيب,
+  تريكس, كونكان, باصرة - Arab tables use score apps for these.
+
+Each of these would use the motion toolkit (*Using the motion toolkit in a
+new game*): reveals and podiums for the group games, `spinLetter` for anything
+drawn at random, `flyEmoji` or a ghost flight for placing things (Timeline,
+blind ranking, the word search), `countUp` for streaks and scores.
+
+### Decided, and why
+
+- Rooms stay on Cloudflare; WebRTC was rejected. Firebase, if ever, on a
+  different Google account from the one already tried.
+- صراحة أو جرأة (truth or dare): a family-clean list is too tame. تخمين السعر
+  (price guessing): prices go stale. Hot Takes-style opinion games: aimed at
+  adults. None built.
+- Web Push notifications: not worth it yet (needs remote play, a home-screen
+  install and permission).
+- An "open in the app" banner for room links: impossible on iPhone (see
+  *Putting it on the home screen*).
+- The Stop dictionary is strict: an unknown word scores 0 until the host taps
+  it. A lenient mode (❓ keeps its points) was considered and not built; it is
+  a small change if tables find strict too much.
+- The live player count lives on the مع بعض tab, not the header, and hides
+  below `LIVE_MIN_PLAYERS`.
+
+### The log
+
+- **15 Sep 2026** - the catalog home, a hero on every setup screen, four tabs;
+  the wordmark icon (design 28); القنبلة, أتوبيس كومبليت, الذاكرة, إكس أو,
+  مين يبدأ and الجرس; the every-game-every-mode review; one fold for typed
+  text; the finish layer; صدق ولا كذب, فوازير إيموجي, كمّل المثل, خمس ثواني
+  and ارسم واكتب; the games' language setting; the soundboard; ربع قرد as
+  referee with rooms; the drawing toolbox and the room chat.
+- **16 Sep 2026** - ten smoothness touches (section 12); share the app; the
+  dice and coin in 3D; a way out mid-round and take-backs for presses the
+  phone can't verify; the live player count; "دورك!", chat reactions, room
+  events and team chat; the intro ("the logo flies home"); the motion passes
+  (section 14: card-to-hero, room start splash, nav pill, code drop, score
+  count-up, vote suspense, the spy card, the podium, the letter spin,
+  Connections and team flights, the back flight, hold-to-reveal); smoothness
+  fixes (Web Animations for flights, no-op `applyTranslations`); the install
+  sheet; Stop's full-sheet وقف and dictionary; the bomb's louder tick and
+  sound waking; a real applause. Found on the way: the one-phone الجاسوس's
+  default category had crashed since the ربع قرد rebuild (*Traps*).
+
 ## Building and Running
 
 ### Development Requirements
@@ -117,8 +222,10 @@ Two browser tabs on the preview behave like two phones in one room.
   included). GitHub Pages redeploys in about a minute; `npm run check:live` in
   `tools/` waits for it and confirms the link serves the build in `docs/`.
 - **The rooms server:** `npm run deploy` in `rooms-worker/`. Needed whenever
-  `RoomGames.js`, the room word lists (`SpyWords.js`, `CodenamesWords.js`,
-  `PartyContent.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `RoomGames.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
+  `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
+  `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
+  `MonkeyWords.js`, `StopWords.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -1065,8 +1172,8 @@ keeps its password as its first word (there are none now). Use
 **Code in `JS_*.html` does not exist on the server.** Fake Artist once dealt its
 colours from `DRAW_COLOURS`, which is declared in `JS_RoomDraw.html`, and the
 first `start` on the real server threw a ReferenceError. The rooms server has
-only what `rooms-worker/build.mjs` bundles: `SpyWords.js`, `CodenamesWords.js`,
-`PartyContent.js` and `RoomGames.js`. A constant both sides need is declared in
+only what `rooms-worker/build.mjs` bundles (its `FILES`: the word lists and
+`RoomGames.js`). A constant both sides need is declared in
 one of those (`FAKE_ARTIST_COLOURS` in `RoomGames.js`). `npm test` in
 `rooms-worker/` starts every game, which is what catches this.
 
@@ -1255,16 +1362,7 @@ the first frame it draws. It used to chase the element from a
 `requestAnimationFrame` loop, and going back to the home - 600 elements to
 draw - ate the start of the path and stuttered, while opening a light setup
 screen looked fine. The ghost is drawn at the larger of the two sizes and
-only scaled down, so the emoji stays sharp.
-
-**What keeps motion smooth on a phone** - the rules that flight taught, applied
-to everything in the section: animate `transform` and `opacity` only (the vote
-bars grow with `scaleX`, from the inline-start edge, not `width`, which is laid
-out on every frame); start a script's clock on the first frame drawn, never
-when it was called (`countUp`, `spinLetter`), because the screen that just
-changed may take a while to draw; and no `backdrop-filter` over a page that is
-changing underneath (the game splash is a near-opaque tint, since the room's
-screen rebuilds and slides in behind it). It flies twice: the tapped card's
+only scaled down, so the emoji stays sharp. It flies twice: the tapped card's
 icon to the game's hero (`catalogIconFlight`, which `catalogOpen` measures
 before the screen changes - cards pass themselves as `this`), and a room
 dealing a game from the lobby (`playRoomGameStart`, from `Room.onChange` when
@@ -1280,6 +1378,17 @@ coalesced pass as the segmented thumbs), a new room code drops in letter by
 letter, and a player who joins after you pops into the lobby
 (`status-row--new`, `lobbySeen`). All of it is still under reduced motion and
 in a tab that isn't showing.
+
+**What keeps motion smooth on a phone** - the rules that flight taught, applied
+to everything in the section: animate `transform` and `opacity` only (the vote
+bars grow with `scaleX`, from the inline-start edge, not `width`, which is laid
+out on every frame); start a script's clock on the first frame drawn, never
+when it was called (`countUp`, `spinLetter`), because the screen that just
+changed may take a while to draw; move a thing within its own place, never
+over its neighbours (the Stop letter used to drop in from above, over its
+label; it squashes in place now); and no `backdrop-filter` over a page that is
+changing underneath (the game splash is a near-opaque tint, since the room's
+screen rebuilds and slides in behind it).
 
 **Reveals play once per thing.** A room redraws a screen for reasons the
 table never sees (the host changed, the language), so a reveal asks
@@ -1331,6 +1440,40 @@ through the turn as well as relying on `backface-visibility`, and nothing on
 these screens may play a sound that differs by role: the old chameleon and
 spy reveals played an alarm for the impostor and a chime for everyone else,
 which told the whole table.
+
+**Using the motion toolkit in a new game.** The owner's standing ask: every
+new screen or game uses these wherever they fit, rather than inventing its own
+motion. What exists, and the moment each one is for:
+
+| moment | use | seen in |
+| --- | --- | --- |
+| something moves from where it was to where it lives | `flyEmoji` (an icon), or a ghost + Web Animation like `flyConnectGroup` / `dealTeams` (text, tiles) | card → hero, room start → header, Connections, teams |
+| a score changes | `renderScoreboard` rows (`data-pid`, `data-score`); `animateScoreboards` counts and slides them | every room board |
+| a number lands | `countUp(el, from, to)` | scoreboards |
+| a vote or a poll closes | `renderVoteResults` (bars in suspense, winner last) | every vote |
+| a hidden answer is revealed to the table | `spyRevealParts(key, label)` on the result card | الجاسوس, الحرباء, الموقع السري, الفنان المزيف |
+| a game ends with a ranking | `renderPodium(state, board)` + `afterReveal(el, confetti)` | trivia, quiz, five seconds, two truths, Stop |
+| something random is drawn (a letter, a category, a number) | `spinLetter(el, value, pool, onLand)` | Stop's letter |
+| a secret on a passed phone | `.hold-card` with `data-next` + `holdCardReset` | one-phone roles |
+| confetti or a cheer after any reveal | `afterReveal(el, fn)` | everywhere a reveal is |
+
+And the rules they rely on: key a reveal with `motionFirst(key)` so a redraw
+doesn't replay it; check `motionOff()` before moving anything, and set the end
+state without motion when it is true; transform and opacity only; start
+clocks on the first drawn frame; every end state also set by a timer, never
+only by an animation event. New CSS goes in section 14 of `Style.html`, with
+its `prefers-reduced-motion` line in the block at the end of that section.
+
+**A new game, start to finish.** The pieces a game needs to be whole, each
+described in its own section of this guide: a `GAME_CATALOG` entry (or it is
+not on the menu); `VIEW_META` for every view (title, `up`, accent); its text in
+both `TRANSLATIONS` blocks; its rules in `GAME_RULES`, `HELP_ENTRIES` and
+`HELP_FOR_VIEW`; `validViews` and a `restoreView` branch for its play views;
+dealing through `freshPick` (one phone) or `nextPrompts` (rooms); its content
+checked by `tools/validate-content.js`; the motion toolkit above; and in rooms
+also a `RoomGames.js` branch, `ROOM_GAMES` and `TV_GAMES` renderers,
+`ROOM_HUB_GAMES`, a `roomTurnOf` case if a turn waits on one phone, a round in
+`rooms-worker/test/play-all.mjs`, and a deploy.
 
 **The dice and the coin** are section 13: a real cube of six pip faces in 3D
 (`DIE_PIPS` draws the pips into a 3x3 grid, `DIE_LANDING` says what to rotate

@@ -29,6 +29,11 @@ The full guide is GEMINI.md — read it before changing anything:
 - Everything stays free and needs no looking after: GitHub Pages and the
   Cloudflare free plan. If Firebase is ever used, it goes on a different Google
   account from the one already tried.
+- New games and screens use the motion toolkit wherever it fits (GEMINI.md,
+  *Using the motion toolkit in a new game*): reveals, podiums, flights, count-ups.
+- Keep GEMINI.md current: how things work, the traps met on the way, and
+  *Where the app is going* (ideas, decisions, the log), so the next person or
+  AI can carry on.
 - A finished change goes live. The owner judges by the link, not this folder, so
   follow the steps below to the end.
 
@@ -38,8 +43,8 @@ The full guide is GEMINI.md — read it before changing anything:
    `Style.html`, `RoomGames.js`, the word lists). Never edit `docs/` by hand.
 2. Added a Tailwind class to the markup? `cd tools && npm run build:css`.
 3. `cd tools && npm run check` — content and translations. Must pass.
-4. Touched anything rooms run (`RoomGames.js`, `PartyContent.js`,
-   `CodenamesWords.js`, `SpyWords.js`, `rooms-worker/src/`)?
+4. Touched anything rooms run (`RoomGames.js`, any word list the server
+   bundles - the `FILES` in `rooms-worker/build.mjs` - or `rooms-worker/src/`)?
    `cd rooms-worker && npm run test:rules`, then, with `npm run dev` running,
    `npm test`. Every check must pass.
 5. **Look at it in the browser.** `cd tools && npm run build:preview`, then start

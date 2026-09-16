@@ -1163,9 +1163,15 @@ of its own:
   1; a wrong pick crosses out and opens the next word.
 - **سلسلة الإجابات** (`JS_QuizStreak.html`, id `streak`): 20 seconds, four
   answers, three hearts. `streakPool` turns four banks into questions: the room
-  trivia (`TriviaQuestions.js`), the team board (answers are free text, so the
-  wrong options are other answers of its category), the emoji riddles (wrong
-  options from the same kind) and the proverbs. The question keeps its deadline,
+  trivia (`TriviaQuestions.js`), the team board, the emoji riddles (wrong
+  options from the same kind) and the proverbs. The team board's answers are
+  free text, so its wrong options are made to look like the right one
+  (`streakBoardDecoys`): a number gets numbers near it written the same way
+  (a year other years, "45 دقيقة" other minutes, "300,000" with its commas), a
+  word other word answers of its category about as long, and a note in
+  brackets is dropped from every option. The first version drew any answer
+  of the category, so a year question showed one year among three words and
+  gave itself away (reported by the owner, 16 Sep 2026). The question keeps its deadline,
   so a reload comes back with the time it has left, or counts it as missed.
   The daily is ten seeded questions.
 - **خمّن الدولة** (`JS_Flags.html`, id `flags`): from the flag (6 guesses) or

@@ -984,60 +984,162 @@ function toggleResults() {
   
   /* The soundboard lives in JS_Sounds.html (toggleSoundboard / openSoundboard). */
 
+  /* --- Put it on the home screen ------------------------------------------
+     A phone that opens the app in its browser is asked to add it to the home
+     screen, with the steps for that phone and that browser - and on Android,
+     where Chrome allows it, a real one-tap install button instead of steps.
+     Only on a phone (not a tablet, a computer or a TV), never in the
+     home-screen copy, never over a game or a room: it waits until the home,
+     مع بعض or الأدوات is on screen and the intro has gone. Once a visit: a
+     visit is a page load at least INSTALL_VISIT_GAP_MS after the last ask,
+     so a reload mid-evening doesn't ask again, and tomorrow does. "I already
+     added it" stops it in this browser for good (a browser can't see the
+     home-screen copy by itself); Settings → تثبيت التطبيق always opens it.
+     ------------------------------------------------------------------------ */
+  const INSTALL_ASKED_KEY = 'ashryInstallAskedAt';
+  const INSTALL_HAVE_KEY = 'ashryInstallHaveIt';
+  const INSTALL_VISIT_GAP_MS = 30 * 60 * 1000;
+  const INSTALL_ROOT_VIEWS = ['menu', 'together', 'tools'];
+  let installAskPending = true;     // this page load hasn't asked yet
+  let installPromptEvent = null;    // Chrome's install prompt, kept for our own button
+
+  const inStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+  /** The phone and browser this is, for the steps; null when it isn't a phone. */
+  function installTarget() {
+      const ua = navigator.userAgent || '';
+      const ipad = /iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const ios = !ipad && /iPhone|iPod/.test(ua);
+      const android = /Android/.test(ua) && /Mobile/.test(ua);   // tablets and TVs say no "Mobile"
+      if (!ios && !android) return null;
+      // The browser inside another app (Instagram, Facebook, TikTok, Google...) can't add anything.
+      const inApp = /FBAN|FBAV|FB_IAB|Instagram|Line\/|Snapchat|TikTok|musical_ly|Bytedance|GSA\//.test(ua)
+          || (android && /; wv\)/.test(ua));
+      let browser;
+      if (inApp) browser = 'inapp';
+      else if (ios) browser = /CriOS/.test(ua) ? 'chrome' : /FxiOS|EdgiOS|OPiOS|YaBrowser/.test(ua) ? 'other' : 'safari';
+      else if (/SamsungBrowser/.test(ua)) browser = 'samsung';
+      else if (/Firefox/.test(ua)) browser = 'firefox';
+      else if (/Chrome\//.test(ua) && !/EdgA|OPR|YaBrowser|MiuiBrowser|HuaweiBrowser/.test(ua)) browser = 'chrome';
+      else browser = 'other';
+      return { os: ios ? 'ios' : 'android', browser: browser };
+  }
+
+  const INSTALL_GLYPHS = {
+      share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M7 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/></svg>',
+      add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg>',
+      more: '⋯',
+      dots: '⋮',
+      menu: '☰'
+  };
+
+  /** The translation keys of the steps, in order, for this phone and browser. */
+  function installStepsFor(who) {
+      if (!who) return ['inst_desktop_1', 'inst_desktop_2'];
+      if (who.browser === 'inapp') {
+          return ['inst_inapp_1', who.os === 'ios' ? 'inst_inapp_2_ios' : 'inst_inapp_2_android', 'inst_inapp_3'];
+      }
+      if (who.os === 'ios') {
+          const first = who.browser === 'safari' ? 'inst_ios_safari_1' : who.browser === 'chrome' ? 'inst_ios_chrome_1' : 'inst_ios_other_1';
+          return [first, 'inst_ios_2', 'inst_ios_3'];
+      }
+      if (who.browser === 'samsung') return ['inst_samsung_1', 'inst_samsung_2', 'inst_android_3'];
+      if (who.browser === 'firefox') return ['inst_android_1', 'inst_firefox_2', 'inst_android_3'];
+      return ['inst_android_1', 'inst_android_2', 'inst_android_3'];
+  }
+
+  function paintInstallSheet() {
+      const t = TRANSLATIONS[appState.lang] || {};
+      const who = installTarget();
+      const canPrompt = !!installPromptEvent;
+      const glyph = (m, name) => (INSTALL_GLYPHS[name]
+          ? '<span class="install-key" aria-hidden="true">' + INSTALL_GLYPHS[name] + '</span>'
+          : m);
+      const list = document.getElementById('install-steps');
+      if (list) list.innerHTML = installStepsFor(who).map(k => '<li><span>' + String(t[k] || '').replace(/\{(\w+)\}/g, glyph) + '</span></li>').join('');
+      const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+      show('install-how', !canPrompt);
+      show('install-now', canPrompt);
+      show('install-ok', !canPrompt);
+      show('install-later', canPrompt);
+      show('install-have', !!who && !canPrompt);   // Chrome only offers its prompt when it isn't installed
+  }
+
   function showInstallHelp() {
-      // Check if already in standalone mode
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-      
-      if (isStandalone) {
-          const msg = appState.lang === 'ar' ? 'التطبيق مثبت بالفعل على جهازك! ✨' : 'App is already installed! ✨';
-          showToast(msg, 'success');
+      const t = TRANSLATIONS[appState.lang] || {};
+      if (inStandalone()) {
+          showToast(t.inst_already || '', 'success');
           return;
       }
-
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      const isAndroid = /Android/.test(navigator.userAgent);
-      
-      const iosEl = document.getElementById('ios-help');
-      const androidEl = document.getElementById('android-help');
-
-      iosEl.classList.toggle('hidden', !isIOS);
-      androidEl.classList.toggle('hidden', !isAndroid);
-      
-      // Update text content based on language without breaking icons
-      if (appState.lang === 'en') {
-          document.getElementById('install-help-title').innerText = "Install App 📲";
-          if (isIOS) {
-              iosEl.querySelector('p').innerText = "For iPhone (iOS):";
-              const items = iosEl.querySelectorAll('li');
-              items[0].innerHTML = `Tap the Share button <span class="text-xl">⎋</span> in your browser.`;
-              items[1].innerHTML = `Select <b>"Add to Home Screen"</b>.`;
-          }
-          if (isAndroid || (!isIOS && !isAndroid)) {
-              androidEl.querySelector('p').innerText = "For Android (Chrome):";
-              const items = androidEl.querySelectorAll('li');
-              items[0].innerHTML = `Tap the Menu button (3 dots).`;
-              items[1].innerHTML = `Select <b>"Install App"</b> or <b>"Add to Home Screen"</b>.`;
-              androidEl.classList.remove('hidden');
-          }
-      } else {
-          document.getElementById('install-help-title').innerText = "تثبيت التطبيق 📲";
-          if (isIOS) {
-              iosEl.querySelector('p').innerText = "للآيفون (iOS):";
-              const items = iosEl.querySelectorAll('li');
-              items[0].innerHTML = `اضغط زر المشاركة <span class="text-xl">⎋</span> في المتصفح.`;
-              items[1].innerHTML = `اختر <b>"إضافة إلى الصفحة الرئيسية"</b> (Add to Home Screen).`;
-          }
-          if (isAndroid || (!isIOS && !isAndroid)) {
-              androidEl.querySelector('p').innerText = "للأندرويد (Chrome):";
-              const items = androidEl.querySelectorAll('li');
-              items[0].innerHTML = `اضغط زر القائمة (ثلاث نقاط).`;
-              items[1].innerHTML = `اختر <b>"تثبيت التطبيق"</b> أو <b>"الإضافة للشاشة الرئيسية"</b>.`;
-              androidEl.classList.remove('hidden');
-          }
-      }
-
-      document.getElementById('install-help-modal').classList.remove('hidden');
+      paintInstallSheet();
+      const el = document.getElementById('install-help-modal');
+      if (el) el.classList.remove('hidden');
   }
+
+  /** Asks, if this visit hasn't yet and everything above says it may. */
+  function maybeAskInstall() {
+      if (!installAskPending) return;
+      let have = false;
+      let last = 0;
+      try {
+          have = localStorage.getItem(INSTALL_HAVE_KEY) === '1';
+          last = Number(localStorage.getItem(INSTALL_ASKED_KEY) || 0);
+      } catch (e) { /* no storage (private browsing): ask this visit anyway */ }
+      if (!installTarget() || inStandalone() || have || Date.now() - last < INSTALL_VISIT_GAP_MS) {
+          installAskPending = false;
+          return;
+      }
+      // Not yet: somewhere else (a game, a room link), the intro still up, or
+      // another popup open. The next arrival on the home tries again.
+      if (INSTALL_ROOT_VIEWS.indexOf(appState.currentView) === -1) return;
+      const loader = document.getElementById('app-loader');
+      if (loader && loader.style.display !== 'none' && !loader.classList.contains('hidden')) return;
+      if (document.querySelector('.modal-overlay:not(.hidden)')) return;
+      installAskPending = false;
+      try { localStorage.setItem(INSTALL_ASKED_KEY, String(Date.now())); } catch (e) {}
+      showInstallHelp();
+  }
+
+  /** From setView (the home, مع بعض, الأدوات) and from the end of the intro. */
+  function installAskSoon() {
+      if (installAskPending) setTimeout(maybeAskInstall, 900);
+  }
+
+  function installHaveIt() {
+      const t = TRANSLATIONS[appState.lang] || {};
+      try { localStorage.setItem(INSTALL_HAVE_KEY, '1'); } catch (e) {}
+      closeModal('install-help-modal');
+      showToast(t.inst_have_it_done || '', 'success');
+  }
+
+  /** Chrome's own install dialog, from our button. An event can prompt once. */
+  async function installNow() {
+      const ev = installPromptEvent;
+      if (!ev) { paintInstallSheet(); return; }
+      installPromptEvent = null;
+      try {
+          ev.prompt();
+          const choice = await ev.userChoice;
+          if (choice && choice.outcome === 'accepted') closeModal('install-help-modal');
+          else paintInstallSheet();
+      } catch (e) {
+          paintInstallSheet();
+      }
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+      // On a phone our sheet replaces Chrome's small bar; elsewhere Chrome keeps its own.
+      if (installTarget()) e.preventDefault();
+      installPromptEvent = e;
+      const el = document.getElementById('install-help-modal');
+      if (el && !el.classList.contains('hidden')) paintInstallSheet();
+  });
+  window.addEventListener('appinstalled', () => {
+      const t = TRANSLATIONS[appState.lang] || {};
+      installPromptEvent = null;
+      closeModal('install-help-modal');
+      showToast(t.inst_done || '', 'success');
+  });
 
   /* --- The icon on an iPhone home screen ----------------------------------
      iOS fetches the apple-touch-icon once, when the app is added, and no

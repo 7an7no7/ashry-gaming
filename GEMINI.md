@@ -798,6 +798,41 @@ the one the app ships with (deep), and `node make-icons.mjs --preview <dir>`
 renders them all side by side to choose from. The words, the full stop and
 the dots are the same in every one - only the colours change.
 
+### Putting it on the home screen
+
+A phone that opens the app in its browser is asked, once a visit, to add it
+to the home screen (`#install-help-modal`, `maybeAskInstall` in
+`JS_Utils.html`). `installTarget()` reads the user agent: an iPhone or an
+Android phone (Android with "Mobile" - tablets and TVs don't say it; iPads
+never count), and which browser, because the steps differ: Safari (Share,
+then Add to Home Screen, with ⋯ first where the bar is folded), Chrome and
+the others on iPhone (their Share button), Chrome, Samsung Internet and
+Firefox on Android, and the browser inside Instagram, Facebook, TikTok or
+the Google app, which cannot add anything, so its steps say to open the link
+in Safari or Chrome first. The steps are translation keys (`inst_*`) with
+`{share}`, `{add}`, `{more}`, `{dots}` and `{menu}` drawn as small key
+glyphs; English menu names inside the Arabic steps are wrapped in `<bdi>` or
+their brackets flip. On Android, when Chrome fires `beforeinstallprompt`,
+the phone's own bar is suppressed and the sheet shows one "install" button
+instead of steps (`installNow`); `appinstalled` closes it.
+
+When: never in the home-screen copy, never over a game, a room or another
+popup - it waits (`installAskSoon`, from `setView` on the home, مع بعض and
+الأدوات and from the end of the intro) - and at most once a visit: a visit
+is a page load at least `INSTALL_VISIT_GAP_MS` (30 minutes) after the last
+ask (`ashryInstallAskedAt`), so a reload mid-evening doesn't ask again and
+the next evening does. Dismissing it is just closing it. "ضفته خلاص"
+(`ashryInstallHaveIt`) stops it in that browser for good, since a browser
+cannot see the home-screen copy on its own. Settings → تثبيت التطبيق opens
+the same sheet on any device, with computer steps off a phone.
+
+**A link never opens the home-screen copy on an iPhone.** iOS gives a web app
+on the home screen no way to claim its links: a room link from WhatsApp opens
+Safari, and Safari cannot tell that the home-screen copy exists (their
+storage is separate, which is also why names saved in one aren't in the
+other). Nothing on the page can change that. On Android, an app installed
+through Chrome usually does receive its own links.
+
 ### The catalog and the home screen
 
 `GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can

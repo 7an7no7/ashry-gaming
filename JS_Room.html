@@ -730,10 +730,20 @@ async function roomStartGame() {
 
 /* --- rendering ----------------------------------------------------------- */
 
+// Who was already in the lobby, so only someone who joins after that pops in.
+const lobbySeen = { code: '', ids: null };
+
 function renderRoomLobby(state) {
   lobbySkeleton(false);
   const codeEl = document.getElementById('room-code-display');
-  if (codeEl) codeEl.innerText = state.code;
+  // A new code drops in letter by letter; the same code is left alone.
+  if (codeEl && (codeEl.dataset.code !== state.code || codeEl.textContent !== state.code)) {
+    codeEl.dataset.code = state.code;
+    codeEl.innerHTML = String(state.code).split('').map((ch, i) => '<span style="--i:' + i + '">' + escapeHTML(ch) + '</span>').join('');
+  }
+  if (lobbySeen.code !== state.code) { lobbySeen.code = state.code; lobbySeen.ids = null; }
+  const joined = lobbySeen.ids ? state.players.filter(p => !lobbySeen.ids.has(p.id)).map(p => p.id) : [];
+  lobbySeen.ids = new Set(state.players.map(p => p.id));
 
   const url = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl)
     ? window.SERVER_DATA.webAppUrl + '?room=' + state.code
@@ -747,7 +757,7 @@ function renderRoomLobby(state) {
     const hostLabel = appState.lang === 'ar' ? 'المضيف' : 'Host';
     const youLabel = appState.lang === 'ar' ? 'أنت' : 'You';
     list.innerHTML = state.players.map(p => `
-      <div class="status-row ${p.online ? '' : 'status-row--out'}">
+      <div class="status-row ${p.online ? '' : 'status-row--out'} ${joined.indexOf(p.id) !== -1 ? 'status-row--new' : ''}">
         <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
         <div class="status-row__body">
           <div class="status-row__name">${escapeHTML(p.name)}</div>
@@ -894,6 +904,8 @@ Room.onChange((state) => {
     }
     return;
   }
+  // A game was just dealt from the lobby: the same moment on every phone.
+  if (moved && state.phase !== 'lobby' && !wasInGame && typeof playRoomGameStart === 'function') playRoomGameStart(state);
   // The host took the room back to the hub while this phone was mid-round:
   // say so, or the screen changing under them looks like a fault.
   if (moved && state.phase === 'lobby' && wasInGame && !state.youAreHost) {

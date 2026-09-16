@@ -1,0 +1,230 @@
+<script>
+/* ============================================================================
+   MOTION — the moments that carry something from one place to the next
+   ----------------------------------------------------------------------------
+   The intro (introExit in JS_Core.html) set the idea: the logo doesn't vanish
+   and reappear, it flies to where it lives. The same idea, used where the
+   player has just done something (Style.html section 14):
+   - a game's icon flies from the card you tapped to the top of its screen;
+   - when a room deals a game, every phone and the TV show the game big for a
+     moment, and its icon flies into the header;
+   - the bottom bar's highlight slides to the tab you picked;
+   - a room's code drops in letter by letter, and whoever joins pops in;
+   - scores count up, and players slide to their new places on the board.
+   Nothing here moves by itself, all of it stays still under reduced motion,
+   and every end state is also set by a timer - an animation event is never
+   the only path (see GEMINI.md).
+   ========================================================================= */
+
+const motionOff = () =>
+  !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) || document.hidden;
+
+const easeInOutCubic = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+
+/**
+ * Flies an emoji from a rect on screen onto an element, following the element
+ * if its screen is still sliding in, and shows the element with a small pop
+ * when it lands. `arc` lifts the path in the middle, in px.
+ */
+function flyEmoji(emoji, fromRect, fromFontPx, target, opts) {
+  const o = opts || {};
+  if (!target || !fromRect || !fromFontPx || motionOff()) return false;
+  const duration = o.duration || 540;
+  const ghost = document.createElement('span');
+  ghost.className = 'motion-ghost';
+  ghost.textContent = emoji;
+  ghost.style.fontSize = fromFontPx + 'px';
+  document.body.appendChild(ghost);
+  target.classList.add('motion-waiting');
+
+  const fromX = fromRect.left + fromRect.width / 2;
+  const fromY = fromRect.top + fromRect.height / 2;
+  const toFont = parseFloat(getComputedStyle(target).fontSize) || fromFontPx;
+  const place = (k) => {
+    const r = target.getBoundingClientRect();
+    const e = easeInOutCubic(k);
+    const x = fromX + (r.left + r.width / 2 - fromX) * e;
+    const y = fromY + (r.top + r.height / 2 - fromY) * e - Math.sin(Math.PI * k) * (o.arc || 0);
+    const s = 1 + (toFont / fromFontPx - 1) * e;
+    ghost.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -50%) scale(' + s + ')';
+  };
+  place(0);
+
+  let landed = false;
+  const land = () => {
+    if (landed) return;
+    landed = true;
+    ghost.remove();
+    target.classList.remove('motion-waiting', 'motion-landed');
+    void target.offsetWidth;
+    target.classList.add('motion-landed');
+    setTimeout(() => target.classList.remove('motion-landed'), 520);
+  };
+  const t0 = performance.now();
+  const step = (now) => {
+    if (landed) return;
+    const k = Math.min(1, (now - t0) / duration);
+    place(k);
+    if (k < 1) requestAnimationFrame(step);
+    else land();
+  };
+  requestAnimationFrame(step);
+  setTimeout(land, duration + 250);        // a tab that stops painting still lands
+  return true;
+}
+
+/* --- 1. A card's icon to its game's screen ---------------------------------- */
+
+/**
+ * Measures the tapped card's icon before the screen changes, and returns what
+ * to call once it has: the icon flies to the new screen's hero, if it has one
+ * (a room-only game opens the name sheet instead, and nothing flies).
+ */
+function catalogIconFlight(g, fromEl) {
+  if (!g || !fromEl || motionOff()) return null;
+  const icon = fromEl.querySelector('.gcard__icon, .recent-tile__icon, .tool-icon');
+  if (!icon) return null;
+  const from = icon.getBoundingClientRect();
+  const fromFont = parseFloat(getComputedStyle(icon).fontSize);
+  return () => {
+    const view = document.getElementById('view-' + appState.currentView);
+    const target = view && view.querySelector('.game-hero .game-hero__icon');
+    if (target) flyEmoji(g.icon, from, fromFont, target, { duration: 560, arc: 28 });
+  };
+}
+
+/* --- 2. A room deals a game -------------------------------------------------- */
+
+/** The game, big, on every phone at once; then its icon flies into the header. */
+function playRoomGameStart(state) {
+  if (!state || !state.game || motionOff()) return;
+  const hub = (typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES : []).find((g) => g.id === state.game);
+  if (!hub) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  document.querySelectorAll('.game-splash').forEach((el) => el.remove());
+
+  const el = document.createElement('div');
+  el.className = 'game-splash' + (state.youAreScreen ? ' game-splash--tv' : '');
+  el.setAttribute('data-accent', hub.accent || 'violet');
+  el.innerHTML =
+    '<div class="game-splash__card">' +
+      '<span class="game-splash__icon" aria-hidden="true">' + hub.icon + '</span>' +
+      '<span class="game-splash__name">' + escapeHTML(t[hub.key] || '') + '</span>' +
+    '</div>';
+  document.body.appendChild(el);
+  const icon = el.querySelector('.game-splash__icon');
+
+  let leaving = false;
+  const leave = (fast) => {
+    if (leaving) return;
+    leaving = true;
+    const target = document.getElementById('app-title-icon');
+    const canFly = !fast && target && target.textContent && !document.body.classList.contains('is-fullscreen-view')
+      && target.getBoundingClientRect().width > 0;
+    if (canFly) {
+      const from = icon.getBoundingClientRect();
+      const fromFont = parseFloat(getComputedStyle(icon).fontSize);
+      icon.style.visibility = 'hidden';
+      flyEmoji(hub.icon, from, fromFont, target, { duration: 560 });
+    }
+    el.classList.add('is-leaving');
+    setTimeout(() => el.remove(), fast ? 180 : 420);
+  };
+  el.addEventListener('click', () => leave(true));
+  setTimeout(() => leave(false), 950);
+}
+
+/* --- 3. The bottom bar's highlight slides ----------------------------------- */
+
+/** Places the highlight under the active tab; CSS slides it there. */
+function syncNavPill() {
+  const nav = document.querySelector('.shell__nav');
+  if (!nav) return;
+  const active = nav.querySelector('.nav-item.is-active');
+  if (!active || !active.offsetWidth) {
+    nav.classList.remove('has-pill-on');
+    return;
+  }
+  nav.style.setProperty('--pill-x', active.offsetLeft + 'px');
+  nav.style.setProperty('--pill-y', active.offsetTop + 'px');
+  nav.style.setProperty('--pill-w', active.offsetWidth + 'px');
+  nav.style.setProperty('--pill-h', active.offsetHeight + 'px');
+  nav.style.setProperty('--pill-r', getComputedStyle(active).borderTopLeftRadius);
+  nav.classList.add('has-pill', 'has-pill-on');
+}
+
+/* --- 5. Scores count up; players slide to their new places ------------------ */
+
+// What each player's score and place were the last time a board was drawn in
+// this room and game, so the next board can move from there.
+const scoreMemo = { key: '', scores: {}, ranks: {} };
+
+function countUp(el, from, to) {
+  if (!el) return;
+  const duration = 720;
+  const t0 = performance.now();
+  let done = false;
+  el.textContent = from;
+  const end = () => {
+    if (done) return;
+    done = true;
+    el.textContent = to;
+    el.classList.remove('motion-landed');
+    void el.offsetWidth;
+    el.classList.add('motion-landed');
+    setTimeout(() => el.classList.remove('motion-landed'), 520);
+  };
+  const step = (now) => {
+    if (done) return;
+    const k = Math.min(1, (now - t0) / duration);
+    el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+    else end();
+  };
+  setTimeout(() => requestAnimationFrame(step), 180);
+  setTimeout(end, duration + 450);
+}
+
+/** Every scoreboard drawn since the last look: count up what rose, slide who moved. */
+function animateScoreboards(state) {
+  if (!state || !state.game) return;
+  const key = state.code + '|' + state.game;
+  if (scoreMemo.key !== key) {
+    scoreMemo.key = key;
+    scoreMemo.scores = {};
+    scoreMemo.ranks = {};
+  }
+  const still = motionOff();
+  document.querySelectorAll('.scoreboard:not([data-seen])').forEach((board) => {
+    if (!board.getClientRects().length) return;        // not on screen; its turn comes when it is
+    board.dataset.seen = '1';
+    const rows = [...board.querySelectorAll('[data-pid]')];
+    if (!rows.length) return;
+    // Scores that went down mean a new game started: remember, don't animate.
+    const reset = rows.some((r) => scoreMemo.scores[r.dataset.pid] > Number(r.dataset.score));
+    const step = rows.length > 1 ? rows[1].offsetTop - rows[0].offsetTop : 0;
+    rows.forEach((row, i) => {
+      const pid = row.dataset.pid;
+      const now = Number(row.dataset.score);
+      const was = scoreMemo.scores[pid];
+      if (still || reset || was === undefined) return;
+      if (now > was) countUp(row.querySelector('[data-count]'), was, now);
+      const oldRank = scoreMemo.ranks[pid];
+      if (oldRank !== undefined && oldRank !== i && step > 0 && row.animate) {
+        row.animate(
+          [{ transform: 'translateY(' + ((oldRank - i) * step) + 'px)' }, { transform: 'none' }],
+          { duration: 680, delay: 160, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' }
+        );
+      }
+    });
+    rows.forEach((row, i) => {
+      scoreMemo.scores[row.dataset.pid] = Number(row.dataset.score);
+      scoreMemo.ranks[row.dataset.pid] = i;
+    });
+  });
+}
+
+// After the room has drawn itself for this state.
+Room.onChange((state) => { if (state) setTimeout(() => animateScoreboards(state), 0); });
+window.addEventListener('resize', () => requestAnimationFrame(syncNavPill));
+</script>

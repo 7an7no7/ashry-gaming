@@ -141,12 +141,15 @@ function forgetRecent() {
   try { localStorage.removeItem(RECENT_KEY); } catch (e) {}
 }
 
-/** Every card and every recent tile goes through here. */
-function catalogOpen(id) {
+/** Every card and every recent tile goes through here. `fromEl` is what was tapped, for the icon's flight. */
+function catalogOpen(id, fromEl) {
   const g = CATALOG_BY_ID[id];
   if (!g) return;
   rememberRecent(id);
+  const fly = typeof catalogIconFlight === 'function' ? catalogIconFlight(g, fromEl) : null;
+  const before = appState.currentView;
   g.open();
+  if (fly && appState.currentView !== before) fly();
 }
 
 /* --- Pieces shared by the home and the heroes ----------------------------- */
@@ -185,7 +188,7 @@ function catalogModes(g, t) {
    two cards in a row are always the same height. */
 function catalogCard(g, t) {
   return `
-    <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}')">
+    <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
       <span class="gcard__top">
         <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
         <span class="gcard__modes">${catalogModes(g, t)}</span>
@@ -198,7 +201,7 @@ function catalogCard(g, t) {
 
 function catalogToolRow(g, t) {
   return `
-    <button type="button" class="tool-item" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}')">
+    <button type="button" class="tool-item" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
       <span class="tool-icon" aria-hidden="true">${g.icon}</span>
       <span class="tool-info">
         <span class="tool-name">${escapeHTML(catalogTitle(g, t))}</span>
@@ -307,7 +310,7 @@ function renderHome() {
       <div class="recent-row hscroll-fade">
         ${recent.map(id => {
           const g = CATALOG_BY_ID[id];
-          return `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}')">
+          return `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}', this)">
                     <span class="recent-tile__icon" aria-hidden="true">${g.icon}</span>
                     <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
                   </button>`;

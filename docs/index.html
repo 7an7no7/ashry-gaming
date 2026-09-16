@@ -45,12 +45,12 @@
       }
       #app-loader .intro__ground { position: absolute; inset: 0; z-index: -1; background-color: #f8fafc; }
       .dark #app-loader .intro__ground { background-color: #0f172a; }
-      #app-loader .mark--loader { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 18px 40px -12px rgba(76, 29, 149, 0.55); animation: intro-mark 520ms cubic-bezier(0.2, 1.3, 0.35, 1) 60ms both; }
-      #app-loader .intro__line { display: block; width: 132px; height: 4px; margin-top: 22px; border-radius: 4px; background: linear-gradient(90deg, #6d28d9 0%, #a78bfa 50%, #6d28d9 100%); background-size: 200% 100%; animation: intro-line 460ms cubic-bezier(0.65, 0, 0.35, 1) 420ms both, intro-shimmer 1.6s linear 1.2s infinite; }
-      .loader-title { margin: 14px 0 0; font-family: 'Cairo', sans-serif; font-size: 22px; font-weight: 900; color: #1e293b; animation: intro-word 360ms ease-out 620ms both; }
+      #app-loader .mark--loader { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 18px 40px -12px rgba(76, 29, 149, 0.55); animation: intro-mark 700ms cubic-bezier(0.2, 1.3, 0.35, 1) 80ms both; }
+      #app-loader .intro__line { display: block; width: 132px; height: 4px; margin-top: 22px; border-radius: 4px; background: linear-gradient(90deg, #6d28d9 0%, #a78bfa 50%, #6d28d9 100%); background-size: 200% 100%; animation: intro-line 620ms cubic-bezier(0.65, 0, 0.35, 1) 560ms both, intro-shimmer 1.6s linear 1.6s infinite; }
+      .loader-title { margin: 14px 0 0; font-family: 'Cairo', sans-serif; font-size: 22px; font-weight: 900; color: #1e293b; animation: intro-word 480ms ease-out 820ms both; }
       .dark .loader-title { color: #ffffff; }
-      #app-loader.is-flying .intro__line, #app-loader.is-flying .loader-title { animation: intro-fade 200ms ease-out forwards; }
-      #app-loader.is-flying .intro__ground { opacity: 0; transition: opacity 420ms ease-out 180ms; }
+      #app-loader.is-flying .intro__line, #app-loader.is-flying .loader-title { animation: intro-fade 260ms ease-out forwards; }
+      #app-loader.is-flying .intro__ground { opacity: 0; transition: opacity 560ms ease-out 240ms; }
       @keyframes intro-mark { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
       @keyframes intro-line { from { transform: scaleX(0); } to { transform: scaleX(1); } }
       @keyframes intro-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
@@ -1757,7 +1757,7 @@ body.dark .toast { background: var(--n-700); }
 #app-loader .intro__ground { background: var(--bg); }
 body.intro-flying #app-title .mark--title { visibility: hidden; }
 body.intro-reveal #view-menu,
-body.intro-reveal .shell__nav { animation: intro-rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+body.intro-reveal .shell__nav { animation: intro-rise 680ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 body.intro-reveal .shell__nav { animation-delay: 60ms; }
 @keyframes intro-rise {
   from { opacity: 0.4; transform: translateY(1.6rem); }
@@ -5701,6 +5701,122 @@ input.stepper__value:focus { border: 0; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) {
   .die, .coin { transition: none; }
   .die-slot, .coin-toss.is-tossing { animation: none; }
+}
+
+
+/* ==========================================================================
+   14. MOTION
+   The intro's idea used where the player has just done something: things fly
+   to where they live, highlights slide, numbers count, rows find their place.
+   The script is JS_Motion.html. Nothing here moves by itself.
+   ========================================================================== */
+
+/* An emoji on its way from one element to another. */
+.motion-ghost {
+  position: fixed;
+  left: 0; top: 0;
+  z-index: 10000;
+  line-height: 1;
+  pointer-events: none;
+  will-change: transform;
+  filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.22));
+}
+.motion-waiting { visibility: hidden; }
+.motion-landed { animation: motion-land 480ms cubic-bezier(0.2, 1.4, 0.35, 1); }
+@keyframes motion-land {
+  0%   { transform: scale(0.8); }
+  55%  { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* A room deals a game: the game, big, on every phone at once. */
+.game-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: grid;
+  place-items: center;
+  background: rgba(248, 250, 252, 0.78);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  cursor: pointer;
+  animation: splash-in 200ms var(--ease-out) both;
+}
+body.dark .game-splash { background: rgba(15, 23, 42, 0.8); }
+.game-splash.is-leaving { pointer-events: none; animation: splash-out 400ms var(--ease-out) forwards; }
+.game-splash__card { display: grid; justify-items: center; gap: var(--sp-3); padding-inline: var(--sp-4); text-align: center; }
+.game-splash__icon {
+  display: grid;
+  place-items: center;
+  width: 9rem; height: 9rem;
+  border-radius: 50%;
+  font-size: 5.5rem;
+  line-height: 1;
+  background: radial-gradient(circle at 50% 55%, var(--accent-soft) 0%, transparent 70%);
+  filter: drop-shadow(0 14px 22px rgba(15, 23, 42, 0.25));
+  animation: splash-pop 520ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+}
+.game-splash__name {
+  font-size: var(--fs-h1);
+  font-weight: 900;
+  color: var(--text-strong);
+  animation: splash-name 400ms var(--ease-out) 180ms both;
+}
+.game-splash.is-leaving .game-splash__name { animation: splash-fade 220ms ease-out forwards; }
+.game-splash--tv .game-splash__icon { width: 36vmin; height: 36vmin; font-size: 22vmin; }
+.game-splash--tv .game-splash__name { font-size: 7vmin; }
+@keyframes splash-in   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes splash-out  { to { opacity: 0; } }
+@keyframes splash-pop  { from { opacity: 0; transform: scale(0.5) rotate(-10deg); } to { opacity: 1; transform: none; } }
+@keyframes splash-name { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+@keyframes splash-fade { to { opacity: 0; } }
+
+/* The bottom bar's highlight slides to the tab you picked (syncNavPill). */
+.shell__nav { position: relative; }
+.shell__nav::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0;
+  width: var(--pill-w, 0px);
+  height: var(--pill-h, 0px);
+  transform: translate(var(--pill-x, 0px), var(--pill-y, 0px));
+  border-radius: var(--pill-r, var(--r-md));
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.shell__nav.has-pill::before {
+  transition: transform 420ms cubic-bezier(0.3, 1.25, 0.4, 1),
+              width 320ms var(--ease-out), height 320ms var(--ease-out),
+              opacity var(--dur-2) var(--ease-out);
+}
+.shell__nav.has-pill-on::before { opacity: 1; }
+.shell__nav .nav-item { position: relative; z-index: 1; }
+.shell__nav.has-pill .nav-item.is-active { background: transparent; box-shadow: none; }
+
+/* A new room's code drops in; whoever joins after you pops in. */
+.room-code span {
+  display: inline-block;
+  animation: code-drop 480ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+  animation-delay: calc(var(--i, 0) * 80ms + 80ms);
+}
+@keyframes code-drop {
+  from { opacity: 0; transform: translateY(-0.6em) scale(0.8); }
+  to   { opacity: 1; transform: none; }
+}
+.status-row--new { animation: row-join 620ms cubic-bezier(0.2, 1.2, 0.35, 1); }
+@keyframes row-join {
+  0%   { opacity: 0; transform: translateY(-0.5rem) scale(0.96); border-color: var(--success); }
+  60%  { opacity: 1; transform: none; border-color: var(--success); }
+  100% { border-color: var(--border); }
+}
+.scoreboard [data-count] { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .game-splash, .game-splash__icon, .game-splash__name, .room-code span, .status-row--new, .motion-landed { animation: none; }
+  .shell__nav.has-pill::before { transition: none; }
 }
 
 </style>
@@ -12194,8 +12310,8 @@ const MONKEY_KEYS = {
      in a game or a room, a join link, a phone set to reduce motion, a hidden
      tab, or a tap on the intro all get a quick fade instead. Every step runs on
      a timer - an animation event is never the only path (see GEMINI.md). */
-  const INTRO_MIN_MS = 1000;
-  const INTRO_FLIGHT_MS = 620;
+  const INTRO_MIN_MS = 1300;
+  const INTRO_FLIGHT_MS = 800;
   const intro = { state: 'waiting', skip: false, timers: [], flight: null };
 
   function introLater(fn, ms) { intro.timers.push(setTimeout(fn, ms)); }
@@ -12243,7 +12359,7 @@ const MONKEY_KEYS = {
       [{ transform: 'none' }, { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + (landing.width / size) + ')' }],
       { duration: INTRO_FLIGHT_MS, easing: 'cubic-bezier(0.7, 0, 0.2, 1)', fill: 'forwards' }
     );
-    introLater(() => document.body.classList.add('intro-reveal'), 250);
+    introLater(() => document.body.classList.add('intro-reveal'), 320);
     introLater(() => introDone(loader), INTRO_FLIGHT_MS - 10);
   }
 
@@ -12269,7 +12385,7 @@ const MONKEY_KEYS = {
       intro.flight = null;
     }
     // The home's rise has finished by then; take the class off so a later visit doesn't replay it.
-    setTimeout(() => document.body.classList.remove('intro-reveal'), 700);
+    setTimeout(() => document.body.classList.remove('intro-reveal'), 900);
   }
 
   /** A tap on the intro: straight into the app, as soon as it is ready. */
@@ -12878,7 +12994,10 @@ const MONKEY_KEYS = {
     seg.style.setProperty('--seg-w', active.offsetWidth + 'px');
     if (!seg.classList.contains('has-thumb')) seg.classList.add('has-thumb');
   }
-  function syncAllSegmented() { document.querySelectorAll('.segmented').forEach(syncSegmented); }
+  function syncAllSegmented() {
+    document.querySelectorAll('.segmented').forEach(syncSegmented);
+    if (typeof syncNavPill === 'function') syncNavPill();
+  }
   (function () {
     let queued = false;
     const later = () => {
@@ -14129,12 +14248,15 @@ function forgetRecent() {
   try { localStorage.removeItem(RECENT_KEY); } catch (e) {}
 }
 
-/** Every card and every recent tile goes through here. */
-function catalogOpen(id) {
+/** Every card and every recent tile goes through here. `fromEl` is what was tapped, for the icon's flight. */
+function catalogOpen(id, fromEl) {
   const g = CATALOG_BY_ID[id];
   if (!g) return;
   rememberRecent(id);
+  const fly = typeof catalogIconFlight === 'function' ? catalogIconFlight(g, fromEl) : null;
+  const before = appState.currentView;
   g.open();
+  if (fly && appState.currentView !== before) fly();
 }
 
 /* --- Pieces shared by the home and the heroes ----------------------------- */
@@ -14173,7 +14295,7 @@ function catalogModes(g, t) {
    two cards in a row are always the same height. */
 function catalogCard(g, t) {
   return `
-    <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}')">
+    <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
       <span class="gcard__top">
         <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
         <span class="gcard__modes">${catalogModes(g, t)}</span>
@@ -14186,7 +14308,7 @@ function catalogCard(g, t) {
 
 function catalogToolRow(g, t) {
   return `
-    <button type="button" class="tool-item" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}')">
+    <button type="button" class="tool-item" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
       <span class="tool-icon" aria-hidden="true">${g.icon}</span>
       <span class="tool-info">
         <span class="tool-name">${escapeHTML(catalogTitle(g, t))}</span>
@@ -14295,7 +14417,7 @@ function renderHome() {
       <div class="recent-row hscroll-fade">
         ${recent.map(id => {
           const g = CATALOG_BY_ID[id];
-          return `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}')">
+          return `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}', this)">
                     <span class="recent-tile__icon" aria-hidden="true">${g.icon}</span>
                     <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
                   </button>`;
@@ -15286,10 +15408,20 @@ async function roomStartGame() {
 
 /* --- rendering ----------------------------------------------------------- */
 
+// Who was already in the lobby, so only someone who joins after that pops in.
+const lobbySeen = { code: '', ids: null };
+
 function renderRoomLobby(state) {
   lobbySkeleton(false);
   const codeEl = document.getElementById('room-code-display');
-  if (codeEl) codeEl.innerText = state.code;
+  // A new code drops in letter by letter; the same code is left alone.
+  if (codeEl && (codeEl.dataset.code !== state.code || codeEl.textContent !== state.code)) {
+    codeEl.dataset.code = state.code;
+    codeEl.innerHTML = String(state.code).split('').map((ch, i) => '<span style="--i:' + i + '">' + escapeHTML(ch) + '</span>').join('');
+  }
+  if (lobbySeen.code !== state.code) { lobbySeen.code = state.code; lobbySeen.ids = null; }
+  const joined = lobbySeen.ids ? state.players.filter(p => !lobbySeen.ids.has(p.id)).map(p => p.id) : [];
+  lobbySeen.ids = new Set(state.players.map(p => p.id));
 
   const url = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl)
     ? window.SERVER_DATA.webAppUrl + '?room=' + state.code
@@ -15303,7 +15435,7 @@ function renderRoomLobby(state) {
     const hostLabel = appState.lang === 'ar' ? 'المضيف' : 'Host';
     const youLabel = appState.lang === 'ar' ? 'أنت' : 'You';
     list.innerHTML = state.players.map(p => `
-      <div class="status-row ${p.online ? '' : 'status-row--out'}">
+      <div class="status-row ${p.online ? '' : 'status-row--out'} ${joined.indexOf(p.id) !== -1 ? 'status-row--new' : ''}">
         <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
         <div class="status-row__body">
           <div class="status-row__name">${escapeHTML(p.name)}</div>
@@ -15450,6 +15582,8 @@ Room.onChange((state) => {
     }
     return;
   }
+  // A game was just dealt from the lobby: the same moment on every phone.
+  if (moved && state.phase !== 'lobby' && !wasInGame && typeof playRoomGameStart === 'function') playRoomGameStart(state);
   // The host took the room back to the hub while this phone was mid-round:
   // say so, or the screen changing under them looks like a fault.
   if (moved && state.phase === 'lobby' && wasInGame && !state.youAreHost) {
@@ -25517,18 +25651,19 @@ function renderVoteResults(state, opts) {
 function renderScoreboard(board) {
   if (!board || !board.length) return '';
   const t = TRANSLATIONS[appState.lang];
+  // data-pid and data-score let animateScoreboards (JS_Motion.html) count up and slide.
   return `
-    <div class="section">
+    <div class="section scoreboard">
       <div class="section__head">
         <h2 class="section__title">${t.scoreboard || 'الترتيب'}</h2>
         <span class="section__rule"></span>
       </div>
       ${board.map((p, i) => `
-        <div class="status-row ${i === 0 && p.score > 0 ? 'status-row--turn' : ''}">
+        <div class="status-row ${i === 0 && p.score > 0 ? 'status-row--turn' : ''}" data-pid="${escapeHTML(String(p.id || p.name))}" data-score="${Number(p.score) || 0}">
           <div class="status-row__body">
             <div class="status-row__name">${i === 0 && p.score > 0 ? '👑 ' : ''}${escapeHTML(p.name)}</div>
           </div>
-          <span class="badge badge--accent">${p.score}</span>
+          <span class="badge badge--accent" data-count>${p.score}</span>
         </div>`).join('')}
     </div>`;
 }
@@ -38165,6 +38300,237 @@ Room.onChange((state) => {
     restoreTurnTitle();
   }
 });
+</script>
+
+    <script>
+/* ============================================================================
+   MOTION — the moments that carry something from one place to the next
+   ----------------------------------------------------------------------------
+   The intro (introExit in JS_Core.html) set the idea: the logo doesn't vanish
+   and reappear, it flies to where it lives. The same idea, used where the
+   player has just done something (Style.html section 14):
+   - a game's icon flies from the card you tapped to the top of its screen;
+   - when a room deals a game, every phone and the TV show the game big for a
+     moment, and its icon flies into the header;
+   - the bottom bar's highlight slides to the tab you picked;
+   - a room's code drops in letter by letter, and whoever joins pops in;
+   - scores count up, and players slide to their new places on the board.
+   Nothing here moves by itself, all of it stays still under reduced motion,
+   and every end state is also set by a timer - an animation event is never
+   the only path (see GEMINI.md).
+   ========================================================================= */
+
+const motionOff = () =>
+  !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) || document.hidden;
+
+const easeInOutCubic = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+
+/**
+ * Flies an emoji from a rect on screen onto an element, following the element
+ * if its screen is still sliding in, and shows the element with a small pop
+ * when it lands. `arc` lifts the path in the middle, in px.
+ */
+function flyEmoji(emoji, fromRect, fromFontPx, target, opts) {
+  const o = opts || {};
+  if (!target || !fromRect || !fromFontPx || motionOff()) return false;
+  const duration = o.duration || 540;
+  const ghost = document.createElement('span');
+  ghost.className = 'motion-ghost';
+  ghost.textContent = emoji;
+  ghost.style.fontSize = fromFontPx + 'px';
+  document.body.appendChild(ghost);
+  target.classList.add('motion-waiting');
+
+  const fromX = fromRect.left + fromRect.width / 2;
+  const fromY = fromRect.top + fromRect.height / 2;
+  const toFont = parseFloat(getComputedStyle(target).fontSize) || fromFontPx;
+  const place = (k) => {
+    const r = target.getBoundingClientRect();
+    const e = easeInOutCubic(k);
+    const x = fromX + (r.left + r.width / 2 - fromX) * e;
+    const y = fromY + (r.top + r.height / 2 - fromY) * e - Math.sin(Math.PI * k) * (o.arc || 0);
+    const s = 1 + (toFont / fromFontPx - 1) * e;
+    ghost.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -50%) scale(' + s + ')';
+  };
+  place(0);
+
+  let landed = false;
+  const land = () => {
+    if (landed) return;
+    landed = true;
+    ghost.remove();
+    target.classList.remove('motion-waiting', 'motion-landed');
+    void target.offsetWidth;
+    target.classList.add('motion-landed');
+    setTimeout(() => target.classList.remove('motion-landed'), 520);
+  };
+  const t0 = performance.now();
+  const step = (now) => {
+    if (landed) return;
+    const k = Math.min(1, (now - t0) / duration);
+    place(k);
+    if (k < 1) requestAnimationFrame(step);
+    else land();
+  };
+  requestAnimationFrame(step);
+  setTimeout(land, duration + 250);        // a tab that stops painting still lands
+  return true;
+}
+
+/* --- 1. A card's icon to its game's screen ---------------------------------- */
+
+/**
+ * Measures the tapped card's icon before the screen changes, and returns what
+ * to call once it has: the icon flies to the new screen's hero, if it has one
+ * (a room-only game opens the name sheet instead, and nothing flies).
+ */
+function catalogIconFlight(g, fromEl) {
+  if (!g || !fromEl || motionOff()) return null;
+  const icon = fromEl.querySelector('.gcard__icon, .recent-tile__icon, .tool-icon');
+  if (!icon) return null;
+  const from = icon.getBoundingClientRect();
+  const fromFont = parseFloat(getComputedStyle(icon).fontSize);
+  return () => {
+    const view = document.getElementById('view-' + appState.currentView);
+    const target = view && view.querySelector('.game-hero .game-hero__icon');
+    if (target) flyEmoji(g.icon, from, fromFont, target, { duration: 560, arc: 28 });
+  };
+}
+
+/* --- 2. A room deals a game -------------------------------------------------- */
+
+/** The game, big, on every phone at once; then its icon flies into the header. */
+function playRoomGameStart(state) {
+  if (!state || !state.game || motionOff()) return;
+  const hub = (typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES : []).find((g) => g.id === state.game);
+  if (!hub) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  document.querySelectorAll('.game-splash').forEach((el) => el.remove());
+
+  const el = document.createElement('div');
+  el.className = 'game-splash' + (state.youAreScreen ? ' game-splash--tv' : '');
+  el.setAttribute('data-accent', hub.accent || 'violet');
+  el.innerHTML =
+    '<div class="game-splash__card">' +
+      '<span class="game-splash__icon" aria-hidden="true">' + hub.icon + '</span>' +
+      '<span class="game-splash__name">' + escapeHTML(t[hub.key] || '') + '</span>' +
+    '</div>';
+  document.body.appendChild(el);
+  const icon = el.querySelector('.game-splash__icon');
+
+  let leaving = false;
+  const leave = (fast) => {
+    if (leaving) return;
+    leaving = true;
+    const target = document.getElementById('app-title-icon');
+    const canFly = !fast && target && target.textContent && !document.body.classList.contains('is-fullscreen-view')
+      && target.getBoundingClientRect().width > 0;
+    if (canFly) {
+      const from = icon.getBoundingClientRect();
+      const fromFont = parseFloat(getComputedStyle(icon).fontSize);
+      icon.style.visibility = 'hidden';
+      flyEmoji(hub.icon, from, fromFont, target, { duration: 560 });
+    }
+    el.classList.add('is-leaving');
+    setTimeout(() => el.remove(), fast ? 180 : 420);
+  };
+  el.addEventListener('click', () => leave(true));
+  setTimeout(() => leave(false), 950);
+}
+
+/* --- 3. The bottom bar's highlight slides ----------------------------------- */
+
+/** Places the highlight under the active tab; CSS slides it there. */
+function syncNavPill() {
+  const nav = document.querySelector('.shell__nav');
+  if (!nav) return;
+  const active = nav.querySelector('.nav-item.is-active');
+  if (!active || !active.offsetWidth) {
+    nav.classList.remove('has-pill-on');
+    return;
+  }
+  nav.style.setProperty('--pill-x', active.offsetLeft + 'px');
+  nav.style.setProperty('--pill-y', active.offsetTop + 'px');
+  nav.style.setProperty('--pill-w', active.offsetWidth + 'px');
+  nav.style.setProperty('--pill-h', active.offsetHeight + 'px');
+  nav.style.setProperty('--pill-r', getComputedStyle(active).borderTopLeftRadius);
+  nav.classList.add('has-pill', 'has-pill-on');
+}
+
+/* --- 5. Scores count up; players slide to their new places ------------------ */
+
+// What each player's score and place were the last time a board was drawn in
+// this room and game, so the next board can move from there.
+const scoreMemo = { key: '', scores: {}, ranks: {} };
+
+function countUp(el, from, to) {
+  if (!el) return;
+  const duration = 720;
+  const t0 = performance.now();
+  let done = false;
+  el.textContent = from;
+  const end = () => {
+    if (done) return;
+    done = true;
+    el.textContent = to;
+    el.classList.remove('motion-landed');
+    void el.offsetWidth;
+    el.classList.add('motion-landed');
+    setTimeout(() => el.classList.remove('motion-landed'), 520);
+  };
+  const step = (now) => {
+    if (done) return;
+    const k = Math.min(1, (now - t0) / duration);
+    el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+    else end();
+  };
+  setTimeout(() => requestAnimationFrame(step), 180);
+  setTimeout(end, duration + 450);
+}
+
+/** Every scoreboard drawn since the last look: count up what rose, slide who moved. */
+function animateScoreboards(state) {
+  if (!state || !state.game) return;
+  const key = state.code + '|' + state.game;
+  if (scoreMemo.key !== key) {
+    scoreMemo.key = key;
+    scoreMemo.scores = {};
+    scoreMemo.ranks = {};
+  }
+  const still = motionOff();
+  document.querySelectorAll('.scoreboard:not([data-seen])').forEach((board) => {
+    if (!board.getClientRects().length) return;        // not on screen; its turn comes when it is
+    board.dataset.seen = '1';
+    const rows = [...board.querySelectorAll('[data-pid]')];
+    if (!rows.length) return;
+    // Scores that went down mean a new game started: remember, don't animate.
+    const reset = rows.some((r) => scoreMemo.scores[r.dataset.pid] > Number(r.dataset.score));
+    const step = rows.length > 1 ? rows[1].offsetTop - rows[0].offsetTop : 0;
+    rows.forEach((row, i) => {
+      const pid = row.dataset.pid;
+      const now = Number(row.dataset.score);
+      const was = scoreMemo.scores[pid];
+      if (still || reset || was === undefined) return;
+      if (now > was) countUp(row.querySelector('[data-count]'), was, now);
+      const oldRank = scoreMemo.ranks[pid];
+      if (oldRank !== undefined && oldRank !== i && step > 0 && row.animate) {
+        row.animate(
+          [{ transform: 'translateY(' + ((oldRank - i) * step) + 'px)' }, { transform: 'none' }],
+          { duration: 680, delay: 160, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' }
+        );
+      }
+    });
+    rows.forEach((row, i) => {
+      scoreMemo.scores[row.dataset.pid] = Number(row.dataset.score);
+      scoreMemo.ranks[row.dataset.pid] = i;
+    });
+  });
+}
+
+// After the room has drawn itself for this state.
+Room.onChange((state) => { if (state) setTimeout(() => animateScoreboards(state), 0); });
+window.addEventListener('resize', () => requestAnimationFrame(syncNavPill));
 </script>
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>

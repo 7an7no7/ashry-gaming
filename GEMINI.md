@@ -1153,6 +1153,29 @@ reload, a `?room=` link, the install steps, a hidden tab, reduced motion - and
 after a tap on the intro (`skipIntro`), it is a short fade. Every step runs on
 a timer, and `initializeApp` sets a safety fade too.
 
+**Motion** is section 14, with its script in `JS_Motion.html`: the intro's
+idea - something flies to where it lives rather than vanishing and
+reappearing - used where the player has just done something, and nowhere
+else. `flyEmoji(emoji, fromRect, fromFontPx, target)` flies a copy of an icon
+from one place onto an element, re-reading the element's position every frame
+so it lands even while a screen is still sliding in, and pops the element
+when it arrives (a timer lands it too). It flies twice: the tapped card's
+icon to the game's hero (`catalogIconFlight`, which `catalogOpen` measures
+before the screen changes - cards pass themselves as `this`), and a room
+dealing a game from the lobby (`playRoomGameStart`, from `Room.onChange` when
+the stage leaves the lobby), which shows the game big on every phone and the
+TV for under a second, then flies its icon into the header's
+`#app-title-icon`. `animateScoreboards` counts up any
+score that rose and slides any player whose place changed, from what the last
+board in that room and game showed (`scoreMemo`); `renderScoreboard` gives
+each row `data-pid` and `data-score` for it, and a score that went down means
+a new game, so nothing moves. The bottom bar's highlight is one sliding
+`::before` on `.shell__nav` placed by `syncNavPill` (run in the same
+coalesced pass as the segmented thumbs), a new room code drops in letter by
+letter, and a player who joins after you pops into the lobby
+(`status-row--new`, `lobbySeen`). All of it is still under reduced motion and
+in a tab that isn't showing.
+
 **The dice and the coin** are section 13: a real cube of six pip faces in 3D
 (`DIE_PIPS` draws the pips into a 3x3 grid, `DIE_LANDING` says what to rotate
 the cube to for the value that was actually rolled, opposite faces adding to

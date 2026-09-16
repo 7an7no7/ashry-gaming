@@ -79,18 +79,19 @@ function renderVoteResults(state, opts) {
 function renderScoreboard(board) {
   if (!board || !board.length) return '';
   const t = TRANSLATIONS[appState.lang];
+  // data-pid and data-score let animateScoreboards (JS_Motion.html) count up and slide.
   return `
-    <div class="section">
+    <div class="section scoreboard">
       <div class="section__head">
         <h2 class="section__title">${t.scoreboard || 'الترتيب'}</h2>
         <span class="section__rule"></span>
       </div>
       ${board.map((p, i) => `
-        <div class="status-row ${i === 0 && p.score > 0 ? 'status-row--turn' : ''}">
+        <div class="status-row ${i === 0 && p.score > 0 ? 'status-row--turn' : ''}" data-pid="${escapeHTML(String(p.id || p.name))}" data-score="${Number(p.score) || 0}">
           <div class="status-row__body">
             <div class="status-row__name">${i === 0 && p.score > 0 ? '👑 ' : ''}${escapeHTML(p.name)}</div>
           </div>
-          <span class="badge badge--accent">${p.score}</span>
+          <span class="badge badge--accent" data-count>${p.score}</span>
         </div>`).join('')}
     </div>`;
 }

@@ -2713,8 +2713,8 @@
      in a game or a room, a join link, a phone set to reduce motion, a hidden
      tab, or a tap on the intro all get a quick fade instead. Every step runs on
      a timer - an animation event is never the only path (see GEMINI.md). */
-  const INTRO_MIN_MS = 1000;
-  const INTRO_FLIGHT_MS = 620;
+  const INTRO_MIN_MS = 1300;
+  const INTRO_FLIGHT_MS = 800;
   const intro = { state: 'waiting', skip: false, timers: [], flight: null };
 
   function introLater(fn, ms) { intro.timers.push(setTimeout(fn, ms)); }
@@ -2762,7 +2762,7 @@
       [{ transform: 'none' }, { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + (landing.width / size) + ')' }],
       { duration: INTRO_FLIGHT_MS, easing: 'cubic-bezier(0.7, 0, 0.2, 1)', fill: 'forwards' }
     );
-    introLater(() => document.body.classList.add('intro-reveal'), 250);
+    introLater(() => document.body.classList.add('intro-reveal'), 320);
     introLater(() => introDone(loader), INTRO_FLIGHT_MS - 10);
   }
 
@@ -2788,7 +2788,7 @@
       intro.flight = null;
     }
     // The home's rise has finished by then; take the class off so a later visit doesn't replay it.
-    setTimeout(() => document.body.classList.remove('intro-reveal'), 700);
+    setTimeout(() => document.body.classList.remove('intro-reveal'), 900);
   }
 
   /** A tap on the intro: straight into the app, as soon as it is ready. */
@@ -3397,7 +3397,10 @@
     seg.style.setProperty('--seg-w', active.offsetWidth + 'px');
     if (!seg.classList.contains('has-thumb')) seg.classList.add('has-thumb');
   }
-  function syncAllSegmented() { document.querySelectorAll('.segmented').forEach(syncSegmented); }
+  function syncAllSegmented() {
+    document.querySelectorAll('.segmented').forEach(syncSegmented);
+    if (typeof syncNavPill === 'function') syncNavPill();
+  }
   (function () {
     let queued = false;
     const later = () => {

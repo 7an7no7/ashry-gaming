@@ -1181,7 +1181,16 @@ the first frame it draws. It used to chase the element from a
 `requestAnimationFrame` loop, and going back to the home - 600 elements to
 draw - ate the start of the path and stuttered, while opening a light setup
 screen looked fine. The ghost is drawn at the larger of the two sizes and
-only scaled down, so the emoji stays sharp. It flies twice: the tapped card's
+only scaled down, so the emoji stays sharp.
+
+**What keeps motion smooth on a phone** - the rules that flight taught, applied
+to everything in the section: animate `transform` and `opacity` only (the vote
+bars grow with `scaleX`, from the inline-start edge, not `width`, which is laid
+out on every frame); start a script's clock on the first frame drawn, never
+when it was called (`countUp`, `spinLetter`), because the screen that just
+changed may take a while to draw; and no `backdrop-filter` over a page that is
+changing underneath (the game splash is a near-opaque tint, since the room's
+screen rebuilds and slides in behind it). It flies twice: the tapped card's
 icon to the game's hero (`catalogIconFlight`, which `catalogOpen` measures
 before the screen changes - cards pass themselves as `this`), and a room
 dealing a game from the lobby (`playRoomGameStart`, from `Room.onChange` when

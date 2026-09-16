@@ -5741,13 +5741,14 @@ input.stepper__value:focus { border: 0; box-shadow: none; }
   z-index: 9000;
   display: grid;
   place-items: center;
-  background: rgba(248, 250, 252, 0.78);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  backdrop-filter: blur(12px) saturate(1.2);
+  /* No backdrop blur: under the splash the room's screen is being rebuilt and
+     slides in, and a full-screen blur over a changing page is redrawn on every
+     frame, the most expensive thing a phone can be asked to animate. */
+  background: rgba(248, 250, 252, 0.94);
   cursor: pointer;
   animation: splash-in 200ms var(--ease-out) both;
 }
-body.dark .game-splash { background: rgba(15, 23, 42, 0.8); }
+body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .game-splash.is-leaving { pointer-events: none; animation: splash-out 400ms var(--ease-out) forwards; }
 .game-splash__card { display: grid; justify-items: center; gap: var(--sp-3); padding-inline: var(--sp-4); text-align: center; }
 .game-splash__icon {
@@ -5822,9 +5823,11 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.8); }
 /* A vote's result: the bars grow one at a time from the bottom of the list up,
    and the winner's comes last, after a beat (voteRevealTimes sets --at). */
 .result-list--reveal .result-row__bar {
+  transform-origin: left center;
   animation: vote-bar 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   animation-delay: var(--at, 0ms);
 }
+[dir="rtl"] .result-list--reveal .result-row__bar { transform-origin: right center; }
 .result-list--reveal .result-row__count,
 .result-list--reveal .result-row__voters {
   animation: vote-fade 320ms var(--ease-out) both;
@@ -5834,7 +5837,9 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.8); }
   animation: vote-win 620ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
   animation-delay: calc(var(--at, 0ms) + 520ms);
 }
-@keyframes vote-bar  { from { width: 0; } }
+/* transform, not width: a width animation lays the row out on every frame, on
+   the main thread, while the results screen is still drawing. */
+@keyframes vote-bar  { from { transform: scaleX(0); } }
 @keyframes vote-fade { from { opacity: 0; transform: translateY(0.25rem); } }
 @keyframes vote-win {
   0%   { transform: none; border-color: var(--border); box-shadow: 0 0 0 0 transparent; }
@@ -38916,7 +38921,7 @@ const scoreMemo = { key: '', scores: {}, ranks: {} };
 function countUp(el, from, to) {
   if (!el) return;
   const duration = 720;
-  const t0 = performance.now();
+  let t0 = null;
   let done = false;
   el.textContent = from;
   const end = () => {
@@ -38930,13 +38935,17 @@ function countUp(el, from, to) {
   };
   const step = (now) => {
     if (done) return;
+    // The clock starts on the first frame drawn, not when this was called: a
+    // board that is slow to draw used to open with the number a third of the
+    // way up already.
+    if (t0 === null) { t0 = now; setTimeout(end, duration + 250); }
     const k = Math.min(1, (now - t0) / duration);
     el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
     if (k < 1) requestAnimationFrame(step);
     else end();
   };
   setTimeout(() => requestAnimationFrame(step), 180);
-  setTimeout(end, duration + 450);
+  setTimeout(end, duration + 1500);          // a tab that stops drawing still gets the number
 }
 
 /** Every scoreboard drawn since the last look: count up what rose, slide who moved. */
@@ -39117,7 +39126,15 @@ function spinLetter(el, letter, pool, onLand) {
     setTimeout(flick, gaps[k++]);
   };
   el.classList.add('is-spinning');
-  flick();
+  // The first letter goes in before the screen is drawn, so the answer never
+  // shows first; the rest wait for that frame, or a screen that was slow to
+  // draw (a room rebuilding its frame) swallowed the first flicks unseen.
+  let rolling = false;
+  const roll = () => { if (!rolling) { rolling = true; setTimeout(flick, gaps[k++]); } };
+  shown = others[Math.floor(Math.random() * others.length)];
+  el.textContent = shown;
+  requestAnimationFrame(roll);
+  setTimeout(roll, 250);
 }
 
 /* --- 11. Hold to see your role ----------------------------------------------- */

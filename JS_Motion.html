@@ -206,7 +206,7 @@ const scoreMemo = { key: '', scores: {}, ranks: {} };
 function countUp(el, from, to) {
   if (!el) return;
   const duration = 720;
-  const t0 = performance.now();
+  let t0 = null;
   let done = false;
   el.textContent = from;
   const end = () => {
@@ -220,13 +220,17 @@ function countUp(el, from, to) {
   };
   const step = (now) => {
     if (done) return;
+    // The clock starts on the first frame drawn, not when this was called: a
+    // board that is slow to draw used to open with the number a third of the
+    // way up already.
+    if (t0 === null) { t0 = now; setTimeout(end, duration + 250); }
     const k = Math.min(1, (now - t0) / duration);
     el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
     if (k < 1) requestAnimationFrame(step);
     else end();
   };
   setTimeout(() => requestAnimationFrame(step), 180);
-  setTimeout(end, duration + 450);
+  setTimeout(end, duration + 1500);          // a tab that stops drawing still gets the number
 }
 
 /** Every scoreboard drawn since the last look: count up what rose, slide who moved. */
@@ -407,7 +411,15 @@ function spinLetter(el, letter, pool, onLand) {
     setTimeout(flick, gaps[k++]);
   };
   el.classList.add('is-spinning');
-  flick();
+  // The first letter goes in before the screen is drawn, so the answer never
+  // shows first; the rest wait for that frame, or a screen that was slow to
+  // draw (a room rebuilding its frame) swallowed the first flicks unseen.
+  let rolling = false;
+  const roll = () => { if (!rolling) { rolling = true; setTimeout(flick, gaps[k++]); } };
+  shown = others[Math.floor(Math.random() * others.length)];
+  el.textContent = shown;
+  requestAnimationFrame(roll);
+  setTimeout(roll, 250);
 }
 
 /* --- 11. Hold to see your role ----------------------------------------------- */

@@ -1,0 +1,249 @@
+<script>
+/* ============================================================================
+   زي الكل — HERD MENTALITY (rooms and the TV)
+   ----------------------------------------------------------------------------
+   A question on every screen, an answer typed on every phone, then the
+   answers grouped. The host can join two groups that mean the same thing
+   (tap one, then the one it belongs with), then scores: the biggest group
+   gets a point each, and a player alone takes the sheep 🐑, which stops them
+   winning until someone else is left alone. Rules: herdAction in RoomGames.js.
+   ========================================================================= */
+
+const HERD_OPTS_KEY = 'ashryHerdOpts';
+const herdLocal = { mergeFrom: null };
+
+function herdOpts() {
+  const base = { target: 8 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(HERD_OPTS_KEY) || 'null');
+    if (saved && [5, 8, 10].indexOf(saved.target) !== -1) base.target = saved.target;
+  } catch (e) {}
+  return base;
+}
+
+function setHerdOpt(key, value) {
+  const o = herdOpts();
+  o[key] = Number(value);
+  try { localStorage.setItem(HERD_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/** The board with the sheep beside whoever holds it. */
+function herdBoard(s) {
+  return (s.board || []).map(p => Object.assign({}, p, { name: p.id === s.sheepId ? `${p.name} 🐑` : p.name }));
+}
+
+function herdGroupsHtml(s, t, opts) {
+  const o = opts || {};
+  return `<div class="herd-groups">${(s.groups || []).map(g => {
+    const top = s.majorityKey && g.key === s.majorityKey;
+    const alone = g.ids.length === 1;
+    const picked = herdLocal.mergeFrom === g.key;
+    const inner = `
+      <span class="herd-group__count metric">${g.ids.length}</span>
+      <span class="herd-group__body">
+        <b>${escapeHTML(g.label)}${(g.parts || []).length > 1 ? ` <span class="herd-group__also">+ ${escapeHTML(g.texts.filter(x => x !== g.label).filter((x, i, a) => a.indexOf(x) === i).join('، '))}</span>` : ''}</b>
+        <span class="herd-group__names">${g.names.map(escapeHTML).join('، ')}</span>
+      </span>
+      ${top ? '<span class="herd-group__mark">🐄 +1</span>' : (alone && s.phase !== 'reveal' && g.ids[0] === s.sheepId ? '<span class="herd-group__mark">🐑</span>' : '')}`;
+    const cls = `herd-group${top ? ' is-top' : ''}${picked ? ' is-picked' : ''}`;
+    return o.merge
+      ? `<button type="button" class="${cls}" onclick="herdTapGroup('${jsStringAttr(g.key)}')">${inner}</button>`
+      : `<div class="${cls}">${inner}</div>`;
+  }).join('')}</div>`;
+}
+
+function herdTapGroup(key) {
+  if (!Room.state || !Room.state.youAreHost) return;
+  if (!herdLocal.mergeFrom) {
+    herdLocal.mergeFrom = key;
+  } else if (herdLocal.mergeFrom === key) {
+    herdLocal.mergeFrom = null;
+  } else {
+    const from = herdLocal.mergeFrom;
+    herdLocal.mergeFrom = null;
+    roomAct('merge', { from: from, into: key });
+  }
+  haptic('light');
+  const el = document.getElementById('view-room-herd');
+  if (el) delete el.dataset.sig;
+  ROOM_GAMES.herd.render(Room.state);
+}
+
+ROOM_GAMES.herd = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.herd_lobby_hint || '')}</p>`;
+    const o = herdOpts();
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.herd_target || '')}</label>
+          <div class="segmented" role="group">
+            ${[5, 8, 10].map(v => `<button type="button" class="segmented__item ${v === o.target ? 'is-active' : ''}" onclick="setHerdOpt('target', ${v})">${v}</button>`).join('')}
+          </div>
+        </div>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.herd_lobby_hint || '')}</p>
+      </div>`;
+  },
+  startPayload() {
+    return { lang: VOTE_LANG(), target: herdOpts().target };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-herd') setView('room-herd');
+    const el = document.getElementById('view-room-herd');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+    const mine = (s.submitted || []).indexOf(Room.me) !== -1;
+    const head = `
+      <div class="play-head">
+        <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
+        <span class="badge badge--accent">🎯 ${s.target}</span>
+      </div>
+      <div class="card card--accent herd-prompt">
+        <span class="eyebrow">${escapeHTML(t.herd_write_one || '')}</span>
+        <div class="herd-prompt__text">${escapeHTML(s.prompt || '')}</div>
+      </div>`;
+
+    if (s.phase === 'writing') {
+      herdLocal.mergeFrom = null;
+      const sig = ['herd-write', s.round, mine, inRound, state.youAreHost, appState.lang].join('|');
+      renderRoomFrame(el, sig, () => head + (mine || !inRound ? `
+        <div class="card" style="text-align:center">
+          <div class="metric metric--md">🐄</div>
+          <p class="sheet__subtitle">${escapeHTML(inRound ? (t.herd_wait_others || '') : (t.vote_spectating || ''))}</p>
+          <div id="herd-progress" class="vote-progress"></div>
+        </div>` : `
+        <div class="card">
+          <p class="card__subtitle">${escapeHTML(t.herd_write_hint || '')}</p>
+          <div class="input-group">
+            <input type="text" id="herd-answer" maxlength="40" autocomplete="off" placeholder="${escapeHTML(t.herd_placeholder || '')}" onkeydown="if (event.key === 'Enter') herdSubmit()">
+            <button class="btn btn--primary" onclick="herdSubmit()" aria-label="${escapeHTML(t.send || '')}">✓</button>
+          </div>
+          <div id="herd-progress" class="vote-progress"></div>
+        </div>`) + `
+        ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('closeWriting')">${escapeHTML(t.herd_reveal_now || '')}</button></div>` : ''}
+        ${renderRoomPlayerStrip(state)}`);
+      const prog = document.getElementById('herd-progress');
+      if (prog) prog.innerHTML = `<span>${escapeHTML(t.tt_written || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</span>`;
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    if (s.phase === 'reveal') {
+      const sig = ['herd-reveal', s.round, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), herdLocal.mergeFrom, state.youAreHost, appState.lang].join('|');
+      const fresh = renderRoomFrame(el, sig, () => head + `
+        <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (herdLocal.mergeFrom ? (t.herd_merge_into || '') : (t.herd_merge_hint || '')) : (t.herd_host_checks || ''))}</p>
+        ${herdGroupsHtml(s, t, { merge: state.youAreHost })}
+        ${state.youAreHost ? `
+          <div class="btn-stack">
+            <button class="btn btn--primary btn--lg" onclick="roomAct('score')">${escapeHTML(t.herd_score || '')}</button>
+            ${(s.groups || []).some(g => (g.parts || []).length > 1) ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('unmerge')">${escapeHTML(t.herd_unmerge || '')}</button>` : ''}
+          </div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && !motionOff()) herdStagger(el);
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    if (s.phase === 'result') {
+      const sig = ['herd-result', s.round, s.sheepId, state.youAreHost, appState.lang, JSON.stringify(s.scores || {})].join('|');
+      const fresh = renderRoomFrame(el, sig, () => head + `
+        <div class="card" style="text-align:center">
+          <div class="metric metric--md">${s.majorityKey ? '🐄' : '🤷'}</div>
+          <p class="sheet__subtitle">${escapeHTML(s.majorityKey ? (t.herd_majority || '') : (t.herd_no_majority || ''))}</p>
+          ${s.sheepId ? `<p class="sheet__subtitle">🐑 ${escapeHTML((t.herd_sheep_has || '').replace('{name}', s.sheepName || ''))}</p>` : ''}
+        </div>
+        ${herdGroupsHtml(s, t)}
+        ${renderScoreboard(herdBoard(s))}
+        ${state.youAreHost
+          ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('nextRound')">${escapeHTML(t.next_round || '')}</button></div>`
+          : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && (s.gained || []).indexOf(Room.me) !== -1) playSound('success');
+      if (fresh && s.sheepId === Room.me && s.sheepFrom !== Room.me) playSound('alarm');
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    // gameover
+    const fresh = renderRoomFrame(el, ['herd-over', state.youAreHost, appState.lang, JSON.stringify(s.scores || {})].join('|'), () => `
+      <div class="card card--accent" style="text-align:center">
+        <p class="sheet__subtitle">🏆 ${escapeHTML((s.winners || []).join(' · '))}</p>
+        ${renderPodium(state, herdBoard(s)) || ''}
+        ${s.sheepId ? `<p class="field__hint">🐑 ${escapeHTML((t.herd_sheep_has || '').replace('{name}', s.sheepName || ''))}</p>` : ''}
+      </div>
+      ${herdGroupsHtml(s, t)}
+      ${renderScoreboard(herdBoard(s))}
+      ${state.youAreHost
+        ? `<div class="btn-stack">
+             <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.herd.startPayload())">${escapeHTML(t.play_again || '')}</button>
+             <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+           </div>`
+        : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}`);
+    if (fresh && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 140, spread: 90 }));
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/** The groups land one after another, biggest last, the first time they show. */
+function herdStagger(el) {
+  const rows = [...el.querySelectorAll('.herd-group')];
+  if (!rows.length || !motionFirst('herd-groups:' + (Room.state && Room.state.code) + ':' + (Room.state && Room.state.shared.round))) return;
+  rows.slice().reverse().forEach((row, k) => {
+    if (row.animate) row.animate([{ transform: 'translateY(14px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 320, delay: k * 110, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' });
+  });
+}
+
+async function herdSubmit() {
+  const t = TRANSLATIONS[appState.lang];
+  const input = document.getElementById('herd-answer');
+  const text = ((input && input.value) || '').trim();
+  if (!text) { showToast(t.herd_need_answer || '', 'error'); return; }
+  await roomAct('submit', { text: text });
+}
+
+/* --- the TV ------------------------------------------------------------------ */
+TV_GAMES.herd = {
+  sig: (state) => {
+    const s = state.shared;
+    return [s.phase, s.round, (s.submitted || []).length, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.sheepId, JSON.stringify(s.scores || {})].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    const prompt = `<div class="tv-eyebrow tv-center-text">${escapeHTML(t.round || '')} ${s.round} · 🎯 ${s.target}</div>
+      <div class="tv-title tv-center-text">${escapeHTML(t.herd_write_one || '')}: ${escapeHTML(s.prompt || '')}</div>`;
+    if (s.phase === 'writing') {
+      return `<div class="tv-center">${prompt}
+        <div class="tv-big-icon" aria-hidden="true">🐄</div>
+        <div class="tv-note">${escapeHTML(t.tt_written || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</div>
+        ${host(tvBtn(t.herd_reveal_now, "roomAct('closeWriting')", 'ghost'))}</div>`;
+    }
+    if (s.phase === 'reveal') {
+      return `<div class="tv-vote">${prompt}<div class="tv-scale">${herdGroupsHtml(s, t)}</div>
+        ${host(tvBtn(t.herd_score, "roomAct('score')"))}</div>`;
+    }
+    if (s.phase === 'result') {
+      return `<div class="tv-vote">${prompt}
+        <div class="tv-question">${s.majorityKey ? '🐄 ' + escapeHTML(t.herd_majority || '') : '🤷 ' + escapeHTML(t.herd_no_majority || '')}${s.sheepId ? ' · 🐑 ' + escapeHTML(s.sheepName || '') : ''}</div>
+        <div class="tv-scale">${herdGroupsHtml(s, t)}${renderScoreboard(herdBoard(s))}</div>
+        ${host(tvBtn(t.next_round, "roomAct('nextRound')"))}</div>`;
+    }
+    return `<div class="tv-vote">
+      <div class="tv-title tv-center-text">🏆 ${escapeHTML((s.winners || []).join(' · '))}</div>
+      <div class="tv-scale">${renderPodium(state, herdBoard(s))}${renderScoreboard(herdBoard(s))}</div>
+      ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.herd.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}</div>`;
+  },
+  after(state, rebuilt) {
+    if (rebuilt && state.shared.phase === 'gameover' && typeof confetti === 'function') confetti({ particleCount: 180, spread: 100, origin: { y: 0.6 } });
+  }
+};
+</script>

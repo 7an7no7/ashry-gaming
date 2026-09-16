@@ -6716,6 +6716,70 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   pointer-events: none;
 }
 
+/* --- زي الكل --- */
+.herd-prompt { text-align: center; }
+.herd-prompt__text { color: var(--text-strong); font-size: var(--fs-h1); font-weight: 900; line-height: 1.3; text-wrap: balance; }
+.herd-groups { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.herd-group {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 3.25rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  text-align: start;
+}
+button.herd-group { cursor: pointer; }
+.herd-group__count { display: grid; flex: none; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-weight: 900; }
+.herd-group__body { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.herd-group__body b { font-size: var(--fs-h3); }
+.herd-group__also { color: var(--text-3); font-size: var(--fs-sm); font-weight: 600; }
+.herd-group__names { color: var(--text-2); font-size: var(--fs-sm); }
+.herd-group__mark { flex: none; font-weight: 900; }
+.herd-group.is-top { border-color: var(--success); background: var(--success-soft); }
+.herd-group.is-top .herd-group__count { background: var(--success-btn); color: var(--success-on); }
+.herd-group.is-picked { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* --- مافيا --- */
+.mafia-news { text-align: center; }
+.mafia-news.is-mafia { border-color: var(--danger); background: var(--danger-soft); }
+.mafia-news__role { color: var(--text-strong); font-weight: 800; }
+.mafia-sky { border-color: transparent; background: linear-gradient(160deg, #1e1b4b, #0f172a); color: #e0e7ff; }
+.mafia-sky .eyebrow, .mafia-sky .field__hint { color: #c7d2fe; }
+.mafia-night__task { margin-bottom: var(--sp-2); color: var(--text-strong); font-size: var(--fs-h3); font-weight: 800; text-align: center; }
+.mafia-targets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.mafia-target {
+  min-height: 3rem;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  cursor: pointer;
+}
+.mafia-target.is-on { border-color: var(--accent); background: var(--accent); color: var(--accent-on); }
+.mafia-target:disabled:not(.is-on) { opacity: 0.45; cursor: default; }
+.mafia-check { margin-top: var(--sp-3); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--success-soft); color: var(--success-ink); font-weight: 800; text-align: center; }
+.mafia-check.is-mafia { background: var(--danger-soft); color: var(--danger-ink); }
+.mafia-hold { margin: var(--sp-3) 0; }
+.mafia-role__icon { font-size: 3rem; line-height: 1; }
+.mafia-role__name { font-size: var(--fs-display); font-weight: 900; line-height: 1.1; }
+.mafia-role__desc { font-size: var(--fs-sm); line-height: 1.5; text-wrap: balance; }
+.mafia-role__extra { margin-top: var(--sp-1); padding: 2px var(--sp-3); border-radius: var(--r-full); background: rgba(0, 0, 0, 0.12); font-size: var(--fs-sm); font-weight: 800; }
+.mafia-won { border-color: var(--danger); background: var(--danger-soft); }
+.mafia-final { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); padding: var(--sp-1) 0; border-bottom: 1px solid var(--border); }
+.mafia-final:last-child { border-bottom: 0; }
+.mafia-final.is-out b { color: var(--text-3); text-decoration: line-through; }
+.mafia-tv-night { color: inherit; }
+
 /* --- على راسك (full screen) --- */
 #view-play-headsup {
   position: fixed;
@@ -10698,6 +10762,8 @@ const TRIVIA_QUESTIONS = {
       <div id="view-room-fiveseconds" class="hidden" data-accent="orange"></div>
       <div id="view-room-telephone" class="hidden" data-accent="blue"></div>
       <div id="view-room-monkey" class="hidden" data-accent="amber"></div>
+      <div id="view-room-herd" class="hidden" data-accent="green"></div>
+      <div id="view-room-mafia" class="hidden" data-accent="rose"></div>
 
       <!-- ============ MULTIPLAYER: JOIN ============ -->
       <!-- Multiplayer game surfaces. Each is filled by its game's renderer. -->
@@ -14020,6 +14086,88 @@ const TRIVIA_QUESTIONS = {
       hu_next_of: "الدور على {name}",
       hu_again: "دور كمان",
       hu_final: "النتيجة النهائية",
+      setup_herd: "زي الكل",
+      cat_herd: "سؤال واحد للكل: اكتب اللي هيكتبه أغلب الناس. اللي يطلع لوحده ياخد الخروف.",
+      herd_lobby_hint: "كل واحد يكتب على موبايله. أكبر مجموعة كتبت نفس الحاجة تاخد نقطة، واللي لوحده ياخد الخروف 🐑 ومايقدرش يكسب وهو معاه.",
+      herd_target: "النقط اللي تكسب",
+      herd_write_one: "اكتب حاجة واحدة من",
+      herd_write_hint: "مش المطلوب إجابة صعبة: اكتب اللي تفتكر إن أغلب اللي قاعدين هيكتبوه.",
+      herd_placeholder: "إجابتك…",
+      herd_need_answer: "اكتب إجابة الأول",
+      herd_wait_others: "استنى الباقيين يكتبوا",
+      herd_reveal_now: "اكشف الإجابات دلوقتي",
+      herd_merge_hint: "لو فيه إجابتين بنفس المعنى: المس واحدة وبعدين التانية عشان يتجمعوا.",
+      herd_merge_into: "دلوقتي المس الإجابة اللي تتجمع معاها (أو نفس الإجابة عشان تلغي).",
+      herd_host_checks: "المضيف بيراجع الإجابات قبل النقط.",
+      herd_score: "احسب النقط",
+      herd_unmerge: "رجّع التجميع زي ما كان",
+      herd_majority: "الأغلبية خدت نقطة!",
+      herd_no_majority: "مفيش أغلبية المرة دي، محدش خد نقط.",
+      herd_sheep_has: "الخروف مع {name}",
+      setup_mafia: "مافيا",
+      cat_mafia: "مافيا مستخبية وسط المدينة. بالليل بيختاروا، وبالنهار الكل يتناقش ويصوّت مين يخرج.",
+      mafia_lobby_hint: "كل واحد يعرف دوره على موبايله. التطبيق هو الراوي: بيحكي الليل والنهار ويعدّ الأصوات.",
+      mafia_need_five: "المافيا محتاجة 5 لاعبين على الأقل.",
+      mafia_mode: "طريقة اللعب",
+      mafia_mode_classic: "كلاسيك",
+      mafia_mode_roles: "بأدوار",
+      mafia_mode_classic_hint: "مافيا ومواطنين بس.",
+      mafia_mode_roles_hint: "فيها دكتور ومحقق، ومن 6 لاعبين محامي.",
+      mafia_reveal: "اكشف دور اللي يخرج",
+      mafia_reveal_hint: "لو مقفولة: اللي يخرج يظهر مواطن، إلا المافيا بتظهر مافيا دايماً.",
+      mafia_discuss: "وقت النقاش",
+      mafia_night_time: "وقت الليل",
+      mafia_role_mafia: "مافيا",
+      mafia_role_citizen: "مواطن",
+      mafia_role_doctor: "دكتور",
+      mafia_role_detective: "محقق",
+      mafia_role_lawyer: "محامي",
+      mafia_desc_mafia: "بالليل اختاروا مع بعض مين يخرج. بالنهار اتصرف كأنك مواطن.",
+      mafia_desc_citizen: "اسمع كويس وناقش، ولاقي المافيا قبل ما يخلصوا على المدينة.",
+      mafia_desc_doctor: "كل ليلة احمي حد (حتى نفسك)، بس مش نفس الشخص ليلتين ورا بعض.",
+      mafia_desc_detective: "كل ليلة اكشف حد: هتعرف لوحدك هو مافيا ولا لأ.",
+      mafia_desc_lawyer: "إنت مع المافيا وهم مايعرفوكش. دافع عنهم كأنك مواطن وتوّه المدينة.",
+      mafia_your_team: "المافيا معاك",
+      mafia_alone: "إنت المافيا الوحيد.",
+      mafia_lawyer_knows: "المافيا",
+      mafia_roles_intro: "كل واحد يدوس مطوّل على الكارت ويشوف دوره من غير ما حد يشوف.",
+      mafia_start_night: "ابدأ الليل",
+      mafia_next_night: "الليلة الجاية",
+      mafia_night_n: "الليلة {n}",
+      mafia_night_everyone: "الكل يختار حد على موبايله عشان محدش يعرف مين بيعمل إيه",
+      mafia_city_sleeps: "المدينة نايمة… 🤫",
+      mafia_task_mafia: "اختاروا مين يخرج من اللعبة الليلة دي",
+      mafia_task_doctor: "اختار حد تحميه الليلة دي",
+      mafia_task_detective: "اختار حد تكشفه",
+      mafia_task_suspect: "اختار حد بتشك فيه (محدش هيشوف اختيارك)",
+      mafia_picked_change: "اخترت. تقدر تغيّر لحد ما الليل يخلص.",
+      mafia_check_yes: "{name} من المافيا!",
+      mafia_check_no: "{name} مش مافيا.",
+      mafia_end_night: "خلّص الليل دلوقتي",
+      mafia_reveal_night: "الصبح طلع… مين خرج؟",
+      mafia_reveal_voted: "المدينة قررت…",
+      mafia_out_night: "المافيا خرّجت {name} من اللعبة",
+      mafia_out_voted: "المدينة خرّجت {name} من اللعبة",
+      mafia_was: "الدور",
+      mafia_news_saved: "صباح الخير! المافيا حاولوا بس الدكتور لحق. محدش خرج.",
+      mafia_news_quiet: "ليلة هادية. محدش خرج من اللعبة.",
+      mafia_news_tie: "الأصوات اتعادلت، محدش خرج.",
+      mafia_news_nobody: "المدينة قررت محدش يخرج النهارده.",
+      mafia_discuss_now: "وقت النقاش",
+      mafia_discuss_hint: "اتكلموا واتهموا ودافعوا. لما الوقت يخلص التصويت بيبدأ لوحده.",
+      mafia_vote_now: "ابدأ التصويت",
+      mafia_vote_soon: "التصويت هيبدأ لما وقت النقاش يخلص",
+      mafia_who_leaves: "مين يخرج من اللعبة؟",
+      mafia_nobody: "محدش",
+      mafia_still_in: "لسه في اللعبة",
+      mafia_out: "خرجوا",
+      mafia_you_out: "إنت خرجت من اللعبة. تابع وماتقولش حاجة!",
+      mafia_town_wins: "المدينة كسبت! مفيش مافيا تاني",
+      mafia_mafia_wins: "المافيا كسبت!",
+      mafia_you_won: "فريقك كسب 🎉",
+      mafia_you_lost: "فريقك خسر المرة دي",
+      mafia_everyone_was: "الأدوار كلها",
+      turn_night: "اختار على موبايلك، الليل مستنيك",
       cat_xo: "3 في صف واحد. ضد صاحبك أو ضد الموبايل.",
       cat_guessnum: "رقم مخفي: أعلى ولا أقل؟ لوحدك أو مع صاحبك.",
       cat_reaction: "اتنين على شاشة واحدة: أول واحد يضغط لما تبقى خضرا.",
@@ -15254,6 +15402,88 @@ const TRIVIA_QUESTIONS = {
       hu_next_of: "{name} is up",
       hu_again: "Another turn",
       hu_final: "Final scores",
+      setup_herd: "Herd Mentality",
+      cat_herd: "One question for everyone: write what most people will write. Whoever stands alone takes the sheep.",
+      herd_lobby_hint: "Everyone writes on their own phone. The biggest group with the same answer scores, and a lone answer takes the sheep 🐑, which can't win while holding it.",
+      herd_target: "Points to win",
+      herd_write_one: "Write one thing from",
+      herd_write_hint: "Don't be clever: write what you think most of the table will write.",
+      herd_placeholder: "Your answer…",
+      herd_need_answer: "Write an answer first",
+      herd_wait_others: "Waiting for the others to write",
+      herd_reveal_now: "Show the answers now",
+      herd_merge_hint: "Two answers that mean the same thing? Tap one, then the other, to put them together.",
+      herd_merge_into: "Now tap the answer it belongs with (or the same one to cancel).",
+      herd_host_checks: "The host is checking the answers before the points.",
+      herd_score: "Score the round",
+      herd_unmerge: "Undo the grouping",
+      herd_majority: "The herd scores a point!",
+      herd_no_majority: "No majority this time, no points.",
+      herd_sheep_has: "{name} has the sheep",
+      setup_mafia: "Mafia",
+      cat_mafia: "The Mafia hide among the town. They choose at night; by day everyone argues and votes someone out.",
+      mafia_lobby_hint: "Everyone sees their role on their own phone. The app narrates: night, day and the votes.",
+      mafia_need_five: "Mafia needs at least 5 players.",
+      mafia_mode: "How to play",
+      mafia_mode_classic: "Classic",
+      mafia_mode_roles: "Roles",
+      mafia_mode_classic_hint: "Mafia and citizens only.",
+      mafia_mode_roles_hint: "Adds a Doctor and a Detective, and a Lawyer from 6 players.",
+      mafia_reveal: "Show the role of whoever leaves",
+      mafia_reveal_hint: "When off, anyone who leaves shows as a Citizen, except the Mafia, who always show as Mafia.",
+      mafia_discuss: "Discussion time",
+      mafia_night_time: "Night time",
+      mafia_role_mafia: "Mafia",
+      mafia_role_citizen: "Citizen",
+      mafia_role_doctor: "Doctor",
+      mafia_role_detective: "Detective",
+      mafia_role_lawyer: "Lawyer",
+      mafia_desc_mafia: "At night, choose together who leaves the game. By day, act like a citizen.",
+      mafia_desc_citizen: "Listen, argue, and find the Mafia before they take over the town.",
+      mafia_desc_doctor: "Each night protect someone (yourself too), but not the same person two nights running.",
+      mafia_desc_detective: "Each night check someone: only you learn whether they are Mafia.",
+      mafia_desc_lawyer: "You're on the Mafia's side and they don't know you. Defend them as if you were a citizen.",
+      mafia_your_team: "Your fellow Mafia",
+      mafia_alone: "You are the only Mafia.",
+      mafia_lawyer_knows: "The Mafia",
+      mafia_roles_intro: "Everyone presses and holds the card to see their role without anyone else seeing.",
+      mafia_start_night: "Start the night",
+      mafia_next_night: "Next night",
+      mafia_night_n: "Night {n}",
+      mafia_night_everyone: "Everyone picks someone on their phone, so nobody can tell who is doing what",
+      mafia_city_sleeps: "The town is asleep… 🤫",
+      mafia_task_mafia: "Choose who leaves the game tonight",
+      mafia_task_doctor: "Choose someone to protect tonight",
+      mafia_task_detective: "Choose someone to check",
+      mafia_task_suspect: "Pick someone you suspect (nobody will see it)",
+      mafia_picked_change: "Picked. You can change it until the night ends.",
+      mafia_check_yes: "{name} is Mafia!",
+      mafia_check_no: "{name} is not Mafia.",
+      mafia_end_night: "End the night now",
+      mafia_reveal_night: "Morning comes… who left?",
+      mafia_reveal_voted: "The town has decided…",
+      mafia_out_night: "The Mafia took {name} out of the game",
+      mafia_out_voted: "The town voted {name} out of the game",
+      mafia_was: "Role",
+      mafia_news_saved: "Good morning! The Mafia tried, but the Doctor got there first. Nobody left.",
+      mafia_news_quiet: "A quiet night. Nobody left the game.",
+      mafia_news_tie: "The vote was a tie, so nobody leaves.",
+      mafia_news_nobody: "The town decided nobody leaves today.",
+      mafia_discuss_now: "Discussion",
+      mafia_discuss_hint: "Talk, accuse and defend. When time runs out the vote starts by itself.",
+      mafia_vote_now: "Start the vote",
+      mafia_vote_soon: "The vote starts when the discussion time is up",
+      mafia_who_leaves: "Who leaves the game?",
+      mafia_nobody: "Nobody",
+      mafia_still_in: "Still in the game",
+      mafia_out: "Out",
+      mafia_you_out: "You're out of the game. Watch, and don't give anything away!",
+      mafia_town_wins: "The town wins! No Mafia left",
+      mafia_mafia_wins: "The Mafia win!",
+      mafia_you_won: "Your side won 🎉",
+      mafia_you_lost: "Your side lost this time",
+      mafia_everyone_was: "Everyone's roles",
+      turn_night: "Pick on your phone, the night is waiting",
       cat_xo: "Three in a row. Against a friend or the phone.",
       cat_guessnum: "A hidden number: higher or lower? Solo or with a friend.",
       cat_reaction: "Two on one screen: first to tap when it turns green.",
@@ -16135,7 +16365,7 @@ const TRIVIA_QUESTIONS = {
         'setup-connections', 'play-connections',
         'setup-bomb', 'play-bomb',
         'setup-emoji', 'play-emoji', 'setup-proverbs', 'play-proverbs', 'setup-fiveseconds', 'play-fiveseconds',
-        'room-twotruths', 'room-emoji', 'room-proverbs', 'room-fiveseconds', 'room-telephone', 'room-monkey',
+        'room-twotruths', 'room-emoji', 'room-proverbs', 'room-fiveseconds', 'room-telephone', 'room-monkey', 'room-herd', 'room-mafia',
         'setup-stop', 'play-stop',
         'setup-memory', 'play-memory',
         'setup-xo', 'play-xo',
@@ -16517,7 +16747,9 @@ const TRIVIA_QUESTIONS = {
     'room-proverbs':     { title: 'setup_proverbs',    up: 'menu',               accent: 'teal' },
     'room-fiveseconds':  { title: 'setup_fiveseconds', up: 'menu',               accent: 'orange' },
     'room-telephone':    { title: 'setup_telephone',   up: 'menu',               accent: 'blue' },
-    'room-monkey':       { title: 'setup_monkey',       up: 'menu',               accent: 'amber' }
+    'room-monkey':       { title: 'setup_monkey',       up: 'menu',               accent: 'amber' },
+    'room-herd':         { title: 'setup_herd',         up: 'menu',               accent: 'green' },
+    'room-mafia':        { title: 'setup_mafia',        up: 'menu',               accent: 'rose' }
   };
 
   // Depth is what makes the slide directional: deeper = forward, shallower = back.
@@ -17448,6 +17680,33 @@ const GAME_RULES = {
                 <li>لو الموبايل مش بيحس بالميل، الباقيين يدوسوا <b>✓ صح</b> أو <b>⏭ فوت</b> تحت.</li>
                 <li><b>أفعال (تمثيل)</b>: بدل الوصف، الباقيين يمثلوا الكلمة.</li>
             </ul>`,
+        herd: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>سؤال واحد على كل الموبايلات: «اكتب حاجة واحدة من: فواكه». كل واحد يكتب على موبايله من غير ما حد يشوف.</li>
+                <li>الهدف مش إجابة ذكية: اكتب <b>اللي هيكتبه أغلب الناس</b>.</li>
+                <li>الإجابات تظهر متجمعة (الإملاء مش فارقة). المضيف يقدر يجمع إجابتين بنفس المعنى.</li>
+                <li><b>أكبر مجموعة</b> تاخد نقطة لكل واحد فيها. لو مجموعتين أكبر وقد بعض، محدش ياخد.</li>
+                <li>لو <b>واحد بس</b> كتب حاجة محدش كتبها، ياخد <b>الخروف 🐑</b> لحد ما حد تاني يطلع لوحده. اللي معاه الخروف مايقدرش يكسب.</li>
+                <li>أول واحد يوصل للنقط المطلوبة من غير الخروف يكسب.</li>
+            </ol>
+            <p class="help-sub">📺 على التلفزيون</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>السؤال والإجابات متجمعة والنقط، والمضيف يتحكم من الشاشة.</li>
+            </ul>`,
+        mafia: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>كل واحد يدوس مطوّل على الكارت ويعرف دوره. التطبيق بيختار عدد المافيا حسب عدد اللاعبين (من 5 لاعبين).</li>
+                <li><b>بالليل</b> كل الموبايلات بتختار حد، عشان محدش يعرف مين بيعمل إيه: المافيا يختاروا مين يخرج، والباقي يختار حد بيشك فيه.</li>
+                <li><b>الصبح</b> التطبيق يقول مين خرج من اللعبة، وبعدها <b>وقت نقاش</b> للاتهام والدفاع.</li>
+                <li>لما الوقت يخلص <b>التصويت</b> يبدأ: الأكتر أصوات يخرج. التعادل أو «محدش» يعني محدش يخرج.</li>
+                <li>المدينة تكسب لما المافيا كلهم يخرجوا. المافيا تكسب لما يبقوا قد الباقيين.</li>
+            </ol>
+            <p class="help-sub">🎭 طريقتين</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>كلاسيك</b>: مافيا ومواطنين.</li>
+                <li><b>بأدوار</b>: <b>🩺 الدكتور</b> يحمي حد كل ليلة (مش نفس الشخص ليلتين ورا بعض). <b>🔍 المحقق</b> يكشف حد ويعرف لوحده هو مافيا ولا لأ. <b>💼 المحامي</b> (من 6 لاعبين) مع المافيا: يعرفهم وهم مايعرفوهوش، ويدافع عنهم كأنه مواطن. المحقق بيشوفه مش مافيا.</li>
+                <li>اللي بيخرج يظهر <b>مواطن</b>، إلا المافيا بتظهر مافيا. المضيف يقدر يفعّل كشف الدور الحقيقي.</li>
+            </ul>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>12 صوت للحظات اللعب: تصفيق، فوز، صح، غلط، نكتة، ترومبون حزين، كمان حزين، صراصير، استهجان، بوري، سارينة وصفارة.</li>
@@ -17989,6 +18248,33 @@ const GAME_RULES = {
                 <li>If the phone doesn't feel the tilt, the others can press <b>✓ Right</b> or <b>⏭ Pass</b> at the bottom.</li>
                 <li><b>Actions (act it out)</b>: instead of describing, the others act the word.</li>
             </ul>`,
+        herd: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>One question on every phone: "write one thing from: fruit". Everyone writes on their own phone, unseen.</li>
+                <li>The aim isn't a clever answer: write <b>what most people will write</b>.</li>
+                <li>The answers show grouped (spelling doesn't matter). The host can join two answers that mean the same thing.</li>
+                <li>The <b>biggest group</b> scores a point each. If two groups tie for biggest, nobody scores.</li>
+                <li>If <b>exactly one</b> player wrote something nobody else did, they take <b>the sheep 🐑</b> until someone else stands alone. Whoever holds the sheep can't win.</li>
+                <li>The first to the target points without the sheep wins.</li>
+            </ol>
+            <p class="help-sub">📺 On the TV</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The question, the grouped answers and the points, with the host's buttons on the screen.</li>
+            </ul>`,
+        mafia: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Everyone presses and holds their card to see their role. The app picks how many Mafia from the number of players (5 or more).</li>
+                <li><b>At night</b> every phone picks someone, so nobody can tell who is doing what: the Mafia choose who leaves, everyone else marks a suspect.</li>
+                <li><b>In the morning</b> the app says who left the game, then there is <b>discussion time</b> to accuse and defend.</li>
+                <li>When time runs out <b>the vote</b> opens: most votes leaves. A tie, or "nobody" on top, means nobody leaves.</li>
+                <li>The town wins when every Mafia member is out. The Mafia win when they are as many as everyone else.</li>
+            </ol>
+            <p class="help-sub">🎭 Two modes</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>Classic</b>: Mafia and citizens.</li>
+                <li><b>Roles</b>: <b>🩺 the Doctor</b> protects someone each night (not the same person twice running). <b>🔍 the Detective</b> checks someone and alone learns if they are Mafia. <b>💼 the Lawyer</b> (from 6 players) is on the Mafia's side: knows them, unknown to them, and defends them as a citizen would. The Detective sees the Lawyer as not Mafia.</li>
+                <li>Whoever leaves shows as a <b>Citizen</b>, except the Mafia, who show as Mafia. The host can switch on showing real roles.</li>
+            </ul>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Twelve sounds for the moments of a game: applause, ta-da, right, wrong, ba-dum-tss, the sad trombone, a sad violin, crickets, boo, an air horn, a siren and a whistle.</li>
@@ -18042,6 +18328,7 @@ const GAME_CATALOG = [
   { id: 'spyfall',    icon: '📍',   title: 'setup_spyfall',    desc: 'cat_spyfall',    accent: 'rose',   players: [3, 10], mins: 10, modes: ['device', 'room', 'tv'],               group: 'deduce', setup: 'setup-spyfall',   open: () => setupSpyfall() },
   { id: 'fakeartist', icon: '👨‍🎨', title: 'setup_fakeartist', desc: 'cat_fakeartist', accent: 'pink',   players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('fakeartist') },
   { id: 'fibbage',    icon: '🤥',   title: 'setup_fibbage',    desc: 'cat_fibbage',    accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('fibbage') },
+  { id: 'mafia',      icon: '🕴️',  title: 'setup_mafia',      desc: 'cat_mafia',      accent: 'rose',   players: [5, 12], mins: 25, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('mafia') },
   { id: 'twotruths',  icon: '🙊',   title: 'setup_twotruths',  desc: 'cat_twotruths',  accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('twotruths') },
 
   /* --- كلمات، رسم وتمثيل --- */
@@ -18061,6 +18348,7 @@ const GAME_CATALOG = [
   { id: 'wouldyou',   icon: '⚖️',  title: 'setup_wouldyou',   desc: 'cat_wouldyou',   accent: 'violet', players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wouldyou') },
   { id: 'mostlikely', icon: '👉',   title: 'setup_mostlikely', desc: 'cat_mostlikely', accent: 'amber',  players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('mostlikely') },
   { id: 'wavelength', icon: '🌊',   title: 'setup_wavelength', desc: 'cat_wavelength', accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wavelength') },
+  { id: 'herd',       icon: '🐄',   title: 'setup_herd',       desc: 'cat_herd',       accent: 'green',  players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('herd') },
   { id: 'headsup',    icon: '🤳',   title: 'setup_headsup',    desc: 'cat_headsup',    accent: 'green',  players: [2, 12], mins: 10, modes: ['device'],               group: 'party', setup: 'setup-headsup', open: () => setupHeadsUp() },
   { id: 'fiveseconds', icon: '5️⃣',  title: 'setup_fiveseconds', desc: 'cat_fiveseconds', accent: 'orange', players: [2, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'party', setup: 'setup-fiveseconds', open: () => setupFiveSeconds() },
 
@@ -19148,7 +19436,9 @@ const ROOM_HUB_GAMES = [
   { id: 'proverbs',   icon: '📜', key: 'setup_proverbs',   accent: 'teal',   min: 2 },
   { id: 'fiveseconds', icon: '5️⃣', key: 'setup_fiveseconds', accent: 'orange', min: 2 },
   { id: 'telephone',  icon: '🖍️', key: 'setup_telephone',  accent: 'blue',   min: 3 },
-  { id: 'monkey',     icon: '🐵', key: 'setup_monkey',     accent: 'amber',  min: 2 }
+  { id: 'monkey',     icon: '🐵', key: 'setup_monkey',     accent: 'amber',  min: 2 },
+  { id: 'herd',       icon: '🐄', key: 'setup_herd',       accent: 'green',  min: 3 },
+  { id: 'mafia',      icon: '🕴️', key: 'setup_mafia',      accent: 'rose',   min: 5 }
 ];
 
 /** Create an empty room from the menu — no game chosen yet. */
@@ -20936,7 +21226,9 @@ const HELP_ENTRIES = [
   { key: 'timesup',     title: 'setup_timesup',     icon: '⏳', accent: 'blue',   group: 'games' },
   { key: 'reaction',    title: 'setup_reaction',    icon: '⚡', accent: 'rose',   group: 'games' },
   { key: 'bomb',        title: 'setup_bomb',        icon: '💣', accent: 'orange', group: 'games', room: true },
+  { key: 'mafia',       title: 'setup_mafia',       icon: '🕴️', accent: 'rose',   group: 'games', room: true },
   { key: 'twotruths',   title: 'setup_twotruths',   icon: '🙊', accent: 'rose',   group: 'games', room: true },
+  { key: 'herd',        title: 'setup_herd',        icon: '🐄', accent: 'green',  group: 'games', room: true },
   { key: 'emoji',       title: 'setup_emoji',       icon: '🤔', accent: 'amber',  group: 'games', room: true },
   { key: 'proverbs',    title: 'setup_proverbs',    icon: '📜', accent: 'teal',   group: 'games', room: true },
   { key: 'fiveseconds', title: 'setup_fiveseconds', icon: '5️⃣', accent: 'orange', group: 'games', room: true },
@@ -21025,7 +21317,8 @@ const HELP_FOR_VIEW = {
   'setup-emoji': 'emoji', 'play-emoji': 'emoji', 'room-emoji': 'emoji',
   'setup-proverbs': 'proverbs', 'play-proverbs': 'proverbs', 'room-proverbs': 'proverbs',
   'setup-fiveseconds': 'fiveseconds', 'play-fiveseconds': 'fiveseconds', 'room-fiveseconds': 'fiveseconds',
-  'room-twotruths': 'twotruths', 'room-telephone': 'telephone', 'room-monkey': 'monkey'
+  'room-twotruths': 'twotruths', 'room-telephone': 'telephone', 'room-monkey': 'monkey',
+  'room-herd': 'herd', 'room-mafia': 'mafia'
 };
 
 const helpEntry = (key) => HELP_ENTRIES.find(e => e.key === key) || null;
@@ -47195,6 +47488,634 @@ TV_GAMES.monkey = {
 
     <script>
 /* ============================================================================
+   زي الكل — HERD MENTALITY (rooms and the TV)
+   ----------------------------------------------------------------------------
+   A question on every screen, an answer typed on every phone, then the
+   answers grouped. The host can join two groups that mean the same thing
+   (tap one, then the one it belongs with), then scores: the biggest group
+   gets a point each, and a player alone takes the sheep 🐑, which stops them
+   winning until someone else is left alone. Rules: herdAction in RoomGames.js.
+   ========================================================================= */
+
+const HERD_OPTS_KEY = 'ashryHerdOpts';
+const herdLocal = { mergeFrom: null };
+
+function herdOpts() {
+  const base = { target: 8 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(HERD_OPTS_KEY) || 'null');
+    if (saved && [5, 8, 10].indexOf(saved.target) !== -1) base.target = saved.target;
+  } catch (e) {}
+  return base;
+}
+
+function setHerdOpt(key, value) {
+  const o = herdOpts();
+  o[key] = Number(value);
+  try { localStorage.setItem(HERD_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/** The board with the sheep beside whoever holds it. */
+function herdBoard(s) {
+  return (s.board || []).map(p => Object.assign({}, p, { name: p.id === s.sheepId ? `${p.name} 🐑` : p.name }));
+}
+
+function herdGroupsHtml(s, t, opts) {
+  const o = opts || {};
+  return `<div class="herd-groups">${(s.groups || []).map(g => {
+    const top = s.majorityKey && g.key === s.majorityKey;
+    const alone = g.ids.length === 1;
+    const picked = herdLocal.mergeFrom === g.key;
+    const inner = `
+      <span class="herd-group__count metric">${g.ids.length}</span>
+      <span class="herd-group__body">
+        <b>${escapeHTML(g.label)}${(g.parts || []).length > 1 ? ` <span class="herd-group__also">+ ${escapeHTML(g.texts.filter(x => x !== g.label).filter((x, i, a) => a.indexOf(x) === i).join('، '))}</span>` : ''}</b>
+        <span class="herd-group__names">${g.names.map(escapeHTML).join('، ')}</span>
+      </span>
+      ${top ? '<span class="herd-group__mark">🐄 +1</span>' : (alone && s.phase !== 'reveal' && g.ids[0] === s.sheepId ? '<span class="herd-group__mark">🐑</span>' : '')}`;
+    const cls = `herd-group${top ? ' is-top' : ''}${picked ? ' is-picked' : ''}`;
+    return o.merge
+      ? `<button type="button" class="${cls}" onclick="herdTapGroup('${jsStringAttr(g.key)}')">${inner}</button>`
+      : `<div class="${cls}">${inner}</div>`;
+  }).join('')}</div>`;
+}
+
+function herdTapGroup(key) {
+  if (!Room.state || !Room.state.youAreHost) return;
+  if (!herdLocal.mergeFrom) {
+    herdLocal.mergeFrom = key;
+  } else if (herdLocal.mergeFrom === key) {
+    herdLocal.mergeFrom = null;
+  } else {
+    const from = herdLocal.mergeFrom;
+    herdLocal.mergeFrom = null;
+    roomAct('merge', { from: from, into: key });
+  }
+  haptic('light');
+  const el = document.getElementById('view-room-herd');
+  if (el) delete el.dataset.sig;
+  ROOM_GAMES.herd.render(Room.state);
+}
+
+ROOM_GAMES.herd = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.herd_lobby_hint || '')}</p>`;
+    const o = herdOpts();
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.herd_target || '')}</label>
+          <div class="segmented" role="group">
+            ${[5, 8, 10].map(v => `<button type="button" class="segmented__item ${v === o.target ? 'is-active' : ''}" onclick="setHerdOpt('target', ${v})">${v}</button>`).join('')}
+          </div>
+        </div>
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.herd_lobby_hint || '')}</p>
+      </div>`;
+  },
+  startPayload() {
+    return { lang: VOTE_LANG(), target: herdOpts().target };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-herd') setView('room-herd');
+    const el = document.getElementById('view-room-herd');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+    const mine = (s.submitted || []).indexOf(Room.me) !== -1;
+    const head = `
+      <div class="play-head">
+        <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
+        <span class="badge badge--accent">🎯 ${s.target}</span>
+      </div>
+      <div class="card card--accent herd-prompt">
+        <span class="eyebrow">${escapeHTML(t.herd_write_one || '')}</span>
+        <div class="herd-prompt__text">${escapeHTML(s.prompt || '')}</div>
+      </div>`;
+
+    if (s.phase === 'writing') {
+      herdLocal.mergeFrom = null;
+      const sig = ['herd-write', s.round, mine, inRound, state.youAreHost, appState.lang].join('|');
+      renderRoomFrame(el, sig, () => head + (mine || !inRound ? `
+        <div class="card" style="text-align:center">
+          <div class="metric metric--md">🐄</div>
+          <p class="sheet__subtitle">${escapeHTML(inRound ? (t.herd_wait_others || '') : (t.vote_spectating || ''))}</p>
+          <div id="herd-progress" class="vote-progress"></div>
+        </div>` : `
+        <div class="card">
+          <p class="card__subtitle">${escapeHTML(t.herd_write_hint || '')}</p>
+          <div class="input-group">
+            <input type="text" id="herd-answer" maxlength="40" autocomplete="off" placeholder="${escapeHTML(t.herd_placeholder || '')}" onkeydown="if (event.key === 'Enter') herdSubmit()">
+            <button class="btn btn--primary" onclick="herdSubmit()" aria-label="${escapeHTML(t.send || '')}">✓</button>
+          </div>
+          <div id="herd-progress" class="vote-progress"></div>
+        </div>`) + `
+        ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('closeWriting')">${escapeHTML(t.herd_reveal_now || '')}</button></div>` : ''}
+        ${renderRoomPlayerStrip(state)}`);
+      const prog = document.getElementById('herd-progress');
+      if (prog) prog.innerHTML = `<span>${escapeHTML(t.tt_written || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</span>`;
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    if (s.phase === 'reveal') {
+      const sig = ['herd-reveal', s.round, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), herdLocal.mergeFrom, state.youAreHost, appState.lang].join('|');
+      const fresh = renderRoomFrame(el, sig, () => head + `
+        <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (herdLocal.mergeFrom ? (t.herd_merge_into || '') : (t.herd_merge_hint || '')) : (t.herd_host_checks || ''))}</p>
+        ${herdGroupsHtml(s, t, { merge: state.youAreHost })}
+        ${state.youAreHost ? `
+          <div class="btn-stack">
+            <button class="btn btn--primary btn--lg" onclick="roomAct('score')">${escapeHTML(t.herd_score || '')}</button>
+            ${(s.groups || []).some(g => (g.parts || []).length > 1) ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('unmerge')">${escapeHTML(t.herd_unmerge || '')}</button>` : ''}
+          </div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && !motionOff()) herdStagger(el);
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    if (s.phase === 'result') {
+      const sig = ['herd-result', s.round, s.sheepId, state.youAreHost, appState.lang, JSON.stringify(s.scores || {})].join('|');
+      const fresh = renderRoomFrame(el, sig, () => head + `
+        <div class="card" style="text-align:center">
+          <div class="metric metric--md">${s.majorityKey ? '🐄' : '🤷'}</div>
+          <p class="sheet__subtitle">${escapeHTML(s.majorityKey ? (t.herd_majority || '') : (t.herd_no_majority || ''))}</p>
+          ${s.sheepId ? `<p class="sheet__subtitle">🐑 ${escapeHTML((t.herd_sheep_has || '').replace('{name}', s.sheepName || ''))}</p>` : ''}
+        </div>
+        ${herdGroupsHtml(s, t)}
+        ${renderScoreboard(herdBoard(s))}
+        ${state.youAreHost
+          ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('nextRound')">${escapeHTML(t.next_round || '')}</button></div>`
+          : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && (s.gained || []).indexOf(Room.me) !== -1) playSound('success');
+      if (fresh && s.sheepId === Room.me && s.sheepFrom !== Room.me) playSound('alarm');
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    // gameover
+    const fresh = renderRoomFrame(el, ['herd-over', state.youAreHost, appState.lang, JSON.stringify(s.scores || {})].join('|'), () => `
+      <div class="card card--accent" style="text-align:center">
+        <p class="sheet__subtitle">🏆 ${escapeHTML((s.winners || []).join(' · '))}</p>
+        ${renderPodium(state, herdBoard(s)) || ''}
+        ${s.sheepId ? `<p class="field__hint">🐑 ${escapeHTML((t.herd_sheep_has || '').replace('{name}', s.sheepName || ''))}</p>` : ''}
+      </div>
+      ${herdGroupsHtml(s, t)}
+      ${renderScoreboard(herdBoard(s))}
+      ${state.youAreHost
+        ? `<div class="btn-stack">
+             <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.herd.startPayload())">${escapeHTML(t.play_again || '')}</button>
+             <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+           </div>`
+        : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}`);
+    if (fresh && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 140, spread: 90 }));
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/** The groups land one after another, biggest last, the first time they show. */
+function herdStagger(el) {
+  const rows = [...el.querySelectorAll('.herd-group')];
+  if (!rows.length || !motionFirst('herd-groups:' + (Room.state && Room.state.code) + ':' + (Room.state && Room.state.shared.round))) return;
+  rows.slice().reverse().forEach((row, k) => {
+    if (row.animate) row.animate([{ transform: 'translateY(14px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 320, delay: k * 110, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' });
+  });
+}
+
+async function herdSubmit() {
+  const t = TRANSLATIONS[appState.lang];
+  const input = document.getElementById('herd-answer');
+  const text = ((input && input.value) || '').trim();
+  if (!text) { showToast(t.herd_need_answer || '', 'error'); return; }
+  await roomAct('submit', { text: text });
+}
+
+/* --- the TV ------------------------------------------------------------------ */
+TV_GAMES.herd = {
+  sig: (state) => {
+    const s = state.shared;
+    return [s.phase, s.round, (s.submitted || []).length, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.sheepId, JSON.stringify(s.scores || {})].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    const prompt = `<div class="tv-eyebrow tv-center-text">${escapeHTML(t.round || '')} ${s.round} · 🎯 ${s.target}</div>
+      <div class="tv-title tv-center-text">${escapeHTML(t.herd_write_one || '')}: ${escapeHTML(s.prompt || '')}</div>`;
+    if (s.phase === 'writing') {
+      return `<div class="tv-center">${prompt}
+        <div class="tv-big-icon" aria-hidden="true">🐄</div>
+        <div class="tv-note">${escapeHTML(t.tt_written || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</div>
+        ${host(tvBtn(t.herd_reveal_now, "roomAct('closeWriting')", 'ghost'))}</div>`;
+    }
+    if (s.phase === 'reveal') {
+      return `<div class="tv-vote">${prompt}<div class="tv-scale">${herdGroupsHtml(s, t)}</div>
+        ${host(tvBtn(t.herd_score, "roomAct('score')"))}</div>`;
+    }
+    if (s.phase === 'result') {
+      return `<div class="tv-vote">${prompt}
+        <div class="tv-question">${s.majorityKey ? '🐄 ' + escapeHTML(t.herd_majority || '') : '🤷 ' + escapeHTML(t.herd_no_majority || '')}${s.sheepId ? ' · 🐑 ' + escapeHTML(s.sheepName || '') : ''}</div>
+        <div class="tv-scale">${herdGroupsHtml(s, t)}${renderScoreboard(herdBoard(s))}</div>
+        ${host(tvBtn(t.next_round, "roomAct('nextRound')"))}</div>`;
+    }
+    return `<div class="tv-vote">
+      <div class="tv-title tv-center-text">🏆 ${escapeHTML((s.winners || []).join(' · '))}</div>
+      <div class="tv-scale">${renderPodium(state, herdBoard(s))}${renderScoreboard(herdBoard(s))}</div>
+      ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.herd.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}</div>`;
+  },
+  after(state, rebuilt) {
+    if (rebuilt && state.shared.phase === 'gameover' && typeof confetti === 'function') confetti({ particleCount: 180, spread: 100, origin: { y: 0.6 } });
+  }
+};
+</script>
+
+    <script>
+/* ============================================================================
+   مافيا — ON SEPARATE PHONES, AND ON THE TV
+   ----------------------------------------------------------------------------
+   The app narrates. Each phone holds its role on a card you press to see.
+   At night every living phone taps a name, whatever its role, so nobody can
+   tell who acted: the Mafia pick who leaves (and see each other's picks), the
+   Doctor protects, the Detective checks, everyone else marks a suspect. The
+   morning says who left, then the discussion clock, then the vote. Rules and
+   everything a phone must not know: mafiaAction in RoomGames.js.
+   ========================================================================= */
+
+const MAFIA_OPTS_KEY = 'ashryMafiaOpts';
+const MAFIA_ICONS = { mafia: '🕴️', citizen: '🧑', doctor: '🩺', detective: '🔍', lawyer: '💼' };
+const mafiaLocal = { clock: null, clockKey: null };
+
+function mafiaOpts() {
+  const base = { mode: 'classic', revealRoles: false, discuss: 3, night: 45 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(MAFIA_OPTS_KEY) || 'null') || {};
+    if (saved.mode === 'roles' || saved.mode === 'classic') base.mode = saved.mode;
+    if (typeof saved.revealRoles === 'boolean') base.revealRoles = saved.revealRoles;
+    if ([2, 3, 5].indexOf(saved.discuss) !== -1) base.discuss = saved.discuss;
+    if ([30, 45, 60].indexOf(saved.night) !== -1) base.night = saved.night;
+  } catch (e) {}
+  return base;
+}
+
+function setMafiaOpt(key, value) {
+  const o = mafiaOpts();
+  o[key] = key === 'mode' ? value : (key === 'revealRoles' ? !!value : Number(value));
+  try { localStorage.setItem(MAFIA_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/** Must match mafiaCount and mafiaRoles in RoomGames.js. */
+const mafiaCountFor = (n) => (n <= 6 ? 1 : n <= 9 ? 2 : 3);
+function mafiaRoleSummary(n, mode, t) {
+  const bits = [`${mafiaCountFor(n)} ${MAFIA_ICONS.mafia} ${t.mafia_role_mafia || ''}`];
+  if (mode === 'roles') {
+    bits.push(`${MAFIA_ICONS.doctor} ${t.mafia_role_doctor || ''}`, `${MAFIA_ICONS.detective} ${t.mafia_role_detective || ''}`);
+    if (n >= 6) bits.push(`${MAFIA_ICONS.lawyer} ${t.mafia_role_lawyer || ''}`);
+  }
+  return bits.join(' · ');
+}
+
+const mafiaRoleName = (role, t) => `${MAFIA_ICONS[role] || ''} ${t['mafia_role_' + role] || ''}`;
+
+function mafiaClockText(endsAt) {
+  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+}
+
+function mafiaTickClock(s) {
+  const paint = () => {
+    const text = s.endsAt ? mafiaClockText(s.endsAt) : '';
+    ['mafia-clock', 'tv-mafia-clock'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = text; });
+  };
+  paint();
+  if (!s.endsAt) { mafiaStopClock(); return; }
+  if (mafiaLocal.clockKey === s.endsAt && mafiaLocal.clock) return;
+  mafiaStopClock();
+  mafiaLocal.clockKey = s.endsAt;
+  mafiaLocal.clock = createClock({ seconds: Math.max(1, Math.ceil((s.endsAt - Date.now()) / 1000)), onTick: paint, onEnd: paint });
+}
+
+function mafiaStopClock() {
+  if (mafiaLocal.clock) mafiaLocal.clock.stop();
+  mafiaLocal.clock = null;
+  mafiaLocal.clockKey = null;
+}
+
+/** The vote's "nobody" option, said in this phone's language. */
+function mafiaVoteState(state) {
+  const t = TRANSLATIONS[appState.lang];
+  const v = state.shared.vote;
+  if (!v) return state;
+  const label = (o) => (o.id === 'nobody' ? `🤷 ${t.mafia_nobody || ''}` : o.label);
+  const vote = Object.assign({}, v, {
+    options: (v.options || []).map(o => Object.assign({}, o, { label: label(o) })),
+    results: v.results ? v.results.map(r => Object.assign({}, r, { label: label(r) })) : v.results
+  });
+  return Object.assign({}, state, { shared: Object.assign({}, state.shared, { vote: vote }) });
+}
+
+function mafiaNewsHtml(state, t) {
+  const s = state.shared;
+  const n = s.news;
+  if (!n) return '';
+  if (n.kind === 'saved') return `<div class="card mafia-news"><div class="metric metric--md">🩺</div><p class="sheet__subtitle">${escapeHTML(t.mafia_news_saved || '')}</p></div>`;
+  if (n.kind === 'quiet') return `<div class="card mafia-news"><div class="metric metric--md">😴</div><p class="sheet__subtitle">${escapeHTML(t.mafia_news_quiet || '')}</p></div>`;
+  if (n.kind === 'tie' || n.kind === 'nobody') return `<div class="card mafia-news"><div class="metric metric--md">🤝</div><p class="sheet__subtitle">${escapeHTML(n.kind === 'tie' ? (t.mafia_news_tie || '') : (t.mafia_news_nobody || ''))}</p></div>`;
+  const cover = spyRevealParts(['mafia', state.code, s.night, s.day, n.kind, n.id].join('|'), n.kind === 'voted' ? t.mafia_reveal_voted : t.mafia_reveal_night);
+  return `<div class="card mafia-news ${n.role === 'mafia' ? 'is-mafia' : ''} ${cover.cls}" ${cover.attrs}>${cover.cover}
+      <div class="metric metric--md">${n.kind === 'voted' ? '🗳️' : '🌅'}</div>
+      <p class="sheet__subtitle">${escapeHTML((n.kind === 'voted' ? (t.mafia_out_voted || '') : (t.mafia_out_night || '')).replace('{name}', n.name || ''))}</p>
+      <p class="mafia-news__role">${escapeHTML(t.mafia_was || '')}: ${escapeHTML(mafiaRoleName(n.role, t))}</p>
+    </div>`;
+}
+
+function mafiaPeopleHtml(state, t) {
+  const s = state.shared;
+  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+  return `
+    <div class="card card--tight">
+      <div class="eyebrow">${escapeHTML(t.mafia_still_in || '')} · <span class="metric">${(s.alive || []).length}</span></div>
+      <div class="chip-set">${(s.alive || []).map(id => `<span class="chip chip--plain">${escapeHTML(nameOf(id))}</span>`).join('')}</div>
+      ${(s.out || []).length ? `
+        <div class="eyebrow" style="margin-top: var(--sp-3)">${escapeHTML(t.mafia_out || '')}</div>
+        <div class="chip-set">${s.out.map(o => `<span class="chip chip--plain is-away">${MAFIA_ICONS[o.role] || ''} ${escapeHTML(o.name)}</span>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+/** The role on a card that shows only while pressed. */
+function mafiaRoleCardHtml(state, t) {
+  const you = state.you || {};
+  if (!you.role) return '';
+  const team = (you.mafia || []).filter(m => m.id !== Room.me).map(m => m.name);
+  const extra = you.role === 'mafia'
+    ? (team.length ? `${t.mafia_your_team || ''}: ${team.join('، ')}` : (t.mafia_alone || ''))
+    : you.role === 'lawyer' ? `${t.mafia_lawyer_knows || ''}: ${(you.mafia || []).map(m => m.name).join('، ')}` : '';
+  return `
+    <div class="hold-card mafia-hold" role="button" tabindex="0">
+      <div class="hold-card__front">
+        <span class="hold-card__icon" aria-hidden="true">👆</span>
+        <span class="hold-card__label">${escapeHTML(t.hold_to_reveal || '')}</span>
+        <span class="hold-card__hint">${escapeHTML(t.hold_hint || '')}</span>
+      </div>
+      <div class="hold-card__back" aria-hidden="true">
+        <span class="mafia-role__icon" aria-hidden="true">${MAFIA_ICONS[you.role] || ''}</span>
+        <b class="mafia-role__name">${escapeHTML(t['mafia_role_' + you.role] || '')}</b>
+        <span class="mafia-role__desc">${escapeHTML(t['mafia_desc_' + you.role] || '')}</span>
+        ${extra ? `<span class="mafia-role__extra">${escapeHTML(extra)}</span>` : ''}
+      </div>
+    </div>`;
+}
+
+function mafiaNightHtml(state, t) {
+  const s = state.shared;
+  const you = state.you || {};
+  const alive = (s.alive || []).indexOf(Room.me) !== -1;
+  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+  if (!alive || !you.role) {
+    return `<div class="card mafia-night" style="text-align:center"><div class="metric metric--lg">🌙</div><p class="sheet__subtitle">${escapeHTML(t.mafia_city_sleeps || '')}</p></div>`;
+  }
+  const role = you.role;
+  const mafiaIds = (you.mafia || []).map(m => m.id);
+  let task = t.mafia_task_suspect || '';
+  let targets = (s.alive || []).filter(id => id !== Room.me);
+  if (role === 'mafia') { task = t.mafia_task_mafia || ''; targets = (s.alive || []).filter(id => mafiaIds.indexOf(id) === -1); }
+  if (role === 'doctor') { task = t.mafia_task_doctor || ''; targets = (s.alive || []).slice(); }
+  if (role === 'detective') task = t.mafia_task_detective || '';
+  const locked = role === 'detective' && you.pick;
+  const lastCheck = role === 'detective' && you.pick ? (you.checks || []).filter(c => c.id === you.pick).slice(-1)[0] : null;
+  return `
+    <div class="card mafia-night">
+      <div class="mafia-night__task">${MAFIA_ICONS[role]} ${escapeHTML(task)}</div>
+      ${role === 'mafia' && (you.picks || []).length ? `<p class="field__hint">${you.picks.map(p => `${escapeHTML(p.by)} ← ${escapeHTML(p.name)}`).join(' · ')}</p>` : ''}
+      ${role === 'lawyer' ? `<p class="field__hint">💼 ${escapeHTML(t.mafia_lawyer_knows || '')}: ${(you.mafia || []).map(m => escapeHTML(m.name)).join('، ')}</p>` : ''}
+      <div class="mafia-targets">
+        ${targets.map(id => {
+          const blocked = role === 'doctor' && id === you.lastSave;
+          const on = you.pick === id;
+          return `<button type="button" class="mafia-target${on ? ' is-on' : ''}" ${blocked || locked ? 'disabled' : ''} onclick="roomAct('nightPick', { target: '${jsStringAttr(id)}' })">
+            ${escapeHTML(nameOf(id))}${id === Room.me ? ` <span class="badge">${escapeHTML(t.vote_you || '')}</span>` : ''}${blocked ? ' 🚫' : ''}</button>`;
+        }).join('')}
+      </div>
+      ${lastCheck ? `<div class="mafia-check ${lastCheck.mafia ? 'is-mafia' : ''}">${lastCheck.mafia ? '🕴️' : '✅'} ${escapeHTML((lastCheck.mafia ? (t.mafia_check_yes || '') : (t.mafia_check_no || '')).replace('{name}', lastCheck.name))}</div>` : ''}
+      ${role === 'detective' && (you.checks || []).length > (lastCheck ? 1 : 0) ? `<p class="field__hint">${(you.checks || []).filter(c => c !== lastCheck).map(c => `${c.mafia ? '🕴️' : '✅'} ${escapeHTML(c.name)}`).join(' · ')}</p>` : ''}
+      ${you.pick && !locked ? `<p class="field__hint">✓ ${escapeHTML(t.mafia_picked_change || '')}</p>` : ''}
+    </div>`;
+}
+
+ROOM_GAMES.mafia = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    const n = (state.players || []).length;
+    const few = n < 5 ? `<p class="field__hint tx-warning" style="text-align:center">${escapeHTML(t.mafia_need_five || '')}</p>` : '';
+    if (!state.youAreHost) return `${few}<p class="field__hint" style="text-align:center">${escapeHTML(t.mafia_lobby_hint || '')}</p>`;
+    const o = mafiaOpts();
+    const seg = (key, values, labelOf) => `
+      <div class="segmented" role="group">
+        ${values.map(v => `<button type="button" class="segmented__item ${v === o[key] ? 'is-active' : ''}" onclick="setMafiaOpt('${key}', ${typeof v === 'string' ? `'${v}'` : v})">${labelOf(v)}</button>`).join('')}
+      </div>`;
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.mafia_mode || '')}</label>
+          ${seg('mode', ['classic', 'roles'], v => escapeHTML(t['mafia_mode_' + v] || v))}
+          <p class="field__hint">${escapeHTML(o.mode === 'roles' ? (t.mafia_mode_roles_hint || '') : (t.mafia_mode_classic_hint || ''))}</p>
+        </div>
+        <div class="field">
+          <label class="switch-row" for="mafia-reveal">
+            <span class="field__label">${escapeHTML(t.mafia_reveal || '')}</span>
+            <span class="switch"><input type="checkbox" id="mafia-reveal" role="switch" ${o.revealRoles ? 'checked' : ''} onchange="setMafiaOpt('revealRoles', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(t.mafia_reveal_hint || '')}</p>
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.mafia_discuss || '')}</label>
+          ${seg('discuss', [2, 3, 5], v => `${v} ${escapeHTML(t.meta_min || '')}`)}
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.mafia_night_time || '')}</label>
+          ${seg('night', [30, 45, 60], v => `${v}″`)}
+        </div>
+        ${n >= 5 ? `<p class="field__hint" style="text-align:center">👥 ${n}: ${escapeHTML(mafiaRoleSummary(n, o.mode, t))}</p>` : few}
+      </div>`;
+  },
+  startPayload() {
+    const o = mafiaOpts();
+    return { mode: o.mode, revealRoles: o.revealRoles, discuss: o.discuss, night: o.night };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-mafia') setView('room-mafia');
+    const el = document.getElementById('view-room-mafia');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const you = state.you || {};
+    const inGame = (s.roster || []).indexOf(Room.me) !== -1;
+    const alive = (s.alive || []).indexOf(Room.me) !== -1;
+    const v = s.vote || {};
+    const sig = ['mafia', s.phase, s.night, s.day, (s.acted || []).length, you.pick, JSON.stringify(you.picks || []), (you.checks || []).length,
+                 (v.voted || []).length, v.phase, (s.alive || []).length, state.youAreHost, appState.lang].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => {
+      const head = `
+        <div class="play-head">
+          ${s.phase === 'roles' ? '<span class="badge">🎭</span>' : `<span class="badge">${s.phase === 'night' ? '🌙' : '☀️'} <span class="metric">${s.phase === 'night' ? s.night : s.day}</span></span>`}
+          ${(s.phase === 'night' || s.phase === 'day') && s.endsAt ? `<span id="mafia-clock" class="badge badge--accent metric">${mafiaClockText(s.endsAt)}</span>` : ''}
+          <span class="badge">${escapeHTML(t['mafia_mode_' + s.mode] || '')}</span>
+        </div>`;
+      const outNote = inGame && !alive && s.phase !== 'gameover' ? `<div class="waiting-note">🤐 ${escapeHTML(t.mafia_you_out || '')}</div>` : '';
+      const role = inGame ? mafiaRoleCardHtml(state, t) : `<div class="waiting-note">${escapeHTML(t.vote_spectating || '')}</div>`;
+
+      if (s.phase === 'roles') {
+        return head + `
+          <div class="card card--accent" style="text-align:center">
+            <div class="metric metric--md">🎭</div>
+            <p class="sheet__subtitle">${escapeHTML(t.mafia_roles_intro || '')}</p>
+            <p class="field__hint">${escapeHTML(mafiaRoleSummary((s.roster || []).length, s.mode, t))}</p>
+          </div>
+          ${role}
+          ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('startNight')">🌙 ${escapeHTML(t.mafia_start_night || '')}</button></div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+          ${renderRoomPlayerStrip(state)}`;
+      }
+      if (s.phase === 'night') {
+        return head + `
+          <div class="card mafia-sky" style="text-align:center"><div class="eyebrow">🌙 ${escapeHTML((t.mafia_night_n || '').replace('{n}', s.night))}</div>
+            <p class="field__hint">${escapeHTML(t.mafia_night_everyone || '')} · <span class="metric">${(s.acted || []).length}/${(s.alive || []).length}</span></p></div>
+          ${outNote}${mafiaNightHtml(state, t)}
+          ${inGame && alive ? role : ''}
+          ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('endNight')">${escapeHTML(t.mafia_end_night || '')}</button></div>` : ''}
+          ${renderRoomPlayerStrip(state)}`;
+      }
+      if (s.phase === 'day') {
+        return head + mafiaNewsHtml(state, t) + outNote + `
+          <div class="card" style="text-align:center">
+            <div class="eyebrow">🗣️ ${escapeHTML(t.mafia_discuss_now || '')}</div>
+            <p class="field__hint">${escapeHTML(t.mafia_discuss_hint || '')}</p>
+          </div>
+          ${mafiaPeopleHtml(state, t)}
+          ${inGame && alive ? role : ''}
+          ${state.youAreHost ? `<div class="btn-stack">
+              <button class="btn btn--primary btn--lg" onclick="roomAct('startVote')">🗳️ ${escapeHTML(t.mafia_vote_now || '')}</button>
+              <button class="btn btn--ghost btn--sm" onclick="roomAct('moreTime')">+1 ${escapeHTML(t.meta_min || '')}</button>
+            </div>` : `<div class="waiting-note">${escapeHTML(t.mafia_vote_soon || '')}</div>`}
+          ${renderRoomPlayerStrip(state)}`;
+      }
+      if (s.phase === 'voting') {
+        return head + outNote + `
+          <div class="card card--tight">
+            <div class="eyebrow">🗳️ ${escapeHTML(t.mafia_who_leaves || '')}</div>
+            ${renderBallot(mafiaVoteState(state), { ownLabel: t.vote_you })}
+          </div>
+          ${mafiaPeopleHtml(state, t)}
+          ${renderRoomPlayerStrip(state)}`;
+      }
+      if (s.phase === 'dayResult') {
+        return head + mafiaNewsHtml(state, t) + `
+          <div class="card card--tight">${s.vote && s.vote.results ? renderVoteResults(mafiaVoteState(state)) : ''}</div>
+          ${mafiaPeopleHtml(state, t)}
+          ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('startNight')">🌙 ${escapeHTML(t.mafia_next_night || '')}</button></div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+          ${renderRoomPlayerStrip(state)}`;
+      }
+      // gameover
+      const mine = (s.roles || []).find(r => r.id === Room.me);
+      const iWon = mine && ((s.winner === 'mafia') === (mine.role === 'mafia' || mine.role === 'lawyer'));
+      return `
+        ${s.news ? mafiaNewsHtml(state, t) : ''}
+        <div class="card ${s.winner === 'town' ? 'card--accent' : 'mafia-won'}" style="text-align:center">
+          <div class="metric metric--lg">${s.winner === 'town' ? '🏙️' : '🕴️'}</div>
+          <div class="card__title">${escapeHTML(s.winner === 'town' ? (t.mafia_town_wins || '') : (t.mafia_mafia_wins || ''))}</div>
+          ${mine ? `<p class="sheet__subtitle">${escapeHTML(iWon ? (t.mafia_you_won || '') : (t.mafia_you_lost || ''))}</p>` : ''}
+        </div>
+        <div class="card card--tight">
+          <div class="eyebrow">${escapeHTML(t.mafia_everyone_was || '')}</div>
+          ${(s.roles || []).map(r => `<div class="mafia-final ${r.alive ? '' : 'is-out'}"><span>${MAFIA_ICONS[r.role]}</span><b>${escapeHTML(r.name)}</b><span>${escapeHTML(t['mafia_role_' + r.role] || '')}</span></div>`).join('')}
+        </div>
+        ${renderScoreboard(s.board)}
+        ${state.youAreHost ? `<div class="btn-stack">
+            <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.mafia.startPayload())">${escapeHTML(t.play_again || '')}</button>
+            <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+          </div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        ${renderRoomPlayerStrip(state)}`;
+    });
+    if (rebuilt) mafiaSounds(state);
+    refreshRoomPlayerStrip(el, state);
+    if ((s.phase === 'night' || s.phase === 'day') && s.endsAt) mafiaTickClock(s); else mafiaStopClock();
+    if (s.phase === 'gameover' && rebuilt && typeof confetti === 'function' && motionFirst('mafia-over:' + state.code + ':' + JSON.stringify(s.scores || {}))) {
+      afterReveal(el, () => confetti({ particleCount: 120, spread: 80 }));
+    }
+  }
+};
+
+/** A sound once per moment on this phone: nightfall, the morning's news. */
+function mafiaSounds(state) {
+  const s = state.shared;
+  const key = ['mafia-sound', state.code, s.phase, s.night, s.day].join('|');
+  if (!motionFirst(key)) return;
+  if (s.phase === 'night') playSound('tick');
+  if ((s.phase === 'day' || s.phase === 'dayResult') && s.news) playSound(s.news.kind === 'out' || s.news.kind === 'voted' ? 'alarm' : 'success');
+}
+
+/* --- the TV ------------------------------------------------------------------ */
+TV_GAMES.mafia = {
+  sig: (state) => {
+    const s = state.shared;
+    const v = s.vote || {};
+    return [s.phase, s.night, s.day, (s.acted || []).length, (v.voted || []).length, v.phase, (s.alive || []).length, s.endsAt].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+    const clock = s.endsAt ? `<div id="tv-mafia-clock" class="tv-clock metric">${mafiaClockText(s.endsAt)}</div>` : '';
+    const people = `<div class="tv-strip-inline">${(s.alive || []).map(id => `<span class="tv-chip">${escapeHTML(nameOf(id))}</span>`).join('')}${(s.out || []).map(o => `<span class="tv-chip is-away">${MAFIA_ICONS[o.role] || ''} ${escapeHTML(o.name)}</span>`).join('')}</div>`;
+    if (s.phase === 'roles') {
+      return `<div class="tv-center"><div class="tv-big-icon" aria-hidden="true">🎭</div>
+        <div class="tv-title">${escapeHTML(t.mafia_roles_intro || '')}</div>
+        <div class="tv-note">${escapeHTML(mafiaRoleSummary((s.roster || []).length, s.mode, t))}</div>
+        ${host(tvBtn('🌙 ' + (t.mafia_start_night || ''), "roomAct('startNight')"))}</div>`;
+    }
+    if (s.phase === 'night') {
+      return `<div class="tv-center mafia-tv-night"><div class="tv-big-icon" aria-hidden="true">🌙</div>
+        <div class="tv-title">${escapeHTML(t.mafia_city_sleeps || '')}</div>${clock}
+        <div class="tv-note">${escapeHTML(t.mafia_night_everyone || '')} · ${(s.acted || []).length}/${(s.alive || []).length}</div>
+        ${host(tvBtn(t.mafia_end_night, "roomAct('endNight')", 'ghost'))}</div>`;
+    }
+    if (s.phase === 'day') {
+      return `<div class="tv-vote"><div class="tv-scale">${mafiaNewsHtml(state, t)}</div>
+        <div class="tv-title tv-center-text">🗣️ ${escapeHTML(t.mafia_discuss_now || '')}</div>${clock}${people}
+        ${host(tvBtn('🗳️ ' + (t.mafia_vote_now || ''), "roomAct('startVote')") + tvBtn('+1 ' + (t.meta_min || ''), "roomAct('moreTime')", 'ghost'))}</div>`;
+    }
+    if (s.phase === 'voting') {
+      return `<div class="tv-vote"><div class="tv-title tv-center-text">🗳️ ${escapeHTML(t.mafia_who_leaves || '')}</div>${people}${tvVoteProgress(state, t)}</div>`;
+    }
+    if (s.phase === 'dayResult') {
+      return `<div class="tv-vote"><div class="tv-scale">${mafiaNewsHtml(state, t)}${s.vote && s.vote.results ? renderVoteResults(mafiaVoteState(state)) : ''}</div>${people}
+        ${host(tvBtn('🌙 ' + (t.mafia_next_night || ''), "roomAct('startNight')"))}</div>`;
+    }
+    return `<div class="tv-vote">
+      <div class="tv-title tv-center-text">${s.winner === 'town' ? '🏙️ ' + escapeHTML(t.mafia_town_wins || '') : '🕴️ ' + escapeHTML(t.mafia_mafia_wins || '')}</div>
+      <div class="tv-strip-inline">${(s.roles || []).map(r => `<span class="tv-chip ${r.alive ? '' : 'is-away'}">${MAFIA_ICONS[r.role]} ${escapeHTML(r.name)}</span>`).join('')}</div>
+      <div class="tv-scale">${renderScoreboard(s.board)}</div>
+      ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.mafia.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}</div>`;
+  },
+  after(state) {
+    const s = state.shared;
+    if ((s.phase === 'night' || s.phase === 'day') && s.endsAt) mafiaTickClock(s); else mafiaStopClock();
+  }
+};
+</script>
+
+    <script>
+/* ============================================================================
    ROOM CHAT — short messages between the phones
    ----------------------------------------------------------------------------
    For a table that isn't at one table. The messages live on the room, outside
@@ -47455,6 +48376,7 @@ function roomTurnOf(state) {
       return s.phase === 'guessing' && s.guesserId === me ? 'turn_guess' : null;
     case 'fibbage':
     case 'twotruths':
+    case 'herd':
     case 'stop':
       return s.phase === 'writing' && inRound && !has(s.submitted) ? 'turn_write' : null;
     case 'trivia':
@@ -47477,6 +48399,8 @@ function roomTurnOf(state) {
       return s.phase === 'guess' && s.guesserId === me ? 'turn_guess' : null;
     case 'chameleon':
       return s.phase === 'guess' && s.chameleonId === me ? 'turn_guess' : null;
+    case 'mafia':
+      return s.phase === 'night' && has(s.alive) && !has(s.acted) ? 'turn_night' : null;
   }
   return null;
 }

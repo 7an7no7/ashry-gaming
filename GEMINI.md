@@ -61,7 +61,9 @@
   كذب):** everyone writes, everyone votes; 🖍️ **Draw & Write (ارسم واكتب):**
   the drawing telephone, drawn on phones and revealed on the TV.
 - **Multiplayer-only, also:** 🔔 **Buzzer (الجرس):** the host asks out loud,
-  every phone is a buzzer, the server keeps the order of presses.
+  every phone is a buzzer, the server keeps the order of presses;
+  🕴️ **Mafia (مافيا):** the app narrates night and day, roles on each phone;
+  🐄 **Herd Mentality (زي الكل):** write what most of the table will write.
 - **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
   or two on one phone; ⭕ **Tic Tac Toe (إكس أو)** against a friend or an
   unbeatable minimax.
@@ -83,8 +85,13 @@ work changed. Add to it when a decision is made or a batch ships.
 
 ### Waiting
 
-- **مافيا (Mafia / Werewolf)** - the owner's spec of 16 Sep 2026, to build in
-  rooms: the app is the narrator (night choices made silently on each phone,
+- **The card game scorers** (إستميشن, طرنيب, تريكس, كونكان, باصرة), asked for
+  on 16 Sep 2026 with the solo games; the last of that batch.
+
+### The owner's specs, as built
+
+- **مافيا (Mafia / Werewolf)** - the owner's spec of 16 Sep 2026, built the
+  same day (*مافيا in rooms*): the app is the narrator (night choices made silently on each phone,
   the server resolves them), the voting engine for the day, the TV for night
   and day, family wording ("خرج من اللعبة", no killing words).
   - **Two modes.** *Classic*: Mafia and Citizens only. *Roles*: adds the
@@ -99,8 +106,6 @@ work changed. Add to it when a decision is made or a batch ships.
     Mafia. With the option on, the real role is shown.
   - **There is time to talk**: a discussion clock before every vote, for
     arguing and accusing.
-- **Also asked for on 16 Sep 2026 and queued in this order**: زي الكل with مافيا in rooms, and the
-  card game scorers (إستميشن, طرنيب, تريكس, كونكان, باصرة).
 
 ### Ideas not built yet (researched 16 Sep 2026)
 
@@ -134,12 +139,8 @@ categories that name a kind of thing):
 
 Group candidates:
 
-- **زي الكل (Herd Mentality)**: everyone answers the same open question
-  ("أحسن أكلة في العيد؟"), the majority scores, the odd one out gets the
-  token; answers grouped through `normaliseClue`, the host merges near ones.
-- **على راسك (Heads Up)**: the phone on your forehead, the table describes,
-  tilt down for right and up to pass (device motion; iOS asks permission on a
-  tap); the Charades and Describe It cards.
+- Built since: **زي الكل** and **على راسك** (see *زي الكل in rooms* and *Solo
+  games*).
 - **العقل (The Mind)**: cooperative, each phone holds secret numbers and the
   table must play them in rising order without talking; no content.
 - **الرقم السري (Ito)**: a secret number 1-100 each and a scale ("حيوانات من
@@ -204,7 +205,10 @@ blind ranking, the word search), `countUp` for streaks and scores.
   Minesweeper; Queens, Tango, Nonogram; then خيوط, كلمات من حروف, إيه اللي
   يجمعهم؟, سلسلة الإجابات and الترتيب الأعمى, all from existing lists. The
   trivia questions moved to `TriviaQuestions.js` so the page can ask them.
-  Then خمّن الدولة with its country table, the تحدي اليوم hub, and على راسك. The soundboard moved from Settings
+  Then خمّن الدولة with its country table, the تحدي اليوم hub, على راسك,
+  and in rooms زي الكل and مافيا (the owner's spec: Classic and Roles, the
+  Lawyer, the app choosing the Mafia count, roles hidden when someone leaves
+  unless turned on, a discussion clock). Robot tests: 763. The soundboard moved from Settings
   to the tools. Solo boards sit beside their
   controls on laptops and TVs too (Sudoku's pad had been below the fold at
   1280×720).
@@ -668,6 +672,45 @@ puts them back in someone's place. A turn clock is a server deadline; with
 `autoPenalty` it costs a quarter, otherwise it only flags `timedOut` for the
 host. One-phone Monkey keeps its old helpers in `JS_Utils.html` (the reorder,
 the switch, mid-game players, the status edit, the timeout sheet).
+
+**زي الكل in rooms** (`herdAction`, `JS_RoomHerd.html`). One question for
+everyone ("اكتب حاجة واحدة من: فواكه"), dealt through `nextPrompt` from the
+Chameleon categories and the bomb's (`herdPrompts`, without the bomb's
+"حاجات بتطير" kind, which name a property rather than a kind). Answers wait in
+`room._herd.answers` until every phone has sent or the host presses
+`closeWriting`; then `herdGroups` groups them through `normaliseClue`, so قطة
+and القطه are one answer. In `reveal` the host can `merge` two groups that
+mean the same thing (tap one, then the other; `unmerge` puts them back) and
+then `score`: the single biggest group of two or more gets a point each, a tie
+for biggest scores nobody, and if exactly one player stands alone they take
+the sheep (`sheepId`) from whoever had it. Nobody holding the sheep can win:
+the first to the host's target (5, 8 or 10, `ashryHerdOpts`) without it wins.
+
+**مافيا in rooms** (`mafiaAction`, `JS_RoomMafia.html`), the owner's spec (see
+*The owner's specs*). `mafiaCount` picks the Mafia from the table (one up to
+six players, two up to nine, three beyond; five at least) and `mafiaRoles`
+adds the Doctor and the Detective in the Roles mode, and the Lawyer from six
+players. `room._mafia.roles` never leaves the server; `mafiaWriteSecrets`
+rewrites every phone's slice after each move: its role, the Mafia list for
+the Mafia and the Lawyer (the Mafia's list never names the Lawyer), the
+Mafia's picks for each other, the Doctor's last save, the Detective's checks
+(a Lawyer checks as not Mafia). Phases: `roles` (the role on a `.hold-card`),
+`night` (every living phone taps a name through `nightPick` - a suspect for
+those with nothing to do, so nobody can tell who acted - with a server clock;
+it ends when all have tapped, by the clock or by the host's `endNight`),
+`day` (the news, then a discussion clock the host can lengthen with
+`moreTime` or cut with `startVote`; the clock opening the vote is
+`roomTimeout`), `voting` (the voting engine, living players only, every
+option owned by its player so nobody votes themselves, plus "nobody"; a tie
+or "nobody" on top sends nobody out), `dayResult`, and `gameover` with every
+role in `shared.roles`. Someone who leaves is shown through `mafiaShownRole`:
+a Citizen unless Mafia, or their real role when the host turned
+`revealRoles` on. The Mafia win at parity (the Lawyer counts with the town
+there but wins with the Mafia); the town when no Mafia is left; each winner
+scores a point. The news is worded so it fits any name ("المافيا خرّجت
+{name} من اللعبة"): Arabic verbs agree with the subject, and a name doesn't
+say whether to write خرج or خرجت. `roomTurnOf` asks a living phone that
+hasn't tapped at night (`turn_night`).
 
 **The Buzzer (الجرس)** has no content at all: the host asks their own questions
 out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps

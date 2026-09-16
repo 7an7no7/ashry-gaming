@@ -66,7 +66,8 @@
   unbeatable minimax.
 - **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
   🚩 Minesweeper, 👑 Queens, ☀️ Tango, 🖼️ Nonogram; 🧵 خيوط, 🔡 كلمات من
-  حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 📊 الترتيب الأعمى.
+  حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 📊 الترتيب الأعمى, 🌍 خمّن
+  الدولة.
 - **Utility Tools:**
   - 👆 Who starts? (مين يبدأ؟), the finger chooser: one starts, two teams, or an order.
   - 🏆 Tournament Organizer, 👥 Team Generator, 🎡 Random Picker.
@@ -97,16 +98,15 @@ work changed. Add to it when a decision is made or a batch ships.
     Mafia. With the option on, the real role is shown.
   - **There is time to talk**: a discussion clock before every vote, for
     arguing and accusing.
-- **Also asked for on 16 Sep 2026 and queued in this order**: خمّن الدولة /
-  العلم, the تحدي اليوم hub, على راسك, زي الكل with مافيا in rooms, and the
+- **Also asked for on 16 Sep 2026 and queued in this order**: the تحدي اليوم hub, على راسك, زي الكل with مافيا in rooms, and the
   card game scorers (إستميشن, طرنيب, تريكس, كونكان, باصرة).
 
 ### Ideas not built yet (researched 16 Sep 2026)
 
 Solo was the gap (Wordle, Connections, Memory, X-O against the phone and Guess
 the Number). Built since, see *Solo games*: Sudoku, 2048, Minesweeper, Queens,
-Tango, Nonogram, خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات and
-الترتيب الأعمى. The candidates as researched, each within the owner's rules
+Tango, Nonogram, خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات,
+الترتيب الأعمى and خمّن الدولة. The candidates as researched, each within the owner's rules
 (free, offline where possible, nothing adult, content that doesn't go stale,
 categories that name a kind of thing):
 
@@ -203,7 +203,8 @@ blind ranking, the word search), `countUp` for streaks and scores.
   Minesweeper; Queens, Tango, Nonogram; then خيوط, كلمات من حروف, إيه اللي
   يجمعهم؟, سلسلة الإجابات and الترتيب الأعمى, all from existing lists. The
   trivia questions moved to `TriviaQuestions.js` so the page can ask them.
-  The soundboard moved from Settings to the tools. Solo boards sit beside their
+  Then خمّن الدولة with its country table. The soundboard moved from Settings
+  to the tools. Solo boards sit beside their
   controls on laptops and TVs too (Sudoku's pad had been below the fold at
   1280×720).
 
@@ -1097,6 +1098,22 @@ of its own:
   options from the same kind) and the proverbs. The question keeps its deadline,
   so a reload comes back with the time it has left, or counts it as missed.
   The daily is ten seeded questions.
+- **خمّن الدولة** (`JS_Flags.html`, id `flags`): from the flag (6 guesses) or
+  by distance alone (8). `COUNTRIES` is the one new list of the batch, because
+  nothing else knew where a country is: 196 countries with their code, the
+  names as ربع قرد spells them, the middle of the country, the continent and a
+  tier (1 everyone knows it, 3 small or far); easy asks tier 1, the daily
+  tiers 1-2. Israel is not in it; Palestine is. A guess is typed and picked
+  from suggestions (`flagsMatches`: both languages plus `FLAG_ALIASES` such as
+  أمريكا and England, through `foldWord`), so a spelling never loses a turn.
+  Each wrong guess shows the great-circle distance, an arrow turned to the
+  bearing and a closeness bar (`scaleX`), counting up and turning into place;
+  the continent shows after a few misses, then the first letter. In flag mode
+  the suggestions carry no flags, or the picture would give it away. **Flags
+  on Windows**: a flag emoji is two letters there ("EG"), so
+  `flagsEnsureFont` draws one to a canvas and, when it comes out as letters,
+  loads the Twemoji country-flag font (`country-flag-emoji-polyfill`, pinned on
+  jsDelivr) for `.flag-emoji`.
 - **الترتيب الأعمى** (`JS_BlindRank.html`, id `blindrank`): 5 or 10 things of a
   Chameleon category, each placed 1..n before the next shows; the word flies
   into its place. No score: the list is shared as text, and the daily gives

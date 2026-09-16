@@ -6647,6 +6647,80 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   pointer-events: none;
 }
 
+/* --- Guess the country --- */
+.flag-emoji { font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", sans-serif; }
+.flags-target {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-3);
+  text-align: center;
+}
+.flags-target__flag { font-size: clamp(4rem, 24vw, 6.5rem); line-height: 1.05; filter: drop-shadow(0 6px 12px rgba(15, 23, 42, 0.18)); }
+.flags-target__ask { color: var(--text-2); font-weight: 700; text-wrap: balance; }
+.flags-target__ask b { color: var(--text-strong); font-size: var(--fs-h1); }
+.flags-hints { padding: 2px var(--sp-3); border-radius: var(--r-full); background: var(--warning-soft); color: var(--warning-ink); font-size: var(--fs-sm); font-weight: 700; }
+.flags-guesses { display: grid; gap: 6px; width: 100%; max-width: 30rem; margin: 0 auto; padding: 0; list-style: none; }
+.flags-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 2.6rem;
+  padding: 0 var(--sp-3);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.flags-row > :not(.flags-row__fill) { position: relative; }
+.flags-row.is-empty { border-style: dashed; background: transparent; }
+.flags-row__fill { position: absolute; inset: 0; background: var(--accent-soft); transform: scaleX(var(--p, 0)); transform-origin: left center; }
+[dir="rtl"] .flags-row__fill { transform-origin: right center; }
+.flags-row__flag { font-size: 1.35rem; line-height: 1; }
+.flags-row__name { min-width: 0; overflow: hidden; color: var(--text-strong); text-overflow: ellipsis; white-space: nowrap; }
+.flags-row__km { color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; }
+.flags-row__arrow { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-on); font-size: 1rem; font-weight: 900; line-height: 1; transform: rotate(var(--deg)); }
+.flags-row__p { color: var(--text-3); font-size: var(--fs-xs); }
+.flags-row.is-right { border-color: transparent; background: var(--success-soft); }
+.flags-row.is-right .flags-row__fill { background: transparent; }
+.flags-row__win { font-size: 1.2rem; }
+.flags-row.is-new { animation: streak-in 300ms var(--ease-out) both; }
+.flags-row.is-new .flags-row__fill { animation: flags-fill 800ms var(--ease-out) 150ms both; }
+.flags-row.is-new .flags-row__arrow { animation: flags-turn 900ms cubic-bezier(0.34, 1.56, 0.64, 1) 150ms both; }
+@keyframes flags-fill { from { transform: scaleX(0); } }
+@keyframes flags-turn { from { transform: rotate(0deg); } }
+.flags-input { margin-bottom: var(--sp-3); }
+.flags-suggest { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+.flags-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 2.6rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  cursor: pointer;
+}
+.flags-chip .flag-emoji:empty { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .flags-chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+}
+/* Upright, the field comes before the guesses so the keyboard never covers it. */
+.solo-layout__board:has(.flags-target) { display: contents; }
+.flags-target { order: -1; }
+.solo-layout__side > .flags-input, .solo-layout__side > .flags-over { order: 0; }
+.flags-guesses { order: 1; }
+.solo-layout__side > .solo-bar:has(+ .flags-input), .flags-layout .solo-layout__side > .solo-bar { order: -2; }
+#solo-result-icon .flag-emoji { font-size: 3.5rem; line-height: 1; }
+
 /* A phone held sideways, and a laptop or TV: the board on one side, its keys
    and tools on the other. The board is sized off the shell's height, so it
    never needs scrolling. On a phone held upright it is one column, with the
@@ -6666,6 +6740,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   .solo-layout__board:has(.wheel-grid) { width: min(38vw, 22rem); }
   .wheel-grid { max-width: min(calc(var(--ww-cols) * 2.8rem), calc((var(--app-h, 100vh) - 8.5rem) * var(--ww-cols) / var(--ww-rows))); }
   .rank-slots { margin-bottom: 0; }
+  .solo-layout__board:has(.flags-target) { display: block; width: min(52vw, 30rem); }
 }
 @media (orientation: landscape) and (max-height: 500px) {
   /* The wheel beside the word being made and its four tools, two by two. */
@@ -6699,6 +6774,11 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   .solo-choice { min-height: 2.6rem; padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); }
   .solo-choices:has(> :nth-child(5)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .solo-choices { margin-bottom: var(--sp-2); }
+  .flags-target { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); }
+  .flags-target__flag { font-size: 2.4rem; }
+  .flags-row { min-height: 2rem; }
+  .flags-row__arrow { width: 1.35rem; height: 1.35rem; font-size: 0.85rem; }
+  .flags-guesses { gap: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -6706,6 +6786,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   .g2048-tile.is-new, .g2048-tile.is-merged { animation: none; }
   .pin-clue.is-new, .streak-card.is-new, .rank-card.is-new, .strands-word.motion-landed { animation: none; }
   .streak-timer i { animation: none; transform: none; }
+  .flags-row.is-new, .flags-row.is-new .flags-row__fill, .flags-row.is-new .flags-row__arrow { animation: none; }
 }
 
 </style>

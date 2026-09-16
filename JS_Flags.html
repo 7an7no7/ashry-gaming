@@ -1,0 +1,417 @@
+<script>
+/* ============================================================================
+   خمّن الدولة — A COUNTRY FROM ITS FLAG, OR FROM HOW FAR YOU ARE
+   ----------------------------------------------------------------------------
+   Two ways to play. From the flag (6 guesses): the flag is shown, and a
+   wrong guess says how far that country is from the answer and in which
+   direction. By distance (8 guesses): nothing is shown at all, only the
+   distance and the direction after each guess, like finding a place on a
+   globe. A hint appears after a few misses: the continent, then the first
+   letter.
+
+   COUNTRIES is the one list here, and only because nothing else in the app
+   knows where a country is: for each of the 196 countries, its code (which
+   draws the flag emoji), its name in both languages as ربع قرد spells it, the
+   middle of the country (latitude, longitude, to a tenth of a degree, enough
+   for distances), its continent and a tier (1 = everyone knows it, 3 = small
+   or far away). Easy asks tier 1, hard any; the daily asks tiers 1-2.
+   FLAG_ALIASES lets a guess be typed the way people say it (أمريكا, England).
+
+   A flag emoji is two "regional indicator" letters, which Windows draws as
+   letters - "EG" would give the answer away. flagsEnsureFont checks whether
+   this device draws flags and, if not, loads the Twemoji country flags font
+   (pinned on jsDelivr, cached by the service worker) for .flag-emoji.
+   appState.flags holds the game.
+   ========================================================================= */
+
+const COUNTRIES = `
+DZ|الجزائر|Algeria|28|2.6|af|1;AO|أنغولا|Angola|-12.3|17.5|af|2;BJ|بنين|Benin|9.3|2.3|af|3;BW|بوتسوانا|Botswana|-22.3|24.7|af|3;
+BF|بوركينا فاسو|Burkina Faso|12.2|-1.6|af|3;BI|بوروندي|Burundi|-3.4|29.9|af|3;CV|الرأس الأخضر|Cape Verde|16|-24|af|3;CM|الكاميرون|Cameroon|5.7|12.7|af|2;
+CF|جمهورية أفريقيا الوسطى|Central African Republic|6.6|20.9|af|3;TD|تشاد|Chad|15.5|18.7|af|2;KM|جزر القمر|Comoros|-11.9|43.9|af|2;
+CD|الكونغو الديمقراطية|DR Congo|-2.9|23.7|af|2;CG|جمهورية الكونغو|Republic of the Congo|-0.7|15.2|af|3;CI|ساحل العاج|Ivory Coast|7.5|-5.5|af|2;
+DJ|جيبوتي|Djibouti|11.8|42.6|af|2;EG|مصر|Egypt|26.8|30.8|af|1;GQ|غينيا الاستوائية|Equatorial Guinea|1.6|10.3|af|3;ER|إريتريا|Eritrea|15.2|39.8|af|3;
+SZ|إسواتيني|Eswatini|-26.5|31.5|af|3;ET|إثيوبيا|Ethiopia|9.1|40.5|af|2;GA|الغابون|Gabon|-0.8|11.6|af|3;GM|غامبيا|Gambia|13.4|-15.3|af|3;
+GH|غانا|Ghana|7.9|-1|af|2;GN|غينيا|Guinea|10.4|-10.9|af|3;GW|غينيا بيساو|Guinea-Bissau|12|-15|af|3;KE|كينيا|Kenya|0.2|37.9|af|2;
+LS|ليسوتو|Lesotho|-29.6|28.2|af|3;LR|ليبيريا|Liberia|6.4|-9.4|af|3;LY|ليبيا|Libya|26.3|17.2|af|1;MG|مدغشقر|Madagascar|-18.8|46.9|af|2;
+MW|مالاوي|Malawi|-13.3|34.3|af|3;ML|مالي|Mali|17.6|-4|af|2;MR|موريتانيا|Mauritania|21|-10.9|af|2;MU|موريشيوس|Mauritius|-20.3|57.6|af|3;
+MA|المغرب|Morocco|31.8|-7.1|af|1;MZ|موزمبيق|Mozambique|-18.7|35.5|af|3;NA|ناميبيا|Namibia|-22.6|17.1|af|3;NE|النيجر|Niger|17.6|8.1|af|2;
+NG|نيجيريا|Nigeria|9.1|8.7|af|1;RW|رواندا|Rwanda|-1.9|29.9|af|3;ST|ساو تومي وبرينسيبي|São Tomé and Príncipe|0.2|6.6|af|3;
+SN|السنغال|Senegal|14.5|-14.5|af|2;SC|سيشل|Seychelles|-4.7|55.5|af|3;SL|سيراليون|Sierra Leone|8.5|-11.8|af|3;SO|الصومال|Somalia|5.2|46.2|af|2;
+ZA|جنوب أفريقيا|South Africa|-30.6|22.9|af|1;SS|جنوب السودان|South Sudan|6.9|31.3|af|2;SD|السودان|Sudan|12.9|30.2|af|1;TZ|تنزانيا|Tanzania|-6.4|34.9|af|2;
+TG|توغو|Togo|8.6|0.8|af|3;TN|تونس|Tunisia|33.9|9.5|af|1;UG|أوغندا|Uganda|1.4|32.3|af|2;ZM|زامبيا|Zambia|-13.1|27.8|af|3;ZW|زيمبابوي|Zimbabwe|-19|29.2|af|2;
+AF|أفغانستان|Afghanistan|33.9|67.7|as|2;AM|أرمينيا|Armenia|40.1|45|as|2;AZ|أذربيجان|Azerbaijan|40.1|47.6|as|2;BH|البحرين|Bahrain|26|50.6|as|1;
+BD|بنغلاديش|Bangladesh|23.7|90.4|as|2;BT|بوتان|Bhutan|27.5|90.4|as|3;BN|بروناي|Brunei|4.5|114.7|as|3;KH|كمبوديا|Cambodia|12.6|105|as|3;
+CN|الصين|China|35.9|104.2|as|1;GE|جورجيا|Georgia|42.3|43.4|as|2;IN|الهند|India|20.6|79|as|1;ID|إندونيسيا|Indonesia|-0.8|113.9|as|1;
+IR|إيران|Iran|32.4|53.7|as|1;IQ|العراق|Iraq|33.2|43.7|as|1;JP|اليابان|Japan|36.2|138.3|as|1;JO|الأردن|Jordan|30.6|36.2|as|1;
+KZ|كازاخستان|Kazakhstan|48|66.9|as|2;KW|الكويت|Kuwait|29.3|47.5|as|1;KG|قيرغيزستان|Kyrgyzstan|41.2|74.8|as|3;LA|لاوس|Laos|19.9|102.5|as|3;
+LB|لبنان|Lebanon|33.9|35.9|as|1;MY|ماليزيا|Malaysia|4.2|102|as|1;MV|جزر المالديف|Maldives|3.2|73.2|as|2;MN|منغوليا|Mongolia|46.9|103.8|as|2;
+MM|ميانمار|Myanmar|21.9|96|as|3;NP|نيبال|Nepal|28.4|84.1|as|2;KP|كوريا الشمالية|North Korea|40.3|127.5|as|2;OM|عمان|Oman|21.5|55.9|as|1;
+PK|باكستان|Pakistan|30.4|69.3|as|1;PS|فلسطين|Palestine|31.9|35.2|as|1;PH|الفلبين|Philippines|12.9|121.8|as|1;QA|قطر|Qatar|25.4|51.2|as|1;
+SA|السعودية|Saudi Arabia|23.9|45.1|as|1;SG|سنغافورة|Singapore|1.4|103.8|as|1;KR|كوريا الجنوبية|South Korea|35.9|127.8|as|1;LK|سريلانكا|Sri Lanka|7.9|80.8|as|2;
+SY|سوريا|Syria|34.8|39|as|1;TW|تايوان|Taiwan|23.7|121|as|2;TJ|طاجيكستان|Tajikistan|38.9|71.3|as|3;TH|تايلاند|Thailand|15.9|101|as|1;
+TL|تيمور الشرقية|East Timor|-8.9|125.7|as|3;TR|تركيا|Turkey|39|35.2|as|1;TM|تركمانستان|Turkmenistan|39|59.6|as|3;AE|الإمارات|United Arab Emirates|23.4|53.8|as|1;
+UZ|أوزبكستان|Uzbekistan|41.4|64.6|as|2;VN|فيتنام|Vietnam|14.1|108.3|as|1;YE|اليمن|Yemen|15.6|48.5|as|1;
+AL|ألبانيا|Albania|41.2|20.2|eu|2;AD|أندورا|Andorra|42.5|1.5|eu|3;AT|النمسا|Austria|47.5|14.6|eu|1;BY|بيلاروس|Belarus|53.7|28|eu|2;
+BE|بلجيكا|Belgium|50.5|4.5|eu|1;BA|البوسنة والهرسك|Bosnia and Herzegovina|43.9|17.7|eu|2;BG|بلغاريا|Bulgaria|42.7|25.5|eu|2;HR|كرواتيا|Croatia|45.1|15.2|eu|1;
+CY|قبرص|Cyprus|35.1|33.4|eu|2;CZ|التشيك|Czechia|49.8|15.5|eu|2;DK|الدنمارك|Denmark|56.3|9.5|eu|1;EE|إستونيا|Estonia|58.6|25|eu|3;
+FI|فنلندا|Finland|61.9|25.7|eu|2;FR|فرنسا|France|46.2|2.2|eu|1;DE|ألمانيا|Germany|51.2|10.5|eu|1;GR|اليونان|Greece|39.1|21.8|eu|1;
+HU|المجر|Hungary|47.2|19.5|eu|2;IS|آيسلندا|Iceland|65|-19|eu|2;IE|أيرلندا|Ireland|53.4|-8.2|eu|2;IT|إيطاليا|Italy|41.9|12.6|eu|1;
+XK|كوسوفو|Kosovo|42.6|20.9|eu|3;LV|لاتفيا|Latvia|56.9|24.6|eu|3;LI|ليختنشتاين|Liechtenstein|47.2|9.6|eu|3;LT|ليتوانيا|Lithuania|55.2|23.9|eu|3;
+LU|لوكسمبورغ|Luxembourg|49.8|6.1|eu|2;MT|مالطا|Malta|35.9|14.4|eu|2;MD|مولدوفا|Moldova|47.4|28.4|eu|3;MC|موناكو|Monaco|43.7|7.4|eu|2;
+ME|الجبل الأسود|Montenegro|42.7|19.4|eu|3;NL|هولندا|Netherlands|52.1|5.3|eu|1;MK|مقدونيا الشمالية|North Macedonia|41.6|21.7|eu|3;NO|النرويج|Norway|60.5|8.5|eu|1;
+PL|بولندا|Poland|51.9|19.1|eu|1;PT|البرتغال|Portugal|39.4|-8.2|eu|1;RO|رومانيا|Romania|45.9|25|eu|2;RU|روسيا|Russia|61.5|105.3|eu|1;
+SM|سان مارينو|San Marino|43.9|12.5|eu|3;RS|صربيا|Serbia|44|21|eu|2;SK|سلوفاكيا|Slovakia|48.7|19.7|eu|3;SI|سلوفينيا|Slovenia|46.2|15|eu|3;
+ES|إسبانيا|Spain|40.5|-3.7|eu|1;SE|السويد|Sweden|60.1|18.6|eu|1;CH|سويسرا|Switzerland|46.8|8.2|eu|1;UA|أوكرانيا|Ukraine|48.4|31.2|eu|1;
+GB|المملكة المتحدة|United Kingdom|55.4|-3.4|eu|1;VA|الفاتيكان|Vatican City|41.9|12.5|eu|2;
+AG|أنتيغوا وباربودا|Antigua and Barbuda|17.1|-61.8|na|3;BS|باهاماس|Bahamas|25|-77.4|na|3;BB|بربادوس|Barbados|13.2|-59.5|na|3;BZ|بليز|Belize|17.2|-88.5|na|3;
+CA|كندا|Canada|56.1|-106.3|na|1;CR|كوستاريكا|Costa Rica|9.7|-83.8|na|2;CU|كوبا|Cuba|21.5|-77.8|na|2;DM|دومينيكا|Dominica|15.4|-61.4|na|3;
+DO|جمهورية الدومينيكان|Dominican Republic|18.7|-70.2|na|3;SV|السلفادور|El Salvador|13.8|-88.9|na|3;GD|غرينادا|Grenada|12.1|-61.7|na|3;GT|غواتيمالا|Guatemala|15.8|-90.2|na|3;
+HT|هايتي|Haiti|19|-72.3|na|3;HN|هندوراس|Honduras|15.2|-86.2|na|3;JM|جامايكا|Jamaica|18.1|-77.3|na|2;MX|المكسيك|Mexico|23.6|-102.6|na|1;
+NI|نيكاراغوا|Nicaragua|12.9|-85.2|na|3;PA|بنما|Panama|8.5|-80.8|na|2;KN|سانت كيتس ونيفيس|Saint Kitts and Nevis|17.4|-62.8|na|3;LC|سانت لوسيا|Saint Lucia|13.9|-61|na|3;
+VC|سانت فينسنت والغرينادين|Saint Vincent and the Grenadines|13|-61.3|na|3;TT|ترينيداد وتوباغو|Trinidad and Tobago|10.7|-61.2|na|3;US|الولايات المتحدة|United States|37.1|-95.7|na|1;
+AR|الأرجنتين|Argentina|-38.4|-63.6|sa|1;BO|بوليفيا|Bolivia|-16.3|-63.6|sa|2;BR|البرازيل|Brazil|-14.2|-51.9|sa|1;CL|تشيلي|Chile|-35.7|-71.5|sa|1;
+CO|كولومبيا|Colombia|4.6|-74.3|sa|1;EC|الإكوادور|Ecuador|-1.8|-78.2|sa|2;GY|غيانا|Guyana|4.9|-58.9|sa|3;PY|باراغواي|Paraguay|-23.4|-58.4|sa|2;
+PE|بيرو|Peru|-9.2|-75|sa|2;SR|سورينام|Suriname|3.9|-56|sa|3;UY|أوروغواي|Uruguay|-32.5|-55.8|sa|2;VE|فنزويلا|Venezuela|6.4|-66.6|sa|2;
+AU|أستراليا|Australia|-25.3|133.8|oc|1;FJ|فيجي|Fiji|-17.7|178.1|oc|3;KI|كيريباتي|Kiribati|1.4|173|oc|3;MH|جزر مارشال|Marshall Islands|7.1|171.2|oc|3;
+FM|ميكرونيزيا|Micronesia|7.4|150.6|oc|3;NR|ناورو|Nauru|-0.5|166.9|oc|3;NZ|نيوزيلندا|New Zealand|-40.9|174.9|oc|1;PW|بالاو|Palau|7.5|134.6|oc|3;
+PG|بابوا غينيا الجديدة|Papua New Guinea|-6.3|144|oc|3;WS|ساموا|Samoa|-13.8|-172.1|oc|3;SB|جزر سليمان|Solomon Islands|-9.6|160.2|oc|3;TO|تونغا|Tonga|-21.2|-175.2|oc|3;
+TV|توفالو|Tuvalu|-7.1|177.6|oc|3;VU|فانواتو|Vanuatu|-15.4|167|oc|3
+`.trim().split(';').map(row => {
+  const [code, ar, en, lat, lon, cont, tier] = row.trim().split('|');
+  return { code: code, ar: ar, en: en, lat: Number(lat), lon: Number(lon), cont: cont, tier: Number(tier) };
+});
+
+const FLAG_ALIASES = {
+  US: 'أمريكا|الولايات المتحدة الأمريكية|America|USA|United States of America',
+  GB: 'بريطانيا|إنجلترا|انكلترا|Britain|Great Britain|England|UK',
+  AE: 'الإمارات العربية المتحدة|UAE|Emirates',
+  SA: 'المملكة العربية السعودية|KSA',
+  NL: 'هولاندا|Holland',
+  CZ: 'تشيكيا|جمهورية التشيك|Czech Republic',
+  CD: 'جمهورية الكونغو الديمقراطية|الكونغو|Congo',
+  CG: 'الكونغو|Congo',
+  CI: 'كوت ديفوار|Cote d Ivoire',
+  SZ: 'سوازيلاند|Swaziland',
+  MM: 'بورما|Burma',
+  MK: 'مقدونيا|Macedonia',
+  TL: 'تيمور|Timor-Leste',
+  CV: 'كابو فيردي|Cabo Verde',
+  BA: 'البوسنة|Bosnia',
+  KR: 'كوريا|Korea',
+  RU: 'روسيا الاتحادية',
+  VA: 'الكرسي الرسولي|Vatican|Holy See',
+  GA: 'الجابون',
+  GM: 'جامبيا',
+  OM: 'سلطنة عمان',
+  TR: 'Turkiye',
+  IR: 'فارس|Persia',
+  MV: 'المالديف',
+  KM: 'القمر',
+  BB: 'باربادوس'
+};
+
+const FLAG_MODES = { flag: { guesses: 6 }, far: { guesses: 8 } };
+const FLAG_FONT_URL = 'https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1.10/dist/TwemojiCountryFlags.woff2';
+const FLAG_ARROWS = ['⬆️', '↗️', '➡️', '↘️', '⬇️', '↙️', '⬅️', '↖️'];
+let flagsFontAsked = false;
+
+function flagsState() {
+  if (!appState.flags) {
+    appState.flags = { mode: 'flag', level: 'easy', daily: '', lang: 'ar', answer: '', guesses: [], phase: 'setup' };
+  }
+  return appState.flags;
+}
+
+const flagEmoji = (code) => String(code).toUpperCase().replace(/./g, ch => String.fromCodePoint(0x1F1E6 + ch.charCodeAt(0) - 65));
+const flagCountry = (code) => COUNTRIES.find(c => c.code === code);
+const flagName = (c, lang) => c ? (lang === 'en' ? c.en : c.ar) : '';
+
+/* --- Flags that draw as letters --------------------------------------------------------- */
+
+function flagsDrawnAsEmoji(text) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.textBaseline = 'top';
+    ctx.font = '100px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Android Emoji",sans-serif';
+    ctx.scale(0.01, 0.01);
+    const paint = (colour) => { ctx.clearRect(0, 0, 100, 100); ctx.fillStyle = colour; ctx.fillText(text, 0, 0); return ctx.getImageData(0, 0, 1, 1).data.join(','); };
+    const white = paint('#fff'), black = paint('#000');
+    return white === black && !black.startsWith('0,0,0,');
+  } catch (e) {
+    return true;
+  }
+}
+
+/** Loads the flag font where the device can't draw flags. Resolves true once flags will show. */
+function flagsEnsureFont() {
+  if (flagsFontAsked) return flagsFontAsked;
+  if (flagsDrawnAsEmoji('\u{1F60A}') && !flagsDrawnAsEmoji('\u{1F1EA}\u{1F1EC}')) {
+    const style = document.createElement('style');
+    style.textContent = `@font-face { font-family: "Twemoji Country Flags"; unicode-range: U+1F1E6-1F1FF; src: url('${FLAG_FONT_URL}') format('woff2'); font-display: block; }`;
+    document.head.appendChild(style);
+    flagsFontAsked = document.fonts && document.fonts.load
+      ? document.fonts.load('1em "Twemoji Country Flags"', '\u{1F1EA}\u{1F1EC}').then(list => list.length > 0).catch(() => false)
+      : Promise.resolve(false);
+  } else {
+    flagsFontAsked = Promise.resolve(true);
+  }
+  return flagsFontAsked;
+}
+
+/* --- Distances ------------------------------------------------------------------------------ */
+
+function flagsDistance(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return Math.round(2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h))));
+}
+
+/** The compass bearing from a to b, 0 = north, clockwise. */
+function flagsBearing(a, b) {
+  const rad = Math.PI / 180;
+  const y = Math.sin((b.lon - a.lon) * rad) * Math.cos(b.lat * rad);
+  const x = Math.cos(a.lat * rad) * Math.sin(b.lat * rad) - Math.sin(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((b.lon - a.lon) * rad);
+  return (Math.atan2(y, x) / rad + 360) % 360;
+}
+
+const flagsProximity = (km) => Math.max(0, Math.round(100 * (1 - km / 20015)));
+
+/* --- Setup ------------------------------------------------------------------------------------ */
+
+function setupFlags() {
+  setView('setup-flags');
+}
+
+function paintFlagsSetup() {
+  const s = flagsState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#flags-mode .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.mode));
+  document.querySelectorAll('#flags-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('flags', s.mode + ':' + s.level);
+  const el = document.getElementById('flags-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${best.guesses} ${t.flags_tries || ''}` : '';
+  const cont = document.getElementById('flags-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('flags-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('flags', 'startFlags(true)');
+  flagsEnsureFont();
+}
+
+function setFlagsMode(mode) {
+  flagsState().mode = FLAG_MODES[mode] ? mode : 'flag';
+  saveToLocal();
+  paintFlagsSetup();
+}
+
+function setFlagsLevel(level) {
+  flagsState().level = level === 'hard' ? 'hard' : 'easy';
+  saveToLocal();
+  paintFlagsSetup();
+}
+
+function startFlags(daily) {
+  const s = flagsState();
+  const mode = daily ? 'flag' : s.mode;
+  const level = daily ? 'daily' : s.level;
+  const pool = COUNTRIES.filter(c => level === 'easy' ? c.tier === 1 : (level === 'daily' ? c.tier <= 2 : true));
+  const answer = daily
+    ? soloPick(pool, soloRng(soloDaySeed('flags')))
+    : freshPick('flags:' + level, pool, 1, { key: c => c.code })[0];
+  Object.assign(s, {
+    daily: daily ? soloToday() : '', playMode: mode, playLevel: level, lang: contentLang() === 'en' ? 'en' : 'ar',
+    answer: answer.code, guesses: [], query: '', phase: 'play', startedAt: Date.now()
+  });
+  saveToLocal();
+  setView('play-flags');
+  paintFlags();
+  flagsEnsureFont();
+}
+
+function continueFlags() {
+  if (flagsState().phase !== 'play') return;
+  setView('play-flags');
+  paintFlags();
+}
+
+/* --- Play ----------------------------------------------------------------------------------------- */
+
+function flagsHints(s, t) {
+  const target = flagCountry(s.answer);
+  const misses = s.guesses.length;
+  const hints = [];
+  const contAt = s.playMode === 'flag' ? 3 : 4;
+  const letterAt = s.playMode === 'flag' ? 5 : 6;
+  if (misses >= contAt) hints.push(`🧭 ${escapeHTML(t['flags_cont_' + target.cont] || '')}`);
+  if (misses >= letterAt) hints.push(`🔤 ${escapeHTML(flagName(target, s.lang).replace(/^ال/, '').charAt(0))}…`);
+  return hints;
+}
+
+function flagsGuessRow(g, i, fresh, t) {
+  const c = flagCountry(g.code);
+  const s = flagsState();
+  const right = g.code === s.answer;
+  return `<li class="flags-row${right ? ' is-right' : ''}${fresh ? ' is-new' : ''}" style="--p:${right ? 1 : g.p / 100}">
+    <span class="flags-row__fill" aria-hidden="true"></span>
+    <span class="flag-emoji flags-row__flag" aria-hidden="true">${flagEmoji(g.code)}</span>
+    <b class="flags-row__name">${escapeHTML(flagName(c, s.lang))}</b>
+    ${right ? `<span class="flags-row__win">🎉</span>` : `
+      <span class="flags-row__km"><span class="metric" data-km="${g.km}">${g.km.toLocaleString('en-US')}</span> ${escapeHTML(t.flags_km || '')}</span>
+      <span class="flags-row__arrow" style="--deg:${Math.round(g.deg)}deg" aria-label="${Math.round(g.deg)}°">↑</span>
+      <span class="flags-row__p metric">${g.p}%</span>`}
+  </li>`;
+}
+
+function paintFlags(freshIndex) {
+  const s = flagsState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('flags-stage');
+  const target = flagCountry(s.answer);
+  if (!el || !target) return;
+  const max = FLAG_MODES[s.playMode].guesses;
+  const over = s.phase !== 'play';
+  const hints = over ? [] : flagsHints(s, t);
+  const bar = soloBarHtml([
+    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: escapeHTML(t['solo_lvl_' + s.playLevel] || '') },
+    { label: t.flags_left || '', value: max - s.guesses.length, id: 'flags-left' }
+  ]);
+  const showFlag = s.playMode === 'flag' || over;
+  el.innerHTML = `
+    <div class="solo-layout flags-layout">
+      <div class="solo-layout__board">
+        <div class="flags-target${over ? ' is-over' : ''}">
+          ${showFlag ? `<span class="flag-emoji flags-target__flag" id="flags-flag">${flagEmoji(s.answer)}</span>` : `<span class="flags-target__flag" aria-hidden="true">🧭</span>`}
+          <span class="flags-target__ask">${over ? `<b>${escapeHTML(flagName(target, s.lang))}</b>` : escapeHTML(s.playMode === 'flag' ? (t.flags_ask_flag || '') : (t.flags_ask_far || ''))}</span>
+          ${hints.length ? `<span class="flags-hints">${hints.join(' · ')}</span>` : ''}
+        </div>
+        <ol class="flags-guesses" id="flags-guesses">
+          ${s.guesses.map((g, i) => flagsGuessRow(g, i, i === freshIndex, t)).join('')}
+          ${over ? '' : Array.from({ length: max - s.guesses.length }, () => '<li class="flags-row is-empty"></li>').join('')}
+        </ol>
+      </div>
+      <div class="solo-layout__side">
+        ${bar}
+        ${over ? `
+          <div class="btn-stack flags-over">
+            <button type="button" class="btn btn--primary" onclick="startFlags(false)">${escapeHTML(t.play_again || '')}</button>
+          </div>` : `
+          <div class="flags-input">
+            <input type="text" id="flags-query" autocomplete="off" autocorrect="off" spellcheck="false"
+              dir="auto" placeholder="${escapeHTML(t.flags_type || '')}" value="${escapeHTML(s.query || '')}"
+              oninput="flagsSuggest(this.value)" onkeydown="if (event.key === 'Enter') { event.preventDefault(); flagsPickFirst(); }">
+            <div class="flags-suggest" id="flags-suggest"></div>
+          </div>`}
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupFlags()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+  if (!over) flagsSuggest(s.query || '', true);
+  const fresh = typeof freshIndex === 'number' ? document.querySelector(`#flags-guesses .flags-row:nth-child(${freshIndex + 1}) [data-km]`) : null;
+  if (fresh && typeof countUp === 'function' && !motionOff()) {
+    const km = Number(fresh.dataset.km);
+    countUp(fresh, 0, km);
+  }
+}
+
+function flagsMatches(query) {
+  const s = flagsState();
+  const q = foldWord(query);
+  if (!q) return [];
+  const taken = new Set(s.guesses.map(g => g.code));
+  const scored = [];
+  COUNTRIES.forEach(c => {
+    if (taken.has(c.code)) return;
+    const names = [c.ar, c.en].concat((FLAG_ALIASES[c.code] || '').split('|').filter(Boolean)).map(foldWord);
+    let score = 0;
+    names.forEach(n => {
+      if (n === q) score = Math.max(score, 3);
+      else if (n.indexOf(q) === 0) score = Math.max(score, 2);
+      else if (q.length >= 2 && n.indexOf(q) !== -1) score = Math.max(score, 1);
+    });
+    if (score) scored.push({ c: c, score: score });
+  });
+  return scored.sort((a, b) => b.score - a.score || a.c.tier - b.c.tier || flagName(a.c, s.lang).localeCompare(flagName(b.c, s.lang))).slice(0, 6).map(x => x.c);
+}
+
+function flagsSuggest(query, keep) {
+  const s = flagsState();
+  s.query = query;
+  const box = document.getElementById('flags-suggest');
+  if (!box) return;
+  const list = flagsMatches(query);
+  box.innerHTML = list.map(c => `
+    <button type="button" class="flags-chip" onclick="guessFlags('${c.code}')">
+      <span class="flag-emoji" aria-hidden="true">${s.playMode === 'flag' ? '' : flagEmoji(c.code)}</span>${escapeHTML(flagName(c, s.lang))}</button>`).join('')
+    || (query && foldWord(query) ? `<span class="field__hint">${escapeHTML((TRANSLATIONS[appState.lang] || {}).flags_none || '')}</span>` : '');
+  if (!keep) saveToLocal();
+}
+
+function flagsPickFirst() {
+  const first = flagsMatches(flagsState().query || '')[0];
+  if (first) guessFlags(first.code);
+}
+
+function guessFlags(code) {
+  const s = flagsState();
+  const t = TRANSLATIONS[appState.lang];
+  const guess = flagCountry(code), target = flagCountry(s.answer);
+  if (s.phase !== 'play' || !guess || s.guesses.some(g => g.code === code)) return;
+  const km = flagsDistance(guess, target);
+  s.guesses.push({ code: code, km: km, deg: flagsBearing(guess, target), p: code === s.answer ? 100 : flagsProximity(km) });
+  s.query = '';
+  const won = code === s.answer;
+  const lost = !won && s.guesses.length >= FLAG_MODES[s.playMode].guesses;
+  if (won || lost) s.phase = 'done';
+  saveToLocal();
+  haptic(won ? 'light' : 'medium');
+  playSound(won ? 'success' : (lost ? 'alarm' : 'click'));
+  paintFlags(s.guesses.length - 1);
+  const input = document.getElementById('flags-query');
+  if (input && !won && !lost && window.matchMedia && window.matchMedia('(pointer: fine)').matches) input.focus();
+  if (won || lost) flagsFinish(won);
+}
+
+function flagsFinish(won) {
+  const s = flagsState();
+  const t = TRANSLATIONS[appState.lang];
+  const target = flagCountry(s.answer);
+  const max = FLAG_MODES[s.playMode].guesses;
+  const tries = s.guesses.length;
+  const key = s.playMode + ':' + s.playLevel;
+  const rec = won && !s.daily ? soloRecord('flags', key, { guesses: tries }, (a, b) => a.guesses < b.guesses) : { record: false, prev: soloBest('flags', key) };
+  const squares = (p) => {
+    const full = Math.floor(p / 20);
+    const half = p % 20 >= 10 && full < 5 ? 1 : 0;
+    return '🟩'.repeat(full) + '🟨'.repeat(half) + '⬜'.repeat(5 - full - half);
+  };
+  const lines = s.guesses.map(g => g.code === s.answer ? `${squares(100)} 🎉` : `${squares(g.p)} ${FLAG_ARROWS[Math.round(g.deg / 45) % 8]}`);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('flags', { won: won, guesses: tries });
+    share = `${soloShareHeader(t)}\n🌍 ${t.setup_flags || ''} ${won ? tries : 'X'}/${max}\n${lines.join('\n')}`;
+  }
+  const detail = [`<span class="flag-emoji">${flagEmoji(s.answer)}</span> ${escapeHTML(flagName(target, s.lang))}`];
+  if (rec.prev && !rec.record && won) detail.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.guesses}`);
+  const flag = document.getElementById('flags-flag');
+  if (flag && flag.animate && !motionOff()) flag.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25) rotate(-6deg)' }, { transform: 'none' }], { duration: 600, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  setTimeout(() => soloResult({
+    icon: `<span class="flag-emoji">${flagEmoji(s.answer)}</span>`,
+    title: won ? (rec.record ? (t.solo_new_best || '') : (t.flags_won || '')) : (t.flags_lost || ''),
+    valueText: won ? `${tries}/${max}` : `X/${max}`, valueLabel: t.flags_tries || '', lines: detail, win: won, share: share,
+    again: () => startFlags(false), exit: setupFlags
+  }), motionOff() ? 0 : 900);
+}
+
+function restoreFlags() {
+  const s = flagsState();
+  if (!s.answer || (s.phase !== 'play' && s.phase !== 'done')) return false;
+  paintFlags();
+  flagsEnsureFont();
+  return true;
+}
+
+soloRegister('flags', { setup: 'setup-flags', play: 'play-flags', paintSetup: paintFlagsSetup, restore: restoreFlags });
+</script>

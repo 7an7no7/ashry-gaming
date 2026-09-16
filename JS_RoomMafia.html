@@ -337,7 +337,7 @@ TV_GAMES.mafia = {
     const s = state.shared;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
     const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
-    const clock = s.endsAt ? `<div id="tv-mafia-clock" class="tv-clock metric">${mafiaClockText(s.endsAt)}</div>` : '';
+    const clock = s.endsAt ? `<div id="tv-mafia-clock" class="tv-clock">${mafiaClockText(s.endsAt)}</div>` : '';
     const people = `<div class="tv-strip-inline">${(s.alive || []).map(id => `<span class="tv-chip">${escapeHTML(nameOf(id))}</span>`).join('')}${(s.out || []).map(o => `<span class="tv-chip is-away">${MAFIA_ICONS[o.role] || ''} ${escapeHTML(o.name)}</span>`).join('')}</div>`;
     if (s.phase === 'roles') {
       return `<div class="tv-center"><div class="tv-big-icon" aria-hidden="true">🎭</div>
@@ -360,7 +360,10 @@ TV_GAMES.mafia = {
       return `<div class="tv-vote"><div class="tv-title tv-center-text">🗳️ ${escapeHTML(t.mafia_who_leaves || '')}</div>${people}${tvVoteProgress(state, t)}</div>`;
     }
     if (s.phase === 'dayResult') {
-      return `<div class="tv-vote"><div class="tv-scale">${mafiaNewsHtml(state, t)}${s.vote && s.vote.results ? renderVoteResults(mafiaVoteState(state)) : ''}</div>${people}
+      // One screen, no scrolling: the count per name as chips, not the phone's bars.
+      const results = ((mafiaVoteState(state).shared.vote || {}).results || []).filter(r => r.count > 0).sort((a, b) => b.count - a.count);
+      return `<div class="tv-vote"><div class="tv-scale">${mafiaNewsHtml(state, t)}</div>
+        <div class="tv-legend">${results.map((r, k) => `<span class="tv-chip${k === 0 ? ' is-done' : ''}"><b class="metric">${r.count}</b> ${escapeHTML(r.label)}</span>`).join('')}</div>${people}
         ${host(tvBtn('🌙 ' + (t.mafia_next_night || ''), "roomAct('startNight')"))}</div>`;
     }
     return `<div class="tv-vote">

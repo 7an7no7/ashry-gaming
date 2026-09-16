@@ -3778,6 +3778,8 @@ body.is-tv-view .shell__main > #view-room-tv { width: 100%; max-width: none; mar
 .tv-chip.is-away { opacity: 0.45; }
 .tv-chip.is-turn { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .tv-chip.is-done { border-color: var(--success); color: var(--success-ink); }
+.herd-tv .tv-chip { flex-direction: column; gap: 0.1em; padding: 0.4em 1em; }
+.herd-tv__names { color: var(--text-2); font-size: 0.7em; font-weight: 600; }
 .tv-chip__score {
   padding: 0 0.45em;
   border-radius: var(--r-full);
@@ -3855,6 +3857,7 @@ body.is-tv-view .shell__main > #view-room-tv { width: 100%; max-width: none; mar
 .tv-timer--big.is-low { background: var(--danger-soft); }
 .tv-clock {
   direction: ltr;
+  text-align: center;
   font-size: calc(var(--tv-xl) * 1.4);
   font-weight: 900;
   line-height: 1;
@@ -6209,7 +6212,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .sdk-cell.is-wrong { color: var(--danger); }
 .sdk-notes { position: absolute; inset: 1px; display: grid; grid-template-columns: repeat(3, 1fr); color: var(--text-2); font-size: clamp(0.45rem, 2.1vw, 0.65rem); font-weight: 700; line-height: 1; }
 .sdk-notes i { display: grid; place-items: center; font-style: normal; }
-.sdk-pad { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; max-width: 30rem; margin: var(--sp-3) auto 0; }
+.sdk-pad { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; width: 100%; max-width: 30rem; margin: var(--sp-3) auto 0; }
 .sdk-key {
   display: flex;
   flex-direction: column;
@@ -6715,6 +6718,111 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* --- حاسبة الورق --- */
+.cs-board { display: grid; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.cs-board__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-1); }
+.cs-total {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 2.75rem;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.cs-total__rank { color: var(--text-3); font-size: var(--fs-sm); }
+.cs-total__name { min-width: 0; overflow: hidden; color: var(--text-strong); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.cs-total__score { color: var(--text-strong); font-size: var(--fs-h2); }
+.cs-total.is-lead { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.cs-total.is-lead .cs-total__score { color: var(--accent-ink); }
+.cs-total.is-out { opacity: 0.5; }
+.cs-total.is-out .cs-total__name { text-decoration: line-through; }
+.cs-entry { display: grid; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.cs-entry__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); color: var(--text-strong); font-size: var(--fs-h3); }
+.cs-label { color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; }
+/* A name and its inputs side by side, the inputs moving under the name when
+   they don't fit (إستميشن's two steppers and dash on a phone). */
+.cs-seat-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--border);
+}
+.cs-seat-row > .cs-seat-row__name { flex: 1 1 6rem; }
+.cs-seat-row > :not(.cs-seat-row__name) { flex: 0 0 auto; margin-inline-start: auto; }
+.cs-seat-row:last-child { border-bottom: 0; }
+.cs-seat-row__name { min-width: 0; overflow: hidden; color: var(--text-strong); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.cs-seat-row__cells { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--sp-2); }
+.cs-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.cs-cell > small { color: var(--text-3); font-size: var(--fs-xs); font-weight: 700; }
+.cs-step { display: inline-flex; align-items: stretch; overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-solid); }
+.cs-step__btn { width: 2.2rem; min-height: 2.4rem; border: 0; background: var(--surface-2); color: var(--text-strong); font-size: 1.1rem; font-weight: 800; cursor: pointer; }
+.cs-step__val {
+  width: 2.8rem;
+  min-height: 2.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: var(--fs-h3);
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.cs-step__val::-webkit-outer-spin-button, .cs-step__val::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.cs-pick { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.cs-pick__item {
+  min-height: 2.5rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.cs-pick__item.is-on { border-color: var(--accent); background: var(--accent); color: var(--accent-on); }
+.cs-card { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); }
+.cs-card__title { color: var(--text-strong); font-size: var(--fs-h3); }
+.cs-toggles { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.cs-toggle {
+  min-height: 2.4rem;
+  padding: 0 var(--sp-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.cs-toggle.is-on { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.cs-check { display: flex; align-items: center; gap: var(--sp-2); color: var(--text-strong); font-weight: 700; }
+.cs-check input { width: 1.2rem; height: 1.2rem; accent-color: var(--accent); }
+.cs-note { color: var(--text-3); font-size: var(--fs-xs); }
+.cs-table { display: grid; gap: 2px; overflow-x: auto; }
+.cs-layout__side > * + * { margin-top: var(--sp-3); }
+/* Sideways and on wide screens: the totals and the rounds beside the round card. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .cs-layout { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: var(--sp-3); align-items: start; }
+  .cs-layout__side { position: sticky; top: 0; max-height: calc(var(--app-h, 100vh) - 7rem); overflow-y: auto; }
+  .cs-layout .cs-board { margin-bottom: 0; }
+  .cs-layout--over { display: block; }
+  .cs-layout--over .cs-layout__side { position: static; max-height: none; overflow: visible; }
+}
+.cs-row { display: grid; grid-template-columns: 2rem repeat(var(--cs-cols), minmax(3.2rem, 1fr)); align-items: center; gap: 2px; min-height: 2rem; text-align: center; }
+.cs-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-row--head { color: var(--text-2); font-size: var(--fs-xs); font-weight: 800; }
+.cs-row:not(.cs-row--head):nth-child(even) { border-radius: var(--r-xs); background: var(--surface-2); }
+.cs-row__n { display: flex; flex-direction: column; color: var(--text-3); font-size: var(--fs-sm); line-height: 1.1; }
+.cs-row__n small { font-size: 0.6rem; }
 
 /* --- زي الكل --- */
 .herd-prompt { text-align: center; }
@@ -10560,6 +10668,126 @@ const TRIVIA_QUESTIONS = {
       </div>
       <div id="view-play-blindrank" class="hidden" data-accent="indigo"><div id="blindrank-stage"></div></div>
 
+      <div id="view-setup-cs-estimation" class="hidden" data-accent="violet">
+        <div class="card">
+          <div id="cs-estimation-options"></div>
+          <div class="group-picker">
+            <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+              <option value="">-- اختر مجموعة --</option>
+            </select>
+            <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+          </div>
+          <label class="field__label" data-i18n="players">اللاعبين</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="cs-estimation-player-list" class="mb-6"></div>
+          <p class="field__hint" id="cs-estimation-seats"></p>
+          <div class="btn-stack">
+            <button type="button" id="cs-estimation-continue" class="btn btn--secondary hidden" onclick="continueCardScore('estimation')" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startCardScore('estimation')" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-cs-estimation" class="hidden" data-accent="violet"><div id="cs-estimation-stage"></div></div>
+
+      <div id="view-setup-cs-tarneeb" class="hidden" data-accent="indigo">
+        <div class="card">
+          <div id="cs-tarneeb-options"></div>
+          <div class="group-picker">
+            <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+              <option value="">-- اختر مجموعة --</option>
+            </select>
+            <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+          </div>
+          <label class="field__label" data-i18n="players">اللاعبين</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="cs-tarneeb-player-list" class="mb-6"></div>
+          <p class="field__hint" id="cs-tarneeb-seats"></p>
+          <div class="btn-stack">
+            <button type="button" id="cs-tarneeb-continue" class="btn btn--secondary hidden" onclick="continueCardScore('tarneeb')" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startCardScore('tarneeb')" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-cs-tarneeb" class="hidden" data-accent="indigo"><div id="cs-tarneeb-stage"></div></div>
+
+      <div id="view-setup-cs-trix" class="hidden" data-accent="rose">
+        <div class="card">
+          <div id="cs-trix-options"></div>
+          <div class="group-picker">
+            <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+              <option value="">-- اختر مجموعة --</option>
+            </select>
+            <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+          </div>
+          <label class="field__label" data-i18n="players">اللاعبين</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="cs-trix-player-list" class="mb-6"></div>
+          <p class="field__hint" id="cs-trix-seats"></p>
+          <div class="btn-stack">
+            <button type="button" id="cs-trix-continue" class="btn btn--secondary hidden" onclick="continueCardScore('trix')" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startCardScore('trix')" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-cs-trix" class="hidden" data-accent="rose"><div id="cs-trix-stage"></div></div>
+
+      <div id="view-setup-cs-konkan" class="hidden" data-accent="amber">
+        <div class="card">
+          <div id="cs-konkan-options"></div>
+          <div class="group-picker">
+            <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+              <option value="">-- اختر مجموعة --</option>
+            </select>
+            <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+          </div>
+          <label class="field__label" data-i18n="players">اللاعبين</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="cs-konkan-player-list" class="mb-6"></div>
+          <p class="field__hint" id="cs-konkan-seats"></p>
+          <div class="btn-stack">
+            <button type="button" id="cs-konkan-continue" class="btn btn--secondary hidden" onclick="continueCardScore('konkan')" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startCardScore('konkan')" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-cs-konkan" class="hidden" data-accent="amber"><div id="cs-konkan-stage"></div></div>
+
+      <div id="view-setup-cs-basra" class="hidden" data-accent="teal">
+        <div class="card">
+          <div id="cs-basra-options"></div>
+          <div class="group-picker">
+            <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+              <option value="">-- اختر مجموعة --</option>
+            </select>
+            <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+          </div>
+          <label class="field__label" data-i18n="players">اللاعبين</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="cs-basra-player-list" class="mb-6"></div>
+          <p class="field__hint" id="cs-basra-seats"></p>
+          <div class="btn-stack">
+            <button type="button" id="cs-basra-continue" class="btn btn--secondary hidden" onclick="continueCardScore('basra')" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startCardScore('basra')" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-cs-basra" class="hidden" data-accent="teal"><div id="cs-basra-stage"></div></div>
+
       <div id="view-setup-headsup" class="hidden" data-accent="green">
         <div class="card">
           <div class="field">
@@ -12770,6 +12998,12 @@ const TRIVIA_QUESTIONS = {
             <span class="setting-row__text"><span data-i18n="ui_scale">حجم الواجهة</span><span class="setting-row__hint" data-i18n="ui_scale_hint">كبّر الخط والأزرار على لابتوب أو تلفزيون</span></span>
             <span class="setting-row__value" id="settings-scale-value"></span>
           </button>
+          <!-- Windows stops every page's motion when its Animation effects switch is off. -->
+          <button class="setting-row" onclick="cycleMotionPref()">
+            <span class="setting-row__icon" aria-hidden="true">✨</span>
+            <span class="setting-row__text"><span data-i18n="motion_pref">الحركة</span><span class="setting-row__hint" data-i18n="motion_pref_hint">«تلقائي» بيتبع الجهاز. لو مش شايف الحركة على الكمبيوتر، اختار «شغّالة»</span></span>
+            <span class="setting-row__value" id="settings-motion-value"></span>
+          </button>
           <button class="setting-row" onclick="changeSavedName()">
             <span class="setting-row__icon" aria-hidden="true">👤</span>
             <span class="setting-row__text"><span data-i18n="your_name">اسمك</span><span class="setting-row__hint" data-i18n="your_name_hint">الاسم اللي بيظهر في الغرف</span></span>
@@ -12939,8 +13173,73 @@ const TRIVIA_QUESTIONS = {
    * ------------------------------------------------------------------------ */
 
   const HAPTIC_PATTERNS = { light: 8, medium: 14, heavy: 22, double: [12, 40, 12] };
-  const prefersReducedMotion = () =>
-      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const prefersReducedMotion = () => reducedMotion();
+
+  /* --- Motion: the device's setting, unless this device's owner chose ----------
+     Every animation in the app stands still when the device asks for reduced
+     motion. Windows asks for it whenever its "Animation effects" switch is off,
+     which it is on many PCs, so the owner saw no motion on a computer that
+     plays everything else fine. Settings → الحركة: تلقائي follows the device,
+     شغّالة plays it anyway, مقفولة stops it anyway. For "on", the stylesheets'
+     reduced-motion blocks are lifted out (and put back for "auto"); for "off",
+     their rules are added again without the media condition. */
+  const MOTION_PREFS = ['auto', 'on', 'off'];
+  const MOTION_KEY = 'ashryMotion';
+  let motionMoved = [];
+
+  function motionPref() {
+    try {
+      const v = localStorage.getItem(MOTION_KEY);
+      return MOTION_PREFS.indexOf(v) !== -1 ? v : 'auto';
+    } catch (e) { return 'auto'; }
+  }
+
+  function reducedMotion() {
+    const pref = motionPref();
+    if (pref === 'on') return false;
+    if (pref === 'off') return true;
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  function applyMotionPref() {
+    const pref = motionPref();
+    // Back to how the page was written.
+    motionMoved.forEach(m => { try { m.sheet.insertRule(m.text, m.sheet.cssRules.length); } catch (e) {} });
+    motionMoved = [];
+    const off = document.getElementById('motion-off-style');
+    if (off) off.remove();
+    if (pref === 'auto') return;
+    // Two kinds of block: "reduce" stills things, "no-preference" adds motion.
+    const reduce = [], allow = [];
+    Array.from(document.styleSheets).forEach(sheet => {
+      let rules;
+      try { rules = sheet.cssRules; } catch (e) { return; }
+      for (let i = rules.length - 1; i >= 0; i--) {
+        const r = rules[i];
+        const text = (r.media && (r.conditionText || r.media.mediaText)) || '';
+        if (/prefers-reduced-motion:\s*reduce/.test(text)) reduce.push({ sheet: sheet, index: i, rule: r });
+        else if (/prefers-reduced-motion:\s*no-preference/.test(text)) allow.push({ sheet: sheet, index: i, rule: r });
+      }
+    });
+    // "On" lifts out what stills and applies what moves; "off" the other way round.
+    const lift = pref === 'on' ? reduce : allow;
+    const apply = pref === 'on' ? allow : reduce;
+    lift.sort((a, b) => b.index - a.index).forEach(b => {
+      motionMoved.push({ sheet: b.sheet, text: b.rule.cssText });
+      try { b.sheet.deleteRule(b.index); } catch (e) {}
+    });
+    const style = document.createElement('style');
+    style.id = 'motion-off-style';
+    style.textContent = apply.map(b => Array.from(b.rule.cssRules).map(r => r.cssText).join(' ')).join(' ');
+    document.head.appendChild(style);
+  }
+
+  function cycleMotionPref() {
+    const next = MOTION_PREFS[(MOTION_PREFS.indexOf(motionPref()) + 1) % MOTION_PREFS.length];
+    try { localStorage.setItem(MOTION_KEY, next); } catch (e) {}
+    applyMotionPref();
+    updateSettingsLabels();
+  }
 
   /** Vibrates if the device and browser allow it. iOS Safari has no vibrate. */
   function haptic(kind = 'light') {
@@ -13942,6 +14241,7 @@ const TRIVIA_QUESTIONS = {
       g2048_keep_hint: "تقدر تكمّل وتوصل لرقم أكبر",
       g2048_over: "خلصت الحركات",
       g2048_top: "أكبر رقم",
+      g2048_new_confirm: "تبدأ لعبة جديدة وتسيب اللي شغال؟",
       setup_mines: "كاسحة الألغام",
       cat_mines: "افتح كل الخانات من غير ما تدوس على لغم. الأرقام بتقولك فين.",
       mines_left: "ألغام",
@@ -14168,6 +14468,128 @@ const TRIVIA_QUESTIONS = {
       mafia_you_lost: "فريقك خسر المرة دي",
       mafia_everyone_was: "الأدوار كلها",
       turn_night: "اختار على موبايلك، الليل مستنيك",
+      cs_need_players: "اختار من {min} لـ {max} لاعبين",
+      cs_totals: "المجموع",
+      cs_final: "النتيجة النهائية",
+      cs_round: "الجولة {n}",
+      cs_save_round: "سجّل الجولة",
+      cs_history: "الجولات",
+      cs_undo_round: "رجّع آخر جولة",
+      cs_winner: "الكسبان",
+      cs_tie: "تعادل",
+      cs_team_short: "فريق {n}",
+      cs_nobody: "محدش",
+      cs_need_13: "المجموع لازم يبقى 13 (دلوقتي {n})",
+      cs_target: "الهدف",
+      cs_to_target: "لحد {n}",
+      cs_rounds_of: "{n} من {m} جولات",
+      cs_mode_solo: "فردي",
+      cs_mode_pairs: "فرق",
+      cs_onoff_on: "شغّال",
+      cs_onoff_off: "مقفول",
+      cs_made_it: "جابها",
+      cs_pairs_seats: "4 لاعبين بترتيب القعدة: الأول والتالت فريق، والتاني والرابع فريق.",
+      setup_cs_estimation: "إستميشن",
+      cat_cs_estimation: "حاسبة إستميشن: الطلبات واللمّات، الكول والمع والريسك والداش، لحد آخر جولة.",
+      cs_est_rounds: "عدد الجولات",
+      cs_est_dash: "الداش كول",
+      cs_est_dash_jawaker: "±33 تحت، ±25 فوق",
+      cs_est_dash_egypt: "+33 أو −23",
+      cs_est_base: "نقط اللي يجيب طلبه",
+      cs_est_seats: "4 لاعبين بترتيب القعدة.",
+      cs_est_speed: "سرعة",
+      cs_est_call: "الطلب",
+      cs_est_took: "جاب",
+      cs_est_dash_call: "داش",
+      cs_est_caller: "الكول (اللي كسب المزاد)",
+      cs_est_risk: "آخر واحد طلب (الريسك)",
+      cs_est_need_all: "اكتب الطلب واللمّات لكل لاعب",
+      cs_est_not_13: "مجموع الطلبات مينفعش يبقى 13",
+      cs_est_need_caller: "اختار صاحب الكول",
+      cs_est_dash_zero: "الداش كول طلبه لازم يبقى صفر",
+      cs_est_dash_two: "الداش لاتنين بس في الجولة",
+      cs_est_need_risk: "الطلبات بعيدة عن 13: اختار آخر واحد طلب",
+      setup_cs_tarneeb: "طرنيب",
+      cat_cs_tarneeb: "حاسبة طرنيب: شامي أو مصري أو 41، الطلب واللمّات لحد الهدف.",
+      cs_tarneeb_mode: "طريقة اللعب",
+      cs_tarneeb_mode_levant: "شامي",
+      cs_tarneeb_mode_egypt: "مصري",
+      cs_tarneeb_mode_fortyone: "41",
+      cs_tarneeb_hint_levant: "الفريق اللي يجيب طلبه ياخد لمّاته، واللي يوقع يتخصم منه الطلب والتاني ياخد لمّاته.",
+      cs_tarneeb_hint_egypt: "زي الشامي، والطلب ممكن يتدبّل ×2 أو ×4.",
+      cs_tarneeb_hint_fortyone: "كل واحد يطلب لوحده (أقل حاجة 2) والكبة طرنيب. الفريق يكسب لما واحد يوصل 41 وشريكه فوق الصفر.",
+      cs_tarneeb_goal41: "لحد 41 والشريك فوق الصفر",
+      cs_tarneeb_41_entry: "طلب كل لاعب، وعلّم اللي جاب طلبه",
+      cs_tarneeb_bidder: "الفريق اللي كسب الطلب",
+      cs_tarneeb_bid: "الطلب",
+      cs_tarneeb_took: "لمّات الفريق الطالب",
+      cs_tarneeb_double: "الدبل",
+      cs_tarneeb_no_double: "من غير",
+      cs_tarneeb_need_team: "اختار الفريق اللي طلب",
+      cs_tarneeb_need_bid: "الطلب من 7 لـ 13",
+      cs_tarneeb_need_took: "اكتب عدد اللمّات من 0 لـ 13",
+      cs_tarneeb_need_bids: "طلب كل لاعب من 2 لـ 13",
+      cs_tarneeb_under_11: "مجموع الطلبات أقل من 11: الورق بيتوزع تاني",
+      setup_cs_trix: "تريكس",
+      cat_cs_trix: "حاسبة تريكس: الممالك والعقود والدبل، كلاسيك أو كومبلكس، فردي أو فرق.",
+      cs_trix_game: "اللعبة",
+      cs_trix_game_classic: "كلاسيك · 20",
+      cs_trix_game_complex: "كومبلكس · 8",
+      cs_trix_teams: "اللاعبين",
+      cs_trix_doubling: "الدبل",
+      cs_trix_seats: "4 لاعبين بترتيب القعدة. المملكة بتبدأ من الأول.",
+      cs_trix_goal: "{n} من {m}",
+      cs_trix_contract: "مملكة {name}: العقد",
+      cs_trix_c_king: "ملك الكبة",
+      cs_trix_c_queens: "البنات",
+      cs_trix_c_diamonds: "الديناري",
+      cs_trix_c_tricks: "اللطوش",
+      cs_trix_c_trix: "تريكس",
+      cs_trix_c_complex: "كومبلكس",
+      cs_trix_taken_by: "أكلها",
+      cs_trix_doubled_by: "مدبّلة من",
+      cs_trix_not_doubled: "مش مدبّلة",
+      cs_trix_led_by: "صاحبها أكلها: مين نزّل اللمّة؟",
+      cs_trix_diamonds_count: "كام ديناري أكل كل واحد؟",
+      cs_trix_tricks_count: "كام لطشة أكل كل واحد؟",
+      cs_trix_order: "ترتيب الخلصان (1 أول واحد خلّص)",
+      cs_trix_pick_contract: "اختار العقد الأول",
+      cs_trix_need_king: "اختار مين أكل الملك (ومين نزّل اللمّة لو صاحبه أكله)",
+      cs_trix_need_queens: "اختار مين أكل كل بنت",
+      cs_trix_need_order: "كل واحد له ترتيب مختلف من 1 لـ 4",
+      setup_cs_konkan: "كونكان",
+      cat_cs_konkan: "حاسبة كونكان: الورق اللي فاضل، الهاند والجوكر، أقل نقط يكسب.",
+      cs_konkan_end: "نهاية اللعبة",
+      cs_konkan_end_r5: "5 جولات",
+      cs_konkan_end_r7: "7 جولات",
+      cs_konkan_end_l101: "خروج بعد 101",
+      cs_konkan_teams: "اللاعبين",
+      cs_konkan_seats: "من 2 لـ 6 لاعبين.",
+      cs_konkan_goal_limit: "اللي يعدّي 101 يخرج",
+      cs_konkan_winner: "مين نزل (خلّص)؟",
+      cs_konkan_finish: "خلّص إزاي؟",
+      cs_konkan_normal: "عادي",
+      cs_konkan_hand: "هاند أو كونكان ×2",
+      cs_konkan_joker: "بجوكر ×2",
+      cs_konkan_colour: "لون واحد ×2",
+      cs_konkan_suit: "شكل واحد ×4",
+      cs_konkan_left: "الورق اللي فاضل مع الباقيين",
+      cs_konkan_never: "مانزلش (100)",
+      cs_konkan_need_winner: "اختار مين نزل",
+      cs_konkan_need_points: "اكتب نقط كل لاعب، أو علّم إنه مانزلش",
+      setup_cs_basra: "باصرة",
+      cat_cs_basra: "حاسبة باصرة: الباصرات والآسات والولاد والكومي وأكتر ورق، لحد الهدف.",
+      cs_basra_teams: "اللاعبين",
+      cs_basra_seats: "من 2 لـ 4 لاعبين.",
+      cs_basra_worth: "أكتر ورق = {n}",
+      cs_basra_count: "لكل لاعب",
+      cs_basra_basras: "باصرات",
+      cs_basra_aj: "آس وولد",
+      cs_basra_most: "مين أخد أكتر ورق (27 أو أكتر)؟",
+      cs_basra_tie: "26 و26",
+      cs_basra_need_most: "اختار مين أخد أكتر ورق",
+      cs_basra_need_cards: "اختار مين أخد 2♣ ومين أخد 10♦",
+      cs_basra_need_aj: "الآسات والولاد مجموعهم 8 (دلوقتي {n})",
       cat_xo: "3 في صف واحد. ضد صاحبك أو ضد الموبايل.",
       cat_guessnum: "رقم مخفي: أعلى ولا أقل؟ لوحدك أو مع صاحبك.",
       cat_reaction: "اتنين على شاشة واحدة: أول واحد يضغط لما تبقى خضرا.",
@@ -14255,6 +14677,11 @@ const TRIVIA_QUESTIONS = {
       room_spectating: "جولة جارية — ستنضم في الجولة القادمة",
       ui_scale: "حجم الواجهة",
       ui_scale_auto: "تلقائي",
+      motion_pref: "الحركة",
+      motion_pref_hint: "«تلقائي» بيتبع الجهاز. لو مش شايف الحركة على الكمبيوتر، اختار «شغّالة»",
+      motion_auto: "تلقائي",
+      motion_on: "شغّالة",
+      motion_off: "مقفولة",
       tv_title: "شاشة العرض",
       tv_open: "شاشة العرض (تلفزيون)",
       tv_open_desc: "افتح الغرفة على التلفزيون أو اللابتوب، والكل يلعب من موبايله",
@@ -15258,6 +15685,7 @@ const TRIVIA_QUESTIONS = {
       g2048_keep_hint: "You can keep going for a bigger tile",
       g2048_over: "No moves left",
       g2048_top: "Top tile",
+      g2048_new_confirm: "Start a new game and leave this one?",
       setup_mines: "Minesweeper",
       cat_mines: "Open every cell without hitting a mine. The numbers tell you where.",
       mines_left: "Mines",
@@ -15484,6 +15912,128 @@ const TRIVIA_QUESTIONS = {
       mafia_you_lost: "Your side lost this time",
       mafia_everyone_was: "Everyone's roles",
       turn_night: "Pick on your phone, the night is waiting",
+      cs_need_players: "Pick {min} to {max} players",
+      cs_totals: "Totals",
+      cs_final: "Final score",
+      cs_round: "Round {n}",
+      cs_save_round: "Save the round",
+      cs_history: "Rounds",
+      cs_undo_round: "Take back the last round",
+      cs_winner: "Winner",
+      cs_tie: "It's a tie",
+      cs_team_short: "Team {n}",
+      cs_nobody: "Nobody",
+      cs_need_13: "The total must be 13 (it's {n})",
+      cs_target: "Target",
+      cs_to_target: "To {n}",
+      cs_rounds_of: "{n} of {m} rounds",
+      cs_mode_solo: "Solo",
+      cs_mode_pairs: "Teams",
+      cs_onoff_on: "On",
+      cs_onoff_off: "Off",
+      cs_made_it: "Made it",
+      cs_pairs_seats: "4 players in seating order: the 1st and 3rd are a team, the 2nd and 4th the other.",
+      setup_cs_estimation: "Estimation",
+      cat_cs_estimation: "Estimation scorer: calls and tricks, the caller, with, risk and dash, to the last round.",
+      cs_est_rounds: "Rounds",
+      cs_est_dash: "Dash call",
+      cs_est_dash_jawaker: "±33 under, ±25 over",
+      cs_est_dash_egypt: "+33 or −23",
+      cs_est_base: "Points for making your call",
+      cs_est_seats: "4 players in seating order.",
+      cs_est_speed: "Speed",
+      cs_est_call: "Call",
+      cs_est_took: "Took",
+      cs_est_dash_call: "Dash",
+      cs_est_caller: "The caller (won the auction)",
+      cs_est_risk: "Last to call (the risk)",
+      cs_est_need_all: "Enter the call and the tricks for every player",
+      cs_est_not_13: "The calls can't add up to 13",
+      cs_est_need_caller: "Choose the caller",
+      cs_est_dash_zero: "A dash call has to be a call of zero",
+      cs_est_dash_two: "At most two dash calls a round",
+      cs_est_need_risk: "The calls are far from 13: choose who called last",
+      setup_cs_tarneeb: "Tarneeb",
+      cat_cs_tarneeb: "Tarneeb scorer: Levantine, Egyptian or 41, the bid and the tricks up to the target.",
+      cs_tarneeb_mode: "How to play",
+      cs_tarneeb_mode_levant: "Levantine",
+      cs_tarneeb_mode_egypt: "Egyptian",
+      cs_tarneeb_mode_fortyone: "41",
+      cs_tarneeb_hint_levant: "A team that makes its bid scores its tricks; one that fails loses the bid and the other team scores its tricks.",
+      cs_tarneeb_hint_egypt: "Like Levantine, and the bid can be doubled ×2 or ×4.",
+      cs_tarneeb_hint_fortyone: "Everyone bids alone (at least 2), hearts are trumps. A team wins when one player reaches 41 with their partner above zero.",
+      cs_tarneeb_goal41: "To 41, partner above zero",
+      cs_tarneeb_41_entry: "Each player's bid, and mark who made it",
+      cs_tarneeb_bidder: "The team that won the bid",
+      cs_tarneeb_bid: "Bid",
+      cs_tarneeb_took: "Tricks the bidders took",
+      cs_tarneeb_double: "Double",
+      cs_tarneeb_no_double: "None",
+      cs_tarneeb_need_team: "Choose the bidding team",
+      cs_tarneeb_need_bid: "The bid is 7 to 13",
+      cs_tarneeb_need_took: "Enter the tricks, 0 to 13",
+      cs_tarneeb_need_bids: "Each bid is 2 to 13",
+      cs_tarneeb_under_11: "The bids add up to less than 11: the cards are dealt again",
+      setup_cs_trix: "Trix",
+      cat_cs_trix: "Trix scorer: kingdoms, contracts and doubles, classic or complex, solo or teams.",
+      cs_trix_game: "Game",
+      cs_trix_game_classic: "Classic · 20",
+      cs_trix_game_complex: "Complex · 8",
+      cs_trix_teams: "Players",
+      cs_trix_doubling: "Doubling",
+      cs_trix_seats: "4 players in seating order. The first kingdom is the first player's.",
+      cs_trix_goal: "{n} of {m}",
+      cs_trix_contract: "{name}'s kingdom: the contract",
+      cs_trix_c_king: "King of hearts",
+      cs_trix_c_queens: "Queens",
+      cs_trix_c_diamonds: "Diamonds",
+      cs_trix_c_tricks: "Tricks",
+      cs_trix_c_trix: "Trix",
+      cs_trix_c_complex: "Complex",
+      cs_trix_taken_by: "Taken by",
+      cs_trix_doubled_by: "Doubled by",
+      cs_trix_not_doubled: "Not doubled",
+      cs_trix_led_by: "Its doubler took it: who led that trick?",
+      cs_trix_diamonds_count: "How many diamonds did each take?",
+      cs_trix_tricks_count: "How many tricks did each take?",
+      cs_trix_order: "Finishing order (1 finished first)",
+      cs_trix_pick_contract: "Choose the contract first",
+      cs_trix_need_king: "Choose who took the king (and who led, if its doubler took it)",
+      cs_trix_need_queens: "Choose who took each queen",
+      cs_trix_need_order: "Each player needs a different place from 1 to 4",
+      setup_cs_konkan: "Konkan",
+      cat_cs_konkan: "Konkan scorer: cards left in hand, hand and joker finishes, lowest wins.",
+      cs_konkan_end: "End of the game",
+      cs_konkan_end_r5: "5 rounds",
+      cs_konkan_end_r7: "7 rounds",
+      cs_konkan_end_l101: "Out over 101",
+      cs_konkan_teams: "Players",
+      cs_konkan_seats: "2 to 6 players.",
+      cs_konkan_goal_limit: "Over 101 is out",
+      cs_konkan_winner: "Who went out?",
+      cs_konkan_finish: "How?",
+      cs_konkan_normal: "Normal",
+      cs_konkan_hand: "Hand or Konkan ×2",
+      cs_konkan_joker: "On a joker ×2",
+      cs_konkan_colour: "One colour ×2",
+      cs_konkan_suit: "One suit ×4",
+      cs_konkan_left: "Cards left in the others' hands",
+      cs_konkan_never: "Never melded (100)",
+      cs_konkan_need_winner: "Choose who went out",
+      cs_konkan_need_points: "Enter each player's points, or mark that they never melded",
+      setup_cs_basra: "Basra",
+      cat_cs_basra: "Basra scorer: basras, aces and jacks, the two special cards and most cards, to the target.",
+      cs_basra_teams: "Players",
+      cs_basra_seats: "2 to 4 players.",
+      cs_basra_worth: "Most cards = {n}",
+      cs_basra_count: "For each player",
+      cs_basra_basras: "Basras",
+      cs_basra_aj: "Aces & jacks",
+      cs_basra_most: "Who took the most cards (27 or more)?",
+      cs_basra_tie: "26 each",
+      cs_basra_need_most: "Choose who took the most cards",
+      cs_basra_need_cards: "Choose who took the 2♣ and who took the 10♦",
+      cs_basra_need_aj: "Aces and jacks add up to 8 (it's {n})",
       cat_xo: "Three in a row. Against a friend or the phone.",
       cat_guessnum: "A hidden number: higher or lower? Solo or with a friend.",
       cat_reaction: "Two on one screen: first to tap when it turns green.",
@@ -15571,6 +16121,11 @@ const TRIVIA_QUESTIONS = {
       room_spectating: "Round in progress — you'll join the next one",
       ui_scale: "Screen size",
       ui_scale_auto: "Auto",
+      motion_pref: "Motion",
+      motion_pref_hint: "\"Auto\" follows the device. No animations on a computer? Choose \"On\"",
+      motion_auto: "Auto",
+      motion_on: "On",
+      motion_off: "Off",
       tv_title: "Big screen",
       tv_open: "Big screen (TV)",
       tv_open_desc: "Show the room on a TV or laptop while everyone plays on their phone",
@@ -16168,7 +16723,7 @@ const TRIVIA_QUESTIONS = {
     const loader = document.getElementById('app-loader');
     if (!loader) { intro.state = 'done'; return; }
     intro.state = 'leaving';
-    const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const reduce = reducedMotion();
     const onHome = appState.currentView === 'menu'
       && !(window.SERVER_DATA && window.SERVER_DATA.room)
       && !window.OPEN_INSTALL && !/[?&]install=1/.test(location.search);
@@ -16660,6 +17215,16 @@ const TRIVIA_QUESTIONS = {
     'setup-whoami':    { title: 'setup_whoami',     up: 'menu',           accent: 'teal' },
     'input-whoami':    { title: 'setup_whoami',     up: 'setup-whoami',   accent: 'teal' },
     'play-whoami':     { title: 'setup_whoami',     up: 'setup-whoami',   accent: 'teal' },
+    'setup-cs-estimation': { title: 'setup_cs_estimation', up: 'menu', accent: 'violet' },
+    'play-cs-estimation': { title: 'setup_cs_estimation', up: 'setup-cs-estimation', accent: 'violet' },
+    'setup-cs-tarneeb': { title: 'setup_cs_tarneeb', up: 'menu', accent: 'indigo' },
+    'play-cs-tarneeb': { title: 'setup_cs_tarneeb', up: 'setup-cs-tarneeb', accent: 'indigo' },
+    'setup-cs-trix': { title: 'setup_cs_trix', up: 'menu', accent: 'rose' },
+    'play-cs-trix': { title: 'setup_cs_trix', up: 'setup-cs-trix', accent: 'rose' },
+    'setup-cs-konkan': { title: 'setup_cs_konkan', up: 'menu', accent: 'amber' },
+    'play-cs-konkan': { title: 'setup_cs_konkan', up: 'setup-cs-konkan', accent: 'amber' },
+    'setup-cs-basra': { title: 'setup_cs_basra', up: 'menu', accent: 'teal' },
+    'play-cs-basra': { title: 'setup_cs_basra', up: 'setup-cs-basra', accent: 'teal' },
     'setup-screw':     { title: 'setup_screw',      up: 'menu',           accent: 'blue' },
     'play-screw':      { title: 'setup_screw',      up: 'setup-screw',    accent: 'blue' },
     'setup-domino':    { title: 'setup_domino',     up: 'menu',           accent: 'green' },
@@ -16946,6 +17511,7 @@ const TRIVIA_QUESTIONS = {
   }
 
   applyUiScale();
+  applyMotionPref();
 
   function syncAppHeight() {
     document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
@@ -17108,6 +17674,8 @@ const TRIVIA_QUESTIONS = {
       if (nameVal) nameVal.innerText = (typeof roomName !== 'undefined' && roomName.get()) || t.name_not_set || '';
       const scaleVal = document.getElementById('settings-scale-value');
       if (scaleVal) scaleVal.innerText = uiScale() === 'auto' ? (t.ui_scale_auto || '') : uiScale() + '%';
+      const motionVal = document.getElementById('settings-motion-value');
+      if (motionVal) motionVal.innerText = t['motion_' + motionPref()] || '';
   }
 
   /* --- CORE UI HELPERS --- */
@@ -17201,6 +17769,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>المظهر</b>: فاتح أو ليلي.</li>
                 <li><b>اللغة</b>: عربي أو إنجليزي. بيغير كل حاجة، حتى كلمات الألعاب.</li>
+                <li><b>الحركة</b>: «تلقائي» بيتبع إعداد الجهاز. ويندوز بيقفل حركة كل المواقع لو «Animation effects» مقفولة، فلو مش شايف الحركة على الكمبيوتر اختار «شغّالة».</li>
                 <li><b>حجم الواجهة</b>: «تلقائي» بيكبّر التطبيق لوحده على اللابتوب والتلفزيون. لو الكلام صغير، اضغطها لحد 200%.</li>
                 <li><b>اسمك</b>: الاسم اللي بتدخل بيه الغرف. بيتسأل عليه مرة، وبعدين بيتحفظ.</li>
                 <li><b>لغة الألعاب</b>: خلي التطبيق بالإنجليزي والكلمات جوه الألعاب بالعربي، أو العكس. «زي التطبيق» تتبع لغة التطبيق.</li>
@@ -17707,6 +18276,56 @@ const GAME_RULES = {
                 <li><b>بأدوار</b>: <b>🩺 الدكتور</b> يحمي حد كل ليلة (مش نفس الشخص ليلتين ورا بعض). <b>🔍 المحقق</b> يكشف حد ويعرف لوحده هو مافيا ولا لأ. <b>💼 المحامي</b> (من 6 لاعبين) مع المافيا: يعرفهم وهم مايعرفوهوش، ويدافع عنهم كأنه مواطن. المحقق بيشوفه مش مافيا.</li>
                 <li>اللي بيخرج يظهر <b>مواطن</b>، إلا المافيا بتظهر مافيا. المضيف يقدر يفعّل كشف الدور الحقيقي.</li>
             </ul>`,
+        'cs-estimation': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>العبوا بالورق عادي، والموبايل بيحسب. بعد كل جولة اكتب <b>طلب</b> كل لاعب و<b>اللمّات اللي جابها</b> (مجموعها 13)، واختار <b>الكول</b> و<b>آخر واحد طلب</b>.</li>
+                <li>اللي يجيب طلبه بالظبط: <b>10 + طلبه</b>، و+10 للكول واللي معاه (نفس رقمه)، و+10 لكل درجة ريسك لآخر واحد طلب، و+10 لو هو الوحيد اللي جاب.</li>
+                <li>اللي ميجيبش: يتخصم منه الفرق، و−10 للكول واللي معاه، و−10 لكل درجة ريسك، و−10 لو هو الوحيد اللي وقع.</li>
+                <li><b>الريسك</b>: مجموع الطلبات بعيد عن 13 باتنين أو تلاتة = درجة، أربعة أو خمسة = درجتين.</li>
+                <li><b>الداش كول</b> (صفر قبل المزاد): ±33 في جولة تحت و±25 في جولة فوق، أو +33 / −23 حسب اختيارك.</li>
+                <li>لو محدش جاب طلبه (صعايدة) محدش ياخد حاجة، والجولة الجاية بالضعف.</li>
+                <li>13 جولة وبعدها 5 جولات سرعة من غير مزاد. أعلى نقط في الآخر يكسب.</li>
+            </ol>
+            <p class="help-sub">💡 نصايح</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>غلطت في جولة؟ <b>رجّع آخر جولة</b> وهترجع بالأرقام اللي كتبتها عشان تصلحها.</li>
+            </ul>`,
+        'cs-tarneeb': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>4 لاعبين بترتيب القعدة: الأول والتالت فريق، والتاني والرابع فريق.</li>
+                <li><b>شامي</b>: بعد كل إيد اختار الفريق اللي طلب، والطلب (7 لـ 13) واللمّات اللي جابها. جاب طلبه: ياخد لمّاته. وقع: يتخصم منه الطلب والفريق التاني ياخد لمّاته.</li>
+                <li><b>كبوت</b> (13 لمّة من غير ما يطلب 13) = 16. طلب 13 وجابها = 26، ووقع = −16 والتاني ياخد ضعف لمّاته.</li>
+                <li><b>مصري</b>: نفس الحساب، والطلب ممكن يتدبّل ×2 أو ×4.</li>
+                <li><b>41</b>: كل لاعب يطلب لوحده وعلّم اللي جاب طلبه. من 5 وطالع الطلب بيتحسب أكتر (5 = 10، 9 = 27...). الفريق يكسب لما واحد يوصل 41 وشريكه فوق الصفر، واللي يطلب 13 ويجيبها يكسب على طول.</li>
+                <li>أول فريق يوصل للهدف يكسب.</li>
+            </ol>`,
+        'cs-trix': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>4 ممالك، مملكة لكل لاعب بالترتيب. صاحب المملكة يختار العقد، وكل عقد مرة واحدة: 20 لعبة (أو 8 في الكومبلكس).</li>
+                <li><b>ملك الكبة</b> −75، <b>كل بنت</b> −25، <b>كل ديناري</b> −10، <b>كل لطشة</b> −15. <b>تريكس</b>: +200 و+150 و+100 و+50 بترتيب الخلصان.</li>
+                <li><b>الدبل</b>: لو حد تاني أكل الملك أو البنت المدبّلة، ياخد الضعف وصاحبها ياخد القيمة. لو صاحبها أكلها بنفسه ياخد الضعف، واللي نزّل اللمّة ياخد القيمة، إلا لو صاحبها هو اللي نزّلها فياخد القيمة بس.</li>
+                <li><b>كومبلكس</b>: الملك والبنات والديناري واللطوش في لعبة واحدة، وبعدها تريكس.</li>
+                <li><b>فرق</b>: الأول والتالت فريق، ونقطهم بتتجمع.</li>
+            </ol>
+            <p class="help-sub">💡 نصايح</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>الحاسبة بتتأكد إن الديناري واللطوش 13، وكل بنت ليها حد أكلها.</li>
+            </ul>`,
+        'cs-konkan': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>بعد كل جولة اختار <b>مين نزل</b>، واكتب نقط الورق اللي فاضل مع الباقيين: من 2 لـ 10 زي ما هي، الصور 10، الآس 11، الجوكر 15.</li>
+                <li>اللي نزل ياخد <b>−30</b>. اللي منزلش ولا ورقة ياخد <b>100</b>.</li>
+                <li><b>هاند</b> (نزل كله مرة واحدة) أو كونكان: كل الحساب ×2. خلّص بجوكر ×2، لون واحد ×2، شكل واحد ×4.</li>
+                <li>في الفرق: شريك اللي نزل مياخدش حاجة.</li>
+                <li>أقل نقط بعد 5 أو 7 جولات يكسب. أو اختار «خروج بعد 101»: اللي يعدّي 101 يخرج وآخر واحد يفضل يكسب.</li>
+            </ol>`,
+        'cs-basra': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>بعد ما الورق كله يخلص، اكتب لكل لاعب عدد <b>الباصرات</b> وعدد <b>الآسات والولاد</b> اللي معاه.</li>
+                <li>كل باصرة <b>10</b>، كل آس أو ولد <b>1</b>، <b>2♣</b> بـ 2، <b>10♦</b> بـ 3، و<b>أكتر ورق</b> (27 أو أكتر) بـ 30.</li>
+                <li>لو الورق اتقسم 26 و26، الـ 30 بتتنقل للجولة الجاية وتبقى 60.</li>
+                <li>أول واحد يعدّي الهدف في آخر جولة يكسب. تقدروا تلعبوا فرق (4 لاعبين).</li>
+            </ol>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>12 صوت للحظات اللعب: تصفيق، فوز، صح، غلط، نكتة، ترومبون حزين، كمان حزين، صراصير، استهجان، بوري، سارينة وصفارة.</li>
@@ -17769,6 +18388,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>Theme</b>: light or dark.</li>
                 <li><b>Language</b>: Arabic or English. Changes everything, the game words included.</li>
+                <li><b>Motion</b>: "Auto" follows the device. Windows stops every site's animations when its "Animation effects" switch is off, so if you see no motion on a computer, choose "On".</li>
                 <li><b>Screen size</b>: "auto" scales the app up by itself on laptops and TVs. If the text is small, tap it up to 200%.</li>
                 <li><b>Your name</b>: the name you enter rooms with. Asked once, then remembered.</li>
                 <li><b>Games language</b>: keep the app in English and the words inside the games in Arabic, or the other way round. "Same as the app" follows the app's language.</li>
@@ -18275,6 +18895,56 @@ const GAME_RULES = {
                 <li><b>Roles</b>: <b>🩺 the Doctor</b> protects someone each night (not the same person twice running). <b>🔍 the Detective</b> checks someone and alone learns if they are Mafia. <b>💼 the Lawyer</b> (from 6 players) is on the Mafia's side: knows them, unknown to them, and defends them as a citizen would. The Detective sees the Lawyer as not Mafia.</li>
                 <li>Whoever leaves shows as a <b>Citizen</b>, except the Mafia, who show as Mafia. The host can switch on showing real roles.</li>
             </ul>`,
+        'cs-estimation': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Play with a real deck; the phone keeps the score. After each round enter every player's <b>call</b> and the <b>tricks they took</b> (13 in all), and choose the <b>caller</b> and <b>who called last</b>.</li>
+                <li>Made the call exactly: <b>10 + the call</b>, +10 for the caller and anyone "with" them (the same number), +10 per risk level for the last to call, +10 for the only one who made it.</li>
+                <li>Missed: minus the tricks off, −10 for the caller and "with", −10 per risk level, −10 for the only one who missed.</li>
+                <li><b>Risk</b>: calls 2-3 away from 13 is one level, 4-5 away two.</li>
+                <li><b>Dash call</b> (zero before the auction): ±33 in an under round and ±25 in an over round, or +33 / −23 as you choose.</li>
+                <li>If nobody makes their call, nobody scores and the next round counts double.</li>
+                <li>13 rounds, then 5 speed rounds with no auction. Highest total wins.</li>
+            </ol>
+            <p class="help-sub">💡 Tips</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>A mistake? <b>Take back the last round</b> and it comes back with what you typed, to fix.</li>
+            </ul>`,
+        'cs-tarneeb': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>4 players in seating order: the 1st and 3rd are a team, the 2nd and 4th the other.</li>
+                <li><b>Levantine</b>: after each hand choose the bidding team, the bid (7-13) and the tricks it took. Made: it scores its tricks. Failed: it loses the bid and the other team scores its tricks.</li>
+                <li>All 13 without bidding 13 is 16. Bidding 13 and making it 26; failing −16, and the other team scores double.</li>
+                <li><b>Egyptian</b>: the same, and a bid can be doubled ×2 or ×4.</li>
+                <li><b>41</b>: everyone bids alone; mark who made their bid. Bids of 5 and up are worth more (5 = 10, 9 = 27...). A team wins when one player reaches 41 with their partner above zero; bidding 13 and making it wins outright.</li>
+                <li>The first team to the target wins.</li>
+            </ol>`,
+        'cs-trix': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>4 kingdoms, one per player in order. The owner chooses the contract, each once: 20 games (8 in Complex).</li>
+                <li><b>King of hearts</b> −75, <b>each queen</b> −25, <b>each diamond</b> −10, <b>each trick</b> −15. <b>Trix</b>: +200, +150, +100, +50 by finishing order.</li>
+                <li><b>Doubling</b>: if someone else takes a doubled king or queen, they pay double and its doubler gets the single value. If the doubler takes it, they pay double and whoever led that trick gets the single value, unless the doubler led it, when it's just the single value.</li>
+                <li><b>Complex</b>: king, queens, diamonds and tricks in one game, then the Trix.</li>
+                <li><b>Teams</b>: the 1st and 3rd are partners and their points add up.</li>
+            </ol>
+            <p class="help-sub">💡 Tips</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The scorer checks that diamonds and tricks add up to 13 and every queen has a taker.</li>
+            </ul>`,
+        'cs-konkan': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>After each round choose <b>who went out</b> and enter the cards left in the others' hands: 2-10 as marked, pictures 10, ace 11, joker 15.</li>
+                <li>Whoever went out takes <b>−30</b>. Anyone who never put a card down takes <b>100</b>.</li>
+                <li><b>Hand</b> (all down in one turn) or a Konkan: everything ×2. Finishing on a joker ×2, one colour ×2, one suit ×4.</li>
+                <li>In teams, the winner's partner scores nothing.</li>
+                <li>Lowest after 5 or 7 rounds wins. Or choose "out over 101": over 101 is out, and the last one in wins.</li>
+            </ol>`,
+        'cs-basra': `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>When the deck is played out, enter each player's <b>basras</b> and <b>aces and jacks</b>.</li>
+                <li>Each basra <b>10</b>, each ace or jack <b>1</b>, the <b>2♣</b> 2, the <b>10♦</b> 3, and <b>most cards</b> (27 or more) 30.</li>
+                <li>If the cards split 26-26, the 30 carries over and the next deck's majority is worth 60.</li>
+                <li>The first past the target at the end of a deck wins. Four can play as two teams.</li>
+            </ol>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Twelve sounds for the moments of a game: applause, ta-da, right, wrong, ba-dum-tss, the sad trombone, a sad violin, crickets, boo, an air horn, a siren and a whistle.</li>
@@ -18360,6 +19030,11 @@ const GAME_CATALOG = [
 
   /* --- ورق وطاولة --- */
   { id: 'screw',      icon: '🃏',   title: 'setup_screw',      desc: 'cat_screw',      accent: 'blue',   players: [2, 8],  mins: 30, modes: ['device'],               group: 'table', setup: 'setup-screw',     open: () => setView('setup-screw') },
+  { id: 'cs-estimation',  icon: '🎯',   title: 'setup_cs_estimation',  desc: 'cat_cs_estimation',  accent: 'violet', players: [4, 4], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-estimation', open: () => setupCardScore('estimation') },
+  { id: 'cs-tarneeb',  icon: '♠️',   title: 'setup_cs_tarneeb',  desc: 'cat_cs_tarneeb',  accent: 'indigo', players: [4, 4], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-tarneeb', open: () => setupCardScore('tarneeb') },
+  { id: 'cs-trix',  icon: '♥️',   title: 'setup_cs_trix',  desc: 'cat_cs_trix',  accent: 'rose', players: [4, 4], mins: 60, modes: ['device'],               group: 'table', setup: 'setup-cs-trix', open: () => setupCardScore('trix') },
+  { id: 'cs-konkan',  icon: '♦️',   title: 'setup_cs_konkan',  desc: 'cat_cs_konkan',  accent: 'amber', players: [2, 8], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-konkan', open: () => setupCardScore('konkan') },
+  { id: 'cs-basra',  icon: '🎣',   title: 'setup_cs_basra',  desc: 'cat_cs_basra',  accent: 'teal', players: [2, 4], mins: 30, modes: ['device'],               group: 'table', setup: 'setup-cs-basra', open: () => setupCardScore('basra') },
   { id: 'domino',     icon: '🀄',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device'],               group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
 
   /* --- ثنائي وذهني --- */
@@ -21220,6 +21895,11 @@ const HELP_ENTRIES = [
   { key: 'monkey',      title: 'setup_monkey',      icon: '🐵', accent: 'amber',  group: 'games', room: true },
   { key: 'wordle',      title: 'setup_wordle',      icon: '🔤', accent: 'green',  group: 'games' },
   { key: 'guessnum',    title: 'setup_guessnum',    icon: '🔢', accent: 'blue',   group: 'games' },
+  { key: 'cs-estimation',    title: 'setup_cs_estimation',    icon: '🎯', accent: 'violet', group: 'games' },
+  { key: 'cs-tarneeb',    title: 'setup_cs_tarneeb',    icon: '♠️', accent: 'indigo', group: 'games' },
+  { key: 'cs-trix',    title: 'setup_cs_trix',    icon: '♥️', accent: 'rose', group: 'games' },
+  { key: 'cs-konkan',    title: 'setup_cs_konkan',    icon: '♦️', accent: 'amber', group: 'games' },
+  { key: 'cs-basra',    title: 'setup_cs_basra',    icon: '🎣', accent: 'teal', group: 'games' },
   { key: 'domino',      title: 'setup_domino',      icon: '🀏', accent: 'green',  group: 'games' },
   { key: 'chameleon',   title: 'setup_chameleon',   icon: '🦎', accent: 'amber',  group: 'games', room: true },
   { key: 'spyfall',     title: 'setup_spyfall',     icon: '📍', accent: 'rose',   group: 'games', room: true },
@@ -21285,6 +21965,11 @@ const HELP_FOR_VIEW = {
   'setup-charades': 'charades', 'play-charades': 'charades',
   'setup-whoami': 'whoami', 'input-whoami': 'whoami', 'play-whoami': 'whoami',
   'setup-screw': 'screw', 'play-screw': 'screw',
+  'setup-cs-estimation': 'cs-estimation', 'play-cs-estimation': 'cs-estimation',
+  'setup-cs-tarneeb': 'cs-tarneeb', 'play-cs-tarneeb': 'cs-tarneeb',
+  'setup-cs-trix': 'cs-trix', 'play-cs-trix': 'cs-trix',
+  'setup-cs-konkan': 'cs-konkan', 'play-cs-konkan': 'cs-konkan',
+  'setup-cs-basra': 'cs-basra', 'play-cs-basra': 'cs-basra',
   'setup-domino': 'domino', 'play-domino': 'domino',
   'setup-chameleon': 'chameleon', 'reveal-chameleon': 'chameleon', 'play-chameleon': 'chameleon',
   'setup-spyfall': 'spyfall', 'reveal-spyfall': 'spyfall', 'play-spyfall': 'spyfall',
@@ -26072,7 +26757,7 @@ function rollDice() {
     settleDie(slot.querySelector('.die'), values[i], i);
   });
 
-  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const still = reducedMotion();
   setTimeout(() => {
     resultEl.innerText = values.reduce((a, b) => a + b, 0);
     playSound('success');
@@ -26097,7 +26782,7 @@ function flipCoin() {
 
   const isHeads = Math.random() < 0.5;
   const t = TRANSLATIONS[appState.lang] || {};
-  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const still = reducedMotion();
 
   if (btn) btn.disabled = true;
   playSound('tick');
@@ -40002,6 +40687,8 @@ function move2048(dir) {
   const res = g2048Slide(s, dir);
   if (!res.moved) {
     s.tiles.forEach(x => { x.merged = false; });
+    // A board that is already stuck (brought back by a reload) ends on the next try.
+    if (!g2048CanMove(s)) { g2048End(false); return; }
     const board = document.getElementById('g2048-board');
     if (board && board.animate && !motionOff()) {
       const push = { left: [-6, 0], right: [6, 0], up: [0, -6], down: [0, 6] }[dir];
@@ -40011,6 +40698,13 @@ function move2048(dir) {
   }
   s.prev = before;
   s.score += res.gained;
+  // The best follows the score as it grows, not only when a game ends.
+  const best = soloBest('g2048', '');
+  if (res.gained && (!best || s.score > best.score)) {
+    soloRecord('g2048', '', { score: s.score, tile: Math.max.apply(null, s.tiles.map(x => x.v)) }, () => true);
+    const bestEl = document.getElementById('g2048-bestv');
+    if (bestEl) bestEl.textContent = s.score;
+  }
   // Where each consumed tile slides to before it disappears.
   const gone = res.merges.map(m => {
     const survivor = s.tiles.find(x => x.id === m.into);
@@ -40029,6 +40723,13 @@ function move2048(dir) {
     return;
   }
   if (!g2048CanMove(s)) setTimeout(() => g2048End(false), 400);
+}
+
+/** A new game throws the board away, so a game with points on it asks first. */
+function confirmNew2048() {
+  const s = g2048State();
+  if (s.phase === 'play' && s.score > 0) showConfirmModal((TRANSLATIONS[appState.lang] || {}).g2048_new_confirm || '', start2048);
+  else start2048();
 }
 
 function undo2048() {
@@ -40073,7 +40774,7 @@ function paint2048(full, gone) {
       <div class="view-actions">
         <div class="btn-row">
           <button class="btn btn--neutral btn--sm" id="g2048-undo" onclick="undo2048()" ${s.prev ? '' : 'disabled'}>↶ ${escapeHTML(t.solo_undo || '')}</button>
-          <button class="btn btn--neutral btn--sm" onclick="start2048()">🔄 ${escapeHTML(t.solo_new_game || '')}</button>
+          <button class="btn btn--neutral btn--sm" onclick="confirmNew2048()">🔄 ${escapeHTML(t.solo_new_game || '')}</button>
           <button class="btn btn--ghost btn--sm" onclick="setup2048()">${escapeHTML(t.exit || '')}</button>
         </div>
       </div>`;
@@ -40156,7 +40857,8 @@ function g2048End(won) {
   const s = g2048State();
   const t = TRANSLATIONS[appState.lang];
   const top = Math.max.apply(null, s.tiles.map(x => x.v).concat([0]));
-  const rec = soloRecord('g2048', '', { score: s.score, tile: top }, (a, b) => a.score > b.score);
+  const rec = soloRecord('g2048', '', { score: s.score, tile: top }, (a, b) => a.score > b.score || (a.score === b.score && a.tile > b.tile));
+  if (!rec.record && rec.prev && rec.prev.score === s.score) rec.record = true;
   const bestEl = document.getElementById('g2048-bestv');
   if (bestEl && rec.record) bestEl.textContent = s.score;
   if (won) {
@@ -40183,6 +40885,7 @@ function restore2048() {
   const s = g2048State();
   if (s.phase !== 'play' || !s.tiles.length) return false;
   paint2048(true);
+  if (!g2048CanMove(s)) setTimeout(() => g2048End(false), 300);
   return true;
 }
 
@@ -44120,6 +44823,883 @@ soloRegister('headsup', { setup: 'setup-headsup', play: 'play-headsup', paintSet
 
     <script>
 /* ============================================================================
+   حاسبة الورق — SCORE KEEPERS FOR FIVE ARAB CARD GAMES
+   ----------------------------------------------------------------------------
+   إستميشن, طرنيب, تريكس, كونكان and باصرة are played with a real deck; the
+   phone only keeps the score, the way سكرو and الدومينو already do. One engine
+   and five rule sets (CS_GAMES):
+
+   - seats: who plays (the player picker), or two teams of two (طرنيب,
+     partnership تريكس, and باصرة for four), named from the players in seat
+     order;
+   - a round card: what the scorekeeper types after a hand (entryHtml), read
+     back (read), checked against the deck (check: 13 tricks, 4 queens...) and
+     turned into points per seat (score);
+   - the end: a target (first to it), elimination (كونكان: over the limit is
+     out, the last in wins) or a fixed number of rounds (إستميشن, تريكس);
+   - options per game with the common house rules, painted on the setup
+     screen and remembered.
+
+   Every round stays in the history with what was typed, so the last one can
+   be taken back and typed again; totals count up and the leader is marked.
+   The game lives in appState.cardscore[id], so a reload comes back to it.
+   ========================================================================= */
+
+const CS_IDS = ['estimation', 'tarneeb', 'trix', 'konkan', 'basra'];
+const CS_GAMES = {};
+
+function csState(id) {
+  appState.cardscore = appState.cardscore || {};
+  if (!appState.cardscore[id]) appState.cardscore[id] = { opts: {}, seats: [], rounds: [], phase: 'setup', draft: {} };
+  const s = appState.cardscore[id];
+  const g = CS_GAMES[id];
+  if (g) Object.keys(g.options || {}).forEach(k => { if (s.opts[k] === undefined) s.opts[k] = g.options[k].def; });
+  return s;
+}
+
+const csT = () => TRANSLATIONS[appState.lang] || {};
+const csSum = (arr) => arr.reduce((a, b) => a + (Number(b) || 0), 0);
+
+/* --- Setup ----------------------------------------------------------------------------- */
+
+function setupCardScore(id) {
+  setView('setup-cs-' + id);
+}
+
+function paintCardScoreSetup(id) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  const box = document.getElementById('cs-' + id + '-options');
+  if (box) {
+    box.innerHTML = Object.keys(g.options || {}).map(key => {
+      const o = g.options[key];
+      if (o.when && !o.when(s.opts)) return '';
+      return `
+        <div class="field">
+          <label class="field__label">${escapeHTML(t[o.label] || '')}</label>
+          <div class="segmented" role="group">
+            ${o.values.map(v => `<button type="button" class="segmented__item ${String(s.opts[key]) === String(v) ? 'is-active' : ''}" onclick="setCardScoreOpt('${id}', '${key}', '${v}')">${escapeHTML(o.labelOf ? o.labelOf(v, t) : String(v))}</button>`).join('')}
+          </div>
+          ${o.hint ? `<p class="field__hint">${escapeHTML(t[o.hint(s.opts)] || '')}</p>` : ''}
+        </div>`;
+    }).join('');
+  }
+  const hint = document.getElementById('cs-' + id + '-seats');
+  if (hint) hint.textContent = t[g.seatsHint(s.opts)] || '';
+  const cont = document.getElementById('cs-' + id + '-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+}
+
+function setCardScoreOpt(id, key, value) {
+  const s = csState(id);
+  const o = CS_GAMES[id].options[key];
+  s.opts[key] = typeof o.def === 'number' ? Number(value) : value;
+  saveToLocal();
+  paintCardScoreSetup(id);
+  haptic('light');
+}
+
+function startCardScore(id) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  const names = (appState.activePlayers || []).slice();
+  const need = g.seatCount(s.opts);
+  if (names.length < need[0] || names.length > need[1]) {
+    showToast((t.cs_need_players || '').replace('{min}', need[0]).replace('{max}', need[1]), 'error');
+    return;
+  }
+  s.names = names;
+  s.seats = g.seats(names, s.opts, t);
+  s.rounds = [];
+  s.draft = {};
+  s.phase = 'play';
+  s.startedAt = Date.now();
+  saveToLocal();
+  setView('play-cs-' + id);
+  paintCardScore(id);
+}
+
+function continueCardScore(id) {
+  if (csState(id).phase === 'setup') return;
+  setView('play-cs-' + id);
+  paintCardScore(id);
+}
+
+/* --- Play ------------------------------------------------------------------------------- */
+
+function csTotals(id) {
+  const s = csState(id);
+  return s.seats.map((_, i) => csSum(s.rounds.map(r => r.points[i])));
+}
+
+function paintCardScore(id, fresh) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  const el = document.getElementById('cs-' + id + '-stage');
+  if (!el || !s.seats.length) return;
+  const totals = csTotals(id);
+  const boardOf = (tt) => (g.board ? g.board(s, tt) : s.seats.map((seat, i) => ({ i: i, name: seat.name, score: tt[i], out: false })));
+  const board = boardOf(totals);
+  // What each row stood at before the last round, for the count-up (a team row sums two seats).
+  const last = s.rounds[s.rounds.length - 1];
+  const before = last ? boardOf(totals.map((x, i) => x - (Number(last.points[i]) || 0))) : board;
+  const order = board.slice().sort((a, b) => (a.out - b.out) || (g.low ? a.score - b.score : b.score - a.score));
+  const lead = order[0];
+  const over = s.phase === 'over';
+  const roundNo = s.rounds.length + 1;
+  const goal = g.goalText ? g.goalText(s, t) : '';
+  el.innerHTML = `
+    <div class="cs-layout${over ? ' cs-layout--over' : ''}">
+    <div class="cs-layout__side">
+    <div class="cs-board card">
+      <div class="cs-board__head">
+        <span class="eyebrow">${escapeHTML(over ? (t.cs_final || '') : (t.cs_totals || ''))}</span>
+        ${goal ? `<span class="badge badge--accent">${escapeHTML(goal)}</span>` : ''}
+      </div>
+      ${order.map((row, k) => `
+        <div class="cs-total${row === lead && !row.out && row.score !== 0 ? ' is-lead' : ''}${row.out ? ' is-out' : ''}" data-seat="${row.i}">
+          <span class="cs-total__rank metric">${k + 1}</span>
+          <span class="cs-total__name">${row === lead && !row.out && row.score !== 0 ? '👑 ' : ''}${escapeHTML(row.name)}${row.note ? ` <span class="badge">${escapeHTML(row.note)}</span>` : ''}</span>
+          <b class="cs-total__score metric" data-score="${row.score}" data-from="${(before.find(b => b.i === row.i) || row).score}">${row.score}</b>
+        </div>`).join('')}
+    </div>
+    ${over ? csFinalHtml(id, order, t) : ''}
+    ${csHistoryHtml(id, s, g, t, over)}
+    </div>
+    ${over ? '' : `
+      <div class="cs-layout__main">
+      <div class="card cs-entry" id="cs-entry">
+        <div class="cs-entry__head">
+          <b>${escapeHTML((t.cs_round || '').replace('{n}', roundNo))}</b>
+          ${g.roundLabel && g.roundLabel(s, t) ? `<span class="badge">${escapeHTML(g.roundLabel(s, t))}</span>` : ''}
+        </div>
+        ${g.entryHtml(s, t)}
+        <button type="button" class="btn btn--primary btn--lg" onclick="saveCardScoreRound('${id}')">${escapeHTML(t.cs_save_round || '')}</button>
+      </div>
+      </div>`}
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupCardScore('${id}')">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+  if (g.afterPaint) g.afterPaint(s);
+  if (fresh && !motionOff() && typeof countUp === 'function') {
+    el.querySelectorAll('.cs-total__score').forEach(scoreEl => {
+      const from = Number(scoreEl.dataset.from), to = Number(scoreEl.dataset.score);
+      if (from !== to) countUp(scoreEl, from, to);
+    });
+  }
+}
+
+/** Every round so far, newest last, with the take-back button. */
+function csHistoryHtml(id, s, g, t) {
+  if (!s.rounds.length) return '';
+  return `
+    <div class="card card--tight cs-history">
+      <div class="cs-board__head"><span class="eyebrow">${escapeHTML(t.cs_history || '')}</span>
+        <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="undoCardScoreRound('${id}')">↶ ${escapeHTML(t.cs_undo_round || '')}</button></div>
+      <div class="cs-table" role="table">
+        <div class="cs-row cs-row--head" role="row" style="--cs-cols:${s.seats.length}">
+          <span>#</span>${s.seats.map(seat => `<span>${escapeHTML(seat.short || seat.name)}</span>`).join('')}
+        </div>
+        ${s.rounds.map((r, n) => `
+          <div class="cs-row" role="row" style="--cs-cols:${s.seats.length}">
+            <span class="cs-row__n" title="${escapeHTML(r.label || '')}">${n + 1}${r.tag ? `<small>${escapeHTML(r.tag)}</small>` : ''}</span>
+            ${r.points.map(p => `<span class="metric ${p > 0 ? 'tx-success' : (p < 0 ? 'tx-danger' : 'tx-muted')}">${p > 0 && !g.low ? '+' : ''}${p}</span>`).join('')}
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function csFinalHtml(id, order, t) {
+  const g = CS_GAMES[id];
+  const team = g.winners && g.winners(csState(id), order);
+  const winners = team || order.filter(r => !r.out && r.score === order[0].score);
+  const board = order.filter(r => !r.out).map(r => ({ pid: String(r.i), name: r.name, score: g.low ? -r.score : r.score }));
+  // A team that won (طرنيب 41) is not a ranking of its players.
+  const podium = !team && !g.low && board.length > 1 ? renderPodium({ code: 'cs', game: id + ':' + csState(id).startedAt }, board) : '';
+  return `
+    <div class="card card--accent" style="text-align:center">
+      <div class="metric metric--md">🏆</div>
+      <div class="card__title">${escapeHTML(winners.map(w => w.name).join(team ? ' & ' : ' · '))}</div>
+      <p class="sheet__subtitle">${escapeHTML(!team && winners.length > 1 ? (t.cs_tie || '') : (t.cs_winner || ''))}</p>
+      ${podium}
+    </div>
+    <div class="btn-stack">
+      <button type="button" class="btn btn--primary btn--lg" onclick="restartCardScore('${id}')">${escapeHTML(t.play_again || '')}</button>
+    </div>`;
+}
+
+function saveCardScoreRound(id) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  if (s.phase !== 'play') return;
+  const input = g.read(s);
+  const problem = g.check(input, s, t);
+  if (problem) { showToast(problem, 'error'); haptic('medium'); return; }
+  const result = g.score(input, s);
+  s.rounds.push(Object.assign({}, result, { input: input, draft: csDraftOf(), points: result.points, tag: result.tag || '', label: result.label || '' }));
+  s.draft = {};
+  const end = g.ended(s, csTotals(id));
+  if (end) s.phase = 'over';
+  saveToLocal();
+  playSound(end ? 'success' : 'click');
+  haptic('light');
+  paintCardScore(id, true);
+  if (end && typeof confetti === 'function' && !motionOff()) setTimeout(() => confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }), 500);
+}
+
+/** The last round back into the card, to fix and save again. */
+function undoCardScoreRound(id) {
+  const s = csState(id);
+  if (!s.rounds.length) return;
+  const last = s.rounds.pop();
+  s.draft = last.draft || {};
+  delete s.winTeam;
+  s.phase = 'play';
+  saveToLocal();
+  haptic('medium');
+  paintCardScore(id);
+}
+
+function restartCardScore(id) {
+  const s = csState(id);
+  s.rounds = [];
+  s.draft = {};
+  s.phase = 'play';
+  s.startedAt = Date.now();
+  if (CS_GAMES[id].reseat) s.seats = CS_GAMES[id].reseat(s);
+  saveToLocal();
+  paintCardScore(id);
+}
+
+function restoreCardScore(id) {
+  const s = csState(id);
+  if (s.phase === 'setup' || !s.seats.length) return false;
+  paintCardScore(id);
+  return true;
+}
+
+/* --- Small inputs the rule sets share ---------------------------------------------------- */
+
+/**
+ * Everything on the round card as it is now, by the inputs' keys: saved with
+ * the round, so taking the round back puts exactly what was typed back on
+ * the card to fix.
+ */
+function csDraftOf() {
+  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  const draft = {};
+  if (!id) return draft;
+  document.querySelectorAll('#cs-' + id + '-stage .cs-step__val').forEach(el => { if (el.value !== '') draft[el.id.replace('cs-in-', '')] = el.value; });
+  document.querySelectorAll('#cs-' + id + '-stage .cs-pick').forEach(box => {
+    const on = box.querySelector('.cs-pick__item.is-on');
+    if (on) draft['pick-' + box.id.replace('cs-pick-', '')] = on.dataset.v;
+  });
+  document.querySelectorAll('#cs-' + id + '-stage .cs-toggle.is-on').forEach(b => { draft['tog-' + b.id.replace('cs-tog-', '')] = '1'; });
+  return draft;
+}
+
+/** An on/off pill (a joker finish, a dash call, a made bid). */
+function csToggleHtml(key, label, on) {
+  return `<button type="button" class="cs-toggle ${on ? 'is-on' : ''}" id="cs-tog-${key}" aria-pressed="${on ? 'true' : 'false'}" onclick="csToggle('${key}')">${escapeHTML(label)}</button>`;
+}
+
+function csToggle(key) {
+  const btn = document.getElementById('cs-tog-' + key);
+  if (!btn) return;
+  const on = !btn.classList.contains('is-on');
+  btn.classList.toggle('is-on', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  if (id) {
+    const s = csState(id);
+    s.draft = s.draft || {};
+    s.draft['tog-' + key] = on ? '1' : '';
+    saveToLocal();
+  }
+  haptic('light');
+}
+
+const csToggled = (key) => !!document.querySelector('#cs-tog-' + key + '.is-on');
+
+/** A number stepper for one seat: − value +, typed values allowed. */
+function csStepperHtml(key, value, min, max) {
+  return `
+    <span class="cs-step" data-key="${key}" dir="ltr">
+      <button type="button" class="cs-step__btn" onclick="csStep('${key}', -1, ${min}, ${max})" aria-label="−">−</button>
+      <input type="number" inputmode="numeric" class="cs-step__val metric" id="cs-in-${key}" value="${value === undefined || value === null ? '' : value}" min="${min}" max="${max}" onchange="csKeep(this)">
+      <button type="button" class="cs-step__btn" onclick="csStep('${key}', 1, ${min}, ${max})" aria-label="+">+</button>
+    </span>`;
+}
+
+function csStep(key, delta, min, max) {
+  const input = document.getElementById('cs-in-' + key);
+  if (!input) return;
+  const now = input.value === '' ? (delta > 0 ? min - 1 : min + 1) : Number(input.value);
+  input.value = Math.max(min, Math.min(max, now + delta));
+  csKeep(input);
+  haptic('light');
+}
+
+/** Typing survives a redraw (a language change, a reload): kept in the game's draft. */
+function csKeep(input) {
+  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  if (!id || !input || !input.id) return;
+  const s = csState(id);
+  s.draft = s.draft || {};
+  s.draft[input.id.replace('cs-in-', '')] = input.value;
+  saveToLocal();
+}
+
+const csVal = (key) => {
+  const input = document.getElementById('cs-in-' + key);
+  return input && input.value !== '' ? Number(input.value) : null;
+};
+
+/** A row of choices, one pressed: seats, or any list of { v, label }. */
+function csPickHtml(key, items, current) {
+  return `<div class="cs-pick" id="cs-pick-${key}">${items.map(it => `
+    <button type="button" class="cs-pick__item ${String(current) === String(it.v) ? 'is-on' : ''}" data-v="${escapeHTML(String(it.v))}" onclick="csPick('${key}', this)">${escapeHTML(it.label)}</button>`).join('')}</div>`;
+}
+
+function csPick(key, btn) {
+  const box = document.getElementById('cs-pick-' + key);
+  if (!box) return;
+  const on = !btn.classList.contains('is-on') || box.dataset.required !== 'false';
+  box.querySelectorAll('.cs-pick__item').forEach(b => b.classList.toggle('is-on', b === btn && on));
+  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  if (id) {
+    const s = csState(id);
+    s.draft = s.draft || {};
+    s.draft['pick-' + key] = on ? btn.dataset.v : '';
+    saveToLocal();
+    const g = CS_GAMES[id];
+    if (g.onPick) g.onPick(key, s);
+  }
+  haptic('light');
+}
+
+const csPicked = (key) => {
+  const on = document.querySelector(`#cs-pick-${key} .cs-pick__item.is-on`);
+  return on ? on.dataset.v : null;
+};
+
+const csDraft = (s, key, fallback) => (s.draft && s.draft[key] !== undefined && s.draft[key] !== '' ? s.draft[key] : fallback);
+
+/** Four names as two teams, sitting across from each other: 1 & 3 against 2 & 4. */
+function csTeams(names, t) {
+  const a = [names[0], names[2]], b = [names[1], names[3]];
+  const label = (pair, n) => ({ name: `${pair.join(' & ')}`, short: (t.cs_team_short || '').replace('{n}', n), members: pair });
+  return [label(a, 1), label(b, 2)];
+}
+
+CS_IDS.forEach(id => {
+  soloRegister('cs-' + id, { setup: 'setup-cs-' + id, play: 'play-cs-' + id, paintSetup: () => paintCardScoreSetup(id), restore: () => restoreCardScore(id) });
+});
+</script>
+
+    <script>
+/* ============================================================================
+   حاسبة الورق — THE RULE SETS (see JS_CardScore.html for the engine)
+   ----------------------------------------------------------------------------
+   Each game says who sits (seats), what one round asks for (entryHtml, read,
+   check), what it is worth (score) and when the game is over (ended). The
+   numbers follow the common rules as written by Jawaker and pagat.com and
+   Egyptian tables (researched 16 Sep 2026); where tables disagree, the
+   difference is an option on the setup screen, with the most common first.
+   ========================================================================= */
+
+const csSeatItems = (s) => s.seats.map((seat, i) => ({ v: i, label: seat.name }));
+
+/* --- تريكس ------------------------------------------------------------------------------
+   Four kingdoms, one per player in seat order. In the classic game the owner
+   of a kingdom plays each of the five contracts once (20 deals); in Complex
+   the four negative contracts are one deal, then the Trix (8 deals).
+   King of hearts −75, each queen −25, each diamond −10, each trick −15, the
+   Trix +200/+150/+100/+50 by finishing order: every kingdom adds up to 0.
+   A king or queen shown before the first lead is doubled: whoever else takes
+   it pays double and the one who doubled it gets the single value; if the
+   one who doubled takes it themselves, they pay double and whoever led that
+   trick gets the single value - unless they led it themselves, when it is
+   just the single value. Partners (1 & 3 against 2 & 4) add their points. */
+const TRIX_CONTRACTS = { classic: ['king', 'queens', 'diamonds', 'tricks', 'trix'], complex: ['complex', 'trix'] };
+const TRIX_QUEENS = ['♠', '♥', '♦', '♣'];
+
+CS_GAMES.trix = {
+  icon: '♥️',
+  options: {
+    game: { label: 'cs_trix_game', values: ['classic', 'complex'], def: 'classic', labelOf: (v, t) => t['cs_trix_game_' + v] || v },
+    teams: { label: 'cs_trix_teams', values: ['solo', 'pairs'], def: 'solo', labelOf: (v, t) => t['cs_mode_' + v] || v },
+    doubling: { label: 'cs_trix_doubling', values: ['on', 'off'], def: 'on', labelOf: (v, t) => t['cs_onoff_' + v] || v }
+  },
+  seatCount: () => [4, 4],
+  seatsHint: (opts) => (opts.teams === 'pairs' ? 'cs_pairs_seats' : 'cs_trix_seats'),
+  seats: (names, opts) => names.map((n, i) => ({ name: n, team: i % 2 })),
+  board: (s, totals) => {
+    if (s.opts.teams !== 'pairs') return s.seats.map((seat, i) => ({ i: i, name: seat.name, score: totals[i] }));
+    return [0, 1].map(team => ({
+      i: team, name: s.seats.filter(x => x.team === team).map(x => x.name).join(' & '),
+      score: csSum(totals.filter((_, i) => s.seats[i].team === team))
+    }));
+  },
+  per: (s) => TRIX_CONTRACTS[s.opts.game].length,
+  owner: (s) => Math.floor(s.rounds.length / CS_GAMES.trix.per(s)) % 4,
+  roundLabel: (s) => `👑 ${s.seats[CS_GAMES.trix.owner(s)].name}`,
+  goalText: (s, t) => (t.cs_trix_goal || '').replace('{n}', s.rounds.length).replace('{m}', CS_GAMES.trix.per(s) * 4),
+  /** The taker, the doubler and, when they are one person, who led the trick. */
+  cardHtml(s, t, key, title) {
+    const seats = csSeatItems(s);
+    const taker = csDraft(s, 'pick-' + key, '');
+    const doubler = csDraft(s, 'pick-' + key + 'd', '');
+    let html = `<div class="cs-card"><b class="cs-card__title"><bdi dir="ltr">${title}</bdi></b>
+      <span class="cs-label">${escapeHTML(t.cs_trix_taken_by || '')}</span>${csPickHtml(key, seats, taker)}`;
+    if (s.opts.doubling === 'on') {
+      html += `<span class="cs-label">${escapeHTML(t.cs_trix_doubled_by || '')}</span>${csPickHtml(key + 'd', [{ v: '', label: t.cs_trix_not_doubled || '' }].concat(seats), doubler)}`;
+      if (taker !== '' && doubler !== '' && String(taker) === String(doubler)) {
+        html += `<span class="cs-label">${escapeHTML(t.cs_trix_led_by || '')}</span>${csPickHtml(key + 'l', seats, csDraft(s, 'pick-' + key + 'l', ''))}`;
+      }
+    }
+    return html + '</div>';
+  },
+  countsHtml(s, t, key, label) {
+    return `<div class="cs-card"><b class="cs-card__title">${escapeHTML(label)}</b>` +
+      s.seats.map((seat, i) => `<div class="cs-seat-row"><span class="cs-seat-row__name">${escapeHTML(seat.name)}</span>${csStepperHtml(key + i, csDraft(s, key + i, 0), 0, 13)}</div>`).join('') + '</div>';
+  },
+  entryHtml(s, t) {
+    const g = CS_GAMES.trix;
+    const per = g.per(s);
+    const owner = g.owner(s);
+    const kingdom = Math.floor(s.rounds.length / per);
+    const played = s.rounds.filter((r, n) => Math.floor(n / per) === kingdom).map(r => r.input.contract);
+    const left = TRIX_CONTRACTS[s.opts.game].filter(c => played.indexOf(c) === -1);
+    const contract = csDraft(s, 'pick-contract', left[0]);
+    const king = () => g.cardHtml(s, t, 'k', 'K♥');
+    const queens = () => TRIX_QUEENS.map((q, k) => g.cardHtml(s, t, 'q' + k, 'Q' + q)).join('');
+    let body = '';
+    if (contract === 'king' || contract === 'complex') body += king();
+    if (contract === 'queens' || contract === 'complex') body += queens();
+    if (contract === 'diamonds' || contract === 'complex') body += g.countsHtml(s, t, 'd', t.cs_trix_diamonds_count || '');
+    if (contract === 'tricks' || contract === 'complex') body += g.countsHtml(s, t, 'l', t.cs_trix_tricks_count || '');
+    if (contract === 'trix') {
+      body = `<div class="cs-card"><b class="cs-card__title">${escapeHTML(t.cs_trix_order || '')}</b>` +
+        s.seats.map((seat, i) => `<div class="cs-seat-row"><span class="cs-seat-row__name">${escapeHTML(seat.name)}</span>${csPickHtml('place' + i, [1, 2, 3, 4].map(p => ({ v: p, label: String(p) })), csDraft(s, 'pick-place' + i, ''))}</div>`).join('') + '</div>';
+    }
+    return `
+      <span class="cs-label">${escapeHTML((t.cs_trix_contract || '').replace('{name}', s.seats[owner].name))}</span>
+      ${csPickHtml('contract', left.map(c => ({ v: c, label: t['cs_trix_c_' + c] || c })), contract)}
+      ${body}`;
+  },
+  onPick(key, s) {
+    if (key === 'contract') Object.keys(s.draft).forEach(k => { if (k !== 'pick-contract') delete s.draft[k]; });
+    paintCardScore('trix');
+  },
+  readCard: (key) => ({ taker: csPicked(key), doubler: csPicked(key + 'd') || '', led: csPicked(key + 'l') }),
+  read(s) {
+    const g = CS_GAMES.trix;
+    const contract = csPicked('contract');
+    const input = { contract: contract };
+    if (contract === 'king' || contract === 'complex') input.king = g.readCard('k');
+    if (contract === 'queens' || contract === 'complex') input.queens = [0, 1, 2, 3].map(k => g.readCard('q' + k));
+    if (contract === 'diamonds' || contract === 'complex') input.diamonds = s.seats.map((_, i) => csVal('d' + i) || 0);
+    if (contract === 'tricks' || contract === 'complex') input.tricks = s.seats.map((_, i) => csVal('l' + i) || 0);
+    if (contract === 'trix') input.place = s.seats.map((_, i) => Number(csPicked('place' + i)) || 0);
+    return input;
+  },
+  check(input, s, t) {
+    const bad = (card) => card.taker === null || (card.doubler !== '' && String(card.doubler) === String(card.taker) && card.led === null);
+    if (!input.contract) return t.cs_trix_pick_contract;
+    if (input.king && bad(input.king)) return t.cs_trix_need_king;
+    if (input.queens && input.queens.some(bad)) return t.cs_trix_need_queens;
+    if (input.diamonds && csSum(input.diamonds) !== 13) return (t.cs_need_13 || '').replace('{n}', csSum(input.diamonds));
+    if (input.tricks && csSum(input.tricks) !== 13) return (t.cs_need_13 || '').replace('{n}', csSum(input.tricks));
+    if (input.contract === 'trix' && [1, 2, 3, 4].some(p => input.place.filter(x => x === p).length !== 1)) return t.cs_trix_need_order;
+    return '';
+  },
+  score(input, s) {
+    const pts = s.seats.map(() => 0);
+    const t = csT();
+    const card = (c, value) => {
+      const taker = Number(c.taker);
+      if (c.doubler === '' || c.doubler === null || s.opts.doubling !== 'on') { pts[taker] -= value; return; }
+      const doubler = Number(c.doubler);
+      if (doubler !== taker) { pts[taker] -= value * 2; pts[doubler] += value; return; }
+      const led = Number(c.led);
+      if (led === taker) { pts[taker] -= value; return; }
+      pts[taker] -= value * 2;
+      pts[led] += value;
+    };
+    if (input.king) card(input.king, 75);
+    if (input.queens) input.queens.forEach(q => card(q, 25));
+    if (input.diamonds) input.diamonds.forEach((n, i) => { pts[i] -= n * 10; });
+    if (input.tricks) input.tricks.forEach((n, i) => { pts[i] -= n * 15; });
+    if (input.contract === 'trix') input.place.forEach((p, i) => { pts[i] += [0, 200, 150, 100, 50][p]; });
+    return { points: pts, tag: ({ king: '♥K', queens: 'Q', diamonds: '♦', tricks: '✋', trix: '🏁', complex: '★' })[input.contract], label: t['cs_trix_c_' + input.contract] || '' };
+  },
+  ended: (s) => s.rounds.length >= CS_GAMES.trix.per(s) * 4
+};
+
+/* --- طرنيب ------------------------------------------------------------------------------
+   Three ways tables play it:
+   - شامي (Levantine, the default): a team bids 7-13. Made: it scores the
+     tricks it took (not the bid); failed: −bid and the other team scores its
+     tricks. All 13 without bidding 13 (كبوت) is 16; bidding 13 and making it
+     26; bidding 13 and failing −16 with the other team scoring double.
+   - مصري: the same, but the bid can be doubled (×2) or redoubled (×4), which
+     multiplies what the bidding team wins or loses.
+   - ٤١: every player bids alone (at least 2, the four bids at least 11) and
+     scores the value of their bid if they make it, minus it if not (5 and up
+     are worth more); a team wins when one partner reaches 41 with the other
+     above 0, and bidding 13 and making it wins outright. */
+const TARNEEB_41_VALUES = { 2: 2, 3: 3, 4: 4, 5: 10, 6: 12, 7: 14, 8: 16, 9: 27, 10: 30, 11: 33, 12: 36, 13: 0 };
+
+CS_GAMES.tarneeb = {
+  icon: '♠️',
+  options: {
+    mode: { label: 'cs_tarneeb_mode', values: ['levant', 'egypt', 'fortyone'], def: 'levant', labelOf: (v, t) => t['cs_tarneeb_mode_' + v] || v, hint: (o) => 'cs_tarneeb_hint_' + o.mode },
+    target: { label: 'cs_target', values: [31, 41, 51, 61], def: 31, when: (o) => o.mode !== 'fortyone' }
+  },
+  seatCount: () => [4, 4],
+  seatsHint: () => 'cs_pairs_seats',
+  seats: (names, opts, t) => (opts.mode === 'fortyone' ? names.map((n, i) => ({ name: n, team: i % 2 })) : csTeams(names, t)),
+  board: (s, totals) => {
+    if (s.opts.mode !== 'fortyone') return s.seats.map((seat, i) => ({ i: i, name: seat.name, score: totals[i] }));
+    return s.seats.map((seat, i) => ({ i: i, name: seat.name, score: totals[i], note: (csT().cs_team_short || '').replace('{n}', seat.team + 1) }));
+  },
+  goalText: (s, t) => (s.opts.mode === 'fortyone' ? (t.cs_tarneeb_goal41 || '') : (t.cs_to_target || '').replace('{n}', s.opts.target)),
+  entryHtml(s, t) {
+    if (s.opts.mode === 'fortyone') {
+      return `<span class="cs-label">${escapeHTML(t.cs_tarneeb_41_entry || '')}</span>` + s.seats.map((seat, i) => `
+        <div class="cs-seat-row">
+          <span class="cs-seat-row__name">${escapeHTML(seat.name)}</span>
+          <span class="cs-seat-row__cells">
+            <span class="cs-cell"><small>${escapeHTML(t.cs_tarneeb_bid || '')}</small>${csStepperHtml('b' + i, csDraft(s, 'b' + i, 2), 2, 13)}</span>
+            ${csToggleHtml('m' + i, t.cs_made_it || '', csDraft(s, 'tog-m' + i, '') === '1')}
+          </span>
+        </div>`).join('');
+    }
+    return `
+      <span class="cs-label">${escapeHTML(t.cs_tarneeb_bidder || '')}</span>
+      ${csPickHtml('team', csSeatItems(s), csDraft(s, 'pick-team', ''))}
+      <div class="cs-seat-row"><span class="cs-seat-row__name">${escapeHTML(t.cs_tarneeb_bid || '')}</span>${csStepperHtml('bid', csDraft(s, 'bid', 7), 7, 13)}</div>
+      <div class="cs-seat-row"><span class="cs-seat-row__name">${escapeHTML(t.cs_tarneeb_took || '')}</span>${csStepperHtml('took', csDraft(s, 'took', ''), 0, 13)}</div>
+      ${s.opts.mode === 'egypt' ? `<span class="cs-label">${escapeHTML(t.cs_tarneeb_double || '')}</span>${csPickHtml('mult', [1, 2, 4].map(m => ({ v: m, label: m === 1 ? (t.cs_tarneeb_no_double || '') : '×' + m })), csDraft(s, 'pick-mult', 1))}` : ''}`;
+  },
+  read(s) {
+    if (s.opts.mode === 'fortyone') return { bids: s.seats.map((_, i) => csVal('b' + i)), made: s.seats.map((_, i) => csToggled('m' + i)) };
+    return { team: csPicked('team'), bid: csVal('bid'), took: csVal('took'), mult: Number(csPicked('mult') || 1) };
+  },
+  check(input, s, t) {
+    if (s.opts.mode === 'fortyone') {
+      if (input.bids.some(b => b === null || b < 2 || b > 13)) return t.cs_tarneeb_need_bids;
+      if (csSum(input.bids) < 11) return t.cs_tarneeb_under_11;
+      return '';
+    }
+    if (input.team === null) return t.cs_tarneeb_need_team;
+    if (input.bid === null || input.bid < 7 || input.bid > 13) return t.cs_tarneeb_need_bid;
+    if (input.took === null || input.took < 0 || input.took > 13) return t.cs_tarneeb_need_took;
+    return '';
+  },
+  score(input, s) {
+    if (s.opts.mode === 'fortyone') {
+      const pts = input.bids.map((b, i) => (b === 13 ? 0 : (input.made[i] ? 1 : -1) * TARNEEB_41_VALUES[b]));
+      const thirteen = input.bids.findIndex((b, i) => b === 13 && input.made[i]);
+      return { points: pts, tag: thirteen !== -1 ? '13!' : '', win: thirteen !== -1 ? s.seats[thirteen].team : null };
+    }
+    const bidder = Number(input.team), other = 1 - bidder;
+    const pts = [0, 0];
+    const mult = s.opts.mode === 'egypt' ? input.mult : 1;
+    if (input.took >= input.bid) {
+      pts[bidder] = (input.bid === 13 ? 26 : (input.took === 13 ? 16 : input.took)) * mult;
+    } else {
+      pts[bidder] = -(input.bid === 13 ? 16 : input.bid) * mult;
+      pts[other] = (13 - input.took) * (input.bid === 13 ? 2 : 1);
+    }
+    return { points: pts, tag: `${input.bid}${input.took >= input.bid ? '✓' : '✗'}${mult > 1 ? '×' + mult : ''}` };
+  },
+  ended(s, totals) {
+    if (s.opts.mode === 'fortyone') {
+      const last = s.rounds[s.rounds.length - 1];
+      if (last && last.win !== undefined && last.win !== null) { s.winTeam = last.win; return true; }
+      const team = [0, 1].find(tm => s.seats.some((seat, i) => seat.team === tm && totals[i] >= 41 && s.seats.some((p, j) => j !== i && p.team === tm && totals[j] > 0)));
+      if (team !== undefined) { s.winTeam = team; return true; }
+      return false;
+    }
+    return totals.some(x => x >= s.opts.target) && totals[0] !== totals[1];
+  },
+  /** In ٤١ the winner is a team, whatever the individual totals. */
+  winners: (s, order) => (s.opts.mode === 'fortyone' && s.winTeam !== undefined && s.winTeam !== null ? order.filter(r => s.seats[r.i].team === s.winTeam).sort((a, b) => a.i - b.i) : null)
+};
+
+/* --- كونكان -------------------------------------------------------------------------------
+   Whoever goes out takes −30; everyone who put cards down adds what is left
+   in their hand (2-10 as marked, pictures 10, ace 11, joker 15), and anyone
+   who never put anything down takes 100. A هاند (everything down in one
+   turn), or a Konkan hand, doubles all of it; finishing on a joker or in one
+   colour doubles it again, and in one suit four times. In teams the winner's
+   partner scores nothing. Lowest after the rounds wins; knocking players out
+   over a limit is a house rule some tables play. */
+CS_GAMES.konkan = {
+  icon: '♦️',
+  low: true,
+  options: {
+    end: { label: 'cs_konkan_end', values: ['r5', 'r7', 'l101'], def: 'r5', labelOf: (v, t) => t['cs_konkan_end_' + v] || v },
+    teams: { label: 'cs_konkan_teams', values: ['solo', 'pairs'], def: 'solo', labelOf: (v, t) => t['cs_mode_' + v] || v }
+  },
+  seatCount: (opts) => (opts.teams === 'pairs' ? [4, 4] : [2, 6]),
+  seatsHint: (opts) => (opts.teams === 'pairs' ? 'cs_pairs_seats' : 'cs_konkan_seats'),
+  seats: (names) => names.map((n, i) => ({ name: n, team: i % 2 })),
+  limit: (s) => (s.opts.end === 'l101' ? 101 : null),
+  board: (s, totals) => {
+    const limit = CS_GAMES.konkan.limit(s);
+    if (s.opts.teams === 'pairs') {
+      return [0, 1].map(team => ({ i: team, name: s.seats.filter(x => x.team === team).map(x => x.name).join(' & '), score: csSum(totals.filter((_, i) => s.seats[i].team === team)) }));
+    }
+    return s.seats.map((seat, i) => ({ i: i, name: seat.name, score: totals[i], out: limit !== null && totals[i] > limit }));
+  },
+  goalText: (s, t) => (s.opts.end === 'l101' ? (t.cs_konkan_goal_limit || '') : (t.cs_rounds_of || '').replace('{n}', s.rounds.length).replace('{m}', s.opts.end === 'r7' ? 7 : 5)),
+  inGame(s) {
+    const limit = CS_GAMES.konkan.limit(s);
+    const totals = csTotals('konkan');
+    return s.seats.map((_, i) => i).filter(i => limit === null || totals[i] <= limit);
+  },
+  entryHtml(s, t) {
+    const g = CS_GAMES.konkan;
+    const players = g.inGame(s);
+    const winner = csDraft(s, 'pick-winner', '');
+    const partner = s.opts.teams === 'pairs' && winner !== '' ? players.find(i => i !== Number(winner) && s.seats[i].team === s.seats[Number(winner)].team) : -1;
+    return `
+      <span class="cs-label">${escapeHTML(t.cs_konkan_winner || '')}</span>
+      ${csPickHtml('winner', players.map(i => ({ v: i, label: s.seats[i].name })), winner)}
+      <span class="cs-label">${escapeHTML(t.cs_konkan_finish || '')}</span>
+      ${csPickHtml('finish', [{ v: 'normal', label: t.cs_konkan_normal || '' }, { v: 'hand', label: t.cs_konkan_hand || '' }], csDraft(s, 'pick-finish', 'normal'))}
+      <div class="cs-toggles">
+        ${csToggleHtml('joker', t.cs_konkan_joker || '', csDraft(s, 'tog-joker', '') === '1')}
+        ${csToggleHtml('colour', t.cs_konkan_colour || '', csDraft(s, 'tog-colour', '') === '1')}
+        ${csToggleHtml('suit', t.cs_konkan_suit || '', csDraft(s, 'tog-suit', '') === '1')}
+      </div>
+      <span class="cs-label">${escapeHTML(t.cs_konkan_left || '')}</span>
+      ${players.filter(i => String(i) !== String(winner) && i !== partner).map(i => `
+        <div class="cs-seat-row">
+          <span class="cs-seat-row__name">${escapeHTML(s.seats[i].name)}</span>
+          <span class="cs-seat-row__cells">
+            ${csStepperHtml('p' + i, csDraft(s, 'p' + i, ''), 0, 400)}
+            ${csToggleHtml('n' + i, t.cs_konkan_never || '', csDraft(s, 'tog-n' + i, '') === '1')}
+          </span>
+        </div>`).join('')}`;
+  },
+  onPick(key, s) { if (key === 'winner') paintCardScore('konkan'); },
+  read(s) {
+    const players = CS_GAMES.konkan.inGame(s);
+    return {
+      winner: csPicked('winner'), finish: csPicked('finish') || 'normal',
+      joker: csToggled('joker'), colour: csToggled('colour'), suit: csToggled('suit'),
+      pts: s.seats.map((_, i) => (players.indexOf(i) === -1 ? null : csVal('p' + i))),
+      never: s.seats.map((_, i) => csToggled('n' + i))
+    };
+  },
+  check(input, s, t) {
+    if (input.winner === null) return t.cs_konkan_need_winner;
+    const w = Number(input.winner);
+    const partner = s.opts.teams === 'pairs' ? s.seats.findIndex((seat, i) => i !== w && seat.team === s.seats[w].team) : -1;
+    const missing = CS_GAMES.konkan.inGame(s).some(i => i !== w && i !== partner && input.pts[i] === null && !input.never[i]);
+    return missing ? t.cs_konkan_need_points : '';
+  },
+  score(input, s) {
+    const w = Number(input.winner);
+    const partner = s.opts.teams === 'pairs' ? s.seats.findIndex((seat, i) => i !== w && seat.team === s.seats[w].team) : -1;
+    let mult = input.finish === 'hand' ? 2 : 1;
+    if (input.joker) mult *= 2;
+    if (input.colour) mult *= 2;
+    if (input.suit) mult *= 4;
+    const players = CS_GAMES.konkan.inGame(s);
+    const pts = s.seats.map((_, i) => {
+      if (players.indexOf(i) === -1 || i === partner) return 0;
+      if (i === w) return -30 * mult;
+      return (input.never[i] ? 100 : (input.pts[i] || 0)) * mult;
+    });
+    return { points: pts, tag: mult > 1 ? '×' + mult : '' };
+  },
+  ended(s, totals) {
+    if (s.opts.end === 'l101') return totals.filter(x => x <= 101).length <= 1;
+    return s.rounds.length >= (s.opts.end === 'r7' ? 7 : 5);
+  }
+};
+
+/* --- باصرة --------------------------------------------------------------------------------
+   Counted when the deck is played out. 30 for the most cards (27 or more),
+   1 for each ace and each jack, 2 for the two of clubs, 3 for the ten of
+   diamonds - 43 in every deck - and 10 for every basra. When the cards split
+   26-26 the 30 carries over to the next deck. A jack's sweep is never a basra.
+   Two to four players, or two teams of two; first past the target at the end
+   of a deck wins. */
+CS_GAMES.basra = {
+  icon: '🎣',
+  options: {
+    target: { label: 'cs_target', values: [101, 121, 150], def: 121 },
+    teams: { label: 'cs_basra_teams', values: ['solo', 'pairs'], def: 'solo', labelOf: (v, t) => t['cs_mode_' + v] || v }
+  },
+  seatCount: (opts) => (opts.teams === 'pairs' ? [4, 4] : [2, 4]),
+  seatsHint: (opts) => (opts.teams === 'pairs' ? 'cs_pairs_seats' : 'cs_basra_seats'),
+  seats: (names, opts, t) => (opts.teams === 'pairs' ? csTeams(names, t) : names.map(n => ({ name: n }))),
+  goalText: (s, t) => (t.cs_to_target || '').replace('{n}', s.opts.target),
+  /** The majority's worth this deck: 30, plus 30 for every tie just before it. */
+  majority(s) {
+    let worth = 30;
+    for (let n = s.rounds.length - 1; n >= 0 && s.rounds[n].input.most === 'tie'; n--) worth += 30;
+    return worth;
+  },
+  roundLabel: (s, t) => (t.cs_basra_worth || '').replace('{n}', CS_GAMES.basra.majority(s)),
+  entryHtml(s, t) {
+    const seats = csSeatItems(s);
+    return `
+      <span class="cs-label">${escapeHTML(t.cs_basra_count || '')}</span>
+      ${s.seats.map((seat, i) => `<div class="cs-seat-row"><span class="cs-seat-row__name">${escapeHTML(seat.name)}</span>
+        <span class="cs-seat-row__cells">
+          <span class="cs-cell"><small>${escapeHTML(t.cs_basra_basras || '')}</small>${csStepperHtml('b' + i, csDraft(s, 'b' + i, 0), 0, 20)}</span>
+          <span class="cs-cell"><small>${escapeHTML(t.cs_basra_aj || '')}</small>${csStepperHtml('a' + i, csDraft(s, 'a' + i, 0), 0, 8)}</span>
+        </span></div>`).join('')}
+      <span class="cs-label">${escapeHTML(t.cs_basra_most || '')}</span>
+      ${csPickHtml('most', seats.concat([{ v: 'tie', label: t.cs_basra_tie || '' }]), csDraft(s, 'pick-most', ''))}
+      <span class="cs-label">2♣</span>${csPickHtml('two', seats, csDraft(s, 'pick-two', ''))}
+      <span class="cs-label">10♦</span>${csPickHtml('ten', seats, csDraft(s, 'pick-ten', ''))}`;
+  },
+  read: (s) => ({ b: s.seats.map((_, i) => csVal('b' + i) || 0), a: s.seats.map((_, i) => csVal('a' + i) || 0), most: csPicked('most'), two: csPicked('two'), ten: csPicked('ten') }),
+  check(input, s, t) {
+    if (input.most === null) return t.cs_basra_need_most;
+    if (input.two === null || input.ten === null) return t.cs_basra_need_cards;
+    if (csSum(input.a) !== 8) return (t.cs_basra_need_aj || '').replace('{n}', csSum(input.a));
+    return '';
+  },
+  score(input, s) {
+    const pts = input.b.map((n, i) => n * 10 + input.a[i]);
+    if (input.most !== 'tie') pts[Number(input.most)] += CS_GAMES.basra.majority(s);
+    pts[Number(input.two)] += 2;
+    pts[Number(input.ten)] += 3;
+    return { points: pts, tag: input.most === 'tie' ? '26' : '' };
+  },
+  ended(s, totals) {
+    const top = Math.max.apply(null, totals);
+    return top >= s.opts.target && totals.filter(x => x === top).length === 1;
+  }
+};
+
+/* --- إستميشن ------------------------------------------------------------------------------
+   Four players each call how many tricks they will take; the calls never add
+   up to 13 (over or under). The highest bidder (the caller) names trumps, and
+   whoever calls the same number as the caller is "with" (مع) them.
+   - Made exactly: 10 + the call; +10 for the caller or مع; +10 per risk
+     level for the risk player (the last to call: 2-3 off 13 is one level,
+     4-5 two...); +10 for the only one who made it.
+   - Missed: minus the tricks off; −10 for the caller or مع; −10 per risk
+     level for the risk player; −10 for the only one who missed.
+   - A dash call (0 announced before the bidding, two at most): ±33 in an
+     under round and ±25 in an over round, or the Egyptian +33 / −23. A plain
+     zero made in an under round is worth 10 more.
+   - Everyone missed (صعايدة): nobody scores, and the next round counts
+     double (four times after two).
+   - 13 rounds, then 5 speed rounds with no bidding (18); or a short game. */
+CS_GAMES.estimation = {
+  icon: '🎯',
+  options: {
+    rounds: { label: 'cs_est_rounds', values: [18, 13], def: 18 },
+    dash: { label: 'cs_est_dash', values: ['jawaker', 'egypt'], def: 'jawaker', labelOf: (v, t) => t['cs_est_dash_' + v] || v },
+    base: { label: 'cs_est_base', values: [10, 13], def: 10 }
+  },
+  seatCount: () => [4, 4],
+  seatsHint: () => 'cs_est_seats',
+  seats: (names) => names.map(n => ({ name: n })),
+  goalText: (s, t) => (t.cs_rounds_of || '').replace('{n}', s.rounds.length).replace('{m}', s.opts.rounds),
+  speed: (s) => s.rounds.length >= 13,
+  mult(s) {
+    let m = 1;
+    for (let n = s.rounds.length - 1; n >= 0 && s.rounds[n].allMissed; n--) m *= 2;
+    return m;
+  },
+  roundLabel(s, t) {
+    const g = CS_GAMES.estimation;
+    const bits = [];
+    if (g.speed(s)) bits.push(t.cs_est_speed || '');
+    if (g.mult(s) > 1) bits.push('×' + g.mult(s));
+    return bits.join(' · ');
+  },
+  entryHtml(s, t) {
+    const g = CS_GAMES.estimation;
+    const seats = csSeatItems(s);
+    return `
+      ${s.seats.map((seat, i) => `
+        <div class="cs-seat-row">
+          <span class="cs-seat-row__name">${escapeHTML(seat.name)}</span>
+          <span class="cs-seat-row__cells">
+            <span class="cs-cell"><small>${escapeHTML(t.cs_est_call || '')}</small>${csStepperHtml('c' + i, csDraft(s, 'c' + i, ''), 0, 13)}</span>
+            <span class="cs-cell"><small>${escapeHTML(t.cs_est_took || '')}</small>${csStepperHtml('t' + i, csDraft(s, 't' + i, ''), 0, 13)}</span>
+            <span class="cs-cell"><small>&nbsp;</small>${csToggleHtml('dash' + i, t.cs_est_dash_call || '', csDraft(s, 'tog-dash' + i, '') === '1')}</span>
+          </span>
+        </div>`).join('')}
+      ${g.speed(s) ? '' : `<span class="cs-label">${escapeHTML(t.cs_est_caller || '')}</span>${csPickHtml('caller', seats, csDraft(s, 'pick-caller', ''))}`}
+      <span class="cs-label">${escapeHTML(t.cs_est_risk || '')}</span>
+      ${csPickHtml('risk', [{ v: '', label: t.cs_nobody || '' }].concat(seats), csDraft(s, 'pick-risk', ''))}`;
+  },
+  read(s) {
+    return {
+      calls: s.seats.map((_, i) => csVal('c' + i)),
+      tricks: s.seats.map((_, i) => csVal('t' + i)),
+      dash: s.seats.map((_, i) => csToggled('dash' + i)),
+      caller: csPicked('caller'),
+      risk: csPicked('risk') || ''
+    };
+  },
+  check(input, s, t) {
+    if (input.calls.some(c => c === null) || input.tricks.some(c => c === null)) return t.cs_est_need_all;
+    if (csSum(input.tricks) !== 13) return (t.cs_need_13 || '').replace('{n}', csSum(input.tricks));
+    if (csSum(input.calls) === 13) return t.cs_est_not_13;
+    if (!CS_GAMES.estimation.speed(s) && input.caller === null) return t.cs_est_need_caller;
+    if (input.dash.some((d, i) => d && input.calls[i] !== 0)) return t.cs_est_dash_zero;
+    if (input.dash.filter(Boolean).length > 2) return t.cs_est_dash_two;
+    if (Math.abs(csSum(input.calls) - 13) >= 2 && input.risk === '') return t.cs_est_need_risk;
+    return '';
+  },
+  score(input, s) {
+    const g = CS_GAMES.estimation;
+    const over = csSum(input.calls) > 13;
+    const levels = Math.floor(Math.abs(csSum(input.calls) - 13) / 2);
+    const made = input.calls.map((c, i) => c === input.tricks[i]);
+    const makers = made.filter(Boolean).length;
+    const caller = input.caller === null ? -1 : Number(input.caller);
+    const risk = input.risk === '' ? -1 : Number(input.risk);
+    const mult = g.mult(s);
+    if (makers === 0) return { points: s.seats.map(() => 0), tag: '0', allMissed: true };
+    const pts = input.calls.map((call, i) => {
+      if (input.dash[i]) {
+        if (s.opts.dash === 'egypt') return made[i] ? 33 : -23;
+        return (made[i] ? 1 : -1) * (over ? 25 : 33);
+      }
+      const withCaller = caller !== -1 && (i === caller || call === input.calls[caller]);
+      if (made[i]) {
+        let p = s.opts.base + call;
+        if (withCaller) p += 10;
+        if (i === risk) p += 10 * levels;
+        if (makers === 1) p += 10;
+        if (call === 0 && !over) p += 10;
+        return p;
+      }
+      let p = -Math.abs(input.tricks[i] - call);
+      if (withCaller) p -= 10;
+      if (i === risk) p -= 10 * levels;
+      if (makers === 3) p -= 10;
+      return p;
+    }).map(p => p * mult);
+    return { points: pts, tag: (over ? '↑' : '↓') + (levels ? 'R' + levels : '') + (mult > 1 ? '×' + mult : '') };
+  },
+  ended: (s) => s.rounds.length >= s.opts.rounds
+};
+</script>
+
+    <script>
+/* ============================================================================
    مين يبدأ؟ — THE FINGER CHOOSER
    ----------------------------------------------------------------------------
    Everyone puts a finger on the screen. When the fingers have been still for
@@ -47756,6 +49336,16 @@ async function herdSubmit() {
 }
 
 /* --- the TV ------------------------------------------------------------------ */
+
+/** The groups as chips on one screen: the size, the answer, the herd marked. */
+function herdTvGroupsHtml(s) {
+  return `<div class="tv-legend herd-tv">${(s.groups || []).map(g => {
+    const top = s.majorityKey && g.key === s.majorityKey;
+    return `<span class="tv-chip${top ? ' is-done' : ''}"><b class="metric">${g.ids.length}</b> ${escapeHTML(g.label)}${top ? ' 🐄' : (g.ids.length === 1 && g.ids[0] === s.sheepId && s.phase !== 'reveal' ? ' 🐑' : '')}
+      <span class="herd-tv__names">${g.names.map(escapeHTML).join('، ')}</span></span>`;
+  }).join('')}</div>`;
+}
+
 TV_GAMES.herd = {
   sig: (state) => {
     const s = state.shared;
@@ -47773,13 +49363,14 @@ TV_GAMES.herd = {
         ${host(tvBtn(t.herd_reveal_now, "roomAct('closeWriting')", 'ghost'))}</div>`;
     }
     if (s.phase === 'reveal') {
-      return `<div class="tv-vote">${prompt}<div class="tv-scale">${herdGroupsHtml(s, t)}</div>
+      return `<div class="tv-vote">${prompt}${herdTvGroupsHtml(s)}
         ${host(tvBtn(t.herd_score, "roomAct('score')"))}</div>`;
     }
     if (s.phase === 'result') {
       return `<div class="tv-vote">${prompt}
         <div class="tv-question">${s.majorityKey ? '🐄 ' + escapeHTML(t.herd_majority || '') : '🤷 ' + escapeHTML(t.herd_no_majority || '')}${s.sheepId ? ' · 🐑 ' + escapeHTML(s.sheepName || '') : ''}</div>
-        <div class="tv-scale">${herdGroupsHtml(s, t)}${renderScoreboard(herdBoard(s))}</div>
+        ${herdTvGroupsHtml(s)}
+        <div class="tv-strip-inline">${herdBoard(s).map(p => `<span class="tv-chip"><b class="metric">${p.score}</b> ${escapeHTML(p.name)}</span>`).join('')}</div>
         ${host(tvBtn(t.next_round, "roomAct('nextRound')"))}</div>`;
     }
     return `<div class="tv-vote">
@@ -48132,7 +49723,7 @@ TV_GAMES.mafia = {
     const s = state.shared;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
     const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
-    const clock = s.endsAt ? `<div id="tv-mafia-clock" class="tv-clock metric">${mafiaClockText(s.endsAt)}</div>` : '';
+    const clock = s.endsAt ? `<div id="tv-mafia-clock" class="tv-clock">${mafiaClockText(s.endsAt)}</div>` : '';
     const people = `<div class="tv-strip-inline">${(s.alive || []).map(id => `<span class="tv-chip">${escapeHTML(nameOf(id))}</span>`).join('')}${(s.out || []).map(o => `<span class="tv-chip is-away">${MAFIA_ICONS[o.role] || ''} ${escapeHTML(o.name)}</span>`).join('')}</div>`;
     if (s.phase === 'roles') {
       return `<div class="tv-center"><div class="tv-big-icon" aria-hidden="true">🎭</div>
@@ -48155,7 +49746,10 @@ TV_GAMES.mafia = {
       return `<div class="tv-vote"><div class="tv-title tv-center-text">🗳️ ${escapeHTML(t.mafia_who_leaves || '')}</div>${people}${tvVoteProgress(state, t)}</div>`;
     }
     if (s.phase === 'dayResult') {
-      return `<div class="tv-vote"><div class="tv-scale">${mafiaNewsHtml(state, t)}${s.vote && s.vote.results ? renderVoteResults(mafiaVoteState(state)) : ''}</div>${people}
+      // One screen, no scrolling: the count per name as chips, not the phone's bars.
+      const results = ((mafiaVoteState(state).shared.vote || {}).results || []).filter(r => r.count > 0).sort((a, b) => b.count - a.count);
+      return `<div class="tv-vote"><div class="tv-scale">${mafiaNewsHtml(state, t)}</div>
+        <div class="tv-legend">${results.map((r, k) => `<span class="tv-chip${k === 0 ? ' is-done' : ''}"><b class="metric">${r.count}</b> ${escapeHTML(r.label)}</span>`).join('')}</div>${people}
         ${host(tvBtn('🌙 ' + (t.mafia_next_night || ''), "roomAct('startNight')"))}</div>`;
     }
     return `<div class="tv-vote">
@@ -48574,8 +50168,7 @@ Room.onChange((state) => {
    the only path (see GEMINI.md).
    ========================================================================= */
 
-const motionOff = () =>
-  !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) || document.hidden;
+const motionOff = () => reducedMotion() || document.hidden;
 
 /**
  * Where an element will be once the animations it rides on have finished (its

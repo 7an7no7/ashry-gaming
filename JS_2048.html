@@ -135,6 +135,8 @@ function move2048(dir) {
   const res = g2048Slide(s, dir);
   if (!res.moved) {
     s.tiles.forEach(x => { x.merged = false; });
+    // A board that is already stuck (brought back by a reload) ends on the next try.
+    if (!g2048CanMove(s)) { g2048End(false); return; }
     const board = document.getElementById('g2048-board');
     if (board && board.animate && !motionOff()) {
       const push = { left: [-6, 0], right: [6, 0], up: [0, -6], down: [0, 6] }[dir];
@@ -144,6 +146,13 @@ function move2048(dir) {
   }
   s.prev = before;
   s.score += res.gained;
+  // The best follows the score as it grows, not only when a game ends.
+  const best = soloBest('g2048', '');
+  if (res.gained && (!best || s.score > best.score)) {
+    soloRecord('g2048', '', { score: s.score, tile: Math.max.apply(null, s.tiles.map(x => x.v)) }, () => true);
+    const bestEl = document.getElementById('g2048-bestv');
+    if (bestEl) bestEl.textContent = s.score;
+  }
   // Where each consumed tile slides to before it disappears.
   const gone = res.merges.map(m => {
     const survivor = s.tiles.find(x => x.id === m.into);
@@ -162,6 +171,13 @@ function move2048(dir) {
     return;
   }
   if (!g2048CanMove(s)) setTimeout(() => g2048End(false), 400);
+}
+
+/** A new game throws the board away, so a game with points on it asks first. */
+function confirmNew2048() {
+  const s = g2048State();
+  if (s.phase === 'play' && s.score > 0) showConfirmModal((TRANSLATIONS[appState.lang] || {}).g2048_new_confirm || '', start2048);
+  else start2048();
 }
 
 function undo2048() {
@@ -206,7 +222,7 @@ function paint2048(full, gone) {
       <div class="view-actions">
         <div class="btn-row">
           <button class="btn btn--neutral btn--sm" id="g2048-undo" onclick="undo2048()" ${s.prev ? '' : 'disabled'}>↶ ${escapeHTML(t.solo_undo || '')}</button>
-          <button class="btn btn--neutral btn--sm" onclick="start2048()">🔄 ${escapeHTML(t.solo_new_game || '')}</button>
+          <button class="btn btn--neutral btn--sm" onclick="confirmNew2048()">🔄 ${escapeHTML(t.solo_new_game || '')}</button>
           <button class="btn btn--ghost btn--sm" onclick="setup2048()">${escapeHTML(t.exit || '')}</button>
         </div>
       </div>`;
@@ -289,7 +305,8 @@ function g2048End(won) {
   const s = g2048State();
   const t = TRANSLATIONS[appState.lang];
   const top = Math.max.apply(null, s.tiles.map(x => x.v).concat([0]));
-  const rec = soloRecord('g2048', '', { score: s.score, tile: top }, (a, b) => a.score > b.score);
+  const rec = soloRecord('g2048', '', { score: s.score, tile: top }, (a, b) => a.score > b.score || (a.score === b.score && a.tile > b.tile));
+  if (!rec.record && rec.prev && rec.prev.score === s.score) rec.record = true;
   const bestEl = document.getElementById('g2048-bestv');
   if (bestEl && rec.record) bestEl.textContent = s.score;
   if (won) {
@@ -316,6 +333,7 @@ function restore2048() {
   const s = g2048State();
   if (s.phase !== 'play' || !s.tiles.length) return false;
   paint2048(true);
+  if (!g2048CanMove(s)) setTimeout(() => g2048End(false), 300);
   return true;
 }
 

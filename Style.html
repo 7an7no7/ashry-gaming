@@ -3709,6 +3709,8 @@ body.is-tv-view .shell__main > #view-room-tv { width: 100%; max-width: none; mar
 .tv-chip.is-away { opacity: 0.45; }
 .tv-chip.is-turn { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .tv-chip.is-done { border-color: var(--success); color: var(--success-ink); }
+.herd-tv .tv-chip { flex-direction: column; gap: 0.1em; padding: 0.4em 1em; }
+.herd-tv__names { color: var(--text-2); font-size: 0.7em; font-weight: 600; }
 .tv-chip__score {
   padding: 0 0.45em;
   border-radius: var(--r-full);
@@ -3786,6 +3788,7 @@ body.is-tv-view .shell__main > #view-room-tv { width: 100%; max-width: none; mar
 .tv-timer--big.is-low { background: var(--danger-soft); }
 .tv-clock {
   direction: ltr;
+  text-align: center;
   font-size: calc(var(--tv-xl) * 1.4);
   font-weight: 900;
   line-height: 1;
@@ -6140,7 +6143,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .sdk-cell.is-wrong { color: var(--danger); }
 .sdk-notes { position: absolute; inset: 1px; display: grid; grid-template-columns: repeat(3, 1fr); color: var(--text-2); font-size: clamp(0.45rem, 2.1vw, 0.65rem); font-weight: 700; line-height: 1; }
 .sdk-notes i { display: grid; place-items: center; font-style: normal; }
-.sdk-pad { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; max-width: 30rem; margin: var(--sp-3) auto 0; }
+.sdk-pad { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; width: 100%; max-width: 30rem; margin: var(--sp-3) auto 0; }
 .sdk-key {
   display: flex;
   flex-direction: column;
@@ -6646,6 +6649,111 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* --- حاسبة الورق --- */
+.cs-board { display: grid; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.cs-board__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-1); }
+.cs-total {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 2.75rem;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.cs-total__rank { color: var(--text-3); font-size: var(--fs-sm); }
+.cs-total__name { min-width: 0; overflow: hidden; color: var(--text-strong); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.cs-total__score { color: var(--text-strong); font-size: var(--fs-h2); }
+.cs-total.is-lead { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.cs-total.is-lead .cs-total__score { color: var(--accent-ink); }
+.cs-total.is-out { opacity: 0.5; }
+.cs-total.is-out .cs-total__name { text-decoration: line-through; }
+.cs-entry { display: grid; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.cs-entry__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); color: var(--text-strong); font-size: var(--fs-h3); }
+.cs-label { color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; }
+/* A name and its inputs side by side, the inputs moving under the name when
+   they don't fit (إستميشن's two steppers and dash on a phone). */
+.cs-seat-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--border);
+}
+.cs-seat-row > .cs-seat-row__name { flex: 1 1 6rem; }
+.cs-seat-row > :not(.cs-seat-row__name) { flex: 0 0 auto; margin-inline-start: auto; }
+.cs-seat-row:last-child { border-bottom: 0; }
+.cs-seat-row__name { min-width: 0; overflow: hidden; color: var(--text-strong); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.cs-seat-row__cells { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--sp-2); }
+.cs-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.cs-cell > small { color: var(--text-3); font-size: var(--fs-xs); font-weight: 700; }
+.cs-step { display: inline-flex; align-items: stretch; overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-solid); }
+.cs-step__btn { width: 2.2rem; min-height: 2.4rem; border: 0; background: var(--surface-2); color: var(--text-strong); font-size: 1.1rem; font-weight: 800; cursor: pointer; }
+.cs-step__val {
+  width: 2.8rem;
+  min-height: 2.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: var(--fs-h3);
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.cs-step__val::-webkit-outer-spin-button, .cs-step__val::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.cs-pick { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.cs-pick__item {
+  min-height: 2.5rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.cs-pick__item.is-on { border-color: var(--accent); background: var(--accent); color: var(--accent-on); }
+.cs-card { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); }
+.cs-card__title { color: var(--text-strong); font-size: var(--fs-h3); }
+.cs-toggles { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.cs-toggle {
+  min-height: 2.4rem;
+  padding: 0 var(--sp-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.cs-toggle.is-on { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.cs-check { display: flex; align-items: center; gap: var(--sp-2); color: var(--text-strong); font-weight: 700; }
+.cs-check input { width: 1.2rem; height: 1.2rem; accent-color: var(--accent); }
+.cs-note { color: var(--text-3); font-size: var(--fs-xs); }
+.cs-table { display: grid; gap: 2px; overflow-x: auto; }
+.cs-layout__side > * + * { margin-top: var(--sp-3); }
+/* Sideways and on wide screens: the totals and the rounds beside the round card. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .cs-layout { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: var(--sp-3); align-items: start; }
+  .cs-layout__side { position: sticky; top: 0; max-height: calc(var(--app-h, 100vh) - 7rem); overflow-y: auto; }
+  .cs-layout .cs-board { margin-bottom: 0; }
+  .cs-layout--over { display: block; }
+  .cs-layout--over .cs-layout__side { position: static; max-height: none; overflow: visible; }
+}
+.cs-row { display: grid; grid-template-columns: 2rem repeat(var(--cs-cols), minmax(3.2rem, 1fr)); align-items: center; gap: 2px; min-height: 2rem; text-align: center; }
+.cs-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-row--head { color: var(--text-2); font-size: var(--fs-xs); font-weight: 800; }
+.cs-row:not(.cs-row--head):nth-child(even) { border-radius: var(--r-xs); background: var(--surface-2); }
+.cs-row__n { display: flex; flex-direction: column; color: var(--text-3); font-size: var(--fs-sm); line-height: 1.1; }
+.cs-row__n small { font-size: 0.6rem; }
 
 /* --- زي الكل --- */
 .herd-prompt { text-align: center; }

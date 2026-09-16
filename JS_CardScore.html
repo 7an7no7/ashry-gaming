@@ -1,0 +1,380 @@
+<script>
+/* ============================================================================
+   حاسبة الورق — SCORE KEEPERS FOR FIVE ARAB CARD GAMES
+   ----------------------------------------------------------------------------
+   إستميشن, طرنيب, تريكس, كونكان and باصرة are played with a real deck; the
+   phone only keeps the score, the way سكرو and الدومينو already do. One engine
+   and five rule sets (CS_GAMES):
+
+   - seats: who plays (the player picker), or two teams of two (طرنيب,
+     partnership تريكس, and باصرة for four), named from the players in seat
+     order;
+   - a round card: what the scorekeeper types after a hand (entryHtml), read
+     back (read), checked against the deck (check: 13 tricks, 4 queens...) and
+     turned into points per seat (score);
+   - the end: a target (first to it), elimination (كونكان: over the limit is
+     out, the last in wins) or a fixed number of rounds (إستميشن, تريكس);
+   - options per game with the common house rules, painted on the setup
+     screen and remembered.
+
+   Every round stays in the history with what was typed, so the last one can
+   be taken back and typed again; totals count up and the leader is marked.
+   The game lives in appState.cardscore[id], so a reload comes back to it.
+   ========================================================================= */
+
+const CS_IDS = ['estimation', 'tarneeb', 'trix', 'konkan', 'basra'];
+const CS_GAMES = {};
+
+function csState(id) {
+  appState.cardscore = appState.cardscore || {};
+  if (!appState.cardscore[id]) appState.cardscore[id] = { opts: {}, seats: [], rounds: [], phase: 'setup', draft: {} };
+  const s = appState.cardscore[id];
+  const g = CS_GAMES[id];
+  if (g) Object.keys(g.options || {}).forEach(k => { if (s.opts[k] === undefined) s.opts[k] = g.options[k].def; });
+  return s;
+}
+
+const csT = () => TRANSLATIONS[appState.lang] || {};
+const csSum = (arr) => arr.reduce((a, b) => a + (Number(b) || 0), 0);
+
+/* --- Setup ----------------------------------------------------------------------------- */
+
+function setupCardScore(id) {
+  setView('setup-cs-' + id);
+}
+
+function paintCardScoreSetup(id) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  const box = document.getElementById('cs-' + id + '-options');
+  if (box) {
+    box.innerHTML = Object.keys(g.options || {}).map(key => {
+      const o = g.options[key];
+      if (o.when && !o.when(s.opts)) return '';
+      return `
+        <div class="field">
+          <label class="field__label">${escapeHTML(t[o.label] || '')}</label>
+          <div class="segmented" role="group">
+            ${o.values.map(v => `<button type="button" class="segmented__item ${String(s.opts[key]) === String(v) ? 'is-active' : ''}" onclick="setCardScoreOpt('${id}', '${key}', '${v}')">${escapeHTML(o.labelOf ? o.labelOf(v, t) : String(v))}</button>`).join('')}
+          </div>
+          ${o.hint ? `<p class="field__hint">${escapeHTML(t[o.hint(s.opts)] || '')}</p>` : ''}
+        </div>`;
+    }).join('');
+  }
+  const hint = document.getElementById('cs-' + id + '-seats');
+  if (hint) hint.textContent = t[g.seatsHint(s.opts)] || '';
+  const cont = document.getElementById('cs-' + id + '-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+}
+
+function setCardScoreOpt(id, key, value) {
+  const s = csState(id);
+  const o = CS_GAMES[id].options[key];
+  s.opts[key] = typeof o.def === 'number' ? Number(value) : value;
+  saveToLocal();
+  paintCardScoreSetup(id);
+  haptic('light');
+}
+
+function startCardScore(id) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  const names = (appState.activePlayers || []).slice();
+  const need = g.seatCount(s.opts);
+  if (names.length < need[0] || names.length > need[1]) {
+    showToast((t.cs_need_players || '').replace('{min}', need[0]).replace('{max}', need[1]), 'error');
+    return;
+  }
+  s.names = names;
+  s.seats = g.seats(names, s.opts, t);
+  s.rounds = [];
+  s.draft = {};
+  s.phase = 'play';
+  s.startedAt = Date.now();
+  saveToLocal();
+  setView('play-cs-' + id);
+  paintCardScore(id);
+}
+
+function continueCardScore(id) {
+  if (csState(id).phase === 'setup') return;
+  setView('play-cs-' + id);
+  paintCardScore(id);
+}
+
+/* --- Play ------------------------------------------------------------------------------- */
+
+function csTotals(id) {
+  const s = csState(id);
+  return s.seats.map((_, i) => csSum(s.rounds.map(r => r.points[i])));
+}
+
+function paintCardScore(id, fresh) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  const el = document.getElementById('cs-' + id + '-stage');
+  if (!el || !s.seats.length) return;
+  const totals = csTotals(id);
+  const boardOf = (tt) => (g.board ? g.board(s, tt) : s.seats.map((seat, i) => ({ i: i, name: seat.name, score: tt[i], out: false })));
+  const board = boardOf(totals);
+  // What each row stood at before the last round, for the count-up (a team row sums two seats).
+  const last = s.rounds[s.rounds.length - 1];
+  const before = last ? boardOf(totals.map((x, i) => x - (Number(last.points[i]) || 0))) : board;
+  const order = board.slice().sort((a, b) => (a.out - b.out) || (g.low ? a.score - b.score : b.score - a.score));
+  const lead = order[0];
+  const over = s.phase === 'over';
+  const roundNo = s.rounds.length + 1;
+  const goal = g.goalText ? g.goalText(s, t) : '';
+  el.innerHTML = `
+    <div class="cs-layout${over ? ' cs-layout--over' : ''}">
+    <div class="cs-layout__side">
+    <div class="cs-board card">
+      <div class="cs-board__head">
+        <span class="eyebrow">${escapeHTML(over ? (t.cs_final || '') : (t.cs_totals || ''))}</span>
+        ${goal ? `<span class="badge badge--accent">${escapeHTML(goal)}</span>` : ''}
+      </div>
+      ${order.map((row, k) => `
+        <div class="cs-total${row === lead && !row.out && row.score !== 0 ? ' is-lead' : ''}${row.out ? ' is-out' : ''}" data-seat="${row.i}">
+          <span class="cs-total__rank metric">${k + 1}</span>
+          <span class="cs-total__name">${row === lead && !row.out && row.score !== 0 ? '👑 ' : ''}${escapeHTML(row.name)}${row.note ? ` <span class="badge">${escapeHTML(row.note)}</span>` : ''}</span>
+          <b class="cs-total__score metric" data-score="${row.score}" data-from="${(before.find(b => b.i === row.i) || row).score}">${row.score}</b>
+        </div>`).join('')}
+    </div>
+    ${over ? csFinalHtml(id, order, t) : ''}
+    ${csHistoryHtml(id, s, g, t, over)}
+    </div>
+    ${over ? '' : `
+      <div class="cs-layout__main">
+      <div class="card cs-entry" id="cs-entry">
+        <div class="cs-entry__head">
+          <b>${escapeHTML((t.cs_round || '').replace('{n}', roundNo))}</b>
+          ${g.roundLabel && g.roundLabel(s, t) ? `<span class="badge">${escapeHTML(g.roundLabel(s, t))}</span>` : ''}
+        </div>
+        ${g.entryHtml(s, t)}
+        <button type="button" class="btn btn--primary btn--lg" onclick="saveCardScoreRound('${id}')">${escapeHTML(t.cs_save_round || '')}</button>
+      </div>
+      </div>`}
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupCardScore('${id}')">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+  if (g.afterPaint) g.afterPaint(s);
+  if (fresh && !motionOff() && typeof countUp === 'function') {
+    el.querySelectorAll('.cs-total__score').forEach(scoreEl => {
+      const from = Number(scoreEl.dataset.from), to = Number(scoreEl.dataset.score);
+      if (from !== to) countUp(scoreEl, from, to);
+    });
+  }
+}
+
+/** Every round so far, newest last, with the take-back button. */
+function csHistoryHtml(id, s, g, t) {
+  if (!s.rounds.length) return '';
+  return `
+    <div class="card card--tight cs-history">
+      <div class="cs-board__head"><span class="eyebrow">${escapeHTML(t.cs_history || '')}</span>
+        <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="undoCardScoreRound('${id}')">↶ ${escapeHTML(t.cs_undo_round || '')}</button></div>
+      <div class="cs-table" role="table">
+        <div class="cs-row cs-row--head" role="row" style="--cs-cols:${s.seats.length}">
+          <span>#</span>${s.seats.map(seat => `<span>${escapeHTML(seat.short || seat.name)}</span>`).join('')}
+        </div>
+        ${s.rounds.map((r, n) => `
+          <div class="cs-row" role="row" style="--cs-cols:${s.seats.length}">
+            <span class="cs-row__n" title="${escapeHTML(r.label || '')}">${n + 1}${r.tag ? `<small>${escapeHTML(r.tag)}</small>` : ''}</span>
+            ${r.points.map(p => `<span class="metric ${p > 0 ? 'tx-success' : (p < 0 ? 'tx-danger' : 'tx-muted')}">${p > 0 && !g.low ? '+' : ''}${p}</span>`).join('')}
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function csFinalHtml(id, order, t) {
+  const g = CS_GAMES[id];
+  const team = g.winners && g.winners(csState(id), order);
+  const winners = team || order.filter(r => !r.out && r.score === order[0].score);
+  const board = order.filter(r => !r.out).map(r => ({ pid: String(r.i), name: r.name, score: g.low ? -r.score : r.score }));
+  // A team that won (طرنيب 41) is not a ranking of its players.
+  const podium = !team && !g.low && board.length > 1 ? renderPodium({ code: 'cs', game: id + ':' + csState(id).startedAt }, board) : '';
+  return `
+    <div class="card card--accent" style="text-align:center">
+      <div class="metric metric--md">🏆</div>
+      <div class="card__title">${escapeHTML(winners.map(w => w.name).join(team ? ' & ' : ' · '))}</div>
+      <p class="sheet__subtitle">${escapeHTML(!team && winners.length > 1 ? (t.cs_tie || '') : (t.cs_winner || ''))}</p>
+      ${podium}
+    </div>
+    <div class="btn-stack">
+      <button type="button" class="btn btn--primary btn--lg" onclick="restartCardScore('${id}')">${escapeHTML(t.play_again || '')}</button>
+    </div>`;
+}
+
+function saveCardScoreRound(id) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  if (s.phase !== 'play') return;
+  const input = g.read(s);
+  const problem = g.check(input, s, t);
+  if (problem) { showToast(problem, 'error'); haptic('medium'); return; }
+  const result = g.score(input, s);
+  s.rounds.push(Object.assign({}, result, { input: input, draft: csDraftOf(), points: result.points, tag: result.tag || '', label: result.label || '' }));
+  s.draft = {};
+  const end = g.ended(s, csTotals(id));
+  if (end) s.phase = 'over';
+  saveToLocal();
+  playSound(end ? 'success' : 'click');
+  haptic('light');
+  paintCardScore(id, true);
+  if (end && typeof confetti === 'function' && !motionOff()) setTimeout(() => confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }), 500);
+}
+
+/** The last round back into the card, to fix and save again. */
+function undoCardScoreRound(id) {
+  const s = csState(id);
+  if (!s.rounds.length) return;
+  const last = s.rounds.pop();
+  s.draft = last.draft || {};
+  delete s.winTeam;
+  s.phase = 'play';
+  saveToLocal();
+  haptic('medium');
+  paintCardScore(id);
+}
+
+function restartCardScore(id) {
+  const s = csState(id);
+  s.rounds = [];
+  s.draft = {};
+  s.phase = 'play';
+  s.startedAt = Date.now();
+  if (CS_GAMES[id].reseat) s.seats = CS_GAMES[id].reseat(s);
+  saveToLocal();
+  paintCardScore(id);
+}
+
+function restoreCardScore(id) {
+  const s = csState(id);
+  if (s.phase === 'setup' || !s.seats.length) return false;
+  paintCardScore(id);
+  return true;
+}
+
+/* --- Small inputs the rule sets share ---------------------------------------------------- */
+
+/**
+ * Everything on the round card as it is now, by the inputs' keys: saved with
+ * the round, so taking the round back puts exactly what was typed back on
+ * the card to fix.
+ */
+function csDraftOf() {
+  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  const draft = {};
+  if (!id) return draft;
+  document.querySelectorAll('#cs-' + id + '-stage .cs-step__val').forEach(el => { if (el.value !== '') draft[el.id.replace('cs-in-', '')] = el.value; });
+  document.querySelectorAll('#cs-' + id + '-stage .cs-pick').forEach(box => {
+    const on = box.querySelector('.cs-pick__item.is-on');
+    if (on) draft['pick-' + box.id.replace('cs-pick-', '')] = on.dataset.v;
+  });
+  document.querySelectorAll('#cs-' + id + '-stage .cs-toggle.is-on').forEach(b => { draft['tog-' + b.id.replace('cs-tog-', '')] = '1'; });
+  return draft;
+}
+
+/** An on/off pill (a joker finish, a dash call, a made bid). */
+function csToggleHtml(key, label, on) {
+  return `<button type="button" class="cs-toggle ${on ? 'is-on' : ''}" id="cs-tog-${key}" aria-pressed="${on ? 'true' : 'false'}" onclick="csToggle('${key}')">${escapeHTML(label)}</button>`;
+}
+
+function csToggle(key) {
+  const btn = document.getElementById('cs-tog-' + key);
+  if (!btn) return;
+  const on = !btn.classList.contains('is-on');
+  btn.classList.toggle('is-on', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  if (id) {
+    const s = csState(id);
+    s.draft = s.draft || {};
+    s.draft['tog-' + key] = on ? '1' : '';
+    saveToLocal();
+  }
+  haptic('light');
+}
+
+const csToggled = (key) => !!document.querySelector('#cs-tog-' + key + '.is-on');
+
+/** A number stepper for one seat: − value +, typed values allowed. */
+function csStepperHtml(key, value, min, max) {
+  return `
+    <span class="cs-step" data-key="${key}" dir="ltr">
+      <button type="button" class="cs-step__btn" onclick="csStep('${key}', -1, ${min}, ${max})" aria-label="−">−</button>
+      <input type="number" inputmode="numeric" class="cs-step__val metric" id="cs-in-${key}" value="${value === undefined || value === null ? '' : value}" min="${min}" max="${max}" onchange="csKeep(this)">
+      <button type="button" class="cs-step__btn" onclick="csStep('${key}', 1, ${min}, ${max})" aria-label="+">+</button>
+    </span>`;
+}
+
+function csStep(key, delta, min, max) {
+  const input = document.getElementById('cs-in-' + key);
+  if (!input) return;
+  const now = input.value === '' ? (delta > 0 ? min - 1 : min + 1) : Number(input.value);
+  input.value = Math.max(min, Math.min(max, now + delta));
+  csKeep(input);
+  haptic('light');
+}
+
+/** Typing survives a redraw (a language change, a reload): kept in the game's draft. */
+function csKeep(input) {
+  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  if (!id || !input || !input.id) return;
+  const s = csState(id);
+  s.draft = s.draft || {};
+  s.draft[input.id.replace('cs-in-', '')] = input.value;
+  saveToLocal();
+}
+
+const csVal = (key) => {
+  const input = document.getElementById('cs-in-' + key);
+  return input && input.value !== '' ? Number(input.value) : null;
+};
+
+/** A row of choices, one pressed: seats, or any list of { v, label }. */
+function csPickHtml(key, items, current) {
+  return `<div class="cs-pick" id="cs-pick-${key}">${items.map(it => `
+    <button type="button" class="cs-pick__item ${String(current) === String(it.v) ? 'is-on' : ''}" data-v="${escapeHTML(String(it.v))}" onclick="csPick('${key}', this)">${escapeHTML(it.label)}</button>`).join('')}</div>`;
+}
+
+function csPick(key, btn) {
+  const box = document.getElementById('cs-pick-' + key);
+  if (!box) return;
+  const on = !btn.classList.contains('is-on') || box.dataset.required !== 'false';
+  box.querySelectorAll('.cs-pick__item').forEach(b => b.classList.toggle('is-on', b === btn && on));
+  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  if (id) {
+    const s = csState(id);
+    s.draft = s.draft || {};
+    s.draft['pick-' + key] = on ? btn.dataset.v : '';
+    saveToLocal();
+    const g = CS_GAMES[id];
+    if (g.onPick) g.onPick(key, s);
+  }
+  haptic('light');
+}
+
+const csPicked = (key) => {
+  const on = document.querySelector(`#cs-pick-${key} .cs-pick__item.is-on`);
+  return on ? on.dataset.v : null;
+};
+
+const csDraft = (s, key, fallback) => (s.draft && s.draft[key] !== undefined && s.draft[key] !== '' ? s.draft[key] : fallback);
+
+/** Four names as two teams, sitting across from each other: 1 & 3 against 2 & 4. */
+function csTeams(names, t) {
+  const a = [names[0], names[2]], b = [names[1], names[3]];
+  const label = (pair, n) => ({ name: `${pair.join(' & ')}`, short: (t.cs_team_short || '').replace('{n}', n), members: pair });
+  return [label(a, 1), label(b, 2)];
+}
+
+CS_IDS.forEach(id => {
+  soloRegister('cs-' + id, { setup: 'setup-cs-' + id, play: 'play-cs-' + id, paintSetup: () => paintCardScoreSetup(id), restore: () => restoreCardScore(id) });
+});
+</script>

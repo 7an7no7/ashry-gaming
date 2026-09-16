@@ -33,7 +33,8 @@
   - 🐵 **Monkey (ربع قرد):** the letter game with the phone as referee, plus
     the last-letter chain and one-name-a-turn; on one phone, in a room, on the TV.
   - 🤫 **Just One (كلمة واحدة):** Cooperative word guessing.
-  - 🃏 **Screw (سكرو):** Card game scoring.
+  - 🃏 **Screw (سكرو):** Card game scoring; and score keepers for 🎯 إستميشن,
+    ♠️ طرنيب, ♥️ تريكس, ♦️ كونكان and 🎣 باصرة (*Card game score keepers*).
   - 🎭 **Charades (بدون كلام), 🗣️ Describe It (أوصف لي), ❓ Who Am I? (من أنا؟)**
   - 🧠 **Trivia (تحدي المعلومات):** two ways to play. *دوري المعرفة* is a board for
     two teams on one screen (five categories × 100–500 points, a host reads and
@@ -85,8 +86,7 @@ work changed. Add to it when a decision is made or a batch ships.
 
 ### Waiting
 
-- **The card game scorers** (إستميشن, طرنيب, تريكس, كونكان, باصرة), asked for
-  on 16 Sep 2026 with the solo games; the last of that batch.
+- Nothing from the owner is waiting to be built.
 
 ### The owner's specs, as built
 
@@ -211,7 +211,18 @@ blind ranking, the word search), `countUp` for streaks and scores.
   unless turned on, a discussion clock). Robot tests: 763. The soundboard moved from Settings
   to the tools. Solo boards sit beside their
   controls on laptops and TVs too (Sudoku's pad had been below the fold at
-  1280×720).
+  1280×720). Last, the card game score keepers, with their rules researched
+  (Jawaker, pagat.com, Egyptian tables) before the numbers were written.
+- **16 Sep 2026, the audit** the owner asked for: every new game at 375×812,
+  667×375 and 1280×720, Arabic and English, light and dark, with a script
+  that flags a page wider than the screen, taps under 36px, text cut off, and
+  a check that each game's moment really animates. Found and fixed: Sudoku's
+  number pad had shrunk to 154px on phones since the day it shipped (*Traps*:
+  auto margins in a flex column); سلسلة الإجابات showed a year among three
+  words (*Solo games*); on the owner's PC no motion at all (*Motion on a
+  computer*); the Mafia and Herd TV results ran off the screen; the TV clock
+  sat at the edge; 2048 now keeps its best as the score grows, asks before a
+  new game, and ends a board that is already stuck.
 
 ## Building and Running
 
@@ -1195,6 +1206,59 @@ of its own:
   into its place. No score: the list is shared as text, and the daily gives
   every phone the same five in the same order.
 
+### Card game score keepers (حاسبة الورق)
+
+`JS_CardScore.html` is one engine and `JS_CardRules.html` five rule sets
+(`CS_GAMES`: estimation, tarneeb, trix, konkan, basra), each a catalog card
+in the `table` group with its own `setup-cs-<id>` / `play-cs-<id>` screens.
+The deck is real; the phone keeps the score. A rule set says who sits
+(`seats`, from the player picker in seating order; teams are 1 & 3 against
+2 & 4, `csTeams`), what a round asks for (`entryHtml`, built from the
+engine's pieces: `csStepperHtml` - kept left-to-right in Arabic -,
+`csPickHtml` one-of chips, `csToggleHtml` pills), reads it back (`read`),
+refuses what the deck can't produce (`check`: 13 tricks, 8 aces and jacks,
+four queens taken, bids that can't add up to 13), turns it into points per
+seat (`score`) and says when the game is over (`ended`, and `winners` when a
+team wins rather than a total). Options are the house rules, shown on the
+setup screen with the most common first. The engine draws the totals (the
+leader crowned; Konkan's `low` crowns the lowest), the round card, and the
+history with **take back the last round**: every round is saved with what was
+on the card (`csDraftOf`), so taking it back puts exactly that back to fix.
+Totals count up from what each row showed before the round (a team row sums
+two seats). Upright it is one column; sideways and on wide screens the totals
+and history sit beside the round card (`.cs-layout`). All of it is restored
+by a reload through `soloRegister`.
+
+The numbers, researched on 16 Sep 2026:
+
+- **إستميشن**: made exactly = base (10, or 13) + call, ±10 for the caller and
+  anyone with the same call (مع), ±10 per risk level for the last to call
+  (2-3 off 13 is one level, 4-5 two), ±10 for the only one who made it or
+  missed; a miss is minus the tricks off; a dash call ±33 in an under round
+  and ±25 in an over round, or Egyptian +33 / −23; a plain zero made in an
+  under round +10; nobody made it (صعايدة): no points and the next round
+  ×2 (×4 after two). 13 rounds and 5 speed rounds with no caller, or 13.
+- **طرنيب**: شامي (made: the tricks taken; failed: −bid and the others
+  their tricks; كبوت 16; bid 13 made 26, failed −16 and the others double),
+  مصري (the same, ×2 or ×4 on the bidders), and ٤١ (each player bids alone,
+  bid values 2-4 face, 5→10 … 12→36, the bids at least 11; a team wins when a
+  player reaches 41 with the partner above 0, or on a made 13). Targets
+  31/41/51/61.
+- **تريكس**: king −75, queens −25, diamonds −10, tricks −15, Trix
+  200/150/100/50; a doubled card costs double to whoever else takes it and
+  pays its doubler the single value; its doubler taking it pays double and
+  the one who led that trick gets the single value, unless the doubler led
+  it (single value only). Classic 20 deals, Complex 8 (the four negatives in
+  one deal, then the Trix); solo or teams.
+- **كونكان**: the one who went out −30, the others their cards (100 if they
+  never melded), ×2 for a hand or Konkan and for a joker or one-colour finish,
+  ×4 for one suit; in teams the winner's partner 0. Lowest after 5 or 7
+  rounds; knocking out over 101 is offered as a house rule only, since no
+  reliable source has it.
+- **باصرة**: 10 a basra, 1 an ace or jack, 2♣ 2, 10♦ 3, most cards 30 - a
+  26-26 split carries the 30 to the next deck. Target 101/121/150, 121 by
+  default (Egyptian tables); 2-4 players or two teams.
+
 ### The catalog and the home screen
 
 `GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can
@@ -1347,6 +1411,15 @@ exactly that, which on the home was half of what a back tap cost (and every
 `syncChrome` compares the title with `textContent`, because reading
 `innerText` forces a layout in the middle of a screen change. Anything that
 runs on every `setView` has to be a no-op when nothing changed.
+
+**Auto side margins shrink an item in a flex column.** `.sdk-pad` centred
+itself with `margin: … auto`, which is fine in a block, but once the solo
+layout made its side column `display: contents` the pad became an item of the
+`.solo-layout` flex column, where auto margins stop an item stretching - and
+the nine number keys were 13px wide on every phone for a day. An element that
+is centred with auto margins inside `.solo-layout` needs `width: 100%` next to
+its `max-width`. The audit checks for any board or control narrower than 70%
+of its layout.
 
 **Moving a list means finding every reader.** The ربع قرد rebuild moved the
 country names into `MonkeyWords.js` and removed `COUNTRIES_DB`, but the
@@ -1623,6 +1696,20 @@ over its neighbours (the Stop letter used to drop in from above, over its
 label; it squashes in place now); and no `backdrop-filter` over a page that is
 changing underneath (the game splash is a near-opaque tint, since the room's
 screen rebuilds and slides in behind it).
+
+**Motion on a computer.** The owner saw no animation at all on their PC,
+and it wasn't a bug in any one of them: Windows' "Animation effects" switch
+was off, Chrome reports that to every page as `prefers-reduced-motion:
+reduce`, and the app honours it everywhere. So motion has a setting
+(Settings → الحركة, `ashryMotion`): تلقائي follows the device, شغّالة plays
+it anyway, مقفولة stops it anyway. Every script asks `reducedMotion()` in
+`JS_Core.html` (`motionOff()` is that or a hidden page), never `matchMedia`
+directly, and `applyMotionPref` makes the stylesheets agree: for "on" it
+lifts the `reduce` media blocks out and applies the `no-preference` ones
+unconditionally (the home's rising cards live in one of those), for "off"
+the other way round, and for "auto" it puts back what it moved. A new
+`matchMedia('(prefers-reduced-motion…)')` in a script would ignore the
+setting; use `reducedMotion()`.
 
 **Reveals play once per thing.** A room redraws a screen for reasons the
 table never sees (the host changed, the language), so a reveal asks

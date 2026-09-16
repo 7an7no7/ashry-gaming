@@ -211,6 +211,16 @@ async function herdSubmit() {
 }
 
 /* --- the TV ------------------------------------------------------------------ */
+
+/** The groups as chips on one screen: the size, the answer, the herd marked. */
+function herdTvGroupsHtml(s) {
+  return `<div class="tv-legend herd-tv">${(s.groups || []).map(g => {
+    const top = s.majorityKey && g.key === s.majorityKey;
+    return `<span class="tv-chip${top ? ' is-done' : ''}"><b class="metric">${g.ids.length}</b> ${escapeHTML(g.label)}${top ? ' 🐄' : (g.ids.length === 1 && g.ids[0] === s.sheepId && s.phase !== 'reveal' ? ' 🐑' : '')}
+      <span class="herd-tv__names">${g.names.map(escapeHTML).join('، ')}</span></span>`;
+  }).join('')}</div>`;
+}
+
 TV_GAMES.herd = {
   sig: (state) => {
     const s = state.shared;
@@ -228,13 +238,14 @@ TV_GAMES.herd = {
         ${host(tvBtn(t.herd_reveal_now, "roomAct('closeWriting')", 'ghost'))}</div>`;
     }
     if (s.phase === 'reveal') {
-      return `<div class="tv-vote">${prompt}<div class="tv-scale">${herdGroupsHtml(s, t)}</div>
+      return `<div class="tv-vote">${prompt}${herdTvGroupsHtml(s)}
         ${host(tvBtn(t.herd_score, "roomAct('score')"))}</div>`;
     }
     if (s.phase === 'result') {
       return `<div class="tv-vote">${prompt}
         <div class="tv-question">${s.majorityKey ? '🐄 ' + escapeHTML(t.herd_majority || '') : '🤷 ' + escapeHTML(t.herd_no_majority || '')}${s.sheepId ? ' · 🐑 ' + escapeHTML(s.sheepName || '') : ''}</div>
-        <div class="tv-scale">${herdGroupsHtml(s, t)}${renderScoreboard(herdBoard(s))}</div>
+        ${herdTvGroupsHtml(s)}
+        <div class="tv-strip-inline">${herdBoard(s).map(p => `<span class="tv-chip"><b class="metric">${p.score}</b> ${escapeHTML(p.name)}</span>`).join('')}</div>
         ${host(tvBtn(t.next_round, "roomAct('nextRound')"))}</div>`;
     }
     return `<div class="tv-vote">

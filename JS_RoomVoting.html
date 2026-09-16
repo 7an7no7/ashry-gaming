@@ -58,13 +58,19 @@ function renderVoteResults(state, opts) {
   const total = Math.max(1, v.totalVotes || 0);
   const rows = v.results.slice().sort((a, b) => b.count - a.count);
   const highlight = (opts && opts.highlightId) || null;
+  const isWin = (r) => (highlight ? r.id === highlight : r.count === rows[0].count && r.count > 0);
+  // The first time this result is on this phone, the bars grow one at a time
+  // and the winner's comes last (JS_Motion.html, section 7).
+  const key = ['vote', state.code, state.game, state.shared.round, state.shared.turn,
+               rows.map(r => r.id + ':' + r.count + ':' + r.label).join(',')].join('|');
+  const times = voteRevealTimes(key, rows, isWin, opts && opts.delay);
 
-  return `<div class="result-list">
+  return `<div class="result-list ${times ? 'result-list--reveal' : ''}" ${times ? `data-reveal-ms="${times.total}"` : ''}>
       ${rows.map(r => {
         const pct = Math.round((r.count / total) * 100);
-        const win = highlight ? r.id === highlight : r.count === rows[0].count && r.count > 0;
+        const win = isWin(r);
         return `
-          <div class="result-row ${win ? 'is-top' : ''}">
+          <div class="result-row ${win ? 'is-top' : ''}" ${times ? `style="--at:${times.get(r)}ms"` : ''}>
             <div class="result-row__bar" style="width:${pct}%"></div>
             <div class="result-row__body">
               <span class="result-row__label">${escapeHTML(r.label)}</span>

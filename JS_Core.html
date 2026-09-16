@@ -1302,7 +1302,12 @@
       secret_word: "الكلمة السرية",
       imposter_count: "عدد الجواسيس",
       give_phone_to: "أعط الهاتف لـ",
-      reveal_role: "معرفة الدور",
+      hold_to_reveal: "دوس مطوّل عشان تشوف دورك",
+      hold_hint: "أول ما تشيل صباعك يستخبى",
+      reveal_spy_was: "الجاسوس كان…",
+      reveal_spies_were: "الجواسيس كانوا…",
+      reveal_chameleon_was: "الحرباء كانت…",
+      reveal_fake_was: "الفنان المزيف كان…",
       you_are: "أنت هو:",
       got_it_next: "فهمت، التالي",
       reveal_imposters: "كشف الجواسيس 🕵️‍♂️",
@@ -1337,7 +1342,6 @@
       setup_spyfall: "الموقع السري",
       setup_timesup: "ثلاث جولات",
       pass_phone_to: "مرر الهاتف إلى",
-      show_my_secret: "إظهار سري 👁️",
       hide_and_pass: "إخفاء وتمرير الهاتف 🔒",
       speaking_order: "ترتيب الأدوار لإعطاء الكلمة",
       accuse_chameleon: "اتهام الحرباء 🦎",
@@ -2319,7 +2323,12 @@
       secret_word: "Secret Word",
       imposter_count: "Imposters Count",
       give_phone_to: "Give phone to",
-      reveal_role: "Reveal Role",
+      hold_to_reveal: "Press and hold to see your role",
+      hold_hint: "It hides again when you let go",
+      reveal_spy_was: "The spy was…",
+      reveal_spies_were: "The spies were…",
+      reveal_chameleon_was: "The chameleon was…",
+      reveal_fake_was: "The fake artist was…",
       you_are: "You are:",
       got_it_next: "Got it, Next",
       reveal_imposters: "Reveal Imposters 🕵️‍♂️",
@@ -2354,7 +2363,6 @@
       setup_spyfall: "Spyfall",
       setup_timesup: "Time's Up!",
       pass_phone_to: "Pass phone to",
-      show_my_secret: "Show My Secret 👁️",
       hide_and_pass: "Hide & Pass Phone 🔒",
       speaking_order: "Speaking Order for Clues",
       accuse_chameleon: "Accuse Chameleon 🦎",
@@ -3540,6 +3548,8 @@
     // height, and the position would be read back clamped.
     const main = document.getElementById('shell-main');
     if (main && previous && previous !== viewId) viewScroll[previous] = main.scrollTop;
+    // Going back from a game's screen, its icon flies home to its card (JS_Motion.html).
+    const homeFlight = goingBack && typeof heroHomeFlight === 'function' ? heroHomeFlight(previous, viewId) : null;
 
     appState.currentView = viewId;
     saveToLocal();
@@ -3591,6 +3601,7 @@
     }
     applyTranslations();
     if (main && goingBack && viewScroll[viewId]) main.scrollTop = viewScroll[viewId];
+    if (homeFlight) homeFlight();
     if (typeof syncAllSegmented === 'function') requestAnimationFrame(syncAllSegmented);
 }
 
@@ -3730,7 +3741,7 @@ const GAME_RULES = {
         imposter: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>اختار فئة (حيوانات، أكلات، دول…) أو اكتب كلمة بنفسك، وحدد عدد الجواسيس.</li>
-                <li>مرر الموبايل: كل واحد يشوف الكلمة السرية، إلا الجاسوس يشوف «أنت الجاسوس».</li>
+                <li>مرر الموبايل: كل واحد يدوس مطوّل على الكارت ويشوف الكلمة السرية، إلا الجاسوس يشوف «أنت الجاسوس». أول ما يشيل صباعه تستخبى.</li>
                 <li>اسألوا بعض أسئلة عن الكلمة من غير ما تقولوها. الجاسوس بيحاول يتمشّى مع الكلام ويعرف الكلمة، والباقي بيحاولوا يمسكوه من إجاباته.</li>
                 <li>لما تتأكدوا، اضغط <b>كشف الجواسيس</b>.</li>
             </ol>
@@ -3745,6 +3756,7 @@ const GAME_RULES = {
         chameleon: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>16 كلمة في موضوع واحد على الشاشة. الكل يعرف مين فيهم الكلمة السرية، إلا <b>الحرباء</b>.</li>
+                <li>مرر الموبايل: كل واحد يدوس مطوّل على الكارت ويشوف دوره، وأول ما يشيل صباعه يستخبى.</li>
                 <li>كل واحد يقول <b>كلمة واحدة</b> بالدور ليها علاقة بالكلمة السرية، من غير ما يفضحها.</li>
                 <li>الحرباء بتحاول تقول كلمة عامة تقنعكم إنها عارفة.</li>
                 <li>صوّتوا على الحرباء. لو مسكتوها، عندها فرصة أخيرة تخمّن الكلمة من اللوحة: لو صابت، هي اللي تكسب.</li>
@@ -3758,6 +3770,7 @@ const GAME_RULES = {
         spyfall: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>الكل في نفس <b>المكان</b> (مطار، مستشفى…) وكل واحد ليه دور فيه، إلا <b>الجاسوس</b> اللي مش عارف المكان.</li>
+                <li>مرر الموبايل: كل واحد يدوس مطوّل على الكارت ويشوف المكان ودوره، وأول ما يشيل صباعه يستخبى.</li>
                 <li>اسألوا بعض أسئلة عن المكان من غير ما تقولوه: «بتيجي هنا كتير؟». الإجابة الواضحة زيادة بتفضح المكان للجاسوس، والإجابة المهزوزة بتفضح الجاسوس.</li>
                 <li>الجاسوس يقدر يوقّف اللعبة في أي وقت ويخمّن المكان. لو صاب، يكسب.</li>
                 <li>لما الوقت يخلص أو تتفقوا، صوّتوا على الجاسوس. لو مسكتوه عنده فرصة أخيرة يخمّن المكان.</li>
@@ -4149,7 +4162,7 @@ const GAME_RULES = {
         imposter: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Pick a category (animals, food, countries…) or type a word yourself, and set how many imposters.</li>
-                <li>Pass the phone: everyone sees the secret word, except the imposter, who sees "You are the imposter".</li>
+                <li>Pass the phone: each player presses and holds the card to see the secret word, except the imposter, who sees "You are the imposter". It hides again the moment they let go.</li>
                 <li>Ask each other about the word without saying it. The imposter tries to blend in and work out the word; the rest try to catch them from their answers.</li>
                 <li>When you are sure, press <b>Reveal the imposters</b>.</li>
             </ol>
@@ -4164,6 +4177,7 @@ const GAME_RULES = {
         chameleon: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>16 words on one topic on the screen. Everyone knows which is the secret one, except the <b>chameleon</b>.</li>
+                <li>Pass the phone: each player presses and holds the card to see their role; it hides again the moment they let go.</li>
                 <li>In turn, each player says <b>one word</b> related to the secret word without giving it away.</li>
                 <li>The chameleon tries to say something vague enough to pass as knowing.</li>
                 <li>Vote on the chameleon. If caught, they get one last guess at the word from the board: right, and they win.</li>
@@ -4177,6 +4191,7 @@ const GAME_RULES = {
         spyfall: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Everyone is at the same <b>place</b> (an airport, a hospital…) with a job there, except the <b>spy</b>, who doesn't know the place.</li>
+                <li>Pass the phone: each player presses and holds the card to see the place and their job; it hides again the moment they let go.</li>
                 <li>Ask each other about the place without naming it: "Do you come here often?". Too clear an answer gives the place to the spy; a shaky one gives the spy away.</li>
                 <li>The spy can stop the game at any time and guess the place. Right, and they win.</li>
                 <li>When time is up, or you agree, vote on the spy. If caught, the spy gets one last guess at the place.</li>

@@ -170,7 +170,7 @@ function quizGame(game) {
       // gameover
       const fresh = renderRoomFrame(el, ['quiz-over', state.youAreHost, appState.lang].join('|'), () => `
         <div class="card card--accent" style="text-align:center">
-          <div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>
+          ${renderPodium(state, s.board) || `<div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>`}
         </div>
         ${renderScoreboard(s.board)}
         ${state.youAreHost
@@ -180,7 +180,7 @@ function quizGame(game) {
              </div>`
           : `<div class="waiting-note">${t.room_wait_host}</div>`}
         ${renderRoomPlayerStrip(state)}`);
-      if (fresh && typeof confetti === 'function') confetti({ particleCount: 140, spread: 90 });
+      if (fresh && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 140, spread: 90 }));
       refreshRoomPlayerStrip(el, state);
     }
   };

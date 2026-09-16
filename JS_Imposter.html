@@ -109,7 +109,10 @@
               return;
           }
       } else if (category === 'countries') {
-          secretWord = freshPick('imposter:countries', COUNTRIES_DB, 1)[0];
+          // The country list went to MonkeyWords.js with ربع قرد; this category
+          // still read the old COUNTRIES_DB and threw, so Start did nothing.
+          const countries = (MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries;
+          secretWord = freshPick('imposter:countries:' + contentLang(), countries, 1)[0];
       } else if (SPY_CATEGORIES[category]) {
           let list = SPY_CATEGORIES[category];
           if (category.includes('🔒')) list = list.slice(1);
@@ -129,15 +132,19 @@
       setView('imposter-reveal');
   }
 
+  /**
+   * The next player's name, and their role already on the back of the card:
+   * it shows only while they hold it (JS_Motion.html, section 11), so nothing
+   * here may make a sound that differs between a spy and everyone else.
+   */
   function showRevealStep() {
       const player = appState.imposter.players[appState.imposter.revealIndex];
       document.getElementById('reveal-player-name').innerText = player.name;
-      document.getElementById('reveal-step-pass').classList.remove('hidden');
-      document.getElementById('reveal-step-show').classList.add('hidden');
+      fillRole(player);
+      holdCardReset(document.getElementById('imposter-hold'));
   }
 
-  function showRole() {
-      const player = appState.imposter.players[appState.imposter.revealIndex];
+  function fillRole(player) {
       const wordDiv = document.getElementById('role-word');
       const card = document.getElementById('role-card-content');
       const spy = player.role === 'Imposter';
@@ -148,9 +155,6 @@
       // overwriting className also dropped the card's own sizing.
       wordDiv.className = 'metric metric--lg ' + (spy ? 'tx-danger' : 'tx-success');
       if (card) card.classList.toggle('is-spy', spy);
-      document.getElementById('reveal-step-pass').classList.add('hidden');
-      document.getElementById('reveal-step-show').classList.remove('hidden');
-      playSound('click');
   }
 
   function hideRole() {

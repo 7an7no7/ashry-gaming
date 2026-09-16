@@ -32,7 +32,10 @@ const STOP_LETTERS = {
   ar: 'ا ب ت ث ج ح خ د ر ز س ش ص ض ط ع غ ف ق ك ل م ن ه و ي'.split(' '),
   en: 'A B C D E F G H I J K L M N O P R S T V W'.split(' ')
 };
-const STOP_POINTS = [0, 10, 5];   // a tap cycles a cell through these
+const STOP_POINTS = [0, 10, 5];
+
+/** The letters a letter was drawn from, for the spin (a room's letter says its own language). */
+const stopLetterPool = (letter) => (/[A-Za-z]/.test(letter || '') ? STOP_LETTERS.en : STOP_LETTERS.ar);   // a tap cycles a cell through these
 
 let stopClock = null;
 
@@ -113,7 +116,7 @@ function nextStopLetter() {
   if (appState.currentView !== 'play-stop') setView('play-stop');
   paintStopPlay();
   armStopClock();
-  playSound('success');
+  spinLetter(document.querySelector('#stop-stage .stop-letter'), s.letter, stopLetterPool(s.letter), () => playSound('success'));
 }
 
 /** The same round, a fresh letter: the table agreed the last one was hopeless. */

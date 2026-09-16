@@ -454,12 +454,16 @@ TV_GAMES.trivia = {
 
     if (s.phase === 'gameover') {
       const medals = ['🥇', '🥈', '🥉'];
+      const top = (s.board || []).slice(0, 3);
+      // Third rises, then second, then the winner, the first time (JS_Motion.html, section 9).
+      const rise = motionFirst(['tvpodium', state.code, JSON.stringify(top)].join('|'));
+      const atOf = (i) => 150 + (top.length - 1 - i) * 520;
       return `
         <div class="tv-trivia">
           <div class="tv-title tv-center-text">🏆 ${t.trivia_champion || ''}</div>
-          <div class="tv-podium">
-            ${(s.board || []).slice(0, 3).map((p, i) => `
-              <div class="tv-podium__place tv-podium__place--${i + 1}">
+          <div class="tv-podium ${rise ? 'tv-podium--rise' : ''}" ${rise ? `data-reveal-ms="${atOf(0) + 640}"` : ''}>
+            ${top.map((p, i) => `
+              <div class="tv-podium__place tv-podium__place--${i + 1}" style="--at:${atOf(i)}ms">
                 <span class="tv-podium__medal" aria-hidden="true">${medals[i]}</span>
                 <span class="tv-podium__name">${escapeHTML(p.name)}</span>
                 <span class="tv-podium__score">${p.score}</span>
@@ -522,7 +526,7 @@ TV_GAMES.trivia = {
     if (rebuilt && s.phase === 'results') playSound('success');
     if (rebuilt && s.phase === 'gameover' && tv.cheered !== 'trivia' + state.version && typeof confetti === 'function') {
       tv.cheered = 'trivia' + state.version;
-      confetti({ particleCount: 240, spread: 110, origin: { y: 0.6 } });
+      afterReveal(document.getElementById('view-room-tv'), () => confetti({ particleCount: 240, spread: 110, origin: { y: 0.6 } }));
     }
   }
 };
@@ -1024,6 +1028,9 @@ TV_GAMES.stop = {
   after(state) {
     const s = state.shared || {};
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
+    if (s.phase === 'writing' && motionFirst(['tvstop', state.code, s.round, s.letter].join('|'))) {
+      spinLetter(document.querySelector('#view-room-tv .tv-stop-letter'), s.letter, stopLetterPool(s.letter), () => playSound('success'));
+    }
   }
 };
 

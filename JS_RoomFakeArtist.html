@@ -141,15 +141,16 @@ function fakeArtistFrame(state, t, myTurn, drawerAway) {
   if (s.phase === 'results') {
     const fakeWon = s.winner === 'fake';
     const line = !s.fakeCaught ? t.fa_escaped : (fakeWon ? t.fa_stole : t.fa_artists_win);
+    const cover = spyRevealParts(['fa', state.code, s.round, s.fakeId, s.secretWord].join('|'), t.reveal_fake_was);
     results = `
-      <div class="card ${fakeWon ? 'plate-danger' : 'plate-success'}" style="text-align:center">
+      <div class="card ${fakeWon ? 'plate-danger' : 'plate-success'} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
         <div class="eyebrow">${t.fa_word_was || ''}</div>
         <div class="metric metric--md">${escapeHTML(s.secretWord || '')}</div>
         <div class="card__title" style="margin: var(--sp-2) 0 0">${fakeWon ? '🦹' : '🎉'} ${line || ''}</div>
         <p style="margin: var(--sp-1) 0 0">${t.fa_fake_was || ''} ${faDot(state, s.fakeId)} <b>${escapeHTML(faName(state, s.fakeId))}</b>${
           s.fakeGuessWord ? ` · ${t.fa_guessed || ''} «${escapeHTML(s.fakeGuessWord)}»` : ''}</p>
       </div>
-      ${(s.vote && s.vote.results) ? renderVoteResults(state, { highlightId: s.fakeId }) : ''}
+      ${(s.vote && s.vote.results) ? renderVoteResults(state, { highlightId: s.fakeId, delay: cover.ms }) : ''}
       ${renderScoreboard(s.board)}
       ${renderRoundFooter(state, t.next_round || '')}`;
   }

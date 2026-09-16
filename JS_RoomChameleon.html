@@ -25,7 +25,7 @@ ROOM_GAMES.chameleon = {
     const sig = ['cham', s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, s.guessIndex,
                  state.youAreHost, appState.lang, JSON.stringify(s.scores || {})].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => chameleonFrame(state, t));
-    if (rebuilt && s.phase === 'results' && s.outcome === 'caught' && typeof confetti === 'function') confetti({ particleCount: 120, spread: 70 });
+    if (rebuilt && s.phase === 'results' && s.outcome === 'caught' && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 120, spread: 70 }));
     refreshRoomPlayerStrip(el, state);
   }
 };
@@ -94,8 +94,9 @@ function chameleonFrame(state, t) {
   // results
   const won = s.outcome === 'caught';
   const line = s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
+  const cover = spyRevealParts(['cham', state.code, s.round, s.outcome, s.chameleonName].join('|'), t.reveal_chameleon_was);
   return head + `
-    <div class="card ${won ? 'card--accent' : ''}" style="text-align:center">
+    <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
       <div class="metric metric--md ${won ? 'tx-success' : 'tx-warning'}">${won ? '🎉' : '🦎'} ${escapeHTML(line.replace('{name}', s.chameleonName || ''))}</div>
       <p class="sheet__subtitle">${escapeHTML(t.secret_word || '')}: <b>${escapeHTML(s.secretWord || '')}</b>${s.accusedName ? ` · ${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}` : ''}</p>
     </div>

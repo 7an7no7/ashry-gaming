@@ -61,7 +61,7 @@ ROOM_GAMES.trivia = {
     const sig = ['trivia', s.phase, s.qIndex, iAnswered, (s.answered || []).length, state.youAreHost].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => triviaFrame(state, t, iAnswered));
     if (rebuilt && s.phase === 'gameover' && typeof confetti === 'function') {
-      confetti({ particleCount: 160, spread: 80 });
+      afterReveal(el, () => confetti({ particleCount: 160, spread: 80 }));
     }
     refreshRoomPlayerStrip(el, state);
 
@@ -82,7 +82,7 @@ function triviaFrame(state, t, iAnswered) {
     return `
       <div class="card card--accent" style="text-align:center">
         <div class="eyebrow">${t.trivia_champion || ''}</div>
-        <div class="metric metric--md metric--accent">🏆 ${champs.join(' · ') || '—'}</div>
+        ${renderPodium(state, board) || `<div class="metric metric--md metric--accent">🏆 ${champs.join(' · ') || '—'}</div>`}
       </div>
       ${renderScoreboard(board)}
       ${state.youAreHost

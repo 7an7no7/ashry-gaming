@@ -1908,12 +1908,19 @@ function submitConnectGuess() {
   const groups = [...new Set(tiles.map(t => t.group))];
 
   if (groups.length === 1) {
+    const from = connectTileRects();
+    const puzzle = connections.puzzle;
     connections.solved.push(groups[0]);
     connections.selected = [];
     playSound('success');
     haptic('medium');
     renderConnections();
-    if (connections.solved.length === connections.puzzle.groups.length) finishConnections(true);
+    const flying = flyConnectGroup(groups[0], from);
+    if (connections.solved.length === puzzle.groups.length) {
+      // The last row lands before the board settles into its finished state.
+      if (flying) setTimeout(() => { if (connections.puzzle === puzzle) finishConnections(true); }, CONNECT_FLY_MS);
+      else finishConnections(true);
+    }
     return;
   }
 
@@ -1937,6 +1944,72 @@ function submitConnectGuess() {
 
   renderConnections();
   if (connections.mistakes >= CONNECT_MAX_MISTAKES) finishConnections(false);
+}
+
+const CONNECT_FLY_MS = 640;
+
+/** Where each tile is on screen, by word, before the grid is redrawn. */
+function connectTileRects() {
+  const rects = {};
+  document.querySelectorAll('#connect-grid .connect-tile').forEach(b => { rects[b.dataset.word] = b.getBoundingClientRect(); });
+  return rects;
+}
+
+/**
+ * A solved group's four tiles fly into the row that took their place, and the
+ * tiles left behind slide from where they were, instead of the grid jumping.
+ * Returns whether anything moves.
+ */
+function flyConnectGroup(gi, from) {
+  if (typeof motionOff !== 'function' || motionOff()) return false;
+  const grid = document.getElementById('connect-grid');
+  const row = grid && grid.querySelector('.connect-group--' + gi);
+  if (!row || !row.animate) return false;
+  const to = row.getBoundingClientRect();
+  const rtl = getComputedStyle(row).direction === 'rtl';
+  const words = connections.puzzle.groups[gi].words;
+
+  row.animate([
+    { opacity: 0, transform: 'scale(0.96)' },
+    { opacity: 0, transform: 'scale(0.96)', offset: 0.5 },
+    { opacity: 1, transform: 'scale(1.03)', offset: 0.8 },
+    { opacity: 1, transform: 'none' }
+  ], { duration: CONNECT_FLY_MS + 160, easing: 'ease-out' });
+
+  words.forEach((w, i) => {
+    const r = from[w];
+    if (!r) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'connect-tile is-selected connect-ghost';
+    ghost.textContent = w;
+    ghost.style.left = r.left + 'px';
+    ghost.style.top = r.top + 'px';
+    ghost.style.width = r.width + 'px';
+    ghost.style.height = r.height + 'px';
+    document.body.appendChild(ghost);
+    const slot = rtl ? words.length - 1 - i : i;
+    const dx = to.left + (to.width * (slot + 0.5)) / words.length - (r.left + r.width / 2);
+    const dy = to.top + to.height / 2 - (r.top + r.height / 2);
+    const anim = ghost.animate([
+      { transform: 'none', opacity: 1 },
+      { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(0.5)', opacity: 0 }
+    ], { duration: CONNECT_FLY_MS, delay: i * 40, easing: 'cubic-bezier(0.5, 0, 0.2, 1)', fill: 'both' });
+    const done = () => ghost.remove();
+    anim.onfinish = done;
+    setTimeout(done, CONNECT_FLY_MS + 500);
+  });
+
+  grid.querySelectorAll('.connect-tile').forEach(b => {
+    const r = from[b.dataset.word];
+    if (!r) return;
+    const now = b.getBoundingClientRect();
+    const dx = r.left - now.left;
+    const dy = r.top - now.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    b.animate([{ transform: 'translate(' + dx + 'px, ' + dy + 'px)' }, { transform: 'none' }],
+              { duration: 480, delay: 120, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' });
+  });
+  return true;
 }
 
 function finishConnections(won) {
@@ -1964,7 +2037,7 @@ function renderConnections(finished) {
 
   const remaining = connections.tiles.filter(x => !connections.solved.includes(x.group));
   const tilesHtml = remaining.map(x => `
-      <button class="connect-tile ${connections.selected.includes(x.word) ? 'is-selected' : ''}"
+      <button class="connect-tile ${connections.selected.includes(x.word) ? 'is-selected' : ''}" data-word="${escapeHTML(x.word)}"
               onclick="toggleConnectTile('${jsStringAttr(x.word)}')">${escapeHTML(x.word)}</button>`).join('');
 
   el.innerHTML = solvedHtml + (remaining.length ? `<div class="connect-grid">${tilesHtml}</div>` : '');

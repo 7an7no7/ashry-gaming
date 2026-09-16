@@ -101,9 +101,12 @@ ROOM_GAMES.stop = {
                  s.phase === 'review' ? JSON.stringify(s.roundTotals) + JSON.stringify(s.results) : '',
                  s.phase === 'done' ? JSON.stringify(s.board) : ''].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => stopRoomFrame(state, t, inRound, iSubmitted));
-    if (rebuilt && s.phase === 'done' && typeof confetti === 'function') confetti({ particleCount: 160, spread: 80 });
-    // A new letter: a cue, so a table looking at its papers looks up.
-    if (s.phase === 'writing' && stopRoom.letterKey !== roundKey) { stopRoom.letterKey = roundKey; playSound('success'); haptic('light'); }
+    if (rebuilt && s.phase === 'done' && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 160, spread: 80 }));
+    // A new letter spins in, with a cue when it lands, so a table looking at its papers looks up.
+    if (s.phase === 'writing' && stopRoom.letterKey !== roundKey) {
+      stopRoom.letterKey = roundKey;
+      spinLetter(el.querySelector('.stop-letter'), s.letter, stopLetterPool(s.letter), () => { playSound('success'); haptic('light'); });
+    }
     refreshRoomPlayerStrip(el, state);
 
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
@@ -183,7 +186,7 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
   return `
     <div class="card card--accent" style="text-align:center">
       <div class="eyebrow">${escapeHTML(t.stop_finish || '')}</div>
-      <div class="metric metric--md metric--accent">🏆 ${champs.join(' · ') || '—'}</div>
+      ${renderPodium(state, board) || `<div class="metric metric--md metric--accent">🏆 ${champs.join(' · ') || '—'}</div>`}
     </div>
     ${renderScoreboard(board)}
     ${state.youAreHost

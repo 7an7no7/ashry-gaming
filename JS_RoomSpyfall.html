@@ -72,7 +72,7 @@ ROOM_GAMES.spyfall = {
     const sig = ['spy', s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, state.youAreHost, appState.lang,
                  spyfallRoom.guessing, [...spyfallRoom.crossed].join(','), JSON.stringify(s.scores || {})].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => spyfallFrame(state, t));
-    if (rebuilt && s.phase === 'results' && s.outcome === 'caught' && typeof confetti === 'function') confetti({ particleCount: 120, spread: 70 });
+    if (rebuilt && s.phase === 'results' && s.outcome === 'caught' && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 120, spread: 70 }));
     refreshRoomPlayerStrip(el, state);
     if (s.phase === 'play' && s.endsAt) startSpyfallRoomClock(s); else stopSpyfallRoomClock();
   }
@@ -146,8 +146,10 @@ function spyfallFrame(state, t) {
   }
   const won = s.outcome === 'caught';
   const line = s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
+  const cover = spyRevealParts(['spy', state.code, s.round, s.outcome, s.location].join('|'),
+                               (s.spyNames || []).length > 1 ? t.reveal_spies_were : t.reveal_spy_was);
   return head + `
-    <div class="card ${won ? 'card--accent' : ''}" style="text-align:center">
+    <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
       <div class="metric metric--md ${won ? 'tx-success' : 'tx-danger'}">${won ? '🎉' : '🕵️'} ${escapeHTML(line.replace('{name}', (s.spyNames || []).join(' · ')))}</div>
       <p class="sheet__subtitle">📍 ${escapeHTML(s.location || '')}${s.accusedName ? ` · ${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}` : ''}${s.guess ? ` · ${escapeHTML(t.spy_guess_was || '')}: ${escapeHTML(s.guess)}` : ''}</p>
     </div>

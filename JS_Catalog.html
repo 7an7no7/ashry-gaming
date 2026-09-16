@@ -146,6 +146,10 @@ function catalogOpen(id, fromEl) {
   const g = CATALOG_BY_ID[id];
   if (!g) return;
   rememberRecent(id);
+  if (typeof catalogReturn !== 'undefined') {
+    catalogReturn.id = id;
+    catalogReturn.kind = fromEl && fromEl.classList.contains('recent-tile') ? 'recent' : 'card';
+  }
   const fly = typeof catalogIconFlight === 'function' ? catalogIconFlight(g, fromEl) : null;
   const before = appState.currentView;
   g.open();
@@ -310,7 +314,7 @@ function renderHome() {
       <div class="recent-row hscroll-fade">
         ${recent.map(id => {
           const g = CATALOG_BY_ID[id];
-          return `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}', this)">
+          return `<button type="button" class="recent-tile" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
                     <span class="recent-tile__icon" aria-hidden="true">${g.icon}</span>
                     <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
                   </button>`;

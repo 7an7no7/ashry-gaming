@@ -10,7 +10,16 @@
      moment, and its icon flies into the header;
    - the bottom bar's highlight slides to the tab you picked;
    - a room's code drops in letter by letter, and whoever joins pops in;
-   - scores count up, and players slide to their new places on the board.
+   - scores count up, and players slide to their new places on the board;
+   - a vote's bars grow one at a time, the winner's last;
+   - a round's result card lies face down for a beat ("the spy was…"), then
+     turns over;
+   - the end of a game puts the top three on a podium that rises 3-2-1;
+   - a letter spins in like a slot machine;
+   - a pass-the-phone role shows only while a finger holds the card;
+   - going back, a game's icon flies home to the card it was opened from.
+   A reveal plays once per thing on this phone (motionFirst): a room redraws a
+   screen for reasons the table never sees, and a redraw shows it settled.
    Nothing here moves by itself, all of it stays still under reduced motion,
    and every end state is also set by a timer - an animation event is never
    the only path (see GEMINI.md).
@@ -222,6 +231,245 @@ function animateScoreboards(state) {
       scoreMemo.ranks[row.dataset.pid] = i;
     });
   });
+}
+
+/* --- 6. Once per thing, not once per redraw -------------------------------- */
+
+const motionSeen = new Set();
+
+/** True the first time `key` is drawn on this phone with motion on. */
+function motionFirst(key) {
+  if (motionOff() || motionSeen.has(key)) return false;
+  if (motionSeen.size > 300) motionSeen.clear();
+  motionSeen.add(key);
+  return true;
+}
+
+/**
+ * Runs fn once the reveals just drawn into el have had their moment (the card
+ * turning over, the winner reaching the top of the podium), so the confetti
+ * lands with the answer rather than before it.
+ */
+function afterReveal(el, fn) {
+  const waits = el ? [...el.querySelectorAll('[data-reveal-ms]')].map((x) => Number(x.dataset.revealMs) || 0) : [];
+  const wait = Math.max(0, ...waits);
+  if (wait) setTimeout(fn, wait); else fn();
+}
+
+/* --- 7. Vote results build suspense ------------------------------------------ */
+
+/**
+ * When each result row grows, in ms: from the bottom of the list up, the
+ * winning row (or the highlighted one) last, after a beat. Empty when this
+ * result was already shown on this phone.
+ */
+function voteRevealTimes(key, rows, isWin, delay) {
+  if (!motionFirst(key)) return null;
+  const order = rows.filter((r) => !isWin(r)).reverse().concat(rows.filter(isWin));
+  const step = order.length > 1 ? Math.min(420, Math.round(1500 / (order.length - 1))) : 0;
+  const beat = order.some((r) => !isWin(r)) ? 380 : 0;
+  const times = new Map();
+  order.forEach((r, k) => times.set(r, (delay || 0) + k * step + (isWin(r) ? beat : 0)));
+  times.total = Math.max(0, ...times.values()) + 1000;
+  return times;
+}
+
+/* --- 8. The spy was… --------------------------------------------------------- */
+
+// The card lies face down for SPY_REVEAL_BEAT_MS, turns over, and is edge-on
+// (the cover goes) halfway through the turn. Style.html has the same numbers.
+const SPY_REVEAL_BEAT_MS = 1100;
+const SPY_REVEAL_MS = 1660;
+
+/**
+ * The face-down cover for a round's result card, the first time this round's
+ * result is drawn on this phone: `cls` and `attrs` go on the card, `cover`
+ * first inside it. All empty afterwards.
+ */
+function spyRevealParts(key, label) {
+  if (!motionFirst(key)) return { cls: '', attrs: '', cover: '', ms: 0 };
+  // Three soft ticks while it lies face down: a drumroll the table hears together.
+  [0, 380, 760].forEach((ms) => setTimeout(() => { if (!document.hidden) playSound('tick'); }, ms));
+  return {
+    cls: 'spy-reveal',
+    attrs: 'data-reveal-ms="' + SPY_REVEAL_MS + '"',
+    cover: '<div class="spy-reveal__cover" aria-hidden="true">' +
+             '<span class="spy-reveal__q">?</span>' +
+             '<span class="spy-reveal__label">' + escapeHTML(label || '') + '</span>' +
+           '</div>',
+    ms: SPY_REVEAL_MS
+  };
+}
+
+/* --- 9. The podium ----------------------------------------------------------- */
+
+/**
+ * The top three of a finished game's board on a podium, second on one side of
+ * the winner and third on the other. The first time it is drawn, third rises,
+ * then second, then the winner. Empty with fewer than two players or nobody
+ * scoring, and the caller keeps its plain champion line.
+ */
+function renderPodium(state, board) {
+  const all = board || [];
+  const top = all.slice(0, 3);
+  if (top.length < 2 || !(Number(top[0].score) > 0)) return '';
+  const rankOf = (p) => 1 + all.filter((x) => Number(x.score) > Number(p.score)).length;
+  const rise = motionFirst(['podium', state && state.code, state && state.game, JSON.stringify(top)].join('|'));
+  const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+  const atOf = (i) => 150 + (top.length - 1 - i) * 520;
+  const winMs = atOf(0) + 620;
+  return '<div class="podium' + (rise ? ' podium--rise" data-reveal-ms="' + winMs + '"' : '"') + '>' +
+    top.map((p, i) => {
+      const rank = Math.min(3, rankOf(p));
+      return '<div class="podium__place podium__place--' + (i + 1) + ' podium__place--rank' + rank + '" style="--at:' + atOf(i) + 'ms">' +
+               '<div class="podium__who">' +
+                 '<span class="podium__medal" aria-hidden="true">' + medals[rank] + '</span>' +
+                 '<span class="podium__name">' + escapeHTML(p.name) + '</span>' +
+                 '<span class="podium__score metric">' + (Number(p.score) || 0) + '</span>' +
+               '</div>' +
+               '<div class="podium__block"><span class="metric">' + rank + '</span></div>' +
+             '</div>';
+    }).join('') +
+  '</div>';
+}
+
+/* --- 10. A letter spins in --------------------------------------------------- */
+
+/**
+ * Letters from `pool` flick past in `el`, slowing down, and the real one pops
+ * in; `onLand` runs when it does (at once, with motion off). The element keeps
+ * the right letter in its markup, so a redraw mid-spin is already correct.
+ */
+function spinLetter(el, letter, pool, onLand) {
+  if (!el) { if (onLand) onLand(); return; }
+  const token = {};
+  el._spin = token;
+  const others = (pool || []).filter((x) => x !== letter);
+  if (motionOff() || others.length < 2) { el.textContent = letter; if (onLand) onLand(); return; }
+  const gaps = [55, 60, 65, 72, 80, 90, 104, 120, 140, 165, 195];
+  let shown = '';
+  let k = 0;
+  const flick = () => {
+    if (el._spin !== token) return;
+    if (k >= gaps.length) {
+      el.textContent = letter;
+      el.classList.remove('is-spinning', 'motion-landed');
+      void el.offsetWidth;
+      el.classList.add('motion-landed');
+      setTimeout(() => el.classList.remove('motion-landed'), 520);
+      if (onLand) onLand();
+      return;
+    }
+    let next = others[Math.floor(Math.random() * others.length)];
+    if (next === shown) next = others[(others.indexOf(next) + 1) % others.length];
+    shown = next;
+    el.textContent = next;
+    if (el.animate) {
+      el.animate([{ transform: 'translateY(-0.15em)', opacity: 0.35 }, { transform: 'none', opacity: 0.8 }],
+                 { duration: gaps[k], easing: 'ease-out' });
+    }
+    if (k >= gaps.length - 5) playSound('tick');
+    setTimeout(flick, gaps[k++]);
+  };
+  el.classList.add('is-spinning');
+  flick();
+}
+
+/* --- 11. Hold to see your role ----------------------------------------------- */
+
+// A pass-the-phone role shows only while a finger (or Space, or the mouse) is
+// on the card, so it is gone before the phone changes hands. The done button
+// appears once the role has been up for HOLD_SEEN_MS. Delegated, so a card in
+// any screen works with no setup: `.hold-card`, with `data-next` naming the
+// button to show.
+const HOLD_SEEN_MS = 450;
+let holdNow = null;   // { card, id, since }
+
+function holdCardReset(card) {
+  if (!card) return;
+  if (holdNow && holdNow.card === card) holdNow = null;
+  card.classList.remove('is-holding', 'is-seen');
+  const back = card.querySelector('.hold-card__back');
+  if (back) back.setAttribute('aria-hidden', 'true');
+  const next = card.dataset.next && document.getElementById(card.dataset.next);
+  if (next) next.classList.add('is-waiting');
+}
+
+function holdStart(card, id) {
+  if (holdNow) return;
+  holdNow = { card: card, id: id, since: Date.now() };
+  card.classList.add('is-holding');
+  const back = card.querySelector('.hold-card__back');
+  if (back) back.removeAttribute('aria-hidden');
+  haptic('light');
+}
+
+function holdEnd() {
+  if (!holdNow) return;
+  const { card, since } = holdNow;
+  holdNow = null;
+  card.classList.remove('is-holding');
+  const back = card.querySelector('.hold-card__back');
+  if (back) back.setAttribute('aria-hidden', 'true');
+  if (Date.now() - since < HOLD_SEEN_MS) return;
+  card.classList.add('is-seen');
+  const next = card.dataset.next && document.getElementById(card.dataset.next);
+  if (next) next.classList.remove('is-waiting');
+}
+
+document.addEventListener('pointerdown', (e) => {
+  const card = e.target.closest && e.target.closest('.hold-card');
+  if (!card || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  e.preventDefault();                          // no text selection, no callout
+  try { card.setPointerCapture(e.pointerId); } catch (err) { /* a finger that already lifted */ }
+  holdStart(card, e.pointerId);
+});
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach((type) =>
+  document.addEventListener(type, (e) => { if (holdNow && holdNow.id === e.pointerId) holdEnd(); }));
+document.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.hold-card')) e.preventDefault(); });
+document.addEventListener('keydown', (e) => {
+  if ((e.key === ' ' || e.key === 'Enter') && !e.repeat && e.target.classList && e.target.classList.contains('hold-card')) {
+    e.preventDefault();
+    holdStart(e.target, 'key');
+  }
+});
+document.addEventListener('keyup', (e) => { if ((e.key === ' ' || e.key === 'Enter') && holdNow && holdNow.id === 'key') holdEnd(); });
+window.addEventListener('blur', holdEnd);
+document.addEventListener('visibilitychange', holdEnd);
+
+/* --- 12. Going back, the icon flies home ------------------------------------- */
+
+// Which kind of tile opened the game last (catalogOpen), so the icon goes back
+// to that one: the recent tile, or the card in its section.
+const catalogReturn = { id: '', kind: '' };
+
+/**
+ * Measures the hero icon of the screen being left, before setView hides it,
+ * and returns what to call once the home, مع بعض or الأدوات is drawn.
+ */
+function heroHomeFlight(previous, next) {
+  if (motionOff() || ['menu', 'together', 'tools'].indexOf(next) === -1) return null;
+  const view = document.getElementById('view-' + previous);
+  const icon = view && view.querySelector('.game-hero .game-hero__icon');
+  if (!icon || !icon.getClientRects().length) return null;
+  const g = (typeof GAME_CATALOG !== 'undefined' ? GAME_CATALOG : []).find((x) => x.setup === previous);
+  if (!g) return null;
+  const from = icon.getBoundingClientRect();
+  const fromFont = parseFloat(getComputedStyle(icon).fontSize);
+  return () => {
+    const home = document.getElementById('view-' + next);
+    if (!home) return;
+    const recent = catalogReturn.id === g.id && catalogReturn.kind === 'recent';
+    const sel = recent
+      ? '.recent-tile[data-game="' + g.id + '"] .recent-tile__icon'
+      : '.gcard[data-game="' + g.id + '"] .gcard__icon, .tool-item[data-game="' + g.id + '"] .tool-icon';
+    const onScreen = (el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight;
+    };
+    const target = [...home.querySelectorAll(sel)].find(onScreen);
+    if (target) flyEmoji(g.icon, from, fromFont, target, { duration: 520, arc: 24 });
+  };
 }
 
 // After the room has drawn itself for this state.

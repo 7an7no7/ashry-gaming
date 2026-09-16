@@ -114,7 +114,57 @@ function renderTeams(teams) {
     saveToLocal();
     paintTeams(teams);
     setView('results-teams');
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    const dealing = dealTeams(document.getElementById('teams-container'));
+    const cheer = () => confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    if (dealing) setTimeout(cheer, dealing); else cheer();
+}
+
+/**
+ * The names are dealt into their teams one at a time, in the order they were
+ * drawn, from the middle of the screen. Each name flies as a ghost above the
+ * page (the team cards clip their contents) and its row shows when it lands.
+ * Returns how long the deal takes, or 0 when nothing moves.
+ */
+function dealTeams(container) {
+    if (!container || typeof motionOff !== 'function' || motionOff()) return 0;
+    const rows = [...container.querySelectorAll('[data-deal]')].sort((a, b) => a.dataset.deal - b.dataset.deal);
+    if (!rows.length || !document.body.animate) return 0;
+    const start = 360;                       // after the screen has slid in, so the places are final
+    const step = Math.min(120, Math.round(1500 / rows.length));
+    const fly = 540;
+    rows.forEach(row => { row.style.visibility = 'hidden'; });
+    rows.forEach((row, i) => {
+        setTimeout(() => {
+            if (!row.isConnected) return;
+            // Lands on the name itself, not the middle of its full-width row.
+            const nameNode = [...row.childNodes].reverse().find(n => n.nodeType === 3 && n.textContent.trim());
+            let r = row.getBoundingClientRect();
+            if (nameNode) {
+                const range = document.createRange();
+                range.selectNodeContents(nameNode);
+                const nr = range.getBoundingClientRect();
+                if (nr.width) r = nr;
+            }
+            const ghost = document.createElement('div');
+            ghost.className = 'deal-ghost';
+            ghost.textContent = row.textContent.replace('●', '').trim();
+            document.body.appendChild(ghost);
+            const g = ghost.getBoundingClientRect();
+            const toX = r.left + r.width / 2 - g.width / 2;
+            const toY = r.top + r.height / 2 - g.height / 2;
+            const fromX = window.innerWidth / 2 - g.width / 2;
+            const fromY = window.innerHeight * 0.55 - g.height / 2;
+            const land = () => { ghost.remove(); row.style.visibility = ''; };
+            const anim = ghost.animate([
+                { transform: 'translate(' + fromX + 'px, ' + fromY + 'px) scale(0.6)', opacity: 0 },
+                { opacity: 1, offset: 0.25 },
+                { transform: 'translate(' + toX + 'px, ' + toY + 'px) scale(1)', opacity: 1 }
+            ], { duration: fly, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'both' });
+            anim.onfinish = land;
+            setTimeout(land, fly + 300);
+        }, start + i * step);
+    });
+    return start + (rows.length - 1) * step + fly;
 }
 
 /** Draws the team cards. Split out so a reload can redraw without re-rolling. */
@@ -133,8 +183,9 @@ function paintTeams(teams) {
             ? `${teamPrefix} ${names[idx]}` 
             : `${teamPrefix} ${idx + 1}`;
         
-        const playersHtml = team.map(p => 
-            `<div class="team-text-color team-divider font-bold text-lg last:border-0 py-3 flex items-center gap-2">
+        // data-deal is the order the names were drawn in, for dealTeams.
+        const playersHtml = team.map((p, j) =>
+            `<div class="team-text-color team-divider font-bold text-lg last:border-0 py-3 flex items-center gap-2" data-deal="${j * teams.length + idx}">
                 <span class="text-xs opacity-50">●</span> ${escapeHTML(p)}
              </div>`
         ).join('');

@@ -925,6 +925,13 @@ belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
 
+**Moving a list means finding every reader.** The ربع قرد rebuild moved the
+country names into `MonkeyWords.js` and removed `COUNTRIES_DB`, but the
+default category of the one-phone الجاسوس («دول العالم») still read it, so
+Start threw and did nothing for a day. It deals from
+`MONKEY_LISTS[contentLang()].countries` now. Before deleting a constant,
+search every `JS_*.html` for it, not just the game it came from.
+
 **`animationend` is never the only path.** A CSS animation that is suppressed or
 cut very short fires *no* animation events at all — `prefers-reduced-motion:
 reduce` sets `animation-duration: 0.01ms !important`, and at that length the
@@ -1175,6 +1182,57 @@ coalesced pass as the segmented thumbs), a new room code drops in letter by
 letter, and a player who joins after you pops into the lobby
 (`status-row--new`, `lobbySeen`). All of it is still under reduced motion and
 in a tab that isn't showing.
+
+**Reveals play once per thing.** A room redraws a screen for reasons the
+table never sees (the host changed, the language), so a reveal asks
+`motionFirst(key)` while its markup is built: true the first time that key is
+drawn on this phone with motion on, and a redraw shows the thing settled.
+Anything that celebrates after a reveal goes through `afterReveal(el, fn)`,
+which waits for the longest `data-reveal-ms` drawn into `el`, so confetti
+lands with the answer rather than before it. The reveals:
+
+- **Vote results** (`renderVoteResults` → `voteRevealTimes`): the bars grow
+  one at a time from the bottom of the list up, and the winning (or
+  highlighted) row last, after a beat; `--at` on each row is its moment, and
+  `opts.delay` holds the whole list back (Fake Artist waits for its card).
+- **"The spy was…"** (`spyRevealParts`, used by the الجاسوس, الحرباء,
+  الموقع السري and الفنان المزيف results): the result card lies face down in
+  the game's colour with a question mark and three soft ticks for 1.1s, then
+  turns over; the cover goes when the card is edge-on.
+- **The podium** (`renderPodium(state, board)`, at the end of the trivia,
+  emoji, proverbs, five seconds, two truths and Stop rooms): the top three,
+  second on one side of the winner and third on the other, rising 3-2-1.
+  Ties share a place and its height. Fewer than two players or nobody scoring,
+  and it returns '' so the screen keeps its plain champion line. The TV
+  trivia podium rises the same way (`tv-podium--rise`).
+- **A letter** (`spinLetter`, أتوبيس كومبليت on one phone, in rooms and on
+  the TV): letters from `STOP_LETTERS` flick past, slowing, and the real one
+  pops in; the cue sound plays when it lands.
+
+Three more are moves rather than reveals: a solved Connections group's tiles
+fly into the row that took their place while the tiles left behind slide from
+where they were (`flyConnectGroup`, measured by `connectTileRects` before the
+grid is redrawn, the finish waiting for the last row); the team generator
+deals the names into their teams one at a time in the order they were drawn
+(`dealTeams`, ghosts above the page because the team cards clip, each landing
+on the name itself); and going back from a game's screen to the home, مع بعض
+or الأدوات flies its hero icon home to the tile it was opened from
+(`heroHomeFlight` from `setView`, `catalogReturn` remembering whether that
+was the recent tile or the card).
+
+**Pass-the-phone roles are held, not tapped.** الجاسوس, الحرباء and الموقع
+السري on one phone put the role on the back of a `.hold-card`: it turns over
+only while a finger, the mouse or Space is on it, and turns back the moment
+it lets go, so the next player never catches it. The role is filled in when
+the player's name is shown (`showRevealStep`, `showChameleonRevealStep`,
+`showSpyfallRevealStep`), `holdCardReset` puts the card face down with the
+done button hidden, and the button (`data-next`) appears once the role has
+been up for `HOLD_SEEN_MS`. The handlers are delegated in `JS_Motion.html`,
+so a new `.hold-card` needs no setup. The faces swap `visibility` halfway
+through the turn as well as relying on `backface-visibility`, and nothing on
+these screens may play a sound that differs by role: the old chameleon and
+spy reveals played an alarm for the impostor and a chime for everyone else,
+which told the whole table.
 
 **The dice and the coin** are section 13: a real cube of six pip faces in 3D
 (`DIE_PIPS` draws the pips into a 3x3 grid, `DIE_LANDING` says what to rotate

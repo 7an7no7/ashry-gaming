@@ -77,10 +77,11 @@ function showSpyfallRevealStep() {
 
   const playerName = spyfallState.players[spyfallState.revealIndex];
   document.getElementById('spyfall-reveal-name').innerText = playerName;
-  document.getElementById('spyfall-step-pass').classList.remove('hidden');
-  document.getElementById('spyfall-step-card').classList.add('hidden');
+  revealSpyfallSecret();
+  holdCardReset(document.getElementById('spyfall-hold'));
 }
 
+/** Fills the back of the hold card. No sound: it would tell the table who the spy is. */
 function revealSpyfallSecret() {
   const playerName = spyfallState.players[spyfallState.revealIndex];
   const info = spyfallState.playerRoles[playerName];
@@ -89,7 +90,6 @@ function revealSpyfallSecret() {
   const lang = contentLang();
 
   if (info.isSpy) {
-    playSound('alarm');
     titleEl.innerText = lang === 'en' ? "🕵️ YOU ARE THE SPY!" : "🕵️ أنت الجاسوس!";
     detailEl.innerHTML = `
       <div class="space-y-2">
@@ -98,7 +98,6 @@ function revealSpyfallSecret() {
       </div>
     `;
   } else {
-    playSound('success');
     titleEl.innerText = lang === 'en' ? "🏢 CIVILIAN" : "🏢 مواطن في الموقع";
     detailEl.innerHTML = `
       <div class="space-y-2">
@@ -109,9 +108,6 @@ function revealSpyfallSecret() {
       </div>
     `;
   }
-
-  document.getElementById('spyfall-step-pass').classList.add('hidden');
-  document.getElementById('spyfall-step-card').classList.remove('hidden');
 }
 
 function doneSpyfallRevealStep() {

@@ -95,10 +95,11 @@ function showChameleonRevealStep() {
 
   const playerName = chameleonState.players[chameleonState.revealIndex];
   document.getElementById('chameleon-reveal-name').innerText = playerName;
-  document.getElementById('chameleon-step-pass').classList.remove('hidden');
-  document.getElementById('chameleon-step-card').classList.add('hidden');
+  revealChameleonSecret();
+  holdCardReset(document.getElementById('chameleon-hold'));
 }
 
+/** Fills the back of the hold card. No sound: it would tell the table who the chameleon is. */
 function revealChameleonSecret() {
   const playerName = chameleonState.players[chameleonState.revealIndex];
   const isChameleon = (playerName === chameleonState.chameleonPlayer);
@@ -107,11 +108,9 @@ function revealChameleonSecret() {
   const lang = contentLang();
 
   if (isChameleon) {
-    playSound('alarm');
     cardTitle.innerText = lang === 'en' ? "🦎 YOU ARE THE CHAMELEON!" : "🦎 أنت الحرباء!";
     cardDetail.innerHTML = `<p class="text-sm font-semibold opacity-90">${lang === 'en' ? "You don't know the secret word! Listen closely to others, say a fitting clue, and don't get caught!" : "أنت لا تعرف الكلمة السرية! استمع بذكاء للآخرين، قل كلمة مناسبة للموضوع ولا تجعلهم يشكون فيك!"}</p>`;
   } else {
-    playSound('success');
     cardTitle.innerText = lang === 'en' ? "🕵️ CIVILIAN" : "🕵️ مواطن عادي";
     cardDetail.innerHTML = `
       <div class="space-y-2">
@@ -121,9 +120,6 @@ function revealChameleonSecret() {
       </div>
     `;
   }
-
-  document.getElementById('chameleon-step-pass').classList.add('hidden');
-  document.getElementById('chameleon-step-card').classList.remove('hidden');
 }
 
 function doneChameleonRevealStep() {

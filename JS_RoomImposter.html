@@ -179,8 +179,11 @@ function renderImposterResult(el, state, t) {
   const s = state.shared;
   const spies = s.spies || [];
   const won = s.outcome === 'caught';
-  const fresh = renderRoomFrame(el, 'result|' + spies.join(',') + '|' + s.outcome + '|' + state.youAreHost + '|' + appState.lang, () => `
-    <div class="card ${won ? 'card--accent' : ''}" style="text-align:center">
+  const fresh = renderRoomFrame(el, 'result|' + spies.join(',') + '|' + s.outcome + '|' + state.youAreHost + '|' + appState.lang, () => {
+    const cover = spyRevealParts(['imp', state.code, spies.join(','), s.outcome, s.secretWord].join('|'),
+                                 spies.length > 1 ? t.reveal_spies_were : t.reveal_spy_was);
+    return `
+    <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
       <div class="metric metric--md ${won ? 'tx-success' : (s.outcome === 'revealed' ? '' : 'tx-danger')}" style="margin-bottom: var(--sp-3)">${won ? '🎉' : '🕵️'} ${escapeHTML(imposterOutcomeLine(s, t))}</div>
       <div class="eyebrow">${t.secret_word || 'الكلمة السرية'}</div>
       <div class="metric metric--md metric--accent">${escapeHTML(s.secretWord || '')}</div>
@@ -192,10 +195,11 @@ function renderImposterResult(el, state, t) {
            <button onclick="roomAct('restart')" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>
            <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
          </div>`
-      : `<div class="waiting-note">${t.room_wait_host}</div>`}`);
+      : `<div class="waiting-note">${t.room_wait_host}</div>`}`;
+  });
   // Only on the round that actually just ended. This used to re-fire every time
   // anyone's presence flickered, which is every few seconds in a real room.
-  if (fresh && won) confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+  if (fresh && won) afterReveal(el, () => confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } }));
 }
 
 /* --- shared helpers used by every room game ----------------------------- */

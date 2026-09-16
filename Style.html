@@ -5745,9 +5745,217 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.8); }
 }
 .scoreboard [data-count] { font-variant-numeric: tabular-nums; }
 
+/* A vote's result: the bars grow one at a time from the bottom of the list up,
+   and the winner's comes last, after a beat (voteRevealTimes sets --at). */
+.result-list--reveal .result-row__bar {
+  animation: vote-bar 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--at, 0ms);
+}
+.result-list--reveal .result-row__count,
+.result-list--reveal .result-row__voters {
+  animation: vote-fade 320ms var(--ease-out) both;
+  animation-delay: calc(var(--at, 0ms) + 420ms);
+}
+.result-list--reveal .result-row.is-top {
+  animation: vote-win 620ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+  animation-delay: calc(var(--at, 0ms) + 520ms);
+}
+@keyframes vote-bar  { from { width: 0; } }
+@keyframes vote-fade { from { opacity: 0; transform: translateY(0.25rem); } }
+@keyframes vote-win {
+  0%   { transform: none; border-color: var(--border); box-shadow: 0 0 0 0 transparent; }
+  45%  { transform: scale(1.035); }
+  100% { transform: none; }
+}
+
+/* A round's result card lies face down for a beat, then turns over
+   (spyRevealParts: 1100ms face down, a 560ms turn, edge-on at 1380ms). */
+.spy-reveal {
+  position: relative;
+  animation: spy-turn 560ms cubic-bezier(0.45, 0, 0.55, 1) 1100ms both;
+}
+.spy-reveal__cover {
+  position: absolute;
+  inset: -1px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0 0.6rem, transparent 0.6rem 1.2rem),
+    var(--accent);
+  color: var(--accent-on);
+  animation: spy-cover 1380ms linear both;
+}
+.spy-reveal__q { font-size: 3rem; font-weight: 900; line-height: 1; animation: spy-q 380ms ease-in-out 3 alternate both; }
+.spy-reveal__label { font-size: var(--fs-h3); font-weight: 900; }
+@keyframes spy-turn {
+  0%   { transform: perspective(60rem) rotateY(0); }
+  50%  { transform: perspective(60rem) rotateY(90deg); }
+  100% { transform: perspective(60rem) rotateY(0); }
+}
+@keyframes spy-cover { from { visibility: visible; } to { visibility: hidden; } }
+@keyframes spy-q { from { transform: scale(0.88); opacity: 0.7; } to { transform: scale(1.12); opacity: 1; } }
+
+/* The top three on a podium at the end of a game (renderPodium): second,
+   the winner, third. The first time, they rise 3-2-1. */
+.podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+}
+.podium__place {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.podium__place--1 { order: 2; }
+.podium__place--2 { order: 1; }
+.podium__place--3 { order: 3; }
+.podium__who { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.podium__medal { font-size: 1.75rem; line-height: 1; }
+.podium__place--rank1 .podium__medal { font-size: 2.25rem; }
+.podium__name {
+  max-width: 100%;
+  font-weight: 900;
+  line-height: 1.25;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.podium__score { font-weight: 900; color: var(--accent-ink); }
+.podium__block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background: var(--surface-solid);
+  color: var(--text-2);
+  font-size: var(--fs-h3);
+  font-weight: 900;
+  transform-origin: bottom;
+}
+.podium__place--rank1 .podium__block { height: 5.5rem; border-color: transparent; background: var(--accent); color: var(--accent-on); }
+.podium__place--rank2 .podium__block { height: 4rem; }
+.podium__place--rank3 .podium__block { height: 2.75rem; }
+.podium--rise .podium__block {
+  animation: podium-rise 560ms cubic-bezier(0.2, 1.15, 0.35, 1) both;
+  animation-delay: var(--at, 0ms);
+}
+.podium--rise .podium__who {
+  animation: podium-who 480ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+  animation-delay: calc(var(--at, 0ms) + 300ms);
+}
+@keyframes podium-rise { from { transform: scaleY(0); } }
+@keyframes podium-who  { from { opacity: 0; transform: translateY(0.75rem) scale(0.7); } }
+.tv-podium--rise .tv-podium__place {
+  animation: tv-podium-rise 640ms cubic-bezier(0.2, 1.15, 0.35, 1) both;
+  animation-delay: var(--at, 0ms);
+}
+@keyframes tv-podium-rise { from { opacity: 0; transform: translateY(40%); } }
+
+/* A letter spinning in (spinLetter). */
+.stop-letter.is-spinning, .tv-stop-letter.is-spinning { color: var(--text-3); }
+
+/* A pass-the-phone role behind a card you hold (JS_Motion.html, section 11).
+   The faces swap visibility halfway through the turn, so the role is never
+   left showing even where backface-visibility misbehaves. */
+.hold-card {
+  display: grid;
+  perspective: 60rem;
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.hold-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.hold-card > * {
+  grid-area: 1 / 1;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transition: transform 340ms cubic-bezier(0.3, 1.15, 0.4, 1), visibility 0s linear 170ms;
+}
+.hold-card__front {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 10rem;
+  padding: var(--sp-5) var(--sp-4);
+  border: 2px dashed var(--accent-border);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.hold-card.is-seen .hold-card__front { border-style: solid; }
+.hold-card__icon { font-size: 2.5rem; line-height: 1; }
+.hold-card__label { font-size: var(--fs-h3); font-weight: 900; }
+.hold-card__hint { font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); }
+.hold-card__back {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-3);
+  transform: rotateY(180deg);
+  visibility: hidden;
+}
+.hold-card.is-holding .hold-card__front { transform: rotateY(-180deg); visibility: hidden; }
+.hold-card.is-holding .hold-card__back { transform: none; visibility: visible; }
+.hold-next { transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.hold-next.is-waiting { opacity: 0; transform: translateY(0.5rem); visibility: hidden; pointer-events: none; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .hold-card__front { min-height: 7rem; padding-block: var(--sp-3); }
+}
+
+/* Flying pieces: a Connections tile on its way into its row, a name dealt into its team. */
+.connect-ghost {
+  position: fixed;
+  z-index: 60;
+  margin: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.deal-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 60;
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+  color: var(--text-strong);
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .game-splash, .game-splash__icon, .game-splash__name, .room-code span, .status-row--new, .motion-landed { animation: none; }
   .shell__nav.has-pill::before { transition: none; }
+  .result-list--reveal *, .spy-reveal, .spy-reveal__q, .podium--rise *, .tv-podium--rise * { animation: none; }
+  .spy-reveal__cover { display: none; }
+  .hold-card > *, .hold-next { transition: none; }
 }
 
 </style>

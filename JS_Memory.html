@@ -8,7 +8,10 @@
    take turns on one phone.
 
    The board lives in appState.memory, so a reload comes back to the same
-   cards, the same pairs found and the same clock.
+   cards, the same pairs found and the same clock. The clock stops while the
+   board is away (another screen, the phone locked), like the other solo
+   clocks (soloPause / soloResume in JS_Solo.html), and a finished board
+   comes back as it was left, without its result played again.
    ========================================================================= */
 
 const MEMORY_THEMES = {
@@ -75,6 +78,7 @@ function startMemory() {
   m.turn = 0;
   m.scores = [0, 0];
   m.startedAt = Date.now();
+  m.pausedAt = 0;
   m.elapsed = 0;
   m.phase = 'play';
   saveToLocal();
@@ -126,7 +130,7 @@ function paintMemory() {
           <b class="metric" id="mem-s1">${m.scores[1]}</b>
         </div>` : `
         <div class="mem-player"><span class="mem-player__name">${escapeHTML(t.mem_moves || '')}</span><b class="metric" id="mem-moves">${m.moves}</b></div>
-        <div class="mem-player"><span class="mem-player__name">${escapeHTML(t.mem_time || '')}</span><b class="metric" id="mem-time">${memoryClockText((Date.now() - m.startedAt) / 1000)}</b></div>`}
+        <div class="mem-player"><span class="mem-player__name">${escapeHTML(t.mem_time || '')}</span><b class="metric" id="mem-time">${memoryClockText(m.phase === 'play' ? (Date.now() - m.startedAt) / 1000 : m.elapsed)}</b></div>`}
     </div>
     <div class="mem-grid" style="--mem-cols: ${size.cols}">
       ${m.cards.map((c, i) => `
@@ -240,12 +244,41 @@ function restoreMemory() {
   const m = memoryState();
   if (!m.cards || !m.cards.length) return false;
   if (m.phase === 'play') {
+    if (typeof soloResume === 'function') soloResume(m);
     if (m.flipped.length >= 2) m.flipped = [];
     paintMemory();
     memoryArmClock();
     return true;
   }
-  if (m.phase === 'done') { paintMemory(); setTimeout(memoryFinish, 0); return true; }
+  // A finished board is drawn as it was; its result was already shown and saved.
+  if (m.phase === 'done') { paintMemory(); return true; }
   return false;
+}
+
+/* The clock stops while the board is away: leaving it, or the phone locked or
+   the app closed while it is on screen. */
+function memoryPauseAway(hidden) {
+  const m = memoryState();
+  if (typeof soloPause !== 'function' || m.phase !== 'play') return;
+  if (hidden) { soloPause(m); saveToLocal(); return; }
+  soloResume(m);
+  const el = document.getElementById('mem-time');
+  if (el && m.mode !== 'duo') el.textContent = memoryClockText((Date.now() - m.startedAt) / 1000);
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    const m = memoryState();
+    if (from === 'play-memory' && typeof soloPause === 'function') soloPause(m);
+    if (to === 'play-memory' && typeof soloResume === 'function') soloResume(m);
+  });
+}
+if (typeof onLanguageChange === 'function') {
+  onLanguageChange(view => { if (view === 'play-memory') paintMemory(); });
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (appState.currentView === 'play-memory') memoryPauseAway(document.visibilityState === 'hidden');
+  });
 }
 </script>

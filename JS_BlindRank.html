@@ -43,6 +43,9 @@ function setBlindRankSize(size) {
 }
 
 function startBlindRank(daily) {
+  if (daily && soloDailyResume('blindrank')) return;
+  soloDailySetAside('blindrank');
+  soloNewGame('blindrank');
   const s = rankState();
   const lang = contentLang() === 'en' ? 'en' : 'ar';
   const cats = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
@@ -115,7 +118,7 @@ function placeBlindRank(i) {
   const finished = s.next >= s.items.length;
   if (finished) {
     s.phase = 'done';
-    if (s.daily === soloToday()) soloMarkDaily('blindrank', { list: s.slots.slice() });
+    if (s.daily) soloMarkDaily('blindrank', { list: s.slots.slice() }, s.daily);
   }
   saveToLocal();
   playSound('click');
@@ -164,7 +167,7 @@ function rankCelebrate() {
 function shareBlindRank() {
   const s = rankState();
   const t = TRANSLATIONS[appState.lang];
-  const head = s.daily === soloToday() ? soloShareHeader(t) + '\n' : '';
+  const head = s.daily ? soloShareHeader(t, s.daily) + '\n' : '';
   const text = `${head}📊 ${t.setup_blindrank || ''} · ${s.name} ${s.icon}\n${s.slots.map((w, i) => `${i + 1}. ${w}`).join('\n')}`;
   shareOrCopy(appLink(), text, t.solo_copied || '');
 }
@@ -176,5 +179,8 @@ function restoreBlindRank() {
   return true;
 }
 
-soloRegister('blindrank', { setup: 'setup-blindrank', play: 'play-blindrank', paintSetup: paintBlindRankSetup, restore: restoreBlindRank });
+soloRegister('blindrank', {
+  setup: 'setup-blindrank', play: 'play-blindrank', paintSetup: paintBlindRankSetup, restore: restoreBlindRank,
+  state: rankState, resume: continueBlindRank, repaint: () => paintBlindRank(false), prefs: ['size']
+});
 </script>

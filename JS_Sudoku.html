@@ -8,6 +8,11 @@
    hard 26. The daily one is built from soloDaySeed, so every phone gets the
    same puzzle that day.
 
+   Hard is kept only when naked and hidden singles alone can't finish it
+   (sudokuSinglesSolve): most random boards of 26 numbers can, and played
+   like medium. Up to a dozen boards are tried; the last stands if none
+   needs more.
+
    A number that isn't the solution's shows red and counts a mistake; notes
    (✏️) are small candidates in a cell and clear themselves when the number
    is placed in that row, column or box. A finished row, column or box ripples.
@@ -20,7 +25,7 @@ let sudokuTimer = null;
 function sudokuState() {
   if (!appState.sudoku) {
     appState.sudoku = { level: 'easy', daily: '', puzzle: '', solution: '', cells: '', notes: [], sel: -1,
-                        notesMode: false, mistakes: 0, hints: 0, undo: [], startedAt: 0, elapsed: 0, phase: 'setup' };
+                        notesMode: false, mistakes: 0, hints: 0, undo: [], startedAt: 0, pausedAt: 0, elapsed: 0, phase: 'setup' };
   }
   return appState.sudoku;
 }
@@ -28,6 +33,12 @@ function sudokuState() {
 /* --- The puzzle ---------------------------------------------------------------- */
 
 const SUDOKU_BOX = Array.from({ length: 81 }, (_, i) => Math.floor(Math.floor(i / 9) / 3) * 3 + Math.floor((i % 9) / 3));
+const SUDOKU_PEERS = Array.from({ length: 81 }, (_, i) => Array.from({ length: 81 }, (_, k) => k)
+  .filter(k => k !== i && (Math.floor(k / 9) === Math.floor(i / 9) || k % 9 === i % 9 || SUDOKU_BOX[k] === SUDOKU_BOX[i])));
+const SUDOKU_UNITS = [].concat(
+  Array.from({ length: 9 }, (_, r) => Array.from({ length: 9 }, (_, c) => r * 9 + c)),
+  Array.from({ length: 9 }, (_, c) => Array.from({ length: 9 }, (_, r) => r * 9 + c)),
+  Array.from({ length: 9 }, (_, b) => Array.from({ length: 81 }, (_, k) => k).filter(k => SUDOKU_BOX[k] === b)));
 
 /** How many solutions the grid has, counting no further than `limit`. */
 function sudokuCount(grid, limit) {
@@ -92,8 +103,53 @@ function sudokuFill(rnd) {
   return g;
 }
 
-/** { puzzle, solution } as arrays of 81, with exactly one solution. */
+/**
+ * Whether the two plainest steps alone finish the grid: a cell with one
+ * possible number (naked single), or a number with one possible cell in its
+ * row, column or box (hidden single).
+ */
+function sudokuSinglesSolve(grid) {
+  const g = grid.slice();
+  let progress = true;
+  while (progress) {
+    progress = false;
+    const cand = new Array(81).fill(0);
+    for (let i = 0; i < 81; i++) {
+      if (g[i]) continue;
+      let mask = 0x3FE;
+      for (const k of SUDOKU_PEERS[i]) if (g[k]) mask &= ~(1 << g[k]);
+      if (!mask) return false;
+      if ((mask & (mask - 1)) === 0) { g[i] = 31 - Math.clz32(mask); progress = true; }
+      else cand[i] = mask;
+    }
+    if (progress) continue;
+    for (const unit of SUDOKU_UNITS) {
+      for (let v = 1; v <= 9; v++) {
+        const bit = 1 << v;
+        let spot = -1, count = 0, placed = false;
+        for (const i of unit) {
+          if (g[i] === v) { placed = true; break; }
+          if (!g[i] && (cand[i] & bit)) { spot = i; count++; }
+        }
+        if (!placed && count === 1) { g[spot] = v; progress = true; }
+      }
+    }
+  }
+  return g.every(Boolean);
+}
+
+/** { puzzle, solution } as arrays of 81, with exactly one solution; hard needs more than singles. */
 function sudokuMake(level, rnd) {
+  const tries = level === 'hard' ? 12 : 1;
+  let made = null;
+  for (let k = 0; k < tries; k++) {
+    made = sudokuMakeOnce(level, rnd);
+    if (level !== 'hard' || !sudokuSinglesSolve(made.puzzle)) return made;
+  }
+  return made;
+}
+
+function sudokuMakeOnce(level, rnd) {
   const solution = sudokuFill(rnd);
   const puzzle = solution.slice();
   const target = SUDOKU_GIVENS[level] || SUDOKU_GIVENS.easy;
@@ -135,6 +191,9 @@ function setSudokuLevel(level) {
 }
 
 function startSudoku(daily) {
+  if (daily && soloDailyResume('sudoku')) return;
+  soloDailySetAside('sudoku');
+  soloNewGame('sudoku');
   const s = sudokuState();
   const level = daily ? 'medium' : s.level;
   const made = sudokuMake(level, soloRandom(daily ? soloDaySeed('sudoku') : null));
@@ -150,6 +209,8 @@ function startSudoku(daily) {
   s.hints = 0;
   s.undo = [];
   s.startedAt = Date.now();
+  s.pausedAt = 0;
+  s.elapsed = 0;
   s.phase = 'play';
   saveToLocal();
   setView('play-sudoku');
@@ -167,7 +228,7 @@ function continueSudoku() {
 
 function sudokuArmTimer() {
   sudokuStopTimer();
-  sudokuTimer = soloClock('sdk-time', sudokuState().startedAt);
+  sudokuTimer = soloClock('sdk-time', () => sudokuState().startedAt);
 }
 
 function sudokuStopTimer() {
@@ -190,7 +251,7 @@ function paintSudoku() {
 
   const bar = soloBarHtml([
     s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: escapeHTML(t['solo_lvl_' + (s.playLevel || s.level)] || '') },
-    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'sdk-time' },
+    { label: t.solo_time || '', value: soloTime(s.phase === 'play' ? (Date.now() - s.startedAt) / 1000 : s.elapsed), id: 'sdk-time' },
     { label: t.sdk_mistakes || '', value: s.mistakes, id: 'sdk-mistakes' }
   ]);
   el.innerHTML = `
@@ -368,13 +429,13 @@ function sudokuFinish() {
   const rec = s.hints ? { record: false, prev: soloBest('sudoku', level) }
     : soloRecord('sudoku', level, { seconds: s.elapsed }, (a, b) => a.seconds < b.seconds);
   let share = '';
-  if (s.daily === soloToday()) {
-    soloMarkDaily('sudoku', { seconds: s.elapsed, mistakes: s.mistakes });
-    share = `${soloShareHeader(t)}\n#️⃣ ${t.setup_sudoku || ''} ✅ ${soloTime(s.elapsed)}${s.mistakes ? ' · ❌ ' + s.mistakes : ''}`;
+  if (s.daily) {
+    soloMarkDaily('sudoku', { seconds: s.elapsed, mistakes: s.mistakes, hints: s.hints }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n#️⃣ ${t.setup_sudoku || ''} ✅ ${soloTime(s.elapsed)}${s.mistakes ? ' · ❌ ' + s.mistakes : ''}${s.hints ? ' · 💡 ' + s.hints : ''}`;
   }
   const lines = [`${escapeHTML(t.sdk_mistakes || '')}: ${s.mistakes}${s.hints ? ` · 💡 ${s.hints}` : ''}`];
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
-  setTimeout(() => soloResult({
+  soloLater('sudoku', motionOff() ? 0 : 500, () => soloResult({
     icon: '#️⃣',
     title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
     valueText: soloTime(s.elapsed),
@@ -384,7 +445,7 @@ function sudokuFinish() {
     share: share,
     again: () => startSudoku(false),
     exit: setupSudoku
-  }), motionOff() ? 0 : 500);
+  }));
 }
 
 function restoreSudoku() {
@@ -396,7 +457,7 @@ function restoreSudoku() {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (appState.currentView !== 'play-sudoku' || e.target.closest && e.target.closest('input, textarea')) return;
+  if (appState.currentView !== 'play-sudoku' || soloKeyBlocked(e)) return;
   const s = sudokuState();
   if (s.phase !== 'play') return;
   if (/^[1-9]$/.test(e.key)) { enterSudoku(Number(e.key)); e.preventDefault(); return; }
@@ -413,5 +474,8 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-soloRegister('sudoku', { setup: 'setup-sudoku', play: 'play-sudoku', paintSetup: paintSudokuSetup, restore: restoreSudoku });
+soloRegister('sudoku', {
+  setup: 'setup-sudoku', play: 'play-sudoku', paintSetup: paintSudokuSetup, restore: restoreSudoku,
+  state: sudokuState, resume: continueSudoku, repaint: paintSudoku, timed: true, prefs: ['level']
+});
 </script>

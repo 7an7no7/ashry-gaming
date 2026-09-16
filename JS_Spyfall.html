@@ -2,6 +2,13 @@
 /* --- SPYFALL (الموقع السري) GAME LOGIC --- */
 /* The places (SPYFALL_DB) live in SpyfallPlaces.js, shared with the rooms server. */
 
+/*
+   "Play again" deals a new place to the same table and keeps a running score,
+   as a room does: caught (and wrong about the place) is a point to everyone
+   else; escaped or knew the place is two to each spy. Starting from the setup
+   screen starts the score over. The labels follow the app's language; the
+   places and jobs follow the games' language.
+*/
 
 const spyfallState = {
   players: [],
@@ -11,22 +18,32 @@ const spyfallState = {
   revealIndex: 0,
   timerSeconds: 480,
   timerClock: null,
-  crossedLocations: new Set()
+  crossedLocations: new Set(),
+  scores: {},
+  scoreId: 0
 };
 
 function setupSpyfall() {
   setView('setup-spyfall');
 }
 
-function startSpyfallGame() {
-  const selected = appState.activePlayers ? [...appState.activePlayers] : [];
-  saveActivePlayers(selected);
+/**
+ * Deals a place. From the setup screen: the players picked there, the score
+ * starts over. `again` (the result's "play again"): the same table, the score
+ * carries on.
+ */
+function startSpyfallGame(again) {
+  const replay = again === true && spyfallState.players.length >= 3;
+  const selected = replay ? spyfallState.players.slice() : (appState.activePlayers ? [...appState.activePlayers] : []);
+  if (!replay) saveActivePlayers(selected);
 
   if (selected.length < 3) {
     const msg = appState.lang === 'en' ? "Need at least 3 players!" : "تحتاج إلى 3 لاعبين على الأقل!";
     showToast(msg);
     return;
   }
+  if (!replay) { spyfallState.scores = {}; spyfallState.scoreId = Date.now(); }
+  selected.forEach(p => { if (typeof spyfallState.scores[p] !== 'number') spyfallState.scores[p] = 0; });
 
   const lang = contentLang();
   const db = SPYFALL_DB[lang] || SPYFALL_DB.ar;
@@ -64,6 +81,8 @@ function startSpyfallGame() {
   spyfallState.revealIndex = 0;
   spyfallState.crossedLocations = new Set();
 
+  closeModal('spyfall-result-modal');
+  closeModal('spyfall-spy-guess-modal');
   playSound('click');
   showSpyfallRevealStep();
   setView('reveal-spyfall');
@@ -87,23 +106,23 @@ function revealSpyfallSecret() {
   const info = spyfallState.playerRoles[playerName];
   const titleEl = document.getElementById('spyfall-card-title');
   const detailEl = document.getElementById('spyfall-card-detail');
-  const lang = contentLang();
+  const t = TRANSLATIONS[appState.lang] || {};
 
   if (info.isSpy) {
-    titleEl.innerText = lang === 'en' ? "🕵️ YOU ARE THE SPY!" : "🕵️ أنت الجاسوس!";
+    titleEl.innerText = '🕵️ ' + (t.spy_you_are || '');
     detailEl.innerHTML = `
       <div class="space-y-2">
-        <div class="text-xs uppercase tracking-wider tx-danger font-bold">${lang === 'en' ? 'Location: Unknown' : 'الموقع: غير معروف'}</div>
-        <p class="text-sm opacity-90">${lang === 'en' ? 'Listen closely, deduce the location from others, and blend in!' : 'استمع بذكاء لأسئلة وأجوبة الآخرين، خمن الموقع، ولا تجعل أحداً يكتشفك!'}</p>
+        <div class="eyebrow tx-danger">${escapeHTML(t.spy_location || '')}: ❓</div>
+        <p class="text-sm opacity-90">${escapeHTML(t.spy_you_hint || '')}</p>
       </div>
     `;
   } else {
-    titleEl.innerText = lang === 'en' ? "🏢 CIVILIAN" : "🏢 مواطن في الموقع";
+    titleEl.innerText = '🏢 ' + (t.spy_civilian || 'مواطن في المكان');
     detailEl.innerHTML = `
       <div class="space-y-2">
-        <div class="text-xs uppercase tracking-wider opacity-75">${lang === 'en' ? 'Location' : 'الموقع'}</div>
+        <div class="eyebrow">${escapeHTML(t.spy_location || '')}</div>
         <div class="text-2xl font-black tx-warning">${escapeHTML(spyfallState.location.location)}</div>
-        <div class="text-xs uppercase tracking-wider opacity-75">${lang === 'en' ? 'Your Role' : 'دورك'}</div>
+        <div class="eyebrow">${escapeHTML(t.spy_your_job || '')}</div>
         <div class="text-xl font-bold">${escapeHTML(info.role)}</div>
       </div>
     `;
@@ -189,33 +208,35 @@ function toggleSpyfallCrossLocation(locName) {
 }
 
 function openSpyfallAccuseModal() {
-  const lang = contentLang();
+  const t = TRANSLATIONS[appState.lang] || {};
   const list = document.getElementById('spyfall-accuse-list');
   if (list) {
     list.innerHTML = spyfallState.players.map(p => `
       <button class="ballot-option" onclick="voteSpyfallAccused('${jsStringAttr(p)}')">
         <span class="ballot-option__label">${escapeHTML(p)}</span>
-        <span class="badge badge--danger">${lang === 'en' ? 'Spy?' : 'جاسوس؟'}</span>
+        <span class="badge badge--danger">${escapeHTML(t.spy_badge || 'جاسوس؟')}</span>
       </button>
     `).join('');
   }
   document.getElementById('spyfall-accuse-modal').classList.remove('hidden');
 }
 
+const spyfallSpyNames = () => spyfallState.spies.join(appState.lang === 'en' ? ' & ' : ' و ');
+
 function voteSpyfallAccused(player) {
   closeModal('spyfall-accuse-modal');
   if (spyfallState.timerClock) spyfallState.timerClock.stop();
   const isSpy = spyfallState.spies.includes(player);
-  const lang = contentLang();
+  const t = TRANSLATIONS[appState.lang] || {};
 
   if (isSpy) {
     // Spy caught! Spy gets one chance to guess the location!
     playSound('alarm');
     openSpyfallGuessModal(player);
   } else {
-    // Civilians executed an innocent player! Spy wins!
+    // The table voted out someone who knew the place: the spy gets away.
     playSound('alarm');
-    finishSpyfallGame(false, lang === 'en' ? `The innocent player (${player}) was voted out! The Spy wins!` : `تم التصويت على مواطن بريء (${player})! الجاسوس يفوز!`);
+    finishSpyfallGame(false, (t.spy_escaped || '').replace('{name}', spyfallSpyNames()), player);
   }
 }
 
@@ -237,44 +258,62 @@ function openSpyfallGuessModal(spyName) {
 function spySubmitLocationGuess(locName, spyName) {
   closeModal('spyfall-spy-guess-modal');
   const isCorrect = (locName === spyfallState.location.location);
-  const lang = contentLang();
+  const t = TRANSLATIONS[appState.lang] || {};
 
   if (isCorrect) {
     playSound('alarm');
-    finishSpyfallGame(false, lang === 'en' ? `${spyName} correctly guessed the location (${locName}) and won the game!` : `نجح ${spyName} في تخمين الموقع (${locName}) وسرق الفوز!`);
+    finishSpyfallGame(false, (t.spy_stole || '').replace('{name}', spyName));
   } else {
     playSound('success');
     confetti({ particleCount: 150 });
-    finishSpyfallGame(true, lang === 'en' ? `${spyName} was caught and failed to guess the location! Civilians win!` : `تم كشف ${spyName} وفشل في تخمين الموقع! فاز المواطنون!`);
+    finishSpyfallGame(true, (t.spy_caught || '').replace('{name}', spyName) + ' · ' + (t.spy_guess_was || '') + ': ' + locName);
   }
 }
 
-function finishSpyfallGame(civiliansWon, message) {
-  const lang = contentLang();
+function finishSpyfallGame(civiliansWon, message, accused) {
+  const t = TRANSLATIONS[appState.lang] || {};
   const resultModal = document.getElementById('spyfall-result-modal');
   const titleEl = document.getElementById('spyfall-result-title');
   const detailEl = document.getElementById('spyfall-result-detail');
 
+  // The running score, as a room keeps it.
+  if (civiliansWon) spyfallState.players.forEach(p => { if (!spyfallState.spies.includes(p)) spyfallState.scores[p] = (spyfallState.scores[p] || 0) + 1; });
+  else spyfallState.spies.forEach(p => { spyfallState.scores[p] = (spyfallState.scores[p] || 0) + 2; });
+
   if (civiliansWon) {
-    titleEl.innerText = lang === 'en' ? "🎉 CIVILIANS WIN!" : "🎉 فوز المواطنين!";
-    titleEl.className = "text-3xl font-black tx-success mb-2";
+    titleEl.innerText = '🎉 ' + (t.table_wins || 'الطاولة كسبت!');
+    titleEl.className = "sheet__title tx-success";
   } else {
-    titleEl.innerText = lang === 'en' ? "🕵️ SPY WINS!" : "🕵️ فوز الجاسوس!";
-    titleEl.className = "text-3xl font-black tx-danger mb-2";
+    titleEl.innerText = '🕵️ ' + (t.spy_wins || 'الجاسوس كسب!');
+    titleEl.className = "sheet__title tx-danger";
   }
 
+  const board = spyfallState.players.map(p => ({ id: p, name: p, score: spyfallState.scores[p] || 0 }))
+    .sort((a, b) => b.score - a.score);
   detailEl.innerHTML = `
     <p class="text-base mb-4 font-semibold">${escapeHTML(message)}</p>
     <div class="p-4 rounded-xl bg-black/5 dark:bg-white/5 space-y-1 text-sm">
-      <div><b>${lang === 'en' ? 'Secret Location:' : 'الموقع السري:'}</b> ${escapeHTML(spyfallState.location.location)}</div>
-      <div><b>${lang === 'en' ? 'The Spy:' : 'الجاسوس:'}</b> ${spyfallState.spies.map(escapeHTML).join(', ')}</div>
+      ${accused ? `<div><b>${escapeHTML(t.cham_accused || '')}:</b> ${escapeHTML(accused)}</div>` : ''}
+      <div><b>${escapeHTML(t.spy_location || '')}:</b> ${escapeHTML(spyfallState.location.location)}</div>
+      <div><b>${escapeHTML(spyfallState.spies.length > 1 ? (t.reveal_spies_were || '') : (t.reveal_spy_was || ''))}</b> ${spyfallState.spies.map(escapeHTML).join(', ')}</div>
     </div>
+    <div class="modal-section">${renderScoreboard(board)}</div>
   `;
 
+  partyModalButton('spyfall-result-modal', 'spyfall-result-exit', 'exitSpyfallPlay()', t.exit_settings || '');
   resultModal.classList.remove('hidden');
+  if (typeof animateScoreboards === 'function') animateScoreboards({ code: 'spyfall', game: String(spyfallState.scoreId) });
 }
 
+/** The result's main button: a new place for the same table, the score carrying on. */
 function resetSpyfallPlay() {
+  if (spyfallState.timerClock) spyfallState.timerClock.stop();
+  closeModal('spyfall-result-modal');
+  startSpyfallGame(true);
+}
+
+/** Back to the setup screen, for other players or another length. */
+function exitSpyfallPlay() {
   if (spyfallState.timerClock) spyfallState.timerClock.stop();
   closeModal('spyfall-result-modal');
   setupSpyfall();

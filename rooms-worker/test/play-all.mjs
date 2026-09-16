@@ -12,7 +12,10 @@
  */
 import { stopDictionary, stopAnswerFits, stopWordKnown } from '../generated/rules.js';
 
-const BASE = (process.argv[2] || 'http://127.0.0.1:8787').replace(/\/$/, '');
+const ARGS = process.argv.slice(2);
+const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
+// --slow also waits out the presence clocks (a silent socket, a host away): about three minutes more.
+const SLOW = ARGS.includes('--slow');
 const WS_BASE = BASE.replace(/^http/, 'ws');
 
 let passed = 0;
@@ -67,7 +70,11 @@ class Bot {
       const ws = new WebSocket(`${WS_BASE}/ws?code=${this.code}&pid=${this.pid}&key=${key}`);
       this.ws = ws;
       const timer = setTimeout(() => reject(new Error(this.name + ' connect timeout')), 8000);
+      // The heartbeat a real phone sends: a socket nothing is heard on for 70s counts as gone.
+      clearInterval(this.pinger);
+      this.pinger = setInterval(() => { try { if (ws.readyState === 1) ws.send('ping'); } catch (e) {} }, 20000);
       ws.onmessage = (event) => {
+        if (event.data === 'pong') return;
         const msg = JSON.parse(event.data);
         if (msg.t === 'state') { this.state = msg.state; clearTimeout(timer); resolve(this); }
         else if (msg.t === 'strokes') this.applyStrokes(msg);
@@ -83,7 +90,7 @@ class Bot {
         this.watchers.forEach((fn) => fn());
       };
       ws.onerror = () => {};
-      ws.onclose = () => { clearTimeout(timer); resolve(this); };
+      ws.onclose = () => { clearTimeout(timer); if (this.ws === ws) clearInterval(this.pinger); resolve(this); };
     });
   }
 
@@ -127,7 +134,7 @@ class Bot {
     });
   }
 
-  close() { try { this.ws.close(); } catch (e) {} }
+  close() { clearInterval(this.pinger); try { this.ws.close(); } catch (e) {} }
 }
 
 const all = (bots, pred, label, ms) => Promise.all(bots.map((b) => b.waitFor(pred, label, ms)));
@@ -161,6 +168,8 @@ async function main() {
 
   const taken = await api('/join', { code: A.code, name: 'omar' });
   check(!taken.ok && /مستخدم/.test(taken.error), 'a taken name is refused');
+  const takenFolded = await api('/join', { code: A.code, name: ' احمد ' });
+  check(!takenFolded.ok && /مستخدم/.test(takenFolded.error), 'a taken name spelt another way (احمد for أحمد) is refused too');
   const missing = await api('/join', { code: 'ZZZZ', name: 'x' });
   check(!missing.ok && missing.error === 'ROOM_NOT_FOUND', 'unknown room code is refused');
 
@@ -231,7 +240,7 @@ async function main() {
   console.log('• just one');
   await A.must('chooseGame', { game: 'justone' });
   await A.must('start', {});
-  await all(bots, (s) => s.phase === 'writing', 'just one dealt');
+  await all(bots, (s) => s.phase === 'writing' && !!s.shared.dealId, 'just one dealt, with a deal stamp');
   const guesser = byId(bots, A.state.shared.guesserId);
   const writers = bots.filter((b) => b !== guesser);
   check(guesser.state.you.word === null && writers.every((b) => b.state.you.word), 'only the guesser lacks the word');
@@ -242,9 +251,27 @@ async function main() {
   await writers[2].must('submitClue', { clue: 'بيت' });
   await all(bots, (s) => s.phase === 'guessing', 'just one moves to guessing');
   check(A.state.shared.removedCount === 2, 'duplicate clues are removed (قطة = قطه)');
+  check(guesser.state.shared.clues.filter((c) => c.removed).every((c) => c.text === '') && !leaks(guesser, 'قطة') && !leaks(guesser, 'قطه'),
+    "a removed clue's text never reaches the guesser's phone");
   await guesser.must('submitGuess', { guess: secretJO });
+  await all(bots, (s) => s.phase === 'judging' && s.shared.clues.some((c) => c.removed && c.text === 'قطة'), 'the removed clues are shown once the guess is in');
   await A.must('judge', { correct: true });
   await all(bots, (s) => s.phase === 'result' && s.shared.score === 1, 'just one scores');
+  const joDeal = A.state.shared.dealId;
+  await A.must('nextRound', { round: 1 });
+  await all(bots, (s) => s.phase === 'writing' && s.shared.round === 2 && !!s.shared.dealId && s.shared.dealId !== joDeal, 'next round deals round 2, with a new stamp');
+  await A.must('nextRound', { round: 1 });
+  await A.must('nextRound', {});
+  check(A.state.shared.round === 2 && A.state.phase === 'writing', 'a second tap on next round is ignored, with or without the round');
+  const writer2 = bots.find((b) => b.pid !== A.state.shared.guesserId);
+  await writer2.must('submitClue', { clue: 'واحد' });
+  check((await B.act('closeWriting')).ok === false, 'only the host closes the writing');
+  await A.must('closeWriting');
+  await all(bots, (s) => s.phase === 'guessing' && s.shared.clues.length === 1, 'the host goes on with the clues that are in');
+  check((await B.act('skipGuess')).ok === false, 'only the host skips the guess');
+  await A.must('skipGuess');
+  await all(bots, (s) => s.phase === 'result' && s.shared.lastResult === 'skipped' && !!s.shared.secretWord && s.shared.score === 1,
+    'skipping the guess shows the word and scores nothing');
   await A.must('backToHub');
 
   /* --- من أنا؟ -------------------------------------------------------------- */
@@ -286,10 +313,12 @@ async function main() {
   // A spymaster may talk to the team before the game (D is still rate limited from the chat test).
   await C.must('chat', { text: 'blue before the deal', to: 'team' });
   await all([C, D], (s) => s.chat.some((m) => m.text === 'blue before the deal'), 'a lobby team message reaches its team, spymaster included');
+  const chatTop = Math.max(...C.state.chat.map((m) => m.id));
   await A.must('start', { lang: 'ar' });
   await all(bots, (s) => s.phase === 'playing' && s.shared.board.length === 25, 'codenames board dealt');
   await all(bots, (s) => s.chat.some((m) => m.sys === 'started' && m.p.game === 'codenames') && !s.chat.some((m) => m.text === 'blue before the deal'),
     'the start is said in the chat, and last round of team talk is gone');
+  check(C.state.chat.filter((m) => m.sys === 'started' && m.p.game === 'codenames').pop().id > chatTop, "a chat id is never reused after the team's lines are dropped");
   // Team chat: operatives write to their side, the other side never receives it.
   await B.must('chat', { text: 'red team secret plan', to: 'team' });
   await all([A, B], (s) => s.chat.some((m) => m.text === 'red team secret plan' && m.team === 'red'), 'a team message reaches both members of that team');
@@ -365,6 +394,21 @@ async function main() {
   const tvPick = tvMaster.state.you.key.findIndex((colour) => colour === tvTurn);
   await TV.must('guess', { index: tvPick });
   await all([A, TV], (s) => s.shared.board[tvPick].revealed, 'the team can guess from the big screen');
+  // The host's way out of a stuck board: pass a team's turn, hand a team's key on.
+  const stuckTurn = A.state.shared.turn;
+  check((await B.act('passTurn')).ok === false, "only the host passes a team's turn");
+  await A.must('passTurn');
+  await all([A, TV], (s) => s.shared.turn !== stuckTurn && !s.shared.clue, "the host passes a stuck team's turn, clue or not");
+  const sideOf = (b) => A.state.shared.teams[b.pid] || {};
+  const redLead = bots.find((b) => sideOf(b).team === 'red' && sideOf(b).role === 'spymaster');
+  const redOp = bots.find((b) => sideOf(b).team === 'red' && sideOf(b).role === 'operative');
+  const blueOp = bots.find((b) => sideOf(b).team === 'blue' && sideOf(b).role === 'operative');
+  check((await B.act('setSpymaster', { team: 'red', playerId: redOp.pid })).ok === false || B === A, 'only the host hands a key on');
+  check((await A.act('setSpymaster', { team: 'red', playerId: blueOp.pid })).ok === false, 'a spymaster comes from their own team');
+  await A.must('setSpymaster', { team: 'red', playerId: redOp.pid });
+  await all(bots, (s) => s.shared.teams[redOp.pid].role === 'spymaster' && s.shared.teams[redLead.pid].role === 'operative', "the host hands a team's key to another player");
+  await redOp.waitFor((s) => !!(s.you && s.you.key && s.you.key.length === 25), 'the new spymaster gets the key');
+  await redLead.waitFor((s) => s.you === null, 'and the old one no longer has it');
   await A.must('backToHub');
   check((await TV.act('chooseGame', { game: 'trivia' })).ok === false, 'a screen that is not the host cannot pick a game');
 
@@ -399,6 +443,10 @@ async function main() {
   await all(bots, (s) => s.shared.vote && s.shared.vote.phase === 'voting', 'would you rather opens a vote');
   for (const b of bots) await b.must('vote', { option: b === A ? 'a' : 'b' });
   await all(bots, (s) => s.shared.vote.phase === 'results' && s.shared.vote.results[1].count === 3, 'would you rather closes by itself and counts');
+  await A.must('nextRound', { lang: 'ar', round: 1 });
+  await A.must('nextRound', { lang: 'ar', round: 1 });
+  await A.must('nextRound', { lang: 'ar' });
+  await all(bots, (s) => s.shared.round === 2 && s.shared.vote.phase === 'voting', 'next question: once, however often it is tapped');
   await A.must('backToHub');
 
   await A.must('chooseGame', { game: 'mostlikely' });
@@ -414,13 +462,30 @@ async function main() {
   check(!bots.some((b) => b.state.shared.truth), 'fibbage truth stays on the server');
   const lies = ['كذبة أولى', 'كذبة تانية', 'كذبة تالتة', 'كذبة رابعة'];
   for (let i = 0; i < 4; i++) await bots[i].must('submitLie', { lie: lies[i] });
-  await all(bots, (s) => s.phase === 'voting', 'fibbage moves to voting');
-  check((await A.act('vote', { option: 'l_' + A.pid })).ok === false, 'you cannot vote for your own lie');
-  await A.must('vote', { option: 'truth' });
-  await B.must('vote', { option: 'l_' + A.pid });
-  await C.must('vote', { option: 'truth' });
-  await D.must('vote', { option: 'truth' });
-  await all(bots, (s) => s.shared.phase === 'results' && s.shared.scores[A.pid] === 1500, 'fibbage scores truth + fooling');
+  await all(bots, (s) => s.phase === 'voting' && s.you && !!s.you.voteOwn, 'fibbage moves to voting, each phone told which option is its own');
+  // Nothing published may point at the truth: no owners, no telling ids.
+  const fibOptions = A.state.shared.vote.options;
+  check(fibOptions.length === 5 && fibOptions.every((o) => !('ownerId' in o) && o.id !== 'truth' && bots.every((b) => o.id.indexOf(b.pid) === -1)),
+    'fibbage options carry no owner and no telling id');
+  const ownOf = (b) => b.state.you.voteOwn;
+  check(bots.every((b) => bots.every((x) => x === b || JSON.stringify(b.state.you).indexOf(ownOf(x)) === -1) && JSON.stringify(b.state).indexOf('truthId') === -1),
+    'each phone is told only its own option, and nothing names the truth while voting');
+  const fibTruth = fibOptions.find((o) => bots.every((b) => ownOf(b) !== o.id)).id;
+  check((await A.act('vote', { option: ownOf(A) })).ok === false, 'you cannot vote for your own lie');
+  await A.must('vote', { option: fibTruth });
+  await B.must('vote', { option: ownOf(A) });
+  await C.must('vote', { option: fibTruth });
+  await D.must('vote', { option: fibTruth });
+  await all(bots, (s) => s.shared.phase === 'results' && s.shared.scores[A.pid] === 1500 && s.shared.truthId === fibTruth &&
+    s.shared.vote.results.find((r) => r.id === ownOf(A)).ownerId === A.pid, 'fibbage scores truth + fooling, and names the truth and the owners after');
+  await A.must('nextRound', { lang: 'ar', round: A.state.shared.round });
+  await all(bots, (s) => s.phase === 'writing' && s.shared.round === 2 && !(s.you && s.you.voteOwn), 'fibbage next round forgets whose option was whose');
+  check((await A.act('nextRound', { lang: 'ar', round: 1 })).ok && A.state.shared.round === 2, 'a next round from the round before is ignored');
+  // A writer who never sends: the host opens the vote with what is in.
+  await B.must('submitLie', { lie: 'كذبة بس' });
+  check((await B.act('closeWriting')).ok === false, 'only the host closes the writing');
+  await A.must('closeWriting');
+  await all(bots, (s) => s.phase === 'voting' && s.shared.vote.options.length === 2, 'closing the writing opens the vote on the one lie and the truth');
   await A.must('backToHub');
 
   /* --- الجرس ----------------------------------------------------------------- */
@@ -436,10 +501,11 @@ async function main() {
   await C.must('buzz');
   check(C.state.shared.buzzes.length === 3, 'a second press by the same player is ignored');
   check((await B.act('correct')).ok === false, 'only the host judges an answer');
-  await A.must('wrong');
-  await all(bots, (s) => s.shared.buzzes[0].id === B.pid && s.shared.last && s.shared.last.ok === false && s.shared.last.id === C.pid,
-    'a wrong answer passes the question to the next in line');
-  await A.must('correct');
+  await A.must('wrong', { id: C.pid });
+  await A.must('wrong', { id: C.pid });
+  await all(bots, (s) => s.shared.buzzes.length === 2 && s.shared.buzzes[0].id === B.pid && s.shared.last && s.shared.last.ok === false && s.shared.last.id === C.pid,
+    'a wrong answer passes the question to the next in line, once however often it is tapped');
+  await A.must('correct', { id: B.pid });
   await all(bots, (s) => s.shared.scores[B.pid] === 1 && s.shared.buzzes.length === 0 && s.shared.round === 2 && s.shared.board[0].id === B.pid,
     'a right answer scores, clears the line and moves on');
   await A.must('lock');
@@ -450,8 +516,14 @@ async function main() {
   await all(bots, (s) => s.shared.phase === 'armed', 'and open them again');
   await A.must('adjust', { id: D.pid, delta: 2 });
   await all(bots, (s) => s.shared.scores[D.pid] === 2 && s.shared.board[0].id === D.pid, 'the host can adjust a score by hand');
+  const buzzLate = await Bot.join(A.code, 'متأخر');
+  check(buzzLate.state.inGame === false, 'someone who joins mid-game watches the buzzer first');
   await A.must('playAgain');
   await all(bots, (s) => s.shared.round === 1 && !s.shared.scores[B.pid] && !s.shared.scores[D.pid], 'play again clears the scores');
+  await buzzLate.waitFor((s) => s.inGame === true, 'and deals in whoever joined during the evening');
+  await api('/leave', { code: A.code, pid: buzzLate.pid, key: buzzLate.key });
+  buzzLate.close();
+  await A.waitFor((s) => s.players.length === 4, 'the latecomer leaves again');
   await A.must('backToHub');
 
   /* --- أتوبيس كومبليت --------------------------------------------------------- */
@@ -489,6 +561,8 @@ async function main() {
   await all(bots, (s) => s.shared.results[A.pid].food.pts === 10 && s.shared.roundTotals[A.pid] === 20, 'the host can correct a cell');
   await A.must('nextRound');
   await all(bots, (s) => s.shared.phase === 'writing' && s.shared.round === 2 && s.shared.totals[A.pid] === 20 && s.shared.letter !== L, 'next round banks the points and deals a new letter');
+  await B.must('submit', { answers: { name: name1, animal: animal1, food: food1 }, round: 1 });
+  check(B.state.shared.submitted.length === 0, "a sheet from last round, arriving late, is not filed under this one");
   await A.must('backToHub');
 
   /* --- الحرباء ----------------------------------------------------------------- */
@@ -612,6 +686,10 @@ async function main() {
   await viewers[0].must('guess', { guess: drawWord });
   await all(bots, (s) => s.phase === 'result' && s.shared.word === drawWord, 'a right guess ends the round');
   check(A.state.shared.scores[viewers[0].pid] === 2 && A.state.shared.scores[drawer.pid] === 1, 'guesser and drawer score');
+  await A.must('nextRound', { lang: 'ar', round: 1 });
+  await A.must('nextRound', { lang: 'ar', round: 1 });
+  await A.must('nextRound', { lang: 'ar' });
+  await all(bots, (s) => s.phase === 'drawing' && s.shared.round === 2 && !s.shared.word, "next round: one new drawer, however often it is tapped");
   await A.must('backToHub');
 
   /* --- صدق ولا كذب ------------------------------------------------------------- */
@@ -691,6 +769,9 @@ async function main() {
   check(chainsSeen.size === 4, 'four different chains');
   for (const b of bots) await b.must('submit', { strokes: [{ c: '#111111', w: 4, p: [10, 10, 100, 100] }] });
   await all(bots, (s) => s.shared.step === 2 && s.shared.kind === 'write', 'everyone in: the next step is to write');
+  await bots[0].must('submit', { strokes: [{ c: '#111111', w: 4, p: [1, 1, 50, 50] }], step: 1 });
+  await bots[1].must('submit', { strokes: [] });
+  check(bots[1].state.shared.submitted.length === 0, "a drawing that arrives after its step ended is not filed under the next one (with or without the step)");
   check(bots.every((b) => b.state.you.task.kind === 'write' && b.state.you.task.prev.kind === 'draw' && b.state.you.task.prev.strokes.length === 1), 'each phone gets a drawing to describe');
   for (const b of bots) await b.must('submit', { text: 'وصف ' + b.name });
   await all(bots, (s) => s.shared.step === 3 && s.shared.kind === 'draw', 'and draws again');
@@ -735,6 +816,17 @@ async function main() {
     'a wrong كذاب: the caller takes the quarter and sees what it could have been');
   await A.must('flip', {});
   await all(bots, (s) => s.shared.verdict.flipped && s.shared.quarters[caller2.pid] === before2, 'the host can overrule the verdict');
+  const quartersSum = (s) => Object.values(s.shared.quarters).reduce((n, q) => n + q, 0);
+  const penalised = A.state.shared.turnId;
+  const sumBefore = quartersSum(A.state);
+  await A.must('penalty', { target: penalised });
+  await A.must('penalty', { target: penalised });
+  await all(bots, (s) => quartersSum(s) === sumBefore + 1 && s.shared.turnId !== penalised, "the host's quarter goes to the player up, once however often it is tapped");
+  const skipped = A.state.shared.turnId;
+  const nextUp = A.state.shared.order[(A.state.shared.turn + 1) % 4];
+  await A.must('skip', { target: skipped });
+  await A.must('skip', { target: skipped });
+  await all(bots, (s) => s.shared.turnId === nextUp, 'a skip moves the turn on once');
   await A.must('backToHub');
   await A.must('chooseGame', { game: 'monkey' });
   await A.must('start', { lang: 'ar', mode: 'chain', category: 'countries', timer: 0, winners: 1 });
@@ -759,7 +851,10 @@ async function main() {
   const fake = bots.find((b) => b.state.you.isFake);
   const faWord = bots.find((b) => !b.state.you.isFake).state.you.word;
   check(fake && !leaks(fake, faWord), "the fake's phone never receives the word");
-  for (let turnNo = 0; turnNo < 8; turnNo++) {
+  await A.must('skipTurn', { turn: 0, round: 1 });
+  await A.must('skipTurn', { turn: 0, round: 1 });
+  await all(bots, (s) => s.shared.turnIndex === 1 && s.shared.strokes.length === 0, 'the host skips a silent artist once, however often it is tapped');
+  for (let turnNo = 0; turnNo < 7; turnNo++) {
     const artist = byId(bots, A.state.shared.currentDrawerId);
     await artist.must('sendStroke', { stroke: { p: [turnNo * 10, 5, turnNo * 10 + 30, 60] } });
     await all(bots, (s) => s.shared.strokes.length === turnNo + 1, `fake artist line ${turnNo + 1} reaches everyone`, 3000);
@@ -840,6 +935,8 @@ async function main() {
   check(A.state.shared.scores[A.pid] === 1 && A.state.shared.scores[B.pid] === 1 && !A.state.shared.scores[C.pid], 'a point each for the herd');
   await A.must('nextRound');
   await all(bots, (s) => s.shared.phase === 'writing' && s.shared.round === 2 && s.shared.submitted.length === 0, 'the next question');
+  await D.must('submit', { text: 'قديم', round: 1 });
+  check(D.state.shared.submitted.length === 0, "an answer to last round's question is not filed under this one");
   for (const b of [A, B, C]) await b.must('submit', { text: 'موز' });
   await D.must('submit', { text: 'تفاح' });
   await all(bots, (s) => s.shared.phase === 'reveal', 'round two is revealed');
@@ -924,6 +1021,63 @@ async function main() {
   check(repeated.length === 0, `a new room's board skips the last room's words (${repeated.length} repeated)`);
   others.forEach((b) => b.close());
 
+  /* --- leaving mid-round, and removing a phone that is gone ---------------- */
+  console.log('• leaving mid-round (the round stops waiting), removing a gone phone');
+  const L1 = await Bot.host('لمى', null);
+  const L2 = await Bot.join(L1.code, 'ليث');
+  const L3 = await Bot.join(L1.code, 'لؤي');
+  const L4 = await Bot.join(L1.code, 'ليلى');
+  const L5 = await Bot.join(L1.code, 'لبنى');
+  await all([L1, L2, L3, L4, L5], (s) => s.players.length === 5 && s.players.every((p) => p.online), 'a room of five');
+
+  L5.close();
+  await L1.waitFor((s) => s.players.find((p) => p.id === L5.pid).online === false, 'a closed phone shows as away');
+  check((await L2.act('kick', { playerId: L5.pid })).ok === false, 'only the host removes a player');
+  check((await L1.act('kick', { playerId: L4.pid })).ok === false, 'a player still connected cannot be removed');
+  check((await L1.act('kick', { playerId: L1.pid })).ok === false, 'the host cannot remove themselves');
+  await L1.must('kick', { playerId: L5.pid });
+  await all([L1, L2, L3, L4], (s) => s.players.length === 4 && s.chat.some((m) => m.sys === 'left' && m.p.name === 'لبنى'),
+    'the host removes a phone that is gone, said in the chat like a leave');
+  check((await L1.act('kick', { playerId: L5.pid })).ok, 'removing someone already gone is nothing to do');
+  await L5.connect();
+  check(L5.closedWith === 'kicked', 'the removed phone is told so when it comes back');
+
+  // A vote closes when the one who hadn't voted leaves.
+  await L1.must('chooseGame', { game: 'mostlikely' });
+  await L1.must('start', { lang: 'ar' });
+  await all([L1, L2, L3, L4], (s) => s.shared.vote && s.shared.vote.phase === 'voting', 'most likely opens a vote for four');
+  for (const b of [L1, L2, L3]) await b.must('vote', { option: L2.pid });
+  await api('/leave', { code: L1.code, pid: L4.pid, key: L4.key });
+  L4.close();
+  await all([L1, L2, L3], (s) => s.players.length === 3 && s.shared.phase === 'results' && s.shared.scores[L2.pid] === 1,
+    'the last voter leaving closes the vote and scores it');
+
+  // Just One: the last writer leaving hands the clues to the guesser.
+  await L1.must('backToHub');
+  await L1.must('chooseGame', { game: 'justone' });
+  await L1.must('start', {});
+  await all([L1, L2, L3], (s) => s.phase === 'writing' && s.shared.guesserId === L1.pid, 'just one for three');
+  await L2.must('submitClue', { clue: 'واحدة' });
+  await api('/leave', { code: L1.code, pid: L3.pid, key: L3.key });
+  L3.close();
+  await all([L1, L2], (s) => s.players.length === 2 && s.phase === 'guessing' && s.shared.clues.length === 1,
+    'the last writer leaving moves the round on to the guess');
+
+  // The bomb: whoever holds it leaves, and it goes on to the next player.
+  const L6 = await Bot.join(L1.code, 'لين');
+  await L1.must('backToHub');
+  await L1.must('chooseGame', { game: 'bomb' });
+  await L1.must('start', { lang: 'ar', mode: 'category', fuse: 'long' });
+  await all([L1, L2, L6], (s) => s.shared.phase === 'ticking', 'the bomb ticks for three');
+  if (L1.state.shared.holderId === L1.pid) await L1.must('pass');
+  const bombHolder = byId([L2, L6], L1.state.shared.holderId);
+  await api('/leave', { code: L1.code, pid: bombHolder.pid, key: bombHolder.key });
+  bombHolder.close();
+  const bombLeft = [L1, L2, L6].filter((b) => b !== bombHolder);
+  await all(bombLeft, (s) => s.players.length === 2 && s.shared.phase === 'ticking' && bombLeft.some((b) => b.pid === s.shared.holderId),
+    'the bomb in the hands of someone who leaves goes on to the next player');
+  [L1, L2, L3, L4, L5, L6].forEach((b) => b.close());
+
   /* --- leaving ----------------------------------------------------------- */
   console.log('• leaving');
   await api('/leave', { code: A.code, pid: D.pid, key: D.key });
@@ -933,6 +1087,32 @@ async function main() {
   await B.waitFor((s) => s.players.length === 2 && s.hostId !== A.pid, 'the host leaving hands the room on');
   check(B.state.youAreHost || C.state.youAreHost, 'someone is host again');
   bots.forEach((b) => b.close());
+
+  if (SLOW) {
+    /* --- presence clocks: a socket that dies without closing, a screen host -- */
+    console.log('• presence (--slow: waits about three minutes)');
+    // A host whose phone stops pinging but whose socket never closes, like a locked iPhone.
+    const Z = await Bot.host('زومبي', null);
+    const zAt = Date.now();
+    const Y = await Bot.join(Z.code, 'يحيى');
+    clearInterval(Z.pinger);
+    // A room opened from a TV, whose TV then goes away.
+    const S = await Bot.host('', null, true);
+    const P = await Bot.join(S.code, 'بسمة');
+    await P.waitFor((s) => s.screens.length === 1 && s.screens[0].online, 'the screen host is here');
+    // The room's own early alarms (at create and join) run while the TV is still here, so
+    // nothing but the TV's leaving can start the handover clock.
+    await sleep(25000);
+    S.close();
+    await P.waitFor((s) => s.screens[0].online === false, 'the screen host shows as away when its socket closes');
+    await Y.waitFor((s) => s.players.find((p) => p.id === Z.pid).online === false, 'a socket silent for 70 seconds counts as away', 100000);
+    await Promise.all([
+      Y.waitFor((s) => s.hostId === Y.pid && s.youAreHost, 'a silent host hands the room on after two minutes', 150000)
+        .then(() => check(Date.now() - zAt < 150000, `two minutes counted from when the host was last heard (${Math.round((Date.now() - zAt) / 1000)}s)`)),
+      P.waitFor((s) => s.hostId === P.pid && s.youAreHost, 'a room hosted by a screen that went away hands over to a player', 150000)
+    ]);
+    [Z, Y, S, P].forEach((b) => b.close());
+  }
 
   console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   if (failures.length) {

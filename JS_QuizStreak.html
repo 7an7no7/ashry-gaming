@@ -200,6 +200,9 @@ function setStreakSource(source) {
 }
 
 function startStreak(daily) {
+  if (daily && soloDailyResume('streak')) return;
+  soloDailySetAside('streak');
+  soloNewGame('streak');
   const s = streakState();
   const lang = contentLang() === 'en' ? 'en' : 'ar';
   Object.assign(s, {
@@ -229,6 +232,14 @@ function streakStop() {
   if (streakClock) streakClock.stop();
   streakClock = null;
   clearTimeout(streakNextTimer);
+  streakNextTimer = null;
+}
+
+// Leaving the board by any way (the back arrow, the nav) stops the pause before
+// the next question, or a hidden game would carry on losing lives by itself.
+// The question on screen keeps its deadline, which "continue" honours.
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from) => { if (from === 'play-streak') streakStop(); });
 }
 
 function streakHearts(s) {
@@ -313,7 +324,7 @@ function answerStreak(i) {
 
 function streakAdvance() {
   const s = streakState();
-  if (s.phase !== 'play') return;
+  if (s.phase !== 'play' || appState.currentView !== 'play-streak') return;
   if (s.lives <= 0 || (s.daily && s.asked >= s.deck.length)) { streakFinish(); return; }
   streakNext();
   if (!s.q) { streakFinish(); return; }
@@ -331,9 +342,9 @@ function streakFinish() {
   const rec = s.daily ? { record: false, prev: null } : soloRecord('streak', source, { score: s.score }, (a, b) => a.score > b.score);
   let share = '';
   const lines = [];
-  if (s.daily === soloToday()) {
-    soloMarkDaily('streak', { score: s.score });
-    share = `${soloShareHeader(t)}\n🔥 ${t.setup_streak || ''} ${s.score}/${s.deck.length}\n${s.marks.join('')}`;
+  if (s.daily) {
+    soloMarkDaily('streak', { score: s.score }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n🔥 ${t.setup_streak || ''} ${s.score}/${s.deck.length}\n${s.marks.join('')}`;
     lines.push(s.marks.join(''));
   }
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.score}`);
@@ -357,5 +368,8 @@ function restoreStreak() {
   return true;
 }
 
-soloRegister('streak', { setup: 'setup-streak', play: 'play-streak', paintSetup: paintStreakSetup, restore: restoreStreak });
+soloRegister('streak', {
+  setup: 'setup-streak', play: 'play-streak', paintSetup: paintStreakSetup, restore: restoreStreak,
+  state: streakState, resume: continueStreak, repaint: () => { if (streakState().phase === 'play') paintStreak(false); }, prefs: ['source']
+});
 </script>

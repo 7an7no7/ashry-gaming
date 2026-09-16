@@ -2,6 +2,40 @@
   /* --- SCREW GAME LOGIC --- */
 
   /**
+   * The shared end-of-game popup (#winner-modal) for a score keeper: the winner,
+   * and the standings behind "full results", rebuilt on every open. Screw and
+   * Domino both open it, so nothing here may outlive one opening: the old
+   * version rewrote the popup's buttons for good, and Domino's "full results"
+   * went on showing the last Screw table. The buttons are left as written in
+   * Controller.html.
+   *   { name, label, value, rows: [{ name, score }] in finishing order }
+   */
+  function showScoreWinner(o) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    const list = document.getElementById('winners-list');
+    if (list) {
+      list.innerHTML = `<div class="text-3xl mb-2">🥇 ${escapeHTML(o.name)}</div>` +
+                       `<div class="text-sm tx-muted font-bold">${escapeHTML(o.label)}: <span class="metric">${o.value}</span></div>`;
+    }
+    const box = document.getElementById('winner-scores-container');
+    if (box) {
+      const medals = ['🥇', '🥈', '🥉'];
+      box.innerHTML = `<div class="cs-table" role="table">` + (o.rows || []).map((r, i) => `
+        <div class="cs-row" role="row" style="--cs-cols:2">
+          <span class="cs-row__n">${medals[i] || i + 1}</span>
+          <span class="${i === 0 ? 'tx-strong' : ''}">${escapeHTML(r.name)}</span>
+          <span class="metric ${i === 0 ? 'tx-success' : ''}">${r.score}</span>
+        </div>`).join('') + `</div>`;
+      box.classList.add('hidden');
+    }
+    // A popup closed with the table open left the button saying "hide".
+    const toggle = document.getElementById('toggle-results-btn');
+    if (toggle) toggle.textContent = t.show_full_results || 'عرض النتائج كاملة';
+    const modal = document.getElementById('winner-modal');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  /**
    * Starts the Screw game.
    */
   function runStartScrew(playersToUse, roundsToUse) {
@@ -151,68 +185,14 @@
         // --- GAME OVER ---
         // Sort a copy: mutating the roster would also re-order who deals.
         const standings = [...appState.screw.players].sort((a,b) => a.total - b.total);
-        const winner = standings[0];
-        
-        const nameHeader = appState.lang === 'ar' ? 'الاسم' : 'Name';
-        const pointsHeader = appState.lang === 'ar' ? 'النقاط' : 'Points';
-
-        let detailsHtml = `<table class="w-full text-center"><thead><tr class="border-b tx-muted text-xs uppercase"><th class="p-2">#</th><th class="p-2">${nameHeader}</th><th class="p-2">${pointsHeader}</th></tr></thead><tbody>`;
-        
-        standings.forEach((p, i) => {
-            // FIX: Force black text on the yellow winner row so it is visible
-            const rowClass = i === 0 
-                ? 'bg-yellow-200 text-black font-bold border-none rounded' 
-                : 'dark:border-slate-700 text-slate-800 dark:text-white';
-                
-            const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : ''));
-
-            detailsHtml += `<tr class="border-b last:border-0 ${rowClass}"><td class="p-2">${medal || i+1}</td><td class="p-2">${escapeHTML(p.name)}</td><td class="p-2">${p.total}</td></tr>`;
-            });        detailsHtml += '</tbody></table>';
-        
-        const scoresContainer = document.getElementById('winner-scores-container');
-        if (scoresContainer) {
-            scoresContainer.innerHTML = detailsHtml;
-            scoresContainer.classList.add('hidden');
-        }
-
-        const winnersList = document.getElementById('winners-list');
-        if (winnersList) {
-            winnersList.innerHTML = `
-                <div class="text-3xl mb-2">🥇 ${escapeHTML(winner.name)}</div>
-                <div class="text-sm tx-muted font-bold">${totalText}: ${winner.total}</div>
-            `;
-        }
-        
-        const modalActions = document.querySelector('#winner-modal .modal-actions');
-        if(modalActions) {
-            modalActions.innerHTML = '';
-            
-            const toggleBtnText = appState.lang === 'ar' ? "عرض النتائج كاملة" : "Full Results";
-            const resultsBtn = document.createElement('button');
-            resultsBtn.id = "toggle-results-btn";
-            resultsBtn.className = "btn btn--primary";
-            resultsBtn.innerText = toggleBtnText;
-            resultsBtn.onclick = toggleResults;
-            modalActions.appendChild(resultsBtn);
-            
-            const playAgainBtn = document.createElement('button');
-            playAgainBtn.className = "btn btn--primary";
-            playAgainBtn.innerText = TRANSLATIONS[appState.lang].play_again;
-            playAgainBtn.onclick = playAgain;
-            modalActions.appendChild(playAgainBtn);
-
-            const mainMenuBtn = document.createElement('button');
-            mainMenuBtn.className = "btn btn--ghost";
-            mainMenuBtn.innerText = TRANSLATIONS[appState.lang].main_menu;
-            mainMenuBtn.onclick = () => setView('menu');
-            modalActions.appendChild(mainMenuBtn);
-        }
-
-        const modal = document.getElementById('winner-modal');
-        if(modal) modal.classList.remove('hidden');
-
-        // Record win (Removed)
-
+        // The popup's own buttons (new game, full results, settings, menu) already
+        // do the right thing here; playAgain() knows play-screw.
+        showScoreWinner({
+            name: standings[0].name,
+            label: totalText,
+            value: standings[0].total,
+            rows: standings.map(p => ({ name: p.name, score: p.total }))
+        });
     } else {
         appState.screw.activeRound++;
         renderScrewBoard(); 

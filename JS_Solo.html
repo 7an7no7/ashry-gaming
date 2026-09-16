@@ -10,7 +10,8 @@
    - SOLO_GAMES: a game registers its screens (soloRegister). A reload goes
      back to its board through soloRestoreView (called from restoreView), its
      setup is painted through soloPaintSetup (from paintSetupOptions), and
-     loadFromLocal accepts its views through soloViews.
+     loadFromLocal accepts its views through soloViews. `repaint` redraws the
+     board when the language changes (onLanguageChange).
    - Randomness that repeats: soloRng(seed) is a small seeded generator, and
      soloDaySeed(id) the seed for a game's puzzle of the day - the same puzzle
      on every phone on the same date, a new one at local midnight. Anything a
@@ -18,13 +19,34 @@
      Math.random, or two phones get different puzzles.
    - Bests per game and level (soloBest / soloRecord) and today's results
      (soloDailyResult / soloMarkDaily / soloStreak), in this phone's storage.
+   - A daily is played once: starting it again goes back to the board it was
+     left on (soloDailyResume), and a new game dealt over it sets it aside
+     first (soloDailySetAside, ashryDailyPlay_v1). A daily finished after
+     midnight counts for the day it was started.
+   - The clock of a timed game (`timed: true`) stops while its board is not on
+     screen - another screen, the phone locked, the app closed - by moving
+     startedAt forward by the break (soloPause / soloResume).
    - The result sheet (soloResult): icon, title, a number that counts up, a
-     line or two, share (a daily result goes to WhatsApp as text), again, exit.
+     line or two, share (a daily result goes to WhatsApp as text), again,
+     exit, and "look at the board", which closes the sheet and leaves the
+     finished board on screen with a way back to the result.
+   - Timers that end a game later (a result sheet after an animation) go
+     through soloLater, so they do nothing once a new game has started or the
+     player has left the board.
    ========================================================================= */
 
 const SOLO_GAMES = {};
 
-/** { setup: 'setup-x', play: 'play-x', paintSetup(), restore() -> bool, daily: { start(), icon, title } } */
+/**
+ * {
+ *   setup: 'setup-x', play: 'play-x', paintSetup(), restore() -> bool,
+ *   state: () => appState.x,      the game's state (daily, phase, startedAt)
+ *   resume(),                     back to a board in play (its "continue")
+ *   repaint(),                    redraw the board's text (language change)
+ *   timed: true,                  the clock stops while the board is away
+ *   prefs: ['level']              setup choices a daily set aside must not overwrite
+ * }
+ */
 function soloRegister(id, def) {
   SOLO_GAMES[id] = Object.assign({ id: id }, def);
 }
@@ -39,10 +61,16 @@ function soloViews() {
   return out;
 }
 
+/** The solo game whose board is on screen, if any. */
+function soloGameOnScreen() {
+  return Object.values(SOLO_GAMES).find(g => g.play && g.play === appState.currentView) || null;
+}
+
 /** A reload on a solo game's board: redraw it, or fall back to its setup. */
 function soloRestoreView(viewId) {
   const g = Object.values(SOLO_GAMES).find(x => x.play === viewId);
   if (!g) return false;
+  if (g.timed && g.state) soloResume(g.state());
   let ok = false;
   try { ok = !!(g.restore && g.restore()); } catch (e) { ok = false; }
   if (!ok) setTimeout(() => setView(g.setup), 50);
@@ -52,6 +80,35 @@ function soloRestoreView(viewId) {
 function soloPaintSetup(viewId) {
   const g = Object.values(SOLO_GAMES).find(x => x.setup === viewId);
   if (g && typeof g.paintSetup === 'function') g.paintSetup();
+}
+
+/** A key press a board should ignore: typing in a field, a shortcut, or a popup open over it. */
+function soloKeyBlocked(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return true;
+  const target = e.target;
+  if (target && target.closest && target.closest('input, textarea, select, [contenteditable="true"]')) return true;
+  return !!document.querySelector('.modal-overlay:not(.hidden)');
+}
+
+/* --- Timers that belong to one game ------------------------------------------ */
+
+const soloEpochs = {};
+
+/** A new board for game `id`: timers set for the last one no longer fire. */
+function soloNewGame(id) {
+  soloEpochs[id] = (soloEpochs[id] || 0) + 1;
+  soloLookOn = null;   // the finished board being looked at is gone
+}
+
+/** setTimeout for game `id` that does nothing if a new game started or its board left the screen. */
+function soloLater(id, ms, fn) {
+  const epoch = soloEpochs[id] || 0;
+  const g = SOLO_GAMES[id];
+  return setTimeout(() => {
+    if ((soloEpochs[id] || 0) !== epoch) return;
+    if (g && g.play && appState.currentView !== g.play) return;
+    fn();
+  }, ms || 0);
 }
 
 /* --- Randomness that can repeat ---------------------------------------------- */
@@ -86,6 +143,12 @@ function soloToday(date) {
 
 function soloDaySeed(id, day) {
   return soloHash('ashry-daily:' + id + ':' + (day || soloToday()));
+}
+
+/** Whole days from 1 Jan 2026 to a YYYY-MM-DD date: a counter for things that go round day by day. */
+function soloDayIndex(day) {
+  const p = String(day || soloToday()).split('-').map(Number);
+  return Math.round((Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(2026, 0, 1)) / 86400000);
 }
 
 /** A random source: seeded when a seed is given (the daily), Math.random otherwise. */
@@ -135,6 +198,14 @@ function soloRecord(id, level, result, isBetter) {
   return { record: record, prev: prev };
 }
 
+/** Puts a best back to what it was (null: no best), for a move that was taken back. */
+function soloSetBest(id, level, result) {
+  const all = soloBestAll();
+  const key = id + ':' + (level || '');
+  if (result) all[key] = result; else delete all[key];
+  try { localStorage.setItem(SOLO_BEST_KEY, JSON.stringify(all)); } catch (e) {}
+}
+
 /* --- Today's puzzles (تحدي اليوم) ------------------------------------------------ */
 
 const SOLO_DAILY_KEY = 'ashryDaily_v1';
@@ -148,17 +219,23 @@ function soloDailyResult(id, day) {
   return (all[day || soloToday()] || {})[id] || null;
 }
 
-/** Remembers today's result for a game (the first one only: a daily is played once). */
-function soloMarkDaily(id, result) {
+/**
+ * Remembers a daily's result (the first one only: a daily is played once),
+ * under the day it was started - one begun before midnight and finished after
+ * still counts for its own day.
+ */
+function soloMarkDaily(id, result, day) {
   const all = soloDailyAll();
-  const today = soloToday();
-  all[today] = all[today] || {};
-  if (all[today][id]) return all[today][id];
-  all[today][id] = result;
+  const key = day || soloToday();
+  all[key] = all[key] || {};
+  if (all[key][id]) return all[key][id];
+  all[key][id] = result;
   // Two months is plenty for a streak.
   const cutoff = soloToday(new Date(Date.now() - 62 * 24 * 3600 * 1000));
-  Object.keys(all).forEach(day => { if (day < cutoff) delete all[day]; });
+  Object.keys(all).forEach(d => { if (d < cutoff) delete all[d]; });
   try { localStorage.setItem(SOLO_DAILY_KEY, JSON.stringify(all)); } catch (e) {}
+  const kept = soloDailyKept();
+  if (kept[id] && kept[id].day === key) { delete kept[id]; soloDailyKeptSave(kept); }
   return result;
 }
 
@@ -176,6 +253,145 @@ function soloStreak() {
   return n;
 }
 
+/* --- A daily in progress ------------------------------------------------------------ */
+
+/* A daily can't be dealt again from the start for a better go. While it is the
+   game's current board it lives in the game's own state, like any game; when
+   another board of that game is dealt over it, a copy is set aside here (one
+   per game, today's only), and starting the daily again brings it back. */
+const SOLO_DAILY_PLAY_KEY = 'ashryDailyPlay_v1';
+
+function soloDailyKept() {
+  try { return JSON.parse(localStorage.getItem(SOLO_DAILY_PLAY_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function soloDailyKeptSave(all) {
+  const today = soloToday();
+  Object.keys(all).forEach(id => { if (!all[id] || all[id].day !== today) delete all[id]; });
+  try { localStorage.setItem(SOLO_DAILY_PLAY_KEY, JSON.stringify(all)); } catch (e) {}
+}
+
+/** Today's daily is the game's current board, still being played. */
+function soloDailyLive(g) {
+  const s = g && g.state ? g.state() : null;
+  return !!(s && s.daily && s.daily === soloToday() && s.phase === 'play' && !soloDailyResult(g.id));
+}
+
+/** Today's daily of `id` was started and isn't finished (on its board, or set aside). */
+function soloDailyInProgress(id) {
+  if (soloDailyResult(id)) return false;
+  if (soloDailyLive(SOLO_GAMES[id])) return true;
+  const kept = soloDailyKept()[id];
+  return !!(kept && kept.day === soloToday() && kept.state);
+}
+
+/** Called before a game deals a new board: today's daily in progress is kept aside, not lost. */
+function soloDailySetAside(id) {
+  const g = SOLO_GAMES[id];
+  if (!soloDailyLive(g)) return;
+  const copy = JSON.parse(JSON.stringify(g.state()));
+  soloPause(copy);
+  const all = soloDailyKept();
+  all[id] = { day: copy.daily, state: copy };
+  soloDailyKeptSave(all);
+}
+
+/**
+ * Starting today's daily when it has already begun: back to that board.
+ * Returns true when it did, so the game doesn't deal it fresh.
+ */
+function soloDailyResume(id) {
+  const g = SOLO_GAMES[id];
+  if (!g || !g.state || typeof g.resume !== 'function' || soloDailyResult(id)) return false;
+  if (!soloDailyLive(g)) {
+    const all = soloDailyKept();
+    const kept = all[id];
+    if (!kept || kept.day !== soloToday() || !kept.state) return false;
+    // Put it back in the same object (the game's code holds on to it),
+    // keeping the setup choices made since.
+    const s = g.state();
+    const prefs = {};
+    (g.prefs || []).forEach(k => { if (k in s) prefs[k] = s[k]; });
+    Object.keys(s).forEach(k => { delete s[k]; });
+    Object.assign(s, kept.state, prefs);
+    delete all[id];
+    soloDailyKeptSave(all);
+    saveToLocal();
+  }
+  soloNewGame(id);
+  if (appState.currentView === g.play) soloResume(g.state());
+  g.resume();
+  return true;
+}
+
+/**
+ * Asks before a new board replaces a game with work on it. Today's daily is
+ * never lost (it is set aside), so it doesn't ask for that. Returns true when
+ * it asked; `go` runs on yes.
+ */
+function soloConfirmNew(id, hasWork, go) {
+  const g = SOLO_GAMES[id];
+  const s = g && g.state ? g.state() : null;
+  if (!s || s.phase !== 'play' || (s.daily && s.daily === soloToday()) || !hasWork(s)) return false;
+  const t = TRANSLATIONS[appState.lang] || {};
+  showConfirmModal(t.solo_new_confirm || t.g2048_new_confirm || 'تبدأ لعبة جديدة وتسيب اللي شغال؟', go);
+  return true;
+}
+
+/* --- The clock stops while the board is away ---------------------------------------- */
+
+/** Marks when a timed board went away (another screen, a locked phone). */
+function soloPause(s) {
+  if (s && s.phase === 'play' && s.startedAt && !s.pausedAt) s.pausedAt = Date.now();
+}
+
+/** Back on the board: the break is taken off the clock by moving its start forward. */
+function soloResume(s) {
+  if (!s || !s.pausedAt) return;
+  if (s.startedAt && s.pausedAt >= s.startedAt) s.startedAt += Math.max(0, Date.now() - s.pausedAt);
+  s.pausedAt = 0;
+}
+
+function soloPauseOnScreen(hidden) {
+  const g = soloGameOnScreen();
+  if (!g || !g.timed || !g.state) return;
+  const s = g.state();
+  if (hidden) {
+    soloPause(s);
+    saveToLocal();
+  } else {
+    soloResume(s);
+    soloClockRefresh();
+  }
+}
+
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', () => soloPauseOnScreen(document.visibilityState === 'hidden'));
+}
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('pagehide', () => soloPauseOnScreen(true));
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    Object.values(SOLO_GAMES).forEach(g => {
+      if (!g.timed || !g.state || !g.play) return;
+      if (from === g.play) soloPause(g.state());
+      if (to === g.play) soloResume(g.state());
+    });
+    if (soloLookOn && from === soloLookOn.view) soloLookOn = null;
+  });
+}
+
+if (typeof onLanguageChange === 'function') {
+  onLanguageChange((view) => {
+    const g = Object.values(SOLO_GAMES).find(x => x.play && x.play === view);
+    if (!g || typeof g.repaint !== 'function') return;
+    g.repaint();
+    soloLookPaint();
+  });
+}
+
 /* --- Small pieces ---------------------------------------------------------------- */
 
 function soloTime(seconds) {
@@ -186,15 +402,25 @@ function soloTime(seconds) {
   return h ? h + ':' + String(m).padStart(2, '0') + ':' + ss : m + ':' + ss;
 }
 
-/** A running clock for a board: `startedAt` in state, painted into #id every second. */
+const soloClockPainters = {};
+
+/**
+ * A running clock for a board, painted into #id every second. `startedAt` is
+ * a function reading the state (it moves when a break is taken off), or a
+ * fixed time.
+ */
 function soloClock(elId, startedAt) {
-  return createClock({
-    countUp: true,
-    onTick: () => {
-      const el = document.getElementById(elId);
-      if (el) el.textContent = soloTime((Date.now() - startedAt) / 1000);
-    }
-  });
+  const get = typeof startedAt === 'function' ? startedAt : () => startedAt;
+  const paint = () => {
+    const el = document.getElementById(elId);
+    if (el) el.textContent = soloTime((Date.now() - get()) / 1000);
+  };
+  soloClockPainters[elId] = paint;
+  return createClock({ countUp: true, onTick: paint });
+}
+
+function soloClockRefresh() {
+  Object.keys(soloClockPainters).forEach(id => soloClockPainters[id]());
 }
 
 /** The stats row above a board: [{ label, value, id }]. */
@@ -206,22 +432,25 @@ function soloBarHtml(items) {
     </div>`).join('')}</div>`;
 }
 
-/** The daily line on a setup screen: play today's puzzle, or see that it's done. */
+/** The daily line on a setup screen: play today's puzzle, carry on with it, or see that it's done. */
 function soloDailyButtonHtml(id, startCall) {
   const t = TRANSLATIONS[appState.lang] || {};
   const done = soloDailyResult(id);
-  return done
-    ? `<div class="solo-daily is-done"><span aria-hidden="true">📅</span><span>${escapeHTML(t.daily_done_today || '')}</span><b>✓</b></div>`
-    : `<button type="button" class="btn btn--secondary" onclick="${startCall}">📅 ${escapeHTML(t.daily_play_today || '')}</button>`;
+  if (done) return `<div class="solo-daily is-done"><span aria-hidden="true">📅</span><span>${escapeHTML(t.daily_done_today || '')}</span><b>✓</b></div>`;
+  const label = soloDailyInProgress(id) ? (t.daily_continue_today || 'كمّل تحدي النهارده') : (t.daily_play_today || '');
+  return `<button type="button" class="btn btn--secondary" onclick="${startCall}">📅 ${escapeHTML(label)}</button>`;
 }
 
 /* --- The result sheet ------------------------------------------------------------- */
 
 let soloResultActions = { again: null, exit: null, share: '' };
+let soloLastResult = null;   // the sheet last shown, to open it again from the board
+let soloLookOn = null;       // { view } while a finished board is being looked at
 
 /**
  * o: { icon, title, value (number, counts up) or valueText, valueLabel, lines: [html],
- *      win (confetti), share (text, for a daily), again(), exit() }
+ *      win (confetti), share (text, for a daily), again(), againLabel, exit(),
+ *      look (false: no "look at the board"), quiet (no sound or confetti: opened again) }
  */
 function soloResult(o) {
   const t = TRANSLATIONS[appState.lang] || {};
@@ -230,6 +459,8 @@ function soloResult(o) {
     o = Object.assign({}, o, { again: openDaily, againLabel: '📅 ' + (t.daily_back || ''), exit: openDaily });
   }
   soloResultActions = { again: o.again || null, exit: o.exit || null, share: o.share || '' };
+  soloLastResult = o;
+  soloLookOn = null;
   const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
   set('solo-result-icon', o.icon || '🏁');
   set('solo-result-title', escapeHTML(o.title || ''));
@@ -239,7 +470,7 @@ function soloResult(o) {
   if (valueEl) {
     if (typeof o.value === 'number') {
       valueEl.textContent = String(o.value);
-      if (typeof countUp === 'function' && !motionOff() && o.value > 0) countUp(valueEl, 0, o.value);
+      if (!o.quiet && typeof countUp === 'function' && !motionOff() && o.value > 0) countUp(valueEl, 0, o.value);
     } else {
       valueEl.textContent = o.valueText || '';
     }
@@ -251,8 +482,14 @@ function soloResult(o) {
     again.classList.toggle('hidden', !o.again);
     again.textContent = o.againLabel || t.play_again || '';
   }
+  const look = soloResultLookButton();
+  if (look) {
+    look.textContent = '👀 ' + (t.solo_look || 'شوف اللوحة');
+    look.classList.toggle('hidden', o.look === false || !soloGameOnScreen());
+  }
   const modal = document.getElementById('solo-result-modal');
   if (modal) modal.classList.remove('hidden');
+  if (o.quiet) return;
   if (o.win) {
     playSound('success');
     if (typeof confetti === 'function') setTimeout(() => confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }), 250);
@@ -261,13 +498,31 @@ function soloResult(o) {
   }
 }
 
+/** The sheet's "look at the board" button: in the markup (#solo-result-look), or added once before Exit. */
+function soloResultLookButton() {
+  let btn = document.getElementById('solo-result-look');
+  if (btn) return btn;
+  const modal = document.getElementById('solo-result-modal');
+  const actions = modal && modal.querySelector('.modal-actions');
+  if (!actions || !document.createElement) return null;
+  btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'solo-result-look';
+  btn.className = 'btn btn--neutral';
+  btn.setAttribute('onclick', 'soloResultLook()');
+  actions.insertBefore(btn, actions.lastElementChild);
+  return btn;
+}
+
 function soloResultAgain() {
   closeModal('solo-result-modal');
+  soloLookOn = null;
   if (soloResultActions.again) soloResultActions.again();
 }
 
 function soloResultExit() {
   closeModal('solo-result-modal');
+  soloLookOn = null;
   if (soloResultActions.exit) soloResultActions.exit();
 }
 
@@ -277,10 +532,50 @@ function soloResultShare() {
   shareOrCopy(appLink(), soloResultActions.share, t.solo_copied || '');
 }
 
-/** A daily result as a line for the share text: "🔢 سودوكو ✅ 4:12". */
-function soloShareHeader(t) {
-  const d = new Date();
-  return `${t.title || 'عشرى جيمينج'} · ${t.daily_title || ''} ${d.getDate()}/${d.getMonth() + 1}`;
+/** Closes the sheet and leaves the finished board on screen, with the result and "again" at its foot. */
+function soloResultLook() {
+  closeModal('solo-result-modal');
+  const g = soloGameOnScreen();
+  if (!g || !soloLastResult) return;
+  soloLookOn = { view: g.play };
+  soloLookPaint();
+}
+
+/** Adds the result and "again" buttons to the board's action bar (again after a redraw). */
+function soloLookPaint() {
+  if (!soloLookOn || !soloLastResult || appState.currentView !== soloLookOn.view) return;
+  const view = document.getElementById('view-' + soloLookOn.view);
+  if (!view || view.querySelector('.solo-look')) return;
+  const bars = view.querySelectorAll('.view-actions');
+  const actions = bars[bars.length - 1];
+  if (!actions) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const o = soloLastResult;
+  const row = document.createElement('div');
+  row.className = 'btn-row solo-look';
+  row.innerHTML = `<button type="button" class="btn btn--primary btn--sm" onclick="soloLookResult()">🏁 ${escapeHTML(t.solo_look_result || 'النتيجة')}</button>`
+    + (o.again ? `<button type="button" class="btn btn--neutral btn--sm" onclick="soloLookAgain()">${escapeHTML(o.againLabel || t.play_again || '')}</button>` : '');
+  const stack = document.createElement('div');
+  stack.className = 'btn-stack';
+  stack.appendChild(row);
+  while (actions.firstChild) stack.appendChild(actions.firstChild);
+  actions.appendChild(stack);
+}
+
+function soloLookResult() {
+  if (soloLastResult) soloResult(Object.assign({}, soloLastResult, { quiet: true }));
+}
+
+function soloLookAgain() {
+  const o = soloLastResult;
+  soloLookOn = null;
+  if (o && o.again) o.again();
+}
+
+/** The first line of a daily's share text: "عشرى جيمينج · تحدي اليوم 17/9", for the day it was played. */
+function soloShareHeader(t, day) {
+  const p = String(day || soloToday()).split('-').map(Number);
+  return `${t.title || 'عشرى جيمينج'} · ${t.daily_title || ''} ${p[2]}/${p[1]}`;
 }
 
 /** A list's category as its name and its emoji: "فواكه وخضروات 🍎" -> { name, icon }. */

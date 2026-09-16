@@ -26,7 +26,7 @@ let wheelTimer = null;
 
 function wheelState() {
   if (!appState.wordwheel) {
-    appState.wordwheel = { level: 'easy', daily: '', lang: 'ar', letters: [], words: [], bonus: [], found: [], bonusFound: [], shown: [], typed: [], rows: 0, cols: 0, startedAt: 0, phase: 'setup' };
+    appState.wordwheel = { level: 'easy', daily: '', lang: 'ar', letters: [], words: [], bonus: [], found: [], bonusFound: [], shown: [], typed: [], rows: 0, cols: 0, startedAt: 0, pausedAt: 0, phase: 'setup' };
   }
   return appState.wordwheel;
 }
@@ -159,6 +159,8 @@ function wheelMake(level, lang, rnd) {
 /* --- Setup and play ------------------------------------------------------------------ */
 
 function setupWordWheel() {
+  if (wheelTimer) wheelTimer.stop();
+  wheelTimer = null;
   setView('setup-wordwheel');
 }
 
@@ -182,15 +184,18 @@ function setWordWheelLevel(level) {
 }
 
 function startWordWheel(daily) {
+  if (daily && soloDailyResume('wordwheel')) return;
   const s = wheelState();
   const level = daily ? 'medium' : s.level;
   const lang = contentLang() === 'en' ? 'en' : 'ar';
   const made = wheelMake(level, lang, soloRandom(daily ? soloDaySeed('wordwheel:' + lang) : null));
   if (!made) return;
+  soloDailySetAside('wordwheel');
+  soloNewGame('wordwheel');
   Object.assign(s, {
     daily: daily ? soloToday() : '', playLevel: level, lang: lang,
     letters: made.letters, words: made.words, bonus: made.bonus, rows: made.rows, cols: made.cols,
-    found: [], bonusFound: [], shown: [], typed: [], hints: 0, startedAt: Date.now(), phase: 'play'
+    found: [], bonusFound: [], shown: [], typed: [], hints: 0, startedAt: Date.now(), pausedAt: 0, seconds: 0, phase: 'play'
   });
   saveToLocal();
   setView('play-wordwheel');
@@ -207,7 +212,7 @@ function continueWordWheel() {
 
 function wheelArmTimer() {
   if (wheelTimer) wheelTimer.stop();
-  wheelTimer = soloClock('wheel-time', wheelState().startedAt);
+  wheelTimer = soloClock('wheel-time', () => wheelState().startedAt);
 }
 
 function wheelCellKey(r, c) { return r + ',' + c; }
@@ -231,7 +236,7 @@ function paintWordWheel() {
   const bar = soloBarHtml([
     { label: t.wheel_words || '', value: `${s.found.length}/${s.words.length}`, id: 'wheel-count' },
     { label: '⭐', value: s.bonusFound.length, id: 'wheel-bonus' },
-    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'wheel-time' }
+    { label: t.solo_time || '', value: soloTime(s.phase === 'play' ? (Date.now() - s.startedAt) / 1000 : s.seconds), id: 'wheel-time' }
   ]);
   el.innerHTML = `
     <div class="solo-layout">
@@ -278,12 +283,19 @@ function wheelBind() {
     const i = Number(btn.dataset.i);
     const before = s.typed.length;
     if (s.typed.indexOf(i) === -1) s.typed.push(i);
-    wheelDrag = { moved: false, start: before };
+    wheelDrag = { moved: false, start: before, from: i };
     wheelRefreshTyped();
     const move = (ev) => {
       const over = soloCellAt(ev.clientX, ev.clientY, '.wheel-letter');
       if (!over || !wheelDrag) return;
       const k = Number(over.dataset.i);
+      if (k === wheelDrag.from && !wheelDrag.moved) return;
+      // A drag is a word of its own: letters tapped before it don't stay in front.
+      if (!wheelDrag.moved && wheelDrag.start > 0) {
+        s.typed = [wheelDrag.from];
+        wheelDrag.start = 0;
+        wheelRefreshTyped();
+      }
       const pos = s.typed.indexOf(k);
       if (pos === -1) { s.typed.push(k); wheelDrag.moved = true; wheelRefreshTyped(); }
       else if (pos === s.typed.length - 2) { s.typed.pop(); wheelRefreshTyped(); }
@@ -418,22 +430,24 @@ function wheelFinish() {
   if (wheelTimer) wheelTimer.stop();
   wheelTimer = null;
   const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  s.seconds = seconds;
   saveToLocal();
   const level = s.playLevel || s.level;
   const rec = s.hints ? { record: false, prev: soloBest('wordwheel', level) }
     : soloRecord('wordwheel', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
   let share = '';
-  if (s.daily === soloToday()) {
-    soloMarkDaily('wordwheel', { seconds: seconds, bonus: s.bonusFound.length });
-    share = `${soloShareHeader(t)}\n🔡 ${t.setup_wordwheel || ''} ✅ ${soloTime(seconds)}${s.bonusFound.length ? ' · ⭐ ' + s.bonusFound.length : ''}`;
+  if (s.daily) {
+    soloMarkDaily('wordwheel', { seconds: seconds, bonus: s.bonusFound.length, hints: s.hints || 0 }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n🔡 ${t.setup_wordwheel || ''} ✅ ${soloTime(seconds)}${s.bonusFound.length ? ' · ⭐ ' + s.bonusFound.length : ''}${s.hints ? ' · 💡 ' + s.hints : ''}`;
   }
   const lines = [`⭐ ${escapeHTML(t.wheel_bonus || '')}: ${s.bonusFound.length}/${s.bonus.length}`];
+  if (s.hints) lines.push(`💡 ${escapeHTML(t.solo_hint || '')}: ${s.hints}`);
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
-  setTimeout(() => soloResult({
+  soloLater('wordwheel', motionOff() ? 0 : 800, () => soloResult({
     icon: '🔡', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
     valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
     again: () => startWordWheel(false), exit: setupWordWheel
-  }), motionOff() ? 0 : 800);
+  }));
 }
 
 function restoreWordWheel() {
@@ -445,5 +459,8 @@ function restoreWordWheel() {
   return true;
 }
 
-soloRegister('wordwheel', { setup: 'setup-wordwheel', play: 'play-wordwheel', paintSetup: paintWordWheelSetup, restore: restoreWordWheel });
+soloRegister('wordwheel', {
+  setup: 'setup-wordwheel', play: 'play-wordwheel', paintSetup: paintWordWheelSetup, restore: restoreWordWheel,
+  state: wheelState, resume: continueWordWheel, repaint: paintWordWheel, timed: true, prefs: ['level']
+});
 </script>

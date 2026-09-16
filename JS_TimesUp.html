@@ -701,6 +701,11 @@ const TIMESUP_DB = {
   ]
 };
 
+/*
+   خلصت الكلمة: a turn's ✅ and ⏭ can be taken back (↶ beside the clock), the
+   way بدون كلام and أوصف لي do - a tap under a clock lands on the wrong
+   button often enough. The stack is the turn's own and empties when it ends.
+*/
 const timesUpState = {
   deck: [],
   currentRoundDeck: [],
@@ -712,7 +717,8 @@ const timesUpState = {
   turnTimerSeconds: 40,
   turnClock: null,
   currentCard: "",
-  turnProcessing: false
+  turnProcessing: false,
+  judged: []
 };
 
 function setupTimesUp() {
@@ -751,6 +757,7 @@ function startTimesUpGame() {
   timesUpState.activeTeam = 1;
   timesUpState.activePlayerIndex = { 1: 0, 2: 0 };
   timesUpState.turnProcessing = false;
+  timesUpState.judged = [];
 
   playSound('click');
   startTimesUpRound(1);
@@ -766,16 +773,22 @@ function startTimesUpRound(roundNum, carrySeconds) {
   prepareTimesUpTurn();
 }
 
+const timesUpTeamLabel = (team) => {
+  const t = TRANSLATIONS[appState.lang] || {};
+  return t['timesup_team_' + team] || ((appState.lang === 'en' ? 'Team ' : 'فريق ') + team);
+};
+
 function prepareTimesUpTurn() {
   timesUpState.turnProcessing = false;
+  timesUpState.judged = [];
   const team = timesUpState.activeTeam;
   const playerList = timesUpState.teams[team];
   const pIdx = timesUpState.activePlayerIndex[team] % playerList.length;
   const activeClueGiver = playerList[pIdx];
+  const t = TRANSLATIONS[appState.lang] || {};
 
-  const lang = contentLang();
-  document.getElementById('timesup-round-badge').innerText = `${lang === 'en' ? 'Round' : 'جولة'} ${timesUpState.round}/3`;
-  document.getElementById('timesup-team-turn-name').innerText = `${lang === 'en' ? 'Team' : 'فريق'} ${team} (${activeClueGiver})`;
+  document.getElementById('timesup-round-badge').innerText = `${t.round || ''} ${timesUpState.round}/3`;
+  document.getElementById('timesup-team-turn-name').innerText = `${timesUpTeamLabel(team)} (${activeClueGiver})`;
   document.getElementById('timesup-cards-left').innerText = timesUpState.currentRoundDeck.length;
 
   // Update scores
@@ -789,7 +802,6 @@ function prepareTimesUpTurn() {
 
   const rule = document.getElementById('timesup-round-rule');
   if (rule) {
-    const t = TRANSLATIONS[appState.lang] || {};
     const carry = timesUpState.carrySeconds;
     rule.textContent = ([t.timesup_r1, t.timesup_r2, t.timesup_r3][timesUpState.round - 1] || '')
       + (carry ? ' · ⏱️ ' + (t.timesup_carry || '').replace('{n}', carry) : '');
@@ -799,6 +811,8 @@ function prepareTimesUpTurn() {
 function beginTimesUpLiveTurn() {
   document.getElementById('timesup-turn-ready-card').classList.add('hidden');
   document.getElementById('timesup-turn-live-card').classList.remove('hidden');
+  timesUpState.judged = [];
+  ensureTimesUpUndo();
 
   drawNextTimesUpCard();
 
@@ -821,6 +835,29 @@ function beginTimesUpLiveTurn() {
       endTimesUpTurn(true);
     }
   });
+}
+
+/**
+ * The ↶ button beside the clock. Controller.html can hold it (same id); until
+ * it does, it is put there the first time a turn starts.
+ */
+function ensureTimesUpUndo() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let btn = document.getElementById('timesup-undo-btn');
+  if (!btn) {
+    const clock = document.getElementById('timesup-clock-display');
+    if (!clock || !clock.parentElement) return;
+    btn = document.createElement('button');
+    btn.id = 'timesup-undo-btn';
+    btn.type = 'button';
+    btn.className = 'btn btn--ghost btn--sm btn--auto';
+    btn.setAttribute('onclick', 'undoTimesUpCard()');
+    btn.setAttribute('data-i18n-title', 'undo_card');
+    btn.textContent = '↶';
+    clock.parentElement.insertBefore(btn, clock);
+  }
+  btn.title = t.undo_card || '';
+  btn.setAttribute('aria-label', t.undo_card || '');
 }
 
 function updateTimesUpClockUI(sec) {
@@ -853,7 +890,8 @@ function timesUpAction(action) {
     document.getElementById(`timesup-score-team${timesUpState.activeTeam}`).innerText = timesUpState.scores[timesUpState.activeTeam];
 
     // Remove from current round deck
-    timesUpState.currentRoundDeck.shift();
+    const card = timesUpState.currentRoundDeck.shift();
+    timesUpState.judged.push({ card: card, action: 'correct' });
 
     if (timesUpState.currentRoundDeck.length === 0) {
       endTimesUpRound();
@@ -867,12 +905,39 @@ function timesUpAction(action) {
     // Rotate card to back of deck
     const passed = timesUpState.currentRoundDeck.shift();
     timesUpState.currentRoundDeck.push(passed);
+    timesUpState.judged.push({ card: passed, action: 'pass' });
     drawNextTimesUpCard();
   }
 }
 
+/** Puts the last card of this turn back on top: a ✅ gives its point back, a ⏭ comes off the bottom. */
+function undoTimesUpCard() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const live = document.getElementById('timesup-turn-live-card');
+  const running = !!(timesUpState.turnClock && timesUpState.turnClock.isRunning && timesUpState.turnClock.isRunning());
+  const last = running && live && !live.classList.contains('hidden') ? timesUpState.judged.pop() : null;
+  if (!last) { showToast(t.undo_nothing || '', 'info'); return; }
+  const deck = timesUpState.currentRoundDeck;
+  const team = timesUpState.activeTeam;
+  if (last.action === 'correct') {
+    timesUpState.scores[team] = Math.max(0, (timesUpState.scores[team] || 0) - 1);
+    const el = document.getElementById(`timesup-score-team${team}`);
+    if (el) el.innerText = timesUpState.scores[team];
+  } else {
+    const at = deck.lastIndexOf(last.card);
+    if (at !== -1) deck.splice(at, 1);
+  }
+  deck.unshift(last.card);
+  timesUpState.turnProcessing = false;
+  drawNextTimesUpCard();
+  playSound('tick');
+  haptic('light');
+  showToast(t.undo_done || '', 'success');
+}
+
 function endTimesUpTurn(timeRanOut) {
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
+  timesUpState.judged = [];
 
   // Rotate player and switch team
   timesUpState.activePlayerIndex[timesUpState.activeTeam]++;
@@ -888,6 +953,7 @@ function endTimesUpRound() {
   const left = timesUpState.turnClock ? timesUpState.turnClock.value() : 0;
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
   timesUpState.turnClock = null;
+  timesUpState.judged = [];
   playSound('success');
 
   if (timesUpState.round >= 3) {
@@ -910,7 +976,7 @@ function endTimesUpRound() {
 }
 
 function finishTimesUpGrandFinale() {
-  const lang = contentLang();
+  const t = TRANSLATIONS[appState.lang] || {};
   const modal = document.getElementById('timesup-result-modal');
   const titleEl = document.getElementById('timesup-result-title');
   const detailEl = document.getElementById('timesup-result-detail');
@@ -920,14 +986,14 @@ function finishTimesUpGrandFinale() {
 
   let winnerText = "";
   if (score1 > score2) {
-    winnerText = lang === 'en' ? "🏆 TEAM 1 WINS!" : "🏆 فوز الفريق 1!";
-    titleEl.className = "text-3xl font-black tx-accent mb-2";
+    winnerText = `🏆 ${timesUpTeamLabel(1)} ${t.tb_wins || ''}`;
+    titleEl.className = "sheet__title tx-accent";
   } else if (score2 > score1) {
-    winnerText = lang === 'en' ? "🏆 TEAM 2 WINS!" : "🏆 فوز الفريق 2!";
-    titleEl.className = "text-3xl font-black tx-warning mb-2";
+    winnerText = `🏆 ${timesUpTeamLabel(2)} ${t.tb_wins || ''}`;
+    titleEl.className = "sheet__title tx-warning";
   } else {
-    winnerText = lang === 'en' ? "🤝 IT'S A TIE!" : "🤝 تعادل رائع!";
-    titleEl.className = "text-3xl font-black tx-success mb-2";
+    winnerText = `🤝 ${t.tb_draw || ''}`;
+    titleEl.className = "sheet__title tx-success";
   }
 
   titleEl.innerText = winnerText;
@@ -936,12 +1002,12 @@ function finishTimesUpGrandFinale() {
   detailEl.innerHTML = `
     <div class="grid grid-cols-2 gap-3 my-4">
       <div class="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 text-center">
-        <div class="text-xs uppercase font-bold tx-accent">${lang === 'en' ? 'Team 1' : 'فريق 1'}</div>
+        <div class="eyebrow tx-accent">${escapeHTML(timesUpTeamLabel(1))}</div>
         <div class="text-3xl font-black my-1">${score1}</div>
         <div class="text-xs opacity-75">${timesUpState.teams[1].map(escapeHTML).join(', ')}</div>
       </div>
       <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
-        <div class="text-xs uppercase font-bold tx-warning">${lang === 'en' ? 'Team 2' : 'فريق 2'}</div>
+        <div class="eyebrow tx-warning">${escapeHTML(timesUpTeamLabel(2))}</div>
         <div class="text-3xl font-black my-1">${score2}</div>
         <div class="text-xs opacity-75">${timesUpState.teams[2].map(escapeHTML).join(', ')}</div>
       </div>

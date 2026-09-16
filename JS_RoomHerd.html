@@ -68,9 +68,8 @@ function herdTapGroup(key) {
     roomAct('merge', { from: from, into: key });
   }
   haptic('light');
-  const el = document.getElementById('view-room-herd');
-  if (el) delete el.dataset.sig;
-  ROOM_GAMES.herd.render(Room.state);
+  // Both signatures carry the pick, so drawing again is enough - on the phone or the TV.
+  routeRoomState(Room.state);
 }
 
 ROOM_GAMES.herd = {
@@ -207,24 +206,36 @@ async function herdSubmit() {
   const input = document.getElementById('herd-answer');
   const text = ((input && input.value) || '').trim();
   if (!text) { showToast(t.herd_need_answer || '', 'error'); return; }
-  await roomAct('submit', { text: text });
+  const s = Room.state && Room.state.shared;
+  const payload = { text: text };
+  if (s && typeof s.round === 'number') payload.round = s.round;
+  await roomAct('submit', payload);
 }
 
 /* --- the TV ------------------------------------------------------------------ */
 
-/** The groups as chips on one screen: the size, the answer, the herd marked. */
-function herdTvGroupsHtml(s) {
+/**
+ * The groups as chips on one screen: the size, the answer, the herd marked.
+ * With `merge` (a host on the TV, in the reveal) each chip is a button: tap
+ * one, then the group it belongs with.
+ */
+function herdTvGroupsHtml(s, merge) {
   return `<div class="tv-legend herd-tv">${(s.groups || []).map(g => {
     const top = s.majorityKey && g.key === s.majorityKey;
-    return `<span class="tv-chip${top ? ' is-done' : ''}"><b class="metric">${g.ids.length}</b> ${escapeHTML(g.label)}${top ? ' 🐄' : (g.ids.length === 1 && g.ids[0] === s.sheepId && s.phase !== 'reveal' ? ' 🐑' : '')}
-      <span class="herd-tv__names">${g.names.map(escapeHTML).join('، ')}</span></span>`;
+    const picked = merge && herdLocal.mergeFrom === g.key;
+    const inner = `<b class="metric">${g.ids.length}</b> ${escapeHTML(g.label)}${top ? ' 🐄' : (g.ids.length === 1 && g.ids[0] === s.sheepId && s.phase !== 'reveal' ? ' 🐑' : '')}
+      <span class="herd-tv__names">${g.names.map(escapeHTML).join('، ')}</span>`;
+    return merge
+      ? `<button type="button" class="tv-chip${picked ? ' is-turn' : ''}" aria-pressed="${picked}" onclick="herdTapGroup('${jsStringAttr(g.key)}')">${inner}</button>`
+      : `<span class="tv-chip${top ? ' is-done' : ''}">${inner}</span>`;
   }).join('')}</div>`;
 }
 
 TV_GAMES.herd = {
   sig: (state) => {
     const s = state.shared;
-    return [s.phase, s.round, (s.submitted || []).length, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.sheepId, JSON.stringify(s.scores || {})].join('|');
+    return [s.phase, s.round, (s.submitted || []).length, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.sheepId, JSON.stringify(s.scores || {}),
+            s.phase === 'reveal' ? herdLocal.mergeFrom || '' : ''].join('|');
   },
   frame(state, t) {
     const s = state.shared;
@@ -238,8 +249,11 @@ TV_GAMES.herd = {
         ${host(tvBtn(t.herd_reveal_now, "roomAct('closeWriting')", 'ghost'))}</div>`;
     }
     if (s.phase === 'reveal') {
-      return `<div class="tv-vote">${prompt}${herdTvGroupsHtml(s)}
-        ${host(tvBtn(t.herd_score, "roomAct('score')"))}</div>`;
+      const merged = (s.groups || []).some(g => (g.parts || []).length > 1);
+      return `<div class="tv-vote">${prompt}
+        ${state.youAreHost ? `<div class="tv-note">${escapeHTML(herdLocal.mergeFrom ? (t.herd_merge_into || '') : (t.herd_merge_hint || ''))}</div>` : ''}
+        ${herdTvGroupsHtml(s, state.youAreHost)}
+        ${host(tvBtn(t.herd_score, "roomAct('score')") + (merged ? tvBtn(t.herd_unmerge, "roomAct('unmerge')", 'ghost') : ''))}</div>`;
     }
     if (s.phase === 'result') {
       return `<div class="tv-vote">${prompt}

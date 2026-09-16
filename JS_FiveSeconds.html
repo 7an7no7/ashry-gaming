@@ -6,12 +6,18 @@
    five seconds to name three things out loud, and the table taps whether
    they made it. The categories are the bomb's (BOMB_PROMPTS). The clock is
    a deadline in appState, so a reload comes back with the time it had left.
+   The end is a podium (ties share a place), and "one more round" gives
+   everyone another turn with the scores kept (`extra` rounds on top of the
+   setup's number, which stays what the setup screen shows).
    ========================================================================= */
 
 function fiveState() {
   if (!appState.five) appState.five = { phase: 'setup', rounds: 2, players: [], order: [], turn: 0, round: 1, scores: {}, prompt: '', endsAt: 0, verdict: null, lastName: '', lastPrompt: '' };
   return appState.five;
 }
+
+/** Rounds in this game: the setup's number and any "one more round". */
+const fiveTotalRounds = (f) => (Number(f.rounds) || 1) + (Number(f.extra) || 0);
 
 function setupFiveSeconds() {
   const f = fiveState();
@@ -36,12 +42,15 @@ function setFiveOption(key, value) {
 function startFiveGame() {
   const f = fiveState();
   const t = TRANSLATIONS[appState.lang];
-  const players = (appState.activePlayers || []).slice();
+  // "Play again" from the podium keeps the table; the setup screen reads the picker.
+  const again = f.phase === 'done' && (f.players || []).length >= 2 && appState.currentView === 'play-fiveseconds';
+  const players = again ? f.players.slice() : (appState.activePlayers || []).slice();
   if (players.length < 2) { showToast(t.five_need_players || '', 'error'); return; }
   f.players = players;
   f.order = shuffledCopy(players);
   f.turn = 0;
   f.round = 1;
+  f.extra = 0;
   f.scores = {};
   players.forEach(p => { f.scores[p] = 0; });
   f.lastName = '';
@@ -49,9 +58,10 @@ function startFiveGame() {
   f.verdict = null;
   f.prompt = '';
   f.endsAt = 0;
+  f.startedAt = Date.now();
   f.phase = 'ready';
   saveToLocal();
-  setView('play-fiveseconds');
+  if (appState.currentView !== 'play-fiveseconds') setView('play-fiveseconds');
   paintFive();
 }
 
@@ -100,16 +110,35 @@ function fiveJudge(ok) {
   if (f.turn >= f.order.length) { f.turn = 0; f.round += 1; }
   f.prompt = '';
   f.endsAt = 0;
-  f.phase = f.round > f.rounds ? 'done' : 'ready';
+  f.phase = f.round > fiveTotalRounds(f) ? 'done' : 'ready';
   saveToLocal();
   paintFive();
-  if (f.phase === 'done') { playSound('success'); if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 90 }); }
+  if (f.phase === 'done') {
+    playSound('success');
+    // With the winner, once the podium has risen.
+    if (typeof confetti === 'function') afterReveal(document.getElementById('five-stage'), () => confetti({ particleCount: 140, spread: 90 }));
+  }
   else playSound(ok ? 'success' : 'tick');
+}
+
+/** Everyone gets one more turn; the scores stay. */
+function fiveMoreRound() {
+  const f = fiveState();
+  if (f.phase !== 'done') return;
+  f.extra = (Number(f.extra) || 0) + 1;
+  f.turn = 0;
+  f.lastName = '';
+  f.lastPrompt = '';
+  f.verdict = null;
+  f.phase = 'ready';
+  saveToLocal();
+  paintFive();
+  haptic('light');
 }
 
 function fiveBoard() {
   const f = fiveState();
-  return f.players.map(p => ({ name: p, score: f.scores[p] || 0 })).sort((a, b) => b.score - a.score);
+  return f.players.map(p => ({ id: p, name: p, score: f.scores[p] || 0 })).sort((a, b) => b.score - a.score);
 }
 
 function paintFive() {
@@ -118,13 +147,16 @@ function paintFive() {
   if (!stage) return;
   const t = TRANSLATIONS[appState.lang];
   const who = f.order[f.turn] || '';
-  const round = `<div class="cn-score"><span class="cn-score__role">${escapeHTML(t.five_round || '')} ${Math.min(f.round, f.rounds)} / ${f.rounds}</span></div>`;
+  const total = fiveTotalRounds(f);
+  const round = `<div class="cn-score"><span class="cn-score__role">${escapeHTML(t.five_round || '')} ${Math.min(f.round, total)} / ${total}</span></div>`;
   const last = f.lastName ? `<p class="field__hint" style="text-align:center">${escapeHTML(f.lastName)} ${f.verdict ? '✅' : '❌'} · ${escapeHTML(f.lastPrompt || '')}</p>` : '';
   const judge = `
     <div class="btn-row" style="margin-top: var(--sp-3)">
       <button class="btn btn--success" onclick="fiveJudge(true)">✅ ${escapeHTML(t.five_ok || '')}</button>
       <button class="btn btn--danger-soft" onclick="fiveJudge(false)">❌ ${escapeHTML(t.five_fail || '')}</button>
     </div>`;
+  // Scores count up and players slide to their new places (JS_Motion.html).
+  const settle = () => { if (typeof animateScoreboards === 'function') animateScoreboards({ code: 'five', game: String(f.startedAt || '') }); };
 
   if (f.phase === 'ready') {
     stage.innerHTML = `${round}
@@ -137,6 +169,7 @@ function paintFive() {
       ${last}
       ${renderScoreboard(fiveBoard())}
       <button class="btn btn--ghost btn--sm" onclick="setupFiveSeconds()">${escapeHTML(t.exit || '')}</button>`;
+    settle();
     return;
   }
   if (f.phase === 'counting' || f.phase === 'judging') {
@@ -150,16 +183,19 @@ function paintFive() {
     return;
   }
   const board = fiveBoard();
+  const podium = renderPodium({ code: 'five', game: (f.startedAt || '') + ':' + total }, board);
   stage.innerHTML = `
     <div class="card card--accent" style="text-align:center">
-      <div class="metric metric--md">🏆 ${escapeHTML((board[0] || {}).name || '')}</div>
+      ${podium || `<div class="metric metric--md">🏆 ${escapeHTML((board[0] || {}).name || '')}</div>`}
       <p class="sheet__subtitle">${escapeHTML(t.five_over || '')}</p>
     </div>
     ${renderScoreboard(board)}
     <div class="btn-stack">
-      <button class="btn btn--primary btn--lg" onclick="startFiveGame()">${escapeHTML(t.play_again || '')}</button>
+      <button class="btn btn--primary btn--lg" onclick="fiveMoreRound()">➕ ${escapeHTML(t.five_more_round || 'جولة كمان بنفس النقط')}</button>
+      <button class="btn btn--secondary" onclick="startFiveGame()">${escapeHTML(t.play_again || '')}</button>
       <button class="btn btn--ghost" onclick="setupFiveSeconds()">${escapeHTML(t.exit || '')}</button>
     </div>`;
+  settle();
 }
 
 function restoreFiveSeconds() {
@@ -170,4 +206,6 @@ function restoreFiveSeconds() {
   if (f.phase === 'counting') armFiveLocal();
   return true;
 }
+
+onLanguageChange((view) => { if (view === 'play-fiveseconds') paintFive(); });
 </script>

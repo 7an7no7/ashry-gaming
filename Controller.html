@@ -65,6 +65,9 @@
         room: <?!= initialRoom ?>,
         webAppUrl: <?!= webAppUrl ?>
       };
+      // The shared lists read the spy words by this name (MonkeyWords.js,
+      // StopWords.js, the letter wheel), as the rooms server does.
+      window.SPY_WORDS = window.SERVER_DATA.spyData;
     </script>
     <!-- tools/build-site.mjs and build-preview.mjs inline the word lists shared with the rooms server here (SHARED_LISTS). -->
 </head>
@@ -88,7 +91,8 @@
       (function () {
         try {
           var saved = JSON.parse(localStorage.getItem('gameTrackerState_v1') || 'null');
-          if (saved && saved.isDarkMode) document.body.classList.add('dark');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (saved ? saved.isDarkMode : prefersDark) document.body.classList.add('dark');
           if (saved && saved.lang === 'en') {
             var title = document.querySelector('#app-loader .loader-title');
             if (title) title.textContent = 'Ashry Gaming';
@@ -194,6 +198,15 @@
             </div>
             <p class="field__hint" data-i18n="bomb_setup_hint">الوقت عشوائي ومحدش يعرفه. التكتكة بتسرع لما القنبلة تقرّب تفرقع.</p>
           </div>
+            <div class="field">
+              <label class="field__label" data-i18n="players">اللاعبين</label>
+              <p class="field__hint" data-i18n="bomb_players_hint">اختاروا اللاعبين عشان التطبيق يعد مين فرقعت في إيده (اختياري).</p>
+              <div class="input-group" style="margin-bottom: var(--sp-3)">
+                <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+                <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+              </div>
+              <div id="bomb-player-list"></div>
+            </div>
           <button onclick="startBombRound()" class="btn btn--primary btn--lg" data-i18n="bomb_start">ولّع القنبلة</button>
           </div>
         </div>
@@ -749,6 +762,15 @@
               <label class="field__label" for="emoji-cat" data-i18n="emoji_cat_label">النوع</label>
               <select id="emoji-cat" onchange="setEmojiCat(this.value)"></select>
             </div>
+            <div class="field">
+              <label class="field__label" data-i18n="players">اللاعبين</label>
+              <p class="field__hint" data-i18n="quiz_players_hint">اختاروا اللاعبين عشان تحسبوا النقط (اختياري).</p>
+              <div class="input-group" style="margin-bottom: var(--sp-3)">
+                <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+                <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+              </div>
+              <div id="emoji-player-list"></div>
+            </div>
             <button onclick="startEmojiGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
           </div>
         </div>
@@ -771,6 +793,15 @@
           </div>
           <div class="mode-device-panel">
             <p class="card__subtitle" data-i18n="prov_device_desc">مثل ناقصه كلمة على الشاشة، والطاولة تكمّله بصوت عالي. اضغط كشف لما تتفقوا.</p>
+            <div class="field">
+              <label class="field__label" data-i18n="players">اللاعبين</label>
+              <p class="field__hint" data-i18n="quiz_players_hint">اختاروا اللاعبين عشان تحسبوا النقط (اختياري).</p>
+              <div class="input-group" style="margin-bottom: var(--sp-3)">
+                <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+                <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+              </div>
+              <div id="proverbs-player-list"></div>
+            </div>
             <button onclick="startProverbsGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
           </div>
         </div>
@@ -806,7 +837,7 @@
               <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
               <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
             </div>
-            <div id="five-player-list" class="mb-6"></div>
+            <div id="fiveseconds-player-list" class="mb-6"></div>
             <button onclick="startFiveGame()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
           </div>
         </div>
@@ -1197,12 +1228,12 @@
 
       <div id="view-timers" class="hidden space-y-4">
           <div class="card text-center py-10">
-              <h3 class="eyebrow">مؤقت عام</h3>
+              <h3 class="eyebrow" data-i18n="gen_timer">مؤقت عام</h3>
               <div id="gen-timer-display" class="text-7xl font-black text-slate-700 dark:text-white mb-8 tabular-nums">00:00</div>
               <div class="flex justify-center gap-4 mb-6">
-                  <button onclick="adjustGenTimer(-1)" class="btn btn--ghost btn--sm btn--auto">-1د</button>
-                  <button onclick="adjustGenTimer(1)" class="btn btn--secondary btn--sm btn--auto">+1د</button>
-                  <button onclick="adjustGenTimer(5)" class="btn btn--secondary btn--sm btn--auto">+5د</button>
+                  <button onclick="adjustGenTimer(-1)" class="btn btn--ghost btn--sm btn--auto" data-i18n="tmr_minus1">-1د</button>
+                  <button onclick="adjustGenTimer(1)" class="btn btn--secondary btn--sm btn--auto" data-i18n="tmr_plus1">+1د</button>
+                  <button onclick="adjustGenTimer(5)" class="btn btn--secondary btn--sm btn--auto" data-i18n="tmr_plus5">+5د</button>
               </div>
               <div class="flex gap-2">
                   <button onclick="toggleGenTimer()" id="gen-start-btn" class="btn btn--primary" data-i18n="start_btn">ابدأ</button>
@@ -1332,7 +1363,7 @@
         </div>
       </div>
       <div id="view-play-imposter" class="hidden space-y-6">
-        <div class="card border-purple-200 bg-purple-50 dark:bg-slate-900 text-center">
+        <div class="card card--accent text-center">
            <div class="mb-8">
                <div id="imposter-timer-display" class="metric metric--xl metric--accent">00:00</div>
                <button onclick="toggleImposterTimer()" id="imp-pause-btn" class="btn btn--secondary btn--sm btn--auto" data-i18n="pause_btn">إيقاف مؤقت</button>
@@ -1394,27 +1425,27 @@
     <div id="countries-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
         <div class="sheet__title" data-i18n="mk_log">اللي اتقال 📝</div>
-        <input type="search" id="country-search-input" onkeyup="filterCountries()" placeholder="🔍 ابحث في السجل..." autocomplete="off">
+        <input type="search" id="country-search-input" onkeyup="filterCountries()" placeholder="🔍 ابحث في السجل..." data-i18n-ph="monkey_log_search" autocomplete="off">
         <div class="modal-list rounded-xl border border-slate-100 dark:border-slate-700">
-          <table class="w-full text-right">
+          <table class="w-full text-start">
             <thead class="bg-slate-100 dark:bg-slate-800 text-xs tx-muted font-bold uppercase">
               <tr>
                 <th class="px-4 py-2 w-16">#</th>
-                <th class="px-4 py-2">الدولة</th>
+                <th class="px-4 py-2" data-i18n="monkey_log_word">الدولة</th>
               </tr>
             </thead>
             <tbody id="used-countries-list" class="divide-y divide-slate-100 dark:divide-slate-700"></tbody>
           </table>
         </div>
         <div class="modal-actions">
-          <button onclick="toggleCountriesModal()" class="btn btn--ghost">إغلاق</button>
+          <button onclick="toggleCountriesModal()" class="btn btn--ghost" data-i18n="close">إغلاق</button>
         </div>
       </div>
     </div>
 
     <div id="imposter-result-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
-        <div class="sheet__title">انتهت اللعبة!</div>
+        <div class="sheet__title" data-i18n="win_title">انتهت اللعبة!</div>
         <div class="plate-success modal-plate">
           <div class="eyebrow" data-i18n="secret_word">الكلمة السرية</div>
           <div id="result-secret-word" class="metric metric--md tx-success">---</div>
@@ -1424,8 +1455,8 @@
           <div id="result-imposters-list" class="metric metric--md tx-danger"></div>
         </div>
         <div class="modal-actions">
-          <button onclick="startImposterGame(lastSelectedPlayers)" class="btn btn--primary btn--lg">لعبة جديدة بنفس اللاعبين</button>
-          <button onclick="closeModal('imposter-result-modal'); setView('setup-imposter')" class="btn btn--ghost">الإعدادات</button>
+          <button onclick="startImposterGame(lastSelectedPlayers)" class="btn btn--primary btn--lg" data-i18n="play_again_same">لعبة جديدة بنفس اللاعبين</button>
+          <button onclick="closeModal('imposter-result-modal'); setView('setup-imposter')" class="btn btn--ghost" data-i18n="settings">الإعدادات</button>
         </div>
       </div>
     </div>
@@ -1439,7 +1470,7 @@
         <div class="modal-actions">
           <button onclick="playAgain()" class="btn btn--primary btn--lg" data-i18n="play_again">لعبة جديدة</button>
           <button id="toggle-results-btn" onclick="toggleResults()" class="btn btn--secondary" data-i18n="show_full_results">عرض النتائج كاملة</button>
-          <button onclick="goToCurrentSetup()" class="btn btn--secondary">⚙️ تغيير الإعدادات</button>
+          <button onclick="goToCurrentSetup()" class="btn btn--secondary"><span aria-hidden="true">⚙️ </span><span data-i18n="tb_settings">تغيير الإعدادات</span></button>
           <button onclick="setView('menu')" class="btn btn--ghost" data-i18n="main_menu">القائمة الرئيسية</button>
         </div>
       </div>
@@ -1485,11 +1516,11 @@
 
     <div id="switch-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
-        <div class="sheet__title">اختر لاعباً للتبديل معه</div>
-        <input type="search" placeholder="🔍 بحث..." autocomplete="off" oninput="filterButtons(this, 'switch-targets-list')">
+        <div class="sheet__title" data-i18n="swap_pick_title">اختر لاعباً للتبديل معه</div>
+        <input type="search" placeholder="🔍 بحث..." data-i18n-ph="search_ph" autocomplete="off" oninput="filterButtons(this, 'switch-targets-list')">
         <div id="switch-targets-list" class="modal-list space-y-2 px-1"></div>
         <div class="modal-actions">
-          <button onclick="closeModal('switch-modal')" class="btn btn--ghost">إلغاء</button>
+          <button onclick="closeModal('switch-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>
     </div>
@@ -1497,24 +1528,24 @@
     <div id="switch-confirm-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
         <div class="modal-icon" aria-hidden="true">🔄</div>
-        <div class="sheet__title">تأكيد التبديل</div>
-        <p class="sheet__subtitle">هل أنت متأكد من تبديل أماكن <b id="confirm-monkey-name" class="tx-danger"></b> مع <b id="confirm-target-name" class="tx-accent"></b>؟</p>
+        <div class="sheet__title" data-i18n="swap_confirm_title">تأكيد التبديل</div>
+        <p class="sheet__subtitle"><span data-i18n="swap_confirm_q">هل أنت متأكد من تبديل أماكن</span> <b id="confirm-monkey-name" class="tx-danger"></b> <span data-i18n="swap_with">مع</span> <b id="confirm-target-name" class="tx-accent"></b><span data-i18n="q_mark">؟</span></p>
         <div class="modal-actions">
-          <button onclick="executeSwitch()" class="btn btn--primary btn--lg">نعم، بدل الأماكن</button>
-          <button onclick="closeModal('switch-confirm-modal')" class="btn btn--ghost">إلغاء</button>
+          <button onclick="executeSwitch()" class="btn btn--primary btn--lg" data-i18n="swap_yes">نعم، بدل الأماكن</button>
+          <button onclick="closeModal('switch-confirm-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>
     </div>
 
     <div id="add-midgame-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
-        <div class="sheet__title">إضافة لاعب</div>
-        <p class="sheet__subtitle">اختر من المسجلين أو أضف جديداً</p>
+        <div class="sheet__title" data-i18n="add_player_title">إضافة لاعب</div>
+        <p class="sheet__subtitle" data-i18n="add_player_sub">اختر من المسجلين أو أضف جديداً</p>
         <div id="midgame-existing-list" class="modal-list flex flex-wrap gap-2 justify-center"></div>
-        <input type="text" id="midgame-player-name" placeholder="اسم لاعب جديد">
+        <input type="text" id="midgame-player-name" placeholder="اسم لاعب جديد" data-i18n-ph="new_player_ph">
         <div class="modal-actions">
-          <button onclick="submitMidGamePlayer()" class="btn btn--primary btn--lg">إضافة ودخول</button>
-          <button onclick="closeModal('add-midgame-modal')" class="btn btn--ghost">إلغاء</button>
+          <button onclick="submitMidGamePlayer()" class="btn btn--primary btn--lg" data-i18n="add_and_join">إضافة ودخول</button>
+          <button onclick="closeModal('add-midgame-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>
     </div>
@@ -1524,11 +1555,11 @@
         <div class="eyebrow" data-i18n="edit_status">تعديل حالة</div>
         <div id="edit-player-name" class="sheet__title tx-accent"></div>
         <div class="modal-actions">
-          <button onclick="submitStatusUpdate(1)" class="btn btn--ghost bg-green-50 dark:bg-green-900/20 text-green-600 border border-green-100 dark:border-green-900" data-i18n="safe">آمن</button>
-          <button onclick="submitStatusUpdate(2)" class="btn btn--ghost bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 border border-yellow-100 dark:border-yellow-900" data-i18n="quarter_monkey">1/4 قرد</button>
-          <button onclick="submitStatusUpdate(3)" class="btn btn--ghost bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 border border-yellow-200 dark:border-yellow-800" data-i18n="half_monkey">1/2 قرد</button>
-          <button onclick="submitStatusUpdate(4)" class="btn btn--ghost bg-orange-50 dark:bg-orange-900/20 text-orange-600 border border-orange-100 dark:border-orange-900" data-i18n="three_quarters_monkey">3/4 قرد</button>
-          <button onclick="submitStatusUpdate(5)" class="btn btn--ghost bg-red-50 dark:bg-red-900/20 text-red-600 border border-red-100 dark:border-red-900" data-i18n="monkey_loser">قرد (خاسر)</button>
+          <button onclick="submitStatusUpdate(1)" class="btn btn--success" data-i18n="safe">آمن</button>
+          <button onclick="submitStatusUpdate(2)" class="btn btn--neutral monkey-status monkey-status--1" data-i18n="quarter_monkey">1/4 قرد</button>
+          <button onclick="submitStatusUpdate(3)" class="btn btn--neutral monkey-status monkey-status--2" data-i18n="half_monkey">1/2 قرد</button>
+          <button onclick="submitStatusUpdate(4)" class="btn btn--neutral monkey-status monkey-status--3" data-i18n="three_quarters_monkey">3/4 قرد</button>
+          <button onclick="submitStatusUpdate(5)" class="btn btn--danger-soft" data-i18n="monkey_loser">قرد (خاسر)</button>
         </div>
         <div class="modal-actions">
           <button onclick="closeModal('edit-status-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
@@ -1563,11 +1594,11 @@
 
     <div id="domino-input-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
-        <div class="sheet__title">إدخال نقاط يدوية</div>
-        <input type="number" id="manual-domino-points" placeholder="عدد النقاط" inputmode="numeric" class="field-big">
+        <div class="sheet__title" data-i18n="manual_points_title">إدخال نقاط يدوية</div>
+        <input type="number" id="manual-domino-points" placeholder="عدد النقاط" data-i18n-ph="points_ph" inputmode="numeric" class="field-big">
         <div class="modal-actions">
-          <button onclick="submitDominoManual()" class="btn btn--primary btn--lg">إضافة</button>
-          <button onclick="closeModal('domino-input-modal')" class="btn btn--ghost">إلغاء</button>
+          <button onclick="submitDominoManual()" class="btn btn--primary btn--lg" data-i18n="add">إضافة</button>
+          <button onclick="closeModal('domino-input-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>
     </div>
@@ -1596,7 +1627,7 @@
         <div class="sheet__title" id="soundboard-title">لوحة الأصوات</div>
         <div class="fx-grid" id="soundboard-grid"></div>
         <div class="modal-actions">
-          <button onclick="closeModal('soundboard-modal')" class="btn btn--ghost">إغلاق</button>
+          <button onclick="closeModal('soundboard-modal')" class="btn btn--ghost" data-i18n="close">إغلاق</button>
         </div>
       </div>
     </div>
@@ -1626,24 +1657,24 @@
 
     <div id="chess-config-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
-        <div class="sheet__title">⏱️ ضبط وقت الشطرنج</div>
-        <label class="field__label" for="chess-config-input">الوقت لكل لاعب (بالدقائق)</label>
+        <div class="sheet__title"><span aria-hidden="true">⏱️ </span><span data-i18n="chess_config_title">ضبط وقت الشطرنج</span></div>
+        <label class="field__label" for="chess-config-input" data-i18n="chess_config_label">الوقت لكل لاعب (بالدقائق)</label>
         <input type="number" id="chess-config-input" value="5" inputmode="numeric" class="field-big">
         <div class="modal-actions">
-          <button onclick="submitChessConfig()" class="btn btn--primary btn--lg">حفظ وبدء اللعب</button>
-          <button onclick="closeModal('chess-config-modal')" class="btn btn--ghost">إلغاء</button>
+          <button onclick="submitChessConfig()" class="btn btn--primary btn--lg" data-i18n="chess_config_save">حفظ وبدء اللعب</button>
+          <button onclick="closeModal('chess-config-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>
     </div>
 
     <div id="domino-mode-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
-        <div class="sheet__title">اختر نظام اللعب 🀄</div>
-        <p class="sheet__subtitle">لقد اخترت 4 لاعبين. كيف تريد اللعب؟</p>
+        <div class="sheet__title"><span data-i18n="domino_mode_title">اختر نظام اللعب</span> <span aria-hidden="true">🀄</span></div>
+        <p class="sheet__subtitle" data-i18n="domino_mode_sub">لقد اخترت 4 لاعبين. كيف تريد اللعب؟</p>
         <div class="modal-actions">
-          <button onclick="setDominoMode('single')" class="btn btn--primary">فردي (كل واحد لوحده)</button>
-          <button onclick="setDominoMode('teams')" class="btn btn--primary">فرق (2 ضد 2) 👥</button>
-          <button onclick="closeModal('domino-mode-modal')" class="btn btn--ghost">إلغاء</button>
+          <button onclick="setDominoMode('single')" class="btn btn--primary" data-i18n="domino_mode_single">فردي (كل واحد لوحده)</button>
+          <button onclick="setDominoMode('teams')" class="btn btn--primary"><span data-i18n="domino_mode_teams">فرق (2 ضد 2)</span> <span aria-hidden="true">👥</span></button>
+          <button onclick="closeModal('domino-mode-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>
     </div>
@@ -1722,7 +1753,15 @@
           </div>
           
           <div id="justone-player-list" class="mb-6"></div>
-          <button onclick="startJustOneGame()" class="btn btn--primary bg-pink-600" data-i18n="start">ابدأ اللعبة</button>
+          <div class="field">
+            <label class="field__label" data-i18n="jo_rounds_label">عدد الجولات</label>
+            <div class="segmented" id="justone-rounds" role="group">
+              <button type="button" class="segmented__item" data-value="5" onclick="setJustOneRounds(5)">5</button>
+              <button type="button" class="segmented__item is-active" data-value="10" onclick="setJustOneRounds(10)">10</button>
+              <button type="button" class="segmented__item" data-value="13" onclick="setJustOneRounds(13)">13</button>
+            </div>
+          </div>
+          <button onclick="startJustOneGame()" class="btn btn--primary" data-i18n="start">ابدأ اللعبة</button>
            </div>
          </div>
       </div>
@@ -1746,14 +1785,14 @@
         <input type="text" id="jo-clue-input" data-i18n-ph="clue_placeholder" placeholder="التلميح..." class="text-center mb-4">
         
         <button onclick="joSubmitClue()" class="btn btn--primary bg-pink-600" data-i18n="confirm_clue_btn">تأكيد التلميح ✅</button>
-        <p class="text-xs text-red-400 mt-2 font-bold" data-i18n="forbidden_rule">⚠️ ممنوع: كتابة نفس الكلمة السرية أو ترجمتها!</p>
+        <p class="field__hint tx-danger" data-i18n="forbidden_rule">⚠️ ممنوع: كتابة نفس الكلمة السرية أو ترجمتها!</p>
     </div>
 
     <div id="jo-phase-guess" class="hidden card text-center py-8">
         <h2 class="card__title card__title--neutral" data-i18n="guesser_turn_title">دور المخمن</h2>
         <h2 id="jo-guesser-name" class="text-3xl font-black text-pink-600 mb-6">---</h2>
         
-        <div class="text-left bg-slate-50 dark:bg-slate-800 p-4 rounded-xl mb-6">
+        <div class="text-start bg-slate-50 dark:bg-slate-800 p-4 rounded-xl mb-6">
             <div class="eyebrow" data-i18n="available_clues_label">التلميحات المتاحة</div>
             <div id="jo-clues-list" class="flex flex-wrap gap-2 justify-center"></div>
             <div id="jo-collisions-note" class="text-xs text-red-400 font-bold mt-4 text-center hidden" data-i18n="clues_removed_msg">🚫 تم حذف تلميحات متشابهة!</div>
@@ -2176,10 +2215,10 @@
 
             <div id="desc-ui-result" class="hidden flex-col justify-center text-center">
                 <div class="text-6xl mb-4">🏁</div>
-                <h2 class="card__title card__title--neutral">انتهى الوقت!</h2>
+                <h2 class="card__title card__title--neutral" data-i18n="timeout_title">انتهى الوقت!</h2>
                 
                 <div class="card py-10 border-indigo-500 border-2">
-                    <div class="eyebrow">الكلمات الصحيحة</div>
+                    <div class="eyebrow" data-i18n="correct_words">الكلمات الصحيحة</div>
                     <div id="desc-final-score" class="text-7xl font-black text-green-600 dark:text-green-400">0</div>
                 </div>
 
@@ -2236,26 +2275,32 @@
 
     <div id="view-setup-tourney" class="hidden">
         <div class="card">
-            <p class="field__hint" data-i18n="tourney_hint">أدخل 4 أو 8 أسماء</p>
-            
-            <div id="tourney-inputs" class="space-y-2 mb-4">
-                <input type="text" class="tourney-player-input" placeholder="1">
-                <input type="text" class="tourney-player-input" placeholder="2">
-                <input type="text" class="tourney-player-input" placeholder="3">
-                <input type="text" class="tourney-player-input" placeholder="4">
+            <p class="field__hint" data-i18n="tourney_hint">من 3 لـ 16 لاعب. اللي مالوش خصم يعدّي على طول.</p>
+
+            <div class="group-picker">
+    <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختر مجموعة محفوظة">
+        <option value="">-- اختر مجموعة --</option>
+    </select>
+    <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+</div>
+
+            <label class="field__label" data-i18n="players">اللاعبين</label>
+            <div class="input-group" style="margin-bottom: var(--sp-4)">
+              <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+              <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
             </div>
-            
-            <button onclick="addTourneyInput()" class="btn btn--ghost mb-4 btn--sm" data-i18n="add_more">+ المزيد</button>
+
+            <div id="tourney-player-list" class="mb-6"></div>
             <button onclick="startTournament()" class="btn btn--primary" data-i18n="start">ابدأ البطولة</button>
         </div>
     </div>
 
     <div id="view-play-tourney" class="hidden">
         <div class="flex justify-between items-center mb-4">
-            <h2 class="card__title">البطولة 🏆</h2>
+            <h2 class="card__title"><span data-i18n="setup_tourney">منظم البطولات</span> <span aria-hidden="true">🏆</span></h2>
             <button onclick="setView('setup-tourney')" class="btn btn--ghost btn--sm btn--auto" data-i18n="exit">خروج</button>
         </div>
-        <div id="tourney-bracket" class="overflow-y-auto max-h-[80vh] pb-10"></div>
+        <div id="tourney-bracket"></div>
     </div>
 
     <div id="view-setup-charades" class="hidden">
@@ -2317,7 +2362,7 @@
                 <div onclick="nextCharadesCard('correct')" class="play-stage__card card flex-grow flex flex-col justify-center items-center text-center border-4 border-purple-500 shadow-2xl cursor-pointer active:scale-95 transition-transform bg-purple-50 dark:bg-slate-800">
                     <div class="eyebrow" data-i18n="act_it_out">مثل الكلمة</div>
                     <h2 id="charades-word" class="text-5xl font-black text-purple-700 dark:text-purple-300 leading-tight">---</h2>
-                    <p class="field__hint">(Tap screen for Correct)</p>
+                    <p class="field__hint" data-i18n="tap_card_correct">اضغط على الكارت لو خمّنوها صح</p>
                 </div>
 
                 <div class="play-stage__actions grid grid-cols-2 gap-4 mt-4">
@@ -2328,10 +2373,10 @@
 
             <div id="charades-ui-result" class="hidden flex-col justify-center text-center">
                 <div class="text-6xl mb-4">🎭</div>
-                <h2 class="card__title card__title--neutral">انتهى الوقت!</h2>
+                <h2 class="card__title card__title--neutral" data-i18n="timeout_title">انتهى الوقت!</h2>
                 
                 <div class="card py-10 border-purple-500 border-2">
-                    <div class="eyebrow">الكلمات الصحيحة</div>
+                    <div class="eyebrow" data-i18n="correct_words">الكلمات الصحيحة</div>
                     <div id="charades-final-score" class="text-7xl font-black text-green-600 dark:text-green-400">0</div>
                 </div>
 
@@ -2348,8 +2393,8 @@
         <div class="card text-center">
             
             <div class="segmented" style="margin-bottom: var(--sp-6)">
-                <button id="btn-mode-comp" onclick="setGuessMode('computer')" class="segmented__item is-active">🤖 الكمبيوتر</button>
-                <button id="btn-mode-human" onclick="setGuessMode('human')" class="segmented__item">👤 صديق</button>
+                <button id="btn-mode-comp" onclick="setGuessMode('computer')" class="segmented__item is-active"><span aria-hidden="true">🤖 </span><span data-i18n="guess_mode_computer">الكمبيوتر</span></button>
+                <button id="btn-mode-human" onclick="setGuessMode('human')" class="segmented__item"><span aria-hidden="true">👤 </span><span data-i18n="guess_mode_friend">صديق</span></button>
             </div>
 
             <div id="setup-comp-ui">
@@ -2407,30 +2452,34 @@
            </div>
 
            <div class="mode-device-panel">
+            <div class="field">
+              <label class="field__label" data-i18n="players">اللاعبين</label>
+              <p class="field__hint" data-i18n="whoami_players_hint">اختاروا اللاعبين، وعددهم بيتحط لوحده.</p>
+              <div class="input-group" style="margin-bottom: var(--sp-3)">
+                <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+                <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+              </div>
+              <div id="whoami-player-list"></div>
+            </div>
             <label class="field__label" data-i18n="category">المجموعة</label>
             <select id="whoami-cat-select" onchange="handleWhoAmICatChange()" style="margin-bottom: var(--sp-4)"></select>
 
             <div id="whoami-manual-options" class="hidden mb-6 bg-slate-100 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                <label class="flex items-center justify-between cursor-pointer">
-                    <span id="whoami-shuffle-label" class="font-bold text-slate-700 dark:text-white">🔀 خلط الأدوار (Shuffle)</span>
-                    <div class="relative">
-                        <input type="checkbox" id="whoami-shuffle-check" class="sr-only" checked>
-                        <div class="w-10 h-6 bg-slate-300 rounded-full shadow-inner transition-colors"></div>
-                        <div class="dot absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transition-transform"></div>
-                    </div>
+                <label class="switch-row" for="whoami-shuffle-check">
+                    <span id="whoami-shuffle-label" class="field__label">🔀 خلط الأدوار</span>
+                    <span class="switch">
+                        <input type="checkbox" id="whoami-shuffle-check" role="switch" checked>
+                        <span class="switch__track" aria-hidden="true"></span>
+                    </span>
                 </label>
                 <p id="whoami-shuffle-desc" class="field__hint">
                     ✅ <b>مفعل:</b> يتم توزيع الكلمات عشوائياً.<br>
                     ⬜ <b>غير مفعل:</b> تحتفظ بكلمتك (يبدأ الوقت فوراً).
                 </p>
-                <style>
-                    #whoami-shuffle-check:checked ~ .w-10 { background-color: #0d9488; }
-                    #whoami-shuffle-check:checked ~ .dot { transform: translateX(100%); }
-                </style>
             </div>
 
             <div id="whoami-mix-options" class="hidden mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600">
-                <p class="text-xs font-bold tx-muted mb-3 text-center">👇 اختر الأقسام المطلوبة 👇</p>
+                <p class="text-xs font-bold tx-muted mb-3 text-center" data-i18n="whoami_mix_pick">اختر الأقسام المطلوبة</p>
                 <div id="whoami-mix-list" class="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
                     </div>
             </div>
@@ -2482,7 +2531,7 @@
             
             <input type="text" id="manual-whoami-input" class="text-center mb-4">
             
-            <button onclick="submitManualWhoAmI()" class="btn btn--primary btn--lg">تأكيد ✅</button>
+            <button onclick="submitManualWhoAmI()" class="btn btn--primary btn--lg" data-i18n="confirm">تأكيد</button>
         </div>
     </div>
 
@@ -2525,11 +2574,11 @@
                     <button onclick="finishWhoAmIGame()" class="btn btn--primary" data-i18n="reveal_words">كشف الكلمات 🔓</button>
                 </div>
                 
-                <p class="field__hint">اسأل أسئلة "نعم" أو "لا" لتعرف من أنت!</p>
+                <p class="field__hint" data-i18n="whoami_ask_hint">اسأل أسئلة إجابتها «أيوه» أو «لأ» عشان تعرف انت مين!</p>
             </div>
 
             <div id="whoami-result-ui" class="hidden flex-col">
-                <h3 class="card__title">ترتيب الهويات</h3>
+                <h3 class="card__title" data-i18n="whoami_order_title">ترتيب الهويات</h3>
                 <div id="whoami-final-list" class="flex-grow overflow-y-auto space-y-2 mb-6 px-2"></div>
                 
                 <div class="space-y-3 mt-auto pb-4">
@@ -2605,15 +2654,15 @@
       <!-- Four tabs: the games, playing together (the rooms), the tools, and help.
            syncChrome lights the one the current screen belongs under. -->
       <nav class="shell__nav">
-          <button id="nav-home" class="nav-item is-active" onclick="setView('menu')">
+          <button id="nav-home" class="nav-item is-active" onclick="navTo('menu')">
               <span class="nav-icon" aria-hidden="true">🏠</span>
               <span class="nav-label" data-i18n="nav_home">الرئيسية</span>
           </button>
-          <button id="nav-together" class="nav-item" onclick="goTogether()">
+          <button id="nav-together" class="nav-item" onclick="navTo('together')">
               <span class="nav-icon" aria-hidden="true">📲</span>
               <span class="nav-label" data-i18n="nav_together">مع بعض</span>
           </button>
-          <button id="nav-tools" class="nav-item" onclick="setView('tools')">
+          <button id="nav-tools" class="nav-item" onclick="navTo('tools')">
               <span class="nav-icon" aria-hidden="true">🛠️</span>
               <span class="nav-label" data-i18n="nav_tools">الأدوات</span>
           </button>
@@ -2669,8 +2718,9 @@
         </div>
         <div id="solo-result-detail"></div>
         <div class="modal-actions">
-          <button id="solo-result-again" onclick="soloResultAgain()" class="btn btn--primary btn--lg">العب مرة أخرى</button>
+          <button id="solo-result-again" onclick="soloResultAgain()" class="btn btn--primary btn--lg" data-i18n="play_again">العب مرة أخرى</button>
           <button id="solo-result-share" onclick="soloResultShare()" class="btn btn--secondary hidden" data-i18n="solo_share">شارك النتيجة</button>
+          <button id="solo-result-look" onclick="soloResultLook()" class="btn btn--neutral hidden" data-i18n="solo_look">شوف اللوحة</button>
           <button onclick="soloResultExit()" class="btn btn--ghost" data-i18n="exit">خروج</button>
         </div>
       </div>

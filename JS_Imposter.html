@@ -186,15 +186,24 @@
   }
 
   function startImposterTimer() {
-      stopImposterTimer();
       isPaused = false;
       appState.imposter.timer = 0;
       updateImposterTimerUI();
-      // Counts up: this is the discussion timer, it has no fixed length.
+      runImposterClock(0);
+  }
+
+  /**
+   * Counts up from `from` seconds: this is the discussion timer, it has no
+   * fixed length. A reload comes back paused with the time it showed and no
+   * clock (restoreView), so Resume starts one from there.
+   */
+  function runImposterClock(from) {
+      stopImposterTimer();
+      const base = Math.max(0, Math.floor(Number(from) || 0));
       imposterInterval = createClock({
           countUp: true,
           onTick: (elapsed) => {
-              appState.imposter.timer = elapsed;
+              appState.imposter.timer = base + elapsed;
               updateImposterTimerUI();
           }
       });
@@ -207,20 +216,30 @@
 
   function toggleImposterTimer() {
       playSound('click');
-      isPaused = imposterInterval ? imposterInterval.toggle() : !isPaused;
+      if (imposterInterval) {
+          isPaused = imposterInterval.toggle();
+      } else if (isPaused) {
+          // Resume after a reload: Resume used to flip the label and leave the clock at 00:00.
+          isPaused = false;
+          runImposterClock(appState.imposter.timer);
+          saveToLocal();
+      } else {
+          isPaused = true;
+      }
       updateImposterTimerUI();
   }
 
   function updateImposterTimerUI() {
       const display = document.getElementById('imposter-timer-display');
       const btn = document.getElementById('imp-pause-btn');
+      const t = TRANSLATIONS[appState.lang] || {};
       const mins = Math.floor(appState.imposter.timer / 60).toString().padStart(2, '0');
       const secs = (appState.imposter.timer % 60).toString().padStart(2, '0');
-      display.innerText = `${mins}:${secs}`;
-      if(isPaused) {
-          btn.innerText = appState.lang === 'ar' ? "استئناف" : "Resume";
-      } else {
-          btn.innerText = TRANSLATIONS[appState.lang].pause_btn;
+      if (display) display.innerText = `${mins}:${secs}`;
+      if (btn) {
+          // The key moves with the label, so a language change keeps the right word.
+          btn.setAttribute('data-i18n', isPaused ? 'resume_btn' : 'pause_btn');
+          btn.innerText = isPaused ? (t.resume_btn || '') : (t.pause_btn || '');
       }
   }
 

@@ -10,6 +10,13 @@
    The relay lives in the game's own slice of appState (`store.relay`), so
    the tally survives a trip to the menu. A round in progress does not (it
    never did): a reload lands on the setup screen.
+
+   A match left unfinished is neither carried on nor thrown away without a
+   word: the setup screen shows it with a "continue" button (paintRelaySetup
+   with a resume function), and Start in team mode asks before starting a new
+   one (relayBegin), which takes the names and turns the setup shows now. A
+   single-player round leaves the match alone: the relay only drives a round
+   while team mode is on (relayPlaying).
    ========================================================================= */
 
 function relayStart(store, names, turns) {
@@ -19,6 +26,16 @@ function relayStart(store, names, turns) {
 
 const relayActive = (store) => !!(store && store.relay && store.relay.phase !== 'done');
 const relayTeam = (store) => store.relay.i % 2;
+/** A match with a turn played and turns still to play. */
+const relayInProgress = (store) => relayActive(store) && store.relay.i > 0;
+/** The relay drives this round: team mode is on and its match isn't over. */
+const relayPlaying = (store) => relayOptsOf(store).mode === 'teams' && relayActive(store);
+
+/** Team mode's Start: `fresh` at once, or after asking when a match is still going. */
+function relayBegin(store, t, fresh) {
+  if (!relayInProgress(store)) { fresh(); return; }
+  showConfirmModal((t || {}).relay_new_confirm || 'فيه مباراة لسه ما خلصتش. تبدأ مباراة جديدة بالأسماء دي وتسيبها؟', fresh);
+}
 
 /** The card between turns: whose turn, hand the phone over, the score so far. */
 function relayHandoverHtml(store, t, startFn) {
@@ -110,8 +127,12 @@ function relayNames(store, t) {
   return [o.names[0] || t.tb_team_a || 'A', o.names[1] || t.tb_team_b || 'B'];
 }
 
-/** Paints the mode switch, the team fields and the turns picker for a game prefix. */
-function paintRelaySetup(prefix, store) {
+/**
+ * Paints the mode switch, the team fields and the turns picker for a game
+ * prefix; with `resumeFn`, also the unfinished match and its "continue"
+ * button, at the end of the team options.
+ */
+function paintRelaySetup(prefix, store, resumeFn) {
   const o = relayOptsOf(store);
   document.querySelectorAll(`#${prefix}-mode .segmented__item`).forEach(b => b.classList.toggle('is-active', b.dataset.value === o.mode));
   const box = document.getElementById(`${prefix}-team-opts`);
@@ -120,6 +141,31 @@ function paintRelaySetup(prefix, store) {
   if (a && document.activeElement !== a) a.value = o.names[0] || '';
   if (b && document.activeElement !== b) b.value = o.names[1] || '';
   document.querySelectorAll(`#${prefix}-turns .segmented__item`).forEach(el => el.classList.toggle('is-active', Number(el.dataset.value) === o.turns));
+  if (resumeFn && box) paintRelayResume(prefix, store, resumeFn, box);
+}
+
+function paintRelayResume(prefix, store, resumeFn, box) {
+  let resume = document.getElementById(`${prefix}-relay-resume`);
+  if (!resume) {
+    resume = document.createElement('div');
+    resume.id = `${prefix}-relay-resume`;
+    resume.className = 'field';
+    box.appendChild(resume);
+  }
+  if (!relayInProgress(store)) {
+    resume.classList.add('hidden');
+    resume.innerHTML = '';
+    return;
+  }
+  const t = TRANSLATIONS[appState.lang] || {};
+  const r = store.relay;
+  resume.classList.remove('hidden');
+  resume.innerHTML = `
+    <label class="field__label">⏸️ ${escapeHTML(t.relay_unfinished || 'مباراة لسه ما خلصتش')} · ${Math.floor(r.i / 2) + 1} / ${r.turns}</label>
+    <div class="relay">
+      ${relayScoresHtml(store, relayTeam(store))}
+      <button type="button" class="btn btn--secondary" onclick="${resumeFn}">▶ ${escapeHTML(t.solo_continue || '')}</button>
+    </div>`;
 }
 
 function setRelayMode(prefix, store, mode) {

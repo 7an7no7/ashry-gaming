@@ -242,12 +242,23 @@ function syncFxButton(viewId) {
   document.body.classList.toggle('has-fx', on);
 }
 
-/* Every burst of confetti in the app brings a fanfare with it. */
+/* Every burst of confetti in the app brings a fanfare with it. The confetti is
+   drawn by a script, so the stylesheet's reduced-motion rules can't still it:
+   with motion off (Settings → الحركة, or the device) only the fanfare plays.
+   It is drawn above everything, full-screen tools (على راسك, the chess clock)
+   included, which otherwise hid it. */
 (function () {
   const wrap = () => {
     if (typeof window.confetti !== 'function' || window.confetti.__fx) return false;
     const real = window.confetti;
-    const wrapped = function () { playFx('tada'); return real.apply(this, arguments); };
+    const wrapped = function (opts) {
+      playFx('tada');
+      if (typeof reducedMotion === 'function' && reducedMotion()) return Promise.resolve();
+      const args = Array.prototype.slice.call(arguments);
+      if (!opts || typeof opts !== 'object') args[0] = {};
+      if (args[0].zIndex == null) args[0] = Object.assign({}, args[0], { zIndex: 100050 });
+      return real.apply(this, args);
+    };
     wrapped.__fx = true;
     window.confetti = wrapped;
     return true;

@@ -8,6 +8,13 @@
    Doctor protects, the Detective checks, everyone else marks a suspect. The
    morning says who left, then the discussion clock, then the vote. Rules and
    everything a phone must not know: mafiaAction in RoomGames.js.
+
+   At night a phone glanced at across the table gives nothing away: every
+   living phone shows the same heading, the same list (everyone still in) and
+   the same buttons. What the role knows - its task, the Mafia's picks, the
+   Lawyer's list, the Detective's answers, the Doctor's last save - is only on
+   the back of the hold card. A tap the rules refuse for that role (the Mafia
+   on one of their own, a second check) simply does nothing, with no message.
    ========================================================================= */
 
 const MAFIA_OPTS_KEY = 'ashryMafiaOpts';
@@ -72,6 +79,7 @@ function mafiaStopClock() {
   mafiaLocal.clock = null;
   mafiaLocal.clockKey = null;
 }
+onRoomClocksReset(mafiaStopClock);
 
 /** The vote's "nobody" option, said in this phone's language. */
 function mafiaVoteState(state) {
@@ -93,7 +101,7 @@ function mafiaNewsHtml(state, t) {
   if (n.kind === 'saved') return `<div class="card mafia-news"><div class="metric metric--md">🩺</div><p class="sheet__subtitle">${escapeHTML(t.mafia_news_saved || '')}</p></div>`;
   if (n.kind === 'quiet') return `<div class="card mafia-news"><div class="metric metric--md">😴</div><p class="sheet__subtitle">${escapeHTML(t.mafia_news_quiet || '')}</p></div>`;
   if (n.kind === 'tie' || n.kind === 'nobody') return `<div class="card mafia-news"><div class="metric metric--md">🤝</div><p class="sheet__subtitle">${escapeHTML(n.kind === 'tie' ? (t.mafia_news_tie || '') : (t.mafia_news_nobody || ''))}</p></div>`;
-  const cover = spyRevealParts(['mafia', state.code, s.night, s.day, n.kind, n.id].join('|'), n.kind === 'voted' ? t.mafia_reveal_voted : t.mafia_reveal_night);
+  const cover = spyRevealParts(['mafia', state.code, s.dealId || '', s.night, s.day, n.kind, n.id].join('|'), n.kind === 'voted' ? t.mafia_reveal_voted : t.mafia_reveal_night);
   return `<div class="card mafia-news ${n.role === 'mafia' ? 'is-mafia' : ''} ${cover.cls}" ${cover.attrs}>${cover.cover}
       <div class="metric metric--md">${n.kind === 'voted' ? '🗳️' : '🌅'}</div>
       <p class="sheet__subtitle">${escapeHTML((n.kind === 'voted' ? (t.mafia_out_voted || '') : (t.mafia_out_night || '')).replace('{name}', n.name || ''))}</p>
@@ -114,14 +122,15 @@ function mafiaPeopleHtml(state, t) {
     </div>`;
 }
 
-/** The role on a card that shows only while pressed. */
+/**
+ * The role on a card that shows only while pressed. The back is also where
+ * the night's private information lives (mafiaSecretHtml); it is refreshed in
+ * place (refreshMafiaSecret), so a teammate changing their pick doesn't turn
+ * the card over under a finger.
+ */
 function mafiaRoleCardHtml(state, t) {
   const you = state.you || {};
   if (!you.role) return '';
-  const team = (you.mafia || []).filter(m => m.id !== Room.me).map(m => m.name);
-  const extra = you.role === 'mafia'
-    ? (team.length ? `${t.mafia_your_team || ''}: ${team.join('، ')}` : (t.mafia_alone || ''))
-    : you.role === 'lawyer' ? `${t.mafia_lawyer_knows || ''}: ${(you.mafia || []).map(m => m.name).join('، ')}` : '';
   return `
     <div class="hold-card mafia-hold" role="button" tabindex="0">
       <div class="hold-card__front">
@@ -129,49 +138,101 @@ function mafiaRoleCardHtml(state, t) {
         <span class="hold-card__label">${escapeHTML(t.hold_to_reveal || '')}</span>
         <span class="hold-card__hint">${escapeHTML(t.hold_hint || '')}</span>
       </div>
-      <div class="hold-card__back" aria-hidden="true">
-        <span class="mafia-role__icon" aria-hidden="true">${MAFIA_ICONS[you.role] || ''}</span>
-        <b class="mafia-role__name">${escapeHTML(t['mafia_role_' + you.role] || '')}</b>
-        <span class="mafia-role__desc">${escapeHTML(t['mafia_desc_' + you.role] || '')}</span>
-        ${extra ? `<span class="mafia-role__extra">${escapeHTML(extra)}</span>` : ''}
-      </div>
+      <div class="hold-card__back" aria-hidden="true" data-mafia-back>${mafiaSecretHtml(state, t)}</div>
     </div>`;
 }
 
+const mafiaNameOf = (state, id) => (state.players.find(p => p.id === id) || {}).name || '…';
+
+/** What only this role knows, for the back of the hold card. At night: its task and its night's information. */
+function mafiaSecretHtml(state, t) {
+  const s = state.shared || {};
+  const you = state.you || {};
+  const role = you.role;
+  if (!role) return '';
+  const night = s.phase === 'night' && (s.alive || []).indexOf(Room.me) !== -1;
+  const names = (list) => list.map(escapeHTML).join('، ');
+  const team = (you.mafia || []).filter(m => m.id !== Room.me).map(m => m.name);
+  const lines = [];
+  if (role === 'mafia') lines.push(team.length ? `${escapeHTML(t.mafia_your_team || '')}: ${names(team)}` : escapeHTML(t.mafia_alone || ''));
+  if (role === 'lawyer') lines.push(`💼 ${escapeHTML(t.mafia_lawyer_knows || '')}: ${names((you.mafia || []).map(m => m.name))}`);
+  if (night && role === 'mafia') {
+    const picks = (you.picks || []).filter(p => p.byId !== Room.me);
+    if (picks.length) lines.push(picks.map(p => `${escapeHTML(p.by)} ← ${escapeHTML(p.name)}`).join(' · '));
+  }
+  if (night && role === 'doctor' && you.lastSave) {
+    const fallback = appState.lang === 'en' ? 'Not {name} again tonight' : 'مش {name} تاني الليلة دي';
+    lines.push(`🚫 ${escapeHTML((t.mafia_last_save || fallback).replace('{name}', mafiaNameOf(state, you.lastSave)))}`);
+  }
+  if (role === 'detective' && (you.checks || []).length) {
+    // Tonight's answer first and in words; the nights before as a short list.
+    const tonight = night && you.pick ? (you.checks || []).filter(c => c.id === you.pick).slice(-1)[0] : null;
+    if (tonight) lines.push(`${tonight.mafia ? '🕴️' : '✅'} ${escapeHTML((tonight.mafia ? (t.mafia_check_yes || '') : (t.mafia_check_no || '')).replace('{name}', tonight.name))}`);
+    const before = (you.checks || []).filter(c => c !== tonight);
+    if (before.length) lines.push(before.map(c => `${c.mafia ? '🕴️' : '✅'} ${escapeHTML(c.name)}`).join(' · '));
+  }
+  const task = { mafia: t.mafia_task_mafia, doctor: t.mafia_task_doctor, detective: t.mafia_task_detective }[role] || t.mafia_task_suspect;
+  const text = night ? (task || '') : (t['mafia_desc_' + role] || '');
+  return `
+    <span class="mafia-role__icon" aria-hidden="true">${MAFIA_ICONS[role] || ''}</span>
+    <b class="mafia-role__name">${escapeHTML(t['mafia_role_' + role] || '')}</b>
+    <span class="mafia-role__desc">${escapeHTML(text)}</span>
+    ${lines.map(l => `<span class="mafia-role__extra">${l}</span>`).join('')}`;
+}
+
+/** Puts the latest private information on the card without rebuilding the screen. */
+function refreshMafiaSecret(root, state, t) {
+  const back = root && root.querySelector('[data-mafia-back]');
+  if (!back) return;
+  const html = mafiaSecretHtml(state, t);
+  if (back._mafiaHtml !== html) { back.innerHTML = html; back._mafiaHtml = html; }
+}
+
+/**
+ * The night on a living phone. The same on every one of them: the heading,
+ * everyone still in the game (yourself last), the same buttons.
+ */
 function mafiaNightHtml(state, t) {
   const s = state.shared;
   const you = state.you || {};
   const alive = (s.alive || []).indexOf(Room.me) !== -1;
-  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
   if (!alive || !you.role) {
     return `<div class="card mafia-night" style="text-align:center"><div class="metric metric--lg">🌙</div><p class="sheet__subtitle">${escapeHTML(t.mafia_city_sleeps || '')}</p></div>`;
   }
-  const role = you.role;
-  const mafiaIds = (you.mafia || []).map(m => m.id);
-  let task = t.mafia_task_suspect || '';
-  let targets = (s.alive || []).filter(id => id !== Room.me);
-  if (role === 'mafia') { task = t.mafia_task_mafia || ''; targets = (s.alive || []).filter(id => mafiaIds.indexOf(id) === -1); }
-  if (role === 'doctor') { task = t.mafia_task_doctor || ''; targets = (s.alive || []).slice(); }
-  if (role === 'detective') task = t.mafia_task_detective || '';
-  const locked = role === 'detective' && you.pick;
-  const lastCheck = role === 'detective' && you.pick ? (you.checks || []).filter(c => c.id === you.pick).slice(-1)[0] : null;
+  const targets = (s.alive || []).filter(id => id !== Room.me).concat([Room.me]);
+  const heading = t.mafia_night_pick || (appState.lang === 'en' ? 'Tap a name. What it does is on your card.' : 'اختار اسم. اللي بيعمله اختيارك مكتوب في كارتك.');
+  const picked = t.mafia_night_picked || (appState.lang === 'en' ? 'Your pick is in.' : 'اختيارك اتسجل.');
   return `
     <div class="card mafia-night">
-      <div class="mafia-night__task">${MAFIA_ICONS[role]} ${escapeHTML(task)}</div>
-      ${role === 'mafia' && (you.picks || []).length ? `<p class="field__hint">${you.picks.map(p => `${escapeHTML(p.by)} ← ${escapeHTML(p.name)}`).join(' · ')}</p>` : ''}
-      ${role === 'lawyer' ? `<p class="field__hint">💼 ${escapeHTML(t.mafia_lawyer_knows || '')}: ${(you.mafia || []).map(m => escapeHTML(m.name)).join('، ')}</p>` : ''}
+      <div class="mafia-night__task">🌙 ${escapeHTML(heading)}</div>
       <div class="mafia-targets">
-        ${targets.map(id => {
-          const blocked = role === 'doctor' && id === you.lastSave;
-          const on = you.pick === id;
-          return `<button type="button" class="mafia-target${on ? ' is-on' : ''}" ${blocked || locked ? 'disabled' : ''} onclick="roomAct('nightPick', { target: '${jsStringAttr(id)}' })">
-            ${escapeHTML(nameOf(id))}${id === Room.me ? ` <span class="badge">${escapeHTML(t.vote_you || '')}</span>` : ''}${blocked ? ' 🚫' : ''}</button>`;
-        }).join('')}
+        ${targets.map(id => `<button type="button" class="mafia-target${you.pick === id ? ' is-on' : ''}" onclick="mafiaNightTap('${jsStringAttr(id)}')">
+            ${escapeHTML(mafiaNameOf(state, id))}${id === Room.me ? ` <span class="badge">${escapeHTML(t.vote_you || '')}</span>` : ''}</button>`).join('')}
       </div>
-      ${lastCheck ? `<div class="mafia-check ${lastCheck.mafia ? 'is-mafia' : ''}">${lastCheck.mafia ? '🕴️' : '✅'} ${escapeHTML((lastCheck.mafia ? (t.mafia_check_yes || '') : (t.mafia_check_no || '')).replace('{name}', lastCheck.name))}</div>` : ''}
-      ${role === 'detective' && (you.checks || []).length > (lastCheck ? 1 : 0) ? `<p class="field__hint">${(you.checks || []).filter(c => c !== lastCheck).map(c => `${c.mafia ? '🕴️' : '✅'} ${escapeHTML(c.name)}`).join(' · ')}</p>` : ''}
-      ${you.pick && !locked ? `<p class="field__hint">✓ ${escapeHTML(t.mafia_picked_change || '')}</p>` : ''}
+      <p class="field__hint" style="text-align:center">${you.pick ? '✓ ' + escapeHTML(picked) : '&nbsp;'}</p>
     </div>`;
+}
+
+/**
+ * A night tap. What the rules refuse for this role (the Mafia on one of their
+ * own, the Detective's second check or themselves, the Doctor's last save) is
+ * dropped here without a word: an error on screen would say the role out loud.
+ */
+function mafiaNightTap(id) {
+  const st = Room.state;
+  const s = st && st.game === 'mafia' && st.shared;
+  if (!s || s.phase !== 'night') return;
+  const you = st.you || {};
+  const mafiaIds = (you.mafia || []).map(m => m.id);
+  if (you.role === 'mafia' && (id === Room.me || mafiaIds.indexOf(id) !== -1)) return;
+  if (you.role === 'detective' && (id === Room.me || you.pick)) return;
+  if (you.role === 'doctor' && id === you.lastSave) return;
+  if (you.pick === id) return;
+  // A failure says only that it failed: the server's reason can name the role.
+  Room.act('nightPick', { target: id }).catch(() => {
+    const t = TRANSLATIONS[appState.lang] || {};
+    showToast(t.room_action_failed || (appState.lang === 'en' ? "That didn't go through, try again" : 'ماوصلش، جرّب تاني'), 'error');
+  });
 }
 
 ROOM_GAMES.mafia = {
@@ -225,8 +286,11 @@ ROOM_GAMES.mafia = {
     const inGame = (s.roster || []).indexOf(Room.me) !== -1;
     const alive = (s.alive || []).indexOf(Room.me) !== -1;
     const v = s.vote || {};
-    const sig = ['mafia', s.phase, s.night, s.day, (s.acted || []).length, you.pick, JSON.stringify(you.picks || []), (you.checks || []).length,
-                 (v.voted || []).length, v.phase, (s.alive || []).length, state.youAreHost, appState.lang].join('|');
+    // Nothing private and nothing about who has acted is in the signature: a
+    // rebuild turns the hold card back over, and a rebuild when a teammate
+    // picks would be a tell. Those are refreshed in place below.
+    const sig = ['mafia', s.dealId || '', s.phase, s.night, s.day, you.role || '', you.pick, (v.voted || []).length, v.phase,
+                 (s.alive || []).length, state.youAreHost, appState.lang].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => {
       const head = `
         <div class="play-head">
@@ -251,7 +315,7 @@ ROOM_GAMES.mafia = {
       if (s.phase === 'night') {
         return head + `
           <div class="card mafia-sky" style="text-align:center"><div class="eyebrow">🌙 ${escapeHTML((t.mafia_night_n || '').replace('{n}', s.night))}</div>
-            <p class="field__hint">${escapeHTML(t.mafia_night_everyone || '')} · <span class="metric">${(s.acted || []).length}/${(s.alive || []).length}</span></p></div>
+            <p class="field__hint">${escapeHTML(t.mafia_night_everyone || '')} · <span class="metric" data-mafia-acted>${(s.acted || []).length}/${(s.alive || []).length}</span></p></div>
           ${outNote}${mafiaNightHtml(state, t)}
           ${inGame && alive ? role : ''}
           ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('endNight')">${escapeHTML(t.mafia_end_night || '')}</button></div>` : ''}
@@ -310,6 +374,9 @@ ROOM_GAMES.mafia = {
     });
     if (rebuilt) mafiaSounds(state);
     refreshRoomPlayerStrip(el, state);
+    refreshMafiaSecret(el, state, t);
+    const acted = el.querySelector('[data-mafia-acted]');
+    if (acted) acted.textContent = `${(s.acted || []).length}/${(s.alive || []).length}`;
     if ((s.phase === 'night' || s.phase === 'day') && s.endsAt) mafiaTickClock(s); else mafiaStopClock();
     if (s.phase === 'gameover' && rebuilt && typeof confetti === 'function' && motionFirst('mafia-over:' + state.code + ':' + JSON.stringify(s.scores || {}))) {
       afterReveal(el, () => confetti({ particleCount: 120, spread: 80 }));
@@ -320,7 +387,7 @@ ROOM_GAMES.mafia = {
 /** A sound once per moment on this phone: nightfall, the morning's news. */
 function mafiaSounds(state) {
   const s = state.shared;
-  const key = ['mafia-sound', state.code, s.phase, s.night, s.day].join('|');
+  const key = ['mafia-sound', state.code, s.dealId || '', s.phase, s.night, s.day].join('|');
   if (!motionFirst(key)) return;
   if (s.phase === 'night') playSound('tick');
   if ((s.phase === 'day' || s.phase === 'dayResult') && s.news) playSound(s.news.kind === 'out' || s.news.kind === 'voted' ? 'alarm' : 'success');

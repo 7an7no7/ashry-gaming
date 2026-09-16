@@ -1868,6 +1868,20 @@ function setupConnections() {
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => { try { paintConnectLevel(); } catch (e) {} });
 }
+// The level line is text drawn here, so it is drawn again whenever the setup
+// screen is reached (the back arrow skips setupConnections) and when the
+// language changes; a board on screen redraws its buttons too.
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => { if (to === 'setup-connections') paintConnectLevel(); });
+}
+if (typeof onLanguageChange === 'function') {
+  onLanguageChange(view => {
+    if (view === 'setup-connections') paintConnectLevel();
+    if (view === 'play-connections' && connections.puzzle) {
+      renderConnections(connections.solved.length === connections.puzzle.groups.length || connections.mistakes >= CONNECT_MAX_MISTAKES);
+    }
+  });
+}
 
 function startConnections() {
   const lang = contentLang();
@@ -1881,6 +1895,7 @@ function startConnections() {
   connections.solved = [];
   connections.selected = [];
   connections.mistakes = 0;
+  connections.tried = [];
 
   // Group index travels with each word so a guess can be checked without
   // searching the puzzle every time.
@@ -1923,6 +1938,17 @@ function submitConnectGuess() {
     }
     return;
   }
+
+  // The same four already tried and wrong: say so, and it costs nothing.
+  const guessKey = connections.selected.slice().sort().join('|');
+  connections.tried = connections.tried || [];
+  if (connections.tried.indexOf(guessKey) !== -1) {
+    const tt = TRANSLATIONS[appState.lang] || {};
+    showToast(tt.conn_already_tried || 'جرّبت الأربعة دول قبل كده', 'info');
+    haptic('light');
+    return;
+  }
+  connections.tried.push(guessKey);
 
   // "One away" is the feedback that makes the game feel fair.
   const counts = {};

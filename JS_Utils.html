@@ -385,8 +385,20 @@ function addPlayerFromSetup(btn) {
       };
       // Matches the .wheel transition; a timer rather than transitionend so a
       // reduced-motion user (no transition, no event) still gets a result.
-      setTimeout(settle, prefersReducedMotion() ? 200 : 3700);
+      clearTimeout(pickerSettleTimer);
+      pickerSettleTimer = setTimeout(settle, prefersReducedMotion() ? 200 : 3700);
   }
+
+  // Leaving mid-spin: no fanfare and confetti later on another screen, and the
+  // button is usable again on the way back.
+  let pickerSettleTimer = null;
+  onLeaveScreen((from) => {
+      if (from !== 'play-spin' || !pickerSettleTimer) return;
+      clearTimeout(pickerSettleTimer);
+      pickerSettleTimer = null;
+      const btn = document.getElementById('spin-btn');
+      if (btn) btn.disabled = false;
+  });
 
   function finalizePickerResult(winner) {
       const nameEl = document.getElementById('picked-player-name');
@@ -453,6 +465,7 @@ function addPlayerFromSetup(btn) {
   function modUnivScore(idx, val) {
       appState.universal.players[idx].score += val;
       renderUniversalBoard();
+      saveToLocal();
       playSound(val > 0 ? 'click' : 'tick');
   }
 
@@ -489,7 +502,18 @@ function addPlayerFromSetup(btn) {
       const t = appState.timers.general.time;
       const m = Math.floor(t / 60).toString().padStart(2,'0');
       const s = (t % 60).toString().padStart(2,'0');
-      document.getElementById('gen-timer-display').innerText = `${m}:${s}`;
+      const el = document.getElementById('gen-timer-display');
+      if (el) el.innerText = `${m}:${s}`;
+  }
+
+  // Coming back to the timer (or a reload onto it) shows its real time and state.
+  function paintGenTimer() {
+      const tm = appState.timers.general;
+      if (tm.running && !tm.interval) tm.running = false;
+      updateGenDisplay();
+      const btn = document.getElementById('gen-start-btn');
+      const t = TRANSLATIONS[appState.lang] || {};
+      if (btn) btn.innerText = tm.running ? t.pause_btn : t.start_btn;
   }
 
   function toggleGenTimer() {
@@ -504,8 +528,11 @@ function addPlayerFromSetup(btn) {
           if(tm.time <= 0) return;
           tm.running = true;
           btn.innerText = TRANSLATIONS[appState.lang].pause_btn;
+          // It keeps counting when the screen is left (a timer for a pot on the
+          // stove, a break between games), and rings wherever the phone is.
           tm.interval = createClock({
               seconds: tm.time,
+              keepRunning: true,
               onTick: (left) => {
                   tm.time = left;
                   updateGenDisplay();
@@ -516,7 +543,13 @@ function addPlayerFromSetup(btn) {
                   tm.running = false;
                   updateGenDisplay();
                   playSound('alarm');
-                  btn.innerText = TRANSLATIONS[appState.lang].start_btn;
+                  haptic('heavy');
+                  const b = document.getElementById('gen-start-btn');
+                  if (b) b.innerText = TRANSLATIONS[appState.lang].start_btn;
+                  if (appState.currentView !== 'timers') {
+                      const t = TRANSLATIONS[appState.lang] || {};
+                      showToast('⏰ ' + (t.timer_done || 'خلص وقت المؤقت'), 'success');
+                  }
               }
           });
       }
@@ -880,6 +913,8 @@ function addPlayerFromSetup(btn) {
          runStartMonkey(appState.monkey.players.map(p => p.name));
      } else if (appState.currentView === 'play-imposter' || appState.currentView === 'imposter-reveal') {
          startImposterGame(lastSelectedPlayers);
+     } else if (appState.currentView === 'play-domino' && typeof dominoPlayAgain === 'function') {
+         dominoPlayAgain();
      }
   }
   /* Inside JS_Utils.html */
@@ -909,12 +944,22 @@ function toggleResults() {
     }
 }
   function hardResetApp() {
-    if (typeof forgetRecent === 'function') forgetRecent();
     const msg = appState.lang === 'ar' ? 'هل أنت متأكد من حذف جميع البيانات والبدء من جديد؟' : 'Are you sure you want to reset all data and start over?';
-    
+
     showConfirmModal(msg, () => {
         // 1. Stop all running timers
         clearAllIntervals();
+        // Only once confirmed: Cancel used to wipe the recent games anyway.
+        if (typeof forgetRecent === 'function') forgetRecent();
+        // Everything else this phone kept under the app's name - bests, the
+        // daily streak, room options, the last name - except how the device
+        // itself is set up (motion, screen size, the home-screen install).
+        const KEEP = ['ashryMotion', 'ashryUiScale', 'ashryInstallHaveIt', 'ashryInstalledIcon', 'ashryInstallAskedAt', 'ashryIconSnooze'];
+        try {
+            Object.keys(localStorage)
+                .filter(k => k.indexOf('ashry') === 0 && KEEP.indexOf(k) === -1)
+                .forEach(k => localStorage.removeItem(k));
+        } catch (e) {}
 
         // 2. Clear Local Storage. The room session lives under its own key, so
         // without this a "reset everything" still silently rejoined the old room
@@ -1368,6 +1413,13 @@ const HELP_FOR_VIEW = {
   'room-herd': 'herd', 'room-mafia': 'mafia'
 };
 
+// A game's card, its hero, the header and its help entry show one icon, colour
+// and name - the catalog's. Copied here rather than kept twice by hand: the two
+// lists had drifted (🀏 against 🀄, 🔗 against 🧩, 🤝 against 👥).
+HELP_ENTRIES.forEach(e => {
+  const g = typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[e.key] : null;
+  if (g) { e.icon = g.icon; e.accent = g.accent; e.title = g.title; }
+});
 const helpEntry = (key) => HELP_ENTRIES.find(e => e.key === key) || null;
 
 /**
@@ -1413,6 +1465,8 @@ function openHelpModal() {
   if (clear) clear.classList.add('hidden');
 
   renderHelpContent();
+  // Reading the rules mid-round on one phone doesn't cost the turn.
+  if (exitGameOf(appState.currentView)) pauseClocksForSheet();
   document.getElementById('help-modal').classList.remove('hidden');
   // Light up the nav item while the sheet is open, the way Home does — it is
   // the only nav button that never showed you it had done anything.
@@ -1615,8 +1669,14 @@ let wakeLock = null;
 
 let wakeLockWatching = false;
 
+/* The screen stays on while a game is being played - a passed phone going
+   dark mid-round is worse than a battery - and sleeps as usual on the home,
+   the tabs and the setup screens. setView calls syncWakeLock on every change. */
+const wantsWakeLock = (view) => /^(play-|room-|reveal-|imposter-reveal$|input-|results-)/.test(view || '') && view !== 'room-join';
+
 async function requestWakeLock() {
-    if (!('wakeLock' in navigator)) return;
+    if (!('wakeLock' in navigator) || !wantsWakeLock(appState.currentView)) return;
+    if (wakeLock && !wakeLock.released) return;
     try {
         wakeLock = await navigator.wakeLock.request('screen');
     } catch (err) {
@@ -1627,10 +1687,18 @@ async function requestWakeLock() {
     // game start stacked another listener on the same event.
     if (wakeLockWatching) return;
     wakeLockWatching = true;
-    document.addEventListener('visibilitychange', async () => {
-        if (document.visibilityState !== 'visible') return;
-        try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') requestWakeLock();
     });
+}
+
+function syncWakeLock(view) {
+    if (wantsWakeLock(view)) { requestWakeLock(); return; }
+    if (wakeLock && !wakeLock.released) {
+        const lock = wakeLock;
+        wakeLock = null;
+        lock.release().catch(() => {});
+    }
 }
 
 /* =========================================
@@ -1846,7 +1914,7 @@ const exitSheetRow = (label, onclick, kind) =>
  * Opens the sheet when leaving would end something. Returns false when there is
  * nothing to ask about, and the back button then behaves as it always did.
  */
-function openExitSheet() {
+function openExitSheet(navTarget) {
   const view = (appState.currentView || '');
   const t = TRANSLATIONS[appState.lang] || {};
   const body = document.getElementById('exit-modal-body');
@@ -1854,6 +1922,9 @@ function openExitSheet() {
 
   const inRoom = view.indexOf('room-') === 0 && view !== 'room-join'
               && typeof Room !== 'undefined' && Room.isIn && Room.state;
+  // A bottom tab from a room screen doesn't abandon anything: the room stays
+  // open behind the banner. Only a round on one phone needs asking about.
+  if (navTarget && inRoom) return false;
   const game = inRoom ? null : exitGameOf(view);
   if (!inRoom && !game) return false;
 
@@ -1875,17 +1946,23 @@ function openExitSheet() {
       </div>`;
   } else {
     const up = (VIEW_META[view] || {}).up || 'menu';
+    // From a bottom tab, the first way out is where that tab goes.
+    const primary = navTarget && navTarget !== 'menu'
+      ? exitSheetRow(t.exit_leave_game || 'اخرج من اللعبة', `closeModal('exit-modal'); navGo('${jsStringAttr(navTarget)}')`, 'btn--primary btn--lg')
+      : exitSheetRow(t.exit_pick_another || '', "closeModal('exit-modal'); setView('menu')", 'btn--primary btn--lg');
     body.innerHTML = `
       <div class="modal-icon" aria-hidden="true">${game.icon}</div>
       <div class="sheet__title">${escapeHTML(t.exit_game_title || '')}</div>
       <p class="sheet__subtitle">${escapeHTML(t.exit_game_sub || '')}</p>
       <div class="btn-stack">
-        ${exitSheetRow(t.exit_pick_another || '', "closeModal('exit-modal'); setView('menu')", 'btn--primary btn--lg')}
+        ${primary}
         ${exitSheetRow(t.exit_settings || '', `closeModal('exit-modal'); setView('${jsStringAttr(up)}')`)}
       </div>
       <div class="modal-actions">
         <button class="btn btn--ghost" onclick="closeModal('exit-modal')">${escapeHTML(t.exit_keep || '')}</button>
       </div>`;
+    // The round waits while the table reads this.
+    pauseClocksForSheet();
   }
   const modal = document.getElementById('exit-modal');
   if (modal) modal.classList.remove('hidden');

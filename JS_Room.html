@@ -351,6 +351,8 @@ const Room = (() => {
     get isScreen() { return !!(state && state.youAreScreen); },
     get me() { return session ? session.playerId : null; },
     get connected() { return connected(); },
+    /** The room this device was last in, as saved, before resume() has run. */
+    get saved() { const s = recall(); return s && s.code && s.playerId && s.key ? s : null; },
     // A socket can look open after the phone slept and still be dead; this is
     // when something actually came back (JS_RoomTurn.html waits on it).
     get heardAt() { return heardAt; },
@@ -422,6 +424,19 @@ const Room = (() => {
       emit(true);
       if (typeof updateRoomBanner === 'function') updateRoomBanner();
       try { await request('/leave', { code: code, pid: playerId, key: key }); } catch (e) {}
+    },
+
+    /**
+     * Leaves the room saved on this device without rejoining it first: a link
+     * to a different room was opened. Uses the key stored with it.
+     */
+    async leaveSaved() {
+      if (session) return this.leave();
+      const saved = recall();
+      if (!saved) return;
+      remember();                      // session is null: forgets the saved one
+      if (!saved.code || !saved.playerId || !saved.key) return;
+      try { await request('/leave', { code: saved.code, pid: saved.playerId, key: saved.key }); } catch (e) {}
     },
 
     /** Called on load: silently rejoin the room this device was last in. */
@@ -502,6 +517,46 @@ function renderJoinQR(containerId, url) {
 
 /** Registered per game in its own JS_*.html file. */
 const ROOM_GAMES = {};
+
+/* --- clocks the room screens run ----------------------------------------------
+   A game's countdown (and what it does at zero: a sound, "giveUp", "timeUp")
+   belongs to one deal of one game. Each game registers how to stop its clocks,
+   and they all stop when the room leaves that deal: another game, back to the
+   hub, a new deal (shared.dealId), or no room at all. A clock's own onEnd still
+   checks that the room is on its game, for the moment in between. */
+const ROOM_CLOCK_STOPS = [];
+function onRoomClocksReset(fn) { if (typeof fn === 'function') ROOM_CLOCK_STOPS.push(fn); }
+function stopRoomClocks() {
+  ROOM_CLOCK_STOPS.forEach(fn => { try { fn(); } catch (e) { console.warn('room clock', e); } });
+}
+/** The deal a clock belongs to: the game, lobby or not, and the server's deal id. */
+const roomClockStage = (state) => !state ? '' :
+  [state.game || '', state.phase === 'lobby' ? 'lobby' : 'game', (state.shared && state.shared.dealId) || ''].join('|');
+
+/** A per-deal key for "already sent / already seen": the deal id, else what the game had before. */
+function roomDealKey(state, fallback) {
+  const deal = state && state.shared && state.shared.dealId;
+  return (deal ? deal + '#' : '') + (state ? state.code : '') + '#' + (fallback === undefined ? '' : fallback);
+}
+
+/** The host removes a player whose phone has gone (the server refuses anyone still here). */
+function roomKick(playerId) {
+  const state = Room.state;
+  const p = state && (state.players || []).find(x => x.id === playerId);
+  if (!p || !state.youAreHost || p.online || p.id === Room.me) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const msg = (t.room_kick_confirm || (appState.lang === 'en' ? 'Remove {name} from the room? They can join again with the code.' : 'تشيل {name} من الغرفة؟ يقدر يدخل تاني بالكود.'))
+    .replace('{name}', p.name);
+  showConfirmModal(msg, () => roomAct('kick', { playerId: playerId }));
+}
+
+/** The ✕ beside an offline player, for the host. `cls` picks the look for where it sits. */
+function roomKickButton(state, p, cls) {
+  if (!state || !state.youAreHost || !p || p.online || p.id === Room.me) return '';
+  const t = TRANSLATIONS[appState.lang] || {};
+  const label = escapeHTML(t.room_kick || (appState.lang === 'en' ? 'Remove from the room' : 'شيله من الغرفة'));
+  return `<button type="button" class="${cls || 'chip__remove'}" onclick="event.stopPropagation(); roomKick('${jsStringAttr(p.id)}')" title="${label}" aria-label="${label}">✕</button>`;
+}
 
 /** Remembering the name means a returning player types it once, ever. */
 const roomName = {
@@ -767,6 +822,7 @@ function renderRoomLobby(state) {
         <div class="status-row__actions">
           ${p.id === Room.me ? `<span class="badge badge--accent">${youLabel}</span>` : ''}
           ${p.id === state.hostId ? `<span class="badge">${hostLabel}</span>` : ''}
+          ${roomKickButton(state, p, 'btn btn--ghost btn--xs btn--auto')}
         </div>
       </div>`).join('');
   }
@@ -801,8 +857,45 @@ function renderRoomLobby(state) {
       ? renderRoomHub(state)
       : renderChosenGame(state, game);
     // Only rewrite when it changed, so an open <select> isn't reset by every update.
-    if (setup.dataset.sig !== html) { setup.innerHTML = html; setup.dataset.sig = html; }
+    // And never under the host's fingers: someone picking a team rewrites the
+    // options, which took the Codenames word box (focus, keyboard) with it.
+    if (setup.dataset.sig !== html) {
+      if (roomFieldInUse(setup)) {
+        setup.dataset.stale = '1';
+        watchRoomFieldDone(setup, () => { if (Room.state && appState.currentView === 'room-lobby') routeRoomState(Room.state); });
+      } else {
+        setup.innerHTML = html;
+        setup.dataset.sig = html;
+        delete setup.dataset.stale;
+      }
+    }
   }
+}
+
+/** A text box, a word list or an open picker inside `root` has the focus. */
+function roomFieldInUse(root) {
+  const el = document.activeElement;
+  if (!root || !el || !root.contains(el)) return false;
+  if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
+  return el.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|color)$/i.test(el.type || '');
+}
+
+/**
+ * Redraws once the field held back above is let go. A short wait, so a tap
+ * on a button next to it (which takes the focus first) lands on the button
+ * before it is redrawn.
+ */
+function watchRoomFieldDone(root, redraw) {
+  if (root.dataset.watchDone) return;
+  root.dataset.watchDone = '1';
+  root.addEventListener('focusout', () => {
+    setTimeout(() => {
+      if (!root.dataset.stale || roomFieldInUse(root)) return;
+      delete root.dataset.stale;
+      delete root.dataset.sig;
+      redraw();
+    }, 350);
+  });
 }
 
 /** The game picker. Everyone sees it; only the host can act on it. */
@@ -880,6 +973,7 @@ function routeRoomState(state) {
 const onRoomView = () => (appState.currentView || '').indexOf('room-') === 0;
 
 let roomStageSeen = '';
+let roomClockStageSeen = '';
 
 /**
  * The single place the room state reaches the UI.
@@ -890,6 +984,12 @@ let roomStageSeen = '';
  * them in touch; only a game actually starting is worth a nudge.
  */
 Room.onChange((state) => {
+  // First, before anything is drawn: the clocks of a deal the room has left.
+  const clockStage = roomClockStage(state);
+  if (clockStage !== roomClockStageSeen) {
+    roomClockStageSeen = clockStage;
+    stopRoomClocks();
+  }
   updateRoomBanner();
   if (!state) { roomStageSeen = ''; return; }
 
@@ -1049,8 +1149,22 @@ function cancelNameModal() {
 async function initRooms() {
   const injected = (window.SERVER_DATA && window.SERVER_DATA.room) || '';
   if (injected) {
-    // Arriving from a QR/link beats any stale session on this device.
-    if (Room.isIn) await Room.leave();
+    // Nothing is resumed yet on load, so Room.isIn is still false here: read
+    // the saved session itself.
+    const code = extractRoomCode(injected);
+    const saved = Room.saved;
+    if (saved && saved.code === code) {
+      // The link to the room this phone is already in: straight back into it.
+      const resumed = await Room.resume();
+      if (resumed && Room.state) { routeRoomState(Room.state); updateRoomBanner(); return; }
+      // Kept but not reached yet (no network): the banner is the way back.
+      if (Room.isIn) { updateRoomBanner(); return; }
+    } else if (saved) {
+      // A different room: leave the old one properly, so it doesn't keep a
+      // seat (and a host) for a phone that has moved on. The saved session is
+      // forgotten at once; the request itself needn't hold up the join screen.
+      Room.leaveSaved();
+    }
     roomOpenJoin(injected);
     return;
   }

@@ -62,19 +62,35 @@ const draw = {
   liveSent: 0,         // drawer: how many of its numbers have been shared
   liveAt: 0,           // drawer: when the live line was last shared
   live: null,          // viewer: the drawer's line in progress { s, n, c, w, p }
-  liveShown: false     // viewer: that line is painted on the canvas
+  liveShown: false,    // viewer: that line is painted on the canvas
+  round: null          // the round (deal) the redo list belongs to
 };
+
+/* The host's round length, remembered on their phone: the big screen's lobby
+   is rebuilt whenever someone joins, and the picker used to jump back. */
+const DRAW_SECONDS_KEY = 'ashryDrawRoomSeconds';
+function drawRoomSeconds(state) {
+  try {
+    const saved = Number(localStorage.getItem(DRAW_SECONDS_KEY));
+    if (DRAW_ROUND_CHOICES.indexOf(saved) !== -1) return saved;
+  } catch (e) {}
+  const last = state && state.shared && state.shared.roundSeconds;
+  return DRAW_ROUND_CHOICES.indexOf(last) !== -1 ? last : 90;
+}
+function setDrawRoomSeconds(value) {
+  try { localStorage.setItem(DRAW_SECONDS_KEY, String(Number(value))); } catch (e) {}
+}
 
 ROOM_GAMES.drawguess = {
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
     const t = TRANSLATIONS[appState.lang];
-    // Whatever was used last round is the default, so changing it once sticks.
-    const current = (state.shared && state.shared.roundSeconds) || 90;
+    // Whatever was chosen last time is the default, so changing it once sticks.
+    const current = drawRoomSeconds(state);
     return `
       <div class="card card--tight">
         <label class="field__label" for="draw-seconds">${t.draw_round_length || ''}</label>
-        <select id="draw-seconds">
+        <select id="draw-seconds" onchange="setDrawRoomSeconds(this.value)">
           ${DRAW_ROUND_CHOICES.map(sec => `
             <option value="${sec}" ${sec === current ? 'selected' : ''}>
               ${sec} ${t.seconds_short || ''}${sec === 90 ? ' · ' + (t.default_label || '') : ''}
@@ -87,7 +103,7 @@ ROOM_GAMES.drawguess = {
     const sel = document.getElementById('draw-seconds');
     return {
       lang: contentLang(),
-      seconds: sel ? Number(sel.value) : 90
+      seconds: sel ? Number(sel.value) : drawRoomSeconds(Room.state)
     };
   },
 
@@ -104,14 +120,25 @@ ROOM_GAMES.drawguess = {
     const amDrawer = s.drawerId === Room.me;
     const over = !!s.word;   // published only when the round ends
 
+    // A new round: what undo took last round is not this drawing's to put back.
+    const roundKey = roomDealKey(state, s.round);
+    if (draw.round !== roundKey) { draw.round = roundKey; draw.redo = []; }
+
     // Rebuild the frame only when the phase changes; otherwise just repaint,
-    // so an in-progress stroke isn't wiped by a poll.
-    const sig = [s.round, amDrawer, over, s.winnerId || ''].join('|');
+    // so an in-progress stroke isn't wiped by a poll. The host is in it (a new
+    // host needs "next round"), and so is the language.
+    const sig = [s.round, amDrawer, over, s.winnerId || '', state.youAreHost, appState.lang].join('|');
     if (el.dataset.sig !== sig) {
+      const typed = document.getElementById('draw-guess');
+      const guessText = typed ? typed.value : '';
+      const guessFocused = !!typed && document.activeElement === typed;
       el.dataset.sig = sig;
       el.innerHTML = drawFrame(state, amDrawer, over, t);
       bindDrawSurface(amDrawer && !over);
       draw.painted = 0;
+      // A rebuild mid-round (a new host) keeps the guess being typed.
+      const box = document.getElementById('draw-guess');
+      if (box && guessText) { box.value = guessText; if (guessFocused) box.focus(); }
     }
 
     paintStrokes(s.strokes || []);
@@ -162,7 +189,7 @@ function drawFrame(state, amDrawer, over, t) {
   const footer = over
     ? (state.youAreHost
         ? `<div class="btn-stack" style="margin-top: var(--sp-3)">
-             <button onclick="roomAct('nextRound', { lang: '${contentLang()}' })" class="btn btn--primary btn--lg">${t.draw_next || 'جولة جديدة'}</button>
+             <button onclick="roomAct('nextRound', ${roomNextArgs(state)})" class="btn btn--primary btn--lg">${t.draw_next || 'جولة جديدة'}</button>
              <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
            </div>`
         : `<div class="waiting-note">${t.room_wait_host}</div>`)
@@ -767,7 +794,13 @@ function startDrawClock(endsAt) {
   draw.clock = createClock({
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
     onTick: paint,
-    onEnd: () => { draw.clock = null; if (Room.isHost) roomAct('giveUp'); }
+    onEnd: () => {
+      draw.clock = null;
+      // Only for this round of this game: the room may have moved on meanwhile.
+      const st = Room.state;
+      if (!Room.isHost || !st || st.game !== 'drawguess' || !st.shared || st.shared.word || st.shared.endsAt !== endsAt) return;
+      roomAct('giveUp');
+    }
   });
 }
 
@@ -775,6 +808,13 @@ function stopDrawClock() {
   if (draw.clock) { draw.clock.stop(); draw.clock = null; }
   draw.clockEndsAt = null;
 }
+onRoomClocksReset(() => {
+  stopDrawClock();
+  // Strokes waiting to be sent belong to the deal that just ended.
+  clearTimeout(draw.flushTimer);
+  draw.flushTimer = null;
+  if (!draw.local) draw.pending = [];
+});
 
 function resetDrawSurface() {
   draw.tool = 'p';

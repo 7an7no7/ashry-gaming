@@ -12,7 +12,21 @@
    in RoomGames.js.
    ========================================================================= */
 
-const tele = { clock: null, clockKey: null, sentFor: null };
+const tele = {
+  clock: null, clockKey: null, sentFor: null,
+  surfaceKey: null,          // the step whose drawing draw.pending holds
+  draft: { key: '', text: '' }  // the words typed for this step, kept outside the screen
+};
+
+/** This phone's step: the deal id when the server sends one, so a restarted game never matches an old step. */
+function teleStepKey(state) {
+  const task = state && state.you && state.you.task;
+  return roomDealKey(state, (state && state.shared ? state.shared.step : '') + ':' + (task ? task.chain : ''));
+}
+
+function teleDraft(value) {
+  tele.draft = { key: teleStepKey(Room.state), text: String(value || '') };
+}
 
 function armTeleClock(endsAt) {
   const paint = () => {
@@ -30,23 +44,38 @@ function stopTeleClock() {
   tele.clock = null;
   tele.clockKey = null;
 }
+onRoomClocksReset(stopTeleClock);
+
+// The step's time is up: this phone sends what it drew or typed, wherever its
+// player is looking at that moment.
+Room.onChange((state) => {
+  const s = state && state.game === 'telephone' && state.shared;
+  if (!s || s.phase !== 'collecting' || !state.you || !state.you.task) return;
+  if ((s.submitted || []).indexOf(Room.me) !== -1 || tele.sentFor === teleStepKey(state)) return;
+  teleSubmit(true);
+});
 
 /** What this phone has: the strokes drawn so far, or the text typed. */
 async function teleSubmit(auto) {
   const st = Room.state;
-  if (!st || !st.you || !st.you.task) return;
+  if (!st || st.game !== 'telephone' || !st.you || !st.you.task) return;
   const task = st.you.task;
-  const key = st.shared.step + ':' + task.chain;
+  const key = teleStepKey(st);
   if (tele.sentFor === key) return;
   tele.sentFor = key;
+  const step = st.shared.step;
   try {
     if (task.kind === 'draw') {
-      await Room.act('submit', { strokes: draw.pending.slice() });
+      // Only a drawing made for this step: a phone that never opened it sends a blank.
+      const strokes = tele.surfaceKey === key ? draw.pending.slice() : [];
+      await Room.act('submit', { strokes: strokes, step: step });
     } else {
+      // The box when it is this step's and on screen, else what was typed into it.
       const input = document.getElementById('tele-text');
-      const text = (input && input.value || '').trim();
+      const onScreen = input && input.dataset.key === key;
+      const text = ((onScreen ? input.value : (tele.draft.key === key ? tele.draft.text : '')) || '').trim();
       if (!text && !auto) { tele.sentFor = null; showToast(TRANSLATIONS[appState.lang].tele_write_first || '', 'error'); return; }
-      await Room.act('submit', { text: text });
+      await Room.act('submit', { text: text, step: step });
     }
     playSound('success');
   } catch (e) {
@@ -114,8 +143,8 @@ ROOM_GAMES.telephone = {
     const sent = (s.submitted || []).indexOf(Room.me) !== -1;
 
     if (s.phase === 'working' || s.phase === 'collecting') {
-      // Time's up: send what is here before the frame changes under it.
-      if (s.phase === 'collecting' && task && !sent) teleSubmit(true);
+      // Time's up is sent by the listener below, from what was drawn or typed.
+      const key = teleStepKey(state);
       const head = `<div class="cn-score">
           <span class="cn-score__role">${escapeHTML(t.tele_step || '')} ${s.step} / ${s.steps - 1}</span>
           <span id="tele-clock" class="badge badge--accent">${s.seconds || ''}</span>
@@ -155,7 +184,9 @@ ROOM_GAMES.telephone = {
             <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>
             <div class="draw-layout__side">
               <div class="input-group" style="margin-top: var(--sp-3)">
-                <input type="text" id="tele-text" autocomplete="off" maxlength="60" placeholder="${escapeHTML(t.tele_write_ph || '')}" onkeydown="if(event.key==='Enter') teleSubmit(false)">
+                <input type="text" id="tele-text" data-key="${escapeHTML(key)}" autocomplete="off" maxlength="60" placeholder="${escapeHTML(t.tele_write_ph || '')}"
+                       value="${escapeHTML(tele.draft.key === key ? tele.draft.text : '')}"
+                       oninput="teleDraft(this.value)" onkeydown="if(event.key==='Enter') teleSubmit(false)">
                 <button class="btn btn--primary" onclick="teleSubmit(false)">${escapeHTML(t.send || '')}</button>
               </div>
             </div>
@@ -163,12 +194,18 @@ ROOM_GAMES.telephone = {
           ${renderRoomPlayerStrip(state)}`;
       });
       if (fresh && task && !sent) {
+        // The same step drawn again (back from the menu, a new host, the
+        // language): the drawing so far is kept. A new step starts blank.
+        const keep = tele.surfaceKey === key ? { pending: draw.pending, redo: draw.redo } : null;
         resetDrawSurface();
         draw.local = true;
+        tele.surfaceKey = key;
         if (task.kind === 'draw') {
+          if (keep) { draw.pending = keep.pending; draw.redo = keep.redo; }
           bindDrawSurface(true);
           draw.onUndo = teleUndo;
           draw.onRedo = teleRedo;
+          if (draw.pending.length) paintStrokesFromScratch();
         } else {
           bindDrawSurface(false);
           paintStrokes(task.prev.strokes || []);

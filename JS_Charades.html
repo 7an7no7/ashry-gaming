@@ -593,63 +593,89 @@ const CHARADES_DB = {
 };
 
 // --- 1. RENDER FUNCTION (Safe to call anytime) ---
+/**
+ * The categories for the games' language, keeping the pick: the same key, or
+ * the one with the same emoji in the other language (matchCategoryKey,
+ * JS_WhoAmI.html). A list left in the old language used to deal
+ * "Error: No Category" after a language change.
+ */
 function renderCharadesDropdown() {
     const catSelect = document.getElementById('charades-cat-select');
     if(!catSelect) return;
-    
-    catSelect.innerHTML = ''; 
-    const db = CHARADES_DB[contentLang()];
-    if (db) {
-        Object.keys(db).forEach(key => {
-            const option = document.createElement('option');
-            option.value = key;
-            option.innerText = key;
-            catSelect.appendChild(option);
-        });
-    }
+
+    const db = CHARADES_DB[contentLang()] || CHARADES_DB.ar;
+    const keys = Object.keys(db);
+    const wanted = (catSelect.options.length ? catSelect.value : '') || appState.charades.category;
+    catSelect.innerHTML = '';
+    keys.forEach(key => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.innerText = key;
+        catSelect.appendChild(option);
+    });
+    const pick = matchCategoryKey(keys, wanted);
+    if (pick) catSelect.value = pick;
+    catSelect.onchange = () => { appState.charades.category = catSelect.value; saveToLocal(); };
 }
 
 // --- 2. SETUP FUNCTION (Triggered by Button) ---
+// setView fills the list and paints the options on the way in.
 function setupCharades() {
-    renderCharadesDropdown(); // Fill data
-    setView('setup-charades'); // Change screen
+    setView('setup-charades');
+}
+
+/** The category and round length the setup screen shows, into the game's state. */
+function charadesTakeSetup() {
+    const db = CHARADES_DB[contentLang()] || CHARADES_DB.ar;
+    const keys = Object.keys(db);
+    const catSelect = document.getElementById('charades-cat-select');
+    if (catSelect && !catSelect.options.length) renderCharadesDropdown();
+    const catKey = matchCategoryKey(keys, catSelect ? catSelect.value : appState.charades.category) || keys[0];
+    appState.charades.category = catKey;
+    appState.charades.currentCategory = [...db[catKey]];
+    const seconds = parseInt((document.getElementById('charades-timer-input') || {}).value, 10);
+    appState.charades.timer = seconds > 0 ? seconds : (appState.charades.timer || 60);
 }
 
 function startCharades(time) {
-    const catSelect = document.getElementById('charades-cat-select');
-    const catKey = catSelect ? catSelect.value : null;
-    
     if (appState.charades.currentCategory.length > 0 && time) {
-         // Replay mode
-    } else if (catKey && CHARADES_DB[contentLang()][catKey]) {
-        appState.charades.currentCategory = [...CHARADES_DB[contentLang()][catKey]];
+         // Replay mode: the same category and length.
+         appState.charades.timer = time;
     } else {
-        appState.charades.currentCategory = ["Error: No Category"];
+        charadesTakeSetup();
     }
 
-    if(time) appState.charades.timer = time;
-    else appState.charades.timer = parseInt(document.getElementById('charades-timer-input').value);
-
     // From the setup screen in team mode: a fresh relay, and the handover
-    // card before the first turn (JS_TeamRelay.html). A replay (`time` set)
-    // in single mode is just another round.
+    // card before the first turn (JS_TeamRelay.html). A match in progress is
+    // not wiped without asking; "continue" is its own button on the setup.
     if (!time) {
         const o = relayOptsOf(appState.charades);
         if (o.mode === 'teams') {
-            relayStart(appState.charades, relayNames(appState.charades, TRANSLATIONS[appState.lang]), o.turns);
-            setView('play-charades');
-            charadesShowRelay();
+            relayBegin(appState.charades, TRANSLATIONS[appState.lang], () => {
+                relayStart(appState.charades, relayNames(appState.charades, TRANSLATIONS[appState.lang]), o.turns);
+                setView('play-charades');
+                charadesShowRelay();
+            });
             return;
         }
-        appState.charades.relay = null;
     }
     charadesRunTurn();
+}
+
+/** The setup screen's "continue": the match as it was, with the category and length picked now. */
+function charadesResumeMatch() {
+    if (!relayInProgress(appState.charades)) return;
+    charadesTakeSetup();
+    setView('play-charades');
+    charadesShowRelay();
 }
 
 /** One timed round, for one player or for the team whose turn it is. */
 function charadesRunTurn() {
     appState.charades.score = 0;
     appState.charades.history = [];
+    // A turn's take-backs are its own: the last team's cards stay theirs.
+    appState.charades.judged = [];
 
     document.getElementById('charades-ui-playing').classList.remove('hidden');
     document.getElementById('charades-ui-result').classList.add('hidden');
@@ -657,7 +683,7 @@ function charadesRunTurn() {
 
     if (appState.currentView !== 'play-charades') setView('play-charades');
     nextCharadesCard();
-    
+
     document.getElementById('charades-timer').innerText = appState.charades.timer;
     if (appState.charades.interval) appState.charades.interval.stop();
 
@@ -691,7 +717,20 @@ function charadesShowRelay() {
 }
 
 function paintCharadesSetup() {
-    paintRelaySetup('charades', appState.charades);
+    renderCharadesDropdown();
+    paintRelaySetup('charades', appState.charades, 'charadesResumeMatch()');
+}
+
+// The card's flip: the word changes halfway through it. Module timers, not
+// appState, so a saved number can't cancel some other timer after a reload.
+let charadesFlipTimer = null;
+let charadesClassTimer = null;
+
+function clearCharadesFlip() {
+    clearTimeout(charadesFlipTimer);
+    clearTimeout(charadesClassTimer);
+    charadesFlipTimer = null;
+    charadesClassTimer = null;
 }
 
 function nextCharadesCard(action) {
@@ -719,19 +758,18 @@ function nextCharadesCard(action) {
     // Remembered across games on this phone, so a new round doesn't open with
     // the cards the last one just used.
     const word = freshPick('charades:' + contentLang(), words, 1, { avoid: appState.charades.history })[0];
-    
+
     appState.charades.history.push(word);
-    
+
     const cardTitle = document.getElementById('charades-word');
     if(cardTitle) {
-        if (appState.charades.flipTimer) clearTimeout(appState.charades.flipTimer);
-        if (appState.charades.classTimer) clearTimeout(appState.charades.classTimer);
+        clearCharadesFlip();
         const cardParent = cardTitle.parentElement;
         cardParent.classList.remove('animate-flip');
         void cardParent.offsetWidth;
         cardParent.classList.add('animate-flip');
-        appState.charades.classTimer = setTimeout(() => cardParent.classList.remove('animate-flip'), 500);
-        appState.charades.flipTimer = setTimeout(() => { cardTitle.innerText = word; }, 250);
+        charadesClassTimer = setTimeout(() => cardParent.classList.remove('animate-flip'), 500);
+        charadesFlipTimer = setTimeout(() => { cardTitle.innerText = word; }, 250);
     }
 }
 
@@ -741,30 +779,35 @@ function undoCharadesCard() {
     const last = judged.pop();
     const t = TRANSLATIONS[appState.lang] || {};
     if (!last) { showToast(t.undo_nothing || '', 'info'); return; }
+    // A flip still under way would write the dealt word over the one put back.
+    clearCharadesFlip();
     if (last.action === 'correct') appState.charades.score = Math.max(0, appState.charades.score - 1);
     // The card on screen was never judged; it goes back to the deck.
     const hist = appState.charades.history;
     if (hist.length && hist[hist.length - 1] !== last.word) hist.pop();
     const el = document.getElementById('charades-word');
-    if (el) el.innerText = last.word;
+    if (el) {
+        el.innerText = last.word;
+        if (el.parentElement) el.parentElement.classList.remove('animate-flip');
+    }
     playSound('tick');
     haptic('light');
     showToast(t.undo_done || '', 'success');
 }
 
 function finishCharadesGame() {
-    if (appState.charades.flipTimer) clearTimeout(appState.charades.flipTimer);
-    if (appState.charades.classTimer) clearTimeout(appState.charades.classTimer);
+    clearCharadesFlip();
     if (appState.charades.interval) appState.charades.interval.stop();
     appState.charades.interval = null;
-    
+    appState.charades.judged = [];
+
     playSound('alarm');
     confetti({ particleCount: 200, spread: 100 });
 
     document.getElementById('charades-ui-playing').classList.add('hidden');
 
     // Team mode: bank the turn, then the next handover or the final board.
-    if (relayActive(appState.charades)) {
+    if (relayPlaying(appState.charades)) {
         const t = TRANSLATIONS[appState.lang];
         const phase = relayTurnDone(appState.charades, appState.charades.score);
         const box = document.getElementById('charades-ui-relay');

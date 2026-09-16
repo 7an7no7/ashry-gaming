@@ -74,6 +74,10 @@
       lastClickAt = now;
     }
     wakeAudio();
+    // A suspended context has a frozen clock: ticks scheduled now would all play
+    // at once, loudly, on the first touch. Repeating ticks are simply skipped
+    // until sound is awake again.
+    if ((type === 'bomb' || type === 'tick') && audioCtx.state !== 'running') return;
     if (type === 'bomb') {
         // A wooden knock loud enough to hear across a table: a pitched body and a click on top.
         bombTock = !bombTock;
@@ -245,13 +249,27 @@
 
   /* Every tap on a control gets a click and a nudge from here, so individual
      handlers don't each have to remember playSound('click'). They still raise
-     the meaningful sounds themselves — success, alarm, tick. */
+     the meaningful sounds themselves — success, alarm, tick.
+     A finger's click waits for it to lift: a scroll that starts on a card or a
+     button (most of the home) is a cancelled pointer, and used to click and
+     buzz on every swipe. A mouse clicks on press. */
+  let tapFeedbackHost = null;
   document.addEventListener('pointerdown', (e) => {
       const host = e.target.closest && e.target.closest(RIPPLE_TARGETS);
+      tapFeedbackHost = null;
+      if (!host || host.disabled) return;
+      if (e.pointerType === 'touch') { tapFeedbackHost = host; return; }
+      playSound('click', true);
+      haptic('light');
+  }, { passive: true });
+  document.addEventListener('pointerup', () => {
+      const host = tapFeedbackHost;
+      tapFeedbackHost = null;
       if (!host || host.disabled) return;
       playSound('click', true);
       haptic('light');
   }, { passive: true });
+  document.addEventListener('pointercancel', () => { tapFeedbackHost = null; }, { passive: true });
 
   /**
    * Fisher-Yates shuffle into a new array. Every "random order" in the app goes
@@ -316,12 +334,18 @@
       picks.forEach(x => dealt.add(keyOf(x)));
     } else {
       // The list has run out: deal what is left of it, then start it over for
-      // the rest, and the new cycle begins with just those.
+      // the rest. The refill comes from what was dealt longest ago (the stored
+      // list is in dealing order), and everything dealt now opens the new cycle -
+      // marking only the refill let the last of the old cycle come straight back.
       const leftKeys = new Set(unseen.map(keyOf));
-      const refill = shuffleArray(candidates.filter(x => !leftKeys.has(keyOf(x)))).slice(0, want - unseen.length);
+      const age = new Map((lists[listId] || []).map((k, i) => [k, i]));
+      const older = candidates.filter(x => !leftKeys.has(keyOf(x)))
+        .sort((a, b) => (age.has(keyOf(a)) ? age.get(keyOf(a)) : -1) - (age.has(keyOf(b)) ? age.get(keyOf(b)) : -1));
+      const need = want - unseen.length;
+      const refill = shuffleArray(older.slice(0, Math.max(need, Math.ceil(older.length / 2)))).slice(0, need);
       picks = shuffleArray(unseen).concat(refill);
       pool.forEach(x => dealt.delete(keyOf(x)));
-      refill.forEach(x => dealt.add(keyOf(x)));
+      picks.forEach(x => dealt.add(keyOf(x)));
     }
 
     lists[listId] = [...dealt];
@@ -407,7 +431,9 @@
       const clock = {
           /** Re-read the clock right now (used when the tab regains focus). */
           sync() {
-              if (!paused && !finished) step();
+              // step() only forgets the pending timer's id, so cancel it first -
+              // otherwise every wake from the lock screen left one more chain running.
+              if (!paused && !finished) { cancel(); step(); }
               return clock;
           },
           pause() {
@@ -438,7 +464,9 @@
           },
           isPaused: () => paused,
           isRunning: () => !paused && !finished,
-          value: value
+          value: value,
+          // A clock that goes on when its screen is left (the general timer).
+          keepRunning: !!options.keepRunning
       };
 
       activeClocks.add(clock);
@@ -447,9 +475,29 @@
       return clock;
   }
 
-  /** Stops every running clock. */
+  /** Stops every running clock, except one asked to keep running. */
   function stopAllClocks() {
-      [...activeClocks].forEach(c => c.stop());
+      [...activeClocks].forEach(c => { if (!c.keepRunning) c.stop(); });
+  }
+
+  /* A sheet over a game on one phone (leave this game?, the rules) stops the
+     game's clocks while it is read, and "carry on" starts them again. A room's
+     clocks belong to the server, so they are left alone. */
+  let sheetPausedClocks = [];
+  function pauseClocksForSheet() {
+      const view = String(appState.currentView || '');
+      // The bomb's fuse is a secret: stopping it on a popup would tell the table.
+      if (view.indexOf('room-') === 0 || view === 'play-bomb') return;
+      [...activeClocks].forEach(c => {
+          if (c.keepRunning || !c.isRunning()) return;
+          c.pause();
+          sheetPausedClocks.push(c);
+      });
+  }
+  function resumeClocksAfterSheet() {
+      const clocks = sheetPausedClocks;
+      sheetPausedClocks = [];
+      clocks.forEach(c => { if (activeClocks.has(c)) c.resume(); });
   }
 
   // A backgrounded tab may not have been able to fire its pending tick, so
@@ -512,7 +560,7 @@
     appState.gameLang = order[(cur + 1) % order.length];
     saveToLocal();
     updateSettingsLabels();
-    if (typeof paintSetupOptions === 'function') paintSetupOptions(appState.currentView);
+    runLanguageHooks();
     haptic('light');
   }
 
@@ -609,6 +657,28 @@
   const charadesState = appState.charades;
   const descState = appState.describe;
 
+
+  /* What a screen leaves running that no clock covers - a setTimeout chain, a
+     sensor, a wake lock - is stopped by the game itself, from here:
+       onLeaveScreen((from, to) => { if (from === 'play-bomb') bombStop(); });
+     setView runs every hook whenever the screen changes. */
+  const LEAVE_HOOKS = [];
+  function onLeaveScreen(fn) { LEAVE_HOOKS.push(fn); }
+  function runLeaveHooks(from, to) {
+      LEAVE_HOOKS.forEach(fn => { try { fn(from, to); } catch (e) { console.warn('leave hook', e); } });
+  }
+
+  /* Screens drawn in JS carry their own text, so a language change (the app's,
+     or the games' language in Settings) asks each game to draw again:
+       onLanguageChange(view => { if (view === 'play-sudoku') renderSudoku(); });
+     paintSetupOptions runs first, so setup lists are rebuilt there. */
+  const LANG_HOOKS = [];
+  function onLanguageChange(fn) { LANG_HOOKS.push(fn); }
+  function runLanguageHooks() {
+      const view = appState.currentView;
+      if (typeof paintSetupOptions === 'function') { try { paintSetupOptions(view); } catch (e) { console.warn('setup painter', e); } }
+      LANG_HOOKS.forEach(fn => { try { fn(view); } catch (e) { console.warn('language hook', e); } });
+  }
 
   function clearAllIntervals() {
       // Every countdown and clock in the app now runs through createClock, so one
@@ -2044,7 +2114,7 @@
       roll: "ارمي النرد",
       flip: "ارمي العملة",
       setup_tourney: "منظم البطولات",
-      tourney_hint: "أدخل 4 أو 8 أسماء",
+      tourney_hint: "من 3 لـ 16 لاعب. اللي مالوش خصم يعدّي على طول.",
       add_more: "+ إضافة خانة",
       setup_charades: "بدون كلام",
       next_word: "التالية 🔄",
@@ -2073,7 +2143,130 @@
       reaction_too_soon: "مبكر جداً! ❌",
       reaction_winner: "الفائز! 🏆",
       reaction_ms: "جزء من الثانية",
-      reaction_desc: "ضع الهاتف على الطاولة بينك وبين صديقك. عندما تتحول الشاشة للون الأخضر، اضغط بأسرع ما يمكن! لكن احذر أن تضغط قبل اللون الأخضر."
+      reaction_desc: "ضع الهاتف على الطاولة بينك وبين صديقك. عندما تتحول الشاشة للون الأخضر، اضغط بأسرع ما يمكن! لكن احذر أن تضغط قبل اللون الأخضر.",
+      tmr_minus1: "-1د",
+      tmr_plus1: "+1د",
+      tmr_plus5: "+5د",
+      monkey_log_search: "🔍 ابحث في السجل...",
+      monkey_log_word: "الاسم",
+      play_again_same: "لعبة جديدة بنفس اللاعبين",
+      swap_pick_title: "اختر لاعباً للتبديل معه",
+      search_ph: "🔍 بحث...",
+      swap_confirm_title: "تأكيد التبديل",
+      swap_confirm_q: "هل أنت متأكد من تبديل أماكن",
+      swap_with: "مع",
+      q_mark: "؟",
+      swap_yes: "نعم، بدل الأماكن",
+      add_player_title: "إضافة لاعب",
+      add_player_sub: "اختر من المسجلين أو أضف جديداً",
+      new_player_ph: "اسم لاعب جديد",
+      add_and_join: "إضافة ودخول",
+      manual_points_title: "إدخال نقاط يدوية",
+      points_ph: "عدد النقاط",
+      chess_config_title: "ضبط وقت الشطرنج",
+      chess_config_label: "الوقت لكل لاعب (بالدقائق)",
+      chess_config_save: "حفظ وبدء اللعب",
+      domino_mode_title: "اختر نظام اللعب",
+      domino_mode_sub: "لقد اخترت 4 لاعبين. كيف تريد اللعب؟",
+      domino_mode_single: "فردي (كل واحد لوحده)",
+      domino_mode_teams: "فرق (2 ضد 2)",
+      correct_words: "الكلمات الصحيحة",
+      tourney_bracket: "البطولة",
+      guess_mode_computer: "الكمبيوتر",
+      guess_mode_friend: "صديق",
+      whoami_mix_pick: "اختر الأقسام المطلوبة",
+      whoami_order_title: "ترتيب الهويات",
+      tap_card_correct: "اضغط على الكارت لو خمّنوها صح",
+      exit_leave_game: "اخرج من اللعبة",
+      timer_done: "خلص وقت المؤقت",
+      update_ready: "فيه نسخة جديدة من التطبيق - اضغط للتحديث",
+      room_kick: "شيله من الغرفة",
+      room_kick_confirm: "تشيل {name} من الغرفة؟ يقدر يدخل تاني بالكود.",
+      room_hub_confirm: "تنهي اللعبة دي للكل وتختاروا لعبة تانية؟",
+      room_action_failed: "ماوصلش، جرّب تاني",
+      jo_close_writing: "خمّن باللي اتكتب",
+      jo_skip_guess: "تخطي التخمين",
+      fib_close_writing: "صوّتوا على اللي اتكتب",
+      cn_pass_turn: "انقل الدور ⏭️",
+      cn_set_spymaster: "قائد جديد للفريق {team}",
+      mafia_night_pick: "اختار اسم. اللي بيعمله اختيارك مكتوب في كارتك.",
+      mafia_night_picked: "اختيارك اتسجل.",
+      mafia_last_save: "مش {name} تاني الليلة دي",
+      cs_view_last: "شوف آخر لعبة",
+      cs_rules_locked: "قواعد اللعبة اللي شغالة",
+      cs_rules_locked_hint: "اللعبة ماشية بالقواعد دي. تغييرها يبدأ لعبة جديدة.",
+      cs_change_rules: "غيّر القواعد (لعبة جديدة)",
+      cs_confirm_end: "اللعبة اللي شغالة هتتمسح عشان تغيّر القواعد. متأكد؟",
+      cs_confirm_new: "فيه لعبة شغالة. تبدأ لعبة جديدة وتمسحها؟",
+      cs_seating: "ترتيب القعدة",
+      cs_seating_swap: "اضغط على اسمين عشان تبدّل مكانهم.",
+      cs_dealer: "بيوزّع: {name}",
+      cs_preview_end: "الجولة دي بتنهي اللعبة",
+      cs_quick_rest: "الباقي {n}، لمين؟",
+      cs_quick_same: "جاب طلبه بالظبط",
+      cs_tarneeb_41_made_over: "اللي جابوا طلبهم طالبين أكتر من 13 لمّة: راجع مين جاب",
+      cs_tarneeb_41_none_made: "مستحيل محدش يجيب طلبه بالطلبات دي: علّم اللي جابوا",
+      tourney_need: "اختار من {min} لـ {max} لاعب",
+      tourney_undo: "رجّع آخر نتيجة",
+      tourney_bye: "عدّى على طول",
+      tourney_champion: "البطل",
+      tourney_again: "قرعة جديدة بنفس اللاعبين",
+      tourney_final: "النهائي 🏆",
+      tourney_semi: "نصف النهائي",
+      tourney_quarter: "ربع النهائي",
+      tourney_r16: "دور الـ16",
+      solo_look: "شوف اللوحة",
+      solo_look_result: "النتيجة",
+      daily_continue_today: "كمّل تحدي النهارده",
+      daily_continue: "كمّل",
+      solo_new_confirm: "تبدأ لعبة جديدة وتسيب اللي شغال؟",
+      solo_clear_confirm: "تمسح كل اللي على اللوحة؟",
+      conn_already_tried: "جرّبت الأربعة دول قبل كده",
+      accuse_badge: "اتهام",
+      spy_badge: "جاسوس؟",
+      cham_civilian: "مواطن عادي",
+      spy_civilian: "مواطن في المكان",
+      cham_coord_word: "الإحداثيات والكلمة السرية",
+      cham_random_cat: "فئة عشوائية",
+      cham_wins: "الحرباء كسبت!",
+      spy_wins: "الجاسوس كسب!",
+      table_wins: "الطاولة كسبت!",
+      bomb_safest: "مين نجا أكتر؟",
+      bomb_safest_hint: "الرقم = الجولات اللي فرقعت فيها القنبلة في إيد غيره",
+      five_more_round: "جولة كمان بنفس النقط",
+      quiz_who_got: "مين عرفها؟",
+      mk_back_to_board: "رجوع للّعبة",
+      relay_unfinished: "مباراة لسه ما خلصتش",
+      relay_new_confirm: "فيه مباراة لسه ما خلصتش. تبدأ مباراة جديدة بالأسماء دي وتسيبها؟",
+      tb_unfinished: "لعبة لسه ما خلصتش",
+      tb_new_confirm: "فيه لعبة لسه ما خلصتش. تبدأ لعبة جديدة وتسيبها؟",
+      tb_undo_award: "رجّع آخر سؤال",
+      jo_final: "النتيجة النهائية",
+      jo_next_guesser: "المخمّن اللي بعده: {name}",
+      jo_see_final: "النتيجة النهائية 🏁",
+      jo_ready_next: "جاهزين، الجولة الجاية ➡",
+      jo_rate_perfect: "مثالي! ولا كلمة فلتت منكم 🏆",
+      jo_rate_great: "رهيب! فريق متفاهم جداً",
+      jo_rate_good: "حلو! تقدروا تعملوا أحسن",
+      jo_rate_try: "جرّبوا تاني وفكّروا مختلف عن بعض",
+      wa_cat_manual: "إدخال يدوي",
+      wa_cat_mix: "كوكتيل",
+      wa_shuffle_label: "خلط الشخصيات",
+      wa_shuffle_on: "مفعّل: كل واحد يكتب شخصية في السر، والموبايل يوزّعها على غيره.",
+      wa_shuffle_off: "مقفول: الباقيين يكتبوا شخصية كل واحد وهو مش شايف، والوقت يبدأ على طول.",
+      wa_hide_from: "خبّي الموبايل عن",
+      wa_hide_hint: "{name} يبص بعيد، والباقي يشوفوا شخصيته.",
+      wa_show_others: "وريهم شخصيته",
+      wa_is: "{name} هو:",
+      wa_reveal_hint: "احفظوها ومتقولوهاش لـ {name}!",
+      wa_write_secret: "اكتب شخصية في السر…",
+      wa_write_for: "شخصية {name}…",
+      select_3_players: "اختار 3 لاعبين على الأقل",
+      whoami_ask_hint: "اسأل أسئلة إجابتها «أيوه» أو «لأ» عشان تعرف انت مين!",
+      jo_rounds_label: "عدد الجولات",
+      bomb_players_hint: "اختاروا اللاعبين عشان التطبيق يعد مين فرقعت في إيده (اختياري).",
+      quiz_players_hint: "اختاروا اللاعبين عشان تحسبوا النقط (اختياري).",
+      whoami_players_hint: "اختاروا اللاعبين، وعددهم بيتحط لوحده.",
     },
     en: {
       title: "Ashry Gaming",
@@ -3488,7 +3681,7 @@
       roll: "Roll Dice",
       flip: "Flip Coin",
       setup_tourney: "Tournament Maker",
-      tourney_hint: "Enter 4 or 8 names",
+      tourney_hint: "3 to 16 players. Anyone without an opponent goes straight through.",
       add_more: "+ Add Slot",
       setup_charades: "Charades",
       next_word: "Next 🔄",
@@ -3517,7 +3710,130 @@
       reaction_too_soon: "Too Soon! ❌",
       reaction_winner: "Winner! 🏆",
       reaction_ms: "ms",
-      reaction_desc: "Place the phone on the table between you and your friend. When the screen turns GREEN, tap as fast as you can! But don't tap before it turns green."
+      reaction_desc: "Place the phone on the table between you and your friend. When the screen turns GREEN, tap as fast as you can! But don't tap before it turns green.",
+      tmr_minus1: "-1m",
+      tmr_plus1: "+1m",
+      tmr_plus5: "+5m",
+      monkey_log_search: "🔍 Search the log...",
+      monkey_log_word: "Name",
+      play_again_same: "New game, same players",
+      swap_pick_title: "Pick a player to swap with",
+      search_ph: "🔍 Search...",
+      swap_confirm_title: "Confirm the swap",
+      swap_confirm_q: "Swap the places of",
+      swap_with: "and",
+      q_mark: "?",
+      swap_yes: "Yes, swap them",
+      add_player_title: "Add a player",
+      add_player_sub: "Pick a saved name or add a new one",
+      new_player_ph: "New player's name",
+      add_and_join: "Add to the game",
+      manual_points_title: "Enter points by hand",
+      points_ph: "Points",
+      chess_config_title: "Chess clock time",
+      chess_config_label: "Time for each player (minutes)",
+      chess_config_save: "Save and play",
+      domino_mode_title: "How do you want to play?",
+      domino_mode_sub: "You picked 4 players. How do you want to play?",
+      domino_mode_single: "Singles (each on their own)",
+      domino_mode_teams: "Teams (2 against 2)",
+      correct_words: "Words guessed",
+      tourney_bracket: "The bracket",
+      guess_mode_computer: "The phone",
+      guess_mode_friend: "A friend",
+      whoami_mix_pick: "Pick the categories",
+      whoami_order_title: "Who was who",
+      tap_card_correct: "Tap the card when they guess it",
+      exit_leave_game: "Leave the game",
+      timer_done: "The timer is up",
+      update_ready: "A new version of the app is ready - tap to update",
+      room_kick: "Remove from the room",
+      room_kick_confirm: "Remove {name} from the room? They can join again with the code.",
+      room_hub_confirm: "End this game for everyone and pick another?",
+      room_action_failed: "That didn't go through, try again",
+      jo_close_writing: "Guess with the clues so far",
+      jo_skip_guess: "Skip the guess",
+      fib_close_writing: "Vote on the answers so far",
+      cn_pass_turn: "Pass the turn ⏭️",
+      cn_set_spymaster: "New spymaster: {team}",
+      mafia_night_pick: "Tap a name. What it does is on your card.",
+      mafia_night_picked: "Your pick is in.",
+      mafia_last_save: "Not {name} again tonight",
+      cs_view_last: "See the last game",
+      cs_rules_locked: "Rules of the game in progress",
+      cs_rules_locked_hint: "This game follows these rules. Changing them starts a new game.",
+      cs_change_rules: "Change the rules (new game)",
+      cs_confirm_end: "The game in progress will be deleted to change the rules. Sure?",
+      cs_confirm_new: "A game is in progress. Start a new one and delete it?",
+      cs_seating: "Seating order",
+      cs_seating_swap: "Tap two names to swap their seats.",
+      cs_dealer: "Deals: {name}",
+      cs_preview_end: "This round ends the game",
+      cs_quick_rest: "{n} left, to whom?",
+      cs_quick_same: "Made the call exactly",
+      cs_tarneeb_41_made_over: "The bids marked as made add up to more than 13 tricks: check who made theirs",
+      cs_tarneeb_41_none_made: "With these bids someone made theirs: mark who did",
+      tourney_need: "Pick {min} to {max} players",
+      tourney_undo: "Take back the last result",
+      tourney_bye: "Bye",
+      tourney_champion: "Champion",
+      tourney_again: "New draw, same players",
+      tourney_final: "Final 🏆",
+      tourney_semi: "Semi-final",
+      tourney_quarter: "Quarter-final",
+      tourney_r16: "Round of 16",
+      solo_look: "Look at the board",
+      solo_look_result: "Result",
+      daily_continue_today: "Continue today's puzzle",
+      daily_continue: "Continue",
+      solo_new_confirm: "Start a new game and leave the one in progress?",
+      solo_clear_confirm: "Clear everything on the board?",
+      conn_already_tried: "You already tried these four",
+      accuse_badge: "Accuse",
+      spy_badge: "Spy?",
+      cham_civilian: "Civilian",
+      spy_civilian: "At the place",
+      cham_coord_word: "Coordinates and secret word",
+      cham_random_cat: "Random category",
+      cham_wins: "The chameleon wins!",
+      spy_wins: "The spy wins!",
+      table_wins: "The table wins!",
+      bomb_safest: "Who survived most",
+      bomb_safest_hint: "The number is the rounds it went off in someone else's hands",
+      five_more_round: "One more round, scores kept",
+      quiz_who_got: "Who got it?",
+      mk_back_to_board: "Back to the board",
+      relay_unfinished: "Unfinished match",
+      relay_new_confirm: "A match isn't finished. Start a new one with these names?",
+      tb_unfinished: "Unfinished game",
+      tb_new_confirm: "A game isn't finished. Start a new one?",
+      tb_undo_award: "Undo the last question",
+      jo_final: "Final score",
+      jo_next_guesser: "Next guesser: {name}",
+      jo_see_final: "Final score 🏁",
+      jo_ready_next: "Ready, next round ➡",
+      jo_rate_perfect: "Perfect! Not one got away 🏆",
+      jo_rate_great: "Brilliant teamwork!",
+      jo_rate_good: "Nice! You can do better",
+      jo_rate_try: "Try again, think differently from each other",
+      wa_cat_manual: "Type them in",
+      wa_cat_mix: "Mix",
+      wa_shuffle_label: "Shuffle the characters",
+      wa_shuffle_on: "On: everyone writes one in secret; the phone deals them to someone else.",
+      wa_shuffle_off: "Off: the others type each character while that player looks away; the clock starts at once.",
+      wa_hide_from: "Hide the phone from",
+      wa_hide_hint: "{name} looks away; everyone else looks.",
+      wa_show_others: "Show the others",
+      wa_is: "{name} is:",
+      wa_reveal_hint: "Remember it, and don't tell {name}!",
+      wa_write_secret: "Write a character in secret…",
+      wa_write_for: "{name}'s character…",
+      select_3_players: "Pick at least 3 players",
+      whoami_ask_hint: "Ask yes-or-no questions to find out who you are!",
+      jo_rounds_label: "Rounds",
+      bomb_players_hint: "Pick the players and the app counts whose hands it went off in (optional).",
+      quiz_players_hint: "Pick the players to keep score (optional).",
+      whoami_players_hint: "Pick the players; the count follows.",
     }
   };
 
@@ -3556,6 +3872,7 @@
     // Screens drawn in JS carry their own text; redraw the ones on show.
     if (appState.currentView === 'play-trivia' && typeof renderTriviaBoard === 'function') renderTriviaBoard();
     if (appState.currentView === 'setup-connections' && typeof paintConnectLevel === 'function') paintConnectLevel();
+    runLanguageHooks();
     // A room screen only redraws when the room changes, so it kept the old
     // language until the next move. Drop its signatures and draw it now.
     if ((appState.currentView || '').indexOf('room-') === 0 && typeof Room !== 'undefined' && Room.state) {
@@ -3621,9 +3938,34 @@
    * every popup covers the whole screen.
    */
   function hoistModals() {
+    const tintOnOpen = new MutationObserver(records => records.forEach(r => {
+      const overlay = r.target;
+      if (overlay.classList.contains('hidden')) return;
+      tintModal(overlay);
+      armBackTrap();    // back closes a popup, on the home too
+    }));
     document.querySelectorAll('.modal-overlay').forEach(el => {
       if (el.parentElement !== document.body) document.body.appendChild(el);
+      tintOnOpen.observe(el, { attributes: true, attributeFilter: ['class'] });
     });
+  }
+
+  /* Moved under <body>, a popup no longer sits inside its game's screen, so it
+     lost the game's colour and every result, exit and confirm sheet came up
+     violet. It takes the colour of the screen it opens over, unless the popup
+     sets one of its own (data-accent in the markup). */
+  function tintModal(overlay) {
+    const content = overlay.querySelector('.modal-content');
+    if (!content) return;
+    if (content.hasAttribute('data-accent') && !content.hasAttribute('data-accent-auto')) return;
+    const meta = VIEW_META[appState.currentView] || {};
+    if (meta.accent) {
+      content.setAttribute('data-accent', meta.accent);
+      content.setAttribute('data-accent-auto', '');
+    } else if (content.hasAttribute('data-accent-auto')) {
+      content.removeAttribute('data-accent');
+      content.removeAttribute('data-accent-auto');
+    }
   }
 
   const syncEl = document.getElementById('sync-status');
@@ -3658,7 +4000,26 @@
     // never runs against a cached copy. docs/sw.js keeps an offline copy of the
     // app; tools/build-site.mjs writes it.
     if (!window.STATIC_SITE || !('serviceWorker' in navigator)) return;
+    const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    // A new build's worker takes over an open page (skipWaiting + claim). Say so
+    // once, with a tap to load it - an iPhone home-screen copy can stay open for
+    // days and has no reload button. Not on a first visit, when there was no
+    // worker before and nothing is out of date.
+    let told = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || told) return;
+      told = true;
+      const t = TRANSLATIONS[appState.lang] || {};
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'toast info toast--action';
+      el.textContent = '✨ ' + (t.update_ready || 'فيه نسخة جديدة من التطبيق - اضغط للتحديث');
+      el.onclick = () => reloadApp();
+      document.body.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('show'));
+      setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, 15000);
+    });
   }
 
   function saveActivePlayers(selectedArray) {
@@ -3825,8 +4186,12 @@
     document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
   }
 
+  /* Settings → تحديث البيانات. A real reload: the service worker fetches the
+     network first, so this is how a home-screen copy (which has no reload
+     button) picks up a new build. Re-running initializeApp loaded nothing new. */
   function reloadApp() {
-      initializeApp();
+      try { saveToLocal(); } catch (e) {}
+      location.reload();
   }
 
   // Clock handles and timeout ids are parked on appState, but they mean nothing
@@ -3835,8 +4200,12 @@
   const OMIT_FROM_SAVE = ['interval', 'timeoutId'];
 
   function saveToLocal() {
-    localStorage.setItem('gameTrackerState_v1', JSON.stringify(appState,
-      (key, value) => OMIT_FROM_SAVE.includes(key) ? undefined : value));
+    // Private browsing or a full storage throws here; setView calls this on
+    // every screen change, so a throw would stop the app from moving at all.
+    try {
+      localStorage.setItem('gameTrackerState_v1', JSON.stringify(appState,
+        (key, value) => OMIT_FROM_SAVE.includes(key) ? undefined : value));
+    } catch (e) { /* nothing to save to: play on */ }
   }
 
   /**
@@ -3852,8 +4221,11 @@
     appState.describe.interval = null;
     appState.whoami.interval = null;
     appState.whoami.isPaused = false;
-    appState.timers.general.interval = null;
-    appState.timers.general.running = false;
+    const general = appState.timers.general;
+    if (!(general.interval && general.interval.keepRunning && general.interval.isRunning())) {
+        general.interval = null;
+        general.running = false;
+    }
     appState.timers.chess.interval = null;
     appState.timers.chess.active = null;
     appState.reaction.timeoutId = null;
@@ -3873,7 +4245,7 @@
         'setup-spin', 'play-spin', 
         'setup-universal', 'play-universal', 
         'timers',
-        'setup-whoami', 'input-whoami', 'play-whoami', 
+        'setup-whoami', 'input-whoami', 'play-whoami', 'tool-dice', 'setup-codenames',
         'setup-charades', 'play-charades',
         'setup-describe', 'play-describe',
         'setup-wordle', 'play-wordle',
@@ -3933,8 +4305,26 @@
         }
     } else {
         appState.currentView = 'menu'; 
+        // A phone opening the app for the first time starts in its own theme.
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            appState.isDarkMode = true;
+            document.body.classList.add('dark');
+        }
     }
+    syncThemeColor();
     restoreView();
+  }
+
+  /* The browser's bar (and an installed app's status bar) takes the page's own
+     background, in either theme, instead of a fixed indigo. */
+  function syncThemeColor() {
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (!meta) return;
+      // Read once the theme's colour fade (350ms) has finished.
+      setTimeout(() => {
+          const bg = getComputedStyle(document.body).backgroundColor;
+          if (bg && bg !== 'rgba(0, 0, 0, 0)') meta.setAttribute('content', bg);
+      }, 400);
   }
 
   // Held so a rapid double-toggle doesn't strip .theme-transition mid-fade.
@@ -3952,6 +4342,7 @@
       }, 350);
 
       document.body.classList.toggle('dark');
+      syncThemeColor();
 
       const icon = appState.isDarkMode ? '☀️' : '🌙';
       const headerIcon = document.getElementById('dark-mode-icon');
@@ -3966,7 +4357,21 @@
       saveToLocal();
   }
 
+  /* A save from an older build, or a bug in one game's redraw, must not leave a
+     blank screen (and on a full-screen view, no header or nav to get out
+     with): a restore that throws lands on that game's setup screen instead. */
   function restoreView() {
+    try {
+        restoreSavedView();
+    } catch (e) {
+        console.error('restore failed', appState.currentView, e);
+        const up = (VIEW_META[appState.currentView] || {}).up || '';
+        document.body.classList.remove('is-fullscreen-view', 'is-tv-view');
+        setView(up.indexOf('setup-') === 0 ? up : 'menu');
+    }
+  }
+
+  function restoreSavedView() {
     document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
     // setView sets these, but a reload restores the screen without it: the
     // chess clock came back with the header and nav, and the big screen as a
@@ -3994,7 +4399,7 @@
             if ((appState.universal.players || []).length) renderUniversalBoard();
             else setTimeout(() => setView('setup-universal'), 50);
         }
-        else if (appState.currentView === 'timers') switchTimerMode('general');
+        else if (appState.currentView === 'timers') { switchTimerMode('general'); if (typeof paintGenTimer === 'function') paintGenTimer(); }
         // The bracket lives entirely in appState, so it redraws exactly. (The
         // old call named a function that does not exist, and the typeof guard
         // meant it failed silently and showed an empty bracket.)
@@ -4214,17 +4619,17 @@
     'setup-reaction':  { title: 'setup_reaction',   up: 'menu',           accent: 'rose' },
     'play-reaction':   { title: 'setup_reaction',   up: 'setup-reaction', accent: 'rose' },
 
-    'setup-spin':      { title: 'setup_spin',       up: 'menu',           accent: 'orange' },
+    'setup-spin':      { title: 'setup_spin',       up: 'tools',          accent: 'orange' },
     'play-spin':       { title: 'setup_spin',       up: 'setup-spin',     accent: 'orange' },
-    'setup-teams':     { title: 'team_generator',   up: 'menu',           accent: 'indigo' },
+    'setup-teams':     { title: 'team_generator',   up: 'tools',          accent: 'indigo' },
     'results-teams':   { title: 'generated_teams',  up: 'setup-teams',    accent: 'indigo' },
-    'setup-tourney':   { title: 'setup_tourney',    up: 'menu',           accent: 'amber' },
+    'setup-tourney':   { title: 'setup_tourney',    up: 'tools',          accent: 'amber' },
     'play-tourney':    { title: 'setup_tourney',    up: 'setup-tourney',  accent: 'amber' },
-    'setup-universal': { title: 'universal_counter', up: 'menu',          accent: 'blue' },
+    'setup-universal': { title: 'universal_counter', up: 'tools',         accent: 'blue' },
     'play-universal':  { title: 'universal_counter', up: 'setup-universal', accent: 'blue' },
-    'timers':          { title: 'timers_title',     up: 'menu',           accent: 'rose' },
-    'play-chess':      { title: 'chess_title',      up: 'menu',           accent: 'indigo' },
-    'tool-dice':       { title: 'tool_dice',        up: 'menu',           accent: 'green' },
+    'timers':          { title: 'timers_title',     up: 'tools',          accent: 'rose' },
+    'play-chess':      { title: 'chess_title',      up: 'tools',          accent: 'indigo' },
+    'tool-dice':       { title: 'tool_dice',        up: 'tools',          accent: 'green' },
 
     'setup-bomb':      { title: 'setup_bomb',       up: 'menu',           accent: 'orange' },
     'play-bomb':       { title: 'setup_bomb',       up: 'setup-bomb',     accent: 'orange' },
@@ -4261,7 +4666,7 @@
     'setup-headsup':   { title: 'setup_headsup',    up: 'menu',           accent: 'green' },
     'play-headsup':    { title: 'setup_headsup',    up: 'setup-headsup',  accent: 'green' },
     'play-flags':      { title: 'setup_flags',      up: 'setup-flags',    accent: 'blue' },
-    'play-chooser':    { title: 'tool_chooser',     up: 'menu',           accent: 'orange' },
+    'play-chooser':    { title: 'tool_chooser',     up: 'tools',          accent: 'orange' },
     'room-buzzer':     { title: 'setup_buzzer',     up: 'menu',           accent: 'rose' },
     'room-stop':       { title: 'setup_stop',       up: 'menu',           accent: 'green' },
     'room-chameleon':  { title: 'setup_chameleon',  up: 'menu',           accent: 'amber' },
@@ -4402,8 +4807,9 @@
   function syncSegmented(seg) {
     const active = seg.querySelector(':scope > .segmented__item.is-active');
     if (!active || !active.offsetWidth) return;      // hidden: measured when shown
-    seg.style.setProperty('--seg-x', active.offsetLeft + 'px');
-    seg.style.setProperty('--seg-w', active.offsetWidth + 'px');
+    const x = active.offsetLeft + 'px', w = active.offsetWidth + 'px';
+    if (seg.style.getPropertyValue('--seg-x') !== x) seg.style.setProperty('--seg-x', x);
+    if (seg.style.getPropertyValue('--seg-w') !== w) seg.style.setProperty('--seg-w', w);
     if (!seg.classList.contains('has-thumb')) seg.classList.add('has-thumb');
   }
   function syncAllSegmented() {
@@ -4431,6 +4837,43 @@
     const meta = VIEW_META[appState.currentView];
     setView(meta && meta.up ? meta.up : 'menu');
   }
+
+  /* The bottom bar's tabs. Mid-round on a passed phone, a stray tap on 🏠 used
+     to drop the round without a word; it asks first, like the back arrow. */
+  function navTo(target) {
+    if (typeof openExitSheet === 'function' && openExitSheet(target)) return;
+    navGo(target);
+  }
+  function navGo(target) {
+    if (target === 'together' && typeof goTogether === 'function') goTogether();
+    else setView(target);
+  }
+
+  /* The phone's own back - Android's button, a browser's back swipe - did what
+     a browser does: it left the app, in the middle of a game. One history entry
+     is kept in front of the app while there is somewhere to go back to, and a
+     back press is answered like the header's arrow (a popup closes first, a
+     game asks before it is dropped). On the home it is let through, so back
+     still leaves the app from there. */
+  let backTrapArmed = false;
+  function armBackTrap() {
+    if (backTrapArmed) return;
+    try { history.pushState({ ashryBack: true }, ''); backTrapArmed = true; } catch (e) {}
+  }
+  window.addEventListener('popstate', () => {
+    if (!backTrapArmed) return;
+    backTrapArmed = false;
+    const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
+    if (open.length) {
+      const top = open[open.length - 1];
+      if (top.id) closeModal(top.id); else top.classList.add('hidden');
+      if (appState.currentView !== 'menu' || document.querySelector('.modal-overlay:not(.hidden)')) armBackTrap();
+      return;
+    }
+    if (appState.currentView === 'menu') return;
+    goBack();
+    if (appState.currentView !== 'menu' || document.querySelector('.modal-overlay:not(.hidden)')) armBackTrap();
+  });
 
   /** Told to the player when a reload cost them a timed round. */
   function toastRoundLost() {
@@ -4511,7 +4954,10 @@
     'setup-imposter': 'paintImposterSetup',
     'setup-whoami': 'paintWhoAmISetup',
     'setup-charades': 'paintCharadesSetup',
-    'setup-describe': 'paintDescribeSetup'
+    'setup-describe': 'paintDescribeSetup',
+    'setup-trivia': 'paintTriviaSetup',
+    'setup-teams': 'paintTeamsSetup',
+    'setup-justone': 'paintJustOneSetup'
   };
   function paintSetupOptions(viewId) {
     const fn = SETUP_PAINTERS[viewId];
@@ -4555,8 +5001,12 @@
     const homeFlight = goingBack && typeof heroHomeFlight === 'function' ? heroHomeFlight(previous, viewId) : null;
 
     appState.currentView = viewId;
+    if (previous !== viewId) runLeaveHooks(previous, viewId);
+    if (viewId !== 'menu') armBackTrap();
+    if (typeof syncWakeLock === 'function') syncWakeLock(viewId);
     saveToLocal();
 
+    if (viewId === 'menu' && previous !== 'menu' && typeof resetHomeFilters === 'function') resetHomeFilters(previous);
     if (viewId === 'menu' && typeof renderHome === 'function') renderHome();
     if (viewId === 'together' && typeof renderTogether === 'function') renderTogether();
     if (viewId === 'tools' && typeof renderTools === 'function') renderTools();
@@ -4594,6 +5044,7 @@
     syncChrome(viewId);
 
     if (viewId === 'tool-dice' && typeof paintDiceTray === 'function') paintDiceTray();
+    if (viewId === 'timers' && typeof paintGenTimer === 'function') paintGenTimer();
     if(viewId.startsWith('setup-')) {
         const listId = viewId.replace('setup-', '') + '-player-list';
         if(typeof renderActiveChips === 'function') renderActiveChips(listId, true);
@@ -4647,6 +5098,7 @@
   /* --- CORE UI HELPERS --- */
   function closeAllModals() {
       document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
+      resumeClocksAfterSheet();
       // setView() closes everything, so the help nav item has to be released
       // here too or it stays lit after navigating away.
       const nav = document.getElementById('nav-help');
@@ -4655,6 +5107,7 @@
   function closeModal(id) {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
+    if (id === 'exit-modal' || id === 'help-modal') resumeClocksAfterSheet();
     // The help sheet lights its nav item while it is open.
     if (id === 'help-modal') {
       const nav = document.getElementById('nav-help');
@@ -4767,6 +5220,7 @@ const GAME_RULES = {
                 <li>الحرباء بتحاول تقول كلمة عامة تقنعكم إنها عارفة.</li>
                 <li>صوّتوا على الحرباء. لو مسكتوها، عندها فرصة أخيرة تخمّن الكلمة من اللوحة: لو صابت، هي اللي تكسب.</li>
                 <li>لو اتهمتوا الغلط، الحرباء تكسب.</li>
+                <li><b>العب تاني</b> يوزّع من جديد لنفس اللاعبين ويكمّل النقط: مسكتوها وغلطت = نقطة لكل واحد، هربت أو خمّنت = نقطتين للحرباء.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -4780,6 +5234,7 @@ const GAME_RULES = {
                 <li>اسألوا بعض أسئلة عن المكان من غير ما تقولوه: «بتيجي هنا كتير؟». الإجابة الواضحة زيادة بتفضح المكان للجاسوس، والإجابة المهزوزة بتفضح الجاسوس.</li>
                 <li>الجاسوس يقدر يوقّف اللعبة في أي وقت ويخمّن المكان. لو صاب، يكسب.</li>
                 <li>لما الوقت يخلص أو تتفقوا، صوّتوا على الجاسوس. لو مسكتوه عنده فرصة أخيرة يخمّن المكان.</li>
+                <li><b>العب تاني</b> يوزّع من جديد لنفس اللاعبين ويكمّل النقط: مسكتوه وغلط = نقطة لكل واحد، هرب أو عرف المكان = نقطتين للجاسوس.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -4812,6 +5267,7 @@ const GAME_RULES = {
             <p class="help-sub">👥 فريقين</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>من شاشة الإعداد اختار <b>فريقين</b>، سمّيهم، وحدد عدد الأدوار لكل فريق. الموبايل يقولك دور مين، الفريق يلعب جولته، وتمرر للفريق التاني. في الآخر لوحة بالنتيجة.</li>
+                <li>مباراة لسه ما خلصتش تقدر تكمّلها من الإعداد، والتطبيق يسألك قبل ما يبدأ واحدة جديدة. ضغطت صح غلط؟ <b>↶</b> يرجّع آخر كارت ونقطته.</li>
             </ul>`,
         describe: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -4822,6 +5278,7 @@ const GAME_RULES = {
             <p class="help-sub">👥 فريقين</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>اختار <b>فريقين</b> من شاشة الإعداد: الموبايل يقولك دور مين، كل فريق يلعب جولته بالدور، ولوحة بالنتيجة في الآخر.</li>
+                <li>مباراة لسه ما خلصتش تقدر تكمّلها من الإعداد، والتطبيق يسألك قبل ما يبدأ واحدة جديدة. ضغطت صح غلط؟ <b>↶</b> يرجّع آخر كارت ونقطته.</li>
             </ul>`,
         timesup: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -4829,6 +5286,7 @@ const GAME_RULES = {
                 <li>نفس الكروت بتتلعب <b>3 جولات</b>: الأولى <b>كلام حر</b> (وصف من غير ما تقول الاسم)، التانية <b>كلمة واحدة</b> بس، التالتة <b>تمثيل صامت</b>.</li>
                 <li>كل دور له وقت. لو الكروت خلصت في نص دورك، تكمل في الجولة اللي بعدها بالوقت الفاضل.</li>
                 <li>الفريق اللي جمع كروت أكتر في التلات جولات يكسب.</li>
+                <li>ضغطت صح أو تجاوز بالغلط؟ <b>↶</b> جنب الساعة يرجّع آخر كارت ونقطته.</li>
             </ol>`,
         whoami: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -4836,6 +5294,7 @@ const GAME_RULES = {
                 <li>مرر الموبايل: كل واحد يشوف <b>شخصية غيره</b> ويحفظها، من غير ما يعرف شخصيته هو.</li>
                 <li>يبدأ الوقت (60 أو 120 أو 180 ثانية، أو من غير وقت): كل واحد يسأل أسئلة إجابتها نعم أو لا («أنا حيوان؟») عشان يعرف هو مين.</li>
                 <li>في الآخر <b>كشف الكلمات</b> يوريكم كل واحد كان مين.</li>
+                <li>✍️ إدخال يدوي: مع <b>خلط الشخصيات</b> كل واحد يكتب شخصية في السر والموبايل يوزّعها على غيره، ومن غيره الباقيين يكتبوا شخصية كل واحد وهو باصص بعيد.</li>
             </ol>
             <p class="help-sub">🎤 مين يسأل مين؟</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -4851,6 +5310,7 @@ const GAME_RULES = {
                 <li>كل واحد يكتب <b>تلميحاً واحداً</b> من كلمة واحدة.</li>
                 <li>التلميحات المتشابهة <b>بتتشال</b> قبل ما المخمّن يشوفها، فحاولوا تفكروا مختلف عن بعض. الإملاء مش فارقة: شمس والشمس وأسد واسد نفس التلميح.</li>
                 <li>المخمّن يحاول من التلميحات الباقية. صح = نقطة للفريق كله.</li>
+                <li>على موبايل واحد: اختاروا 5 أو 10 أو 13 جولة، وفي الآخر النتيجة النهائية. حكمتوا غلط؟ «رجّع».</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -4900,6 +5360,7 @@ const GAME_RULES = {
                 <li>فيلم أو مثل أو أكلة أو مكان مكتوب <b>بالإيموجي</b>.</li>
                 <li>على موبايل واحد: الفزورة للكل، ومين يعرفها الأول يقولها. <b>كشف الإجابة</b> لما تتفقوا، وبعدين فزورة تانية. تقدر تختار نوع الفوازير.</li>
                 <li>الإملاء مش فارقة، والأسماء الأجنبية بتتقبل بالعربي أو الإنجليزي.</li>
+                <li>اختاروا أسماء اللاعبين في الإعداد عشان تحسبوا النقط: بعد الكشف اضغط <b>مين عرفها؟</b>، وفي الآخر منصة الفايزين.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -4909,6 +5370,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>مثل مصري أو عربي <b>ناقصه كلمة</b>.</li>
                 <li>على موبايل واحد: المثل للكل، ومين يكمّله الأول. <b>كشف الكلمة</b> لما تتفقوا، وبعدين مثل تاني.</li>
+                <li>اختاروا أسماء اللاعبين في الإعداد عشان تحسبوا النقط: بعد الكشف اضغط <b>مين عرفها؟</b>، وفي الآخر منصة الفايزين.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -4919,6 +5381,7 @@ const GAME_RULES = {
                 <li>كل واحد بالدور: فئة تظهر (حيوانات المزرعة، ماركات عربيات…) و<b>5 ثواني</b> يقول 3 حاجات منها بصوت عالي.</li>
                 <li>الساعة بتدق، ولما تخلص الطاولة تحكم: <b>عرف</b> نقطة، <b>مش عرف</b> ولا حاجة. لو قالهم بسرعة اضغط عرف من غير ما تستنى.</li>
                 <li>جولة أو اتنين أو تلاتة لكل لاعب، وأعلى نقاط يكسب.</li>
+                <li>في الآخر منصة الفايزين، و<b>جولة كمان</b> تكمّل بنفس النقط.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -4937,6 +5400,7 @@ const GAME_RULES = {
                 <li>قول حاجة من الفئة ومرّر الموبايل للي جنبك. ممنوع تعيد كلمة اتقالت.</li>
                 <li>الوقت عشوائي ومحدش يعرفه، بس التكتكة بتسرع لما القنبلة تقرّب تفرقع.</li>
                 <li>اللي القنبلة في إيده لما تفرقع <b>خسر الجولة</b>. <b>فئة تانية</b> بتغيّر الفئة من غير ما الفتيل يتصفّر.</li>
+                <li>اختاروا أسماء اللاعبين في الإعداد: لما تفرقع اضغط على اللي كانت في إيده، والتطبيق يعد، وفي الآخر ترتيب باللي نجا أكتر.</li>
             </ol>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -4987,6 +5451,7 @@ const GAME_RULES = {
                 <li>فريقين ومقدم واحد. كل جولة 5 فئات، وفي كل فئة أسئلة من 100 لـ 500 نقطة: الأعلى أصعب.</li>
                 <li>الفريق يختار فئة ونقاط، المقدم يقرأ السؤال ويظهر الإجابة ويدي النقاط.</li>
                 <li>مؤقت اختياري لكل سؤال: اضغط على العداد عشان توقفه، ولما يخلص الإجابة تظهر لوحدها. أزرار + و − لتصحيح النقاط.</li>
+                <li>اديت النقط غلط؟ <b>رجّع آخر سؤال</b>. ولو سبت لعبة لسه ما خلصتش، تقدر تكمّلها من شاشة الإعداد.</li>
             </ol>`,
         buzzer: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -5006,7 +5471,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>لوحة نتايج للدومينو: اللعب على الطاولة، والتطبيق يحسب.</li>
                 <li>من 2 لـ 4 لاعبين، ومع 4 تقدروا تلعبوا فرق (اتنين واتنين).</li>
-                <li>زر +10 للسريع، وزر … لأي رقم تاني، وزر ↺ يرجّع 5. أول واحد يوصل للهدف (101 افتراضياً) يكسب.</li>
+                <li>زر +10 للسريع، وزر … لأي رقم تاني. كتبت غلط؟ «رجّع» في جدول الجولات بيشيل آخر رقم بالظبط. أول واحد يوصل للهدف (101 افتراضياً) يكسب.</li>
             </ul>`,
         monkey: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -5015,6 +5480,7 @@ const GAME_RULES = {
                 <li><b>مفيش عندي</b> = ربع. الوقت خلص = ربع (تقدر تطفي ده من الإعدادات).</li>
                 <li>4 أرباع = <b>قرد</b>: بيتعدّى في الدور، وممنوع حد يكلمه. اللي يكلمه ياخد مكانه (زر <b>تبديل</b>).</li>
                 <li>لما يفضل عدد الفايزين اللي اخترته، اللعبة تخلص.</li>
+                <li>الحكم اللي خلّى حد قرد كان غلط؟ شاشة الفايز فيها <b>عكس الحكم</b> و<b>رجوع للّعبة</b>.</li>
             </ol>
             <p class="help-sub">🔗 آخر حرف</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5081,11 +5547,12 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>يقسم أي عدد لاعبين على 2 أو 3 أو 4 فرق بالتساوي.</li>
                 <li><b>عشوائي</b>: خلط كامل. <b>متوازن</b>: تدّي كل واحد تقييم من 1 لـ 5 نجوم، والتطبيق يوزّعهم عشان الفرق تطلع متقاربة.</li>
+                <li>الفرق دايماً بنفس العدد، أو بفرق لاعب واحد بس.</li>
             </ul>`,
         tourney: `
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>جدول مباريات (Bracket) لـ 4 أو 8 لاعبين، بقرعة عشوائية.</li>
-                <li>اضغط على اسم الفائز عشان يطلع للدور اللي بعده لحد الكأس 🏆.</li>
+                <li>جدول مباريات من 3 لـ 16 لاعب بقرعة عشوائية. اللي مالوش خصم يعدّي للدور اللي بعده على طول.</li>
+                <li>اضغط على اسم الفائز عشان يطلع للدور اللي بعده لحد الكأس 🏆. ضغطت غلط؟ «رجّع آخر نتيجة».</li>
             </ul>`,
         universal: `
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5281,9 +5748,10 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>بعد كل جولة اختار <b>مين نزل</b>، واكتب نقط الورق اللي فاضل مع الباقيين: من 2 لـ 10 زي ما هي، الصور 10، الآس 11، الجوكر 15.</li>
                 <li>اللي نزل ياخد <b>−30</b>. اللي منزلش ولا ورقة ياخد <b>100</b>.</li>
-                <li><b>هاند</b> (نزل كله مرة واحدة) أو كونكان: كل الحساب ×2. خلّص بجوكر ×2، لون واحد ×2، شكل واحد ×4.</li>
+                <li><b>هاند</b> (نزل كله مرة واحدة) أو كونكان: كل الحساب ×2. خلّص بجوكر ×2، لون واحد ×2 أو شكل واحد ×4.</li>
                 <li>في الفرق: شريك اللي نزل مياخدش حاجة.</li>
-                <li>أقل نقط بعد 5 أو 7 جولات يكسب. أو اختار «خروج بعد 101»: اللي يعدّي 101 يخرج وآخر واحد يفضل يكسب.</li>
+                <li>أقل نقط بعد 5 أو 7 جولات يكسب. أو اختار «خروج بعد 101» (للعب الفردي بس): اللي يعدّي 101 يخرج وآخر واحد يفضل يكسب.</li>
+                <li>💡 الشريط تحت الأسماء هو ترتيب القعدة: اضغط اسمين يتبدلوا. القواعد بتتقفل بعد أول جولة، وقبل ما تسجّل بتشوف المجموع الجديد في الشريط تحت.</li>
             </ol>`,
         'cs-basra': `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -5291,6 +5759,7 @@ const GAME_RULES = {
                 <li>كل باصرة <b>10</b>، كل آس أو ولد <b>1</b>، <b>2♣</b> بـ 2، <b>10♦</b> بـ 3، و<b>أكتر ورق</b> (27 أو أكتر) بـ 30.</li>
                 <li>لو الورق اتقسم 26 و26، الـ 30 بتتنقل للجولة الجاية وتبقى 60.</li>
                 <li>أول واحد يعدّي الهدف في آخر جولة يكسب. تقدروا تلعبوا فرق (4 لاعبين).</li>
+                <li>💡 الشريط تحت الأسماء هو ترتيب القعدة: اضغط اسمين يتبدلوا. القواعد بتتقفل بعد أول جولة، وقبل ما تسجّل بتشوف المجموع الجديد في الشريط تحت.</li>
             </ol>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5386,6 +5855,7 @@ const GAME_RULES = {
                 <li>The chameleon tries to say something vague enough to pass as knowing.</li>
                 <li>Vote on the chameleon. If caught, they get one last guess at the word from the board: right, and they win.</li>
                 <li>Accuse the wrong person and the chameleon wins.</li>
+                <li><b>Play again</b> deals again to the same table and keeps score: caught and wrong = a point each, escaped or guessed = two for the chameleon.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5399,6 +5869,7 @@ const GAME_RULES = {
                 <li>Ask each other about the place without naming it: "Do you come here often?". Too clear an answer gives the place to the spy; a shaky one gives the spy away.</li>
                 <li>The spy can stop the game at any time and guess the place. Right, and they win.</li>
                 <li>When time is up, or you agree, vote on the spy. If caught, the spy gets one last guess at the place.</li>
+                <li><b>Play again</b> deals again to the same table and keeps score: caught and wrong = a point each, escaped or found the place = two for the spy.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5431,6 +5902,7 @@ const GAME_RULES = {
             <p class="help-sub">👥 Two teams</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>On the setup screen choose <b>Two teams</b>, name them and set the turns each. The phone says whose turn it is, the team plays its round, and you hand the phone over. A final board at the end.</li>
+                <li>An unfinished match can be carried on from the setup, and the app asks before starting a new one. Tapped correct by mistake? <b>↶</b> brings the last card and its point back.</li>
             </ul>`,
         describe: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -5441,6 +5913,7 @@ const GAME_RULES = {
             <p class="help-sub">👥 Two teams</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Choose <b>Two teams</b> on the setup screen: the phone says whose turn it is, teams alternate rounds, and a final board closes the match.</li>
+                <li>An unfinished match can be carried on from the setup, and the app asks before starting a new one. Tapped correct by mistake? <b>↶</b> brings the last card and its point back.</li>
             </ul>`,
         timesup: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -5448,6 +5921,7 @@ const GAME_RULES = {
                 <li>The same cards are played over <b>3 rounds</b>: first <b>free talk</b> (describe without saying the name), then <b>one word</b> only, then <b>silent acting</b>.</li>
                 <li>Every turn is timed. If the deck runs out mid-turn, you carry on into the next round with the time you have left.</li>
                 <li>The team with more cards over the three rounds wins.</li>
+                <li>Tapped correct or pass by mistake? <b>↶</b> next to the clock brings the last card and its point back.</li>
             </ol>`,
         whoami: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -5455,6 +5929,7 @@ const GAME_RULES = {
                 <li>Pass the phone: each player sees <b>someone else's</b> character and remembers it, without knowing their own.</li>
                 <li>The clock starts (60, 120 or 180 seconds, or none): everyone asks yes-or-no questions ("Am I an animal?") to work out who they are.</li>
                 <li>At the end, <b>Reveal</b> shows who everyone was.</li>
+                <li>✍️ Typing them in: with <b>Shuffle</b> on, everyone writes one in secret and the phone deals them to someone else; with it off, the others type each player's character while they look away.</li>
             </ol>
             <p class="help-sub">🎤 Who asks whom?</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5470,6 +5945,7 @@ const GAME_RULES = {
                 <li>Each player writes <b>one clue</b> of one word.</li>
                 <li>Matching clues are <b>removed</b> before the guesser sees them, so think differently from each other. Spelling doesn't matter: شمس and الشمس, أسد and اسد are the same clue.</li>
                 <li>The guesser tries from the clues left. Right = a point for the whole team.</li>
+                <li>On one phone: pick 5, 10 or 13 rounds and finish on the final score. Judged it wrong? Undo.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5519,6 +5995,7 @@ const GAME_RULES = {
                 <li>A film, a proverb, a dish or a place written <b>in emoji</b>.</li>
                 <li>On one phone: the riddle for the whole table, first to know says it. <b>Reveal</b> when you agree, then the next. You can pick the kind of riddles.</li>
                 <li>Spelling doesn't matter, and foreign names count in Arabic or English.</li>
+                <li>Pick the players' names on the setup to keep score: after the reveal tap <b>who got it</b>, and finish on a podium.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5528,6 +6005,7 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>An Egyptian or Arabic proverb <b>with one word missing</b> (English proverbs in English).</li>
                 <li>On one phone: the proverb for the whole table, first to finish it wins it. <b>Show the word</b> when you agree, then the next.</li>
+                <li>Pick the players' names on the setup to keep score: after the reveal tap <b>who got it</b>, and finish on a podium.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5538,6 +6016,7 @@ const GAME_RULES = {
                 <li>One player at a time: a category shows (farm animals, car brands…) and they have <b>five seconds</b> to name three things in it out loud.</li>
                 <li>The clock ticks; when it ends the table judges: <b>Made it</b> is a point, <b>Missed</b> is nothing. If they were fast, press Made it without waiting.</li>
                 <li>One, two or three rounds per player, highest score wins.</li>
+                <li>It ends on a podium, and <b>one more round</b> carries on with the same scores.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5556,6 +6035,7 @@ const GAME_RULES = {
                 <li>Say something in the category and pass the phone to the next player. No repeats.</li>
                 <li>The time is random and nobody knows it, but the ticking speeds up as it gets close.</li>
                 <li>Whoever is holding the bomb when it goes off <b>loses the round</b>. <b>Another category</b> swaps it without resetting the fuse.</li>
+                <li>Pick the players' names on the setup: when it goes off, tap whose hands it was in; the app keeps count and ends on a ranking of who survived most.</li>
             </ol>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5606,6 +6086,7 @@ const GAME_RULES = {
                 <li>Two teams and one host. Each round has 5 categories with questions from 100 to 500 points: the higher, the harder.</li>
                 <li>A team picks a category and a value; the host reads the question, shows the answer and awards the points.</li>
                 <li>An optional clock per question: tap it to pause, and when it runs out the answer shows by itself. + and − correct the scores.</li>
+                <li>Gave the points wrongly? <b>Undo the last question</b>. Left a game unfinished? Carry on from the setup screen.</li>
             </ol>`,
         buzzer: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -5625,7 +6106,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>A score board for dominoes: the game is on the table, the app counts.</li>
                 <li>2 to 4 players, and with 4 you can play in pairs.</li>
-                <li>+10 for the quick one, … for any other number, ↺ takes 5 back. First to the target (101 by default) wins.</li>
+                <li>+10 for the quick one, … for any other number. A wrong entry? "Take back" in the rounds table removes exactly the last one. First to the target (101 by default) wins.</li>
             </ul>`,
         monkey: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -5634,6 +6115,7 @@ const GAME_RULES = {
                 <li><b>I've got nothing</b> = a quarter. Out of time = a quarter (you can switch that off).</li>
                 <li>Four quarters = a <b>monkey</b>: skipped in the order, and nobody may talk to them. Whoever does takes their place (the <b>Swap</b> button).</li>
                 <li>When only the chosen number of winners is left, the game ends.</li>
+                <li>The verdict that made someone a monkey was wrong? The winner screen has <b>overrule</b> and <b>back to the board</b>.</li>
             </ol>
             <p class="help-sub">🔗 Last letter</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5700,11 +6182,12 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Splits any number of players into 2, 3 or 4 even teams.</li>
                 <li><b>Random</b>: a full shuffle. <b>Balanced</b>: rate everyone 1 to 5 stars and the app spreads them so the teams come out close.</li>
+                <li>Teams always have the same number of players, or one apart at most.</li>
             </ul>`,
         tourney: `
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>A bracket for 4 or 8 players, drawn at random.</li>
-                <li>Tap the winner's name to send them to the next round, up to the cup 🏆.</li>
+                <li>A bracket for 3 to 16 players, drawn at random. Anyone without an opponent goes straight through.</li>
+                <li>Tap the winner's name to send them to the next round, up to the cup 🏆. Tapped the wrong one? "Take back the last result".</li>
             </ul>`,
         universal: `
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -5900,9 +6383,10 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>After each round choose <b>who went out</b> and enter the cards left in the others' hands: 2-10 as marked, pictures 10, ace 11, joker 15.</li>
                 <li>Whoever went out takes <b>−30</b>. Anyone who never put a card down takes <b>100</b>.</li>
-                <li><b>Hand</b> (all down in one turn) or a Konkan: everything ×2. Finishing on a joker ×2, one colour ×2, one suit ×4.</li>
+                <li><b>Hand</b> (all down in one turn) or a Konkan: everything ×2. Finishing on a joker ×2, one colour ×2 or one suit ×4.</li>
                 <li>In teams, the winner's partner scores nothing.</li>
-                <li>Lowest after 5 or 7 rounds wins. Or choose "out over 101": over 101 is out, and the last one in wins.</li>
+                <li>Lowest after 5 or 7 rounds wins. Or choose "out over 101" (players on their own only): over 101 is out, and the last one in wins.</li>
+                <li>💡 The strip under the names is the seating order: tap two names to swap them. The rules lock after the first round, and before you save you see the new totals in the bar at the bottom.</li>
             </ol>`,
         'cs-basra': `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -5910,6 +6394,7 @@ const GAME_RULES = {
                 <li>Each basra <b>10</b>, each ace or jack <b>1</b>, the <b>2♣</b> 2, the <b>10♦</b> 3, and <b>most cards</b> (27 or more) 30.</li>
                 <li>If the cards split 26-26, the 30 carries over and the next deck's majority is worth 60.</li>
                 <li>The first past the target at the end of a deck wins. Four can play as two teams.</li>
+                <li>💡 The strip under the names is the seating order: tap two names to swap them. The rules lock after the first round, and before you save you see the new totals in the bar at the bottom.</li>
             </ol>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">

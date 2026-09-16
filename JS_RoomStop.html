@@ -18,7 +18,19 @@
    what it did (✓).
    ========================================================================= */
 
-const stopRoom = { sentFor: '', clock: null, clockKey: null, fired: false, letterKey: '' };
+const stopRoom = {
+  sentFor: '', clock: null, clockKey: null, fired: false, letterKey: '',
+  draft: { key: '', answers: {} }   // what this phone typed this round, kept outside the screen
+};
+
+/** The round a sheet belongs to: the deal id when the server sends one, so a restarted game never matches an old round. */
+const stopRoundKey = (state) => roomDealKey(state, state && state.shared ? state.shared.round : '');
+
+/** The answer boxes on screen for this round only: a hidden screen can still hold last round's. */
+function stopRoomInputs(key) {
+  const form = document.querySelector('#view-room-stop .stop-room-form');
+  return form && form.dataset.key === key ? [...form.querySelectorAll('.stop-room-input')] : [];
+}
 const STOP_ROOM_OPTS_KEY = 'ashryStopRoomOpts';
 
 /** The host's options, remembered on this phone between evenings. */
@@ -93,14 +105,12 @@ ROOM_GAMES.stop = {
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
-    const roundKey = state.code + '#' + s.round;
+    const roundKey = stopRoundKey(state);
     const inRound = (s.roster || []).indexOf(Room.me) !== -1;
     const iSubmitted = (s.submitted || []).indexOf(Room.me) !== -1;
 
-    // The round closed under me: send what is typed before the frame goes.
-    if (s.phase === 'collecting' && inRound && !iSubmitted && stopRoom.sentFor !== roundKey) {
-      submitStopRoom(false);
-    }
+    // The round closing under this phone is sent by the listener below, from
+    // what was typed (stopRoom.draft), even when this screen isn't showing.
 
     const sig = ['stop', s.phase, s.round, s.letter, iSubmitted, state.youAreHost, appState.lang,
                  iSubmitted || s.phase !== 'writing' ? (s.submitted || []).length : '',
@@ -117,6 +127,13 @@ ROOM_GAMES.stop = {
 
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
     if (rebuilt && s.phase === 'writing' && !iSubmitted) {
+      // A rebuild mid-round (a new host, the language) puts back what was typed.
+      if (stopRoom.draft.key === roundKey) {
+        el.querySelectorAll('.stop-room-input').forEach(inp => {
+          const v = stopRoom.draft.answers[inp.dataset.cat];
+          if (v) inp.value = v;
+        });
+      }
       stopRoomTyped();
       const first = el.querySelector('.stop-room-input');
       if (first && window.innerWidth >= 900) first.focus();
@@ -155,7 +172,7 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
         </div>` + renderRoomPlayerStrip(state);
     }
     return head + letterCard(t.stop_room_write_hint || '') + `
-      <div class="card card--tight stop-room-form">
+      <div class="card card--tight stop-room-form" data-key="${escapeHTML(stopRoundKey(state))}">
         ${s.cats.map((c, i) => `
           <div class="field stop-field">
             <label class="field__label" for="stop-in-${c}">${escapeHTML(stopCatLabel(c))}</label>
@@ -270,7 +287,10 @@ function stopRoomTyped() {
   const letter = foldStopAnswer(s.letter, s.lang);
   let left = 0;
   let firstLeft = null;
-  document.querySelectorAll('#view-room-stop .stop-room-input').forEach(inp => {
+  const key = stopRoundKey(Room.state);
+  if (stopRoom.draft.key !== key) stopRoom.draft = { key: key, answers: {} };
+  stopRoomInputs(key).forEach(inp => {
+    stopRoom.draft.answers[inp.dataset.cat] = inp.value;
     const fits = stopAnswerFits(inp.value, s.lang, s.letter);
     const f = foldStopAnswer(inp.value, s.lang, letter);
     // Still typing the article ("ا", "ال", "الم") is not a mistake yet.
@@ -310,8 +330,8 @@ function stopRoomKey(event, index) {
 /** Sends what is typed; with `stop`, closes the round for everyone. */
 function submitStopRoom(stop) {
   const s = Room.state && Room.state.shared;
-  if (!s || (s.phase !== 'writing' && s.phase !== 'collecting')) return;
-  const roundKey = Room.state.code + '#' + s.round;
+  if (!s || Room.state.game !== 'stop' || (s.phase !== 'writing' && s.phase !== 'collecting')) return;
+  const roundKey = stopRoundKey(Room.state);
   if (stopRoom.sentFor === roundKey) return;
   // وقف needs a full sheet; the clock and someone else's وقف send whatever is there.
   if (stop && s.phase === 'writing' && stopRoomTyped() > 0) {
@@ -321,11 +341,15 @@ function submitStopRoom(stop) {
     if (stopRoom.firstLeft) stopRoom.firstLeft.focus();
     return;
   }
-  const answers = {};
-  document.querySelectorAll('#view-room-stop .stop-room-input').forEach(inp => { answers[inp.dataset.cat] = inp.value; });
+  // The boxes when they are on screen, else what was typed into them before
+  // the round closed (the screen may be rebuilt, or not showing at all).
+  const answers = stopRoom.draft.key === roundKey ? Object.assign({}, stopRoom.draft.answers) : {};
+  stopRoomInputs(roundKey).forEach(inp => { answers[inp.dataset.cat] = inp.value; });
   stopRoom.sentFor = roundKey;
   if (stop) { playSound('alarm'); haptic('medium'); }
-  Room.act('submit', { answers: answers, stop: !!stop }).catch(err => {
+  const payload = { answers: answers, stop: !!stop };
+  if (typeof s.round === 'number') payload.round = s.round;
+  Room.act('submit', payload).catch(err => {
     stopRoom.sentFor = '';
     showToast(err.message || 'تعذر الإرسال', 'error');
   });
@@ -360,7 +384,7 @@ function startStopRoomClock(s) {
       stopRoom.clock = null;
       stopRoom.fired = true;
       const st = Room.state;
-      if (!st || st.shared.phase !== 'writing' || st.shared.endsAt !== endsAt) return;
+      if (!st || st.game !== 'stop' || st.shared.phase !== 'writing' || st.shared.endsAt !== endsAt) return;
       // Everyone sends their sheet as the clock hits zero; the host also closes
       // the round, and the server does the same a moment later regardless.
       if ((st.shared.roster || []).indexOf(Room.me) !== -1 && (st.shared.submitted || []).indexOf(Room.me) === -1) submitStopRoom(false);
@@ -375,4 +399,15 @@ function stopStopRoomClock() {
   stopRoom.clockKey = null;
   stopRoom.fired = false;
 }
+onRoomClocksReset(stopStopRoomClock);
+
+// Someone pressed وقف, or the clock ran out: this phone sends its sheet now,
+// wherever its player is looking - the menu, the rules, the chat.
+Room.onChange((state) => {
+  const s = state && state.game === 'stop' && state.shared;
+  if (!s || s.phase !== 'collecting') return;
+  if ((s.roster || []).indexOf(Room.me) === -1 || (s.submitted || []).indexOf(Room.me) !== -1) return;
+  if (stopRoom.sentFor === stopRoundKey(state)) return;
+  submitStopRoom(false);
+});
 </script>

@@ -48,6 +48,9 @@ const clearGameState = (room) => {
   room._lies = null;
   room._word = null;
   room._ballots = null;
+  room._voteOwners = null;
+  room._fibTruthId = null;
+  room._joWord = null;
   room._fakeId = null;
   room._target = null;
   room._deck = null;
@@ -103,13 +106,41 @@ const ROOM_GAME_IDS = [
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
 const ROOM_CHAT_MAX_LEN = 200;  // characters in one
 
-/** Adds a line to the room's chat, keeping only the last ROOM_CHAT_MAX. */
+/**
+ * Adds a line to the room's chat, keeping only the last ROOM_CHAT_MAX. Ids
+ * only ever grow (room.chatSeq): counting on from the last line reused an id
+ * once a team's lines had been dropped, and a phone took the new line for one
+ * it had already shown.
+ */
 const pushChat = (room, entry) => {
   const chat = (room.chat || []).slice(-(ROOM_CHAT_MAX - 1));
-  const last = chat[chat.length - 1];
-  chat.push(Object.assign({ id: (last ? last.id : 0) + 1, at: Date.now() }, entry));
+  const top = chat.reduce((m, x) => Math.max(m, Number(x.id) || 0), Number(room.chatSeq) || 0);
+  room.chatSeq = top + 1;
+  chat.push(Object.assign({ id: room.chatSeq, at: Date.now() }, entry));
   room.chat = chat;
 };
+
+/**
+ * Two names for one person: case, spaces, diacritics and the Arabic letters
+ * people spell alike (samePlayer on the phone). A room's join and a screen
+ * becoming a player both refuse a name that is already taken this way.
+ */
+const sameRoomName = (a, b) =>
+  foldArabicLetters(a).replace(/\s+/g, ' ').trim() === foldArabicLetters(b).replace(/\s+/g, ' ').trim();
+
+/**
+ * A tap aimed at a state that has since moved on - the second of a double
+ * tap, or a slow phone - carries what its phone saw (the round, the player
+ * up), and is dropped without an error when that no longer matches. A phone
+ * too old to send it is trusted, as before.
+ */
+const staleTap = (payload, field, current) => {
+  if (!payload || payload[field] === undefined || payload[field] === null) return false;
+  return String(payload[field]) !== String(current);
+};
+
+/** A fresh `shared.dealId`: phones key "already sent this" on it. */
+const newDealId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 
 /**
  * Something that happened, said in the chat so a player who isn't in the room
@@ -153,8 +184,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     const name = String((payload && payload.name) || '').trim().slice(0, 24);
     if (!name) throw new Error('اكتب اسمك أولاً');
     if (room.players.length >= ROOM_MAX_PLAYERS) throw new Error('الغرفة ممتلئة');
-    const sameName = (a, b) => foldArabicLetters(a).replace(/\s+/g, ' ').trim() === foldArabicLetters(b).replace(/\s+/g, ' ').trim();
-    if (room.players.some(p => sameName(p.name, name))) {
+    if (room.players.some(p => sameRoomName(p.name, name))) {
       throw new Error('الاسم مستخدم بالفعل في هذه الغرفة');
     }
     room.screens = room.screens.filter(s => s.id !== playerId);
@@ -222,6 +252,15 @@ const applyRoomAction = (room, playerId, action, payload) => {
     throw new Error('اللعبة بدأت بالفعل');
   }
 
+  // "Next round" sent from a round that is already over - the second tap of a
+  // double tap - would deal another round nobody saw. Every game, one place.
+  if (action === 'nextRound' && room.shared && room.shared.round !== undefined && staleTap(payload, 'round', room.shared.round)) return;
+
+  // What was there before the move, to tell whether it dealt something new.
+  const sharedBefore = room.shared;
+  const dealing = action === 'start' || action === 'nextRound' || action === 'playAgain';
+  const textBefore = dealing ? JSON.stringify(room.shared || {}) : '';
+
   switch (room.game) {
     case 'imposter':  imposterAction(room, playerId, action, payload); break;
     case 'justone':   justOneAction(room, playerId, action, payload); break;
@@ -256,6 +295,14 @@ const applyRoomAction = (room, playerId, action, payload) => {
   // from secrets — a Codenames operative and a Just One guesser both have none.
   if ((action === 'start' || action === 'nextRound') && room.shared && !room.shared.roster) {
     room.shared.roster = room.players.map(p => p.id);
+  }
+
+  // A new deal - a start, a next round, a play again that changed anything, or
+  // a game that replaced its whole state (the next trivia question) - gets a
+  // fresh stamp, so a phone's "I already sent this" memory can't carry over.
+  if (room.shared && typeof room.shared === 'object' &&
+      (room.shared !== sharedBefore || (dealing && JSON.stringify(room.shared) !== textBefore))) {
+    room.shared.dealId = newDealId();
   }
 };
 
@@ -344,6 +391,8 @@ const stopAction = (room, playerId, action, payload) => {
   if (!s || room.game !== 'stop') throw new Error('اللعبة لم تبدأ بعد');
 
   if (action === 'submit') {
+    // A sheet from the last round, arriving after the next letter was dealt, is not this round's.
+    if (staleTap(payload, 'round', s.round)) return;
     if (s.phase !== 'writing' && s.phase !== 'collecting') return;
     if ((s.roster || []).indexOf(playerId) === -1) throw new Error('لست ضمن هذه الجولة');
     if (s.submitted.indexOf(playerId) !== -1) return;
@@ -922,19 +971,28 @@ const buzzerAction = (room, playerId, action, payload) => {
 
   requireHost(room, playerId);
 
+  // Whoever is here when a question starts is in it: someone who joined during
+  // the evening can buzz from the next question, not only after a new game.
+  const freshRoster = () => { s.roster = room.players.map(p => p.id); };
+
   // The first in line answered. Right: a point and a fresh question. Wrong:
-  // out of the line, and the next one gets a go at the same question.
+  // out of the line, and the next one gets a go at the same question. The
+  // verdict names who it was for ({ id }): a double tap on ❌ used to put the
+  // next in line out too, without a word from them.
   if (action === 'correct') {
     const first = s.buzzes[0];
+    if (staleTap(payload, 'id', first && first.id)) return;
     if (!first) return;
     addScore(room, first.id, 1);
     s.last = { id: first.id, name: first.name, ok: true };
     s.buzzes = [];
     s.round += 1;
+    freshRoster();
     s.board = scoreboardOf(room);
     return;
   }
   if (action === 'wrong') {
+    if (staleTap(payload, 'id', s.buzzes[0] && s.buzzes[0].id)) return;
     const first = s.buzzes.shift();
     if (!first) return;
     if (payload && payload.penalty) addScore(room, first.id, -1);
@@ -942,7 +1000,7 @@ const buzzerAction = (room, playerId, action, payload) => {
     s.board = scoreboardOf(room);
     return;
   }
-  if (action === 'reset') { s.buzzes = []; s.last = null; s.round += 1; return; }
+  if (action === 'reset') { s.buzzes = []; s.last = null; s.round += 1; freshRoster(); return; }
   if (action === 'lock')  { s.phase = 'locked'; s.buzzes = []; return; }
   if (action === 'arm')   { s.phase = 'armed'; s.last = null; return; }
   if (action === 'adjust') {
@@ -959,6 +1017,7 @@ const buzzerAction = (room, playerId, action, payload) => {
     s.last = null;
     s.round = 1;
     s.phase = 'armed';
+    freshRoster();
     s.board = scoreboardOf(room);
     return;
   }
@@ -1144,9 +1203,11 @@ const finishImposter = (room, outcome, guess) => {
 const justOneAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
     requireHost(room, playerId);
+    const prev = room.shared || {};
+    // From the result only, so a double tap can't deal a round nobody played.
+    if (action === 'nextRound' && prev.phase !== 'result') return;
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
 
-    const prev = room.shared || {};
     const roundNo = (prev.round || 0) + 1;
     // Deals against whoever is present right now; the roster is stamped after.
     const guesserIndex = (roundNo - 1) % room.players.length;
@@ -1168,11 +1229,12 @@ const justOneAction = (room, playerId, action, payload) => {
       score: prev.score || 0,
       guesserId: guesser.id,
       guesserName: guesser.name,
-      clues: [],            // {playerId, name} only — text stays hidden until reveal
+      clues: [],            // {id, name} only — text stays hidden until reveal
       submitted: [],
       phase: 'writing'
     };
     room._clueText = {};    // server-side scratch, never projected
+    room._joWord = secret;  // and the word, which the guesser's phone must never see
     room.phase = 'writing';
     return;
   }
@@ -1192,26 +1254,16 @@ const justOneAction = (room, playerId, action, payload) => {
     room._clueText[playerId] = clue;
     if (s.submitted.indexOf(playerId) === -1) s.submitted.push(playerId);
 
-    // Once every writer is in, drop the duplicates and hand it to the guesser.
-    // Roster, not room.players: someone who joined mid-round isn't a writer and
-    // must not hold the round open.
-    const writers = activeRoster(room, s.roster).filter(id => id !== s.guesserId);
-    if (writers.every(id => s.submitted.indexOf(id) !== -1)) {
-      const counts = {};
-      writers.forEach(id => {
-        const norm = normaliseClue(room._clueText[id]);
-        counts[norm] = (counts[norm] || 0) + 1;
-      });
-      s.clues = writers.map(id => {
-        const text = room._clueText[id] || '';
-        const dup = counts[normaliseClue(text)] > 1;
-        const writer = room.players.find(p => p.id === id);
-        return { name: writer ? writer.name : '', text: text, removed: dup };
-      });
-      s.removedCount = s.clues.filter(c => c.removed).length;
-      s.phase = 'guessing';
-      room.phase = 'guessing';
-    }
+    if (justOneAllWritten(room)) revealJustOneClues(room);
+    return;
+  }
+
+  if (action === 'closeWriting') {
+    // A writer whose phone died must not hold the table: the host goes on with
+    // the clues that are in.
+    requireHost(room, playerId);
+    if (room.shared.phase !== 'writing') return;
+    revealJustOneClues(room);
     return;
   }
 
@@ -1224,12 +1276,18 @@ const justOneAction = (room, playerId, action, payload) => {
     s.phase = 'judging';
     room.phase = 'judging';
 
-    // Safe to publish the answer now that the guess is locked in. Read it from
-    // a player who actually holds a secret — "any player who isn't the guesser"
-    // could be someone who joined mid-round and has none.
-    const holder = room.players.find(p =>
-      p.id !== s.guesserId && room.secrets[p.id] && room.secrets[p.id].word);
-    s.secretWord = holder ? room.secrets[holder.id].word : null;
+    // Safe to publish the answer, and the clues that were taken away, now
+    // that the guess is locked in.
+    s.secretWord = justOneWord(room);
+    publishJustOneClues(room);
+    return;
+  }
+
+  if (action === 'skipGuess') {
+    // The guesser has gone quiet: the word is shown and nobody scores.
+    requireHost(room, playerId);
+    if (room.shared.phase !== 'guessing') return;
+    skipJustOneRound(room);
     return;
   }
 
@@ -1246,6 +1304,72 @@ const justOneAction = (room, playerId, action, payload) => {
   }
 
   throw new Error('إجراء غير معروف');
+};
+
+/**
+ * Every writer still here has a clue in. Roster, not room.players: someone who
+ * joined mid-round isn't a writer and must not hold the round open.
+ */
+const justOneAllWritten = (room) => {
+  const s = room.shared;
+  return activeRoster(room, s.roster).filter(id => id !== s.guesserId).every(id => s.submitted.indexOf(id) !== -1);
+};
+
+/**
+ * Drops the duplicates and hands the rest to the guesser: when every clue is
+ * in, or when the host goes on with what there is. A removed clue keeps its
+ * writer and its place but not its text - `shared` reaches the guesser's phone
+ * too, so the text waits in room._clueText until the guess is in.
+ */
+const revealJustOneClues = (room) => {
+  const s = room.shared;
+  const clueText = room._clueText || {};
+  const writers = activeRoster(room, s.roster)
+    .filter(id => id !== s.guesserId && s.submitted.indexOf(id) !== -1 && clueText[id]);
+  const counts = {};
+  writers.forEach(id => {
+    const norm = normaliseClue(clueText[id]);
+    counts[norm] = (counts[norm] || 0) + 1;
+  });
+  s.clues = writers.map(id => {
+    const text = clueText[id] || '';
+    const dup = counts[normaliseClue(text)] > 1;
+    const writer = room.players.find(p => p.id === id);
+    return { id: id, name: writer ? writer.name : '', text: dup ? '' : text, removed: dup };
+  });
+  s.removedCount = s.clues.filter(c => c.removed).length;
+  s.phase = 'guessing';
+  room.phase = 'guessing';
+};
+
+/** The removed clues' text, once it no longer matters. */
+const publishJustOneClues = (room) => {
+  const clueText = room._clueText || {};
+  (room.shared.clues || []).forEach(c => { if (c.removed && c.id && clueText[c.id]) c.text = clueText[c.id]; });
+};
+
+/**
+ * The round's word. Older rounds kept it only in the writers' secrets, so read
+ * it from a player who actually holds one — "any player who isn't the guesser"
+ * could be someone who joined mid-round and has none.
+ */
+const justOneWord = (room) => {
+  if (room._joWord) return room._joWord;
+  const s = room.shared;
+  const holder = room.players.find(p =>
+    p.id !== s.guesserId && room.secrets[p.id] && room.secrets[p.id].word);
+  return holder ? room.secrets[holder.id].word : null;
+};
+
+/** The round ends without a guess: the word and the clues shown, no point. */
+const skipJustOneRound = (room) => {
+  const s = room.shared;
+  s.guess = '';
+  s.secretWord = justOneWord(room);
+  publishJustOneClues(room);
+  s.lastResult = 'skipped';
+  s.phase = 'result';
+  room.phase = 'result';
 };
 
 /**
@@ -1432,8 +1556,10 @@ const codenamesAction = (room, playerId, action, payload) => {
     s.teams = s.teams || {};
 
     if (role === 'spymaster') {
+      // Only someone still here holds the slot: a spymaster who left frees it.
       const clash = Object.keys(s.teams).find(id =>
         id !== playerId &&
+        room.players.some(p => p.id === id) &&
         s.teams[id].team === team &&
         s.teams[id].role === 'spymaster');
       if (clash) throw new Error('يوجد قائد لهذا الفريق بالفعل');
@@ -1632,6 +1758,44 @@ const codenamesAction = (room, playerId, action, payload) => {
     return;
   }
 
+  if (action === 'passTurn') {
+    // The host moves the game on when a team is stuck: a spymaster who went
+    // quiet before the clue, or a team that won't pass.
+    requireHost(room, playerId);
+    if (room.phase !== 'playing' || s.winner) return;
+    endCodenamesTurn(room);
+    return;
+  }
+
+  if (action === 'setSpymaster') {
+    // A spymaster left or their phone died: the host hands the key to someone
+    // else on that team, and whoever held it goes back to guessing.
+    requireHost(room, playerId);
+    if (room.phase !== 'playing' || s.winner) return;
+    const team = payload.team === 'blue' ? 'blue' : (payload.team === 'red' ? 'red' : null);
+    const id = String(payload.playerId || '');
+    const t = teamOf(id);
+    if (!team || !room.players.some(p => p.id === id) || !t || t.team !== team) {
+      throw new Error('اختار لاعب من نفس الفريق');
+    }
+    if (t.role === 'spymaster') return;
+    Object.keys(s.teams).forEach(other => {
+      if (s.teams[other].team === team && s.teams[other].role === 'spymaster') {
+        s.teams[other] = { team: team, role: 'operative' };
+        if (room.secrets) room.secrets[other] = null;
+      }
+    });
+    s.teams[id] = { team: team, role: 'spymaster' };
+    room.secrets = room.secrets || {};
+    room.secrets[id] = { key: room._key };
+    // A spymaster doesn't mark cards.
+    Object.keys(s.marks || {}).forEach(idx => {
+      const left = s.marks[idx].filter(x => x !== id);
+      if (left.length) s.marks[idx] = left; else delete s.marks[idx];
+    });
+    return;
+  }
+
   if (action === 'swapWord') {
     // For a word nobody at the table knows. Only before the first clue: after
     // that a spymaster may already be building on it.
@@ -1731,17 +1895,50 @@ const revealWholeKey = (room) => {
  *                                        player can be stopped from voting for
  *                                        their own (Fibbage).
  *   eligible  player ids allowed to vote; defaults to the whole roster.
+ *   opts.hideOwners  when whose option is whose is itself the secret (Fibbage:
+ *                    the one option nobody owns is the truth). The owners stay
+ *                    in room._voteOwners, the published options carry none, and
+ *                    each owner's own slice says which option is theirs
+ *                    (`voteOwn`). Once the vote closes the owners are public.
  */
-const openVote = (room, options, eligible) => {
+const openVote = (room, options, eligible, opts) => {
   room._ballots = {};
+  // The last vote's owners, and every phone's note of which option was its own.
+  room._voteOwners = null;
+  Object.keys(room.secrets || {}).forEach(id => {
+    const slice = room.secrets[id];
+    if (!slice || !('voteOwn' in slice)) return;
+    delete slice.voteOwn;
+    if (!Object.keys(slice).length) delete room.secrets[id];
+  });
+
+  let published = options;
+  if (opts && opts.hideOwners) {
+    room._voteOwners = {};
+    room.secrets = room.secrets || {};
+    published = options.map(o => {
+      const copy = Object.assign({}, o);
+      if (copy.ownerId) {
+        room._voteOwners[copy.id] = copy.ownerId;
+        room.secrets[copy.ownerId] = Object.assign({}, room.secrets[copy.ownerId] || {}, { voteOwn: copy.id });
+      }
+      delete copy.ownerId;
+      return copy;
+    });
+  }
+
   room.shared.vote = {
-    options: options,
+    options: published,
     eligible: eligible || room.players.map(p => p.id),
     voted: [],
     phase: 'voting',
     results: null
   };
 };
+
+/** Whose option this is, whether it was published or kept on the server. */
+const voteOwnerOf = (room, option) =>
+  option.ownerId || (room._voteOwners && room._voteOwners[option.id]) || null;
 
 const castVote = (room, playerId, optionId) => {
   const v = room.shared.vote;
@@ -1750,7 +1947,7 @@ const castVote = (room, playerId, optionId) => {
 
   const option = v.options.find(o => o.id === optionId);
   if (!option) throw new Error('اختيار غير صحيح');
-  if (option.ownerId && option.ownerId === playerId) {
+  if (voteOwnerOf(room, option) === playerId) {
     throw new Error('لا يمكنك التصويت لإجابتك');
   }
 
@@ -1782,7 +1979,7 @@ const closeVote = (room) => {
     return {
       id: o.id,
       label: o.label,
-      ownerId: o.ownerId || null,
+      ownerId: voteOwnerOf(room, o),
       count: voters.length,
       voters: voters.map(nameOf)
     };
@@ -1790,6 +1987,21 @@ const closeVote = (room) => {
   v.totalVotes = Object.keys(ballots).length;
   v.phase = 'results';
   return true;
+};
+
+/**
+ * Someone left while a vote was open: their ballot goes with them, and the vote
+ * closes if everyone still here has voted. True when it closed, so the game
+ * can resolve it exactly as after the last ballot.
+ */
+const voteDropPlayer = (room, playerId) => {
+  const v = room.shared && room.shared.vote;
+  if (!v || v.phase !== 'voting') return false;
+  if (room._ballots) delete room._ballots[playerId];
+  v.voted = v.voted.filter(id => id !== playerId);
+  v.eligible = v.eligible.filter(id => id !== playerId);
+  if (!activeRoster(room, v.eligible).every(id => v.voted.indexOf(id) !== -1)) return false;
+  return closeVote(room);
 };
 
 /** Running scoreboard, kept across rounds of the same game. */
@@ -1886,6 +2098,9 @@ const activeRoster = (room, roster) => {
 const wouldYouRatherAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
     requireHost(room, playerId);
+    // From the results only: a double tap must not skip a question unseen.
+    const vote = room.shared && room.shared.vote;
+    if (action === 'nextRound' && !(vote && vote.phase === 'results')) return;
     if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
 
     const lang = payload.lang === 'en' ? 'en' : 'ar';
@@ -1915,6 +2130,8 @@ const wouldYouRatherAction = (room, playerId, action, payload) => {
 const mostLikelyAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
     requireHost(room, playerId);
+    // From the results only: a double tap must not skip a question unseen.
+    if (action === 'nextRound' && (room.shared || {}).phase !== 'results') return;
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
 
     const lang = payload.lang === 'en' ? 'en' : 'ar';
@@ -1964,6 +2181,8 @@ const FIBBAGE_FOOL_POINTS = 500;
 const fibbageAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
     requireHost(room, playerId);
+    // From the results only: a double tap must not skip a question unseen.
+    if (action === 'nextRound' && (room.shared || {}).phase !== 'results') return;
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
 
     const lang = payload.lang === 'en' ? 'en' : 'ar';
@@ -1974,6 +2193,8 @@ const fibbageAction = (room, playerId, action, payload) => {
     // The real answer stays server-side until the votes are in.
     room._truth = item.a;
     room._lies = {};
+    room._fibTruthId = null;
+    room._voteOwners = null;
     room.secrets = {};
     room.shared = {
       round: round, lang: lang,
@@ -2006,16 +2227,16 @@ const fibbageAction = (room, playerId, action, payload) => {
     room._lies[playerId] = lie;
     if (s.submitted.indexOf(playerId) === -1) s.submitted.push(playerId);
 
-    const liars = activeRoster(room, s.roster);
-    if (liars.every(id => s.submitted.indexOf(id) !== -1)) {
-      const options = liars
-        .filter(id => room._lies[id])
-        .map(id => ({ id: 'l_' + id, label: room._lies[id], ownerId: id }));
-      options.push({ id: 'truth', label: room._truth, ownerId: null });
-      openVote(room, shuffled(options), liars);
-      s.phase = 'voting';
-      room.phase = 'voting';
-    }
+    if (activeRoster(room, s.roster).every(id => s.submitted.indexOf(id) !== -1)) openFibbageVote(room);
+    return;
+  }
+
+  if (action === 'closeWriting') {
+    // A writer whose phone died must not hold the table: the vote opens on
+    // the lies that are in (and on the truth alone, if nobody wrote).
+    requireHost(room, playerId);
+    if (room.shared.phase !== 'writing') return;
+    openFibbageVote(room);
     return;
   }
 
@@ -2033,19 +2254,48 @@ const fibbageAction = (room, playerId, action, payload) => {
   throw new Error('إجراء غير معروف');
 };
 
+/**
+ * The pile to vote on. Nothing about an option may say which one is true: the
+ * ids are random (they used to be 'truth' and 'l_' + the writer), and whose lie
+ * is whose stays on the server (hideOwners) - the one option nobody owned was
+ * the truth, in plain sight of any phone that looked.
+ */
+const openFibbageVote = (room) => {
+  const s = room.shared;
+  const liars = activeRoster(room, s.roster);
+  const taken = {};
+  const newId = () => {
+    let id;
+    do { id = 'o' + Math.random().toString(36).slice(2, 8); } while (taken[id]);
+    taken[id] = true;
+    return id;
+  };
+  const options = liars
+    .filter(id => room._lies[id])
+    .map(id => ({ id: newId(), label: room._lies[id], ownerId: id }));
+  room._fibTruthId = newId();
+  options.push({ id: room._fibTruthId, label: room._truth });
+  openVote(room, shuffled(options), liars, { hideOwners: true });
+  s.phase = 'voting';
+  room.phase = 'voting';
+};
+
 const scoreFibbage = (room) => {
   const v = room.shared.vote;
+  // A vote opened before the ids were random still calls the truth 'truth'.
+  const truthId = room._fibTruthId || 'truth';
   v.results.forEach(r => {
-    if (r.id === 'truth') {
+    if (r.id === truthId) {
       // Everyone who found the real answer scores.
       Object.keys(room._ballots).forEach(pid => {
-        if (room._ballots[pid] === 'truth') addScore(room, pid, FIBBAGE_TRUTH_POINTS);
+        if (room._ballots[pid] === truthId) addScore(room, pid, FIBBAGE_TRUTH_POINTS);
       });
     } else if (r.ownerId && r.count > 0) {
       addScore(room, r.ownerId, FIBBAGE_FOOL_POINTS * r.count);
     }
   });
   room.shared.truth = room._truth;
+  room.shared.truthId = truthId;
   room.shared.board = scoreboardOf(room);
   room.shared.phase = 'results';
 };
@@ -2099,6 +2349,8 @@ const DRAW_TOOL_POINTS = { l: 4, r: 4, o: 4, b: 2 };
 const drawGuessAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
     requireHost(room, playerId);
+    // Once the word is out only (a win or a reveal), so a double tap can't skip a drawer.
+    if (action === 'nextRound' && !(room.shared && room.shared.word)) return;
     if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
 
     const lang = payload.lang === 'en' ? 'en' : 'ar';
@@ -2335,8 +2587,11 @@ const fakeArtistAction = (room, playerId, action, payload) => {
   }
 
   // A drawer whose phone died would hold the table forever; the host moves on.
+  // The tap names the turn it was meant for ({ turn: turnIndex, round }), so a
+  // double tap doesn't skip the next artist too.
   if (action === 'skipTurn') {
     requireHost(room, playerId);
+    if (staleTap(payload, 'turn', s.turnIndex) || staleTap(payload, 'round', s.round)) return;
     if (s.phase === 'drawing') advanceFakeArtistTurn(room);
     return;
   }
@@ -2793,6 +3048,170 @@ const roomTimeout = (room, now) => {
 };
 
 /* ==========================================================================
+   WHEN SOMEONE LEAVES
+   --------------------------------------------------------------------------
+   The room server calls roomPlayerLeft once a player has left, or the host
+   has removed one whose phone is gone: they are already out of room.players
+   and their secret is deleted. Each game lets go of them at once instead of
+   waiting on someone who will never answer - the round moves on when they
+   were the last one it waited for, a turn or a bomb they held passes, a vote
+   they hadn't cast closes, a guess only they could make is settled the way
+   the host's skip would settle it. `name` is theirs, since the room no
+   longer knows it.
+
+   The server runs it on a copy and keeps the room as it was if it throws, so
+   leaving always works.
+   ========================================================================== */
+const roomPlayerLeft = (room, playerId, name) => {
+  const s = room.shared;
+  if (!room.game || !s || typeof s !== 'object') return;
+  const here = (id) => room.players.some(p => p.id === id);
+  const allIn = (list) => activeRoster(room, s.roster).every(id => (list || []).indexOf(id) !== -1);
+  // Their ballot goes with them; true when the vote is now complete and closed.
+  const voteClosed = () => voteDropPlayer(room, playerId);
+
+  if (room.game === 'codenames') {
+    // Their place on a side is free again: a spymaster's slot can be taken in
+    // the lobby, or handed on by the host mid-game (setSpymaster).
+    if (s.teams) delete s.teams[playerId];
+    Object.keys(s.marks || {}).forEach(idx => {
+      const left = s.marks[idx].filter(x => x !== playerId);
+      if (left.length) s.marks[idx] = left; else delete s.marks[idx];
+    });
+    return;
+  }
+  if (room.phase === 'lobby') return;
+
+  switch (room.game) {
+    case 'imposter':
+      if (room.phase === 'voting' && voteClosed()) resolveImposterVote(room);
+      if (room.phase === 'guess' && !here(s.guesserId)) finishImposter(room, 'caught', null);
+      return;
+    case 'chameleon':
+      if (s.phase === 'voting' && voteClosed()) resolveChameleonVote(room);
+      if (s.phase === 'guess' && !here(room._chamId)) finishChameleon(room, 'caught', null);
+      return;
+    case 'spyfall':
+      if (s.phase === 'voting' && voteClosed()) resolveSpyfallVote(room);
+      if (s.phase === 'guess' && !here(s.guesserId)) finishSpyfall(room, 'caught', null, s.guesserId);
+      return;
+    case 'justone':
+      // Without the guesser there is no round: the word is shown, no point.
+      if ((s.phase === 'writing' || s.phase === 'guessing') && !here(s.guesserId)) skipJustOneRound(room);
+      else if (s.phase === 'writing' && justOneAllWritten(room)) revealJustOneClues(room);
+      return;
+    case 'whoami':
+      if (room.phase === 'playing' && allIn(s.guessed)) revealWhoAmI(room);
+      return;
+    case 'wouldyou':
+      voteClosed();
+      return;
+    case 'mostlikely':
+      if (voteClosed()) scoreMostLikely(room);
+      return;
+    case 'fibbage':
+      if (s.phase === 'writing' && allIn(s.submitted)) openFibbageVote(room);
+      else if (s.phase === 'voting' && voteClosed()) scoreFibbage(room);
+      return;
+    case 'drawguess':
+      if (room.phase === 'drawing' && !s.word && !here(s.drawerId)) revealDrawWord(room);
+      return;
+    case 'fakeartist':
+      if (s.phase === 'drawing' && !here(s.currentDrawerId)) advanceFakeArtistTurn(room);
+      else if (s.phase === 'voting' && voteClosed()) revealFakeArtist(room);
+      if (s.phase === 'guessing' && !here(room._fakeId)) finishFakeArtist(room, 'artists');
+      return;
+    case 'trivia':
+      if (s.phase === 'answering' && allIn(s.answered)) closeTriviaQuestion(room);
+      return;
+    case 'emoji':
+    case 'proverbs':
+      if (s.phase === 'answering' && activeRoster(room, s.roster).every(id => (room._answers || {})[id])) closeQuizCard(room);
+      return;
+    case 'buzzer':
+      if (Array.isArray(s.buzzes)) s.buzzes = s.buzzes.filter(b => b.id !== playerId);
+      return;
+    case 'stop':
+      if ((s.phase === 'writing' || s.phase === 'collecting') && allIn(s.submitted)) scoreStopRound(room);
+      return;
+    case 'bomb':
+      if (s.phase !== 'ticking') return;
+      if (s.fromId === playerId) s.fromId = null;
+      if (!here(s.holderId)) {
+        // The bomb goes on to the next in the seating order after whoever held it.
+        const order = s.order || [];
+        const at = order.indexOf(s.holderId);
+        for (let k = 1; k <= order.length; k++) {
+          const id = order[(at + k + order.length) % order.length];
+          if (here(id)) { s.holderId = id; s.holderName = roomPlayerName(room, id); s.fromId = null; break; }
+        }
+      }
+      return;
+    case 'twotruths':
+      if (s.phase === 'writing' && allIn(s.submitted)) {
+        if (s.submitted.some(here)) { s.order = shuffled(s.submitted.filter(here)); nextTwoTruthsTurn(room); }
+      } else if (s.phase === 'voting') {
+        if (!here(s.subjectId)) nextTwoTruthsTurn(room);
+        else if (voteClosed()) resolveTwoTruths(room);
+      }
+      return;
+    case 'fiveseconds':
+      if ((s.phase === 'ready' || s.phase === 'counting' || s.phase === 'judging') && !here(s.turnId)) advanceFive(room);
+      return;
+    case 'telephone':
+      if ((s.phase === 'working' || s.phase === 'collecting') && allIn(s.submitted)) finishTelephoneStep(room);
+      return;
+    case 'monkey':
+      monkeyPlayerLeft(room, playerId);
+      return;
+    case 'herd':
+      if (s.sheepId === playerId) { s.sheepId = null; s.sheepName = ''; }
+      if (s.phase === 'writing' && allIn(s.submitted)) revealHerd(room);
+      else if (s.phase === 'reveal') s.groups = herdPresentGroups(room, s.groups);
+      return;
+    case 'mafia':
+      mafiaPlayerLeft(room, playerId, name);
+      return;
+    default:
+      // على نفس الموجة: the host's skip deals the next psychic.
+      return;
+  }
+};
+
+/** ربع قرد: out of the order, and the turn goes on from where they sat. */
+const monkeyPlayerLeft = (room, playerId) => {
+  const s = room.shared;
+  if (s.phase !== 'play' || !Array.isArray(s.order)) return;
+  const at = s.order.indexOf(playerId);
+  if (at === -1) return;
+  const wasUp = s.turnId === playerId;
+  s.order = s.order.filter(id => id !== playerId);
+  if (s.quarters) delete s.quarters[playerId];
+  // A verdict about them can't move a quarter to, or from, someone who isn't here.
+  if (s.verdict && (s.verdict.loserId === playerId || s.verdict.otherId === playerId)) s.verdict.canFlip = false;
+  s.board = monkeyBoard(room);
+  if (monkeyCheckEnd(room)) return;
+  const n = s.order.length;
+  const up = s.order.indexOf(s.turnId);
+  if (wasUp || up === -1) advanceMonkey(room, ((wasUp ? at : 0) - 1 + n) % n);
+  else s.turn = up;
+};
+
+/** مافيا: out of the game (shown as left), then the same checks as after a night or a vote. */
+const mafiaPlayerLeft = (room, playerId, name) => {
+  const s = room.shared;
+  if (!room._mafia || !Array.isArray(s.alive) || s.phase === 'gameover') return;
+  if (s.alive.indexOf(playerId) !== -1) {
+    s.alive = s.alive.filter(x => x !== playerId);
+    s.out = (s.out || []).concat([{ id: playerId, name: name || '', role: mafiaShownRole(room, playerId), night: s.phase === 'night', left: true }]);
+  }
+  if (mafiaCheckEnd(room)) return;
+  if (s.phase === 'night' && mafiaAlive(room).every(id => (s.acted || []).indexOf(id) !== -1)) { mafiaEndNight(room); return; }
+  if (s.phase === 'voting' && voteDropPlayer(room, playerId)) { mafiaResolveVote(room); return; }
+  mafiaWriteSecrets(room);
+};
+
+/* ==========================================================================
    صدق ولا كذب — TWO TRUTHS AND A LIE
    Everyone writes two true things and one lie about themselves. One player
    at a time, the others vote for the lie: a point for spotting it, and a
@@ -2880,6 +3299,8 @@ const twoTruthsAction = (room, playerId, action, payload) => {
 const nextTwoTruthsTurn = (room) => {
   const s = room.shared;
   s.turn = s.turn < 0 ? 0 : s.turn + 1;
+  // A storyteller who has left is skipped: nobody could answer for them.
+  while (s.turn < s.order.length && !room.players.some(p => p.id === s.order[s.turn])) s.turn++;
   s.lieIndex = null;
   s.caught = null;
   s.fooled = null;
@@ -3142,20 +3563,21 @@ const setFiveTurn = (room) => {
   s.board = scoreboardOf(room);
 };
 
+/** The next player up who is still in the room; after the last round, the end. */
 const advanceFive = (room) => {
   const s = room.shared;
-  s.turn += 1;
-  if (s.turn >= s.order.length) { s.turn = 0; s.round += 1; }
-  if (s.round > s.rounds) {
-    s.phase = 'gameover';
-    s.turnId = null;
-    s.turnName = '';
-    s.prompt = null;
-    s.endsAt = null;
-    s.board = scoreboardOf(room);
-    return;
+  for (let guard = 0; guard <= s.order.length * s.rounds; guard++) {
+    s.turn += 1;
+    if (s.turn >= s.order.length) { s.turn = 0; s.round += 1; }
+    if (s.round > s.rounds) break;
+    if (room.players.some(p => p.id === s.order[s.turn])) { setFiveTurn(room); return; }
   }
-  setFiveTurn(room);
+  s.phase = 'gameover';
+  s.turnId = null;
+  s.turnName = '';
+  s.prompt = null;
+  s.endsAt = null;
+  s.board = scoreboardOf(room);
 };
 
 /* ==========================================================================
@@ -3218,10 +3640,17 @@ const telephoneAction = (room, playerId, action, payload) => {
   const s = room.shared;
 
   if (action === 'submit') {
+    // A drawing sent as its step ended, arriving after the next one began, would
+    // be filed on someone else's chain as a blank. It belongs to no step now.
+    if (staleTap(payload, 'step', s.step)) return;
     if (s.phase !== 'working' && s.phase !== 'collecting') throw new Error('انتهت هذه الخطوة');
     const task = (room.secrets[playerId] || {}).task;
     if (!task) throw new Error('لست ضمن هذه الجولة');
     if (s.submitted.indexOf(playerId) !== -1) return;
+    // A phone too old to say its step still gives itself away: a drawing for a
+    // step that asks for words, or words for one that asks for a drawing.
+    const sent = payload || {};
+    if (task.kind === 'draw' ? !Array.isArray(sent.strokes) : sent.text === undefined) return;
     const chain = room._chains[task.chain];
     chain.steps[s.step] = task.kind === 'draw'
       ? { kind: 'draw', by: playerId, strokes: cleanStrokes(payload && payload.strokes) }
@@ -3348,6 +3777,10 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
   }
 
   const s = room.shared;
+  // The host's quarter or skip names the player it was for ({ target }): a
+  // double tap would otherwise hand the next player a quarter too. Checked
+  // before the end of the game, which the first tap may have brought about.
+  if ((action === 'penalty' || action === 'skip') && staleTap(payload, 'target', s.phase === 'play' ? s.turnId : null)) return;
   if (s.phase !== 'play' && action !== 'setQuarters') throw new Error('اللعبة انتهت');
   const isTurn = playerId === s.turnId;
   const me = room.players.find(p => p.id === playerId);
@@ -3378,7 +3811,9 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
   if (action === 'liar') {
     if (s.mode !== 'letters') throw new Error('ليست لعبة حروف');
     if (!s.letters.length) throw new Error('مفيش حروف لسه');
-    if (!me || (s.quarters[playerId] || 0) >= 4) throw new Error('القرد ما يتكلمش');
+    // Only someone playing this game: a latecomer watching has no quarters to lose.
+    if (!me || s.order.indexOf(playerId) === -1) throw new Error('ستدخل من الجولة القادمة');
+    if ((s.quarters[playerId] || 0) >= 4) throw new Error('القرد ما يتكلمش');
     const last = s.letters[s.letters.length - 1];
     if (last.by === playerId) throw new Error('ده حرفك انت');
     const word = s.letters.map(l => l.ch).join('');
@@ -3477,6 +3912,7 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
     requireHost(room, playerId);
     const monkeyId = String((payload && payload.monkeyId) || '');
     const targetId = String((payload && payload.targetId) || '');
+    if (s.order.indexOf(monkeyId) === -1 || s.order.indexOf(targetId) === -1) throw new Error('تبديل غير صحيح');
     if ((s.quarters[monkeyId] || 0) < 4 || (s.quarters[targetId] || 0) >= 4) throw new Error('تبديل غير صحيح');
     const keep = s.quarters[targetId] || 0;
     s.quarters[targetId] = 4;
@@ -3545,21 +3981,26 @@ const advanceMonkey = (room, from) => {
   setMonkeyTurn(room, (from + 1) % n);
 };
 
-/** Safe players down to the winners' count: the game is over. */
+/**
+ * Safe players down to the winners' count: the game is over. Only those still
+ * in the room count - someone who left is neither safe nor a monkey - and the
+ * winners' count shrinks with the table, or two left of three with two winners
+ * would play on forever.
+ */
 const monkeyCheckEnd = (room) => {
   const s = room.shared;
-  const safe = s.order.filter(id => (s.quarters[id] || 0) < 4).length;
-  if (safe <= s.winners && s.order.length > s.winners) {
-    s.phase = 'gameover';
-    s.endsAt = null;
-    s.turnId = null;
-    s.turnName = '';
-    s.winnerNames = s.order.filter(id => (s.quarters[id] || 0) < 4).map(id => roomPlayerName(room, id));
-    s.board = monkeyBoard(room);
-    room.phase = 'gameover';
-    return true;
-  }
-  return false;
+  const present = s.order.filter(id => room.players.some(p => p.id === id));
+  const safe = present.filter(id => (s.quarters[id] || 0) < 4);
+  const winners = Math.max(1, Math.min(s.winners, present.length - 1));
+  if (present.length >= 2 && safe.length > winners) return false;
+  s.phase = 'gameover';
+  s.endsAt = null;
+  s.turnId = null;
+  s.turnName = '';
+  s.winnerNames = safe.map(id => roomPlayerName(room, id));
+  s.board = monkeyBoard(room);
+  room.phase = 'gameover';
+  return true;
 };
 
 /* ==========================================================================
@@ -3624,6 +4065,8 @@ const herdAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'submit') {
+    // An answer to last round's question, arriving after the next was dealt.
+    if (staleTap(payload, 'round', s.round)) return;
     if (s.phase !== 'writing') throw new Error('انتهى وقت الكتابة');
     if (s.roster.indexOf(playerId) === -1) throw new Error('ستدخل من الجولة القادمة');
     const text = String((payload && payload.text) || '').replace(/\s+/g, ' ').trim().slice(0, HERD_MAX_LEN);
@@ -3693,11 +4136,11 @@ const dealHerdRound = (room) => {
   room.phase = 'writing';
 };
 
-/** The answers, grouped: the same word through normaliseClue is one group. */
+/** The answers of everyone still here, grouped: the same word through normaliseClue is one group. */
 const herdGroups = (room) => {
   const answers = (room._herd && room._herd.answers) || {};
   const byKey = {};
-  Object.keys(answers).forEach(pid => {
+  Object.keys(answers).filter(pid => room.players.some(p => p.id === pid)).forEach(pid => {
     const key = normaliseClue(answers[pid]);
     if (!byKey[key]) byKey[key] = { key: key, ids: [], names: [], texts: [] };
     byKey[key].ids.push(pid);
@@ -3714,9 +4157,22 @@ const revealHerd = (room) => {
   room.phase = 'reveal';
 };
 
+/**
+ * The groups less anyone who has left since they were drawn (the host's merges
+ * kept): an answer from someone gone can't make the herd, or take the sheep.
+ */
+const herdPresentGroups = (room, groups) => (groups || [])
+  .map(g => {
+    const keep = g.ids.map((id, i) => i).filter(i => room.players.some(p => p.id === g.ids[i]));
+    return Object.assign({}, g, { ids: keep.map(i => g.ids[i]), names: keep.map(i => g.names[i]), texts: keep.map(i => g.texts[i]) });
+  })
+  .filter(g => g.ids.length)
+  .sort((a, b) => b.ids.length - a.ids.length);
+
 const scoreHerd = (room) => {
   const s = room.shared;
-  const groups = s.groups || [];
+  s.groups = herdPresentGroups(room, s.groups);
+  const groups = s.groups;
   const top = groups.reduce((m, g) => Math.max(m, g.ids.length), 0);
   const leaders = groups.filter(g => g.ids.length === top);
   const majority = top >= 2 && leaders.length === 1 ? leaders[0] : null;
@@ -3850,7 +4306,7 @@ const mafiaAction = (room, playerId, action, payload) => {
     if (s.phase !== 'night') throw new Error('مش وقت الليل');
     if (!alive) throw new Error('خرجت من اللعبة');
     const target = String((payload && payload.target) || '');
-    if (s.alive.indexOf(target) === -1) throw new Error('اختيار غير صحيح');
+    if (mafiaAlive(room).indexOf(target) === -1) throw new Error('اختيار غير صحيح');
     const role = room._mafia.roles[playerId];
     const night = room._mafia.night;
     if (role === 'mafia') {
@@ -3919,7 +4375,7 @@ const mafiaWriteSecrets = (room) => {
   const mafiaIds = Object.keys(m.roles).filter(id => m.roles[id] === 'mafia');
   const night = m.night;
   room.secrets = {};
-  s.roster.forEach(id => {
+  s.roster.filter(id => room.players.some(p => p.id === id)).forEach(id => {
     const role = m.roles[id];
     const slice = { role: role };
     if (role === 'mafia' || role === 'lawyer') slice.mafia = mafiaIds.map(x => ({ id: x, name: roomPlayerName(room, x) }));
@@ -3949,11 +4405,14 @@ const mafiaEndNight = (room) => {
   const s = room.shared;
   const m = room._mafia;
   const night = m.night || { kills: {}, suspects: {} };
-  // The Mafia's target: the most picked; a tie is settled at random.
+  // The Mafia's target: the most picked; a tie is settled at random. Only
+  // picks by, and of, someone still in the game.
+  const living = mafiaAlive(room);
   const tally = {};
   Object.keys(night.kills).forEach(by => {
-    if (s.alive.indexOf(by) === -1) return;
+    if (living.indexOf(by) === -1) return;
     const t = night.kills[by];
+    if (living.indexOf(t) === -1) return;
     tally[t] = (tally[t] || 0) + 1;
   });
   const top = Object.keys(tally).reduce((mx, id) => Math.max(mx, tally[id]), 0);
@@ -4014,18 +4473,24 @@ const mafiaResolveVote = (room) => {
   mafiaWriteSecrets(room);
 };
 
-/** The Mafia as many as everyone else, or no Mafia left: the game is over. */
+/**
+ * The Mafia as many as everyone else, or no Mafia left: the game is over.
+ * Counted among those still in the room, like the night and the vote: a game
+ * that counted a player who had left kept going round with nobody able to win.
+ */
 const mafiaCheckEnd = (room) => {
   const s = room.shared;
   const m = room._mafia;
-  const alive = s.alive;
+  const alive = mafiaAlive(room);
   const mafia = alive.filter(id => m.roles[id] === 'mafia').length;
   const others = alive.length - mafia;
   const winner = mafia === 0 ? 'town' : (mafia >= others ? 'mafia' : null);
   if (!winner) return false;
   s.winner = winner;
   s.endsAt = null;
-  s.roles = s.roster.map(id => ({ id: id, name: roomPlayerName(room, id), role: m.roles[id], alive: alive.indexOf(id) !== -1 }));
+  // Someone who left is no longer in the room; their name is kept on the list of those out.
+  const nameOf = (id) => roomPlayerName(room, id) || ((s.out || []).find(o => o.id === id) || {}).name || '';
+  s.roles = s.roster.map(id => ({ id: id, name: nameOf(id), role: m.roles[id], alive: alive.indexOf(id) !== -1 }));
   s.roster.forEach(id => {
     const role = m.roles[id];
     const onMafiaSide = role === 'mafia' || role === 'lawyer';

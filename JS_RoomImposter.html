@@ -11,6 +11,20 @@
    ========================================================================= */
 
 let imposterCardOpen = false;   // has this player flipped their card this round
+let imposterCardDeal = null;    // the deal (shared.dealId) that card belongs to
+
+/* The host's choices, remembered on their phone: the lobby is rewritten when
+   someone joins (the spy count depends on the table), and a rewrite used to
+   put both pickers back on their first option. */
+const IMPOSTER_ROOM_OPTS_KEY = 'ashryImposterRoomOpts';
+function imposterRoomOpts() {
+  try { return JSON.parse(localStorage.getItem(IMPOSTER_ROOM_OPTS_KEY) || 'null') || {}; } catch (e) { return {}; }
+}
+function setImposterRoomOpt(key, value) {
+  const o = imposterRoomOpts();
+  o[key] = key === 'spies' ? Number(value) : String(value);
+  try { localStorage.setItem(IMPOSTER_ROOM_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+}
 
 ROOM_GAMES.imposter = {
   /** Host-only controls shown in the lobby. */
@@ -22,16 +36,19 @@ ROOM_GAMES.imposter = {
     if (!cats.length) return '';
     const maxSpies = Math.max(1, state.players.length - 2);
     const t = TRANSLATIONS[appState.lang];
+    const o = imposterRoomOpts();
+    const cat = cats.indexOf(o.category) !== -1 ? o.category : cats[0];
+    const spies = Math.max(1, Math.min(maxSpies, Number(o.spies) || 1));
     return `
       <div class="card card--tight">
-        <label class="field__label">${t.category || 'المجموعة'}</label>
-        <select id="room-imp-category">
-          ${cats.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('')}
+        <label class="field__label" for="room-imp-category">${t.category || 'المجموعة'}</label>
+        <select id="room-imp-category" onchange="setImposterRoomOpt('category', this.value)">
+          ${cats.map(c => `<option value="${escapeHTML(c)}" ${c === cat ? 'selected' : ''}>${escapeHTML(c)}</option>`).join('')}
         </select>
-        <label class="field__label">${t.imposters_count || 'عدد الجواسيس'}</label>
-        <select id="room-imp-spies">
+        <label class="field__label" for="room-imp-spies">${t.imposter_count || t.spy_room_count || 'عدد الجواسيس'}</label>
+        <select id="room-imp-spies" onchange="setImposterRoomOpt('spies', this.value)">
           ${Array.from({ length: maxSpies }, (_, i) =>
-            `<option value="${i + 1}">${i + 1}</option>`).join('')}
+            `<option value="${i + 1}" ${i + 1 === spies ? 'selected' : ''}>${i + 1}</option>`).join('')}
         </select>
       </div>`;
   },
@@ -39,9 +56,10 @@ ROOM_GAMES.imposter = {
   startPayload() {
     const cat = document.getElementById('room-imp-category');
     const spies = document.getElementById('room-imp-spies');
+    const o = imposterRoomOpts();
     return {
-      category: cat ? cat.value : '',
-      spies: spies ? Number(spies.value) : 1
+      category: cat ? cat.value : (o.category || ''),
+      spies: spies ? Number(spies.value) : (Number(o.spies) || 1)
     };
   },
 
@@ -50,6 +68,9 @@ ROOM_GAMES.imposter = {
       imposterCardOpen = false;
       setView('room-imposter');
     }
+    // "Play again" from the result lands on the same screen: a new deal starts face down.
+    const deal = state.shared && state.shared.dealId;
+    if (deal && imposterCardDeal !== deal) { imposterCardDeal = deal; imposterCardOpen = false; }
     const el = document.getElementById('view-room-imposter');
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
@@ -117,7 +138,7 @@ function renderImposterDiscuss(el, state, t) {
 
 /** Everyone accuses someone; the choices stay hidden until the vote closes. */
 function renderImposterVoting(el, state, t) {
-  if (roomDiscussClock) { roomDiscussClock.stop(); roomDiscussClock = null; roomDiscussBase = null; }
+  stopRoomDiscussClock();
   const v = state.shared.vote || {};
   renderRoomFrame(el, 'voting|' + (v.voted || []).length + '|' + state.youAreHost + '|' + appState.lang, () => `
     <div class="card card--tight">
@@ -155,6 +176,12 @@ function imposterOutcomeLine(s, t) {
 /** Counts up from the shared start time, so every phone shows the same number. */
 let roomDiscussClock = null;
 let roomDiscussBase = null;
+function stopRoomDiscussClock() {
+  if (roomDiscussClock) roomDiscussClock.stop();
+  roomDiscussClock = null;
+  roomDiscussBase = null;
+}
+onRoomClocksReset(stopRoomDiscussClock);
 function startRoomDiscussClock(startedAt) {
   const base = startedAt || Date.now();
   // Restarting on every render threw the tick away each poll for no gain; the
@@ -175,7 +202,7 @@ function startRoomDiscussClock(startedAt) {
 }
 
 function renderImposterResult(el, state, t) {
-  if (roomDiscussClock) { roomDiscussClock.stop(); roomDiscussClock = null; roomDiscussBase = null; }
+  stopRoomDiscussClock();
   const s = state.shared;
   const spies = s.spies || [];
   const won = s.outcome === 'caught';
@@ -228,7 +255,10 @@ function refreshRoomPlayerStrip(el, state) {
   if (strip) strip.outerHTML = renderRoomPlayerStrip(state);
 }
 
-/** A compact who's-here strip, so players can see the room is still alive. */
+/**
+ * A compact who's-here strip, so players can see the room is still alive.
+ * The host gets a ✕ on a phone that has gone, to take it out of the room.
+ */
 function renderRoomPlayerStrip(state) {
   return `
     <div class="chip-set" data-room-strip style="justify-content:center; margin-top: var(--sp-4)">
@@ -236,8 +266,20 @@ function renderRoomPlayerStrip(state) {
         <span class="chip chip--plain ${p.online ? '' : 'is-away'}">
           <span class="presence-dot ${p.online ? 'is-online' : ''}"></span>
           <span class="chip__label">${escapeHTML(p.name)}</span>
+          ${typeof roomKickButton === 'function' ? roomKickButton(state, p) : ''}
         </span>`).join('')}
     </div>`;
+}
+
+/**
+ * The host's small recovery buttons (skip a quiet phone, close the writing
+ * early), as one centred row: [[label, onclick], …]. Labels are escaped here.
+ */
+function roomHostRow(buttons) {
+  const list = (buttons || []).filter(b => b && b[0]);
+  if (!list.length) return '';
+  return `<div class="chip-set room-host-row" style="justify-content:center; margin-top: var(--sp-3)">${list.map(b =>
+    `<button type="button" class="btn btn--${b[2] || 'ghost'} btn--xs btn--auto" onclick="${b[1]}">${escapeHTML(b[0])}</button>`).join('')}</div>`;
 }
 
 /** Thin wrapper so inline handlers can fire a room action and surface errors. */

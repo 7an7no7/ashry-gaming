@@ -213,6 +213,9 @@ function setFlagsLevel(level) {
 }
 
 function startFlags(daily) {
+  if (daily && soloDailyResume('flags')) return;
+  soloDailySetAside('flags');
+  soloNewGame('flags');
   const s = flagsState();
   const mode = daily ? 'flag' : s.mode;
   const level = daily ? 'daily' : s.level;
@@ -377,7 +380,9 @@ function guessFlags(code) {
 function flagsFinish(won) {
   const s = flagsState();
   const t = TRANSLATIONS[appState.lang];
-  const target = flagCountry(s.answer);
+  // Read now: the sheet opens later, and a new game may have replaced these by then.
+  const answer = s.answer;
+  const target = flagCountry(answer);
   const max = FLAG_MODES[s.playMode].guesses;
   const tries = s.guesses.length;
   const key = s.playMode + ':' + s.playLevel;
@@ -389,20 +394,20 @@ function flagsFinish(won) {
   };
   const lines = s.guesses.map(g => g.code === s.answer ? `${squares(100)} 🎉` : `${squares(g.p)} ${FLAG_ARROWS[Math.round(g.deg / 45) % 8]}`);
   let share = '';
-  if (s.daily === soloToday()) {
-    soloMarkDaily('flags', { won: won, guesses: tries });
-    share = `${soloShareHeader(t)}\n🌍 ${t.setup_flags || ''} ${won ? tries : 'X'}/${max}\n${lines.join('\n')}`;
+  if (s.daily) {
+    soloMarkDaily('flags', { won: won, guesses: tries }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n🌍 ${t.setup_flags || ''} ${won ? tries : 'X'}/${max}\n${lines.join('\n')}`;
   }
-  const detail = [`<span class="flag-emoji">${flagEmoji(s.answer)}</span> ${escapeHTML(flagName(target, s.lang))}`];
+  const detail = [`<span class="flag-emoji">${flagEmoji(answer)}</span> ${escapeHTML(flagName(target, s.lang))}`];
   if (rec.prev && !rec.record && won) detail.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.guesses}`);
   const flag = document.getElementById('flags-flag');
   if (flag && flag.animate && !motionOff()) flag.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25) rotate(-6deg)' }, { transform: 'none' }], { duration: 600, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
-  setTimeout(() => soloResult({
-    icon: `<span class="flag-emoji">${flagEmoji(s.answer)}</span>`,
+  soloLater('flags', motionOff() ? 0 : 900, () => soloResult({
+    icon: `<span class="flag-emoji">${flagEmoji(answer)}</span>`,
     title: won ? (rec.record ? (t.solo_new_best || '') : (t.flags_won || '')) : (t.flags_lost || ''),
     valueText: won ? `${tries}/${max}` : `X/${max}`, valueLabel: t.flags_tries || '', lines: detail, win: won, share: share,
     again: () => startFlags(false), exit: setupFlags
-  }), motionOff() ? 0 : 900);
+  }));
 }
 
 function restoreFlags() {
@@ -413,5 +418,8 @@ function restoreFlags() {
   return true;
 }
 
-soloRegister('flags', { setup: 'setup-flags', play: 'play-flags', paintSetup: paintFlagsSetup, restore: restoreFlags });
+soloRegister('flags', {
+  setup: 'setup-flags', play: 'play-flags', paintSetup: paintFlagsSetup, restore: restoreFlags,
+  state: flagsState, resume: continueFlags, repaint: () => paintFlags(), prefs: ['mode', 'level']
+});
 </script>

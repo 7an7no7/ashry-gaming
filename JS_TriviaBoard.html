@@ -19,6 +19,12 @@
    exactly as it was (restoreView in JS_Core.html). That includes an open card:
    `open` holds its deadline (or the seconds left, while paused) rather than a
    count, so it comes back with the time it really had left.
+
+   The last card given out can be taken back (`last`: which card, to whom, for
+   how much) while its board is up. A cleared board moves on by itself after a
+   beat; that pending step is one timer, so "next round" pressed in the beat
+   doesn't move on twice. The setup screen offers to continue a board that
+   isn't finished, and asks before a new game throws one away.
    ========================================================================= */
 
 const TB_LEVELS = [100, 200, 300, 400, 500];
@@ -30,6 +36,16 @@ const TB_TIMER_DEFAULT = 30;
 
 /** The open card's clock (createClock), or null. */
 let tbClock = null;
+/** A cleared board's step to the next round, while it waits. */
+let tbAdvanceTimer = null;
+
+function cancelTriviaAdvance() {
+  clearTimeout(tbAdvanceTimer);
+  tbAdvanceTimer = null;
+}
+
+// Gone from the board before its beat was up: no round moves on (and no toast) behind another screen.
+onLeaveScreen((from) => { if (from === 'play-trivia') cancelTriviaAdvance(); });
 
 function tbText() { return TRANSLATIONS[appState.lang] || {}; }
 function tbLang() { return contentLang(); }
@@ -53,6 +69,53 @@ function setupTrivia() {
   if (timerOn) timerOn.checked = saved.timerOn !== false;
   setTriviaTimerSeconds(TB_TIMER_CHOICES.indexOf(saved.timerSeconds) !== -1 ? saved.timerSeconds : TB_TIMER_DEFAULT);
   syncTriviaTimerField();
+  paintTriviaSetup();
+}
+
+/** A board that isn't finished: the scores, the round, and a way back to it. */
+const triviaUnfinished = () => {
+  const s = appState.triviaBoard;
+  return !!(s && !s.finished && Array.isArray(s.board) && s.board.length);
+};
+const triviaStarted = () => {
+  const s = appState.triviaBoard;
+  return triviaUnfinished() && (s.round > 1 || s.teams.some(x => x.score > 0) || s.board.some(col => col.cells.some(x => x.done)));
+};
+
+function paintTriviaSetup() {
+  const panel = document.querySelector('#view-setup-trivia .mode-device-panel');
+  let box = document.getElementById('tb-resume');
+  if (!box && panel) {
+    box = document.createElement('div');
+    box.id = 'tb-resume';
+    box.className = 'field';
+    panel.insertBefore(box, panel.firstChild);
+  }
+  if (!box) return;
+  if (!triviaStarted()) {
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+  const s = appState.triviaBoard;
+  const t = tbText();
+  box.classList.remove('hidden');
+  box.innerHTML = `
+    <label class="field__label">⏸️ ${escapeHTML(t.tb_unfinished || 'لعبة لسه ما خلصتش')}</label>
+    <div class="tb-scores tb-scores--final">
+      <div class="tb-team tb-team--a"><div class="tb-team__name">${escapeHTML(tbTeamName(0))}</div><div class="tb-team__score">${s.teams[0].score}</div></div>
+      <div class="tb-round"><span class="eyebrow">${escapeHTML(t.tb_round || '')}</span><span class="tb-round__value">${s.round} / ${s.rounds}</span></div>
+      <div class="tb-team tb-team--b"><div class="tb-team__name">${escapeHTML(tbTeamName(1))}</div><div class="tb-team__score">${s.teams[1].score}</div></div>
+    </div>
+    <button type="button" class="btn btn--secondary" onclick="resumeTriviaBoard()">▶ ${escapeHTML(t.solo_continue || 'كمّل اللعبة')}</button>`;
+}
+
+function resumeTriviaBoard() {
+  if (!triviaUnfinished()) return;
+  setView('play-trivia');
+  renderTriviaBoard();
+  // An open card comes back with the time it had left, once the screen has settled.
+  if (appState.triviaBoard.open) setTimeout(() => { if (appState.currentView === 'play-trivia') showTriviaCell(); }, 0);
 }
 
 /** The seconds only show while the timer switch is on. */
@@ -74,6 +137,15 @@ function setTriviaTimerSeconds(seconds) {
 }
 
 function startTriviaBoard() {
+  // A board still being played is not thrown away without asking.
+  if (triviaStarted()) {
+    showConfirmModal(tbText().tb_new_confirm || 'فيه لعبة لسه ما خلصتش. تبدأ لعبة جديدة وتسيبها؟', beginTriviaBoard);
+    return;
+  }
+  beginTriviaBoard();
+}
+
+function beginTriviaBoard() {
   const nameA = ((document.getElementById('tb-team-a') || {}).value || '').trim().slice(0, 20);
   const nameB = ((document.getElementById('tb-team-b') || {}).value || '').trim().slice(0, 20);
   const rounds = Math.max(1, Math.min(4, Number((document.getElementById('tb-rounds') || {}).value) || 2));
@@ -87,6 +159,7 @@ function startTriviaBoard() {
   } catch (e) {}
 
   stopTriviaTimer();
+  cancelTriviaAdvance();
   appState.triviaBoard = {
     // An empty name follows the language instead of freezing the default in.
     teams: [{ name: nameA, score: 0 }, { name: nameB, score: 0 }],
@@ -96,6 +169,7 @@ function startTriviaBoard() {
     timer: timerOn ? timerSeconds : 0,
     board: dealTriviaRound([]),
     open: null,
+    last: null,
     finished: false
   };
   saveToLocal();
@@ -166,6 +240,7 @@ function renderTriviaBoard() {
   });
 
   const lastRound = s.round >= s.rounds;
+  const canUndo = triviaCanUndo(s);
   // .tb-play stacks on a phone held upright and puts the scores beside the
   // board on its side (Style.html, landscape).
   root.innerHTML = `
@@ -181,6 +256,7 @@ function renderTriviaBoard() {
       <div class="tb-board">${headers}${cells}</div>
       <div class="btn-stack tb-actions">
         <button class="btn btn--secondary" onclick="nextTriviaRound()">${lastRound ? (t.tb_finish || 'إنهاء اللعبة') : (t.tb_next_round || 'الجولة التالية')}</button>
+        ${canUndo ? `<button class="btn btn--ghost btn--sm" onclick="undoTriviaAward()">↶ ${escapeHTML(t.tb_undo_award || 'رجّع آخر سؤال')}</button>` : ''}
       </div>
     </div>`;
 }
@@ -276,6 +352,7 @@ function awardTriviaCell(teamIndex) {
   const cell = s.board[s.open.c].cells[s.open.row];
   cell.done = true;
   cell.team = teamIndex >= 0 ? teamIndex : null;
+  s.last = { c: s.open.c, row: s.open.row, team: cell.team, points: teamIndex >= 0 ? cell.points : 0, round: s.round };
   if (teamIndex >= 0) {
     s.teams[teamIndex].score += cell.points;
     playSound('success');
@@ -288,8 +365,42 @@ function awardTriviaCell(teamIndex) {
   saveToLocal();
   renderTriviaBoard();
 
-  // A cleared board moves on by itself.
-  if (s.board.every(col => col.cells.every(x => x.done))) setTimeout(advanceTriviaBoard, 700);
+  // A cleared board moves on by itself, after a beat - once, whichever comes first.
+  if (s.board.every(col => col.cells.every(x => x.done))) {
+    const round = s.round;
+    cancelTriviaAdvance();
+    tbAdvanceTimer = setTimeout(() => {
+      tbAdvanceTimer = null;
+      const now = appState.triviaBoard;
+      if (now !== s || now.finished || now.round !== round || appState.currentView !== 'play-trivia') return;
+      if (now.board.every(col => col.cells.every(x => x.done))) advanceTriviaBoard();
+    }, 700);
+  }
+}
+
+/** The last card given out on this board, still as it was given. */
+function triviaCanUndo(s) {
+  const l = s && s.last;
+  if (!l || l.round !== s.round || s.finished) return false;
+  const cell = s.board[l.c] && s.board[l.c].cells[l.row];
+  return !!(cell && cell.done && cell.team === l.team);
+}
+
+/** The card goes back on the board, and its points come off the team that got them. */
+function undoTriviaAward() {
+  const s = appState.triviaBoard;
+  if (!triviaCanUndo(s)) return;
+  cancelTriviaAdvance();
+  const l = s.last;
+  const cell = s.board[l.c].cells[l.row];
+  cell.done = false;
+  cell.team = null;
+  if (l.team !== null && s.teams[l.team]) s.teams[l.team].score = Math.max(0, s.teams[l.team].score - l.points);
+  s.last = null;
+  saveToLocal();
+  renderTriviaBoard();
+  playSound('tick');
+  haptic('light');
 }
 
 function adjustTriviaScore(teamIndex, direction) {
@@ -411,9 +522,11 @@ function nextTriviaRound() {
 
 function advanceTriviaBoard() {
   const s = appState.triviaBoard;
+  cancelTriviaAdvance();
   if (!s || s.finished) return;
   stopTriviaTimer();
   s.open = null;
+  s.last = null;
   if (s.round >= s.rounds) {
     s.finished = true;
     saveToLocal();
@@ -459,6 +572,8 @@ function replayTriviaBoard() {
   s.round = 1;
   s.finished = false;
   s.open = null;
+  s.last = null;
+  cancelTriviaAdvance();
   s.board = dealTriviaRound([]);
   saveToLocal();
   renderTriviaBoard();

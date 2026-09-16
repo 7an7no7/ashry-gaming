@@ -34,11 +34,13 @@ CS_GAMES.trix = {
   },
   seatCount: () => [4, 4],
   seatsHint: (opts) => (opts.teams === 'pairs' ? 'cs_pairs_seats' : 'cs_trix_seats'),
+  teamMode: (opts) => opts.teams === 'pairs',
   seats: (names, opts) => names.map((n, i) => ({ name: n, team: i % 2 })),
   board: (s, totals) => {
     if (s.opts.teams !== 'pairs') return s.seats.map((seat, i) => ({ i: i, name: seat.name, score: totals[i] }));
     return [0, 1].map(team => ({
       i: team, name: s.seats.filter(x => x.team === team).map(x => x.name).join(' & '),
+      short: (csT().cs_team_short || 'فريق {n}').replace('{n}', team + 1),
       score: csSum(totals.filter((_, i) => s.seats[i].team === team))
     }));
   },
@@ -80,6 +82,7 @@ CS_GAMES.trix = {
     if (contract === 'queens' || contract === 'complex') body += queens();
     if (contract === 'diamonds' || contract === 'complex') body += g.countsHtml(s, t, 'd', t.cs_trix_diamonds_count || '');
     if (contract === 'tricks' || contract === 'complex') body += g.countsHtml(s, t, 'l', t.cs_trix_tricks_count || '');
+    if (['diamonds', 'tricks', 'complex'].indexOf(contract) !== -1) body += csQuickSlot();
     if (contract === 'trix') {
       body = `<div class="cs-card"><b class="cs-card__title">${escapeHTML(t.cs_trix_order || '')}</b>` +
         s.seats.map((seat, i) => `<div class="cs-seat-row"><span class="cs-seat-row__name">${escapeHTML(seat.name)}</span>${csPickHtml('place' + i, [1, 2, 3, 4].map(p => ({ v: p, label: String(p) })), csDraft(s, 'pick-place' + i, ''))}</div>`).join('') + '</div>';
@@ -92,6 +95,15 @@ CS_GAMES.trix = {
   onPick(key, s) {
     if (key === 'contract') Object.keys(s.draft).forEach(k => { if (k !== 'pick-contract') delete s.draft[k]; });
     paintCardScore('trix');
+  },
+  /** The diamonds and the tricks each add up to 13: the rest to whoever took it. */
+  quick(s, t) {
+    const contract = csPicked('contract');
+    const keys = (p) => s.seats.map((_, i) => p + i);
+    const out = [];
+    if (contract === 'diamonds' || contract === 'complex') out.push({ kind: 'rest', keys: keys('d'), total: 13, max: 13, label: t.cs_trix_c_diamonds || '' });
+    if (contract === 'tricks' || contract === 'complex') out.push({ kind: 'rest', keys: keys('l'), total: 13, max: 13, label: t.cs_trix_c_tricks || '' });
+    return out;
   },
   readCard: (key) => ({ taker: csPicked(key), doubler: csPicked(key + 'd') || '', led: csPicked(key + 'l') }),
   read(s) {
@@ -160,9 +172,11 @@ CS_GAMES.tarneeb = {
   },
   seatCount: () => [4, 4],
   seatsHint: () => 'cs_pairs_seats',
+  teamMode: () => true,
+  dealer: true,
   seats: (names, opts, t) => (opts.mode === 'fortyone' ? names.map((n, i) => ({ name: n, team: i % 2 })) : csTeams(names, t)),
   board: (s, totals) => {
-    if (s.opts.mode !== 'fortyone') return s.seats.map((seat, i) => ({ i: i, name: seat.name, score: totals[i] }));
+    if (s.opts.mode !== 'fortyone') return s.seats.map((seat, i) => ({ i: i, name: seat.name, short: csShort(seat, csT()), score: totals[i] }));
     return s.seats.map((seat, i) => ({ i: i, name: seat.name, score: totals[i], note: (csT().cs_team_short || '').replace('{n}', seat.team + 1) }));
   },
   goalText: (s, t) => (s.opts.mode === 'fortyone' ? (t.cs_tarneeb_goal41 || '') : (t.cs_to_target || '').replace('{n}', s.opts.target)),
@@ -192,6 +206,10 @@ CS_GAMES.tarneeb = {
     if (s.opts.mode === 'fortyone') {
       if (input.bids.some(b => b === null || b < 2 || b > 13)) return t.cs_tarneeb_need_bids;
       if (csSum(input.bids) < 11) return t.cs_tarneeb_under_11;
+      // There are 13 tricks: everyone marked as made took at least their bid,
+      // and everyone who failed took at most one less than theirs.
+      if (csSum(input.bids.filter((b, i) => input.made[i])) > 13) return t.cs_tarneeb_41_made_over || 'اللي جابوا طلبهم طالبين أكتر من 13 لمّة: راجع مين جاب';
+      if (!input.made.some(Boolean) && csSum(input.bids.map(b => b - 1)) < 13) return t.cs_tarneeb_41_none_made || 'مستحيل محدش يجيب طلبه بالطلبات دي: علّم اللي جابوا';
       return '';
     }
     if (input.team === null) return t.cs_tarneeb_need_team;
@@ -242,17 +260,30 @@ CS_GAMES.konkan = {
   icon: '♦️',
   low: true,
   options: {
-    end: { label: 'cs_konkan_end', values: ['r5', 'r7', 'l101'], def: 'r5', labelOf: (v, t) => t['cs_konkan_end_' + v] || v },
+    // Knocking out over 101 is a game of players, not of teams: with partners it could never end.
+    end: { label: 'cs_konkan_end', values: ['r5', 'r7', 'l101'], valuesOf: (o) => (o.teams === 'pairs' ? ['r5', 'r7'] : ['r5', 'r7', 'l101']), def: 'r5', labelOf: (v, t) => t['cs_konkan_end_' + v] || v },
     teams: { label: 'cs_konkan_teams', values: ['solo', 'pairs'], def: 'solo', labelOf: (v, t) => t['cs_mode_' + v] || v }
   },
   seatCount: (opts) => (opts.teams === 'pairs' ? [4, 4] : [2, 6]),
   seatsHint: (opts) => (opts.teams === 'pairs' ? 'cs_pairs_seats' : 'cs_konkan_seats'),
+  teamMode: (opts) => opts.teams === 'pairs',
   seats: (names) => names.map((n, i) => ({ name: n, team: i % 2 })),
   limit: (s) => (s.opts.end === 'l101' ? 101 : null),
+  /** The deal goes round the players still in. */
+  dealer(s) {
+    const players = CS_GAMES.konkan.inGame(s);
+    return players.length ? s.seats[players[s.rounds.length % players.length]].name : '';
+  },
   board: (s, totals) => {
     const limit = CS_GAMES.konkan.limit(s);
     if (s.opts.teams === 'pairs') {
-      return [0, 1].map(team => ({ i: team, name: s.seats.filter(x => x.team === team).map(x => x.name).join(' & '), score: csSum(totals.filter((_, i) => s.seats[i].team === team)) }));
+      // A team is out when both partners are (only a game saved before 101 left the team options).
+      return [0, 1].map(team => ({
+        i: team, name: s.seats.filter(x => x.team === team).map(x => x.name).join(' & '),
+        short: (csT().cs_team_short || 'فريق {n}').replace('{n}', team + 1),
+        score: csSum(totals.filter((_, i) => s.seats[i].team === team)),
+        out: limit !== null && s.seats.every((x, i) => x.team !== team || totals[i] > limit)
+      }));
     }
     return s.seats.map((seat, i) => ({ i: i, name: seat.name, score: totals[i], out: limit !== null && totals[i] > limit }));
   },
@@ -288,6 +319,11 @@ CS_GAMES.konkan = {
         </div>`).join('')}`;
   },
   onPick(key, s) { if (key === 'winner') paintCardScore('konkan'); },
+  /** One suit is one colour too, and pays ×4 instead of ×2: the two pills are never both on. */
+  onToggle(key, on) {
+    const other = { colour: 'suit', suit: 'colour' }[key];
+    if (on && other) csSetToggle(other, false);
+  },
   read(s) {
     const players = CS_GAMES.konkan.inGame(s);
     return {
@@ -309,8 +345,8 @@ CS_GAMES.konkan = {
     const partner = s.opts.teams === 'pairs' ? s.seats.findIndex((seat, i) => i !== w && seat.team === s.seats[w].team) : -1;
     let mult = input.finish === 'hand' ? 2 : 1;
     if (input.joker) mult *= 2;
-    if (input.colour) mult *= 2;
     if (input.suit) mult *= 4;
+    else if (input.colour) mult *= 2;
     const players = CS_GAMES.konkan.inGame(s);
     const pts = s.seats.map((_, i) => {
       if (players.indexOf(i) === -1 || i === partner) return 0;
@@ -320,7 +356,10 @@ CS_GAMES.konkan = {
     return { points: pts, tag: mult > 1 ? '×' + mult : '' };
   },
   ended(s, totals) {
-    if (s.opts.end === 'l101') return totals.filter(x => x <= 101).length <= 1;
+    if (s.opts.end === 'l101') {
+      if (s.opts.teams === 'pairs') return [0, 1].some(team => s.seats.every((seat, i) => seat.team !== team || totals[i] > 101));
+      return totals.filter(x => x <= 101).length <= 1;
+    }
     return s.rounds.length >= (s.opts.end === 'r7' ? 7 : 5);
   }
 };
@@ -340,6 +379,8 @@ CS_GAMES.basra = {
   },
   seatCount: (opts) => (opts.teams === 'pairs' ? [4, 4] : [2, 4]),
   seatsHint: (opts) => (opts.teams === 'pairs' ? 'cs_pairs_seats' : 'cs_basra_seats'),
+  teamMode: (opts) => opts.teams === 'pairs',
+  dealer: true,
   seats: (names, opts, t) => (opts.teams === 'pairs' ? csTeams(names, t) : names.map(n => ({ name: n }))),
   goalText: (s, t) => (t.cs_to_target || '').replace('{n}', s.opts.target),
   /** The majority's worth this deck: 30, plus 30 for every tie just before it. */
@@ -358,11 +399,14 @@ CS_GAMES.basra = {
           <span class="cs-cell"><small>${escapeHTML(t.cs_basra_basras || '')}</small>${csStepperHtml('b' + i, csDraft(s, 'b' + i, 0), 0, 20)}</span>
           <span class="cs-cell"><small>${escapeHTML(t.cs_basra_aj || '')}</small>${csStepperHtml('a' + i, csDraft(s, 'a' + i, 0), 0, 8)}</span>
         </span></div>`).join('')}
+      ${csQuickSlot()}
       <span class="cs-label">${escapeHTML(t.cs_basra_most || '')}</span>
       ${csPickHtml('most', seats.concat([{ v: 'tie', label: t.cs_basra_tie || '' }]), csDraft(s, 'pick-most', ''))}
       <span class="cs-label">2♣</span>${csPickHtml('two', seats, csDraft(s, 'pick-two', ''))}
       <span class="cs-label">10♦</span>${csPickHtml('ten', seats, csDraft(s, 'pick-ten', ''))}`;
   },
+  /** Four aces and four jacks in every deck. */
+  quick: (s, t) => [{ kind: 'rest', keys: s.seats.map((_, i) => 'a' + i), total: 8, max: 8, label: t.cs_basra_aj || '' }],
   read: (s) => ({ b: s.seats.map((_, i) => csVal('b' + i) || 0), a: s.seats.map((_, i) => csVal('a' + i) || 0), most: csPicked('most'), two: csPicked('two'), ten: csPicked('ten') }),
   check(input, s, t) {
     if (input.most === null) return t.cs_basra_need_most;
@@ -407,6 +451,7 @@ CS_GAMES.estimation = {
   },
   seatCount: () => [4, 4],
   seatsHint: () => 'cs_est_seats',
+  dealer: true,
   seats: (names) => names.map(n => ({ name: n })),
   goalText: (s, t) => (t.cs_rounds_of || '').replace('{n}', s.rounds.length).replace('{m}', s.opts.rounds),
   speed: (s) => s.rounds.length >= 13,
@@ -435,10 +480,16 @@ CS_GAMES.estimation = {
             <span class="cs-cell"><small>&nbsp;</small>${csToggleHtml('dash' + i, t.cs_est_dash_call || '', csDraft(s, 'tog-dash' + i, '') === '1')}</span>
           </span>
         </div>`).join('')}
+      ${csQuickSlot()}
       ${g.speed(s) ? '' : `<span class="cs-label">${escapeHTML(t.cs_est_caller || '')}</span>${csPickHtml('caller', seats, csDraft(s, 'pick-caller', ''))}`}
       <span class="cs-label">${escapeHTML(t.cs_est_risk || '')}</span>
       ${csPickHtml('risk', [{ v: '', label: t.cs_nobody || '' }].concat(seats), csDraft(s, 'pick-risk', ''))}`;
   },
+  /** Most players make their call; and the tricks add up to 13, so the last count is known. */
+  quick: (s, t) => [
+    { kind: 'same', from: s.seats.map((_, i) => 'c' + i), to: s.seats.map((_, i) => 't' + i), label: t.cs_quick_same || 'جاب طلبه بالظبط' },
+    { kind: 'rest', keys: s.seats.map((_, i) => 't' + i), total: 13, max: 13, label: t.cs_est_took || '' }
+  ],
   read(s) {
     return {
       calls: s.seats.map((_, i) => csVal('c' + i)),

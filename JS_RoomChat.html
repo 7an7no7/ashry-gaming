@@ -62,12 +62,23 @@ function chatEventText(m, t) {
   return '';
 }
 
-function renderRoomChat(state) {
+/**
+ * Draws the open sheet's messages. A room state arrives for every presence
+ * flicker too, so the list is only rewritten when it changed, and only jumps
+ * to the bottom for a new message when the reader was already near the bottom
+ * (or it is their own message, or the sheet has just opened) - not while they
+ * have scrolled up to read.
+ */
+function renderRoomChat(state, opening) {
   const list = document.getElementById('chat-list');
   if (!list) return;
   const t = TRANSLATIONS[appState.lang] || {};
   const msgs = (state && state.chat) || [];
-  list.innerHTML = msgs.length
+  const last = msgs.length ? msgs[msgs.length - 1] : null;
+  const lastId = last ? String(last.id) : '';
+  const grew = list.dataset.lastId !== lastId;
+  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+  const html = msgs.length
     ? msgs.map(m => {
         if (m.sys) {
           const text = chatEventText(m, t);
@@ -82,7 +93,9 @@ function renderRoomChat(state) {
           </div>`;
       }).join('')
     : `<div class="empty"><span class="empty__icon" aria-hidden="true">💬</span>${escapeHTML(t.chat_empty || '')}</div>`;
-  list.scrollTop = list.scrollHeight;
+  if (list._chatHtml !== html) { list.innerHTML = html; list._chatHtml = html; }
+  if (opening || (grew && (nearBottom || (last && last.from === Room.me)))) list.scrollTop = list.scrollHeight;
+  list.dataset.lastId = lastId;
   paintChatComposer(state);
 }
 
@@ -134,7 +147,7 @@ function setChatChannel(to) {
 }
 
 /** Runs on every room state: the badge, the open sheet, and a toast for a message that just came in. */
-function syncRoomChat(state) {
+function syncRoomChat(state, opening) {
   const inRoom = !!(state && Room.isIn && !state.youAreScreen);
   document.body.classList.toggle('has-chat', inRoom);
   const msgs = (state && state.chat) || [];
@@ -150,7 +163,7 @@ function syncRoomChat(state) {
     roomChat.notified = roomChat.seen;
   }
   if (roomChatOpen()) {
-    renderRoomChat(state);
+    renderRoomChat(state, opening);
     if (last) roomChat.seen = last.id;
   } else if (lastTalk && lastTalk.id > roomChat.notified && lastTalk.from !== Room.me) {
     const team = CHAT_TEAM_ICON[lastTalk.team] ? CHAT_TEAM_ICON[lastTalk.team] + ' ' : '';
@@ -167,7 +180,7 @@ function openRoomChat() {
   const m = document.getElementById('chat-modal');
   if (!m || !Room.isIn) return;
   m.classList.remove('hidden');
-  syncRoomChat(Room.state);
+  syncRoomChat(Room.state, true);
   const input = document.getElementById('chat-input');
   if (input) setTimeout(() => input.focus(), 50);
 }

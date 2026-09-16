@@ -72,7 +72,11 @@ function mkBoardHtml(s, state, t) {
   }).join('');
   return `<div class="section"><div class="section__head"><h2 class="section__title">${escapeHTML(t.player_status || '')}</h2><span class="section__rule"></span></div>${rows}</div>`;
 }
-function mkSwapPick(id) { mkRoom.swapFor = mkRoom.swapFor === id ? null : id; if (Room.state) { const el = document.getElementById('view-room-monkey'); if (el) delete el.dataset.sig; routeRoomState(Room.state); } }
+/** The host picks a monkey to swap back in; the phone's and the TV's signatures both carry the pick. */
+function mkSwapPick(id) { mkRoom.swapFor = mkRoom.swapFor === id ? null : id; if (Room.state) routeRoomState(Room.state); }
+
+/** A host's penalty or skip, aimed at the player whose turn it was when the button was drawn. */
+const mkHostCall = (action, s) => `roomAct('${action}', { target: '${jsStringAttr(s.turnId || '')}' })`;
 
 function armMkClock(endsAt) {
   const paint = () => {
@@ -91,6 +95,7 @@ function armMkClock(endsAt) {
   });
 }
 function stopMkClock() { if (mkRoom.clock) mkRoom.clock.stop(); mkRoom.clock = null; mkRoom.clockKey = null; }
+onRoomClocksReset(() => { stopMkClock(); mkRoom.swapFor = null; });
 
 async function mkSendName() {
   const input = document.getElementById('mk-name');
@@ -181,8 +186,8 @@ ROOM_GAMES.monkey = {
     const hostRow = state.youAreHost ? `
       <div class="btn-row" style="margin-bottom: var(--sp-4)">
         ${s.mode === 'letters' ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('undo')" ${word ? '' : 'disabled'}>↶ ${escapeHTML(t.draw_undo || '')}</button>` : ''}
-        <button class="btn btn--ghost btn--sm" onclick="roomAct('skip')">${escapeHTML(t.mk_skip || '')}</button>
-        <button class="btn btn--ghost btn--sm" onclick="roomAct('penalty')">${escapeHTML(t.mk_penalty || '')}</button>
+        <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('skip', s)}">${escapeHTML(t.mk_skip || '')}</button>
+        <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('penalty', s)}">${escapeHTML(t.mk_penalty || '')}</button>
       </div>` : '';
     const cat = `<span class="badge badge--accent">${escapeHTML(mkCatLabel(s.category))}</span>`;
     // The input survives presence flickers: the signature carries only what the screen shows.
@@ -231,12 +236,19 @@ ROOM_GAMES.monkey = {
 
 /* --- the TV ------------------------------------------------------------------ */
 TV_GAMES.monkey = {
-  sig: (state) => { const s = state.shared; return [s.phase, s.turnId, (s.letters || []).map(l => l.ch).join(''), s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {})].join('|'); },
+  sig: (state) => { const s = state.shared; return [s.phase, s.turnId, (s.letters || []).map(l => l.ch).join(''), s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {}), mkRoom.swapFor || ''].join('|'); },
   frame(state, t) {
     const s = state.shared;
     const lang = s.lang === 'en' ? 'en' : 'ar';
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
     const boardStrip = `<div class="tv-strip-inline">${(s.board || []).map(r => `<span class="tv-chip ${r.id === s.turnId ? 'is-turn' : ''} ${r.monkey ? 'is-away' : ''}">${MK_ICONS[Math.min(4, r.quarters)] || '✅'} ${escapeHTML(r.name)}</span>`).join('')}</div>`;
+    // The host's swap on the TV: pick a monkey, then who takes their place.
+    const monkeys = state.youAreHost && s.phase === 'play' ? (s.board || []).filter(r => r.monkey) : [];
+    const swapRow = !monkeys.length ? '' : `<div class="tv-actions">${monkeys.map(r =>
+        tvBtn('🐵 ' + (t.mk_switch || '') + ': ' + r.name, `mkSwapPick('${jsStringAttr(r.id)}')`, mkRoom.swapFor === r.id ? 'secondary' : 'ghost')).join('')}</div>` +
+      (mkRoom.swapFor && monkeys.some(r => r.id === mkRoom.swapFor)
+        ? `<div class="tv-actions">${(s.board || []).filter(x => !x.monkey).map(x =>
+            tvBtn('↔ ' + x.name, `roomAct('swap', { monkeyId: '${jsStringAttr(mkRoom.swapFor)}', targetId: '${jsStringAttr(x.id)}' }); mkRoom.swapFor = null;`, 'ghost')).join('')}</div>` : '');
     if (s.phase === 'gameover') {
       return `<div class="tv-vote">
         <div class="tv-eyebrow tv-center-text">${escapeHTML(t.mk_winners || '')}</div>
@@ -245,7 +257,8 @@ TV_GAMES.monkey = {
         ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.monkey.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
       </div>`;
     }
-    const verdict = s.verdict ? `<div class="tv-note">${escapeHTML(mkVerdictText(s.verdict, t))}</div>` : '';
+    const verdict = s.verdict ? `<div class="tv-note">${escapeHTML(mkVerdictText(s.verdict, t))}</div>` +
+      (state.youAreHost && s.verdict.canFlip && !s.verdict.flipped ? `<div class="tv-actions">${tvBtn(t.mk_flip, "roomAct('flip')", 'ghost')}</div>` : '') : '';
     const word = s.mode === 'letters'
       ? `<div class="mk-word mk-word--tv" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${(s.letters || []).length ? (s.letters || []).map(l => `<span class="mk-letter">${escapeHTML(l.ch)}</span>`).join('') : `<span class="mk-word__empty">${escapeHTML(t.mk_word_empty || '')}</span>`}</div>`
       : `${s.mode === 'chain' && s.required ? `<div class="tv-eyebrow">${escapeHTML(t.mk_required || '')}</div><div class="tv-title">${escapeHTML(s.required)}</div>` : ''}
@@ -259,7 +272,8 @@ TV_GAMES.monkey = {
         ${verdict}
       </div>
       ${boardStrip}
-      ${host((s.mode === 'letters' ? tvBtn('↶ ' + (t.draw_undo || ''), "roomAct('undo')", 'ghost') : '') + tvBtn(t.mk_skip, "roomAct('skip')", 'ghost') + tvBtn(t.mk_penalty, "roomAct('penalty')", 'danger-soft'))}
+      ${host((s.mode === 'letters' ? tvBtn('↶ ' + (t.draw_undo || ''), "roomAct('undo')", 'ghost') : '') + tvBtn(t.mk_skip, mkHostCall('skip', s), 'ghost') + tvBtn(t.mk_penalty, mkHostCall('penalty', s), 'danger-soft'))}
+      ${swapRow}
     </div>`;
   },
   after(state) { armMkClock(state.shared.phase === 'play' ? state.shared.endsAt : null); }

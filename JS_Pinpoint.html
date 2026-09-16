@@ -65,6 +65,9 @@ function paintPinpointSetup() {
 }
 
 function startPinpoint(daily) {
+  if (daily && soloDailyResume('pinpoint')) return;
+  soloDailySetAside('pinpoint');
+  soloNewGame('pinpoint');
   const s = pinState();
   const lang = contentLang() === 'en' ? 'en' : 'ar';
   const cats = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
@@ -97,10 +100,11 @@ function paintPinpoint(freshClue) {
   const r = s.rounds[s.round];
   if (!el || !r) return;
   const over = r.points !== null;
+  // The daily marks the round's label, so the round's worth keeps its place.
   const bar = soloBarHtml([
-    { label: t.pin_round || '', value: `${s.round + 1}/${s.rounds.length}` },
+    { label: `${s.daily ? '📅 ' : ''}${t.pin_round || ''}`, value: `${s.round + 1}/${s.rounds.length}` },
     { label: t.pin_points || '', value: pinScore(s), id: 'pin-score' },
-    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.pin_worth || '', value: over ? '–' : Math.max(1, PIN_CLUES + 1 - r.shown), id: 'pin-worth' }
+    { label: t.pin_worth || '', value: over ? '–' : Math.max(1, PIN_CLUES + 1 - r.shown), id: 'pin-worth' }
   ]);
   el.innerHTML = `
     <div class="solo-layout">
@@ -123,7 +127,7 @@ function paintPinpoint(freshClue) {
               <span class="solo-choice__icon" aria-hidden="true">${o.icon}</span><span>${escapeHTML(o.name)}</span></button>`;
           }).join('')}
         </div>
-        ${over ? `<button type="button" class="btn btn--primary" onclick="nextPinpoint()">${escapeHTML(s.round + 1 < s.rounds.length ? (t.pin_next || '') : (t.pin_finish || ''))}</button>` : ''}
+        ${over && s.phase === 'play' ? `<button type="button" class="btn btn--primary" onclick="nextPinpoint()">${escapeHTML(s.round + 1 < s.rounds.length ? (t.pin_next || '') : (t.pin_finish || ''))}</button>` : ''}
       </div>
     </div>
     <div class="view-actions">
@@ -209,10 +213,11 @@ function pinFinish() {
   const rec = soloRecord('pinpoint', '', { score: score }, (a, b) => a.score > b.score);
   const marks = s.rounds.map(r => r.points ? ['', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'][PIN_CLUES + 1 - r.points] : '❌').join(' ');
   let share = '';
-  if (s.daily === soloToday()) {
-    soloMarkDaily('pinpoint', { score: score });
-    share = `${soloShareHeader(t)}\n🔗 ${t.setup_pinpoint || ''} ${score}/${max}\n${marks}`;
+  if (s.daily) {
+    soloMarkDaily('pinpoint', { score: score }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n🔗 ${t.setup_pinpoint || ''} ${score}/${max}\n${marks}`;
   }
+  paintPinpoint(false);
   const lines = [marks, s.rounds.map(r => `${r.icon} ${escapeHTML(r.name)}`).join(' · ')];
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.score}/${max}`);
   soloResult({
@@ -229,5 +234,8 @@ function restorePinpoint() {
   return true;
 }
 
-soloRegister('pinpoint', { setup: 'setup-pinpoint', play: 'play-pinpoint', paintSetup: paintPinpointSetup, restore: restorePinpoint });
+soloRegister('pinpoint', {
+  setup: 'setup-pinpoint', play: 'play-pinpoint', paintSetup: paintPinpointSetup, restore: restorePinpoint,
+  state: pinState, resume: continuePinpoint, repaint: () => paintPinpoint(false)
+});
 </script>

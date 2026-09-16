@@ -3,8 +3,9 @@
    إكس أو — TIC TAC TOE
    ----------------------------------------------------------------------------
    Two on one phone, or one against the phone. The phone plays a full minimax
-   on hard (it cannot be beaten, only drawn) and throws in a random move a
-   third of the time on easy, which is what lets a child win now and then.
+   on hard (it cannot be beaten, only drawn), choosing at random among its
+   best moves so games differ, and throws in a random move a third of the
+   time on easy, which is what lets a child win now and then.
    The board is in appState.xo, so a reload keeps the game and the tally.
    ========================================================================= */
 
@@ -123,31 +124,52 @@ function xoMaybePhone() {
   }, 420);
 }
 
+/*
+ * On an empty board every move is a draw with perfect play, so the phone opens
+ * without searching: the centre or a corner, at random (they leave a human the
+ * most ways to go wrong). After that it searches, and picks at random among
+ * the moves that score best, so the same game doesn't repeat move for move.
+ */
+const XO_OPENINGS = [4, 0, 2, 6, 8];
+
 function xoPhoneMove(x) {
   const empty = x.board.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
   if (x.level === 'easy' && Math.random() < 0.35) return empty[Math.floor(Math.random() * empty.length)];
+  if (empty.length === 9) return XO_OPENINGS[Math.floor(Math.random() * XO_OPENINGS.length)];
   const me = x.turn;
-  let best = -Infinity, choice = empty[0];
+  let best = -Infinity, choices = [];
   for (const i of empty) {
     x.board[i] = me;
     const score = xoMinimax(x.board, xoOther(me), me, 0);
     x.board[i] = '';
-    if (score > best) { best = score; choice = i; }
+    if (score > best) { best = score; choices = [i]; }
+    else if (score === best) choices.push(i);
   }
-  return choice;
+  return choices[Math.floor(Math.random() * choices.length)];
 }
 
+/* Positions already scored, so the second move (eight empty cells) is quick too. */
+const XO_MEMO = new Map();
+
 function xoMinimax(board, turn, me, depth) {
+  const key = board.map(v => v || '-').join('') + turn + me + depth;
+  if (XO_MEMO.has(key)) return XO_MEMO.get(key);
   const r = xoWinner(board);
-  if (r) return r.mark === 'D' ? 0 : (r.mark === me ? 10 - depth : depth - 10);
-  const scores = [];
-  for (let i = 0; i < 9; i++) {
-    if (board[i]) continue;
-    board[i] = turn;
-    scores.push(xoMinimax(board, xoOther(turn), me, depth + 1));
-    board[i] = '';
+  let result;
+  if (r) {
+    result = r.mark === 'D' ? 0 : (r.mark === me ? 10 - depth : depth - 10);
+  } else {
+    const scores = [];
+    for (let i = 0; i < 9; i++) {
+      if (board[i]) continue;
+      board[i] = turn;
+      scores.push(xoMinimax(board, xoOther(turn), me, depth + 1));
+      board[i] = '';
+    }
+    result = turn === me ? Math.max(...scores) : Math.min(...scores);
   }
-  return turn === me ? Math.max(...scores) : Math.min(...scores);
+  XO_MEMO.set(key, result);
+  return result;
 }
 
 function paintXO() {
@@ -193,5 +215,9 @@ function restoreXO() {
   paintXO();
   xoMaybePhone();
   return true;
+}
+
+if (typeof onLanguageChange === 'function') {
+  onLanguageChange(view => { if (view === 'play-xo') paintXO(); });
 }
 </script>

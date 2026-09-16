@@ -184,16 +184,21 @@ function syncNavPill() {
   const nav = document.querySelector('.shell__nav');
   if (!nav) return;
   const active = nav.querySelector('.nav-item.is-active');
+  // A class list write is a mutation even when nothing changes, and the
+  // observer that calls this watches class changes: an unconditional add here
+  // ran this every frame, forever. Only touch what actually differs.
   if (!active || !active.offsetWidth) {
-    nav.classList.remove('has-pill-on');
+    if (nav.classList.contains('has-pill-on')) nav.classList.remove('has-pill-on');
     return;
   }
-  nav.style.setProperty('--pill-x', active.offsetLeft + 'px');
-  nav.style.setProperty('--pill-y', active.offsetTop + 'px');
-  nav.style.setProperty('--pill-w', active.offsetWidth + 'px');
-  nav.style.setProperty('--pill-h', active.offsetHeight + 'px');
-  nav.style.setProperty('--pill-r', getComputedStyle(active).borderTopLeftRadius);
-  nav.classList.add('has-pill', 'has-pill-on');
+  const set = (name, value) => { if (nav.style.getPropertyValue(name) !== value) nav.style.setProperty(name, value); };
+  set('--pill-x', active.offsetLeft + 'px');
+  set('--pill-y', active.offsetTop + 'px');
+  set('--pill-w', active.offsetWidth + 'px');
+  set('--pill-h', active.offsetHeight + 'px');
+  set('--pill-r', getComputedStyle(active).borderTopLeftRadius);
+  if (!nav.classList.contains('has-pill')) nav.classList.add('has-pill');
+  if (!nav.classList.contains('has-pill-on')) nav.classList.add('has-pill-on');
 }
 
 /* --- 5. Scores count up; players slide to their new places ------------------ */

@@ -58,7 +58,7 @@ ROOM_GAMES.trivia = {
     const s = state.shared;
     const iAnswered = (s.answered || []).indexOf(Room.me) !== -1;
 
-    const sig = ['trivia', s.phase, s.qIndex, iAnswered, (s.answered || []).length, state.youAreHost].join('|');
+    const sig = ['trivia', s.phase, s.qIndex, iAnswered, (s.answered || []).length, state.youAreHost, appState.lang].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => triviaFrame(state, t, iAnswered));
     if (rebuilt && s.phase === 'gameover' && typeof confetti === 'function') {
       afterReveal(el, () => confetti({ particleCount: 160, spread: 80 }));
@@ -223,7 +223,7 @@ function startTriviaClock(s) {
       trivia.fired = true;
       const close = () => {
         const st = Room.state;
-        if (!st || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
+        if (!st || st.game !== 'trivia' || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
         Room.act('closeQuestion').catch(() => {});
       };
       // The host closes on time; anyone else a few seconds later if the host
@@ -241,4 +241,5 @@ function stopTriviaClock() {
   trivia.clockKey = null;
   trivia.fired = false;
 }
+onRoomClocksReset(stopTriviaClock);
 </script>

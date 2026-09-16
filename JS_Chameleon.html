@@ -2,6 +2,13 @@
 /* --- THE CHAMELEON (الحرباء) GAME LOGIC --- */
 /* The boards (CHAMELEON_DB) live in ChameleonWords.js, shared with the rooms server. */
 
+/*
+   "Play again" deals again to the same table and keeps a running score, as a
+   room does: caught (and wrong about the word) is a point to everyone else;
+   escaped or stole the word is two to the chameleon. Starting from the setup
+   screen starts the score over. The labels follow the app's language; only
+   the board's words follow the games' language.
+*/
 
 const chameleonState = {
   players: [],
@@ -13,7 +20,9 @@ const chameleonState = {
   secretWord: "",
   chameleonPlayer: "",
   revealIndex: 0,
-  accusedPlayer: ""
+  accusedPlayer: "",
+  scores: {},
+  scoreId: 0
 };
 
 const ROW_LETTERS = ["A", "B", "C", "D"];
@@ -25,10 +34,11 @@ function renderChameleonCategories() {
   const previous = catSelect.value;
   const lang = contentLang();
   const db = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
+  const t = TRANSLATIONS[appState.lang] || {};
   catSelect.innerHTML = '';
   const optRandom = document.createElement('option');
   optRandom.value = 'random';
-  optRandom.innerText = lang === 'en' ? '🎲 Random Category' : '🎲 فئة عشوائية';
+  optRandom.innerText = '🎲 ' + (t.cham_random_cat || (appState.lang === 'en' ? 'Random category' : 'فئة عشوائية'));
   catSelect.appendChild(optRandom);
   db.forEach((item, idx) => {
     const opt = document.createElement('option');
@@ -46,21 +56,28 @@ function setupChameleon() {
   setView('setup-chameleon');
 }
 
-function startChameleonGame() {
-  const selected = appState.activePlayers ? [...appState.activePlayers] : [];
-  saveActivePlayers(selected);
+/**
+ * Deals a board. From the setup screen: the players picked there, and the
+ * score starts over. `again` (the result's "play again"): the same table,
+ * and the score carries on.
+ */
+function startChameleonGame(again) {
+  const replay = again === true && chameleonState.players.length >= 3;
+  const selected = replay ? chameleonState.players.slice() : (appState.activePlayers ? [...appState.activePlayers] : []);
+  if (!replay) saveActivePlayers(selected);
 
   if (selected.length < 3) {
-    const msg = appState.lang === 'en' ? "Need at least 3 players!" : "تحتاج إلى 3 لاعبين على الأقل!";
-    showToast(msg);
+    showToast(appState.lang === 'en' ? "Need at least 3 players!" : "تحتاج إلى 3 لاعبين على الأقل!");
     return;
   }
+  if (!replay) { chameleonState.scores = {}; chameleonState.scoreId = Date.now(); }
+  selected.forEach(p => { if (typeof chameleonState.scores[p] !== 'number') chameleonState.scores[p] = 0; });
 
   const lang = contentLang();
   const db = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
   const catSelect = document.getElementById('chameleon-cat-select');
   let chosen = null;
-  if (!catSelect || catSelect.value === 'random') {
+  if (!catSelect || catSelect.value === 'random' || !catSelect.value) {
     chosen = freshPick('chameleon:' + lang, db, 1, { key: c => c.category })[0];
   } else {
     const idx = parseInt(catSelect.value, 10);
@@ -81,10 +98,24 @@ function startChameleonGame() {
   chameleonState.players = shuffledPlayers;
   chameleonState.chameleonPlayer = shuffledPlayers[Math.floor(Math.random() * shuffledPlayers.length)];
   chameleonState.revealIndex = 0;
+  chameleonState.accusedPlayer = '';
 
+  resetChameleonTable();
   playSound('click');
   showChameleonRevealStep();
   setView('reveal-chameleon');
+}
+
+/**
+ * The play screen as a new game finds it: no guess box, the accuse bar back.
+ * Leaving during the chameleon's last guess used to carry both into the next game.
+ */
+function resetChameleonTable() {
+  const guess = document.getElementById('chameleon-guess-box');
+  if (guess) guess.classList.add('hidden');
+  const actions = document.getElementById('chameleon-play-actions');
+  if (actions) actions.classList.remove('hidden');
+  closeModal('chameleon-result-modal');
 }
 
 function showChameleonRevealStep() {
@@ -105,17 +136,17 @@ function revealChameleonSecret() {
   const isChameleon = (playerName === chameleonState.chameleonPlayer);
   const cardTitle = document.getElementById('chameleon-card-role');
   const cardDetail = document.getElementById('chameleon-card-detail');
-  const lang = contentLang();
+  const t = TRANSLATIONS[appState.lang] || {};
 
   if (isChameleon) {
-    cardTitle.innerText = lang === 'en' ? "🦎 YOU ARE THE CHAMELEON!" : "🦎 أنت الحرباء!";
-    cardDetail.innerHTML = `<p class="text-sm font-semibold opacity-90">${lang === 'en' ? "You don't know the secret word! Listen closely to others, say a fitting clue, and don't get caught!" : "أنت لا تعرف الكلمة السرية! استمع بذكاء للآخرين، قل كلمة مناسبة للموضوع ولا تجعلهم يشكون فيك!"}</p>`;
+    cardTitle.innerText = '🦎 ' + (t.cham_you_are || '');
+    cardDetail.innerHTML = `<p class="text-sm font-semibold opacity-90">${escapeHTML(t.cham_you_hint || '')}</p>`;
   } else {
-    cardTitle.innerText = lang === 'en' ? "🕵️ CIVILIAN" : "🕵️ مواطن عادي";
+    cardTitle.innerText = '🕵️ ' + (t.cham_civilian || 'مواطن عادي');
     cardDetail.innerHTML = `
       <div class="space-y-2">
-        <div class="text-xs uppercase tracking-wider opacity-75">${lang === 'en' ? "Coordinates & Secret Word" : "الإحداثيات والكلمة السرية"}</div>
-        <div class="text-2xl font-black tx-warning tracking-widest">${chameleonState.secretCoord}</div>
+        <div class="eyebrow">${escapeHTML(t.cham_coord_word || 'الإحداثيات والكلمة السرية')}</div>
+        <div class="text-2xl font-black tx-warning" dir="ltr">${chameleonState.secretCoord}</div>
         <div class="text-3xl font-black">${escapeHTML(chameleonState.secretWord)}</div>
       </div>
     `;
@@ -128,6 +159,7 @@ function doneChameleonRevealStep() {
 }
 
 function startChameleonTablePlay() {
+  resetChameleonTable();
   setView('play-chameleon');
   renderChameleonGrid();
 
@@ -186,13 +218,13 @@ function renderChameleonGrid(interactive) {
 }
 
 function openChameleonAccuseModal() {
-  const lang = contentLang();
+  const t = TRANSLATIONS[appState.lang] || {};
   const list = document.getElementById('chameleon-accuse-list');
   if (list) {
     list.innerHTML = chameleonState.players.map(p => `
       <button class="ballot-option" onclick="voteChameleonAccused('${jsStringAttr(p)}')">
         <span class="ballot-option__label">${escapeHTML(p)}</span>
-        <span class="badge badge--danger">${lang === 'en' ? 'Accuse' : 'اتهام'}</span>
+        <span class="badge badge--danger">${escapeHTML(t.accuse_badge || 'اتهام')}</span>
       </button>
     `).join('');
   }
@@ -216,10 +248,9 @@ function voteChameleonAccused(player) {
 }
 
 function openChameleonGuessPhase() {
-  const lang = contentLang();
-  document.getElementById('chameleon-guess-instruction').innerText = lang === 'en'
-    ? `${chameleonState.chameleonPlayer} is the Chameleon and was caught! But they can steal the win by guessing the secret word:`
-    : `تم كشف الحرباء (${chameleonState.chameleonPlayer})! لكن لديه فرصة أخيرة لسرقة الفوز بتخمين الكلمة السرية:`;
+  const t = TRANSLATIONS[appState.lang] || {};
+  document.getElementById('chameleon-guess-instruction').innerText =
+    '🦎 ' + chameleonState.chameleonPlayer + ' · ' + (t.cham_guess_hint || '');
 
   renderChameleonGrid(true); // make tiles clickable
   document.getElementById('chameleon-play-actions').classList.add('hidden');
@@ -232,60 +263,89 @@ function chameleonGuessWord(word) {
 }
 
 function finishChameleonGame(wasCaught, chameleonGuessedWord) {
-  const lang = contentLang();
+  const t = TRANSLATIONS[appState.lang] || {};
   const resultModal = document.getElementById('chameleon-result-modal');
   const titleEl = document.getElementById('chameleon-result-title');
   const detailEl = document.getElementById('chameleon-result-detail');
+  const cham = chameleonState.chameleonPlayer;
 
   let chameleonWon = false;
   let summary = "";
 
   if (!wasCaught) {
-    // Civilians voted wrong person
+    // The table accused the wrong player.
     chameleonWon = true;
-    summary = lang === 'en'
-      ? `The civilians accused ${chameleonState.accusedPlayer}, but ${chameleonState.chameleonPlayer} was the Chameleon!`
-      : `اتهم اللاعبون ${chameleonState.accusedPlayer}، بينما الحرباء الحقيقية كانت ${chameleonState.chameleonPlayer}!`;
+    summary = (t.cham_escaped || '').replace('{name}', cham);
   } else if (chameleonGuessedWord) {
-    // Caught, but correctly guessed word
     chameleonWon = true;
-    summary = lang === 'en'
-      ? `${chameleonState.chameleonPlayer} was caught, but correctly guessed the secret word ("${chameleonState.secretWord}") and stole the win!`
-      : `تم كشف ${chameleonState.chameleonPlayer}، ولكنه خمن الكلمة السرية بنجاح ("${chameleonState.secretWord}") وسرق الفوز!`;
+    summary = (t.cham_stole || '').replace('{name}', cham);
   } else {
-    // Caught and failed guess
     chameleonWon = false;
-    summary = lang === 'en'
-      ? `The civilians caught ${chameleonState.chameleonPlayer}, and the Chameleon failed to guess the secret word ("${chameleonState.secretWord}")!`
-      : `نجح اللاعبون في كشف ${chameleonState.chameleonPlayer}، وفشلت الحرباء في تخمين الكلمة السرية ("${chameleonState.secretWord}")!`;
+    summary = (t.cham_caught || '').replace('{name}', cham);
   }
+
+  // The running score, as a room keeps it.
+  if (chameleonWon) chameleonState.scores[cham] = (chameleonState.scores[cham] || 0) + 2;
+  else chameleonState.players.forEach(p => { if (p !== cham) chameleonState.scores[p] = (chameleonState.scores[p] || 0) + 1; });
 
   if (chameleonWon) {
     playSound('alarm');
-    titleEl.innerText = lang === 'en' ? "🦎 THE CHAMELEON WINS!" : "🦎 الحرباء تفوز!";
-    titleEl.className = "text-3xl font-black tx-warning mb-2";
+    titleEl.innerText = '🦎 ' + (t.cham_wins || 'الحرباء كسبت!');
+    titleEl.className = "sheet__title tx-warning";
   } else {
     playSound('success');
     confetti({ particleCount: 150 });
-    titleEl.innerText = lang === 'en' ? "🎉 CIVILIANS WIN!" : "🎉 فوز اللاعبين!";
-    titleEl.className = "text-3xl font-black tx-success mb-2";
+    titleEl.innerText = '🎉 ' + (t.table_wins || 'الطاولة كسبت!');
+    titleEl.className = "sheet__title tx-success";
   }
 
+  const board = chameleonState.players.map(p => ({ id: p, name: p, score: chameleonState.scores[p] || 0 }))
+    .sort((a, b) => b.score - a.score);
   detailEl.innerHTML = `
     <p class="text-base mb-4">${escapeHTML(summary)}</p>
     <div class="p-4 rounded-xl bg-black/5 dark:bg-white/5 space-y-1 text-sm">
-      <div><b>${lang === 'en' ? 'Secret Word:' : 'الكلمة السرية:'}</b> ${escapeHTML(chameleonState.secretWord)} (${chameleonState.secretCoord})</div>
-      <div><b>${lang === 'en' ? 'Chameleon:' : 'الحرباء:'}</b> ${escapeHTML(chameleonState.chameleonPlayer)}</div>
+      ${!wasCaught ? `<div><b>${escapeHTML(t.cham_accused || '')}:</b> ${escapeHTML(chameleonState.accusedPlayer)}</div>` : ''}
+      <div><b>${escapeHTML(t.secret_word || '')}:</b> ${escapeHTML(chameleonState.secretWord)} (<span dir="ltr">${chameleonState.secretCoord}</span>)</div>
+      <div><b>${escapeHTML(t.setup_chameleon || '')}:</b> ${escapeHTML(cham)}</div>
     </div>
+    <div class="modal-section">${renderScoreboard(board)}</div>
   `;
 
+  partyModalButton('chameleon-result-modal', 'chameleon-result-exit', 'exitChameleonPlay()', t.exit_settings || '');
   resultModal.classList.remove('hidden');
+  if (typeof animateScoreboards === 'function') animateScoreboards({ code: 'chameleon', game: String(chameleonState.scoreId) });
 }
 
+/** The result's main button: the same table again, the score carrying on. */
 function resetChameleonPlay() {
   closeModal('chameleon-result-modal');
-  document.getElementById('chameleon-guess-box').classList.add('hidden');
-  document.getElementById('chameleon-play-actions').classList.remove('hidden');
+  startChameleonGame(true);
+}
+
+/** Back to the setup screen, for another category or other players. */
+function exitChameleonPlay() {
+  closeModal('chameleon-result-modal');
+  resetChameleonTable();
   setupChameleon();
+}
+
+/**
+ * A second, quieter button under a result dialog's main one, added once. The
+ * dialogs are written in Controller.html with one button; the markup can hold
+ * the button itself (same id), and then this only sets its label.
+ */
+function partyModalButton(modalId, btnId, onclick, label) {
+  let btn = document.getElementById(btnId);
+  if (!btn) {
+    const actions = document.querySelector('#' + modalId + ' .modal-actions');
+    if (!actions) return;
+    btn = document.createElement('button');
+    btn.id = btnId;
+    btn.type = 'button';
+    btn.className = 'btn btn--ghost';
+    btn.setAttribute('onclick', onclick);
+    actions.appendChild(btn);
+  }
+  if (!btn.hasAttribute('data-i18n')) btn.textContent = label;
 }
 </script>

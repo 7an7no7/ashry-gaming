@@ -39,6 +39,7 @@ function paint2048Setup() {
 }
 
 function start2048() {
+  soloNewGame('g2048');
   const s = g2048State();
   s.tiles = [];
   s.nextId = 1;
@@ -146,9 +147,12 @@ function move2048(dir) {
   }
   s.prev = before;
   s.score += res.gained;
-  // The best follows the score as it grows, not only when a game ends.
+  // The best follows the score as it grows, not only when a game ends. What it
+  // was is kept with the move, so taking the move back takes its best back too.
   const best = soloBest('g2048', '');
   if (res.gained && (!best || s.score > best.score)) {
+    before.best = best;
+    before.raisedBest = true;
     soloRecord('g2048', '', { score: s.score, tile: Math.max.apply(null, s.tiles.map(x => x.v)) }, () => true);
     const bestEl = document.getElementById('g2048-bestv');
     if (bestEl) bestEl.textContent = s.score;
@@ -164,13 +168,14 @@ function move2048(dir) {
   paint2048(false, gone);
   if (res.gained) playSound('click');
   const top = Math.max.apply(null, s.tiles.map(x => x.v));
+  // The sheets wait for the slide, and an undo inside that wait cancels them.
   if (top >= 2048 && !s.won) {
     s.won = true;
     saveToLocal();
-    setTimeout(() => g2048End(true), 400);
+    soloLater('g2048', 400, () => { if (s.phase === 'play' && s.won && !s.keepGoing) g2048End(true); });
     return;
   }
-  if (!g2048CanMove(s)) setTimeout(() => g2048End(false), 400);
+  if (!g2048CanMove(s)) soloLater('g2048', 400, () => { if (s.phase === 'play' && !g2048CanMove(s)) g2048End(false); });
 }
 
 /** A new game throws the board away, so a game with points on it asks first. */
@@ -183,6 +188,12 @@ function confirmNew2048() {
 function undo2048() {
   const s = g2048State();
   if (!s.prev || s.phase !== 'play') return;
+  if (s.prev.raisedBest) {
+    soloSetBest('g2048', '', s.prev.best || null);
+    const best = soloBest('g2048', '');
+    const bestEl = document.getElementById('g2048-bestv');
+    if (bestEl) bestEl.textContent = best ? best.score : 0;
+  }
   s.tiles = s.prev.tiles;
   s.score = s.prev.score;
   s.nextId = s.prev.nextId;
@@ -312,7 +323,7 @@ function g2048End(won) {
   if (won) {
     soloResult({
       icon: '🏆', title: t.g2048_won || '', value: s.score, valueLabel: t.g2048_score || '',
-      lines: [escapeHTML(t.g2048_keep_hint || '')], win: true,
+      lines: [escapeHTML(t.g2048_keep_hint || '')], win: true, look: false,
       again: () => { s.keepGoing = true; saveToLocal(); }, againLabel: t.g2048_keep_going || '',
       exit: () => { s.phase = 'done'; saveToLocal(); setup2048(); }
     });
@@ -333,17 +344,20 @@ function restore2048() {
   const s = g2048State();
   if (s.phase !== 'play' || !s.tiles.length) return false;
   paint2048(true);
-  if (!g2048CanMove(s)) setTimeout(() => g2048End(false), 300);
+  if (!g2048CanMove(s)) soloLater('g2048', 300, () => { if (s.phase === 'play' && !g2048CanMove(s)) g2048End(false); });
   return true;
 }
 
 document.addEventListener('keydown', (e) => {
-  if (appState.currentView !== 'play-g2048') return;
+  if (appState.currentView !== 'play-g2048' || soloKeyBlocked(e)) return;
   const dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'left', d: 'right', w: 'up', s: 'down' }[e.key];
   if (!dir) return;
   e.preventDefault();
   move2048(dir);
 });
 
-soloRegister('g2048', { setup: 'setup-g2048', play: 'play-g2048', paintSetup: paint2048Setup, restore: restore2048 });
+soloRegister('g2048', {
+  setup: 'setup-g2048', play: 'play-g2048', paintSetup: paint2048Setup, restore: restore2048,
+  state: g2048State, resume: continue2048, repaint: () => paint2048(true)
+});
 </script>

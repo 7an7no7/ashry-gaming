@@ -86,7 +86,12 @@ work changed. Add to it when a decision is made or a batch ships.
 
 ### Waiting
 
-- Nothing from the owner is waiting to be built.
+- **Two طرنيب ٤١ rules for the owner to decide** (the scorer doesn't guess):
+  a failed bid of 13 scores 0 today (options: keep it; charge a fixed amount
+  such as −36, the value of 12; or the team loses outright, mirroring the
+  outright win for making 13), and when both teams qualify in the same round
+  team 1 wins because it is checked first (options: the higher qualifying
+  player wins; the higher team total wins; play on until only one qualifies).
 
 ### The owner's specs, as built
 
@@ -223,6 +228,28 @@ blind ranking, the word search), `countUp` for streaks and scores.
   computer*); the Mafia and Herd TV results ran off the screen; the TV clock
   sat at the edge; 2048 now keeps its best as the score grows, asks before a
   new game, and ends a board that is already stuck.
+- **17 Sep 2026, the whole-app audit** the owner asked for after two days of
+  new games: eight code reads by area (shell, help and home, solo, one-phone
+  party games, card scorers, rooms server, rooms client, the stylesheet) and a
+  screen-by-screen sweep of every view at 375×812, 667×375, 1280×720 and
+  1920×1080, Arabic and English, light and dark, plus every room game on a
+  phone and on the TV with robot players, and reloads mid-game. Found and
+  fixed, the worst first: the face-down role card was shorter for the spy
+  (*Traps*); فيبج sent the real answer to every phone before the vote and كلمة
+  واحدة the removed clues to the guesser; مافيا's night screen showed each
+  role at a glance; a daily could be replayed until it looked good; a مافيا
+  player leaving meant the game never ended, and a TV host never handed on;
+  double taps on host verdicts hit the next player; the one-phone bomb ticked
+  forever after leaving; من أنا؟ and بدون كلام dealt "Error" after a language
+  change; a card game's rules could change mid-game and wipe it; a background
+  loop redrew the nav 59 times a second on an idle screen; about sixty strings
+  of markup stayed Arabic in English. Added along the way: the phone's back
+  button and the bottom tabs ask before leaving a round, clocks pause under
+  the exit sheet and Help, the keep-alive and kick for rooms, host recovery
+  buttons on the phone and the TV, score keeping and take-backs in the
+  one-phone party games, the card tables' seating strip and preview, resumable
+  dailies with clocks that count play only, a new-version toast, popups in
+  the game's colour. Robot tests: 862.
 
 ## Building and Running
 
@@ -409,7 +436,27 @@ Durable Object's storage on every move (drawing and the Wavelength dial at most
 once a second). A sleeping room costs nothing and wakes with its state intact.
 A room deletes itself after 6 hours with no moves and nobody connected, or 24
 hours with no moves at all. A host whose phone has been gone 2 minutes hands the
-room to someone still here.
+room to someone still here - a screen host too (a TV hosting a room used to
+keep it for good). "Online" is a socket heard from in the last 70 seconds (its
+last auto-answered ping, `getWebSocketAutoResponseTimestamp`, or its open
+time): a phone that died without closing its socket used to count as online
+forever, so the handover never started. The alarm closes silent sockets and
+watches the host's, so a room with a connected host wakes about every 70s. A
+timeout that throws is not retried for 30s (`failedDeadline`), so a bug can't
+spin the alarm on the free plan.
+
+**Leaving mid-round.** `removeDevice` in `room.js` does a leave and a `kick`
+the same way - the secret and key go, the host passes on, "left" is said in
+the chat - then calls `roomPlayerLeft(room, pid, name)` in `RoomGames.js` on
+a copy (a throw is logged and the leave still happens). Each game lets go at
+once: every "has everyone written/voted/answered?" check runs again, their
+ballot goes and the vote may close, a turn or the bomb they held moves on, a
+guess only they could make is settled as the host's skip would; مافيا marks
+them out (they no longer count as alive, so the game can end), ربع قرد drops
+them from the order, أسماء الرموز frees their slot, زي الكل drops their
+answer. **A new room game needs its case in `roomPlayerLeft`.** Names are
+compared on join with the same fold as everywhere else (`sameRoomName`), so
+أحمد and احمد can't both sit in one room.
 
 **Clocks the server keeps.** A timed round has to end even when no phone is
 awake to end it. `roomDeadline(room)` in `RoomGames.js` says when to look again
@@ -427,6 +474,14 @@ is not, until the round closes. Choices live in `room._ballots` — server-side
 scratch that is never projected — so a phone cannot watch the tally form and
 change its mind. `openVote` takes an optional `ownerId` per option, which is how
 Fibbage stops you voting for your own lie.
+
+When whose option is whose is itself the secret, `openVote(room, options,
+eligible, { hideOwners: true })` keeps the owners in `room._voteOwners` and
+tells each owner only their own option (`you.voteOwn`); `results[].ownerId`
+is filled once the vote closes. فيبج needs this: its options used to go out
+as `{ id: 'truth', ownerId: null }` next to each lie's author, so the real
+answer was in every phone's network traffic before anyone voted. Its option
+ids are random now and `shared.truthId` comes with the result.
 
 A vote closes on its own once every eligible player has voted, or when the host
 presses `closeVote`. On the client, `renderBallot(state, opts)` draws the ballot
@@ -448,6 +503,41 @@ hold one word in two spellings. `foldStopAnswer` is the exception because in
 Stop the Bus the first letter matters (see *أتوبيس كومبليت on separate
 phones*). Player names fold through `samePlayer` on the phone and the same
 letters on the server's join.
+
+**Room clocks stop when the room moves on.** A game's phone clock registers
+its stop with `onRoomClocksReset(stopFn)` (JS_Room.html); the router calls
+every one when the game, the lobby-or-not, or `shared.dealId` changes, or the
+room is gone, before anything is drawn. `onEnd` handlers still check
+`Room.state.game` - a Spyfall alarm used to ring in the middle of the next
+game, and a stale Draw & Guess clock sent `giveUp` into ربع قرد.
+
+**The host can always get a room moving.** `roomHostRow` draws small ghost
+buttons where a round would otherwise wait on a phone that's gone: كلمة واحدة
+`closeWriting` and `skipGuess`, فيبج `closeWriting`, أسماء الرموز `passTurn`
+and `setSpymaster` (redrawn in place, so a spymaster typing a clue isn't
+interrupted). An offline player carries a ✕ for the host (`roomKick`, room
+action `kick { playerId }`, the same path as leaving) in the lobby, the player
+strip and on the TV. The TV draws the same host controls as the phone for
+every phase. The lobby's setup panel isn't redrawn while one of its fields
+has focus, and the host's choices (spy count and category, the Who Am I
+category, the Draw & Guess round length) are remembered on their phone, so a
+latecomer joining no longer resets them.
+
+**Taps say what they were drawn for.** A double tap on a host's verdict used
+to hit the next player too. Per-round actions carry what the phone saw, and
+the server ignores a stale one: `nextRound { round }`, الجرس
+`correct`/`wrong { id }` (the first buzzer), ربع قرد `penalty`/`skip
+{ target }`, الفنان المزيف `skipTurn { turn }`, ارسم واكتب `submit { step }`,
+أتوبيس كومبليت and زي الكل `submit { round }`. Every field is optional on the
+server, for a phone still running an older page. Client memory of what was
+already sent is keyed on `shared.dealId`, a fresh id on every deal.
+
+**Mafia's night looks the same on every phone.** One heading, one list of
+everyone still in, one kind of button; the role, its task, the Mafia's picks,
+the Lawyer's list, the Detective's results and the Doctor's last save are on
+the back of a `.hold-card`, updated in place so a card being held doesn't
+flip back. A tap the server would refuse does nothing, silently - an error
+toast would say which role tapped.
 
 **The room chat.** `chat` is a room-level action in `applyRoomAction`, next
 to `chooseGame`: a message (`ROOM_CHAT_MAX_LEN` characters, five per five
@@ -854,6 +944,11 @@ game needs its `TV_GAMES` entry as well.
    deploy uploads `docs/`.
 7. Give it a `GAME_CATALOG` entry (see *The catalog and the home screen*) with
    `modes: ['room', 'tv']`, or it is not on the menu, and a `TV_GAMES` entry.
+8. Give it a case in `roomPlayerLeft` (what happens when someone leaves
+   mid-round), guard its per-round host actions with `staleTap` on what the
+   phone saw, register its phone clocks with `onRoomClocksReset`, and give the
+   host a way forward (on the phone and the TV) wherever the round waits on
+   one phone.
 
 Ask for the player's name with `promptForName()`, which opens the name sheet.
 Never use `window.prompt` — it is blocked in some embedded browsers. The sheet
@@ -905,6 +1000,45 @@ the count, and `paintDirector` draws the "X يسأل Y" card into the play scree
 (`#imposter-director`, `#whoami-director`) with a Next button. The mode is
 saved per game (`appState.imposter.config.director`, `appState.whoami.director`)
 and painted back onto the switch by `paintSetupOptions`.
+
+### Scores and take-backs on one phone
+
+The pass-the-phone games keep score where the table can tap, and every
+scored press can be taken back (the audit of 17 Sep 2026):
+
+- القنبلة: with names picked on the setup, the boom asks whose hands it was
+  in (tap the same name to take it back), the strikes board is kept across
+  rounds, and "end game" is a podium of who survived most.
+- فوازير إيموجي and كمّل المثل: with names picked, "مين عرفها؟" chips follow
+  each reveal (`quizPointsReset` / `quizPointsToggle` in `JS_Emoji.html`,
+  shared by both), with a live board and a podium at the end.
+- خمس ثواني ends on `renderPodium`, and "one more round" keeps the scores.
+- الحرباء and الموقع السري: "play again" deals to the same table and keeps a
+  running score by the room rules.
+- كلمة واحدة: 5, 10 or 13 rounds (`#justone-rounds`), an undo of the verdict,
+  and a final score; its old confirm popup and timer are gone, which is what
+  used to leave it stuck.
+- ربع قرد: the board is saved before every move that can cost a quarter, so
+  the winner popup offers "عكس الحكم" and "back to the board" - the verdict
+  that decides the game can still be overruled. خلصت الكلمة has a ↶ for ✅
+  and ⏭; بدون كلام and أوصف لي clear their undo stack at every turn (team B
+  could take back team A's card and score it).
+- A relay match or a دوري المعرفة board left unfinished shows "continue" on
+  its setup, and a new one asks before replacing it (`relayBegin`,
+  `relayInProgress`; `tb_unfinished`).
+- من أنا؟ never shows a player their own character: each step says "خبّي
+  الموبايل عن X" and the others look. With shuffle on, everyone writes one in
+  secret and a derangement deals them; off, the table types each player's
+  while they look away. The count follows the players picked.
+- Category lists are rebuilt for `contentLang()` in their setup painters
+  (`paintWhoAmISetup`, `paintCharadesSetup`), keeping the pick by its emoji
+  across languages - a stale list had dealt "Error" to every player.
+
+**Content checks load some game files alone.** `tools/validate-content.js`
+runs `JS_Charades.html`, `JS_DescribeIt.html`, `JS_NewGames.html`,
+`JS_Stop.html` and `JS_TimesUp.html` by themselves to read their word lists,
+without JS_Core: a top-level `onLeaveScreen` or `onLanguageChange` call in
+those files has to be guarded with `typeof`.
 
 ### Player names live on the phone
 
@@ -959,6 +1093,14 @@ in `rooms-worker/`, or rooms keep the old rules. `docs/README.md` has the steps.
 
 The rooms server also serves a copy of `docs/` at its own address, uploaded on
 every deploy — a second address for the app if `github.io` is ever blocked.
+
+**New builds reach an open app.** Settings → تحديث البيانات is a real
+`location.reload()` (the worker fetches the network first), and when a new
+build's worker takes over a page that already had one (`controllerchange`),
+a tappable toast says a new version is ready. An iPhone home-screen copy can
+stay open for days and has no reload button of its own. A phone opening the
+app for the first time starts in its own light or dark theme, and
+`<meta name="theme-color">` follows the page's background.
 
 **History: rooms used to run on Apps Script.** The page relayed calls through a
 hidden iframe of the `/exec?bridge=1` page (`Bridge.html`): Apps Script has no
@@ -1087,6 +1229,29 @@ its own rules and board:
 - **Free play deals through `freshPick`** (so a category or question doesn't
   come back until its list has gone round); only a daily uses the seeded
   source.
+- **A daily is played once.** Starting it again - from its own button or the
+  hub, where its row says "كمّل" - resumes it; a free game dealt over it first
+  sets it aside in `ashryDailyPlay_v1` (today only). Before the audit of
+  17 Sep 2026, 📅 dealt the same seeded puzzle with a clean slate until it was
+  finished, so a streak question could be seen, abandoned and answered with
+  three lives back. A new daily game calls `soloDailyResume` then
+  `soloDailySetAside` in its start, and registers `state`, `resume` and
+  `prefs`. A result goes under the day the daily was started (23:59 → 00:02
+  counts for the first day), and hints travel with it (💡N in the share).
+- **Clocks count play, not breaks.** A board registered `timed: true` pauses
+  when its screen is left, when the phone locks and across a reload
+  (`soloPause` / `soloResume` move `startedAt` forward); display clocks pass
+  a getter to `soloClock`. Anything that fires after a game (a result sheet a
+  moment later) goes through `soloLater`, which does nothing once
+  `soloNewGame` has dealt again or the board was left - Flags once showed the
+  next game's flag on the last game's result.
+- **The result sheet can step aside:** "👀 شوف اللوحة" (`soloResultLook`)
+  leaves the finished board up with the result and "again" at its foot - the
+  Nonogram picture and the minefield used to be hidden behind it.
+  `soloConfirmNew` asks before Start or 🧹 wipe a board with work on it;
+  Queens and Tango have a one-step ↶. `repaint` in `soloRegister` redraws a
+  board on a language change, and `soloKeyBlocked` keeps keyboard handlers
+  (2048, Wordle's physical keyboard) out of text fields and popups.
 
 The games (group `puzzle`, "ألغاز ومخ", on the home):
 
@@ -1229,6 +1394,35 @@ two seats). Upright it is one column; sideways and on wide screens the totals
 and history sit beside the round card (`.cs-layout`). All of it is restored
 by a reload through `soloRegister`.
 
+What a real table needed, added after the audit of 17 Sep 2026:
+
+- **Seating is what you see.** A numbered strip under the chips
+  (`csPaintSeating`, `csSeatTap`) is `activePlayers` in seat order, with team
+  colours and "Team 1: A & C"; tapping two names swaps them. The chips alone
+  showed library order while the game dealt tap order, so teams came out
+  other than the screen suggested. The round card says who deals (🃏) where
+  the rules have a dealer.
+- **Rules lock once a round is saved** (`csLive`): shown as badges with a
+  "change the rules (new game)" button that asks first. Switching Trix from
+  Classic to Complex mid-game had silently lost contracts. Start asks before
+  replacing a game in progress, and a finished game stays reachable ("see
+  the last game") with its take-back.
+- **Saving is the sticky action**, with a live preview (`csProject`, a copy
+  of the state): each row's new total, 🏆 on a winner, red for anyone going
+  out, "this round ends the game" - so a typo that ends a game is seen first.
+  Quick fills (`quick` on a rule set) offer "N left, to whom?" and "made the
+  call exactly".
+- The five games share element ids, so painting one empties the others'
+  stages. Konkan's "out over 101" is for players on their own only (in teams
+  only partners could be left), and one colour and one suit are exclusive.
+  Tarneeb 41 refuses made bids adding up to more than 13. Two Tarneeb 41
+  cases are waiting on the owner (see *Waiting*).
+- **The bracket** takes 3-16 players from the player picker, with byes placed
+  as in a seeded draw, a take-back of the last result, and the champion on a
+  podium. **Domino** keeps a rounds table whose take-back removes exactly the
+  points moved. `showScoreWinner` (JS_Screw.html) rebuilds the shared win
+  popup's contents each time and never rewrites its buttons.
+
 The numbers, researched on 16 Sep 2026:
 
 - **إستميشن**: made exactly = base (10, or 13) + call, ±10 for the caller and
@@ -1324,7 +1518,10 @@ button in the header beside the gear (`#fx-fab`, shown through
 `body.has-fx` which `setView` sets on `play-*` and `room-*` screens) keeps
 it one tap away mid-game - it floated over the page once, where it covered
 the drawing tools; and
-`confetti` is wrapped so every celebration in the app brings the fanfare.
+`confetti` is wrapped so every celebration in the app brings the fanfare -
+and, since the confetti is drawn by a script the stylesheet can't still, the
+wrapper plays only the fanfare when `reducedMotion()` is true, and draws the
+confetti above everything (z-index 100050), the full-screen tools included.
 The applause is built the way a room claps rather than as random static: a
 dozen people, each at their own pace, pitch and strength, every clap three or
 four cracks inside 25ms with a short tail, over a soft wash, swelling in and
@@ -1360,7 +1557,7 @@ Three pieces have to stay in step, all keyed by the same string:
 | where | what it holds |
 | --- | --- |
 | `GAME_RULES` in `JS_Core.html` | the rules text, `ar` and `en` |
-| `HELP_ENTRIES` in `JS_Utils.html` | title key, icon, accent, games-or-tools |
+| `HELP_ENTRIES` in `JS_Utils.html` | title key, icon, accent, games-or-tools (a catalog game's icon, accent and title are copied from `GAME_CATALOG` at load, so they can't drift) |
 | `HELP_FOR_VIEW` in `JS_Utils.html` | which screens map to it |
 
 **Adding a game means adding to all three.** An entry with no `GAME_RULES` text
@@ -1403,6 +1600,27 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A class list write is a mutation even when it changes nothing.** The
+segmented thumbs and the nav pill are re-measured by a `MutationObserver` on
+class changes, and `syncNavPill` added `has-pill` on every pass - so the
+observer fired again, every frame, forever, on an idle screen (59 passes a
+second measuring 66 controls). Anything called from that observer only writes
+a class or a custom property when the value differs.
+
+**A face-down card must not take its size from its back.** `.hold-card` stacked
+both faces in one grid cell, so the card's height was the taller face - and a
+spy's one line made a shorter card than a citizen's word and category. The
+table could spot the spy before anyone held the card. The back is laid over
+the card now (`position: absolute`), and the card has one height for every
+role (16rem, 14.5rem on a phone on its side, where the name and the button
+sit beside it). Check a new role card's longest content fits.
+
+**A dealt list that runs out must mark the whole deal.** `freshPick` used to
+mark only the refill as seen when a list started over, so the last cards of
+the old cycle could come straight back (على راسك deals 80 a turn and ran out
+every few turns). Everything dealt opens the new cycle, and the refill comes
+from what was dealt longest ago.
 
 **Setting `lang` or `dir` on `<html>` restyles the whole page, even to the
 value it already has.** `applyTranslations` runs on every `setView` and did
@@ -1543,6 +1761,12 @@ every game gets it and the tools do not. In a room it offers the host
 `backToHub` mid-round, everyone else a "🙋 ask for another game" that posts to
 the room chat, and both the menu (the room stays open) and leaving. On one
 phone it offers another game, the game's own options, or carrying on.
+While that sheet or Help is open over a round on one phone, the round's
+clocks stand still (`pauseClocksForSheet`, resumed by `closeModal` /
+`closeAllModals`): reading the rules no longer costs the turn. Rooms keep
+running (their clocks are the server's) and so does the bomb (its fuse is a
+secret). A TV hosting a room has no back arrow, so its bar carries a 🏠 for
+the host that ends the round for everyone after a confirm.
 
 **Leaving a room screen does not leave the room.** A player can go to the menu,
 a timer or the rules mid-game; `#active-room-banner` under the header shows the
@@ -1873,6 +2097,17 @@ Other components: `.card`, `.section` + `.section__title`, `.eyebrow`,
 `.key`, `.wheel`, `.view-actions`, and the
 `.modal-content` sheet (`.sheet__header` / `__body` / `__footer`).
 
+**Popups take the colour of the screen they open over.** Under `<body>` they
+are outside every screen's `data-accent`, so `hoistModals` watches each
+overlay and `tintModal` copies the current screen's accent onto its
+`.modal-content` when it opens (marked `data-accent-auto`); a popup that sets
+its own `data-accent` in the markup keeps it. Toasts, the chat's unread count
+and the chess clock's running side sit on the `--*-btn` / `--*-on` pairs,
+and the two teams of أسماء الرموز and دوري المعرفة have `--team-red`,
+`--team-blue` for fills and `--team-red-ink`, `--team-blue-ink` for text (the
+fill is 2.8:1 on the dark card). A `.btn--auto` inside `.btn-row` keeps its
+own width.
+
 **Popups are centred dialogs, and live under `<body>`.** `hoistModals()` in
 `JS_Core.html` moves every `.modal-overlay` there at start-up: most are written
 inside `<main>`, and on iPhone a fixed element inside that scrolling area is drawn
@@ -1987,11 +2222,35 @@ and `renderTools` in `JS_Catalog.html`.
 Theme, language and app-level actions live in the settings sheet
 (`openSettings()`), not in the bottom bar.
 
+**The tabs and the phone's own back go through the same doors as the arrow.**
+The bottom bar calls `navTo(target)`, which asks `openExitSheet(target)`
+first: mid-round on one phone, a stray tap on 🏠 opens the "leave this game?"
+sheet (its first button goes where the tab goes) instead of dropping the
+round. From a room screen nothing is asked - the room stays open behind the
+banner. The phone's back (Android's button, a browser's back swipe) is caught
+with one history entry kept in front of the app (`armBackTrap`, pushed by
+`setView` on any screen but the home and when a popup opens): `popstate`
+closes the top popup, or runs `goBack()`. On the home it is let through, so
+back still leaves the app from there. Tool screens' `up` is `tools`, so their
+arrow lands on the الأدوات tab they were opened from.
+
+**Hooks for what a screen leaves behind.** `onLeaveScreen((from, to) => …)`
+(JS_Core.html) runs on every screen change: a game stops there whatever no
+`createClock` covers - a `setTimeout` chain (the bomb's tick, the streak's
+next question, the picker's settle), a sensor, a wake lock. `clearAllIntervals`
+still stops every clock except one made with `keepRunning` (the general
+timer, which rings wherever the phone is). `onLanguageChange(view => …)` runs
+after the app's or the games' language changes, right after
+`paintSetupOptions(view)` - so setup painters rebuild their category lists for
+`contentLang()` there, and a screen drawn in JS redraws its text.
+
 ### Feel
 
 Taps are acknowledged centrally: a delegated `pointerdown` handler in
-`JS_Core.html` plays the click, fires `haptic()` and paints a ripple for
-everything matching `RIPPLE_TARGETS`. Individual handlers should **not** add
+`JS_Core.html` paints a ripple, and the click and `haptic()` follow for
+everything matching `RIPPLE_TARGETS` - on press for a mouse, when the finger
+lifts for touch, because a scroll that starts on a card is a cancelled pointer
+and used to click and buzz on every swipe of the home. Individual handlers should **not** add
 `playSound('click')` — they only raise meaningful sounds (`success`, `alarm`,
 `tick`). The delegated handler calls `playSound('click', true)`; a handler
 that still clicks for itself runs on the click event, 100-200ms after the

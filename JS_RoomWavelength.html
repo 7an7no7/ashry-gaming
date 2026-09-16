@@ -40,7 +40,7 @@ ROOM_GAMES.wavelength = {
 
     // The dial is left out on purpose: it moves constantly, and rebuilding for
     // it would yank the slider out from under whoever is dragging it.
-    const sig = ['wl', s.round, s.phase, state.youAreHost, psychicAway].join('|');
+    const sig = ['wl', s.round, s.phase, state.youAreHost, psychicAway, appState.lang].join('|');
     renderRoomFrame(el, sig, () => wavelengthFrame(state, t, psychicAway));
     paintWavelengthDial(s.dial);
     refreshRoomPlayerStrip(el, state);
@@ -116,7 +116,7 @@ function wavelengthFrame(state, t, psychicAway) {
         <div class="waiting-note"><span class="animate-pulse">🧠</span> ${t.wl_waiting_clue || ''} ${escapeHTML(s.psychicName || '')}…</div>
         ${psychicAway && state.youAreHost ? `
           <div class="btn-stack">
-            <button class="btn btn--ghost btn--sm" onclick="roomAct('nextRound', { skip: true, lang: '${VOTE_LANG()}' })">${t.wl_skip_psychic || ''}</button>
+            <button class="btn btn--ghost btn--sm" onclick="roomAct('nextRound', ${roomNextArgs(state, { skip: true })})">${t.wl_skip_psychic || ''}</button>
           </div>` : ''}`;
     }
   } else if (s.phase === 'dial') {

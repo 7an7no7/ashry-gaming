@@ -329,6 +329,17 @@ const WORDLE_DB = {
     }
 };
 
+const WORDLE_LAYOUTS = {
+    en: ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'],
+    ar: ['ضصثقفغعهخحجد', 'شسيبلاتنمكط', 'ئءؤرذىةوزظ']
+};
+
+/** The language of the word on the board (a game saved before this was kept follows the games' language). */
+function wordleLang() {
+    const lang = (appState.wordle && appState.wordle.lang) || contentLang();
+    return lang === 'ar' ? 'ar' : 'en';
+}
+
 function setupWordle() {
     setView('setup-wordle');
 }
@@ -342,6 +353,9 @@ function startWordleGame(length) {
         return;
     }
 
+    // The keypad types the word, so it follows the language the word was
+    // dealt in, not whatever the games' language is changed to later.
+    appState.wordle.lang = lang;
     appState.wordle.wordLength = length;
     // Rule: Increase tries to 7 if length > 6
     appState.wordle.maxTries = length > 6 ? 7 : 6;
@@ -411,9 +425,7 @@ function renderWordleBoard() {
 function renderKeyboard() {
     const kbContainer = document.getElementById('wordle-keyboard');
 
-    const layoutEn = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
-    const layoutAr = ['ضصثقفغعهخحجد', 'شسيبلاتنمكط', 'ئءؤرذىةوزظ'];
-    const layout = contentLang() === 'ar' ? layoutAr : layoutEn;
+    const layout = WORDLE_LAYOUTS[wordleLang()];
     const keyState = getKeyboardState();
 
     const keyClass = (char) => {
@@ -555,5 +567,35 @@ function showWordleResult(win) {
     document.getElementById('alert-title').innerText = title;
     document.getElementById('alert-msg').innerHTML = msg;
     document.getElementById('alert-modal').classList.remove('hidden');
+}
+
+/**
+ * A computer's keyboard types too: the letters of the word's language (an
+ * Arabic key's hamza forms fold to the keypad's alef, and the لا key gives
+ * both letters), Backspace and Enter. Not while typing in a field or with a
+ * popup open.
+ */
+function wordleKeyFromKeyboard(e) {
+    if (appState.currentView !== 'play-wordle' || appState.wordle.status !== 'playing') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (document.querySelector('.modal-overlay:not(.hidden)')) return;
+    if (e.key === 'Enter') { e.preventDefault(); handleWordleKey('ENTER'); return; }
+    if (e.key === 'Backspace') { e.preventDefault(); handleWordleKey('BACK'); return; }
+    // One character, or the Arabic لا key; never a named key such as "Tab".
+    if (!e.key || !(e.key.length === 1 || /^ل[اأإآ]$/.test(e.key))) return;
+    const keys = WORDLE_LAYOUTS[wordleLang()].join('');
+    const chars = foldWordleWord(wordleLang() === 'en' ? e.key.toUpperCase() : e.key).split('');
+    if (!chars.every(ch => keys.indexOf(ch) !== -1)) return;
+    e.preventDefault();
+    chars.forEach(ch => handleWordleKey(ch));
+}
+
+// The content check loads this file in Node, where there is no page.
+if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', wordleKeyFromKeyboard);
+}
+if (typeof onLanguageChange === 'function') {
+    onLanguageChange(view => { if (view === 'play-wordle') renderKeyboard(); });
 }
 </script>

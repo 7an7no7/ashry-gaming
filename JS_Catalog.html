@@ -44,8 +44,8 @@ const GAME_CATALOG = [
   { id: 'charades',   icon: '🎭',   title: 'setup_charades',   desc: 'cat_charades',   accent: 'violet', players: [2, 20], mins: 5,  modes: ['device'],               group: 'words', setup: 'setup-charades',  open: () => setupCharades() },
   { id: 'describe',   icon: '🗣️',  title: 'setup_describe',   desc: 'cat_describe',   accent: 'indigo', players: [2, 20], mins: 5,  modes: ['device'],               group: 'words', setup: 'setup-describe',  open: () => setupDescribe() },
   { id: 'timesup',    icon: '⏳',  title: 'setup_timesup',    desc: 'cat_timesup',    accent: 'blue',   players: [4, 20], mins: 20, modes: ['device'],               group: 'words', setup: 'setup-timesup',   open: () => setupTimesUp() },
-  { id: 'whoami',     icon: '❓',   title: 'setup_whoami',     desc: 'cat_whoami',     accent: 'teal',   players: [2, 10], mins: 10, modes: ['device', 'room'],       group: 'words', setup: 'setup-whoami',    open: () => setupWhoAmI() },
-  { id: 'justone',    icon: '🤫',   title: 'setup_justone',    desc: 'cat_justone',    accent: 'rose',   players: [3, 10], mins: 15, modes: ['device', 'room'],       group: 'words', setup: 'setup-justone',   open: () => setView('setup-justone') },
+  { id: 'whoami',     icon: '❓',   title: 'setup_whoami',     desc: 'cat_whoami',     accent: 'teal',   players: [2, 10], mins: 10, modes: ['device', 'room', 'tv'], group: 'words', setup: 'setup-whoami',    open: () => setupWhoAmI() },
+  { id: 'justone',    icon: '🤫',   title: 'setup_justone',    desc: 'cat_justone',    accent: 'rose',   players: [3, 10], mins: 15, modes: ['device', 'room', 'tv'], group: 'words', setup: 'setup-justone',   open: () => setView('setup-justone') },
   { id: 'codenames',  icon: '🔠',   title: 'setup_codenames',  desc: 'cat_codenames',  accent: 'indigo', players: [4, 12], mins: 20, modes: ['room', 'tv'],           group: 'words', setup: 'setup-codenames', open: () => setView('setup-codenames') },
   { id: 'drawguess',  icon: '🎨',   title: 'setup_drawguess',  desc: 'cat_drawguess',  accent: 'blue',   players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'words', open: () => roomCreateFor('drawguess') },
   { id: 'telephone',  icon: '🖍️',  title: 'setup_telephone',  desc: 'cat_telephone',  accent: 'blue',   players: [3, 8],  mins: 15, modes: ['room', 'tv'],           group: 'words', open: () => roomCreateFor('telephone') },
@@ -72,7 +72,7 @@ const GAME_CATALOG = [
   { id: 'cs-estimation',  icon: '🎯',   title: 'setup_cs_estimation',  desc: 'cat_cs_estimation',  accent: 'violet', players: [4, 4], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-estimation', open: () => setupCardScore('estimation') },
   { id: 'cs-tarneeb',  icon: '♠️',   title: 'setup_cs_tarneeb',  desc: 'cat_cs_tarneeb',  accent: 'indigo', players: [4, 4], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-tarneeb', open: () => setupCardScore('tarneeb') },
   { id: 'cs-trix',  icon: '♥️',   title: 'setup_cs_trix',  desc: 'cat_cs_trix',  accent: 'rose', players: [4, 4], mins: 60, modes: ['device'],               group: 'table', setup: 'setup-cs-trix', open: () => setupCardScore('trix') },
-  { id: 'cs-konkan',  icon: '♦️',   title: 'setup_cs_konkan',  desc: 'cat_cs_konkan',  accent: 'amber', players: [2, 8], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-konkan', open: () => setupCardScore('konkan') },
+  { id: 'cs-konkan',  icon: '♦️',   title: 'setup_cs_konkan',  desc: 'cat_cs_konkan',  accent: 'amber', players: [2, 6], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-konkan', open: () => setupCardScore('konkan') },
   { id: 'cs-basra',  icon: '🎣',   title: 'setup_cs_basra',  desc: 'cat_cs_basra',  accent: 'teal', players: [2, 4], mins: 30, modes: ['device'],               group: 'table', setup: 'setup-cs-basra', open: () => setupCardScore('basra') },
   { id: 'domino',     icon: '🀄',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device'],               group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
 
@@ -358,15 +358,16 @@ function renderHome() {
       </div>
     </section>` : '';
 
-  // The tools have a tab of their own; the home is the games.
-  const groups = CATALOG_GROUPS.filter(grp => grp.id !== 'tools').map(grp => {
+  // The tools have a tab of their own; the home is the games. Their section is
+  // here too but only shows up as search results ("مؤقت", "نرد").
+  const groups = CATALOG_GROUPS.map(grp => {
     const games = GAME_CATALOG.filter(g => g.group === grp.id);
     if (!games.length) return '';
     const body = grp.id === 'tools'
       ? `<div class="tools-list">${games.map(g => catalogToolRow(g, t)).join('')}</div>`
       : `<div class="gcard-grid">${games.map(g => catalogCard(g, t)).join('')}</div>`;
     return `
-      <section class="section" data-group="${grp.id}">
+      <section class="section ${grp.id === 'tools' ? 'hidden' : ''}" data-group="${grp.id}">
         <div class="section__head">
           <span class="section__emoji" aria-hidden="true">${grp.icon}</span>
           <h2 class="section__title">${escapeHTML(t[grp.title] || grp.id)}</h2>
@@ -407,6 +408,15 @@ function setHomeSearch(value) {
   applyHomeFilter();
 }
 
+/* Back on the home from a game, the next person to pick the phone up sees all
+   the games: a search or a chip left behind hid most of them. Switching
+   between the three tabs keeps them. */
+function resetHomeFilters(from) {
+  if (['menu', 'together', 'tools'].indexOf(from) !== -1) return;
+  homeSearch = '';
+  homeFilter = 'all';
+}
+
 /** Hides the cards, rows and sections the chip and the search box rule out. */
 function applyHomeFilter() {
   const view = document.getElementById('view-menu');
@@ -420,18 +430,23 @@ function applyHomeFilter() {
   view.querySelectorAll('[data-game]').forEach(el => {
     const g = CATALOG_BY_ID[el.dataset.game];
     if (!g) return;
-    let ok = catalogMatchesFilter(g, homeFilter);
+    const isTool = g.group === 'tools';
+    // Tools answer a search only; the chips are about how a game is played.
+    let ok = isTool ? searching && homeFilter === 'all' : catalogMatchesFilter(g, homeFilter);
     if (ok && searching) {
       const hay = helpNormalise([catalogTitle(g, t), catalogDesc(g, t), catalogTitle(g, other), catalogDesc(g, other)].join(' '));
       ok = hay.indexOf(term) !== -1;
     }
     el.classList.toggle('hidden', !ok);
-    if (ok) shown++;
+    // Only results count: a recent tile is a shortcut, hidden while searching.
+    if (ok && el.closest('section[data-group]')) shown++;
   });
 
   view.querySelectorAll('section[data-group]').forEach(sec => {
-    const any = sec.querySelector('[data-game]:not(.hidden)');
-    sec.classList.toggle('hidden', !any);
+    const visible = sec.querySelectorAll('[data-game]:not(.hidden)').length;
+    sec.classList.toggle('hidden', !visible);
+    const count = sec.querySelector('.section__count');
+    if (count && visible) count.textContent = String(visible);
   });
   // The recent row is a shortcut, not a search result.
   const recent = document.getElementById('home-recent');
@@ -526,6 +541,7 @@ function renderTogether() {
       <button type="button" class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)" onclick="openHelpModal()">📘 ${escapeHTML(t.together_more || '')}</button>
     </section>`;
   settleStagger(view, 'together');
+  if (togetherLiveLast) paintTogetherLive();
   refreshTogetherLive();
 }
 
@@ -556,7 +572,13 @@ async function refreshTogetherLive() {
   togetherLiveTimer = setTimeout(refreshTogetherLive, LIVE_EVERY_MS);
 }
 
+// The last count heard, so coming back to the tab shows it at once rather than
+// blank until the next answer (a minute's old count is still true enough).
+let togetherLiveLast = null;
+
 function paintTogetherLive(data) {
+  if (data !== undefined) togetherLiveLast = data;
+  else data = togetherLiveLast;
   const el = document.getElementById('together-live');
   if (!el) return;
   const players = data && data.ok ? Number(data.players) || 0 : 0;

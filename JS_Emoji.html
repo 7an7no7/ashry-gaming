@@ -6,6 +6,11 @@
    it, a tap reveals the answer, the next tap deals another. The riddles
    (EMOJI_RIDDLES) live in EmojiRiddles.js, shared with the rooms server.
    Restorable: the riddle on screen is in appState, so a reload comes back to it.
+
+   With names picked on the setup screen, the answer shows "who got it?" as
+   chips: a tap is a point (tap again to take it back, another name to move
+   it), a scoreboard runs under the card, and "finish" ends on the podium.
+   The helpers for that (quizPoints*) are shared with كمّل المثل.
    ========================================================================= */
 
 function emojiState() {
@@ -44,8 +49,91 @@ function emojiPool() {
   return e.cat === 'all' ? list : list.filter(r => r.c === e.cat);
 }
 
+/* --- Who got it: points on one phone (كمّل المثل uses these too) ------------ */
+
+/** A fresh board: the names picked on the setup screen (`listId`), or `keep` for the same table again. */
+function quizPointsReset(store, listId, keep) {
+  const picked = keep || (document.getElementById(listId) ? (appState.activePlayers || []).slice() : []);
+  store.players = picked.length >= 2 ? picked : [];
+  store.scores = {};
+  store.players.forEach(p => { store.scores[p] = 0; });
+  store.got = -1;
+  store.startedAt = Date.now();
+}
+
+const quizScoring = (store) => !!store && Array.isArray(store.players) && store.players.length >= 2;
+
+/** The point for the card on screen: to this player, back from them, or moved from whoever had it. */
+function quizPointsToggle(store, index) {
+  const name = (store.players || [])[index];
+  if (name === undefined || !store.revealed) return false;
+  if (typeof store.got !== 'number') store.got = -1;
+  if (store.got >= 0) {
+    const prev = store.players[store.got];
+    store.scores[prev] = Math.max(0, (store.scores[prev] || 0) - 1);
+  }
+  store.got = store.got === index ? -1 : index;
+  if (store.got >= 0) store.scores[name] = (store.scores[name] || 0) + 1;
+  saveToLocal();
+  haptic('light');
+  return true;
+}
+
+function quizPointsBoard(store) {
+  return (store.players || []).map(p => ({ id: p, name: p, score: store.scores[p] || 0 }))
+    .sort((a, b) => b.score - a.score);
+}
+
+/** "Who got it?" chips, once the answer is showing. */
+function quizWhoGotHtml(store, t, fnName) {
+  if (!quizScoring(store) || !store.revealed) return '';
+  return `
+    <div class="card card--tight">
+      <div class="eyebrow">🙋 ${escapeHTML(t.quiz_who_got || 'مين عرفها؟')}</div>
+      <div class="chip-set">
+        ${store.players.map((p, i) => {
+          const on = store.got === i;
+          return `<button type="button" class="pick-chip ${on ? 'is-on' : ''}" aria-pressed="${on}" onclick="${fnName}(${i})">${on ? '<span class="pick-chip__tick" aria-hidden="true">✓</span>' : ''}<span class="pick-chip__name">${escapeHTML(p)}</span></button>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+/** The end: the podium, the board, again or out. */
+function quizOverHtml(store, t, code, againFn, exitFn) {
+  const board = quizPointsBoard(store);
+  const podium = renderPodium({ code: code, game: String(store.startedAt || '') + ':' + (store.n || 0) }, board);
+  const champ = board[0] && board[0].score > 0 ? `<div class="metric metric--md">🏆 ${escapeHTML(board[0].name)}</div>` : '';
+  return `
+    <div class="card card--accent" style="text-align:center">
+      <div class="eyebrow">${escapeHTML(t.hu_final || '')}</div>
+      ${podium || champ}
+    </div>
+    ${renderScoreboard(board)}
+    <div class="btn-stack">
+      <button class="btn btn--primary btn--lg" onclick="${againFn}">${escapeHTML(t.play_again || '')}</button>
+      <button class="btn btn--ghost" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+/** Scores count up and rows slide (JS_Motion.html). */
+function quizSettleBoard(store, code) {
+  if (typeof animateScoreboards === 'function') animateScoreboards({ code: code, game: String(store.startedAt || '') });
+}
+
+/* --- The game ----------------------------------------------------------------- */
+
 function startEmojiGame() {
   const e = emojiState();
+  quizPointsReset(e, 'emoji-player-list');
+  e.n = 0;
+  e.phase = 'play';
+  nextEmojiRiddle();
+}
+
+function emojiPlayAgain() {
+  const e = emojiState();
+  quizPointsReset(e, '', (e.players || []).slice());
   e.n = 0;
   e.phase = 'play';
   nextEmojiRiddle();
@@ -57,6 +145,7 @@ function nextEmojiRiddle() {
   if (!pool.length) { e.cat = 'all'; }
   e.riddle = freshPick('emoji:' + contentLang() + ':' + e.cat, emojiPool(), 1)[0];
   e.revealed = false;
+  e.got = -1;
   e.n += 1;
   saveToLocal();
   if (appState.currentView !== 'play-emoji') setView('play-emoji');
@@ -71,12 +160,36 @@ function revealEmoji() {
   playSound('success');
 }
 
+function emojiGot(index) {
+  if (quizPointsToggle(emojiState(), index)) paintEmoji();
+}
+
+/** Scored: the podium. Not scored: back to the setup, as before. */
+function finishEmojiGame() {
+  const e = emojiState();
+  if (!quizScoring(e)) { setupEmoji(); return; }
+  e.phase = 'over';
+  saveToLocal();
+  paintEmoji();
+  playSound('success');
+  if (typeof confetti === 'function' && quizPointsBoard(e).some(p => p.score > 0)) {
+    afterReveal(document.getElementById('emoji-stage'), () => confetti({ particleCount: 140, spread: 90 }));
+  }
+}
+
 function paintEmoji() {
   const e = emojiState();
   const stage = document.getElementById('emoji-stage');
-  if (!stage || !e.riddle) return;
+  if (!stage) return;
   const t = TRANSLATIONS[appState.lang];
+  if (e.phase === 'over') {
+    stage.innerHTML = quizOverHtml(e, t, 'emoji', 'emojiPlayAgain()', 'setupEmoji()');
+    quizSettleBoard(e, 'emoji');
+    return;
+  }
+  if (!e.riddle) return;
   const r = e.riddle;
+  const scoring = quizScoring(e);
   stage.innerHTML = `
     <div class="cn-score">
       <span class="cn-score__role">${escapeHTML(t.emoji_riddle_n || '')} ${e.n}</span>
@@ -89,19 +202,27 @@ function paintEmoji() {
            <div class="metric metric--md metric--accent">${escapeHTML(r.a)}</div>`
         : `<p class="sheet__subtitle">${escapeHTML(t.emoji_device_hint || '')}</p>`}
     </div>
+    ${quizWhoGotHtml(e, t, 'emojiGot')}
     <div class="btn-stack">
       ${e.revealed
         ? `<button class="btn btn--primary btn--lg" onclick="nextEmojiRiddle()">${escapeHTML(t.emoji_next || '')}</button>`
         : `<button class="btn btn--primary btn--lg" onclick="revealEmoji()">${escapeHTML(t.emoji_reveal || '')}</button>
            <button class="btn btn--ghost btn--sm" onclick="nextEmojiRiddle()">${escapeHTML(t.emoji_skip || '')}</button>`}
-      <button class="btn btn--ghost" onclick="setupEmoji()">${escapeHTML(t.exit || '')}</button>
-    </div>`;
+      ${scoring
+        ? `<button class="btn btn--ghost" onclick="finishEmojiGame()">🏁 ${escapeHTML(t.tb_finish || '')}</button>`
+        : `<button class="btn btn--ghost" onclick="setupEmoji()">${escapeHTML(t.exit || '')}</button>`}
+    </div>
+    ${scoring ? renderScoreboard(quizPointsBoard(e)) : ''}`;
+  if (scoring) quizSettleBoard(e, 'emoji');
 }
 
 function restoreEmoji() {
   const e = emojiState();
+  if (e.phase === 'over' && quizScoring(e)) { paintEmoji(); return true; }
   if (e.phase !== 'play' || !e.riddle) return false;
   paintEmoji();
   return true;
 }
+
+onLanguageChange((view) => { if (view === 'play-emoji') paintEmoji(); });
 </script>

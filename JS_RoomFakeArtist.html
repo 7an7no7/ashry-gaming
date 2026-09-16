@@ -38,7 +38,7 @@ ROOM_GAMES.fakeartist = {
     const drawerAway = s.phase === 'drawing' && !myTurn && !faOnline(state, s.currentDrawerId);
 
     const sig = ['fa', s.round, s.turnIndex, s.phase, (s.strokes || []).length, myTurn,
-                 s.vote ? s.vote.voted.length : '', state.youAreHost, drawerAway].join('|');
+                 s.vote ? s.vote.voted.length : '', state.youAreHost, drawerAway, appState.lang].join('|');
 
     if (renderRoomFrame(el, sig, () => fakeArtistFrame(state, t, myTurn, drawerAway))) {
       // The turn moved on (sent, or skipped by the host): nothing of ours is pending.
@@ -49,6 +49,13 @@ ROOM_GAMES.fakeartist = {
     refreshRoomPlayerStrip(el, state);
   }
 };
+
+/** The host's skip, stamped with the turn it was drawn for: a late tap mustn't skip the next drawer. */
+function faSkipTurnCall(s) {
+  const args = { turn: s.turnIndex };
+  if (typeof s.round === 'number') args.round = s.round;
+  return `roomAct('skipTurn', ${escapeHTML(JSON.stringify(args))})`;
+}
 
 function faOnline(state, id) {
   const p = state.players.find(x => x.id === id);
@@ -108,7 +115,7 @@ function fakeArtistFrame(state, t, myTurn, drawerAway) {
 
   const skip = (drawerAway && state.youAreHost) ? `
       <div class="btn-stack">
-        <button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn')">${t.fa_skip_turn || ''}</button>
+        <button class="btn btn--ghost btn--sm" onclick="${faSkipTurnCall(s)}">${t.fa_skip_turn || ''}</button>
       </div>` : '';
 
   const voting = s.phase === 'voting' ? `

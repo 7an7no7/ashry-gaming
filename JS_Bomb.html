@@ -9,6 +9,16 @@
 
    The fuse is a deadline (appState.bomb.endsAt), so a reload mid-round comes
    back with the time it really had left.
+
+   With names picked on the setup screen, the boom asks who was holding it: a
+   tap gives that player a strike (the same name again takes it back, another
+   name moves it), the strikes are the board, and "end game" puts the table on
+   the podium by the rounds each one survived - fewest strikes highest.
+   Without names it plays as it always did.
+
+   The tick is a setTimeout chain that no clock covers, so leaving the screen
+   stops it (onLeaveScreen below) and a tick for a screen that is gone does
+   nothing.
    ========================================================================= */
 
 /* The categories and letters (BOMB_PROMPTS, BOMB_LETTERS) live in BombPrompts.js, shared with the rooms server. */
@@ -22,8 +32,15 @@ let bombClock = null;
 
 function bombState() {
   if (!appState.bomb) appState.bomb = { fuse: 'normal', mode: 'category', prompt: '', endsAt: 0, total: 0, phase: 'idle', rounds: 0 };
-  return appState.bomb;
+  const b = appState.bomb;
+  if (!Array.isArray(b.players)) b.players = [];
+  if (!b.strikes || typeof b.strikes !== 'object') b.strikes = {};
+  if (typeof b.roundLoser !== 'string') b.roundLoser = '';
+  return b;
 }
+
+// Left running, the tick went on behind the menu - faster and faster, forever.
+onLeaveScreen((from) => { if (from === 'play-bomb') bombStop(); });
 
 function setupBomb() {
   const b = bombState();
@@ -58,8 +75,27 @@ function bombNextPrompt() {
   return { kind: 'category', text: freshPick('bomb:' + lang, pool, 1)[0] };
 }
 
+/**
+ * A new game: the names picked on the setup screen (or `players`, for the
+ * same table again), nobody with a strike. Fewer than two names plays
+ * without a board.
+ */
+function bombNewGame(players) {
+  const b = bombState();
+  const picked = players || (document.getElementById('bomb-player-list') ? (appState.activePlayers || []).slice() : []);
+  b.players = picked.length >= 2 ? picked : [];
+  b.strikes = {};
+  b.players.forEach(p => { b.strikes[p] = 0; });
+  b.rounds = 0;
+  b.roundLoser = '';
+  b.startedAt = Date.now();
+}
+
 function startBombRound() {
   const b = bombState();
+  // The setup screen's button starts a game; the boom screen's the next round.
+  if (appState.currentView === 'setup-bomb') bombNewGame();
+  b.roundLoser = '';
   const range = BOMB_FUSES[b.fuse] || BOMB_FUSES.normal;
   const seconds = range[0] + Math.floor(Math.random() * (range[1] - range[0] + 1));
   const prompt = bombNextPrompt();
@@ -99,7 +135,8 @@ function bombArm() {
 
 function bombTick() {
   const b = bombState();
-  if (b.phase !== 'ticking') return;
+  bombTickTimer = null;
+  if (b.phase !== 'ticking' || appState.currentView !== 'play-bomb') return;
   const total = Math.max(1, b.total * 1000);
   const remaining = Math.max(0, b.endsAt - Date.now());
   const frac = Math.min(1, remaining / total);
@@ -133,6 +170,52 @@ function bombExplode() {
   paintBomb();
 }
 
+/** Who was holding it: a strike. The same name again takes it back; another name moves it. */
+function bombPickLoser(index) {
+  const b = bombState();
+  const name = b.players[index];
+  if (b.phase !== 'boom' || name === undefined) return;
+  if (b.roundLoser) b.strikes[b.roundLoser] = Math.max(0, (b.strikes[b.roundLoser] || 0) - 1);
+  if (b.roundLoser === name) {
+    b.roundLoser = '';
+  } else {
+    b.roundLoser = name;
+    b.strikes[name] = (b.strikes[name] || 0) + 1;
+  }
+  saveToLocal();
+  haptic('light');
+  paintBomb();
+}
+
+/** Strikes, fewest first. */
+function bombStrikesBoard() {
+  const b = bombState();
+  return b.players.map(p => ({ id: p, name: p, score: b.strikes[p] || 0 }))
+    .sort((x, y) => x.score - y.score);
+}
+
+function bombStrikesBlock(t) {
+  return typeof bombStrikesHtml === 'function' ? bombStrikesHtml({ board: bombStrikesBoard() }, t) : '';
+}
+
+function bombEndGame() {
+  const b = bombState();
+  if (b.phase !== 'boom' || !b.players.length) return;
+  bombStop();
+  b.phase = 'over';
+  saveToLocal();
+  paintBomb();
+  playSound('success');
+  if (typeof confetti === 'function') afterReveal(document.getElementById('bomb-stage'), () => confetti({ particleCount: 140, spread: 90 }));
+}
+
+/** The same names again, strikes back to none, a fresh fuse. */
+function bombPlayAgain() {
+  const b = bombState();
+  bombNewGame(b.players.slice());
+  startBombRound();
+}
+
 function exitBomb() {
   bombStop();
   bombState().phase = 'idle';
@@ -146,20 +229,57 @@ function paintBomb() {
   const el = document.getElementById('bomb-stage');
   if (!el) return;
   const kindLabel = b.kind === 'letter' ? (t.bomb_letter_label || '') : (t.bomb_category_label || '');
-  if (b.phase === 'boom') {
+  const scoring = b.players.length >= 2;
+
+  if (b.phase === 'over') {
+    // The podium ranks by the rounds each one came through, so fewest strikes stands highest.
+    const safe = b.players.map(p => ({ name: p, score: Math.max(0, (b.rounds || 0) - (b.strikes[p] || 0)) }))
+      .sort((x, y) => y.score - x.score);
+    const podium = renderPodium({ code: 'bomb', game: b.startedAt + ':' + b.rounds }, safe);
     el.innerHTML = `
-      <div class="bomb-card bomb-card--boom" id="bomb-card">
-        <div class="bomb-boom" aria-hidden="true">💥</div>
-        <div class="bomb-card__title">${escapeHTML(t.bomb_boom || '')}</div>
-        <div class="bomb-card__sub">${escapeHTML(t.bomb_boom_hint || '')}</div>
-        <div class="bomb-card__prompt-small">${escapeHTML(kindLabel)}: <b>${escapeHTML(b.prompt)}</b></div>
+      <div class="card card--accent" style="text-align:center">
+        <div class="eyebrow">🛡️ ${escapeHTML(t.bomb_safest || 'مين نجا أكتر؟')}</div>
+        ${podium || `<div class="metric metric--md">🏆 ${escapeHTML((safe[0] || {}).name || '')}</div>`}
+        <p class="field__hint">${escapeHTML(t.bomb_safest_hint || 'الرقم = الجولات اللي فرقعت فيها القنبلة في إيد غيره')}</p>
       </div>
-      <div class="view-actions">
-        <button class="btn btn--primary btn--lg" onclick="startBombRound()">${escapeHTML(t.bomb_next_round || '')}</button>
+      ${bombStrikesBlock(t)}
+      <div class="btn-stack">
+        <button class="btn btn--primary btn--lg" onclick="bombPlayAgain()">${escapeHTML(t.play_again || '')}</button>
         <button class="btn btn--ghost" onclick="exitBomb()">${escapeHTML(t.exit || '')}</button>
       </div>`;
     return;
   }
+
+  if (b.phase === 'boom') {
+    const sub = !scoring ? (t.bomb_boom_hint || '')
+      : (b.roundLoser ? (t.bomb_room_loser || '').replace('{name}', b.roundLoser) : (t.bomb_room_who || ''));
+    const who = scoring ? `
+      <div class="card card--tight">
+        <div class="eyebrow">💣 ${escapeHTML(t.bomb_room_who || '')}</div>
+        <div class="chip-set">
+          ${b.players.map((p, i) => {
+            const on = p === b.roundLoser;
+            return `<button type="button" class="pick-chip ${on ? 'is-on' : ''}" aria-pressed="${on}" onclick="bombPickLoser(${i})">${on ? '<span class="pick-chip__tick" aria-hidden="true">💥</span>' : ''}<span class="pick-chip__name">${escapeHTML(p)}</span></button>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+    el.innerHTML = `
+      <div class="bomb-card bomb-card--boom" id="bomb-card">
+        <div class="bomb-boom" aria-hidden="true">💥</div>
+        <div class="bomb-card__title">${escapeHTML(t.bomb_boom || '')}</div>
+        <div class="bomb-card__sub">${escapeHTML(sub)}</div>
+        <div class="bomb-card__prompt-small">${escapeHTML(kindLabel)}: <b>${escapeHTML(b.prompt)}</b></div>
+      </div>
+      ${who}
+      ${scoring ? bombStrikesBlock(t) : ''}
+      <div class="view-actions"><div class="btn-stack">
+        <button class="btn btn--primary btn--lg" onclick="startBombRound()">${escapeHTML(t.bomb_next_round || '')}</button>
+        ${scoring ? `<button class="btn btn--secondary" onclick="bombEndGame()">🏁 ${escapeHTML(t.tb_finish || '')}</button>` : ''}
+        <button class="btn btn--ghost" onclick="exitBomb()">${escapeHTML(t.exit || '')}</button>
+      </div></div>`;
+    return;
+  }
+
   el.innerHTML = `
     <div class="bomb-card" id="bomb-card">
       <div class="bomb-fuse" aria-hidden="true"><span class="bomb-emoji">💣</span></div>
@@ -177,7 +297,9 @@ function paintBomb() {
 function restoreBomb() {
   const b = bombState();
   if (b.phase === 'ticking' && b.endsAt > Date.now()) { paintBomb(); bombArm(); return true; }
-  if (b.phase === 'boom') { paintBomb(); return true; }
+  if (b.phase === 'boom' || (b.phase === 'over' && b.players.length)) { paintBomb(); return true; }
   return false;
 }
+
+onLanguageChange((view) => { if (view === 'play-bomb') paintBomb(); });
 </script>

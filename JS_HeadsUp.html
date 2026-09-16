@@ -136,17 +136,34 @@ function startHeadsUp() {
 
 const huPlayer = (s) => s.order[s.turn] || '';
 
-/** The start tap: permission for the sensor first (iOS only allows it inside a tap). */
+/**
+ * The start tap: permission for the sensor first (iOS only allows it inside a
+ * tap), and the countdown only once the phone has answered - on an iPhone the
+ * 3-2-1 used to run out behind the permission prompt, with the sensor still off.
+ */
+let huAsking = false;
+
 function huReady() {
   const s = huState();
-  if (s.phase !== 'ready') return;
+  if (s.phase !== 'ready' || huAsking) return;
   const Orientation = window.DeviceOrientationEvent;
-  if (Orientation && typeof Orientation.requestPermission === 'function') {
-    Orientation.requestPermission().then(() => {}).catch(() => {});
-  }
+  const asked = Orientation && typeof Orientation.requestPermission === 'function'
+    ? Orientation.requestPermission().catch(() => 'denied')
+    : Promise.resolve('granted');
   try {
     if (navigator.wakeLock && navigator.wakeLock.request) navigator.wakeLock.request('screen').then(lock => { huWake = lock; }).catch(() => {});
   } catch (e) {}
+  huAsking = true;
+  asked.then(() => {
+    huAsking = false;
+    // Left, or started some other way, while the prompt was up.
+    if (appState.currentView !== 'play-headsup' || huState().phase !== 'ready') { huStopTurn(); return; }
+    huCountdown();
+  });
+}
+
+function huCountdown() {
+  const s = huState();
   window.addEventListener('deviceorientation', huOrientation);
   huTilt = { armed: false, lastAt: 0, sensor: false, rot: 0 };
   const pool = huDeckWords(s.deck, s.lang);
@@ -156,6 +173,8 @@ function huReady() {
   saveToLocal();
   let n = 3;
   const tick = () => {
+    huCountdownTimer = null;
+    if (huState().phase !== 'countdown' || appState.currentView !== 'play-headsup') return;
     const el = document.getElementById('hu-count');
     if (n > 0) {
       if (el) {
@@ -275,6 +294,21 @@ function huStopTurn() {
 function huStopAll() {
   huStopTurn();
 }
+
+// Leaving mid-turn (the back button, another game): the sensor, the wake lock
+// and the countdown stop with the screen, and the turn goes back to "ready".
+onLeaveScreen((from) => {
+  if (from !== 'play-headsup') return;
+  huStopTurn();
+  const s = huState();
+  if (s.phase === 'countdown' || s.phase === 'play') {
+    s.phase = 'ready';
+    s.cards = [];
+    saveToLocal();
+  }
+});
+
+onLanguageChange((view) => { if (view === 'play-headsup' && huState().phase !== 'play' && huState().phase !== 'countdown') paintHeadsUp(); });
 
 /** A word's verdict after the turn: the sensor or a finger can be wrong. */
 function huToggleCard(i) {

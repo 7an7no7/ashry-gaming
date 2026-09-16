@@ -30,14 +30,17 @@ const roomTurn = { hiddenAt: 0, wakeAt: 0, timer: null, bannerTimer: null, title
 function roomTurnOf(state) {
   if (!state || !state.game || state.phase === 'lobby' || state.youAreScreen || state.inGame === false) return null;
   const me = Room.me;
+  if (!me) return null;
   const s = state.shared || {};
   const has = (list) => Array.isArray(list) && list.indexOf(me) !== -1;
   const inRound = !s.roster || has(s.roster);
 
   // Any open vote this phone hasn't cast, unless every option is its own
-  // (the storyteller in صدق ولا كذب).
+  // (the storyteller in صدق ولا كذب). An owner may be hidden, with only this
+  // phone's own option named in `you.voteOwn` (isOwnVoteOption).
   const v = s.vote;
-  if (v && v.phase === 'voting' && has(v.eligible) && !has(v.voted) && (v.options || []).some(o => o.ownerId !== me)) {
+  const own = (o) => (typeof isOwnVoteOption === 'function' ? isOwnVoteOption(state, o) : o.ownerId === me);
+  if (v && v.phase === 'voting' && has(v.eligible) && !has(v.voted) && (v.options || []).some(o => !own(o))) {
     return 'turn_vote';
   }
 

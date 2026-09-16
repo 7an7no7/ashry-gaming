@@ -672,63 +672,116 @@ const WHOAMI_DB = {
     }
 };
 
+/* ============================================================================
+   من أنا؟ — the one-phone game
+   ----------------------------------------------------------------------------
+   Nobody may know their own character. So the phone is never shown to the
+   player it is about: it says "hide the phone from Ahmed", and everyone else
+   sees who Ahmed is. Typed in by hand, the players either write one each in
+   secret and the phone deals them out so nobody gets their own (shuffle on),
+   or the table types each player's character while that player looks away,
+   and the clock starts at once, because everyone else has already seen it.
+
+   The category list is rebuilt for the games' language whenever the setup
+   screen is painted (SETUP_PAINTERS, and after a language change), keeping
+   the pick: the same key, or the category with the same emoji in the other
+   language. The pick is remembered (appState.whoami.category), and so are the
+   mix's unticked categories (by emoji, so a language switch keeps them).
+   ========================================================================= */
+
+/** A category's emoji, which both languages share ("حيوانات 🦁" / "Animals 🦁"). */
+function categoryIconKey(key) {
+    return String(key || '').replace(/[\p{L}\p{N}\p{P}\s]/gu, '');
+}
+
+/** `wanted` if the list has it, else the category with the same emoji, else null. */
+function matchCategoryKey(keys, wanted) {
+    if (!wanted) return null;
+    if (keys.indexOf(wanted) !== -1) return wanted;
+    const icon = categoryIconKey(wanted);
+    return (icon && keys.find(k => categoryIconKey(k) === icon)) || null;
+}
+
+function whoamiDb() { return WHOAMI_DB[contentLang()] || WHOAMI_DB.ar; }
+
 function setupWhoAmI() {
-    const catSelect = document.getElementById('whoami-cat-select');
-    catSelect.innerHTML = '';
-    
-    // 1. Manual Option
-    const manualText = appState.lang === 'ar' ? '✍️ إدخال يدوي (Manual)' : '✍️ Manual Input';
-    const manualOpt = document.createElement('option');
-    manualOpt.value = 'manual';
-    manualOpt.innerText = manualText;
-    catSelect.appendChild(manualOpt);
-
-    // 2. Random / Mix Option
-    const randomText = appState.lang === 'ar' ? '🔀 كوكتيل (مخصص)' : '🔀 Mix (Custom)';
-    const randomOpt = document.createElement('option');
-    randomOpt.value = 'random';
-    randomOpt.innerText = randomText;
-    catSelect.appendChild(randomOpt);
-
-    // 3. Database Categories
-    const db = WHOAMI_DB[contentLang()];
-    if (db) {
-        Object.keys(db).forEach(key => {
-            const option = document.createElement('option');
-            option.value = key;
-            option.innerText = key;
-            catSelect.appendChild(option);
-        });
-    }
-    
-    handleWhoAmICatChange(); // Initialize view
     setView('setup-whoami');
+    paintWhoAmISetup();
+}
+
+/** Fills the category list for the games' language, keeping the pick (or the one saved). */
+function whoamiFillCategories() {
+    const select = document.getElementById('whoami-cat-select');
+    if (!select) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const keys = Object.keys(whoamiDb());
+    const wanted = (select.options.length ? select.value : '') || appState.whoami.category || 'manual';
+    const options = [
+        ['manual', '✍️ ' + (t.wa_cat_manual || (appState.lang === 'en' ? 'Type them in' : 'إدخال يدوي'))],
+        ['random', '🔀 ' + (t.wa_cat_mix || (appState.lang === 'en' ? 'Mix' : 'كوكتيل'))]
+    ].concat(keys.map(k => [k, k]));
+    select.innerHTML = '';
+    options.forEach(([value, label]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.innerText = label;
+        select.appendChild(option);
+    });
+    select.value = (wanted === 'manual' || wanted === 'random') ? wanted : (matchCategoryKey(keys, wanted) || keys[0]);
+}
+
+/** Shows the options that belong to the pick: shuffle for manual, the ticks for the mix. */
+function whoamiPaintCatOptions() {
+    const select = document.getElementById('whoami-cat-select');
+    const manualOptions = document.getElementById('whoami-manual-options');
+    const mixOptions = document.getElementById('whoami-mix-options');
+    if (!select || !manualOptions || !mixOptions) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    manualOptions.classList.toggle('hidden', select.value !== 'manual');
+    mixOptions.classList.toggle('hidden', select.value !== 'random');
+
+    const check = document.getElementById('whoami-shuffle-check');
+    if (check) {
+        check.checked = appState.whoami.isShuffle !== false;
+        check.onchange = () => { appState.whoami.isShuffle = check.checked; saveToLocal(); };
+    }
+    const label = document.getElementById('whoami-shuffle-label');
+    if (label) label.innerText = '🔀 ' + (t.wa_shuffle_label || 'خلط الشخصيات');
+    const desc = document.getElementById('whoami-shuffle-desc');
+    if (desc) desc.innerHTML = `✅ ${escapeHTML(t.wa_shuffle_on || 'مفعّل: كل واحد يكتب شخصية في السر، والموبايل يوزّعها على غيره.')}<br>⬜ ${escapeHTML(t.wa_shuffle_off || 'مقفول: الباقيين يكتبوا شخصية كل واحد وهو مش شايف، والوقت يبدأ على طول.')}`;
+
+    if (select.value === 'random') renderMixCheckboxes();
 }
 
 function handleWhoAmICatChange() {
     const select = document.getElementById('whoami-cat-select');
-    const manualOptions = document.getElementById('whoami-manual-options');
-    const mixOptions = document.getElementById('whoami-mix-options');
-    
-    // 1. Hide everything first
-    manualOptions.classList.add('hidden');
-    mixOptions.classList.add('hidden');
-    
-    // 2. Show based on selection
-    if (select.value === 'manual') {
-        manualOptions.classList.remove('hidden');
-        
-        // Update Manual Text
-        const labelMain = appState.lang === 'ar' ? '🔀 خلط الأدوار (Shuffle)' : '🔀 Shuffle Roles';
-        const labelDesc = appState.lang === 'ar' 
-            ? '✅ <b>مفعل:</b> يتم توزيع الكلمات عشوائياً.<br>⬜ <b>غير مفعل:</b> تحتفظ بكلمتك.'
-            : '✅ <b>ON:</b> Words are swapped randomly.<br>⬜ <b>OFF:</b> You keep your word.';
-        document.getElementById('whoami-shuffle-label').innerText = labelMain;
-        document.getElementById('whoami-shuffle-desc').innerHTML = labelDesc;
+    if (select) {
+        appState.whoami.category = select.value;
+        saveToLocal();
+    }
+    whoamiPaintCatOptions();
+}
 
-    } else if (select.value === 'random') {
-        mixOptions.classList.remove('hidden');
-        renderMixCheckboxes();
+// The stepper follows the players picked, but only when that pick changes:
+// a count the table set by hand survives a language change or a trip back.
+let whoamiCountFor = null;
+
+function paintWhoAmISetup() {
+    if (typeof paintDirectorSetup === 'function') paintDirectorSetup('whoami');
+    const chosen = [60, 120, 180, 0].indexOf(Number(appState.whoami.timerChoice)) !== -1 ? Number(appState.whoami.timerChoice) : 120;
+    document.querySelectorAll('#whoami-timer .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === chosen));
+
+    whoamiFillCategories();
+    whoamiPaintCatOptions();
+
+    const countEl = document.getElementById('whoami-count');
+    const picked = (appState.activePlayers || []).slice();
+    const key = picked.join('|');
+    if (countEl && whoamiCountFor !== key) {
+        whoamiCountFor = key;
+        const saved = Number(appState.whoami.count) || 3;
+        // Every picked player plays: a stepper left at 3 used to drop the rest without a word.
+        countEl.value = Math.min(20, Math.max(2, picked.length >= 2 ? picked.length : saved));
     }
 }
 
@@ -741,121 +794,138 @@ function adjustWhoAmICount(delta) {
     if (!isFinite(val) || val < 2) val = 2;
     if (val > 20) val = 20;
     input.value = val;
+    appState.whoami.count = val;
+    saveToLocal();
     playSound('click');
 }
 
 function startWhoAmI() {
+    const t = TRANSLATIONS[appState.lang] || {};
     const countEl = document.getElementById('whoami-count');
     let count = parseInt(countEl.value, 10);
     if (!isFinite(count) || count < 2) count = 2;
     if (count > 20) count = 20;
     countEl.value = count;
     const catSelect = document.getElementById('whoami-cat-select');
-    const selectedCat = catSelect.value;
-    
+    // A reload onto this screen, or a language change, used to leave the list
+    // empty or in the other language, and Start dealt "Error" to everyone.
+    if (catSelect && !catSelect.options.length) whoamiFillCategories();
+    const selectedCat = catSelect ? catSelect.value : (appState.whoami.category || '');
+
     appState.whoami.count = count;
+    if (selectedCat) appState.whoami.category = selectedCat;
     appState.whoami.assignments = [];
-    
+
     let players = appState.activePlayers ? [...appState.activePlayers] : [];
-    
+
     // If fewer players than count, pad with generic names
     if (players.length < count) {
         for(let i=players.length; i<count; i++) {
             players.push(appState.lang === 'ar' ? `اللاعب ${i+1}` : `Player ${i+1}`);
         }
     } else if (players.length > count) {
-        // If more players than count, take first N
+        // The stepper was turned down on purpose: the first N play.
         players = players.slice(0, count);
     }
 
     // --- CASE 1: MANUAL ---
     if (selectedCat === 'manual') {
+        const check = document.getElementById('whoami-shuffle-check');
         appState.whoami.manualWords = [];
-        appState.whoami.isShuffle = document.getElementById('whoami-shuffle-check').checked;
+        appState.whoami.isShuffle = check ? check.checked : appState.whoami.isShuffle !== false;
         appState.whoami.inputIndex = 0;
-        appState.whoami.tempPlayers = players; 
+        appState.whoami.tempPlayers = players;
+        saveToLocal();
         renderManualInputScreen();
         setView('input-whoami');
         return;
     }
 
+    const db = whoamiDb();
+    const keys = Object.keys(db);
     let pool = [];
 
-    // --- CASE 2: RANDOM MIX (CUSTOM) ---
     if (selectedCat === 'random') {
-        const db = WHOAMI_DB[contentLang()];
-        // Get all checked boxes
-        const checkboxes = document.querySelectorAll('.mix-check:checked');
-        
-        if (checkboxes.length === 0) {
-            const msg = appState.lang === 'ar' ? 'يجب اختيار قسم واحد على الأقل!' : 'Select at least one category!';
-            showToast(msg, 'error');
+        // --- CASE 2: RANDOM MIX (CUSTOM) ---
+        const ticked = [...document.querySelectorAll('.mix-check:checked')]
+            .map(box => matchCategoryKey(keys, box.value))
+            .filter(Boolean);
+        if (!ticked.length) {
+            renderMixCheckboxes();
+            showToast(appState.lang === 'ar' ? 'يجب اختيار قسم واحد على الأقل!' : 'Select at least one category!', 'error');
             return;
         }
-
-        checkboxes.forEach(box => {
-            const key = box.value;
-            if (db[key]) pool.push(...db[key]);
-        });
-
+        ticked.forEach(key => pool.push(...db[key]));
     } else {
-    // --- CASE 3: SINGLE CATEGORY ---
+        // --- CASE 3: SINGLE CATEGORY ---
         // Copied, because the shuffle below sorts in place and would otherwise
         // reorder the shared database array.
-        pool = (WHOAMI_DB[contentLang()][selectedCat] || ["Error"]).slice();
+        const key = matchCategoryKey(keys, selectedCat) || keys[0];
+        pool = (db[key] || []).slice();
     }
-    
-    // Shuffle and Start
+
+    if (!pool.length) {
+        showToast(appState.lang === 'ar' ? 'يجب اختيار قسم واحد على الأقل!' : 'Select at least one category!', 'error');
+        return;
+    }
+
     // Characters this phone hasn't dealt yet come first; one memory is shared by
     // every category, so a mix doesn't bring back what a single category just used.
     let shuffledWords = freshPick('whoami:' + contentLang(), pool, Math.min(count, pool.length));
-    
-    // Fallback if pool is smaller than players (rare)
-    while(shuffledWords.length < count) {
-        shuffledWords = shuffledWords.concat(pool);
+
+    // A category smaller than the table deals some twice. The pool is never
+    // empty here, so this ends (an empty one used to spin forever).
+    while (shuffledWords.length < count) {
+        shuffledWords = shuffledWords.concat(shuffleArray(pool));
     }
-    
+
     const selectedWords = shuffledWords.slice(0, count);
-    
+
     for (let i = 0; i < count; i++) {
         appState.whoami.assignments.push({ name: players[i], word: selectedWords[i] });
     }
-    
+
     document.getElementById('whoami-result-ui').classList.add('hidden');
     startRevealPhase();
 }
 
 /* ================= MANUAL INPUT LOGIC ================= */
 
-function renderManualInputScreen() {
-    const idx = appState.whoami.inputIndex;
-    const playerNum = idx + 1;
-    const givePhoneText = appState.lang === 'ar' ? 'أعط الهاتف لـ' : 'Give phone to';
-    const playerLabel = appState.lang === 'ar' ? `اللاعب ${playerNum}` : `Player ${playerNum}`;
-    
-    document.getElementById('manual-instruction').innerText = givePhoneText;
-    document.getElementById('manual-player-label').innerText = playerLabel;
-    
+/** `keep` redraws the labels only (a language change), leaving what is typed. */
+function renderManualInputScreen(keep) {
+    const w = appState.whoami;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const idx = w.inputIndex;
+    const name = (w.tempPlayers || [])[idx] || (appState.lang === 'ar' ? `اللاعب ${idx + 1}` : `Player ${idx + 1}`);
+    const secret = w.isShuffle !== false;
+
+    // Shuffle on: each writes one in secret. Off: the table writes this
+    // player's character while they look away.
+    document.getElementById('manual-instruction').innerText = secret ? (t.pass_phone || '') : '🙈 ' + (t.wa_hide_from || 'خبّي الموبايل عن');
+    document.getElementById('manual-player-label').innerText = name;
+
     const input = document.getElementById('manual-whoami-input');
-    input.value = '';
-    input.placeholder = appState.lang === 'ar' ? 'اكتب الشخصية هنا...' : 'Type character here...';
-    input.focus();
+    input.placeholder = secret ? (t.wa_write_secret || 'اكتب شخصية في السر…') : (t.wa_write_for || 'شخصية {name}…').replace('{name}', name);
+    if (!keep) {
+        input.value = '';
+        input.focus();
+    }
 }
 
 function submitManualWhoAmI() {
     const input = document.getElementById('manual-whoami-input');
     const val = input.value.trim();
-    
+
     if(!val) {
         showToast(appState.lang === 'ar' ? 'أدخل كلمة أولاً!' : 'Enter a word first!', 'error');
         return;
     }
-    
+
     appState.whoami.manualWords.push(val);
     appState.whoami.inputIndex++;
-    
+
     playSound('click');
-    
+
     if (appState.whoami.inputIndex < appState.whoami.count) {
         renderManualInputScreen();
     } else {
@@ -863,32 +933,46 @@ function submitManualWhoAmI() {
     }
 }
 
+/** A shuffle of 0..n-1 that leaves nothing where it was (n >= 2). */
+function whoamiDerangement(n) {
+    const idx = Array.from({ length: n }, (_, i) => i);
+    if (n < 2) return idx;
+    for (let tries = 0; tries < 60; tries++) {
+        const order = shuffleArray(idx);
+        if (order.every((v, i) => v !== i)) return order;
+    }
+    return idx.map((_, i) => (i + 1) % n);
+}
+
 function finalizeManualGame() {
-    const words = [...appState.whoami.manualWords];
-    const players = appState.whoami.tempPlayers;
+    const w = appState.whoami;
+    const words = [...w.manualWords];
+    const players = w.tempPlayers;
 
     // FIX 1: Ensure previous results are hidden immediately
     document.getElementById('whoami-result-ui').classList.add('hidden');
+    w.assignments = [];
 
-    if (appState.whoami.isShuffle) {
-        // SCENARIO A: SHUFFLE ON -> Randomize -> Go to Reveal
-        words.sort(() => 0.5 - Math.random());
-        
-        for (let i = 0; i < appState.whoami.count; i++) {
-            appState.whoami.assignments.push({ name: players[i], word: words[i] });
+    if (w.isShuffle) {
+        // Each wrote one in secret: nobody gets back their own, and the phone
+        // then shows each character to everyone but its player.
+        const order = whoamiDerangement(w.count);
+        for (let i = 0; i < w.count; i++) {
+            w.assignments.push({ name: players[i], word: words[order[i]] });
         }
         startRevealPhase();
-        
+
     } else {
-        // SCENARIO B: SHUFFLE OFF -> Keep Word -> SKIP REVEAL -> Go to Timer
-        for (let i = 0; i < appState.whoami.count; i++) {
-            appState.whoami.assignments.push({ name: players[i], word: words[i] });
+        // Typed by the table while each player looked away: everyone else has
+        // seen every character already, so the questions start.
+        for (let i = 0; i < w.count; i++) {
+            w.assignments.push({ name: players[i], word: words[i] });
         }
-        
+
         document.getElementById('whoami-pass-container').classList.add('hidden');
         document.getElementById('whoami-timer-ui').classList.remove('hidden');
         setView('play-whoami');
-        
+
         startWhoAmITimer();
     }
 }
@@ -902,45 +986,67 @@ function startRevealPhase() {
     document.getElementById('whoami-reveal-ui').classList.add('hidden');
     document.getElementById('whoami-timer-ui').classList.add('hidden');
     document.getElementById('whoami-result-ui').classList.add('hidden');
-    
+
     updateWhoAmIPassScreen();
     setView('play-whoami');
 }
 
+/** "Hide the phone from Ahmed": the character is for everyone else. */
 function updateWhoAmIPassScreen() {
-    const currentPlayer = appState.whoami.assignments[appState.whoami.currentIndex];
-    document.getElementById('whoami-player-label').innerText = currentPlayer.name; // innerText is safe
-    document.getElementById('whoami-pass-ui').classList.remove('hidden');
-    document.getElementById('whoami-reveal-ui').classList.add('hidden');
+    const w = appState.whoami;
+    const item = w.assignments[w.currentIndex];
+    const pass = document.getElementById('whoami-pass-ui');
+    const reveal = document.getElementById('whoami-reveal-ui');
+    if (!item || !pass) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    pass.innerHTML = `
+        <div class="text-6xl mb-6" aria-hidden="true">🙈</div>
+        <h3 class="eyebrow">${escapeHTML(t.wa_hide_from || 'خبّي الموبايل عن')} · ${w.currentIndex + 1} / ${w.assignments.length}</h3>
+        <h2 id="whoami-player-label" class="metric metric--lg metric--accent">${escapeHTML(item.name)}</h2>
+        <p class="field__hint" style="margin-bottom: var(--sp-6)">${escapeHTML((t.wa_hide_hint || '{name} يبص بعيد، والباقي يشوفوا شخصيته.').replace('{name}', item.name))}</p>
+        <button onclick="whoAmIReveal()" class="btn btn--primary btn--lg">👀 ${escapeHTML(t.wa_show_others || 'وريهم شخصيته')}</button>`;
+    pass.classList.remove('hidden');
+    if (reveal) reveal.classList.add('hidden');
 }
 
-function whoAmIReveal() {
-    const item = appState.whoami.assignments[appState.whoami.currentIndex];
-    
+/** Everyone but that player sees who they are. */
+function whoAmIReveal(quiet) {
+    const w = appState.whoami;
+    const item = w.assignments[w.currentIndex];
+    const pass = document.getElementById('whoami-pass-ui');
+    const reveal = document.getElementById('whoami-reveal-ui');
+    if (!item || !reveal) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+
     let displayHtml = escapeHTML(item.word);
-    
     if (item.word.includes('|')) {
         const parts = item.word.split('|');
         displayHtml = `
             <div class="flex flex-col items-center">
                 <span>${escapeHTML(parts[0])}</span>
-                <span class="text-lg text-teal-600 mt-2 font-bold opacity-75">(${escapeHTML(parts[1])})</span>
+                <span class="field__hint">(${escapeHTML(parts[1])})</span>
             </div>
         `;
     }
 
-    document.getElementById('whoami-secret-word').innerHTML = displayHtml;
-    
-    document.getElementById('whoami-pass-ui').classList.add('hidden');
-    document.getElementById('whoami-reveal-ui').classList.remove('hidden');
-    playSound('click');
+    reveal.innerHTML = `
+        <h3 class="eyebrow">${escapeHTML((t.wa_is || '{name} هو:').replace('{name}', item.name))}</h3>
+        <div class="reveal-card">
+            <div id="whoami-secret-word" class="reveal-card__word">${displayHtml}</div>
+        </div>
+        <p class="field__hint">🤫 ${escapeHTML((t.wa_reveal_hint || 'احفظوها ومتقولوهاش لـ {name}!').replace('{name}', item.name))}</p>
+        <button onclick="whoAmINext()" class="btn btn--ghost">${escapeHTML(t.got_it_next || '')}</button>`;
+
+    if (pass) pass.classList.add('hidden');
+    reveal.classList.remove('hidden');
+    if (!quiet) playSound('click');
 }
 
 function whoAmINext() {
     appState.whoami.currentIndex++;
-    
+
     if (appState.whoami.currentIndex >= appState.whoami.assignments.length) {
-        startWhoAmITimer(); 
+        startWhoAmITimer();
     } else {
         updateWhoAmIPassScreen();
     }
@@ -955,7 +1061,7 @@ function startWhoAmITimer() {
         directorStart(appState.whoami, appState.whoami.assignments.map(a => a.name), directorModeOf('whoami'));
         paintDirector('whoami-director', appState.whoami, 'whoamiDirectorNext()');
     }
-    
+
     // The clock the setup screen chose; 0 counts up instead, for a table
     // that would rather not be hurried.
     const chosen = Number(appState.whoami.timerChoice);
@@ -963,6 +1069,7 @@ function startWhoAmITimer() {
     appState.whoami.timer = seconds;
     appState.whoami.isPaused = false;
     updateWhoAmITimerDisplay();
+    paintWhoAmIPauseLabel();
 
     if(appState.whoami.interval) appState.whoami.interval.stop();
 
@@ -999,9 +1106,17 @@ function toggleWhoAmITimer() {
     appState.whoami.isPaused = appState.whoami.interval
         ? appState.whoami.interval.toggle()
         : !appState.whoami.isPaused;
+    paintWhoAmIPauseLabel();
+}
+
+function paintWhoAmIPauseLabel() {
     const btn = document.getElementById('whoami-pause-btn');
-    if(appState.lang === 'ar') btn.innerText = appState.whoami.isPaused ? "استئناف" : "إيقاف";
-    else btn.innerText = appState.whoami.isPaused ? "Resume" : "Pause";
+    if (!btn) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const paused = !!appState.whoami.isPaused;
+    // The key moves with the label, or a language change puts "pause" back.
+    btn.setAttribute('data-i18n', paused ? 'resume_btn' : 'pause_btn');
+    btn.innerText = paused ? (t.resume_btn || '') : (t.pause_btn || '');
 }
 
 function updateWhoAmITimerDisplay() {
@@ -1014,58 +1129,73 @@ function updateWhoAmITimerDisplay() {
 function finishWhoAmIGame() {
     if(appState.whoami.interval) appState.whoami.interval.stop();
     appState.whoami.interval = null;
-    
+
     const listEl = document.getElementById('whoami-final-list');
-    listEl.innerHTML = '';
-    
-    appState.whoami.assignments.forEach((item, index) => {
+    listEl.innerHTML = appState.whoami.assignments.map(item => {
         let displayWord = escapeHTML(item.word);
         if (item.word.includes('|')) {
             const parts = item.word.split('|');
-            displayWord = `${escapeHTML(parts[0])} <span class="text-xs opacity-75">(${escapeHTML(parts[1])})</span>`;
+            displayWord = `${escapeHTML(parts[0])} <span class="field__hint">(${escapeHTML(parts[1])})</span>`;
         }
-
-        // FIX 2: Dark Mode Colors (Force slate-800/100 to ensure visibility)
-        const isEven = index % 2 === 0;
-        const bgClass = isEven ? 'bg-slate-100 dark:bg-slate-800' : 'bg-slate-200 dark:bg-slate-700';
-        const textClass = 'text-slate-800 dark:text-slate-100'; 
-
-        listEl.innerHTML += `
-            <div class="flex justify-between items-center ${bgClass} p-4 rounded-xl border-r-4 border-teal-500 shadow-sm">
-                <span class="font-bold tx-muted">${escapeHTML(item.name)}</span>
-                <span class="${textClass} font-black text-xl text-right">${displayWord}</span>
-            </div>
-        `;
-    });
+        return `
+            <div class="status-row">
+                <div class="status-row__body"><div class="status-row__name">${escapeHTML(item.name)}</div></div>
+                <span class="tx-strong font-black text-xl" style="text-align: end">${displayWord}</span>
+            </div>`;
+    }).join('');
 
     document.getElementById('whoami-timer-ui').classList.add('hidden');
-    document.getElementById('whoami-result-ui').classList.remove('hidden'); 
+    document.getElementById('whoami-result-ui').classList.remove('hidden');
     document.getElementById('whoami-result-ui').classList.add('flex');
-    
+
     playSound('success');
     confetti({ particleCount: 150, spread: 70 });
 }
 
+/** The mix's categories as ticks, for the games' language; unticked ones are remembered by emoji. */
 function renderMixCheckboxes() {
     const container = document.getElementById('whoami-mix-list');
-    const db = WHOAMI_DB[contentLang()];
-    
-    // Don't re-render if already populated to keep selection
-    if (container.children.length > 0 && container.dataset.lang === appState.lang) return;
-    
-    container.innerHTML = '';
-    container.dataset.lang = appState.lang;
+    if (!container) return;
+    const lang = contentLang();
+    const db = whoamiDb();
 
-    Object.keys(db).forEach(key => {
+    // Built for the games' language, not the app's: a list kept from the other
+    // language named categories this one doesn't have, and dealt from nothing.
+    if (container.children.length > 0 && container.dataset.lang === lang) return;
+
+    container.innerHTML = '';
+    container.dataset.lang = lang;
+    const off = Array.isArray(appState.whoami.mixOff) ? appState.whoami.mixOff : [];
+
+    Object.keys(db).forEach((key, i) => {
         const div = document.createElement('div');
         // USES NEW .mix-item CLASS
         div.className = "flex items-center p-2 rounded-lg mix-item mb-2";
+        const on = off.indexOf(categoryIconKey(key)) === -1;
         div.innerHTML = `
-            <input type="checkbox" id="mix-${key}" value="${key}" class="mix-check w-5 h-5 accent-teal-600 cursor-pointer" checked>
-            <label for="mix-${key}" class="mx-2 font-bold text-sm cursor-pointer flex-grow select-none">${key}</label>
+            <input type="checkbox" id="mix-${i}" value="${escapeHTML(key)}" class="mix-check w-5 h-5 accent-teal-600 cursor-pointer" ${on ? 'checked' : ''} onchange="whoamiMixChanged()">
+            <label for="mix-${i}" class="mx-2 font-bold text-sm cursor-pointer flex-grow select-none">${escapeHTML(key)}</label>
         `;
         container.appendChild(div);
     });
 }
 
+function whoamiMixChanged() {
+    const off = [];
+    document.querySelectorAll('.mix-check').forEach(box => { if (!box.checked) off.push(categoryIconKey(box.value)); });
+    appState.whoami.mixOff = off;
+    saveToLocal();
+}
+
+onLanguageChange((view) => {
+    if (view === 'input-whoami') { renderManualInputScreen(true); return; }
+    if (view !== 'play-whoami') return;
+    const pass = document.getElementById('whoami-pass-container');
+    const reveal = document.getElementById('whoami-reveal-ui');
+    if (pass && !pass.classList.contains('hidden')) {
+        if (reveal && !reveal.classList.contains('hidden')) whoAmIReveal(true);
+        else updateWhoAmIPassScreen();
+    }
+    paintWhoAmIPauseLabel();
+});
 </script>

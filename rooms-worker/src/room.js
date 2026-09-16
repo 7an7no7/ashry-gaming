@@ -12,15 +12,21 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, chatFor } from '../generated/rules.js';
+import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, chatFor, roomPlayerLeft, sameRoomName } from '../generated/rules.js';
 
 const MAX_PLAYERS = 12;
 // Big screens (a TV, a laptop) showing the room. They take no player seat.
 const MAX_SCREENS = 3;
 // A phone on the HTTP fallback (no WebSocket) counts as here this long after it last asked.
 const ONLINE_WINDOW_MS = 20000;
+// A socket nothing has been heard on for this long is dead, whatever its
+// readyState says: a phone pings every 25s, so this is two missed pings and
+// slack. A phone that locks can leave a socket that never closes.
+const SOCKET_SILENT_MS = 70000;
 // A host gone this long while others are still here hands the room on.
 const HOST_AWAY_MS = 120000;
+// A round's timeout that threw is tried again after this, not in a tight loop.
+const TIMEOUT_RETRY_MS = 30000;
 // Rooms delete themselves: after this long with no moves and nobody connected...
 const IDLE_MS = 6 * 3600 * 1000;
 // ...or after this long with no moves at all, even with a forgotten tab open.
@@ -53,6 +59,7 @@ export class Room extends DurableObject {
     this.room = undefined;      // undefined: not read yet; null: there is no room
     this.polled = new Map();    // playerId -> last HTTP poll, for phones without a socket
     this.saveTimer = null;
+    this.failedDeadline = null; // { due, retryAt }: a deadline whose timeout threw
     // Cloudflare answers "ping" itself, without waking the room, so the phones'
     // heartbeat costs nothing.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
@@ -102,6 +109,7 @@ export class Room extends DurableObject {
 
   /* --- who is here --------------------------------------------------------- */
 
+  /** Sockets that can still be written to. Being open is not being here: see onlineIds. */
   openSockets(except) {
     return this.ctx.getWebSockets().filter((ws) => ws !== except && ws.readyState <= 1);
   }
@@ -111,13 +119,45 @@ export class Room extends DurableObject {
     return tag ? tag.pid : null;
   }
 
+  /**
+   * When anything was last heard on a socket: its last "ping" (answered by
+   * Cloudflare without waking the room, but timed), or its opening. Null for a
+   * socket opened before this was kept, which counts as here, as it always did.
+   */
+  socketHeardAt(ws) {
+    let at = null;
+    try {
+      const ping = this.ctx.getWebSocketAutoResponseTimestamp(ws);
+      if (ping) at = ping.getTime();
+    } catch (e) {}
+    const tag = ws.deserializeAttachment();
+    if (tag && tag.at && (at === null || tag.at > at)) at = tag.at;
+    return at;
+  }
+
+  socketSilent(ws, now = Date.now()) {
+    const heard = this.socketHeardAt(ws);
+    return heard !== null && now - heard >= SOCKET_SILENT_MS;
+  }
+
+  /** The last time any of a device's open sockets was heard from, or null. */
+  heardAt(pid) {
+    let best = null;
+    for (const ws of this.openSockets()) {
+      if (this.playerOf(ws) !== pid) continue;
+      const at = this.socketHeardAt(ws);
+      if (at !== null && (best === null || at > best)) best = at;
+    }
+    return best;
+  }
+
   onlineIds(except) {
     const ids = new Set();
+    const now = Date.now();
     for (const ws of this.openSockets(except)) {
       const pid = this.playerOf(ws);
-      if (pid) ids.add(pid);
+      if (pid && !this.socketSilent(ws, now)) ids.add(pid);
     }
-    const now = Date.now();
     for (const [pid, at] of this.polled) if (now - at < ONLINE_WINDOW_MS) ids.add(pid);
     return ids;
   }
@@ -230,7 +270,12 @@ export class Room extends DurableObject {
   async scheduleAlarm(extra, replace = false) {
     const room = this.room;
     if (!room) return;
-    const times = [roomDeadline(room), extra, room.updatedAt + IDLE_MS].filter((t) => typeof t === 'number');
+    let deadline = roomDeadline(room);
+    // A deadline whose timeout threw waits for its retry, or the alarm would
+    // be set in the past and fire again at once, over and over.
+    const failed = this.failedDeadline;
+    if (failed && deadline === failed.due) deadline = Math.max(deadline, failed.retryAt);
+    const times = [deadline, extra, room.updatedAt + IDLE_MS].filter((t) => typeof t === 'number');
     const soonest = Math.min(...times);
     const current = replace ? null : await this.ctx.storage.getAlarm();
     if (current === null || soonest < current - 250) await this.ctx.storage.setAlarm(soonest);
@@ -252,7 +297,9 @@ export class Room extends DurableObject {
     }
 
     let changed = false;
+    let presence = false;
     let again;
+    const soonest = (t) => { again = Math.min(again === undefined ? Infinity : again, t); };
 
     // A round whose time is up ends, even with every phone asleep.
     const due = roomDeadline(room);
@@ -260,36 +307,66 @@ export class Room extends DurableObject {
       const next = structuredClone(room);
       try {
         if (roomTimeout(next, now)) { this.room = next; changed = true; }
+        this.failedDeadline = null;
       } catch (err) {
         console.error('roomTimeout', errorText(err));
+        this.failedDeadline = { due, retryAt: now + TIMEOUT_RETRY_MS };
+      }
+    }
+
+    // Sockets nothing has been heard on for a while are dead: closed, and their
+    // phones shown as away once, as if they had closed themselves.
+    this.room.lastSeen = this.room.lastSeen || {};
+    let dirty = false;
+    const online = this.onlineIds();
+    for (const ws of this.openSockets()) {
+      if (!this.socketSilent(ws, now)) continue;
+      const pid = this.playerOf(ws);
+      const heard = this.socketHeardAt(ws);
+      try { ws.close(4002, 'silent'); } catch (e) {}
+      if (pid && !online.has(pid) && !this.room.lastSeen[pid]) {
+        this.room.lastSeen[pid] = heard || now;
+        dirty = presence = true;
       }
     }
 
     // A host who has been gone a while hands the room to someone still here.
-    const online = this.onlineIds();
     const hostId = this.room.hostId;
-    if (!online.has(hostId)) {
-      this.room.lastSeen = this.room.lastSeen || {};
-      const leftAt = this.room.lastSeen[hostId];
+    if (online.has(hostId)) {
+      // Here after all (a quiet socket that pinged again): the wait starts over next time.
+      if (this.room.lastSeen[hostId]) { delete this.room.lastSeen[hostId]; dirty = true; }
+    } else {
       const heir = this.room.players.find((p) => online.has(p.id)) || (this.room.screens || []).find((s) => online.has(s.id));
+      let leftAt = this.room.lastSeen[hostId];
       if (!leftAt) {
-        // Never seen leaving (the HTTP fallback, or a restart): the wait starts now.
-        this.room.lastSeen[hostId] = now;
-        this.save(true);
-        if (heir) again = now + HOST_AWAY_MS;
-      } else if (heir && now - leftAt >= HOST_AWAY_MS - 1000) {
+        // Never seen leaving (the HTTP fallback, or a restart): gone since last heard, or from now.
+        leftAt = this.heardAt(hostId) || now;
+        this.room.lastSeen[hostId] = leftAt;
+        dirty = true;
+      }
+      if (heir && now - leftAt >= HOST_AWAY_MS - 1000) {
         this.room.hostId = heir.id;
         roomEvent(this.room, 'host', { name: heir.name || '📺' });
         changed = true;
       } else if (heir) {
-        again = leftAt + HOST_AWAY_MS;
+        soonest(leftAt + HOST_AWAY_MS);
       }
+    }
+
+    // While the host holds a socket, look again when it would fall silent: a
+    // socket that dies without closing wakes nothing, so nothing else notices.
+    if (online.has(this.room.hostId)) {
+      const heard = this.heardAt(this.room.hostId);
+      if (heard !== null) soonest(Math.max(heard + SOCKET_SILENT_MS + 1000, now + 5000));
     }
 
     if (changed) {
       this.touch();
       await this.save();
       this.broadcast();
+    } else {
+      if (dirty) await this.save();
+      if (presence) this.broadcast();
     }
 
     // A phone on the HTTP fallback leaves no trace when it stops asking, so the
@@ -297,7 +374,7 @@ export class Room extends DurableObject {
     // such phone would drop out of "online".
     await this.reportLive();
     const pollEnds = [...this.polled.values()].map((at) => at + ONLINE_WINDOW_MS + 1000).filter((t) => t > now);
-    if (pollEnds.length) again = Math.min(again === undefined ? Infinity : again, ...pollEnds);
+    if (pollEnds.length) soonest(Math.min(...pollEnds));
 
     // Inside alarm() the alarm that is running may still read as set; replace it outright.
     await this.scheduleAlarm(again, true);
@@ -356,7 +433,8 @@ export class Room extends DurableObject {
       if (!name) return { ok: false, error: 'اكتب اسمك أولاً' };
       if (room.players.length >= MAX_PLAYERS) return { ok: false, error: 'الغرفة ممتلئة' };
       // Joining mid-game is allowed: the newcomer watches until the next round.
-      if (room.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+      // أحمد and احمد are one name, as on the phone and when a screen becomes a player.
+      if (room.players.some((p) => sameRoomName(p.name, name))) {
         return { ok: false, error: 'الاسم مستخدم بالفعل في هذه الغرفة' };
       }
       room.players.push({ id: pid, name });
@@ -386,6 +464,9 @@ export class Room extends DurableObject {
     // The memory read let other messages in; look at the room as it is now.
     problem = this.check(pid);
     if (problem) return { ok: false, [problem]: true, error: problem === 'gone' ? 'ROOM_NOT_FOUND' : 'NOT_IN_ROOM' };
+
+    // Taking someone out needs to know who is connected, which only the room knows.
+    if (action === 'kick') return this.kick(pid, payload, ws);
 
     // The rules change the room in place and may throw halfway through a move,
     // so they work on a copy that only replaces the room if the move is legal.
@@ -453,38 +534,85 @@ export class Room extends DurableObject {
   async leave(pid, key) {
     await this.load();
     if (this.check(pid, key)) return { ok: true };
+    await this.removeDevice(pid, 'left');
+    return { ok: true };
+  }
+
+  /**
+   * The host takes out a player (or a screen) whose phone is gone, exactly as
+   * if they had left - never someone still connected, and never themselves.
+   * Somebody already gone is nothing to do.
+   */
+  async kick(pid, payload, ws) {
+    const room = this.room;
+    if (room.hostId !== pid) return { ok: false, error: 'المضيف فقط يمكنه فعل ذلك' };
+    const target = String(payload.playerId || '');
+    if (target === pid) return { ok: false, error: 'مينفعش تطلّع نفسك من الغرفة' };
+    const inRoom = room.players.some((p) => p.id === target) || (room.screens || []).some((s) => s.id === target);
+    if (inRoom) {
+      if (this.onlineIds().has(target)) return { ok: false, error: 'ده لسه متصل، مينفعش يطلع' };
+      await this.removeDevice(target, 'kicked', ws);
+    }
+    if (!ws) this.polled.set(pid, Date.now());
+    return { ok: true, state: this.project(pid, this.onlineIds()) };
+  }
+
+  /**
+   * Takes a player or a screen out of the room - they left, or the host
+   * removed them (`how`: 'left' or 'kicked', which is what their own phone is
+   * told). The game lets go of them too (roomPlayerLeft). `skip` is a socket
+   * that gets the new state in its ack.
+   */
+  async removeDevice(pid, how, skip = null) {
     const room = this.room;
     const leaving = room.players.find((p) => p.id === pid);
     room.players = room.players.filter((p) => p.id !== pid);
     room.screens = (room.screens || []).filter((s) => s.id !== pid);
     if (room.secrets) delete room.secrets[pid];
     if (room.keys) delete room.keys[pid];
+    if (room.lastSeen) delete room.lastSeen[pid];
     this.polled.delete(pid);
     // Hand the room to whoever is left rather than orphaning it: a player if
     // there is one, otherwise a screen.
+    let newHost = false;
     if (room.hostId === pid && (room.players.length || room.screens.length)) {
       const online = this.onlineIds();
       const heir = room.players.find((p) => online.has(p.id)) || room.players[0] ||
         room.screens.find((s) => online.has(s.id)) || room.screens[0];
       room.hostId = heir.id;
       roomEvent(room, 'host', { name: heir.name || '📺' });
+      newHost = true;
     }
     if (leaving) roomEvent(room, 'left', { name: leaving.name });
 
     for (const ws of this.openSockets()) {
       if (this.playerOf(ws) !== pid) continue;
-      try { ws.send(JSON.stringify({ t: 'left' })); ws.close(4001, 'left'); } catch (e) {}
+      try { ws.send(JSON.stringify({ t: how })); ws.close(4001, how); } catch (e) {}
     }
 
     if (!room.players.length && !room.screens.length) {
       await this.destroy();
-      return { ok: true };
+      return;
     }
+
+    // The round stops waiting for them. On a copy: a rule that throws must
+    // never stop someone leaving.
+    if (leaving && room.game) {
+      const next = structuredClone(room);
+      try {
+        roomPlayerLeft(next, pid, leaving.name);
+        this.room = next;
+      } catch (err) {
+        console.error('roomPlayerLeft', errorText(err));
+      }
+    }
+
     this.touch();
     await this.save();
-    this.broadcast();
+    this.broadcast({ skip });
     await this.reportLive();
-    return { ok: true };
+    // A round the leave moved on may have a new clock, and a new host is watched.
+    await this.scheduleAlarm(newHost ? Date.now() + SOCKET_SILENT_MS + 1000 : undefined);
   }
 
   /* --- WebSockets ---------------------------------------------------------- */
@@ -512,7 +640,8 @@ export class Room extends DurableObject {
     // Hibernation API: the room can sleep between messages without dropping
     // anyone, which is what keeps a quiet room free.
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ pid });
+    // `at`: heard from now, until its first ping is (see socketHeardAt).
+    server.serializeAttachment({ pid, at: Date.now() });
     this.polled.delete(pid);
     if (this.room.lastSeen && this.room.lastSeen[pid]) {
       delete this.room.lastSeen[pid];
@@ -523,6 +652,8 @@ export class Room extends DurableObject {
       this.broadcast({ skip: server });
       await this.reportLive();
     }
+    // The host's socket is watched: the alarm looks again when it would fall silent.
+    if (pid === this.room.hostId) await this.scheduleAlarm(Date.now() + SOCKET_SILENT_MS + 1000);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -579,16 +710,20 @@ export class Room extends DurableObject {
     await this.gone(ws);
   }
 
-  /** A socket closed. If that was the player's last one, everyone sees them go. */
+  /**
+   * A socket closed. If that was the device's last one, everyone sees it go -
+   * a screen too, since a room hosted from a TV hands over when the TV goes.
+   */
   async gone(ws) {
     await this.load();
     if (!this.room) return;
     const pid = this.playerOf(ws);
     if (!pid || this.onlineIds(ws).has(pid)) return;
-    if (!this.room.players.some((p) => p.id === pid)) return;
+    if (!this.room.players.some((p) => p.id === pid) && !(this.room.screens || []).some((s) => s.id === pid)) return;
 
     this.room.lastSeen = this.room.lastSeen || {};
-    this.room.lastSeen[pid] = Date.now();
+    // Already away since earlier (a silent socket the alarm closed): that is when they went.
+    if (!this.room.lastSeen[pid]) this.room.lastSeen[pid] = Date.now();
     this.save(true);
     this.broadcast({ leaving: ws });
     await this.reportLive(ws);

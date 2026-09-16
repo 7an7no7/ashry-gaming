@@ -73,6 +73,9 @@ function minesLay(s, safe, rnd) {
 }
 
 function startMines(daily) {
+  if (daily && soloDailyResume('mines')) return;
+  soloDailySetAside('mines');
+  soloNewGame('mines');
   const s = minesState();
   const level = daily ? 'medium' : s.level;
   const L = MINES_LEVELS[level];
@@ -85,6 +88,8 @@ function startMines(daily) {
   s.boom = -1;
   s.mines = [];
   s.startedAt = 0;
+  s.pausedAt = 0;
+  s.seconds = 0;
   s.phase = 'ready';
   if (daily) {
     const rnd = soloRng(soloDaySeed('mines'));
@@ -110,7 +115,7 @@ function continueMines() {
 
 function minesArmTimer() {
   minesStopTimer();
-  minesTimer = soloClock('mines-time', minesState().startedAt);
+  minesTimer = soloClock('mines-time', () => minesState().startedAt);
 }
 
 function minesStopTimer() {
@@ -220,7 +225,7 @@ function paintMines(opened, from) {
   const flagsLeft = s.count - s.flags.reduce((a, b) => a + b, 0);
   const bar = soloBarHtml([
     { label: t.mines_left || '', value: flagsLeft, id: 'mines-left' },
-    { label: t.solo_time || '', value: s.startedAt ? soloTime((Date.now() - s.startedAt) / 1000) : '0:00', id: 'mines-time' },
+    { label: t.solo_time || '', value: over ? soloTime(s.seconds) : (s.startedAt ? soloTime((Date.now() - s.startedAt) / 1000) : '0:00'), id: 'mines-time' },
     s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: escapeHTML(t['solo_lvl_' + (s.playLevel || s.level)] || '') }
   ]);
   el.innerHTML = `
@@ -277,6 +282,7 @@ function minesLose(hit) {
   minesStopTimer();
   s.phase = 'lost';
   s.boom = hit;
+  s.seconds = s.startedAt ? Math.round((Date.now() - s.startedAt) / 1000) : 0;
   saveToLocal();
   paintMines();
   haptic('heavy');
@@ -285,15 +291,16 @@ function minesLose(hit) {
     grid.animate([{ transform: 'none' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(-4px)' }, { transform: 'none' }], { duration: 380 });
   }
   let share = '';
-  if (s.daily === soloToday()) {
-    soloMarkDaily('mines', { lost: true });
-    share = `${soloShareHeader(t)}\n🚩 ${t.setup_mines || ''} 💥`;
+  if (s.daily) {
+    soloMarkDaily('mines', { lost: true }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n🚩 ${t.setup_mines || ''} 💥`;
   }
-  setTimeout(() => soloResult({
+  // The sheet waits for the shake; a new board dealt meanwhile cancels it.
+  soloLater('mines', motionOff() ? 0 : 900, () => soloResult({
     icon: '💥', title: t.mines_lost || '', valueText: '💣', valueLabel: '',
     lines: [escapeHTML(t.mines_lost_line || '')], win: false, share: share,
     again: () => startMines(false), exit: setupMines
-  }), motionOff() ? 0 : 900);
+  }));
 }
 
 function minesWin() {
@@ -302,22 +309,23 @@ function minesWin() {
   minesStopTimer();
   s.phase = 'won';
   const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  s.seconds = seconds;
   saveToLocal();
   paintMines();
   const level = s.playLevel || s.level;
   const rec = soloRecord('mines', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
   let share = '';
-  if (s.daily === soloToday()) {
-    soloMarkDaily('mines', { seconds: seconds });
-    share = `${soloShareHeader(t)}\n🚩 ${t.setup_mines || ''} ✅ ${soloTime(seconds)}`;
+  if (s.daily) {
+    soloMarkDaily('mines', { seconds: seconds }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n🚩 ${t.setup_mines || ''} ✅ ${soloTime(seconds)}`;
   }
   const lines = [];
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
-  setTimeout(() => soloResult({
+  soloLater('mines', motionOff() ? 0 : 400, () => soloResult({
     icon: '🚩', title: rec.record ? (t.solo_new_best || '') : (t.mines_won || ''),
     valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
     again: () => startMines(false), exit: setupMines
-  }), motionOff() ? 0 : 400);
+  }));
 }
 
 function restoreMines() {
@@ -328,5 +336,8 @@ function restoreMines() {
   return true;
 }
 
-soloRegister('mines', { setup: 'setup-mines', play: 'play-mines', paintSetup: paintMinesSetup, restore: restoreMines });
+soloRegister('mines', {
+  setup: 'setup-mines', play: 'play-mines', paintSetup: paintMinesSetup, restore: restoreMines,
+  state: minesState, resume: continueMines, repaint: () => paintMines(), timed: true, prefs: ['level']
+});
 </script>

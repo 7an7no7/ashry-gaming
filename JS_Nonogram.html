@@ -10,8 +10,11 @@
    A board is either one of NONO_PICTURES (drawn by hand) or random. Either
    way it is only used if nonoSolvable can finish it line by line - so it has
    exactly one solution and never needs a guess. 5×5 easy (random), 8×8
-   medium and 10×10 hard (pictures or random); the daily is a 10×10 picture
-   from the seed. The board is in appState.nonogram.
+   medium and 10×10 hard (pictures or random); the daily is a 10×10 picture,
+   going round all of them before one comes back (nonoDailyPicture: the order
+   of each round is shuffled from its number, so every phone agrees). Clearing
+   the board and dealing a new one over a game in progress both ask first.
+   The board is in appState.nonogram.
    ========================================================================= */
 
 const NONO_PICTURES = {
@@ -41,7 +44,7 @@ let nonoTimer = null;
 
 function nonoState() {
   if (!appState.nonogram) {
-    appState.nonogram = { level: 'easy', daily: '', n: 5, solution: [], cells: [], pic: null, mode: 'fill', startedAt: 0, phase: 'setup' };
+    appState.nonogram = { level: 'easy', daily: '', n: 5, solution: [], cells: [], pic: null, mode: 'fill', hints: 0, startedAt: 0, pausedAt: 0, phase: 'setup' };
   }
   return appState.nonogram;
 }
@@ -122,16 +125,36 @@ function nonoFromPicture(pic) {
   return pic.rows.join('').split('').map(ch => (ch === '#' ? 1 : 0));
 }
 
-/** { n, solution, pic } for a level. `picOnly` for the daily. */
-function nonoMake(level, rnd, picOnly) {
-  const n = NONO_SIZES[level] || 5;
-  const pics = (NONO_PICTURES[n] || []).filter(p => {
+function nonoSolvablePictures(n) {
+  return (NONO_PICTURES[n] || []).filter(p => {
     const sol = nonoFromPicture(p);
     const cl = nonoClues(n, sol);
     return nonoSolvable(n, cl.rows, cl.cols);
   });
-  if (pics.length && (picOnly || rnd() < 0.5)) {
-    const pic = soloPick(pics, rnd);
+}
+
+/**
+ * The daily's picture: the pictures go round in an order shuffled from the
+ * round's number, so none comes back before all have been, and a round never
+ * starts with the picture the last one ended on.
+ */
+function nonoDailyPicture(pics, day) {
+  const count = pics.length;
+  const index = soloDayIndex(day);
+  const round = Math.floor(index / count);
+  const order = (k) => soloShuffle(pics.map((_, i) => i), soloRng(soloHash('ashry-nonogram-round:' + k)));
+  const now = order(round);
+  const before = order(round - 1);
+  if (count > 1 && now[0] === before[count - 1]) now.push(now.shift());
+  return pics[now[((index % count) + count) % count]];
+}
+
+/** { n, solution, pic } for a level. `daily` (a YYYY-MM-DD day) for the daily's picture. */
+function nonoMake(level, rnd, daily) {
+  const n = NONO_SIZES[level] || 5;
+  const pics = nonoSolvablePictures(n);
+  if (pics.length && (daily || rnd() < 0.5)) {
+    const pic = daily ? nonoDailyPicture(pics, daily === true ? soloToday() : daily) : soloPick(pics, rnd);
     return { n: n, solution: nonoFromPicture(pic), pic: { ar: pic.ar, en: pic.en, e: pic.e } };
   }
   for (let attempt = 0; attempt < 400; attempt++) {
@@ -169,11 +192,17 @@ function setNonogramLevel(level) {
   paintNonogramSetup();
 }
 
-function startNonogram(daily) {
+const nonoHasWork = (s) => (s.cells || []).some(Boolean);
+
+function startNonogram(daily, sure) {
+  if (!sure && soloConfirmNew('nonogram', nonoHasWork, () => startNonogram(daily, true))) return;
+  if (daily && soloDailyResume('nonogram')) return;
   const s = nonoState();
   const level = daily ? 'hard' : s.level;
-  const made = nonoMake(level, soloRandom(daily ? soloDaySeed('nonogram') : null), !!daily);
+  const made = nonoMake(level, soloRandom(daily ? soloDaySeed('nonogram') : null), daily ? soloToday() : '');
   if (!made) return;
+  soloDailySetAside('nonogram');
+  soloNewGame('nonogram');
   s.daily = daily ? soloToday() : '';
   s.playLevel = level;
   s.n = made.n;
@@ -183,6 +212,8 @@ function startNonogram(daily) {
   s.mode = 'fill';
   s.hints = 0;
   s.startedAt = Date.now();
+  s.pausedAt = 0;
+  s.seconds = 0;
   s.phase = 'play';
   saveToLocal();
   setView('play-nonogram');
@@ -199,7 +230,7 @@ function continueNonogram() {
 
 function nonoArmTimer() {
   nonoStopTimer();
-  nonoTimer = soloClock('nono-time', nonoState().startedAt);
+  nonoTimer = soloClock('nono-time', () => nonoState().startedAt);
 }
 
 function nonoStopTimer() {
@@ -219,7 +250,7 @@ function paintNonogram() {
   const colDone = Array.from({ length: n }, (_, c) => nonoRuns(Array.from({ length: n }, (_, r) => filled[r * n + c])).join(',') === clues.cols[c].join(','));
   const bar = soloBarHtml([
     s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: `${n}×${n}` },
-    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'nono-time' }
+    { label: t.solo_time || '', value: soloTime(s.phase === 'play' ? (Date.now() - s.startedAt) / 1000 : s.seconds), id: 'nono-time' }
   ]);
   const colHead = clues.cols.map((cl, c) => `<div class="nono-clue nono-clue--col${colDone[c] ? ' is-done' : ''}">${(cl.length ? cl : [0]).map(x => `<span>${x}</span>`).join('')}</div>`).join('');
   const body = Array.from({ length: n }, (_, r) => `
@@ -233,7 +264,7 @@ function paintNonogram() {
   el.innerHTML = `
     <div class="solo-layout">
       <div class="solo-layout__board">
-        <div class="nono-grid" id="nono-grid" dir="ltr" style="--nono-n:${n}">
+        <div class="nono-grid${s.phase === 'done' ? ' is-solved' : ''}" id="nono-grid" dir="ltr" style="--nono-n:${n}">
           <div class="nono-corner"></div>${colHead}${body}
         </div>
       </div>
@@ -298,9 +329,15 @@ function nonoDown(e, i) {
   document.addEventListener('pointercancel', up);
 }
 
-function clearNonogram() {
+/** Empties the board, after asking: it is every mark at once. */
+function clearNonogram(sure) {
   const s = nonoState();
-  if (s.phase !== 'play') return;
+  if (s.phase !== 'play' || !nonoHasWork(s)) return;
+  if (!sure) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    showConfirmModal(t.solo_clear_confirm || 'تمسح كل اللي على اللوحة؟', () => clearNonogram(true));
+    return;
+  }
   s.cells = s.cells.map(() => 0);
   saveToLocal();
   paintNonogram();
@@ -330,6 +367,7 @@ function nonoCheck() {
   s.phase = 'done';
   s.cells = s.cells.map(v => (v === 1 ? 1 : 0));
   const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  s.seconds = seconds;
   saveToLocal();
   paintNonogram();
   const t = TRANSLATIONS[appState.lang];
@@ -347,18 +385,19 @@ function nonoCheck() {
   const rec = s.hints ? { record: false, prev: soloBest('nonogram', level) }
     : soloRecord('nonogram', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
   let share = '';
-  if (s.daily === soloToday()) {
-    soloMarkDaily('nonogram', { seconds: seconds });
-    share = `${soloShareHeader(t)}\n🖼️ ${t.setup_nonogram || ''} ✅ ${soloTime(seconds)}`;
+  if (s.daily) {
+    soloMarkDaily('nonogram', { seconds: seconds, hints: s.hints || 0 }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n🖼️ ${t.setup_nonogram || ''} ✅ ${soloTime(seconds)}${s.hints ? ' · 💡 ' + s.hints : ''}`;
   }
   const lines = [];
   if (s.pic) lines.push(`${s.pic.e} <b>${escapeHTML(appState.lang === 'en' ? s.pic.en : s.pic.ar)}</b>`);
+  if (s.hints) lines.push(`💡 ${escapeHTML(t.solo_hint || '')}: ${s.hints}`);
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
-  setTimeout(() => soloResult({
+  soloLater('nonogram', motionOff() ? 0 : n * 2 * 30 + 500, () => soloResult({
     icon: s.pic ? s.pic.e : '🖼️', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
     valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
     again: () => startNonogram(false), exit: setupNonogram
-  }), motionOff() ? 0 : n * 2 * 30 + 500);
+  }));
 }
 
 function restoreNonogram() {
@@ -369,5 +408,8 @@ function restoreNonogram() {
   return true;
 }
 
-soloRegister('nonogram', { setup: 'setup-nonogram', play: 'play-nonogram', paintSetup: paintNonogramSetup, restore: restoreNonogram });
+soloRegister('nonogram', {
+  setup: 'setup-nonogram', play: 'play-nonogram', paintSetup: paintNonogramSetup, restore: restoreNonogram,
+  state: nonoState, resume: continueNonogram, repaint: paintNonogram, timed: true, prefs: ['level', 'mode']
+});
 </script>

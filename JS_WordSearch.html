@@ -12,8 +12,11 @@
    down, or diagonally (hard also backwards and up); the rest of the grid is
    filled with letters drawn from the theme's own words, so the filler looks
    like the words. Hamza forms and diacritics are folded so a grid letter is
-   one plain letter. Easy 7×7 with 5 words, medium 8×8 with 6, hard 9×9 with 8;
-   the daily is medium from the seed. The board is in appState.strands.
+   one plain letter. The filler is drawn again when it makes a hidden word
+   readable a second time somewhere (strandsCopies), and a word traced where
+   it still repeats lights the cells that were traced. Easy 7×7 with 5 words,
+   medium 8×8 with 6, hard 9×9 with 8; the daily is medium from the seed. The
+   board is in appState.strands.
    ========================================================================= */
 
 const STRANDS_LEVELS = {
@@ -26,7 +29,7 @@ let strandsDrag = null;
 
 function strandsState() {
   if (!appState.strands) {
-    appState.strands = { level: 'easy', daily: '', lang: 'ar', size: 7, theme: '', icon: '', grid: [], words: [], found: [], hints: [], startedAt: 0, phase: 'setup' };
+    appState.strands = { level: 'easy', daily: '', lang: 'ar', size: 7, theme: '', icon: '', grid: [], words: [], found: [], hints: [], startedAt: 0, pausedAt: 0, phase: 'setup' };
   }
   return appState.strands;
 }
@@ -38,7 +41,29 @@ function strandsFold(word, lang) {
   return w;
 }
 
-/** A category's name without its emoji, and the emoji apart. */
+/**
+ * How many straight lines of the grid read `word`, either way round (a
+ * palindrome read both ways along one line counts once). A player can trace
+ * any of them, so each hidden word should be there exactly once.
+ */
+function strandsCopies(grid, size, word) {
+  const len = word.length;
+  const back = word.split('').reverse().join('');
+  let copies = 0;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+        const r1 = r + dr * (len - 1), c1 = c + dc * (len - 1);
+        if (r1 < 0 || r1 >= size || c1 < 0 || c1 >= size) continue;
+        let text = '';
+        for (let k = 0; k < len; k++) text += grid[(r + dr * k) * size + (c + dc * k)];
+        if (text === word || text === back) copies++;
+      }
+    }
+  }
+  return copies;
+}
+
 /** { size, theme, icon, grid, words: [{ w, cells }] } or null. */
 function strandsMake(level, lang, rnd) {
   const L = STRANDS_LEVELS[level] || STRANDS_LEVELS.easy;
@@ -50,6 +75,7 @@ function strandsMake(level, lang, rnd) {
   for (const theme of themes) {
     const pool = soloShuffle(theme.words.map(w => strandsFold(w, lang)).filter(w => letterRe.test(w) && w.length >= 3 && w.length <= L.size), rnd);
     if (pool.length < L.words) continue;
+    let fallback = null;
     for (let attempt = 0; attempt < 30; attempt++) {
       const grid = new Array(L.size * L.size).fill('');
       const placed = [];
@@ -70,8 +96,9 @@ function strandsMake(level, lang, rnd) {
               cells.push(i);
             }
             if (!fits) continue;
-            // A word inside another placed word would be found twice.
-            if (placed.some(p => p.w.indexOf(w) !== -1 || w.indexOf(p.w) !== -1)) { fits = false; }
+            // A word inside another placed word (either way round) would be found twice.
+            const back = w.split('').reverse().join('');
+            if (placed.some(p => p.w.indexOf(w) !== -1 || w.indexOf(p.w) !== -1 || p.w.indexOf(back) !== -1 || back.indexOf(p.w) !== -1)) { fits = false; }
             if (!fits) continue;
             cells.forEach((i, k) => { grid[i] = w[k]; });
             placed.push({ w: w, cells: cells });
@@ -83,10 +110,23 @@ function strandsMake(level, lang, rnd) {
       }
       if (placed.length < L.words) continue;
       const letters = pool.join('').split('');
-      for (let i = 0; i < grid.length; i++) if (!grid[i]) grid[i] = letters[Math.floor(rnd() * letters.length)];
+      const empty = [];
+      for (let i = 0; i < grid.length; i++) if (!grid[i]) empty.push(i);
+      // Filler drawn from the theme's letters can spell a hidden word again;
+      // draw it again until every word is there once. When the words
+      // themselves make a second copy, lay them out again; if every layout
+      // does, the first is kept (a traced copy still counts, see strandsTry).
+      let clean = false;
+      for (let fill = 0; fill < 12 && !clean; fill++) {
+        empty.forEach(i => { grid[i] = letters[Math.floor(rnd() * letters.length)]; });
+        clean = placed.every(p => strandsCopies(grid, L.size, p.w) === 1);
+      }
       const t = soloCategory(theme.category);
-      return { size: L.size, theme: t.name, icon: t.icon, grid: grid, words: placed };
+      const made = { size: L.size, theme: t.name, icon: t.icon, grid: grid, words: placed };
+      if (clean) return made;
+      fallback = fallback || made;
     }
+    if (fallback) return fallback;
   }
   return null;
 }
@@ -118,11 +158,14 @@ function setStrandsLevel(level) {
 }
 
 function startStrands(daily) {
+  if (daily && soloDailyResume('strands')) return;
   const s = strandsState();
   const level = daily ? 'medium' : s.level;
   const lang = contentLang() === 'en' ? 'en' : 'ar';
   const made = strandsMake(level, lang, soloRandom(daily ? soloDaySeed('strands:' + lang) : null));
   if (!made) return;
+  soloDailySetAside('strands');
+  soloNewGame('strands');
   s.daily = daily ? soloToday() : '';
   s.playLevel = level;
   s.lang = lang;
@@ -134,6 +177,8 @@ function startStrands(daily) {
   s.found = [];
   s.hints = [];
   s.startedAt = Date.now();
+  s.pausedAt = 0;
+  s.seconds = 0;
   s.phase = 'play';
   saveToLocal();
   setView('play-strands');
@@ -150,7 +195,7 @@ function continueStrands() {
 
 function strandsArmTimer() {
   strandsStopTimer();
-  strandsTimer = soloClock('strands-time', strandsState().startedAt);
+  strandsTimer = soloClock('strands-time', () => strandsState().startedAt);
 }
 
 function strandsStopTimer() {
@@ -167,7 +212,7 @@ function paintStrands() {
   s.found.forEach((wi, n) => s.words[wi].cells.forEach(i => { foundCells[i] = (foundCells[i] || []).concat(n % 6); }));
   const bar = soloBarHtml([
     { label: t.strands_found || '', value: `${s.found.length}/${s.words.length}`, id: 'strands-count' },
-    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'strands-time' }
+    { label: t.solo_time || '', value: soloTime(s.phase === 'play' ? (Date.now() - s.startedAt) / 1000 : s.seconds), id: 'strands-time' }
   ]);
   el.innerHTML = `
     <div class="solo-layout">
@@ -255,6 +300,9 @@ function strandsTry(cells) {
     if (grid && grid.animate && !motionOff()) grid.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }], { duration: 240 });
     return;
   }
+  // The word lights where it was traced, in reading order, even if it was
+  // planted somewhere else as well.
+  s.words[wi].cells = s.words[wi].w === text ? cells.slice() : cells.slice().reverse();
   s.found.push(wi);
   saveToLocal();
   playSound('success');
@@ -311,22 +359,23 @@ function strandsFinish() {
   strandsStopTimer();
   s.phase = 'done';
   const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  s.seconds = seconds;
   saveToLocal();
   const level = s.playLevel || s.level;
   const rec = s.hints.length ? { record: false, prev: soloBest('strands', level) }
     : soloRecord('strands', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
   let share = '';
-  if (s.daily === soloToday()) {
-    soloMarkDaily('strands', { seconds: seconds, hints: s.hints.length });
-    share = `${soloShareHeader(t)}\n🧵 ${t.setup_strands || ''} ✅ ${soloTime(seconds)}${s.hints.length ? ' · 💡 ' + s.hints.length : ''}`;
+  if (s.daily) {
+    soloMarkDaily('strands', { seconds: seconds, hints: s.hints.length }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n🧵 ${t.setup_strands || ''} ✅ ${soloTime(seconds)}${s.hints.length ? ' · 💡 ' + s.hints.length : ''}`;
   }
   const lines = [`${s.icon || ''} <b>${escapeHTML(s.theme)}</b>`];
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
-  setTimeout(() => soloResult({
+  soloLater('strands', motionOff() ? 0 : 900, () => soloResult({
     icon: '🧵', title: rec.record ? (t.solo_new_best || '') : (t.strands_done || ''),
     valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
     again: () => startStrands(false), exit: setupStrands
-  }), motionOff() ? 0 : 900);
+  }));
 }
 
 function restoreStrands() {
@@ -337,5 +386,8 @@ function restoreStrands() {
   return true;
 }
 
-soloRegister('strands', { setup: 'setup-strands', play: 'play-strands', paintSetup: paintStrandsSetup, restore: restoreStrands });
+soloRegister('strands', {
+  setup: 'setup-strands', play: 'play-strands', paintSetup: paintStrandsSetup, restore: restoreStrands,
+  state: strandsState, resume: continueStrands, repaint: paintStrands, timed: true, prefs: ['level']
+});
 </script>

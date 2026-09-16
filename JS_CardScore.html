@@ -8,15 +8,22 @@
 
    - seats: who plays (the player picker), or two teams of two (طرنيب,
      partnership تريكس, and باصرة for four), named from the players in seat
-     order;
+     order. The setup screen draws that order as a numbered strip (team
+     colours in a team game), tap two names to swap their seats: the order
+     is appState.activePlayers itself, so what is on screen is what is dealt;
    - a round card: what the scorekeeper types after a hand (entryHtml), read
      back (read), checked against the deck (check: 13 tricks, 4 queens...) and
-     turned into points per seat (score);
+     turned into points per seat (score); quick fills where the deck fixes a
+     total (quick), and who deals (dealer) or whose kingdom it is;
    - the end: a target (first to it), elimination (كونكان: over the limit is
      out, the last in wins) or a fixed number of rounds (إستميشن, تريكس);
    - options per game with the common house rules, painted on the setup
-     screen and remembered.
+     screen and remembered. Once a round is saved they are the rules of that
+     game and are shown locked: changing them means a new game (asked first).
 
+   Saving the round is the sticky action at the foot of the play screen, with
+   a preview of what it would do to the totals (and whether it ends the game)
+   as soon as the card is complete, so a typo is caught before it counts.
    Every round stays in the history with what was typed, so the last one can
    be taken back and typed again; totals count up and the leader is marked.
    The game lives in appState.cardscore[id], so a reload comes back to it.
@@ -37,6 +44,15 @@ function csState(id) {
 const csT = () => TRANSLATIONS[appState.lang] || {};
 const csSum = (arr) => arr.reduce((a, b) => a + (Number(b) || 0), 0);
 
+/** A game with rounds saved: its options are the rules it is being played by. */
+const csLive = (s) => s.phase === 'play' && s.rounds.length > 0;
+
+/** The values an option offers with the other options as they are (كونكان: no knock-out in teams). */
+const csOptionValues = (o, opts) => (o.valuesOf ? o.valuesOf(opts) : o.values);
+
+/** A seat's short name for narrow places (the history's header, the preview): "فريق 1" in the language on screen. */
+const csShort = (seat, t) => (seat.teamNo ? (t.cs_team_short || 'فريق {n}').replace('{n}', seat.teamNo) : (seat.short || seat.name));
+
 /* --- Setup ----------------------------------------------------------------------------- */
 
 function setupCardScore(id) {
@@ -48,33 +64,89 @@ function paintCardScoreSetup(id) {
   const s = csState(id);
   const t = csT();
   const box = document.getElementById('cs-' + id + '-options');
-  if (box) {
-    box.innerHTML = Object.keys(g.options || {}).map(key => {
-      const o = g.options[key];
-      if (o.when && !o.when(s.opts)) return '';
-      return `
-        <div class="field">
-          <label class="field__label">${escapeHTML(t[o.label] || '')}</label>
-          <div class="segmented" role="group">
-            ${o.values.map(v => `<button type="button" class="segmented__item ${String(s.opts[key]) === String(v) ? 'is-active' : ''}" onclick="setCardScoreOpt('${id}', '${key}', '${v}')">${escapeHTML(o.labelOf ? o.labelOf(v, t) : String(v))}</button>`).join('')}
-          </div>
-          ${o.hint ? `<p class="field__hint">${escapeHTML(t[o.hint(s.opts)] || '')}</p>` : ''}
-        </div>`;
-    }).join('');
-  }
-  const hint = document.getElementById('cs-' + id + '-seats');
-  if (hint) hint.textContent = t[g.seatsHint(s.opts)] || '';
+  if (box) box.innerHTML = csLive(s) ? csLockedOptionsHtml(id, s, g, t) : csOptionsHtml(id, s, g, t);
+  csPaintSeating(id);
+  csWatchPicker(id);
   const cont = document.getElementById('cs-' + id + '-continue');
-  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  if (cont) {
+    cont.classList.toggle('hidden', s.phase === 'setup' || !s.seats.length);
+    if (s.phase === 'over') {
+      // Not "continue": the game is over, and this opens its final board and its take-back.
+      cont.removeAttribute('data-i18n');
+      cont.textContent = t.cs_view_last || 'شوف آخر لعبة';
+    } else {
+      cont.setAttribute('data-i18n', 'solo_continue');
+      cont.textContent = t.solo_continue || 'كمّل اللعبة';
+    }
+  }
+}
+
+function csOptionsHtml(id, s, g, t) {
+  return Object.keys(g.options || {}).map(key => {
+    const o = g.options[key];
+    if (o.when && !o.when(s.opts)) return '';
+    return `
+      <div class="field">
+        <label class="field__label">${escapeHTML(t[o.label] || '')}</label>
+        <div class="segmented" role="group">
+          ${csOptionValues(o, s.opts).map(v => `<button type="button" class="segmented__item ${String(s.opts[key]) === String(v) ? 'is-active' : ''}" onclick="setCardScoreOpt('${id}', '${key}', '${v}')">${escapeHTML(o.labelOf ? o.labelOf(v, t) : String(v))}</button>`).join('')}
+        </div>
+        ${o.hint ? `<p class="field__hint">${escapeHTML(t[o.hint(s.opts)] || '')}</p>` : ''}
+      </div>`;
+  }).join('');
+}
+
+/** The rules of the game in progress, read-only, and the one way to change them: a new game. */
+function csLockedOptionsHtml(id, s, g, t) {
+  const rules = Object.keys(g.options || {}).map(key => {
+    const o = g.options[key];
+    if (o.when && !o.when(s.opts)) return '';
+    const v = s.opts[key];
+    return `<span class="badge badge--accent">${escapeHTML(t[o.label] || '')}: ${escapeHTML(o.labelOf ? o.labelOf(v, t) : String(v))}</span>`;
+  }).join('');
+  return `
+    <div class="field">
+      <label class="field__label">🔒 ${escapeHTML(t.cs_rules_locked || 'قواعد اللعبة اللي شغالة')}</label>
+      <div class="btn-stack">
+        <div class="chip-set">${rules}</div>
+        <button type="button" class="btn btn--ghost btn--sm" onclick="csChangeRules('${id}')">${escapeHTML(t.cs_change_rules || 'غيّر القواعد (لعبة جديدة)')}</button>
+      </div>
+      <p class="field__hint">${escapeHTML(t.cs_rules_locked_hint || 'اللعبة ماشية بالقواعد دي. تغييرها يبدأ لعبة جديدة.')}</p>
+    </div>`;
 }
 
 function setCardScoreOpt(id, key, value) {
+  const g = CS_GAMES[id];
   const s = csState(id);
-  const o = CS_GAMES[id].options[key];
+  // A game in progress keeps its rules (the options are drawn locked; this is the guard).
+  if (csLive(s)) { paintCardScoreSetup(id); return; }
+  const o = g.options[key];
+  const was = JSON.stringify(s.opts);
   s.opts[key] = typeof o.def === 'number' ? Number(value) : value;
+  // An option another one rules out goes back to its default.
+  Object.keys(g.options).forEach(k => {
+    if (csOptionValues(g.options[k], s.opts).map(String).indexOf(String(s.opts[k])) === -1) s.opts[k] = g.options[k].def;
+  });
+  // The last game was dealt for the old rules (nothing played yet, or already over):
+  // its board can't be drawn with the new ones, so it goes and Start deals again.
+  if (JSON.stringify(s.opts) !== was && s.phase !== 'setup') s.phase = 'setup';
   saveToLocal();
   paintCardScoreSetup(id);
   haptic('light');
+}
+
+/** Other rules for a game in progress: only by ending it, and only once asked. */
+function csChangeRules(id) {
+  const t = csT();
+  showConfirmModal(t.cs_confirm_end || 'اللعبة اللي شغالة هتتمسح عشان تغيّر القواعد. متأكد؟', () => {
+    const s = csState(id);
+    s.phase = 'setup';
+    s.rounds = [];
+    s.draft = {};
+    delete s.winTeam;
+    saveToLocal();
+    paintCardScoreSetup(id);
+  });
 }
 
 function startCardScore(id) {
@@ -87,10 +159,21 @@ function startCardScore(id) {
     showToast((t.cs_need_players || '').replace('{min}', need[0]).replace('{max}', need[1]), 'error');
     return;
   }
+  if (csLive(s)) {
+    showConfirmModal(t.cs_confirm_new || 'فيه لعبة شغالة. تبدأ لعبة جديدة وتمسحها؟', () => csBegin(id, names));
+    return;
+  }
+  csBegin(id, names);
+}
+
+function csBegin(id, names) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
   s.names = names;
-  s.seats = g.seats(names, s.opts, t);
+  s.seats = g.seats(names, s.opts, csT());
   s.rounds = [];
   s.draft = {};
+  delete s.winTeam;
   s.phase = 'play';
   s.startedAt = Date.now();
   saveToLocal();
@@ -104,11 +187,122 @@ function continueCardScore(id) {
   paintCardScore(id);
 }
 
+/* --- The seating strip ------------------------------------------------------------------- */
+
+let csSeatArmed = null;   // { id, i }: the first name tapped, waiting for the one to swap with
+
+/**
+ * The players in the order they will sit, numbered, in their team's colour in
+ * a team game. It is the order Start deals from (appState.activePlayers, the
+ * order the chips were tapped in), which the chips above don't show.
+ */
+function csPaintSeating(id) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  const hint = document.getElementById('cs-' + id + '-seats');
+  if (hint) {
+    const swap = (appState.activePlayers || []).length > 1 ? ' ' + (t.cs_seating_swap || 'اضغط على اسمين عشان تبدّل مكانهم.') : '';
+    hint.textContent = (t[g.seatsHint(s.opts)] || '') + swap;
+  }
+  let box = document.getElementById('cs-' + id + '-seating');
+  if (!box) {
+    if (!hint || !hint.parentNode) return;
+    box = document.createElement('div');
+    box.id = 'cs-' + id + '-seating';
+    hint.insertAdjacentElement('beforebegin', box);
+  }
+  const names = appState.activePlayers || [];
+  if (csSeatArmed && (csSeatArmed.id !== id || csSeatArmed.i >= names.length)) csSeatArmed = null;
+  if (names.length < 2) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const teams = !!(g.teamMode && g.teamMode(s.opts)) && names.length === 4;
+  const accent = (i) => (teams ? ` data-accent="${i % 2 === 0 ? 'blue' : 'rose'}"` : '');
+  const chips = names.map((name, i) => {
+    const armed = !!csSeatArmed && csSeatArmed.i === i;
+    return `<button type="button" class="opt-chip${armed ? ' is-active' : ''}"${accent(i)} data-seat="${i}" aria-pressed="${armed}" onclick="csSeatTap('${id}', ${i})"><span class="badge badge--accent metric">${i + 1}</span><bdi>${escapeHTML(name)}</bdi></button>`;
+  }).join('');
+  const teamLine = teams ? `<div class="chip-set">${[0, 1].map(k => `<span class="badge badge--accent"${accent(k)}>${escapeHTML((t.cs_team_short || 'فريق {n}').replace('{n}', k + 1))}: <bdi>${escapeHTML(names[k])} &amp; ${escapeHTML(names[k + 2])}</bdi></span>`).join('')}</div>` : '';
+  box.innerHTML = `
+    <label class="field__label">${escapeHTML(t.cs_seating || 'ترتيب القعدة')}</label>
+    <div class="btn-stack"><div class="chip-set">${chips}</div>${teamLine}</div>`;
+}
+
+/** First tap picks a seat, a second one swaps the two; the names slide to their new seats. */
+function csSeatTap(id, i) {
+  const names = appState.activePlayers || [];
+  if (i >= names.length) return;
+  if (!csSeatArmed || csSeatArmed.id !== id) {
+    csSeatArmed = { id: id, i: i };
+  } else if (csSeatArmed.i === i) {
+    csSeatArmed = null;
+  } else {
+    const j = csSeatArmed.i;
+    const box = document.getElementById('cs-' + id + '-seating');
+    const rectOf = (k) => { const el = box && box.querySelector(`[data-seat="${k}"]`); return el ? el.getBoundingClientRect() : null; };
+    const from = { [i]: rectOf(j), [j]: rectOf(i) };
+    const next = names.slice();
+    const moved = next[i];
+    next[i] = next[j];
+    next[j] = moved;
+    appState.activePlayers = next;
+    csSeatArmed = null;
+    saveToLocal();
+    csPaintSeating(id);
+    const boxNow = document.getElementById('cs-' + id + '-seating');
+    if (boxNow && !motionOff()) {
+      [i, j].forEach(k => {
+        const el = boxNow.querySelector(`[data-seat="${k}"]`);
+        const was = from[k];
+        if (!el || !was || !el.animate) return;
+        const now = el.getBoundingClientRect();
+        el.animate([{ transform: `translate(${was.left - now.left}px, ${was.top - now.top}px)` }, { transform: 'none' }],
+                   { duration: 420, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      });
+    }
+    haptic('medium');
+    return;
+  }
+  haptic('light');
+  csPaintSeating(id);
+}
+
+/** The chips are redrawn by the picker (JS_Utils.html) on every tap; the strip follows them. */
+function csWatchPicker(id) {
+  const list = document.getElementById('cs-' + id + '-player-list');
+  if (!list || list._csSeatWatch || typeof MutationObserver !== 'function') return;
+  list._csSeatWatch = new MutationObserver(() => {
+    csSeatArmed = null;
+    if (appState.currentView === 'setup-cs-' + id) csPaintSeating(id);
+  });
+  list._csSeatWatch.observe(list, { childList: true });
+}
+
 /* --- Play ------------------------------------------------------------------------------- */
 
 function csTotals(id) {
   const s = csState(id);
   return s.seats.map((_, i) => csSum(s.rounds.map(r => r.points[i])));
+}
+
+/** The rows of the totals: a seat each, or a team (a team row sums two seats). */
+function csBoard(id, s, totals) {
+  const g = CS_GAMES[id];
+  return g.board ? g.board(s, totals) : s.seats.map((seat, i) => ({ i: i, name: seat.name, short: csShort(seat, csT()), score: totals[i], out: false }));
+}
+
+const csOrder = (g, board) => board.slice().sort((a, b) => ((a.out ? 1 : 0) - (b.out ? 1 : 0)) || (g.low ? a.score - b.score : b.score - a.score));
+
+/** Who won, from the board in order: a team (طرنيب 41) or everyone sharing the best score. */
+function csWinnersOf(g, s, order) {
+  const team = g.winners && g.winners(s, order);
+  return team || order.filter(r => !r.out && r.score === order[0].score);
+}
+
+/** Who deals this round: the next seat each round, in seating order. */
+function csDealer(s) {
+  const names = s.names && s.names.length ? s.names : s.seats.map(x => x.name);
+  return names.length ? names[s.rounds.length % names.length] : '';
 }
 
 function paintCardScore(id, fresh) {
@@ -117,17 +311,25 @@ function paintCardScore(id, fresh) {
   const t = csT();
   const el = document.getElementById('cs-' + id + '-stage');
   if (!el || !s.seats.length) return;
+  // The round cards share element ids (cs-in-b0 is a bid in طرنيب 41 and a basra
+  // count in باصرة, cs-preview is everyone's), and a hidden stage still in the page
+  // would answer getElementById first: only the game on screen keeps its card.
+  CS_IDS.forEach(other => {
+    const stage = other !== id && document.getElementById('cs-' + other + '-stage');
+    if (stage && stage.innerHTML) stage.innerHTML = '';
+  });
   const totals = csTotals(id);
-  const boardOf = (tt) => (g.board ? g.board(s, tt) : s.seats.map((seat, i) => ({ i: i, name: seat.name, score: tt[i], out: false })));
-  const board = boardOf(totals);
+  const board = csBoard(id, s, totals);
   // What each row stood at before the last round, for the count-up (a team row sums two seats).
   const last = s.rounds[s.rounds.length - 1];
-  const before = last ? boardOf(totals.map((x, i) => x - (Number(last.points[i]) || 0))) : board;
-  const order = board.slice().sort((a, b) => (a.out - b.out) || (g.low ? a.score - b.score : b.score - a.score));
+  const before = last ? csBoard(id, s, totals.map((x, i) => x - (Number(last.points[i]) || 0))) : board;
+  const order = csOrder(g, board);
   const lead = order[0];
   const over = s.phase === 'over';
   const roundNo = s.rounds.length + 1;
   const goal = g.goalText ? g.goalText(s, t) : '';
+  const dealer = g.dealer ? (typeof g.dealer === 'function' ? g.dealer(s) : csDealer(s)) : '';
+  const labels = [g.roundLabel ? g.roundLabel(s, t) : '', dealer ? '🃏 ' + (t.cs_dealer || 'بيوزّع: {name}').replace('{name}', dealer) : ''].filter(Boolean);
   el.innerHTML = `
     <div class="cs-layout${over ? ' cs-layout--over' : ''}">
     <div class="cs-layout__side">
@@ -144,24 +346,30 @@ function paintCardScore(id, fresh) {
         </div>`).join('')}
     </div>
     ${over ? csFinalHtml(id, order, t) : ''}
-    ${csHistoryHtml(id, s, g, t, over)}
     </div>
-    ${over ? '' : `
-      <div class="cs-layout__main">
+    <div class="cs-layout__main">
+      ${over ? '' : `
       <div class="card cs-entry" id="cs-entry">
         <div class="cs-entry__head">
           <b>${escapeHTML((t.cs_round || '').replace('{n}', roundNo))}</b>
-          ${g.roundLabel && g.roundLabel(s, t) ? `<span class="badge">${escapeHTML(g.roundLabel(s, t))}</span>` : ''}
+          ${labels.length ? `<span class="chip-set">${labels.map(l => `<span class="badge">${escapeHTML(l)}</span>`).join('')}</span>` : ''}
         </div>
         ${g.entryHtml(s, t)}
-        <button type="button" class="btn btn--primary btn--lg" onclick="saveCardScoreRound('${id}')">${escapeHTML(t.cs_save_round || '')}</button>
-      </div>
       </div>`}
+      ${csHistoryHtml(id, s, g, t)}
+      <button type="button" class="btn btn--ghost btn--sm" onclick="setupCardScore('${id}')">${escapeHTML(t.exit || '')}</button>
+    </div>
     </div>
     <div class="view-actions">
-      <button class="btn btn--ghost btn--sm" onclick="setupCardScore('${id}')">${escapeHTML(t.exit || '')}</button>
+      ${over
+        ? `<button type="button" class="btn btn--primary btn--lg" onclick="restartCardScore('${id}')">${escapeHTML(t.play_again || '')}</button>`
+        : `<div class="btn-stack">
+             <div class="chip-set hidden" id="cs-preview" aria-live="polite"></div>
+             <button type="button" class="btn btn--primary btn--lg" onclick="saveCardScoreRound('${id}')">${escapeHTML(t.cs_save_round || '')}</button>
+           </div>`}
     </div>`;
   if (g.afterPaint) g.afterPaint(s);
+  if (!over) csRefresh(id);
   if (fresh && !motionOff() && typeof countUp === 'function') {
     el.querySelectorAll('.cs-total__score').forEach(scoreEl => {
       const from = Number(scoreEl.dataset.from), to = Number(scoreEl.dataset.score);
@@ -179,7 +387,7 @@ function csHistoryHtml(id, s, g, t) {
         <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="undoCardScoreRound('${id}')">↶ ${escapeHTML(t.cs_undo_round || '')}</button></div>
       <div class="cs-table" role="table">
         <div class="cs-row cs-row--head" role="row" style="--cs-cols:${s.seats.length}">
-          <span>#</span>${s.seats.map(seat => `<span>${escapeHTML(seat.short || seat.name)}</span>`).join('')}
+          <span>#</span>${s.seats.map(seat => `<span>${escapeHTML(csShort(seat, t))}</span>`).join('')}
         </div>
         ${s.rounds.map((r, n) => `
           <div class="cs-row" role="row" style="--cs-cols:${s.seats.length}">
@@ -192,21 +400,128 @@ function csHistoryHtml(id, s, g, t) {
 
 function csFinalHtml(id, order, t) {
   const g = CS_GAMES[id];
-  const team = g.winners && g.winners(csState(id), order);
-  const winners = team || order.filter(r => !r.out && r.score === order[0].score);
+  const s = csState(id);
+  const team = g.winners && g.winners(s, order);
+  const winners = csWinnersOf(g, s, order);
   const board = order.filter(r => !r.out).map(r => ({ pid: String(r.i), name: r.name, score: g.low ? -r.score : r.score }));
   // A team that won (طرنيب 41) is not a ranking of its players.
-  const podium = !team && !g.low && board.length > 1 ? renderPodium({ code: 'cs', game: id + ':' + csState(id).startedAt }, board) : '';
+  const podium = !team && !g.low && board.length > 1 ? renderPodium({ code: 'cs', game: id + ':' + s.startedAt }, board) : '';
   return `
     <div class="card card--accent" style="text-align:center">
       <div class="metric metric--md">🏆</div>
       <div class="card__title">${escapeHTML(winners.map(w => w.name).join(team ? ' & ' : ' · '))}</div>
       <p class="sheet__subtitle">${escapeHTML(!team && winners.length > 1 ? (t.cs_tie || '') : (t.cs_winner || ''))}</p>
       ${podium}
-    </div>
-    <div class="btn-stack">
-      <button type="button" class="btn btn--primary btn--lg" onclick="restartCardScore('${id}')">${escapeHTML(t.play_again || '')}</button>
     </div>`;
+}
+
+/**
+ * What saving `input` would do, without saving it: each row's total after the
+ * round and by how much it moved, who would be out, and whether the game
+ * would end and who would win. The round goes on a copy of the state, since
+ * ended() may note a winning team on the state it is given.
+ */
+function csProject(id, input) {
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const result = g.score(input, s);
+  const totals = csTotals(id);
+  const after = totals.map((x, i) => x + (Number(result.points[i]) || 0));
+  const next = Object.assign({}, s, { rounds: s.rounds.concat([Object.assign({}, result, { input: input, points: result.points })]) });
+  delete next.winTeam;
+  const end = !!g.ended(next, after);
+  const now = csBoard(id, s, totals);
+  const then = csBoard(id, next, after);
+  const winners = end ? csWinnersOf(g, next, csOrder(g, then)) : [];
+  return {
+    end: end,
+    rows: then.map(row => {
+      const was = now.find(r => r.i === row.i) || row;
+      return { i: row.i, name: row.short || row.name, score: row.score, delta: row.score - was.score, out: !!row.out && !was.out, won: winners.some(w => w.i === row.i) };
+    })
+  };
+}
+
+/** The card's quick fills and the preview over the save button, after anything on the card changes. */
+function csRefresh(id) {
+  csPaintQuick(id);
+  csPaintPreview(id);
+}
+
+function csPaintPreview(id) {
+  const box = document.getElementById('cs-preview');
+  if (!box) return;
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  let html = '';
+  try {
+    const input = g.read(s);
+    if (s.phase === 'play' && !g.check(input, s, t)) {
+      const p = csProject(id, input);
+      html = p.rows.map(r => `<span class="badge${r.won ? ' badge--success' : (r.out ? ' badge--danger' : '')}">${r.won ? '🏆 ' : ''}<bdi>${escapeHTML(r.name)}</bdi>&nbsp;<span class="metric">${r.score}</span>&nbsp;<span class="metric">(${r.delta > 0 ? '+' : ''}${r.delta})</span></span>`).join('');
+      if (p.end) html += `<span class="badge badge--success">🏁 ${escapeHTML(t.cs_preview_end || 'الجولة دي بتنهي اللعبة')}</span>`;
+    }
+  } catch (e) { html = ''; }
+  box.innerHTML = html;
+  box.classList.toggle('hidden', !html);
+}
+
+/** Where a rule set wants its quick fills on the card. */
+const csQuickSlot = () => '<div id="cs-quick" class="btn-stack hidden"></div>';
+
+/**
+ * One-tap numbers where the deck decides them: the tricks or cards left over
+ * once the others are in ("the rest, to whom?"), and in إستميشن "took exactly
+ * the call". A rule set lists them in quick(s, t):
+ *   { kind: 'rest', keys, total, max, label }  - keys add up to total
+ *   { kind: 'same', from, to, label }          - to[i] = from[i]
+ */
+function csPaintQuick(id) {
+  const box = document.getElementById('cs-quick');
+  if (!box) return;
+  const g = CS_GAMES[id];
+  const s = csState(id);
+  const t = csT();
+  const groups = g.quick ? g.quick(s, t) : [];
+  const nameOf = (i) => (s.seats[i] ? s.seats[i].name : '');
+  const offered = {};
+  const chip = (key, value, name, shown) => {
+    if (offered[key] === value) return '';
+    offered[key] = value;
+    return `<button type="button" class="opt-chip" onclick="csQuickSet('${key}', ${value})"><bdi>${escapeHTML(name)}</bdi><span class="metric">${shown}</span></button>`;
+  };
+  const html = groups.map(q => {
+    let chips = [];
+    let label = q.label || '';
+    if (q.kind === 'same') {
+      chips = q.from.map((from, i) => {
+        const call = csVal(from);
+        return call !== null && csVal(q.to[i]) === null ? chip(q.to[i], call, nameOf(i), call) : '';
+      });
+    } else {
+      const vals = q.keys.map(csVal);
+      const filled = vals.filter(v => v !== null);
+      const rest = q.total - csSum(filled);
+      const empty = vals.map((v, i) => (v === null ? i : -1)).filter(i => i !== -1);
+      if (rest > 0 && empty.length === 1) chips = [chip(q.keys[empty[0]], rest, nameOf(empty[0]), rest)];
+      // Every count typed (تريكس and باصرة start at 0) but short of the total: the rest on top of someone's.
+      else if (rest > 0 && !empty.length && csSum(vals) > 0) chips = vals.map((v, i) => (v + rest <= q.max ? chip(q.keys[i], v + rest, nameOf(i), '+' + rest) : ''));
+      label = (label ? label + ' · ' : '') + (t.cs_quick_rest || 'الباقي {n}، لمين؟').replace('{n}', rest);
+    }
+    chips = chips.filter(Boolean);
+    return chips.length ? `<span class="cs-label">${escapeHTML(label)}</span><div class="chip-set">${chips.join('')}</div>` : '';
+  }).join('');
+  box.innerHTML = html;
+  box.classList.toggle('hidden', !html);
+}
+
+function csQuickSet(key, value) {
+  const input = document.getElementById('cs-in-' + key);
+  if (!input) return;
+  input.value = value;
+  csKeep(input);
+  haptic('light');
 }
 
 function saveCardScoreRound(id) {
@@ -226,7 +541,17 @@ function saveCardScoreRound(id) {
   playSound(end ? 'success' : 'click');
   haptic('light');
   paintCardScore(id, true);
-  if (end && typeof confetti === 'function' && !motionOff()) setTimeout(() => confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }), 500);
+  const main = document.getElementById('shell-main');
+  const entry = document.getElementById('cs-entry');
+  if (end) {
+    if (main) main.scrollTop = 0;
+    const stage = document.getElementById('cs-' + id + '-stage');
+    const cheer = () => { if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }); };
+    if (typeof afterReveal === 'function') afterReveal(stage, cheer); else setTimeout(cheer, 500);
+  } else if (main && entry && entry.getBoundingClientRect().top < main.getBoundingClientRect().top) {
+    // Saved from the foot of a long card: the next round starts at its head.
+    entry.scrollIntoView({ block: 'start', behavior: motionOff() ? 'auto' : 'smooth' });
+  }
 }
 
 /** The last round back into the card, to fix and save again. */
@@ -246,11 +571,14 @@ function restartCardScore(id) {
   const s = csState(id);
   s.rounds = [];
   s.draft = {};
+  delete s.winTeam;
   s.phase = 'play';
   s.startedAt = Date.now();
   if (CS_GAMES[id].reseat) s.seats = CS_GAMES[id].reseat(s);
   saveToLocal();
   paintCardScore(id);
+  const main = document.getElementById('shell-main');
+  if (main) main.scrollTop = 0;
 }
 
 function restoreCardScore(id) {
@@ -262,13 +590,15 @@ function restoreCardScore(id) {
 
 /* --- Small inputs the rule sets share ---------------------------------------------------- */
 
+const csCurrentId = () => CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+
 /**
  * Everything on the round card as it is now, by the inputs' keys: saved with
  * the round, so taking the round back puts exactly what was typed back on
  * the card to fix.
  */
 function csDraftOf() {
-  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  const id = csCurrentId();
   const draft = {};
   if (!id) return draft;
   document.querySelectorAll('#cs-' + id + '-stage .cs-step__val').forEach(el => { if (el.value !== '') draft[el.id.replace('cs-in-', '')] = el.value; });
@@ -285,18 +615,32 @@ function csToggleHtml(key, label, on) {
   return `<button type="button" class="cs-toggle ${on ? 'is-on' : ''}" id="cs-tog-${key}" aria-pressed="${on ? 'true' : 'false'}" onclick="csToggle('${key}')">${escapeHTML(label)}</button>`;
 }
 
-function csToggle(key) {
+/** Sets a pill and keeps it in the draft. */
+function csSetToggle(key, on) {
   const btn = document.getElementById('cs-tog-' + key);
-  if (!btn) return;
-  const on = !btn.classList.contains('is-on');
-  btn.classList.toggle('is-on', on);
-  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  if (btn) {
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  const id = csCurrentId();
   if (id) {
     const s = csState(id);
     s.draft = s.draft || {};
     s.draft['tog-' + key] = on ? '1' : '';
+  }
+}
+
+function csToggle(key) {
+  const btn = document.getElementById('cs-tog-' + key);
+  if (!btn) return;
+  const on = !btn.classList.contains('is-on');
+  csSetToggle(key, on);
+  const id = csCurrentId();
+  if (id) {
+    const g = CS_GAMES[id];
+    if (g.onToggle) g.onToggle(key, on, csState(id));
     saveToLocal();
+    csRefresh(id);
   }
   haptic('light');
 }
@@ -308,7 +652,7 @@ function csStepperHtml(key, value, min, max) {
   return `
     <span class="cs-step" data-key="${key}" dir="ltr">
       <button type="button" class="cs-step__btn" onclick="csStep('${key}', -1, ${min}, ${max})" aria-label="−">−</button>
-      <input type="number" inputmode="numeric" class="cs-step__val metric" id="cs-in-${key}" value="${value === undefined || value === null ? '' : value}" min="${min}" max="${max}" onchange="csKeep(this)">
+      <input type="number" inputmode="numeric" class="cs-step__val metric" id="cs-in-${key}" value="${value === undefined || value === null ? '' : value}" min="${min}" max="${max}" oninput="csKeep(this)">
       <button type="button" class="cs-step__btn" onclick="csStep('${key}', 1, ${min}, ${max})" aria-label="+">+</button>
     </span>`;
 }
@@ -324,12 +668,13 @@ function csStep(key, delta, min, max) {
 
 /** Typing survives a redraw (a language change, a reload): kept in the game's draft. */
 function csKeep(input) {
-  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  const id = csCurrentId();
   if (!id || !input || !input.id) return;
   const s = csState(id);
   s.draft = s.draft || {};
   s.draft[input.id.replace('cs-in-', '')] = input.value;
   saveToLocal();
+  csRefresh(id);
 }
 
 const csVal = (key) => {
@@ -348,7 +693,7 @@ function csPick(key, btn) {
   if (!box) return;
   const on = !btn.classList.contains('is-on') || box.dataset.required !== 'false';
   box.querySelectorAll('.cs-pick__item').forEach(b => b.classList.toggle('is-on', b === btn && on));
-  const id = CS_IDS.find(x => appState.currentView === 'play-cs-' + x);
+  const id = csCurrentId();
   if (id) {
     const s = csState(id);
     s.draft = s.draft || {};
@@ -356,6 +701,7 @@ function csPick(key, btn) {
     saveToLocal();
     const g = CS_GAMES[id];
     if (g.onPick) g.onPick(key, s);
+    csRefresh(id);
   }
   haptic('light');
 }
@@ -370,11 +716,19 @@ const csDraft = (s, key, fallback) => (s.draft && s.draft[key] !== undefined && 
 /** Four names as two teams, sitting across from each other: 1 & 3 against 2 & 4. */
 function csTeams(names, t) {
   const a = [names[0], names[2]], b = [names[1], names[3]];
-  const label = (pair, n) => ({ name: `${pair.join(' & ')}`, short: (t.cs_team_short || '').replace('{n}', n), members: pair });
+  const label = (pair, n) => ({ name: `${pair.join(' & ')}`, short: (t.cs_team_short || '').replace('{n}', n), teamNo: n, members: pair });
   return [label(a, 1), label(b, 2)];
 }
 
 CS_IDS.forEach(id => {
   soloRegister('cs-' + id, { setup: 'setup-cs-' + id, play: 'play-cs-' + id, paintSetup: () => paintCardScoreSetup(id), restore: () => restoreCardScore(id) });
 });
+
+// The play screen's words are drawn here, so a language change draws it again.
+if (typeof onLanguageChange === 'function') {
+  onLanguageChange(view => {
+    const id = CS_IDS.find(x => view === 'play-cs-' + x);
+    if (id && csState(id).seats.length) paintCardScore(id);
+  });
+}
 </script>

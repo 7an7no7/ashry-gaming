@@ -2,11 +2,24 @@
 /* ================= TEAM GENERATOR LOGIC ================= */
 
 function setTeamCount(n) {
-    appState.teams.count = n;
+    appState.teams.count = [2, 3, 4].indexOf(Number(n)) !== -1 ? Number(n) : 2;
+    n = appState.teams.count;
+    if (typeof saveToLocal === 'function') saveToLocal();
     [2,3,4].forEach(i => {
         const btn = document.getElementById(`team-btn-${i}`);
         if (!btn) return;
         // Selection is a button tier, not a hand-written colour pair.
+        btn.className = (i === n) ? 'btn btn--primary' : 'btn btn--ghost';
+        btn.setAttribute('aria-pressed', String(i === n));
+    });
+}
+
+/** The setup screen as it was left: the saved number of teams lit (SETUP_PAINTERS). */
+function paintTeamsSetup() {
+    const n = [2, 3, 4].indexOf(Number(appState.teams.count)) !== -1 ? Number(appState.teams.count) : 2;
+    [2,3,4].forEach(i => {
+        const btn = document.getElementById(`team-btn-${i}`);
+        if (!btn) return;
         btn.className = (i === n) ? 'btn btn--primary' : 'btn btn--ghost';
         btn.setAttribute('aria-pressed', String(i === n));
     });
@@ -84,26 +97,55 @@ function setSkill(player, level) {
     playSound('click');
 }
 
+/**
+ * Teams as close in skill as the stars allow, and as close in size as the
+ * count allows (never more than one apart). The old greedy fill handed each
+ * player to the weakest team so far, which put a star alone against five.
+ * Now: a snake draft by skill (1-2-3-3-2-1…), then swaps between teams while
+ * one narrows the gap between the strongest and weakest total. Sizes never
+ * change in a swap.
+ */
+function balancedTeams(names, count, skillOf) {
+    const k = Math.max(1, count);
+    // A little noise so equal stars don't always land the same way.
+    const players = shuffleArray(names).map(name => ({ name: name, skill: skillOf(name) + Math.random() * 0.1 }))
+        .sort((a, b) => b.skill - a.skill);
+    const teams = Array.from({ length: k }, () => []);
+    players.forEach((p, i) => {
+        const lap = Math.floor(i / k), seat = i % k;
+        teams[lap % 2 === 0 ? seat : k - 1 - seat].push(p);
+    });
+    const total = (team) => team.reduce((sum, p) => sum + p.skill, 0);
+    const spread = () => {
+        const sums = teams.map(total);
+        return Math.max(...sums) - Math.min(...sums);
+    };
+    for (let pass = 0; pass < 60; pass++) {
+        let best = spread(), move = null;
+        for (let a = 0; a < k; a++) for (let b = a + 1; b < k; b++) {
+            for (let i = 0; i < teams[a].length; i++) for (let j = 0; j < teams[b].length; j++) {
+                const x = teams[a][i], y = teams[b][j];
+                teams[a][i] = y; teams[b][j] = x;
+                const now = spread();
+                teams[a][i] = x; teams[b][j] = y;
+                if (now < best - 1e-9) { best = now; move = [a, i, b, j]; }
+            }
+        }
+        if (!move) break;
+        const [a, i, b, j] = move;
+        const x = teams[a][i];
+        teams[a][i] = teams[b][j];
+        teams[b][j] = x;
+    }
+    // The first team shouldn't always be the one the best player was drafted to.
+    return shuffleArray(teams).map(team => team.map(p => p.name));
+}
+
 function generateFairTeams() {
     const selected = getSelectedPlayers();
-    
-    let playersObj = selected.map(name => ({
-        name: name,
-        skill: (appState.teams.playerSkills ? (appState.teams.playerSkills[name] || 3) : 3) + Math.random() * 0.1 
-    }));
-
-    playersObj.sort((a, b) => b.skill - a.skill);
-
-    let teams = Array.from({ length: appState.teams.count }, () => ({ members: [], totalSkill: 0 }));
-
-    playersObj.forEach(p => {
-        teams.sort((a, b) => a.totalSkill - b.totalSkill);
-        teams[0].members.push(p.name);
-        teams[0].totalSkill += p.skill;
-    });
-
+    const skills = appState.teams.playerSkills || {};
     closeModal('skill-modal');
-    renderTeams(teams.map(t => t.members));
+    renderTeams(balancedTeams(selected, appState.teams.count, (name) => skills[name] || 3));
 }
 
 function renderTeams(teams) {
@@ -808,34 +850,67 @@ const JO_WORDS_EN = [
     "Edinburgh", "San Francisco"
 ];
 
-let joProcessing = false;
+/*
+   كلمة واحدة on one phone is a set number of rounds (JO_ROUNDS, picked on
+   the setup screen and saved as appState.justone.rounds), one card each,
+   the guesser moving round the table. The result card is drawn here
+   (joPaintResult): the word, then the table's verdict - which can be taken
+   back until the next round starts - the score so far and who guesses next,
+   and after the last round the final score. The "next guesser, ready?"
+   popup it replaces could be cancelled into a dead screen, and its timer
+   fired on whatever screen came next.
+*/
+const JO_ROUNDS = [5, 10, 13];
+const JO_ROUNDS_DEFAULT = 10;
 
-function startJustOneGame() {
-    let selected = appState.activePlayers ? [...appState.activePlayers] : [];
-    saveActivePlayers(selected);
-    
+const joRoundsOf = () => {
+    const n = Number(appState.justone.rounds);
+    return JO_ROUNDS.indexOf(n) !== -1 ? n : JO_ROUNDS_DEFAULT;
+};
+
+function paintJustOneSetup() {
+    const n = joRoundsOf();
+    document.querySelectorAll('#justone-rounds .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === n));
+}
+
+function setJustOneRounds(n) {
+    appState.justone.rounds = JO_ROUNDS.indexOf(Number(n)) !== -1 ? Number(n) : JO_ROUNDS_DEFAULT;
+    saveToLocal();
+    paintJustOneSetup();
+    haptic('light');
+}
+
+function startJustOneGame(keepPlayers) {
+    const again = keepPlayers === true && (appState.justone.players || []).length >= 3;
+    let selected = again ? appState.justone.players.slice() : (appState.activePlayers ? [...appState.activePlayers] : []);
+    if (!again) saveActivePlayers(selected);
+
     if (selected.length < 3) {
-        const msg = TRANSLATIONS[appState.lang].select_3_players || "Need at least 3 players!";
+        const msg = TRANSLATIONS[appState.lang].select_3_players || (appState.lang === 'en' ? "Need at least 3 players!" : "تحتاج إلى 3 لاعبين على الأقل!");
         showToast(msg);
         return;
     }
 
     appState.justone.players = selected;
-    appState.justone.guesserIndex = 0; 
+    appState.justone.guesserIndex = 0;
     appState.justone.score = 0;
-    
+    appState.justone.round = 1;
+    appState.justone.total = joRoundsOf();
+    appState.justone.verdict = null;
+    appState.justone.startedAt = Date.now();
+
     nextJoRound();
 }
 
 function nextJoRound() {
-    joProcessing = false;
     appState.justone.clues = [];
-    
+    appState.justone.verdict = null;
+    appState.justone.phase = 'pass';
+
     // Choose word based on language
     const wordList = contentLang() === 'ar' ? JO_WORDS_AR : JO_WORDS_EN;
     appState.justone.secretWord = freshPick('justone:' + contentLang(), wordList, 1)[0];
-    
-    const guesser = appState.justone.players[appState.justone.guesserIndex];
+
     appState.justone.writers = appState.justone.players.filter((_, i) => i !== appState.justone.guesserIndex);
     appState.justone.currentWriterIndex = 0;
 
@@ -844,20 +919,20 @@ function nextJoRound() {
     document.getElementById('jo-phase-write').classList.add('hidden');
     document.getElementById('jo-phase-guess').classList.add('hidden');
     document.getElementById('jo-phase-result').classList.add('hidden');
-    
+
     joShowPassScreen();
 }
 
 function joShowPassScreen() {
     const writer = appState.justone.writers[appState.justone.currentWriterIndex];
     document.getElementById('jo-active-player').innerText = writer;
-    
-    const msg = appState.lang === 'ar' 
+
+    const msg = appState.lang === 'ar'
         ? `يا ${writer}، خد الموبايل عشان تشوف الكلمة وتكتب تلميح!`
         : `${writer}, take the phone to see the word and write a clue!`;
-        
+
     document.getElementById('jo-pass-instruction').innerText = msg;
-    
+
     document.getElementById('jo-phase-pass').classList.remove('hidden');
     document.getElementById('jo-phase-write').classList.add('hidden');
 }
@@ -865,7 +940,7 @@ function joShowPassScreen() {
 function joRevealPhase() {
     document.getElementById('jo-phase-pass').classList.add('hidden');
     document.getElementById('jo-phase-write').classList.remove('hidden');
-    
+
     document.getElementById('jo-secret-word-display').innerText = appState.justone.secretWord;
     const input = document.getElementById('jo-clue-input');
     input.value = '';
@@ -885,7 +960,7 @@ function joSubmitClue() {
 
     const writerName = appState.justone.writers[appState.justone.currentWriterIndex];
     appState.justone.clues.push({ player: writerName, text: clue });
-    
+
     playSound('click');
 
     appState.justone.currentWriterIndex++;
@@ -908,7 +983,7 @@ function joPrepareGuessPhase() {
 
     const list = document.getElementById('jo-clues-list');
     list.innerHTML = '';
-    
+
     if (validClues.length === 0) {
         const msg = appState.lang === 'ar' ? "يا ساتر! كل التلميحات اتحذفت!" : "Oh no! All clues removed!";
         list.innerHTML = `<div class="tx-danger font-bold">${msg}</div>`;
@@ -930,56 +1005,128 @@ function joPrepareGuessPhase() {
 
     const guesserName = appState.justone.players[appState.justone.guesserIndex];
     document.getElementById('jo-guesser-name').innerText = guesserName;
-    
+
     document.getElementById('jo-phase-write').classList.add('hidden');
     document.getElementById('jo-phase-guess').classList.remove('hidden');
-    
-    playSound('success'); 
+
+    playSound('success');
 }
 
 function joShowResult() {
+    appState.justone.phase = 'result';
+    appState.justone.verdict = null;
     document.getElementById('jo-phase-guess').classList.add('hidden');
     document.getElementById('jo-phase-result').classList.remove('hidden');
-    document.getElementById('jo-result-word').innerText = appState.justone.secretWord;
+    joPaintResult();
 }
 
+/** The table's verdict on this round. It can be taken back until the next round starts. */
 function joFinishRound(success) {
-    if (joProcessing) return;
-    joProcessing = true;
-
+    const jo = appState.justone;
+    if (jo.phase !== 'result') return;
+    jo.verdict = !!success;
+    if (success) jo.score = (jo.score || 0) + 1;
+    jo.phase = 'judged';
+    saveToLocal();
+    joPaintResult();
     if (success) {
-        appState.justone.score++;
         playSound('success');
         confetti({ particleCount: 150 });
     } else {
         playSound('alarm');
     }
+}
 
-    appState.justone.guesserIndex++;
-    if (appState.justone.guesserIndex >= appState.justone.players.length) {
-        appState.justone.guesserIndex = 0; 
+function joUndoVerdict() {
+    const jo = appState.justone;
+    if (jo.phase !== 'judged') return;
+    if (jo.verdict) jo.score = Math.max(0, (jo.score || 0) - 1);
+    jo.verdict = null;
+    jo.phase = 'result';
+    saveToLocal();
+    joPaintResult();
+    haptic('light');
+}
+
+/** On to the next guesser, or to the final score after the last round. */
+function joNext() {
+    const jo = appState.justone;
+    if (jo.phase !== 'judged') return;
+    if ((jo.round || 1) >= (jo.total || joRoundsOf())) {
+        jo.phase = 'final';
+        saveToLocal();
+        joPaintResult();
+        playSound('success');
+        const el = document.getElementById('jo-phase-result');
+        if (jo.score > 0 && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 160, spread: 90 }));
+        return;
+    }
+    jo.round = (jo.round || 1) + 1;
+    jo.guesserIndex = (jo.guesserIndex + 1) % jo.players.length;
+    nextJoRound();
+}
+
+/** The table's verdict on a whole game, like the box of the real one: by the share of cards guessed. */
+function joRating(score, total, t) {
+    const share = total ? score / total : 0;
+    if (share >= 1) return t.jo_rate_perfect || 'مثالي! ولا كلمة فلتت منكم 🏆';
+    if (share >= 0.7) return t.jo_rate_great || 'رهيب! فريق متفاهم جداً';
+    if (share >= 0.4) return t.jo_rate_good || 'حلو! تقدروا تعملوا أحسن';
+    return t.jo_rate_try || 'جرّبوا تاني وفكّروا مختلف عن بعض';
+}
+
+function joPaintResult() {
+    const jo = appState.justone;
+    const el = document.getElementById('jo-phase-result');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const total = jo.total || joRoundsOf();
+    const round = Math.min(jo.round || 1, total);
+    const tally = `<div class="cn-score"><span class="cn-score__role">${escapeHTML(t.round || '')} ${round} / ${total}</span><span class="badge badge--accent">✅ <span class="metric">${jo.score || 0}</span></span></div>`;
+
+    if (jo.phase === 'final') {
+        el.innerHTML = `
+            <div class="eyebrow">${escapeHTML(t.jo_final || 'النتيجة النهائية')}</div>
+            <div class="metric metric--lg metric--accent" dir="ltr"><span id="jo-final-score">${jo.score || 0}</span> / ${total}</div>
+            <p class="sheet__subtitle">${escapeHTML(joRating(jo.score || 0, total, t))}</p>
+            <div class="btn-stack" style="margin-top: var(--sp-4)">
+                <button onclick="startJustOneGame(true)" class="btn btn--primary btn--lg">${escapeHTML(t.play_again || '')}</button>
+                <button onclick="setView('setup-justone')" class="btn btn--ghost">${escapeHTML(t.exit || '')}</button>
+            </div>`;
+        const scoreEl = document.getElementById('jo-final-score');
+        if (scoreEl && jo.score > 0 && typeof countUp === 'function' && motionFirst('jo-final:' + jo.startedAt)) countUp(scoreEl, 0, jo.score);
+        return;
     }
 
-    setTimeout(() => {
-        const nextGuesser = appState.justone.players[appState.justone.guesserIndex];
-        const t = TRANSLATIONS[appState.lang];
-        
-        const msg = success 
-            ? (appState.lang === 'ar' ? "ممتاز! " : "Excellent! ") 
-            : (appState.lang === 'ar' ? "حظ أوفر! " : "Hard luck! ");
-            
-        // showConfirmModal writes with innerText, so escaping here would print
-        // the entities themselves for a name containing & or a quote.
-        const nextMsg = appState.lang === 'ar'
-            ? `المخمن التالي: ${nextGuesser}. جاهز؟`
-            : `Next guesser: ${nextGuesser}. Ready?`;
-            
-        showConfirmModal(`${msg} ${nextMsg}`, () => {
-             joProcessing = false;
-             nextJoRound();
-        });
-    }, 1500);
+    const word = `
+        <div class="eyebrow">${escapeHTML(t.correct_word_was || '')}</div>
+        <h2 id="jo-result-word" class="text-4xl font-black text-green-600 mb-8">${escapeHTML(jo.secretWord || '')}</h2>`;
+
+    if (jo.phase === 'judged') {
+        const last = round >= total;
+        const next = jo.players[(jo.guesserIndex + 1) % jo.players.length];
+        el.innerHTML = `${tally}${word}
+            <div class="metric metric--md ${jo.verdict ? 'tx-success' : 'tx-danger'}">${escapeHTML(jo.verdict ? (t.got_it_btn || '') : (t.missed_it_btn || ''))}</div>
+            ${last ? '' : `<p class="sheet__subtitle">${escapeHTML((t.jo_next_guesser || 'المخمّن اللي بعده: {name}').replace('{name}', next))}</p>`}
+            <div class="btn-stack" style="margin-top: var(--sp-4)">
+                <button onclick="joNext()" class="btn btn--primary btn--lg">${escapeHTML(last ? (t.jo_see_final || 'النتيجة النهائية 🏁') : (t.jo_ready_next || 'جاهزين، الجولة الجاية ➡'))}</button>
+                <button onclick="joUndoVerdict()" class="btn btn--ghost btn--sm">↶ ${escapeHTML(t.draw_undo || '')}</button>
+            </div>`;
+        return;
+    }
+
+    el.innerHTML = `${tally}${word}
+        <div class="grid grid-cols-2 gap-3">
+            <button onclick="joFinishRound(true)" class="btn btn--primary">${escapeHTML(t.got_it_btn || '')}</button>
+            <button onclick="joFinishRound(false)" class="btn btn--danger">${escapeHTML(t.missed_it_btn || '')}</button>
+        </div>`;
 }
+
+// Guarded: tools/validate-content.js evaluates this file on its own to read the word lists.
+if (typeof onLanguageChange === 'function') onLanguageChange((view) => {
+    const jo = appState.justone;
+    if (view === 'play-justone' && ['result', 'judged', 'final'].indexOf(jo.phase) !== -1) joPaintResult();
+});
 
 /* ================= REACTION TEST LOGIC ================= */
 
@@ -993,9 +1140,16 @@ function startReactionRound() {
     const exitBtn = document.getElementById('reaction-exit-btn');
     const t = TRANSLATIONS[appState.lang];
 
-    // Reset the click buttons back to "Gameplay Mode"
-    p1.onclick = () => handleReactionTap(1);
-    p2.onclick = () => handleReactionTap(2);
+    // Gameplay counts the press, not the release: on click, the time a finger
+    // stayed down was added to the reaction, and a tie was decided on letting go.
+    const press = (player) => (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        handleReactionTap(player);
+    };
+    p1.onclick = null;
+    p2.onclick = null;
+    p1.onpointerdown = press(1);
+    p2.onpointerdown = press(2);
 
     // Reset UI to RED (Waiting phase)
     p1.className = "flex-1 flex flex-col items-center justify-center bg-red-500 cursor-pointer transition-colors duration-75 p-4";
@@ -1140,10 +1294,28 @@ function showReactionResult(winner, timeMs, isFalseStart, falseStartPlayer, isTi
         if (msg1.children[0]) msg1.children[0].innerHTML += restartHTML;
         if (msg2.children[0]) msg2.children[0].innerHTML += restartHTML;
 
+        // Starting again is an ordinary tap.
+        p1.onpointerdown = null;
+        p2.onpointerdown = null;
         p1.onclick = () => startReactionRound();
         p2.onclick = () => startReactionRound();
     }, 1000);
 }
+
+// Leaving by any way but the exit button (the back button, another game):
+// the wait for green would still turn it green, with its sound, on the next screen.
+if (typeof onLeaveScreen === 'function') onLeaveScreen((from) => {
+    if (from !== 'play-reaction') return;
+    clearTimeout(appState.reaction.timeoutId);
+    clearTimeout(appState.reaction.resultTimeoutId);
+    appState.reaction.status = 'idle';
+    ['reaction-p1', 'reaction-p2'].forEach(id => {
+        const panel = document.getElementById(id);
+        if (!panel) return;
+        panel.onclick = null;
+        panel.onpointerdown = null;
+    });
+});
 
 function exitReactionGame(event) {
     // 🛡️ THE SHIELD: This stops the click from going through the button to the screen underneath!
@@ -1157,8 +1329,11 @@ function exitReactionGame(event) {
     appState.reaction.status = 'idle';
     
     // Completely disable the screen taps so they don't accidentally trigger a restart
-    document.getElementById('reaction-p1').onclick = null;
-    document.getElementById('reaction-p2').onclick = null;
+    ['reaction-p1', 'reaction-p2'].forEach(id => {
+        const panel = document.getElementById(id);
+        panel.onclick = null;
+        panel.onpointerdown = null;
+    });
     
     // Safely return to the setup menu
     setView('setup-reaction');

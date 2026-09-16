@@ -9,25 +9,41 @@
 
    DAILY_GAMES is the order and how each result reads in one short line; the
    results themselves are what each game passed to soloMarkDaily. A daily
-   started from here comes back here when its result sheet is closed
-   (soloHubReturn), instead of to that game's own setup screen.
+   already started says "continue" and goes back to where it was left
+   (soloDailyResume, through the game's own start). A daily started from here
+   comes back here when its result sheet is closed (soloHubReturn), instead of
+   to that game's own setup screen - as long as the player stays on its board.
    ========================================================================= */
+
+const dailyHints = (r) => (r.hints ? ' 💡' + r.hints : '');
 
 const DAILY_GAMES = [
   { id: 'flags',     start: () => startFlags(true),     line: (r) => r.won ? `✅ ${r.guesses}/6` : '❌ X/6' },
   { id: 'streak',    start: () => startStreak(true),    line: (r) => `${r.score >= 7 ? '✅' : '☑️'} ${r.score}/10` },
   { id: 'pinpoint',  start: () => startPinpoint(true),  line: (r) => `${r.score >= 13 ? '✅' : '☑️'} ${r.score}/25` },
-  { id: 'strands',   start: () => startStrands(true),   line: (r) => `✅ ${soloTime(r.seconds)}${r.hints ? ' 💡' + r.hints : ''}` },
-  { id: 'wordwheel', start: () => startWordWheel(true), line: (r) => `✅ ${soloTime(r.seconds)}${r.bonus ? ' ⭐' + r.bonus : ''}` },
+  { id: 'strands',   start: () => startStrands(true),   line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
+  { id: 'wordwheel', start: () => startWordWheel(true), line: (r) => `✅ ${soloTime(r.seconds)}${r.bonus ? ' ⭐' + r.bonus : ''}${dailyHints(r)}` },
   { id: 'blindrank', start: () => startBlindRank(true), line: (r) => `✅ ${(r.list || [])[0] || ''}` },
-  { id: 'sudoku',    start: () => startSudoku(true),    line: (r) => `✅ ${soloTime(r.seconds)}` },
-  { id: 'queens',    start: () => startQueens(true),    line: (r) => `✅ ${soloTime(r.seconds)}` },
-  { id: 'tango',     start: () => startTango(true),     line: (r) => `✅ ${soloTime(r.seconds)}` },
-  { id: 'nonogram',  start: () => startNonogram(true),  line: (r) => `✅ ${soloTime(r.seconds)}` },
+  { id: 'sudoku',    start: () => startSudoku(true),    line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
+  { id: 'queens',    start: () => startQueens(true),    line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
+  { id: 'tango',     start: () => startTango(true),     line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
+  { id: 'nonogram',  start: () => startNonogram(true),  line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'mines',     start: () => startMines(true),     line: (r) => r.lost ? '💥' : `✅ ${soloTime(r.seconds)}` }
 ];
 
 let soloHubReturn = false;
+let soloHubGame = '';   // the daily last started from here
+
+// Only that game's board keeps the way back here. Leaving it for anywhere but
+// the hub (the back arrow to its setup, another game) forgets it, or the next
+// daily played from its own screen would come back here too.
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (!soloHubReturn || to === 'setup-daily') return;
+    const g = SOLO_GAMES[soloHubGame];
+    if (!g || to !== g.play) soloHubReturn = false;
+  });
+}
 
 function openDaily() {
   setView('setup-daily');
@@ -67,6 +83,7 @@ function renderDaily() {
       ${DAILY_GAMES.map(g => {
         const cat = CATALOG_BY_ID[g.id];
         const result = soloDailyResult(g.id);
+        const going = !result && soloDailyInProgress(g.id);
         return `
           <button type="button" class="tool-item daily-row${result ? ' is-done' : ''}" data-accent="${cat.accent}" data-game="${g.id}" onclick="playDaily('${g.id}')" ${result ? 'disabled' : ''}>
             <span class="tool-icon" aria-hidden="true">${cat.icon}</span>
@@ -74,7 +91,7 @@ function renderDaily() {
               <span class="tool-name">${escapeHTML(t[cat.title] || g.id)}</span>
               <span class="tool-desc">${escapeHTML(result ? (t.daily_done_today || '') : (t[cat.desc] || ''))}</span>
             </span>
-            <span class="daily-row__status">${result ? escapeHTML(g.line(result)) : `<span class="badge">${escapeHTML(t.daily_play || '')}</span>`}</span>
+            <span class="daily-row__status">${result ? escapeHTML(g.line(result)) : `<span class="badge">${escapeHTML(going ? (t.daily_continue || 'كمّل') : (t.daily_play || ''))}</span>`}</span>
           </button>`;
       }).join('')}
     </div>`;
@@ -82,10 +99,12 @@ function renderDaily() {
   if (first && streak > 1 && streakEl && typeof countUp === 'function' && !motionOff()) countUp(streakEl, 0, streak);
 }
 
+/** Plays a daily from here: its game's own start, which continues one already begun. */
 function playDaily(id) {
   const g = DAILY_GAMES.find(x => x.id === id);
   if (!g || soloDailyResult(id)) return;
   soloHubReturn = true;
+  soloHubGame = id;
   if (typeof rememberRecent === 'function') rememberRecent(id);
   g.start();
 }
@@ -95,8 +114,14 @@ function shareDaily() {
   const done = dailyDone();
   if (!done.length) return;
   const streak = soloStreak();
-  const lines = done.map(g => `${CATALOG_BY_ID[g.id].icon} ${g.line(soloDailyResult(g.id))}`);
-  const text = `${soloShareHeader(t)} · ${done.length}/${DAILY_GAMES.length}\n${streak > 1 ? `🔥 ${streak} ${t.daily_days || ''}\n` : ''}${lines.join('\n')}`;
+  // Each game by its name as well as its icon: a column of emoji means little to the family group.
+  const lines = done.map(g => {
+    const cat = CATALOG_BY_ID[g.id];
+    return `${cat.icon} ${t[cat.title] || g.id}: ${g.line(soloDailyResult(g.id))}`;
+  });
+  // "3 من 11" rather than "3/11", which reads as a date next to the day's date.
+  const count = (t.daily_progress || '{n} من {m}').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length);
+  const text = `${soloShareHeader(t)} · ${count}\n${streak > 1 ? `🔥 ${streak} ${t.daily_days || ''}\n` : ''}${lines.join('\n')}`;
   shareOrCopy(appLink(), text, t.solo_copied || '');
 }
 

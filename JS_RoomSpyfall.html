@@ -67,7 +67,7 @@ ROOM_GAMES.spyfall = {
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
     const v = s.vote || {};
-    const roundKey = state.code + '#' + s.round;
+    const roundKey = roomDealKey(state, s.round);
     if (spyfallRoom.crossedRound !== roundKey) { spyfallRoom.crossed = new Set(); spyfallRoom.crossedRound = roundKey; spyfallRoom.guessing = false; }
     const sig = ['spy', s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, state.youAreHost, appState.lang,
                  spyfallRoom.guessing, [...spyfallRoom.crossed].join(','), JSON.stringify(s.scores || {})].join('|');
@@ -204,7 +204,13 @@ function startSpyfallRoomClock(s) {
   spyfallRoom.clock = createClock({
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
     onTick: () => paintSpyfallRoomTimer(endsAt),
-    onEnd: () => { spyfallRoom.clock = null; playSound('alarm'); }
+    onEnd: () => {
+      spyfallRoom.clock = null;
+      // Only if this round is still running here: not after the room moved to another game.
+      const st = Room.state;
+      if (!st || st.game !== 'spyfall' || !st.shared || st.shared.phase !== 'play' || st.shared.endsAt !== endsAt) return;
+      playSound('alarm');
+    }
   });
 }
 
@@ -213,6 +219,7 @@ function stopSpyfallRoomClock() {
   spyfallRoom.clock = null;
   spyfallRoom.clockKey = null;
 }
+onRoomClocksReset(stopSpyfallRoomClock);
 
 /* --- the big screen --- */
 TV_GAMES.spyfall = {

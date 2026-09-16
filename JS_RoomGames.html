@@ -72,7 +72,7 @@ ROOM_GAMES.justone = {
       // While you are still writing, nothing on your screen depends on how many
       // others have finished - so the frame doesn't change and the box you are
       // typing in survives. Once you have submitted, the counter is the point.
-      const sig = 'writing|' + s.round + '|' + amGuesser + '|' + iSubmitted
+      const sig = 'writing|' + s.round + '|' + amGuesser + '|' + iSubmitted + '|' + state.youAreHost + '|' + appState.lang
                 + (amGuesser || iSubmitted ? '|' + done + '/' + need : '');
 
       renderRoomFrame(el, sig, () => head + (amGuesser
@@ -96,6 +96,7 @@ ROOM_GAMES.justone = {
                   <button onclick="submitJustOneClue()" class="btn btn--primary btn--lg">${t.send || 'إرسال'}</button>
                   <p class="field__hint">${t.forbidden_rule || 'ممنوع كتابة الكلمة نفسها أو ترجمتها'}</p>`}
            </div>`)
+        + (state.youAreHost ? roomHostRow([[joCloseWritingLabel(t), "roomAct('closeWriting')"]]) : '')
         + renderRoomPlayerStrip(state));
       refreshRoomPlayerStrip(el, state);
       return;
@@ -104,7 +105,7 @@ ROOM_GAMES.justone = {
     if (s.phase === 'guessing') {
       const clues = (s.clues || []).filter(c => !c.removed);
       const removed = s.removedCount || 0;
-      const gsig = 'guessing|' + s.round + '|' + amGuesser + '|' + clues.length + '|' + removed;
+      const gsig = 'guessing|' + s.round + '|' + amGuesser + '|' + clues.length + '|' + removed + '|' + state.youAreHost + '|' + appState.lang;
       renderRoomFrame(el, gsig, () => head + `
         <div class="card">
           ${removed ? `<p class="field__hint" style="text-align:center; color: var(--danger)">
@@ -118,14 +119,16 @@ ROOM_GAMES.justone = {
                <input type="text" id="jo-guess" autocomplete="off">
                <button onclick="submitJustOneGuess()" class="btn btn--primary btn--lg">${t.send || 'إرسال'}</button>`
             : `<div class="waiting-note">${t.jo_waiting_guess || 'في انتظار تخمين'} ${escapeHTML(s.guesserName || '')}…</div>`}
-        </div>` + renderRoomPlayerStrip(state));
+        </div>`
+        + (state.youAreHost && !amGuesser ? roomHostRow([[joSkipGuessLabel(t), "roomAct('skipGuess')"]]) : '')
+        + renderRoomPlayerStrip(state));
       refreshRoomPlayerStrip(el, state);
       return;
     }
 
     if (s.phase === 'judging' || s.phase === 'result') {
       const right = s.lastResult === 'correct';
-      renderRoomFrame(el, [s.phase, s.round, s.guess, s.lastResult, state.youAreHost].join('|'), () => head + `
+      renderRoomFrame(el, [s.phase, s.round, s.guess, s.lastResult, state.youAreHost, appState.lang].join('|'), () => head + `
         <div class="card" style="text-align:center">
           <div class="eyebrow">${t.jo_the_guess || 'التخمين'}</div>
           <div class="metric metric--md" style="margin-bottom: var(--sp-3)">${escapeHTML(s.guess || '—')}</div>
@@ -143,13 +146,26 @@ ROOM_GAMES.justone = {
                    <button onclick="roomAct('judge', { correct: false })" class="btn btn--danger">${t.wrong || 'خاطئة'}</button>
                  </div>`
               : `<div class="btn-stack">
-                   <button onclick="roomAct('nextRound', ROOM_GAMES.justone.startPayload())" class="btn btn--primary btn--lg">${t.next_round || 'الجولة التالية'}</button>
+                   <button onclick="justOneNextRound(${Number(s.round) || 0})" class="btn btn--primary btn--lg">${t.next_round || 'الجولة التالية'}</button>
                    <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
                  </div>`)
-          : `<div class="waiting-note">${t.room_wait_host}</div>`}`);
+          : `<div class="waiting-note">${t.room_wait_host}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      refreshRoomPlayerStrip(el, state);
     }
   }
 };
+
+/** The host's labels for moving a stuck round on. */
+const joCloseWritingLabel = (t) => t.jo_close_writing || (appState.lang === 'en' ? 'Guess with the clues so far' : 'خمّن باللي اتكتب');
+const joSkipGuessLabel = (t) => t.jo_skip_guess || (appState.lang === 'en' ? 'Skip the guess' : 'تخطي التخمين');
+
+/** Next round, stamped with the round it was pressed on so a late second tap does nothing. */
+function justOneNextRound(round) {
+  const payload = ROOM_GAMES.justone.startPayload();
+  if (round) payload.round = round;
+  roomAct('nextRound', payload);
+}
 
 async function submitJustOneClue() {
   const input = document.getElementById('jo-clue');
@@ -167,17 +183,25 @@ async function submitJustOneGuess() {
    من أنا؟
    Your phone shows everyone else's identity and never your own.
    ========================================================================== */
+
+/* The host's category, remembered: the big screen's lobby is rebuilt whenever
+   someone joins, and the picker used to jump back to the first category. */
+const WHOAMI_ROOM_CAT_KEY = 'ashryWhoamiRoomCat';
+function whoamiRoomCat() { try { return localStorage.getItem(WHOAMI_ROOM_CAT_KEY) || ''; } catch (e) { return ''; } }
+function setWhoamiRoomCat(value) { try { localStorage.setItem(WHOAMI_ROOM_CAT_KEY, String(value)); } catch (e) {} }
 ROOM_GAMES.whoami = {
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
     const t = TRANSLATIONS[appState.lang];
     const cats = Object.keys(typeof WHOAMI_DB !== 'undefined' ? (WHOAMI_DB[contentLang()] || {}) : {});
     if (!cats.length) return '';
+    const saved = whoamiRoomCat();
+    const chosen = cats.indexOf(saved) !== -1 ? saved : cats[0];
     return `
       <div class="card card--tight">
-        <label class="field__label">${t.category || 'المجموعة'}</label>
-        <select id="room-whoami-cat">
-          ${cats.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('')}
+        <label class="field__label" for="room-whoami-cat">${t.category || 'المجموعة'}</label>
+        <select id="room-whoami-cat" onchange="setWhoamiRoomCat(this.value)">
+          ${cats.map(c => `<option value="${escapeHTML(c)}" ${c === chosen ? 'selected' : ''}>${escapeHTML(c)}</option>`).join('')}
         </select>
       </div>`;
   },
@@ -185,7 +209,8 @@ ROOM_GAMES.whoami = {
   startPayload() {
     const sel = document.getElementById('room-whoami-cat');
     const db = (typeof WHOAMI_DB !== 'undefined' ? WHOAMI_DB[contentLang()] : {}) || {};
-    const cat = sel ? sel.value : Object.keys(db)[0];
+    const saved = whoamiRoomCat();
+    const cat = sel ? sel.value : (db[saved] ? saved : Object.keys(db)[0]);
     return { words: (db[cat] || []).slice() };
   },
 

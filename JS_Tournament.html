@@ -1,5 +1,23 @@
 <script>
-/* --- TOURNAMENT BRACKET LOGIC --- */
+/* --- TOURNAMENT BRACKET LOGIC ---
+   A knockout bracket for 3 to 16 players, drawn at random. The bracket is the
+   next power of two; the empty places are byes, set the way a seeded draw
+   sets them (the byes never meet each other in the first round), and a
+   player with a bye goes through by themselves. Every match lives in
+   appState.tourney.matches: its two players, the winner's slot and where the
+   winner goes (nextMatchId, nextSlot). Results are saved as they are tapped,
+   in order (history), so the last one can be taken back. The champion is
+   shown on the bracket itself, on a podium. */
+
+const TOURNEY_MIN = 3;
+const TOURNEY_MAX = 16;
+
+const tourneyT = () => TRANSLATIONS[appState.lang] || {};
+// "---" is how a bracket saved before this version marked a place still to be decided.
+const tourneyEmpty = (p) => p === null || p === undefined || p === '---';
+const tourneyMatch = (id) => (appState.tourney.matches || []).find(m => m.id === id);
+// Brackets saved before nextSlot existed fed even ids to the top place and odd ids to the bottom one.
+const tourneySlotOf = (m) => m.nextSlot || (m.id % 2 === 0 ? 1 : 2);
 
 function setupTournament() {
     setView('setup-tourney');
@@ -7,18 +25,31 @@ function setupTournament() {
 
 function startTournament() {
     const inputs = document.querySelectorAll('.tourney-player-input');
-    let players = Array.from(inputs).map(i => i.value.trim()).filter(n => n !== "");
+    let players = Array.from(inputs).map(i => i.value.trim()).filter(n => n !== '');
+    // The player picker (or, with the old name boxes, whoever is picked when none are typed).
+    if (!players.length) players = (appState.activePlayers || []).slice();
 
-    // Fallback: If no manual inputs, use appState.activePlayers (if 4 or 8)
-    if (players.length === 0 && appState.activePlayers && (appState.activePlayers.length === 4 || appState.activePlayers.length === 8)) {
-        players = [...appState.activePlayers];
-    }
-
-    if (players.length !== 4 && players.length !== 8) {
-        showToast(appState.lang === 'ar' ? "يجب أن يكون العدد 4 أو 8 لاعبين!" : "Must be 4 or 8 players!");
+    const t = tourneyT();
+    if (players.length < TOURNEY_MIN || players.length > TOURNEY_MAX) {
+        showToast((t.tourney_need || 'اختار من {min} لـ {max} لاعب').replace('{min}', TOURNEY_MIN).replace('{max}', TOURNEY_MAX), 'error');
         return;
     }
+    tourneyDraw(players);
+    setView('play-tourney');
+    renderBracket();
+}
 
+/** A new draw of the same players. */
+function restartTournament() {
+    const players = (appState.tourney.players || []).slice();
+    if (players.length < TOURNEY_MIN) { setView('setup-tourney'); return; }
+    tourneyDraw(players);
+    renderBracket();
+    const main = document.getElementById('shell-main');
+    if (main) main.scrollTop = 0;
+}
+
+function tourneyDraw(players) {
     // Fisher-Yates. `sort(() => Math.random() - 0.5)` is not a shuffle: it
     // leaves early entries near the front, which decides the whole bracket.
     for (let i = players.length - 1; i > 0; i--) {
@@ -26,150 +57,236 @@ function startTournament() {
         [players[i], players[j]] = [players[j], players[i]];
     }
     appState.tourney.players = players;
-    
-    generateBracket(players);
-    renderBracket();
-    setView('play-tourney');
+    appState.tourney.matches = generateBracket(players);
+    appState.tourney.history = [];
+    appState.tourney.startedAt = Date.now();
+    saveToLocal();
+}
+
+/** The places of seeds 1..size in a bracket: 1 v size, and so on down, halves kept apart. */
+function tourneySeedOrder(size) {
+    let order = [1];
+    while (order.length < size) {
+        const n = order.length * 2;
+        order = order.reduce((out, x) => out.concat([x, n + 1 - x]), []);
+    }
+    return order;
 }
 
 function generateBracket(players) {
-    appState.tourney.matches = [];
-    const totalPlayers = players.length;
-    let matchId = 0;
-
-    // Round 1
-    for(let i=0; i < totalPlayers; i+=2) {
-        appState.tourney.matches.push({
-            id: matchId++,
-            round: 1,
-            p1: players[i],
-            p2: players[i+1],
-            winnerSlot: null, 
-            nextMatchId: totalPlayers === 8 ? (4 + Math.floor(i/4)) : 2
-        });
-    }
-
-    // Round 2
-    if(totalPlayers === 8) {
-        for(let i=0; i<2; i++) {
-            appState.tourney.matches.push({
-                id: matchId++,
-                round: 2,
-                p1: "---",
-                p2: "---",
-                winnerSlot: null,
-                nextMatchId: 6
+    const n = players.length;
+    let size = 2;
+    while (size < n) size *= 2;
+    const rounds = Math.round(Math.log2(size));
+    const matches = [];
+    let id = 0;
+    let firstOfRound = 0;
+    for (let r = 1; r <= rounds; r++) {
+        const count = size >> r;
+        const firstOfNext = firstOfRound + count;
+        for (let k = 0; k < count; k++) {
+            matches.push({
+                id: id++, round: r, p1: null, p2: null, winnerSlot: null,
+                nextMatchId: r < rounds ? firstOfNext + Math.floor(k / 2) : null,
+                nextSlot: k % 2 === 0 ? 1 : 2
             });
         }
+        firstOfRound = firstOfNext;
     }
-
-    // Final
-    appState.tourney.matches.push({
-        id: matchId,
-        round: totalPlayers === 8 ? 3 : 2,
-        p1: "---",
-        p2: "---",
-        winnerSlot: null,
-        nextMatchId: null 
+    // The shuffled players take seeds 1..n; seeds above n are the byes.
+    const order = tourneySeedOrder(size);
+    for (let k = 0; k < size / 2; k++) {
+        const m = matches[k];
+        const a = order[2 * k], b = order[2 * k + 1];
+        m.p1 = a <= n ? players[a - 1] : null;
+        m.p2 = b <= n ? players[b - 1] : null;
+        if (tourneyEmpty(m.p1) !== tourneyEmpty(m.p2)) {
+            m.bye = true;
+            m.winnerSlot = tourneyEmpty(m.p1) ? 2 : 1;
+        }
+    }
+    // Byes go through at once.
+    matches.filter(m => m.bye).forEach(m => {
+        const next = matches.find(x => x.id === m.nextMatchId);
+        if (next) next['p' + m.nextSlot] = m.winnerSlot === 1 ? m.p1 : m.p2;
     });
+    return matches;
+}
+
+function tourneyRounds() {
+    return Math.max(0, ...(appState.tourney.matches || []).map(m => m.round));
+}
+
+/** The final's winner, or null. */
+function tourneyChampion() {
+    const final = (appState.tourney.matches || []).find(m => m.nextMatchId === null && m.round === tourneyRounds());
+    if (!final || final.winnerSlot === null) return null;
+    return final.winnerSlot === 1 ? final.p1 : final.p2;
 }
 
 function renderBracket() {
     const container = document.getElementById('tourney-bracket');
-    container.innerHTML = '';
-    
-    const rounds = appState.tourney.players.length === 8 ? 3 : 2;
-    
-    for(let r=1; r<=rounds; r++) {
-        const roundMatches = appState.tourney.matches.filter(m => m.round === r);
-        const roundName = getRoundName(r, rounds);
-        
-        let html = `<div class="mb-6"><h4 class="section__title" style="text-align:center; margin-bottom: var(--sp-3)">${roundName}</h4>`;
-        
+    if (!container) return;
+    const T = appState.tourney;
+    const t = tourneyT();
+    const rounds = tourneyRounds();
+    const champion = tourneyChampion();
+    let html = '';
+
+    if (champion !== null) html += tourneyChampionHtml(champion, t);
+
+    if ((T.history || []).length) {
+        html += `<div class="mb-6">
+            <button type="button" class="btn btn--ghost btn--sm" onclick="undoTourneyResult()">↶ ${escapeHTML(t.tourney_undo || 'رجّع آخر نتيجة')}</button>
+        </div>`;
+    }
+
+    for (let r = 1; r <= rounds; r++) {
+        const roundMatches = T.matches.filter(m => m.round === r);
+        html += `<div class="mb-6"><h4 class="section__title" style="text-align:center; margin-bottom: var(--sp-3)">${escapeHTML(getRoundName(r, rounds))}</h4>`;
+
         roundMatches.forEach(m => {
-            const isReady = m.p1 !== "---" && m.p2 !== "---" && m.winnerSlot === null;
-            
-            // Logic for styling based on our new CSS classes
-            let p1Class = "bracket-btn";
-            let p2Class = "bracket-btn";
-
-            if (m.winnerSlot === 1) {
-                p1Class += " winner";
-                p2Class += " loser";
-            } else if (m.winnerSlot === 2) {
-                p1Class += " loser";
-                p2Class += " winner";
+            if (m.bye) {
+                const name = m.winnerSlot === 1 ? m.p1 : m.p2;
+                html += `
+                <div class="tourney-match-card">
+                    <button type="button" class="bracket-btn winner" disabled>
+                        <span>${escapeHTML(name)}</span>
+                        <span class="badge badge--success">${escapeHTML(t.tourney_bye || 'عدّى على طول')}</span>
+                    </button>
+                </div>`;
+                return;
             }
-
+            const isReady = !tourneyEmpty(m.p1) && !tourneyEmpty(m.p2) && m.winnerSlot === null;
+            const cls = (slot) => 'bracket-btn' + (m.winnerSlot === slot ? ' winner' : (m.winnerSlot !== null ? ' loser' : ''));
+            const side = (slot) => {
+                const p = m['p' + slot];
+                return `<button type="button" ${isReady ? `onclick="setWinner(${m.id}, ${slot})"` : 'disabled'} class="${cls(slot)}">
+                        <span>${tourneyEmpty(p) ? '—' : escapeHTML(p)}</span>
+                        ${m.winnerSlot === slot ? '🏆' : ''}
+                    </button>`;
+            };
             html += `
             <div class="tourney-match-card">
-                <button ${isReady ? `onclick="setWinner(${m.id}, 1)"` : 'disabled'} class="${p1Class}">
-                    <span>${escapeHTML(m.p1)}</span>
-                    ${m.winnerSlot === 1 ? '🏆' : ''}
-                </button>
-                
-                <div class="text-[10px] text-center tx-muted font-black uppercase tracking-widest my-1">VS</div>
-                
-                <button ${isReady ? `onclick="setWinner(${m.id}, 2)"` : 'disabled'} class="${p2Class}">
-                    <span>${escapeHTML(m.p2)}</span>
-                    ${m.winnerSlot === 2 ? '🏆' : ''}
-                </button>
+                ${side(1)}
+                <div class="eyebrow text-center my-1">${escapeHTML(appState.lang === 'ar' ? 'ضد' : 'vs')}</div>
+                ${side(2)}
             </div>`;
         });
-        
+
         html += `</div>`;
-        container.innerHTML += html;
     }
+    container.innerHTML = html;
+}
+
+/**
+ * The champion on the bracket, on a podium: the runner-up second, and third
+ * the semi-final losers together (a knockout has no match for third). The
+ * podium rises once per bracket (renderPodium, JS_Motion.html); its places
+ * are rankings, so the numbers it would print as scores are left out.
+ */
+function tourneyChampionHtml(champion, t) {
+    const T = appState.tourney;
+    const rounds = tourneyRounds();
+    const loserOf = (m) => (m.winnerSlot === 1 ? m.p2 : m.p1);
+    const final = T.matches.find(m => m.round === rounds);
+    const semis = T.matches.filter(m => m.round === rounds - 1 && !m.bye && m.winnerSlot !== null).map(loserOf).filter(p => !tourneyEmpty(p));
+    const board = [{ pid: 'c', name: champion, score: 3 }, { pid: 'r', name: loserOf(final), score: 2 }];
+    if (semis.length) board.push({ pid: 's', name: semis.join(' · '), score: 1 });
+    const podium = typeof renderPodium === 'function'
+        ? renderPodium({ code: 'tourney', game: String(T.startedAt || '') }, board).replace(/<span class="podium__score metric">\d+<\/span>/g, '')
+        : '';
+    return `
+        <div class="card card--accent" style="text-align:center">
+            <div class="metric metric--md">🏆</div>
+            <div class="card__title">${escapeHTML(champion)}</div>
+            <p class="sheet__subtitle">${escapeHTML(t.tourney_champion || 'البطل')}</p>
+            ${podium}
+            <div class="btn-stack">
+                <button type="button" class="btn btn--primary btn--lg" onclick="restartTournament()">${escapeHTML(t.tourney_again || 'قرعة جديدة بنفس اللاعبين')}</button>
+            </div>
+        </div>`;
 }
 
 function getRoundName(r, total) {
-    if(r === total) return appState.lang === 'ar' ? "النهائي 🏆" : "Final 🏆";
-    if(r === total - 1) return appState.lang === 'ar' ? "نصف النهائي" : "Semi-Final";
-    return appState.lang === 'ar' ? "ربع النهائي" : "Quarter-Final";
+    const t = tourneyT();
+    const fromEnd = total - r;
+    if (fromEnd === 0) return t.tourney_final || 'النهائي 🏆';
+    if (fromEnd === 1) return t.tourney_semi || 'نصف النهائي';
+    if (fromEnd === 2) return t.tourney_quarter || 'ربع النهائي';
+    return t.tourney_r16 || 'دور الـ16';
 }
 
 function setWinner(matchId, slot) {
-    const match = appState.tourney.matches.find(m => m.id === matchId);
-    if(!match || match.winnerSlot !== null) return;
+    const T = appState.tourney;
+    const match = tourneyMatch(matchId);
+    if (!match || match.winnerSlot !== null || tourneyEmpty(match.p1) || tourneyEmpty(match.p2)) return;
 
     match.winnerSlot = slot;
     const winnerName = slot === 1 ? match.p1 : match.p2;
-    
-    playSound('click');
+    T.history = T.history || [];
+    T.history.push(match.id);
 
-    if(match.nextMatchId !== null) {
-        const nextMatch = appState.tourney.matches.find(m => m.id === match.nextMatchId);
-        // Feed winner to next bracket
-        if (nextMatch) {
-            if (match.id % 2 === 0) nextMatch.p1 = winnerName;
-            else nextMatch.p2 = winnerName;
-        }
-    } else {
+    const nextMatch = match.nextMatchId !== null ? tourneyMatch(match.nextMatchId) : null;
+    if (nextMatch) nextMatch['p' + tourneySlotOf(match)] = winnerName;
+    saveToLocal();
+    renderBracket();
+
+    if (!nextMatch) {
         // --- CHAMPION FOUND ---
         playSound('success');
-        confetti({ particleCount: 200, spread: 100 });
-        
-        // UPGRADE: Use Toast so it doesn't block the confetti view!
-        const msg = appState.lang === 'ar' ? `البطل هو ${winnerName}! 👑` : `Champion is ${winnerName}! 👑`;
-        showToast(msg, 'success');
+        haptic('heavy');
+        const main = document.getElementById('shell-main');
+        if (main) main.scrollTop = 0;
+        const cheer = () => { if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } }); };
+        const container = document.getElementById('tourney-bracket');
+        if (typeof afterReveal === 'function') afterReveal(container, cheer); else cheer();
+    } else {
+        haptic('light');
     }
+}
 
+/** The last result tapped, taken back: its winner leaves the next match. */
+function undoTourneyResult() {
+    const T = appState.tourney;
+    const id = (T.history || []).pop();
+    if (id === undefined) return;
+    const match = tourneyMatch(id);
+    if (!match) { saveToLocal(); renderBracket(); return; }
+    const next = match.nextMatchId !== null ? tourneyMatch(match.nextMatchId) : null;
+    if (next) {
+        // Taken back in order, so the next match can't have a result yet; if it somehow does, stop.
+        if (next.winnerSlot !== null) { T.history.push(id); return; }
+        next['p' + tourneySlotOf(match)] = null;
+    }
+    match.winnerSlot = null;
+    saveToLocal();
+    haptic('medium');
     renderBracket();
 }
 
 function addTourneyInput() {
     const list = document.getElementById('tourney-inputs');
+    if (!list) return;
     const count = list.children.length + 1;
-    
-    if(count > 8) {
-        showToast(appState.lang==='ar'?'الحد الأقصى 8 لاعبين':'Max 8 players');
+
+    if(count > TOURNEY_MAX) {
+        const t = tourneyT();
+        showToast((t.tourney_need || 'اختار من {min} لـ {max} لاعب').replace('{min}', TOURNEY_MIN).replace('{max}', TOURNEY_MAX));
         return;
     }
-    
+
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'tourney-player-input';
-    input.placeholder = (appState.lang==='ar'?'لاعب':'Player') + ' ' + count;
+    input.placeholder = String(count);
     list.appendChild(input);
+}
+
+// The round names and the champion card are drawn here, so a language change draws them again.
+if (typeof onLanguageChange === 'function') {
+    onLanguageChange(view => {
+        if (view === 'play-tourney' && (appState.tourney.matches || []).length) renderBracket();
+    });
 }
 </script>

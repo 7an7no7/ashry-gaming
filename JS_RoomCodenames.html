@@ -40,6 +40,7 @@ const cnLocal = {
   logOpen: false,
   cheered: null,      // the finished board its win was already celebrated for
   customDraft: null,  // the host's word list while it is still being typed
+  smPick: null,       // the host is choosing a new spymaster for this team
   clock: null,
   clockKey: null
 };
@@ -120,6 +121,7 @@ ROOM_GAMES.codenames = {
       cnLocal.pending = null;
       cnLocal.seen = null;
       cnLocal.swapMode = false;
+      cnLocal.smPick = null;
     }
 
     const v = cnView(state);
@@ -139,6 +141,7 @@ ROOM_GAMES.codenames = {
 
     const rebuilt = renderRoomFrame(el, sig, () => cnFrame(state, v, t, fresh));
     refreshRoomPlayerStrip(el, state);
+    refreshCodenamesHostTools(el, state, t);
     if (rebuilt) cnFeedback(state, v, fresh);
     cnLocal.seen = faceUp;
 
@@ -182,6 +185,7 @@ function cnFrame(state, v, t, fresh) {
       <div class="cn-side">
         ${cnBanner(s, t, L)}
         ${cnControls(state, v, t, L)}
+        <div data-cn-host></div>
         ${cnTools(v, t)}
         ${cnLog(s, t)}
       </div>
@@ -309,6 +313,68 @@ function cnControls(state, v, t, L) {
   if (v.myTurn) return `<div class="waiting-note">${t.cn_await_clue || ''}</div>`;
   if (v.mine.team) return `<div class="waiting-note">${t.cn_other_turn || 'دور الفريق الآخر'}</div>`;
   return '';
+}
+
+/* --- the host's way out of a stuck board ---------------------------------------
+   A spymaster whose phone died, or a team that never passes, would hold the
+   table forever: the host can pass the turn, and hand a team's key to someone
+   else on it (the server moves the key: passTurn, setSpymaster). */
+
+const cnPassTurnLabel = (t) => t.cn_pass_turn || (appState.lang === 'en' ? 'Pass the turn ⏭️' : 'انقل الدور ⏭️');
+
+/** The spymaster of a team, and whether their phone is here. */
+function cnSpymasterOf(state, team) {
+  const teams = (state.shared && state.shared.teams) || {};
+  const id = Object.keys(teams).find(k => teams[k].team === team && teams[k].role === 'spymaster');
+  const p = id ? state.players.find(x => x.id === id) : null;
+  return { id: id || null, here: !!(p && p.online) };
+}
+
+/**
+ * The host's tools depend on who is here, so they are refreshed in place, like
+ * the player strip: rebuilding the frame for a presence flicker would take the
+ * clue a host-spymaster is typing with it.
+ */
+function refreshCodenamesHostTools(root, state, t) {
+  const box = root && root.querySelector('[data-cn-host]');
+  if (!box) return;
+  const html = cnHostTools(state, t, CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar);
+  if (box.dataset.sig !== html) { box.innerHTML = html; box.dataset.sig = html; }
+}
+
+/** Buttons for the host on the phone and the TV: pass the turn; a new spymaster where one has gone. */
+function cnHostTools(state, t, L) {
+  const s = state.shared || {};
+  if (!state.youAreHost || s.winner || !s.board || !s.board.length) return '';
+  const buttons = [[cnPassTurnLabel(t), "roomAct('passTurn')"]];
+  ['red', 'blue'].forEach(team => {
+    const sm = cnSpymasterOf(state, team);
+    if (sm.here && cnLocal.smPick !== team) return;
+    const label = (t.cn_set_spymaster || (appState.lang === 'en' ? 'New spymaster: {team}' : 'قائد جديد للفريق {team}')).replace('{team}', L[team]);
+    buttons.push(['🕵️ ' + label, `cnPickSpymaster('${team}')`, cnLocal.smPick === team ? 'secondary' : 'ghost']);
+  });
+  let picker = '';
+  if (cnLocal.smPick) {
+    const team = cnLocal.smPick;
+    const teams = s.teams || {};
+    const members = state.players.filter(p => teams[p.id] && teams[p.id].team === team && teams[p.id].role !== 'spymaster');
+    picker = `<div class="chip-set" style="justify-content:center; margin-top: var(--sp-2)">${members.length
+      ? members.map(p => `<button type="button" class="chip ${p.online ? '' : 'is-away'}" onclick="cnSetSpymaster('${team}', '${jsStringAttr(p.id)}')"><span class="chip__label">🕵️ ${escapeHTML(p.name)}</span></button>`).join('')
+      : `<span class="tool-desc">${escapeHTML(t.cn_empty || '')}</span>`}</div>`;
+  }
+  return roomHostRow(buttons) + picker;
+}
+
+function cnPickSpymaster(team) {
+  cnLocal.smPick = cnLocal.smPick === team ? null : team;
+  haptic('light');
+  cnRedraw();
+}
+
+async function cnSetSpymaster(team, playerId) {
+  cnLocal.smPick = null;
+  cnRedraw();
+  await roomAct('setSpymaster', { team: team, playerId: playerId });
 }
 
 /** The end of a game: words left, clues it took, and the evening's score. */
@@ -559,7 +625,9 @@ function startCodenamesClock(endsAt) {
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
     onTick: () => {
       const left = paintCodenamesTimer(endsAt);
-      if (left > 0 && left <= 5 && document.getElementById('cn-timer')) playSound('tick');
+      // Only while the board is what this phone shows: the hidden view keeps its timer element.
+      const st = Room.state;
+      if (left > 0 && left <= 5 && appState.currentView === 'room-codenames' && st && st.game === 'codenames' && st.shared.endsAt === endsAt) playSound('tick');
     },
     onEnd: () => { cnLocal.clock = null; }
   });
@@ -570,4 +638,5 @@ function stopCodenamesClock() {
   cnLocal.clock = null;
   cnLocal.clockKey = null;
 }
+onRoomClocksReset(stopCodenamesClock);
 </script>

@@ -64,7 +64,7 @@ function armQuizClock(endsAt) {
       quiz.clock = null;
       const close = () => {
         const st = Room.state;
-        if (!st || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
+        if (!st || (st.game !== 'emoji' && st.game !== 'proverbs') || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
         Room.act('closeQuestion').catch(() => {});
       };
       // The host closes on time, anyone else a moment later; the server too.
@@ -77,6 +77,7 @@ function stopQuizClock() {
   quiz.clock = null;
   quiz.clockKey = null;
 }
+onRoomClocksReset(stopQuizClock);
 
 async function quizSend() {
   const input = document.getElementById('quiz-input');

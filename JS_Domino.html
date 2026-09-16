@@ -1,5 +1,11 @@
 <script>
-  /* --- DOMINO GAME LOGIC --- */
+  /* --- DOMINO GAME LOGIC ---
+     The game is on the table; the phone counts to the target. Every entry is
+     kept (appState.domino.history: which row, and the points that row really
+     moved by, after the floor at 0), so the last one can be taken back exactly
+     and the hands read as a table of rounds, like the card score keepers.
+     Teams keep their two names (members) and are labelled in the language on
+     screen when drawn. */
   function runStartDomino() {
       let selected = appState.activePlayers ? [...appState.activePlayers] : [];
       saveActivePlayers(selected)
@@ -21,7 +27,7 @@
       if (mode === 'teams') {
           const btnText = appState.lang === 'ar' ? "اعتمد الفرق (الأول والثاني فريق 1)" : "Confirm Teams (First two are Team 1)";
           openReorderModal('domino-teams', players.map(name => ({ name: name })), btnText);
-          
+
           const alertMsg = appState.lang === 'ar' ? "قم بترتيب اللاعبين: أول اسمين (فريق 1) وآخر اسمين (فريق 2)" : "Order players: First two (Team 1), last two (Team 2)";
           const alertTitle = appState.lang === 'ar' ? "ترتيب الفرق" : "Team Order";
           showCustomAlert(alertMsg, alertTitle);
@@ -31,16 +37,9 @@
   }
 
   function finalizeDominoTeams(orderedNames) {
-      const team1Names = [orderedNames[0], orderedNames[1]];
-      const team2Names = [orderedNames[2], orderedNames[3]];
-      
-      const t1Label = appState.lang === 'ar' ? 'فريق 1' : 'Team 1';
-      const t2Label = appState.lang === 'ar' ? 'فريق 2' : 'Team 2';
-      const andLabel = appState.lang === 'ar' ? 'و' : '&';
-
       const teamPlayers = [
-          { name: `${t1Label} (${team1Names[0]} ${andLabel} ${team1Names[1]})`, score: 0, isTeam: true },
-          { name: `${t2Label} (${team2Names[0]} ${andLabel} ${team2Names[1]})`, score: 0, isTeam: true }
+          { members: [orderedNames[0], orderedNames[1]], score: 0, isTeam: true },
+          { members: [orderedNames[2], orderedNames[3]], score: 0, isTeam: true }
       ];
       startDominoGame('teams', null, teamPlayers);
   }
@@ -50,68 +49,144 @@
       appState.domino.target = (isFinite(target) && target > 0) ? target : 101;
       appState.domino.declared = false;
       appState.domino.mode = mode;
+      appState.domino.history = [];
       if (preConfiguredPlayers) {
           appState.domino.players = preConfiguredPlayers;
       } else {
           appState.domino.players = playersNames.map(name => ({ name, score: 0, isTeam: false }));
       }
+      saveToLocal();
       setView('play-domino');
       renderDominoBoard();
   }
 
+  /**
+   * The win popup's "new game" (playAgain() in JS_Utils.html calls this on
+   * play-domino): the same players, the same teams and the same target, from 0.
+   */
+  function dominoPlayAgain() {
+      closeAllModals();
+      const d = appState.domino;
+      if (!d.players || !d.players.length) { setView('setup-domino'); return; }
+      d.players.forEach(p => { p.score = 0; });
+      d.history = [];
+      d.declared = false;
+      saveToLocal();
+      if (appState.currentView !== 'play-domino') setView('play-domino');
+      renderDominoBoard();
+  }
+
+  /** A row's name: a team as "فريق 1 (A & B)" in the language on screen; a game saved before kept its label. */
+  function dominoName(p, idx, short) {
+      if (!p.members) return p.name || '';
+      const t = TRANSLATIONS[appState.lang] || {};
+      const team = (t.cs_team_short || 'فريق {n}').replace('{n}', idx + 1);
+      return short ? team : `${team} (${p.members.join(' & ')})`;
+  }
+
   function renderDominoBoard() {
       const container = document.getElementById('domino-board');
-      container.innerHTML = '';
-      const teams = appState.domino.mode === 'teams';
+      if (!container) return;
+      const d = appState.domino;
+      const t = TRANSLATIONS[appState.lang] || {};
+      const teams = d.mode === 'teams';
       const moreLabel = appState.lang === 'ar' ? 'نقاط أخرى' : 'Other points';
-      const undoLabel = appState.lang === 'ar' ? 'تراجع 5' : 'Undo 5';
-      appState.domino.players.forEach((p, idx) => {
+      const rows = d.players.map((p, idx) => {
           // Accents come from the design system, so the row follows the theme;
           // the old hardcoded pairs (text-blue-600 on a dark card) were under 2:1.
           const accent = teams ? (idx === 0 ? 'blue' : 'rose') : 'green';
           const icon = teams ? (idx === 0 ? '🛡️' : '⚔️') : '👤';
-          container.innerHTML += `
+          return `
             <div class="status-row" data-accent="${accent}">
                 <div class="status-row__body">
-                    <div class="status-row__name">${icon} ${escapeHTML(p.name)}</div>
-                    <div class="metric metric--md metric--accent">${p.score}</div>
+                    <div class="status-row__name">${icon} ${escapeHTML(dominoName(p, idx))}</div>
+                    <div class="metric metric--md metric--accent" data-domino-score="${idx}">${p.score}</div>
                 </div>
                 <div class="status-row__actions">
                     <button onclick="addDominoPoints(${idx}, 10)" class="control-btn" aria-label="+10">+10</button>
                     <button onclick="promptDominoPoints(${idx})" class="control-btn" aria-label="${moreLabel}">…</button>
-                    <button onclick="addDominoPoints(${idx}, -5)" class="control-btn control-btn--danger" aria-label="${undoLabel}">↺</button>
                 </div>
             </div>`;
-      });
+      }).join('');
+      container.innerHTML = rows + dominoHistoryHtml(d, t);
+  }
+
+  /** Every entry so far, one row each under the player it went to, with the take-back. */
+  function dominoHistoryHtml(d, t) {
+      const history = d.history || [];
+      if (!history.length) return '';
+      const cols = d.players.length;
+      return `
+        <div class="card card--tight cs-history">
+          <div class="cs-board__head"><span class="eyebrow">${escapeHTML(t.cs_history || 'الجولات')}</span>
+            <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="undoDominoEntry()">↶ ${escapeHTML(t.cs_undo_round || 'رجّع آخر جولة')}</button></div>
+          <div class="cs-table" role="table">
+            <div class="cs-row cs-row--head" role="row" style="--cs-cols:${cols}">
+              <span>#</span>${d.players.map((p, idx) => `<span>${escapeHTML(dominoName(p, idx, true))}</span>`).join('')}
+            </div>
+            ${history.map((h, n) => `
+              <div class="cs-row" role="row" style="--cs-cols:${cols}">
+                <span class="cs-row__n">${n + 1}</span>
+                ${d.players.map((_, idx) => (idx === h.i
+                    ? `<span class="metric ${h.pts > 0 ? 'tx-success' : 'tx-danger'}">${h.pts > 0 ? '+' : ''}${h.pts}</span>`
+                    : '<span class="tx-muted">·</span>')).join('')}
+              </div>`).join('')}
+          </div>
+        </div>`;
   }
 
   function addDominoPoints(idx, pts) {
-      appState.domino.players[idx].score += pts;
-      if(appState.domino.players[idx].score < 0) appState.domino.players[idx].score = 0;
+      const d = appState.domino;
+      const p = d.players[idx];
+      if (!p) return;
+      const before = p.score;
+      p.score = Math.max(0, p.score + pts);
+      // What the row really moved by (the floor at 0 can eat some), so a take-back is exact.
+      const moved = p.score - before;
+      if (moved !== 0) {
+          d.history = d.history || [];
+          d.history.push({ i: idx, pts: moved });
+      }
       playSound(pts > 0 ? 'success' : 'click');
+      renderDominoBoard();
+      const scoreEl = document.querySelector(`[data-domino-score="${idx}"]`);
+      if (scoreEl && moved !== 0 && typeof countUp === 'function' && !motionOff()) countUp(scoreEl, before, p.score);
+      checkDominoWin();
+      saveToLocal();
+  }
+
+  /** The last entry off the board, exactly as it went on. */
+  function undoDominoEntry() {
+      const d = appState.domino;
+      const last = (d.history || []).pop();
+      if (!last) return;
+      const p = d.players[last.i];
+      if (p) p.score = Math.max(0, p.score - last.pts);
+      haptic('medium');
       renderDominoBoard();
       checkDominoWin();
       saveToLocal();
   }
 
   function checkDominoWin() {
-      const winner = appState.domino.players.find(p => p.score >= appState.domino.target);
+      const d = appState.domino;
+      const winner = d.players.find(p => p.score >= d.target);
       // Announce a target crossing once. Every later +10 on any player used to
       // re-fire the confetti and re-open the winner modal; dropping back below
       // the target arms it again, so a mis-tap can still be undone.
-      if (!winner) { appState.domino.declared = false; return; }
-      if (appState.domino.declared) return;
-      appState.domino.declared = true;
-      {
-          confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-          const pointsLabel = appState.lang === 'ar' ? 'النقاط' : 'Points';
-          document.getElementById('winners-list').innerHTML = `<div class="text-3xl mb-2">🥇 ${escapeHTML(winner.name)}</div><div class="text-sm tx-muted font-bold">${pointsLabel}: ${winner.score}</div>`;
-          document.getElementById('winner-scores-container').classList.add('hidden');
-          document.getElementById('winner-modal').classList.remove('hidden');
-          playSound('success');
-
-          // Record win (Removed)
-      }
+      if (!winner) { d.declared = false; return; }
+      if (d.declared) return;
+      d.declared = true;
+      const t = TRANSLATIONS[appState.lang] || {};
+      const standings = d.players.map((p, idx) => ({ name: dominoName(p, idx), score: p.score })).sort((a, b) => b.score - a.score);
+      if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+      showScoreWinner({
+          name: dominoName(winner, d.players.indexOf(winner)),
+          label: t.cs_totals || (appState.lang === 'ar' ? 'النقاط' : 'Points'),
+          value: winner.score,
+          rows: standings
+      });
+      playSound('success');
   }
 
   let pendingDominoIdx = null;
@@ -131,5 +206,12 @@
       }
       addDominoPoints(pendingDominoIdx, val);
       closeModal('domino-input-modal');
+  }
+
+  // Team names and the history's words are drawn here, so a language change draws them again.
+  if (typeof onLanguageChange === 'function') {
+      onLanguageChange(view => {
+          if (view === 'play-domino' && (appState.domino.players || []).length) renderDominoBoard();
+      });
   }
 </script>

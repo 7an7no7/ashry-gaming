@@ -12,6 +12,31 @@
 
 const VOTE_LANG = () => (contentLang());
 
+/**
+ * Is this option this phone's own (its lie, itself)? An option may carry its
+ * owner in the open (`ownerId`), or the server may keep owners hidden and tell
+ * each phone only which option is its own (`you.voteOwn`, an id or a list).
+ */
+function isOwnVoteOption(state, o) {
+  if (!o) return false;
+  if (o.ownerId && o.ownerId === Room.me) return true;
+  const own = state && state.you && state.you.voteOwn;
+  if (own === undefined || own === null) return false;
+  return Array.isArray(own) ? own.indexOf(o.id) !== -1 : own === o.id;
+}
+
+/**
+ * The payload for a host's "next round", as a JS object literal safe inside an
+ * onclick attribute. It carries the round the button was drawn for, so a tap
+ * that lands after the round already moved on is ignored by the server.
+ */
+function roomNextArgs(state, extra) {
+  const o = Object.assign({ lang: VOTE_LANG() }, extra || {});
+  const round = state && state.shared && state.shared.round;
+  if (typeof round === 'number') o.round = round;
+  return escapeHTML(JSON.stringify(o));
+}
+
 /** The ballot: one big tappable row per option. */
 function renderBallot(state, opts) {
   const v = state.shared.vote;
@@ -30,7 +55,7 @@ function renderBallot(state, opts) {
 
   return `<div class="btn-stack">
       ${v.options.map(o => {
-        const mine = o.ownerId && o.ownerId === Room.me;
+        const mine = isOwnVoteOption(state, o);
         return `<button class="ballot-option ${mine ? 'is-own' : ''}" ${mine ? 'disabled' : ''}
                         onclick="roomAct('vote', { option: '${jsStringAttr(o.id)}' })">
                   <span class="ballot-option__label">${escapeHTML(o.label)}</span>
@@ -107,7 +132,7 @@ function renderRoundFooter(state, nextLabel) {
   const t = TRANSLATIONS[appState.lang];
   if (!state.youAreHost) return `<div class="waiting-note">${t.room_wait_host}</div>`;
   return `<div class="btn-stack">
-      <button onclick="roomAct('nextRound', { lang: '${VOTE_LANG()}' })" class="btn btn--primary btn--lg">${nextLabel}</button>
+      <button onclick="roomAct('nextRound', ${roomNextArgs(state)})" class="btn btn--primary btn--lg">${nextLabel}</button>
       <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
     </div>`;
 }
@@ -131,7 +156,7 @@ ROOM_GAMES.wouldyou = {
     const t = TRANSLATIONS[appState.lang];
     const v = state.shared.vote;
 
-    renderRoomFrame(el, ['wyr', state.shared.round, v.phase, v.voted.length, state.youAreHost].join('|'), () => `
+    renderRoomFrame(el, ['wyr', state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="card__title" style="margin-bottom:0">${t.setup_wouldyou || 'لو خيروك'}</div>
@@ -156,7 +181,7 @@ ROOM_GAMES.mostlikely = {
     const t = TRANSLATIONS[appState.lang];
     const v = state.shared.vote;
 
-    renderRoomFrame(el, ['mlt', state.shared.round, v.phase, v.voted.length, state.youAreHost].join('|'), () => `
+    renderRoomFrame(el, ['mlt', state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="prompt-text">${escapeHTML(state.shared.prompt || '')}</div>
@@ -197,7 +222,7 @@ ROOM_GAMES.fibbage = {
       const iSubmitted = (s.submitted || []).indexOf(Room.me) !== -1;
       // Same rule as Just One: while you are inventing a lie, other people
       // finishing theirs must not rebuild the box out from under you.
-      const wsig = 'writing|' + s.round + '|' + iSubmitted + (iSubmitted ? '|' + done + '/' + need : '');
+      const wsig = 'writing|' + s.round + '|' + iSubmitted + '|' + state.youAreHost + (iSubmitted ? '|' + done + '/' + need : '');
       renderRoomFrame(el, wsig, () => question + `
         <div class="card">
           ${iSubmitted
@@ -207,7 +232,8 @@ ROOM_GAMES.fibbage = {
                       onkeydown="if(event.key==='Enter') submitFibbageLie()">
                <button onclick="submitFibbageLie()" class="btn btn--primary btn--lg">${t.send || 'إرسال'}</button>
                <p class="field__hint">${t.fib_lie_hint || 'الهدف إن الناس تصدقها وتختارها'}</p>`}
-        </div>` + renderRoomPlayerStrip(state));
+        </div>
+        ${state.youAreHost ? roomHostRow([[fibCloseWritingLabel(t), "roomAct('closeWriting')"]]) : ''}` + renderRoomPlayerStrip(state));
       refreshRoomPlayerStrip(el, state);
       return;
     }
@@ -225,13 +251,16 @@ ROOM_GAMES.fibbage = {
         <div class="eyebrow">${t.fib_truth || 'الإجابة الصحيحة'}</div>
         <div class="metric metric--md metric--accent">${escapeHTML(s.truth || '')}</div>
       </div>
-      ${renderVoteResults(state, { highlightId: 'truth' })}
+      ${renderVoteResults(state, { highlightId: s.truthId || 'truth' })}
       ${renderScoreboard(s.board)}
       ${renderRoundFooter(state, t.next_question || 'سؤال جديد')}
       ${renderRoomPlayerStrip(state)}`);
     refreshRoomPlayerStrip(el, state);
   }
 };
+
+/** The host's way past a writer whose phone went quiet. */
+const fibCloseWritingLabel = (t) => t.fib_close_writing || (appState.lang === 'en' ? 'Vote on the answers so far' : 'صوّتوا على اللي اتكتب');
 
 async function submitFibbageLie() {
   const input = document.getElementById('fib-lie');

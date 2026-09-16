@@ -18,6 +18,12 @@
      folding (MonkeyWords.js) are shared with the rooms server, so a room
      referees with the same lists. Everything is in appState.monkey, so a
      reload comes back to the board; the clock does not resume by itself.
+
+     A verdict that makes the last monkey ends the game at once, so the winner
+     popup carries the way back: "overrule" when the verdict could be flipped,
+     and "back to the board", which puts the board as it was before that
+     verdict (monkeySnapshot, taken before every move that can cost a quarter,
+     and only good for the turn it was taken in).
      ========================================================================== */
 
   const MONKEY_MODES = ['letters', 'chain', 'names'];
@@ -60,11 +66,11 @@
       sel.innerHTML = MONKEY_CATEGORIES.map(x => `<option value="${x.id}">${escapeHTML(monkeyCategoryLabel(x.id))}</option>`).join('');
       sel.value = c.category;
     }
+    // The clock is the #monkey-time buttons; there is no #monkey-timer field
+    // any more, and waiting for one left the saved choice unpainted.
     const timerInput = document.getElementById('monkey-timer');
-    if (timerInput) {
-      timerInput.value = c.timer;
-      document.querySelectorAll('#monkey-time .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === c.timer));
-    }
+    if (timerInput) timerInput.value = c.timer;
+    document.querySelectorAll('#monkey-time .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === c.timer));
     const winners = document.getElementById('monkey-winners');
     if (winners) winners.value = c.winners;
     const auto = document.getElementById('monkey-autopen');
@@ -173,7 +179,7 @@
     let text = '';
     if (v.kind === 'closed') text = (t.mk_v_closed || '').replace('{name}', v.loser).replace('{word}', v.word);
     else if (v.kind === 'liar-right') text = (t.mk_v_liar_right || '').replace('{name}', v.loser).replace('{word}', v.word);
-    else if (v.kind === 'liar-wrong') text = (t.mk_v_liar_wrong || '').replace('{name}', v.loser).replace('{word}', v.word).replace('{examples}', (v.examples || []).join('، '));
+    else if (v.kind === 'liar-wrong') text = (t.mk_v_liar_wrong || '').replace('{name}', v.loser).replace('{word}', v.word).replace('{examples}', (v.examples || []).join(appState.lang === 'en' ? ', ' : '، '));
     else if (v.kind === 'giveup') text = (t.mk_v_giveup || '').replace('{name}', v.loser);
     else if (v.kind === 'timeout') text = (t.mk_v_timeout || '').replace('{name}', v.loser);
     else if (v.kind === 'monkey') text = (t.mk_v_monkey || '').replace('{name}', v.loser);
@@ -241,6 +247,54 @@
       </div>`;
   }
 
+  /* --- taking back the deciding verdict ----------------------------------------- */
+  let monkeyUndoSnap = null;
+
+  /** The board before a move that can cost a quarter. */
+  function monkeySnapshot() {
+    const m = monkeyState();
+    monkeyUndoSnap = {
+      turnCounter: m.turnCounter,
+      data: JSON.parse(JSON.stringify({
+        players: m.players, turnIndex: m.turnIndex, letters: m.letters, usedCountries: m.usedCountries,
+        history: m.history, required: m.required, verdict: m.verdict || null
+      }))
+    };
+  }
+
+  const monkeyCanUndo = () => !!monkeyUndoSnap && monkeyUndoSnap.turnCounter === monkeyState().turnCounter;
+
+  /** From the winner popup: the board as it was before the verdict that ended the game. */
+  function monkeyUndoVerdict() {
+    const m = monkeyState();
+    if (!monkeyCanUndo()) return;
+    Object.assign(m, monkeyUndoSnap.data);
+    monkeyUndoSnap = null;
+    m.phase = 'play';
+    closeModal('winner-modal');
+    haptic('light');
+    renderMonkeyBoard();
+    startTimer();
+  }
+
+  /** From the winner popup: the table overrules the deciding verdict. */
+  function monkeyFlipFromWin() {
+    const m = monkeyState();
+    const v = m.verdict;
+    if (!v || !v.canFlip || v.flipped) return;
+    closeModal('winner-modal');
+    // Not "play" yet: the flip must not replace the snapshot from before the verdict.
+    m.phase = 'flipping';
+    const other = monkeyPlayerByRow(v.otherRow);
+    monkeyFlipVerdict();
+    const modal = document.getElementById('winner-modal');
+    if (modal && !modal.classList.contains('hidden')) return;   // it ended the game the other way round
+    m.phase = 'play';
+    // On as the verdict would have gone: the player after the one who takes the quarter now.
+    if (other) m.turnIndex = m.players.indexOf(other);
+    nextTurn();
+  }
+
   /* --- letters: the referee ---------------------------------------------------- */
   function monkeyTapLetter(ch) {
     const m = monkeyState();
@@ -249,6 +303,7 @@
     if (!p || p.isMonkey) return;
     const f = monkeyFold(ch);
     if (!f) return;
+    monkeySnapshot();
     m.letters.push({ ch: f, by: p.row, name: p.name });
     m.verdict = null;
     const word = monkeyWordKey();
@@ -281,6 +336,7 @@
     if (author === challenger) { showToast(TRANSLATIONS[appState.lang].mk_own_letter || ''); return; }
     const word = monkeyWordKey();
     const matches = monkeyPrefixWords(monkeyLang(), monkeyCat(), word);
+    monkeySnapshot();
     let loser, other;
     if (matches.length) {
       loser = challenger; other = author;
@@ -306,7 +362,12 @@
     if (!v || !v.canFlip || v.flipped) return;
     const loser = monkeyPlayerByRow(v.loserRow), other = monkeyPlayerByRow(v.otherRow);
     if (!loser || !other) return;
-    if (loser.col > 1) { loser.col--; loser.isMonkey = loser.col === 5; }
+    if (m.phase === 'play') monkeySnapshot();
+    if (loser.col > 1) {
+      loser.col--;
+      loser.isMonkey = loser.col === 5;
+      if (!loser.isMonkey) loser.announced = false;
+    }
     monkeyGiveQuarter(other);
     v.flipped = true;
     v.loser = other.name;
@@ -401,7 +462,12 @@
     const m = monkeyState();
     if (p && p.isMonkey && p.col === 5 && !p.announced) {
       p.announced = true;
+      const prev = m.verdict;
       m.verdict = { kind: 'monkey', loser: p.name };
+      // A liar call that made the monkey can still be overruled.
+      if (prev && prev.canFlip && !prev.flipped && prev.loserRow === p.row) {
+        Object.assign(m.verdict, { canFlip: true, loserRow: prev.loserRow, otherRow: prev.otherRow });
+      }
       if (typeof playFx === 'function') playFx('boo');
     }
     const before = appState.currentView;
@@ -417,6 +483,7 @@
     const m = monkeyState();
     const p = monkeyPlayer();
     if (!p) return;
+    monkeySnapshot();
     monkeyGiveQuarter(p);
     m.verdict = { kind: 'giveup', loser: p.name };
     m.history.unshift({ kind: 'giveup', text: m.config.mode === 'letters' ? monkeyWordKey() : (m.required || ''), by: p.name });
@@ -431,6 +498,7 @@
     const m = monkeyState();
     const p = monkeyPlayer();
     if (p) {
+      monkeySnapshot();
       monkeyGiveQuarter(p);
       m.verdict = { kind: 'timeout', loser: p.name };
       if (m.config.mode === 'letters') m.letters = [];
@@ -473,11 +541,20 @@
       return `<div class="flex justify-between px-3 py-2 rounded ${p.isMonkey ? 'plate-danger' : 'plate-success'}"><span>${escapeHTML(p.name)}</span><span class="font-bold">${MONKEY_STAGE_ICONS[stage] || '✅'} ${escapeHTML(stagesMap[stage])}</span></div>`;
     }).join('');
     const words = m.history.filter(h => h.kind === 'word' || h.kind === 'name').map(h => h.text);
-    const summary = words.length ? `<p class="field__hint" style="margin-top: var(--sp-2)">${escapeHTML(t.mk_words_said || '')}: ${escapeHTML(words.slice(0, 12).join('، '))}${words.length > 12 ? '…' : ''}</p>` : '';
+    const summary = words.length ? `<p class="field__hint" style="margin-top: var(--sp-2)">${escapeHTML(t.mk_words_said || '')}: ${escapeHTML(words.slice(0, 12).join(appState.lang === 'en' ? ', ' : '، '))}${words.length > 12 ? '…' : ''}</p>` : '';
     const box = document.getElementById('winner-scores-container');
     if (box) { box.innerHTML = `<div class="space-y-1">${rows}</div>${summary}`; box.classList.add('hidden'); }
+    // The way back, when the verdict that ended it can still be overruled or undone.
+    const v = m.verdict;
+    const canFlip = !!(v && v.canFlip && !v.flipped);
+    const canUndo = monkeyCanUndo();
+    const back = canFlip || canUndo ? `
+      <div class="btn-row" style="margin-top: var(--sp-3)">
+        ${canFlip ? `<button type="button" class="btn btn--secondary btn--sm" onclick="monkeyFlipFromWin()">↩️ ${escapeHTML(t.mk_flip || '')}</button>` : ''}
+        ${canUndo ? `<button type="button" class="btn btn--ghost btn--sm" onclick="monkeyUndoVerdict()">↶ ${escapeHTML(t.mk_back_to_board || 'رجوع للّعبة')}</button>` : ''}
+      </div>` : '';
     const list = document.getElementById('winners-list');
-    if (list) list.innerHTML = `<div class="tx-success font-bold mb-2">${escapeHTML(t.mk_winners || '')}</div>` + winners.map(w => `<div class="text-xl mb-1">${escapeHTML(w)}</div>`).join('');
+    if (list) list.innerHTML = `<div class="tx-success font-bold mb-2">${escapeHTML(t.mk_winners || '')}</div>` + winners.map(w => `<div class="text-xl mb-1">${escapeHTML(w)}</div>`).join('') + back;
     document.getElementById('winner-modal').classList.remove('hidden');
     saveToLocal();
   }

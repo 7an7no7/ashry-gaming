@@ -28,36 +28,76 @@
 const motionOff = () =>
   !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) || document.hidden;
 
-const easeInOutCubic = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+/**
+ * Where an element will be once the animations it rides on have finished (its
+ * screen sliding in, a card rising): they are seeked to their end, measured and
+ * put back in the same task, so nothing is drawn in between and no animation
+ * event fires.
+ */
+function restingRect(el) {
+  const riding = (document.getAnimations ? document.getAnimations() : []).filter((a) => {
+    const t = a.effect && a.effect.target;
+    return t && t.contains && t.contains(el);
+  });
+  const saved = riding.map((a) => [a, a.currentTime]);
+  saved.forEach(([a]) => {
+    const end = a.effect.getComputedTiming().endTime;
+    if (isFinite(end)) a.currentTime = end;
+  });
+  const rect = el.getBoundingClientRect();
+  saved.forEach(([a, time]) => { if (time !== null) a.currentTime = time; });
+  return rect;
+}
 
 /**
- * Flies an emoji from a rect on screen onto an element, following the element
- * if its screen is still sliding in, and shows the element with a small pop
- * when it lands. `arc` lifts the path in the middle, in px.
+ * Flies an emoji from a rect on screen onto an element, and shows the element
+ * with a small pop when it lands. `arc` lifts the path in the middle, in px.
+ *
+ * The flight is a Web Animation of transform only, so the browser runs it off
+ * the main thread and starts its clock on the first frame it actually draws:
+ * a screen that is slow to draw (the home, 600 elements) no longer eats the
+ * start of the path or stalls it halfway, which a per-frame script did.
+ * It aims at where the element comes to rest (restingRect) rather than
+ * chasing it. The ghost is drawn at the larger of the two sizes and only ever
+ * scaled down, so the emoji stays sharp.
  */
 function flyEmoji(emoji, fromRect, fromFontPx, target, opts) {
   const o = opts || {};
-  if (!target || !fromRect || !fromFontPx || motionOff()) return false;
+  if (!target || !fromRect || !fromFontPx || motionOff() || !document.body.animate) return false;
   const duration = o.duration || 540;
+  const to = restingRect(target);
+  if (!to.width) return false;
+  const toFont = parseFloat(getComputedStyle(target).fontSize) || fromFontPx;
+  const big = Math.max(fromFontPx, toFont);
+
   const ghost = document.createElement('span');
   ghost.className = 'motion-ghost';
-  ghost.textContent = emoji;
-  ghost.style.fontSize = fromFontPx + 'px';
+  ghost.style.fontSize = big + 'px';
+  const glyph = document.createElement('span');
+  glyph.className = 'motion-ghost__glyph';
+  glyph.textContent = emoji;
+  ghost.appendChild(glyph);
   document.body.appendChild(ghost);
-  target.classList.add('motion-waiting');
-
+  const size = ghost.getBoundingClientRect();
   const fromX = fromRect.left + fromRect.width / 2;
   const fromY = fromRect.top + fromRect.height / 2;
-  const toFont = parseFloat(getComputedStyle(target).fontSize) || fromFontPx;
-  const place = (k) => {
-    const r = target.getBoundingClientRect();
-    const e = easeInOutCubic(k);
-    const x = fromX + (r.left + r.width / 2 - fromX) * e;
-    const y = fromY + (r.top + r.height / 2 - fromY) * e - Math.sin(Math.PI * k) * (o.arc || 0);
-    const s = 1 + (toFont / fromFontPx - 1) * e;
-    ghost.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -50%) scale(' + s + ')';
-  };
-  place(0);
+  ghost.style.left = (fromX - size.width / 2) + 'px';
+  ghost.style.top = (fromY - size.height / 2) + 'px';
+  const dx = to.left + to.width / 2 - fromX;
+  const dy = to.top + to.height / 2 - fromY;
+  target.classList.add('motion-waiting');
+
+  const flight = ghost.animate([
+    { transform: 'translate(0px, 0px) scale(' + (fromFontPx / big) + ')' },
+    { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + (toFont / big) + ')' }
+  ], { duration: duration, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' });
+  if (o.arc) {
+    glyph.animate([
+      { transform: 'translateY(0px)', easing: 'ease-out' },
+      { transform: 'translateY(' + (-o.arc) + 'px)', offset: 0.5, easing: 'ease-in' },
+      { transform: 'translateY(0px)' }
+    ], { duration: duration, fill: 'both' });
+  }
 
   let landed = false;
   const land = () => {
@@ -69,16 +109,11 @@ function flyEmoji(emoji, fromRect, fromFontPx, target, opts) {
     target.classList.add('motion-landed');
     setTimeout(() => target.classList.remove('motion-landed'), 520);
   };
-  const t0 = performance.now();
-  const step = (now) => {
-    if (landed) return;
-    const k = Math.min(1, (now - t0) / duration);
-    place(k);
-    if (k < 1) requestAnimationFrame(step);
-    else land();
-  };
-  requestAnimationFrame(step);
-  setTimeout(land, duration + 250);        // a tab that stops painting still lands
+  flight.onfinish = land;
+  // Timers too, counted from the first drawn frame; and one that holds even
+  // if the tab stops drawing before it starts.
+  if (flight.ready) flight.ready.then(() => setTimeout(land, duration + 200)).catch(land);
+  setTimeout(land, duration + 1500);
   return true;
 }
 

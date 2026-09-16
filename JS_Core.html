@@ -2627,12 +2627,18 @@
     // property in the stylesheet and the `html[lang="ar"]` typography rules
     // key off these two attributes, so anything that changes the language
     // without going through the toggle would leave the app mirrored.
-    document.documentElement.lang = appState.lang;
-    document.documentElement.dir = appState.lang === 'en' ? 'ltr' : 'rtl';
+    // Only when they change: setting either on <html>, even to the value it
+    // already has, restyles the whole document, and this runs on every
+    // setView - on the home that was most of the time a back tap took.
+    const root = document.documentElement;
+    const dir = appState.lang === 'en' ? 'ltr' : 'rtl';
+    if (root.getAttribute('lang') !== appState.lang) root.lang = appState.lang;
+    if (root.getAttribute('dir') !== dir) root.dir = dir;
 
+    // Rewritten only where the text differs (a label code changed is still reset).
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');
-      if (t[key]) el.innerHTML = t[key];
+      if (t[key] && el.innerHTML !== t[key]) el.innerHTML = t[key];
     });
     
     document.querySelectorAll('[data-i18n-ph]').forEach(el => {
@@ -3310,14 +3316,15 @@
       const textEl = document.getElementById('app-title-text') || titleEl;
       // The brand mark sits beside the name on the home screen only.
       titleEl.classList.toggle('shell__title--brand', viewId === 'menu');
-      if (textEl.innerText !== text) {
+      // textContent, not innerText: innerText forces a layout mid-setView.
+      if (textEl.textContent !== text) {
         // Cross-fade rather than snapping the text. One timer, so navigating
         // twice in quick succession can't land the writes out of order.
         pendingTitle = text;
         titleEl.classList.add('is-swapping');
         clearTimeout(titleSwapTimer);
         titleSwapTimer = setTimeout(() => {
-          textEl.innerText = pendingTitle;
+          textEl.textContent = pendingTitle;
           titleEl.classList.remove('is-swapping');
         }, 110);
       }

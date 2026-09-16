@@ -925,6 +925,14 @@ belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
 
+**Setting `lang` or `dir` on `<html>` restyles the whole page, even to the
+value it already has.** `applyTranslations` runs on every `setView` and did
+exactly that, which on the home was half of what a back tap cost (and every
+`[data-i18n]` element was rewritten too). Both now write only on a change;
+`syncChrome` compares the title with `textContent`, because reading
+`innerText` forces a layout in the middle of a screen change. Anything that
+runs on every `setView` has to be a no-op when nothing changed.
+
 **Moving a list means finding every reader.** The ربع قرد rebuild moved the
 country names into `MonkeyWords.js` and removed `COUNTRIES_DB`, but the
 default category of the one-phone الجاسوس («دول العالم») still read it, so
@@ -1164,9 +1172,16 @@ a timer, and `initializeApp` sets a safety fade too.
 idea - something flies to where it lives rather than vanishing and
 reappearing - used where the player has just done something, and nowhere
 else. `flyEmoji(emoji, fromRect, fromFontPx, target)` flies a copy of an icon
-from one place onto an element, re-reading the element's position every frame
-so it lands even while a screen is still sliding in, and pops the element
-when it arrives (a timer lands it too). It flies twice: the tapped card's
+from one place onto an element and pops the element when it arrives (a timer
+lands it too). The flight is a Web Animation of `transform` only, aimed at
+where the element comes to rest (`restingRect` seeks the animations it rides
+on - its screen sliding in - to their end, measures, and puts them back in the
+same task): the browser runs it off the main thread and starts its clock on
+the first frame it draws. It used to chase the element from a
+`requestAnimationFrame` loop, and going back to the home - 600 elements to
+draw - ate the start of the path and stuttered, while opening a light setup
+screen looked fine. The ghost is drawn at the larger of the two sizes and
+only scaled down, so the emoji stays sharp. It flies twice: the tapped card's
 icon to the game's hero (`catalogIconFlight`, which `catalogOpen` measures
 before the screen changes - cards pass themselves as `this`), and a room
 dealing a game from the lobby (`playRoomGameStart`, from `Room.onChange` when

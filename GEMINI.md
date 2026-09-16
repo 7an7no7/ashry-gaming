@@ -48,7 +48,8 @@
     the voting engine; votes stay hidden until the round closes.
 - **Puzzle/Logic Games:** Wordle, Guess the Number, 🔗 Connections (تشابه) in three
   levels: easy (3 groups, 12 cards), medium (4 groups, 16) and hard (5 groups, 20).
-- **Party, one phone:** 💣 **The Bomb (القنبلة):** a category and a hidden,
+- **Party, one phone:** 🤳 **Heads Up (على راسك):** the phone on a forehead,
+  tilt for right or pass; 💣 **The Bomb (القنبلة):** a category and a hidden,
   accelerating fuse, pass the phone; 🚏 **Stop the Bus (أتوبيس كومبليت):** the
   paper game with the phone as letter, clock and scorer; 5️⃣ **Five Seconds
   (خمس ثواني):** name three things in a category before the ring runs out.
@@ -98,7 +99,7 @@ work changed. Add to it when a decision is made or a batch ships.
     Mafia. With the option on, the real role is shown.
   - **There is time to talk**: a discussion clock before every vote, for
     arguing and accusing.
-- **Also asked for on 16 Sep 2026 and queued in this order**: على راسك, زي الكل with مافيا in rooms, and the
+- **Also asked for on 16 Sep 2026 and queued in this order**: زي الكل with مافيا in rooms, and the
   card game scorers (إستميشن, طرنيب, تريكس, كونكان, باصرة).
 
 ### Ideas not built yet (researched 16 Sep 2026)
@@ -203,7 +204,7 @@ blind ranking, the word search), `countUp` for streaks and scores.
   Minesweeper; Queens, Tango, Nonogram; then خيوط, كلمات من حروف, إيه اللي
   يجمعهم؟, سلسلة الإجابات and الترتيب الأعمى, all from existing lists. The
   trivia questions moved to `TriviaQuestions.js` so the page can ask them.
-  Then خمّن الدولة with its country table, and the تحدي اليوم hub. The soundboard moved from Settings
+  Then خمّن الدولة with its country table, the تحدي اليوم hub, and على راسك. The soundboard moved from Settings
   to the tools. Solo boards sit beside their
   controls on laptops and TVs too (Sudoku's pad had been below the fold at
   1280×720).
@@ -1065,6 +1066,22 @@ The games (group `puzzle`, "ألغاز ومخ", on the home):
   line fades its clue; the picture's name is in the result. **`npm run
   check` fails on a picture that needs a guess**: four first drafts did (a
   symmetric face or sun often has two solutions) and were dropped.
+
+**على راسك** (`JS_HeadsUp.html`, id `headsup`, group `party`) is not solo but
+rides on the same registration (`soloRegister`) for its reload: one phone on a
+forehead, the table describes, tip down for right and up to pass, with two big
+buttons for a phone that has no sensor or refused it. The tilt is
+`zUp = cos(beta)·cos(gamma)` from `deviceorientation` (1 flat, 0 upright, -1
+facing the floor, whichever way the phone is held), and an answer needs the
+phone upright in between, so the phone in a hand at the start never counts. iOS
+only grants motion inside a tap, so `huReady` asks first thing. With the page
+upright (rotation lock) and the phone on its side, the card turns 90° towards
+the edge that is up (`xUp = -cos(beta)·sin(gamma)`). The decks (`HU_DECKS`)
+are the Charades and Who Am I categories matched by their emoji, plus the
+countries of خمّن الدولة: about 1,800 words in the Arabic mix. The play
+screen is full screen (`FULLSCREEN_VIEWS`) and keeps the screen on with the
+Wake Lock API; after a turn every word can be tapped to fix a wrong verdict;
+the end is a podium. A reload mid-turn goes back to that player's "ready".
 
 **تحدي اليوم** (`JS_Daily.html`, the `setup-daily` screen, first card of the
 `brain` group and a strip on the home above the recent games): every game's

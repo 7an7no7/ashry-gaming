@@ -6716,6 +6716,150 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   pointer-events: none;
 }
 
+/* --- على راسك (full screen) --- */
+#view-play-headsup {
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, var(--surface-2));
+}
+#view-play-headsup.hidden { display: none; }
+.hu-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--safe-top) 0 var(--safe-bottom);
+  transition: background-color 180ms ease-out;
+}
+.hu-stage[data-phase="countdown"], .hu-stage[data-phase="play"] { background: #0f172a; color: #ffffff; touch-action: none; user-select: none; -webkit-user-select: none; }
+/* The table sees a flash of green for right and amber for pass, in both themes. */
+.hu-stage[data-flash="right"] { background: #15803d; color: #ffffff; }
+.hu-stage[data-flash="pass"] { background: #b45309; color: #ffffff; }
+.hu-exit {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--sp-2));
+  inset-inline-end: var(--sp-3);
+  z-index: 3;
+  width: var(--tap);
+  height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-solid);
+  color: var(--text-2);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.hu-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-4);
+  overflow-y: auto;
+  text-align: center;
+}
+.hu-panel--list { justify-content: flex-start; padding-top: calc(var(--sp-6) + var(--tap)); }
+.hu-panel__icon { font-size: 3.5rem; line-height: 1; }
+.hu-panel__title { color: var(--text-strong); font-size: var(--fs-display); font-weight: 900; line-height: 1.15; text-wrap: balance; }
+.hu-panel .btn, .hu-panel .btn-stack { width: 100%; }
+.hu-steps { display: grid; gap: var(--sp-2); width: 100%; padding: 0; list-style: none; text-align: start; }
+.hu-steps li { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-solid); color: var(--text-strong); font-weight: 700; }
+.hu-card {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  text-align: center;
+}
+/* The page stayed upright but the phone is on its side: the card turns with it. */
+.hu-card[data-rot="90"], .hu-card[data-rot="-90"] {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: var(--app-h, 100vh);
+  height: 100vw;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+.hu-card[data-rot="-90"] { transform: translate(-50%, -50%) rotate(-90deg); }
+.hu-card__top { position: absolute; top: var(--sp-3); right: var(--sp-4); left: var(--sp-4); display: flex; justify-content: space-between; font-size: 1.6rem; font-weight: 900; }
+.hu-card__top .metric, .hu-count { color: inherit; }
+.hu-card__small { font-size: var(--fs-h2); font-weight: 800; opacity: 0.9; }
+.hu-word { max-width: 100%; font-size: clamp(2.4rem, 13vw, 5.5rem); font-weight: 900; line-height: 1.15; overflow-wrap: anywhere; text-wrap: balance; }
+.hu-card[data-rot="90"] .hu-word, .hu-card[data-rot="-90"] .hu-word { font-size: clamp(2.4rem, 12vh, 6rem); }
+.hu-count { font-size: clamp(5rem, 30vw, 10rem); line-height: 1; }
+.hu-flash { position: absolute; top: 50%; left: 50%; z-index: 4; margin: -3rem 0 0 -3rem; width: 6rem; font-size: 6rem; line-height: 1; text-align: center; opacity: 0; pointer-events: none; }
+.hu-taps { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.hu-tap {
+  min-height: 5rem;
+  border: 0;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-family: var(--font);
+  font-size: var(--fs-h2);
+  font-weight: 800;
+  cursor: pointer;
+}
+.hu-tap--right { background: rgba(34, 197, 94, 0.35); }
+.hu-tap--pass { background: rgba(245, 158, 11, 0.25); }
+.hu-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.hu-chip {
+  min-height: 2.5rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-3);
+  font-family: var(--font);
+  font-weight: 700;
+  text-decoration: line-through;
+  cursor: pointer;
+}
+.hu-chip.is-right { border-color: transparent; background: var(--success-soft); color: var(--success-ink); text-decoration: none; }
+.hu-board { display: grid; gap: var(--sp-1); width: 100%; }
+.hu-board .row { display: grid; grid-template-columns: 2rem 1fr auto; align-items: center; text-align: start; }
+.hu-decks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.hu-deck {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 5.25rem;
+  padding: var(--sp-2) var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  cursor: pointer;
+}
+.hu-deck.is-active { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.hu-deck__icon { font-size: 1.6rem; line-height: 1.1; }
+.hu-deck__name { font-size: var(--fs-sm); font-weight: 800; line-height: 1.2; text-align: center; }
+.hu-deck__count { color: var(--text-3); font-size: var(--fs-xs); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .hu-panel { padding: var(--sp-3) var(--sp-4); gap: var(--sp-2); }
+  .hu-panel__icon { font-size: 2.2rem; }
+  .hu-panel__title { font-size: var(--fs-h1); }
+  .hu-word { font-size: clamp(2.2rem, 11vw, 5rem); }
+  .hu-tap { min-height: 3.5rem; }
+  .hu-decks { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
 /* --- تحدي اليوم --- */
 .daily-strip {
   display: flex;
@@ -10352,6 +10496,40 @@ const TRIVIA_QUESTIONS = {
       </div>
       <div id="view-play-blindrank" class="hidden" data-accent="indigo"><div id="blindrank-stage"></div></div>
 
+      <div id="view-setup-headsup" class="hidden" data-accent="green">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="hu_deck">الكلمات</label>
+            <div class="hu-decks" id="headsup-decks"></div>
+          </div>
+          <div class="field">
+            <label class="field__label" data-i18n="hu_time">وقت كل دور</label>
+            <div class="segmented" id="headsup-time" role="group">
+              <button type="button" class="segmented__item is-active" data-value="60" onclick="setHeadsUpOption('seconds', 60)" data-i18n="hu_sec_60">60 ثانية</button>
+              <button type="button" class="segmented__item" data-value="90" onclick="setHeadsUpOption('seconds', 90)" data-i18n="hu_sec_90">90 ثانية</button>
+              <button type="button" class="segmented__item" data-value="120" onclick="setHeadsUpOption('seconds', 120)" data-i18n="hu_sec_120">دقيقتين</button>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field__label" data-i18n="hu_rounds">أدوار لكل لاعب</label>
+            <div class="segmented" id="headsup-rounds" role="group">
+              <button type="button" class="segmented__item is-active" data-value="1" onclick="setHeadsUpOption('rounds', 1)">1</button>
+              <button type="button" class="segmented__item" data-value="2" onclick="setHeadsUpOption('rounds', 2)">2</button>
+              <button type="button" class="segmented__item" data-value="3" onclick="setHeadsUpOption('rounds', 3)">3</button>
+            </div>
+          </div>
+          <label class="field__label" data-i18n="players">اللاعبين</label>
+          <div class="input-group" style="margin-bottom: var(--sp-4)">
+            <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+            <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+          </div>
+          <div id="headsup-player-list" class="mb-6"></div>
+          <p class="field__hint" data-i18n="hu_players_hint">من غير أسماء؟ عادي، العبوا دور ورا دور.</p>
+          <button onclick="startHeadsUp()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-headsup" class="hidden" data-accent="green"><div id="headsup-stage" class="hu-stage"></div></div>
+
       <div id="view-setup-daily" class="hidden" data-accent="amber"><div id="daily-stage"></div></div>
 
       <div id="view-setup-flags" class="hidden" data-accent="blue">
@@ -13806,6 +13984,42 @@ const TRIVIA_QUESTIONS = {
       daily_share_all: "شارك نتيجة النهارده",
       daily_play: "العب",
       daily_back: "تحدي اليوم",
+      setup_headsup: "على راسك",
+      cat_headsup: "الموبايل على جبهتك والكل يوصفلك الكلمة. نزّل راسك لو صح، وارفعها لو هتفوّت.",
+      hu_deck: "الكلمات",
+      hu_deck_mix: "مكس",
+      hu_deck_movies: "أفلام ومسلسلات",
+      hu_deck_people: "مشاهير وشخصيات",
+      hu_deck_animals: "حيوانات",
+      hu_deck_food: "أكل وشرب",
+      hu_deck_jobs: "مهن",
+      hu_deck_things: "حاجات وأدوات",
+      hu_deck_places: "دول ومدن",
+      hu_deck_actions: "أفعال (تمثيل)",
+      hu_time: "وقت كل دور",
+      hu_sec_60: "60 ثانية",
+      hu_sec_90: "90 ثانية",
+      hu_sec_120: "دقيقتين",
+      hu_rounds: "أدوار لكل لاعب",
+      hu_players_hint: "من غير أسماء؟ عادي، العبوا دور ورا دور.",
+      hu_you: "اللاعب",
+      hu_round: "الجولة {n} من {m}",
+      hu_turn_of: "دور {name}",
+      hu_step_hold: "امسك الموبايل بالعرض على جبهتك، والشاشة ناحية صحابك.",
+      hu_step_down: "نزّل راسك لتحت لو عرفت الكلمة.",
+      hu_step_up: "ارفع راسك لفوق عشان تفوّتها.",
+      hu_ready: "جاهز!",
+      hu_sensor_hint: "لو الموبايل مش حاسس بالميل، صحابك يدوسوا صح أو فوت.",
+      hu_on_head: "حط الموبايل على راسك",
+      hu_pass: "فوت",
+      hu_right: "صح",
+      hu_got: "كلمات صح",
+      hu_fix_hint: "المس أي كلمة لو اتحسبت غلط.",
+      hu_none: "ولا كلمة المرة دي",
+      hu_results: "النتيجة",
+      hu_next_of: "الدور على {name}",
+      hu_again: "دور كمان",
+      hu_final: "النتيجة النهائية",
       cat_xo: "3 في صف واحد. ضد صاحبك أو ضد الموبايل.",
       cat_guessnum: "رقم مخفي: أعلى ولا أقل؟ لوحدك أو مع صاحبك.",
       cat_reaction: "اتنين على شاشة واحدة: أول واحد يضغط لما تبقى خضرا.",
@@ -15004,6 +15218,42 @@ const TRIVIA_QUESTIONS = {
       daily_share_all: "Share today's results",
       daily_play: "Play",
       daily_back: "Daily challenge",
+      setup_headsup: "Heads Up",
+      cat_headsup: "The phone on your forehead while everyone describes the word. Tip down if you got it, up to pass.",
+      hu_deck: "Words",
+      hu_deck_mix: "Mix",
+      hu_deck_movies: "Films & TV",
+      hu_deck_people: "Famous people & characters",
+      hu_deck_animals: "Animals",
+      hu_deck_food: "Food & drink",
+      hu_deck_jobs: "Jobs",
+      hu_deck_things: "Things & tools",
+      hu_deck_places: "Countries & cities",
+      hu_deck_actions: "Actions (act it out)",
+      hu_time: "Time per turn",
+      hu_sec_60: "60 s",
+      hu_sec_90: "90 s",
+      hu_sec_120: "2 min",
+      hu_rounds: "Turns per player",
+      hu_players_hint: "No names? That's fine, just take turns.",
+      hu_you: "Player",
+      hu_round: "Round {n} of {m}",
+      hu_turn_of: "{name}'s turn",
+      hu_step_hold: "Hold the phone sideways on your forehead, screen facing your friends.",
+      hu_step_down: "Tip your head down when you get the word.",
+      hu_step_up: "Tip your head up to pass.",
+      hu_ready: "Ready!",
+      hu_sensor_hint: "If the phone doesn't feel the tilt, your friends can press right or pass.",
+      hu_on_head: "Put the phone on your head",
+      hu_pass: "Pass",
+      hu_right: "Right",
+      hu_got: "right",
+      hu_fix_hint: "Tap a word if it was counted wrong.",
+      hu_none: "No words this time",
+      hu_results: "Results",
+      hu_next_of: "{name} is up",
+      hu_again: "Another turn",
+      hu_final: "Final scores",
       cat_xo: "Three in a row. Against a friend or the phone.",
       cat_guessnum: "A hidden number: higher or lower? Solo or with a friend.",
       cat_reaction: "Two on one screen: first to tap when it turns green.",
@@ -16247,6 +16497,8 @@ const TRIVIA_QUESTIONS = {
     'play-blindrank':  { title: 'setup_blindrank',  up: 'setup-blindrank', accent: 'indigo' },
     'setup-flags':     { title: 'setup_flags',      up: 'menu',           accent: 'blue' },
     'setup-daily':     { title: 'daily_title',      up: 'menu',           accent: 'amber' },
+    'setup-headsup':   { title: 'setup_headsup',    up: 'menu',           accent: 'green' },
+    'play-headsup':    { title: 'setup_headsup',    up: 'setup-headsup',  accent: 'green' },
     'play-flags':      { title: 'setup_flags',      up: 'setup-flags',    accent: 'blue' },
     'play-chooser':    { title: 'tool_chooser',     up: 'menu',           accent: 'orange' },
     'room-buzzer':     { title: 'setup_buzzer',     up: 'menu',           accent: 'rose' },
@@ -16479,7 +16731,7 @@ const TRIVIA_QUESTIONS = {
   let viewEnterFallback = null;
 
   /** Tools that take the whole screen; the header and nav step aside for them. */
-  const FULLSCREEN_VIEWS = ['play-chess', 'play-reaction', 'room-tv', 'play-chooser'];
+  const FULLSCREEN_VIEWS = ['play-chess', 'play-reaction', 'room-tv', 'play-chooser', 'play-headsup'];
 
   /* Setup screens whose options are drawn from appState (segmented controls,
      chips). They are painted whenever the screen is reached - from the menu,
@@ -17183,6 +17435,19 @@ const GAME_RULES = {
                 <li><b>🔥 السلسلة</b>: عدد الأيام ورا بعض اللي خلّصت فيها تحدي واحد على الأقل.</li>
                 <li><b>📤 شارك نتيجة النهارده</b> بيبعت كل نتايجك في رسالة واحدة لجروب العيلة أو الصحاب.</li>
             </ol>`,
+        headsup: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>اختاروا الكلمات والوقت، واكتبوا الأسامي لو عايزين نقط لكل واحد.</li>
+                <li>اللي عليه الدور يدوس <b>جاهز</b> ويحط الموبايل بالعرض على جبهته، والشاشة ناحية الباقيين.</li>
+                <li>الباقيين يوصفوا الكلمة من غير ما يقولوها. <b>نزّل راسك</b> (الشاشة للأرض) لو عرفتها، <b>ارفعها</b> (الشاشة للسقف) عشان تفوّت.</li>
+                <li>لما الوقت يخلص تظهر الكلمات. المس أي كلمة اتحسبت غلط عشان تصلحها، وبعدين الدور على اللي بعده.</li>
+            </ol>
+            <p class="help-sub">💡 نصايح</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>على الآيفون بيطلب إذن الحركة أول مرة: وافق عشان الميل يشتغل.</li>
+                <li>لو الموبايل مش بيحس بالميل، الباقيين يدوسوا <b>✓ صح</b> أو <b>⏭ فوت</b> تحت.</li>
+                <li><b>أفعال (تمثيل)</b>: بدل الوصف، الباقيين يمثلوا الكلمة.</li>
+            </ul>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>12 صوت للحظات اللعب: تصفيق، فوز، صح، غلط، نكتة، ترومبون حزين، كمان حزين، صراصير، استهجان، بوري، سارينة وصفارة.</li>
@@ -17711,6 +17976,19 @@ const GAME_RULES = {
                 <li><b>🔥 The streak</b> counts the days in a row with at least one challenge finished.</li>
                 <li><b>📤 Share today's results</b> sends all of them in one message to the family or friends' group.</li>
             </ol>`,
+        headsup: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Pick the words and the time, and add names if you want a score for each person.</li>
+                <li>Whoever is up presses <b>Ready</b> and holds the phone sideways on their forehead, screen facing the others.</li>
+                <li>The others describe the word without saying it. <b>Tip your head down</b> (screen to the floor) when you get it, <b>up</b> (screen to the ceiling) to pass.</li>
+                <li>When time runs out the words are listed. Tap any word that was counted wrong to fix it, then the next player is up.</li>
+            </ol>
+            <p class="help-sub">💡 Tips</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>An iPhone asks for motion access the first time: allow it so the tilt works.</li>
+                <li>If the phone doesn't feel the tilt, the others can press <b>✓ Right</b> or <b>⏭ Pass</b> at the bottom.</li>
+                <li><b>Actions (act it out)</b>: instead of describing, the others act the word.</li>
+            </ul>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Twelve sounds for the moments of a game: applause, ta-da, right, wrong, ba-dum-tss, the sad trombone, a sad violin, crickets, boo, an air horn, a siren and a whistle.</li>
@@ -17783,6 +18061,7 @@ const GAME_CATALOG = [
   { id: 'wouldyou',   icon: '⚖️',  title: 'setup_wouldyou',   desc: 'cat_wouldyou',   accent: 'violet', players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wouldyou') },
   { id: 'mostlikely', icon: '👉',   title: 'setup_mostlikely', desc: 'cat_mostlikely', accent: 'amber',  players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('mostlikely') },
   { id: 'wavelength', icon: '🌊',   title: 'setup_wavelength', desc: 'cat_wavelength', accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'party', open: () => roomCreateFor('wavelength') },
+  { id: 'headsup',    icon: '🤳',   title: 'setup_headsup',    desc: 'cat_headsup',    accent: 'green',  players: [2, 12], mins: 10, modes: ['device'],               group: 'party', setup: 'setup-headsup', open: () => setupHeadsUp() },
   { id: 'fiveseconds', icon: '5️⃣',  title: 'setup_fiveseconds', desc: 'cat_fiveseconds', accent: 'orange', players: [2, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'party', setup: 'setup-fiveseconds', open: () => setupFiveSeconds() },
 
   /* --- معلومات --- */
@@ -20671,6 +20950,7 @@ const HELP_ENTRIES = [
   { key: 'queens',      title: 'setup_queens',      icon: '👑', accent: 'amber',  group: 'games' },
   { key: 'tango',       title: 'setup_tango',       icon: '☀️', accent: 'blue',   group: 'games' },
   { key: 'nonogram',    title: 'setup_nonogram',    icon: '🖼️', accent: 'green',  group: 'games' },
+  { key: 'headsup',     title: 'setup_headsup',     icon: '🤳', accent: 'green',  group: 'games' },
   { key: 'daily',       title: 'daily_title',       icon: '📅', accent: 'amber',  group: 'games' },
   { key: 'streak',      title: 'setup_streak',      icon: '🔥', accent: 'rose',   group: 'games' },
   { key: 'pinpoint',    title: 'setup_pinpoint',    icon: '🔗', accent: 'violet', group: 'games' },
@@ -20739,6 +21019,7 @@ const HELP_FOR_VIEW = {
   'setup-pinpoint': 'pinpoint', 'play-pinpoint': 'pinpoint', 'setup-streak': 'streak', 'play-streak': 'streak',
   'setup-blindrank': 'blindrank', 'play-blindrank': 'blindrank',
   'setup-flags': 'flags', 'play-flags': 'flags', 'setup-daily': 'daily',
+  'setup-headsup': 'headsup', 'play-headsup': 'headsup',
   'play-chooser': 'chooser', 'room-buzzer': 'buzzer', 'room-stop': 'stop',
   'room-chameleon': 'chameleon', 'room-spyfall': 'spyfall', 'room-bomb': 'bomb',
   'setup-emoji': 'emoji', 'play-emoji': 'emoji', 'room-emoji': 'emoji',
@@ -43065,6 +43346,426 @@ function shareDaily() {
 }
 
 soloRegister('daily', { setup: 'setup-daily', paintSetup: renderDaily });
+</script>
+
+    <script>
+/* ============================================================================
+   على راسك — HEADS UP (one phone)
+   ----------------------------------------------------------------------------
+   The player holds the phone on their forehead, screen towards the table,
+   and guesses the word the others describe. Tip the head down (the screen
+   faces the floor) for right, up (the screen faces the ceiling) to pass;
+   two big buttons do the same where there is no motion sensor or it was
+   refused. One turn is 60, 90 or 120 seconds; then a list of the words, each
+   tap-able to fix a mistake the sensor made, and the next player.
+
+   The tilt is read from deviceorientation as the screen's facing:
+   zUp = cos(beta)·cos(gamma) is 1 flat on a table, 0 upright and -1 facing
+   the floor, whatever way round the phone is held. An answer needs the phone
+   upright first (|zUp| < 0.35), so the phone in a hand at the start, or a
+   head coming back up, never counts twice. iOS asks for permission, and only
+   inside a tap, which is why huReady asks before anything else. When the
+   page is upright (rotation lock) but the phone is on its side, the card is
+   turned 90° towards whichever edge is up (xUp = -cos(beta)·sin(gamma)).
+
+   The decks are the Charades and Who Am I lists grouped by kind, and the
+   countries of خمّن الدولة (HU_DECKS picks categories by their emoji, so both
+   languages resolve the same way); words are dealt through freshPick. The
+   screen stays awake through the Wake Lock API while a turn runs. A turn in
+   progress is not restorable: a reload goes back to that player's "ready".
+   ========================================================================= */
+
+const HU_DECKS = [
+  { id: 'mix', icon: '🎲' },
+  { id: 'movies', icon: '🎬', from: [['CHARADES_DB', '🎬'], ['CHARADES_DB', '📺'], ['CHARADES_DB', '🎭']] },
+  { id: 'people', icon: '🌟', from: [['WHOAMI_DB', '🌟'], ['WHOAMI_DB', '🦸'], ['CHARADES_DB', '🦸']] },
+  { id: 'animals', icon: '🦁', from: [['CHARADES_DB', '🦁'], ['WHOAMI_DB', '🦁']] },
+  { id: 'food', icon: '🍕', from: [['CHARADES_DB', '🍕'], ['WHOAMI_DB', '🍽']] },
+  { id: 'jobs', icon: '👮', from: [['CHARADES_DB', '👮'], ['WHOAMI_DB', '👮']] },
+  { id: 'things', icon: '🔧', from: [['CHARADES_DB', '🔧'], ['WHOAMI_DB', '🗿'], ['WHOAMI_DB', '💡']] },
+  { id: 'places', icon: '🌍', from: [['WHOAMI_DB', '🌍'], ['COUNTRIES']] },
+  { id: 'actions', icon: '🏃', from: [['CHARADES_DB', '🏃']] }
+];
+const HU_SECONDS = [60, 90, 120];
+const HU_DEAL = 80;
+const HU_DECK_CACHE = {};
+let huClock = null;
+let huWake = null;
+let huTilt = { armed: false, lastAt: 0, sensor: false, rot: 0 };
+let huCountdownTimer = null;
+
+function huState() {
+  if (!appState.headsup) {
+    appState.headsup = { deck: 'mix', seconds: 60, rounds: 1, phase: 'setup', players: [], order: [], turn: 0, round: 1, scores: {}, cards: [], deal: [], endsAt: 0 };
+  }
+  return appState.headsup;
+}
+
+/** The words of a deck in a language, each once. */
+function huDeckWords(id, lang) {
+  const key = id + ':' + lang;
+  if (HU_DECK_CACHE[key]) return HU_DECK_CACHE[key];
+  const decks = id === 'mix' ? HU_DECKS.filter(d => d.from && d.id !== 'actions') : HU_DECKS.filter(d => d.id === id);
+  const seen = new Set();
+  const out = [];
+  const add = (w) => {
+    const word = String(w || '').trim();
+    const f = foldWord(word);
+    if (!word || !f || seen.has(f) || word.length > 28) return;
+    seen.add(f);
+    out.push(word);
+  };
+  decks.forEach(d => d.from.forEach(([db, emoji]) => {
+    if (db === 'COUNTRIES') {
+      if (typeof COUNTRIES !== 'undefined') COUNTRIES.filter(c => c.tier <= 2).forEach(c => add(lang === 'en' ? c.en : c.ar));
+      return;
+    }
+    const source = db === 'CHARADES_DB' ? (typeof CHARADES_DB !== 'undefined' ? CHARADES_DB : null) : (typeof WHOAMI_DB !== 'undefined' ? WHOAMI_DB : null);
+    const cats = (source && (source[lang] || source.ar)) || {};
+    Object.keys(cats).filter(k => k.indexOf(emoji) !== -1).forEach(k => (cats[k] || []).forEach(add));
+  }));
+  HU_DECK_CACHE[key] = out;
+  return out;
+}
+
+/* --- Setup ----------------------------------------------------------------------------- */
+
+function setupHeadsUp() {
+  huStopAll();
+  const s = huState();
+  if (s.phase !== 'setup') s.phase = 'setup';
+  setView('setup-headsup');
+  paintHeadsUpSetup();
+}
+
+function paintHeadsUpSetup() {
+  const s = huState();
+  const t = TRANSLATIONS[appState.lang];
+  const lang = contentLang() === 'en' ? 'en' : 'ar';
+  const box = document.getElementById('headsup-decks');
+  if (box) {
+    box.innerHTML = HU_DECKS.map(d => `
+      <button type="button" class="hu-deck${d.id === s.deck ? ' is-active' : ''}" onclick="setHeadsUpOption('deck', '${d.id}')">
+        <span class="hu-deck__icon" aria-hidden="true">${d.icon}</span>
+        <span class="hu-deck__name">${escapeHTML(t['hu_deck_' + d.id] || d.id)}</span>
+        <span class="hu-deck__count metric">${huDeckWords(d.id, lang).length}</span>
+      </button>`).join('');
+  }
+  document.querySelectorAll('#headsup-time .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === s.seconds));
+  document.querySelectorAll('#headsup-rounds .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === s.rounds));
+}
+
+function setHeadsUpOption(key, value) {
+  const s = huState();
+  if (key === 'deck') s.deck = HU_DECKS.some(d => d.id === value) ? value : 'mix';
+  if (key === 'seconds') s.seconds = HU_SECONDS.indexOf(Number(value)) !== -1 ? Number(value) : 60;
+  if (key === 'rounds') s.rounds = Math.min(3, Math.max(1, Number(value) || 1));
+  saveToLocal();
+  paintHeadsUpSetup();
+  haptic('light');
+}
+
+function startHeadsUp() {
+  const s = huState();
+  const players = (appState.activePlayers || []).slice();
+  s.players = players.length ? players : [''];
+  s.order = players.length ? shuffledCopy(players) : [''];
+  s.scores = {};
+  s.order.forEach(p => { s.scores[p] = 0; });
+  s.turn = 0;
+  s.round = 1;
+  s.cards = [];
+  s.lang = contentLang() === 'en' ? 'en' : 'ar';
+  s.phase = 'ready';
+  saveToLocal();
+  setView('play-headsup');
+  paintHeadsUp();
+}
+
+/* --- A turn --------------------------------------------------------------------------- */
+
+const huPlayer = (s) => s.order[s.turn] || '';
+
+/** The start tap: permission for the sensor first (iOS only allows it inside a tap). */
+function huReady() {
+  const s = huState();
+  if (s.phase !== 'ready') return;
+  const Orientation = window.DeviceOrientationEvent;
+  if (Orientation && typeof Orientation.requestPermission === 'function') {
+    Orientation.requestPermission().then(() => {}).catch(() => {});
+  }
+  try {
+    if (navigator.wakeLock && navigator.wakeLock.request) navigator.wakeLock.request('screen').then(lock => { huWake = lock; }).catch(() => {});
+  } catch (e) {}
+  window.addEventListener('deviceorientation', huOrientation);
+  huTilt = { armed: false, lastAt: 0, sensor: false, rot: 0 };
+  const pool = huDeckWords(s.deck, s.lang);
+  s.deal = freshPick(`headsup:${s.deck}:${s.lang}`, pool, HU_DEAL);
+  s.cards = [];
+  s.phase = 'countdown';
+  saveToLocal();
+  let n = 3;
+  const tick = () => {
+    const el = document.getElementById('hu-count');
+    if (n > 0) {
+      if (el) {
+        el.textContent = n;
+        if (el.animate && !motionOff()) el.animate([{ transform: 'scale(1.6)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], { duration: 380, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      }
+      playSound('tick');
+      n--;
+      huCountdownTimer = setTimeout(tick, 900);
+    } else {
+      huBeginTurn();
+    }
+  };
+  paintHeadsUp();
+  tick();
+}
+
+function huBeginTurn() {
+  const s = huState();
+  if (s.phase !== 'countdown') return;
+  s.phase = 'play';
+  s.endsAt = Date.now() + s.seconds * 1000;
+  s.cards = [];
+  saveToLocal();
+  playSound('success');
+  paintHeadsUp();
+  huClock = createClock({
+    seconds: s.seconds,
+    onTick: (v) => {
+      const el = document.getElementById('hu-time');
+      if (el) el.textContent = v;
+      if (v > 0 && v <= 5) playSound('tick');
+    },
+    onEnd: () => huEndTurn()
+  });
+}
+
+const huCurrent = (s) => s.deal[s.cards.length] || '';
+
+function huOrientation(e) {
+  const s = huState();
+  if (e.beta === null || e.beta === undefined) return;
+  huTilt.sensor = true;
+  const rad = Math.PI / 180;
+  const beta = e.beta * rad, gamma = (e.gamma || 0) * rad;
+  const zUp = Math.cos(beta) * Math.cos(gamma);
+  const xUp = -Math.cos(beta) * Math.sin(gamma);
+  // Page upright but the phone on its side: turn the card to the edge that is up.
+  const portrait = window.innerHeight > window.innerWidth;
+  const rot = portrait ? (xUp > 0.55 ? 90 : (xUp < -0.55 ? -90 : (Math.abs(xUp) < 0.3 ? 0 : huTilt.rot))) : 0;
+  if (rot !== huTilt.rot) {
+    huTilt.rot = rot;
+    const card = document.getElementById('hu-card');
+    if (card) card.dataset.rot = String(rot);
+  }
+  if (s.phase !== 'play') return;
+  if (!huTilt.armed) {
+    if (Math.abs(zUp) < 0.35) huTilt.armed = true;
+    return;
+  }
+  if (Date.now() - huTilt.lastAt < 650) return;
+  if (zUp < -0.6) { huTilt.armed = false; huAnswer(true); }
+  else if (zUp > 0.6) { huTilt.armed = false; huAnswer(false); }
+}
+
+function huAnswer(right) {
+  const s = huState();
+  if (s.phase !== 'play') return;
+  const word = huCurrent(s);
+  if (!word) return;
+  huTilt.lastAt = Date.now();
+  s.cards.push({ w: word, ok: !!right });
+  saveToLocal();
+  playSound(right ? 'success' : 'click');
+  haptic(right ? 'light' : 'medium');
+  const stage = document.getElementById('headsup-stage');
+  if (stage) {
+    stage.dataset.flash = right ? 'right' : 'pass';
+    const flash = document.getElementById('hu-flash');
+    if (flash) {
+      flash.textContent = right ? '✓' : '⏭';
+      if (flash.animate && !motionOff()) flash.animate([{ opacity: 1, transform: 'scale(0.6)' }, { opacity: 1, transform: 'scale(1.1)', offset: 0.4 }, { opacity: 0, transform: 'scale(1)' }], { duration: 520 });
+    }
+    clearTimeout(huAnswer.timer);
+    huAnswer.timer = setTimeout(() => { if (stage) delete stage.dataset.flash; }, 450);
+  }
+  const wordEl = document.getElementById('hu-word');
+  const next = huCurrent(s);
+  if (wordEl) {
+    wordEl.textContent = next;
+    if (wordEl.animate && !motionOff()) wordEl.animate([{ transform: 'translateY(18px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: 'ease-out' });
+  }
+  const score = document.getElementById('hu-score');
+  if (score) score.textContent = s.cards.filter(c => c.ok).length;
+  if (!next) huEndTurn();
+}
+
+function huEndTurn() {
+  const s = huState();
+  if (s.phase !== 'play') return;
+  huStopTurn();
+  s.phase = 'summary';
+  saveToLocal();
+  playSound('alarm');
+  haptic('heavy');
+  paintHeadsUp();
+}
+
+function huStopTurn() {
+  if (huClock) huClock.stop();
+  huClock = null;
+  clearTimeout(huCountdownTimer);
+  window.removeEventListener('deviceorientation', huOrientation);
+  if (huWake) { try { huWake.release(); } catch (e) {} huWake = null; }
+}
+
+function huStopAll() {
+  huStopTurn();
+}
+
+/** A word's verdict after the turn: the sensor or a finger can be wrong. */
+function huToggleCard(i) {
+  const s = huState();
+  if (s.phase !== 'summary' || !s.cards[i]) return;
+  s.cards[i].ok = !s.cards[i].ok;
+  saveToLocal();
+  haptic('light');
+  paintHeadsUp();
+}
+
+function huNext() {
+  const s = huState();
+  if (s.phase !== 'summary') return;
+  const who = huPlayer(s);
+  s.scores[who] = (s.scores[who] || 0) + s.cards.filter(c => c.ok).length;
+  s.cards = [];
+  s.turn++;
+  if (s.turn >= s.order.length) {
+    s.turn = 0;
+    s.round++;
+  }
+  s.phase = s.round > s.rounds ? 'final' : 'ready';
+  saveToLocal();
+  paintHeadsUp();
+}
+
+function huBoard(s) {
+  return s.order.map(name => ({ pid: name, name: name || (TRANSLATIONS[appState.lang].hu_you || ''), score: s.scores[name] || 0 }))
+    .sort((a, b) => b.score - a.score);
+}
+
+/* --- The screen ---------------------------------------------------------------------- */
+
+function paintHeadsUp() {
+  const s = huState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('headsup-stage');
+  if (!el) return;
+  const who = huPlayer(s);
+  const whoName = who || (t.hu_you || '');
+  const exit = `<button type="button" class="hu-exit" onclick="setupHeadsUp()" aria-label="${escapeHTML(t.exit || '')}">✕</button>`;
+  const deck = HU_DECKS.find(d => d.id === s.deck) || HU_DECKS[0];
+  delete el.dataset.flash;
+  el.dataset.phase = s.phase;
+
+  if (s.phase === 'ready') {
+    el.innerHTML = `${exit}
+      <div class="hu-panel">
+        <span class="hu-panel__icon" aria-hidden="true">${deck.icon}</span>
+        ${s.order.length > 1 || s.rounds > 1 ? `<span class="eyebrow">${escapeHTML((t.hu_round || '').replace('{n}', s.round).replace('{m}', s.rounds))}</span>` : ''}
+        <h2 class="hu-panel__title">${escapeHTML((t.hu_turn_of || '').replace('{name}', whoName))}</h2>
+        <ol class="hu-steps">
+          <li>📱 ${escapeHTML(t.hu_step_hold || '')}</li>
+          <li>⬇️ ${escapeHTML(t.hu_step_down || '')}</li>
+          <li>⬆️ ${escapeHTML(t.hu_step_up || '')}</li>
+        </ol>
+        <button type="button" class="btn btn--primary btn--lg" onclick="huReady()">${escapeHTML(t.hu_ready || '')}</button>
+        <p class="field__hint">${escapeHTML(t.hu_sensor_hint || '')}</p>
+      </div>`;
+    return;
+  }
+
+  if (s.phase === 'countdown') {
+    el.innerHTML = `
+      <div class="hu-card" id="hu-card" data-rot="${huTilt.rot || 0}">
+        <span class="hu-card__small">${escapeHTML(t.hu_on_head || '')}</span>
+        <b class="hu-count metric" id="hu-count">3</b>
+      </div>`;
+    return;
+  }
+
+  if (s.phase === 'play') {
+    const left = Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000));
+    el.innerHTML = `
+      <div id="hu-flash" class="hu-flash" aria-hidden="true"></div>
+      <div class="hu-card" id="hu-card" data-rot="${huTilt.rot || 0}">
+        <div class="hu-card__top"><span class="metric" id="hu-time">${left}</span><span>${deck.icon}</span><span class="metric" id="hu-score">${s.cards.filter(c => c.ok).length}</span></div>
+        <b class="hu-word" id="hu-word">${escapeHTML(huCurrent(s))}</b>
+      </div>
+      <div class="hu-taps">
+        <button type="button" class="hu-tap hu-tap--pass" onclick="huAnswer(false)">⏭ ${escapeHTML(t.hu_pass || '')}</button>
+        <button type="button" class="hu-tap hu-tap--right" onclick="huAnswer(true)">✓ ${escapeHTML(t.hu_right || '')}</button>
+      </div>`;
+    return;
+  }
+
+  if (s.phase === 'summary') {
+    const got = s.cards.filter(c => c.ok).length;
+    const isLast = s.turn + 1 >= s.order.length && s.round >= s.rounds;
+    const nextName = s.turn + 1 < s.order.length ? s.order[s.turn + 1] : s.order[0];
+    el.innerHTML = `${exit}
+      <div class="hu-panel hu-panel--list">
+        <span class="eyebrow">${escapeHTML(whoName)}</span>
+        <h2 class="hu-panel__title"><span class="metric" id="hu-got">${got}</span> ${escapeHTML(t.hu_got || '')}</h2>
+        <p class="field__hint">${escapeHTML(t.hu_fix_hint || '')}</p>
+        <div class="hu-cards">
+          ${s.cards.map((c, i) => `<button type="button" class="hu-chip${c.ok ? ' is-right' : ''}" onclick="huToggleCard(${i})">${c.ok ? '✓' : '⏭'} ${escapeHTML(c.w)}</button>`).join('') || `<span class="field__hint">${escapeHTML(t.hu_none || '')}</span>`}
+        </div>
+        <button type="button" class="btn btn--primary btn--lg" onclick="huNext()">${escapeHTML(isLast ? (t.hu_results || '') : (nextName ? (t.hu_next_of || '').replace('{name}', nextName) : (t.hu_again || '')))}</button>
+      </div>`;
+    const gotEl = document.getElementById('hu-got');
+    if (gotEl && got > 0 && motionFirst('hu-sum:' + s.round + ':' + s.turn + ':' + s.cards.length) && typeof countUp === 'function' && !motionOff()) countUp(gotEl, 0, got);
+    return;
+  }
+
+  // final
+  const board = huBoard(s);
+  const podium = s.order.length > 1 ? renderPodium({ code: 'headsup', game: String(s.endsAt) }, board) : '';
+  el.innerHTML = `${exit}
+    <div class="hu-panel hu-panel--list">
+      <span class="hu-panel__icon" aria-hidden="true">🏆</span>
+      <h2 class="hu-panel__title">${escapeHTML(t.hu_final || '')}</h2>
+      ${podium}
+      <div class="hu-board">
+        ${board.map((p, i) => `<div class="row"><span class="metric">${i + 1}</span><b>${escapeHTML(p.name)}</b><span class="metric">${p.score}</span></div>`).join('')}
+      </div>
+      <div class="btn-stack">
+        <button type="button" class="btn btn--primary btn--lg" onclick="startHeadsUp()">${escapeHTML(t.play_again || '')}</button>
+        <button type="button" class="btn btn--ghost" onclick="setupHeadsUp()">${escapeHTML(t.exit || '')}</button>
+      </div>
+    </div>`;
+  if (board.length && board[0].score > 0 && typeof confetti === 'function' && motionFirst('hu-final:' + s.endsAt)) {
+    afterReveal(el, () => confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }));
+  }
+}
+
+function restoreHeadsUp() {
+  const s = huState();
+  if (!s.order || !s.order.length || s.phase === 'setup') return false;
+  if (s.phase === 'play' || s.phase === 'countdown') {
+    s.phase = 'ready';
+    s.cards = [];
+    saveToLocal();
+    if (typeof toastRoundLost === 'function') setTimeout(toastRoundLost, 300);
+  }
+  paintHeadsUp();
+  return true;
+}
+
+soloRegister('headsup', { setup: 'setup-headsup', play: 'play-headsup', paintSetup: paintHeadsUpSetup, restore: restoreHeadsUp });
 </script>
 
     <script>

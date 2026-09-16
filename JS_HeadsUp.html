@@ -1,0 +1,419 @@
+<script>
+/* ============================================================================
+   على راسك — HEADS UP (one phone)
+   ----------------------------------------------------------------------------
+   The player holds the phone on their forehead, screen towards the table,
+   and guesses the word the others describe. Tip the head down (the screen
+   faces the floor) for right, up (the screen faces the ceiling) to pass;
+   two big buttons do the same where there is no motion sensor or it was
+   refused. One turn is 60, 90 or 120 seconds; then a list of the words, each
+   tap-able to fix a mistake the sensor made, and the next player.
+
+   The tilt is read from deviceorientation as the screen's facing:
+   zUp = cos(beta)·cos(gamma) is 1 flat on a table, 0 upright and -1 facing
+   the floor, whatever way round the phone is held. An answer needs the phone
+   upright first (|zUp| < 0.35), so the phone in a hand at the start, or a
+   head coming back up, never counts twice. iOS asks for permission, and only
+   inside a tap, which is why huReady asks before anything else. When the
+   page is upright (rotation lock) but the phone is on its side, the card is
+   turned 90° towards whichever edge is up (xUp = -cos(beta)·sin(gamma)).
+
+   The decks are the Charades and Who Am I lists grouped by kind, and the
+   countries of خمّن الدولة (HU_DECKS picks categories by their emoji, so both
+   languages resolve the same way); words are dealt through freshPick. The
+   screen stays awake through the Wake Lock API while a turn runs. A turn in
+   progress is not restorable: a reload goes back to that player's "ready".
+   ========================================================================= */
+
+const HU_DECKS = [
+  { id: 'mix', icon: '🎲' },
+  { id: 'movies', icon: '🎬', from: [['CHARADES_DB', '🎬'], ['CHARADES_DB', '📺'], ['CHARADES_DB', '🎭']] },
+  { id: 'people', icon: '🌟', from: [['WHOAMI_DB', '🌟'], ['WHOAMI_DB', '🦸'], ['CHARADES_DB', '🦸']] },
+  { id: 'animals', icon: '🦁', from: [['CHARADES_DB', '🦁'], ['WHOAMI_DB', '🦁']] },
+  { id: 'food', icon: '🍕', from: [['CHARADES_DB', '🍕'], ['WHOAMI_DB', '🍽']] },
+  { id: 'jobs', icon: '👮', from: [['CHARADES_DB', '👮'], ['WHOAMI_DB', '👮']] },
+  { id: 'things', icon: '🔧', from: [['CHARADES_DB', '🔧'], ['WHOAMI_DB', '🗿'], ['WHOAMI_DB', '💡']] },
+  { id: 'places', icon: '🌍', from: [['WHOAMI_DB', '🌍'], ['COUNTRIES']] },
+  { id: 'actions', icon: '🏃', from: [['CHARADES_DB', '🏃']] }
+];
+const HU_SECONDS = [60, 90, 120];
+const HU_DEAL = 80;
+const HU_DECK_CACHE = {};
+let huClock = null;
+let huWake = null;
+let huTilt = { armed: false, lastAt: 0, sensor: false, rot: 0 };
+let huCountdownTimer = null;
+
+function huState() {
+  if (!appState.headsup) {
+    appState.headsup = { deck: 'mix', seconds: 60, rounds: 1, phase: 'setup', players: [], order: [], turn: 0, round: 1, scores: {}, cards: [], deal: [], endsAt: 0 };
+  }
+  return appState.headsup;
+}
+
+/** The words of a deck in a language, each once. */
+function huDeckWords(id, lang) {
+  const key = id + ':' + lang;
+  if (HU_DECK_CACHE[key]) return HU_DECK_CACHE[key];
+  const decks = id === 'mix' ? HU_DECKS.filter(d => d.from && d.id !== 'actions') : HU_DECKS.filter(d => d.id === id);
+  const seen = new Set();
+  const out = [];
+  const add = (w) => {
+    const word = String(w || '').trim();
+    const f = foldWord(word);
+    if (!word || !f || seen.has(f) || word.length > 28) return;
+    seen.add(f);
+    out.push(word);
+  };
+  decks.forEach(d => d.from.forEach(([db, emoji]) => {
+    if (db === 'COUNTRIES') {
+      if (typeof COUNTRIES !== 'undefined') COUNTRIES.filter(c => c.tier <= 2).forEach(c => add(lang === 'en' ? c.en : c.ar));
+      return;
+    }
+    const source = db === 'CHARADES_DB' ? (typeof CHARADES_DB !== 'undefined' ? CHARADES_DB : null) : (typeof WHOAMI_DB !== 'undefined' ? WHOAMI_DB : null);
+    const cats = (source && (source[lang] || source.ar)) || {};
+    Object.keys(cats).filter(k => k.indexOf(emoji) !== -1).forEach(k => (cats[k] || []).forEach(add));
+  }));
+  HU_DECK_CACHE[key] = out;
+  return out;
+}
+
+/* --- Setup ----------------------------------------------------------------------------- */
+
+function setupHeadsUp() {
+  huStopAll();
+  const s = huState();
+  if (s.phase !== 'setup') s.phase = 'setup';
+  setView('setup-headsup');
+  paintHeadsUpSetup();
+}
+
+function paintHeadsUpSetup() {
+  const s = huState();
+  const t = TRANSLATIONS[appState.lang];
+  const lang = contentLang() === 'en' ? 'en' : 'ar';
+  const box = document.getElementById('headsup-decks');
+  if (box) {
+    box.innerHTML = HU_DECKS.map(d => `
+      <button type="button" class="hu-deck${d.id === s.deck ? ' is-active' : ''}" onclick="setHeadsUpOption('deck', '${d.id}')">
+        <span class="hu-deck__icon" aria-hidden="true">${d.icon}</span>
+        <span class="hu-deck__name">${escapeHTML(t['hu_deck_' + d.id] || d.id)}</span>
+        <span class="hu-deck__count metric">${huDeckWords(d.id, lang).length}</span>
+      </button>`).join('');
+  }
+  document.querySelectorAll('#headsup-time .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === s.seconds));
+  document.querySelectorAll('#headsup-rounds .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === s.rounds));
+}
+
+function setHeadsUpOption(key, value) {
+  const s = huState();
+  if (key === 'deck') s.deck = HU_DECKS.some(d => d.id === value) ? value : 'mix';
+  if (key === 'seconds') s.seconds = HU_SECONDS.indexOf(Number(value)) !== -1 ? Number(value) : 60;
+  if (key === 'rounds') s.rounds = Math.min(3, Math.max(1, Number(value) || 1));
+  saveToLocal();
+  paintHeadsUpSetup();
+  haptic('light');
+}
+
+function startHeadsUp() {
+  const s = huState();
+  const players = (appState.activePlayers || []).slice();
+  s.players = players.length ? players : [''];
+  s.order = players.length ? shuffledCopy(players) : [''];
+  s.scores = {};
+  s.order.forEach(p => { s.scores[p] = 0; });
+  s.turn = 0;
+  s.round = 1;
+  s.cards = [];
+  s.lang = contentLang() === 'en' ? 'en' : 'ar';
+  s.phase = 'ready';
+  saveToLocal();
+  setView('play-headsup');
+  paintHeadsUp();
+}
+
+/* --- A turn --------------------------------------------------------------------------- */
+
+const huPlayer = (s) => s.order[s.turn] || '';
+
+/** The start tap: permission for the sensor first (iOS only allows it inside a tap). */
+function huReady() {
+  const s = huState();
+  if (s.phase !== 'ready') return;
+  const Orientation = window.DeviceOrientationEvent;
+  if (Orientation && typeof Orientation.requestPermission === 'function') {
+    Orientation.requestPermission().then(() => {}).catch(() => {});
+  }
+  try {
+    if (navigator.wakeLock && navigator.wakeLock.request) navigator.wakeLock.request('screen').then(lock => { huWake = lock; }).catch(() => {});
+  } catch (e) {}
+  window.addEventListener('deviceorientation', huOrientation);
+  huTilt = { armed: false, lastAt: 0, sensor: false, rot: 0 };
+  const pool = huDeckWords(s.deck, s.lang);
+  s.deal = freshPick(`headsup:${s.deck}:${s.lang}`, pool, HU_DEAL);
+  s.cards = [];
+  s.phase = 'countdown';
+  saveToLocal();
+  let n = 3;
+  const tick = () => {
+    const el = document.getElementById('hu-count');
+    if (n > 0) {
+      if (el) {
+        el.textContent = n;
+        if (el.animate && !motionOff()) el.animate([{ transform: 'scale(1.6)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], { duration: 380, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      }
+      playSound('tick');
+      n--;
+      huCountdownTimer = setTimeout(tick, 900);
+    } else {
+      huBeginTurn();
+    }
+  };
+  paintHeadsUp();
+  tick();
+}
+
+function huBeginTurn() {
+  const s = huState();
+  if (s.phase !== 'countdown') return;
+  s.phase = 'play';
+  s.endsAt = Date.now() + s.seconds * 1000;
+  s.cards = [];
+  saveToLocal();
+  playSound('success');
+  paintHeadsUp();
+  huClock = createClock({
+    seconds: s.seconds,
+    onTick: (v) => {
+      const el = document.getElementById('hu-time');
+      if (el) el.textContent = v;
+      if (v > 0 && v <= 5) playSound('tick');
+    },
+    onEnd: () => huEndTurn()
+  });
+}
+
+const huCurrent = (s) => s.deal[s.cards.length] || '';
+
+function huOrientation(e) {
+  const s = huState();
+  if (e.beta === null || e.beta === undefined) return;
+  huTilt.sensor = true;
+  const rad = Math.PI / 180;
+  const beta = e.beta * rad, gamma = (e.gamma || 0) * rad;
+  const zUp = Math.cos(beta) * Math.cos(gamma);
+  const xUp = -Math.cos(beta) * Math.sin(gamma);
+  // Page upright but the phone on its side: turn the card to the edge that is up.
+  const portrait = window.innerHeight > window.innerWidth;
+  const rot = portrait ? (xUp > 0.55 ? 90 : (xUp < -0.55 ? -90 : (Math.abs(xUp) < 0.3 ? 0 : huTilt.rot))) : 0;
+  if (rot !== huTilt.rot) {
+    huTilt.rot = rot;
+    const card = document.getElementById('hu-card');
+    if (card) card.dataset.rot = String(rot);
+  }
+  if (s.phase !== 'play') return;
+  if (!huTilt.armed) {
+    if (Math.abs(zUp) < 0.35) huTilt.armed = true;
+    return;
+  }
+  if (Date.now() - huTilt.lastAt < 650) return;
+  if (zUp < -0.6) { huTilt.armed = false; huAnswer(true); }
+  else if (zUp > 0.6) { huTilt.armed = false; huAnswer(false); }
+}
+
+function huAnswer(right) {
+  const s = huState();
+  if (s.phase !== 'play') return;
+  const word = huCurrent(s);
+  if (!word) return;
+  huTilt.lastAt = Date.now();
+  s.cards.push({ w: word, ok: !!right });
+  saveToLocal();
+  playSound(right ? 'success' : 'click');
+  haptic(right ? 'light' : 'medium');
+  const stage = document.getElementById('headsup-stage');
+  if (stage) {
+    stage.dataset.flash = right ? 'right' : 'pass';
+    const flash = document.getElementById('hu-flash');
+    if (flash) {
+      flash.textContent = right ? '✓' : '⏭';
+      if (flash.animate && !motionOff()) flash.animate([{ opacity: 1, transform: 'scale(0.6)' }, { opacity: 1, transform: 'scale(1.1)', offset: 0.4 }, { opacity: 0, transform: 'scale(1)' }], { duration: 520 });
+    }
+    clearTimeout(huAnswer.timer);
+    huAnswer.timer = setTimeout(() => { if (stage) delete stage.dataset.flash; }, 450);
+  }
+  const wordEl = document.getElementById('hu-word');
+  const next = huCurrent(s);
+  if (wordEl) {
+    wordEl.textContent = next;
+    if (wordEl.animate && !motionOff()) wordEl.animate([{ transform: 'translateY(18px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: 'ease-out' });
+  }
+  const score = document.getElementById('hu-score');
+  if (score) score.textContent = s.cards.filter(c => c.ok).length;
+  if (!next) huEndTurn();
+}
+
+function huEndTurn() {
+  const s = huState();
+  if (s.phase !== 'play') return;
+  huStopTurn();
+  s.phase = 'summary';
+  saveToLocal();
+  playSound('alarm');
+  haptic('heavy');
+  paintHeadsUp();
+}
+
+function huStopTurn() {
+  if (huClock) huClock.stop();
+  huClock = null;
+  clearTimeout(huCountdownTimer);
+  window.removeEventListener('deviceorientation', huOrientation);
+  if (huWake) { try { huWake.release(); } catch (e) {} huWake = null; }
+}
+
+function huStopAll() {
+  huStopTurn();
+}
+
+/** A word's verdict after the turn: the sensor or a finger can be wrong. */
+function huToggleCard(i) {
+  const s = huState();
+  if (s.phase !== 'summary' || !s.cards[i]) return;
+  s.cards[i].ok = !s.cards[i].ok;
+  saveToLocal();
+  haptic('light');
+  paintHeadsUp();
+}
+
+function huNext() {
+  const s = huState();
+  if (s.phase !== 'summary') return;
+  const who = huPlayer(s);
+  s.scores[who] = (s.scores[who] || 0) + s.cards.filter(c => c.ok).length;
+  s.cards = [];
+  s.turn++;
+  if (s.turn >= s.order.length) {
+    s.turn = 0;
+    s.round++;
+  }
+  s.phase = s.round > s.rounds ? 'final' : 'ready';
+  saveToLocal();
+  paintHeadsUp();
+}
+
+function huBoard(s) {
+  return s.order.map(name => ({ pid: name, name: name || (TRANSLATIONS[appState.lang].hu_you || ''), score: s.scores[name] || 0 }))
+    .sort((a, b) => b.score - a.score);
+}
+
+/* --- The screen ---------------------------------------------------------------------- */
+
+function paintHeadsUp() {
+  const s = huState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('headsup-stage');
+  if (!el) return;
+  const who = huPlayer(s);
+  const whoName = who || (t.hu_you || '');
+  const exit = `<button type="button" class="hu-exit" onclick="setupHeadsUp()" aria-label="${escapeHTML(t.exit || '')}">✕</button>`;
+  const deck = HU_DECKS.find(d => d.id === s.deck) || HU_DECKS[0];
+  delete el.dataset.flash;
+  el.dataset.phase = s.phase;
+
+  if (s.phase === 'ready') {
+    el.innerHTML = `${exit}
+      <div class="hu-panel">
+        <span class="hu-panel__icon" aria-hidden="true">${deck.icon}</span>
+        ${s.order.length > 1 || s.rounds > 1 ? `<span class="eyebrow">${escapeHTML((t.hu_round || '').replace('{n}', s.round).replace('{m}', s.rounds))}</span>` : ''}
+        <h2 class="hu-panel__title">${escapeHTML((t.hu_turn_of || '').replace('{name}', whoName))}</h2>
+        <ol class="hu-steps">
+          <li>📱 ${escapeHTML(t.hu_step_hold || '')}</li>
+          <li>⬇️ ${escapeHTML(t.hu_step_down || '')}</li>
+          <li>⬆️ ${escapeHTML(t.hu_step_up || '')}</li>
+        </ol>
+        <button type="button" class="btn btn--primary btn--lg" onclick="huReady()">${escapeHTML(t.hu_ready || '')}</button>
+        <p class="field__hint">${escapeHTML(t.hu_sensor_hint || '')}</p>
+      </div>`;
+    return;
+  }
+
+  if (s.phase === 'countdown') {
+    el.innerHTML = `
+      <div class="hu-card" id="hu-card" data-rot="${huTilt.rot || 0}">
+        <span class="hu-card__small">${escapeHTML(t.hu_on_head || '')}</span>
+        <b class="hu-count metric" id="hu-count">3</b>
+      </div>`;
+    return;
+  }
+
+  if (s.phase === 'play') {
+    const left = Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000));
+    el.innerHTML = `
+      <div id="hu-flash" class="hu-flash" aria-hidden="true"></div>
+      <div class="hu-card" id="hu-card" data-rot="${huTilt.rot || 0}">
+        <div class="hu-card__top"><span class="metric" id="hu-time">${left}</span><span>${deck.icon}</span><span class="metric" id="hu-score">${s.cards.filter(c => c.ok).length}</span></div>
+        <b class="hu-word" id="hu-word">${escapeHTML(huCurrent(s))}</b>
+      </div>
+      <div class="hu-taps">
+        <button type="button" class="hu-tap hu-tap--pass" onclick="huAnswer(false)">⏭ ${escapeHTML(t.hu_pass || '')}</button>
+        <button type="button" class="hu-tap hu-tap--right" onclick="huAnswer(true)">✓ ${escapeHTML(t.hu_right || '')}</button>
+      </div>`;
+    return;
+  }
+
+  if (s.phase === 'summary') {
+    const got = s.cards.filter(c => c.ok).length;
+    const isLast = s.turn + 1 >= s.order.length && s.round >= s.rounds;
+    const nextName = s.turn + 1 < s.order.length ? s.order[s.turn + 1] : s.order[0];
+    el.innerHTML = `${exit}
+      <div class="hu-panel hu-panel--list">
+        <span class="eyebrow">${escapeHTML(whoName)}</span>
+        <h2 class="hu-panel__title"><span class="metric" id="hu-got">${got}</span> ${escapeHTML(t.hu_got || '')}</h2>
+        <p class="field__hint">${escapeHTML(t.hu_fix_hint || '')}</p>
+        <div class="hu-cards">
+          ${s.cards.map((c, i) => `<button type="button" class="hu-chip${c.ok ? ' is-right' : ''}" onclick="huToggleCard(${i})">${c.ok ? '✓' : '⏭'} ${escapeHTML(c.w)}</button>`).join('') || `<span class="field__hint">${escapeHTML(t.hu_none || '')}</span>`}
+        </div>
+        <button type="button" class="btn btn--primary btn--lg" onclick="huNext()">${escapeHTML(isLast ? (t.hu_results || '') : (nextName ? (t.hu_next_of || '').replace('{name}', nextName) : (t.hu_again || '')))}</button>
+      </div>`;
+    const gotEl = document.getElementById('hu-got');
+    if (gotEl && got > 0 && motionFirst('hu-sum:' + s.round + ':' + s.turn + ':' + s.cards.length) && typeof countUp === 'function' && !motionOff()) countUp(gotEl, 0, got);
+    return;
+  }
+
+  // final
+  const board = huBoard(s);
+  const podium = s.order.length > 1 ? renderPodium({ code: 'headsup', game: String(s.endsAt) }, board) : '';
+  el.innerHTML = `${exit}
+    <div class="hu-panel hu-panel--list">
+      <span class="hu-panel__icon" aria-hidden="true">🏆</span>
+      <h2 class="hu-panel__title">${escapeHTML(t.hu_final || '')}</h2>
+      ${podium}
+      <div class="hu-board">
+        ${board.map((p, i) => `<div class="row"><span class="metric">${i + 1}</span><b>${escapeHTML(p.name)}</b><span class="metric">${p.score}</span></div>`).join('')}
+      </div>
+      <div class="btn-stack">
+        <button type="button" class="btn btn--primary btn--lg" onclick="startHeadsUp()">${escapeHTML(t.play_again || '')}</button>
+        <button type="button" class="btn btn--ghost" onclick="setupHeadsUp()">${escapeHTML(t.exit || '')}</button>
+      </div>
+    </div>`;
+  if (board.length && board[0].score > 0 && typeof confetti === 'function' && motionFirst('hu-final:' + s.endsAt)) {
+    afterReveal(el, () => confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }));
+  }
+}
+
+function restoreHeadsUp() {
+  const s = huState();
+  if (!s.order || !s.order.length || s.phase === 'setup') return false;
+  if (s.phase === 'play' || s.phase === 'countdown') {
+    s.phase = 'ready';
+    s.cards = [];
+    saveToLocal();
+    if (typeof toastRoundLost === 'function') setTimeout(toastRoundLost, 300);
+  }
+  paintHeadsUp();
+  return true;
+}
+
+soloRegister('headsup', { setup: 'setup-headsup', play: 'play-headsup', paintSetup: paintHeadsUpSetup, restore: restoreHeadsUp });
+</script>

@@ -1020,7 +1020,10 @@ game should pick one rather than trusting the press: the host judges
 أتوبيس كومبليت's `adjust`, القنبلة's `markLoser`), or the press itself can be
 taken back. The last one is the newest: `sendBack` in `bombRoomAction` hands a
 pass straight back to whoever made it (the holder for `BOMB_SEND_BACK_MS`, the
-host at any time) and undoes the pass count, `notYet` in the من أنا؟ branch
+host at any time) and undoes the pass count - the holder's button goes away
+when its time is up, counted from when that phone saw the pass
+(`BOMB_SEND_BACK_SHOW_MS`, a second shorter, since a phone's clock can't be
+compared with the server's), `notYet` in the من أنا؟ branch
 removes a `gotIt` and refunds exactly what it paid (`shared.awards`, so the
 refund cannot drift from the award, and nobody who pressed later loses
 anything), and بدون كلام and أوصف لي keep a `judged` stack on the phone so

@@ -35547,7 +35547,47 @@ TV_GAMES.spyfall = {
    bombRoomAction in RoomGames.js.
    ========================================================================= */
 
-const bombRoom = { tickTimer: null, tickingKey: '', fixing: false };
+const bombRoom = { tickTimer: null, tickingKey: '', fixing: false, passKey: '', passSeenAt: 0, sendBackTimer: null };
+
+/*
+ * The holder may send a pass back for BOMB_SEND_BACK_MS on the server (15s).
+ * A phone's clock can't be compared with the server's, so the button counts
+ * from the moment this phone saw the pass, less a second for the time the pass
+ * took to arrive, and goes away when that runs out. The host's own send-back
+ * has no clock and stays.
+ */
+const BOMB_SEND_BACK_SHOW_MS = 14000;
+
+/** How long the holder's send-back button has left, starting the count on a new pass. */
+function bombSendBackLeft(s) {
+  if (!s || !s.fromId || s.phase !== 'ticking') return 0;
+  const key = String(s.passedAt || '') + '|' + s.fromId;
+  if (bombRoom.passKey !== key) {
+    bombRoom.passKey = key;
+    bombRoom.passSeenAt = Date.now();
+  }
+  return Math.max(0, bombRoom.passSeenAt + BOMB_SEND_BACK_SHOW_MS - Date.now());
+}
+
+/** Takes the holder's send-back button away the moment its time is up. */
+function armBombSendBack(state) {
+  clearTimeout(bombRoom.sendBackTimer);
+  bombRoom.sendBackTimer = null;
+  const el = document.getElementById('bomb-sendback');
+  if (!el) return;
+  const left = bombSendBackLeft(state.shared);
+  if (left <= 0) { el.remove(); return; }
+  bombRoom.sendBackTimer = setTimeout(() => {
+    const still = document.getElementById('bomb-sendback');
+    if (still) still.remove();
+  }, left);
+}
+
+// A pass counts from when it reached this phone, even if the room screen
+// wasn't showing at that moment.
+Room.onChange((state) => {
+  if (state && state.game === 'bomb') bombSendBackLeft(state.shared);
+});
 const BOMB_ROOM_OPTS_KEY = 'ashryBombRoomOpts';
 const BOMB_TICK_MS = [1000, 700, 450, 250];   // by heat
 
@@ -35607,6 +35647,7 @@ ROOM_GAMES.bomb = {
     const sig = ['bomb', s.phase, s.round, s.prompt, s.heat, s.holderId, s.fromId, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang, bombRoom.fixing].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => bombRoomFrame(state, t));
     refreshRoomPlayerStrip(el, state);
+    armBombSendBack(state);
     bombRoomTicking(state, rebuilt);
   }
 };
@@ -35674,9 +35715,11 @@ function bombRoomFrame(state, t) {
       ${iHold
         ? `<div class="btn-stack">
              <button class="btn btn--danger btn--lg bomb-pass" onclick="passBomb(this)">${escapeHTML(t.bomb_room_pass || '')} ➡</button>
-             ${s.fromId ? `
-               <button class="btn btn--ghost btn--sm" onclick="roomAct('sendBack')">${escapeHTML((t.bomb_send_back || '').replace('{name}', roomNameOf(state, s.fromId)))}</button>
-               <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_send_back_hint || '')}</p>` : ''}
+             ${s.fromId && bombSendBackLeft(s) > 0 ? `
+               <div id="bomb-sendback" class="btn-stack">
+                 <button class="btn btn--ghost btn--sm" onclick="roomAct('sendBack')">${escapeHTML((t.bomb_send_back || '').replace('{name}', roomNameOf(state, s.fromId)))}</button>
+                 <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_send_back_hint || '')}</p>
+               </div>` : ''}
              <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_room_pass_hint || '')}</p>
            </div>`
         : (inRound ? `<div class="waiting-note">${escapeHTML((t.bomb_room_with || '').replace('{name}', s.holderName || ''))}</div>` : '')}
@@ -37998,7 +38041,7 @@ Room.onChange((state) => {
   if (key && !roomTurn.titled) {
     const t = TRANSLATIONS[appState.lang] || {};
     roomTurn.title = document.title;
-    document.title = '🔔 ' + (t.turn_title || '') + ' · ' + roomTurn.title;
+    document.title = '🔔 ' + (t.turn_title || '') + (roomTurn.title ? ' · ' + roomTurn.title : '');
     roomTurn.titled = true;
   } else if (!key) {
     restoreTurnTitle();

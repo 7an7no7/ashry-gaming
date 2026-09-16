@@ -10,6 +10,8 @@
  * Needs Node 22+ (built-in fetch and WebSocket). Takes about half a minute,
  * most of it waiting for a trivia question to time out on the server.
  */
+import { stopDictionary, stopAnswerFits, stopWordKnown } from '../generated/rules.js';
+
 const BASE = (process.argv[2] || 'http://127.0.0.1:8787').replace(/\/$/, '');
 const WS_BASE = BASE.replace(/^http/, 'ws');
 
@@ -455,25 +457,36 @@ async function main() {
   /* --- أتوبيس كومبليت --------------------------------------------------------- */
   console.log('• stop the bus');
   await A.must('chooseGame', { game: 'stop' });
-  await A.must('start', { lang: 'ar', cats: ['name', 'animal', 'country'], timer: 0, rounds: 3 });
+  await A.must('start', { lang: 'ar', cats: ['name', 'animal', 'food'], timer: 0, rounds: 3 });
   await all(bots, (s) => s.shared.phase === 'writing' && s.shared.round === 1 && s.shared.cats.length === 3 && !!s.shared.letter, 'stop deals a letter, no clock');
   const L = A.state.shared.letter;
-  await A.must('submit', { answers: { name: L + 'حمد', animal: L + 'سد', country: 'xx' }, stop: false });
-  await B.must('submit', { answers: { name: L + 'حمد', animal: L + 'رنب', country: '' } });
+  // Real words on this letter from the dictionary, so the check can tell them from a made-up one.
+  const onLetter = (cat) => [...stopDictionary('ar', cat)].filter((w) => w.length >= 3 && stopAnswerFits(w, 'ar', L));
+  const [name1, name2] = onLetter('name');
+  const [animal1, animal2] = onLetter('animal');
+  const [food1] = onLetter('food');
+  const madeUp = L + 'ززظظ';
+  check(!!(name2 && animal2 && food1), 'the dictionary has names, animals and food on the letter');
+  check(stopWordKnown('ar', 'animal', madeUp) === false, 'a made-up word is not in the dictionary');
+  await A.must('submit', { answers: { name: name1, animal: animal1, food: 'xx' }, stop: false });
+  await B.must('submit', { answers: { name: name1, animal: animal2, food: '' } });
   await all(bots, (s) => s.shared.phase === 'writing' && s.shared.submitted.length === 2, 'two sheets in, the round is still open');
-  check(!leaks(C, L + 'حمد'), 'answers stay on the server until the round closes');
-  await C.must('submit', { answers: { name: L + 'ياد', animal: '', country: L + 'مريكا' }, stop: true });
+  check(!leaks(C, name1), 'answers stay on the server until the round closes');
+  check((await C.act('submit', { answers: { name: name2, animal: '', food: food1 }, stop: true })).ok === false, 'وقف is refused with an empty box');
+  check((await C.act('submit', { answers: { name: name2, animal: 'xx' + madeUp, food: food1 }, stop: true })).ok === false, 'وقف is refused with a word on another letter');
+  await C.must('submit', { answers: { name: name2, animal: madeUp, food: food1 }, stop: true });
   await all(bots, (s) => s.shared.phase === 'collecting' && s.shared.stopperId === C.pid, 'وقف closes the round for the table');
-  await D.must('submit', { answers: { name: '', animal: L + 'سد', country: L + 'مريكا' } });
+  await D.must('submit', { answers: { name: '', animal: animal1, food: food1 } });
   await all(bots, (s) => s.shared.phase === 'review' && !!s.shared.results, 'the last sheet in scores the round');
   const r = A.state.shared.results;
   check(r[A.pid].name.pts === 5 && r[B.pid].name.pts === 5, 'a shared answer scores 5');
-  check(r[C.pid].name.pts === 10, 'a unique answer scores 10');
-  check(r[A.pid].country.pts === 0 && r[B.pid].country.pts === 0 && r[C.pid].animal.pts === 0, 'a blank or a wrong initial scores 0');
+  check(r[C.pid].name.pts === 10 && r[C.pid].name.word === 'known', 'a unique answer the dictionary knows scores 10');
+  check(r[A.pid].food.pts === 0 && r[B.pid].food.pts === 0 && r[D.pid].name.pts === 0, 'a blank or a wrong initial scores 0');
+  check(r[C.pid].animal.pts === 0 && r[C.pid].animal.word === 'unknown', 'a word the dictionary does not know scores 0, marked for the host');
   check(A.state.shared.roundTotals[A.pid] === 10 && A.state.shared.roundTotals[C.pid] === 15, 'round totals add up');
-  check((await B.act('adjust', { playerId: A.pid, cat: 'country', pts: 10 })).ok === false, 'only the host corrects a cell');
-  await A.must('adjust', { playerId: A.pid, cat: 'country', pts: 10 });
-  await all(bots, (s) => s.shared.results[A.pid].country.pts === 10 && s.shared.roundTotals[A.pid] === 20, 'the host can correct a cell');
+  check((await B.act('adjust', { playerId: A.pid, cat: 'food', pts: 10 })).ok === false, 'only the host corrects a cell');
+  await A.must('adjust', { playerId: A.pid, cat: 'food', pts: 10 });
+  await all(bots, (s) => s.shared.results[A.pid].food.pts === 10 && s.shared.roundTotals[A.pid] === 20, 'the host can correct a cell');
   await A.must('nextRound');
   await all(bots, (s) => s.shared.phase === 'writing' && s.shared.round === 2 && s.shared.totals[A.pid] === 20 && s.shared.letter !== L, 'next round banks the points and deals a new letter');
   await A.must('backToHub');

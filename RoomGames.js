@@ -259,10 +259,15 @@ const applyRoomAction = (room, playerId, action, payload) => {
    The same paper game, with every phone as the paper. A letter is dealt,
    everyone types an answer per category, and the first to press وقف closes
    the round for the whole table: the other phones get a few seconds to send
-   what they had typed. The server then scores by comparing the answers -
-   10 for an answer nobody else had, 5 for one somebody shared, 0 for a
-   blank or a word that doesn't start with the letter - and the host can
-   correct any cell before the points are banked.
+   what they had typed. وقف itself is refused until every box of that sheet
+   holds a word starting with the letter (stopAnswerFits). The server then
+   scores by comparing the answers - 10 for an answer nobody else had, 5 for
+   one somebody shared, 0 for a blank or a word that doesn't start with the
+   letter - and checks each against the dictionary for its category
+   (stopWordKnown, StopWords.js): a word it doesn't know scores 0 and is marked
+   for the host (word: 'unknown'), unless another player wrote the same word
+   too, which a made-up word almost never is. The host can correct any cell
+   before the points are banked.
 
    Answers stay in room._answers (never projected) until the round closes,
    so a phone that finished early cannot show its list to the table.
@@ -278,7 +283,6 @@ const STOP_POINT_STEPS = [10, 5, 0];
 const STOP_COLLECT_MS = 4000;     // after وقف, the other phones send what they typed
 const STOP_GRACE_MS = 1500;       // the clock ran out: how late a submit still counts
 
-/** One spelling for comparing answers: case, diacritics, hamza forms, the article. */
 /**
  * The letters people spell the same word with. Every comparison of typed text
  * goes through this: أسد and اسد, مكتبة and مكتبه, مصطفى and مصطفي, with or
@@ -290,22 +294,7 @@ const foldArabicLetters = (text) => String(text || '').toLowerCase()
   .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي')
   .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ک/g, 'ك');
 
-const foldStopAnswer = (text, lang, letter) => {
-  const raw = String(text || '').trim();
-  let out = foldArabicLetters(raw)
-    .replace(/[^\p{L}\p{N} ]/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  // The definite article is not the initial: "الأسد" is an أ word, "the sea" an S word.
-  // In a round on ا itself a bare "ال…" stays: ألمانيا and إلهام are ا words, and typed
-  // without the hamza they look exactly like an article. Only "ال" + a hamza letter
-  // (الأسد, الإمارات) is an article for certain there.
-  const article = lang === 'ar' && out.length > 3 && out.indexOf('ال') === 0
-    && (letter !== 'ا' || /^ال[أإآ]/.test(raw));
-  if (article) out = out.slice(2);
-  if (lang === 'en' && out.indexOf('the ') === 0) out = out.slice(4);
-  return out;
-};
+// foldStopAnswer, stopAnswerFits and stopWordKnown are in StopWords.js, shared with the page.
 
 const stopAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound' || action === 'playAgain') {
@@ -356,6 +345,10 @@ const stopAction = (room, playerId, action, payload) => {
     const given = (payload && payload.answers) || {};
     const answers = {};
     s.cats.forEach(c => { answers[c] = String(given[c] || '').trim().slice(0, 30); });
+    // وقف closes everyone's sheet, so it needs a full one: every box a word on the letter.
+    if (s.phase === 'writing' && payload && payload.stop && !s.cats.every(c => stopAnswerFits(answers[c], s.lang, s.letter))) {
+      throw new Error('املأ كل الخانات بكلمات بتبدأ بالحرف قبل ما توقف');
+    }
     room._answers = room._answers || {};
     room._answers[playerId] = answers;
     s.submitted.push(playerId);
@@ -438,15 +431,18 @@ const scoreStopRound = (room) => {
       const raw = (answers[pid] || {})[cat] || '';
       const f = foldStopAnswer(raw, s.lang, letter);
       const ok = f.length >= 2 && f.charAt(0) === letter;
-      folded[pid] = { raw: raw, f: f, ok: ok };
+      folded[pid] = { raw: raw, f: f, ok: ok, known: ok && stopWordKnown(s.lang, cat, raw) !== false };
     });
     const counts = {};
     roster.forEach(pid => { if (folded[pid].ok) counts[folded[pid].f] = (counts[folded[pid].f] || 0) + 1; });
     roster.forEach(pid => {
       const a = folded[pid];
-      const pts = !a.ok ? 0 : (counts[a.f] > 1 ? 5 : 10);
+      const shared = a.ok && counts[a.f] > 1;
+      // known: in the dictionary; shared: not, but someone else wrote it too; unknown: the host decides.
+      const word = !a.ok ? '' : a.known ? 'known' : shared ? 'shared' : 'unknown';
+      const pts = !a.ok || word === 'unknown' ? 0 : (shared ? 5 : 10);
       results[pid] = results[pid] || {};
-      results[pid][cat] = { text: a.raw, pts: pts, ok: a.ok, manual: false };
+      results[pid][cat] = { text: a.raw, pts: pts, ok: a.ok, word: word, manual: false };
     });
   });
   roster.forEach(pid => {

@@ -211,7 +211,7 @@ is nowhere to hide the key card.
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `rooms-worker/src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live`. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
-| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js` | Word lists the rules deal from, bundled into the Worker. The last six are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists. |
+| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js` | Word lists the rules deal from, bundled into the Worker. The last seven are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, and a Stop phone checks its boxes with the server's own rule. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -560,6 +560,29 @@ the trivia one (`roomDeadline` / `roomTimeout` move `writing` to `collecting`
 and then score). The host's categories, timer and rounds are remembered on
 their phone (`ashryStopRoomOpts`) and sent with `start`.
 
+**وقف needs a full sheet, and every word meets a dictionary** (`StopWords.js`,
+shared by the page and the server). `stopAnswerFits` is the rule for a box:
+folded as above, at least two letters, starting with the letter. The phone
+paints each box as it fills (green, or red for a word on another letter),
+keeps وقف faded with "باقي N خانات" under it until all are green, and the
+server refuses `submit` with `stop: true` for a sheet that isn't - the clock
+running out and someone else's وقف still send whatever is there. Scoring
+then asks `stopWordKnown(lang, cat, text)`: the category's dictionary is
+`STOP_WORDS` (names, plants and produce, colours, and additions for the rest)
+together with the lists other games keep (`MONKEY_LISTS` countries, cities
+and English animals and foods; `SPY_WORDS` Arabic animals, foods, things,
+instruments, transport, jobs and brands), compared on letters only, with or
+without the article, forgiving one wrong letter in a word of five letters or
+more and an English plural. Each result carries `word`: `known` scores as
+before; `shared` (not in the dictionary, but another player wrote it too - a
+made-up word almost never is) scores 5; `unknown` scores 0 and shows ❓ on an
+amber cell with a line telling the host to tap it if the word is right (the
+tap is the ordinary `adjust`). `npm run check` fails on a word listed twice
+in one `STOP_WORDS` list and prints each category's size and the letters it
+has no words for. A category with holes is not a bug - no country starts
+with ث - but a real word missing from a list costs a player points until the
+host taps it, so add to the lists when a table keeps tapping the same word.
+
 **Trivia, two modes.** The room version deals from `TRIVIA_QUESTIONS` on the
 server. The host picks 5, 10, 15 or 20 questions (`TRIVIA_COUNTS`). A right
 answer is `TRIVIA_POINTS` (10) plus a speed bonus: +5 for the first right
@@ -897,6 +920,22 @@ button in the header beside the gear (`#fx-fab`, shown through
 it one tap away mid-game - it floated over the page once, where it covered
 the drawing tools; and
 `confetti` is wrapped so every celebration in the app brings the fanfare.
+The applause is built the way a room claps rather than as random static: a
+dozen people, each at their own pace, pitch and strength, every clap three or
+four cracks inside 25ms with a short tail, over a soft wash, swelling in and
+fading out through a compressor. `fxRenderTo` points the sounds at an
+`OfflineAudioContext` to render one to a buffer and measure it, which is how
+a sound can be checked on a machine that can't play it.
+
+**Sound can be asleep.** iOS and Chrome keep the audio context suspended until
+a touch, and iOS suspends it again ('interrupted') when the phone locks or a
+call comes in. `wakeAudio` in `JS_Core.html` resumes it on any touch, key or
+return to the page, and `playSound` tries too - but a sound that arrives from
+the room with no touch (the bomb landing on this phone) can't wake it, so the
+holder's screen says "tap to hear the ticking" while it is asleep. An iPhone
+on silent plays no web sound at all; nothing on the page can change that. The
+bomb ticks with its own `playSound('bomb')`, a wooden tick-tock loud enough to
+hear across a table, on the holder's phone and the TV only.
 
 ### The Help sheet
 

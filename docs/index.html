@@ -4946,6 +4946,28 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 button.stop-rcell { cursor: pointer; transition: transform var(--dur-1) var(--ease-out); }
 button.stop-rcell:active { transform: scale(0.95); }
 .stop-rcell.is-manual { border-style: dashed; border-color: var(--accent); }
+.stop-rcell.is-check { border-color: var(--warning); background: var(--warning-soft); }
+.stop-cell-foot { display: inline-flex; align-items: center; gap: 3px; }
+.stop-mark { font-size: 0.7rem; font-weight: 900; line-height: 1; }
+.stop-mark.is-ok { color: var(--success); }
+.stop-check-hint { text-align: center; font-weight: 700; color: var(--warning-ink); }
+
+/* A box goes green once it holds a word on the letter; وقف unlocks when all do. */
+.stop-field { position: relative; }
+.stop-field.is-ok .stop-room-input { border-color: var(--success); }
+.stop-field.is-bad .stop-room-input { border-color: var(--danger); }
+.stop-field.is-ok::after {
+  content: '✓';
+  position: absolute;
+  inset-inline-end: 0.9rem;
+  bottom: 0.8rem;
+  font-weight: 900;
+  color: var(--success);
+  pointer-events: none;
+}
+.stop-room-form .btn.is-locked { opacity: 0.45; filter: saturate(0.5); box-shadow: none; }
+#stop-room-gate.is-ready { color: var(--success); font-weight: 700; }
+.bomb-sound-hint { text-align: center; font-weight: 700; color: var(--warning-ink); }
 .stop-ans { max-width: 100%; font-size: var(--fs-xs); font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stop-ans.is-bad { color: var(--text-3); text-decoration: line-through; }
 .stop-pts { padding: 0 0.4rem; border-radius: var(--r-full); background: var(--surface-3); color: var(--text-3); font-size: 0.7rem; font-weight: 900; }
@@ -7477,6 +7499,364 @@ const MONKEY_KEYS = {
 };
 
 </script>
+    <script>
+/* ============================================================================
+   أتوبيس كومبليت — what counts as a filled box, and the dictionary
+   ----------------------------------------------------------------------------
+   Shared by the page (inlined by tools/build-*.mjs) and the rooms server
+   (bundled by rooms-worker/build.mjs), so a phone and the server agree on
+   what a box needs before وقف can be pressed.
+
+   - foldStopAnswer / stopAnswerFits: an answer fills its box when, folded
+     (case, diacritics, hamza forms, ة/ه, ى/ي, the article), it is at least two
+     letters and starts with the round's letter.
+   - stopWordKnown: whether the dictionary knows the answer for its category.
+     The dictionary is these lists plus the ones other games already keep
+     (MONKEY_LISTS for countries, cities, English animals and foods; SPY_WORDS
+     for Arabic animals, foods, things, jobs and brands). It is compared on
+     letters only, with or without the article, forgives one wrong letter in a
+     word of five or more, and an English plural. A word it doesn't know is not
+     wrong: the room shows it as ❓ for the host to decide.
+
+   Lists here are the categories nobody else had, and additions to the ones
+   they did; a word already in another list is harmless. `npm run check`
+   folds every list and fails on a word listed twice in one.
+   ========================================================================= */
+
+const STOP_WORDS = {
+  ar: {
+    names: [
+      "أحمد", "أمير", "أيمن", "أسامة", "أشرف", "أنس", "إبراهيم", "إسماعيل", "إسلام", "أكرم", "أنور", "أدهم", "أيوب", "إياد", "إيهاب", "أمجد", "أسعد", "أمين", "إدريس", "إلياس",
+      "آدم", "أمل", "أسماء", "آية", "أميرة", "إيمان", "إسراء", "آمنة", "آلاء", "أروى", "أماني", "ابتسام", "إلهام", "إنجي", "أسيل", "أريج", "آسيا", "ألفت", "أمنية", "إيناس",
+      "باسم", "بلال", "بدر", "بكر", "بهاء", "باهر", "برهان", "بسام", "بشير", "بشرى", "بسمة", "بثينة", "بتول", "بسنت", "بيسان", "بهية", "بسيوني",
+      "تامر", "توفيق", "تميم", "تيسير", "تقي", "تحسين", "تسنيم", "تهاني", "تغريد", "تقوى", "تالا", "تيماء",
+      "ثامر", "ثروت", "ثابت", "ثائر", "ثريا", "ثناء",
+      "جمال", "جلال", "جمعة", "جاسر", "جابر", "جواد", "جود", "جميلة", "جنى", "جيهان", "جهاد", "جوري", "جنة", "جورج", "جرجس",
+      "حسن", "حسين", "حمزة", "حازم", "حسام", "حمدي", "حاتم", "حامد", "حكيم", "حبيبة", "حنان", "حلا", "حياة", "حورية", "حسناء", "حنين", "حفصة", "حمادة", "حسني",
+      "خالد", "خليل", "خيري", "خميس", "خلود", "خديجة", "خيرية",
+      "داود", "دياب", "ديما", "دينا", "دعاء", "دلال", "دنيا", "داليا", "درة", "دالية",
+      "رامي", "رضا", "رائد", "رشاد", "رامز", "رياض", "رفعت", "ربيع", "رشيد", "رانيا", "رحاب", "رشا", "رنا", "رهف", "رقية", "روان", "ريم", "ريهام", "رحمة", "رزان", "رضوى", "رباب", "رغدة", "رمضان", "رءوف",
+      "زياد", "زكريا", "زكي", "زين", "زهير", "زيد", "زينب", "زهرة", "زينة", "زهراء",
+      "سامي", "سعيد", "سمير", "سليم", "سيف", "سالم", "سلطان", "سعد", "سامح", "سراج", "سيد", "سارة", "سلمى", "سما", "سهى", "سناء", "سوسن", "سمية", "سهام", "سعاد", "سماح", "سجى", "سندس", "سلوى", "سمر",
+      "شريف", "شادي", "شهاب", "شوقي", "شاكر", "شعبان", "شيماء", "شهد", "شروق", "شيرين", "شذى", "شادية",
+      "صلاح", "صالح", "صابر", "صبري", "صفوت", "صهيب", "صفاء", "صفية", "صباح", "صابرين", "صبا",
+      "ضياء", "ضحى", "ضرغام",
+      "طارق", "طه", "طلال", "طلعت", "طاهر", "طيبة", "طيف",
+      "علي", "عمر", "عمرو", "عادل", "عماد", "عصام", "عثمان", "عبدالله", "عبدالرحمن", "عبدالعزيز", "عاصم", "عزت", "عفاف", "عبير", "عائشة", "عزة", "علياء", "عواطف", "عهد",
+      "غسان", "غانم", "غالب", "غادة", "غدير", "غزل", "غالية", "غريب",
+      "فادي", "فارس", "فؤاد", "فتحي", "فهد", "فيصل", "فريد", "فاروق", "فاطمة", "فرح", "فريدة", "فايزة", "فجر", "فدوى", "فوزية", "فوزي",
+      "قاسم", "قصي", "قيس", "قمر", "قدري",
+      "كريم", "كمال", "كامل", "كرم", "كنان", "كوثر", "كريمة", "كاميليا", "كندة", "كيرلس",
+      "لؤي", "ليث", "لطفي", "لبيب", "ليلى", "لينا", "لمياء", "لبنى", "لجين", "لين", "لميس", "ليان",
+      "محمد", "محمود", "مصطفى", "مراد", "مازن", "معتز", "مجدي", "منير", "ماجد", "مالك", "مؤمن", "مهند", "ممدوح", "مروان", "مريم", "منى", "مي", "مها", "منة", "ملك", "ميار", "مروة", "منار", "ميرا", "منال", "مديحة", "ميرفت", "مينا", "مرقس", "مجدة",
+      "نبيل", "نادر", "نزار", "نصر", "نور", "نوح", "ناصر", "نجيب", "نشأت", "ندى", "نادية", "نهى", "نورا", "نسرين", "نيرة", "نجلاء", "نوال", "نرمين", "نهال", "نغم", "نسمة", "نهلة", "نوران",
+      "هشام", "هاني", "هيثم", "همام", "هادي", "هارون", "هند", "هدى", "هبة", "هالة", "هناء", "هيام", "هاجر", "هنا",
+      "وليد", "وائل", "وسيم", "وحيد", "وجدي", "وفاء", "وعد", "ولاء", "وداد", "وئام", "وسام",
+      "يوسف", "يحيى", "ياسر", "يزيد", "يونس", "ياسين", "يعقوب", "يامن", "ياسمين", "يارا", "يمنى", "يسرا", "يسري"
+    ],
+    // What grows and is eaten: counts as a plant and as food.
+    produce: [
+      "تفاح", "برتقال", "موز", "عنب", "مانجو", "فراولة", "بطيخ", "شمام", "كنتالوب", "خوخ", "مشمش", "كمثرى", "كيوي", "أناناس", "رمان", "تين", "بلح", "تمر", "جوافة", "ليمون",
+      "يوسفي", "جريب فروت", "كريز", "توت", "نبق", "برقوق", "قشطة", "أفوكادو", "جوز الهند", "زيتون", "خيار", "طماطم", "بطاطس", "بطاطا", "بصل", "ثوم", "جزر", "فلفل", "باذنجان", "كوسة",
+      "بامية", "بسلة", "فاصوليا", "لوبيا", "فول", "عدس", "حمص", "ترمس", "ذرة", "قمح", "شعير", "أرز", "شوفان", "سبانخ", "ملوخية", "خس", "كرنب", "قرنبيط", "بروكلي", "بنجر",
+      "فجل", "لفت", "خرشوف", "كرفس", "بقدونس", "كزبرة", "شبت", "نعناع", "ريحان", "زعتر", "روزماري", "ميرمية", "حلبة", "كمون", "كركم", "زنجبيل", "قرفة", "سمسم", "فول سوداني", "لوز",
+      "بندق", "جوز", "فستق", "كاجو", "عين جمل", "قصب", "قلقاس", "يقطين", "قرع", "جرجير", "شمندر", "كستناء", "تمر هندي", "كركديه", "ينسون", "بابونج", "خروب", "كاكا", "بشملة", "رامبوتان",
+      "جوز الطيب", "هيل", "حبهان", "قرنفل", "شطة", "بطاطا حلوة", "فلفل حار", "كرات", "سلق", "رجلة"
+    ],
+    plants: [
+      "نخلة", "شجرة", "صبار", "ورد", "وردة", "ياسمين", "فل", "تيوليب", "زنبق", "بنفسج", "أقحوان", "عباد الشمس", "نرجس", "أوركيد", "لوتس", "خزامى", "لافندر", "جوري", "فيكس", "صنوبر",
+      "سرو", "بلوط", "كافور", "سنديان", "جميز", "سنط", "بامبو", "خيزران", "صفصاف", "حور", "دفلة", "عشب", "طحلب", "سرخس", "لبلاب", "ألوفيرا", "سنبلة", "شوك", "حلفا", "بردي",
+      "نيلوفر", "جهنمية", "مورينجا", "كينا", "برسيم", "نجيل", "قطن", "كتان", "شاي", "بن", "كاكاو", "زيزفون", "توليب", "غاردينيا", "ريحانة", "شجرة الأرز", "زان", "دردار", "أكاسيا", "بونسيانا",
+      "صبارة", "قيقب", "سوسن", "داليا", "أضاليا", "زهرة", "وردة جوري", "ياسمين هندي", "طرخون", "إكليل الجبل", "عليق", "هيبسكس", "ضرو"
+    ],
+    colors: [
+      "أحمر", "أزرق", "أخضر", "أصفر", "أسود", "أبيض", "برتقالي", "بنفسجي", "بني", "رمادي", "وردي", "بمبي", "موف", "لبني", "سماوي", "كحلي", "زيتي", "فيروزي", "ذهبي", "فضي",
+      "بيج", "كريمي", "عنابي", "نبيتي", "خمري", "ليموني", "فوشيا", "تركواز", "أرجواني", "زهري", "قرمزي", "نيلي", "بترولي", "كاكي", "مشمشي", "سكري", "عسلي", "جملي", "فستقي", "نحاسي",
+      "برونزي", "أوف وايت", "رصاصي", "لؤلؤي", "كركمي", "بصلي", "تفاحي", "خوخي", "ترابي", "طوبي", "زيتوني", "زمردي", "شامبين", "قهوائي", "بندقي", "كراميل", "فحمي", "ثلجي", "حليبي", "رملي",
+      "ياقوتي", "مرجاني", "لافندر فاتح", "سلموني", "دهبي", "تبني"
+    ],
+    things: [
+      "إبريق", "أباجورة", "أريكة", "إسفنجة", "أسطوانة", "برطمان", "بطانية", "باب", "بالون", "بطارية", "ترابيزة", "تكييف", "تلاجة", "ثريا", "جردل", "جرس", "جاكيت", "جزمة", "حزام", "حبل",
+      "حجر", "حصيرة", "حوض", "خاتم", "خزانة", "دولاب", "دفتر", "درج", "دبوس", "راديو", "رف", "رخامة", "زجاجة", "زهرية", "زرار", "ستارة", "سرير", "سجادة", "سكينة", "سلم",
+      "شنطة", "شباك", "شوكة", "شماعة", "صحن", "صندوق", "صنبور", "طاولة", "طبق", "طاسة", "طوبة", "عربية", "علبة", "عود", "غطاء", "غلاية", "فانوس", "فرن", "فوطة", "فازة",
+      "قميص", "قفل", "كرسي", "كوب", "كنبة", "كاس", "كيس", "لمبة", "لوح", "مخدة", "مسمار", "مقص", "ملعقة", "منشفة", "مصباح", "نجفة", "نتيجة", "هاتف", "ورقة", "وعاء",
+      "يافطة", "إبرة", "أسورة", "انسيال", "بيانو", "بوتاجاز", "تابلوه", "تيشيرت", "ثوب", "جلابية", "جوانتي", "حلق", "خرطوم", "خيمة", "دراجة", "دفاية", "دلو", "رموت", "زير",
+      "سبورة", "سماعة", "سبحة", "سلة", "شاكوش", "شمعدان", "شراب", "صينية", "صابونة", "طرحة", "طبلة", "طربوش", "ظرف", "عجلة", "عكاز", "غربال", "غسالة", "فرشاة", "فنجان",
+      "قلادة", "قدر", "قماش", "كتاب", "كشاف", "كنكة", "كورة", "لحاف", "لعبة", "لاب توب", "مروحة", "مكواة", "مسطرة", "ممحاة", "مفرش", "مكنسة", "مرآة", "مخدة سرير", "نظارة", "نقالة",
+      "هدية", "هون", "وسادة", "ولاعة", "إطار", "أنبوبة", "ضمادة", "بلطة", "برواز", "ترمس", "تاج", "ثلاجة", "جاروف", "حقيبة", "خزنة", "دبلة", "رداء", "زهر", "ساعة", "شريط"
+    ],
+    animals: [
+      "نسر", "صقر", "بومة", "غراب", "حمامة", "عصفور", "ببغاء", "بطريق", "نعامة", "طاووس", "بجعة", "إوزة", "ديك", "دجاجة", "فرخة", "كتكوت", "هدهد", "بلبل", "كناري", "فلامنجو",
+      "نحلة", "نملة", "فراشة", "ذبابة", "بعوضة", "صرصار", "خنفساء", "دودة", "عنكبوت", "عقرب", "جرادة", "يعسوب", "برغوث", "سمكة", "قرش", "حوت", "دولفين", "أخطبوط", "قنديل البحر", "سلطعون",
+      "كابوريا", "جمبري", "استاكوزا", "محار", "سلحفاة", "تمساح", "ضفدع", "سحلية", "حرباء", "ثعبان", "أفعى", "كوبرا", "ورل", "فأر", "جرذ", "أرنب", "سنجاب", "قنفذ", "خفاش", "كنغر",
+      "كوالا", "باندا", "دب", "ذئب", "ضبع", "ثعلب", "غزال", "وعل", "أيل", "زرافة", "حمار وحشي", "فرس النهر", "وحيد القرن", "فيل", "جاموسة", "بقرة", "ثور", "عجل", "خروف", "ماعز",
+      "معزة", "جمل", "ناقة", "حصان", "حمار", "بغل", "قط", "قطة", "كلب", "أسد", "نمر", "فهد", "شيتا", "قرد", "غوريلا", "شمبانزي", "ضب", "ظبي", "غنم", "بطة",
+      "إبل", "بابون", "لبؤة", "ثعبان البحر", "حبار", "سردين", "بلطي", "بوري", "تونة", "سلمون", "قاروص", "دنيس", "حلزون", "قواقع", "يمامة", "سمان", "زرزور", "نورس", "لقلق", "بلشون",
+      "طائر", "غرير", "حيوان الكسل", "لاما", "ألبكة", "بطة بلدي", "ديناصور", "سمندل", "فقمة", "فظ", "دب قطبي", "ابن آوى", "نمس", "وشق", "جاموس", "ثور البيسون", "حصان البحر", "نجم البحر"
+    ],
+    jobs: [
+      "دكتور", "ممرضة", "معلم", "مذيعة", "مغني", "موسيقار", "ملحن", "شاعر", "مترجم", "مصمم", "مدير", "موظف", "سكرتيرة", "بائع", "تاجر", "بقال", "جزار", "فكهاني", "حلواني", "شيف",
+      "جرسون", "سائق", "مضيفة", "قبطان", "ضابط", "عسكري", "شرطي", "حارس", "بواب", "فلاح", "صياد", "راعي", "حداد", "نقاش", "دهان", "بناء", "عامل", "كوافير", "ترزي", "صائغ",
+      "جواهرجي", "ساعاتي", "إسكافي", "بيطري", "طبيب أسنان", "عالم", "باحث", "أستاذ", "ناظر", "لاعب", "حكم", "مرشد سياحي", "محاضر", "وكيل نيابة", "دبلوماسي", "سفير", "وزير", "رئيس", "عمدة", "إمام",
+      "مأذون", "مؤذن", "قسيس", "كاشير", "محصل", "مندوب", "سمسار", "مقاول", "منجد", "فران", "مكوجي", "غطاس", "رجل إطفاء", "إطفائي", "فني", "تقني", "يوتيوبر", "مونتير", "مخرج", "منتج",
+      "عارض أزياء", "مضيف", "ممرض", "طبيب", "مهندس", "مدرس", "محامي", "صحفي", "مبرمج", "محاسب", "خباز", "طباخ", "نجار", "سباك", "كهربائي", "ميكانيكي", "حلاق", "خياط", "طيار", "بحار",
+      "جندي", "مزارع", "صيدلي", "قاضي", "مصور", "ممثل", "رسام", "كاتب", "مدرب", "جراح", "عطار", "عامل نظافة", "فرّاش", "ساعي", "حكيم", "جنايني", "بستاني", "نحال", "ديلفري", "زمار", "زجاج", "هاكر", "ثلاج"
+    ],
+    brands: [
+      "أبل", "سامسونج", "نايكي", "أديداس", "بوما", "مرسيدس", "بي إم دبليو", "تويوتا", "هيونداي", "كيا", "نيسان", "شيفروليه", "فورد", "فيراري", "لامبورجيني", "بورشه", "أودي", "فولكس فاجن", "بيجو", "رينو",
+      "فيات", "سكودا", "أوبل", "هوندا", "مازدا", "ميتسوبيشي", "سوزوكي", "جيب", "تسلا", "سوني", "إل جي", "توشيبا", "شارب", "فيليبس", "باناسونيك", "هواوي", "شاومي", "أوبو", "ريلمي", "نوكيا",
+      "موتورولا", "لينوفو", "ديل", "إتش بي", "أيسر", "أسوس", "مايكروسوفت", "جوجل", "أمازون", "فيسبوك", "إنستجرام", "واتساب", "تيك توك", "يوتيوب", "نتفليكس", "سناب شات", "تويتر", "أوبر", "كريم", "بيبسي",
+      "كوكاكولا", "سفن أب", "شويبس", "فانتا", "ميراندا", "ريد بول", "نسكافيه", "ليبتون", "نستله", "كادبوري", "جالاكسي", "كيت كات", "تويكس", "سنيكرز", "مارس", "باونتي", "كيندر", "نوتيلا", "ماكدونالدز", "كنتاكي",
+      "بيتزا هت", "دومينوز", "برجر كينج", "هارديز", "ستاربكس", "كوستا", "دانكن", "زارا", "ديفاكتو", "شانيل", "ديور", "جوتشي", "برادا", "رولكس", "كاسيو", "سواتش", "ايكيا", "كارفور", "سبينيس", "نون",
+      "فودافون", "أورانج", "اتصالات", "وي", "جهينة", "المراعي", "بخيت", "دومتي", "إيديتا", "شيبسي", "بيتي", "لمار", "أريال", "بيرسيل", "تايد", "داوني", "فيري", "كلوركس", "ديتول", "لايف بوي",
+      "دوف", "لوكس", "نيفيا", "جارنييه", "لوريال", "بانتين", "هيد آند شولدرز", "كولجيت", "سيجنال", "أورال بي", "جيليت", "بامبرز", "مولفيكس", "شل", "توتال", "موبيل", "كاسترول", "بريدجستون", "ميشلان", "كانون",
+      "نيكون", "جو برو", "بلايستيشن", "إكس بوكس", "نينتندو", "فيزا", "ماستركارد", "باي بال", "فوري", "إنستاباي", "ليجو", "باربي", "ديزني", "مارفل", "لاكوست", "ريبوك", "فيلا", "كونفرس", "فانز", "تمبرلاند",
+      "قطونيل", "توينز", "العروسة", "الضحى", "كريستال", "سيراميكا كليوباترا", "العربي", "توشيبا العربي", "يونيون إير", "فريش", "تورنيدو", "كريازي", "إل سي وايكيكي", "أمريكان إيجل", "إتش آند إم", "ماكس", "سنتربوينت", "طلبات", "مرسول", "جوميا"
+    ],
+    cities: [
+      "العاشر من رمضان", "السادس من أكتوبر", "أكتوبر", "الشروق", "العبور", "القاهرة الجديدة", "التجمع الخامس", "الشيخ زايد", "حلوان", "المعادي", "شبرا الخيمة", "قليوب", "بلبيس", "فاقوس", "منيا القمح", "ميت غمر", "السنبلاوين", "أجا", "طلخا", "بلقاس",
+      "دكرنس", "شربين", "كفر الدوار", "إدكو", "أبو قير", "برج العرب", "العلمين", "الضبعة", "السلوم", "إسنا", "إدفو", "كوم أمبو", "نجع حمادي", "قوص", "الواسطى", "ببا", "مغاغة", "ملوي", "ديروط", "منفلوط",
+      "أبو تيج", "طهطا", "جرجا", "أخميم", "البلينا", "الخانكة", "شبين القناطر", "القناطر الخيرية", "الباجور", "منوف", "أشمون", "مدينة السادات", "زفتى", "السنطة", "كفر الزيات", "بسيون", "قطور", "فوه", "دسوق", "سيدي سالم",
+      "بيلا", "مطوبس", "الحسينية", "أبو كبير", "ههيا", "الصالحية", "القنطرة", "فايد", "رأس سدر", "سانت كاترين", "مرسى علم", "سفاجا", "القصير", "الجونة", "الفرافرة", "أبو سمبل", "المطرية", "المرج", "حلوان الجديدة", "الواحات",
+      "أوتاوا", "برازيليا", "بوغوتا", "ليما", "سانتياغو", "كاراكاس", "هافانا", "كيتو", "لاباز", "مونتيفيديو", "أسونسيون", "كانبرا", "ولينغتون", "أوكلاند", "بيرث", "نيودلهي", "كلكتا", "بنغالور", "تشيناي", "حيدر آباد",
+      "دكا", "كولومبو", "كاتماندو", "هانوي", "هو تشي منه", "بنوم بنه", "يانغون", "تايبيه", "بيونغ يانغ", "أولان باتور", "أستانا", "ألماتي", "بيشكك", "دوشنبه", "يريفان", "نيقوسيا", "فاليتا", "صوفيا", "بوخارست", "بلغراد",
+      "زغرب", "ليوبليانا", "سراييفو", "تيرانا", "سكوبيه", "براتيسلافا", "فيلنيوس", "ريغا", "تالين", "مينسك", "كيشيناو", "ريكيافيك", "إدنبرة", "غلاسكو", "برمنغهام", "ليدز", "كارديف", "بلفاست", "ليون", "نيس",
+      "بوردو", "تولوز", "فرانكفورت", "هامبورغ", "كولونيا", "دورتموند", "فلورنسا", "البندقية", "تورينو", "إشبيلية", "بلنسية", "مالقة", "بورتو", "روتردام", "أنتويرب", "سالزبورغ", "كراكوف", "سانت بطرسبرغ", "إزمير", "أنطاليا",
+      "بورصة", "القدس", "غزة", "رام الله", "نابلس", "الخليل", "يافا", "حيفا", "عكا", "الناصرة", "أريحا", "بيت لحم", "إربد", "الزرقاء", "صيدا", "صور", "زحلة", "جبيل", "اللاذقية", "طرطوس",
+      "حماة", "دير الزور", "الرقة", "كربلاء", "النجف", "كركوك", "السليمانية", "الكوفة", "سامراء", "الفلوجة", "الكويت", "حولي", "الجهراء", "الأحمدي", "الوكرة", "الريان", "الخبر", "الجبيل", "ينبع", "بريدة",
+      "حائل", "نجران", "جازان", "خميس مشيط", "الأحساء", "القطيف", "رأس الخيمة", "الفجيرة", "أم القيوين", "صحار", "نزوى", "المكلا", "تعز", "الحديدة", "مأرب", "بورتسودان", "كسلا", "ود مدني", "الأبيض", "مصراتة",
+      "سبها", "الزاوية", "بنزرت", "القيروان", "قابس", "عنابة", "تلمسان", "سطيف", "البليدة", "باتنة", "مكناس", "وجدة", "تطوان", "الصويرة", "العيون", "نواذيبو", "هرجيسا", "أسمرة", "كمبالا", "كيغالي",
+      "دار السلام", "لوساكا", "هراري", "مابوتو", "لواندا", "كينشاسا", "برازافيل", "ياوندي", "دوالا", "أبوجا", "كانو", "أبيدجان", "باماكو", "واغادوغو", "نيامي", "إنجامينا", "بانغي", "ليبرفيل", "كوتونو", "لومي",
+      "كوناكري", "فريتاون", "مونروفيا", "بانجول", "أنتاناناريفو", "بورت لويس", "موروني", "بوسطن", "سان فرانسيسكو", "لاس فيغاس", "هيوستن", "دالاس", "سياتل", "فيلادلفيا", "أتلانتا", "دنفر", "كالغاري", "ميلانو", "نابولي", "هونج كونج"
+    ],
+    foods: [
+      "كشري", "فول مدمس", "طعمية", "فلافل", "محشي", "ممبار", "كوارع", "فتة", "رقاق", "مسقعة", "كفتة", "كباب", "شاورما", "حواوشي", "كبدة", "سجق", "مكرونة بشاميل", "بطاطس محمرة", "أرز معمر", "أم علي",
+      "بسبوسة", "كنافة", "قطايف", "بقلاوة", "غريبة", "كحك", "بسكويت", "ملبن", "مهلبية", "أرز بلبن", "بليلة", "عاشورا", "سحلب", "جلاش", "فطير", "فطير مشلتت", "عيش بلدي", "عيش شامي", "بيتزا", "برجر",
+      "سوشي", "تاكو", "لازانيا", "سباجيتي", "شكشوكة", "منسف", "مقلوبة", "كبسة", "مندي", "برياني", "تبولة", "فتوش", "متبل", "بابا غنوج", "مسخن", "ورق عنب", "كبة", "صفيحة", "مناقيش", "معمول",
+      "لقيمات", "هريسة", "ثريد", "جريش", "مرقوق", "سليق", "مطبق", "مجبوس", "كسكسي", "طاجن", "حريرة", "بسطيلة", "شوربة عدس", "شوربة", "سلطة", "زبادي", "جبنة", "بيض", "لبن", "عسل",
+      "مربى", "حلاوة طحينية", "طحينة", "مكرونة", "رز", "عيش", "خبز", "فراخ", "لحمة", "سمك", "جمبري مشوي", "كرواسون", "دونات", "كيكة", "تورتة", "آيس كريم", "جيلاتي", "شيبسي", "فشار", "ترمس مملح",
+      "حمام محشي", "بط", "ديك رومي", "بفتيك", "شيش طاووق", "ستيك", "هوت دوج", "ناجتس", "بان كيك", "وافل", "بودنج", "كريم كراميل", "جاتوه", "تشيز كيك", "سندوتش", "توست", "زلابية", "لقمة القاضي", "ضاني", "ثومية"
+    ]
+  },
+  en: {
+    names: [
+      "Adam", "Aaron", "Alex", "Alexander", "Andrew", "Anthony", "Arthur", "Austin", "Adrian", "Alan", "Albert", "Amy", "Anna", "Alice", "Alicia", "Amanda", "Angela", "Ava", "Abigail", "Ashley",
+      "Audrey", "Aria", "Ahmed", "Ali", "Amir", "Aisha", "Ben", "Benjamin", "Brian", "Bruce", "Bradley", "Brandon", "Bob", "Bill", "Blake", "Bella", "Beth", "Bianca", "Brooke", "Bonnie",
+      "Charles", "Chris", "Christopher", "Carl", "Calvin", "Caleb", "Cameron", "Connor", "Colin", "Charlie", "Chloe", "Claire", "Clara", "Caroline", "Catherine", "Charlotte", "Cindy", "Crystal", "David", "Daniel",
+      "Dylan", "Derek", "Dennis", "Dean", "Dominic", "Diana", "Donna", "Daisy", "Deborah", "Diane", "Dalia", "Dina", "Edward", "Eric", "Ethan", "Evan", "Elijah", "Eli", "Emma", "Emily",
+      "Ella", "Eva", "Elena", "Elizabeth", "Eleanor", "Erica", "Eden", "Frank", "Fred", "Felix", "Finn", "Francis", "Faisal", "Fiona", "Freya", "Fatima", "Faith", "Felicity", "George", "Gary",
+      "Gavin", "Gabriel", "Grant", "Gregory", "Grace", "Gemma", "Georgia", "Gina", "Gloria", "Harry", "Henry", "Hugo", "Howard", "Hassan", "Hana", "Hannah", "Helen", "Hazel", "Holly", "Heather",
+      "Hailey", "Hamza", "Isaac", "Ian", "Ivan", "Ibrahim", "Isabella", "Isla", "Ivy", "Irene", "Iris", "Ingrid", "Iman", "James", "John", "Jack", "Jacob", "Jason", "Jeremy", "Joseph",
+      "Joshua", "Justin", "Jordan", "Julian", "Jane", "Julia", "Jessica", "Jennifer", "Jasmine", "Joy", "Judy", "Kevin", "Kyle", "Keith", "Kenneth", "Karim", "Kate", "Katie", "Karen", "Kelly",
+      "Kim", "Kylie", "Khaled", "Liam", "Leo", "Lucas", "Luke", "Louis", "Logan", "Lewis", "Laura", "Lily", "Lucy", "Linda", "Lisa", "Leah", "Layla", "Lauren", "Lina", "Michael",
+      "Mark", "Matthew", "Max", "Martin", "Mason", "Mohamed", "Mustafa", "Mary", "Maria", "Mia", "Mila", "Megan", "Michelle", "Molly", "Maya", "Mona", "Mariam", "Nathan", "Nicholas", "Noah",
+      "Neil", "Nick", "Nader", "Nour", "Natalie", "Nancy", "Nina", "Nora", "Nadia", "Naomi", "Nicole", "Oliver", "Oscar", "Owen", "Omar", "Otto", "Olivia", "Olga", "Peter", "Paul",
+      "Patrick", "Philip", "Parker", "Penny", "Paula", "Phoebe", "Pamela", "Robert", "Richard", "Ryan", "Ray", "Roger", "Ross", "Rami", "Rachel", "Rebecca", "Rose", "Ruby", "Rita", "Rania",
+      "Rana", "Reem", "Sam", "Samuel", "Scott", "Sean", "Simon", "Steven", "Stephen", "Sami", "Sarah", "Sara", "Sophia", "Sophie", "Stella", "Susan", "Sandra", "Sally", "Salma", "Thomas",
+      "Tom", "Tim", "Tony", "Tyler", "Theo", "Tariq", "Tamer", "Taylor", "Tina", "Tracy", "Tessa", "Tara", "Victor", "Vincent", "Vivian", "Valerie", "Vanessa", "Victoria", "Vera", "Violet",
+      "William", "Walter", "Wayne", "Wesley", "Will", "Waleed", "Wendy", "Willow", "Whitney", "Youssef", "Yasmin", "Zain", "Zeina", "Mostafa", "Mahmoud", "Hossam", "Heba", "Dana", "Karma", "Malak"
+    ],
+    produce: [
+      "Apple", "Apricot", "Avocado", "Banana", "Blackberry", "Blueberry", "Cherry", "Coconut", "Cranberry", "Date", "Dragon fruit", "Fig", "Grape", "Grapefruit", "Guava", "Kiwi", "Lemon", "Lime", "Lychee", "Mango",
+      "Melon", "Nectarine", "Orange", "Papaya", "Passion fruit", "Peach", "Pear", "Pineapple", "Plum", "Pomegranate", "Raspberry", "Strawberry", "Tangerine", "Watermelon", "Artichoke", "Asparagus", "Beetroot", "Broccoli", "Brussels sprouts", "Cabbage",
+      "Carrot", "Cauliflower", "Celery", "Chard", "Chickpea", "Corn", "Cucumber", "Eggplant", "Garlic", "Ginger", "Kale", "Leek", "Lentil", "Lettuce", "Mushroom", "Okra", "Olive", "Onion", "Parsnip", "Pea",
+      "Pepper", "Potato", "Pumpkin", "Radish", "Rice", "Rye", "Spinach", "Squash", "Sweet potato", "Tomato", "Turnip", "Wheat", "Barley", "Oat", "Bean", "Soybean", "Peanut", "Almond", "Walnut", "Hazelnut",
+      "Pistachio", "Cashew", "Chestnut", "Basil", "Mint", "Parsley", "Coriander", "Dill", "Rosemary", "Thyme", "Sage", "Oregano", "Cinnamon", "Cumin", "Turmeric", "Vanilla", "Sesame", "Zucchini", "Cardamom", "Clove",
+      "Chili", "Kumquat", "Mandarin", "Quince", "Rhubarb", "Tamarind", "Yam", "Grain", "Millet", "Macadamia"
+    ],
+    plants: [
+      "Sunflower", "Rose", "Tulip", "Lily", "Daisy", "Orchid", "Jasmine", "Lotus", "Poppy", "Violet", "Iris", "Daffodil", "Carnation", "Marigold", "Magnolia", "Hibiscus", "Dandelion", "Lilac", "Peony", "Begonia",
+      "Cactus", "Aloe", "Bamboo", "Fern", "Moss", "Ivy", "Clover", "Grass", "Oak", "Pine", "Palm", "Maple", "Birch", "Cedar", "Cypress", "Willow", "Elm", "Ash", "Baobab", "Eucalyptus",
+      "Fir", "Spruce", "Sequoia", "Acacia", "Mulberry", "Cotton", "Flax", "Tea", "Coffee", "Cocoa", "Sugarcane", "Nettle", "Thistle", "Heather", "Holly", "Juniper", "Bougainvillea", "Geranium", "Gardenia", "Honeysuckle",
+      "Wisteria", "Water lily", "Verbena", "Vine", "Lavender", "Chamomile", "Hyacinth", "Jacaranda", "Laurel", "Lupin", "Mimosa", "Oleander", "Primrose", "Reed", "Seaweed", "Shrub", "Snowdrop", "Tree"
+    ],
+    colors: [
+      "Red", "Blue", "Green", "Yellow", "Black", "White", "Orange", "Purple", "Pink", "Brown", "Grey", "Gray", "Beige", "Cream", "Gold", "Silver", "Bronze", "Copper", "Maroon", "Navy",
+      "Turquoise", "Teal", "Cyan", "Magenta", "Lavender", "Lilac", "Violet", "Indigo", "Crimson", "Scarlet", "Burgundy", "Olive", "Lime", "Mint", "Emerald", "Jade", "Khaki", "Tan", "Chocolate", "Coffee",
+      "Caramel", "Honey", "Amber", "Coral", "Salmon", "Peach", "Apricot", "Rose", "Ruby", "Cherry", "Fuchsia", "Plum", "Mauve", "Sky blue", "Baby blue", "Royal blue", "Aqua", "Azure", "Charcoal", "Ivory",
+      "Pearl", "Champagne", "Mustard", "Lemon", "Sand", "Rust", "Wine", "Denim", "Slate", "Sapphire", "Periwinkle", "Taupe", "Umber", "Vermilion", "Off white", "Ochre", "Wheat", "Walnut"
+    ],
+    things: [
+      "Alarm clock", "Anchor", "Apron", "Armchair", "Axe", "Backpack", "Bag", "Ball", "Balloon", "Basket", "Bat", "Battery", "Bed", "Bell", "Belt", "Bench", "Bicycle", "Blanket", "Book", "Bottle",
+      "Bowl", "Box", "Bracelet", "Broom", "Brush", "Bucket", "Button", "Cabinet", "Calculator", "Calendar", "Camera", "Candle", "Cap", "Car", "Card", "Carpet", "Chain", "Chair", "Charger", "Clock",
+      "Coat", "Comb", "Computer", "Cup", "Curtain", "Cushion", "Desk", "Dice", "Dish", "Doll", "Door", "Drawer", "Drum", "Earring", "Envelope", "Eraser", "Easel", "Fan", "Fork", "Frame",
+      "Fridge", "Glass", "Glasses", "Glove", "Guitar", "Hammer", "Hanger", "Hat", "Headphones", "Helmet", "Hook", "Iron", "Jacket", "Jar", "Jug", "Kettle", "Key", "Keyboard", "Kite", "Knife",
+      "Ladder", "Lamp", "Laptop", "Lock", "Magnet", "Map", "Marker", "Mask", "Match", "Mattress", "Microphone", "Microwave", "Mirror", "Mop", "Mouse", "Mug", "Nail", "Napkin", "Necklace", "Needle",
+      "Notebook", "Oar", "Ornament", "Oven", "Paintbrush", "Pan", "Paper", "Pen", "Pencil", "Phone", "Piano", "Picture", "Pillow", "Pin", "Plate", "Pliers", "Pot", "Purse", "Racket", "Radiator",
+      "Radio", "Rake", "Remote", "Ring", "Rope", "Rug", "Ruler", "Saw", "Scarf", "Scissors", "Screw", "Shelf", "Shirt", "Shoe", "Shovel", "Sink", "Sock", "Sofa", "Spoon", "Stapler",
+      "Stool", "Suitcase", "Sunglasses", "Table", "Tablet", "Tap", "Teapot", "Telescope", "Television", "Tent", "Tie", "Tissue", "Toaster", "Toothbrush", "Toothpaste", "Torch", "Towel", "Toy", "Tray", "Trophy",
+      "Trumpet", "Umbrella", "Vacuum cleaner", "Vase", "Violin", "Wallet", "Wardrobe", "Watch", "Whistle", "Window", "Wire", "Wrench", "Zipper", "Anvil", "Bin", "Bulb", "Candlestick", "Crayon", "Crown", "Dress"
+    ],
+    jobs: [
+      "Accountant", "Actor", "Actress", "Architect", "Artist", "Astronaut", "Athlete", "Author", "Baker", "Banker", "Barber", "Biologist", "Builder", "Butcher", "Captain", "Carpenter", "Cashier", "Chef", "Chemist", "Cleaner",
+      "Coach", "Cook", "Dancer", "Dentist", "Designer", "Detective", "Developer", "Director", "Doctor", "Driver", "Economist", "Editor", "Electrician", "Engineer", "Farmer", "Firefighter", "Fisherman", "Florist", "Gardener", "Guard",
+      "Guide", "Hairdresser", "Historian", "Host", "Inspector", "Instructor", "Interpreter", "Janitor", "Jeweller", "Journalist", "Judge", "Lawyer", "Lecturer", "Librarian", "Lifeguard", "Mechanic", "Manager", "Mathematician", "Model", "Musician",
+      "Nurse", "Nanny", "Officer", "Optician", "Painter", "Paramedic", "Pharmacist", "Photographer", "Physicist", "Pilot", "Plumber", "Poet", "Police officer", "Politician", "Postman", "Presenter", "Producer", "Professor", "Programmer", "Psychologist",
+      "Receptionist", "Reporter", "Researcher", "Sailor", "Salesman", "Scientist", "Secretary", "Singer", "Soldier", "Surgeon", "Tailor", "Taxi driver", "Teacher", "Technician", "Therapist", "Translator", "Tutor", "Vet", "Veterinarian", "Waiter",
+      "Waitress", "Welder", "Writer", "Web designer", "Zookeeper", "Referee", "Ranger", "Surveyor", "Sculptor", "Shepherd", "Shopkeeper", "Diplomat", "Ambassador", "Minister", "Mayor", "Priest", "Imam", "Courier", "Cameraman", "Composer",
+      "Conductor", "Curator", "Butler", "Barista", "Blacksmith", "Bodyguard", "Broker", "Vendor", "Violinist", "Web developer", "Window cleaner", "Air hostess", "Flight attendant", "Beekeeper", "Bus driver", "Dietitian", "Diver", "Fashion designer", "Goalkeeper", "Weatherman", "Kindergarten teacher", "Kitchen porter"
+    ],
+    brands: [
+      "Adidas", "Apple", "Amazon", "Audi", "Asus", "Acer", "BMW", "Bentley", "Burberry", "Burger King", "Cadbury", "Canon", "Casio", "Chanel", "Chevrolet", "Coca-Cola", "Colgate", "Costa", "Dell", "Disney",
+      "Dior", "Domino's", "Dove", "Ducati", "eBay", "Ferrari", "Facebook", "Fanta", "Fiat", "Ford", "Fila", "Gillette", "Google", "Gucci", "GoPro", "H&M", "Heinz", "Honda", "HP", "Huawei",
+      "Hyundai", "IKEA", "Instagram", "Intel", "Jaguar", "Jeep", "KFC", "Kia", "KitKat", "Kellogg's", "Lamborghini", "Lego", "Lenovo", "Levi's", "LG", "Lipton", "L'Oreal", "Louis Vuitton", "Lacoste", "Mastercard",
+      "Mazda", "McDonald's", "Mercedes", "Microsoft", "Mitsubishi", "Motorola", "Nescafe", "Nestle", "Netflix", "Nike", "Nikon", "Nintendo", "Nissan", "Nivea", "Nokia", "Nutella", "Oppo", "Oreo", "Orange", "Oral-B",
+      "Omega", "Opel", "Pampers", "Panasonic", "PayPal", "Pepsi", "Peugeot", "Philips", "Pizza Hut", "PlayStation", "Porsche", "Prada", "Puma", "Pantene", "Persil", "Pringles", "Ray-Ban", "Red Bull", "Reebok", "Renault",
+      "Rolex", "Samsung", "Seiko", "Sharp", "Shell", "Skoda", "Snapchat", "Sony", "Sprite", "Starbucks", "Subway", "Suzuki", "Swatch", "Tesla", "TikTok", "Toshiba", "Toyota", "Twix", "Tide", "Twitter",
+      "Uber", "Under Armour", "Unilever", "Vans", "Versace", "Visa", "Vodafone", "Volkswagen", "Volvo", "WhatsApp", "Whirlpool", "Walmart", "Xiaomi", "YouTube", "Zara", "Converse", "Hermes", "Lexus", "Mini", "Rolls-Royce"
+    ],
+    animals: [
+      "Aardvark", "Alligator", "Alpaca", "Ant", "Anteater", "Antelope", "Armadillo", "Baboon", "Badger", "Bat", "Bear", "Beaver", "Bee", "Beetle", "Bison", "Boar", "Buffalo", "Butterfly", "Camel", "Canary",
+      "Caterpillar", "Cheetah", "Chicken", "Chimpanzee", "Cobra", "Cockroach", "Cod", "Crab", "Crane", "Cricket", "Crocodile", "Crow", "Deer", "Dingo", "Dolphin", "Donkey", "Dove", "Dragonfly", "Duck", "Eagle",
+      "Eel", "Elephant", "Elk", "Emu", "Falcon", "Ferret", "Flamingo", "Fly", "Fox", "Frog", "Gazelle", "Gecko", "Giraffe", "Goat", "Goldfish", "Goose", "Gorilla", "Grasshopper", "Hamster", "Hare",
+      "Hawk", "Hedgehog", "Heron", "Hippo", "Hippopotamus", "Horse", "Hummingbird", "Hyena", "Iguana", "Impala", "Jackal", "Jaguar", "Jellyfish", "Kangaroo", "Koala", "Kingfisher", "Ladybug", "Lamb", "Lemur", "Leopard",
+      "Lion", "Lizard", "Llama", "Lobster", "Lynx", "Macaw", "Meerkat", "Mole", "Monkey", "Moose", "Mosquito", "Moth", "Mouse", "Mule", "Newt", "Nightingale", "Octopus", "Ostrich", "Otter", "Owl",
+      "Ox", "Panda", "Panther", "Parrot", "Peacock", "Pelican", "Penguin", "Pig", "Pigeon", "Platypus", "Polar bear", "Porcupine", "Puma", "Rabbit", "Raccoon", "Rat", "Raven", "Reindeer", "Rhino", "Rhinoceros",
+      "Robin", "Rooster", "Salmon", "Scorpion", "Seagull", "Seal", "Shark", "Sheep", "Shrimp", "Skunk", "Sloth", "Snail", "Snake", "Sparrow", "Spider", "Squid", "Squirrel", "Starfish", "Stork", "Swan",
+      "Tiger", "Toad", "Tortoise", "Toucan", "Trout", "Tuna", "Turkey", "Turtle", "Vulture", "Viper", "Walrus", "Wasp", "Weasel", "Whale", "Wolf", "Woodpecker", "Worm", "Warthog", "Wombat", "Zebra"
+    ],
+    foods: [
+      "Bagel", "Biryani", "Brownie", "Burrito", "Butter", "Cake", "Cereal", "Cheese", "Cheesecake", "Chips", "Chocolate", "Cookie", "Croissant", "Cupcake", "Curry", "Donut", "Dumpling", "Egg", "Falafel", "Fries",
+      "Granola", "Hamburger", "Honey", "Hummus", "Jam", "Jelly", "Kebab", "Ketchup", "Lasagna", "Lentil soup", "Muffin", "Noodles", "Nuggets", "Oatmeal", "Omelette", "Pancake", "Pasta", "Pie", "Pizza", "Popcorn",
+      "Porridge", "Pretzel", "Pudding", "Ramen", "Ravioli", "Salad", "Sandwich", "Sausage", "Shawarma", "Soup", "Spaghetti", "Steak", "Stew", "Sushi", "Taco", "Toast", "Tortilla", "Waffle", "Yogurt", "Koshari",
+      "Molokhia", "Kofta", "Tabbouleh", "Fattoush", "Mansaf", "Kabsa", "Couscous", "Tajine", "Bread", "Milk", "Juice", "Lemonade", "Smoothie", "Milkshake", "Biscuit", "Custard", "Gingerbread", "Meatball", "Mashed potatoes", "Nachos",
+      "Quiche", "Risotto", "Samosa", "Scone", "Tiramisu", "Vermicelli", "Wrap", "Wings", "Fish", "Chicken nuggets", "Beef", "Lamb chops", "Rice pudding", "Doughnut", "Crepe", "Churros", "Macaroni", "Noodle soup", "Pita", "Veal"
+    ],
+    countries: ["USA", "UK", "UAE", "America", "England", "Scotland", "Wales", "Holland", "Korea", "Congo"],
+    cities: [
+      "Abu Dhabi", "Accra", "Addis Ababa", "Alexandria", "Algiers", "Amman", "Amsterdam", "Ankara", "Athens", "Atlanta", "Auckland", "Baghdad", "Bangkok", "Barcelona", "Basra", "Beijing", "Beirut", "Belgrade", "Berlin", "Bogota",
+      "Boston", "Brasilia", "Brussels", "Bucharest", "Budapest", "Buenos Aires", "Cairo", "Calgary", "Canberra", "Cape Town", "Caracas", "Casablanca", "Chicago", "Copenhagen", "Damascus", "Dallas", "Delhi", "Denver", "Doha", "Dubai",
+      "Dublin", "Edinburgh", "Florence", "Frankfurt", "Geneva", "Giza", "Glasgow", "Hamburg", "Hanoi", "Havana", "Helsinki", "Hong Kong", "Houston", "Istanbul", "Jakarta", "Jeddah", "Jerusalem", "Johannesburg", "Kabul", "Karachi",
+      "Khartoum", "Kyiv", "Kiev", "Kuala Lumpur", "Kuwait City", "Lagos", "Lahore", "Las Vegas", "Lima", "Lisbon", "Liverpool", "London", "Los Angeles", "Luxor", "Lyon", "Madrid", "Manchester", "Manila", "Marrakesh", "Marseille",
+      "Mecca", "Medina", "Melbourne", "Mexico City", "Miami", "Milan", "Montreal", "Moscow", "Mumbai", "Munich", "Muscat", "Nairobi", "Naples", "New Delhi", "New York", "Nice", "Osaka", "Oslo", "Ottawa", "Paris",
+      "Perth", "Philadelphia", "Prague", "Rabat", "Rio de Janeiro", "Riyadh", "Rome", "Rotterdam", "San Francisco", "Santiago", "Sao Paulo", "Seattle", "Seoul", "Shanghai", "Sharjah", "Singapore", "Stockholm", "Sydney", "Taipei", "Tangier",
+      "Tehran", "Tokyo", "Toronto", "Tripoli", "Tunis", "Valencia", "Vancouver", "Venice", "Vienna", "Warsaw", "Washington", "Wellington", "Aswan", "Hurghada", "Sharm El Sheikh", "Mansoura", "Tanta", "Port Said", "Suez", "Ismailia",
+      "Zagazig", "Asyut", "Minya", "Faiyum", "Damietta", "Marsa Matruh", "Dahab", "Siwa", "Birmingham", "Bristol", "Leeds", "Oxford", "Cambridge", "Porto", "Seville", "Turin", "Verona", "Zurich", "Krakow", "Salzburg",
+      "Antwerp", "Bordeaux", "Toulouse", "Dortmund", "Cologne", "Valletta", "Nicosia", "Reykjavik", "Tbilisi", "Baku", "Yerevan", "Tashkent", "Almaty", "Astana", "Dhaka", "Colombo", "Kathmandu", "Yangon", "Phnom Penh", "Bangalore",
+      "Chennai", "Kolkata", "Hyderabad", "Pune", "Islamabad", "Peshawar", "Isfahan", "Mashhad", "Tabriz", "Izmir", "Antalya", "Bursa", "Kigali", "Kampala", "Dar es Salaam", "Lusaka", "Harare", "Luanda", "Kinshasa", "Abuja",
+      "Dakar", "Bamako", "Detroit", "Orlando", "Phoenix", "San Diego", "Austin", "Nashville", "Quebec", "Vladivostok"
+    ]
+  }
+};
+
+/* --- A filled box ---------------------------------------------------------- */
+
+/** The letters people spell the same word with (the rooms' foldArabicLetters, repeated here for the page). */
+const stopLetterFold = (text) => String(text || '').toLowerCase()
+  .replace(/[ً-ْٰـ]/g, '')
+  .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي')
+  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ک/g, 'ك');
+
+/** One spelling for comparing answers: case, diacritics, hamza forms, the article. */
+const foldStopAnswer = (text, lang, letter) => {
+  const raw = String(text || '').trim();
+  let out = stopLetterFold(raw)
+    .replace(/[^\p{L}\p{N} ]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // The definite article is not the initial: "الأسد" is an أ word, "the sea" an S word.
+  // In a round on ا itself a bare "ال…" stays: ألمانيا and إلهام are ا words, and typed
+  // without the hamza they look exactly like an article. Only "ال" + a hamza letter
+  // (الأسد, الإمارات) is an article for certain there.
+  const article = lang === 'ar' && out.length > 3 && out.indexOf('ال') === 0
+    && (letter !== 'ا' || /^ال[أإآ]/.test(raw));
+  if (article) out = out.slice(2);
+  if (lang === 'en' && out.indexOf('the ') === 0) out = out.slice(4);
+  return out;
+};
+
+/** Whether an answer fills its box: two letters or more, starting with the round's letter. */
+const stopAnswerFits = (text, lang, roundLetter) => {
+  const letter = foldStopAnswer(roundLetter, lang);
+  const f = foldStopAnswer(text, lang, letter);
+  return f.length >= 2 && f.charAt(0) === letter;
+};
+
+/* --- The dictionary --------------------------------------------------------- */
+
+/** Letters only, the way the dictionary compares. */
+const stopDictFold = (text) => stopLetterFold(text).replace(/[^\p{L}\p{N}]/gu, '');
+
+/** A word with and without its article, so الأسد finds أسد and the reverse. */
+const stopDictForms = (text) => {
+  const f = stopDictFold(text);
+  const forms = [f];
+  if (f.indexOf('ال') === 0 && f.length >= 4) forms.push(f.slice(2));
+  if (f.indexOf('the') === 0 && f.length >= 5) forms.push(f.slice(3));
+  return forms;
+};
+
+const STOP_DICT_CACHE = {};
+
+/** Every word the dictionary knows for a category in a language, folded. */
+const stopDictionary = (lang, cat) => {
+  const L = lang === 'en' ? 'en' : 'ar';
+  const key = L + ':' + cat;
+  if (STOP_DICT_CACHE[key]) return STOP_DICT_CACHE[key];
+  const own = STOP_WORDS[L] || {};
+  const spy = typeof SPY_WORDS !== 'undefined' ? SPY_WORDS : {};
+  const monkey = typeof MONKEY_LISTS !== 'undefined' ? (MONKEY_LISTS[L] || {}) : {};
+  const ar = L === 'ar';
+  const sources = {
+    name: [own.names],
+    animal: [own.animals, monkey.animals, ar ? spy['حيوانات'] : null],
+    plant: [own.produce, own.plants],
+    thing: [own.things, ar ? spy['أشياء'] : null, ar ? spy['آلات موسيقية'] : null, ar ? spy['مواصلات'] : null],
+    country: [monkey.countries, own.countries],
+    city: [monkey.cities, own.cities],
+    food: [own.foods, own.produce, monkey.foods, ar ? spy['أكلات'] : null],
+    brand: [own.brands, ar ? spy['ماركات ( براندات )'] : null],
+    job: [own.jobs, ar ? spy['مهن'] : null],
+    color: [own.colors]
+  }[cat];
+  if (!sources) return null;
+  const set = new Set();
+  sources.forEach((list) => (list || []).forEach((w) => stopDictForms(w).forEach((f) => { if (f.length >= 2) set.add(f); })));
+  STOP_DICT_CACHE[key] = set;
+  return set;
+};
+
+/** Whether two folded words are at most one letter apart (one added, dropped or changed). */
+const stopOneApart = (a, b) => {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a.charAt(i) === b.charAt(j)) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (a.length < b.length) j++;
+    else { i++; j++; }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+};
+
+/**
+ * Whether the dictionary knows this answer for its category: true, false, or
+ * null for a category with no dictionary. Forgives the article, one wrong
+ * letter in a word of five letters or more, and an English plural.
+ */
+const stopWordKnown = (lang, cat, text) => {
+  const dict = stopDictionary(lang, cat);
+  if (!dict) return null;
+  const forms = stopDictForms(text).filter((f) => f.length >= 2);
+  if (!forms.length) return false;
+  if (forms.some((f) => dict.has(f))) return true;
+  if (lang === 'en') {
+    const f = forms[0];
+    if (/ies$/.test(f) && dict.has(f.slice(0, -3) + 'y')) return true;
+    if (/es$/.test(f) && dict.has(f.slice(0, -2))) return true;
+    if (/s$/.test(f) && dict.has(f.slice(0, -1))) return true;
+  }
+  for (const f of forms) {
+    if (f.length < 5) continue;
+    for (const w of dict) if (w.charAt(0) === f.charAt(0) && stopOneApart(w, f)) return true;
+  }
+  return false;
+};
+
+</script>
 <script>
       /* The published site. The local preview leaves this out, so it never registers the offline cache. */
       window.STATIC_SITE = true;
@@ -9956,6 +10336,21 @@ const MONKEY_KEYS = {
    * double click on every such button - so a handler's click is dropped for
    * half a second after a tap's, and taps only collapse among themselves.
    */
+  // The bomb alternates a higher and a lower knock: tick, tock.
+  let bombTock = false;
+
+  // iOS and Chrome keep the audio asleep until a touch, and put it back to sleep
+  // when the phone locks or a call comes in ('suspended' or 'interrupted'). Any
+  // touch or key wakes it again; a sound that arrives from the room without one
+  // (the bomb landing on this phone) can't.
+  const wakeAudio = () => {
+    if (audioCtx.state !== 'running' && audioCtx.state !== 'closed') {
+      try { const p = audioCtx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    }
+  };
+  ['pointerdown', 'touchend', 'keydown'].forEach((ev) => document.addEventListener(ev, wakeAudio, { capture: true, passive: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeAudio(); });
+
   function playSound(type, fromTap) {
     if (type === 'click') {
       const now = Date.now();
@@ -9967,7 +10362,31 @@ const MONKEY_KEYS = {
       }
       lastClickAt = now;
     }
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    wakeAudio();
+    if (type === 'bomb') {
+        // A wooden knock loud enough to hear across a table: a pitched body and a click on top.
+        bombTock = !bombTock;
+        const at = audioCtx.currentTime;
+        const body = audioCtx.createOscillator();
+        const bodyGain = audioCtx.createGain();
+        body.type = 'sine';
+        body.frequency.setValueAtTime(bombTock ? 1250 : 930, at);
+        body.frequency.exponentialRampToValueAtTime(bombTock ? 720 : 540, at + 0.07);
+        bodyGain.gain.setValueAtTime(0.0001, at);
+        bodyGain.gain.exponentialRampToValueAtTime(0.55, at + 0.004);
+        bodyGain.gain.exponentialRampToValueAtTime(0.001, at + 0.1);
+        body.connect(bodyGain); bodyGain.connect(audioCtx.destination);
+        body.start(at); body.stop(at + 0.11);
+        const click = audioCtx.createOscillator();
+        const clickGain = audioCtx.createGain();
+        click.type = 'square';
+        click.frequency.setValueAtTime(2600, at);
+        clickGain.gain.setValueAtTime(0.12, at);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, at + 0.015);
+        click.connect(clickGain); clickGain.connect(audioCtx.destination);
+        click.start(at); click.stop(at + 0.02);
+        return;
+    }
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain);
@@ -10517,6 +10936,14 @@ const MONKEY_KEYS = {
       stop_room_hint: "كل واحد يكتب على موبايله. أول واحد يخلص يضغط وقف، والتطبيق يحسب: 10 لإجابة مميزة، 5 لمكررة، 0 لفاضية أو مش بتبدأ بالحرف.",
       stop_room_write_hint: "اكتب كلمة تبدأ بالحرف في كل خانة",
       stop_room_stop_hint: "أول واحد يضغط وقف يقفل الجولة على الكل",
+      bomb_sound_hint: "الصوت واقف: دوس على الشاشة عشان تسمع التكتكة",
+      stop_room_left: "باقي {n} خانات بكلمة بتبدأ بحرف {letter} عشان تقدر توقف",
+      stop_room_left_1: "باقي خانة واحدة بكلمة بتبدأ بحرف {letter} عشان تقدر توقف",
+      stop_room_left_2: "باقي خانتين بكلمة بتبدأ بحرف {letter} عشان تقدر توقف",
+      stop_room_fill_all: "املأ كل الخانات بكلمات بتبدأ بحرف {letter} الأول",
+      stop_room_check_host: "كلمات مش في القاموس خدت صفر: دوس على الخانة لو الكلمة صح",
+      stop_room_check_wait: "كلمات مش في القاموس خدت صفر لحد ما المضيف يراجعها",
+      stop_pts_check: "مش في القاموس",
       stop_room_collecting: "بنجمع الإجابات…",
       stop_room_stopped_by: "وقّف الجولة",
       stop_room_adjust_hint: "اضغط على أي خانة عشان تعدّل نقاطها: 10 ← 5 ← 0",
@@ -11567,6 +11994,14 @@ const MONKEY_KEYS = {
       stop_room_hint: "Everyone writes on their own phone. The first one done presses Stop, and the app scores: 10 for a unique answer, 5 for a shared one, 0 for blank or not starting with the letter.",
       stop_room_write_hint: "Write a word starting with the letter in every box",
       stop_room_stop_hint: "The first to press Stop closes the round for everyone",
+      bomb_sound_hint: "Sound is off: tap the screen to hear the ticking",
+      stop_room_left: "{n} boxes still need a word starting with {letter} before you can stop",
+      stop_room_left_1: "1 box still needs a word starting with {letter} before you can stop",
+      stop_room_left_2: "2 boxes still need a word starting with {letter} before you can stop",
+      stop_room_fill_all: "Fill every box with a word starting with {letter} first",
+      stop_room_check_host: "Words the dictionary doesn't know scored 0: tap a cell if the word is right",
+      stop_room_check_wait: "Words the dictionary doesn't know scored 0 until the host checks them",
+      stop_pts_check: "not in the dictionary",
       stop_room_collecting: "Collecting the answers…",
       stop_room_stopped_by: "stopped the round",
       stop_room_adjust_hint: "Tap any cell to change its points: 10 → 5 → 0",
@@ -13924,6 +14359,8 @@ const GAME_RULES = {
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>نفس الحرف يظهر لكل واحد، اكتب إجاباتك في الخانات، وأول واحد يخلص يضغط وقف. التطبيق يقارن الإجابات ويحسب لوحده، والمضيف يقدر يعدّل أي خانة قبل ما تتحسب.</li>
+                <li><b>وقف</b> مش بيشتغل غير لما كل خاناتك تبقى فيها كلمة بتبدأ بالحرف: الخانة بتخضر لما تبقى تمام.</li>
+                <li>كل كلمة بتتراجع على قاموس الفئة بتاعتها. اللي القاموس يعرفها ✓ بتتحسب، واللي ميعرفهاش ❓ بتاخد صفر لحد ما المضيف يدوس عليها لو صح، إلا لو لاعب تاني كتب نفس الكلمة.</li>
                 <li>الإملاء مش فارقة: أسد واسد، مكتبة ومكتبه، مصطفى ومصطفي، والتشكيل، كلهم نفس الإجابة. وأل التعريف مش بتتحسب حرف أول (السمك كلمة بحرف س).</li>
             </ul>`,
         wouldyou: `
@@ -14345,6 +14782,8 @@ const GAME_RULES = {
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The same letter shows to everyone, you type your answers in the boxes, and the first one done presses Stop. The app compares the answers and scores them, and the host can change any cell before the points count.</li>
+                <li><b>Stop</b> only works once every box holds a word starting with the letter: a box turns green when it does.</li>
+                <li>Every word is checked against a dictionary for its category. Words it knows ✓ count; words it doesn't ❓ score 0 until the host taps them as right, unless another player wrote the same word.</li>
                 <li>Spelling doesn't matter: أسد and اسد, مكتبة and مكتبه, capitals, diacritics, all count as the same answer. "The" and "ال" are not the first letter ("the sea" is an S word).</li>
             </ul>`,
         wouldyou: `
@@ -34416,7 +34855,7 @@ function bombTick() {
   const total = Math.max(1, b.total * 1000);
   const remaining = Math.max(0, b.endsAt - Date.now());
   const frac = Math.min(1, remaining / total);
-  playSound('tick');
+  playSound('bomb');
   const card = document.getElementById('bomb-card');
   if (card) {
     card.classList.remove('is-tick');
@@ -35606,6 +36045,12 @@ function pressBuzzer(btn) {
    The one thing to get right here: a phone that has not submitted yet must
    send what it has typed the moment the round closes, before its screen is
    redrawn - the inputs are gone once the frame is rebuilt.
+
+   وقف waits for a full sheet: every box a word starting with the letter
+   (stopAnswerFits in StopWords.js, the server's own rule), each box going green
+   as it fills, and the count of what's left under the button. The review marks
+   what the dictionary didn't know (❓, 0 until the host taps it) apart from
+   what it did (✓).
    ========================================================================= */
 
 const stopRoom = { sentFor: '', clock: null, clockKey: null, fired: false, letterKey: '' };
@@ -35707,6 +36152,7 @@ ROOM_GAMES.stop = {
 
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
     if (rebuilt && s.phase === 'writing' && !iSubmitted) {
+      stopRoomTyped();
       const first = el.querySelector('.stop-room-input');
       if (first && window.innerWidth >= 900) first.focus();
     }
@@ -35746,14 +36192,14 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
     return head + letterCard(t.stop_room_write_hint || '') + `
       <div class="card card--tight stop-room-form">
         ${s.cats.map((c, i) => `
-          <div class="field">
+          <div class="field stop-field">
             <label class="field__label" for="stop-in-${c}">${escapeHTML(stopCatLabel(c))}</label>
             <input type="text" id="stop-in-${c}" class="stop-room-input" data-cat="${c}" maxlength="30" autocomplete="off"
                    autocapitalize="off" spellcheck="false" enterkeyhint="${i === s.cats.length - 1 ? 'done' : 'next'}"
-                   onkeydown="stopRoomKey(event, ${i})">
+                   oninput="stopRoomTyped()" onkeydown="stopRoomKey(event, ${i})">
           </div>`).join('')}
-        <button type="button" class="btn btn--danger btn--lg" onclick="submitStopRoom(true)">${escapeHTML(t.stop_stop_btn || '')}</button>
-        <p class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_stop_hint || '')}</p>
+        <button type="button" id="stop-room-stop" class="btn btn--danger btn--lg is-locked" aria-disabled="true" onclick="submitStopRoom(true)">${escapeHTML(t.stop_stop_btn || '')}</button>
+        <p id="stop-room-gate" class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_stop_hint || '')}</p>
       </div>` + renderRoomPlayerStrip(state);
   }
 
@@ -35764,6 +36210,7 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
         <div class="card__title">${escapeHTML(t.stop_scoring || '')} · <span class="metric">${escapeHTML(s.letter)}</span></div>
         ${s.stopperName ? `<p class="card__subtitle">✋ ${escapeHTML(s.stopperName)} ${escapeHTML(t.stop_room_stopped_by || '')}</p>` : ''}
         <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (t.stop_room_adjust_hint || '') : (t.stop_room_review_hint || ''))}</p>
+        ${stopUnknownCount(s) ? `<p class="field__hint stop-check-hint">❓ ${escapeHTML((state.youAreHost ? t.stop_room_check_host : t.stop_room_check_wait) || '')}</p>` : ''}
         ${stopReviewTable(state, t, state.youAreHost)}
       </div>
       ${s.round > 1 ? renderScoreboard(s.board) : ''}
@@ -35802,10 +36249,15 @@ function stopReviewTable(state, t, canAdjust) {
   const cell = (pid, c) => {
     const r = s.results[pid][c];
     const cls = r.pts === 10 ? 'is-10' : r.pts === 5 ? 'is-5' : '';
-    const inner = `<span class="stop-ans ${r.ok ? '' : 'is-bad'}">${escapeHTML(r.text || '—')}</span><span class="stop-pts ${cls}">${r.pts}</span>`;
+    // ✓ the dictionary knew it (or two players wrote it); ❓ it didn't, and the host hasn't decided.
+    const check = r.ok && r.word === 'unknown' && !r.manual;
+    const mark = check ? '❓' : (r.ok && (r.word === 'known' || r.word === 'shared') ? '✓' : '');
+    const inner = `<span class="stop-ans ${r.ok ? '' : 'is-bad'}">${escapeHTML(r.text || '—')}</span>`
+      + `<span class="stop-cell-foot">${mark ? `<span class="stop-mark ${check ? 'is-check' : 'is-ok'}" aria-hidden="true">${mark}</span>` : ''}<span class="stop-pts ${cls}">${r.pts}</span></span>`;
+    const state2 = (r.manual ? ' is-manual' : '') + (check ? ' is-check' : '');
     return canAdjust
-      ? `<button type="button" class="stop-rcell ${r.manual ? 'is-manual' : ''}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${r.pts})">${inner}</button>`
-      : `<div class="stop-rcell ${r.manual ? 'is-manual' : ''}">${inner}</div>`;
+      ? `<button type="button" class="stop-rcell${state2}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${r.pts})">${inner}</button>`
+      : `<div class="stop-rcell${state2}">${inner}</div>`;
   };
   return `
     <div class="stop-table-wrap">
@@ -35829,7 +36281,56 @@ function stopReviewTable(state, t, canAdjust) {
       <span><span class="stop-dot is-10"></span> 10 ${escapeHTML(t.stop_pts_unique || '')}</span>
       <span><span class="stop-dot is-5"></span> 5 ${escapeHTML(t.stop_pts_shared || '')}</span>
       <span><span class="stop-dot"></span> 0 ${escapeHTML(t.stop_pts_none || '')}</span>
+      <span><span class="stop-mark is-check">❓</span> ${escapeHTML(t.stop_pts_check || '')}</span>
     </div>`;
+}
+
+/** How many answers the dictionary didn't know and the host hasn't decided on. */
+function stopUnknownCount(s) {
+  let n = 0;
+  Object.values(s.results || {}).forEach(row => Object.values(row || {}).forEach(r => {
+    if (r && r.ok && r.word === 'unknown' && !r.manual) n++;
+  }));
+  return n;
+}
+
+/**
+ * Paints each box as it fills (green: a word on the letter; red: a word that
+ * isn't) and unlocks وقف once every box is green. Returns how many are left.
+ */
+function stopRoomTyped() {
+  const s = Room.state && Room.state.shared;
+  if (!s) return 0;
+  const t = TRANSLATIONS[appState.lang];
+  const letter = foldStopAnswer(s.letter, s.lang);
+  let left = 0;
+  let firstLeft = null;
+  document.querySelectorAll('#view-room-stop .stop-room-input').forEach(inp => {
+    const fits = stopAnswerFits(inp.value, s.lang, s.letter);
+    const f = foldStopAnswer(inp.value, s.lang, letter);
+    // Still typing the article ("ا", "ال", "الم") is not a mistake yet.
+    const typingArticle = s.lang === 'ar' && /^ال?.?$/.test(f) && f.indexOf('ا') === 0 && letter !== 'ا';
+    const field = inp.closest('.field');
+    if (field) {
+      field.classList.toggle('is-ok', fits);
+      field.classList.toggle('is-bad', !fits && f.length >= 1 && f.charAt(0) !== letter && !typingArticle);
+    }
+    if (!fits) { left++; if (!firstLeft) firstLeft = inp; }
+  });
+  const btn = document.getElementById('stop-room-stop');
+  if (btn) {
+    btn.classList.toggle('is-locked', left > 0);
+    btn.setAttribute('aria-disabled', String(left > 0));
+  }
+  const gate = document.getElementById('stop-room-gate');
+  if (gate) {
+    gate.textContent = left > 0
+      ? (t[left === 1 ? 'stop_room_left_1' : left === 2 ? 'stop_room_left_2' : 'stop_room_left'] || '').replace('{n}', left).replace('{letter}', s.letter)
+      : (t.stop_room_stop_hint || '');
+    gate.classList.toggle('is-ready', left === 0);
+  }
+  stopRoom.firstLeft = firstLeft;
+  return left;
 }
 
 /** Enter moves down the list; on the last box it is وقف. */
@@ -35847,6 +36348,14 @@ function submitStopRoom(stop) {
   if (!s || (s.phase !== 'writing' && s.phase !== 'collecting')) return;
   const roundKey = Room.state.code + '#' + s.round;
   if (stopRoom.sentFor === roundKey) return;
+  // وقف needs a full sheet; the clock and someone else's وقف send whatever is there.
+  if (stop && s.phase === 'writing' && stopRoomTyped() > 0) {
+    const t = TRANSLATIONS[appState.lang];
+    showToast((t.stop_room_fill_all || '').replace('{letter}', s.letter), 'error');
+    haptic('heavy');
+    if (stopRoom.firstLeft) stopRoom.firstLeft.focus();
+    return;
+  }
   const answers = {};
   document.querySelectorAll('#view-room-stop .stop-room-input').forEach(inp => { answers[inp.dataset.cat] = inp.value; });
   stopRoom.sentFor = roundKey;
@@ -36622,6 +37131,7 @@ function bombRoomFrame(state, t) {
                  <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_send_back_hint || '')}</p>
                </div>` : ''}
              <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_room_pass_hint || '')}</p>
+             <p id="bomb-sound-hint" class="field__hint bomb-sound-hint hidden">🔇 ${escapeHTML(t.bomb_sound_hint || '')}</p>
            </div>`
         : (inRound ? `<div class="waiting-note">${escapeHTML((t.bomb_room_with || '').replace('{name}', s.holderName || ''))}</div>` : '')}
       ${bombOrderHtml(s, state)}
@@ -36680,7 +37190,11 @@ function bombRoomTicking(state, rebuilt) {
   const tick = () => {
     const st = Room.state;
     if (!st || st.shared.phase !== 'ticking' || state.code + '#' + st.shared.round + '#' + st.shared.heat !== bombRoom.tickingKey) return;
-    if (st.youAreScreen || st.shared.holderId === Room.me) playSound('tick');
+    const mine = st.shared.holderId === Room.me;
+    if (st.youAreScreen || mine) playSound('bomb');
+    // A phone that slept can't make a sound until it's touched again (iOS): say so.
+    const hint = document.getElementById('bomb-sound-hint');
+    if (hint) hint.classList.toggle('hidden', !(mine && audioCtx.state !== 'running'));
     const card = document.getElementById('bomb-card');
     if (card) { card.classList.remove('is-tick'); void card.offsetWidth; card.classList.add('is-tick'); }
     bombRoom.tickTimer = setTimeout(tick, BOMB_TICK_MS[Math.min(3, st.shared.heat || 0)]);
@@ -38141,9 +38655,24 @@ const FX_LIST = [
 ];
 
 /* --- the instruments ----------------------------------------------------- */
+// Where the sounds go: the app's audio context, or an OfflineAudioContext
+// set here to render one to a buffer (how the applause was checked).
+let fxRenderTo = null;
 function fxCtx() {
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (fxRenderTo) return fxRenderTo;
+  if (audioCtx.state !== 'running' && audioCtx.state !== 'closed') audioCtx.resume();
   return audioCtx;
+}
+
+/** A second of white noise, made once and shared by every clap. */
+let fxNoiseBuf = null;
+function fxNoiseBuffer(ctx) {
+  if (fxNoiseBuf && fxNoiseBuf.sampleRate === ctx.sampleRate) return fxNoiseBuf;
+  const buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  fxNoiseBuf = buf;
+  return buf;
 }
 
 /** A tone: type, a frequency ramp [[time, hz], ...], a gain envelope [[time, level], ...]. */
@@ -38179,11 +38708,57 @@ function fxNoise(filterType, hz, q, gains, at) {
 
 const FX = {
   applause(at) {
-    // Many small claps: noise bursts at random moments, swelling then fading.
-    for (let i = 0; i < 46; i++) {
-      const t = at + Math.random() * 1.6;
-      const lv = 0.05 + Math.random() * 0.12 * (1 - Math.abs(t - at - 0.7) / 1.2);
-      fxNoise('bandpass', 1600 + Math.random() * 1800, 1.2, [[0, 0], [0.005, lv], [0.05, 0.001]], t);
+    // A room clapping. A hand clap is not one burst of noise but three or four
+    // cracks inside 25ms (the palms meet unevenly) with a short room tail, in
+    // the band where palms ring (about 1-2 kHz). A crowd is a dozen people,
+    // each clapping at their own steady pace with their own pitch and
+    // strength, over a soft wash of everyone else, swelling in and fading out.
+    const ctx = fxCtx();
+    const noise = fxNoiseBuffer(ctx);
+    const dur = 2.6;
+    const out = ctx.createGain();
+    const comp = ctx.createDynamicsCompressor();
+    out.connect(comp); comp.connect(ctx.destination);
+    out.gain.setValueAtTime(0.0001, at);
+    out.gain.exponentialRampToValueAtTime(1.7, at + 0.35);
+    out.gain.setValueAtTime(1.7, at + 1.6);
+    out.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+
+    const bed = ctx.createBufferSource();
+    bed.buffer = noise; bed.loop = true;
+    const bedFilter = ctx.createBiquadFilter();
+    bedFilter.type = 'bandpass'; bedFilter.frequency.value = 1400; bedFilter.Q.value = 0.6;
+    const bedGain = ctx.createGain();
+    bedGain.gain.value = 0.05;
+    bed.connect(bedFilter); bedFilter.connect(bedGain); bedGain.connect(out);
+    bed.start(at); bed.stop(at + dur);
+
+    const clap = (t, hz, level) => {
+      const src = ctx.createBufferSource();
+      src.buffer = noise;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = hz; bp.Q.value = 1.1;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      [0, 0.008, 0.016, 0.024].forEach((d, i) => {
+        const peak = level * (1 - i * 0.2);
+        g.gain.linearRampToValueAtTime(peak, t + d + 0.0012);
+        g.gain.exponentialRampToValueAtTime(peak * 0.15, t + d + 0.007);
+      });
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      src.connect(bp); bp.connect(g); g.connect(out);
+      src.start(t, Math.random() * 0.8, 0.16);
+    };
+
+    for (let p = 0; p < 12; p++) {
+      const pace = 0.16 + Math.random() * 0.1;          // 4-6 claps a second
+      const hz = 900 + Math.random() * 1300;
+      const level = 0.25 + Math.random() * 0.3;
+      let t = Math.random() * pace;
+      while (t < dur - 0.15) {
+        clap(at + t, hz * (0.95 + Math.random() * 0.1), level * (0.75 + Math.random() * 0.5));
+        t += pace * (0.85 + Math.random() * 0.3);
+      }
     }
   },
   tada(at) {
@@ -39356,7 +39931,8 @@ function spinLetter(el, letter, pool, onLand) {
     shown = next;
     el.textContent = next;
     if (el.animate) {
-      el.animate([{ transform: 'translateY(-0.15em)', opacity: 0.35 }, { transform: 'none', opacity: 0.8 }],
+      // In its own place: a squash and a fade, never a move, so it can't ride up over the label.
+      el.animate([{ transform: 'scaleY(0.6)', opacity: 0.35 }, { transform: 'none', opacity: 0.85 }],
                  { duration: gaps[k], easing: 'ease-out' });
     }
     if (k >= gaps.length - 5) playSound('tick');

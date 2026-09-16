@@ -184,6 +184,7 @@ function bombRoomFrame(state, t) {
                  <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_send_back_hint || '')}</p>
                </div>` : ''}
              <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_room_pass_hint || '')}</p>
+             <p id="bomb-sound-hint" class="field__hint bomb-sound-hint hidden">🔇 ${escapeHTML(t.bomb_sound_hint || '')}</p>
            </div>`
         : (inRound ? `<div class="waiting-note">${escapeHTML((t.bomb_room_with || '').replace('{name}', s.holderName || ''))}</div>` : '')}
       ${bombOrderHtml(s, state)}
@@ -242,7 +243,11 @@ function bombRoomTicking(state, rebuilt) {
   const tick = () => {
     const st = Room.state;
     if (!st || st.shared.phase !== 'ticking' || state.code + '#' + st.shared.round + '#' + st.shared.heat !== bombRoom.tickingKey) return;
-    if (st.youAreScreen || st.shared.holderId === Room.me) playSound('tick');
+    const mine = st.shared.holderId === Room.me;
+    if (st.youAreScreen || mine) playSound('bomb');
+    // A phone that slept can't make a sound until it's touched again (iOS): say so.
+    const hint = document.getElementById('bomb-sound-hint');
+    if (hint) hint.classList.toggle('hidden', !(mine && audioCtx.state !== 'running'));
     const card = document.getElementById('bomb-card');
     if (card) { card.classList.remove('is-tick'); void card.offsetWidth; card.classList.add('is-tick'); }
     bombRoom.tickTimer = setTimeout(tick, BOMB_TICK_MS[Math.min(3, st.shared.heat || 0)]);

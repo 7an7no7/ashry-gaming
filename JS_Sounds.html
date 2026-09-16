@@ -27,9 +27,24 @@ const FX_LIST = [
 ];
 
 /* --- the instruments ----------------------------------------------------- */
+// Where the sounds go: the app's audio context, or an OfflineAudioContext
+// set here to render one to a buffer (how the applause was checked).
+let fxRenderTo = null;
 function fxCtx() {
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (fxRenderTo) return fxRenderTo;
+  if (audioCtx.state !== 'running' && audioCtx.state !== 'closed') audioCtx.resume();
   return audioCtx;
+}
+
+/** A second of white noise, made once and shared by every clap. */
+let fxNoiseBuf = null;
+function fxNoiseBuffer(ctx) {
+  if (fxNoiseBuf && fxNoiseBuf.sampleRate === ctx.sampleRate) return fxNoiseBuf;
+  const buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  fxNoiseBuf = buf;
+  return buf;
 }
 
 /** A tone: type, a frequency ramp [[time, hz], ...], a gain envelope [[time, level], ...]. */
@@ -65,11 +80,57 @@ function fxNoise(filterType, hz, q, gains, at) {
 
 const FX = {
   applause(at) {
-    // Many small claps: noise bursts at random moments, swelling then fading.
-    for (let i = 0; i < 46; i++) {
-      const t = at + Math.random() * 1.6;
-      const lv = 0.05 + Math.random() * 0.12 * (1 - Math.abs(t - at - 0.7) / 1.2);
-      fxNoise('bandpass', 1600 + Math.random() * 1800, 1.2, [[0, 0], [0.005, lv], [0.05, 0.001]], t);
+    // A room clapping. A hand clap is not one burst of noise but three or four
+    // cracks inside 25ms (the palms meet unevenly) with a short room tail, in
+    // the band where palms ring (about 1-2 kHz). A crowd is a dozen people,
+    // each clapping at their own steady pace with their own pitch and
+    // strength, over a soft wash of everyone else, swelling in and fading out.
+    const ctx = fxCtx();
+    const noise = fxNoiseBuffer(ctx);
+    const dur = 2.6;
+    const out = ctx.createGain();
+    const comp = ctx.createDynamicsCompressor();
+    out.connect(comp); comp.connect(ctx.destination);
+    out.gain.setValueAtTime(0.0001, at);
+    out.gain.exponentialRampToValueAtTime(1.7, at + 0.35);
+    out.gain.setValueAtTime(1.7, at + 1.6);
+    out.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+
+    const bed = ctx.createBufferSource();
+    bed.buffer = noise; bed.loop = true;
+    const bedFilter = ctx.createBiquadFilter();
+    bedFilter.type = 'bandpass'; bedFilter.frequency.value = 1400; bedFilter.Q.value = 0.6;
+    const bedGain = ctx.createGain();
+    bedGain.gain.value = 0.05;
+    bed.connect(bedFilter); bedFilter.connect(bedGain); bedGain.connect(out);
+    bed.start(at); bed.stop(at + dur);
+
+    const clap = (t, hz, level) => {
+      const src = ctx.createBufferSource();
+      src.buffer = noise;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = hz; bp.Q.value = 1.1;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      [0, 0.008, 0.016, 0.024].forEach((d, i) => {
+        const peak = level * (1 - i * 0.2);
+        g.gain.linearRampToValueAtTime(peak, t + d + 0.0012);
+        g.gain.exponentialRampToValueAtTime(peak * 0.15, t + d + 0.007);
+      });
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      src.connect(bp); bp.connect(g); g.connect(out);
+      src.start(t, Math.random() * 0.8, 0.16);
+    };
+
+    for (let p = 0; p < 12; p++) {
+      const pace = 0.16 + Math.random() * 0.1;          // 4-6 claps a second
+      const hz = 900 + Math.random() * 1300;
+      const level = 0.25 + Math.random() * 0.3;
+      let t = Math.random() * pace;
+      while (t < dur - 0.15) {
+        clap(at + t, hz * (0.95 + Math.random() * 0.1), level * (0.75 + Math.random() * 0.5));
+        t += pace * (0.85 + Math.random() * 0.3);
+      }
     }
   },
   tada(at) {

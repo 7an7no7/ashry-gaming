@@ -329,6 +329,30 @@ for (const [lang, lists] of Object.entries(MONKEY)) {
   }
 }
 
+// أتوبيس كومبليت's dictionary: nothing empty, nothing twice in one list, and
+// how many letters each category can answer (a gap is a note, not a failure:
+// no country starts with ث).
+{
+  const src = ['SpyWords.js', 'MonkeyWords.js', 'StopWords.js'].map(f => fs.readFileSync(G + f, 'utf8')).join('\n;\n');
+  const S = new Function(src + '; return { STOP_WORDS, stopDictFold, stopDictionary, stopLetterFold };')();
+  for (const [lang, lists] of Object.entries(S.STOP_WORDS)) {
+    for (const [kind, list] of Object.entries(lists)) {
+      if (list.some(w => !S.stopDictFold(w))) note(`stop words.${lang}.${kind}: an empty word`);
+      const dup = repeats(list, S.stopDictFold);
+      if (dup.length) note(`stop words.${lang}.${kind}: listed twice ${JSON.stringify(dup)}`);
+    }
+  }
+  const LETTERS = { ar: 'ا ب ت ث ج ح خ د ر ز س ش ص ض ط ع غ ف ق ك ل م ن ه و ي'.split(' '), en: 'ABCDEFGHIJKLMNOPRSTVW'.split('') };
+  for (const lang of ['ar', 'en']) {
+    const line = ['name', 'animal', 'plant', 'thing', 'country', 'city', 'food', 'brand', 'job', 'color'].map(cat => {
+      const words = [...S.stopDictionary(lang, cat)];
+      const gaps = LETTERS[lang].filter(L => !words.some(w => w.charAt(0) === S.stopLetterFold(L)));
+      return `${cat} ${words.length}${gaps.length ? ' (no ' + gaps.join('') + ')' : ''}`;
+    });
+    console.log(`stop dictionary.${lang}: ${line.join(', ')}`);
+  }
+}
+
 const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 {
   const ids = STOP_CATS.map(c => c.id);

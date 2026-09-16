@@ -5,7 +5,7 @@
  *
  *   npm run test:rules      (builds generated/rules.js first)
  */
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, stopAnswerFits, stopWordKnown } from '../generated/rules.js';
 
 let failed = 0;
 const check = (ok, label) => {
@@ -123,6 +123,31 @@ const ess = stopRound('S', {
 });
 check(ess.pts('a') === '5,5,10' && ess.pts('b') === '5,5,5' && ess.pts('c') === '10,10,5',
       'stop: case and "the" are ignored in English');
+
+/* Stop: وقف needs a full sheet, and the dictionary marks what it doesn't know. */
+check(stopAnswerFits('الأسد', 'ar', 'ا') && stopAnswerFits('سمك', 'ar', 'س') && !stopAnswerFits('س', 'ar', 'س') && !stopAnswerFits('قطة', 'ar', 'س'),
+      'stop: a box is filled by a word of two letters or more on the letter');
+check(stopWordKnown('ar', 'animal', 'الأسد') && stopWordKnown('ar', 'country', 'امريكا') && stopWordKnown('en', 'animal', 'Lions') && stopWordKnown('ar', 'name', 'محمود'),
+      'stop: the dictionary knows أسد with its article, امريكا without its hamza, a plural and a name');
+check(stopWordKnown('ar', 'name', 'مححمود') && !stopWordKnown('ar', 'animal', 'سبتزخ') && !stopWordKnown('en', 'city', 'Qwertyville'),
+      'stop: one wrong letter is forgiven in a long word, a made-up word is not known');
+{
+  const r = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'stop' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', cats: ['name', 'animal'], timer: 0, rounds: 1 });
+  r.shared.letter = 'ب';
+  let refused = false;
+  try { applyRoomAction(r, 'a', 'submit', { answers: { name: 'باسم', animal: '' }, stop: true }); } catch (e) { refused = true; }
+  check(refused && r.shared.phase === 'writing' && r.shared.submitted.length === 0, 'stop: وقف with an empty box is refused');
+  applyRoomAction(r, 'a', 'submit', { answers: { name: 'باسم', animal: 'بزززظ' }, stop: true });
+  applyRoomAction(r, 'b', 'submit', { answers: { name: 'بسمة', animal: 'بزززظ' } });
+  applyRoomAction(r, 'c', 'submit', { answers: { name: 'بلبلخ', animal: 'بطة' } });
+  const res = r.shared.results;
+  check(res.a.animal.word === 'shared' && res.a.animal.pts === 5 && res.b.animal.pts === 5,
+        'stop: a word the dictionary lacks but two players wrote counts as shared');
+  check(res.c.name.word === 'unknown' && res.c.name.pts === 0 && res.c.animal.word === 'known' && res.c.animal.pts === 10,
+        'stop: a word nobody else wrote and the dictionary lacks scores 0 for the host to decide');
+}
 
 /* One typed word against another, everywhere but Stop: spelling is folded away. */
 const same = (a, b) => normaliseClue(a) === normaliseClue(b);

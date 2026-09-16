@@ -47,6 +47,21 @@
    * double click on every such button - so a handler's click is dropped for
    * half a second after a tap's, and taps only collapse among themselves.
    */
+  // The bomb alternates a higher and a lower knock: tick, tock.
+  let bombTock = false;
+
+  // iOS and Chrome keep the audio asleep until a touch, and put it back to sleep
+  // when the phone locks or a call comes in ('suspended' or 'interrupted'). Any
+  // touch or key wakes it again; a sound that arrives from the room without one
+  // (the bomb landing on this phone) can't.
+  const wakeAudio = () => {
+    if (audioCtx.state !== 'running' && audioCtx.state !== 'closed') {
+      try { const p = audioCtx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    }
+  };
+  ['pointerdown', 'touchend', 'keydown'].forEach((ev) => document.addEventListener(ev, wakeAudio, { capture: true, passive: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeAudio(); });
+
   function playSound(type, fromTap) {
     if (type === 'click') {
       const now = Date.now();
@@ -58,7 +73,31 @@
       }
       lastClickAt = now;
     }
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    wakeAudio();
+    if (type === 'bomb') {
+        // A wooden knock loud enough to hear across a table: a pitched body and a click on top.
+        bombTock = !bombTock;
+        const at = audioCtx.currentTime;
+        const body = audioCtx.createOscillator();
+        const bodyGain = audioCtx.createGain();
+        body.type = 'sine';
+        body.frequency.setValueAtTime(bombTock ? 1250 : 930, at);
+        body.frequency.exponentialRampToValueAtTime(bombTock ? 720 : 540, at + 0.07);
+        bodyGain.gain.setValueAtTime(0.0001, at);
+        bodyGain.gain.exponentialRampToValueAtTime(0.55, at + 0.004);
+        bodyGain.gain.exponentialRampToValueAtTime(0.001, at + 0.1);
+        body.connect(bodyGain); bodyGain.connect(audioCtx.destination);
+        body.start(at); body.stop(at + 0.11);
+        const click = audioCtx.createOscillator();
+        const clickGain = audioCtx.createGain();
+        click.type = 'square';
+        click.frequency.setValueAtTime(2600, at);
+        clickGain.gain.setValueAtTime(0.12, at);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, at + 0.015);
+        click.connect(clickGain); clickGain.connect(audioCtx.destination);
+        click.start(at); click.stop(at + 0.02);
+        return;
+    }
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain);
@@ -608,6 +647,14 @@
       stop_room_hint: "كل واحد يكتب على موبايله. أول واحد يخلص يضغط وقف، والتطبيق يحسب: 10 لإجابة مميزة، 5 لمكررة، 0 لفاضية أو مش بتبدأ بالحرف.",
       stop_room_write_hint: "اكتب كلمة تبدأ بالحرف في كل خانة",
       stop_room_stop_hint: "أول واحد يضغط وقف يقفل الجولة على الكل",
+      bomb_sound_hint: "الصوت واقف: دوس على الشاشة عشان تسمع التكتكة",
+      stop_room_left: "باقي {n} خانات بكلمة بتبدأ بحرف {letter} عشان تقدر توقف",
+      stop_room_left_1: "باقي خانة واحدة بكلمة بتبدأ بحرف {letter} عشان تقدر توقف",
+      stop_room_left_2: "باقي خانتين بكلمة بتبدأ بحرف {letter} عشان تقدر توقف",
+      stop_room_fill_all: "املأ كل الخانات بكلمات بتبدأ بحرف {letter} الأول",
+      stop_room_check_host: "كلمات مش في القاموس خدت صفر: دوس على الخانة لو الكلمة صح",
+      stop_room_check_wait: "كلمات مش في القاموس خدت صفر لحد ما المضيف يراجعها",
+      stop_pts_check: "مش في القاموس",
       stop_room_collecting: "بنجمع الإجابات…",
       stop_room_stopped_by: "وقّف الجولة",
       stop_room_adjust_hint: "اضغط على أي خانة عشان تعدّل نقاطها: 10 ← 5 ← 0",
@@ -1658,6 +1705,14 @@
       stop_room_hint: "Everyone writes on their own phone. The first one done presses Stop, and the app scores: 10 for a unique answer, 5 for a shared one, 0 for blank or not starting with the letter.",
       stop_room_write_hint: "Write a word starting with the letter in every box",
       stop_room_stop_hint: "The first to press Stop closes the round for everyone",
+      bomb_sound_hint: "Sound is off: tap the screen to hear the ticking",
+      stop_room_left: "{n} boxes still need a word starting with {letter} before you can stop",
+      stop_room_left_1: "1 box still needs a word starting with {letter} before you can stop",
+      stop_room_left_2: "2 boxes still need a word starting with {letter} before you can stop",
+      stop_room_fill_all: "Fill every box with a word starting with {letter} first",
+      stop_room_check_host: "Words the dictionary doesn't know scored 0: tap a cell if the word is right",
+      stop_room_check_wait: "Words the dictionary doesn't know scored 0 until the host checks them",
+      stop_pts_check: "not in the dictionary",
       stop_room_collecting: "Collecting the answers…",
       stop_room_stopped_by: "stopped the round",
       stop_room_adjust_hint: "Tap any cell to change its points: 10 → 5 → 0",
@@ -4015,6 +4070,8 @@ const GAME_RULES = {
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>نفس الحرف يظهر لكل واحد، اكتب إجاباتك في الخانات، وأول واحد يخلص يضغط وقف. التطبيق يقارن الإجابات ويحسب لوحده، والمضيف يقدر يعدّل أي خانة قبل ما تتحسب.</li>
+                <li><b>وقف</b> مش بيشتغل غير لما كل خاناتك تبقى فيها كلمة بتبدأ بالحرف: الخانة بتخضر لما تبقى تمام.</li>
+                <li>كل كلمة بتتراجع على قاموس الفئة بتاعتها. اللي القاموس يعرفها ✓ بتتحسب، واللي ميعرفهاش ❓ بتاخد صفر لحد ما المضيف يدوس عليها لو صح، إلا لو لاعب تاني كتب نفس الكلمة.</li>
                 <li>الإملاء مش فارقة: أسد واسد، مكتبة ومكتبه، مصطفى ومصطفي، والتشكيل، كلهم نفس الإجابة. وأل التعريف مش بتتحسب حرف أول (السمك كلمة بحرف س).</li>
             </ul>`,
         wouldyou: `
@@ -4436,6 +4493,8 @@ const GAME_RULES = {
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The same letter shows to everyone, you type your answers in the boxes, and the first one done presses Stop. The app compares the answers and scores them, and the host can change any cell before the points count.</li>
+                <li><b>Stop</b> only works once every box holds a word starting with the letter: a box turns green when it does.</li>
+                <li>Every word is checked against a dictionary for its category. Words it knows ✓ count; words it doesn't ❓ score 0 until the host taps them as right, unless another player wrote the same word.</li>
                 <li>Spelling doesn't matter: أسد and اسد, مكتبة and مكتبه, capitals, diacritics, all count as the same answer. "The" and "ال" are not the first letter ("the sea" is an S word).</li>
             </ul>`,
         wouldyou: `

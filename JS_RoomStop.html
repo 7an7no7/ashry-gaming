@@ -10,6 +10,12 @@
    The one thing to get right here: a phone that has not submitted yet must
    send what it has typed the moment the round closes, before its screen is
    redrawn - the inputs are gone once the frame is rebuilt.
+
+   وقف waits for a full sheet: every box a word starting with the letter
+   (stopAnswerFits in StopWords.js, the server's own rule), each box going green
+   as it fills, and the count of what's left under the button. The review marks
+   what the dictionary didn't know (❓, 0 until the host taps it) apart from
+   what it did (✓).
    ========================================================================= */
 
 const stopRoom = { sentFor: '', clock: null, clockKey: null, fired: false, letterKey: '' };
@@ -111,6 +117,7 @@ ROOM_GAMES.stop = {
 
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
     if (rebuilt && s.phase === 'writing' && !iSubmitted) {
+      stopRoomTyped();
       const first = el.querySelector('.stop-room-input');
       if (first && window.innerWidth >= 900) first.focus();
     }
@@ -150,14 +157,14 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
     return head + letterCard(t.stop_room_write_hint || '') + `
       <div class="card card--tight stop-room-form">
         ${s.cats.map((c, i) => `
-          <div class="field">
+          <div class="field stop-field">
             <label class="field__label" for="stop-in-${c}">${escapeHTML(stopCatLabel(c))}</label>
             <input type="text" id="stop-in-${c}" class="stop-room-input" data-cat="${c}" maxlength="30" autocomplete="off"
                    autocapitalize="off" spellcheck="false" enterkeyhint="${i === s.cats.length - 1 ? 'done' : 'next'}"
-                   onkeydown="stopRoomKey(event, ${i})">
+                   oninput="stopRoomTyped()" onkeydown="stopRoomKey(event, ${i})">
           </div>`).join('')}
-        <button type="button" class="btn btn--danger btn--lg" onclick="submitStopRoom(true)">${escapeHTML(t.stop_stop_btn || '')}</button>
-        <p class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_stop_hint || '')}</p>
+        <button type="button" id="stop-room-stop" class="btn btn--danger btn--lg is-locked" aria-disabled="true" onclick="submitStopRoom(true)">${escapeHTML(t.stop_stop_btn || '')}</button>
+        <p id="stop-room-gate" class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_stop_hint || '')}</p>
       </div>` + renderRoomPlayerStrip(state);
   }
 
@@ -168,6 +175,7 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
         <div class="card__title">${escapeHTML(t.stop_scoring || '')} · <span class="metric">${escapeHTML(s.letter)}</span></div>
         ${s.stopperName ? `<p class="card__subtitle">✋ ${escapeHTML(s.stopperName)} ${escapeHTML(t.stop_room_stopped_by || '')}</p>` : ''}
         <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (t.stop_room_adjust_hint || '') : (t.stop_room_review_hint || ''))}</p>
+        ${stopUnknownCount(s) ? `<p class="field__hint stop-check-hint">❓ ${escapeHTML((state.youAreHost ? t.stop_room_check_host : t.stop_room_check_wait) || '')}</p>` : ''}
         ${stopReviewTable(state, t, state.youAreHost)}
       </div>
       ${s.round > 1 ? renderScoreboard(s.board) : ''}
@@ -206,10 +214,15 @@ function stopReviewTable(state, t, canAdjust) {
   const cell = (pid, c) => {
     const r = s.results[pid][c];
     const cls = r.pts === 10 ? 'is-10' : r.pts === 5 ? 'is-5' : '';
-    const inner = `<span class="stop-ans ${r.ok ? '' : 'is-bad'}">${escapeHTML(r.text || '—')}</span><span class="stop-pts ${cls}">${r.pts}</span>`;
+    // ✓ the dictionary knew it (or two players wrote it); ❓ it didn't, and the host hasn't decided.
+    const check = r.ok && r.word === 'unknown' && !r.manual;
+    const mark = check ? '❓' : (r.ok && (r.word === 'known' || r.word === 'shared') ? '✓' : '');
+    const inner = `<span class="stop-ans ${r.ok ? '' : 'is-bad'}">${escapeHTML(r.text || '—')}</span>`
+      + `<span class="stop-cell-foot">${mark ? `<span class="stop-mark ${check ? 'is-check' : 'is-ok'}" aria-hidden="true">${mark}</span>` : ''}<span class="stop-pts ${cls}">${r.pts}</span></span>`;
+    const state2 = (r.manual ? ' is-manual' : '') + (check ? ' is-check' : '');
     return canAdjust
-      ? `<button type="button" class="stop-rcell ${r.manual ? 'is-manual' : ''}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${r.pts})">${inner}</button>`
-      : `<div class="stop-rcell ${r.manual ? 'is-manual' : ''}">${inner}</div>`;
+      ? `<button type="button" class="stop-rcell${state2}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${r.pts})">${inner}</button>`
+      : `<div class="stop-rcell${state2}">${inner}</div>`;
   };
   return `
     <div class="stop-table-wrap">
@@ -233,7 +246,56 @@ function stopReviewTable(state, t, canAdjust) {
       <span><span class="stop-dot is-10"></span> 10 ${escapeHTML(t.stop_pts_unique || '')}</span>
       <span><span class="stop-dot is-5"></span> 5 ${escapeHTML(t.stop_pts_shared || '')}</span>
       <span><span class="stop-dot"></span> 0 ${escapeHTML(t.stop_pts_none || '')}</span>
+      <span><span class="stop-mark is-check">❓</span> ${escapeHTML(t.stop_pts_check || '')}</span>
     </div>`;
+}
+
+/** How many answers the dictionary didn't know and the host hasn't decided on. */
+function stopUnknownCount(s) {
+  let n = 0;
+  Object.values(s.results || {}).forEach(row => Object.values(row || {}).forEach(r => {
+    if (r && r.ok && r.word === 'unknown' && !r.manual) n++;
+  }));
+  return n;
+}
+
+/**
+ * Paints each box as it fills (green: a word on the letter; red: a word that
+ * isn't) and unlocks وقف once every box is green. Returns how many are left.
+ */
+function stopRoomTyped() {
+  const s = Room.state && Room.state.shared;
+  if (!s) return 0;
+  const t = TRANSLATIONS[appState.lang];
+  const letter = foldStopAnswer(s.letter, s.lang);
+  let left = 0;
+  let firstLeft = null;
+  document.querySelectorAll('#view-room-stop .stop-room-input').forEach(inp => {
+    const fits = stopAnswerFits(inp.value, s.lang, s.letter);
+    const f = foldStopAnswer(inp.value, s.lang, letter);
+    // Still typing the article ("ا", "ال", "الم") is not a mistake yet.
+    const typingArticle = s.lang === 'ar' && /^ال?.?$/.test(f) && f.indexOf('ا') === 0 && letter !== 'ا';
+    const field = inp.closest('.field');
+    if (field) {
+      field.classList.toggle('is-ok', fits);
+      field.classList.toggle('is-bad', !fits && f.length >= 1 && f.charAt(0) !== letter && !typingArticle);
+    }
+    if (!fits) { left++; if (!firstLeft) firstLeft = inp; }
+  });
+  const btn = document.getElementById('stop-room-stop');
+  if (btn) {
+    btn.classList.toggle('is-locked', left > 0);
+    btn.setAttribute('aria-disabled', String(left > 0));
+  }
+  const gate = document.getElementById('stop-room-gate');
+  if (gate) {
+    gate.textContent = left > 0
+      ? (t[left === 1 ? 'stop_room_left_1' : left === 2 ? 'stop_room_left_2' : 'stop_room_left'] || '').replace('{n}', left).replace('{letter}', s.letter)
+      : (t.stop_room_stop_hint || '');
+    gate.classList.toggle('is-ready', left === 0);
+  }
+  stopRoom.firstLeft = firstLeft;
+  return left;
 }
 
 /** Enter moves down the list; on the last box it is وقف. */
@@ -251,6 +313,14 @@ function submitStopRoom(stop) {
   if (!s || (s.phase !== 'writing' && s.phase !== 'collecting')) return;
   const roundKey = Room.state.code + '#' + s.round;
   if (stopRoom.sentFor === roundKey) return;
+  // وقف needs a full sheet; the clock and someone else's وقف send whatever is there.
+  if (stop && s.phase === 'writing' && stopRoomTyped() > 0) {
+    const t = TRANSLATIONS[appState.lang];
+    showToast((t.stop_room_fill_all || '').replace('{letter}', s.letter), 'error');
+    haptic('heavy');
+    if (stopRoom.firstLeft) stopRoom.firstLeft.focus();
+    return;
+  }
   const answers = {};
   document.querySelectorAll('#view-room-stop .stop-room-input').forEach(inp => { answers[inp.dataset.cat] = inp.value; });
   stopRoom.sentFor = roundKey;

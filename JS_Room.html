@@ -537,6 +537,32 @@ const ROOM_HUB_GAMES = [
 /** Create an empty room from the menu — no game chosen yet. */
 async function roomCreateEmpty() { return roomCreateFor(null); }
 
+/**
+ * The lobby while the room is being made or joined: the shape of what is
+ * coming (a code, a QR, a player row) shimmering where it will land, instead
+ * of a second on the old screen with a spinner in the corner.
+ */
+function lobbySkeleton(on) {
+  const view = document.getElementById('view-room-lobby');
+  if (!view) return;
+  const code = document.getElementById('room-code-display');
+  const qr = document.getElementById('room-qr');
+  const list = document.getElementById('room-player-list');
+  const setup = document.getElementById('room-host-setup');
+  view.classList.toggle('is-loading', !!on);
+  if (on) {
+    if (code) { code.textContent = ''; code.classList.add('skel', 'skel--code'); }
+    if (qr) { qr.innerHTML = ''; qr.classList.remove('hidden'); qr.classList.add('skel', 'skel--qr'); }
+    if (list) list.innerHTML = '<div class="skel skel--row"></div>';
+    if (setup) setup.innerHTML = '<div class="skel skel--hub"></div>';
+  } else {
+    if (code) code.classList.remove('skel', 'skel--code');
+    if (qr) { qr.classList.remove('skel', 'skel--qr'); if (!qr.innerHTML) qr.classList.add('hidden'); }
+    if (list && list.querySelector('.skel')) list.innerHTML = '';
+    if (setup && setup.querySelector('.skel')) setup.innerHTML = '';
+  }
+}
+
 /** Entry point from a game's setup screen: "play on separate phones". */
 async function roomCreateFor(gameId) {
   // Always asked, already filled in with the name used last time: one tap to
@@ -545,15 +571,20 @@ async function roomCreateFor(gameId) {
   if (!name) return;
   roomName.set(name);
   pendingRoomGame = gameId;
+  const from = appState.currentView;
+  setView('room-lobby');
+  lobbySkeleton(true);
   try {
     setSyncing(true);
     await Room.create(name, gameId);
     setSyncing(false);
-    setView('room-lobby');
-    // The room arrived while another screen was showing, so nothing has drawn it yet.
+    lobbySkeleton(false);
+    // The room arrived while the skeleton was showing, so nothing has drawn it yet.
     if (Room.state) routeRoomState(Room.state);
   } catch (err) {
     setSyncing(false);
+    lobbySkeleton(false);
+    setView(from);
     showToast(err.message || 'تعذر إنشاء الغرفة', 'error');
   }
 }
@@ -638,14 +669,19 @@ async function roomJoinFromForm() {
   if (!name) return showToast('اكتب اسمك', 'error');
 
   roomName.set(name);
+  setView('room-lobby');
+  lobbySkeleton(true);
   try {
     setSyncing(true);
     await Room.join(code, name);
     setSyncing(false);
+    lobbySkeleton(false);
     playSound('success');
-    setView('room-lobby');
+    if (Room.state) routeRoomState(Room.state);
   } catch (err) {
     setSyncing(false);
+    lobbySkeleton(false);
+    setView('room-join');
     const msg = String(err.message || '');
     showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? 'لا توجد غرفة بهذا الكود' : msg, 'error');
   }
@@ -672,6 +708,7 @@ async function roomStartGame() {
 /* --- rendering ----------------------------------------------------------- */
 
 function renderRoomLobby(state) {
+  lobbySkeleton(false);
   const codeEl = document.getElementById('room-code-display');
   if (codeEl) codeEl.innerText = state.code;
 

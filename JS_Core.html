@@ -582,6 +582,9 @@
       mode_badge_device: "موبايل واحد",
       mode_badge_room: "كل واحد من موبايله",
       mode_badge_tv: "على التلفزيون",
+      mode_short_device: "موبايل واحد",
+      mode_short_room: "كل واحد بموبايله",
+      mode_short_tv: "التلفزيون",
       hero_rules: "القوانين",
       bomb_mode_label: "نوع اللعب",
       bomb_mode_category: "فئات",
@@ -728,6 +731,15 @@
       tele_write_ph: "اكتب اللي شايفه…",
       tele_write_first: "اكتب حاجة الأول",
       game_lang: "لغة الألعاب",
+      theme_hint: "نهاري أو ليلي",
+      lang_hint: "لغة القوائم والأزرار",
+      game_lang_hint: "لغة الكلمات والأسئلة جوّه الألعاب",
+      ui_scale_hint: "كبّر الخط والأزرار على لابتوب أو تلفزيون",
+      your_name_hint: "الاسم اللي بيظهر في الغرف",
+      sounds_hint: "تصفيق وطبلة وصفارة للحظات اللعب",
+      install_hint: "أيقونة على الشاشة الرئيسية، وبيشتغل من غير نت",
+      refresh_hint: "لو ظهرت نسخة جديدة ومحصلش تحديث",
+      reset_hint: "يمسح الأسماء والمجموعات والنتائج من الموبايل ده",
       game_lang_auto: "زي التطبيق",
       fx_applause: "تصفيق",
       fx_tada: "فوز",
@@ -1529,6 +1541,9 @@
       mode_badge_device: "One phone",
       mode_badge_room: "Own phones",
       mode_badge_tv: "On the TV",
+      mode_short_device: "One phone",
+      mode_short_room: "Own phones",
+      mode_short_tv: "TV",
       hero_rules: "Rules",
       bomb_mode_label: "Play with",
       bomb_mode_category: "Categories",
@@ -1675,6 +1690,15 @@
       tele_write_ph: "Describe it…",
       tele_write_first: "Write something first",
       game_lang: "Games language",
+      theme_hint: "Light or dark",
+      lang_hint: "The menus and buttons",
+      game_lang_hint: "The words and questions inside the games",
+      ui_scale_hint: "Bigger text and buttons on a laptop or TV",
+      your_name_hint: "The name shown in rooms",
+      sounds_hint: "Applause, a drum roll and a whistle for the table",
+      install_hint: "An icon on the home screen; works offline",
+      refresh_hint: "When a new version is out and this copy is behind",
+      reset_hint: "Removes names, groups and scores from this phone",
       game_lang_auto: "Same as the app",
       fx_applause: "Applause",
       fx_tada: "Ta-da",
@@ -2561,6 +2585,7 @@
 
   function initializeApp() {
     setSyncing(true);
+    stickySetupStarts();
     applyTranslations();
     if (typeof renderHome === 'function') renderHome();
 
@@ -3117,6 +3142,72 @@
   }
 
   /** The header back button. Falls back to the menu for unregistered views. */
+  /** A stepper's − and +: clamps to data-min/max, moves by data-step, and fires change for whoever listens. */
+  function stepField(id, dir) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const min = Number(el.dataset.min || el.min || 0);
+    const max = Number(el.dataset.max || el.max || 99);
+    const step = Number(el.dataset.step || 1);
+    const next = Math.min(max, Math.max(min, (Number(el.value) || min) + dir * step));
+    if (next !== Number(el.value)) {
+      el.value = next;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    haptic('light');
+  }
+
+  /* Every setup screen's Start sits in a sticky bar at the foot of its panel,
+     one thumb away however long the options run. The markup keeps the button
+     where it reads best; this moves it once at start-up. A game with a mode
+     switch keeps the bar inside its "this device" panel, so it hides with it. */
+  const STICKY_START_KEYS = ['start', 'bomb_start', 'start_counter'];
+  function stickySetupStarts() {
+    document.querySelectorAll('[id^="view-setup-"]').forEach(view => {
+      view.querySelectorAll('button.btn--primary[data-i18n]').forEach(btn => {
+        if (STICKY_START_KEYS.indexOf(btn.getAttribute('data-i18n')) === -1) return;
+        if (btn.closest('.mode-online-panel') || btn.closest('.view-actions') || btn.closest('.modal-overlay')) return;
+        const host = btn.closest('.mode-device-panel') || view;
+        let bar = host.querySelector(':scope > .view-actions--start');
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.className = 'view-actions view-actions--start';
+          host.appendChild(bar);
+        }
+        btn.classList.add('btn--lg');
+        bar.appendChild(btn);
+      });
+    });
+  }
+
+  /* --- The segmented control's sliding thumb ---------------------------------
+     The active option's place becomes two custom properties on its group and
+     the thumb (the group's ::before) slides there. Positions are re-read after
+     any class change (an option turned on, a panel shown), a rebuilt group, a
+     screen change and a resize - coalesced to one pass per frame. */
+  function syncSegmented(seg) {
+    const active = seg.querySelector(':scope > .segmented__item.is-active');
+    if (!active || !active.offsetWidth) return;      // hidden: measured when shown
+    seg.style.setProperty('--seg-x', active.offsetLeft + 'px');
+    seg.style.setProperty('--seg-w', active.offsetWidth + 'px');
+    if (!seg.classList.contains('has-thumb')) seg.classList.add('has-thumb');
+  }
+  function syncAllSegmented() { document.querySelectorAll('.segmented').forEach(syncSegmented); }
+  (function () {
+    let queued = false;
+    const later = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; syncAllSegmented(); });
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+      new MutationObserver(later).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+      later();
+    });
+    window.addEventListener('resize', later);
+  })();
+
   function goBack() {
     const meta = VIEW_META[appState.currentView];
     setView(meta && meta.up ? meta.up : 'menu');
@@ -3227,12 +3318,18 @@
     });
   }
 
+  const viewScroll = {};   // where each screen was scrolled to when it was left
+
   function setView(viewId) {
     if (typeof syncFxButton === 'function') syncFxButton(viewId);
     const previous = appState.currentView;
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(viewId) !== -1);
     document.body.classList.toggle('is-tv-view', viewId === 'room-tv');
     const goingBack = viewDepth(viewId) < viewDepth(previous);
+    // Remembered before the views are hidden: hiding them shrinks the scroll
+    // height, and the position would be read back clamped.
+    const main = document.getElementById('shell-main');
+    if (main && previous && previous !== viewId) viewScroll[previous] = main.scrollTop;
 
     appState.currentView = viewId;
     saveToLocal();
@@ -3264,8 +3361,9 @@
         }, 600);
     }
 
-    // A view arrives scrolled to wherever the last one was left otherwise.
-    const main = document.getElementById('shell-main');
+    // A view arrives scrolled to wherever the last one was left otherwise;
+    // going back, a screen comes back where it was (restored at the end,
+    // once it is drawn).
     if (main) main.scrollTop = 0;
 
     closeAllModals();
@@ -3281,6 +3379,8 @@
         if(viewId === 'setup-charades' && typeof renderCharadesDropdown === 'function') renderCharadesDropdown();
     }
     applyTranslations();
+    if (main && goingBack && viewScroll[viewId]) main.scrollTop = viewScroll[viewId];
+    if (typeof syncAllSegmented === 'function') requestAnimationFrame(syncAllSegmented);
 }
 
   /* The enter animation must not leave its transform behind: a transformed

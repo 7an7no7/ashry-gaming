@@ -5302,4 +5302,115 @@ body.has-fx.has-chat:not(.is-tv-view) .chat-fab { display: inline-flex; }
 .chat-msg__text { font-size: var(--fs-sm); font-weight: 600; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
 #chat-modal .sheet__footer { display: flex; flex-direction: column; gap: var(--sp-2); }
 
+
+/* ==========================================================================
+   12. SMOOTHNESS (16 Sep 2026)
+   The home for a phone that has played before, cards of one shape, a Start
+   that is always a thumb away, rows that fade where they scroll, a thumb that
+   slides, counts you tap, and a lobby that shows its shape while it loads.
+   ========================================================================== */
+
+/* The hero for a returning player: the same three ways in, as one row of pills. */
+.home-hero--compact { padding: var(--sp-3) var(--sp-4); }
+.home-hero--compact .home-hero__head { margin-bottom: var(--sp-2); }
+.home-hero--compact .mark--hero { width: 2.75rem; height: 2.75rem; border-radius: 0.8rem; }
+.home-hero--compact .home-hero__title { font-size: var(--fs-h2); }
+.home-hero--compact .home-hero__sub { font-size: var(--fs-xs); }
+.home-hero--compact .together__tile { flex-direction: row; min-height: 2.5rem; gap: 0.35rem; padding: var(--sp-1) var(--sp-2); }
+.home-hero--compact .together__icon { font-size: 1rem; margin: 0; }
+.home-hero--compact .together__desc { display: none; }
+
+/* Cards: the icon row carries the mode icons, the text is two lines at most,
+   players and minutes sit on one line - so every card in a row is one shape. */
+.gcard { min-height: 0; gap: 3px; }
+.gcard__top { display: flex; align-items: flex-start; justify-content: space-between; width: 100%; }
+.gcard__modes { display: inline-flex; gap: 1px; padding-top: 2px; font-size: 0.8rem; line-height: 1; opacity: 0.85; }
+.gcard__desc { -webkit-line-clamp: 2; min-height: 2.175rem; }
+.gcard__meta { padding-top: var(--sp-1); flex-wrap: nowrap; }
+
+/* A press answers at once; the release springs back at leisure. */
+.gcard:active, .game-card:active, .tool-item:active, .recent-tile:active,
+.filter-chip:active, .together__tile:active, .setting-row:active { transition-duration: var(--dur-1); }
+
+/* The count sits by its title, as a small pill. */
+.section__count { padding: 1px 0.5rem; border-radius: var(--r-full); background: var(--surface-3); border: 1px solid var(--hairline); }
+
+/* Recents: one line, nothing more. */
+.recent-tile { height: 2.25rem; padding-inline: var(--sp-2) var(--sp-3); font-size: var(--fs-xs); }
+.recent-tile__icon { font-size: 1rem; }
+
+/* The hero's facts as one row of chips across the card, not four stacked lines. */
+.game-hero { flex-wrap: wrap; }
+.game-hero__meta { flex: 1 0 100%; gap: 0.3rem; margin-top: 0; }
+.game-hero__meta .meta-bit { padding: 2px 0.55rem; border-radius: var(--r-full); background: var(--surface-3); border: 1px solid var(--hairline); }
+
+/* A horizontal row fades at the edge it can still scroll toward. The two
+   lengths animate where @property is understood; elsewhere they just switch. */
+@property --fade-l { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --fade-r { syntax: '<length>'; inherits: false; initial-value: 0px; }
+.hscroll-fade {
+  --fade-l: 0px; --fade-r: 0px;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+  transition: --fade-l var(--dur-2) var(--ease-out), --fade-r var(--dur-2) var(--ease-out);
+}
+.hscroll-fade.fade-start:not(.is-rtl), .hscroll-fade.fade-end.is-rtl { --fade-l: 2.75rem; }
+.hscroll-fade.fade-end:not(.is-rtl), .hscroll-fade.fade-start.is-rtl { --fade-r: 2.75rem; }
+
+/* The cards rise in sequence the first time a tab is drawn, not on every visit. */
+.view-stagger.is-settled > * { animation: none; }
+
+/* The segmented control's thumb slides between the options. Until the script
+   has measured (has-thumb), the active option paints itself as before. */
+.segmented { position: relative; }
+.segmented::before {
+  content: '';
+  position: absolute;
+  top: 3px; bottom: 3px; left: 0;
+  width: var(--seg-w, 0px);
+  transform: translateX(var(--seg-x, 0px));
+  border-radius: calc(var(--r-md) - 0.25rem);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--dur-3) var(--ease-spring), width var(--dur-2) var(--ease-out);
+}
+.segmented.has-thumb::before { opacity: 1; }
+.segmented__item { position: relative; z-index: 1; }
+.segmented.has-thumb .segmented__item.is-active { background: transparent; box-shadow: none; }
+
+/* A count you tap up or down, in place of a field or a drop-down. */
+.stepper--field { margin: 0; }
+input.stepper__value { min-height: var(--tap); height: var(--tap); padding: 0; margin: 0; border: 0; background: transparent; box-shadow: none; }
+input.stepper__value:focus { border: 0; box-shadow: none; }
+
+/* A Start bar inside a card fades to the card, not to the page. */
+.card .view-actions--start {
+  margin-bottom: calc(-1 * var(--sp-5));
+  padding-bottom: var(--sp-4);
+  background: linear-gradient(to top, var(--surface-solid) 42%, transparent);
+}
+
+/* Settings rows: a hint under each label. */
+.setting-row { font-size: var(--fs-body); }
+.setting-row__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.setting-row__value { flex: none; white-space: nowrap; }
+.setting-row__hint { font-size: var(--fs-xs); font-weight: 600; line-height: 1.3; color: var(--text-3); }
+
+/* The lobby while the room is being made or joined: the shape of what is coming. */
+@keyframes skelShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skel {
+  background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-2) 50%, var(--surface-3) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--r-md);
+  animation: skelShimmer 1.4s linear infinite;
+}
+.skel--code { height: 3.3rem; width: 11rem; margin: 0 auto var(--sp-4); }
+.skel--qr { aspect-ratio: 1; }
+.skel--row { height: 3.5rem; margin-bottom: var(--sp-2); }
+.skel--hub { height: 10rem; }
+#view-room-lobby.is-loading .btn-stack, #view-room-lobby.is-loading #room-share-btn { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } .segmented::before { transition: none; } }
+
 </style>

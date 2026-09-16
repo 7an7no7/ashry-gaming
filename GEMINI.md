@@ -1052,6 +1052,25 @@ lifts only under a real mouse (`hover: hover` and `pointer: fine`), and the
 home's cards rising in sequence. Nothing in it moves by itself; keep it that
 way, and keep any new polish in that section rather than scattered.
 
+**Smoothness** is section 12 of `Style.html`, with its script in
+`JS_Core.html` and `JS_Catalog.html`. A phone with recents gets the home hero
+folded to one row of pills (`home-hero--compact`); a game card is one shape
+(icon and mode icons on one row, two lines of text, players and minutes on
+one line); every setup screen's Start is moved once at start-up into a
+sticky `.view-actions--start` bar at the foot of its panel
+(`stickySetupStarts`, keyed on the button's `data-i18n`); the filter and
+recents rows fade at the edge they can still scroll toward (`hscroll-fade`,
+`watchScrollFade`); the home, مع بعض and الأدوات animate in only the first
+time in a session (`settleStagger`) and come back where they were scrolled
+(`viewScroll` in `setView`, on the way back only); the segmented control's
+thumb slides (`syncSegmented`: the active option's place as `--seg-x` /
+`--seg-w`, re-read by a MutationObserver on class changes, on each
+`setView` and on resize, `has-thumb` once measured); counts are steppers
+(`stepField`, `data-min` / `data-max` / `data-step` on a read-only input
+with the old id, so the games read `.value` as before); Settings rows carry
+a hint (`setting-row__hint`); and the lobby shows a shimmering skeleton
+(`lobbySkeleton`) while a room is created or joined.
+
 `Style.html` is a token-driven design system. Read its section header before
 changing anything: colour, spacing, radius, duration and elevation all come from
 custom properties in section 1, so a change happens in one place.

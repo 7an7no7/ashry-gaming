@@ -92,9 +92,9 @@ GAME_CATALOG.forEach(g => { CATALOG_BY_ID[g.id] = g; });
    filter row. tv is a room shown on a big screen, so a game that plays in a
    room and has a TV layout carries both. */
 const PLAY_MODES = {
-  device: { icon: '📱', label: 'mode_badge_device' },
-  room:   { icon: '📲', label: 'mode_badge_room' },
-  tv:     { icon: '📺', label: 'mode_badge_tv' }
+  device: { icon: '📱', label: 'mode_badge_device', short: 'mode_short_device' },
+  room:   { icon: '📲', label: 'mode_badge_room',   short: 'mode_short_room' },
+  tv:     { icon: '📺', label: 'mode_badge_tv',     short: 'mode_short_tv' }
 };
 
 const HOME_FILTERS = [
@@ -155,7 +155,7 @@ const catalogTitle = (g, t) => t[g.title] || g.id;
 const catalogDesc = (g, t) => t[g.desc] || '';
 
 /** "👥 3–12 · ⏱ 10 min" plus the mode badges. */
-function catalogMeta(g, t, withModeLabels) {
+function catalogMeta(g, t, withModeLabels, withModes) {
   const bits = [];
   if (g.players) {
     const [min, max] = g.players;
@@ -164,7 +164,7 @@ function catalogMeta(g, t, withModeLabels) {
   if (g.mins) {
     bits.push(`<span class="meta-bit"><span aria-hidden="true">⏱</span><span class="metric">${g.mins}</span> ${escapeHTML(t.meta_min || '')}</span>`);
   }
-  (g.modes || []).forEach(m => {
+  if (withModes !== false) (g.modes || []).forEach(m => {
     const mode = PLAY_MODES[m];
     if (!mode) return;
     bits.push(withModeLabels
@@ -174,13 +174,25 @@ function catalogMeta(g, t, withModeLabels) {
   return bits.join('');
 }
 
+/** The mode icons alone, for the corner of a card. */
+function catalogModes(g, t) {
+  return (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean)
+    .map(mode => `<span title="${escapeHTML(t[mode.label] || '')}" aria-label="${escapeHTML(t[mode.label] || '')}">${mode.icon}</span>`).join('');
+}
+
+/* One shape for every card: the icon with the mode icons beside it, the title,
+   two lines of description at most, and players and minutes on one line - so
+   two cards in a row are always the same height. */
 function catalogCard(g, t) {
   return `
     <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}')">
-      <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
+      <span class="gcard__top">
+        <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
+        <span class="gcard__modes">${catalogModes(g, t)}</span>
+      </span>
       <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
       <span class="gcard__desc">${escapeHTML(catalogDesc(g, t))}</span>
-      <span class="gcard__meta">${catalogMeta(g, t, false)}</span>
+      <span class="gcard__meta">${catalogMeta(g, t, false, false)}</span>
     </button>`;
 }
 
@@ -196,6 +208,37 @@ function catalogToolRow(g, t) {
     </button>`;
 }
 
+/* --- Two small things every catalog screen does ------------------------------ */
+
+/* The cards rise in sequence the first time a tab is drawn in a session; after
+   that a tab comes back still, because a screen that re-animates on every
+   return feels slow rather than alive. */
+const staggeredViews = new Set();
+function settleStagger(view, id) {
+  view.classList.toggle('is-settled', staggeredViews.has(id));
+  staggeredViews.add(id);
+}
+
+/* A horizontal row fades at the edge it can still scroll toward, so a chip cut
+   at the screen edge reads as "there is more" rather than as a mistake. */
+function watchScrollFade(el) {
+  if (!el || el.dataset.fadeWatched) return;
+  el.dataset.fadeWatched = '1';
+  const update = () => {
+    const cs = getComputedStyle(el);
+    // The rows bleed into the gutter and snap their first chip to its edge,
+    // so "at the start" is anywhere within that padding.
+    const pad = (parseFloat(cs.paddingInlineStart) || 0) + 2;
+    const max = el.scrollWidth - el.clientWidth;
+    const pos = Math.abs(el.scrollLeft);
+    el.classList.toggle('is-rtl', cs.direction === 'rtl');
+    el.classList.toggle('fade-start', pos > pad);
+    el.classList.toggle('fade-end', max > pad && max - pos > pad);
+  };
+  el.addEventListener('scroll', () => requestAnimationFrame(update), { passive: true });
+  requestAnimationFrame(update);
+}
+
 /* --- The home screen -------------------------------------------------------- */
 
 let homeFilter = 'all';
@@ -207,8 +250,10 @@ function renderHome() {
   const t = TRANSLATIONS[appState.lang];
   const recent = readRecent();
 
+  // A phone that has played before gets the hero folded to one row of three
+  // pills, so the games start on the first screen.
   const together = `
-    <section class="home-hero" data-accent="violet">
+    <section class="home-hero ${recent.length ? 'home-hero--compact' : ''}" data-accent="violet">
       <div class="home-hero__head">
         <svg class="mark mark--hero" aria-hidden="true"><use href="#ashry-mark"/></svg>
         <div class="home-hero__text">
@@ -243,7 +288,7 @@ function renderHome() {
                placeholder="${escapeHTML(t.home_search_ph || '')}" value="${escapeHTML(homeSearch)}"
                oninput="setHomeSearch(this.value)">
       </label>
-      <div class="filter-row" role="tablist">
+      <div class="filter-row hscroll-fade" role="tablist">
         ${HOME_FILTERS.map(f => `
           <button type="button" role="tab" class="filter-chip ${f.id === homeFilter ? 'is-active' : ''}"
                   data-filter="${f.id}" aria-selected="${f.id === homeFilter}" onclick="setHomeFilter('${f.id}')">
@@ -259,7 +304,7 @@ function renderHome() {
         <h2 class="section__title">${escapeHTML(t.home_recent || '')}</h2>
         <span class="section__rule"></span>
       </div>
-      <div class="recent-row">
+      <div class="recent-row hscroll-fade">
         ${recent.map(id => {
           const g = CATALOG_BY_ID[id];
           return `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}')">
@@ -282,8 +327,8 @@ function renderHome() {
         <div class="section__head">
           <span class="section__emoji" aria-hidden="true">${grp.icon}</span>
           <h2 class="section__title">${escapeHTML(t[grp.title] || grp.id)}</h2>
-          <span class="section__rule"></span>
           <span class="section__count metric">${games.length}</span>
+          <span class="section__rule"></span>
         </div>
         ${body}
       </section>`;
@@ -293,6 +338,8 @@ function renderHome() {
     `<div class="empty hidden" id="home-empty">${escapeHTML(t.home_empty || '')}</div>`;
   homeRenderedLang = appState.lang;
   applyHomeFilter();
+  settleStagger(view, 'menu');
+  view.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
 }
 
 /** Only the recent row changes after a game is opened; redraw just that. */
@@ -357,18 +404,20 @@ function applyHomeFilter() {
    themselves carry none of it.
    -------------------------------------------------------------------------- */
 function catalogHeroHtml(g, t) {
+  const modes = (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean)
+    .map(mode => `<span class="meta-bit meta-bit--mode"><span aria-hidden="true">${mode.icon}</span>${escapeHTML(t[mode.short] || t[mode.label] || '')}</span>`).join('');
   return `
     <span class="game-hero__icon" aria-hidden="true">${g.icon}</span>
     <span class="game-hero__text">
       <span class="game-hero__title">${escapeHTML(catalogTitle(g, t))}</span>
       <span class="game-hero__desc">${escapeHTML(catalogDesc(g, t))}</span>
-      <span class="game-hero__meta">${catalogMeta(g, t, true)}</span>
     </span>
     <button type="button" class="game-hero__rules" onclick="openHelpModal()"
             title="${escapeHTML(t.hero_rules || '')}" aria-label="${escapeHTML(t.hero_rules || '')}">
       <span aria-hidden="true">📘</span>
       <span class="game-hero__rules-label">${escapeHTML(t.hero_rules || '')}</span>
-    </button>`;
+    </button>
+    <span class="game-hero__meta">${catalogMeta(g, t, true, false)}${modes}</span>`;
 }
 
 function syncGameHero(viewId) {
@@ -413,8 +462,8 @@ function renderTogether() {
       <div class="section__head">
         <span class="section__emoji" aria-hidden="true">🎲</span>
         <h2 class="section__title">${escapeHTML(t.together_games || '')}</h2>
-        <span class="section__rule"></span>
         <span class="section__count metric">${games.length}</span>
+        <span class="section__rule"></span>
       </div>
       <div class="gcard-grid">${games.map(g => catalogCard(g, t)).join('')}</div>
     </section>
@@ -429,6 +478,7 @@ function renderTogether() {
       </div>
       <button type="button" class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)" onclick="openHelpModal()">📘 ${escapeHTML(t.together_more || '')}</button>
     </section>`;
+  settleStagger(view, 'together');
 }
 
 /** The Together tab, or the room this phone is already in. */
@@ -452,6 +502,7 @@ function renderTools() {
       </div>
     </div>
     <div class="tools-list">${tools.map(g => catalogToolRow(g, t)).join('')}</div>`;
+  settleStagger(view, 'tools');
 }
 
 /** Redraws whichever catalog screens are up - after a language change. */

@@ -5358,6 +5358,117 @@ body.has-fx.has-chat:not(.is-tv-view) .chat-fab { display: inline-flex; }
 .chat-msg__text { font-size: var(--fs-sm); font-weight: 600; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
 #chat-modal .sheet__footer { display: flex; flex-direction: column; gap: var(--sp-2); }
 
+
+/* ==========================================================================
+   12. SMOOTHNESS (16 Sep 2026)
+   The home for a phone that has played before, cards of one shape, a Start
+   that is always a thumb away, rows that fade where they scroll, a thumb that
+   slides, counts you tap, and a lobby that shows its shape while it loads.
+   ========================================================================== */
+
+/* The hero for a returning player: the same three ways in, as one row of pills. */
+.home-hero--compact { padding: var(--sp-3) var(--sp-4); }
+.home-hero--compact .home-hero__head { margin-bottom: var(--sp-2); }
+.home-hero--compact .mark--hero { width: 2.75rem; height: 2.75rem; border-radius: 0.8rem; }
+.home-hero--compact .home-hero__title { font-size: var(--fs-h2); }
+.home-hero--compact .home-hero__sub { font-size: var(--fs-xs); }
+.home-hero--compact .together__tile { flex-direction: row; min-height: 2.5rem; gap: 0.35rem; padding: var(--sp-1) var(--sp-2); }
+.home-hero--compact .together__icon { font-size: 1rem; margin: 0; }
+.home-hero--compact .together__desc { display: none; }
+
+/* Cards: the icon row carries the mode icons, the text is two lines at most,
+   players and minutes sit on one line - so every card in a row is one shape. */
+.gcard { min-height: 0; gap: 3px; }
+.gcard__top { display: flex; align-items: flex-start; justify-content: space-between; width: 100%; }
+.gcard__modes { display: inline-flex; gap: 1px; padding-top: 2px; font-size: 0.8rem; line-height: 1; opacity: 0.85; }
+.gcard__desc { -webkit-line-clamp: 2; min-height: 2.175rem; }
+.gcard__meta { padding-top: var(--sp-1); flex-wrap: nowrap; }
+
+/* A press answers at once; the release springs back at leisure. */
+.gcard:active, .game-card:active, .tool-item:active, .recent-tile:active,
+.filter-chip:active, .together__tile:active, .setting-row:active { transition-duration: var(--dur-1); }
+
+/* The count sits by its title, as a small pill. */
+.section__count { padding: 1px 0.5rem; border-radius: var(--r-full); background: var(--surface-3); border: 1px solid var(--hairline); }
+
+/* Recents: one line, nothing more. */
+.recent-tile { height: 2.25rem; padding-inline: var(--sp-2) var(--sp-3); font-size: var(--fs-xs); }
+.recent-tile__icon { font-size: 1rem; }
+
+/* The hero's facts as one row of chips across the card, not four stacked lines. */
+.game-hero { flex-wrap: wrap; }
+.game-hero__meta { flex: 1 0 100%; gap: 0.3rem; margin-top: 0; }
+.game-hero__meta .meta-bit { padding: 2px 0.55rem; border-radius: var(--r-full); background: var(--surface-3); border: 1px solid var(--hairline); }
+
+/* A horizontal row fades at the edge it can still scroll toward. The two
+   lengths animate where @property is understood; elsewhere they just switch. */
+@property --fade-l { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --fade-r { syntax: '<length>'; inherits: false; initial-value: 0px; }
+.hscroll-fade {
+  --fade-l: 0px; --fade-r: 0px;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+  transition: --fade-l var(--dur-2) var(--ease-out), --fade-r var(--dur-2) var(--ease-out);
+}
+.hscroll-fade.fade-start:not(.is-rtl), .hscroll-fade.fade-end.is-rtl { --fade-l: 2.75rem; }
+.hscroll-fade.fade-end:not(.is-rtl), .hscroll-fade.fade-start.is-rtl { --fade-r: 2.75rem; }
+
+/* The cards rise in sequence the first time a tab is drawn, not on every visit. */
+.view-stagger.is-settled > * { animation: none; }
+
+/* The segmented control's thumb slides between the options. Until the script
+   has measured (has-thumb), the active option paints itself as before. */
+.segmented { position: relative; }
+.segmented::before {
+  content: '';
+  position: absolute;
+  top: 3px; bottom: 3px; left: 0;
+  width: var(--seg-w, 0px);
+  transform: translateX(var(--seg-x, 0px));
+  border-radius: calc(var(--r-md) - 0.25rem);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--dur-3) var(--ease-spring), width var(--dur-2) var(--ease-out);
+}
+.segmented.has-thumb::before { opacity: 1; }
+.segmented__item { position: relative; z-index: 1; }
+.segmented.has-thumb .segmented__item.is-active { background: transparent; box-shadow: none; }
+
+/* A count you tap up or down, in place of a field or a drop-down. */
+.stepper--field { margin: 0; }
+input.stepper__value { min-height: var(--tap); height: var(--tap); padding: 0; margin: 0; border: 0; background: transparent; box-shadow: none; }
+input.stepper__value:focus { border: 0; box-shadow: none; }
+
+/* A Start bar inside a card fades to the card, not to the page. */
+.card .view-actions--start {
+  margin-bottom: calc(-1 * var(--sp-5));
+  padding-bottom: var(--sp-4);
+  background: linear-gradient(to top, var(--surface-solid) 42%, transparent);
+}
+
+/* Settings rows: a hint under each label. */
+.setting-row { font-size: var(--fs-body); }
+.setting-row__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.setting-row__value { flex: none; white-space: nowrap; }
+.setting-row__hint { font-size: var(--fs-xs); font-weight: 600; line-height: 1.3; color: var(--text-3); }
+
+/* The lobby while the room is being made or joined: the shape of what is coming. */
+@keyframes skelShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skel {
+  background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-2) 50%, var(--surface-3) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--r-md);
+  animation: skelShimmer 1.4s linear infinite;
+}
+.skel--code { height: 3.3rem; width: 11rem; margin: 0 auto var(--sp-4); }
+.skel--qr { aspect-ratio: 1; }
+.skel--row { height: 3.5rem; margin-bottom: var(--sp-2); }
+.skel--hub { height: 10rem; }
+#view-room-lobby.is-loading .btn-stack, #view-room-lobby.is-loading #room-share-btn { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } .segmented::before { transition: none; } }
+
 </style>
 
     
@@ -7179,12 +7290,11 @@ const MONKEY_KEYS = {
             </div>
             <div class="field">
               <label class="field__label" for="tb-rounds" data-i18n="tb_rounds">عدد الجولات</label>
-              <select id="tb-rounds">
-                <option value="1">1</option>
-                <option value="2" selected>2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-              </select>
+              <div class="stepper stepper--field">
+                <button type="button" class="stepper__btn" onclick="stepField('tb-rounds', -1)" aria-label="أقل">−</button>
+                <input type="number" id="tb-rounds" value="2" data-min="1" data-max="4" data-step="1" class="stepper__value" readonly inputmode="none">
+                <button type="button" class="stepper__btn" onclick="stepField('tb-rounds', 1)" aria-label="أكثر">+</button>
+              </div>
               <p class="field__hint" data-i18n="tb_rounds_hint">كل جولة: 5 فئات × 5 أسئلة</p>
             </div>
             <div class="field">
@@ -7337,7 +7447,11 @@ const MONKEY_KEYS = {
            <div class="grid-2 mb-6">
               <div>
                  <label class="field__label" data-i18n="rounds_count">عدد الجولات</label>
-                 <input type="number" id="screw-rounds" value="5" class="text-center">
+                 <div class="stepper stepper--field">
+                <button type="button" class="stepper__btn" onclick="stepField('screw-rounds', -1)" aria-label="أقل">−</button>
+                <input type="number" id="screw-rounds" value="5" data-min="1" data-max="20" data-step="1" class="stepper__value" readonly inputmode="none">
+                <button type="button" class="stepper__btn" onclick="stepField('screw-rounds', 1)" aria-label="أكثر">+</button>
+              </div>
               </div>
            </div>
 
@@ -7397,7 +7511,11 @@ const MONKEY_KEYS = {
             </div>
             <div class="field">
               <label class="field__label" for="monkey-winners" data-i18n="winners_count">عدد الفائزين</label>
-              <input type="number" id="monkey-winners" value="1" min="1" max="5" class="text-center" onchange="setMonkeyOption('winners', this.value)">
+              <div class="stepper stepper--field">
+                <button type="button" class="stepper__btn" onclick="stepField('monkey-winners', -1)" aria-label="أقل">−</button>
+                <input type="number" id="monkey-winners" value="1" data-min="1" data-max="5" data-step="1" class="stepper__value" readonly inputmode="none" onchange="setMonkeyOption('winners', this.value)">
+                <button type="button" class="stepper__btn" onclick="stepField('monkey-winners', 1)" aria-label="أكثر">+</button>
+              </div>
             </div>
           </div>
           <div class="field">
@@ -7552,7 +7670,11 @@ const MONKEY_KEYS = {
               </div>
               <div>
                  <label class="field__label" data-i18n="imposter_count">عدد الجواسيس</label>
-                 <input type="number" id="imposter-count" value="1" min="1" max="9" inputmode="numeric" class="text-center tx-accent">
+                 <div class="stepper stepper--field">
+                <button type="button" class="stepper__btn" onclick="stepField('imposter-count', -1)" aria-label="أقل">−</button>
+                <input type="number" id="imposter-count" value="1" data-min="1" data-max="9" data-step="1" class="stepper__value" readonly inputmode="none">
+                <button type="button" class="stepper__btn" onclick="stepField('imposter-count', 1)" aria-label="أكثر">+</button>
+              </div>
               </div>
           </div>
           <div class="field">
@@ -8149,18 +8271,19 @@ const MONKEY_KEYS = {
           <div class="grid-2 mb-4">
             <div>
               <label class="field__label" data-i18n="spy_count">عدد الجواسيس</label>
-              <select id="spyfall-spies-count" class="text-center">
-                <option value="1">1</option>
-                <option value="2">2</option>
-              </select>
+              <div class="stepper stepper--field">
+                <button type="button" class="stepper__btn" onclick="stepField('spyfall-spies-count', -1)" aria-label="أقل">−</button>
+                <input type="number" id="spyfall-spies-count" value="1" data-min="1" data-max="2" data-step="1" class="stepper__value" readonly inputmode="none">
+                <button type="button" class="stepper__btn" onclick="stepField('spyfall-spies-count', 1)" aria-label="أكثر">+</button>
+              </div>
             </div>
             <div>
               <label class="field__label" data-i18n="spyfall_time">وقت النقاش (دقائق)</label>
-              <select id="spyfall-duration" class="text-center">
-                <option value="5">5</option>
-                <option value="8" selected>8</option>
-                <option value="10">10</option>
-              </select>
+              <div class="stepper stepper--field">
+                <button type="button" class="stepper__btn" onclick="stepField('spyfall-duration', -1)" aria-label="أقل">−</button>
+                <input type="number" id="spyfall-duration" value="8" data-min="3" data-max="15" data-step="1" class="stepper__value" readonly inputmode="none">
+                <button type="button" class="stepper__btn" onclick="stepField('spyfall-duration', 1)" aria-label="أكثر">+</button>
+              </div>
             </div>
           </div>
 
@@ -8221,19 +8344,19 @@ const MONKEY_KEYS = {
           <div class="grid-2 mb-4">
             <div>
               <label class="field__label" data-i18n="deck_size">عدد الكلمات</label>
-              <select id="timesup-deck-size" class="text-center">
-                <option value="25">25</option>
-                <option value="35" selected>35</option>
-                <option value="45">45</option>
-              </select>
+              <div class="stepper stepper--field">
+                <button type="button" class="stepper__btn" onclick="stepField('timesup-deck-size', -1)" aria-label="أقل">−</button>
+                <input type="number" id="timesup-deck-size" value="35" data-min="15" data-max="60" data-step="5" class="stepper__value" readonly inputmode="none">
+                <button type="button" class="stepper__btn" onclick="stepField('timesup-deck-size', 1)" aria-label="أكثر">+</button>
+              </div>
             </div>
             <div>
               <label class="field__label" data-i18n="turn_duration">وقت الدور (ثواني)</label>
-              <select id="timesup-turn-timer" class="text-center">
-                <option value="30">30</option>
-                <option value="40" selected>40</option>
-                <option value="60">60</option>
-              </select>
+              <div class="stepper stepper--field">
+                <button type="button" class="stepper__btn" onclick="stepField('timesup-turn-timer', -1)" aria-label="أقل">−</button>
+                <input type="number" id="timesup-turn-timer" value="40" data-min="20" data-max="90" data-step="10" class="stepper__value" readonly inputmode="none">
+                <button type="button" class="stepper__btn" onclick="stepField('timesup-turn-timer', 1)" aria-label="أكثر">+</button>
+              </div>
             </div>
           </div>
 
@@ -9026,46 +9149,46 @@ const MONKEY_KEYS = {
         <div class="sheet__body">
           <button class="setting-row" onclick="toggleDarkMode()">
             <span class="setting-row__icon" id="settings-theme-icon" aria-hidden="true">🌙</span>
-            <span data-i18n="theme">المظهر</span>
+            <span class="setting-row__text"><span data-i18n="theme">المظهر</span><span class="setting-row__hint" data-i18n="theme_hint">نهاري أو ليلي</span></span>
             <span class="setting-row__value" id="settings-theme-value"></span>
           </button>
           <button class="setting-row" onclick="toggleLanguage()">
             <span class="setting-row__icon" aria-hidden="true">🌐</span>
-            <span data-i18n="lang">اللغة</span>
+            <span class="setting-row__text"><span data-i18n="lang">اللغة</span><span class="setting-row__hint" data-i18n="lang_hint">لغة القوائم والأزرار</span></span>
             <span class="setting-row__value" id="settings-lang-value"></span>
           </button>
           <!-- The words inside the games can stay Arabic while the app is in English, or the other way round. -->
           <button class="setting-row" onclick="cycleGameLang()">
             <span class="setting-row__icon" aria-hidden="true">🎲</span>
-            <span data-i18n="game_lang">لغة الألعاب</span>
+            <span class="setting-row__text"><span data-i18n="game_lang">لغة الألعاب</span><span class="setting-row__hint" data-i18n="game_lang_hint">لغة الكلمات والأسئلة جوّه الألعاب</span></span>
             <span class="setting-row__value" id="settings-gamelang-value"></span>
           </button>
           <!-- Bigger on a TV: every size is in rem, and this sets the root size. -->
           <button class="setting-row" onclick="cycleUiScale()">
             <span class="setting-row__icon" aria-hidden="true">🔍</span>
-            <span data-i18n="ui_scale">حجم الواجهة</span>
+            <span class="setting-row__text"><span data-i18n="ui_scale">حجم الواجهة</span><span class="setting-row__hint" data-i18n="ui_scale_hint">كبّر الخط والأزرار على لابتوب أو تلفزيون</span></span>
             <span class="setting-row__value" id="settings-scale-value"></span>
           </button>
           <button class="setting-row" onclick="changeSavedName()">
             <span class="setting-row__icon" aria-hidden="true">👤</span>
-            <span data-i18n="your_name">اسمك</span>
+            <span class="setting-row__text"><span data-i18n="your_name">اسمك</span><span class="setting-row__hint" data-i18n="your_name_hint">الاسم اللي بيظهر في الغرف</span></span>
             <span class="setting-row__value" id="settings-name-value"></span>
           </button>
           <button class="setting-row" onclick="toggleSoundboard()">
             <span class="setting-row__icon" aria-hidden="true">🔊</span>
-            <span data-i18n="sounds">لوحة الأصوات</span>
+            <span class="setting-row__text"><span data-i18n="sounds">لوحة الأصوات</span><span class="setting-row__hint" data-i18n="sounds_hint">تصفيق وطبلة وصفارة للحظات اللعب</span></span>
           </button>
           <button class="setting-row" onclick="showInstallHelp()">
             <span class="setting-row__icon" aria-hidden="true">📲</span>
-            <span data-i18n="install">تثبيت التطبيق</span>
+            <span class="setting-row__text"><span data-i18n="install">تثبيت التطبيق</span><span class="setting-row__hint" data-i18n="install_hint">أيقونة على الشاشة الرئيسية، وبيشتغل من غير نت</span></span>
           </button>
           <button class="setting-row" onclick="reloadApp()">
             <span class="setting-row__icon" aria-hidden="true">↻</span>
-            <span data-i18n="refresh_data">تحديث البيانات</span>
+            <span class="setting-row__text"><span data-i18n="refresh_data">تحديث البيانات</span><span class="setting-row__hint" data-i18n="refresh_hint">لو ظهرت نسخة جديدة ومحصلش تحديث</span></span>
           </button>
           <button class="setting-row" onclick="hardResetApp()">
             <span class="setting-row__icon" aria-hidden="true">🗑️</span>
-            <span class="tx-danger" data-i18n="reset_all">حذف جميع البيانات</span>
+            <span class="setting-row__text"><span class="tx-danger" data-i18n="reset_all">حذف جميع البيانات</span><span class="setting-row__hint" data-i18n="reset_hint">يمسح الأسماء والمجموعات والنتائج من الموبايل ده</span></span>
           </button>
         </div>
         <div class="sheet__footer">
@@ -9658,6 +9781,9 @@ const MONKEY_KEYS = {
       mode_badge_device: "موبايل واحد",
       mode_badge_room: "كل واحد من موبايله",
       mode_badge_tv: "على التلفزيون",
+      mode_short_device: "موبايل واحد",
+      mode_short_room: "كل واحد بموبايله",
+      mode_short_tv: "التلفزيون",
       hero_rules: "القوانين",
       bomb_mode_label: "نوع اللعب",
       bomb_mode_category: "فئات",
@@ -9804,6 +9930,15 @@ const MONKEY_KEYS = {
       tele_write_ph: "اكتب اللي شايفه…",
       tele_write_first: "اكتب حاجة الأول",
       game_lang: "لغة الألعاب",
+      theme_hint: "نهاري أو ليلي",
+      lang_hint: "لغة القوائم والأزرار",
+      game_lang_hint: "لغة الكلمات والأسئلة جوّه الألعاب",
+      ui_scale_hint: "كبّر الخط والأزرار على لابتوب أو تلفزيون",
+      your_name_hint: "الاسم اللي بيظهر في الغرف",
+      sounds_hint: "تصفيق وطبلة وصفارة للحظات اللعب",
+      install_hint: "أيقونة على الشاشة الرئيسية، وبيشتغل من غير نت",
+      refresh_hint: "لو ظهرت نسخة جديدة ومحصلش تحديث",
+      reset_hint: "يمسح الأسماء والمجموعات والنتائج من الموبايل ده",
       game_lang_auto: "زي التطبيق",
       fx_applause: "تصفيق",
       fx_tada: "فوز",
@@ -10605,6 +10740,9 @@ const MONKEY_KEYS = {
       mode_badge_device: "One phone",
       mode_badge_room: "Own phones",
       mode_badge_tv: "On the TV",
+      mode_short_device: "One phone",
+      mode_short_room: "Own phones",
+      mode_short_tv: "TV",
       hero_rules: "Rules",
       bomb_mode_label: "Play with",
       bomb_mode_category: "Categories",
@@ -10751,6 +10889,15 @@ const MONKEY_KEYS = {
       tele_write_ph: "Describe it…",
       tele_write_first: "Write something first",
       game_lang: "Games language",
+      theme_hint: "Light or dark",
+      lang_hint: "The menus and buttons",
+      game_lang_hint: "The words and questions inside the games",
+      ui_scale_hint: "Bigger text and buttons on a laptop or TV",
+      your_name_hint: "The name shown in rooms",
+      sounds_hint: "Applause, a drum roll and a whistle for the table",
+      install_hint: "An icon on the home screen; works offline",
+      refresh_hint: "When a new version is out and this copy is behind",
+      reset_hint: "Removes names, groups and scores from this phone",
       game_lang_auto: "Same as the app",
       fx_applause: "Applause",
       fx_tada: "Ta-da",
@@ -11637,6 +11784,7 @@ const MONKEY_KEYS = {
 
   function initializeApp() {
     setSyncing(true);
+    stickySetupStarts();
     applyTranslations();
     if (typeof renderHome === 'function') renderHome();
 
@@ -12193,6 +12341,72 @@ const MONKEY_KEYS = {
   }
 
   /** The header back button. Falls back to the menu for unregistered views. */
+  /** A stepper's − and +: clamps to data-min/max, moves by data-step, and fires change for whoever listens. */
+  function stepField(id, dir) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const min = Number(el.dataset.min || el.min || 0);
+    const max = Number(el.dataset.max || el.max || 99);
+    const step = Number(el.dataset.step || 1);
+    const next = Math.min(max, Math.max(min, (Number(el.value) || min) + dir * step));
+    if (next !== Number(el.value)) {
+      el.value = next;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    haptic('light');
+  }
+
+  /* Every setup screen's Start sits in a sticky bar at the foot of its panel,
+     one thumb away however long the options run. The markup keeps the button
+     where it reads best; this moves it once at start-up. A game with a mode
+     switch keeps the bar inside its "this device" panel, so it hides with it. */
+  const STICKY_START_KEYS = ['start', 'bomb_start', 'start_counter'];
+  function stickySetupStarts() {
+    document.querySelectorAll('[id^="view-setup-"]').forEach(view => {
+      view.querySelectorAll('button.btn--primary[data-i18n]').forEach(btn => {
+        if (STICKY_START_KEYS.indexOf(btn.getAttribute('data-i18n')) === -1) return;
+        if (btn.closest('.mode-online-panel') || btn.closest('.view-actions') || btn.closest('.modal-overlay')) return;
+        const host = btn.closest('.mode-device-panel') || view;
+        let bar = host.querySelector(':scope > .view-actions--start');
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.className = 'view-actions view-actions--start';
+          host.appendChild(bar);
+        }
+        btn.classList.add('btn--lg');
+        bar.appendChild(btn);
+      });
+    });
+  }
+
+  /* --- The segmented control's sliding thumb ---------------------------------
+     The active option's place becomes two custom properties on its group and
+     the thumb (the group's ::before) slides there. Positions are re-read after
+     any class change (an option turned on, a panel shown), a rebuilt group, a
+     screen change and a resize - coalesced to one pass per frame. */
+  function syncSegmented(seg) {
+    const active = seg.querySelector(':scope > .segmented__item.is-active');
+    if (!active || !active.offsetWidth) return;      // hidden: measured when shown
+    seg.style.setProperty('--seg-x', active.offsetLeft + 'px');
+    seg.style.setProperty('--seg-w', active.offsetWidth + 'px');
+    if (!seg.classList.contains('has-thumb')) seg.classList.add('has-thumb');
+  }
+  function syncAllSegmented() { document.querySelectorAll('.segmented').forEach(syncSegmented); }
+  (function () {
+    let queued = false;
+    const later = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; syncAllSegmented(); });
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+      new MutationObserver(later).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+      later();
+    });
+    window.addEventListener('resize', later);
+  })();
+
   function goBack() {
     const meta = VIEW_META[appState.currentView];
     setView(meta && meta.up ? meta.up : 'menu');
@@ -12303,12 +12517,18 @@ const MONKEY_KEYS = {
     });
   }
 
+  const viewScroll = {};   // where each screen was scrolled to when it was left
+
   function setView(viewId) {
     if (typeof syncFxButton === 'function') syncFxButton(viewId);
     const previous = appState.currentView;
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(viewId) !== -1);
     document.body.classList.toggle('is-tv-view', viewId === 'room-tv');
     const goingBack = viewDepth(viewId) < viewDepth(previous);
+    // Remembered before the views are hidden: hiding them shrinks the scroll
+    // height, and the position would be read back clamped.
+    const main = document.getElementById('shell-main');
+    if (main && previous && previous !== viewId) viewScroll[previous] = main.scrollTop;
 
     appState.currentView = viewId;
     saveToLocal();
@@ -12340,8 +12560,9 @@ const MONKEY_KEYS = {
         }, 600);
     }
 
-    // A view arrives scrolled to wherever the last one was left otherwise.
-    const main = document.getElementById('shell-main');
+    // A view arrives scrolled to wherever the last one was left otherwise;
+    // going back, a screen comes back where it was (restored at the end,
+    // once it is drawn).
     if (main) main.scrollTop = 0;
 
     closeAllModals();
@@ -12357,6 +12578,8 @@ const MONKEY_KEYS = {
         if(viewId === 'setup-charades' && typeof renderCharadesDropdown === 'function') renderCharadesDropdown();
     }
     applyTranslations();
+    if (main && goingBack && viewScroll[viewId]) main.scrollTop = viewScroll[viewId];
+    if (typeof syncAllSegmented === 'function') requestAnimationFrame(syncAllSegmented);
 }
 
   /* The enter animation must not leave its transform behind: a transformed
@@ -13361,9 +13584,9 @@ GAME_CATALOG.forEach(g => { CATALOG_BY_ID[g.id] = g; });
    filter row. tv is a room shown on a big screen, so a game that plays in a
    room and has a TV layout carries both. */
 const PLAY_MODES = {
-  device: { icon: '📱', label: 'mode_badge_device' },
-  room:   { icon: '📲', label: 'mode_badge_room' },
-  tv:     { icon: '📺', label: 'mode_badge_tv' }
+  device: { icon: '📱', label: 'mode_badge_device', short: 'mode_short_device' },
+  room:   { icon: '📲', label: 'mode_badge_room',   short: 'mode_short_room' },
+  tv:     { icon: '📺', label: 'mode_badge_tv',     short: 'mode_short_tv' }
 };
 
 const HOME_FILTERS = [
@@ -13424,7 +13647,7 @@ const catalogTitle = (g, t) => t[g.title] || g.id;
 const catalogDesc = (g, t) => t[g.desc] || '';
 
 /** "👥 3–12 · ⏱ 10 min" plus the mode badges. */
-function catalogMeta(g, t, withModeLabels) {
+function catalogMeta(g, t, withModeLabels, withModes) {
   const bits = [];
   if (g.players) {
     const [min, max] = g.players;
@@ -13433,7 +13656,7 @@ function catalogMeta(g, t, withModeLabels) {
   if (g.mins) {
     bits.push(`<span class="meta-bit"><span aria-hidden="true">⏱</span><span class="metric">${g.mins}</span> ${escapeHTML(t.meta_min || '')}</span>`);
   }
-  (g.modes || []).forEach(m => {
+  if (withModes !== false) (g.modes || []).forEach(m => {
     const mode = PLAY_MODES[m];
     if (!mode) return;
     bits.push(withModeLabels
@@ -13443,13 +13666,25 @@ function catalogMeta(g, t, withModeLabels) {
   return bits.join('');
 }
 
+/** The mode icons alone, for the corner of a card. */
+function catalogModes(g, t) {
+  return (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean)
+    .map(mode => `<span title="${escapeHTML(t[mode.label] || '')}" aria-label="${escapeHTML(t[mode.label] || '')}">${mode.icon}</span>`).join('');
+}
+
+/* One shape for every card: the icon with the mode icons beside it, the title,
+   two lines of description at most, and players and minutes on one line - so
+   two cards in a row are always the same height. */
 function catalogCard(g, t) {
   return `
     <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}')">
-      <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
+      <span class="gcard__top">
+        <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
+        <span class="gcard__modes">${catalogModes(g, t)}</span>
+      </span>
       <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
       <span class="gcard__desc">${escapeHTML(catalogDesc(g, t))}</span>
-      <span class="gcard__meta">${catalogMeta(g, t, false)}</span>
+      <span class="gcard__meta">${catalogMeta(g, t, false, false)}</span>
     </button>`;
 }
 
@@ -13465,6 +13700,37 @@ function catalogToolRow(g, t) {
     </button>`;
 }
 
+/* --- Two small things every catalog screen does ------------------------------ */
+
+/* The cards rise in sequence the first time a tab is drawn in a session; after
+   that a tab comes back still, because a screen that re-animates on every
+   return feels slow rather than alive. */
+const staggeredViews = new Set();
+function settleStagger(view, id) {
+  view.classList.toggle('is-settled', staggeredViews.has(id));
+  staggeredViews.add(id);
+}
+
+/* A horizontal row fades at the edge it can still scroll toward, so a chip cut
+   at the screen edge reads as "there is more" rather than as a mistake. */
+function watchScrollFade(el) {
+  if (!el || el.dataset.fadeWatched) return;
+  el.dataset.fadeWatched = '1';
+  const update = () => {
+    const cs = getComputedStyle(el);
+    // The rows bleed into the gutter and snap their first chip to its edge,
+    // so "at the start" is anywhere within that padding.
+    const pad = (parseFloat(cs.paddingInlineStart) || 0) + 2;
+    const max = el.scrollWidth - el.clientWidth;
+    const pos = Math.abs(el.scrollLeft);
+    el.classList.toggle('is-rtl', cs.direction === 'rtl');
+    el.classList.toggle('fade-start', pos > pad);
+    el.classList.toggle('fade-end', max > pad && max - pos > pad);
+  };
+  el.addEventListener('scroll', () => requestAnimationFrame(update), { passive: true });
+  requestAnimationFrame(update);
+}
+
 /* --- The home screen -------------------------------------------------------- */
 
 let homeFilter = 'all';
@@ -13476,8 +13742,10 @@ function renderHome() {
   const t = TRANSLATIONS[appState.lang];
   const recent = readRecent();
 
+  // A phone that has played before gets the hero folded to one row of three
+  // pills, so the games start on the first screen.
   const together = `
-    <section class="home-hero" data-accent="violet">
+    <section class="home-hero ${recent.length ? 'home-hero--compact' : ''}" data-accent="violet">
       <div class="home-hero__head">
         <svg class="mark mark--hero" aria-hidden="true"><use href="#ashry-mark"/></svg>
         <div class="home-hero__text">
@@ -13512,7 +13780,7 @@ function renderHome() {
                placeholder="${escapeHTML(t.home_search_ph || '')}" value="${escapeHTML(homeSearch)}"
                oninput="setHomeSearch(this.value)">
       </label>
-      <div class="filter-row" role="tablist">
+      <div class="filter-row hscroll-fade" role="tablist">
         ${HOME_FILTERS.map(f => `
           <button type="button" role="tab" class="filter-chip ${f.id === homeFilter ? 'is-active' : ''}"
                   data-filter="${f.id}" aria-selected="${f.id === homeFilter}" onclick="setHomeFilter('${f.id}')">
@@ -13528,7 +13796,7 @@ function renderHome() {
         <h2 class="section__title">${escapeHTML(t.home_recent || '')}</h2>
         <span class="section__rule"></span>
       </div>
-      <div class="recent-row">
+      <div class="recent-row hscroll-fade">
         ${recent.map(id => {
           const g = CATALOG_BY_ID[id];
           return `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}')">
@@ -13551,8 +13819,8 @@ function renderHome() {
         <div class="section__head">
           <span class="section__emoji" aria-hidden="true">${grp.icon}</span>
           <h2 class="section__title">${escapeHTML(t[grp.title] || grp.id)}</h2>
-          <span class="section__rule"></span>
           <span class="section__count metric">${games.length}</span>
+          <span class="section__rule"></span>
         </div>
         ${body}
       </section>`;
@@ -13562,6 +13830,8 @@ function renderHome() {
     `<div class="empty hidden" id="home-empty">${escapeHTML(t.home_empty || '')}</div>`;
   homeRenderedLang = appState.lang;
   applyHomeFilter();
+  settleStagger(view, 'menu');
+  view.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
 }
 
 /** Only the recent row changes after a game is opened; redraw just that. */
@@ -13626,18 +13896,20 @@ function applyHomeFilter() {
    themselves carry none of it.
    -------------------------------------------------------------------------- */
 function catalogHeroHtml(g, t) {
+  const modes = (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean)
+    .map(mode => `<span class="meta-bit meta-bit--mode"><span aria-hidden="true">${mode.icon}</span>${escapeHTML(t[mode.short] || t[mode.label] || '')}</span>`).join('');
   return `
     <span class="game-hero__icon" aria-hidden="true">${g.icon}</span>
     <span class="game-hero__text">
       <span class="game-hero__title">${escapeHTML(catalogTitle(g, t))}</span>
       <span class="game-hero__desc">${escapeHTML(catalogDesc(g, t))}</span>
-      <span class="game-hero__meta">${catalogMeta(g, t, true)}</span>
     </span>
     <button type="button" class="game-hero__rules" onclick="openHelpModal()"
             title="${escapeHTML(t.hero_rules || '')}" aria-label="${escapeHTML(t.hero_rules || '')}">
       <span aria-hidden="true">📘</span>
       <span class="game-hero__rules-label">${escapeHTML(t.hero_rules || '')}</span>
-    </button>`;
+    </button>
+    <span class="game-hero__meta">${catalogMeta(g, t, true, false)}${modes}</span>`;
 }
 
 function syncGameHero(viewId) {
@@ -13682,8 +13954,8 @@ function renderTogether() {
       <div class="section__head">
         <span class="section__emoji" aria-hidden="true">🎲</span>
         <h2 class="section__title">${escapeHTML(t.together_games || '')}</h2>
-        <span class="section__rule"></span>
         <span class="section__count metric">${games.length}</span>
+        <span class="section__rule"></span>
       </div>
       <div class="gcard-grid">${games.map(g => catalogCard(g, t)).join('')}</div>
     </section>
@@ -13698,6 +13970,7 @@ function renderTogether() {
       </div>
       <button type="button" class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)" onclick="openHelpModal()">📘 ${escapeHTML(t.together_more || '')}</button>
     </section>`;
+  settleStagger(view, 'together');
 }
 
 /** The Together tab, or the room this phone is already in. */
@@ -13721,6 +13994,7 @@ function renderTools() {
       </div>
     </div>
     <div class="tools-list">${tools.map(g => catalogToolRow(g, t)).join('')}</div>`;
+  settleStagger(view, 'tools');
 }
 
 /** Redraws whichever catalog screens are up - after a language change. */
@@ -14271,6 +14545,32 @@ const ROOM_HUB_GAMES = [
 /** Create an empty room from the menu — no game chosen yet. */
 async function roomCreateEmpty() { return roomCreateFor(null); }
 
+/**
+ * The lobby while the room is being made or joined: the shape of what is
+ * coming (a code, a QR, a player row) shimmering where it will land, instead
+ * of a second on the old screen with a spinner in the corner.
+ */
+function lobbySkeleton(on) {
+  const view = document.getElementById('view-room-lobby');
+  if (!view) return;
+  const code = document.getElementById('room-code-display');
+  const qr = document.getElementById('room-qr');
+  const list = document.getElementById('room-player-list');
+  const setup = document.getElementById('room-host-setup');
+  view.classList.toggle('is-loading', !!on);
+  if (on) {
+    if (code) { code.textContent = ''; code.classList.add('skel', 'skel--code'); }
+    if (qr) { qr.innerHTML = ''; qr.classList.remove('hidden'); qr.classList.add('skel', 'skel--qr'); }
+    if (list) list.innerHTML = '<div class="skel skel--row"></div>';
+    if (setup) setup.innerHTML = '<div class="skel skel--hub"></div>';
+  } else {
+    if (code) code.classList.remove('skel', 'skel--code');
+    if (qr) { qr.classList.remove('skel', 'skel--qr'); if (!qr.innerHTML) qr.classList.add('hidden'); }
+    if (list && list.querySelector('.skel')) list.innerHTML = '';
+    if (setup && setup.querySelector('.skel')) setup.innerHTML = '';
+  }
+}
+
 /** Entry point from a game's setup screen: "play on separate phones". */
 async function roomCreateFor(gameId) {
   // Always asked, already filled in with the name used last time: one tap to
@@ -14279,15 +14579,20 @@ async function roomCreateFor(gameId) {
   if (!name) return;
   roomName.set(name);
   pendingRoomGame = gameId;
+  const from = appState.currentView;
+  setView('room-lobby');
+  lobbySkeleton(true);
   try {
     setSyncing(true);
     await Room.create(name, gameId);
     setSyncing(false);
-    setView('room-lobby');
-    // The room arrived while another screen was showing, so nothing has drawn it yet.
+    lobbySkeleton(false);
+    // The room arrived while the skeleton was showing, so nothing has drawn it yet.
     if (Room.state) routeRoomState(Room.state);
   } catch (err) {
     setSyncing(false);
+    lobbySkeleton(false);
+    setView(from);
     showToast(err.message || 'تعذر إنشاء الغرفة', 'error');
   }
 }
@@ -14372,14 +14677,19 @@ async function roomJoinFromForm() {
   if (!name) return showToast('اكتب اسمك', 'error');
 
   roomName.set(name);
+  setView('room-lobby');
+  lobbySkeleton(true);
   try {
     setSyncing(true);
     await Room.join(code, name);
     setSyncing(false);
+    lobbySkeleton(false);
     playSound('success');
-    setView('room-lobby');
+    if (Room.state) routeRoomState(Room.state);
   } catch (err) {
     setSyncing(false);
+    lobbySkeleton(false);
+    setView('room-join');
     const msg = String(err.message || '');
     showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? 'لا توجد غرفة بهذا الكود' : msg, 'error');
   }
@@ -14406,6 +14716,7 @@ async function roomStartGame() {
 /* --- rendering ----------------------------------------------------------- */
 
 function renderRoomLobby(state) {
+  lobbySkeleton(false);
   const codeEl = document.getElementById('room-code-display');
   if (codeEl) codeEl.innerText = state.code;
 

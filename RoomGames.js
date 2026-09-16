@@ -709,6 +709,9 @@ const finishSpyfall = (room, outcome, guess, spyId) => {
    The strikes are the scoreboard - fewest wins.
    ========================================================================== */
 const BOMB_FUSES_ROOM = { short: [15, 30], normal: [25, 55], long: [40, 80] };
+// A pass can be sent straight back for this long: the phone cannot hear whether
+// anything was said, so the table settles it. The host is not on the clock.
+const BOMB_SEND_BACK_MS = 15000;
 const BOMB_HEAT_AT = [0.4, 0.65, 0.85];
 
 const bombRoomAction = (room, playerId, action, payload) => {
@@ -747,9 +750,28 @@ const bombRoomAction = (room, playerId, action, payload) => {
     const present = s.order.filter(id => room.players.some(p => p.id === id));
     if (present.length < 2) return;
     const at = present.indexOf(s.holderId);
+    s.fromId = s.holderId;                 // who it came from, for a send-back
+    s.passedAt = Date.now();
     s.holderId = present[(at + 1) % present.length];
     s.holderName = roomPlayerName(room, s.holderId);
     s.passes = (s.passes || 0) + 1;
+    return;
+  }
+  if (action === 'sendBack') {
+    // "You passed without saying anything." The phone can't hear the table, so
+    // whoever was handed the bomb can hand it straight back, and the host can
+    // settle it at any point. The fuse keeps burning through the argument.
+    if (s.phase !== 'ticking') return;
+    const isHost = room.hostId === playerId;
+    if (!s.fromId) throw new Error('مفيش تمريرة ترجع');
+    if (!isHost && playerId !== s.holderId) throw new Error('القنبلة مش معاك');
+    if (!isHost && Date.now() - (s.passedAt || 0) > BOMB_SEND_BACK_MS) throw new Error('فات وقت الاعتراض');
+    if (!room.players.some(p => p.id === s.fromId)) throw new Error('اللاعب ده مش في الغرفة');
+    s.holderId = s.fromId;
+    s.holderName = roomPlayerName(room, s.holderId);
+    s.fromId = null;
+    s.passes = Math.max(0, (s.passes || 0) - 1);
+    s.sentBack = (s.sentBack || 0) + 1;
     return;
   }
   if (action === 'markLoser') {
@@ -1253,9 +1275,28 @@ const whoAmIAction = (room, playerId, action, payload) => {
     if (s.guessed.indexOf(playerId) !== -1) return;
     s.guessed.push(playerId);
     const at = s.guessed.length - 1;
-    addScore(room, playerId, WHOAMI_ORDER_POINTS[Math.min(at, WHOAMI_ORDER_POINTS.length - 1)]);
+    const points = WHOAMI_ORDER_POINTS[Math.min(at, WHOAMI_ORDER_POINTS.length - 1)];
+    // Kept so the press can be taken back for exactly what it paid.
+    s.awards = s.awards || {};
+    s.awards[playerId] = points;
+    addScore(room, playerId, points);
     s.board = scoreboardOf(room);
     if (activeRoster(room, s.roster).every(id => s.guessed.indexOf(id) !== -1)) revealWhoAmI(room);
+    return;
+  }
+
+  // Pressed by mistake, or said out loud and got it wrong: the points go back
+  // and the round waits for them again. Whoever pressed after them keeps what
+  // they scored - being honest here shouldn't cost anyone else.
+  if (action === 'notYet') {
+    if (room.phase !== 'playing') return;
+    const at = s.guessed.indexOf(playerId);
+    if (at === -1) return;
+    s.guessed.splice(at, 1);
+    const paid = (s.awards || {})[playerId] || 0;
+    if (paid) addScore(room, playerId, -paid);
+    if (s.awards) delete s.awards[playerId];
+    s.board = scoreboardOf(room);
     return;
   }
 

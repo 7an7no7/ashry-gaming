@@ -241,6 +241,11 @@ async function main() {
   await all(bots, (s) => s.shared.guessed.length === 2 && s.shared.scores[B.pid] === 3 && s.shared.scores[C.pid] === 2, 'the first to get it scores 3, the second 2');
   await B.must('gotIt');
   check(B.state.shared.scores[B.pid] === 3, 'a second press changes nothing');
+  await D.must('gotIt');
+  await all(bots, (s) => s.shared.scores[D.pid] === 1, 'the third to press scores 1');
+  await D.must('notYet');
+  await all(bots, (s) => s.shared.guessed.indexOf(D.pid) === -1 && !s.shared.scores[D.pid] && s.shared.scores[B.pid] === 3,
+    'taking back "I know who I am" returns its points, and nobody has lost theirs');
   await A.must('reveal');
   await all(bots, (s) => s.phase === 'result' && s.shared.all.length === 4 && s.shared.all.find((x) => x.id === B.pid).got === 1, 'who am i reveal shows who got it in what order');
   await A.must('backToHub');
@@ -511,7 +516,15 @@ async function main() {
   await holder0.must('pass');
   const order = A.state.shared.order;
   const expectedNext = order[(order.indexOf(holder0.pid) + 1) % order.length];
-  await all(bots, (s) => s.shared.holderId === expectedNext && s.shared.passes === 1, 'a pass moves the bomb to the next in order');
+  await all(bots, (s) => s.shared.holderId === expectedNext && s.shared.passes === 1 && s.shared.fromId === holder0.pid, 'a pass moves the bomb to the next in order');
+  // Passed without saying anything: whoever was handed it hands it straight back.
+  const handed = byId(bots, expectedNext);
+  check((await bots.find((b) => b !== handed && b !== A).act('sendBack')).ok === false, 'only the holder or the host sends a pass back');
+  await handed.must('sendBack');
+  await all(bots, (s) => s.shared.holderId === holder0.pid && s.shared.passes === 0 && !s.shared.fromId, 'a send-back returns the bomb and undoes the pass');
+  check((await handed.act('sendBack')).ok === false, 'there is nothing to send back twice');
+  await holder0.must('pass');
+  await all(bots, (s) => s.shared.holderId === expectedNext, 'and the pass can be made again');
   await all(bots, (s) => s.shared.heat >= 1, 'the server raises the heat as the fuse burns', 20000);
   await all(bots, (s) => s.shared.phase === 'boom' && s.shared.loserId === s.shared.holderId && s.shared.strikes[s.shared.holderId] === 1, 'the server sets it off in the holder\'s hands', 35000);
   const loser0 = A.state.shared.loserId;

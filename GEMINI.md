@@ -176,7 +176,7 @@ will make that pass lie to you:
 ### Code Structure
 - **No `google.script.run`:** the page talks to nothing but the rooms server, through `Room` in `JS_Room.html`.
 - **Frontend Modularization:** When adding a new game, create a new `JS_GameName.html` file and include it in `Controller.html` using `<?!= include('JS_GameName'); ?>`.
-- **Translations:** All UI text goes through the `TRANSLATIONS` object in `JS_Core.html`, with the same key in `ar` and `en` (`npm run check:i18n` compares them).
+- **Translations:** All UI text goes through the `TRANSLATIONS` object in `JS_Core.html`, with the same key in `ar` and `en` (`npm run check:i18n` compares them). `data-i18n` fills an element's text, `data-i18n-ph` a field's placeholder, and `data-i18n-title` an icon button's tooltip *and* its `aria-label` - a button whose whole label is a glyph (↶) needs the last one, or it says nothing in either language.
 
 ### Multiplayer rooms
 
@@ -596,7 +596,10 @@ and desktop every sheet is a centred dialog (the `min-width: 640px` block in
 
 **Getting people in.** The lobby's share button (`roomShareLink`) sends the join
 link through the phone's share sheet, or copies it where there is none, for
-friends who aren't in the room to scan the QR. The join field takes a pasted
+friends who aren't in the room to scan the QR. `shareOrCopy` is that same
+machinery on its own, and `shareAppLink` sends the app's own link (Settings →
+شارك التطبيق, and a ghost button under the three ways in on the مع بعض tab -
+which is where someone is already thinking about getting people in). The join field takes a pasted
 link as well as a code: `extractRoomCode` pulls the code out of either.
 
 `?room=CODE` is read from the page's own address by the build
@@ -957,6 +960,33 @@ Wavelength's slider, needle and end labels disagreed in Arabic. The spectrum is
 wrapped in `dir="ltr"`. The same goes for anything that maps a value to a
 position on screen.
 
+**A button stands in for something said out loud, so it has to be
+take-back-able.** The phone cannot hear the table: someone presses "pass" in
+القنبلة without saying a word, or "I know who I am" in من أنا؟ by mistake, and
+the round is scored on it. Three shapes of answer are in the code, and a new
+game should pick one rather than trusting the press: the host judges
+(الجرس, خمس ثواني, دوري المعرفة), the table overrules (ربع قرد's `flip`,
+أتوبيس كومبليت's `adjust`, القنبلة's `markLoser`), or the press itself can be
+taken back. The last one is the newest: `sendBack` in `bombRoomAction` hands a
+pass straight back to whoever made it (the holder for `BOMB_SEND_BACK_MS`, the
+host at any time) and undoes the pass count, `notYet` in the من أنا؟ branch
+removes a `gotIt` and refunds exactly what it paid (`shared.awards`, so the
+refund cannot drift from the award, and nobody who pressed later loses
+anything), and بدون كلام and أوصف لي keep a `judged` stack on the phone so
+`undoCharadesCard` / `undoDescribeCard` put the last card and its point back.
+A mis-tap under a clock is not rare enough to design around.
+
+**A table that is bored has to be able to get out mid-round.** The room's
+"another game" button only ever appeared once a round had ended, and on one
+phone the back arrow dropped the round with no warning. `openExitSheet` in
+`JS_Utils.html` now answers the header's back button (`goBack` calls it first
+and does nothing else if it returns true) on any screen that would abandon
+something: `exitGameOf` resolves the view's `up` through `GAME_CATALOG`, so
+every game gets it and the tools do not. In a room it offers the host
+`backToHub` mid-round, everyone else a "🙋 ask for another game" that posts to
+the room chat, and both the menu (the room stays open) and leaving. On one
+phone it offers another game, the game's own options, or carrying on.
+
 **Leaving a room screen does not leave the room.** A player can go to the menu,
 a timer or the rules mid-game; `#active-room-banner` under the header shows the
 code and a way back. `Room.onChange` draws nothing while `appState.currentView`
@@ -1051,6 +1081,18 @@ gradient and a hairline of the game's colour, grain on the home hero, hover
 lifts only under a real mouse (`hover: hover` and `pointer: fine`), and the
 home's cards rising in sequence. Nothing in it moves by itself; keep it that
 way, and keep any new polish in that section rather than scattered.
+
+**The dice and the coin** are section 13: a real cube of six pip faces in 3D
+(`DIE_PIPS` draws the pips into a 3x3 grid, `DIE_LANDING` says what to rotate
+the cube to for the value that was actually rolled, opposite faces adding to
+seven) and a coin that is tossed on a wrapper while it turns on its own X axis
+(`coinTurns` only ever grows, so it always spins forwards and lands heads at a
+whole turn, tails half a turn past). `--die` is the cube's size, and the faces'
+`translateZ` is half of it, so a short screen shrinks the whole die by changing
+one value. Both fall back to the result with no motion under
+`prefers-reduced-motion` - which the desktop app's preview pane reports, so
+the tumble cannot be seen there without overriding both the CSS and
+`matchMedia`.
 
 **Smoothness** is section 12 of `Style.html`, with its script in
 `JS_Core.html` and `JS_Catalog.html`. A phone with recents gets the home hero

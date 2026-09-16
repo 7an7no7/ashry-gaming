@@ -5413,4 +5413,136 @@ input.stepper__value:focus { border: 0; box-shadow: none; }
 #view-room-lobby.is-loading .btn-stack, #view-room-lobby.is-loading #room-share-btn { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .skel { animation: none; } .segmented::before { transition: none; } }
 
+
+/* ==========================================================================
+   13. THE DICE AND THE COIN
+   Real objects rather than two emoji: a cube with pips that tumbles and lands
+   on the face it rolled, and a coin that is tossed, spins on its edge and
+   comes down on one side. Both are drawn in 3D by the browser - no images.
+   ========================================================================== */
+.dice-tray {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+  min-height: 9rem;
+  margin-bottom: var(--sp-4);
+  perspective: 900px;
+}
+.die-slot { animation: dieHop var(--dur-4, 520ms) var(--ease-out); }
+.die {
+  --die: 5rem;
+  position: relative;
+  width: var(--die); height: var(--die);
+  transform-style: preserve-3d;
+  transform: rotateX(-20deg) rotateY(22deg);
+  transition: transform 1.05s cubic-bezier(0.18, 0.72, 0.24, 1);
+}
+.die__face {
+  position: absolute;
+  inset: 0;
+  direction: ltr;              /* a die's pips are not mirrored in Arabic */
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 8%;
+  padding: 13%;
+  border-radius: 0.85rem;
+  background: linear-gradient(150deg, #ffffff 0%, #f3f4f6 55%, #e5e7eb 100%);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.10), inset 0 -0.5rem 1rem rgba(15, 23, 42, 0.07);
+}
+.die__pip {
+  align-self: center;
+  justify-self: center;
+  width: 78%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #4b5563, #0f172a 70%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+/* Opposite faces add up to seven, as on a real die. */
+.die__face--1 { transform: translateZ(calc(var(--die) / 2)); }
+.die__face--6 { transform: rotateY(180deg) translateZ(calc(var(--die) / 2)); }
+.die__face--2 { transform: rotateY(90deg)   translateZ(calc(var(--die) / 2)); }
+.die__face--5 { transform: rotateY(-90deg)  translateZ(calc(var(--die) / 2)); }
+.die__face--3 { transform: rotateX(90deg)   translateZ(calc(var(--die) / 2)); }
+.die__face--4 { transform: rotateX(-90deg)  translateZ(calc(var(--die) / 2)); }
+@keyframes dieHop {
+  0%   { transform: translateY(0) }
+  35%  { transform: translateY(-1.6rem) }
+  70%  { transform: translateY(0.15rem) }
+  100% { transform: translateY(0) }
+}
+
+/* --- The coin ------------------------------------------------------------- */
+.coin-stage {
+  position: relative;
+  height: 13rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--sp-4);
+  perspective: 1000px;
+}
+.coin-shadow {
+  position: absolute;
+  bottom: 0.75rem;
+  width: 6rem; height: 0.85rem;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(15, 23, 42, 0.28), transparent 70%);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.coin-shadow.is-up { opacity: 0.35; transform: scale(0.6); }
+.coin-toss { transform-style: preserve-3d; }
+.coin-toss.is-tossing { animation: coinToss 1.15s cubic-bezier(0.34, 0, 0.32, 1); }
+.coin {
+  position: relative;
+  width: 7.5rem; height: 7.5rem;
+  transform-style: preserve-3d;
+  transition: transform 1.15s cubic-bezier(0.18, 0.72, 0.24, 1);
+}
+.coin__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 2.6rem;
+  backface-visibility: hidden;
+  background:
+    radial-gradient(circle at 32% 28%, #fde68a 0%, #f5c33b 42%, #d99e15 72%, #b4780c 100%);
+  box-shadow:
+    inset 0 0 0 0.42rem rgba(180, 120, 12, 0.55),
+    inset 0 0 0 0.5rem rgba(255, 232, 160, 0.5),
+    0 0.6rem 1.4rem -0.5rem rgba(120, 75, 5, 0.6);
+}
+.coin__face--heads { transform: translateZ(0.18rem); }
+.coin__face--tails { transform: rotateX(180deg) translateZ(0.18rem); }
+/* The rim, so the coin has a thickness while it turns edge-on. */
+.coin__edge {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #a56e08, #e7b73a 30%, #fbe08a 50%, #e7b73a 70%, #a56e08);
+  transform: rotateX(90deg) scaleY(0.05);
+}
+@keyframes coinToss {
+  0%   { transform: translateY(0) }
+  45%  { transform: translateY(-4.5rem) }
+  100% { transform: translateY(0) }
+}
+
+/* A phone on its side has no room for a full-sized throw. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .dice-tray { min-height: 6.5rem; gap: var(--sp-4); }
+  .die { --die: 3.75rem; }
+  .coin-stage { height: 8.5rem; }
+  .coin { width: 5.5rem; height: 5.5rem; }
+  .coin__face { font-size: 2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .die, .coin { transition: none; }
+  .die-slot, .coin-toss.is-tossing { animation: none; }
+}
+
 </style>

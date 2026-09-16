@@ -1707,7 +1707,10 @@
             <div id="desc-ui-playing" class="play-stage__playing flex flex-col">
                 <div class="play-stage__head flex justify-between items-center mb-4">
                     <div class="text-3xl font-black text-slate-700 dark:text-white" id="desc-timer">60</div>
-                    <button onclick="finishDescribeGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
+                    <div class="btn-row">
+                      <button onclick="undoDescribeCard()" class="btn btn--ghost btn--sm btn--auto" data-i18n-title="undo_card" title="تراجع عن آخر كارت" aria-label="تراجع">↶</button>
+                      <button onclick="finishDescribeGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
+                    </div>
                 </div>
 
                 <div class="play-stage__card card flex-grow flex flex-col justify-center text-center border-4 border-indigo-500 shadow-2xl relative">
@@ -1751,30 +1754,37 @@
             <h2 class="card__title card__title--neutral" data-i18n="tool_dice">نرد وعملة</h2>
             
             <div class="segmented" style="margin-bottom: var(--sp-6)" role="tablist">
-                <button id="tab-btn-dice" onclick="setDiceTab('dice')" class="segmented__item is-active" role="tab">🎲 نرد</button>
-                <button id="tab-btn-coin" onclick="setDiceTab('coin')" class="segmented__item" role="tab">🪙 عملة</button>
+                <button id="tab-btn-dice" onclick="setDiceTab('dice')" class="segmented__item is-active" role="tab" data-i18n="tab_dice">🎲 نرد</button>
+                <button id="tab-btn-coin" onclick="setDiceTab('coin')" class="segmented__item" role="tab" data-i18n="tab_coin">🪙 عملة</button>
             </div>
 
-            <div id="tab-dice" class="min-h-[300px] flex flex-col items-center justify-center">
-                
-                <div class="segmented" style="max-width:200px; margin-bottom: var(--sp-6)">
+            <div id="tab-dice">
+
+                <div class="segmented" style="max-width:200px; margin: 0 auto var(--sp-5)">
                     <button id="btn-d1" onclick="setDiceCount(1)" class="segmented__item is-active">1</button>
                     <button id="btn-d2" onclick="setDiceCount(2)" class="segmented__item">2</button>
                 </div>
 
-                <div id="dice-container" class="flex gap-4 mb-6 min-h-[100px] items-center justify-center">
-                     <div class="text-6xl opacity-20">🎲</div>
-                </div>
+                <div id="dice-tray" class="dice-tray"></div>
 
-                <h2 id="dice-result" class="metric metric--md metric--accent mb-6">---</h2>
-                
+                <h2 id="dice-result" class="metric metric--md metric--accent" style="margin-bottom: var(--sp-5)">---</h2>
+
                 <button onclick="rollDice()" class="btn btn--primary btn--lg" data-i18n="roll">ارمي النرد</button>
             </div>
 
-            <div id="tab-coin" class="hidden h-64 flex flex-col items-center justify-center">
-                <div id="coin-circle" class="w-32 h-32 bg-yellow-400 rounded-full flex items-center justify-center text-6xl border-4 border-yellow-600 shadow-xl mb-6 text-white">🪙</div>
-                <h2 id="coin-result" class="text-xl font-bold tx-muted mb-4">---</h2>
-                <button onclick="flipCoin()" class="btn btn--primary w-48" data-i18n="flip">ارمي العملة</button>
+            <div id="tab-coin" class="hidden">
+                <div class="coin-stage">
+                  <div class="coin-shadow" id="coin-shadow" aria-hidden="true"></div>
+                  <div class="coin-toss" id="coin-toss">
+                    <div class="coin" id="coin">
+                      <div class="coin__face coin__face--heads"><span aria-hidden="true">👑</span></div>
+                      <div class="coin__face coin__face--tails"><span aria-hidden="true">📝</span></div>
+                      <div class="coin__edge" aria-hidden="true"></div>
+                    </div>
+                  </div>
+                </div>
+                <h2 id="coin-result" class="metric metric--md metric--accent" style="margin-bottom: var(--sp-5)">---</h2>
+                <button onclick="flipCoin()" class="btn btn--primary btn--lg" data-i18n="flip">ارمي العملة</button>
             </div>
 
             <button onclick="setView('menu')" class="btn btn--ghost mt-4" data-i18n="back">رجوع</button>
@@ -1855,7 +1865,10 @@
             <div id="charades-ui-playing" class="play-stage__playing flex flex-col">
                 <div class="play-stage__head flex justify-between items-center mb-4">
                     <div class="text-3xl font-black text-slate-700 dark:text-white" id="charades-timer">60</div>
-                    <button onclick="finishCharadesGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
+                    <div class="btn-row">
+                      <button onclick="undoCharadesCard()" class="btn btn--ghost btn--sm btn--auto" data-i18n-title="undo_card" title="تراجع عن آخر كارت" aria-label="تراجع">↶</button>
+                      <button onclick="finishCharadesGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
+                    </div>
                 </div>
 
                 <div onclick="nextCharadesCard('correct')" class="play-stage__card card flex-grow flex flex-col justify-center items-center text-center border-4 border-purple-500 shadow-2xl cursor-pointer active:scale-95 transition-transform bg-purple-50 dark:bg-slate-800">
@@ -2315,6 +2328,10 @@
 
     <!-- SETTINGS SHEET — theme, language and app-level actions, moved out of the
          bottom bar so the two remaining nav targets can be full width. -->
+    <div id="exit-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('exit-modal')">
+      <div class="modal-content modal-content--simple" id="exit-modal-body"></div>
+    </div>
+
     <div id="settings-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('settings-modal')">
       <div class="modal-content">
         <div class="sheet__header">
@@ -2347,6 +2364,10 @@
             <span class="setting-row__icon" aria-hidden="true">👤</span>
             <span class="setting-row__text"><span data-i18n="your_name">اسمك</span><span class="setting-row__hint" data-i18n="your_name_hint">الاسم اللي بيظهر في الغرف</span></span>
             <span class="setting-row__value" id="settings-name-value"></span>
+          </button>
+          <button class="setting-row" onclick="shareAppLink()">
+            <span class="setting-row__icon" aria-hidden="true">🔗</span>
+            <span class="setting-row__text"><span data-i18n="share_app">شارك التطبيق</span><span class="setting-row__hint" data-i18n="share_app_hint">ابعت اللينك لأي حد؛ بيفتح على أي موبايل من غير تحميل</span></span>
           </button>
           <button class="setting-row" onclick="toggleSoundboard()">
             <span class="setting-row__icon" aria-hidden="true">🔊</span>

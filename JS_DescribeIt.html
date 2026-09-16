@@ -1841,6 +1841,12 @@ function renderDescribeCard() {
 function descAction(action) {
     if(appState.describe.timer <= 0) return;
 
+    // Kept so a mis-tap under the clock can be taken back (undoDescribeCard).
+    if (appState.describe.currentCard) {
+        appState.describe.judged = appState.describe.judged || [];
+        appState.describe.judged.push({ card: appState.describe.currentCard, action: action });
+    }
+
     if(action === 'correct') {
         appState.describe.score++;
         playSound('success');
@@ -1853,6 +1859,23 @@ function descAction(action) {
     // document.getElementById('desc-score-live').innerText = appState.describe.score;
     
     nextDescribeCard();
+}
+
+/** Puts the last card back: its point, its word and its forbidden words. */
+function undoDescribeCard() {
+    const judged = appState.describe.judged || [];
+    const last = judged.pop();
+    const t = TRANSLATIONS[appState.lang] || {};
+    if (!last) { showToast(t.undo_nothing || '', 'info'); return; }
+    if (last.action === 'correct') appState.describe.score = Math.max(0, appState.describe.score - 1);
+    const hist = appState.describe.history || [];
+    const shown = appState.describe.currentCard;
+    if (hist.length && shown && hist[hist.length - 1] === shown.word) hist.pop();
+    appState.describe.currentCard = last.card;
+    renderDescribeCard();
+    playSound('tick');
+    haptic('light');
+    showToast(t.undo_done || '', 'success');
 }
 
 function finishDescribeGame() {
@@ -1882,23 +1905,144 @@ function finishDescribeGame() {
 
 /* --- DICE & COIN LOGIC --- */
 
-function setDiceCount(n) {
-    appState.dice.count = n;
-    [1, 2].forEach(i => {
-        const btn = document.getElementById('btn-d' + i);
-        if (btn) {
-            btn.classList.toggle('is-active', i === n);
-            btn.setAttribute('aria-pressed', String(i === n));
-        }
-    });
+/* --- 🎲 The dice -------------------------------------------------------------
+   A cube of six faces in 3D, not a picture of one: the pips are drawn with
+   CSS, the tumble is one transform the browser interpolates, and the landing
+   angle is whichever face the roll actually came up with. Opposite faces add
+   to seven, so the die reads right from any side while it turns.
+   -------------------------------------------------------------------------- */
 
-    // Changing the dice count invalidates whatever was last rolled.
-    const container = document.getElementById('dice-container');
-    if (container) container.innerHTML = '<div class="dice-placeholder" aria-hidden="true">🎲</div>';
-    const result = document.getElementById('dice-result');
-    if (result) result.innerText = '---';
+/* Pip positions in the face's 3x3 grid, as [row, column]. */
+const DIE_PIPS = {
+  1: [[2, 2]],
+  2: [[1, 1], [3, 3]],
+  3: [[1, 1], [2, 2], [3, 3]],
+  4: [[1, 1], [1, 3], [3, 1], [3, 3]],
+  5: [[1, 1], [1, 3], [2, 2], [3, 1], [3, 3]],
+  6: [[1, 1], [1, 3], [2, 1], [2, 3], [3, 1], [3, 3]]
+};
+
+/* What to rotate the cube to so a given value faces the player. */
+const DIE_LANDING = {
+  1: [0, 0], 6: [0, 180], 2: [0, -90], 5: [0, 90], 3: [-90, 0], 4: [90, 0]
+};
+
+const dieFaceHtml = (n) => `<div class="die__face die__face--${n}">` +
+  DIE_PIPS[n].map(([r, c]) => `<span class="die__pip" style="grid-area:${r}/${c}"></span>`).join('') + '</div>';
+
+/** The tray, built to the chosen number of dice and left showing its last roll. */
+function paintDiceTray(values) {
+  const tray = document.getElementById('dice-tray');
+  if (!tray) return;
+  const count = appState.dice.count;
+  if (tray.children.length !== count) {
+    tray.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'die-slot';
+      slot.innerHTML = `<div class="die">${[1, 2, 3, 4, 5, 6].map(dieFaceHtml).join('')}</div>`;
+      tray.appendChild(slot);
+    }
+    diceTurns = [];
+  }
+  if (values) [...tray.querySelectorAll('.die')].forEach((die, i) => settleDie(die, values[i], i));
 }
 
+let diceTurns = [];
+
+/** Turns the cube to a value, a few whole turns further round than last time. */
+function settleDie(die, value, index) {
+  const [baseX, baseY] = DIE_LANDING[value] || [0, 0];
+  const turns = (diceTurns[index] || 0) + 2 + Math.floor(Math.random() * 2);
+  diceTurns[index] = turns;
+  // A little off-axis, so it lands looking thrown rather than placed.
+  const tiltX = -14 + Math.random() * 6;
+  const tiltY = 12 + Math.random() * 8;
+  die.style.transform = `rotateX(${turns * 360 + baseX + tiltX}deg) rotateY(${turns * 360 + baseY + tiltY}deg)`;
+}
+
+function setDiceCount(n) {
+  appState.dice.count = n;
+  const b1 = document.getElementById('btn-d1');
+  const b2 = document.getElementById('btn-d2');
+  if (b1) b1.classList.toggle('is-active', n === 1);
+  if (b2) b2.classList.toggle('is-active', n === 2);
+  paintDiceTray();
+  const result = document.getElementById('dice-result');
+  if (result) result.innerText = '---';
+}
+
+function rollDice() {
+  const tray = document.getElementById('dice-tray');
+  const resultEl = document.getElementById('dice-result');
+  const btn = document.querySelector('[onclick="rollDice()"]');
+  if (!tray) return;
+  paintDiceTray();
+
+  const values = [];
+  for (let i = 0; i < appState.dice.count; i++) values.push(1 + Math.floor(Math.random() * 6));
+
+  if (btn) btn.disabled = true;
+  playSound('tick');
+  haptic('medium');
+
+  [...tray.children].forEach((slot, i) => {
+    slot.classList.remove('die-slot');
+    void slot.offsetWidth;                 // restart the hop
+    slot.classList.add('die-slot');
+    settleDie(slot.querySelector('.die'), values[i], i);
+  });
+
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(() => {
+    resultEl.innerText = values.reduce((a, b) => a + b, 0);
+    playSound('success');
+    if (btn) btn.disabled = false;
+  }, still ? 0 : 1050);
+}
+
+/* --- 🪙 The coin -------------------------------------------------------------
+   Tossed rather than spun in place: the wrapper throws it up and catches it
+   while the coin itself turns on its edge, and it stops on the side it landed
+   on - heads at a whole turn, tails half a turn past it.
+   -------------------------------------------------------------------------- */
+let coinTurns = 0;
+
+function flipCoin() {
+  const coin = document.getElementById('coin');
+  const toss = document.getElementById('coin-toss');
+  const shadow = document.getElementById('coin-shadow');
+  const resultEl = document.getElementById('coin-result');
+  const btn = document.querySelector('[onclick="flipCoin()"]');
+  if (!coin || !toss) return;
+
+  const isHeads = Math.random() < 0.5;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (btn) btn.disabled = true;
+  playSound('tick');
+  haptic('medium');
+  if (resultEl) resultEl.innerText = '···';
+
+  coinTurns += 3 + Math.floor(Math.random() * 3);
+  coin.style.transform = `rotateX(${coinTurns * 360 + (isHeads ? 0 : 180)}deg)`;
+  toss.classList.remove('is-tossing');
+  void toss.offsetWidth;
+  if (!still) {
+    toss.classList.add('is-tossing');
+    if (shadow) {
+      shadow.classList.add('is-up');
+      setTimeout(() => shadow.classList.remove('is-up'), 900);
+    }
+  }
+
+  setTimeout(() => {
+    if (resultEl) resultEl.innerText = isHeads ? (t.coin_heads || '') : (t.coin_tails || '');
+    playSound('success');
+    if (btn) btn.disabled = false;
+  }, still ? 0 : 1150);
+}
 /** Dice / coin tab switch, previously inline DOM juggling in the markup. */
 function setDiceTab(which) {
     const isDice = (which === 'dice');
@@ -1914,65 +2058,4 @@ function setDiceTab(which) {
     if (bc) bc.classList.toggle('is-active', !isDice);
 }
 
-function rollDice() {
-    const container = document.getElementById('dice-container');
-    const resultEl = document.getElementById('dice-result');
-    const btn = document.querySelector('[onclick="rollDice()"]');
-    
-    // Disable button to prevent spam-clicking while rolling
-    if (btn) btn.disabled = true;
-
-    // 1. Clear & Start "Roll" Animation
-    container.innerHTML = '';
-    playSound('tick'); 
-    
-    for(let i=0; i<appState.dice.count; i++) {
-        // Changed animate-shake to animate-roll, and put a dice emoji while it spins!
-        container.innerHTML += `
-            <div class="w-24 h-24 bg-white border-4 border-slate-800 rounded-2xl flex items-center justify-center shadow-xl animate-roll">
-                <span class="dice-face dice-face--emoji">🎲</span>
-            </div>`;
-    }
-
-    // 2. Reveal Result after 600ms (matches the new CSS animation perfectly)
-    setTimeout(() => {
-        container.innerHTML = '';
-        let total = 0;
-        
-        for(let i=0; i<appState.dice.count; i++) {
-            const num = Math.floor(Math.random() * 6) + 1;
-            total += num;
-            
-            // Render final dice with "Pop" animation
-            container.innerHTML += `
-                <div class="w-24 h-24 bg-white border-4 border-slate-800 rounded-2xl flex items-center justify-center shadow-xl animate-pop">
-                    <span class="dice-face">${num}</span>
-                </div>`;
-        }
-        
-        resultEl.innerText = total;
-        playSound('success');
-        if (btn) btn.disabled = false; // Re-enable the button!
-    }, 600);
-}
-
-function flipCoin() {
-    const coinEl = document.getElementById('coin-circle');
-    const resultEl = document.getElementById('coin-result');
-    
-    coinEl.classList.add('animate-flip-fast');
-    playSound('click');
-    
-    setTimeout(() => {
-        const isHeads = Math.random() > 0.5;
-        const text = isHeads 
-            ? (appState.lang === 'ar' ? "ملك" : "Heads") 
-            : (appState.lang === 'ar' ? "كتابة" : "Tails");
-            
-        coinEl.classList.remove('animate-flip-fast');
-        coinEl.innerText = isHeads ? "👑" : "📝";
-        resultEl.innerText = text;
-        playSound('success');
-    }, 800);
-}
 </script>

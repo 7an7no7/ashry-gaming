@@ -802,6 +802,36 @@
       draw_custom_colour: "لون تاني",
       draw_hint_label: "الكلمة",
       draw_close: "قريب!",
+      bomb_send_back: "رجّعها لـ {name} ↩",
+      bomb_send_back_hint: "لو مرّرها من غير ما يقول حاجة.",
+      wa_not_yet: "لسه ما عرفتش",
+      undo_card: "تراجع عن آخر كارت",
+      undo_done: "رجّعنا الكارت اللي فات",
+      undo_nothing: "مفيش كارت نرجّعه",
+      tab_dice: "🎲 نرد",
+      tab_coin: "🪙 عملة",
+      coin_heads: "ملك",
+      coin_tails: "كتابة",
+      share_app: "شارك التطبيق",
+      share_app_hint: "ابعت اللينك لأي حد؛ بيفتح على أي موبايل من غير تحميل",
+      share_app_text: "العب معانا! ألعاب للأصحاب والعيلة 🎮",
+      share_app_btn: "🔗 شارك رابط التطبيق",
+      link_copied: "تم نسخ الرابط",
+      exit_game_title: "تسيب اللعبة؟",
+      exit_game_sub: "الجولة اللي شغالة هتقف.",
+      exit_pick_another: "🎮 اختار لعبة تانية",
+      exit_settings: "⚙️ إعدادات اللعبة",
+      exit_keep: "كمّل اللعب",
+      exit_room_title: "الغرفة",
+      exit_room_sub: "ممكن ترجع للقائمة والغرفة تفضل شغالة.",
+      exit_room_change: "🎮 غيّر اللعبة للكل",
+      exit_room_ask: "🙋 اطلب لعبة تانية",
+      exit_room_ask_msg: "🙋 نغيّر اللعبة؟",
+      exit_room_asked: "بعتنا طلبك في الشات",
+      exit_room_host_note: "المضيف بس اللي يقدر يغيّر اللعبة، بس تقدر تطلب.",
+      exit_room_menu: "📋 القائمة (الغرفة تفضل شغالة)",
+      exit_room_leave: "🚪 اخرج من الغرفة",
+      room_game_ended: "المضيف أنهى اللعبة",
       chat_title: "شات الغرفة",
       chat_hint: "للي بيلعبوا من بعيد. الكل في الغرفة بيشوفه.",
       chat_ph: "اكتب رسالة…",
@@ -1761,6 +1791,36 @@
       draw_custom_colour: "Another colour",
       draw_hint_label: "The word",
       draw_close: "Close!",
+      bomb_send_back: "Send it back to {name} ↩",
+      bomb_send_back_hint: "For a pass with nothing said.",
+      wa_not_yet: "Actually, not yet",
+      undo_card: "Undo the last card",
+      undo_done: "The last card is back",
+      undo_nothing: "No card to undo",
+      tab_dice: "🎲 Dice",
+      tab_coin: "🪙 Coin",
+      coin_heads: "Heads",
+      coin_tails: "Tails",
+      share_app: "Share the app",
+      share_app_hint: "Send the link to anyone; it opens on any phone, nothing to install",
+      share_app_text: "Play with us! Party games for friends and family 🎮",
+      share_app_btn: "🔗 Share the app link",
+      link_copied: "Link copied",
+      exit_game_title: "Leave the game?",
+      exit_game_sub: "The round on screen will stop.",
+      exit_pick_another: "🎮 Pick another game",
+      exit_settings: "⚙️ The game's options",
+      exit_keep: "Keep playing",
+      exit_room_title: "The room",
+      exit_room_sub: "You can go back to the menu and leave the room running.",
+      exit_room_change: "🎮 Change the game for everyone",
+      exit_room_ask: "🙋 Ask for another game",
+      exit_room_ask_msg: "🙋 Shall we change the game?",
+      exit_room_asked: "Sent to the room chat",
+      exit_room_host_note: "Only the host changes the game, but you can ask.",
+      exit_room_menu: "📋 The menu (the room stays open)",
+      exit_room_leave: "🚪 Leave the room",
+      room_game_ended: "The host ended the game",
       chat_title: "Room chat",
       chat_hint: "For the ones playing from afar. Everyone in the room sees it.",
       chat_ph: "Type a message…",
@@ -2515,6 +2575,11 @@
       const key = el.getAttribute('data-i18n-ph');
       if (t[key]) el.placeholder = t[key];
     });
+    // An icon button says what it does in its tooltip and to a screen reader.
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      if (t[key]) { el.title = t[key]; el.setAttribute('aria-label', t[key]); }
+    });
 
     // The header shows the current screen's name, not the app name, so it is
     // owned by syncChrome rather than by the generic [data-i18n] sweep.
@@ -3209,6 +3274,9 @@
   })();
 
   function goBack() {
+    // On a game screen the back arrow asks first, and offers the way out the
+    // table actually wants: another game (openExitSheet in JS_Utils.html).
+    if (typeof openExitSheet === 'function' && openExitSheet()) return;
     const meta = VIEW_META[appState.currentView];
     setView(meta && meta.up ? meta.up : 'menu');
   }
@@ -3370,6 +3438,7 @@
     clearAllIntervals();
     syncChrome(viewId);
 
+    if (viewId === 'tool-dice' && typeof paintDiceTray === 'function') paintDiceTray();
     if(viewId.startsWith('setup-')) {
         const listId = viewId.replace('setup-', '') + '-player-list';
         if(typeof renderActiveChips === 'function') renderActiveChips(listId, true);
@@ -3472,6 +3541,7 @@ const GAME_RULES = {
                 <li>لو خرجت من الغرفة لشاشة تانية، شريط أخضر فوق بيرجّعك لها، وتبويب <b>مع بعض</b> كمان.</li>
                 <li>أي لعبة على كارتها علامة 📲 بتتلعب في الغرف، و📺 يعني ليها شاشة للتلفزيون.</li>
                 <li>💬 زر الشات على شاشات الغرفة: رسايل قصيرة بين اللاعبين، للي بيلعبوا من بعيد. اللي يوصلك وانت في شاشة تانية بيظهر في إشعار.</li>
+                <li>زهقتم من لعبة في نصها؟ سهم الرجوع (فوق) بيفتح اختيارات: المضيف يغيّر اللعبة للكل، وأي حد تاني يطلب التغيير في الشات.</li>
             </ul>`,
         tv: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -3888,6 +3958,7 @@ const GAME_RULES = {
                 <li>If you leave the room for another screen, the green bar at the top takes you back, and so does the <b>Together</b> tab.</li>
                 <li>A 📲 on a game's card means it plays in rooms; 📺 means it has a TV layout.</li>
                 <li>💬 The chat button on the room screens: short messages between players, for those playing from afar. A message that arrives while you are on another screen shows as a notice.</li>
+                <li>Bored of a game half way through? The back arrow at the top opens the options: the host changes the game for everyone, anyone else can ask for a change in the chat.</li>
             </ul>`,
         tv: `
             <ol class="list-decimal list-inside space-y-1 text-xs">

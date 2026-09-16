@@ -634,6 +634,16 @@ async function roomShareLink() {
   const t = TRANSLATIONS[appState.lang] || {};
   const url = base + '?room=' + state.code;
   const text = (t.room_share_text || '') + ' ' + state.code;
+  return shareOrCopy(url, text, t.room_link_copied || '');
+}
+
+/**
+ * The phone's share sheet where there is one, the clipboard where there isn't,
+ * and the link in a toast where neither works. Used for a room's join link and
+ * for the app's own link (Settings and the مع بعض tab).
+ */
+async function shareOrCopy(url, text, copiedMsg) {
+  const t = TRANSLATIONS[appState.lang] || {};
   if (navigator.share) {
     try {
       await navigator.share({ title: t.title || 'عشرى جيمينج', text: text, url: url });
@@ -658,8 +668,15 @@ async function roomShareLink() {
     try { copied = document.execCommand('copy'); } catch (e) {}
     area.remove();
   }
-  if (copied) showToast(t.room_link_copied || 'تم نسخ رابط الغرفة', 'success');
+  if (copied) showToast(copiedMsg || t.link_copied || '', 'success');
   else showToast(url, 'info');
+}
+
+/** Settings and the مع بعض tab: the app's own link, for friends who aren't here. */
+function shareAppLink() {
+  const base = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl) || location.origin + location.pathname;
+  const t = TRANSLATIONS[appState.lang] || {};
+  return shareOrCopy(base, t.share_app_text || '', t.link_copied || '');
 }
 
 async function roomJoinFromForm() {
@@ -860,6 +877,7 @@ Room.onChange((state) => {
 
   const stage = state.phase + '|' + (state.game || '');
   const moved = roomStageSeen !== '' && roomStageSeen !== stage;
+  const wasInGame = roomStageSeen !== '' && roomStageSeen.indexOf('lobby|') !== 0;
   roomStageSeen = stage;
 
   if (!onRoomView()) {
@@ -869,6 +887,12 @@ Room.onChange((state) => {
       haptic('light');
     }
     return;
+  }
+  // The host took the room back to the hub while this phone was mid-round:
+  // say so, or the screen changing under them looks like a fault.
+  if (moved && state.phase === 'lobby' && wasInGame && !state.youAreHost) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    showToast(t.room_game_ended || '');
   }
   routeRoomState(state);
 });

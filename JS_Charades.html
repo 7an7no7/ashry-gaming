@@ -695,6 +695,13 @@ function paintCharadesSetup() {
 }
 
 function nextCharadesCard(action) {
+    // What this card was judged as, so it can be taken back: a tap lands on the
+    // wrong button often enough under a clock, and the round is scored on it.
+    const shown = appState.charades.history[appState.charades.history.length - 1];
+    if (shown) {
+        appState.charades.judged = appState.charades.judged || [];
+        appState.charades.judged.push({ word: shown, action: action });
+    }
     if (action === 'correct') {
         appState.charades.score++;
         playSound('success');
@@ -726,6 +733,23 @@ function nextCharadesCard(action) {
         appState.charades.classTimer = setTimeout(() => cardParent.classList.remove('animate-flip'), 500);
         appState.charades.flipTimer = setTimeout(() => { cardTitle.innerText = word; }, 250);
     }
+}
+
+/** Puts the last card back: its point, and the word, exactly as they were. */
+function undoCharadesCard() {
+    const judged = appState.charades.judged || [];
+    const last = judged.pop();
+    const t = TRANSLATIONS[appState.lang] || {};
+    if (!last) { showToast(t.undo_nothing || '', 'info'); return; }
+    if (last.action === 'correct') appState.charades.score = Math.max(0, appState.charades.score - 1);
+    // The card on screen was never judged; it goes back to the deck.
+    const hist = appState.charades.history;
+    if (hist.length && hist[hist.length - 1] !== last.word) hist.pop();
+    const el = document.getElementById('charades-word');
+    if (el) el.innerText = last.word;
+    playSound('tick');
+    haptic('light');
+    showToast(t.undo_done || '', 'success');
 }
 
 function finishCharadesGame() {

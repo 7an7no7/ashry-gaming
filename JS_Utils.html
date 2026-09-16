@@ -1679,4 +1679,94 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(renderSavedGroups, 1000);
 });
 
+
+/* ============================================================================
+   LEAVING A GAME — the header's back button, on a game screen
+   ----------------------------------------------------------------------------
+   A table that is bored of a game had to finish the round to pick another one:
+   the room's "another game" button only appears once a round is over, and on
+   one phone the back arrow silently dropped the round. Both now open this
+   sheet, which offers the way out that is actually wanted - another game -
+   next to the quieter ones.
+   ========================================================================= */
+
+/** The catalog game a screen would abandon if you left it; null for the tools. */
+function exitGameOf(viewId) {
+  const up = ((typeof VIEW_META !== 'undefined' && VIEW_META[viewId]) || {}).up || '';
+  if (up.indexOf('setup-') !== 0 || typeof GAME_CATALOG === 'undefined') return null;
+  const g = GAME_CATALOG.find(x => x.setup === up);
+  return (g && g.group !== 'tools') ? g : null;
+}
+
+const exitSheetRow = (label, onclick, kind) =>
+  `<button class="btn ${kind || 'btn--neutral'}" onclick="${onclick}">${escapeHTML(label)}</button>`;
+
+/**
+ * Opens the sheet when leaving would end something. Returns false when there is
+ * nothing to ask about, and the back button then behaves as it always did.
+ */
+function openExitSheet() {
+  const view = (appState.currentView || '');
+  const t = TRANSLATIONS[appState.lang] || {};
+  const body = document.getElementById('exit-modal-body');
+  if (!body) return false;
+
+  const inRoom = view.indexOf('room-') === 0 && view !== 'room-join'
+              && typeof Room !== 'undefined' && Room.isIn && Room.state;
+  const game = inRoom ? null : exitGameOf(view);
+  if (!inRoom && !game) return false;
+
+  if (inRoom) {
+    const state = Room.state;
+    const playing = state.phase !== 'lobby' && !!state.game;
+    const rows = [];
+    if (playing && state.youAreHost) rows.push(exitSheetRow(t.exit_room_change || '', 'exitSheetBackToHub()', 'btn--primary btn--lg'));
+    if (playing && !state.youAreHost) rows.push(exitSheetRow(t.exit_room_ask || '', 'exitSheetAsk()', 'btn--secondary btn--lg'));
+    rows.push(exitSheetRow(t.exit_room_menu || '', "closeModal('exit-modal'); setView('menu')"));
+    rows.push(exitSheetRow(t.exit_room_leave || '', "closeModal('exit-modal'); roomLeave()", 'btn--danger-soft'));
+    body.innerHTML = `
+      <div class="modal-icon" aria-hidden="true">🎲</div>
+      <div class="sheet__title">${escapeHTML(t.exit_room_title || '')}</div>
+      <p class="sheet__subtitle">${escapeHTML(playing && !state.youAreHost ? (t.exit_room_host_note || '') : (t.exit_room_sub || ''))}</p>
+      <div class="btn-stack">${rows.join('')}</div>
+      <div class="modal-actions">
+        <button class="btn btn--ghost" onclick="closeModal('exit-modal')">${escapeHTML(t.exit_keep || '')}</button>
+      </div>`;
+  } else {
+    const up = (VIEW_META[view] || {}).up || 'menu';
+    body.innerHTML = `
+      <div class="modal-icon" aria-hidden="true">${game.icon}</div>
+      <div class="sheet__title">${escapeHTML(t.exit_game_title || '')}</div>
+      <p class="sheet__subtitle">${escapeHTML(t.exit_game_sub || '')}</p>
+      <div class="btn-stack">
+        ${exitSheetRow(t.exit_pick_another || '', "closeModal('exit-modal'); setView('menu')", 'btn--primary btn--lg')}
+        ${exitSheetRow(t.exit_settings || '', `closeModal('exit-modal'); setView('${jsStringAttr(up)}')`)}
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn--ghost" onclick="closeModal('exit-modal')">${escapeHTML(t.exit_keep || '')}</button>
+      </div>`;
+  }
+  const modal = document.getElementById('exit-modal');
+  if (modal) modal.classList.remove('hidden');
+  return true;
+}
+
+/** The host ends the round for everyone; the room lands back on its game picker. */
+function exitSheetBackToHub() {
+  closeModal('exit-modal');
+  roomAct('backToHub');
+}
+
+/** Not the host: say it in the room chat rather than sit there bored. */
+async function exitSheetAsk() {
+  closeModal('exit-modal');
+  const t = TRANSLATIONS[appState.lang] || {};
+  try {
+    await Room.act('chat', { text: t.exit_room_ask_msg || '' });
+    showToast(t.exit_room_asked || '', 'success');
+  } catch (e) {
+    showToast(e.message || '', 'error');
+  }
+}
+
 </script>

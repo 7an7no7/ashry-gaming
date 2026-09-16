@@ -5469,6 +5469,138 @@ input.stepper__value:focus { border: 0; box-shadow: none; }
 #view-room-lobby.is-loading .btn-stack, #view-room-lobby.is-loading #room-share-btn { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .skel { animation: none; } .segmented::before { transition: none; } }
 
+
+/* ==========================================================================
+   13. THE DICE AND THE COIN
+   Real objects rather than two emoji: a cube with pips that tumbles and lands
+   on the face it rolled, and a coin that is tossed, spins on its edge and
+   comes down on one side. Both are drawn in 3D by the browser - no images.
+   ========================================================================== */
+.dice-tray {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+  min-height: 9rem;
+  margin-bottom: var(--sp-4);
+  perspective: 900px;
+}
+.die-slot { animation: dieHop var(--dur-4, 520ms) var(--ease-out); }
+.die {
+  --die: 5rem;
+  position: relative;
+  width: var(--die); height: var(--die);
+  transform-style: preserve-3d;
+  transform: rotateX(-20deg) rotateY(22deg);
+  transition: transform 1.05s cubic-bezier(0.18, 0.72, 0.24, 1);
+}
+.die__face {
+  position: absolute;
+  inset: 0;
+  direction: ltr;              /* a die's pips are not mirrored in Arabic */
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 8%;
+  padding: 13%;
+  border-radius: 0.85rem;
+  background: linear-gradient(150deg, #ffffff 0%, #f3f4f6 55%, #e5e7eb 100%);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.10), inset 0 -0.5rem 1rem rgba(15, 23, 42, 0.07);
+}
+.die__pip {
+  align-self: center;
+  justify-self: center;
+  width: 78%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #4b5563, #0f172a 70%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+/* Opposite faces add up to seven, as on a real die. */
+.die__face--1 { transform: translateZ(calc(var(--die) / 2)); }
+.die__face--6 { transform: rotateY(180deg) translateZ(calc(var(--die) / 2)); }
+.die__face--2 { transform: rotateY(90deg)   translateZ(calc(var(--die) / 2)); }
+.die__face--5 { transform: rotateY(-90deg)  translateZ(calc(var(--die) / 2)); }
+.die__face--3 { transform: rotateX(90deg)   translateZ(calc(var(--die) / 2)); }
+.die__face--4 { transform: rotateX(-90deg)  translateZ(calc(var(--die) / 2)); }
+@keyframes dieHop {
+  0%   { transform: translateY(0) }
+  35%  { transform: translateY(-1.6rem) }
+  70%  { transform: translateY(0.15rem) }
+  100% { transform: translateY(0) }
+}
+
+/* --- The coin ------------------------------------------------------------- */
+.coin-stage {
+  position: relative;
+  height: 13rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--sp-4);
+  perspective: 1000px;
+}
+.coin-shadow {
+  position: absolute;
+  bottom: 0.75rem;
+  width: 6rem; height: 0.85rem;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(15, 23, 42, 0.28), transparent 70%);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.coin-shadow.is-up { opacity: 0.35; transform: scale(0.6); }
+.coin-toss { transform-style: preserve-3d; }
+.coin-toss.is-tossing { animation: coinToss 1.15s cubic-bezier(0.34, 0, 0.32, 1); }
+.coin {
+  position: relative;
+  width: 7.5rem; height: 7.5rem;
+  transform-style: preserve-3d;
+  transition: transform 1.15s cubic-bezier(0.18, 0.72, 0.24, 1);
+}
+.coin__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 2.6rem;
+  backface-visibility: hidden;
+  background:
+    radial-gradient(circle at 32% 28%, #fde68a 0%, #f5c33b 42%, #d99e15 72%, #b4780c 100%);
+  box-shadow:
+    inset 0 0 0 0.42rem rgba(180, 120, 12, 0.55),
+    inset 0 0 0 0.5rem rgba(255, 232, 160, 0.5),
+    0 0.6rem 1.4rem -0.5rem rgba(120, 75, 5, 0.6);
+}
+.coin__face--heads { transform: translateZ(0.18rem); }
+.coin__face--tails { transform: rotateX(180deg) translateZ(0.18rem); }
+/* The rim, so the coin has a thickness while it turns edge-on. */
+.coin__edge {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #a56e08, #e7b73a 30%, #fbe08a 50%, #e7b73a 70%, #a56e08);
+  transform: rotateX(90deg) scaleY(0.05);
+}
+@keyframes coinToss {
+  0%   { transform: translateY(0) }
+  45%  { transform: translateY(-4.5rem) }
+  100% { transform: translateY(0) }
+}
+
+/* A phone on its side has no room for a full-sized throw. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .dice-tray { min-height: 6.5rem; gap: var(--sp-4); }
+  .die { --die: 3.75rem; }
+  .coin-stage { height: 8.5rem; }
+  .coin { width: 5.5rem; height: 5.5rem; }
+  .coin__face { font-size: 2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .die, .coin { transition: none; }
+  .die-slot, .coin-toss.is-tossing { animation: none; }
+}
+
 </style>
 
     
@@ -8533,7 +8665,10 @@ const MONKEY_KEYS = {
             <div id="desc-ui-playing" class="play-stage__playing flex flex-col">
                 <div class="play-stage__head flex justify-between items-center mb-4">
                     <div class="text-3xl font-black text-slate-700 dark:text-white" id="desc-timer">60</div>
-                    <button onclick="finishDescribeGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
+                    <div class="btn-row">
+                      <button onclick="undoDescribeCard()" class="btn btn--ghost btn--sm btn--auto" data-i18n-title="undo_card" title="تراجع عن آخر كارت" aria-label="تراجع">↶</button>
+                      <button onclick="finishDescribeGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
+                    </div>
                 </div>
 
                 <div class="play-stage__card card flex-grow flex flex-col justify-center text-center border-4 border-indigo-500 shadow-2xl relative">
@@ -8577,30 +8712,37 @@ const MONKEY_KEYS = {
             <h2 class="card__title card__title--neutral" data-i18n="tool_dice">نرد وعملة</h2>
             
             <div class="segmented" style="margin-bottom: var(--sp-6)" role="tablist">
-                <button id="tab-btn-dice" onclick="setDiceTab('dice')" class="segmented__item is-active" role="tab">🎲 نرد</button>
-                <button id="tab-btn-coin" onclick="setDiceTab('coin')" class="segmented__item" role="tab">🪙 عملة</button>
+                <button id="tab-btn-dice" onclick="setDiceTab('dice')" class="segmented__item is-active" role="tab" data-i18n="tab_dice">🎲 نرد</button>
+                <button id="tab-btn-coin" onclick="setDiceTab('coin')" class="segmented__item" role="tab" data-i18n="tab_coin">🪙 عملة</button>
             </div>
 
-            <div id="tab-dice" class="min-h-[300px] flex flex-col items-center justify-center">
-                
-                <div class="segmented" style="max-width:200px; margin-bottom: var(--sp-6)">
+            <div id="tab-dice">
+
+                <div class="segmented" style="max-width:200px; margin: 0 auto var(--sp-5)">
                     <button id="btn-d1" onclick="setDiceCount(1)" class="segmented__item is-active">1</button>
                     <button id="btn-d2" onclick="setDiceCount(2)" class="segmented__item">2</button>
                 </div>
 
-                <div id="dice-container" class="flex gap-4 mb-6 min-h-[100px] items-center justify-center">
-                     <div class="text-6xl opacity-20">🎲</div>
-                </div>
+                <div id="dice-tray" class="dice-tray"></div>
 
-                <h2 id="dice-result" class="metric metric--md metric--accent mb-6">---</h2>
-                
+                <h2 id="dice-result" class="metric metric--md metric--accent" style="margin-bottom: var(--sp-5)">---</h2>
+
                 <button onclick="rollDice()" class="btn btn--primary btn--lg" data-i18n="roll">ارمي النرد</button>
             </div>
 
-            <div id="tab-coin" class="hidden h-64 flex flex-col items-center justify-center">
-                <div id="coin-circle" class="w-32 h-32 bg-yellow-400 rounded-full flex items-center justify-center text-6xl border-4 border-yellow-600 shadow-xl mb-6 text-white">🪙</div>
-                <h2 id="coin-result" class="text-xl font-bold tx-muted mb-4">---</h2>
-                <button onclick="flipCoin()" class="btn btn--primary w-48" data-i18n="flip">ارمي العملة</button>
+            <div id="tab-coin" class="hidden">
+                <div class="coin-stage">
+                  <div class="coin-shadow" id="coin-shadow" aria-hidden="true"></div>
+                  <div class="coin-toss" id="coin-toss">
+                    <div class="coin" id="coin">
+                      <div class="coin__face coin__face--heads"><span aria-hidden="true">👑</span></div>
+                      <div class="coin__face coin__face--tails"><span aria-hidden="true">📝</span></div>
+                      <div class="coin__edge" aria-hidden="true"></div>
+                    </div>
+                  </div>
+                </div>
+                <h2 id="coin-result" class="metric metric--md metric--accent" style="margin-bottom: var(--sp-5)">---</h2>
+                <button onclick="flipCoin()" class="btn btn--primary btn--lg" data-i18n="flip">ارمي العملة</button>
             </div>
 
             <button onclick="setView('menu')" class="btn btn--ghost mt-4" data-i18n="back">رجوع</button>
@@ -8681,7 +8823,10 @@ const MONKEY_KEYS = {
             <div id="charades-ui-playing" class="play-stage__playing flex flex-col">
                 <div class="play-stage__head flex justify-between items-center mb-4">
                     <div class="text-3xl font-black text-slate-700 dark:text-white" id="charades-timer">60</div>
-                    <button onclick="finishCharadesGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
+                    <div class="btn-row">
+                      <button onclick="undoCharadesCard()" class="btn btn--ghost btn--sm btn--auto" data-i18n-title="undo_card" title="تراجع عن آخر كارت" aria-label="تراجع">↶</button>
+                      <button onclick="finishCharadesGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
+                    </div>
                 </div>
 
                 <div onclick="nextCharadesCard('correct')" class="play-stage__card card flex-grow flex flex-col justify-center items-center text-center border-4 border-purple-500 shadow-2xl cursor-pointer active:scale-95 transition-transform bg-purple-50 dark:bg-slate-800">
@@ -9141,6 +9286,10 @@ const MONKEY_KEYS = {
 
     <!-- SETTINGS SHEET — theme, language and app-level actions, moved out of the
          bottom bar so the two remaining nav targets can be full width. -->
+    <div id="exit-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('exit-modal')">
+      <div class="modal-content modal-content--simple" id="exit-modal-body"></div>
+    </div>
+
     <div id="settings-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('settings-modal')">
       <div class="modal-content">
         <div class="sheet__header">
@@ -9173,6 +9322,10 @@ const MONKEY_KEYS = {
             <span class="setting-row__icon" aria-hidden="true">👤</span>
             <span class="setting-row__text"><span data-i18n="your_name">اسمك</span><span class="setting-row__hint" data-i18n="your_name_hint">الاسم اللي بيظهر في الغرف</span></span>
             <span class="setting-row__value" id="settings-name-value"></span>
+          </button>
+          <button class="setting-row" onclick="shareAppLink()">
+            <span class="setting-row__icon" aria-hidden="true">🔗</span>
+            <span class="setting-row__text"><span data-i18n="share_app">شارك التطبيق</span><span class="setting-row__hint" data-i18n="share_app_hint">ابعت اللينك لأي حد؛ بيفتح على أي موبايل من غير تحميل</span></span>
           </button>
           <button class="setting-row" onclick="toggleSoundboard()">
             <span class="setting-row__icon" aria-hidden="true">🔊</span>
@@ -10001,6 +10154,36 @@ const MONKEY_KEYS = {
       draw_custom_colour: "لون تاني",
       draw_hint_label: "الكلمة",
       draw_close: "قريب!",
+      bomb_send_back: "رجّعها لـ {name} ↩",
+      bomb_send_back_hint: "لو مرّرها من غير ما يقول حاجة.",
+      wa_not_yet: "لسه ما عرفتش",
+      undo_card: "تراجع عن آخر كارت",
+      undo_done: "رجّعنا الكارت اللي فات",
+      undo_nothing: "مفيش كارت نرجّعه",
+      tab_dice: "🎲 نرد",
+      tab_coin: "🪙 عملة",
+      coin_heads: "ملك",
+      coin_tails: "كتابة",
+      share_app: "شارك التطبيق",
+      share_app_hint: "ابعت اللينك لأي حد؛ بيفتح على أي موبايل من غير تحميل",
+      share_app_text: "العب معانا! ألعاب للأصحاب والعيلة 🎮",
+      share_app_btn: "🔗 شارك رابط التطبيق",
+      link_copied: "تم نسخ الرابط",
+      exit_game_title: "تسيب اللعبة؟",
+      exit_game_sub: "الجولة اللي شغالة هتقف.",
+      exit_pick_another: "🎮 اختار لعبة تانية",
+      exit_settings: "⚙️ إعدادات اللعبة",
+      exit_keep: "كمّل اللعب",
+      exit_room_title: "الغرفة",
+      exit_room_sub: "ممكن ترجع للقائمة والغرفة تفضل شغالة.",
+      exit_room_change: "🎮 غيّر اللعبة للكل",
+      exit_room_ask: "🙋 اطلب لعبة تانية",
+      exit_room_ask_msg: "🙋 نغيّر اللعبة؟",
+      exit_room_asked: "بعتنا طلبك في الشات",
+      exit_room_host_note: "المضيف بس اللي يقدر يغيّر اللعبة، بس تقدر تطلب.",
+      exit_room_menu: "📋 القائمة (الغرفة تفضل شغالة)",
+      exit_room_leave: "🚪 اخرج من الغرفة",
+      room_game_ended: "المضيف أنهى اللعبة",
       chat_title: "شات الغرفة",
       chat_hint: "للي بيلعبوا من بعيد. الكل في الغرفة بيشوفه.",
       chat_ph: "اكتب رسالة…",
@@ -10960,6 +11143,36 @@ const MONKEY_KEYS = {
       draw_custom_colour: "Another colour",
       draw_hint_label: "The word",
       draw_close: "Close!",
+      bomb_send_back: "Send it back to {name} ↩",
+      bomb_send_back_hint: "For a pass with nothing said.",
+      wa_not_yet: "Actually, not yet",
+      undo_card: "Undo the last card",
+      undo_done: "The last card is back",
+      undo_nothing: "No card to undo",
+      tab_dice: "🎲 Dice",
+      tab_coin: "🪙 Coin",
+      coin_heads: "Heads",
+      coin_tails: "Tails",
+      share_app: "Share the app",
+      share_app_hint: "Send the link to anyone; it opens on any phone, nothing to install",
+      share_app_text: "Play with us! Party games for friends and family 🎮",
+      share_app_btn: "🔗 Share the app link",
+      link_copied: "Link copied",
+      exit_game_title: "Leave the game?",
+      exit_game_sub: "The round on screen will stop.",
+      exit_pick_another: "🎮 Pick another game",
+      exit_settings: "⚙️ The game's options",
+      exit_keep: "Keep playing",
+      exit_room_title: "The room",
+      exit_room_sub: "You can go back to the menu and leave the room running.",
+      exit_room_change: "🎮 Change the game for everyone",
+      exit_room_ask: "🙋 Ask for another game",
+      exit_room_ask_msg: "🙋 Shall we change the game?",
+      exit_room_asked: "Sent to the room chat",
+      exit_room_host_note: "Only the host changes the game, but you can ask.",
+      exit_room_menu: "📋 The menu (the room stays open)",
+      exit_room_leave: "🚪 Leave the room",
+      room_game_ended: "The host ended the game",
       chat_title: "Room chat",
       chat_hint: "For the ones playing from afar. Everyone in the room sees it.",
       chat_ph: "Type a message…",
@@ -11714,6 +11927,11 @@ const MONKEY_KEYS = {
       const key = el.getAttribute('data-i18n-ph');
       if (t[key]) el.placeholder = t[key];
     });
+    // An icon button says what it does in its tooltip and to a screen reader.
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      if (t[key]) { el.title = t[key]; el.setAttribute('aria-label', t[key]); }
+    });
 
     // The header shows the current screen's name, not the app name, so it is
     // owned by syncChrome rather than by the generic [data-i18n] sweep.
@@ -12408,6 +12626,9 @@ const MONKEY_KEYS = {
   })();
 
   function goBack() {
+    // On a game screen the back arrow asks first, and offers the way out the
+    // table actually wants: another game (openExitSheet in JS_Utils.html).
+    if (typeof openExitSheet === 'function' && openExitSheet()) return;
     const meta = VIEW_META[appState.currentView];
     setView(meta && meta.up ? meta.up : 'menu');
   }
@@ -12569,6 +12790,7 @@ const MONKEY_KEYS = {
     clearAllIntervals();
     syncChrome(viewId);
 
+    if (viewId === 'tool-dice' && typeof paintDiceTray === 'function') paintDiceTray();
     if(viewId.startsWith('setup-')) {
         const listId = viewId.replace('setup-', '') + '-player-list';
         if(typeof renderActiveChips === 'function') renderActiveChips(listId, true);
@@ -12671,6 +12893,7 @@ const GAME_RULES = {
                 <li>لو خرجت من الغرفة لشاشة تانية، شريط أخضر فوق بيرجّعك لها، وتبويب <b>مع بعض</b> كمان.</li>
                 <li>أي لعبة على كارتها علامة 📲 بتتلعب في الغرف، و📺 يعني ليها شاشة للتلفزيون.</li>
                 <li>💬 زر الشات على شاشات الغرفة: رسايل قصيرة بين اللاعبين، للي بيلعبوا من بعيد. اللي يوصلك وانت في شاشة تانية بيظهر في إشعار.</li>
+                <li>زهقتم من لعبة في نصها؟ سهم الرجوع (فوق) بيفتح اختيارات: المضيف يغيّر اللعبة للكل، وأي حد تاني يطلب التغيير في الشات.</li>
             </ul>`,
         tv: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -13087,6 +13310,7 @@ const GAME_RULES = {
                 <li>If you leave the room for another screen, the green bar at the top takes you back, and so does the <b>Together</b> tab.</li>
                 <li>A 📲 on a game's card means it plays in rooms; 📺 means it has a TV layout.</li>
                 <li>💬 The chat button on the room screens: short messages between players, for those playing from afar. A message that arrives while you are on another screen shows as a notice.</li>
+                <li>Bored of a game half way through? The back arrow at the top opens the options: the host changes the game for everyone, anyone else can ask for a change in the chat.</li>
             </ul>`,
         tv: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -13949,6 +14173,7 @@ function renderTogether() {
       <button type="button" class="btn btn--primary btn--lg" onclick="roomCreateEmpty()">🎮 ${escapeHTML(t.room_open || '')}</button>
       <button type="button" class="btn btn--secondary" onclick="roomOpenJoin('')">📱 ${escapeHTML(t.join_room_menu || '')}</button>
       <button type="button" class="btn btn--neutral" onclick="roomOpenScreen()">📺 ${escapeHTML(t.together_tv || '')}</button>
+      <button type="button" class="btn btn--ghost btn--sm" onclick="shareAppLink()">${escapeHTML(t.share_app_btn || '')}</button>
     </div>
     <section class="section">
       <div class="section__head">
@@ -14642,6 +14867,16 @@ async function roomShareLink() {
   const t = TRANSLATIONS[appState.lang] || {};
   const url = base + '?room=' + state.code;
   const text = (t.room_share_text || '') + ' ' + state.code;
+  return shareOrCopy(url, text, t.room_link_copied || '');
+}
+
+/**
+ * The phone's share sheet where there is one, the clipboard where there isn't,
+ * and the link in a toast where neither works. Used for a room's join link and
+ * for the app's own link (Settings and the مع بعض tab).
+ */
+async function shareOrCopy(url, text, copiedMsg) {
+  const t = TRANSLATIONS[appState.lang] || {};
   if (navigator.share) {
     try {
       await navigator.share({ title: t.title || 'عشرى جيمينج', text: text, url: url });
@@ -14666,8 +14901,15 @@ async function roomShareLink() {
     try { copied = document.execCommand('copy'); } catch (e) {}
     area.remove();
   }
-  if (copied) showToast(t.room_link_copied || 'تم نسخ رابط الغرفة', 'success');
+  if (copied) showToast(copiedMsg || t.link_copied || '', 'success');
   else showToast(url, 'info');
+}
+
+/** Settings and the مع بعض tab: the app's own link, for friends who aren't here. */
+function shareAppLink() {
+  const base = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl) || location.origin + location.pathname;
+  const t = TRANSLATIONS[appState.lang] || {};
+  return shareOrCopy(base, t.share_app_text || '', t.link_copied || '');
 }
 
 async function roomJoinFromForm() {
@@ -14868,6 +15110,7 @@ Room.onChange((state) => {
 
   const stage = state.phase + '|' + (state.game || '');
   const moved = roomStageSeen !== '' && roomStageSeen !== stage;
+  const wasInGame = roomStageSeen !== '' && roomStageSeen.indexOf('lobby|') !== 0;
   roomStageSeen = stage;
 
   if (!onRoomView()) {
@@ -14877,6 +15120,12 @@ Room.onChange((state) => {
       haptic('light');
     }
     return;
+  }
+  // The host took the room back to the hub while this phone was mid-round:
+  // say so, or the screen changing under them looks like a fault.
+  if (moved && state.phase === 'lobby' && wasInGame && !state.youAreHost) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    showToast(t.room_game_ended || '');
   }
   routeRoomState(state);
 });
@@ -16706,6 +16955,96 @@ function renderSavedGroups() {
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(renderSavedGroups, 1000);
 });
+
+
+/* ============================================================================
+   LEAVING A GAME — the header's back button, on a game screen
+   ----------------------------------------------------------------------------
+   A table that is bored of a game had to finish the round to pick another one:
+   the room's "another game" button only appears once a round is over, and on
+   one phone the back arrow silently dropped the round. Both now open this
+   sheet, which offers the way out that is actually wanted - another game -
+   next to the quieter ones.
+   ========================================================================= */
+
+/** The catalog game a screen would abandon if you left it; null for the tools. */
+function exitGameOf(viewId) {
+  const up = ((typeof VIEW_META !== 'undefined' && VIEW_META[viewId]) || {}).up || '';
+  if (up.indexOf('setup-') !== 0 || typeof GAME_CATALOG === 'undefined') return null;
+  const g = GAME_CATALOG.find(x => x.setup === up);
+  return (g && g.group !== 'tools') ? g : null;
+}
+
+const exitSheetRow = (label, onclick, kind) =>
+  `<button class="btn ${kind || 'btn--neutral'}" onclick="${onclick}">${escapeHTML(label)}</button>`;
+
+/**
+ * Opens the sheet when leaving would end something. Returns false when there is
+ * nothing to ask about, and the back button then behaves as it always did.
+ */
+function openExitSheet() {
+  const view = (appState.currentView || '');
+  const t = TRANSLATIONS[appState.lang] || {};
+  const body = document.getElementById('exit-modal-body');
+  if (!body) return false;
+
+  const inRoom = view.indexOf('room-') === 0 && view !== 'room-join'
+              && typeof Room !== 'undefined' && Room.isIn && Room.state;
+  const game = inRoom ? null : exitGameOf(view);
+  if (!inRoom && !game) return false;
+
+  if (inRoom) {
+    const state = Room.state;
+    const playing = state.phase !== 'lobby' && !!state.game;
+    const rows = [];
+    if (playing && state.youAreHost) rows.push(exitSheetRow(t.exit_room_change || '', 'exitSheetBackToHub()', 'btn--primary btn--lg'));
+    if (playing && !state.youAreHost) rows.push(exitSheetRow(t.exit_room_ask || '', 'exitSheetAsk()', 'btn--secondary btn--lg'));
+    rows.push(exitSheetRow(t.exit_room_menu || '', "closeModal('exit-modal'); setView('menu')"));
+    rows.push(exitSheetRow(t.exit_room_leave || '', "closeModal('exit-modal'); roomLeave()", 'btn--danger-soft'));
+    body.innerHTML = `
+      <div class="modal-icon" aria-hidden="true">🎲</div>
+      <div class="sheet__title">${escapeHTML(t.exit_room_title || '')}</div>
+      <p class="sheet__subtitle">${escapeHTML(playing && !state.youAreHost ? (t.exit_room_host_note || '') : (t.exit_room_sub || ''))}</p>
+      <div class="btn-stack">${rows.join('')}</div>
+      <div class="modal-actions">
+        <button class="btn btn--ghost" onclick="closeModal('exit-modal')">${escapeHTML(t.exit_keep || '')}</button>
+      </div>`;
+  } else {
+    const up = (VIEW_META[view] || {}).up || 'menu';
+    body.innerHTML = `
+      <div class="modal-icon" aria-hidden="true">${game.icon}</div>
+      <div class="sheet__title">${escapeHTML(t.exit_game_title || '')}</div>
+      <p class="sheet__subtitle">${escapeHTML(t.exit_game_sub || '')}</p>
+      <div class="btn-stack">
+        ${exitSheetRow(t.exit_pick_another || '', "closeModal('exit-modal'); setView('menu')", 'btn--primary btn--lg')}
+        ${exitSheetRow(t.exit_settings || '', `closeModal('exit-modal'); setView('${jsStringAttr(up)}')`)}
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn--ghost" onclick="closeModal('exit-modal')">${escapeHTML(t.exit_keep || '')}</button>
+      </div>`;
+  }
+  const modal = document.getElementById('exit-modal');
+  if (modal) modal.classList.remove('hidden');
+  return true;
+}
+
+/** The host ends the round for everyone; the room lands back on its game picker. */
+function exitSheetBackToHub() {
+  closeModal('exit-modal');
+  roomAct('backToHub');
+}
+
+/** Not the host: say it in the room chat rather than sit there bored. */
+async function exitSheetAsk() {
+  closeModal('exit-modal');
+  const t = TRANSLATIONS[appState.lang] || {};
+  try {
+    await Room.act('chat', { text: t.exit_room_ask_msg || '' });
+    showToast(t.exit_room_asked || '', 'success');
+  } catch (e) {
+    showToast(e.message || '', 'error');
+  }
+}
 
 </script>
 
@@ -18838,6 +19177,13 @@ function paintCharadesSetup() {
 }
 
 function nextCharadesCard(action) {
+    // What this card was judged as, so it can be taken back: a tap lands on the
+    // wrong button often enough under a clock, and the round is scored on it.
+    const shown = appState.charades.history[appState.charades.history.length - 1];
+    if (shown) {
+        appState.charades.judged = appState.charades.judged || [];
+        appState.charades.judged.push({ word: shown, action: action });
+    }
     if (action === 'correct') {
         appState.charades.score++;
         playSound('success');
@@ -18869,6 +19215,23 @@ function nextCharadesCard(action) {
         appState.charades.classTimer = setTimeout(() => cardParent.classList.remove('animate-flip'), 500);
         appState.charades.flipTimer = setTimeout(() => { cardTitle.innerText = word; }, 250);
     }
+}
+
+/** Puts the last card back: its point, and the word, exactly as they were. */
+function undoCharadesCard() {
+    const judged = appState.charades.judged || [];
+    const last = judged.pop();
+    const t = TRANSLATIONS[appState.lang] || {};
+    if (!last) { showToast(t.undo_nothing || '', 'info'); return; }
+    if (last.action === 'correct') appState.charades.score = Math.max(0, appState.charades.score - 1);
+    // The card on screen was never judged; it goes back to the deck.
+    const hist = appState.charades.history;
+    if (hist.length && hist[hist.length - 1] !== last.word) hist.pop();
+    const el = document.getElementById('charades-word');
+    if (el) el.innerText = last.word;
+    playSound('tick');
+    haptic('light');
+    showToast(t.undo_done || '', 'success');
 }
 
 function finishCharadesGame() {
@@ -20740,6 +21103,12 @@ function renderDescribeCard() {
 function descAction(action) {
     if(appState.describe.timer <= 0) return;
 
+    // Kept so a mis-tap under the clock can be taken back (undoDescribeCard).
+    if (appState.describe.currentCard) {
+        appState.describe.judged = appState.describe.judged || [];
+        appState.describe.judged.push({ card: appState.describe.currentCard, action: action });
+    }
+
     if(action === 'correct') {
         appState.describe.score++;
         playSound('success');
@@ -20752,6 +21121,23 @@ function descAction(action) {
     // document.getElementById('desc-score-live').innerText = appState.describe.score;
     
     nextDescribeCard();
+}
+
+/** Puts the last card back: its point, its word and its forbidden words. */
+function undoDescribeCard() {
+    const judged = appState.describe.judged || [];
+    const last = judged.pop();
+    const t = TRANSLATIONS[appState.lang] || {};
+    if (!last) { showToast(t.undo_nothing || '', 'info'); return; }
+    if (last.action === 'correct') appState.describe.score = Math.max(0, appState.describe.score - 1);
+    const hist = appState.describe.history || [];
+    const shown = appState.describe.currentCard;
+    if (hist.length && shown && hist[hist.length - 1] === shown.word) hist.pop();
+    appState.describe.currentCard = last.card;
+    renderDescribeCard();
+    playSound('tick');
+    haptic('light');
+    showToast(t.undo_done || '', 'success');
 }
 
 function finishDescribeGame() {
@@ -20781,23 +21167,144 @@ function finishDescribeGame() {
 
 /* --- DICE & COIN LOGIC --- */
 
-function setDiceCount(n) {
-    appState.dice.count = n;
-    [1, 2].forEach(i => {
-        const btn = document.getElementById('btn-d' + i);
-        if (btn) {
-            btn.classList.toggle('is-active', i === n);
-            btn.setAttribute('aria-pressed', String(i === n));
-        }
-    });
+/* --- 🎲 The dice -------------------------------------------------------------
+   A cube of six faces in 3D, not a picture of one: the pips are drawn with
+   CSS, the tumble is one transform the browser interpolates, and the landing
+   angle is whichever face the roll actually came up with. Opposite faces add
+   to seven, so the die reads right from any side while it turns.
+   -------------------------------------------------------------------------- */
 
-    // Changing the dice count invalidates whatever was last rolled.
-    const container = document.getElementById('dice-container');
-    if (container) container.innerHTML = '<div class="dice-placeholder" aria-hidden="true">🎲</div>';
-    const result = document.getElementById('dice-result');
-    if (result) result.innerText = '---';
+/* Pip positions in the face's 3x3 grid, as [row, column]. */
+const DIE_PIPS = {
+  1: [[2, 2]],
+  2: [[1, 1], [3, 3]],
+  3: [[1, 1], [2, 2], [3, 3]],
+  4: [[1, 1], [1, 3], [3, 1], [3, 3]],
+  5: [[1, 1], [1, 3], [2, 2], [3, 1], [3, 3]],
+  6: [[1, 1], [1, 3], [2, 1], [2, 3], [3, 1], [3, 3]]
+};
+
+/* What to rotate the cube to so a given value faces the player. */
+const DIE_LANDING = {
+  1: [0, 0], 6: [0, 180], 2: [0, -90], 5: [0, 90], 3: [-90, 0], 4: [90, 0]
+};
+
+const dieFaceHtml = (n) => `<div class="die__face die__face--${n}">` +
+  DIE_PIPS[n].map(([r, c]) => `<span class="die__pip" style="grid-area:${r}/${c}"></span>`).join('') + '</div>';
+
+/** The tray, built to the chosen number of dice and left showing its last roll. */
+function paintDiceTray(values) {
+  const tray = document.getElementById('dice-tray');
+  if (!tray) return;
+  const count = appState.dice.count;
+  if (tray.children.length !== count) {
+    tray.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'die-slot';
+      slot.innerHTML = `<div class="die">${[1, 2, 3, 4, 5, 6].map(dieFaceHtml).join('')}</div>`;
+      tray.appendChild(slot);
+    }
+    diceTurns = [];
+  }
+  if (values) [...tray.querySelectorAll('.die')].forEach((die, i) => settleDie(die, values[i], i));
 }
 
+let diceTurns = [];
+
+/** Turns the cube to a value, a few whole turns further round than last time. */
+function settleDie(die, value, index) {
+  const [baseX, baseY] = DIE_LANDING[value] || [0, 0];
+  const turns = (diceTurns[index] || 0) + 2 + Math.floor(Math.random() * 2);
+  diceTurns[index] = turns;
+  // A little off-axis, so it lands looking thrown rather than placed.
+  const tiltX = -14 + Math.random() * 6;
+  const tiltY = 12 + Math.random() * 8;
+  die.style.transform = `rotateX(${turns * 360 + baseX + tiltX}deg) rotateY(${turns * 360 + baseY + tiltY}deg)`;
+}
+
+function setDiceCount(n) {
+  appState.dice.count = n;
+  const b1 = document.getElementById('btn-d1');
+  const b2 = document.getElementById('btn-d2');
+  if (b1) b1.classList.toggle('is-active', n === 1);
+  if (b2) b2.classList.toggle('is-active', n === 2);
+  paintDiceTray();
+  const result = document.getElementById('dice-result');
+  if (result) result.innerText = '---';
+}
+
+function rollDice() {
+  const tray = document.getElementById('dice-tray');
+  const resultEl = document.getElementById('dice-result');
+  const btn = document.querySelector('[onclick="rollDice()"]');
+  if (!tray) return;
+  paintDiceTray();
+
+  const values = [];
+  for (let i = 0; i < appState.dice.count; i++) values.push(1 + Math.floor(Math.random() * 6));
+
+  if (btn) btn.disabled = true;
+  playSound('tick');
+  haptic('medium');
+
+  [...tray.children].forEach((slot, i) => {
+    slot.classList.remove('die-slot');
+    void slot.offsetWidth;                 // restart the hop
+    slot.classList.add('die-slot');
+    settleDie(slot.querySelector('.die'), values[i], i);
+  });
+
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(() => {
+    resultEl.innerText = values.reduce((a, b) => a + b, 0);
+    playSound('success');
+    if (btn) btn.disabled = false;
+  }, still ? 0 : 1050);
+}
+
+/* --- 🪙 The coin -------------------------------------------------------------
+   Tossed rather than spun in place: the wrapper throws it up and catches it
+   while the coin itself turns on its edge, and it stops on the side it landed
+   on - heads at a whole turn, tails half a turn past it.
+   -------------------------------------------------------------------------- */
+let coinTurns = 0;
+
+function flipCoin() {
+  const coin = document.getElementById('coin');
+  const toss = document.getElementById('coin-toss');
+  const shadow = document.getElementById('coin-shadow');
+  const resultEl = document.getElementById('coin-result');
+  const btn = document.querySelector('[onclick="flipCoin()"]');
+  if (!coin || !toss) return;
+
+  const isHeads = Math.random() < 0.5;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (btn) btn.disabled = true;
+  playSound('tick');
+  haptic('medium');
+  if (resultEl) resultEl.innerText = '···';
+
+  coinTurns += 3 + Math.floor(Math.random() * 3);
+  coin.style.transform = `rotateX(${coinTurns * 360 + (isHeads ? 0 : 180)}deg)`;
+  toss.classList.remove('is-tossing');
+  void toss.offsetWidth;
+  if (!still) {
+    toss.classList.add('is-tossing');
+    if (shadow) {
+      shadow.classList.add('is-up');
+      setTimeout(() => shadow.classList.remove('is-up'), 900);
+    }
+  }
+
+  setTimeout(() => {
+    if (resultEl) resultEl.innerText = isHeads ? (t.coin_heads || '') : (t.coin_tails || '');
+    playSound('success');
+    if (btn) btn.disabled = false;
+  }, still ? 0 : 1150);
+}
 /** Dice / coin tab switch, previously inline DOM juggling in the markup. */
 function setDiceTab(which) {
     const isDice = (which === 'dice');
@@ -20813,67 +21320,6 @@ function setDiceTab(which) {
     if (bc) bc.classList.toggle('is-active', !isDice);
 }
 
-function rollDice() {
-    const container = document.getElementById('dice-container');
-    const resultEl = document.getElementById('dice-result');
-    const btn = document.querySelector('[onclick="rollDice()"]');
-    
-    // Disable button to prevent spam-clicking while rolling
-    if (btn) btn.disabled = true;
-
-    // 1. Clear & Start "Roll" Animation
-    container.innerHTML = '';
-    playSound('tick'); 
-    
-    for(let i=0; i<appState.dice.count; i++) {
-        // Changed animate-shake to animate-roll, and put a dice emoji while it spins!
-        container.innerHTML += `
-            <div class="w-24 h-24 bg-white border-4 border-slate-800 rounded-2xl flex items-center justify-center shadow-xl animate-roll">
-                <span class="dice-face dice-face--emoji">🎲</span>
-            </div>`;
-    }
-
-    // 2. Reveal Result after 600ms (matches the new CSS animation perfectly)
-    setTimeout(() => {
-        container.innerHTML = '';
-        let total = 0;
-        
-        for(let i=0; i<appState.dice.count; i++) {
-            const num = Math.floor(Math.random() * 6) + 1;
-            total += num;
-            
-            // Render final dice with "Pop" animation
-            container.innerHTML += `
-                <div class="w-24 h-24 bg-white border-4 border-slate-800 rounded-2xl flex items-center justify-center shadow-xl animate-pop">
-                    <span class="dice-face">${num}</span>
-                </div>`;
-        }
-        
-        resultEl.innerText = total;
-        playSound('success');
-        if (btn) btn.disabled = false; // Re-enable the button!
-    }, 600);
-}
-
-function flipCoin() {
-    const coinEl = document.getElementById('coin-circle');
-    const resultEl = document.getElementById('coin-result');
-    
-    coinEl.classList.add('animate-flip-fast');
-    playSound('click');
-    
-    setTimeout(() => {
-        const isHeads = Math.random() > 0.5;
-        const text = isHeads 
-            ? (appState.lang === 'ar' ? "ملك" : "Heads") 
-            : (appState.lang === 'ar' ? "كتابة" : "Tails");
-            
-        coinEl.classList.remove('animate-flip-fast');
-        coinEl.innerText = isHeads ? "👑" : "📝";
-        resultEl.innerText = text;
-        playSound('success');
-    }, 800);
-}
 </script>
 
     <script>
@@ -24629,6 +25075,9 @@ ROOM_GAMES.whoami = {
         </div>
         ${inRound && myPlace === -1
           ? `<button class="btn btn--success btn--lg" style="margin-top: var(--sp-3)" onclick="roomAct('gotIt')">${escapeHTML(t.wa_got_it || '')}</button>`
+          : ''}
+        ${inRound && myPlace !== -1
+          ? `<button class="btn btn--ghost btn--sm" style="margin-top: var(--sp-2)" onclick="roomAct('notYet')">${escapeHTML(t.wa_not_yet || '')}</button>`
           : ''}
         <p class="field__hint" style="margin-top: var(--sp-2)">${escapeHTML((t.wa_progress || '').replace('{n}', guessed.length).replace('{m}', expected.length))}</p>
       </div>
@@ -34944,7 +35393,7 @@ ROOM_GAMES.bomb = {
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
-    const sig = ['bomb', s.phase, s.round, s.prompt, s.heat, s.holderId, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang, bombRoom.fixing].join('|');
+    const sig = ['bomb', s.phase, s.round, s.prompt, s.heat, s.holderId, s.fromId, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang, bombRoom.fixing].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => bombRoomFrame(state, t));
     refreshRoomPlayerStrip(el, state);
     bombRoomTicking(state, rebuilt);
@@ -34997,6 +35446,12 @@ function bombOrderHtml(s, state) {
     </div>`;
 }
 
+/** A player's name from the projection, for a message about them. */
+function roomNameOf(state, id) {
+  const p = (state.players || []).find(x => x.id === id);
+  return p ? p.name : '';
+}
+
 function bombRoomFrame(state, t) {
   const s = state.shared;
   const iHold = s.holderId === Room.me;
@@ -35008,12 +35463,16 @@ function bombRoomFrame(state, t) {
       ${iHold
         ? `<div class="btn-stack">
              <button class="btn btn--danger btn--lg bomb-pass" onclick="passBomb(this)">${escapeHTML(t.bomb_room_pass || '')} ➡</button>
+             ${s.fromId ? `
+               <button class="btn btn--ghost btn--sm" onclick="roomAct('sendBack')">${escapeHTML((t.bomb_send_back || '').replace('{name}', roomNameOf(state, s.fromId)))}</button>
+               <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_send_back_hint || '')}</p>` : ''}
              <p class="field__hint" style="text-align:center">${escapeHTML(t.bomb_room_pass_hint || '')}</p>
            </div>`
         : (inRound ? `<div class="waiting-note">${escapeHTML((t.bomb_room_with || '').replace('{name}', s.holderName || ''))}</div>` : '')}
       ${bombOrderHtml(s, state)}
       ${state.youAreHost
         ? `<div class="btn-row" style="margin-top: var(--sp-3)">
+             ${!iHold && s.fromId ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('sendBack')">${escapeHTML((t.bomb_send_back || '').replace('{name}', roomNameOf(state, s.fromId)))}</button>` : ''}
              <button class="btn btn--secondary btn--sm" onclick="roomAct('swap')">${escapeHTML(t.bomb_swap || '')}</button>
              <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
            </div>`

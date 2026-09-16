@@ -225,6 +225,10 @@ let soloResultActions = { again: null, exit: null, share: '' };
  */
 function soloResult(o) {
   const t = TRANSLATIONS[appState.lang] || {};
+  // A daily started from تحدي اليوم goes back there (JS_Daily.html).
+  if (o.share && typeof soloHubReturn !== 'undefined' && soloHubReturn) {
+    o = Object.assign({}, o, { again: openDaily, againLabel: '📅 ' + (t.daily_back || ''), exit: openDaily });
+  }
   soloResultActions = { again: o.again || null, exit: o.exit || null, share: o.share || '' };
   const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
   set('solo-result-icon', o.icon || '🏁');

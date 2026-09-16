@@ -79,6 +79,7 @@ const GAME_CATALOG = [
   { id: 'queens',     icon: '👑',   title: 'setup_queens',     desc: 'cat_queens',     accent: 'amber',  players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-queens',   open: () => setupQueens() },
   { id: 'tango',      icon: '☀️',   title: 'setup_tango',      desc: 'cat_tango',      accent: 'blue',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-tango',    open: () => setupTango() },
   { id: 'nonogram',   icon: '🖼️',   title: 'setup_nonogram',   desc: 'cat_nonogram',   accent: 'green',  players: [1, 1],  mins: 8,  modes: ['device'],               group: 'puzzle', setup: 'setup-nonogram', open: () => setupNonogram() },
+  { id: 'daily',      icon: '📅',   title: 'daily_title',      desc: 'cat_daily',      accent: 'amber',  players: [1, 1],  mins: 15, modes: ['device'],               group: 'brain', setup: 'setup-daily', open: () => openDaily() },
   { id: 'streak',     icon: '🔥',   title: 'setup_streak',     desc: 'cat_streak',     accent: 'rose',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-streak', open: () => setupStreak() },
   { id: 'pinpoint',   icon: '🔗',   title: 'setup_pinpoint',   desc: 'cat_pinpoint',   accent: 'violet', players: [1, 1],  mins: 4,  modes: ['device'],               group: 'brain', setup: 'setup-pinpoint', open: () => setupPinpoint() },
   { id: 'strands',    icon: '🧵',   title: 'setup_strands',    desc: 'cat_strands',    accent: 'teal',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-strands', open: () => setupStrands() },
@@ -319,6 +320,18 @@ function renderHome() {
       </div>
     </div>`;
 
+  const dailyStrip = typeof dailyDone === 'function' ? (() => {
+    const done = dailyDone().length, streak = soloStreak();
+    return `
+    <button type="button" class="daily-strip" id="home-daily" data-accent="amber" onclick="catalogOpen('daily', this)">
+      <span class="daily-strip__icon" aria-hidden="true">📅</span>
+      <span class="daily-strip__text"><b>${escapeHTML(t.daily_title || '')}</b>
+        <span>${escapeHTML((t.daily_progress || '').replace('{n}', done).replace('{m}', DAILY_GAMES.length))}</span></span>
+      ${streak ? `<span class="daily-strip__streak metric">🔥 ${streak}</span>` : ''}
+      <span class="tool-chev" aria-hidden="true">›</span>
+    </button>`;
+  })() : '';
+
   const recentRow = recent.length ? `
     <section class="section" id="home-recent">
       <div class="section__head">
@@ -356,7 +369,7 @@ function renderHome() {
       </section>`;
   }).join('');
 
-  view.innerHTML = together + search + recentRow + groups +
+  view.innerHTML = together + search + dailyStrip + recentRow + groups +
     `<div class="empty hidden" id="home-empty">${escapeHTML(t.home_empty || '')}</div>`;
   homeRenderedLang = appState.lang;
   applyHomeFilter();
@@ -415,6 +428,8 @@ function applyHomeFilter() {
   // The recent row is a shortcut, not a search result.
   const recent = document.getElementById('home-recent');
   if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all');
+  const daily = document.getElementById('home-daily');
+  if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo'));
   const empty = document.getElementById('home-empty');
   if (empty) empty.classList.toggle('hidden', shown > 0);
 }

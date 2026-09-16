@@ -98,7 +98,7 @@ work changed. Add to it when a decision is made or a batch ships.
     Mafia. With the option on, the real role is shown.
   - **There is time to talk**: a discussion clock before every vote, for
     arguing and accusing.
-- **Also asked for on 16 Sep 2026 and queued in this order**: the تحدي اليوم hub, على راسك, زي الكل with مافيا in rooms, and the
+- **Also asked for on 16 Sep 2026 and queued in this order**: على راسك, زي الكل with مافيا in rooms, and the
   card game scorers (إستميشن, طرنيب, تريكس, كونكان, باصرة).
 
 ### Ideas not built yet (researched 16 Sep 2026)
@@ -203,7 +203,7 @@ blind ranking, the word search), `countUp` for streaks and scores.
   Minesweeper; Queens, Tango, Nonogram; then خيوط, كلمات من حروف, إيه اللي
   يجمعهم؟, سلسلة الإجابات and الترتيب الأعمى, all from existing lists. The
   trivia questions moved to `TriviaQuestions.js` so the page can ask them.
-  Then خمّن الدولة with its country table. The soundboard moved from Settings
+  Then خمّن الدولة with its country table, and the تحدي اليوم hub. The soundboard moved from Settings
   to the tools. Solo boards sit beside their
   controls on laptops and TVs too (Sudoku's pad had been below the fold at
   1280×720).
@@ -1065,6 +1065,16 @@ The games (group `puzzle`, "ألغاز ومخ", on the home):
   line fades its clue; the picture's name is in the result. **`npm run
   check` fails on a picture that needs a guess**: four first drafts did (a
   symmetric face or sun often has two solutions) and were dropped.
+
+**تحدي اليوم** (`JS_Daily.html`, the `setup-daily` screen, first card of the
+`brain` group and a strip on the home above the recent games): every game's
+puzzle of the day in one list (`DAILY_GAMES`: the order, how to start its
+daily, and how its `soloMarkDaily` result reads in one line), the streak
+(`soloStreak`, days in a row with one finished), how many are done and when
+they renew, and one message with every result (`shareDaily`). A daily started
+from the hub sets `soloHubReturn`, so `soloResult` turns its "again" and
+"exit" into a way back to the hub. A new game with a daily needs a line in
+`DAILY_GAMES`.
 
 The word and quiz games (group `brain`, "كلمات وأسئلة لوحدك"). None has a list
 of its own:

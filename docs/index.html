@@ -6716,6 +6716,45 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   pointer-events: none;
 }
 
+/* --- تحدي اليوم --- */
+.daily-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid color-mix(in oklab, var(--accent) 35%, var(--border));
+  border-radius: var(--r-lg);
+  background: linear-gradient(135deg, var(--accent-soft), var(--surface-solid) 70%);
+  color: var(--text-strong);
+  font-family: var(--font);
+  text-align: start;
+  cursor: pointer;
+}
+.daily-strip__icon { font-size: 1.8rem; line-height: 1; }
+.daily-strip__text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.daily-strip__text b { font-size: var(--fs-h3); }
+.daily-strip__text span { color: var(--text-2); font-size: var(--fs-sm); }
+.daily-strip__streak { padding: 2px var(--sp-2); border-radius: var(--r-full); background: var(--surface-solid); color: var(--accent-ink); font-weight: 800; }
+.daily-head { display: grid; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.daily-head__streak { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); }
+.daily-head__streak > span:nth-child(2) { color: var(--text-strong); font-weight: 800; }
+.daily-head__streak b { font-size: var(--fs-display); line-height: 1; color: var(--accent-ink); }
+.daily-head__streak .field__hint { flex-basis: 100%; margin: 0; }
+.daily-head__fire { font-size: 2.2rem; line-height: 1; }
+.daily-head__progress { display: grid; gap: var(--sp-1); color: var(--text-strong); font-weight: 700; }
+.daily-head__progress .field__hint { margin: 0; font-weight: 400; }
+.daily-bar { display: block; height: 8px; overflow: hidden; border-radius: 4px; background: var(--surface-3); }
+.daily-bar i { display: block; height: 100%; background: var(--accent); transform: scaleX(var(--p)); transform-origin: left center; }
+[dir="rtl"] .daily-bar i { transform-origin: right center; }
+.daily-bar i.is-new { animation: flags-fill 900ms var(--ease-out) 150ms both; }
+.daily-list { display: grid; gap: var(--sp-2); }
+.daily-row { width: 100%; }
+.daily-row__status { flex: none; color: var(--text-strong); font-weight: 800; white-space: nowrap; }
+.daily-row.is-done { opacity: 1; cursor: default; }
+.daily-row.is-done .tool-desc { color: var(--success-ink); }
+
 /* --- Guess the country --- */
 .flag-emoji { font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", sans-serif; }
 .flags-target {
@@ -6855,7 +6894,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   .g2048-tile.is-new, .g2048-tile.is-merged { animation: none; }
   .pin-clue.is-new, .streak-card.is-new, .rank-card.is-new, .strands-word.motion-landed { animation: none; }
   .streak-timer i { animation: none; transform: none; }
-  .flags-row.is-new, .flags-row.is-new .flags-row__fill, .flags-row.is-new .flags-row__arrow { animation: none; }
+  .flags-row.is-new, .flags-row.is-new .flags-row__fill, .flags-row.is-new .flags-row__arrow, .daily-bar i.is-new { animation: none; }
 }
 
 </style>
@@ -10313,6 +10352,8 @@ const TRIVIA_QUESTIONS = {
       </div>
       <div id="view-play-blindrank" class="hidden" data-accent="indigo"><div id="blindrank-stage"></div></div>
 
+      <div id="view-setup-daily" class="hidden" data-accent="amber"><div id="daily-stage"></div></div>
+
       <div id="view-setup-flags" class="hidden" data-accent="blue">
         <div class="card">
           <div class="field">
@@ -13755,6 +13796,16 @@ const TRIVIA_QUESTIONS = {
       flags_cont_na: "في أمريكا الشمالية والكاريبي",
       flags_cont_sa: "في أمريكا الجنوبية",
       flags_cont_oc: "في أستراليا والمحيط الهادي",
+      cat_daily: "لغز جديد كل يوم في كل لعبة لوحدك، نفسه عند الكل. حافظ على السلسلة وابعت نتيجتك.",
+      daily_day: "يوم ورا بعض",
+      daily_days: "أيام ورا بعض",
+      daily_streak_hint: "خلّص تحدي واحد على الأقل كل يوم عشان السلسلة متقطعش.",
+      daily_progress: "{n} من {m} النهارده",
+      daily_all_done: "خلّصت كل تحديات النهارده! 🎉",
+      daily_renews: "تحديات جديدة بعد {h} ساعة",
+      daily_share_all: "شارك نتيجة النهارده",
+      daily_play: "العب",
+      daily_back: "تحدي اليوم",
       cat_xo: "3 في صف واحد. ضد صاحبك أو ضد الموبايل.",
       cat_guessnum: "رقم مخفي: أعلى ولا أقل؟ لوحدك أو مع صاحبك.",
       cat_reaction: "اتنين على شاشة واحدة: أول واحد يضغط لما تبقى خضرا.",
@@ -14943,6 +14994,16 @@ const TRIVIA_QUESTIONS = {
       flags_cont_na: "In North America and the Caribbean",
       flags_cont_sa: "In South America",
       flags_cont_oc: "In Australia and the Pacific",
+      cat_daily: "A new puzzle every day in each solo game, the same for everyone. Keep the streak and share your results.",
+      daily_day: "day in a row",
+      daily_days: "days in a row",
+      daily_streak_hint: "Finish at least one challenge a day to keep the streak.",
+      daily_progress: "{n} of {m} today",
+      daily_all_done: "Every challenge done today! 🎉",
+      daily_renews: "New challenges in {h} h",
+      daily_share_all: "Share today's results",
+      daily_play: "Play",
+      daily_back: "Daily challenge",
       cat_xo: "Three in a row. Against a friend or the phone.",
       cat_guessnum: "A hidden number: higher or lower? Solo or with a friend.",
       cat_reaction: "Two on one screen: first to tap when it turns green.",
@@ -16185,6 +16246,7 @@ const TRIVIA_QUESTIONS = {
     'setup-blindrank': { title: 'setup_blindrank',  up: 'menu',           accent: 'indigo' },
     'play-blindrank':  { title: 'setup_blindrank',  up: 'setup-blindrank', accent: 'indigo' },
     'setup-flags':     { title: 'setup_flags',      up: 'menu',           accent: 'blue' },
+    'setup-daily':     { title: 'daily_title',      up: 'menu',           accent: 'amber' },
     'play-flags':      { title: 'setup_flags',      up: 'setup-flags',    accent: 'blue' },
     'play-chooser':    { title: 'tool_chooser',     up: 'menu',           accent: 'orange' },
     'room-buzzer':     { title: 'setup_buzzer',     up: 'menu',           accent: 'rose' },
@@ -17114,6 +17176,13 @@ const GAME_RULES = {
                 <li>بعد كام غلطة بتظهر القارة، وبعدها أول حرف.</li>
                 <li><b>سهل</b> من الدول المشهورة، <b>صعب</b> من كل الدول. المسافة محسوبة من نص كل دولة.</li>
             </ol>`,
+        daily: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>كل يوم كل لعبة لوحدك فيها <b>لغز اليوم</b>: نفس اللغز على كل الموبايلات، ويتغير الساعة 12 بالليل.</li>
+                <li>كل تحدي بيتلعب مرة واحدة في اليوم. اللي خلّصته بيتعلم ✓ وجنبه نتيجتك.</li>
+                <li><b>🔥 السلسلة</b>: عدد الأيام ورا بعض اللي خلّصت فيها تحدي واحد على الأقل.</li>
+                <li><b>📤 شارك نتيجة النهارده</b> بيبعت كل نتايجك في رسالة واحدة لجروب العيلة أو الصحاب.</li>
+            </ol>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>12 صوت للحظات اللعب: تصفيق، فوز، صح، غلط، نكتة، ترومبون حزين، كمان حزين، صراصير، استهجان، بوري، سارينة وصفارة.</li>
@@ -17635,6 +17704,13 @@ const GAME_RULES = {
                 <li>After a few misses the continent appears, then the first letter.</li>
                 <li><b>Easy</b> asks well-known countries, <b>hard</b> any country. Distances are measured from the middle of each country.</li>
             </ol>`,
+        daily: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Every day each solo game has a <b>puzzle of the day</b>: the same on every phone, new at midnight.</li>
+                <li>Each challenge is played once a day. Finished ones get a ✓ and your result.</li>
+                <li><b>🔥 The streak</b> counts the days in a row with at least one challenge finished.</li>
+                <li><b>📤 Share today's results</b> sends all of them in one message to the family or friends' group.</li>
+            </ol>`,
         sounds: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Twelve sounds for the moments of a game: applause, ta-da, right, wrong, ba-dum-tss, the sad trombone, a sad violin, crickets, boo, an air horn, a siren and a whistle.</li>
@@ -17730,6 +17806,7 @@ const GAME_CATALOG = [
   { id: 'queens',     icon: '👑',   title: 'setup_queens',     desc: 'cat_queens',     accent: 'amber',  players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-queens',   open: () => setupQueens() },
   { id: 'tango',      icon: '☀️',   title: 'setup_tango',      desc: 'cat_tango',      accent: 'blue',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-tango',    open: () => setupTango() },
   { id: 'nonogram',   icon: '🖼️',   title: 'setup_nonogram',   desc: 'cat_nonogram',   accent: 'green',  players: [1, 1],  mins: 8,  modes: ['device'],               group: 'puzzle', setup: 'setup-nonogram', open: () => setupNonogram() },
+  { id: 'daily',      icon: '📅',   title: 'daily_title',      desc: 'cat_daily',      accent: 'amber',  players: [1, 1],  mins: 15, modes: ['device'],               group: 'brain', setup: 'setup-daily', open: () => openDaily() },
   { id: 'streak',     icon: '🔥',   title: 'setup_streak',     desc: 'cat_streak',     accent: 'rose',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-streak', open: () => setupStreak() },
   { id: 'pinpoint',   icon: '🔗',   title: 'setup_pinpoint',   desc: 'cat_pinpoint',   accent: 'violet', players: [1, 1],  mins: 4,  modes: ['device'],               group: 'brain', setup: 'setup-pinpoint', open: () => setupPinpoint() },
   { id: 'strands',    icon: '🧵',   title: 'setup_strands',    desc: 'cat_strands',    accent: 'teal',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-strands', open: () => setupStrands() },
@@ -17970,6 +18047,18 @@ function renderHome() {
       </div>
     </div>`;
 
+  const dailyStrip = typeof dailyDone === 'function' ? (() => {
+    const done = dailyDone().length, streak = soloStreak();
+    return `
+    <button type="button" class="daily-strip" id="home-daily" data-accent="amber" onclick="catalogOpen('daily', this)">
+      <span class="daily-strip__icon" aria-hidden="true">📅</span>
+      <span class="daily-strip__text"><b>${escapeHTML(t.daily_title || '')}</b>
+        <span>${escapeHTML((t.daily_progress || '').replace('{n}', done).replace('{m}', DAILY_GAMES.length))}</span></span>
+      ${streak ? `<span class="daily-strip__streak metric">🔥 ${streak}</span>` : ''}
+      <span class="tool-chev" aria-hidden="true">›</span>
+    </button>`;
+  })() : '';
+
   const recentRow = recent.length ? `
     <section class="section" id="home-recent">
       <div class="section__head">
@@ -18007,7 +18096,7 @@ function renderHome() {
       </section>`;
   }).join('');
 
-  view.innerHTML = together + search + recentRow + groups +
+  view.innerHTML = together + search + dailyStrip + recentRow + groups +
     `<div class="empty hidden" id="home-empty">${escapeHTML(t.home_empty || '')}</div>`;
   homeRenderedLang = appState.lang;
   applyHomeFilter();
@@ -18066,6 +18155,8 @@ function applyHomeFilter() {
   // The recent row is a shortcut, not a search result.
   const recent = document.getElementById('home-recent');
   if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all');
+  const daily = document.getElementById('home-daily');
+  if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo'));
   const empty = document.getElementById('home-empty');
   if (empty) empty.classList.toggle('hidden', shown > 0);
 }
@@ -20580,6 +20671,7 @@ const HELP_ENTRIES = [
   { key: 'queens',      title: 'setup_queens',      icon: '👑', accent: 'amber',  group: 'games' },
   { key: 'tango',       title: 'setup_tango',       icon: '☀️', accent: 'blue',   group: 'games' },
   { key: 'nonogram',    title: 'setup_nonogram',    icon: '🖼️', accent: 'green',  group: 'games' },
+  { key: 'daily',       title: 'daily_title',       icon: '📅', accent: 'amber',  group: 'games' },
   { key: 'streak',      title: 'setup_streak',      icon: '🔥', accent: 'rose',   group: 'games' },
   { key: 'pinpoint',    title: 'setup_pinpoint',    icon: '🔗', accent: 'violet', group: 'games' },
   { key: 'strands',     title: 'setup_strands',     icon: '🧵', accent: 'teal',   group: 'games' },
@@ -20646,7 +20738,7 @@ const HELP_FOR_VIEW = {
   'setup-strands': 'strands', 'play-strands': 'strands', 'setup-wordwheel': 'wordwheel', 'play-wordwheel': 'wordwheel',
   'setup-pinpoint': 'pinpoint', 'play-pinpoint': 'pinpoint', 'setup-streak': 'streak', 'play-streak': 'streak',
   'setup-blindrank': 'blindrank', 'play-blindrank': 'blindrank',
-  'setup-flags': 'flags', 'play-flags': 'flags',
+  'setup-flags': 'flags', 'play-flags': 'flags', 'setup-daily': 'daily',
   'play-chooser': 'chooser', 'room-buzzer': 'buzzer', 'room-stop': 'stop',
   'room-chameleon': 'chameleon', 'room-spyfall': 'spyfall', 'room-bomb': 'bomb',
   'setup-emoji': 'emoji', 'play-emoji': 'emoji', 'room-emoji': 'emoji',
@@ -38702,6 +38794,10 @@ let soloResultActions = { again: null, exit: null, share: '' };
  */
 function soloResult(o) {
   const t = TRANSLATIONS[appState.lang] || {};
+  // A daily started from تحدي اليوم goes back there (JS_Daily.html).
+  if (o.share && typeof soloHubReturn !== 'undefined' && soloHubReturn) {
+    o = Object.assign({}, o, { again: openDaily, againLabel: '📅 ' + (t.daily_back || ''), exit: openDaily });
+  }
   soloResultActions = { again: o.again || null, exit: o.exit || null, share: o.share || '' };
   const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
   set('solo-result-icon', o.icon || '🏁');
@@ -42359,7 +42455,9 @@ function paintBlindRank(fresh) {
           <p class="pin-ask rank-done">${escapeHTML(t.rank_done || '')} ✓</p>
           <div class="btn-stack">
             <button type="button" class="btn btn--primary" onclick="shareBlindRank()">📤 ${escapeHTML(t.solo_share || '')}</button>
-            <button type="button" class="btn btn--secondary" onclick="startBlindRank(false)">${escapeHTML(t.play_again || '')}</button>
+            ${s.daily && typeof soloHubReturn !== 'undefined' && soloHubReturn
+              ? `<button type="button" class="btn btn--secondary" onclick="openDaily()">📅 ${escapeHTML(t.daily_back || '')}</button>`
+              : `<button type="button" class="btn btn--secondary" onclick="startBlindRank(false)">${escapeHTML(t.play_again || '')}</button>`}
           </div>` : `
           <div class="solo-bar" style="--solo-cols:1"><div class="solo-stat"><span class="solo-stat__label">${escapeHTML(t.rank_left || '')}</span><b class="metric">${s.items.length - s.next}</b></div></div>
           <div class="rank-card${fresh ? ' is-new' : ''}" id="rank-card"><span class="eyebrow">${escapeHTML(t.rank_where || '')}</span><b id="rank-current">${escapeHTML(current)}</b></div>
@@ -42862,6 +42960,111 @@ function restoreFlags() {
 }
 
 soloRegister('flags', { setup: 'setup-flags', play: 'play-flags', paintSetup: paintFlagsSetup, restore: restoreFlags });
+</script>
+
+    <script>
+/* ============================================================================
+   تحدي اليوم — EVERY PUZZLE OF THE DAY IN ONE PLACE
+   ----------------------------------------------------------------------------
+   Each solo game already has its puzzle of the day (the same on every phone,
+   seeded from the date, JS_Solo.html). This screen lists them all with what
+   this phone did today, the streak of days with at least one finished, and
+   one message with every result for the family group.
+
+   DAILY_GAMES is the order and how each result reads in one short line; the
+   results themselves are what each game passed to soloMarkDaily. A daily
+   started from here comes back here when its result sheet is closed
+   (soloHubReturn), instead of to that game's own setup screen.
+   ========================================================================= */
+
+const DAILY_GAMES = [
+  { id: 'flags',     start: () => startFlags(true),     line: (r) => r.won ? `✅ ${r.guesses}/6` : '❌ X/6' },
+  { id: 'streak',    start: () => startStreak(true),    line: (r) => `${r.score >= 7 ? '✅' : '☑️'} ${r.score}/10` },
+  { id: 'pinpoint',  start: () => startPinpoint(true),  line: (r) => `${r.score >= 13 ? '✅' : '☑️'} ${r.score}/25` },
+  { id: 'strands',   start: () => startStrands(true),   line: (r) => `✅ ${soloTime(r.seconds)}${r.hints ? ' 💡' + r.hints : ''}` },
+  { id: 'wordwheel', start: () => startWordWheel(true), line: (r) => `✅ ${soloTime(r.seconds)}${r.bonus ? ' ⭐' + r.bonus : ''}` },
+  { id: 'blindrank', start: () => startBlindRank(true), line: (r) => `✅ ${(r.list || [])[0] || ''}` },
+  { id: 'sudoku',    start: () => startSudoku(true),    line: (r) => `✅ ${soloTime(r.seconds)}` },
+  { id: 'queens',    start: () => startQueens(true),    line: (r) => `✅ ${soloTime(r.seconds)}` },
+  { id: 'tango',     start: () => startTango(true),     line: (r) => `✅ ${soloTime(r.seconds)}` },
+  { id: 'nonogram',  start: () => startNonogram(true),  line: (r) => `✅ ${soloTime(r.seconds)}` },
+  { id: 'mines',     start: () => startMines(true),     line: (r) => r.lost ? '💥' : `✅ ${soloTime(r.seconds)}` }
+];
+
+let soloHubReturn = false;
+
+function openDaily() {
+  setView('setup-daily');
+}
+
+function dailyDone() {
+  return DAILY_GAMES.filter(g => soloDailyResult(g.id));
+}
+
+function renderDaily() {
+  const el = document.getElementById('daily-stage');
+  if (!el) return;
+  soloHubReturn = false;
+  const t = TRANSLATIONS[appState.lang];
+  const done = dailyDone();
+  const streak = soloStreak();
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const hours = Math.max(1, Math.ceil((midnight - now) / 3600000));
+  const all = done.length === DAILY_GAMES.length;
+  const first = motionFirst('daily-hub:' + soloToday() + ':' + done.length);
+  el.innerHTML = `
+    <div class="daily-head card">
+      <div class="daily-head__streak">
+        <span class="daily-head__fire" aria-hidden="true">${streak ? '🔥' : '🌱'}</span>
+        <span><b class="metric" id="daily-streak">${streak}</b> <span>${escapeHTML(streak === 1 ? (t.daily_day || '') : (t.daily_days || ''))}</span></span>
+        <span class="field__hint">${escapeHTML(t.daily_streak_hint || '')}</span>
+      </div>
+      <div class="daily-head__progress">
+        <span>${escapeHTML((t.daily_progress || '').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length))}</span>
+        <span class="daily-bar" aria-hidden="true"><i style="--p:${done.length / DAILY_GAMES.length}"${first ? ' class="is-new"' : ''}></i></span>
+        <span class="field__hint">${escapeHTML(all ? (t.daily_all_done || '') : (t.daily_renews || '').replace('{h}', hours))}</span>
+      </div>
+      <button type="button" class="btn btn--primary" onclick="shareDaily()" ${done.length ? '' : 'disabled'}>📤 ${escapeHTML(t.daily_share_all || '')}</button>
+    </div>
+    <div class="daily-list">
+      ${DAILY_GAMES.map(g => {
+        const cat = CATALOG_BY_ID[g.id];
+        const result = soloDailyResult(g.id);
+        return `
+          <button type="button" class="tool-item daily-row${result ? ' is-done' : ''}" data-accent="${cat.accent}" data-game="${g.id}" onclick="playDaily('${g.id}')" ${result ? 'disabled' : ''}>
+            <span class="tool-icon" aria-hidden="true">${cat.icon}</span>
+            <span class="tool-info">
+              <span class="tool-name">${escapeHTML(t[cat.title] || g.id)}</span>
+              <span class="tool-desc">${escapeHTML(result ? (t.daily_done_today || '') : (t[cat.desc] || ''))}</span>
+            </span>
+            <span class="daily-row__status">${result ? escapeHTML(g.line(result)) : `<span class="badge">${escapeHTML(t.daily_play || '')}</span>`}</span>
+          </button>`;
+      }).join('')}
+    </div>`;
+  const streakEl = document.getElementById('daily-streak');
+  if (first && streak > 1 && streakEl && typeof countUp === 'function' && !motionOff()) countUp(streakEl, 0, streak);
+}
+
+function playDaily(id) {
+  const g = DAILY_GAMES.find(x => x.id === id);
+  if (!g || soloDailyResult(id)) return;
+  soloHubReturn = true;
+  if (typeof rememberRecent === 'function') rememberRecent(id);
+  g.start();
+}
+
+function shareDaily() {
+  const t = TRANSLATIONS[appState.lang];
+  const done = dailyDone();
+  if (!done.length) return;
+  const streak = soloStreak();
+  const lines = done.map(g => `${CATALOG_BY_ID[g.id].icon} ${g.line(soloDailyResult(g.id))}`);
+  const text = `${soloShareHeader(t)} · ${done.length}/${DAILY_GAMES.length}\n${streak > 1 ? `🔥 ${streak} ${t.daily_days || ''}\n` : ''}${lines.join('\n')}`;
+  shareOrCopy(appLink(), text, t.solo_copied || '');
+}
+
+soloRegister('daily', { setup: 'setup-daily', paintSetup: renderDaily });
 </script>
 
     <script>

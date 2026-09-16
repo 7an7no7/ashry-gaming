@@ -353,6 +353,25 @@ for (const [lang, lists] of Object.entries(MONKEY)) {
   }
 }
 
+// Nonogram pictures: the right size, and solvable line by line (one solution, no guessing).
+{
+  const src = fs.readFileSync(G + 'JS_Nonogram.html', 'utf8').replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '');
+  const N = new Function('soloRegister', 'soloPick', src + '; return { NONO_PICTURES, nonoFromPicture, nonoClues, nonoSolvable };')(() => {}, () => {});
+  let count = 0;
+  for (const [size, pics] of Object.entries(N.NONO_PICTURES)) {
+    const n = Number(size);
+    pics.forEach(p => {
+      count++;
+      if (!p.ar || !p.en || !p.e) note(`nonogram ${size}: a picture without its names or emoji`);
+      if (p.rows.length !== n || p.rows.some(r => r.length !== n || /[^#.]/.test(r))) { note(`nonogram ${size} "${p.en}": not ${n}×${n} of # and .`); return; }
+      const sol = N.nonoFromPicture(p);
+      const cl = N.nonoClues(n, sol);
+      if (!N.nonoSolvable(n, cl.rows, cl.cols)) note(`nonogram ${size} "${p.en}": can't be solved line by line (needs a guess)`);
+    });
+  }
+  console.log(`nonogram: ${count} pictures`);
+}
+
 const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 {
   const ids = STOP_CATS.map(c => c.id);

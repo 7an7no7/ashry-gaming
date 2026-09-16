@@ -1,0 +1,333 @@
+<script>
+/* ============================================================================
+   شمس وقمر — TANGO
+   ----------------------------------------------------------------------------
+   A 6×6 grid of ☀️ and 🌙. Every row and column holds three of each, never
+   three of the same side by side, and the signs between cells hold: = means
+   the two are the same, × means they differ. A tap cycles ☀️ → 🌙 → empty.
+
+   Made here: a full valid grid at random (tangoFill), then clues - given
+   cells and signs - added in a random order until tangoCount finds exactly
+   one solution, and taken away again while it still does. Easy keeps some
+   of the removed givens back; hard stays minimal. The daily comes from the
+   seed. The board is in appState.tango.
+   ========================================================================= */
+
+const TANGO_N = 6;
+let tangoTimer = null;
+
+function tangoState() {
+  if (!appState.tango) {
+    appState.tango = { level: 'easy', daily: '', solution: [], givens: [], signs: [], cells: [], startedAt: 0, phase: 'setup' };
+  }
+  return appState.tango;
+}
+
+/* --- The puzzle ---------------------------------------------------------------- */
+
+/** Whether value v fits at i with the rows and columns filled so far (0 empty, 1 sun, 2 moon). */
+function tangoFits(g, i, v) {
+  const N = TANGO_N;
+  const r = Math.floor(i / N), c = i % N;
+  let rowCount = 0, colCount = 0;
+  for (let k = 0; k < N; k++) {
+    if (g[r * N + k] === v) rowCount++;
+    if (g[k * N + c] === v) colCount++;
+  }
+  if (g[i] !== v) { rowCount++; colCount++; }
+  if (rowCount > N / 2 || colCount > N / 2) return false;
+  const at = (rr, cc) => (rr === r && cc === c) ? v : g[rr * N + cc];
+  for (let k = Math.max(0, c - 2); k <= Math.min(N - 3, c); k++) {
+    if (at(r, k) === v && at(r, k + 1) === v && at(r, k + 2) === v) return false;
+  }
+  for (let k = Math.max(0, r - 2); k <= Math.min(N - 3, r); k++) {
+    if (at(k, c) === v && at(k + 1, c) === v && at(k + 2, c) === v) return false;
+  }
+  return true;
+}
+
+function tangoFill(rnd) {
+  const g = new Array(TANGO_N * TANGO_N).fill(0);
+  const go = (i) => {
+    if (i === g.length) return true;
+    for (const v of soloShuffle([1, 2], rnd)) {
+      if (!tangoFits(g, i, v)) continue;
+      g[i] = v;
+      if (go(i + 1)) return true;
+      g[i] = 0;
+    }
+    return false;
+  };
+  go(0);
+  return g;
+}
+
+/** How many solutions (up to limit) given cells and signs [{ a, b, same }]. */
+function tangoCount(givens, signs, limit) {
+  const g = givens.slice();
+  const bySign = {};
+  signs.forEach(s => { (bySign[s.a] = bySign[s.a] || []).push(s); (bySign[s.b] = bySign[s.b] || []).push(s); });
+  let found = 0;
+  const signOk = (i) => (bySign[i] || []).every(s => {
+    const x = g[s.a], y = g[s.b];
+    return !x || !y || (s.same ? x === y : x !== y);
+  });
+  const go = (i) => {
+    if (i === g.length) { found++; return found >= limit; }
+    if (givens[i]) return signOk(i) && go(i + 1);
+    for (const v of [1, 2]) {
+      if (!tangoFits(g, i, v)) continue;
+      g[i] = v;
+      if (signOk(i) && go(i + 1)) return true;
+      g[i] = 0;
+    }
+    return false;
+  };
+  // Given cells must themselves be consistent.
+  for (let i = 0; i < g.length; i++) if (g[i]) { const v = g[i]; g[i] = 0; const ok = tangoFits(g, i, v); g[i] = v; if (!ok) return 0; }
+  go(0);
+  return found;
+}
+
+function tangoMake(level, rnd) {
+  const N = TANGO_N;
+  const solution = tangoFill(rnd);
+  const pool = [];
+  for (let i = 0; i < N * N; i++) {
+    pool.push({ kind: 'cell', i: i });
+    if (i % N < N - 1) pool.push({ kind: 'sign', a: i, b: i + 1 });
+    if (i + N < N * N) pool.push({ kind: 'sign', a: i, b: i + N });
+  }
+  const chosen = [];
+  const build = (list) => {
+    const givens = new Array(N * N).fill(0);
+    const signs = [];
+    list.forEach(cl => {
+      if (cl.kind === 'cell') givens[cl.i] = solution[cl.i];
+      else signs.push({ a: cl.a, b: cl.b, same: solution[cl.a] === solution[cl.b] });
+    });
+    return { givens: givens, signs: signs };
+  };
+  for (const clue of soloShuffle(pool, rnd)) {
+    chosen.push(clue);
+    const b = build(chosen);
+    if (tangoCount(b.givens, b.signs, 2) === 1) break;
+  }
+  // Take clues away again while the solution stays the only one.
+  const removed = [];
+  for (const clue of soloShuffle(chosen.slice(), rnd)) {
+    const without = chosen.filter(x => x !== clue);
+    const b = build(without);
+    if (tangoCount(b.givens, b.signs, 2) === 1) { chosen.splice(chosen.indexOf(clue), 1); removed.push(clue); }
+  }
+  // Easy gets a few of the removed given cells back.
+  if (level !== 'hard') {
+    const extra = removed.filter(x => x.kind === 'cell').slice(0, level === 'easy' ? 5 : 2);
+    extra.forEach(x => chosen.push(x));
+  }
+  const b = build(chosen);
+  return { solution: solution, givens: b.givens, signs: b.signs };
+}
+
+/* --- Setup and play --------------------------------------------------------------- */
+
+function setupTango() {
+  tangoStopTimer();
+  setView('setup-tango');
+}
+
+function paintTangoSetup() {
+  const s = tangoState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#tango-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('tango', s.level);
+  const el = document.getElementById('tango-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('tango-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('tango-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('tango', 'startTango(true)');
+}
+
+function setTangoLevel(level) {
+  tangoState().level = level;
+  saveToLocal();
+  paintTangoSetup();
+}
+
+function startTango(daily) {
+  const s = tangoState();
+  const level = daily ? 'medium' : s.level;
+  const made = tangoMake(level, soloRandom(daily ? soloDaySeed('tango') : null));
+  s.daily = daily ? soloToday() : '';
+  s.playLevel = level;
+  s.solution = made.solution;
+  s.givens = made.givens;
+  s.signs = made.signs;
+  s.cells = made.givens.slice();
+  s.hints = 0;
+  s.startedAt = Date.now();
+  s.phase = 'play';
+  saveToLocal();
+  setView('play-tango');
+  paintTango();
+  tangoArmTimer();
+}
+
+function continueTango() {
+  if (tangoState().phase !== 'play') return;
+  setView('play-tango');
+  paintTango();
+  tangoArmTimer();
+}
+
+function tangoArmTimer() {
+  tangoStopTimer();
+  tangoTimer = soloClock('tango-time', tangoState().startedAt);
+}
+
+function tangoStopTimer() {
+  if (tangoTimer) tangoTimer.stop();
+  tangoTimer = null;
+}
+
+/** Cells breaking a rule right now: a row or column over three of a kind, three in a row, a sign. */
+function tangoProblems(s) {
+  const N = TANGO_N;
+  const g = s.cells;
+  const bad = new Set();
+  for (let k = 0; k < N; k++) {
+    [1, 2].forEach(v => {
+      const row = [], col = [];
+      for (let j = 0; j < N; j++) { if (g[k * N + j] === v) row.push(k * N + j); if (g[j * N + k] === v) col.push(j * N + k); }
+      if (row.length > N / 2) row.forEach(i => bad.add(i));
+      if (col.length > N / 2) col.forEach(i => bad.add(i));
+    });
+    for (let j = 0; j <= N - 3; j++) {
+      const a = k * N + j;
+      if (g[a] && g[a] === g[a + 1] && g[a] === g[a + 2]) [a, a + 1, a + 2].forEach(i => bad.add(i));
+      const b = j * N + k;
+      if (g[b] && g[b] === g[b + N] && g[b] === g[b + 2 * N]) [b, b + N, b + 2 * N].forEach(i => bad.add(i));
+    }
+  }
+  s.signs.forEach(x => {
+    if (g[x.a] && g[x.b] && (x.same ? g[x.a] !== g[x.b] : g[x.a] === g[x.b])) { bad.add(x.a); bad.add(x.b); }
+  });
+  return bad;
+}
+
+function paintTango() {
+  const s = tangoState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('tango-stage');
+  if (!el || !s.solution.length) return;
+  const N = TANGO_N;
+  const bad = tangoProblems(s);
+  const signAt = {};
+  s.signs.forEach(x => { signAt[x.a + '-' + x.b] = x.same ? '=' : '×'; });
+  const bar = soloBarHtml([
+    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: escapeHTML(t['solo_lvl_' + (s.playLevel || s.level)] || '') },
+    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'tango-time' }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+      <div class="solo-layout__board">
+        <div class="tango-grid" id="tango-grid" dir="ltr">
+          ${s.cells.map((v, i) => {
+            const right = i % N < N - 1 ? signAt[i + '-' + (i + 1)] : '';
+            const down = i + N < N * N ? signAt[i + '-' + (i + N)] : '';
+            const cls = ['tango-cell', s.givens[i] ? 'is-given' : '', bad.has(i) ? 'is-bad' : ''].filter(Boolean).join(' ');
+            return `<button type="button" class="${cls}" data-i="${i}" onclick="tapTango(${i})">
+                      <span class="tango-mark">${v === 1 ? '☀️' : v === 2 ? '🌙' : ''}</span>
+                      ${right ? `<i class="tango-sign tango-sign--right">${right}</i>` : ''}
+                      ${down ? `<i class="tango-sign tango-sign--down">${down}</i>` : ''}
+                    </button>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="solo-layout__side">
+        ${bar}
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.tango_hint || '')}</p>
+        <div class="sdk-tools">
+          <button type="button" class="btn btn--neutral btn--sm" onclick="clearTango()">🧹 ${escapeHTML(t.queens_clear || '')}</button>
+          <button type="button" class="btn btn--neutral btn--sm" onclick="hintTango()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+        </div>
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupTango()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+function tapTango(i) {
+  const s = tangoState();
+  if (s.phase !== 'play' || s.givens[i]) return;
+  s.cells[i] = (s.cells[i] + 1) % 3;
+  saveToLocal();
+  paintTango();
+  tangoCheck();
+}
+
+function clearTango() {
+  const s = tangoState();
+  if (s.phase !== 'play') return;
+  s.cells = s.givens.slice();
+  saveToLocal();
+  paintTango();
+}
+
+function hintTango() {
+  const s = tangoState();
+  if (s.phase !== 'play') return;
+  let i = s.cells.findIndex((v, k) => v && v !== s.solution[k]);
+  if (i === -1) i = s.cells.findIndex(v => !v);
+  if (i === -1) return;
+  s.cells[i] = s.solution[i];
+  s.hints = (s.hints || 0) + 1;
+  saveToLocal();
+  paintTango();
+  tangoCheck();
+}
+
+function tangoCheck() {
+  const s = tangoState();
+  if (s.phase !== 'play' || s.cells.some((v, i) => v !== s.solution[i])) return;
+  tangoStopTimer();
+  s.phase = 'done';
+  const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  saveToLocal();
+  const t = TRANSLATIONS[appState.lang];
+  if (!motionOff()) {
+    document.querySelectorAll('#tango-grid .tango-cell').forEach(cell => {
+      const i = Number(cell.dataset.i);
+      if (cell.animate) cell.animate([{ transform: 'rotateY(0)' }, { transform: 'rotateY(180deg)' }, { transform: 'rotateY(360deg)' }],
+        { duration: 520, delay: (Math.floor(i / TANGO_N) + i % TANGO_N) * 45, easing: 'ease-in-out' });
+    });
+  }
+  const level = s.playLevel || s.level;
+  const rec = s.hints ? { record: false, prev: soloBest('tango', level) }
+    : soloRecord('tango', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('tango', { seconds: seconds });
+    share = `${soloShareHeader(t)}\n☀️ ${t.setup_tango || ''} ✅ ${soloTime(seconds)}`;
+  }
+  const lines = [];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: '☀️', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    again: () => startTango(false), exit: setupTango
+  }), motionOff() ? 0 : 1000);
+}
+
+function restoreTango() {
+  const s = tangoState();
+  if (s.phase !== 'play' || !s.solution.length) return false;
+  paintTango();
+  tangoArmTimer();
+  return true;
+}
+
+soloRegister('tango', { setup: 'setup-tango', play: 'play-tango', paintSetup: paintTangoSetup, restore: restoreTango });
+</script>

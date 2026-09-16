@@ -1006,6 +1006,24 @@ The games (group `puzzle`, "ألغاز ومخ", on the home):
   are laid after it); a long press or 🚩 mode flags; a satisfied number opens
   its neighbours; an opened patch ripples out from the tap. The daily lays its
   mines from the seed around a safe cell that opens by itself.
+- **الملكات** (`JS_Queens.html`): crowns placed so none touch (`queensPlace`),
+  one region grown from each at random (`queensGrow`), then while
+  `queensSolve` finds a second solution one of its crown cells is handed to a
+  neighbouring region (keeping regions connected) until one solution is left
+  (under 10ms). A tap cycles ✕ → 👑 → empty, a drag marks ✕, a crown breaking
+  a rule is outlined red. 6/7/8 wide; the region colours are a fixed pastel
+  set with dark ink, like the Connections groups.
+- **شمس وقمر** (`JS_Tango.html`): a full valid 6×6 grid (`tangoFill`, three
+  of each per line, never three alike in a row), clues (given cells and =/×
+  signs) added at random until `tangoCount` finds one solution, then removed
+  while it still does; easy and medium get a few removed givens back.
+- **نونوجرام** (`JS_Nonogram.html`): a board is one of `NONO_PICTURES` (drawn
+  by hand, 8×8 and 10×10) or random, and is only used if `nonoSolvable` can
+  finish it line by line (`nonoLineSolve` intersects every placement of a
+  clue), so it never needs a guess. ⬛/✕ modes and drag painting; a finished
+  line fades its clue; the picture's name is in the result. **`npm run
+  check` fails on a picture that needs a guess**: four first drafts did (a
+  symmetric face or sun often has two solutions) and were dropped.
 
 ### The catalog and the home screen
 

@@ -6327,6 +6327,124 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .mines-cell.is-boom { background: var(--danger-soft); }
 .mines-cell.is-flag.is-wrong { background: var(--warning-soft); }
 .mines-grid.is-over .mines-cell { cursor: default; }
+
+/* --- Queens: a fixed pastel per region (like the Connections groups), ink that reads on all of them --- */
+.queens-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--q-n, 6), minmax(0, 1fr));
+  max-width: 28rem;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 2px solid #1e293b;
+  border-radius: var(--r-sm);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.queens-cell {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid rgba(30, 41, 59, 0.18);
+  color: #1e293b;
+  font-family: var(--font);
+  font-size: clamp(1rem, 6vw, 1.7rem);
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+.queens-cell.bt { border-top: 2px solid #1e293b; }
+.queens-cell.bb { border-bottom: 2px solid #1e293b; }
+.queens-cell.bl { border-left: 2px solid #1e293b; }
+.queens-cell.br { border-right: 2px solid #1e293b; }
+.queens-cell.q0 { background: #fde68a; }
+.queens-cell.q1 { background: #a7f3d0; }
+.queens-cell.q2 { background: #bfdbfe; }
+.queens-cell.q3 { background: #ddd6fe; }
+.queens-cell.q4 { background: #fbcfe8; }
+.queens-cell.q5 { background: #fed7aa; }
+.queens-cell.q6 { background: #e5e7eb; }
+.queens-cell.q7 { background: #d9f99d; }
+.queens-cell.q8 { background: #fca5a5; }
+.queens-cell.q9 { background: #a5f3fc; }
+.queens-cell.is-bad { box-shadow: inset 0 0 0 3px #dc2626; }
+
+/* --- Tango --- */
+.tango-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; max-width: 24rem; margin: 0 auto; }
+.tango-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  font-size: clamp(1.2rem, 7vw, 1.9rem);
+  line-height: 1;
+  cursor: pointer;
+}
+.tango-cell.is-given { background: var(--surface-3); cursor: default; }
+.tango-cell.is-bad { background: var(--danger-soft); box-shadow: inset 0 0 0 2px var(--danger); }
+.tango-sign {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border: 1px solid var(--text-3);
+  border-radius: 50%;
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-size: 0.85rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+.tango-sign--right { top: 50%; right: calc(-3px - 0.65rem); transform: translateY(-50%); }
+.tango-sign--down { left: 50%; bottom: calc(-3px - 0.65rem); transform: translateX(-50%); }
+
+/* --- Nonogram --- */
+.nono-grid {
+  display: grid;
+  grid-template-columns: auto repeat(var(--nono-n, 5), minmax(0, 1fr));
+  gap: 2px;
+  max-width: 30rem;
+  margin: 0 auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.nono-clue { display: flex; gap: 3px; color: var(--text-strong); font-size: clamp(0.6rem, 2.7vw, 0.85rem); font-weight: 800; line-height: 1.05; }
+.nono-clue--col { flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 3px; }
+.nono-clue--row { align-items: center; justify-content: flex-end; padding-right: 5px; white-space: nowrap; }
+.nono-clue.is-done { color: var(--text-3); }
+.nono-cell {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text-3);
+  font-size: clamp(0.6rem, 3vw, 0.9rem);
+  font-weight: 900;
+  cursor: pointer;
+}
+.nono-cell.is-fill { background: var(--accent); box-shadow: none; }
+.nono-cell.is-sep-r { margin-right: 2px; }
+.nono-cell.is-sep-b { margin-bottom: 2px; }
+.nono-grid.is-solved .nono-cell:not(.is-fill) { background: transparent; box-shadow: none; }
+.nono-mode { margin: var(--sp-2) 0; }
+
 /* A phone held sideways: the board on one side, its keys and tools on the other.
    The board is sized off the shell's height, so it never needs scrolling. */
 .solo-layout { display: flex; flex-direction: column; }
@@ -8392,6 +8510,67 @@ const stopWordKnown = (lang, cat, text) => {
         </div>
       </div>
       <div id="view-play-mines" class="hidden" data-accent="teal"><div id="mines-stage"></div></div>
+
+
+      <div id="view-setup-queens" class="hidden" data-accent="amber">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="solo_level">المستوى</label>
+            <div class="segmented" id="queens-level" role="group">
+              <button type="button" class="segmented__item is-active" data-value="easy" onclick="setQueensLevel('easy')" data-i18n="queens_lvl_easy">6×6</button>
+              <button type="button" class="segmented__item" data-value="medium" onclick="setQueensLevel('medium')" data-i18n="queens_lvl_medium">7×7</button>
+              <button type="button" class="segmented__item" data-value="hard" onclick="setQueensLevel('hard')" data-i18n="queens_lvl_hard">8×8</button>
+            </div>
+            <p class="field__hint" id="queens-best"></p>
+          </div>
+          <div class="btn-stack">
+            <div id="queens-daily"></div>
+            <button type="button" id="queens-continue" class="btn btn--secondary hidden" onclick="continueQueens()" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startQueens(false)" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-queens" class="hidden" data-accent="amber"><div id="queens-stage"></div></div>
+
+      <div id="view-setup-tango" class="hidden" data-accent="blue">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="solo_level">المستوى</label>
+            <div class="segmented" id="tango-level" role="group">
+              <button type="button" class="segmented__item is-active" data-value="easy" onclick="setTangoLevel('easy')" data-i18n="solo_lvl_easy">سهل</button>
+              <button type="button" class="segmented__item" data-value="medium" onclick="setTangoLevel('medium')" data-i18n="solo_lvl_medium">متوسط</button>
+              <button type="button" class="segmented__item" data-value="hard" onclick="setTangoLevel('hard')" data-i18n="solo_lvl_hard">صعب</button>
+            </div>
+            <p class="field__hint" id="tango-best"></p>
+          </div>
+          <div class="btn-stack">
+            <div id="tango-daily"></div>
+            <button type="button" id="tango-continue" class="btn btn--secondary hidden" onclick="continueTango()" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startTango(false)" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-tango" class="hidden" data-accent="blue"><div id="tango-stage"></div></div>
+
+      <div id="view-setup-nonogram" class="hidden" data-accent="green">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="solo_level">المستوى</label>
+            <div class="segmented" id="nonogram-level" role="group">
+              <button type="button" class="segmented__item is-active" data-value="easy" onclick="setNonogramLevel('easy')" data-i18n="nono_lvl_easy">5×5</button>
+              <button type="button" class="segmented__item" data-value="medium" onclick="setNonogramLevel('medium')" data-i18n="nono_lvl_medium">8×8</button>
+              <button type="button" class="segmented__item" data-value="hard" onclick="setNonogramLevel('hard')" data-i18n="nono_lvl_hard">10×10</button>
+            </div>
+            <p class="field__hint" id="nonogram-best"></p>
+          </div>
+          <div class="btn-stack">
+            <div id="nonogram-daily"></div>
+            <button type="button" id="nonogram-continue" class="btn btn--secondary hidden" onclick="continueNonogram()" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startNonogram(false)" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-nonogram" class="hidden" data-accent="green"><div id="nonogram-stage"></div></div>
 
       <div id="view-setup-xo" class="hidden" data-accent="blue">
         <div class="card">
@@ -11724,6 +11903,24 @@ const stopWordKnown = (lang, cat, text) => {
       mines_lost: "بووم! 💥",
       mines_lost_line: "دوست على لغم. جرّب تاني!",
       mines_won: "نضّفت الأرض! 🚩",
+      setup_queens: "الملكات",
+      cat_queens: "تاج واحد في كل صف وعمود ولون، ومفيش تاجين جنب بعض.",
+      queens_placed: "التيجان",
+      queens_hint: "لمسة ✕، لمستين 👑، واسحب عشان تعلّم ✕ على كذا خانة",
+      queens_clear: "امسح الكل",
+      queens_lvl_easy: "سهل · 6×6",
+      queens_lvl_medium: "متوسط · 7×7",
+      queens_lvl_hard: "صعب · 8×8",
+      setup_tango: "شمس وقمر",
+      cat_tango: "كل صف وعمود فيه 3 شموس و3 أقمار، ومفيش 3 زي بعض ورا بعض.",
+      tango_hint: "= يعني الخانتين زي بعض، × يعني مختلفين",
+      setup_nonogram: "نونوجرام",
+      cat_nonogram: "الأرقام بتقولك كام خانة متلونة ورا بعض. لوّن وطلّع الصورة.",
+      nono_fill: "لوّن",
+      nono_cross: "علّم",
+      nono_lvl_easy: "سهل · 5×5",
+      nono_lvl_medium: "متوسط · 8×8",
+      nono_lvl_hard: "صعب · 10×10",
       cat_xo: "3 في صف واحد. ضد صاحبك أو ضد الموبايل.",
       cat_guessnum: "رقم مخفي: أعلى ولا أقل؟ لوحدك أو مع صاحبك.",
       cat_reaction: "اتنين على شاشة واحدة: أول واحد يضغط لما تبقى خضرا.",
@@ -12823,6 +13020,24 @@ const stopWordKnown = (lang, cat, text) => {
       mines_lost: "Boom! 💥",
       mines_lost_line: "You hit a mine. Try again!",
       mines_won: "Field cleared! 🚩",
+      setup_queens: "Queens",
+      cat_queens: "One crown in every row, column and colour, and no two touching.",
+      queens_placed: "Crowns",
+      queens_hint: "Tap for ✕, twice for 👑; drag to mark ✕ on many cells",
+      queens_clear: "Clear",
+      queens_lvl_easy: "Easy · 6×6",
+      queens_lvl_medium: "Medium · 7×7",
+      queens_lvl_hard: "Hard · 8×8",
+      setup_tango: "Tango",
+      cat_tango: "Three suns and three moons in every row and column, never three alike in a row.",
+      tango_hint: "= means the two cells match, × means they differ",
+      setup_nonogram: "Nonogram",
+      cat_nonogram: "The numbers say how many cells in a row are filled. Fill them to reveal a picture.",
+      nono_fill: "Fill",
+      nono_cross: "Mark",
+      nono_lvl_easy: "Easy · 5×5",
+      nono_lvl_medium: "Medium · 8×8",
+      nono_lvl_hard: "Hard · 10×10",
       cat_xo: "Three in a row. Against a friend or the phone.",
       cat_guessnum: "A hidden number: higher or lower? Solo or with a friend.",
       cat_reaction: "Two on one screen: first to tap when it turns green.",
@@ -14048,6 +14263,12 @@ const stopWordKnown = (lang, cat, text) => {
     'play-g2048':      { title: 'setup_g2048',      up: 'setup-g2048',    accent: 'orange' },
     'setup-mines':     { title: 'setup_mines',      up: 'menu',           accent: 'teal' },
     'play-mines':      { title: 'setup_mines',      up: 'setup-mines',    accent: 'teal' },
+    'setup-queens':    { title: 'setup_queens',     up: 'menu',           accent: 'amber' },
+    'play-queens':     { title: 'setup_queens',     up: 'setup-queens',   accent: 'amber' },
+    'setup-tango':     { title: 'setup_tango',      up: 'menu',           accent: 'blue' },
+    'play-tango':      { title: 'setup_tango',      up: 'setup-tango',    accent: 'blue' },
+    'setup-nonogram':  { title: 'setup_nonogram',   up: 'menu',           accent: 'green' },
+    'play-nonogram':   { title: 'setup_nonogram',   up: 'setup-nonogram', accent: 'green' },
     'play-chooser':    { title: 'tool_chooser',     up: 'menu',           accent: 'orange' },
     'room-buzzer':     { title: 'setup_buzzer',     up: 'menu',           accent: 'rose' },
     'room-stop':       { title: 'setup_stop',       up: 'menu',           accent: 'green' },
@@ -14916,6 +15137,27 @@ const GAME_RULES = {
                 <li>رقم حواليه علامات بعدده؟ دوس عليه يفتح الباقي مرة واحدة.</li>
                 <li>أول لمسة دايماً أمان. دوست على لغم؟ خسرت.</li>
             </ol>`,
+        queens: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>اللوحة مقسومة ألوان. حط <b>👑 تاج واحد</b> في كل صف، وكل عمود، وكل لون.</li>
+                <li>مفيش تاجين يلمسوا بعض، ولا حتى من الركن.</li>
+                <li>لمسة بتحط ✕ (خانة متأكد إنها فاضية)، ولمسة تانية بتحط 👑، وتالتة بتمسح. اسحب صباعك عشان تحط ✕ على كذا خانة مرة واحدة.</li>
+                <li>التاج اللي بيكسر قاعدة بيتعلم بالأحمر. كل لوحة ليها حل واحد بس.</li>
+            </ol>`,
+        tango: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>لوحة 6×6. املاها ☀️ و🌙: كل صف وكل عمود فيه <b>3 شموس و3 أقمار</b>.</li>
+                <li>مفيش 3 زي بعض ورا بعض، لا أفقي ولا رأسي.</li>
+                <li>العلامة <b>=</b> بين خانتين يعني زي بعض، و<b>×</b> يعني مختلفين.</li>
+                <li>لمسة ☀️، لمستين 🌙، تالتة تمسح. الغلط بيتعلم بالأحمر، وكل لوحة ليها حل واحد.</li>
+            </ol>`,
+        nonogram: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>الأرقام جنب كل صف وفوق كل عمود بتقول <b>مجموعات الخانات الملوّنة</b> بالترتيب: «3 1» يعني 3 ورا بعض، فاصل، وبعدين 1.</li>
+                <li>اختار <b>⬛ لوّن</b> ولوّن، أو <b>✕ علّم</b> على خانة متأكد إنها فاضية. اسحب صباعك تلوّن كذا خانة.</li>
+                <li>الصف أو العمود اللي خلص بيبهت رقمه. لما كل الخانات تبقى صح بتظهر الصورة.</li>
+                <li>كل لغز بيتحل بالمنطق من غير تخمين. <b>سهل</b> 5×5، <b>متوسط</b> 8×8، <b>صعب</b> 10×10.</li>
+            </ol>`,
         dice: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>نرد واحد أو اتنين بدل الزهر الحقيقي.</li>
@@ -15371,6 +15613,27 @@ const GAME_RULES = {
                 <li>A number with as many flags around it as it says? Tap it to open the rest at once.</li>
                 <li>The first tap is always safe. Hit a mine and you lose.</li>
             </ol>`,
+        queens: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>The board is split into colours. Place <b>one 👑</b> in every row, every column and every colour.</li>
+                <li>No two crowns may touch, not even corner to corner.</li>
+                <li>One tap marks ✕ (a cell you know is empty), a second places 👑, a third clears. Drag to mark ✕ on many cells at once.</li>
+                <li>A crown that breaks a rule turns red. Every board has exactly one solution.</li>
+            </ol>`,
+        tango: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>A 6×6 board. Fill it with ☀️ and 🌙: every row and column holds <b>three of each</b>.</li>
+                <li>Never three of the same side by side, across or down.</li>
+                <li>An <b>=</b> between two cells means they match; <b>×</b> means they differ.</li>
+                <li>Tap once for ☀️, twice for 🌙, a third time to clear. Mistakes turn red; every board has one solution.</li>
+            </ol>`,
+        nonogram: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>The numbers beside each row and above each column are its <b>groups of filled cells</b>, in order: "3 1" is three in a row, a gap, then one.</li>
+                <li>Choose <b>⬛ Fill</b> and fill, or <b>✕ Mark</b> a cell you know is empty. Drag to paint several cells.</li>
+                <li>A finished row or column fades its numbers. When every cell is right the picture appears.</li>
+                <li>Every puzzle can be solved by logic, with no guessing. <b>Easy</b> 5×5, <b>medium</b> 8×8, <b>hard</b> 10×10.</li>
+            </ol>`,
         dice: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>One or two dice instead of the real thing.</li>
@@ -15456,6 +15719,9 @@ const GAME_CATALOG = [
   { id: 'sudoku',     icon: '#️⃣',   title: 'setup_sudoku',     desc: 'cat_sudoku',     accent: 'indigo', players: [1, 1],  mins: 10, modes: ['device'],               group: 'puzzle', setup: 'setup-sudoku', open: () => setupSudoku() },
   { id: 'g2048',      icon: '🔷',   title: 'setup_g2048',      desc: 'cat_g2048',      accent: 'orange', players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-g2048',  open: () => setup2048() },
   { id: 'mines',      icon: '🚩',   title: 'setup_mines',      desc: 'cat_mines',      accent: 'teal',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-mines',  open: () => setupMines() },
+  { id: 'queens',     icon: '👑',   title: 'setup_queens',     desc: 'cat_queens',     accent: 'amber',  players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-queens',   open: () => setupQueens() },
+  { id: 'tango',      icon: '☀️',   title: 'setup_tango',      desc: 'cat_tango',      accent: 'blue',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-tango',    open: () => setupTango() },
+  { id: 'nonogram',   icon: '🖼️',   title: 'setup_nonogram',   desc: 'cat_nonogram',   accent: 'green',  players: [1, 1],  mins: 8,  modes: ['device'],               group: 'puzzle', setup: 'setup-nonogram', open: () => setupNonogram() },
   { id: 'guessnum',   icon: '🔢',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 2],  mins: 3,  modes: ['device'],               group: 'duo', setup: 'setup-guessnum',    open: () => setupGuessNumber() },
   { id: 'reaction',   icon: '⚡',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-reaction',    open: () => setView('setup-reaction') },
 
@@ -18296,6 +18562,9 @@ const HELP_ENTRIES = [
   { key: 'sudoku',      title: 'setup_sudoku',      icon: '#️⃣', accent: 'indigo', group: 'games' },
   { key: 'g2048',       title: 'setup_g2048',       icon: '🔷', accent: 'orange', group: 'games' },
   { key: 'mines',       title: 'setup_mines',       icon: '🚩', accent: 'teal',   group: 'games' },
+  { key: 'queens',      title: 'setup_queens',      icon: '👑', accent: 'amber',  group: 'games' },
+  { key: 'tango',       title: 'setup_tango',       icon: '☀️', accent: 'blue',   group: 'games' },
+  { key: 'nonogram',    title: 'setup_nonogram',    icon: '🖼️', accent: 'green',  group: 'games' },
   { key: 'buzzer',      title: 'setup_buzzer',      icon: '🔔', accent: 'rose',   group: 'games', roomOnly: true },
 
   { key: 'chooser',   title: 'tool_chooser',    icon: '👆', accent: 'orange', group: 'tools' },
@@ -18349,6 +18618,9 @@ const HELP_FOR_VIEW = {
   'setup-sudoku': 'sudoku', 'play-sudoku': 'sudoku',
   'setup-g2048': 'g2048', 'play-g2048': 'g2048',
   'setup-mines': 'mines', 'play-mines': 'mines',
+  'setup-queens': 'queens', 'play-queens': 'queens',
+  'setup-tango': 'tango', 'play-tango': 'tango',
+  'setup-nonogram': 'nonogram', 'play-nonogram': 'nonogram',
   'play-chooser': 'chooser', 'room-buzzer': 'buzzer', 'room-stop': 'stop',
   'room-chameleon': 'chameleon', 'room-spyfall': 'spyfall', 'room-bomb': 'bomb',
   'setup-emoji': 'emoji', 'play-emoji': 'emoji', 'room-emoji': 'emoji',
@@ -37553,6 +37825,1082 @@ function restoreMines() {
 }
 
 soloRegister('mines', { setup: 'setup-mines', play: 'play-mines', paintSetup: paintMinesSetup, restore: restoreMines });
+</script>
+
+    <script>
+/* ============================================================================
+   الملكات — QUEENS
+   ----------------------------------------------------------------------------
+   A square board split into coloured regions. Place one 👑 in every row,
+   every column and every colour region, and no two crowns may touch, not even
+   corner to corner. A tap marks ✕, a second tap places 👑, a third clears;
+   dragging across empty cells marks ✕ as you go.
+
+   The board is made here: a random placement of crowns that don't touch
+   (queensPlace), one region grown from each crown at random (queensGrow),
+   then a fix loop - while queensSolve finds a second solution, one of that
+   solution's cells is handed to a neighbouring region, which breaks it -
+   until exactly one solution is left. 6×6 easy, 7×7 medium, 8×8 hard; the
+   daily is 7×7 from the seed. The board is in appState.queens.
+   ========================================================================= */
+
+const QUEENS_SIZES = { easy: 6, medium: 7, hard: 8 };
+let queensTimer = null;
+let queensDrag = null;
+
+function queensState() {
+  if (!appState.queens) {
+    appState.queens = { level: 'easy', daily: '', n: 6, regions: [], solution: [], marks: [], startedAt: 0, phase: 'setup' };
+  }
+  return appState.queens;
+}
+
+/* --- The board ---------------------------------------------------------------- */
+
+/** Columns for each row such that no two crowns share a column or touch. */
+function queensPlace(n, rnd) {
+  const cols = [];
+  const used = new Set();
+  const go = (r) => {
+    if (r === n) return true;
+    for (const c of soloShuffle(Array.from({ length: n }, (_, k) => k), rnd)) {
+      if (used.has(c) || (r > 0 && Math.abs(cols[r - 1] - c) <= 1)) continue;
+      cols[r] = c; used.add(c);
+      if (go(r + 1)) return true;
+      used.delete(c);
+    }
+    return false;
+  };
+  return go(0) ? cols.slice() : null;
+}
+
+/** One region per crown, grown at random until every cell belongs to one. */
+function queensGrow(n, cols, rnd) {
+  const regions = new Array(n * n).fill(-1);
+  cols.forEach((c, r) => { regions[r * n + c] = r; });
+  let left = n * n - n;
+  while (left > 0) {
+    const frontier = [];
+    for (let i = 0; i < n * n; i++) {
+      if (regions[i] !== -1) continue;
+      const r = Math.floor(i / n), c = i % n;
+      [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].forEach(([rr, cc]) => {
+        if (rr >= 0 && rr < n && cc >= 0 && cc < n && regions[rr * n + cc] !== -1) frontier.push([i, regions[rr * n + cc]]);
+      });
+    }
+    const [cell, region] = frontier[Math.floor(rnd() * frontier.length)];
+    regions[cell] = region;
+    left--;
+  }
+  return regions;
+}
+
+/** Up to `limit` solutions, each as the column of the crown in every row. */
+function queensSolve(n, regions, limit) {
+  const found = [];
+  const cols = [];
+  const usedCol = new Array(n).fill(false);
+  const usedReg = new Array(n).fill(false);
+  const go = (r) => {
+    if (r === n) { found.push(cols.slice()); return found.length >= limit; }
+    for (let c = 0; c < n; c++) {
+      const reg = regions[r * n + c];
+      if (usedCol[c] || usedReg[reg] || (r > 0 && Math.abs(cols[r - 1] - c) <= 1)) continue;
+      cols[r] = c; usedCol[c] = true; usedReg[reg] = true;
+      if (go(r + 1)) return true;
+      usedCol[c] = false; usedReg[reg] = false;
+    }
+    return false;
+  };
+  go(0);
+  return found;
+}
+
+function queensConnected(n, regions, region, without) {
+  const cells = [];
+  for (let i = 0; i < n * n; i++) if (regions[i] === region && i !== without) cells.push(i);
+  if (!cells.length) return false;
+  const seen = new Set([cells[0]]);
+  const stack = [cells[0]];
+  while (stack.length) {
+    const i = stack.pop();
+    const r = Math.floor(i / n), c = i % n;
+    [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].forEach(([rr, cc]) => {
+      const k = rr * n + cc;
+      if (rr >= 0 && rr < n && cc >= 0 && cc < n && k !== without && regions[k] === region && !seen.has(k)) { seen.add(k); stack.push(k); }
+    });
+  }
+  return seen.size === cells.length;
+}
+
+/** { n, regions, solution } with exactly one solution. */
+function queensMake(level, rnd) {
+  const n = QUEENS_SIZES[level] || 6;
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const cols = queensPlace(n, rnd);
+    if (!cols) continue;
+    const regions = queensGrow(n, cols, rnd);
+    for (let fix = 0; fix < 120; fix++) {
+      const sols = queensSolve(n, regions, 2);
+      if (sols.length === 1) return { n: n, regions: regions, solution: cols };
+      const alt = sols.find(s => s.some((c, r) => c !== cols[r]));
+      if (!alt) break;
+      // Hand one of the other solution's crown cells to a neighbouring region.
+      const rows = soloShuffle(Array.from({ length: n }, (_, r) => r).filter(r => alt[r] !== cols[r]), rnd);
+      let moved = false;
+      for (const r of rows) {
+        const cell = r * n + alt[r];
+        const from = regions[cell];
+        const c = alt[r];
+        const targets = soloShuffle([[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]
+          .filter(([rr, cc]) => rr >= 0 && rr < n && cc >= 0 && cc < n)
+          .map(([rr, cc]) => regions[rr * n + cc]).filter(g => g !== from), rnd);
+        if (!targets.length || !queensConnected(n, regions, from, cell)) continue;
+        regions[cell] = targets[0];
+        moved = true;
+        break;
+      }
+      if (!moved) break;
+    }
+  }
+  return null;
+}
+
+/* --- Setup and play -------------------------------------------------------------- */
+
+function setupQueens() {
+  queensStopTimer();
+  setView('setup-queens');
+}
+
+function paintQueensSetup() {
+  const s = queensState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#queens-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('queens', s.level);
+  const el = document.getElementById('queens-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('queens-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('queens-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('queens', 'startQueens(true)');
+}
+
+function setQueensLevel(level) {
+  queensState().level = level;
+  saveToLocal();
+  paintQueensSetup();
+}
+
+function startQueens(daily) {
+  const s = queensState();
+  const level = daily ? 'medium' : s.level;
+  const made = queensMake(level, soloRandom(daily ? soloDaySeed('queens') : null));
+  if (!made) { showToast('…', 'error'); return; }
+  s.daily = daily ? soloToday() : '';
+  s.playLevel = level;
+  s.n = made.n;
+  s.regions = made.regions;
+  s.solution = made.solution;
+  s.marks = new Array(made.n * made.n).fill(0);   // 0 empty, 1 ✕, 2 👑
+  s.startedAt = Date.now();
+  s.phase = 'play';
+  saveToLocal();
+  setView('play-queens');
+  paintQueens();
+  queensArmTimer();
+}
+
+function continueQueens() {
+  if (queensState().phase !== 'play') return;
+  setView('play-queens');
+  paintQueens();
+  queensArmTimer();
+}
+
+function queensArmTimer() {
+  queensStopTimer();
+  queensTimer = soloClock('queens-time', queensState().startedAt);
+}
+
+function queensStopTimer() {
+  if (queensTimer) queensTimer.stop();
+  queensTimer = null;
+}
+
+/** Crowns that break a rule: same row, column or region, or touching. */
+function queensConflicts(s) {
+  const n = s.n;
+  const crowns = [];
+  s.marks.forEach((m, i) => { if (m === 2) crowns.push(i); });
+  const bad = new Set();
+  for (let a = 0; a < crowns.length; a++) for (let b = a + 1; b < crowns.length; b++) {
+    const i = crowns[a], j = crowns[b];
+    const ri = Math.floor(i / n), ci = i % n, rj = Math.floor(j / n), cj = j % n;
+    if (ri === rj || ci === cj || s.regions[i] === s.regions[j] || (Math.abs(ri - rj) <= 1 && Math.abs(ci - cj) <= 1)) { bad.add(i); bad.add(j); }
+  }
+  return bad;
+}
+
+function paintQueens() {
+  const s = queensState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('queens-stage');
+  if (!el || !s.regions.length) return;
+  const n = s.n;
+  const bad = queensConflicts(s);
+  const crowns = s.marks.filter(m => m === 2).length;
+  const bar = soloBarHtml([
+    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: `${n}×${n}` },
+    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'queens-time' },
+    { label: t.queens_placed || '', value: `${crowns}/${n}`, id: 'queens-count' }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+      <div class="solo-layout__board">
+        <div class="queens-grid" id="queens-grid" dir="ltr" style="--q-n:${n}">
+          ${s.regions.map((g, i) => {
+            const r = Math.floor(i / n), c = i % n;
+            const edge = (rr, cc) => rr < 0 || rr >= n || cc < 0 || cc >= n || s.regions[rr * n + cc] !== g;
+            const cls = ['queens-cell', 'q' + g,
+              edge(r - 1, c) ? 'bt' : '', edge(r + 1, c) ? 'bb' : '', edge(r, c - 1) ? 'bl' : '', edge(r, c + 1) ? 'br' : '',
+              bad.has(i) ? 'is-bad' : ''].filter(Boolean).join(' ');
+            const mark = s.marks[i] === 2 ? '👑' : (s.marks[i] === 1 ? '✕' : '');
+            return `<button type="button" class="${cls}" data-i="${i}" onpointerdown="queensDown(event, ${i})">${mark}</button>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="solo-layout__side">
+        ${bar}
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.queens_hint || '')}</p>
+        <div class="sdk-tools">
+          <button type="button" class="btn btn--neutral btn--sm" onclick="clearQueens()">🧹 ${escapeHTML(t.queens_clear || '')}</button>
+          <button type="button" class="btn btn--neutral btn--sm" onclick="hintQueens()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+        </div>
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupQueens()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+/* A tap cycles ✕ → 👑 → empty; a drag from an empty cell marks ✕ along the way. */
+function queensDown(e, i) {
+  const s = queensState();
+  if (s.phase !== 'play') return;
+  e.preventDefault();
+  queensDrag = { start: i, moved: false, painted: new Set([i]) };
+  const grid = document.getElementById('queens-grid');
+  const move = (ev) => {
+    const cell = soloCellAt(ev.clientX, ev.clientY, '.queens-cell');
+    if (!cell || !queensDrag) return;
+    const k = Number(cell.dataset.i);
+    if (queensDrag.painted.has(k)) return;
+    if (!queensDrag.moved) {
+      if (s.marks[queensDrag.start] !== 0) return;       // a drag only marks from an empty start
+      queensDrag.moved = true;
+      s.marks[queensDrag.start] = 1;
+    }
+    queensDrag.painted.add(k);
+    if (s.marks[k] === 0) { s.marks[k] = 1; cell.textContent = '✕'; }
+    const first = grid && grid.querySelector(`[data-i="${queensDrag.start}"]`);
+    if (first && s.marks[queensDrag.start] === 1) first.textContent = '✕';
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    document.removeEventListener('pointercancel', up);
+    const d = queensDrag;
+    queensDrag = null;
+    if (!d) return;
+    if (!d.moved) s.marks[i] = (s.marks[i] + 1) % 3;
+    saveToLocal();
+    paintQueens();
+    if (!d.moved && s.marks[i] === 2) haptic('light');
+    queensCheck();
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+  document.addEventListener('pointercancel', up);
+}
+
+function clearQueens() {
+  const s = queensState();
+  if (s.phase !== 'play') return;
+  s.marks = s.marks.map(() => 0);
+  saveToLocal();
+  paintQueens();
+}
+
+/** Places one right crown (or takes away a wrong one). */
+function hintQueens() {
+  const s = queensState();
+  if (s.phase !== 'play') return;
+  const n = s.n;
+  const wrong = s.marks.findIndex((m, i) => m === 2 && s.solution[Math.floor(i / n)] !== i % n);
+  if (wrong !== -1) { s.marks[wrong] = 0; }
+  else {
+    const row = s.solution.findIndex((c, r) => s.marks[r * n + c] !== 2);
+    if (row === -1) return;
+    s.marks[row * n + s.solution[row]] = 2;
+  }
+  s.hints = (s.hints || 0) + 1;
+  saveToLocal();
+  paintQueens();
+  queensCheck();
+}
+
+function queensCheck() {
+  const s = queensState();
+  const n = s.n;
+  const ok = s.solution.every((c, r) => s.marks[r * n + c] === 2) && s.marks.filter(m => m === 2).length === n;
+  if (!ok || s.phase !== 'play') return;
+  queensStopTimer();
+  s.phase = 'done';
+  const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  saveToLocal();
+  const t = TRANSLATIONS[appState.lang];
+  // The crowns bounce in order, row by row.
+  if (!motionOff()) {
+    s.solution.forEach((c, r) => {
+      const cell = document.querySelector(`#queens-grid [data-i="${r * n + c}"]`);
+      if (cell && cell.animate) cell.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 380, delay: r * 90, easing: 'ease-out' });
+    });
+  }
+  const level = s.playLevel || s.level;
+  const rec = s.hints ? { record: false, prev: soloBest('queens', level) }
+    : soloRecord('queens', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('queens', { seconds: seconds });
+    share = `${soloShareHeader(t)}\n👑 ${t.setup_queens || ''} ✅ ${soloTime(seconds)}`;
+  }
+  const lines = [];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: '👑', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    again: () => startQueens(false), exit: setupQueens
+  }), motionOff() ? 0 : n * 90 + 400);
+}
+
+function restoreQueens() {
+  const s = queensState();
+  if (s.phase !== 'play' || !s.regions.length) return false;
+  paintQueens();
+  queensArmTimer();
+  return true;
+}
+
+soloRegister('queens', { setup: 'setup-queens', play: 'play-queens', paintSetup: paintQueensSetup, restore: restoreQueens });
+</script>
+
+    <script>
+/* ============================================================================
+   شمس وقمر — TANGO
+   ----------------------------------------------------------------------------
+   A 6×6 grid of ☀️ and 🌙. Every row and column holds three of each, never
+   three of the same side by side, and the signs between cells hold: = means
+   the two are the same, × means they differ. A tap cycles ☀️ → 🌙 → empty.
+
+   Made here: a full valid grid at random (tangoFill), then clues - given
+   cells and signs - added in a random order until tangoCount finds exactly
+   one solution, and taken away again while it still does. Easy keeps some
+   of the removed givens back; hard stays minimal. The daily comes from the
+   seed. The board is in appState.tango.
+   ========================================================================= */
+
+const TANGO_N = 6;
+let tangoTimer = null;
+
+function tangoState() {
+  if (!appState.tango) {
+    appState.tango = { level: 'easy', daily: '', solution: [], givens: [], signs: [], cells: [], startedAt: 0, phase: 'setup' };
+  }
+  return appState.tango;
+}
+
+/* --- The puzzle ---------------------------------------------------------------- */
+
+/** Whether value v fits at i with the rows and columns filled so far (0 empty, 1 sun, 2 moon). */
+function tangoFits(g, i, v) {
+  const N = TANGO_N;
+  const r = Math.floor(i / N), c = i % N;
+  let rowCount = 0, colCount = 0;
+  for (let k = 0; k < N; k++) {
+    if (g[r * N + k] === v) rowCount++;
+    if (g[k * N + c] === v) colCount++;
+  }
+  if (g[i] !== v) { rowCount++; colCount++; }
+  if (rowCount > N / 2 || colCount > N / 2) return false;
+  const at = (rr, cc) => (rr === r && cc === c) ? v : g[rr * N + cc];
+  for (let k = Math.max(0, c - 2); k <= Math.min(N - 3, c); k++) {
+    if (at(r, k) === v && at(r, k + 1) === v && at(r, k + 2) === v) return false;
+  }
+  for (let k = Math.max(0, r - 2); k <= Math.min(N - 3, r); k++) {
+    if (at(k, c) === v && at(k + 1, c) === v && at(k + 2, c) === v) return false;
+  }
+  return true;
+}
+
+function tangoFill(rnd) {
+  const g = new Array(TANGO_N * TANGO_N).fill(0);
+  const go = (i) => {
+    if (i === g.length) return true;
+    for (const v of soloShuffle([1, 2], rnd)) {
+      if (!tangoFits(g, i, v)) continue;
+      g[i] = v;
+      if (go(i + 1)) return true;
+      g[i] = 0;
+    }
+    return false;
+  };
+  go(0);
+  return g;
+}
+
+/** How many solutions (up to limit) given cells and signs [{ a, b, same }]. */
+function tangoCount(givens, signs, limit) {
+  const g = givens.slice();
+  const bySign = {};
+  signs.forEach(s => { (bySign[s.a] = bySign[s.a] || []).push(s); (bySign[s.b] = bySign[s.b] || []).push(s); });
+  let found = 0;
+  const signOk = (i) => (bySign[i] || []).every(s => {
+    const x = g[s.a], y = g[s.b];
+    return !x || !y || (s.same ? x === y : x !== y);
+  });
+  const go = (i) => {
+    if (i === g.length) { found++; return found >= limit; }
+    if (givens[i]) return signOk(i) && go(i + 1);
+    for (const v of [1, 2]) {
+      if (!tangoFits(g, i, v)) continue;
+      g[i] = v;
+      if (signOk(i) && go(i + 1)) return true;
+      g[i] = 0;
+    }
+    return false;
+  };
+  // Given cells must themselves be consistent.
+  for (let i = 0; i < g.length; i++) if (g[i]) { const v = g[i]; g[i] = 0; const ok = tangoFits(g, i, v); g[i] = v; if (!ok) return 0; }
+  go(0);
+  return found;
+}
+
+function tangoMake(level, rnd) {
+  const N = TANGO_N;
+  const solution = tangoFill(rnd);
+  const pool = [];
+  for (let i = 0; i < N * N; i++) {
+    pool.push({ kind: 'cell', i: i });
+    if (i % N < N - 1) pool.push({ kind: 'sign', a: i, b: i + 1 });
+    if (i + N < N * N) pool.push({ kind: 'sign', a: i, b: i + N });
+  }
+  const chosen = [];
+  const build = (list) => {
+    const givens = new Array(N * N).fill(0);
+    const signs = [];
+    list.forEach(cl => {
+      if (cl.kind === 'cell') givens[cl.i] = solution[cl.i];
+      else signs.push({ a: cl.a, b: cl.b, same: solution[cl.a] === solution[cl.b] });
+    });
+    return { givens: givens, signs: signs };
+  };
+  for (const clue of soloShuffle(pool, rnd)) {
+    chosen.push(clue);
+    const b = build(chosen);
+    if (tangoCount(b.givens, b.signs, 2) === 1) break;
+  }
+  // Take clues away again while the solution stays the only one.
+  const removed = [];
+  for (const clue of soloShuffle(chosen.slice(), rnd)) {
+    const without = chosen.filter(x => x !== clue);
+    const b = build(without);
+    if (tangoCount(b.givens, b.signs, 2) === 1) { chosen.splice(chosen.indexOf(clue), 1); removed.push(clue); }
+  }
+  // Easy gets a few of the removed given cells back.
+  if (level !== 'hard') {
+    const extra = removed.filter(x => x.kind === 'cell').slice(0, level === 'easy' ? 5 : 2);
+    extra.forEach(x => chosen.push(x));
+  }
+  const b = build(chosen);
+  return { solution: solution, givens: b.givens, signs: b.signs };
+}
+
+/* --- Setup and play --------------------------------------------------------------- */
+
+function setupTango() {
+  tangoStopTimer();
+  setView('setup-tango');
+}
+
+function paintTangoSetup() {
+  const s = tangoState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#tango-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('tango', s.level);
+  const el = document.getElementById('tango-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('tango-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('tango-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('tango', 'startTango(true)');
+}
+
+function setTangoLevel(level) {
+  tangoState().level = level;
+  saveToLocal();
+  paintTangoSetup();
+}
+
+function startTango(daily) {
+  const s = tangoState();
+  const level = daily ? 'medium' : s.level;
+  const made = tangoMake(level, soloRandom(daily ? soloDaySeed('tango') : null));
+  s.daily = daily ? soloToday() : '';
+  s.playLevel = level;
+  s.solution = made.solution;
+  s.givens = made.givens;
+  s.signs = made.signs;
+  s.cells = made.givens.slice();
+  s.hints = 0;
+  s.startedAt = Date.now();
+  s.phase = 'play';
+  saveToLocal();
+  setView('play-tango');
+  paintTango();
+  tangoArmTimer();
+}
+
+function continueTango() {
+  if (tangoState().phase !== 'play') return;
+  setView('play-tango');
+  paintTango();
+  tangoArmTimer();
+}
+
+function tangoArmTimer() {
+  tangoStopTimer();
+  tangoTimer = soloClock('tango-time', tangoState().startedAt);
+}
+
+function tangoStopTimer() {
+  if (tangoTimer) tangoTimer.stop();
+  tangoTimer = null;
+}
+
+/** Cells breaking a rule right now: a row or column over three of a kind, three in a row, a sign. */
+function tangoProblems(s) {
+  const N = TANGO_N;
+  const g = s.cells;
+  const bad = new Set();
+  for (let k = 0; k < N; k++) {
+    [1, 2].forEach(v => {
+      const row = [], col = [];
+      for (let j = 0; j < N; j++) { if (g[k * N + j] === v) row.push(k * N + j); if (g[j * N + k] === v) col.push(j * N + k); }
+      if (row.length > N / 2) row.forEach(i => bad.add(i));
+      if (col.length > N / 2) col.forEach(i => bad.add(i));
+    });
+    for (let j = 0; j <= N - 3; j++) {
+      const a = k * N + j;
+      if (g[a] && g[a] === g[a + 1] && g[a] === g[a + 2]) [a, a + 1, a + 2].forEach(i => bad.add(i));
+      const b = j * N + k;
+      if (g[b] && g[b] === g[b + N] && g[b] === g[b + 2 * N]) [b, b + N, b + 2 * N].forEach(i => bad.add(i));
+    }
+  }
+  s.signs.forEach(x => {
+    if (g[x.a] && g[x.b] && (x.same ? g[x.a] !== g[x.b] : g[x.a] === g[x.b])) { bad.add(x.a); bad.add(x.b); }
+  });
+  return bad;
+}
+
+function paintTango() {
+  const s = tangoState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('tango-stage');
+  if (!el || !s.solution.length) return;
+  const N = TANGO_N;
+  const bad = tangoProblems(s);
+  const signAt = {};
+  s.signs.forEach(x => { signAt[x.a + '-' + x.b] = x.same ? '=' : '×'; });
+  const bar = soloBarHtml([
+    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: escapeHTML(t['solo_lvl_' + (s.playLevel || s.level)] || '') },
+    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'tango-time' }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+      <div class="solo-layout__board">
+        <div class="tango-grid" id="tango-grid" dir="ltr">
+          ${s.cells.map((v, i) => {
+            const right = i % N < N - 1 ? signAt[i + '-' + (i + 1)] : '';
+            const down = i + N < N * N ? signAt[i + '-' + (i + N)] : '';
+            const cls = ['tango-cell', s.givens[i] ? 'is-given' : '', bad.has(i) ? 'is-bad' : ''].filter(Boolean).join(' ');
+            return `<button type="button" class="${cls}" data-i="${i}" onclick="tapTango(${i})">
+                      <span class="tango-mark">${v === 1 ? '☀️' : v === 2 ? '🌙' : ''}</span>
+                      ${right ? `<i class="tango-sign tango-sign--right">${right}</i>` : ''}
+                      ${down ? `<i class="tango-sign tango-sign--down">${down}</i>` : ''}
+                    </button>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="solo-layout__side">
+        ${bar}
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.tango_hint || '')}</p>
+        <div class="sdk-tools">
+          <button type="button" class="btn btn--neutral btn--sm" onclick="clearTango()">🧹 ${escapeHTML(t.queens_clear || '')}</button>
+          <button type="button" class="btn btn--neutral btn--sm" onclick="hintTango()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+        </div>
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupTango()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+function tapTango(i) {
+  const s = tangoState();
+  if (s.phase !== 'play' || s.givens[i]) return;
+  s.cells[i] = (s.cells[i] + 1) % 3;
+  saveToLocal();
+  paintTango();
+  tangoCheck();
+}
+
+function clearTango() {
+  const s = tangoState();
+  if (s.phase !== 'play') return;
+  s.cells = s.givens.slice();
+  saveToLocal();
+  paintTango();
+}
+
+function hintTango() {
+  const s = tangoState();
+  if (s.phase !== 'play') return;
+  let i = s.cells.findIndex((v, k) => v && v !== s.solution[k]);
+  if (i === -1) i = s.cells.findIndex(v => !v);
+  if (i === -1) return;
+  s.cells[i] = s.solution[i];
+  s.hints = (s.hints || 0) + 1;
+  saveToLocal();
+  paintTango();
+  tangoCheck();
+}
+
+function tangoCheck() {
+  const s = tangoState();
+  if (s.phase !== 'play' || s.cells.some((v, i) => v !== s.solution[i])) return;
+  tangoStopTimer();
+  s.phase = 'done';
+  const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  saveToLocal();
+  const t = TRANSLATIONS[appState.lang];
+  if (!motionOff()) {
+    document.querySelectorAll('#tango-grid .tango-cell').forEach(cell => {
+      const i = Number(cell.dataset.i);
+      if (cell.animate) cell.animate([{ transform: 'rotateY(0)' }, { transform: 'rotateY(180deg)' }, { transform: 'rotateY(360deg)' }],
+        { duration: 520, delay: (Math.floor(i / TANGO_N) + i % TANGO_N) * 45, easing: 'ease-in-out' });
+    });
+  }
+  const level = s.playLevel || s.level;
+  const rec = s.hints ? { record: false, prev: soloBest('tango', level) }
+    : soloRecord('tango', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('tango', { seconds: seconds });
+    share = `${soloShareHeader(t)}\n☀️ ${t.setup_tango || ''} ✅ ${soloTime(seconds)}`;
+  }
+  const lines = [];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: '☀️', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    again: () => startTango(false), exit: setupTango
+  }), motionOff() ? 0 : 1000);
+}
+
+function restoreTango() {
+  const s = tangoState();
+  if (s.phase !== 'play' || !s.solution.length) return false;
+  paintTango();
+  tangoArmTimer();
+  return true;
+}
+
+soloRegister('tango', { setup: 'setup-tango', play: 'play-tango', paintSetup: paintTangoSetup, restore: restoreTango });
+</script>
+
+    <script>
+/* ============================================================================
+   نونوجرام — NONOGRAM (picture logic)
+   ----------------------------------------------------------------------------
+   The numbers beside each row and above each column are the runs of filled
+   cells in that line, in order: "3 1" is three filled, a gap, then one. Fill
+   the cells to reveal a picture. ⬛ fills, ✕ marks a cell you know is empty;
+   drag to paint several at once.
+
+   A board is either one of NONO_PICTURES (drawn by hand) or random. Either
+   way it is only used if nonoSolvable can finish it line by line - so it has
+   exactly one solution and never needs a guess. 5×5 easy (random), 8×8
+   medium and 10×10 hard (pictures or random); the daily is a 10×10 picture
+   from the seed. The board is in appState.nonogram.
+   ========================================================================= */
+
+const NONO_PICTURES = {
+  8: [
+    { ar: 'قلب', en: 'Heart', e: '❤️', rows: ['.##..##.', '########', '########', '########', '.######.', '..####..', '...##...', '........'] },
+    { ar: 'سهم', en: 'Arrow', e: '⬆️', rows: ['...##...', '..####..', '.######.', '########', '...##...', '...##...', '...##...', '...##...'] },
+    { ar: 'جرس', en: 'Bell', e: '🔔', rows: ['...##...', '..####..', '.######.', '.######.', '.######.', '########', '########', '...##...'] },
+    { ar: 'ألماسة', en: 'Diamond', e: '💎', rows: ['..####..', '.######.', '########', '.######.', '..####..', '...##...', '........', '........'] },
+    { ar: 'عربية', en: 'Car', e: '🚗', rows: ['........', '..####..', '.#.##.#.', '########', '########', '.##..##.', '........', '........'] }
+  ],
+  10: [
+    { ar: 'قلب', en: 'Heart', e: '❤️', rows: ['..........', '.##....##.', '####..####', '##########', '##########', '.########.', '..######..', '...####...', '....##....', '..........'] },
+    { ar: 'بيت', en: 'House', e: '🏠', rows: ['....##....', '...####...', '..######..', '.########.', '##########', '.########.', '.##....##.', '.##.##.##.', '.##.##.##.', '.########.'] },
+    { ar: 'قطة', en: 'Cat', e: '🐱', rows: ['#........#', '##......##', '###....###', '##########', '#.##..##.#', '##########', '####..####', '###.##.###', '.########.', '..######..'] },
+    { ar: 'شجرة', en: 'Tree', e: '🌳', rows: ['....##....', '...####...', '..######..', '.########.', '##########', '..######..', '.########.', '##########', '....##....', '....##....'] },
+    { ar: 'نجمة', en: 'Star', e: '⭐', rows: ['....##....', '....##....', '...####...', '##########', '.########.', '..######..', '..######..', '.###..###.', '.##....##.', '##......##'] },
+    { ar: 'سمكة', en: 'Fish', e: '🐟', rows: ['..........', '....###...', '#..#####..', '##########', '####.#####', '##########', '#..#####..', '....###...', '..........', '..........'] },
+    { ar: 'شمسية', en: 'Umbrella', e: '☂️', rows: ['....##....', '..######..', '.########.', '##########', '#.#.##.#.#', '....##....', '....##....', '....##....', '.#..##....', '..###.....'] },
+    { ar: 'مركب', en: 'Boat', e: '⛵', rows: ['....#.....', '....##....', '....###...', '....####..', '....#####.', '....#.....', '##########', '.########.', '..######..', '..........'] },
+    { ar: 'مشروم', en: 'Mushroom', e: '🍄', rows: ['...####...', '.########.', '##..##..##', '##..##..##', '##########', '.########.', '...#..#...', '...#..#...', '...####...', '..........'] },
+    { ar: 'تفاحة', en: 'Apple', e: '🍎', rows: ['.....#....', '....#.....', '.###.###..', '##########', '##########', '##########', '##########', '.########.', '..######..', '...#..#...'] },
+    { ar: 'تاج', en: 'Crown', e: '👑', rows: ['..........', '#...##...#', '##..##..##', '###.##.###', '##########', '##########', '##########', '#.#.##.#.#', '##########', '..........'] }
+  ]
+};
+const NONO_SIZES = { easy: 5, medium: 8, hard: 10 };
+let nonoTimer = null;
+
+function nonoState() {
+  if (!appState.nonogram) {
+    appState.nonogram = { level: 'easy', daily: '', n: 5, solution: [], cells: [], pic: null, mode: 'fill', startedAt: 0, phase: 'setup' };
+  }
+  return appState.nonogram;
+}
+
+/* --- The puzzle ------------------------------------------------------------------ */
+
+function nonoRuns(line) {
+  const runs = [];
+  let run = 0;
+  line.forEach(v => { if (v === 1) run++; else if (run) { runs.push(run); run = 0; } });
+  if (run) runs.push(run);
+  return runs;
+}
+
+/**
+ * Everything one line can tell: cells (-1 unknown, 1 filled, 0 empty) against
+ * its clue. Returns the line with every cell that all placements agree on,
+ * or null when no placement fits.
+ */
+function nonoLineSolve(clue, cells) {
+  const L = cells.length;
+  const agree = new Array(L).fill(null);
+  const line = new Array(L).fill(0);
+  let any = false;
+  const place = (k, start) => {
+    if (k === clue.length) {
+      for (let i = start; i < L; i++) if (cells[i] === 1) return;
+      any = true;
+      for (let i = 0; i < L; i++) agree[i] = agree[i] === null ? line[i] : (agree[i] === line[i] ? line[i] : -1);
+      return;
+    }
+    const len = clue[k];
+    let rest = 0;
+    for (let j = k + 1; j < clue.length; j++) rest += clue[j] + 1;
+    for (let p = start; p + len + rest <= L; p++) {
+      if (p > start && cells[p - 1] === 1) break;        // a filled cell can't be left out
+      let fits = true;
+      for (let i = p; i < p + len; i++) if (cells[i] === 0) { fits = false; break; }
+      if (!fits || (p + len < L && cells[p + len] === 1)) continue;
+      for (let i = p; i < p + len; i++) line[i] = 1;
+      place(k + 1, p + len + 1);
+      for (let i = p; i < p + len; i++) line[i] = 0;
+    }
+  };
+  place(0, 0);
+  return any ? agree : null;
+}
+
+/** Whether the clues alone finish the grid, line by line (so it has one solution and needs no guessing). */
+function nonoSolvable(n, rowClues, colClues) {
+  const g = new Array(n * n).fill(-1);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let r = 0; r < n; r++) {
+      const line = g.slice(r * n, r * n + n);
+      const res = nonoLineSolve(rowClues[r], line);
+      if (!res) return false;
+      res.forEach((v, c) => { if (v !== -1 && g[r * n + c] === -1) { g[r * n + c] = v; changed = true; } });
+    }
+    for (let c = 0; c < n; c++) {
+      const line = Array.from({ length: n }, (_, r) => g[r * n + c]);
+      const res = nonoLineSolve(colClues[c], line);
+      if (!res) return false;
+      res.forEach((v, r) => { if (v !== -1 && g[r * n + c] === -1) { g[r * n + c] = v; changed = true; } });
+    }
+  }
+  return g.every(v => v !== -1);
+}
+
+function nonoClues(n, sol) {
+  const rows = Array.from({ length: n }, (_, r) => nonoRuns(sol.slice(r * n, r * n + n)));
+  const cols = Array.from({ length: n }, (_, c) => nonoRuns(Array.from({ length: n }, (_, r) => sol[r * n + c])));
+  return { rows: rows, cols: cols };
+}
+
+function nonoFromPicture(pic) {
+  return pic.rows.join('').split('').map(ch => (ch === '#' ? 1 : 0));
+}
+
+/** { n, solution, pic } for a level. `picOnly` for the daily. */
+function nonoMake(level, rnd, picOnly) {
+  const n = NONO_SIZES[level] || 5;
+  const pics = (NONO_PICTURES[n] || []).filter(p => {
+    const sol = nonoFromPicture(p);
+    const cl = nonoClues(n, sol);
+    return nonoSolvable(n, cl.rows, cl.cols);
+  });
+  if (pics.length && (picOnly || rnd() < 0.5)) {
+    const pic = soloPick(pics, rnd);
+    return { n: n, solution: nonoFromPicture(pic), pic: { ar: pic.ar, en: pic.en, e: pic.e } };
+  }
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const sol = Array.from({ length: n * n }, () => (rnd() < 0.58 ? 1 : 0));
+    const cl = nonoClues(n, sol);
+    if (cl.rows.some(x => !x.length) || cl.cols.some(x => !x.length)) continue;
+    if (nonoSolvable(n, cl.rows, cl.cols)) return { n: n, solution: sol, pic: null };
+  }
+  return null;
+}
+
+/* --- Setup and play ---------------------------------------------------------------- */
+
+function setupNonogram() {
+  nonoStopTimer();
+  setView('setup-nonogram');
+}
+
+function paintNonogramSetup() {
+  const s = nonoState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#nonogram-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('nonogram', s.level);
+  const el = document.getElementById('nonogram-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('nonogram-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('nonogram-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('nonogram', 'startNonogram(true)');
+}
+
+function setNonogramLevel(level) {
+  nonoState().level = level;
+  saveToLocal();
+  paintNonogramSetup();
+}
+
+function startNonogram(daily) {
+  const s = nonoState();
+  const level = daily ? 'hard' : s.level;
+  const made = nonoMake(level, soloRandom(daily ? soloDaySeed('nonogram') : null), !!daily);
+  if (!made) return;
+  s.daily = daily ? soloToday() : '';
+  s.playLevel = level;
+  s.n = made.n;
+  s.solution = made.solution;
+  s.pic = made.pic;
+  s.cells = new Array(made.n * made.n).fill(0);   // 0 empty, 1 filled, 2 ✕
+  s.mode = 'fill';
+  s.hints = 0;
+  s.startedAt = Date.now();
+  s.phase = 'play';
+  saveToLocal();
+  setView('play-nonogram');
+  paintNonogram();
+  nonoArmTimer();
+}
+
+function continueNonogram() {
+  if (nonoState().phase !== 'play') return;
+  setView('play-nonogram');
+  paintNonogram();
+  nonoArmTimer();
+}
+
+function nonoArmTimer() {
+  nonoStopTimer();
+  nonoTimer = soloClock('nono-time', nonoState().startedAt);
+}
+
+function nonoStopTimer() {
+  if (nonoTimer) nonoTimer.stop();
+  nonoTimer = null;
+}
+
+function paintNonogram() {
+  const s = nonoState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('nonogram-stage');
+  if (!el || !s.solution.length) return;
+  const n = s.n;
+  const clues = nonoClues(n, s.solution);
+  const filled = s.cells.map(v => (v === 1 ? 1 : 0));
+  const rowDone = Array.from({ length: n }, (_, r) => nonoRuns(filled.slice(r * n, r * n + n)).join(',') === clues.rows[r].join(','));
+  const colDone = Array.from({ length: n }, (_, c) => nonoRuns(Array.from({ length: n }, (_, r) => filled[r * n + c])).join(',') === clues.cols[c].join(','));
+  const bar = soloBarHtml([
+    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: `${n}×${n}` },
+    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'nono-time' }
+  ]);
+  const colHead = clues.cols.map((cl, c) => `<div class="nono-clue nono-clue--col${colDone[c] ? ' is-done' : ''}">${(cl.length ? cl : [0]).map(x => `<span>${x}</span>`).join('')}</div>`).join('');
+  const body = Array.from({ length: n }, (_, r) => `
+    <div class="nono-clue nono-clue--row${rowDone[r] ? ' is-done' : ''}">${(clues.rows[r].length ? clues.rows[r] : [0]).map(x => `<span>${x}</span>`).join('')}</div>
+    ${Array.from({ length: n }, (_, c) => {
+      const i = r * n + c;
+      const v = s.cells[i];
+      const cls = ['nono-cell', v === 1 ? 'is-fill' : '', v === 2 ? 'is-x' : '', c % 5 === 4 && c < n - 1 ? 'is-sep-r' : '', r % 5 === 4 && r < n - 1 ? 'is-sep-b' : ''].filter(Boolean).join(' ');
+      return `<button type="button" class="${cls}" data-i="${i}" onpointerdown="nonoDown(event, ${i})">${v === 2 ? '✕' : ''}</button>`;
+    }).join('')}`).join('');
+  el.innerHTML = `
+    <div class="solo-layout">
+      <div class="solo-layout__board">
+        <div class="nono-grid" id="nono-grid" dir="ltr" style="--nono-n:${n}">
+          <div class="nono-corner"></div>${colHead}${body}
+        </div>
+      </div>
+      <div class="solo-layout__side">
+        ${bar}
+        <div class="segmented nono-mode" role="group">
+          <button type="button" class="segmented__item ${s.mode === 'fill' ? 'is-active' : ''}" onclick="setNonoMode('fill')">⬛ ${escapeHTML(t.nono_fill || '')}</button>
+          <button type="button" class="segmented__item ${s.mode === 'x' ? 'is-active' : ''}" onclick="setNonoMode('x')">✕ ${escapeHTML(t.nono_cross || '')}</button>
+        </div>
+        <div class="sdk-tools">
+          <button type="button" class="btn btn--neutral btn--sm" onclick="clearNonogram()">🧹 ${escapeHTML(t.queens_clear || '')}</button>
+          <button type="button" class="btn btn--neutral btn--sm" onclick="hintNonogram()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+        </div>
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupNonogram()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+function setNonoMode(mode) {
+  const s = nonoState();
+  s.mode = mode;
+  saveToLocal();
+  paintNonogram();
+}
+
+/* A press sets a cell to the mode's mark (or clears it if it already has it); dragging copies that to every cell crossed. */
+function nonoDown(e, i) {
+  const s = nonoState();
+  if (s.phase !== 'play') return;
+  e.preventDefault();
+  const mark = s.mode === 'fill' ? 1 : 2;
+  const target = s.cells[i] === mark ? 0 : mark;
+  const painted = new Set();
+  const apply = (k) => {
+    if (painted.has(k)) return;
+    painted.add(k);
+    s.cells[k] = target;
+    const cell = document.querySelector(`#nono-grid [data-i="${k}"]`);
+    if (cell) {
+      cell.classList.toggle('is-fill', target === 1);
+      cell.classList.toggle('is-x', target === 2);
+      cell.textContent = target === 2 ? '✕' : '';
+    }
+  };
+  apply(i);
+  const move = (ev) => {
+    const cell = soloCellAt(ev.clientX, ev.clientY, '.nono-cell');
+    if (cell) apply(Number(cell.dataset.i));
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    document.removeEventListener('pointercancel', up);
+    saveToLocal();
+    paintNonogram();
+    nonoCheck();
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+  document.addEventListener('pointercancel', up);
+}
+
+function clearNonogram() {
+  const s = nonoState();
+  if (s.phase !== 'play') return;
+  s.cells = s.cells.map(() => 0);
+  saveToLocal();
+  paintNonogram();
+}
+
+/** Fixes one wrong cell, or fills one missing one. */
+function hintNonogram() {
+  const s = nonoState();
+  if (s.phase !== 'play') return;
+  let i = s.cells.findIndex((v, k) => v === 1 && !s.solution[k]);
+  if (i !== -1) s.cells[i] = 2;
+  else {
+    i = s.cells.findIndex((v, k) => v !== 1 && s.solution[k]);
+    if (i === -1) return;
+    s.cells[i] = 1;
+  }
+  s.hints = (s.hints || 0) + 1;
+  saveToLocal();
+  paintNonogram();
+  nonoCheck();
+}
+
+function nonoCheck() {
+  const s = nonoState();
+  if (s.phase !== 'play' || s.cells.some((v, i) => (v === 1 ? 1 : 0) !== s.solution[i])) return;
+  nonoStopTimer();
+  s.phase = 'done';
+  s.cells = s.cells.map(v => (v === 1 ? 1 : 0));
+  const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  saveToLocal();
+  paintNonogram();
+  const t = TRANSLATIONS[appState.lang];
+  const n = s.n;
+  const grid = document.getElementById('nono-grid');
+  if (grid) grid.classList.add('is-solved');
+  if (!motionOff()) {
+    document.querySelectorAll('#nono-grid .nono-cell.is-fill').forEach(cell => {
+      const i = Number(cell.dataset.i);
+      if (cell.animate) cell.animate([{ transform: 'scale(0.4)', opacity: 0.3 }, { transform: 'scale(1.12)', opacity: 1 }, { transform: 'scale(1)' }],
+        { duration: 420, delay: (Math.floor(i / n) + i % n) * 30, easing: 'ease-out', fill: 'backwards' });
+    });
+  }
+  const level = s.playLevel || s.level;
+  const rec = s.hints ? { record: false, prev: soloBest('nonogram', level) }
+    : soloRecord('nonogram', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('nonogram', { seconds: seconds });
+    share = `${soloShareHeader(t)}\n🖼️ ${t.setup_nonogram || ''} ✅ ${soloTime(seconds)}`;
+  }
+  const lines = [];
+  if (s.pic) lines.push(`${s.pic.e} <b>${escapeHTML(appState.lang === 'en' ? s.pic.en : s.pic.ar)}</b>`);
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: s.pic ? s.pic.e : '🖼️', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    again: () => startNonogram(false), exit: setupNonogram
+  }), motionOff() ? 0 : n * 2 * 30 + 500);
+}
+
+function restoreNonogram() {
+  const s = nonoState();
+  if (s.phase !== 'play' || !s.solution.length) return false;
+  paintNonogram();
+  nonoArmTimer();
+  return true;
+}
+
+soloRegister('nonogram', { setup: 'setup-nonogram', play: 'play-nonogram', paintSetup: paintNonogramSetup, restore: restoreNonogram });
 </script>
 
     <script>

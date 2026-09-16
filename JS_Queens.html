@@ -1,0 +1,367 @@
+<script>
+/* ============================================================================
+   الملكات — QUEENS
+   ----------------------------------------------------------------------------
+   A square board split into coloured regions. Place one 👑 in every row,
+   every column and every colour region, and no two crowns may touch, not even
+   corner to corner. A tap marks ✕, a second tap places 👑, a third clears;
+   dragging across empty cells marks ✕ as you go.
+
+   The board is made here: a random placement of crowns that don't touch
+   (queensPlace), one region grown from each crown at random (queensGrow),
+   then a fix loop - while queensSolve finds a second solution, one of that
+   solution's cells is handed to a neighbouring region, which breaks it -
+   until exactly one solution is left. 6×6 easy, 7×7 medium, 8×8 hard; the
+   daily is 7×7 from the seed. The board is in appState.queens.
+   ========================================================================= */
+
+const QUEENS_SIZES = { easy: 6, medium: 7, hard: 8 };
+let queensTimer = null;
+let queensDrag = null;
+
+function queensState() {
+  if (!appState.queens) {
+    appState.queens = { level: 'easy', daily: '', n: 6, regions: [], solution: [], marks: [], startedAt: 0, phase: 'setup' };
+  }
+  return appState.queens;
+}
+
+/* --- The board ---------------------------------------------------------------- */
+
+/** Columns for each row such that no two crowns share a column or touch. */
+function queensPlace(n, rnd) {
+  const cols = [];
+  const used = new Set();
+  const go = (r) => {
+    if (r === n) return true;
+    for (const c of soloShuffle(Array.from({ length: n }, (_, k) => k), rnd)) {
+      if (used.has(c) || (r > 0 && Math.abs(cols[r - 1] - c) <= 1)) continue;
+      cols[r] = c; used.add(c);
+      if (go(r + 1)) return true;
+      used.delete(c);
+    }
+    return false;
+  };
+  return go(0) ? cols.slice() : null;
+}
+
+/** One region per crown, grown at random until every cell belongs to one. */
+function queensGrow(n, cols, rnd) {
+  const regions = new Array(n * n).fill(-1);
+  cols.forEach((c, r) => { regions[r * n + c] = r; });
+  let left = n * n - n;
+  while (left > 0) {
+    const frontier = [];
+    for (let i = 0; i < n * n; i++) {
+      if (regions[i] !== -1) continue;
+      const r = Math.floor(i / n), c = i % n;
+      [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].forEach(([rr, cc]) => {
+        if (rr >= 0 && rr < n && cc >= 0 && cc < n && regions[rr * n + cc] !== -1) frontier.push([i, regions[rr * n + cc]]);
+      });
+    }
+    const [cell, region] = frontier[Math.floor(rnd() * frontier.length)];
+    regions[cell] = region;
+    left--;
+  }
+  return regions;
+}
+
+/** Up to `limit` solutions, each as the column of the crown in every row. */
+function queensSolve(n, regions, limit) {
+  const found = [];
+  const cols = [];
+  const usedCol = new Array(n).fill(false);
+  const usedReg = new Array(n).fill(false);
+  const go = (r) => {
+    if (r === n) { found.push(cols.slice()); return found.length >= limit; }
+    for (let c = 0; c < n; c++) {
+      const reg = regions[r * n + c];
+      if (usedCol[c] || usedReg[reg] || (r > 0 && Math.abs(cols[r - 1] - c) <= 1)) continue;
+      cols[r] = c; usedCol[c] = true; usedReg[reg] = true;
+      if (go(r + 1)) return true;
+      usedCol[c] = false; usedReg[reg] = false;
+    }
+    return false;
+  };
+  go(0);
+  return found;
+}
+
+function queensConnected(n, regions, region, without) {
+  const cells = [];
+  for (let i = 0; i < n * n; i++) if (regions[i] === region && i !== without) cells.push(i);
+  if (!cells.length) return false;
+  const seen = new Set([cells[0]]);
+  const stack = [cells[0]];
+  while (stack.length) {
+    const i = stack.pop();
+    const r = Math.floor(i / n), c = i % n;
+    [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].forEach(([rr, cc]) => {
+      const k = rr * n + cc;
+      if (rr >= 0 && rr < n && cc >= 0 && cc < n && k !== without && regions[k] === region && !seen.has(k)) { seen.add(k); stack.push(k); }
+    });
+  }
+  return seen.size === cells.length;
+}
+
+/** { n, regions, solution } with exactly one solution. */
+function queensMake(level, rnd) {
+  const n = QUEENS_SIZES[level] || 6;
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const cols = queensPlace(n, rnd);
+    if (!cols) continue;
+    const regions = queensGrow(n, cols, rnd);
+    for (let fix = 0; fix < 120; fix++) {
+      const sols = queensSolve(n, regions, 2);
+      if (sols.length === 1) return { n: n, regions: regions, solution: cols };
+      const alt = sols.find(s => s.some((c, r) => c !== cols[r]));
+      if (!alt) break;
+      // Hand one of the other solution's crown cells to a neighbouring region.
+      const rows = soloShuffle(Array.from({ length: n }, (_, r) => r).filter(r => alt[r] !== cols[r]), rnd);
+      let moved = false;
+      for (const r of rows) {
+        const cell = r * n + alt[r];
+        const from = regions[cell];
+        const c = alt[r];
+        const targets = soloShuffle([[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]
+          .filter(([rr, cc]) => rr >= 0 && rr < n && cc >= 0 && cc < n)
+          .map(([rr, cc]) => regions[rr * n + cc]).filter(g => g !== from), rnd);
+        if (!targets.length || !queensConnected(n, regions, from, cell)) continue;
+        regions[cell] = targets[0];
+        moved = true;
+        break;
+      }
+      if (!moved) break;
+    }
+  }
+  return null;
+}
+
+/* --- Setup and play -------------------------------------------------------------- */
+
+function setupQueens() {
+  queensStopTimer();
+  setView('setup-queens');
+}
+
+function paintQueensSetup() {
+  const s = queensState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#queens-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('queens', s.level);
+  const el = document.getElementById('queens-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('queens-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('queens-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('queens', 'startQueens(true)');
+}
+
+function setQueensLevel(level) {
+  queensState().level = level;
+  saveToLocal();
+  paintQueensSetup();
+}
+
+function startQueens(daily) {
+  const s = queensState();
+  const level = daily ? 'medium' : s.level;
+  const made = queensMake(level, soloRandom(daily ? soloDaySeed('queens') : null));
+  if (!made) { showToast('…', 'error'); return; }
+  s.daily = daily ? soloToday() : '';
+  s.playLevel = level;
+  s.n = made.n;
+  s.regions = made.regions;
+  s.solution = made.solution;
+  s.marks = new Array(made.n * made.n).fill(0);   // 0 empty, 1 ✕, 2 👑
+  s.startedAt = Date.now();
+  s.phase = 'play';
+  saveToLocal();
+  setView('play-queens');
+  paintQueens();
+  queensArmTimer();
+}
+
+function continueQueens() {
+  if (queensState().phase !== 'play') return;
+  setView('play-queens');
+  paintQueens();
+  queensArmTimer();
+}
+
+function queensArmTimer() {
+  queensStopTimer();
+  queensTimer = soloClock('queens-time', queensState().startedAt);
+}
+
+function queensStopTimer() {
+  if (queensTimer) queensTimer.stop();
+  queensTimer = null;
+}
+
+/** Crowns that break a rule: same row, column or region, or touching. */
+function queensConflicts(s) {
+  const n = s.n;
+  const crowns = [];
+  s.marks.forEach((m, i) => { if (m === 2) crowns.push(i); });
+  const bad = new Set();
+  for (let a = 0; a < crowns.length; a++) for (let b = a + 1; b < crowns.length; b++) {
+    const i = crowns[a], j = crowns[b];
+    const ri = Math.floor(i / n), ci = i % n, rj = Math.floor(j / n), cj = j % n;
+    if (ri === rj || ci === cj || s.regions[i] === s.regions[j] || (Math.abs(ri - rj) <= 1 && Math.abs(ci - cj) <= 1)) { bad.add(i); bad.add(j); }
+  }
+  return bad;
+}
+
+function paintQueens() {
+  const s = queensState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('queens-stage');
+  if (!el || !s.regions.length) return;
+  const n = s.n;
+  const bad = queensConflicts(s);
+  const crowns = s.marks.filter(m => m === 2).length;
+  const bar = soloBarHtml([
+    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: `${n}×${n}` },
+    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'queens-time' },
+    { label: t.queens_placed || '', value: `${crowns}/${n}`, id: 'queens-count' }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+      <div class="solo-layout__board">
+        <div class="queens-grid" id="queens-grid" dir="ltr" style="--q-n:${n}">
+          ${s.regions.map((g, i) => {
+            const r = Math.floor(i / n), c = i % n;
+            const edge = (rr, cc) => rr < 0 || rr >= n || cc < 0 || cc >= n || s.regions[rr * n + cc] !== g;
+            const cls = ['queens-cell', 'q' + g,
+              edge(r - 1, c) ? 'bt' : '', edge(r + 1, c) ? 'bb' : '', edge(r, c - 1) ? 'bl' : '', edge(r, c + 1) ? 'br' : '',
+              bad.has(i) ? 'is-bad' : ''].filter(Boolean).join(' ');
+            const mark = s.marks[i] === 2 ? '👑' : (s.marks[i] === 1 ? '✕' : '');
+            return `<button type="button" class="${cls}" data-i="${i}" onpointerdown="queensDown(event, ${i})">${mark}</button>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="solo-layout__side">
+        ${bar}
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.queens_hint || '')}</p>
+        <div class="sdk-tools">
+          <button type="button" class="btn btn--neutral btn--sm" onclick="clearQueens()">🧹 ${escapeHTML(t.queens_clear || '')}</button>
+          <button type="button" class="btn btn--neutral btn--sm" onclick="hintQueens()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+        </div>
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupQueens()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+/* A tap cycles ✕ → 👑 → empty; a drag from an empty cell marks ✕ along the way. */
+function queensDown(e, i) {
+  const s = queensState();
+  if (s.phase !== 'play') return;
+  e.preventDefault();
+  queensDrag = { start: i, moved: false, painted: new Set([i]) };
+  const grid = document.getElementById('queens-grid');
+  const move = (ev) => {
+    const cell = soloCellAt(ev.clientX, ev.clientY, '.queens-cell');
+    if (!cell || !queensDrag) return;
+    const k = Number(cell.dataset.i);
+    if (queensDrag.painted.has(k)) return;
+    if (!queensDrag.moved) {
+      if (s.marks[queensDrag.start] !== 0) return;       // a drag only marks from an empty start
+      queensDrag.moved = true;
+      s.marks[queensDrag.start] = 1;
+    }
+    queensDrag.painted.add(k);
+    if (s.marks[k] === 0) { s.marks[k] = 1; cell.textContent = '✕'; }
+    const first = grid && grid.querySelector(`[data-i="${queensDrag.start}"]`);
+    if (first && s.marks[queensDrag.start] === 1) first.textContent = '✕';
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    document.removeEventListener('pointercancel', up);
+    const d = queensDrag;
+    queensDrag = null;
+    if (!d) return;
+    if (!d.moved) s.marks[i] = (s.marks[i] + 1) % 3;
+    saveToLocal();
+    paintQueens();
+    if (!d.moved && s.marks[i] === 2) haptic('light');
+    queensCheck();
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+  document.addEventListener('pointercancel', up);
+}
+
+function clearQueens() {
+  const s = queensState();
+  if (s.phase !== 'play') return;
+  s.marks = s.marks.map(() => 0);
+  saveToLocal();
+  paintQueens();
+}
+
+/** Places one right crown (or takes away a wrong one). */
+function hintQueens() {
+  const s = queensState();
+  if (s.phase !== 'play') return;
+  const n = s.n;
+  const wrong = s.marks.findIndex((m, i) => m === 2 && s.solution[Math.floor(i / n)] !== i % n);
+  if (wrong !== -1) { s.marks[wrong] = 0; }
+  else {
+    const row = s.solution.findIndex((c, r) => s.marks[r * n + c] !== 2);
+    if (row === -1) return;
+    s.marks[row * n + s.solution[row]] = 2;
+  }
+  s.hints = (s.hints || 0) + 1;
+  saveToLocal();
+  paintQueens();
+  queensCheck();
+}
+
+function queensCheck() {
+  const s = queensState();
+  const n = s.n;
+  const ok = s.solution.every((c, r) => s.marks[r * n + c] === 2) && s.marks.filter(m => m === 2).length === n;
+  if (!ok || s.phase !== 'play') return;
+  queensStopTimer();
+  s.phase = 'done';
+  const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  saveToLocal();
+  const t = TRANSLATIONS[appState.lang];
+  // The crowns bounce in order, row by row.
+  if (!motionOff()) {
+    s.solution.forEach((c, r) => {
+      const cell = document.querySelector(`#queens-grid [data-i="${r * n + c}"]`);
+      if (cell && cell.animate) cell.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 380, delay: r * 90, easing: 'ease-out' });
+    });
+  }
+  const level = s.playLevel || s.level;
+  const rec = s.hints ? { record: false, prev: soloBest('queens', level) }
+    : soloRecord('queens', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('queens', { seconds: seconds });
+    share = `${soloShareHeader(t)}\n👑 ${t.setup_queens || ''} ✅ ${soloTime(seconds)}`;
+  }
+  const lines = [];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: '👑', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    again: () => startQueens(false), exit: setupQueens
+  }), motionOff() ? 0 : n * 90 + 400);
+}
+
+function restoreQueens() {
+  const s = queensState();
+  if (s.phase !== 'play' || !s.regions.length) return false;
+  paintQueens();
+  queensArmTimer();
+  return true;
+}
+
+soloRegister('queens', { setup: 'setup-queens', play: 'play-queens', paintSetup: paintQueensSetup, restore: restoreQueens });
+</script>

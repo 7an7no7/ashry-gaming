@@ -289,6 +289,14 @@ export class Room extends DurableObject {
       await this.save();
       this.broadcast();
     }
+
+    // A phone on the HTTP fallback leaves no trace when it stops asking, so the
+    // live count is checked here too, and the alarm comes back when the next
+    // such phone would drop out of "online".
+    await this.reportLive();
+    const pollEnds = [...this.polled.values()].map((at) => at + ONLINE_WINDOW_MS + 1000).filter((t) => t > now);
+    if (pollEnds.length) again = Math.min(again === undefined ? Infinity : again, ...pollEnds);
+
     // Inside alarm() the alarm that is running may still read as set; replace it outright.
     await this.scheduleAlarm(again, true);
   }
@@ -323,8 +331,9 @@ export class Room extends DurableObject {
       updatedAt: now
     };
     await this.save();
-    await this.scheduleAlarm();
     this.polled.set(hostId, now);
+    await this.reportLive();
+    await this.scheduleAlarm(now + ONLINE_WINDOW_MS + 1000);
     return { ok: true, playerId: hostId, key, state: this.project(hostId, this.onlineIds()) };
   }
 
@@ -357,6 +366,7 @@ export class Room extends DurableObject {
     this.polled.set(pid, Date.now());
     this.broadcast();
     await this.reportLive();
+    await this.scheduleAlarm(Date.now() + ONLINE_WINDOW_MS + 1000);
     return { ok: true, playerId: pid, key, state: this.project(pid, this.onlineIds()) };
   }
 
@@ -428,6 +438,7 @@ export class Room extends DurableObject {
     if (!wasOnline) {
       this.broadcast();
       await this.reportLive();
+      await this.scheduleAlarm(Date.now() + ONLINE_WINDOW_MS + 1000);
     }
     const online = this.onlineIds();
     if (Number(version) === this.room.version) {

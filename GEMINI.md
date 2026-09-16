@@ -312,7 +312,11 @@ socket opening or closing, a poll that brings a phone back, a leave, a move
 changed or the last report is `LIVE_REFRESH_MS` old; `destroy` reports 0. The
 Worker answers `GET /live` from a copy at most `LIVE_CACHE_MS` old, and
 `LiveStats` drops a room that hasn't reported for `LIVE_TTL_MS`, so a room
-that died without saying so leaves the count within a quarter of an hour. The
+that died without saying so leaves the count within a quarter of an hour. A
+phone on the HTTP fallback leaves no event when it stops asking, so `create`,
+`join` and a returning `poll` set the room's alarm for when that phone would
+fall out of `ONLINE_WINDOW_MS`, and `alarm()` counts again and comes back for
+the next one: such a phone leaves the count in about half a minute. The
 phone asks once when the tab opens and once a minute while it stays on screen
 and awake (`refreshTogetherLive` in `JS_Catalog.html`), and shows nothing
 below `LIVE_MIN_PLAYERS` or when the server can't be reached: a count that

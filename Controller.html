@@ -1156,6 +1156,9 @@
         </div>
         <div class="sheet__body" id="chat-list"></div>
         <div class="sheet__footer">
+          <div id="chat-quick" class="chat-quick hscroll-fade" role="group" aria-label="⚡"></div>
+          <div id="chat-channel" class="segmented chat-channel" role="group" hidden></div>
+          <p id="chat-channel-note" class="field__hint chat-channel-note" hidden></p>
           <div class="input-group">
             <input type="text" id="chat-input" maxlength="200" autocomplete="off" data-i18n-ph="chat_ph" placeholder="اكتب رسالة…" onkeydown="if(event.key==='Enter') sendRoomChat()">
             <button type="button" class="btn btn--primary" onclick="sendRoomChat()" data-i18n="send">إرسال</button>
@@ -2328,6 +2331,12 @@
 
     <!-- SETTINGS SHEET — theme, language and app-level actions, moved out of the
          bottom bar so the two remaining nav targets can be full width. -->
+    <!-- "دورك!": said when you come back to the app and the room is waiting on you (JS_RoomTurn.html). -->
+    <button type="button" id="turn-banner" class="turn-banner" hidden onclick="turnBannerTap()">
+      <span class="turn-banner__bell" aria-hidden="true">🔔</span>
+      <span class="turn-banner__text"><b id="turn-banner-title"></b><span id="turn-banner-sub"></span></span>
+    </button>
+
     <div id="exit-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('exit-modal')">
       <div class="modal-content modal-content--simple" id="exit-modal-body"></div>
     </div>
@@ -2444,6 +2453,7 @@
     <?!= include('JS_Sounds'); ?>
     <?!= include('JS_RoomMonkey'); ?>
     <?!= include('JS_RoomChat'); ?>
+    <?!= include('JS_RoomTurn'); ?>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- QR for room join links. Optional: the 4-letter code is always shown too. -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>

@@ -302,6 +302,35 @@ with the soundboard's `has-fx`, never on the TV), the sheet, the unread badge, a
 toast for a message that arrives while the sheet is closed - once, with the
 history at join counted as read.
 
+Three things ride on it. **Quick reactions** are one-tap lines from
+`chat_quick` in the translations. **Room events** are chat lines the server
+writes with `roomEvent(room, kind, details)` - `joined` and `left` in
+`room.js`'s join and leave, `host` wherever the host changes, `started` after
+a `start` that dealt, `hub` on `backToHub` - stored as a kind and its details
+(`sys`, `p`) so each phone says them in its own language; they belong to
+nobody, so they count against no rate limit, and they never light the badge
+or pop a toast. **Team chat** is أسماء الرموز only: a message sent with
+`to: 'team'` carries the sender's team, `chatFor(room, pid)` is what
+`project()` sends, so the other team and any screen never receive it, and a
+spymaster in play (`phase === 'playing'`) reads their team's channel but is
+refused writing to it - in the real game they hear the table and can't talk.
+Team lines are dropped when a board is dealt and in `clearGameState`, because
+the next game can have other sides.
+
+**"دورك!" when you come back to the app** (`JS_RoomTurn.html`). After the page
+has been hidden `TURN_AWAY_MS` or longer, the room refreshes itself as always;
+the turn check waits until `Room.heardAt` is later than the wake - a socket
+can look open after the phone slept and still be dead - and then asks
+`roomTurnOf(state)` whether the game is waiting on this phone alone: the
+bomb's holder, the drawer, a Codenames spymaster with no clue given or
+operatives with one, the psychic, a writer who hasn't sent, an unanswered
+question, an uncast vote with an option that isn't their own, the player up
+in خمس ثواني or ربع قرد, an accused spy or chameleon or a caught fake who
+guesses. If so, a banner (`#turn-banner`), a sound and a buzz, and a tap goes
+back to the room. While hidden but still receiving, the tab title says it.
+Nothing fires while the screen is being looked at. A new room game with a
+turn needs its case in `roomTurnOf`.
+
 **Who is playing right now.** The مع بعض tab says "دلوقتي فيه ٧ لاعبين في ٣ غرف"
 under its pitch. It counts players in rooms, never phones with the app open:
 opening the app still touches no server. A room reports its own number of

@@ -1,0 +1,174 @@
+<script>
+/* ============================================================================
+   "دورك!" — the room waiting on this phone, said when you come back to it
+   ----------------------------------------------------------------------------
+   Someone playing from home switches to WhatsApp mid-game. On an iPhone the
+   page is frozen and its connection dropped, so nothing tells them their turn
+   has come. When the app comes back to the front after a while away, the room
+   catches up by itself (Room.refresh in JS_Room.html). Once the server has
+   actually been heard from since waking (Room.heardAt - a socket that only
+   looks open after sleep proves nothing), `roomTurnOf` says whether the game
+   is waiting on this phone, and if so a banner, a sound and a buzz say it; a
+   tap on the banner goes back to the room.
+
+   While the page is hidden but still receiving (a laptop tab, Android for a
+   while) the title says it instead. Nothing fires while you are looking at
+   the screen: at one table that would only be noise.
+   ========================================================================= */
+
+const TURN_AWAY_MS = 8000;     // a glance at another app is not being away
+const TURN_WAIT_MS = 8000;     // how long to wait for the room to catch up
+const TURN_BANNER_MS = 5000;
+
+const roomTurn = { hiddenAt: 0, wakeAt: 0, timer: null, bannerTimer: null, title: '', titled: false };
+
+/**
+ * What the game is waiting for this phone to do, as a translation key, or null.
+ * Only what is this phone's alone, or an open question it hasn't answered - a
+ * shared dial or a host's "next round" is not a turn.
+ */
+function roomTurnOf(state) {
+  if (!state || !state.game || state.phase === 'lobby' || state.youAreScreen || state.inGame === false) return null;
+  const me = Room.me;
+  const s = state.shared || {};
+  const has = (list) => Array.isArray(list) && list.indexOf(me) !== -1;
+  const inRound = !s.roster || has(s.roster);
+
+  // Any open vote this phone hasn't cast, unless every option is its own
+  // (the storyteller in صدق ولا كذب).
+  const v = s.vote;
+  if (v && v.phase === 'voting' && has(v.eligible) && !has(v.voted) && (v.options || []).some(o => o.ownerId !== me)) {
+    return 'turn_vote';
+  }
+
+  switch (state.game) {
+    case 'bomb':
+      return s.phase === 'ticking' && s.holderId === me ? 'turn_bomb' : null;
+    case 'drawguess':
+      return state.phase === 'drawing' && s.drawerId === me && !s.word ? 'turn_draw' : null;
+    case 'fakeartist':
+      if (s.phase === 'drawing' && s.currentDrawerId === me) return 'turn_draw';
+      return s.phase === 'guessing' && s.fakeId === me ? 'turn_guess' : null;
+    case 'codenames': {
+      const mine = (s.teams || {})[me];
+      if (state.phase !== 'playing' || !mine || s.winner || mine.team !== s.turn) return null;
+      if (!s.clue) return mine.role === 'spymaster' ? 'turn_clue' : null;
+      return mine.role === 'operative' ? 'turn_team_guess' : null;
+    }
+    case 'wavelength':
+      return s.phase === 'clue' && s.psychicId === me ? 'turn_clue' : null;
+    case 'justone':
+      if (s.phase === 'writing') return me !== s.guesserId && inRound && !has(s.submitted) ? 'turn_write' : null;
+      return s.phase === 'guessing' && s.guesserId === me ? 'turn_guess' : null;
+    case 'fibbage':
+    case 'twotruths':
+    case 'stop':
+      return s.phase === 'writing' && inRound && !has(s.submitted) ? 'turn_write' : null;
+    case 'trivia':
+      return s.phase === 'answering' && inRound && !has(s.answered) ? 'turn_answer' : null;
+    case 'emoji':
+    case 'proverbs':
+      return s.phase === 'answering' && inRound && !has(s.solved) && (s.retry || !has(s.tried)) ? 'turn_answer' : null;
+    case 'fiveseconds':
+      return s.phase === 'ready' && s.turnId === me ? 'turn_up' : null;
+    case 'monkey':
+      return s.phase === 'play' && s.turnId === me ? 'turn_up' : null;
+    case 'telephone': {
+      const task = state.you && state.you.task;
+      if (s.phase !== 'working' || !task || has(s.submitted)) return null;
+      return task.kind === 'draw' ? 'turn_draw' : 'turn_write';
+    }
+    case 'imposter':
+      return state.phase === 'guess' && s.guesserId === me ? 'turn_guess' : null;
+    case 'spyfall':
+      return s.phase === 'guess' && s.guesserId === me ? 'turn_guess' : null;
+    case 'chameleon':
+      return s.phase === 'guess' && s.chameleonId === me ? 'turn_guess' : null;
+  }
+  return null;
+}
+
+function showTurnBanner(key) {
+  const el = document.getElementById('turn-banner');
+  if (!el) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const title = document.getElementById('turn-banner-title');
+  const sub = document.getElementById('turn-banner-sub');
+  if (title) title.textContent = t.turn_title || '';
+  if (sub) sub.textContent = t[key] || '';
+  el.hidden = false;
+  el.classList.remove('is-in');
+  void el.offsetWidth;                    // restart the entrance
+  el.classList.add('is-in');
+  playSound('success');
+  haptic('medium');
+  clearTimeout(roomTurn.bannerTimer);
+  roomTurn.bannerTimer = setTimeout(hideTurnBanner, TURN_BANNER_MS);
+}
+
+function hideTurnBanner() {
+  clearTimeout(roomTurn.bannerTimer);
+  const el = document.getElementById('turn-banner');
+  if (el) el.hidden = true;
+}
+
+/** The banner takes you to the room if you had wandered off to another screen. */
+function turnBannerTap() {
+  hideTurnBanner();
+  if (typeof onRoomView === 'function' && !onRoomView() && typeof roomReturnToActive === 'function') roomReturnToActive();
+}
+
+/** After waking: wait until the server has answered, then say whether it's your turn. */
+function checkTurnAfterWake() {
+  clearTimeout(roomTurn.timer);
+  const tick = () => {
+    if (!roomTurn.wakeAt || document.hidden || !Room.isIn) { roomTurn.wakeAt = 0; return; }
+    if (Room.heardAt > roomTurn.wakeAt) {
+      roomTurn.wakeAt = 0;
+      // A beat, so the fresh state is on screen before the banner points at it.
+      roomTurn.timer = setTimeout(() => {
+        const key = roomTurnOf(Room.state);
+        if (key) showTurnBanner(key);
+      }, 150);
+      return;
+    }
+    // Never caught up: say nothing rather than something stale.
+    if (Date.now() - roomTurn.wakeAt > TURN_WAIT_MS) { roomTurn.wakeAt = 0; return; }
+    roomTurn.timer = setTimeout(tick, 250);
+  };
+  tick();
+}
+
+function restoreTurnTitle() {
+  if (!roomTurn.titled) return;
+  document.title = roomTurn.title;
+  roomTurn.titled = false;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    roomTurn.hiddenAt = Date.now();
+    return;
+  }
+  restoreTurnTitle();
+  const away = roomTurn.hiddenAt ? Date.now() - roomTurn.hiddenAt : 0;
+  roomTurn.hiddenAt = 0;
+  if (!Room.isIn || away < TURN_AWAY_MS) return;
+  roomTurn.wakeAt = Date.now();
+  checkTurnAfterWake();
+});
+
+// Hidden but still hearing the room: the tab title carries it.
+Room.onChange((state) => {
+  if (!document.hidden) return;
+  const key = roomTurnOf(state);
+  if (key && !roomTurn.titled) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    roomTurn.title = document.title;
+    document.title = '🔔 ' + (t.turn_title || '') + ' · ' + roomTurn.title;
+    roomTurn.titled = true;
+  } else if (!key) {
+    restoreTurnTitle();
+  }
+});
+</script>

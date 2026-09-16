@@ -38,6 +38,7 @@ const Room = (() => {
 
   let session = null;      // { code, playerId, key, game }
   let state = null;        // last projection from the server
+  let heardAt = 0;         // when the server last answered, over either path
   let listeners = [];
   let liveListeners = [];
   let lastSignature = '';
@@ -243,6 +244,7 @@ const Room = (() => {
     let msg;
     try { msg = JSON.parse(raw); } catch (e) { return; }
     if (!msg || !session) return;
+    heardAt = Date.now();
 
     if (msg.t === 'state') {
       state = msg.state;
@@ -306,6 +308,7 @@ const Room = (() => {
           code: session.code, pid: session.playerId, key: session.key, v: state ? state.version : 0
         });
         if (!session || connected()) return;
+        heardAt = Date.now();
         if (res.gone) { handleDropped(DROPPED.gone); return; }
         if (res.kicked) { handleDropped(DROPPED.kicked); return; }
         if (res.same && state) {
@@ -348,6 +351,9 @@ const Room = (() => {
     get isScreen() { return !!(state && state.youAreScreen); },
     get me() { return session ? session.playerId : null; },
     get connected() { return connected(); },
+    // A socket can look open after the phone slept and still be dead; this is
+    // when something actually came back (JS_RoomTurn.html waits on it).
+    get heardAt() { return heardAt; },
 
     onChange(fn) { listeners.push(fn); return () => { listeners = listeners.filter(f => f !== fn); }; },
 

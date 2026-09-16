@@ -184,10 +184,14 @@ async function main() {
 
   /* --- the chat ------------------------------------------------------------------- */
   console.log('• chat');
+  const talk = (s) => (s.chat || []).filter((m) => !m.sys);
+  check(['سارة', 'Omar', 'منى'].every((n) => A.state.chat.some((m) => m.sys === 'joined' && m.p.name === n)), 'every join is said in the chat');
+  check(A.state.chat.every((m) => !m.sys || !m.from), 'room events belong to nobody, so they count against no one');
   await A.must('chat', { text: 'أهلا يا جماعة' });
-  await all(bots, (s) => s.chat && s.chat.length === 1 && s.chat[0].text === 'أهلا يا جماعة' && s.chat[0].name === A.name, 'a message reaches every phone with its sender');
+  await all(bots, (s) => talk(s).length === 1 && talk(s)[0].text === 'أهلا يا جماعة' && talk(s)[0].name === A.name, 'a message reaches every phone with its sender');
   await B.must('chat', { text: 'x'.repeat(300) });
-  await all(bots, (s) => s.chat.length === 2 && s.chat[1].text.length === 200, 'a message is cut at 200 characters');
+  await all(bots, (s) => talk(s).length === 2 && talk(s)[1].text.length === 200, 'a message is cut at 200 characters');
+  check((await B.act('chat', { text: 'team?', to: 'team' })).ok === false, 'there is no team channel outside a team game');
   check((await C.act('chat', { text: '   ' })).ok === false, 'an empty message is refused');
   let refused = false;
   for (let i = 0; i < 6; i++) { const r = await D.act('chat', { text: 'spam ' + i }); if (!r.ok) refused = true; }
@@ -276,8 +280,22 @@ async function main() {
   await A.must('setTeam', { team: 'red', role: 'spymaster' });
   await C.must('setTeam', { team: 'blue', role: 'spymaster' });
   check((await D.act('setTeam', { team: 'blue', role: 'spymaster' })).ok === false, 'a second spymaster per team is refused');
+  // A team's channel before the game: gone once the board is dealt.
+  // A spymaster may talk to the team before the game (D is still rate limited from the chat test).
+  await C.must('chat', { text: 'blue before the deal', to: 'team' });
+  await all([C, D], (s) => s.chat.some((m) => m.text === 'blue before the deal'), 'a lobby team message reaches its team, spymaster included');
   await A.must('start', { lang: 'ar' });
   await all(bots, (s) => s.phase === 'playing' && s.shared.board.length === 25, 'codenames board dealt');
+  await all(bots, (s) => s.chat.some((m) => m.sys === 'started' && m.p.game === 'codenames') && !s.chat.some((m) => m.text === 'blue before the deal'),
+    'the start is said in the chat, and last round of team talk is gone');
+  // Team chat: operatives write to their side, the other side never receives it.
+  await B.must('chat', { text: 'red team secret plan', to: 'team' });
+  await all([A, B], (s) => s.chat.some((m) => m.text === 'red team secret plan' && m.team === 'red'), 'a team message reaches both members of that team');
+  await sleep(400);
+  check(!leaks(C, 'red team secret plan') && !leaks(D, 'red team secret plan'), 'the other team never receives it');
+  check((await A.act('chat', { text: 'spymaster hint', to: 'team' })).ok === false, 'a spymaster in play cannot write to the team');
+  await A.must('chat', { text: 'good luck everyone' });
+  await all(bots, (s) => s.chat.some((m) => m.text === 'good luck everyone' && !m.team), 'a spymaster can still talk to the whole room');
   check(['بابا', 'ماما', 'تيتا'].every((w) => A.state.shared.board.some((c) => c.word === w)), "the room's own words are on the board");
   // The list's words only: the room's own ones never go through the shared memory.
   const firstBoard = A.state.shared.board.map((c) => c.word).filter((w) => ['بابا', 'ماما', 'تيتا'].indexOf(w) === -1);

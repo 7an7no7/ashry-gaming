@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory } from '../generated/rules.js';
+import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, chatFor } from '../generated/rules.js';
 
 const MAX_PLAYERS = 12;
 // Big screens (a TV, a laptop) showing the room. They take no player seat.
@@ -148,7 +148,8 @@ export class Room extends DurableObject {
       screens: screens.map((s) => ({ id: s.id, online: online.has(s.id) })),
       youAreScreen: isScreen,
       shared: room.shared || {},
-      chat: room.chat || [],
+      // Less any other team's channel (أسماء الرموز); a screen reads no team's.
+      chat: chatFor(room, pid),
       // A screen faces everyone, so it never receives a secret.
       you: isScreen ? null : ((room.secrets && room.secrets[pid]) || null),
       // False for someone who joined after this game was dealt.
@@ -278,6 +279,7 @@ export class Room extends DurableObject {
         if (heir) again = now + HOST_AWAY_MS;
       } else if (heir && now - leftAt >= HOST_AWAY_MS - 1000) {
         this.room.hostId = heir.id;
+        roomEvent(this.room, 'host', { name: heir.name || '📺' });
         changed = true;
       } else if (heir) {
         again = leftAt + HOST_AWAY_MS;
@@ -358,6 +360,7 @@ export class Room extends DurableObject {
         return { ok: false, error: 'الاسم مستخدم بالفعل في هذه الغرفة' };
       }
       room.players.push({ id: pid, name });
+      roomEvent(room, 'joined', { name });
     }
     room.keys = room.keys || {};
     room.keys[pid] = key;
@@ -451,6 +454,7 @@ export class Room extends DurableObject {
     await this.load();
     if (this.check(pid, key)) return { ok: true };
     const room = this.room;
+    const leaving = room.players.find((p) => p.id === pid);
     room.players = room.players.filter((p) => p.id !== pid);
     room.screens = (room.screens || []).filter((s) => s.id !== pid);
     if (room.secrets) delete room.secrets[pid];
@@ -463,7 +467,9 @@ export class Room extends DurableObject {
       const heir = room.players.find((p) => online.has(p.id)) || room.players[0] ||
         room.screens.find((s) => online.has(s.id)) || room.screens[0];
       room.hostId = heir.id;
+      roomEvent(room, 'host', { name: heir.name || '📺' });
     }
+    if (leaving) roomEvent(room, 'left', { name: leaving.name });
 
     for (const ws of this.openSockets()) {
       if (this.playerOf(ws) !== pid) continue;

@@ -7,9 +7,19 @@
    so they survive the hub and every deal. A 💬 button sits on the room screens
    with a badge for what you haven't read; a message that arrives while the
    sheet is closed shows as a toast. The TV never shows it.
+
+   Three things ride on it:
+   - Quick reactions: one tap sends a line from `chat_quick`, for mid-round,
+     when typing is too slow.
+   - Room events: the server writes who joined and left, what started, and who
+     hosts now (`sys` and its details `p`), and each phone says them in its own
+     language. They never light the badge or pop a toast.
+   - Team chat in أسماء الرموز: a message sent `to: 'team'` carries the team,
+     and the server projects it to that team only (chatFor). A spymaster in
+     play reads it but can't write to it.
    ========================================================================= */
 
-const roomChat = { seen: 0, notified: 0, inRoom: false };
+const roomChat = { seen: 0, notified: 0, inRoom: false, to: 'all' };
 
 const roomChatOpen = () => {
   const m = document.getElementById('chat-modal');
@@ -20,19 +30,107 @@ function roomChatTime(at) {
   try { return new Date(at).toLocaleTimeString(appState.lang === 'ar' ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
 }
 
+/** This phone's side in أسماء الرموز, or null in any other game. */
+function chatTeamOf(state) {
+  if (!state || state.game !== 'codenames') return null;
+  const mine = ((state.shared || {}).teams || {})[Room.me];
+  return mine && (mine.team === 'red' || mine.team === 'blue') ? mine : null;
+}
+
+/** A spymaster mid-game hears the team channel and can't talk into it. */
+const chatTeamMuted = (state, mine) => !!mine && mine.role === 'spymaster' && state.phase === 'playing';
+
+const CHAT_TEAM_ICON = { red: '🔴', blue: '🔵' };
+
+/* Up to three emoji and nothing else are drawn big, the way a messenger does. */
+const CHAT_EMOJI_ONLY = /^(?:\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|\p{Emoji_Modifier})*\s*){1,3}$/u;
+
+/** A room event, in this phone's language. */
+function chatEventText(m, t) {
+  const p = m.p || {};
+  const fill = (key) => (t[key] || '').replace('{name}', p.name || '');
+  switch (m.sys) {
+    case 'joined': return '👋 ' + fill('chat_sys_joined');
+    case 'left':   return '🚪 ' + fill('chat_sys_left');
+    case 'host':   return '👑 ' + fill('chat_sys_host');
+    case 'hub':    return '📋 ' + (t.chat_sys_hub || '');
+    case 'started': {
+      const game = (typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES : []).find(g => g.id === p.game);
+      return (game ? game.icon : '🎮') + ' ' + (t.chat_sys_started || '').replace('{game}', game ? (t[game.key] || game.id) : (p.game || ''));
+    }
+  }
+  return '';
+}
+
 function renderRoomChat(state) {
   const list = document.getElementById('chat-list');
   if (!list) return;
   const t = TRANSLATIONS[appState.lang] || {};
   const msgs = (state && state.chat) || [];
   list.innerHTML = msgs.length
-    ? msgs.map(m => `
-        <div class="chat-msg ${m.from === Room.me ? 'is-mine' : ''}">
-          <div class="chat-msg__meta">${escapeHTML(m.name || '')} · <span class="metric">${roomChatTime(m.at)}</span></div>
-          <div class="chat-msg__text">${escapeHTML(m.text || '')}</div>
-        </div>`).join('')
+    ? msgs.map(m => {
+        if (m.sys) {
+          const text = chatEventText(m, t);
+          return text ? `<div class="chat-sys">${escapeHTML(text)}</div>` : '';
+        }
+        const team = CHAT_TEAM_ICON[m.team] ? m.team : '';
+        const big = CHAT_EMOJI_ONLY.test(String(m.text || '').trim());
+        return `
+          <div class="chat-msg ${m.from === Room.me ? 'is-mine' : ''} ${team ? 'chat-msg--team chat-msg--' + team : ''}">
+            <div class="chat-msg__meta">${team ? `<span class="chat-msg__team">${CHAT_TEAM_ICON[team]} ${escapeHTML(t.chat_team_badge || '')}</span> · ` : ''}${escapeHTML(m.name || '')} · <span class="metric">${roomChatTime(m.at)}</span></div>
+            <div class="chat-msg__text ${big ? 'chat-msg__text--big' : ''}">${escapeHTML(m.text || '')}</div>
+          </div>`;
+      }).join('')
     : `<div class="empty"><span class="empty__icon" aria-hidden="true">💬</span>${escapeHTML(t.chat_empty || '')}</div>`;
   list.scrollTop = list.scrollHeight;
+  paintChatComposer(state);
+}
+
+/** The reactions row, and in أسماء الرموز the everyone / my team switch. */
+function paintChatComposer(state) {
+  const t = TRANSLATIONS[appState.lang] || {};
+
+  const quick = document.getElementById('chat-quick');
+  if (quick && quick.dataset.lang !== appState.lang) {
+    quick.dataset.lang = appState.lang;
+    quick.innerHTML = String(t.chat_quick || '').split('|').map(q => q.trim()).filter(Boolean).map(q =>
+      `<button type="button" class="chat-quick__chip" onclick="sendRoomChat('${jsStringAttr(q)}')">${escapeHTML(q)}</button>`).join('');
+    if (typeof watchScrollFade === 'function') watchScrollFade(quick);
+  }
+
+  const channel = document.getElementById('chat-channel');
+  const note = document.getElementById('chat-channel-note');
+  const input = document.getElementById('chat-input');
+  const mine = chatTeamOf(state);
+  const muted = chatTeamMuted(state, mine);
+  if (!mine || muted) roomChat.to = 'all';
+  if (channel) {
+    if (!mine) {
+      channel.hidden = true;
+      channel.dataset.sig = '';
+    } else {
+      const sig = [mine.team, muted, roomChat.to, appState.lang].join('|');
+      if (channel.dataset.sig !== sig) {
+        channel.dataset.sig = sig;
+        channel.innerHTML = `
+          <button type="button" class="segmented__item ${roomChat.to === 'all' ? 'is-active' : ''}" onclick="setChatChannel('all')">${escapeHTML(t.chat_to_all || '')}</button>
+          <button type="button" class="segmented__item ${roomChat.to === 'team' ? 'is-active' : ''}" ${muted ? 'disabled' : ''} onclick="setChatChannel('team')">${CHAT_TEAM_ICON[mine.team]} ${escapeHTML(t.chat_to_team || '')}</button>`;
+      }
+      channel.hidden = false;
+    }
+  }
+  if (note) {
+    note.textContent = muted ? (t.chat_spymaster_note || '') : '';
+    note.hidden = !muted;
+  }
+  if (input) input.placeholder = roomChat.to === 'team' ? (t.chat_ph_team || '') : (t.chat_ph || '');
+}
+
+function setChatChannel(to) {
+  roomChat.to = to === 'team' ? 'team' : 'all';
+  paintChatComposer(Room.state);
+  const input = document.getElementById('chat-input');
+  if (input) input.focus();
 }
 
 /** Runs on every room state: the badge, the open sheet, and a toast for a message that just came in. */
@@ -40,8 +138,11 @@ function syncRoomChat(state) {
   const inRoom = !!(state && Room.isIn && !state.youAreScreen);
   document.body.classList.toggle('has-chat', inRoom);
   const msgs = (state && state.chat) || [];
+  // Room events are history, not news: they never count as unread or pop up.
+  const talk = msgs.filter(m => !m.sys);
   const last = msgs.length ? msgs[msgs.length - 1] : null;
-  if (!inRoom) { roomChat.inRoom = false; roomChat.seen = 0; roomChat.notified = 0; return; }
+  const lastTalk = talk.length ? talk[talk.length - 1] : null;
+  if (!inRoom) { roomChat.inRoom = false; roomChat.seen = 0; roomChat.notified = 0; roomChat.to = 'all'; return; }
   if (!roomChat.inRoom) {
     // Just arrived: what is already here is history, not news.
     roomChat.inRoom = true;
@@ -51,12 +152,13 @@ function syncRoomChat(state) {
   if (roomChatOpen()) {
     renderRoomChat(state);
     if (last) roomChat.seen = last.id;
-  } else if (last && last.id > roomChat.notified && last.from !== Room.me) {
-    showToast('💬 ' + (last.name || '') + ': ' + String(last.text || '').slice(0, 80));
+  } else if (lastTalk && lastTalk.id > roomChat.notified && lastTalk.from !== Room.me) {
+    const team = CHAT_TEAM_ICON[lastTalk.team] ? CHAT_TEAM_ICON[lastTalk.team] + ' ' : '';
+    showToast('💬 ' + team + (lastTalk.name || '') + ': ' + String(lastTalk.text || '').slice(0, 80));
     playSound('tick');
   }
   if (last) roomChat.notified = Math.max(roomChat.notified, last.id);
-  const unread = msgs.filter(m => m.id > roomChat.seen && m.from !== Room.me).length;
+  const unread = talk.filter(m => m.id > roomChat.seen && m.from !== Room.me).length;
   const badge = document.getElementById('chat-fab-badge');
   if (badge) { badge.textContent = unread ? String(unread) : ''; badge.hidden = !unread; }
 }
@@ -74,13 +176,17 @@ function closeRoomChat() {
   syncRoomChat(Room.state);
 }
 
-async function sendRoomChat() {
+/** What was typed, or a quick reaction when one is passed; to the team when that channel is chosen. */
+async function sendRoomChat(quick) {
   const input = document.getElementById('chat-input');
-  const text = (input && input.value || '').trim();
+  const typed = quick === undefined;
+  const text = String(typed ? ((input && input.value) || '') : quick).trim();
   if (!text) return;
+  const payload = { text: text };
+  if (roomChat.to === 'team' && chatTeamOf(Room.state)) payload.to = 'team';
   try {
-    await Room.act('chat', { text: text });
-    if (input) { input.value = ''; input.focus(); }
+    await Room.act('chat', payload);
+    if (typed && input) { input.value = ''; input.focus(); }
     playSound('tick');
   } catch (e) {
     showToast(e.message || '', 'error');

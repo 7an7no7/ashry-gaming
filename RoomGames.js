@@ -37,6 +37,8 @@ const clearGameState = (room) => {
   }
   room.shared = {};
   room.secrets = {};
+  // A team's channel belongs to that game; the next one may have other sides.
+  if (room.chat) room.chat = room.chat.filter(m => !m.team);
   // Every piece of server-side scratch, or the previous game's answer survives
   // into the next one.
   room._key = null;
@@ -95,8 +97,34 @@ const ROOM_GAME_IDS = [
   'twotruths', 'emoji', 'proverbs', 'fiveseconds', 'telephone', 'monkey'
 ];
 
-const ROOM_CHAT_MAX = 40;       // messages a room keeps
+const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
 const ROOM_CHAT_MAX_LEN = 200;  // characters in one
+
+/** Adds a line to the room's chat, keeping only the last ROOM_CHAT_MAX. */
+const pushChat = (room, entry) => {
+  const chat = (room.chat || []).slice(-(ROOM_CHAT_MAX - 1));
+  const last = chat[chat.length - 1];
+  chat.push(Object.assign({ id: (last ? last.id : 0) + 1, at: Date.now() }, entry));
+  room.chat = chat;
+};
+
+/**
+ * Something that happened, said in the chat so a player who isn't in the room
+ * with the others can follow: who came and went, what started, who hosts now.
+ * Stored as a kind and its details (`sys`, `p`), so every phone says it in its
+ * own language. They never count as unread.
+ */
+const roomEvent = (room, kind, details) => pushChat(room, { sys: kind, p: details || {} });
+
+/**
+ * The chat one device may read. A team's channel in أسماء الرموز goes only to
+ * that team - the other team, and a screen facing everyone, never receive it.
+ */
+const chatFor = (room, playerId) => {
+  const teams = (room.shared && room.shared.teams) || {};
+  const mine = teams[playerId];
+  return (room.chat || []).filter(m => !m.team || (!!mine && mine.team === m.team));
+};
 
 // Must match MAX_PLAYERS and MAX_SCREENS in rooms-worker/src/room.js.
 const ROOM_MAX_PLAYERS = 12;
@@ -139,12 +167,19 @@ const applyRoomAction = (room, playerId, action, payload) => {
     const who = room.players.find(p => p.id === playerId) || (room.screens || []).find(x => x.id === playerId);
     if (!who) throw new Error('لست في الغرفة');
     const now = Date.now();
-    const chat = (room.chat || []).slice(-(ROOM_CHAT_MAX - 1));
     // Five in five seconds is a person; more is a stuck key.
-    if (chat.filter(m => m.from === playerId && now - m.at < 5000).length >= 5) throw new Error('على مهلك شوية');
-    const last = chat[chat.length - 1];
-    chat.push({ id: (last ? last.id : 0) + 1, from: playerId, name: who.name || '📺', text: text, at: now });
-    room.chat = chat;
+    if ((room.chat || []).filter(m => m.from === playerId && now - m.at < 5000).length >= 5) throw new Error('على مهلك شوية');
+    const entry = { from: playerId, name: who.name || '📺', text: text };
+    if (payload && payload.to === 'team') {
+      // أسماء الرموز: the team's own channel. The projection keeps it from the
+      // other team (chatFor). A spymaster in play reads it and can't write to
+      // it: the real game lets them hear the table, never talk to it.
+      const mine = room.game === 'codenames' && room.shared && room.shared.teams && room.shared.teams[playerId];
+      if (!mine) throw new Error('الشات ده للفريق بس');
+      if (mine.role === 'spymaster' && room.phase === 'playing') throw new Error('الرئيس بيقرأ بس، مايكتبش لفريقه');
+      entry.team = mine.team;
+    }
+    pushChat(room, entry);
     return;
   }
 
@@ -168,9 +203,11 @@ const applyRoomAction = (room, playerId, action, payload) => {
 
   if (action === 'backToHub') {
     requireHost(room, playerId);
+    const had = room.game;
     clearGameState(room);
     room.game = null;
     room.phase = 'lobby';
+    if (had) roomEvent(room, 'hub');
     return;
   }
 
@@ -207,6 +244,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'monkey':     monkeyRoomAction(room, playerId, action, payload); break;
     default: throw new Error('لعبة غير معروفة');
   }
+
+  if (action === 'start' && room.phase !== 'lobby') roomEvent(room, 'started', { game: room.game });
 
   // Whoever is present when a game is dealt is in it. This can't be inferred
   // from secrets — a Codenames operative and a Just One guesser both have none.
@@ -1463,6 +1502,8 @@ const codenamesAction = (room, playerId, action, payload) => {
     const key = shuffled(roles);
 
     room._key = key;
+    // A new board, and maybe new sides: last game's team talk goes.
+    if (room.chat) room.chat = room.chat.filter(m => !m.team);
     room.shared = {
       teams: teams,
       settings: settings,

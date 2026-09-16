@@ -1,0 +1,341 @@
+<script>
+/* ============================================================================
+   خيوط — THEMED WORD SEARCH
+   ----------------------------------------------------------------------------
+   A grid of letters and a theme ("حيوانات المزرعة"). The theme's words are
+   hidden in straight lines; drag across one from its first letter to its last
+   (either way round) to find it. The list shows how long each word is, and a
+   hint gives away a word's first letter.
+
+   The themes and words are CHAMELEON_DB's (kinds of things, sixteen words
+   each), in the games' language. A word goes in along the reading direction,
+   down, or diagonally (hard also backwards and up); the rest of the grid is
+   filled with letters drawn from the theme's own words, so the filler looks
+   like the words. Hamza forms and diacritics are folded so a grid letter is
+   one plain letter. Easy 7×7 with 5 words, medium 8×8 with 6, hard 9×9 with 8;
+   the daily is medium from the seed. The board is in appState.strands.
+   ========================================================================= */
+
+const STRANDS_LEVELS = {
+  easy:   { size: 7, words: 5, reverse: false },
+  medium: { size: 8, words: 6, reverse: false },
+  hard:   { size: 9, words: 8, reverse: true }
+};
+let strandsTimer = null;
+let strandsDrag = null;
+
+function strandsState() {
+  if (!appState.strands) {
+    appState.strands = { level: 'easy', daily: '', lang: 'ar', size: 7, theme: '', icon: '', grid: [], words: [], found: [], hints: [], startedAt: 0, phase: 'setup' };
+  }
+  return appState.strands;
+}
+
+/** One plain letter per character: no diacritics, no tatweel, hamza seats folded. */
+function strandsFold(word, lang) {
+  let w = String(word || '').replace(/[ً-ْٰـ]/g, '').replace(/[أإآٱ]/g, 'ا');
+  if (lang === 'en') w = w.toUpperCase();
+  return w;
+}
+
+/** A category's name without its emoji, and the emoji apart. */
+/** { size, theme, icon, grid, words: [{ w, cells }] } or null. */
+function strandsMake(level, lang, rnd) {
+  const L = STRANDS_LEVELS[level] || STRANDS_LEVELS.easy;
+  const letterRe = lang === 'en' ? /^[A-Z]+$/ : /^[ء-ي]+$/;
+  const themes = soloShuffle((CHAMELEON_DB[lang] || CHAMELEON_DB.ar), rnd);
+  const dirs = lang === 'en'
+    ? [[0, 1], [1, 0], [1, 1]].concat(L.reverse ? [[0, -1], [-1, 0], [1, -1]] : [])
+    : [[0, -1], [1, 0], [1, -1]].concat(L.reverse ? [[0, 1], [-1, 0], [1, 1]] : []);
+  for (const theme of themes) {
+    const pool = soloShuffle(theme.words.map(w => strandsFold(w, lang)).filter(w => letterRe.test(w) && w.length >= 3 && w.length <= L.size), rnd);
+    if (pool.length < L.words) continue;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const grid = new Array(L.size * L.size).fill('');
+      const placed = [];
+      for (const w of pool) {
+        if (placed.length >= L.words) break;
+        let ok = false;
+        const starts = soloShuffle(Array.from({ length: L.size * L.size }, (_, k) => k), rnd);
+        for (const start of starts) {
+          for (const [dr, dc] of soloShuffle(dirs, rnd)) {
+            const r0 = Math.floor(start / L.size), c0 = start % L.size;
+            const cells = [];
+            let fits = true;
+            for (let k = 0; k < w.length; k++) {
+              const r = r0 + dr * k, c = c0 + dc * k;
+              if (r < 0 || r >= L.size || c < 0 || c >= L.size) { fits = false; break; }
+              const i = r * L.size + c;
+              if (grid[i] && grid[i] !== w[k]) { fits = false; break; }
+              cells.push(i);
+            }
+            if (!fits) continue;
+            // A word inside another placed word would be found twice.
+            if (placed.some(p => p.w.indexOf(w) !== -1 || w.indexOf(p.w) !== -1)) { fits = false; }
+            if (!fits) continue;
+            cells.forEach((i, k) => { grid[i] = w[k]; });
+            placed.push({ w: w, cells: cells });
+            ok = true;
+            break;
+          }
+          if (ok) break;
+        }
+      }
+      if (placed.length < L.words) continue;
+      const letters = pool.join('').split('');
+      for (let i = 0; i < grid.length; i++) if (!grid[i]) grid[i] = letters[Math.floor(rnd() * letters.length)];
+      const t = soloCategory(theme.category);
+      return { size: L.size, theme: t.name, icon: t.icon, grid: grid, words: placed };
+    }
+  }
+  return null;
+}
+
+/* --- Setup and play --------------------------------------------------------------- */
+
+function setupStrands() {
+  strandsStopTimer();
+  setView('setup-strands');
+}
+
+function paintStrandsSetup() {
+  const s = strandsState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#strands-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('strands', s.level);
+  const el = document.getElementById('strands-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('strands-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('strands-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('strands', 'startStrands(true)');
+}
+
+function setStrandsLevel(level) {
+  strandsState().level = level;
+  saveToLocal();
+  paintStrandsSetup();
+}
+
+function startStrands(daily) {
+  const s = strandsState();
+  const level = daily ? 'medium' : s.level;
+  const lang = contentLang() === 'en' ? 'en' : 'ar';
+  const made = strandsMake(level, lang, soloRandom(daily ? soloDaySeed('strands:' + lang) : null));
+  if (!made) return;
+  s.daily = daily ? soloToday() : '';
+  s.playLevel = level;
+  s.lang = lang;
+  s.size = made.size;
+  s.theme = made.theme;
+  s.icon = made.icon;
+  s.grid = made.grid;
+  s.words = made.words;
+  s.found = [];
+  s.hints = [];
+  s.startedAt = Date.now();
+  s.phase = 'play';
+  saveToLocal();
+  setView('play-strands');
+  paintStrands();
+  strandsArmTimer();
+}
+
+function continueStrands() {
+  if (strandsState().phase !== 'play') return;
+  setView('play-strands');
+  paintStrands();
+  strandsArmTimer();
+}
+
+function strandsArmTimer() {
+  strandsStopTimer();
+  strandsTimer = soloClock('strands-time', strandsState().startedAt);
+}
+
+function strandsStopTimer() {
+  if (strandsTimer) strandsTimer.stop();
+  strandsTimer = null;
+}
+
+function paintStrands() {
+  const s = strandsState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('strands-stage');
+  if (!el || !s.grid.length) return;
+  const foundCells = {};
+  s.found.forEach((wi, n) => s.words[wi].cells.forEach(i => { foundCells[i] = (foundCells[i] || []).concat(n % 6); }));
+  const bar = soloBarHtml([
+    { label: t.strands_found || '', value: `${s.found.length}/${s.words.length}`, id: 'strands-count' },
+    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'strands-time' }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+      <div class="solo-layout__board">
+        <div class="strands-grid" id="strands-grid" dir="ltr" style="--st-n:${s.size}">
+          ${s.grid.map((ch, i) => `<div class="strands-cell${foundCells[i] ? ' is-found f' + foundCells[i][foundCells[i].length - 1] : ''}" data-i="${i}">${escapeHTML(ch)}</div>`).join('')}
+        </div>
+      </div>
+      <div class="solo-layout__side">
+        <div class="strands-theme"><span class="strands-theme__icon" aria-hidden="true">${s.icon || '🧵'}</span>
+          <span><span class="eyebrow">${escapeHTML(t.strands_theme || '')}</span><b>${escapeHTML(s.theme)}</b></span>${s.daily ? ' <span class="badge">📅</span>' : ''}</div>
+        ${bar}
+        <div class="strands-words" id="strands-words">
+          ${s.words.map((w, wi) => {
+            const found = s.found.indexOf(wi) !== -1;
+            const hinted = s.hints.indexOf(wi) !== -1;
+            return `<span class="strands-word${found ? ' is-found' : ''}" data-w="${wi}">${found ? escapeHTML(w.w) : `${hinted ? escapeHTML(w.w[0]) : ''}${'<i></i>'.repeat(w.w.length - (hinted ? 1 : 0))}`}</span>`;
+          }).join('')}
+        </div>
+        <div class="sdk-tools">
+          <button type="button" class="btn btn--neutral btn--sm" onclick="hintStrands()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+        </div>
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupStrands()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+  strandsBind();
+}
+
+/* A finger traces a straight line: the cells between where it went down and where it is. */
+function strandsLine(s, a, b) {
+  const n = s.size;
+  const r0 = Math.floor(a / n), c0 = a % n, r1 = Math.floor(b / n), c1 = b % n;
+  const dr = Math.sign(r1 - r0), dc = Math.sign(c1 - c0);
+  const len = Math.max(Math.abs(r1 - r0), Math.abs(c1 - c0));
+  if (!(r0 === r1 || c0 === c1 || Math.abs(r1 - r0) === Math.abs(c1 - c0))) return null;
+  return Array.from({ length: len + 1 }, (_, k) => (r0 + dr * k) * n + (c0 + dc * k));
+}
+
+function strandsBind() {
+  const grid = document.getElementById('strands-grid');
+  if (!grid) return;
+  grid.addEventListener('pointerdown', (e) => {
+    const s = strandsState();
+    const cell = e.target.closest('.strands-cell');
+    if (!cell || s.phase !== 'play') return;
+    e.preventDefault();
+    strandsDrag = { start: Number(cell.dataset.i), cells: [Number(cell.dataset.i)] };
+    strandsPaintDrag();
+    const move = (ev) => {
+      const over = soloCellAt(ev.clientX, ev.clientY, '.strands-cell');
+      if (!over || !strandsDrag) return;
+      const line = strandsLine(s, strandsDrag.start, Number(over.dataset.i));
+      if (line) { strandsDrag.cells = line; strandsPaintDrag(); }
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      const d = strandsDrag;
+      strandsDrag = null;
+      strandsPaintDrag();
+      if (d && d.cells.length >= 2) strandsTry(d.cells);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  });
+}
+
+function strandsPaintDrag() {
+  const on = new Set(strandsDrag ? strandsDrag.cells : []);
+  document.querySelectorAll('#strands-grid .strands-cell').forEach(c => c.classList.toggle('is-tracing', on.has(Number(c.dataset.i))));
+}
+
+function strandsTry(cells) {
+  const s = strandsState();
+  const t = TRANSLATIONS[appState.lang];
+  const text = cells.map(i => s.grid[i]).join('');
+  const back = text.split('').reverse().join('');
+  const wi = s.words.findIndex((w, k) => s.found.indexOf(k) === -1 && (w.w === text || w.w === back));
+  if (wi === -1) {
+    const grid = document.getElementById('strands-grid');
+    if (grid && grid.animate && !motionOff()) grid.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }], { duration: 240 });
+    return;
+  }
+  s.found.push(wi);
+  saveToLocal();
+  playSound('success');
+  haptic('light');
+  const from = cells.map(i => document.querySelector(`#strands-grid [data-i="${i}"]`)).filter(Boolean);
+  const rects = from.map(c => c.getBoundingClientRect());
+  paintStrands();
+  // The word's letters fly from the grid into its place in the list.
+  const slot = document.querySelector(`#strands-words [data-w="${wi}"]`);
+  if (slot && rects.length && !motionOff() && document.body.animate) {
+    const to = slot.getBoundingClientRect();
+    slot.classList.add('motion-waiting');
+    rects.forEach((r, k) => {
+      const ghost = document.createElement('span');
+      ghost.className = 'strands-ghost';
+      ghost.textContent = s.grid[cells[k]];
+      ghost.style.left = r.left + 'px';
+      ghost.style.top = r.top + 'px';
+      ghost.style.width = r.width + 'px';
+      ghost.style.height = r.height + 'px';
+      document.body.appendChild(ghost);
+      const dx = to.left + to.width / 2 - (r.left + r.width / 2);
+      const dy = to.top + to.height / 2 - (r.top + r.height / 2);
+      const a = ghost.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(0.5)`, opacity: 0.2 }],
+                              { duration: 520, delay: k * 35, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' });
+      const done = () => ghost.remove();
+      a.onfinish = done;
+      setTimeout(done, 1400);
+    });
+    setTimeout(() => {
+      slot.classList.remove('motion-waiting', 'motion-landed');
+      void slot.offsetWidth;
+      slot.classList.add('motion-landed');
+    }, 520 + rects.length * 35);
+  }
+  if (s.found.length === s.words.length) strandsFinish();
+}
+
+function hintStrands() {
+  const s = strandsState();
+  if (s.phase !== 'play') return;
+  const wi = s.words.findIndex((w, k) => s.found.indexOf(k) === -1 && s.hints.indexOf(k) === -1);
+  if (wi === -1) return;
+  s.hints.push(wi);
+  saveToLocal();
+  paintStrands();
+  const first = document.querySelector(`#strands-grid [data-i="${s.words[wi].cells[0]}"]`);
+  if (first && first.animate && !motionOff()) first.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)' }, { transform: 'scale(1)' }], { duration: 500, iterations: 2 });
+}
+
+function strandsFinish() {
+  const s = strandsState();
+  const t = TRANSLATIONS[appState.lang];
+  strandsStopTimer();
+  s.phase = 'done';
+  const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  saveToLocal();
+  const level = s.playLevel || s.level;
+  const rec = s.hints.length ? { record: false, prev: soloBest('strands', level) }
+    : soloRecord('strands', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('strands', { seconds: seconds, hints: s.hints.length });
+    share = `${soloShareHeader(t)}\n🧵 ${t.setup_strands || ''} ✅ ${soloTime(seconds)}${s.hints.length ? ' · 💡 ' + s.hints.length : ''}`;
+  }
+  const lines = [`${s.icon || ''} <b>${escapeHTML(s.theme)}</b>`];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: '🧵', title: rec.record ? (t.solo_new_best || '') : (t.strands_done || ''),
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    again: () => startStrands(false), exit: setupStrands
+  }), motionOff() ? 0 : 900);
+}
+
+function restoreStrands() {
+  const s = strandsState();
+  if (s.phase !== 'play' || !s.grid.length) return false;
+  paintStrands();
+  strandsArmTimer();
+  return true;
+}
+
+soloRegister('strands', { setup: 'setup-strands', play: 'play-strands', paintSetup: paintStrandsSetup, restore: restoreStrands });
+</script>

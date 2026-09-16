@@ -1,0 +1,304 @@
+<script>
+/* ============================================================================
+   سلسلة الإجابات — HOW MANY IN A ROW?
+   ----------------------------------------------------------------------------
+   One question at a time, four answers, 20 seconds, three lives. The score is
+   the number of right answers before the third miss, and the best is kept per
+   kind of question.
+
+   Every question comes from a bank the app already has, never a new list:
+   - trivia: TRIVIA_QUESTIONS (the room trivia's four-choice questions);
+   - board: TRIVIA_BOARD_BANK (دوري المعرفة), whose answers are free text, so
+     the three wrong ones are other answers from the same category;
+   - emoji: EMOJI_RIDDLES, wrong answers from the same kind (films with films);
+   - proverbs: PROVERBS, the missing word against other proverbs' words.
+   "trivia" asks from the first two, "mix" from any of the four at random. Free
+   play deals through freshPick, so a question doesn't come back until its
+   bank has gone round; the daily is ten seeded questions.
+
+   The question on screen carries its deadline (endsAt), so a reload comes
+   back to it with the time it really has left. appState.streak holds it all.
+   ========================================================================= */
+
+const STREAK_SECONDS = 20;
+const STREAK_LIVES = 3;
+const STREAK_DAILY = 10;
+const STREAK_KINDS = ['trivia', 'board', 'emoji', 'proverbs'];
+let streakClock = null;
+let streakNextTimer = null;
+
+function streakState() {
+  if (!appState.streak) {
+    appState.streak = { source: 'mix', daily: '', lang: 'ar', q: null, deck: [], asked: 0, score: 0, lives: STREAK_LIVES, marks: [], phase: 'setup' };
+  }
+  return appState.streak;
+}
+
+/* --- The banks, as questions ----------------------------------------------------- */
+
+function streakDistinct(answer, pool, count, rnd) {
+  const seen = new Set([foldWord(answer)]);
+  const out = [];
+  soloShuffle(pool, rnd).forEach(x => {
+    const f = foldWord(x);
+    if (out.length >= count || !f || seen.has(f)) return;
+    seen.add(f);
+    out.push(x);
+  });
+  return out;
+}
+
+/** Four shuffled options with the right one's index. */
+function streakOptions(answer, decoys, rnd) {
+  const options = soloShuffle([answer].concat(decoys), rnd);
+  return { options: options, answer: options.indexOf(answer) };
+}
+
+/** The raw items of one kind: { key, make(rnd) -> question } */
+function streakPool(kind, lang) {
+  if (kind === 'trivia') {
+    const list = (typeof TRIVIA_QUESTIONS !== 'undefined' && (TRIVIA_QUESTIONS[lang] || TRIVIA_QUESTIONS.ar)) || [];
+    return list.map(x => ({
+      key: x.q,
+      make: (rnd) => Object.assign({ kind: kind, prompt: x.q, tag: '' }, streakOptions(x.choices[x.answer], x.choices.filter((_, i) => i !== x.answer), rnd))
+    }));
+  }
+  if (kind === 'board') {
+    const out = [];
+    (typeof TRIVIA_BOARD_BANK !== 'undefined' ? TRIVIA_BOARD_BANK : []).forEach(cat => {
+      const items = [];
+      Object.values(cat.levels).forEach(list => list.forEach(row => items.push(lang === 'en' ? { q: row[2], a: row[3] } : { q: row[0], a: row[1] })));
+      const answers = items.map(x => x.a);
+      items.forEach(x => out.push({
+        key: x.q,
+        make: (rnd) => Object.assign({ kind: kind, prompt: x.q, tag: `${cat.icon} ${lang === 'en' ? cat.en : cat.ar}` },
+          streakOptions(x.a, streakDistinct(x.a, answers.filter(a => a !== x.a), 3, rnd), rnd))
+      }));
+    });
+    return out;
+  }
+  if (kind === 'emoji') {
+    const list = (typeof EMOJI_RIDDLES !== 'undefined' && (EMOJI_RIDDLES[lang] || EMOJI_RIDDLES.ar)) || [];
+    return list.map(x => ({
+      key: x.e,
+      make: (rnd) => {
+        const same = list.filter(y => y.c === x.c && y !== x).map(y => y.a);
+        const decoys = streakDistinct(x.a, same, 3, rnd);
+        if (decoys.length < 3) decoys.push(...streakDistinct(x.a, list.map(y => y.a).filter(a => decoys.indexOf(a) === -1), 3 - decoys.length, rnd));
+        return Object.assign({ kind: kind, prompt: '', big: x.e, tag: x.c }, streakOptions(x.a, decoys, rnd));
+      }
+    }));
+  }
+  const list = (typeof PROVERBS !== 'undefined' && (PROVERBS[lang] || PROVERBS.ar)) || [];
+  return list.map(x => ({
+    key: x.p,
+    make: (rnd) => Object.assign({ kind: 'proverbs', prompt: x.p, tag: '' }, streakOptions(x.a, streakDistinct(x.a, list.map(y => y.a), 3, rnd), rnd))
+  }));
+}
+
+function streakDeal(source, lang) {
+  const kind = source === 'mix' ? soloPick(STREAK_KINDS) : (source === 'trivia' ? soloPick(['trivia', 'board']) : source);
+  const pool = streakPool(kind, lang);
+  const pick = freshPick(`streak:${kind}:${lang}`, pool, 1, { key: x => x.key })[0];
+  return pick ? pick.make(Math.random) : null;
+}
+
+function streakDailyDeck(lang) {
+  const rnd = soloRng(soloDaySeed('streak:' + lang));
+  const pools = {};
+  STREAK_KINDS.forEach(k => { pools[k] = soloShuffle(streakPool(k, lang), rnd); });
+  const deck = [];
+  for (let i = 0; i < STREAK_DAILY; i++) {
+    const kind = STREAK_KINDS[i % STREAK_KINDS.length];
+    const item = pools[kind][i];
+    if (item) deck.push(item.make(rnd));
+  }
+  return deck;
+}
+
+/* --- Setup and play ----------------------------------------------------------------- */
+
+function setupStreak() {
+  streakStop();
+  setView('setup-streak');
+}
+
+function paintStreakSetup() {
+  const s = streakState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#streak-source .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.source));
+  const best = soloBest('streak', s.source);
+  const el = document.getElementById('streak-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${best.score}` : '';
+  const cont = document.getElementById('streak-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('streak-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('streak', 'startStreak(true)');
+}
+
+function setStreakSource(source) {
+  streakState().source = source;
+  saveToLocal();
+  paintStreakSetup();
+}
+
+function startStreak(daily) {
+  const s = streakState();
+  const lang = contentLang() === 'en' ? 'en' : 'ar';
+  Object.assign(s, {
+    daily: daily ? soloToday() : '', lang: lang, playSource: daily ? 'mix' : s.source,
+    deck: daily ? streakDailyDeck(lang) : [], asked: 0, score: 0, lives: STREAK_LIVES, marks: [], q: null, phase: 'play'
+  });
+  streakNext();
+  setView('play-streak');
+  paintStreak(true);
+}
+
+function continueStreak() {
+  if (streakState().phase !== 'play') return;
+  setView('play-streak');
+  if (!restoreStreak()) setupStreak();
+}
+
+/** Puts the next question up, with a fresh deadline. */
+function streakNext() {
+  const s = streakState();
+  const q = s.daily ? s.deck[s.asked] : streakDeal(s.playSource, s.lang);
+  s.q = q ? Object.assign(q, { endsAt: Date.now() + STREAK_SECONDS * 1000, picked: null }) : null;
+  saveToLocal();
+}
+
+function streakStop() {
+  if (streakClock) streakClock.stop();
+  streakClock = null;
+  clearTimeout(streakNextTimer);
+}
+
+function streakHearts(s) {
+  return Array.from({ length: STREAK_LIVES }, (_, i) => `<span class="streak-heart${i < s.lives ? '' : ' is-lost'}" data-h="${i}">${i < s.lives ? '❤️' : '🤍'}</span>`).join('');
+}
+
+function paintStreak(fresh) {
+  const s = streakState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('streak-stage');
+  const q = s.q;
+  if (!el || !q) return;
+  streakStop();
+  const answered = q.picked !== null;
+  const left = Math.max(0, (q.endsAt - Date.now()) / 1000);
+  const prompt = q.kind === 'proverbs'
+    ? escapeHTML(q.prompt).replace('___', '<span class="streak-blank">؟</span>')
+    : escapeHTML(q.prompt);
+  const bar = soloBarHtml([
+    { label: t.streak_lives || '', value: `<span class="streak-hearts" id="streak-hearts">${streakHearts(s)}</span>` },
+    { label: s.daily ? `📅 ${s.asked + 1}/${s.deck.length}` : (t.streak_score || ''), value: s.score, id: 'streak-score' },
+    { label: t.streak_time || '', value: Math.ceil(answered ? 0 : left), id: 'streak-left' }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+      <div class="solo-layout__board">
+        <div class="streak-card${fresh ? ' is-new' : ''}">
+          ${q.tag ? `<span class="eyebrow">${escapeHTML(q.tag)}</span>` : ''}
+          ${q.big ? `<div class="streak-emoji" dir="ltr">${escapeHTML(q.big)}</div>` : ''}
+          ${prompt ? `<p class="streak-prompt">${prompt}</p>` : `<p class="streak-prompt streak-prompt--sub">${escapeHTML(t.streak_emoji_q || '')}</p>`}
+          <div class="streak-timer${answered ? ' is-stopped' : ''}" aria-hidden="true"><i style="animation-duration:${STREAK_SECONDS}s; animation-delay:-${(STREAK_SECONDS - left).toFixed(2)}s"></i></div>
+        </div>
+      </div>
+      <div class="solo-layout__side">
+        ${bar}
+        <div class="solo-choices" id="streak-options">
+          ${q.options.map((o, i) => {
+            const cls = answered ? (i === q.answer ? ' is-right' : (i === q.picked ? ' is-wrong' : '')) : '';
+            return `<button type="button" class="solo-choice${cls}" data-i="${i}" onclick="answerStreak(${i})" ${answered ? 'disabled' : ''}><span>${escapeHTML(o)}</span></button>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupStreak()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+  if (answered) {
+    streakNextTimer = setTimeout(streakAdvance, 1300);
+    return;
+  }
+  streakClock = createClock({
+    seconds: Math.ceil(left),
+    onTick: (v) => { const n = document.getElementById('streak-left'); if (n) n.textContent = v; },
+    onEnd: () => answerStreak(-1)
+  });
+}
+
+function answerStreak(i) {
+  const s = streakState();
+  const q = s.q;
+  if (s.phase !== 'play' || !q || q.picked !== null) return;
+  streakStop();
+  q.picked = i;
+  const right = i === q.answer;
+  if (right) s.score++;
+  else s.lives--;
+  s.marks.push(right ? '✅' : (i === -1 ? '⏰' : '❌'));
+  s.asked++;
+  saveToLocal();
+  playSound(right ? 'success' : 'alarm');
+  haptic(right ? 'light' : 'medium');
+  paintStreak(false);
+  if (motionOff()) return;
+  if (right) {
+    const score = document.getElementById('streak-score');
+    if (score && score.animate) score.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.45)' }, { transform: 'scale(1)' }], { duration: 360, easing: 'ease-out' });
+  } else {
+    const heart = document.querySelector(`#streak-hearts [data-h="${s.lives}"]`);
+    if (heart && heart.animate) heart.animate([{ transform: 'scale(1.6) rotate(-12deg)' }, { transform: 'scale(0.8) rotate(8deg)' }, { transform: 'none' }], { duration: 520, easing: 'ease-out' });
+  }
+}
+
+function streakAdvance() {
+  const s = streakState();
+  if (s.phase !== 'play') return;
+  if (s.lives <= 0 || (s.daily && s.asked >= s.deck.length)) { streakFinish(); return; }
+  streakNext();
+  if (!s.q) { streakFinish(); return; }
+  paintStreak(true);
+}
+
+function streakFinish() {
+  const s = streakState();
+  const t = TRANSLATIONS[appState.lang];
+  streakStop();
+  if (s.phase !== 'play') return;
+  s.phase = 'done';
+  saveToLocal();
+  const source = s.playSource || s.source;
+  const rec = s.daily ? { record: false, prev: null } : soloRecord('streak', source, { score: s.score }, (a, b) => a.score > b.score);
+  let share = '';
+  const lines = [];
+  if (s.daily === soloToday()) {
+    soloMarkDaily('streak', { score: s.score });
+    share = `${soloShareHeader(t)}\n🔥 ${t.setup_streak || ''} ${s.score}/${s.deck.length}\n${s.marks.join('')}`;
+    lines.push(s.marks.join(''));
+  }
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.score}`);
+  soloResult({
+    icon: '🔥', title: s.daily ? (s.lives > 0 ? (t.daily_done_today || '') : (t.streak_over || '')) : (rec.record && s.score ? (t.solo_new_best || '') : (t.streak_over || '')),
+    value: s.score, valueLabel: s.daily ? `/ ${s.deck.length}` : (t.streak_in_a_row || ''), lines: lines,
+    win: rec.record && s.score > 0 || (s.daily && s.score >= 7), share: share,
+    again: () => startStreak(false), exit: setupStreak
+  });
+}
+
+function restoreStreak() {
+  const s = streakState();
+  if (s.phase !== 'play' || !s.q) return false;
+  if (s.q.picked === null && Date.now() >= s.q.endsAt) {
+    paintStreak(false);
+    answerStreak(-1);
+    return true;
+  }
+  paintStreak(false);
+  return true;
+}
+
+soloRegister('streak', { setup: 'setup-streak', play: 'play-streak', paintSetup: paintStreakSetup, restore: restoreStreak });
+</script>

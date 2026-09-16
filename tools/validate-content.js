@@ -118,7 +118,7 @@ for (const [lang, list] of Object.entries(WL)) {
   console.log(`wavelength.${lang}: ${list.length} pairs`);
 }
 
-const TRIV = load(PC, 'TRIVIA_QUESTIONS');
+const TRIV = load(ROOT + 'TriviaQuestions.js', 'TRIVIA_QUESTIONS');
 for (const [lang, list] of Object.entries(TRIV)) {
   list.forEach((item, i) => {
     if (!item.q || !item.q.trim()) note(`trivia.${lang}[${i}]: empty question`);

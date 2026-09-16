@@ -93,7 +93,7 @@ else fail(`${ROOMS}/health answered HTTP ${health.status}`);
 const workerBuild = cacheName((await get(ROOMS + '/sw.js')).text);
 if (workerBuild === local) ok('the rooms server was deployed with this build');
 else warn(`the rooms server's copy of the app is ${workerBuild || 'unknown'}: the last deploy came before this build.\n` +
-  '  Fine if only the page changed. If RoomGames.js, PartyContent.js, CodenamesWords.js, SpyWords.js or\n' +
+  '  Fine if only the page changed. If RoomGames.js, PartyContent.js, TriviaQuestions.js, CodenamesWords.js, SpyWords.js or\n' +
   '  rooms-worker/src changed: cd rooms-worker && npm run deploy, wait a minute, npm run test:live.');
 
 console.log(failed ? '\nNOT LIVE YET - fix the ✗ lines above.' : '\nLive.');

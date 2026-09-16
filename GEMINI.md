@@ -64,11 +64,14 @@
 - **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
   or two on one phone; ⭕ **Tic Tac Toe (إكس أو)** against a friend or an
   unbeatable minimax.
+- **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
+  🚩 Minesweeper, 👑 Queens, ☀️ Tango, 🖼️ Nonogram; 🧵 خيوط, 🔡 كلمات من
+  حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 📊 الترتيب الأعمى.
 - **Utility Tools:**
   - 👆 Who starts? (مين يبدأ؟), the finger chooser: one starts, two teams, or an order.
   - 🏆 Tournament Organizer, 👥 Team Generator, 🎡 Random Picker.
   - ♟️ Chess Clock, ⏱️ General Timers, 🎲 Dice & Coin.
-  - 🀄 Domino Scorer, 🔢 Universal Counter.
+  - 🀄 Domino Scorer, 🔢 Universal Counter, 🔊 the soundboard.
 
 ## Where the app is going: ideas, decisions and the log
 
@@ -78,18 +81,32 @@ work changed. Add to it when a decision is made or a batch ships.
 
 ### Waiting
 
-- **مافيا (Mafia / Werewolf)** - explained on 16 Sep 2026; the owner has edits
-  of their own to bring before it is built. The outline agreed so far: rooms
-  first, the app as the narrator (night choices made silently on each phone,
+- **مافيا (Mafia / Werewolf)** - the owner's spec of 16 Sep 2026, to build in
+  rooms: the app is the narrator (night choices made silently on each phone,
   the server resolves them), the voting engine for the day, the TV for night
-  and day, 6+ players, Mafia + Doctor + Detective to start, family wording
-  ("خرج من اللعبة", no killing words). One phone only as a narrator's helper
-  (hold-to-reveal roles), since passing a phone at night shows who acts.
+  and day, family wording ("خرج من اللعبة", no killing words).
+  - **Two modes.** *Classic*: Mafia and Citizens only. *Roles*: adds the
+    Doctor, the Detective and the **Lawyer** (محامي).
+  - **The Lawyer** defends the Mafia by misleading the citizens as if they
+    were one of them. The Lawyer knows who the Mafia are; the Mafia don't know
+    who the Lawyer is.
+  - **The app picks how many Mafia** from the number of players, so it is
+    fair. At least 5 players.
+  - **Revealing roles is an option, off by default**: anyone who leaves the
+    game is shown as a Citizen, except a Mafia member, who is always shown as
+    Mafia. With the option on, the real role is shown.
+  - **There is time to talk**: a discussion clock before every vote, for
+    arguing and accusing.
+- **Also asked for on 16 Sep 2026 and queued in this order**: خمّن الدولة /
+  العلم, the تحدي اليوم hub, على راسك, زي الكل with مافيا in rooms, and the
+  card game scorers (إستميشن, طرنيب, تريكس, كونكان, باصرة).
 
 ### Ideas not built yet (researched 16 Sep 2026)
 
-Solo is the gap: the solo games are Wordle, Connections, Memory, X-O against
-the phone and Guess the Number. Candidates, each within the owner's rules
+Solo was the gap (Wordle, Connections, Memory, X-O against the phone and Guess
+the Number). Built since, see *Solo games*: Sudoku, 2048, Minesweeper, Queens,
+Tango, Nonogram, خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات and
+الترتيب الأعمى. The candidates as researched, each within the owner's rules
 (free, offline where possible, nothing adult, content that doesn't go stale,
 categories that name a kind of thing):
 
@@ -140,6 +157,14 @@ blind ranking, the word search), `countUp` for streaks and scores.
 
 ### Decided, and why
 
+- **New games use the lists the app already has** (owner, 16 Sep 2026): no
+  small new list when a large one exists, and no copy of a list another game
+  keeps. The Chameleon categories, the room trivia, the team-board bank, the
+  emoji riddles, the proverbs, the Describe It cards and every word list feed
+  the solo games; a list that has to be shared is moved into its own file
+  (`TriviaQuestions.js` came out of `PartyContent.js` for this), never copied.
+- The soundboard is a tool (الأدوات → لوحة الأصوات), not a setting (owner,
+  16 Sep 2026). The 🔊 in the header on play and room screens stays.
 - Rooms stay on Cloudflare; WebRTC was rejected. Firebase, if ever, on a
   different Google account from the one already tried.
 - صراحة أو جرأة (truth or dare): a family-clean list is too tame. تخمين السعر
@@ -174,6 +199,13 @@ blind ranking, the word search), `countUp` for streaks and scores.
   sheet; Stop's full-sheet وقف and dictionary; the bomb's louder tick and
   sound waking; a real applause. Found on the way: the one-phone الجاسوس's
   default category had crashed since the ربع قرد rebuild (*Traps*).
+- **16 Sep 2026, later** - the solo games: `JS_Solo.html` and Sudoku, 2048,
+  Minesweeper; Queens, Tango, Nonogram; then خيوط, كلمات من حروف, إيه اللي
+  يجمعهم؟, سلسلة الإجابات and الترتيب الأعمى, all from existing lists. The
+  trivia questions moved to `TriviaQuestions.js` so the page can ask them.
+  The soundboard moved from Settings to the tools. Solo boards sit beside their
+  controls on laptops and TVs too (Sudoku's pad had been below the fold at
+  1280×720).
 
 ## Building and Running
 
@@ -225,7 +257,7 @@ Two browser tabs on the preview behave like two phones in one room.
   `RoomGames.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
-  `MonkeyWords.js`, `StopWords.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -318,7 +350,7 @@ is nowhere to hide the key card.
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `rooms-worker/src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live`. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
-| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js` | Word lists the rules deal from, bundled into the Worker. The last seven are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, and a Stop phone checks its boxes with the server's own rule. |
+| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js` | Word lists the rules deal from, bundled into the Worker. The last eight are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, a Stop phone checks its boxes with the server's own rule, and the solo games ask from the room trivia's questions. `PartyContent.js` stays server-only: the Fibbage answers in it must never reach a page. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -865,8 +897,8 @@ home-screen icon, the manifest, `?room=` links and the offline service worker
 with a `preconnect` so creating a room doesn't wait for the connection.
 
 So a change can need two releases. Client files only: rebuild `docs/` and push.
-Anything the rooms server runs (`RoomGames.js`, `PartyContent.js`,
-`CodenamesWords.js`, `SpyWords.js`, `rooms-worker/src/`): also `npm run deploy`
+Anything the rooms server runs (`RoomGames.js`, the lists in `FILES` in
+`rooms-worker/build.mjs`, `rooms-worker/src/`): also `npm run deploy`
 in `rooms-worker/`, or rooms keep the old rules. `docs/README.md` has the steps.
 
 The rooms server also serves a copy of `docs/` at its own address, uploaded on
@@ -989,8 +1021,16 @@ its own rules and board:
   goes in the side): one column upright, with the bar on top through
   `display: contents` and `order`; two columns on a phone held sideways, the
   board sized off `--app-h` so it needs no scrolling (a minefield, taller than
-  wide, scrolls instead). Grids that map to a physical board carry
-  `dir="ltr"`. Styles are section 15 of `Style.html`.
+  wide, scrolls instead) and on any screen at least 900 wide; the word and
+  quiz games' lists and cards take a narrower board. Grids that map to a
+  physical board carry `dir="ltr"`. Styles are section 15 of `Style.html`.
+- **Shared small pieces.** `soloCategory("فواكه 🍎")` splits a list's category
+  into name and emoji; `soloCellAt(x, y, selector)` finds the cell under a
+  dragging finger; `.solo-choices` / `.solo-choice` (`is-right`, `is-wrong`)
+  are the answer buttons of the quiz-style games.
+- **Free play deals through `freshPick`** (so a category or question doesn't
+  come back until its list has gone round); only a daily uses the seeded
+  source.
 
 The games (group `puzzle`, "ألغاز ومخ", on the home):
 
@@ -1024,6 +1064,43 @@ The games (group `puzzle`, "ألغاز ومخ", on the home):
   line fades its clue; the picture's name is in the result. **`npm run
   check` fails on a picture that needs a guess**: four first drafts did (a
   symmetric face or sun often has two solutions) and were dropped.
+
+The word and quiz games (group `brain`, "كلمات وأسئلة لوحدك"). None has a list
+of its own:
+
+- **خيوط** (`JS_WordSearch.html`, id `strands`): a Chameleon category and its
+  single-word entries hidden in a grid (7 to 9 wide), in the reading
+  direction of the language plus down and diagonally, backwards too on hard;
+  the empty cells are filled with the category's own letters so nothing
+  stands out. A finger traces a straight line (`strandsLine`); a found word's
+  letters fly into its slot. `strandsFold` drops diacritics and hamza seats,
+  so the grid never shows أ against ا.
+- **كلمات من حروف** (`JS_WordWheel.html`, id `wordwheel`): `wheelDictionary`
+  gathers every single word of 3-7 letters from the Chameleon, Wordle, Stop,
+  Monkey, spy, Connections, Describe It (cards and forbidden words), Charades
+  and Who Am I lists (not titles or people): about 3,200 Arabic and 2,600
+  English. A base word of 5/6/7 letters, every word its letters spell, and
+  `wheelLayout` builds a crossword where each word crosses one already placed
+  and touches nothing else; words that don't fit are bonus ⭐. Drag across the
+  wheel (an SVG line follows) or tap and ✓. The grid's columns are a fixed
+  share of its width: a column of hidden cells has no content and collapsed to
+  nothing with `minmax(0, …)`.
+- **إيه اللي يجمعهم؟** (`JS_Pinpoint.html`, id `pinpoint`): five rounds, a
+  Chameleon category shown one word at a time against six categories.
+  `pinMakeRound` picks decoys that share a word with the answer first and
+  shows the shared words first, so one word is rarely enough. 5 points down to
+  1; a wrong pick crosses out and opens the next word.
+- **سلسلة الإجابات** (`JS_QuizStreak.html`, id `streak`): 20 seconds, four
+  answers, three hearts. `streakPool` turns four banks into questions: the room
+  trivia (`TriviaQuestions.js`), the team board (answers are free text, so the
+  wrong options are other answers of its category), the emoji riddles (wrong
+  options from the same kind) and the proverbs. The question keeps its deadline,
+  so a reload comes back with the time it has left, or counts it as missed.
+  The daily is ten seeded questions.
+- **الترتيب الأعمى** (`JS_BlindRank.html`, id `blindrank`): 5 or 10 things of a
+  Chameleon category, each placed 1..n before the next shows; the word flies
+  into its place. No score: the list is shared as text, and the daily gives
+  every phone the same five in the same order.
 
 ### The catalog and the home screen
 
@@ -1083,7 +1160,9 @@ keypad follows the content language too, since it types the word.
 `playFx(name)`): applause, ta-da, right, wrong, ba-dum-tss, the sad
 trombone, a sad violin, crickets, boo, an air horn, a siren, a whistle.
 Nothing is downloaded (the old board pulled mp3s from a meme site), so
-they play at once and offline. `openSoundboard()` is the sheet; a 🔊
+they play at once and offline. `openSoundboard()` is the sheet, opened from
+الأدوات (a `GAME_CATALOG` tool whose `open` is the sheet, with its own
+`GAME_RULES` and help entry) or from a 🔊
 button in the header beside the gear (`#fx-fab`, shown through
 `body.has-fx` which `setView` sets on `play-*` and `room-*` screens) keeps
 it one tap away mid-game - it floated over the page once, where it covered

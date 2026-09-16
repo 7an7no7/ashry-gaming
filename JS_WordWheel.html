@@ -1,0 +1,449 @@
+<script>
+/* ============================================================================
+   كلمات من حروف — THE LETTER WHEEL
+   ----------------------------------------------------------------------------
+   A wheel of letters and a small crossword. Drag across the letters (or tap
+   them one by one and press ✓) to make a word; a word of the crossword fills
+   its cells, any other real word made of these letters is a bonus ⭐.
+
+   The words are the app's own: the Chameleon, Connections, Wordle, Stop and
+   spy banks in the games' language (wheelDictionary), folded to plain letters
+   (hamza seats and diacritics, and a leading "ال"). A puzzle is a base word of
+   5, 6 or 7 letters, every dictionary word its letters can spell, and a
+   crossword laid out from those (wheelLayout: each word crosses one already
+   placed, touching nothing else). What doesn't fit the grid counts as a bonus.
+   The daily is 6 letters from the seed. The board is in appState.wordwheel.
+   ========================================================================= */
+
+const WHEEL_LEVELS = {
+  easy:   { letters: 5, min: 4, max: 6 },
+  medium: { letters: 6, min: 5, max: 7 },
+  hard:   { letters: 7, min: 6, max: 8 }
+};
+const WHEEL_DICT = {};
+let wheelDrag = null;
+let wheelTimer = null;
+
+function wheelState() {
+  if (!appState.wordwheel) {
+    appState.wordwheel = { level: 'easy', daily: '', lang: 'ar', letters: [], words: [], bonus: [], found: [], bonusFound: [], shown: [], typed: [], rows: 0, cols: 0, startedAt: 0, phase: 'setup' };
+  }
+  return appState.wordwheel;
+}
+
+function wheelFold(word, lang) {
+  let w = String(word || '').trim().replace(/[ً-ْٰـ]/g, '').replace(/[أإآٱ]/g, 'ا');
+  if (lang === 'en') return w.toUpperCase();
+  if (w.indexOf('ال') === 0 && w.length >= 5) w = w.slice(2);
+  return w;
+}
+
+/** Every single word of 3 to 7 plain letters the app's banks know, in one language. */
+function wheelDictionary(lang) {
+  if (WHEEL_DICT[lang]) return WHEEL_DICT[lang];
+  const re = lang === 'en' ? /^[A-Z]{3,7}$/ : /^[ء-ي]{3,7}$/;
+  const set = new Set();
+  const add = (w) => { const f = wheelFold(w, lang); if (re.test(f)) set.add(f); };
+  const addAll = (list) => (list || []).forEach(add);
+  if (typeof CHAMELEON_DB !== 'undefined') (CHAMELEON_DB[lang] || []).forEach(x => addAll(x.words));
+  if (typeof WORDLE_DB !== 'undefined' && WORDLE_DB[lang]) Object.values(WORDLE_DB[lang]).forEach(addAll);
+  if (typeof STOP_WORDS !== 'undefined' && STOP_WORDS[lang]) ['produce', 'plants', 'colors', 'things', 'animals', 'jobs', 'foods'].forEach(k => addAll(STOP_WORDS[lang][k]));
+  if (typeof MONKEY_LISTS !== 'undefined' && MONKEY_LISTS[lang]) ['animals', 'foods'].forEach(k => addAll(MONKEY_LISTS[lang][k]));
+  if (lang === 'ar' && typeof SPY_WORDS !== 'undefined') ['حيوانات', 'أكلات', 'مهن', 'أشياء', 'مواصلات', 'رياضات', 'آلات موسيقية'].forEach(k => addAll(SPY_WORDS[k]));
+  [typeof CONNECTIONS_EASY !== 'undefined' ? CONNECTIONS_EASY : null,
+   typeof CONNECTIONS_DB !== 'undefined' ? CONNECTIONS_DB : null,
+   typeof CONNECTIONS_HARD !== 'undefined' ? CONNECTIONS_HARD : null].forEach(db => {
+    ((db && db[lang]) || []).forEach(p => p.groups.forEach(g => addAll(g.words)));
+  });
+  // Describe It's cards and their forbidden words are everyday vocabulary; the
+  // Charades and Who Am I lists add things, animals, food and jobs (not titles or people).
+  if (typeof DESCRIBE_DB !== 'undefined') (DESCRIBE_DB[lang] || []).forEach(card => { add(card.word); addAll(card.forbidden); });
+  const people = /أفلام|مسرحيات|مسلسلات|شخصيات|مشاهير|أنمي|أمثال|دول|League|Movies|TV|Cartoon|Celebrities|Anime|Countries/;
+  [typeof CHARADES_DB !== 'undefined' ? CHARADES_DB : null, typeof WHOAMI_DB !== 'undefined' ? WHOAMI_DB : null].forEach(db => {
+    const cats = (db && db[lang]) || {};
+    Object.keys(cats).filter(k => !people.test(k)).forEach(k => addAll(cats[k]));
+  });
+  WHEEL_DICT[lang] = [...set];
+  return WHEEL_DICT[lang];
+}
+
+function wheelCounts(w) {
+  const m = {};
+  for (const ch of w) m[ch] = (m[ch] || 0) + 1;
+  return m;
+}
+
+function wheelFitsIn(w, pool) {
+  const m = wheelCounts(w);
+  return Object.keys(m).every(ch => (pool[ch] || 0) >= m[ch]);
+}
+
+/** A small crossword: every word crosses one already placed and touches nothing else. */
+function wheelLayout(words, rnd, max) {
+  const cells = new Map();          // "r,c" -> { ch, a, d }
+  const placed = [];
+  const at = (r, c) => cells.get(r + ',' + c);
+  const put = (w, r, c, dir) => {
+    for (let k = 0; k < w.length; k++) {
+      const rr = dir === 'a' ? r : r + k, cc = dir === 'a' ? c + k : c;
+      const key = rr + ',' + cc;
+      const cell = cells.get(key) || { ch: w[k], a: false, d: false };
+      cell[dir] = true;
+      cells.set(key, cell);
+    }
+    placed.push({ w: w, r: r, c: c, dir: dir });
+  };
+  const canPut = (w, r, c, dir) => {
+    const dr = dir === 'a' ? 0 : 1, dc = dir === 'a' ? 1 : 0;
+    if (at(r - dr, c - dc) || at(r + dr * w.length, c + dc * w.length)) return false;
+    let crossings = 0;
+    for (let k = 0; k < w.length; k++) {
+      const rr = r + dr * k, cc = c + dc * k;
+      const cell = at(rr, cc);
+      if (cell) {
+        if (cell.ch !== w[k] || cell[dir]) return false;
+        crossings++;
+      } else if (dir === 'a' ? (at(rr - 1, cc) || at(rr + 1, cc)) : (at(rr, cc - 1) || at(rr, cc + 1))) {
+        return false;
+      }
+    }
+    return crossings > 0;
+  };
+  put(words[0], 0, 0, 'a');
+  for (const w of words.slice(1)) {
+    if (placed.length >= max) break;
+    const options = [];
+    placed.forEach(p => {
+      for (let i = 0; i < p.w.length; i++) for (let j = 0; j < w.length; j++) {
+        if (p.w[i] !== w[j]) continue;
+        const dir = p.dir === 'a' ? 'd' : 'a';
+        const r = p.dir === 'a' ? p.r - j : p.r + i;
+        const c = p.dir === 'a' ? p.c + i : p.c - j;
+        if (canPut(w, r, c, dir)) options.push([r, c, dir]);
+      }
+    });
+    if (options.length) { const [r, c, dir] = soloPick(options, rnd); put(w, r, c, dir); }
+  }
+  const minR = Math.min(...placed.map(p => p.r)), minC = Math.min(...placed.map(p => p.c));
+  let rows = 0, cols = 0;
+  placed.forEach(p => {
+    p.r -= minR; p.c -= minC;
+    rows = Math.max(rows, p.dir === 'a' ? p.r + 1 : p.r + p.w.length);
+    cols = Math.max(cols, p.dir === 'a' ? p.c + p.w.length : p.c + 1);
+  });
+  return { placed: placed, rows: rows, cols: cols };
+}
+
+function wheelMake(level, lang, rnd) {
+  const L = WHEEL_LEVELS[level] || WHEEL_LEVELS.easy;
+  const dict = wheelDictionary(lang);
+  const bases = soloShuffle(dict.filter(w => w.length === L.letters && new Set(w).size >= L.letters - 1), rnd);
+  for (const base of bases.slice(0, 500)) {
+    const pool = wheelCounts(base);
+    const subs = dict.filter(w => w !== base && wheelFitsIn(w, pool));
+    if (subs.length + 1 < L.min) continue;
+    const ordered = [base].concat(soloShuffle(subs, rnd).sort((a, b) => b.length - a.length));
+    const layout = wheelLayout(ordered, rnd, L.max);
+    if (layout.placed.length < L.min || layout.rows > 9 || layout.cols > 9) continue;
+    const inGrid = new Set(layout.placed.map(p => p.w));
+    return {
+      letters: soloShuffle(base.split(''), rnd),
+      words: layout.placed,
+      bonus: ordered.filter(w => !inGrid.has(w)),
+      rows: layout.rows, cols: layout.cols
+    };
+  }
+  return null;
+}
+
+/* --- Setup and play ------------------------------------------------------------------ */
+
+function setupWordWheel() {
+  setView('setup-wordwheel');
+}
+
+function paintWordWheelSetup() {
+  const s = wheelState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#wordwheel-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('wordwheel', s.level);
+  const el = document.getElementById('wordwheel-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('wordwheel-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('wordwheel-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('wordwheel', 'startWordWheel(true)');
+}
+
+function setWordWheelLevel(level) {
+  wheelState().level = level;
+  saveToLocal();
+  paintWordWheelSetup();
+}
+
+function startWordWheel(daily) {
+  const s = wheelState();
+  const level = daily ? 'medium' : s.level;
+  const lang = contentLang() === 'en' ? 'en' : 'ar';
+  const made = wheelMake(level, lang, soloRandom(daily ? soloDaySeed('wordwheel:' + lang) : null));
+  if (!made) return;
+  Object.assign(s, {
+    daily: daily ? soloToday() : '', playLevel: level, lang: lang,
+    letters: made.letters, words: made.words, bonus: made.bonus, rows: made.rows, cols: made.cols,
+    found: [], bonusFound: [], shown: [], typed: [], hints: 0, startedAt: Date.now(), phase: 'play'
+  });
+  saveToLocal();
+  setView('play-wordwheel');
+  paintWordWheel();
+  wheelArmTimer();
+}
+
+function continueWordWheel() {
+  if (wheelState().phase !== 'play') return;
+  setView('play-wordwheel');
+  paintWordWheel();
+  wheelArmTimer();
+}
+
+function wheelArmTimer() {
+  if (wheelTimer) wheelTimer.stop();
+  wheelTimer = soloClock('wheel-time', wheelState().startedAt);
+}
+
+function wheelCellKey(r, c) { return r + ',' + c; }
+
+function paintWordWheel() {
+  const s = wheelState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('wordwheel-stage');
+  if (!el || !s.words.length) return;
+  const cells = {};
+  s.words.forEach((p, wi) => {
+    for (let k = 0; k < p.w.length; k++) {
+      const r = p.dir === 'a' ? p.r : p.r + k, c = p.dir === 'a' ? p.c + k : p.c;
+      const key = wheelCellKey(r, c);
+      cells[key] = cells[key] || { ch: p.w[k], r: r, c: c, words: [] };
+      cells[key].words.push(wi);
+    }
+  });
+  const open = (cell) => cell.words.some(wi => s.found.indexOf(wi) !== -1) || s.shown.indexOf(wheelCellKey(cell.r, cell.c)) !== -1;
+  const n = s.letters.length;
+  const bar = soloBarHtml([
+    { label: t.wheel_words || '', value: `${s.found.length}/${s.words.length}`, id: 'wheel-count' },
+    { label: '⭐', value: s.bonusFound.length, id: 'wheel-bonus' },
+    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'wheel-time' }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+      <div class="solo-layout__board">
+        <div class="wheel-grid" id="wheel-grid" dir="${s.lang === 'en' ? 'ltr' : 'rtl'}" style="--ww-cols:${s.cols}; --ww-rows:${s.rows}">
+          ${Object.values(cells).map(cell => `
+            <div class="wheel-cell${open(cell) ? ' is-open' : ''}" data-key="${wheelCellKey(cell.r, cell.c)}" style="grid-row:${cell.r + 1}; grid-column:${cell.c + 1}">${open(cell) ? escapeHTML(cell.ch) : ''}</div>`).join('')}
+        </div>
+      </div>
+      <div class="solo-layout__side">
+        ${bar}
+        <div class="wheel-typed" id="wheel-typed" dir="${s.lang === 'en' ? 'ltr' : 'rtl'}">${escapeHTML(s.typed.map(i => s.letters[i]).join(''))}</div>
+        <div class="wheel-ring" id="wheel-ring">
+          <svg class="wheel-lines" id="wheel-lines" viewBox="0 0 100 100" aria-hidden="true"><polyline points="" /></svg>
+          ${s.letters.map((ch, i) => {
+            const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+            const x = 50 + Math.cos(angle) * 36, y = 50 + Math.sin(angle) * 36;
+            return `<button type="button" class="wheel-letter${s.typed.indexOf(i) !== -1 ? ' is-on' : ''}" data-i="${i}" style="left:${x}%; top:${y}%">${escapeHTML(ch)}</button>`;
+          }).join('')}
+        </div>
+        <div class="sdk-tools wheel-tools">
+          <button type="button" class="btn btn--neutral btn--sm" onclick="wheelBackspace()">⌫</button>
+          <button type="button" class="btn btn--neutral btn--sm" onclick="shuffleWordWheel()">🔀 ${escapeHTML(t.wheel_shuffle || '')}</button>
+          <button type="button" class="btn btn--neutral btn--sm" onclick="hintWordWheel()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+          <button type="button" class="btn btn--primary btn--sm" onclick="wheelSubmit()" ${s.typed.length >= 2 ? '' : 'disabled'}>✓</button>
+        </div>
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupWordWheel()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+  wheelBind();
+  wheelDrawLine();
+}
+
+function wheelBind() {
+  const ring = document.getElementById('wheel-ring');
+  if (!ring) return;
+  ring.addEventListener('pointerdown', (e) => {
+    const s = wheelState();
+    const btn = e.target.closest('.wheel-letter');
+    if (!btn || s.phase !== 'play') return;
+    e.preventDefault();
+    const i = Number(btn.dataset.i);
+    const before = s.typed.length;
+    if (s.typed.indexOf(i) === -1) s.typed.push(i);
+    wheelDrag = { moved: false, start: before };
+    wheelRefreshTyped();
+    const move = (ev) => {
+      const over = soloCellAt(ev.clientX, ev.clientY, '.wheel-letter');
+      if (!over || !wheelDrag) return;
+      const k = Number(over.dataset.i);
+      const pos = s.typed.indexOf(k);
+      if (pos === -1) { s.typed.push(k); wheelDrag.moved = true; wheelRefreshTyped(); }
+      else if (pos === s.typed.length - 2) { s.typed.pop(); wheelRefreshTyped(); }
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      const d = wheelDrag;
+      wheelDrag = null;
+      if (d && d.moved && s.typed.length >= 2) wheelSubmit();
+      else saveToLocal();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  });
+}
+
+function wheelRefreshTyped() {
+  const s = wheelState();
+  const typed = document.getElementById('wheel-typed');
+  if (typed) typed.textContent = s.typed.map(i => s.letters[i]).join('');
+  document.querySelectorAll('#wheel-ring .wheel-letter').forEach(b => b.classList.toggle('is-on', s.typed.indexOf(Number(b.dataset.i)) !== -1));
+  const submit = document.querySelector('#wordwheel-stage .wheel-tools .btn--primary');
+  if (submit) submit.disabled = s.typed.length < 2;
+  wheelDrawLine();
+}
+
+function wheelDrawLine() {
+  const s = wheelState();
+  const line = document.querySelector('#wheel-lines polyline');
+  if (!line) return;
+  const n = s.letters.length;
+  line.setAttribute('points', s.typed.map(i => {
+    const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+    return `${50 + Math.cos(angle) * 36},${50 + Math.sin(angle) * 36}`;
+  }).join(' '));
+}
+
+function wheelBackspace() {
+  const s = wheelState();
+  s.typed.pop();
+  wheelRefreshTyped();
+}
+
+function wheelShake(id) {
+  const el = document.getElementById(id);
+  if (el && el.animate && !motionOff()) el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
+}
+
+function wheelSubmit() {
+  const s = wheelState();
+  const t = TRANSLATIONS[appState.lang];
+  if (s.phase !== 'play' || s.typed.length < 2) return;
+  const word = s.typed.map(i => s.letters[i]).join('');
+  s.typed = [];
+  const wi = s.words.findIndex(p => p.w === word);
+  if (wi !== -1 && s.found.indexOf(wi) === -1) {
+    s.found.push(wi);
+    saveToLocal();
+    playSound('success');
+    haptic('light');
+    paintWordWheel();
+    // The word's cells turn over one after another.
+    if (!motionOff()) {
+      const p = s.words[wi];
+      for (let k = 0; k < p.w.length; k++) {
+        const r = p.dir === 'a' ? p.r : p.r + k, c = p.dir === 'a' ? p.c + k : p.c;
+        const cell = document.querySelector(`#wheel-grid [data-key="${wheelCellKey(r, c)}"]`);
+        if (cell && cell.animate) cell.animate([{ transform: 'rotateX(90deg)' }, { transform: 'none' }], { duration: 300, delay: k * 70, easing: 'ease-out', fill: 'backwards' });
+      }
+    }
+    if (s.found.length === s.words.length) wheelFinish();
+    return;
+  }
+  if (s.bonus.indexOf(word) !== -1 && s.bonusFound.indexOf(word) === -1) {
+    s.bonusFound.push(word);
+    saveToLocal();
+    playSound('click');
+    paintWordWheel();
+    showToast(`⭐ ${t.wheel_bonus || ''}: ${word}`, 'success');
+    return;
+  }
+  saveToLocal();
+  paintWordWheel();
+  if (wi !== -1 || s.bonusFound.indexOf(word) !== -1) showToast(t.wheel_already || '', 'info');
+  wheelShake('wheel-typed');
+  wheelShake('wheel-ring');
+}
+
+function shuffleWordWheel() {
+  const s = wheelState();
+  if (s.phase !== 'play') return;
+  const before = [...document.querySelectorAll('#wheel-ring .wheel-letter')].map(b => b.getBoundingClientRect());
+  const order = soloShuffle(s.letters.map((_, i) => i), Math.random);
+  s.letters = order.map(i => s.letters[i]);
+  s.typed = [];
+  saveToLocal();
+  paintWordWheel();
+  if (motionOff()) return;
+  document.querySelectorAll('#wheel-ring .wheel-letter').forEach((b, k) => {
+    const old = before[order[k]];
+    const now = b.getBoundingClientRect();
+    if (old && b.animate) b.animate([{ transform: `translate(calc(-50% + ${old.left - now.left}px), calc(-50% + ${old.top - now.top}px))` }, { transform: 'translate(-50%, -50%)' }], { duration: 380, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  });
+}
+
+function hintWordWheel() {
+  const s = wheelState();
+  if (s.phase !== 'play') return;
+  const hidden = [];
+  s.words.forEach((p, wi) => {
+    if (s.found.indexOf(wi) !== -1) return;
+    for (let k = 0; k < p.w.length; k++) {
+      const r = p.dir === 'a' ? p.r : p.r + k, c = p.dir === 'a' ? p.c + k : p.c;
+      const key = wheelCellKey(r, c);
+      if (s.shown.indexOf(key) === -1) hidden.push(key);
+    }
+  });
+  if (!hidden.length) return;
+  s.shown.push(soloPick(hidden, Math.random));
+  s.hints = (s.hints || 0) + 1;
+  saveToLocal();
+  paintWordWheel();
+}
+
+function wheelFinish() {
+  const s = wheelState();
+  const t = TRANSLATIONS[appState.lang];
+  s.phase = 'done';
+  if (wheelTimer) wheelTimer.stop();
+  wheelTimer = null;
+  const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  saveToLocal();
+  const level = s.playLevel || s.level;
+  const rec = s.hints ? { record: false, prev: soloBest('wordwheel', level) }
+    : soloRecord('wordwheel', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('wordwheel', { seconds: seconds, bonus: s.bonusFound.length });
+    share = `${soloShareHeader(t)}\n🔡 ${t.setup_wordwheel || ''} ✅ ${soloTime(seconds)}${s.bonusFound.length ? ' · ⭐ ' + s.bonusFound.length : ''}`;
+  }
+  const lines = [`⭐ ${escapeHTML(t.wheel_bonus || '')}: ${s.bonusFound.length}/${s.bonus.length}`];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: '🔡', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    again: () => startWordWheel(false), exit: setupWordWheel
+  }), motionOff() ? 0 : 800);
+}
+
+function restoreWordWheel() {
+  const s = wheelState();
+  if (s.phase !== 'play' || !s.words.length) return false;
+  s.typed = [];
+  paintWordWheel();
+  wheelArmTimer();
+  return true;
+}
+
+soloRegister('wordwheel', { setup: 'setup-wordwheel', play: 'play-wordwheel', paintSetup: paintWordWheelSetup, restore: restoreWordWheel });
+</script>

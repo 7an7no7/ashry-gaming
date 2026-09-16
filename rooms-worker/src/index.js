@@ -9,6 +9,7 @@
  *   POST /poll    { code, pid, key, v }          (fallback when WebSockets fail)
  *   POST /leave   { code, pid, key }
  *   GET  /ws?code=&pid=&key=                     the live connection
+ *   GET  /live                                    -> { players, rooms } playing right now
  *   GET  /test                                    connection test page
  *
  * Bodies are JSON sent as text/plain, which browsers send without a CORS
@@ -20,9 +21,15 @@
  */
 import { Room } from './room.js';
 import { PromptMemory } from './memory.js';
+import { LiveStats } from './live.js';
 import TEST_PAGE from './page.js';
 
-export { Room, PromptMemory };
+export { Room, PromptMemory, LiveStats };
+
+// Every phone looking at the مع بعض tab asks for the count; this Worker asks
+// LiveStats at most this often and answers the rest from what it last heard.
+const LIVE_CACHE_MS = 15000;
+let liveCache = null;   // { at, body }
 
 // No O/0/I/1 - they get misread when someone reads a code out loud.
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -106,6 +113,20 @@ export default {
         console.error(url.pathname, err && err.stack || err);
         return json({ ok: false, error: 'تعذر الاتصال بالخادم' }, 500);
       }
+    }
+
+    if (url.pathname === '/live') {
+      const now = Date.now();
+      if (!liveCache || now - liveCache.at > LIVE_CACHE_MS) {
+        try {
+          const counts = await env.LIVE.get(env.LIVE.idFromName('live')).read();
+          liveCache = { at: now, body: { ok: true, players: counts.players, rooms: counts.rooms } };
+        } catch (err) {
+          console.error('/live', err && err.stack || err);
+          return json({ ok: false, error: 'unavailable' }, 503);
+        }
+      }
+      return json(liveCache.body);
     }
 
     if (url.pathname === '/test') {

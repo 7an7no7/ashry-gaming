@@ -15,6 +15,7 @@ the other phones in well under a tenth of a second, from any network.
 | `src/index.js` | the Worker: sends `/create`, `/join`, `/act`, `/poll`, `/leave` and `/ws` to the right room |
 | `src/room.js` | `Room`, one Durable Object per room code: players, keys, WebSockets, saving, clocks |
 | `src/memory.js` | `PromptMemory`: which prompts all rooms dealt lately |
+| `src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live` |
 | `src/page.js` | the `/test` page |
 | `build.mjs` | bundles the rules and word lists from the project root into `generated/rules.js` |
 | `test/play-all.mjs` | robot players for every game |

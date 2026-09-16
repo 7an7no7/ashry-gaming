@@ -4888,6 +4888,9 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 .tab-hero__sub { margin-top: 3px; font-size: var(--fs-sm); font-weight: 600; line-height: var(--lh-snug); color: var(--text-2); }
 
 .together-actions { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-5); }
+/* Who is playing right now: a still dot and a line, under the tab's pitch. */
+.together-live { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); font-size: var(--fs-sm); font-weight: 800; color: var(--success-ink); }
+.together-live[hidden] { display: none; }
 .together-steps { display: grid; gap: var(--sp-2); }
 .together-step { display: flex; align-items: flex-start; gap: var(--sp-3); font-size: var(--fs-sm); font-weight: 600; color: var(--text); line-height: var(--lh-snug); }
 .together-step__n {
@@ -10160,6 +10163,13 @@ const MONKEY_KEYS = {
       undo_card: "تراجع عن آخر كارت",
       undo_done: "رجّعنا الكارت اللي فات",
       undo_nothing: "مفيش كارت نرجّعه",
+      live_line: "دلوقتي فيه {players} في {rooms}",
+      live_players_few: "{n} لاعبين",
+      live_players_many: "{n} لاعب",
+      live_rooms_one: "غرفة واحدة",
+      live_rooms_two: "غرفتين",
+      live_rooms_few: "{n} غرف",
+      live_rooms_many: "{n} غرفة",
       tab_dice: "🎲 نرد",
       tab_coin: "🪙 عملة",
       coin_heads: "ملك",
@@ -11149,6 +11159,13 @@ const MONKEY_KEYS = {
       undo_card: "Undo the last card",
       undo_done: "The last card is back",
       undo_nothing: "No card to undo",
+      live_line: "{players} playing in {rooms} right now",
+      live_players_few: "{n} people",
+      live_players_many: "{n} people",
+      live_rooms_one: "1 room",
+      live_rooms_two: "2 rooms",
+      live_rooms_few: "{n} rooms",
+      live_rooms_many: "{n} rooms",
       tab_dice: "🎲 Dice",
       tab_coin: "🪙 Coin",
       coin_heads: "Heads",
@@ -14167,6 +14184,7 @@ function renderTogether() {
       <div>
         <div class="tab-hero__title">${escapeHTML(t.together_title || '')}</div>
         <div class="tab-hero__sub">${escapeHTML(t.together_sub || '')}</div>
+        <div id="together-live" class="together-live" hidden></div>
       </div>
     </div>
     <div class="together-actions">
@@ -14196,7 +14214,57 @@ function renderTogether() {
       <button type="button" class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)" onclick="openHelpModal()">📘 ${escapeHTML(t.together_more || '')}</button>
     </section>`;
   settleStagger(view, 'together');
+  refreshTogetherLive();
 }
+
+/* --- Who is playing right now ---------------------------------------------
+   One small request when the مع بعض tab opens, and one a minute while it stays
+   on screen and the phone is awake. The rooms server adds up the players online
+   in every room (GET /live). Hidden until there are enough people to be worth
+   saying, so it never announces an empty app, and hidden when the server can't
+   be reached rather than showing a stale or broken number.
+   -------------------------------------------------------------------------- */
+const LIVE_MIN_PLAYERS = 4;
+const LIVE_EVERY_MS = 60000;
+let togetherLiveTimer = null;
+let togetherLiveRun = 0;
+
+async function refreshTogetherLive() {
+  const run = ++togetherLiveRun;
+  clearTimeout(togetherLiveTimer);
+  togetherLiveTimer = null;
+  if (appState.currentView !== 'together') return;
+  const base = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+  if (base && document.visibilityState === 'visible') {
+    let data = null;
+    try { data = await (await fetch(base + '/live')).json(); } catch (e) {}
+    if (run !== togetherLiveRun) return;          // a newer refresh took over
+    paintTogetherLive(data);
+  }
+  togetherLiveTimer = setTimeout(refreshTogetherLive, LIVE_EVERY_MS);
+}
+
+function paintTogetherLive(data) {
+  const el = document.getElementById('together-live');
+  if (!el) return;
+  const players = data && data.ok ? Number(data.players) || 0 : 0;
+  const rooms = data && data.ok ? Number(data.rooms) || 0 : 0;
+  if (players < LIVE_MIN_PLAYERS || rooms < 1) { el.hidden = true; return; }
+  const t = TRANSLATIONS[appState.lang] || {};
+  // Arabic counts: 3-10 take the plural, 11 and up the singular; rooms also
+  // have a dual.
+  const playersText = (players <= 10 ? t.live_players_few : t.live_players_many || t.live_players_few || '').replace('{n}', players);
+  const roomsText = (rooms === 1 ? t.live_rooms_one : rooms === 2 ? t.live_rooms_two
+    : rooms <= 10 ? t.live_rooms_few : t.live_rooms_many || '').replace('{n}', rooms);
+  el.innerHTML = `<span class="presence-dot is-online" aria-hidden="true"></span>` +
+    `<span>${escapeHTML((t.live_line || '').replace('{players}', playersText).replace('{rooms}', roomsText))}</span>`;
+  el.hidden = false;
+}
+
+// Back from the lock screen on the tab: count again rather than wait a minute.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && appState.currentView === 'together') refreshTogetherLive();
+});
 
 /** The Together tab, or the room this phone is already in. */
 function goTogether() {

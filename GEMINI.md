@@ -209,6 +209,7 @@ is nowhere to hide the key card.
 | `rooms-worker/src/index.js` | The Worker: `/create`, `/join`, `/act`, `/poll`, `/leave`, `/ws`. Knows no game rules. |
 | `rooms-worker/src/room.js` | `Room` Durable Object, one per code: players, keys, sockets, saving, clocks, `project()`. |
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
+| `rooms-worker/src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live`. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
 | `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js` | Word lists the rules deal from, bundled into the Worker. The last six are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
@@ -300,6 +301,23 @@ everyone. `JS_RoomChat.html` draws the 💬 button in the header (`body.has-chat
 with the soundboard's `has-fx`, never on the TV), the sheet, the unread badge, and a
 toast for a message that arrives while the sheet is closed - once, with the
 history at join counted as read.
+
+**Who is playing right now.** The مع بعض tab says "دلوقتي فيه ٧ لاعبين في ٣ غرف"
+under its pitch. It counts players in rooms, never phones with the app open:
+opening the app still touches no server. A room reports its own number of
+players online to `LiveStats` (one instance, named "live") through
+`reportLive` in `room.js`, called wherever that number can change - a join, a
+socket opening or closing, a poll that brings a phone back, a leave, a move
+(a player becoming a screen) - and it only sends anything when the number
+changed or the last report is `LIVE_REFRESH_MS` old; `destroy` reports 0. The
+Worker answers `GET /live` from a copy at most `LIVE_CACHE_MS` old, and
+`LiveStats` drops a room that hasn't reported for `LIVE_TTL_MS`, so a room
+that died without saying so leaves the count within a quarter of an hour. The
+phone asks once when the tab opens and once a minute while it stays on screen
+and awake (`refreshTogetherLive` in `JS_Catalog.html`), and shows nothing
+below `LIVE_MIN_PLAYERS` or when the server can't be reached: a count that
+says "1" advertises an empty app. It carries a room count and a player count
+and nothing else - no codes, no names.
 
 **The drawing tools** are one builder, `drawToolsHtml` in `JS_RoomDraw.html`,
 used by Draw & Guess (undo on the server) and ارسم واكتب (undo on the phone):

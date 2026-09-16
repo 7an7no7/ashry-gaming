@@ -146,6 +146,17 @@ async function main() {
   await all(bots, (s) => s.players.length === 4 && s.players.every((p) => p.online), 'everyone sees 4 players online');
   check(A.state.youAreHost && !B.state.youAreHost, 'only the creator is host');
 
+  // The line on the together tab: this room is in the count, and nothing that
+  // identifies it is. The Worker holds the count for up to 15 seconds.
+  let live = null;
+  for (const until = Date.now() + 20000; Date.now() < until;) {
+    live = await fetch(BASE + '/live').then((r) => r.json()).catch(() => null);
+    if (live && live.ok && live.players >= 4 && live.rooms >= 1) break;
+    await sleep(1000);
+  }
+  check(live && live.ok && live.players >= 4 && live.rooms >= 1, 'the live count includes the four players in this room');
+  check(live && !JSON.stringify(live).includes(A.code) && !JSON.stringify(live).includes(A.name), 'the live count names no room and no player');
+
   const taken = await api('/join', { code: A.code, name: 'omar' });
   check(!taken.ok && /مستخدم/.test(taken.error), 'a taken name is refused');
   const missing = await api('/join', { code: 'ZZZZ', name: 'x' });

@@ -32,6 +32,10 @@ const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial']);
 const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap']);
 const MAX_MESSAGE = 64 * 1024;
 const MAX_LIVE = 8 * 1024;
+// The count on the مع بعض tab (LiveStats in live.js): a room reports its number
+// of players online when it changes, and at least this often while the room is
+// in use, so a room that goes quiet can be told from one that has died.
+const LIVE_REFRESH_MS = 5 * 60 * 1000;
 
 const newPlayerId = () => 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
 
@@ -78,6 +82,12 @@ export class Room extends DurableObject {
   }
 
   async destroy() {
+    // Out of the count before the room forgets its own code.
+    if (this.room && this.room.code) {
+      const stub = this.liveStub();
+      if (stub) { try { await stub.report(this.room.code, 0); } catch (e) {} }
+    }
+    this.lastLive = null;
     clearTimeout(this.saveTimer);
     this.saveTimer = null;
     this.room = null;
@@ -167,6 +177,35 @@ export class Room extends DurableObject {
         views.set(pid, text);
       }
       try { ws.send(text); } catch (e) {}
+    }
+  }
+
+  /* --- the count on the مع بعض tab ------------------------------------------ */
+
+  liveStub() {
+    return this.env.LIVE ? this.env.LIVE.get(this.env.LIVE.idFromName('live')) : null;
+  }
+
+  /**
+   * Tells LiveStats how many players this room has online - when that number
+   * changed, or when the last report is getting old. Screens are not players.
+   * `except` is a socket on its way out. Never throws: a count that can't be
+   * sent is not worth failing a move over.
+   */
+  async reportLive(except) {
+    const room = this.room;
+    const stub = this.liveStub();
+    if (!room || !room.code || !stub) return;
+    const online = this.onlineIds(except);
+    const players = room.players.filter((p) => online.has(p.id)).length;
+    const now = Date.now();
+    const last = this.lastLive;
+    if (last && last.players === players && now - last.at < LIVE_REFRESH_MS) return;
+    this.lastLive = { players, at: now };
+    try {
+      await stub.report(room.code, players);
+    } catch (e) {
+      this.lastLive = null;   // try again on the next change
     }
   }
 
@@ -317,6 +356,7 @@ export class Room extends DurableObject {
     await this.save();
     this.polled.set(pid, Date.now());
     this.broadcast();
+    await this.reportLive();
     return { ok: true, playerId: pid, key, state: this.project(pid, this.onlineIds()) };
   }
 
@@ -364,6 +404,9 @@ export class Room extends DurableObject {
     }
 
     this.broadcast({ skip: ws, patch });
+    // Usually nothing to say; a player turning into a screen changes the count,
+    // and a room in play refreshes its entry every few minutes.
+    await this.reportLive();
     // A move over HTTP gets the whole state back: that phone has no socket to
     // have been following the drawing on.
     return patch && ws
@@ -382,7 +425,10 @@ export class Room extends DurableObject {
       delete this.room.lastSeen[pid];
       this.save(true);
     }
-    if (!wasOnline) this.broadcast();
+    if (!wasOnline) {
+      this.broadcast();
+      await this.reportLive();
+    }
     const online = this.onlineIds();
     if (Number(version) === this.room.version) {
       return { ok: true, same: true, version: this.room.version, online: [...online] };
@@ -420,6 +466,7 @@ export class Room extends DurableObject {
     this.touch();
     await this.save();
     this.broadcast();
+    await this.reportLive();
     return { ok: true };
   }
 
@@ -455,7 +502,10 @@ export class Room extends DurableObject {
       this.save(true);
     }
     server.send(JSON.stringify({ t: 'state', state: this.project(pid, this.onlineIds()) }));
-    if (!wasOnline) this.broadcast({ skip: server });
+    if (!wasOnline) {
+      this.broadcast({ skip: server });
+      await this.reportLive();
+    }
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -524,6 +574,7 @@ export class Room extends DurableObject {
     this.room.lastSeen[pid] = Date.now();
     this.save(true);
     this.broadcast({ leaving: ws });
+    await this.reportLive(ws);
     if (pid === this.room.hostId) await this.scheduleAlarm(Date.now() + HOST_AWAY_MS);
   }
 }

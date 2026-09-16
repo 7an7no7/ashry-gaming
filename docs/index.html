@@ -6133,6 +6133,219 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   .hold-card > *, .hold-next { transition: none; }
 }
 
+
+/* ==========================================================================
+   15. SOLO GAMES
+   JS_Solo.html and the games built on it: the stats bar, the daily line, the
+   result sheet, and each board. Boards that map to a physical grid carry
+   dir="ltr" in the markup, like Wavelength's spectrum.
+   ========================================================================== */
+.solo-bar { display: grid; grid-template-columns: repeat(var(--solo-cols, 3), minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.solo-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.solo-stat__label { font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); }
+.solo-stat .metric { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.05rem; color: var(--text-strong); }
+.solo-daily {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--success-soft);
+  color: var(--success-ink);
+  font-weight: 800;
+}
+.solo-result-value { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.solo-result-value .metric:empty, .solo-result-value .eyebrow:empty { display: none; }
+
+/* --- Sudoku --- */
+.sdk-grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  max-width: 30rem;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 2px solid var(--text-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+}
+.sdk-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  font-size: clamp(1rem, 5.2vw, 1.55rem);
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.sdk-cell:nth-child(9n) { border-right: 0; }
+.sdk-cell:nth-child(n+73) { border-bottom: 0; }
+.sdk-cell.is-box-end { border-right: 2px solid var(--text-strong); }
+.sdk-cell.is-box-bottom { border-bottom: 2px solid var(--text-strong); }
+.sdk-cell.is-given { color: var(--text-strong); font-weight: 900; }
+.sdk-cell.is-peer { background: var(--surface-2); }
+.sdk-cell.is-same { background: var(--accent-soft); }
+.sdk-cell.is-sel { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.sdk-cell.is-wrong { color: var(--danger); }
+.sdk-notes { position: absolute; inset: 1px; display: grid; grid-template-columns: repeat(3, 1fr); color: var(--text-2); font-size: clamp(0.45rem, 2.1vw, 0.65rem); font-weight: 700; line-height: 1; }
+.sdk-notes i { display: grid; place-items: center; font-style: normal; }
+.sdk-pad { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; max-width: 30rem; margin: var(--sp-3) auto 0; }
+.sdk-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.1rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.sdk-key span { font-size: 1.3rem; font-weight: 900; line-height: 1.1; }
+.sdk-key small { font-size: 0.6rem; font-weight: 700; color: var(--text-3); }
+.sdk-key:active { transform: scale(0.94); }
+.sdk-key:disabled { opacity: 0.35; cursor: default; }
+.sdk-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-3); }
+.sdk-tools .btn { flex: 1 1 0; width: auto; min-width: 4.2rem; padding-inline: var(--sp-2); }
+
+/* --- 2048 --- */
+.g2048-board {
+  --gap: 0.5rem;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gap);
+  aspect-ratio: 1;
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: var(--gap);
+  border-radius: var(--r-lg);
+  background: var(--surface-3);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.g2048-cell { border-radius: var(--r-sm); background: var(--surface-2); }
+.g2048-tiles { position: absolute; inset: var(--gap); pointer-events: none; }
+.g2048-tile {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: calc((100% - 3 * var(--gap)) / 4);
+  height: calc((100% - 3 * var(--gap)) / 4);
+  border-radius: var(--r-sm);
+  background: color-mix(in oklab, var(--accent) 14%, var(--surface-solid));
+  color: var(--text-strong);
+  font-size: clamp(1.4rem, 8vw, 2.3rem);
+  font-weight: 900;
+  transform: translate(calc(var(--c) * (100% + var(--gap))), calc(var(--r) * (100% + var(--gap))));
+  transition: transform 120ms ease-out;
+  will-change: transform;
+}
+.g2048-tile[data-v="4"] { background: color-mix(in oklab, var(--accent) 26%, var(--surface-solid)); }
+.g2048-tile[data-v="8"] { background: color-mix(in oklab, var(--accent) 40%, var(--surface-solid)); }
+.g2048-tile[data-v="16"] { background: color-mix(in oklab, var(--accent) 55%, var(--surface-solid)); }
+.g2048-tile[data-v="32"] { background: color-mix(in oklab, var(--accent) 70%, var(--surface-solid)); color: var(--accent-on); }
+.g2048-tile[data-v="64"] { background: var(--accent); color: var(--accent-on); }
+.g2048-tile[data-v="128"], .g2048-tile[data-v="256"] { background: color-mix(in oklab, var(--warning-btn) 70%, var(--accent)); color: var(--warning-on); font-size: clamp(1.2rem, 7vw, 2rem); }
+.g2048-tile[data-v="512"] { background: var(--warning-btn); color: var(--warning-on); font-size: clamp(1.2rem, 7vw, 2rem); }
+.g2048-tile[data-v="1024"], .g2048-tile[data-v="2048"], .g2048-tile[data-v="big"] {
+  background: var(--success-btn);
+  color: var(--success-on);
+  font-size: clamp(1rem, 5.6vw, 1.6rem);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--success-btn) 40%, transparent);
+}
+.g2048-tile.is-gone { z-index: 0; }
+.g2048-tile.is-new { animation: g2048-new 160ms ease-out both; }
+.g2048-tile.is-merged { animation: g2048-pop 200ms ease-out; }
+@keyframes g2048-new { from { scale: 0; } to { scale: 1; } }
+@keyframes g2048-pop { 0% { scale: 1; } 45% { scale: 1.16; } 100% { scale: 1; } }
+.g2048-hint { text-align: center; margin-top: var(--sp-2); }
+
+/* --- Minesweeper --- */
+.mines-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--mines-cols, 8), minmax(0, 1fr));
+  gap: 3px;
+  max-width: 26rem;
+  margin: 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.mines-cell {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--accent) 24%, var(--surface-2));
+  box-shadow: inset 0 -2px 0 rgba(15, 23, 42, 0.12);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: clamp(0.85rem, 4.6vw, 1.2rem);
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mines-cell.is-open { background: var(--surface-solid); box-shadow: inset 0 0 0 1px var(--border); cursor: default; }
+.mines-cell.n1 { color: var(--accent-ink); }
+.mines-cell.n2 { color: var(--success-ink); }
+.mines-cell.n3 { color: var(--danger); }
+.mines-cell.n4 { color: var(--warning-ink); }
+.mines-cell.n5, .mines-cell.n6, .mines-cell.n7, .mines-cell.n8 { color: var(--danger-ink); }
+.mines-cell.is-boom { background: var(--danger-soft); }
+.mines-cell.is-flag.is-wrong { background: var(--warning-soft); }
+.mines-grid.is-over .mines-cell { cursor: default; }
+/* A phone held sideways: the board on one side, its keys and tools on the other.
+   The board is sized off the shell's height, so it never needs scrolling. */
+.solo-layout { display: flex; flex-direction: column; }
+.solo-layout__side { display: contents; }
+.solo-layout__side > .solo-bar { order: -1; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .solo-layout { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-3); align-items: start; }
+  .solo-layout__side { display: block; }
+  .solo-layout__board { width: min(calc(var(--app-h, 100vh) - 8.5rem), 52vw); }
+  /* A minefield is taller than it is wide: it keeps tappable cells and scrolls. */
+  .solo-layout__board:has(.mines-grid) { width: min(52vw, 20rem); }
+  .solo-layout__side .sdk-pad { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g2048-tile { transition: none; }
+  .g2048-tile.is-new, .g2048-tile.is-merged { animation: none; }
+}
+
 </style>
 
     
@@ -8127,6 +8340,59 @@ const stopWordKnown = (lang, cat, text) => {
       </div>
       <div id="view-play-memory" class="hidden" data-accent="violet"><div id="memory-stage"></div></div>
 
+
+      <!-- ============ SOLO PUZZLES (JS_Solo.html and the games on it) ============ -->
+      <div id="view-setup-sudoku" class="hidden" data-accent="indigo">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="solo_level">المستوى</label>
+            <div class="segmented" id="sudoku-level" role="group">
+              <button type="button" class="segmented__item is-active" data-value="easy" onclick="setSudokuLevel('easy')" data-i18n="solo_lvl_easy">سهل</button>
+              <button type="button" class="segmented__item" data-value="medium" onclick="setSudokuLevel('medium')" data-i18n="solo_lvl_medium">متوسط</button>
+              <button type="button" class="segmented__item" data-value="hard" onclick="setSudokuLevel('hard')" data-i18n="solo_lvl_hard">صعب</button>
+            </div>
+            <p class="field__hint" id="sudoku-best"></p>
+          </div>
+          <div class="btn-stack">
+            <div id="sudoku-daily"></div>
+            <button type="button" id="sudoku-continue" class="btn btn--secondary hidden" onclick="continueSudoku()" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startSudoku(false)" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-sudoku" class="hidden" data-accent="indigo"><div id="sudoku-stage"></div></div>
+
+      <div id="view-setup-g2048" class="hidden" data-accent="orange">
+        <div class="card">
+          <p class="field__hint" id="g2048-best"></p>
+          <div class="btn-stack">
+            <button type="button" id="g2048-continue" class="btn btn--secondary hidden" onclick="continue2048()" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="start2048()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-g2048" class="hidden" data-accent="orange"><div id="g2048-stage"></div></div>
+
+      <div id="view-setup-mines" class="hidden" data-accent="teal">
+        <div class="card">
+          <div class="field">
+            <label class="field__label" data-i18n="solo_level">المستوى</label>
+            <div class="segmented" id="mines-level" role="group">
+              <button type="button" class="segmented__item is-active" data-value="easy" onclick="setMinesLevel('easy')" data-i18n="solo_lvl_easy">سهل</button>
+              <button type="button" class="segmented__item" data-value="medium" onclick="setMinesLevel('medium')" data-i18n="solo_lvl_medium">متوسط</button>
+              <button type="button" class="segmented__item" data-value="hard" onclick="setMinesLevel('hard')" data-i18n="solo_lvl_hard">صعب</button>
+            </div>
+            <p class="field__hint" id="mines-best"></p>
+          </div>
+          <div class="btn-stack">
+            <div id="mines-daily"></div>
+            <button type="button" id="mines-continue" class="btn btn--secondary hidden" onclick="continueMines()" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startMines(false)" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
+      </div>
+      <div id="view-play-mines" class="hidden" data-accent="teal"><div id="mines-stage"></div></div>
+
       <div id="view-setup-xo" class="hidden" data-accent="blue">
         <div class="card">
           <div class="field">
@@ -10104,6 +10370,24 @@ const stopWordKnown = (lang, cat, text) => {
       </div>
     </div>
 
+    <!-- The result of any solo game (soloResult in JS_Solo.html). -->
+    <div id="solo-result-modal" class="modal-overlay hidden">
+      <div class="modal-content modal-content--simple">
+        <div id="solo-result-icon" class="modal-icon" aria-hidden="true">🏁</div>
+        <div id="solo-result-title" class="sheet__title">---</div>
+        <div class="solo-result-value">
+          <span id="solo-result-value" class="metric metric--lg metric--accent"></span>
+          <span id="solo-result-label" class="eyebrow"></span>
+        </div>
+        <div id="solo-result-detail"></div>
+        <div class="modal-actions">
+          <button id="solo-result-again" onclick="soloResultAgain()" class="btn btn--primary btn--lg">العب مرة أخرى</button>
+          <button id="solo-result-share" onclick="soloResultShare()" class="btn btn--secondary hidden" data-i18n="solo_share">شارك النتيجة</button>
+          <button onclick="soloResultExit()" class="btn btn--ghost" data-i18n="exit">خروج</button>
+        </div>
+      </div>
+    </div>
+
     <div id="memory-result-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
         <div class="modal-icon" aria-hidden="true">🎴</div>
@@ -11399,6 +11683,47 @@ const stopWordKnown = (lang, cat, text) => {
       cat_wordle: "خمّن الكلمة في 6 محاولات بمساعدة ألوان الحروف.",
       cat_connections: "16 كلمة، 4 مجموعات. اعثر على اللي بيجمعهم.",
       cat_memory: "اقلب كارتين ودوّر على الأزواج. لوحدك أو ضد صاحبك.",
+      grp_puzzle: "ألغاز ومخ",
+      solo_best: "أحسن نتيجة",
+      solo_new_best: "رقم قياسي جديد! 🏆",
+      solo_solved: "اتحلت! 🎉",
+      solo_time: "الوقت",
+      solo_level: "المستوى",
+      solo_lvl_easy: "سهل",
+      solo_lvl_medium: "متوسط",
+      solo_lvl_hard: "صعب",
+      solo_undo: "رجوع",
+      solo_hint: "تلميح",
+      solo_new_game: "جديدة",
+      solo_continue: "كمّل اللعبة",
+      solo_share: "شارك النتيجة",
+      solo_copied: "اتنسخت النتيجة، ابعتها لصحابك",
+      daily_title: "تحدي اليوم",
+      daily_play_today: "العب تحدي النهارده",
+      daily_done_today: "خلّصت تحدي النهارده",
+      setup_sudoku: "سودوكو",
+      cat_sudoku: "املأ الشبكة من 1 لـ 9 من غير تكرار في صف أو عمود أو مربع.",
+      sdk_mistakes: "غلطات",
+      sdk_erase: "امسح",
+      sdk_notes: "ملاحظات",
+      setup_g2048: "2048",
+      cat_g2048: "اسحب الأرقام، واللي زي بعض يتجمعوا. وصّل لـ 2048.",
+      g2048_score: "النقاط",
+      g2048_hint: "اسحب بصباعك في أي اتجاه",
+      g2048_won: "وصلت 2048! 🎉",
+      g2048_keep_going: "كمّل",
+      g2048_keep_hint: "تقدر تكمّل وتوصل لرقم أكبر",
+      g2048_over: "خلصت الحركات",
+      g2048_top: "أكبر رقم",
+      setup_mines: "كاسحة الألغام",
+      cat_mines: "افتح كل الخانات من غير ما تدوس على لغم. الأرقام بتقولك فين.",
+      mines_left: "ألغام",
+      mines_flag_mode: "علّم",
+      mines_first_tap: "أول لمسة دايماً أمان",
+      mines_hint: "دوس مطوّل أو فعّل 🚩 عشان تعلّم على لغم",
+      mines_lost: "بووم! 💥",
+      mines_lost_line: "دوست على لغم. جرّب تاني!",
+      mines_won: "نضّفت الأرض! 🚩",
       cat_xo: "3 في صف واحد. ضد صاحبك أو ضد الموبايل.",
       cat_guessnum: "رقم مخفي: أعلى ولا أقل؟ لوحدك أو مع صاحبك.",
       cat_reaction: "اتنين على شاشة واحدة: أول واحد يضغط لما تبقى خضرا.",
@@ -12457,6 +12782,47 @@ const stopWordKnown = (lang, cat, text) => {
       cat_wordle: "Guess the word in 6 tries with the letter colours to help.",
       cat_connections: "16 words, 4 groups. Find what connects them.",
       cat_memory: "Flip two cards, find the pairs. Solo or against a friend.",
+      grp_puzzle: "Puzzles",
+      solo_best: "Best",
+      solo_new_best: "New best! 🏆",
+      solo_solved: "Solved! 🎉",
+      solo_time: "Time",
+      solo_level: "Level",
+      solo_lvl_easy: "Easy",
+      solo_lvl_medium: "Medium",
+      solo_lvl_hard: "Hard",
+      solo_undo: "Undo",
+      solo_hint: "Hint",
+      solo_new_game: "New",
+      solo_continue: "Continue",
+      solo_share: "Share result",
+      solo_copied: "Result copied: send it to your friends",
+      daily_title: "Daily challenge",
+      daily_play_today: "Play today's puzzle",
+      daily_done_today: "Today's puzzle is done",
+      setup_sudoku: "Sudoku",
+      cat_sudoku: "Fill the grid 1 to 9 with no repeats in a row, column or box.",
+      sdk_mistakes: "Mistakes",
+      sdk_erase: "Erase",
+      sdk_notes: "Notes",
+      setup_g2048: "2048",
+      cat_g2048: "Slide the tiles and equal ones merge. Reach 2048.",
+      g2048_score: "Score",
+      g2048_hint: "Swipe in any direction",
+      g2048_won: "You made 2048! 🎉",
+      g2048_keep_going: "Keep going",
+      g2048_keep_hint: "You can keep going for a bigger tile",
+      g2048_over: "No moves left",
+      g2048_top: "Top tile",
+      setup_mines: "Minesweeper",
+      cat_mines: "Open every cell without hitting a mine. The numbers tell you where.",
+      mines_left: "Mines",
+      mines_flag_mode: "Flag",
+      mines_first_tap: "The first tap is always safe",
+      mines_hint: "Long-press, or turn on 🚩, to flag a mine",
+      mines_lost: "Boom! 💥",
+      mines_lost_line: "You hit a mine. Try again!",
+      mines_won: "Field cleared! 🚩",
       cat_xo: "Three in a row. Against a friend or the phone.",
       cat_guessnum: "A hidden number: higher or lower? Solo or with a friend.",
       cat_reaction: "Two on one screen: first to tap when it turns green.",
@@ -13370,7 +13736,8 @@ const stopWordKnown = (lang, cat, text) => {
             // Room screens come back too: initRooms() redraws them once the session
             // resumes, and restoreView() sends the player to the menu if it can't.
             // Left out, a reload mid-game always landed on the menu.
-            if (!validViews.includes(appState.currentView) && String(appState.currentView || '').indexOf('room-') !== 0) {
+            if (!validViews.includes(appState.currentView) && String(appState.currentView || '').indexOf('room-') !== 0
+                && !(typeof soloViews === 'function' && soloViews().includes(appState.currentView))) {
                 appState.currentView = 'menu';
             }
             if(appState.isDarkMode) document.body.classList.add('dark');
@@ -13556,6 +13923,8 @@ const stopWordKnown = (lang, cat, text) => {
             if (typeof restoreXO !== 'function' || !restoreXO()) setTimeout(() => setView('setup-xo'), 50);
         }
         // No game to keep: the chooser just needs its stage wired up again.
+        // The solo games register their own boards (JS_Solo.html).
+        else if (typeof soloRestoreView === 'function' && soloRestoreView(appState.currentView)) { /* redrawn */ }
         else if (appState.currentView === 'play-chooser') {
             setTimeout(() => { if (typeof openChooser === 'function') openChooser(); }, 0);
         }
@@ -13673,6 +14042,12 @@ const stopWordKnown = (lang, cat, text) => {
     'play-memory':     { title: 'setup_memory',     up: 'setup-memory',   accent: 'violet' },
     'setup-xo':        { title: 'setup_xo',         up: 'menu',           accent: 'blue' },
     'play-xo':         { title: 'setup_xo',         up: 'setup-xo',       accent: 'blue' },
+    'setup-sudoku':    { title: 'setup_sudoku',     up: 'menu',           accent: 'indigo' },
+    'play-sudoku':     { title: 'setup_sudoku',     up: 'setup-sudoku',   accent: 'indigo' },
+    'setup-g2048':     { title: 'setup_g2048',      up: 'menu',           accent: 'orange' },
+    'play-g2048':      { title: 'setup_g2048',      up: 'setup-g2048',    accent: 'orange' },
+    'setup-mines':     { title: 'setup_mines',      up: 'menu',           accent: 'teal' },
+    'play-mines':      { title: 'setup_mines',      up: 'setup-mines',    accent: 'teal' },
     'play-chooser':    { title: 'tool_chooser',     up: 'menu',           accent: 'orange' },
     'room-buzzer':     { title: 'setup_buzzer',     up: 'menu',           accent: 'rose' },
     'room-stop':       { title: 'setup_stop',       up: 'menu',           accent: 'green' },
@@ -13925,6 +14300,7 @@ const stopWordKnown = (lang, cat, text) => {
   function paintSetupOptions(viewId) {
     const fn = SETUP_PAINTERS[viewId];
     if (fn && typeof window[fn] === 'function') window[fn]();
+    else if (typeof soloPaintSetup === 'function') soloPaintSetup(viewId);
     const view = document.getElementById('view-' + viewId);
     if (view) syncTimePicks(view);
   }
@@ -14508,6 +14884,38 @@ const GAME_RULES = {
                 <li>ساعة شطرنج بملء الشاشة، نص لكل لاعب.</li>
                 <li>اضغط على نصك عشان تنهي دورك ويبدأ وقت خصمك. ⚙️ يغير الوقت بالدقايق.</li>
             </ul>`,
+        sudoku: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>شبكة 9×9 مقسومة 9 مربعات. املأ كل خانة فاضية برقم من 1 لـ 9.</li>
+                <li>الرقم مايتكررش في نفس الصف، ولا نفس العمود، ولا نفس المربع الصغير.</li>
+                <li>اختار خانة ثم رقم. الرقم الغلط بيبقى أحمر ويتحسب غلطة.</li>
+                <li><b>ملاحظات ✏️</b>: اكتب أرقام صغيرة محتملة في الخانة. بتتمسح لوحدها لما الرقم يتحط في صفها أو عمودها أو مربعها.</li>
+                <li>كل لغز ليه حل واحد بس. <b>سهل</b> 40 رقم ظاهر، <b>متوسط</b> 32، <b>صعب</b> 26.</li>
+            </ol>
+            <p class="help-sub">💡 تلميحات</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>التلميح بيحط الرقم الصح في الخانة، بس الحل بالتلميحات مايتسجلش أحسن نتيجة.</li>
+                <li><b>تحدي النهارده</b>: نفس اللغز لكل الناس في نفس اليوم، والنتيجة تقدر تشاركها.</li>
+            </ul>`,
+        g2048: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>اسحب بصباعك يمين أو شمال أو فوق أو تحت: كل البلاطات تتزحلق للآخر.</li>
+                <li>بلاطتين بنفس الرقم يخبطوا في بعض يبقوا بلاطة واحدة بمجموعهم، والمجموع يتضاف لنقاطك.</li>
+                <li>بعد كل حركة بتظهر بلاطة 2 (وساعات 4) في مكان فاضي.</li>
+                <li>وصّل لـ <b>2048</b> تكسب، وتقدر تكمّل لأكبر. لو مفيش حركة خلاص، اللعبة خلصت.</li>
+            </ol>
+            <p class="help-sub">💡 نصيحة</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>خلّي أكبر رقم في ركن واحد وماتسيبوش. و↶ بيرجع خطوة واحدة.</li>
+            </ul>`,
+        mines: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>تحت الخانات ألغام. افتح كل خانة مافيهاش لغم عشان تكسب.</li>
+                <li>الرقم بيقول كام لغم حوالين الخانة (الـ8 اللي جنبها). الخانة الفاضية بتفتح اللي حواليها لوحدها.</li>
+                <li><b>دوس مطوّل</b> (أو فعّل 🚩) عشان تحط علامة على لغم.</li>
+                <li>رقم حواليه علامات بعدده؟ دوس عليه يفتح الباقي مرة واحدة.</li>
+                <li>أول لمسة دايماً أمان. دوست على لغم؟ خسرت.</li>
+            </ol>`,
         dice: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>نرد واحد أو اتنين بدل الزهر الحقيقي.</li>
@@ -14931,6 +15339,38 @@ const GAME_RULES = {
                 <li>A full-screen chess clock, one half per player.</li>
                 <li>Tap your half to end your move and start your opponent's clock. ⚙️ changes the minutes.</li>
             </ul>`,
+        sudoku: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>A 9×9 grid split into 9 boxes. Fill every empty cell with a number from 1 to 9.</li>
+                <li>No number repeats in the same row, the same column or the same small box.</li>
+                <li>Pick a cell, then a number. A wrong number shows red and counts as a mistake.</li>
+                <li><b>Notes ✏️</b>: small candidate numbers in a cell. They clear themselves when the number is placed in their row, column or box.</li>
+                <li>Every puzzle has exactly one solution. <b>Easy</b> shows 40 numbers, <b>medium</b> 32, <b>hard</b> 26.</li>
+            </ol>
+            <p class="help-sub">💡 Hints</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>A hint puts the right number in a cell, but a solve with hints doesn't count as a best.</li>
+                <li><b>Today's puzzle</b>: the same puzzle for everyone on the same day, with a result you can share.</li>
+            </ul>`,
+        g2048: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Swipe left, right, up or down: every tile slides as far as it can.</li>
+                <li>Two tiles with the same number merge into one with their sum, which is added to your score.</li>
+                <li>After each move a new 2 (sometimes a 4) appears in an empty spot.</li>
+                <li>Reach <b>2048</b> to win, and keep going if you like. No move left ends the game.</li>
+            </ol>
+            <p class="help-sub">💡 Tip</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Keep your biggest tile in one corner. ↶ takes back one move.</li>
+            </ul>`,
+        mines: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Mines are hidden under the cells. Open every cell that isn't a mine to win.</li>
+                <li>A number tells how many mines touch that cell (its 8 neighbours). An empty cell opens its neighbours by itself.</li>
+                <li><b>Long-press</b> (or turn on 🚩) to flag a mine.</li>
+                <li>A number with as many flags around it as it says? Tap it to open the rest at once.</li>
+                <li>The first tap is always safe. Hit a mine and you lose.</li>
+            </ol>`,
         dice: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>One or two dice instead of the real thing.</li>
@@ -14966,6 +15406,7 @@ const CATALOG_GROUPS = [
   { id: 'quiz',   icon: '🧠', title: 'grp_quiz' },
   { id: 'table',  icon: '🃏', title: 'grp_table' },
   { id: 'duo',    icon: '🤝', title: 'grp_duo' },
+  { id: 'puzzle', icon: '🧩', title: 'grp_puzzle' },
   { id: 'tools',  icon: '🛠️', title: 'grp_tools' }
 ];
 
@@ -15012,6 +15453,9 @@ const GAME_CATALOG = [
   { id: 'connections', icon: '🧩',  title: 'setup_connections', desc: 'cat_connections', accent: 'teal', players: [1, 4],  mins: 10, modes: ['device'],               group: 'duo', setup: 'setup-connections', open: () => setupConnections() },
   { id: 'memory',     icon: '🎴',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory',      open: () => setupMemory() },
   { id: 'xo',         icon: '⭕',   title: 'setup_xo',         desc: 'cat_xo',         accent: 'blue',   players: [1, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-xo',          open: () => setupXO() },
+  { id: 'sudoku',     icon: '#️⃣',   title: 'setup_sudoku',     desc: 'cat_sudoku',     accent: 'indigo', players: [1, 1],  mins: 10, modes: ['device'],               group: 'puzzle', setup: 'setup-sudoku', open: () => setupSudoku() },
+  { id: 'g2048',      icon: '🔷',   title: 'setup_g2048',      desc: 'cat_g2048',      accent: 'orange', players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-g2048',  open: () => setup2048() },
+  { id: 'mines',      icon: '🚩',   title: 'setup_mines',      desc: 'cat_mines',      accent: 'teal',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-mines',  open: () => setupMines() },
   { id: 'guessnum',   icon: '🔢',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 2],  mins: 3,  modes: ['device'],               group: 'duo', setup: 'setup-guessnum',    open: () => setupGuessNumber() },
   { id: 'reaction',   icon: '⚡',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-reaction',    open: () => setView('setup-reaction') },
 
@@ -17849,6 +18293,9 @@ const HELP_ENTRIES = [
   { key: 'stop',        title: 'setup_stop',        icon: '🚏', accent: 'green',  group: 'games', room: true },
   { key: 'memory',      title: 'setup_memory',      icon: '🎴', accent: 'violet', group: 'games' },
   { key: 'xo',          title: 'setup_xo',          icon: '⭕', accent: 'blue',   group: 'games' },
+  { key: 'sudoku',      title: 'setup_sudoku',      icon: '#️⃣', accent: 'indigo', group: 'games' },
+  { key: 'g2048',       title: 'setup_g2048',       icon: '🔷', accent: 'orange', group: 'games' },
+  { key: 'mines',       title: 'setup_mines',       icon: '🚩', accent: 'teal',   group: 'games' },
   { key: 'buzzer',      title: 'setup_buzzer',      icon: '🔔', accent: 'rose',   group: 'games', roomOnly: true },
 
   { key: 'chooser',   title: 'tool_chooser',    icon: '👆', accent: 'orange', group: 'tools' },
@@ -17899,6 +18346,9 @@ const HELP_FOR_VIEW = {
   'setup-stop': 'stop', 'play-stop': 'stop',
   'setup-memory': 'memory', 'play-memory': 'memory',
   'setup-xo': 'xo', 'play-xo': 'xo',
+  'setup-sudoku': 'sudoku', 'play-sudoku': 'sudoku',
+  'setup-g2048': 'g2048', 'play-g2048': 'g2048',
+  'setup-mines': 'mines', 'play-mines': 'mines',
   'play-chooser': 'chooser', 'room-buzzer': 'buzzer', 'room-stop': 'stop',
   'room-chameleon': 'chameleon', 'room-spyfall': 'spyfall', 'room-bomb': 'bomb',
   'setup-emoji': 'emoji', 'play-emoji': 'emoji', 'room-emoji': 'emoji',
@@ -35725,6 +36175,1384 @@ function restoreXO() {
   xoMaybePhone();
   return true;
 }
+</script>
+
+    <script>
+/* ============================================================================
+   لوحدك — what every one-player game shares
+   ----------------------------------------------------------------------------
+   The solo games (سودوكو, 2048, كاسحة الألغام, الملكات, شمس وقمر, نونوجرام,
+   خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات, الترتيب الأعمى,
+   خمّن الدولة) and تحدي اليوم are built on these pieces, so each game file is
+   only its own rules and board.
+
+   - SOLO_GAMES: a game registers its screens (soloRegister). A reload goes
+     back to its board through soloRestoreView (called from restoreView), its
+     setup is painted through soloPaintSetup (from paintSetupOptions), and
+     loadFromLocal accepts its views through soloViews.
+   - Randomness that repeats: soloRng(seed) is a small seeded generator, and
+     soloDaySeed(id) the seed for a game's puzzle of the day - the same puzzle
+     on every phone on the same date, a new one at local midnight. Anything a
+     daily puzzle deals has to go through the seeded source, never
+     Math.random, or two phones get different puzzles.
+   - Bests per game and level (soloBest / soloRecord) and today's results
+     (soloDailyResult / soloMarkDaily / soloStreak), in this phone's storage.
+   - The result sheet (soloResult): icon, title, a number that counts up, a
+     line or two, share (a daily result goes to WhatsApp as text), again, exit.
+   ========================================================================= */
+
+const SOLO_GAMES = {};
+
+/** { setup: 'setup-x', play: 'play-x', paintSetup(), restore() -> bool, daily: { start(), icon, title } } */
+function soloRegister(id, def) {
+  SOLO_GAMES[id] = Object.assign({ id: id }, def);
+}
+
+function soloViews() {
+  const out = [];
+  Object.keys(SOLO_GAMES).forEach(id => {
+    const g = SOLO_GAMES[id];
+    if (g.setup) out.push(g.setup);
+    if (g.play) out.push(g.play);
+  });
+  return out;
+}
+
+/** A reload on a solo game's board: redraw it, or fall back to its setup. */
+function soloRestoreView(viewId) {
+  const g = Object.values(SOLO_GAMES).find(x => x.play === viewId);
+  if (!g) return false;
+  let ok = false;
+  try { ok = !!(g.restore && g.restore()); } catch (e) { ok = false; }
+  if (!ok) setTimeout(() => setView(g.setup), 50);
+  return true;
+}
+
+function soloPaintSetup(viewId) {
+  const g = Object.values(SOLO_GAMES).find(x => x.setup === viewId);
+  if (g && typeof g.paintSetup === 'function') g.paintSetup();
+}
+
+/* --- Randomness that can repeat ---------------------------------------------- */
+
+function soloHash(text) {
+  let h = 2166136261;
+  const s = String(text);
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** mulberry32: a fast seeded generator, good enough for dealing puzzles. */
+function soloRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Today on this phone, as YYYY-MM-DD (local time, so the day turns at midnight here). */
+function soloToday(date) {
+  const d = date || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function soloDaySeed(id, day) {
+  return soloHash('ashry-daily:' + id + ':' + (day || soloToday()));
+}
+
+/** A random source: seeded when a seed is given (the daily), Math.random otherwise. */
+function soloRandom(seed) {
+  return (seed === undefined || seed === null) ? Math.random : soloRng(seed);
+}
+
+function soloShuffle(arr, rnd) {
+  const r = rnd || Math.random;
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+  }
+  return out;
+}
+
+function soloPick(arr, rnd) {
+  return arr[Math.floor((rnd || Math.random)() * arr.length)];
+}
+
+/* --- Bests --------------------------------------------------------------------- */
+
+const SOLO_BEST_KEY = 'ashrySoloBest_v1';
+
+function soloBestAll() {
+  try { return JSON.parse(localStorage.getItem(SOLO_BEST_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function soloBest(id, level) {
+  return soloBestAll()[id + ':' + (level || '')] || null;
+}
+
+/**
+ * Keeps `result` as the best for this game and level if `isBetter(result, prev)`.
+ * Returns { record, prev }.
+ */
+function soloRecord(id, level, result, isBetter) {
+  const all = soloBestAll();
+  const key = id + ':' + (level || '');
+  const prev = all[key] || null;
+  const record = !prev || isBetter(result, prev);
+  if (record) {
+    all[key] = result;
+    try { localStorage.setItem(SOLO_BEST_KEY, JSON.stringify(all)); } catch (e) {}
+  }
+  return { record: record, prev: prev };
+}
+
+/* --- Today's puzzles (تحدي اليوم) ------------------------------------------------ */
+
+const SOLO_DAILY_KEY = 'ashryDaily_v1';
+
+function soloDailyAll() {
+  try { return JSON.parse(localStorage.getItem(SOLO_DAILY_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function soloDailyResult(id, day) {
+  const all = soloDailyAll();
+  return (all[day || soloToday()] || {})[id] || null;
+}
+
+/** Remembers today's result for a game (the first one only: a daily is played once). */
+function soloMarkDaily(id, result) {
+  const all = soloDailyAll();
+  const today = soloToday();
+  all[today] = all[today] || {};
+  if (all[today][id]) return all[today][id];
+  all[today][id] = result;
+  // Two months is plenty for a streak.
+  const cutoff = soloToday(new Date(Date.now() - 62 * 24 * 3600 * 1000));
+  Object.keys(all).forEach(day => { if (day < cutoff) delete all[day]; });
+  try { localStorage.setItem(SOLO_DAILY_KEY, JSON.stringify(all)); } catch (e) {}
+  return result;
+}
+
+/** Days in a row with at least one daily finished, counting today or, if not yet, yesterday. */
+function soloStreak() {
+  const all = soloDailyAll();
+  const has = (d) => Object.keys(all[soloToday(d)] || {}).length > 0;
+  const day = new Date();
+  if (!has(day)) day.setDate(day.getDate() - 1);
+  let n = 0;
+  while (has(day) && n < 400) {
+    n++;
+    day.setDate(day.getDate() - 1);
+  }
+  return n;
+}
+
+/* --- Small pieces ---------------------------------------------------------------- */
+
+function soloTime(seconds) {
+  const s = Math.max(0, Math.floor(seconds || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? h + ':' + String(m).padStart(2, '0') + ':' + ss : m + ':' + ss;
+}
+
+/** A running clock for a board: `startedAt` in state, painted into #id every second. */
+function soloClock(elId, startedAt) {
+  return createClock({
+    countUp: true,
+    onTick: () => {
+      const el = document.getElementById(elId);
+      if (el) el.textContent = soloTime((Date.now() - startedAt) / 1000);
+    }
+  });
+}
+
+/** The stats row above a board: [{ label, value, id }]. */
+function soloBarHtml(items) {
+  return `<div class="solo-bar" style="--solo-cols:${items.length}">${items.map(it => `
+    <div class="solo-stat${it.cls ? ' ' + it.cls : ''}">
+      <span class="solo-stat__label">${escapeHTML(it.label || '')}</span>
+      <b class="metric"${it.id ? ` id="${it.id}"` : ''}>${it.value === undefined ? '' : it.value}</b>
+    </div>`).join('')}</div>`;
+}
+
+/** The daily line on a setup screen: play today's puzzle, or see that it's done. */
+function soloDailyButtonHtml(id, startCall) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const done = soloDailyResult(id);
+  return done
+    ? `<div class="solo-daily is-done"><span aria-hidden="true">📅</span><span>${escapeHTML(t.daily_done_today || '')}</span><b>✓</b></div>`
+    : `<button type="button" class="btn btn--secondary" onclick="${startCall}">📅 ${escapeHTML(t.daily_play_today || '')}</button>`;
+}
+
+/* --- The result sheet ------------------------------------------------------------- */
+
+let soloResultActions = { again: null, exit: null, share: '' };
+
+/**
+ * o: { icon, title, value (number, counts up) or valueText, valueLabel, lines: [html],
+ *      win (confetti), share (text, for a daily), again(), exit() }
+ */
+function soloResult(o) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  soloResultActions = { again: o.again || null, exit: o.exit || null, share: o.share || '' };
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  set('solo-result-icon', o.icon || '🏁');
+  set('solo-result-title', escapeHTML(o.title || ''));
+  set('solo-result-label', escapeHTML(o.valueLabel || ''));
+  set('solo-result-detail', (o.lines || []).map(l => `<p class="sheet__subtitle">${l}</p>`).join(''));
+  const valueEl = document.getElementById('solo-result-value');
+  if (valueEl) {
+    if (typeof o.value === 'number') {
+      valueEl.textContent = String(o.value);
+      if (typeof countUp === 'function' && !motionOff() && o.value > 0) countUp(valueEl, 0, o.value);
+    } else {
+      valueEl.textContent = o.valueText || '';
+    }
+  }
+  const share = document.getElementById('solo-result-share');
+  if (share) share.classList.toggle('hidden', !o.share);
+  const again = document.getElementById('solo-result-again');
+  if (again) {
+    again.classList.toggle('hidden', !o.again);
+    again.textContent = o.againLabel || t.play_again || '';
+  }
+  const modal = document.getElementById('solo-result-modal');
+  if (modal) modal.classList.remove('hidden');
+  if (o.win) {
+    playSound('success');
+    if (typeof confetti === 'function') setTimeout(() => confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }), 250);
+  } else {
+    playSound('alarm');
+  }
+}
+
+function soloResultAgain() {
+  closeModal('solo-result-modal');
+  if (soloResultActions.again) soloResultActions.again();
+}
+
+function soloResultExit() {
+  closeModal('solo-result-modal');
+  if (soloResultActions.exit) soloResultActions.exit();
+}
+
+function soloResultShare() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (!soloResultActions.share) return;
+  shareOrCopy(appLink(), soloResultActions.share, t.solo_copied || '');
+}
+
+/** A daily result as a line for the share text: "🔢 سودوكو ✅ 4:12". */
+function soloShareHeader(t) {
+  const d = new Date();
+  return `${t.title || 'عشرى جيمينج'} · ${t.daily_title || ''} ${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+/* --- A finger dragging across a board ------------------------------------------ */
+
+/**
+ * The cell under a pointer, for boards you paint or trace across (a word
+ * search, a nonogram, the letter wheel): the element matching `selector`
+ * under the point, found without relying on the event's target, which stays
+ * the first cell for a captured touch.
+ */
+function soloCellAt(x, y, selector) {
+  const el = document.elementFromPoint(x, y);
+  return el && el.closest ? el.closest(selector) : null;
+}
+</script>
+
+    <script>
+/* ============================================================================
+   سودوكو — SUDOKU
+   ----------------------------------------------------------------------------
+   A 9×9 grid made on the phone: a full grid filled at random, then numbers
+   taken away one at a time as long as the puzzle still has exactly one
+   solution (sudokuCount stops at two). Easy keeps 40 numbers, medium 32,
+   hard 26. The daily one is built from soloDaySeed, so every phone gets the
+   same puzzle that day.
+
+   A number that isn't the solution's shows red and counts a mistake; notes
+   (✏️) are small candidates in a cell and clear themselves when the number
+   is placed in that row, column or box. A finished row, column or box ripples.
+   Everything is in appState.sudoku, so a reload comes back to the same board.
+   ========================================================================= */
+
+const SUDOKU_GIVENS = { easy: 40, medium: 32, hard: 26 };
+let sudokuTimer = null;
+
+function sudokuState() {
+  if (!appState.sudoku) {
+    appState.sudoku = { level: 'easy', daily: '', puzzle: '', solution: '', cells: '', notes: [], sel: -1,
+                        notesMode: false, mistakes: 0, hints: 0, undo: [], startedAt: 0, elapsed: 0, phase: 'setup' };
+  }
+  return appState.sudoku;
+}
+
+/* --- The puzzle ---------------------------------------------------------------- */
+
+const SUDOKU_BOX = Array.from({ length: 81 }, (_, i) => Math.floor(Math.floor(i / 9) / 3) * 3 + Math.floor((i % 9) / 3));
+
+/** How many solutions the grid has, counting no further than `limit`. */
+function sudokuCount(grid, limit) {
+  const rows = new Array(9).fill(0), cols = new Array(9).fill(0), boxes = new Array(9).fill(0);
+  const empty = [];
+  for (let i = 0; i < 81; i++) {
+    const v = grid[i];
+    if (v) {
+      const bit = 1 << v;
+      rows[Math.floor(i / 9)] |= bit; cols[i % 9] |= bit; boxes[SUDOKU_BOX[i]] |= bit;
+    } else empty.push(i);
+  }
+  let found = 0;
+  const g = grid.slice();
+  const solve = () => {
+    // The empty cell with the fewest candidates first: it keeps the search small.
+    let best = -1, bestMask = 0, bestCount = 10;
+    for (const i of empty) {
+      if (g[i]) continue;
+      const mask = ~(rows[Math.floor(i / 9)] | cols[i % 9] | boxes[SUDOKU_BOX[i]]) & 0x3FE;
+      let n = 0;
+      for (let m = mask; m; m &= m - 1) n++;
+      if (n < bestCount) { best = i; bestMask = mask; bestCount = n; if (n <= 1) break; }
+    }
+    if (best === -1) { found++; return found >= limit; }
+    if (!bestCount) return false;
+    const r = Math.floor(best / 9), c = best % 9, b = SUDOKU_BOX[best];
+    for (let v = 1; v <= 9; v++) {
+      const bit = 1 << v;
+      if (!(bestMask & bit)) continue;
+      g[best] = v; rows[r] |= bit; cols[c] |= bit; boxes[b] |= bit;
+      if (solve()) return true;
+      g[best] = 0; rows[r] &= ~bit; cols[c] &= ~bit; boxes[b] &= ~bit;
+    }
+    return false;
+  };
+  solve();
+  return found;
+}
+
+/** A full valid grid, dealt from `rnd`. */
+function sudokuFill(rnd) {
+  const g = new Array(81).fill(0);
+  const ok = (i, v) => {
+    const r = Math.floor(i / 9), c = i % 9, b = SUDOKU_BOX[i];
+    for (let k = 0; k < 81; k++) {
+      if (g[k] === v && (Math.floor(k / 9) === r || k % 9 === c || SUDOKU_BOX[k] === b)) return false;
+    }
+    return true;
+  };
+  const fill = (i) => {
+    if (i === 81) return true;
+    for (const v of soloShuffle([1, 2, 3, 4, 5, 6, 7, 8, 9], rnd)) {
+      if (!ok(i, v)) continue;
+      g[i] = v;
+      if (fill(i + 1)) return true;
+      g[i] = 0;
+    }
+    return false;
+  };
+  fill(0);
+  return g;
+}
+
+/** { puzzle, solution } as arrays of 81, with exactly one solution. */
+function sudokuMake(level, rnd) {
+  const solution = sudokuFill(rnd);
+  const puzzle = solution.slice();
+  const target = SUDOKU_GIVENS[level] || SUDOKU_GIVENS.easy;
+  let givens = 81;
+  for (const i of soloShuffle(Array.from({ length: 81 }, (_, k) => k), rnd)) {
+    if (givens <= target) break;
+    const keep = puzzle[i];
+    puzzle[i] = 0;
+    if (sudokuCount(puzzle, 2) === 1) givens--;
+    else puzzle[i] = keep;
+  }
+  return { puzzle: puzzle, solution: solution };
+}
+
+/* --- Setup ---------------------------------------------------------------------- */
+
+function setupSudoku() {
+  sudokuStopTimer();
+  setView('setup-sudoku');
+}
+
+function paintSudokuSetup() {
+  const s = sudokuState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#sudoku-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('sudoku', s.level);
+  const bestEl = document.getElementById('sudoku-best');
+  if (bestEl) bestEl.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('sudoku-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('sudoku-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('sudoku', 'startSudoku(true)');
+}
+
+function setSudokuLevel(level) {
+  sudokuState().level = level;
+  saveToLocal();
+  paintSudokuSetup();
+}
+
+function startSudoku(daily) {
+  const s = sudokuState();
+  const level = daily ? 'medium' : s.level;
+  const made = sudokuMake(level, soloRandom(daily ? soloDaySeed('sudoku') : null));
+  s.daily = daily ? soloToday() : '';
+  s.playLevel = level;
+  s.puzzle = made.puzzle.join('');
+  s.solution = made.solution.join('');
+  s.cells = s.puzzle;
+  s.notes = new Array(81).fill(0);
+  s.sel = -1;
+  s.notesMode = false;
+  s.mistakes = 0;
+  s.hints = 0;
+  s.undo = [];
+  s.startedAt = Date.now();
+  s.phase = 'play';
+  saveToLocal();
+  setView('play-sudoku');
+  paintSudoku();
+  sudokuArmTimer();
+}
+
+function continueSudoku() {
+  const s = sudokuState();
+  if (s.phase !== 'play') return;
+  setView('play-sudoku');
+  paintSudoku();
+  sudokuArmTimer();
+}
+
+function sudokuArmTimer() {
+  sudokuStopTimer();
+  sudokuTimer = soloClock('sdk-time', sudokuState().startedAt);
+}
+
+function sudokuStopTimer() {
+  if (sudokuTimer) sudokuTimer.stop();
+  sudokuTimer = null;
+}
+
+/* --- The board ------------------------------------------------------------------ */
+
+function paintSudoku() {
+  const s = sudokuState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('sudoku-stage');
+  if (!el || !s.puzzle) return;
+  const cells = s.cells;
+  const selVal = s.sel >= 0 ? Number(cells[s.sel]) : 0;
+  const peers = (i) => s.sel >= 0 && (Math.floor(i / 9) === Math.floor(s.sel / 9) || i % 9 === s.sel % 9 || SUDOKU_BOX[i] === SUDOKU_BOX[s.sel]);
+  const placed = new Array(10).fill(0);
+  for (let i = 0; i < 81; i++) if (cells[i] !== '0' && cells[i] === s.solution[i]) placed[Number(cells[i])]++;
+
+  const bar = soloBarHtml([
+    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: escapeHTML(t['solo_lvl_' + (s.playLevel || s.level)] || '') },
+    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'sdk-time' },
+    { label: t.sdk_mistakes || '', value: s.mistakes, id: 'sdk-mistakes' }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+    <div class="solo-layout__board">
+    <div class="sdk-grid" dir="ltr" id="sdk-grid">
+      ${Array.from({ length: 81 }, (_, i) => {
+        const v = Number(cells[i]);
+        const given = s.puzzle[i] !== '0';
+        const wrong = v && !given && String(v) !== s.solution[i];
+        const cls = ['sdk-cell',
+          given ? 'is-given' : '',
+          i === s.sel ? 'is-sel' : (peers(i) ? 'is-peer' : ''),
+          v && selVal && v === selVal ? 'is-same' : '',
+          wrong ? 'is-wrong' : '',
+          i % 9 === 2 || i % 9 === 5 ? 'is-box-end' : '',
+          Math.floor(i / 9) === 2 || Math.floor(i / 9) === 5 ? 'is-box-bottom' : ''].filter(Boolean).join(' ');
+        const notes = !v && s.notes[i]
+          ? `<span class="sdk-notes">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<i>${s.notes[i] & (1 << n) ? n : ''}</i>`).join('')}</span>` : '';
+        return `<button type="button" class="${cls}" data-i="${i}" onclick="selectSudoku(${i})">${v || notes}</button>`;
+      }).join('')}
+    </div>
+    </div>
+    <div class="solo-layout__side">
+    ${bar}
+    <div class="sdk-pad" dir="ltr">
+      ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `
+        <button type="button" class="sdk-key" onclick="enterSudoku(${n})" ${placed[n] >= 9 ? 'disabled' : ''}>
+          <span>${n}</span><small>${Math.max(0, 9 - placed[n])}</small>
+        </button>`).join('')}
+    </div>
+    <div class="sdk-tools">
+      <button type="button" class="btn btn--neutral btn--sm" onclick="undoSudoku()" ${s.undo.length ? '' : 'disabled'}>↶ ${escapeHTML(t.solo_undo || '')}</button>
+      <button type="button" class="btn btn--neutral btn--sm" onclick="eraseSudoku()">⌫ ${escapeHTML(t.sdk_erase || '')}</button>
+      <button type="button" class="btn btn--sm ${s.notesMode ? 'btn--primary' : 'btn--neutral'}" onclick="toggleSudokuNotes()" aria-pressed="${s.notesMode}">✏️ ${escapeHTML(t.sdk_notes || '')}</button>
+      <button type="button" class="btn btn--neutral btn--sm" onclick="hintSudoku()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+    </div>
+    </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupSudoku()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+function selectSudoku(i) {
+  const s = sudokuState();
+  if (s.phase !== 'play') return;
+  s.sel = s.sel === i ? -1 : i;
+  paintSudoku();
+}
+
+function sudokuPushUndo(i) {
+  const s = sudokuState();
+  s.undo.push({ i: i, v: s.cells[i], n: s.notes[i] });
+  if (s.undo.length > 200) s.undo.shift();
+}
+
+function sudokuSetCell(i, v) {
+  const s = sudokuState();
+  s.cells = s.cells.slice(0, i) + v + s.cells.slice(i + 1);
+}
+
+function enterSudoku(n) {
+  const s = sudokuState();
+  if (s.phase !== 'play' || s.sel < 0 || s.puzzle[s.sel] !== '0') return;
+  const i = s.sel;
+  if (s.notesMode && s.cells[i] !== '0') return;
+  sudokuPushUndo(i);
+  if (s.notesMode) {
+    s.notes[i] ^= (1 << n);
+    saveToLocal();
+    paintSudoku();
+    return;
+  }
+  if (s.cells[i] === String(n)) {
+    sudokuSetCell(i, '0');
+  } else {
+    sudokuSetCell(i, String(n));
+    s.notes[i] = 0;
+    if (s.solution[i] !== String(n)) {
+      s.mistakes++;
+      haptic('heavy');
+      playSound('alarm');
+    } else {
+      // The number is settled here: it can't be a candidate for its row, column or box.
+      for (let k = 0; k < 81; k++) {
+        if (Math.floor(k / 9) === Math.floor(i / 9) || k % 9 === i % 9 || SUDOKU_BOX[k] === SUDOKU_BOX[i]) s.notes[k] &= ~(1 << n);
+      }
+    }
+  }
+  saveToLocal();
+  paintSudoku();
+  if (s.solution[i] === s.cells[i]) sudokuCelebrateUnits(i);
+  if (s.cells === s.solution) sudokuFinish();
+}
+
+function eraseSudoku() {
+  const s = sudokuState();
+  if (s.phase !== 'play' || s.sel < 0 || s.puzzle[s.sel] !== '0') return;
+  sudokuPushUndo(s.sel);
+  sudokuSetCell(s.sel, '0');
+  s.notes[s.sel] = 0;
+  saveToLocal();
+  paintSudoku();
+}
+
+function undoSudoku() {
+  const s = sudokuState();
+  const last = s.undo.pop();
+  if (!last || s.phase !== 'play') return;
+  sudokuSetCell(last.i, last.v);
+  s.notes[last.i] = last.n;
+  s.sel = last.i;
+  saveToLocal();
+  paintSudoku();
+}
+
+function toggleSudokuNotes() {
+  const s = sudokuState();
+  s.notesMode = !s.notesMode;
+  saveToLocal();
+  paintSudoku();
+}
+
+/** The selected cell's number, or the first empty or wrong cell's. A hint is counted. */
+function hintSudoku() {
+  const s = sudokuState();
+  if (s.phase !== 'play') return;
+  let i = s.sel >= 0 && s.puzzle[s.sel] === '0' && s.cells[s.sel] !== s.solution[s.sel] ? s.sel : -1;
+  if (i < 0) for (let k = 0; k < 81; k++) if (s.cells[k] !== s.solution[k]) { i = k; break; }
+  if (i < 0) return;
+  sudokuPushUndo(i);
+  sudokuSetCell(i, s.solution[i]);
+  s.notes[i] = 0;
+  s.hints++;
+  s.sel = i;
+  saveToLocal();
+  paintSudoku();
+  sudokuCelebrateUnits(i);
+  if (s.cells === s.solution) sudokuFinish();
+}
+
+/** A row, column or box that just came right ripples. */
+function sudokuCelebrateUnits(i) {
+  if (motionOff()) return;
+  const s = sudokuState();
+  const units = [
+    Array.from({ length: 9 }, (_, c) => Math.floor(i / 9) * 9 + c),
+    Array.from({ length: 9 }, (_, r) => r * 9 + (i % 9)),
+    Array.from({ length: 81 }, (_, k) => k).filter(k => SUDOKU_BOX[k] === SUDOKU_BOX[i])
+  ];
+  const done = units.filter(u => u.every(k => s.cells[k] === s.solution[k]));
+  const cells = new Set();
+  done.forEach(u => u.forEach(k => cells.add(k)));
+  cells.forEach(k => {
+    const el = document.querySelector(`#sdk-grid [data-i="${k}"]`);
+    if (!el || !el.animate) return;
+    const r = Math.floor(k / 9), c = k % 9;
+    const dist = Math.abs(r - Math.floor(i / 9)) + Math.abs(c - i % 9);
+    el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.14)', offset: 0.45 }, { transform: 'scale(1)' }],
+               { duration: 360, delay: dist * 35, easing: 'ease-out' });
+  });
+}
+
+function sudokuFinish() {
+  const s = sudokuState();
+  const t = TRANSLATIONS[appState.lang];
+  sudokuStopTimer();
+  s.elapsed = Math.round((Date.now() - s.startedAt) / 1000);
+  s.phase = 'done';
+  s.sel = -1;
+  saveToLocal();
+  paintSudoku();
+  const level = s.playLevel || s.level;
+  const rec = s.hints ? { record: false, prev: soloBest('sudoku', level) }
+    : soloRecord('sudoku', level, { seconds: s.elapsed }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('sudoku', { seconds: s.elapsed, mistakes: s.mistakes });
+    share = `${soloShareHeader(t)}\n#️⃣ ${t.setup_sudoku || ''} ✅ ${soloTime(s.elapsed)}${s.mistakes ? ' · ❌ ' + s.mistakes : ''}`;
+  }
+  const lines = [`${escapeHTML(t.sdk_mistakes || '')}: ${s.mistakes}${s.hints ? ` · 💡 ${s.hints}` : ''}`];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: '#️⃣',
+    title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
+    valueText: soloTime(s.elapsed),
+    valueLabel: t.solo_time || '',
+    lines: lines,
+    win: true,
+    share: share,
+    again: () => startSudoku(false),
+    exit: setupSudoku
+  }), motionOff() ? 0 : 500);
+}
+
+function restoreSudoku() {
+  const s = sudokuState();
+  if (!s.puzzle || s.phase !== 'play') return false;
+  paintSudoku();
+  sudokuArmTimer();
+  return true;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (appState.currentView !== 'play-sudoku' || e.target.closest && e.target.closest('input, textarea')) return;
+  const s = sudokuState();
+  if (s.phase !== 'play') return;
+  if (/^[1-9]$/.test(e.key)) { enterSudoku(Number(e.key)); e.preventDefault(); return; }
+  if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { eraseSudoku(); e.preventDefault(); return; }
+  if (e.key === 'n' || e.key === 'N') { toggleSudokuNotes(); return; }
+  const moves = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 };
+  if (moves[e.key]) {
+    const next = (s.sel < 0 ? 40 : s.sel) + moves[e.key];
+    if (next >= 0 && next < 81 && !(Math.abs(moves[e.key]) === 1 && Math.floor(next / 9) !== Math.floor((s.sel < 0 ? 40 : s.sel) / 9))) {
+      s.sel = next;
+      paintSudoku();
+    }
+    e.preventDefault();
+  }
+});
+
+soloRegister('sudoku', { setup: 'setup-sudoku', play: 'play-sudoku', paintSetup: paintSudokuSetup, restore: restoreSudoku });
+</script>
+
+    <script>
+/* ============================================================================
+   2048
+   ----------------------------------------------------------------------------
+   Swipe (or the arrow keys) and every tile slides as far as it can; two equal
+   tiles that meet become one with their sum. A new 2 (sometimes a 4) lands
+   after each move that changed the board. Reach 2048 to win, and carry on if
+   you like; no move left ends the game.
+
+   The tiles are kept as { id, v, r, c } so the same element slides from its
+   old place to its new one (a transform transition, off the main thread); a
+   merged pair slides together, the survivor pops with its new value and the
+   other goes. One step can be undone. The board is in appState.g2048.
+   ========================================================================= */
+
+const G2048_SIZE = 4;
+const G2048_SLIDE_MS = 120;
+let g2048Busy = false;
+
+function g2048State() {
+  if (!appState.g2048) {
+    appState.g2048 = { tiles: [], nextId: 1, score: 0, won: false, keepGoing: false, prev: null, phase: 'setup' };
+  }
+  return appState.g2048;
+}
+
+function setup2048() {
+  setView('setup-g2048');
+}
+
+function paint2048Setup() {
+  const s = g2048State();
+  const t = TRANSLATIONS[appState.lang];
+  const best = soloBest('g2048', '');
+  const el = document.getElementById('g2048-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${best.score} · ${best.tile}` : '';
+  const cont = document.getElementById('g2048-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+}
+
+function start2048() {
+  const s = g2048State();
+  s.tiles = [];
+  s.nextId = 1;
+  s.score = 0;
+  s.won = false;
+  s.keepGoing = false;
+  s.prev = null;
+  s.phase = 'play';
+  g2048Spawn(s);
+  g2048Spawn(s);
+  saveToLocal();
+  setView('play-g2048');
+  paint2048(true);
+}
+
+function continue2048() {
+  if (g2048State().phase !== 'play') return;
+  setView('play-g2048');
+  paint2048(true);
+}
+
+function g2048Spawn(s) {
+  const taken = new Set(s.tiles.map(x => x.r * G2048_SIZE + x.c));
+  const free = [];
+  for (let i = 0; i < G2048_SIZE * G2048_SIZE; i++) if (!taken.has(i)) free.push(i);
+  if (!free.length) return null;
+  const i = free[Math.floor(Math.random() * free.length)];
+  const tile = { id: s.nextId++, v: Math.random() < 0.9 ? 2 : 4, r: Math.floor(i / G2048_SIZE), c: i % G2048_SIZE, fresh: true };
+  s.tiles.push(tile);
+  return tile;
+}
+
+/**
+ * Slides the board one way. Returns { moved, gained, merges: [{ into, gone }] } and
+ * rewrites s.tiles; nothing changes when nothing can move.
+ */
+function g2048Slide(s, dir) {
+  const N = G2048_SIZE;
+  const grid = Array.from({ length: N }, () => new Array(N).fill(null));
+  s.tiles.forEach(x => { x.fresh = false; x.merged = false; grid[x.r][x.c] = x; });
+  const lines = [];
+  for (let k = 0; k < N; k++) {
+    const cells = [];
+    for (let j = 0; j < N; j++) {
+      if (dir === 'left') cells.push([k, j]);
+      if (dir === 'right') cells.push([k, N - 1 - j]);
+      if (dir === 'up') cells.push([j, k]);
+      if (dir === 'down') cells.push([N - 1 - j, k]);
+    }
+    lines.push(cells);
+  }
+  let moved = false, gained = 0;
+  const merges = [];
+  const keep = [];
+  lines.forEach(cells => {
+    const items = cells.map(([r, c]) => grid[r][c]).filter(Boolean);
+    let slot = 0;
+    for (let n = 0; n < items.length; n++) {
+      const a = items[n], b = items[n + 1];
+      const [r, c] = cells[slot];
+      if (b && b.v === a.v) {
+        if (a.r !== r || a.c !== c || b.r !== r || b.c !== c) moved = true;
+        a.r = r; a.c = c; b.r = r; b.c = c;
+        a.v *= 2; a.merged = true;
+        gained += a.v;
+        merges.push({ into: a.id, gone: b.id });
+        keep.push(a);
+        n++;
+      } else {
+        if (a.r !== r || a.c !== c) moved = true;
+        a.r = r; a.c = c;
+        keep.push(a);
+      }
+      slot++;
+    }
+  });
+  if (moved) s.tiles = keep;
+  return { moved: moved, gained: gained, merges: merges };
+}
+
+function g2048CanMove(s) {
+  if (s.tiles.length < G2048_SIZE * G2048_SIZE) return true;
+  const at = {};
+  s.tiles.forEach(x => { at[x.r + ',' + x.c] = x.v; });
+  return s.tiles.some(x => at[(x.r + 1) + ',' + x.c] === x.v || at[x.r + ',' + (x.c + 1)] === x.v);
+}
+
+function move2048(dir) {
+  const s = g2048State();
+  if (s.phase !== 'play' || g2048Busy) return;
+  const before = { tiles: JSON.parse(JSON.stringify(s.tiles)), score: s.score, nextId: s.nextId, won: s.won };
+  // The slide rewrites tile positions, so keep a copy of where the gone ones were headed.
+  const snapshot = s.tiles.map(x => Object.assign({}, x));
+  const res = g2048Slide(s, dir);
+  if (!res.moved) {
+    s.tiles.forEach(x => { x.merged = false; });
+    const board = document.getElementById('g2048-board');
+    if (board && board.animate && !motionOff()) {
+      const push = { left: [-6, 0], right: [6, 0], up: [0, -6], down: [0, 6] }[dir];
+      board.animate([{ transform: 'none' }, { transform: `translate(${push[0]}px, ${push[1]}px)` }, { transform: 'none' }], { duration: 160 });
+    }
+    return;
+  }
+  s.prev = before;
+  s.score += res.gained;
+  // Where each consumed tile slides to before it disappears.
+  const gone = res.merges.map(m => {
+    const survivor = s.tiles.find(x => x.id === m.into);
+    const old = snapshot.find(x => x.id === m.gone);
+    return Object.assign({}, old, { r: survivor.r, c: survivor.c, gone: true });
+  });
+  g2048Spawn(s);
+  saveToLocal();
+  paint2048(false, gone);
+  if (res.gained) playSound('click');
+  const top = Math.max.apply(null, s.tiles.map(x => x.v));
+  if (top >= 2048 && !s.won) {
+    s.won = true;
+    saveToLocal();
+    setTimeout(() => g2048End(true), 400);
+    return;
+  }
+  if (!g2048CanMove(s)) setTimeout(() => g2048End(false), 400);
+}
+
+function undo2048() {
+  const s = g2048State();
+  if (!s.prev || s.phase !== 'play') return;
+  s.tiles = s.prev.tiles;
+  s.score = s.prev.score;
+  s.nextId = s.prev.nextId;
+  s.won = s.prev.won;
+  s.prev = null;
+  saveToLocal();
+  paint2048(true);
+}
+
+/* --- Drawing ----------------------------------------------------------------------- */
+
+function paint2048(full, gone) {
+  const s = g2048State();
+  const t = TRANSLATIONS[appState.lang];
+  const stage = document.getElementById('g2048-stage');
+  if (!stage) return;
+  let board = document.getElementById('g2048-board');
+  if (full || !board) {
+    const best = soloBest('g2048', '');
+    const bar = soloBarHtml([
+      { label: t.g2048_score || '', value: s.score, id: 'g2048-score' },
+      { label: t.solo_best || '', value: best ? best.score : 0, id: 'g2048-bestv' }
+    ]);
+  stage.innerHTML = `
+      <div class="solo-layout">
+      <div class="solo-layout__board">
+      <div class="g2048-board" id="g2048-board" dir="ltr">
+        ${Array.from({ length: G2048_SIZE * G2048_SIZE }, () => '<div class="g2048-cell"></div>').join('')}
+        <div class="g2048-tiles" id="g2048-tiles"></div>
+      </div>
+      </div>
+      <div class="solo-layout__side">
+    ${bar}
+      <p class="field__hint g2048-hint">${escapeHTML(t.g2048_hint || '')}</p>
+      </div>
+      </div>
+      <div class="view-actions">
+        <div class="btn-row">
+          <button class="btn btn--neutral btn--sm" id="g2048-undo" onclick="undo2048()" ${s.prev ? '' : 'disabled'}>↶ ${escapeHTML(t.solo_undo || '')}</button>
+          <button class="btn btn--neutral btn--sm" onclick="start2048()">🔄 ${escapeHTML(t.solo_new_game || '')}</button>
+          <button class="btn btn--ghost btn--sm" onclick="setup2048()">${escapeHTML(t.exit || '')}</button>
+        </div>
+      </div>`;
+    board = document.getElementById('g2048-board');
+    g2048BindSwipe(board);
+  }
+  const layer = document.getElementById('g2048-tiles');
+  if (!layer) return;
+  const still = motionOff();
+  const existing = {};
+  layer.querySelectorAll('.g2048-tile').forEach(el => { existing[el.dataset.id] = el; });
+  const place = (el, x) => { el.style.setProperty('--r', x.r); el.style.setProperty('--c', x.c); };
+
+  // The tiles that merged away slide into their partner, then go.
+  (gone || []).forEach(x => {
+    const el = existing[x.id];
+    if (!el) return;
+    delete existing[x.id];
+    el.classList.add('is-gone');
+    place(el, x);
+    setTimeout(() => el.remove(), still ? 0 : G2048_SLIDE_MS);
+  });
+
+  s.tiles.forEach(x => {
+    let el = existing[x.id];
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'g2048-tile';
+      el.dataset.id = x.id;
+      layer.appendChild(el);
+      place(el, x);
+      el.textContent = x.v;
+      el.dataset.v = x.v > 2048 ? 'big' : x.v;
+      if (!still && !full) {
+        el.classList.add('is-new');
+        el.style.animationDelay = G2048_SLIDE_MS + 'ms';
+      }
+    } else {
+      delete existing[x.id];
+      place(el, x);
+      if (x.merged) {
+        // The value changes when the pair meets, with a pop.
+        const apply = () => {
+          el.textContent = x.v;
+          el.dataset.v = x.v > 2048 ? 'big' : x.v;
+          if (!still) { el.classList.remove('is-merged'); void el.offsetWidth; el.classList.add('is-merged'); }
+        };
+        if (still) apply(); else setTimeout(apply, G2048_SLIDE_MS);
+      }
+    }
+  });
+  Object.values(existing).forEach(el => el.remove());
+
+  const scoreEl = document.getElementById('g2048-score');
+  if (scoreEl) scoreEl.textContent = s.score;
+  const undo = document.getElementById('g2048-undo');
+  if (undo) undo.disabled = !s.prev;
+  g2048Busy = !still && !full;
+  if (g2048Busy) setTimeout(() => { g2048Busy = false; }, G2048_SLIDE_MS);
+}
+
+function g2048BindSwipe(board) {
+  let start = null;
+  board.addEventListener('pointerdown', (e) => {
+    start = { x: e.clientX, y: e.clientY };
+    try { board.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  const end = (e) => {
+    if (!start) return;
+    const dx = e.clientX - start.x, dy = e.clientY - start.y;
+    start = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    move2048(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  };
+  board.addEventListener('pointerup', end);
+  board.addEventListener('pointercancel', () => { start = null; });
+}
+
+function g2048End(won) {
+  const s = g2048State();
+  const t = TRANSLATIONS[appState.lang];
+  const top = Math.max.apply(null, s.tiles.map(x => x.v).concat([0]));
+  const rec = soloRecord('g2048', '', { score: s.score, tile: top }, (a, b) => a.score > b.score);
+  const bestEl = document.getElementById('g2048-bestv');
+  if (bestEl && rec.record) bestEl.textContent = s.score;
+  if (won) {
+    soloResult({
+      icon: '🏆', title: t.g2048_won || '', value: s.score, valueLabel: t.g2048_score || '',
+      lines: [escapeHTML(t.g2048_keep_hint || '')], win: true,
+      again: () => { s.keepGoing = true; saveToLocal(); }, againLabel: t.g2048_keep_going || '',
+      exit: () => { s.phase = 'done'; saveToLocal(); setup2048(); }
+    });
+    return;
+  }
+  s.phase = 'done';
+  saveToLocal();
+  const lines = [`${escapeHTML(t.g2048_top || '')}: <b>${top}</b>`];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.score}`);
+  soloResult({
+    icon: '🔷', title: rec.record ? (t.solo_new_best || '') : (t.g2048_over || ''),
+    value: s.score, valueLabel: t.g2048_score || '', lines: lines, win: rec.record,
+    again: start2048, exit: setup2048
+  });
+}
+
+function restore2048() {
+  const s = g2048State();
+  if (s.phase !== 'play' || !s.tiles.length) return false;
+  paint2048(true);
+  return true;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (appState.currentView !== 'play-g2048') return;
+  const dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'left', d: 'right', w: 'up', s: 'down' }[e.key];
+  if (!dir) return;
+  e.preventDefault();
+  move2048(dir);
+});
+
+soloRegister('g2048', { setup: 'setup-g2048', play: 'play-g2048', paintSetup: paint2048Setup, restore: restore2048 });
+</script>
+
+    <script>
+/* ============================================================================
+   كاسحة الألغام — MINESWEEPER
+   ----------------------------------------------------------------------------
+   Open every cell that isn't a mine. A number says how many mines touch it.
+   Flag a mine with a long press, or with 🚩 mode on; tap a number whose flags
+   are all placed to open the cells around it.
+
+   The first tap is always safe: the mines are laid after it, away from it and
+   its neighbours. The daily board can't wait for a tap (it has to be the same
+   on every phone), so its mines are laid from soloDaySeed around a safe cell
+   of its own, which opens by itself when the game starts. Opening a patch
+   ripples outwards from the tap. The board is in appState.mines.
+   ========================================================================= */
+
+const MINES_LEVELS = {
+  easy:   { cols: 8, rows: 9, mines: 10 },
+  medium: { cols: 9, rows: 13, mines: 22 },
+  hard:   { cols: 9, rows: 16, mines: 34 }
+};
+const MINES_HOLD_MS = 420;
+let minesTimer = null;
+let minesHold = null;
+
+function minesState() {
+  if (!appState.mines) {
+    appState.mines = { level: 'easy', daily: '', cols: 8, rows: 9, count: 10, mines: [], open: [], flags: [],
+                       flagMode: false, startedAt: 0, phase: 'setup', boom: -1 };
+  }
+  return appState.mines;
+}
+
+function setupMines() {
+  minesStopTimer();
+  setView('setup-mines');
+}
+
+function paintMinesSetup() {
+  const s = minesState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#mines-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('mines', s.level);
+  const el = document.getElementById('mines-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('mines-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play' && s.phase !== 'ready');
+  const daily = document.getElementById('mines-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('mines', 'startMines(true)');
+}
+
+function setMinesLevel(level) {
+  minesState().level = level;
+  saveToLocal();
+  paintMinesSetup();
+}
+
+function minesNeighbours(s, i) {
+  const r = Math.floor(i / s.cols), c = i % s.cols, out = [];
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    if (!dr && !dc) continue;
+    const rr = r + dr, cc = c + dc;
+    if (rr >= 0 && rr < s.rows && cc >= 0 && cc < s.cols) out.push(rr * s.cols + cc);
+  }
+  return out;
+}
+
+/** Lays the mines anywhere but `safe` and its neighbours. */
+function minesLay(s, safe, rnd) {
+  const keepClear = new Set([safe].concat(minesNeighbours(s, safe)));
+  const cells = [];
+  for (let i = 0; i < s.cols * s.rows; i++) if (!keepClear.has(i)) cells.push(i);
+  s.mines = soloShuffle(cells, rnd).slice(0, s.count).sort((a, b) => a - b);
+}
+
+function startMines(daily) {
+  const s = minesState();
+  const level = daily ? 'medium' : s.level;
+  const L = MINES_LEVELS[level];
+  s.daily = daily ? soloToday() : '';
+  s.playLevel = level;
+  s.cols = L.cols; s.rows = L.rows; s.count = L.mines;
+  s.open = new Array(L.cols * L.rows).fill(0);
+  s.flags = new Array(L.cols * L.rows).fill(0);
+  s.flagMode = false;
+  s.boom = -1;
+  s.mines = [];
+  s.startedAt = 0;
+  s.phase = 'ready';
+  if (daily) {
+    const rnd = soloRng(soloDaySeed('mines'));
+    const safe = Math.floor(rnd() * L.cols * L.rows);
+    minesLay(s, safe, rnd);
+    s.phase = 'play';
+    s.startedAt = Date.now();
+    minesFlood(s, safe);
+  }
+  saveToLocal();
+  setView('play-mines');
+  paintMines();
+  if (s.phase === 'play') minesArmTimer();
+}
+
+function continueMines() {
+  const s = minesState();
+  if (s.phase !== 'play' && s.phase !== 'ready') return;
+  setView('play-mines');
+  paintMines();
+  if (s.phase === 'play') minesArmTimer();
+}
+
+function minesArmTimer() {
+  minesStopTimer();
+  minesTimer = soloClock('mines-time', minesState().startedAt);
+}
+
+function minesStopTimer() {
+  if (minesTimer) minesTimer.stop();
+  minesTimer = null;
+}
+
+function minesCount(s, i) {
+  const set = new Set(s.mines);
+  return minesNeighbours(s, i).filter(k => set.has(k)).length;
+}
+
+/** Opens a cell and, from a zero, everything connected to it. Returns the cells opened, in order. */
+function minesFlood(s, start) {
+  const mines = new Set(s.mines);
+  const order = [];
+  const queue = [start];
+  while (queue.length) {
+    const i = queue.shift();
+    if (s.open[i] || s.flags[i]) continue;
+    s.open[i] = 1;
+    order.push(i);
+    if (mines.has(i)) continue;
+    if (minesCount(s, i) === 0) minesNeighbours(s, i).forEach(k => { if (!s.open[k]) queue.push(k); });
+  }
+  return order;
+}
+
+/* --- Taps ---------------------------------------------------------------------- */
+
+function minesTap(i) {
+  const s = minesState();
+  if (s.phase !== 'play' && s.phase !== 'ready') return;
+  if (s.flagMode) { minesToggleFlag(i); return; }
+  if (s.flags[i]) return;
+  if (s.phase === 'ready') {
+    minesLay(s, i, Math.random);
+    s.phase = 'play';
+    s.startedAt = Date.now();
+    minesArmTimer();
+  }
+  const mines = new Set(s.mines);
+  let opened = [];
+  if (s.open[i]) {
+    // A number with all its flags down opens the rest of its neighbours.
+    const around = minesNeighbours(s, i);
+    const flagged = around.filter(k => s.flags[k]).length;
+    if (!minesCount(s, i) || flagged !== minesCount(s, i)) return;
+    around.forEach(k => { if (!s.open[k] && !s.flags[k]) opened = opened.concat(minesFlood(s, k)); });
+  } else {
+    opened = minesFlood(s, i);
+  }
+  const hit = opened.find(k => mines.has(k));
+  saveToLocal();
+  paintMines(opened, i);
+  if (hit !== undefined) { minesLose(hit); return; }
+  if (opened.length) haptic('light');
+  const safeLeft = s.open.reduce((n, o, k) => n + (!o && !mines.has(k) ? 1 : 0), 0);
+  if (!safeLeft) minesWin();
+}
+
+function minesToggleFlag(i) {
+  const s = minesState();
+  if (s.open[i] || (s.phase !== 'play' && s.phase !== 'ready')) return;
+  s.flags[i] = s.flags[i] ? 0 : 1;
+  haptic('medium');
+  saveToLocal();
+  paintMines();
+}
+
+function toggleMinesFlagMode() {
+  const s = minesState();
+  s.flagMode = !s.flagMode;
+  saveToLocal();
+  paintMines();
+}
+
+/* A long press flags, on phones that have no right button. */
+function minesPointerDown(e, i) {
+  minesCancelHold();
+  minesHold = { i: i, fired: false, timer: setTimeout(() => {
+    minesHold.fired = true;
+    minesToggleFlag(i);
+  }, MINES_HOLD_MS) };
+}
+
+function minesCancelHold() {
+  if (minesHold) clearTimeout(minesHold.timer);
+}
+
+function minesClick(e, i) {
+  if (minesHold && minesHold.i === i && minesHold.fired) { minesHold = null; return; }
+  minesCancelHold();
+  minesHold = null;
+  minesTap(i);
+}
+
+/* --- Drawing ------------------------------------------------------------------- */
+
+function paintMines(opened, from) {
+  const s = minesState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('mines-stage');
+  if (!el) return;
+  const mines = new Set(s.mines);
+  const over = s.phase === 'lost' || s.phase === 'won';
+  const flagsLeft = s.count - s.flags.reduce((a, b) => a + b, 0);
+  const bar = soloBarHtml([
+    { label: t.mines_left || '', value: flagsLeft, id: 'mines-left' },
+    { label: t.solo_time || '', value: s.startedAt ? soloTime((Date.now() - s.startedAt) / 1000) : '0:00', id: 'mines-time' },
+    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: escapeHTML(t['solo_lvl_' + (s.playLevel || s.level)] || '') }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+    <div class="solo-layout__board">
+    <div class="mines-grid${over ? ' is-over' : ''}" id="mines-grid" dir="ltr" style="--mines-cols:${s.cols}"
+         oncontextmenu="event.preventDefault()">
+      ${Array.from({ length: s.cols * s.rows }, (_, i) => {
+        const isMine = mines.has(i);
+        let cls = 'mines-cell', inner = '';
+        if (s.open[i] || (over && isMine)) {
+          cls += ' is-open';
+          if (isMine) { cls += i === s.boom ? ' is-boom' : ' is-mine'; inner = '💣'; }
+          else { const n = minesCount(s, i); if (n) { cls += ' n' + n; inner = n; } }
+        } else if (s.flags[i]) {
+          cls += ' is-flag' + (over && !isMine ? ' is-wrong' : '');
+          inner = '🚩';
+        }
+        return `<button type="button" class="${cls}" data-i="${i}"
+                  onpointerdown="minesPointerDown(event, ${i})" onpointerup="minesCancelHold()" onpointerleave="minesCancelHold()"
+                  onclick="minesClick(event, ${i})">${inner}</button>`;
+      }).join('')}
+    </div>
+    </div>
+    <div class="solo-layout__side">
+    ${bar}
+    <div class="sdk-tools">
+      <button type="button" class="btn btn--sm ${s.flagMode ? 'btn--primary' : 'btn--neutral'}" onclick="toggleMinesFlagMode()" aria-pressed="${s.flagMode}">🚩 ${escapeHTML(t.mines_flag_mode || '')}</button>
+      <button type="button" class="btn btn--neutral btn--sm" onclick="startMines(false)">🔄 ${escapeHTML(t.solo_new_game || '')}</button>
+    </div>
+    <p class="field__hint" style="text-align:center">${escapeHTML(s.phase === 'ready' ? (t.mines_first_tap || '') : (t.mines_hint || ''))}</p>
+    </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupMines()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+
+  // A patch opens as a ripple from the tap.
+  if (opened && opened.length > 1 && !motionOff()) {
+    const fr = Math.floor(from / s.cols), fc = from % s.cols;
+    opened.forEach(k => {
+      const cell = el.querySelector(`[data-i="${k}"]`);
+      if (!cell || !cell.animate) return;
+      const d = Math.max(Math.abs(Math.floor(k / s.cols) - fr), Math.abs(k % s.cols - fc));
+      cell.animate([{ transform: 'scale(0.6)', opacity: 0.2 }, { transform: 'none', opacity: 1 }],
+                   { duration: 260, delay: Math.min(d * 28, 420), easing: 'ease-out', fill: 'backwards' });
+    });
+  }
+}
+
+function minesLose(hit) {
+  const s = minesState();
+  const t = TRANSLATIONS[appState.lang];
+  minesStopTimer();
+  s.phase = 'lost';
+  s.boom = hit;
+  saveToLocal();
+  paintMines();
+  haptic('heavy');
+  const grid = document.getElementById('mines-grid');
+  if (grid && grid.animate && !motionOff()) {
+    grid.animate([{ transform: 'none' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(-4px)' }, { transform: 'none' }], { duration: 380 });
+  }
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('mines', { lost: true });
+    share = `${soloShareHeader(t)}\n🚩 ${t.setup_mines || ''} 💥`;
+  }
+  setTimeout(() => soloResult({
+    icon: '💥', title: t.mines_lost || '', valueText: '💣', valueLabel: '',
+    lines: [escapeHTML(t.mines_lost_line || '')], win: false, share: share,
+    again: () => startMines(false), exit: setupMines
+  }), motionOff() ? 0 : 900);
+}
+
+function minesWin() {
+  const s = minesState();
+  const t = TRANSLATIONS[appState.lang];
+  minesStopTimer();
+  s.phase = 'won';
+  const seconds = Math.round((Date.now() - s.startedAt) / 1000);
+  saveToLocal();
+  paintMines();
+  const level = s.playLevel || s.level;
+  const rec = soloRecord('mines', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('mines', { seconds: seconds });
+    share = `${soloShareHeader(t)}\n🚩 ${t.setup_mines || ''} ✅ ${soloTime(seconds)}`;
+  }
+  const lines = [];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: '🚩', title: rec.record ? (t.solo_new_best || '') : (t.mines_won || ''),
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    again: () => startMines(false), exit: setupMines
+  }), motionOff() ? 0 : 400);
+}
+
+function restoreMines() {
+  const s = minesState();
+  if ((s.phase !== 'play' && s.phase !== 'ready') || !s.open || !s.open.length) return false;
+  paintMines();
+  if (s.phase === 'play') minesArmTimer();
+  return true;
+}
+
+soloRegister('mines', { setup: 'setup-mines', play: 'play-mines', paintSetup: paintMinesSetup, restore: restoreMines });
 </script>
 
     <script>

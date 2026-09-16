@@ -963,6 +963,50 @@ storage is separate, which is also why names saved in one aren't in the
 other). Nothing on the page can change that. On Android, an app installed
 through Chrome usually does receive its own links.
 
+### Solo games (لوحدك)
+
+`JS_Solo.html` is what every one-player game shares, so a game file holds only
+its own rules and board:
+
+- **Registration.** A game calls `soloRegister(id, { setup, play, paintSetup,
+  restore })`. `restoreView` hands its play view to `soloRestoreView` (the
+  game's `restore()`, or back to its setup), `loadFromLocal` accepts its views
+  through `soloViews()`, and `paintSetupOptions` falls back to `soloPaintSetup`.
+  No per-game branch in `JS_Core.html`.
+- **Seeded randomness.** `soloRng(seed)` (mulberry32) and `soloDaySeed(id)`:
+  the daily puzzle is dealt from the date, so every phone gets the same one and
+  a new one at local midnight. Anything a daily deals goes through that source,
+  never `Math.random`, or two phones get different puzzles.
+- **Bests and dailies** live in this phone's storage: `soloRecord(id, level,
+  result, isBetter)` (`ashrySoloBest_v1`) and `soloMarkDaily(id, result)` /
+  `soloStreak()` (`ashryDaily_v1`, two months kept). A setup screen's daily
+  line is `soloDailyButtonHtml`.
+- **The result sheet** is `soloResult({ icon, title, value | valueText,
+  valueLabel, lines, win, share, again, exit })` (`#solo-result-modal`): the
+  number counts up, a daily result can be shared as text, confetti on a win.
+- **Layout.** A board and its controls are `.solo-layout` with
+  `.solo-layout__board` and `.solo-layout__side` (the stats bar, `soloBarHtml`,
+  goes in the side): one column upright, with the bar on top through
+  `display: contents` and `order`; two columns on a phone held sideways, the
+  board sized off `--app-h` so it needs no scrolling (a minefield, taller than
+  wide, scrolls instead). Grids that map to a physical board carry
+  `dir="ltr"`. Styles are section 15 of `Style.html`.
+
+The games (group `puzzle`, "ألغاز ومخ", on the home):
+
+- **سودوكو** (`JS_Sudoku.html`): `sudokuMake` fills a grid at random and
+  removes numbers while `sudokuCount` still finds exactly one solution (easy
+  40 givens, medium 32, hard 26; a few milliseconds). Mistakes, notes that
+  clear themselves, undo, hints (a solve with hints is no best), and a row,
+  column or box that comes right ripples. The daily is medium.
+- **2048** (`JS_2048.html`): tiles keep an id so the same element slides
+  (a `transform` transition) and a merged pair pops with `scale`; one undo;
+  swipe on the board or the arrow keys. No daily: a best score only.
+- **كاسحة الألغام** (`JS_Mines.html`): the first tap is always safe (the mines
+  are laid after it); a long press or 🚩 mode flags; a satisfied number opens
+  its neighbours; an opened patch ripples out from the tap. The daily lays its
+  mines from the seed around a safe cell that opens by itself.
+
 ### The catalog and the home screen
 
 `GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can

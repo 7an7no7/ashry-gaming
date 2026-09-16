@@ -6064,4 +6064,217 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   .hold-card > *, .hold-next { transition: none; }
 }
 
+
+/* ==========================================================================
+   15. SOLO GAMES
+   JS_Solo.html and the games built on it: the stats bar, the daily line, the
+   result sheet, and each board. Boards that map to a physical grid carry
+   dir="ltr" in the markup, like Wavelength's spectrum.
+   ========================================================================== */
+.solo-bar { display: grid; grid-template-columns: repeat(var(--solo-cols, 3), minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.solo-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.solo-stat__label { font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); }
+.solo-stat .metric { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.05rem; color: var(--text-strong); }
+.solo-daily {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--success-soft);
+  color: var(--success-ink);
+  font-weight: 800;
+}
+.solo-result-value { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.solo-result-value .metric:empty, .solo-result-value .eyebrow:empty { display: none; }
+
+/* --- Sudoku --- */
+.sdk-grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  max-width: 30rem;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 2px solid var(--text-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+}
+.sdk-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  font-size: clamp(1rem, 5.2vw, 1.55rem);
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.sdk-cell:nth-child(9n) { border-right: 0; }
+.sdk-cell:nth-child(n+73) { border-bottom: 0; }
+.sdk-cell.is-box-end { border-right: 2px solid var(--text-strong); }
+.sdk-cell.is-box-bottom { border-bottom: 2px solid var(--text-strong); }
+.sdk-cell.is-given { color: var(--text-strong); font-weight: 900; }
+.sdk-cell.is-peer { background: var(--surface-2); }
+.sdk-cell.is-same { background: var(--accent-soft); }
+.sdk-cell.is-sel { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.sdk-cell.is-wrong { color: var(--danger); }
+.sdk-notes { position: absolute; inset: 1px; display: grid; grid-template-columns: repeat(3, 1fr); color: var(--text-2); font-size: clamp(0.45rem, 2.1vw, 0.65rem); font-weight: 700; line-height: 1; }
+.sdk-notes i { display: grid; place-items: center; font-style: normal; }
+.sdk-pad { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; max-width: 30rem; margin: var(--sp-3) auto 0; }
+.sdk-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.1rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.sdk-key span { font-size: 1.3rem; font-weight: 900; line-height: 1.1; }
+.sdk-key small { font-size: 0.6rem; font-weight: 700; color: var(--text-3); }
+.sdk-key:active { transform: scale(0.94); }
+.sdk-key:disabled { opacity: 0.35; cursor: default; }
+.sdk-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-3); }
+.sdk-tools .btn { flex: 1 1 0; width: auto; min-width: 4.2rem; padding-inline: var(--sp-2); }
+
+/* --- 2048 --- */
+.g2048-board {
+  --gap: 0.5rem;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gap);
+  aspect-ratio: 1;
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: var(--gap);
+  border-radius: var(--r-lg);
+  background: var(--surface-3);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.g2048-cell { border-radius: var(--r-sm); background: var(--surface-2); }
+.g2048-tiles { position: absolute; inset: var(--gap); pointer-events: none; }
+.g2048-tile {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: calc((100% - 3 * var(--gap)) / 4);
+  height: calc((100% - 3 * var(--gap)) / 4);
+  border-radius: var(--r-sm);
+  background: color-mix(in oklab, var(--accent) 14%, var(--surface-solid));
+  color: var(--text-strong);
+  font-size: clamp(1.4rem, 8vw, 2.3rem);
+  font-weight: 900;
+  transform: translate(calc(var(--c) * (100% + var(--gap))), calc(var(--r) * (100% + var(--gap))));
+  transition: transform 120ms ease-out;
+  will-change: transform;
+}
+.g2048-tile[data-v="4"] { background: color-mix(in oklab, var(--accent) 26%, var(--surface-solid)); }
+.g2048-tile[data-v="8"] { background: color-mix(in oklab, var(--accent) 40%, var(--surface-solid)); }
+.g2048-tile[data-v="16"] { background: color-mix(in oklab, var(--accent) 55%, var(--surface-solid)); }
+.g2048-tile[data-v="32"] { background: color-mix(in oklab, var(--accent) 70%, var(--surface-solid)); color: var(--accent-on); }
+.g2048-tile[data-v="64"] { background: var(--accent); color: var(--accent-on); }
+.g2048-tile[data-v="128"], .g2048-tile[data-v="256"] { background: color-mix(in oklab, var(--warning-btn) 70%, var(--accent)); color: var(--warning-on); font-size: clamp(1.2rem, 7vw, 2rem); }
+.g2048-tile[data-v="512"] { background: var(--warning-btn); color: var(--warning-on); font-size: clamp(1.2rem, 7vw, 2rem); }
+.g2048-tile[data-v="1024"], .g2048-tile[data-v="2048"], .g2048-tile[data-v="big"] {
+  background: var(--success-btn);
+  color: var(--success-on);
+  font-size: clamp(1rem, 5.6vw, 1.6rem);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--success-btn) 40%, transparent);
+}
+.g2048-tile.is-gone { z-index: 0; }
+.g2048-tile.is-new { animation: g2048-new 160ms ease-out both; }
+.g2048-tile.is-merged { animation: g2048-pop 200ms ease-out; }
+@keyframes g2048-new { from { scale: 0; } to { scale: 1; } }
+@keyframes g2048-pop { 0% { scale: 1; } 45% { scale: 1.16; } 100% { scale: 1; } }
+.g2048-hint { text-align: center; margin-top: var(--sp-2); }
+
+/* --- Minesweeper --- */
+.mines-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--mines-cols, 8), minmax(0, 1fr));
+  gap: 3px;
+  max-width: 26rem;
+  margin: 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.mines-cell {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--accent) 24%, var(--surface-2));
+  box-shadow: inset 0 -2px 0 rgba(15, 23, 42, 0.12);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: clamp(0.85rem, 4.6vw, 1.2rem);
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mines-cell.is-open { background: var(--surface-solid); box-shadow: inset 0 0 0 1px var(--border); cursor: default; }
+.mines-cell.n1 { color: var(--accent-ink); }
+.mines-cell.n2 { color: var(--success-ink); }
+.mines-cell.n3 { color: var(--danger); }
+.mines-cell.n4 { color: var(--warning-ink); }
+.mines-cell.n5, .mines-cell.n6, .mines-cell.n7, .mines-cell.n8 { color: var(--danger-ink); }
+.mines-cell.is-boom { background: var(--danger-soft); }
+.mines-cell.is-flag.is-wrong { background: var(--warning-soft); }
+.mines-grid.is-over .mines-cell { cursor: default; }
+/* A phone held sideways: the board on one side, its keys and tools on the other.
+   The board is sized off the shell's height, so it never needs scrolling. */
+.solo-layout { display: flex; flex-direction: column; }
+.solo-layout__side { display: contents; }
+.solo-layout__side > .solo-bar { order: -1; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .solo-layout { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-3); align-items: start; }
+  .solo-layout__side { display: block; }
+  .solo-layout__board { width: min(calc(var(--app-h, 100vh) - 8.5rem), 52vw); }
+  /* A minefield is taller than it is wide: it keeps tappable cells and scrolls. */
+  .solo-layout__board:has(.mines-grid) { width: min(52vw, 20rem); }
+  .solo-layout__side .sdk-pad { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g2048-tile { transition: none; }
+  .g2048-tile.is-new, .g2048-tile.is-merged { animation: none; }
+}
+
 </style>

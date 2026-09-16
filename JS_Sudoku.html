@@ -1,0 +1,417 @@
+<script>
+/* ============================================================================
+   سودوكو — SUDOKU
+   ----------------------------------------------------------------------------
+   A 9×9 grid made on the phone: a full grid filled at random, then numbers
+   taken away one at a time as long as the puzzle still has exactly one
+   solution (sudokuCount stops at two). Easy keeps 40 numbers, medium 32,
+   hard 26. The daily one is built from soloDaySeed, so every phone gets the
+   same puzzle that day.
+
+   A number that isn't the solution's shows red and counts a mistake; notes
+   (✏️) are small candidates in a cell and clear themselves when the number
+   is placed in that row, column or box. A finished row, column or box ripples.
+   Everything is in appState.sudoku, so a reload comes back to the same board.
+   ========================================================================= */
+
+const SUDOKU_GIVENS = { easy: 40, medium: 32, hard: 26 };
+let sudokuTimer = null;
+
+function sudokuState() {
+  if (!appState.sudoku) {
+    appState.sudoku = { level: 'easy', daily: '', puzzle: '', solution: '', cells: '', notes: [], sel: -1,
+                        notesMode: false, mistakes: 0, hints: 0, undo: [], startedAt: 0, elapsed: 0, phase: 'setup' };
+  }
+  return appState.sudoku;
+}
+
+/* --- The puzzle ---------------------------------------------------------------- */
+
+const SUDOKU_BOX = Array.from({ length: 81 }, (_, i) => Math.floor(Math.floor(i / 9) / 3) * 3 + Math.floor((i % 9) / 3));
+
+/** How many solutions the grid has, counting no further than `limit`. */
+function sudokuCount(grid, limit) {
+  const rows = new Array(9).fill(0), cols = new Array(9).fill(0), boxes = new Array(9).fill(0);
+  const empty = [];
+  for (let i = 0; i < 81; i++) {
+    const v = grid[i];
+    if (v) {
+      const bit = 1 << v;
+      rows[Math.floor(i / 9)] |= bit; cols[i % 9] |= bit; boxes[SUDOKU_BOX[i]] |= bit;
+    } else empty.push(i);
+  }
+  let found = 0;
+  const g = grid.slice();
+  const solve = () => {
+    // The empty cell with the fewest candidates first: it keeps the search small.
+    let best = -1, bestMask = 0, bestCount = 10;
+    for (const i of empty) {
+      if (g[i]) continue;
+      const mask = ~(rows[Math.floor(i / 9)] | cols[i % 9] | boxes[SUDOKU_BOX[i]]) & 0x3FE;
+      let n = 0;
+      for (let m = mask; m; m &= m - 1) n++;
+      if (n < bestCount) { best = i; bestMask = mask; bestCount = n; if (n <= 1) break; }
+    }
+    if (best === -1) { found++; return found >= limit; }
+    if (!bestCount) return false;
+    const r = Math.floor(best / 9), c = best % 9, b = SUDOKU_BOX[best];
+    for (let v = 1; v <= 9; v++) {
+      const bit = 1 << v;
+      if (!(bestMask & bit)) continue;
+      g[best] = v; rows[r] |= bit; cols[c] |= bit; boxes[b] |= bit;
+      if (solve()) return true;
+      g[best] = 0; rows[r] &= ~bit; cols[c] &= ~bit; boxes[b] &= ~bit;
+    }
+    return false;
+  };
+  solve();
+  return found;
+}
+
+/** A full valid grid, dealt from `rnd`. */
+function sudokuFill(rnd) {
+  const g = new Array(81).fill(0);
+  const ok = (i, v) => {
+    const r = Math.floor(i / 9), c = i % 9, b = SUDOKU_BOX[i];
+    for (let k = 0; k < 81; k++) {
+      if (g[k] === v && (Math.floor(k / 9) === r || k % 9 === c || SUDOKU_BOX[k] === b)) return false;
+    }
+    return true;
+  };
+  const fill = (i) => {
+    if (i === 81) return true;
+    for (const v of soloShuffle([1, 2, 3, 4, 5, 6, 7, 8, 9], rnd)) {
+      if (!ok(i, v)) continue;
+      g[i] = v;
+      if (fill(i + 1)) return true;
+      g[i] = 0;
+    }
+    return false;
+  };
+  fill(0);
+  return g;
+}
+
+/** { puzzle, solution } as arrays of 81, with exactly one solution. */
+function sudokuMake(level, rnd) {
+  const solution = sudokuFill(rnd);
+  const puzzle = solution.slice();
+  const target = SUDOKU_GIVENS[level] || SUDOKU_GIVENS.easy;
+  let givens = 81;
+  for (const i of soloShuffle(Array.from({ length: 81 }, (_, k) => k), rnd)) {
+    if (givens <= target) break;
+    const keep = puzzle[i];
+    puzzle[i] = 0;
+    if (sudokuCount(puzzle, 2) === 1) givens--;
+    else puzzle[i] = keep;
+  }
+  return { puzzle: puzzle, solution: solution };
+}
+
+/* --- Setup ---------------------------------------------------------------------- */
+
+function setupSudoku() {
+  sudokuStopTimer();
+  setView('setup-sudoku');
+}
+
+function paintSudokuSetup() {
+  const s = sudokuState();
+  const t = TRANSLATIONS[appState.lang];
+  document.querySelectorAll('#sudoku-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('sudoku', s.level);
+  const bestEl = document.getElementById('sudoku-best');
+  if (bestEl) bestEl.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
+  const cont = document.getElementById('sudoku-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('sudoku-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('sudoku', 'startSudoku(true)');
+}
+
+function setSudokuLevel(level) {
+  sudokuState().level = level;
+  saveToLocal();
+  paintSudokuSetup();
+}
+
+function startSudoku(daily) {
+  const s = sudokuState();
+  const level = daily ? 'medium' : s.level;
+  const made = sudokuMake(level, soloRandom(daily ? soloDaySeed('sudoku') : null));
+  s.daily = daily ? soloToday() : '';
+  s.playLevel = level;
+  s.puzzle = made.puzzle.join('');
+  s.solution = made.solution.join('');
+  s.cells = s.puzzle;
+  s.notes = new Array(81).fill(0);
+  s.sel = -1;
+  s.notesMode = false;
+  s.mistakes = 0;
+  s.hints = 0;
+  s.undo = [];
+  s.startedAt = Date.now();
+  s.phase = 'play';
+  saveToLocal();
+  setView('play-sudoku');
+  paintSudoku();
+  sudokuArmTimer();
+}
+
+function continueSudoku() {
+  const s = sudokuState();
+  if (s.phase !== 'play') return;
+  setView('play-sudoku');
+  paintSudoku();
+  sudokuArmTimer();
+}
+
+function sudokuArmTimer() {
+  sudokuStopTimer();
+  sudokuTimer = soloClock('sdk-time', sudokuState().startedAt);
+}
+
+function sudokuStopTimer() {
+  if (sudokuTimer) sudokuTimer.stop();
+  sudokuTimer = null;
+}
+
+/* --- The board ------------------------------------------------------------------ */
+
+function paintSudoku() {
+  const s = sudokuState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('sudoku-stage');
+  if (!el || !s.puzzle) return;
+  const cells = s.cells;
+  const selVal = s.sel >= 0 ? Number(cells[s.sel]) : 0;
+  const peers = (i) => s.sel >= 0 && (Math.floor(i / 9) === Math.floor(s.sel / 9) || i % 9 === s.sel % 9 || SUDOKU_BOX[i] === SUDOKU_BOX[s.sel]);
+  const placed = new Array(10).fill(0);
+  for (let i = 0; i < 81; i++) if (cells[i] !== '0' && cells[i] === s.solution[i]) placed[Number(cells[i])]++;
+
+  const bar = soloBarHtml([
+    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: escapeHTML(t['solo_lvl_' + (s.playLevel || s.level)] || '') },
+    { label: t.solo_time || '', value: soloTime((Date.now() - s.startedAt) / 1000), id: 'sdk-time' },
+    { label: t.sdk_mistakes || '', value: s.mistakes, id: 'sdk-mistakes' }
+  ]);
+  el.innerHTML = `
+    <div class="solo-layout">
+    <div class="solo-layout__board">
+    <div class="sdk-grid" dir="ltr" id="sdk-grid">
+      ${Array.from({ length: 81 }, (_, i) => {
+        const v = Number(cells[i]);
+        const given = s.puzzle[i] !== '0';
+        const wrong = v && !given && String(v) !== s.solution[i];
+        const cls = ['sdk-cell',
+          given ? 'is-given' : '',
+          i === s.sel ? 'is-sel' : (peers(i) ? 'is-peer' : ''),
+          v && selVal && v === selVal ? 'is-same' : '',
+          wrong ? 'is-wrong' : '',
+          i % 9 === 2 || i % 9 === 5 ? 'is-box-end' : '',
+          Math.floor(i / 9) === 2 || Math.floor(i / 9) === 5 ? 'is-box-bottom' : ''].filter(Boolean).join(' ');
+        const notes = !v && s.notes[i]
+          ? `<span class="sdk-notes">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<i>${s.notes[i] & (1 << n) ? n : ''}</i>`).join('')}</span>` : '';
+        return `<button type="button" class="${cls}" data-i="${i}" onclick="selectSudoku(${i})">${v || notes}</button>`;
+      }).join('')}
+    </div>
+    </div>
+    <div class="solo-layout__side">
+    ${bar}
+    <div class="sdk-pad" dir="ltr">
+      ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `
+        <button type="button" class="sdk-key" onclick="enterSudoku(${n})" ${placed[n] >= 9 ? 'disabled' : ''}>
+          <span>${n}</span><small>${Math.max(0, 9 - placed[n])}</small>
+        </button>`).join('')}
+    </div>
+    <div class="sdk-tools">
+      <button type="button" class="btn btn--neutral btn--sm" onclick="undoSudoku()" ${s.undo.length ? '' : 'disabled'}>↶ ${escapeHTML(t.solo_undo || '')}</button>
+      <button type="button" class="btn btn--neutral btn--sm" onclick="eraseSudoku()">⌫ ${escapeHTML(t.sdk_erase || '')}</button>
+      <button type="button" class="btn btn--sm ${s.notesMode ? 'btn--primary' : 'btn--neutral'}" onclick="toggleSudokuNotes()" aria-pressed="${s.notesMode}">✏️ ${escapeHTML(t.sdk_notes || '')}</button>
+      <button type="button" class="btn btn--neutral btn--sm" onclick="hintSudoku()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+    </div>
+    </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--ghost btn--sm" onclick="setupSudoku()">${escapeHTML(t.exit || '')}</button>
+    </div>`;
+}
+
+function selectSudoku(i) {
+  const s = sudokuState();
+  if (s.phase !== 'play') return;
+  s.sel = s.sel === i ? -1 : i;
+  paintSudoku();
+}
+
+function sudokuPushUndo(i) {
+  const s = sudokuState();
+  s.undo.push({ i: i, v: s.cells[i], n: s.notes[i] });
+  if (s.undo.length > 200) s.undo.shift();
+}
+
+function sudokuSetCell(i, v) {
+  const s = sudokuState();
+  s.cells = s.cells.slice(0, i) + v + s.cells.slice(i + 1);
+}
+
+function enterSudoku(n) {
+  const s = sudokuState();
+  if (s.phase !== 'play' || s.sel < 0 || s.puzzle[s.sel] !== '0') return;
+  const i = s.sel;
+  if (s.notesMode && s.cells[i] !== '0') return;
+  sudokuPushUndo(i);
+  if (s.notesMode) {
+    s.notes[i] ^= (1 << n);
+    saveToLocal();
+    paintSudoku();
+    return;
+  }
+  if (s.cells[i] === String(n)) {
+    sudokuSetCell(i, '0');
+  } else {
+    sudokuSetCell(i, String(n));
+    s.notes[i] = 0;
+    if (s.solution[i] !== String(n)) {
+      s.mistakes++;
+      haptic('heavy');
+      playSound('alarm');
+    } else {
+      // The number is settled here: it can't be a candidate for its row, column or box.
+      for (let k = 0; k < 81; k++) {
+        if (Math.floor(k / 9) === Math.floor(i / 9) || k % 9 === i % 9 || SUDOKU_BOX[k] === SUDOKU_BOX[i]) s.notes[k] &= ~(1 << n);
+      }
+    }
+  }
+  saveToLocal();
+  paintSudoku();
+  if (s.solution[i] === s.cells[i]) sudokuCelebrateUnits(i);
+  if (s.cells === s.solution) sudokuFinish();
+}
+
+function eraseSudoku() {
+  const s = sudokuState();
+  if (s.phase !== 'play' || s.sel < 0 || s.puzzle[s.sel] !== '0') return;
+  sudokuPushUndo(s.sel);
+  sudokuSetCell(s.sel, '0');
+  s.notes[s.sel] = 0;
+  saveToLocal();
+  paintSudoku();
+}
+
+function undoSudoku() {
+  const s = sudokuState();
+  const last = s.undo.pop();
+  if (!last || s.phase !== 'play') return;
+  sudokuSetCell(last.i, last.v);
+  s.notes[last.i] = last.n;
+  s.sel = last.i;
+  saveToLocal();
+  paintSudoku();
+}
+
+function toggleSudokuNotes() {
+  const s = sudokuState();
+  s.notesMode = !s.notesMode;
+  saveToLocal();
+  paintSudoku();
+}
+
+/** The selected cell's number, or the first empty or wrong cell's. A hint is counted. */
+function hintSudoku() {
+  const s = sudokuState();
+  if (s.phase !== 'play') return;
+  let i = s.sel >= 0 && s.puzzle[s.sel] === '0' && s.cells[s.sel] !== s.solution[s.sel] ? s.sel : -1;
+  if (i < 0) for (let k = 0; k < 81; k++) if (s.cells[k] !== s.solution[k]) { i = k; break; }
+  if (i < 0) return;
+  sudokuPushUndo(i);
+  sudokuSetCell(i, s.solution[i]);
+  s.notes[i] = 0;
+  s.hints++;
+  s.sel = i;
+  saveToLocal();
+  paintSudoku();
+  sudokuCelebrateUnits(i);
+  if (s.cells === s.solution) sudokuFinish();
+}
+
+/** A row, column or box that just came right ripples. */
+function sudokuCelebrateUnits(i) {
+  if (motionOff()) return;
+  const s = sudokuState();
+  const units = [
+    Array.from({ length: 9 }, (_, c) => Math.floor(i / 9) * 9 + c),
+    Array.from({ length: 9 }, (_, r) => r * 9 + (i % 9)),
+    Array.from({ length: 81 }, (_, k) => k).filter(k => SUDOKU_BOX[k] === SUDOKU_BOX[i])
+  ];
+  const done = units.filter(u => u.every(k => s.cells[k] === s.solution[k]));
+  const cells = new Set();
+  done.forEach(u => u.forEach(k => cells.add(k)));
+  cells.forEach(k => {
+    const el = document.querySelector(`#sdk-grid [data-i="${k}"]`);
+    if (!el || !el.animate) return;
+    const r = Math.floor(k / 9), c = k % 9;
+    const dist = Math.abs(r - Math.floor(i / 9)) + Math.abs(c - i % 9);
+    el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.14)', offset: 0.45 }, { transform: 'scale(1)' }],
+               { duration: 360, delay: dist * 35, easing: 'ease-out' });
+  });
+}
+
+function sudokuFinish() {
+  const s = sudokuState();
+  const t = TRANSLATIONS[appState.lang];
+  sudokuStopTimer();
+  s.elapsed = Math.round((Date.now() - s.startedAt) / 1000);
+  s.phase = 'done';
+  s.sel = -1;
+  saveToLocal();
+  paintSudoku();
+  const level = s.playLevel || s.level;
+  const rec = s.hints ? { record: false, prev: soloBest('sudoku', level) }
+    : soloRecord('sudoku', level, { seconds: s.elapsed }, (a, b) => a.seconds < b.seconds);
+  let share = '';
+  if (s.daily === soloToday()) {
+    soloMarkDaily('sudoku', { seconds: s.elapsed, mistakes: s.mistakes });
+    share = `${soloShareHeader(t)}\n#️⃣ ${t.setup_sudoku || ''} ✅ ${soloTime(s.elapsed)}${s.mistakes ? ' · ❌ ' + s.mistakes : ''}`;
+  }
+  const lines = [`${escapeHTML(t.sdk_mistakes || '')}: ${s.mistakes}${s.hints ? ` · 💡 ${s.hints}` : ''}`];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  setTimeout(() => soloResult({
+    icon: '#️⃣',
+    title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
+    valueText: soloTime(s.elapsed),
+    valueLabel: t.solo_time || '',
+    lines: lines,
+    win: true,
+    share: share,
+    again: () => startSudoku(false),
+    exit: setupSudoku
+  }), motionOff() ? 0 : 500);
+}
+
+function restoreSudoku() {
+  const s = sudokuState();
+  if (!s.puzzle || s.phase !== 'play') return false;
+  paintSudoku();
+  sudokuArmTimer();
+  return true;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (appState.currentView !== 'play-sudoku' || e.target.closest && e.target.closest('input, textarea')) return;
+  const s = sudokuState();
+  if (s.phase !== 'play') return;
+  if (/^[1-9]$/.test(e.key)) { enterSudoku(Number(e.key)); e.preventDefault(); return; }
+  if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { eraseSudoku(); e.preventDefault(); return; }
+  if (e.key === 'n' || e.key === 'N') { toggleSudokuNotes(); return; }
+  const moves = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 };
+  if (moves[e.key]) {
+    const next = (s.sel < 0 ? 40 : s.sel) + moves[e.key];
+    if (next >= 0 && next < 81 && !(Math.abs(moves[e.key]) === 1 && Math.floor(next / 9) !== Math.floor((s.sel < 0 ? 40 : s.sel) / 9))) {
+      s.sel = next;
+      paintSudoku();
+    }
+    e.preventDefault();
+  }
+});
+
+soloRegister('sudoku', { setup: 'setup-sudoku', play: 'play-sudoku', paintSetup: paintSudokuSetup, restore: restoreSudoku });
+</script>

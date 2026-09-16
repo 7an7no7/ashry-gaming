@@ -1,0 +1,294 @@
+<script>
+/* ============================================================================
+   لوحدك — what every one-player game shares
+   ----------------------------------------------------------------------------
+   The solo games (سودوكو, 2048, كاسحة الألغام, الملكات, شمس وقمر, نونوجرام,
+   خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات, الترتيب الأعمى,
+   خمّن الدولة) and تحدي اليوم are built on these pieces, so each game file is
+   only its own rules and board.
+
+   - SOLO_GAMES: a game registers its screens (soloRegister). A reload goes
+     back to its board through soloRestoreView (called from restoreView), its
+     setup is painted through soloPaintSetup (from paintSetupOptions), and
+     loadFromLocal accepts its views through soloViews.
+   - Randomness that repeats: soloRng(seed) is a small seeded generator, and
+     soloDaySeed(id) the seed for a game's puzzle of the day - the same puzzle
+     on every phone on the same date, a new one at local midnight. Anything a
+     daily puzzle deals has to go through the seeded source, never
+     Math.random, or two phones get different puzzles.
+   - Bests per game and level (soloBest / soloRecord) and today's results
+     (soloDailyResult / soloMarkDaily / soloStreak), in this phone's storage.
+   - The result sheet (soloResult): icon, title, a number that counts up, a
+     line or two, share (a daily result goes to WhatsApp as text), again, exit.
+   ========================================================================= */
+
+const SOLO_GAMES = {};
+
+/** { setup: 'setup-x', play: 'play-x', paintSetup(), restore() -> bool, daily: { start(), icon, title } } */
+function soloRegister(id, def) {
+  SOLO_GAMES[id] = Object.assign({ id: id }, def);
+}
+
+function soloViews() {
+  const out = [];
+  Object.keys(SOLO_GAMES).forEach(id => {
+    const g = SOLO_GAMES[id];
+    if (g.setup) out.push(g.setup);
+    if (g.play) out.push(g.play);
+  });
+  return out;
+}
+
+/** A reload on a solo game's board: redraw it, or fall back to its setup. */
+function soloRestoreView(viewId) {
+  const g = Object.values(SOLO_GAMES).find(x => x.play === viewId);
+  if (!g) return false;
+  let ok = false;
+  try { ok = !!(g.restore && g.restore()); } catch (e) { ok = false; }
+  if (!ok) setTimeout(() => setView(g.setup), 50);
+  return true;
+}
+
+function soloPaintSetup(viewId) {
+  const g = Object.values(SOLO_GAMES).find(x => x.setup === viewId);
+  if (g && typeof g.paintSetup === 'function') g.paintSetup();
+}
+
+/* --- Randomness that can repeat ---------------------------------------------- */
+
+function soloHash(text) {
+  let h = 2166136261;
+  const s = String(text);
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** mulberry32: a fast seeded generator, good enough for dealing puzzles. */
+function soloRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Today on this phone, as YYYY-MM-DD (local time, so the day turns at midnight here). */
+function soloToday(date) {
+  const d = date || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function soloDaySeed(id, day) {
+  return soloHash('ashry-daily:' + id + ':' + (day || soloToday()));
+}
+
+/** A random source: seeded when a seed is given (the daily), Math.random otherwise. */
+function soloRandom(seed) {
+  return (seed === undefined || seed === null) ? Math.random : soloRng(seed);
+}
+
+function soloShuffle(arr, rnd) {
+  const r = rnd || Math.random;
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+  }
+  return out;
+}
+
+function soloPick(arr, rnd) {
+  return arr[Math.floor((rnd || Math.random)() * arr.length)];
+}
+
+/* --- Bests --------------------------------------------------------------------- */
+
+const SOLO_BEST_KEY = 'ashrySoloBest_v1';
+
+function soloBestAll() {
+  try { return JSON.parse(localStorage.getItem(SOLO_BEST_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function soloBest(id, level) {
+  return soloBestAll()[id + ':' + (level || '')] || null;
+}
+
+/**
+ * Keeps `result` as the best for this game and level if `isBetter(result, prev)`.
+ * Returns { record, prev }.
+ */
+function soloRecord(id, level, result, isBetter) {
+  const all = soloBestAll();
+  const key = id + ':' + (level || '');
+  const prev = all[key] || null;
+  const record = !prev || isBetter(result, prev);
+  if (record) {
+    all[key] = result;
+    try { localStorage.setItem(SOLO_BEST_KEY, JSON.stringify(all)); } catch (e) {}
+  }
+  return { record: record, prev: prev };
+}
+
+/* --- Today's puzzles (تحدي اليوم) ------------------------------------------------ */
+
+const SOLO_DAILY_KEY = 'ashryDaily_v1';
+
+function soloDailyAll() {
+  try { return JSON.parse(localStorage.getItem(SOLO_DAILY_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function soloDailyResult(id, day) {
+  const all = soloDailyAll();
+  return (all[day || soloToday()] || {})[id] || null;
+}
+
+/** Remembers today's result for a game (the first one only: a daily is played once). */
+function soloMarkDaily(id, result) {
+  const all = soloDailyAll();
+  const today = soloToday();
+  all[today] = all[today] || {};
+  if (all[today][id]) return all[today][id];
+  all[today][id] = result;
+  // Two months is plenty for a streak.
+  const cutoff = soloToday(new Date(Date.now() - 62 * 24 * 3600 * 1000));
+  Object.keys(all).forEach(day => { if (day < cutoff) delete all[day]; });
+  try { localStorage.setItem(SOLO_DAILY_KEY, JSON.stringify(all)); } catch (e) {}
+  return result;
+}
+
+/** Days in a row with at least one daily finished, counting today or, if not yet, yesterday. */
+function soloStreak() {
+  const all = soloDailyAll();
+  const has = (d) => Object.keys(all[soloToday(d)] || {}).length > 0;
+  const day = new Date();
+  if (!has(day)) day.setDate(day.getDate() - 1);
+  let n = 0;
+  while (has(day) && n < 400) {
+    n++;
+    day.setDate(day.getDate() - 1);
+  }
+  return n;
+}
+
+/* --- Small pieces ---------------------------------------------------------------- */
+
+function soloTime(seconds) {
+  const s = Math.max(0, Math.floor(seconds || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? h + ':' + String(m).padStart(2, '0') + ':' + ss : m + ':' + ss;
+}
+
+/** A running clock for a board: `startedAt` in state, painted into #id every second. */
+function soloClock(elId, startedAt) {
+  return createClock({
+    countUp: true,
+    onTick: () => {
+      const el = document.getElementById(elId);
+      if (el) el.textContent = soloTime((Date.now() - startedAt) / 1000);
+    }
+  });
+}
+
+/** The stats row above a board: [{ label, value, id }]. */
+function soloBarHtml(items) {
+  return `<div class="solo-bar" style="--solo-cols:${items.length}">${items.map(it => `
+    <div class="solo-stat${it.cls ? ' ' + it.cls : ''}">
+      <span class="solo-stat__label">${escapeHTML(it.label || '')}</span>
+      <b class="metric"${it.id ? ` id="${it.id}"` : ''}>${it.value === undefined ? '' : it.value}</b>
+    </div>`).join('')}</div>`;
+}
+
+/** The daily line on a setup screen: play today's puzzle, or see that it's done. */
+function soloDailyButtonHtml(id, startCall) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const done = soloDailyResult(id);
+  return done
+    ? `<div class="solo-daily is-done"><span aria-hidden="true">📅</span><span>${escapeHTML(t.daily_done_today || '')}</span><b>✓</b></div>`
+    : `<button type="button" class="btn btn--secondary" onclick="${startCall}">📅 ${escapeHTML(t.daily_play_today || '')}</button>`;
+}
+
+/* --- The result sheet ------------------------------------------------------------- */
+
+let soloResultActions = { again: null, exit: null, share: '' };
+
+/**
+ * o: { icon, title, value (number, counts up) or valueText, valueLabel, lines: [html],
+ *      win (confetti), share (text, for a daily), again(), exit() }
+ */
+function soloResult(o) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  soloResultActions = { again: o.again || null, exit: o.exit || null, share: o.share || '' };
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  set('solo-result-icon', o.icon || '🏁');
+  set('solo-result-title', escapeHTML(o.title || ''));
+  set('solo-result-label', escapeHTML(o.valueLabel || ''));
+  set('solo-result-detail', (o.lines || []).map(l => `<p class="sheet__subtitle">${l}</p>`).join(''));
+  const valueEl = document.getElementById('solo-result-value');
+  if (valueEl) {
+    if (typeof o.value === 'number') {
+      valueEl.textContent = String(o.value);
+      if (typeof countUp === 'function' && !motionOff() && o.value > 0) countUp(valueEl, 0, o.value);
+    } else {
+      valueEl.textContent = o.valueText || '';
+    }
+  }
+  const share = document.getElementById('solo-result-share');
+  if (share) share.classList.toggle('hidden', !o.share);
+  const again = document.getElementById('solo-result-again');
+  if (again) {
+    again.classList.toggle('hidden', !o.again);
+    again.textContent = o.againLabel || t.play_again || '';
+  }
+  const modal = document.getElementById('solo-result-modal');
+  if (modal) modal.classList.remove('hidden');
+  if (o.win) {
+    playSound('success');
+    if (typeof confetti === 'function') setTimeout(() => confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }), 250);
+  } else {
+    playSound('alarm');
+  }
+}
+
+function soloResultAgain() {
+  closeModal('solo-result-modal');
+  if (soloResultActions.again) soloResultActions.again();
+}
+
+function soloResultExit() {
+  closeModal('solo-result-modal');
+  if (soloResultActions.exit) soloResultActions.exit();
+}
+
+function soloResultShare() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (!soloResultActions.share) return;
+  shareOrCopy(appLink(), soloResultActions.share, t.solo_copied || '');
+}
+
+/** A daily result as a line for the share text: "🔢 سودوكو ✅ 4:12". */
+function soloShareHeader(t) {
+  const d = new Date();
+  return `${t.title || 'عشرى جيمينج'} · ${t.daily_title || ''} ${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+/* --- A finger dragging across a board ------------------------------------------ */
+
+/**
+ * The cell under a pointer, for boards you paint or trace across (a word
+ * search, a nonogram, the letter wheel): the element matching `selector`
+ * under the point, found without relying on the event's target, which stays
+ * the first cell for a captured touch.
+ */
+function soloCellAt(x, y, selector) {
+  const el = document.elementFromPoint(x, y);
+  return el && el.closest ? el.closest(selector) : null;
+}
+</script>

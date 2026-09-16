@@ -27,7 +27,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 
     <style>
-      /* Critical CSS for the loader to prevent white screen */
+      /* The intro, there before any script runs: the mark settles, a line draws
+         under it (and shimmers while a slow phone is still loading), the name
+         appears. Its exit - the mark flying into the home header - is introExit
+         in JS_Core.html. The ground is its own layer, so it can fade while the
+         mark is still flying. */
       #app-loader {
         position: fixed;
         inset: 0;
@@ -36,16 +40,25 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background-color: #f8fafc;
-        transition: opacity 0.5s ease;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
       }
-      .dark #app-loader { background-color: #0f172a; }
-      #app-loader .mark--loader { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 18px 40px -12px rgba(76, 29, 149, 0.55); animation: loader-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-      @keyframes loader-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.94); } }
-      .loader-title { margin-top: 22px; font-family: 'Cairo', sans-serif; font-size: 24px; font-weight: 900; color: #1e293b; }
+      #app-loader .intro__ground { position: absolute; inset: 0; z-index: -1; background-color: #f8fafc; }
+      .dark #app-loader .intro__ground { background-color: #0f172a; }
+      #app-loader .mark--loader { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 18px 40px -12px rgba(76, 29, 149, 0.55); animation: intro-mark 520ms cubic-bezier(0.2, 1.3, 0.35, 1) 60ms both; }
+      #app-loader .intro__line { display: block; width: 132px; height: 4px; margin-top: 22px; border-radius: 4px; background: linear-gradient(90deg, #6d28d9 0%, #a78bfa 50%, #6d28d9 100%); background-size: 200% 100%; animation: intro-line 460ms cubic-bezier(0.65, 0, 0.35, 1) 420ms both, intro-shimmer 1.6s linear 1.2s infinite; }
+      .loader-title { margin: 14px 0 0; font-family: 'Cairo', sans-serif; font-size: 22px; font-weight: 900; color: #1e293b; animation: intro-word 360ms ease-out 620ms both; }
       .dark .loader-title { color: #ffffff; }
-      .loading-text { margin-top: 6px; font-family: 'Cairo', sans-serif; font-weight: 700; color: #64748b; }
-      .dark .loading-text { color: #cbd5e1; }
+      #app-loader.is-flying .intro__line, #app-loader.is-flying .loader-title { animation: intro-fade 200ms ease-out forwards; }
+      #app-loader.is-flying .intro__ground { opacity: 0; transition: opacity 420ms ease-out 180ms; }
+      @keyframes intro-mark { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+      @keyframes intro-line { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+      @keyframes intro-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+      @keyframes intro-word { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      @keyframes intro-fade { from { opacity: 1; } to { opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) {
+        #app-loader .mark--loader, #app-loader .intro__line, .loader-title { animation: none; }
+      }
     </style>
 
     <!-- Only the utilities this app uses, built by tools/ (npm run build:css) -->
@@ -1736,18 +1749,22 @@ body.dark .toast { background: var(--n-700); }
    9. GAME-SPECIFIC
    ========================================================================== */
 
-/* --- Loader ------------------------------------------------------------- */
-#app-loader {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-4);
-  background: var(--bg);
-  transition: opacity var(--dur-4) var(--ease-out);
+/* --- The intro ------------------------------------------------------------
+   The markup and first-paint styles are the critical CSS in Controller.html,
+   and the flight is introExit in JS_Core.html. Here: the ground in the theme's
+   own colour, the header mark kept out of sight until the flying one lands on
+   it, and the home rising in as the ground fades. */
+#app-loader .intro__ground { background: var(--bg); }
+body.intro-flying #app-title .mark--title { visibility: hidden; }
+body.intro-reveal #view-menu,
+body.intro-reveal .shell__nav { animation: intro-rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+body.intro-reveal .shell__nav { animation-delay: 60ms; }
+@keyframes intro-rise {
+  from { opacity: 0.4; transform: translateY(1.6rem); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.intro-reveal #view-menu, body.intro-reveal .shell__nav { animation: none; }
 }
 
 /* --- Screw ------------------------------------------------------------- */
@@ -7103,11 +7120,29 @@ const MONKEY_KEYS = {
 </svg>
 
 
-    <div id="app-loader">
+    <!-- The intro. A tap skips it (skipIntro, once the scripts have arrived). -->
+    <div id="app-loader" onclick="if (window.skipIntro) skipIntro()">
+        <div class="intro__ground"></div>
         <svg class="mark mark--loader" aria-hidden="true"><use href="#ashry-mark"/></svg>
+        <span class="intro__line" aria-hidden="true"></span>
         <h2 class="loader-title" data-i18n="title">عشرى جيمينج</h2>
-        <p class="loading-text" data-i18n="loading">جاري التحميل...</p>
     </div>
+    <script>
+      // Before anything is drawn: the saved theme and language, so the intro
+      // opens in them instead of switching halfway through. INTRO_T0 is when
+      // the intro went up, which is what its minimum length is counted from.
+      window.INTRO_T0 = (window.performance && performance.now()) || 0;
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('gameTrackerState_v1') || 'null');
+          if (saved && saved.isDarkMode) document.body.classList.add('dark');
+          if (saved && saved.lang === 'en') {
+            var title = document.querySelector('#app-loader .loader-title');
+            if (title) title.textContent = 'Ashry Gaming';
+          }
+        } catch (e) {}
+      })();
+    </script>
 
     <div id="sync-status" title="حالة الاتصال"></div>
     
@@ -12150,7 +12185,105 @@ const MONKEY_KEYS = {
     }
 }
 
+  /* --- The intro ---------------------------------------------------------------
+     The page opens on the brand mark (#app-loader, drawn by the critical CSS in
+     Controller.html before any script runs). Once the app is ready, and no
+     sooner than INTRO_MIN_MS after the intro went up, the mark flies into its
+     place in the home header while the ground fades and the home rises in under
+     it. It only flies when the app opens on the home screen: a reload that lands
+     in a game or a room, a join link, a phone set to reduce motion, a hidden
+     tab, or a tap on the intro all get a quick fade instead. Every step runs on
+     a timer - an animation event is never the only path (see GEMINI.md). */
+  const INTRO_MIN_MS = 1000;
+  const INTRO_FLIGHT_MS = 620;
+  const intro = { state: 'waiting', skip: false, timers: [], flight: null };
+
+  function introLater(fn, ms) { intro.timers.push(setTimeout(fn, ms)); }
+
+  /** Takes the intro away once the app is ready: a flight home when it can, a fade when it can't. */
+  function introExit() {
+    if (intro.state !== 'waiting') return;
+    const loader = document.getElementById('app-loader');
+    if (!loader) { intro.state = 'done'; return; }
+    intro.state = 'leaving';
+    const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const onHome = appState.currentView === 'menu'
+      && !(window.SERVER_DATA && window.SERVER_DATA.room)
+      && !window.OPEN_INSTALL && !/[?&]install=1/.test(location.search);
+    if (intro.skip || reduce || !onHome || document.hidden) {
+      introFade(intro.skip ? 150 : 350);
+      return;
+    }
+    const shown = (window.performance ? performance.now() : 0) - (window.INTRO_T0 || 0);
+    introLater(introFly, Math.max(0, INTRO_MIN_MS - shown));
+  }
+
+  function introFly() {
+    if (intro.state !== 'leaving') return;
+    const loader = document.getElementById('app-loader');
+    const mark = loader && loader.querySelector('.mark--loader');
+    const target = document.querySelector('#app-title .mark--title');
+    const landing = target ? target.getBoundingClientRect() : null;
+    // Somewhere else by now (a room link resumed), or nowhere to land: just fade.
+    if (!mark || !landing || !landing.width || appState.currentView !== 'menu' || typeof mark.animate !== 'function') {
+      introFade(350);
+      return;
+    }
+    mark.style.animation = 'none';
+    // The centre from the screen; the size from the style, because the entrance
+    // may still be scaling the mark (a slow phone, a tab that wasn't painting)
+    // and a scale taken from a shrunken rect lands it too big.
+    const from = mark.getBoundingClientRect();
+    const size = parseFloat(getComputedStyle(mark).width) || from.width;
+    const dx = (landing.left + landing.width / 2) - (from.left + from.width / 2);
+    const dy = (landing.top + landing.height / 2) - (from.top + from.height / 2);
+    document.body.classList.add('intro-flying');
+    loader.classList.add('is-flying');
+    intro.flight = mark.animate(
+      [{ transform: 'none' }, { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + (landing.width / size) + ')' }],
+      { duration: INTRO_FLIGHT_MS, easing: 'cubic-bezier(0.7, 0, 0.2, 1)', fill: 'forwards' }
+    );
+    introLater(() => document.body.classList.add('intro-reveal'), 250);
+    introLater(() => introDone(loader), INTRO_FLIGHT_MS - 10);
+  }
+
+  function introFade(ms) {
+    const loader = document.getElementById('app-loader');
+    intro.state = 'leaving';
+    document.body.classList.remove('intro-flying');
+    if (!loader) { intro.state = 'done'; return; }
+    loader.style.transition = 'opacity ' + ms + 'ms ease-out';
+    loader.style.opacity = '0';
+    introLater(() => introDone(loader), ms);
+  }
+
+  function introDone(loader) {
+    intro.state = 'done';
+    if (loader) {
+      loader.style.display = 'none';
+      loader.classList.add('hidden');
+    }
+    document.body.classList.remove('intro-flying');
+    if (intro.flight) {
+      try { intro.flight.cancel(); } catch (e) {}
+      intro.flight = null;
+    }
+    // The home's rise has finished by then; take the class off so a later visit doesn't replay it.
+    setTimeout(() => document.body.classList.remove('intro-reveal'), 700);
+  }
+
+  /** A tap on the intro: straight into the app, as soon as it is ready. */
+  function skipIntro() {
+    if (intro.state === 'done') return;
+    if (intro.state === 'waiting') { intro.skip = true; return; }
+    intro.timers.forEach(clearTimeout);
+    intro.timers = [];
+    introFade(150);
+  }
+
   function initializeApp() {
+    // If anything below throws, the intro still goes.
+    setTimeout(() => { if (intro.state === 'waiting') introFade(350); }, 3000);
     setSyncing(true);
     stickySetupStarts();
     applyTranslations();
@@ -12168,18 +12301,6 @@ const MONKEY_KEYS = {
       }, { passive: true });
     }
 
-    // Function to hide loader with transition
-    const hideLoader = () => {
-        const loader = document.getElementById('app-loader');
-        if(loader && !loader.classList.contains('opacity-0')) {
-            loader.style.opacity = '0';
-            setTimeout(() => {
-                loader.classList.add('hidden');
-                loader.style.display = 'none';
-            }, 500);
-        }
-    };
-
     // Names are local, and the spy words arrive with the page (SpyWords.js).
     loadPlayerLibrary();
 
@@ -12196,18 +12317,17 @@ const MONKEY_KEYS = {
                 renderActiveChips(listContainer.id);
             }
         }
-        
-        // Hide loader immediately!
-        hideLoader();
+
     } else {
         // The build always puts the spy words in the page; carry on without them.
         SPY_CATEGORIES = {};
         dataLoaded = true;
         setSyncing(false);
-        hideLoader();
     }
 
     loadFromLocal();
+    // The saved screen is known now, so the intro can decide how to leave.
+    introExit();
 
     // An iPhone copy on the home screen with an older icon (JS_Utils.html).
     if (typeof checkIconBanner === 'function') checkIconBanner();
@@ -12216,8 +12336,6 @@ const MONKEY_KEYS = {
         setTimeout(showInstallHelp, 700);
     }
 
-    // Safety timeout to hide loader if script calls take too long
-    setTimeout(hideLoader, 2000);
     
     document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
   }

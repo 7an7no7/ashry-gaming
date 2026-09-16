@@ -19,7 +19,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 
     <style>
-      /* Critical CSS for the loader to prevent white screen */
+      /* The intro, there before any script runs: the mark settles, a line draws
+         under it (and shimmers while a slow phone is still loading), the name
+         appears. Its exit - the mark flying into the home header - is introExit
+         in JS_Core.html. The ground is its own layer, so it can fade while the
+         mark is still flying. */
       #app-loader {
         position: fixed;
         inset: 0;
@@ -28,16 +32,25 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background-color: #f8fafc;
-        transition: opacity 0.5s ease;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
       }
-      .dark #app-loader { background-color: #0f172a; }
-      #app-loader .mark--loader { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 18px 40px -12px rgba(76, 29, 149, 0.55); animation: loader-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-      @keyframes loader-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.94); } }
-      .loader-title { margin-top: 22px; font-family: 'Cairo', sans-serif; font-size: 24px; font-weight: 900; color: #1e293b; }
+      #app-loader .intro__ground { position: absolute; inset: 0; z-index: -1; background-color: #f8fafc; }
+      .dark #app-loader .intro__ground { background-color: #0f172a; }
+      #app-loader .mark--loader { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 18px 40px -12px rgba(76, 29, 149, 0.55); animation: intro-mark 520ms cubic-bezier(0.2, 1.3, 0.35, 1) 60ms both; }
+      #app-loader .intro__line { display: block; width: 132px; height: 4px; margin-top: 22px; border-radius: 4px; background: linear-gradient(90deg, #6d28d9 0%, #a78bfa 50%, #6d28d9 100%); background-size: 200% 100%; animation: intro-line 460ms cubic-bezier(0.65, 0, 0.35, 1) 420ms both, intro-shimmer 1.6s linear 1.2s infinite; }
+      .loader-title { margin: 14px 0 0; font-family: 'Cairo', sans-serif; font-size: 22px; font-weight: 900; color: #1e293b; animation: intro-word 360ms ease-out 620ms both; }
       .dark .loader-title { color: #ffffff; }
-      .loading-text { margin-top: 6px; font-family: 'Cairo', sans-serif; font-weight: 700; color: #64748b; }
-      .dark .loading-text { color: #cbd5e1; }
+      #app-loader.is-flying .intro__line, #app-loader.is-flying .loader-title { animation: intro-fade 200ms ease-out forwards; }
+      #app-loader.is-flying .intro__ground { opacity: 0; transition: opacity 420ms ease-out 180ms; }
+      @keyframes intro-mark { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+      @keyframes intro-line { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+      @keyframes intro-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+      @keyframes intro-word { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      @keyframes intro-fade { from { opacity: 1; } to { opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) {
+        #app-loader .mark--loader, #app-loader .intro__line, .loader-title { animation: none; }
+      }
     </style>
 
     <!-- Only the utilities this app uses, built by tools/ (npm run build:css) -->
@@ -60,11 +73,29 @@
     <!-- The brand mark, drawn once; every <use href="#ashry-mark"> in the page is a copy. -->
     <?!= include('Logo'); ?>
 
-    <div id="app-loader">
+    <!-- The intro. A tap skips it (skipIntro, once the scripts have arrived). -->
+    <div id="app-loader" onclick="if (window.skipIntro) skipIntro()">
+        <div class="intro__ground"></div>
         <svg class="mark mark--loader" aria-hidden="true"><use href="#ashry-mark"/></svg>
+        <span class="intro__line" aria-hidden="true"></span>
         <h2 class="loader-title" data-i18n="title">عشرى جيمينج</h2>
-        <p class="loading-text" data-i18n="loading">جاري التحميل...</p>
     </div>
+    <script>
+      // Before anything is drawn: the saved theme and language, so the intro
+      // opens in them instead of switching halfway through. INTRO_T0 is when
+      // the intro went up, which is what its minimum length is counted from.
+      window.INTRO_T0 = (window.performance && performance.now()) || 0;
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('gameTrackerState_v1') || 'null');
+          if (saved && saved.isDarkMode) document.body.classList.add('dark');
+          if (saved && saved.lang === 'en') {
+            var title = document.querySelector('#app-loader .loader-title');
+            if (title) title.textContent = 'Ashry Gaming';
+          }
+        } catch (e) {}
+      })();
+    </script>
 
     <div id="sync-status" title="حالة الاتصال"></div>
     

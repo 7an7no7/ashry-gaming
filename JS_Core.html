@@ -2704,7 +2704,105 @@
     }
 }
 
+  /* --- The intro ---------------------------------------------------------------
+     The page opens on the brand mark (#app-loader, drawn by the critical CSS in
+     Controller.html before any script runs). Once the app is ready, and no
+     sooner than INTRO_MIN_MS after the intro went up, the mark flies into its
+     place in the home header while the ground fades and the home rises in under
+     it. It only flies when the app opens on the home screen: a reload that lands
+     in a game or a room, a join link, a phone set to reduce motion, a hidden
+     tab, or a tap on the intro all get a quick fade instead. Every step runs on
+     a timer - an animation event is never the only path (see GEMINI.md). */
+  const INTRO_MIN_MS = 1000;
+  const INTRO_FLIGHT_MS = 620;
+  const intro = { state: 'waiting', skip: false, timers: [], flight: null };
+
+  function introLater(fn, ms) { intro.timers.push(setTimeout(fn, ms)); }
+
+  /** Takes the intro away once the app is ready: a flight home when it can, a fade when it can't. */
+  function introExit() {
+    if (intro.state !== 'waiting') return;
+    const loader = document.getElementById('app-loader');
+    if (!loader) { intro.state = 'done'; return; }
+    intro.state = 'leaving';
+    const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const onHome = appState.currentView === 'menu'
+      && !(window.SERVER_DATA && window.SERVER_DATA.room)
+      && !window.OPEN_INSTALL && !/[?&]install=1/.test(location.search);
+    if (intro.skip || reduce || !onHome || document.hidden) {
+      introFade(intro.skip ? 150 : 350);
+      return;
+    }
+    const shown = (window.performance ? performance.now() : 0) - (window.INTRO_T0 || 0);
+    introLater(introFly, Math.max(0, INTRO_MIN_MS - shown));
+  }
+
+  function introFly() {
+    if (intro.state !== 'leaving') return;
+    const loader = document.getElementById('app-loader');
+    const mark = loader && loader.querySelector('.mark--loader');
+    const target = document.querySelector('#app-title .mark--title');
+    const landing = target ? target.getBoundingClientRect() : null;
+    // Somewhere else by now (a room link resumed), or nowhere to land: just fade.
+    if (!mark || !landing || !landing.width || appState.currentView !== 'menu' || typeof mark.animate !== 'function') {
+      introFade(350);
+      return;
+    }
+    mark.style.animation = 'none';
+    // The centre from the screen; the size from the style, because the entrance
+    // may still be scaling the mark (a slow phone, a tab that wasn't painting)
+    // and a scale taken from a shrunken rect lands it too big.
+    const from = mark.getBoundingClientRect();
+    const size = parseFloat(getComputedStyle(mark).width) || from.width;
+    const dx = (landing.left + landing.width / 2) - (from.left + from.width / 2);
+    const dy = (landing.top + landing.height / 2) - (from.top + from.height / 2);
+    document.body.classList.add('intro-flying');
+    loader.classList.add('is-flying');
+    intro.flight = mark.animate(
+      [{ transform: 'none' }, { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + (landing.width / size) + ')' }],
+      { duration: INTRO_FLIGHT_MS, easing: 'cubic-bezier(0.7, 0, 0.2, 1)', fill: 'forwards' }
+    );
+    introLater(() => document.body.classList.add('intro-reveal'), 250);
+    introLater(() => introDone(loader), INTRO_FLIGHT_MS - 10);
+  }
+
+  function introFade(ms) {
+    const loader = document.getElementById('app-loader');
+    intro.state = 'leaving';
+    document.body.classList.remove('intro-flying');
+    if (!loader) { intro.state = 'done'; return; }
+    loader.style.transition = 'opacity ' + ms + 'ms ease-out';
+    loader.style.opacity = '0';
+    introLater(() => introDone(loader), ms);
+  }
+
+  function introDone(loader) {
+    intro.state = 'done';
+    if (loader) {
+      loader.style.display = 'none';
+      loader.classList.add('hidden');
+    }
+    document.body.classList.remove('intro-flying');
+    if (intro.flight) {
+      try { intro.flight.cancel(); } catch (e) {}
+      intro.flight = null;
+    }
+    // The home's rise has finished by then; take the class off so a later visit doesn't replay it.
+    setTimeout(() => document.body.classList.remove('intro-reveal'), 700);
+  }
+
+  /** A tap on the intro: straight into the app, as soon as it is ready. */
+  function skipIntro() {
+    if (intro.state === 'done') return;
+    if (intro.state === 'waiting') { intro.skip = true; return; }
+    intro.timers.forEach(clearTimeout);
+    intro.timers = [];
+    introFade(150);
+  }
+
   function initializeApp() {
+    // If anything below throws, the intro still goes.
+    setTimeout(() => { if (intro.state === 'waiting') introFade(350); }, 3000);
     setSyncing(true);
     stickySetupStarts();
     applyTranslations();
@@ -2722,18 +2820,6 @@
       }, { passive: true });
     }
 
-    // Function to hide loader with transition
-    const hideLoader = () => {
-        const loader = document.getElementById('app-loader');
-        if(loader && !loader.classList.contains('opacity-0')) {
-            loader.style.opacity = '0';
-            setTimeout(() => {
-                loader.classList.add('hidden');
-                loader.style.display = 'none';
-            }, 500);
-        }
-    };
-
     // Names are local, and the spy words arrive with the page (SpyWords.js).
     loadPlayerLibrary();
 
@@ -2750,18 +2836,17 @@
                 renderActiveChips(listContainer.id);
             }
         }
-        
-        // Hide loader immediately!
-        hideLoader();
+
     } else {
         // The build always puts the spy words in the page; carry on without them.
         SPY_CATEGORIES = {};
         dataLoaded = true;
         setSyncing(false);
-        hideLoader();
     }
 
     loadFromLocal();
+    // The saved screen is known now, so the intro can decide how to leave.
+    introExit();
 
     // An iPhone copy on the home screen with an older icon (JS_Utils.html).
     if (typeof checkIconBanner === 'function') checkIconBanner();
@@ -2770,8 +2855,6 @@
         setTimeout(showInstallHelp, 700);
     }
 
-    // Safety timeout to hide loader if script calls take too long
-    setTimeout(hideLoader, 2000);
     
     document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
   }

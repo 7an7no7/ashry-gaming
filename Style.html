@@ -1680,18 +1680,22 @@ body.dark .toast { background: var(--n-700); }
    9. GAME-SPECIFIC
    ========================================================================== */
 
-/* --- Loader ------------------------------------------------------------- */
-#app-loader {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-4);
-  background: var(--bg);
-  transition: opacity var(--dur-4) var(--ease-out);
+/* --- The intro ------------------------------------------------------------
+   The markup and first-paint styles are the critical CSS in Controller.html,
+   and the flight is introExit in JS_Core.html. Here: the ground in the theme's
+   own colour, the header mark kept out of sight until the flying one lands on
+   it, and the home rising in as the ground fades. */
+#app-loader .intro__ground { background: var(--bg); }
+body.intro-flying #app-title .mark--title { visibility: hidden; }
+body.intro-reveal #view-menu,
+body.intro-reveal .shell__nav { animation: intro-rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+body.intro-reveal .shell__nav { animation-delay: 60ms; }
+@keyframes intro-rise {
+  from { opacity: 0.4; transform: translateY(1.6rem); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.intro-reveal #view-menu, body.intro-reveal .shell__nav { animation: none; }
 }
 
 /* --- Screw ------------------------------------------------------------- */

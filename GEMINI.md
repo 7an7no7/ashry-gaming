@@ -1136,6 +1136,23 @@ lifts only under a real mouse (`hover: hover` and `pointer: fine`), and the
 home's cards rising in sequence. Nothing in it moves by itself; keep it that
 way, and keep any new polish in that section rather than scattered.
 
+**The intro** is what the page opens on, chosen by the owner from three
+takes on 16 Sep 2026 ("the logo flies home"). `#app-loader` and its first-paint
+styles are the critical CSS in `Controller.html`, so they are on screen before
+any script: the mark settles, a line draws under it and shimmers for as long
+as a slow phone is still loading, the name appears. A tiny inline script right
+after it applies the saved theme and language (`gameTrackerState_v1`) so the
+intro doesn't switch halfway, and notes `INTRO_T0`. `initializeApp` calls
+`introExit` once `loadFromLocal` has settled which screen the app opens on.
+On the home, and no sooner than `INTRO_MIN_MS` after the intro went up, the
+mark flies (Web Animations, measured with `getBoundingClientRect`) onto the
+header's `.mark--title`, which stays `visibility: hidden` under
+`body.intro-flying` until it lands; the ground fades and `body.intro-reveal`
+raises the home and the nav. Anywhere else - a game or a room restored by a
+reload, a `?room=` link, the install steps, a hidden tab, reduced motion - and
+after a tap on the intro (`skipIntro`), it is a short fade. Every step runs on
+a timer, and `initializeApp` sets a safety fade too.
+
 **The dice and the coin** are section 13: a real cube of six pip faces in 3D
 (`DIE_PIPS` draws the pips into a 3x3 grid, `DIE_LANDING` says what to rotate
 the cube to for the value that was actually rolled, opposite faces adding to

@@ -4809,6 +4809,23 @@ const screwMove = (room, me, action, p) => {
       if (s.phase !== 'thiefGuess') return;
       screwCloseVote(room);
       return;
+    case 'boomPick': {
+      // بوم: one of your own cards, face down; final. Nothing about it is shared until all are in.
+      if (s.phase !== 'play' || !s.turn || s.turn.stage !== 'boom' || !s.boom) throw new Error('مش دلوقتي');
+      if (s.boom.picked.indexOf(me) !== -1) return;
+      if (s.boom.waiting.indexOf(me) === -1) throw new Error('مش مطلوب منك');
+      const e = screwSlot(room, me, p.slot);
+      g.boomPicks[me] = e.id;
+      s.boom.waiting = s.boom.waiting.filter(id => id !== me);
+      s.boom.picked.push(me);
+      if (!s.boom.waiting.length) screwBoomResolve(room);
+      return;
+    }
+    case 'closeBoom':
+      requireHost(room, me);
+      if (s.phase !== 'play' || !s.turn || s.turn.stage !== 'boom') return;
+      screwBoomResolve(room);
+      return;
     case 'nextRound':
       requireHost(room, me);
       if (s.phase !== 'reveal') return;
@@ -4949,6 +4966,7 @@ const screwDeal = (room) => {
   s.finisher = null;
   s.lastLap = null;
   s.thiefVote = null;
+  s.boom = null;
   s.finalLeft = [];
   s.exposed = [];
   s.results = null;
@@ -5050,6 +5068,11 @@ const screwPassTurn = (room, from, ping) => {
  */
 const screwSkip = (room) => {
   const s = room.shared;
+  if (s.phase === 'play' && s.turn && s.turn.stage === 'boom') {
+    // بوم waiting on phones: whoever hasn't picked gets a card picked at random.
+    screwBoomResolve(room);
+    return true;
+  }
   if (s.phase === 'play' && s.turn) {
     const pid = s.turn.pid;
     screwDropPending(room, false);
@@ -5108,6 +5131,8 @@ const screwDropPending = (room, toDeck) => {
   g.drawnFrom = null;
   g.khoshaf = null;
   g.look = null;
+  g.boomPicks = null;             // a بوم still waiting is called off
+  s.boom = null;
 };
 
 /* --- cards and slots ------------------------------------------------------------ */
@@ -5120,9 +5145,10 @@ const screwNewSlot = (g, card, shown) => ({ id: 'c' + (++g.slotSeq), card: card,
  * events don't reach back to the deal. Only what the whole table watched:
  *   how    'deal' | 'deck' (a drawn card kept) | 'pile' (the top of the pile
  *          taken) | 'penalty' | 'swap' (blind swap, see & swap) | 'give' |
- *          'scream' | 'khoshaf' (a الخشاف pick kept)
+ *          'scream' (dealt again blind: nothing known, no looks) | 'khoshaf'
+ *          (a الخشاف pick kept)
  *   by     who made that move (null for the deal)
- *   from   { pid, slot } the card came from (swap, give, scream), or null
+ *   from   { pid, slot } the card came from (swap, give), or null
  *   at     the eventSeq of that move
  *   known  the card, only when the whole table saw this very card face up: it
  *          lay on the pile before it was taken, or it was thrown and came back
@@ -5427,28 +5453,76 @@ const SKREW_POWERS = {
     s.turn.stage = 'khoshaf';
   },
   scream: (room, me) => {
-    // Every hand to the next player in seat order; a protected hand (the caller's side) stays put and is stepped over.
+    // صرخة أوسكار: every hand outside the protected side is gathered, shuffled and dealt back
+    // blind, each player keeping their number of cards (and their slots). Nobody knows any of
+    // them now: every look is forgotten. The turn stays with the player: a whole new turn.
     const s = room.shared;
     const g = room._screw;
     const circle = s.order.filter(id => screwHere(room, id) && !screwProtected(room, id));
-    const hands = circle.map(id => g.hands[id] || []);
-    circle.forEach((id, i) => { g.hands[circle[(i + 1) % circle.length]] = hands[i]; });
-    screwEvent(room, 'scream', { pid: me });
-    // Every card keeps its story: from its old holder's same slot, to the next seat.
-    circle.forEach((id, i) => hands[i].forEach(e => screwArrived(room, e, 'scream', me, { pid: id, slot: e.id }, screwH(e))));
-    screwTurnDone(room);
+    const counts = {};
+    let cards = [];
+    circle.forEach(id => {
+      const hand = g.hands[id] || [];
+      counts[id] = hand.length;
+      cards = cards.concat(hand.map(e => e.card));
+    });
+    cards = shuffled(cards);
+    circle.forEach(id => (g.hands[id] || []).forEach(e => {
+      e.card = cards.pop();
+      e.shown = s.exposed.indexOf(id) !== -1;     // the cannon exposed the player, not the cards
+    }));
+    g.seen = {};
+    screwEvent(room, 'scream', { pid: me, counts: counts });
+    circle.forEach(id => (g.hands[id] || []).forEach(e => screwArrived(room, e, 'scream', me, null, null)));
+    screwStartTurn(room, me, null);
   },
-  boom: (room, me, p) => {
-    // بوم: one card of another player (never a protected caller's) goes straight onto the pile, face up.
-    const g = room._screw;
-    const target = screwTarget(room, me, p.target, true);
-    const e = screwSlot(room, target, p.slot);
-    screwRemoveSlot(room, target, e.id);
-    g.pile.push(e.card);
-    screwEvent(room, 'boom', { pid: me, target: target, slot: e.id, card: e.card });
-    if (screwFinished(room, target)) return;
-    screwTurnDone(room);
+  boom: (room, me) => {
+    // بوم: every other player with cards (not the protected side) throws one of their own, face
+    // down, chosen on their phone (boomPick); all are turned up together once everyone has picked.
+    const s = room.shared;
+    const at = s.order.indexOf(me);
+    const waiting = s.order.slice(at + 1).concat(s.order.slice(0, at))
+      .filter(id => screwHere(room, id) && !screwProtected(room, id) && (room._screw.hands[id] || []).length);
+    room._screw.boomPicks = {};
+    s.boom = { waiting: waiting, picked: [] };
+    s.turn.stage = 'boom';
+    s.endsAt = s.settings.turnClock ? Date.now() + s.settings.turnClock * 1000 : null;
+    screwEvent(room, 'boom', { pid: me });
+    if (!waiting.length) screwBoomResolve(room);
   }
+};
+
+/**
+ * بوم closes: the host's close, the clock, or a leave took the last one waiting. Anyone still
+ * waiting has a slot picked at random. Then every picked card goes face up onto the pile, in seat
+ * order after the player - whatever it is, the red screw and the thief too. A hand emptied ends
+ * the round (the first emptied after the player is the finisher); otherwise the turn stays with
+ * the player: a whole new turn.
+ */
+const screwBoomResolve = (room) => {
+  const s = room.shared;
+  const g = room._screw;
+  const me = s.turn.pid;
+  const picks = g.boomPicks || {};
+  (s.boom ? s.boom.waiting : []).forEach(id => {
+    const hand = g.hands[id] || [];
+    if (hand.length) picks[id] = hand[Math.floor(Math.random() * hand.length)].id;
+  });
+  s.boom = null;
+  g.boomPicks = null;
+  const at = s.order.indexOf(me);
+  const emptied = [];
+  s.order.slice(at + 1).concat(s.order.slice(0, at)).forEach(id => {
+    if (!Object.prototype.hasOwnProperty.call(picks, id)) return;
+    const e = (g.hands[id] || []).find(x => x.id === picks[id]);
+    if (!e) return;
+    screwRemoveSlot(room, id, e.id);
+    g.pile.push(e.card);
+    screwEvent(room, 'boomThrow', { pid: id, slot: e.id, card: e.card });
+    if (!(g.hands[id] || []).length) emptied.push(id);
+  });
+  if (emptied.length && screwFinished(room, emptied[0])) return;
+  screwStartTurn(room, me, null);
 };
 
 /* --- the end of a round: the thief vote, the reveal and the score ----------------- */
@@ -5809,6 +5883,14 @@ const screwPlayerLeft = (room, playerId) => {
       // Leaving from the round's first seat is no new lap.
       if (seat === g.start) s.lap--;
       screwPassTurn(room, (seat - 1 + s.order.length) % s.order.length, false);
+      return;
+    }
+    if (s.turn && s.turn.stage === 'boom' && s.boom) {
+      // A player بوم waits on: dropped; with the last one waiting gone, the cards go up.
+      s.boom.waiting = s.boom.waiting.filter(id => id !== playerId);
+      s.boom.picked = s.boom.picked.filter(id => id !== playerId);
+      if (g.boomPicks) delete g.boomPicks[playerId];
+      if (!s.boom.waiting.length) screwBoomResolve(room);
       return;
     }
     if (s.turn && s.turn.stage === 'seeSwap' && g.look && g.look.target === playerId) {

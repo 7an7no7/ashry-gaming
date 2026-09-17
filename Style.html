@@ -7281,32 +7281,55 @@ button.herd-group { cursor: pointer; }
    lies face down in numbered slots, and a move flies between exact slots
    (.skr-ghost, a Web Animation of transform and opacity; .skr-hold keeps the
    end state hidden until it lands). One card component, .skr-card, sized by
-   --skr-w (its height is 1.4 times that): the back is the brand's violet
-   (data-accent="violet" on the card), a face takes its tone from what it is.
+   --skr-w (its height is 1.42 times that), in the owner's "colour blocks"
+   look: a face is the whole card in its type's colour (the --skr-c-* tokens,
+   the same in both themes) with a big white numeral or line icon; corners and
+   a name band only on the big ones (.is-full); the back is violet and dotted.
    ========================================================================== */
 
 /* --- The card --- */
+:root {
+  --skr-c-low: #0d9488;     /* 1-3 */
+  --skr-c-mid: #2563eb;     /* 4-6 */
+  --skr-c-look: #7c3aed;    /* 7-10 */
+  --skr-c-act: #4338ca;     /* خد وهات, بصرة, كعب داير */
+  --skr-c-bad: #dc2626;     /* +20, the red screw */
+  --skr-c-good: #15803d;    /* the green screw, -1 */
+  --skr-c-thief: #b45309;   /* الحرامي's three */
+  --skr-c-sahib: #0e7490;   /* صاحب صاحبه's three */
+  --skr-c-mesa: #9333ea;    /* المسحراتي's three */
+  --skr-c-oscar: #db2777;   /* أوسكار's four */
+  --skr-back-1: #7c3aed;
+  --skr-back-2: #4c1d95;
+}
+.skr-c--low { --c: var(--skr-c-low); }
+.skr-c--mid { --c: var(--skr-c-mid); }
+.skr-c--look { --c: var(--skr-c-look); }
+.skr-c--act { --c: var(--skr-c-act); }
+.skr-c--bad { --c: var(--skr-c-bad); }
+.skr-c--good { --c: var(--skr-c-good); }
+.skr-c--thief { --c: var(--skr-c-thief); }
+.skr-c--sahib { --c: var(--skr-c-sahib); }
+.skr-c--mesa { --c: var(--skr-c-mesa); }
+.skr-c--oscar { --c: var(--skr-c-oscar); }
+
 .skr-card {
+  --c: var(--skr-c-mid);
   position: relative;
   flex: none;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: calc(var(--skr-w, 3rem) * 0.04);
+  display: inline-grid;
+  place-items: center;
   width: var(--skr-w, 3rem);
-  height: calc(var(--skr-w, 3rem) * 1.4);
-  padding: calc(var(--skr-w, 3rem) * 0.06);
-  border: 1px solid var(--border-strong);
-  border-radius: calc(var(--skr-w, 3rem) * 0.14);
-  background: var(--surface-solid);
-  box-shadow: var(--sh-1);
-  color: var(--text-strong);
+  height: calc(var(--skr-w, 3rem) * 1.42);
+  border-radius: calc(var(--skr-w, 3rem) * 0.12);
+  color: #fff;
   font-family: var(--font);
-  font-size: calc(var(--skr-w, 3rem) * 0.24);
+  font-size: calc(var(--skr-w, 3rem) * 0.2);
   line-height: 1;
   vertical-align: top;
   overflow: hidden;
+  /* A card narrower than --skr-full hides its corners and band (below), whatever its class says. */
+  container-type: inline-size;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -7316,59 +7339,109 @@ button.herd-group { cursor: pointer; }
 .skr-card--lg { --skr-w: 3.75rem; }
 .skr-card--xl { --skr-w: 5rem; }
 .skr-card--fly { width: 100%; height: 100%; }
+.skr-card--face {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 78%, white), var(--c) 60%, color-mix(in srgb, var(--c) 80%, black));
+  box-shadow: 0 calc(var(--skr-w, 3rem) * 0.1) calc(var(--skr-w, 3rem) * 0.24) calc(var(--skr-w, 3rem) * -0.13) color-mix(in srgb, var(--c) 90%, black);
+}
+/* The soft shine in the top corner. */
+.skr-card--face::after { content: ''; position: absolute; inset-block-start: -30%; inset-inline-end: -40%; width: 90%; height: 70%; border-radius: 50%; background: rgba(255, 255, 255, 0.12); pointer-events: none; }
+.skr-card__art { position: relative; z-index: 1; display: grid; place-items: center; }
 .skr-card__big {
-  font-size: 2em;
-  font-weight: 900;
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.6);
+  font-weight: 800;
   line-height: 1;
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
   direction: ltr;
   unicode-bidi: isolate;
 }
-.skr-card__big--long { font-size: 1.5em; }
-.skr-card__small {
-  max-width: 100%;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 0.62em;
+.skr-card__big--long { font-size: calc(var(--skr-w, 3rem) * 0.42); }
+.skr-icon { display: block; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.skr-card .skr-card__art .skr-icon { width: calc(var(--skr-w, 3rem) * 0.66); height: calc(var(--skr-w, 3rem) * 0.66); stroke-width: 2.2; }
+/* The big cards: the value in the corners, the art lifted over the name band. */
+.skr-card.is-full .skr-card__big { font-size: calc(var(--skr-w, 3rem) * 0.52); }
+.skr-card.is-full .skr-card__big--long { font-size: calc(var(--skr-w, 3rem) * 0.38); }
+.skr-card.is-full .skr-card__art .skr-icon { width: calc(var(--skr-w, 3rem) * 0.5); height: calc(var(--skr-w, 3rem) * 0.5); stroke-width: 1.8; }
+.skr-card.is-full.has-name .skr-card__art { transform: translateY(calc(var(--skr-w, 3rem) * -0.1)); }
+.skr-card__mini {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: calc(var(--skr-w, 3rem) * 0.07);
+  inset-inline-start: calc(var(--skr-w, 3rem) * 0.09);
+  display: grid;
+  justify-items: center;
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.17);
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1;
+  opacity: 0.9;
+  direction: ltr;
+}
+.skr-card__mini .skr-icon { width: calc(var(--skr-w, 3rem) * 0.16); height: calc(var(--skr-w, 3rem) * 0.16); margin-top: 2px; stroke-width: 2.4; }
+.skr-card__mini--end { inset-block: auto calc(var(--skr-w, 3rem) * 0.07); inset-inline: auto calc(var(--skr-w, 3rem) * 0.09); transform: rotate(180deg); }
+.skr-card__name {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 0;
+  bottom: 0;
+  padding: calc(var(--skr-w, 3rem) * 0.035) 2px calc(var(--skr-w, 3rem) * 0.05);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.22);
+  font-family: 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.14);
+  font-weight: 800;
+  line-height: 1.15;
   text-align: center;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-/* Under 3.75rem the name is too small to read; the value or the icon says it. */
-.skr-card--xs .skr-card__small, .skr-card--sm .skr-card__small, .skr-card--md .skr-card__small { display: none; }
-/* The soft tints are see-through; laid over the solid card so a card on the pile
-   hides the one under it (the +20 below a 9 used to read through). */
-.skr-tone--command { border-color: var(--accent-border); background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--surface-solid); color: var(--accent-ink); }
-.skr-tone--danger  { border-color: var(--danger); background: linear-gradient(var(--danger-soft), var(--danger-soft)), var(--surface-solid); color: var(--danger-ink); }
-.skr-tone--success { border-color: var(--success); background: linear-gradient(var(--success-soft), var(--success-soft)), var(--surface-solid); color: var(--success-ink); }
-.skr-tone--gold    { border-color: var(--warning); background: linear-gradient(var(--warning-soft), var(--warning-soft)), var(--surface-solid); color: var(--warning-ink); }
+@container (max-width: 55px) {
+  .skr-card__mini, .skr-card__name { display: none; }
+  .skr-card.is-full .skr-card__art { transform: none; }
+}
+/* The back: violet, dotted, the Ashry mark on the big ones and "A." on the small. */
 .skr-card--back {
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--n-900));
-  background:
-    repeating-linear-gradient(45deg, color-mix(in srgb, var(--n-0) 14%, transparent) 0 1px, transparent 1px 7px),
-    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--n-0) 14%, transparent) 0 1px, transparent 1px 7px),
-    linear-gradient(155deg, var(--accent), color-mix(in srgb, var(--accent) 62%, var(--n-900)));
-  box-shadow: inset 0 0 0 calc(var(--skr-w, 3rem) * 0.045) color-mix(in srgb, var(--n-0) 22%, transparent), var(--sh-1);
+  background: linear-gradient(160deg, var(--skr-back-1), var(--skr-back-2));
+  box-shadow: 0 calc(var(--skr-w, 3rem) * 0.1) calc(var(--skr-w, 3rem) * 0.24) calc(var(--skr-w, 3rem) * -0.13) #2e1065;
+  color: #fcd34d;
 }
-.skr-card__mark { width: 68%; height: auto; aspect-ratio: 1; border-radius: 22%; box-shadow: var(--sh-2); }
-/* The memory helper's value known from the pile, small on a back. */
+.skr-card--back::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.2px, transparent 1.4px);
+  background-size: 9px 9px;
+  pointer-events: none;
+}
+.skr-card__mark { position: relative; z-index: 1; width: 68%; height: auto; aspect-ratio: 1; border-radius: 22%; box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.5); }
+.skr-card__a { position: relative; z-index: 1; color: #fff; font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font); font-size: calc(var(--skr-w, 3rem) * 0.3); font-weight: 800; line-height: 1; direction: ltr; }
+.skr-card__a i { color: #f5c451; font-style: normal; }
+/* The memory helper's value known from the pile: a white chip on the back, in that card's colour. */
 .skr-card__known {
-  padding: 0.05em 0.3em;
-  border-radius: 0.35em;
-  background: var(--surface-solid);
-  color: var(--accent-ink);
-  font-size: 1.2em;
-  font-weight: 900;
-  line-height: 1.1;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 62%;
+  padding: calc(var(--skr-w, 3rem) * 0.04) calc(var(--skr-w, 3rem) * 0.06);
+  border-radius: calc(var(--skr-w, 3rem) * 0.1);
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  color: var(--c);
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.32);
+  font-weight: 800;
+  line-height: 1;
   white-space: nowrap;
   direction: ltr;
   unicode-bidi: isolate;
 }
+.skr-card__known .skr-icon { width: calc(var(--skr-w, 3rem) * 0.34); height: calc(var(--skr-w, 3rem) * 0.34); stroke-width: 2.6; }
 .skr-card--empty { border: 2px dashed var(--border-strong); background: transparent; box-shadow: none; }
+/* A power's line icon in its card's colour, in the bars (the power, the vote, بوم). */
+.skr-chip { display: inline-grid; place-items: center; flex: none; width: 1.6em; height: 1.6em; margin-inline-end: 0.35em; border-radius: 0.45em; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 78%, white), var(--c) 60%, color-mix(in srgb, var(--c) 80%, black)); color: #fff; vertical-align: middle; }
+.skr-chip .skr-icon { width: 70%; height: 70%; stroke-width: 2.2; }
 
 /* --- The frame --- */
 .skr-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-1); margin-bottom: var(--sp-3); }
@@ -7397,20 +7470,13 @@ button.herd-group { cursor: pointer; }
   transition: opacity var(--dur-2) var(--ease-out);
 }
 .skr-slot__card { position: relative; display: block; transition: transform var(--dur-2) var(--ease-out); }
+/* Seat layout أ: the slot's number printed under its card, centred. */
 .skr-slot__n {
-  position: absolute;
-  inset-block-end: 0;
-  inset-inline-start: 0;
-  min-width: 1rem;
-  height: 1rem;
-  display: grid;
-  place-items: center;
-  padding: 0 3px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-full);
-  background: var(--surface-solid);
+  display: block;
+  margin-top: 2px;
   color: var(--text-2);
   font-size: 0.625rem;
+  line-height: 1.1;
   letter-spacing: 0;
 }
 .skr-slot__badge {
@@ -7436,6 +7502,16 @@ button.herd-group { cursor: pointer; }
 /* --- The other players: compact seats, a grid of two from three of them --- */
 .skr-opps { display: grid; grid-template-columns: repeat(var(--skr-cols, 1), minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-3); }
 .skr-opps--grid { --skr-cols: 2; }
+/* Two seats a row leave each seat just enough for four cards: the slots give
+   up their side padding, or rounding pushed the fourth card onto a line of
+   its own. */
+.skr-opps--grid .skr-slots { gap: 2px; }
+.skr-opps--grid .skr-slot { padding-inline: 1px; }
+/* A hand that doesn't fit one row (skrStackHands): even rows, 2 over 2 or 3
+   over 3, and an odd card beside them, centred. */
+.skr-slots.is-stacked { display: grid; grid-template-columns: repeat(var(--skr-stack-cols, 2), auto); justify-content: center; align-items: start; }
+.skr-slots.is-stacked.is-odd { grid-template-columns: repeat(var(--skr-stack-cols, 2), auto) auto; }
+.skr-slots.is-stacked.is-odd > .skr-slot:last-child { grid-column: -2 / -1; grid-row: 1 / span 2; align-self: center; }
 .skr-seat {
   position: relative;
   min-width: 0;
@@ -7469,10 +7545,23 @@ button.herd-group { cursor: pointer; }
 .skr-seat__head { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 /* The last move under a name, with the memory helper: one line, cut short rather than wrapped. */
 .skr-seat__last { display: block; min-width: 0; overflow: hidden; color: var(--text-2); font-size: 0.6875rem; font-weight: 700; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
-.skr-opps--wide .skr-seat { flex-direction: row; align-items: center; gap: var(--sp-2); }
-.skr-opps--wide .skr-seat__head { flex: 0 0 6rem; }
-.skr-opps--wide .skr-seat__who { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; }
-.skr-opps--wide .skr-seat__name { flex: none; max-width: 100%; }
+.skr-seat .skr-slots { justify-content: center; }
+.skr-seat__tags { margin-inline-start: auto; }
+.skr-avatar {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f5c451;
+  color: #3b2a05;
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.skr-avatar--0 { background: var(--team-blue); color: #fff; }
+.skr-avatar--1 { background: var(--team-red); color: #fff; }
 .skr-seat.is-turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 6px 18px -10px var(--accent-glow); }
 .skr-seat.is-away { opacity: 0.6; }
 .skr-seat.is-target, .skr-seat.is-picked { border-color: var(--accent); }
@@ -7547,7 +7636,7 @@ button.herd-group { cursor: pointer; }
    two lines rather than widening the slot, which pushed the fourth card of a
    375px phone onto a row of its own. */
 .skr-slots--mine .skr-slot { min-width: var(--tap); width: calc(var(--skr-mine-w) + 0.25rem); padding-top: var(--sp-1); }
-.skr-slots--mine .skr-slot__n { position: static; margin-top: 4px; }
+.skr-slots--mine .skr-slot__n { margin-top: 4px; font-size: var(--fs-xs); font-weight: 800; }
 .skr-slot__mark {
   display: -webkit-box;
   max-width: 100%;
@@ -7586,7 +7675,10 @@ button.herd-group { cursor: pointer; }
 .skr-note .btn { width: auto; }
 .skr-prompt { margin: 0; color: var(--text-strong); font-size: var(--fs-h3); font-weight: 900; line-height: 1.35; text-align: center; }
 .skr-prompt.is-mine { color: var(--accent-ink); }
-.skr-power { display: block; margin-bottom: 2px; color: var(--text-strong); font-size: var(--fs-h2); }
+.skr-power { display: flex; align-items: center; justify-content: center; margin-bottom: 2px; color: var(--text-strong); font-size: var(--fs-h2); }
+.skr-prompt > .skr-power { display: inline-flex; margin: 0; vertical-align: middle; font-size: 1em; }
+.skr-hint--power { display: flex; align-items: center; justify-content: center; }
+.skr-choices .btn .skr-chip { font-size: 1rem; }
 .skr-hint { margin: 0; color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; line-height: 1.4; text-align: center; }
 .skr-summary { margin: 0; padding: var(--sp-2); border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-ink); font-weight: 800; text-align: center; overflow-wrap: anywhere; }
 .skr-rule { width: 100%; height: 1px; margin: 0; border: 0; background: var(--hairline); }
@@ -7802,6 +7894,8 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 @keyframes skr-spotlight { from { transform: translateX(0); } to { transform: translateX(122%); } }
 @keyframes skr-spotlight-rtl { from { transform: translateX(0); } to { transform: translateX(-122%); } }
 .skr-voted { color: var(--success-ink); font-weight: 900; }
+/* بوم: the phones picking a card of their own get the bar in the danger colour. */
+.skr-actbar.skr-boom { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger), var(--sh-4); }
 
 /* --- Picking someone else's card, in the bar: the names, then that player's cards big --- */
 .skr-pickrow { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -7833,7 +7927,7 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 .skr-target:disabled { opacity: 0.45; cursor: default; }
 .skr-pickslots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .skr-pickslots .skr-slot { min-width: var(--tap); min-height: var(--tap); padding: 0.45rem 3px 2px; }
-.skr-pickslots .skr-slot__n { position: static; margin-top: 3px; }
+.skr-pickslots .skr-slot__n { margin-top: 3px; }
 
 /* --- The countdown over your two cards, when the look is timed --- */
 .skr-memo-timer { position: absolute; z-index: 2; inset-block-start: -0.9rem; inset-inline-end: 0.5rem; width: 2.5rem; height: 2.5rem; display: grid; place-items: center; border-radius: 50%; background: var(--surface-solid); box-shadow: var(--sh-2); pointer-events: none; }
@@ -7920,7 +8014,8 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
    hand and the bar fit a 375×812 screen with nothing under the bar --- */
 @media (orientation: portrait) and (max-width: 599px) {
   .skr-center { gap: var(--sp-4); margin-bottom: var(--sp-2); padding-block: var(--sp-1); }
-  .skr-center .skr-card--lg { --skr-w: 3rem; }
+  /* 58px: just over the size where a card keeps its corners and name band, so the pile says what it is. */
+  .skr-center .skr-card--lg { --skr-w: 3.625rem; }
   .skr-mine { margin-bottom: var(--sp-2); }
   .skr-actbar { gap: var(--sp-1); padding: var(--sp-2) var(--sp-3); }
   .skr-actbar .skr-prompt { font-size: var(--fs-body); }
@@ -7968,7 +8063,8 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 
 /* --- The TV: seats down both sides, the middle of the table between them --- */
 .skr-tv {
-  --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 7vmin) / 1.45), 5.2vw);
+  /* A seat's height: the name line and the number line (about 10vmin with padding) plus a card 1.42 wide. */
+  --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 10vmin) / 1.45), 5.2vw);
   height: 100%;
   min-height: 0;
   display: grid;
@@ -7985,7 +8081,8 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 .skr-tv .skr-slot { padding: 0.3vmin 0.2vmin 0; cursor: default; }
 .skr-tv .skr-seat .skr-card { --skr-w: var(--skr-tv-w); }
 .skr-tv .skr-seat--many .skr-card { --skr-w: calc(var(--skr-tv-w) * 0.78); }
-.skr-tv .skr-slot__n { min-width: 2.4vmin; height: 2.4vmin; font-size: 1.5vmin; }
+.skr-tv .skr-slot__n { margin-top: 0.2vmin; font-size: 1.5vmin; }
+.skr-tv .skr-avatar { width: 2.8vmin; height: 2.8vmin; font-size: 1.5vmin; }
 .skr-tv .skr-slot__badge { font-size: 1.6vmin; }
 .skr-tv__mid { min-height: 0; display: flex; flex-direction: column; justify-content: safe center; gap: var(--tv-gap); overflow: hidden; text-align: center; }
 .skr-tv .skr-head { margin: 0; }
@@ -7994,7 +8091,6 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 .skr-tv .skr-center { margin: 0; gap: 2.4vmin; padding: 1.6vmin; border-radius: var(--tv-r); }
 .skr-tv .skr-center .skr-card--md { --skr-w: 8vmin; }
 .skr-tv .skr-center .skr-card--lg { --skr-w: 10.5vmin; }
-.skr-tv .skr-center .skr-card__small { display: none; }
 .skr-tv .skr-zone__label { max-width: 16vmin; font-size: var(--tv-xs); }
 .skr-tv .skr-count { font-size: var(--tv-xs); }
 .skr-tv__host:empty { display: none; }
@@ -8034,9 +8130,10 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 .skr-tv .skr-flash { max-width: 18vmin; font-size: 1.6vmin; border-width: 0.2vmin; }
 .skr-tv__count { color: var(--warning-ink); font-size: 12vmin; line-height: 1; }
 /* Twelve seats down two sides of 1280×720: smaller cards and tighter seats, the signs still readable. */
-.skr-tv--many { --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 6.5vmin) / 1.45), 4.4vw); }
+.skr-tv--many { --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 8vmin) / 1.45), 4.4vw); }
 .skr-tv--many .skr-seat { gap: 0.3vmin; padding: 0.4vmin 1vmin; }
-.skr-tv--many .skr-slot__n { min-width: 2vmin; height: 2vmin; font-size: 1.3vmin; }
+.skr-tv--many .skr-slot__n { font-size: 1.3vmin; }
+.skr-tv--many .skr-avatar { width: 2.4vmin; height: 2.4vmin; font-size: 1.3vmin; }
 .skr-tv--many .skr-tv__mid { gap: calc(var(--tv-gap) * 0.6); }
 .skr-tv--many .tv-strip-inline .tv-chip { padding: 0.15em 0.6em; }
 /* A phone mirrored upright: one column, and the stage scrolls. */

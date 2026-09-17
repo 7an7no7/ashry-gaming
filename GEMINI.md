@@ -163,6 +163,13 @@ work changed. Add to it when a decision is made or a batch ships.
     caller's whole team is protected; memory is the game - moves show as they
     happen and fade, and a "memory helper" option (off by default) keeps each
     card's story.
+  - **بوم and صرخة أوسكار, as the owner described them later** (replacing the
+    first reading): بوم makes every other player (not whoever played it, not
+    the protected side) pick one of their own cards, and it goes onto the pile
+    face up whatever it is, the red screw and the thief included; صرخة أوسكار
+    gathers every unprotected hand, shuffles, and deals back the same count to
+    each player, face down and unknown to all. After either, whoever played it
+    takes a whole new turn.
   - Decided for the owner: the vote happens at the end of every round the
     thief card is in the deck, however the round ended; two decks keep one
     thief.
@@ -333,6 +340,11 @@ blind ranking, the word search), `countUp` for streaks and scores.
   (*Navigation*); the new-version toast no longer shows on a page that already
   is the new build. Robot tests: about 980 (the سكرو robots loop until every
   card they need has come up, so the count varies a little).
+- **17 Sep 2026, evening** - سكرو: بوم as a table-wide throw and صرخة أوسكار
+  as a blind re-deal, both giving the player a new turn (the owner's
+  descriptions); the new card design (colour blocks, drawn icons) and seat
+  layout the owner picked from a design sheet, with hands stacking in even
+  rows when they don't fit.
 
 ## Building and Running
 
@@ -939,7 +951,13 @@ default. Seats are shuffled at start and at play again.
   Laps count each time the turn passes the round's first seat, which moves on
   each round. After سكرو only `finalLeft` plays, and the caller's side (the
   caller, and the partners in teams) can't be the target of a swap, give,
-  see-and-swap, بوم or cannon, and the scream skips it; looking is allowed.
+  see-and-swap or cannon, and takes no part in بوم or the scream; looking is
+  allowed. بوم (`stage: 'boom'`, `shared.boom { waiting, picked }`,
+  `boomPick { slot }` from every other player, hidden until all are in or the
+  clock or host closes it with random picks) throws one card from each onto
+  the pile, anything goes; the scream gathers the unprotected hands, shuffles
+  and deals back the same counts with every look and known value wiped. After
+  either, the player who played it has a whole new turn (`stage: 'choose'`).
   بصرة on the red screw or the thief shows it and puts it back face down. A
   الخشاف pick counts as drawn from the deck (its power works); a بينج or
   المسحراتي picked that way plays itself.
@@ -991,11 +1009,29 @@ and `TV_GAMES.screw`; styles in section 16 of `Style.html`). Every hand is
 face down in numbered slots on every phone and the TV, drawn by one card
 builder, `skrCardHtml`, sized by `--skr-w`.
 
+- **The cards and seats the owner picked** (17 Sep 2026, from a sheet of three
+  card styles and three seat layouts; the first cards were a number or an
+  emoji with a name, "not like real cards"): style 3, colour blocks - each
+  card in its type's colour (`--skr-c-low` … `--skr-c-oscar`, the same in both
+  themes; `SKR_DESIGN` / `skrCardDesign`), a big white numeral in Baloo
+  Bhaijaan 2 or a white line icon (`skrIcon`, one set, also used for the
+  powers in the bars), the value in two corners and the name on a band from
+  56px wide up (a container query hides them below), and a violet dotted back
+  with the Ashry mark. No emoji on a card. Seat layout أ: a round avatar with
+  the first letter, the name and the tags on top, the cards in one row under
+  it with each slot's number under its card. When a hand doesn't fit one row,
+  `skrStackHands` (after every draw and on resize) stacks it in even rows, 2
+  over 2 or 3 over 3, with an odd card beside them, centred - the owner's
+  rule; a card left alone under three looked broken. Seats two a row give
+  their slots no side padding (`.skr-opps--grid`), or rounding dropped the
+  fourth card of a 375px phone.
+
 - **Memory is the game.** By default the table remembers nothing, as at a real
   table: every move is drawn as it happens - a flight between exact
   `data-skr-at` places (`skrPlay`, one choreography per event: the deal, the
   riffle of a reshuffle, draw, keep, take, a right or failed throw, each power
-  from the peek's lift to بوم's blast, the scream's slide, the vote's pins and
+  from the peek's lift to بوم's throws, the scream's gather, riffle and
+  re-deal, the vote's pins and
   the reveal's stamps; Web Animations of transform and opacity on fixed
   layers) - the places it touched glow with a sign for about 3 seconds
   (`skrFlash`, carried across redraws by `--skr-flash-at`), the latest move

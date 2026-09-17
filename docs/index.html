@@ -24,7 +24,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <!-- PWA-READY -->
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@800&family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 
     <style>
       /* The intro, there before any script runs: the mark settles, a line draws
@@ -7350,32 +7350,55 @@ button.herd-group { cursor: pointer; }
    lies face down in numbered slots, and a move flies between exact slots
    (.skr-ghost, a Web Animation of transform and opacity; .skr-hold keeps the
    end state hidden until it lands). One card component, .skr-card, sized by
-   --skr-w (its height is 1.4 times that): the back is the brand's violet
-   (data-accent="violet" on the card), a face takes its tone from what it is.
+   --skr-w (its height is 1.42 times that), in the owner's "colour blocks"
+   look: a face is the whole card in its type's colour (the --skr-c-* tokens,
+   the same in both themes) with a big white numeral or line icon; corners and
+   a name band only on the big ones (.is-full); the back is violet and dotted.
    ========================================================================== */
 
 /* --- The card --- */
+:root {
+  --skr-c-low: #0d9488;     /* 1-3 */
+  --skr-c-mid: #2563eb;     /* 4-6 */
+  --skr-c-look: #7c3aed;    /* 7-10 */
+  --skr-c-act: #4338ca;     /* خد وهات, بصرة, كعب داير */
+  --skr-c-bad: #dc2626;     /* +20, the red screw */
+  --skr-c-good: #15803d;    /* the green screw, -1 */
+  --skr-c-thief: #b45309;   /* الحرامي's three */
+  --skr-c-sahib: #0e7490;   /* صاحب صاحبه's three */
+  --skr-c-mesa: #9333ea;    /* المسحراتي's three */
+  --skr-c-oscar: #db2777;   /* أوسكار's four */
+  --skr-back-1: #7c3aed;
+  --skr-back-2: #4c1d95;
+}
+.skr-c--low { --c: var(--skr-c-low); }
+.skr-c--mid { --c: var(--skr-c-mid); }
+.skr-c--look { --c: var(--skr-c-look); }
+.skr-c--act { --c: var(--skr-c-act); }
+.skr-c--bad { --c: var(--skr-c-bad); }
+.skr-c--good { --c: var(--skr-c-good); }
+.skr-c--thief { --c: var(--skr-c-thief); }
+.skr-c--sahib { --c: var(--skr-c-sahib); }
+.skr-c--mesa { --c: var(--skr-c-mesa); }
+.skr-c--oscar { --c: var(--skr-c-oscar); }
+
 .skr-card {
+  --c: var(--skr-c-mid);
   position: relative;
   flex: none;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: calc(var(--skr-w, 3rem) * 0.04);
+  display: inline-grid;
+  place-items: center;
   width: var(--skr-w, 3rem);
-  height: calc(var(--skr-w, 3rem) * 1.4);
-  padding: calc(var(--skr-w, 3rem) * 0.06);
-  border: 1px solid var(--border-strong);
-  border-radius: calc(var(--skr-w, 3rem) * 0.14);
-  background: var(--surface-solid);
-  box-shadow: var(--sh-1);
-  color: var(--text-strong);
+  height: calc(var(--skr-w, 3rem) * 1.42);
+  border-radius: calc(var(--skr-w, 3rem) * 0.12);
+  color: #fff;
   font-family: var(--font);
-  font-size: calc(var(--skr-w, 3rem) * 0.24);
+  font-size: calc(var(--skr-w, 3rem) * 0.2);
   line-height: 1;
   vertical-align: top;
   overflow: hidden;
+  /* A card narrower than --skr-full hides its corners and band (below), whatever its class says. */
+  container-type: inline-size;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -7385,59 +7408,109 @@ button.herd-group { cursor: pointer; }
 .skr-card--lg { --skr-w: 3.75rem; }
 .skr-card--xl { --skr-w: 5rem; }
 .skr-card--fly { width: 100%; height: 100%; }
+.skr-card--face {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 78%, white), var(--c) 60%, color-mix(in srgb, var(--c) 80%, black));
+  box-shadow: 0 calc(var(--skr-w, 3rem) * 0.1) calc(var(--skr-w, 3rem) * 0.24) calc(var(--skr-w, 3rem) * -0.13) color-mix(in srgb, var(--c) 90%, black);
+}
+/* The soft shine in the top corner. */
+.skr-card--face::after { content: ''; position: absolute; inset-block-start: -30%; inset-inline-end: -40%; width: 90%; height: 70%; border-radius: 50%; background: rgba(255, 255, 255, 0.12); pointer-events: none; }
+.skr-card__art { position: relative; z-index: 1; display: grid; place-items: center; }
 .skr-card__big {
-  font-size: 2em;
-  font-weight: 900;
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.6);
+  font-weight: 800;
   line-height: 1;
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
   direction: ltr;
   unicode-bidi: isolate;
 }
-.skr-card__big--long { font-size: 1.5em; }
-.skr-card__small {
-  max-width: 100%;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 0.62em;
+.skr-card__big--long { font-size: calc(var(--skr-w, 3rem) * 0.42); }
+.skr-icon { display: block; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.skr-card .skr-card__art .skr-icon { width: calc(var(--skr-w, 3rem) * 0.66); height: calc(var(--skr-w, 3rem) * 0.66); stroke-width: 2.2; }
+/* The big cards: the value in the corners, the art lifted over the name band. */
+.skr-card.is-full .skr-card__big { font-size: calc(var(--skr-w, 3rem) * 0.52); }
+.skr-card.is-full .skr-card__big--long { font-size: calc(var(--skr-w, 3rem) * 0.38); }
+.skr-card.is-full .skr-card__art .skr-icon { width: calc(var(--skr-w, 3rem) * 0.5); height: calc(var(--skr-w, 3rem) * 0.5); stroke-width: 1.8; }
+.skr-card.is-full.has-name .skr-card__art { transform: translateY(calc(var(--skr-w, 3rem) * -0.1)); }
+.skr-card__mini {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: calc(var(--skr-w, 3rem) * 0.07);
+  inset-inline-start: calc(var(--skr-w, 3rem) * 0.09);
+  display: grid;
+  justify-items: center;
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.17);
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1;
+  opacity: 0.9;
+  direction: ltr;
+}
+.skr-card__mini .skr-icon { width: calc(var(--skr-w, 3rem) * 0.16); height: calc(var(--skr-w, 3rem) * 0.16); margin-top: 2px; stroke-width: 2.4; }
+.skr-card__mini--end { inset-block: auto calc(var(--skr-w, 3rem) * 0.07); inset-inline: auto calc(var(--skr-w, 3rem) * 0.09); transform: rotate(180deg); }
+.skr-card__name {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 0;
+  bottom: 0;
+  padding: calc(var(--skr-w, 3rem) * 0.035) 2px calc(var(--skr-w, 3rem) * 0.05);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.22);
+  font-family: 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.14);
+  font-weight: 800;
+  line-height: 1.15;
   text-align: center;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-/* Under 3.75rem the name is too small to read; the value or the icon says it. */
-.skr-card--xs .skr-card__small, .skr-card--sm .skr-card__small, .skr-card--md .skr-card__small { display: none; }
-/* The soft tints are see-through; laid over the solid card so a card on the pile
-   hides the one under it (the +20 below a 9 used to read through). */
-.skr-tone--command { border-color: var(--accent-border); background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--surface-solid); color: var(--accent-ink); }
-.skr-tone--danger  { border-color: var(--danger); background: linear-gradient(var(--danger-soft), var(--danger-soft)), var(--surface-solid); color: var(--danger-ink); }
-.skr-tone--success { border-color: var(--success); background: linear-gradient(var(--success-soft), var(--success-soft)), var(--surface-solid); color: var(--success-ink); }
-.skr-tone--gold    { border-color: var(--warning); background: linear-gradient(var(--warning-soft), var(--warning-soft)), var(--surface-solid); color: var(--warning-ink); }
+@container (max-width: 55px) {
+  .skr-card__mini, .skr-card__name { display: none; }
+  .skr-card.is-full .skr-card__art { transform: none; }
+}
+/* The back: violet, dotted, the Ashry mark on the big ones and "A." on the small. */
 .skr-card--back {
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--n-900));
-  background:
-    repeating-linear-gradient(45deg, color-mix(in srgb, var(--n-0) 14%, transparent) 0 1px, transparent 1px 7px),
-    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--n-0) 14%, transparent) 0 1px, transparent 1px 7px),
-    linear-gradient(155deg, var(--accent), color-mix(in srgb, var(--accent) 62%, var(--n-900)));
-  box-shadow: inset 0 0 0 calc(var(--skr-w, 3rem) * 0.045) color-mix(in srgb, var(--n-0) 22%, transparent), var(--sh-1);
+  background: linear-gradient(160deg, var(--skr-back-1), var(--skr-back-2));
+  box-shadow: 0 calc(var(--skr-w, 3rem) * 0.1) calc(var(--skr-w, 3rem) * 0.24) calc(var(--skr-w, 3rem) * -0.13) #2e1065;
+  color: #fcd34d;
 }
-.skr-card__mark { width: 68%; height: auto; aspect-ratio: 1; border-radius: 22%; box-shadow: var(--sh-2); }
-/* The memory helper's value known from the pile, small on a back. */
+.skr-card--back::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.2px, transparent 1.4px);
+  background-size: 9px 9px;
+  pointer-events: none;
+}
+.skr-card__mark { position: relative; z-index: 1; width: 68%; height: auto; aspect-ratio: 1; border-radius: 22%; box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.5); }
+.skr-card__a { position: relative; z-index: 1; color: #fff; font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font); font-size: calc(var(--skr-w, 3rem) * 0.3); font-weight: 800; line-height: 1; direction: ltr; }
+.skr-card__a i { color: #f5c451; font-style: normal; }
+/* The memory helper's value known from the pile: a white chip on the back, in that card's colour. */
 .skr-card__known {
-  padding: 0.05em 0.3em;
-  border-radius: 0.35em;
-  background: var(--surface-solid);
-  color: var(--accent-ink);
-  font-size: 1.2em;
-  font-weight: 900;
-  line-height: 1.1;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 62%;
+  padding: calc(var(--skr-w, 3rem) * 0.04) calc(var(--skr-w, 3rem) * 0.06);
+  border-radius: calc(var(--skr-w, 3rem) * 0.1);
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  color: var(--c);
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.32);
+  font-weight: 800;
+  line-height: 1;
   white-space: nowrap;
   direction: ltr;
   unicode-bidi: isolate;
 }
+.skr-card__known .skr-icon { width: calc(var(--skr-w, 3rem) * 0.34); height: calc(var(--skr-w, 3rem) * 0.34); stroke-width: 2.6; }
 .skr-card--empty { border: 2px dashed var(--border-strong); background: transparent; box-shadow: none; }
+/* A power's line icon in its card's colour, in the bars (the power, the vote, بوم). */
+.skr-chip { display: inline-grid; place-items: center; flex: none; width: 1.6em; height: 1.6em; margin-inline-end: 0.35em; border-radius: 0.45em; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 78%, white), var(--c) 60%, color-mix(in srgb, var(--c) 80%, black)); color: #fff; vertical-align: middle; }
+.skr-chip .skr-icon { width: 70%; height: 70%; stroke-width: 2.2; }
 
 /* --- The frame --- */
 .skr-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-1); margin-bottom: var(--sp-3); }
@@ -7466,20 +7539,13 @@ button.herd-group { cursor: pointer; }
   transition: opacity var(--dur-2) var(--ease-out);
 }
 .skr-slot__card { position: relative; display: block; transition: transform var(--dur-2) var(--ease-out); }
+/* Seat layout أ: the slot's number printed under its card, centred. */
 .skr-slot__n {
-  position: absolute;
-  inset-block-end: 0;
-  inset-inline-start: 0;
-  min-width: 1rem;
-  height: 1rem;
-  display: grid;
-  place-items: center;
-  padding: 0 3px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-full);
-  background: var(--surface-solid);
+  display: block;
+  margin-top: 2px;
   color: var(--text-2);
   font-size: 0.625rem;
+  line-height: 1.1;
   letter-spacing: 0;
 }
 .skr-slot__badge {
@@ -7505,6 +7571,16 @@ button.herd-group { cursor: pointer; }
 /* --- The other players: compact seats, a grid of two from three of them --- */
 .skr-opps { display: grid; grid-template-columns: repeat(var(--skr-cols, 1), minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-3); }
 .skr-opps--grid { --skr-cols: 2; }
+/* Two seats a row leave each seat just enough for four cards: the slots give
+   up their side padding, or rounding pushed the fourth card onto a line of
+   its own. */
+.skr-opps--grid .skr-slots { gap: 2px; }
+.skr-opps--grid .skr-slot { padding-inline: 1px; }
+/* A hand that doesn't fit one row (skrStackHands): even rows, 2 over 2 or 3
+   over 3, and an odd card beside them, centred. */
+.skr-slots.is-stacked { display: grid; grid-template-columns: repeat(var(--skr-stack-cols, 2), auto); justify-content: center; align-items: start; }
+.skr-slots.is-stacked.is-odd { grid-template-columns: repeat(var(--skr-stack-cols, 2), auto) auto; }
+.skr-slots.is-stacked.is-odd > .skr-slot:last-child { grid-column: -2 / -1; grid-row: 1 / span 2; align-self: center; }
 .skr-seat {
   position: relative;
   min-width: 0;
@@ -7538,10 +7614,23 @@ button.herd-group { cursor: pointer; }
 .skr-seat__head { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 /* The last move under a name, with the memory helper: one line, cut short rather than wrapped. */
 .skr-seat__last { display: block; min-width: 0; overflow: hidden; color: var(--text-2); font-size: 0.6875rem; font-weight: 700; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
-.skr-opps--wide .skr-seat { flex-direction: row; align-items: center; gap: var(--sp-2); }
-.skr-opps--wide .skr-seat__head { flex: 0 0 6rem; }
-.skr-opps--wide .skr-seat__who { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; }
-.skr-opps--wide .skr-seat__name { flex: none; max-width: 100%; }
+.skr-seat .skr-slots { justify-content: center; }
+.skr-seat__tags { margin-inline-start: auto; }
+.skr-avatar {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f5c451;
+  color: #3b2a05;
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.skr-avatar--0 { background: var(--team-blue); color: #fff; }
+.skr-avatar--1 { background: var(--team-red); color: #fff; }
 .skr-seat.is-turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 6px 18px -10px var(--accent-glow); }
 .skr-seat.is-away { opacity: 0.6; }
 .skr-seat.is-target, .skr-seat.is-picked { border-color: var(--accent); }
@@ -7616,7 +7705,7 @@ button.herd-group { cursor: pointer; }
    two lines rather than widening the slot, which pushed the fourth card of a
    375px phone onto a row of its own. */
 .skr-slots--mine .skr-slot { min-width: var(--tap); width: calc(var(--skr-mine-w) + 0.25rem); padding-top: var(--sp-1); }
-.skr-slots--mine .skr-slot__n { position: static; margin-top: 4px; }
+.skr-slots--mine .skr-slot__n { margin-top: 4px; font-size: var(--fs-xs); font-weight: 800; }
 .skr-slot__mark {
   display: -webkit-box;
   max-width: 100%;
@@ -7655,7 +7744,10 @@ button.herd-group { cursor: pointer; }
 .skr-note .btn { width: auto; }
 .skr-prompt { margin: 0; color: var(--text-strong); font-size: var(--fs-h3); font-weight: 900; line-height: 1.35; text-align: center; }
 .skr-prompt.is-mine { color: var(--accent-ink); }
-.skr-power { display: block; margin-bottom: 2px; color: var(--text-strong); font-size: var(--fs-h2); }
+.skr-power { display: flex; align-items: center; justify-content: center; margin-bottom: 2px; color: var(--text-strong); font-size: var(--fs-h2); }
+.skr-prompt > .skr-power { display: inline-flex; margin: 0; vertical-align: middle; font-size: 1em; }
+.skr-hint--power { display: flex; align-items: center; justify-content: center; }
+.skr-choices .btn .skr-chip { font-size: 1rem; }
 .skr-hint { margin: 0; color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; line-height: 1.4; text-align: center; }
 .skr-summary { margin: 0; padding: var(--sp-2); border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-ink); font-weight: 800; text-align: center; overflow-wrap: anywhere; }
 .skr-rule { width: 100%; height: 1px; margin: 0; border: 0; background: var(--hairline); }
@@ -7871,6 +7963,8 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 @keyframes skr-spotlight { from { transform: translateX(0); } to { transform: translateX(122%); } }
 @keyframes skr-spotlight-rtl { from { transform: translateX(0); } to { transform: translateX(-122%); } }
 .skr-voted { color: var(--success-ink); font-weight: 900; }
+/* بوم: the phones picking a card of their own get the bar in the danger colour. */
+.skr-actbar.skr-boom { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger), var(--sh-4); }
 
 /* --- Picking someone else's card, in the bar: the names, then that player's cards big --- */
 .skr-pickrow { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -7902,7 +7996,7 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 .skr-target:disabled { opacity: 0.45; cursor: default; }
 .skr-pickslots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .skr-pickslots .skr-slot { min-width: var(--tap); min-height: var(--tap); padding: 0.45rem 3px 2px; }
-.skr-pickslots .skr-slot__n { position: static; margin-top: 3px; }
+.skr-pickslots .skr-slot__n { margin-top: 3px; }
 
 /* --- The countdown over your two cards, when the look is timed --- */
 .skr-memo-timer { position: absolute; z-index: 2; inset-block-start: -0.9rem; inset-inline-end: 0.5rem; width: 2.5rem; height: 2.5rem; display: grid; place-items: center; border-radius: 50%; background: var(--surface-solid); box-shadow: var(--sh-2); pointer-events: none; }
@@ -7989,7 +8083,8 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
    hand and the bar fit a 375×812 screen with nothing under the bar --- */
 @media (orientation: portrait) and (max-width: 599px) {
   .skr-center { gap: var(--sp-4); margin-bottom: var(--sp-2); padding-block: var(--sp-1); }
-  .skr-center .skr-card--lg { --skr-w: 3rem; }
+  /* 58px: just over the size where a card keeps its corners and name band, so the pile says what it is. */
+  .skr-center .skr-card--lg { --skr-w: 3.625rem; }
   .skr-mine { margin-bottom: var(--sp-2); }
   .skr-actbar { gap: var(--sp-1); padding: var(--sp-2) var(--sp-3); }
   .skr-actbar .skr-prompt { font-size: var(--fs-body); }
@@ -8037,7 +8132,8 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 
 /* --- The TV: seats down both sides, the middle of the table between them --- */
 .skr-tv {
-  --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 7vmin) / 1.45), 5.2vw);
+  /* A seat's height: the name line and the number line (about 10vmin with padding) plus a card 1.42 wide. */
+  --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 10vmin) / 1.45), 5.2vw);
   height: 100%;
   min-height: 0;
   display: grid;
@@ -8054,7 +8150,8 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 .skr-tv .skr-slot { padding: 0.3vmin 0.2vmin 0; cursor: default; }
 .skr-tv .skr-seat .skr-card { --skr-w: var(--skr-tv-w); }
 .skr-tv .skr-seat--many .skr-card { --skr-w: calc(var(--skr-tv-w) * 0.78); }
-.skr-tv .skr-slot__n { min-width: 2.4vmin; height: 2.4vmin; font-size: 1.5vmin; }
+.skr-tv .skr-slot__n { margin-top: 0.2vmin; font-size: 1.5vmin; }
+.skr-tv .skr-avatar { width: 2.8vmin; height: 2.8vmin; font-size: 1.5vmin; }
 .skr-tv .skr-slot__badge { font-size: 1.6vmin; }
 .skr-tv__mid { min-height: 0; display: flex; flex-direction: column; justify-content: safe center; gap: var(--tv-gap); overflow: hidden; text-align: center; }
 .skr-tv .skr-head { margin: 0; }
@@ -8063,7 +8160,6 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 .skr-tv .skr-center { margin: 0; gap: 2.4vmin; padding: 1.6vmin; border-radius: var(--tv-r); }
 .skr-tv .skr-center .skr-card--md { --skr-w: 8vmin; }
 .skr-tv .skr-center .skr-card--lg { --skr-w: 10.5vmin; }
-.skr-tv .skr-center .skr-card__small { display: none; }
 .skr-tv .skr-zone__label { max-width: 16vmin; font-size: var(--tv-xs); }
 .skr-tv .skr-count { font-size: var(--tv-xs); }
 .skr-tv__host:empty { display: none; }
@@ -8103,9 +8199,10 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 .skr-tv .skr-flash { max-width: 18vmin; font-size: 1.6vmin; border-width: 0.2vmin; }
 .skr-tv__count { color: var(--warning-ink); font-size: 12vmin; line-height: 1; }
 /* Twelve seats down two sides of 1280×720: smaller cards and tighter seats, the signs still readable. */
-.skr-tv--many { --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 6.5vmin) / 1.45), 4.4vw); }
+.skr-tv--many { --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 8vmin) / 1.45), 4.4vw); }
 .skr-tv--many .skr-seat { gap: 0.3vmin; padding: 0.4vmin 1vmin; }
-.skr-tv--many .skr-slot__n { min-width: 2vmin; height: 2vmin; font-size: 1.3vmin; }
+.skr-tv--many .skr-slot__n { font-size: 1.3vmin; }
+.skr-tv--many .skr-avatar { width: 2.4vmin; height: 2.4vmin; font-size: 1.3vmin; }
 .skr-tv--many .skr-tv__mid { gap: calc(var(--tv-gap) * 0.6); }
 .skr-tv--many .tv-strip-inline .tv-chip { padding: 0.15em 0.6em; }
 /* A phone mirrored upright: one column, and the stage scrolls. */
@@ -11271,7 +11368,7 @@ function skrewDecksFor(players) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260917081231";
+      window.BUILD_ID = "20260917085939";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -16491,8 +16588,6 @@ function skrewDecksFor(players) {
       skr_log_wakeup: "🥁 {a}: المسحراتي! الكروت هتتكشف",
       skr_log_cannon: "💥 {a}: المدفع على {b}، وكروت {b} مكشوفة للكل",
       skr_log_khoshaf: "🥣 {a}: الخشاف، 4 كروت من الورق",
-      skr_log_scream_by: "😱 {a}: صرخة أوسكار! كل إيد راحت للي بعده",
-      skr_log_scream: "😱 صرخة أوسكار: كل إيد راحت للي بعده",
       skr_log_skip: "⏭️ الدور عدّى: {a}",
       skr_no_thief: "مفيش حرامي",
       skr_log_reveal: "🃏 الكروت اتكشفت",
@@ -16514,7 +16609,6 @@ function skrewDecksFor(players) {
       skr_power_seeswap: "اختار كارت من عند حد تاني تشوفه، وبعدها تبدّله أو تسيبه",
       skr_power_cannon: "اختار لاعب كروته تتكشف للكل لآخر الجولة",
       skr_power_khoshaf: "شوف أول 4 كروت في الورق وخد واحد",
-      skr_power_scream: "كل إيد هتروح للاعب اللي بعده",
       skr_screw_confirm: "تقول سكرو؟ كل واحد تاني هيلعب دور أخير، وبعدها الكروت تتكشف.",
       skr_mark_none: "محدش لمسه من ساعة ما اتوزّع",
       skr_protected: "سكرو: الكروت دي محمية",
@@ -16598,7 +16692,6 @@ function skrewDecksFor(players) {
       skr_h_pile_plain: "⬆️ من الأرض",
       skr_h_penalty: "➕ كارت عقاب",
       skr_h_swap: "🔄 من {ref}",
-      skr_h_scream: "😱 من {ref}",
       skr_h_now: "دلوقتي",
       skr_h_ago_1: "من دور واحد",
       skr_h_ago_2: "من دورين",
@@ -16608,7 +16701,6 @@ function skrewDecksFor(players) {
       skr_log_match_back: "❌ {a}: {x} ({card}) مش زيّه، ورجع مقلوب، وكارت عقاب في خانة جديدة",
       skr_log_basra_back: "🗑️ {a}: {x} ({card}) مينفعش يترمي، ورجع مقلوب",
       skr_log_pong_back: "❌ {a}: {x} ({card}) مش بونج، ورجع مقلوب، وكارت عقاب في خانة جديدة",
-      skr_log_boom: "💣 {a}: بوم على {x} ({card})، والكارت على الأرض",
       skr_log_finish: "🏁 كروت {a} خلصت: الجولة انتهت",
       skr_log_last_lap: "💀 الورق خلص: دور أخير للكل",
       skr_log_pass: "⏭️ دور {a} عدّى من غير لعب",
@@ -16662,8 +16754,29 @@ function skrewDecksFor(players) {
       skr_band_screw: "📣 سكرو! آخر لفة",
       skr_band_last_lap: "الورق خلص: آخر لفة",
       skr_band_round_over: "الجولة خلصت",
-      skr_power_boom: "اختار كارت من عند لاعب تاني يتفجّر ويروح على الأرض مكشوف",
       turn_thief_vote: "مين معاه الحرامي؟ صوّت",
+      skr_h_scream_deal: "😱 اتوزّع من جديد بعد الصرخة",
+      skr_log_scream_deal: "😱 {a}: صرخة أوسكار! الكروت اتلمّت واتخلطت واتوزّعت من جديد مقلوبة ({n})",
+      skr_log_scream_deal_all: "😱 صرخة أوسكار: الكروت اتلمّت واتخلطت واتوزّعت من جديد مقلوبة ({n})",
+      skr_log_boom_all: "💣 {a}: بوم! كل واحد تاني بيرمي كارت من كروته",
+      skr_log_boom_pick: "💣 اختيار {a} اتسجّل",
+      skr_log_boom_throw: "💥 {x} ({card}) طار على الأرض",
+      skr_boom_pick: "💣 بوم! اختار كارت من كروتك يترمي على الأرض",
+      skr_boom_from: "💣 بوم من {name}: كل واحد بيرمي كارت",
+      skr_after_boom: "💣 بعد بوم: دور {name} تاني",
+      skr_after_scream: "😱 بعد الصرخة: دور {name} تاني",
+      skr_boom_go: "بوم!",
+      skr_boom_picked: "اختاروا {n}/{m}",
+      skr_boom_close: "كمّل من غير الباقي",
+      skr_boom_done: "اتسجّل - مستنيين الباقي",
+      skr_your_turn_again: "دورك تاني!",
+      skr_band_boom: "بوم! كل واحد يرمي كارت من كروته",
+      skr_boom_lucky: "نجاة",
+      skr_power_boom_all: "كل لاعب تاني هيختار كارت من كروته المقلوبة يترمي على الأرض، وبعدها دورك تاني",
+      skr_power_scream_deal: "الكروت كلها تتلم وتتخلط وتتوزّع تاني مقلوبة، نفس العدد لكل واحد، وبعدها دورك تاني",
+      turn_boom_pick: "بوم! اختار كارت من كروتك",
+      skr_card_penalty: "عقاب",
+      skr_card_minus1: "سالب واحد",
     },
     en: {
       title: "Ashry Gaming",
@@ -18283,8 +18396,6 @@ function skrewDecksFor(players) {
       skr_log_wakeup: "🥁 {a}: El-Mesaharaty! Cards up",
       skr_log_cannon: "💥 {a} fired the cannon at {b}: that hand is face up",
       skr_log_khoshaf: "🥣 {a}: Khoshaf, four cards from the deck",
-      skr_log_scream_by: "😱 {a}: Oscar's scream! Every hand moved on one seat",
-      skr_log_scream: "😱 Oscar's scream: every hand moved on one seat",
       skr_log_skip: "⏭️ Turn skipped: {a}",
       skr_no_thief: "No thief",
       skr_log_reveal: "🃏 The cards are revealed",
@@ -18306,7 +18417,6 @@ function skrewDecksFor(players) {
       skr_power_seeswap: "Pick someone else's card to look at, then swap it or leave it",
       skr_power_cannon: "Pick a player whose hand turns face up until the round ends",
       skr_power_khoshaf: "See the top four cards and take one",
-      skr_power_scream: "Every hand passes to the next player",
       skr_screw_confirm: "Call Screw? Everyone else gets one last turn, then the cards are revealed.",
       skr_mark_none: "Untouched since the deal",
       skr_protected: "Called Screw; the hand is protected",
@@ -18390,7 +18500,6 @@ function skrewDecksFor(players) {
       skr_h_pile_plain: "⬆️ From the pile",
       skr_h_penalty: "➕ A penalty card",
       skr_h_swap: "🔄 From {ref}",
-      skr_h_scream: "😱 From {ref}",
       skr_h_now: "just now",
       skr_h_ago_1: "1 turn ago",
       skr_h_ago_2: "2 turns ago",
@@ -18400,7 +18509,6 @@ function skrewDecksFor(players) {
       skr_log_match_back: "❌ {a}: {x} ({card}) didn't match; it went back face down, and a penalty card joined the hand",
       skr_log_basra_back: "🗑️ {a}: {x} ({card}) can't be thrown; it went back face down",
       skr_log_pong_back: "❌ {a}: {x} ({card}) wasn't Pong; it went back face down, and a penalty card joined the hand",
-      skr_log_boom: "💣 {a} blew up {x} ({card}) onto the pile",
       skr_log_finish: "🏁 {a} is out of cards: the round is over",
       skr_log_last_lap: "💀 The deck is empty: one last turn each",
       skr_log_pass: "⏭️ {a} passed",
@@ -18454,8 +18562,29 @@ function skrewDecksFor(players) {
       skr_band_screw: "📣 Screw! Last lap",
       skr_band_last_lap: "The deck is empty: last lap",
       skr_band_round_over: "The round is over",
-      skr_power_boom: "Pick another player's card to blow up onto the pile, face up",
       turn_thief_vote: "Who holds the thief? Vote",
+      skr_h_scream_deal: "😱 Dealt again after the scream",
+      skr_log_scream_deal: "😱 {a}: Oscar's scream! The cards were gathered, shuffled and dealt out again face down ({n})",
+      skr_log_scream_deal_all: "😱 Oscar's scream: the cards were gathered, shuffled and dealt out again face down ({n})",
+      skr_log_boom_all: "💣 {a}: Boom! Everyone else throws one of their own cards",
+      skr_log_boom_pick: "💣 {a} picked a card",
+      skr_log_boom_throw: "💥 {x} ({card}) flew onto the pile",
+      skr_boom_pick: "💣 Boom! Pick one of your cards to throw on the pile",
+      skr_boom_from: "💣 Boom from {name}: everyone throws a card",
+      skr_after_boom: "💣 After Boom: {name}'s turn again",
+      skr_after_scream: "😱 After the scream: {name}'s turn again",
+      skr_boom_go: "Boom!",
+      skr_boom_picked: "Picked {n}/{m}",
+      skr_boom_close: "Go on without the rest",
+      skr_boom_done: "Picked - waiting for the others",
+      skr_your_turn_again: "Your turn again!",
+      skr_band_boom: "Boom! Everyone throws one of their own cards",
+      skr_boom_lucky: "Lucky escape",
+      skr_power_boom_all: "Every other player picks one of their own face-down cards to throw on the pile; then it is your turn again",
+      skr_power_scream_deal: "Every hand is gathered, shuffled and dealt out again face down, the same number each; then it is your turn again",
+      turn_boom_pick: "Boom! Pick one of your cards",
+      skr_card_penalty: "Penalty",
+      skr_card_minus1: "Minus one",
     }
   };
 
@@ -20327,8 +20456,8 @@ const GAME_RULES = {
             <details class="help-more">
                 <summary>😱 أوسكار</summary>
                 <ul class="list-disc list-inside space-y-1 text-xs">
-                    <li><b>صرخة أوسكار</b>: كل الإيدين بتتنقل للاعب اللي بعده، فاللي كنت حافظه راح لغيرك. إيد اللي قال سكرو بتفضل مكانها.</li>
-                    <li><b>بوم</b>: تختار كارت من كروت أي لاعب تاني، ويترمي على طول على الأرض مكشوف.</li>
+                    <li><b>صرخة أوسكار</b>: كروت كل اللاعيبة بتتلم وتتخلط وتتوزّع تاني مقلوبة، كل واحد بنفس عدد كروته، ومحدش يعرف أي كارت جاله: اللي كنت حافظه راح. كروت اللي قال سكرو (وفريقه) بتفضل مكانها. وبعدها اللي لعبها ياخد دور كامل تاني.</li>
+                    <li><b>بوم</b>: كل لاعب تاني (غير اللي لعبه، وغير فريق اللي قال سكرو) يختار كارت من كروته ويترمي على الأرض مكشوف، أي كارت كان، حتى السكرو الأحمر أو الحرامي (نجا منه). ولو إيد حد فضيت، الجولة بتخلص. وبعدها اللي لعبه ياخد دور كامل تاني.</li>
                     <li><b>اللايف جاكيت</b>: مالوش قيمة لوحده، بيتحسب زي أحسن (أقل) كارت في نفس الإيد، فجنب −1 يبقى −1 تاني. لو مفيش غيره في الإيد بـ 10.</li>
                 </ul>
             </details>
@@ -21081,8 +21210,8 @@ const GAME_RULES = {
             <details class="help-more">
                 <summary>😱 Oscar</summary>
                 <ul class="list-disc list-inside space-y-1 text-xs">
-                    <li><b>Oscar's scream</b>: every hand passes to the next player, so what you memorised is now someone else's. The caller's hand stays where it is.</li>
-                    <li><b>Boom</b>: pick a card of any other player; it goes straight onto the pile, face up.</li>
+                    <li><b>Oscar's scream</b>: everyone's cards are gathered, shuffled and dealt back face down, each player getting as many as they had, and nobody knows which card they got: whatever you memorised is gone. The caller's cards (and their team's) stay where they are. Then whoever played it takes a whole new turn.</li>
+                    <li><b>Boom</b>: every other player (not whoever played it, and not the caller's side) picks one of their own cards and it goes onto the pile face up, whatever it is, even the red screw or the thief (a lucky escape). If a hand runs out, the round ends. Then whoever played it takes a whole new turn.</li>
                     <li><b>Life jacket</b>: no value of its own; it counts as the best (lowest) card in the same hand, so next to a −1 it is a second −1. Alone in a hand it counts 10.</li>
                 </ul>
             </details>
@@ -56290,7 +56419,9 @@ const SKR_ADDONS = ['thief', 'sahib', 'mesaharaty', 'oscar'];
 const SKR_BY_VALUE = /^(p7|p8|s9|s10)$/;
 const SKR_FLY_MS = 440;
 const SKR_STEP_MS = SKR_FLY_MS + 90;
+const SKR_FULL_PX = 56;             // from this width a card shows its corners and name band
 const SKR_NONE = '__none';          // "no thief" as a vote bar's id
+const SKR_BOOM_CLOSE = 'closeBoom';  // the host's way past a phone that doesn't pick its بوم card
 
 /** What only this phone holds: the move being chosen, the look already closed, the clock, its vote. */
 const skrLocal = { pick: null, pickKey: '', seenClosed: '', clock: null, clockKey: null, slots: {}, eventNs: {}, slotsKey: '', turnMine: false,
@@ -56394,7 +56525,7 @@ function setSkrOpt(key, value) {
 
 /* --- the cards --------------------------------------------------------------- */
 
-/** How a card reads: its tone, the big line (a value or an icon), the small line. */
+/** What a card is, for the words about it (skrCardDesign says how it is drawn). */
 function skrCardInfo(id) {
   const c = typeof SKREW_CARDS !== 'undefined' ? SKREW_CARDS[id] : null;
   if (!c) return null;
@@ -56413,6 +56544,70 @@ function skrCardInfo(id) {
   return { id: id, card: c, name: name, tone: tone, big: big, small: small, icon: c.icon || '', value: c.value, power: c.power || null, drawn: c.drawn || null };
 }
 
+/*
+   The card's look (the owner's pick of 17 Sep 2026, "بلوكات ألوان"): the whole
+   face in its type's colour, a big white numeral or line icon, the value in
+   the corners and the name on a dark band at the bottom - corners and band only
+   on the big cards (your hand, the pile, the card in hand); on the table's
+   small cards just the numeral or the icon. No emoji on a card: the icons are
+   24×24 line drawings, kept here once (skrIcon) and used wherever a power
+   stands for its card.
+*/
+const SKR_ICONS = {
+  eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/>',
+  swap: '<path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/>',
+  basra: '<path d="M12 3v9M8 8.5l4 4 4-4M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/>',
+  around: '<path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/><circle cx="12" cy="12" r="2"/>',
+  screw: '<path d="M7 3.5h10l-1.5 3h-7z"/><path d="M9.5 6.5v11l2.5 3.5 2.5-3.5v-11"/><path d="M9.5 9.2l5 1.4M9.5 12.2l5 1.4M9.5 15.2l5 1.4"/>',
+  mask: '<path d="M3 9.5c2.5-2.5 6-2.8 9-1 3-1.8 6.5-1.5 9 1-.5 4.5-4 6-6.5 4.2-1-.8-1.7-1.2-2.5-1.2s-1.5.4-2.5 1.2C7 15.5 3.5 14 3 9.5z"/><path d="M7.3 10.6h2.2M14.5 10.6h2.2"/>',
+  gift: '<rect x="3.5" y="9" width="17" height="11" rx="1.5"/><path d="M3.5 13h17M12 9v11M12 9c-1.2-3-5-4-5-1.4S12 9 12 9zm0 0c1.2-3 5-4 5-1.4S12 9 12 9z"/>',
+  eyeswap: '<path d="M2.5 9s2.6-4.5 7.5-4.5S17.5 9 17.5 9 14.9 13.5 10 13.5 2.5 9 2.5 9z"/><circle cx="10" cy="9" r="2"/><path d="M8 19h12M17.5 16.5 20 19l-2.5 2.5"/>',
+  paddle: '<circle cx="9" cy="9" r="6"/><path d="M13.3 13.3 20 20"/><circle cx="19" cy="5" r="1.6"/>',
+  ball: '<circle cx="12" cy="12" r="8"/><path d="M4.6 9.5c4 1.6 10.8 1.6 14.8 0M4.6 14.5c4-1.6 10.8-1.6 14.8 0"/>',
+  star: '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+  drum: '<ellipse cx="12" cy="9" rx="8" ry="3"/><path d="M4 9v7c0 1.7 3.6 3 8 3s8-1.3 8-3V9M5 3.5l4 4M19 3.5l-4 4"/>',
+  cannon: '<path d="M3 13.5 15 8l2.5 4.6-12 5.4z"/><circle cx="7.5" cy="18" r="2.8"/><path d="M19.5 7l2-1.2M20 10h2.3M18.5 4.2l.9-1.7"/>',
+  bowl: '<path d="M3 11h18a9 9 0 0 1-18 0z"/><path d="M9 8c0-1.6 1.5-1.6 1.5-3.4M13.5 8c0-1.6 1.5-1.6 1.5-3.4M8 21h8"/>',
+  scream: '<circle cx="12" cy="12.5" r="7.5"/><ellipse cx="12" cy="15.5" rx="2" ry="2.8"/><path d="M9 10h.01M15 10h.01M3 5l2 1.5M21 5l-2 1.5M12 1.5V3"/>',
+  bomb: '<circle cx="10.5" cy="14" r="6.5"/><path d="M15 9.5l2.5-2.5M18.5 3v2M21 5.5h-2M20.3 3.7l-1.4 1.4"/>',
+  ring: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M6 6l3.1 3.1M18 6l-3.1 3.1M6 18l3.1-3.1M18 18l-3.1-3.1"/>'
+};
+
+/** One line icon from the set, as inline SVG in the text colour. */
+function skrIcon(name, cls) {
+  const d = SKR_ICONS[name];
+  return d ? `<svg class="skr-icon${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>` : '';
+}
+
+/*
+   Each card: its colour group (the --skr-c-* tokens in Style.html section 16),
+   its icon, and whether the icon is the card's big face (a power card) or a
+   small sign in the corner beside its numeral (7-10).
+*/
+const SKR_DESIGN = {
+  n1: ['low'], n2: ['low'], n3: ['low'], n4: ['mid'], n5: ['mid'], n6: ['mid'],
+  p7: ['look', 'eye'], p8: ['look', 'eye'], s9: ['look', 'search'], s10: ['look', 'search'],
+  swap: ['act', 'swap', true], basra: ['act', 'basra', true], around: ['act', 'around', true],
+  plus20: ['bad'], red25: ['bad', 'screw', true], green0: ['good', 'screw', true], minus1: ['good'],
+  thief: ['thief', 'mask', true], takeOnly: ['thief', 'gift', true], seeSwap: ['thief', 'eyeswap', true],
+  ping: ['sahib', 'paddle', true], pong: ['sahib', 'ball', true], asYouLike: ['sahib', 'star', true],
+  mesaharaty: ['mesa', 'drum', true], cannon: ['mesa', 'cannon', true], khoshaf: ['mesa', 'bowl', true],
+  scream: ['oscar', 'scream', true], boom: ['oscar', 'bomb', true], lifeJacket: ['oscar', 'ring', true]
+};
+
+/** How a card is drawn: colour group, icon, whether the icon is its face, its corner value and its name. */
+function skrCardDesign(id) {
+  const c = typeof SKREW_CARDS !== 'undefined' ? SKREW_CARDS[id] : null;
+  if (!c) return null;
+  const d = SKR_DESIGN[id] || [c.kind === 'number' ? 'mid' : 'act', null, false];
+  const label = id === 'plus20' ? '+20' : id === 'minus1' ? '−1' : c.copy ? '=' : String(c.value);
+  let name = c.kind === 'number' ? '' : appState.lang === 'en' ? c.en : c.ar;
+  if (id === 'plus20') name = skrT('skr_card_penalty', 'عقاب', 'Penalty');
+  if (id === 'minus1') name = skrT('skr_card_minus1', 'سالب واحد', 'Minus one');
+  return { group: d[0], icon: d[1] || null, iconFace: !!(d[2] && d[1]), label: label, name: name };
+}
+
 /** A card in words, for the log and the prompts: "5", "9 🔍", "🔄 خد وهات". */
 function skrCardLabel(id) {
   const info = skrCardInfo(id);
@@ -56425,33 +56620,55 @@ function skrCardLabel(id) {
 
 /**
  * One card, everywhere: a slot, the pile, the TV, a flight. `id` null is the
- * back (the brand's violet, with the mark on the big ones). `size` is xs, sm,
- * md, lg, xl, or fly (the flight's own width). `known` (a card id) writes
- * that card small on the back: the memory helper's value from the pile.
+ * back (violet, dotted, the Ashry mark on the big ones and "A." on the small).
+ * `size` is xs, sm, md (the table's: the numeral or icon only), lg, xl (your
+ * hand, the pile, the card in hand: with corners and the name band), or fly
+ * (a flight's own width, `full` for a big one). `known` (a card id) is the
+ * memory helper's value from the pile, a white chip on the back; `value`
+ * replaces the corner value (a life jacket's counted value at the reveal).
  */
 function skrCardHtml(id, opts) {
-  const size = (opts && opts.size) || 'md';
-  const info = id ? skrCardInfo(id) : null;
-  if (!info) {
-    const known = opts && opts.known ? skrCardInfo(opts.known) : null;
-    const mark = known ? `<b class="skr-card__known">${escapeHTML(known.big)}</b>`
-      : size === 'lg' || size === 'xl' ? '<svg class="skr-card__mark" aria-hidden="true"><use href="#ashry-mark"/></svg>' : '';
-    return `<span class="skr-card skr-card--${size} skr-card--back" data-accent="violet" aria-hidden="true">${mark}</span>`;
+  const o = opts || {};
+  const size = o.size || 'md';
+  const full = size === 'lg' || size === 'xl' || (size === 'fly' && !!o.full);
+  const d = id ? skrCardDesign(id) : null;
+  if (!d) {
+    const known = o.known ? skrCardDesign(o.known) : null;
+    const inner = known
+      ? `<b class="skr-card__known skr-c--${known.group}">${known.iconFace ? skrIcon(known.icon) : escapeHTML(known.label)}</b>`
+      : full ? '<svg class="skr-card__mark" aria-hidden="true"><use href="#ashry-mark"/></svg>'
+      : size === 'xs' ? '' : '<b class="skr-card__a">A<i>.</i></b>';
+    return `<span class="skr-card skr-card--${size} skr-card--back${full ? ' is-full' : ''}" aria-hidden="true">${inner}</span>`;
   }
-  return `<span class="skr-card skr-card--${size} skr-card--face skr-tone--${info.tone}" role="img" aria-label="${escapeHTML(skrCardLabel(id))}">`
-    + `<b class="skr-card__big${Array.from(info.big).length > 2 ? ' skr-card__big--long' : ''}">${escapeHTML(info.big)}</b>`
-    + (info.small ? `<span class="skr-card__small">${escapeHTML(info.small)}</span>` : '')
-    + `</span>`;
+  const label = o.value !== undefined && o.value !== null ? String(o.value).replace(/^-/, '−') : d.label;
+  const art = d.iconFace
+    ? skrIcon(d.icon)
+    : `<b class="skr-card__big${Array.from(d.label).length > 2 ? ' skr-card__big--long' : ''}">${escapeHTML(d.label)}</b>`;
+  const corners = full
+    ? `<span class="skr-card__mini">${escapeHTML(label)}${d.icon && !d.iconFace ? skrIcon(d.icon) : ''}</span><span class="skr-card__mini skr-card__mini--end">${escapeHTML(label)}</span>`
+    : '';
+  const band = full && d.name ? `<span class="skr-card__name">${escapeHTML(d.name)}</span>` : '';
+  return `<span class="skr-card skr-card--${size} skr-card--face skr-c--${d.group}${full ? ' is-full' : ''}${band ? ' has-name' : ''}" role="img" aria-label="${escapeHTML(d.name ? d.name + ' (' + label + ')' : label)}">`
+    + `${corners}<span class="skr-card__art">${art}</span>${band}</span>`;
 }
 
 const skrEmptyCard = (size) => `<span class="skr-card skr-card--${size || 'md'} skr-card--empty" aria-hidden="true"></span>`;
 
-/** A power in words, from the card that carries it: its icon and name. */
+/** A power in words, from the card that carries it: its emoji (for text), its line icon (for the page) and name. */
 function skrPowerInfo(power) {
   const ids = typeof SKREW_CARDS !== 'undefined' ? Object.keys(SKREW_CARDS) : [];
   const id = ids.find(k => SKREW_CARDS[k].power === power) || (ids.indexOf(power) !== -1 ? power : null);
   const c = id ? SKREW_CARDS[id] : null;
-  return c ? { icon: c.icon || '', name: appState.lang === 'en' ? c.en : c.ar } : { icon: '', name: String(power || '') };
+  const d = id ? skrCardDesign(id) : null;
+  return c ? { id: id, icon: c.icon || '', svg: d && d.icon ? skrIcon(d.icon) : '', group: d ? d.group : 'act', name: appState.lang === 'en' ? c.en : c.ar }
+    : { id: null, icon: '', svg: '', group: 'act', name: String(power || '') };
+}
+
+/** A power as a small chip in its card's colour, with its line icon: for the bars, instead of an emoji. */
+function skrPowerChip(power, iconName) {
+  const p = skrPowerInfo(power);
+  const svg = iconName ? skrIcon(iconName) : p.svg;
+  return `<span class="skr-chip skr-c--${iconName === 'mask' ? 'thief' : p.group}" aria-hidden="true">${svg}</span>`;
 }
 
 /** turn.power as a power name, whether the server sent the power or the card. */
@@ -56482,14 +56699,22 @@ function skrTeamOf(s, pid) {
   return teams.findIndex(team => Array.isArray(team) && team.indexOf(pid) !== -1);
 }
 
+/** A seat's round avatar: the player's first letter, in the side's colour in teams, else gold. */
+function skrAvatarHtml(state, pid) {
+  const s = state.shared || {};
+  const k = skrTeamOf(s, pid);
+  const first = Array.from(String(skrName(state, pid, true) || '').trim())[0] || '?';
+  return `<span class="skr-avatar${k === -1 ? '' : ' skr-avatar--' + k}" aria-hidden="true">${escapeHTML(first.toLocaleUpperCase())}</span>`;
+}
+
 function skrTeamDot(s, pid) {
   const k = skrTeamOf(s, pid);
   return k === -1 ? '' : `<span class="skr-dot skr-dot--${k}" aria-hidden="true"></span>`;
 }
 
 /**
- * Whose hands a سكرو protects from being swapped, given to, blown up or fired
- * at (the scream steps over them): the caller, and in teams the caller's
+ * Whose hands a سكرو protects from being swapped, given to or fired at, from
+ * throwing a card to بوم and from the scream's re-deal: the caller, and in teams the caller's
  * whole side.
  */
 function skrProtected(s) {
@@ -56587,8 +56812,12 @@ function skrMarks(state) {
         }
         break;
       case 'give': set(e.slot, null); set(e.slot2, { k: 'give', by: e.pid }); break;
-      case 'keep': case 'takePile': case 'match': case 'basra': case 'pong': case 'penalty': case 'boom':
+      case 'keep': case 'takePile': case 'match': case 'basra': case 'pong': case 'penalty': case 'boom': case 'boomThrow':
         set(e.slot, null); break;
+      case 'scream':
+        // Every unprotected hand gathered and dealt again: nobody knows those cards any more.
+        Object.keys(marks).forEach(slot => { delete marks[slot]; });
+        break;
     }
   });
   return marks;
@@ -56659,7 +56888,7 @@ function skrHistoryWords(state, hist, withLooks) {
       else out.push(skrT('skr_mark_swap', '🔄 اتبدّل مع {name}', '🔄 Swapped with {name}', { name: skrName(state, (from && from.pid) || hist.by) }));
       break;
     case 'give': out.push(skrT('skr_mark_give', '🎁 جه من {name}', '🎁 Given by {name}', { name: skrName(state, (from && from.pid) || hist.by) })); break;
-    case 'scream': out.push(fromRef ? skrT('skr_h_scream', '😱 من {ref}', '😱 From {ref}', { ref: fromRef }) : '😱'); break;
+    case 'scream': out.push(skrT('skr_h_scream_deal', '😱 اتوزّع من جديد بعد الصرخة', '😱 Dealt again after the scream')); break;
   }
   if (hist.known && hist.how !== 'pile') out.push('💡 ' + skrCardLabel(hist.known));
   if (withLooks && hist.looks.length) {
@@ -56721,7 +56950,8 @@ function skrMoveShort(state, e) {
     case 'cannon': return sign('💥 ← {b}', { b: skrName(state, e.target) });
     case 'khoshaf': return '🥣';
     case 'scream': return '😱';
-    case 'boom': return sign('💣 {x}', { x: ref(e.target, e.slot) });
+    case 'boom': return '💣';
+    case 'boomThrow': return sign('💥 {card}', { card: card });
     case 'pass': case 'skip': return '⏭️';
     case 'finish': return '🏁';
   }
@@ -56791,11 +57021,17 @@ function skrEventText(state, e) {
     case 'wakeUp': return T('skr_log_wakeup', '🥁 {a}: المسحراتي! الكروت هتتكشف', '🥁 {a}: El-Mesaharaty! Cards up');
     case 'cannon': return T('skr_log_cannon', '💥 {a}: المدفع على {b}، وكروت {b} مكشوفة للكل', '💥 {a} fired the cannon at {b}: that hand is face up');
     case 'khoshaf': return T('skr_log_khoshaf', '🥣 {a}: الخشاف، 4 كروت من الورق', '🥣 {a}: Khoshaf, four cards from the deck');
-    case 'scream': return e.pid
-      ? T('skr_log_scream_by', '😱 {a}: صرخة أوسكار! كل إيد راحت للي بعده', "😱 {a}: Oscar's scream! Every hand moved on one seat")
-      : T('skr_log_scream', '😱 صرخة أوسكار: كل إيد راحت للي بعده', "😱 Oscar's scream: every hand moved on one seat");
+    case 'scream': {
+      // Every unprotected hand gathered, shuffled and dealt out again face down, as many as each had.
+      const n = Object.keys(e.counts || {}).reduce((sum, pid) => sum + (Number(e.counts[pid]) || 0), 0);
+      return e.pid
+        ? T('skr_log_scream_deal', '😱 {a}: صرخة أوسكار! الكروت اتلمّت واتخلطت واتوزّعت من جديد مقلوبة ({n})', "😱 {a}: Oscar's scream! The cards were gathered, shuffled and dealt out again face down ({n})", { n: n })
+        : T('skr_log_scream_deal_all', '😱 صرخة أوسكار: الكروت اتلمّت واتخلطت واتوزّعت من جديد مقلوبة ({n})', "😱 Oscar's scream: the cards were gathered, shuffled and dealt out again face down ({n})", { n: n });
+    }
     case 'skip': return T('skr_log_skip', '⏭️ الدور عدّى: {a}', '⏭️ Turn skipped: {a}');
-    case 'boom': return T('skr_log_boom', '💣 {a}: بوم على {x} ({card})، والكارت على الأرض', '💣 {a} blew up {x} ({card}) onto the pile', { x: ref(e.target, e.slot) });
+    case 'boom': return T('skr_log_boom_all', '💣 {a}: بوم! كل واحد تاني بيرمي كارت من كروته', '💣 {a}: Boom! Everyone else throws one of their own cards');
+    case 'boomPick': return T('skr_log_boom_pick', '💣 اختيار {a} اتسجّل', '💣 {a} picked a card', { a: skrName(state, e.pid, true) });
+    case 'boomThrow': return T('skr_log_boom_throw', '💥 {x} ({card}) طار على الأرض', '💥 {x} ({card}) flew onto the pile', { x: skrSlotRef(state, e.pid, e.slot, null, e.seq) });
     // "كروت {a}", "دور {a}": a name reads there, "أنت" doesn't.
     case 'finish': return T('skr_log_finish', '🏁 كروت {a} خلصت: الجولة انتهت', '🏁 {a} is out of cards: the round is over', { a: skrName(state, e.pid, true) });
     case 'lastLap': return T('skr_log_last_lap', '💀 الورق خلص: دور أخير للكل', '💀 The deck is empty: one last turn each');
@@ -56855,7 +57091,7 @@ const skrNewPick = (kind, extra) => Object.assign({ kind: kind, power: null, as:
 function skrNeed(pick) {
   if (!pick) return {};
   switch (pick.kind) {
-    case 'keep': case 'takePile': case 'match': case 'pong': case 'seeSwapDo': return { own: 1 };
+    case 'keep': case 'takePile': case 'match': case 'pong': case 'seeSwapDo': case 'boomPick': return { own: 1 };
     case 'khoshaf': return { index: true };
     case 'power': {
       const p = pick.power;
@@ -56864,7 +57100,7 @@ function skrNeed(pick) {
       if (p === 'spyOther') return { other: 1 };
       if (p === 'blindSwap') return { own: 1, other: 1, guarded: true };
       if (p === 'seeSwap') return { other: 1, guarded: true };
-      if (p === 'boom') return { other: 1, guarded: true };
+      if (p === 'boom' || p === 'scream') return { button: true, guarded: true };   // everyone else's move, or the whole table's
       if (p === 'give') return { own: 1, player: true, guarded: true };
       if (p === 'cannon') return { player: true, guarded: true };
       if (p === 'allAround') return pick.mode === 'own' ? { own: pick.count || 2 } : pick.mode === 'others' ? { other: 'each' } : { mode: true };
@@ -56970,7 +57206,7 @@ function skrPickPayload(state, pick) {
   const seq = (state.shared || {}).turnSeq;
   const own = pick.own[0];
   switch (pick.kind) {
-    case 'keep': case 'takePile': case 'match': case 'pong': case 'seeSwapDo':
+    case 'keep': case 'takePile': case 'match': case 'pong': case 'seeSwapDo': case 'boomPick':
       return [pick.kind, { slot: own, seq: seq }];
     case 'khoshaf': return ['khoshafPick', { index: pick.index, seq: seq }];
     case 'power': {
@@ -56978,7 +57214,7 @@ function skrPickPayload(state, pick) {
       const body = { seq: seq };
       if (pick.as) body.as = pick.as;
       if (p === 'peekOwn' || p === 'basra') body.slot = own;
-      if (p === 'spyOther' || p === 'seeSwap' || p === 'boom') { body.target = pick.other[0].target; body.slot = pick.other[0].slot; }
+      if (p === 'spyOther' || p === 'seeSwap') { body.target = pick.other[0].target; body.slot = pick.other[0].slot; }
       if (p === 'blindSwap') { body.slot = own; body.target = pick.other[0].target; body.slot2 = pick.other[0].slot; }
       if (p === 'allAround') {
         if (pick.mode === 'own') body.own = pick.own.slice();
@@ -57005,13 +57241,13 @@ function skrPickSummary(state, pick) {
     case 'match': return '🎯 ' + mine(pick.own[0]) + ' → ' + skrCardLabel(pileTop);
     case 'pong': return '🎾 ' + mine(pick.own[0]);
     case 'seeSwapDo': return '🔄 ' + mine(pick.own[0]);
+    case 'boomPick': return '💣 ' + mine(pick.own[0]) + ' → ⬇️';
     case 'khoshaf': return '🥣 ' + skrCardLabel(((state.you || {}).khoshaf || [])[pick.index]);
     case 'power': {
       const p = pick.power;
       if (p === 'peekOwn') return '👁️ ' + mine(pick.own[0]);
       if (p === 'basra') return '🗑️ ' + mine(pick.own[0]);
       if (p === 'spyOther' || p === 'seeSwap') return '👁️ ' + theirs(pick.other[0]);
-      if (p === 'boom') return '💣 ' + theirs(pick.other[0]) + ' → ⬇️';
       if (p === 'blindSwap') return '🔄 ' + mine(pick.own[0]) + ' ⇄ ' + theirs(pick.other[0]);
       if (p === 'allAround') return '👁️ ' + (pick.mode === 'own' ? pick.own.map(mine) : pick.other.map(theirs)).join(sep);
       if (p === 'give') return '🎁 ' + mine(pick.own[0]) + ' → ' + skrName(state, pick.player);
@@ -57029,6 +57265,7 @@ function skrPickPrompt(state, pick) {
     case 'match': return skrT('skr_pick_match', 'اختار الكارت اللي زيّ اللي على الأرض', 'Pick the card that matches the pile');
     case 'pong': return skrT('skr_pick_pong', 'اختار كارت البونج من كروتك', 'Pick your Pong card');
     case 'seeSwapDo': return skrT('skr_pick_seeswap', 'اختار كارت من عندك يتبدّل معاه', 'Pick one of yours to swap it with');
+    case 'boomPick': return skrT('skr_boom_pick', '💣 بوم! اختار كارت من كروتك يترمي على الأرض', '💣 Boom! Pick one of your cards to throw on the pile');
   }
   const p = pick.power;
   if (p === 'asYouLike') return skrT('skr_power_asyoulike', 'اختار القوة اللي عايزها', 'Pick the power you want');
@@ -57043,9 +57280,9 @@ function skrPickPrompt(state, pick) {
     give: ['skr_power_give', 'اختار كارت من عندك واللاعب اللي هياخده', 'Pick one of your cards and who gets it'],
     seeSwap: ['skr_power_seeswap', 'اختار كارت من عند حد تاني تشوفه، وبعدها تبدّله أو تسيبه', "Pick someone else's card to look at, then swap it or leave it"],
     cannon: ['skr_power_cannon', 'اختار لاعب كروته تتكشف للكل لآخر الجولة', "Pick a player whose hand turns face up until the round ends"],
-    boom: ['skr_power_boom', 'اختار كارت من عند لاعب تاني يتفجّر ويروح على الأرض مكشوف', "Pick another player's card to blow up onto the pile, face up"],
+    boom: ['skr_power_boom_all', 'كل لاعب تاني هيختار كارت من كروته المقلوبة يترمي على الأرض، وبعدها دورك تاني', 'Every other player picks one of their own face-down cards to throw on the pile; then it is your turn again'],
     khoshaf: ['skr_power_khoshaf', 'شوف أول 4 كروت في الورق وخد واحد', 'See the top four cards and take one'],
-    scream: ['skr_power_scream', 'كل إيد هتروح للاعب اللي بعده', 'Every hand passes to the next player']
+    scream: ['skr_power_scream_deal', 'الكروت كلها تتلم وتتخلط وتتوزّع تاني مقلوبة، نفس العدد لكل واحد، وبعدها دورك تاني', 'Every hand is gathered, shuffled and dealt out again face down, the same number each; then it is your turn again']
   }[p];
   return texts ? skrT(texts[0], texts[1], texts[2]) : '';
 }
@@ -57269,6 +57506,10 @@ function skrSeatTags(state, pid) {
   if ((s.exposed || []).indexOf(pid) !== -1) tags.push('💥');
   if (s.phase === 'memorize' && (s.ready || []).indexOf(pid) !== -1) tags.push('✓');
   if (s.phase === 'play' && s.turn && s.turn.pid === pid && s.turn.stage === 'drawn') tags.push('✋');
+  if (s.phase === 'play' && s.turn && s.turn.stage === 'boom' && s.boom) {
+    if ((s.boom.picked || []).indexOf(pid) !== -1) tags.push('<span class="skr-voted">💣✓</span>');   // waiting: still to pick
+    else if ((s.boom.waiting || []).indexOf(pid) !== -1) tags.push('💣⏳');
+  }
   if (s.phase === 'play' && (s.finalLeft || []).indexOf(pid) !== -1 && (s.caller || s.lastLap)) tags.push('⏳');
   if (s.phase === 'thiefGuess' && skrVoted(state).indexOf(pid) !== -1) tags.push('<span class="skr-voted">🗳️✓</span>');
   return tags.join(' ');
@@ -57292,9 +57533,12 @@ function skrSeatHtml(state, pid, ctx) {
   if (seatTarget) cls.push(pick.player === pid ? 'is-picked' : 'is-target');
   const last = ctx.help ? skrLastMove(state, pid) : '';
   const lastHtml = last ? `<span class="skr-seat__last">${escapeHTML(last)}</span>` : '';
-  const name = `<span class="skr-seat__name">${skrTeamDot(s, pid)}${escapeHTML(skrName(state, pid, true))}</span><span class="skr-seat__tags">${skrSeatTags(state, pid)}</span>`;
+  // Seat layout أ: the avatar, the name and the signs on one line above the cards (on the TV the last move too).
+  const face = `${skrAvatarHtml(state, pid)}<span class="skr-seat__name">${escapeHTML(skrName(state, pid, true))}</span>`;
+  const tags = `<span class="skr-seat__tags">${skrSeatTags(state, pid)}</span>`;
+  const name = face + tags;
   const who = ctx.tv
-    ? `<div class="skr-seat__who">${name}${lastHtml}</div>`
+    ? `<div class="skr-seat__who">${face}${lastHtml}${tags}</div>`
     : `<div class="skr-seat__head"><button type="button" class="skr-seat__who" onclick="skrTapSeat('${jsStringAttr(pid)}')" ${seatTarget ? '' : 'tabindex="-1"'}>${name}</button>${lastHtml}</div>`;
   const slots = hand.map((h, i) => skrSlotHtml(state, pid, h, ctx, i)).join('') || '<span class="skr-seat__empty">—</span>';
   const style = flash ? skrFlashAttrs('seat:' + pid, flash) : '';
@@ -57437,7 +57681,14 @@ function skrTurnWords(state) {
   const s = state.shared || {};
   const turn = s.turn;
   if (s.phase !== 'play' || !turn) return { title: '', hint: '' };
-  const title = skrT('skr_turn_of', 'دور {name}', "{name}'s turn", { name: skrName(state, turn.pid, true) });
+  const name = skrName(state, turn.pid, true);
+  if (turn.stage === 'boom') {
+    return { title: skrT('skr_boom_from', '💣 بوم من {name}: كل واحد بيرمي كارت', '💣 Boom from {name}: everyone throws a card', { name: name }), hint: skrBoomLine(state) };
+  }
+  const again = skrTurnAgain(state);
+  const title = again === 'boom' ? skrT('skr_after_boom', '💣 بعد بوم: دور {name} تاني', "💣 After Boom: {name}'s turn again", { name: name })
+    : again === 'scream' ? skrT('skr_after_scream', '😱 بعد الصرخة: دور {name} تاني', "😱 After the scream: {name}'s turn again", { name: name })
+    : skrT('skr_turn_of', 'دور {name}', "{name}'s turn", { name: name });
   let hint = '';
   if (turn.stage === 'choose' && turn.pongOpen) hint = '🏓 ' + skrT('skr_hint_pong', 'بينج! فرصة بونج', 'Ping! A chance for Pong');
   else if (turn.stage === 'drawn') hint = '✋ ' + skrT('skr_hint_drawn', 'كارت مسحوب في الإيد', 'Holding a drawn card');
@@ -57480,13 +57731,13 @@ function skrPickBarHtml(state, pick, ctx) {
   const t = TRANSLATIONS[appState.lang] || {};
   const s = state.shared || {};
   const need = skrNeed(pick);
-  const powerHead = pick.kind === 'power'
-    ? (() => { const p = skrPowerInfo(pick.power); return `<span class="skr-power">${escapeHTML((p.icon + ' ' + p.name).trim())}</span>`; })()
+  const powerHead = pick.kind === 'boomPick' ? `<span class="skr-power">${skrPowerChip('boom')}</span>` : pick.kind === 'power'
+    ? (() => { const p = skrPowerInfo(pick.power); return `<span class="skr-power">${skrPowerChip(pick.power)}${escapeHTML(p.name)}</span>`; })()
     : '';
   let body = '';
   if (need.as) {
     const list = typeof SKREW_AS_YOU_LIKE !== 'undefined' ? SKREW_AS_YOU_LIKE : [];
-    body = `<div class="skr-choices">${list.map(power => { const p = skrPowerInfo(power); return `<button type="button" class="btn btn--secondary" onclick="skrPickAs('${jsStringAttr(power)}')">${escapeHTML((p.icon + ' ' + p.name).trim())}</button>`; }).join('')}</div>`;
+    body = `<div class="skr-choices">${list.map(power => { const p = skrPowerInfo(power); return `<button type="button" class="btn btn--secondary" onclick="skrPickAs('${jsStringAttr(power)}')">${skrPowerChip(power)}${escapeHTML(p.name)}</button>`; }).join('')}</div>`;
   } else if (need.mode) {
     body = `<div class="skr-choices">
         <button type="button" class="btn btn--secondary" onclick="skrPickMode('others')">👥 ${escapeHTML(skrT('skr_around_others', 'كارت من كل واحد', 'One of everyone else'))}</button>
@@ -57494,6 +57745,8 @@ function skrPickBarHtml(state, pick, ctx) {
       </div>`;
   } else if (need.button && pick.power === 'khoshaf') {
     body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">🥣 ${escapeHTML(skrT('skr_khoshaf_show', 'اكشف 4 كروت', 'Show four cards'))}</button>`;
+  } else if (need.button && pick.power === 'boom') {
+    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">💣 ${escapeHTML(skrT('skr_boom_go', 'بوم!', 'Boom!'))}</button>`;
   } else if (need.button && pick.power === 'scream') {
     body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">😱 ${escapeHTML(skrT('skr_scream_go', 'اصرخ!', 'Scream!'))}</button>`;
   } else if (need.button) {
@@ -57501,7 +57754,7 @@ function skrPickBarHtml(state, pick, ctx) {
   } else {
     const ready = skrPickReady(state, pick);
     const summary = ready ? skrPickSummary(state, pick) : '';
-    const both = need.own && (need.other || need.player);
+    const both = need.own && (need.other || need.player || pick.kind === 'boomPick');
     const rows = (both ? skrOwnRowHtml(state, pick, ctx || {}) : '') + (need.other || need.player ? skrTargetsHtml(state, pick, ctx || {}) : '');
     body = `${rows}${ready && summary ? `<p class="skr-summary">${escapeHTML(summary)}</p>` : ''}
       <div class="btn-row">
@@ -57523,6 +57776,67 @@ function skrKhoshafHtml(state, pick) {
   return `<p class="skr-prompt is-mine">🥣 ${escapeHTML(skrT('skr_khoshaf_pick', 'اختار كارت من الأربعة، والباقي يروح تحت الورق', 'Take one of the four; the rest go under the deck'))}</p>
     <div class="skr-khoshaf">${cards.map((c, i) => `<button type="button" class="skr-pickcard ${pick && pick.index === i ? 'is-picked' : ''}" onclick="skrPickIndex(${i})">${skrCardHtml(c, { size: 'lg' })}</button>`).join('')}</div>
     <button type="button" class="btn btn--primary" onclick="skrConfirm()" ${skrPickReady(state, pick) ? '' : 'disabled'}>✓ ${escapeHTML(t.confirm || 'تأكيد')}</button>`;
+}
+
+/* --- بوم: every other player throws one of their own cards ---------------------------- */
+
+/** A phone that still has to pick its card for بوم. */
+function skrBoomWaits(state, pid) {
+  const s = state.shared || {};
+  const boom = s.boom;
+  if (!boom || s.phase !== 'play' || !s.turn || s.turn.stage !== 'boom' || state.youAreScreen) return false;
+  return (boom.waiting || []).indexOf(pid) !== -1 && (boom.picked || []).indexOf(pid) === -1;
+}
+
+/** Who has picked, by name, never which card: "💣 اختاروا 2/5: …". */
+function skrBoomLine(state) {
+  const boom = (state.shared || {}).boom || {};
+  // `waiting` is who still has to pick, `picked` who has: together, everyone in it.
+  const picked = boom.picked || [];
+  const sep = appState.lang === 'en' ? ', ' : '، ';
+  const head = skrT('skr_boom_picked', 'اختاروا {n}/{m}', 'Picked {n}/{m}', { n: picked.length, m: picked.length + (boom.waiting || []).length });
+  return '💣 ' + head + (picked.length ? ': ' + picked.map(pid => '⁨' + skrName(state, pid, true) + '⁩').join(sep) : '');
+}
+
+/**
+ * The same player's turn again straight after their بوم or their scream:
+ * 'boom', 'scream' or null, read from the moves since (the throws don't count).
+ */
+function skrTurnAgain(state) {
+  const s = state.shared || {};
+  if (s.phase !== 'play' || !s.turn || s.turn.stage === 'boom') return null;
+  const events = skrDealEvents(s.events);
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (!e || ['boomThrow', 'boomPick', 'ready', 'thiefVote'].indexOf(e.type) !== -1) continue;
+    if (e.type === 'boom' || e.type === 'scream') return e.pid === s.turn.pid ? e.type : null;
+    return null;
+  }
+  return null;
+}
+
+/**
+ * The بوم stage on a phone: a waiting phone picks one of its own face-down
+ * cards (and confirms); once in, "اتسجّل - مستنيين الباقي"; the player of
+ * بوم and anyone not in it watch who has picked. The host can go on without
+ * a phone that went quiet.
+ */
+function skrBoomHtml(state, ctx) {
+  const s = state.shared || {};
+  const boom = s.boom || {};
+  const me = Room.me;
+  const line = `<p class="skr-hint skr-vote__who">${escapeHTML(skrBoomLine(state))}</p>`;
+  const host = state.youAreHost
+    ? `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, '${SKR_BOOM_CLOSE}')">⏭️ ${escapeHTML(skrT('skr_boom_close', 'كمّل من غير الباقي', 'Go on without the rest'))}</button>` : '';
+  if (skrInGame(state) && skrBoomWaits(state, me)) {
+    const pick = skrLocal.pick && skrLocal.pick.kind === 'boomPick' ? skrLocal.pick : skrNewPick('boomPick');
+    return `<div class="skr-actbar skr-boom">${skrPickBarHtml(state, pick, ctx)}${line}${host}</div>`;
+  }
+  const done = skrInGame(state) && (boom.picked || []).indexOf(me) !== -1;
+  const head = done
+    ? `<p class="skr-prompt is-mine">✓ ${escapeHTML(skrT('skr_boom_done', 'اتسجّل - مستنيين الباقي', 'Picked - waiting for the others'))}</p>`
+    : `<p class="skr-prompt"><span class="skr-power">${skrPowerChip('boom')}</span>${escapeHTML(skrT('skr_boom_from', '💣 بوم من {name}: كل واحد بيرمي كارت', '💣 Boom from {name}: everyone throws a card', { name: skrName(state, s.turn.pid, true) }))}</p>`;
+  return `<div class="skr-note skr-boom">${head}${line}${host}</div>`;
 }
 
 /* --- the thief vote -------------------------------------------------------------- */
@@ -57638,7 +57952,7 @@ function skrVoteHtml(state) {
     ? `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, 'closeThiefVote')">🔒 ${escapeHTML(t.vote_close || skrT('skr_vote_close', 'اقفل التصويت', 'Close the vote'))}</button>` : '';
   const question = escapeHTML(skrT('skr_thief_q', 'مين معاه الحرامي؟', 'Who holds the thief?'));
   if (!seated) {
-    return `<div class="skr-note">${why ? `<p class="skr-hint">${escapeHTML(why)}</p>` : ''}<p class="skr-prompt">🦹 ${question}</p>${whoLine}${close}</div>`;
+    return `<div class="skr-note">${why ? `<p class="skr-hint">${escapeHTML(why)}</p>` : ''}<p class="skr-prompt"><span class="skr-power">${skrPowerChip(null, 'mask')}</span>${question}</p>${whoLine}${close}</div>`;
   }
   const v = skrVoteLocal(state);
   const iVoted = skrVoted(state).indexOf(me) !== -1;
@@ -57664,7 +57978,7 @@ function skrVoteHtml(state) {
   const tie = s.caller ? ' ' + skrT('skr_vote_tie', 'التعادل: صوت اللي قال سكرو يحسم.', "A tie: the caller's vote decides.") : '';
   return `<div class="skr-actbar skr-vote">
       ${why ? `<p class="skr-hint">${escapeHTML(why)}</p>` : ''}
-      <p class="skr-prompt is-mine">🦹 ${question}</p>
+      <p class="skr-prompt is-mine"><span class="skr-power">${skrPowerChip(null, 'mask')}</span>${question}</p>
       <p class="skr-hint skr-vote__rule">${escapeHTML(skrT('skr_vote_hint', 'لو الأغلبية اختارت اللي معاه الحرامي: عليه +25. لو لأ: الحرامي ياخد أقل نتيجة، واللي كانت ليه ياخد +25.', 'If most point at the holder: +25 for the thief. If not, the thief takes the lowest score and whoever had it takes +25.') + tie)}</p>
       <div class="skr-vote__choices">${choices}</div>
       <div class="btn-row">
@@ -57708,6 +58022,7 @@ function skrActionsHtml(state) {
 
   if (s.phase !== 'play' || !s.turn) return '';
   const turn = s.turn;
+  if (turn.stage === 'boom') return skrBoomHtml(state, ctx);
   const seenPanel = skrSeenHtml(state, false);
 
   if (turn.pid !== me || !inGame) {
@@ -57716,7 +58031,8 @@ function skrActionsHtml(state) {
     return seenPanel && inGame ? bar(seenPanel) + note(line) : note(line);
   }
 
-  const mineHead = `<p class="skr-prompt is-mine">⭐ ${escapeHTML(skrT('skr_your_turn', 'دورك!', 'Your turn!'))}</p>`;
+  const again = skrTurnAgain(state);
+  const mineHead = `<p class="skr-prompt is-mine">⭐ ${escapeHTML(again ? (again === 'boom' ? '💣 ' : '😱 ') + skrT('skr_your_turn_again', 'دورك تاني!', 'Your turn again!') : skrT('skr_your_turn', 'دورك!', 'Your turn!'))}</p>`;
 
   if (turn.stage === 'seeSwap') {
     if (pick && pick.kind === 'seeSwapDo') return bar(skrPickBarHtml(state, pick, ctx));
@@ -57745,7 +58061,7 @@ function skrActionsHtml(state) {
       inner = discardBtn('btn--primary btn--lg', '▶️ ' + escapeHTML(skrT('skr_play_it', 'العبه', 'Play it')));
     } else {
       inner = `<div class="btn-row">${keepBtn('btn--primary')}${discardBtn('btn--secondary', '⬇️ ' + escapeHTML(power ? skrT('skr_discard_power', 'ارميه واستعمل قوته', 'Throw it, use its power') : skrT('skr_discard', 'ارميه', 'Throw it')))}</div>
-        ${power ? `<p class="skr-hint">${escapeHTML((power.icon + ' ' + power.name).trim())}</p>` : ''}`;
+        ${power ? `<p class="skr-hint skr-hint--power">${skrPowerChip(info.power)}${escapeHTML(power.name)}</p>` : ''}`;
     }
     return bar(mineHead + inner);
   }
@@ -58036,9 +58352,10 @@ function skrRevealCardHtml(id, values, cards, i, size, at) {
   const info = skrCardInfo(id);
   const isCopy = (c) => { const x = skrCardInfo(c); return !!(x && (x.card.copy || c === 'lifeJacket')); };
   const value = values[i];
+  const faceOpts = { size: size, value: isCopy(id) && typeof value === 'number' ? value : null };
   const card = at === null
-    ? skrCardHtml(id, { size: size })
-    : `<span class="skr-flip" style="--at:${at}ms"><span class="skr-flip__back">${skrCardHtml(null, { size: size })}</span><span class="skr-flip__face">${skrCardHtml(id, { size: size })}</span></span>`;
+    ? skrCardHtml(id, faceOpts)
+    : `<span class="skr-flip" style="--at:${at}ms"><span class="skr-flip__back">${skrCardHtml(null, { size: size })}</span><span class="skr-flip__face">${skrCardHtml(id, faceOpts)}</span></span>`;
   if (!isCopy(id) || typeof value !== 'number') return `<span class="skr-rcard" data-skr-card="${i}">${card}</span>`;
   const copied = cards.findIndex((c, j) => j !== i && !isCopy(c) && values[j] === value);
   const own = info && typeof info.value === 'number' ? info.value : value;
@@ -58171,7 +58488,7 @@ function skrServerSig(state) {
   return [s.dealId || '', s.phase, s.round, s.rounds, s.lap, s.turnSeq, JSON.stringify(s.turn || null), s.deckCount,
     (s.pile || []).join(','), JSON.stringify(s.hands || {}), s.caller || '', (s.finalLeft || []).join(','),
     (s.exposed || []).join(','), (s.ready || []).join(','), events.length ? events[events.length - 1].seq : 0, s.endsAt || '',
-    skrVoted(state).join(','), JSON.stringify(s.lastLap || null), s.finisher || '',
+    skrVoted(state).join(','), JSON.stringify(s.lastLap || null), s.finisher || '', JSON.stringify(s.boom || null),
     done ? JSON.stringify(s.results || null) + JSON.stringify(s.scores || {}) + JSON.stringify(s.teamScores || null) + JSON.stringify(s.winners || null) : '', JSON.stringify(state.you || null),
     (s.order || []).join(','), JSON.stringify(s.teams || null), JSON.stringify(s.settings || {}),
     (state.players || []).map(p => p.id + ':' + p.name).join(',')].join('|');
@@ -58187,6 +58504,7 @@ function skrSyncPick(state) {
   const mine = s.phase === 'play' && turn && turn.pid === Room.me;
   if (mine && turn.stage === 'power' && turn.power) skrLocal.pick = skrNewPick('power', { power: skrPowerOf(turn.power) });
   else if (mine && turn.stage === 'khoshaf') skrLocal.pick = skrNewPick('khoshaf');
+  else if (skrBoomWaits(state, Room.me)) skrLocal.pick = skrNewPick('boomPick');
 }
 
 function skrPhoneFrame(state) {
@@ -58404,6 +58722,7 @@ function skrTickClock(s) {
       // The last seconds tick on the TV and on the phone the clock is waiting for: the player up, or a vote not cast.
       const mine = ss && (ss.phase === 'thiefGuess' ? skrInGame(st) && skrVoted(st).indexOf(Room.me) === -1
         : ss.phase === 'memorize' ? skrInGame(st) && (ss.ready || []).indexOf(Room.me) === -1
+        : ss.turn && ss.turn.stage === 'boom' ? skrBoomWaits(st, Room.me)
         : !!ss.turn && ss.turn.pid === Room.me);
       if (left > 0 && left <= 5 && ss && ss.endsAt === endsAt && (st.youAreScreen || mine)) playSound('tick');
     },
@@ -58414,7 +58733,8 @@ function skrTickClock(s) {
 /** A buzz when the turn comes to this phone, or the thief vote opens on it (not on a reload). */
 function skrTurnCue(state) {
   const s = state.shared || {};
-  const mine = (s.phase === 'play' && !!s.turn && s.turn.pid === Room.me)
+  const mine = (s.phase === 'play' && !!s.turn && s.turn.pid === Room.me && s.turn.stage !== 'boom')
+    || skrBoomWaits(state, Room.me)
     || (s.phase === 'thiefGuess' && skrInGame(state) && skrVoted(state).indexOf(Room.me) === -1);
   const was = skrLocal.turnMine;
   skrLocal.turnMine = mine;
@@ -58431,7 +58751,8 @@ function skrTurnCue(state) {
 function skrHandInView(state) {
   const s = state.shared || {};
   const wants = (s.phase === 'memorize' && (s.ready || []).indexOf(Room.me) === -1)
-    || (s.phase === 'play' && !!s.turn && s.turn.pid === Room.me);
+    || (s.phase === 'play' && !!s.turn && s.turn.pid === Room.me && s.turn.stage !== 'boom')
+    || skrBoomWaits(state, Room.me);
   const key = wants ? [state.code, s.dealId, s.phase, s.turnSeq].join('|') : '';
   if (!wants || skrLocal.handInView === key) return;
   skrLocal.handInView = key;
@@ -58597,8 +58918,10 @@ function skrFly(root, from, toKey, face, flip, hold, opts) {
   const toEl = typeof toKey === 'object' ? null : skrEl(root, toKey);
   const b = typeof toKey === 'object' ? toKey : toEl ? toEl.getBoundingClientRect() : skrFx.rects[toKey];
   if (!a || !b || !b.width || !a.width || !skrCanMove()) { release(); return; }
-  const first = flip === 'up' ? skrCardHtml(null, { size: 'fly' }) : skrCardHtml(face, { size: 'fly' });
-  const second = flip === 'up' ? skrCardHtml(face, { size: 'fly' }) : flip === 'down' ? skrCardHtml(null, { size: 'fly' }) : '';
+  // The ghost keeps the look of the card it leaves (a small one stays a numeral or an icon while it grows).
+  const fly = { size: 'fly', full: a.width >= SKR_FULL_PX };
+  const first = flip === 'up' ? skrCardHtml(null, fly) : skrCardHtml(face, fly);
+  const second = flip === 'up' ? skrCardHtml(face, fly) : flip === 'down' ? skrCardHtml(null, fly) : '';
   const ghost = skrLayer(root, a, 'skr-ghost', '<div class="skr-ghost__flip"><div class="skr-ghost__face">' + first + '</div>' +
     (second ? '<div class="skr-ghost__face skr-ghost__face--b">' + second + '</div>' : '') + '</div>');
   const dx = b.left + b.width / 2 - (a.left + a.width / 2);
@@ -58632,8 +58955,9 @@ function skrTurnOver(root, key, face, opts) {
   const live = skrEl(root, key);
   if (live) skrHold(root, key);
   // `down`: from the face to the back (the memorised cards turning over at the end of the look).
-  const firstFace = skrCardHtml(o.down ? face : null, { size: 'fly' });
-  const secondFace = skrCardHtml(o.down ? null : face, { size: 'fly' });
+  const fly = { size: 'fly', full: r.width >= SKR_FULL_PX };
+  const firstFace = skrCardHtml(o.down ? face : null, fly);
+  const secondFace = skrCardHtml(o.down ? null : face, fly);
   const ghost = skrLayer(root, r, 'skr-ghost', '<div class="skr-ghost__shake"><div class="skr-ghost__flip"><div class="skr-ghost__face">' + firstFace +
     '</div><div class="skr-ghost__face skr-ghost__face--b">' + secondFace + '</div></div></div>');
   const turn = 240;
@@ -58921,7 +59245,7 @@ function skrRiffle(root, fromKey, toKey, delay) {
   const n = 8;
   const tv = skrIsTv(root) ? 1.8 : 1;
   for (let i = 0; i < n; i++) {
-    const ghost = skrLayer(root, a, 'skr-ghost', skrCardHtml(null, { size: 'fly' }));
+    const ghost = skrLayer(root, a, 'skr-ghost', skrCardHtml(null, { size: 'fly', full: a.width >= SKR_FULL_PX }));
     const side = i % 2 ? 1 : -1;
     const dx = b.left + b.width / 2 - (a.left + a.width / 2);
     const dy = b.top + b.height / 2 - (a.top + a.height / 2);
@@ -58944,7 +59268,7 @@ function skrFan(root, delay) {
   const dx = b.left + b.width / 2 - (a.left + a.width / 2);
   const dy = b.top + b.height / 2 - (a.top + a.height / 2);
   [-21, -7, 7, 21].forEach((deg, i) => {
-    const ghost = skrLayer(root, a, 'skr-ghost', skrCardHtml(null, { size: 'fly' }));
+    const ghost = skrLayer(root, a, 'skr-ghost', skrCardHtml(null, { size: 'fly', full: a.width >= SKR_FULL_PX }));
     const spread = (i - 1.5) * 16 * tv;
     skrAnimate(ghost, [
       { transform: 'translate(0px, 0px) rotate(0deg)' },
@@ -59079,7 +59403,8 @@ function skrFlashItems(state, e) {
       else out.push([slot(e.slot), '👁️ ' + name(e.pid)]);
       break;
     case 'give': out.push([slot(e.slot2), '🎁'], [seat(e.target), '']); break;
-    case 'boom': out.push(['pile', '💣'], [seat(e.target), '']); break;
+    case 'boomThrow': out.push(['pile', '💥']); break;
+    case 'scream': Object.keys(e.counts || {}).forEach(pid => { if (pid !== e.pid) out.push([seat(pid), '']); }); break;
     case 'cannon': case 'ping': if (e.target) out.push([seat(e.target), '']); break;
     case 'discard': out.push(['pile', '']); break;
   }
@@ -59094,7 +59419,7 @@ function skrFlashEvents(root, state, list) {
 
 /* --- which moves to show ---------------------------------------------------------- */
 
-const skrAddsToPile = (e) => ['discard', 'takePile', 'ping', 'wakeUp', 'boom'].indexOf(e.type) !== -1 || (e.type === 'keep' && !!e.card) ||
+const skrAddsToPile = (e) => ['discard', 'takePile', 'ping', 'wakeUp', 'boomThrow'].indexOf(e.type) !== -1 || (e.type === 'keep' && !!e.card) ||
   ((e.type === 'match' || e.type === 'pong' || e.type === 'basra') && e.ok !== false);
 
 /** The pile's top right after event idx of the batch: the current top, stepped back past the cards put on it later. */
@@ -59138,19 +59463,64 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) skrF
 function skrEventSounds(evs) {
   if (document.hidden) return;
   const has = (fn) => evs.some(fn);
-  if (has(e => e.type === 'boom')) { playSound('bomb'); skrSound('skrThump'); return; }
+  if (has(e => e.type === 'boomThrow')) { playSound('bomb'); skrSound('skrThump'); return; }
+  if (has(e => e.type === 'scream')) return;   // its riffle sounds as the cards are shuffled (skrPlay)
   if (has(e => e.type === 'cannon')) { skrSound('skrThump'); return; }
   if (has(e => e.type === 'wakeUp')) { skrSound('skrDrum'); return; }
   if (has(e => e.type === 'reshuffle')) skrSound('skrRiffle');
-  const bad = has(e => e.type === 'screw' || e.type === 'lastLap' || ((e.type === 'match' || e.type === 'pong') && !e.ok) || (e.type === 'basra' && e.ok === false));
+  const bad = has(e => e.type === 'screw' || e.type === 'lastLap' || e.type === 'boom' || ((e.type === 'match' || e.type === 'pong') && !e.ok) || (e.type === 'basra' && e.ok === false));
   const good = has(e => ((e.type === 'match' || e.type === 'pong') && e.ok) || e.type === 'reveal' || e.type === 'finish');
   if (bad) playSound('alarm');
   else if (good) playSound('success');
-  else if (has(e => ['draw', 'keep', 'discard', 'takePile', 'give', 'blindSwap', 'seeSwap', 'penalty', 'basra', 'deal', 'scream', 'khoshaf'].indexOf(e.type) !== -1)) skrSound('skrFlick');
+  else if (has(e => ['draw', 'keep', 'discard', 'takePile', 'give', 'blindSwap', 'seeSwap', 'penalty', 'basra', 'deal', 'khoshaf'].indexOf(e.type) !== -1)) skrSound('skrFlick');
 }
 
 /** After a frame is drawn: the sounds, flights and glows for the events it brought. */
+/**
+ * A seat's cards stay in one row while they fit. When they don't, they stack
+ * in two even rows - 2 over 2, 3 over 3 - and an odd card sits beside them,
+ * centred (the owner's layout: a card dropping alone under three looked
+ * broken). A hand too long even for that takes three rows.
+ */
+function skrStackHands(root) {
+  if (!root || !root.getClientRects().length) return;
+  root.querySelectorAll('.skr-seat .skr-slots').forEach(box => {
+    box.classList.remove('is-stacked', 'is-odd');
+    box.style.removeProperty('--skr-stack-cols');
+    const kids = Array.from(box.children).filter(k => k.classList.contains('skr-slot'));
+    const n = kids.length;
+    if (n < 3) return;
+    const gap = parseFloat(getComputedStyle(box).columnGap) || 0;
+    const widths = kids.map(k => k.getBoundingClientRect().width);
+    const room = box.clientWidth + 0.5;
+    if (widths.reduce((a, b) => a + b, 0) + gap * (n - 1) <= room) return;
+    const slot = Math.max.apply(null, widths);
+    const fits = (cols) => cols * slot + gap * (cols - 1) <= room;
+    let cols = Math.floor(n / 2);
+    const odd = n % 2 === 1;
+    if (fits(cols + (odd ? 1 : 0))) {
+      box.classList.add('is-stacked');
+      if (odd) box.classList.add('is-odd');
+    } else {
+      cols = Math.ceil(n / 3);
+      box.classList.add('is-stacked');
+    }
+    box.style.setProperty('--skr-stack-cols', cols);
+  });
+}
+
+// Turning the phone or resizing the window changes what fits.
+let skrStackTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(skrStackTimer);
+  skrStackTimer = setTimeout(() => {
+    skrStackHands(document.getElementById('view-room-screw'));
+    skrStackHands(document.getElementById('view-room-tv'));
+  }, 120);
+});
+
 function skrAfterDraw(root, state) {
+  skrStackHands(root);
   const s = state.shared || {};
   const evs = skrEventsToPlay(state);
   const turnWas = skrFx.lastTurn;
@@ -59445,18 +59815,38 @@ function skrPlay(root, state, list, delay) {
         t += 600;
         break;
       }
-      case 'boom': {
-        // A 💣 drops onto the card, a flash and sparks, and the card flies up and lands face up on the pile.
+      case 'boom':
+        // بوم played: a bang from the player's seat and a band - every other player now picks a card of their own.
+        at(t, () => {
+          skrPop(root, skrSeatRect(root, A), '💣', true);
+          skrRing(root, skrSeatRect(root, A), { tone: 'danger', scale: 2, duration: 520 });
+          skrPulse(tableEl, { scale: 1.012, duration: 300 });
+          skrBand(root, '💣 ' + skrT('skr_band_boom', 'بوم! كل واحد يرمي كارت من كروته', 'Boom! Everyone throws one of their own cards'), { tone: 'danger', delay: 150 });
+        });
+        t += 700;
+        break;
+      case 'boomThrow': {
+        // The cards thrown by بوم, one after another in seat order: a 💣 drops onto the card, 💥 on
+        // the seat, and the card flies up and lands face up on the pile. A red screw or the thief
+        // thrown this way is a lucky escape.
         const key = slotKey(e.slot);
+        const throws = list.filter(x => x.type === 'boomThrow');
+        const gap = Math.max(170, Math.min(420, Math.floor(2200 / Math.max(1, throws.length))));
         const r = skrRect(root, key);
         hold('pile');
         if (r) {
-          const above = { left: r.left, top: r.top - r.height * 2.2, width: r.width, height: r.height };
-          at(t, () => skrToss(root, above, key, '💣', { arc: 0, duration: 300, big: true }));
-          at(t + 300, () => { skrRing(root, key, { tone: 'danger', scale: 2.6, duration: 420 }); skrSparks(root, key, { count: 9, tone: 'danger' }); skrPop(root, key, '💥', true); skrShakeEl(skrSeatEl(root, e.target), { distance: 5 }); });
+          const above = { left: r.left, top: r.top - r.height * 1.8, width: r.width, height: r.height };
+          at(t, () => skrToss(root, above, key, '💣', { arc: 0, duration: 240 }));
         }
-        at(t + 380, () => skrFly(root, key, 'pile', e.card || skrPileAt(state, list, idx), 'up', ['pile'], { duration: 520, arc: 70, spin: 360 }));
-        t += 950;
+        at(t + 230, () => {
+          skrRing(root, skrSeatRect(root, A), { tone: 'danger', scale: 1.5, duration: 380 });
+          skrPop(root, skrSeatRect(root, A), '💥', true);
+          skrShakeEl(skrSeatEl(root, A), { distance: 4 });
+        });
+        at(t + 260, () => skrFly(root, key, 'pile', e.card || skrPileAt(state, list, idx), 'up', ['pile'], { duration: 440, arc: 50, spin: 180 }));
+        if (e.card === 'red25' || e.card === 'thief') at(t + 720, () => skrPop(root, skrSeatRect(root, A), '😅 ' + skrT('skr_boom_lucky', 'نجاة', 'Lucky escape')));
+        t += gap;
+        if (throws[throws.length - 1] === e) t += Math.max(0, 760 - gap);
         break;
       }
       case 'cannon': {
@@ -59469,26 +59859,34 @@ function skrPlay(root, state, list, delay) {
         break;
       }
       case 'scream': {
-        // A shockwave from the middle, the table shakes, and every hand slides on to the next seat; the protected caller's shimmers.
+        // صرخة أوسكار: a shockwave from the middle; every unprotected hand's cards fly into it, are
+        // riffled there and dealt back out face down, as many as each had. Protected hands stay
+        // put, shimmering. The redraw already shows the new hands: their slots stay hidden until dealt.
         const center = skrCenterRect(root);
+        const mid = skrRect(root, 'deck') || center;
+        const guarded = skrProtected(s);
+        const counts = e.counts && typeof e.counts === 'object' ? e.counts : null;
+        const seats = (counts ? skrOrder(state).filter(pid => Object.prototype.hasOwnProperty.call(counts, pid)) : skrOrder(state)).filter(pid => guarded.indexOf(pid) === -1);
+        const hands = seats.map(pid => ((s.hands || {})[pid] || []).map(h => slotKey(h.id)));
+        const cards = [].concat.apply([], hands);
+        const dealt = [];
+        const most = hands.reduce((m, h) => Math.max(m, h.length), 0);
+        for (let k = 0; k < most; k++) hands.forEach(h => { if (h[k]) dealt.push(h[k]); });
+        cards.forEach(key => hold(key));
         at(t, () => {
           skrRing(root, center, { tone: 'accent', scale: 3.2, duration: 700 });
           skrPop(root, center || handA, '😱', true);
           skrShakeEl(tableEl, { distance: 5, duration: 420 });
         });
-        const moved = [];
-        root.querySelectorAll('[data-skr-at^="slot:"]').forEach(el => {
-          const key = el.getAttribute('data-skr-at');
-          const was = skrFx.rects[key];
-          if (!was) return;
-          const now = el.getBoundingClientRect();
-          if (Math.abs(was.left - now.left) + Math.abs(was.top - now.top) < 6) return;
-          moved.push([key, was]);
-          hold(key);
-        });
-        at(t + 260, () => moved.forEach(([key, was], i) => skrFly(root, was, key, null, null, [key], { duration: 520, arc: 20, delay: Math.min(260, i * 12) })));
-        skrProtected(s).forEach((pid, i) => at(t + 300 + i * 80, () => skrSweep(root, skrSeatRect(root, pid), { tone: 'lock' })));
-        t += 260 + 520 + Math.min(260, moved.length * 12);
+        guarded.forEach((pid, i) => at(t + 200 + i * 80, () => skrSweep(root, skrSeatRect(root, pid), { tone: 'lock' })));
+        const gather = cards.length ? Math.max(4, Math.min(25, Math.floor(250 / cards.length))) : 0;
+        at(t + 120, () => cards.forEach((key, i) => { const from = skrRect(root, key); if (from && mid) skrFly(root, from, mid, null, null, null, { duration: 340, arc: 18, delay: i * gather }); }));
+        const riffleAt = t + 120 + cards.length * gather + 240;
+        if (mid) at(riffleAt, () => { skrRiffle(root, mid, mid, 0); skrSound('skrRiffle'); });
+        const dealAt = riffleAt + 450;
+        const dealGap = dealt.length ? Math.max(6, Math.min(30, Math.floor(350 / dealt.length))) : 0;
+        at(dealAt, () => dealt.forEach((key, i) => skrFly(root, mid, key, null, null, [key], { duration: 320, arc: 14, delay: i * dealGap })));
+        t = dealAt + dealt.length * dealGap + 360;
         break;
       }
       case 'lastLap':
@@ -59655,6 +60053,12 @@ function skrTvTable(state, t) {
   let host = '';
   if (state.youAreHost && s.phase === 'memorize') host = tvBtn('▶️ ' + skrT('skr_begin_round', 'ابدأ الجولة', 'Start the round'), "skrAct(this, 'beginRound')");
   if (state.youAreHost && s.phase === 'thiefGuess') host = tvBtn('🔒 ' + ((t || {}).vote_close || skrT('skr_vote_close', 'اقفل التصويت', 'Close the vote')), "skrAct(this, 'closeThiefVote')");
+  const boom = s.phase === 'play' && s.turn && s.turn.stage === 'boom' ? (s.boom || {}) : null;
+  if (state.youAreHost && boom) host = tvBtn('⏭️ ' + skrT('skr_boom_close', 'كمّل من غير الباقي', 'Go on without the rest'), `skrAct(this, '${SKR_BOOM_CLOSE}')`, 'ghost');
+  const boomers = !boom ? '' : `<div class="tv-strip-inline">${skrOrder(state).filter(pid => (boom.waiting || []).concat(boom.picked || []).indexOf(pid) !== -1).map(pid => {
+      const done = (boom.picked || []).indexOf(pid) !== -1;
+      return `<span class="tv-chip ${done ? 'is-done' : ''}">${done ? '💣✓' : '⏳'} ${escapeHTML(skrName(state, pid, true))}</span>`;
+    }).join('')}</div>`;
   // The vote on the TV: who has voted, by name - every phone votes, the screen never does.
   const voted = skrVoted(state);
   const voters = s.phase !== 'thiefGuess' ? '' : `<div class="tv-note">${escapeHTML(skrT('skr_voted_count', 'صوّتوا {n}/{m}', 'Voted {n}/{m}', { n: voted.filter(pid => order.indexOf(pid) !== -1).length, m: order.length }))}</div>
@@ -59667,7 +60071,7 @@ function skrTvTable(state, t) {
         <div class="skr-tv__turn">${escapeHTML(title)}</div>
         ${note ? `<div class="tv-note">${escapeHTML(note)}</div>` : ''}
         ${count}
-        ${voters}
+        ${voters}${boomers}
         ${skrLatestHtml(state, true)}
         ${skrCenterHtml(state, true)}
         <div class="tv-actions">${host}<span data-skr-host class="skr-tv__host"></span></div>
@@ -60049,6 +60453,11 @@ function roomTurnOf(state) {
       return s.phase === 'night' && has(s.alive) && !has(s.acted) ? 'turn_night' : null;
     case 'screw':
       if (s.phase === 'memorize') return has(s.order) && !has(s.ready) ? 'turn_memorize' : null;
+      // بوم: every other player picks a card of their own, and the player of it waits.
+      if (s.phase === 'play' && s.turn && s.turn.stage === 'boom') {
+        const boom = s.boom || {};
+        return has(boom.waiting) && !has(boom.picked) ? 'turn_boom_pick' : null;
+      }
       if (s.phase === 'play') return s.turn && s.turn.pid === me ? 'turn_up' : null;
       // The thief vote: every seated phone, until it has voted.
       return s.phase === 'thiefGuess' && has(s.order) && !has((s.thiefVote || {}).voted) ? 'turn_thief_vote' : null;

@@ -6597,6 +6597,8 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .strands-theme > span:not(.strands-theme__icon) { display: flex; flex-direction: column; min-width: 0; }
 .strands-theme b { font-size: var(--fs-h2); color: var(--text-strong); line-height: 1.2; }
 .strands-theme__icon { font-size: 2rem; line-height: 1; }
+/* Upright, the theme sits above the stats bar (which is order -1). */
+.solo-layout__side > .strands-theme { order: -2; }
 .strands-grid {
   container-type: inline-size;
   display: grid;
@@ -6782,60 +6784,6 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .streak-hearts { display: inline-flex; gap: 1px; font-size: 0.95rem; }
 .streak-heart { display: inline-block; }
 .streak-heart.is-lost { opacity: 0.6; }
-
-/* --- Blind ranking --- */
-.rank-slots { display: grid; gap: var(--sp-2); max-width: 26rem; margin: 0 auto; padding: 0; list-style: none; }
-.rank-slot {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  width: 100%;
-  min-height: 3rem;
-  padding: 0 var(--sp-3);
-  border: 1px dashed var(--accent);
-  border-radius: var(--r-md);
-  background: var(--accent-soft);
-  color: var(--text-strong);
-  font-family: var(--font);
-  font-size: var(--fs-h2);
-  text-align: start;
-  cursor: pointer;
-}
-.rank-slot__n { display: grid; place-items: center; flex: none; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: var(--accent); color: var(--accent-on); font-size: var(--fs-sm); }
-.rank-slot.is-filled { border-style: solid; border-color: var(--border); background: var(--surface-solid); cursor: default; }
-.rank-slot:disabled:not(.is-filled) { opacity: 0.6; cursor: default; }
-.rank-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-1);
-  margin-bottom: var(--sp-2);
-  padding: var(--sp-4);
-  border-radius: var(--r-lg);
-  background: var(--accent);
-  color: var(--accent-on);
-  text-align: center;
-}
-.rank-card .eyebrow { color: inherit; }
-.rank-card b { font-size: 1.6rem; line-height: 1.3; }
-.rank-card.is-new { animation: streak-in 340ms var(--ease-out) both; }
-/* On a phone held upright the thing to place sits above the places. */
-.solo-layout__side > .rank-card, .solo-layout__side > .rank-card + .field__hint, .solo-layout__side > .rank-done { order: -1; }
-.solo-layout__side > .strands-theme { order: -2; }
-.rank-slots { margin-bottom: var(--sp-3); }
-.solo-layout__side > .rank-card + .field__hint { margin-bottom: var(--sp-3); text-align: center; }
-.rank-ghost {
-  position: fixed;
-  z-index: 90;
-  padding: var(--sp-1) var(--sp-3);
-  border-radius: var(--r-md);
-  background: var(--accent);
-  color: var(--accent-on);
-  font-size: var(--fs-h2);
-  font-weight: 800;
-  white-space: nowrap;
-  pointer-events: none;
-}
 
 /* --- حاسبة الورق --- */
 .cs-board { display: grid; gap: var(--sp-1); margin-bottom: var(--sp-3); }
@@ -7291,10 +7239,9 @@ button.herd-group { cursor: pointer; }
   .solo-layout__board:has(.mines-grid) { width: min(52vw, 20rem); }
   .solo-layout__side .sdk-pad { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 0; }
   /* Word and quiz games: their board is a list or a card, not a square. */
-  .solo-layout__board:has(.pin-clues, .rank-slots, .streak-card) { width: min(48vw, 26rem); }
+  .solo-layout__board:has(.pin-clues, .streak-card) { width: min(48vw, 26rem); }
   .solo-layout__board:has(.wheel-grid) { width: min(38vw, 22rem); }
   .wheel-grid { max-width: min(calc(var(--ww-cols) * 2.8rem), calc((var(--app-h, 100vh) - 8.5rem) * var(--ww-cols) / var(--ww-rows))); }
-  .rank-slots { margin-bottom: 0; }
   .solo-layout__board:has(.flags-target) { display: block; width: min(52vw, 30rem); }
 }
 @media (orientation: landscape) and (max-height: 500px) {
@@ -7311,8 +7258,8 @@ button.herd-group { cursor: pointer; }
   .solo-layout__side .wheel-letter { width: 2.4rem; height: 2.4rem; font-size: 1.1rem; }
   .solo-layout__side .wheel-typed { grid-area: typed; align-self: end; margin: 0; min-height: 1.9rem; line-height: 1.9rem; font-size: 1.25rem; }
   .solo-layout__side .wheel-tools { grid-area: tools; align-self: start; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--sp-2); }
-  .pin-clue, .rank-slot { min-height: 2.25rem; }
-  .pin-clues, .rank-slots { gap: 5px; }
+  .pin-clue { min-height: 2.25rem; }
+  .pin-clues { gap: 5px; }
   .strands-theme { gap: var(--sp-2); margin-bottom: var(--sp-2); }
   .strands-theme__icon { font-size: 1.5rem; }
   .strands-theme b { font-size: var(--fs-body); }
@@ -7323,8 +7270,6 @@ button.herd-group { cursor: pointer; }
   .solo-layout__side .solo-bar { margin-bottom: var(--sp-2); }
   .solo-layout__side .solo-stat { padding: var(--sp-1) var(--sp-2); }
   .pin-ask { margin-bottom: var(--sp-1); }
-  .rank-card { padding: var(--sp-2) var(--sp-3); }
-  .rank-card b { font-size: 1.3rem; }
   .streak-card { padding: var(--sp-3); }
   .solo-choice { min-height: 2.6rem; padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); }
   .solo-choices:has(> :nth-child(5)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -7339,7 +7284,7 @@ button.herd-group { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .g2048-tile { transition: none; }
   .g2048-tile.is-new, .g2048-tile.is-merged { animation: none; }
-  .pin-clue.is-new, .streak-card.is-new, .rank-card.is-new, .strands-word.motion-landed { animation: none; }
+  .pin-clue.is-new, .streak-card.is-new, .strands-word.motion-landed { animation: none; }
   .streak-timer { display: none; }
   .flags-row.is-new, .flags-row.is-new .flags-row__fill, .flags-row.is-new .flags-row__arrow, .daily-bar i.is-new { animation: none; }
 }
@@ -11368,7 +11313,7 @@ function skrewDecksFor(players) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260917094340";
+      window.BUILD_ID = "20260917134015";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -11828,24 +11773,6 @@ function skrewDecksFor(players) {
         </div>
       </div>
       <div id="view-play-streak" class="hidden" data-accent="rose"><div id="streak-stage"></div></div>
-
-      <div id="view-setup-blindrank" class="hidden" data-accent="indigo">
-        <div class="card">
-          <div class="field">
-            <label class="field__label" data-i18n="rank_size">العدد</label>
-            <div class="segmented" id="blindrank-size" role="group">
-              <button type="button" class="segmented__item is-active" data-value="5" onclick="setBlindRankSize('5')" data-i18n="rank_size_5">5 حاجات</button>
-              <button type="button" class="segmented__item" data-value="10" onclick="setBlindRankSize('10')" data-i18n="rank_size_10">10 حاجات</button>
-            </div>
-          </div>
-          <div class="btn-stack">
-            <div id="blindrank-daily"></div>
-            <button type="button" id="blindrank-continue" class="btn btn--secondary hidden" onclick="continueBlindRank()" data-i18n="solo_continue">كمّل اللعبة</button>
-          </div>
-          <button onclick="startBlindRank(false)" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
-        </div>
-      </div>
-      <div id="view-play-blindrank" class="hidden" data-accent="indigo"><div id="blindrank-stage"></div></div>
 
       <div id="view-setup-cs-estimation" class="hidden" data-accent="violet">
         <div class="card">
@@ -15696,16 +15623,6 @@ function skrewDecksFor(players) {
       streak_emoji_q: "الإيموجي دي معناها إيه؟",
       streak_over: "خلصت القلوب",
       streak_in_a_row: "إجابة صح",
-      setup_blindrank: "الترتيب الأعمى",
-      cat_blindrank: "رتّب حاجات من غير ما تعرف الجاية إيه. وابعت ترتيبك لصحابك.",
-      rank_size: "العدد",
-      rank_size_5: "5 حاجات",
-      rank_size_10: "10 حاجات",
-      rank_theme: "رتّب",
-      rank_where: "تحطها فين؟",
-      rank_left: "فاضل",
-      rank_hint: "1 هو الأحسن. المكان اللي تختاره مش بيتغير.",
-      rank_done: "ده ترتيبك",
       setup_flags: "خمّن الدولة",
       cat_flags: "من علمها أو من بُعدها عنك: كل تخمين بيقولك كام كيلو وفي أي اتجاه.",
       flags_mode: "طريقة اللعب",
@@ -17517,16 +17434,6 @@ function skrewDecksFor(players) {
       streak_emoji_q: "What do these emoji stand for?",
       streak_over: "Out of hearts",
       streak_in_a_row: "right answers",
-      setup_blindrank: "Blind Ranking",
-      cat_blindrank: "Rank things without knowing what comes next, then send your list to friends.",
-      rank_size: "How many",
-      rank_size_5: "5 things",
-      rank_size_10: "10 things",
-      rank_theme: "Rank",
-      rank_where: "Where does it go?",
-      rank_left: "Left",
-      rank_hint: "1 is the best. A place you pick is final.",
-      rank_done: "Your ranking",
       setup_flags: "Guess the Country",
       cat_flags: "From its flag or from how far away it is: each guess tells you the distance and the direction.",
       flags_mode: "How to play",
@@ -19159,6 +19066,8 @@ function skrewDecksFor(players) {
             // cachedPlayers was a copy of the shared sheet list; the library
             // is its own store now and is loaded by initializeApp.
             delete appState.cachedPlayers;
+            // الترتيب الأعمى was removed (the owner, 17 Sep 2026); drop its saved board.
+            delete appState.blindrank;
 
             // Room screens come back too: initRooms() redraws them once the session
             // resumes, and restoreView() sends the player to the menu if it can't.
@@ -19533,8 +19442,6 @@ function skrewDecksFor(players) {
     'play-pinpoint':   { title: 'setup_pinpoint',   up: 'setup-pinpoint', accent: 'violet' },
     'setup-streak':    { title: 'setup_streak',     up: 'menu',           accent: 'rose' },
     'play-streak':     { title: 'setup_streak',     up: 'setup-streak',   accent: 'rose' },
-    'setup-blindrank': { title: 'setup_blindrank',  up: 'menu',           accent: 'indigo' },
-    'play-blindrank':  { title: 'setup_blindrank',  up: 'setup-blindrank', accent: 'indigo' },
     'setup-flags':     { title: 'setup_flags',      up: 'menu',           accent: 'blue' },
     'setup-daily':     { title: 'daily_title',      up: 'menu',           accent: 'amber' },
     'setup-headsup':   { title: 'setup_headsup',    up: 'menu',           accent: 'green' },
@@ -20912,12 +20819,6 @@ const GAME_RULES = {
                 <li>معاك <b>3 قلوب</b>: الغلط أو الوقت لو خلص بياخد قلب. اللعبة بتخلص مع آخر قلب.</li>
                 <li>النتيجة عدد الإجابات الصح، وأحسن نتيجة بتتحفظ لكل نوع أسئلة: معلومات، إيموجي، أمثال أو مكس.</li>
             </ol>`,
-        blindrank: `
-            <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>بيظهر موضوع وأول حاجة منه. حطها في مكان من <b>1 (الأحسن)</b> لتحت.</li>
-                <li>بعدها تظهر اللي بعدها. مش بتعرف الجاي إيه، والمكان اللي اخترته مش بيتغير.</li>
-                <li>مفيش إجابة صح: في الآخر ابعت ترتيبك لصحابك وشوفوا مين رتّب إزاي.</li>
-            </ol>`,
         flags: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li><b>🏳️ من العلم</b>: بيظهر علم، ومعاك 6 محاولات تعرف دولته.</li>
@@ -21674,12 +21575,6 @@ const GAME_RULES = {
                 <li>You have <b>3 hearts</b>: a wrong answer or running out of time costs one. The game ends with the last heart.</li>
                 <li>Your score is the number of right answers, and the best is kept for each kind: trivia, emoji, sayings or a mix.</li>
             </ol>`,
-        blindrank: `
-            <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>A theme and its first thing appear. Put it in a place from <b>1 (the best)</b> down.</li>
-                <li>Then the next one shows. You don't know what's coming, and a place you picked is final.</li>
-                <li>There's no right answer: at the end send your ranking to friends and compare.</li>
-            </ol>`,
         flags: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li><b>🏳️ From the flag</b>: a flag is shown, and you have 6 guesses to name its country.</li>
@@ -21890,7 +21785,6 @@ const GAME_CATALOG = [
   { id: 'strands',    icon: '🧵',   title: 'setup_strands',    desc: 'cat_strands',    accent: 'teal',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-strands', open: () => setupStrands() },
   { id: 'wordwheel',  icon: '🔡',   title: 'setup_wordwheel',  desc: 'cat_wordwheel',  accent: 'orange', players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-wordwheel', open: () => setupWordWheel() },
   { id: 'flags',      icon: '🌍',   title: 'setup_flags',      desc: 'cat_flags',      accent: 'blue',   players: [1, 1],  mins: 3,  modes: ['device'],               group: 'brain', setup: 'setup-flags', open: () => setupFlags() },
-  { id: 'blindrank',  icon: '📊',   title: 'setup_blindrank',  desc: 'cat_blindrank',  accent: 'indigo', players: [1, 1],  mins: 2,  modes: ['device'],               group: 'brain', setup: 'setup-blindrank', open: () => setupBlindRank() },
   { id: 'guessnum',   icon: '🔢',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 2],  mins: 3,  modes: ['device'],               group: 'duo', setup: 'setup-guessnum',    open: () => setupGuessNumber() },
   { id: 'reaction',   icon: '⚡',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-reaction',    open: () => setView('setup-reaction') },
 
@@ -24965,7 +24859,6 @@ const HELP_ENTRIES = [
   { key: 'pinpoint',    title: 'setup_pinpoint',    icon: '🔗', accent: 'violet', group: 'games' },
   { key: 'strands',     title: 'setup_strands',     icon: '🧵', accent: 'teal',   group: 'games' },
   { key: 'wordwheel',   title: 'setup_wordwheel',   icon: '🔡', accent: 'orange', group: 'games' },
-  { key: 'blindrank',   title: 'setup_blindrank',   icon: '📊', accent: 'indigo', group: 'games' },
   { key: 'flags',       title: 'setup_flags',       icon: '🌍', accent: 'blue',   group: 'games' },
   { key: 'buzzer',      title: 'setup_buzzer',      icon: '🔔', accent: 'rose',   group: 'games', roomOnly: true },
 
@@ -25031,7 +24924,6 @@ const HELP_FOR_VIEW = {
   'setup-nonogram': 'nonogram', 'play-nonogram': 'nonogram',
   'setup-strands': 'strands', 'play-strands': 'strands', 'setup-wordwheel': 'wordwheel', 'play-wordwheel': 'wordwheel',
   'setup-pinpoint': 'pinpoint', 'play-pinpoint': 'pinpoint', 'setup-streak': 'streak', 'play-streak': 'streak',
-  'setup-blindrank': 'blindrank', 'play-blindrank': 'blindrank',
   'setup-flags': 'flags', 'play-flags': 'flags', 'setup-daily': 'daily',
   'setup-headsup': 'headsup', 'play-headsup': 'headsup',
   'play-chooser': 'chooser', 'room-buzzer': 'buzzer', 'room-stop': 'stop',
@@ -45273,9 +45165,9 @@ if (typeof onLanguageChange === 'function') {
    لوحدك — what every one-player game shares
    ----------------------------------------------------------------------------
    The solo games (سودوكو, 2048, كاسحة الألغام, الملكات, شمس وقمر, نونوجرام,
-   خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات, الترتيب الأعمى,
-   خمّن الدولة) and تحدي اليوم are built on these pieces, so each game file is
-   only its own rules and board.
+   خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات, خمّن الدولة) and
+   تحدي اليوم are built on these pieces, so each game file is only its own
+   rules and board.
 
    - SOLO_GAMES: a game registers its screens (soloRegister). A reload goes
      back to its board through soloRestoreView (called from restoreView), its
@@ -49743,193 +49635,6 @@ soloRegister('streak', {
 
     <script>
 /* ============================================================================
-   الترتيب الأعمى — RANK THEM BEFORE YOU'VE SEEN THEM ALL
-   ----------------------------------------------------------------------------
-   A category and its things one at a time; each has to go into a place from
-   1 (the best) down before the next one shows, and a place once taken stays
-   taken. There is no right answer: the fun is the list you end up with and
-   sending it to the group, who got the same things in the daily.
-
-   The categories and things are the Chameleon lists (CHAMELEON_DB, 92
-   categories of 16). Free play deals the category through freshPick; the
-   daily is seeded, so every phone ranks the same five in the same order.
-   appState.blindrank holds the game.
-   ========================================================================= */
-
-const RANK_SIZES = [5, 10];
-let rankBusy = false;
-
-function rankState() {
-  if (!appState.blindrank) {
-    appState.blindrank = { size: 5, daily: '', lang: 'ar', name: '', icon: '', items: [], slots: [], next: 0, phase: 'setup' };
-  }
-  return appState.blindrank;
-}
-
-function setupBlindRank() {
-  setView('setup-blindrank');
-}
-
-function paintBlindRankSetup() {
-  const s = rankState();
-  document.querySelectorAll('#blindrank-size .segmented__item').forEach(el => el.classList.toggle('is-active', Number(el.dataset.value) === s.size));
-  const cont = document.getElementById('blindrank-continue');
-  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
-  const daily = document.getElementById('blindrank-daily');
-  if (daily) daily.innerHTML = soloDailyButtonHtml('blindrank', 'startBlindRank(true)');
-}
-
-function setBlindRankSize(size) {
-  rankState().size = RANK_SIZES.indexOf(Number(size)) !== -1 ? Number(size) : 5;
-  saveToLocal();
-  paintBlindRankSetup();
-}
-
-function startBlindRank(daily) {
-  if (daily && soloDailyResume('blindrank')) return;
-  soloDailySetAside('blindrank');
-  soloNewGame('blindrank');
-  const s = rankState();
-  const lang = contentLang() === 'en' ? 'en' : 'ar';
-  const cats = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
-  const size = daily ? 5 : s.size;
-  const rnd = soloRandom(daily ? soloDaySeed('blindrank:' + lang) : null);
-  const cat = daily ? soloPick(cats, rnd) : freshPick('blindrank:' + lang, cats, 1, { key: c => c.category })[0];
-  const split = soloCategory(cat.category);
-  Object.assign(s, {
-    daily: daily ? soloToday() : '', lang: lang, playSize: size,
-    name: split.name, icon: split.icon,
-    items: soloShuffle(cat.words, rnd).slice(0, size),
-    slots: Array(size).fill(null), next: 0, phase: 'play'
-  });
-  saveToLocal();
-  setView('play-blindrank');
-  paintBlindRank(true);
-}
-
-function continueBlindRank() {
-  if (rankState().phase !== 'play') return;
-  setView('play-blindrank');
-  paintBlindRank(false);
-}
-
-function paintBlindRank(fresh) {
-  const s = rankState();
-  const t = TRANSLATIONS[appState.lang];
-  const el = document.getElementById('blindrank-stage');
-  if (!el || !s.items.length) return;
-  const done = s.next >= s.items.length;
-  const current = done ? '' : s.items[s.next];
-  el.innerHTML = `
-    <div class="solo-layout">
-      <div class="solo-layout__board">
-        <ol class="rank-slots" id="rank-slots">
-          ${s.slots.map((item, i) => `
-            <li><button type="button" class="rank-slot${item !== null ? ' is-filled' : ''}" data-i="${i}" onclick="placeBlindRank(${i})" ${item !== null || done ? 'disabled' : ''}>
-              <span class="rank-slot__n metric">${i + 1}</span><b>${item !== null ? escapeHTML(item) : ''}</b></button></li>`).join('')}
-        </ol>
-      </div>
-      <div class="solo-layout__side">
-        <div class="strands-theme"><span class="strands-theme__icon" aria-hidden="true">${s.icon || '📊'}</span>
-          <span><span class="eyebrow">${escapeHTML(t.rank_theme || '')}</span><b>${escapeHTML(s.name)}</b></span>${s.daily ? ' <span class="badge">📅</span>' : ''}</div>
-        ${done ? `
-          <p class="pin-ask rank-done">${escapeHTML(t.rank_done || '')} ✓</p>
-          <div class="btn-stack">
-            <button type="button" class="btn btn--primary" onclick="shareBlindRank()">📤 ${escapeHTML(t.solo_share || '')}</button>
-            ${s.daily && typeof soloHubReturn !== 'undefined' && soloHubReturn
-              ? `<button type="button" class="btn btn--secondary" onclick="openDaily()">📅 ${escapeHTML(t.daily_back || '')}</button>`
-              : `<button type="button" class="btn btn--secondary" onclick="startBlindRank(false)">${escapeHTML(t.play_again || '')}</button>`}
-          </div>` : `
-          <div class="solo-bar" style="--solo-cols:1"><div class="solo-stat"><span class="solo-stat__label">${escapeHTML(t.rank_left || '')}</span><b class="metric">${s.items.length - s.next}</b></div></div>
-          <div class="rank-card${fresh ? ' is-new' : ''}" id="rank-card"><span class="eyebrow">${escapeHTML(t.rank_where || '')}</span><b id="rank-current">${escapeHTML(current)}</b></div>
-          <p class="field__hint">${escapeHTML(t.rank_hint || '')}</p>`}
-      </div>
-    </div>
-    <div class="view-actions">
-      <button class="btn btn--ghost btn--sm" onclick="setupBlindRank()">${escapeHTML(t.exit || '')}</button>
-    </div>`;
-}
-
-function placeBlindRank(i) {
-  const s = rankState();
-  if (s.phase !== 'play' || rankBusy || s.slots[i] !== null || s.next >= s.items.length) return;
-  const word = s.items[s.next];
-  const from = document.getElementById('rank-current');
-  const fromRect = from ? from.getBoundingClientRect() : null;
-  s.slots[i] = word;
-  s.next++;
-  const finished = s.next >= s.items.length;
-  if (finished) {
-    s.phase = 'done';
-    if (s.daily) soloMarkDaily('blindrank', { list: s.slots.slice() }, s.daily);
-  }
-  saveToLocal();
-  playSound('click');
-  haptic('light');
-  paintBlindRank(!finished);
-  const slot = document.querySelector(`#rank-slots [data-i="${i}"] b`);
-  if (!slot || !fromRect || motionOff() || !document.body.animate) {
-    if (finished) rankCelebrate();
-    return;
-  }
-  // The word flies from the card into its place.
-  const to = slot.getBoundingClientRect();
-  slot.style.visibility = 'hidden';
-  const ghost = document.createElement('span');
-  ghost.className = 'rank-ghost';
-  ghost.textContent = word;
-  ghost.style.left = fromRect.left + 'px';
-  ghost.style.top = fromRect.top + 'px';
-  document.body.appendChild(ghost);
-  const g = ghost.getBoundingClientRect();
-  const dx = to.left + to.width / 2 - (g.left + g.width / 2);
-  const dy = to.top + to.height / 2 - (g.top + g.height / 2);
-  rankBusy = true;
-  const a = ghost.animate([{ transform: 'none' }, { transform: `translate(${dx}px, ${dy}px) scale(0.9)` }],
-                          { duration: 480, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'both' });
-  const land = () => {
-    if (!ghost.isConnected) return;
-    ghost.remove();
-    rankBusy = false;
-    slot.style.visibility = '';
-    const btn = slot.closest('.rank-slot');
-    if (btn && btn.animate) btn.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(1)' }], { duration: 260 });
-    if (finished) rankCelebrate();
-  };
-  a.onfinish = land;
-  setTimeout(land, 900);
-}
-
-function rankCelebrate() {
-  playSound('success');
-  const slots = document.querySelectorAll('#rank-slots .rank-slot');
-  if (motionOff()) return;
-  slots.forEach((el, k) => el.animate && el.animate([{ transform: 'none' }, { transform: 'translateY(-4px)' }, { transform: 'none' }], { duration: 320, delay: k * 60 }));
-}
-
-function shareBlindRank() {
-  const s = rankState();
-  const t = TRANSLATIONS[appState.lang];
-  const head = s.daily ? soloShareHeader(t, s.daily) + '\n' : '';
-  const text = `${head}📊 ${t.setup_blindrank || ''} · ${s.name} ${s.icon}\n${s.slots.map((w, i) => `${i + 1}. ${w}`).join('\n')}`;
-  shareOrCopy(appLink(), text, t.solo_copied || '');
-}
-
-function restoreBlindRank() {
-  const s = rankState();
-  if (!s.items.length || (s.phase !== 'play' && s.phase !== 'done')) return false;
-  paintBlindRank(false);
-  return true;
-}
-
-soloRegister('blindrank', {
-  setup: 'setup-blindrank', play: 'play-blindrank', paintSetup: paintBlindRankSetup, restore: restoreBlindRank,
-  state: rankState, resume: continueBlindRank, repaint: () => paintBlindRank(false), prefs: ['size']
-});
-</script>
-
-    <script>
-/* ============================================================================
    خمّن الدولة — A COUNTRY FROM ITS FLAG, OR FROM HOW FAR YOU ARE
    ----------------------------------------------------------------------------
    Two ways to play. From the flag (6 guesses): the flag is shown, and a
@@ -50379,7 +50084,6 @@ const DAILY_GAMES = [
   { id: 'pinpoint',  start: () => startPinpoint(true),  line: (r) => `${r.score >= 13 ? '✅' : '☑️'} ${r.score}/25` },
   { id: 'strands',   start: () => startStrands(true),   line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'wordwheel', start: () => startWordWheel(true), line: (r) => `✅ ${soloTime(r.seconds)}${r.bonus ? ' ⭐' + r.bonus : ''}${dailyHints(r)}` },
-  { id: 'blindrank', start: () => startBlindRank(true), line: (r) => `✅ ${(r.list || [])[0] || ''}` },
   { id: 'sudoku',    start: () => startSudoku(true),    line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'queens',    start: () => startQueens(true),    line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'tango',     start: () => startTango(true),     line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },

@@ -72,8 +72,7 @@
   unbeatable minimax.
 - **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
   🚩 Minesweeper, 👑 Queens, ☀️ Tango, 🖼️ Nonogram; 🧵 خيوط, 🔡 كلمات من
-  حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 📊 الترتيب الأعمى, 🌍 خمّن
-  الدولة.
+  حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 🌍 خمّن الدولة.
 - **Utility Tools:**
   - 👆 Who starts? (مين يبدأ؟), the finger chooser: one starts, two teams, or an order.
   - 🏆 Tournament Organizer, 👥 Team Generator, 🎡 Random Picker.
@@ -190,8 +189,9 @@ work changed. Add to it when a decision is made or a batch ships.
 
 Solo was the gap (Wordle, Connections, Memory, X-O against the phone and Guess
 the Number). Built since, see *Solo games*: Sudoku, 2048, Minesweeper, Queens,
-Tango, Nonogram, خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات,
-الترتيب الأعمى and خمّن الدولة. The candidates as researched, each within the owner's rules
+Tango, Nonogram, خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات
+and خمّن الدولة (الترتيب الأعمى was built too, then removed: see *Decided,
+and why*). The candidates as researched, each within the owner's rules
 (free, offline where possible, nothing adult, content that doesn't go stale,
 categories that name a kind of thing):
 
@@ -213,8 +213,6 @@ categories that name a kind of thing):
   time, fewer clues = more points; reuses the Connections groups.
 - **A solo quiz streak**: the trivia, emoji and proverb banks with three lives
   and a best score.
-- **الترتيب الأعمى (blind ranking)**: five things of a kind revealed one at a
-  time, each placed 1-5 before seeing the next; solo, and in a room to compare.
 
 Group candidates:
 
@@ -234,7 +232,7 @@ Group candidates:
 Each of these would use the motion toolkit (*Using the motion toolkit in a
 new game*): reveals and podiums for the group games, `spinLetter` for anything
 drawn at random, `flyEmoji` or a ghost flight for placing things (Timeline,
-blind ranking, the word search), `countUp` for streaks and scores.
+the word search), `countUp` for streaks and scores.
 
 ### Decided, and why
 
@@ -246,6 +244,12 @@ blind ranking, the word search), `countUp` for streaks and scores.
   (`TriviaQuestions.js` came out of `PartyContent.js` for this), never copied.
 - The soundboard is a tool (الأدوات → لوحة الأصوات), not a setting (owner,
   16 Sep 2026). The 🔊 in the header on play and room screens stays.
+- **الترتيب الأعمى (blind ranking) was removed** (owner, 17 Sep 2026: "I don't
+  see any use of it"). It was a solo game with no score - place five or ten
+  things of a Chameleon category 1..n before seeing the next, then share the
+  list - and it had a daily. Don't bring it back, in rooms either. A saved
+  board is dropped on load (`delete appState.blindrank` in `loadFromLocal`);
+  the recent row and the daily hub already ignore ids they don't know.
 - Rooms stay on Cloudflare; WebRTC was rejected. Firebase, if ever, on a
   different Google account from the one already tried.
 - صراحة أو جرأة (truth or dare): a family-clean list is too tame. تخمين السعر
@@ -340,6 +344,8 @@ blind ranking, the word search), `countUp` for streaks and scores.
   descriptions); the new card design (colour blocks, drawn icons) and seat
   layout the owner picked from a design sheet, with hands stacking in even
   rows when they don't fit.
+- **17 Sep 2026, night** - الترتيب الأعمى removed at the owner's request
+  (*Decided, and why*); تحدي اليوم now has ten dailies.
 
 ## Building and Running
 
@@ -1631,10 +1637,6 @@ of its own:
   `flagsEnsureFont` draws one to a canvas and, when it comes out as letters,
   loads the Twemoji country-flag font (`country-flag-emoji-polyfill`, pinned on
   jsDelivr) for `.flag-emoji`.
-- **الترتيب الأعمى** (`JS_BlindRank.html`, id `blindrank`): 5 or 10 things of a
-  Chameleon category, each placed 1..n before the next shows; the word flies
-  into its place. No score: the list is shared as text, and the daily gives
-  every phone the same five in the same order.
 
 ### Card game score keepers (حاسبة الورق)
 

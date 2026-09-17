@@ -434,7 +434,7 @@ const leave = (r, id, hook = true) => {
     sk(r, p0, 'draw');
     check(r.secrets[p0].drawn === 'p7' && r.secrets[p1].drawn === null && r.shared.turn.stage === 'drawn', 'skrew: the drawn card is in the drawer\'s slice only');
     const last = r.shared.events[r.shared.events.length - 1];
-    check(last.type === 'draw' && !('card' in last) && JSON.stringify(r.shared).indexOf('p7') === -1, 'skrew: nothing shared says what was drawn');
+    check(last.type === 'draw' && !('card' in last) && JSON.stringify(r.shared).indexOf('"p7"') === -1, 'skrew: nothing shared says what was drawn');
     applyRoomAction(r, p0, 'draw', { seq: oldSeq });
     check(r.shared.turn.stage === 'drawn' && r.shared.deckCount === 3, 'skrew: a tap with a stale seq is dropped quietly');
     sk(r, p0, 'keep', { slot: slotOf(r, p0, 1) });
@@ -1024,6 +1024,165 @@ const leave = (r, id, hook = true) => {
     const big = skStart(['a', 'b', 'c', 'd', 'e', 'f', 'g'], { edition: 'thief' });
     const all = big._screw.deck.concat(big._screw.pile, ...Object.values(big._screw.hands).map((h) => h.map((e) => e.card)));
     check(big.shared.settings.decks === 2 && all.filter((c) => c === 'thief').length === 1 && all.filter((c) => c === 'seeSwap').length === 2, 'skrew: two decks, one thief');
+  }
+
+  {
+    // سرقة الحرامي (a house rule): the thief played as a steal - a look at another player's card, then a forced swap.
+    const three = ['a', 'b', 'c'];
+    let r = skStart(three, { edition: 'thief', thiefSteal: true });
+    check(r.shared.settings.thiefSteal === true && skStart(three, { edition: 'thief' }).shared.settings.thiefSteal === false &&
+      skStart(three, { edition: 'classic', thiefSteal: true }).shared.settings.thiefSteal === false,
+      'skrew: سرقة الحرامي is a lobby option, off by default, and only with the thief in the deck');
+    begin(r, [['n1', 'n2'], ['n3', 'n4'], ['n5', 'n6']], ['n6', 'n6', 'n6', 'n6'], ['n5']);
+    let [p0, p1, p2] = r.shared.order;
+    r._screw.deck.push('thief');
+    sk(r, p0, 'draw');
+    check(skThrew(r, p0, 'discard') && skThrew(r, p0, 'thiefSteal', { target: p0, slot: slotOf(r, p0, 1) }),
+      'skrew: a drawn thief still can\'t just be thrown, and the steal is from another player');
+    const seq = r.shared.turnSeq;
+    const aimed = slotOf(r, p1, 2);
+    sk(r, p0, 'thiefSteal', { target: p1, slot: aimed });
+    const tev = r.shared.events.slice(-1)[0];
+    check(r.shared.turn.stage === 'steal' && r.shared.turn.look.target === p1 && r.shared.turn.look.slot === aimed && r.shared.turnSeq > seq &&
+      r.shared.pile.slice(-1)[0] === 'thief' && r.secrets[p0].drawn === null &&
+      tev.type === 'thiefSteal' && Object.keys(tev).sort().join() === 'pid,seq,slot,target,type' && tev.pid === p0 && tev.target === p1 && tev.slot === aimed,
+      'skrew: a drawn thief played as a steal goes face up on the pile, and the turn moves to the steal');
+    check(JSON.stringify(r.secrets[p0].seen) === JSON.stringify([{ pid: p1, slot: aimed, card: 'n4' }]) && r.secrets[p1].seen === null && r.secrets[p2].seen === null &&
+      JSON.stringify(r.shared).indexOf('"n4"') === -1 && r.shared.hands[p1][1].h.looks.join() === p0,
+      "skrew: the stolen card is shown on the stealer's phone alone; the table sees which slot, and that the stealer looked");
+    check(skThrew(r, p0, 'stealSwap', {}) && r.shared.turn.stage === 'steal', 'skrew: the swap is forced: leaving it is refused');
+    const mine = slotOf(r, p0, 1);
+    sk(r, p0, 'stealSwap', { slot: mine });
+    const sw = r.shared.events.slice(-1)[0];
+    check(r._screw.hands[p0][0].card === 'n4' && r._screw.hands[p1][1].card === 'n1' && sw.type === 'stealSwap' && sw.pid === p0 && sw.slot === mine && sw.target === p1 && sw.slot2 === aimed &&
+      r.shared.turn.pid === p1 && r.secrets[p0].seen === null,
+      "skrew: then one of the stealer's own cards for it, and the turn ends");
+    check(r.shared.hands[p0][0].h.how === 'swap' && r.shared.hands[p0][0].h.looks.includes(p0) && r.shared.hands[p1][1].h.how === 'swap' && r.shared.hands[p1][1].h.from.pid === p0,
+      'skrew: the swapped cards\' stories say so, and who has looked');
+    check(skThrew(r, p1, 'thiefSteal', { target: p2, slot: slotOf(r, p2, 1) }) && skThrew(r, p1, 'takePile', { slot: slotOf(r, p1, 1) }),
+      'skrew: a thief spent on a steal is out for the round: not stolen with again, not taken from the pile');
+    callAndFinish(r);
+    check(r.shared.phase === 'reveal' && r.shared.results.thief === null && r.shared.thiefVote === null && !r.shared.events.some((e) => e.type === 'accuse'),
+      'skrew: with the thief spent, the round ends without the vote');
+
+    // From the top of the pile as the turn starts; the host's skip swaps a card at random.
+    r = skStart(three, { edition: 'thief', thiefSteal: true });
+    begin(r, [['n1', 'n2'], ['n3', 'n4'], ['n5', 'n6']], ['n6', 'n6', 'n6'], ['n2', 'n5', 'thief']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'thiefSteal', { target: p2, slot: slotOf(r, p2, 1) });
+    check(r.shared.turn.stage === 'steal' && r._screw.pile.join() === 'n2,n5,thief' && r.secrets[p0].seen[0].card === 'n5',
+      'skrew: the thief on top of the pile as the turn starts can be played as a steal');
+    sk(r, r.hostId, 'skipTurn');
+    const rs = r.shared.events.slice(-1)[0];
+    check(rs.type === 'stealSwap' && rs.target === p2 && r._screw.hands[p0].find((e) => e.id === rs.slot).card === 'n5' && ['n1', 'n2'].includes(r._screw.hands[p2][0].card) && r.shared.turn.pid === p1,
+      "skrew: the host's skip during a steal swaps one of the stealer's cards at random");
+    // A spent thief doesn't go back into the deck when the pile is shuffled in.
+    r._screw.pile = ['thief', 'n2', 'n5'];
+    r._screw.deck = [];
+    sk(r, p1, 'draw');
+    check(r._screw.pile.join() === 'n5' && r._screw.deck.length === 0 && r.secrets[p1].drawn === 'n2', 'skrew: a spent thief stays out when the pile becomes the deck');
+    sk(r, p1, 'discard');
+    callAndFinish(r);
+    check(r.shared.phase === 'reveal' && r.shared.results.thief === null, 'skrew: a thief out of the round: no vote');
+
+    // Picked with الخشاف.
+    r = skStart(three, { edition: 'custom', groups: ['thief', 'mesaharaty'], thiefSteal: true });
+    begin(r, [['n1', 'n2'], ['n3', 'n4'], ['n5', 'n6']], ['n6', 'n6'], ['n5']);
+    [p0, p1, p2] = r.shared.order;
+    r._screw.deck.push('n3', 'thief', 'khoshaf');
+    sk(r, p0, 'draw'); sk(r, p0, 'discard'); sk(r, p0, 'power', {});
+    sk(r, p0, 'khoshafPick', { index: r.secrets[p0].khoshaf.indexOf('thief') });
+    check(r.shared.turn.stage === 'drawn' && r.secrets[p0].drawn === 'thief', 'skrew: the thief picked with الخشاف is in hand, drawn');
+    sk(r, p0, 'thiefSteal', { target: p1, slot: slotOf(r, p1, 1) });
+    sk(r, p0, 'stealSwap', { slot: slotOf(r, p0, 2) });
+    check(r.shared.pile.includes('thief') && r._screw.hands[p0][1].card === 'n3' && r.shared.turn.pid === p1, 'skrew: a thief picked with الخشاف can be played as a steal');
+
+    // The protected side after a سكرو can't be stolen from; without the house rule there is no steal.
+    r = skStart(three, { edition: 'thief', thiefSteal: true });
+    begin(r, [['n1'], ['n3', 'n4'], ['n5', 'n6']], ['n6', 'n6', 'n6', 'thief'], ['n5']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'screw');
+    sk(r, p1, 'draw');
+    check(skThrew(r, p1, 'thiefSteal', { target: p0, slot: slotOf(r, p0, 1) }), 'skrew: no stealing from the protected caller');
+    sk(r, p1, 'thiefSteal', { target: p2, slot: slotOf(r, p2, 1) });
+    sk(r, p1, 'stealSwap', { slot: slotOf(r, p1, 1) });
+    check(r.shared.turn.pid === p2, 'skrew: stealing from a player off the protected side works');
+    r = skStart(three, { edition: 'thief' });
+    begin(r, [['n1'], ['n3', 'n4'], ['n5', 'n6']], ['n6', 'n6', 'thief'], ['n5']);
+    [p0, p1] = r.shared.order;
+    sk(r, p0, 'draw');
+    check(skThrew(r, p0, 'thiefSteal', { target: p1, slot: slotOf(r, p1, 1) }), 'skrew: without the house rule the thief steals nothing');
+
+    // A thief lying on the pile at the end: no vote with the house rule, the vote as before without it.
+    r = skStart(three, { edition: 'thief', thiefSteal: true });
+    begin(r, [['n1'], ['n2'], ['n3']], ['n6', 'n6', 'n6'], ['n5', 'thief']);
+    callAndFinish(r);
+    check(r.shared.phase === 'reveal' && r.shared.results.thief === null, 'skrew: with the house rule, a thief lying on the pile at the end: no vote');
+    r = skStart(three, { edition: 'thief' });
+    begin(r, [['n1'], ['n2'], ['n3']], ['n6', 'n6', 'n6'], ['n5', 'thief']);
+    callAndFinish(r);
+    check(r.shared.phase === 'thiefGuess', 'skrew: without it, the vote as before');
+
+    // The player being stolen from leaves: nothing to swap, the turn ends.
+    r = skStart(three, { edition: 'thief', thiefSteal: true });
+    begin(r, [['n1', 'n2'], ['n3', 'n4'], ['n5', 'n6']], ['n6', 'n6', 'n6'], ['n5', 'thief']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'thiefSteal', { target: p1, slot: slotOf(r, p1, 1) });
+    leave(r, p1);
+    check(r.shared.turn.pid === p2 && r.shared.turn.stage === 'choose' && r.secrets[p0].seen === null, 'skrew: the player stolen from leaving ends the steal');
+  }
+
+  {
+    // بصرة الفريق (a house rule, teams only): on your turn, throw one of your partner's cards.
+    const four = ['a', 'b', 'c', 'd'];
+    const sahib = (opts) => skStart(four, Object.assign({ edition: 'sahib', teams: true }, opts));
+    let r = sahib({ teamBasra: true });
+    check(r.shared.settings.teamBasra === true && sahib({}).shared.settings.teamBasra === false && skStart(four, { edition: 'classic', teamBasra: true }).shared.settings.teamBasra === false,
+      'skrew: بصرة الفريق is a lobby option, off by default, teams only');
+    begin(r, [['n1', 'n2'], ['n3'], ['n3', 'n4'], ['n6']], ['n6', 'n6', 'n6', 'n6'], ['n3']);
+    let [s0, s1, s2, s3] = r.shared.order;
+    const partnerSlot = slotOf(r, s2, 1);
+    sk(r, s0, 'match', { slot: partnerSlot, owner: s2 });
+    let mev = r.shared.events.slice(-1)[0];
+    check(r._screw.hands[s2].length === 1 && r._screw.hands[s0].length === 2 && r.shared.pile.slice(-1)[0] === 'n3' &&
+      mev.type === 'match' && mev.ok === true && mev.owner === s2 && mev.pid === s0 && mev.slot === partnerSlot && r.shared.turn.pid === s1,
+      "skrew: a partner's matching card thrown: it leaves the partner's hand, and the event names whose it was");
+    sk(r, r.hostId, 'skipTurn');
+    const wrongSlot = slotOf(r, s0, 1);
+    sk(r, s2, 'match', { slot: wrongSlot, owner: s0 });
+    mev = r.shared.events.filter((e) => e.type === 'match').pop();
+    const pen = r.shared.events.slice(-1)[0];
+    check(mev.ok === false && mev.owner === s0 && mev.card === 'n1' && r._screw.hands[s0].length === 2 && r.shared.hands[s0][0].up === null && r.shared.hands[s0][0].h.known === 'n1' &&
+      r._screw.hands[s2].length === 2 && pen.type === 'penalty' && pen.pid === s2 && r.shared.hands[s2][1].h.how === 'penalty' && r.shared.hands[s2][1].h.by === s2,
+      "skrew: a wrong one goes back face down in the partner's slot, known, and the penalty card is the thrower's");
+    const quiet = (x) => JSON.stringify(x.shared);
+    let before = quiet(r);
+    sk(r, s3, 'match', { slot: slotOf(r, s0, 2), owner: s0 });
+    check(quiet(r) === before && r.shared.turn.pid === s3, "skrew: an opponent's card is refused quietly");
+    // Emptying the partner's hand ends the round: the partner is the finisher.
+    r = sahib({ teamBasra: true });
+    begin(r, [['n5', 'n6'], ['n3'], ['n3'], ['n6']], ['n6', 'n6', 'n6', 'n6'], ['n3']);
+    [s0, s1, s2, s3] = r.shared.order;
+    sk(r, s0, 'match', { slot: slotOf(r, s2, 1), owner: s2 });
+    check(r.shared.phase === 'reveal' && r.shared.results.finisher === s2 && r.shared.results.round.A === 0, "skrew: emptying the partner's hand ends the round, the partner the finisher");
+    // Refused quietly: without teams, without the house rule, and on a protected partner.
+    const refused = (x, thrower, owner, label) => {
+      before = quiet(x);
+      sk(x, thrower, 'match', { slot: slotOf(x, owner, 1), owner });
+      check(quiet(x) === before && x.shared.turn.pid === thrower, label);
+    };
+    r = skStart(four, { edition: 'classic', teamBasra: true });
+    begin(r, [['n1'], ['n2'], ['n3'], ['n4']], ['n6', 'n6'], ['n3']);
+    refused(r, r.shared.order[0], r.shared.order[2], "skrew: without teams nobody throws another player's card");
+    r = sahib({});
+    begin(r, [['n1'], ['n2'], ['n3'], ['n4']], ['n6', 'n6'], ['n3']);
+    refused(r, r.shared.order[0], r.shared.order[2], "skrew: without the house rule nobody throws a partner's card");
+    r = sahib({ teamBasra: true });
+    begin(r, [['n1'], ['n2'], ['n3', 'n3'], ['n4']], ['n6', 'n6', 'n6', 'n6'], ['n1']);
+    [s0, s1, s2, s3] = r.shared.order;
+    sk(r, s0, 'screw');
+    sk(r, r.hostId, 'skipTurn');
+    refused(r, s2, s0, "skrew: a partner who called سكرو is protected: their cards can't be thrown");
   }
 
   {

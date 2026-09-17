@@ -108,7 +108,9 @@
           ? `عدد الفائزين لا يمكن أن يزيد عن ${maxWinners}`
           : `At most ${maxWinners} winner(s) for ${selected.length} players`);
     }
-    m.config.winners = Math.min(askedWinners, maxWinners);
+    // The pick stays the setup's default for next time; the table it is
+    // played by is capped where the win is checked (monkeyWinners).
+    m.config.winners = Math.max(1, askedWinners);
     const timerEl = document.getElementById('monkey-timer');
     if (timerEl) m.config.timer = Number(timerEl.value) || 0;
 
@@ -522,12 +524,18 @@
     startTimer();
   }
 
+  /** How many win this game: the setup's pick, at most everyone but one (the table can change mid-game). */
+  function monkeyWinners(m) {
+    return Math.max(1, Math.min(Number(m.config.winners) || 1, m.players.length - 1));
+  }
+
   function checkWinCondition() {
     const m = monkeyState();
     const total = m.players.length;
     const monkeys = m.players.filter(p => p.isMonkey).length;
     const safe = total - monkeys;
-    if (!(safe <= m.config.winners && total > m.config.winners)) return;
+    const places = monkeyWinners(m);
+    if (!(safe <= places && total > places)) return;
 
     stopTimer();
     m.phase = 'done';

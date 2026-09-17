@@ -1974,14 +1974,28 @@ function settleDie(die, value, index) {
 }
 
 function setDiceCount(n) {
-  appState.dice.count = n;
-  const b1 = document.getElementById('btn-d1');
-  const b2 = document.getElementById('btn-d2');
-  if (b1) b1.classList.toggle('is-active', n === 1);
-  if (b2) b2.classList.toggle('is-active', n === 2);
+  appState.dice.count = Number(n) === 2 ? 2 : 1;
+  saveToLocal();
+  paintDiceCount();
   paintDiceTray();
   const result = document.getElementById('dice-result');
   if (result) result.innerText = '---';
+}
+
+function paintDiceCount() {
+  const n = appState.dice.count;
+  const b1 = document.getElementById('btn-d1');
+  const b2 = document.getElementById('btn-d2');
+  if (b1) b1.classList.toggle('is-active', n !== 2);
+  if (b2) b2.classList.toggle('is-active', n === 2);
+}
+
+/** The tool as it was last left on this phone: one die or two, the dice or the coin. */
+function paintDiceTool() {
+  if (appState.dice.count !== 2) appState.dice.count = 1;
+  paintDiceCount();
+  setDiceTab(appState.dice.tab === 'coin' ? 'coin' : 'dice', true);
+  paintDiceTray();
 }
 
 function rollDice() {
@@ -2056,8 +2070,10 @@ function flipCoin() {
   }, still ? 0 : 1150);
 }
 /** Dice / coin tab switch, previously inline DOM juggling in the markup. */
-function setDiceTab(which) {
-    const isDice = (which === 'dice');
+function setDiceTab(which, painting) {
+    const isDice = (which !== 'coin');
+    appState.dice.tab = isDice ? 'dice' : 'coin';
+    if (painting !== true) saveToLocal();
     const pane = (id, on) => {
         const el = document.getElementById(id);
         if (el) el.classList.toggle('hidden', !on);

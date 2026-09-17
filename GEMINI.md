@@ -92,11 +92,6 @@ work changed. Add to it when a decision is made or a batch ships.
   - the deck: the owner's own "66-card" table (17 Sep 2026) adds up to 62 -
     the base with four بصرة (59) plus the thief's three cards - which is what
     the app deals for Classic + الحرامي; no source that adds up to 66 was found;
-  - the thief's "targeted steal" (a house rule in one source: the thief taken
-    from the pile peeks at a player's good card and swaps a bad one in) is not
-    built;
-  - a "team basra" (throwing a card from a partner's hand for them) from the
-    same source is not built.
 
 - **Two طرنيب ٤١ rules for the owner to decide** (the scorer doesn't guess):
   a failed bid of 13 scores 0 today (options: keep it; charge a fixed amount
@@ -986,6 +981,16 @@ default. Seats are shuffled at start and at play again.
   keys and every player. The last round goes straight to `gameover` with
   `winners` (and `winnerTeams`). The board is lowest first, so `renderPodium`
   (highest wins) is not used for it.
+- **House rules** (`settings.thiefSteal`, `settings.teamBasra`, off by
+  default; the owner asked for both as options, 17 Sep 2026). With سرقة
+  الحرامي, a thief just drawn (or picked with الخشاف), or on top of the pile as
+  a turn starts, can be played as a steal: `thiefSteal { target, slot }` shows
+  that card on the stealer's phone alone (stage `steal`, `turn.look`),
+  `stealSwap { slot }` is a forced swap, the thief goes up on the pile and is
+  out for the round, and a round where nobody can hold it skips the vote. With
+  بصرة الفريق, `match { slot, owner }` throws a teammate's card: a partner
+  emptied this way finishes the round, and a wrong throw's penalty card is the
+  thrower's.
 - **What the table knows.** Every slot carries a public history,
   `shared.hands[pid][i].h = { how, by, from, at, known, looks }`: how its card
   arrived (deal, deck, pile, penalty, swap, give, scream, khoshaf), who moved
@@ -1634,8 +1639,12 @@ of its own:
 ### Card game score keepers (حاسبة الورق)
 
 `JS_CardScore.html` is one engine and `JS_CardRules.html` five rule sets
-(`CS_GAMES`: estimation, tarneeb, trix, konkan, basra), each a catalog card
-in the `table` group with its own `setup-cs-<id>` / `play-cs-<id>` screens.
+(`CS_GAMES`: estimation, tarneeb, trix, konkan, basra), each a catalog entry
+with its own `setup-cs-<id>` / `play-cs-<id>` screens. They are tools, not
+games (the owner, 17 Sep 2026): `group: 'tools', kind: 'score'` with the
+domino scorer, listed under حاسبات النقط on the الأدوات tab (`renderTools`
+splits `kind: 'score'` into its own section), their setup screens' `up` is
+`tools`, and the home's ورق وطاولة section is سكرو alone.
 The deck is real; the phone keeps the score. A rule set says who sits
 (`seats`, from the player picker in seating order; teams are 1 & 3 against
 2 & 4, `csTeams`), what a round asks for (`entryHtml`, built from the
@@ -1788,6 +1797,27 @@ categories) are painted by `paintSetupOptions(viewId)` (`SETUP_PAINTERS` in
 `JS_Core.html`) whenever the screen is reached - from a card, the back button
 or a reload - so a game's `setupX()` entry point is not the only way in that
 shows the saved options.
+
+**Choices are remembered on the phone** (the owner, 17 Sep 2026: "I don't want
+to make the same settings every time"). Every setup screen and host lobby
+opens with the options this phone chose last, and a change is kept the moment
+it is made, not on Start. A game whose options live in its `appState` slice
+(painted by `SETUP_PAINTERS`) or under its own `ashry…` key keeps doing that.
+Anything else goes through `recallOptions(key, defaults)` /
+`rememberOptions(key, patch)` in `JS_Core.html` (one key, `ashryOptions_v1`,
+cleared by "delete all data"). A plain setup field just gets `data-remember`:
+it is kept by id as it changes (typing, `stepField`, `pickTime`, a switch, a
+list) and put back by `paintSetupOptions` before the screen's painter runs,
+together with the one-phone / own-phones switch (`paintPlayMode`). A list
+filled in JS calls `recallField(select)` once its options exist (الجاسوس,
+الحرباء). Choices that live on the rooms server are sent by the host's phone
+once to a new room whose settings are untouched (أسماء الرموز,
+`cnApplyRemembered`). Never mark a secret word, a number to guess, or anything
+dealt. A new game with options needs one of these, or it opens on its defaults
+every evening. Left alone on purpose: أوصف لي's length and Wordle's word length
+are Start buttons, not a selection; the general timer's minutes are the
+running timer; the domino single/teams question depends on the table; the
+Codenames custom words are not carried to new rooms.
 
 ### The games' language
 
@@ -2543,16 +2573,30 @@ header's arrow and the tabs change the screen and the history follows with
 `play-sudoku+` for the extras), their index and a per-load session id; an
 entry left behind by a reload starts the history over from the screen showing.
 
-This replaced a single entry kept in front of the app (`armBackTrap`), which
-the owner found on an iPhone: Safari's back swipe slid in its snapshot of that
-entry - the same screen - and only then did the app change screen, its own
-slide already too late to see. With an entry per screen Safari slides in the
-screen you are really going back to, and `setView` skips its own slide when
-the browser has already animated (`PopStateEvent.hasUAVisualTransition`, or a
-touch that started within 28px of the edge in the last 1.5s). A game's extra
-entry is why the swipe on a game slides the game onto itself before the
-"leave?" sheet, rather than showing the setup screen and snapping back. iOS
-limits `pushState` to about 100 calls in 30 seconds; nothing here comes close.
+This replaced a single entry kept in front of the app (`armBackTrap`).
+
+**On an iPhone the back swipe is the app's own.** The owner reported twice
+that swiping back on the iPhone "doesn't get the same animation as the back
+button": Safari's gesture slides a picture of the page and the app then
+changes screens with none of its own motion (with one trap entry the picture
+was even the same screen). So on iOS (`EDGE_IOS`, Safari and the home-screen
+copy) a touch that starts within `EDGE_PX` (20px) of the left edge is taken
+first - `preventDefault` on `touchstart`, which iOS honours at the edge - and
+only when there is somewhere to go back to (a popup, or any screen but the
+home). The current view follows the finger (`translateX`); letting go past a
+third of the width, or a quick flick, slides it out and runs `edgeBack` -
+exactly the header arrow: the top popup closes, a game asks first
+(`openExitSheet`), otherwise `goBack` with its slide and the icon flying home.
+A shorter drag springs back. Because the default is prevented, the handler
+passes a tap at the edge on as a `click` and scrolls `#shell-main` itself for
+a vertical drag. If Safari takes the gesture anyway, the page receives
+`touchcancel` rather than `touchend`, so nothing is done twice. Elsewhere
+(Android's back button and predictive back, desktop browsers) the history
+entries above do the work, and a browser that animated the way back itself
+(`hasUAVisualTransition`) isn't slid in twice. iOS limits `pushState` to about
+100 calls in 30 seconds; nothing here comes close. To test the swipe off an
+iPhone, force `EDGE_IOS` true in a copy of `.preview/index.html` and dispatch
+`TouchEvent`s at `#shell-main`.
 
 **Hooks for what a screen leaves behind.** `onLeaveScreen((from, to) => …)`
 (JS_Core.html) runs on every screen change: a game stops there whatever no

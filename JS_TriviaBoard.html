@@ -51,25 +51,47 @@ function tbText() { return TRANSLATIONS[appState.lang] || {}; }
 function tbLang() { return contentLang(); }
 function tbCategory(id) { return TRIVIA_BOARD_BANK.find(c => c.id === id); }
 
-/** Opens the trivia setup screen: the team board here, rooms one tap away. */
+/** Opens the trivia setup screen: the team board here, rooms one tap away (the switch opens as it was left). */
 function setupTrivia() {
   setView('setup-trivia');
-  setPlayMode('trivia', 'device');
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(TB_TEAMS_KEY) || '{}') || {}; } catch (e) {}
+}
+
+/* The setup as the host left it (ashryTriviaTeams): the names, the rounds and
+   the clock. Kept whenever one of them changes, not only on Start, and put
+   back whenever the screen is painted - a reload or the back button too. */
+function tbSavedSetup() {
+  try { return JSON.parse(localStorage.getItem(TB_TEAMS_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function tbRecallSetup() {
+  const saved = tbSavedSetup();
   const a = document.getElementById('tb-team-a');
   const b = document.getElementById('tb-team-b');
   const rounds = document.getElementById('tb-rounds');
-  if (a) a.value = saved.a || '';
-  if (b) b.value = saved.b || '';
-  if (rounds && saved.rounds) rounds.value = String(saved.rounds);
-
+  if (a && document.activeElement !== a) a.value = saved.a || '';
+  if (b && document.activeElement !== b) b.value = saved.b || '';
+  const n = Number(saved.rounds);
+  if (rounds && n >= 1 && n <= 4) rounds.value = String(n);
   // On, at 30 seconds, until the host chooses otherwise; then as they left it.
   const timerOn = document.getElementById('tb-timer-on');
   if (timerOn) timerOn.checked = saved.timerOn !== false;
-  setTriviaTimerSeconds(TB_TIMER_CHOICES.indexOf(saved.timerSeconds) !== -1 ? saved.timerSeconds : TB_TIMER_DEFAULT);
-  syncTriviaTimerField();
-  paintTriviaSetup();
+  setTriviaTimerSeconds(TB_TIMER_CHOICES.indexOf(saved.timerSeconds) !== -1 ? saved.timerSeconds : TB_TIMER_DEFAULT, true);
+  syncTriviaTimerField(true);
+}
+
+/** What the setup screen shows now, as the defaults for next time. */
+function tbRememberSetup() {
+  const field = (id) => document.getElementById(id) || {};
+  const picked = Number((field('tb-timer-seconds').dataset || {}).value);
+  try {
+    localStorage.setItem(TB_TEAMS_KEY, JSON.stringify({
+      a: String(field('tb-team-a').value || '').trim().slice(0, 20),
+      b: String(field('tb-team-b').value || '').trim().slice(0, 20),
+      rounds: Math.max(1, Math.min(4, Number(field('tb-rounds').value) || 2)),
+      timerOn: !!field('tb-timer-on').checked,
+      timerSeconds: TB_TIMER_CHOICES.indexOf(picked) !== -1 ? picked : TB_TIMER_DEFAULT
+    }));
+  } catch (e) {}
 }
 
 /** A board that isn't finished: the scores, the round, and a way back to it. */
@@ -83,6 +105,7 @@ const triviaStarted = () => {
 };
 
 function paintTriviaSetup() {
+  tbRecallSetup();
   const panel = document.querySelector('#view-setup-trivia .mode-device-panel');
   let box = document.getElementById('tb-resume');
   if (!box && panel) {
@@ -118,14 +141,15 @@ function resumeTriviaBoard() {
   if (appState.triviaBoard.open) setTimeout(() => { if (appState.currentView === 'play-trivia') showTriviaCell(); }, 0);
 }
 
-/** The seconds only show while the timer switch is on. */
-function syncTriviaTimerField() {
+/** The seconds only show while the timer switch is on. `painting`: put back, not chosen. */
+function syncTriviaTimerField(painting) {
   const on = !!(document.getElementById('tb-timer-on') || {}).checked;
   const choices = document.getElementById('tb-timer-choices');
   if (choices) choices.classList.toggle('hidden', !on);
+  if (painting !== true) tbRememberSetup();
 }
 
-function setTriviaTimerSeconds(seconds) {
+function setTriviaTimerSeconds(seconds, painting) {
   const group = document.getElementById('tb-timer-seconds');
   if (!group) return;
   group.dataset.value = String(seconds);
@@ -134,6 +158,7 @@ function setTriviaTimerSeconds(seconds) {
     btn.classList.toggle('is-active', active);
     btn.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
+  if (painting !== true) tbRememberSetup();
 }
 
 function startTriviaBoard() {

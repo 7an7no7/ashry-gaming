@@ -1025,7 +1025,7 @@ async function main() {
   await A.waitFor((s) => s.players.length === 4, 'the two extra players leave');
 
   /* --- سكرو ------------------------------------------------------------------------ */
-  console.log('• skrew (classic, the thief vote, partners, المسحراتي with أوسكار, an empty hand, sudden death, leaving)');
+  console.log('• skrew (classic, the thief vote, partners, المسحراتي with أوسكار, an empty hand, sudden death, the house rules, leaving)');
   const { SKREW_CARDS, skrewMatches, skrewValue, skrewHandValues } = SKREW;
   const skTV = await Bot.join(A.code, '', true);
   let skBots = [A, B, C, D];
@@ -1058,7 +1058,7 @@ async function main() {
   };
   const skSettle = (version) => Promise.all(skView.map((b) => skUntil(b, (s) => s.version >= version)));
   const SK_NO_CARD = ['deal', 'ready', 'draw', 'peekOwn', 'spyOther', 'blindSwap', 'give', 'seeSwap', 'penalty', 'khoshaf', 'allAround', 'cannon', 'scream', 'ping', 'wakeUp', 'skip', 'screw', 'asYouLike',
-    'finish', 'lastLap', 'pass', 'thiefVote', 'accuse', 'boom'];
+    'finish', 'lastLap', 'pass', 'thiefVote', 'accuse', 'boom', 'thiefSteal', 'stealSwap'];
 
   const skLearn = () => {
     const s = sks();
@@ -1095,7 +1095,7 @@ async function main() {
           // Wrong, the card turned up for everyone and went back face down in its slot.
           if (e.ok) { delete sk.known[e.slot]; delete sk.pub[e.slot]; sk.shown.delete(e.slot); } else { sk.known[e.slot] = e.card; sk.pub[e.slot] = e.card; }
           break;
-        case 'blindSwap': swap(e.slot, e.slot2); break;
+        case 'blindSwap': case 'stealSwap': swap(e.slot, e.slot2); break;
         case 'seeSwap': if (e.swapped) swap(e.slot, e.slot2); break;
         case 'give':
           if (e.slot in sk.known) sk.known[e.slot2] = sk.known[e.slot];
@@ -1214,7 +1214,11 @@ async function main() {
     low.forEach((k) => { exp[k] = 0; });
     let thiefOk = r.thief === null;
     let note = '';
-    if (s.settings.groups.includes('thief')) {
+    if (s.settings.groups.includes('thief') && r.thief === null) {
+      // سرقة الحرامي: no vote, which is only right when nobody could hold the thief.
+      thiefOk = !!s.settings.thiefSteal && !ids.some((id) => r.hands[id].includes('thief'));
+      note = ', no vote: nobody could hold the thief';
+    } else if (s.settings.groups.includes('thief')) {
       const th = r.thief || {};
       const holder = ids.find((id) => r.hands[id].includes('thief')) || null;
       const votes = th.votes || {};
@@ -1891,6 +1895,133 @@ async function main() {
   }
   skPrivacy('sudden death');
   await A.must('backToHub');
+
+  // 8. The house rules: سرقة الحرامي, then بصرة الفريق.
+  await skStart({ edition: 'thief', rounds: 7, screwFromLap: 1, thiefSteal: true });
+  check(sks().settings.thiefSteal === true, 'skrew: سرقة الحرامي on');
+  {
+    let stolen = false;
+    for (let round = 0; round < 20 && !stolen; round++) {
+      await skOnward();
+      await skReadyAll();
+      let turns = 0;
+      while (sks().phase === 'play') {
+        const bot = skUp();
+        const me = bot.pid;
+        if (!sks().caller && (turns > 70 || stolen)) { await skDo(bot, 'screw'); continue; }
+        turns++;
+        if (sks().caller) { await skDrawTurn(new Set()); continue; }
+        await skDo(bot, 'draw');
+        const t = sks().turn;
+        if (sks().phase !== 'play' || !t || t.pid !== me || t.stage !== 'drawn') continue;
+        const card = bot.state.you.drawn;
+        if (card !== 'thief') {
+          await skDo(bot, 'discard');
+          const t2 = sks().turn;
+          if (t2 && t2.pid === me && t2.stage === 'power') await skDo(bot, 'skipPower');
+          continue;
+        }
+        // The thief drawn: played as a steal.
+        const target = sks().order.find((id) => id !== me && !skProtected(id) && skHand(id).length);
+        const slot = skHand(target)[0].id;
+        const others = skBots.filter((b) => b !== bot);
+        const slices = () => others.map((b) => JSON.stringify(b.state.you)).join('|');
+        const before = slices();
+        await skDo(bot, 'thiefSteal', { target, slot });
+        const seen = bot.state.you.seen || [];
+        const tv = sks().events.filter((e) => e.type === 'thiefSteal').pop();
+        check(sks().turn.stage === 'steal' && sks().turn.look.target === target && sks().turn.look.slot === slot && sks().pile.slice(-1)[0] === 'thief' &&
+          seen.length === 1 && seen[0].pid === target && seen[0].slot === slot && !!seen[0].card && slices() === before && skTV.state.you === null &&
+          tv && tv.pid === me && tv.target === target && tv.slot === slot,
+          "skrew: سرقة الحرامي: the thief goes up on the pile, and the card looked at is on the stealer's phone alone");
+        check((await skTry(bot, 'stealSwap', {})) === false, 'skrew: the steal\'s swap is forced');
+        const mine = skHand(me)[0].id;
+        await skDo(bot, 'stealSwap', { slot: mine });
+        const ev = sks().events.filter((e) => e.type === 'stealSwap').pop();
+        check(ev && ev.pid === me && ev.slot === mine && ev.target === target && ev.slot2 === slot && sks().turn.pid !== me && bot.state.you.seen === null &&
+          skView.every((b) => b.state.shared.hands[me].find((h) => h.id === mine).h.looks.includes(me)),
+          "skrew: then one of the stealer's own cards for it, seen by every phone and the screen; the turn ends");
+        stolen = true;
+      }
+      if (sks().phase === 'thiefGuess') {
+        for (const b of skBots) if (sks().phase === 'thiefGuess') await skDo(b, 'thiefVote', { pid: null });
+      } else if (stolen) {
+        check(sks().results && sks().results.thief === null && !sks().events.some((e) => e.type === 'accuse'), 'skrew: the thief spent on a steal: the round ends with no vote');
+      }
+      if (sks().results) skCheckRound('skrew: a سرقة الحرامي round');
+    }
+    check(stolen, 'skrew: the thief was played as a steal');
+  }
+  skPrivacy('سرقة الحرامي');
+  await A.must('backToHub');
+
+  await skStart({ edition: 'sahib', teams: true, rounds: 7, screwFromLap: 1, teamBasra: true });
+  check(sks().settings.teamBasra === true, 'skrew: بصرة الفريق on');
+  {
+    const want = new Set(['refused', 'right', 'wrong']);
+    for (let round = 0; round < 20 && want.size; round++) {
+      await skOnward();
+      await skReadyAll();
+      let turns = 0;
+      while (sks().phase === 'play') {
+        const bot = skUp();
+        const me = bot.pid;
+        const s = sks();
+        if (!s.caller && (turns > 60 || !want.size)) { await skDo(bot, 'screw'); continue; }
+        turns++;
+        if (s.caller) { await skDrawTurn(new Set()); continue; }
+        const team = s.teams.find((t) => t.includes(me));
+        const top = s.pile[s.pile.length - 1];
+        const theirs = team.filter((id) => id !== me).map((id) => skHand(id).map((h) => ({ id, slot: h.id }))).flat().filter((x) => sk.known[x.slot]);
+        const right = theirs.find((x) => skrewMatches(top, sk.known[x.slot]));
+        const wrong = theirs.find((x) => !skrewMatches(top, sk.known[x.slot]));
+        if (want.has('refused')) {
+          const opp = s.order.find((id) => !team.includes(id) && skHand(id).length);
+          const stamp = () => JSON.stringify(sks().hands) + '|' + sks().turnSeq + '|' + sks().eventSeq;
+          const before = stamp();
+          const res = await bot.act('match', { seq: s.turnSeq, slot: skHand(opp)[0].id, owner: opp });
+          if (res.ok) { await skSettle(res.state.version); skLearn(); }
+          check(res.ok && stamp() === before && sks().turn.pid === me, "skrew: بصرة الفريق: an opponent's card is refused quietly");
+          want.delete('refused');
+          continue;
+        }
+        if (want.has('right') && right) {
+          const size = skHand(right.id).length;
+          const mine = skHand(me).length;
+          const card = sk.known[right.slot];
+          await skDo(bot, 'match', { slot: right.slot, owner: right.id });
+          const ev = sks().events.filter((e) => e.type === 'match').pop();
+          const ended = sks().phase !== 'play';
+          check(ev.ok === true && ev.owner === right.id && ev.pid === me && ev.card === card && !skHand(right.id).some((h) => h.id === right.slot) &&
+            skHand(right.id).length === size - 1 && skHand(me).length === mine && (ended ? sks().results.finisher === right.id : sks().turn.pid !== me),
+            "skrew: بصرة الفريق: a partner's matching card leaves the partner's hand, the thrower's stays as it was");
+          want.delete('right');
+          continue;
+        }
+        if (want.has('wrong') && wrong) {
+          const size = skHand(wrong.id).length;
+          const mine = skHand(me).length;
+          const card = sk.known[wrong.slot];
+          await skDo(bot, 'match', { slot: wrong.slot, owner: wrong.id });
+          const ev = sks().events.filter((e) => e.type === 'match').pop();
+          const pen = sks().events.filter((e) => e.type === 'penalty').pop();
+          const back = skHand(wrong.id).find((h) => h.id === wrong.slot);
+          const last = skHand(me)[skHand(me).length - 1];
+          check(ev.ok === false && ev.owner === wrong.id && ev.card === card && skHand(wrong.id).length === size && back && back.up === null && back.h.known === card &&
+            skHand(me).length === mine + 1 && pen && pen.pid === me && pen.slot === last.id && last.h.how === 'penalty' && last.h.by === me && sks().turn.pid !== me,
+            "skrew: بصرة الفريق: a wrong one goes back face down in the partner's slot, known, and the penalty card is the thrower's");
+          want.delete('wrong');
+          continue;
+        }
+        await skDrawTurn(new Set());
+      }
+      if (sks().results) skCheckRound('skrew: a بصرة الفريق round');
+    }
+    check(!want.size, "skrew: بصرة الفريق: a partner's card thrown right and wrong, and an opponent's refused" + (want.size ? ' - missing ' + [...want].join(', ') : ''));
+  }
+  skPrivacy('بصرة الفريق');
+  await A.must('backToHub');
+
   skTV.close();
   await api('/leave', { code: A.code, pid: skTV.pid, key: skTV.key });
   await A.waitFor((s) => s.screens.length === 0, 'skrew: the screen leaves');

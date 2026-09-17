@@ -353,6 +353,89 @@
     return picks;
   }
 
+  /* --- REMEMBERED CHOICES ---
+     A game's options open the way they were last left on this phone: what the
+     table picked is the default next time, and a change is kept the moment it
+     is made, not when the game starts. Most games keep theirs in their own
+     slice of appState (saved with the rest) or under a key of their own; these
+     are for choices that live nowhere else - a module variable, a plain field -
+     all under one key, which "delete all data" clears with the rest.
+
+       recallOptions('chooser', { mode: 'one' })    the saved object over the defaults
+       rememberOptions('chooser', { mode: 'two' })  merged into what is saved
+
+     A setup field marked data-remember (a stepper, a switch, a range, a hidden
+     time field, a category list) is kept by its id whenever it changes, and
+     put back by paintSetupOptions before the screen's painter runs; a list
+     filled in JS calls recallField itself once its options exist. Only
+     choices: never mark a secret word, a number to guess or a name typed for
+     one round. */
+  const OPTIONS_KEY = 'ashryOptions_v1';
+
+  const isPlainObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+  function readOptionsStore() {
+    try {
+      const all = JSON.parse(localStorage.getItem(OPTIONS_KEY) || '{}');
+      return isPlainObject(all) ? all : {};
+    } catch (e) { return {}; }
+  }
+
+  function recallOptions(key, defaults) {
+    const saved = readOptionsStore()[key];
+    if (isPlainObject(defaults)) return Object.assign({}, defaults, isPlainObject(saved) ? saved : {});
+    return saved === undefined ? defaults : saved;
+  }
+
+  function rememberOptions(key, value) {
+    const all = readOptionsStore();
+    all[key] = isPlainObject(value) && isPlainObject(all[key]) ? Object.assign({}, all[key], value) : value;
+    try { localStorage.setItem(OPTIONS_KEY, JSON.stringify(all)); } catch (e) {}
+    return all[key];
+  }
+
+  function rememberField(el) {
+    if (!el || !el.id) return;
+    if (el.type === 'checkbox') { rememberOptions('fields', { [el.id]: !!el.checked }); return; }
+    const value = String(el.value == null ? '' : el.value);
+    // An emptied number box is a field being retyped, not a choice.
+    if (value.trim() === '' && (el.type === 'number' || el.tagName === 'SELECT')) return;
+    rememberOptions('fields', { [el.id]: value });
+  }
+
+  /** Puts one field back as it was last left; false when there is nothing to put back. */
+  function recallField(el) {
+    if (!el || !el.id || el === document.activeElement) return false;
+    const saved = recallOptions('fields', {});
+    if (!(el.id in saved)) return false;
+    const v = saved[el.id];
+    if (el.type === 'checkbox') { el.checked = !!v; return true; }
+    let text = String(v);
+    if (el.tagName === 'SELECT') {
+      if (![...el.options].some(o => o.value === text)) return false;
+    } else if (el.type === 'number') {
+      let n = Number(text);
+      if (text.trim() === '' || !isFinite(n)) return false;
+      const min = el.dataset.min !== undefined ? Number(el.dataset.min) : (el.min !== '' ? Number(el.min) : NaN);
+      const max = el.dataset.max !== undefined ? Number(el.dataset.max) : (el.max !== '' ? Number(el.max) : NaN);
+      if (isFinite(min)) n = Math.max(min, n);
+      if (isFinite(max)) n = Math.min(max, n);
+      text = String(n);
+    }
+    el.value = text;
+    return true;
+  }
+
+  function recallFields(root) {
+    if (root) root.querySelectorAll('[data-remember]').forEach(recallField);
+  }
+
+  // Typing, a stepper (stepField fires both events), a switch or a list: kept as it changes.
+  ['input', 'change'].forEach(type => document.addEventListener(type, (e) => {
+    const el = e.target;
+    if (el && el.matches && el.matches('[data-remember]')) rememberField(el);
+  }));
+
   /* --- CLOCKS --- */
 
   // Every live clock, so clearAllIntervals() can stop them and so they can all be
@@ -728,7 +811,7 @@
       together_step2: "الباقي يدخلوا بالكود أو بمسح الـ QR، كل واحد من موبايله.",
       together_step3: "اختاروا لعبة والعبوا. لما تخلص، الغرفة بتفضل مفتوحة للعبة اللي بعدها.",
       together_more: "اعرف أكتر عن الغرف",
-      tools_sub: "عدادات ومؤقتات وقرعة لأي لعبة على الطاولة.",
+      tools_sub: "عدادات ومؤقتات وقرعة لأي لعبة، وحاسبات نقط للكوتشينة والدومينو.",
       home_title: "يلا نلعب!",
       home_tagline: "{n} لعبة للأصحاب والعيلة: موبايل واحد بيلف عليكم، أو كل واحد من موبايله، أو الكل قدام التلفزيون.",
       together_open_desc: "الكل يدخل بكود",
@@ -2508,6 +2591,19 @@
       turn_boom_pick: "بوم! اختار كارت من كروتك",
       skr_card_penalty: "عقاب",
       skr_card_minus1: "سالب واحد",
+      skr_log_steal: "🦹 {a}: سرقة بالحرامي، بصّة على {x}",
+      skr_log_steal_swap: "🦹 {a}: {y} اتسرق مكان {x}",
+      skr_pick_match_team: "اختار كارت من كروتك أو كروت صاحبك زيّ اللي على الأرض",
+      skr_power_steal: "اختار كارت من عند لاعب تاني تبص عليه، وبعدها يتبدّل غصب بكارت من عندك",
+      skr_steal_of: "🦹 سرقة {name}: {x}",
+      skr_steal_btn: "اسرق بيه",
+      skr_steal_pile_btn: "اسرق بالحرامي اللي على الأرض",
+      skr_thief_steal: "سرقة الحرامي",
+      skr_thief_steal_hint: "الحرامي لما يتسحب أو يتاخد من الأرض ينفع يتلعب على طول: تبص على كارت حد وتبدّله غصب بكارت من عندك",
+      skr_team_basra: "بصرة الفريق",
+      skr_team_basra_hint: "في دورك تقدر ترمي كارت من كروت صاحبك لو زي اللي على الأرض؛ لو غلط، كارت العقاب ليك",
+      tools_general: "أدوات لأي لعبة",
+      tools_scores: "حاسبات النقط",
     },
     en: {
       title: "Ashry Gaming",
@@ -2536,7 +2632,7 @@
       together_step2: "Everyone else joins with the code or by scanning the QR, each on their own phone.",
       together_step3: "Pick a game and play. When it ends, the room stays open for the next one.",
       together_more: "More about rooms",
-      tools_sub: "Counters, timers and pickers for any game at the table.",
+      tools_sub: "Counters, timers and pickers for any game, and score keepers for cards and dominoes.",
       home_title: "Let's play!",
       home_tagline: "{n} games for friends and family: one phone passed round, everyone on their own, or all together on the TV.",
       together_open_desc: "Everyone joins with a code",
@@ -4316,6 +4412,19 @@
       turn_boom_pick: "Boom! Pick one of your cards",
       skr_card_penalty: "Penalty",
       skr_card_minus1: "Minus one",
+      skr_log_steal: "🦹 {a} plays the thief to steal: a look at {x}",
+      skr_log_steal_swap: "🦹 {a} stole {y} for {x}",
+      skr_pick_match_team: "Pick one of your cards, or your partner's, that matches the pile",
+      skr_power_steal: "Pick another player's card to look at; then it is swapped, like it or not, for one of yours",
+      skr_steal_of: "🦹 {name} is stealing {x}",
+      skr_steal_btn: "Steal with it",
+      skr_steal_pile_btn: "Steal with the thief on the pile",
+      skr_thief_steal: "The thief's steal",
+      skr_thief_steal_hint: "The thief, when drawn or on top of the pile, can be played at once: look at someone's card and swap it, like it or not, for one of yours",
+      skr_team_basra: "Team basra",
+      skr_team_basra_hint: "On your turn you may throw one of your partner's cards if it matches the pile; if it doesn't, the penalty card is yours",
+      tools_general: "For any game",
+      tools_scores: "Score keepers",
     }
   };
 
@@ -4895,6 +5004,7 @@
             else setTimeout(() => setView('setup-universal'), 50);
         }
         else if (appState.currentView === 'timers') { switchTimerMode('general'); if (typeof paintGenTimer === 'function') paintGenTimer(); }
+        else if (appState.currentView === 'tool-dice' && typeof paintDiceTool === 'function') paintDiceTool();
         // The bracket lives entirely in appState, so it redraws exactly. (The
         // old call named a function that does not exist, and the typeof guard
         // meant it failed silently and showed an empty bracket.)
@@ -5081,19 +5191,19 @@
     'setup-whoami':    { title: 'setup_whoami',     up: 'menu',           accent: 'teal' },
     'input-whoami':    { title: 'setup_whoami',     up: 'setup-whoami',   accent: 'teal' },
     'play-whoami':     { title: 'setup_whoami',     up: 'setup-whoami',   accent: 'teal' },
-    'setup-cs-estimation': { title: 'setup_cs_estimation', up: 'menu', accent: 'violet' },
+    'setup-cs-estimation': { title: 'setup_cs_estimation', up: 'tools', accent: 'violet' },
     'play-cs-estimation': { title: 'setup_cs_estimation', up: 'setup-cs-estimation', accent: 'violet' },
-    'setup-cs-tarneeb': { title: 'setup_cs_tarneeb', up: 'menu', accent: 'indigo' },
+    'setup-cs-tarneeb': { title: 'setup_cs_tarneeb', up: 'tools', accent: 'indigo' },
     'play-cs-tarneeb': { title: 'setup_cs_tarneeb', up: 'setup-cs-tarneeb', accent: 'indigo' },
-    'setup-cs-trix': { title: 'setup_cs_trix', up: 'menu', accent: 'rose' },
+    'setup-cs-trix': { title: 'setup_cs_trix', up: 'tools', accent: 'rose' },
     'play-cs-trix': { title: 'setup_cs_trix', up: 'setup-cs-trix', accent: 'rose' },
-    'setup-cs-konkan': { title: 'setup_cs_konkan', up: 'menu', accent: 'amber' },
+    'setup-cs-konkan': { title: 'setup_cs_konkan', up: 'tools', accent: 'amber' },
     'play-cs-konkan': { title: 'setup_cs_konkan', up: 'setup-cs-konkan', accent: 'amber' },
-    'setup-cs-basra': { title: 'setup_cs_basra', up: 'menu', accent: 'teal' },
+    'setup-cs-basra': { title: 'setup_cs_basra', up: 'tools', accent: 'teal' },
     'play-cs-basra': { title: 'setup_cs_basra', up: 'setup-cs-basra', accent: 'teal' },
     'setup-screw':     { title: 'setup_screw',      up: 'menu',           accent: 'blue' },
     'play-screw':      { title: 'setup_screw',      up: 'setup-screw',    accent: 'blue' },
-    'setup-domino':    { title: 'setup_domino',     up: 'menu',           accent: 'green' },
+    'setup-domino':    { title: 'setup_domino',     up: 'tools',           accent: 'green' },
     'play-domino':     { title: 'setup_domino',     up: 'setup-domino',   accent: 'green' },
 
     'setup-chameleon':  { title: 'setup_chameleon',  up: 'menu',           accent: 'amber' },
@@ -5353,9 +5463,8 @@
      deeper than the last has its own entry, so Safari's swipe slides in the
      screen you are going back to; the header's arrow walks back through the
      same entries (history.go), so the two never disagree; a popup closes
-     first, and a game asks before it is dropped. When the browser has already
-     animated the way back (hasUAVisualTransition, or a swipe from the edge),
-     the screen doesn't slide in a second time - the icon still flies home. */
+     first, and a game asks before it is dropped. On an iPhone the back swipe
+     is the app's own (below), so it looks exactly like the header's arrow. */
   /* The history is kept equal to what the screen shows, and re-derived after
      every change (navReconcile) rather than patched move by move:
        - the screen's chain of `up` screens from the home (so the phone's back
@@ -5367,7 +5476,7 @@
          and snapping back,
        - one more while a popup is open: back closes it.
      Entries are tokens ('play-sudoku', and 'play-sudoku+' for the extras). */
-  const nav = { stack: [], index: 0, expect: null, dirty: false, soon: false, uaAnimated: false, edgeAt: 0, ready: false, session: '' };
+  const nav = { stack: [], index: 0, expect: null, dirty: false, soon: false, uaAnimated: false, ready: false, session: '' };
   const navState = (token, i) => ({ ashry: 1, s: nav.session, t: token, i: i });
 
   function navDesired() {
@@ -5445,11 +5554,121 @@
   /** setView's side: the screen changed. */
   function navSync() { navSoon(); }
 
-  // A swipe from the edge of the screen, for browsers without hasUAVisualTransition.
-  document.addEventListener('touchstart', (e) => {
-    const x = e.touches && e.touches[0] ? e.touches[0].clientX : -1;
-    if (x >= 0 && (x < 28 || x > window.innerWidth - 28)) nav.edgeAt = Date.now();
-  }, { passive: true, capture: true });
+  /* The iPhone's back swipe, drawn by the app. Safari's own swipe slid a picture
+     of the page across and the app then changed screens with none of its own
+     motion - "not the same animation as the back button" (the owner, twice).
+     A touch that starts at the left edge is taken before Safari sees it
+     (preventDefault on touchstart, which iOS honours at the edge): the screen
+     follows the finger, and letting go past a third of the width - or with a
+     quick flick - does exactly what the header's back arrow does, with its
+     animation: close the top popup, ask before a game is dropped, or go up a
+     screen. If Safari takes the gesture anyway, the page gets touchcancel
+     instead of touchend and nothing is done twice. A tap that starts at the
+     edge is passed on as a click, and a vertical drag there scrolls the page. */
+  const EDGE_IOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const EDGE_PX = 20;
+  const edge = { on: false, x0: 0, y0: 0, y: 0, dx: 0, t0: 0, el: null, target: null, dir: '' };
+
+  function edgeCanGoBack() {
+    if (document.body.classList.contains('is-tv-view')) return false;
+    return !!document.querySelector('.modal-overlay:not(.hidden)') || appState.currentView !== 'menu';
+  }
+  function edgeBack() {
+    const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
+    if (open.length) {
+      const top = open[open.length - 1];
+      if (top.id) closeModal(top.id); else top.classList.add('hidden');
+      return;
+    }
+    goBack();
+  }
+  function edgeReset() {
+    edge.on = false;
+    edge.el = null;
+    edge.target = null;
+    edge.dir = '';
+    edge.dx = 0;
+  }
+
+  if (EDGE_IOS) {
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) { edgeReset(); return; }
+      const t = e.touches[0];
+      if (t.clientX > EDGE_PX || !edgeCanGoBack()) return;
+      e.preventDefault();
+      edge.on = true;
+      edge.x0 = t.clientX;
+      edge.y0 = edge.y = t.clientY;
+      edge.t0 = Date.now();
+      edge.dx = 0;
+      edge.dir = '';
+      edge.target = e.target;
+      edge.el = document.querySelector('.modal-overlay:not(.hidden)') ? null : document.getElementById('view-' + appState.currentView);
+    }, { passive: false, capture: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!edge.on) return;
+      const t = e.touches[0];
+      const dx = t.clientX - edge.x0;
+      const dy = t.clientY - edge.y0;
+      if (!edge.dir && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) edge.dir = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+      if (edge.dir === 'y') {
+        const main = document.getElementById('shell-main');
+        if (main) main.scrollTop += edge.y - t.clientY;
+        edge.y = t.clientY;
+        return;
+      }
+      if (edge.dir !== 'x') return;
+      edge.dx = Math.max(0, dx);
+      if (edge.el && !motionOff()) edge.el.style.transform = 'translateX(' + edge.dx + 'px)';
+    }, { passive: true, capture: true });
+
+    document.addEventListener('touchend', () => {
+      if (!edge.on) return;
+      const el = edge.el;
+      const dx = edge.dx;
+      const w = window.innerWidth;
+      const target = edge.target;
+      const dir = edge.dir;
+      const go = dir === 'x' && (dx > w / 3 || (dx > 40 && Date.now() - edge.t0 < 300));
+      edgeReset();
+      if (!dir) {
+        // A tap at the very edge: the preventDefault above swallowed its click.
+        if (target && typeof target.click === 'function') target.click();
+        if (target && target.matches && target.matches('input, textarea, select')) target.focus();
+        return;
+      }
+      if (dir !== 'x') return;
+      if (!el || motionOff()) {
+        if (el) el.style.transform = '';
+        if (go) edgeBack();
+        return;
+      }
+      if (go) {
+        const out = el.animate([{ transform: 'translateX(' + dx + 'px)' }, { transform: 'translateX(' + w + 'px)' }],
+          { duration: Math.max(90, 220 * (1 - dx / w)), easing: 'cubic-bezier(0.3, 0, 0.6, 1)', fill: 'forwards' });
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          edgeBack();
+          el.style.transform = '';
+          out.cancel();
+        };
+        out.onfinish = finish;
+        setTimeout(finish, 400);
+      } else {
+        el.style.transform = '';
+        el.animate([{ transform: 'translateX(' + dx + 'px)' }, { transform: 'translateX(0)' }], { duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' });
+      }
+    }, { capture: true });
+
+    document.addEventListener('touchcancel', () => {
+      if (!edge.on) return;
+      if (edge.el) edge.el.style.transform = '';
+      edgeReset();
+    }, { capture: true });
+  }
 
   window.addEventListener('popstate', (e) => {
     const st = e.state;
@@ -5497,7 +5716,10 @@
       return;
     }
     const target = VIEW_META[landed] && document.getElementById('view-' + landed) ? landed : 'menu';
-    nav.uaAnimated = e.hasUAVisualTransition === true || Date.now() - nav.edgeAt < 1500;
+    // A browser that animated the way back itself (Android's predictive back):
+    // the screen doesn't slide in a second time. On an iPhone the app draws the
+    // swipe (the edge handler above), so this stays false there.
+    nav.uaAnimated = e.hasUAVisualTransition === true && !EDGE_IOS;
     try {
       if (/^room-/.test(target) || target === 'together') {
         if (typeof Room !== 'undefined' && Room.isIn && typeof roomReturnToActive === 'function' && target !== 'together') roomReturnToActive();
@@ -5593,13 +5815,19 @@
     'setup-describe': 'paintDescribeSetup',
     'setup-trivia': 'paintTriviaSetup',
     'setup-teams': 'paintTeamsSetup',
-    'setup-justone': 'paintJustOneSetup'
+    'setup-justone': 'paintJustOneSetup',
+    'setup-guessnum': 'paintGuessNumSetup',
+    'setup-codenames': 'paintCodenamesSetup'
   };
   function paintSetupOptions(viewId) {
+    const view = document.getElementById('view-' + viewId);
+    // The plain fields (data-remember) and the one phone / own phones switch
+    // go back first, so the screen's painter reads what was last chosen.
+    if (view) recallFields(view);
+    if (typeof paintPlayMode === 'function') paintPlayMode(viewId);
     const fn = SETUP_PAINTERS[viewId];
     if (fn && typeof window[fn] === 'function') window[fn]();
     else if (typeof soloPaintSetup === 'function') soloPaintSetup(viewId);
-    const view = document.getElementById('view-' + viewId);
     if (view) syncTimePicks(view);
   }
 
@@ -5610,7 +5838,10 @@
     const group = btn.closest('.time-pick');
     if (!group) return;
     const input = document.getElementById(group.dataset.for);
-    if (input) input.value = seconds;
+    if (input) {
+      input.value = seconds;
+      if (input.matches('[data-remember]')) rememberField(input);
+    }
     group.querySelectorAll('.segmented__item').forEach(b => b.classList.toggle('is-active', b === btn));
   }
   function syncTimePicks(view) {
@@ -5680,7 +5911,7 @@
     clearAllIntervals();
     syncChrome(viewId);
 
-    if (viewId === 'tool-dice' && typeof paintDiceTray === 'function') paintDiceTray();
+    if (viewId === 'tool-dice' && typeof paintDiceTool === 'function') paintDiceTool();
     if (viewId === 'timers' && typeof paintGenTimer === 'function') paintGenTimer();
     if(viewId.startsWith('setup-')) {
         const listId = viewId.replace('setup-', '') + '-player-list';
@@ -6193,6 +6424,14 @@ const GAME_RULES = {
                 </ul>
             </details>
             <details class="help-more">
+                <summary>🏠 قواعد البيت (اختيارية)</summary>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li>المضيف يقدر يشغّلها من الغرفة، وهي مقفولة من الأول.</li>
+                    <li><b>🦹 سرقة الحرامي</b>: الحرامي لما يتسحب من الورق (أو من الخشاف) أو يكون فوق الأرض أول دورك، تقدر تلعبه على طول: تختار كارت من كروت أي لاعب تاني (غير فريق اللي قال سكرو) وتبص عليه لوحدك، وبعدها لازم تبدّله بكارت من عندك. الحرامي يترمي مكشوف ويطلع من الجولة، ومفيش تصويت على الحرامي في آخرها.</li>
+                    <li><b>🤝 بصرة الفريق</b> (في الفرق بس): في دورك تقدر ترمي كارت من كروت صاحبك لو زي اللي على الأرض. صح: يطلع من إيده، ولو خلّص كروته الجولة بتخلص. غلط: الكارت يرجع مقلوب مكانه، وكارت العقاب ليك انت.</li>
+                </ul>
+            </details>
+            <details class="help-more">
                 <summary>👥 عدد اللاعبين والكوتشينة</summary>
                 <ul class="list-disc list-inside space-y-1 text-xs">
                     <li>الكوتشينة العادية 59 كارت، و62 بكروت الحرامي. كوتشينة واحدة من 2 لـ 6 لاعبين، وأحسن عدد 4. مع 5 و6 الورق بيخلص بسرعة وبيتخلط أكتر من مرة.</li>
@@ -6205,7 +6444,7 @@ const GAME_RULES = {
                 <ul class="list-disc list-inside space-y-1 text-xs">
                     <li>التطبيق بيوزّع ويحسب. كروتك على موبايلك، وكروت الكل قدامك مقلوبة بالترتيب.</li>
                     <li>كل حركة بتبان للكل: مين بص على أنهي كارت، ومين بدّل كارت من عنده بكارت من عند مين، ومين ادّى كارت لمين، ومين اتفجّر كارته. قيم الكروت مستخبية إلا لو القواعد كشفتها.</li>
-                    <li>المضيف بيختار الإصدار، وعدد كروت البصرة، والفرق، وعدد الجولات، ووقت الحفظ في أول كل جولة (لحد ما كل واحد يضغط، أو 5 أو 10 ثواني)، ومن أنهي لفة ينفع سكرو، ووقت الدور، والموت المفاجئ، ومساعد الذاكرة. ويقدر يعدّي دور حد مش موجود، ويقفل تصويت الحرامي.</li>
+                    <li>المضيف بيختار الإصدار، وعدد كروت البصرة، والفرق، وعدد الجولات، ووقت الحفظ في أول كل جولة (لحد ما كل واحد يضغط، أو 5 أو 10 ثواني)، ومن أنهي لفة ينفع سكرو، ووقت الدور، والموت المفاجئ، ومساعد الذاكرة، وقواعد البيت. ويقدر يعدّي دور حد مش موجود، ويقفل تصويت الحرامي.</li>
                     <li>الذاكرة هي اللعبة: كل حركة بتبان وهي بتحصل (الكروت اللي اتحركت بتنوّر شوية)، وآخر 3 حركات مكتوبين، وبعد كده انت اللي بتفتكر. <b>مساعد الذاكرة</b> (اختيار) بيسيب على كل كارت حكايته: جه منين، ومين بص عليه، وقيمته لو الكل شافها.</li>
                 </ul>
             </details>
@@ -6947,6 +7186,14 @@ const GAME_RULES = {
                 </ul>
             </details>
             <details class="help-more">
+                <summary>🏠 House rules (optional)</summary>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li>The host can turn them on in the room; they start off.</li>
+                    <li><b>🦹 The thief's steal</b>: when the thief is drawn from the deck (or picked with Khoshaf), or is on top of the pile as your turn starts, you can play it at once: pick a card of any other player (not the caller's side), look at it alone, then you must swap it with one of yours. The thief goes face up onto the pile and is out for the round, so there is no thief vote at the end.</li>
+                    <li><b>🤝 Team basra</b> (teams only): on your turn you can throw one of your partner's cards if it matches the pile. Right: it leaves their hand, and if that was their last card the round ends. Wrong: it goes back face down where it was, and the penalty card is yours.</li>
+                </ul>
+            </details>
+            <details class="help-more">
                 <summary>👥 Players and decks</summary>
                 <ul class="list-disc list-inside space-y-1 text-xs">
                     <li>The standard deck is 59 cards, 62 with the Thief's cards. One deck for 2 to 6 players, four being the best. With 5 or 6 the deck runs out fast and is reshuffled more than once.</li>
@@ -6959,7 +7206,7 @@ const GAME_RULES = {
                 <ul class="list-disc list-inside space-y-1 text-xs">
                     <li>The app deals and scores. Your cards are on your phone, and everyone's hand lies face down in front of you, in order.</li>
                     <li>Every move is shown to all: who looked at which card, who swapped which of their cards with which of whose, who gave a card to whom, whose card was blown up. Values stay hidden unless the rules show them.</li>
-                    <li>The host picks the version, the number of basra cards, teams, the number of rounds, the memorising time at the start of each round (until everyone taps, or 5 or 10 seconds), from which lap Screw can be called, the turn clock, sudden death and the memory helper, and can skip someone who is away or close the thief vote.</li>
+                    <li>The host picks the version, the number of basra cards, teams, the number of rounds, the memorising time at the start of each round (until everyone taps, or 5 or 10 seconds), from which lap Screw can be called, the turn clock, sudden death, the memory helper and the house rules, and can skip someone who is away or close the thief vote.</li>
                     <li>Memory is the game: every move shows as it happens (the cards involved light up for a moment), the last 3 moves are written down, and after that it is up to you. The <b>memory helper</b> (an option) leaves every card its story: where it came from, who has looked at it, and its value if the whole table saw it.</li>
                 </ul>
             </details>

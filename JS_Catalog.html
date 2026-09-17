@@ -69,12 +69,6 @@ const GAME_CATALOG = [
 
   /* --- ورق وطاولة --- */
   { id: 'screw',      icon: '🃏',   title: 'setup_screw',      desc: 'cat_screw',      accent: 'blue',   players: [2, 12], mins: 30, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-screw',     open: () => setView('setup-screw') },
-  { id: 'cs-estimation',  icon: '🎯',   title: 'setup_cs_estimation',  desc: 'cat_cs_estimation',  accent: 'violet', players: [4, 4], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-estimation', open: () => setupCardScore('estimation') },
-  { id: 'cs-tarneeb',  icon: '♠️',   title: 'setup_cs_tarneeb',  desc: 'cat_cs_tarneeb',  accent: 'indigo', players: [4, 4], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-tarneeb', open: () => setupCardScore('tarneeb') },
-  { id: 'cs-trix',  icon: '♥️',   title: 'setup_cs_trix',  desc: 'cat_cs_trix',  accent: 'rose', players: [4, 4], mins: 60, modes: ['device'],               group: 'table', setup: 'setup-cs-trix', open: () => setupCardScore('trix') },
-  { id: 'cs-konkan',  icon: '♦️',   title: 'setup_cs_konkan',  desc: 'cat_cs_konkan',  accent: 'amber', players: [2, 6], mins: 40, modes: ['device'],               group: 'table', setup: 'setup-cs-konkan', open: () => setupCardScore('konkan') },
-  { id: 'cs-basra',  icon: '🎣',   title: 'setup_cs_basra',  desc: 'cat_cs_basra',  accent: 'teal', players: [2, 4], mins: 30, modes: ['device'],               group: 'table', setup: 'setup-cs-basra', open: () => setupCardScore('basra') },
-  { id: 'domino',     icon: '🀄',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device'],               group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
 
   /* --- ثنائي وذهني --- */
   { id: 'wordle',     icon: '🔤',   title: 'setup_wordle',     desc: 'cat_wordle',     accent: 'green',  players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-wordle',      open: () => setupWordle() },
@@ -106,7 +100,14 @@ const GAME_CATALOG = [
   { id: 'timers',    icon: '⏱️',  title: 'timers_title',      desc: 'timers_desc',    accent: 'rose',   group: 'tools', setup: 'timers',          open: () => setView('timers') },
   { id: 'chess',     icon: '♟️',  title: 'chess_title',       desc: 'chess_desc',     accent: 'indigo', group: 'tools', open: () => { setView('play-chess'); updateChessUI(); } },
   { id: 'dice',      icon: '🎲',   title: 'tool_dice',         desc: 'dice_desc',      accent: 'green',  group: 'tools', setup: 'tool-dice',       open: () => setView('tool-dice') },
-  { id: 'sounds',    icon: '🔊',   title: 'sounds',            desc: 'sounds_hint',    accent: 'rose',   group: 'tools', open: () => openSoundboard() }
+  { id: 'sounds',    icon: '🔊',   title: 'sounds',            desc: 'sounds_hint',    accent: 'rose',   group: 'tools', open: () => openSoundboard() },
+  /* --- حاسبات النقط: the deck or the tiles are real, the phone keeps score --- */
+  { id: 'cs-estimation',  icon: '🎯',   title: 'setup_cs_estimation',  desc: 'cat_cs_estimation',  accent: 'violet', players: [4, 4], mins: 40, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-cs-estimation', open: () => setupCardScore('estimation') },
+  { id: 'cs-tarneeb',  icon: '♠️',   title: 'setup_cs_tarneeb',  desc: 'cat_cs_tarneeb',  accent: 'indigo', players: [4, 4], mins: 40, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-cs-tarneeb', open: () => setupCardScore('tarneeb') },
+  { id: 'cs-trix',  icon: '♥️',   title: 'setup_cs_trix',  desc: 'cat_cs_trix',  accent: 'rose', players: [4, 4], mins: 60, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-cs-trix', open: () => setupCardScore('trix') },
+  { id: 'cs-konkan',  icon: '♦️',   title: 'setup_cs_konkan',  desc: 'cat_cs_konkan',  accent: 'amber', players: [2, 6], mins: 40, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-cs-konkan', open: () => setupCardScore('konkan') },
+  { id: 'cs-basra',  icon: '🎣',   title: 'setup_cs_basra',  desc: 'cat_cs_basra',  accent: 'teal', players: [2, 4], mins: 30, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-cs-basra', open: () => setupCardScore('basra') },
+  { id: 'domino',     icon: '🀄',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-domino',    open: () => setView('setup-domino') }
 ];
 
 const CATALOG_BY_ID = {};
@@ -612,6 +613,17 @@ function renderTools() {
   if (!view) return;
   const t = TRANSLATIONS[appState.lang];
   const tools = GAME_CATALOG.filter(g => g.group === 'tools');
+  // The score keepers are tools, not games (the owner): the deck or the tiles
+  // are real and the phone only counts. They get a section of their own.
+  const part = (list, icon, title) => list.length ? `
+    <section class="section">
+      <div class="section__head">
+        <span class="section__emoji" aria-hidden="true">${icon}</span>
+        <h2 class="section__title">${escapeHTML(title || '')}</h2>
+        <span class="section__rule"></span>
+      </div>
+      <div class="tools-list">${list.map(g => catalogToolRow(g, t)).join('')}</div>
+    </section>` : '';
   view.innerHTML = `
     <div class="tab-hero">
       <span class="tab-hero__icon" aria-hidden="true">🛠️</span>
@@ -620,7 +632,8 @@ function renderTools() {
         <div class="tab-hero__sub">${escapeHTML(t.tools_sub || '')}</div>
       </div>
     </div>
-    <div class="tools-list">${tools.map(g => catalogToolRow(g, t)).join('')}</div>`;
+    ${part(tools.filter(g => g.kind !== 'score'), '🛠️', t.tools_general)}
+    ${part(tools.filter(g => g.kind === 'score'), '🧮', t.tools_scores)}`;
   settleStagger(view, 'tools');
 }
 

@@ -4686,6 +4686,7 @@ const screwMove = (room, me, action, p) => {
     }
     case 'takePile': {
       screwTurnCheck(room, me, ['choose']);
+      if (g.thiefSpent && g.pile[g.pile.length - 1] === 'thief') throw new Error('الحرامي خرج من الجولة');
       screwForget(room, me);
       if (!g.pile.length) throw new Error('مفيش كروت مكشوفة');
       const e = screwSlot(room, me, p.slot);
@@ -4703,14 +4704,49 @@ const screwMove = (room, me, action, p) => {
     case 'match': {
       // On your own turn only; right or wrong, the card is shown and the turn ends.
       screwTurnCheck(room, me, ['choose']);
+      const owner = p.owner === undefined || p.owner === null || p.owner === '' ? me : String(p.owner);
+      // بصرة الفريق: a partner's card, when the house rule is on and their side isn't protected; otherwise nothing.
+      if (owner !== me && !screwTeamThrowOk(room, me, owner)) return;
       screwForget(room, me);
       const top = g.pile[g.pile.length - 1];
       if (!top) throw new Error('مفيش كروت مكشوفة');
-      const e = screwSlot(room, me, p.slot);
+      const e = screwSlot(room, owner, p.slot);
       delete s.turn.pongOpen;
-      screwThrow(room, me, e, skrewMatches(top, e.card), 'match');
-      if (screwFinished(room, me)) return;
+      screwThrow(room, me, e, skrewMatches(top, e.card), 'match', owner);
+      if (screwFinished(room, owner)) return;
       screwTurnDone(room);
+      return;
+    }
+    case 'thiefSteal': {
+      // سرقة الحرامي: the thief just drawn (or picked with الخشاف), or on top of the pile as the turn
+      // starts, played as a steal: look at one card of another player, then swap it for one of yours.
+      if (!s.settings.thiefSteal) throw new Error('سرقة الحرامي مش مفعّلة');
+      screwTurnCheck(room, me, ['drawn', 'choose']);
+      const fromHand = s.turn.stage === 'drawn';
+      if (fromHand ? g.drawn !== 'thief' : (g.thiefSpent || g.pile[g.pile.length - 1] !== 'thief')) throw new Error('مفيش حرامي');
+      const target = screwTarget(room, me, p.target, true);
+      const e = screwSlot(room, target, p.slot);
+      screwForget(room, me);
+      if (fromHand) {
+        g.pile.push(g.drawn);
+        g.drawn = null;
+        g.drawnFrom = null;
+      }
+      g.thiefSpent = true;                    // face up on the pile, out for the round
+      delete s.turn.pongOpen;
+      g.seen[me] = [{ pid: target, slot: e.id, card: e.card }];
+      screwLooked(e, me);
+      g.look = { target: target, slot: e.id };
+      s.turn.stage = 'steal';
+      s.turn.look = { target: target, slot: e.id };
+      screwEvent(room, 'thiefSteal', { pid: me, target: target, slot: e.id });
+      return;
+    }
+    case 'stealSwap': {
+      // The steal's swap is forced: one of your own cards for the one you looked at.
+      screwTurnCheck(room, me, ['steal']);
+      if (p.slot === undefined || p.slot === null || p.slot === '') throw new Error('اختار كارت من عندك');
+      screwSteal(room, screwSlot(room, me, p.slot));
       return;
     }
     case 'screw': {
@@ -4890,10 +4926,14 @@ const screwSettings = (p, was, n) => {
   if (p.teams === true && !canTeams) throw new Error('صاحب صاحبه محتاج 4 أو 6 أو 8 لاعبين');
   const wantTeams = typeof p.teams === 'boolean' ? p.teams
     : (typeof was.teams === 'boolean' ? was.teams : !!(SKREW_EDITIONS[edition] && SKREW_EDITIONS[edition].teams));
+  const flag = (key) => (typeof p[key] === 'boolean' ? p[key] : !!was[key]);
   return {
     edition: edition,
     groups: groups,
     teams: wantTeams && canTeams,
+    // House rules, off by default. سرقة الحرامي: only with the thief in the deck. بصرة الفريق: only in teams.
+    thiefSteal: flag('thiefSteal') && groups.indexOf('thief') !== -1,
+    teamBasra: flag('teamBasra') && wantTeams && canTeams,
     rounds: SKREW_ROUNDS.indexOf(Number(p.rounds)) !== -1 ? Number(p.rounds) : (was.rounds || 5),
     screwFromLap: SKREW_LAPS.indexOf(Number(p.screwFromLap)) !== -1 ? Number(p.screwFromLap) : (was.screwFromLap || 2),
     // Seconds to memorize slots 3 and 4 at each deal before play starts by itself (0: until everyone taps).
@@ -4944,6 +4984,7 @@ const screwDeal = (room) => {
     look: null,
     votes: {},                                // the thief vote, pid -> pid | null; published only with the result
     finisherKey: null,                        // the finisher's unit (pid, or a team key), kept if they leave
+    thiefSpent: false,                        // سرقة الحرامي used: the thief is out for the rest of the round
     // Slot ids never repeat within a game, so a phone can't mistake one for last round's.
     slotSeq: last.slotSeq || 0,
     turns: last.turns || 0,
@@ -5071,6 +5112,12 @@ const screwSkip = (room) => {
   if (s.phase === 'play' && s.turn && s.turn.stage === 'boom') {
     // بوم waiting on phones: whoever hasn't picked gets a card picked at random.
     screwBoomResolve(room);
+    return true;
+  }
+  if (s.phase === 'play' && s.turn && s.turn.stage === 'steal') {
+    // A steal is a forced swap: one of the player's own cards, at random.
+    const hand = room._screw.hands[s.turn.pid] || [];
+    screwSteal(room, hand[Math.floor(Math.random() * hand.length)]);
     return true;
   }
   if (s.phase === 'play' && s.turn) {
@@ -5225,7 +5272,8 @@ const screwFromDeck = (room) => {
   const g = room._screw;
   if (!g.deck.length && g.pile.length > 1 && !room.shared.settings.suddenDeath) {
     const top = g.pile.pop();
-    g.deck = shuffled(g.pile);
+    // A thief spent on a steal is out for the round: it doesn't go back into the deck.
+    g.deck = shuffled(g.thiefSpent ? g.pile.filter(c => c !== 'thief') : g.pile);
     g.pile = [top];
     screwEvent(room, 'reshuffle', {});
   }
@@ -5238,11 +5286,14 @@ const screwFromDeck = (room) => {
  * slot (its h.known remembers it); then the top of the deck comes blind, face
  * down into a new slot at the end of the hand - not even its owner looks.
  */
-const screwThrow = (room, me, e, ok, type) => {
+const screwThrow = (room, me, e, ok, type, owner) => {
   const g = room._screw;
-  screwEvent(room, type, { pid: me, slot: e.id, card: e.card, ok: ok });
+  const from = owner || me;           // بصرة الفريق: the card is a partner's; a penalty is still the thrower's
+  const fields = { pid: me, slot: e.id, card: e.card, ok: ok };
+  if (from !== me) fields.owner = from;
+  screwEvent(room, type, fields);
   if (ok) {
-    screwRemoveSlot(room, me, e.id);
+    screwRemoveSlot(room, from, e.id);
     g.pile.push(e.card);
     return;
   }
@@ -5254,6 +5305,26 @@ const screwThrow = (room, me, e, ok, type) => {
   screwEvent(room, 'penalty', { pid: me, slot: slot.id });
   screwArrived(room, slot, 'penalty', me, null, null);
   screwLastLapCheck(room, me);
+};
+
+/** بصرة الفريق: may `me` throw a card of `owner`'s? The house rule on, a partner, and their side not protected. */
+const screwTeamThrowOk = (room, me, owner) => {
+  const s = room.shared;
+  if (!s.settings.teamBasra || !s.teams || !screwHere(room, owner) || screwProtected(room, owner)) return false;
+  return s.teams.some(t => t.indexOf(me) !== -1 && t.indexOf(owner) !== -1);
+};
+
+/** سرقة الحرامي's swap: `mine` (the player up's slot) for the card they looked at; the turn ends. */
+const screwSteal = (room, mine) => {
+  const s = room.shared;
+  const g = room._screw;
+  const me = s.turn.pid;
+  const look = g.look;
+  const theirs = screwSlot(room, look.target, look.slot);
+  screwForget(room, me);
+  screwEvent(room, 'stealSwap', { pid: me, slot: mine.id, target: look.target, slot2: theirs.id });
+  screwTrade(room, me, mine, me, theirs, look.target);
+  screwTurnDone(room);
 };
 
 /** Nothing can be drawn this turn: the deck is empty and can't be made again from the pile. */
@@ -5539,7 +5610,9 @@ const screwEndRound = (room) => {
   s.turn = null;
   s.endsAt = null;
   s.finalLeft = [];
-  if (s.settings.groups.indexOf('thief') !== -1) {
+  // With سرقة الحرامي, a thief spent on a steal or lying on the pile is in nobody's hand: no vote.
+  const nobodyHolds = s.settings.thiefSteal && (g.thiefSpent || g.pile.indexOf('thief') !== -1);
+  if (s.settings.groups.indexOf('thief') !== -1 && !nobodyHolds) {
     g.votes = {};
     s.thiefVote = { voted: [] };
     s.phase = 'thiefGuess';
@@ -5808,6 +5881,9 @@ const screwSync = (room) => {
   s.hands = hands;
   s.pile = g.pile.slice(-SKREW_PILE_SHOWN);
   s.deckCount = g.deck.length;
+  // سرقة الحرامي: whether this round's thief has been played - public (it went up
+  // on the pile), and the phones need it after its event has left the last 40.
+  s.thiefSpent = !!g.thiefSpent;
   const playing = s.phase === 'play' || s.phase === 'thiefGuess';
   const t = s.phase === 'play' && s.turn ? s.turn : {};
   room.secrets = {};
@@ -5891,6 +5967,12 @@ const screwPlayerLeft = (room, playerId) => {
       s.boom.picked = s.boom.picked.filter(id => id !== playerId);
       if (g.boomPicks) delete g.boomPicks[playerId];
       if (!s.boom.waiting.length) screwBoomResolve(room);
+      return;
+    }
+    if (s.turn && s.turn.stage === 'steal' && g.look && g.look.target === playerId) {
+      // The card being stolen has gone with its hand: nothing to swap, the turn ends.
+      screwForget(room, s.turn.pid);
+      screwTurnDone(room);
       return;
     }
     if (s.turn && s.turn.stage === 'seeSwap' && g.look && g.look.target === playerId) {

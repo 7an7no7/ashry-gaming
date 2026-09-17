@@ -9,17 +9,29 @@
 
 /** The this-device / separate-phones switch on a setup screen. */
 function setPlayMode(gameId, mode) {
-  const view = document.querySelector('[id^="view-setup-"]:not(.hidden)');
+  const view = document.getElementById('view-setup-' + gameId) || document.querySelector('[id^="view-setup-"]:not(.hidden)');
   if (!view) return;
-  const online = mode === 'online';
+  applyPlayMode(view, mode);
+  // The way this table plays is the default next time the game is opened.
+  rememberOptions('playMode', { [gameId]: mode === 'online' ? 'online' : 'device' });
+}
 
+function applyPlayMode(view, mode) {
+  const online = mode === 'online';
   view.querySelectorAll('.mode-switch .segmented__item').forEach(b => {
-    b.classList.toggle('is-active', b.dataset.mode === mode);
+    b.classList.toggle('is-active', b.dataset.mode === (online ? 'online' : 'device'));
   });
   const onlinePanel = view.querySelector('.mode-online-panel');
   const devicePanel = view.querySelector('.mode-device-panel');
   if (onlinePanel) onlinePanel.classList.toggle('hidden', !online);
   if (devicePanel) devicePanel.classList.toggle('hidden', online);
+}
+
+/** A setup screen with the switch opens on the side it was left on (paintSetupOptions). */
+function paintPlayMode(viewId) {
+  const view = document.getElementById('view-' + viewId);
+  if (!view || !view.querySelector('.mode-switch') || String(viewId).indexOf('setup-') !== 0) return;
+  applyPlayMode(view, recallOptions('playMode', {})[viewId.slice('setup-'.length)] || 'device');
 }
 
 /* ==========================================================================
@@ -195,8 +207,8 @@ ROOM_GAMES.whoami = {
     const t = TRANSLATIONS[appState.lang];
     const cats = Object.keys(typeof WHOAMI_DB !== 'undefined' ? (WHOAMI_DB[contentLang()] || {}) : {});
     if (!cats.length) return '';
-    const saved = whoamiRoomCat();
-    const chosen = cats.indexOf(saved) !== -1 ? saved : cats[0];
+    // The same category in the other language when the games' language changed since.
+    const chosen = matchCategoryKey(cats, whoamiRoomCat()) || cats[0];
     return `
       <div class="card card--tight">
         <label class="field__label" for="room-whoami-cat">${t.category || 'المجموعة'}</label>
@@ -209,8 +221,7 @@ ROOM_GAMES.whoami = {
   startPayload() {
     const sel = document.getElementById('room-whoami-cat');
     const db = (typeof WHOAMI_DB !== 'undefined' ? WHOAMI_DB[contentLang()] : {}) || {};
-    const saved = whoamiRoomCat();
-    const cat = sel ? sel.value : (db[saved] ? saved : Object.keys(db)[0]);
+    const cat = sel ? sel.value : (matchCategoryKey(Object.keys(db), whoamiRoomCat()) || Object.keys(db)[0]);
     return { words: (db[cat] || []).slice() };
   },
 

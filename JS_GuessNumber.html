@@ -1,13 +1,21 @@
 <script>
 /* --- GUESS THE NUMBER LOGIC --- */
 
+// The mode and the range open as they were last left (the range is a
+// data-remember field); the secret number never is.
 function setupGuessNumber() {
-    setGuessMode('computer'); // Default
     setView('setup-guessnum');
 }
 
-function setGuessMode(mode) {
-    appState.guessnum.mode = mode;
+/** SETUP_PAINTERS: the saved mode's tab and fields, from the menu, the back button or a reload. */
+function paintGuessNumSetup() {
+    setGuessMode(appState.guessnum.mode === 'human' ? 'human' : 'computer', true);
+}
+
+function setGuessMode(mode, painting) {
+    appState.guessnum.mode = mode === 'human' ? 'human' : 'computer';
+    mode = appState.guessnum.mode;
+    if (painting !== true) saveToLocal();
     
     // UI Tabs Styling
     const btnComp = document.getElementById('btn-mode-comp');

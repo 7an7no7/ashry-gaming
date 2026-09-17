@@ -16,9 +16,49 @@ let codenamesLang = null;   // null until the lobby is drawn: then the content l
 
 function setCodenamesLang(lang) {
   codenamesLang = lang === 'en' ? 'en' : 'ar';
+  rememberOptions('codenames', { lang: codenamesLang });
+  paintCodenamesLang();
+}
+
+function paintCodenamesLang() {
   document.querySelectorAll('#codenames-lang .segmented__item').forEach(b => {
     b.classList.toggle('is-active', b.dataset.cnLang === (codenamesLang || contentLang()));
   });
+}
+
+/** SETUP_PAINTERS: the words' language picked last time on this phone, or the games' language. */
+function paintCodenamesSetup() {
+  const saved = recallOptions('codenames', {}).lang;
+  if (saved === 'ar' || saved === 'en') codenamesLang = saved;
+  paintCodenamesLang();
+}
+
+/* The host's clock and rotation, remembered on their phone. The server keeps
+   a room's settings for the evening; a new room starts from its defaults, so
+   the host's phone sends what it chose last time, once, while the room's
+   settings are still untouched (a host handed a room keeps what it has). */
+function cnSetOption(patch) {
+  const keep = {};
+  if (patch.timer !== undefined) keep.timer = Number(patch.timer);
+  if (patch.rotate !== undefined) keep.rotate = !!patch.rotate;
+  rememberOptions('codenames', keep);
+  return roomAct('setOptions', patch);
+}
+
+function cnApplyRemembered(state) {
+  const s = state.shared || {};
+  if (!state.youAreHost || state.phase !== 'lobby' || s.settings || cnLocal.appliedFor === state.code) return;
+  cnLocal.appliedFor = state.code;
+  const saved = recallOptions('codenames', {});
+  const patch = {};
+  if (CN_TIMERS.indexOf(saved.timer) !== -1 && saved.timer !== 0) patch.timer = saved.timer;
+  if (saved.rotate === false) patch.rotate = false;
+  if (!Object.keys(patch).length) return;
+  setTimeout(() => {
+    const now = Room.state;
+    if (!now || now.game !== 'codenames' || now.phase !== 'lobby' || !now.youAreHost || (now.shared || {}).settings) return;
+    Room.act('setOptions', patch).catch(() => {});
+  }, 0);
 }
 
 const CN_TEAM_LABEL = {
@@ -42,7 +82,8 @@ const cnLocal = {
   customDraft: null,  // the host's word list while it is still being typed
   smPick: null,       // the host is choosing a new spymaster for this team
   clock: null,
-  clockKey: null
+  clockKey: null,
+  appliedFor: null    // the room this host's remembered options were sent to
 };
 
 /** Folds the spellings the server counts as one word (normaliseClue in RoomGames.js). */
@@ -96,6 +137,7 @@ ROOM_GAMES.codenames = {
         </div>`}
       </div>`;
 
+    cnApplyRemembered(state);
     return `
       <div class="card card--tight">
         ${side('red', '')}
@@ -567,7 +609,7 @@ function cnHostOptions(t, settings) {
         <div class="segmented" role="group">
           ${CN_TIMERS.map(n => `
             <button type="button" class="segmented__item ${settings.timer === n ? 'is-active' : ''}"
-                    onclick="roomAct('setOptions', { timer: ${n} })">${n || (t.cn_timer_off || '—')}</button>`).join('')}
+                    onclick="cnSetOption({ timer: ${n} })">${n || (t.cn_timer_off || '—')}</button>`).join('')}
         </div>
         <p class="field__hint">${t.cn_timer_hint || ''}</p>
       </div>
@@ -577,7 +619,7 @@ function cnHostOptions(t, settings) {
           <span class="field__label">${t.cn_rotate || ''}</span>
           <span class="switch">
             <input type="checkbox" id="cn-rotate" role="switch" ${settings.rotate ? 'checked' : ''}
-                   onchange="roomAct('setOptions', { rotate: this.checked })">
+                   onchange="cnSetOption({ rotate: this.checked })">
             <span class="switch__track" aria-hidden="true"></span>
           </span>
         </label>

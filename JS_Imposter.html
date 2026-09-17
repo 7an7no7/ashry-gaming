@@ -11,7 +11,13 @@
       for(const cat in SPY_CATEGORIES) {
           html += `<option value="${cat}">${cat}</option>`;
       }
+      // Rebuilt on every visit: the pick goes back to the one last chosen on
+      // this phone (data-remember), not the first in the list.
+      const previous = select.value;
       select.innerHTML = html;
+      if (!recallField(select) && previous && [...select.options].some(o => o.value === previous)) select.value = previous;
+      const container = document.getElementById('manual-word-container');
+      if (container) container.classList.toggle('hidden', select.value !== 'manual');
   }
 
   function toggleManualWordInput() {

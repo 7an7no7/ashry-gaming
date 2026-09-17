@@ -16,7 +16,12 @@ const CHOOSER_HOLD_MS = 2400;
 
 const chooser = { mode: 'one', fingers: new Map(), timer: null, locked: false, bound: false, nextColor: 0 };
 
+const CHOOSER_MODES = ['one', 'teams', 'order'];
+
 function openChooser() {
+  // The mode this phone used last (who starts, two sides or an order).
+  const saved = recallOptions('chooser', {}).mode;
+  if (CHOOSER_MODES.indexOf(saved) !== -1) chooser.mode = saved;
   setView('play-chooser');
   chooserBind();
   chooserReset();
@@ -31,7 +36,8 @@ function exitChooser(event) {
 }
 
 function setChooserMode(mode) {
-  chooser.mode = mode;
+  chooser.mode = CHOOSER_MODES.indexOf(mode) !== -1 ? mode : 'one';
+  rememberOptions('chooser', { mode: chooser.mode });
   chooserReset();
   paintChooserMode();
 }

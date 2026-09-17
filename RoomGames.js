@@ -4636,7 +4636,8 @@ const screwMove = (room, me, action, p) => {
     case 'keep': {
       screwTurnCheck(room, me, ['drawn']);
       screwForget(room, me);
-      if (SKREW_CARDS[g.drawn].drawn === 'discard') throw new Error('الكارت ده لازم يترمي');
+      // Any card may be kept, a +20 or the red screw too (the owner, 17 Sep 2026:
+      // "each card is treated the same" - a kept +20 can be thrown on a match later).
       const how = g.drawnFrom === 'khoshaf' ? 'khoshaf' : 'deck';
       if (!(g.hands[me] || []).length) {
         // An empty hand: the card takes a new slot, with nothing to put on the pile. (An empty

@@ -1806,10 +1806,11 @@ function skrActionsHtml(state) {
       : `<button type="button" class="btn ${cls}" onclick="skrStartPick('keep')">🔁 ${escapeHTML(skrT('skr_keep', 'بدّله مع كارت', 'Swap it into your hand'))}</button>`;
     const discardBtn = (cls, label) => `<button type="button" class="btn ${cls}" onclick="skrAct(this, 'discard')">${label}</button>`;
     let inner;
-    if (rule === 'discard') {
-      inner = `<p class="skr-hint tx-warning">⚠️ ${escapeHTML(skrT('skr_must_discard', 'الكارت ده لازم يترمي', 'This card must be thrown'))}</p>${discardBtn('btn--primary btn--lg', '⬇️ ' + escapeHTML(skrT('skr_discard', 'ارميه', 'Throw it')))}`;
-    } else if (rule === 'keep') {
-      inner = `<p class="skr-hint tx-warning">⚠️ ${escapeHTML(skrT('skr_must_keep', 'الكارت ده لازم يفضل معاك', 'This card must be kept'))}</p>${keepBtn('btn--primary btn--lg')}`;
+    // No card carries a warning (the owner, 17 Sep 2026): a +20 or a red screw is
+    // kept or thrown like any other. The thief and بونج go into the hand by their
+    // own rule, said plainly; بينج and المسحراتي play themselves.
+    if (rule === 'keep') {
+      inner = `<p class="skr-hint">${escapeHTML(skrT('skr_must_keep', 'الكارت ده بيدخل إيدك', 'This card goes into your hand'))}</p>${keepBtn('btn--primary btn--lg')}`;
       // سرقة الحرامي: the thief just drawn can be played as a steal instead.
       if (skrCanSteal(state)) inner = `<div class="btn-row">${keepBtn('btn--secondary')}${skrStealBtn(state, 'btn--primary')}</div>`;
     } else if (rule === 'play') {
@@ -2301,6 +2302,13 @@ function skrPhoneFrame(state) {
 }
 
 ROOM_GAMES.screw = {
+  /* The table scrolls itself while a round is played (skrHandInView keeps your
+     hand above the bar); the reveal, the thief vote and the final board are
+     drawn from the top (roomScrollToAction in JS_Room.html). */
+  actionKey(state) {
+    const s = state.shared || {};
+    return s.phase === 'play' || s.phase === 'memorize' ? '' : [state.code, s.dealId, s.phase].join('|');
+  },
   lobbyOptions(state) {
     const n = (state.players || []).length;
     const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(skrT('skr_lobby_hint', 'كل واحد كروته على موبايله، وكروت الكل قدامك مقلوبة. أي تبديل أو بصّة بتبان من أنهي كارت لأنهي كارت.', "Everyone holds their cards on their own phone, and every hand lies face down in front of you. Every swap and peek shows which card went where."))}</p>`;

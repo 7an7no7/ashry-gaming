@@ -100,6 +100,87 @@
         } catch (e) {}
       })();
     </script>
+    <script>
+      // The gate. A browser this page cannot run in - the browser built into a
+      // TV, most often - gets a plain note with the way onto the big screen,
+      // instead of a white page with four buttons (GEMINI.md, *Browsers the app
+      // runs in*). ES5 only and no CSS variables, so it works where nothing
+      // else on the page does. It tests what the layout and the scripts rely
+      // on: custom properties, grid, `inset`, logical insets, `:is()`, the
+      // ES2017 syntax the code is written in, and a few runtime calls.
+      (function () {
+        var ok = false;
+        try {
+          var c = window.CSS;
+          ok = !!(c && c.supports
+            && c.supports('(--a: 0)') && c.supports('display', 'grid')
+            && c.supports('inset', '0') && c.supports('inset-inline-start', '0')
+            && c.supports('selector(:is(a))')
+            && ''.padStart && [].flatMap && Object.values && window.WebSocket && window.Promise && window.fetch);
+          if (ok) new Function('async function f() { const { a, ...r } = { a: 1 }; for (const x of []) {} return [...r.b || []]; }');
+        } catch (e) { ok = false; }
+        if (ok) return;
+        window.ASHRY_UNSUPPORTED = true;
+        var ar = true;
+        try {
+          var st = JSON.parse(localStorage.getItem('gameTrackerState_v1') || 'null');
+          ar = st ? st.lang !== 'en' : !/^en/i.test(navigator.language || '');
+        } catch (e) {}
+        var link = location.href.split('#')[0].split('?')[0];
+        var T = ar ? {
+          title: 'المتصفح ده مش هيقدر يشغّل عشرى جيمينج',
+          lead: 'متصفح الجهاز ده قديم شوية، والتطبيق محتاج متصفح حديث زي Chrome أو Safari. على الموبايل والكمبيوتر شغّال عادي.',
+          sub: 'عشان تلعب على الشاشة الكبيرة:',
+          steps: ['وصّل لابتوب بالتلفزيون بكابل HDMI، افتح اللينك عليه، واختار «شاشة العرض».',
+                  'أو اعمل مشاركة شاشة من الموبايل: AirPlay من الآيفون، أو Smart View / Cast من أندرويد.',
+                  'أو استخدم جهاز زي Chromecast مع Google TV أو Fire TV، ومتصفحه بيشغّل التطبيق.'],
+          scan: 'امسح الكود من الموبايل'
+        } : {
+          title: 'This browser can’t run Ashry Gaming',
+          lead: 'This device’s browser is a little old; the app needs a recent one such as Chrome or Safari. On phones and computers it runs as usual.',
+          sub: 'To play on the big screen:',
+          steps: ['Plug a laptop into the TV with an HDMI cable, open the link on it and pick “Big screen”.',
+                  'Or mirror your phone: AirPlay from an iPhone, Smart View / Cast from Android.',
+                  'Or use a streaming device such as Chromecast with Google TV or Fire TV, whose browser runs the app.'],
+          scan: 'Scan the code with your phone'
+        };
+        var esc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+        var icon = 'icon-192.png' + (window.ICON_VERSION ? '?v=' + window.ICON_VERSION : '');
+        var box = document.createElement('div');
+        box.id = 'unsupported';
+        box.setAttribute('dir', ar ? 'rtl' : 'ltr');
+        box.setAttribute('lang', ar ? 'ar' : 'en');
+        box.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483647;overflow:auto;background:#f8fafc;color:#1e293b;font-family:Cairo,"Segoe UI",Tahoma,Arial,sans-serif;font-size:20px;line-height:1.6;';
+        box.innerHTML =
+          '<div style="max-width:760px;margin:0 auto;padding:40px 24px;text-align:center">' +
+            '<img src="' + icon + '" alt="" width="96" height="96" style="width:96px;height:96px;border-radius:24px;display:block;margin:0 auto 18px">' +
+            '<h1 style="margin:0 0 10px;font-size:30px;font-weight:900;color:#4c1d95">' + esc(T.title) + '</h1>' +
+            '<p style="margin:0 0 22px;color:#475569">' + esc(T.lead) + '</p>' +
+            '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:20px 24px;text-align:start">' +
+              '<p style="margin:0 0 8px;font-weight:800">' + esc(T.sub) + '</p>' +
+              '<ol style="margin:0;padding-inline-start:24px;padding-left:24px">' + T.steps.map(function (s) { return '<li style="margin:6px 0">' + esc(s) + '</li>'; }).join('') + '</ol>' +
+            '</div>' +
+            '<p style="margin:22px 0 6px;font-weight:900;font-size:26px;direction:ltr;word-break:break-all;color:#4c1d95">' + esc(link.replace(/^https?:\/\//, '')) + '</p>' +
+            '<div id="unsupported-qr" style="margin:12px auto 0"></div>' +
+          '</div>';
+        var loader = document.getElementById('app-loader');
+        if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
+        document.body.appendChild(box);
+        // The QR code library (loaded at the end of the page) is ES5 too.
+        var drawQr = function () {
+          try {
+            if (typeof qrcode !== 'function') return;
+            var qr = qrcode(0, 'M');
+            qr.addData(link);
+            qr.make();
+            var holder = document.getElementById('unsupported-qr');
+            if (holder) holder.innerHTML = '<div style="display:inline-block;background:#fff;padding:10px;border-radius:16px;border:1px solid #e2e8f0">' + qr.createSvgTag(5, 0) + '</div><p style="margin:8px 0 0;color:#475569;font-size:16px">' + esc(T.scan) + '</p>';
+          } catch (e) {}
+        };
+        if (document.readyState === 'complete') drawQr();
+        else window.addEventListener('load', drawQr);
+      })();
+    </script>
 
     <div id="sync-status" title="حالة الاتصال"></div>
     

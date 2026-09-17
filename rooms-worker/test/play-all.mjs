@@ -1504,9 +1504,9 @@ async function main() {
     const stale = await bot.act('draw', { seq: seq0 });
     await skSettle(stale.state.version);
     check(stale.ok && sks().turn.stage === 'drawn' && bot.state.you.drawn === card && sks().deckCount === 41, 'skrew: a tap with a stale seq is dropped quietly');
-    if (SKREW_CARDS[card].drawn === 'discard') {
-      check((await skTry(bot, 'keep', { slot: skHand(bot.pid)[0].id })) === false, 'skrew: a +20 or a red screw drawn cannot be kept');
-      await skDo(bot, 'discard');
+    check(!SKREW_CARDS.plus20.drawn && !SKREW_CARDS.red25.drawn, 'skrew: a +20 or a red screw carries no rule when drawn: kept or thrown like any card (the owner, 17 Sep 2026)');
+    if (SKREW_CARDS[card].drawn === 'play') {
+      // بينج or المسحراتي played itself on the draw; nothing to keep.
     } else {
       const slot = skHand(bot.pid)[0].id;
       check((await skTry(bot, 'keep', { slot: skHand(other.pid)[0].id })) === false, 'skrew: a card is kept in your own slot only');

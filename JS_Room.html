@@ -968,7 +968,41 @@ function routeRoomState(state) {
     return;
   }
   const game = ROOM_GAMES[state.game];
-  if (game && game.render) game.render(state);
+  if (game && game.render) {
+    game.render(state);
+    roomScrollToAction(state, game);
+  }
+}
+
+let roomActionSeen = null;
+
+/**
+ * Each new step of a room game is drawn from the top of the screen. A phone
+ * is scrolled down to the answer box, its hand or the last button it pressed
+ * when the round closes, and the podium, the reveal and the next card are all
+ * drawn at the top; nobody should have to swipe up to find out what happened
+ * (the owner, 17 Sep 2026). The key is the phase and whatever names the step
+ * inside it (the round, the player up, the deal); a presence tick or an
+ * answer count changing is not a step. A game whose own screen manages its
+ * scrolling (سكرو keeps your hand above the action bar) gives its own
+ * `actionKey(state)` on its ROOM_GAMES entry: '' means leave it alone.
+ */
+function roomActionKey(state) {
+  const s = state.shared || {};
+  const plain = (v) => (v == null || typeof v === 'object') ? '' : String(v);
+  // The voting games keep their phase on the room (state.phase) and the vote's own
+  // (shared.vote.phase: open, closed - the results are drawn when it closes); most others in shared.phase.
+  return [state.code, state.game, state.phase, s.dealId, s.phase, s.vote && s.vote.phase, s.results ? 'results' : '',
+    s.round, s.step, s.turnId, s.subjectId, s.holderId, s.drawerId, s.psychicId, s.turn, s.current, s.index].map(plain).join('|');
+}
+
+function roomScrollToAction(state, game) {
+  const key = game && game.actionKey ? game.actionKey(state) : roomActionKey(state);
+  if (key === roomActionSeen) return;
+  const fresh = roomActionSeen === null;      // the screen was just opened: setView starts it at the top
+  roomActionSeen = key;
+  if (fresh || !key || typeof scrollToAction !== 'function') return;
+  scrollToAction();
 }
 
 const onRoomView = () => (appState.currentView || '').indexOf('room-') === 0;
@@ -992,7 +1026,7 @@ Room.onChange((state) => {
     stopRoomClocks();
   }
   updateRoomBanner();
-  if (!state) { roomStageSeen = ''; return; }
+  if (!state) { roomStageSeen = ''; roomActionSeen = null; return; }
 
   const stage = state.phase + '|' + (state.game || '');
   const moved = roomStageSeen !== '' && roomStageSeen !== stage;

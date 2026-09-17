@@ -150,6 +150,8 @@ function nextEmojiRiddle() {
   saveToLocal();
   if (appState.currentView !== 'play-emoji') setView('play-emoji');
   paintEmoji();
+  // The new riddle is at the top; the "who got it?" chips left the phone scrolled down.
+  if (typeof scrollToAction === 'function') scrollToAction();
 }
 
 function revealEmoji() {
@@ -185,6 +187,7 @@ function paintEmoji() {
   if (e.phase === 'over') {
     stage.innerHTML = quizOverHtml(e, t, 'emoji', 'emojiPlayAgain()', 'setupEmoji()');
     quizSettleBoard(e, 'emoji');
+    if (typeof scrollToAction === 'function') scrollToAction();   // the podium rises at the top
     return;
   }
   if (!e.riddle) return;

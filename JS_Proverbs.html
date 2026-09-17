@@ -48,6 +48,8 @@ function nextProverb() {
   saveToLocal();
   if (appState.currentView !== 'play-proverbs') setView('play-proverbs');
   paintProverb();
+  // The new proverb is at the top; the "who got it?" chips left the phone scrolled down.
+  if (typeof scrollToAction === 'function') scrollToAction();
 }
 
 function revealProverb() {
@@ -83,6 +85,7 @@ function paintProverb() {
   if (p.phase === 'over') {
     stage.innerHTML = quizOverHtml(p, t, 'proverbs', 'proverbsPlayAgain()', 'setupProverbs()');
     quizSettleBoard(p, 'proverbs');
+    if (typeof scrollToAction === 'function') scrollToAction();   // the podium rises at the top
     return;
   }
   if (!p.item) return;

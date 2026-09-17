@@ -2450,9 +2450,8 @@
       skr_your_turn: "دورك!",
       skr_keep_new: "خليه معاك",
       skr_keep: "بدّله مع كارت",
-      skr_must_discard: "الكارت ده لازم يترمي",
       skr_discard: "ارميه",
-      skr_must_keep: "الكارت ده لازم يفضل معاك",
+      skr_must_keep: "الكارت ده بيدخل إيدك",
       skr_play_it: "العبه",
       skr_discard_power: "ارميه واستعمل قوته",
       skr_screw_called: "سكرو اتقالت خلاص",
@@ -4261,9 +4260,8 @@
       skr_your_turn: "Your turn!",
       skr_keep_new: "Keep it",
       skr_keep: "Swap it into your hand",
-      skr_must_discard: "This card must be thrown",
       skr_discard: "Throw it",
-      skr_must_keep: "This card must be kept",
+      skr_must_keep: "This card goes into your hand",
       skr_play_it: "Play it",
       skr_discard_power: "Throw it, use its power",
       skr_screw_called: "Screw has been called",
@@ -4710,6 +4708,8 @@
   }
 
   function initializeApp() {
+    // A browser the page can't run in shows its own note (the gate in Controller.html).
+    if (window.ASHRY_UNSUPPORTED) return;
     // If anything below throws, the intro still goes.
     setTimeout(() => { if (intro.state === 'waiting') introFade(350); }, 3000);
     setSyncing(true);
@@ -4816,8 +4816,11 @@
   }
 
   function loadFromLocal() {
-    const saved = localStorage.getItem('gameTrackerState_v1');
-    
+    // A browser that blocks storage (a TV's, a locked-down kiosk) throws here;
+    // the app starts fresh rather than not at all.
+    let saved = null;
+    try { saved = localStorage.getItem('gameTrackerState_v1'); } catch (e) { saved = null; }
+
     // 👇 FIX: Added 'input-whoami' and 'play-chess' to the safe list
     const validViews = [
         'menu', 'together', 'tools',
@@ -5908,6 +5911,32 @@
     if (typeof syncAllSegmented === 'function') requestAnimationFrame(syncAllSegmented);
 }
 
+  /**
+   * Scrolls the main area to where the action is: the top of the screen, or
+   * `el`. The owner (17 Sep 2026): "my screen should always be in the place
+   * that has actions" - a room's podium and a one-phone game's next card are
+   * drawn at the top while the player is still scrolled down at the answer box
+   * or the last button they pressed, and swiping up to find out what happened
+   * is not a reveal. Nothing moves while the player is typing.
+   */
+  function scrollToAction(el) {
+    const main = document.getElementById('shell-main');
+    if (!main) return;
+    const active = document.activeElement;
+    if (active && main.contains(active)
+        && (active.tagName === 'TEXTAREA' || (active.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|color)$/i.test(active.type || '')))) return;
+    const behavior = typeof motionOff === 'function' && motionOff() ? 'auto' : 'smooth';
+    // After the new frame is laid out. A hidden page draws no frames, so there a
+    // timer does it: the phone comes back from the lock screen already in place.
+    const later = document.hidden ? (fn) => setTimeout(fn, 0) : requestAnimationFrame;
+    later(() => {
+      if (!el || !el.isConnected) { if (main.scrollTop > 0) main.scrollTo({ top: 0, behavior: behavior }); return; }
+      const r = el.getBoundingClientRect(), m = main.getBoundingClientRect();
+      const top = main.scrollTop + r.top - m.top - 8;
+      if (Math.abs(top - main.scrollTop) > 4) main.scrollTo({ top: Math.max(0, top), behavior: behavior });
+    });
+  }
+
   /* The enter animation must not leave its transform behind: a transformed
      element becomes the containing block for its position:fixed descendants,
      which detached the floating action bars from the viewport. */
@@ -6324,7 +6353,7 @@ const GAME_RULES = {
                     <li><b>خد وهات</b> (4): بدّل كارت منك بكارت من عند حد تاني من غير ما حد يشوف.</li>
                     <li><b>بصرة</b> (4، و2 في الطبعة الأولى): ارمي كارت من كروتك على الأرض.</li>
                     <li><b>كعب داير</b> (2): بص على كارت من كل لاعب، أو على كارتين من كروتك.</li>
-                    <li><b>+20</b> (4) و<b>السكرو الأحمر</b> (2، بـ 25): لو اتسحبوا لازم يترموا. السكرو الأحمر اللي في إيدك مايترميش غير على سكرو أخضر.</li>
+                    <li><b>+20</b> (4) و<b>السكرو الأحمر</b> (2، بـ 25): كروت عقاب، بتتحسب عليك لو فضلت في إيدك. زي أي كارت: لما تسحبها ترميها أو تدخّلها إيدك (عشان ترميها على كارت زيها بعدين). السكرو الأحمر اللي في إيدك مايترميش غير على سكرو أخضر.</li>
                     <li><b>السكرو الأخضر</b> (2، بصفر) و<b>−1</b> (1، بسالب واحد): أحسن كروت تحتفظ بيها.</li>
                     <li>كارت الأوامر بيشتغل بس لو اتسحب من الورق واترمى على طول. لو اتاخد من الأرض أو فضل في الإيد مالوش قوة، ويتحسب 10 (إلا 7 و8 و9 و10 بقيمتهم).</li>
                 </ul>
@@ -6336,7 +6365,7 @@ const GAME_RULES = {
                     <li><b>تاخد من الأرض</b>: الكارت اللي فوق يدخل مكان كارت من كروتك، والقديم يترمي مكانه. من غير قوة.</li>
                     <li><b>ترمي كارت زيه</b> في دورك بس: كارت من إيدك بنفس قيمة اللي فوق (أو نفس الكارت). صح: يطلع من إيدك. غلط: الكل بيشوفه، ويرجع مكانه مقلوب، وتسحب كارت عقاب من الورق في خانة جديدة (4 تبقى 5) من غير ما تبص عليه.</li>
                     <li><b>سكرو</b>: بيخلّص دورك، وكروتك بتبقى محمية. في التطبيق بيبقى مسموح من اللفة اللي المضيف اختارها.</li>
-                    <li>كروت بتمشي لوحدها: <b>الحرامي</b> و<b>بونج</b> لازم يتحطوا في الإيد، <b>+20</b> و<b>السكرو الأحمر</b> لازم يترموا، و<b>بينج</b> و<b>المسحراتي</b> بيتلعبوا أول ما يتسحبوا.</li>
+                    <li>كروت بتمشي لوحدها: <b>الحرامي</b> و<b>بونج</b> بيدخلوا الإيد، و<b>بينج</b> و<b>المسحراتي</b> بيتلعبوا أول ما يتسحبوا. غير كده كل كارت زي التاني: ترميه أو تخليه.</li>
                 </ul>
             </details>
             <details class="help-more">
@@ -7080,7 +7109,7 @@ const GAME_RULES = {
                     <li><b>Blind swap</b> (4): swap one of your cards with someone else's without anyone seeing.</li>
                     <li><b>Basra</b> (4, or 2 in the first print): throw one of your cards on the pile.</li>
                     <li><b>All around</b> (2): look at one card of every player, or at two of yours.</li>
-                    <li><b>+20</b> (4) and the <b>red screw</b> (2, worth 25): drawn, they must be thrown. A red screw in your hand can only be thrown on a green screw.</li>
+                    <li><b>+20</b> (4) and the <b>red screw</b> (2, worth 25): penalty cards, counted against you if they stay in your hand. Like any card, a drawn one is thrown or swapped into your hand (to throw it on a match later). A red screw in your hand can only be thrown on a green screw.</li>
                     <li>The <b>green screw</b> (2, worth zero) and <b>−1</b> (1): the best cards to keep.</li>
                     <li>An action card only works when drawn from the deck and thrown straight away. Taken from the pile or left in a hand it does nothing and counts 10 (7, 8, 9 and 10 count their face).</li>
                 </ul>
@@ -7092,7 +7121,7 @@ const GAME_RULES = {
                     <li><b>Take from the pile</b>: the top card replaces one of yours, and the old one goes on the pile. No power.</li>
                     <li><b>Throw a matching card</b>, on your own turn only: a card from your hand with the same value as the top card (or the same card). Right: it leaves your hand. Wrong: everyone sees it, it goes back face down where it was, and you draw a penalty card from the deck into a new slot (4 cards become 5) without looking at it.</li>
                     <li><b>Screw</b>: ends your turn, and your cards are protected. In the app it is allowed from the lap the host picked.</li>
-                    <li>Cards with a mind of their own: <b>the Thief</b> and <b>Pong</b> must be kept, <b>+20</b> and the <b>red screw</b> must be thrown, and <b>Ping</b> and <b>El-Mesaharaty</b> play themselves as soon as they are drawn.</li>
+                    <li>Cards with a mind of their own: <b>the Thief</b> and <b>Pong</b> go into your hand, and <b>Ping</b> and <b>El-Mesaharaty</b> play themselves as soon as they are drawn. Every other card is the same: throw it or keep it.</li>
                 </ul>
             </details>
             <details class="help-more">

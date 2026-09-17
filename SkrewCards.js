@@ -18,8 +18,10 @@
      kind    number | command | penalty | shield | special
      power   what it does when discarded straight after being drawn
      copy    no value of its own: counts as the lowest other card in its hand
-     drawn   'discard' must be thrown at once, 'play' plays itself at once,
-             'keep' must go into your hand; absent: your choice
+     drawn   'play' plays itself at once, 'keep' must go into your hand;
+             absent: your choice. (+20 and the red screw used to be 'discard';
+             the owner plays them like any other card - keep one to throw it
+             on a match later - so they carry no rule since 17 Sep 2026.)
    ========================================================================= */
 const SKREW_CARDS = {
   // --- the standard deck -------------------------------------------------------
@@ -36,8 +38,8 @@ const SKREW_CARDS = {
   swap:   { group: 'base', count: 4, value: 10, kind: 'command', power: 'blindSwap', icon: '🔄', ar: 'خد وهات', en: 'Blind swap' },
   basra:  { group: 'base', count: 4, value: 10, kind: 'command', power: 'basra',     icon: '🗑️', ar: 'بصرة', en: 'Basra' },
   around: { group: 'base', count: 2, value: 10, kind: 'command', power: 'allAround', icon: '🔁', ar: 'كعب داير', en: 'All around' },
-  plus20: { group: 'base', count: 4, value: 20, kind: 'penalty', drawn: 'discard', icon: '➕', ar: '+20', en: '+20' },
-  red25:  { group: 'base', count: 2, value: 25, kind: 'penalty', drawn: 'discard', icon: '🔴', ar: 'سكرو أحمر', en: 'Red screw' },
+  plus20: { group: 'base', count: 4, value: 20, kind: 'penalty', icon: '➕', ar: '+20', en: '+20' },
+  red25:  { group: 'base', count: 2, value: 25, kind: 'penalty', icon: '🔴', ar: 'سكرو أحمر', en: 'Red screw' },
   green0: { group: 'base', count: 2, value: 0,  kind: 'shield', icon: '🟢', ar: 'سكرو أخضر', en: 'Green screw' },
   minus1: { group: 'base', count: 1, value: -1, kind: 'shield', icon: '⭐', ar: '-1', en: '-1' },
 

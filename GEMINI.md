@@ -167,6 +167,12 @@ work changed. Add to it when a decision is made or a batch ships.
   - Decided for the owner: the vote happens at the end of every round the
     thief card is in the deck, however the round ended; two decks keep one
     thief.
+  - **No card carries a warning** (owner, 17 Sep 2026, night: "each card is
+    treated the same"): a +20 or the red screw drawn from the deck is kept or
+    thrown like any other card - kept, it can be thrown on a match later.
+    The forced throw (and its ⚠️) is gone from the server and the phone. The
+    thief and بونج still go into the hand and بينج and المسحراتي still play
+    themselves - those are their versions' rules, said plainly, not alerts.
 
 - **مافيا (Mafia / Werewolf)** - the owner's spec of 16 Sep 2026, built the
   same day (*مافيا in rooms*): the app is the narrator (night choices made silently on each phone,
@@ -244,6 +250,26 @@ the word search), `countUp` for streaks and scores.
   (`TriviaQuestions.js` came out of `PartyContent.js` for this), never copied.
 - The soundboard is a tool (الأدوات → لوحة الأصوات), not a setting (owner,
   16 Sep 2026). The 🔊 in the header on play and room screens stays.
+- **كمّل المثل is Egyptian colloquial only** (owner, 17 Sep 2026: "a lot of
+  امثال wrong… the Egyptian ones only and right"). `Proverbs.js` lost the
+  classical Arabic sayings (الوقت كالسيف, من جد وجد, رب ضارة نافعة, …) and
+  a few made-up variants, and gained about eighty sayings an Egyptian table
+  finishes without thinking, in the wording they are said in. The proverbs
+  among the emoji riddles follow the same rule. Before adding one, say it
+  out loud: if the table would argue about the wording, leave it out.
+- **The screen stays where the action is** (owner, 17 Sep 2026: "my screen
+  should always be in the place that has actions"): a new step of a room
+  game, a one-phone game's next card and every podium are drawn from the
+  top of the screen (`scrollToAction`, *The screen follows the action*).
+- **TV browsers are not supported; a TV shows the app through something
+  else.** The owner opened the link in a TV's own browser and got a white
+  page with four buttons. The page needs a browser of about 2021 or later
+  (*Browsers the app runs in*), which the browsers built into TVs are not
+  for years after they are sold, and there is no cheap way to make the app
+  run in them (no CSS variables or grid in the older ones). So an old browser
+  gets a plain note with the ways onto the big screen - a laptop on HDMI, a
+  phone mirrored, a streaming stick's browser - which is how the big screen
+  was always meant to be used (*Big screens*).
 - **الترتيب الأعمى (blind ranking) was removed** (owner, 17 Sep 2026: "I don't
   see any use of it"). It was a solo game with no score - place five or ten
   things of a Chameleon category 1..n before seeing the next, then share the
@@ -345,7 +371,15 @@ the word search), `countUp` for streaks and scores.
   layout the owner picked from a design sheet, with hands stacking in even
   rows when they don't fit.
 - **17 Sep 2026, night** - الترتيب الأعمى removed at the owner's request
-  (*Decided, and why*); تحدي اليوم now has ten dailies.
+  (*Decided, and why*); تحدي اليوم now has ten dailies. Then the owner's
+  reports from an evening with the app: كمّل المثل rewritten as Egyptian
+  colloquial only; every game's new step and podium drawn from the top of
+  the screen (`scrollToAction`); سكرو's +20 and red screw kept or thrown
+  like any card, no warnings; the browser gate for TVs (*Browsers the app
+  runs in*), after the TV's own browser showed a white page; and a storage
+  read that could stop the app from starting at all. The "look at the board"
+  button the owner reported was checked on every solo game and works; if it
+  fails again, the game and the phone are what to ask for.
 
 ## Building and Running
 
@@ -1189,6 +1223,34 @@ in the BIG SCREEN block at the end of `Style.html`. Phone components reused ther
 sit in `.tv-scale`, which zooms them in steps. Phone and TV frames share element
 ids (the canvas, the timers), so drawing one kind clears the other. A new room
 game needs its `TV_GAMES` entry as well.
+
+**Browsers the app runs in.** The page is written in ES2017 (`const`,
+`async`, destructuring, spread - nothing newer, measured with esbuild on
+17 Sep 2026) and its layout on CSS custom properties, grid, `inset`, logical
+insets (`inset-inline-start`), flex `gap`, `:is()` and `aspect-ratio`; the
+newer things it uses (`:has()`, container queries, `dvh`, `color-mix()`,
+`text-wrap`) only lose polish when missing. That floor is Chromium 88 /
+iOS 14.5 / Firefox 78 - every phone since 2021. The browsers built into TVs
+run years behind: a Samsung sold in 2022 (Tizen 6.5) has Chromium 85, a 2024
+one (Tizen 8) 108; LG's webOS 22 has 87. Older sets lack grid or even
+custom properties, which is the white page with four stacked buttons the
+owner saw. Nothing cheap fixes that (the design system *is* custom
+properties), so the page carries a **gate**: an ES5 script in
+`Controller.html`, right after the intro, tests `CSS.supports` for the
+features above, compiles a line of ES2017 with `new Function`, and checks a
+few runtime calls (`padStart`, `flatMap`, `Object.values`, `WebSocket`,
+`fetch`). Where any fails it sets `window.ASHRY_UNSUPPORTED` (which
+`initializeApp` obeys), removes the intro and draws a plain note with inline
+styles - the mark, why, the three ways onto a big screen (a laptop on HDMI,
+a phone mirrored with AirPlay or Smart View, a streaming stick's browser),
+the link and its QR (the `qrcode` library is ES5 too) - in the saved
+language, or the device's. Keep that script ES5 and free of CSS variables;
+it is the one thing on the page that must run where nothing else does. The
+app's own path in a TV browser is still *Big screens* above: the browser
+shows the app in a tab with its bar, and the ⛶ in the TV bar
+(`toggleTvFullscreen`) takes the whole screen. `loadFromLocal` reads storage
+inside a try as well: a browser that blocks it used to stop the app before
+its first screen.
 
 **Adding a game to the room layer**
 
@@ -2481,6 +2543,21 @@ of every long player list.
 - The shell's height is `--app-h`, which `syncAppHeight` in `JS_Core.html`
   keeps at `window.innerHeight`: iOS goes on reporting the old `100dvh` for a
   moment after the phone turns.
+
+**The screen follows the action.** `scrollToAction(el)` in `JS_Core.html`
+scrolls the main area to the top (or to `el`) on the next frame, smoothly
+unless motion is off, and never while a text field has the focus. Rooms
+call it from `routeRoomState` through `roomScrollToAction`: each game's
+step is a key (`roomActionKey`: the deal, the phase, the round, the player
+up - never a presence tick or an answer count), and a changed key scrolls
+to the top, where every reveal, podium and next card is drawn. The first
+key after a screen opens does nothing (setView opens it at the top), and a
+game that manages its own scrolling gives `actionKey(state)` on its
+`ROOM_GAMES` entry, returning '' to be left alone (سكرو during a round:
+`skrHandInView` keeps your hand above the bar). One-phone games call it
+themselves where their next card or their podium is painted (فوازير
+إيموجي, كمّل المثل, خمس ثواني, القنبلة). A new game whose steps are drawn in
+place, not through `setView`, needs the same call.
 
 **Landscape phones.** A phone on its side is 360–430px tall, and laid out like
 portrait the app stayed a 520px column in the middle of the screen with a third

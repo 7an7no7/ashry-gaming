@@ -257,6 +257,14 @@ the word search), `countUp` for streaks and scores.
   finishes without thinking, in the wording they are said in. The proverbs
   among the emoji riddles follow the same rule. Before adding one, say it
   out loud: if the table would argue about the wording, leave it out.
+- **Content fits the game it is dealt in** (owner, 17 Sep 2026: "pick the
+  words and questions and data for each game precise to match what the game
+  is about, don't make the game hard that people won't like to play it
+  again"): a drawing word must be drawable, a charade actable, a Who Am I
+  character known to the table, a Stop category one with words on most
+  letters. When a list is extended, extend it with the game in mind, not
+  with everything the category contains. And a typed guess is judged as the
+  table would judge it (*A guess is judged the way the table hears it*).
 - **The screen stays where the action is** (owner, 17 Sep 2026: "my screen
   should always be in the place that has actions"): a new step of a room
   game, a one-phone game's next card and every podium are drawn from the
@@ -379,7 +387,11 @@ the word search), `countUp` for streaks and scores.
   runs in*), after the TV's own browser showed a white page; and a storage
   read that could stop the app from starting at all. The "look at the board"
   button the owner reported was checked on every solo game and works; if it
-  fails again, the game and the phone are what to ask for.
+  fails again, the game and the phone are what to ask for. Later: typed
+  guesses judged leniently (`guessVerdict`: طماطم is طماطماية, a letter off
+  in a long word counts, a near miss says so) in ارسم وخمّن, the fake
+  artist's guess and the quiz cards; the drawing list cut from 900 to 690
+  drawable words (خلد had been dealt).
 
 ## Building and Running
 
@@ -618,6 +630,29 @@ presses `closeVote`. On the client, `renderBallot(state, opts)` draws the ballot
 *and* the host's close button in its progress row, so a game must not add a
 second one; a vote on people passes `{ ownLabel: t.vote_you }` so your own row
 says "you" rather than "your answer".
+
+**A guess is judged the way the table hears it.** The owner typed طماطم for
+طماطماية and was told "wrong", with no nudge (17 Sep 2026). `guessVerdict(text,
+answers)` in `RoomGames.js` says `right`, `close` or nothing: right for the
+same word after the fold, the same stem (one unit or plural ending dropped:
+طماطماية/طماطم, تفاحة/تفاح, مهندسين/مهندس, cats/cat, and the ending
+swallowing a final و or ا, مانجاية/مانجو), the same once measure words are
+dropped (`GUESS_MEASURE_WORDS`: حبة, كوب, عربية, slice of…), or one letter
+off in a word of five letters or more (never in a short one: كباب is not
+كتاب); close for most of the letters, the same first four, or all but one
+word of a phrase. ارسم وخمّن, the fake artist's guess and the quiz cards
+(فوازير إيموجي, كمّل المثل; a near miss shows "🔥 قريب!" in the feed) judge
+through it; `rules.mjs` pins the cases. Fibbage lies, Just One clues and
+Codenames still use the plain fold: there "the same word" is the point.
+
+**Draw & Guess words are things a phone can draw and a table can name.** The
+owner was dealt خلد (17 Sep 2026). The Arabic list had grown to 900 with a
+bulk of animals, dishes, herbs and body parts (قضاعة, نيص, رتيلاء, بصارة,
+عرقسوس, شريان) that nobody can draw or would guess; it is 690 curated words
+now, one form per thing (طماطم, not also حبة طماطم and طماطماية, which the
+judge treats as one anyway). A word goes in only if a sketch of it is
+recognisable in a minute and the Arabic name is the one an Egyptian family
+uses.
 
 **One fold for typed text.** Every place one typed word meets another goes
 through `normaliseClue` in `RoomGames.js`: a Just One clue against the other

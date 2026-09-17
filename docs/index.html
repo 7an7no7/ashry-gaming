@@ -11369,7 +11369,7 @@ function skrewDecksFor(players) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260917200326";
+      window.BUILD_ID = "20260917205757";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -54668,7 +54668,8 @@ function quizCardHtml(game, card, big) {
 function quizFeedHtml(s, t) {
   const rows = (s.feed || []).slice(-8).reverse();
   if (!rows.length) return '';
-  return rows.map(f => `<div class="quiz-feed__row ${f.right ? 'is-right' : ''}">${f.right ? '✅ ' : '❌ '}<b>${escapeHTML(f.name)}</b>${f.right ? '' : ': ' + escapeHTML(f.text || '')}</div>`).join('');
+  // A near miss (the server's `close`) gets the same nudge as in Draw & Guess.
+  return rows.map(f => `<div class="quiz-feed__row ${f.right ? 'is-right' : ''}">${f.right ? '✅ ' : f.close ? '🔥 ' : '❌ '}<b>${escapeHTML(f.name)}</b>${f.right ? '' : ': ' + escapeHTML(f.text || '')}${!f.right && f.close ? ` <span class="tx-warning">${escapeHTML(t.draw_close || '')}</span>` : ''}</div>`).join('');
 }
 
 function armQuizClock(endsAt) {

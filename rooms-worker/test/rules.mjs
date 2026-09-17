@@ -5,7 +5,7 @@
  *
  *   npm run test:rules      (builds generated/rules.js first)
  */
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, stopAnswerFits, stopWordKnown, roomPlayerLeft } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, stopAnswerFits, stopWordKnown, roomPlayerLeft } from '../generated/rules.js';
 
 let failed = 0;
 const check = (ok, label) => {
@@ -156,6 +156,20 @@ check(same('ألعاب', 'العاب') && same('الألعاب', 'ألعاب') &
 check(same('مكتبة', 'مكتبه') && same('مصطفى', 'مصطفي') && same('مَدْرَسَة', 'مدرسه') && same('ســمك', 'سمك'), 'clues: ة/ه, ى/ي, diacritics and the tatweel are ignored');
 check(same('The Sea', 'sea') && same('Ice cream', 'icecream') && same('sea-horse', 'seahorse'), 'clues: case, "the", spaces and punctuation are ignored');
 check(!same('سمك', 'سمكة') && !same('قطة', 'قط'), 'clues: different words stay different');
+
+/* A typed guess is judged the way the table hears it (guessVerdict). */
+const v = (guess, answer) => guessVerdict(guess, Array.isArray(answer) ? answer : [answer]);
+check(v('طماطم', 'طماطماية') === 'right' && v('طماطماية', 'طماطم') === 'right' && v('حبة طماطم', 'طماطم') === 'right',
+  'guess: طماطم, طماطماية and حبة طماطم are one answer');
+check(v('تفاح', 'تفاحة') === 'right' && v('موز', 'عنقود موز') === 'right' && v('مهندس', 'مهندسين') === 'right' && v('مانجاية', 'مانجو') === 'right',
+  'guess: a unit ending, a measure word and a plural do not make a guess wrong');
+check(v('شاي', 'كوب شاي') === 'right' && v('pizza', 'Slice of pizza') === 'right' && v('cats', 'cat') === 'right' && v('cherry', 'Cherries') === 'right',
+  'guess: measure words and English plurals are forgiven');
+check(v('اخطبوت', 'أخطبوط') === 'right' && v('elephent', 'Elephant') === 'right' && v('كباب', 'كتاب') !== 'right', 'guess: one letter off in a word of five letters or more still counts, not in a short one');
+check(v('اسم', 'أسد') !== 'right' && v('قط', 'قطة') === 'close' && v('سمكة قرش', 'سمكة') !== 'right', 'guess: a short word is not forgiven a letter, and a longer answer is not the short one');
+check(v('طماطماااا', 'طماطم') === 'close' && v('إسعاف', 'عربية إسعاف') === 'right' && v('عربية', 'عربية إسعاف') === 'close' && v('قزح', 'قوس قزح') === 'close',
+  'guess: a near miss and a missing word are close, not right');
+check(v('ترابيزة', 'كرسي') === '' && v('', 'كرسي') === '' && v('كرسي', ['ترابيزة', 'كرسي']) === 'right', 'guess: a different word is wrong, an alternative answer counts');
 
 /* --- someone leaves mid-round: what room.js does, then the game's hook ------ */
 const leave = (r, id, hook = true) => {

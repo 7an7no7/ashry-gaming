@@ -697,9 +697,10 @@ async function main() {
   await viewers[1].connect();
   await viewers[0].must('guess', { guess: 'غلط' });
   await all(viewers, (s) => s.shared.guesses.length === 1 && !s.shared.guesses[0].right, 'a wrong guess is not right');
-  if (drawWord.length >= 3) {
-    await viewers[0].must('guess', { guess: drawWord + 'ا' });
-    await all(viewers, (s) => s.shared.guesses.length === 2 && s.shared.guesses[1].close === true, 'a near miss is marked close');
+  if (drawWord.length >= 4) {
+    // Three letters on the end: too far to count (a letter off would be right now), near enough for a nudge.
+    await viewers[0].must('guess', { guess: drawWord + 'ااا' });
+    await all(viewers, (s) => s.shared.guesses.length === 2 && !s.shared.guesses[1].right && s.shared.guesses[1].close === true, 'a near miss is marked close, not right');
   }
   await viewers[0].must('guess', { guess: drawWord });
   await all(bots, (s) => s.phase === 'result' && s.shared.word === drawWord, 'a right guess ends the round');

@@ -2338,6 +2338,73 @@ const stringSimilarity = (a, b) => {
   return (longer.length - costs[b.length]) / longer.length;
 };
 
+/* --- Judging a typed guess ---------------------------------------------------
+   A guess is judged the way the table would hear it (the owner, 17 Sep 2026:
+   طماطم for طماطماية came back "wrong", with no nudge). guessVerdict(text,
+   answers) says 'right', 'close' or '':
+   - right: the same word after normaliseClue; the same stem, where a stem
+     drops one unit or plural ending (طماطماية/طماطم, تفاحة/تفاح,
+     مهندسين/مهندس, cats/cat); the same once the measure words are dropped
+     (حبة طماطم, كوب شاي, slice of pizza); or one letter off in a word of
+     five letters or more - the forgiveness the Stop dictionary already has;
+   - close: most of the letters (similarity 0.6), the same first four letters,
+     or all but one word of a longer answer. A nudge on the screen, never a
+     point.
+   Draw & Guess, the fake artist's guess and the quiz cards judge through it.
+   The fold stays normaliseClue (keep foldWord in JS_Core.html identical). */
+const GUESS_MEASURE_WORDS = new Set([
+  'حبه', 'حبايه', 'كوب', 'كوبايه', 'فنجان', 'طبق', 'عربيه', 'سياره', 'كاس', 'علبه', 'كيس', 'قطعه', 'حته',
+  'عنقود', 'زجاجه', 'قزازه', 'برطمان', 'لوح', 'كوز', 'قرن', 'فص', 'كورنيه', 'صينيه', 'سله', 'رغيف', 'مج', 'كانز',
+  'a', 'an', 'of', 'cup', 'mug', 'glass', 'bowl', 'plate', 'slice', 'bar', 'bag', 'bottle', 'jar', 'can', 'carton',
+  'bunch', 'loaf', 'piece', 'cone', 'pot', 'box', 'pair'
+]);
+
+/** The folded words of a phrase, each without its article. */
+const guessWords = (text) => foldArabicLetters(text)
+  .replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).filter(Boolean)
+  .map(w => {
+    if (w.indexOf('the') === 0 && w.length > 3) w = w.slice(3);
+    for (let i = 0; i < 2 && w.length > 3 && w.indexOf('ال') === 0; i++) w = w.slice(2);
+    return w;
+  }).filter(Boolean);
+
+/** A word without one unit or plural ending, when at least three letters remain. */
+const guessStem = (w) => {
+  const rules = [[/ايه$/, ''], [/ات$/, ''], [/ين$/, ''], [/ون$/, ''], [/يه$/, ''], [/ه$/, ''], [/ies$/, 'y'], [/es$/, ''], [/s$/, '']];
+  for (const [re, to] of rules) {
+    if (re.test(w)) { const out = w.replace(re, to); if (out.length >= 3) return out; }
+  }
+  return w;
+};
+
+const guessDistance = (a, b) => Math.round((1 - stringSimilarity(a, b)) * Math.max(a.length, b.length));
+
+/** Two stems are one word; the unit ending swallows a final و or ا (مانجو → مانجاية, كولا → كولاية). */
+const sameStem = (a, b) => a === b || (a.length >= 3 && (a + 'و' === b || a + 'ا' === b)) || (b.length >= 3 && (b + 'و' === a || b + 'ا' === a));
+
+const guessVerdict = (text, answers) => {
+  const g = guessWords(text);
+  if (!g.length) return '';
+  const gWhole = g.join('');
+  const gCore = (() => { const rest = g.filter(w => !GUESS_MEASURE_WORDS.has(w)); return (rest.length ? rest : g).map(guessStem).join(''); })();
+  let close = false;
+  for (const answer of answers || []) {
+    const a = guessWords(answer);
+    if (!a.length) continue;
+    const aWhole = a.join('');
+    if (gWhole === aWhole) return 'right';
+    const aRest = a.filter(w => !GUESS_MEASURE_WORDS.has(w));
+    const aCore = (aRest.length ? aRest : a).map(guessStem).join('');
+    if (sameStem(gCore, aCore)) return 'right';
+    if (Math.min(gCore.length, aCore.length) >= 5 && guessDistance(gCore, aCore) <= 1) return 'right';
+    // Close: most of the letters, the same start, or all but one word of a phrase.
+    if (stringSimilarity(gWhole, aWhole) >= 0.6 || stringSimilarity(gCore, aCore) >= 0.6) close = true;
+    else if (Math.min(gWhole.length, aWhole.length) >= 4 && (gWhole.indexOf(aWhole.slice(0, 4)) === 0 || aWhole.indexOf(gWhole.slice(0, 4)) === 0)) close = true;
+    else if (a.length >= 2 && g.length >= 1 && g.every(w => a.indexOf(w) !== -1) && g.length >= a.length - 1) close = true;
+  }
+  return close ? 'close' : '';
+};
+
 const DRAW_MAX_POINTS = 2600;     // ~15KB of JSON, however long the round
 const DRAW_ROUND_SECONDS = 90;    // the default the host can change
 const DRAW_ROUND_MIN = 30;
@@ -2464,9 +2531,11 @@ const drawGuessAction = (room, playerId, action, payload) => {
     const text = String(payload.guess || '').trim().slice(0, 40);
     if (!text) return;
     const player = room.players.find(p => p.id === playerId);
-    const right = normaliseClue(text) === normaliseClue(room._word);
-    // A near miss gets a nudge: the word with a letter off, or a longer form of it.
-    const close = !right && stringSimilarity(normaliseClue(text), normaliseClue(room._word)) >= 0.7;
+    // Judged the way the table hears it (guessVerdict): طماطم is طماطماية, a
+    // letter off in a long word still counts, and a near miss gets a nudge.
+    const verdict = guessVerdict(text, [room._word]);
+    const right = verdict === 'right';
+    const close = verdict === 'close';
 
     s.guesses.push({ name: player ? player.name : '', text: text, right: right, close: close });
     if (s.guesses.length > 30) s.guesses = s.guesses.slice(-30);
@@ -2621,7 +2690,7 @@ const fakeArtistAction = (room, playerId, action, payload) => {
     const guess = String((payload && payload.guess) || '').trim().slice(0, 40);
     if (!guess) throw new Error('اكتب تخمينك');
     s.fakeGuessWord = guess;
-    finishFakeArtist(room, normaliseClue(guess) === normaliseClue(room._word) ? 'fake' : 'artists');
+    finishFakeArtist(room, guessVerdict(guess, [room._word]) === 'right' ? 'fake' : 'artists');
     return;
   }
 
@@ -3375,11 +3444,9 @@ const QUIZ_GAMES = {
   proverbs: { bank: () => PROVERBS,      seconds: 25, retry: false, perGame: 10 }
 };
 
-const quizAnswerMatches = (item, text) => {
-  const f = normaliseClue(text);
-  if (!f) return false;
-  return [item.a].concat(item.alt || []).some(a => normaliseClue(a) === f);
-};
+/** 'right', 'close' or '' for a typed answer against the card's answer and its alternatives. */
+const quizAnswerVerdict = (item, text) => guessVerdict(text, [item.a].concat(item.alt || []));
+const quizAnswerMatches = (item, text) => quizAnswerVerdict(item, text) === 'right';
 
 const quizAction = (room, playerId, action, payload) => {
   const cfg = QUIZ_GAMES[room.game];
@@ -3409,15 +3476,16 @@ const quizAction = (room, playerId, action, payload) => {
     if (now > s.endsAt + QUIZ_GRACE_MS) { closeQuizCard(room); return; }
     room._answers = room._answers || {};
     if (room._answers[playerId]) return;       // already right, or the one try is used
-    const right = quizAnswerMatches(room._card, text);
+    const verdict = quizAnswerVerdict(room._card, text);
+    const right = verdict === 'right';
     const name = roomPlayerName(room, playerId);
     if (right) {
       room._answers[playerId] = { text: text, time: Math.min(now, s.endsAt), seq: s.solved.length };
       s.solved.push(playerId);
       s.feed.push({ name: name, right: true });
     } else if (cfg.retry) {
-      // A wrong guess is fun for the table to see, and the player tries again.
-      s.feed.push({ name: name, text: text, right: false });
+      // A wrong guess is fun for the table to see, and the player tries again; a near miss says so.
+      s.feed.push({ name: name, text: text, right: false, close: verdict === 'close' });
     } else {
       room._answers[playerId] = { text: text, wrong: true };
       s.tried.push(playerId);

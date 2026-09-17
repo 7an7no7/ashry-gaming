@@ -45,7 +45,8 @@ function quizCardHtml(game, card, big) {
 function quizFeedHtml(s, t) {
   const rows = (s.feed || []).slice(-8).reverse();
   if (!rows.length) return '';
-  return rows.map(f => `<div class="quiz-feed__row ${f.right ? 'is-right' : ''}">${f.right ? '✅ ' : '❌ '}<b>${escapeHTML(f.name)}</b>${f.right ? '' : ': ' + escapeHTML(f.text || '')}</div>`).join('');
+  // A near miss (the server's `close`) gets the same nudge as in Draw & Guess.
+  return rows.map(f => `<div class="quiz-feed__row ${f.right ? 'is-right' : ''}">${f.right ? '✅ ' : f.close ? '🔥 ' : '❌ '}<b>${escapeHTML(f.name)}</b>${f.right ? '' : ': ' + escapeHTML(f.text || '')}${!f.right && f.close ? ` <span class="tx-warning">${escapeHTML(t.draw_close || '')}</span>` : ''}</div>`).join('');
 }
 
 function armQuizClock(endsAt) {

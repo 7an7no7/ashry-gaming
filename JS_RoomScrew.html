@@ -1,0 +1,3502 @@
+<script>
+/* ============================================================================
+   سكرو — ON SEPARATE PHONES, AND ON THE TV
+   ----------------------------------------------------------------------------
+   Every hand lies face down in front of everyone, in numbered slots (a slot
+   keeps its id for the round; its number closes up when a card leaves the
+   hand), and every move is drawn between exact slots: a
+   card flying from the deck to the hand of whoever drew it, from slot 2 to the
+   pile, from someone's slot 4 to yours. What only one phone may know (the card
+   it drew, the two cards it memorised, a peek) is in `state.you`; the rules
+   and every value live on the server (the screw branch of RoomGames.js, and
+   SkrewCards.js, which both sides load).
+
+   Every move is seen as it happens and then it is the players' to remember,
+   as at a real table: each phone animates the events (`shared.events`) it
+   hasn't shown yet, in order (skrPlay), the slots a move touched glow with a
+   sign for a few seconds (skrFlash), the latest move is written at the top of
+   the table, and the log keeps two more. A reload, a late joiner or a phone
+   back from the lock screen starts from what is there without replaying it.
+   The memory helper (a lobby option, `settings.memoryHelp`) keeps each slot's
+   story instead: how its card came and from which slot, who has looked at it
+   and a value known from the pile, from the server's `hands[pid][i].h`.
+
+   A move on the phone is chosen, then confirmed: a tap picks a slot (or a
+   player), the sticky bar at the foot of the screen says what will happen, and
+   ✓ sends it with the turn it was drawn for (`seq: shared.turnSeq`), so a tap
+   that lands after the turn moved on is ignored by the server. Someone else's
+   card is two steps in the bar (the player's name, then their cards drawn
+   big), so twelve players stay a compact table; the table's slots still work.
+
+   The end of a round with الحرامي in the deck is the table's vote
+   (phase thiefGuess): every seated phone points at a player, itself included,
+   or at "no thief", and may change it until the vote closes. Who has voted is
+   public (`shared.thiefVote.voted`), never what; the votes come with the
+   results, and the reveal plays them as vote bars, then turns the thief's card
+   over, then the hands.
+   ========================================================================= */
+
+const SKR_OPTS_KEY = 'ashryScrewOpts';
+const SKR_VOTE_KEY = 'ashryScrewVote';
+const SKR_ROUNDS = [3, 5, 7];
+const SKR_LAPS = [1, 2, 3];
+const SKR_CLOCKS = [0, 30, 60];
+const SKR_BASRAS = [4, 2];      // the standard deck has 4, the first print 2
+const SKR_MEMO_SECS = [0, 5, 10];  // the look at the start of a round: 0 = until each taps "حفظتهم"
+const SKR_ADDONS = ['thief', 'sahib', 'mesaharaty', 'oscar'];
+const SKR_BY_VALUE = /^(p7|p8|s9|s10)$/;
+const SKR_FLY_MS = 440;
+const SKR_STEP_MS = SKR_FLY_MS + 90;
+const SKR_NONE = '__none';          // "no thief" as a vote bar's id
+
+/** What only this phone holds: the move being chosen, the look already closed, the clock, its vote. */
+const skrLocal = { pick: null, pickKey: '', seenClosed: '', clock: null, clockKey: null, slots: {}, eventNs: {}, slotsKey: '', turnMine: false,
+  vote: { key: '', choice: undefined, sent: undefined, open: false } };
+
+/**
+ * The flights: which events this device has shown, where things were before a
+ * redraw, and the slots, seats and pile still glowing from the latest moves
+ * (`flash`: key -> { text, from, until }).
+ */
+const skrFx = { deal: '', lastSeq: 0, watched: '', prevPhase: '', rects: {}, busyUntil: 0, timers: [], held: new Set(), redrawTimer: null, tvSig: '',
+  flash: {}, flashTimer: null, wokeAt: 0, lastTurn: null };
+
+/** A new string: the translation when the lead has added it, else the text written here. */
+function skrT(key, ar, en, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || (appState.lang === 'en' ? en : ar);
+  // A value that isn't a plain number is isolated (FSI … PDI): an English name
+  // or "+20" inside an Arabic line otherwise takes the colon beside it along
+  // ("Adam: +20" drew as "+20 :Adam"). Plain numbers stay as they are, or
+  // "{n}/{m}" would read backwards.
+  if (vars) Object.keys(vars).forEach(k => {
+    const v = vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
+    s = s.split('{' + k + '}').join(v && !/^\d+$/.test(v) ? '⁨' + v + '⁩' : v);
+  });
+  return s;
+}
+
+/* --- the host's options ------------------------------------------------------ */
+
+function skrOpts() {
+  const o = { edition: 'classic', groups: ['base'], teams: false, rounds: 5, screwFromLap: 2, turnClock: 0, suddenDeath: false, basraCount: 4, memoryHelp: false, memorizeSecs: 0 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(SKR_OPTS_KEY) || 'null') || {};
+    if (saved.edition === 'custom' || SKREW_EDITIONS[saved.edition]) o.edition = saved.edition;
+    if (Array.isArray(saved.groups)) o.groups = ['base'].concat(SKR_ADDONS.filter(g => saved.groups.indexOf(g) !== -1));
+    if (typeof saved.teams === 'boolean') o.teams = saved.teams;
+    if (SKR_ROUNDS.indexOf(saved.rounds) !== -1) o.rounds = saved.rounds;
+    if (SKR_LAPS.indexOf(saved.screwFromLap) !== -1) o.screwFromLap = saved.screwFromLap;
+    if (SKR_CLOCKS.indexOf(saved.turnClock) !== -1) o.turnClock = saved.turnClock;
+    if (typeof saved.suddenDeath === 'boolean') o.suddenDeath = saved.suddenDeath;
+    if (typeof saved.memoryHelp === 'boolean') o.memoryHelp = saved.memoryHelp;
+    if (SKR_MEMO_SECS.indexOf(saved.memorizeSecs) !== -1) o.memorizeSecs = saved.memorizeSecs;
+    if (SKR_BASRAS.indexOf(saved.basraCount) !== -1) o.basraCount = saved.basraCount;
+  } catch (e) {}
+  return o;
+}
+
+/**
+ * How many cards a deck of these options holds: 59 for the standard deck with
+ * four بصرة, 57 with the first print's two; doubled beyond six players, with one thief all the
+ * same. Counted from skrewDeck, so a SkrewCards.js that doesn't take the
+ * بصرة count yet still gives the right number.
+ */
+function skrDeckSize(groups, decks, basraCount) {
+  if (typeof skrewDeck !== 'function') return 0;
+  const times = Math.max(1, Math.min(2, Number(decks) || 1));
+  let cards = [];
+  try { cards = skrewDeck(groups, times, { basraCount: basraCount }) || []; } catch (e) { cards = []; }
+  const count = (id) => cards.filter(c => c === id).length;
+  let size = cards.length;
+  const thieves = count('thief');
+  if (thieves > 1) size -= thieves - 1;
+  const basras = count('basra');
+  const want = (SKR_BASRAS.indexOf(basraCount) !== -1 ? basraCount : 4) * times;
+  if (basras && basras !== want) size += want - basras;
+  return size;
+}
+
+function skrGroupsOf(o) {
+  if (o.edition === 'custom') return ['base'].concat(SKR_ADDONS.filter(g => o.groups.indexOf(g) !== -1));
+  return (SKREW_EDITIONS[o.edition] || SKREW_EDITIONS.classic).groups.slice();
+}
+
+const skrTeamsAllowed = (n) => n === 4 || n === 6 || n === 8;
+
+function setSkrOpt(key, value) {
+  const o = skrOpts();
+  if (key === 'edition') {
+    o.edition = value;
+    // صاحب صاحبه is a partners' game; the others start as everyone for themselves.
+    o.teams = !!(SKREW_EDITIONS[value] && SKREW_EDITIONS[value].teams);
+    if (value === 'custom' && o.groups.length < 2) o.groups = ['base'];
+  } else if (key === 'group') {
+    const on = o.groups.indexOf(value) !== -1;
+    o.groups = on ? o.groups.filter(g => g !== value) : o.groups.concat([value]);
+  } else if (key === 'teams' || key === 'suddenDeath' || key === 'memoryHelp') {
+    o[key] = !!value;
+  } else {
+    o[key] = Number(value);
+  }
+  try { localStorage.setItem(SKR_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  // A laptop hosting from the TV draws the options in its own frame.
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/* --- the cards --------------------------------------------------------------- */
+
+/** How a card reads: its tone, the big line (a value or an icon), the small line. */
+function skrCardInfo(id) {
+  const c = typeof SKREW_CARDS !== 'undefined' ? SKREW_CARDS[id] : null;
+  if (!c) return null;
+  const name = appState.lang === 'en' ? c.en : c.ar;
+  let tone = c.kind === 'number' ? 'number' : 'command';
+  if (id === 'plus20' || id === 'red25') tone = 'danger';
+  if (id === 'green0') tone = 'success';
+  if (id === 'minus1') tone = 'gold';
+  const valued = c.kind === 'number' || SKR_BY_VALUE.test(id) || tone !== 'command';
+  const big = id === 'plus20' ? '+20' : valued ? String(c.value) : (c.icon || name);
+  let small = '';
+  if (SKR_BY_VALUE.test(id)) small = (c.icon ? c.icon + ' ' : '') + name;
+  else if (id === 'red25' || id === 'green0') small = (c.icon ? c.icon + ' ' : '') + name;
+  else if (id === 'minus1') small = c.icon || '';
+  else if (!valued) small = name;
+  return { id: id, card: c, name: name, tone: tone, big: big, small: small, icon: c.icon || '', value: c.value, power: c.power || null, drawn: c.drawn || null };
+}
+
+/** A card in words, for the log and the prompts: "5", "9 🔍", "🔄 خد وهات". */
+function skrCardLabel(id) {
+  const info = skrCardInfo(id);
+  if (!info) return '';
+  if (info.card.kind === 'number') return String(info.value);
+  if (SKR_BY_VALUE.test(id)) return info.value + (info.icon ? ' ' + info.icon : '');
+  if (id === 'plus20' || id === 'minus1') return info.big;
+  return (info.icon ? info.icon + ' ' : '') + info.name;
+}
+
+/**
+ * One card, everywhere: a slot, the pile, the TV, a flight. `id` null is the
+ * back (the brand's violet, with the mark on the big ones). `size` is xs, sm,
+ * md, lg, xl, or fly (the flight's own width). `known` (a card id) writes
+ * that card small on the back: the memory helper's value from the pile.
+ */
+function skrCardHtml(id, opts) {
+  const size = (opts && opts.size) || 'md';
+  const info = id ? skrCardInfo(id) : null;
+  if (!info) {
+    const known = opts && opts.known ? skrCardInfo(opts.known) : null;
+    const mark = known ? `<b class="skr-card__known">${escapeHTML(known.big)}</b>`
+      : size === 'lg' || size === 'xl' ? '<svg class="skr-card__mark" aria-hidden="true"><use href="#ashry-mark"/></svg>' : '';
+    return `<span class="skr-card skr-card--${size} skr-card--back" data-accent="violet" aria-hidden="true">${mark}</span>`;
+  }
+  return `<span class="skr-card skr-card--${size} skr-card--face skr-tone--${info.tone}" role="img" aria-label="${escapeHTML(skrCardLabel(id))}">`
+    + `<b class="skr-card__big${Array.from(info.big).length > 2 ? ' skr-card__big--long' : ''}">${escapeHTML(info.big)}</b>`
+    + (info.small ? `<span class="skr-card__small">${escapeHTML(info.small)}</span>` : '')
+    + `</span>`;
+}
+
+const skrEmptyCard = (size) => `<span class="skr-card skr-card--${size || 'md'} skr-card--empty" aria-hidden="true"></span>`;
+
+/** A power in words, from the card that carries it: its icon and name. */
+function skrPowerInfo(power) {
+  const ids = typeof SKREW_CARDS !== 'undefined' ? Object.keys(SKREW_CARDS) : [];
+  const id = ids.find(k => SKREW_CARDS[k].power === power) || (ids.indexOf(power) !== -1 ? power : null);
+  const c = id ? SKREW_CARDS[id] : null;
+  return c ? { icon: c.icon || '', name: appState.lang === 'en' ? c.en : c.ar } : { icon: '', name: String(power || '') };
+}
+
+/** turn.power as a power name, whether the server sent the power or the card. */
+function skrPowerOf(value) {
+  if (!value) return null;
+  const c = typeof SKREW_CARDS !== 'undefined' ? SKREW_CARDS[value] : null;
+  return c && c.power ? c.power : value;
+}
+
+/* --- who and where ----------------------------------------------------------- */
+
+function skrName(state, pid, plain) {
+  if (!pid) return '';
+  if (!plain && pid === Room.me && !state.youAreScreen) {
+    return (TRANSLATIONS[appState.lang] || {}).vote_you || (appState.lang === 'en' ? 'You' : 'أنت');
+  }
+  const s = state.shared || {};
+  const p = (state.players || []).find(x => x.id === pid) || (s.board || []).find(x => x.id === pid);
+  return p && p.name ? p.name : '…';
+}
+
+const skrOrder = (state) => ((state.shared || {}).order || []);
+const skrInGame = (state) => !state.youAreScreen && skrOrder(state).indexOf(Room.me) !== -1;
+
+function skrTeamOf(s, pid) {
+  const teams = s && s.teams;
+  if (!Array.isArray(teams)) return -1;
+  return teams.findIndex(team => Array.isArray(team) && team.indexOf(pid) !== -1);
+}
+
+function skrTeamDot(s, pid) {
+  const k = skrTeamOf(s, pid);
+  return k === -1 ? '' : `<span class="skr-dot skr-dot--${k}" aria-hidden="true"></span>`;
+}
+
+/**
+ * Whose hands a سكرو protects from being swapped, given to, blown up or fired
+ * at (the scream steps over them): the caller, and in teams the caller's
+ * whole side.
+ */
+function skrProtected(s) {
+  if (!s || !s.caller) return [];
+  const k = skrTeamOf(s, s.caller);
+  return k === -1 ? [s.caller] : (s.teams[k] || []).slice();
+}
+
+/**
+ * Remembers every slot's number for this deal, so an event about a slot that
+ * has gone still reads; and each event's slot numbers as they were when this
+ * phone first saw it: a hand closes up when a card leaves it (the server
+ * numbers slots by position), and "card 3" in the log must stay the card it was.
+ */
+function skrRememberSlots(state) {
+  const s = state.shared || {};
+  const key = state.code + '|' + (s.dealId || '');
+  if (skrLocal.slotsKey !== key) { skrLocal.slotsKey = key; skrLocal.slots = {}; skrLocal.eventNs = {}; }
+  const hands = s.hands || {};
+  Object.keys(hands).forEach(pid => (hands[pid] || []).forEach((h, i) => { skrLocal.slots[h.id] = { pid: pid, n: h.n || i + 1 }; }));
+  skrDealEvents(s.events).forEach(e => {
+    if (!e || skrLocal.eventNs[e.seq]) return;
+    const ns = {};
+    const note = (slot) => { if (slot) { const n = skrSlotN(state, slot); if (n !== null) ns[slot] = n; } };
+    note(e.slot); note(e.slot2);
+    (e.picks || []).forEach(pk => note(pk && pk.slot));
+    (e.own || []).forEach(note);
+    skrLocal.eventNs[e.seq] = ns;
+  });
+}
+
+function skrSlotN(state, slot, seq) {
+  if (typeof slot === 'number') return slot;
+  const kept = seq !== undefined && skrLocal.eventNs && skrLocal.eventNs[seq];
+  if (kept && kept[slot] !== undefined) return kept[slot];
+  const hands = (state.shared || {}).hands || {};
+  for (const pid of Object.keys(hands)) {
+    const i = (hands[pid] || []).findIndex(x => x.id === slot);
+    if (i !== -1) return hands[pid][i].n || i + 1;
+  }
+  const mem = skrLocal.slots[slot];
+  return mem ? mem.n : null;
+}
+
+/** "كارتك ٢", "كارت ٤ بتاع سارة", or just "كارت ٣" when it is the actor's own. */
+function skrSlotRef(state, owner, slot, actor, seq) {
+  const n = skrSlotN(state, slot, seq);
+  const num = n === null || n === undefined ? '' : String(n);
+  if (owner && owner === Room.me && !state.youAreScreen) return skrT('skr_slot_yours', 'كارتك {n}', 'your card {n}', { n: num }).trim();
+  if (!owner || owner === actor) return skrT('skr_slot', 'كارت {n}', 'card {n}', { n: num }).trim();
+  return skrT('skr_slot_of', 'كارت {n} بتاع {name}', "{name}'s card {n}", { n: num, name: skrName(state, owner) }).trim();
+}
+
+/** The events of the deal on the table (the list is the last 40, maybe across deals). */
+function skrDealEvents(events) {
+  const list = events || [];
+  let i = -1;
+  for (let k = list.length - 1; k >= 0; k--) { if (list[k] && list[k].type === 'deal') { i = k; break; } }
+  return i === -1 ? list.slice() : list.slice(i);
+}
+
+/**
+ * What the last events still say about each slot: 👁️ who looked, 🔄 who it
+ * was swapped with, 🎁 who gave it - the memory helper's stand-in for a
+ * server that doesn't keep a slot's story (`h`). A move that puts a new card
+ * in a slot wipes its marks; a look adds to them.
+ */
+function skrMarks(state) {
+  const s = state.shared || {};
+  const marks = {};
+  const look = (slot, by) => {
+    if (!slot) return;
+    const list = marks[slot] = (marks[slot] || []);
+    if (!list.some(m => m.k === 'look' && m.by === by)) list.push({ k: 'look', by: by });
+  };
+  const set = (slot, mark) => { if (slot) marks[slot] = mark ? [mark] : []; };
+  skrDealEvents(s.events).forEach(e => {
+    switch (e.type) {
+      case 'peekOwn': look(e.slot, e.pid); break;
+      case 'spyOther': look(e.slot, e.pid); break;
+      case 'allAround':
+        (e.picks || []).forEach(p => look(p && p.slot, e.pid));
+        (e.own || []).forEach(slot => look(slot, e.pid));
+        break;
+      case 'blindSwap':
+        set(e.slot, { k: 'swap', by: e.pid, with: e.target });
+        set(e.slot2, { k: 'swap', by: e.pid, with: e.pid });
+        break;
+      case 'seeSwap':
+        if (e.swapped && e.slot2) {
+          set(e.slot, { k: 'swap', by: e.pid, with: e.pid });
+          set(e.slot2, { k: 'swap', by: e.pid, with: e.target });
+        } else {
+          look(e.slot, e.pid);
+        }
+        break;
+      case 'give': set(e.slot, null); set(e.slot2, { k: 'give', by: e.pid }); break;
+      case 'keep': case 'takePile': case 'match': case 'basra': case 'pong': case 'penalty': case 'boom':
+        set(e.slot, null); break;
+    }
+  });
+  return marks;
+}
+
+/* --- the memory helper: what the table has seen happen to each card ----------------- */
+
+/**
+ * Most of سكرو is remembering what the others replaced and drew, so by default
+ * the table keeps nothing: a move is shown as it happens (a flight, the slots
+ * glowing for a moment, the latest move written at the top) and then it is the
+ * players' to remember. `memoryHelp` (a lobby option, for kids or a casual
+ * table) keeps it: every slot's story, each seat's last move, and a value
+ * known from the pile written on the card's back.
+ */
+const skrHelp = (state) => !!(((state.shared || {}).settings || {}).memoryHelp);
+
+const SKR_HOW_ICON = { deck: '🆕', khoshaf: '🆕', pile: '⬆️', swap: '🔄', give: '🎁', penalty: '➕', scream: '😱' };
+
+/** The first move of a turn: counting these after a move says how many turns ago it was. */
+const SKR_TURN_STARTS = ['draw', 'takePile', 'match', 'screw', 'pass', 'skip'];
+
+/**
+ * A slot's story, as the server keeps it on the slot (`h`: how its card
+ * arrived, by whom, from which slot, when, a card known from the pile, who has
+ * seen it) - or, from a server without it, what the last events still say.
+ */
+function skrHistory(state, h, marks) {
+  const x = h && h.h && typeof h.h === 'object' ? h.h : null;
+  if (x) {
+    return {
+      how: x.how || 'deal',
+      by: x.by || null,
+      from: x.from && x.from.pid ? { pid: x.from.pid, slot: x.from.slot || null } : null,
+      at: typeof x.at === 'number' ? x.at : null,
+      known: x.known || null,
+      looks: Array.isArray(x.looks) ? x.looks.filter((p, i, a) => p && a.indexOf(p) === i) : []
+    };
+  }
+  const list = ((marks || {})[h && h.id]) || [];
+  const swap = list.find(m => m.k === 'swap');
+  const give = list.find(m => m.k === 'give');
+  return {
+    how: swap ? 'swap' : give ? 'give' : 'deal',
+    by: (swap || give || {}).by || null,
+    from: swap ? { pid: swap.with, slot: null } : give ? { pid: give.by, slot: null } : null,
+    at: null,
+    known: null,
+    looks: list.filter(m => m.k === 'look').map(m => m.by)
+  };
+}
+
+/** A slot's story in words: how its card came, and (withLooks) who has seen it. */
+function skrHistoryWords(state, hist, withLooks) {
+  const out = [];
+  const from = hist.from;
+  const fromRef = from && from.slot ? skrSlotRef(state, from.pid, from.slot, null) : '';
+  switch (hist.how) {
+    case 'deck': out.push(skrT('skr_h_deck', '🆕 من الورق', '🆕 From the deck')); break;
+    case 'khoshaf': out.push(skrT('skr_h_khoshaf', '🆕 من الخشاف', '🆕 From the Khoshaf')); break;
+    case 'pile': out.push(hist.known
+      ? skrT('skr_h_pile', '⬆️ {card} من الأرض', '⬆️ {card} from the pile', { card: skrCardLabel(hist.known) })
+      : skrT('skr_h_pile_plain', '⬆️ من الأرض', '⬆️ From the pile')); break;
+    case 'penalty': out.push(skrT('skr_h_penalty', '➕ كارت عقاب', '➕ A penalty card')); break;
+    case 'swap':
+      if (fromRef) out.push(skrT('skr_h_swap', '🔄 من {ref}', '🔄 From {ref}', { ref: fromRef }));
+      else if (from && from.pid === Room.me && !state.youAreScreen) out.push(skrT('skr_mark_swap_you', '🔄 اتبدّل مع كارت من كروتك', '🔄 Swapped with one of your cards'));
+      else out.push(skrT('skr_mark_swap', '🔄 اتبدّل مع {name}', '🔄 Swapped with {name}', { name: skrName(state, (from && from.pid) || hist.by) }));
+      break;
+    case 'give': out.push(skrT('skr_mark_give', '🎁 جه من {name}', '🎁 Given by {name}', { name: skrName(state, (from && from.pid) || hist.by) })); break;
+    case 'scream': out.push(fromRef ? skrT('skr_h_scream', '😱 من {ref}', '😱 From {ref}', { ref: fromRef }) : '😱'); break;
+  }
+  if (hist.known && hist.how !== 'pile') out.push('💡 ' + skrCardLabel(hist.known));
+  if (withLooks && hist.looks.length) {
+    out.push(skrT('skr_mark_look', '👁️ شافه: {names}', '👁️ Seen by {names}', { names: hist.looks.map(p => skrName(state, p)).join(appState.lang === 'en' ? ', ' : '، ') }));
+  }
+  return out;
+}
+
+/** The corner sign of a slot's story: how its card came, and 👁️ with a count when more than one has looked. */
+function skrHistoryIcon(hist) {
+  const how = SKR_HOW_ICON[hist.how] || '';
+  const looks = hist.looks.length ? '👁️' + (hist.looks.length > 1 ? hist.looks.length : '') : '';
+  return how + looks;
+}
+
+/** "3 turns ago", counted in turn starts after the move; '' when the events no longer reach back that far. */
+function skrTurnsAgo(state, at) {
+  if (typeof at !== 'number') return '';
+  const events = skrDealEvents((state.shared || {}).events);
+  const first = events[0];
+  if (!first || (first.type !== 'deal' && (Number(first.seq) || 0) > at)) return '';
+  const n = events.filter(e => e && (Number(e.seq) || 0) > at && SKR_TURN_STARTS.indexOf(e.type) !== -1).length;
+  if (!n) return skrT('skr_h_now', 'دلوقتي', 'just now');
+  if (n === 1) return skrT('skr_h_ago_1', 'من دور واحد', '1 turn ago');
+  if (n === 2) return skrT('skr_h_ago_2', 'من دورين', '2 turns ago');
+  if (n <= 10) return skrT('skr_h_ago', 'من {n} أدوار', '{n} turns ago', { n: n });
+  return skrT('skr_h_ago_many', 'من {n} دور', '{n} turns ago', { n: n });
+}
+
+/**
+ * A move in a few signs, for the line under a seat's name: "⬆️ 2 من الأرض ←
+ * كارت 4", "🔄 كارت 1 ⇄ كارت 3 بتاع Adam". Only numbers and cards between the
+ * signs, so the lines need no translation of their own but one.
+ */
+function skrMoveShort(state, e) {
+  const sign = (text, vars) => skrT('', text, text.replace(/←/g, '→'), vars);
+  const ref = (owner, slot) => skrSlotRef(state, owner, slot, e.pid, e.seq);
+  const card = e.card ? skrCardLabel(e.card) : '';
+  switch (e.type) {
+    case 'draw': return '🂠';
+    case 'keep': return sign('🆕 {x}', { x: ref(e.pid, e.slot) });
+    case 'discard': return sign('⬇️ {card}', { card: card });
+    case 'takePile': return skrT('skr_seat_take', '⬆️ {card} من الأرض ← {x}', '⬆️ {card} from the pile → {x}', { card: card, x: ref(e.pid, e.slot) });
+    case 'match': return e.ok ? sign('🎯 {card} ✓', { card: card }) : sign('❌ {x} ({card})', { x: ref(e.pid, e.slot), card: card });
+    case 'penalty': return sign('➕ {x}', { x: ref(e.pid, e.slot) });
+    case 'screw': return '📣 ' + skrT('skr_screw', 'سكرو!', 'Screw!');
+    case 'peekOwn': return sign('👁️ {x}', { x: ref(e.pid, e.slot) });
+    case 'spyOther': return sign('🔍 {x}', { x: ref(e.target, e.slot) });
+    case 'blindSwap': return sign('🔄 {x} ⇄ {y}', { x: ref(e.pid, e.slot), y: ref(e.target, e.slot2) });
+    case 'basra': return e.ok === false ? sign('🗑️ ❌ {x} ({card})', { x: ref(e.pid, e.slot), card: card }) : sign('🗑️ {card}', { card: card });
+    case 'allAround': return '🔁 👁️ ×' + ((e.picks || []).length + (e.own || []).length);
+    case 'give': return sign('🎁 {x} ← {b}', { x: ref(e.pid, e.slot), b: skrName(state, e.target) });
+    case 'seeSwap': return e.swapped
+      ? sign('🕵️ {x} ⇄ {y}', { x: ref(e.target, e.slot), y: ref(e.pid, e.slot2) })
+      : sign('🕵️ 👁️ {x}', { x: ref(e.target, e.slot) });
+    case 'ping': return sign('🏓 ← {b}', { b: skrName(state, e.target) });
+    case 'pong': return e.ok ? '🎾 ✓' : '🎾 ❌';
+    case 'wakeUp': return '🥁';
+    case 'cannon': return sign('💥 ← {b}', { b: skrName(state, e.target) });
+    case 'khoshaf': return '🥣';
+    case 'scream': return '😱';
+    case 'boom': return sign('💣 {x}', { x: ref(e.target, e.slot) });
+    case 'pass': case 'skip': return '⏭️';
+    case 'finish': return '🏁';
+  }
+  return '';
+}
+
+/** A player's last move this round, in signs ('' when the events no longer hold one). */
+function skrLastMove(state, pid) {
+  const events = skrDealEvents((state.shared || {}).events);
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (!e || e.pid !== pid) continue;
+    const text = skrMoveShort(state, e);
+    if (text) return text;
+  }
+  return '';
+}
+
+/* --- the log ----------------------------------------------------------------- */
+
+/** One event as a line anyone at the table can read. Noun phrases in Arabic: a name doesn't say خرج or خرجت. */
+function skrEventText(state, e) {
+  if (!e || !e.type) return '';
+  const A = skrName(state, e.pid);
+  const B = skrName(state, e.target);
+  const card = e.card ? skrCardLabel(e.card) : '';
+  const ref = (owner, slot) => (slot === undefined || slot === null ? '' : skrSlotRef(state, owner, slot, e.pid, e.seq));
+  const T = (key, ar, en, vars) => skrT(key, ar, en, Object.assign({ a: A, b: B, card: card }, vars || {}));
+  switch (e.type) {
+    case 'deal': return T('skr_log_deal', '🃏 الجولة {n} اتوزّعت', '🃏 Round {n} was dealt', { n: e.round || (state.shared || {}).round || '' });
+    case 'reshuffle': return T('skr_log_reshuffle', '🔀 الورق خلص: الأرض اتخلطت ورجعت ورق', '🔀 The deck ran out: the pile was shuffled into a new deck');
+    case 'draw': return T('skr_log_draw', '🂠 {a}: سحب من الورق', '🂠 {a} drew from the deck');
+    case 'keep': return !e.card
+      ? T('skr_log_keep_new', '🔁 {a}: الكارت الجديد بقى {x}', '🔁 {a} kept the new card as {x}', { x: ref(e.pid, e.slot) })
+      : T('skr_log_keep', '🔁 {a}: الكارت الجديد مكان {x}، و{card} على الأرض', '🔁 {a} kept the new card as {x}; {card} went on the pile', { x: ref(e.pid, e.slot) });
+    case 'discard': return T('skr_log_discard', '⬇️ {a}: {card} على الأرض', '⬇️ {a} threw {card} on the pile');
+    case 'takePile': return T('skr_log_take', '⬆️ {a}: {card} من الأرض مكان {x}', '⬆️ {a} took {card} from the pile as {x}', { x: ref(e.pid, e.slot) });
+    case 'match': return e.ok
+      ? T('skr_log_match_ok', '🎯 {a}: {x} ({card}) زيّ اللي على الأرض ✓', '🎯 {a} matched {x} ({card}) ✓', { x: ref(e.pid, e.slot) })
+      : T('skr_log_match_back', '❌ {a}: {x} ({card}) مش زيّه، ورجع مقلوب، وكارت عقاب في خانة جديدة', "❌ {a}: {x} ({card}) didn't match; it went back face down, and a penalty card joined the hand", { x: ref(e.pid, e.slot) });
+    case 'penalty': return T('skr_log_penalty', '➕ {a}: كارت عقاب بقى {x}', '➕ {a} took a penalty card as {x}', { x: ref(e.pid, e.slot) });
+    case 'screw': return T('skr_log_screw', '📣 {a}: سكرو!', '📣 {a} called Screw!');
+    case 'peekOwn': return T('skr_log_peek', '👁️ {a}: بصّة على {x}', '👁️ {a} looked at {x}', { x: ref(e.pid, e.slot) });
+    case 'spyOther': return T('skr_log_spy', '🔍 {a}: بصّة على {x}', '🔍 {a} looked at {x}', { x: ref(e.target, e.slot) });
+    case 'blindSwap': return T('skr_log_swap', '🔄 {a}: {x} ⇄ {y}', '🔄 {a} swapped {x} ⇄ {y}', { x: ref(e.pid, e.slot), y: ref(e.target, e.slot2) });
+    case 'basra': return e.ok === false
+      ? T('skr_log_basra_back', '🗑️ {a}: {x} ({card}) مينفعش يترمي، ورجع مقلوب', "🗑️ {a}: {x} ({card}) can't be thrown; it went back face down", { x: ref(e.pid, e.slot) })
+      : T('skr_log_basra', '🗑️ {a}: {x} ({card}) على الأرض', '🗑️ {a} threw {x} ({card}) on the pile', { x: ref(e.pid, e.slot) });
+    case 'allAround': {
+      const refs = (e.picks || []).map(p => ref(p && p.target, p && p.slot)).concat((e.own || []).map(slot => ref(e.pid, slot))).filter(Boolean);
+      return T('skr_log_around', '🔁 {a}: بصّة على {x}', '🔁 {a} looked at {x}', { x: refs.join(appState.lang === 'en' ? ', ' : '، ') });
+    }
+    case 'give': return T('skr_log_give', '🎁 {a}: {x} راح لـ{b}', '🎁 {a} gave {x} to {b}', { x: ref(e.pid, e.slot) });
+    case 'seeSwap': return e.swapped
+      ? T('skr_log_seeswap', '🕵️ {a}: بصّة على {x} وتبديل مع {y}', '🕵️ {a} looked at {x} and swapped it with {y}', { x: ref(e.target, e.slot), y: ref(e.pid, e.slot2) })
+      : T('skr_log_seeleave', '🕵️ {a}: بصّة على {x} من غير تبديل', '🕵️ {a} looked at {x} and left it', { x: ref(e.target, e.slot) });
+    case 'asYouLike': {
+      const p = skrPowerInfo(e.as);
+      return T('skr_log_asyoulike', '🃏 {a}: على كيفك ← {power}', '🃏 {a}: as you like → {power}', { power: (p.icon ? p.icon + ' ' : '') + p.name });
+    }
+    case 'ping': return T('skr_log_ping', '🏓 {a}: بينج! الدور راح على {b}', '🏓 {a}: Ping! {b} loses a turn');
+    case 'pong': return e.ok
+      ? T('skr_log_pong_ok', '🎾 {a}: بونج ✓', '🎾 {a}: Pong ✓')
+      : e.card
+        ? T('skr_log_pong_back', '❌ {a}: {x} ({card}) مش بونج، ورجع مقلوب، وكارت عقاب في خانة جديدة', "❌ {a}: {x} ({card}) wasn't Pong; it went back face down, and a penalty card joined the hand", { x: ref(e.pid, e.slot) })
+        : T('skr_log_pong_no', '❌ {a}: {x} مش بونج، وكارت عقاب', "❌ {a}: {x} wasn't Pong, a penalty card", { x: ref(e.pid, e.slot) });
+    case 'wakeUp': return T('skr_log_wakeup', '🥁 {a}: المسحراتي! الكروت هتتكشف', '🥁 {a}: El-Mesaharaty! Cards up');
+    case 'cannon': return T('skr_log_cannon', '💥 {a}: المدفع على {b}، وكروت {b} مكشوفة للكل', '💥 {a} fired the cannon at {b}: that hand is face up');
+    case 'khoshaf': return T('skr_log_khoshaf', '🥣 {a}: الخشاف، 4 كروت من الورق', '🥣 {a}: Khoshaf, four cards from the deck');
+    case 'scream': return e.pid
+      ? T('skr_log_scream_by', '😱 {a}: صرخة أوسكار! كل إيد راحت للي بعده', "😱 {a}: Oscar's scream! Every hand moved on one seat")
+      : T('skr_log_scream', '😱 صرخة أوسكار: كل إيد راحت للي بعده', "😱 Oscar's scream: every hand moved on one seat");
+    case 'skip': return T('skr_log_skip', '⏭️ الدور عدّى: {a}', '⏭️ Turn skipped: {a}');
+    case 'boom': return T('skr_log_boom', '💣 {a}: بوم على {x} ({card})، والكارت على الأرض', '💣 {a} blew up {x} ({card}) onto the pile', { x: ref(e.target, e.slot) });
+    // "كروت {a}", "دور {a}": a name reads there, "أنت" doesn't.
+    case 'finish': return T('skr_log_finish', '🏁 كروت {a} خلصت: الجولة انتهت', '🏁 {a} is out of cards: the round is over', { a: skrName(state, e.pid, true) });
+    case 'lastLap': return T('skr_log_last_lap', '💀 الورق خلص: دور أخير للكل', '💀 The deck is empty: one last turn each');
+    case 'pass': return T('skr_log_pass', '⏭️ دور {a} عدّى من غير لعب', '⏭️ {a} passed', { a: skrName(state, e.pid, true) });
+    case 'thiefVote': return T('skr_log_vote', '🗳️ صوت {a} اتسجّل', '🗳️ {a} voted', { a: skrName(state, e.pid, true) });
+    case 'accuse': {
+      if (!e.accused) return T('skr_log_accuse_none', '🦹 اتهام الترابيزة: مفيش حرامي', '🦹 The table accused nobody');
+      const who = { b: skrName(state, e.accused) };
+      return e.caught
+        ? T('skr_log_accuse_ok', '🦹 اتهام الترابيزة: {b} ✓', '🦹 The table accused {b} ✓', who)
+        : T('skr_log_accuse_no', '🦹 اتهام الترابيزة: {b} ✗', '🦹 The table accused {b} ✗', who);
+    }
+    case 'reveal': return T('skr_log_reveal', '🃏 الكروت اتكشفت', '🃏 The cards are revealed');
+  }
+  return '';
+}
+
+/** The moves worth a line: a ready or a vote is one per player, and the screen already says who has. */
+const skrMoves = (state) => skrDealEvents((state.shared || {}).events).filter(e => e && e.type !== 'ready' && e.type !== 'thiefVote' && skrEventText(state, e));
+
+/** How many moves the table shows: the last 3 (heard once, as at a real table), more with the memory helper. */
+const skrLogCount = (state, tv) => (skrHelp(state) ? (tv ? 6 : 5) : 3);
+
+/**
+ * What just happened, at the top of the table: the latest move, replaced by the
+ * next. It comes in once (motionFirst); a redraw shows it settled.
+ */
+function skrLatestHtml(state, tv) {
+  const moves = skrMoves(state);
+  const e = moves[moves.length - 1];
+  if (!e) return '';
+  const fresh = motionFirst(['skr-latest', state.code, (state.shared || {}).dealId || '', e.seq, tv ? 'tv' : 'phone'].join('|'));
+  return `<div class="skr-latest ${fresh ? 'is-new' : ''}" role="status">${escapeHTML(skrEventText(state, e))}</div>`;
+}
+
+/** The log under the table: the moves before the latest one (which is written at the top). */
+function skrLogHtml(state, count) {
+  const moves = skrMoves(state);
+  const lines = moves.slice(-count, -1).reverse().map(e => skrEventText(state, e)).filter(Boolean);
+  if (!lines.length) return '';
+  return `<div class="skr-logbox">
+      <div class="eyebrow">📜 ${escapeHTML(skrT('skr_log_title', 'اللي حصل', 'What happened'))}</div>
+      <ol class="skr-log">${lines.map(l => `<li>${escapeHTML(l)}</li>`).join('')}</ol>
+    </div>`;
+}
+
+/* --- picking a move ------------------------------------------------------------ */
+
+/** A move being chosen. `focus` is the player whose cards the bar shows (picking someone else's card is two steps: the player, then the card). */
+const skrNewPick = (kind, extra) => Object.assign({ kind: kind, power: null, as: null, mode: null, count: 0, own: [], other: [], player: null, index: null, focus: null }, extra || {});
+
+/**
+ * What a pick still needs. own/other: how many slots of yours / of others
+ * ('each' = one of every other player); player: a player; guarded: the
+ * caller's protected hand is not a target; mode/as: a choice comes first.
+ */
+function skrNeed(pick) {
+  if (!pick) return {};
+  switch (pick.kind) {
+    case 'keep': case 'takePile': case 'match': case 'pong': case 'seeSwapDo': return { own: 1 };
+    case 'khoshaf': return { index: true };
+    case 'power': {
+      const p = pick.power;
+      if (p === 'asYouLike') return { as: true };
+      if (p === 'peekOwn' || p === 'basra') return { own: 1 };
+      if (p === 'spyOther') return { other: 1 };
+      if (p === 'blindSwap') return { own: 1, other: 1, guarded: true };
+      if (p === 'seeSwap') return { other: 1, guarded: true };
+      if (p === 'boom') return { other: 1, guarded: true };
+      if (p === 'give') return { own: 1, player: true, guarded: true };
+      if (p === 'cannon') return { player: true, guarded: true };
+      if (p === 'allAround') return pick.mode === 'own' ? { own: pick.count || 2 } : pick.mode === 'others' ? { other: 'each' } : { mode: true };
+      return { button: true };   // khoshaf, scream: nothing to pick
+    }
+  }
+  return {};
+}
+
+function skrOthersWithCards(state) {
+  const s = state.shared || {};
+  return skrOrder(state).filter(pid => pid !== Room.me && ((s.hands || {})[pid] || []).length > 0);
+}
+
+/**
+ * The players a pick can aim at, in seat order from this phone: every other
+ * player, with `ok` false for one who can't be picked (the protected caller,
+ * or no cards to take one from) - shown greyed rather than left out, so the
+ * row of names always reads like the table.
+ */
+function skrPickTargets(state, pick) {
+  const s = state.shared || {};
+  const need = skrNeed(pick);
+  if (!need.other && !need.player) return [];
+  const order = skrOrder(state);
+  const at = order.indexOf(Room.me);
+  const seats = at === -1 ? order.slice() : order.slice(at + 1).concat(order.slice(0, at));
+  return seats.filter(pid => pid !== Room.me).map(pid => {
+    const cards = ((s.hands || {})[pid] || []).length;
+    const guarded = !!need.guarded && skrProtected(s).indexOf(pid) !== -1;
+    return { pid: pid, cards: cards, guarded: guarded, ok: !guarded && (!need.other || cards > 0) };
+  });
+}
+
+/** Whose cards the bar shows now: the one tapped, else the next player still to pick from (كعب داير), else the only one there is. */
+function skrPickFocusOf(state, pick) {
+  const need = skrNeed(pick);
+  if (!need.other) return null;
+  const targets = skrPickTargets(state, pick).filter(x => x.ok);
+  if (pick.focus && targets.some(x => x.pid === pick.focus)) return pick.focus;
+  if (need.other === 'each') {
+    const next = targets.find(x => !pick.other.some(o => o.target === x.pid));
+    return next ? next.pid : null;
+  }
+  if (pick.other.length) return pick.other[0].target;
+  return targets.length === 1 ? targets[0].pid : null;
+}
+
+/** A name tapped in the bar: that player's cards come up (or, for a pick of a player, that player is picked). */
+function skrPickFocus(pid) {
+  const state = Room.state;
+  const pick = skrLocal.pick;
+  if (!state || !pick) return;
+  const target = skrPickTargets(state, pick).find(x => x.pid === pid);
+  if (!target || !target.ok) return;
+  const need = skrNeed(pick);
+  if (need.player && !need.other) pick.player = pick.player === pid ? null : pid;
+  else pick.focus = pid;
+  haptic('light');
+  skrRedraw();
+}
+
+/** May this slot be tapped for the pick? */
+function skrSlotOk(state, pick, owner, slot) {
+  if (!pick) return false;
+  const need = skrNeed(pick);
+  const s = state.shared || {};
+  if (owner === Room.me) return !!need.own;
+  if (need.guarded && skrProtected(s).indexOf(owner) !== -1) return false;
+  if (need.other) return true;
+  return !!need.player;                    // a slot picks its player
+}
+
+function skrSeatOk(state, pick, pid) {
+  const need = skrNeed(pick);
+  if (!need.player || pid === Room.me) return false;
+  return !(need.guarded && skrProtected(state.shared || {}).indexOf(pid) !== -1);
+}
+
+function skrSlotPicked(pick, owner, slot) {
+  if (!pick) return false;
+  if (owner === Room.me) return pick.own.indexOf(slot) !== -1;
+  return pick.other.some(o => o.slot === slot) || (!!pick.player && pick.player === owner && !skrNeed(pick).other);
+}
+
+function skrPickReady(state, pick) {
+  if (!pick) return false;
+  const need = skrNeed(pick);
+  if (need.mode || need.as || need.button) return false;
+  if (need.index) return pick.index !== null && pick.index !== undefined;
+  if (need.own && pick.own.length !== need.own) return false;
+  if (need.other === 1 && pick.other.length !== 1) return false;
+  if (need.other === 'each') {
+    const others = skrOthersWithCards(state);
+    if (!others.length || !others.every(pid => pick.other.some(o => o.target === pid))) return false;
+  }
+  if (need.player && !pick.player) return false;
+  return true;
+}
+
+/** The action and payload a finished pick sends. */
+function skrPickPayload(state, pick) {
+  const seq = (state.shared || {}).turnSeq;
+  const own = pick.own[0];
+  switch (pick.kind) {
+    case 'keep': case 'takePile': case 'match': case 'pong': case 'seeSwapDo':
+      return [pick.kind, { slot: own, seq: seq }];
+    case 'khoshaf': return ['khoshafPick', { index: pick.index, seq: seq }];
+    case 'power': {
+      const p = pick.power;
+      const body = { seq: seq };
+      if (pick.as) body.as = pick.as;
+      if (p === 'peekOwn' || p === 'basra') body.slot = own;
+      if (p === 'spyOther' || p === 'seeSwap' || p === 'boom') { body.target = pick.other[0].target; body.slot = pick.other[0].slot; }
+      if (p === 'blindSwap') { body.slot = own; body.target = pick.other[0].target; body.slot2 = pick.other[0].slot; }
+      if (p === 'allAround') {
+        if (pick.mode === 'own') body.own = pick.own.slice();
+        else body.picks = pick.other.map(o => ({ target: o.target, slot: o.slot }));
+      }
+      if (p === 'give') { body.slot = own; body.target = pick.player; }
+      if (p === 'cannon') body.target = pick.player;
+      return ['power', body];
+    }
+  }
+  return [null, null];
+}
+
+/** What ✓ will do, in words, under the prompt. */
+function skrPickSummary(state, pick) {
+  const s = state.shared || {};
+  const mine = (slot) => skrSlotRef(state, Room.me, slot, null);
+  const theirs = (o) => skrSlotRef(state, o.target, o.slot, null);
+  const pileTop = (s.pile || [])[(s.pile || []).length - 1];
+  const sep = appState.lang === 'en' ? ', ' : '، ';
+  switch (pick.kind) {
+    case 'keep': return '🔁 ' + mine(pick.own[0]) + ' → ⬇️';
+    case 'takePile': return '⬆️ ' + skrCardLabel(pileTop) + ' → ' + mine(pick.own[0]);
+    case 'match': return '🎯 ' + mine(pick.own[0]) + ' → ' + skrCardLabel(pileTop);
+    case 'pong': return '🎾 ' + mine(pick.own[0]);
+    case 'seeSwapDo': return '🔄 ' + mine(pick.own[0]);
+    case 'khoshaf': return '🥣 ' + skrCardLabel(((state.you || {}).khoshaf || [])[pick.index]);
+    case 'power': {
+      const p = pick.power;
+      if (p === 'peekOwn') return '👁️ ' + mine(pick.own[0]);
+      if (p === 'basra') return '🗑️ ' + mine(pick.own[0]);
+      if (p === 'spyOther' || p === 'seeSwap') return '👁️ ' + theirs(pick.other[0]);
+      if (p === 'boom') return '💣 ' + theirs(pick.other[0]) + ' → ⬇️';
+      if (p === 'blindSwap') return '🔄 ' + mine(pick.own[0]) + ' ⇄ ' + theirs(pick.other[0]);
+      if (p === 'allAround') return '👁️ ' + (pick.mode === 'own' ? pick.own.map(mine) : pick.other.map(theirs)).join(sep);
+      if (p === 'give') return '🎁 ' + mine(pick.own[0]) + ' → ' + skrName(state, pick.player);
+      if (p === 'cannon') return '💥 ' + skrName(state, pick.player);
+    }
+  }
+  return '';
+}
+
+function skrPickPrompt(state, pick) {
+  const need = skrNeed(pick);
+  switch (pick.kind) {
+    case 'keep': return skrT('skr_pick_keep', 'اختار الكارت اللي هيروح مكانه', 'Pick the card it replaces');
+    case 'takePile': return skrT('skr_pick_take', 'اختار الكارت اللي هيتبدّل باللي على الأرض', 'Pick the card the pile card replaces');
+    case 'match': return skrT('skr_pick_match', 'اختار الكارت اللي زيّ اللي على الأرض', 'Pick the card that matches the pile');
+    case 'pong': return skrT('skr_pick_pong', 'اختار كارت البونج من كروتك', 'Pick your Pong card');
+    case 'seeSwapDo': return skrT('skr_pick_seeswap', 'اختار كارت من عندك يتبدّل معاه', 'Pick one of yours to swap it with');
+  }
+  const p = pick.power;
+  if (p === 'asYouLike') return skrT('skr_power_asyoulike', 'اختار القوة اللي عايزها', 'Pick the power you want');
+  if (p === 'allAround' && need.mode) return skrT('skr_power_around', 'كارت من كل واحد، ولا كارتين من عندك؟', 'One card of everyone else, or two of yours?');
+  if (p === 'allAround' && pick.mode === 'own') return skrT('skr_power_around_own', 'اختار كارتين من كروتك تشوفهم', 'Pick two of your cards to look at');
+  if (p === 'allAround') return skrT('skr_power_around_others', 'اختار كارت واحد من عند كل لاعب', 'Pick one card of every other player');
+  const texts = {
+    peekOwn: ['skr_power_peek', 'اختار كارت من كروتك تشوفه', 'Pick one of your cards to look at'],
+    spyOther: ['skr_power_spy', 'اختار كارت من عند أي حد تشوفه', "Pick anyone else's card to look at"],
+    blindSwap: ['skr_power_swap', 'اختار كارت من عندك وكارت من عند حد تاني يتبدّلوا من غير ما حد يشوف', "Pick one of yours and one of someone else's to swap unseen"],
+    basra: ['skr_power_basra', 'اختار كارت من كروتك يترمي على الأرض', 'Pick one of your cards to throw on the pile'],
+    give: ['skr_power_give', 'اختار كارت من عندك واللاعب اللي هياخده', 'Pick one of your cards and who gets it'],
+    seeSwap: ['skr_power_seeswap', 'اختار كارت من عند حد تاني تشوفه، وبعدها تبدّله أو تسيبه', "Pick someone else's card to look at, then swap it or leave it"],
+    cannon: ['skr_power_cannon', 'اختار لاعب كروته تتكشف للكل لآخر الجولة', "Pick a player whose hand turns face up until the round ends"],
+    boom: ['skr_power_boom', 'اختار كارت من عند لاعب تاني يتفجّر ويروح على الأرض مكشوف', "Pick another player's card to blow up onto the pile, face up"],
+    khoshaf: ['skr_power_khoshaf', 'شوف أول 4 كروت في الورق وخد واحد', 'See the top four cards and take one'],
+    scream: ['skr_power_scream', 'كل إيد هتروح للاعب اللي بعده', 'Every hand passes to the next player']
+  }[p];
+  return texts ? skrT(texts[0], texts[1], texts[2]) : '';
+}
+
+/* --- this phone's taps ------------------------------------------------------------ */
+
+function skrRedraw() {
+  if (Room.state && Room.state.game === 'screw') routeRoomState(Room.state);
+}
+
+/** A game action with the turn it was drawn for. The button locks until the room answers. */
+function skrAct(btn, action, extra) {
+  const st = Room.state;
+  if (!st || st.game !== 'screw') return;
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  haptic('light');
+  roomAct(action, Object.assign({ seq: (st.shared || {}).turnSeq }, extra || {}));
+}
+
+/** Something to draw: the deck, or - unless sudden death is on - the pile under its top card. */
+function skrCanDraw(s) {
+  if ((Number(s.deckCount) || 0) > 0) return true;
+  return !((s.settings || {}).suddenDeath) && (s.pile || []).length > 1;
+}
+
+function skrCallScrew() {
+  const msg = skrT('skr_screw_confirm', 'تقول سكرو؟ كل واحد تاني هيلعب دور أخير، وبعدها الكروت تتكشف.', 'Call Screw? Everyone else gets one last turn, then the cards are revealed.');
+  showConfirmModal(msg, () => skrAct(null, 'screw'));
+}
+
+function skrStartPick(kind) {
+  skrLocal.pick = skrNewPick(kind);
+  haptic('light');
+  skrRedraw();
+}
+
+function skrCancelPick() {
+  const pick = skrLocal.pick;
+  // A power's own pick goes back a step (the choice of على كيفك / كعب داير) or starts over.
+  skrLocal.pick = pick && pick.kind === 'power' && pick.as ? skrNewPick('power', { power: 'asYouLike' }) : null;
+  skrRedraw();
+}
+
+function skrPickMode(mode) {
+  if (!skrLocal.pick) return;
+  const st = Room.state;
+  const mine = st ? (((st.shared || {}).hands || {})[Room.me] || []).length : 2;
+  skrLocal.pick.mode = mode;
+  skrLocal.pick.count = Math.max(1, Math.min(2, mine));
+  skrLocal.pick.own = [];
+  skrLocal.pick.other = [];
+  skrRedraw();
+}
+
+function skrPickAs(power) {
+  if (!skrLocal.pick || (typeof SKREW_AS_YOU_LIKE !== 'undefined' && SKREW_AS_YOU_LIKE.indexOf(power) === -1)) return;
+  skrLocal.pick = skrNewPick('power', { power: power, as: power });
+  haptic('light');
+  skrRedraw();
+}
+
+function skrPickIndex(i) {
+  const pick = skrLocal.pick;
+  if (!pick || pick.kind !== 'khoshaf') return;
+  if (pick.index === i) { skrConfirm(); return; }
+  pick.index = i;
+  haptic('light');
+  skrRedraw();
+}
+
+/** A slot tapped: part of the move being chosen, or, with nothing to choose, what the table knows about it. */
+function skrTapSlot(owner, slot) {
+  const state = Room.state;
+  if (!state || state.game !== 'screw') return;
+  const pick = skrLocal.pick;
+  if (!pick || !skrSlotOk(state, pick, owner, slot)) { skrSlotToast(state, owner, slot); return; }
+  const need = skrNeed(pick);
+  if (owner === Room.me) {
+    if (pick.own.indexOf(slot) !== -1) {
+      // The chosen card tapped again sends a one-card move.
+      if (need.own === 1 && !need.other && !need.player && skrPickReady(state, pick)) { skrConfirm(); return; }
+      pick.own = pick.own.filter(x => x !== slot);
+    } else {
+      pick.own = need.own === 1 ? [slot] : pick.own.concat([slot]).slice(-need.own);
+    }
+  } else if (need.other) {
+    const had = pick.other.findIndex(o => o.slot === slot);
+    if (had !== -1) {
+      pick.other.splice(had, 1);
+      pick.focus = owner;
+    } else if (need.other === 'each') {
+      pick.other = pick.other.filter(o => o.target !== owner).concat([{ target: owner, slot: slot }]);
+      // On to the next player still to pick from, round the table from this one.
+      const targets = skrPickTargets(state, pick).filter(x => x.ok).map(x => x.pid);
+      const from = targets.indexOf(owner);
+      const next = targets.slice(from + 1).concat(targets.slice(0, from)).find(pid => !pick.other.some(o => o.target === pid));
+      pick.focus = next || owner;
+    } else {
+      pick.other = [{ target: owner, slot: slot }];
+      pick.focus = owner;
+    }
+  } else if (need.player) {
+    pick.player = pick.player === owner ? null : owner;
+  }
+  haptic('light');
+  skrRedraw();
+}
+
+function skrTapSeat(pid) {
+  const state = Room.state;
+  const pick = skrLocal.pick;
+  if (!state || !pick || !skrSeatOk(state, pick, pid)) return;
+  pick.player = pick.player === pid ? null : pid;
+  haptic('light');
+  skrRedraw();
+}
+
+/**
+ * A slot tapped with nothing to choose: its name - and, with the memory
+ * helper, its story: how its card came and from whose card, how many turns
+ * ago, and who has looked at it.
+ */
+function skrSlotToast(state, owner, slot) {
+  const ref = skrSlotRef(state, owner, slot, null);
+  if (!skrHelp(state)) { showToast(ref); return; }
+  const h = (((state.shared || {}).hands || {})[owner] || []).find(x => x.id === slot) || { id: slot };
+  const hist = skrHistory(state, h, skrMarks(state));
+  const words = skrHistoryWords(state, hist, false);
+  const when = hist.how !== 'deal' ? skrTurnsAgo(state, hist.at) : '';
+  if (words.length && when) words[0] += ' (' + when + ')';
+  if (hist.looks.length) words.push(skrT('skr_mark_look', '👁️ شافه: {names}', '👁️ Seen by {names}', { names: hist.looks.map(p => skrName(state, p)).join(appState.lang === 'en' ? ', ' : '، ') }));
+  showToast(ref + ': ' + (words.length ? words.join(' · ') : skrT('skr_mark_none', 'محدش لمسه من ساعة ما اتوزّع', 'Untouched since the deal')));
+}
+
+async function skrConfirm() {
+  const state = Room.state;
+  const pick = skrLocal.pick;
+  if (!state || !pick || !skrPickReady(state, pick)) return;
+  const [action, payload] = skrPickPayload(state, pick);
+  if (!action) return;
+  skrLocal.pick = null;
+  haptic('medium');
+  skrRedraw();
+  await roomAct(action, payload);
+}
+
+/* --- the table, piece by piece ------------------------------------------------------ */
+
+/** The faces this phone may see in its own hand: the two it memorises. */
+function skrMyFaces(state) {
+  const s = state.shared || {};
+  const you = state.you || {};
+  const faces = {};
+  if (s.phase === 'memorize' && (s.ready || []).indexOf(Room.me) === -1) {
+    (you.memorize || []).forEach(m => { if (m && m.slot) faces[m.slot] = m.card; });
+  }
+  return faces;
+}
+
+/** The two memorised cards turning face down once the look is over (a tap, or the clock), on this phone. */
+function skrMemoFlipDown(root, state, was) {
+  const now = skrLocal.memoFaces;
+  const s = state.shared || {};
+  if (!was || !now || was.key !== now.key || !skrCanMove() || document.hidden) return;
+  const gone = Object.keys(was.faces || {}).filter(slot => !(now.faces || {})[slot]);
+  gone.forEach((slot, i) => skrTurnOver(root, 'slot:' + slot, was.faces[slot], { down: true, lift: 8, delay: (s.phase === 'play' ? 120 : 0) + i * 90 }));
+}
+
+/**
+ * One slot: its card (face up only when the table may see it, or while its
+ * own phone memorises it), its number, and what is happening to it. A move
+ * that has just touched it makes it glow with a sign for a few seconds
+ * (skrFlash, in both modes). With the memory helper it also keeps its story:
+ * a corner sign on the others' cards, words under your own (`ctx.fullMarks`),
+ * a value known from the pile written on its back. `ctx.bar`: the same slot
+ * drawn again in the action bar, which the flights never aim at.
+ */
+function skrSlotHtml(state, owner, h, ctx, index) {
+  const mine = owner === Room.me && !state.youAreScreen;
+  const face = h.up || (mine && ctx.faces[h.id]) || null;
+  const pick = ctx.pick;
+  const hist = ctx.help ? skrHistory(state, h, ctx.marks) : null;
+  const cls = ['skr-slot'];
+  if (pick) {
+    if (skrSlotPicked(pick, owner, h.id)) cls.push('is-picked');
+    else if (skrSlotOk(state, pick, owner, h.id)) cls.push('is-target');
+    else cls.push('is-dim');
+  }
+  if (face) cls.push('is-up');
+  if (mine && ctx.faces[h.id]) cls.push('is-memo');
+  const st = state.shared || {};
+  const looking = st.phase === 'play' && st.turn && st.turn.stage === 'seeSwap' && st.turn.look && st.turn.look.slot === h.id;
+  if (looking) cls.push('is-looking');
+  const flash = skrFlashOf('slot:' + h.id);
+  if (flash) cls.push('is-flash');
+  const at = ctx.bar ? '' : ` data-skr-at="slot:${escapeHTML(h.id)}"`;
+  const card = `<span class="skr-slot__card"${at}>${skrCardHtml(face, { size: ctx.size, known: hist && !face ? hist.known : null })}</span>`;
+  const n = `<span class="skr-slot__n metric">${escapeHTML(String(h.n || (index || 0) + 1))}</span>`;
+  let markHtml = '';
+  if (hist && ctx.fullMarks) {
+    markHtml = skrHistoryWords(state, hist, true).map(w => `<span class="skr-slot__mark">${escapeHTML(w)}</span>`).join('');
+  } else if (hist) {
+    const icon = skrHistoryIcon(hist);
+    if (icon) markHtml = `<span class="skr-slot__badge">${icon}</span>`;
+  }
+  if (looking) markHtml += '<span class="skr-slot__eye" aria-hidden="true">👁️</span>';
+  if (flash) markHtml += skrFlashBadge(flash);
+  const style = flash ? skrFlashAttrs('slot:' + h.id, flash) : '';
+  if (ctx.tv) return `<span class="${cls.join(' ')}"${style}>${card}${n}${markHtml}</span>`;
+  const label = skrSlotRef(state, owner, h.id, null);
+  return `<button type="button" class="${cls.join(' ')}"${style} onclick="skrTapSlot('${jsStringAttr(owner)}', '${jsStringAttr(h.id)}')" aria-label="${escapeHTML(label)}">${card}${n}${markHtml}</button>`;
+}
+
+/** The little signs beside a name: 📣 the caller (🔒 protected), 💥 face up, ✓ ready, ✋ holding a drawn card, ⏳ a last turn to come, 🏁 out of cards, ✓ voted. */
+function skrSeatTags(state, pid) {
+  const s = state.shared || {};
+  const tags = [];
+  if (s.caller === pid) tags.push(`<span title="${escapeHTML(skrT('skr_protected', 'سكرو: الكروت دي محمية', 'Called Screw; the hand is protected'))}">📣🔒</span>`);
+  else if (s.caller && skrProtected(s).indexOf(pid) !== -1) tags.push(`<span title="${escapeHTML(skrT('skr_protected_team', 'فريق سكرو: الكروت دي محمية', "On the caller's team; the hand is protected"))}">🔒</span>`);
+  if (s.finisher === pid) tags.push('🏁');
+  if ((s.exposed || []).indexOf(pid) !== -1) tags.push('💥');
+  if (s.phase === 'memorize' && (s.ready || []).indexOf(pid) !== -1) tags.push('✓');
+  if (s.phase === 'play' && s.turn && s.turn.pid === pid && s.turn.stage === 'drawn') tags.push('✋');
+  if (s.phase === 'play' && (s.finalLeft || []).indexOf(pid) !== -1 && (s.caller || s.lastLap)) tags.push('⏳');
+  if (s.phase === 'thiefGuess' && skrVoted(state).indexOf(pid) !== -1) tags.push('<span class="skr-voted">🗳️✓</span>');
+  return tags.join(' ');
+}
+
+function skrSeatHtml(state, pid, ctx) {
+  const s = state.shared || {};
+  const hand = (s.hands || {})[pid] || [];
+  const p = (state.players || []).find(x => x.id === pid);
+  const team = skrTeamOf(s, pid);
+  const cls = ['skr-seat'];
+  if (s.phase === 'play' && s.turn && s.turn.pid === pid) cls.push('is-turn');
+  if (team !== -1) cls.push('skr-team--' + team);
+  if (!p || !p.online) cls.push('is-away');
+  if (s.caller === pid) cls.push('is-caller');
+  if (hand.length > 6) cls.push('skr-seat--many');
+  const flash = skrFlashOf('seat:' + pid);
+  if (flash) cls.push('is-flash');
+  const pick = ctx.pick;
+  const seatTarget = pick && skrSeatOk(state, pick, pid);
+  if (seatTarget) cls.push(pick.player === pid ? 'is-picked' : 'is-target');
+  const last = ctx.help ? skrLastMove(state, pid) : '';
+  const lastHtml = last ? `<span class="skr-seat__last">${escapeHTML(last)}</span>` : '';
+  const name = `<span class="skr-seat__name">${skrTeamDot(s, pid)}${escapeHTML(skrName(state, pid, true))}</span><span class="skr-seat__tags">${skrSeatTags(state, pid)}</span>`;
+  const who = ctx.tv
+    ? `<div class="skr-seat__who">${name}${lastHtml}</div>`
+    : `<div class="skr-seat__head"><button type="button" class="skr-seat__who" onclick="skrTapSeat('${jsStringAttr(pid)}')" ${seatTarget ? '' : 'tabindex="-1"'}>${name}</button>${lastHtml}</div>`;
+  const slots = hand.map((h, i) => skrSlotHtml(state, pid, h, ctx, i)).join('') || '<span class="skr-seat__empty">—</span>';
+  const style = flash ? skrFlashAttrs('seat:' + pid, flash) : '';
+  return `<div class="${cls.join(' ')}"${style} data-skr-seat="${escapeHTML(pid)}">${who}<div class="skr-slots" data-skr-at="hand:${escapeHTML(pid)}">${slots}</div></div>`;
+}
+
+/** This phone's own hand, big; with the memory helper, every slot's story written under it. */
+function skrMineHtml(state, ctx) {
+  const s = state.shared || {};
+  const hand = (s.hands || {})[Room.me] || [];
+  const cls = ['skr-mine'];
+  if (s.phase === 'play' && s.turn && s.turn.pid === Room.me) cls.push('is-turn');
+  const team = skrTeamOf(s, Room.me);
+  if (team !== -1) cls.push('skr-team--' + team);
+  const flash = skrFlashOf('seat:' + Room.me);
+  if (flash) cls.push('is-flash');
+  const sub = Object.assign({}, ctx, { size: 'lg', fullMarks: true });
+  const memo = Object.keys(ctx.faces).length > 0;
+  const hint = memo ? `<span class="badge badge--accent">🧠 ${escapeHTML(skrT('skr_memo_badge', 'احفظهم', 'Memorise'))}</span>` : '';
+  // A timed look: a ring with the seconds left over your hand, and a bar running down under it.
+  const left = memo && s.phase === 'memorize' && s.endsAt ? Math.max(0, s.endsAt - Date.now()) : 0;
+  const total = Math.max(1, (Number((s.settings || {}).memorizeSecs) || 0) * 1000);
+  const timer = left ? `<div class="skr-memo-timer" aria-hidden="true"><span class="skr-memo-timer__ring"></span><b class="metric" data-skr-count>${Math.ceil(left / 1000)}</b></div>
+      <span class="skr-memo-bar" style="animation-duration:${total}ms;animation-delay:${-Math.max(0, total - left)}ms"></span>` : '';
+  const style = flash ? skrFlashAttrs('seat:' + Room.me, flash) : '';
+  return `<div class="${cls.join(' ')}"${style} data-skr-seat="${escapeHTML(Room.me)}">
+      <div class="skr-mine__head"><span class="skr-mine__title">${skrTeamDot(s, Room.me)}🂠 ${escapeHTML(skrT('skr_your_cards', 'كروتك', 'Your cards'))}</span><span class="skr-seat__tags">${skrSeatTags(state, Room.me)}</span>${hint}</div>
+      <div class="skr-slots skr-slots--mine" data-skr-at="hand:${escapeHTML(Room.me)}" style="--count:${Math.max(4, hand.length)}">${hand.map((h, i) => skrSlotHtml(state, Room.me, h, sub, i)).join('')}</div>
+      ${timer}
+    </div>`;
+}
+
+/**
+ * Picking someone else's card, in the bar: the players as a row of names
+ * (the protected caller and an empty hand greyed), then the chosen player's
+ * cards drawn big, numbered, to tap. The table's own slots still work as a
+ * shortcut. كعب داير walks the names one after another, "3/11".
+ */
+function skrTargetsHtml(state, pick, ctx) {
+  const s = state.shared || {};
+  const need = skrNeed(pick);
+  const targets = skrPickTargets(state, pick);
+  if (!targets.length) return '';
+  const focus = skrPickFocusOf(state, pick);
+  const each = need.other === 'each';
+  const okCount = targets.filter(x => x.ok).length;
+  const chips = targets.map(x => {
+    const picked = need.other ? pick.other.some(o => o.target === x.pid) : pick.player === x.pid;
+    const cls = ['skr-target'];
+    if (need.other ? focus === x.pid : picked) cls.push('is-focus');
+    if (need.other && picked) cls.push('is-done');
+    const sign = x.guarded ? '🔒' : need.other && picked ? '✓' : need.other ? `<small class="metric">${x.cards}</small>` : '';
+    return `<button type="button" class="${cls.join(' ')}" ${x.ok ? '' : 'disabled'} aria-pressed="${cls.indexOf('is-focus') !== -1}" onclick="skrPickFocus('${jsStringAttr(x.pid)}')">${skrTeamDot(s, x.pid)}<span class="skr-target__name">${escapeHTML(skrName(state, x.pid, true))}</span>${sign ? `<span class="skr-target__sign">${sign}</span>` : ''}</button>`;
+  }).join('');
+  const progress = each ? `<span class="badge metric">${pick.other.length}/${okCount}</span>` : '';
+  let cards = '';
+  if (need.other && focus) {
+    const hand = (s.hands || {})[focus] || [];
+    const sub = Object.assign({}, ctx, { size: 'md', bar: true, fullMarks: false });
+    cards = `<div class="skr-pickrow">
+        <span class="skr-pickrow__label">${escapeHTML(skrT('skr_pick_whose', 'كروت {name}', "{name}'s cards", { name: skrName(state, focus, true) }))}</span>
+        <div class="skr-pickslots">${hand.map((h, i) => skrSlotHtml(state, focus, h, sub, i)).join('')}</div>
+      </div>`;
+  }
+  return `<div class="skr-pickrow">
+      <span class="skr-pickrow__label">${escapeHTML(skrT('skr_pick_who', 'اختار لاعب', 'Pick a player'))} ${progress}</span>
+      <div class="skr-targets">${chips}</div>
+    </div>${cards}`;
+}
+
+/** Your own cards in the bar, when a move picks one of yours and someone else's (خد وهات, خد بس). */
+function skrOwnRowHtml(state, pick, ctx) {
+  const s = state.shared || {};
+  const hand = (s.hands || {})[Room.me] || [];
+  const sub = Object.assign({}, ctx, { size: 'sm', bar: true, fullMarks: false });
+  return `<div class="skr-pickrow">
+      <span class="skr-pickrow__label">🂠 ${escapeHTML(skrT('skr_your_cards', 'كروتك', 'Your cards'))}</span>
+      <div class="skr-pickslots skr-pickslots--mine">${hand.map((h, i) => skrSlotHtml(state, Room.me, h, sub, i)).join('')}</div>
+    </div>`;
+}
+
+/** The deck, the pile and the card in the turn's hand: the middle of the table. */
+function skrCenterHtml(state, tv) {
+  const s = state.shared || {};
+  const you = state.you || {};
+  const pile = s.pile || [];
+  const top = pile[pile.length - 1];
+  const under = pile[pile.length - 2];
+  const turn = s.phase === 'play' ? s.turn : null;
+  const mineDrawn = !tv && turn && turn.pid === Room.me && turn.stage === 'drawn' && you.drawn;
+  const held = turn && turn.stage === 'drawn';
+  const heldCard = mineDrawn ? skrCardHtml(you.drawn, { size: 'lg' }) : held ? skrCardHtml(null, { size: 'lg' }) : skrEmptyCard('lg');
+  const heldLabel = mineDrawn ? skrT('skr_drawn_label', 'الكارت اللي سحبته', 'The card you drew')
+    : held ? '✋ ' + skrName(state, turn.pid) : skrT('skr_held_label', 'في الإيد', 'In hand');
+  const pileFlash = skrFlashOf('pile');
+  return `<div class="skr-center">
+      <div class="skr-zone skr-zone--deck">
+        <span class="skr-zone__card" data-skr-at="deck">${skrCardHtml(null, { size: 'md' })}<span class="skr-count metric">${Number(s.deckCount) || 0}</span></span>
+        <span class="skr-zone__label">${escapeHTML(skrT('skr_deck', 'الورق', 'Deck'))}</span>
+      </div>
+      <div class="skr-zone skr-zone--pile ${pileFlash ? 'is-flash' : ''}"${pileFlash ? skrFlashAttrs('pile', pileFlash) : ''}>
+        <span class="skr-pile">${under ? `<span class="skr-pile__under">${skrCardHtml(under, { size: 'lg' })}</span>` : ''}<span class="skr-pile__top" data-skr-at="pile">${top ? skrCardHtml(top, { size: 'lg' }) : skrEmptyCard('lg')}</span>${pileFlash ? skrFlashBadge(pileFlash) : ''}</span>
+        <span class="skr-zone__label">${escapeHTML(skrT('skr_pile', 'الأرض', 'Pile'))}</span>
+      </div>
+      <div class="skr-zone skr-zone--held ${mineDrawn ? 'is-mine' : ''}">
+        <span class="skr-zone__card" data-skr-at="held">${heldCard}</span>
+        <span class="skr-zone__label">${escapeHTML(heldLabel)}</span>
+      </div>
+    </div>`;
+}
+
+function skrEditionName(settings) {
+  const ed = settings && SKREW_EDITIONS[settings.edition];
+  if (ed) return ed.icon + ' ' + (appState.lang === 'en' ? ed.en : ed.ar);
+  return '🧩 ' + skrT('skr_ed_custom', 'مخصص', 'Custom');
+}
+
+/** The round, the lap, the version and the clock. */
+function skrHeadHtml(state) {
+  const s = state.shared || {};
+  const settings = s.settings || {};
+  const bits = [];
+  if (s.round) bits.push(`<span class="badge">${escapeHTML(skrT('skr_round_of', 'جولة {n}/{m}', 'Round {n}/{m}', { n: s.round, m: s.rounds || settings.rounds || '' }))}</span>`);
+  if (s.phase === 'play' && s.caller) {
+    bits.push(`<span class="badge badge--danger">📣 ${escapeHTML(skrT('skr_final_lap', 'آخر لفة · فاضل {n}', 'Final lap · {n} left', { n: (s.finalLeft || []).length }))}</span>`);
+  } else if (s.phase === 'play' && s.lastLap) {
+    bits.push(`<span class="badge badge--danger">💀 ${escapeHTML(skrT('skr_last_lap', 'الورق خلص: آخر لفة · فاضل {n}', 'Deck empty: last lap · {n} left', { n: (s.finalLeft || []).length }))}</span>`);
+  } else if (s.phase === 'play' && s.lap) {
+    bits.push(`<span class="badge">${escapeHTML(skrT('skr_lap', 'لفة {n}', 'Lap {n}', { n: s.lap }))}</span>`);
+  }
+  bits.push(`<span class="badge">${escapeHTML(skrEditionName(settings))}</span>`);
+  if (settings.teams) bits.push(`<span class="badge">🤝</span>`);
+  if (settings.suddenDeath) bits.push(`<span class="badge" title="${escapeHTML(skrT('skr_sudden', 'موت مفاجئ', 'Sudden death'))}">💀</span>`);
+  if ((s.phase === 'play' || s.phase === 'thiefGuess' || s.phase === 'memorize') && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-skr-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  return `<div class="skr-head">${bits.join('')}</div>`;
+}
+
+/** Whose turn it is and what they are doing, for everyone but them. */
+function skrTurnWords(state) {
+  const s = state.shared || {};
+  const turn = s.turn;
+  if (s.phase !== 'play' || !turn) return { title: '', hint: '' };
+  const title = skrT('skr_turn_of', 'دور {name}', "{name}'s turn", { name: skrName(state, turn.pid, true) });
+  let hint = '';
+  if (turn.stage === 'choose' && turn.pongOpen) hint = '🏓 ' + skrT('skr_hint_pong', 'بينج! فرصة بونج', 'Ping! A chance for Pong');
+  else if (turn.stage === 'drawn') hint = '✋ ' + skrT('skr_hint_drawn', 'كارت مسحوب في الإيد', 'Holding a drawn card');
+  else if (turn.stage === 'power') { const p = skrPowerInfo(skrPowerOf(turn.power)); hint = (p.icon + ' ' + p.name).trim(); }
+  else if (turn.stage === 'seeSwap') { const p = skrPowerInfo('seeSwap'); hint = (p.icon + ' ' + p.name).trim(); }
+  else if (turn.stage === 'khoshaf') { const p = skrPowerInfo('khoshaf'); hint = (p.icon + ' ' + p.name).trim(); }
+  return { title: title, hint: hint };
+}
+
+/** A look this phone just had (peek, spy, كعب داير, شوف وبدّل): face up here only. */
+function skrSeenHtml(state, inSeeSwap) {
+  const you = state.you || {};
+  const seen = Array.isArray(you.seen) ? you.seen.filter(Boolean) : [];
+  if (!seen.length && !inSeeSwap) return '';
+  const key = JSON.stringify(seen);
+  if (!inSeeSwap && skrLocal.seenClosed === key) return '';
+  const items = seen.map(x => `<div class="skr-seen__item">${skrCardHtml(x.card, { size: 'lg' })}<span>${escapeHTML(skrSlotRef(state, x.pid, x.slot, null))}</span></div>`).join('');
+  const buttons = inSeeSwap
+    ? `<div class="btn-row">
+         <button type="button" class="btn btn--primary" onclick="skrStartPick('seeSwapDo')">🔄 ${escapeHTML(skrT('skr_seeswap_do', 'بدّله مع كارت من عندي', 'Swap it with one of mine'))}</button>
+         <button type="button" class="btn btn--ghost" onclick="skrAct(this, 'seeSwapDo')">${escapeHTML(skrT('skr_seeswap_leave', 'سيبه مكانه', 'Leave it'))}</button>
+       </div>`
+    : `<button type="button" class="btn btn--secondary" onclick="skrCloseSeen()">${escapeHTML(skrT('skr_ok', 'تمام', 'Got it'))}</button>`;
+  return `<div class="skr-seen">
+      <p class="skr-prompt is-mine">👁️ ${escapeHTML(skrT('skr_seen_title', 'اللي شفته', 'What you saw'))}</p>
+      ${items ? `<div class="skr-seen__cards">${items}</div>` : ''}
+      ${inSeeSwap ? '' : `<p class="skr-hint">${escapeHTML(skrT('skr_seen_hint', 'على موبايلك بس', 'Only on your phone'))}</p>`}
+      ${buttons}
+    </div>`;
+}
+
+function skrCloseSeen() {
+  const you = (Room.state && Room.state.you) || {};
+  skrLocal.seenClosed = JSON.stringify(Array.isArray(you.seen) ? you.seen.filter(Boolean) : []);
+  skrRedraw();
+}
+
+/** The move being chosen: the prompt, a first choice where there is one, the players and cards to pick from, what ✓ will do. */
+function skrPickBarHtml(state, pick, ctx) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const s = state.shared || {};
+  const need = skrNeed(pick);
+  const powerHead = pick.kind === 'power'
+    ? (() => { const p = skrPowerInfo(pick.power); return `<span class="skr-power">${escapeHTML((p.icon + ' ' + p.name).trim())}</span>`; })()
+    : '';
+  let body = '';
+  if (need.as) {
+    const list = typeof SKREW_AS_YOU_LIKE !== 'undefined' ? SKREW_AS_YOU_LIKE : [];
+    body = `<div class="skr-choices">${list.map(power => { const p = skrPowerInfo(power); return `<button type="button" class="btn btn--secondary" onclick="skrPickAs('${jsStringAttr(power)}')">${escapeHTML((p.icon + ' ' + p.name).trim())}</button>`; }).join('')}</div>`;
+  } else if (need.mode) {
+    body = `<div class="skr-choices">
+        <button type="button" class="btn btn--secondary" onclick="skrPickMode('others')">👥 ${escapeHTML(skrT('skr_around_others', 'كارت من كل واحد', 'One of everyone else'))}</button>
+        <button type="button" class="btn btn--secondary" onclick="skrPickMode('own')">🂠 ${escapeHTML(skrT('skr_around_own', 'كارتين من عندي', 'Two of mine'))}</button>
+      </div>`;
+  } else if (need.button && pick.power === 'khoshaf') {
+    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">🥣 ${escapeHTML(skrT('skr_khoshaf_show', 'اكشف 4 كروت', 'Show four cards'))}</button>`;
+  } else if (need.button && pick.power === 'scream') {
+    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">😱 ${escapeHTML(skrT('skr_scream_go', 'اصرخ!', 'Scream!'))}</button>`;
+  } else if (need.button) {
+    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">✓ ${escapeHTML(t.confirm || 'تأكيد')}</button>`;
+  } else {
+    const ready = skrPickReady(state, pick);
+    const summary = ready ? skrPickSummary(state, pick) : '';
+    const both = need.own && (need.other || need.player);
+    const rows = (both ? skrOwnRowHtml(state, pick, ctx || {}) : '') + (need.other || need.player ? skrTargetsHtml(state, pick, ctx || {}) : '');
+    body = `${rows}${ready && summary ? `<p class="skr-summary">${escapeHTML(summary)}</p>` : ''}
+      <div class="btn-row">
+        <button type="button" class="btn btn--primary" onclick="skrConfirm()" ${ready ? '' : 'disabled'}>✓ ${escapeHTML(t.confirm || 'تأكيد')}</button>
+        <button type="button" class="btn btn--ghost btn--auto" onclick="skrCancelPick()">${escapeHTML(t.cancel || 'إلغاء')}</button>
+      </div>`;
+  }
+  const guardNote = need.guarded && s.caller ? `<p class="skr-hint">🔒 ${escapeHTML(skrProtected(s).length > 1
+    ? skrT('skr_guarded_team', 'كروت فريق اللي قال سكرو محمية', "The caller's team is protected")
+    : skrT('skr_guarded', 'كروت اللي قال سكرو محمية', "The caller's hand is protected"))}</p>` : '';
+  const skip = pick.kind === 'power'
+    ? `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, 'skipPower')">⏭️ ${escapeHTML(skrT('skr_skip_power', 'من غير القوة', 'Skip the power'))}</button>` : '';
+  return `<p class="skr-prompt is-mine">${powerHead}${escapeHTML(skrPickPrompt(state, pick))}</p>${body}${guardNote}${skip}`;
+}
+
+function skrKhoshafHtml(state, pick) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const cards = (state.you || {}).khoshaf || [];
+  return `<p class="skr-prompt is-mine">🥣 ${escapeHTML(skrT('skr_khoshaf_pick', 'اختار كارت من الأربعة، والباقي يروح تحت الورق', 'Take one of the four; the rest go under the deck'))}</p>
+    <div class="skr-khoshaf">${cards.map((c, i) => `<button type="button" class="skr-pickcard ${pick && pick.index === i ? 'is-picked' : ''}" onclick="skrPickIndex(${i})">${skrCardHtml(c, { size: 'lg' })}</button>`).join('')}</div>
+    <button type="button" class="btn btn--primary" onclick="skrConfirm()" ${skrPickReady(state, pick) ? '' : 'disabled'}>✓ ${escapeHTML(t.confirm || 'تأكيد')}</button>`;
+}
+
+/* --- the thief vote -------------------------------------------------------------- */
+
+const skrVoted = (state) => (((state.shared || {}).thiefVote || {}).voted || []);
+
+/**
+ * This phone's vote: `choice` is what is tapped now, `sent` what the room
+ * has (a player id, '' for "no thief", undefined when not known - a reload
+ * that the server doesn't remind). Kept for the round in sessionStorage.
+ */
+function skrVoteLocal(state) {
+  const s = state.shared || {};
+  const key = [state.code, s.dealId || '', s.round || ''].join('|');
+  if (skrLocal.vote.key !== key) {
+    let sent;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(SKR_VOTE_KEY) || 'null');
+      if (saved && saved.key === key && typeof saved.sent === 'string') sent = saved.sent;
+    } catch (e) {}
+    skrLocal.vote = { key: key, choice: undefined, sent: sent, open: false };
+  }
+  const v = skrLocal.vote;
+  const you = state.you || {};
+  // A server that tells a phone its own vote back is believed over this phone's memory.
+  if (skrVoted(state).indexOf(Room.me) !== -1 && Object.prototype.hasOwnProperty.call(you, 'thiefVote') && you.thiefVote !== undefined) {
+    v.sent = you.thiefVote ? String(you.thiefVote) : '';
+  }
+  return v;
+}
+
+function skrVoteSave(v) {
+  try { sessionStorage.setItem(SKR_VOTE_KEY, JSON.stringify({ key: v.key, sent: v.sent })); } catch (e) {}
+}
+
+/** A choice tapped: picked; tapped again, sent. */
+function skrVoteChoose(value) {
+  const st = Room.state;
+  if (!st || st.game !== 'screw' || (st.shared || {}).phase !== 'thiefGuess') return;
+  const v = skrVoteLocal(st);
+  if (v.choice === value && v.choice !== v.sent) { skrVoteSend(null); return; }
+  v.choice = value;
+  haptic('light');
+  skrRedraw();
+}
+
+function skrVoteOpen(open) {
+  const st = Room.state;
+  if (!st) return;
+  const v = skrVoteLocal(st);
+  v.open = !!open;
+  v.choice = open ? v.sent : undefined;
+  skrRedraw();
+}
+
+async function skrVoteSend(btn) {
+  const st = Room.state;
+  if (!st || st.game !== 'screw' || (st.shared || {}).phase !== 'thiefGuess') return;
+  const v = skrVoteLocal(st);
+  if (v.choice === undefined) return;
+  const was = v.sent;
+  const choice = v.choice;
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  // Said as sent before the room answers, so the frame it pushes back already shows it.
+  v.sent = choice;
+  v.open = false;
+  skrVoteSave(v);
+  haptic('medium');
+  try {
+    await Room.act('thiefVote', { pid: choice || null, seq: (st.shared || {}).turnSeq });
+  } catch (err) {
+    v.sent = was;
+    skrVoteSave(v);
+    showToast(err.message || 'تعذر تنفيذ الإجراء', 'error');
+  }
+  skrRedraw();
+}
+
+/** Why the round is over, in one line: the finisher, the سكرو, the last lap. */
+function skrRoundEndWords(state) {
+  const s = state.shared || {};
+  const r = s.results || {};
+  const finisher = s.finisher || r.finisher;
+  const caller = s.caller || r.caller;
+  if (finisher) return skrT('skr_why_finish', '🏁 كروت {name} خلصت', '🏁 {name} is out of cards', { name: skrName(state, finisher, true) });
+  if (caller) return skrT('skr_why_screw', '📣 سكرو {name}', '📣 {name} called Screw', { name: skrName(state, caller, true) });
+  if (s.lastLap) return skrT('skr_why_last_lap', '💀 آخر لفة خلصت', '💀 The last lap is over');
+  return '';
+}
+
+/** Who has voted, by name, never what for. */
+function skrVotedLine(state) {
+  const order = skrOrder(state);
+  const voted = skrVoted(state).filter(pid => order.indexOf(pid) !== -1);
+  const sep = appState.lang === 'en' ? ', ' : '، ';
+  const head = skrT('skr_voted_count', 'صوّتوا {n}/{m}', 'Voted {n}/{m}', { n: voted.length, m: order.length });
+  return '🗳️ ' + head + (voted.length ? ': ' + voted.map(pid => '⁨' + skrName(state, pid, true) + '⁩').join(sep) : '');
+}
+
+/**
+ * The vote on a seated phone: every player, this phone's own name too (or not
+ * voting would give its holder away), and "no thief"; then "your vote is in",
+ * with a way to change it until the vote closes. The host closes it.
+ */
+function skrVoteHtml(state) {
+  const s = state.shared || {};
+  const t = TRANSLATIONS[appState.lang] || {};
+  const me = Room.me;
+  const seated = skrInGame(state);
+  const why = skrRoundEndWords(state);
+  const whoLine = `<p class="skr-hint skr-vote__who">${escapeHTML(skrVotedLine(state))}</p>`;
+  const close = state.youAreHost
+    ? `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, 'closeThiefVote')">🔒 ${escapeHTML(t.vote_close || skrT('skr_vote_close', 'اقفل التصويت', 'Close the vote'))}</button>` : '';
+  const question = escapeHTML(skrT('skr_thief_q', 'مين معاه الحرامي؟', 'Who holds the thief?'));
+  if (!seated) {
+    return `<div class="skr-note">${why ? `<p class="skr-hint">${escapeHTML(why)}</p>` : ''}<p class="skr-prompt">🦹 ${question}</p>${whoLine}${close}</div>`;
+  }
+  const v = skrVoteLocal(state);
+  const iVoted = skrVoted(state).indexOf(me) !== -1;
+  const nameOf = (value) => (value ? skrName(state, value, true) : skrT('skr_no_thief', 'مفيش حرامي', 'No thief'));
+  if (iVoted && !v.open) {
+    const mine = v.sent !== undefined ? `<p class="skr-summary">${escapeHTML(skrT('skr_vote_yours', 'صوتك: {name}', 'Your vote: {name}', { name: nameOf(v.sent) }))}</p>` : '';
+    return `<div class="skr-actbar skr-vote is-sent">
+        <p class="skr-prompt is-mine">✓ ${escapeHTML(skrT('skr_vote_done', 'صوتك اتسجّل', 'Your vote is in'))}</p>
+        ${mine}
+        <button type="button" class="btn btn--secondary btn--sm" onclick="skrVoteOpen(true)">✏️ ${escapeHTML(skrT('skr_vote_change', 'غيّر صوتك', 'Change your vote'))}</button>
+        ${whoLine}${close}
+      </div>`;
+  }
+  const btn = (value, label) => {
+    const on = v.choice === value;
+    const was = v.sent === value;
+    return `<button type="button" class="btn ${on ? 'btn--primary' : 'btn--neutral'} btn--sm" aria-pressed="${on}" onclick="skrVoteChoose('${jsStringAttr(value)}')">${was ? '✓ ' : ''}${escapeHTML(label)}</button>`;
+  };
+  const you = t.vote_you || (appState.lang === 'en' ? 'You' : 'أنت');
+  const choices = skrOrder(state).map(pid => btn(pid, skrName(state, pid, true) + (pid === me ? ' (' + you + ')' : '')))
+    .concat([btn('', '🙅 ' + skrT('skr_no_thief', 'مفيش حرامي', 'No thief'))]).join('');
+  const ready = v.choice !== undefined && !(iVoted && v.choice === v.sent);
+  const tie = s.caller ? ' ' + skrT('skr_vote_tie', 'التعادل: صوت اللي قال سكرو يحسم.', "A tie: the caller's vote decides.") : '';
+  return `<div class="skr-actbar skr-vote">
+      ${why ? `<p class="skr-hint">${escapeHTML(why)}</p>` : ''}
+      <p class="skr-prompt is-mine">🦹 ${question}</p>
+      <p class="skr-hint skr-vote__rule">${escapeHTML(skrT('skr_vote_hint', 'لو الأغلبية اختارت اللي معاه الحرامي: عليه +25. لو لأ: الحرامي ياخد أقل نتيجة، واللي كانت ليه ياخد +25.', 'If most point at the holder: +25 for the thief. If not, the thief takes the lowest score and whoever had it takes +25.') + tie)}</p>
+      <div class="skr-vote__choices">${choices}</div>
+      <div class="btn-row">
+        <button type="button" class="btn btn--primary" onclick="skrVoteSend(this)" ${ready ? '' : 'disabled'}>✓ ${escapeHTML(iVoted ? skrT('skr_vote_resend', 'غيّر صوتي', 'Change my vote') : skrT('skr_vote_send', 'صوّت', 'Vote'))}</button>
+        ${iVoted ? `<button type="button" class="btn btn--ghost btn--auto" onclick="skrVoteOpen(false)">${escapeHTML(t.cancel || 'إلغاء')}</button>` : ''}
+      </div>
+      ${iVoted ? `<p class="skr-hint">${escapeHTML(skrT('skr_vote_change_hint', 'تقدر تغيّره لحد ما التصويت يتقفل', 'You can change it until the vote closes'))}</p>` : ''}
+      ${whoLine}${close}
+    </div>`;
+}
+
+/**
+ * The foot of the phone's table: what to do now. When the move is this
+ * phone's, it is a bar that stays at the bottom of the screen while the
+ * table scrolls; otherwise a quiet line about whose turn it is.
+ */
+function skrActionsHtml(state) {
+  const s = state.shared || {};
+  const you = state.you || {};
+  const me = Room.me;
+  const inGame = skrInGame(state);
+  const pick = skrLocal.pick;
+  const bar = (inner) => `<div class="skr-actbar">${inner}</div>`;
+  const note = (inner) => `<div class="skr-note">${inner}</div>`;
+  const hostBegin = state.youAreHost
+    ? `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, 'beginRound')">▶️ ${escapeHTML(skrT('skr_begin_round', 'ابدأ الجولة', 'Start the round'))}</button>` : '';
+
+  if (s.phase === 'memorize') {
+    const ready = s.ready || [];
+    const count = escapeHTML(skrT('skr_ready_count', 'جاهزين {n}/{m}', 'Ready {n}/{m}', { n: ready.length, m: skrOrder(state).length }));
+    if (inGame && ready.indexOf(me) === -1) {
+      return bar(`<p class="skr-prompt is-mine">🧠 ${escapeHTML(skrT('skr_memorize', 'احفظ الكارتين اللي تحت (التالت والرابع)، وبعدها هيتقلبوا', 'Memorise your bottom two cards (the third and fourth); then they turn over'))}</p>
+        <button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'ready')">✓ ${escapeHTML(skrT('skr_memorized', 'حفظتهم', 'Got them'))}</button>
+        <p class="skr-hint">${count}</p>${hostBegin}`);
+    }
+    return note(`<p class="skr-prompt">⏳ ${escapeHTML(skrT('skr_waiting_ready', 'مستنيين الباقي يحفظوا', 'Waiting for the others to memorise'))}</p><p class="skr-hint">${count}</p>${hostBegin}`);
+  }
+
+  if (s.phase === 'thiefGuess') return skrVoteHtml(state);
+  const ctx = { marks: skrHelp(state) ? skrMarks(state) : {}, pick: pick, faces: skrMyFaces(state), help: skrHelp(state) };
+
+  if (s.phase !== 'play' || !s.turn) return '';
+  const turn = s.turn;
+  const seenPanel = skrSeenHtml(state, false);
+
+  if (turn.pid !== me || !inGame) {
+    const w = skrTurnWords(state);
+    const line = `<p class="skr-prompt">${escapeHTML(w.title)}</p>${w.hint ? `<p class="skr-hint">${escapeHTML(w.hint)}</p>` : ''}`;
+    return seenPanel && inGame ? bar(seenPanel) + note(line) : note(line);
+  }
+
+  const mineHead = `<p class="skr-prompt is-mine">⭐ ${escapeHTML(skrT('skr_your_turn', 'دورك!', 'Your turn!'))}</p>`;
+
+  if (turn.stage === 'seeSwap') {
+    if (pick && pick.kind === 'seeSwapDo') return bar(skrPickBarHtml(state, pick, ctx));
+    return bar(skrSeenHtml(state, true));
+  }
+  if (turn.stage === 'khoshaf') return bar(skrKhoshafHtml(state, pick));
+  if (turn.stage === 'power' && pick) return bar(seenPanel + skrPickBarHtml(state, pick, ctx));
+  if (pick && pick.kind !== 'power') return bar(skrPickBarHtml(state, pick, ctx));
+
+  if (turn.stage === 'drawn') {
+    const info = skrCardInfo(you.drawn);
+    const rule = info && info.drawn;
+    // A card taken from الخشاف counts as drawn from the deck: thrown, its power works too.
+    const power = info && info.power && info.card.kind === 'command' ? skrPowerInfo(info.power) : null;
+    const empty = !((s.hands || {})[me] || []).length;
+    const keepBtn = (cls) => empty
+      ? `<button type="button" class="btn ${cls}" onclick="skrAct(this, 'keep')">🔁 ${escapeHTML(skrT('skr_keep_new', 'خليه معاك', 'Keep it'))}</button>`
+      : `<button type="button" class="btn ${cls}" onclick="skrStartPick('keep')">🔁 ${escapeHTML(skrT('skr_keep', 'بدّله مع كارت', 'Swap it into your hand'))}</button>`;
+    const discardBtn = (cls, label) => `<button type="button" class="btn ${cls}" onclick="skrAct(this, 'discard')">${label}</button>`;
+    let inner;
+    if (rule === 'discard') {
+      inner = `<p class="skr-hint tx-warning">⚠️ ${escapeHTML(skrT('skr_must_discard', 'الكارت ده لازم يترمي', 'This card must be thrown'))}</p>${discardBtn('btn--primary btn--lg', '⬇️ ' + escapeHTML(skrT('skr_discard', 'ارميه', 'Throw it')))}`;
+    } else if (rule === 'keep') {
+      inner = `<p class="skr-hint tx-warning">⚠️ ${escapeHTML(skrT('skr_must_keep', 'الكارت ده لازم يفضل معاك', 'This card must be kept'))}</p>${keepBtn('btn--primary btn--lg')}`;
+    } else if (rule === 'play') {
+      inner = discardBtn('btn--primary btn--lg', '▶️ ' + escapeHTML(skrT('skr_play_it', 'العبه', 'Play it')));
+    } else {
+      inner = `<div class="btn-row">${keepBtn('btn--primary')}${discardBtn('btn--secondary', '⬇️ ' + escapeHTML(power ? skrT('skr_discard_power', 'ارميه واستعمل قوته', 'Throw it, use its power') : skrT('skr_discard', 'ارميه', 'Throw it')))}</div>
+        ${power ? `<p class="skr-hint">${escapeHTML((power.icon + ' ' + power.name).trim())}</p>` : ''}`;
+    }
+    return bar(mineHead + inner);
+  }
+
+  if (turn.stage === 'power') return bar(mineHead);
+
+  // choose
+  const settings = s.settings || {};
+  const pile = s.pile || [];
+  const top = pile[pile.length - 1];
+  const holding = ((s.hands || {})[me] || []).length > 0;
+  // An empty deck takes the pile back, all but its top card - except under sudden
+  // death, where it is never refilled. Nothing to draw: the turn can be passed.
+  const canDraw = skrCanDraw(s);
+  const fromLap = Number(settings.screwFromLap) || 2;
+  const lapOk = (Number(s.lap) || 0) >= fromLap;
+  const canScrew = !s.caller && !s.lastLap && lapOk;
+  const reason = s.caller ? skrT('skr_screw_called', 'سكرو اتقالت خلاص', 'Screw has been called')
+    : s.lastLap ? skrT('skr_screw_last_lap', 'مفيش سكرو في آخر لفة', 'No Screw in the last lap')
+    : !lapOk ? skrT('skr_screw_from_lap', 'سكرو مسموح من اللفة {n}', 'Screw is allowed from lap {n}', { n: fromLap }) : '';
+  const pong = turn.pongOpen
+    ? `<div class="skr-pong"><p class="skr-hint">🏓 ${escapeHTML(skrT('skr_pong_open', 'بينج! لو معاك بونج ارميه دلوقتي', 'Ping! If you hold Pong, throw it now'))}</p>
+         <button type="button" class="btn btn--secondary" onclick="skrStartPick('pong')">🎾 ${escapeHTML(skrT('skr_pong_btn', 'بونج!', 'Pong!'))}</button></div>` : '';
+  const pass = canDraw ? '' : `<p class="skr-hint tx-warning">💀 ${escapeHTML(skrT('skr_deck_empty_hint', 'الورق خلص: خد من الأرض، ارمي كارت زيّه، أو عدّي', 'The deck is empty: take from the pile, throw a match, or pass'))}</p>
+    <button type="button" class="btn btn--neutral" onclick="skrAct(this, 'pass')">⏭️ ${escapeHTML(skrT('skr_pass', 'عدّي', 'Pass'))}</button>`;
+  return bar(`${seenPanel ? seenPanel + '<hr class="skr-rule">' : ''}${mineHead}${pong}
+    <div class="skr-actgrid">
+      <button type="button" class="btn btn--primary" onclick="skrAct(this, 'draw')" ${canDraw ? '' : 'disabled'}>🂠 ${escapeHTML(skrT('skr_draw', 'اسحب من الورق', 'Draw from the deck'))}</button>
+      <button type="button" class="btn btn--secondary" onclick="skrStartPick('takePile')" ${top && holding ? '' : 'disabled'}>⬆️ ${escapeHTML(skrT('skr_take_pile', 'خد اللي على الأرض', 'Take from the pile'))}</button>
+      <button type="button" class="btn btn--secondary" onclick="skrStartPick('match')" ${top && holding ? '' : 'disabled'}>🎯 ${escapeHTML(skrT('skr_match', 'ارمي كارت زيّه', 'Throw a matching card'))}</button>
+      <button type="button" class="btn btn--danger-soft" onclick="skrCallScrew()" ${canScrew ? '' : 'disabled'}>📣 ${escapeHTML(skrT('skr_screw', 'سكرو!', 'Screw!'))}</button>
+    </div>
+    ${pass}
+    ${reason ? `<p class="skr-hint">${escapeHTML(reason)}</p>` : ''}`);
+}
+
+/* --- the host's way past a phone that went quiet -------------------------------------- */
+
+function skrHostButtons(state) {
+  const s = state.shared || {};
+  if (!state.youAreHost) return [];
+  const gone = (pid) => { const p = (state.players || []).find(x => x.id === pid); return !p || !p.online; };
+  const out = [];
+  if (s.phase === 'play' && s.turn && gone(s.turn.pid)) {
+    out.push(['⏭️ ' + skrT('skr_skip_turn', 'تخطي دور {name}', "Skip {name}'s turn", { name: skrName(state, s.turn.pid, true) }), "skrAct(this, 'skipTurn')"]);
+  }
+  // The thief vote carries its own close button for the host, on the phone and the TV.
+  return out;
+}
+
+/** Presence changes redraw nothing: the dots, the away seats and the host's buttons are updated in place. */
+function skrRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('.skr-seat[data-skr-seat]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-skr-seat'));
+    el.classList.toggle('is-away', !(p && p.online));
+  });
+  const box = root.querySelector('[data-skr-host]');
+  if (box) {
+    const buttons = skrHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._skrHtml !== html) { box.innerHTML = html; box._skrHtml = html; }
+  }
+}
+
+/* --- the reveal and the scores ------------------------------------------------------- */
+
+const SKR_TEAM_KEYS = ['A', 'B'];   // shared.teams[0] and [1], as results.totals and teamScores name them
+
+function skrTeamLabel(i) {
+  const L = (typeof CN_TEAM_LABEL !== 'undefined' && (CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar)) || null;
+  return L ? (i === 0 ? L.blue : L.red) : SKR_TEAM_KEYS[i];
+}
+
+/** A score with its sign: +12, 0, -2. */
+const skrSigned = (n) => (Number(n) > 0 ? '+' + Number(n) : String(Number(n) || 0));
+
+/** Each card's counted value in a revealed hand (a life jacket copies the lowest other card). */
+function skrHandValues(results, pid) {
+  const cards = ((results && results.hands) || {})[pid] || [];
+  const vals = ((results && results.values) || {})[pid];
+  if (Array.isArray(vals) && vals.length === cards.length) return vals.map(v => Number(v) || 0);
+  if (typeof skrewHandValues === 'function') return skrewHandValues(cards);
+  return cards.map(id => (typeof skrewValue === 'function' ? skrewValue(id) : 0));
+}
+
+/** A player's hand in the reveal: the sum of its cards as they count (before the thief). */
+function skrHandSum(results, pid) {
+  const vals = ((results && results.values) || {})[pid];
+  if (Array.isArray(vals)) return vals.reduce((sum, v) => sum + (Number(v) || 0), 0);
+  const sums = (results && results.sums) || {};
+  if (typeof sums[pid] === 'number') return sums[pid];
+  return skrHandValues(results, pid).reduce((sum, v) => sum + v, 0);
+}
+
+/** The unit a player scores in: their own id, or their side's key in teams. */
+function skrUnitOf(s, pid) {
+  const k = skrTeamOf(s, pid);
+  return k === -1 ? pid : SKR_TEAM_KEYS[k];
+}
+
+/** A unit in words: a player's name, or a side's colour. */
+function skrUnitName(state, key) {
+  const s = state.shared || {};
+  const k = SKR_TEAM_KEYS.indexOf(key);
+  if (k !== -1 && Array.isArray(s.teams)) return skrTeamLabel(k);
+  return skrName(state, key, true);
+}
+
+/** The running totals, lowest first (lowest wins). */
+function skrStandings(state) {
+  const s = state.shared || {};
+  const scores = s.scores || {};
+  const rows = (s.board || []).map(r => ({ id: r.id, name: r.name, team: r.team || null, score: typeof scores[r.id] === 'number' ? scores[r.id] : Number(r.score) || 0 }));
+  Object.keys(scores).forEach(id => { if (!rows.some(r => r.id === id)) rows.push({ id: id, name: skrName(state, id, true), team: null, score: Number(scores[id]) || 0 }); });
+  return rows.sort((a, b) => a.score - b.score);
+}
+
+/** What the podium ranks: the two sides in teams (their names and players), else every player. */
+function skrPodiumRows(state) {
+  const s = state.shared || {};
+  if (Array.isArray(s.teams) && s.teams.length && s.teamScores) {
+    const sep = appState.lang === 'en' ? ', ' : '، ';
+    return s.teams.map((team, i) => ({
+      id: SKR_TEAM_KEYS[i],
+      name: skrTeamLabel(i) + ': ' + (team || []).map(pid => skrName(state, pid, true)).join(sep),
+      score: Number(s.teamScores[SKR_TEAM_KEYS[i]]) || 0
+    })).sort((a, b) => a.score - b.score);
+  }
+  return skrStandings(state);
+}
+
+function skrTeamScoresLine(state) {
+  const s = state.shared || {};
+  if (!Array.isArray(s.teams) || !s.teams.length || !s.teamScores) return '';
+  return '🤝 ' + s.teams.map((team, i) => skrTeamLabel(i) + ' ' + (Number(s.teamScores[SKR_TEAM_KEYS[i]]) || 0)).join(' · ');
+}
+
+function skrStandingsHtml(state) {
+  const s = state.shared || {};
+  const rows = skrStandings(state);
+  if (!rows.length) return '';
+  const winners = s.phase === 'gameover' && Array.isArray(s.winners) ? s.winners : null;
+  const best = rows[0].score;
+  const top = (p) => (winners ? winners.indexOf(p.id) !== -1 : p.score === best);
+  const round = (s.results && s.results.round) || {};
+  const teams = skrTeamScoresLine(state);
+  return `<div class="section scoreboard skr-board">
+      <div class="section__head"><h2 class="section__title">${escapeHTML(skrT('skr_standings', 'المجموع (الأقل يكسب)', 'Totals (lowest wins)'))}</h2><span class="section__rule"></span></div>
+      ${teams ? `<p class="skr-hint skr-board__teams">${escapeHTML(teams)}</p>` : ''}
+      ${rows.map(p => `
+        <div class="status-row ${top(p) ? 'status-row--turn' : ''}" data-pid="${escapeHTML(String(p.id))}" data-score="${Number(p.score) || 0}">
+          <div class="status-row__body"><div class="status-row__name">${top(p) ? '👑 ' : ''}${skrTeamDot(s, p.id)}${escapeHTML(p.name || '')}${p.id === Room.me ? ` <span class="badge">${escapeHTML((TRANSLATIONS[appState.lang] || {}).vote_you || '')}</span>` : ''}</div></div>
+          ${typeof round[p.id] === 'number' ? `<span class="badge"><bdi dir="ltr">${skrSigned(round[p.id])}</bdi></span>` : ''}
+          <span class="badge badge--accent" data-count>${Number(p.score) || 0}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+/**
+ * The podium, lowest first. renderPodium (JS_Motion.html) ranks the highest
+ * first, so it is given a mirrored board (best = biggest) and the real totals
+ * are written back over the numbers it prints, in the same order - the same
+ * classes, the same rise.
+ */
+function skrPodiumHtml(state) {
+  const rows = skrPodiumRows(state);
+  if (rows.length < 2 || typeof renderPodium !== 'function') return '';
+  const worst = Math.max.apply(null, rows.map(r => r.score));
+  const html = renderPodium(state, rows.map(r => ({ id: r.id, name: r.name, score: worst - r.score + 1 })));
+  if (!html) return '';
+  const real = rows.slice(0, 3).map(r => r.score);
+  let i = 0;
+  return html.replace(/(<span class="podium__score metric">)(-?\d+)(<\/span>)/g, (m, a, n, b) => a + (i < real.length ? real[i++] : n) + b);
+}
+
+/** Who won, in words: the lowest total, or the side with it. */
+function skrWinnersLine(state) {
+  const s = state.shared || {};
+  const sep = appState.lang === 'en' ? ', ' : '، ';
+  if (Array.isArray(s.winnerTeams) && s.winnerTeams.length && Array.isArray(s.teams)) {
+    return s.winnerTeams.map(key => skrTeamLabel(SKR_TEAM_KEYS.indexOf(key))).join(sep);
+  }
+  const ids = Array.isArray(s.winners) && s.winners.length ? s.winners : (() => {
+    const rows = skrStandings(state);
+    return rows.filter(r => r.score === (rows[0] || {}).score).map(r => r.id);
+  })();
+  return ids.map(pid => skrName(state, pid, true)).join(sep);
+}
+
+/**
+ * الحرامي at the end of the round, before the hands turn: the table's votes as
+ * vote bars (the accused last), then a card lying face down that turns over on
+ * what came of it - caught, a stolen score, nobody holding it. `animate` is the
+ * reveal's own first time on this phone. Returns the markup and when the hands
+ * may start turning (ms).
+ */
+function skrThiefResultHtml(state, animate, tv) {
+  const s = state.shared || {};
+  const r = s.results || {};
+  const th = r.thief;
+  if (!th) return { html: '', flipAt: 0 };
+  const sep = appState.lang === 'en' ? ', ' : '، ';
+  const name = (pid) => skrName(state, pid, true);
+  const noThief = skrT('skr_no_thief', 'مفيش حرامي', 'No thief');
+  const votes = th.votes && typeof th.votes === 'object' ? th.votes : {};
+  const voters = Object.keys(votes);
+  const skipped = !!th.skipped || !voters.length;
+  const round = r.round || {};
+  const holderUnit = th.holder ? skrUnitOf(s, th.holder) : null;
+
+  let head;
+  if (!th.holder) {
+    head = skrT('skr_thief_nobody', '🦹 مفيش حرامي: الكارت مكانش في إيد حد', '🦹 No thief: nobody held the card');
+  } else if (th.caught) {
+    head = skrT('skr_thief_caught_by', '🦹 الترابيزة مسكت الحرامي: {name} +25', '🦹 The table caught the thief: {name} +25', { name: name(th.holder) });
+  } else if (th.stole) {
+    const stolen = typeof th.score === 'number' ? th.score
+      : typeof round[th.holder] === 'number' ? round[th.holder] : Number(round[holderUnit]) || 0;
+    const victims = (Array.isArray(th.victims) ? th.victims : []).map(key => skrUnitName(state, key)).join(sep);
+    head = skrT('skr_thief_stole', '🦹 الحرامي {name} سرق أقل نتيجة ({score})، و{victims} +25', '🦹 The thief, {name}, stole the lowest score ({score}); {victims} +25',
+      { name: name(th.holder), score: stolen, victims: victims });
+  } else {
+    head = skrT('skr_thief_unnoticed', '🦹 الحرامي {name} محدش مسكه، بس نتيجته كانت الأقل أصلًا', '🦹 Nobody caught the thief, {name}, who already had the lowest score', { name: name(th.holder) });
+  }
+  const accused = skipped
+    ? skrT('skr_votes_none', '🗳️ محدش صوّت، يعني محدش اتّهم حد', '🗳️ No votes: nobody was accused')
+    : skrT('skr_accused', '👉 اتهام الترابيزة: {name}', '👉 The table accused: {name}', { name: th.accused ? name(th.accused) : noThief });
+
+  // The votes: one bar per choice somebody made, "no thief" among them.
+  const groups = {};
+  voters.forEach(voter => { const k = votes[voter] ? String(votes[voter]) : SKR_NONE; (groups[k] = groups[k] || []).push(voter); });
+  const order = skrOrder(state);
+  const ids = order.filter(pid => groups[pid]).concat(Object.keys(groups).filter(k => k !== SKR_NONE && order.indexOf(k) === -1));
+  if (groups[SKR_NONE]) ids.push(SKR_NONE);
+  const rows = ids.map(id => ({
+    id: id,
+    label: id === SKR_NONE ? '🙅 ' + noThief : name(id),
+    count: groups[id].length,
+    voters: groups[id].map(name)
+  }));
+  const where = tv ? 'tv' : 'phone';
+  let bars = '';
+  let barsMs = 0;
+  if (!skipped && !tv && typeof renderVoteResults === 'function') {
+    // renderVoteResults reads a room's vote: this one is handed a vote of that shape.
+    // Its suspense is keyed on the room, the round and `turn`; a redraw shows the bars settled.
+    const voteState = { code: state.code, game: 'screw', shared: { round: [s.dealId || '', s.round].join('#'), turn: 'thief-' + where,
+      vote: { results: rows, totalVotes: voters.length } } };
+    // The accused rises last; with nobody accused and nobody on "no thief", no bar is crowned.
+    bars = renderVoteResults(voteState, { highlightId: th.accused || SKR_NONE });
+    const m = /data-reveal-ms="(\d+)"/.exec(bars);
+    if (animate && m) barsMs = Number(m[1]);
+    // A redraw of a reveal already shown (a language change renames a bar) stays settled.
+    else bars = bars.replace(' result-list--reveal', '').replace(/ data-reveal-ms="\d+"/, '');
+  } else if (!skipped) {
+    const pairs = rows.map(row => row.voters.map(v => skrT('skr_vote_pair', '{a} ← {b}', '{a} → {b}', { a: v, b: row.label }))).reduce((a, b) => a.concat(b), []);
+    bars = tv
+      ? `<div class="tv-strip-inline skr-thief__pairs">${pairs.map(p => `<span class="tv-chip">${escapeHTML(p)}</span>`).join('')}</div>`
+      : `<p class="skr-hint">${escapeHTML(pairs.join(sep))}</p>`;
+  }
+  // The card lies face down until the accused's bar has risen, then turns (edge-on 1380ms in).
+  const coverAt = barsMs ? Math.max(0, barsMs - 1000) : 0;
+  const cover = animate && typeof spyRevealParts === 'function'
+    ? spyRevealParts(['skr-thief', state.code, s.dealId || '', s.round, where].join('|'), skrT('skr_thief_was', 'الحرامي كان…', 'The thief was…'))
+    : { cls: '', attrs: '', cover: '', ms: 0 };
+  const flipAt = cover.cls ? coverAt + 1380 : barsMs;
+  const tone = th.holder && !th.caught ? 'plate-danger' : th.holder ? 'plate-success' : '';
+  const html = `<div class="skr-thief ${tv ? 'skr-thief--tv' : ''}">
+      ${bars && !tv ? `<div class="eyebrow">🗳️ ${escapeHTML(skrT('skr_votes_title', 'الأصوات', 'The votes'))}</div>${bars}` : ''}
+      <div class="card card--tight skr-thief__card ${tone} ${cover.cls}" ${cover.attrs} style="--skr-cover-at:${coverAt}ms">${cover.cover}
+        <p class="skr-thief__head">${escapeHTML(head)}</p>
+        <p class="skr-hint">${escapeHTML(accused)}</p>
+        ${tv ? bars : ''}
+      </div>
+    </div>`;
+  return { html: html, flipAt: flipAt };
+}
+
+/**
+ * A revealed card (the i-th of its hand), turning over at `at` ms (null:
+ * already face up). Under a life jacket, the value it counted as: its own 10
+ * changes into the copied card's, and data-skr-copy names that card so a line
+ * can link them (skrRevealMoments).
+ */
+function skrRevealCardHtml(id, values, cards, i, size, at) {
+  const info = skrCardInfo(id);
+  const isCopy = (c) => { const x = skrCardInfo(c); return !!(x && (x.card.copy || c === 'lifeJacket')); };
+  const value = values[i];
+  const card = at === null
+    ? skrCardHtml(id, { size: size })
+    : `<span class="skr-flip" style="--at:${at}ms"><span class="skr-flip__back">${skrCardHtml(null, { size: size })}</span><span class="skr-flip__face">${skrCardHtml(id, { size: size })}</span></span>`;
+  if (!isCopy(id) || typeof value !== 'number') return `<span class="skr-rcard" data-skr-card="${i}">${card}</span>`;
+  const copied = cards.findIndex((c, j) => j !== i && !isCopy(c) && values[j] === value);
+  const own = info && typeof info.value === 'number' ? info.value : value;
+  return `<span class="skr-rcard is-copy" data-skr-card="${i}" ${copied !== -1 ? `data-skr-copy="${copied}"` : ''}>${card}<span class="skr-rcard__val skr-late">${own !== value ? `<s class="skr-rcard__was"><bdi dir="ltr">${own}</bdi></s>` : ''}<span class="skr-rcard__now">= <bdi dir="ltr">${value}</bdi></span></span></span>`;
+}
+
+/** Every hand face up, the totals counting up once the cards have turned. */
+function skrRevealHtml(state, opts) {
+  const o = opts || {};
+  const s = state.shared || {};
+  const r = s.results || {};
+  const hands = r.hands || {};
+  const order = skrOrder(state).filter(pid => hands[pid]).concat(Object.keys(hands).filter(pid => skrOrder(state).indexOf(pid) === -1));
+  if (!order.length) return '';
+  const animate = !o.still && motionFirst(['skr-reveal', state.code, s.dealId || '', s.round, o.tv ? 'tv' : 'phone'].join('|'));
+  const size = o.tv ? 'md' : 'sm';
+  const lowest = r.lowest || [];
+  const caller = r.caller || s.caller || null;
+  const finisher = r.finisher || s.finisher || null;
+  const teams = Array.isArray(s.teams) && s.teams.length;
+  const th = r.thief || null;
+  const victims = th && Array.isArray(th.victims) ? th.victims : [];
+  const thief = skrThiefResultHtml(state, animate, !!o.tv);
+  const flipAt = animate ? thief.flipAt : 0;
+  let k = 0;
+  const rows = order.map(pid => {
+    const cards = hands[pid] || [];
+    const values = skrHandValues(r, pid);
+    const sum = skrHandSum(r, pid);
+    // In teams each hand shows its own cards; the side's total is on its line below.
+    const total = !teams && typeof (r.totals || {})[pid] === 'number' ? r.totals[pid] : sum;
+    const low = lowest.indexOf(pid) !== -1;
+    const score = r.round ? r.round[pid] : undefined;
+    const team = skrTeamOf(s, pid);
+    const unit = skrUnitOf(s, pid);
+    const tags = [];
+    if (finisher === pid) tags.push('🏁');
+    if (caller === pid) tags.push('📣');
+    if (r.callerDouble && caller === pid) tags.push('<span class="badge badge--danger" data-skr-double>×2</span>');
+    if (th && th.holder === pid) tags.push(th.caught ? '<span class="badge badge--danger">🦹 <bdi dir="ltr">+25</bdi></span>' : '🦹');
+    if (victims.indexOf(unit) !== -1) tags.push('<span class="badge badge--danger">🎯 <bdi dir="ltr">+25</bdi></span>');
+    const cardsHtml = cards.length
+      ? cards.map((c, i) => skrRevealCardHtml(c, values, cards, i, size, animate ? flipAt + (k++) * 70 : null)).join('')
+      : `<span class="skr-rrow__none">${escapeHTML(skrT('skr_no_cards', 'مفيش كروت', 'No cards'))}</span>`;
+    return `<div class="skr-rrow ${low ? 'is-lowest' : ''} ${team !== -1 ? 'skr-team--' + team : ''}">
+        <div class="skr-rrow__who"><span class="skr-rrow__name">${low ? '<span class="skr-late">👑</span> ' : ''}${escapeHTML(skrName(state, pid, true))}</span><span class="skr-late skr-rrow__tags">${tags.join(' ')}</span></div>
+        <div class="skr-rrow__total"><b class="metric" data-skr-total="${total}">${animate ? '0' : total}</b>${typeof score === 'number'
+          ? `<span class="badge skr-late ${score === 0 ? 'badge--success' : ''}">${score === 0 ? '0 ✓' : `<bdi dir="ltr">${skrSigned(score)}</bdi>`}</span>` : ''}</div>
+        <div class="skr-rrow__cards">${cardsHtml}</div>
+      </div>`;
+  });
+  const flipsEnd = animate ? flipAt + k * 70 + 420 : 0;
+  const lines = [];
+  if (finisher) {
+    const vars = { name: skrName(state, finisher, true) };
+    lines.push(teams
+      ? skrT('skr_finish_line_team', '🏁 كروت {name} خلصت: الجولة انتهت ونتيجة فريق {name} 0', "🏁 {name} ran out of cards: the round is over and {name}'s team scores 0", vars)
+      : skrT('skr_finish_line', '🏁 كروت {name} خلصت: الجولة انتهت ونتيجة {name} 0', '🏁 {name} ran out of cards: the round is over and {name} scores 0', vars));
+  }
+  if (r.callerDouble && caller) {
+    // The caller's own hand, doubled whatever its sign (in teams, then added to the partner's; the thief comes after).
+    const was = skrHandSum(r, caller);
+    lines.push(skrT('skr_double_calc', '📣 سكرو {name} منفعش: {calc}', "📣 {name}'s Screw failed: {calc}", { name: skrName(state, caller, true), calc: was + ' × 2 = ' + was * 2 }));
+  }
+  if (teams) {
+    const totals = r.totals || {};
+    const round = r.round || {};
+    lines.push('🤝 ' + s.teams.map((team, i) => {
+      const key = SKR_TEAM_KEYS[i];
+      const sum = typeof totals[key] === 'number' ? totals[key] : (team || []).reduce((acc, pid) => acc + skrHandSum(r, pid), 0);
+      return skrTeamLabel(i) + ': ' + sum + (typeof round[key] === 'number' ? ' (⁦' + skrSigned(round[key]) + '⁩)' : '');
+    }).join(' · '));
+  }
+  return `${thief.html}<div class="skr-reveal ${o.tv ? 'skr-reveal--tv' : ''} ${animate ? 'is-revealing' : ''}" style="--late:${animate ? flipsEnd : 0}ms" ${animate ? `data-reveal-ms="${flipsEnd + 900}" data-skr-count-at="${flipsEnd}"` : ''}>${rows.join('')}</div>
+    ${lines.length ? `<div class="skr-lines ${animate ? 'skr-late' : ''}" style="--late:${animate ? flipsEnd : 0}ms">${lines.map(l => `<p>${escapeHTML(l)}</p>`).join('')}</div>` : ''}`;
+}
+
+/** Totals count up once the flips are over. */
+function skrRevealCount(root) {
+  const box = root && root.querySelector('[data-skr-count-at]');
+  if (!box) return;
+  const at = Number(box.getAttribute('data-skr-count-at')) || 0;
+  skrFx.timers.push(setTimeout(() => {
+    box.querySelectorAll('[data-skr-total]').forEach(el => {
+      const to = Number(el.getAttribute('data-skr-total')) || 0;
+      if (typeof countUp === 'function' && to !== 0) countUp(el, 0, to); else el.textContent = to;
+    });
+  }, at));
+}
+
+/**
+ * The end of a round, and of the game. The last round's reveal and the game's
+ * end arrive together (phase gameover with results), so the cards turn over
+ * first and the podium comes after them.
+ */
+function skrResultFrame(state) {
+  const s = state.shared || {};
+  const t = TRANSLATIONS[appState.lang] || {};
+  const over = s.phase === 'gameover';
+  const reveal = s.results ? skrRevealHtml(state, {}) : '';
+  const hostNext = over
+    ? `<div class="btn-stack">
+         <button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'playAgain')">${escapeHTML(t.play_again || 'لعبة جديدة')}</button>
+         <button type="button" class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || 'لعبة أخرى')}</button>
+       </div>`
+    : `<div class="btn-stack">
+         <button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(t.next_round || 'الجولة التالية')}</button>
+       </div>`;
+  return `<div class="skr skr--result">
+      ${skrHeadHtml(state)}
+      ${reveal ? `<p class="skr-prompt">🃏 ${escapeHTML(skrT('skr_reveal_title', 'كشف الكروت', 'The reveal'))}</p>${reveal}` : ''}
+      ${over ? `<div class="card card--accent skr-over">
+          <div class="card__title">🏆 ${escapeHTML(skrWinnersLine(state))}</div>
+          <p class="skr-hint">${escapeHTML(skrT('skr_lowest_wins', 'الأقل نقط يكسب', 'Lowest score wins'))}</p>
+          ${skrPodiumHtml(state)}
+        </div>` : ''}
+      ${skrStandingsHtml(state)}
+      ${state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+/* --- the phone's frame ------------------------------------------------------------------ */
+
+/** Everything the server said that the table shows. Presence is not in it (refreshed in place). */
+function skrServerSig(state) {
+  const s = state.shared || {};
+  const events = s.events || [];
+  const done = s.phase === 'reveal' || s.phase === 'gameover' || s.phase === 'thiefGuess';
+  return [s.dealId || '', s.phase, s.round, s.rounds, s.lap, s.turnSeq, JSON.stringify(s.turn || null), s.deckCount,
+    (s.pile || []).join(','), JSON.stringify(s.hands || {}), s.caller || '', (s.finalLeft || []).join(','),
+    (s.exposed || []).join(','), (s.ready || []).join(','), events.length ? events[events.length - 1].seq : 0, s.endsAt || '',
+    skrVoted(state).join(','), JSON.stringify(s.lastLap || null), s.finisher || '',
+    done ? JSON.stringify(s.results || null) + JSON.stringify(s.scores || {}) + JSON.stringify(s.teamScores || null) + JSON.stringify(s.winners || null) : '', JSON.stringify(state.you || null),
+    (s.order || []).join(','), JSON.stringify(s.teams || null), JSON.stringify(s.settings || {}),
+    (state.players || []).map(p => p.id + ':' + p.name).join(',')].join('|');
+}
+
+/** Resets the move being chosen when the turn moves on, and opens the ones a stage requires. */
+function skrSyncPick(state) {
+  const s = state.shared || {};
+  const key = [state.code, s.dealId || '', s.phase, s.turnSeq].join('|');
+  if (skrLocal.pickKey !== key) { skrLocal.pickKey = key; skrLocal.pick = null; }
+  if (skrLocal.pick || !skrInGame(state)) return;
+  const turn = s.turn;
+  const mine = s.phase === 'play' && turn && turn.pid === Room.me;
+  if (mine && turn.stage === 'power' && turn.power) skrLocal.pick = skrNewPick('power', { power: skrPowerOf(turn.power) });
+  else if (mine && turn.stage === 'khoshaf') skrLocal.pick = skrNewPick('khoshaf');
+}
+
+function skrPhoneFrame(state) {
+  const s = state.shared || {};
+  if (s.phase === 'reveal' || s.phase === 'gameover') { skrLocal.memoFaces = null; return skrResultFrame(state); }
+  const me = Room.me;
+  const inGame = skrInGame(state);
+  const pick = skrLocal.pick;
+  const help = skrHelp(state);
+  const ctx = { marks: help ? skrMarks(state) : {}, pick: pick, faces: skrMyFaces(state), help: help };
+  skrLocal.memoFaces = { key: state.code + '|' + (s.dealId || '') + '|' + s.round, faces: ctx.faces };
+  const order = skrOrder(state);
+  const at = order.indexOf(me);
+  // The table from this seat: the player after you first, round to the one before you.
+  // From three others the seats sit two a row with small cards, and stay that way while
+  // picking (the bar draws the chosen player's cards big), so twelve players stay a short page.
+  const opps = at === -1 ? order.slice() : order.slice(at + 1).concat(order.slice(0, at));
+  const compact = opps.length >= 3;
+  const seatCtx = Object.assign({}, ctx, { size: compact ? 'sm' : 'md' });
+  return `<div class="skr ${pick ? 'is-picking' : ''} ${s.phase === 'thiefGuess' ? 'is-voting' : ''} ${compact ? 'skr--many' : ''}">
+      ${skrHeadHtml(state)}
+      ${skrLatestHtml(state, false)}
+      <div class="skr-layout">
+        <div class="skr-layout__table">
+          <div class="skr-opps ${compact ? 'skr-opps--grid' : 'skr-opps--wide'}">${opps.map(pid => skrSeatHtml(state, pid, seatCtx)).join('')}</div>
+        </div>
+        <div class="skr-layout__side">
+          ${skrCenterHtml(state, false)}
+          ${inGame ? skrMineHtml(state, ctx) : `<div class="waiting-note">${escapeHTML((TRANSLATIONS[appState.lang] || {}).vote_spectating || '')}</div>`}
+          ${skrActionsHtml(state)}
+          <div data-skr-host></div>
+          ${skrLogHtml(state, skrLogCount(state, false))}
+        </div>
+      </div>
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+ROOM_GAMES.screw = {
+  lobbyOptions(state) {
+    const n = (state.players || []).length;
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(skrT('skr_lobby_hint', 'كل واحد كروته على موبايله، وكروت الكل قدامك مقلوبة. أي تبديل أو بصّة بتبان من أنهي كارت لأنهي كارت.', "Everyone holds their cards on their own phone, and every hand lies face down in front of you. Every swap and peek shows which card went where."))}</p>`;
+    if (!state.youAreHost) return `${hint}<p class="field__hint" style="text-align:center">${escapeHTML(skrT('skr_lobby_wait', 'المضيف بيختار الإصدار', 'The host is picking the version'))}</p>`;
+    const o = skrOpts();
+    const groups = skrGroupsOf(o);
+    const decks = typeof skrewDecksFor === 'function' ? skrewDecksFor(n) : 1;
+    const size = skrDeckSize(groups, decks, o.basraCount);
+    const teamsOk = skrTeamsAllowed(n);
+    const en = appState.lang === 'en';
+    const sep = en ? ', ' : '، ';
+    const namesOf = (g) => Object.keys(SKREW_CARDS).filter(id => SKREW_CARDS[id].group === g).map(id => (SKREW_CARDS[id].icon ? SKREW_CARDS[id].icon + ' ' : '') + (en ? SKREW_CARDS[id].en : SKREW_CARDS[id].ar)).join(sep);
+    const lineOf = (id) => {
+      if (id === 'classic') return skrT('skr_ed_line_classic', 'الكوتشينة الأساسية: أرقام، بصّات، خد وهات، بصرة، كعب داير', 'The standard deck: numbers, peeks, swaps, basra, all around');
+      if (id === 'general') return skrT('skr_ed_line_general', 'كل الكروت من كل الإصدارات', 'Every card from every version');
+      if (id === 'custom') return skrT('skr_ed_line_custom', 'اختار الإضافات بنفسك', 'Pick the add-ons yourself');
+      const ed = SKREW_EDITIONS[id];
+      return '+ ' + ed.groups.filter(g => g !== 'base').map(namesOf).join(sep);
+    };
+    const tile = (id) => {
+      const ed = SKREW_EDITIONS[id];
+      const icon = ed ? ed.icon : '🧩';
+      const name = ed ? (en ? ed.en : ed.ar) : skrT('skr_ed_custom', 'مخصص', 'Custom');
+      return `<button type="button" class="skr-edition ${o.edition === id ? 'is-active' : ''}" onclick="setSkrOpt('edition', '${id}')" aria-pressed="${o.edition === id}">
+          <span class="skr-edition__head"><span class="skr-edition__icon" aria-hidden="true">${icon}</span>${escapeHTML(name)}</span>
+          <span class="skr-edition__line">${escapeHTML(lineOf(id))}</span>
+        </button>`;
+    };
+    const seg = (key, values, labelOf) => `<div class="segmented" role="group">${values.map(v => `<button type="button" class="segmented__item ${o[key] === v ? 'is-active' : ''}" onclick="setSkrOpt('${key}', ${v})">${labelOf(v)}</button>`).join('')}</div>`;
+    const addons = o.edition !== 'custom' ? '' : `
+      <div class="field skr-addons">
+        <p class="field__hint">${escapeHTML(skrT('skr_base_always', 'الكروت الأساسية موجودة دايمًا', 'The standard cards are always in'))}</p>
+        ${SKR_ADDONS.map(g => {
+          const ed = SKREW_EDITIONS[g];
+          return `<label class="switch-row" for="skr-g-${g}">
+              <span class="field__label">${ed ? ed.icon + ' ' + escapeHTML(en ? ed.en : ed.ar) : g}<span class="skr-addon__cards">${escapeHTML(namesOf(g))}</span></span>
+              <span class="switch"><input type="checkbox" id="skr-g-${g}" role="switch" ${groups.indexOf(g) !== -1 ? 'checked' : ''} onchange="setSkrOpt('group', '${g}')"><span class="switch__track" aria-hidden="true"></span></span>
+            </label>`;
+        }).join('')}
+      </div>`;
+    return `<div class="card card--tight skr-lobby">
+        <div class="field">
+          <label class="field__label">${escapeHTML(skrT('skr_edition', 'الإصدار', 'Version'))}</label>
+          <div class="skr-editions">${Object.keys(SKREW_EDITIONS).concat(['custom']).map(tile).join('')}</div>
+          <p class="field__hint">🃏 ${escapeHTML(skrT('skr_deck_size', '{n} كارت', '{n} cards', { n: size }))} · ${escapeHTML(decks > 1 ? skrT('skr_two_decks', 'كوتشينتين', 'two decks') : skrT('skr_one_deck', 'كوتشينة واحدة', 'one deck'))}</p>
+        </div>
+        ${addons}
+        <div class="field">
+          <label class="field__label">🗑️ ${escapeHTML(skrT('skr_basra_count', 'كروت البصرة', 'Basra cards'))}</label>
+          ${seg('basraCount', SKR_BASRAS, v => v)}
+          <p class="field__hint">${escapeHTML(skrT('skr_basra_hint', '4 في الكوتشينة العادية، 2 في الطبعة الأولى', '4 in the standard deck, 2 in the first print'))}</p>
+        </div>
+        <div class="field">
+          <label class="switch-row" for="skr-teams">
+            <span class="field__label">🤝 ${escapeHTML(skrT('skr_teams', 'صاحب صاحبه (فريقين)', 'Partners (two teams)'))}</span>
+            <span class="switch"><input type="checkbox" id="skr-teams" role="switch" ${o.teams && teamsOk ? 'checked' : ''} ${teamsOk ? '' : 'disabled'} onchange="setSkrOpt('teams', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(skrT('skr_teams_hint', 'لـ 4 أو 6 أو 8 لاعبين، والشركا قاعدين بالتبادل', 'For 4, 6 or 8 players; partners sit alternately'))}</p>
+        </div>
+        <div class="field">
+          <label class="field__label">${escapeHTML((TRANSLATIONS[appState.lang] || {}).rounds_count || skrT('skr_rounds', 'عدد الجولات', 'Rounds'))}</label>
+          ${seg('rounds', SKR_ROUNDS, v => v)}
+        </div>
+        <div class="field">
+          <label class="field__label">🧠 ${escapeHTML(skrT('skr_memo_time', 'وقت الحفظ', 'Time to memorise'))}</label>
+          ${seg('memorizeSecs', SKR_MEMO_SECS, v => escapeHTML(v ? skrT('skr_secs', '{n} ث', '{n}s', { n: v }) : skrT('skr_memo_tap', 'بالضغط', 'On a tap')))}
+        </div>
+        <div class="field">
+          <label class="field__label">📣 ${escapeHTML(skrT('skr_screw_lap', 'سكرو مسموح من اللفة', 'Screw allowed from lap'))}</label>
+          ${seg('screwFromLap', SKR_LAPS, v => v)}
+        </div>
+        <div class="field">
+          <label class="switch-row" for="skr-sudden">
+            <span class="field__label">💀 ${escapeHTML(skrT('skr_sudden', 'موت مفاجئ', 'Sudden death'))}</span>
+            <span class="switch"><input type="checkbox" id="skr-sudden" role="switch" ${o.suddenDeath ? 'checked' : ''} onchange="setSkrOpt('suddenDeath', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(skrT('skr_sudden_hint', 'لو الورق خلص: كل واحد ياخد دور أخير وبعدها الكشف. من غيره: الأرض تتخلط وتكمّلوا', 'When the deck runs out, everyone gets one last turn, then the reveal. Off: the pile is shuffled into a new deck and play goes on.'))}</p>
+        </div>
+        <div class="field">
+          <label class="switch-row" for="skr-memory">
+            <span class="field__label">💡 ${escapeHTML(skrT('skr_memory_help', 'مساعد الذاكرة', 'Memory helper'))}</span>
+            <span class="switch"><input type="checkbox" id="skr-memory" role="switch" ${o.memoryHelp ? 'checked' : ''} onchange="setSkrOpt('memoryHelp', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(skrT('skr_memory_hint', 'للصغيرين أو للعب الهادي: كل كارت يفضل عليه اتبدّل منين ومين شافه، وآخر حركة لكل لاعب. من غيره الحفظ عليكم.', 'For kids or a casual table: every card keeps where it came from and who has seen it, and each seat its last move. Off, remembering is up to you.'))}</p>
+        </div>
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(skrT('skr_clock', 'وقت الدور', 'Turn clock'))}</label>
+          ${seg('turnClock', SKR_CLOCKS, v => (v ? v + '″' : escapeHTML(skrT('skr_clock_off', 'من غير', 'Off'))))}
+        </div>
+        ${hint}
+      </div>`;
+  },
+
+  startPayload() {
+    const o = skrOpts();
+    const n = Room.state ? (Room.state.players || []).length : 0;
+    return { edition: o.edition, groups: skrGroupsOf(o), teams: !!(o.teams && skrTeamsAllowed(n)), rounds: o.rounds, screwFromLap: o.screwFromLap, turnClock: o.turnClock,
+      suddenDeath: !!o.suddenDeath, basraCount: o.basraCount, memoryHelp: !!o.memoryHelp, memorizeSecs: o.memorizeSecs };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-screw') setView('room-screw');
+    const el = document.getElementById('view-room-screw');
+    if (!el) return;
+    const s = state.shared || {};
+    skrRememberSlots(state);
+    skrSyncPick(state);
+    const server = skrServerSig(state);
+    // A move is still flying: the table it lands on stays until it has landed. A round
+    // that has just ended plays its last moves on that table before the reveal.
+    const changed = !!(el.dataset.sig && el._skrServer && el._skrServer !== server);
+    if (changed && (skrFx.busyUntil > Date.now() || skrPlayEnding(el, state))) {
+      skrDeferRedraw();
+      skrRefreshInPlace(el, state, false);
+      return;
+    }
+    const vote = s.phase === 'thiefGuess' ? skrVoteLocal(state) : null;
+    const local = [JSON.stringify(skrLocal.pick), skrLocal.seenClosed, state.youAreHost, appState.lang,
+      vote ? JSON.stringify([vote.choice === undefined ? null : vote.choice, vote.sent === undefined ? null : vote.sent, vote.open]) : ''].join('|');
+    const memoWas = skrLocal.memoFaces;
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => { skrSnapshot(el); return skrPhoneFrame(state); });
+    el._skrServer = server;
+    skrRefreshInPlace(el, state, false);
+    skrTickClock(s);
+    if (!rebuilt) return;
+    el._skrTable = s.phase === 'memorize' || s.phase === 'play' || s.phase === 'thiefGuess';
+    skrMemoFlipDown(el, state, memoWas);
+    skrAfterDraw(el, state);
+    skrTurnCue(state);
+    skrRevealCount(el);
+    skrRevealMoments(el);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && motionFirst('skr-over|' + state.code + '|' + (s.dealId || '') + '|' + JSON.stringify(s.scores || {}))) {
+      afterReveal(el, () => confetti({ particleCount: 140, spread: 85 }));
+    }
+  }
+};
+
+/* --- the clock and the cues -------------------------------------------------------------- */
+
+function skrStopClock() {
+  if (skrLocal.clock) skrLocal.clock.stop();
+  skrLocal.clock = null;
+  skrLocal.clockKey = null;
+}
+
+/** Draws the turn clock; the server passes the turn when it runs out. */
+function skrTickClock(s) {
+  const endsAt = s && (s.phase === 'play' || s.phase === 'thiefGuess' || s.phase === 'memorize') ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-skr-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 10);
+      el.classList.toggle('badge--accent', left > 10);
+    });
+    // The memorising look's big numbers (over your two cards, and on the TV).
+    document.querySelectorAll('[data-skr-count]').forEach(el => {
+      if (el.textContent !== String(left)) {
+        el.textContent = left;
+        if (el.animate && !motionOff()) el.animate([{ transform: 'scale(1.35)', opacity: 0.6 }, { transform: 'scale(1)', opacity: 1 }], { duration: 260, easing: 'ease-out' });
+      }
+    });
+    return left;
+  };
+  if (!endsAt) { skrStopClock(); return; }
+  paint();
+  if (skrLocal.clockKey === endsAt && skrLocal.clock) return;
+  skrStopClock();
+  skrLocal.clockKey = endsAt;
+  skrLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      const ss = st && st.game === 'screw' ? st.shared || {} : null;
+      // The last seconds tick on the TV and on the phone the clock is waiting for: the player up, or a vote not cast.
+      const mine = ss && (ss.phase === 'thiefGuess' ? skrInGame(st) && skrVoted(st).indexOf(Room.me) === -1
+        : ss.phase === 'memorize' ? skrInGame(st) && (ss.ready || []).indexOf(Room.me) === -1
+        : !!ss.turn && ss.turn.pid === Room.me);
+      if (left > 0 && left <= 5 && ss && ss.endsAt === endsAt && (st.youAreScreen || mine)) playSound('tick');
+    },
+    onEnd: () => { skrLocal.clock = null; paint(); }
+  });
+}
+
+/** A buzz when the turn comes to this phone, or the thief vote opens on it (not on a reload). */
+function skrTurnCue(state) {
+  const s = state.shared || {};
+  const mine = (s.phase === 'play' && !!s.turn && s.turn.pid === Room.me)
+    || (s.phase === 'thiefGuess' && skrInGame(state) && skrVoted(state).indexOf(Room.me) === -1);
+  const was = skrLocal.turnMine;
+  skrLocal.turnMine = mine;
+  if (mine && !was && skrFx.watched === state.code) { playSound('tick'); haptic('medium'); }
+  skrHandInView(state);
+}
+
+/**
+ * On a phone the bar at the foot of the screen sat over your own cards just
+ * when they mattered: the two to memorise, or the slot to play. Once per
+ * moment (the deal, each turn of yours), the page scrolls so the hand is
+ * whole above the bar - never past the top of the hand.
+ */
+function skrHandInView(state) {
+  const s = state.shared || {};
+  const wants = (s.phase === 'memorize' && (s.ready || []).indexOf(Room.me) === -1)
+    || (s.phase === 'play' && !!s.turn && s.turn.pid === Room.me);
+  const key = wants ? [state.code, s.dealId, s.phase, s.turnSeq].join('|') : '';
+  if (!wants || skrLocal.handInView === key) return;
+  skrLocal.handInView = key;
+  requestAnimationFrame(() => {
+    const main = document.getElementById('shell-main');
+    const root = document.getElementById('view-room-screw');
+    const hand = root && root.querySelector('.skr-mine');
+    const bar = root && root.querySelector('.skr-actbar');
+    if (!main || !hand || !bar || appState.currentView !== 'room-screw') return;
+    const h = hand.getBoundingClientRect();
+    const b = bar.getBoundingClientRect();
+    const top = main.getBoundingClientRect().top;
+    const over = h.bottom + 8 - b.top;
+    if (over <= 0) return;
+    const by = Math.min(over, Math.max(0, h.top - top - 8));
+    if (by > 0) main.scrollBy({ top: by, behavior: motionOff() ? 'auto' : 'smooth' });
+  });
+}
+
+onRoomClocksReset(() => {
+  skrStopClock();
+  skrLocal.pick = null;
+  skrLocal.seenClosed = '';
+  skrFxCancel();
+});
+
+/* --- the flights ------------------------------------------------------------------------ */
+
+/*
+   Every move has its own motion, drawn over the table between exact places
+   (data-skr-at: a slot, a hand, the deck, the pile, the card in hand). It is
+   all Web Animations of transform and opacity on ghosts laid over the page
+   (.skr-ghost, .skr-sign, .skr-ring, .skr-spark, .skr-band, .skr-sweep),
+   removed when they finish and by a timer if they never do. A table redraw
+   waits for the flights (skrFx.busyUntil). Ordinary moves stay under half a
+   second, the special cards take up to about 1.2s, and everything is bigger
+   on the TV. With motion off nothing flies: the slots a move touched still
+   glow for a moment with their sign (skrFlash).
+*/
+
+const SKR_FLASH_MS = 3000;
+
+function skrFxCancel() {
+  skrFx.timers.forEach(clearTimeout);
+  skrFx.timers = [];
+  skrFx.held.forEach(el => { el._skrHolds = 0; el.classList.remove('skr-hold'); });
+  skrFx.held.clear();
+  skrFx.busyUntil = 0;
+  skrFx.flash = {};
+  clearTimeout(skrFx.flashTimer);
+  skrFx.lastTurn = null;
+}
+
+/** Where every card, hand, the deck and the pile are, before a redraw takes them away. */
+function skrSnapshot(root) {
+  const rects = {};
+  if (root && root.getClientRects().length) {
+    root.querySelectorAll('[data-skr-at]').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width) rects[el.getAttribute('data-skr-at')] = { left: r.left, top: r.top, width: r.width, height: r.height };
+    });
+  }
+  skrFx.rects = rects;
+}
+
+function skrEl(root, key) {
+  if (!root || !key) return null;
+  const q = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : String(key).replace(/"/g, '\\"');
+  return root.querySelector('[data-skr-at="' + q + '"]');
+}
+
+function skrSeatEl(root, pid) {
+  if (!root || !pid) return null;
+  const q = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(pid) : String(pid).replace(/"/g, '\\"');
+  return root.querySelector('[data-skr-seat="' + q + '"]');
+}
+
+/** A live element's place, or where it was before the redraw (a matched card's slot is gone). */
+function skrRect(root, key) {
+  if (key && typeof key === 'object') return key;
+  const el = skrEl(root, key);
+  if (el) {
+    const r = el.getBoundingClientRect();
+    if (r.width) return r;
+  }
+  return skrFx.rects[key] || null;
+}
+
+/** A seat's place: its hand, or its name when the hand is empty. */
+function skrSeatRect(root, pid) {
+  const hand = skrRect(root, 'hand:' + pid);
+  if (hand && hand.width) return hand;
+  const seat = skrSeatEl(root, pid);
+  return seat ? seat.getBoundingClientRect() : null;
+}
+
+/** The middle of the table: the deck and the pile. */
+function skrCenterRect(root) {
+  const el = root && root.querySelector('.skr-center');
+  return el ? el.getBoundingClientRect() : null;
+}
+
+const skrMid = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+const skrIsTv = (root) => !!(root && root.id === 'view-room-tv');
+
+function skrHold(root, key) {
+  const el = skrEl(root, key);
+  if (!el) return;
+  el._skrHolds = (el._skrHolds || 0) + 1;
+  el.classList.add('skr-hold');
+  skrFx.held.add(el);
+}
+
+function skrRelease(root, key) {
+  const el = skrEl(root, key);
+  if (!el || !el._skrHolds) return;
+  el._skrHolds--;
+  if (el._skrHolds) return;
+  el.classList.remove('skr-hold');
+  skrFx.held.delete(el);
+  el.classList.remove('skr-landed');
+  void el.offsetWidth;
+  el.classList.add('skr-landed');
+  setTimeout(() => el.classList.remove('skr-landed'), 420);
+}
+
+/** A fixed layer over the page at `rect`, in the table's colour (under <body> it is outside the screen's). */
+function skrLayer(root, rect, cls, html) {
+  const el = document.createElement('div');
+  el.className = cls;
+  const tinted = root && root.closest ? root.closest('[data-accent]') : null;
+  if (tinted) el.setAttribute('data-accent', tinted.getAttribute('data-accent'));
+  if (rect) el.style.cssText = 'left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;--skr-w:' + rect.width + 'px';
+  if (skrIsTv(root)) el.classList.add('is-tv');
+  if (html) el.innerHTML = html;
+  document.body.appendChild(el);
+  return el;
+}
+
+/** Runs an animation on el, then `done` - on finish, or by a timer if it never finishes. */
+function skrAnimate(el, frames, timing, done) {
+  let over = false;
+  const end = () => { if (over) return; over = true; if (done) done(); };
+  const t = Object.assign({ fill: 'both' }, timing);
+  const anim = el.animate(frames, t);
+  anim.onfinish = end;
+  setTimeout(end, (t.duration || 0) + (t.delay || 0) + 700);
+  return anim;
+}
+
+const skrCanMove = () => !motionOff() && !!(document.body && document.body.animate);
+
+/**
+ * A card from one place to another: `from` a key or a rect, `to` a key; face
+ * (a card id, or null for the back); flip 'up' turns it face up on the way,
+ * 'down' face down. `hold` is released when it lands, or by a timer.
+ * opts: duration, arc (px the path bows up at its middle), spin (deg), delay.
+ */
+function skrFly(root, from, toKey, face, flip, hold, opts) {
+  const o = opts || {};
+  const release = () => (hold || []).forEach(k => skrRelease(root, k));
+  const a = skrRect(root, from);
+  const toEl = typeof toKey === 'object' ? null : skrEl(root, toKey);
+  const b = typeof toKey === 'object' ? toKey : toEl ? toEl.getBoundingClientRect() : skrFx.rects[toKey];
+  if (!a || !b || !b.width || !a.width || !skrCanMove()) { release(); return; }
+  const first = flip === 'up' ? skrCardHtml(null, { size: 'fly' }) : skrCardHtml(face, { size: 'fly' });
+  const second = flip === 'up' ? skrCardHtml(face, { size: 'fly' }) : flip === 'down' ? skrCardHtml(null, { size: 'fly' }) : '';
+  const ghost = skrLayer(root, a, 'skr-ghost', '<div class="skr-ghost__flip"><div class="skr-ghost__face">' + first + '</div>' +
+    (second ? '<div class="skr-ghost__face skr-ghost__face--b">' + second + '</div>' : '') + '</div>');
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  const scale = b.width / a.width;
+  const duration = o.duration || SKR_FLY_MS;
+  const timing = { duration: duration, delay: o.delay || 0, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
+  const arc = (o.arc || 0) * (skrIsTv(root) ? 1.8 : 1);
+  const spin = o.spin || 0;
+  const frames = [{ transform: 'translate(0px, 0px) scale(1) rotate(0deg)' }];
+  if (arc || spin) frames.push({ transform: 'translate(' + dx / 2 + 'px, ' + (dy / 2 - arc) + 'px) scale(' + ((1 + scale) / 2 * 1.08) + ') rotate(' + spin / 2 + 'deg)', offset: 0.5 });
+  frames.push({ transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ') rotate(' + spin + 'deg)' });
+  if (second) {
+    const flipper = ghost.firstElementChild;
+    flipper.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)', offset: 0.5 }, { transform: 'scaleX(1)' }], Object.assign({ fill: 'both' }, timing));
+    flipper.children[0].animate([{ opacity: 1 }, { opacity: 1, offset: 0.5 }, { opacity: 0, offset: 0.501 }, { opacity: 0 }], Object.assign({ fill: 'both' }, timing));
+    flipper.children[1].animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, offset: 0.501 }, { opacity: 1 }], Object.assign({ fill: 'both' }, timing));
+  }
+  skrAnimate(ghost, frames, timing, () => { ghost.remove(); release(); });
+}
+
+/**
+ * A card turning over where it lies, over its slot: face up (and back down
+ * after `back` ms, when set), with an optional lift and tilt while it is up.
+ * The slot's own card is hidden meanwhile.
+ */
+function skrTurnOver(root, key, face, opts) {
+  const o = opts || {};
+  const r = skrRect(root, key);
+  if (!r || !r.width || !skrCanMove()) return;
+  const live = skrEl(root, key);
+  if (live) skrHold(root, key);
+  // `down`: from the face to the back (the memorised cards turning over at the end of the look).
+  const firstFace = skrCardHtml(o.down ? face : null, { size: 'fly' });
+  const secondFace = skrCardHtml(o.down ? null : face, { size: 'fly' });
+  const ghost = skrLayer(root, r, 'skr-ghost', '<div class="skr-ghost__shake"><div class="skr-ghost__flip"><div class="skr-ghost__face">' + firstFace +
+    '</div><div class="skr-ghost__face skr-ghost__face--b">' + secondFace + '</div></div></div>');
+  const turn = 240;
+  const hold = o.back || 0;
+  const total = turn + hold + (hold ? turn : 0);
+  const at = (ms) => Math.min(1, ms / total);
+  const lift = (o.lift || 0) * (skrIsTv(root) ? 1.8 : 1);
+  const tilt = o.tilt || 0;
+  const flipper = ghost.firstElementChild.firstElementChild;
+  const timing = { duration: total, delay: o.delay || 0, easing: 'linear' };
+  if (o.shake && hold) {
+    const d = 7 * (skrIsTv(root) ? 1.8 : 1);
+    ghost.firstElementChild.animate([
+      { transform: 'none' }, { transform: 'none', offset: at(turn) },
+      { transform: 'translateX(' + -d + 'px)', offset: at(turn + hold * 0.2) }, { transform: 'translateX(' + d + 'px)', offset: at(turn + hold * 0.45) },
+      { transform: 'translateX(' + -d / 2 + 'px)', offset: at(turn + hold * 0.7) }, { transform: 'none', offset: at(turn + hold) }, { transform: 'none' }
+    ], Object.assign({ fill: 'both' }, timing));
+  }
+  const flipFrames = [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)', offset: at(turn / 2) }, { transform: 'scaleX(1)', offset: at(turn) }];
+  const aFrames = [{ opacity: 1 }, { opacity: 1, offset: at(turn / 2) }, { opacity: 0, offset: at(turn / 2 + 1) }];
+  const bFrames = [{ opacity: 0 }, { opacity: 0, offset: at(turn / 2) }, { opacity: 1, offset: at(turn / 2 + 1) }];
+  if (hold) {
+    flipFrames.push({ transform: 'scaleX(1)', offset: at(turn + hold) }, { transform: 'scaleX(0)', offset: at(turn + hold + turn / 2) }, { transform: 'scaleX(1)' });
+    aFrames.push({ opacity: 0, offset: at(turn + hold + turn / 2) }, { opacity: 1, offset: at(turn + hold + turn / 2 + 1) }, { opacity: 1 });
+    bFrames.push({ opacity: 1, offset: at(turn + hold + turn / 2) }, { opacity: 0, offset: at(turn + hold + turn / 2 + 1) }, { opacity: 0 });
+  } else {
+    flipFrames.push({ transform: 'scaleX(1)' });
+    aFrames.push({ opacity: 0 });
+    bFrames.push({ opacity: 1 });
+  }
+  flipper.animate(flipFrames, Object.assign({ fill: 'both' }, timing));
+  flipper.children[0].animate(aFrames, Object.assign({ fill: 'both' }, timing));
+  flipper.children[1].animate(bFrames, Object.assign({ fill: 'both' }, timing));
+  const up = 'translateY(' + (-lift) + 'px) rotate(' + tilt + 'deg) scale(' + (lift ? 1.08 : 1) + ')';
+  const frames = hold
+    ? [{ transform: 'none' }, { transform: up, offset: at(turn) }, { transform: up, offset: at(turn + hold) }, { transform: 'none' }]
+    : [{ transform: 'none' }, { transform: up, offset: 0.6 }, { transform: 'none' }];
+  skrAnimate(ghost, frames, Object.assign({}, timing, { easing: 'ease-in-out' }), () => {
+    ghost.remove();
+    if (live) skrRelease(root, key);
+  });
+}
+
+/** A card lifting where it lies, and settling back (tilted toward its owner for a peek). */
+function skrLift(root, key, opts) {
+  const o = opts || {};
+  const el = skrEl(root, key);
+  if (!el || !skrCanMove()) return;
+  const lift = (o.lift || 10) * (skrIsTv(root) ? 1.8 : 1);
+  const up = 'translateY(' + (-lift) + 'px) rotate(' + (o.tilt || 0) + 'deg) scale(1.1)';
+  el.animate([{ transform: 'none' }, { transform: up, offset: 0.3 }, { transform: up, offset: 0.7 }, { transform: 'none' }],
+    { duration: o.duration || 520, delay: o.delay || 0, easing: 'ease-in-out' });
+}
+
+/** A sign that rises over a place and fades: 👁️ over a looked-at slot, 📣 over a hand. */
+function skrPop(root, key, text, big, delay) {
+  const r = typeof key === 'object' ? key : skrRect(root, key);
+  if (!r || !r.width || !skrCanMove()) return;
+  const el = skrLayer(root, null, 'skr-pop' + (big ? ' skr-pop--big' : ''));
+  el.textContent = text;
+  el.style.left = (r.left + r.width / 2) + 'px';
+  el.style.top = (r.top + r.height / 2) + 'px';
+  skrAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(0.4)', opacity: 0 },
+    { transform: 'translate(-50%, -85%) scale(1.15)', opacity: 1, offset: 0.25 },
+    { transform: 'translate(-50%, -95%) scale(1)', opacity: 1, offset: 0.72 },
+    { transform: 'translate(-50%, -125%) scale(0.9)', opacity: 0 }
+  ], { duration: 1200, delay: delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+/**
+ * An emoji travelling from one place to another (a 🔍 to the card it spies
+ * on, a 🏓 bouncing to the skipped seat, a cannonball, a pin, a bag of
+ * money): its path bows up `arc` px, `bounces` times.
+ */
+function skrToss(root, from, to, emoji, opts) {
+  const o = opts || {};
+  const a = typeof from === 'object' ? from : skrRect(root, from);
+  const b = typeof to === 'object' ? to : skrRect(root, to);
+  if (!a || !b || !a.width || !b.width || !skrCanMove()) return;
+  const el = skrLayer(root, null, 'skr-sign' + (o.big ? ' skr-sign--big' : ''));
+  el.textContent = emoji;
+  const p = skrMid(a);
+  const q = skrMid(b);
+  el.style.left = p.x + 'px';
+  el.style.top = p.y + 'px';
+  const tv = skrIsTv(root) ? 1.8 : 1;
+  const arc = (o.arc === undefined ? 50 : o.arc) * tv;
+  const bounces = Math.max(1, o.bounces || 1);
+  const steps = 8 * bounces;
+  const frames = [];
+  for (let k = 0; k <= steps; k++) {
+    const f = k / steps;
+    const hop = Math.abs(Math.sin(Math.PI * f * bounces)) * arc * (bounces > 1 ? 1 - f * 0.45 : 1);
+    const x = (q.x - p.x) * f;
+    const y = (q.y - p.y) * f - hop;
+    frames.push({ transform: 'translate(-50%, -50%) translate(' + x + 'px, ' + y + 'px) rotate(' + ((o.spin || 0) * f) + 'deg) scale(' + (k === steps ? 1.25 : 1) + ')', opacity: k === 0 ? 0.2 : 1 });
+  }
+  skrAnimate(el, frames, { duration: o.duration || 520, delay: o.delay || 0, easing: 'linear' }, () => {
+    if (o.stay) {
+      el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, delay: o.stay, fill: 'both' }).onfinish = () => el.remove();
+      setTimeout(() => el.remove(), o.stay + 900);
+    } else {
+      el.remove();
+    }
+  });
+}
+
+/** A ring spreading out from a place and fading: a shout, a shockwave, a flash. */
+function skrRing(root, where, opts) {
+  const o = opts || {};
+  const r = typeof where === 'object' ? where : skrRect(root, where);
+  if (!r || !r.width || !skrCanMove()) return;
+  const size = Math.max(r.width, r.height) * (o.size || 1);
+  const c = skrMid(r);
+  const el = skrLayer(root, { left: c.x - size / 2, top: c.y - size / 2, width: size, height: size }, 'skr-ring' + (o.tone ? ' skr-ring--' + o.tone : ''));
+  skrAnimate(el, [
+    { transform: 'scale(0.2)', opacity: 0.95 },
+    { transform: 'scale(' + (o.scale || 2.2) + ')', opacity: 0 }
+  ], { duration: o.duration || 620, delay: o.delay || 0, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }, () => el.remove());
+}
+
+/** A handful of sparks bursting out of a place (a right throw, بصرة, بوم). */
+function skrSparks(root, where, opts) {
+  const o = opts || {};
+  const r = typeof where === 'object' ? where : skrRect(root, where);
+  if (!r || !r.width || !skrCanMove()) return;
+  const c = skrMid(r);
+  const n = o.count || 8;
+  const reach = Math.max(r.width, r.height) * (o.reach || 0.9);
+  for (let i = 0; i < n; i++) {
+    const el = skrLayer(root, null, 'skr-spark' + (o.tone ? ' skr-spark--' + o.tone : ''));
+    el.textContent = o.glyph || '✦';
+    el.style.left = c.x + 'px';
+    el.style.top = c.y + 'px';
+    const ang = (Math.PI * 2 * i) / n + (i % 2 ? 0.3 : 0);
+    const d = reach * (0.7 + (i % 3) * 0.15);
+    skrAnimate(el, [
+      { transform: 'translate(-50%, -50%) scale(0.3)', opacity: 1 },
+      { transform: 'translate(-50%, -50%) translate(' + Math.cos(ang) * d + 'px, ' + Math.sin(ang) * d + 'px) scale(1)', opacity: 0 }
+    ], { duration: 520, delay: o.delay || 0, easing: 'cubic-bezier(0.1, 0.7, 0.3, 1)' }, () => el.remove());
+  }
+}
+
+/** A word stamped onto a place: "+25", "×2". */
+function skrStamp(root, where, text, opts) {
+  const o = opts || {};
+  const r = typeof where === 'object' ? where : skrRect(root, where);
+  if (!r || !r.width || !skrCanMove()) return;
+  const el = skrLayer(root, null, 'skr-stamp' + (o.tone ? ' skr-stamp--' + o.tone : ''));
+  el.textContent = text;
+  const c = skrMid(r);
+  el.style.left = c.x + 'px';
+  el.style.top = c.y + 'px';
+  skrAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(2.6) rotate(-8deg)', opacity: 0 },
+    { transform: 'translate(-50%, -50%) scale(1) rotate(-8deg)', opacity: 1, offset: 0.2 },
+    { transform: 'translate(-50%, -50%) scale(1) rotate(-8deg)', opacity: 1, offset: 0.8 },
+    { transform: 'translate(-50%, -60%) scale(0.95) rotate(-8deg)', opacity: 0 }
+  ], { duration: o.duration || 1100, delay: o.delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+/** A band across the table for a moment: "الورق خلص: آخر لفة". */
+function skrBand(root, text, opts) {
+  const o = opts || {};
+  const r = root && root.getBoundingClientRect ? root.getBoundingClientRect() : null;
+  if (!r || !r.width || !skrCanMove()) return;
+  const vh = window.innerHeight || r.height;
+  const top = Math.max(r.top, 0);
+  const bottom = Math.min(r.bottom, vh);
+  const mid = top + (bottom - top) * 0.42;
+  const el = skrLayer(root, null, 'skr-band' + (o.tone ? ' skr-band--' + o.tone : ''));
+  el.textContent = text;
+  el.style.left = (r.left + r.width / 2) + 'px';
+  el.style.top = mid + 'px';
+  el.style.maxWidth = (r.width - 16) + 'px';
+  skrAnimate(el, [
+    { transform: 'translate(-50%, -50%) scaleX(0.2)', opacity: 0 },
+    { transform: 'translate(-50%, -50%) scaleX(1.04)', opacity: 1, offset: 0.14 },
+    { transform: 'translate(-50%, -50%) scaleX(1)', opacity: 1, offset: 0.2 },
+    { transform: 'translate(-50%, -50%) scaleX(1)', opacity: 1, offset: 0.85 },
+    { transform: 'translate(-50%, -50%) scaleX(1)', opacity: 0 }
+  ], { duration: o.duration || 1500, delay: o.delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+/** A soft light sweeping across a place: the lantern of المسحراتي, the shimmer of a protected hand, the vote's spotlight. */
+function skrSweep(root, where, opts) {
+  const o = opts || {};
+  const r = typeof where === 'object' ? where : skrRect(root, where);
+  if (!r || !r.width || !skrCanMove()) return;
+  const el = skrLayer(root, r, 'skr-sweep' + (o.tone ? ' skr-sweep--' + o.tone : ''));
+  skrAnimate(el, [
+    { transform: 'translateX(-60%)', opacity: 0 },
+    { transform: 'translateX(-20%)', opacity: 1, offset: 0.3 },
+    { transform: 'translateX(40%)', opacity: 1, offset: 0.7 },
+    { transform: 'translateX(70%)', opacity: 0 }
+  ], { duration: o.duration || 700, delay: o.delay || 0, easing: 'ease-in-out' }, () => el.remove());
+}
+
+/** Something on the table pulsing (a drum beat on the whole table, a shout from a seat). */
+function skrPulse(el, opts) {
+  const o = opts || {};
+  if (!el || !el.animate || !skrCanMove()) return;
+  const s = o.scale || 1.03;
+  const frames = [{ transform: 'none' }];
+  const times = o.times || 1;
+  for (let i = 0; i < times; i++) {
+    frames.push({ transform: 'scale(' + s + ')', offset: (i + 0.35) / times });
+    frames.push({ transform: 'none', offset: (i + 1) / times });
+  }
+  el.animate(frames, { duration: (o.duration || 300) * times, delay: o.delay || 0, easing: 'ease-out' });
+}
+
+/** A light shake of something (a wrong throw, the whole table under the scream). */
+function skrShakeEl(el, opts) {
+  const o = opts || {};
+  if (!el || !el.animate || !skrCanMove()) return;
+  const d = o.distance || 7;
+  el.animate([
+    { transform: 'translateX(0px)' }, { transform: 'translateX(' + -d + 'px)', offset: 0.2 }, { transform: 'translateX(' + d + 'px)', offset: 0.45 },
+    { transform: 'translateX(' + -d / 2 + 'px)', offset: 0.7 }, { transform: 'translateX(0px)' }
+  ], { duration: o.duration || 460, delay: o.delay || 0, easing: 'ease-in-out' });
+}
+
+function skrShake(root, key, delay) { skrShakeEl(skrEl(root, key), { delay: delay }); }
+
+/** A seat greyed for a moment (a turn lost to بينج, a pass). */
+function skrDim(root, pid, opts) {
+  const el = skrSeatEl(root, pid);
+  if (!el || !el.animate || !skrCanMove()) return;
+  el.animate([{ opacity: 1 }, { opacity: 0.35, offset: 0.2 }, { opacity: 0.35, offset: 0.8 }, { opacity: 1 }],
+    { duration: (opts && opts.duration) || 900, delay: (opts && opts.delay) || 0, easing: 'ease-in-out' });
+}
+
+/** A card turning face up where it lies, from its edge (the cannon's hand). */
+function skrFlipIn(root, key, delay) {
+  const el = skrEl(root, key);
+  if (!el || !el.animate || !skrCanMove()) return;
+  el.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 300, delay: delay || 0, easing: 'ease-out', fill: 'backwards' });
+}
+
+/** A new slot growing at the end of a hand (a penalty card, a gift). */
+function skrGrow(root, key, delay) {
+  const el = skrEl(root, key);
+  const slot = el && el.closest ? el.closest('.skr-slot') : null;
+  if (!slot || !slot.animate || !skrCanMove()) return;
+  slot.animate([{ transform: 'scale(0.3)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], { duration: 280, delay: delay || 0, easing: 'cubic-bezier(0.2, 1.3, 0.4, 1)', fill: 'backwards' });
+}
+
+/** على كيفك: the four powers flick past like a wheel and land on the chosen one. */
+function skrWheel(root, where, icons, chosen, delay) {
+  const r = typeof where === 'object' ? where : skrRect(root, where);
+  if (!r || !r.width || !skrCanMove() || !icons.length) return;
+  const el = skrLayer(root, null, 'skr-pop skr-pop--big skr-wheel');
+  const c = skrMid(r);
+  el.style.left = c.x + 'px';
+  el.style.top = c.y + 'px';
+  el.style.opacity = '0';
+  const turns = [];
+  let t = delay || 0;
+  const n = icons.length * 2 + Math.max(0, icons.indexOf(chosen));
+  for (let i = 0; i <= n; i++) {
+    const icon = i === n ? chosen : icons[i % icons.length];
+    turns.push([t, icon, i === n]);
+    t += 45 + i * 6;
+  }
+  turns.forEach(([ms, icon, last]) => skrFx.timers.push(setTimeout(() => {
+    el.style.opacity = '1';
+    el.textContent = icon;
+    el.animate(last
+      ? [{ transform: 'translate(-50%, -50%) scale(0.7)' }, { transform: 'translate(-50%, -50%) scale(1.3)', offset: 0.5 }, { transform: 'translate(-50%, -50%) scale(1)' }]
+      : [{ transform: 'translate(-50%, -20%) scale(0.85)', opacity: 0.4 }, { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 }],
+      { duration: last ? 320 : 80, fill: 'both' });
+  }, ms)));
+  const end = t + 520;
+  skrFx.timers.push(setTimeout(() => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'both' }).onfinish = () => el.remove(), end));
+  setTimeout(() => el.remove(), end + 900);
+}
+
+/** The pile's cards gathering, riffling in two halves and settling as the new deck. */
+function skrRiffle(root, fromKey, toKey, delay) {
+  const a = skrRect(root, fromKey);
+  const b = skrRect(root, toKey);
+  if (!a || !b || !a.width || !b.width || !skrCanMove()) return;
+  const n = 8;
+  const tv = skrIsTv(root) ? 1.8 : 1;
+  for (let i = 0; i < n; i++) {
+    const ghost = skrLayer(root, a, 'skr-ghost', skrCardHtml(null, { size: 'fly' }));
+    const side = i % 2 ? 1 : -1;
+    const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+    const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+    const s = b.width / a.width;
+    skrAnimate(ghost, [
+      { transform: 'translate(0px, 0px) rotate(0deg)', opacity: 0 },
+      { transform: 'translate(' + side * 22 * tv + 'px, ' + (-4 * i) + 'px) rotate(' + side * 12 + 'deg)', opacity: 1, offset: 0.35 },
+      { transform: 'translate(' + (dx / 2) + 'px, ' + (dy / 2 - 10 * tv) + 'px) rotate(' + side * 4 + 'deg) scale(' + (1 + s) / 2 + ')', opacity: 1, offset: 0.7 },
+      { transform: 'translate(' + dx + 'px, ' + dy + 'px) rotate(0deg) scale(' + s + ')', opacity: 1 }
+    ], { duration: 700, delay: (delay || 0) + (i % 2 ? 35 : 0) + Math.floor(i / 2) * 40, easing: 'ease-in-out' }, () => ghost.remove());
+  }
+}
+
+/** الخشاف: four cards fanning out of the deck toward the card in hand, and gathering there. */
+function skrFan(root, delay) {
+  const a = skrRect(root, 'deck');
+  const b = skrRect(root, 'held');
+  if (!a || !b || !a.width || !b.width || !skrCanMove()) return;
+  const tv = skrIsTv(root) ? 1.8 : 1;
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  [-21, -7, 7, 21].forEach((deg, i) => {
+    const ghost = skrLayer(root, a, 'skr-ghost', skrCardHtml(null, { size: 'fly' }));
+    const spread = (i - 1.5) * 16 * tv;
+    skrAnimate(ghost, [
+      { transform: 'translate(0px, 0px) rotate(0deg)' },
+      { transform: 'translate(' + (dx * 0.6 + spread) + 'px, ' + (dy * 0.6 - 26 * tv) + 'px) rotate(' + deg + 'deg)', offset: 0.45 },
+      { transform: 'translate(' + (dx * 0.6 + spread) + 'px, ' + (dy * 0.6 - 26 * tv) + 'px) rotate(' + deg + 'deg)', offset: 0.75 },
+      { transform: 'translate(' + dx + 'px, ' + dy + 'px) rotate(0deg) scale(' + b.width / a.width + ')' }
+    ], { duration: 1000, delay: (delay || 0) + i * 50, easing: 'ease-in-out' }, () => ghost.remove());
+  });
+}
+
+/** الخشاف chosen: one card lifts in hand, the other three slide back under the deck. */
+function skrFanBack(root, delay) {
+  if (!skrCanMove()) return;
+  skrLift(root, 'held', { lift: 12, delay: delay });
+  for (let i = 0; i < 3; i++) skrFly(root, 'held', 'deck', null, null, null, { duration: 420, delay: (delay || 0) + 80 + i * 70, arc: 10 });
+}
+
+/** A few pieces of confetti over one seat (a hand that ran out). */
+function skrSeatConfetti(root, pid) {
+  const r = skrSeatRect(root, pid);
+  if (!r || !r.width || !skrCanMove() || typeof confetti !== 'function') return;
+  const w = window.innerWidth || 1;
+  const h = window.innerHeight || 1;
+  try { confetti({ particleCount: 60, spread: 70, startVelocity: 28, origin: { x: (r.left + r.width / 2) / w, y: (r.top + r.height / 2) / h } }); } catch (e) {}
+}
+
+/* --- the sounds of the table ---------------------------------------------------- */
+
+/** A short sound for a move, never one that depends on a hidden card. */
+function skrSound(name) {
+  if (document.hidden) return;
+  if (typeof playFx === 'function' && typeof FX !== 'undefined' && FX[name]) playFx(name);
+  else if (name === 'skrThump' || name === 'skrDrum') playSound('alarm');
+}
+
+/* --- the glow a move leaves for a moment -------------------------------------------- */
+
+function skrFlashOf(key) {
+  const f = skrFx.flash[key];
+  return f && f.until > Date.now() && f.from <= Date.now() ? f : null;
+}
+
+/** A glowing element's attributes: its key (so it can be taken off in place), and its animation carried on from where it was when a redraw drew it again. */
+function skrFlashAttrs(key, f) {
+  return ` data-skr-flash-key="${escapeHTML(key)}" style="--skr-flash-at:${-Math.max(0, Date.now() - f.from)}ms"`;
+}
+
+function skrFlashBadge(f) {
+  return f && f.text ? `<span class="skr-flash" data-skr-flash>${escapeHTML(f.text)}</span>` : '';
+}
+
+/** Marks a slot ('slot:id'), a seat ('seat:pid') or the pile to glow with a sign, from `at` ms. */
+function skrFlash(key, text, at) {
+  if (!key) return;
+  const from = Date.now() + Math.max(0, at || 0);
+  skrFx.flash[key] = { text: text || '', from: from, until: from + SKR_FLASH_MS };
+}
+
+/** Puts the glows that have started on the table in place, and takes off the ones that are over. */
+function skrFlashPaint(root) {
+  if (!root) return;
+  const now = Date.now();
+  root.querySelectorAll('.is-flash').forEach(el => {
+    const key = el.getAttribute('data-skr-flash-key');
+    const f = key && skrFx.flash[key];
+    if (key && (!f || f.until <= now)) {
+      el.classList.remove('is-flash');
+      el.style.removeProperty('--skr-flash-at');
+      el.querySelectorAll(':scope > [data-skr-flash], :scope > .skr-pile > [data-skr-flash]').forEach(b => b.remove());
+    }
+  });
+  Object.keys(skrFx.flash).forEach(key => {
+    const f = skrFx.flash[key];
+    if (f.until <= now) { delete skrFx.flash[key]; return; }
+    if (f.from > now) return;
+    let el = null;
+    let badgeIn = null;
+    if (key.indexOf('slot:') === 0) {
+      const card = skrEl(root, key);
+      el = card && card.closest ? card.closest('.skr-slot') : null;
+      badgeIn = el;
+    } else if (key.indexOf('seat:') === 0) {
+      el = skrSeatEl(root, key.slice(5));
+    } else if (key === 'pile') {
+      const pile = skrEl(root, 'pile');
+      el = pile && pile.closest ? pile.closest('.skr-zone') : null;
+      badgeIn = pile ? pile.parentElement : null;
+    }
+    if (!el) return;
+    el.setAttribute('data-skr-flash-key', key);
+    if (!el.classList.contains('is-flash')) {
+      el.classList.add('is-flash');
+      el.style.setProperty('--skr-flash-at', (-(now - f.from)) + 'ms');
+      if (f.text && badgeIn && !badgeIn.querySelector(':scope > [data-skr-flash]')) badgeIn.insertAdjacentHTML('beforeend', skrFlashBadge(f));
+    }
+  });
+  clearTimeout(skrFx.flashTimer);
+  const next = Object.keys(skrFx.flash).map(k => skrFx.flash[k]).reduce((m, f) => Math.min(m, f.from > now ? f.from : f.until), Infinity);
+  if (next !== Infinity) {
+    skrFx.flashTimer = setTimeout(() => {
+      const st = Room.state;
+      if (!st || st.game !== 'screw') return;
+      skrFlashPaint(document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-screw'));
+    }, Math.max(30, next - now + 20));
+  }
+}
+
+/** The places a move touched, with the sign each glows with. */
+function skrFlashItems(state, e) {
+  const name = (pid) => skrName(state, pid);
+  const slot = (id) => 'slot:' + id;
+  const seat = (pid) => 'seat:' + pid;
+  const out = [];
+  if (e.pid) out.push([seat(e.pid), '']);
+  switch (e.type) {
+    case 'keep': out.push([slot(e.slot), '🆕']); break;
+    case 'takePile': out.push([slot(e.slot), '⬆️ ' + skrCardLabel(e.card)]); break;
+    case 'match': case 'pong':
+      if (e.ok) out.push(['pile', e.type === 'pong' ? '🎾' : '🎯']);
+      else out.push([slot(e.slot), '❌']);
+      break;
+    case 'basra': out.push(e.ok === false ? [slot(e.slot), '❌'] : ['pile', '🗑️']); break;
+    case 'penalty': out.push([slot(e.slot), '➕']); break;
+    case 'peekOwn': case 'spyOther': out.push([slot(e.slot), '👁️ ' + name(e.pid)]); break;
+    case 'allAround':
+      (e.picks || []).forEach(p => p && out.push([slot(p.slot), '👁️ ' + name(e.pid)]));
+      (e.own || []).forEach(id => out.push([slot(id), '👁️ ' + name(e.pid)]));
+      break;
+    case 'blindSwap': out.push([slot(e.slot), '🔄'], [slot(e.slot2), '🔄']); break;
+    case 'seeSwap':
+      if (e.swapped && e.slot2) out.push([slot(e.slot), '🔄 👁️ ' + name(e.pid)], [slot(e.slot2), '🔄']);
+      else out.push([slot(e.slot), '👁️ ' + name(e.pid)]);
+      break;
+    case 'give': out.push([slot(e.slot2), '🎁'], [seat(e.target), '']); break;
+    case 'boom': out.push(['pile', '💣'], [seat(e.target), '']); break;
+    case 'cannon': case 'ping': if (e.target) out.push([seat(e.target), '']); break;
+    case 'discard': out.push(['pile', '']); break;
+  }
+  return out;
+}
+
+/** Glows for a list of moves with no flights (motion off): each at once. */
+function skrFlashEvents(root, state, list) {
+  list.forEach(e => skrFlashItems(state, e).forEach(([key, text]) => skrFlash(key, text, 0)));
+  skrFlashPaint(root);
+}
+
+/* --- which moves to show ---------------------------------------------------------- */
+
+const skrAddsToPile = (e) => ['discard', 'takePile', 'ping', 'wakeUp', 'boom'].indexOf(e.type) !== -1 || (e.type === 'keep' && !!e.card) ||
+  ((e.type === 'match' || e.type === 'pong' || e.type === 'basra') && e.ok !== false);
+
+/** The pile's top right after event idx of the batch: the current top, stepped back past the cards put on it later. */
+function skrPileAt(state, list, idx) {
+  const pile = (state.shared || {}).pile || [];
+  const later = list.slice(idx + 1).filter(skrAddsToPile).length;
+  return pile[pile.length - 1 - later] || null;
+}
+
+/**
+ * The events this device hasn't shown. A new deal seen by a page that was
+ * already watching this room plays from the deal; a reload, a late joiner or
+ * a phone that was on another screen starts from the end of the list.
+ */
+function skrEventsToPlay(state) {
+  const s = state.shared || {};
+  const events = s.events || [];
+  const maxSeq = events.reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  const key = state.code + '|' + (s.dealId || '');
+  if (skrFx.deal !== key) {
+    const fresh = skrFx.watched === state.code;
+    skrFx.deal = key;
+    let from = maxSeq;
+    if (fresh) {
+      const deal = skrDealEvents(events)[0];
+      if (deal && deal.type === 'deal') from = (Number(deal.seq) || 0) - 1;
+    }
+    skrFx.lastSeq = from;
+  }
+  const current = skrDealEvents(events);
+  const out = current.filter(e => e && (Number(e.seq) || 0) > skrFx.lastSeq);
+  skrFx.lastSeq = Math.max(skrFx.lastSeq, maxSeq);
+  return out;
+}
+
+/** Just back from a locked screen or another app: what was missed is not played again (the latest move and the log say it). */
+const skrWokeRecently = () => Date.now() - skrFx.wokeAt < 2500;
+document.addEventListener('visibilitychange', () => { if (!document.hidden) skrFx.wokeAt = Date.now(); });
+
+/** One sound for a batch: the loudest thing that happened. The same on every phone. */
+function skrEventSounds(evs) {
+  if (document.hidden) return;
+  const has = (fn) => evs.some(fn);
+  if (has(e => e.type === 'boom')) { playSound('bomb'); skrSound('skrThump'); return; }
+  if (has(e => e.type === 'cannon')) { skrSound('skrThump'); return; }
+  if (has(e => e.type === 'wakeUp')) { skrSound('skrDrum'); return; }
+  if (has(e => e.type === 'reshuffle')) skrSound('skrRiffle');
+  const bad = has(e => e.type === 'screw' || e.type === 'lastLap' || ((e.type === 'match' || e.type === 'pong') && !e.ok) || (e.type === 'basra' && e.ok === false));
+  const good = has(e => ((e.type === 'match' || e.type === 'pong') && e.ok) || e.type === 'reveal' || e.type === 'finish');
+  if (bad) playSound('alarm');
+  else if (good) playSound('success');
+  else if (has(e => ['draw', 'keep', 'discard', 'takePile', 'give', 'blindSwap', 'seeSwap', 'penalty', 'basra', 'deal', 'scream', 'khoshaf'].indexOf(e.type) !== -1)) skrSound('skrFlick');
+}
+
+/** After a frame is drawn: the sounds, flights and glows for the events it brought. */
+function skrAfterDraw(root, state) {
+  const s = state.shared || {};
+  const evs = skrEventsToPlay(state);
+  const turnWas = skrFx.lastTurn;
+  const turn = s.phase === 'play' && s.turn ? { pid: s.turn.pid, stage: s.turn.stage } : null;
+  skrFx.lastTurn = turn;
+  skrFlashPaint(root);
+  if (document.hidden || skrWokeRecently() || !root.getClientRects().length) return;
+  // الخشاف chosen (no event says it): three cards back under the deck.
+  if (turnWas && turnWas.stage === 'khoshaf' && !(turn && turn.pid === turnWas.pid && turn.stage === 'khoshaf') && s.phase === 'play') skrFanBack(root, 0);
+  if (!evs.length) return;
+  skrEventSounds(evs);
+  if (s.phase === 'reveal' || s.phase === 'gameover' || evs.length > 10) return;
+  if (!skrCanMove()) { skrFlashEvents(root, state, evs); return; }
+  const delay = skrFx.prevPhase === 'lobby' ? 1000 : 0;   // the room's start splash first
+  skrPlay(root, state, evs, delay);
+}
+
+/**
+ * The round ends on the table it was played on: the moves that ended it (a
+ * throw that emptied a hand, المسحراتي, the vote's close) play over the table
+ * that is still on screen, and the reveal replaces it once they have. True
+ * while they play.
+ */
+function skrPlayEnding(root, state) {
+  const s = state.shared || {};
+  if (!root || !root._skrTable || (s.phase !== 'reveal' && s.phase !== 'gameover')) return false;
+  if (document.hidden || skrWokeRecently() || !skrCanMove() || !root.getClientRects().length) return false;
+  const evs = skrEventsToPlay(state).filter(e => e.type !== 'reveal');
+  if (!evs.length || evs.length > 10) return false;
+  skrEventSounds(evs);
+  skrPlay(root, state, evs, 0);
+  return skrFx.busyUntil > Date.now();
+}
+
+/* --- each move, choreographed -------------------------------------------------------- */
+
+function skrPlay(root, state, list, delay) {
+  const s = state.shared || {};
+  const you = state.you || {};
+  const tv = skrIsTv(root);
+  const steps = [];
+  const at = (ms, fn) => steps.push([ms, fn]);
+  let t = delay || 0;
+  const hold = (key) => skrHold(root, key);
+  const slotKey = (slot) => 'slot:' + slot;
+  const flashAt = (e, ms) => skrFlashItems(state, e).forEach(([key, text]) => skrFlash(key, text, ms));
+  const seen = (slot) => (Array.isArray(you.seen) ? you.seen.find(x => x && x.slot === slot) : null);
+  const mineSeen = (e) => e.pid === Room.me && !state.youAreScreen;
+  const upOf = (slotId) => {
+    const hands = s.hands || {};
+    for (const pid of Object.keys(hands)) { const h = (hands[pid] || []).find(x => x.id === slotId); if (h) return h.up || null; }
+    return null;
+  };
+  const tableEl = root.querySelector('.skr-layout, .skr-tv') || root;
+  list.forEach((e, idx) => {
+    const A = e.pid;
+    const handA = 'hand:' + A;
+    const start = t;
+    switch (e.type) {
+      case 'deal': {
+        // A quick riffle on the deck, then the cards round the table one seat after another, slot by slot; the first pile card flips up.
+        at(t, () => skrRiffle(root, 'deck', 'deck', 0));
+        t += 420;
+        const order = skrOrder(state);
+        const hands = s.hands || {};
+        const most = order.reduce((m, pid) => Math.max(m, (hands[pid] || []).length), 0);
+        const count = order.reduce((m, pid) => m + (hands[pid] || []).length, 0) || 1;
+        const gap = Math.max(18, Math.min(60, Math.floor(1300 / count)));
+        let k = 0;
+        for (let i = 0; i < most; i++) {
+          order.forEach(pid => {
+            const h = (hands[pid] || [])[i];
+            if (!h) return;
+            const key = slotKey(h.id);
+            hold(key);
+            at(t + k * gap, () => skrFly(root, 'deck', key, null, null, [key], { duration: 360, arc: 14 }));
+            k++;
+          });
+        }
+        t += k * gap + 360;
+        const top = skrPileAt(state, list, idx);
+        if (top) { hold('pile'); at(t, () => skrFly(root, 'deck', 'pile', top, 'up', ['pile'], { duration: 380, arc: 20 })); t += 400; }
+        break;
+      }
+      case 'reshuffle':
+        at(t, () => { skrRiffle(root, 'pile', 'deck', 0); skrPop(root, 'deck', '🔀', true, 500); });
+        t += 900;
+        break;
+      case 'draw': {
+        // The top card lifts off the deck to the card in hand; the drawer sees it turn face up.
+        hold('held');
+        const face = A === Room.me && !state.youAreScreen && you.drawn && idx === list.length - 1 ? you.drawn : null;
+        at(t, () => skrFly(root, 'deck', 'held', face, face ? 'up' : null, ['held'], { duration: 400, arc: 24 }));
+        t += 440;
+        break;
+      }
+      case 'khoshaf':
+        at(t, () => { skrFan(root, 0); skrPop(root, 'deck', '🥣', true, 0); });
+        t += 1050;
+        break;
+      case 'keep': {
+        const key = slotKey(e.slot);
+        hold(key);
+        if (e.card) hold('pile');
+        at(t, () => {
+          skrFly(root, 'held', key, null, null, [key], { duration: 420, arc: 16 });
+          if (e.card) skrFly(root, key, 'pile', e.card, 'up', ['pile'], { duration: 440, arc: 26, delay: 60 });
+        });
+        t += 500;
+        break;
+      }
+      case 'discard':
+        hold('pile');
+        at(t, () => skrFly(root, 'held', 'pile', e.card || skrPileAt(state, list, idx), A === Room.me && !state.youAreScreen ? null : 'up', ['pile'], { duration: 420, arc: 22, spin: 8 }));
+        t += 460;
+        break;
+      case 'takePile': {
+        const key = slotKey(e.slot);
+        const old = skrPileAt(state, list, idx);
+        hold(key); if (old) hold('pile');
+        at(t, () => {
+          skrFly(root, 'pile', key, e.card, 'down', [key], { duration: 440, arc: 20 });
+          if (old) skrFly(root, key, 'pile', old, 'up', ['pile'], { duration: 440, arc: -14, delay: 40 });
+        });
+        t += 500;
+        break;
+      }
+      case 'match': case 'pong': case 'basra': {
+        const key = slotKey(e.slot);
+        if (e.type === 'pong') {
+          // The ball goes back to whoever pinged.
+          const from = list.slice(0, idx).reverse().find(x => x.type === 'ping');
+          const pinger = (from && from.pid) || (s.turn && s.turn.pingFrom) || null;
+          at(t, () => (pinger ? skrToss(root, handA, 'hand:' + pinger, '🎾', { arc: 40, bounces: 2, duration: 560 }) : skrPop(root, handA, '🎾', true)));
+          t += 300;
+        }
+        const card = e.card || (e.type === 'pong' ? 'pong' : null);
+        if (e.ok !== false) {
+          // Right: turns face up where it lies, then snaps onto the pile with a burst.
+          hold('pile');
+          at(t, () => skrTurnOver(root, key, card || skrPileAt(state, list, idx), { lift: 6 }));
+          at(t + 240, () => skrFly(root, key, 'pile', card || skrPileAt(state, list, idx), null, ['pile'], { duration: 300, arc: e.type === 'basra' ? 46 : 18 }));
+          at(t + 520, () => skrSparks(root, 'pile', { count: e.type === 'basra' ? 10 : 7 }));
+          t += 600;
+        } else {
+          // Wrong (or بصرة refused): turns face up for everyone, shakes, and turns back down in its place.
+          at(t, () => {
+            if (card) skrTurnOver(root, key, card, { back: 520, shake: true });
+            else skrShake(root, key, 0);
+          });
+          t += 1020;
+        }
+        break;
+      }
+      case 'penalty': {
+        const key = slotKey(e.slot);
+        hold(key);
+        at(t, () => { skrGrow(root, key, 0); skrFly(root, 'deck', key, null, null, [key], { duration: 420, arc: 20 }); });
+        t += 460;
+        break;
+      }
+      case 'screw':
+        at(t, () => {
+          skrRing(root, skrSeatRect(root, A), { tone: 'danger', scale: 1.8 });
+          skrPop(root, handA, '📣', true);
+          skrPulse(skrSeatEl(root, A), { scale: 1.04, times: 2, duration: 260 });
+          skrProtected(s).concat(skrProtected(s).indexOf(A) === -1 ? [A] : []).forEach((pid, i) => skrSweep(root, skrSeatRect(root, pid), { tone: 'lock', delay: 380 + i * 90 }));
+          skrBand(root, skrT('skr_band_screw', '📣 سكرو! آخر لفة', '📣 Screw! Last lap'), { tone: 'danger', delay: 250 });
+        });
+        t += 1150;
+        break;
+      case 'wakeUp': {
+        // Drum beats (the table pulses twice), a lantern sweeps, every hand turns face up in a wave.
+        hold('pile');
+        at(t, () => { skrFly(root, 'held', 'pile', 'mesaharaty', 'up', ['pile'], { duration: 360, arc: 22 }); skrPop(root, handA, '🥁', true); });
+        at(t + 120, () => skrPulse(tableEl, { scale: 1.015, times: 2, duration: 260 }));
+        at(t + 420, () => skrSweep(root, tableEl.getBoundingClientRect(), { tone: 'lantern', duration: 760 }));
+        const slots = root.querySelectorAll('[data-skr-at^="slot:"]');
+        let w = 0;
+        slots.forEach(el => {
+          const key = el.getAttribute('data-skr-at');
+          const face = upOf(key.slice(5));
+          if (!face) return;
+          const ms = t + 560 + Math.min(600, w * 35);
+          at(ms, () => skrTurnOver(root, key, face, {}));
+          w++;
+        });
+        t += 560 + Math.min(600, w * 35) + 260;
+        break;
+      }
+      case 'asYouLike': {
+        const icons = (typeof SKREW_AS_YOU_LIKE !== 'undefined' ? SKREW_AS_YOU_LIKE : []).map(p => skrPowerInfo(p).icon || '🃏');
+        at(t, () => skrWheel(root, skrSeatRect(root, A), icons, skrPowerInfo(e.as).icon || '🃏', 0));
+        t += 700;
+        break;
+      }
+      case 'skip': case 'pass':
+        at(t, () => { skrPop(root, handA, '⏭️', true); skrDim(root, A, { duration: 700 }); });
+        t += 420;
+        break;
+      case 'ping':
+        // The card to the pile, then the ball bounces across to the seat that loses its turn.
+        hold('pile');
+        at(t, () => skrFly(root, 'held', 'pile', 'ping', 'up', ['pile'], { duration: 320, arc: 18 }));
+        if (e.target) {
+          at(t + 300, () => skrToss(root, handA, 'hand:' + e.target, '🏓', { arc: 46, bounces: 3, duration: 640 }));
+          at(t + 900, () => { skrDim(root, e.target, { duration: 800 }); skrPop(root, 'hand:' + e.target, '⏭️', true); });
+          t += 1150;
+        } else {
+          t += 360;
+        }
+        break;
+      case 'peekOwn': {
+        // The card lifts, tilted toward its owner; the owner sees its face for a moment.
+        const key = slotKey(e.slot);
+        const look = mineSeen(e) ? seen(e.slot) : null;
+        at(t, () => {
+          if (look && look.card) skrTurnOver(root, key, look.card, { back: 600, lift: 10, tilt: -6 });
+          else { skrLift(root, key, { lift: 10, tilt: -8, duration: 700 }); skrPop(root, key, '👁️'); }
+        });
+        t += look ? 1120 : 720;
+        break;
+      }
+      case 'spyOther': {
+        // A 🔍 sweeps from the spy's seat to the card, which lifts; the spy sees its face.
+        const key = slotKey(e.slot);
+        const look = mineSeen(e) ? seen(e.slot) : null;
+        at(t, () => skrToss(root, skrSeatRect(root, A), key, '🔍', { arc: 30, duration: 360 }));
+        at(t + 340, () => {
+          if (look && look.card) skrTurnOver(root, key, look.card, { back: 560, lift: 10 });
+          else { skrLift(root, key, { lift: 10, duration: 620 }); skrPop(root, key, '👁️'); }
+        });
+        t += look ? 1400 : 1000;
+        break;
+      }
+      case 'allAround': {
+        // The eye hops from seat to seat, card by card.
+        const slots = (e.picks || []).map(p => p && p.slot).concat(e.own || []).filter(Boolean);
+        const hop = slots.length ? Math.max(120, Math.min(260, Math.floor(1000 / slots.length))) : 0;
+        let from = skrSeatRect(root, A);
+        slots.forEach((slot, i) => {
+          const key = slotKey(slot);
+          const prev = from;
+          at(t + i * hop, () => {
+            skrToss(root, prev, key, '👁️', { arc: 22, duration: hop });
+            const look = mineSeen(e) ? seen(slot) : null;
+            if (look && look.card) skrTurnOver(root, key, look.card, { back: 380, lift: 8, delay: hop - 40 });
+            else skrLift(root, key, { lift: 8, duration: 420, delay: hop - 40 });
+          });
+          from = skrRect(root, key) || from;
+        });
+        t += slots.length * hop + 360;
+        break;
+      }
+      case 'blindSwap': case 'seeSwap': {
+        const one = slotKey(e.slot);
+        if (e.type === 'seeSwap') {
+          const look = mineSeen(e) ? seen(e.slot) : null;
+          at(t, () => skrToss(root, skrSeatRect(root, A), one, '🕵️', { arc: 30, duration: 340 }));
+          at(t + 320, () => {
+            if (look && look.card) skrTurnOver(root, one, look.card, { back: 420, lift: 10 });
+            else skrLift(root, one, { lift: 10, duration: 520 });
+          });
+          t += 860;
+        }
+        if (e.type === 'blindSwap' || (e.swapped && e.slot2)) {
+          // The two cards rise, arc past each other and land, with a swirl between them.
+          const two = slotKey(e.slot2);
+          hold(one); hold(two);
+          at(t, () => {
+            skrFly(root, one, two, null, null, [two], { duration: 560, arc: 44, spin: 180 });
+            skrFly(root, two, one, null, null, [one], { duration: 560, arc: -44, spin: -180 });
+            const a = skrRect(root, one);
+            const b = skrRect(root, two);
+            if (a && b) {
+              const mid = { left: (a.left + b.left) / 2, top: (a.top + b.top) / 2, width: a.width, height: a.height };
+              skrPop(root, mid, '🔄', true, 120);
+            }
+          });
+          t += 620;
+        }
+        break;
+      }
+      case 'give': {
+        const to = slotKey(e.slot2);
+        hold(to);
+        at(t, () => {
+          skrGrow(root, to, 0);
+          skrFly(root, slotKey(e.slot), to, null, null, [to], { duration: 520, arc: 40 });
+          skrPop(root, 'hand:' + e.target, '🎁', true, 420);
+        });
+        t += 600;
+        break;
+      }
+      case 'boom': {
+        // A 💣 drops onto the card, a flash and sparks, and the card flies up and lands face up on the pile.
+        const key = slotKey(e.slot);
+        const r = skrRect(root, key);
+        hold('pile');
+        if (r) {
+          const above = { left: r.left, top: r.top - r.height * 2.2, width: r.width, height: r.height };
+          at(t, () => skrToss(root, above, key, '💣', { arc: 0, duration: 300, big: true }));
+          at(t + 300, () => { skrRing(root, key, { tone: 'danger', scale: 2.6, duration: 420 }); skrSparks(root, key, { count: 9, tone: 'danger' }); skrPop(root, key, '💥', true); skrShakeEl(skrSeatEl(root, e.target), { distance: 5 }); });
+        }
+        at(t + 380, () => skrFly(root, key, 'pile', e.card || skrPileAt(state, list, idx), 'up', ['pile'], { duration: 520, arc: 70, spin: 360 }));
+        t += 950;
+        break;
+      }
+      case 'cannon': {
+        // A cannonball arcs to the target's seat, a flash, and the hand turns face up (and stays).
+        at(t, () => skrToss(root, skrSeatRect(root, A), skrSeatRect(root, e.target), '⚫', { arc: 80, duration: 560, big: true }));
+        at(t + 540, () => { skrRing(root, skrSeatRect(root, e.target), { tone: 'danger', scale: 1.6, duration: 460 }); skrPop(root, 'hand:' + e.target, '💥', true); });
+        const hand = (s.hands || {})[e.target] || [];
+        hand.forEach((h, i) => at(t + 620, () => skrFlipIn(root, slotKey(h.id), i * 70)));
+        t += 700 + hand.length * 70;
+        break;
+      }
+      case 'scream': {
+        // A shockwave from the middle, the table shakes, and every hand slides on to the next seat; the protected caller's shimmers.
+        const center = skrCenterRect(root);
+        at(t, () => {
+          skrRing(root, center, { tone: 'accent', scale: 3.2, duration: 700 });
+          skrPop(root, center || handA, '😱', true);
+          skrShakeEl(tableEl, { distance: 5, duration: 420 });
+        });
+        const moved = [];
+        root.querySelectorAll('[data-skr-at^="slot:"]').forEach(el => {
+          const key = el.getAttribute('data-skr-at');
+          const was = skrFx.rects[key];
+          if (!was) return;
+          const now = el.getBoundingClientRect();
+          if (Math.abs(was.left - now.left) + Math.abs(was.top - now.top) < 6) return;
+          moved.push([key, was]);
+          hold(key);
+        });
+        at(t + 260, () => moved.forEach(([key, was], i) => skrFly(root, was, key, null, null, [key], { duration: 520, arc: 20, delay: Math.min(260, i * 12) })));
+        skrProtected(s).forEach((pid, i) => at(t + 300 + i * 80, () => skrSweep(root, skrSeatRect(root, pid), { tone: 'lock' })));
+        t += 260 + 520 + Math.min(260, moved.length * 12);
+        break;
+      }
+      case 'lastLap':
+        at(t, () => {
+          skrRing(root, 'deck', { tone: 'danger', scale: 2.4 });
+          skrPop(root, 'deck', '💀', true);
+          skrBand(root, '💀 ' + skrT('skr_band_last_lap', 'الورق خلص: آخر لفة', 'The deck is empty: last lap'), { tone: 'danger', delay: 200 });
+        });
+        t += 1100;
+        break;
+      case 'finish':
+        at(t, () => {
+          skrSparks(root, skrSeatRect(root, A), { count: 12, glyph: '✦', reach: 0.8 });
+          skrPop(root, handA, '🏁', true);
+          skrSeatConfetti(root, A);
+          skrBand(root, '🏁 ' + skrT('skr_band_round_over', 'الجولة خلصت', 'The round is over'), { tone: 'success', delay: 300 });
+        });
+        t += 1200;
+        break;
+      case 'thiefVote':
+        at(t, () => { skrPop(root, skrSeatRect(root, A), '✓'); skrPulse(skrSeatEl(root, A), { scale: 1.03 }); });
+        t += 160;
+        break;
+      case 'accuse': {
+        // Each vote flies as a pin to the seat it pointed at; then the handcuffs, or the stolen score.
+        const r = s.results || {};
+        const th = r.thief || {};
+        const votes = th.votes || {};
+        const center = skrCenterRect(root);
+        const voters = Object.keys(votes);
+        voters.forEach((voter, i) => {
+          const target = votes[voter];
+          at(t + i * 60, () => skrToss(root, skrSeatRect(root, voter), target ? skrSeatRect(root, target) : center, '📍', { arc: 36, duration: 460, stay: 500 }));
+        });
+        t += Math.min(700, voters.length * 60) + 480;
+        if (th.holder && th.caught) {
+          at(t, () => { skrPop(root, skrSeatRect(root, th.holder), '🚔', true); skrStamp(root, skrSeatRect(root, th.holder), '+25', { tone: 'danger', delay: 200 }); });
+          t += 900;
+        } else if (th.holder && th.stole) {
+          const victims = (th.victims || []).map(key => (SKR_TEAM_KEYS.indexOf(key) !== -1 && Array.isArray(s.teams) ? (s.teams[SKR_TEAM_KEYS.indexOf(key)] || []) : [key])).reduce((a, b) => a.concat(b), []);
+          victims.forEach((pid, i) => {
+            at(t + i * 90, () => skrToss(root, skrSeatRect(root, pid), skrSeatRect(root, th.holder), '💰', { arc: 50, duration: 520 }));
+            at(t + i * 90 + 300, () => skrStamp(root, skrSeatRect(root, pid), '+25', { tone: 'danger' }));
+          });
+          at(t + 520, () => skrPop(root, skrSeatRect(root, th.holder), '🦹', true));
+          t += 900 + victims.length * 90;
+        } else {
+          at(t, () => skrPop(root, th.holder ? skrSeatRect(root, th.holder) : center, th.holder ? '🦹' : '🙅', true));
+          t += 700;
+        }
+        break;
+      }
+    }
+    // What the move touched glows once it has landed.
+    flashAt(e, Math.max(start, t - 160));
+    at(Math.max(start, t - 150), () => skrFlashPaint(root));
+  });
+  steps.forEach(([ms, fn]) => skrFx.timers.push(setTimeout(() => {
+    try { fn(); } catch (err) { console.warn('skrew flight', err); }
+  }, ms)));
+  // Nothing held stays hidden: a flight that never ran still lands its card.
+  const total = t + 60;
+  skrFx.timers.push(setTimeout(() => {
+    skrFx.held.forEach(el => { el._skrHolds = 0; el.classList.remove('skr-hold'); });
+    skrFx.held.clear();
+  }, total + SKR_FLY_MS + 900));
+  skrFx.busyUntil = Math.max(skrFx.busyUntil, Date.now() + total);
+}
+
+/**
+ * The reveal's own moments once the hands have turned: a ×2 stamp slams onto
+ * a doubled caller, and a life jacket's ring glows while a line links it to
+ * the card it copies (its value changing to that card's).
+ */
+function skrRevealMoments(root) {
+  const box = root && root.querySelector('[data-skr-count-at]');
+  if (!box || !skrCanMove()) return;
+  const at = Number(box.getAttribute('data-skr-count-at')) || 0;
+  skrFx.timers.push(setTimeout(() => {
+    box.querySelectorAll('[data-skr-double]').forEach(el => skrStamp(root, el.getBoundingClientRect(), '×2', { tone: 'danger' }));
+    box.querySelectorAll('[data-skr-copy]').forEach(el => {
+      const row = el.closest('.skr-rrow__cards');
+      const target = row && row.querySelector('[data-skr-card="' + el.getAttribute('data-skr-copy') + '"]');
+      const a = el.getBoundingClientRect();
+      skrRing(root, a, { tone: 'success', scale: 1.5, duration: 700 });
+      if (!target) return;
+      const b = target.getBoundingClientRect();
+      const p = skrMid(a);
+      const q = skrMid(b);
+      const len = Math.hypot(q.x - p.x, q.y - p.y);
+      const line = skrLayer(root, { left: p.x, top: p.y - 1.5, width: len, height: 3 }, 'skr-link');
+      line.style.transform = 'rotate(' + Math.atan2(q.y - p.y, q.x - p.x) + 'rad)';
+      skrAnimate(line, [
+        { transform: 'rotate(' + Math.atan2(q.y - p.y, q.x - p.x) + 'rad) scaleX(0)', opacity: 1 },
+        { transform: 'rotate(' + Math.atan2(q.y - p.y, q.x - p.x) + 'rad) scaleX(1)', opacity: 1, offset: 0.4 },
+        { transform: 'rotate(' + Math.atan2(q.y - p.y, q.x - p.x) + 'rad) scaleX(1)', opacity: 0 }
+      ], { duration: 1200, easing: 'ease-out' }, () => line.remove());
+    });
+  }, at + 150));
+}
+
+/** A frame waiting for a flight to land draws itself once it has. */
+function skrDeferRedraw() {
+  if (skrFx.redrawTimer) return;
+  skrFx.redrawTimer = setTimeout(() => {
+    skrFx.redrawTimer = null;
+    const st = Room.state;
+    if (!st || st.game !== 'screw' || st.phase === 'lobby') return;
+    if (st.youAreScreen ? appState.currentView === 'room-tv' : onRoomView()) routeRoomState(st);
+  }, Math.max(40, skrFx.busyUntil - Date.now() + 40));
+}
+
+// After the room has drawn this state: a device that wasn't showing the table
+// (another screen, a spectator) counts the events as seen, so coming back
+// replays nothing; and this page has now watched the room.
+Room.onChange((state) => {
+  if (!state) { skrFx.watched = ''; skrFx.prevPhase = ''; return; }
+  if (state.game === 'screw' && state.phase !== 'lobby') {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : (onRoomView() && state.inGame !== false);
+    if (!showing) skrEventsToPlay(state);
+  }
+  skrFx.watched = state.code;
+  skrFx.prevPhase = state.phase;
+});
+
+/* --- the TV -------------------------------------------------------------------------------- */
+
+/** The running totals as a row of chips, lowest first, with this round's points. */
+function skrTvChips(state) {
+  const s = state.shared || {};
+  const rows = skrStandings(state);
+  if (!rows.length) return '';
+  const round = (s.results && s.results.round) || {};
+  const winners = s.phase === 'gameover' && Array.isArray(s.winners) ? s.winners : null;
+  const top = (r) => (winners ? winners.indexOf(r.id) !== -1 : r.score === rows[0].score);
+  const teams = skrTeamScoresLine(state);
+  return `<div class="tv-strip-inline">${teams ? `<span class="tv-chip">${escapeHTML(teams)}</span>` : ''}${rows.map(r => `<span class="tv-chip ${top(r) ? 'is-done' : ''}">${top(r) ? '👑 ' : ''}${skrTeamDot(s, r.id)}${escapeHTML(r.name || '')} <b class="tv-chip__score">${r.score}</b>${typeof round[r.id] === 'number' ? ` <small><bdi dir="ltr">${skrSigned(round[r.id])}</bdi></small>` : ''}</span>`).join('')}</div>`;
+}
+
+function skrTvTable(state, t) {
+  const s = state.shared || {};
+  const order = skrOrder(state);
+  const half = Math.ceil(order.length / 2);
+  // Round the table: down the first side, up the other.
+  const left = order.slice(0, half);
+  const right = order.slice(half).reverse();
+  const help = skrHelp(state);
+  const ctx = { marks: help ? skrMarks(state) : {}, pick: null, faces: {}, size: 'md', tv: true, help: help };
+  const seat = (pid) => skrSeatHtml(state, pid, ctx);
+  const pad = order.length % 2 ? '<div class="skr-seat skr-seat--pad" aria-hidden="true"></div>' : '';
+  const w = skrTurnWords(state);
+  let title = w.title;
+  let note = w.hint;
+  let count = '';
+  if (s.phase === 'memorize') {
+    title = '🧠 ' + skrT('skr_tv_memorize', 'كل واحد يحفظ الكارتين اللي تحت', 'Everyone memorises their bottom two cards');
+    note = skrT('skr_ready_count', 'جاهزين {n}/{m}', 'Ready {n}/{m}', { n: (s.ready || []).length, m: order.length });
+    // A timed look: a big countdown the whole room can read.
+    if (s.endsAt) count = `<div class="skr-tv__count metric" data-skr-count>${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</div>`;
+  } else if (s.phase === 'thiefGuess') {
+    title = '🦹 ' + skrT('skr_thief_q', 'مين معاه الحرامي؟', 'Who holds the thief?');
+    note = skrRoundEndWords(state);
+  }
+  let host = '';
+  if (state.youAreHost && s.phase === 'memorize') host = tvBtn('▶️ ' + skrT('skr_begin_round', 'ابدأ الجولة', 'Start the round'), "skrAct(this, 'beginRound')");
+  if (state.youAreHost && s.phase === 'thiefGuess') host = tvBtn('🔒 ' + ((t || {}).vote_close || skrT('skr_vote_close', 'اقفل التصويت', 'Close the vote')), "skrAct(this, 'closeThiefVote')");
+  // The vote on the TV: who has voted, by name - every phone votes, the screen never does.
+  const voted = skrVoted(state);
+  const voters = s.phase !== 'thiefGuess' ? '' : `<div class="tv-note">${escapeHTML(skrT('skr_voted_count', 'صوّتوا {n}/{m}', 'Voted {n}/{m}', { n: voted.filter(pid => order.indexOf(pid) !== -1).length, m: order.length }))}</div>
+       <div class="tv-strip-inline">${order.map(pid => `<span class="tv-chip ${voted.indexOf(pid) !== -1 ? 'is-done' : ''}">${voted.indexOf(pid) !== -1 ? '✓' : '⏳'} ${escapeHTML(skrName(state, pid, true))}</span>`).join('')}</div>`;
+  const rows = Math.max(1, half);
+  return `<div class="skr-tv ${s.phase === 'thiefGuess' ? 'is-voting' : ''} ${order.length > 8 ? 'skr-tv--many' : ''}" style="--rows:${rows}">
+      <div class="skr-tv__side">${left.map(seat).join('')}</div>
+      <div class="skr-tv__mid">
+        ${skrHeadHtml(state)}
+        <div class="skr-tv__turn">${escapeHTML(title)}</div>
+        ${note ? `<div class="tv-note">${escapeHTML(note)}</div>` : ''}
+        ${count}
+        ${voters}
+        ${skrLatestHtml(state, true)}
+        ${skrCenterHtml(state, true)}
+        <div class="tv-actions">${host}<span data-skr-host class="skr-tv__host"></span></div>
+        ${skrLogHtml(state, skrLogCount(state, true))}
+      </div>
+      <div class="skr-tv__side">${pad}${right.map(seat).join('')}</div>
+    </div>`;
+}
+
+TV_GAMES.screw = {
+  sig(state) {
+    const cur = skrServerSig(state);
+    const view = document.getElementById('view-room-tv');
+    if (skrFx.tvSig && cur !== skrFx.tvSig) {
+      // A flight is landing: keep this frame until it has. A round that has just
+      // ended plays its last moves on the table before the reveal.
+      if (skrFx.busyUntil > Date.now()) { skrDeferRedraw(); return skrFx.tvSig; }
+      if (view && skrPlayEnding(view, state)) { skrFx.tvEnding = true; skrDeferRedraw(); return skrFx.tvSig; }
+    }
+    return cur;
+  },
+  frame(state, t) {
+    const view = document.getElementById('view-room-tv');
+    skrRememberSlots(state);
+    skrSnapshot(view);
+    const s = state.shared || {};
+    const ending = skrFx.tvEnding && skrFx.busyUntil > Date.now() && (s.phase === 'reveal' || s.phase === 'gameover');
+    if (ending) {
+      // The room's phase moved on, so the screen redraws now: the table as it was, until the last moves have played.
+      if (view) view._skrTable = true;
+      return skrTvTable(Object.assign({}, state, { shared: Object.assign({}, s, { hands: skrFx.tvHands || s.hands, phase: 'play', turn: null }) }), t);
+    }
+    skrFx.tvEnding = false;
+    skrFx.tvSig = skrServerSig(state);
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (view) view._skrTable = s.phase === 'memorize' || s.phase === 'play' || s.phase === 'thiefGuess';
+    if (s.phase === 'gameover') {
+      return `<div class="skr-tvover">
+          <div class="skr-tvover__cards">${s.results ? skrRevealHtml(state, { tv: true }) : ''}</div>
+          <div class="skr-tvover__side">
+            <div class="tv-title tv-center-text">🏆 ${escapeHTML(skrWinnersLine(state))}</div>
+            <div class="tv-note">${escapeHTML(skrT('skr_lowest_wins', 'الأقل نقط يكسب', 'Lowest score wins'))}</div>
+            <div class="tv-scale">${skrPodiumHtml(state)}</div>
+            ${skrTvChips(state)}
+            ${host(tvBtn(t.play_again || 'لعبة جديدة', "skrAct(this, 'playAgain')") + tvBtn(t.room_another_game || 'لعبة أخرى', "roomAct('backToHub')", 'ghost'))}
+          </div>
+        </div>`;
+    }
+    if (s.phase === 'reveal') {
+      return `<div class="skr-tvres">
+          <div class="tv-title tv-center-text">🃏 ${escapeHTML(skrT('skr_reveal_title', 'كشف الكروت', 'The reveal'))} · ${escapeHTML(skrT('skr_round_of', 'جولة {n}/{m}', 'Round {n}/{m}', { n: s.round, m: s.rounds }))}</div>
+          ${skrRevealHtml(state, { tv: true })}
+          ${skrTvChips(state)}
+          ${host(tvBtn(t.next_round || 'الجولة التالية', `skrAct(this, 'nextRound', { round: ${Number(s.round) || 0} })`))}
+        </div>`;
+    }
+    skrFx.tvHands = s.hands;
+    return skrTvTable(state, t);
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    const s = state.shared || {};
+    skrTickClock(s);
+    skrRefreshInPlace(view, state, true);
+    if (skrFx.tvSig !== skrServerSig(state)) { skrDeferRedraw(); return; }
+    if (!rebuilt || !view) return;
+    skrAfterDraw(view, state);
+    skrRevealCount(view);
+    skrRevealMoments(view);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && motionFirst('skr-tv-over|' + state.code + '|' + (s.dealId || '') + '|' + JSON.stringify(s.scores || {}))) {
+      afterReveal(view, () => confetti({ particleCount: 220, spread: 110, origin: { y: 0.6 } }));
+    }
+  }
+};
+</script>

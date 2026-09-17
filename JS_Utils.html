@@ -1410,7 +1410,7 @@ const HELP_FOR_VIEW = {
   'setup-proverbs': 'proverbs', 'play-proverbs': 'proverbs', 'room-proverbs': 'proverbs',
   'setup-fiveseconds': 'fiveseconds', 'play-fiveseconds': 'fiveseconds', 'room-fiveseconds': 'fiveseconds',
   'room-twotruths': 'twotruths', 'room-telephone': 'telephone', 'room-monkey': 'monkey',
-  'room-herd': 'herd', 'room-mafia': 'mafia'
+  'room-herd': 'herd', 'room-mafia': 'mafia', 'room-screw': 'screw'
 };
 
 // A game's card, its hero, the header and its help entry show one icon, colour
@@ -1905,6 +1905,15 @@ function exitGameOf(viewId) {
   if (up.indexOf('setup-') !== 0 || typeof GAME_CATALOG === 'undefined') return null;
   const g = GAME_CATALOG.find(x => x.setup === up);
   return (g && g.group !== 'tools') ? g : null;
+}
+
+/** Whether the back button on this screen asks before leaving (openExitSheet with no tab). */
+function exitSheetAsks(view) {
+  if (!document.getElementById('exit-modal-body')) return false;
+  if ((view || '').indexOf('room-') === 0 && view !== 'room-join') {
+    return typeof Room !== 'undefined' && !!Room.isIn && !!Room.state;
+  }
+  return !!exitGameOf(view || '');
 }
 
 const exitSheetRow = (label, onclick, kind) =>

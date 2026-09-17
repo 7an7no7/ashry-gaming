@@ -1,5 +1,382 @@
 <script>
-  /* --- SCREW GAME LOGIC --- */
+  /* ==========================================================================
+     سكرو على الطاولة — THE SCORE KEEPER FOR A REAL DECK
+     --------------------------------------------------------------------------
+     The table plays with real cards; after each round the phone is told every
+     hand's total, who called "سكرو" and whether someone ran out of cards, and
+     it scores the round the way the rooms do (the owner's rules of 17 Sep 2026):
+
+     - a finisher (a hand that emptied) ends the round: their unit scores 0,
+       every other unit its total, and a caller outside the finisher's unit is
+       doubled;
+     - else a caller whose total is lower than or equal to every other one
+       scores 0, and everyone else keeps their total (a tie does not score 0);
+       a beaten caller is doubled whatever the sign (-1 -> -2) and the lowest
+       of the others score 0;
+     - in teams, who won the round compares the plain team totals, and a caller's
+       team that doesn't score 0 doubles only the caller's own hand;
+     - no caller and no finisher: the lowest score 0;
+     - الحرامي (an option), after the scores: the table accuses someone.
+       Caught, the thief's unit +25. Not caught, the thief's unit takes the
+       lowest round score and every unit that had it takes +25 (nothing when
+       the thief's unit already had it). Nobody held it: nothing;
+     - صاحب صاحبه (an option): two teams, seats alternating (the 1st, 3rd,
+       5th… against the 2nd, 4th, 6th…: 2 against 2, 3 against 3, 4 against 4),
+       the same as the game in rooms. A team's hand is its hands added, and the
+       rules above apply per team.
+
+     The typed numbers are kept as they were typed (players[i].scores[r], the
+     raw hands) with the round's picks (meta[r]); a round's points are always
+     worked out from them, so a fixed round rescores itself. appState.screw:
+       rounds, players [{ name, scores[], total }], activeRound (the round on
+       the card; === rounds is the final board), done (rounds saved), opts (this
+       game's rules), prefs (the setup switches, for the next game), meta[r]
+       ({ v: 3, caller, finisher, accused, holder } seats or -1; v 2 is the
+       same but doubled a caller's whole team; a round with no v was saved
+       under the first rules, { caller, guess, holder }; each keeps scoring by
+       the rules it was saved under; { legacy: true } for a round saved before the
+       rules were kept, which counts as typed), drafts[r] (what is on a
+       round's card before it is saved), scoring: 'skrew'.
+
+     The flow is the one it always had - a round picker, a number per player,
+     the totals with the lowest crowned - plus the card score keepers' pieces
+     (JS_CardScore.html's look, not its code): the preview of the new totals
+     over the save button, the rounds table with "take back the last round",
+     and a podium in the winner popup.
+     ========================================================================== */
+
+  const skT = () => TRANSLATIONS[appState.lang] || {};
+  const SK_THIEF_BONUS = 25;
+
+  /** A typed hand: a whole number, negative allowed (the -1 card). */
+  function skIsNum(v) {
+    if (typeof v === 'number') return Number.isFinite(v) && Math.round(v) === v;
+    return typeof v === 'string' && /^-?\d+$/.test(v.trim());
+  }
+
+  /** The scoring units: one per seat, or teams of two in seat order (1 & 3 v 2 & 4; 1 & 4, 2 & 5, 3 & 6). */
+  /** The table sizes two teams can sit at: 2 against 2, 3 against 3, 4 against 4 (as in rooms). */
+  const SK_TEAM_SIZES = [4, 6, 8];
+
+  function skUnits(n, partners) {
+    if (!partners || SK_TEAM_SIZES.indexOf(n) === -1) return Array.from({ length: n }, (_, i) => [i]);
+    const seats = Array.from({ length: n }, (_, i) => i);
+    return [seats.filter(i => i % 2 === 0), seats.filter(i => i % 2 === 1)];
+  }
+
+  /** The rules a round is saved under (meta[r].v). A round with no v was saved under the first ones. */
+  const SK_RULES = 3;
+
+  /**
+   * One round, scored: every rule of the calculator is here, both versions.
+   * hands: a number per seat. meta: seats, -1 for nobody -
+   *   v 3: { v, caller, finisher, accused, holder } (the owner's rules of 17 Sep 2026);
+   *   v 2: the same picks, but a caller's whole team was doubled in teams;
+   *   no v: { caller, guess, holder }, the first rules.
+   *   The older ones are kept so a round saved under them scores exactly as it did.
+   * opts: { partners, thief }.
+   * -> { v, hands (the counted hands), points (per unit), caller, finisher, holder, accused,
+   *      callerDoubled (v 3: the caller's own hand ×2 when the team is doubled, else null),
+   *      units: [{ members, hand (the unit's total), score (the round score, before the
+   *                thief), points (after it), zero, doubled, called, finished,
+   *                thief: '' | 'caught' | 'stole' | 'victim' }],
+   *      thief: '' | 'caught' | 'stole' | 'lowest' (v 1: '' | 'caught' | 'swap'),
+   *      low (the score the thief stole), victims (units that took the +25) }
+   */
+  function skScoreRound(hands, meta, opts) {
+    const n = hands.length;
+    const h = hands.map(x => Number(x) || 0);
+    const m = meta || {};
+    const o = opts || {};
+    const seat = (v) => (typeof v === 'number' && v >= 0 && v < n ? v : -1);
+    const units = skUnits(n, !!o.partners);
+    const unitOf = (i) => (i === -1 ? -1 : units.findIndex(mem => mem.indexOf(i) !== -1));
+    const sumsOf = () => units.map(mem => mem.reduce((a, i) => a + h[i], 0));
+    const caller = seat(m.caller);
+
+    if (!(Number(m.v) >= 2)) {
+      // The first rules: the thief before the scores (the caller guessed; right,
+      // +25 on the thief's hand; wrong, the two hands swapped), then the only
+      // lowest caller scores 0, any other caller above 0 is doubled.
+      const holder = seat(m.holder);
+      let thief = '';
+      if (o.thief && caller !== -1 && holder !== -1) {
+        if (seat(m.guess) === holder) {
+          h[holder] += SK_THIEF_BONUS;
+          thief = 'caught';
+        } else if (holder !== caller) {
+          const kept = h[holder];
+          h[holder] = h[caller];
+          h[caller] = kept;
+          thief = 'swap';
+        }
+      }
+      const sums = sumsOf();
+      const cu = unitOf(caller);
+      const out = units.map((mem, u) => ({ members: mem, hand: sums[u], score: sums[u], points: sums[u], zero: false, doubled: false, called: u === cu, finished: false, thief: '' }));
+      const others = sums.filter((_, u) => u !== cu);
+      const lowOthers = others.length ? Math.min.apply(null, others) : Infinity;
+      if (cu !== -1 && sums[cu] < lowOthers) {
+        out[cu].points = 0;
+        out[cu].zero = true;
+      } else {
+        if (cu !== -1 && sums[cu] > 0) {
+          out[cu].points = sums[cu] * 2;
+          out[cu].doubled = true;
+        }
+        out.forEach((row, u) => {
+          if (u !== cu && sums[u] === lowOthers) { row.points = 0; row.zero = true; }
+        });
+      }
+      out.forEach(row => { row.score = row.points; });
+      return { v: 1, hands: h, units: out, points: out.map(r => r.points), thief: thief, holder: holder, caller: caller, finisher: -1, accused: -1, low: null, victims: [], callerDoubled: null };
+    }
+
+    // 1. Hand totals: a finisher's hand is empty.
+    const finisher = seat(m.finisher);
+    if (finisher !== -1) h[finisher] = 0;
+    // 2. Units.
+    const sums = sumsOf();
+    const cu = unitOf(caller);
+    const fu = unitOf(finisher);
+    const all = units.map((_, u) => u);
+    const out = units.map((mem, u) => ({ members: mem, hand: sums[u], score: sums[u], points: sums[u], zero: false, doubled: false, called: u === cu, finished: u === fu, thief: '' }));
+    const zero = (u) => { out[u].score = 0; out[u].zero = true; };
+    // Whatever the sign. In teams (v 3) only the caller's own hand is doubled and
+    // added to the partners'; v 2 doubled the team. Alone, the two are the same.
+    const callerOnly = Number(m.v) >= 3;
+    const double = (u) => { out[u].score = callerOnly ? sums[u] + h[caller] : sums[u] * 2; out[u].doubled = true; };
+    const lowest = (list) => Math.min.apply(null, list.map(u => sums[u]));
+    // 3. Round scores, decided on the plain totals.
+    if (fu !== -1) {
+      zero(fu);
+      if (cu !== -1 && cu !== fu) double(cu);
+    } else if (cu !== -1) {
+      const others = all.filter(u => u !== cu);
+      const low = others.length ? lowest(others) : Infinity;
+      if (sums[cu] <= low) {
+        zero(cu);                               // a tie is a successful call; the tied unit keeps its total
+      } else {
+        double(cu);
+        others.forEach(u => { if (sums[u] === low) zero(u); });
+      }
+    } else {
+      const low = lowest(all);
+      all.forEach(u => { if (sums[u] === low) zero(u); });
+    }
+    out.forEach(row => { row.points = row.score; });
+    // 4. The thief.
+    const holder = o.thief ? seat(m.holder) : -1;
+    const accused = o.thief ? seat(m.accused) : -1;
+    let thief = '';
+    let low = null;
+    let victims = [];
+    if (holder !== -1) {
+      const hu = unitOf(holder);
+      if (accused === holder) {
+        out[hu].points += SK_THIEF_BONUS;
+        out[hu].thief = 'caught';
+        thief = 'caught';
+      } else {
+        low = Math.min.apply(null, out.map(row => row.points));
+        if (out[hu].points === low) {
+          thief = 'lowest';                     // already on the lowest score: nothing to steal
+        } else {
+          victims = all.filter(u => out[u].points === low);
+          victims.forEach(u => { out[u].points += SK_THIEF_BONUS; out[u].thief = 'victim'; });
+          out[hu].points = low;
+          out[hu].thief = 'stole';
+          thief = 'stole';
+        }
+      }
+    }
+    const callerDoubled = callerOnly && cu !== -1 && out[cu].doubled ? h[caller] * 2 : null;
+    return { v: callerOnly ? 3 : 2, hands: h, units: out, points: out.map(r => r.points), thief: thief, holder: holder, caller: caller, finisher: finisher, accused: accused, low: low, victims: victims, callerDoubled: callerDoubled };
+  }
+
+  /* --- State ------------------------------------------------------------------------------ */
+
+  /** appState.screw with every field this file reads, a game saved by an older page brought over first. */
+  function skState() {
+    if (!appState.screw || typeof appState.screw !== 'object') appState.screw = { rounds: 5, players: [], activeRound: 0 };
+    const s = appState.screw;
+    if (!Array.isArray(s.players)) s.players = [];
+    s.rounds = Math.max(1, Math.round(Number(s.rounds)) || 5);
+    if (!s.prefs || typeof s.prefs !== 'object') s.prefs = { partners: false, thief: false };
+    if (s.scoring !== 'skrew') skMigrate(s);
+    if (!s.opts || typeof s.opts !== 'object') s.opts = { partners: false, thief: false };
+    if (!Array.isArray(s.meta)) s.meta = [];
+    if (!s.drafts || typeof s.drafts !== 'object' || Array.isArray(s.drafts)) s.drafts = {};
+    // A partners game needs an even table of four or more; nothing else can build one.
+    if (s.opts.partners && (s.players.length < 4 || s.players.length % 2)) s.opts.partners = false;
+    s.done = Math.max(0, Math.min(s.rounds, Math.round(Number(s.done)) || 0));
+    const top = s.done >= s.rounds ? s.rounds : s.done;
+    const a = Math.round(Number(s.activeRound));
+    s.activeRound = Number.isFinite(a) ? Math.max(0, Math.min(top, a)) : top;
+    return s;
+  }
+
+  /**
+   * A game saved before the rules were kept: its players typed scores, not
+   * hands, and the board added them up. The rounds it had already saved keep
+   * counting exactly as typed ({ legacy: true }); the round it was on goes back
+   * on the card, to be scored by the rules.
+   */
+  function skMigrate(s) {
+    s.scoring = 'skrew';
+    s.opts = { partners: false, thief: false };
+    s.meta = [];
+    s.drafts = {};
+    const n = s.players.length;
+    if (!n) { s.done = 0; s.activeRound = 0; return; }
+    const typed = (p, r) => skIsNum((p.scores || [])[r]);
+    let hi = -1;
+    s.players.forEach(p => (p.scores || []).forEach((v, r) => { if (skIsNum(v) && r > hi) hi = r; }));
+    hi = Math.min(hi, s.rounds - 1);
+    const a = Math.max(0, Math.min(s.rounds - 1, Math.round(Number(s.activeRound)) || 0));
+    let done;
+    if (hi > a) {
+      done = hi + 1;                      // the picker was back on an earlier round
+    } else if (hi === a && a === s.rounds - 1 && s.players.every(p => typed(p, a))) {
+      done = s.rounds;                    // the last round was in: that game was over
+    } else {
+      done = a;
+      if (hi === a) {
+        s.drafts[a] = skBlankDraft(s.players.map(p => (typed(p, a) ? String(p.scores[a]) : '')));
+        s.players.forEach(p => { if (Array.isArray(p.scores)) p.scores.length = Math.min(p.scores.length, a); });
+      }
+    }
+    for (let r = 0; r < done; r++) s.meta[r] = { legacy: true };
+    s.done = done;
+    s.activeRound = Math.min(done, s.rounds);
+  }
+
+  const skUnitsOf = (s) => skUnits(s.players.length, !!s.opts.partners);
+
+  /** A saved round's result. A legacy round's points are what was typed. */
+  function skResultOf(s, r) {
+    const hands = s.players.map(p => Number((p.scores || [])[r]) || 0);
+    const m = s.meta[r];
+    if (!m || m.legacy) {
+      return { legacy: true, units: null, thief: '', points: skUnitsOf(s).map(mem => mem.reduce((a, i) => a + hands[i], 0)) };
+    }
+    return skScoreRound(hands, m, s.opts);
+  }
+
+  /** The saved totals per unit, optionally leaving one round out. */
+  function skTotals(s, skip) {
+    const out = skUnitsOf(s).map(() => 0);
+    for (let r = 0; r < s.done; r++) {
+      if (r === skip) continue;
+      skResultOf(s, r).points.forEach((p, u) => { out[u] += p; });
+    }
+    return out;
+  }
+
+  /** Each unit's name ("أحمد & منى" for a team) and short name ("فريق 1"), with its total. */
+  function skUnitRows(s, totals, t) {
+    return skUnitsOf(s).map((mem, u) => ({
+      u: u,
+      name: mem.map(i => s.players[i].name).join(' & '),
+      short: mem.length > 1 ? (t.cs_team_short || 'فريق {n}').replace('{n}', u + 1) : s.players[mem[0]].name,
+      score: totals[u]
+    }));
+  }
+
+  function skSyncTotals(s) {
+    const totals = skTotals(s);
+    skUnitsOf(s).forEach((mem, u) => mem.forEach(i => { if (s.players[i]) s.players[i].total = totals[u]; }));
+  }
+
+  const skSeatOrNull = (v, n) => (typeof v === 'number' && v >= -1 && v < n ? v : null);
+
+  /**
+   * A card with nothing picked. Who called and the thief are asked every round
+   * (null until tapped); the finisher starts on "nobody", which is most rounds.
+   */
+  function skBlankDraft(hands) {
+    return { hands: hands, caller: null, finisher: -1, accused: null, holder: null };
+  }
+
+  /** What is on round r's card: its draft, or the saved round, or a blank card. */
+  function skDraft(s, r) {
+    const n = s.players.length;
+    const kept = s.drafts[r];
+    if (kept && typeof kept === 'object') {
+      if (!Array.isArray(kept.hands)) kept.hands = [];
+      while (kept.hands.length < n) kept.hands.push('');
+      // A card half-typed under the first rules: the caller's guess was the accusation.
+      if (kept.accused === undefined) kept.accused = kept.guess === undefined ? null : skSeatOrNull(kept.guess, n);
+      delete kept.guess;
+      const f = skSeatOrNull(kept.finisher, n);
+      kept.finisher = f === null ? -1 : f;
+      return kept;
+    }
+    const hands = s.players.map(p => { const v = (p.scores || [])[r]; return skIsNum(v) ? String(v) : ''; });
+    if (r < s.done) {
+      const m = s.meta[r] || {};
+      if (m.legacy) return skBlankDraft(hands);
+      const caller = skSeatOrNull(m.caller, n);
+      if (Number(m.v) >= 2) {
+        const f = skSeatOrNull(m.finisher, n);
+        return { hands: hands, caller: caller, finisher: f === null ? -1 : f, accused: skSeatOrNull(m.accused, n), holder: skSeatOrNull(m.holder, n) };
+      }
+      // A round saved under the first rules, back on the card: it will be saved
+      // (and scored) under the current ones. The caller's guess stands for the
+      // table's accusation; a round with no caller never asked about the thief,
+      // so the card asks now.
+      const unasked = !!s.opts.thief && caller === -1;
+      return { hands: hands, caller: caller, finisher: -1, accused: unasked ? null : skSeatOrNull(m.guess, n), holder: unasked ? null : skSeatOrNull(m.holder, n) };
+    }
+    return skBlankDraft(hands);
+  }
+
+  function skDraftFor(s, r) {
+    const d = skDraft(s, r);
+    s.drafts[r] = d;
+    return d;
+  }
+
+  const skPicked = (v) => v !== null && v !== undefined;
+
+  /**
+   * The round's meta as it will be saved, always under the current rules - a
+   * round saved under the first ones and fixed or taken back is saved again
+   * under these (SK_RULES), and scores by them from then on.
+   */
+  function skMetaOf(s, d) {
+    const seat = (v) => (skPicked(v) ? v : -1);
+    const thief = !!s.opts.thief;
+    return { v: SK_RULES, caller: seat(d.caller), finisher: seat(d.finisher), accused: thief ? seat(d.accused) : -1, holder: thief ? seat(d.holder) : -1 };
+  }
+
+  /** What stops the card from being saved, in words; '' when it can be. A finisher's hand needs no number. */
+  function skCheck(s, d, t) {
+    const missing = s.players.filter((p, i) => i !== d.finisher && !skIsNum(d.hands[i])).map(p => p.name);
+    if (missing.length) return (t.screw_need_hands || 'ناقص مجموع: {names}').replace('{names}', missing.join(appState.lang === 'ar' ? '، ' : ', '));
+    if (!skPicked(d.caller)) return t.screw_need_caller || 'اختار مين قال سكرو (أو محدش)';
+    if (s.opts.thief) {
+      // Who held it, and the accusation unless nobody did.
+      if (!skPicked(d.accused) && d.holder !== -1) return t.screw_need_accused || 'اختار اتهام الترابيزة (أو مفيش حرامي)';
+      if (!skPicked(d.holder)) return t.screw_need_holder || 'اختار مين كان معاه الحرامي (أو محدش)';
+    }
+    return '';
+  }
+
+  /** The hands as they count: a finisher's is 0 whatever was typed there before. */
+  function skHandsOf(d) {
+    return d.hands.map((v, i) => (i === d.finisher ? 0 : Number(v)));
+  }
+
+  /** Saving card r as it is: the result, the totals before and after, and whether it ends the game. */
+  function skProject(s, r, d) {
+    const res = skScoreRound(skHandsOf(d), skMetaOf(s, d), s.opts);
+    const before = skTotals(s);
+    const after = skTotals(s, r).map((x, u) => x + res.points[u]);
+    return { res: res, before: before, after: after, ends: r === s.done && s.done + 1 >= s.rounds };
+  }
+
+  /* --- The winner popup (shared with Domino) ------------------------------------------------ */
 
   /**
    * The shared end-of-game popup (#winner-modal) for a score keeper: the winner,
@@ -8,14 +385,17 @@
    * version rewrote the popup's buttons for good, and Domino's "full results"
    * went on showing the last Screw table. The buttons are left as written in
    * Controller.html.
-   *   { name, label, value, rows: [{ name, score }] in finishing order }
+   *   { name, label, value, rows: [{ name, score }] in finishing order,
+   *     podium: optional markup shown in place of the winner's line }
    */
   function showScoreWinner(o) {
     const t = TRANSLATIONS[appState.lang] || {};
     const list = document.getElementById('winners-list');
     if (list) {
-      list.innerHTML = `<div class="text-3xl mb-2">🥇 ${escapeHTML(o.name)}</div>` +
-                       `<div class="text-sm tx-muted font-bold">${escapeHTML(o.label)}: <span class="metric">${o.value}</span></div>`;
+      list.innerHTML = o.podium
+        ? `<div class="text-base">${o.podium}</div>`
+        : `<div class="text-3xl mb-2">🥇 ${escapeHTML(o.name)}</div>` +
+          `<div class="text-sm tx-muted font-bold">${escapeHTML(o.label)}: <span class="metric">${o.value}</span></div>`;
     }
     const box = document.getElementById('winner-scores-container');
     if (box) {
@@ -36,166 +416,603 @@
   }
 
   /**
-   * Starts the Screw game.
+   * The top three on a podium, lowest total first. renderPodium ranks the
+   * highest score and wants it above zero; in سكرو 0 is the best there is, so
+   * this draws the same markup (and the same rise, once) from the real totals.
+   */
+  function skPodiumHtml(order, s) {
+    if (order.length < 2) return '';
+    const top = order.slice(0, 3);
+    const rankOf = (p) => 1 + order.filter(x => x.score < p.score).length;
+    const rise = typeof motionFirst === 'function' &&
+                 motionFirst('screw-podium|' + (s.startedAt || '') + '|' + JSON.stringify(top.map(x => [x.name, x.score])));
+    const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+    const atOf = (i) => 150 + (top.length - 1 - i) * 520;
+    return `<div class="podium${rise ? ` podium--rise" data-reveal-ms="${atOf(0) + 620}"` : '"'}>` +
+      top.map((p, i) => {
+        const rank = Math.min(3, rankOf(p));
+        return `<div class="podium__place podium__place--${i + 1} podium__place--rank${rank}" style="--at:${atOf(i)}ms">
+            <div class="podium__who">
+              <span class="podium__medal" aria-hidden="true">${medals[rank]}</span>
+              <span class="podium__name">${escapeHTML(p.name)}</span>
+              <span class="podium__score metric">${p.score}</span>
+            </div>
+            <div class="podium__block"><span class="metric">${rank}</span></div>
+          </div>`;
+      }).join('') + '</div>';
+  }
+
+  function skShowWinner(celebrate) {
+    const s = skState();
+    const t = skT();
+    const order = skUnitRows(s, skTotals(s), t).sort((a, b) => a.score - b.score);
+    if (!order.length) return;
+    const best = order[0].score;
+    showScoreWinner({
+      name: order.filter(x => x.score === best).map(x => x.name).join(' · '),
+      label: t.cs_totals || 'المجموع',
+      value: best,
+      rows: order.map(x => ({ name: x.name, score: x.score })),
+      podium: skPodiumHtml(order, s)
+    });
+    if (!celebrate) return;
+    const cheer = () => { if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }); };
+    const list = document.getElementById('winners-list');
+    if (typeof afterReveal === 'function') afterReveal(list, cheer); else setTimeout(cheer, 500);
+  }
+
+  /* --- Setup ------------------------------------------------------------------------------ */
+
+  /**
+   * Starts a game. From the setup screen (no arguments) it takes the players
+   * picked and the switches, and asks before replacing a game in progress; from
+   * the winner popup's "new game" (playAgain) it deals the same table again by
+   * the same rules.
    */
   function runStartScrew(playersToUse, roundsToUse) {
-    const rounds = roundsToUse || parseInt(document.getElementById('screw-rounds').value) || 5;
-    let selected = playersToUse || (appState.activePlayers ? [...appState.activePlayers] : []);
-    saveActivePlayers(selected);
-    
-    if(!selected || selected.length < 1) {
-        const msg = appState.lang === 'ar' ? 'اختر لاعبين' : 'Select players';
-        return showToast(msg);
+    const s = skState();
+    const t = skT();
+    const replay = Array.isArray(playersToUse) && playersToUse.length > 0;
+    const field = document.getElementById('screw-rounds');
+    const rounds = Math.max(1, Math.round(Number(roundsToUse)) || (field && parseInt(field.value, 10)) || 5);
+    const selected = replay ? playersToUse.slice() : (appState.activePlayers ? appState.activePlayers.slice() : []);
+    if (!selected.length) {
+      return showToast(appState.lang === 'ar' ? 'اختر لاعبين' : 'Select players');
     }
-    playSound('click');
-    
-    // Initialize State
-    appState.screw.rounds = rounds;
-    appState.screw.players = selected.map(name => ({ name: name, scores: [], total: 0 }));
-    
-    // Reset round to 0
-    appState.screw.activeRound = 0;
-    
-    // Clear previous board
-    const board = document.getElementById('screw-score-inputs');
-    if(board) board.innerHTML = '';
-
-    renderScrewBoard();
-    setView('play-screw');
-  }
-
-  /**
-   * Handles round switching via dropdown.
-   */
-  function handleRoundChange(selectElement) {
-      saveScrewScores(); 
-      appState.screw.activeRound = parseInt(selectElement.value);
+    saveActivePlayers(selected);
+    const from = replay ? s.opts : s.prefs;
+    const opts = { partners: !!(from && from.partners), thief: !!(from && from.thief) };
+    if (opts.partners && SK_TEAM_SIZES.indexOf(selected.length) === -1) {
+      showToast(t.screw_need_pairs || 'صاحب صاحبه محتاج عدد زوجي من اللاعبين: 4 أو 6 أو 8', 'error');
+      return;
+    }
+    const go = () => {
+      Object.assign(s, {
+        rounds: rounds,
+        players: selected.map(name => ({ name: name, scores: [], total: 0 })),
+        activeRound: 0,
+        done: 0,
+        opts: opts,
+        meta: [],
+        drafts: {},
+        scoring: 'skrew',
+        startedAt: Date.now()
+      });
+      saveToLocal();
+      setView('play-screw');
       renderScrewBoard();
+      const main = document.getElementById('shell-main');
+      if (main) main.scrollTop = 0;
+    };
+    if (!replay && s.players.length && s.done > 0 && s.done < s.rounds) {
+      showConfirmModal(t.cs_confirm_new || 'فيه لعبة شغالة. تبدأ لعبة جديدة وتمسحها؟', go);
+      return;
+    }
+    go();
+  }
+
+  function skPlayAgain() {
+    const s = skState();
+    runStartScrew(s.players.map(p => p.name), s.rounds);
+  }
+
+  function skContinue() {
+    if (!skState().players.length) return;
+    setView('play-screw');
+    renderScrewBoard();
+  }
+
+  function skSwitchHtml(key, icon, label, hint, on) {
+    return `
+      <div class="field">
+        <label class="switch-row" for="screw-opt-${key}">
+          <span class="field__label"><span aria-hidden="true">${icon} </span>${escapeHTML(label)}</span>
+          <span class="switch"><input type="checkbox" id="screw-opt-${key}" role="switch"${on ? ' checked' : ''} onchange="skSetPref('${key}', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+        </label>
+        <p class="field__hint">${escapeHTML(hint)}</p>
+      </div>`;
   }
 
   /**
-   * Renders the game board.
+   * The table calculator's options, before the players, and under the players
+   * the teams they make and a way back to the game in progress. Controller.html
+   * has none of it, so the pieces are added to the device panel here.
    */
-  function renderScrewBoard() {
+  function skPaintSetup() {
+    const view = document.getElementById('view-setup-screw');
+    const panel = view && view.querySelector('.mode-device-panel');
+    if (!panel) return;
+    const s = skState();
+    const t = skT();
+    let box = document.getElementById('screw-options');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'screw-options';
+      const anchor = panel.querySelector('.group-picker');
+      if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(box, anchor);
+      else panel.appendChild(box);
+    }
+    box.innerHTML =
+      skSwitchHtml('partners', '🤝', t.screw_opt_partners || 'صاحب صاحبه',
+        t.screw_opt_partners_hint || '', s.prefs.partners) +
+      skSwitchHtml('thief', '🦹', t.screw_opt_thief || 'الحرامي',
+        t.screw_opt_thief_hint || 'في آخر كل جولة وقبل كشف الكروت، الترابيزة تتهم حد إن معاه الحرامي. اتمسك: الحرامي +25. متمسكش: الحرامي ياخد أقل نتيجة في الجولة، وصاحب أقل نتيجة ياخد +25.', s.prefs.thief);
+    let foot = document.getElementById('screw-setup-foot');
+    if (!foot) {
+      const list = document.getElementById('screw-player-list');
+      if (list && list.parentNode) {
+        foot = document.createElement('div');
+        foot.id = 'screw-setup-foot';
+        list.insertAdjacentElement('afterend', foot);
+      }
+    }
+    skPaintFoot();
+    skWatchPicker();
+  }
+
+  function skPaintFoot() {
+    const foot = document.getElementById('screw-setup-foot');
+    if (!foot) return;
+    const s = skState();
+    const t = skT();
+    const names = appState.activePlayers || [];
+    let html = '';
+    if (s.prefs.partners) {
+      if (SK_TEAM_SIZES.indexOf(names.length) !== -1) {
+        const teams = skUnits(names.length, true).map((mem, u) =>
+          `<span class="badge badge--accent">${escapeHTML((t.cs_team_short || 'فريق {n}').replace('{n}', u + 1))}: <bdi>${mem.map(i => escapeHTML(names[i])).join(' &amp; ')}</bdi></span>`).join('');
+        html += `<div class="field">
+            <label class="field__label">🤝 ${escapeHTML(t.screw_teams || 'الفرق')}</label>
+            <div class="chip-set">${teams}</div>
+            <p class="field__hint">${escapeHTML(t.screw_teams_order || 'الفرق بترتيب ما اخترت الأسماء.')}</p>
+          </div>`;
+      } else {
+        html += `<p class="field__hint tx-warning">${escapeHTML(t.screw_need_pairs || 'صاحب صاحبه محتاج عدد زوجي من اللاعبين: 4 أو 6 أو 8')}</p>`;
+      }
+    }
+    if (s.players.length) {
+      const label = s.done >= s.rounds ? (t.cs_view_last || 'شوف آخر لعبة') : (t.solo_continue || 'كمّل اللعبة');
+      html += `<div class="btn-stack"><button type="button" class="btn btn--secondary" onclick="skContinue()">${escapeHTML(label)}</button></div>`;
+    }
+    foot.innerHTML = html;
+    foot.classList.toggle('hidden', !html);
+  }
+
+  function skSetPref(key, on) {
+    const s = skState();
+    s.prefs[key] = !!on;
+    saveToLocal();
+    skPaintFoot();
+    haptic('light');
+  }
+
+  /** The chips are redrawn by the picker (JS_Utils.html) on every tap; the teams follow them. */
+  function skWatchPicker() {
+    const list = document.getElementById('screw-player-list');
+    if (!list || list._skWatch || typeof MutationObserver !== 'function') return;
+    list._skWatch = new MutationObserver(() => { if (appState.currentView === 'setup-screw') skPaintFoot(); });
+    list._skWatch.observe(list, { childList: true });
+  }
+
+  /* --- The board ---------------------------------------------------------------------------- */
+
+  /** The Save button in Controller.html is replaced by the one drawn with the preview. */
+  function skHideOldBar() {
+    const bar = document.querySelector('#view-play-screw > .view-actions');
+    if (bar && !bar.classList.contains('hidden')) bar.classList.add('hidden');
+  }
+
+  /** Renders the play screen. opts.from: each unit's total before the round just saved, to count up from. */
+  function renderScrewBoard(opts) {
     const div = document.getElementById('screw-score-inputs');
     if (!div) return;
-
-    if (!appState.screw.players || appState.screw.players.length === 0) {
-        setView('setup-screw');
-        return;
+    const s = skState();
+    if (!s.players.length) {
+      setView('setup-screw');
+      return;
     }
+    skHideOldBar();
+    const t = skT();
+    const n = s.players.length;
+    const r = s.activeRound;
+    const onCard = r < s.rounds;
+    const totals = skTotals(s);
+    const order = skUnitRows(s, totals, t).sort((a, b) => a.score - b.score);
+    const best = order.length ? order[0].score : 0;
+    const from = opts && opts.from;
+    const roundWord = t.round || 'جولة';
 
-    if (appState.screw.activeRound === undefined || appState.screw.activeRound === null) {
-        appState.screw.activeRound = 0;
+    // The round picker, as it always was: the rounds saved and the one in play.
+    let picker = `<select id="current-round-select" onchange="handleRoundChange(this)" aria-label="${escapeHTML(roundWord)}">`;
+    for (let i = 0; i < s.rounds; i++) {
+      picker += `<option value="${i}"${i === r ? ' selected' : ''}${i > s.done ? ' disabled' : ''}>${escapeHTML(roundWord)} ${i + 1}</option>`;
     }
+    if (s.done >= s.rounds) picker += `<option value="${s.rounds}"${onCard ? '' : ' selected'}>🏁 ${escapeHTML(t.cs_final || 'النتيجة النهائية')}</option>`;
+    picker += '</select>';
+    const dealer = onCard ? `<span class="badge badge--accent">🃏 ${escapeHTML((t.cs_dealer || 'بيوزّع: {name}').replace('{name}', s.players[r % n].name))}</span>` : '';
 
-    let currentRoundIdx = appState.screw.activeRound;
-    if (currentRoundIdx >= appState.screw.rounds) {
-        currentRoundIdx = 0;
-        appState.screw.activeRound = 0;
-    }
+    const board = `
+      <div class="cs-board card">
+        <div class="cs-board__head"><span class="eyebrow">${escapeHTML(onCard ? (t.cs_totals || 'المجموع') : (t.cs_final || 'النتيجة النهائية'))}</span></div>
+        ${order.map(row => {
+          const lead = s.done > 0 && row.score === best;
+          const rank = 1 + order.filter(x => x.score < row.score).length;
+          const was = from && typeof from[row.u] === 'number' ? from[row.u] : row.score;
+          return `
+          <div class="cs-total${lead ? ' is-lead' : ''}" data-seat="${row.u}">
+            <span class="cs-total__rank metric">${rank}</span>
+            <span class="cs-total__name">${lead ? '👑 ' : ''}${escapeHTML(row.name)}</span>
+            <b class="cs-total__score metric" data-score="${row.score}" data-from="${was}">${row.score}</b>
+          </div>`;
+        }).join('')}
+      </div>`;
 
-    const roundText = appState.lang === 'ar' ? 'جولة' : 'Round';
-    const dealerText = appState.lang === 'ar' ? 'الموزع' : 'Dealer';
-    const totalText = appState.lang === 'ar' ? 'المجموع' : 'Total';
-    const scoreLabel = appState.lang === 'ar' ? 'نقاط' : 'Score';
-
-    const dealerIndex = currentRoundIdx % appState.screw.players.length;
-    const dealerNameRaw = appState.screw.players[dealerIndex].name;
-
-    // Round picker + who is dealing.
-    let html = '<div class="card card--tight"><div class="round-bar">' +
-               '<select id="current-round-select" onchange="handleRoundChange(this)" aria-label="' + roundText + '">';
-    for (let i = 1; i <= appState.screw.rounds; i++) {
-        const selected = (i - 1) === currentRoundIdx ? ' selected' : '';
-        html += '<option value="' + (i - 1) + '"' + selected + '>' + roundText + ' ' + i + '</option>';
-    }
-    html += '</select>';
-    html += '<span class="badge badge--accent">🃏 ' + dealerText + ': ' + escapeHTML(dealerNameRaw) + '</span>';
-    html += '</div></div>';
-
-    // Lowest total leads in screw, so sort ascending and crown the top row.
-    const sortedPlayers = [...appState.screw.players].sort((a, b) => a.total - b.total);
-
-    sortedPlayers.forEach((p, idx) => {
-        if (!p.scores) p.scores = [];
-        const currentScore = p.scores[currentRoundIdx] !== undefined ? p.scores[currentRoundIdx] : '';
-        const isDealer = (p.name === dealerNameRaw);
-        const leading = idx === 0;
-
-        html += `
-        <div class="status-row ${leading ? 'status-row--turn' : ''}">
-            <div class="status-row__body">
-                <div class="status-row__name">
-                    ${leading ? '<span aria-hidden="true">👑</span>' : ''}${escapeHTML(p.name)}
-                </div>
-                <div class="status-row__tags">
-                    <span class="badge">${totalText}: ${p.total || 0}</span>
-                    ${isDealer ? '<span class="badge badge--accent">🃏 ' + dealerText + '</span>' : ''}
-                </div>
-            </div>
-            <input type="number"
-                   inputmode="numeric"
-                   data-player="${escapeHTML(p.name)}"
-                   class="score-input"
-                   aria-label="${scoreLabel} ${escapeHTML(p.name)}"
-                   placeholder="-"
-                   value="${currentScore}"
-                   onchange="saveScrewScores()">
+    let final = '';
+    if (!onCard && order.length) {
+      const winners = order.filter(x => x.score === best);
+      final = `
+        <div class="card card--accent" style="text-align:center">
+          <div class="metric metric--md">🏆</div>
+          <div class="card__title">${escapeHTML(winners.map(w => w.name).join(' · '))}</div>
+          <p class="sheet__subtitle">${escapeHTML(winners.length > 1 ? (t.cs_tie || 'تعادل') : (t.cs_winner || 'الكسبان'))}</p>
         </div>`;
-    });
+    }
 
-    div.innerHTML = html;
+    const entry = onCard ? `<div class="card cs-entry" id="sk-entry">${skEntryHtml(s, r, t)}</div>` : '';
+    const actions = onCard
+      ? `<div class="view-actions"><div class="btn-stack">
+           <div class="chip-set hidden" id="sk-preview" aria-live="polite"></div>
+           <button type="button" class="btn btn--primary btn--lg" onclick="submitScores()">${escapeHTML(r < s.done ? (t.screw_save_fix || 'حفظ التعديل') : (t.save_results || 'حفظ النتائج ✅'))}</button>
+         </div></div>`
+      : `<div class="view-actions"><button type="button" class="btn btn--primary btn--lg" onclick="skPlayAgain()">${escapeHTML(t.play_again || 'لعبة جديدة')}</button></div>`;
+
+    div.innerHTML = `
+      <div class="card card--tight"><div class="round-bar">${picker}${dealer}</div></div>
+      <div class="cs-layout${onCard ? '' : ' cs-layout--over'}">
+        <div class="cs-layout__side">${board}${final}</div>
+        <div class="cs-layout__main">${entry}${skHistoryHtml(s, t)}</div>
+      </div>
+      ${actions}`;
+
+    if (onCard) skRefresh();
+    if (from && !motionOff() && typeof countUp === 'function') {
+      div.querySelectorAll('.cs-total__score').forEach(el => {
+        const a = Number(el.dataset.from), b = Number(el.dataset.score);
+        if (a !== b) countUp(el, a, b);
+      });
+    }
+  }
+
+  /** The round card: who called, who ran out of cards, the thief, and a number per player (in teams under each team). */
+  function skEntryHtml(s, r, t) {
+    const d = skDraft(s, r);
+    const names = s.players.map(p => p.name);
+    const units = skUnitsOf(s);
+    const rules = [
+      s.opts.partners ? '🤝 ' + (t.screw_opt_partners || 'صاحب صاحبه') : '',
+      s.opts.thief ? '🦹 ' + (t.screw_opt_thief || 'الحرامي') : ''
+    ].filter(Boolean);
+    const pick = (key, items, current) => `<div class="cs-pick" role="group">${items.map(it => `
+      <button type="button" class="cs-pick__item${current === it.v ? ' is-on' : ''}" aria-pressed="${current === it.v}" onclick="skPick('${key}', ${it.v})">${escapeHTML(it.label)}</button>`).join('')}</div>`;
+    const seats = names.map((name, i) => ({ v: i, label: name }));
+    const nobody = { v: -1, label: t.cs_nobody || 'محدش' };
+
+    let html = `
+      <div class="cs-entry__head">
+        <b>${escapeHTML((t.cs_round || 'الجولة {n}').replace('{n}', r + 1))}</b>
+        ${rules.length ? `<span class="chip-set">${rules.map(l => `<span class="badge">${escapeHTML(l)}</span>`).join('')}</span>` : ''}
+      </div>
+      <p class="cs-note">${escapeHTML(t.screw_rule_hint || 'أقل مجموع بصفر. اللي قال سكرو بصفر لو مجموعه أقل من الكل أو قد أقلهم، وإلا مجموعه يتضاعف. ولو حد خلّص كروته، هو بس اللي بصفر واللي قال سكرو يتضاعف.')}</p>
+      <span class="cs-label">✋ ${escapeHTML(t.screw_who_called || 'مين قال سكرو؟')}</span>
+      ${pick('caller', seats.concat([nobody]), d.caller)}
+      <span class="cs-label">🏁 ${escapeHTML(t.screw_who_finished || 'حد خلّص كروته؟')}</span>
+      ${pick('finisher', seats.concat([nobody]), d.finisher)}`;
+    if (s.opts.thief) {
+      html += `
+      <span class="cs-label">👉 ${escapeHTML(t.screw_thief_accused || 'مين اتهمته الترابيزة؟')}</span>
+      ${pick('accused', seats.concat([{ v: -1, label: t.skr_no_thief || 'مفيش حرامي' }]), d.accused)}
+      <span class="cs-label">🦹 ${escapeHTML(t.screw_thief_holder || 'مين كان معاه الحرامي فعلاً؟')}</span>
+      ${pick('holder', seats.concat([nobody]), d.holder)}`;
+    }
+
+    // A finisher's hand is empty: 0, and nothing to type.
+    const stepper = (i) => {
+      const out = d.finisher === i;
+      const off = out ? ' disabled' : '';
+      return `
+      <span class="cs-step${out ? ' is-out' : ''}" dir="ltr">
+        <button type="button" class="cs-step__btn" onclick="skStep(${i}, -1)" aria-label="−"${off}>−</button>
+        <input type="number" class="cs-step__val metric" id="sk-hand-${i}" value="${out ? '0' : escapeHTML(d.hands[i] || '')}" aria-label="${escapeHTML(names[i])}" oninput="skHandInput(${i}, this)"${off}>
+        <button type="button" class="cs-step__btn" onclick="skStep(${i}, 1)" aria-label="+"${off}>+</button>
+      </span>`;
+    };
+    // The result badges sit under the name, so a badge appearing never pushes
+    // the stepper onto a line of its own.
+    const seatRow = (i, unitBadge) => `
+      <div class="cs-seat-row sk-seat-row">
+        <span class="sk-seat-row__who">
+          <span class="cs-seat-row__name">${d.finisher === i ? '🏁 ' : ''}${d.caller === i ? '✋ ' : ''}${escapeHTML(names[i])}</span>
+          <span id="sk-seat-${i}" class="hidden"></span>
+          ${unitBadge}
+        </span>
+        <span class="cs-seat-row__cells">${stepper(i)}</span>
+      </div>`;
+
+    if (s.opts.partners) {
+      html += units.map((mem, u) => `
+        <div class="cs-card">
+          <div class="cs-board__head">
+            <b class="cs-card__title">${escapeHTML((t.cs_team_short || 'فريق {n}').replace('{n}', u + 1))}</b>
+            <span id="sk-unit-${u}" class="hidden"></span>
+          </div>
+          ${mem.map(i => seatRow(i, '')).join('')}
+        </div>`).join('');
+    } else {
+      html += `<div>${names.map((_, i) => seatRow(i, `<span id="sk-unit-${i}" class="hidden"></span>`)).join('')}</div>`;
+    }
+    return html;
   }
 
   /**
-   * Saves scores to state.
+   * A unit's round score on the card: "🏁 0" (in a team, "🏁 12 → 0"), "✋ 23 → 0",
+   * "×2 → 46" (or -2; a team shows its sum, the ×2 is on the caller's row), or its
+   * score; then "+25" when the thief stole its lowest score.
+   * The card is always scored under the current rules.
    */
+  function skUnitBadge(res, u, s, t) {
+    const o = res.units[u];
+    const call = o.called ? '✋ ' : '';
+    let html;
+    if (o.finished) {
+      html = `<span class="badge badge--success" title="${escapeHTML(t.screw_finished || 'من غير كروت: بصفر')}">🏁 ${call}<span class="metric">${o.hand !== 0 ? o.hand + ' → ' : ''}0</span></span>`;
+    } else if (o.zero) {
+      html = `<span class="badge badge--success">${call}<span class="metric">${o.hand} → 0</span></span>`;
+    } else if (o.doubled && o.members.length > 1 && res.callerDoubled !== null) {
+      html = `<span class="badge badge--danger">${call}<span class="metric">${o.score}</span></span>`;
+    } else if (o.doubled) {
+      html = `<span class="badge badge--danger">${call}<span class="metric">×2 → ${o.score}</span></span>`;
+    } else {
+      html = s.opts.partners || o.called ? `<span class="badge">${call}<span class="metric">${o.score}</span></span>` : '';
+    }
+    if (o.thief === 'victim') {
+      html += `<span class="badge badge--danger" title="${escapeHTML(t.screw_thief_victim || 'الحرامي سرق أقل نتيجة: +25')}"><span class="metric">+${SK_THIEF_BONUS}</span></span>`;
+    }
+    return html;
+  }
+
+  /**
+   * A seat's own row: in a team, the caller's doubled hand ("×2 → 20"); and the
+   * thief on its holder's row, "🦹 +25" caught or "🦹 ← n", the lowest score it stole.
+   */
+  function skSeatBadge(res, i, t) {
+    let html = '';
+    const team = res.units.find(o => o.members.indexOf(i) !== -1);
+    if (i === res.caller && res.callerDoubled !== null && team && team.members.length > 1) {
+      html += `<span class="badge badge--danger"><span class="metric">×2 → ${res.callerDoubled}</span></span>`;
+    }
+    if (i === res.holder && res.thief === 'caught') {
+      html += `<span class="badge badge--accent" title="${escapeHTML(t.screw_thief_caught || 'الحرامي اتمسك')}">🦹 <span class="metric">+${SK_THIEF_BONUS}</span></span>`;
+    }
+    if (i === res.holder && res.thief === 'stole') {
+      html += `<span class="badge badge--accent" title="${escapeHTML(t.screw_thief_stole || 'الحرامي سرق أقل نتيجة')}">🦹 <span class="metric">← ${res.low}</span></span>`;
+    }
+    return html;
+  }
+
+  /** The results on the card and the preview over Save, redrawn in place so typing keeps its field. */
+  function skRefresh() {
+    const s = skState();
+    const r = s.activeRound;
+    if (r >= s.rounds) return;
+    const t = skT();
+    const d = skDraft(s, r);
+    const ok = !skCheck(s, d, t);
+    const p = ok ? skProject(s, r, d) : null;
+    const fill = (el, html) => { if (!el) return; el.innerHTML = html; el.classList.toggle('hidden', !html); };
+    skUnitsOf(s).forEach((_, u) => fill(document.getElementById('sk-unit-' + u), p ? skUnitBadge(p.res, u, s, t) : ''));
+    s.players.forEach((_, i) => fill(document.getElementById('sk-seat-' + i), p ? skSeatBadge(p.res, i, t) : ''));
+    let preview = '';
+    if (p) {
+      const low = Math.min.apply(null, p.after);
+      const crown = p.ends || s.done >= s.rounds;
+      preview = skUnitRows(s, p.after, t).map(row => {
+        const delta = row.score - p.before[row.u];
+        const won = crown && row.score === low;
+        return `<span class="badge${won ? ' badge--success' : ''}">${won ? '🏆 ' : ''}<bdi>${escapeHTML(row.short)}</bdi>&nbsp;<span class="metric">${row.score}</span>&nbsp;<span class="metric">(${delta > 0 ? '+' : ''}${delta})</span></span>`;
+      }).join('');
+      if (p.ends) preview += `<span class="badge badge--success">🏁 ${escapeHTML(t.cs_preview_end || 'الجولة دي بتنهي اللعبة')}</span>`;
+    }
+    fill(document.getElementById('sk-preview'), preview);
+  }
+
+  /** Every saved round, newest last: each unit's points (🏁 the finisher, ✋ the caller, 🦹 the thief moved points), with the take-back. */
+  function skHistoryHtml(s, t) {
+    if (!s.done) return '';
+    const cols = skUnitsOf(s).length;
+    const head = skUnitRows(s, skTotals(s), t);
+    let rows = '';
+    for (let r = 0; r < s.done; r++) {
+      const res = skResultOf(s, r);
+      const moved = res.thief === 'caught' || res.thief === 'stole' || res.thief === 'swap';
+      rows += `
+        <div class="cs-row" role="row" style="--cs-cols:${cols}">
+          <span class="cs-row__n">${r + 1}${moved ? '<small>🦹</small>' : ''}</span>
+          ${res.points.map((pts, u) => {
+            const o = res.units && res.units[u];
+            let cls = '';
+            if (!o) cls = '';
+            else if (o.thief === 'victim') cls = 'tx-danger';
+            else if (o.thief === 'stole') cls = pts === 0 ? 'tx-success' : '';
+            else if (o.doubled) cls = 'tx-danger';
+            else if (o.zero && pts === 0) cls = 'tx-success';
+            return `<span class="metric ${cls}">${o && o.finished ? '🏁' : ''}${o && o.called ? '✋' : ''}${pts}</span>`;
+          }).join('')}
+        </div>`;
+    }
+    return `
+      <div class="card card--tight cs-history">
+        <div class="cs-board__head"><span class="eyebrow">${escapeHTML(t.cs_history || 'الجولات')}</span>
+          <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="skUndo()">↶ ${escapeHTML(t.cs_undo_round || 'رجّع آخر جولة')}</button></div>
+        <div class="cs-table" role="table">
+          <div class="cs-row cs-row--head" role="row" style="--cs-cols:${cols}">
+            <span>#</span>${head.map(x => `<span>${escapeHTML(x.short)}</span>`).join('')}
+          </div>
+          ${rows}
+        </div>
+      </div>`;
+  }
+
+  /* --- Moves on the card -------------------------------------------------------------------- */
+
+  function skPick(key, value) {
+    const s = skState();
+    const r = s.activeRound;
+    if (r >= s.rounds || ['caller', 'finisher', 'accused', 'holder'].indexOf(key) === -1) return;
+    const d = skDraftFor(s, r);
+    const v = Number(value);
+    if (!Number.isInteger(v) || v < -1 || v >= s.players.length) return;
+    d[key] = v;
+    saveToLocal();
+    haptic('light');
+    const entry = document.getElementById('sk-entry');
+    if (entry) entry.innerHTML = skEntryHtml(s, r, skT());
+    skRefresh();
+  }
+
+  function skHandInput(i, input) {
+    const s = skState();
+    const r = s.activeRound;
+    if (r >= s.rounds || !input) return;
+    const d = skDraftFor(s, r);
+    if (i === d.finisher) return;                 // an empty hand: nothing to type
+    d.hands[i] = String(input.value).trim();
+    saveToLocal();
+    skRefresh();
+  }
+
+  /** − and + on a hand; from empty they give -1 (the -1 card) and 1. */
+  function skStep(i, delta) {
+    const input = document.getElementById('sk-hand-' + i);
+    if (!input || input.disabled) return;
+    input.value = (skIsNum(input.value) ? Number(input.value) : 0) + delta;
+    skHandInput(i, input);
+    haptic('light');
+  }
+
+  /** The round picker: another round on the card. A fix left unsaved on an earlier round is dropped. */
+  function handleRoundChange(selectElement) {
+    const s = skState();
+    Object.keys(s.drafts).forEach(k => { if (Number(k) < s.done) delete s.drafts[k]; });
+    const top = s.done >= s.rounds ? s.rounds : s.done;
+    s.activeRound = Math.max(0, Math.min(top, parseInt(selectElement.value, 10) || 0));
+    saveToLocal();
+    renderScrewBoard();
+  }
+
+  /** Kept for anything that still calls it: the card saves itself as it is typed. */
   function saveScrewScores() {
-    const roundIdx = appState.screw.activeRound;
-    const inputs = document.querySelectorAll('.score-input');
-    
-    inputs.forEach(input => {
-        const val = input.value;
-        const pName = input.getAttribute('data-player');
-        const player = appState.screw.players.find(p => p.name === pName);
-        
-        if(player) {
-            if (val !== '' && !isNaN(parseInt(val, 10))) {
-                player.scores[roundIdx] = parseInt(val, 10);
-            } else {
-                delete player.scores[roundIdx];
-            }
-            player.total = player.scores.reduce((a, b) => (a || 0) + (b || 0), 0);
-        }
-    });
     saveToLocal();
   }
 
-  /**
-   * Submits scores & Checks Game Over.
-   */
+  /** Saves the round on the card: the next round, or the end of the game with the winner popup. */
   function submitScores() {
-    saveScrewScores(); 
-    playSound('success');
-    
-    const totalText = appState.lang === 'ar' ? 'المجموع' : 'Total';
-    
-    if (appState.screw.activeRound >= appState.screw.rounds - 1) {
-        // --- GAME OVER ---
-        // Sort a copy: mutating the roster would also re-order who deals.
-        const standings = [...appState.screw.players].sort((a,b) => a.total - b.total);
-        // The popup's own buttons (new game, full results, settings, menu) already
-        // do the right thing here; playAgain() knows play-screw.
-        showScoreWinner({
-            name: standings[0].name,
-            label: totalText,
-            value: standings[0].total,
-            rows: standings.map(p => ({ name: p.name, score: p.total }))
-        });
-    } else {
-        appState.screw.activeRound++;
-        renderScrewBoard(); 
+    const s = skState();
+    const t = skT();
+    if (!s.players.length) return;
+    const r = s.activeRound;
+    if (r >= s.rounds) { skShowWinner(false); return; }
+    const d = skDraft(s, r);
+    const problem = skCheck(s, d, t);
+    if (problem) {
+      showToast(problem, 'error');
+      haptic('medium');
+      return;
     }
+    const before = skTotals(s);
+    const fresh = r === s.done;
+    // Saved under the current rules (SK_RULES), a fixed or taken-back round from
+    // the first rules included: it scores by these from now on.
+    const hands = skHandsOf(d);
+    s.players.forEach((p, i) => {
+      if (!Array.isArray(p.scores)) p.scores = [];
+      p.scores[r] = hands[i];
+    });
+    s.meta[r] = skMetaOf(s, d);
+    delete s.drafts[r];
+    if (fresh) s.done = r + 1;
+    const over = s.done >= s.rounds;
+    s.activeRound = over ? s.rounds : s.done;
+    skSyncTotals(s);
+    saveToLocal();
+    const ended = fresh && over;
+    if (ended) playSound('success');
+    haptic('light');
+    renderScrewBoard({ from: before });
+    const main = document.getElementById('shell-main');
+    if (ended) {
+      if (main) main.scrollTop = 0;
+      skShowWinner(true);
+      return;
+    }
+    const entry = document.getElementById('sk-entry');
+    if (main && entry && entry.getBoundingClientRect().top < main.getBoundingClientRect().top) {
+      // Saved from the foot of a long card: the next round starts at its head.
+      entry.scrollIntoView({ block: 'start', behavior: motionOff() ? 'auto' : 'smooth' });
+    }
+  }
+
+  /** The last saved round back on the card, as it was typed, to fix and save again. */
+  function skUndo() {
+    const s = skState();
+    if (!s.done) return;
+    const r = s.done - 1;
+    s.drafts[r] = skDraft(s, r);
+    s.meta.length = Math.min(s.meta.length, r);
+    s.players.forEach(p => { if (Array.isArray(p.scores)) p.scores.length = Math.min(p.scores.length, r); });
+    s.done = r;
+    s.activeRound = r;
+    skSyncTotals(s);
+    saveToLocal();
+    haptic('medium');
+    renderScrewBoard();
+  }
+
+  /* --- Hooks ------------------------------------------------------------------------------ */
+
+  if (typeof onLeaveScreen === 'function') {
+    onLeaveScreen((from, to) => { if (to === 'setup-screw') skPaintSetup(); });
+  }
+  // Both screens draw their own words.
+  if (typeof onLanguageChange === 'function') {
+    onLanguageChange(view => {
+      if (view === 'setup-screw') skPaintSetup();
+      else if (view === 'play-screw') renderScrewBoard();
+    });
+  }
+  // A reload onto the setup screen doesn't pass through setView.
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    const skFirstPaint = () => { if (appState && appState.currentView === 'setup-screw') skPaintSetup(); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', skFirstPaint);
+    else skFirstPaint();
   }
 </script>

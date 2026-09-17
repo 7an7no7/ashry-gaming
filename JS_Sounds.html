@@ -210,6 +210,26 @@ const FX = {
   whistle(at) {
     fxTone('sine', [[0, 1800], [0.15, 2600], [0.45, 1700]], [[0, 0], [0.02, 0.14], [0.4, 0.12], [0.5, 0.001]], at);
     fxNoise('bandpass', 2200, 6, [[0, 0], [0.02, 0.05], [0.45, 0.001]], at);
+  },
+
+  // --- the سكرو table's own, quiet and short (not on the soundboard: FX_LIST doesn't list them) ---
+  skrFlick(at) {
+    // A card sliding off the deck: a soft swish.
+    fxNoise('bandpass', 3200, 1.2, [[0, 0], [0.015, 0.06], [0.09, 0.001]], at);
+  },
+  skrRiffle(at) {
+    // A riffle shuffle: a run of tiny clicks, slowing a little.
+    for (let i = 0; i < 12; i++) fxNoise('highpass', 4200, 0.8, [[0, 0], [0.003, 0.05], [0.02, 0.001]], at + i * 0.035 + i * i * 0.0012);
+  },
+  skrDrum(at) {
+    // المسحراتي's two drum beats.
+    const beat = (t) => { fxTone('sine', [[0, 150], [0.16, 55]], [[0, 0], [0.006, 0.32], [0.18, 0.001]], t); fxNoise('lowpass', 900, 0.7, [[0, 0], [0.004, 0.1], [0.08, 0.001]], t); };
+    beat(at); beat(at + 0.26);
+  },
+  skrThump(at) {
+    // The cannon, بوم: a low thump.
+    fxTone('sine', [[0, 110], [0.22, 38]], [[0, 0], [0.008, 0.38], [0.26, 0.001]], at);
+    fxNoise('lowpass', 600, 0.6, [[0, 0], [0.01, 0.14], [0.2, 0.001]], at);
   }
 };
 

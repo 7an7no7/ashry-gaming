@@ -33,7 +33,9 @@
   - 🐵 **Monkey (ربع قرد):** the letter game with the phone as referee, plus
     the last-letter chain and one-name-a-turn; on one phone, in a room, on the TV.
   - 🤫 **Just One (كلمة واحدة):** Cooperative word guessing.
-  - 🃏 **Screw (سكرو):** Card game scoring; and score keepers for 🎯 إستميشن,
+  - 🃏 **Skrew (سكرو):** the whole game in a room (every version, mixed or
+    alone, singles or two teams, every hand face down on every phone with every
+    move shown), and a calculator for a game with real cards; and score keepers for 🎯 إستميشن,
     ♠️ طرنيب, ♥️ تريكس, ♦️ كونكان and 🎣 باصرة (*Card game score keepers*).
   - 🎭 **Charades (بدون كلام), 🗣️ Describe It (أوصف لي), ❓ Who Am I? (من أنا؟)**
   - 🧠 **Trivia (تحدي المعلومات):** two ways to play. *دوري المعرفة* is a board for
@@ -86,6 +88,16 @@ work changed. Add to it when a decision is made or a batch ships.
 
 ### Waiting
 
+- **سكرو, still open** (built as below, each in one place so it can change):
+  - the deck: the owner's own "66-card" table (17 Sep 2026) adds up to 62 -
+    the base with four بصرة (59) plus the thief's three cards - which is what
+    the app deals for Classic + الحرامي; no source that adds up to 66 was found;
+  - the thief's "targeted steal" (a house rule in one source: the thief taken
+    from the pile peeks at a player's good card and swaps a bad one in) is not
+    built;
+  - a "team basra" (throwing a card from a partner's hand for them) from the
+    same source is not built.
+
 - **Two طرنيب ٤١ rules for the owner to decide** (the scorer doesn't guess):
   a failed bid of 13 scores 0 today (options: keep it; charge a fixed amount
   such as −36, the value of 12; or the team loses outright, mirroring the
@@ -94,6 +106,66 @@ work changed. Add to it when a decision is made or a batch ships.
   player wins; the higher team total wins; play on until only one qualifies).
 
 ### The owner's specs, as built
+
+- **سكرو (Skrew)** - the owner's spec of 17 Sep 2026 (*سكرو in rooms*, and
+  *سكرو on the table* for the calculator): the Skrew card game (Kraken
+  Studios) played on the phones, with every version and any mix of them - "this
+  is the core main thing" - and the old score card kept for a game with real
+  cards.
+  - **Everyone sees every hand face down, in order, and every move**: who
+    looked at which slot, who swapped which of their slots with which of whose,
+    who gave a card to whom. Values stay hidden unless the rules show them.
+  - **The deck as the owner counted it** (`SkrewCards.js`): 1-6 four each, 7
+    and 8 (look at your own) four each, 9 and 10 (look at someone's) four each,
+    خد وهات 4, بصرة 2, كعب داير 2 (one card of every player, or two of yours),
+    +20 four, the red screw (+25) two, the green screw (0) two, −1 one; one of
+    each version card. That is 57 base cards; the owner said 66 (see
+    *Waiting*).
+  - **Versions**: Classic (the base deck); الحرامي (the thief, خد بس, شوف
+    وبدّل); صاحب صاحبه (teams, بينج, بونج, على كيفك - the wildcard for خد بس,
+    خد وهات, بصرة or شوف وبدّل only); المسحراتي (المسحراتي, المدفع, الخشاف);
+    أوسكار (صرخة أوسكار); العام (all of them); or any mix (`custom`).
+  - **Throwing a matching card is only on your own turn** (owner). Command
+    cards left in a hand count 10 (owner); 7-10 count their face.
+  - **Singles or teams in any version** (owner, 17 Sep 2026): two sides
+    alternating round the table, 2 against 2, 3 against 3 or 4 against 4; 7-12
+    players play with two decks ("Skrew Double").
+  - **Later the same day the owner added** (with two rulebooks written by
+    other AIs, checked against the Skrew store's own card descriptions, which
+    won where they disagreed: المسحراتي is a forced سكرو, المدفع shows a hand
+    until the round ends, خد بس gives a card):
+    - the deck running out: the top card of the pile stays, the rest is
+      shuffled into a new deck; **sudden death** (موت مفاجئ) is an option, off by
+      default: the last card drawn gives everyone one last turn, then the reveal;
+    - **a hand emptied ends the round at once**; that player scores 0, beating
+      even a negative total, and a caller who isn't them is doubled;
+    - **a caller who ties the lowest wins** (0), and the tied player keeps their
+      own total; **doubling applies to any sign** (−1 → −2);
+    - **the thief is a table vote** before the reveal: caught, +25; unnoticed,
+      the thief takes the lowest score and whoever had it takes the +25;
+    - أوسكار also has **بوم** (an opponent's card straight onto the pile) and
+      **اللايف جاكيت** (counts as the lowest other card in its hand);
+    - **بصرة is 4 or 2**, a lobby option, 4 by default (the standard deck in
+      the owner's card table; 2 in the first print);
+    - the rules in 📘 carry every case, folded into sections (`.help-more`).
+  - **The owner's answers** (17 Sep 2026, asked one by one): throwing a
+    matching card is the whole turn, one card per throw, and a failed throw
+    goes back face down with a blind penalty card in a new slot; a game is a
+    fixed number of rounds; in teams only the caller's own hand is doubled,
+    then added to the partners'; a hand emptied by someone else's card (بوم)
+    still finishes and wins; المسحراتي after a سكرو reveals at once and the
+    first caller stays the caller; memorising at the start is a lobby option
+    (until everyone taps, 5 or 10 seconds); a life jacket alone counts 10; a
+    tie in the thief vote goes the caller's way when the caller voted for one
+    of the tied, otherwise nobody is accused; everyone tied on the lowest
+    score takes the +25; the الخشاف pick counts as drawn from the deck, so an
+    action card thrown straight away uses its power; after سكرو in teams the
+    caller's whole team is protected; memory is the game - moves show as they
+    happen and fade, and a "memory helper" option (off by default) keeps each
+    card's story.
+  - Decided for the owner: the vote happens at the end of every round the
+    thief card is in the deck, however the round ended; two decks keep one
+    thief.
 
 - **مافيا (Mafia / Werewolf)** - the owner's spec of 16 Sep 2026, built the
   same day (*مافيا in rooms*): the app is the narrator (night choices made silently on each phone,
@@ -250,6 +322,17 @@ blind ranking, the word search), `countUp` for streaks and scores.
   one-phone party games, the card tables' seating strip and preview, resumable
   dailies with clocks that count play only, a new-version toast, popups in
   the game's colour. Robot tests: 862.
+- **17 Sep 2026, later** - سكرو: the owner's spec (*The owner's specs*) in
+  rooms (`SkrewCards.js`, `screwAction`, `JS_RoomScrew.html`), and the table
+  calculator rebuilt around the real rules (the caller, the doubling, the
+  thief, teams). Then the owner's rulebooks and answers (*The owner's specs*):
+  a hand that runs out, sudden death, a tie counting for the caller, the thief
+  vote, بوم and اللايف جاكيت, the failed throw back face down, the memory helper,
+  animations for every move, and picking at twelve players. The phone's back
+  swipe on iPhone: an entry per screen, so Safari slides in the real screen
+  (*Navigation*); the new-version toast no longer shows on a page that already
+  is the new build. Robot tests: about 980 (the سكرو robots loop until every
+  card they need has come up, so the count varies a little).
 
 ## Building and Running
 
@@ -301,7 +384,7 @@ Two browser tabs on the preview behave like two phones in one room.
   `RoomGames.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
-  `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -394,7 +477,7 @@ is nowhere to hide the key card.
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `rooms-worker/src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live`. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
-| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js` | Word lists the rules deal from, bundled into the Worker. The last eight are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, a Stop phone checks its boxes with the server's own rule, and the solo games ask from the room trivia's questions. `PartyContent.js` stays server-only: the Fibbage answers in it must never reach a page. |
+| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js` | Word lists (and سكرو's cards) the rules deal from, bundled into the Worker. The last nine are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, a Stop phone checks its boxes with the server's own rule, the solo games ask from the room trivia's questions, and a سكرو phone names and draws the cards the server deals. `PartyContent.js` stays server-only: the Fibbage answers in it must never reach a page. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -813,6 +896,142 @@ scores a point. The news is worded so it fits any name ("المافيا خرّج
 say whether to write خرج or خرجت. `roomTurnOf` asks a living phone that
 hasn't tapped at night (`turn_night`).
 
+**سكرو in rooms** (`screwAction`, `JS_RoomScrew.html`), the owner's spec
+(see *The owner's specs*). The cards are `SkrewCards.js`, shared with the page:
+`SKREW_CARDS` (value, kind, power, which version), `SKREW_EDITIONS`,
+`skrewDeck(groups, decks)`, `skrewValue`, `skrewMatches(top, card)` and
+`skrewDecksFor(players)` (two decks beyond six; the room keeps one thief even
+then, since the vote is about "the" thief), `skrewHandValues` and
+`skrewDeck(groups, decks, { basraCount })`. The lobby sends `{ edition,
+groups, teams, rounds, screwFromLap, turnClock, suddenDeath, basraCount,
+memorizeSecs, memoryHelp }` (`ashryScrewOpts` on the host's phone); teams need 4, 6 or 8 players and are two sides alternating
+seats (`shared.teams`, keys `A` and `B`); صاحب صاحبه turns them on by
+default. Seats are shuffled at start and at play again.
+
+- **What is hidden.** The deck, the pile and every slot's card live in
+  `room._screw`, never sent. `shared.hands` holds slot ids in order, with a
+  card (`up`) only while the rules keep it face up - the cannon, the reveal -
+  and such a card stays face up wherever a public move takes it (a card taken
+  from the pile goes face down). A failed throw (owner, 17 Sep 2026) is shown
+  to the table in its event and goes back face down in its slot; the penalty
+  card goes face down into a new slot and nobody, its owner included, sees it. A phone's own slice holds only its
+  memorize cards (slots 3 and 4, until it taps ready), the card it drew, the
+  الخشاف four and its last look, until its next move.
+- **Every move is an event** (`shared.events`, the last 40, numbered by their
+  own `shared.eventSeq`): `draw`, `keep`, `takePile`, `match`, `penalty`,
+  `screw`, `peekOwn`, `spyOther`, `blindSwap`, `basra`, `allAround`, `give`,
+  `seeSwap`, `ping`, `pong`, `wakeUp`, `cannon`, `khoshaf`, `scream`,
+  `reshuffle`, `skip`, `thiefGuess`, `reveal` - with the slots and players they
+  moved, never a hidden value. This is what lets every phone show "Ahmed
+  swapped his 2nd with Mona's 4th". In `seeSwap` `slot` is the other player's
+  and `slot2` your own, the opposite of `blindSwap`.
+- **Stale taps.** Every move carries `seq`; `screwApply` raises
+  `shared.turnSeq` only when the phase, round, player up, stage, power or
+  `pongOpen` changes, so a double tap is dropped and taps that arrive together
+  in memorize are not.
+- **A turn**: `draw` then `keep {slot}` or `discard` (a command card thrown
+  straight from the deck opens `stage: 'power'`: `power {…}` or `skipPower`),
+  `takePile {slot}`, `match {slot}` (one card, the whole turn; wrong: the card
+  goes back face down in its slot, its event shows it, and a blind penalty
+  card goes face down into a new slot), `screw` (from lap `screwFromLap`), or
+  `pass` when the deck is empty and can't be refilled. The memorising at the
+  start waits for every tap, or `memorizeSecs` (5 or 10) on a server clock.
+  Laps count each time the turn passes the round's first seat, which moves on
+  each round. After سكرو only `finalLeft` plays, and the caller's side (the
+  caller, and the partners in teams) can't be the target of a swap, give,
+  see-and-swap, بوم or cannon, and the scream skips it; looking is allowed.
+  بصرة on the red screw or the thief shows it and puts it back face down. A
+  الخشاف pick counts as drawn from the deck (its power works); a بينج or
+  المسحراتي picked that way plays itself.
+- **The end of a round.** A round ends on a سكرو's last turns; on المسحراتي
+  (at once; after a سكرو the first caller stays the caller); on a hand that
+  runs out (`shared.finisher`, however it was emptied, even by someone else's
+  بوم); or, with `suddenDeath`, once everyone has had the last turn that the
+  deck running out started (`shared.lastLap { by }`: no reshuffle, `pass`, no
+  penalty card, no سكرو). With the thief in the deck (even if nobody holds it,
+  or the phase would say someone does), every seated phone then votes who
+  holds it (`thiefVote`, changeable until the close; the choices wait in
+  `room._screw` and `shared.thiefVote.voted` says only who voted; it closes
+  when all have voted, on `closeThiefVote` / `skipTurn`, or on the turn
+  clock): the most votes accuse, and a tie goes to the caller's choice if it is
+  among the tied, otherwise nobody. Scoring is `screwScoreRound`: hand values
+  (`skrewHandValues`: a life jacket copies the lowest other card, 10 alone),
+  team sums, `screwRoundScores` (a finisher's side 0; else a caller equal to or
+  below every other side 0, the others their totals; a beaten caller doubled
+  whatever the sign - in teams only the caller's own hand - and the lowest of
+  the others 0; no caller, the lowest 0), then `screwThief` (caught: the
+  holder's side +25; otherwise that side takes the lowest round score and every
+  side that had it +25). `results` carries `hands`, `values`, `sums`, `totals`,
+  `thief` (`holder`, `accused`, `votes` - published only now - `caught`,
+  `stole`, `victims`, `score`, `skipped`), `round`, `lowest`, `caller`,
+  `finisher` and `callerDouble`; in teams `totals` and `round` hold the team
+  keys and every player. The last round goes straight to `gameover` with
+  `winners` (and `winnerTeams`). The board is lowest first, so `renderPodium`
+  (highest wins) is not used for it.
+- **What the table knows.** Every slot carries a public history,
+  `shared.hands[pid][i].h = { how, by, from, at, known, looks }`: how its card
+  arrived (deal, deck, pile, penalty, swap, give, scream, khoshaf), who moved
+  it and from which slot, who has looked at that card (looks travel with the
+  card), and `known` for a card the whole table saw face up (taken from the
+  pile, or a failed throw back face down). It is what everyone watched happen,
+  so it is public, and it reaches back further than the last 40 events at 12
+  players. The phone draws it only with `memoryHelp` on (off by default: the
+  owner's "memory is the game"); otherwise moves light up as they happen and
+  fade.
+- **Clocks and leaving.** The turn clock (0, 30 or 60 seconds) is a server
+  deadline that does what the host's `skipTurn` does, and closes the thief
+  vote too. A player who leaves puts their cards under the deck and their turn
+  moves on; a caller who leaves brings the reveal at once, with no caller; and
+  the game ends when fewer than two (or one side) are left, without scoring
+  the round in progress. A latecomer watches
+  until play again.
+
+**سكرو on the phones and the TV** (`JS_RoomScrew.html`, `ROOM_GAMES.screw`
+and `TV_GAMES.screw`; styles in section 16 of `Style.html`). Every hand is
+face down in numbered slots on every phone and the TV, drawn by one card
+builder, `skrCardHtml`, sized by `--skr-w`.
+
+- **Memory is the game.** By default the table remembers nothing, as at a real
+  table: every move is drawn as it happens - a flight between exact
+  `data-skr-at` places (`skrPlay`, one choreography per event: the deal, the
+  riffle of a reshuffle, draw, keep, take, a right or failed throw, each power
+  from the peek's lift to بوم's blast, the scream's slide, the vote's pins and
+  the reveal's stamps; Web Animations of transform and opacity on fixed
+  layers) - the places it touched glow with a sign for about 3 seconds
+  (`skrFlash`, carried across redraws by `--skr-flash-at`), the latest move
+  sits at the top of the table (`skrLatestHtml`) and the log keeps two more. A
+  phone back from the lock screen replays nothing (`skrWokeRecently`).
+  `settings.memoryHelp` switches on each slot's story from the server's
+  `hands[pid][i].h` (corner icons, words under your own cards, each seat's last
+  move, a known value on the back, a story toast). A new animation calls
+  `skrCanMove()`, registers its timers in `skrFx.timers` and pushes
+  `skrFx.busyUntil`, so the table isn't redrawn under a flying card; positions
+  are measured just before each redraw.
+- **Picking.** A move is picked, then confirmed in the sticky action bar
+  (`skrLocal.pick`, `skrNeed`, `skrPickPayload`). Someone else's card is two
+  steps in the bar (`skrTargetsHtml`: the names, protected ones greyed, then
+  that player's cards large), so twelve players keep a compact table of two
+  columns; كعب داير steps through the players with a count. Protected hands
+  after سكرو come from `skrProtected` (the caller's side in teams).
+- **The thief vote** runs on every seated phone (`skrVoteHtml`; this phone's
+  own choice is kept in sessionStorage, since a changed vote sends no event)
+  and on the TV. The reveal plays the votes as `renderVoteResults` bars, then a
+  `spyRevealParts` card, then the hands turning one by one, the ×2 stamp on a
+  beaten caller and a life jacket's value turning into the card it copies. A
+  round that ends on a move plays that move on the table first
+  (`skrPlayEnding`; on the TV `frame` keeps drawing the table while
+  `skrFx.tvEnding`). The lowest-wins podium mirrors the board through
+  `renderPodium`.
+- **Fitting.** On a phone upright the page scrolls your hand above the bar when
+  it matters (`skrHandInView`: the memorising, your turn). On a phone on its
+  side up to four opponents take a row each and the bar is one line of prompt
+  with smaller buttons (a `:has()` rule counts the seats). Twelve seats fit the
+  TV at 1280×720 without scrolling. Values inside a translated line are
+  isolated (FSI/PDI in `skrT`) except plain numbers, or "Adam: +20" draws as
+  "+20 :Adam" and "1/5" as "5/1". A few short sounds were added to `FX` in
+  `JS_Sounds.html` (`skrFlick`, `skrRiffle`, `skrDrum`, `skrThump`), not on the
+  soundboard; none depends on a hidden card.
+
 **The Buzzer (الجرس)** has no content at all: the host asks their own questions
 out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps
 `shared.buzzes` in the order the presses reached the server, which is the one
@@ -1098,7 +1317,12 @@ every deploy — a second address for the app if `github.io` is ever blocked.
 `location.reload()` (the worker fetches the network first), and when a new
 build's worker takes over a page that already had one (`controllerchange`),
 a tappable toast says a new version is ready. An iPhone home-screen copy can
-stay open for days and has no reload button of its own. A phone opening the
+stay open for days and has no reload button of its own. The worker takes
+over as the app opens too (the page was fetched fresh from the network, and
+the new worker claims it a moment later), which showed the toast on a page
+that already was the new build: the build writes its id into the page
+(`window.BUILD_ID`, the same stamp as the cache name in `sw.js`), and the
+toast asks `sw.js` for its stamp first and stays quiet when they match. A phone opening the
 app for the first time starts in its own light or dark theme, and
 `<meta name="theme-color">` follows the page's background.
 
@@ -1423,6 +1647,41 @@ What a real table needed, added after the audit of 17 Sep 2026:
   points moved. `showScoreWinner` (JS_Screw.html) rebuilds the shared win
   popup's contents each time and never rewrites its buttons.
 
+**سكرو on the table** (`JS_Screw.html`, the `setup-screw` / `play-screw`
+screens, `.mode-device-panel` beside the room game's `.mode-online-panel`) is
+the same scoring for a game with real cards. It keeps the hand totals as typed
+(`players[i].scores[r]`, 0 for a player who ran out of cards) and the round's
+picks (`meta[r] = { v: 3, caller, finisher, accused, holder }`), and works
+every round out again through `skScoreRound`, so fixing a round rescores it:
+
+1. The finisher's hand is 0.
+2. Hands are added per team with صاحب صاحبه (two sides alternating in the
+   order of names, 4, 6 or 8 players, like the rooms).
+3. Round scores, decided on the plain totals: the finisher's unit scores 0 and
+   a caller outside it is doubled; otherwise a caller lower than or equal to
+   every other unit scores 0 and the others keep their totals; a beaten caller
+   is doubled whatever the sign and the lowest of the others score 0; with no
+   caller the lowest score 0. In teams only the caller's own hand is doubled
+   and added to the partners'.
+4. With الحرامي, the table's accusation: caught, the holder's unit takes +25;
+   not caught, it takes the lowest round score and every unit that had it
+   takes +25, nothing if it already had it.
+
+Older rounds keep scoring by the rules they were saved under: `v: 2` doubled a
+caller's whole team, and a round with no `v` used the first rules (the
+caller's guess, the hands swapped on a wrong one, a tie doubled). A fixed or
+taken-back round is saved under the current rules, the old guess standing for
+the accusation. A half-typed round (`drafts[r]`) survives a reload, "رجّع آخر
+جولة" puts a round back on the card, and the win popup is a lowest-first
+podium drawn with `renderPodium`'s classes (`skPodiumHtml`). A game saved
+before any of this (no `scoring: 'skrew'`) keeps its rounds as typed
+(`meta[r].legacy`). The options (`prefs`) apply at Start; "لعبة جديدة" keeps
+the finished game's. `JS_Screw.html` loads before `JS_Solo.html`, so it
+paints through `onLeaveScreen`, `onLanguageChange` and `DOMContentLoaded`
+rather than `soloRegister`. The preview above Save (`#cs-preview`,
+`#sk-preview`) sits on its own plate: with four players its chips wrap and
+used to read over the card underneath.
+
 The numbers, researched on 16 Sep 2026:
 
 - **إستميشن**: made exactly = base (10, or 13) + call, ±10 for the caller and
@@ -1586,7 +1845,11 @@ minutes, mode icons) and its body opens with the catalog's one-line pitch
 ordered list of how a round goes, then `.help-sub` sub-heads for
 📱 separate phones, 📺 the TV, 👥 teams, 🎤 the director or 💡 tips where
 they apply. Keep new rules in that shape, and never mention where content is
-stored: it is code, and the sheet is not for that.
+stored: it is code, and the sheet is not for that. A game with many cases
+(سكرو: every card, every way a round ends, scoring examples, each version)
+keeps the short ordered list on top and folds each part into a
+`<details class="help-more">` with its own heading, so the sheet stays short
+and search still reads all of it.
 
 **Search reads the rules, not just the titles** — people search for the thing
 they are stuck on ("assassin", "قاتلة"), not for the game's name. It runs
@@ -2227,12 +2490,33 @@ The bottom bar calls `navTo(target)`, which asks `openExitSheet(target)`
 first: mid-round on one phone, a stray tap on 🏠 opens the "leave this game?"
 sheet (its first button goes where the tab goes) instead of dropping the
 round. From a room screen nothing is asked - the room stays open behind the
-banner. The phone's back (Android's button, a browser's back swipe) is caught
-with one history entry kept in front of the app (`armBackTrap`, pushed by
-`setView` on any screen but the home and when a popup opens): `popstate`
-closes the top popup, or runs `goBack()`. On the home it is let through, so
-back still leaves the app from there. Tool screens' `up` is `tools`, so their
-arrow lands on the الأدوات tab they were opened from.
+banner. Tool screens' `up` is `tools`, so their arrow lands on the الأدوات tab
+they were opened from.
+
+**The phone's back walks the same path as the arrow.** The browser's history
+is kept equal to the screen (`navReconcile` in `JS_Core.html`, run after every
+`setView` and every popup opening or closing, and re-derived each time rather
+than patched move by move): one entry per screen in the `up` chain from the
+home (الأدوات and مع بعض sit on top of the home, so back from them comes
+home, and back on the home leaves the app); one more entry of the same screen
+where leaving would end a game (`exitSheetAsks` in `JS_Utils.html`, the same
+test `openExitSheet` makes); and one more while a popup is open. So back
+closes a popup, then asks before a game is dropped, then goes up a screen. The
+header's arrow and the tabs change the screen and the history follows with
+`history.go`, so the two never disagree. Entries carry a token (`play-sudoku`,
+`play-sudoku+` for the extras), their index and a per-load session id; an
+entry left behind by a reload starts the history over from the screen showing.
+
+This replaced a single entry kept in front of the app (`armBackTrap`), which
+the owner found on an iPhone: Safari's back swipe slid in its snapshot of that
+entry - the same screen - and only then did the app change screen, its own
+slide already too late to see. With an entry per screen Safari slides in the
+screen you are really going back to, and `setView` skips its own slide when
+the browser has already animated (`PopStateEvent.hasUAVisualTransition`, or a
+touch that started within 28px of the edge in the last 1.5s). A game's extra
+entry is why the swipe on a game slides the game onto itself before the
+"leave?" sheet, rather than showing the setup screen and snapping back. iOS
+limits `pushState` to about 100 calls in 30 seconds; nothing here comes close.
 
 **Hooks for what a screen leaves behind.** `onLeaveScreen((from, to) => …)`
 (JS_Core.html) runs on every screen change: a game stops there whatever no

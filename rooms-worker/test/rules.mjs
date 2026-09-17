@@ -365,6 +365,971 @@ const leave = (r, id, hook = true) => {
   check(r.shared.dealId === second, 'deal stamp: a next round that deals nothing leaves it');
 }
 
+/* --- سكرو: scoring, matching, the powers, and what never leaves the server --------- */
+{
+  // A table the tests can set: hands and the deck are written straight into room._screw.
+  const skStart = (ids, opts) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'screw' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({ edition: 'classic', rounds: 3, screwFromLap: 1 }, opts));
+    return r;
+  };
+  const sk = (r, pid, action, payload = {}) => applyRoomAction(r, pid, action, Object.assign({ seq: r.shared.turnSeq }, payload));
+  const skThrew = (r, pid, action, payload) => threw(() => sk(r, pid, action, payload));
+  // Hands by seat: cards[i] goes to shared.order[i], in slots named <pid>1, <pid>2...
+  const setHands = (r, cards) => {
+    r.shared.order.forEach((id, i) => {
+      if (!cards[i]) return;
+      r._screw.hands[id] = cards[i].map((c, k) => ({ id: id + (k + 1), card: c, shown: false }));
+    });
+  };
+  const seat = (r, i) => r.shared.order[i];
+  const up = (r) => r.shared.turn && r.shared.turn.pid;
+  const slotOf = (r, pid, n) => r._screw.hands[pid][n - 1].id;
+  // Everyone taps "memorized", then the round is set as the test wants it.
+  const begin = (r, cards, deck, pile) => {
+    if (cards) setHands(r, cards);
+    if (deck) r._screw.deck = deck.slice();
+    if (pile) r._screw.pile = pile.slice();
+    r.shared.order.forEach((id) => sk(r, id, 'ready'));
+  };
+  // The player up calls سكرو and everyone else plays out their last turn with a skip.
+  const callAndFinish = (r) => {
+    const host = r.hostId;
+    sk(r, up(r), 'screw');
+    let guard = 20;
+    while (r.shared.phase === 'play' && guard--) sk(r, host, 'skipTurn');
+  };
+
+  {
+    // The deal and the memorize.
+    const r = skStart(['a', 'b', 'c', 'd']);
+    check(r.shared.phase === 'memorize' && r.shared.order.length === 4 && r.shared.pile.length === 1 && r.shared.deckCount === 59 - 17 && r.shared.settings.basraCount === 4,
+      'skrew: four cards each, one on the pile, the rest in the deck');
+    check(r.shared.order.every((id) => r.shared.hands[id].length === 4 && r.shared.hands[id].every((h, i) => h.up === null && h.n === i + 1 && /^c\d+$/.test(h.id))),
+      'skrew: every hand is four face-down slots with stable ids');
+    check(r.shared.order.every((id) => r.secrets[id].memorize.length === 2 && r.secrets[id].memorize[0].slot === r.shared.hands[id][2].id && r.secrets[id].memorize[1].slot === r.shared.hands[id][3].id),
+      'skrew: each phone memorizes its own slots 3 and 4');
+    const shared = JSON.stringify(r.shared);
+    const hidden = Object.values(r._screw.hands).flat().map((e) => e.card);
+    check(!/"(memorize|drawn|seen|khoshaf|card)":/.test(shared) && !JSON.stringify(r.shared.hands).match(/"up":"/),
+      'skrew: shared carries no card of any hand');
+    check(hidden.length === 16, 'skrew: the hands stay in room._screw');
+    const seq = r.shared.turnSeq;
+    sk(r, 'a', 'ready');
+    check(r.secrets.a.memorize === null && r.secrets.b.memorize.length === 2 && r.shared.turnSeq === seq, 'skrew: ready hides your two cards, and moves no turn');
+    sk(r, 'a', 'beginRound');
+    check(r.shared.phase === 'play' && r.shared.turn.pid === r.shared.order[0] && r.shared.turn.stage === 'choose' && r.shared.turnSeq === seq + 1,
+      'skrew: the host starts the round without waiting; the first seat is up');
+    check(threw(() => applyRoomAction(r, 'b', 'beginRound', {})) || r.hostId === 'b', 'skrew: only the host starts it');
+  }
+
+  {
+    // Draw: only the drawer sees it; keep, discard, the pile, and a stale tap.
+    const r = skStart(['a', 'b', 'c']);
+    begin(r, [['n1', 'n2', 'n3', 'n4'], ['n5', 'n6', 'n1', 'n2'], ['n3', 'n4', 'n5', 'n6']], ['n6', 'green0', 'n6', 'p7'], ['n2']);
+    const p0 = seat(r, 0), p1 = seat(r, 1), p2 = seat(r, 2);
+    check(skThrew(r, p1, 'draw'), 'skrew: only the player up draws');
+    const oldSeq = r.shared.turnSeq;
+    sk(r, p0, 'draw');
+    check(r.secrets[p0].drawn === 'p7' && r.secrets[p1].drawn === null && r.shared.turn.stage === 'drawn', 'skrew: the drawn card is in the drawer\'s slice only');
+    const last = r.shared.events[r.shared.events.length - 1];
+    check(last.type === 'draw' && !('card' in last) && JSON.stringify(r.shared).indexOf('p7') === -1, 'skrew: nothing shared says what was drawn');
+    applyRoomAction(r, p0, 'draw', { seq: oldSeq });
+    check(r.shared.turn.stage === 'drawn' && r.shared.deckCount === 3, 'skrew: a tap with a stale seq is dropped quietly');
+    sk(r, p0, 'keep', { slot: slotOf(r, p0, 1) });
+    check(r._screw.hands[p0][0].card === 'p7' && r.shared.pile[r.shared.pile.length - 1] === 'n1' && r.shared.turn.pid === p1,
+      'skrew: keep swaps the card into the slot, the old one goes face up on the pile, the turn passes');
+    const ev = r.shared.events[r.shared.events.length - 1];
+    check(ev.type === 'keep' && ev.card === 'n1' && ev.slot === p0 + '1', 'skrew: the keep event carries the old card');
+    sk(r, p1, 'draw');
+    check(skThrew(r, p1, 'keep', { slot: 'nope' }), 'skrew: a slot that is not yours is refused');
+    sk(r, p1, 'discard');
+    check(r.shared.turn.pid === p2 && r.shared.pile[r.shared.pile.length - 1] === 'n6', 'skrew: a number discarded ends the turn');
+    sk(r, p2, 'takePile', { slot: slotOf(r, p2, 2) });
+    check(r._screw.hands[p2][1].card === 'n6' && r.shared.pile[r.shared.pile.length - 1] === 'n4' && r.shared.hands[p2][1].up === null,
+      'skrew: taking the pile puts its top in the slot (face down) and the old card on the pile');
+    check(r.shared.lap === 2 && r.shared.turn.pid === p0, 'skrew: back to the first seat is lap 2');
+  }
+
+  {
+    // Matching: right leaves the hand, wrong is shown and costs a card.
+    const r = skStart(['a', 'b']);
+    begin(r, [['n3', 'red25', 's10', 'n5'], ['p7', 'green0', 'swap', 'n1']], ['n2', 'n4', 'n6', 'n1'], ['n3']);
+    const p0 = seat(r, 0), p1 = seat(r, 1);
+    sk(r, p0, 'match', { slot: slotOf(r, p0, 1) });
+    check(r._screw.hands[p0].length === 3 && r.shared.pile[r.shared.pile.length - 1] === 'n3' && r.shared.turn.pid === p1,
+      'skrew: a 3 on a 3 leaves the hand and ends the turn');
+    const e1 = r.shared.events[r.shared.events.length - 1];
+    check(e1.type === 'match' && e1.ok === true && e1.card === 'n3', 'skrew: the match event shows the card and that it was right');
+    sk(r, p1, 'match', { slot: slotOf(r, p1, 1) });
+    check(r._screw.hands[p1].length === 5 && r._screw.hands[p1][0].card === 'p7' && r.shared.hands[p1][0].up === null && r.shared.hands[p1][0].h.known === 'p7' &&
+      r.shared.hands[p1][4].up === null && r._screw.hands[p1][4].card === 'n1' && r.secrets[p1].seen === null && r.secrets[p1].drawn === null,
+      'skrew: a 7 on a 3 goes back face down in its slot (the table knows it), and a penalty card comes blind into a new slot at the end');
+    const pen = r.shared.hands[p1][4].h;
+    check(pen.how === 'penalty' && pen.by === p1 && pen.looks.length === 0 && pen.known === null && pen.at === r.shared.events.slice(-1)[0].seq,
+      'skrew: nobody looks at a penalty card, its owner neither');
+    check(r.shared.events.slice(-2).map((e) => e.type + ':' + e.ok).join() === 'match:false,penalty:undefined', 'skrew: a wrong match and its penalty are both events');
+    r._screw.pile.push('green0');
+    sk(r, p0, 'match', { slot: slotOf(r, p0, 1) });
+    check(r._screw.hands[p0].length === 2 && r.shared.pile[r.shared.pile.length - 1] === 'red25', 'skrew: the red screw burns on a green screw');
+    r._screw.pile.push('n5');
+    sk(r, p1, 'match', { slot: slotOf(r, p1, 2) });
+    check(r._screw.hands[p1].length === 6 && r.shared.hands[p1][1].up === null && r.shared.hands[p1][1].h.known === 'green0', 'skrew: a green screw on a 5 is wrong');
+    r._screw.pile.push('s10');
+    sk(r, p0, 'match', { slot: p0 + '3' });
+    check(r._screw.hands[p0].length === 1, 'skrew: a 10 on a 10 is right');
+    r._screw.pile.push('swap');
+    sk(r, p1, 'match', { slot: p1 + '3' });
+    check(r._screw.hands[p1].length === 5, 'skrew: خد وهات on خد وهات is right');
+    r._screw.pile.push('red25');
+    r._screw.hands[p0].push({ id: 'x9', card: 'n5', shown: false });
+    sk(r, p0, 'match', { slot: 'x9' });
+    check(r.shared.hands[p0].find((h) => h.id === 'x9').h.known === 'n5' && r.shared.hands[p0].find((h) => h.id === 'x9').up === null, 'skrew: a 5 on the red screw is wrong');
+    // The deck runs out: the pile under its top card is shuffled back in.
+    r._screw.deck = [];
+    const pileBefore = r._screw.pile.length;
+    sk(r, p1, 'draw');
+    check(r._screw.pile.length === 1 && r._screw.deck.length === pileBefore - 2 && r.shared.events.some((e) => e.type === 'reshuffle'),
+      'skrew: an empty deck takes back the pile but its top card');
+  }
+
+  {
+    // سكرو: from the lap chosen, the last turns, the protected hand, scores 0 and double.
+    const r = skStart(['a', 'b', 'c'], { screwFromLap: 2 });
+    begin(r, [['n1', 'n1', 'n1', 'n1'], ['n2', 'n2', 'n2', 'n2'], ['n3', 'n3', 'n3', 'n3']], ['n6', 'n6', 'n6', 'n6', 'n6', 'n6'], ['n5']);
+    const [p0, p1, p2] = r.shared.order;
+    check(skThrew(r, p0, 'screw'), 'skrew: سكرو is refused before the lap chosen');
+    sk(r, p0, 'draw'); sk(r, p0, 'discard');
+    sk(r, p1, 'draw'); sk(r, p1, 'discard');
+    sk(r, p2, 'draw'); sk(r, p2, 'discard');
+    sk(r, p0, 'screw');
+    check(r.shared.caller === p0 && r.shared.finalLeft.join() === [p1, p2].join() && r.shared.turn.pid === p1, 'skrew: سكرو at lap 2 gives everyone else one more turn');
+    sk(r, p1, 'draw');
+    sk(r, p1, 'discard');
+    check(r.shared.phase === 'play' && r.shared.turn.pid === p2 && r.shared.finalLeft.join() === p2, 'skrew: each last turn is spent');
+    sk(r, p2, 'draw');
+    sk(r, p2, 'discard');
+    check(r.shared.phase === 'reveal' && r.shared.results.round[p0] === 0 && r.shared.results.round[p1] === 8 && r.shared.results.round[p2] === 12 && !r.shared.results.callerDouble,
+      'skrew: a caller strictly lowest scores 0, the others their totals');
+    check(r.shared.order.every((id) => r.shared.hands[id].every((h) => h.up)), 'skrew: at the reveal every card is face up');
+    check(r.shared.board[0].id === p0 && r.shared.board[2].id === p2, 'skrew: the board is lowest first');
+    check(threw(() => applyRoomAction(r, p1, 'nextRound', { round: 1 })) || r.hostId === p1, 'skrew: only the host deals the next round');
+    applyRoomAction(r, r.hostId, 'nextRound', { round: 1 });
+    check(r.shared.phase === 'memorize' && r.shared.round === 2 && r._screw.start === 1, 'skrew: the next round is dealt, the first seat moved on');
+    applyRoomAction(r, r.hostId, 'nextRound', { round: 1 });
+    check(r.shared.round === 2, 'skrew: a second tap on next round is ignored');
+  }
+
+  {
+    // Double, ties, zero and negative totals.
+    const round = (cards, callerSeat) => {
+      const r = skStart(['a', 'b', 'c']);
+      begin(r, cards, ['n6', 'n6', 'n6', 'n6'], ['n5']);
+      const caller = seat(r, callerSeat);
+      while (up(r) !== caller) sk(r, r.hostId, 'skipTurn');
+      callAndFinish(r);
+      return { r, res: r.shared.results, s: (i) => r.shared.results.round[seat(r, i)] };
+    };
+    let t = round([['n5'], ['n5'], ['n6']], 0);
+    check(t.s(0) === 0 && t.s(1) === 5 && t.s(2) === 6 && !t.res.callerDouble && t.res.lowest.join() === seat(t.r, 0),
+      'skrew: a caller who ties the lowest scores 0, and the one tied keeps their total');
+    t = round([['n6'], ['n2', 'n1'], ['n3']], 0);
+    check(t.s(0) === 12 && t.s(1) === 0 && t.s(2) === 0 && t.res.callerDouble, 'skrew: a beaten caller is doubled; ties for lowest among the others all score 0');
+    t = round([['green0'], ['green0'], ['n1']], 0);
+    check(t.s(0) === 0 && t.s(1) === 0 && t.s(2) === 1 && !t.res.callerDouble, 'skrew: a caller tied at 0 scores 0');
+    t = round([['minus1'], ['minus1', 'n1'], ['minus1', 'green0']], 2);
+    check(t.s(0) === -1 && t.s(1) === 0 && t.s(2) === 0 && !t.res.callerDouble && t.res.totals[seat(t.r, 2)] === -1,
+      'skrew: a negative caller who ties the lowest scores 0; the one tied keeps -1');
+    t = round([['minus1'], ['n2'], ['minus1', 'minus1']], 0);
+    check(t.s(0) === -2 && t.s(1) === 2 && t.s(2) === 0 && t.res.callerDouble, 'skrew: a beaten caller on -1 is doubled to -2');
+    t = round([['green0'], ['minus1'], ['n3']], 0);
+    check(t.s(0) === 0 && t.s(1) === 0 && t.s(2) === 3 && t.res.callerDouble, 'skrew: a beaten caller on 0 is doubled and stays 0');
+    t = round([['n4', 'basra'], ['n1'], ['n2']], 2);
+    check(t.s(0) === 14 && t.s(1) === 0 && t.s(2) === 4 && t.res.sums[seat(t.r, 0)] === 14, 'skrew: a command card left in a hand counts 10');
+    t = round([['lifeJacket', 'minus1', 'n3'], ['lifeJacket'], ['n4', 'lifeJacket', 'lifeJacket']], 0);
+    const v = (i) => t.res.values[seat(t.r, i)].join();
+    check(v(0) === '-1,-1,3' && v(1) === '10' && v(2) === '4,4,4' && t.res.sums[seat(t.r, 0)] === 1 && t.res.sums[seat(t.r, 2)] === 12 && t.s(0) === 0 && t.s(1) === 10,
+      'skrew: a life jacket counts as the lowest other card in its hand (10 with nothing to copy), and results.values shows it');
+    // No caller at all (they left): the lowest scores 0.
+    const r = skStart(['a', 'b', 'c']);
+    begin(r, [['n1'], ['n2'], ['n3']], ['n6', 'n6'], ['n5']);
+    sk(r, seat(r, 0), 'screw');
+    const caller = seat(r, 0);
+    leave(r, caller);
+    check(r.shared.phase === 'reveal' && r.shared.results.caller === null && r.shared.results.round[seat(r, 0)] === 0 && r.shared.results.round[seat(r, 1)] === 3,
+      'skrew: the caller leaving reveals at once, scored without a caller');
+  }
+
+  {
+    // Rounds, the running total and the winner, lowest first.
+    const r = skStart(['a', 'b'], { rounds: 3 });
+    for (let k = 0; k < 3; k++) {
+      begin(r, [['n1'], ['n2', 'n2']], ['n6', 'n6'], ['n5']);
+      while (up(r) !== r.shared.order[1]) sk(r, r.hostId, 'skipTurn');
+      callAndFinish(r);
+      if (k < 2) applyRoomAction(r, r.hostId, 'nextRound', { round: r.shared.round });
+    }
+    const [p0, p1] = r.shared.order;
+    check(r.shared.phase === 'gameover' && r.shared.scores[p0] === 0 && r.shared.scores[p1] === 24 && r.shared.winners.join() === p0,
+      'skrew: after the last round the game is over, lowest total wins');
+    applyRoomAction(r, r.hostId, 'playAgain', {});
+    check(r.shared.phase === 'memorize' && r.shared.round === 1 && Object.keys(r.shared.scores).length === 0 && r.shared.settings.rounds === 3,
+      'skrew: play again starts over with the same options');
+  }
+
+  {
+    // Teams: the partners' hands add up; the side scores together.
+    const r = skStart(['a', 'b', 'c', 'd'], { edition: 'sahib', teams: true });
+    check(r.shared.teams && r.shared.teams[0].join() === [seat(r, 0), seat(r, 2)].join() && r.shared.teams[1].join() === [seat(r, 1), seat(r, 3)].join(),
+      'skrew: teams alternate around the table');
+    check(threw(() => { const x = newRoom(['a', 'b', 'c']); applyRoomAction(x, 'a', 'chooseGame', { game: 'screw' }); applyRoomAction(x, 'a', 'start', { teams: true }); }),
+      'skrew: teams need 4, 6 or 8 players');
+    begin(r, [['n1', 'n1'], ['n3'], ['n2'], ['n1']], ['n6', 'n6', 'n6', 'n6'], ['n5']);
+    callAndFinish(r);
+    const res = r.shared.results;
+    check(res.totals.A === 4 && res.totals.B === 4 && res.round.A === 0 && res.round.B === 4 && !res.callerDouble, 'skrew: a side calling on a tie scores 0, the other side keeps its total');
+    check(res.round[seat(r, 0)] === 0 && res.round[seat(r, 1)] === 4 && r.shared.scores[seat(r, 2)] === 0 && r.shared.scores[seat(r, 3)] === 4 && r.shared.teamScores.B === 4,
+      'skrew: each partner carries the side\'s score');
+    check(res.lowest.sort().join() === [seat(r, 0), seat(r, 2)].sort().join(), 'skrew: the lowest side\'s players are the lowest');
+    // A side beaten: only the caller's own hand is doubled, whatever its sign; the win is decided on the plain totals.
+    const beaten = (cards) => {
+      const x = skStart(['a', 'b', 'c', 'd'], { edition: 'sahib', teams: true });
+      begin(x, cards, ['n6', 'n6', 'n6', 'n6'], ['n5']);
+      callAndFinish(x);
+      return x.shared.results;
+    };
+    let b = beaten([['n5'], ['n1'], ['n3'], ['n3']]);
+    check(b.totals.A === 8 && b.totals.B === 4 && b.round.A === 13 && b.round.B === 0 && b.round[b.caller] === 13 && b.callerDouble,
+      'skrew: a side beaten: 5 doubled plus the partner\'s 3 is 13, not 16');
+    b = beaten([['minus1'], ['n1'], ['n5'], ['n2']]);
+    check(b.totals.A === 4 && b.totals.B === 3 && b.round.A === 3 && b.round.B === 0 && b.callerDouble, 'skrew: a side beaten with the caller on -1: -2 plus the partner\'s 5 is 3');
+    b = beaten([['n2'], ['n1'], ['n1'], ['n2']]);
+    check(b.totals.A === 3 && b.totals.B === 3 && b.round.A === 0 && b.round.B === 3 && !b.callerDouble, 'skrew: a side tied on the plain totals has made its call');
+  }
+
+  {
+    // Ping and Pong: the next player is skipped, the one after may throw Pong.
+    const r = skStart(['a', 'b', 'c', 'd'], { edition: 'sahib', teams: true });
+    begin(r, [['n1'], ['n2'], ['pong', 'n3'], ['n4']], ['n6', 'n6', 'n6', 'ping'], ['n5']);
+    const [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'draw');
+    check(r.shared.turn.pid === p2 && r.shared.turn.pongOpen === true && r.shared.turn.pingFrom === p0 && r.shared.pile[r.shared.pile.length - 1] === 'ping',
+      'skrew: a ping plays itself, the next player loses the turn, the partner is up');
+    check(r.shared.events.slice(-1)[0].type === 'ping' && r.shared.events.slice(-1)[0].target === p1, 'skrew: the ping names who was skipped');
+    sk(r, p2, 'pong', { slot: slotOf(r, p2, 1) });
+    check(r._screw.hands[p2].length === 1 && r.shared.pile[r.shared.pile.length - 1] === 'pong' && r.shared.turn.pid === p2 && r.shared.turn.stage === 'choose' && !r.shared.turn.pongOpen,
+      'skrew: a right Pong leaves the hand, and the turn is still to play');
+    check(skThrew(r, p2, 'pong', { slot: slotOf(r, p2, 1) }), 'skrew: Pong once, right after the ping');
+    // A wrong Pong costs a card.
+    const w = skStart(['a', 'b']);
+    begin(w, [['n1'], ['n2', 'n3']], ['n6', 'n6', 'ping'], ['n5']);
+    const [w0, w1] = w.shared.order;
+    sk(w, w0, 'draw');
+    check(w.shared.turn.pid === w0 && w.shared.turn.pongOpen, 'skrew: with two players a ping comes back to the one who drew it');
+    sk(w, w0, 'pong', { slot: slotOf(w, w0, 1) });
+    check(w._screw.hands[w0].length === 2 && w.shared.hands[w0][0].up === null && w.shared.hands[w0][0].h.known === 'n1' && w.shared.turn.pid === w0,
+      'skrew: a wrong Pong is seen, goes back face down, and costs a penalty card');
+    check(w.shared.events.some((e) => e.type === 'ping' && e.target === w1), 'skrew: and the other player was the one skipped');
+  }
+
+  {
+    // The powers: peek, spy, blind swap, basra, all around, give, see & swap, as you like, cannon, khoshaf, scream.
+    const r = skStart(['a', 'b', 'c'], { edition: 'general', screwFromLap: 1 });
+    begin(r, [['n1', 'n2', 'n3', 'n4'], ['n5', 'n6', 'n1', 'n2'], ['n3', 'n4', 'n5', 'n6']], [], ['n5']);
+    const [p0, p1, p2] = r.shared.order;
+    const drawPower = (pid, card) => { r._screw.deck.push(card); sk(r, pid, 'draw'); sk(r, pid, 'discard'); };
+
+    drawPower(p0, 'p8');
+    check(r.shared.turn.stage === 'power' && r.shared.turn.power === 'peekOwn', 'skrew: an 8 from the deck, discarded, offers its power');
+    sk(r, p0, 'power', { slot: slotOf(r, p0, 2) });
+    check(JSON.stringify(r.secrets[p0].seen) === JSON.stringify([{ pid: p0, slot: p0 + '2', card: 'n2' }]) && r.secrets[p1].seen === null && r.shared.turn.pid === p1,
+      'skrew: peek shows your own card to you alone');
+    const pe = r.shared.events.slice(-1)[0];
+    check(pe.type === 'peekOwn' && pe.slot === p0 + '2' && !('card' in pe), 'skrew: the table sees which slot, not the card');
+
+    drawPower(p1, 's9');
+    check(skThrew(r, p1, 'power', { target: p1, slot: slotOf(r, p1, 1) }), 'skrew: spy is on another player');
+    sk(r, p1, 'power', { target: p2, slot: slotOf(r, p2, 3) });
+    check(r.secrets[p1].seen[0].card === 'n5' && r.secrets[p2].seen === null && JSON.stringify(r.shared).indexOf('"n5"') === JSON.stringify(r.shared).lastIndexOf('"n5"'),
+      'skrew: spy shows one card of another player to the spy alone');
+
+    drawPower(p2, 'swap');
+    sk(r, p2, 'power', { slot: slotOf(r, p2, 1), target: p0, slot2: slotOf(r, p0, 1) });
+    check(r._screw.hands[p2][0].card === 'n1' && r._screw.hands[p0][0].card === 'n3' && r.shared.hands[p0][0].id === p0 + '1',
+      'skrew: a blind swap trades the cards; the slots stay where they are');
+    check(r.secrets[p0].seen && r.secrets[p0].seen[0].card === 'n2', "skrew: what you looked at stays with you through the others' turns");
+
+    drawPower(p0, 'basra');
+    check(r.secrets[p0].seen === null, 'skrew: and goes at your next move');
+    sk(r, p0, 'power', { slot: slotOf(r, p0, 4) });
+    check(r._screw.hands[p0].length === 3 && r.shared.pile[r.shared.pile.length - 1] === 'n4', 'skrew: بصرة throws one of your cards face up');
+
+    drawPower(p1, 'around');
+    check(skThrew(r, p1, 'power', { picks: [{ target: p0, slot: slotOf(r, p0, 1) }] }), 'skrew: كعب داير needs a card of every other player');
+    sk(r, p1, 'power', { picks: [{ target: p0, slot: slotOf(r, p0, 1) }, { target: p2, slot: slotOf(r, p2, 2) }] });
+    check(r.secrets[p1].seen.length === 2 && r.secrets[p1].seen[1].card === 'n4', 'skrew: كعب داير around the table');
+
+    drawPower(p2, 'around');
+    sk(r, p2, 'power', { own: [slotOf(r, p2, 1), slotOf(r, p2, 2)] });
+    check(r.secrets[p2].seen.map((x) => x.card).join() === 'n1,n4', 'skrew: or two of your own');
+
+    drawPower(p0, 'takeOnly');
+    const given = slotOf(r, p0, 1);
+    sk(r, p0, 'power', { slot: given, target: p1 });
+    const ge = r.shared.events.slice(-1)[0];
+    check(r._screw.hands[p0].length === 2 && r._screw.hands[p1].length === 5 && r._screw.hands[p1][4].card === 'n3' && ge.type === 'give' && ge.slot2 === r._screw.hands[p1][4].id,
+      'skrew: خد بس gives a card into a new slot at the end of their hand');
+
+    drawPower(p1, 'seeSwap');
+    sk(r, p1, 'power', { target: p2, slot: slotOf(r, p2, 4) });
+    check(r.shared.turn.stage === 'seeSwap' && r.secrets[p1].seen[0].card === 'n6' && r.shared.turn.look.target === p2, 'skrew: شوف وبدّل looks first');
+    sk(r, p1, 'seeSwapDo', { slot: slotOf(r, p1, 1) });
+    check(r._screw.hands[p1][0].card === 'n6' && r._screw.hands[p2][3].card === 'n5' && r.shared.events.slice(-1)[0].swapped === true && r.secrets[p1].seen === null,
+      'skrew: then swaps');
+
+    drawPower(p2, 'asYouLike');
+    check(skThrew(r, p2, 'power', { as: 'cannon', target: p0 }), 'skrew: على كيفك only copies the powers on its list');
+    sk(r, p2, 'power', { as: 'basra', slot: slotOf(r, p2, 1) });
+    check(r._screw.hands[p2].length === 3 && r.shared.events.slice(-2)[0].type === 'asYouLike', 'skrew: على كيفك as بصرة');
+
+    drawPower(p0, 'cannon');
+    sk(r, p0, 'power', { target: p1 });
+    check(r.shared.exposed.join() === p1 && r.shared.hands[p1].every((h) => h.up) && r.shared.hands[p0].every((h) => !h.up), 'skrew: the cannon turns a hand face up for everyone');
+
+    r._screw.deck = ['n1', 'n2', 'n3', 'n4'];
+    drawPower(p1, 'khoshaf');
+    sk(r, p1, 'power', {});
+    check(r.shared.turn.stage === 'khoshaf' && r.secrets[p1].khoshaf.join() === 'n4,n3,n2,n1' && r.secrets[p0].khoshaf === null && r.shared.deckCount === 0,
+      'skrew: الخشاف shows the top four to the player alone');
+    sk(r, p1, 'khoshafPick', { index: 1 });
+    check(r.shared.turn.stage === 'drawn' && r.secrets[p1].drawn === 'n3' && r._screw.deck.join() === 'n4,n2,n1', 'skrew: one is picked, the other three go under the deck');
+    r._screw.drawn = 'p7';
+    sk(r, p1, 'discard');
+    check(r.shared.turn.pid === p1 && r.shared.turn.stage === 'power' && r.shared.turn.power === 'peekOwn', 'skrew: a card picked from الخشاف counts as drawn: thrown, its power works');
+    sk(r, p1, 'skipPower');
+    check(r.shared.turn.pid === p2, "skrew: a الخشاف pick's power can be skipped");
+
+    const before = r.shared.order.map((id) => r._screw.hands[id].map((e) => e.id).join('+'));
+    drawPower(p2, 'scream');
+    sk(r, p2, 'power', {});
+    const after = r.shared.order.map((id) => r._screw.hands[id].map((e) => e.id).join('+'));
+    check(after[1] === before[0] && after[2] === before[1] && after[0] === before[2], 'skrew: صرخة أوسكار passes every hand to the next player, slot ids and all');
+    check(r.shared.hands[p2].every((h) => h.up), 'skrew: the exposed hand stays face up in its new place');
+
+    drawPower(p0, 'p7');
+    sk(r, p0, 'skipPower');
+    check(r.shared.turn.pid === p1, 'skrew: a power can be skipped');
+  }
+
+  {
+    // The caller's hand is protected; looking is still allowed.
+    const r = skStart(['a', 'b', 'c'], { edition: 'custom', groups: ['oscar'], screwFromLap: 1 });
+    begin(r, [['n1', 'n2'], ['n3', 'n4'], ['n5', 'n6']], ['n1', 'n1', 'n1', 'n1'], ['n5']);
+    const [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'screw');
+    const powerOf = (pid, card) => { r._screw.deck.push(card); sk(r, pid, 'draw'); sk(r, pid, 'discard'); };
+    powerOf(p1, 'swap');
+    check(skThrew(r, p1, 'power', { slot: slotOf(r, p1, 1), target: p0, slot2: slotOf(r, p0, 1) }), 'skrew: no blind swap with the caller');
+    check(skThrew(r, p1, 'power', { as: 'x' }) && r.shared.turn.stage === 'power', 'skrew: a refused power leaves the choice open');
+    sk(r, p1, 'power', { slot: slotOf(r, p1, 1), target: p2, slot2: slotOf(r, p2, 1) });
+    powerOf(p2, 'scream');
+    sk(r, p2, 'power', {});
+    check(r._screw.hands[p0].map((e) => e.card).join() === 'n1,n2' && r._screw.hands[p1][0].card === 'n3' && r.shared.phase === 'reveal',
+      'skrew: the scream steps over the caller, and the last turn ends the round');
+    const q = skStart(['a', 'b', 'c'], { edition: 'general', screwFromLap: 1 });
+    begin(q, [['n1'], ['n3'], ['n5']], ['n1', 'n1', 'n1'], ['n5']);
+    const [q0, q1] = q.shared.order;
+    sk(q, q0, 'screw');
+    q._screw.deck.push('s10'); sk(q, q1, 'draw'); sk(q, q1, 'discard');
+    sk(q, q1, 'power', { target: q0, slot: slotOf(q, q0, 1) });
+    check(q.secrets[q1].seen[0].card === 'n1', 'skrew: spying on the caller is allowed');
+    // In teams the caller's partners are protected too.
+    const t = skStart(['a', 'b', 'c', 'd', 'e', 'f'], { edition: 'general', teams: true, screwFromLap: 1 });
+    begin(t, [['n1', 'n1'], ['n2', 'n2'], ['n3', 'n3'], ['n4', 'n4'], ['n5', 'n5'], ['n6', 'n6']], ['n1', 'n1', 'n1', 'n1'], ['n5']);
+    const [t0, t1, t2, t3, t4, t5] = t.shared.order;
+    sk(t, t0, 'screw');
+    const power = (pid, c) => { t._screw.deck.push(c); sk(t, pid, 'draw'); sk(t, pid, 'discard'); };
+    power(t1, 'swap');
+    check(skThrew(t, t1, 'power', { slot: slotOf(t, t1, 1), target: t2, slot2: slotOf(t, t2, 1) }) && skThrew(t, t1, 'power', { slot: slotOf(t, t1, 1), target: t4, slot2: slotOf(t, t4, 1) }),
+      'skrew: in teams no blind swap with any of the caller\'s side');
+    t.shared.turn.power = 'give';
+    check(skThrew(t, t1, 'power', { slot: slotOf(t, t1, 1), target: t2 }), 'skrew: no خد بس to the caller\'s partner');
+    t.shared.turn.power = 'seeSwap';
+    check(skThrew(t, t1, 'power', { target: t4, slot: slotOf(t, t4, 1) }), 'skrew: no شوف وبدّل on the caller\'s partner');
+    t.shared.turn.power = 'boom';
+    check(skThrew(t, t1, 'power', { target: t2, slot: slotOf(t, t2, 1) }), 'skrew: no بوم on the caller\'s partner');
+    t.shared.turn.power = 'cannon';
+    check(skThrew(t, t1, 'power', { target: t4 }), 'skrew: no cannon on the caller\'s partner');
+    t.shared.turn.power = 'spyOther';
+    sk(t, t1, 'power', { target: t2, slot: slotOf(t, t2, 1) });
+    check(t.secrets[t1].seen[0].card === 'n3', 'skrew: spying on the caller\'s partner is allowed');
+    const handIds = () => t.shared.order.map((id) => t._screw.hands[id].map((e) => e.id).join('+'));
+    const before = handIds();
+    power(t2, 'scream');
+    sk(t, t2, 'power', {});
+    const after = handIds();
+    check(after[0] === before[0] && after[2] === before[2] && after[4] === before[4] && after[3] === before[1] && after[5] === before[3] && after[1] === before[5],
+      'skrew: the scream skips every protected hand of the caller\'s side; the other side\'s hands move on among themselves');
+  }
+
+  {
+    // A ping in the last lap costs the skipped player their last turn; a known card stays known through a swap.
+    const r = skStart(['a', 'b', 'c', 'd'], { edition: 'general', screwFromLap: 1 });
+    begin(r, [['n1'], ['n2', 'n3'], ['n3'], ['n4']], ['n6', 'ping', 'n6', 'n6'], ['n5']);
+    const [p0, p1, p2, p3] = r.shared.order;
+    sk(r, p0, 'match', { slot: slotOf(r, p0, 1) });            // 1 on 5: wrong, shown
+    check(r.shared.hands[p0][0].up === null && r.shared.hands[p0][0].h.known === 'n1', 'skrew: a wrong match goes back face down, known to the table');
+    const seq = r.shared.turnSeq;
+    sk(r, p1, 'draw');
+    check(r.shared.turnSeq === seq + 1, 'skrew: a new stage moves turnSeq');
+    sk(r, p1, 'discard');
+    sk(r, p2, 'screw');
+    check(r.shared.finalLeft.join() === [p3, p0, p1].join(), 'skrew: the last turns in seat order after the caller');
+    r._screw.deck.push('swap');
+    sk(r, p3, 'draw'); sk(r, p3, 'discard');
+    sk(r, p3, 'power', { slot: slotOf(r, p3, 1), target: p0, slot2: slotOf(r, p0, 1) });
+    check(r.shared.hands[p3][0].h.known === 'n1' && r.shared.hands[p3][0].up === null && r.shared.hands[p0][0].h.known === null,
+      'skrew: a card the table has seen stays known where a swap takes it');
+    sk(r, p0, 'draw');   // the ping
+    check(r.shared.phase === 'thiefGuess' && r.shared.events.some((e) => e.type === 'ping' && e.target === p1) && r.shared.finalLeft.length === 0,
+      'skrew: a ping in the last lap skips the last one, and the round is over');
+    // Laps: a ping stepping over the first seat still counts the lap.
+    const l = skStart(['a', 'b', 'c'], { edition: 'sahib', screwFromLap: 2 });
+    begin(l, [['n1'], ['n2'], ['n3']], ['n6', 'ping', 'n6'], ['n5']);
+    const [l0, l1, l2] = l.shared.order;
+    sk(l, l0, 'draw'); sk(l, l0, 'discard');
+    sk(l, l1, 'draw');   // the ping: l2 is skipped and l0, the first seat, is up
+    check(l.shared.turn.pid === l0 && l.shared.lap === 2 && l.shared.events.slice(-1)[0].target === l2, 'skrew: a ping over the first seat is a new lap');
+    // The player being looked at leaves in the middle of a شوف وبدّل.
+    const q = skStart(['a', 'b', 'c'], { edition: 'thief' });
+    begin(q, [['n1'], ['n2'], ['n3']], ['n6', 'seeSwap'], ['n5']);
+    const [q0, q1, q2] = q.shared.order;
+    sk(q, q0, 'draw'); sk(q, q0, 'discard');
+    sk(q, q0, 'power', { target: q1, slot: slotOf(q, q1, 1) });
+    leave(q, q1);
+    check(q.shared.turn.pid === q2 && q.secrets[q0].seen === null && q.shared.events.slice(-1)[0].swapped === false, 'skrew: the look ends with nothing swapped when its hand leaves');
+  }
+
+  {
+    // المسحراتي: a سكرو now, by whoever drew it.
+    const r = skStart(['a', 'b', 'c'], { edition: 'mesaharaty', screwFromLap: 3 });
+    begin(r, [['n1'], ['n2'], ['n3']], ['mesaharaty', 'n6'], ['n5']);
+    const [p0, p1] = r.shared.order;
+    sk(r, p0, 'draw');
+    sk(r, p0, 'discard');
+    sk(r, p1, 'draw');
+    check(r.shared.phase === 'reveal' && r.shared.results.caller === p1 && r.shared.pile.indexOf('mesaharaty') !== -1 && r.shared.events.some((e) => e.type === 'wakeUp' && e.pid === p1),
+      'skrew: المسحراتي reveals the round at once, the drawer as the caller');
+    check(r.shared.results.round[p1] === 4 && r.shared.results.callerDouble, 'skrew: and the drawer is scored as a caller');
+    // After a سكرو: the last turns stop at once, and whoever called stays the caller.
+    const m = skStart(['a', 'b', 'c'], { edition: 'mesaharaty', screwFromLap: 1 });
+    begin(m, [['n1'], ['n2'], ['n3']], ['n6', 'mesaharaty'], ['n5']);
+    const [m0, m1, m2] = m.shared.order;
+    sk(m, m0, 'screw');
+    sk(m, m1, 'draw');
+    check(m.shared.phase === 'reveal' && m.shared.results.caller === m0 && m.shared.results.round[m0] === 0 && m.shared.results.round[m1] === 2 && !m.shared.events.some((e) => e.pid === m2 && e.type !== 'ready') &&
+      m.shared.events.some((e) => e.type === 'wakeUp' && e.pid === m1),
+      'skrew: المسحراتي after a سكرو ends the round at once, and the caller stays the one who called');
+  }
+
+  {
+    // Memorizing on a clock (a lobby option): play starts by itself when it runs out.
+    let r = skStart(['a', 'b', 'c'], { memorizeSecs: 5 });
+    check(r.shared.settings.memorizeSecs === 5 && r.shared.phase === 'memorize' && r.shared.endsAt === clock + 5000 && roomDeadline(r) === clock + 6500,
+      'skrew: memorize for 5 seconds: a clock the server watches');
+    sk(r, r.shared.order[0], 'ready');
+    check(r.shared.phase === 'memorize' && roomTimeout(r, clock + 1000) === false, 'skrew: before the clock runs out, memorizing goes on');
+    const seq = r.shared.turnSeq;
+    check(roomTimeout(r, clock + 7000) === true && r.shared.phase === 'play' && r.shared.turn.pid === r.shared.order[0] && r.shared.endsAt === null &&
+      r.shared.order.every((id) => r.secrets[id].memorize === null) && r.shared.turnSeq === seq + 1,
+      'skrew: time up: play starts, the cards leave every phone, and turnSeq moves on');
+    r = skStart(['a', 'b', 'c'], { memorizeSecs: 10, turnClock: 30 });
+    r.shared.order.forEach((id) => sk(r, id, 'ready'));
+    check(r.shared.phase === 'play' && r.shared.endsAt === clock + 30000, 'skrew: everyone memorized before the clock: play starts, on the turn clock');
+    r = skStart(['a', 'b', 'c']);
+    check(r.shared.settings.memorizeSecs === 0 && r.shared.endsAt === null && roomDeadline(r) === null, 'skrew: memorize has no clock by default');
+    r = skStart(['a', 'b'], { memorizeSecs: 7, rounds: 3 });
+    check(r.shared.settings.memorizeSecs === 0, 'skrew: only 0, 5 or 10 seconds');
+    r = skStart(['a', 'b'], { memorizeSecs: 10, rounds: 3 });
+    for (let k = 0; k < 3; k++) {
+      if (r.shared.phase === 'memorize') r.shared.order.forEach((id) => sk(r, id, 'ready'));
+      callAndFinish(r);
+      if (r.shared.phase === 'reveal') {
+        applyRoomAction(r, r.hostId, 'nextRound', { round: r.shared.round });
+        if (k === 0) check(r.shared.phase === 'memorize' && r.shared.endsAt === clock + 10000, 'skrew: every deal starts the memorize clock again');
+      }
+    }
+    applyRoomAction(r, r.hostId, 'playAgain', {});
+    check(r.shared.settings.memorizeSecs === 10 && r.shared.endsAt === clock + 10000, 'skrew: play again keeps the memorize clock');
+  }
+
+  {
+    // الحرامي: the table votes on every phone, the votes stay on the server until the close.
+    const thiefRoom = (ids, cards, opts) => {
+      const r = skStart(ids, Object.assign({ edition: 'thief' }, opts));
+      begin(r, cards, ['n6', 'n6', 'n6', 'n6', 'n6'], ['n5']);
+      callAndFinish(r);
+      return r;
+    };
+    const vote = (r, pid, target, seq) => applyRoomAction(r, pid, 'thiefVote', { seq: seq === undefined ? r.shared.turnSeq : seq, pid: target });
+    const noVotesOut = (r) => JSON.stringify(r.shared).indexOf('"votes"') === -1 && JSON.stringify(r.secrets).indexOf('"votes"') === -1 && r.shared.results === null;
+    const four = ['a', 'b', 'c', 'd'];
+
+    // Majority, the holder caught; votes from every phone at once, and a change of mind.
+    let r = thiefRoom(four, [['n1'], ['thief', 'n2'], ['n3'], ['n4']]);
+    let [s0, s1, s2, s3] = r.shared.order;
+    check(r.shared.phase === 'thiefGuess' && r.shared.thiefVote && r.shared.thiefVote.voted.length === 0 && r.shared.order.every((id) => r.shared.hands[id].every((h) => !h.up)) && noVotesOut(r),
+      'skrew: the round over, the table votes on who holds the thief, every card still face down');
+    const seq0 = r.shared.turnSeq;
+    vote(r, s1, s1, seq0);
+    vote(r, s2, s1, seq0);
+    vote(r, s3, s2, seq0);
+    check(r.shared.thiefVote.voted.join() === [s1, s2, s3].join() && r.shared.turnSeq === seq0 && r.shared.phase === 'thiefGuess',
+      "skrew: votes sent together all count: one phone's vote doesn't make another's stale");
+    check(noVotesOut(r) && r.shared.events.filter((e) => e.type === 'thiefVote').every((e) => Object.keys(e).sort().join() === 'pid,seq,type'),
+      'skrew: who voted is public, what they voted is not (not in shared, not in any slice, not in the events)');
+    vote(r, s3, s1);
+    check(r.shared.thiefVote.voted.length === 3 && r.shared.events.filter((e) => e.type === 'thiefVote').length === 3, 'skrew: a vote can be changed until the close');
+    check(threw(() => vote(r, 'zz', s1)) && threw(() => vote(r, s0, 'zz')), 'skrew: only a seated player votes, for a seated player or nobody');
+    vote(r, s0, s2);
+    let th = r.shared.results && r.shared.results.thief;
+    check(r.shared.phase === 'reveal' && th && th.holder === s1 && th.accused === s1 && th.caught && !th.stole && !th.skipped && th.victims.length === 0,
+      'skrew: the last vote closes it; the most votes accuse the holder: caught');
+    check(th.votes[s0] === s2 && th.votes[s1] === s1 && th.votes[s2] === s1 && th.votes[s3] === s1 && Object.keys(th.votes).length === 4,
+      'skrew: the votes are published with the result');
+    check(r.shared.results.round[s1] === 37 && r.shared.results.round[s0] === 0 && r.shared.results.round[s2] === 3 && r.shared.thiefVote === null,
+      'skrew: caught: the thief takes +25, the lowest keeps its 0');
+    const acc = r.shared.events.filter((e) => e.type === 'accuse').pop();
+    check(acc && acc.accused === s1 && acc.caught === true && r.shared.events.slice(-1)[0].type === 'reveal', 'skrew: an accuse event, then the reveal');
+    const after = JSON.stringify(r.shared.results);
+    vote(r, s0, s3, seq0);
+    vote(r, s0, s3);
+    check(JSON.stringify(r.shared.results) === after, 'skrew: a vote after the close is dropped quietly');
+
+    // A tie decided by the caller's vote; unnoticed, the thief steals the lowest score.
+    r = thiefRoom(four, [['n1'], ['thief', 'n2'], ['n3'], ['n4']]);
+    [s0, s1, s2, s3] = r.shared.order;
+    vote(r, s0, s2); vote(r, s1, s2); vote(r, s2, s1); vote(r, s3, s1);
+    th = r.shared.results.thief;
+    check(th.accused === s2 && !th.caught && th.stole && th.victims.join() === s0 && th.score === 0 && r.shared.results.round[s1] === 0 && r.shared.results.round[s0] === 25 && r.shared.results.round[s2] === 3,
+      'skrew: a tie goes to the caller\'s choice; the table missed: the thief steals the lowest score and its owner takes the +25');
+    check(r.shared.scores[s0] === 25 && r.shared.scores[s1] === 0, 'skrew: the running scores carry the thief');
+
+    // A tie the caller's vote isn't part of: nobody accused.
+    r = thiefRoom(['a', 'b', 'c', 'd', 'e'], [['n1'], ['thief', 'n2'], ['n3'], ['n4'], ['n5']]);
+    const f = r.shared.order;
+    vote(r, f[0], f[4]); vote(r, f[1], f[2]); vote(r, f[2], f[2]); vote(r, f[3], f[1]); vote(r, f[4], f[1]);
+    th = r.shared.results.thief;
+    check(th.accused === null && !th.skipped && th.stole && r.shared.results.round[f[1]] === 0 && r.shared.results.round[f[0]] === 25,
+      'skrew: a tie without the caller\'s choice in it accuses nobody');
+
+    // The host closes with no votes: nobody accused, and every unit tied on the lowest score takes +25.
+    r = thiefRoom(four, [['minus1'], ['thief'], ['green0'], ['n4']]);
+    [s0, s1, s2, s3] = r.shared.order;
+    check(threw(() => applyRoomAction(r, s1, 'closeThiefVote', { seq: r.shared.turnSeq })) || r.hostId === s1, 'skrew: only the host closes the vote');
+    applyRoomAction(r, r.hostId, 'closeThiefVote', { seq: r.shared.turnSeq });
+    th = r.shared.results.thief;
+    const rr = r.shared.results.round;
+    check(th.skipped && th.accused === null && th.stole && th.victims.slice().sort().join() === [s0, s2].sort().join() && rr[s1] === 0 && rr[s0] === 25 && rr[s2] === 25 && rr[s3] === 4 && Object.keys(th.votes).length === 0,
+      'skrew: no votes: nobody accused; tied on the lowest, each takes the +25 the thief stole');
+
+    // The thief's own score is already the lowest: nothing happens (the caller holding it too).
+    r = thiefRoom(four, [['n6', 'n6'], ['thief'], ['n5', 'n6'], ['n6', 'n6', 'n1']]);
+    [s0, s1, s2, s3] = r.shared.order;
+    applyRoomAction(r, r.hostId, 'skipTurn', { seq: r.shared.turnSeq });
+    th = r.shared.results.thief;
+    check(th.skipped && !th.stole && !th.caught && th.victims.length === 0 && r.shared.results.round[s1] === 0 && r.shared.results.round[s0] === 24,
+      'skrew: the host\'s skip closes the vote too; a thief already on the lowest score steals nothing');
+    r = thiefRoom(four, [['thief'], ['n6', 'n6'], ['n6', 'n5'], ['n6', 'n6', 'n1']]);
+    [s0] = r.shared.order;
+    r.shared.order.forEach((id) => vote(r, id, null));
+    th = r.shared.results.thief;
+    check(th.holder === s0 && !th.stole && !th.caught && r.shared.results.round[s0] === 0, 'skrew: the caller holding the thief, unnoticed and lowest: nothing');
+
+    // Nobody holds it: nothing changes, whatever the table said.
+    r = thiefRoom(four, [['n1'], ['n2'], ['n3'], ['n4']]);
+    [s0, s1] = r.shared.order;
+    r.shared.order.forEach((id) => vote(r, id, s1));
+    th = r.shared.results.thief;
+    check(th.holder === null && th.accused === s1 && !th.caught && !th.stole && r.shared.results.round[s0] === 0 && r.shared.results.round[s1] === 2,
+      'skrew: nobody holds the thief: the vote changes nothing');
+
+    // The clock closes the vote with the votes cast.
+    r = thiefRoom(four, [['n1'], ['thief'], ['n3'], ['n4']], { turnClock: 30 });
+    [s0, s1] = r.shared.order;
+    check(r.shared.phase === 'thiefGuess' && r.shared.endsAt === clock + 30000 && roomDeadline(r) === clock + 31500, 'skrew: the vote runs on the turn clock');
+    vote(r, s0, s1);
+    clock += 32000;
+    check(roomTimeout(r, clock) === true && r.shared.phase === 'reveal' && r.shared.results.thief.caught && !r.shared.results.thief.skipped, 'skrew: time up: the vote closes with the votes cast');
+
+    // Leaving: a voter's vote goes; everyone left having voted closes it.
+    r = thiefRoom(four, [['n1'], ['thief'], ['n3'], ['n4']]);
+    [s0, s1, s2, s3] = r.shared.order;
+    vote(r, s3, s1);
+    vote(r, s1, s2);
+    vote(r, s2, s2);
+    leave(r, s3);
+    check(r.shared.phase === 'thiefGuess' && r.shared.thiefVote.voted.join() === [s1, s2].join(), 'skrew: a voter who leaves takes their vote with them');
+    leave(r, s0);
+    th = r.shared.results && r.shared.results.thief;
+    check(r.shared.phase === 'reveal' && th && Object.keys(th.votes).sort().join() === [s1, s2].sort().join() && th.accused === s2 && r.shared.results.caller === null,
+      'skrew: the last one who hadn\'t voted leaving closes the vote');
+    // An older phone's caller guess counts as its vote.
+    r = thiefRoom(four, [['n1'], ['thief'], ['n3'], ['n4']]);
+    [s0, s1] = r.shared.order;
+    applyRoomAction(r, s0, 'thiefGuess', { seq: r.shared.turnSeq, pid: s1 });
+    check(r.shared.thiefVote.voted.join() === s0 && r.shared.phase === 'thiefGuess', 'skrew: an older page\'s thiefGuess is taken as that phone\'s vote');
+
+    // Teams: the thief's side steals the lowest side's score.
+    r = skStart(four, { edition: 'custom', groups: ['sahib', 'thief'], teams: true });
+    begin(r, [['n1'], ['thief'], ['n1'], ['n2']], ['n6', 'n6', 'n6', 'n6'], ['n5']);
+    callAndFinish(r);
+    [s0, s1, s2, s3] = r.shared.order;
+    applyRoomAction(r, r.hostId, 'closeThiefVote', { seq: r.shared.turnSeq });
+    th = r.shared.results.thief;
+    const tr = r.shared.results.round;
+    check(th.stole && th.victims.join() === 'A' && tr.A === 25 && tr.B === 0 && tr[s0] === 25 && tr[s2] === 25 && tr[s1] === 0 && tr[s3] === 0 && r.shared.teamScores.A === 25 && r.shared.teamScores.B === 0,
+      'skrew: in teams the thief\'s side takes the lowest side\'s score, and that side the +25');
+
+    // Two decks bring one thief.
+    const big = skStart(['a', 'b', 'c', 'd', 'e', 'f', 'g'], { edition: 'thief' });
+    const all = big._screw.deck.concat(big._screw.pile, ...Object.values(big._screw.hands).map((h) => h.map((e) => e.card)));
+    check(big.shared.settings.decks === 2 && all.filter((c) => c === 'thief').length === 1 && all.filter((c) => c === 'seeSwap').length === 2, 'skrew: two decks, one thief');
+  }
+
+  {
+    // A hand that runs out ends the round at once: a throw, بصرة, خد بس, Pong, بوم.
+    let r = skStart(['a', 'b', 'c']);
+    begin(r, [['n3'], ['n5', 'n6'], ['n2', 'n4']], ['n6', 'n6', 'n6'], ['n3']);
+    let [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'match', { slot: slotOf(r, p0, 1) });
+    let res = r.shared.results;
+    check(r.shared.phase === 'reveal' && r.shared.finisher === p0 && res && res.finisher === p0 && r.shared.turn === null && res.round[p0] === 0 && res.round[p1] === 11 && res.round[p2] === 6 && res.lowest.join() === p0 && !res.callerDouble,
+      'skrew: the last card thrown right ends the round at once: the finisher scores 0, everyone else their total');
+    check(r.shared.events.slice(-3).map((e) => e.type).join() === 'match,finish,reveal' && r.shared.events.slice(-2)[0].pid === p0, 'skrew: a finish event names who emptied their hand');
+
+    // With a caller: the finisher still wins and the caller is doubled.
+    r = skStart(['a', 'b', 'c']);
+    begin(r, [['n1', 'n1'], ['n3'], ['n2', 'n4']], ['n6', 'n6', 'n6'], ['n5']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'screw');
+    r._screw.pile.push('n3');
+    sk(r, p1, 'match', { slot: slotOf(r, p1, 1) });
+    res = r.shared.results;
+    check(r.shared.phase === 'reveal' && res.finisher === p1 && res.caller === p0 && res.round[p1] === 0 && res.round[p0] === 4 && res.round[p2] === 6 && res.callerDouble && !r.shared.events.some((e) => e.pid === p2 && e.type !== 'deal' && e.type !== 'ready'),
+      'skrew: an empty hand in the last turns ends the round before the rest play; the caller, beaten, is doubled');
+    // A finisher in -1 land still loses to 0 cards, and a caller on a negative total is doubled.
+    r = skStart(['a', 'b', 'c']);
+    begin(r, [['minus1'], ['n3'], ['n5']], ['n6', 'n6', 'n6'], ['n5']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'screw');
+    r._screw.pile.push('n3');
+    sk(r, p1, 'match', { slot: slotOf(r, p1, 1) });
+    res = r.shared.results;
+    check(res.round[p1] === 0 && res.round[p0] === -2 && res.round[p2] === 5 && res.callerDouble, 'skrew: 0 cards beat a caller on -1, who is doubled to -2');
+
+    // بصرة on the last card.
+    r = skStart(['a', 'b', 'c']);
+    begin(r, [['n2'], ['n5'], ['n6']], ['n6', 'basra'], ['n4']);
+    [p0, p1] = r.shared.order;
+    sk(r, p0, 'draw'); sk(r, p0, 'discard');
+    sk(r, p0, 'power', { slot: slotOf(r, p0, 1) });
+    check(r.shared.phase === 'reveal' && r.shared.results.finisher === p0 && r.shared.results.round[p0] === 0 && r.shared.results.round[p1] === 5, 'skrew: بصرة on the last card ends the round');
+
+    // خد بس on the last card: the giver finishes; with الحرامي in the deck the table votes first.
+    r = skStart(['a', 'b', 'c'], { edition: 'thief' });
+    begin(r, [['n2'], ['n5'], ['n6']], ['n6', 'takeOnly'], ['n4']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'draw'); sk(r, p0, 'discard');
+    sk(r, p0, 'power', { slot: slotOf(r, p0, 1), target: p1 });
+    check(r.shared.phase === 'thiefGuess' && r.shared.finisher === p0 && r.shared.turn === null && r._screw.hands[p1].length === 2 && r.shared.results === null,
+      'skrew: خد بس on the last card: the giver finishes, and the table votes on the thief before the reveal');
+    // The finisher leaves during the vote: the round stays over, nobody else scores 0.
+    leave(r, p0);
+    check(r.shared.phase === 'thiefGuess' && r.shared.finisher === p0, 'skrew: a finisher leaving changes nothing');
+    applyRoomAction(r, r.hostId, 'closeThiefVote', { seq: r.shared.turnSeq });
+    res = r.shared.results;
+    check(r.shared.phase === 'reveal' && res.finisher === p0 && res.round[p1] === 7 && res.round[p2] === 6, 'skrew: scored with the finisher gone: everyone left keeps their total');
+
+    // Pong on the last card.
+    const w = skStart(['a', 'b'], { edition: 'sahib' });
+    begin(w, [['pong'], ['n2', 'n3']], ['n6', 'n6', 'ping'], ['n5']);
+    const [w0, w1] = w.shared.order;
+    sk(w, w0, 'draw');
+    sk(w, w0, 'pong', { slot: slotOf(w, w0, 1) });
+    check(w.shared.phase === 'reveal' && w.shared.results.finisher === w0 && w.shared.results.round[w0] === 0 && w.shared.results.round[w1] === 5, 'skrew: Pong on the last card ends the round');
+
+    // بوم: another player's card straight to the pile, face up; the protected caller's hand is off limits.
+    r = skStart(['a', 'b', 'c'], { edition: 'oscar' });
+    begin(r, [['n1', 'n2'], ['n3', 'n4'], ['n5', 'n6']], ['n1', 'n1', 'n1', 'n1'], ['n5']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'screw');
+    r._screw.deck.push('boom');
+    sk(r, p1, 'draw'); sk(r, p1, 'discard');
+    check(r.shared.turn.stage === 'power' && r.shared.turn.power === 'boom', 'skrew: بوم drawn and thrown offers its power');
+    check(skThrew(r, p1, 'power', { target: p0, slot: slotOf(r, p0, 1) }) && skThrew(r, p1, 'power', { target: p1, slot: slotOf(r, p1, 1) }),
+      'skrew: بوم can\'t hit the protected caller, or your own hand');
+    const hit = slotOf(r, p2, 2);
+    sk(r, p1, 'power', { target: p2, slot: hit });
+    const be = r.shared.events.filter((e) => e.type === 'boom').pop();
+    check(be && be.pid === p1 && be.target === p2 && be.slot === hit && be.card === 'n6' && r.shared.pile.slice(-1)[0] === 'n6' && r._screw.hands[p2].length === 1 && !r.shared.hands[p2].some((h) => h.id === hit) && r.shared.turn.pid === p2,
+      'skrew: بوم sends the card face up onto the pile, the table sees which card, the turn passes');
+    // بوم emptying a hand makes that player the finisher.
+    r = skStart(['a', 'b', 'c'], { edition: 'oscar' });
+    begin(r, [['n1', 'n2'], ['n4'], ['n5', 'n6']], ['n1', 'n1', 'boom'], ['n5']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'draw'); sk(r, p0, 'discard');
+    sk(r, p0, 'power', { target: p1, slot: slotOf(r, p1, 1) });
+    res = r.shared.results;
+    check(r.shared.phase === 'reveal' && res.finisher === p1 && res.round[p1] === 0 && res.round[p0] === 3 && res.round[p2] === 11, 'skrew: بوم on someone\'s last card makes them the finisher');
+
+    // Teams: a finisher's side scores 0, and a calling side that isn't theirs is doubled.
+    r = skStart(['a', 'b', 'c', 'd'], { edition: 'sahib', teams: true });
+    begin(r, [['n6', 'n6'], ['n1'], ['n3'], ['n2']], ['n6', 'n6', 'n6', 'n6'], ['n3']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, r.hostId, 'skipTurn');
+    sk(r, p1, 'screw');
+    sk(r, p2, 'match', { slot: slotOf(r, p2, 1) });
+    res = r.shared.results;
+    check(r.shared.phase === 'reveal' && res.finisher === p2 && res.totals.A === 12 && res.round.A === 0 && res.totals.B === 3 && res.round.B === 4 && res.callerDouble && res.round[p0] === 0 && res.lowest.sort().join() === [p0, p2].sort().join(),
+      'skrew: in teams the finisher\'s side scores 0 whatever the partner holds; on the other side only the caller\'s own hand is doubled (1 × 2 + 2)');
+    r = skStart(['a', 'b', 'c', 'd'], { edition: 'sahib', teams: true });
+    begin(r, [['n5'], ['n1'], ['n3'], ['n2']], ['n6', 'n6', 'n6', 'n6'], ['n3']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'screw');
+    sk(r, r.hostId, 'skipTurn');
+    sk(r, p2, 'match', { slot: slotOf(r, p2, 1) });
+    res = r.shared.results;
+    check(res.finisher === p2 && res.caller === p0 && res.round.A === 0 && res.round.B === 3 && !res.callerDouble,
+      'skrew: a caller whose partner empties their hand is on the finishing side: 0, not doubled');
+  }
+
+  {
+    // موت مفاجئ: the deck runs out, everyone gets a last turn, then the reveal.
+    let r = skStart(['a', 'b', 'c'], { suddenDeath: true });
+    check(r.shared.settings.suddenDeath === true && skStart(['a', 'b']).shared.settings.suddenDeath === false, 'skrew: sudden death is a lobby option, off by default');
+    begin(r, [['n1'], ['n2'], ['n5']], ['n6', 'n6'], ['n4']);
+    let [p0, p1, p2] = r.shared.order;
+    check(skThrew(r, p0, 'pass'), 'skrew: no passing while there is a card to draw');
+    sk(r, p0, 'draw'); sk(r, p0, 'discard');
+    check(r.shared.lastLap === null && r.shared.deckCount === 1, 'skrew: a card still in the deck: no last lap yet');
+    sk(r, p1, 'draw');
+    check(r.shared.lastLap && r.shared.lastLap.by === p1 && r.shared.finalLeft.join() === [p2, p0].join() && r.shared.turn.pid === p1 && r.shared.turn.stage === 'drawn' && r.shared.caller === null,
+      'skrew: the last card drawn starts the last lap: everyone else once more, in seat order; the turn itself goes on');
+    const ll = r.shared.events.filter((e) => e.type === 'lastLap').pop();
+    check(ll && ll.pid === p1 && !('card' in ll), 'skrew: a lastLap event');
+    sk(r, p1, 'discard');
+    check(r.shared.turn.pid === p2 && skThrew(r, p2, 'screw'), 'skrew: no سكرو in a last lap');
+    check(skThrew(r, p2, 'draw') && r.shared.deckCount === 0 && !r.shared.events.some((e) => e.type === 'reshuffle'), 'skrew: with sudden death the pile is never shuffled into a new deck');
+    sk(r, p2, 'pass');
+    check(r.shared.turn.pid === p0 && r.shared.events.slice(-1)[0].type === 'pass' && r.shared.events.slice(-1)[0].pid === p2, 'skrew: a player who can\'t draw passes');
+    sk(r, p0, 'match', { slot: slotOf(r, p0, 1) });
+    let res = r.shared.results;
+    check(r._screw.hands[p0].length === 1 && r.shared.hands[p0][0].h.known === 'n1' && !r.shared.events.some((e) => e.type === 'penalty'), 'skrew: a wrong throw with nothing to draw takes no penalty card');
+    check(r.shared.phase === 'reveal' && res.caller === null && res.finisher === null && res.round[p0] === 0 && res.round[p1] === 2 && res.round[p2] === 5 && !r.shared.events.some((e) => e.type === 'reshuffle'),
+      'skrew: the last lap played out: the reveal, no caller, the lowest scores 0');
+
+    // With a سكرو already: nothing more happens, and whoever can't draw passes.
+    r = skStart(['a', 'b', 'c'], { suddenDeath: true });
+    begin(r, [['n1'], ['n2'], ['n5']], ['n6'], ['n4']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'screw');
+    sk(r, p1, 'draw');
+    check(r.shared.lastLap === null && r.shared.deckCount === 0, 'skrew: the deck running out after a سكرو starts no last lap');
+    sk(r, p1, 'discard');
+    check(r.shared.finalLeft.join() === [p2].join() && skThrew(r, p2, 'draw'), 'skrew: the last turns run on, with nothing left to draw');
+    sk(r, p2, 'pass');
+    check(r.shared.phase === 'reveal' && r.shared.results.caller === p0 && r.shared.results.round[p0] === 0, 'skrew: the last turns end the round as usual');
+
+    // A penalty card that takes the last card starts the last lap.
+    r = skStart(['a', 'b', 'c'], { suddenDeath: true });
+    begin(r, [['n1'], ['n2'], ['n5']], ['n6'], ['n4']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'match', { slot: slotOf(r, p0, 1) });
+    check(r.shared.lastLap && r.shared.lastLap.by === p0 && r._screw.hands[p0].length === 2 && r.shared.turn.pid === p1 && r.shared.finalLeft.join() === [p1, p2].join(),
+      'skrew: a penalty card taking the last one starts the last lap');
+
+    // الخشاف shows what is left; with nothing left the power ends.
+    r = skStart(['a', 'b', 'c'], { edition: 'mesaharaty', suddenDeath: true });
+    begin(r, [['n1'], ['n2'], ['n5']], ['n2', 'khoshaf'], ['n4']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'draw'); sk(r, p0, 'discard'); sk(r, p0, 'power', {});
+    check(r.secrets[p0].khoshaf.join() === 'n2' && r.shared.lastLap === null, 'skrew: الخشاف with one card left shows that one');
+    sk(r, p0, 'khoshafPick', { index: 0 });
+    check(r.shared.lastLap && r.shared.lastLap.by === p0 && r.shared.turn.stage === 'drawn', 'skrew: picking the last card starts the last lap');
+    r = skStart(['a', 'b', 'c'], { edition: 'mesaharaty', suddenDeath: true });
+    begin(r, [['n1'], ['n2'], ['n5']], ['khoshaf'], ['n4']);
+    [p0, p1, p2] = r.shared.order;
+    sk(r, p0, 'draw'); sk(r, p0, 'discard'); sk(r, p0, 'power', {});
+    check(r.shared.turn.pid === p1 && r.secrets[p0].khoshaf === null && r.shared.events.slice(-1)[0].type === 'khoshaf', 'skrew: الخشاف on an empty deck: the power ends');
+
+    // Without sudden death: an empty deck takes back the pile; pass only when there is no pile to take.
+    r = skStart(['a', 'b', 'c']);
+    begin(r, [['n1'], ['n2'], ['n5']], [], ['n4', 'n3']);
+    [p0] = r.shared.order;
+    check(skThrew(r, p0, 'pass'), 'skrew: without sudden death, no pass while the pile can make a new deck');
+    r = skStart(['a', 'b', 'c']);
+    begin(r, [['n1'], ['n2'], ['n5']], [], ['n4']);
+    [p0, p1] = r.shared.order;
+    sk(r, p0, 'pass');
+    check(r.shared.turn.pid === p1, 'skrew: nothing in the deck and one card on the pile: a pass');
+    // A sudden-death game played again keeps the option; بصرة 2 or 4 a deck.
+    const b4 = skStart(['a', 'b', 'c', 'd'], { basraCount: 2, suddenDeath: true });
+    check(b4.shared.settings.basraCount === 2 && b4.shared.deckCount === 57 - 17, 'skrew: two بصرة (the first print): two cards fewer in the deck');
+    const bx = skStart(['a', 'b', 'c', 'd'], { basraCount: 3 });
+    check(bx.shared.settings.basraCount === 4 && bx.shared.deckCount === 59 - 17, 'skrew: بصرة is 4 unless 2 is chosen');
+    const cards = (x) => x._screw.deck.concat(x._screw.pile, ...Object.values(x._screw.hands).map((h) => h.map((e) => e.card)));
+    const b8 = skStart(['a', 'b', 'c', 'd', 'e', 'f', 'g'], { edition: 'oscar' });
+    const b8two = skStart(['a', 'b', 'c', 'd', 'e', 'f', 'g'], { basraCount: 2 });
+    check(cards(b8).filter((c) => c === 'basra').length === 8 && cards(b8two).filter((c) => c === 'basra').length === 4 && cards(b8).filter((c) => c === 'boom').length === 2 && cards(b8).filter((c) => c === 'lifeJacket').length === 2,
+      'skrew: two decks: eight بصرة (four with two a deck), and أوسكار\'s cards twice');
+    for (let k = 0; k < 3; k++) {
+      b4.shared.order.forEach((id) => { if (b4.shared.phase === 'memorize') sk(b4, id, 'ready'); });
+      callAndFinish(b4);
+      if (b4.shared.phase === 'reveal') applyRoomAction(b4, b4.hostId, 'nextRound', { round: b4.shared.round });
+    }
+    applyRoomAction(b4, b4.hostId, 'playAgain', {});
+    check(b4.shared.phase === 'memorize' && b4.shared.settings.suddenDeath === true && b4.shared.settings.basraCount === 2, 'skrew: play again keeps sudden death and the بصرة count');
+  }
+
+  {
+    // Every slot's public story: how its card got there, by whom, from where, who has looked,
+    // and the card itself only when the whole table saw it face up.
+    const r = skStart(['a', 'b', 'c'], { edition: 'general', screwFromLap: 1, memoryHelp: true });
+    const [p0, p1, p2] = r.shared.order;
+    const H = (pid, n) => r.shared.hands[pid][n - 1].h;
+    const card = (pid, n) => r._screw.hands[pid][n - 1].card;
+    const lastSeq = () => r.shared.events.slice(-1)[0].seq;
+    check(r.shared.settings.memoryHelp === true && skStart(['a', 'b']).shared.settings.memoryHelp === false, 'skrew: the memory help is a lobby option, off by default');
+    const dealSeq = r.shared.events[0].seq;
+    check(r.shared.order.every((id) => r.shared.hands[id].every((x, i) => x.h.how === 'deal' && x.h.by === null && x.h.from === null && x.h.known === null && x.h.at === dealSeq && x.h.looks.join() === (i >= 2 ? id : ''))),
+      'skrew: dealt: every slot says so, and slots 3 and 4 were looked at by their owner');
+    begin(r, null, ['n6', 'n6', 'n6', 'n6'], ['n5']);
+    // A drawn card kept: its drawer saw it.
+    r._screw.deck.push('n2');
+    sk(r, p0, 'draw');
+    sk(r, p0, 'keep', { slot: slotOf(r, p0, 1) });
+    check(H(p0, 1).how === 'deck' && H(p0, 1).by === p0 && H(p0, 1).from === null && H(p0, 1).known === null && H(p0, 1).looks.join() === p0 && H(p0, 1).at === lastSeq(),
+      'skrew: a kept card: from the deck, looked at by its drawer, nothing known to the table');
+    // The top of the pile taken: the table knows the card.
+    const top = r._screw.pile[r._screw.pile.length - 1];
+    sk(r, p1, 'takePile', { slot: slotOf(r, p1, 3) });
+    check(H(p1, 3).how === 'pile' && H(p1, 3).by === p1 && H(p1, 3).known === top && card(p1, 3) === top && H(p1, 3).looks.length === 0 && r.shared.hands[p1][2].up === null,
+      'skrew: a card taken from the pile: face down, but known to the table');
+    // A blind swap: what is known and who looked travel with the cards.
+    const theirs = slotOf(r, p1, 3);
+    const mine = slotOf(r, p2, 4);
+    r._screw.deck.push('swap');
+    sk(r, p2, 'draw'); sk(r, p2, 'discard');
+    sk(r, p2, 'power', { slot: mine, target: p1, slot2: theirs });
+    const hm = r.shared.hands[p2].find((x) => x.id === mine).h;
+    const ht = r.shared.hands[p1].find((x) => x.id === theirs).h;
+    check(hm.how === 'swap' && hm.by === p2 && hm.from.pid === p1 && hm.from.slot === theirs && hm.known === top && hm.looks.length === 0 &&
+      ht.how === 'swap' && ht.by === p2 && ht.from.pid === p2 && ht.from.slot === mine && ht.known === null && ht.looks.join() === p2,
+      'skrew: a blind swap: each card keeps what the table knew about it and who had looked, in its new slot');
+    // A look: a spy on another player's card.
+    r._screw.deck.push('s9');
+    sk(r, p0, 'draw'); sk(r, p0, 'discard');
+    sk(r, p0, 'power', { target: p1, slot: slotOf(r, p1, 1) });
+    check(H(p1, 1).looks.join() === p0 && H(p1, 1).how === 'deal' && H(p1, 1).known === null, 'skrew: a spy is recorded on the card looked at, and nothing else changes');
+    // خد بس: the card, with its story, into a new slot at the end of their hand.
+    const given = slotOf(r, p1, 1);
+    r._screw.deck.push('takeOnly');
+    sk(r, p1, 'draw'); sk(r, p1, 'discard');
+    sk(r, p1, 'power', { slot: given, target: p2 });
+    const hg = r.shared.hands[p2][r.shared.hands[p2].length - 1].h;
+    check(hg.how === 'give' && hg.by === p1 && hg.from.pid === p1 && hg.from.slot === given && hg.looks.join() === p0 && hg.known === null,
+      'skrew: a given card arrives with who had looked at it');
+    // A wrong throw: back face down in its slot, known; the penalty card blind.
+    r._screw.hands[p2][0].card = 'n1';
+    const looksBefore = H(p2, 1).looks.join();
+    const howBefore = H(p2, 1).how;
+    sk(r, p2, 'match', { slot: slotOf(r, p2, 1) });
+    check(H(p2, 1).known === 'n1' && r.shared.hands[p2][0].up === null && H(p2, 1).looks.join() === looksBefore && H(p2, 1).how === howBefore,
+      'skrew: a wrong throw goes back into its slot face down, known to the table, its story otherwise the same');
+    // A refused بصرة: the same.
+    r._screw.hands[p0][1].card = 'red25';
+    r._screw.deck.push('basra');
+    sk(r, p0, 'draw'); sk(r, p0, 'discard');
+    sk(r, p0, 'power', { slot: slotOf(r, p0, 2) });
+    check(r._screw.hands[p0][1].card === 'red25' && H(p0, 2).known === 'red25' && r.shared.hands[p0][1].up === null, 'skrew: بصرة refused on the red screw: back face down, known');
+    // صرخة أوسكار: every card's story goes along to the next seat.
+    const stories = r.shared.order.map((id) => JSON.stringify(r.shared.hands[id].map((x) => [x.id, x.h.known, x.h.looks])));
+    r._screw.deck.push('scream');
+    sk(r, p1, 'draw'); sk(r, p1, 'discard');
+    sk(r, p1, 'power', {});
+    const screamSeq = lastSeq();
+    const moved = [[p0, p1], [p1, p2], [p2, p0]];
+    check(moved.every(([from, to], k) => JSON.stringify(r.shared.hands[to].map((x) => [x.id, x.h.known, x.h.looks])) === stories[r.shared.order.indexOf(from)] &&
+      r.shared.hands[to].every((x) => x.h.how === 'scream' && x.h.by === p1 && x.h.from.pid === from && x.h.from.slot === x.id && x.h.at === screamSeq)),
+      'skrew: the scream: each hand arrives at the next seat with every card\'s story, from the same slot of its old holder');
+    // A الخشاف pick kept.
+    r._screw.deck.push('n3', 'n4', 'khoshaf');
+    sk(r, p2, 'draw'); sk(r, p2, 'discard');
+    sk(r, p2, 'power', {});
+    sk(r, p2, 'khoshafPick', { index: 0 });
+    sk(r, p2, 'keep', { slot: slotOf(r, p2, 1) });
+    check(H(p2, 1).how === 'khoshaf' && H(p2, 1).by === p2 && H(p2, 1).looks.join() === p2 && H(p2, 1).known === null, 'skrew: a الخشاف pick kept: its drawer saw it');
+    // Nothing in any story carries a card the table didn't see face up.
+    const faceUp = new Set();
+    let bad = 0;
+    const scan = () => {
+      r.shared.events.forEach((e) => { if (e.type === 'takePile' || ((e.type === 'match' || e.type === 'pong' || e.type === 'basra') && !e.ok)) faceUp.add(e.card); });
+      r.shared.order.forEach((id) => r.shared.hands[id].forEach((x, i) => {
+        if (x.h.known !== null && (x.h.known !== r._screw.hands[id][i].card || !faceUp.has(x.h.known))) bad++;
+        if (Object.keys(x.h).sort().join() !== 'at,by,from,how,known,looks') bad++;
+      }));
+    };
+    scan();
+    check(bad === 0,'skrew: no story carries a card that wasn\'t face up for the whole table');
+    // A room saved before the stories existed gets a blank one.
+    delete r._screw.hands[p0][0].h;
+    sk(r, r.hostId, 'skipTurn');
+    check(r.shared.hands[p0][0].h && r.shared.hands[p0][0].h.how === 'deal' && Array.isArray(r.shared.hands[p0][0].h.looks), 'skrew: a slot with no story gets a blank one');
+    applyRoomAction(r, r.hostId, 'backToHub', {});
+  }
+
+  {
+    // The clock, the host's skip, and someone leaving.
+    const r = skStart(['a', 'b', 'c'], { turnClock: 30 });
+    begin(r, [['n1'], ['n2'], ['n3']], ['n6', 'n6', 'n6', 'n6'], ['n5']);
+    const [p0, p1, p2] = r.shared.order;
+    check(r.shared.endsAt === clock + 30000 && roomDeadline(r) === clock + 31500, 'skrew: a turn clock the server watches');
+    sk(r, p0, 'draw');
+    clock += 32000;
+    check(roomTimeout(r, clock) === true && r.shared.turn.pid === p1 && r.shared.pile[r.shared.pile.length - 1] === 'n6' && r.secrets[p0].drawn === null,
+      'skrew: time up: the drawn card is thrown and the turn passes');
+    const seq = r.shared.turnSeq;
+    applyRoomAction(r, r.hostId, 'skipTurn', { seq: seq - 1 });
+    check(r.shared.turn.pid === p1, 'skrew: a stale skip is dropped');
+    sk(r, p1, 'draw');
+    leave(r, p1);
+    check(r.shared.turn.pid === p2 && r.shared.order.length === 2 && r._screw.deck[0] === 'n2' && r._screw.deck[1] === 'n6' && !r.shared.hands[p1],
+      'skrew: the player up leaves: their cards go under the deck, the next player is up');
+    leave(r, p2);
+    check(r.shared.phase === 'gameover' && r.shared.winners.join() === p0, 'skrew: one player left ends the game');
+    // Leaving in the memorize starts the round once everyone left is ready.
+    const m = skStart(['a', 'b', 'c']);
+    sk(m, m.shared.order[0], 'ready');
+    sk(m, m.shared.order[1], 'ready');
+    leave(m, m.shared.order[2]);
+    check(m.shared.phase === 'play' && m.shared.order.length === 2, 'skrew: the last one memorizing leaves, and play starts');
+    // A side with nobody left.
+    const tm = skStart(['a', 'b', 'c', 'd'], { teams: true });
+    const side = tm.shared.teams[1];
+    leave(tm, side[0]);
+    check(tm.shared.phase === 'memorize' && tm.shared.teams[1].length === 1, 'skrew: a side with one player left plays on');
+    leave(tm, side[1]);
+    check(tm.shared.phase === 'gameover', 'skrew: a side with nobody left ends the game');
+    // A screen gets nothing, and a latecomer is not dealt in.
+    const late = skStart(['a', 'b']);
+    late.players.push({ id: 'z', name: 'Z' });
+    begin(late, null, null, null);
+    check(!late.secrets.z && !late.shared.hands.z && threw(() => applyRoomAction(late, 'z', 'draw', { seq: late.shared.turnSeq })), 'skrew: someone who joined mid-game is not dealt in');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

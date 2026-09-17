@@ -65,6 +65,10 @@ html = html
     "(function () { var m = /[?&]room=([A-Za-z0-9]{1,8})/.exec(location.search); return m ? m[1].toUpperCase() : ''; })()")
   .replace('<?!= webAppUrl ?>', 'location.origin + location.pathname');
 
+// One id for this build: the offline cache's name and the page's own, so an open
+// page can tell whether the worker that just took over is a newer build.
+const buildId = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+
 const RUNTIME = `<script>
       /* The published site. The local preview leaves this out, so it never registers the offline cache. */
       window.STATIC_SITE = true;
@@ -72,6 +76,8 @@ const RUNTIME = `<script>
       window.ROOMS_URL = ${JSON.stringify(roomsUrl)};
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = ${iconVersion};
+      // This build's id, the same as the offline cache's name in sw.js.
+      window.BUILD_ID = ${JSON.stringify(buildId)};
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -85,7 +91,7 @@ if (html.indexOf('</head>') === -1) throw new Error('Controller.html: no </head>
 html = html.replace('</head>', RUNTIME);
 
 // Word lists the page shares with the rooms server: one file, both sides.
-const SHARED_LISTS = ['ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js'];
+const SHARED_LISTS = ['ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js'];
 const sharedListsHtml = (await Promise.all(SHARED_LISTS.map(async (name) =>
   `<script>\n${await readFile(path.join(root, name), 'utf8')}\n</script>`))).join('\n    ');
 const listsMark = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;
@@ -102,7 +108,6 @@ await writeFile(path.join(out, 'index.html'), html, 'utf8');
    cache is only the fallback; the pinned CDN files (fonts, confetti, QR) are
    cache-first, since their URLs never change. Room traffic is never cached: it
    is POSTs and WebSockets, which this never touches. */
-const buildId = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 const SW = `const CACHE = 'ashry-${buildId}';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];

@@ -188,6 +188,9 @@ export class Room extends DurableObject {
       screens: screens.map((s) => ({ id: s.id, online: online.has(s.id) })),
       youAreScreen: isScreen,
       shared: room.shared || {},
+      // The leaderboard of the night: room-level like the chat, so it survives
+      // every deal and the trip back to the hub.
+      night: room.night || {},
       // Less any other team's channel (أسماء الرموز); a screen reads no team's.
       chat: chatFor(room, pid),
       // A screen faces everyone, so it never receives a secret.

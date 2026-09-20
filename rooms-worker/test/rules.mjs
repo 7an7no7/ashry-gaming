@@ -5,7 +5,7 @@
  *
  *   npm run test:rules      (builds generated/rules.js first)
  */
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, stopAnswerFits, stopWordKnown, roomPlayerLeft } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft } from '../generated/rules.js';
 
 let failed = 0;
 const check = (ok, label) => {
@@ -211,6 +211,55 @@ const leave = (r, id, hook = true) => {
   check(r.shared.phase === 'writing', 'fibbage: one writer still to go');
   leave(r, 'b');
   check(r.shared.phase === 'voting' && r.shared.vote.options.length === 2, 'fibbage: the last writer leaving opens the vote');
+}
+
+{
+  // 🌙 ليلتنا: placement points, not each game's own score.
+  const night = (board) => { const r = { night: {} }; bankNightPoints(r, board); return r.night; };
+  check(JSON.stringify(night([{ id: 'a', score: 30 }, { id: 'b', score: 20 }, { id: 'c', score: 10 }, { id: 'd', score: 5 }]))
+        === JSON.stringify({ a: 3, b: 2, c: 1 }), 'night: 3/2/1 to the top three, nothing to the fourth');
+  check(JSON.stringify(night([{ id: 'a', score: 30 }, { id: 'b', score: 30 }, { id: 'c', score: 10 }]))
+        === JSON.stringify({ a: 3, b: 3, c: 1 }), 'night: two tied firsts both take 3, and the next takes 1');
+  check(JSON.stringify(night([{ id: 'a', score: 30 }, { id: 'b', score: 10 }, { id: 'c', score: 10 }]))
+        === JSON.stringify({ a: 3, b: 2, c: 2 }), 'night: two tied seconds both take 2, and nobody takes 1');
+  check(JSON.stringify(night([{ id: 'a', score: 0 }, { id: 'b', score: 0 }])) === '{}', 'night: a game nobody scored in adds nothing');
+  check(JSON.stringify(night([{ id: 'a', score: 10 }])) === '{}', 'night: one player alone adds nothing');
+  check(JSON.stringify(night([])) === '{}' && JSON.stringify(night(undefined)) === '{}', 'night: a game that keeps no scores adds nothing');
+  // سكرو sorts ascending because its lowest total wins, so its board is best-first too.
+  check(JSON.stringify(night([{ id: 'a', score: -1 }, { id: 'b', score: 12 }, { id: 'c', score: 40 }]))
+        === JSON.stringify({ a: 3, b: 2, c: 1 }), 'night: سكرو banks its lowest total as first');
+  // and it adds up across the evening
+  const r = { night: { a: 3 } };
+  bankNightPoints(r, [{ id: 'b', score: 5 }, { id: 'a', score: 1 }]);
+  check(r.night.a === 5 && r.night.b === 3, 'night: a second game adds to the first');
+}
+
+{
+  // 🌙 ليلتنا survives the trip back to the hub and the next deal.
+  const r = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'trivia' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 });
+  r.shared.board = [{ id: 'a', name: 'A', score: 30 }, { id: 'b', name: 'B', score: 10 }, { id: 'c', name: 'C', score: 0 }];
+  check(!r.night, 'night: nothing is banked while the game is still on');
+  applyRoomAction(r, 'a', 'backToHub', {});
+  const afterOne = JSON.stringify(r.night || {});
+  check(r.night.a === 3 && r.night.b === 2 && r.night.c === 1 && r.phase === 'lobby' && !r.shared.board,
+    'night: leaving a game for the hub banks its board');
+  applyRoomAction(r, 'a', 'backToHub', {});
+  check(JSON.stringify(r.night) === afterOne, 'night: a second tap on the hub banks nothing twice');
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'trivia' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 });
+  check(JSON.stringify(r.night) === afterOne, 'night: dealing the next game keeps the evening so far');
+
+  // لو خيروك and مين أكثر واحد are polls: they keep no score, so they add nothing.
+  const poll = newRoom(['a', 'b', 'c']);
+  applyRoomAction(poll, 'a', 'chooseGame', { game: 'wouldyou' });
+  applyRoomAction(poll, 'a', 'start', { lang: 'ar' });
+  applyRoomAction(poll, 'a', 'vote', { option: 'a' });
+  applyRoomAction(poll, 'b', 'vote', { option: 'a' });
+  applyRoomAction(poll, 'c', 'vote', { option: 'b' });
+  applyRoomAction(poll, 'a', 'backToHub', {});
+  check(!poll.night || !Object.keys(poll.night).length, 'night: a game with no score at all adds nothing to the evening');
 }
 
 {

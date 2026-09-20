@@ -239,6 +239,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
   if (action === 'backToHub') {
     requireHost(room, playerId);
     const had = room.game;
+    // The night's table, taken from the game's own board before it is cleared.
+    if (had) bankNightPoints(room, (room.shared || {}).board);
     clearGameState(room);
     room.game = null;
     room.phase = 'lobby';
@@ -2028,6 +2030,38 @@ const scoreboardOf = (room) =>
   room.players
     .map(p => ({ name: p.name, id: p.id, score: (room.shared.scores || {})[p.id] || 0 }))
     .sort((a, b) => b.score - a.score);
+
+/* --- the leaderboard of the night --------------------------------------------
+   Placement points rather than each game's own score: a trivia score and a
+   سكرو score are not the same currency. 3 for the first, 2 for the second, 1
+   for the third, and tied players share a place - two firsts both take 3 and
+   the next takes 1. Every game's board is already best-first (سكرو sorts
+   ascending because its lowest total wins), so a row's place is where it sits.
+
+   Banked once, when the room leaves a game for the hub: that is the only
+   moment every game has in common, and it needs no end-of-game hook in each of
+   them. Playing the same game again before going back counts once, on the
+   board it finished on. A game nobody scored in, and a game that keeps no
+   scores at all (ارسم واكتب), add nothing.
+   ---------------------------------------------------------------------------- */
+const NIGHT_PLACES = [3, 2, 1];
+
+const bankNightPoints = (room, board) => {
+  const rows = (board || []).filter(r => r && r.id);
+  if (rows.length < 2) return false;
+  if (!rows.some(r => (Number(r.score) || 0) !== 0)) return false;
+  room.night = room.night || {};
+  let banked = false;
+  rows.forEach(row => {
+    const score = Number(row.score) || 0;
+    // Standard competition ranking: the place is how many rows are ahead of this score.
+    const points = NIGHT_PLACES[rows.findIndex(r => (Number(r.score) || 0) === score)];
+    if (!points) return;
+    room.night[row.id] = (room.night[row.id] || 0) + points;
+    banked = true;
+  });
+  return banked;
+};
 
 /**
  * Pulls a prompt that hasn't been dealt lately, reshuffling once a pool is exhausted.

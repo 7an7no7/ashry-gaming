@@ -910,13 +910,37 @@ function setRoomHubLocation(loc) {
   }
 }
 
+/**
+ * The leaderboard of the night: 3/2/1 banked by the server at the end of every
+ * game that kept a score (bankNightPoints in RoomGames.js). Everyone sees it,
+ * host or not, and it is nothing at all until a game has been played.
+ */
+function roomNightBoardHtml(state, t) {
+  const night = state.night || {};
+  if (!Object.keys(night).length) return '';
+  const board = state.players
+    .map(p => ({ id: p.id, name: p.name, score: night[p.id] || 0 }))
+    .sort((a, b) => b.score - a.score);
+  if (!board.some(r => r.score > 0)) return '';
+  return `
+    <div class="section">
+      <div class="section__head">
+        <h2 class="section__title">🌙 ${escapeHTML(t.room_night_title || 'ليلتنا')}</h2>
+        <span class="section__rule"></span>
+      </div>
+      ${renderScoreboard(board)}
+      <p class="field__hint" style="text-align:center">${escapeHTML(t.room_night_hint || '')}</p>
+    </div>`;
+}
+
 /** The game picker. Everyone sees it; only the host can act on it. */
 function renderRoomHub(state) {
   const t = TRANSLATIONS[appState.lang];
   const count = state.players.length;
+  const night = roomNightBoardHtml(state, t);
 
   if (!state.youAreHost) {
-    return `<div class="waiting-note">${t.room_hub_wait || 'المضيف يختار اللعبة…'}</div>`;
+    return `<div class="waiting-note">${t.room_hub_wait || 'المضيف يختار اللعبة…'}</div>${night}`;
   }
 
   const chips = `
@@ -957,7 +981,8 @@ function renderRoomHub(state) {
             </div>`;
         }).join('')}
       </div>
-    </div>`;
+    </div>
+    ${night}`;
 }
 
 /** Once a game is chosen: its own options, plus a way back to the hub. */

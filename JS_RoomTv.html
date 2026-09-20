@@ -339,6 +339,16 @@ function tvLobby(state, t) {
       <section class="tv-lobby__side">
         <h2 class="tv-h">${t.room_players || ''} <span class="tv-count">${state.players.length}</span></h2>
         ${control}
+        ${(() => {
+          // The leaderboard of the night, big enough to read from the sofa.
+          const night = state.night || {};
+          if (!Object.keys(night).length) return '';
+          const board = state.players.map(p => ({ id: p.id, name: p.name, score: night[p.id] || 0 }))
+            .sort((a, b) => b.score - a.score);
+          if (!board.some(r => r.score > 0)) return '';
+          return `<h2 class="tv-h">🌙 ${escapeHTML(t.room_night_title || 'ليلتنا')}</h2>
+                  <div class="tv-scale">${renderScoreboard(board)}</div>`;
+        })()}
       </section>
     </div>`;
 }

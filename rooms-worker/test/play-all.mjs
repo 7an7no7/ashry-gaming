@@ -1531,55 +1531,6 @@ async function main() {
           }
           return true;
         }
-        case 'scream': {
-          const circle = sks().order.filter((id) => !skProtected(id));
-          const counts = circle.map((id) => skHand(id).length);
-          const beforeIds = sks().order.map(ids);
-          const exposed = (sks().exposed || []).slice();
-          await skDo(bot, 'power', {});
-          const ev = evs('scream')[0];
-          if (inner) check(ev && ev.pid === me && Object.keys(ev.counts).length === circle.length && circle.every((id, i) => ev.counts[id] === counts[i] && skHand(id).length === counts[i]) &&
-            sks().order.every((id, i) => ids(id) === beforeIds[i]) &&
-            circle.every((id) => skHand(id).every((h) => h.h.how === 'scream' && h.h.by === me && h.h.known === null && h.h.looks.length === 0 && !!h.up === exposed.includes(id))) &&
-            skBots.every((b) => !b.state.you || b.state.you.seen === null) && sks().turn && sks().turn.pid === me && sks().turn.stage === 'choose',
-            'skrew: صرخة أوسكار: every hand dealt again blind, the same count and slots each, nobody knows a card, and the turn stays with the player');
-          return true;
-        }
-        case 'boom': {
-          const at = sks().order.indexOf(me);
-          const expect = sks().order.slice(at + 1).concat(sks().order.slice(0, at)).filter((id) => !skProtected(id) && skHand(id).length);
-          const sizes = {};
-          expect.forEach((id) => { sizes[id] = skHand(id).length; });
-          await skDo(bot, 'power', {});
-          const b = sks().boom;
-          if (!b) return true;       // nobody left to pick: the player's new turn came at once
-          const start = evs('boom')[0];
-          if (inner) {
-            check(sks().turn.stage === 'boom' && sks().turn.pid === me && b.waiting.join() === expect.join() && b.picked.length === 0 && start && Object.keys(start).sort().join() === 'pid,seq,type' &&
-              skView.every((v) => JSON.stringify(v.state.shared.boom) === JSON.stringify(b)),
-              'skrew: بوم: every other player with cards has to pick one of their own, and every phone and the screen see who');
-            check((await skTry(bot, 'boomPick', { slot: skHand(me)[0].id })) === false && (await skTry(skTV, 'boomPick', { slot: skHand(expect[0])[0].id })) === false,
-              'skrew: the player of بوم and the screen pick nothing');
-          }
-          // Every phone picks at the same moment, on the same seq.
-          const seq = sks().turnSeq;
-          const picks = {};
-          const sent = await Promise.all(b.waiting.map((id) => {
-            const hand = skHand(id);
-            const slot = (hand.find((h) => sk.known[h.id] && skrewValue(sk.known[h.id]) >= 10) || hand[hand.length - 1]).id;
-            picks[id] = slot;
-            return byId(skBots, id).act('boomPick', { seq, slot });
-          }));
-          await skSettle(Math.max(...sent.map((x) => (x.ok ? x.state.version : 0))));
-          skLearn();
-          const thrown = sks().events.filter((e) => e.seq > evFrom && e.type === 'boomThrow');
-          const ended = sks().phase !== 'play';
-          if (inner) check(sent.every((x) => x.ok) && thrown.map((e) => e.pid).join() === expect.join() && thrown.every((e) => e.slot === picks[e.pid] && !!e.card && !skHand(e.pid).some((h) => h.id === e.slot)) &&
-            sks().pile.slice(-thrown.length).join() === thrown.map((e) => e.card).join() &&
-            (ended ? !!(sks().results && sks().results.finisher) : expect.every((id) => skHand(id).length === sizes[id] - 1) && sks().turn.pid === me && sks().turn.stage === 'choose' && sks().boom === null),
-            'skrew: بوم: every phone picks at once, the cards go up together in seat order after the player, and the turn stays with the player');
-          return true;
-        }
       }
       return false;
     };
@@ -1588,14 +1539,86 @@ async function main() {
     if (checking && power === 'asYouLike') check(evs('asYouLike').length === 1 && evs('asYouLike')[0].as === use && evs(use).length === 1, `skrew: على كيفك used as ${use}`);
   };
 
+  /**
+   * بوم and صرخة أوسكار fire the moment they come off the deck (the owner,
+   * 20 Sep 2026), so what they did is checked here rather than in skPower -
+   * and against a picture of the table taken before the draw.
+   */
+  const skSlotIds = (pid) => skHand(pid).map((h) => h.id).join();
+
+  const skForced = async (bot, want, snap, evFrom) => {
+    const me = bot.pid;
+    const s = sks();
+    if (s.phase !== 'play' || !s.turn || s.turn.pid !== me) return;
+    const evs = (type) => sks().events.filter((e) => e.seq > evFrom && e.type === type);
+    const scream = evs('scream')[0];
+    const boom = evs('boom')[0];
+    if (scream) {
+      const inner = want.has('scream');
+      want.delete('scream');
+      if (inner) check(scream.pid === me && Object.keys(scream.counts).length === snap.circle.length &&
+        snap.circle.every((id, i) => scream.counts[id] === snap.counts[i] && skHand(id).length === snap.counts[i]) &&
+        sks().order.every((id, i) => skSlotIds(id) === snap.ids[i]) &&
+        snap.circle.every((id) => skHand(id).every((h) => h.h.how === 'scream' && h.h.by === me && h.h.known === null && h.h.looks.length === 0 && !!h.up === snap.exposed.includes(id))) &&
+        skBots.every((b) => !b.state.you || b.state.you.seen === null) && sks().turn && sks().turn.pid === me && sks().turn.stage === 'choose',
+        'skrew: صرخة أوسكار fires on the draw: every hand dealt again blind, the same count and slots each, nobody knows a card, and the turn stays with the player');
+      return;
+    }
+    if (!boom) return;
+    const inner = want.has('boom');
+    want.delete('boom');
+    const b = sks().boom;
+    if (inner) check(!!(await skTry(bot, 'keep', { slot: skHand(me)[0] && skHand(me)[0].id })) === false &&
+      (await skTry(bot, 'discard', {})) === false && (await skTry(bot, 'skipPower', {})) === false,
+      'skrew: بوم cannot be kept, thrown or skipped - it fired on the draw');
+    if (!b) return;                // nobody left to pick: the player's new turn came at once
+    if (inner) {
+      check(sks().turn.stage === 'boom' && sks().turn.pid === me && b.waiting.join() === snap.expect.join() && b.picked.length === 0 &&
+        Object.keys(boom).sort().join() === 'pid,seq,type' &&
+        skView.every((v) => JSON.stringify(v.state.shared.boom) === JSON.stringify(b)),
+        'skrew: بوم: every other player with cards has to pick one of their own, and every phone and the screen see who');
+      check((await skTry(skTV, 'boomPick', { slot: skHand(snap.expect[0])[0].id })) === false,
+        'skrew: the screen picks nothing');
+    }
+    const seq = sks().turnSeq;
+    const picks = {};
+    const sent = await Promise.all(b.waiting.map((id) => {
+      const hand = skHand(id);
+      const slot = (hand.find((h) => sk.known[h.id] && skrewValue(sk.known[h.id]) >= 10) || hand[hand.length - 1]).id;
+      picks[id] = slot;
+      return byId(skBots, id).act('boomPick', { seq, slot });
+    }));
+    await skSettle(Math.max(...sent.map((x) => (x.ok ? x.state.version : 0))));
+    skLearn();
+    const thrown = sks().events.filter((e) => e.seq > evFrom && e.type === 'boomThrow');
+    const ended = sks().phase !== 'play';
+    if (inner) check(sent.every((x) => x.ok) && thrown.map((e) => e.pid).join() === snap.expect.join() &&
+      thrown.every((e) => e.slot === picks[e.pid] && !!e.card && !skHand(e.pid).some((h) => h.id === e.slot)) &&
+      sks().pile.slice(-thrown.length).join() === thrown.map((e) => e.card).join() &&
+      (ended ? !!(sks().results && sks().results.finisher) : snap.expect.every((id) => skHand(id).length === snap.sizes[id] - 1) && sks().turn.pid === me && sks().turn.stage === 'choose' && sks().boom === null),
+      'skrew: بوم: every phone picks at once, the cards go up together in seat order after the player, and the turn stays with the player');
+  };
+
   /** The player up draws, then keeps (a card that must be kept, or when asked) or throws it, using a power in `want`. */
   const skDrawTurn = async (want, keep = false) => {
     const bot = skUp();
     const me = bot.pid;
     if (!sks().deckCount && (sks().settings.suddenDeath || sks().pile.length <= 1)) { await skDo(bot, 'pass'); return; }
+    // The picture the two forced powers are judged against.
+    const at = sks().order.indexOf(me);
+    const circle = sks().order.filter((id) => !skProtected(id));
+    const expect = sks().order.slice(at + 1).concat(sks().order.slice(0, at)).filter((id) => !skProtected(id) && skHand(id).length);
+    const sizes = {};
+    expect.forEach((id) => { sizes[id] = skHand(id).length; });
+    const snap = { circle: circle, counts: circle.map((id) => skHand(id).length), ids: sks().order.map(skSlotIds),
+                   exposed: (sks().exposed || []).slice(), expect: expect, sizes: sizes };
+    const forcedFrom = sks().eventSeq;
     await skDo(bot, 'draw');
     const s = sks();
-    if (s.phase !== 'play' || !s.turn || s.turn.pid !== me || s.turn.stage !== 'drawn') return;   // it played itself
+    if (s.phase !== 'play' || !s.turn || s.turn.pid !== me || s.turn.stage !== 'drawn') {
+      await skForced(bot, want, snap, forcedFrom);   // it played itself
+      return;
+    }
     const card = bot.state.you.drawn;
     const info = SKREW_CARDS[card];
     if (info.drawn === 'keep' || (keep && info.drawn !== 'discard') || card === 'lifeJacket') {

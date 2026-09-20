@@ -19,9 +19,13 @@
      power   what it does when discarded straight after being drawn
      copy    no value of its own: counts as the lowest other card in its hand
      drawn   'play' plays itself at once, 'keep' must go into your hand;
-             absent: your choice. (+20 and the red screw used to be 'discard';
-             the owner plays them like any other card - keep one to throw it
-             on a match later - so they carry no rule since 17 Sep 2026.)
+             absent: your choice - throw it to use its power, or swap it into
+             your hand and carry its value. (+20 and the red screw used to be
+             'discard'; the owner plays them like any other card - keep one to
+             throw it on a match later - so they carry no rule since
+             17 Sep 2026. بوم and صرخة أوسكار are 'play' since 20 Sep 2026:
+             the owner's "the power of them must be activated when they are
+             drawn" - they cannot be kept and cannot be skipped.)
    ========================================================================= */
 const SKREW_CARDS = {
   // --- the standard deck -------------------------------------------------------
@@ -59,8 +63,8 @@ const SKREW_CARDS = {
   khoshaf:    { group: 'mesaharaty', count: 1, value: 10, kind: 'command', power: 'khoshaf', icon: '🥣', ar: 'الخشاف', en: 'Khoshaf' },
 
   // --- أوسكار ---------------------------------------------------------------------
-  scream:     { group: 'oscar', count: 1, value: 10, kind: 'command', power: 'scream', icon: '😱', ar: 'صرخة أوسكار', en: "Oscar's scream" },
-  boom:       { group: 'oscar', count: 1, value: 10, kind: 'command', power: 'boom', icon: '💣', ar: 'بوم', en: 'Boom' },
+  scream:     { group: 'oscar', count: 1, value: 10, kind: 'special', drawn: 'play', power: 'scream', icon: '😱', ar: 'صرخة أوسكار', en: "Oscar's scream" },
+  boom:       { group: 'oscar', count: 1, value: 10, kind: 'special', drawn: 'play', power: 'boom', icon: '💣', ar: 'بوم', en: 'Boom' },
   lifeJacket: { group: 'oscar', count: 1, value: 10, kind: 'special', copy: true, icon: '🛟', ar: 'اللايف جاكيت', en: 'Life jacket' }
 };
 
@@ -79,6 +83,13 @@ const SKREW_EDITIONS = {
 /* The powers على كيفك can copy (the owner's list): action cards only, never a
    number, a shield or a penalty - and not أوسكار's بوم. */
 const SKREW_AS_YOU_LIKE = ['give', 'blindSwap', 'basra', 'seeSwap'];
+
+/* Powers that fire the moment their card is drawn and can never be skipped
+   (the owner, 20 Sep 2026). Worked out from the cards rather than listed twice,
+   so a new 'play' card is covered by the same rule. */
+const SKREW_FORCED_POWERS = Object.keys(SKREW_CARDS)
+  .filter(id => SKREW_CARDS[id].drawn === 'play' && SKREW_CARDS[id].power)
+  .map(id => SKREW_CARDS[id].power);
 
 /* بصرة copies in one deck: four in the standard deck (the later mass-market
    print, and the default), two in the first print and صاحب صاحبه. A lobby

@@ -1814,7 +1814,11 @@ function skrActionsHtml(state) {
       // سرقة الحرامي: the thief just drawn can be played as a steal instead.
       if (skrCanSteal(state)) inner = `<div class="btn-row">${keepBtn('btn--secondary')}${skrStealBtn(state, 'btn--primary')}</div>`;
     } else if (rule === 'play') {
-      inner = discardBtn('btn--primary btn--lg', '▶️ ' + escapeHTML(skrT('skr_play_it', 'العبه', 'Play it')));
+      // Unreachable: a card that plays itself is resolved by the server the
+      // moment it is drawn (screwReceive), so it never reaches this stage.
+      // Kept as a truthful message rather than a button the server would
+      // refuse, in case a future card takes a different road here.
+      inner = `<p class="skr-hint">${escapeHTML(skrT('skr_plays_itself', 'الكارت ده بيشتغل لوحده', 'This card plays itself'))}</p>`;
     } else {
       inner = `<div class="btn-row">${keepBtn('btn--primary')}${discardBtn('btn--secondary', '⬇️ ' + escapeHTML(power ? skrT('skr_discard_power', 'ارميه واستعمل قوته', 'Throw it, use its power') : skrT('skr_discard', 'ارميه', 'Throw it')))}</div>
         ${power ? `<p class="skr-hint skr-hint--power">${skrPowerChip(info.power)}${escapeHTML(power.name)}</p>` : ''}`;

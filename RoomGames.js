@@ -5305,6 +5305,10 @@ const screwMove = (room, me, action, p) => {
       return;
     case 'skipPower':
       screwTurnCheck(room, me, ['power']);
+      // A card that plays itself has no "without the power": it never reaches
+      // this stage, and if one ever did it must not be skippable. s.turn.power
+      // is what this stage carries, so the check is on the power's own card.
+      if (SKREW_FORCED_POWERS.indexOf(s.turn.power) !== -1) throw new Error('الكارت ده لازم يشتغل');
       screwForget(room, me);
       screwTurnDone(room);
       return;
@@ -5652,6 +5656,15 @@ const screwReceive = (room, me, card, from) => {
   const info = SKREW_CARDS[card] || {};
   if (info.drawn === 'play') {
     g.pile.push(card);
+    // بوم and صرخة أوسكار cannot be kept and cannot be skipped (the owner,
+    // 20 Sep 2026: "the power of them must be activated when they are drawn").
+    // Off the deck - or picked out of الخشاف - they go straight onto the pile
+    // and fire, and each leaves the same player a whole new turn.
+    if (info.power === 'boom' || info.power === 'scream') {
+      screwEvent(room, 'discard', { pid: me, card: card });
+      SKREW_POWERS[info.power](room, me, {});
+      return;
+    }
     if (info.power === 'wakeUp') {
       // المسحراتي: a سكرو now, called by whoever drew it, with no last turns. After a سكرو
       // it only cuts the last turns short: whoever called stays the caller.

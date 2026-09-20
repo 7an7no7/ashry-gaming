@@ -896,10 +896,11 @@ const leave = (r, id, hook = true) => {
     const before = slotIds();
     const cardsBefore = allCards();
     const countsBefore = r.shared.order.map((id) => r._screw.hands[id].length);
-    drawPower(p2, 'scream');
+    // It plays itself off the deck: no discard and no 'power' to send.
+    r._screw.deck.push('scream');
     r._screw.seen[p0] = [{ pid: p1, slot: slotOf(r, p1, 1), card: r._screw.hands[p1][0].card }];
     const seqScream = r.shared.turnSeq;
-    sk(r, p2, 'power', {});
+    sk(r, p2, 'draw');
     const sc = r.shared.events.filter((e) => e.type === 'scream').pop();
     check(slotIds().join() === before.join() && allCards() === cardsBefore && r.shared.order.every((id, i) => r._screw.hands[id].length === countsBefore[i]) &&
       sc && sc.pid === p2 && r.shared.order.every((id, i) => sc.counts[id] === countsBefore[i]) && Object.keys(sc).sort().join() === 'counts,pid,seq,type',
@@ -927,10 +928,10 @@ const leave = (r, id, hook = true) => {
     check(skThrew(r, p1, 'power', { slot: slotOf(r, p1, 1), target: p0, slot2: slotOf(r, p0, 1) }), 'skrew: no blind swap with the caller');
     check(skThrew(r, p1, 'power', { as: 'x' }) && r.shared.turn.stage === 'power', 'skrew: a refused power leaves the choice open');
     sk(r, p1, 'power', { slot: slotOf(r, p1, 1), target: p2, slot2: slotOf(r, p2, 1) });
-    powerOf(p2, 'scream');
     const callerHand = JSON.stringify(r._screw.hands[p0]);
     const others = [p1, p2].map((id) => r._screw.hands[id].map((e) => e.card)).flat().sort().join();
-    sk(r, p2, 'power', {});
+    r._screw.deck.push('scream');
+    sk(r, p2, 'draw');
     const scr = r.shared.events.filter((e) => e.type === 'scream').pop();
     check(JSON.stringify(r._screw.hands[p0]) === callerHand && Object.keys(scr.counts).sort().join() === [p1, p2].sort().join() &&
       [p1, p2].map((id) => r._screw.hands[id].map((e) => e.card)).flat().sort().join() === others && r.shared.phase === 'play' && r.shared.turn.pid === p2,
@@ -974,8 +975,8 @@ const leave = (r, id, hook = true) => {
     const restCards = [t1, t3, t5].map((id) => t._screw.hands[id].map((e) => e.card)).flat().sort().join();
     power(t2, 's9');
     sk(t, t2, 'skipPower');
-    power(t3, 'scream');
-    sk(t, t3, 'power', {});
+    t._screw.deck.push('scream');
+    sk(t, t3, 'draw');
     const ts = t.shared.events.filter((e) => e.type === 'scream').pop();
     check(JSON.stringify([t0, t2, t4].map((id) => t._screw.hands[id])) === sideBefore && Object.keys(ts.counts).sort().join() === [t1, t3, t5].sort().join() &&
       ts.counts[t1] === 2 && ts.counts[t3] === 1 && ts.counts[t5] === 1 && [t1, t3, t5].map((id) => t._screw.hands[id].map((e) => e.card)).flat().sort().join() === restCards,
@@ -1430,16 +1431,18 @@ const leave = (r, id, hook = true) => {
 
     // بوم: every other player throws one of their own cards, picked on their phone, all turned up together.
     const four = ['a', 'b', 'c', 'd'];
-    const boomUp = (x, pid) => { x._screw.deck.push('boom'); sk(x, pid, 'draw'); sk(x, pid, 'discard'); sk(x, pid, 'power', {}); };
+    const boomUp = (x, pid) => { x._screw.deck.push('boom'); sk(x, pid, 'draw'); };
     r = skStart(four, { edition: 'oscar', turnClock: 30 });
     begin(r, [['n1', 'n2'], ['red25', 'n3'], ['n4', 'thief'], ['n5', 'n6']], ['n1', 'n1', 'n1', 'n1'], ['n5']);
     let [q0, q1, q2, q3] = r.shared.order;
+    // بوم fires the moment it comes off the deck (the owner, 20 Sep 2026): it
+    // cannot be kept, it cannot be thrown for later, and there is no skipping it.
     r._screw.deck.push('boom');
-    sk(r, q0, 'draw'); sk(r, q0, 'discard');
-    check(r.shared.turn.stage === 'power' && r.shared.turn.power === 'boom', 'skrew: بوم drawn and thrown offers its power');
     clock += 5000;
-    sk(r, q0, 'power', {});
-    const bs = r.shared.events.slice(-1)[0];
+    sk(r, q0, 'draw');
+    check(skThrew(r, q0, 'keep', { slot: slotOf(r, q0, 1) }) && skThrew(r, q0, 'discard', {}) && skThrew(r, q0, 'skipPower', {}),
+      'skrew: بوم cannot be kept, thrown or skipped - it is already gone');
+    const bs = r.shared.events.filter((e) => e.type === 'boom').pop();
     check(r.shared.turn.pid === q0 && r.shared.turn.stage === 'boom' && r.shared.boom.waiting.join() === [q1, q2, q3].join() && r.shared.boom.picked.length === 0 &&
       bs.type === 'boom' && Object.keys(bs).sort().join() === 'pid,seq,type' && bs.pid === q0 && r.shared.endsAt === clock + 30000,
       'skrew: بوم opens its stage: everyone else with cards has to pick one, on a fresh turn clock');
@@ -1701,8 +1704,7 @@ const leave = (r, id, hook = true) => {
     // صرخة أوسكار: every card dealt again blind, so every story starts again - known cards and looks too.
     check(r.shared.order.some((id) => r.shared.hands[id].some((x) => x.h.known || x.h.looks.length)), 'skrew: before the scream, some cards are known or looked at');
     r._screw.deck.push('scream');
-    sk(r, p1, 'draw'); sk(r, p1, 'discard');
-    sk(r, p1, 'power', {});
+    sk(r, p1, 'draw');
     const screamSeq = lastSeq();
     check(r.shared.order.every((id) => r.shared.hands[id].every((x) => x.h.how === 'scream' && x.h.by === p1 && x.h.from === null && x.h.known === null && x.h.looks.length === 0 && x.h.at === screamSeq)),
       'skrew: the scream: every slot\'s story starts again, nothing known, nobody has looked');

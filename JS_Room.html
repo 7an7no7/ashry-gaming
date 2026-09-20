@@ -899,6 +899,17 @@ function watchRoomFieldDone(root, redraw) {
   });
 }
 
+let roomHubLocation = recallOptions('roomHubLocation', 'together');
+if (['together', 'apart'].indexOf(roomHubLocation) === -1) roomHubLocation = 'together';
+
+function setRoomHubLocation(loc) {
+  roomHubLocation = loc;
+  rememberOptions('roomHubLocation', loc);
+  if (Room.state && appState.currentView === 'room-lobby') {
+    renderRoomLobby(Room.state);
+  }
+}
+
 /** The game picker. Everyone sees it; only the host can act on it. */
 function renderRoomHub(state) {
   const t = TRANSLATIONS[appState.lang];
@@ -908,21 +919,41 @@ function renderRoomHub(state) {
     return `<div class="waiting-note">${t.room_hub_wait || 'المضيف يختار اللعبة…'}</div>`;
   }
 
+  const chips = `
+    <div class="filter-row hscroll-fade" role="group">
+      <button type="button" class="filter-chip filter-chip--sm ${roomHubLocation === 'together' ? 'is-active' : ''}"
+              onclick="setRoomHubLocation('together')">
+        <span aria-hidden="true">🛋️</span>${escapeHTML(t.flt_location_together || 'مع بعض')}
+      </button>
+      <button type="button" class="filter-chip filter-chip--sm ${roomHubLocation === 'apart' ? 'is-active' : ''}"
+              onclick="setRoomHubLocation('apart')">
+        <span aria-hidden="true">🌍</span>${escapeHTML(t.flt_location_apart || 'كل واحد في مكان')}
+      </button>
+    </div>`;
+
   return `
     <div class="section">
       <div class="section__head">
         <h2 class="section__title">${t.room_pick_game || 'اختر لعبة'}</h2>
         <span class="section__rule"></span>
       </div>
+      ${chips}
       <div class="game-grid">
         ${ROOM_HUB_GAMES.map(g => {
           const enough = count >= g.min;
+          const cat = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[g.id]) || null;
+          const isF2F = !!(cat && cat.faceToFace);
+          const showHint = roomHubLocation === 'apart' && isF2F;
+          const hint = showHint ? (t.room_hub_facetoface || 'أحسن وانتوا مع بعض') : '';
+          const need = !enough ? `${g.min}+` : '';
+          const badgeText = hint ? (need ? `${need} · ${hint}` : hint) : need;
+          const badge = badgeText ? `<div class="game-card__need">${badgeText}</div>` : '';
           return `
             <div class="game-card ${enough ? '' : 'is-disabled'}" data-accent="${g.accent}"
                  ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : ''}>
               <div class="game-icon" aria-hidden="true">${g.icon}</div>
               <div class="game-title">${t[g.key] || g.id}</div>
-              ${enough ? '' : `<div class="game-card__need">${g.min}+</div>`}
+              ${badge}
             </div>`;
         }).join('')}
       </div>

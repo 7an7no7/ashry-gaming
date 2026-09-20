@@ -618,7 +618,116 @@ function bankNightPoints(room, board) { … }
 
 ---
 
-# Phases 5-9
+# Phase 5A — Four moments that fall flat today
+
+Every task here obeys the motion rules in the Invariants: `transform` and `opacity` only, check `motionOff()` first and set the end state directly when it is true, key a reveal with `motionFirst(key)` so a redraw does not replay it, and back every end state with a timer as well as the animation event. New CSS goes in **section 14** of `Style.html`, with its `prefers-reduced-motion` line in the block at the end of that section.
+
+### T5A.1 — "✋ الأتوبيس وقف!"
+**Finding:** in the paper game, shouting *stop* makes everyone drop their pen. On the phones it is a grey line of text under the card.
+**Files:** `JS_RoomStop.html`, `JS_Stop.html` (one phone), `Style.html` §14, `JS_Core.html` (one key)
+**Built before:** the room already knows who stopped it — `s.stopperName` is drawn as `✋ {name} {stop_room_stopped_by}` in two places. Keep that line; this task adds the moment before it.
+**After:** when a phone first sees the round leave `writing`, a full-screen banner reading `✋ الأتوبيس وقف!` slams in over the screen for about 900ms: scale from 1.4 to 1 with a short overshoot, opacity 0 to 1, then fade. Under it, one line: `{name} وقف الأتوبيس`. Key it `motionFirst('stop-slam|' + state.code + '|' + s.round)` so a redraw does not replay it, and remove it with a timer as well as `onfinish`.
+> ⚠️ The banner must not swallow a tap: `pointer-events: none` on the layer.
+> ⚠️ Sound is T1.1's business — route any cue through `playRoomFx`, not `playSound`.
+**Accept when:**
+- [ ] the banner plays once per round on every phone and on the TV, not once per redraw
+- [ ] with motion off, no banner at all (not a 0.01ms one)
+- [ ] a tap during the banner still reaches the screen underneath
+- [ ] the existing `✋ {name}` line is unchanged
+
+### T5A.2 — "خمّن صح!" on the drawing
+**Files:** `JS_RoomDraw.html`, `Style.html` §14, `JS_Core.html`
+**Built before:** the result frame already says `draw_guessed_by` with the winner's name, and the round ends by `shared.word` being set, not `winnerId` — read that trap in GEMINI.md before you branch on anything.
+**After:** when a round ends **with** a winner, stamp `خمّن صح!` diagonally across the canvas on every phone and the TV: scale 2.2 → 1 with a slam, a slight rotation, then hold. Reuse the existing stamp keyframes if `Style.html` already has one (`skr-stamp-in` — grep for it) rather than writing a second.
+**Accept when:**
+- [ ] the stamp appears only when someone guessed, never when the host gave up
+- [ ] it plays once, on every phone and the TV
+- [ ] it sits over the drawing without clearing or repainting the canvas
+- [ ] with motion off, the stamp is drawn already settled
+
+### T5A.3 — The Wordle row shakes on a short word
+**Files:** `JS_Wordle.html` → `submitWordleGuess`; `Style.html` if needed
+**Built before:** `animate-shake` already exists and is used by Connections (`grid.classList.add('animate-shake')`). Reuse that class; do not write a second shake.
+**Before:**
+```js
+    if(appState.wordle.currentGuess.length !== appState.wordle.wordLength) {
+        playSound('alarm');
+        const msg = appState.lang === 'ar' ? "الكلمة قصيرة جداً!" : "Word too short!";
+        showToast(msg);
+        return;
+    }
+```
+**After:** the same, plus the active row taking `animate-shake` for its duration and losing it on a timer.
+**Accept when:**
+- [ ] a short word shakes the row being typed, not the whole board
+- [ ] the class is gone afterwards, so the next short word shakes again
+- [ ] a complete word never shakes
+- [ ] with motion off, nothing moves and the toast still shows
+
+### T5A.4 — Mafia's night and day
+**Files:** `JS_RoomMafia.html`, `Style.html` §14
+**Built before:** `.mafia-night` is an existing class on the night card. This task is about the **screen behind it**, not that card.
+**After:** the view's background crosses over about one second when the phase moves between `night` and `day`/`dayResult` — a deep night wash into a warm dawn one. Build it from the existing accent tokens (a night and a dawn tint defined once in §14), never a hex colour, and animate `opacity` on a layer rather than changing `background` on the view.
+**Accept when:**
+- [ ] going night → day crosses over once, and day → night the other way
+- [ ] a redraw inside the same phase does not restart it
+- [ ] with motion off, the screen is simply in the right state
+- [ ] on the TV as well as the phone
+- [ ] no hardcoded colour anywhere in the diff
+
+---
+
+# Phase 5B — The rest of the motion batch
+
+### T5B.1 — Points that fly to the score
+**Files:** `JS_Motion.html` (the helper), `JS_RoomTrivia.html` and `JS_RoomQuiz.html` (the callers), `Style.html` §14
+**Built before:** `animateScoreboards` already counts a risen score up and slides a player whose place changed, keyed on `data-pid` / `data-score`. This task adds the number leaving the answer and arriving at the board; it does not replace the count-up.
+**After:** one helper beside `flyEmoji`, `flyPoints(text, fromRect, target)`, that floats `+10` from where the answer was tapped up to that player's row and pops it on arrival. Call it only on **this phone's own** right answer.
+**Accept when:**
+- [ ] it fires on your own right answer and on nobody else's screen
+- [ ] the count-up still runs after it lands
+- [ ] with motion off, no ghost is created at all
+- [ ] `flyPoints` is defined exactly once
+
+### T5B.2 — "One away" shakes the four you chose
+**Files:** `JS_Connections.html`
+**Built before:** a wrong guess already shakes the **whole grid** (`grid.classList.add('animate-shake')`) and already tells the player when three of four match (`conn_one_away`). Do not remove either.
+**After:** on a one-away guess only, shake the four selected tiles instead of the grid — capture their elements **before** `connections.selected = []` runs.
+**Accept when:**
+- [ ] one away shakes four tiles; an ordinary wrong guess still shakes the grid
+- [ ] the toast is unchanged in both cases
+- [ ] the selection is still cleared afterwards
+
+### T5B.3 — The last three seconds
+**Files:** `Style.html` §14, and the clocks that already mark urgency
+**Built before:** `.timer-display.is-urgent` and `.tb-timer.is-urgent` already pulse, and `.tv-timer.is-low` already turns red. Extend those; do not add a third convention.
+**After:** at 3, 2 and 1 the number pops once (scale 1 → 1.25 → 1), and a warning tint breathes at the very edge of the screen. The edge layer is one element at the view's root with `pointer-events: none`.
+**Accept when:**
+- [ ] the pop happens exactly three times, once per second, not on every tick
+- [ ] the edge tint appears only under three seconds and is removed when the clock stops
+- [ ] nothing moves with motion off
+- [ ] the tint never covers a button (it is `pointer-events: none` and only a rim)
+
+### T5B.4 — The buzzer feels like a buzzer
+**Files:** `JS_RoomBuzzer.html`, `Style.html` §14
+**After:** the big button presses in (scale ~0.94 with a shadow that shortens) and a ring expands from it on `buzz`. The phones that were beaten dim their button into the locked state they already show.
+**Accept when:**
+- [ ] pressing it moves the button and rings once
+- [ ] the first buzzer's phone and the others still show exactly the states they show today
+- [ ] `roomAct('buzz')` is still sent exactly once per press
+
+### T5B.5 — Playful titles at the end
+**Files:** `JS_RoomTrivia.html`, `JS_RoomTwoTruths.html`, `JS_Core.html` (keys)
+**Scope, deliberately narrow:** award a title only where the data is **already published in `shared`**. Trivia publishes `shared.order` (who answered first), so it can name `⚡ أسرع واحد`. صدق ولا كذب publishes who fooled whom, so it can name `🎭 أحسن كداب`.
+> ⛔ Do not add a field to the server for this, and do not invent a title for a game whose data is not already there. If a game cannot support one, skip it and say so in the report.
+**Accept when:**
+- [ ] each title is computed from `shared` alone, with no change under `rooms-worker/` and none to `RoomGames.js`
+- [ ] a game with one player, or with nobody scoring, shows no title rather than an empty one
+- [ ] the titles read in both languages
+
+---
+
+# Phases 6-9
 
 **DETAIL PENDING.** Do not start any of them until the phase section appears here and you are given it by name.
 - **Phase 5** — the motion batch: floating points, Connections shake, 3-2-1 pops and edge pulse, buzzer press, superlatives, the وقف slam, the Draw & Guess stamp, the Wordle shake, the Mafia day/night fade.

@@ -854,14 +854,15 @@ TV_GAMES.fibbage = {
 /* --- الجاسوس · كلمة واحدة · من أنا؟ ------------------------------------------------ */
 
 TV_GAMES.imposter = {
-  sig: (state) => [state.phase, (state.shared.spies || []).join(','), state.shared.outcome, (state.shared.vote && state.shared.vote.voted || []).length, JSON.stringify(state.shared.scores || {})].join('|'),
+  sig: (state) => [state.phase, (state.shared.spies || []).join(','), state.shared.outcome, (state.shared.vote && state.shared.vote.voted || []).length, JSON.stringify(state.shared.scores || {}), state.shared.undercover].join('|'),
   frame(state, t) {
     const s = state.shared;
+    const undercover = !!s.undercover;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
     if (state.phase === 'reveal') {
       return `
         <div class="tv-center">
-          <div class="tv-eyebrow">${escapeHTML(s.category || '')}</div>
+          ${s.category ? `<div class="tv-eyebrow">${escapeHTML(s.category)}</div>` : ''}
           <div class="tv-big-icon" aria-hidden="true">🎴</div>
           <div class="tv-title">${t.tv_check_cards || ''}</div>
           ${host(tvBtn(t.start_discussion, "roomAct('beginDiscussion')"))}
@@ -872,24 +873,30 @@ TV_GAMES.imposter = {
         <div class="tv-center">
           <div class="tv-eyebrow">${t.discussion_time || ''}</div>
           <div id="room-imp-timer" class="tv-clock">00:00</div>
-          <div class="tv-note">${t.imposter_discuss_hint || ''}</div>
-          ${host(tvBtn(t.imp_start_vote, "roomAct('startVote')") + tvBtn(t.imp_reveal_direct, "roomAct('revealResult')", 'ghost'))}
+          <div class="tv-note">${escapeHTML(undercover ? (t.imp_und_discuss_hint || '') : (t.imposter_discuss_hint || ''))}</div>
+          ${host(tvBtn(undercover ? (t.imp_und_start_vote || t.imp_start_vote) : t.imp_start_vote, "roomAct('startVote')") + tvBtn(t.imp_reveal_direct, "roomAct('revealResult')", 'ghost'))}
         </div>`;
     }
-    if (state.phase === 'voting') return `<div class="tv-vote"><div class="tv-question">${t.accuse_player || ''}</div>${tvVoteProgress(state, t)}</div>`;
+    if (state.phase === 'voting') return `<div class="tv-vote"><div class="tv-question">${escapeHTML(undercover ? (t.imp_und_accuse || '') : (t.accuse_player || ''))}</div>${tvVoteProgress(state, t)}</div>`;
     if (state.phase === 'guess') {
       return `
         <div class="tv-vote">
-          <div class="tv-question">🕵️ ${escapeHTML(s.guesserName || '')} · ${t.imp_guessing || ''}</div>
+          <div class="tv-question">${undercover ? '🎭' : '🕵️'} ${escapeHTML(s.guesserName || '')} · ${escapeHTML(undercover ? (t.imp_und_guessing || '') : (t.imp_guessing || ''))}</div>
           <div class="tv-strip-inline">${(s.options || []).map(w => `<span class="tv-chip">${escapeHTML(w)}</span>`).join('')}</div>
           ${host(tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost'))}
         </div>`;
     }
     return `
       <div class="tv-vote">
-        <div class="tv-question">${s.outcome === 'caught' ? '🎉' : '🕵️'} ${escapeHTML(imposterOutcomeLine(s, t))}</div>
-        <div class="tv-eyebrow tv-center-text">${t.secret_word || ''}</div>
-        <div class="tv-title tv-center-text">${escapeHTML(s.secretWord || '')}</div>
+        <div class="tv-question">${s.outcome === 'caught' ? '🎉' : (undercover ? '🎭' : '🕵️')} ${escapeHTML(imposterOutcomeLine(s, t))}</div>
+        ${undercover && s.pairOther ? `
+          <div class="tv-title tv-center-text" style="font-size: var(--fs-xl)">
+            ${escapeHTML(t.imp_und_result_words || 'الكلمة كانت {word}، والمختلف كانت معاه {other}')
+              .replace('{word}', `<strong class="tx-accent">${escapeHTML(s.secretWord || '')}</strong>`)
+              .replace('{other}', `<strong class="tx-accent">${escapeHTML(s.pairOther || '')}</strong>`)}
+          </div>` : `
+          <div class="tv-eyebrow tv-center-text">${t.secret_word || ''}</div>
+          <div class="tv-title tv-center-text">${escapeHTML(s.secretWord || '')}</div>`}
         <div class="tv-scale">${renderScoreboard(s.board)}</div>
         ${host(tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
       </div>`;

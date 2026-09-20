@@ -22,8 +22,13 @@ function imposterRoomOpts() {
 }
 function setImposterRoomOpt(key, value) {
   const o = imposterRoomOpts();
-  o[key] = key === 'spies' ? Number(value) : String(value);
+  o[key] = key === 'spies' ? Number(value) : (key === 'undercover' ? !!value : String(value));
   try { localStorage.setItem(IMPOSTER_ROOM_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
+  if (key === 'undercover') {
+    const setup = document.getElementById('room-host-setup');
+    if (setup) delete setup.dataset.sig;
+    if (Room.state) routeRoomState(Room.state);
+  }
 }
 
 ROOM_GAMES.imposter = {
@@ -39,13 +44,22 @@ ROOM_GAMES.imposter = {
     const o = imposterRoomOpts();
     const cat = cats.indexOf(o.category) !== -1 ? o.category : cats[0];
     const spies = Math.max(1, Math.min(maxSpies, Number(o.spies) || 1));
+    const undercover = !!o.undercover;
     return `
       <div class="card card--tight">
+        <div class="field" style="margin-bottom: var(--sp-3)">
+          <label class="switch-row" for="room-imp-undercover">
+            <span class="field__label">${escapeHTML(t.imp_undercover || '🎭 المختلف')}</span>
+            <span class="switch"><input type="checkbox" id="room-imp-undercover" role="switch" ${undercover ? 'checked' : ''} onchange="setImposterRoomOpt('undercover', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(t.imp_undercover_hint || '')}</p>
+        </div>
+        ${undercover ? '' : `
         <label class="field__label" for="room-imp-category">${t.category || 'المجموعة'}</label>
         <select id="room-imp-category" onchange="setImposterRoomOpt('category', this.value)">
           ${cats.map(c => `<option value="${escapeHTML(c)}" ${c === cat ? 'selected' : ''}>${escapeHTML(c)}</option>`).join('')}
-        </select>
-        <label class="field__label" for="room-imp-spies">${t.imposter_count || t.spy_room_count || 'عدد الجواسيس'}</label>
+        </select>`}
+        <label class="field__label" for="room-imp-spies">${undercover ? (t.imp_und_count || 'عدد المختلفين') : (t.imposter_count || t.spy_room_count || 'عدد الجواسيس')}</label>
         <select id="room-imp-spies" onchange="setImposterRoomOpt('spies', this.value)">
           ${Array.from({ length: maxSpies }, (_, i) =>
             `<option value="${i + 1}" ${i + 1 === spies ? 'selected' : ''}>${i + 1}</option>`).join('')}
@@ -56,10 +70,12 @@ ROOM_GAMES.imposter = {
   startPayload() {
     const cat = document.getElementById('room-imp-category');
     const spies = document.getElementById('room-imp-spies');
+    const under = document.getElementById('room-imp-undercover');
     const o = imposterRoomOpts();
     return {
       category: cat ? cat.value : (o.category || ''),
-      spies: spies ? Number(spies.value) : (Number(o.spies) || 1)
+      spies: spies ? Number(spies.value) : (Number(o.spies) || 1),
+      undercover: under ? under.checked : !!o.undercover
     };
   },
 
@@ -87,22 +103,27 @@ ROOM_GAMES.imposter = {
 /** Your card, face down until you tap it. */
 function renderImposterReveal(el, state, t) {
   const you = state.you || {};
-  const isSpy = you.role === 'spy';
+  const undercover = !!(state.shared && state.shared.undercover);
+  const isSpy = !undercover && you.role === 'spy';
 
   const face = imposterCardOpen
-    ? `<div class="role-card ${isSpy ? 'role-card--spy' : ''} animate-pop">
-         <div class="role-card__label">${isSpy ? (t.you_are_spy || 'أنت الجاسوس') : (t.secret_word || 'الكلمة السرية')}</div>
-         <div class="role-card__value">${isSpy ? '🕵️‍♂️' : escapeHTML(you.word || '')}</div>
-         ${isSpy ? `<div class="role-card__hint">${t.spy_hint || 'حاول أن تعرف الكلمة دون أن ينكشف أمرك'}</div>` : ''}
-       </div>`
+    ? (undercover
+        ? `<div class="role-card animate-pop">
+             <div class="role-card__value">${escapeHTML(you.word || '')}</div>
+           </div>`
+        : `<div class="role-card ${isSpy ? 'role-card--spy' : ''} animate-pop">
+             <div class="role-card__label">${isSpy ? (t.you_are_spy || 'أنت الجاسوس') : (t.secret_word || 'الكلمة السرية')}</div>
+             <div class="role-card__value">${isSpy ? '🕵️‍♂️' : escapeHTML(you.word || '')}</div>
+             ${isSpy ? `<div class="role-card__hint">${t.spy_hint || 'حاول أن تعرف الكلمة دون أن ينكشف أمرك'}</div>` : ''}
+           </div>`)
     : `<button class="role-card role-card--closed" onclick="imposterFlipCard()">
          <div class="role-card__value">🎴</div>
          <div class="role-card__label">${t.tap_to_reveal || 'اضغط لكشف دورك'}</div>
        </button>`;
 
-  renderRoomFrame(el, 'reveal|' + imposterCardOpen + '|' + isSpy + '|' + state.youAreHost, () => `
+  renderRoomFrame(el, 'reveal|' + imposterCardOpen + '|' + isSpy + '|' + undercover + '|' + state.youAreHost, () => `
     <div class="card" style="text-align:center">
-      <div class="eyebrow">${escapeHTML(state.shared.category || '')}</div>
+      ${state.shared.category ? `<div class="eyebrow">${escapeHTML(state.shared.category)}</div>` : ''}
       ${face}
     </div>
     ${state.youAreHost
@@ -119,15 +140,16 @@ function imposterFlipCard() {
 }
 
 function renderImposterDiscuss(el, state, t) {
-  renderRoomFrame(el, 'discuss|' + state.youAreHost, () => `
+  const undercover = !!(state.shared && state.shared.undercover);
+  renderRoomFrame(el, 'discuss|' + state.youAreHost + '|' + undercover, () => `
     <div class="card" style="text-align:center">
       <div class="eyebrow">${t.discussion_time || 'وقت النقاش'}</div>
       <div id="room-imp-timer" class="metric metric--xl metric--accent">00:00</div>
-      <p class="card__subtitle" style="margin-bottom:0">${t.imposter_discuss_hint || 'اسألوا بعضكم واكتشفوا الجاسوس'}</p>
+      <p class="card__subtitle" style="margin-bottom:0">${escapeHTML(undercover ? (t.imp_und_discuss_hint || '') : (t.imposter_discuss_hint || 'اسألوا بعضكم واكتشفوا الجاسوس'))}</p>
     </div>
     ${state.youAreHost
       ? `<div class="btn-stack">
-           <button onclick="roomAct('startVote')" class="btn btn--primary btn--lg">${escapeHTML(t.imp_start_vote || '')}</button>
+           <button onclick="roomAct('startVote')" class="btn btn--primary btn--lg">${escapeHTML(undercover ? (t.imp_und_start_vote || t.imp_start_vote || '') : (t.imp_start_vote || ''))}</button>
            <button onclick="roomAct('revealResult')" class="btn btn--ghost btn--sm">${escapeHTML(t.imp_reveal_direct || '')}</button>
          </div>`
       : `<div class="waiting-note">${escapeHTML(t.imp_wait_vote || '')}</div>`}
@@ -140,9 +162,10 @@ function renderImposterDiscuss(el, state, t) {
 function renderImposterVoting(el, state, t) {
   stopRoomDiscussClock();
   const v = state.shared.vote || {};
-  renderRoomFrame(el, 'voting|' + (v.voted || []).length + '|' + state.youAreHost + '|' + appState.lang, () => `
+  const undercover = !!(state.shared && state.shared.undercover);
+  renderRoomFrame(el, 'voting|' + (v.voted || []).length + '|' + state.youAreHost + '|' + undercover + '|' + appState.lang, () => `
     <div class="card card--tight">
-      <div class="eyebrow">${escapeHTML(t.accuse_player || '')}</div>
+      <div class="eyebrow">${escapeHTML(undercover ? (t.imp_und_accuse || '') : (t.accuse_player || ''))}</div>
       ${renderBallot(state, { ownLabel: t.vote_you })}
     </div>
     ${renderRoomPlayerStrip(state)}`);
@@ -152,10 +175,11 @@ function renderImposterVoting(el, state, t) {
 function renderImposterGuess(el, state, t) {
   const s = state.shared;
   const mine = s.guesserId === Room.me;
-  renderRoomFrame(el, 'guess|' + s.guesserId + '|' + mine + '|' + state.youAreHost + '|' + appState.lang, () => `
+  const undercover = !!s.undercover;
+  renderRoomFrame(el, 'guess|' + s.guesserId + '|' + mine + '|' + state.youAreHost + '|' + undercover + '|' + appState.lang, () => `
     <div class="card card--accent" style="text-align:center">
-      <div class="metric metric--md">🕵️ ${escapeHTML(s.guesserName || '')}</div>
-      <p class="sheet__subtitle">${escapeHTML(mine ? (t.imp_guess_hint || '') : (t.imp_guessing || ''))}</p>
+      <div class="metric metric--md">${undercover ? '🎭' : '🕵️'} ${escapeHTML(s.guesserName || '')}</div>
+      <p class="sheet__subtitle">${escapeHTML(mine ? (undercover ? (t.imp_und_guess_hint || '') : (t.imp_guess_hint || '')) : (undercover ? (t.imp_und_guessing || '') : (t.imp_guessing || '')))}</p>
     </div>
     ${mine
       ? `<div class="btn-stack">${(s.options || []).map(w => `<button class="ballot-option" onclick="roomAct('guess', { word: '${jsStringAttr(w)}' })"><span class="ballot-option__label">${escapeHTML(w)}</span></button>`).join('')}</div>`
@@ -167,10 +191,11 @@ function renderImposterGuess(el, state, t) {
 /** The line that says how the round went. */
 function imposterOutcomeLine(s, t) {
   const names = (s.spies || []).join(' · ');
-  if (s.outcome === 'escaped') return (t.imp_escaped || '').replace('{name}', names);
-  if (s.outcome === 'stole') return (t.imp_stole || '').replace('{name}', names);
-  if (s.outcome === 'caught') return (t.imp_caught || '').replace('{name}', names);
-  return t.imp_revealed || '';
+  const under = !!s.undercover;
+  if (s.outcome === 'escaped') return (under ? (t.imp_und_escaped || '') : (t.imp_escaped || '')).replace('{name}', names);
+  if (s.outcome === 'stole') return (under ? (t.imp_und_stole || '') : (t.imp_stole || '')).replace('{name}', names);
+  if (s.outcome === 'caught') return (under ? (t.imp_und_caught || '') : (t.imp_caught || '')).replace('{name}', names);
+  return under ? (t.imp_und_revealed || '') : (t.imp_revealed || '');
 }
 
 /** Counts up from the shared start time, so every phone shows the same number. */
@@ -206,14 +231,21 @@ function renderImposterResult(el, state, t) {
   const s = state.shared;
   const spies = s.spies || [];
   const won = s.outcome === 'caught';
-  const fresh = renderRoomFrame(el, 'result|' + spies.join(',') + '|' + s.outcome + '|' + state.youAreHost + '|' + appState.lang, () => {
+  const undercover = !!s.undercover;
+  const fresh = renderRoomFrame(el, 'result|' + spies.join(',') + '|' + s.outcome + '|' + state.youAreHost + '|' + undercover + '|' + appState.lang, () => {
     const cover = spyRevealParts(['imp', state.code, spies.join(','), s.outcome, s.secretWord].join('|'),
-                                 spies.length > 1 ? t.reveal_spies_were : t.reveal_spy_was);
+                                 undercover ? (spies.length > 1 ? t.reveal_und_were : t.reveal_und_was) : (spies.length > 1 ? t.reveal_spies_were : t.reveal_spy_was));
     return `
     <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
-      <div class="metric metric--md ${won ? 'tx-success' : (s.outcome === 'revealed' ? '' : 'tx-danger')}" style="margin-bottom: var(--sp-3)">${won ? '🎉' : '🕵️'} ${escapeHTML(imposterOutcomeLine(s, t))}</div>
-      <div class="eyebrow">${t.secret_word || 'الكلمة السرية'}</div>
-      <div class="metric metric--md metric--accent">${escapeHTML(s.secretWord || '')}</div>
+      <div class="metric metric--md ${won ? 'tx-success' : (s.outcome === 'revealed' ? '' : 'tx-danger')}" style="margin-bottom: var(--sp-3)">${won ? '🎉' : (undercover ? '🎭' : '🕵️')} ${escapeHTML(imposterOutcomeLine(s, t))}</div>
+      ${undercover && s.pairOther ? `
+        <div class="metric metric--sm" style="margin-top: var(--sp-2)">
+          ${escapeHTML(t.imp_und_result_words || 'الكلمة كانت {word}، والمختلف كانت معاه {other}')
+            .replace('{word}', `<strong class="tx-accent">${escapeHTML(s.secretWord || '')}</strong>`)
+            .replace('{other}', `<strong class="tx-accent">${escapeHTML(s.pairOther || '')}</strong>`)}
+        </div>` : `
+        <div class="eyebrow">${t.secret_word || 'الكلمة السرية'}</div>
+        <div class="metric metric--md metric--accent">${escapeHTML(s.secretWord || '')}</div>`}
       ${s.accusedName ? `<p class="sheet__subtitle">${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}${s.guess ? ` · ${escapeHTML(t.spy_guess_was || '')}: ${escapeHTML(s.guess)}` : ''}</p>` : ''}
     </div>
     ${renderScoreboard(s.board)}

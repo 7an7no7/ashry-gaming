@@ -76,7 +76,10 @@ function renderDaily() {
         <span class="daily-bar" aria-hidden="true"><i style="--p:${done.length / DAILY_GAMES.length}"${first ? ' class="is-new"' : ''}></i></span>
         <span class="field__hint">${escapeHTML(all ? (t.daily_all_done || '') : (t.daily_renews || '').replace('{h}', hours))}</span>
       </div>
-      <button type="button" class="btn btn--primary" onclick="shareDaily()" ${done.length ? '' : 'disabled'}>📤 ${escapeHTML(t.daily_share_all || '')}</button>
+      <div class="daily-head__actions">
+        <button type="button" class="btn btn--primary" onclick="shareDaily()" ${done.length ? '' : 'disabled'}>📤 ${escapeHTML(t.daily_share_all || '')}</button>
+        <button type="button" class="btn btn--secondary" onclick="openDailyArchive()">📅 ${escapeHTML(t.daily_archive || 'الأرشيف')}</button>
+      </div>
     </div>
     <div class="daily-list">
       ${DAILY_GAMES.map(g => {
@@ -125,4 +128,152 @@ function shareDaily() {
 }
 
 soloRegister('daily', { setup: 'setup-daily', paintSetup: renderDaily });
+
+/* ============================================================================
+   أرشيف تحدي اليوم — PAST DAILIES ARCHIVE
+   ========================================================================= */
+
+let archiveSelectedDay = null;
+let archiveMonthOffset = 1; // 1 = current month, 0 = previous month
+
+function openDailyArchive() {
+  setView('setup-daily-archive');
+}
+
+function setArchiveMonth(offset) {
+  archiveMonthOffset = offset;
+  renderDailyArchive();
+}
+
+function selectArchiveDay(day) {
+  archiveSelectedDay = day;
+  renderDailyArchive();
+}
+
+/**
+ * Starts past daily for game `id` on date `day`.
+ * Deals with identical seed, sets s.archive, clears s.daily so soloMarkDaily is not called.
+ */
+function playArchive(id, day) {
+  const g = DAILY_GAMES.find(x => x.id === id);
+  const soloG = typeof SOLO_GAMES !== 'undefined' ? SOLO_GAMES[id] : null;
+  if (!g || !soloG) return;
+  soloHubReturn = false;
+  soloArchiveDay = day;
+  try {
+    g.start();
+  } finally {
+    soloArchiveDay = null;
+  }
+  const s = soloG.state ? soloG.state() : null;
+  if (s) {
+    s.archive = day;
+    s.daily = '';
+    saveToLocal();
+    if (typeof soloG.repaint === 'function') soloG.repaint();
+  }
+}
+
+function renderDailyArchive() {
+  const el = document.getElementById('daily-archive-stage');
+  if (!el) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const isAr = appState.lang === 'ar';
+  const todayStr = soloToday();
+  const allDailies = soloDailyAll();
+
+  const now = new Date();
+  const targetDate = new Date(now.getFullYear(), now.getMonth() - (1 - archiveMonthOffset), 1);
+  const year = targetDate.getFullYear();
+  const month = targetDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const curMonthDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const curMonthLabel = curMonthDate.toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' });
+  const prevMonthLabel = prevMonthDate.toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' });
+
+  if (!archiveSelectedDay || !archiveSelectedDay.startsWith(year + '-' + String(month + 1).padStart(2, '0'))) {
+    if (archiveMonthOffset === 1) {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yStr = soloToday(yesterday);
+      archiveSelectedDay = (yStr.startsWith(year + '-' + String(month + 1).padStart(2, '0'))) ? yStr : todayStr;
+    } else {
+      archiveSelectedDay = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(daysInMonth).padStart(2, '0');
+    }
+  }
+
+  const weekDays = isAr ? ['س', 'ح', 'ن', 'ث', 'ر', 'خ', 'ج'] : ['Sa', 'Su', 'Mo', 'Tu', 'We', 'Th', 'Fr'];
+  const startDayPad = (targetDate.getDay() + 1) % 7;
+
+  let daysHtml = '';
+  for (let p = 0; p < startDayPad; p++) {
+    daysHtml += `<div class="archive-cal__day is-empty" aria-hidden="true"></div>`;
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const isFuture = dayStr > todayStr;
+    const isSelected = dayStr === archiveSelectedDay;
+    const dayResults = allDailies[dayStr] || {};
+    const doneCount = Object.keys(dayResults).length;
+    const isAll = doneCount === DAILY_GAMES.length;
+
+    let badge = '';
+    if (!isFuture && doneCount > 0) {
+      badge = `<span class="archive-cal__badge${isAll ? ' is-all' : ''}">${isAll ? '★' : doneCount}</span>`;
+    }
+
+    daysHtml += `
+      <button type="button" class="archive-cal__day${isSelected ? ' is-selected' : ''}${isFuture ? ' is-future' : ''}" onclick="selectArchiveDay('${dayStr}')" ${isFuture ? 'disabled' : ''}>
+        <span>${d}</span>
+        ${badge}
+      </button>`;
+  }
+
+  const selectedResults = allDailies[archiveSelectedDay] || {};
+  const selectedDoneCount = Object.keys(selectedResults).length;
+
+  el.innerHTML = `
+    <div class="archive-cal-wrap card">
+      <div class="segmented" style="margin-bottom:var(--sp-3)">
+        <button type="button" class="segmented__item ${archiveMonthOffset === 1 ? 'is-active' : ''}" onclick="setArchiveMonth(1)">${escapeHTML(curMonthLabel)}</button>
+        <button type="button" class="segmented__item ${archiveMonthOffset === 0 ? 'is-active' : ''}" onclick="setArchiveMonth(0)">${escapeHTML(prevMonthLabel)}</button>
+      </div>
+
+      <div class="archive-cal" dir="${isAr ? 'rtl' : 'ltr'}">
+        ${weekDays.map(w => `<div class="archive-cal__head">${escapeHTML(w)}</div>`).join('')}
+        ${daysHtml}
+      </div>
+      <div class="field__hint" style="text-align:center;margin:0">
+        ${escapeHTML((t.daily_archive_solved_count || 'اتحل {n} من {m}').replace('{n}', selectedDoneCount).replace('{m}', DAILY_GAMES.length))}
+      </div>
+    </div>
+
+    <div class="section__head" style="margin-bottom:var(--sp-2)">
+      <span class="section__emoji" aria-hidden="true">📅</span>
+      <h2 class="section__title">${escapeHTML((t.daily_archive_selected || 'تحديات {day}').replace('{day}', archiveSelectedDay))}</h2>
+    </div>
+
+    <div class="daily-list">
+      ${DAILY_GAMES.map(g => {
+        const cat = CATALOG_BY_ID[g.id] || {};
+        const result = selectedResults[g.id];
+        return `
+          <div class="tool-item daily-row${result ? ' is-done' : ''}" data-accent="${cat.accent || 'amber'}" data-game="${g.id}">
+            <span class="tool-icon" aria-hidden="true">${cat.icon || '🎮'}</span>
+            <span class="tool-info">
+              <span class="tool-name">${escapeHTML(t[cat.title] || g.id)}</span>
+              <span class="tool-desc">${result ? escapeHTML(g.line(result)) : escapeHTML(t.daily_archive_not_done || 'لم يُحل في يومه')}</span>
+            </span>
+            <button type="button" class="btn btn--secondary btn--sm" onclick="playArchive('${g.id}', '${archiveSelectedDay}')">
+              ${result ? '🔄 ' + escapeHTML(t.daily_archive_replay || 'العب تاني') : '▶ ' + escapeHTML(t.daily_archive_play || 'العب')}
+            </button>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+soloRegister('daily_archive', { setup: 'setup-daily-archive', paintSetup: renderDailyArchive });
 </script>

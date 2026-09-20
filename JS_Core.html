@@ -1465,6 +1465,16 @@
       daily_share_all: "شارك نتيجة النهارده",
       daily_play: "العب",
       daily_back: "تحدي اليوم",
+      daily_archive: "الأرشيف",
+      daily_archive_title: "أرشيف تحدي اليوم",
+      daily_archive_desc: "العب ألغاز الأيام اللي فاتت بنفس طريقة ويوم نزولها.",
+      daily_archive_badge: "أرشيف",
+      daily_archive_play: "العب",
+      daily_archive_replay: "العب تاني",
+      daily_archive_done: "تم الحل في يومه",
+      daily_archive_not_done: "لم يُحل في يومه",
+      daily_archive_selected: "تحديات {day}",
+      daily_archive_solved_count: "اتحل {n} من {m}",
       setup_headsup: "على راسك",
       cat_headsup: "الموبايل على جبهتك والكل يوصفلك الكلمة. نزّل راسك لو صح، وارفعها لو هتفوّت.",
       hu_deck: "الكلمات",
@@ -3284,6 +3294,16 @@
       daily_share_all: "Share today's results",
       daily_play: "Play",
       daily_back: "Daily challenge",
+      daily_archive: "Archive",
+      daily_archive_title: "Daily Challenge Archive",
+      daily_archive_desc: "Play past daily puzzles exactly as they were dealt.",
+      daily_archive_badge: "Archive",
+      daily_archive_play: "Play",
+      daily_archive_replay: "Play again",
+      daily_archive_done: "Solved on that day",
+      daily_archive_not_done: "Not solved on that day",
+      daily_archive_selected: "Challenges for {day}",
+      daily_archive_solved_count: "{n} of {m} solved",
       setup_headsup: "Heads Up",
       cat_headsup: "The phone on your forehead while everyone describes the word. Tip down if you got it, up to pass.",
       hu_deck: "Words",
@@ -4868,7 +4888,8 @@
         'setup-memory', 'play-memory',
         'setup-xo', 'play-xo',
         'play-chooser',
-        'play-chess'
+        'play-chess',
+        'setup-daily-archive'
     ];
 
     if (saved) {
@@ -5123,6 +5144,9 @@
         else if (appState.currentView === 'play-chooser') {
             setTimeout(() => { if (typeof openChooser === 'function') openChooser(); }, 0);
         }
+        else if (appState.currentView === 'setup-daily-archive' && typeof renderDailyArchive === 'function') {
+            renderDailyArchive();
+        }
         // 👆 END PROTECTIONS 👆
         else if (appState.currentView.startsWith('setup-')) {
             const listId = appState.currentView.replace('setup-', '') + '-player-list';
@@ -5269,6 +5293,7 @@
     'play-streak':     { title: 'setup_streak',     up: 'setup-streak',   accent: 'rose' },
     'setup-flags':     { title: 'setup_flags',      up: 'menu',           accent: 'blue' },
     'setup-daily':     { title: 'daily_title',      up: 'menu',           accent: 'amber' },
+    'setup-daily-archive': { title: 'daily_archive_title', up: 'setup-daily', accent: 'amber' },
     'setup-headsup':   { title: 'setup_headsup',    up: 'menu',           accent: 'green' },
     'play-headsup':    { title: 'setup_headsup',    up: 'setup-headsup',  accent: 'green' },
     'play-flags':      { title: 'setup_flags',      up: 'setup-flags',    accent: 'blue' },
@@ -6685,6 +6710,12 @@ const GAME_RULES = {
                 <li><b>🔥 السلسلة</b>: عدد الأيام ورا بعض اللي خلّصت فيها تحدي واحد على الأقل.</li>
                 <li><b>📤 شارك نتيجة النهارده</b> بيبعت كل نتايجك في رسالة واحدة لجروب العيلة أو الصحاب.</li>
             </ol>`,
+        daily_archive: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li><b>📅 الأرشيف</b> بيسيبك تلعب أي لغز من ألغاز الشهرين اللي فاتوا.</li>
+                <li>كل لغز بينزل بنفس الشكل والحل اللي نزل بيه في يومه بالظبط من غير ما يتغير.</li>
+                <li><b>⚠️ الأرشيف للتسلية والتمرين</b>: حله مبيأثرش على السلسلة ومبيغيرش النتيجة اللي اتسجلت في اليوم ده.</li>
+            </ol>`,
         headsup: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>اختاروا الكلمات والوقت، واكتبوا الأسامي لو عايزين نقط لكل واحد.</li>
@@ -7440,6 +7471,12 @@ const GAME_RULES = {
                 <li>Each challenge is played once a day. Finished ones get a ✓ and your result.</li>
                 <li><b>🔥 The streak</b> counts the days in a row with at least one challenge finished.</li>
                 <li><b>📤 Share today's results</b> sends all of them in one message to the family or friends' group.</li>
+            </ol>`,
+        daily_archive: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li><b>📅 The Archive</b> lets you play any daily puzzle from the last two months.</li>
+                <li>Each puzzle is dealt with the exact same seed and solution as on that day.</li>
+                <li><b>⚠️ For fun and practice</b>: archive plays never affect your streak and never overwrite historical results.</li>
             </ol>`,
         headsup: `
             <ol class="list-decimal list-inside space-y-1 text-xs">

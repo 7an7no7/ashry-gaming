@@ -98,6 +98,9 @@ const soloEpochs = {};
 function soloNewGame(id) {
   soloEpochs[id] = (soloEpochs[id] || 0) + 1;
   soloLookOn = null;   // the finished board being looked at is gone
+  const g = typeof SOLO_GAMES !== 'undefined' ? SOLO_GAMES[id] : null;
+  const s = g && g.state ? g.state() : null;
+  if (s && s.archive) delete s.archive;
 }
 
 /** setTimeout for game `id` that does nothing if a new game started or its board left the screen. */
@@ -135,19 +138,22 @@ function soloRng(seed) {
   };
 }
 
+var soloArchiveDay = null;
+
 /** Today on this phone, as YYYY-MM-DD (local time, so the day turns at midnight here). */
 function soloToday(date) {
+  if (soloArchiveDay && !date) return soloArchiveDay;
   const d = date || new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
 function soloDaySeed(id, day) {
-  return soloHash('ashry-daily:' + id + ':' + (day || soloToday()));
+  return soloHash('ashry-daily:' + id + ':' + (day || soloArchiveDay || soloToday()));
 }
 
 /** Whole days from 1 Jan 2026 to a YYYY-MM-DD date: a counter for things that go round day by day. */
 function soloDayIndex(day) {
-  const p = String(day || soloToday()).split('-').map(Number);
+  const p = String(day || soloArchiveDay || soloToday()).split('-').map(Number);
   return Math.round((Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(2026, 0, 1)) / 86400000);
 }
 
@@ -303,6 +309,7 @@ function soloDailySetAside(id) {
 function soloDailyResume(id) {
   const g = SOLO_GAMES[id];
   if (!g || !g.state || typeof g.resume !== 'function' || soloDailyResult(id)) return false;
+  if (soloArchiveDay) return false;
   if (!soloDailyLive(g)) {
     const all = soloDailyKept();
     const kept = all[id];
@@ -425,7 +432,12 @@ function soloClockRefresh() {
 
 /** The stats row above a board: [{ label, value, id }]. */
 function soloBarHtml(items) {
-  return `<div class="solo-bar" style="--solo-cols:${items.length}">${items.map(it => `
+  const g = typeof soloGameOnScreen === 'function' ? soloGameOnScreen() : null;
+  const s = g && g.state ? g.state() : null;
+  const isArchive = !!(s && s.archive);
+  const t = (typeof TRANSLATIONS !== 'undefined' && typeof appState !== 'undefined' && TRANSLATIONS[appState.lang]) || {};
+  const archiveHtml = isArchive ? `<div class="solo-archive-badge"><span class="badge badge--warning">📅 ${escapeHTML(t.daily_archive_badge || 'أرشيف')} ${escapeHTML(s.archive)}</span></div>` : '';
+  return archiveHtml + `<div class="solo-bar" style="--solo-cols:${items.length}">${items.map(it => `
     <div class="solo-stat${it.cls ? ' ' + it.cls : ''}">
       <span class="solo-stat__label">${escapeHTML(it.label || '')}</span>
       <b class="metric"${it.id ? ` id="${it.id}"` : ''}>${it.value === undefined ? '' : it.value}</b>
@@ -454,8 +466,16 @@ let soloLookOn = null;       // { view } while a finished board is being looked 
  */
 function soloResult(o) {
   const t = TRANSLATIONS[appState.lang] || {};
-  // A daily started from تحدي اليوم goes back there (JS_Daily.html).
-  if (o.share && typeof soloHubReturn !== 'undefined' && soloHubReturn) {
+  const g = typeof soloGameOnScreen === 'function' ? soloGameOnScreen() : null;
+  const s = g && g.state ? g.state() : null;
+  if (s && s.archive) {
+    o = Object.assign({}, o, {
+      share: '',
+      again: typeof playArchive === 'function' ? () => playArchive(g.id, s.archive) : o.again,
+      againLabel: '🔄 ' + (t.play_again || 'العب تاني'),
+      exit: typeof openDailyArchive === 'function' ? openDailyArchive : openDaily
+    });
+  } else if (o.share && typeof soloHubReturn !== 'undefined' && soloHubReturn) {
     o = Object.assign({}, o, { again: openDaily, againLabel: '📅 ' + (t.daily_back || ''), exit: openDaily });
   }
   soloResultActions = { again: o.again || null, exit: o.exit || null, share: o.share || '' };

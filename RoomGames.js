@@ -1061,12 +1061,15 @@ const imposterAction = (room, playerId, action, payload) => {
     requireHost(room, playerId);
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
 
-    const category = String(payload.category || '');
-    const words = spyWords(category);
-    if (!words.length) throw new Error('اختر مجموعة كلمات');
+    const undercover = !!payload.undercover;
+    const category = undercover ? '' : String(payload.category || '');
+    const words = undercover ? (typeof SPY_PAIRS !== 'undefined' ? SPY_PAIRS.map(p => p[0]) : []) : spyWords(category);
+    if (!undercover && !words.length) throw new Error('اختر مجموعة كلمات');
 
-    // Dealt through the shared memory, so an evening doesn't repeat itself.
-    const secret = nextPrompt(room, words, 'imp_' + category);
+    // PromptMemory keys on the dealt value, so deal the pair as one string.
+    const pair = undercover ? nextPrompt(room, SPY_PAIRS.map(p => p[0] + '|' + p[1]), 'imppair').split('|') : null;
+    const secret = undercover ? pair[0] : nextPrompt(room, words, 'imp_' + category);
+    const pairOther = undercover ? pair[1] : null;
     const spyCount = Math.max(1, Math.min(Number(payload.spies) || 1, room.players.length - 2));
     const order = shuffled(room.players.map(p => p.id));
     const spies = order.slice(0, spyCount);
@@ -1074,18 +1077,21 @@ const imposterAction = (room, playerId, action, payload) => {
     room.secrets = {};
     room.players.forEach(p => {
       const isSpy = spies.indexOf(p.id) !== -1;
-      room.secrets[p.id] = {
-        role: isSpy ? 'spy' : 'player',
-        word: isSpy ? null : secret,
-        category: category
-      };
+      // المختلف: every slice looks the same — a role and a word — so nobody can
+      // learn they are the odd one out, not from the screen and not by reading
+      // the traffic. room._impSpies is the only record of who is who.
+      room.secrets[p.id] = undercover
+        ? { role: 'player', word: isSpy ? pairOther : secret, category: category }
+        : { role: isSpy ? 'spy' : 'player', word: isSpy ? null : secret, category: category };
     });
     room._impSecret = secret;
+    room._impPairOther = pairOther;
     room._impSpies = spies;
     room._impWords = words;
 
     room.shared = {
       category: category,
+      undercover: undercover,
       spyCount: spyCount,
       revealed: false,
       scores: room._impScores || {},
@@ -1187,6 +1193,7 @@ const finishImposter = (room, outcome, guess) => {
   s.guess = guess;
   s.revealed = true;
   s.secretWord = room._impSecret;
+  if (room._impPairOther) s.pairOther = room._impPairOther;
   s.spies = spies.map(id => roomPlayerName(room, id));
   s.spyIds = spies.slice();
   if (outcome === 'caught') {

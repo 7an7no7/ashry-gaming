@@ -119,8 +119,8 @@ work changed. Add to it when a decision is made or a batch ships.
     each version card. That is 57 base cards; the owner said 66 (see
     *Waiting*).
   - **Versions**: Classic (the base deck); الحرامي (the thief, خد بس, شوف
-    وبدّل); صاحب صاحبه (teams, بينج, بونج, على كيفك - the wildcard for خد بس,
-    خد وهات, بصرة or شوف وبدّل only); المسحراتي (المسحراتي, المدفع, الخشاف);
+    وبدّل); صاحب صاحبه (teams, بينج, بونج, على كيفك - a mimic of a command
+    card on the pile, below); المسحراتي (المسحراتي, المدفع, الخشاف);
     أوسكار (صرخة أوسكار); العام (all of them); or any mix (`custom`).
   - **Throwing a matching card is only on your own turn** (owner). Command
     cards left in a hand count 10 (owner); 7-10 count their face.
@@ -176,6 +176,44 @@ work changed. Add to it when a decision is made or a batch ships.
     The forced throw (and its ⚠️) is gone from the server and the phone. The
     thief and بونج still go into the hand and بينج and المسحراتي still play
     themselves - those are their versions' rules, said plainly, not alerts.
+  - **The three kinds of card** (owner, 20 Sep 2026, laid out as groups and
+    then confirmed one by one):
+    - **Fires the moment it is drawn, and cannot be kept or skipped**: بوم and
+      صرخة أوسكار ("the power of them must be activated when they are drawn in
+      the ground - this is not an option"), and بينج and المسحراتي by their own
+      versions' rules. They are `drawn: 'play'` in `SkrewCards.js`, so the
+      server resolves them in `screwReceive` before a drawn card screen exists,
+      and `skipPower` is refused for any of their powers
+      (`SKREW_FORCED_POWERS`).
+    - **Drawn, you choose**: throw it to use its power, or swap it into your
+      hand and carry its value. 7, 8, 9, 10, خد وهات, شوف وبدّل, خد بس, كعب
+      داير, الخشاف, **بصرة and المدفع** (the owner confirmed both belong here,
+      20 Sep 2026).
+    - **Held**: اللايف جاكيت, الحرامي, بونج, −1, the green screw, +20.
+  - **على كيفك is a mimic** (owner, 20 Sep 2026: "you must point to a command
+    card currently lying face-up in the discard history stack and declare: I am
+    copying this card's power"). Not a free choice from a list: the choices are
+    the command cards on the pile (`skrewPileCommands`), and it runs that
+    card's own text. A card that plays itself is `kind: 'special'`, so it is
+    never on the list, and على كيفك cannot copy itself. **With no command on
+    the pile** - turn one, or a pile of nothing but numbers - the card is not
+    dead: it goes down as a plain بصرة, because the deck's history has not
+    unlocked anything else. Both sides read the same window the phones are
+    shown (`SKREW_PILE_SHOWN`): you point at a card the table can see, not one
+    buried under it.
+  - **اللايف جاكيت equals the lowest card in your hand** (owner, 20 Sep 2026:
+    "its automatic equal the lowest card i have in my hand"), automatically and
+    with no choice; alone in a hand it counts 10. That is what
+    `skrewHandValues` already did.
+  - **المسحراتي stays a forced سكرو** (owner, 20 Sep 2026, asked directly):
+    drawn, it plays itself and reveals the round with the drawer as caller.
+    A later description of it as "flip every hand face-up for three seconds"
+    was put to the owner beside the built rule, and they kept the built one -
+    the 17 Sep reading from the Skrew store's own card text. Do not change it.
+  - **Command cards count their face where they have one** (owner, 20 Sep
+    2026, asked directly): a 7 counts 7 and an 8 counts 8, not 10. A later
+    "fixed +10 for all of them" was put to the owner and they kept the face
+    values.
 
 - **مافيا (Mafia / Werewolf)** - the owner's spec of 16 Sep 2026, built the
   same day (*مافيا in rooms*): the app is the narrator (night choices made silently on each phone,
@@ -395,6 +433,19 @@ the word search), `countUp` for streaks and scores.
   in a long word counts, a near miss says so) in ارسم وخمّن, the fake
   artist's guess and the quiz cards; the drawing list cut from 900 to 690
   drawable words (خلد had been dealt).
+- **20 Sep 2026, سكرو's action cards** - the owner went through the deck card
+  by card as three groups. Two things were wrong and were fixed: بوم and صرخة
+  أوسكار could be kept in hand or thrown and then skipped, and they now fire
+  the moment they are drawn; and على كيفك was a free pick from a fixed list of
+  four, and is now a mimic of a command card lying on the pile, falling back to
+  a plain بصرة when there is none. Found while fixing the second: the phones
+  are shown only the top of the pile while the server read the whole stack, so
+  the two now read the same window. Three other differences in the owner's
+  list were put back to them and they kept what was built: المسحراتي stays a
+  forced سكرو, command cards keep their face value where they have one (a 7 is
+  7, not 10), and بصرة and المدفع are ordinary "throw it or keep it" cards.
+  اللايف جاكيت was already exactly as described.
+
 - **20 Sep 2026, the roadmap** - an audit of the whole app became a nine-phase
   plan the owner agreed (`notes/ROADMAP_RUNBOOK.md`, with a report per phase in
   `notes/phase-reports/`), built on the branch `feature/roadmap` and shipped in

@@ -1,0 +1,294 @@
+<script>
+/* ============================================================================
+   A RESULT YOU CAN SEND — the share card
+   ----------------------------------------------------------------------------
+   A result told as text is a wall of characters in WhatsApp. This draws the
+   same result as a picture the table actually looks at: the app's violet
+   ground, the brand mark, the game's name, up to eight rows of name and score,
+   and the link at the foot.
+
+   Nothing here runs until a share button is pressed. The canvas is built,
+   used and thrown away inside shareResultCard - a result screen costs nothing
+   until somebody wants to send it.
+
+   Three ways out, in order: the phone's share sheet with the picture attached
+   (navigator.canShare({ files })), a download where that isn't offered, and
+   the plain text through shareOrCopy where neither works - which is exactly
+   what the app did before this existed, so nobody loses anything.
+
+   The colours are read off the mark in the page (Logo.html) rather than
+   written again here, so the card follows whatever colourway the app ships
+   with. Arabic is drawn with ctx.direction = 'rtl'; every browser the app
+   supports shapes and joins it on a canvas the same way it does in the DOM.
+   ========================================================================== */
+
+const SHARE_CARD = { w: 1080, h: 1920, maxRows: 8, hardMaxRows: 10 };
+
+/**
+ * The brand's colours, taken from the mark's own gradient in Logo.html: the
+ * three violet stops of the ground, the amber of the full stop, and the ink.
+ * Falls back to the deep colourway if the mark is not on the page.
+ */
+function shareCardColours() {
+  const mark = document.getElementById('ashry-mark');
+  const stops = mark ? [...mark.querySelectorAll('#ashry-g-m stop')].map(s => s.getAttribute('stop-color')) : [];
+  // The full stop after the name. The mark also carries two white circles as
+  // light, so the coloured one is the one that isn't the ink.
+  const token = mark && [...mark.querySelectorAll('circle[fill^="#"]')]
+    .map(c => c.getAttribute('fill'))
+    .find(f => f && f.toLowerCase() !== '#ffffff');
+  return {
+    ground: stops.length === 3 ? stops : ['#6d28d9', '#4c1d95', '#2e1065'],
+    token: token || '#fbbf24',
+    ink: '#ffffff'
+  };
+}
+
+/**
+ * The mark as an image the canvas can draw. The page holds it as an inline
+ * <symbol>, which a canvas cannot use directly, so its contents are wrapped in
+ * a standalone <svg> and handed over as a data URL - the gradients and the
+ * shadow are defined inside the symbol, so they travel with it, and a data URL
+ * leaves the canvas untainted. Resolves to null rather than throwing: a card
+ * without the mark is better than no card.
+ */
+function shareCardMark() {
+  return new Promise((resolve) => {
+    const symbol = document.getElementById('ashry-mark');
+    if (!symbol || !symbol.innerHTML) return resolve(null);
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">' +
+                symbol.innerHTML + '</svg>';
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+
+/** A line shortened with an ellipsis until it fits: a long name must not run off the card. */
+function shareCardFit(ctx, text, maxWidth) {
+  let s = String(text == null ? '' : text);
+  if (ctx.measureText(s).width <= maxWidth) return s;
+  while (s.length > 1 && ctx.measureText(s + '…').width > maxWidth) s = s.slice(0, -1);
+  return s + '…';
+}
+
+/** The plain words of a line that may carry markup (a solo result's lines are HTML). */
+function shareCardText(html) {
+  const box = document.createElement('div');
+  box.innerHTML = String(html == null ? '' : html);
+  return (box.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Draws the card and resolves with a PNG blob, or null if the browser would
+ * not give one up.
+ *   o: { title, icon, rows: [{ name, value } | 'a line'], footer }
+ */
+async function drawShareCard(o) {
+  const c = shareCardColours();
+  const rtl = (appState.lang || 'ar') === 'ar';
+  const canvas = document.createElement('canvas');
+  canvas.width = SHARE_CARD.w;
+  canvas.height = SHARE_CARD.h;
+  const ctx = canvas.getContext && canvas.getContext('2d');
+  if (!ctx) return null;
+
+  // The app's own face needs its own font: without this the card is drawn in
+  // whatever the canvas defaults to, which is not what the app looks like.
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) {}
+
+  const font = (weight, px) => { ctx.font = weight + ' ' + px + 'px Cairo, "Segoe UI", sans-serif'; };
+  ctx.direction = rtl ? 'rtl' : 'ltr';
+  ctx.textBaseline = 'middle';
+
+  // The ground, corner to corner, and a soft light in the top corner - the
+  // same shape as the mark's own highlight.
+  const ground = ctx.createLinearGradient(0, 0, SHARE_CARD.w, SHARE_CARD.h);
+  ground.addColorStop(0, c.ground[0]);
+  ground.addColorStop(0.52, c.ground[1]);
+  ground.addColorStop(1, c.ground[2]);
+  ctx.fillStyle = ground;
+  ctx.fillRect(0, 0, SHARE_CARD.w, SHARE_CARD.h);
+  const light = ctx.createRadialGradient(240, 200, 0, 240, 200, 900);
+  light.addColorStop(0, 'rgba(255,255,255,0.16)');
+  light.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = light;
+  ctx.fillRect(0, 0, SHARE_CARD.w, SHARE_CARD.h);
+
+  // The rows, on a plate of their own so the names read against the ground.
+  // The plate has a fixed room between the title and the mark, so the rows
+  // share it: three names are large, ten are smaller, and neither runs off
+  // the card. Whatever room they leave is split above and below, so a card
+  // with three names is not three names and a field of nothing.
+  const rows = (o.rows || []).slice(0, Math.min(SHARE_CARD.hardMaxRows, o.maxRows || SHARE_CARD.maxRows));
+  const plateRoom = 830;
+  const pad = 96;
+  const rowH = Math.min(132, Math.floor((plateRoom - 56) / Math.max(1, rows.length)));
+  const rowFont = Math.max(30, Math.min(54, Math.round(rowH * 0.42)));
+  const slack = Math.round(Math.max(0, (plateRoom - 56) - rows.length * rowH) / 2);
+  const plateTop = 640 + slack;
+
+  const mid = SHARE_CARD.w / 2;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = c.ink;
+
+  font('900', 190);
+  ctx.fillText(String(o.icon || '🏆'), mid, 330 + slack);
+
+  font('900', 78);
+  ctx.fillText(shareCardFit(ctx, o.title || '', SHARE_CARD.w - 140), mid, 520 + slack);
+  if (rows.length) {
+    const plateH = rows.length * rowH + 56;
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(72, plateTop, SHARE_CARD.w - 144, plateH, 48); ctx.fill(); }
+    else ctx.fillRect(72, plateTop, SHARE_CARD.w - 144, plateH);
+
+    rows.forEach((row, i) => {
+      const y = plateTop + 28 + rowH * i + rowH / 2;
+      const name = typeof row === 'string' ? row : (row.name || '');
+      const value = typeof row === 'string' ? '' : (row.value == null ? '' : String(row.value));
+      if (i) {
+        ctx.fillStyle = 'rgba(255,255,255,0.14)';
+        ctx.fillRect(120, y - rowH / 2, SHARE_CARD.w - 240, 2);
+      }
+      ctx.fillStyle = c.ink;
+      font(i === 0 && value !== '' ? '900' : '700', rowFont);
+      ctx.textAlign = rtl ? 'right' : 'left';
+      const nameEdge = rtl ? SHARE_CARD.w - pad : pad;
+      ctx.fillText(shareCardFit(ctx, name, SHARE_CARD.w - pad * 2 - (value ? 280 : 0)), nameEdge, y);
+      if (value !== '') {
+        font('900', rowFont + 4);
+        ctx.fillStyle = c.token;
+        ctx.textAlign = rtl ? 'left' : 'right';
+        ctx.fillText(shareCardFit(ctx, value, 260), rtl ? pad : SHARE_CARD.w - pad, y);
+      }
+    });
+  }
+
+  // A line of the game's own (a daily's streak, the date it was played).
+  const foot = shareCardText(o.footer);
+  if (foot) {
+    ctx.fillStyle = 'rgba(255,255,255,0.86)';
+    font('700', 46);
+    ctx.textAlign = 'center';
+    // Clamped, so a full plate of ten names does not push this line into the mark.
+    ctx.fillText(shareCardFit(ctx, foot, SHARE_CARD.w - 160), mid,
+                 Math.min(1500, plateTop + rows.length * rowH + 150));
+  }
+
+  // The mark and the link, at the foot.
+  const mark = await shareCardMark();
+  if (mark) ctx.drawImage(mark, mid - 82, SHARE_CARD.h - 330, 164, 164);
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  font('700', 40);
+  ctx.textAlign = 'center';
+  ctx.direction = 'ltr';        // a URL is left-to-right in either language
+  ctx.fillText(shareCardFit(ctx, appLink().replace(/^https?:\/\//, ''), SHARE_CARD.w - 120), mid, SHARE_CARD.h - 112);
+
+  return await new Promise((resolve) => {
+    try { canvas.toBlob(resolve, 'image/png'); } catch (e) { resolve(null); }
+  });
+}
+
+/**
+ * Draws the card and sends it, from inside the tap that asked for it.
+ *   o: { title, icon, rows, footer, text }   `text` is the plain-words fallback.
+ * Returns 'shared', 'downloaded', 'copied' or 'failed' - which is what the
+ * tests read, and what tells a caller whether to say anything.
+ */
+async function shareResultCard(o) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const fallback = () => {
+    shareOrCopy(appLink(), o.text || o.title || '', t.solo_copied || t.link_copied || '');
+    return 'copied';
+  };
+  let blob = null;
+  try { blob = await drawShareCard(o); } catch (e) { blob = null; }
+  if (!blob) return fallback();
+
+  const name = 'ashry-' + new Date().toISOString().slice(0, 10) + '.png';
+  let file = null;
+  try { file = new File([blob], name, { type: 'image/png' }); } catch (e) { file = null; }
+
+  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: o.title || t.title || '', text: o.text || '' });
+      return 'shared';
+    } catch (err) {
+      if (err && err.name === 'AbortError') return 'shared';   // closed the sheet
+    }
+  }
+
+  // No share sheet for a picture: save it, and say where it went.
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    showToast(t.share_card_saved || '', 'success');
+    return 'downloaded';
+  } catch (e) {
+    return fallback();
+  }
+}
+
+/* --- where a result already is ---------------------------------------------- */
+
+/**
+ * The button itself, next to a result. `onclick` is the call that builds the
+ * card - the work happens in the tap, never before it.
+ */
+const shareCardBtnHtml = (onclick, label) =>
+  `<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="${onclick}">📤 ${escapeHTML(label || '')}</button>`;
+
+// The board the button on screen belongs to. Most room games publish theirs as
+// shared.board, but زي الكل works one out (herdBoard), so the frame that draws
+// the button hands its own board over. Kept with the game it came from, so a
+// board left over from the last game is never sent.
+let shareRoomBoardMemo = null;
+
+/** The rows a board becomes: a name and a score, the scoreless left out. */
+const shareBoardRows = (board) => (board || [])
+  .filter(p => p && p.name)
+  .map(p => ({ name: p.name, value: Number(p.score) || 0 }));
+
+/**
+ * A room game that has just ended: the button, with the board it should send.
+ * Nothing at all on a big screen - a TV has no share sheet and nobody is
+ * holding it - and nothing when nobody scored, so the button is never there to
+ * send an empty card.
+ */
+function roomShareBtnHtml(state, board) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (!state || state.youAreScreen) return '';
+  const rows = shareBoardRows(board || (state.shared && state.shared.board));
+  if (!rows.some(r => r.value > 0)) return '';
+  shareRoomBoardMemo = { game: state.game, rows: rows };
+  return `<div class="btn-row" style="justify-content:center">${shareCardBtnHtml('shareRoomResult()', t.share_card || '')}</div>`;
+}
+
+/** Builds that card from the room as it stands when the button is pressed. */
+function shareRoomResult() {
+  const state = Room && Room.state;
+  if (!state) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const meta = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[state.game]) || null;
+  const memo = shareRoomBoardMemo && shareRoomBoardMemo.game === state.game ? shareRoomBoardMemo.rows : null;
+  const rows = memo || shareBoardRows(state.shared && state.shared.board);
+  if (!rows.length) return;
+  const title = (meta && t[meta.title]) || t['setup_' + state.game] || '';
+  const top = rows[0];
+  return shareResultCard({
+    title: title,
+    icon: (meta && meta.icon) || '🏆',
+    rows: rows,
+    footer: top ? '🏆 ' + top.name : '',
+    text: (title ? title + ' · ' : '') + (top ? top.name + ' ' + top.value : '')
+  });
+}
+</script>

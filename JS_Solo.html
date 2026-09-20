@@ -497,6 +497,8 @@ function soloResult(o) {
   }
   const share = document.getElementById('solo-result-share');
   if (share) share.classList.toggle('hidden', !o.share);
+  const shareText = document.getElementById('solo-result-share-text');
+  if (shareText) shareText.classList.toggle('hidden', !o.share);
   const again = document.getElementById('solo-result-again');
   if (again) {
     again.classList.toggle('hidden', !o.again);
@@ -546,7 +548,31 @@ function soloResultExit() {
   if (soloResultActions.exit) soloResultActions.exit();
 }
 
+/**
+ * The result as a picture. soloLastResult is the sheet exactly as it was
+ * drawn, so the card carries the same icon, title, number and lines, and the
+ * game's own share text (a daily's streak and its grid of emoji) goes under
+ * them - and travels with the picture as the message's text.
+ */
 function soloResultShare() {
+  if (!soloResultActions.share) return;
+  const o = soloLastResult || {};
+  const value = typeof o.value === 'number' ? String(o.value) : (o.valueText || '');
+  const rows = [];
+  if (value) rows.push({ name: shareCardText(o.valueLabel) || (o.title || ''), value: value });
+  (o.lines || []).forEach(l => { const line = shareCardText(l); if (line) rows.push(line); });
+  return shareResultCard({
+    title: o.title || '',
+    icon: o.icon || '🏁',
+    rows: rows,
+    footer: soloResultActions.share.split('
+')[0] || '',
+    text: soloResultActions.share
+  });
+}
+
+/** The same result as plain words, for anyone who would rather send that. */
+function soloResultShareText() {
   const t = TRANSLATIONS[appState.lang] || {};
   if (!soloResultActions.share) return;
   shareOrCopy(appLink(), soloResultActions.share, t.solo_copied || '');

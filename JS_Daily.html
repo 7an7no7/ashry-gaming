@@ -78,6 +78,7 @@ function renderDaily() {
       </div>
       <button type="button" class="btn btn--primary" onclick="shareDaily()" ${done.length ? '' : 'disabled'}>📤 ${escapeHTML(t.daily_share_all || '')}</button>
       <div class="daily-head__actions">
+        <button type="button" class="btn btn--ghost btn--sm" onclick="shareDailyText()" ${done.length ? '' : 'disabled'}>${escapeHTML(t.share_card_text || '')}</button>
         <button type="button" class="btn btn--secondary" onclick="openDailyArchive()">📅 ${escapeHTML(t.daily_archive || 'الأرشيف')}</button>
         <button type="button" class="btn btn--secondary" onclick="openStats()">📊 ${escapeHTML(t.stats_title || 'أرقامي')}</button>
       </div>
@@ -125,7 +126,33 @@ function shareDaily() {
   // "3 من 11" rather than "3/11", which reads as a date next to the day's date.
   const count = (t.daily_progress || '{n} من {m}').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length);
   const text = `${soloShareHeader(t)} · ${count}\n${streak > 1 ? `🔥 ${streak} ${t.daily_days || ''}\n` : ''}${lines.join('\n')}`;
-  shareOrCopy(appLink(), text, t.solo_copied || '');
+  // The same day as a picture: a game to a row, its result beside it. The
+  // words still travel with it, for anyone reading on a phone that shows text.
+  return shareResultCard({
+    title: t.daily_title || '',
+    icon: '📅',
+    rows: done.map(g => {
+      const cat = CATALOG_BY_ID[g.id];
+      return { name: `${cat.icon} ${t[cat.title] || g.id}`, value: g.line(soloDailyResult(g.id)) };
+    }),
+    maxRows: DAILY_GAMES.length,
+    footer: `${soloShareHeader(t)} · ${count}${streak > 1 ? ` · 🔥 ${streak} ${t.daily_days || ''}` : ''}`,
+    text: text
+  });
+}
+
+/** The same day as plain words, for anyone who would rather send that. */
+function shareDailyText() {
+  const t = TRANSLATIONS[appState.lang];
+  const done = dailyDone();
+  if (!done.length) return;
+  const streak = soloStreak();
+  const lines = done.map(g => {
+    const cat = CATALOG_BY_ID[g.id];
+    return `${cat.icon} ${t[cat.title] || g.id}: ${g.line(soloDailyResult(g.id))}`;
+  });
+  const count = (t.daily_progress || '{n} من {m}').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length);
+  shareOrCopy(appLink(), `${soloShareHeader(t)} · ${count}\n${streak > 1 ? `🔥 ${streak} ${t.daily_days || ''}\n` : ''}${lines.join('\n')}`, t.solo_copied || '');
 }
 
 soloRegister('daily', { setup: 'setup-daily', paintSetup: renderDaily });

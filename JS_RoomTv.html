@@ -292,7 +292,9 @@ function tvLobbySig(state) {
     state.code,
     state.players.map(p => p.id + ':' + p.name).join(','),
     (state.screens || []).length,
-    JSON.stringify(state.shared || {})
+    JSON.stringify(state.shared || {}),
+    // The night's table changes as games are banked, and it is drawn in the lobby.
+    JSON.stringify(state.night || {})
   ].join('|');
 }
 
@@ -335,20 +337,28 @@ function tvLobby(state, t) {
         <div class="tv-join__code">${escapeHTML(state.code || '')}</div>
         <p class="tv-join__hint">${t.tv_join_hint || ''}</p>
         ${url ? `<p class="tv-join__url" dir="ltr">${escapeHTML(url.replace(/^https?:\/\//, ''))}</p>` : ''}
-      </section>
-      <section class="tv-lobby__side">
-        <h2 class="tv-h">${t.room_players || ''} <span class="tv-count">${state.players.length}</span></h2>
-        ${control}
         ${(() => {
-          // The leaderboard of the night, big enough to read from the sofa.
+          // The night's table goes in this short column, not beside the game
+          // picker: with 25 games that side runs past the bottom of a 720p TV,
+          // and a TV does not scroll.
           const night = state.night || {};
           if (!Object.keys(night).length) return '';
           const board = state.players.map(p => ({ id: p.id, name: p.name, score: night[p.id] || 0 }))
             .sort((a, b) => b.score - a.score);
           if (!board.some(r => r.score > 0)) return '';
+          // One line, not a table: under the QR there is about a line and a
+          // half left on a 720p screen, and a TV cannot scroll to the rest.
+          // The full table is on everyone's phone.
+          const medals = ['🥇', '🥈', '🥉'];
+          const top = board.filter(r => r.score > 0).slice(0, 3)
+            .map((r, i) => `${medals[i]} ${escapeHTML(r.name)} ${r.score}`).join(' · ');
           return `<h2 class="tv-h">🌙 ${escapeHTML(t.room_night_title || 'ليلتنا')}</h2>
-                  <div class="tv-scale">${renderScoreboard(board)}</div>`;
+                  <p class="tv-join__hint">${top}</p>`;
         })()}
+      </section>
+      <section class="tv-lobby__side">
+        <h2 class="tv-h">${t.room_players || ''} <span class="tv-count">${state.players.length}</span></h2>
+        ${control}
       </section>
     </div>`;
 }

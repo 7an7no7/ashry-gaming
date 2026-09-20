@@ -40,5 +40,5 @@ Written by Claude, not agy: agy's quota was exhausted (RESOURCE_EXHAUSTED, reset
 
 ## Not verified
 
-- The board on a real TV at 1280×720 and 1920×1080. It is drawn inside `.tv-scale` next to the player list, but it has only been seen at phone width. **UNVERIFIED — needs a live look on a big screen.**
+- **Fixed during review:** the first version put the board beside the game picker, where at 1280×720 it started at y=700 on a 720px screen — below the fold, and a TV does not scroll. It is now a single line of the top three under the QR code (🥇 منى 8 · 🥈 أحمد 5 · 🥉 سارة 2), measured fully on screen at 1280×720. `tvLobbySig` also had to learn about `night`, or the lobby would not redraw when the table changed. The full table stays on the phones.
 - Two phones actually finishing a game and watching the points land. The banking is covered by the rules tests and the robot suite, but the moment itself has not been watched. **UNVERIFIED — needs a live test.**

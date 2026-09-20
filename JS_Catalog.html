@@ -288,6 +288,30 @@ function catalogMatchesPlayers(g, count) {
   return n >= min && n <= max;
 }
 
+/** Returns the IDs of all game cards currently visible in the home catalog. */
+function homeVisibleGameIds() {
+  const view = document.getElementById('view-menu');
+  if (!view) return [];
+  const cards = Array.from(view.querySelectorAll('section[data-group]:not([data-group="tools"]):not(.hidden) .gcard:not(.hidden)'));
+  return cards.map(c => c.dataset.game).filter(Boolean);
+}
+
+/** One tap random game picker: picks from visible games on the home screen. */
+function homePickForUs(btnEl) {
+  const ids = homeVisibleGameIds();
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (!ids.length) {
+    showToast(t.home_pick_none || (appState.lang === 'en' ? 'No matching games right now' : 'مفيش لعبة مطابقة دلوقتي'), 'info');
+    return;
+  }
+  const picks = freshPick('homePick', ids, 1);
+  const pickedId = picks && picks[0];
+  if (!pickedId) return;
+  const view = document.getElementById('view-menu');
+  const cardEl = view ? view.querySelector(`.gcard[data-game="${pickedId}"]`) : null;
+  catalogOpen(pickedId, cardEl || btnEl);
+}
+
 function renderHome() {
   const view = document.getElementById('view-menu');
   if (!view) return;
@@ -304,6 +328,11 @@ function renderHome() {
           <h2 class="home-hero__title">${escapeHTML(t.home_title || '')}</h2>
           <p class="home-hero__sub">${escapeHTML((t.home_tagline || '').replace('{n}', String(GAME_CATALOG.filter(g => g.group !== 'tools').length)))}</p>
         </div>
+        <button type="button" class="home-hero__pick" onclick="homePickForUs(this)"
+                title="${escapeHTML(t.home_pick_btn || '')}">
+          <span aria-hidden="true">🎲</span>
+          <span>${escapeHTML(t.home_pick_btn || '')}</span>
+        </button>
       </div>
       <div class="together">
         <button type="button" class="together__tile" onclick="roomCreateEmpty()">

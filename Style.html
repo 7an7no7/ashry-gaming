@@ -6328,8 +6328,34 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .mafia-sky.is-on { opacity: 1; }
 .mafia-sky--day { background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--warning) 26%, transparent), transparent 70%); }
 
+/* The last three seconds of a round. The number pops once at 3, at 2 and at 1:
+   the pop lasts the whole second, so it wins over the slow pulse those clocks
+   already run rather than flickering against it. And a warning rim breathes at
+   the edge of the screen the clock is on - one element at that screen's root,
+   taking no taps and drawing nothing but an inset glow, so no button under it
+   is covered or blocked. */
+@keyframes count-pop { 0% { transform: scale(1); } 22% { transform: scale(1.25); } 55%, 100% { transform: scale(1); } }
+.is-count-pop,
+.tb-timer.is-urgent .tb-timer__value.is-count-pop,
+.timer-display.is-urgent.is-count-pop { animation: count-pop 1s var(--ease-out) both; }
+
+.has-count-edge { position: relative; }
+.count-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: var(--r-lg);
+  pointer-events: none;
+  box-shadow: inset 0 0 0 0.3rem color-mix(in srgb, var(--danger) 45%, transparent),
+              inset 0 0 0.9rem 0.3rem color-mix(in srgb, var(--danger) 20%, transparent);
+  animation: count-edge 1s var(--ease-in-out) infinite;
+}
+@keyframes count-edge { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
   .slam, .slam__word, .draw-stamp { animation: none; }
+  .is-count-pop { animation: none; }
+  .count-edge { display: none; }
   .fly-points { display: none; }
   .slam { display: none; }
   .mafia-sky { transition: none; }

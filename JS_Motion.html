@@ -586,6 +586,72 @@ function slamBanner(word, sub) {
   return el;
 }
 
+/* ---------------------------------------------------------------------------
+   The last three seconds. One helper for every clock that already marks itself
+   urgent, so there is one convention rather than one per game.
+   --------------------------------------------------------------------------- */
+
+const COUNT_LAST_SECONDS = 3;
+let countEdgeEl = null;
+
+/**
+ * `el` is the number the player is watching; `seconds` is the whole seconds
+ * left. At 3, at 2 and at 1 it pops once - keyed on the second itself, so a
+ * clock that repaints several times inside one second still pops once - and a
+ * warning rim breathes at the edge of the screen that number is on. Anything
+ * above three seconds, or zero, clears both. A clock with no element on this
+ * screen (the TV's number on a phone) does nothing at all.
+ */
+function countdownUrgency(el, seconds) {
+  if (!el) return;
+  const left = Math.max(0, Math.ceil(Number(seconds) || 0));
+  const at = left > 0 && left <= COUNT_LAST_SECONDS ? String(left) : '';
+  if (el.dataset.countAt !== at) {
+    el.dataset.countAt = at;
+    el.classList.remove('is-count-pop');
+    if (at && !motionOff()) {
+      void el.offsetWidth;                       // the same animation restarts only after a reflow
+      el.classList.add('is-count-pop');
+      // Removed by a timer: a suppressed animation fires no end event.
+      setTimeout(() => { if (el.dataset.countAt === at) el.classList.remove('is-count-pop'); }, 1000);
+    }
+  }
+  countdownEdge(at ? el : null);
+}
+
+/**
+ * The rim, one element at the root of the screen the counting number is on -
+ * and only while that screen is the one being looked at, so a clock still
+ * running in a room the player has stepped away from lights nothing.
+ */
+function countdownEdge(el) {
+  const host = el && !motionOff() ? el.closest('[id^="view-"]') : null;
+  const view = host && host.id === 'view-' + appState.currentView ? host : null;
+  if (countEdgeEl && countEdgeEl.parentElement !== view) {
+    const old = countEdgeEl.parentElement;
+    countEdgeEl.remove();
+    if (old) old.classList.remove('has-count-edge');
+    countEdgeEl = null;
+  }
+  if (!view || countEdgeEl) return;
+  countEdgeEl = document.createElement('div');
+  countEdgeEl.className = 'count-edge';
+  countEdgeEl.setAttribute('aria-hidden', 'true');
+  view.classList.add('has-count-edge');
+  view.insertBefore(countEdgeEl, view.firstChild);
+}
+
+/** A clock that has stopped: the rim goes, and no number is left mid-pop. */
+function countdownClear() {
+  countdownEdge(null);
+  document.querySelectorAll('.is-count-pop').forEach((el) => {
+    el.classList.remove('is-count-pop');
+    delete el.dataset.countAt;
+  });
+}
+
+onLeaveScreen(() => countdownClear());
+
 // After the room has drawn itself for this state.
 Room.onChange((state) => { if (state) setTimeout(() => animateScoreboards(state), 0); });
 window.addEventListener('resize', () => requestAnimationFrame(syncNavPill));

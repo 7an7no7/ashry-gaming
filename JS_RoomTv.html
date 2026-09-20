@@ -258,6 +258,7 @@ function tvLookAtPhones(t) {
 /** Counts down on the big screen. The server keeps the real clock; this only draws it. */
 function tvClock(id, endsAt) {
   if (!id || !endsAt) {
+    countdownClear();
     if (tv.clock) tv.clock.stop();
     tv.clock = null;
     tv.clockKey = null;
@@ -269,6 +270,7 @@ function tvClock(id, endsAt) {
     const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
     el.textContent = cnClockText(left);
     el.classList.toggle('is-low', left <= 10);
+    countdownUrgency(el, left);
     return left;
   };
   paint();

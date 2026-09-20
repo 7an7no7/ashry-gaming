@@ -76,9 +76,10 @@ function renderDaily() {
         <span class="daily-bar" aria-hidden="true"><i style="--p:${done.length / DAILY_GAMES.length}"${first ? ' class="is-new"' : ''}></i></span>
         <span class="field__hint">${escapeHTML(all ? (t.daily_all_done || '') : (t.daily_renews || '').replace('{h}', hours))}</span>
       </div>
+      <button type="button" class="btn btn--primary" onclick="shareDaily()" ${done.length ? '' : 'disabled'}>📤 ${escapeHTML(t.daily_share_all || '')}</button>
       <div class="daily-head__actions">
-        <button type="button" class="btn btn--primary" onclick="shareDaily()" ${done.length ? '' : 'disabled'}>📤 ${escapeHTML(t.daily_share_all || '')}</button>
         <button type="button" class="btn btn--secondary" onclick="openDailyArchive()">📅 ${escapeHTML(t.daily_archive || 'الأرشيف')}</button>
+        <button type="button" class="btn btn--secondary" onclick="openStats()">📊 ${escapeHTML(t.stats_title || 'أرقامي')}</button>
       </div>
     </div>
     <div class="daily-list">
@@ -276,4 +277,254 @@ function renderDailyArchive() {
 }
 
 soloRegister('daily_archive', { setup: 'setup-daily-archive', paintSetup: renderDailyArchive });
+
+/* ============================================================================
+   أرقامي — MY STATS
+   ========================================================================= */
+
+function openStats() {
+  setView('setup-stats');
+}
+
+function calcBestDailyStreak() {
+  const all = soloDailyAll();
+  const days = Object.keys(all).filter(d => Object.keys(all[d] || {}).length > 0).sort();
+  if (!days.length) return 0;
+  let maxStreak = 0;
+  let cur = 0;
+  let prevDate = null;
+  for (const dayStr of days) {
+    const p = dayStr.split('-').map(Number);
+    const d = new Date(p[0], p[1] - 1, p[2]);
+    if (prevDate) {
+      const diffDays = Math.round((d - prevDate) / (1000 * 3600 * 24));
+      if (diffDays === 1) {
+        cur++;
+      } else if (diffDays > 1) {
+        cur = 1;
+      }
+    } else {
+      cur = 1;
+    }
+    prevDate = d;
+    if (cur > maxStreak) maxStreak = cur;
+  }
+  return Math.max(maxStreak, soloStreak());
+}
+
+function calcTotalDailiesDone() {
+  const all = soloDailyAll();
+  let count = 0;
+  for (const dayStr in all) {
+    if (all[dayStr]) {
+      count += Object.keys(all[dayStr]).length;
+    }
+  }
+  return count;
+}
+
+const STATS_SOLO_GAMES = [
+  {
+    id: 'sudoku',
+    title: 'setup_sudoku',
+    icon: '#️⃣',
+    levels: [
+      { key: 'easy', label: 'solo_lvl_easy' },
+      { key: 'medium', label: 'solo_lvl_medium' },
+      { key: 'hard', label: 'solo_lvl_hard' }
+    ],
+    format: (b) => (b && typeof b.seconds === 'number' && b.seconds > 0) ? soloTime(b.seconds) : '—'
+  },
+  {
+    id: 'g2048',
+    title: 'setup_g2048',
+    icon: '🔷',
+    levels: [{ key: '', label: 'stats_record' }],
+    format: (b) => (b && typeof b.score === 'number') ? String(b.score) + (b.tile ? ` (${b.tile})` : '') : '—'
+  },
+  {
+    id: 'mines',
+    title: 'setup_mines',
+    icon: '🚩',
+    levels: [
+      { key: 'easy', label: 'solo_lvl_easy' },
+      { key: 'medium', label: 'solo_lvl_medium' },
+      { key: 'hard', label: 'solo_lvl_hard' }
+    ],
+    format: (b) => (b && typeof b.seconds === 'number' && b.seconds > 0) ? soloTime(b.seconds) : '—'
+  },
+  {
+    id: 'queens',
+    title: 'setup_queens',
+    icon: '👑',
+    levels: [
+      { key: 'easy', label: 'solo_lvl_easy' },
+      { key: 'medium', label: 'solo_lvl_medium' },
+      { key: 'hard', label: 'solo_lvl_hard' }
+    ],
+    format: (b) => (b && typeof b.seconds === 'number' && b.seconds > 0) ? soloTime(b.seconds) : '—'
+  },
+  {
+    id: 'tango',
+    title: 'setup_tango',
+    icon: '☀️',
+    levels: [
+      { key: 'easy', label: 'solo_lvl_easy' },
+      { key: 'medium', label: 'solo_lvl_medium' },
+      { key: 'hard', label: 'solo_lvl_hard' }
+    ],
+    format: (b) => (b && typeof b.seconds === 'number' && b.seconds > 0) ? soloTime(b.seconds) : '—'
+  },
+  {
+    id: 'nonogram',
+    title: 'setup_nonogram',
+    icon: '🖼️',
+    levels: [
+      { key: 'easy', label: 'solo_lvl_easy' },
+      { key: 'medium', label: 'solo_lvl_medium' },
+      { key: 'hard', label: 'solo_lvl_hard' }
+    ],
+    format: (b) => (b && typeof b.seconds === 'number' && b.seconds > 0) ? soloTime(b.seconds) : '—'
+  },
+  {
+    id: 'strands',
+    title: 'setup_strands',
+    icon: '🧵',
+    levels: [
+      { key: 'easy', label: 'solo_lvl_easy' },
+      { key: 'medium', label: 'solo_lvl_medium' },
+      { key: 'hard', label: 'solo_lvl_hard' }
+    ],
+    format: (b) => (b && typeof b.seconds === 'number' && b.seconds > 0) ? soloTime(b.seconds) : '—'
+  },
+  {
+    id: 'wordwheel',
+    title: 'setup_wordwheel',
+    icon: '🔡',
+    levels: [
+      { key: 'easy', label: 'solo_lvl_easy' },
+      { key: 'medium', label: 'solo_lvl_medium' },
+      { key: 'hard', label: 'solo_lvl_hard' }
+    ],
+    format: (b) => (b && typeof b.seconds === 'number' && b.seconds > 0) ? soloTime(b.seconds) : '—'
+  },
+  {
+    id: 'pinpoint',
+    title: 'setup_pinpoint',
+    icon: '🔗',
+    levels: [{ key: '', label: 'stats_record' }],
+    format: (b) => (b && typeof b.score === 'number') ? `${b.score}/25` : '—'
+  },
+  {
+    id: 'streak',
+    title: 'setup_streak',
+    icon: '🔥',
+    levels: [
+      { key: 'mix', label: 'streak_src_mix' },
+      { key: 'trivia', label: 'streak_src_trivia' },
+      { key: 'emoji', label: 'streak_src_emoji' },
+      { key: 'proverbs', label: 'streak_src_proverbs' }
+    ],
+    format: (b) => (b && typeof b.score === 'number') ? String(b.score) : '—'
+  },
+  {
+    id: 'flags',
+    title: 'setup_flags',
+    icon: '🌍',
+    levels: [
+      { key: 'flag:easy', label: 'stats_flag_easy' },
+      { key: 'flag:hard', label: 'stats_flag_hard' },
+      { key: 'dist:easy', label: 'stats_dist_easy' },
+      { key: 'dist:hard', label: 'stats_dist_hard' }
+    ],
+    format: (b) => (b && typeof b.guesses === 'number') ? `${b.guesses}` : '—'
+  }
+];
+
+function renderStats() {
+  const el = document.getElementById('stats-stage');
+  if (!el) return;
+  const t = (typeof TRANSLATIONS !== 'undefined' && typeof appState !== 'undefined' && TRANSLATIONS[appState.lang]) || {};
+  const currentStreak = soloStreak();
+  const bestStreak = calcBestDailyStreak();
+  const totalDailies = calcTotalDailiesDone();
+
+  let gamesHtml = '';
+  STATS_SOLO_GAMES.forEach(g => {
+    const cat = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[g.id]) || {};
+    const icon = cat.icon || g.icon || '🎮';
+    const title = t[g.title] || g.id;
+    const accent = cat.accent || 'indigo';
+
+    let levelsHtml = '';
+    g.levels.forEach(lvl => {
+      const bestRecord = soloBest(g.id, lvl.key);
+      const valStr = g.format(bestRecord);
+      const lvlLabel = t[lvl.label] || lvl.key || t.stats_record || 'أفضل رقم';
+      levelsHtml += `
+        <div class="stats-level-box">
+          <span class="stats-level-name">${escapeHTML(lvlLabel)}</span>
+          <span class="stats-level-val">${escapeHTML(valStr)}</span>
+        </div>`;
+    });
+
+    gamesHtml += `
+      <div class="card stats-game-card" data-accent="${accent}">
+        <div class="stats-game-head">
+          <span class="tool-icon" aria-hidden="true">${icon}</span>
+          <span class="stats-game-title">${escapeHTML(title)}</span>
+        </div>
+        <div class="stats-levels">
+          ${levelsHtml}
+        </div>
+      </div>`;
+  });
+
+  el.innerHTML = `
+    <div class="section__head" style="margin-bottom:var(--sp-2)">
+      <span class="section__emoji" aria-hidden="true">📊</span>
+      <h2 class="section__title">${escapeHTML(t.stats_sec_daily || 'إحصائيات تحدي اليوم')}</h2>
+    </div>
+
+    <div class="stats-summary card">
+      <div class="solo-stat">
+        <span class="solo-stat__label">${escapeHTML(t.stats_streak || 'السلسلة الحالية')}</span>
+        <b class="metric">${currentStreak ? '🔥 ' + currentStreak : '—'}</b>
+      </div>
+      <div class="solo-stat">
+        <span class="solo-stat__label">${escapeHTML(t.stats_best_streak || 'أطول سلسلة')}</span>
+        <b class="metric">${bestStreak ? '⭐ ' + bestStreak : '—'}</b>
+      </div>
+      <div class="solo-stat">
+        <span class="solo-stat__label">${escapeHTML(t.stats_total_dailies || 'تحديات تم حلها')}</span>
+        <b class="metric">${totalDailies ? totalDailies : '—'}</b>
+      </div>
+    </div>
+
+    <div class="section__head" style="margin-bottom:var(--sp-2);margin-top:var(--sp-4)">
+      <span class="section__emoji" aria-hidden="true">🏆</span>
+      <h2 class="section__title">${escapeHTML(t.stats_sec_solo || 'أفضل أرقام الألعاب')}</h2>
+    </div>
+
+    <div class="stats-games-list">
+      ${gamesHtml}
+    </div>`;
+}
+
+soloRegister('stats', { setup: 'setup-stats', paintSetup: renderStats });
+
+const STATS_CATALOG_ENTRY = {
+  id: 'stats',
+  icon: '📊',
+  title: 'stats_title',
+  desc: 'stats_desc',
+  accent: 'indigo',
+  group: 'tools',
+  setup: 'setup-stats',
+  open: () => openStats()
+};
+if (typeof GAME_CATALOG !== 'undefined' && !GAME_CATALOG.some(g => g.id === 'stats')) {
+  GAME_CATALOG.push(STATS_CATALOG_ENTRY);
+  if (typeof CATALOG_BY_ID !== 'undefined') CATALOG_BY_ID['stats'] = STATS_CATALOG_ENTRY;
+}
 </script>

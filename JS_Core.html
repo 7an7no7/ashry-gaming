@@ -1475,6 +1475,18 @@
       daily_archive_not_done: "لم يُحل في يومه",
       daily_archive_selected: "تحديات {day}",
       daily_archive_solved_count: "اتحل {n} من {m}",
+      stats_title: "أرقامي",
+      stats_desc: "أحسن أرقامك في كل لعبة لوحدك، وإحصائيات تحدي اليوم.",
+      stats_sec_solo: "أفضل أرقام الألعاب",
+      stats_sec_daily: "إحصائيات تحدي اليوم",
+      stats_streak: "السلسلة الحالية",
+      stats_best_streak: "أطول سلسلة",
+      stats_total_dailies: "تحديات تم حلها",
+      stats_record: "أفضل رقم",
+      stats_flag_easy: "العلم (سهل)",
+      stats_flag_hard: "العلم (صعب)",
+      stats_dist_easy: "المسافة (سهل)",
+      stats_dist_hard: "المسافة (صعب)",
       setup_headsup: "على راسك",
       cat_headsup: "الموبايل على جبهتك والكل يوصفلك الكلمة. نزّل راسك لو صح، وارفعها لو هتفوّت.",
       hu_deck: "الكلمات",
@@ -3304,6 +3316,18 @@
       daily_archive_not_done: "Not solved on that day",
       daily_archive_selected: "Challenges for {day}",
       daily_archive_solved_count: "{n} of {m} solved",
+      stats_title: "My Stats",
+      stats_desc: "Your personal bests across solo games and daily challenges.",
+      stats_sec_solo: "Solo Games Bests",
+      stats_sec_daily: "Daily Challenge Stats",
+      stats_streak: "Current streak",
+      stats_best_streak: "Best streak",
+      stats_total_dailies: "Dailies finished",
+      stats_record: "Best record",
+      stats_flag_easy: "Flag (Easy)",
+      stats_flag_hard: "Flag (Hard)",
+      stats_dist_easy: "Distance (Easy)",
+      stats_dist_hard: "Distance (Hard)",
       setup_headsup: "Heads Up",
       cat_headsup: "The phone on your forehead while everyone describes the word. Tip down if you got it, up to pass.",
       hu_deck: "Words",
@@ -4889,7 +4913,8 @@
         'setup-xo', 'play-xo',
         'play-chooser',
         'play-chess',
-        'setup-daily-archive'
+        'setup-daily-archive',
+        'setup-stats'
     ];
 
     if (saved) {
@@ -5147,6 +5172,9 @@
         else if (appState.currentView === 'setup-daily-archive' && typeof renderDailyArchive === 'function') {
             renderDailyArchive();
         }
+        else if (appState.currentView === 'setup-stats' && typeof renderStats === 'function') {
+            renderStats();
+        }
         // 👆 END PROTECTIONS 👆
         else if (appState.currentView.startsWith('setup-')) {
             const listId = appState.currentView.replace('setup-', '') + '-player-list';
@@ -5294,6 +5322,7 @@
     'setup-flags':     { title: 'setup_flags',      up: 'menu',           accent: 'blue' },
     'setup-daily':     { title: 'daily_title',      up: 'menu',           accent: 'amber' },
     'setup-daily-archive': { title: 'daily_archive_title', up: 'setup-daily', accent: 'amber' },
+    'setup-stats':     { title: 'stats_title',      up: 'tools',          accent: 'indigo' },
     'setup-headsup':   { title: 'setup_headsup',    up: 'menu',           accent: 'green' },
     'play-headsup':    { title: 'setup_headsup',    up: 'setup-headsup',  accent: 'green' },
     'play-flags':      { title: 'setup_flags',      up: 'setup-flags',    accent: 'blue' },
@@ -6716,6 +6745,12 @@ const GAME_RULES = {
                 <li>كل لغز بينزل بنفس الشكل والحل اللي نزل بيه في يومه بالظبط من غير ما يتغير.</li>
                 <li><b>⚠️ الأرشيف للتسلية والتمرين</b>: حله مبيأثرش على السلسلة ومبيغيرش النتيجة اللي اتسجلت في اليوم ده.</li>
             </ol>`,
+        stats: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li><b>📊 أرقامي</b> بتجمعلك كل إنجازاتك وأرقامك القياسية في مكان واحد.</li>
+                <li><b>🔥 إحصائيات تحدي اليوم</b>: السلسلة الحالية، وأطول سلسلة حققتها، وإجمالي التحديات اليومية اللي حلتها.</li>
+                <li><b>🏆 أرقام الألعاب</b>: أحسن أرقام حققتها في كل لعبة لوحدك، سواء أقل وقت أو أعلى سكور أو أقل عدد تخمينات.</li>
+            </ol>`,
         headsup: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>اختاروا الكلمات والوقت، واكتبوا الأسامي لو عايزين نقط لكل واحد.</li>
@@ -7477,6 +7512,12 @@ const GAME_RULES = {
                 <li><b>📅 The Archive</b> lets you play any daily puzzle from the last two months.</li>
                 <li>Each puzzle is dealt with the exact same seed and solution as on that day.</li>
                 <li><b>⚠️ For fun and practice</b>: archive plays never affect your streak and never overwrite historical results.</li>
+            </ol>`,
+        stats: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li><b>📊 My Stats</b> shows all your records and achievements in one place.</li>
+                <li><b>🔥 Daily challenge stats</b>: current streak, all-time best streak, and total daily puzzles solved.</li>
+                <li><b>🏆 Solo game bests</b>: your personal best records across every solo game (best time, high score, or fewest guesses).</li>
             </ol>`,
         headsup: `
             <ol class="list-decimal list-inside space-y-1 text-xs">

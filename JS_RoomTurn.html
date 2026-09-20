@@ -93,6 +93,8 @@ function roomTurnOf(state) {
     case 'mind':
       // In العقل it is always your turn: anyone holding a card may play it.
       return s.phase === 'play' && ((s.held || {})[me] || 0) > 0 ? 'turn_up' : null;
+    case 'timeline':
+      return s.phase === 'play' && s.turnId === me ? 'turn_up' : null;
     case 'screw':
       if (s.phase === 'memorize') return has(s.order) && !has(s.ready) ? 'turn_memorize' : null;
       // بوم: every other player picks a card of their own, and the player of it waits.

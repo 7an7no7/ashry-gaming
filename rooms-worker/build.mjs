@@ -13,7 +13,7 @@ import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
-const FILES = ['SpyWords.js', 'CodenamesWords.js', 'PartyContent.js', 'TriviaQuestions.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'SkrewCards.js', 'RoomGames.js'];
+const FILES = ['SpyWords.js', 'CodenamesWords.js', 'PartyContent.js', 'TriviaQuestions.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'SkrewCards.js', 'TimelineEvents.js', 'RoomGames.js'];
 const EXPORTS = ['ROOM_GAME_IDS', 'applyRoomAction', 'roomDeadline', 'roomTimeout', 'withPromptMemory', 'normaliseClue', 'guessVerdict', 'bankNightPoints', 'foldStopAnswer', 'stopAnswerFits', 'stopWordKnown', 'stopDictionary', 'roomEvent', 'chatFor', 'roomPlayerLeft', 'sameRoomName'];
 
 const sources = await Promise.all(FILES.map(async (name) =>

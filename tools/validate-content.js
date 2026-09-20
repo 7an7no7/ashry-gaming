@@ -130,6 +130,23 @@ for (const [lang, list] of Object.entries(TRIV)) {
   console.log(`trivia.${lang}: ${list.length} questions`);
 }
 
+/* --------------------------------------------------- قبل ولا بعد (timeline) */
+// Two cards with the same year would make a placement right and wrong at the
+// same time, and a card missing a language would deal blank to that table.
+const TL = load(ROOT + 'TimelineEvents.js', 'TIMELINE_EVENTS');
+{
+  const years = {};
+  TL.forEach((e, i) => {
+    if (typeof e.y !== 'number' || !Number.isInteger(e.y)) note(`timeline[${i}]: no year`);
+    if (!e.ar || !String(e.ar).trim()) note(`timeline[${i}] (${e.y}): no Arabic`);
+    if (!e.en || !String(e.en).trim()) note(`timeline[${i}] (${e.y}): no English`);
+    if (years[e.y]) note(`timeline: two cards on ${e.y} - "${years[e.y]}" and "${e.ar}"`);
+    years[e.y] = e.ar;
+  });
+  const span = TL.map(e => e.y);
+  console.log(`timeline: ${TL.length} events, ${Math.min(...span)}-${Math.max(...span)}`);
+}
+
 /* ------------------------------------------------------ دوري المعرفة board */
 // Each category has every level, each level enough questions for a few games,
 // every item is [question ar, answer ar, question en, answer en], no question

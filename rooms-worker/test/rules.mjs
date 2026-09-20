@@ -1876,6 +1876,125 @@ const leave = (r, id, hook = true) => {
   check(win.shared.phase === 'gameover' && win.shared.won === true, 'mind: playing out the deck is a win');
 }
 
+/* --- قبل ولا بعد: the years of a hand never leave the server -------------- */
+{
+  const tlStart = (ids, lang) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'timeline' });
+    applyRoomAction(r, ids[0], 'start', { lang: lang || 'ar' });
+    return r;
+  };
+  const hand = (r, id) => ((r.secrets[id] || {}).hand || []).slice();
+  const up = (r) => r.shared.turnId;
+
+  const tl = tlStart(['a', 'b', 'c']);
+  check(tl.shared.phase === 'play' && tl.shared.timeline.length === 1, 'timeline: one card starts the line');
+  check(tl.shared.order.length === 3 && ['a', 'b', 'c'].every((id) => hand(tl, id).length === tl.shared.handSize),
+        'timeline: the same number of cards each');
+  check(['a', 'b', 'c'].every((id) => (tl.secrets[id].cards || []).every((c) => c.y === undefined)),
+        'timeline: a phone is given its own cards with the years taken off');
+  check(hand(tl, 'a').every((c) => typeof c.y === 'number'), 'timeline: the server keeps the real years');
+  const unplayed = ['a', 'b', 'c'].reduce((acc, id) => acc.concat(hand(tl, id).map((c) => c.y)), []);
+  const publishedYears = JSON.stringify(tl.shared);
+  check(!unplayed.some((y) => publishedYears.indexOf('"y":' + y) !== -1),
+        'timeline: no unplayed year appears anywhere in shared');
+  // Seats are shuffled, so the keys compare by value, not by order.
+  check(Object.keys(tl.shared.hands).sort().join(',') === 'a,b,c' &&
+        Object.keys(tl.shared.hands).every((id) => tl.shared.hands[id] === tl.shared.handSize),
+        'timeline: shared says how many cards each holds');
+
+  // Only the player up may place, and only a card they hold.
+  const other = tl.shared.order.find((id) => id !== up(tl));
+  check(threw(() => applyRoomAction(tl, other, 'place', { card: hand(tl, other)[0].id, at: 0 })), 'timeline: only the player up can place');
+  check(threw(() => applyRoomAction(tl, up(tl), 'place', { card: 'nope', at: 0 })), 'timeline: and only a card they hold');
+  check(threw(() => applyRoomAction(tl, up(tl), 'place', { card: hand(tl, up(tl))[0].id, at: 9 })), 'timeline: a slot that is not on the line is refused');
+
+  // A correct placement: the card stays, the line stays sorted, the hand shrinks.
+  {
+    const who = up(tl);
+    const card = hand(tl, who)[0];
+    const line = tl.shared.timeline;
+    let at = 0;
+    while (at < line.length && line[at].y < card.y) at++;
+    const before = hand(tl, who).length;
+    applyRoomAction(tl, who, 'place', { card: card.id, at: at });
+    check(tl.shared.timeline.length === 2 && tl.shared.timeline.some((c) => c.id === card.id), 'timeline: a card put in the right place stays');
+    check(tl.shared.timeline.every((c, i, arr) => i === 0 || arr[i - 1].y <= c.y), 'timeline: and the line stays in order');
+    check(hand(tl, who).length === before - 1, 'timeline: a right placement is one card off the hand');
+    check(tl.shared.last.right === true && tl.shared.last.y === card.y, 'timeline: the table is told what it was');
+    check((tl.shared.scores || {})[who] === 1, 'timeline: and it scores a point');
+    check(tl.shared.turnId !== who, 'timeline: the turn moves on');
+  }
+
+  // A wrong placement: the year is shown, the card is out, a new one is drawn.
+  // The card is chosen so the slot is certainly wrong - a test that only
+  // sometimes exercises the path it is named after is no test.
+  {
+    const who = up(tl);
+    const card = hand(tl, who).slice().sort((x, y) => y.y - x.y)[0];
+    // The line is set to one card a year earlier, so placing at 0 is certainly
+    // wrong whatever the deal: a test that only sometimes exercises the path
+    // it is named after is no test.
+    tl.shared.timeline = [{ id: 'seed', text: 'seed', y: card.y - 1 }];
+    const before = hand(tl, who).length;
+    const lineWas = tl.shared.timeline.length;
+    const deckWas = tl._timeline.deck.length;
+    applyRoomAction(tl, who, 'place', { card: card.id, at: 0 });
+    check(tl.shared.last.right === false, 'timeline: putting a late card before the earliest one is wrong');
+    check(tl.shared.timeline.length === lineWas, 'timeline: a wrong card does not join the line');
+    check(tl.shared.last.y === card.y && tl.shared.last.text === card.text, 'timeline: and its year is shown to the table');
+    check(!hand(tl, who).some((c) => c.id === card.id), 'timeline: the card is out of the game');
+    check(hand(tl, who).length === before && tl._timeline.deck.length === deckWas - 1,
+          'timeline: a replacement is drawn, so only a right placement shrinks a hand');
+    check(!(tl.shared.scores || {})[who] || (tl.shared.scores || {})[who] === 1, 'timeline: a wrong placement scores nothing');
+  }
+
+  // The same event never appears twice in one game.
+  {
+    const two = tlStart(['a', 'b']);
+    const ids = two.shared.timeline.concat(hand(two, 'a'), hand(two, 'b'), two._timeline.deck).map((c) => c.text);
+    check(new Set(ids).size === ids.length, 'timeline: no event is dealt twice in one game');
+  }
+
+  // Emptying a hand wins.
+  {
+    const win = tlStart(['a', 'b']);
+    const who = up(win);
+    win.secrets[who] = { hand: [hand(win, who)[0]] };
+    const card = hand(win, who)[0];
+    let at = 0;
+    while (at < win.shared.timeline.length && win.shared.timeline[at].y < card.y) at++;
+    applyRoomAction(win, who, 'place', { card: card.id, at: at });
+    check(win.shared.phase === 'gameover' && win.shared.winnerId === who, 'timeline: the first to empty their hand wins');
+    check((win.shared.board || []).length === 2, 'timeline: and the board is published');
+  }
+
+  // English deals English.
+  {
+    const en = tlStart(['a', 'b'], 'en');
+    check(/^[A-Za-z]/.test(en.shared.timeline[0].text), 'timeline: an English room is dealt English cards');
+  }
+
+  // Someone leaves: their cards go and the turn moves on.
+  {
+    const gone = tlStart(['a', 'b', 'c']);
+    const who = up(gone);
+    leave(gone, who);
+    check(!gone.secrets[who] && gone.shared.hands[who] === undefined, 'timeline: a leaver takes their cards with them');
+    check(gone.shared.order.length === 2 && gone.shared.turnId !== who, 'timeline: and the turn moves on');
+    check(gone.shared.phase === 'play', 'timeline: two are still a game');
+    leave(gone, gone.shared.order[0]);
+    check(gone.shared.phase === 'gameover', 'timeline: one player left ends it');
+  }
+
+  // Twelve players still get a deal, from a bank of 22.
+  {
+    const big = tlStart(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l']);
+    check(big.shared.handSize >= 1 && big.shared.order.every((id) => hand(big, id).length === big.shared.handSize),
+          'timeline: a full table still gets an even deal');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

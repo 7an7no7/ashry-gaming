@@ -102,7 +102,7 @@ const ROOM_GAME_IDS = [
   'fakeartist', 'wavelength', 'trivia', 'buzzer', 'stop',
   'chameleon', 'spyfall', 'bomb',
   'twotruths', 'emoji', 'proverbs', 'fiveseconds', 'telephone', 'monkey',
-  'herd', 'mafia', 'screw', 'mind'
+  'herd', 'mafia', 'screw', 'mind', 'timeline'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -292,6 +292,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'mafia':      mafiaAction(room, playerId, action, payload); break;
     case 'screw':      screwAction(room, playerId, action, payload); break;
     case 'mind':       mindAction(room, playerId, action, payload); break;
+    case 'timeline':   timelineAction(room, playerId, action, payload); break;
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -3331,6 +3332,9 @@ const roomPlayerLeft = (room, playerId, name) => {
     case 'mind':
       mindPlayerLeft(room, playerId);
       return;
+    case 'timeline':
+      timelinePlayerLeft(room, playerId);
+      return;
     default:
       // على نفس الموجة: the host's skip deals the next psychic.
       return;
@@ -4531,6 +4535,193 @@ const mindPlayerLeft = (room, playerId) => {
   }
   s.held = mindCounts(room);
   if (s.phase === 'play') mindCheckLevel(room);
+};
+
+/* ==========================================================================
+   قبل ولا بعد — TIMELINE
+   Everyone holds event cards with the year hidden. In turn a player puts one
+   on the table's timeline - before the first card, between two of them, or
+   after the last. The server knows the real year: right and the card stays
+   and the player's hand is one smaller; wrong and the year is shown, the card
+   is out, and a replacement is drawn. First to get rid of their hand wins.
+
+   The years of the cards still in a hand are the whole secret, so they live
+   in room.secrets[pid].hand and never reach shared. A placed card's year is
+   in shared, because by then the whole table has seen it. TimelineEvents.js
+   is bundled into the Worker only, for the same reason: the app would
+   otherwise ship the answer key.
+   ========================================================================== */
+const TIMELINE_HAND = 3;
+const TIMELINE_MIN_PLAYERS = 2;
+
+/** A card as the table sees it: what happened, and when, once it is down. */
+const timelineCard = (ev, lang, n) => ({ id: 't' + n, text: (lang === 'en' ? ev.en : ev.ar), y: ev.y });
+
+/** …and as its holder sees it: the same card with the year taken off. */
+const timelineHidden = (card) => ({ id: card.id, text: card.text });
+
+/** shared.hands: how many each player is still holding, never which. */
+const timelineCounts = (room) => {
+  const held = {};
+  activeRoster(room, room.shared.order).forEach(pid => {
+    held[pid] = ((room.secrets[pid] || {}).hand || []).length;
+  });
+  return held;
+};
+
+/** Each phone is given its own hand, with the years off. */
+const timelineWriteSecrets = (room) => {
+  const s = room.shared;
+  (s.order || []).forEach(pid => {
+    const hand = ((room.secrets[pid] || {}).hand || []).map(timelineHidden);
+    room.secrets[pid] = Object.assign({}, room.secrets[pid], { cards: hand });
+  });
+};
+
+/** The next card off the deck, or null once it is empty. */
+const timelineDraw = (room) => (room._timeline.deck.length ? room._timeline.deck.shift() : null);
+
+/** Whose turn it is next: round the order, skipping anyone who has left. */
+const timelineAdvance = (room) => {
+  const s = room.shared;
+  const seated = activeRoster(room, s.order);
+  if (!seated.length) return;
+  for (let k = 1; k <= s.order.length; k++) {
+    const next = s.order[(s.turn + k) % s.order.length];
+    if (seated.indexOf(next) !== -1) {
+      s.turn = s.order.indexOf(next);
+      s.turnId = next;
+      s.turnName = roomPlayerName(room, next);
+      return;
+    }
+  }
+};
+
+/** Is the card's year where it was put? Equal years are allowed either side. */
+const timelineFits = (line, at, year) =>
+  (at === 0 || year >= line[at - 1].y) && (at === line.length || year <= line[at].y);
+
+const timelineAction = (room, playerId, action, payload) => {
+  if (action === 'start' || action === 'playAgain') {
+    requireHost(room, playerId);
+    if (room.players.length < TIMELINE_MIN_PLAYERS) throw new Error('تحتاج لاعبين على الأقل');
+    if (action === 'playAgain' && (room.shared || {}).phase !== 'gameover') return;
+    const lang = roomLangOf(room, payload);
+    const order = shuffled(room.players.map(p => p.id));
+    // One card starts the line, everyone gets the same number after that, and
+    // what is left over is the deck a wrong placement draws a replacement from.
+    // The bank is small, so the hand size is worked out from the cards that
+    // actually came back rather than assumed: a full table gets one each
+    // instead of the deal failing.
+    const want = Math.min(TIMELINE_EVENTS.length, 1 + order.length * (TIMELINE_HAND + 2));
+    const dealt = nextPrompts(room, TIMELINE_EVENTS, 'timeline', want)
+      .map((ev, i) => timelineCard(ev, lang, i));
+    const hand = Math.max(1, Math.min(TIMELINE_HAND, Math.floor((dealt.length - 1) / order.length)));
+    const first = dealt.shift();
+    room.secrets = {};
+    order.forEach((pid, i) => {
+      room.secrets[pid] = { hand: dealt.slice(i * hand, (i + 1) * hand) };
+    });
+    room._timeline = { deck: dealt.slice(order.length * hand), lang: lang };
+    room.shared = {
+      phase: 'play',
+      lang: lang,
+      order: order,
+      roster: order.slice(),
+      turn: 0,
+      turnId: order[0],
+      turnName: roomPlayerName(room, order[0]),
+      timeline: [first],
+      handSize: hand,
+      hands: {},
+      scores: {},
+      last: null,
+      lastSeq: 0,
+      board: []
+    };
+    timelineWriteSecrets(room);
+    room.shared.hands = timelineCounts(room);
+    room.shared.board = scoreboardOf(room);
+    room.phase = 'play';
+    return;
+  }
+
+  const s = room.shared;
+  if (!s || !s.phase) throw new Error('اللعبة لم تبدأ بعد');
+
+  if (action === 'place') {
+    if (s.phase !== 'play') return;
+    if (s.turnId !== playerId) throw new Error('مش دورك');
+    const hand = (room.secrets[playerId] || {}).hand || [];
+    const card = hand.find(c => c.id === String(payload && payload.card));
+    if (!card) throw new Error('الورقة دي مش معاك');
+    const at = Number(payload && payload.at);
+    if (!(at >= 0 && at <= s.timeline.length && at === Math.floor(at))) throw new Error('مكان غير صحيح');
+
+    const right = timelineFits(s.timeline, at, card.y);
+    room.secrets[playerId] = { hand: hand.filter(c => c.id !== card.id) };
+    s.lastSeq = (s.lastSeq || 0) + 1;
+    s.last = {
+      seq: s.lastSeq, by: playerId, name: roomPlayerName(room, playerId),
+      text: card.text, y: card.y, at: at, right: right
+    };
+    if (right) {
+      s.timeline = s.timeline.slice(0, at).concat([card], s.timeline.slice(at));
+      addScore(room, playerId, 1);
+    } else {
+      // Out of the game, and a fresh card in its place - so a hand only ever
+      // shrinks on a card put in the right spot.
+      const replacement = timelineDraw(room);
+      if (replacement) room.secrets[playerId].hand = room.secrets[playerId].hand.concat([replacement]);
+    }
+    timelineWriteSecrets(room);
+    s.hands = timelineCounts(room);
+    s.board = scoreboardOf(room);
+
+    if (!room.secrets[playerId].hand.length) {
+      s.phase = 'gameover';
+      s.winnerId = playerId;
+      s.winnerName = roomPlayerName(room, playerId);
+      room.phase = 'gameover';
+      return;
+    }
+    timelineAdvance(room);
+    return;
+  }
+
+  if (action === 'skipTurn') {
+    requireHost(room, playerId);
+    if (s.phase !== 'play') return;
+    timelineAdvance(room);
+    return;
+  }
+
+  throw new Error('إجراء غير معروف');
+};
+
+/** قبل ولا بعد: their cards go with them, and the turn moves on. */
+const timelinePlayerLeft = (room, playerId) => {
+  const s = room.shared;
+  if (!s || s.phase !== 'play') return;
+  const wasUp = s.turnId === playerId;
+  if (room.secrets) delete room.secrets[playerId];
+  s.order = (s.order || []).filter(id => id !== playerId);
+  if (s.hands) delete s.hands[playerId];
+  if (activeRoster(room, s.order).length < TIMELINE_MIN_PLAYERS) {
+    s.phase = 'gameover';
+    s.winnerId = null;
+    s.winnerName = '';
+    room.phase = 'gameover';
+    return;
+  }
+  s.hands = timelineCounts(room);
+  s.board = scoreboardOf(room);
+  if (wasUp) {
+    s.turn = Math.max(0, s.turn - 1);
+    timelineAdvance(room);
+  } else {
+    s.turn = Math.max(0, s.order.indexOf(s.turnId));
+  }
 };
 
 /* ==========================================================================

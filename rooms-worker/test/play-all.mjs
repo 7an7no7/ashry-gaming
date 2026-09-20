@@ -1033,6 +1033,67 @@ async function main() {
         'mind: a hand arrives sorted, so the first is always the lowest');
   await A.must('backToHub');
 
+  /* --- قبل ولا بعد -------------------------------------------------------------- */
+  console.log('• timeline');
+  await A.must('chooseGame', { game: 'timeline' });
+  await A.must('start', { lang: 'ar' });
+  await all(bots, (s) => s.shared.phase === 'play' && s.shared.timeline.length === 1 && !!s.shared.turnId,
+            'timeline: one card starts the line');
+  const tlHand = (bot) => ((bot.state.you || {}).cards || []).slice();
+  check(bots.every((b) => tlHand(b).length === A.state.shared.handSize), 'timeline: the same number of cards each');
+  check(bots.every((b) => tlHand(b).every((c) => c.y === undefined && !!c.text)),
+        'timeline: a hand arrives with the events on it but no years');
+  // The one that matters: a card in a hand is on that phone and nowhere else.
+  // Ids are compared exactly: "t1" is a substring of "t10", so a text search
+  // would report a leak that is not there.
+  for (const b of bots) {
+    const ids = tlHand(b).map((c) => c.id);
+    const others = bots.filter((x) => x !== b);
+    check(others.every((x) => tlHand(x).every((c) => ids.indexOf(c.id) === -1)),
+          'timeline: ' + b.name + "'s cards are on no other phone");
+    check(b.state.shared.timeline.every((c) => ids.indexOf(c.id) === -1),
+          'timeline: ' + b.name + "'s cards are not on the line either");
+  }
+  check(bots.every((b) => Object.keys(b.state.shared.hands).length === 4), 'timeline: shared says how many each holds');
+
+  const tlUp = () => byId(bots, A.state.shared.turnId);
+  const tlOther = bots.find((b) => b !== tlUp());
+  check((await tlOther.act('place', { card: tlHand(tlOther)[0].id, at: 0 })).ok === false,
+        'timeline: only the player up can place a card');
+  check((await tlUp().act('place', { card: 'nope', at: 0 })).ok === false, 'timeline: and only a card they hold');
+
+  // A placement at the front of the line. The bot cannot see the year, so what
+  // is checked is that whichever way it goes, the table is left consistent.
+  {
+    const who = tlUp();
+    const card = tlHand(who)[0];
+    const lineWas = A.state.shared.timeline.length;
+    const handWas = tlHand(who).length;
+    await who.must('place', { card: card.id, at: 0 });
+    await A.waitFor((s) => !!s.shared.last && s.shared.last.text === card.text, 'timeline: the placement reaches the table', 3000);
+    const last = A.state.shared.last;
+    check(typeof last.y === 'number' && last.name === who.name, 'timeline: the table is told what it was and who put it');
+    if (last.right) {
+      check(A.state.shared.timeline.length === lineWas + 1, 'timeline: a right card joins the line');
+      check(A.state.shared.phase === 'gameover' || tlHand(who).length === handWas - 1,
+            'timeline: and a right placement is one card off the hand');
+    } else {
+      check(A.state.shared.timeline.length === lineWas, 'timeline: a wrong card does not join the line');
+      check(tlHand(who).length === handWas, 'timeline: and a replacement is drawn in its place');
+    }
+    check(A.state.shared.timeline.every((c, i, arr) => i === 0 || arr[i - 1].y <= c.y),
+          'timeline: the line is still in order');
+    check(A.state.shared.phase === 'gameover' || A.state.shared.turnId !== who.pid, 'timeline: the turn moves on');
+  }
+
+  if (A.state.shared.phase === 'play') {
+    check((await B.act('skipTurn')).ok === false, 'timeline: only the host can skip a turn');
+    const wasUp = A.state.shared.turnId;
+    await A.must('skipTurn');
+    await all(bots, (s) => s.shared.turnId !== wasUp, 'timeline: the host can move a stuck turn on');
+  }
+  await A.must('backToHub');
+
   /* --- مافيا ---------------------------------------------------------------------- */
   console.log('• mafia');
   await A.must('chooseGame', { game: 'mafia' });

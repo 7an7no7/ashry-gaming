@@ -1,0 +1,205 @@
+<script>
+/* ============================================================================
+   قبل ولا بعد — TIMELINE (rooms and the TV)
+   ----------------------------------------------------------------------------
+   Everyone holds event cards with the year hidden. On your turn you pick one
+   of yours, then tap a gap on the table's line - before the first card,
+   between two of them, or after the last. The server knows the real year:
+   right and the card stays where you put it; wrong and the year is shown, the
+   card is out and you draw another.
+
+   The rules are timelineAction in RoomGames.js. A phone's own cards arrive in
+   state.you.cards with no year on them at all, and TimelineEvents.js is not
+   part of the page - there is nothing here to look an answer up in.
+   ========================================================================= */
+
+const tlLocal = { pick: null };   // the card this phone has chosen, before the gap
+
+/** The card picked, or nothing. Cleared whenever the turn moves on. */
+function tlPick(id) {
+  tlLocal.pick = tlLocal.pick === id ? null : id;
+  haptic('light');
+  if (Room.state) {
+    const el = document.getElementById('view-room-timeline');
+    if (el) delete el.dataset.sig;
+    routeRoomState(Room.state);
+  }
+}
+
+/** Puts the chosen card in a gap on the line. */
+function tlPlace(at) {
+  const card = tlLocal.pick;
+  if (!card) return;
+  tlLocal.pick = null;
+  haptic('medium');
+  roomAct('place', { card: card, at: at });
+}
+
+/** One event on the line: what happened, and the year under it. */
+const tlCardHtml = (card, cls) =>
+  `<div class="tl-card ${cls || ''}">
+     <span class="tl-card__text">${escapeHTML(card.text || '')}</span>
+     ${card.y === undefined ? '' : `<span class="tl-card__year metric">${card.y}</span>`}
+   </div>`;
+
+/**
+ * The line, with a gap between every pair. The gaps are buttons only while
+ * this phone has picked a card to put in one; otherwise they are plain rules,
+ * so the line reads as a line rather than as a row of controls.
+ */
+function tlLineHtml(s, t, live) {
+  const line = s.timeline || [];
+  const gap = (at) => (live
+    ? `<button type="button" class="tl-gap is-live" onclick="tlPlace(${at})" aria-label="${escapeHTML(t.tl_put_here || '')}">+</button>`
+    : '<span class="tl-gap" aria-hidden="true"></span>');
+  let out = gap(0);
+  line.forEach((card, i) => { out += tlCardHtml(card) + gap(i + 1); });
+  // dir="ltr": the line is a physical axis, so earlier is always the start
+  // edge. Mirrored in Arabic it would read 2015 before 1869.
+  return `<div class="tl-line" dir="ltr">${out}</div>`;
+}
+
+/** This phone's own cards, with no years on them. */
+function tlMyCardsHtml(state, s, t) {
+  const mine = (state.you || {}).cards || [];
+  if (!mine.length) return `<div class="waiting-note">${escapeHTML(t.tl_none || '')}</div>`;
+  const myTurn = s.turnId === Room.me && s.phase === 'play';
+  return `<div class="tl-hand">
+      <div class="eyebrow">${escapeHTML(t.tl_your_cards || '')}</div>
+      <div class="tl-hand__cards">
+        ${mine.map(c => (myTurn
+          ? `<button type="button" class="tl-card tl-card--mine ${tlLocal.pick === c.id ? 'is-picked' : ''}" onclick="tlPick('${jsStringAttr(c.id)}')">
+               <span class="tl-card__text">${escapeHTML(c.text || '')}</span>
+               <span class="tl-card__year">؟</span>
+             </button>`
+          : `<span class="tl-card tl-card--mine is-waiting">
+               <span class="tl-card__text">${escapeHTML(c.text || '')}</span>
+               <span class="tl-card__year">؟</span>
+             </span>`)).join('')}
+      </div>
+      ${myTurn
+        ? `<p class="field__hint">${escapeHTML(tlLocal.pick ? (t.tl_now_gap || '') : (t.tl_pick_card || ''))}</p>`
+        : `<p class="field__hint">${escapeHTML((t.tl_wait_turn || '').replace('{name}', s.turnName || ''))}</p>`}
+    </div>`;
+}
+
+/** How many cards each player is still holding - never which. */
+function tlHandsHtml(state, s) {
+  const hands = s.hands || {};
+  const rows = (s.order || []).filter(id => hands[id] !== undefined).map(id => {
+    const p = (state.players || []).find(x => x.id === id);
+    return `<span class="mind-hand ${id === s.turnId ? 'is-up' : ''}">${escapeHTML((p && p.name) || '')}
+        <b class="metric">${hands[id] || 0}</b></span>`;
+  }).join('');
+  return rows ? `<div class="mind-hands">${rows}</div>` : '';
+}
+
+/** What just happened, in the game's own words: right, or the year it really was. */
+function tlLastHtml(s, t) {
+  if (!s.last) return '';
+  const l = s.last;
+  return `<div class="card card--tight tl-last ${l.right ? 'is-right' : 'is-wrong'}" style="text-align:center">
+      <div class="eyebrow">${l.right ? '✅' : '❌'} ${escapeHTML(l.name || '')}</div>
+      <div class="tl-last__text">${escapeHTML(l.text || '')}</div>
+      <div class="metric metric--md">${l.y}</div>
+    </div>`;
+}
+
+ROOM_GAMES.timeline = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.tl_lobby_hint || '')}</p>`;
+  },
+  startPayload() { return { lang: contentLang() }; },
+
+  render(state) {
+    if (appState.currentView !== 'room-timeline') setView('room-timeline');
+    const el = document.getElementById('view-room-timeline');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const mine = (state.you || {}).cards || [];
+    // A card picked on a turn that has moved on is no longer a choice.
+    if (s.turnId !== Room.me && tlLocal.pick) tlLocal.pick = null;
+
+    if (s.phase === 'gameover') {
+      const fresh = renderRoomFrame(el, ['tl-over', s.winnerId, state.youAreHost, appState.lang].join('|'), () => `
+        <div class="card card--accent" style="text-align:center">
+          <div class="eyebrow">${escapeHTML(t.tl_over || '')}</div>
+          ${renderPodium(state, s.board) || `<div class="metric metric--md">🏆 ${escapeHTML(s.winnerName || '')}</div>`}
+        </div>
+        ${tlLineHtml(s, t, false)}
+        ${renderScoreboard(s.board)}
+        ${roomShareBtnHtml(state, s.board)}
+        ${state.youAreHost
+          ? `<div class="btn-stack">
+               <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.timeline.startPayload())">${escapeHTML(t.play_again || '')}</button>
+               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+             </div>`
+          : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 150, spread: 90 }));
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    const live = s.phase === 'play' && s.turnId === Room.me && !!tlLocal.pick;
+    const sig = ['tl-play', s.turnId, (s.timeline || []).map(c => c.id).join(','),
+                 mine.map(c => c.id).join(','), tlLocal.pick, (s.last || {}).seq,
+                 JSON.stringify(s.hands || {}), state.youAreHost, appState.lang].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => `
+      <div class="cn-score">
+        <span class="cn-score__role">🗓️ ${escapeHTML(t.tl_turn_of || '')} ${escapeHTML(s.turnName || '')}</span>
+      </div>
+      ${tlLastHtml(s, t)}
+      <div class="card">${tlLineHtml(s, t, live)}</div>
+      <div class="card">${tlMyCardsHtml(state, s, t)}</div>
+      ${tlHandsHtml(state, s)}
+      ${state.youAreHost && s.turnId !== Room.me
+        ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn')">${escapeHTML(t.tl_skip || '')}</button>`
+        : ''}
+      ${renderRoomPlayerStrip(state)}`);
+
+    if (rebuilt && s.last) {
+      // The verdict lands once per placement on this phone, never on a redraw.
+      if (typeof motionFirst === 'function' && motionFirst(['tl-last', state.code, s.last.seq].join('|'))) {
+        playSound(s.last.right ? 'success' : 'wrong');
+        if (!s.last.right) haptic('heavy');
+      }
+    }
+    refreshRoomPlayerStrip(el, state);
+  },
+  // The line and the hand are what the player is reading; scrolling them to the
+  // top on every placement would take the line out from under their eyes.
+  actionKey: (state) => (state.shared.phase === 'gameover' ? 'over' : '')
+};
+
+/* --- the TV ------------------------------------------------------------------ */
+TV_GAMES.timeline = {
+  sig: (state) => ['tl', state.shared.phase, state.shared.turnId,
+                   (state.shared.timeline || []).map(c => c.id).join(','),
+                   (state.shared.last || {}).seq, JSON.stringify(state.shared.hands || {}),
+                   state.youAreHost].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (s.phase === 'gameover') {
+      return `
+        <div class="tv-vote">
+          <div class="tv-title tv-center-text">🏆 ${escapeHTML(s.winnerName || '')}</div>
+          <div class="tv-scale">${tlLineHtml(s, t, false)}</div>
+          <div class="tv-scale">${renderScoreboard(s.board)}</div>
+          ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.timeline.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+        </div>`;
+    }
+    return `
+      <div class="tv-trivia">
+        <div class="tv-top"><span class="tv-pill">🗓️ ${escapeHTML(t.tl_turn_of || '')} ${escapeHTML(s.turnName || '')}</span></div>
+        <div class="tv-scale">${tlLineHtml(s, t, false)}</div>
+        ${s.last ? `<div class="tv-note">${s.last.right ? '✅' : '❌'} ${escapeHTML(s.last.name || '')} · ${escapeHTML(s.last.text || '')} · ${s.last.y}</div>` : ''}
+        <div class="tv-scale">${tlHandsHtml(state, s)}</div>
+        ${host(tvBtn(t.tl_skip, "roomAct('skipTurn')", 'ghost'))}
+      </div>`;
+  }
+};
+</script>

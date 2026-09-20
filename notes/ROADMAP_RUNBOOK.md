@@ -28,6 +28,7 @@ The owner agreed this plan on 20 Sep 2026. It carries two kinds of work: **Phase
 ## Decisions already made
 
 - **20 Sep 2026 — المختلف (Undercover): nobody is told their role.** Every player sees only a word. The odd one out has to realise it from the clues. There is no "you are the undercover" card.
+- **20 Sep 2026 — in المختلف, being named ends the round.** No guess from six. The runbook originally reused الجاسوس's guess step, which was a mistake: the odd one out holds a near relative of the table's word, so picking it out of six unrelated words is free, and catching them would be worth nothing. الجاسوس keeps its guess exactly as it is. (`resolveImposterVote` in `RoomGames.js`; pinned by two cases in `rooms-worker/test/rules.mjs`.)
 - **20 Sep 2026 — the leaderboard of the night awards only games that keep a score.** 3/2/1 to the top three. A game with no scores at all (ارسم واكتب) adds nothing to the night's table.
 - **20 Sep 2026 — قبل ولا بعد (Timeline) is Egyptian and Arab first**, with famous world dates mixed in so the cards spread across the centuries.
 - **20 Sep 2026 — out of scope, do not do:** adding `autocorrect` / `autocapitalize` / `spellcheck` attributes to any input (the owner said no); the Tarneeb 41 edge-case rules (they need the owner's decision); a "دندنها" humming category.

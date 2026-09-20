@@ -214,6 +214,47 @@ const leave = (r, id, hook = true) => {
 }
 
 {
+  // المختلف: nobody is told their role, and naming them ends the round.
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(r, 'a', 'start', { undercover: true, spies: 1 });
+  const slices = Object.values(r.secrets);
+  const shapes = new Set(slices.map((x) => Object.keys(x).sort().join(',')));
+  check(shapes.size === 1 && slices.every((x) => x.role === 'player' && !!x.word),
+    'undercover: every slice is the same shape — a role and a word — so no phone can tell who is the odd one out');
+  const odd = r._impSpies[0];
+  const theirs = r.secrets[odd].word;
+  const table = r.secrets[Object.keys(r.secrets).find((id) => id !== odd)].word;
+  check(theirs !== table && slices.filter((x) => x.word === table).length === 3,
+    'undercover: one word for the table and a near relative for the odd one out');
+  check(!('pairOther' in r.shared) && r.shared.undercover === true,
+    "undercover: the other half of the pair is not published while the round is on");
+  applyRoomAction(r, 'a', 'beginDiscussion', {});
+  applyRoomAction(r, 'a', 'startVote', {});
+  ['a', 'b', 'c', 'd'].filter((id) => id !== odd).forEach((id) => applyRoomAction(r, id, 'vote', { option: odd }));
+  applyRoomAction(r, odd, 'vote', { option: ['a', 'b', 'c', 'd'].find((id) => id !== odd) });
+  check(r.phase !== 'guess' && r.shared.outcome === 'caught' && r.shared.pairOther === theirs,
+    'undercover: being named ends it — no guess from six, and both words are shown');
+  check(['a', 'b', 'c', 'd'].filter((id) => id !== odd).every((id) => r.shared.scores[id] === 1) && !r.shared.scores[odd],
+    'undercover: catching them scores every other player');
+}
+
+{
+  // الجاسوس keeps its guess: the ordinary mode is untouched by المختلف.
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(r, 'a', 'start', { category: 'حيوانات', spies: 1 });
+  const spy = r._impSpies[0];
+  check(r.secrets[spy].role === 'spy' && r.secrets[spy].word === null, 'imposter: the ordinary spy still gets no word');
+  applyRoomAction(r, 'a', 'beginDiscussion', {});
+  applyRoomAction(r, 'a', 'startVote', {});
+  ['a', 'b', 'c', 'd'].filter((id) => id !== spy).forEach((id) => applyRoomAction(r, id, 'vote', { option: spy }));
+  applyRoomAction(r, spy, 'vote', { option: ['a', 'b', 'c', 'd'].find((id) => id !== spy) });
+  check(r.phase === 'guess' && (r.shared.options || []).length === 6 && r.shared.options.includes(r._impSecret) && r.shared.guesserId === spy,
+    'imposter: a caught spy still picks the word from six');
+}
+
+{
   // كلمة واحدة: a removed clue stays on the server until the guess, and nobody waits on a leaver.
   const r = newRoom(['a', 'b', 'c', 'd']);
   applyRoomAction(r, 'a', 'chooseGame', { game: 'justone' });

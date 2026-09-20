@@ -1175,6 +1175,10 @@ const resolveImposterVote = (room) => {
   s.accusedId = accused ? accused.id : null;
   s.accusedName = accused ? accused.label : '';
   if (accused && (room._impSpies || []).indexOf(accused.id) !== -1) {
+    // المختلف: naming them ends it (the owner, 20 Sep 2026). They are holding a
+    // near relative of the table's word, so picking it out of six would be free,
+    // and catching them would be worth nothing. الجاسوس keeps its guess.
+    if (s.undercover) { finishImposter(room, 'caught', null); return; }
     const others = shuffled((room._impWords || []).filter(w => w !== room._impSecret)).slice(0, IMPOSTER_GUESS_OPTIONS - 1);
     s.options = shuffled(others.concat([room._impSecret]));
     s.guesserId = accused.id;

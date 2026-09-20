@@ -378,6 +378,37 @@ In `JS_Sounds.html`, inside the `confetti` wrapper, skip only the **sound** when
 - [ ] with a search that matches nothing, it does nothing and says so (a toast), rather than throwing
 - [ ] it works on the home only, and the tools tab is unaffected
 
+### T2.5 — مع بعض، ولا كل واحد في مكان؟
+**Finding:** the owner, 20 Sep 2026. The mode badges say *how* you play (one phone / own phones / TV) but not *where you are*. "Own phones" reads as if it works from anywhere, and for half the room games it doesn't: مافيا, الجاسوس and الحرباء are mostly people talking to each other, which the app does not carry. A table that is apart needs to know that before it picks.
+**Files:** `JS_Catalog.html` → `GAME_CATALOG` and `applyHomeFilter`; `JS_Core.html` → keys; `Style.html` → section 12 if any CSS is needed.
+**Decision (owner, 20 Sep 2026):** two states only, and being apart never blocks a game — it filters the home, and in a room it only hints (T2.6).
+**After:**
+1. Add `faceToFace: true` to exactly these nine catalog entries — the games with a phase where people talk to each other with nothing on the screen (a discussion clock, asking each other questions, saying names in turn, a host reading out loud, the table judging an answer):
+   `imposter`, `chameleon`, `spyfall`, `mafia`, `whoami`, `justone`, `monkey`, `buzzer`, `fiveseconds`.
+   Every other room game keeps every action inside the app and plays fine from separate places: `fakeartist`, `fibbage`, `twotruths`, `codenames`, `drawguess`, `telephone`, `bomb`, `stop`, `wouldyou`, `mostlikely`, `wavelength`, `herd`, `trivia`, `emoji`, `proverbs`, `screw`. Do not mark those.
+2. A two-chip control on the home beside the player count: `🛋️ مع بعض` (the default, nothing filtered) and `🌍 كل واحد في مكان`.
+3. When `كل واحد في مكان` is chosen, `applyHomeFilter` hides **both** every entry with `faceToFace: true` **and** every entry whose `modes` do not include `room` — a game you play by passing one phone around cannot be played by people who are not in the same place.
+4. Remember the choice with `rememberOptions`, like the player count.
+> ⚠️ This is a third independent filter. A card shows only when it passes the mode chip, the player count, the together/apart chip and the search box, all four.
+**Accept when:**
+- [ ] with `كل واحد في مكان` chosen, مافيا, الجاسوس, من أنا؟ and كلمة واحدة are hidden, and ارسم وخمّن, فيبج, سكرو and تحدي المعلومات are shown
+- [ ] with the same chip chosen, every solo game, every card scorer and بدون كلام are hidden (they are not `room` games)
+- [ ] `مع بعض` shows everything again
+- [ ] the nine `faceToFace` flags are exactly the nine listed, no more
+- [ ] a mock test covers the predicate for a faceToFace room game, a plain room game and a device-only game, under both chips
+
+### T2.6 — The room hub says which games want everyone in one place
+**Finding:** the owner, 20 Sep 2026. The same question matters more once a room is open, because that is where a host picks a game for people who may be scattered.
+**Files:** `JS_Room.html` → `renderRoomHub`; `JS_Core.html` → keys
+**Built before:** `renderRoomHub` draws a tile per `ROOM_HUB_GAMES` entry and already greys a tile that has too few players (`is-disabled` plus a `game-card__need` badge). Follow that pattern exactly; do not invent a second one.
+**After:** a small two-chip control at the top of the hub, host only, remembered on the host's phone with `rememberOptions` (**no server change, no new room state** — it only decides what the host's own screen says). When `كل واحد في مكان` is chosen, every tile whose catalog entry has `faceToFace: true` carries a hint badge reading `أحسن وانتوا مع بعض` / "Better in one room".
+> ⛔ The tile stays tappable and the game stays playable. A room that is apart is often a room on a video call, where مافيا works fine. Never block, never disable, never hide.
+**Accept when:**
+- [ ] with the chip on `مع بعض` the hub looks exactly as it does today
+- [ ] with `كل واحد في مكان`, the nine face-to-face tiles carry the hint and every tile is still tappable
+- [ ] a player who is not the host sees no chip and no change
+- [ ] nothing about this reaches the rooms server: `git diff` for this task touches no file under `rooms-worker/` and not `RoomGames.js`
+
 ### T2.3 — The archive of past dailies
 **Finding:** roadmap item 4. Every daily is seeded by its date (`soloDaySeed(id, day)` already takes a day), so past puzzles can be dealt exactly as they were, with no storage.
 **Files:** `JS_Daily.html`, `JS_Solo.html`, `Controller.html` (a view), `JS_Core.html` (`VIEW_META`, `validViews`, keys, `GAME_RULES`), `JS_Utils.html` (`HELP_ENTRIES`, `HELP_FOR_VIEW`)

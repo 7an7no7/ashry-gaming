@@ -446,6 +446,20 @@ the word search), `countUp` for streaks and scores.
   7, not 10), and بصرة and المدفع are ordinary "throw it or keep it" cards.
   اللايف جاكيت was already exactly as described.
 
+- **20 Sep 2026, one voice** - a design pass over the pieces every screen is
+  built from, so lifting one screen lifted all of them (*The design system*,
+  *One voice*): the variable font ranges and a weight scale with a floor,
+  Baloo Bhaijaan 2 on the things that name a screen, warm paper and ink in
+  place of cold slate, a card carrying its game's colour in one corner, the
+  selected chip on the screen's accent instead of near-black, a press
+  proportional to what is pressed, and `flipGrid` so a filter rearranges the
+  grid instead of redrawing the page. Checked with a computed-style sweep
+  (contrast against the composited background, tap size, horizontal overflow)
+  over the catalogs and setup screens at 375x812, 667x375 and 1280x720, both
+  themes, both languages: the tightest ratio is 4.63:1 and there are no tap
+  or overflow failures. Nothing the rooms server runs was touched, so no
+  deploy.
+
 - **20 Sep 2026, the roadmap** - an audit of the whole app became a nine-phase
   plan the owner agreed, built on a branch and shipped in one go at their
   request. A report per phase is in `notes/phase-reports/`, each listing what
@@ -2472,9 +2486,47 @@ gradient layers were a screen that never sat still); cards are white with a
 hairline border and a soft shadow; the game's own colour sits on its icon
 tile, the accent edge of a setup hero and the primary button, not washed
 over whole cards; section titles are sentence case in the text colour; the
-selected filter chip is ink on paper rather than another colour. Radii are
+selected chip is the screen's own accent (*One voice* below - it used to be
+ink on paper, a third colour system answering to nothing). Radii are
 20px on cards and 12-14px on controls. When adding a screen, spend colour the
 same way: one accented element, the rest neutral.
+
+**One voice** is section 17 of `Style.html`, the pass that made a lift to one
+screen a lift to all of them. Four things were true everywhere, and none of
+them was a bug, which is why they lasted:
+
+- **There was no weight under 600 in the app**, so nothing could read as
+  emphatic - a card's title and its description were both heavy and three
+  pixels apart. Cairo and Baloo Bhaijaan 2 are asked for as **variable**
+  ranges now (`wght@300..900` and `wght@400..800`), which is *fewer* bytes
+  than the six static cuts they replaced, and `--fw-quiet` … `--fw-black`
+  is the scale. Secondary text (a card's description, a hero's line, a meta
+  row, a settings hint) sits at 400-600; the top of the range is kept for
+  what names a screen.
+- **Titles are set in `--font-display`** (Baloo Bhaijaan 2, already on the
+  wire for سكرو's card numerals): a rounded Arabic-and-Latin face against
+  Cairo's neutral reading voice. Deliberately **not** on `.metric` - clocks
+  and scores need Cairo's tabular figures, or a counting timer jitters.
+- **The ground is warm paper, and dark is ink** rather than cold slate. The
+  `--n-*` ramp is untouched (a few rules read it directly); what changed is
+  the surfaces built on it, each held within ~1% of the luminance it had, so
+  every ratio the file fought for still holds. Shadows are warm-neutral: a
+  blue-black shadow on warm paper reads as dirt.
+- **A card carries its game's colour in one corner.** The note on `.gcard`
+  is right that thirty tinted cards made the home a rainbow, but the answer
+  was never "no colour at all" - it is the corner wash the setup heroes have
+  always used, `color-mix(in srgb, var(--accent) 9%, transparent)` (16% in
+  dark) blooming behind the icon and nowhere else, so a section reads as a
+  family and a card still reads as white paper. `--wash-x` flips it to the
+  inline-start corner in both directions.
+
+Also there: a press is proportional to what is pressed (a 150px card moves
+2%, a 44px chip 7% - one scale for both made the card lurch), the mode
+glyphs on a card are quiet ink so the game's own icon owns it, and the
+section rule fades away from its title instead of running flat to the edge.
+Sticky section heads were tried and dropped: the page ground is a
+viewport-fixed gradient, so a sticky band either mismatches it or needs
+`background-attachment: fixed`, which iOS Safari does not honour.
 
 **The finish** is section 11 of `Style.html`: a still glow behind the top of
 the page, a header that turns frosted with a hairline once the page has
@@ -2557,6 +2609,29 @@ the other way round, and for "auto" it puts back what it moved. A new
 `matchMedia('(prefers-reduced-motion…)')` in a script would ignore the
 setting; use `reducedMotion()`.
 
+**Filtering rearranges; it does not redraw.** Every catalog in the app filters
+by toggling `.hidden`, which is `display: none` - so the most-used gesture on
+the busiest screen (a filter chip on the home) was the one thing in the app
+with no motion at all: cards vanished, sections collapsed, everything below
+jumped. `flipGrid(root, mutate)` in `JS_Motion.html` reads where the items
+are, hands the mutation straight through to the caller (so the filtering
+logic is untouched and still the only thing deciding what is shown), reads
+where they ended up, and runs the survivors back from their old place while
+the newcomers fade up - transform and opacity, on the compositor. Two things
+it has to get right, and both were found the hard way:
+
+- **Measure relative to the container, not the viewport.** Hiding half a grid
+  can make the scroller clamp its own `scrollTop`, and viewport coordinates
+  read that clamp as every card flying hundreds of pixels at once.
+- **Only animate what someone can see.** A catalog is several screens long;
+  the first cut put 60 layers on the compositor to move things below the
+  fold. Bounded to a screen either side of the viewport it is 11-13.
+
+A caller that is painting for the first time passes `{ animate: false }`
+(`applyHomeFilter` does): there is nothing to move from, and the cards are
+already rising in sequence. A new screen that filters or reorders a list
+should go through it rather than toggling classes on its own.
+
 **Reveals play once per thing.** A room redraws a screen for reasons the
 table never sees (the host changed, the language), so a reveal asks
 `motionFirst(key)` while its markup is built: true the first time that key is
@@ -2623,6 +2698,7 @@ motion. What exists, and the moment each one is for:
 | something random is drawn (a letter, a category, a number) | `spinLetter(el, value, pool, onLand)` | Stop's letter |
 | a secret on a passed phone | `.hold-card` with `data-next` + `holdCardReset` | one-phone roles |
 | confetti or a cheer after any reveal | `afterReveal(el, fn)` | everywhere a reveal is |
+| a list or grid gains and loses items | `flipGrid(root, mutate)` | the home's filter chips and search |
 
 And the rules they rely on: key a reveal with `motionFirst(key)` so a redraw
 doesn't replay it; check `motionOff()` before moving anything, and set the end

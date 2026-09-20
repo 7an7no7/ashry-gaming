@@ -177,6 +177,79 @@ function playRoomGameStart(state) {
   setTimeout(() => leave(false), 950);
 }
 
+/* --- 2b. A list rearranges; it does not redraw ------------------------------
+   Every catalog in the app filters by toggling .hidden, which is display:none:
+   the most-used gesture on the busiest screen - a filter chip on the home -
+   was also the only one in the app with no motion at all. Cards vanished,
+   sections collapsed and everything below jumped.
+
+   flipGrid reads where the items are, hands the mutation straight through to
+   the caller (so the filtering logic is untouched and still the only thing
+   that decides what is shown), reads where they ended up, and runs the
+   survivors back from their old place to their new one while the newcomers
+   fade up. Transform and opacity only, so it is all on the compositor.
+
+   Positions are measured relative to the container, not the viewport: hiding
+   half a grid can make the scroller clamp its own scrollTop, and viewport
+   coordinates would read that clamp as every card flying hundreds of pixels.
+   A card that really did move most of a screen is faded in rather than flown,
+   because a ghost crossing the whole page reads as a glitch, not a move. */
+const FLIP_ITEMS = '.gcard, .tool-item, .recent-tile, .daily-strip, .section__head';
+
+function flipGrid(root, mutate, opts) {
+  if (typeof mutate !== 'function') return;
+  if (!root || motionOff()) { mutate(); return; }
+  const items = Array.from(root.querySelectorAll((opts && opts.items) || FLIP_ITEMS));
+  if (!items.length) { mutate(); return; }
+
+  const read = () => {
+    const base = root.getBoundingClientRect();
+    const seen = new Map();
+    items.forEach((el) => {
+      if (el.classList.contains('hidden')) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width && !r.height) return;
+      // Root-relative for the delta (scroll-proof), viewport-relative to know
+      // whether anyone can actually see it move.
+      seen.set(el, { x: r.left - base.left, y: r.top - base.top, vy: r.top, vh: r.height });
+    });
+    return seen;
+  };
+
+  const was = read();
+  mutate();
+  const now = read();
+
+  root.classList.add('is-flipping');
+  // A catalog is several screens long: animating all fifty cards would put
+  // fifty layers on the compositor to move things nobody is looking at. Only
+  // what is within a screen of the fold is worth a frame.
+  const vh = window.innerHeight || 800;
+  const far = vh * 1.2;
+  let entering = 0;
+  now.forEach((to, el) => {
+    if (to.vy > vh * 1.5 || to.vy + to.vh < -vh * 0.5) return;
+    const from = was.get(el);
+    if (from) {
+      const dx = from.x - to.x, dy = from.y - to.y;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      if (Math.abs(dy) > far) return;
+      el.animate(
+        [{ transform: 'translate3d(' + dx + 'px, ' + dy + 'px, 0)' }, { transform: 'translate3d(0, 0, 0)' }],
+        { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+    } else {
+      // Newcomers come up in sequence, capped so a jump from one chip to
+      // "all" is a wave and not a queue.
+      el.animate(
+        [{ opacity: 0, transform: 'translate3d(0, 10px, 0) scale(0.97)' },
+         { opacity: 1, transform: 'none' }],
+        { duration: 260, delay: Math.min(entering++, 7) * 24,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'backwards' });
+    }
+  });
+  setTimeout(() => root.classList.remove('is-flipping'), 420);
+}
+
 /* --- 3. The bottom bar's highlight slides ----------------------------------- */
 
 /** Places the highlight under the active tab; CSS slides it there. */

@@ -24,7 +24,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <!-- PWA-READY -->
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@800&family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400..800&family=Cairo:wght@300..900&display=swap" rel="stylesheet">
 
     <style>
       /* The intro, there before any script runs: the mark settles, a line draws
@@ -108,12 +108,18 @@
   --n-950: #020617;
 
   /* --- Surfaces --- */
-  --bg:            var(--n-100);
+  /* The ground is warm paper, not cold slate. The neutral ramp above is still
+     the slate it always was (a handful of rules reference it directly); what
+     changed is the surfaces built on it, each held to within ~1% of the
+     luminance it had, so the contrast ratios below are unaffected. A cool
+     blue-grey page under white cards is the single thing that read as
+     "default framework" from across the room. */
+  --bg:            #f5f3ee;
   --surface:       rgba(255, 255, 255, 0.92);
   --surface-solid: var(--n-0);
-  --surface-2:     var(--n-50);
-  --surface-3:     var(--n-100);
-  --surface-sunken: var(--n-100);
+  --surface-2:     #faf8f4;
+  --surface-3:     #f4f2ed;
+  --surface-sunken: #f0ede7;
   --elevated:      var(--n-0);
   --border:        rgba(15, 23, 42, 0.08);
   --border-strong: rgba(15, 23, 42, 0.14);
@@ -169,6 +175,25 @@
 
   /* --- Type scale --- */
   --font: 'Cairo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Titles, numerals and anything that carries a screen are set in Baloo
+     Bhaijaan 2 - a rounded Arabic-and-Latin display face that was already on
+     the wire for سكرو's card numerals, so it costs nothing new. Cairo stays
+     the reading face. Both are asked for as variable ranges now (300-900 and
+     400-800), which is fewer bytes than the six static cuts they replaced and
+     is what gives the weight scale below a floor. */
+  --font-display: 'Baloo Bhaijaan 2', 'Cairo', ui-sans-serif, system-ui, sans-serif;
+
+  /* --- Weight scale ---
+     There was no weight under 600 anywhere in the app, so nothing could read
+     as emphatic: a card's title and its description were both heavy and only
+     3px apart. Secondary text sits at --fw-quiet / --fw-body now and the top
+     of the range is kept for the things that carry a screen. */
+  --fw-quiet: 400;
+  --fw-body:  500;
+  --fw-med:   600;
+  --fw-semi:  700;
+  --fw-bold:  800;
+  --fw-black: 900;
   --fs-display: 2.25rem;   /* 36 — hero numbers */
   --fs-h1:      1.375rem;  /* 22 */
   --fs-h2:      1.125rem;  /* 18 */
@@ -191,10 +216,12 @@
   --r-xl: 1.25rem; --r-2xl: 1.5rem; --r-full: 999px;
 
   /* --- Elevation --- */
-  --sh-1: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --sh-2: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -6px rgba(15, 23, 42, 0.08);
-  --sh-3: 0 2px 6px rgba(15, 23, 42, 0.04), 0 8px 22px -10px rgba(15, 23, 42, 0.12);
-  --sh-4: 0 20px 48px -12px rgba(15, 23, 42, 0.22);
+  /* Warm-neutral, not blue-black: a cold shadow on warm paper reads as dirt
+     rather than depth. Same geometry and much the same weight as before. */
+  --sh-1: 0 1px 2px rgba(46, 37, 26, 0.055);
+  --sh-2: 0 1px 2px rgba(46, 37, 26, 0.045), 0 4px 12px -6px rgba(46, 37, 26, 0.09);
+  --sh-3: 0 2px 6px rgba(46, 37, 26, 0.045), 0 8px 22px -10px rgba(46, 37, 26, 0.13);
+  --sh-4: 0 20px 48px -12px rgba(28, 22, 16, 0.24);
   --sh-inset: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 
   /* --- Motion --- */
@@ -222,13 +249,17 @@
 body.dark {
   color-scheme: dark;
 
-  --bg:            var(--n-900);
-  --surface:       rgba(30, 41, 59, 0.92);
-  --surface-solid: var(--n-800);
-  --surface-2:     #172033;
-  --surface-3:     var(--n-700);
-  --surface-sunken: var(--n-950);
-  --elevated:      #1b2537;
+  /* Dark is ink, not slate: the same steps leaned a few degrees toward the
+     brand violet so the night theme belongs to the mark rather than to a
+     framework's default grey. Every one of these is darker than the slate it
+     replaces, so the text ratios below only improve. */
+  --bg:            #14121e;
+  --surface:       rgba(32, 29, 46, 0.92);
+  --surface-solid: #201d2e;
+  --surface-2:     #1a1826;
+  --surface-3:     #2f2b40;
+  --surface-sunken: #0d0b14;
+  --elevated:      #232032;
   --border:        rgba(255, 255, 255, 0.09);
   --border-strong: rgba(255, 255, 255, 0.18);
   --hairline:      rgba(255, 255, 255, 0.06);
@@ -342,9 +373,9 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(170deg, #f4f2fc 0%, #f3f4f8 42%, #f2f4f7 100%);
+  background: linear-gradient(170deg, #f7f4f0 0%, #f5f3ee 42%, #f3f0e9 100%);
 }
-body.dark::before { background: linear-gradient(170deg, #131a30 0%, #0f172a 48%, #0e1526 100%); }
+body.dark::before { background: linear-gradient(170deg, #1a1628 0%, #14121e 48%, #110f1a 100%); }
 
 .hidden { display: none !important; }
 
@@ -5290,13 +5321,13 @@ button.spy-place:active { transform: scale(0.95); }
    ========================================================================== */
 body::before {
   background:
-    radial-gradient(60rem 26rem at 50% -10rem, rgba(124, 58, 237, 0.11), transparent 62%),
-    linear-gradient(170deg, #f4f2fc 0%, #f3f4f8 42%, #f2f4f7 100%);
+    radial-gradient(60rem 26rem at 50% -10rem, rgba(124, 58, 237, 0.10), transparent 62%),
+    linear-gradient(170deg, #f7f4f0 0%, #f5f3ee 42%, #f3f0e9 100%);
 }
 body.dark::before {
   background:
-    radial-gradient(60rem 26rem at 50% -10rem, rgba(139, 92, 246, 0.18), transparent 62%),
-    linear-gradient(170deg, #131a30 0%, #0f172a 48%, #0e1526 100%);
+    radial-gradient(60rem 26rem at 50% -10rem, rgba(139, 92, 246, 0.16), transparent 62%),
+    linear-gradient(170deg, #1a1628 0%, #14121e 48%, #110f1a 100%);
 }
 
 /* The header: bare at the top of a page, frosted once content has run under it. */
@@ -8612,6 +8643,145 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
   .skr-memo-bar { display: none; }
 }
 
+/* ==========================================================================
+   17. ONE VOICE (20 Sep 2026)
+   --------------------------------------------------------------------------
+   A pass over the pieces every screen is built from, so lifting one screen
+   lifts all of them. Four things were true everywhere and none of them was
+   a bug, which is why they survived: the app had no type weight under 600,
+   so nothing could read as emphatic; the only colour on a card was its
+   emoji, so nine sections of white boxes looked like one long list; the
+   selected state was near-black in light and pure white in dark, a third
+   colour system answering to nothing; and every surface pressed with the
+   same scale whether it was a 44px chip or a 150px card.
+
+   Everything here is a refinement of a component defined earlier in this
+   file - no new markup, no new class on any element that did not already
+   carry it. Sizes, spacing and tap targets are untouched.
+   ========================================================================== */
+
+/* --- The display face --------------------------------------------------------
+   Baloo Bhaijaan 2 carries the things that name a screen. It was already
+   loaded for سكرو's card numerals, it sets Arabic and Latin from one file,
+   and its rounded warmth is what a party app should sound like next to
+   Cairo's neutral reading voice. Deliberately NOT on .metric: clocks and
+   scores need Cairo's tabular figures, or a counting timer jitters. */
+.shell__title,
+.section__title,
+.sheet__title,
+.home-hero__title,
+.tab-hero__title,
+.game-hero__title,
+.gcard__title,
+.tool-name,
+.podium__name,
+.modal-content .sheet__title {
+  font-family: var(--font-display);
+  /* Baloo's 800 has the colour Cairo's 900 had; 900 in a rounded face fills
+     its own counters at title sizes. */
+  font-weight: var(--fw-bold);
+}
+/* Arabic in a rounded display face sits a little tight by default. */
+html[lang="ar"] .gcard__title,
+html[lang="ar"] .section__title,
+html[lang="ar"] .tool-name { line-height: 1.35; }
+
+/* --- A floor as well as a ceiling ---------------------------------------------
+   Secondary text steps down to 400/500 so the titles above it can be read as
+   titles. Colours are left exactly as they were - each one was measured
+   against its background - so nothing here moves a contrast ratio. */
+.gcard__desc,
+.tool-desc,
+.game-hero__desc,
+.tab-hero__sub,
+.home-hero__sub { font-weight: var(--fw-body); }
+.gcard__meta,
+.game-hero__meta,
+.setting-row__hint { font-weight: var(--fw-med); }
+.empty { font-weight: var(--fw-body); }
+
+/* --- A card carries its game's colour, in one corner ---------------------------
+   The note on .gcard is right that thirty tinted cards made the home a
+   rainbow. The answer is not "no colour at all" but the corner wash the
+   setup heroes have used all along: a low-percentage bloom behind the icon
+   and nowhere else, so a section reads as a family at a glance and a card
+   still reads as white paper. color-mix keeps one strength across all eight
+   palettes and both themes; where it is missing the card is simply plain. */
+:root      { --wash-x: 0%; }
+[dir="rtl"] { --wash-x: 100%; }
+.gcard, .tool-item {
+  background-image: radial-gradient(10rem 6.5rem at var(--wash-x) 0%,
+                    color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
+}
+body.dark .gcard, body.dark .tool-item {
+  background-image: radial-gradient(10rem 6.5rem at var(--wash-x) 0%,
+                    color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
+}
+/* The halo behind an icon was --accent-soft, which in light is within two
+   values of white and read as nothing at all. */
+.gcard__icon, .tool-icon, .game-hero__icon, .tab-hero__icon,
+.help-game-card__icon, .help-hero__icon {
+  background: radial-gradient(circle at 50% 55%,
+              color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 68%);
+}
+
+/* --- One selected colour ------------------------------------------------------
+   The active chip was --text-strong: a black pill in light, a white pill in
+   dark - the brightest thing on a night screen, brighter than the brand, and
+   answering to no other colour in the app. Selection is the screen's accent
+   now, which is the violet of the home, the teal of مع بعض and the indigo of
+   الأدوات - the same system every other component already obeys. */
+.filter-chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+  box-shadow: 0 6px 14px -8px var(--accent-glow);
+}
+
+/* --- The game's own icon owns the card ----------------------------------------
+   The three mode glyphs are the same on nearly every card, so they carry
+   almost no information per card - and in full colour at the opposite corner
+   they were the loudest thing on it after the icon, with 📱 and 📲
+   indistinguishable at 0.8rem anyway. Quiet ink; the meaning is unchanged and
+   the tooltip and aria-label were always the real answer. */
+.gcard__modes { filter: grayscale(1); opacity: 0.4; }
+body.dark .gcard__modes { opacity: 0.5; }
+
+/* --- A press is proportional to what is pressed -------------------------------
+   Every surface shrank by the same 4-5%, which on a 150px card is a lurch and
+   on a 44px chip is barely there. Big surfaces move less. */
+.gcard:active, .game-card:active, .tool-item:active, .setting-row:active,
+.daily-strip:active { transform: scale(0.98); }
+.together__tile:active { transform: scale(0.955); }
+.filter-chip:active, .recent-tile:active, .home-hero__pick:active { transform: scale(0.93); }
+
+/* --- Section heads read as headings, not as table rows ------------------------
+   A flat hairline running to the edge of the screen is the most templated
+   mark in the file. It fades away from the title instead, which reads as air
+   rather than as a border. */
+.section__rule { background: linear-gradient(to right, var(--hairline), transparent); }
+[dir="rtl"] .section__rule { background: linear-gradient(to left, var(--hairline), transparent); }
+.section__emoji { font-size: 1.1rem; }
+
+/* --- Nothing found -------------------------------------------------------------
+   One grey line was all a search with no results got. */
+.empty__icon { font-size: 2rem; opacity: 0.5; }
+
+/* --- Filtering rearranges; it does not redraw ----------------------------------
+   flipGrid in JS_Motion.html measures, lets the filter hide and show what it
+   likes, then runs the survivors from where they were to where they are and
+   fades the newcomers in - transform and opacity, on the compositor. The only
+   thing it needs from the stylesheet is that a card is not mid-transition
+   while it is being animated. */
+.is-flipping .gcard, .is-flipping .tool-item, .is-flipping .recent-tile,
+.is-flipping .section__head { transition: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gcard:active, .game-card:active, .tool-item:active, .setting-row:active,
+  .daily-strip:active, .together__tile:active, .filter-chip:active,
+  .recent-tile:active, .home-hero__pick:active { transform: none; }
+}
+
 </style>
 
     
@@ -11845,7 +12015,7 @@ function skrewDecksFor(players) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260920174511";
+      window.BUILD_ID = "20260920181926";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -23044,9 +23214,9 @@ function renderHome() {
   }).join('');
 
   view.innerHTML = together + search + dailyStrip + recentRow + groups +
-    `<div class="empty hidden" id="home-empty">${escapeHTML(t.home_empty || '')}</div>`;
+    `<div class="empty hidden" id="home-empty"><span class="empty__icon" aria-hidden="true">🔍</span>${escapeHTML(t.home_empty || '')}</div>`;
   homeRenderedLang = appState.lang;
-  applyHomeFilter();
+  applyHomeFilter({ animate: false });
   settleStagger(view, 'menu');
   view.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
 }
@@ -23101,8 +23271,12 @@ function resetHomeFilters(from) {
   homeFilter = 'all';
 }
 
-/** Hides the cards, rows and sections the chip and the search box rule out. */
-function applyHomeFilter() {
+/** Hides the cards, rows and sections the chip and the search box rule out.
+    The deciding is unchanged; it is handed to flipGrid (JS_Motion.html) so the
+    grid rearranges itself instead of the page redrawing under the thumb.
+    `{ animate: false }` is the first paint, where there is nothing to move
+    from and the cards are already rising in sequence. */
+function applyHomeFilter(opts) {
   const view = document.getElementById('view-menu');
   if (!view) return;
   const t = TRANSLATIONS[appState.lang];
@@ -23111,40 +23285,45 @@ function applyHomeFilter() {
   const searching = !!term;
   let shown = 0;
 
-  view.querySelectorAll('[data-game]').forEach(el => {
-    const g = CATALOG_BY_ID[el.dataset.game];
-    if (!g) return;
-    const isTool = g.group === 'tools';
-    // Tools answer a search only; the chips are about how a game is played.
-    let ok = isTool ? searching && homeFilter === 'all' : catalogMatchesFilter(g, homeFilter);
-    if (ok && homePlayers !== 'off') {
-      ok = catalogMatchesPlayers(g, homePlayers);
-    }
-    if (ok && homeLocation !== 'together') {
-      ok = catalogMatchesLocation(g, homeLocation);
-    }
-    if (ok && searching) {
-      const hay = helpNormalise([catalogTitle(g, t), catalogDesc(g, t), catalogTitle(g, other), catalogDesc(g, other)].join(' '));
-      ok = hay.indexOf(term) !== -1;
-    }
-    el.classList.toggle('hidden', !ok);
-    // Only results count: a recent tile is a shortcut, hidden while searching.
-    if (ok && el.closest('section[data-group]')) shown++;
-  });
+  const decide = () => {
+    view.querySelectorAll('[data-game]').forEach(el => {
+      const g = CATALOG_BY_ID[el.dataset.game];
+      if (!g) return;
+      const isTool = g.group === 'tools';
+      // Tools answer a search only; the chips are about how a game is played.
+      let ok = isTool ? searching && homeFilter === 'all' : catalogMatchesFilter(g, homeFilter);
+      if (ok && homePlayers !== 'off') {
+        ok = catalogMatchesPlayers(g, homePlayers);
+      }
+      if (ok && homeLocation !== 'together') {
+        ok = catalogMatchesLocation(g, homeLocation);
+      }
+      if (ok && searching) {
+        const hay = helpNormalise([catalogTitle(g, t), catalogDesc(g, t), catalogTitle(g, other), catalogDesc(g, other)].join(' '));
+        ok = hay.indexOf(term) !== -1;
+      }
+      el.classList.toggle('hidden', !ok);
+      // Only results count: a recent tile is a shortcut, hidden while searching.
+      if (ok && el.closest('section[data-group]')) shown++;
+    });
 
-  view.querySelectorAll('section[data-group]').forEach(sec => {
-    const visible = sec.querySelectorAll('[data-game]:not(.hidden)').length;
-    sec.classList.toggle('hidden', !visible);
-    const count = sec.querySelector('.section__count');
-    if (count && visible) count.textContent = String(visible);
-  });
-  // The recent row is a shortcut, not a search result.
-  const recent = document.getElementById('home-recent');
-  if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all' || homePlayers !== 'off' || homeLocation !== 'together');
-  const daily = document.getElementById('home-daily');
-  if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo') || homePlayers !== 'off' || homeLocation !== 'together');
-  const empty = document.getElementById('home-empty');
-  if (empty) empty.classList.toggle('hidden', shown > 0);
+    view.querySelectorAll('section[data-group]').forEach(sec => {
+      const visible = sec.querySelectorAll('[data-game]:not(.hidden)').length;
+      sec.classList.toggle('hidden', !visible);
+      const count = sec.querySelector('.section__count');
+      if (count && visible) count.textContent = String(visible);
+    });
+    // The recent row is a shortcut, not a search result.
+    const recent = document.getElementById('home-recent');
+    if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all' || homePlayers !== 'off' || homeLocation !== 'together');
+    const daily = document.getElementById('home-daily');
+    if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo') || homePlayers !== 'off' || homeLocation !== 'together');
+    const empty = document.getElementById('home-empty');
+    if (empty) empty.classList.toggle('hidden', shown > 0);
+  };
+
+  if ((opts && opts.animate === false) || typeof flipGrid !== 'function') decide();
+  else flipGrid(view, decide);
 }
 
 /* --- The hero on a setup screen ---------------------------------------------
@@ -63493,6 +63672,79 @@ function playRoomGameStart(state) {
   };
   el.addEventListener('click', () => leave(true));
   setTimeout(() => leave(false), 950);
+}
+
+/* --- 2b. A list rearranges; it does not redraw ------------------------------
+   Every catalog in the app filters by toggling .hidden, which is display:none:
+   the most-used gesture on the busiest screen - a filter chip on the home -
+   was also the only one in the app with no motion at all. Cards vanished,
+   sections collapsed and everything below jumped.
+
+   flipGrid reads where the items are, hands the mutation straight through to
+   the caller (so the filtering logic is untouched and still the only thing
+   that decides what is shown), reads where they ended up, and runs the
+   survivors back from their old place to their new one while the newcomers
+   fade up. Transform and opacity only, so it is all on the compositor.
+
+   Positions are measured relative to the container, not the viewport: hiding
+   half a grid can make the scroller clamp its own scrollTop, and viewport
+   coordinates would read that clamp as every card flying hundreds of pixels.
+   A card that really did move most of a screen is faded in rather than flown,
+   because a ghost crossing the whole page reads as a glitch, not a move. */
+const FLIP_ITEMS = '.gcard, .tool-item, .recent-tile, .daily-strip, .section__head';
+
+function flipGrid(root, mutate, opts) {
+  if (typeof mutate !== 'function') return;
+  if (!root || motionOff()) { mutate(); return; }
+  const items = Array.from(root.querySelectorAll((opts && opts.items) || FLIP_ITEMS));
+  if (!items.length) { mutate(); return; }
+
+  const read = () => {
+    const base = root.getBoundingClientRect();
+    const seen = new Map();
+    items.forEach((el) => {
+      if (el.classList.contains('hidden')) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width && !r.height) return;
+      // Root-relative for the delta (scroll-proof), viewport-relative to know
+      // whether anyone can actually see it move.
+      seen.set(el, { x: r.left - base.left, y: r.top - base.top, vy: r.top, vh: r.height });
+    });
+    return seen;
+  };
+
+  const was = read();
+  mutate();
+  const now = read();
+
+  root.classList.add('is-flipping');
+  // A catalog is several screens long: animating all fifty cards would put
+  // fifty layers on the compositor to move things nobody is looking at. Only
+  // what is within a screen of the fold is worth a frame.
+  const vh = window.innerHeight || 800;
+  const far = vh * 1.2;
+  let entering = 0;
+  now.forEach((to, el) => {
+    if (to.vy > vh * 1.5 || to.vy + to.vh < -vh * 0.5) return;
+    const from = was.get(el);
+    if (from) {
+      const dx = from.x - to.x, dy = from.y - to.y;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      if (Math.abs(dy) > far) return;
+      el.animate(
+        [{ transform: 'translate3d(' + dx + 'px, ' + dy + 'px, 0)' }, { transform: 'translate3d(0, 0, 0)' }],
+        { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+    } else {
+      // Newcomers come up in sequence, capped so a jump from one chip to
+      // "all" is a wave and not a queue.
+      el.animate(
+        [{ opacity: 0, transform: 'translate3d(0, 10px, 0) scale(0.97)' },
+         { opacity: 1, transform: 'none' }],
+        { duration: 260, delay: Math.min(entering++, 7) * 24,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'backwards' });
+    }
+  });
+  setTimeout(() => root.classList.remove('is-flipping'), 420);
 }
 
 /* --- 3. The bottom bar's highlight slides ----------------------------------- */

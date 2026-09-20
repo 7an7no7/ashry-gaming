@@ -451,9 +451,9 @@ function renderHome() {
   }).join('');
 
   view.innerHTML = together + search + dailyStrip + recentRow + groups +
-    `<div class="empty hidden" id="home-empty">${escapeHTML(t.home_empty || '')}</div>`;
+    `<div class="empty hidden" id="home-empty"><span class="empty__icon" aria-hidden="true">🔍</span>${escapeHTML(t.home_empty || '')}</div>`;
   homeRenderedLang = appState.lang;
-  applyHomeFilter();
+  applyHomeFilter({ animate: false });
   settleStagger(view, 'menu');
   view.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
 }
@@ -508,8 +508,12 @@ function resetHomeFilters(from) {
   homeFilter = 'all';
 }
 
-/** Hides the cards, rows and sections the chip and the search box rule out. */
-function applyHomeFilter() {
+/** Hides the cards, rows and sections the chip and the search box rule out.
+    The deciding is unchanged; it is handed to flipGrid (JS_Motion.html) so the
+    grid rearranges itself instead of the page redrawing under the thumb.
+    `{ animate: false }` is the first paint, where there is nothing to move
+    from and the cards are already rising in sequence. */
+function applyHomeFilter(opts) {
   const view = document.getElementById('view-menu');
   if (!view) return;
   const t = TRANSLATIONS[appState.lang];
@@ -518,40 +522,45 @@ function applyHomeFilter() {
   const searching = !!term;
   let shown = 0;
 
-  view.querySelectorAll('[data-game]').forEach(el => {
-    const g = CATALOG_BY_ID[el.dataset.game];
-    if (!g) return;
-    const isTool = g.group === 'tools';
-    // Tools answer a search only; the chips are about how a game is played.
-    let ok = isTool ? searching && homeFilter === 'all' : catalogMatchesFilter(g, homeFilter);
-    if (ok && homePlayers !== 'off') {
-      ok = catalogMatchesPlayers(g, homePlayers);
-    }
-    if (ok && homeLocation !== 'together') {
-      ok = catalogMatchesLocation(g, homeLocation);
-    }
-    if (ok && searching) {
-      const hay = helpNormalise([catalogTitle(g, t), catalogDesc(g, t), catalogTitle(g, other), catalogDesc(g, other)].join(' '));
-      ok = hay.indexOf(term) !== -1;
-    }
-    el.classList.toggle('hidden', !ok);
-    // Only results count: a recent tile is a shortcut, hidden while searching.
-    if (ok && el.closest('section[data-group]')) shown++;
-  });
+  const decide = () => {
+    view.querySelectorAll('[data-game]').forEach(el => {
+      const g = CATALOG_BY_ID[el.dataset.game];
+      if (!g) return;
+      const isTool = g.group === 'tools';
+      // Tools answer a search only; the chips are about how a game is played.
+      let ok = isTool ? searching && homeFilter === 'all' : catalogMatchesFilter(g, homeFilter);
+      if (ok && homePlayers !== 'off') {
+        ok = catalogMatchesPlayers(g, homePlayers);
+      }
+      if (ok && homeLocation !== 'together') {
+        ok = catalogMatchesLocation(g, homeLocation);
+      }
+      if (ok && searching) {
+        const hay = helpNormalise([catalogTitle(g, t), catalogDesc(g, t), catalogTitle(g, other), catalogDesc(g, other)].join(' '));
+        ok = hay.indexOf(term) !== -1;
+      }
+      el.classList.toggle('hidden', !ok);
+      // Only results count: a recent tile is a shortcut, hidden while searching.
+      if (ok && el.closest('section[data-group]')) shown++;
+    });
 
-  view.querySelectorAll('section[data-group]').forEach(sec => {
-    const visible = sec.querySelectorAll('[data-game]:not(.hidden)').length;
-    sec.classList.toggle('hidden', !visible);
-    const count = sec.querySelector('.section__count');
-    if (count && visible) count.textContent = String(visible);
-  });
-  // The recent row is a shortcut, not a search result.
-  const recent = document.getElementById('home-recent');
-  if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all' || homePlayers !== 'off' || homeLocation !== 'together');
-  const daily = document.getElementById('home-daily');
-  if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo') || homePlayers !== 'off' || homeLocation !== 'together');
-  const empty = document.getElementById('home-empty');
-  if (empty) empty.classList.toggle('hidden', shown > 0);
+    view.querySelectorAll('section[data-group]').forEach(sec => {
+      const visible = sec.querySelectorAll('[data-game]:not(.hidden)').length;
+      sec.classList.toggle('hidden', !visible);
+      const count = sec.querySelector('.section__count');
+      if (count && visible) count.textContent = String(visible);
+    });
+    // The recent row is a shortcut, not a search result.
+    const recent = document.getElementById('home-recent');
+    if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all' || homePlayers !== 'off' || homeLocation !== 'together');
+    const daily = document.getElementById('home-daily');
+    if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo') || homePlayers !== 'off' || homeLocation !== 'together');
+    const empty = document.getElementById('home-empty');
+    if (empty) empty.classList.toggle('hidden', shown > 0);
+  };
+
+  if ((opts && opts.animate === false) || typeof flipGrid !== 'function') decide();
+  else flipGrid(view, decide);
 }
 
 /* --- The hero on a setup screen ---------------------------------------------

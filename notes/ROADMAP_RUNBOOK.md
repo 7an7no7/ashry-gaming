@@ -438,12 +438,189 @@ In `JS_Sounds.html`, inside the `confetti` wrapper, skip only the **sound** when
 
 ---
 
-# Phases 3-9
+# Phase 3 — المختلف (Undercover) in الجاسوس
 
-**DETAIL PENDING.** These are being written while Phase 0 runs. Do not start any of them until the phase section appears in this document and you are given it by name.
+**Decision (owner, 20 Sep 2026): nobody is told their role.** Every player sees a word and nothing else. Most players have the same word; one or more have a close relative of it (قهوة against نسكافيه). The odd one out has to work it out from how the clues sound. There is no "you are the undercover" card, and the phone must not know either — see T3.2.
 
-- **Phase 3** — المختلف (Undercover) in الجاسوس: a curated close-pair list, one phone and rooms, nobody told their role.
-- **Phase 4** — the leaderboard of the night: 3/2/1 banked per scored game, shown in the room hub.
+### T3.1 — The pairs
+**Files:** `SpyWords.js`
+**After:** add one new top-level const beside `SPY_WORDS`, with this comment and exactly these pairs. The first word goes to the table, the second to the odd one out.
+```js
+/* ============================================================================
+   المختلف — the close pairs.
+   The odd one out gets the second word. A pair has to be close enough that a
+   clue for one could pass for the other ("سخن", "بشربه الصبح"), and far enough
+   that the table can hear the difference once people start talking. Egyptian
+   first: the pairs are things a family names every day.
+   ========================================================================= */
+const SPY_PAIRS = [
+  ['قهوة', 'نسكافيه'], ['شاي', 'ينسون'], ['كشري', 'مكرونة'], ['فول', 'طعمية'],
+  ['ملوخية', 'بامية'], ['كنافة', 'بسبوسة'], ['محشي', 'ورق عنب'], ['فطير', 'بيتزا'],
+  ['عصير مانجو', 'عصير جوافة'], ['آيس كريم', 'مهلبية'], ['شاورما', 'برجر'],
+  ['سينما', 'مسرح'], ['تلفزيون', 'موبايل'], ['كمبيوتر', 'لابتوب'], ['تابلت', 'موبايل'],
+  ['فيسبوك', 'إنستجرام'], ['واتساب', 'ماسنجر'], ['يوتيوب', 'تيك توك'],
+  ['بحر', 'نهر'], ['إسكندرية', 'الغردقة'], ['القاهرة', 'الجيزة'], ['الأقصر', 'أسوان'],
+  ['أتوبيس', 'ميكروباص'], ['مترو', 'قطر'], ['تاكسي', 'أوبر'], ['عجلة', 'موتوسيكل'],
+  ['طيارة', 'هليكوبتر'], ['مركب', 'لانش'],
+  ['دكتور', 'صيدلي'], ['مدرس', 'ناظر'], ['شرطي', 'عسكري'], ['محامي', 'قاضي'],
+  ['صحفي', 'مذيع'], ['ممثل', 'مخرج'], ['مطرب', 'ملحن'], ['رسام', 'نحات'],
+  ['سباك', 'كهربائي'], ['نجار', 'حداد'], ['حلاق', 'كوافير'], ['ترزي', 'مكوجي'],
+  ['بواب', 'حارس أمن'], ['سواق', 'كمساري'],
+  ['كورة قدم', 'كورة سلة'], ['الأهلي', 'الزمالك'], ['ملعب', 'جيم'], ['حكم', 'مدرب'],
+  ['مدرسة', 'جامعة'], ['امتحان', 'واجب'], ['كتاب', 'مجلة'], ['قلم رصاص', 'قلم جاف'],
+  ['تكييف', 'مروحة'], ['ثلاجة', 'فريزر'], ['غسالة', 'نشافة'], ['كنبة', 'كرسي'],
+  ['سرير', 'مرتبة'], ['شباك', 'بلكونة'], ['عمارة', 'فيلا'], ['مطبخ', 'حمام'],
+  ['عيد الفطر', 'عيد الأضحى'], ['فرح', 'خطوبة'], ['سبوع', 'عيد ميلاد'], ['عزومة', 'بوفيه'],
+  ['شنطة', 'محفظة'], ['ساعة', 'أسورة'], ['نضارة شمس', 'نضارة طبية'], ['جزمة', 'شبشب'],
+  ['تيشيرت', 'قميص'], ['بنطلون', 'شورت'],
+  ['صيدلية', 'مستشفى'], ['بنك', 'مكتب بريد'], ['سوبر ماركت', 'بقالة'], ['مول', 'سوق'],
+  ['كافيه', 'مطعم'], ['فرن', 'مخبز']
+];
+```
+An English list is **not** part of this task; المختلف deals Arabic pairs whatever the interface language, the way the spy categories already do for a table playing in Arabic.
+**Accept when:**
+- [ ] `SPY_PAIRS` is defined exactly once in the repo (`git grep -c "const SPY_PAIRS"` = 1)
+- [ ] every entry is an array of exactly two non-empty strings
+- [ ] no word appears in more than one pair (a mock test proves both)
+- [ ] `npm run check` passes
+
+### T3.2 — Rooms: a word for everyone, and the phone never knows who is different
+**Files:** `RoomGames.js` → the `imposter` branch's `start`; `JS_RoomImposter.html` → the reveal card and the lobby option; `JS_Core.html` → keys
+**Problem:** today the spy's slice is `{ role: 'spy', word: null, category }`, and the phone reads `role` to draw the spy card. In المختلف nobody may learn their own role — not from the screen and not from the network. The slice itself must not say it.
+**Before** (in the `start` branch of the imposter game):
+```js
+    room.secrets = {};
+    room.players.forEach(p => {
+      const isSpy = spies.indexOf(p.id) !== -1;
+      room.secrets[p.id] = {
+        role: isSpy ? 'spy' : 'player',
+        word: isSpy ? null : secret,
+        category: category
+      };
+    });
+```
+**After:** when the host started with `undercover: true`, deal a pair instead of one word and give **every** slice `role: 'player'` and a word; the server keeps the truth in `room._impSpies`, as it already does.
+```js
+    room.secrets = {};
+    room.players.forEach(p => {
+      const isSpy = spies.indexOf(p.id) !== -1;
+      // المختلف: every slice looks the same — a role and a word — so nobody can
+      // learn they are the odd one out, not from the screen and not by reading
+      // the traffic. room._impSpies is the only record of who is who.
+      room.secrets[p.id] = undercover
+        ? { role: 'player', word: isSpy ? pairOther : secret, category: category }
+        : { role: isSpy ? 'spy' : 'player', word: isSpy ? null : secret, category: category };
+    });
+```
+Deal the pair through the shared memory, keying on strings so `PromptMemory` still works. These four lines **replace the existing `const secret = …` line** and sit above `const spyCount = …`, so every name is defined before the `room.secrets` loop uses it:
+```js
+    const undercover = !!payload.undercover;
+    // PromptMemory keys on the dealt value, so deal the pair as one string.
+    const pair = undercover ? nextPrompt(room, SPY_PAIRS.map(p => p[0] + '|' + p[1]), 'imppair').split('|') : null;
+    const secret = undercover ? pair[0] : nextPrompt(room, words, 'imp_' + category);
+    const pairOther = undercover ? pair[1] : null;
+```
+Put `undercover: !!payload.undercover` on `room.shared` so every phone and the TV can word their screens for it, and publish `shared.pairOther` **only** with the result, next to `shared.secretWord`.
+> ⛔ Do not put `pairOther` in `shared` at deal time. It is the other half of the secret; published early it is on every screen while the round is still being played.
+> ⚠️ With `undercover` on, a category is not chosen and `spyWords(category)` is not called. Keep the guard that refuses an empty word list for the ordinary mode only.
+**Accept when:**
+- [ ] with `undercover: true`, every `room.secrets[*]` has `role: 'player'` and a non-empty `word`, and no slice differs in shape from any other
+- [ ] the odd one out's word is the pair's second word; everyone else has the first
+- [ ] `room._impSpies` still names the right players, and the vote, the accusation and the scoring behave exactly as before
+- [ ] `shared` contains no `pairOther` until the round is over
+- [ ] with `undercover` absent or false, the deal is byte-for-byte the behaviour it has today
+- [ ] `npm run test:rules` passes, and a mock test covers both modes' slices
+
+### T3.3 — Rooms: the screens
+**Files:** `JS_RoomImposter.html`, `JS_Core.html` (keys), `JS_RoomTv.html` if the TV names the role
+**After:**
+- A lobby switch beside the spy count: `🎭 المختلف` with the hint "كل واحد بياخد كلمة، والمختلف كلمته قريبة" / "Everyone gets a word; the odd one out's word is a near miss". Remembered on the host's phone like the other lobby choices.
+- The reveal card in المختلف shows the word alone, in the same colour and the same size for every player, with no role line and no `is-spy` class.
+- Every place the round says "الجاسوس" says "المختلف" in this mode: the discussion prompt, the vote's question, the result. Use new keys; do not rewrite the existing ones.
+- The result names both words: "الكلمة كانت **قهوة**، والمختلف كانت معاه **نسكافيه**".
+**Accept when:**
+- [ ] two phones in المختلف show cards that are identical but for the word
+- [ ] nothing on the odd one out's screen, at any point before the reveal, differs from the others'
+- [ ] the ordinary الجاسوس mode's screens are unchanged
+- [ ] every new string exists in both `ar` and `en`; `npm run check` passes
+
+### T3.4 — One phone
+**Files:** `JS_Imposter.html` → `continuePrepImposter`, `fillRole`; `Controller.html` → the setup switch; `JS_Core.html` → keys
+**Before** (in `fillRole`):
+```js
+      const spy = player.role === 'Imposter';
+      wordDiv.innerText = spy
+          ? (appState.lang === 'ar' ? "🕵️‍♂️ أنت الجاسوس!" : "🕵️‍♂️ You are the Imposter!")
+          : appState.imposter.secretWord;
+```
+**After:** in المختلف every player sees a word, and the card carries no spy styling:
+```js
+      const undercover = !!appState.imposter.config.undercover;
+      const spy = !undercover && player.role === 'Imposter';
+      wordDiv.innerText = undercover
+          ? (player.role === 'Imposter' ? appState.imposter.pairOther : appState.imposter.secretWord)
+          : (spy ? (appState.lang === 'ar' ? "🕵️‍♂️ أنت الجاسوس!" : "🕵️‍♂️ You are the Imposter!")
+                 : appState.imposter.secretWord);
+      wordDiv.className = 'metric metric--lg ' + (spy ? 'tx-danger' : 'tx-success');
+      if (card) card.classList.toggle('is-spy', spy);
+```
+In `continuePrepImposter`, when the switch is on, deal a pair with `freshPick('imppair', SPY_PAIRS, 1, { key: p => p[0] + '|' + p[1] })` — pass the `key` explicitly: `freshPick` falls back to `JSON.stringify` for anything that is not a string, and the memory is easier to read and to keep in step with the room's key when it holds `'قهوة|نسكافيه'` — and store `appState.imposter.secretWord = pair[0]` and `appState.imposter.pairOther = pair[1]`. Add the switch to the الجاسوس setup screen with `data-remember` so the phone keeps it.
+> ⚠️ `.hold-card` must be the same height for every role — the trap that made the spy's card shorter once. In المختلف both faces carry one word, so this is satisfied by construction; do not add a second line to either.
+**Accept when:**
+- [ ] with the switch on, every player's card shows one word, same colour, same size, and `is-spy` is never added
+- [ ] the odd one out's word is the pair's second word
+- [ ] with the switch off, the game is exactly what it is today
+- [ ] the switch is still set after leaving the screen and coming back
+- [ ] a mock test covers `fillRole`'s four cases: undercover×spy, undercover×citizen, ordinary×spy, ordinary×citizen
+
+---
+
+# Phase 4 — The leaderboard of the night
+
+**Decision (owner, 20 Sep 2026):** 3 points to the first, 2 to the second, 1 to the third, banked at the end of every room game **that keeps a score**. A game with no scores at all adds nothing.
+
+### T4.1 — Bank the placements when a game ends
+**Files:** `RoomGames.js`
+**Built before:** `scoreboardOf(room)` already returns the sorted board, and `room.shared.board` is set by every scored game. `clearGameState` is what runs when the room goes back to the hub — read it before you change anything.
+**After:** one helper, called exactly once per finished game:
+```js
+/**
+ * The leaderboard of the night. Placement points rather than the games' own
+ * scores, because a trivia score and a سكرو score are not the same currency:
+ * 3 for the first, 2 for the second, 1 for the third, shared on a tie.
+ * Games with no score at all (ارسم واكتب) never call this.
+ */
+function bankNightPoints(room, board) { … }
+```
+- It reads a board of `{ id, score }` (the shape `scoreboardOf` returns), skips it entirely when every score is 0 or the board has fewer than two players, and adds to `room.night` — a room-level object `{ [playerId]: points }` that survives `backToHub` and every deal.
+- Ties share: two players tied first both get 3, and the next takes 1.
+- سكرو is lowest-wins: pass it a board already inverted, do not special-case it inside the helper.
+- Call it from the place each game becomes final, once. Guard against a second call for the same deal with a marker on `shared` (`nightBanked: true`), the way `closeVote` guards itself.
+**Accept when:**
+- [ ] a finished trivia round adds 3/2/1 to `room.night`, and playing it again adds again
+- [ ] going back to the hub and playing another game keeps the earlier points
+- [ ] a game where nobody scored adds nothing
+- [ ] ارسم واكتب adds nothing
+- [ ] calling the end action twice banks once
+- [ ] `room.night` survives `clearGameState`
+- [ ] سكرو banks the lowest total as first
+- [ ] `npm run test:rules` passes; a mock test covers ties, a single player, an all-zero board and the double call
+
+### T4.2 — Show it in the hub
+**Files:** `JS_Room.html` → `renderRoomHub`; `JS_RoomTv.html` → the lobby frame; `JS_Core.html` → keys
+**After:** under the game picker, a compact board titled `🌙 ليلتنا` listing every player with points, highest first, drawn with the existing `renderScoreboard` so `animateScoreboards` counts the new points up when a game lands. Nothing when `room.night` is empty. The TV lobby shows the same board, larger.
+**Accept when:**
+- [ ] the board appears only once a game has been banked
+- [ ] the numbers match `room.night` exactly
+- [ ] a player who joins mid-evening appears with 0 once they have played a game
+- [ ] the hub looks unchanged in a room that has played nothing
+- [ ] the strings exist in `ar` and `en`
+
+---
+
+# Phases 5-9
+
+**DETAIL PENDING.** Do not start any of them until the phase section appears here and you are given it by name.
 - **Phase 5** — the motion batch: floating points, Connections shake, 3-2-1 pops and edge pulse, buzzer press, superlatives, the وقف slam, the Draw & Guess stamp, the Wordle shake, the Mafia day/night fade.
 - **Phase 6** — shareable result cards drawn on a canvas.
 - **Phase 7** — العقل (The Mind), a new room game with no content at all.

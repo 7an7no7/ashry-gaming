@@ -272,8 +272,21 @@ function watchScrollFade(el) {
 
 /* --- The home screen -------------------------------------------------------- */
 
+const HOME_PLAYER_COUNTS = ['off', '2', '3', '4', '5', '6', '7', '8+'];
 let homeFilter = 'all';
+let homePlayers = recallOptions('homePlayers', 'off');
+if (HOME_PLAYER_COUNTS.indexOf(homePlayers) === -1) homePlayers = 'off';
 let homeSearch = '';
+
+/** Does a catalog entry fit the chosen player count? */
+function catalogMatchesPlayers(g, count) {
+  if (!count || count === 'off') return true;
+  if (!g || !g.players) return false;
+  const [min, max] = g.players;
+  if (count === '8+') return max >= 8;
+  const n = Number(count);
+  return n >= min && n <= max;
+}
 
 function renderHome() {
   const view = document.getElementById('view-menu');
@@ -324,6 +337,14 @@ function renderHome() {
           <button type="button" role="tab" class="filter-chip ${f.id === homeFilter ? 'is-active' : ''}"
                   data-filter="${f.id}" aria-selected="${f.id === homeFilter}" onclick="setHomeFilter('${f.id}')">
             <span aria-hidden="true">${f.icon}</span>${escapeHTML(t[f.label] || f.id)}
+          </button>`).join('')}
+      </div>
+      <div class="filter-row filter-row--players hscroll-fade" role="group" aria-label="${escapeHTML(t.flt_how_many || '')}">
+        <span class="filter-row__label" aria-hidden="true">👥 ${escapeHTML(t.flt_how_many || '')}</span>
+        ${HOME_PLAYER_COUNTS.map(p => `
+          <button type="button" class="filter-chip filter-chip--sm ${p === homePlayers ? 'is-active' : ''}"
+                  data-players="${p}" aria-pressed="${p === homePlayers}" onclick="setHomePlayers('${p}')">
+            ${escapeHTML(p === 'off' ? (t.flt_players_all || 'الكل') : p)}
           </button>`).join('')}
       </div>
     </div>`;
@@ -394,10 +415,23 @@ function refreshHomeRecent() {
 
 function setHomeFilter(id) {
   homeFilter = id;
-  document.querySelectorAll('#view-menu .filter-chip').forEach(b => {
+  document.querySelectorAll('#view-menu [data-filter]').forEach(b => {
     const on = b.dataset.filter === id;
     b.classList.toggle('is-active', on);
     b.setAttribute('aria-selected', on);
+  });
+  applyHomeFilter();
+  haptic('light');
+}
+
+function setHomePlayers(count) {
+  const next = (homePlayers === count && count !== 'off') ? 'off' : count;
+  homePlayers = next;
+  rememberOptions('homePlayers', next);
+  document.querySelectorAll('#view-menu [data-players]').forEach(b => {
+    const on = b.dataset.players === next;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', on);
   });
   applyHomeFilter();
   haptic('light');
@@ -433,6 +467,9 @@ function applyHomeFilter() {
     const isTool = g.group === 'tools';
     // Tools answer a search only; the chips are about how a game is played.
     let ok = isTool ? searching && homeFilter === 'all' : catalogMatchesFilter(g, homeFilter);
+    if (ok && homePlayers !== 'off') {
+      ok = catalogMatchesPlayers(g, homePlayers);
+    }
     if (ok && searching) {
       const hay = helpNormalise([catalogTitle(g, t), catalogDesc(g, t), catalogTitle(g, other), catalogDesc(g, other)].join(' '));
       ok = hay.indexOf(term) !== -1;
@@ -450,9 +487,9 @@ function applyHomeFilter() {
   });
   // The recent row is a shortcut, not a search result.
   const recent = document.getElementById('home-recent');
-  if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all');
+  if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all' || homePlayers !== 'off');
   const daily = document.getElementById('home-daily');
-  if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo'));
+  if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo') || homePlayers !== 'off');
   const empty = document.getElementById('home-empty');
   if (empty) empty.classList.toggle('hidden', shown > 0);
 }

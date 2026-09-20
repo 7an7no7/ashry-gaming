@@ -1,8 +1,8 @@
 # Ashry Gaming — roadmap runbook
 
-## Where this stands (20 Sep 2026, end of the first session)
+## Where this stands (20 Sep 2026, end of the second session)
 
-Everything is on the branch **`feature/roadmap`**, tree clean, nothing pushed and nothing deployed. The owner's decision: **ship the whole roadmap at once**, not phase by phase — so the live site still carries the wrong trivia answers until the branch lands.
+**Every phase of the roadmap is done.** Everything is on the branch **`feature/roadmap`**, tree clean, nothing pushed and nothing deployed. The owner's decision stands: **ship the whole roadmap at once** — so the live site still carries the wrong trivia answers until the branch lands.
 
 | Phase | State |
 |---|---|
@@ -13,14 +13,43 @@ Everything is on the branch **`feature/roadmap`**, tree clean, nothing pushed an
 | 3 | Done, reviewed. المختلف, with the odd one out unknown to the player *and* to their phone. T3.5 added: being named ends the round, no guess from six |
 | 4 | Done, reviewed. The leaderboard of the night |
 | 5A | Done, reviewed. The وقف slam, the خمّن صح stamp, the Wordle shake, Mafia's night and day |
-| 5B | **Three of five.** Done: floating points, the one-away shake, the buzzer ring. **Left: T5B.3** (the 3-2-1 countdown pops and the screen-edge pulse) **and T5B.5** (the end-of-game titles) |
-| 6, 7, 8, 9 | Not started. Share cards, العقل, قبل ولا بعد, the Mafia narrator |
+| 5B | Done. Floating points, the one-away shake, the buzzer ring, the 3-2-1 pop with the screen-edge rim, and the end-of-game titles |
+| 6 | Done. A result card drawn on a canvas and sent as a picture, wherever a result already is |
+| 7 | Done. العقل (The Mind) — a cooperative room game with no content at all |
+| 8 | Done. قبل ولا بعد (Timeline) and its bank of 22 dated events |
+| 9 | Done. The Mafia narrator, an option, off by default |
 
-Every phase has a report in `notes/phase-reports/`. Each one lists what was verified and how, and what still needs a live test on a real phone or TV — read those before re-checking anything.
+Every phase has a report in `notes/phase-reports/`. Each one lists what was verified and how, and what still needs a live test on a real phone or TV — **read those before re-checking anything**, and in particular the "Not verified" section at the end of each.
 
-**To carry on with the delegated loop:** the scripts, `loop.env` and the standing rules are in `C:/Users/TPC/agy-loop/`. Build a brief as `standing_rules.md` + a phase task file, then `bash C:/Users/TPC/agy-loop/run_agy.sh <name> <ABSOLUTE brief path> new 150m` in the background, and review with `bash C:/Users/TPC/agy-loop/review_phase.sh <base commit>`. agy's quota was exhausted at 16:50 on 20 Sep and resets about 3½ hours later; Phases 4, 5A and 5B's three tasks were written by Claude directly while it was out.
+### What the owner still has to decide
 
-**Two traps worth knowing before touching the motion phases:** the Browser pane runs hidden, so `document.hidden` is true, `motionOff()` is always true and nothing animates — override `document.hidden` and set `ashryMotion: 'on'` to test, and measure resting positions with `animation: none` because CSS animations never advance in a hidden pane. And `Controller.html` fails the scripted parse check both before and after any change, because of its Apps Script `<?!= … ?>` syntax; that is not a regression.
+- **The narrator has never been heard.** Phase 9 ships it off by default for exactly that reason. The five lines, the pace and the Arabic voice are guesses until somebody plays a round with it on.
+- **قبل ولا بعد has 22 events.** With four players a game deals 21 of them, so a second game in the same evening re-uses nearly all of them. The runbook's ⛔ says not to add a date that cannot be sourced, and none were added — if the owner wants more, that is the thing to ask for.
+- **سكرو and مافيا have no share card** (Phase 6). سكرو's podium is lowest-wins and `renderPodium` is fed an inverted score there, so a card built from that board would print numbers that are not anyone's total; مافيا ends with roles rather than a score. Both are a small follow-up rather than a silent half-measure.
+- **Two طرنيب ٤١ rules** are still waiting, from before this roadmap (see GEMINI.md, *Waiting*).
+
+### Deviations from this document, and why
+
+Three, each recorded in its phase report:
+
+1. **T5B.5** said both end-of-game titles were derivable from `shared` and forbade touching `RoomGames.js`. Neither was: trivia overwrites `shared.order` every question, and صدق ولا كذب nulls `shared.caught`/`fooled` on the step that ends the game. **The owner chose** the small server change (two tallies, published only at gameover) over skipping the task.
+2. **T8.1** said to inline `TimelineEvents.js` into the page as well. **It is deliberately server-only**: the years of unplayed cards are the whole secret, and the page would have shipped the answer key. Same reason `PartyContent.js` has always stayed off the page.
+3. **T7.2 and T8.2** both gained a TV renderer beyond what the files list named, because a room game that only the phones can see is the wrong way round at a party.
+
+### Found on the way, outside the roadmap
+
+- **The room trivia clock never ticked** (`29ba7b9`). `JS_TriviaBoard.html` loads after `JS_RoomTrivia.html` and its `paintTriviaTimer` replaced the room's, so the question's badge and the TV's number sat at the question's full length. Present on `master` too. A repo-wide scan for top-level names declared twice found no others in the page's scope.
+- **A stray newline broke every solo game** (`d3559d8`), introduced by Phase 6 and caught by opening the preview and reading the console. **Run the per-file parse check after every edit**, not only at the end of a phase: `node`'s `vm.Script` over each `<script>` block. `Controller.html` always fails it (its Apps Script `<?!= … ?>` syntax) and that is not a regression.
+
+### Before this ships
+
+The branch has never been built or deployed. In the owner's order (CLAUDE.md, *Every change, in this order*): `npm run build:css` if any Tailwind class was added (none was), `npm run check`, `npm run test:rules` and `npm test`, a look in the browser, `npm run build:site`, `npm run deploy` in `rooms-worker/` (Phases 3, 4, 5B, 7, 8 and 9 all changed `RoomGames.js`), then commit `docs/` and push, then `npm run check:live`.
+
+**A trap for the robot suite:** `wrangler dev` re-runs `build.mjs` when `src/` changes but **not** when `RoomGames.js` at the root changes. A server left running from before an edit serves the old rules and `npm test` silently passes against them. Restart it.
+
+**To carry on with the delegated loop:** the scripts, `loop.env` and the standing rules are in `C:/Users/TPC/agy-loop/`. Build a brief as `standing_rules.md` + a phase task file, then `bash C:/Users/TPC/agy-loop/run_agy.sh <name> <ABSOLUTE brief path> new 150m` in the background, and review with `bash C:/Users/TPC/agy-loop/review_phase.sh <base commit>`. agy's quota was exhausted for the whole of this session; Phases 4 onward were written by Claude directly.
+
+**Two traps worth knowing before touching the motion phases:** the Browser pane runs hidden, so `document.hidden` is true, `motionOff()` is always true and nothing animates — override `document.hidden` and set `ashryMotion: 'on'` to test, and measure resting positions with `animation: none` because CSS animations never advance in a hidden pane.
 
 ---
 

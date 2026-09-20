@@ -62,11 +62,14 @@
   (`Proverbs.js`).
 - **Rooms only, no content at all:** 🙊 **Two Truths and a Lie (صدق ولا
   كذب):** everyone writes, everyone votes; 🖍️ **Draw & Write (ارسم واكتب):**
-  the drawing telephone, drawn on phones and revealed on the TV.
+  the drawing telephone, drawn on phones and revealed on the TV; 🧠 **The Mind
+  (العقل):** secret numbers laid down in rising order without a word.
 - **Multiplayer-only, also:** 🔔 **Buzzer (الجرس):** the host asks out loud,
   every phone is a buzzer, the server keeps the order of presses;
   🕴️ **Mafia (مافيا):** the app narrates night and day, roles on each phone;
-  🐄 **Herd Mentality (زي الكل):** write what most of the table will write.
+  🐄 **Herd Mentality (زي الكل):** write what most of the table will write;
+  🗓️ **Timeline (قبل ولا بعد):** put an event in its place on the line,
+  before or after the cards already down.
 - **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
   or two on one phone; ⭕ **Tic Tac Toe (إكس أو)** against a friend or an
   unbeatable minimax.
@@ -392,6 +395,21 @@ the word search), `countUp` for streaks and scores.
   in a long word counts, a near miss says so) in ارسم وخمّن, the fake
   artist's guess and the quiz cards; the drawing list cut from 900 to 690
   drawable words (خلد had been dealt).
+- **20 Sep 2026, the roadmap** - an audit of the whole app became a nine-phase
+  plan the owner agreed (`notes/ROADMAP_RUNBOOK.md`, with a report per phase in
+  `notes/phase-reports/`), built on the branch `feature/roadmap` and shipped in
+  one go at the owner's request. Phase 0 corrected content that was wrong on
+  the live site; then the TV as the room's only voice, a card-scorer round that
+  can be fixed without destroying the ones after it, the home's player-count
+  and together-or-apart filters, اختارلنا, the archive of past dailies and
+  أرقامي, المختلف (nobody is told their role), the leaderboard of the night,
+  and the motion batch (the وقف slam, the خمّن صح stamp, the Wordle shake,
+  Mafia's night and day, points that fly to the board, the one-away shake, the
+  buzzer ring, the last three seconds, the titles at the end). Then the share
+  card, العقل, قبل ولا بعد and the Mafia narrator. Robot tests: 1071.
+  Found on the way, outside the plan: the room trivia clock had never ticked -
+  `JS_TriviaBoard.html` is concatenated after `JS_RoomTrivia.html` and its
+  `paintTriviaTimer` silently replaced the room's (*Traps*).
 
 ## Building and Running
 
@@ -443,7 +461,7 @@ Two browser tabs on the preview behave like two phones in one room.
   `RoomGames.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
-  `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -536,7 +554,7 @@ is nowhere to hide the key card.
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `rooms-worker/src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live`. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
-| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js` | Word lists (and سكرو's cards) the rules deal from, bundled into the Worker. The last nine are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, a Stop phone checks its boxes with the server's own rule, the solo games ask from the room trivia's questions, and a سكرو phone names and draws the cards the server deals. `PartyContent.js` stays server-only: the Fibbage answers in it must never reach a page. |
+| `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js` | Word lists (and سكرو's cards, and قبل ولا بعد's dates) the rules deal from, bundled into the Worker. Nine of them are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, a Stop phone checks its boxes with the server's own rule, the solo games ask from the room trivia's questions, and a سكرو phone names and draws the cards the server deals. **Two stay server-only, on purpose:** `PartyContent.js`, because the Fibbage answers in it must never reach a page, and `TimelineEvents.js`, because the years of unplayed cards are قبل ولا بعد's whole secret. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -978,6 +996,69 @@ scores a point. The news is worded so it fits any name ("المافيا خرّج
 say whether to write خرج or خرجت. `roomTurnOf` asks a living phone that
 hasn't tapped at night (`turn_night`).
 
+**The narrator** is an option in the lobby, **off by default** (the owner,
+20 Sep 2026: not on until it has been heard on a real phone). It is a room
+setting - `shared.narrate`, so every device agrees the evening has a voice -
+and exactly one device speaks: the big screen where there is one (the table's
+own voice, and nobody is holding it), the host's phone where there is none
+(`mafiaNarrator`). At each change of phase it reads one short line
+(`mafiaNarrationLine`): the town falling asleep, the morning news, the vote,
+the end. **It never reads a role**: the lines are the very strings already
+printed on every screen, and `mafia_was` and the role name are deliberately
+not among them. A news card lies face down for a beat, so the line goes
+through `afterReveal` rather than saying the name out from under the reveal.
+The speech itself is `speakLine` / `speakStop` / `speakPrime` in
+`JS_Sounds.html`, which handles the three things browser speech gets wrong:
+`getVoices()` is empty until `voiceschanged`, so the list is asked for each
+time rather than cached; iOS only starts speech inside a tap, so it is primed
+on the first one anywhere in the app and a refusal is swallowed; and where
+there is no voice for the language it says **nothing at all** - an Arabic line
+read by an English voice is worse than silence. Leaving the screen, or the
+room moving on (`onRoomClocksReset`), cancels whatever is being said.
+
+**العقل in rooms** (`mindAction`, `JS_RoomMind.html`). A cooperative game with
+no content at all: every phone holds numbers from 1 to 100 that only it can
+see, and the table lays them all down in rising order without a word. Level
+*n* deals *n* cards each; the hearts start at the number of players. The
+numbers are the whole game, so a hand is `room.secrets[pid].cards`, kept
+sorted - `play` always means the lowest card that phone holds, so there is no
+card id to send and nothing to cheat with. `shared` carries the level, the
+hearts, the pile, what was thrown away face up and `held` (how many each
+player still has), never a number anybody is holding. Playing out of order
+costs one heart and turns every lower card face up, which is the real game's
+rule and what keeps a level moving. A level with nothing left in hand is
+`levelDone` and the host deals the next; the deck running out of room for
+another level is a **win**. `roomTurnOf` answers for any phone still holding a
+card - in العقل it is always your turn. There is no score board, so the
+night's leaderboard and the share card both pass it by, which is right.
+On the phone: your numbers big, only the lowest a button, the pile, the
+hearts and a strip of how many each player holds. A card flies from where it
+was tapped onto the pile, and a heart lost shakes the screen once - checked
+**before** the phase branches, because losing the last card of a level costs a
+heart and clears the level in the same move.
+
+**قبل ولا بعد in rooms** (`timelineAction`, `JS_RoomTimeline.html`). One card
+starts a line on the table; everyone else holds event cards with the years
+taken off (`timelineHidden`). On your turn you pick one and tap a gap - before
+the first, between two, or after the last. Right and it stays and your hand is
+one smaller and you score a point; wrong and the year is shown, the card is
+out and you **draw a replacement**, so a hand only ever shrinks on a card put
+in the right place. First to empty wins, and because everyone starts with the
+same hand the board (cards placed correctly) and the winner always agree.
+The bank is `TimelineEvents.js`: 22 events, 1869-2015, Egyptian and Arab
+first with famous world dates mixed in (the owner, 20 Sep 2026), each with one
+year nobody argues about. **It is bundled into the Worker only** - deliberately
+not inlined into the page like the other shared lists - because the years of
+unplayed cards are the whole secret and the app would otherwise ship the
+answer key, the same reason `PartyContent.js` stays server-side. `npm run
+check` fails on a repeated year or a missing language. The hand size is worked
+out from the cards that actually came back, so twelve players get one each
+instead of the deal failing on a bank of 22, and spare cards are dealt for the
+replacements. The line carries `dir="ltr"` in both languages: it is a physical
+axis like Wavelength's spectrum, and mirrored in Arabic it would read 2015
+before 1869. A gap is a button only on your turn and only once you have picked
+a card.
+
 **سكرو in rooms** (`screwAction`, `JS_RoomScrew.html`), the owner's spec
 (see *The owner's specs*). The cards are `SkrewCards.js`, shared with the page:
 `SKREW_CARDS` (value, kind, power, which version), `SKREW_EDITIONS`,
@@ -1320,6 +1401,26 @@ always opens, filled in with the name last used (`roomName`, localStorage
 join screen and Settings → your name read and write the same value. On tablets
 and desktop every sheet is a centred dialog (the `min-width: 640px` block in
 *Sheets, modals, toasts*); phones keep the bottom sheet.
+
+**A result you can send as a picture** (`JS_ShareCard.html`). A result told as
+text is a wall of characters in WhatsApp. `shareResultCard({ title, icon, rows,
+footer, text })` draws it on a 1080x1920 canvas instead - the app's violet
+ground, the game's icon and name, up to ten rows of name and score, a line of
+the game's own, and the mark and the link at the foot - and sends it. Three
+ways out, in order: the phone's share sheet with the picture attached
+(`navigator.canShare({ files })`), a download where that isn't offered, and the
+plain text through `shareOrCopy` where neither works, which is exactly what the
+app did before. **Nothing is drawn until a share button is pressed**: the
+canvas is made, used and thrown away inside the call, so a result screen costs
+nothing until somebody wants to send it. The colours are read off the mark in
+the page (`shareCardColours`, the gradient stops of `#ashry-mark`) rather than
+written again, so the card follows whatever colourway the app ships with; the
+mark itself is that `<symbol>` wrapped in a standalone SVG as a `data:` URL,
+which a canvas can draw and which leaves it untainted. Arabic is drawn with
+`ctx.direction = 'rtl'`. The button is on the solo result sheet, the تحدي
+اليوم hub and the six room games that end on a podium with a real board
+(`roomShareBtnHtml`, never on a big screen and never when nobody scored), each
+with the plain text beside it on a ghost button.
 
 **Getting people in.** The lobby's share button (`roomShareLink`) sends the join
 link through the phone's share sheet, or copies it where there is none, for
@@ -2028,6 +2129,44 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**One scope means one name, and the later file wins silently.** Every
+`JS_*.html` is concatenated into one page, so two top-level `function`s with
+the same name are not two functions: the file included later replaces the
+earlier one, with no error anywhere. `JS_TriviaBoard.html` comes after
+`JS_RoomTrivia.html` in `Controller.html`, so its `paintTriviaTimer(seconds)`
+replaced the room's `paintTriviaTimer(endsAt)`, and the room trivia clock -
+the badge on every phone and the big number on the TV - sat at the question's
+full length and never counted down, on the live site, for as long as both
+existed. The room's is `paintRoomTriviaTimer` now, game-qualified like
+`paintStopRoomTimer` and `paintSpyfallRoomTimer` beside it. **Name anything
+per-game after its game**, and before adding a top-level name, check the whole
+tree for it:
+
+```bash
+grep -rlE "^(\s*(async\s+)?function NAME\s*\(|const NAME\s*=)"   --include="JS_*.html" --include="*.js" . | grep -v docs/
+```
+
+A sweep on 20 Sep 2026 found only that one. `TRIVIA_COUNTS` and
+`startCodenamesClock` are each declared twice, but one copy is in
+`RoomGames.js`, which is **not** part of the page - those are a client copy
+and a server copy, in separate scopes, and are fine.
+
+**A parse check is per file, and it has to run after every edit.** A stray
+newline inside a string literal in `JS_Solo.html` made the whole file fail to
+parse in the browser - so nothing in it was defined, which took out
+`soloRegister` and with it every solo game, the daily hub and the result
+sheet. Nothing failed at the command line; the only sign was the browser
+console. After touching any file:
+
+```bash
+node -e "const fs=require('fs'),vm=require('vm');const s=fs.readFileSync(process.argv[1],'utf8');
+[...s.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].forEach((m,i)=>{try{new vm.Script(m[1])}
+catch(e){console.log('FAIL',process.argv[1],e.message)}});" FILE.html
+```
+
+`Controller.html` always fails it - its Apps Script `<?!= … ?>` syntax is not
+JavaScript - and that is not a regression.
 
 **A class list write is a mutation even when it changes nothing.** The
 segmented thumbs and the nav pill are re-measured by a `MutationObserver` on

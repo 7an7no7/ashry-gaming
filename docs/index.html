@@ -118,7 +118,11 @@
   --surface:       rgba(255, 255, 255, 0.92);
   --surface-solid: var(--n-0);
   --surface-2:     #faf8f4;
-  --surface-3:     #f4f2ed;
+  /* Measured, not picked: this is the lightest warm step that clears AA for
+     every ink that ever sits on it (a segmented track before its thumb has
+     been measured is the tight case, with --warning-ink on it) - and it
+     beats the cold #f1f5f9 it replaced on all eight palettes. */
+  --surface-3:     #f7f5f1;
   --surface-sunken: #f0ede7;
   --elevated:      var(--n-0);
   --border:        rgba(15, 23, 42, 0.08);
@@ -7522,7 +7526,10 @@ button.herd-group { cursor: pointer; }
 .archive-cal {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
+  /* Seven across a 375px phone is the whole constraint: at a 4px gap a day
+     came out 39px, under the floor. The gap gives the pixels back, and the
+     min-height covers the shorter axis. */
+  gap: 2px;
   text-align: center;
 }
 .archive-cal__head {
@@ -7533,6 +7540,7 @@ button.herd-group { cursor: pointer; }
 }
 .archive-cal__day {
   aspect-ratio: 1;
+  min-height: var(--tap);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -12015,7 +12023,7 @@ function skrewDecksFor(players) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260920181926";
+      window.BUILD_ID = "20260920184449";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -20551,6 +20559,15 @@ function skrewDecksFor(players) {
       later();
     });
     window.addEventListener('resize', later);
+    /* A webfont swapping in changes the width of every label it sets - and it
+       fires no mutation and no resize, so a thumb measured against the
+       fallback stayed where the fallback put it until something else happened
+       to redraw. Both faces are variable ranges fetched with display=swap, so
+       on a cold cache there is always a moment of fallback first; the nav pill
+       rides on the same pass. */
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(later).catch(() => {});
+    }
   })();
 
   function goBack() {

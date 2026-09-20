@@ -458,7 +458,14 @@ the word search), `countUp` for streaks and scores.
   over the catalogs and setup screens at 375x812, 667x375 and 1280x720, both
   themes, both languages: the tightest ratio is 4.63:1 and there are no tap
   or overflow failures. Nothing the rooms server runs was touched, so no
-  deploy.
+  deploy. Then the same sweep over **all 133 views in both themes**, run
+  twice - once with the new tokens, once with the old ones injected - and
+  diffed: **nothing regressed**. It turned up two things worth fixing, one
+  in the change's own blast radius and one that had always been there: the
+  thumb and the nav pill are not re-measured when a webfont swaps in
+  (*Traps*), and a day in تحدي اليوم's archive calendar was 39px, under the
+  floor - seven across a 375px phone is the whole constraint, so the gap
+  gave the pixels back.
 
 - **20 Sep 2026, the roadmap** - an audit of the whole app became a nine-phase
   plan the owner agreed, built on a branch and shipped in one go at their
@@ -2220,6 +2227,27 @@ A sweep on 20 Sep 2026 found only that one. `TRIVIA_COUNTS` and
 `startCodenamesClock` are each declared twice, but one copy is in
 `RoomGames.js`, which is **not** part of the page - those are a client copy
 and a server copy, in separate scopes, and are fine.
+
+**A webfont swapping in moves everything measured against the fallback, and
+it fires no event anyone listens to.** The segmented control's thumb and the
+nav pill are placed by measuring the active item (`syncSegmented`,
+`syncNavPill`), re-run by a `MutationObserver` on class changes and on
+`resize`. A font arriving changes every label's width and is neither of
+those, so on a cold cache a thumb sat where the fallback put it until
+something else happened to redraw. `document.fonts.ready` now runs the same
+coalesced pass (JS_Core.html). Anything else that measures text and caches
+the number needs to be on that pass too.
+
+**A contrast sweep that cannot see gradients will drown you in false
+failures.** The first run of the 20 Sep sweep reported 113 failures across
+266 view/theme combinations; all but a handful were text on a `background-image`
+- the violet hero, every `.btn--primary`, a segmented thumb drawn as a
+`::before`, the chooser's translucent plates on its dark stage. Computed
+style cannot composite those, so the walker must return *unknown* and count
+it, never guess the page ground. With that fixed the same run reported 3,
+and the way to tell a regression from an old friend is to run the sweep
+twice - once with the new tokens and once with the old ones injected on
+`body` - and diff the two sets of keys.
 
 **A parse check is per file, and it has to run after every edit.** A stray
 newline inside a string literal in `JS_Solo.html` made the whole file fail to

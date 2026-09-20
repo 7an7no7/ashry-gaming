@@ -5557,6 +5557,15 @@
       later();
     });
     window.addEventListener('resize', later);
+    /* A webfont swapping in changes the width of every label it sets - and it
+       fires no mutation and no resize, so a thumb measured against the
+       fallback stayed where the fallback put it until something else happened
+       to redraw. Both faces are variable ranges fetched with display=swap, so
+       on a cold cache there is always a moment of fallback first; the nav pill
+       rides on the same pass. */
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(later).catch(() => {});
+    }
   })();
 
   function goBack() {

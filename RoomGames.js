@@ -2930,6 +2930,7 @@ const triviaAction = (room, playerId, action, payload) => {
       const order = shuffled(q.choices.map((_, k) => k));
       return { q: q.q, choices: order.map(k => q.choices[k]), answer: order.indexOf(q.answer) };
     });
+    room._triviaFastest = {};
     room.shared = { scores: {}, lang: lang, roster: room.players.map(p => p.id) };
     dealTriviaQuestion(room, 0);
     return;
@@ -2974,6 +2975,7 @@ const triviaAction = (room, playerId, action, payload) => {
     if (next >= (room._deck || []).length) {
       s.phase = 'gameover';
       s.board = scoreboardOf(room);
+      s.fastest = topTally(room, room._triviaFastest);
       return;
     }
     dealTriviaQuestion(room, next);
@@ -2981,6 +2983,23 @@ const triviaAction = (room, playerId, action, payload) => {
   }
 
   throw new Error('إجراء غير معروف');
+};
+
+/**
+ * The player at the top of a running tally, for a title at the end of a game
+ * ("fastest", "best liar"). Nothing at all unless one player is strictly
+ * ahead: a title half the table shares is not a title, and a game where
+ * nobody scored has no leader to name. Someone who has left the room is not
+ * counted either - roomPlayerName has no name for them any more.
+ */
+const topTally = (room, tally) => {
+  const ids = Object.keys(tally || {})
+    .filter(id => tally[id] > 0 && room.players.some(p => p.id === id));
+  if (!ids.length || room.players.length < 2) return null;
+  const best = Math.max.apply(null, ids.map(id => tally[id]));
+  const top = ids.filter(id => tally[id] === best);
+  if (top.length !== 1) return null;
+  return { id: top[0], name: roomPlayerName(room, top[0]), n: best };
 };
 
 const dealTriviaQuestion = (room, idx) => {
@@ -3031,6 +3050,12 @@ const closeTriviaQuestion = (room) => {
     gained[pid] = TRIVIA_POINTS + Math.max(0, TRIVIA_SPEED_BONUS - rank);
     addScore(room, pid, gained[pid]);
   });
+  // Who got there first, question by question. s.order is overwritten by the
+  // next question, so the count has to be kept here to reach the end.
+  if (right.length) {
+    room._triviaFastest = room._triviaFastest || {};
+    room._triviaFastest[right[0]] = (room._triviaFastest[right[0]] || 0) + 1;
+  }
 
   s.phase = 'results';
   s.correctAnswer = q.answer;
@@ -3357,6 +3382,7 @@ const twoTruthsAction = (room, playerId, action, payload) => {
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
     if (action === 'playAgain' && room.shared.phase !== 'gameover') return;
     room._tt = {};
+    room._ttFooled = {};
     room.secrets = {};
     room.shared = {
       phase: 'writing',
@@ -3441,6 +3467,7 @@ const nextTwoTruthsTurn = (room) => {
     s.items = null;
     s.vote = null;
     s.board = scoreboardOf(room);
+    s.bestLiar = topTally(room, room._ttFooled);
     room.phase = 'gameover';
     return;
   }
@@ -3468,6 +3495,9 @@ const resolveTwoTruths = (room) => {
   s.lieIndex = entry.lie;
   s.caught = caught.map(id => roomPlayerName(room, id));
   s.fooled = fooled.map(id => roomPlayerName(room, id));
+  // s.fooled is cleared before the next storyteller, so the tally is kept here.
+  room._ttFooled = room._ttFooled || {};
+  room._ttFooled[s.subjectId] = (room._ttFooled[s.subjectId] || 0) + fooled.length;
   s.board = scoreboardOf(room);
   s.phase = 'result';
   room.phase = 'result';

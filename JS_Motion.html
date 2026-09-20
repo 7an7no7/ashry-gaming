@@ -376,6 +376,28 @@ function renderPodium(state, board) {
   '</div>';
 }
 
+/**
+ * A title at the end of a game: "⚡ أسرع واحد · أحمد". `winner` is what the server
+ * published ({ id, name, n }) or null, and null draws nothing at all rather
+ * than an empty row - a game with one player, or with nobody scoring, has no
+ * title. `delay` holds it back until the podium beside it has finished rising;
+ * data-reveal-ms tells afterReveal to keep the confetti until then.
+ */
+const AWARD_AFTER_PODIUM_MS = 1900;
+
+function renderAward(icon, label, winner, delay) {
+  if (!winner || !winner.name) return '';
+  const at = Math.max(0, Number(delay) || 0);
+  const show = motionFirst(['award', label, winner.id, winner.n].join('|'));
+  return '<div class="award' + (show ? ' award--in" data-reveal-ms="' + (at + 520) + '"' : '"') +
+           ' style="--at:' + at + 'ms">' +
+           '<span class="award__icon" aria-hidden="true">' + icon + '</span>' +
+           '<span class="award__label">' + escapeHTML(label || '') + '</span>' +
+           '<span class="award__name">' + escapeHTML(winner.name) + '</span>' +
+           '<span class="award__n metric">' + (Number(winner.n) || 0) + '</span>' +
+         '</div>';
+}
+
 /* --- 10. A letter spins in --------------------------------------------------- */
 
 /**

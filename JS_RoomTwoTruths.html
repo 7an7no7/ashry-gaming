@@ -94,10 +94,13 @@ ROOM_GAMES.twotruths = {
     }
 
     // gameover
-    const fresh = renderRoomFrame(el, ['tt-over', state.youAreHost, appState.lang].join('|'), () => `
+    const fresh = renderRoomFrame(el, ['tt-over', state.youAreHost, appState.lang].join('|'), () => {
+      const ttPodium = renderPodium(state, s.board);
+      return `
       <div class="card card--accent" style="text-align:center">
         <p class="sheet__subtitle">${escapeHTML(t.tt_over || '')}</p>
-        ${renderPodium(state, s.board) || `<div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>`}
+        ${ttPodium || `<div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>`}
+        ${renderAward('🎭', t.title_liar, s.bestLiar, ttPodium ? AWARD_AFTER_PODIUM_MS : 200)}
       </div>
       ${renderScoreboard(s.board)}
       ${state.youAreHost
@@ -106,7 +109,8 @@ ROOM_GAMES.twotruths = {
              <button class="btn btn--ghost" onclick="roomAct('backToHub')">${t.room_another_game || ''}</button>
            </div>`
         : `<div class="waiting-note">${t.room_wait_host}</div>`}
-      ${renderRoomPlayerStrip(state)}`);
+      ${renderRoomPlayerStrip(state)}`;
+    });
     if (fresh && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 140, spread: 90 }));
     refreshRoomPlayerStrip(el, state);
   }
@@ -169,6 +173,7 @@ TV_GAMES.twotruths = {
     return `
       <div class="tv-vote">
         <div class="tv-title tv-center-text">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>
+        ${tvAwardHtml('🎭', t.title_liar, s.bestLiar, 200)}
         <div class="tv-scale">${renderScoreboard(s.board)}</div>
         ${host(tvBtn(t.play_again, "roomAct('playAgain')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
       </div>`;

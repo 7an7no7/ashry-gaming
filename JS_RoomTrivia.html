@@ -79,10 +79,12 @@ function triviaFrame(state, t, iAnswered) {
     const board = s.board || [];
     const best = board.length ? board[0].score : 0;
     const champs = board.filter(p => best > 0 && p.score === best).map(p => escapeHTML(p.name));
+    const podium = renderPodium(state, board);
     return `
       <div class="card card--accent" style="text-align:center">
         <div class="eyebrow">${t.trivia_champion || ''}</div>
-        ${renderPodium(state, board) || `<div class="metric metric--md metric--accent">🏆 ${champs.join(' · ') || '—'}</div>`}
+        ${podium || `<div class="metric metric--md metric--accent">🏆 ${champs.join(' · ') || '—'}</div>`}
+        ${renderAward('⚡', t.title_fastest, s.fastest, podium ? AWARD_AFTER_PODIUM_MS : 200)}
       </div>
       ${renderScoreboard(board)}
       ${state.youAreHost

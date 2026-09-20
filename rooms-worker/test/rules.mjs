@@ -50,6 +50,9 @@ for (let i = 2; i < 5; i++) {
 }
 applyRoomAction(room, 'a', 'nextQuestion', {});
 check(room.shared.phase === 'gameover', 'the game ends after the chosen 5 questions');
+// a was first on question 1, d on question 2, and nobody after that: a tie, so
+// no title. A title half the table shares is not a title.
+check(room.shared.fastest === null, 'trivia: nobody is the fastest when two are level');
 applyRoomAction(room, 'a', 'playAgain', { lang: 'ar' });
 check(room._deck.length === 5, 'play again keeps the chosen number of questions');
 
@@ -61,6 +64,80 @@ right = big._currentQ.answer;
 answerAll(big, big.players.map((p) => [p.id, right]));
 check(['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'].map((id) => big.shared.gained[id]).join(',') === '15,14,13,12,11,10,10',
       'the bonus runs out after the fifth: 15, 14, 13, 12, 11, 10, 10');
+
+/* --- the title at the end: who got there first, over the whole game -------- */
+// s.order is overwritten by every question, so the tally has to survive to
+// gameover on the server.
+// A five-question game (5 is one of TRIVIA_COUNTS), `firsts` naming who got
+// there first each time - null for a question nobody answered. `before` runs
+// just before the last nextQuestion, which is what turns the game over.
+const playTrivia = (ids, firsts, before) => {
+  const r = newRoom(ids);
+  applyRoomAction(r, ids[0], 'chooseGame', { game: 'trivia' });
+  applyRoomAction(r, ids[0], 'start', { lang: 'ar', count: 5 });
+  for (let i = 0; i < 5; i++) {
+    if (i) applyRoomAction(r, ids[0], 'nextQuestion', {});
+    const who = firsts[i];
+    if (who) { clock += 100; applyRoomAction(r, who, 'answer', { choice: r._currentQ.answer }); }
+    applyRoomAction(r, ids[0], 'closeQuestion', {});
+  }
+  if (before) before(r);
+  applyRoomAction(r, ids[0], 'nextQuestion', {});
+  return r;
+};
+
+const fast = playTrivia(['a', 'b', 'c'], ['a', 'a', 'a', 'b', null]);
+check(fast.shared.phase === 'gameover', 'trivia: five questions played out');
+check(!!fast.shared.fastest && fast.shared.fastest.id === 'a' && fast.shared.fastest.name === 'A' &&
+      fast.shared.fastest.n === 3, 'trivia: the fastest over the whole game is named, with the count');
+
+const none = playTrivia(['a', 'b', 'c'], []);
+check(none.shared.fastest === null, 'trivia: no title when nobody answered right');
+
+const tied = playTrivia(['a', 'b', 'c'], ['a', 'b']);
+check(tied.shared.fastest === null, 'trivia: a tie gives nobody the title');
+
+const left = playTrivia(['a', 'b', 'c'], ['b', 'b', 'a'], (r) => {
+  r.players = r.players.filter((p) => p.id !== 'b');
+});
+check(!!left.shared.fastest && left.shared.fastest.id === 'a' && left.shared.fastest.n === 1,
+      'trivia: someone who has left the room takes no title');
+
+const again = playTrivia(['a', 'b', 'c'], ['a', 'a', 'a']);
+applyRoomAction(again, 'a', 'playAgain', { lang: 'ar' });
+for (let i = 0; i < 5; i++) {
+  if (i) applyRoomAction(again, 'a', 'nextQuestion', {});
+  applyRoomAction(again, 'a', 'closeQuestion', {});
+}
+applyRoomAction(again, 'a', 'nextQuestion', {});
+check(again.shared.fastest === null, 'trivia: play again starts the tally over');
+
+const solo = playTrivia(['a'], ['a', 'a']);
+check(solo.shared.fastest === null, 'trivia: one player alone takes no title');
+
+/* --- صدق ولا كذب: who fooled the most ------------------------------------- */
+const tt = newRoom(['a', 'b', 'c']);
+applyRoomAction(tt, 'a', 'chooseGame', { game: 'twotruths' });
+applyRoomAction(tt, 'a', 'start', {});
+['a', 'b', 'c'].forEach((id) => applyRoomAction(tt, id, 'submit', { statements: ['t1' + id, 't2' + id, 'lie' + id], lie: 2 }));
+const ttVote = (voters, right) => {
+  const subject = tt.shared.subjectId;
+  const lie = 'i' + tt._tt[subject].lie;
+  const wrong = 'i' + ((tt._tt[subject].lie + 1) % 3);
+  voters.forEach((pid, i) => applyRoomAction(tt, pid, 'vote', { option: i < right ? lie : wrong }));
+};
+const others = () => tt.shared.roster.filter((id) => id !== tt.shared.subjectId);
+ttVote(others(), 0);                     // the first storyteller fools both
+check(tt.shared.phase === 'result' && (tt.shared.fooled || []).length === 2, 'صدق ولا كذب: both were fooled');
+applyRoomAction(tt, 'a', 'next', {});
+ttVote(others(), 2);                     // the second is caught by both
+applyRoomAction(tt, 'a', 'next', {});
+ttVote(others(), 1);                     // the third fools one
+applyRoomAction(tt, 'a', 'next', {});
+check(tt.shared.phase === 'gameover', 'صدق ولا كذب: every storyteller has had a turn');
+check(tt.shared.caught === null && tt.shared.fooled === null, 'صدق ولا كذب: the round data is cleared at the end, as before');
+check(!!tt.shared.bestLiar && tt.shared.bestLiar.n === 2, 'صدق ولا كذب: the one who fooled the most takes the title');
+check(tt.shared.bestLiar.id === tt.shared.order[0], 'صدق ولا كذب: and it is the right player');
 
 /* --- codenames: the options and the server's own clock -------------------- */
 const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };

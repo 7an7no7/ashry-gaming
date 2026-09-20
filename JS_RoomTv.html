@@ -36,6 +36,16 @@ function roomJoinUrl(code) {
 const tvBtn = (label, onclick, kind) =>
   `<button class="btn btn--${kind || 'primary'} btn--auto" onclick="${onclick}">${escapeHTML(String(label || ''))}</button>`;
 
+/**
+ * A title at the end of a game on the big screen. The same row the phones draw
+ * (renderAward), inside .tv-scale like every other phone piece the TV reuses -
+ * and nothing at all, not an empty box, when there is no title to give.
+ */
+const tvAwardHtml = (icon, label, winner, delay) => {
+  const row = renderAward(icon, label, winner, delay);
+  return row ? `<div class="tv-scale">${row}</div>` : '';
+};
+
 function tvRedraw() {
   if (Room.state) routeRoomState(Room.state);
 }
@@ -527,6 +537,7 @@ TV_GAMES.trivia = {
                 <span class="tv-podium__score">${p.score}</span>
               </div>`).join('')}
           </div>
+          ${tvAwardHtml('⚡', t.title_fastest, s.fastest, rise ? AWARD_AFTER_PODIUM_MS : 200)}
           ${state.youAreHost ? `<div class="tv-actions">${
             tvBtn(t.play_again, `roomAct('playAgain', { lang: '${VOTE_LANG()}' })`) +
             tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}

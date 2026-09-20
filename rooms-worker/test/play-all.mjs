@@ -732,6 +732,21 @@ async function main() {
   check(A.state.shared.scores[voters[0].pid] === 1 && A.state.shared.scores[subject.pid] === 2, 'a point for catching it, one per voter fooled');
   await A.must('next');
   await all(bots, (s) => s.shared.phase === 'voting' && s.shared.turn === 1, 'next storyteller');
+  // Play the rest out with everyone catching the lie, so the first storyteller -
+  // the only one who fooled anybody - takes the title at the end.
+  for (let guard = 0; A.state.shared.phase !== 'gameover' && guard < 8; guard++) {
+    const teller = byId(bots, A.state.shared.subjectId);
+    const itsLie = 'i' + teller.state.shared.items.indexOf(teller.name + ' 3');
+    for (const b of bots) if (b !== teller) await b.must('vote', { option: itsLie });
+    await A.waitFor((s) => s.shared.phase === 'result', 'the vote closes', 3000);
+    await A.must('next');
+    await A.waitFor((s) => s.shared.phase === 'voting' || s.shared.phase === 'gameover', 'on to the next storyteller', 3000);
+  }
+  await all(bots, (s) => s.shared.phase === 'gameover', 'two truths: every storyteller has had a turn');
+  check(!!A.state.shared.bestLiar && A.state.shared.bestLiar.id === subject.pid && A.state.shared.bestLiar.n === 2,
+        'the one who fooled the most is named at the end');
+  check(bots.every((b) => JSON.stringify(b.state.shared.bestLiar) === JSON.stringify(A.state.shared.bestLiar)),
+        'and every phone is told the same one');
   await A.must('backToHub');
 
   /* --- فوازير إيموجي ------------------------------------------------------------ */
@@ -928,6 +943,15 @@ async function main() {
   }
   await A.must('nextQuestion');
   await all(bots, (s) => s.shared.phase === 'gameover' && s.shared.board.length === 4, 'trivia game over after the chosen 5 questions');
+  // The title of the night. Which bot ends up fastest depends on the questions
+  // dealt, so what is checked is that it reaches every phone and names someone
+  // really in the room.
+  check(bots.every((b) => 'fastest' in b.state.shared), 'the end-of-game title reaches every phone');
+  const fastest = A.state.shared.fastest;
+  check(fastest === null || (!!fastest.name && fastest.n >= 1 && bots.some((b) => b.pid === fastest.id)),
+        'the fastest is a player who is really in the room, with a count');
+  check(bots.every((b) => JSON.stringify(b.state.shared.fastest) === JSON.stringify(fastest)),
+        'and every phone is told the same one');
   await A.must('backToHub');
 
   /* --- زي الكل ----------------------------------------------------------------- */

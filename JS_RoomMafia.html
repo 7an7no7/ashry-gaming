@@ -235,6 +235,26 @@ function mafiaNightTap(id) {
   });
 }
 
+/**
+ * Night falls and morning comes over about a second, on a layer of its own so
+ * nothing else on the screen repaints. The layer is kept across rebuilds - the
+ * frame is rewritten whenever a vote count changes, and a cross-fade that
+ * restarted every time would flicker.
+ */
+function mafiaSky(root, phase) {
+  if (!root) return;
+  let sky = root.querySelector('.mafia-sky');
+  if (!sky) {
+    sky = document.createElement('div');
+    sky.className = 'mafia-sky';
+    root.insertBefore(sky, root.firstChild);
+  }
+  const night = phase === 'night' || phase === 'roles';
+  const day = phase === 'day' || phase === 'dayResult' || phase === 'voting';
+  sky.classList.toggle('mafia-sky--day', day);
+  sky.classList.toggle('is-on', night || day);
+}
+
 ROOM_GAMES.mafia = {
   lobbyOptions(state) {
     const t = TRANSLATIONS[appState.lang];
@@ -372,6 +392,7 @@ ROOM_GAMES.mafia = {
           </div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
         ${renderRoomPlayerStrip(state)}`;
     });
+    mafiaSky(el, s.phase);
     if (rebuilt) mafiaSounds(state);
     refreshRoomPlayerStrip(el, state);
     refreshMafiaSecret(el, state, t);

@@ -144,6 +144,20 @@ ROOM_GAMES.drawguess = {
     paintStrokes(s.strokes || []);
     paintGuessList(s.guesses || []);
     refreshRoomPlayerStrip(el, state);
+
+    // خمّن صح! stamped across the drawing the moment someone cracks it — only
+    // when a guess won it, never when the host gave up (a round ends by
+    // shared.word being set, with or without a winner). Once per round per phone.
+    if (s.word && s.winnerId && !motionOff() &&
+        typeof motionFirst === 'function' && motionFirst('draw-stamp|' + state.code + '|' + s.round)) {
+      const wrap = el.querySelector('.draw-wrap');
+      if (wrap && !wrap.querySelector('.draw-stamp')) {
+        const stamp = document.createElement('div');
+        stamp.className = 'draw-stamp';
+        stamp.textContent = t.draw_stamp_right || 'خمّن صح!';
+        wrap.appendChild(stamp);
+      }
+    }
     if (!over) startDrawClock(s.endsAt);
     else stopDrawClock();
 

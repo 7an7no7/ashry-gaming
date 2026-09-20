@@ -118,6 +118,14 @@ ROOM_GAMES.stop = {
                  s.phase === 'done' ? JSON.stringify(s.board) : ''].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => stopRoomFrame(state, t, inRound, iSubmitted));
     if (rebuilt && s.phase === 'done' && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 160, spread: 80 }));
+    // ✋ الأتوبيس وقف! On paper, someone shouting stop makes the whole table drop
+    // its pen; a line of grey text did not. Only when a player closed it - the
+    // clock running out is not a shout. Once per round, on every phone and the TV.
+    if (s.phase !== 'writing' && s.stopperName &&
+        typeof motionFirst === 'function' && motionFirst('stop-slam|' + state.code + '|' + s.round)) {
+      slamBanner(t.stop_room_slam || '✋ الأتوبيس وقف!',
+                 `${s.stopperName} ${t.stop_room_stopped_by || ''}`);
+    }
     // A new letter spins in, with a cue when it lands, so a table looking at its papers looks up.
     if (s.phase === 'writing' && stopRoom.letterKey !== roundKey) {
       stopRoom.letterKey = roundKey;

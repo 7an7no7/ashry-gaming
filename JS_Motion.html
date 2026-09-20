@@ -524,6 +524,24 @@ function heroHomeFlight(previous, next) {
   };
 }
 
+/**
+ * A word slammed over the whole screen for a beat: "✋ الأتوبيس وقف!" the
+ * moment someone closes the round. Nothing under it takes a tap, and it is
+ * removed by a timer rather than by an animation event - a suppressed
+ * animation fires none at all. Silent by design: any cue belongs to the room
+ * (playRoomFx), so a table with a TV hears it once.
+ */
+function slamBanner(word, sub) {
+  if (motionOff()) return null;
+  const el = document.createElement('div');
+  el.className = 'slam';
+  el.innerHTML = `<div class="slam__word">${escapeHTML(word)}</div>` +
+                 (sub ? `<div class="slam__sub">${escapeHTML(sub)}</div>` : '');
+  document.body.appendChild(el);
+  setTimeout(() => { if (el.isConnected) el.remove(); }, 1200);
+  return el;
+}
+
 // After the room has drawn itself for this state.
 Room.onChange((state) => { if (state) setTimeout(() => animateScoreboards(state), 0); });
 window.addEventListener('resize', () => requestAnimationFrame(syncNavPill));

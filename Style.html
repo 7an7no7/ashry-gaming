@@ -2686,6 +2686,7 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
 
 /* --- Draw & Guess -------------------------------------------------------- */
 .draw-wrap {
+  position: relative;      /* the "خمّن صح!" stamp is placed against this */
   width: 100%;
   aspect-ratio: 1;
   /* Square, but never so tall that the toolbar drops off the screen — the
@@ -6230,7 +6231,81 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   will-change: transform;
 }
 
+/* A word slammed over the whole screen for a beat, then gone: the moment
+   someone shouts وقف in أتوبيس كومبليت. Near-opaque rather than blurred - the
+   screen underneath is rebuilding, and a backdrop-filter over that stutters.
+   Nothing here takes a tap. */
+.slam {
+  position: fixed;
+  inset: 0;
+  z-index: 100040;
+  display: grid;
+  place-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  text-align: center;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--surface-solid) 86%, transparent);
+  animation: slam-fade 1.2s var(--ease-out) both;
+}
+.slam__word {
+  font-size: clamp(2rem, 13vw, 5rem);
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--danger-ink);
+  animation: slam-in 420ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+}
+.slam__sub { color: var(--text-2); font-size: var(--fs-h2); font-weight: 800; }
+@keyframes slam-in { from { opacity: 0; transform: scale(1.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes slam-fade { 0%, 68% { opacity: 1; } 100% { opacity: 0; } }
+
+/* "خمّن صح!" stamped across the drawing when someone cracks it. */
+.draw-stamp {
+  position: absolute;
+  /* Centred with auto margins, not with inset-inline-start: 50% and a
+     translate: under RTL that start edge is the right one, and the translate
+     then pushes the stamp off the middle. This centres the same either way. */
+  inset-inline: 0;
+  top: 50%;
+  z-index: 3;
+  width: fit-content;
+  margin-inline: auto;
+  padding: var(--sp-2) var(--sp-4);
+  border: 3px solid var(--success);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--success-btn) 18%, transparent);
+  color: var(--success-ink);
+  font-size: var(--fs-h2);
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%) rotate(-11deg);
+  animation: draw-stamp-in 460ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+}
+@keyframes draw-stamp-in {
+  from { opacity: 0; transform: translateY(-50%) rotate(-11deg) scale(2.4); }
+  to { opacity: 1; transform: translateY(-50%) rotate(-11deg) scale(1); }
+}
+
+/* مافيا: night falls and morning comes over about a second, on a layer of its
+   own so nothing else repaints. */
+#view-room-mafia, #view-room-tv { position: relative; }
+.mafia-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 900ms var(--ease-in-out);
+  background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%);
+}
+.mafia-sky.is-on { opacity: 1; }
+.mafia-sky--day { background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--warning) 26%, transparent), transparent 70%); }
+
 @media (prefers-reduced-motion: reduce) {
+  .slam, .slam__word, .draw-stamp { animation: none; }
+  .slam { display: none; }
+  .mafia-sky { transition: none; }
   .game-splash, .game-splash__icon, .game-splash__name, .room-code span, .status-row--new, .motion-landed { animation: none; }
   .shell__nav.has-pill::before { transition: none; }
   .result-list--reveal *, .spy-reveal, .spy-reveal__q, .podium--rise *, .tv-podium--rise * { animation: none; }

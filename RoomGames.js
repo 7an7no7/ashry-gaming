@@ -3529,7 +3529,6 @@ const QUIZ_GAMES = {
 
 /** 'right', 'close' or '' for a typed answer against the card's answer and its alternatives. */
 const quizAnswerVerdict = (item, text) => guessVerdict(text, [item.a].concat(item.alt || []));
-const quizAnswerMatches = (item, text) => quizAnswerVerdict(item, text) === 'right';
 
 const quizAction = (room, playerId, action, payload) => {
   const cfg = QUIZ_GAMES[room.game];

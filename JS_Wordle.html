@@ -483,6 +483,17 @@ function submitWordleGuess() {
         playSound('alarm');
         const msg = appState.lang === 'ar' ? "الكلمة قصيرة جداً!" : "Word too short!";
         showToast(msg);
+        // The row you are typing in shakes: the feedback every word game gives.
+        // `animate-shake` is the one Connections already uses. Removed on a timer
+        // as well, so a second short word shakes again (an animation that is
+        // suppressed fires no animationend at all).
+        const row = document.querySelectorAll('#wordle-grid .wordle-row')[appState.wordle.guesses.length];
+        if (row && typeof motionOff === 'function' && !motionOff()) {
+            row.classList.remove('animate-shake');
+            void row.offsetWidth;                       // restart it mid-shake
+            row.classList.add('animate-shake');
+            setTimeout(() => row.classList.remove('animate-shake'), 600);
+        }
         return;
     }
 

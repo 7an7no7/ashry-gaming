@@ -447,9 +447,13 @@ the word search), `countUp` for streaks and scores.
   اللايف جاكيت was already exactly as described.
 
 - **20 Sep 2026, the roadmap** - an audit of the whole app became a nine-phase
-  plan the owner agreed (`notes/ROADMAP_RUNBOOK.md`, with a report per phase in
-  `notes/phase-reports/`), built on the branch `feature/roadmap` and shipped in
-  one go at the owner's request. Phase 0 corrected content that was wrong on
+  plan the owner agreed, built on a branch and shipped in one go at their
+  request. A report per phase is in `notes/phase-reports/`, each listing what
+  was verified and how; what those reports could not settle - the things that
+  need a real phone, TV or table - is gathered in `notes/TO-TRY-ON-A-PHONE.md`.
+  (The plan itself, `notes/ROADMAP_RUNBOOK.md`, was deleted once every task in
+  it had shipped; the reports still quote it, and its decisions are here in
+  *Decided, and why* and *The owner's specs*.) Phase 0 corrected content that was wrong on
   the live site; then the TV as the room's only voice, a card-scorer round that
   can be fixed without destroying the ones after it, the home's player-count
   and together-or-apart filters, اختارلنا, the archive of past dailies and

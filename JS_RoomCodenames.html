@@ -489,14 +489,14 @@ function cnFeedback(state, v, fresh) {
     const colour = s.board[flipped[flipped.length - 1]].colour;
     // Good news is your own colour; someone watching hears any team's card as good.
     const good = v.mine.team ? colour === v.mine.team : colour !== 'neutral';
-    playSound(good ? 'success' : 'alarm');
+    playRoomFx(good ? 'success' : 'alarm');
     haptic(good ? 'medium' : 'heavy');
   }
   if (s.winner && cnLocal.cheered !== s.dealtAt) {
     cnLocal.cheered = s.dealtAt;
     const assassin = s.endReason === 'assassin';
-    if (assassin) { playSound('alarm'); haptic('heavy'); }
-    else playSound('success');
+    if (assassin) { playRoomFx('alarm'); haptic('heavy'); }
+    else playRoomFx('success');
     if (typeof confetti === 'function') {
       setTimeout(() => confetti({ particleCount: 150, spread: 85, origin: { y: 0.6 }, colors: CN_CONFETTI[s.winner] }),
                  assassin ? 500 : 0);

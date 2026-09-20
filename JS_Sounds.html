@@ -272,7 +272,9 @@ function syncFxButton(viewId) {
     if (typeof window.confetti !== 'function' || window.confetti.__fx) return false;
     const real = window.confetti;
     const wrapped = function (opts) {
-      playFx('tada');
+      if (!(typeof roomHasScreen === 'function' && roomHasScreen())) {
+        playFx('tada');
+      }
       if (typeof reducedMotion === 'function' && reducedMotion()) return Promise.resolve();
       const args = Array.prototype.slice.call(arguments);
       if (!opts || typeof opts !== 'object') args[0] = {};

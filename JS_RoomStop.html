@@ -121,7 +121,7 @@ ROOM_GAMES.stop = {
     // A new letter spins in, with a cue when it lands, so a table looking at its papers looks up.
     if (s.phase === 'writing' && stopRoom.letterKey !== roundKey) {
       stopRoom.letterKey = roundKey;
-      spinLetter(el.querySelector('.stop-letter'), s.letter, stopLetterPool(s.letter), () => { playSound('success'); haptic('light'); });
+      spinLetter(el.querySelector('.stop-letter'), s.letter, stopLetterPool(s.letter), () => { playRoomFx('success'); haptic('light'); });
     }
     refreshRoomPlayerStrip(el, state);
 
@@ -346,7 +346,7 @@ function submitStopRoom(stop) {
   const answers = stopRoom.draft.key === roundKey ? Object.assign({}, stopRoom.draft.answers) : {};
   stopRoomInputs(roundKey).forEach(inp => { answers[inp.dataset.cat] = inp.value; });
   stopRoom.sentFor = roundKey;
-  if (stop) { playSound('alarm'); haptic('medium'); }
+  if (stop) { playRoomFx('alarm'); haptic('medium'); }
   const payload = { answers: answers, stop: !!stop };
   if (typeof s.round === 'number') payload.round = s.round;
   Room.act('submit', payload).catch(err => {
@@ -379,7 +379,7 @@ function startStopRoomClock(s) {
   const endsAt = s.endsAt;
   stopRoom.clock = createClock({
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
-    onTick: () => { const left = paintStopRoomTimer(endsAt); if (left > 0 && left <= 5) playSound('tick'); },
+    onTick: () => { const left = paintStopRoomTimer(endsAt); if (left > 0 && left <= 5) playRoomFx('tick'); },
     onEnd: () => {
       stopRoom.clock = null;
       stopRoom.fired = true;

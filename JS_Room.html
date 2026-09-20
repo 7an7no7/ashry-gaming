@@ -1005,6 +1005,23 @@ function roomScrollToAction(state, game) {
   scrollToAction();
 }
 
+/**
+ * A room with a big screen has one voice: the TV's. A cue every phone would
+ * play at the same moment (a tick, a fanfare, the letter landing) is the TV's
+ * job — eight phones playing it 200ms apart is an echo, and the table mutes
+ * them. Anything personal (your turn, your answer, your buzz) still sounds on
+ * the phone that it belongs to.
+ */
+function roomHasScreen() {
+  const s = Room.state;
+  return !!(s && !s.youAreScreen && (s.screens || []).some(x => x.online));
+}
+
+function playRoomFx(name) {
+  if (roomHasScreen()) return;
+  playSound(name);
+}
+
 const onRoomView = () => (appState.currentView || '').indexOf('room-') === 0;
 
 let roomStageSeen = '';

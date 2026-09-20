@@ -32,23 +32,27 @@
   }
 
   function startImposterGame(playersToUse) {
-      const catSelect = document.getElementById('imposter-category-select');
-      const category = catSelect.value;
-      if (category.includes('🔒')) {
-          const expectedPw = SPY_CATEGORIES[category][0]; 
-          if (appState.imposter.unlockedCategories && 
-              !Array.isArray(appState.imposter.unlockedCategories) && 
-              appState.imposter.unlockedCategories[category] === expectedPw) {
-               continuePrepImposter(playersToUse);
-               return;
-          }
-          if (expectedPw) {
-              document.getElementById('password-error').innerText = '';
-              document.getElementById('category-password-input').value = '';
-              document.getElementById('password-modal').classList.remove('hidden');
-              document.getElementById('category-password-input').focus();
-              window._pendingImposterPlayers = playersToUse;
-              return;
+      const undercoverSwitch = document.getElementById('imposter-undercover-on');
+      const undercover = !!(undercoverSwitch && undercoverSwitch.checked);
+      if (!undercover) {
+          const catSelect = document.getElementById('imposter-category-select');
+          const category = catSelect.value;
+          if (category.includes('🔒')) {
+              const expectedPw = SPY_CATEGORIES[category][0]; 
+              if (appState.imposter.unlockedCategories && 
+                  !Array.isArray(appState.imposter.unlockedCategories) && 
+                  appState.imposter.unlockedCategories[category] === expectedPw) {
+                   continuePrepImposter(playersToUse);
+                   return;
+              }
+              if (expectedPw) {
+                  document.getElementById('password-error').innerText = '';
+                  document.getElementById('category-password-input').value = '';
+                  document.getElementById('password-modal').classList.remove('hidden');
+                  document.getElementById('category-password-input').focus();
+                  window._pendingImposterPlayers = playersToUse;
+                  return;
+              }
           }
       }
       continuePrepImposter(playersToUse);
@@ -63,7 +67,7 @@
           playSound('success');
           if (!appState.imposter.unlockedCategories || Array.isArray(appState.imposter.unlockedCategories)) {
               appState.imposter.unlockedCategories = {}; 
-          }
+              }
           appState.imposter.unlockedCategories[category] = input;
           saveToLocal();
           closeModal('password-modal');
@@ -94,7 +98,19 @@
           return showToast(msg);
       }
       
+      if (!appState.imposter.config) appState.imposter.config = {};
       appState.imposter.config.impostersCount = count;
+      const undercoverSwitch = document.getElementById('imposter-undercover-on');
+      const undercover = !!(undercoverSwitch && undercoverSwitch.checked);
+      appState.imposter.config.undercover = undercover;
+      if (undercover) {
+          const pairs = typeof SPY_PAIRS !== 'undefined' ? SPY_PAIRS : [];
+          const pair = freshPick('imppair', pairs, 1, { key: p => p[0] + '|' + p[1] })[0];
+          appState.imposter.secretWord = pair ? pair[0] : '';
+          appState.imposter.pairOther = pair ? pair[1] : '';
+      } else {
+          appState.imposter.pairOther = null;
+      }
       lastSelectedPlayers = selected;
       playSound('click');
       openReorderModal('imposter', selected.map(name => ({ name: name })),
@@ -103,26 +119,31 @@
 
   function finalizeImposterGame(orderedNames) {
       lastSelectedPlayers = orderedNames;
-      const catSelect = document.getElementById('imposter-category-select');
-      const category = catSelect.value;
+      const undercover = !!(appState.imposter.config && appState.imposter.config.undercover);
       let secretWord = "";
-      if (category === 'manual') {
-          secretWord = document.getElementById('imposter-manual-word').value.trim();
-          if (!secretWord) {
-              const msg = appState.lang === 'ar' ? 'يرجى إدخال الكلمة السرية' : 'Please enter the secret word';
-              showToast(msg);
-              setView('setup-imposter');
-              return;
+      if (undercover) {
+          secretWord = appState.imposter.secretWord;
+      } else {
+          const catSelect = document.getElementById('imposter-category-select');
+          const category = catSelect.value;
+          if (category === 'manual') {
+              secretWord = document.getElementById('imposter-manual-word').value.trim();
+              if (!secretWord) {
+                  const msg = appState.lang === 'ar' ? 'يرجى إدخال الكلمة السرية' : 'Please enter the secret word';
+                  showToast(msg);
+                  setView('setup-imposter');
+                  return;
+              }
+          } else if (category === 'countries') {
+              // The country list went to MonkeyWords.js with ربع قرد; this category
+              // still read the old COUNTRIES_DB and threw, so Start did nothing.
+              const countries = (MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries;
+              secretWord = freshPick('imposter:countries:' + contentLang(), countries, 1)[0];
+          } else if (SPY_CATEGORIES[category]) {
+              let list = SPY_CATEGORIES[category];
+              if (category.includes('🔒')) list = list.slice(1);
+              secretWord = freshPick('imposter:' + category, list, 1)[0];
           }
-      } else if (category === 'countries') {
-          // The country list went to MonkeyWords.js with ربع قرد; this category
-          // still read the old COUNTRIES_DB and threw, so Start did nothing.
-          const countries = (MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries;
-          secretWord = freshPick('imposter:countries:' + contentLang(), countries, 1)[0];
-      } else if (SPY_CATEGORIES[category]) {
-          let list = SPY_CATEGORIES[category];
-          if (category.includes('🔒')) list = list.slice(1);
-          secretWord = freshPick('imposter:' + category, list, 1)[0];
       }
       const count = appState.imposter.config.impostersCount;
       const total = orderedNames.length;
@@ -153,10 +174,12 @@
   function fillRole(player) {
       const wordDiv = document.getElementById('role-word');
       const card = document.getElementById('role-card-content');
-      const spy = player.role === 'Imposter';
-      wordDiv.innerText = spy
-          ? (appState.lang === 'ar' ? "🕵️‍♂️ أنت الجاسوس!" : "🕵️‍♂️ You are the Imposter!")
-          : appState.imposter.secretWord;
+      const undercover = !!appState.imposter.config.undercover;
+      const spy = !undercover && player.role === 'Imposter';
+      wordDiv.innerText = undercover
+          ? (player.role === 'Imposter' ? appState.imposter.pairOther : appState.imposter.secretWord)
+          : (spy ? (appState.lang === 'ar' ? "🕵️‍♂️ أنت الجاسوس!" : "🕵️‍♂️ You are the Imposter!")
+                 : appState.imposter.secretWord);
       // Tokens, not palette classes: green-700 on the dark card was 2.6:1, and
       // overwriting className also dropped the card's own sizing.
       wordDiv.className = 'metric metric--lg ' + (spy ? 'tx-danger' : 'tx-success');
@@ -253,17 +276,30 @@
       stopImposterTimer();
       playSound('success');
       
-      const wordTitle = appState.lang === 'ar' ? 'الكلمة السرية' : 'Secret Word';
-      const impTitle = appState.lang === 'ar' ? 'الجواسيس' : 'Imposters';
+      const undercover = !!(appState.imposter.config && appState.imposter.config.undercover);
+      const wordTitle = undercover
+          ? (appState.lang === 'ar' ? 'الكلمة' : 'Word')
+          : (appState.lang === 'ar' ? 'الكلمة السرية' : 'Secret Word');
+      const impTitle = undercover
+          ? (appState.lang === 'ar' ? 'المختلف' : 'Undercover')
+          : (appState.lang === 'ar' ? 'الجواسيس' : 'Imposters');
       const andText = appState.lang === 'ar' ? ' و ' : ' & ';
 
       const imposters = appState.imposter.players.filter(p => p.role === 'Imposter').map(p => escapeHTML(p.name)).join(andText);
       
+      const pairOtherHtml = undercover && appState.imposter.pairOther ? `
+        <div class="mb-4">
+            <div class="eyebrow">${appState.lang === 'ar' ? 'كلمة المختلف' : 'Undercover Word'}</div>
+            <div class="metric metric--md tx-danger">${escapeHTML(appState.imposter.pairOther)}</div>
+        </div>
+      ` : '';
+
       document.getElementById('winners-list').innerHTML = `
         <div class="mb-4">
             <div class="eyebrow">${wordTitle}</div>
             <div class="metric metric--md tx-success">${escapeHTML(appState.imposter.secretWord)}</div>
         </div>
+        ${pairOtherHtml}
         <div>
             <div class="eyebrow">${impTitle}</div>
             <div class="metric metric--md tx-danger">${imposters}</div>

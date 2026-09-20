@@ -281,6 +281,50 @@ if (HOME_PLAYER_COUNTS.indexOf(homePlayers) === -1) homePlayers = 'off';
 let homeLocation = recallOptions('homeLocation', 'together');
 if (['together', 'apart'].indexOf(homeLocation) === -1) homeLocation = 'together';
 let homeSearch = '';
+/* The second row - together/apart and the eight player counts - is two
+   horizontally scrolling rows stacked on one another, and neither announces
+   that it scrolls. It folds behind one chip in the first row, which costs it
+   no height at all when closed. It opens by itself when one of its filters is
+   remembered from last time, so a filter is never hiding out of sight. */
+let homeMoreOpen = (homeLocation !== 'together' || homePlayers !== 'off');
+const homeMoreOn = () => homeLocation !== 'together' || homePlayers !== 'off';
+
+/** The chip says what it is hiding, so a filter left on is never a mystery. */
+function homeMoreLabel(t) {
+  const parts = [];
+  if (homeLocation !== 'together') parts.push(escapeHTML(t.flt_location_apart || ''));
+  if (homePlayers !== 'off') parts.push(`<span class="metric">${escapeHTML(homePlayers)}</span>`);
+  return parts.length ? parts.join(' · ') : escapeHTML(t.flt_more || '');
+}
+
+function paintHomeMoreChip() {
+  const btn = document.getElementById('home-more-btn');
+  if (!btn) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const label = btn.querySelector('.filter-chip__label');
+  if (label) label.innerHTML = homeMoreLabel(t);
+  btn.classList.toggle('is-active', homeMoreOn());
+}
+
+function toggleHomeMore() {
+  const view = document.getElementById('view-menu');
+  const open = () => {
+    homeMoreOpen = !homeMoreOpen;
+    const row = view && view.querySelector('.filter-row--players');
+    const btn = document.getElementById('home-more-btn');
+    if (btn) btn.setAttribute('aria-expanded', String(homeMoreOpen));
+    if (row) {
+      row.hidden = !homeMoreOpen;
+      if (homeMoreOpen) watchScrollFade(row);
+    }
+  };
+  // The row appearing moves every game below it: they slide rather than jump,
+  // and the row itself fades up.
+  if (view && typeof flipGrid === 'function') {
+    flipGrid(view, open, { items: '.gcard, .tool-item, .recent-tile, .daily-strip, .section__head, .filter-row--players' });
+  } else open();
+  haptic('light');
+}
 
 /** Does a catalog entry fit the chosen player count? */
 function catalogMatchesPlayers(g, count) {
@@ -331,10 +375,14 @@ function renderHome() {
   const t = TRANSLATIONS[appState.lang];
   const recent = readRecent();
 
-  // A phone that has played before gets the hero folded to one row of three
-  // pills, so the games start on the first screen.
+  // A phone that has played before has been told what the app is. It gets the
+  // ways in and nothing else - the mark and the name are in the header on this
+  // screen anyway - so the games start on the first screen instead of 570px
+  // down it. A first visit still gets the whole hero.
+  const compact = recent.length > 0;
   const together = `
-    <section class="home-hero ${recent.length ? 'home-hero--compact' : ''}" data-accent="violet">
+    <section class="home-hero ${compact ? 'home-hero--compact' : ''}" data-accent="violet">
+      ${compact ? '' : `
       <div class="home-hero__head">
         <svg class="mark mark--hero" aria-hidden="true"><use href="#ashry-mark"/></svg>
         <div class="home-hero__text">
@@ -346,7 +394,7 @@ function renderHome() {
           <span aria-hidden="true">🎲</span>
           <span>${escapeHTML(t.home_pick_btn || '')}</span>
         </button>
-      </div>
+      </div>`}
       <div class="together">
         <button type="button" class="together__tile" onclick="roomCreateEmpty()">
           <span class="together__icon" aria-hidden="true">🎮</span>
@@ -363,6 +411,11 @@ function renderHome() {
           <span class="together__name">${escapeHTML(t.together_tv || '')}</span>
           <span class="together__desc">${escapeHTML(t.together_tv_desc || '')}</span>
         </button>
+        ${compact ? `
+        <button type="button" class="together__tile together__tile--pick" onclick="homePickForUs(this)">
+          <span class="together__icon" aria-hidden="true">🎲</span>
+          <span class="together__name">${escapeHTML(t.home_pick_btn || '')}</span>
+        </button>` : ''}
       </div>
     </section>`;
 
@@ -374,14 +427,21 @@ function renderHome() {
                placeholder="${escapeHTML(t.home_search_ph || '')}" value="${escapeHTML(homeSearch)}"
                oninput="setHomeSearch(this.value)">
       </label>
-      <div class="filter-row hscroll-fade" role="tablist">
-        ${HOME_FILTERS.map(f => `
-          <button type="button" role="tab" class="filter-chip ${f.id === homeFilter ? 'is-active' : ''}"
-                  data-filter="${f.id}" aria-selected="${f.id === homeFilter}" onclick="setHomeFilter('${f.id}')">
-            <span aria-hidden="true">${f.icon}</span>${escapeHTML(t[f.label] || f.id)}
-          </button>`).join('')}
+      <div class="filter-bar">
+        <div class="filter-row hscroll-fade" role="group" aria-label="${escapeHTML(t.flt_how_play || '')}">
+          ${HOME_FILTERS.map(f => `
+            <button type="button" class="filter-chip ${f.id === homeFilter ? 'is-active' : ''}"
+                    data-filter="${f.id}" aria-pressed="${f.id === homeFilter}" onclick="setHomeFilter('${f.id}')">
+              <span aria-hidden="true">${f.icon}</span>${escapeHTML(t[f.label] || f.id)}
+            </button>`).join('')}
+        </div>
+        <button type="button" class="filter-chip filter-chip--more ${homeMoreOn() ? 'is-active' : ''}"
+                id="home-more-btn" aria-expanded="${homeMoreOpen}" onclick="toggleHomeMore()">
+          <span aria-hidden="true">👥</span><span class="filter-chip__label">${homeMoreLabel(t)}</span>
+        </button>
       </div>
-      <div class="filter-row filter-row--players hscroll-fade" role="group" aria-label="${escapeHTML(t.flt_how_many || '')}">
+      <div class="filter-row filter-row--players hscroll-fade" role="group"
+           aria-label="${escapeHTML(t.flt_how_many || '')}" ${homeMoreOpen ? '' : 'hidden'}>
         <button type="button" class="filter-chip filter-chip--sm ${homeLocation === 'together' ? 'is-active' : ''}"
                 data-location="together" aria-pressed="${homeLocation === 'together'}" onclick="setHomeLocation('together')">
           <span aria-hidden="true">🛋️</span>${escapeHTML(t.flt_location_together || 'مع بعض')}
@@ -463,7 +523,7 @@ function setHomeFilter(id) {
   document.querySelectorAll('#view-menu [data-filter]').forEach(b => {
     const on = b.dataset.filter === id;
     b.classList.toggle('is-active', on);
-    b.setAttribute('aria-selected', on);
+    b.setAttribute('aria-pressed', on);
   });
   applyHomeFilter();
   haptic('light');
@@ -478,6 +538,7 @@ function setHomePlayers(count) {
     b.classList.toggle('is-active', on);
     b.setAttribute('aria-pressed', on);
   });
+  paintHomeMoreChip();
   applyHomeFilter();
   haptic('light');
 }
@@ -490,6 +551,7 @@ function setHomeLocation(loc) {
     b.classList.toggle('is-active', on);
     b.setAttribute('aria-pressed', on);
   });
+  paintHomeMoreChip();
   applyHomeFilter();
   haptic('light');
 }

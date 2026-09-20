@@ -466,6 +466,16 @@ the word search), `countUp` for streaks and scores.
   (*Traps*), and a day in تحدي اليوم's archive calendar was 39px, under the
   floor - seven across a 375px phone is the whole constraint, so the gap
   gave the pixels back.
+- **20 Sep 2026, the home's first screen and the card text** - the two things
+  the *One voice* pass had left for the owner to decide, decided and built
+  (*The catalog and the home screen*): the hero folds to the ways in alone for
+  a phone that has played before and the player filters fold behind one pinned
+  chip, so the first game card sits at 445px instead of 570px of a 690px
+  screen; and every card description was rewritten to land inside its two
+  lines - 31 of 49 in Arabic and 43 of 49 in English had been running past it,
+  so most of the grid ended mid-word. Checked by lifting the clamp and
+  counting lines: none over, either language. The dark stages stay cold slate
+  and the phone pass was declined, both the owner's call.
 
 - **20 Sep 2026, the roadmap** - an audit of the whole app became a nine-phase
   plan the owner agreed, built on a branch and shipped in one go at their
@@ -2068,6 +2078,42 @@ Descriptions are `cat_<id>` keys: one line, what you do, no emoji (the card
 draws the icon). Titles are the game's `setup_<id>` key. A game's card, its
 hero and its help entry must all agree on the icon and accent.
 
+**A description has two lines and no more** (20 Sep 2026). The card clamps at
+two, and the strings had been written past it: 31 of 49 in Arabic and 43 of 49
+in English ran to three, four, even five lines, so most of the grid ended in
+"…" mid-word and the whole home looked unfinished. They are all rewritten to
+land inside it - about **48 characters in either language** at 375px, which is
+one short sentence that says what you do. A new game's `cat_` key has to fit
+the same budget; the way to check it is to lift the clamp and count lines
+rather than count characters:
+
+```js
+document.querySelectorAll('#view-menu .gcard').forEach(c => {
+  const d = c.querySelector('.gcard__desc');
+  d.style.cssText = '-webkit-line-clamp:unset;display:block;min-height:0';
+  const n = Math.round(d.getBoundingClientRect().height / parseFloat(getComputedStyle(d).lineHeight));
+  if (n > 2) console.log(c.dataset.game, n);       // should print nothing
+});
+```
+
+**The home's first screen belongs to the games** (20 Sep 2026). It had been
+570px of hero, search and filters into a 690px scroll area before the first
+card - 83% chrome. Two things gave way, neither a control and neither a tap
+target, and the first card sits at 445px now, a whole row above the fold:
+
+- a phone that has played before gets **only the ways in** - the four tiles,
+  اختارلنا among them, on one row (`home-hero--compact`, 67px against 141).
+  The mark and the name are in the header on this screen, so nothing is lost;
+  a first visit still gets the whole hero with its title and tagline.
+- together/apart and the eight player counts were a second scrolling row
+  stacked straight on the first. They **fold behind one chip**
+  (`toggleHomeMore`, `.filter-chip--more`) pinned at the end of the first row
+  - pinned, because at the end of a row that *scrolls* it was simply off the
+  screen, which is worse than the row it replaced. The chip carries a summary
+  of whatever it is hiding (`homeMoreLabel`) and opens by itself when one of
+  those filters is remembered from last time, so a filter is never hiding out
+  of sight. The row's filtering logic is untouched.
+
 Setup screens whose options live in `appState` (a segmented control, the Stop
 categories) are painted by `paintSetupOptions(viewId)` (`SETUP_PAINTERS` in
 `JS_Core.html`) whenever the screen is reached - from a card, the back button
@@ -2760,7 +2806,8 @@ the tumble cannot be seen there without overriding both the CSS and
 
 **Smoothness** is section 12 of `Style.html`, with its script in
 `JS_Core.html` and `JS_Catalog.html`. A phone with recents gets the home hero
-folded to one row of pills (`home-hero--compact`); a game card is one shape
+folded to one row of the ways in (`home-hero--compact`, *The catalog and the
+home screen*); a game card is one shape
 (icon and mode icons on one row, two lines of text, players and minutes on
 one line); every setup screen's Start is moved once at start-up into a
 sticky `.view-actions--start` bar at the foot of its panel

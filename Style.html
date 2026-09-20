@@ -8721,4 +8721,54 @@ body.dark .gcard__modes { opacity: 0.5; }
   .recent-tile:active, .home-hero__pick:active { transform: none; }
 }
 
+/* --- The first screen is for the games ----------------------------------------
+   Measured before this: the first game card began 570px into a 690px scroll
+   area, so 83% of what you saw on opening the app was chrome. Two things gave
+   way, neither of them a control and neither of them a tap target.
+
+   1. A phone that has played before has been told what the app is, and the
+      mark and the name are in the header on this screen anyway - so its hero
+      is the ways in and nothing else, with اختارلنا as the fourth, since a
+      returner is exactly who wants it. A first visit still gets the whole
+      hero. */
+.home-hero--compact { padding: var(--sp-3); }
+.home-hero--compact .together { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); }
+.home-hero--compact .together__tile {
+  flex-direction: column;
+  justify-content: center;
+  min-height: var(--tap);
+  gap: 1px;
+  padding: var(--sp-1) 2px;
+}
+.home-hero--compact .together__icon { font-size: 1.05rem; margin: 0; }
+.home-hero--compact .together__name { font-size: 0.68rem; line-height: 1.15; text-wrap: balance; }
+.home-hero--compact .together__desc { display: none; }
+
+/* 2. together/apart and the eight player counts were a second scrolling row
+      stacked straight on the first, and neither row announces that it
+      scrolls. They fold behind one chip at the end of the first row, which
+      costs no height at all when closed. The chip says what it is hiding, so
+      a filter left on from last time is never a mystery.
+      .filter-row sets display:flex, which beats [hidden] - so say it. */
+.filter-row[hidden] { display: none; }
+/* The chip has to stay put: at the end of a row that scrolls it was simply
+   off the screen, which is worse than the row it replaced. The modes keep
+   scrolling and bleeding to the start edge; the chip is pinned at the end. */
+.filter-bar { display: flex; align-items: center; gap: var(--sp-2); }
+.filter-bar .filter-row { flex: 1; min-width: 0; margin-inline-end: 0; }
+.filter-bar .filter-chip--more { flex: none; }
+.filter-chip--more::after {
+  content: '▾';
+  font-size: 0.85em;
+  line-height: 1;
+  opacity: 0.75;
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.filter-chip--more[aria-expanded="true"]::after { transform: rotate(180deg); }
+.filter-chip--more .metric { font-size: inherit; color: inherit; letter-spacing: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-chip--more::after { transition: none; }
+}
+
 </style>

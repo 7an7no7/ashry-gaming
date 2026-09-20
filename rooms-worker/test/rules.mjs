@@ -1995,6 +1995,20 @@ const leave = (r, id, hook = true) => {
   }
 }
 
+/* --- مافيا: the narrator is a room setting, off unless asked for ---------- */
+{
+  const mf = newRoom(['a', 'b', 'c', 'd', 'e']);
+  applyRoomAction(mf, 'a', 'chooseGame', { game: 'mafia' });
+  applyRoomAction(mf, 'a', 'start', { mode: 'classic' });
+  check(mf.shared.narrate === false, 'mafia: the narrator is off unless the host turns it on');
+  applyRoomAction(mf, 'a', 'backToHub', {});
+  applyRoomAction(mf, 'a', 'chooseGame', { game: 'mafia' });
+  applyRoomAction(mf, 'a', 'start', { mode: 'classic', narrate: true });
+  check(mf.shared.narrate === true, 'mafia: and on for the whole room when they do');
+  // It never leaks a role, and nothing in shared tells a phone what to say.
+  check(!JSON.stringify(mf.shared).includes('"roles":{'), 'mafia: the narrator setting carries no roles with it');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

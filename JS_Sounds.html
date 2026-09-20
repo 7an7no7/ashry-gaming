@@ -262,6 +262,78 @@ function syncFxButton(viewId) {
   document.body.classList.toggle('has-fx', on);
 }
 
+/* --- a voice that reads out loud ------------------------------------------- */
+/*
+   The narrator مافيا can turn on (JS_RoomMafia.html). Kept here beside the
+   other sounds because it is one: a line the room hears, on one device.
+
+   Three things make browser speech awkward, and all three are handled here:
+   getVoices() is empty until 'voiceschanged' fires on most browsers, so the
+   list is asked for again each time rather than cached at load; iOS will not
+   speak unless it has been started inside a tap, so speakPrime() runs on the
+   first one and a refusal is swallowed; and nothing at all is said when there
+   is no voice for the language - an Arabic line read by an English voice is
+   worse than silence.
+*/
+let speakPrimed = false;
+
+/** Is there a voice this browser can read `lang` with? */
+function speakVoiceFor(lang) {
+  try {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return null;
+    const want = lang === 'en' ? 'en' : 'ar';
+    const voices = window.speechSynthesis.getVoices() || [];
+    return voices.find(v => String(v.lang || '').toLowerCase().indexOf(want) === 0) || null;
+  } catch (e) { return null; }
+}
+
+/**
+ * Says one line, in `lang`, or does nothing at all. Returns whether it spoke,
+ * which is what the tests read. Never throws: a browser with no speech, a
+ * language with no voice and a refusal all come back false.
+ */
+function speakLine(text, lang) {
+  const line = String(text == null ? '' : text).trim();
+  if (!line) return false;
+  const voice = speakVoiceFor(lang);
+  if (!voice) return false;
+  try {
+    window.speechSynthesis.cancel();
+    const say = new SpeechSynthesisUtterance(line);
+    say.voice = voice;
+    say.lang = voice.lang;
+    say.rate = 0.95;
+    window.speechSynthesis.speak(say);
+    return true;
+  } catch (e) { return false; }
+}
+
+/** Anything being said stops: leaving a game, leaving a room, closing the app. */
+function speakStop() {
+  try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+}
+
+/**
+ * iOS only lets speech start inside a tap. This runs on the first one, says
+ * an empty line to unlock it, and is a no-op everywhere else. A refusal is
+ * silent - the narrator simply never speaks on that device.
+ */
+function speakPrime() {
+  if (speakPrimed) return;
+  speakPrimed = true;
+  try {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+    const warm = new SpeechSynthesisUtterance('');
+    warm.volume = 0;
+    window.speechSynthesis.speak(warm);
+  } catch (e) {}
+}
+document.addEventListener('pointerdown', speakPrime, { once: true, capture: true });
+document.addEventListener('keydown', speakPrime, { once: true, capture: true });
+// The voice list arrives late on most browsers; nothing to do but let it.
+try { if (window.speechSynthesis) window.speechSynthesis.addEventListener('voiceschanged', () => {}); } catch (e) {}
+onLeaveScreen(() => speakStop());
+
 /* Every burst of confetti in the app brings a fanfare with it. The confetti is
    drawn by a script, so the stylesheet's reduced-motion rules can't still it:
    with motion off (Settings → الحركة, or the device) only the fanfare plays.

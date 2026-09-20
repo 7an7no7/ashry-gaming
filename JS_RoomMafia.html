@@ -22,11 +22,13 @@ const MAFIA_ICONS = { mafia: '🕴️', citizen: '🧑', doctor: '🩺', detecti
 const mafiaLocal = { clock: null, clockKey: null };
 
 function mafiaOpts() {
-  const base = { mode: 'classic', revealRoles: false, discuss: 3, night: 45 };
+  // narrate is off until the owner has heard it on a real phone.
+  const base = { mode: 'classic', revealRoles: false, narrate: false, discuss: 3, night: 45 };
   try {
     const saved = JSON.parse(localStorage.getItem(MAFIA_OPTS_KEY) || 'null') || {};
     if (saved.mode === 'roles' || saved.mode === 'classic') base.mode = saved.mode;
     if (typeof saved.revealRoles === 'boolean') base.revealRoles = saved.revealRoles;
+    if (typeof saved.narrate === 'boolean') base.narrate = saved.narrate;
     if ([2, 3, 5].indexOf(saved.discuss) !== -1) base.discuss = saved.discuss;
     if ([30, 45, 60].indexOf(saved.night) !== -1) base.night = saved.night;
   } catch (e) {}
@@ -35,7 +37,7 @@ function mafiaOpts() {
 
 function setMafiaOpt(key, value) {
   const o = mafiaOpts();
-  o[key] = key === 'mode' ? value : (key === 'revealRoles' ? !!value : Number(value));
+  o[key] = key === 'mode' ? value : (key === 'revealRoles' || key === 'narrate' ? !!value : Number(value));
   try { localStorage.setItem(MAFIA_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
   const setup = document.getElementById('room-host-setup');
   if (setup) delete setup.dataset.sig;
@@ -255,6 +257,93 @@ function mafiaSky(root, phase) {
   sky.classList.toggle('is-on', night || day);
 }
 
+/* --- the narrator --------------------------------------------------------- */
+/*
+   An option, off by default (the owner, 20 Sep 2026): when it is on, one
+   device in the room reads a short line at each change of phase - the town
+   falling asleep, the morning news, the vote. The lines are about the room,
+   never about a role: this is the one thing the narrator must not do, so the
+   only names it ever says are ones already printed on every screen.
+*/
+const mafiaSaid = { key: '' };
+
+/**
+ * Whether this device is the one that speaks. The big screen if there is one -
+ * it is the table's own voice and nobody is holding it - and otherwise the
+ * host's phone. Exactly one device in a room answers true.
+ */
+function mafiaNarrator(state) {
+  if (!state || !state.shared || !state.shared.narrate) return false;
+  if (state.youAreScreen) return true;
+  const hasScreen = (state.screens || []).length > 0;
+  return !hasScreen && !!state.youAreHost;
+}
+
+/** Two sentences into one, without doubling a full stop that is already there. */
+function mafiaJoinSaid(a, b) {
+  const first = String(a || '').trim();
+  const second = String(b || '').trim();
+  if (!first) return second;
+  if (!second) return first;
+  return first + (/[.!?؟。]$/.test(first) ? ' ' : '. ') + second;
+}
+
+/** The line for the phase the room has just moved into, or nothing. */
+function mafiaNarrationLine(s, t) {
+  switch (s.phase) {
+    case 'roles':     return t.mafia_say_roles || '';
+    case 'night':     return t.mafia_say_night || '';
+    case 'day':       return mafiaJoinSaid(mafiaNewsText(s, t), t.mafia_say_day || '');
+    case 'voting':    return t.mafia_say_vote || '';
+    case 'dayResult': return s.news ? mafiaNewsText(s, t) : '';
+    case 'gameover':  return t.mafia_say_over || '';
+  }
+  return '';
+}
+
+/**
+ * The room's news as words, taken from the very strings already printed on
+ * every screen. It says who left, which everyone can see, and **never the
+ * role** - mafia_was and the role name are deliberately not read.
+ */
+function mafiaNewsText(s, t) {
+  const n = s.news || {};
+  if (n.kind === 'saved' || n.kind === 'quiet' || n.kind === 'tie' || n.kind === 'nobody') {
+    return t['mafia_news_' + n.kind] || '';
+  }
+  if (n.kind === 'out' || n.kind === 'voted') {
+    const line = n.kind === 'voted' ? (t.mafia_out_voted || '') : (t.mafia_out_night || '');
+    return n.name ? line.replace('{name}', n.name) : '';
+  }
+  return '';
+}
+
+/**
+ * Says the line for this phase, once per phase, on the one device that speaks.
+ * A news card lies face down for a beat before it turns over (spyRevealParts),
+ * so the line waits for it through afterReveal rather than reading the name
+ * out from under the reveal. Returns whether anything was said or scheduled.
+ */
+function mafiaNarrate(state, t, el) {
+  const s = state.shared;
+  const key = [state.code, s.dealId || '', s.phase, s.night, s.day, (s.news || {}).kind, (s.news || {}).name].join('|');
+  if (mafiaSaid.key === key) return false;
+  mafiaSaid.key = key;
+  if (!mafiaNarrator(state)) return false;
+  const line = mafiaNarrationLine(s, t);
+  if (!line) return false;
+  if (el && typeof afterReveal === 'function') {
+    afterReveal(el, () => speakLine(line, appState.lang));
+    return true;
+  }
+  return speakLine(line, appState.lang);
+}
+
+// Leaving the game, or the room, stops whatever is being said and lets the
+// next game narrate from its first phase again. onLeaveScreen (JS_Sounds.html)
+// covers walking off the screen; this covers the room moving on underneath.
+onRoomClocksReset(() => { mafiaSaid.key = ''; speakStop(); });
+
 ROOM_GAMES.mafia = {
   lobbyOptions(state) {
     const t = TRANSLATIONS[appState.lang];
@@ -281,6 +370,13 @@ ROOM_GAMES.mafia = {
           <p class="field__hint">${escapeHTML(t.mafia_reveal_hint || '')}</p>
         </div>
         <div class="field">
+          <label class="switch-row" for="mafia-narrate">
+            <span class="field__label">${escapeHTML(t.mafia_narrate || '')}</span>
+            <span class="switch"><input type="checkbox" id="mafia-narrate" role="switch" ${o.narrate ? 'checked' : ''} onchange="setMafiaOpt('narrate', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(t.mafia_narrate_hint || '')}</p>
+        </div>
+        <div class="field">
           <label class="field__label">${escapeHTML(t.mafia_discuss || '')}</label>
           ${seg('discuss', [2, 3, 5], v => `${v} ${escapeHTML(t.meta_min || '')}`)}
         </div>
@@ -293,7 +389,7 @@ ROOM_GAMES.mafia = {
   },
   startPayload() {
     const o = mafiaOpts();
-    return { mode: o.mode, revealRoles: o.revealRoles, discuss: o.discuss, night: o.night };
+    return { mode: o.mode, revealRoles: o.revealRoles, narrate: o.narrate, discuss: o.discuss, night: o.night };
   },
 
   render(state) {
@@ -394,6 +490,7 @@ ROOM_GAMES.mafia = {
     });
     mafiaSky(el, s.phase);
     if (rebuilt) mafiaSounds(state);
+    mafiaNarrate(state, t, el);
     refreshRoomPlayerStrip(el, state);
     refreshMafiaSecret(el, state, t);
     const acted = el.querySelector('[data-mafia-acted]');
@@ -463,6 +560,8 @@ TV_GAMES.mafia = {
   after(state) {
     const s = state.shared;
     if ((s.phase === 'night' || s.phase === 'day') && s.endsAt) mafiaTickClock(s); else mafiaStopClock();
+    // The big screen is the table's own voice, so it is the one that reads.
+    mafiaNarrate(state, TRANSLATIONS[appState.lang], document.getElementById('view-room-tv'));
   }
 };
 </script>

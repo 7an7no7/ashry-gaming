@@ -4789,6 +4789,10 @@ const mafiaAction = (room, playerId, action, payload) => {
     const discuss = MAFIA_DISCUSS_MINUTES.indexOf(Number(opts.discuss)) !== -1 ? Number(opts.discuss) : (prev.discuss || 3);
     const night = MAFIA_NIGHT_SECONDS.indexOf(Number(opts.night)) !== -1 ? Number(opts.night) : (prev.nightSeconds || 45);
     const revealRoles = opts.revealRoles === undefined ? !!prev.revealRoles : !!opts.revealRoles;
+    // The narrator: one setting for the whole room, so every device agrees on
+    // whether the evening has a voice. Which device speaks is the phone's own
+    // business (JS_RoomMafia.html).
+    const narrate = opts.narrate === undefined ? !!prev.narrate : !!opts.narrate;
     const roster = room.players.map(p => p.id);
     const roles = shuffled(mafiaRoles(n, mode));
     room._mafia = { roles: {}, lastSave: null, night: null };
@@ -4798,6 +4802,7 @@ const mafiaAction = (room, playerId, action, payload) => {
       discuss: discuss,
       nightSeconds: night,
       revealRoles: revealRoles,
+      narrate: narrate,
       mafiaCount: mafiaCount(n),
       roleList: mafiaRoles(n, mode).filter((r, i, a) => a.indexOf(r) === i),
       roster: roster,

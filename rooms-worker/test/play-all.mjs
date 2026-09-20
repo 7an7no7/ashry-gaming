@@ -736,7 +736,9 @@ async function main() {
   // the only one who fooled anybody - takes the title at the end.
   for (let guard = 0; A.state.shared.phase !== 'gameover' && guard < 8; guard++) {
     const teller = byId(bots, A.state.shared.subjectId);
-    const itsLie = 'i' + teller.state.shared.items.indexOf(teller.name + ' 3');
+    // The host's state is the one just waited for; a bot that has not polled
+    // since the last turn still holds the previous storyteller's statements.
+    const itsLie = 'i' + A.state.shared.items.indexOf(teller.name + ' 3');
     for (const b of bots) if (b !== teller) await b.must('vote', { option: itsLie });
     await A.waitFor((s) => s.shared.phase === 'result', 'the vote closes', 3000);
     await A.must('next');
@@ -985,6 +987,50 @@ async function main() {
   await all(bots, (s) => s.shared.phase === 'reveal', 'round two is revealed');
   await A.must('score');
   await all(bots, (s) => s.shared.phase === 'result' && s.shared.sheepId === D.pid && s.shared.scores[C.pid] === 1, 'the only one alone takes the sheep');
+  await A.must('backToHub');
+
+  /* --- العقل ------------------------------------------------------------------- */
+  console.log('• the mind');
+  await A.must('chooseGame', { game: 'mind' });
+  await A.must('start', {});
+  await all(bots, (s) => s.shared.phase === 'play' && s.shared.level === 1 && s.shared.lives === 4, 'mind: level 1, a heart per player');
+  // The whole game is the numbers: a phone must see its own and nobody else's.
+  const myCards = (bot) => ((bot.state.you || {}).cards || []).slice();
+  check(bots.every((b) => myCards(b).length === 1), 'mind: one card each, on its own phone');
+  for (const b of bots) {
+    const mine = myCards(b)[0];
+    const others = bots.filter((x) => x !== b);
+    check(others.every((x) => !leaks(x, '"cards":[' + mine + ']')), 'mind: ' + b.name + "'s number is on no other phone");
+  }
+  check(bots.every((b) => Object.keys(b.state.shared.held).length === 4 &&
+                          Object.values(b.state.shared.held).every((n) => n === 1)),
+        'mind: shared says how many cards each holds, not which');
+
+  const lowestBot = () => bots.filter((b) => myCards(b).length).sort((x, y) => myCards(x)[0] - myCards(y)[0])[0];
+  const highestBot = () => bots.filter((b) => myCards(b).length).sort((x, y) => myCards(y)[0] - myCards(x)[0])[0];
+
+  // Out of order on purpose: the highest card first.
+  const wrongBot = highestBot();
+  const beneath = bots.filter((b) => b !== wrongBot).map((b) => myCards(b)[0]).filter((n) => n < myCards(wrongBot)[0]).sort((a, b) => a - b);
+  await wrongBot.must('play');
+  await all(bots, (s) => s.shared.lives === 3, 'mind: playing out of order costs a heart');
+  check(JSON.stringify(A.state.shared.discarded) === JSON.stringify(beneath), 'mind: and every lower card is shown to the table');
+  check(bots.every((b) => !myCards(b).some((n) => n < A.state.shared.pile[0])), 'mind: nobody is left holding a card that was missed');
+
+  // Everyone left plays in order: the level clears.
+  for (let i = 0; i < 4 && A.state.shared.phase === 'play'; i++) {
+    const up = lowestBot();
+    if (!up) break;
+    await up.must('play');
+  }
+  await all(bots, (s) => s.shared.phase === 'levelDone', 'mind: every card down clears the level');
+  check(A.state.shared.lives === 3, 'mind: no further heart was lost');
+  check((await B.act('nextLevel')).ok === false, 'mind: only the host deals the next level');
+  await A.must('nextLevel');
+  await all(bots, (s) => s.shared.phase === 'play' && s.shared.level === 2, 'mind: the next level deals one more card each');
+  check(bots.every((b) => myCards(b).length === 2), 'mind: two cards each at level 2');
+  check(bots.every((b) => JSON.stringify(myCards(b)) === JSON.stringify(myCards(b).slice().sort((x, y) => x - y))),
+        'mind: a hand arrives sorted, so the first is always the lowest');
   await A.must('backToHub');
 
   /* --- مافيا ---------------------------------------------------------------------- */

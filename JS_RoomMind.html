@@ -1,0 +1,233 @@
+<script>
+/* ============================================================================
+   العقل — THE MIND (rooms and the TV)
+   ----------------------------------------------------------------------------
+   Nobody says a word. Every phone holds numbers from 1 to 100 that only it can
+   see, and the table has to lay them all down in rising order. You play your
+   lowest card whenever you believe nothing lower is still out there. Get it
+   wrong and the table loses a life, and every card lower than the one you
+   played goes face up so everyone can see what was missed.
+
+   The rules are mindAction in RoomGames.js, and the numbers live in
+   room.secrets - this file never learns anybody else's. A phone's own cards
+   arrive in state.you.cards, already sorted, so the lowest is always the first.
+   ========================================================================= */
+
+const mindLocal = { from: null };   // where the card was tapped, for its flight
+
+/** The hearts left, as many as the table started with. */
+function mindLivesHtml(s) {
+  const lives = Math.max(0, Number(s.lives) || 0);
+  const total = Math.max(lives, (s.roster || []).length);
+  let out = '';
+  for (let i = 0; i < total; i++) out += i < lives ? '❤️' : '🖤';
+  return `<span class="mind-lives" aria-hidden="true">${out}</span>`;
+}
+
+/** The last card played, or the empty table before the first one. */
+function mindPileHtml(s, t) {
+  const top = (s.pile || [])[(s.pile || []).length - 1];
+  return `<div class="mind-pile">
+      <div class="eyebrow">${escapeHTML(t.mind_pile || '')}</div>
+      <div class="mind-card mind-card--pile" id="mind-pile-card">${top === undefined ? '—' : `<span class="metric">${top}</span>`}</div>
+    </div>`;
+}
+
+/** What the table threw away when it lost a life, face up. */
+function mindDiscardHtml(s, t) {
+  const gone = s.discarded || [];
+  if (!gone.length) return '';
+  return `<div class="mind-discard">
+      <span class="field__hint">${escapeHTML(t.mind_missed || '')}</span>
+      ${gone.map(n => `<span class="mind-chip">${n}</span>`).join('')}
+    </div>`;
+}
+
+/** How many cards each phone is still holding - never which. */
+function mindHandsHtml(state, s, t) {
+  const held = s.held || {};
+  const rows = (s.roster || []).filter(id => held[id] !== undefined).map(id => {
+    const p = (state.players || []).find(x => x.id === id);
+    const n = held[id] || 0;
+    return `<span class="mind-hand ${n ? '' : 'is-empty'}">${escapeHTML((p && p.name) || '')}
+        <b class="metric">${n}</b></span>`;
+  }).join('');
+  return rows ? `<div class="mind-hands">${rows}</div>` : '';
+}
+
+/** This phone's own numbers. Only the lowest can go down; the rest wait. */
+function mindMyCardsHtml(state, s, t) {
+  const mine = ((state.you || {}).cards || []).slice();
+  if (!mine.length) return `<div class="waiting-note">${escapeHTML(t.mind_none || '')}</div>`;
+  const playable = s.phase === 'play';
+  return `<div class="mind-hand-mine">
+      <div class="eyebrow">${escapeHTML(t.mind_your_cards || '')}</div>
+      <div class="mind-cards">
+        ${mine.map((n, i) => (i === 0 && playable
+          ? `<button type="button" class="mind-card mind-card--mine is-next" onclick="mindPlay(this)"><span class="metric">${n}</span></button>`
+          : `<span class="mind-card mind-card--mine"><span class="metric">${n}</span></span>`)).join('')}
+      </div>
+      ${playable ? `<p class="field__hint">${escapeHTML(t.mind_play_hint || '')}</p>` : ''}
+    </div>`;
+}
+
+/** Plays the lowest card, and remembers where it was so it can fly to the pile. */
+function mindPlay(btn) {
+  if (btn && btn.getBoundingClientRect) {
+    const r = btn.getBoundingClientRect();
+    mindLocal.from = { rect: r, font: parseFloat(getComputedStyle(btn).fontSize) || 24, text: btn.textContent.trim() };
+  }
+  haptic('light');
+  roomAct('play');
+}
+
+/** The card the table just saw, flying from this phone's hand onto the pile. */
+function mindFlyToPile() {
+  const from = mindLocal.from;
+  mindLocal.from = null;
+  const target = document.getElementById('mind-pile-card');
+  if (!from || !target || typeof flyEmoji !== 'function') return;
+  flyEmoji(from.text, from.rect, from.font, target);
+}
+
+/**
+ * A heart lost shakes the screen, once per mishap on this phone. It is checked
+ * before the phase branches, because losing the last card of a level costs a
+ * heart *and* clears the level in the same move - the screen has to shake on
+ * that step too, not only while play carries on. The class is removed by a
+ * timer: a suppressed animation fires no end event.
+ */
+function mindShakeOnLoss(el, state) {
+  const s = state.shared;
+  if (!s.lost || typeof motionFirst !== 'function') return;
+  if (!motionFirst(['mind-lost', state.code, s.lost.seq].join('|'))) return;
+  if (!motionOff()) {
+    el.classList.add('animate-shake');
+    setTimeout(() => { el.classList.remove('animate-shake'); }, 800);
+  }
+  playSound('wrong');
+  haptic('heavy');
+}
+
+ROOM_GAMES.mind = {
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang];
+    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.mind_lobby_hint || '')}</p>`;
+  },
+  startPayload() { return {}; },
+
+  render(state) {
+    if (appState.currentView !== 'room-mind') setView('room-mind');
+    const el = document.getElementById('view-room-mind');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang];
+    const s = state.shared;
+    const mine = (state.you || {}).cards || [];
+    mindShakeOnLoss(el, state);
+
+    if (s.phase === 'gameover') {
+      const fresh = renderRoomFrame(el, ['mind-over', s.won, s.level, state.youAreHost, appState.lang].join('|'), () => `
+        <div class="card card--accent" style="text-align:center">
+          <div class="mind-big" aria-hidden="true">${s.won ? '🧠' : '💔'}</div>
+          <p class="sheet__title">${escapeHTML(s.won ? (t.mind_won || '') : (t.mind_lost || ''))}</p>
+          <p class="sheet__subtitle">${escapeHTML((t.mind_reached || '').replace('{n}', s.level))}</p>
+        </div>
+        ${state.youAreHost
+          ? `<div class="btn-stack">
+               <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
+               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+             </div>`
+          : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && s.won && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 160, spread: 90 }));
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    const head = `<div class="cn-score">
+        <span class="cn-score__role">🧠 ${escapeHTML(t.mind_level || '')} ${s.level}</span>
+        ${mindLivesHtml(s)}
+      </div>`;
+
+    if (s.phase === 'levelDone') {
+      renderRoomFrame(el, ['mind-level', s.level, state.youAreHost, appState.lang].join('|'), () => `
+        ${head}
+        <div class="card card--accent" style="text-align:center">
+          <div class="mind-big" aria-hidden="true">✅</div>
+          <p class="sheet__title">${escapeHTML((t.mind_level_done || '').replace('{n}', s.level))}</p>
+          <p class="sheet__subtitle">${escapeHTML((t.mind_next_deals || '').replace('{n}', s.level + 1))}</p>
+          ${state.youAreHost
+            ? `<button class="btn btn--primary btn--lg" style="margin-top: var(--sp-3)" onclick="roomAct('nextLevel')">${escapeHTML(t.mind_next_level || '')}</button>`
+            : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        </div>
+        ${mindDiscardHtml(s, t)}
+        ${renderRoomPlayerStrip(state)}`);
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    // Playing. The signature is what this phone actually shows: the pile, its
+    // own hand, who is still holding and the lives - never a presence tick.
+    const sig = ['mind-play', s.level, s.lives, (s.pile || []).join(','), (s.discarded || []).join(','),
+                 mine.join(','), JSON.stringify(s.held || {}), appState.lang].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => `
+      ${head}
+      <div class="card" style="text-align:center">
+        ${mindPileHtml(s, t)}
+        ${s.last ? `<p class="field__hint">${escapeHTML((t.mind_played_by || '').replace('{name}', s.last.name || '').replace('{n}', s.last.card))}</p>` : ''}
+      </div>
+      ${mindDiscardHtml(s, t)}
+      <div class="card">${mindMyCardsHtml(state, s, t)}</div>
+      ${mindHandsHtml(state, s, t)}
+      ${renderRoomPlayerStrip(state)}`);
+
+    if (rebuilt) mindFlyToPile();
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+/* --- the TV ------------------------------------------------------------------ */
+TV_GAMES.mind = {
+  sig: (state) => ['mind', state.shared.phase, state.shared.level, state.shared.lives,
+                   (state.shared.pile || []).join(','), (state.shared.discarded || []).join(','),
+                   JSON.stringify(state.shared.held || {}), state.youAreHost].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (s.phase === 'gameover') {
+      return `
+        <div class="tv-vote">
+          <div class="tv-big-icon" aria-hidden="true">${s.won ? '🧠' : '💔'}</div>
+          <div class="tv-title tv-center-text">${escapeHTML(s.won ? (t.mind_won || '') : (t.mind_lost || ''))}</div>
+          <div class="tv-note">${escapeHTML((t.mind_reached || '').replace('{n}', s.level))}</div>
+          ${host(tvBtn(t.play_again, "roomAct('playAgain')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+        </div>`;
+    }
+    const top = `<div class="tv-top">
+        <span class="tv-pill">🧠 ${escapeHTML(t.mind_level || '')} ${s.level}</span>
+        <span class="tv-pill">${mindLivesHtml(s)}</span>
+      </div>`;
+    if (s.phase === 'levelDone') {
+      return `
+        <div class="tv-trivia">${top}
+          <div class="tv-center">
+            <div class="tv-big-icon" aria-hidden="true">✅</div>
+            <div class="tv-title">${escapeHTML((t.mind_level_done || '').replace('{n}', s.level))}</div>
+            ${host(tvBtn(t.mind_next_level, "roomAct('nextLevel')"))}
+          </div>
+        </div>`;
+    }
+    const pileTop = (s.pile || [])[(s.pile || []).length - 1];
+    return `
+      <div class="tv-trivia">${top}
+        <div class="tv-center">
+          <div class="tv-eyebrow">${escapeHTML(t.mind_pile || '')}</div>
+          <div class="tv-clock">${pileTop === undefined ? '—' : pileTop}</div>
+          ${s.last ? `<div class="tv-note">${escapeHTML((t.mind_played_by || '').replace('{name}', s.last.name || '').replace('{n}', s.last.card))}</div>` : ''}
+          ${(s.discarded || []).length ? `<div class="tv-note">${escapeHTML(t.mind_missed || '')} ${(s.discarded || []).join(' · ')}</div>` : ''}
+        </div>
+        <div class="tv-scale">${mindHandsHtml(state, s, t)}</div>
+      </div>`;
+  }
+};
+</script>

@@ -1773,6 +1773,109 @@ const leave = (r, id, hook = true) => {
   }
 }
 
+/* --- العقل: the numbers never leave the server -------------------------- */
+{
+  const mindStart = (ids) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'mind' });
+    applyRoomAction(r, ids[0], 'start', {});
+    return r;
+  };
+  const cards = (r, id) => ((r.secrets[id] || {}).cards || []).slice();
+  const allCards = (r) => r.shared.roster.reduce((acc, id) => acc.concat(cards(r, id)), []).sort((a, b) => a - b);
+  const lowestHolder = (r) => r.shared.roster
+    .filter((id) => cards(r, id).length)
+    .sort((a, b) => cards(r, a)[0] - cards(r, b)[0])[0];
+
+  const m = mindStart(['a', 'b', 'c']);
+  check(m.shared.level === 1 && m.shared.lives === 3, 'mind: level 1, a life per player');
+  check(['a', 'b', 'c'].every((id) => cards(m, id).length === 1), 'mind: one card each at level 1');
+  const dealt = allCards(m);
+  check(dealt.length === 3 && new Set(dealt).size === 3 && dealt.every((n) => n >= 1 && n <= 100),
+        'mind: three different numbers from 1 to 100');
+  check(JSON.stringify(m.shared.held) === JSON.stringify({ a: 1, b: 1, c: 1 }), 'mind: shared says how many, not which');
+  check(!m.shared.pile.length && !m.shared.discarded.length, 'mind: nothing is on the table before a card is played');
+  // Nothing anywhere in shared is a number somebody is still holding.
+  check(!dealt.some((n) => JSON.stringify(m.shared).indexOf(':' + n) !== -1 ||
+                           JSON.stringify(m.shared).indexOf('[' + n) !== -1),
+        'mind: no unplayed number appears anywhere in shared');
+
+  // In order: the lowest first, then the next, then the last - no life lost.
+  applyRoomAction(m, lowestHolder(m), 'play', {});
+  check(m.shared.lives === 3 && m.shared.pile.length === 1 && !m.shared.lost, 'mind: the lowest card costs nothing');
+  applyRoomAction(m, lowestHolder(m), 'play', {});
+  applyRoomAction(m, lowestHolder(m), 'play', {});
+  check(m.shared.phase === 'levelDone' && m.shared.lives === 3 && m.shared.pile.length === 3,
+        'mind: every card played, in order, clears the level');
+  const inOrder = m.shared.pile.slice().sort((a, b) => a - b);
+  check(JSON.stringify(m.shared.pile) === JSON.stringify(inOrder), 'mind: the pile came out in rising order');
+
+  applyRoomAction(m, 'a', 'nextLevel', {});
+  check(m.shared.level === 2 && ['a', 'b', 'c'].every((id) => cards(m, id).length === 2),
+        'mind: the next level deals one more card each');
+  check(m.shared.lives === 3 && !m.shared.pile.length, 'mind: the lives carry over and the pile starts again');
+
+  // Out of order: one life, and every card lower than the one played is thrown.
+  const wrong = mindStart(['a', 'b', 'c']);
+  const highest = wrong.shared.roster
+    .sort((x, y) => cards(wrong, y)[0] - cards(wrong, x)[0])[0];
+  const beneath = allCards(wrong).filter((n) => n < cards(wrong, highest)[0]);
+  applyRoomAction(wrong, highest, 'play', {});
+  check(wrong.shared.lives === 2, 'mind: playing out of order costs exactly one life');
+  check(JSON.stringify(wrong.shared.discarded) === JSON.stringify(beneath),
+        'mind: and every card lower than it goes face up');
+  check(!allCards(wrong).some((n) => n < wrong.shared.pile[0]), 'mind: nobody is left holding a card that was missed');
+  check(wrong.shared.lost && wrong.shared.lost.missed.length === beneath.length, 'mind: the table is told what it lost');
+
+  // Lives at zero ends the game.
+  const doomed = mindStart(['a', 'b']);
+  doomed.shared.lives = 1;
+  const top = cards(doomed, 'a')[0] > cards(doomed, 'b')[0] ? 'a' : 'b';
+  applyRoomAction(doomed, top, 'play', {});
+  check(doomed.shared.phase === 'gameover' && doomed.shared.won === false, 'mind: the last life ends the game');
+  check(threw(() => applyRoomAction(doomed, 'a', 'play', {})) || doomed.shared.pile.length === 1,
+        'mind: no card goes down after the game is over');
+
+  // Somebody leaves holding cards: they go with them, and the level finishes.
+  const gone = mindStart(['a', 'b', 'c']);
+  applyRoomAction(gone, 'a', 'nextLevel', {});   // refused: the level is not done
+  check(gone.shared.level === 1, 'mind: nextLevel is refused while cards are still out');
+  leave(gone, 'c');
+  check(!gone.secrets.c && gone.shared.held.c === undefined, 'mind: a leaver takes their cards with them');
+  check(gone.shared.roster.length === 2 && gone.shared.phase === 'play', 'mind: the level goes on with two');
+  applyRoomAction(gone, lowestHolder(gone), 'play', {});
+  applyRoomAction(gone, lowestHolder(gone), 'play', {});
+  check(gone.shared.phase === 'levelDone', 'mind: and the level can still be finished');
+
+  // The last card leaving finishes the level by itself.
+  const finish = mindStart(['a', 'b', 'c']);
+  applyRoomAction(finish, lowestHolder(finish), 'play', {});
+  applyRoomAction(finish, lowestHolder(finish), 'play', {});
+  const last = lowestHolder(finish);
+  leave(finish, last);
+  check(finish.shared.phase === 'levelDone', 'mind: the level is done when the last holder leaves');
+
+  // Down to one player, the game is over.
+  const alone = mindStart(['a', 'b', 'c']);
+  leave(alone, 'b');
+  leave(alone, 'c');
+  check(alone.shared.phase === 'gameover', 'mind: fewer than two players ends the game');
+
+  // A phone with no cards cannot play, and a stranger cannot either.
+  const empty = mindStart(['a', 'b']);
+  applyRoomAction(empty, lowestHolder(empty), 'play', {});
+  const spent = empty.shared.last.by;
+  check(threw(() => applyRoomAction(empty, spent, 'play', {})), 'mind: a phone with no cards cannot play');
+  check(threw(() => applyRoomAction(empty, 'z', 'play', {})), 'mind: somebody not in the round cannot play');
+
+  // A deck that cannot carry another level is a win.
+  const win = mindStart(['a', 'b']);
+  win.shared.level = 50;
+  win.shared.phase = 'levelDone';
+  applyRoomAction(win, 'a', 'nextLevel', {});
+  check(win.shared.phase === 'gameover' && win.shared.won === true, 'mind: playing out the deck is a win');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

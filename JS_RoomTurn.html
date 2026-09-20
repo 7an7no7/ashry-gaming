@@ -90,6 +90,9 @@ function roomTurnOf(state) {
       return s.phase === 'guess' && s.chameleonId === me ? 'turn_guess' : null;
     case 'mafia':
       return s.phase === 'night' && has(s.alive) && !has(s.acted) ? 'turn_night' : null;
+    case 'mind':
+      // In العقل it is always your turn: anyone holding a card may play it.
+      return s.phase === 'play' && ((s.held || {})[me] || 0) > 0 ? 'turn_up' : null;
     case 'screw':
       if (s.phase === 'memorize') return has(s.order) && !has(s.ready) ? 'turn_memorize' : null;
       // بوم: every other player picks a card of their own, and the player of it waits.

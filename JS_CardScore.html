@@ -302,7 +302,8 @@ function csWinnersOf(g, s, order) {
 /** Who deals this round: the next seat each round, in seating order. */
 function csDealer(s) {
   const names = s.names && s.names.length ? s.names : s.seats.map(x => x.name);
-  return names.length ? names[s.rounds.length % names.length] : '';
+  const roundIdx = typeof s.editing === 'number' ? s.editing : s.rounds.length;
+  return names.length ? names[roundIdx % names.length] : '';
 }
 
 function paintCardScore(id, fresh) {
@@ -325,8 +326,9 @@ function paintCardScore(id, fresh) {
   const before = last ? csBoard(id, s, totals.map((x, i) => x - (Number(last.points[i]) || 0))) : board;
   const order = csOrder(g, board);
   const lead = order[0];
+  const isEdit = typeof s.editing === 'number' && !!s.rounds[s.editing];
   const over = s.phase === 'over';
-  const roundNo = s.rounds.length + 1;
+  const roundNo = isEdit ? s.editing + 1 : s.rounds.length + 1;
   const goal = g.goalText ? g.goalText(s, t) : '';
   const dealer = g.dealer ? (typeof g.dealer === 'function' ? g.dealer(s) : csDealer(s)) : '';
   const labels = [g.roundLabel ? g.roundLabel(s, t) : '', dealer ? '🃏 ' + (t.cs_dealer || 'بيوزّع: {name}').replace('{name}', dealer) : ''].filter(Boolean);
@@ -365,7 +367,12 @@ function paintCardScore(id, fresh) {
         ? `<button type="button" class="btn btn--primary btn--lg" onclick="restartCardScore('${id}')">${escapeHTML(t.play_again || '')}</button>`
         : `<div class="btn-stack">
              <div class="chip-set hidden" id="cs-preview" aria-live="polite"></div>
-             <button type="button" class="btn btn--primary btn--lg" onclick="saveCardScoreRound('${id}')">${escapeHTML(t.cs_save_round || '')}</button>
+             ${isEdit
+               ? `<div class="btn-row">
+                    <button type="button" class="btn btn--ghost btn--lg" onclick="csCancelEdit('${id}')">${escapeHTML(t.cs_cancel_edit || 'إلغاء التعديل')}</button>
+                    <button type="button" class="btn btn--primary btn--lg" onclick="saveCardScoreRound('${id}')">${escapeHTML(t.cs_save_edit || 'احفظ التعديل')}</button>
+                  </div>`
+               : `<button type="button" class="btn btn--primary btn--lg" onclick="saveCardScoreRound('${id}')">${escapeHTML(t.cs_save_round || '')}</button>`}
            </div>`}
     </div>`;
   if (g.afterPaint) g.afterPaint(s);
@@ -390,10 +397,10 @@ function csHistoryHtml(id, s, g, t) {
           <span>#</span>${s.seats.map(seat => `<span>${escapeHTML(csShort(seat, t))}</span>`).join('')}
         </div>
         ${s.rounds.map((r, n) => `
-          <div class="cs-row" role="row" style="--cs-cols:${s.seats.length}">
+          <button type="button" class="cs-row" role="row" style="--cs-cols:${s.seats.length}" onclick="csEditRound('${id}', ${n})">
             <span class="cs-row__n" title="${escapeHTML(r.label || '')}">${n + 1}${r.tag ? `<small>${escapeHTML(r.tag)}</small>` : ''}</span>
             ${r.points.map(p => `<span class="metric ${p > 0 ? 'tx-success' : (p < 0 ? 'tx-danger' : 'tx-muted')}">${p > 0 && !g.low ? '+' : ''}${p}</span>`).join('')}
-          </div>`).join('')}
+          </button>`).join('')}
       </div>
     </div>`;
 }
@@ -426,8 +433,13 @@ function csProject(id, input) {
   const s = csState(id);
   const result = g.score(input, s);
   const totals = csTotals(id);
-  const after = totals.map((x, i) => x + (Number(result.points[i]) || 0));
-  const next = Object.assign({}, s, { rounds: s.rounds.concat([Object.assign({}, result, { input: input, points: result.points })]) });
+  const isEdit = typeof s.editing === 'number' && s.rounds[s.editing];
+  const roundObj = Object.assign({}, result, { input: input, points: result.points });
+  const nextRounds = isEdit
+    ? s.rounds.map((r, i) => (i === s.editing ? roundObj : r))
+    : s.rounds.concat([roundObj]);
+  const after = s.seats.map((_, i) => csSum(nextRounds.map(r => r.points[i])));
+  const next = Object.assign({}, s, { rounds: nextRounds });
   delete next.winTeam;
   const end = !!g.ended(next, after);
   const now = csBoard(id, s, totals);
@@ -533,10 +545,17 @@ function saveCardScoreRound(id) {
   const problem = g.check(input, s, t);
   if (problem) { showToast(problem, 'error'); haptic('medium'); return; }
   const result = g.score(input, s);
-  s.rounds.push(Object.assign({}, result, { input: input, draft: csDraftOf(), points: result.points, tag: result.tag || '', label: result.label || '' }));
+  const roundObj = Object.assign({}, result, { input: input, draft: csDraftOf(id), points: result.points, tag: result.tag || '', label: result.label || '' });
+  if (typeof s.editing === 'number' && s.rounds[s.editing]) {
+    s.rounds[s.editing] = roundObj;
+    delete s.editing;
+  } else {
+    s.rounds.push(roundObj);
+  }
   s.draft = {};
-  const end = g.ended(s, csTotals(id));
-  if (end) s.phase = 'over';
+  delete s.winTeam;
+  const end = !!g.ended(s, csTotals(id));
+  s.phase = end ? 'over' : 'play';
   saveToLocal();
   playSound(end ? 'success' : 'click');
   haptic('light');
@@ -558,6 +577,7 @@ function saveCardScoreRound(id) {
 function undoCardScoreRound(id) {
   const s = csState(id);
   if (!s.rounds.length) return;
+  delete s.editing;
   const last = s.rounds.pop();
   s.draft = last.draft || {};
   delete s.winTeam;
@@ -567,10 +587,33 @@ function undoCardScoreRound(id) {
   paintCardScore(id);
 }
 
+function csEditRound(id, n) {
+  const s = csState(id);
+  if (!s.rounds || !s.rounds[n]) return;
+  s.draft = Object.assign({}, s.rounds[n].draft || {});
+  s.editing = n;
+  s.phase = 'play';
+  saveToLocal();
+  paintCardScore(id);
+  const entry = document.getElementById('cs-entry');
+  if (typeof scrollToAction === 'function') scrollToAction(entry);
+}
+
+function csCancelEdit(id) {
+  const s = csState(id);
+  const g = CS_GAMES[id];
+  delete s.editing;
+  s.draft = {};
+  if (g && g.ended) s.phase = g.ended(s, csTotals(id)) ? 'over' : 'play';
+  saveToLocal();
+  paintCardScore(id);
+}
+
 function restartCardScore(id) {
   const s = csState(id);
   s.rounds = [];
   s.draft = {};
+  delete s.editing;
   delete s.winTeam;
   s.phase = 'play';
   s.startedAt = Date.now();
@@ -597,8 +640,8 @@ const csCurrentId = () => CS_IDS.find(x => appState.currentView === 'play-cs-' +
  * the round, so taking the round back puts exactly what was typed back on
  * the card to fix.
  */
-function csDraftOf() {
-  const id = csCurrentId();
+function csDraftOf(targetId) {
+  const id = targetId || csCurrentId();
   const draft = {};
   if (!id) return draft;
   document.querySelectorAll('#cs-' + id + '-stage .cs-step__val').forEach(el => { if (el.value !== '') draft[el.id.replace('cs-in-', '')] = el.value; });

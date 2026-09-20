@@ -973,7 +973,7 @@ function skrPickPrompt(state, pick) {
     case 'boomPick': return skrT('skr_boom_pick', '💣 بوم! اختار كارت من كروتك يترمي على الأرض', '💣 Boom! Pick one of your cards to throw on the pile');
   }
   const p = pick.power;
-  if (p === 'asYouLike') return skrT('skr_power_asyoulike', 'اختار القوة اللي عايزها', 'Pick the power you want');
+  if (p === 'asYouLike') return skrT('skr_power_asyoulike', 'اختار كارت أوامر من الأرض تقلّده', 'Point at a command card on the pile to copy');
   if (p === 'allAround' && need.mode) return skrT('skr_power_around', 'كارت من كل واحد، ولا كارتين من عندك؟', 'One card of everyone else, or two of yours?');
   if (p === 'allAround' && pick.mode === 'own') return skrT('skr_power_around_own', 'اختار كارتين من كروتك تشوفهم', 'Pick two of your cards to look at');
   if (p === 'allAround') return skrT('skr_power_around_others', 'اختار كارت واحد من عند كل لاعب', 'Pick one card of every other player');
@@ -1042,9 +1042,26 @@ function skrPickMode(mode) {
   skrRedraw();
 }
 
-function skrPickAs(power) {
-  if (!skrLocal.pick || (typeof SKREW_AS_YOU_LIKE !== 'undefined' && SKREW_AS_YOU_LIKE.indexOf(power) === -1)) return;
-  skrLocal.pick = skrNewPick('power', { power: power, as: power });
+/** The command cards on the pile that على كيفك can point at, newest first. */
+function skrAsYouLikeChoices(state) {
+  const pile = (state && state.shared && state.shared.pile) || [];
+  return typeof skrewPileCommands === 'function' ? skrewPileCommands(pile) : [];
+}
+
+/** Nothing on the pile to copy: على كيفك goes down as a plain بصرة. */
+function skrPickAsBasra() {
+  if (!skrLocal.pick) return;
+  skrLocal.pick = skrNewPick('power', { power: 'basra', as: '' });
+  haptic('light');
+  skrRedraw();
+}
+
+/** Points at one of them: the card, so the table can see what was copied. */
+function skrPickAs(card) {
+  if (!skrLocal.pick || skrAsYouLikeChoices(Room.state).indexOf(card) === -1) return;
+  const power = (SKREW_CARDS[card] || {}).power;
+  if (!power) return;
+  skrLocal.pick = skrNewPick('power', { power: power, as: card });
   haptic('light');
   skrRedraw();
 }
@@ -1486,8 +1503,13 @@ function skrPickBarHtml(state, pick, ctx) {
     : '';
   let body = '';
   if (need.as) {
-    const list = typeof SKREW_AS_YOU_LIKE !== 'undefined' ? SKREW_AS_YOU_LIKE : [];
-    body = `<div class="skr-choices">${list.map(power => { const p = skrPowerInfo(power); return `<button type="button" class="btn btn--secondary" onclick="skrPickAs('${jsStringAttr(power)}')">${skrPowerChip(power)}${escapeHTML(p.name)}</button>`; }).join('')}</div>`;
+    // Only what the table has already seen go down. With nothing there the
+    // server throws it as a plain بصرة, so the phone asks for that instead.
+    const list = skrAsYouLikeChoices(state);
+    body = list.length
+      ? `<div class="skr-choices">${list.map(card => { const p = skrPowerInfo(SKREW_CARDS[card].power); return `<button type="button" class="btn btn--secondary" onclick="skrPickAs('${jsStringAttr(card)}')">${skrPowerChip(SKREW_CARDS[card].power)}${escapeHTML(p.name)}</button>`; }).join('')}</div>`
+      : `<p class="skr-hint">${escapeHTML(skrT('skr_asyoulike_none', 'مفيش كارت أوامر على الأرض يتقلّد، فهيترمي بصرة', 'No command on the pile to copy, so it is thrown as a بصرة'))}</p>
+         <button type="button" class="btn btn--primary" onclick="skrPickAsBasra()">🗑️ ${escapeHTML(skrPowerInfo('basra').name)}</button>`;
   } else if (need.mode) {
     body = `<div class="skr-choices">
         <button type="button" class="btn btn--secondary" onclick="skrPickMode('others')">👥 ${escapeHTML(skrT('skr_around_others', 'كارت من كل واحد', 'One of everyone else'))}</button>
@@ -3497,7 +3519,7 @@ function skrPlay(root, state, list, delay) {
         break;
       }
       case 'asYouLike': {
-        const icons = (typeof SKREW_AS_YOU_LIKE !== 'undefined' ? SKREW_AS_YOU_LIKE : []).map(p => skrPowerInfo(p).icon || '🃏');
+        const icons = skrAsYouLikeChoices(state).map(id => skrPowerInfo(SKREW_CARDS[id].power).icon || '🃏');
         at(t, () => skrWheel(root, skrSeatRect(root, A), icons, skrPowerInfo(e.as).icon || '🃏', 0));
         t += 700;
         break;

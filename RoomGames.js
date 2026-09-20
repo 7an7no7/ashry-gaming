@@ -5921,11 +5921,25 @@ const screwPower = (room, me, p) => {
   const s = room.shared;
   let power = s.turn.power;
   if (power === 'asYouLike') {
-    // على كيفك: any one of the powers on the owner's list.
-    const as = String(p.as || '');
-    if (SKREW_AS_YOU_LIKE.indexOf(as) === -1) throw new Error('اختار قوة');
-    screwEvent(room, 'asYouLike', { pid: me, as: as });
-    power = as;
+    // على كيفك is a mimic (the owner, 20 Sep 2026): it copies a command card
+    // that is already face up on the pile. With none there - turn one, or a
+    // pile of nothing but numbers - it is not dead: it is thrown as a plain
+    // بصرة, which is all the table has unlocked so far.
+    // The same window the phones are shown (SKREW_PILE_SHOWN): you point at a
+    // card lying face up where the table can see it, not one buried twenty
+    // deep that nobody could name.
+    const choices = skrewPileCommands(room._screw.pile.slice(-SKREW_PILE_SHOWN));
+    if (!choices.length) {
+      power = SKREW_AS_YOU_LIKE_FALLBACK;
+      screwEvent(room, 'asYouLike', { pid: me, as: power, from: null });
+    } else {
+      // The phone names the card it pointed at; an older one names the power.
+      const want = String(p.as || '');
+      const from = choices.indexOf(want) !== -1 ? want : choices.find(id => SKREW_CARDS[id].power === want);
+      if (!from) throw new Error('اختار كارت من الأرض');
+      power = SKREW_CARDS[from].power;
+      screwEvent(room, 'asYouLike', { pid: me, as: power, from: from });
+    }
   }
   const run = SKREW_POWERS[power];
   if (!run) throw new Error('الكارت ده ملوش قوة');

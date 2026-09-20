@@ -80,9 +80,31 @@ const SKREW_EDITIONS = {
   general:    { groups: SKREW_GROUPS.slice(),   icon: '🌀', ar: 'العامة (كل الكروت)', en: 'General (every card)' }
 };
 
-/* The powers على كيفك can copy (the owner's list): action cards only, never a
-   number, a shield or a penalty - and not أوسكار's بوم. */
-const SKREW_AS_YOU_LIKE = ['give', 'blindSwap', 'basra', 'seeSwap'];
+/**
+ * على كيفك is a mimic (the owner, 20 Sep 2026): it copies a command card that
+ * is **already lying face up on the pile**, not any power out of thin air. You
+ * point at one of these and it runs that card's text.
+ *
+ * Newest first, one entry per kind. A command card that plays itself (بوم,
+ * صرخة أوسكار, بينج, المسحراتي) is `kind: 'special'`, so it is not on this list
+ * - and neither is على كيفك itself, which would be circular.
+ *
+ * With nothing here to copy - turn one, or a pile of nothing but numbers - the
+ * card is not dead: it is thrown as a plain بصرة (skrewAsYouLikeFallback).
+ */
+function skrewPileCommands(pile) {
+  const out = [];
+  for (let i = (pile || []).length - 1; i >= 0; i--) {
+    const id = pile[i];
+    const c = SKREW_CARDS[id];
+    if (!c || c.kind !== 'command' || !c.power || c.power === 'asYouLike') continue;
+    if (out.indexOf(id) === -1) out.push(id);
+  }
+  return out;
+}
+
+/** What على كيفك does when the pile holds no command to copy: a plain بصرة. */
+const SKREW_AS_YOU_LIKE_FALLBACK = 'basra';
 
 /* Powers that fire the moment their card is drawn and can never be skipped
    (the owner, 20 Sep 2026). Worked out from the cards rather than listed twice,

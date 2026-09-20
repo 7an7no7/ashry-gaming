@@ -869,10 +869,56 @@ const leave = (r, id, hook = true) => {
     check(r._screw.hands[p1][0].card === 'n6' && r._screw.hands[p2][3].card === 'n5' && r.shared.events.slice(-1)[0].swapped === true && r.secrets[p1].seen === null,
       'skrew: then swaps');
 
-    drawPower(p2, 'asYouLike');
-    check(skThrew(r, p2, 'power', { as: 'cannon', target: p0 }), 'skrew: على كيفك only copies the powers on its list');
-    sk(r, p2, 'power', { as: 'basra', slot: slotOf(r, p2, 1) });
-    check(r._screw.hands[p2].length === 3 && r.shared.events.slice(-2)[0].type === 'asYouLike', 'skrew: على كيفك as بصرة');
+    // على كيفك is a mimic (the owner, 20 Sep 2026): it copies a command card
+    // already lying face up on the pile, and nothing else.
+    {
+      const pileHas = (id) => r._screw.pile.indexOf(id) !== -1;
+      check(pileHas('seeSwap') && !pileHas('cannon'), 'skrew: (شوف وبدّل has been thrown, المدفع has not)');
+      drawPower(p2, 'asYouLike');
+      check(skThrew(r, p2, 'power', { as: 'cannon', target: p0 }), 'skrew: على كيفك cannot copy a card the table has never seen go down');
+      check(skThrew(r, p2, 'power', { as: 'nonsense' }), 'skrew: nor anything that is not a card');
+      const n = r._screw.hands[p2].length;
+      sk(r, p2, 'power', { as: 'seeSwap', target: p0, slot: slotOf(r, p0, 1) });
+      const ev = r.shared.events.filter((e) => e.type === 'asYouLike').pop();
+      check(ev.as === 'seeSwap' && ev.from === 'seeSwap' && r.shared.turn.stage === 'seeSwap',
+        'skrew: على كيفك copies a card off the pile, and the table is told which');
+      sk(r, p2, 'seeSwapDo', {});
+      check(r._screw.hands[p2].length === n, 'skrew: and it ran that own power of the copied card');
+    }
+
+    // Nothing on the pile to copy: it is thrown as a plain بصرة instead.
+    {
+      const bare = skStart(['a', 'b'], { edition: 'sahib', teams: false });
+      begin(bare, [['n1', 'n2'], ['n3', 'n4']], [], ['n5']);
+      const first = bare.shared.order[0];
+      bare._screw.pile = ['n5'];                       // numbers only
+      bare._screw.deck.push('asYouLike');
+      sk(bare, first, 'draw');
+      sk(bare, first, 'discard');
+      check(bare.shared.turn.stage === 'power' && bare.shared.turn.power === 'asYouLike', 'skrew: على كيفك still offers its power with a bare pile');
+      const had = bare._screw.hands[first].length;
+      sk(bare, first, 'power', { slot: slotOf(bare, first, 1) });
+      const ev = bare.shared.events.filter((e) => e.type === 'asYouLike').pop();
+      check(ev.as === 'basra' && ev.from === null && bare._screw.hands[first].length === had - 1 &&
+        bare.shared.events.filter((e) => e.type === 'basra').length === 1,
+        'skrew: with no command on the pile, على كيفك goes down as a plain بصرة');
+
+      // The phone is shown only the top of the pile, and the rule is about
+      // what the table can see: a command buried under that window is not
+      // something anybody could point at, so it does not count.
+      const deep = skStart(['a', 'b'], { edition: 'sahib', teams: false });
+      begin(deep, [['n1', 'n2'], ['n3', 'n4']], [], ['n5']);
+      const who = deep.shared.order[0];
+      deep._screw.pile = ['seeSwap', 'n1', 'n2', 'n3', 'n4', 'n5', 'n6'];   // seeSwap is off the end
+      deep._screw.deck.push('asYouLike');
+      sk(deep, who, 'draw');
+      sk(deep, who, 'discard');
+      check(deep.shared.pile.indexOf('seeSwap') === -1, 'skrew: (the buried card is not on the phones’ pile)');
+      // The payload is a بصرة's, because that is what it has to become.
+      sk(deep, who, 'power', { as: 'seeSwap', slot: slotOf(deep, who, 1) });
+      check(deep.shared.events.filter((e) => e.type === 'asYouLike').pop().as === 'basra',
+        'skrew: a command buried below what the phones are shown cannot be copied');
+    }
 
     drawPower(p0, 'cannon');
     sk(r, p0, 'power', { target: p1 });

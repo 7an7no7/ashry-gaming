@@ -17,7 +17,7 @@ import { stopDictionary, stopAnswerFits, stopWordKnown, foldStopAnswer } from '.
 // to check the score at the reveal. They only ever learn a card the way a
 // player does: their own slice, or a card the table sees.
 const SKREW = new Function(readFileSync(new URL('../../SkrewCards.js', import.meta.url), 'utf8') +
-  '\nreturn { SKREW_CARDS, skrewMatches, skrewValue, skrewHandValues };')();
+  '\nreturn { SKREW_CARDS, skrewMatches, skrewValue, skrewHandValues, skrewPileCommands };')();
 
 const ARGS = process.argv.slice(2);
 const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
@@ -1158,7 +1158,7 @@ async function main() {
 
   /* --- سكرو ------------------------------------------------------------------------ */
   console.log('• skrew (classic, the thief vote, partners, المسحراتي with أوسكار, an empty hand, sudden death, the house rules, leaving)');
-  const { SKREW_CARDS, skrewMatches, skrewValue, skrewHandValues } = SKREW;
+  const { SKREW_CARDS, skrewMatches, skrewValue, skrewHandValues, skrewPileCommands } = SKREW;
   const skTV = await Bot.join(A.code, '', true);
   let skBots = [A, B, C, D];
   let skView = [A, B, C, D, skTV];
@@ -1410,9 +1410,23 @@ async function main() {
     const inner = checking && power !== 'asYouLike';
     let use = power;
     let extra = {};
+    let asYouLikeSaw = [];
     if (power === 'asYouLike') {
-      use = open.length && mine.length ? 'give' : 'basra';
-      extra = { as: use };
+      // A mimic: it can only copy a command card already face up on the pile,
+      // and with none there it goes down as a plain بصرة.
+      const onPile = skrewPileCommands(sks().pile);
+      asYouLikeSaw = onPile;
+      // Only the two whose case here carries `extra` through to the server.
+      // The general rule - it copies whatever command is on the pile, and
+      // refuses one that is not - is pinned deterministically in rules.mjs.
+      const usable = onPile.filter((id) => {
+        const q = SKREW_CARDS[id].power;
+        if (q === 'give') return open.length && mine.length;
+        return q === 'basra' && mine.length;
+      });
+      if (usable.length) { extra = { as: usable[0] }; use = SKREW_CARDS[usable[0]].power; }
+      else if (onPile.length) { use = ''; }             // a command this robot can't drive: skip the power
+      else { extra = {}; use = 'basra'; }               // nothing to copy: the server falls back for us
     }
     const ids = (pid) => skHand(pid).map((h) => h.id).join();
     const run = async () => {
@@ -1536,7 +1550,12 @@ async function main() {
     };
     if (!(await run())) { await skDo(bot, 'skipPower'); return; }
     want.delete(power);
-    if (checking && power === 'asYouLike') check(evs('asYouLike').length === 1 && evs('asYouLike')[0].as === use && evs(use).length === 1, `skrew: على كيفك used as ${use}`);
+    if (checking && power === 'asYouLike' && use) {
+      const ev = evs('asYouLike')[0];
+      check(ev && ev.as === use && evs(use).length === 1 &&
+        (extra.as ? ev.from === extra.as && asYouLikeSaw.indexOf(extra.as) !== -1 : ev.from === null),
+        `skrew: على كيفك copied ${extra.as || 'nothing on the pile, so بصرة'}`);
+    }
   };
 
   /**

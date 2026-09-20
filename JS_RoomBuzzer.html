@@ -128,6 +128,14 @@ ROOM_GAMES.buzzer = {
 function pressBuzzer(btn) {
   if (btn) { btn.classList.add('is-pressed'); btn.disabled = true; }
   haptic('heavy');
+  // A ring off the button, so the press reads across the table. Removed by a
+  // timer, because a suppressed animation fires no animationend at all.
+  if (btn && typeof motionOff === 'function' && !motionOff()) {
+    const ring = document.createElement('span');
+    ring.className = 'bz-ring';
+    btn.appendChild(ring);
+    setTimeout(() => { if (ring.isConnected) ring.remove(); }, 700);
+  }
   roomAct('buzz');
 }
 </script>

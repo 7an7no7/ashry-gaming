@@ -4829,6 +4829,7 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 /* --- الجرس --- */
 .bz-stage { display: flex; align-items: center; justify-content: center; min-height: 15rem; margin-bottom: var(--sp-3); }
 .bz-button {
+  position: relative;      /* the press ring is placed against this */
   width: min(70vw, 15rem);
   aspect-ratio: 1;
   display: flex;
@@ -4851,6 +4852,16 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28), 0 10px 20px -10px var(--accent-glow);
   animation: none;
 }
+/* A ring off the buzzer when it is hit, so the press reads across the table. */
+.bz-ring {
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: bz-ring 640ms var(--ease-out) forwards;
+}
+@keyframes bz-ring { from { opacity: 0.55; transform: scale(1); } to { opacity: 0; transform: scale(1.65); } }
 .bz-button__icon { font-size: 3.5rem; line-height: 1; }
 .bz-button__label { font-size: var(--fs-h2); font-weight: 900; }
 @keyframes bzPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
@@ -4864,7 +4875,7 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 .tv-strip-inline { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6vmin; margin: 1vmin 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .bomb-emoji, .bz-button, .tv-pulse, .bomb-pass, .finger.is-chosen .finger__ring { animation: none; }
+  .bomb-emoji, .bz-button, .tv-pulse, .bomb-pass, .finger.is-chosen .finger__ring, .bz-ring { animation: none; }
 }
 
 
@@ -6231,6 +6242,21 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   will-change: transform;
 }
 
+/* The points you just won, floating onto your row of the board. */
+.fly-points {
+  position: fixed;
+  z-index: 100030;
+  padding: 0.1em 0.5em;
+  border-radius: var(--r-sm);
+  background: var(--success-btn);
+  color: var(--success-on);
+  font-size: var(--fs-h2);
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
 /* A word slammed over the whole screen for a beat, then gone: the moment
    someone shouts وقف in أتوبيس كومبليت. Near-opaque rather than blurred - the
    screen underneath is rebuilding, and a backdrop-filter over that stutters.
@@ -6304,6 +6330,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 
 @media (prefers-reduced-motion: reduce) {
   .slam, .slam__word, .draw-stamp { animation: none; }
+  .fly-points { display: none; }
   .slam { display: none; }
   .mafia-sky { transition: none; }
   .game-splash, .game-splash__icon, .game-splash__name, .room-code span, .status-row--new, .motion-landed { animation: none; }

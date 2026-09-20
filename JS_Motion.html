@@ -525,6 +525,50 @@ function heroHomeFlight(previous, next) {
 }
 
 /**
+ * The points you just won, floating from where you won them onto your row of
+ * the board. Only ever for this phone's own answer - a number leaving someone
+ * else's tap means nothing. Transform and opacity only, and it is removed by a
+ * timer as well as by the animation, which may never fire.
+ */
+function flyPoints(text, fromRect, target) {
+  if (!fromRect || !target || motionOff() || !document.body.animate) return false;
+  const to = restingRect(target);
+  if (!to.width) return false;
+
+  const ghost = document.createElement('div');
+  ghost.className = 'fly-points';
+  ghost.textContent = text;
+  document.body.appendChild(ghost);
+  const size = ghost.getBoundingClientRect();
+  const fromX = fromRect.left + fromRect.width / 2;
+  const fromY = fromRect.top + fromRect.height / 2;
+  ghost.style.left = (fromX - size.width / 2) + 'px';
+  ghost.style.top = (fromY - size.height / 2) + 'px';
+  const dx = to.left + to.width / 2 - fromX;
+  const dy = to.top + to.height / 2 - fromY;
+
+  const flight = ghost.animate([
+    { transform: 'translate(0px, -4px) scale(1)', opacity: 1 },
+    { transform: 'translate(' + (dx * 0.5) + 'px, ' + (dy * 0.5 - 18) + 'px) scale(1.15)', opacity: 1, offset: 0.55 },
+    { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(0.7)', opacity: 0 }
+  ], { duration: 780, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' });
+
+  let landed = false;
+  const land = () => {
+    if (landed) return;
+    landed = true;
+    if (ghost.isConnected) ghost.remove();
+    if (target.isConnected) {
+      target.classList.add('motion-landed');
+      setTimeout(() => target.classList.remove('motion-landed'), 500);
+    }
+  };
+  flight.onfinish = land;
+  setTimeout(land, 1100);
+  return true;
+}
+
+/**
  * A word slammed over the whole screen for a beat: "✋ الأتوبيس وقف!" the
  * moment someone closes the round. Nothing under it takes a tap, and it is
  * removed by a timer rather than by an animation event - a suppressed

@@ -1965,10 +1965,25 @@ function submitConnectGuess() {
   showToast(best === 3 ? (t.conn_one_away || 'قريب! ثلاثة من نفس المجموعة') : (t.conn_wrong || 'مش صح'),
             best === 3 ? 'info' : 'error');
 
+  // One away shakes the four you chose; any other wrong guess shakes the whole
+  // grid, as it always has. The words are captured before the selection is
+  // cleared, and the tiles are found again after the redraw below - which
+  // rebuilds the grid and would otherwise throw the class away.
+  const oneAway = best === 3;
+  const chosen = guessKey.split('|');
   const grid = document.getElementById('connect-grid');
-  if (grid) { grid.classList.add('animate-shake'); setTimeout(() => grid.classList.remove('animate-shake'), 500); }
+  if (grid && !oneAway) { grid.classList.add('animate-shake'); setTimeout(() => grid.classList.remove('animate-shake'), 500); }
 
   renderConnections();
+
+  if (oneAway && typeof motionOff === 'function' && !motionOff()) {
+    chosen.forEach(word => {
+      const tile = document.querySelector(`#connect-grid .connect-tile[data-word="${CSS.escape(word)}"]`);
+      if (!tile) return;
+      tile.classList.add('animate-shake');
+      setTimeout(() => tile.classList.remove('animate-shake'), 600);
+    });
+  }
   if (connections.mistakes >= CONNECT_MAX_MISTAKES) finishConnections(false);
 }
 

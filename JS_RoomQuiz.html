@@ -14,7 +14,7 @@ const QUIZ_UI = {
   proverbs: { view: 'room-proverbs', ph: 'prov_guess_ph',  hint: 'prov_lobby_hint',  key: 'ashryQuizCount_proverbs' }
 };
 const QUIZ_COUNT_CHOICES = [5, 10, 15, 20];
-const quiz = { clock: null, clockKey: null };
+const quiz = { clock: null, clockKey: null, myScore: 0, scoreKey: '' };
 
 function quizCount(game) {
   try {
@@ -165,6 +165,22 @@ function quizGame(game) {
             : `<div class="waiting-note">${t.room_wait_host}</div>`}
           ${renderRoomPlayerStrip(state)}`);
         if (fresh && gotIt) playSound('success');
+        // The points you just won float from the answer card onto your own row.
+        // Only this phone's own win: a number leaving someone else's answer
+        // means nothing. The gain is the difference from the board before it.
+        if (fresh) {
+          const key = state.code + '|' + (s.dealId || '');
+          const mine = (s.board || []).find(r => r.id === Room.me);
+          const now = mine ? Number(mine.score) || 0 : 0;
+          const gain = quiz.scoreKey === key ? now - quiz.myScore : 0;
+          quiz.scoreKey = key;
+          quiz.myScore = now;
+          if (gotIt && gain > 0 && typeof flyPoints === 'function') {
+            const card = el.querySelector('.card--accent');
+            const row = el.querySelector(`[data-pid="${CSS.escape(Room.me)}"]`);
+            if (card && row) flyPoints('+' + gain, card.getBoundingClientRect(), row);
+          }
+        }
         refreshRoomPlayerStrip(el, state);
         return;
       }

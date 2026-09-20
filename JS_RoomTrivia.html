@@ -190,7 +190,14 @@ function chooseTriviaAnswer(choice) {
   });
 }
 
-function paintTriviaTimer(endsAt) {
+/**
+ * The question's clock, on this phone's badge and on the big screen.
+ * Room-qualified like paintStopRoomTimer and paintSpyfallRoomTimer beside it:
+ * every JS_*.html file shares one global scope, and دوري المعرفة's own
+ * paintTriviaTimer (JS_TriviaBoard.html) is concatenated after this one, so
+ * the plain name resolved to the board's painter and this clock never ticked.
+ */
+function paintRoomTriviaTimer(endsAt) {
   const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
   const el = document.getElementById('trivia-timer');
   if (el) {
@@ -208,7 +215,7 @@ function paintTriviaTimer(endsAt) {
 
 function startTriviaClock(s) {
   // A rebuilt frame has a fresh timer badge that needs its number straight away.
-  paintTriviaTimer(s.endsAt);
+  paintRoomTriviaTimer(s.endsAt);
   if (trivia.clockKey === s.endsAt && (trivia.clock ? trivia.clock.isRunning() : trivia.fired)) return;
 
   stopTriviaClock();
@@ -217,7 +224,7 @@ function startTriviaClock(s) {
   const endsAt = s.endsAt;
   trivia.clock = createClock({
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
-    onTick: () => paintTriviaTimer(endsAt),
+    onTick: () => paintRoomTriviaTimer(endsAt),
     onEnd: () => {
       trivia.clock = null;
       trivia.fired = true;

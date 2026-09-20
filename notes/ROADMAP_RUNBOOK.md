@@ -1,5 +1,29 @@
 # Ashry Gaming — roadmap runbook
 
+## Where this stands (20 Sep 2026, end of the first session)
+
+Everything is on the branch **`feature/roadmap`**, tree clean, nothing pushed and nothing deployed. The owner's decision: **ship the whole roadmap at once**, not phase by phase — so the live site still carries the wrong trivia answers until the branch lands.
+
+| Phase | State |
+|---|---|
+| 0A, 0B | Done, reviewed. Content corrections (a wrong squash answer, a retired world number one, give-away cards, duplicate facts, classical sayings in Charades, the repeated Connections group) |
+| 1 | Done, reviewed. The TV is the room's only voice; an older card-scorer round can be fixed without destroying the ones after it; the keyboard viewport flag |
+| 2A | Done, reviewed. Player-count filter, اختارلنا, and the owner's together/apart filter on the home and in the room hub |
+| 2B | Done, reviewed. The archive of past dailies (never touches the streak) and أرقامي |
+| 3 | Done, reviewed. المختلف, with the odd one out unknown to the player *and* to their phone. T3.5 added: being named ends the round, no guess from six |
+| 4 | Done, reviewed. The leaderboard of the night |
+| 5A | Done, reviewed. The وقف slam, the خمّن صح stamp, the Wordle shake, Mafia's night and day |
+| 5B | **Three of five.** Done: floating points, the one-away shake, the buzzer ring. **Left: T5B.3** (the 3-2-1 countdown pops and the screen-edge pulse) **and T5B.5** (the end-of-game titles) |
+| 6, 7, 8, 9 | Not started. Share cards, العقل, قبل ولا بعد, the Mafia narrator |
+
+Every phase has a report in `notes/phase-reports/`. Each one lists what was verified and how, and what still needs a live test on a real phone or TV — read those before re-checking anything.
+
+**To carry on with the delegated loop:** the scripts, `loop.env` and the standing rules are in `C:/Users/TPC/agy-loop/`. Build a brief as `standing_rules.md` + a phase task file, then `bash C:/Users/TPC/agy-loop/run_agy.sh <name> <ABSOLUTE brief path> new 150m` in the background, and review with `bash C:/Users/TPC/agy-loop/review_phase.sh <base commit>`. agy's quota was exhausted at 16:50 on 20 Sep and resets about 3½ hours later; Phases 4, 5A and 5B's three tasks were written by Claude directly while it was out.
+
+**Two traps worth knowing before touching the motion phases:** the Browser pane runs hidden, so `document.hidden` is true, `motionOff()` is always true and nothing animates — override `document.hidden` and set `ashryMotion: 'on'` to test, and measure resting positions with `animation: none` because CSS animations never advance in a hidden pane. And `Controller.html` fails the scripted parse check both before and after any change, because of its Apps Script `<?!= … ?>` syntax; that is not a regression.
+
+---
+
 The owner agreed this plan on 20 Sep 2026. It carries two kinds of work: **Phase 0**, correcting content that is wrong on the live site today, and **Phases 1-9**, the agreed feature roadmap.
 
 ---

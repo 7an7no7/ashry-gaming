@@ -727,9 +727,111 @@ Every task here obeys the motion rules in the Invariants: `transform` and `opaci
 
 ---
 
-# Phases 6-9
+# Phase 6 — A result card you can send
 
-**DETAIL PENDING.** Do not start any of them until the phase section appears here and you are given it by name.
+### T6.1 — Draw the card
+**Files:** a new `JS_ShareCard.html` (included from `Controller.html` next to the other `JS_*` files), `JS_Core.html` (keys)
+**After:** one function, `shareResultCard({ title, icon, rows, footer })`, that draws a 1080×1920 card on an off-screen `<canvas>` and hands it to `navigator.share` with `files`, falling back to a download and then to the existing `shareOrCopy` text when neither is available. The card carries the app's own look: the violet ground, the mark drawn from `#ashry-mark`, the game's name, up to eight rows of `name — score`, and the app's link at the foot.
+> ⚠️ Arabic on a canvas does not shape itself in every browser the way it does in the DOM. Draw the Arabic with `ctx.direction = 'rtl'` and `textAlign = 'right'`, and **check one rendered card by eye** before calling this done — if the letters come out disconnected, say so in the report rather than shipping it.
+> ⚠️ `navigator.share` with files must be called inside the tap, or iOS refuses it. Build the blob first, then share.
+**Accept when:**
+- [ ] a card renders with three players, with eight, and with one
+- [ ] a long Arabic name is truncated, not overflowed
+- [ ] with no `navigator.canShare({files})`, it downloads instead, and with neither it copies the text
+- [ ] nothing is drawn until the button is pressed (no canvas work on every result)
+
+### T6.2 — Put it where a result already is
+**Files:** `JS_Solo.html` (`soloResult`'s share button), the room podium renderers
+**After:** the existing "📤 شارك" on a solo result and at the end of a room game builds the card instead of sending only text. A long-press or a second button keeps the plain text for anyone who wants it.
+**Accept when:**
+- [ ] the daily's share still carries its own text line (the streak and the grid), now with the card
+- [ ] a room's end-of-game share names the game and the top three
+- [ ] the button does nothing surprising when a game ended with no scores
+
+---
+
+# Phase 7 — العقل (The Mind)
+
+A cooperative room game with **no content at all**: every player holds secret numbers from 1 to 100 and the table must lay them down in rising order without saying a word. A wrong order costs a life. Levels: level *n* deals *n* cards each.
+
+### T7.1 — The rules on the server
+**Files:** `RoomGames.js`, `rooms-worker/test/play-all.mjs`
+**After:** a `mindAction(room, playerId, action, payload)` branch. `start` deals level 1: each player gets one number, unique across the table, kept in `room.secrets[pid].cards`. `play` puts a player's lowest held card down: the server compares it against every card still held by anyone — if any unplayed card anywhere is lower, the table loses a life and **every** card lower than the one played is discarded face up (that is the real game's rule and it keeps the round moving). A level is cleared when no cards are held; then `nextLevel` deals level + 1. Lives start at the player count; at zero the game is over. `shared` carries the level, the lives, the pile and how many cards each player still holds — never the numbers themselves.
+> ⛔ The numbers are the whole secret. `shared` never holds an unplayed number, and `project()` gives each phone only its own.
+**Accept when:**
+- [ ] no phone's state contains another player's unplayed number (prove it in the robot round)
+- [ ] playing out of order costs exactly one life and discards every lower card
+- [ ] a level with every card played moves to the next level with one more card each
+- [ ] lives at zero ends the game
+- [ ] a player leaving mid-level drops their cards and the level can still be finished (`roomPlayerLeft`)
+- [ ] `roomTurnOf` returns this game for a phone still holding a card — it is always your turn in The Mind
+- [ ] a round of it in `play-all.mjs` passes, and `npm run test:rules` passes
+
+### T7.2 — The screens
+**Files:** `JS_RoomMind.html` (new), `JS_Room.html` (`ROOM_HUB_GAMES`), `Controller.html` (the view), `JS_Core.html` (`VIEW_META`, keys, `GAME_RULES`), `JS_Utils.html` (`HELP_ENTRIES`, `HELP_FOR_VIEW`), `JS_Catalog.html` (`GAME_CATALOG`)
+**After:** your cards big and tappable, the pile's last card, the level and the lives. A card that goes down flies to the pile; a life lost shakes the screen once. The TV shows the level, the lives and the pile.
+> ⚠️ This is a room game, so it needs every piece in the checklist: `RoomGames.js` branch, `ROOM_GAMES` and `TV_GAMES` renderers, `ROOM_HUB_GAMES`, `ROOM_GAME_IDS`, `roomPlayerLeft`, `roomTurnOf`, a `GAME_CATALOG` entry with `modes: ['room','tv']`, `VIEW_META`, and rules in all three help registries. **`faceToFace` is false** — The Mind needs no talking at all, which is the point of it.
+**Accept when:**
+- [ ] every item in that checklist exists (list them one by one in the report)
+- [ ] the hub tile is greyed under 2 players
+- [ ] the help sheet opens on it from its own screen
+
+---
+
+# Phase 8 — قبل ولا بعد (Timeline)
+
+**Decision (owner, 20 Sep 2026):** Egyptian and Arab first, with famous world dates mixed in so the cards spread across the centuries.
+
+### T8.1 — The bank
+**Files:** a new `TimelineEvents.js` at the repo root, added to `FILES` in `rooms-worker/build.mjs` and to the `SHARED_LISTS` inlining in `tools/build-*.mjs`
+**After:** `const TIMELINE_EVENTS = [{ y: 1869, ar: '…', en: '…' }, …]`, sorted by nothing in particular, each with a year that is not in dispute. **Ship exactly these to begin with** — every one is a date with a single well-known answer:
+```
+1869 افتتاح قناة السويس · 1876 اختراع التليفون · 1903 أول طيران للأخوين رايت
+1912 غرق التيتانيك · 1922 اكتشاف مقبرة توت عنخ آمون · 1932 تأسيس المملكة العربية السعودية
+1945 نهاية الحرب العالمية التانية · 1952 ثورة يوليو · 1956 تأميم قناة السويس
+1969 أول إنسان على القمر · 1970 افتتاح السد العالي · 1971 تأسيس الإمارات
+1973 حرب أكتوبر · 1975 وفاة أم كلثوم · 1977 وفاة عبد الحليم حافظ
+1987 افتتاح أول خط مترو في القاهرة · 1988 نجيب محفوظ يفوز بجايزة نوبل
+1990 أول موقع على الإنترنت · 2004 إطلاق فيسبوك · 2007 أول آيفون
+2011 ثورة يناير · 2015 افتتاح قناة السويس الجديدة
+```
+> ⛔ Do not add an event whose year you cannot source. A trivia game with a disputed date is worse than a short bank. If you want more, say so in the report and leave it to the owner.
+**Accept when:**
+- [ ] every entry has a `y`, an `ar` and an `en`
+- [ ] no year appears twice
+- [ ] `tools/validate-content.js` gained a check for both of those, and `npm run check` runs it
+
+### T8.2 — The game
+**Files:** `RoomGames.js`, `JS_RoomTimeline.html` (new), plus the full room-game checklist as in T7.2
+**After:** each player holds three event cards with the years hidden. In turn, a player places one on the table's timeline — before, between or after the cards already down. The server checks the real year: right, it stays and the player draws another; wrong, it is discarded and the year is shown. First to place all of theirs wins, or a fixed number of rounds.
+> ⛔ The years of unplayed cards are secret. `shared` carries a placed card's year (everyone has seen it) and never an unplayed one's.
+> **`faceToFace` is false** — every move is a tap.
+**Accept when:**
+- [ ] no phone holds another player's unplayed year
+- [ ] a correct placement keeps the card and the timeline stays sorted
+- [ ] a wrong placement reveals that card's year and discards it
+- [ ] the same event never appears twice in one game (deal through `nextPrompts`)
+- [ ] the whole room-game checklist, listed item by item in the report
+- [ ] a round in `play-all.mjs` passes
+
+---
+
+# Phase 9 — The Mafia narrator
+
+### T9.1 — A voice that reads the night
+**Files:** `JS_RoomMafia.html`, `JS_Sounds.html` or a new small helper, `JS_Core.html` (the setting and its keys)
+**Decision (owner, 20 Sep 2026):** an option, **off by default**, until it has been heard on a real phone.
+**After:** when the option is on and this device is the **TV** (or the host's phone when there is no TV), `window.speechSynthesis` reads one short line at each phase change: the town falling asleep, the mafia waking, the morning news. Pick an Arabic voice from `speechSynthesis.getVoices()` when one exists and say nothing at all when none does — never read Arabic text with an English voice.
+> ⚠️ `getVoices()` is empty until `voiceschanged` fires on most browsers. Wait for it.
+> ⚠️ Speech needs a user gesture on iOS: prime it on the host's first tap, and if it is refused, fail silently.
+> ⛔ It must never read anything role-specific. One narration for the room, the same on every device that speaks.
+**Accept when:**
+- [ ] with the option off (the default) `speechSynthesis` is never called
+- [ ] with it on and no Arabic voice present, nothing is spoken and nothing throws
+- [ ] only one device speaks in a room
+- [ ] leaving the game or the room cancels any speech in progress (`speechSynthesis.cancel()`)
+- [ ] the lines say nothing that identifies a role
+- [ ] the setting is in both languages and survives a reload
 - **Phase 5** — the motion batch: floating points, Connections shake, 3-2-1 pops and edge pulse, buzzer press, superlatives, the وقف slam, the Draw & Guess stamp, the Wordle shake, the Mafia day/night fade.
 - **Phase 6** — shareable result cards drawn on a canvas.
 - **Phase 7** — العقل (The Mind), a new room game with no content at all.

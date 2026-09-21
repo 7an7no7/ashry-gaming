@@ -23,7 +23,9 @@
 
 /* --- what both duels' rooms share ---------------------------------------------- */
 
-const duelRoomLocal = { sent: '' };
+// sent: the board a move was sent from (a second tap is not another move);
+// early: { key, at } the move this phone is already showing, before the server's answer.
+const duelRoomLocal = { sent: '', early: null };
 
 /** The two seated players' names, kept by the server for after one of them has left. */
 function duelRoomNames(state) {
@@ -169,16 +171,58 @@ function duelLobbyRedraw() {
   if (Room.state) routeRoomState(Room.state);
 }
 
-/** Sends a move once: a second tap before the board changes is not another move. */
-function duelRoomSend(state, payload) {
+/**
+ * Sends a move once: a second tap before the board changes is not another move.
+ * `early` draws the move on this phone straight away - the rules are the same
+ * file the server judges with - so the finger lifting is the move, as on one
+ * phone, and not a wait for the server (the aim disc used to fade, then a
+ * second disc fall a moment later). If the server doesn't take it, the room's
+ * own board is put back.
+ */
+function duelRoomSend(state, payload, early) {
   const s = state.shared;
   const stamp = state.code + '|' + s.round + '|' + s.moves;
   if (duelRoomLocal.sent === stamp) return;
   duelRoomLocal.sent = stamp;
   haptic('light');
+  if (early) {
+    duelRoomLocal.early = null;
+    try { early(); } catch (e) { console.error('duel early move', e); }
+    if (duelRoomLocal.early) duelRoomLocal.early.stamp = stamp;
+  }
   Promise.resolve(roomAct('move', Object.assign({ move: s.moves }, payload))).then(() => {
     if (duelRoomLocal.sent === stamp) duelRoomLocal.sent = '';
+    // The server's answer is in. Had it taken the move, the room's board would
+    // have claimed the early one (duelRoomEarlyFor); still unclaimed, it wasn't.
+    const left = duelRoomLocal.early;
+    if (!left || left.stamp !== stamp) return;
+    duelRoomLocal.early = null;
+    const el = document.getElementById('view-room-' + state.game);
+    if (el) delete el.dataset.sig;
+    if (Room.state && Room.state.game === state.game && onRoomView()) routeRoomState(Room.state);
   });
+}
+
+/**
+ * This phone's move, drawn before the server answers: the board as it will be
+ * put in place of the one on screen, and its motion started. The room's board
+ * picks the same motion up where it has got to (o.early in c4AfterPaint and
+ * dotsAfterPaint), and the sound is not played twice.
+ */
+function duelRoomDrawEarly(game, key, html, after) {
+  const box = document.querySelector('#view-room-' + game + ' .duel-layout__board');
+  if (!box) return;
+  box.innerHTML = html;
+  duelRoomLocal.early = { key: key, at: Date.now() };
+  after(box);
+}
+
+/** The room's board has come back: the move shown early is its own now. */
+function duelRoomEarlyFor(key) {
+  const early = duelRoomLocal.early;
+  if (!early || !key || early.key !== key) return null;
+  duelRoomLocal.early = null;
+  return early;
 }
 
 /** A duel's sound in a room: the TV's alone when there is one. */
@@ -201,7 +245,19 @@ function c4RoomDrop(col) {
   const s = state.shared;
   if (s.phase !== 'play' || (s.seats || [])[s.turn] !== Room.me) return;
   if (c4DropRow(c4RoomBoard(s), col) < 0) { c4Refuse(document.querySelector('#view-room-connect4 .c4')); return; }
-  duelRoomSend(state, { col: col });
+  duelRoomSend(state, { col: col }, () => c4RoomDropEarly(state, col));
+}
+
+/** Your disc falls as your finger lifts, from where the aim disc was; the room's board carries the fall on. */
+function c4RoomDropEarly(state, col) {
+  const s = state.shared;
+  const seat = (s.seats || []).indexOf(Room.me);
+  const board = c4Clone(c4RoomBoard(s));
+  const res = c4Play(board, col, seat + 1);
+  if (!res) return;
+  const key = ['c4', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  duelRoomDrawEarly('connect4', key, c4BoardHtml(board, { last: { row: res.row, col: res.col }, playable: false, next: 2 - seat }),
+    (box) => c4AfterPaint(box, { dropKey: key, sound: duelRoomLoud(state) }));
 }
 
 /** The two pills in a room: the seats, the room's wins, and "you" on your own. */
@@ -263,9 +319,11 @@ ROOM_GAMES.connect4 = {
       </div>`);
     if (rebuilt) {
       const key = ['c4', state.code, s.round].join('|');
+      const dropKey = s.last ? key + '|' + s.moves : '';
       c4AfterPaint(el, {
         onDrop: c4RoomDrop,
-        dropKey: s.last ? key + '|' + s.moves : '',
+        dropKey: dropKey,
+        early: duelRoomEarlyFor(dropKey),
         win: s.win, draw: !!(s.result && s.result.draw),
         endKey: s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '',
         sound: duelRoomLoud(state)

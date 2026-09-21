@@ -45,7 +45,7 @@ const unoLocal = { pick: null, pickKey: '', clock: null, clockKey: null, turnMin
 
 /** The flights: which events this device has shown, and where things were before a redraw. */
 const unoFx = { deal: '', lastSeq: 0, watched: '', prevPhase: '', rects: {}, busyUntil: 0, timers: [], held: new Set(), redrawTimer: null,
-  tvSig: '', tvEnding: false, tvState: null, wokeAt: 0 };
+  tvSig: '', tvEnding: false, tvState: null, wokeAt: 0, gen: 0 };
 
 /** A string from the translations, with {vars}: a value that isn't a plain number is isolated, so a name keeps its place in a line of the other language. */
 function unoT(key, vars) {
@@ -240,12 +240,18 @@ function unoSend(cardId, jump, extra) {
   const s = st.shared || {};
   unoLocal.pick = null;
   haptic('medium');
+  // The card rises the moment it is tapped (an iPhone has no buzz to say so), and
+  // flies from there once the server takes it; refused, it settles back.
+  const el = document.querySelector('#view-room-uno [data-uno-at="card:' + cardId + '"]');
+  if (el) el.classList.add('is-sent');
+  let sent;
   if (jump) {
     const top = unoTopCard(s);
-    roomAct('jump', Object.assign({ card: cardId, top: top ? top.i : null }, extra));
+    sent = roomAct('jump', Object.assign({ card: cardId, top: top ? top.i : null }, extra));
   } else {
-    roomAct('play', Object.assign({ card: cardId, seq: s.turnSeq }, extra));
+    sent = roomAct('play', Object.assign({ card: cardId, seq: s.turnSeq }, extra));
   }
+  Promise.resolve(sent).then(() => { if (el && el.isConnected) el.classList.remove('is-sent'); });
 }
 
 function unoPickColor(color) {
@@ -811,14 +817,20 @@ ROOM_GAMES.uno = {
     // A move is still flying: the table it lands on stays until it has landed. A round
     // that has just ended plays its last moves on that table before the result.
     const changed = !!(el.dataset.sig && el._unoServer && el._unoServer !== server);
-    if (changed && (unoFx.busyUntil > Date.now() || unoPlayEnding(el, state))) {
+    // Your own move doesn't queue behind the table: it is drawn the moment the
+    // server takes it, and what was still playing plays on over the new table.
+    const busy = unoFx.busyUntil > Date.now();
+    const own = changed && busy && unoOwnMoveWaiting(state);
+    if (changed && ((busy && !own) || unoPlayEnding(el, state))) {
       unoDeferRedraw();
       unoRefreshInPlace(el, state, false);
       return;
     }
     const local = [JSON.stringify(unoLocal.pick), state.youAreHost, appState.lang].join('|');
     const handWas = unoLocal.shownKey === state.code + '|' + (s.dealId || '') ? unoLocal.shownHand : null;
+    const held = unoHeldKeys(el);
     const rebuilt = renderRoomFrame(el, server + '#' + local, () => { unoSnapshot(el); return unoPhoneFrame(state); });
+    if (rebuilt) unoHoldAgain(el, held);
     el._unoServer = server;
     unoRefreshInPlace(el, state, false);
     unoTickClock(s);
@@ -955,6 +967,9 @@ window.addEventListener('resize', () => {
    flights (unoFx.busyUntil). */
 
 function unoFxCancel() {
+  // The room moved on (a new deal, another game): a card still in the air
+  // finishes its flight, but releases nothing on the table that replaced it.
+  unoFx.gen++;
   unoFx.timers.forEach(clearTimeout);
   unoFx.timers = [];
   unoFx.held.forEach(el => { el._unoHolds = 0; el.classList.remove('uno-hold'); });
@@ -1003,6 +1018,31 @@ function unoHold(root, key) {
   unoFx.held.add(el);
 }
 
+/** The places on this table still waiting for a card in the air, and how many cards each. */
+function unoHeldKeys(root) {
+  const out = [];
+  unoFx.held.forEach(el => {
+    if (el._unoHolds > 0 && el.isConnected && root && root.contains(el)) out.push({ key: el.getAttribute('data-uno-at'), n: el._unoHolds });
+  });
+  return out;
+}
+
+/**
+ * A redraw while cards are still in the air (your own move doesn't wait for
+ * them): the same places on the new table stay hidden until those cards land,
+ * so nothing shows up there before the card flying to it.
+ */
+function unoHoldAgain(root, held) {
+  unoFx.held.forEach(el => { if (!el.isConnected) unoFx.held.delete(el); });
+  (held || []).forEach(h => {
+    const el = unoEl(root, h.key);
+    if (!el) return;
+    el._unoHolds = (el._unoHolds || 0) + h.n;
+    el.classList.add('uno-hold');
+    unoFx.held.add(el);
+  });
+}
+
 function unoRelease(root, key) {
   const el = unoEl(root, key);
   if (!el || !el._unoHolds) return;
@@ -1048,7 +1088,8 @@ function unoAnimate(el, frames, timing, done) {
  */
 function unoFly(root, from, to, face, opts) {
   const o = opts || {};
-  const release = () => (o.hold || []).forEach(k => unoRelease(root, k));
+  const gen = unoFx.gen;
+  const release = () => { if (gen === unoFx.gen) (o.hold || []).forEach(k => unoRelease(root, k)); };
   const a0 = unoRect(root, from);
   const b0 = unoRect(root, to);
   if (!a0 || !b0 || !a0.width || !b0.width || !unoCanMove()) { release(); return; }
@@ -1274,6 +1315,21 @@ function unoEventsToPlay(state) {
   const out = events.filter(e => e && (Number(e.seq) || 0) > unoFx.lastSeq);
   unoFx.lastSeq = Math.max(unoFx.lastSeq, maxSeq);
   return out;
+}
+
+const UNO_OWN_MOVES = ['play', 'draw', 'take', 'keep', 'pass', 'color', 'uno', 'swap', 'rotate'];
+
+/**
+ * Among the events this device hasn't shown yet, is there one this phone made
+ * (a card, a draw, a keep, أونو!, a catch)? Then it is shown now, not after
+ * the moves before it have finished landing: playing a Skip and then your next
+ * card straight away used to wait a second for the Skip's stamp.
+ */
+function unoOwnMoveWaiting(state) {
+  const s = state.shared || {};
+  if (state.youAreScreen || unoFx.deal !== state.code + '|' + (s.dealId || '')) return false;
+  return (s.events || []).some(e => e && (Number(e.seq) || 0) > unoFx.lastSeq && !e.auto &&
+    ((e.pid === Room.me && UNO_OWN_MOVES.indexOf(e.type) !== -1) || (e.type === 'caught' && e.by === Room.me)));
 }
 
 /** Just back from a locked screen or another app: what was missed is not played again. */

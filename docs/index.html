@@ -9798,6 +9798,10 @@ body.dark .uno-card--face.uno-c--k { box-shadow: inset 0 0 0 1px rgba(255, 255, 
 .uno-hcard.is-drawn .uno-card { box-shadow: 0 0 0 3px var(--accent), 0 10px 22px -8px var(--accent-glow); filter: none; }
 .uno-hcard.is-picked { transform: translateY(-1rem); }
 .uno-hcard.is-picked .uno-card { box-shadow: 0 0 0 3px var(--accent), 0 10px 22px -8px var(--accent-glow); }
+/* Tapped, on its way to the server: it rises a little further at once (on top of
+   whatever lift this screen gives a playable card) and flies from there. */
+.uno-hand .uno-hcard.is-sent { translate: 0 -0.4rem; transition: transform var(--dur-2) var(--ease-out), translate 120ms var(--ease-out); }
+.uno-hand .uno-hcard.is-sent .uno-card { box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.5); filter: brightness(1.06); }
 .uno-hcard:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
 /* --- What to do now: a bar that stays at the foot of the screen --- */
@@ -15244,7 +15248,7 @@ function dotsBestMove(board, me, level, opts) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260921113128";
+      window.BUILD_ID = "20260921121725";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -67618,7 +67622,7 @@ const unoLocal = { pick: null, pickKey: '', clock: null, clockKey: null, turnMin
 
 /** The flights: which events this device has shown, and where things were before a redraw. */
 const unoFx = { deal: '', lastSeq: 0, watched: '', prevPhase: '', rects: {}, busyUntil: 0, timers: [], held: new Set(), redrawTimer: null,
-  tvSig: '', tvEnding: false, tvState: null, wokeAt: 0 };
+  tvSig: '', tvEnding: false, tvState: null, wokeAt: 0, gen: 0 };
 
 /** A string from the translations, with {vars}: a value that isn't a plain number is isolated, so a name keeps its place in a line of the other language. */
 function unoT(key, vars) {
@@ -67813,12 +67817,18 @@ function unoSend(cardId, jump, extra) {
   const s = st.shared || {};
   unoLocal.pick = null;
   haptic('medium');
+  // The card rises the moment it is tapped (an iPhone has no buzz to say so), and
+  // flies from there once the server takes it; refused, it settles back.
+  const el = document.querySelector('#view-room-uno [data-uno-at="card:' + cardId + '"]');
+  if (el) el.classList.add('is-sent');
+  let sent;
   if (jump) {
     const top = unoTopCard(s);
-    roomAct('jump', Object.assign({ card: cardId, top: top ? top.i : null }, extra));
+    sent = roomAct('jump', Object.assign({ card: cardId, top: top ? top.i : null }, extra));
   } else {
-    roomAct('play', Object.assign({ card: cardId, seq: s.turnSeq }, extra));
+    sent = roomAct('play', Object.assign({ card: cardId, seq: s.turnSeq }, extra));
   }
+  Promise.resolve(sent).then(() => { if (el && el.isConnected) el.classList.remove('is-sent'); });
 }
 
 function unoPickColor(color) {
@@ -68384,14 +68394,20 @@ ROOM_GAMES.uno = {
     // A move is still flying: the table it lands on stays until it has landed. A round
     // that has just ended plays its last moves on that table before the result.
     const changed = !!(el.dataset.sig && el._unoServer && el._unoServer !== server);
-    if (changed && (unoFx.busyUntil > Date.now() || unoPlayEnding(el, state))) {
+    // Your own move doesn't queue behind the table: it is drawn the moment the
+    // server takes it, and what was still playing plays on over the new table.
+    const busy = unoFx.busyUntil > Date.now();
+    const own = changed && busy && unoOwnMoveWaiting(state);
+    if (changed && ((busy && !own) || unoPlayEnding(el, state))) {
       unoDeferRedraw();
       unoRefreshInPlace(el, state, false);
       return;
     }
     const local = [JSON.stringify(unoLocal.pick), state.youAreHost, appState.lang].join('|');
     const handWas = unoLocal.shownKey === state.code + '|' + (s.dealId || '') ? unoLocal.shownHand : null;
+    const held = unoHeldKeys(el);
     const rebuilt = renderRoomFrame(el, server + '#' + local, () => { unoSnapshot(el); return unoPhoneFrame(state); });
+    if (rebuilt) unoHoldAgain(el, held);
     el._unoServer = server;
     unoRefreshInPlace(el, state, false);
     unoTickClock(s);
@@ -68528,6 +68544,9 @@ window.addEventListener('resize', () => {
    flights (unoFx.busyUntil). */
 
 function unoFxCancel() {
+  // The room moved on (a new deal, another game): a card still in the air
+  // finishes its flight, but releases nothing on the table that replaced it.
+  unoFx.gen++;
   unoFx.timers.forEach(clearTimeout);
   unoFx.timers = [];
   unoFx.held.forEach(el => { el._unoHolds = 0; el.classList.remove('uno-hold'); });
@@ -68576,6 +68595,31 @@ function unoHold(root, key) {
   unoFx.held.add(el);
 }
 
+/** The places on this table still waiting for a card in the air, and how many cards each. */
+function unoHeldKeys(root) {
+  const out = [];
+  unoFx.held.forEach(el => {
+    if (el._unoHolds > 0 && el.isConnected && root && root.contains(el)) out.push({ key: el.getAttribute('data-uno-at'), n: el._unoHolds });
+  });
+  return out;
+}
+
+/**
+ * A redraw while cards are still in the air (your own move doesn't wait for
+ * them): the same places on the new table stay hidden until those cards land,
+ * so nothing shows up there before the card flying to it.
+ */
+function unoHoldAgain(root, held) {
+  unoFx.held.forEach(el => { if (!el.isConnected) unoFx.held.delete(el); });
+  (held || []).forEach(h => {
+    const el = unoEl(root, h.key);
+    if (!el) return;
+    el._unoHolds = (el._unoHolds || 0) + h.n;
+    el.classList.add('uno-hold');
+    unoFx.held.add(el);
+  });
+}
+
 function unoRelease(root, key) {
   const el = unoEl(root, key);
   if (!el || !el._unoHolds) return;
@@ -68621,7 +68665,8 @@ function unoAnimate(el, frames, timing, done) {
  */
 function unoFly(root, from, to, face, opts) {
   const o = opts || {};
-  const release = () => (o.hold || []).forEach(k => unoRelease(root, k));
+  const gen = unoFx.gen;
+  const release = () => { if (gen === unoFx.gen) (o.hold || []).forEach(k => unoRelease(root, k)); };
   const a0 = unoRect(root, from);
   const b0 = unoRect(root, to);
   if (!a0 || !b0 || !a0.width || !b0.width || !unoCanMove()) { release(); return; }
@@ -68847,6 +68892,21 @@ function unoEventsToPlay(state) {
   const out = events.filter(e => e && (Number(e.seq) || 0) > unoFx.lastSeq);
   unoFx.lastSeq = Math.max(unoFx.lastSeq, maxSeq);
   return out;
+}
+
+const UNO_OWN_MOVES = ['play', 'draw', 'take', 'keep', 'pass', 'color', 'uno', 'swap', 'rotate'];
+
+/**
+ * Among the events this device hasn't shown yet, is there one this phone made
+ * (a card, a draw, a keep, أونو!, a catch)? Then it is shown now, not after
+ * the moves before it have finished landing: playing a Skip and then your next
+ * card straight away used to wait a second for the Skip's stamp.
+ */
+function unoOwnMoveWaiting(state) {
+  const s = state.shared || {};
+  if (state.youAreScreen || unoFx.deal !== state.code + '|' + (s.dealId || '')) return false;
+  return (s.events || []).some(e => e && (Number(e.seq) || 0) > unoFx.lastSeq && !e.auto &&
+    ((e.pid === Room.me && UNO_OWN_MOVES.indexOf(e.type) !== -1) || (e.type === 'caught' && e.by === Room.me)));
 }
 
 /** Just back from a locked screen or another app: what was missed is not played again. */
@@ -70947,9 +71007,11 @@ function c4Refuse(wrap) {
 /**
  * The disc just played falls from above the board to its cell, speeding up,
  * with a small bounce where it lands. Its end is its place in the markup, so
- * nothing depends on the animation finishing. Returns how long it takes.
+ * nothing depends on the animation finishing. `into` ms starts it part-way
+ * (a fall this phone began before the room's board came back). Returns how
+ * long is left of it.
  */
-function c4AnimateDrop(wrap, disc) {
+function c4AnimateDrop(wrap, disc, into) {
   if (!disc || !disc.animate) return 0;
   const cell = disc.parentElement;
   const track = wrap.querySelector('.c4-ghostrow__track');
@@ -70962,13 +71024,16 @@ function c4AnimateDrop(wrap, disc) {
   if (!(dy > 0)) return 0;
   const rows = Math.max(1, Math.round(dy / pitch));
   const duration = 220 + 55 * rows;
-  disc.animate([
+  const done = Math.max(0, Number(into) || 0);
+  if (done >= duration) return 0;
+  const anim = disc.animate([
     { transform: 'translateY(' + (-dy) + 'px)', easing: 'cubic-bezier(0.5, 0, 0.9, 0.55)' },
     { transform: 'translateY(0px)', offset: 0.7, easing: 'cubic-bezier(0.15, 0.6, 0.4, 1)' },
     { transform: 'translateY(' + (-pitch * 0.14) + 'px)', offset: 0.85, easing: 'cubic-bezier(0.6, 0, 0.9, 0.6)' },
     { transform: 'translateY(0px)' }
   ], { duration: duration, fill: 'backwards' });
-  return duration;
+  if (done) anim.currentTime = done;
+  return duration - done;
 }
 
 /**
@@ -70976,7 +71041,9 @@ function c4AnimateDrop(wrap, disc) {
  * wiring the finger (o.onDrop), the last disc's fall and knock (once per
  * o.dropKey), the winning line lighting up one disc at a time or a full board
  * shaking (once per o.endKey). o.still draws it settled (a reload, a new
- * language), o.sound false keeps this device quiet. Returns { dropMs, revealMs }.
+ * language), o.sound false keeps this device quiet. o.early { key, at }: this
+ * phone already started that disc's fall (a room, before the server answered),
+ * so it carries on from where it has got to. Returns { dropMs, revealMs }.
  */
 function c4AfterPaint(root, o) {
   const wrap = root && root.querySelector('.c4');
@@ -70984,8 +71051,10 @@ function c4AfterPaint(root, o) {
   if (!wrap) return out;
   c4Wire(wrap, o.onDrop);
   const disc = wrap.querySelector('.c4-disc.is-last');
-  const moving = !!(o.dropKey && disc && typeof motionFirst === 'function' && motionFirst(o.dropKey) && !o.still);
-  if (moving) out.dropMs = c4AnimateDrop(wrap, disc);
+  const early = o.early && o.dropKey && o.early.key === o.dropKey ? Math.max(1, Date.now() - o.early.at) : 0;
+  const moving = !!(o.dropKey && disc && !o.still &&
+    (early ? !motionOff() : typeof motionFirst === 'function' && motionFirst(o.dropKey)));
+  if (moving) out.dropMs = c4AnimateDrop(wrap, disc, early);
   if (o.dropKey && disc && duelOnce('snd|' + o.dropKey) && !o.still && o.sound !== false) {
     setTimeout(() => duelSound('drop'), Math.round(out.dropMs * 0.7));
   }
@@ -71389,34 +71458,41 @@ function dotsWire(wrap, b, onDraw) {
  * Everything after a board is drawn, one phone, a room or the TV: the finger
  * (o.onDraw), the last line drawing itself and glowing, the boxes it took
  * popping in with a sound (once per o.lineKey), and o.still for a board drawn
- * settled. Returns how long the move's animation takes.
+ * settled. o.early { key, at }: this phone already started that line (a room,
+ * before the server answered), so its motion carries on from where it has got
+ * to. Returns how long is left of the move's animation.
  */
 function dotsAfterPaint(root, b, o) {
   const wrap = root && root.querySelector('.dots');
   if (!wrap) return 0;
   dotsWire(wrap, b, o.onDraw);
   const line = wrap.querySelector('.dots-line.is-last');
-  const moving = !!(o.lineKey && line && typeof motionFirst === 'function' && motionFirst(o.lineKey) && !o.still);
+  const early = o.early && o.lineKey && o.early.key === o.lineKey ? Math.max(1, Date.now() - o.early.at) : 0;
+  const moving = !!(o.lineKey && line && !o.still &&
+    (early ? !motionOff() : typeof motionFirst === 'function' && motionFirst(o.lineKey)));
   const took = wrap.querySelectorAll('.dots-box.is-new');
   let ms = 0;
   if (moving && line.animate) {
+    const anims = [];
     const h = line.classList.contains('is-h');
-    line.animate([{ transform: h ? 'scaleX(0.02)' : 'scaleY(0.02)' }, { transform: 'none' }],
-                 { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'backwards' });
+    anims.push(line.animate([{ transform: h ? 'scaleX(0.02)' : 'scaleY(0.02)' }, { transform: 'none' }],
+                 { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'backwards' }));
     const glow = wrap.querySelector('.dots-glow');
     if (glow && glow.animate) {
-      glow.animate([{ opacity: 0 }, { opacity: 0.5, offset: 0.2 }, { opacity: 0 }],
-                   { duration: 1400, delay: 120, easing: 'ease-out' });
+      anims.push(glow.animate([{ opacity: 0 }, { opacity: 0.5, offset: 0.2 }, { opacity: 0 }],
+                   { duration: 1400, delay: 120, easing: 'ease-out' }));
     }
     took.forEach((box, k) => {
       if (!box.animate) return;
-      box.animate([
+      anims.push(box.animate([
         { opacity: 0, transform: 'scale(0.4)' },
         { opacity: 1, transform: 'scale(1.1)', offset: 0.65 },
         { opacity: 1, transform: 'scale(1)' }
-      ], { duration: 420, delay: 200 + k * 90, easing: 'cubic-bezier(0.34, 1.45, 0.5, 1)', fill: 'backwards' });
+      ], { duration: 420, delay: 200 + k * 90, easing: 'cubic-bezier(0.34, 1.45, 0.5, 1)', fill: 'backwards' }));
     });
-    ms = took.length ? 620 + took.length * 90 : 240;
+    // Carried on from the phone's own start: every piece where it has got to, the finished ones gone.
+    if (early) anims.forEach(a => { try { a.currentTime = early; } catch (e) {} });
+    ms = Math.max(0, (took.length ? 620 + took.length * 90 : 240) - early);
   }
   if (o.lineKey && line && duelOnce('snd|' + o.lineKey) && !o.still && o.sound !== false) {
     duelSound('line');
@@ -71701,7 +71777,9 @@ if (typeof onLeaveScreen === 'function') {
 
 /* --- what both duels' rooms share ---------------------------------------------- */
 
-const duelRoomLocal = { sent: '' };
+// sent: the board a move was sent from (a second tap is not another move);
+// early: { key, at } the move this phone is already showing, before the server's answer.
+const duelRoomLocal = { sent: '', early: null };
 
 /** The two seated players' names, kept by the server for after one of them has left. */
 function duelRoomNames(state) {
@@ -71847,16 +71925,58 @@ function duelLobbyRedraw() {
   if (Room.state) routeRoomState(Room.state);
 }
 
-/** Sends a move once: a second tap before the board changes is not another move. */
-function duelRoomSend(state, payload) {
+/**
+ * Sends a move once: a second tap before the board changes is not another move.
+ * `early` draws the move on this phone straight away - the rules are the same
+ * file the server judges with - so the finger lifting is the move, as on one
+ * phone, and not a wait for the server (the aim disc used to fade, then a
+ * second disc fall a moment later). If the server doesn't take it, the room's
+ * own board is put back.
+ */
+function duelRoomSend(state, payload, early) {
   const s = state.shared;
   const stamp = state.code + '|' + s.round + '|' + s.moves;
   if (duelRoomLocal.sent === stamp) return;
   duelRoomLocal.sent = stamp;
   haptic('light');
+  if (early) {
+    duelRoomLocal.early = null;
+    try { early(); } catch (e) { console.error('duel early move', e); }
+    if (duelRoomLocal.early) duelRoomLocal.early.stamp = stamp;
+  }
   Promise.resolve(roomAct('move', Object.assign({ move: s.moves }, payload))).then(() => {
     if (duelRoomLocal.sent === stamp) duelRoomLocal.sent = '';
+    // The server's answer is in. Had it taken the move, the room's board would
+    // have claimed the early one (duelRoomEarlyFor); still unclaimed, it wasn't.
+    const left = duelRoomLocal.early;
+    if (!left || left.stamp !== stamp) return;
+    duelRoomLocal.early = null;
+    const el = document.getElementById('view-room-' + state.game);
+    if (el) delete el.dataset.sig;
+    if (Room.state && Room.state.game === state.game && onRoomView()) routeRoomState(Room.state);
   });
+}
+
+/**
+ * This phone's move, drawn before the server answers: the board as it will be
+ * put in place of the one on screen, and its motion started. The room's board
+ * picks the same motion up where it has got to (o.early in c4AfterPaint and
+ * dotsAfterPaint), and the sound is not played twice.
+ */
+function duelRoomDrawEarly(game, key, html, after) {
+  const box = document.querySelector('#view-room-' + game + ' .duel-layout__board');
+  if (!box) return;
+  box.innerHTML = html;
+  duelRoomLocal.early = { key: key, at: Date.now() };
+  after(box);
+}
+
+/** The room's board has come back: the move shown early is its own now. */
+function duelRoomEarlyFor(key) {
+  const early = duelRoomLocal.early;
+  if (!early || !key || early.key !== key) return null;
+  duelRoomLocal.early = null;
+  return early;
 }
 
 /** A duel's sound in a room: the TV's alone when there is one. */
@@ -71879,7 +71999,19 @@ function c4RoomDrop(col) {
   const s = state.shared;
   if (s.phase !== 'play' || (s.seats || [])[s.turn] !== Room.me) return;
   if (c4DropRow(c4RoomBoard(s), col) < 0) { c4Refuse(document.querySelector('#view-room-connect4 .c4')); return; }
-  duelRoomSend(state, { col: col });
+  duelRoomSend(state, { col: col }, () => c4RoomDropEarly(state, col));
+}
+
+/** Your disc falls as your finger lifts, from where the aim disc was; the room's board carries the fall on. */
+function c4RoomDropEarly(state, col) {
+  const s = state.shared;
+  const seat = (s.seats || []).indexOf(Room.me);
+  const board = c4Clone(c4RoomBoard(s));
+  const res = c4Play(board, col, seat + 1);
+  if (!res) return;
+  const key = ['c4', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  duelRoomDrawEarly('connect4', key, c4BoardHtml(board, { last: { row: res.row, col: res.col }, playable: false, next: 2 - seat }),
+    (box) => c4AfterPaint(box, { dropKey: key, sound: duelRoomLoud(state) }));
 }
 
 /** The two pills in a room: the seats, the room's wins, and "you" on your own. */
@@ -71941,9 +72073,11 @@ ROOM_GAMES.connect4 = {
       </div>`);
     if (rebuilt) {
       const key = ['c4', state.code, s.round].join('|');
+      const dropKey = s.last ? key + '|' + s.moves : '';
       c4AfterPaint(el, {
         onDrop: c4RoomDrop,
-        dropKey: s.last ? key + '|' + s.moves : '',
+        dropKey: dropKey,
+        early: duelRoomEarlyFor(dropKey),
         win: s.win, draw: !!(s.result && s.result.draw),
         endKey: s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '',
         sound: duelRoomLoud(state)
@@ -72068,7 +72202,20 @@ function dotsRoomDraw(e) {
   if (!state || state.game !== 'dots') return;
   const s = state.shared;
   if (s.phase !== 'play' || (s.seats || [])[s.turn] !== Room.me || (s.lines || [])[e]) return;
-  duelRoomSend(state, { edge: e });
+  duelRoomSend(state, { edge: e }, () => dotsRoomDrawEarly(state, e));
+}
+
+/** Your line draws itself as your finger lifts (and any box it takes pops); the room's board carries it on. */
+function dotsRoomDrawEarly(state, e) {
+  const s = state.shared;
+  const seat = (s.seats || []).indexOf(Room.me);
+  const b = dotsRoomBoard(s);
+  const board = { n: b.n, lines: b.lines.slice(), boxes: b.boxes.slice() };
+  const res = dotsPlay(board, e, seat + 1);
+  if (!res) return;
+  const key = ['dots', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  const html = dotsBoardHtml(board, { last: { edge: e, boxes: res.boxes }, playable: false, next: seat + 1, initials: dotsInitials(duelRoomNames(state)) });
+  duelRoomDrawEarly('dots', key, html, (box) => dotsAfterPaint(box, board, { lineKey: key, sound: duelRoomLoud(state) }));
 }
 
 /** Did the last line take a box and keep the turn? */
@@ -72133,9 +72280,11 @@ ROOM_GAMES.dots = {
       </div>`);
     if (rebuilt) {
       const key = ['dots', state.code, s.round].join('|');
+      const lineKey = s.last ? key + '|' + s.moves : '';
       dotsAfterPaint(el, board, {
         onDraw: dotsRoomDraw,
-        lineKey: s.last ? key + '|' + s.moves : '',
+        lineKey: lineKey,
+        early: duelRoomEarlyFor(lineKey),
         ending: s.phase === 'over',
         sound: duelRoomLoud(state)
       });

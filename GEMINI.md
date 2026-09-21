@@ -893,6 +893,18 @@ the word search), `countUp` for streaks and scores.
 - **21 Sep 2026, icons** - أونو and الدومينو drawn as their own card and tile
   (`ICON_ART`, `iconHtml`), four other icons that clashed or said nothing
   replaced (*Decided, and why*), and domino's دق renamed باص.
+- **21 Sep 2026, your own move at once** - two reports from the owner playing
+  in rooms: in كونكت ٤ a disc seemed to fall twice (the aim disc faded, then
+  the real one dropped a round trip later), and in أونو a card played right
+  after a Skip took a second. Both were the phone waiting: for the server in
+  the duels, for the table's motion in أونو. The duels now draw your move as
+  your finger lifts and the server's board carries it on (*The duels*); in
+  أونو your own move is drawn the moment the server takes it, with whatever
+  was still flying playing on (*أونو on the phones and the TV*), and a tapped
+  card rises at once. Checked against the old build in headless Chrome: the
+  same motion per move (every Skip stamped, every card flown), nothing left
+  hidden or floating, one fall per drop on one phone and against the phone,
+  a refused move put back, and motion off still without motion.
 
 ## Building and Running
 
@@ -1857,7 +1869,23 @@ the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
   for a partner in the bar (`unoLocal.pick`); a card that can't go shakes. The
   bar carries the draw or take, play-or-keep after a draw, **أونو!** (two cards,
   or one not said yet - big and pulsing while you can be caught) and, for
-  everyone else, **امسكه!**. `roomTurnOf` answers for the player up.
+  everyone else, **امسكه!**. `roomTurnOf` answers for the player up. A
+  tapped card rises at once (`is-sent`, a `translate` on top of the
+  screen's own lift for a playable card) while the server is asked - an
+  iPhone has no buzz to say the tap landed - and flies from there; refused,
+  it settles back.
+- **Your own move never waits for the table** (the owner, 21 Sep 2026: a
+  Skip and then the next card "takes a sec"). A new state normally waits
+  while the last move's flights land (`unoFx.busyUntil`), so everyone sees
+  each move in turn - but a Skip is ~1s of motion, and your next card sat
+  behind it, 160-840ms after the server had already taken it (mean 480ms,
+  measured against a bot). `unoOwnMoveWaiting` sees an event this phone made
+  among the unshown ones (a card, a draw, a take, a keep, a colour, أونو!, a
+  catch) and the table is redrawn at once: nothing is cancelled, what was
+  still in the air plays on over the new table, and the places it is flying
+  to stay hidden until it lands (`unoHeldKeys` / `unoHoldAgain` carry the
+  holds across the redraw; a flight from before a new deal releases nothing,
+  `unoFx.gen`). Other players' moves still wait their turn.
 - **Motion on every move.** Each event plays once per device (`unoEventsToPlay`,
   keyed on the deal), flying between exact places measured just before the
   redraw (`data-uno-at`: `deck`, `pile`, `color`, `dir`, `pending`,
@@ -2892,6 +2920,24 @@ board size, in the lobby - the same choice as the one-phone setup, kept in
 voice: with a screen in the room only the screen knocks, scratches and pops
 (`duelRoomLoud`); the winner's own phone and the TV get the confetti.
 
+**Your move is drawn as your finger lifts, not when the server answers.**
+The owner saw it in a room (21 Sep 2026): "a disc appears falling, disappears,
+then another one drops" - the aim disc faded on letting go, and the real disc
+fell a round trip later from the top. On one phone the board is redrawn in
+the same event, so the aim disc turns straight into the falling one. In a
+room `duelRoomSend` now takes an `early` step: the phone plays the move on a
+copy with the very rules the server uses (`c4Play`, `dotsPlay`), puts that
+board in place of the one on screen and starts its motion (`c4RoomDropEarly`,
+`dotsRoomDrawEarly`, through `duelRoomDrawEarly`), remembering the move's key
+and when it started (`duelRoomLocal.early`). When the server's board comes
+back, `c4AfterPaint` / `dotsAfterPaint` get that as `o.early` and start the
+same animations part-way (`currentTime`), so the fall, the line and the boxes
+carry on with no jump, and the knock plays once. If the server's answer
+arrives and nothing claimed the early board (`duelRoomEarlyFor`), the move was
+refused, and the room's own board is drawn back. Watchers and the TV are
+unchanged: they only ever see the server's board. Measured with 250ms of
+network delay: the disc starts falling at the lift instead of 260ms later.
+
 **Layout** (Style.html sections 18 and 19): upright, the pills and a result
 card sit above the board and the rest follows it (`.duel-layout`, with the
 side `display: contents`); on a phone held sideways and on any screen at least
@@ -3127,6 +3173,18 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A room game that looks right with no network can still feel wrong on a
+phone.** On the local server the answer to a move comes back in a few
+milliseconds, so two things only showed on the owner's phones (21 Sep 2026):
+a preview that vanishes when the finger lifts and a real piece that appears a
+round trip later reads as *two* moves (كونكت ٤'s aim disc), and a queue of
+motion that makes every new state wait holds up the player's own next tap
+(أونو after a Skip). Test a room move with the socket slowed down - wrap
+`WebSocket.prototype.send` in a `setTimeout` of 250ms in the page - and time
+your own move from the tap to the screen. Your own move is drawn at once (the
+duels' `early`, أونو's `unoOwnMoveWaiting`); other people's may wait their
+turn to animate.
 
 **A default on the base class beats a modifier on the same element.** سكرو's
 card set `--c` (its colour) on `.skr-card`, and each group set it on

@@ -24,7 +24,20 @@ function dotsRoomDraw(e) {
   if (!state || state.game !== 'dots') return;
   const s = state.shared;
   if (s.phase !== 'play' || (s.seats || [])[s.turn] !== Room.me || (s.lines || [])[e]) return;
-  duelRoomSend(state, { edge: e });
+  duelRoomSend(state, { edge: e }, () => dotsRoomDrawEarly(state, e));
+}
+
+/** Your line draws itself as your finger lifts (and any box it takes pops); the room's board carries it on. */
+function dotsRoomDrawEarly(state, e) {
+  const s = state.shared;
+  const seat = (s.seats || []).indexOf(Room.me);
+  const b = dotsRoomBoard(s);
+  const board = { n: b.n, lines: b.lines.slice(), boxes: b.boxes.slice() };
+  const res = dotsPlay(board, e, seat + 1);
+  if (!res) return;
+  const key = ['dots', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  const html = dotsBoardHtml(board, { last: { edge: e, boxes: res.boxes }, playable: false, next: seat + 1, initials: dotsInitials(duelRoomNames(state)) });
+  duelRoomDrawEarly('dots', key, html, (box) => dotsAfterPaint(box, board, { lineKey: key, sound: duelRoomLoud(state) }));
 }
 
 /** Did the last line take a box and keep the turn? */
@@ -89,9 +102,11 @@ ROOM_GAMES.dots = {
       </div>`);
     if (rebuilt) {
       const key = ['dots', state.code, s.round].join('|');
+      const lineKey = s.last ? key + '|' + s.moves : '';
       dotsAfterPaint(el, board, {
         onDraw: dotsRoomDraw,
-        lineKey: s.last ? key + '|' + s.moves : '',
+        lineKey: lineKey,
+        early: duelRoomEarlyFor(lineKey),
         ending: s.phase === 'over',
         sound: duelRoomLoud(state)
       });

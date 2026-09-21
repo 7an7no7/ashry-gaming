@@ -134,34 +134,41 @@ function dotsWire(wrap, b, onDraw) {
  * Everything after a board is drawn, one phone, a room or the TV: the finger
  * (o.onDraw), the last line drawing itself and glowing, the boxes it took
  * popping in with a sound (once per o.lineKey), and o.still for a board drawn
- * settled. Returns how long the move's animation takes.
+ * settled. o.early { key, at }: this phone already started that line (a room,
+ * before the server answered), so its motion carries on from where it has got
+ * to. Returns how long is left of the move's animation.
  */
 function dotsAfterPaint(root, b, o) {
   const wrap = root && root.querySelector('.dots');
   if (!wrap) return 0;
   dotsWire(wrap, b, o.onDraw);
   const line = wrap.querySelector('.dots-line.is-last');
-  const moving = !!(o.lineKey && line && typeof motionFirst === 'function' && motionFirst(o.lineKey) && !o.still);
+  const early = o.early && o.lineKey && o.early.key === o.lineKey ? Math.max(1, Date.now() - o.early.at) : 0;
+  const moving = !!(o.lineKey && line && !o.still &&
+    (early ? !motionOff() : typeof motionFirst === 'function' && motionFirst(o.lineKey)));
   const took = wrap.querySelectorAll('.dots-box.is-new');
   let ms = 0;
   if (moving && line.animate) {
+    const anims = [];
     const h = line.classList.contains('is-h');
-    line.animate([{ transform: h ? 'scaleX(0.02)' : 'scaleY(0.02)' }, { transform: 'none' }],
-                 { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'backwards' });
+    anims.push(line.animate([{ transform: h ? 'scaleX(0.02)' : 'scaleY(0.02)' }, { transform: 'none' }],
+                 { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'backwards' }));
     const glow = wrap.querySelector('.dots-glow');
     if (glow && glow.animate) {
-      glow.animate([{ opacity: 0 }, { opacity: 0.5, offset: 0.2 }, { opacity: 0 }],
-                   { duration: 1400, delay: 120, easing: 'ease-out' });
+      anims.push(glow.animate([{ opacity: 0 }, { opacity: 0.5, offset: 0.2 }, { opacity: 0 }],
+                   { duration: 1400, delay: 120, easing: 'ease-out' }));
     }
     took.forEach((box, k) => {
       if (!box.animate) return;
-      box.animate([
+      anims.push(box.animate([
         { opacity: 0, transform: 'scale(0.4)' },
         { opacity: 1, transform: 'scale(1.1)', offset: 0.65 },
         { opacity: 1, transform: 'scale(1)' }
-      ], { duration: 420, delay: 200 + k * 90, easing: 'cubic-bezier(0.34, 1.45, 0.5, 1)', fill: 'backwards' });
+      ], { duration: 420, delay: 200 + k * 90, easing: 'cubic-bezier(0.34, 1.45, 0.5, 1)', fill: 'backwards' }));
     });
-    ms = took.length ? 620 + took.length * 90 : 240;
+    // Carried on from the phone's own start: every piece where it has got to, the finished ones gone.
+    if (early) anims.forEach(a => { try { a.currentTime = early; } catch (e) {} });
+    ms = Math.max(0, (took.length ? 620 + took.length * 90 : 240) - early);
   }
   if (o.lineKey && line && duelOnce('snd|' + o.lineKey) && !o.still && o.sound !== false) {
     duelSound('line');

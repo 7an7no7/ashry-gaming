@@ -243,9 +243,11 @@ function c4Refuse(wrap) {
 /**
  * The disc just played falls from above the board to its cell, speeding up,
  * with a small bounce where it lands. Its end is its place in the markup, so
- * nothing depends on the animation finishing. Returns how long it takes.
+ * nothing depends on the animation finishing. `into` ms starts it part-way
+ * (a fall this phone began before the room's board came back). Returns how
+ * long is left of it.
  */
-function c4AnimateDrop(wrap, disc) {
+function c4AnimateDrop(wrap, disc, into) {
   if (!disc || !disc.animate) return 0;
   const cell = disc.parentElement;
   const track = wrap.querySelector('.c4-ghostrow__track');
@@ -258,13 +260,16 @@ function c4AnimateDrop(wrap, disc) {
   if (!(dy > 0)) return 0;
   const rows = Math.max(1, Math.round(dy / pitch));
   const duration = 220 + 55 * rows;
-  disc.animate([
+  const done = Math.max(0, Number(into) || 0);
+  if (done >= duration) return 0;
+  const anim = disc.animate([
     { transform: 'translateY(' + (-dy) + 'px)', easing: 'cubic-bezier(0.5, 0, 0.9, 0.55)' },
     { transform: 'translateY(0px)', offset: 0.7, easing: 'cubic-bezier(0.15, 0.6, 0.4, 1)' },
     { transform: 'translateY(' + (-pitch * 0.14) + 'px)', offset: 0.85, easing: 'cubic-bezier(0.6, 0, 0.9, 0.6)' },
     { transform: 'translateY(0px)' }
   ], { duration: duration, fill: 'backwards' });
-  return duration;
+  if (done) anim.currentTime = done;
+  return duration - done;
 }
 
 /**
@@ -272,7 +277,9 @@ function c4AnimateDrop(wrap, disc) {
  * wiring the finger (o.onDrop), the last disc's fall and knock (once per
  * o.dropKey), the winning line lighting up one disc at a time or a full board
  * shaking (once per o.endKey). o.still draws it settled (a reload, a new
- * language), o.sound false keeps this device quiet. Returns { dropMs, revealMs }.
+ * language), o.sound false keeps this device quiet. o.early { key, at }: this
+ * phone already started that disc's fall (a room, before the server answered),
+ * so it carries on from where it has got to. Returns { dropMs, revealMs }.
  */
 function c4AfterPaint(root, o) {
   const wrap = root && root.querySelector('.c4');
@@ -280,8 +287,10 @@ function c4AfterPaint(root, o) {
   if (!wrap) return out;
   c4Wire(wrap, o.onDrop);
   const disc = wrap.querySelector('.c4-disc.is-last');
-  const moving = !!(o.dropKey && disc && typeof motionFirst === 'function' && motionFirst(o.dropKey) && !o.still);
-  if (moving) out.dropMs = c4AnimateDrop(wrap, disc);
+  const early = o.early && o.dropKey && o.early.key === o.dropKey ? Math.max(1, Date.now() - o.early.at) : 0;
+  const moving = !!(o.dropKey && disc && !o.still &&
+    (early ? !motionOff() : typeof motionFirst === 'function' && motionFirst(o.dropKey)));
+  if (moving) out.dropMs = c4AnimateDrop(wrap, disc, early);
   if (o.dropKey && disc && duelOnce('snd|' + o.dropKey) && !o.still && o.sound !== false) {
     setTimeout(() => duelSound('drop'), Math.round(out.dropMs * 0.7));
   }

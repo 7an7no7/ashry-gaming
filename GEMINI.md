@@ -68,6 +68,8 @@
   every phone is a buzzer, the server keeps the order of presses;
   🕴️ **Mafia (مافيا):** the app narrates night and day, roles on each phone;
   🐄 **Herd Mentality (زي الكل):** write what most of the table will write;
+  🌈 **Uno (أونو):** the whole card game, every hand on its own phone, with
+  the house rules as switches and computer players to fill the table;
   🗓️ **Timeline (قبل ولا بعد):** put an event in its place on the line,
   before or after the cards already down.
 - **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
@@ -232,6 +234,55 @@ work changed. Add to it when a decision is made or a batch ships.
   - **There is time to talk**: a discussion clock before every vote, for
     arguing and accusing.
 
+- **أونو (Uno)** - the owner's spec of 21 Sep 2026, asked one rule at a time
+  (*أونو in rooms*, *أونو on the phones and the TV*):
+  - **The deck** is the standard 108 (each colour one 0 and two of every 1-9,
+    Skip, Reverse and +2; four wilds and four wild +4s), 7 cards each; up to
+    ten players one deck, eleven and twelve two decks shuffled together. The
+    card turned up: a wild +4 goes back and another is turned; a wild lets the
+    first player pick the colour; an action card acts on the first player. The
+    draw pile running out: the pile but its top card is shuffled into a new one.
+  - **Playing**: the colour, the number or the symbol, or a wild; **a +4 any
+    time, no challenge**.
+  - **Drawing, the official rule in the owner's words**: can't (or won't) play,
+    draw one; if it fits you may play it at once or keep it and the turn ends;
+    after drawing no other card from the hand. **"Draw until you can play"** is
+    a lobby switch, off.
+  - **Stacking** is a switch, **on by default** (the owner's table plays it),
+    with a choice shown only then: **"+2 on +2, +4 on +4 only"** (default) or
+    **"also +4 on a +2"** (a +2 never answers a +4). Facing a draw you stack it
+    on or take the whole pile and lose the turn; without stacking the next
+    player just draws and is skipped.
+  - **7-0** (7 swaps your hand with a player you pick, 0 passes every hand on
+    one seat) and **jump in** (the very same card as the top one, never a wild,
+    out of turn; play carries on from you) are switches, off.
+  - **Skip** skips; **Reverse** turns the direction (a Skip with two players).
+  - **UNO: "press it, or get caught"**: the button shows with two cards (before
+    or with the second to last) or one; down to one card without it, anyone else
+    can press **امسكه!** until the next move, and caught means two cards.
+    Computer players always say it, but an easy one sometimes forgets; a hard
+    one catches whoever forgets, after a human moment.
+  - **Game length**: **one round, first out wins** (the default) or **3 / 5 / 7
+    rounds with points** (the winner scores the cards left in the other hands:
+    face value, Skip/Reverse/+2 20, wilds 50; most points wins). "First to 500"
+    was put to the owner and rejected.
+  - **A turn clock** (off, 30 or 60 seconds): when it runs out the phone plays
+    for the player - takes a waiting draw, or draws one and passes - and the
+    host has a skip for a phone that went quiet.
+  - **Cards you can play are always lit** (no switch); one that can't is refused.
+  - **Every lobby choice is remembered** on the host's phone.
+  - **Computer players**: easy plays the first card that fits; hard plays to
+    win (keeps wilds, names its strongest colour, hits a player close to going
+    out, stacks, sheds big cards when anyone is close, says UNO, catches) - both
+    only from their own hand and what the table sees.
+  - **The look** the owner picked, option أ "بلوكات" from a design sheet, the
+    family of سكرو's cards (*أونو on the phones and the TV*), and **motion on
+    every move that can have one**.
+  - **The play area first** (21 Sep 2026, for every screen): while a round is
+    played the pile and your hand get most of the screen, the seats, names and
+    counts are a compact strip (a ring on the TV); the results may take over
+    once the round is done.
+
 ### Ideas not built yet (researched 16 Sep 2026)
 
 Solo was the gap (Wordle, Connections, Memory, X-O against the phone and Guess
@@ -346,6 +397,26 @@ the word search), `countUp` for streaks and scores.
   digit. From 900px wide they are 40rem, centred (680px on a laptop, 800 on
   a TV). Two columns (options beside players) was offered and not chosen: the
   setup markup differs screen to screen, so it would be 42 separate jobs.
+- **أونو's edge cases, decided while building it** (21 Sep 2026; each is one
+  place in `RoomUno.js` if the owner wants another): a 7 or 0 as your last card
+  ends the round with no swap; a hand of one that arrives by a 7 or a 0 can't be
+  caught (only playing down to one counts), and a hand that changes owners
+  forgets its UNO; the catch window closes at the next move anyone makes (a
+  play, a draw, a take, a keep, a colour, a jump, the clock) and never on an UNO
+  or a catch; UNO said with two cards is forgotten if the hand grows again; a
+  +2 or +4 as the last card still makes the next player draw (the whole stack),
+  and those cards count (Mattel's rule); a Reverse turned up lets the dealer
+  start the other way (Mattel's rule) and a +2 turned up with stacking on waits
+  on the first player, who may stack on it; a jump in may land while the player
+  up holds a card they drew (it stays in their hand) and on a +2 still waiting
+  (the same +2 raises it, and it waits on the player after the jumper), never
+  with a wild and never before the first colour; nothing left to draw passes
+  the turn; one round's board is the winner with the points in the other hands
+  and everyone else at minus what they held, so the night's table ranks them
+  all; a game left with one player ends, that player winning a one-round game.
+  On the phone a card is played with one tap (سكرو picks, then confirms): Uno
+  is quick and a jump in is a race, and a card that can't go is shaken and
+  refused on the phone without a round trip.
 - Rooms stay on Cloudflare; WebRTC was rejected. Firebase, if ever, on a
   different Google account from the one already tried.
 - صراحة أو جرأة (truth or dare): a family-clean list is too tame. تخمين السعر
@@ -535,6 +606,16 @@ the word search), `countUp` for streaks and scores.
   `JS_TriviaBoard.html` is concatenated after `JS_RoomTrivia.html` and its
   `paintTriviaTimer` silently replaced the room's (*Traps*).
 
+- **21 Sep 2026, أونو** - the whole game in rooms and on the TV, to the
+  owner's rules asked one at a time (*The owner's specs*), with computer
+  players on the room's bot hook: `UnoCards.js` (shared), `RoomUno.js` (the
+  rules and the bots), `JS_RoomUno.html` (the phones and the TV), section 18 of
+  `Style.html`. The look picked from a design sheet (colour blocks, like
+  سكرو's), every move animated, the play area first at every size, measured.
+  The rules tests play 45 whole games of bots across every variant; the robots
+  play every rule on a live server (one person and two bots included, finishing
+  on the server's clock).
+
 ## Building and Running
 
 ### Development Requirements
@@ -585,7 +666,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `RoomGames.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
-  `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`, `UnoCards.js`, and the
+  game files bundled after `RoomGames.js`, such as `RoomUno.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -678,6 +760,8 @@ is nowhere to hide the key card.
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `rooms-worker/src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live`. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
+| `RoomUno.js` | أونو's rules and its computer players, bundled after `RoomGames.js` (whose helpers it uses); `unoAction` is reached from `applyRoomAction`. |
+| `UnoCards.js` | أونو's deck and what may go on what (`unoCanPlay`), inlined into the page and bundled into the Worker, so a phone lights exactly the cards the server takes. |
 | `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js` | Word lists (and سكرو's cards, and قبل ولا بعد's dates) the rules deal from, bundled into the Worker. Nine of them are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, a Stop phone checks its boxes with the server's own rule, the solo games ask from the room trivia's questions, and a سكرو phone names and draws the cards the server deals. **Two stay server-only, on purpose:** `PartyContent.js`, because the Fibbage answers in it must never reach a page, and `TimelineEvents.js`, because the years of unplayed cards are قبل ولا بعد's whole secret. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
@@ -1352,6 +1436,117 @@ builder, `skrCardHtml`, sized by `--skr-w`.
   "+20 :Adam" and "1/5" as "5/1". A few short sounds were added to `FX` in
   `JS_Sounds.html` (`skrFlick`, `skrRiffle`, `skrDrum`, `skrThump`), not on the
   soundboard; none depends on a hidden card.
+
+**Computer players** (`ROOM_BOT_GAMES`, `scheduleBots`, `runRoomBot` near
+the top of `RoomGames.js`; `roomBotControlsHtml`, `roomBotRowHtml` in
+`JS_Room.html`). In a game that registers them the host adds a bot in the
+lobby: a player in `room.players` with `bot: 'easy' | 'hard'`, always online,
+dealt like anyone, its hand in `room.secrets` like anyone's, with no key and no
+socket. A game registers `{ max, pending(room), decide(room, pid),
+fallback(room, pid) }`: after every move `pending` names the bot that has
+something to do now and a key for that moment (and may ask for its own
+`delay`); `room._botAt` is set a second or so ahead, the alarm wakes on it
+(`roomDeadline` takes the sooner of it and the game's own clock), and
+`roomTimeout` applies what `decide` returns - the move exactly as a phone would
+send it - through `applyRoomAction`, falling back to `fallback` (always legal:
+draw, pass) when refused. `decide` may read only that bot's own
+`room.secrets[pid]` and `room.shared`, never another hand or the deck. A bot
+can act out of turn through the same hook (أونو's catch and jump in). The hub
+parks bots and a game with bots sits them back down; a bot never hosts, and a
+room of nothing but bots is empty.
+
+**أونو in rooms** (`unoAction` in `RoomUno.js`, bundled after `RoomGames.js`;
+the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
+
+- **Cards.** A kind is colour + value (`r7`, `gs` skip, `bv` reverse, `yd`
+  +2) or `w` / `w4`; in play a card is `{ i, k }`, `i` a random id for the
+  round (never published while the card is in a hand or the deck), and a wild
+  on the pile carries `c`, its colour. `unoCanPlay(k, top, color, pending,
+  settings)` is the one rule for what goes on what, stacking included; the
+  phone lights cards with the same function.
+- **What is hidden.** `room._uno` holds the deck, the whole pile, every hand
+  and the id of a card just drawn; `room.secrets[pid]` is that phone's hand and
+  `drawn`. `shared` carries `counts`, the top of the pile (`pile`, the last 8),
+  `color`, `dir`, `turn { pid, stage }`, `pending { n, kind }` (a stacked draw:
+  `kind` is the last draw card, `d` or `w4`), `said` (who has said UNO),
+  `unoCatch` (who can be caught right now), `scores`, `board`, `results` and the
+  events (`shared.events`, the last 40, `shared.eventSeq`): `deal`, `play`
+  (with `jump`, `uno`, `color`, `left`, `pending`), `skip`, `reverse`, `hit`,
+  `draw`, `take`, `keep`, `pass`, `color`, `uno`, `caught`, `swap`, `rotate`,
+  `reshuffle`, `auto`, `win`, `left` - a draw says how many, never which.
+- **A turn** (`turn.stage`): `color` when the round opened on a wild
+  (`pickColor`), then `play` (`play { card, color?, target?, uno? }`, `draw`,
+  or `take` when a draw waits), and `drawn` when the card drawn fits (`play`
+  that card only, or `keep`). Out of turn: `callUno`, `catchUno { target }`,
+  and with jump in `jump { card, top }`. Turn moves carry `seq`
+  (`shared.turnSeq`, raised at every turn start and stage change) and a jump the
+  id of the top card it aimed at: a late tap is dropped. The host's
+  `skipTurn` and the clock (`unoDeadline` / `unoTimeout`) do the same thing:
+  take a waiting draw, keep a drawn card, or draw one and pass.
+- **The end.** `unoEndRound` scores the other hands (`unoHandPoints`); rounds
+  mode banks it (`roundOver`, the host's `nextRound`, the first seat moving on
+  one each round), one round goes straight to `gameover`. A player who leaves
+  (`unoPlayerLeft`) puts their cards under the deck and passes their turn; fewer
+  than two ends the game.
+- **Computer players** (`ROOM_BOT_GAMES.uno`): `pending` puts a hard bot's
+  catch first (1.5-2.6s, a human's moment), then a hard bot's jump in, then the
+  bot up - which waits 2.8-3.6s while somebody can be caught, so the table gets
+  its chance. Easy plays the first card that fits and forgets UNO one time in
+  three; hard scores each card that fits (`unoBotBest`: keep wilds, stay in the
+  colour it holds most, hit a next player with two cards or fewer, shed big
+  cards when anyone is close, swap with the smallest hand on a 7, a 0 only when
+  the hand coming is smaller). `rules.mjs` plays 45 whole bot games across every
+  variant and checks that no bot move is ever refused and no card is lost.
+
+**أونو on the phones and the TV** (`JS_RoomUno.html`, `ROOM_GAMES.uno` and
+`TV_GAMES.uno`; section 18 of `Style.html`).
+
+- **The cards the owner picked** (option أ "بلوكات", the family of سكرو's): the
+  whole card in its colour (`--uno-r` `#e5383b`, `--uno-y` `#f5b400` with dark
+  ink, `--uno-g` `#1f9d55`, `--uno-b` `#1e6fd9`, the same in both themes) with a
+  soft shine, a big Baloo numeral or a line icon (Skip a slashed circle,
+  Reverse two arrows), the value small at the top of the reading direction's
+  start and turned at the other end (so a hand overlapped in Arabic still shows
+  it; a 6 and a 9 are underlined), the wilds near black with a four-colour
+  wheel (the +4 over it), the back violet and dotted with "A.". One builder,
+  `unoCardHtml(k, { size, color })`, sized by `--uno-w`, 1:1.5.
+- **The play area first** (the owner, 21 Sep 2026): the other players are one
+  strip of compact chips (avatar, name, a fan of backs with the count on it,
+  أونو in red at one card; a sideways scroll on a phone, turned to the player
+  up by `unoOppsInView`, fading at its edges), then the pile across the width,
+  your hand (`unoFitHand` overlaps a row that doesn't fit, rows of up to 12),
+  the bar, the last moves. A phone on its side puts the pile beside the hand
+  and the bar; from 900px the pile spans the width and the hand sits beside the
+  bar, cards sized by the screen's height. The TV is a ring of chips along the
+  top and back along the bottom round a big table, the turn and the moves
+  beside it. Measured with twelve at the table: the play area is 59-66% of the
+  height and 87-95% of the width of a laptop player's screen, the TV's table
+  65% by 66-69%, with nothing to scroll.
+- **Playing.** One tap plays a card; a wild asks for its colour and a 7 (7-0)
+  for a partner in the bar (`unoLocal.pick`); a card that can't go shakes. The
+  bar carries the draw or take, play-or-keep after a draw, **أونو!** (two cards,
+  or one not said yet - big and pulsing while you can be caught) and, for
+  everyone else, **امسكه!**. `roomTurnOf` answers for the player up.
+- **Motion on every move.** Each event plays once per device (`unoEventsToPlay`,
+  keyed on the deal), flying between exact places measured just before the
+  redraw (`data-uno-at`: `deck`, `pile`, `color`, `dir`, `pending`,
+  `seat:<pid>`, `card:<id>`): the deal round the table and into your hand
+  turning up, a card from a hand onto the pile with a turn, cards from the deck
+  to a seat (backs) or into your hand (turning up, the new ones found by
+  diffing the hand), ⊘ stamped on a skipped seat, the direction arrow spinning,
+  a wild's colour rippling out of the pile, the +N growing on a stack,
+  **أونو!** bursting from a seat, a catch stamped and its two cards flying, two
+  hands crossing for a 7 and every hand moving on for a 0, the riffle of a
+  reshuffle. The round's last card lands on the table before the result
+  (`unoPlayEnding`), whose hands turn over one by one and whose points count
+  up; the game ends on a podium with confetti. `motionOff()` gives the end
+  state without any of it; a phone back from the lock screen replays nothing.
+  Four short sounds (`unoCard`, `unoDraw`, `unoShout`, `unoCatch`) are added to
+  `FX` from `JS_RoomUno.html`; with a big screen in the room only the TV plays
+  the table's sounds, a phone its own moves.
+- **Bidi.** A "+2", "+4" or "+85" inside an Arabic line is held left to right
+  (`unoT` wraps it in LRI...PDI, and card names do the same), or it reads
+  "2+".
 
 **The Buzzer (الجرس)** has no content at all: the host asks their own questions
 out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps

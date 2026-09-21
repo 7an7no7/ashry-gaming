@@ -1293,7 +1293,7 @@ async function main() {
       await all(players, (s) => s.shared.phase === 'play' && s.you && s.you.hand.length >= 7, 'uno: dealt again');
     };
     let mixedSeen = false;
-    for (let game = 0; game < 6 && !mixedSeen; game++) {
+    for (let game = 0; game < 14 && !mixedSeen; game++) {
       await unoPlayAgain({ stackMode: 'mixed' });
       await unoPlayUntil(players, (st) => {
         if (!st.shared.pending || st.shared.pending.kind !== 'd') return false;
@@ -1314,7 +1314,7 @@ async function main() {
         mixedSeen = true;
       }
     }
-    check(mixedSeen, 'uno: a +4 answered a +2 within six games');
+    check(mixedSeen, 'uno: a +4 answered a +2 (within fourteen games)');
     let offSeen = false;
     for (let game = 0; game < 4 && !offSeen; game++) {
       await unoPlayAgain({ stacking: false });
@@ -1339,8 +1339,9 @@ async function main() {
     check(stacked || tookPile, 'uno: a draw waiting was stacked or taken');
 
     // Draw until you can play: a draw always ends on a card that fits (while the deck lasts).
-    await unoPlayAgain({ drawUntil: true });
     let untilSeen = false;
+    for (let game = 0; game < 4 && !untilSeen; game++) {
+    await unoPlayAgain({ drawUntil: true });
     for (let n = 0; n < 300 && !untilSeen && A.state.shared.phase === 'play'; n++) {
       await unoSettle(players);
       const upBot = unoUp(players);
@@ -1355,6 +1356,7 @@ async function main() {
         continue;
       }
       await unoMove(players);
+    }
     }
     check(untilSeen, 'uno: a player had to draw with "draw until you can play"');
 

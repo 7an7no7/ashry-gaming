@@ -8980,20 +8980,17 @@ body.dark .gcard--spotlight {
   border-radius: calc(var(--u) * 0.1);
 }
 
-/* --- The screen: one column upright, reordered; beside each other on a phone's side and wider --- */
+/* --- The screen: who is at the table (a compact strip), the table, your hand.
+   While a round is played the table gets most of the screen at every size
+   (the owner, 21 Sep 2026); upright the three stack, on a phone's side the
+   table takes one column, on a laptop it takes the width. --- */
 .dom-layout { display: flex; flex-direction: column; gap: 0.4rem; }
-.dom-layout__side { display: contents; }
-.dom-layout .dom-head { order: 1; }
-.dom-layout .dom-scores { order: 2; }
-.dom-layout .dom-seats { order: 3; }
-.dom-layout__table { order: 4; min-width: 0; }
-.dom-layout .dom-mine { order: 5; }
-.dom-layout .dom-bar { order: 6; }
-.dom-layout .dom-host { order: 7; }
+.dom-top { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.dom-layout__table { min-width: 0; }
+.dom-play { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
 .dom-host:empty { display: none; }
-.dom-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-1); }
-
-.dom-scores { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-1); }
+.dom-head, .dom-strip { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.25rem; }
+.dom-strip .badge { height: auto; padding: 0.15em 0.6em; line-height: 1.4; }
 .dom-chip {
   display: inline-flex;
   align-items: center;
@@ -9035,7 +9032,7 @@ body.dark .dom-felt { background: radial-gradient(120% 90% at 50% 40%, color-mix
   display: grid;
   place-items: center;
   /* Upright, the head, the seats, your hand and the bar fit a 375 × 812 screen under it. */
-  height: clamp(10rem, calc(var(--app-h, 100dvh) - 34rem), 26rem);
+  height: clamp(10rem, calc(var(--app-h, 100dvh) - 31.5rem), 28rem);
   overflow: hidden;
 }
 .dom-felt--small .dom-table { height: clamp(8rem, calc(var(--app-h, 100dvh) * 0.26), 14rem); }
@@ -9103,15 +9100,16 @@ body.dark .dom-felt { background: radial-gradient(120% 90% at 50% 40%, color-mix
 .dom-sum.is-scoring { background: var(--success-btn); color: var(--success-on); }
 .dom-sum.is-scoring b { color: inherit; }
 
-/* --- The others round the table --- */
-.dom-seats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--sp-2); }
+/* --- The others round the table: one short row each --- */
+.dom-seats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.3rem; }
 .dom-seat {
   position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
   min-width: 0;
-  padding: 0.375rem var(--sp-2);
+  padding: 0.3rem 0.45rem;
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -9121,13 +9119,13 @@ body.dark .dom-felt { background: radial-gradient(120% 90% at 50% 40%, color-mix
 .dom-seat.is-away { opacity: 0.55; }
 .dom-seat--team0 { border-inline-start: 3px solid var(--team-blue); }
 .dom-seat--team1 { border-inline-start: 3px solid var(--team-red); }
-.dom-seat__who { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.dom-seat__who { flex: 1; display: flex; align-items: center; gap: 0.3rem; min-width: 0; }
 .dom-avatar {
   flex: none;
   display: grid;
   place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.4rem;
+  height: 1.4rem;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent-ink);
@@ -9138,11 +9136,16 @@ body.dark .dom-felt { background: radial-gradient(120% 90% at 50% 40%, color-mix
 .dom-seat.is-turn .dom-avatar { background: var(--accent); color: var(--accent-on); }
 .dom-seat__name { flex: 1; min-width: 0; overflow: hidden; color: var(--text-strong); font-size: var(--fs-sm); font-weight: var(--fw-bold); text-overflow: ellipsis; white-space: nowrap; }
 .dom-seat__score { flex: none; padding: 0 0.45em; border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-ink); font-size: var(--fs-xs); font-weight: 900; }
-.dom-seat__tiles { display: flex; align-items: center; min-height: 1.35rem; direction: ltr; }
-.dom-seat__tiles .dt { --u: 0.6rem; }
-.dom-seat__tiles .dt + .dt { margin-inline-start: -0.12rem; }
-.dom-seat__more { margin-inline-start: 0.2rem; color: var(--text-3); font-size: 0.7rem; font-weight: var(--fw-bold); }
-.dom-seat__count { margin-inline-start: auto; color: var(--text-2); font-size: var(--fs-xs); font-weight: 900; }
+.dom-seat__tiles { flex: none; display: flex; align-items: center; gap: 0.25rem; direction: ltr; }
+.dom-seat__tiles .dt { --u: 0.55rem; }
+.dom-seat__tiles .dt + .dt { margin-inline-start: -0.4rem; }
+.dom-seat__more { color: var(--text-3); font-size: 0.7rem; font-weight: var(--fw-bold); }
+.dom-seat__count { min-width: 1.2rem; padding: 0 0.3em; border-radius: var(--r-full); background: var(--surface-2); color: var(--text-strong); font-size: var(--fs-xs); font-weight: 900; text-align: center; }
+/* Three across an upright phone: the name and the count, the backs left out. */
+.dom-seats--3 .dom-seat__tiles .dt, .dom-seats--3 .dom-seat__more { display: none; }
+.dom-seats--3 .dom-seat { gap: 0.2rem; padding-inline: 0.3rem; }
+.dom-seats--3 .dom-seat__name { font-size: var(--fs-xs); }
+.dom-seats--3 .dom-avatar { width: 1.2rem; height: 1.2rem; font-size: 0.65rem; }
 
 /* --- Your hand --- */
 .dom-mine {
@@ -9361,79 +9364,79 @@ button.dom-seatchip { cursor: pointer; transition: transform var(--dur-2) var(--
 /* --- A phone on its side: the table beside everything else --- */
 @media (orientation: landscape) and (max-height: 500px) {
   .shell__main > #view-room-domino { max-width: none; }
-  .dom-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; gap: var(--sp-3); }
-  .dom-layout__side { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
-  .dom-layout__table { position: sticky; top: 0; }
-  .dom-table { height: max(10rem, calc(var(--app-h, 100dvh) - 8.5rem)); }
-  /* The others in one short row beside the table: a name and how many they hold. */
-  .dom-seats { gap: var(--sp-1); }
-  .dom-seat { flex-direction: row; align-items: center; gap: 0.3rem; padding: 0.2rem 0.4rem; }
-  .dom-seat__who { flex: 1; gap: 0.25rem; }
-  .dom-avatar { width: 1.25rem; height: 1.25rem; font-size: 0.7rem; }
+  .dom-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "table top" "table play";
+    align-items: start;
+    column-gap: var(--sp-3);
+    row-gap: 0.35rem;
+  }
+  .dom-top { grid-area: top; gap: 0.25rem; }
+  .dom-layout__table { grid-area: table; }
+  .dom-play { grid-area: play; gap: 0.35rem; }
+  .dom-table { height: max(10rem, calc(var(--app-h, 100dvh) - 7.5rem)); }
+  /* The others beside the table, one short line each: a name and how many they hold. */
+  .dom-seats { grid-auto-flow: row; grid-auto-columns: auto; gap: 0.2rem; }
+  .dom-seat { padding: 0.15rem 0.35rem; }
+  .dom-strip { gap: 0.2rem; }
+  .dom-strip .badge, .dom-strip .dom-chip { padding: 0.05em 0.5em; font-size: 0.7rem; }
+  .dom-avatar { width: 1.2rem; height: 1.2rem; font-size: 0.65rem; }
   .dom-seat__name { font-size: var(--fs-xs); }
-  .dom-seat__tiles { flex: none; min-height: 0; }
   .dom-seat__tiles .dt, .dom-seat__more { display: none; }
-  .dom-head, .dom-scores { gap: 0.2rem; }
   .dom-hand { min-height: 3.6rem; padding-top: 0.35rem; }
   .dom-hand .dt { --u: 1.6rem; }
   .dom-hand--many .dt { --u: 1.3rem; }
   .dom-mine { padding: 0.35rem var(--sp-2); }
-  .dom-mine__head { margin-bottom: 0; }
   .dom-bar { padding: 0.35rem var(--sp-2); }
   .dom-felt--small .dom-table { height: max(8rem, calc(var(--app-h, 100dvh) - 14rem)); }
 }
 
-/* --- Laptops and TVs showing the phone view: wider, with bigger tiles --- */
+/* --- Laptops and big screens showing the phone view: the table across the
+   whole width and most of the height, the strip of names above it, your hand
+   and what to do in one row under it --- */
 @media (min-width: 900px) and (min-height: 501px) {
-  .shell__main > #view-room-domino { max-width: 72rem; }
-  .dom-layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; gap: var(--sp-4); }
-  .dom-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
-  .dom-layout__table { position: sticky; top: 0; }
-  .dom-table { height: clamp(18rem, calc(var(--app-h, 100dvh) - 14rem), 44rem); }
-  .dom-seat__tiles .dt { --u: 0.75rem; }
-  .dom-hand .dt { --u: 2.5rem; }
-  .dom-hand--many .dt { --u: 2rem; }
+  .shell__main > #view-room-domino { max-width: none; }
+  .dom-top { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.4rem 0.75rem; }
+  .dom-seats { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; }
+  .dom-seat { flex: none; min-width: 9rem; }
+  .dom-seats--3 .dom-seat__tiles .dt, .dom-seats--3 .dom-seat__more { display: inline-grid; }
+  .dom-seats--3 .dom-seat__more { display: inline; }
+  .dom-seat__tiles .dt { --u: 0.7rem; }
+  .dom-table { height: max(16rem, calc(var(--app-h, 100dvh) - 18.5rem)); }
+  .dom-play { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, auto); align-items: stretch; gap: var(--sp-3); }
+  .dom-play .dom-host { grid-column: 1 / -1; }
+  .dom-play .dom-bar { justify-content: center; }
+  .dom-hand .dt { --u: 2.25rem; }
+  .dom-hand--many .dt { --u: 1.9rem; }
   .dom--result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
   .dom--result > .dom-head, .dom--result > .dom-over, .dom--result > [data-room-strip] { grid-column: 1 / -1; }
   .dom-rtile .dt { --u: 1rem; }
 }
 
-/* --- The TV: the seats round the table, the table in the middle --- */
-.dom-tv {
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 3.2fr) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-areas: ". top ." "left mid right" ". bottom .";
-  gap: var(--tv-gap);
-}
-.dom-tv__seat { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; }
-.dom-tv__seat--top { grid-area: top; }
-.dom-tv__seat--left { grid-area: left; }
-.dom-tv__seat--right { grid-area: right; }
-.dom-tv__seat--bottom { grid-area: bottom; }
-.dom-tv__mid { grid-area: mid; min-height: 0; display: flex; flex-direction: column; gap: calc(var(--tv-gap) * 0.6); }
-.dom-tv__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1vmin; }
+/* --- The TV: the table takes the screen; who sits where is one strip above it --- */
+.dom-tv { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: calc(var(--tv-gap) * 0.7); }
+.dom-tv__top { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1vmin 1.6vmin; }
+.dom-tv__seats { display: flex; flex-wrap: wrap; justify-content: center; gap: 1vmin; }
+.dom-tv .dom-head { gap: 0.8vmin; }
 .dom-tv .badge { height: auto; padding: 0.25em 0.7em; font-size: var(--tv-xs); }
-.dom-tv .dom-chip { font-size: var(--tv-xs); }
 .dom-tv .dom-felt { flex: 1 1 auto; min-height: 0; padding: 1.2vmin; border-radius: var(--tv-r); }
 .dom-tv .dom-felt__top { min-height: 0; }
 .dom-tv .dom-table { flex: 1 1 auto; height: auto; min-height: 0; }
-.dom-tv .dom-latest { font-size: var(--tv-sm); }
-.dom-tv .dom-sum, .dom-tv .dom-bone { font-size: var(--tv-xs); }
-.dom-tv .dom-sum b, .dom-tv .dom-bone__n { font-size: var(--tv-sm); }
-.dom-tv .dom-bone__stack .dt { --u: 1.2vmin; }
-.dom-tv__turn { color: var(--text-strong); font-size: var(--tv-md); font-weight: 900; line-height: 1.2; text-align: center; }
-.dom-tv__turn:empty { display: none; }
-.dom-tv .tv-actions:not(:has(.btn)) { display: none; }
+.dom-tv .dom-latest, .dom-tvres .dom-latest { font-size: var(--tv-sm); }
+.dom-tv .dom-sum, .dom-tv .dom-bone, .dom-tvres .dom-sum, .dom-tvres .dom-bone { font-size: var(--tv-xs); }
+.dom-tv .dom-sum b, .dom-tv .dom-bone__n, .dom-tvres .dom-sum b, .dom-tvres .dom-bone__n { font-size: var(--tv-sm); }
+.dom-tv .dom-bone__stack .dt, .dom-tvres .dom-bone__stack .dt { --u: 1.2vmin; }
+.dom-tv__turn { padding: 0.2em 0.8em; border-radius: var(--r-full); background: var(--accent); color: var(--accent-on); font-size: var(--tv-sm); font-weight: 900; line-height: 1.3; white-space: nowrap; }
+.dom-tv__host { display: inline-flex; gap: 1vmin; }
 .dom-tv__host:empty { display: none; }
-.dom-tv .dom-seat { width: 100%; max-width: 44vmin; gap: 0.8vmin; padding: 1vmin 1.4vmin; border-radius: var(--tv-r); }
+.dom-tv .dom-seat { flex: none; min-width: 15vmin; gap: 0.8vmin; padding: 0.6vmin 1.2vmin; border-radius: var(--tv-r); }
 .dom-tv .dom-seat__name { font-size: var(--tv-sm); }
-.dom-tv .dom-seat__score, .dom-tv .dom-seat__count { font-size: var(--tv-xs); }
-.dom-tv .dom-avatar { width: 4vmin; height: 4vmin; font-size: 2vmin; }
-.dom-tv .dom-seat__tiles { min-height: 0; }
-.dom-tv .dom-seat__tiles .dt { --u: 1.7vmin; }
+.dom-tv .dom-seat__count { font-size: var(--tv-xs); }
+.dom-tv .dom-avatar { width: 3.6vmin; height: 3.6vmin; font-size: 1.8vmin; }
+.dom-tv .dom-seat__tiles .dt { --u: 1.5vmin; }
+.dom-tv .dom-seat__tiles .dt + .dt { margin-inline-start: -0.9vmin; }
 .dom-tvres { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: calc(var(--tv-gap) * 1.5); }
 .dom-tvres__table { min-height: 0; display: flex; }
 .dom-tvres__table .dom-felt { flex: 1; min-height: 0; border-radius: var(--tv-r); }
@@ -9448,9 +9451,18 @@ button.dom-seatchip { cursor: pointer; transition: transform var(--dur-2) var(--
 .dom-tvres .dom-reveal__line { padding: 0.8vmin 1.4vmin; font-size: var(--tv-sm); border-radius: var(--tv-r); }
 .dom-over--tv { padding: 1.2vmin 2vmin; border-radius: var(--tv-r); }
 .dom-over--tv .card__title { font-size: var(--tv-md); }
+.dom-tvres .dom-totals .section__head { margin-bottom: 0.6vmin; }
+.dom-tvres .dom-totals .section__title { font-size: var(--tv-sm); }
+.dom-tvres .dom-totals .status-row { min-height: 0; margin-bottom: 0.6vmin; padding: 0.7vmin 1.4vmin; border-radius: var(--tv-r); }
+.dom-tvres .dom-totals .status-row__name { font-size: var(--tv-sm); }
+.dom-tvres .dom-totals .badge { height: auto; padding: 0.2em 0.7em; font-size: var(--tv-sm); }
+.dom-tvres .dom-sides { gap: 1.2vmin; margin-top: 1vmin; }
+.dom-tvres .dom-side { padding: 1.2vmin; border-radius: var(--tv-r); }
+.dom-tvres .dom-side__names { font-size: var(--tv-sm); }
+.dom-tvres .dom-side__score { font-size: var(--tv-lg); }
 /* A phone mirrored upright: one column, and the stage scrolls. */
 @media (orientation: portrait) {
-  .dom-tv { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "top" "left" "right" "mid" "bottom"; }
+  .dom-tv { height: auto; }
   .dom-tv .dom-table { height: 60vw; flex: none; }
   .dom-tvres { height: auto; grid-template-columns: minmax(0, 1fr); }
   .dom-tvres__table .dom-table { height: 50vw; flex: none; }

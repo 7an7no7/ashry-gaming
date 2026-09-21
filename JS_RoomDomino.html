@@ -276,7 +276,9 @@ function domLayoutTable(root, state, held) {
   if (!w || !h) return;
   const key = [state.code, s.dealId || '', s.round].join('|');
   if (domLocal.halfKey !== key + (tv ? 'tv' : '')) { domLocal.halfKey = key + (tv ? 'tv' : ''); domLocal.half = null; }
-  const maxU = tv ? Math.max(40, Math.min(96, Math.round(Math.min(window.innerWidth, window.innerHeight) / 11))) : DOM_MAX_U;
+  // A phone's tiles stop at a size a hand would hold; a laptop's and a TV's grow with the box they fill.
+  const maxU = tv ? Math.max(40, Math.min(96, Math.round(Math.min(window.innerWidth, window.innerHeight) / 11)))
+    : window.innerWidth >= 900 ? Math.max(DOM_MAX_U, Math.min(90, Math.round(h / 7))) : DOM_MAX_U;
   const fit = dominoFitLayout(table, w - 8, h - 8, maxU, domLocal.half);
   domLocal.half = fit.half;
   const lay = fit.layout;
@@ -376,7 +378,7 @@ function domOthers(state) {
 /* --- the scores ------------------------------------------------------------------ */
 
 /** The running totals in one line: every player, or the two sides; the target at the end. */
-function domScoreStripHtml(state) {
+function domScoreChips(state) {
   const s = domShared(state);
   const target = (s.settings || {}).target;
   let units;
@@ -385,20 +387,31 @@ function domScoreStripHtml(state) {
   } else {
     units = domOrder(state).map(pid => `<span class="dom-chip ${pid === Room.me ? 'is-me' : ''}">${escapeHTML(domName(state, pid))} <b class="metric">${domScoreOf(s, pid)}</b></span>`);
   }
-  return `<div class="dom-scores">${units.join('')}<span class="dom-chip dom-chip--target">🎯 <b class="metric">${target || ''}</b></span></div>`;
+  return units.join('') + `<span class="dom-chip dom-chip--target">🎯 <b class="metric">${target || ''}</b></span>`;
 }
 
 /* --- the head ---------------------------------------------------------------------- */
 
-function domHeadHtml(state) {
+/** The round, the mode, teams and the clock, as badges; `target` adds the target (where no score chip says it). */
+function domHeadBits(state, target) {
   const s = domShared(state);
   const st = s.settings || {};
   const bits = [];
   if (s.round) bits.push(`<span class="badge">${escapeHTML(domT('dom_round_n', { n: s.round }))}</span>`);
   bits.push(`<span class="badge">${escapeHTML(st.mode === 'american' ? domT('dom_mode_american') : domT('dom_mode_normal'))}</span>`);
   if (st.teams) bits.push(`<span class="badge">🤝 ${escapeHTML(domT('dom_teams_short'))}</span>`);
+  if (target && st.target) bits.push(`<span class="badge">🎯 ${st.target}</span>`);
   if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-dom-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
-  return `<div class="dom-head">${bits.join('')}</div>`;
+  return bits.join('');
+}
+
+function domHeadHtml(state, target) {
+  return `<div class="dom-head">${domHeadBits(state, target)}</div>`;
+}
+
+/** While a round is played the names and scores are one compact strip: the table gets the room (the owner, 21 Sep 2026). */
+function domStripHtml(state) {
+  return `<div class="dom-strip">${domHeadBits(state, false)}${domScoreChips(state)}</div>`;
 }
 
 /* --- this phone's hand and the bar -------------------------------------------------- */
@@ -645,13 +658,17 @@ function domPhoneFrame(state) {
   const s = domShared(state);
   if (s.phase === 'roundOver' || s.phase === 'gameover') return domResultFrame(state, false);
   const others = domOthers(state);
+  // Three parts: the compact strip of who is at the table, the table, and your
+  // hand with what to do. Upright they stack; on a phone's side the table takes
+  // one column; on a laptop the table takes the width and most of the height.
   return `<div class="dom dom--n${domOrder(state).length} ${domMyTurn(state) ? 'is-mine' : ''} ${domLocal.pick ? 'is-picking' : ''}">
       <div class="dom-layout">
-        <div class="dom-layout__table">${domFeltHtml(state)}</div>
-        <div class="dom-layout__side">
-          ${domHeadHtml(state)}
-          ${domScoreStripHtml(state)}
+        <div class="dom-top">
+          ${domStripHtml(state)}
           <div class="dom-seats dom-seats--${others.length}" dir="ltr">${others.map(pid => domSeatHtml(state, pid)).join('')}</div>
+        </div>
+        <div class="dom-layout__table">${domFeltHtml(state)}</div>
+        <div class="dom-play">
           ${domMineHtml(state)}
           ${domBarHtml(state)}
           <div class="dom-host" data-dom-host></div>
@@ -742,7 +759,7 @@ function domGameOverHtml(state, tv) {
   return `<div class="card card--accent dom-over ${tv ? 'dom-over--tv' : ''}">
       <div class="card__title">🏆 ${escapeHTML(title)}</div>
       ${s.ended === 'left' ? `<p class="field__hint">${escapeHTML(domT('dom_ended_left'))}</p>` : ''}
-      ${tv ? `<div class="tv-scale">${body}</div>` : body}
+      ${body}
     </div>`;
 }
 
@@ -769,12 +786,17 @@ function domResultFrame(state, tv) {
         <p class="dom-reveal__line ${animate ? 'is-down' : 'is-shown'}" data-dom-reveal-line>${escapeHTML(domResultLine(state))}</p>
       </div>` : '';
   if (tv) {
-    return `<div class="dom-tvres">
+    // The end of the game on a TV: the podium (or the sides) and the line say it;
+    // the last hands are the phones' to show, so everything fits one screen.
+    const tvReveal = over && r ? `<div class="dom-reveal" data-dom-reveal-box="0">
+        <p class="dom-reveal__line is-shown">${escapeHTML(domResultLine(state))}</p>
+      </div>` : reveal;
+    return `<div class="dom-tvres ${over ? 'dom-tvres--over' : ''}">
         <div class="dom-tvres__table">${r ? domFeltHtml(state, { noLatest: true }) : ''}</div>
         <div class="dom-tvres__side">
           ${over ? domGameOverHtml(state, true) : ''}
-          ${reveal}
-          <div class="tv-scale">${domTotalsHtml(state, animate)}</div>
+          ${tvReveal}
+          ${domTotalsHtml(state, animate)}
           ${state.youAreHost ? `<div class="tv-actions">${over
             ? tvBtn(t.play_again || '', "roomAct('playAgain', ROOM_GAMES.domino.startPayload())") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')
             : tvBtn(domT('dom_next_round'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`)}</div>` : ''}
@@ -782,7 +804,7 @@ function domResultFrame(state, tv) {
       </div>`;
   }
   return `<div class="dom dom--result">
-      ${domHeadHtml(state)}
+      ${domHeadHtml(state, true)}
       ${over ? domGameOverHtml(state, false) : ''}
       ${r ? domFeltHtml(state, { small: true, noLatest: true }) : ''}
       ${reveal}
@@ -1470,31 +1492,24 @@ if (typeof FX !== 'undefined') {
 
 /* --- the TV ---------------------------------------------------------------------------------- */
 
-/** Each seat on its side of the table: the first at the bottom, then round to the right. */
-function domTvSeats(state) {
-  const order = domOrder(state);
-  const where = order.length === 2 ? ['bottom', 'top'] : order.length === 3 ? ['bottom', 'right', 'left'] : ['bottom', 'right', 'top', 'left'];
-  return order.map((pid, i) => ({ pid: pid, where: where[i] || 'top' }));
-}
-
+/**
+ * The TV while a round is played: the table takes the screen (the owner, 21
+ * Sep 2026); who sits where is one strip above it, in turn order, each seat
+ * with its tiles face down and the one whose turn it is lit - readable from
+ * the sofa without taking the room. The scores are the TV's own strip at the
+ * foot of the screen.
+ */
 function domTvTable(state, t) {
   const s = domShared(state);
-  const seats = domTvSeats(state);
-  const seat = (where) => {
-    const x = seats.find(q => q.where === where);
-    return `<div class="dom-tv__seat dom-tv__seat--${where}" dir="${domDir()}">${x ? domSeatHtml(state, x.pid, { max: 10 }) : ''}</div>`;
-  };
   const turn = s.phase === 'play' && s.turn ? domT('dom_turn_of', { name: domName(state, s.turn) }) : '';
-  // The seats are round a physical table: left is left in every language.
-  return `<div class="dom-tv dom-tv--n${seats.length}" dir="ltr">
-      ${seat('top')}${seat('left')}
-      <div class="dom-tv__mid" dir="${domDir()}">
-        <div class="dom-tv__head">${domHeadHtml(state)}${domScoreStripHtml(state)}</div>
-        ${domFeltHtml(state)}
-        <div class="dom-tv__turn">${escapeHTML(turn)}</div>
-        <div class="tv-actions"><span data-dom-host class="dom-tv__host"></span></div>
+  return `<div class="dom-tv">
+      <div class="dom-tv__top">
+        ${domHeadHtml(state, true)}
+        <div class="dom-tv__seats" dir="ltr">${domOrder(state).map(pid => domSeatHtml(state, pid, { max: 10 })).join('')}</div>
+        ${turn ? `<div class="dom-tv__turn">${escapeHTML(turn)}</div>` : ''}
+        <span data-dom-host class="dom-tv__host"></span>
       </div>
-      ${seat('right')}${seat('bottom')}
+      ${domFeltHtml(state)}
     </div>`;
 }
 

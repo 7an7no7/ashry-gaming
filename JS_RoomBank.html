@@ -1,0 +1,362 @@
+<script>
+/* ============================================================================
+   بنك الحظ — rooms and the TV
+   ----------------------------------------------------------------------------
+   The rules are bankAction in RoomBank.js (and BankAlhaz.js, which both sides
+   load); the board, the cards, the bar, the panels and the motion are
+   JS_Bank.html, the same as a game against the phone. This file is the room
+   around them: the lobby (everyone picks a piece; with seven or more the host
+   picks who plays; the host's options), the phone's frame, the TV's frame,
+   the turn clock and the host's way past a phone that went quiet.
+
+   Everything but the decks is on the table, so every phone and the TV draw
+   the same board; the buttons are only ever on the phone whose turn it is,
+   and an offer's yes or no only on the phone it was made to. Someone who
+   joins in the middle watches (lateJoin) and plays the next game.
+   ========================================================================= */
+
+const BANK_OPTS_KEY = 'bankRoom';
+const bankRoomLocal = { sent: '', clockTimer: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '' };
+
+function bankRoomOpts() {
+  const o = recallOptions(BANK_OPTS_KEY, { length: BANK_LENGTH_DEFAULT, pot: false, go400: false, turnClock: 0 });
+  if (BANK_LENGTHS.indexOf(Number(o.length)) === -1) o.length = BANK_LENGTH_DEFAULT;
+  if (BANK_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
+  o.pot = !!o.pot;
+  o.go400 = !!o.go400;
+  return o;
+}
+
+function setBankRoomOpt(key, value) {
+  const patch = {};
+  if (key === 'length' || key === 'turnClock') patch[key] = Number(value) || 0;
+  else patch[key] = !!value;
+  rememberOptions(BANK_OPTS_KEY, patch);
+  haptic('light');
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/* --- the lobby ------------------------------------------------------------------------------ */
+
+/** Who would play if the game started now. Mirrors bankLobbySeated in RoomBank.js - keep the two in step. */
+function bankRoomSeated(state) {
+  const ids = (state.players || []).map(p => p.id);
+  const lobby = ((state.shared || {}).lobby) || {};
+  if (Array.isArray(lobby.seated)) {
+    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
+    ids.forEach(id => { if (kept.length < BANK_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
+    return kept.slice(0, BANK_MAX_PLAYERS);
+  }
+  return ids.slice(0, BANK_MAX_PLAYERS);
+}
+
+function bankTokenTap(token) { haptic('light'); roomAct('token', { token: token }); }
+function bankSeatTap(pid, on) { haptic('light'); roomAct('seat', { playerId: pid, on: !!on }); }
+
+function bankTokenPickerHtml(state) {
+  const seated = bankRoomSeated(state);
+  const tokens = (((state.shared || {}).lobby) || {}).tokens || {};
+  const holder = {};
+  Object.keys(tokens).forEach(id => { if (seated.indexOf(id) !== -1) holder[tokens[id]] = id; });
+  const mineSeated = !state.youAreScreen && seated.indexOf(Room.me) !== -1;
+  const nameOf = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+  const picks = BANK_TOKENS.map(tk => {
+    const who = holder[tk];
+    const mine = who === Room.me;
+    const can = mineSeated && (!who || mine);
+    return `<button type="button" class="bank-pick ${mine ? 'is-mine' : ''} ${who ? 'is-taken' : ''}" ${can ? `onclick="bankTokenTap('${tk}')"` : 'disabled'} aria-pressed="${mine}"
+        aria-label="${escapeHTML(bankT('bank_token_' + tk) + ': ' + (who ? nameOf(who) : bankT('bank_free')))}">
+        <span class="bank-pick__icon" aria-hidden="true">${BANK_TOKEN_ICON[tk]}</span>
+        <span class="bank-pick__who">${escapeHTML(who ? nameOf(who) : bankT('bank_free'))}</span>
+      </button>`;
+  }).join('');
+  const hint = state.youAreScreen ? '' : mineSeated ? bankT(tokens[Room.me] ? 'bank_token_yours' : 'bank_token_pick') : bankT('bank_watching_next');
+  return `<div class="field">
+      <label class="field__label">♟️ ${escapeHTML(bankT('bank_token_label'))}</label>
+      <div class="bank-picks">${picks}</div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+}
+
+function bankSeatsHtml(state) {
+  const players = state.players || [];
+  if (players.length <= BANK_MAX_PLAYERS) return '';
+  const seated = bankRoomSeated(state);
+  const host = !!state.youAreHost;
+  const chip = (p) => {
+    const on = seated.indexOf(p.id) !== -1;
+    const inner = `${p.bot ? '🤖 ' : ''}${escapeHTML(p.name)}`;
+    return host
+      ? `<button type="button" class="chip ${on ? 'is-selected' : ''}" onclick="bankSeatTap('${jsStringAttr(p.id)}', ${!on})" aria-pressed="${on}">${inner}</button>`
+      : `<span class="chip ${on ? 'is-selected' : ''}">${inner}</span>`;
+  };
+  return `<div class="field">
+      <label class="field__label">🪑 ${escapeHTML(bankT('bank_seats_label', { n: seated.length }))}</label>
+      <div class="chip-set">${players.map(chip).join('')}</div>
+      <p class="field__hint">${escapeHTML(host ? bankT('bank_seats_hint_host') : bankT('bank_seats_hint'))}</p>
+    </div>`;
+}
+
+/** The host's options, remembered on the host's phone. */
+function bankOptionsHtml(state) {
+  if (!state.youAreHost) return '';
+  const o = bankRoomOpts();
+  const seg = (key, values, labelOf, current) => `<div class="segmented" role="group">${values.map(v => `<button type="button" class="segmented__item ${Number(current) === v ? 'is-active' : ''}" onclick="setBankRoomOpt('${key}', ${v})">${labelOf(v)}</button>`).join('')}</div>`;
+  const sw = (key, id, icon, label, hint) => `<div class="field">
+      <label class="switch-row" for="${id}">
+        <span class="field__label">${icon} ${escapeHTML(label)}</span>
+        <span class="switch"><input type="checkbox" id="${id}" role="switch" ${o[key] ? 'checked' : ''} onchange="setBankRoomOpt('${key}', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+      </label>
+      <p class="field__hint">${escapeHTML(hint)}</p>
+    </div>`;
+  return `<div class="field">
+        <label class="field__label">⏳ ${escapeHTML(bankT('bank_length'))}</label>
+        ${seg('length', [30, 45, 60, 0], v => escapeHTML(v ? bankT('bank_minutes', { n: v }) : bankT('bank_until_one')), o.length)}
+        <p class="field__hint">${escapeHTML(o.length ? bankT('bank_length_hint') : bankT('bank_until_one_hint'))}</p>
+      </div>
+      ${sw('pot', 'bank-room-pot', '💰', bankT('bank_opt_pot'), bankT('bank_opt_pot_hint'))}
+      ${sw('go400', 'bank-room-go400', '🎯', bankT('bank_opt_go400'), bankT('bank_opt_go400_hint'))}
+      <div class="field">
+        <label class="field__label">⏱️ ${escapeHTML(bankT('bank_clock'))}</label>
+        ${seg('turnClock', BANK_CLOCKS, v => (v ? v + '″' : escapeHTML(bankT('bank_clock_off'))), o.turnClock)}
+        <p class="field__hint">${escapeHTML(bankT('bank_clock_hint'))}</p>
+      </div>`;
+}
+
+/* --- a room's frame ------------------------------------------------------------------------------- */
+
+const bankShared = (state) => (state && state.shared) || {};
+const bankInGame = (state) => !state.youAreScreen && (bankShared(state).seats || []).indexOf(Room.me) !== -1;
+
+/** A move from this phone: a turn's move carries the turn it was made in, managing a place what the phone saw. */
+function bankRoomDo(action, p) {
+  const state = Room.state;
+  if (!state || state.game !== 'bank') return;
+  const s = bankShared(state);
+  const payload = Object.assign({ seq: s.turnSeq, ev: s.eventSeq }, p || {});
+  const stamp = [state.code, s.turnSeq, s.eventSeq, action, JSON.stringify(p || {})].join('|');
+  if (bankRoomLocal.sent === stamp) return;
+  bankRoomLocal.sent = stamp;
+  haptic('light');
+  if (action === 'roll') document.querySelectorAll('#view-room-bank .bank-die').forEach(d => d.classList.add('is-rolling'));
+  Promise.resolve(roomAct(action, payload)).then(() => {
+    if (bankRoomLocal.sent === stamp) bankRoomLocal.sent = '';
+    document.querySelectorAll('#view-room-bank .bank-die.is-rolling').forEach(d => d.classList.remove('is-rolling'));
+  });
+}
+
+function bankRoomSkip() {
+  roomAct('skipTurn', { seq: bankShared(Room.state).turnSeq });
+}
+
+/** The host's way past a phone that went quiet: gone, or holding the turn for 60 seconds. */
+function bankHostButtons(state) {
+  const s = bankShared(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.turn || !s.turn.pid) return [];
+  const p = (state.players || []).find(x => x.id === s.turn.pid);
+  if (p && p.bot) return [];
+  const key = state.code + '|' + s.turnSeq + '|' + s.eventSeq;
+  if (bankRoomLocal.hostKey !== key) {
+    bankRoomLocal.hostKey = key;
+    bankRoomLocal.turnSince = Date.now();
+    clearTimeout(bankRoomLocal.hostTimer);
+    bankRoomLocal.hostTimer = setTimeout(() => {
+      const st = Room.state;
+      if (st && st.game === 'bank') bankRefreshInPlace(document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-bank'), st, !!st.youAreScreen);
+    }, 60500);
+  }
+  const quiet = !p || !p.online || Date.now() - (bankRoomLocal.turnSince || Date.now()) > 60000;
+  if (!quiet || s.turn.pid === Room.me) return [];
+  return [['⏭️ ' + bankT('bank_play_for', { name: p ? p.name : '' }), 'bankRoomSkip()']];
+}
+
+function bankRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('[data-bank-chip]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-bank-chip'));
+    el.classList.toggle('is-away', !!p && !p.bot && !p.online);
+  });
+  const box = root.querySelector('[data-bank-host]');
+  if (box) {
+    const buttons = bankHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._bankHtml !== html) { box.innerHTML = html; box._bankHtml = html; }
+  }
+}
+
+function bankRoomCtx(state, tv) {
+  const s = bankShared(state);
+  const names = {};
+  const bots = {};
+  const away = {};
+  (state.players || []).forEach(p => {
+    names[p.id] = p.name;
+    if (p.bot) bots[p.id] = p.bot;
+    else if (!p.online) away[p.id] = true;
+  });
+  bankUi.names = names;
+  const me = bankInGame(state) ? Room.me : null;
+  let over = '';
+  if (s.phase === 'gameover') {
+    const share = typeof roomShareBtnHtml === 'function' && !tv ? roomShareBtnHtml(state, s.board) : '';
+    if (tv) over = state.youAreHost ? `<div class="tv-actions">${tvBtn(bankT('bank_again'), "roomAct('playAgain')")}${tvBtn(bankT('room_another_game'), "roomAct('backToHub')", 'ghost')}</div>` : '';
+    else if (state.youAreHost) {
+      over = `<div class="btn-stack">
+          <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(bankT('bank_again'))}</button>
+          <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(bankT('room_another_game'))}</button>
+        </div>${share}`;
+    } else over = `<p class="field__hint" style="text-align:center">${escapeHTML(bankT('bank_wait_host'))}</p>${share}`;
+  }
+  return {
+    g: s, me: me, names: names, bots: bots, away: away, tv: !!tv, sel: tv ? null : bankUi.sel,
+    key: state.code + '|' + (s.dealId || ''),
+    fresh: bankFx.watched === state.code,
+    loud: !!tv || !roomHasScreen(),
+    over: over,
+    turnClock: !!s.clockEndsAt,
+    host: tv ? '<div class="tv-actions" data-bank-host></div>' : '<div data-bank-host></div>'
+  };
+}
+
+function bankServerSig(state) {
+  const s = bankShared(state);
+  return [s.dealId || '', s.phase, s.turnSeq, s.eventSeq, s.clockEndsAt || '', JSON.stringify(s.offer || null),
+    (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','), JSON.stringify(s.board || [])].join('|');
+}
+
+function bankDeferRedraw() {
+  if (bankRoomLocal.redrawTimer) return;
+  bankRoomLocal.redrawTimer = setTimeout(() => {
+    bankRoomLocal.redrawTimer = null;
+    const st = Room.state;
+    if (!st || st.game !== 'bank' || st.phase === 'lobby') return;
+    if (st.youAreScreen ? appState.currentView === 'room-tv' : onRoomView()) routeRoomState(st);
+  }, Math.max(40, bankFx.busyUntil - Date.now() + 40));
+}
+
+function bankTurnCue(state, delay) {
+  const s = bankShared(state);
+  const mine = bankInGame(state) && s.phase === 'play' && s.turn && s.turn.pid === Room.me && s.turn.stage === 'roll' && !s.turn.dice;
+  const offered = bankInGame(state) && s.offer && s.offer.to === Room.me;
+  const was = bankRoomLocal.turnMine;
+  bankRoomLocal.turnMine = mine || offered;
+  if ((mine || offered) && !was && bankFx.watched === state.code) {
+    bankFx.timers.push(setTimeout(() => { playSound('tick'); haptic('medium'); }, delay || 0));
+  }
+}
+
+ROOM_GAMES.bank = {
+  bots: { max: BANK_MAX_PLAYERS },
+  lateJoin: true,
+
+  actionKey(state) {
+    const s = bankShared(state);
+    return s.phase === 'gameover' ? [state.code, s.dealId, s.phase].join('|') : '';
+  },
+
+  lobbyOptions(state) {
+    return `<div class="card card--tight bank-lobby">
+        ${bankTokenPickerHtml(state)}
+        ${bankSeatsHtml(state)}
+        ${bankOptionsHtml(state)}
+        <p class="field__hint" style="text-align:center">${escapeHTML(bankT('bank_lobby_hint'))}</p>
+      </div>`;
+  },
+
+  startPayload() {
+    const o = bankRoomOpts();
+    return { length: o.length, pot: o.pot, go400: o.go400, turnClock: o.turnClock };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-bank') setView('room-bank');
+    const el = document.getElementById('view-room-bank');
+    if (!el) return;
+    const s = bankShared(state);
+    if (!Array.isArray(s.seats)) return;
+    const server = bankServerSig(state);
+    const changed = !!(el.dataset.sig && el._bankServer && el._bankServer !== server);
+    if (changed && bankFx.busyUntil > Date.now()) {
+      bankDeferRedraw();
+      bankRefreshInPlace(el, state, false);
+      return;
+    }
+    bankUiFor(s);
+    const c = bankRoomCtx(state, false);
+    const local = [state.youAreHost, appState.lang, Room.me, bankUi.sel, bankUi.panel, JSON.stringify(bankUi.trade)].join('|');
+    const serverChanged = el._bankServer !== server;
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => bankFrameHtml(c) + renderRoomPlayerStrip(state));
+    el._bankServer = server;
+    bankRefreshInPlace(el, state, false);
+    bankTickTime(el, s, s.clockEndsAt);
+    if (!rebuilt) return;
+    bankWire(el);
+    const played = serverChanged ? bankAfterPaint(el, c) : 0;
+    if (!serverChanged) { const last = (s.events || []).slice().reverse().find(e => e.type === 'roll' && !e.forRent); if (last) bankDiceShow(el, last.d, false); }
+    bankTurnCue(state, played);
+    if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce('bank-room-end|' + c.key)) {
+      bankFx.timers.push(setTimeout(() => afterReveal(el, () => {
+        if (s.places[0] === Room.me) {
+          playSound('success');
+          if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+          haptic('double');
+        }
+      }), played));
+    }
+  }
+};
+
+onRoomClocksReset(() => {
+  clearInterval(bankFx.timeTimer);
+  clearTimeout(bankRoomLocal.hostTimer);
+  bankFxCancel();
+  bankRoomLocal.sent = '';
+  bankUi.panel = null;
+  bankUi.sel = null;
+});
+
+Room.onChange((state) => {
+  if (!state) { bankFx.watched = ''; return; }
+  if (state.game === 'bank' && state.phase !== 'lobby' && Array.isArray(bankShared(state).seats)) {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : onRoomView();
+    if (!showing) bankEventsToPlay(state.code + '|' + (bankShared(state).dealId || ''), bankShared(state), false);
+  }
+  bankFx.watched = state.code;
+});
+
+/* --- the TV: the board as tall as the stage, with every name on it ---------------------------------- */
+
+TV_GAMES.bank = {
+  sig(state) {
+    const cur = bankServerSig(state) + '|' + state.youAreHost;
+    if (bankRoomLocal.tvSig && cur !== bankRoomLocal.tvSig && bankFx.busyUntil > Date.now()) { bankDeferRedraw(); return bankRoomLocal.tvSig; }
+    return cur;
+  },
+  frame(state) {
+    bankRoomLocal.tvSig = bankServerSig(state) + '|' + state.youAreHost;
+    const s = bankShared(state);
+    if (!Array.isArray(s.seats)) return '';
+    return bankFrameHtml(bankRoomCtx(state, true));
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    const s = bankShared(state);
+    bankRefreshInPlace(view, state, true);
+    if (!rebuilt || !view) return;
+    bankTickTime(view, s, s.clockEndsAt);
+    const c = bankRoomCtx(state, true);
+    const played = bankAfterPaint(view, c);
+    if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce('bank-tv-end|' + c.key)) {
+      bankFx.timers.push(setTimeout(() => afterReveal(view, () => {
+        playSound('success');
+        if (typeof confetti === 'function') confetti({ particleCount: 160, spread: 90 });
+      }), played));
+    }
+  }
+};
+</script>

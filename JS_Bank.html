@@ -1,0 +1,1071 @@
+<script>
+/* ============================================================================
+   بنك الحظ — the board every screen draws, and a game against the phone
+   ----------------------------------------------------------------------------
+   The rules are BankAlhaz.js (the page inlines it, the rooms server bundles
+   it); this file draws a game on a phone, a laptop or the TV, plays its moves,
+   and runs a game against the phone. The room around it is JS_RoomBank.html.
+
+   The look the owner picked (option أ "كلاسيك", 21 Sep 2026): a warm paper
+   board with a colour band on each place, line icons on the other squares,
+   the corners labelled, and the middle of the board holding the dice and the
+   card of the square in play. The board is left to right in every language,
+   Start at the bottom right, as on the box.
+
+   On a phone the ring is a map - a place's name doesn't fit in a square a
+   finger wide - so the squares show their colour, their owner, their
+   buildings and who stands there, and tapping one shows its card in the
+   middle. From about 520px of board (a laptop, the TV) every place carries
+   its name and price as well (a container query).
+
+   Every change is an event (BankAlhaz.js), and each screen plays the ones it
+   hasn't shown: the dice tumble, a piece hops square by square, money flies
+   from the one who pays to the one who is paid and the cash counts, a new
+   building pops. A reload or a phone back from the lock screen replays
+   nothing.
+   ========================================================================= */
+
+const BANK_GROUP_HEX = { br: '#8d5a33', lb: '#4fb0e3', pk: '#d6559e', or: '#f08a24', rd: '#e5383b', ye: '#f5b400', gr: '#1f9d55', db: '#2553a8' };
+const BANK_SEAT_HEX = ['#7c3aed', '#0f8f7e', '#e8590c', '#334155', '#db2777', '#2563eb'];
+const BANK_TOKEN_ICON = { car: '🚗', camel: '🐪', boat: '⛵', plane: '✈️', scooter: '🛵', hat: '🎩' };
+const BANK_STEP_MS = 115;
+const BANK_BOT_MS = [700, 1150];
+const BANK_C = 13;                                  // a corner, in % of the board
+const BANK_W = (100 - 2 * BANK_C) / 9;             // a square along a side
+
+/* --- words -------------------------------------------------------------------------- */
+
+function bankT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || (TRANSLATIONS.ar || {})[key] || '';
+  if (vars) Object.keys(vars).forEach(k => {
+    const v = vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
+    s = s.split('{' + k + '}').join(v && !/^[+-]?[\d,]+$/.test(v) ? '⁨' + v + '⁩' : v);
+  });
+  return s;
+}
+
+const bankFmt = (n) => (Math.round(Number(n) || 0)).toLocaleString('en-US');
+const bankMoney = (n) => bankT('bank_money', { n: bankFmt(n) });
+const bankSqName = (i) => { const q = BANK_SQUARES[i]; return q && q.n ? q.n[appState.lang === 'en' ? 1 : 0] : ''; };
+const bankCardText = (deck, k) => { const c = (BANK_CARDS[deck] || [])[k]; return c ? (appState.lang === 'en' ? c.en : c.ar) : ''; };
+const bankSeatHex = (g, pid) => BANK_SEAT_HEX[Math.max(0, g.seats.indexOf(pid)) % BANK_SEAT_HEX.length];
+const bankTokenOf = (g, pid) => BANK_TOKEN_ICON[(g.tokens || {})[pid]] || '●';
+const bankLevelWord = (lvl) => bankT(['bank_lvl_0', 'bank_lvl_1', 'bank_lvl_2', 'bank_lvl_3'][lvl] || 'bank_lvl_0');
+
+/* --- the board --------------------------------------------------------------------------- */
+
+/** Where square `i` sits on the board, in % of it, and which side it is on (its colour band faces the middle). */
+function bankSqRect(i) {
+  const C = BANK_C;
+  const W = BANK_W;
+  if (i === 0) return { x: 100 - C, y: 100 - C, w: C, h: C, side: 'corner' };
+  if (i < 10) return { x: 100 - C - i * W, y: 100 - C, w: W, h: C, side: 'bottom' };
+  if (i === 10) return { x: 0, y: 100 - C, w: C, h: C, side: 'corner' };
+  if (i < 20) return { x: 0, y: 100 - C - (i - 10) * W, w: C, h: W, side: 'left' };
+  if (i === 20) return { x: 0, y: 0, w: C, h: C, side: 'corner' };
+  if (i < 30) return { x: C + (i - 21) * W, y: 0, w: W, h: C, side: 'top' };
+  if (i === 30) return { x: 100 - C, y: 0, w: C, h: C, side: 'corner' };
+  return { x: 100 - C, y: C + (i - 31) * W, w: C, h: W, side: 'right' };
+}
+
+const BANK_ICONS = {
+  luck: '<path d="M8.5 8.5a3.5 3.5 0 1 1 5 3.2c-1 .5-1.5 1.3-1.5 2.4v.4"/><path d="M12 19h.01"/>',
+  court: '<path d="M12 4v16M7 20h10M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0z"/><path d="M19 7l-3 6a3 3 0 0 0 6 0z"/>',
+  tax: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  train: '<rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 10h12M9 19l-2 2M15 19l2 2"/>',
+  ship: '<circle cx="12" cy="5" r="2"/><path d="M12 7v13M5 13a7 7 0 0 0 14 0M8 10h8"/>',
+  plane: '<path d="M12 3c.9 0 1.4 1 1.4 2.4V9l7 4v2l-7-2v4l2 1.5V20L12 19l-3.4 1v-1.5l2-1.5v-4l-7 2v-2l7-4V5.4C10.6 4 11.1 3 12 3z"/>',
+  power: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  water: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  go: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  jail: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>',
+  bus: '<rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M7 21v-3M17 21v-3"/>',
+  tojail: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M16 9a1.5 1.5 0 0 1 3 0v4a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-2.7L4 14.5a1.5 1.5 0 0 1 2.5-1.6L7 14"/>'
+};
+const bankIcon = (name, cls) => `<svg class="${cls || 'bank-ic'}" viewBox="0 0 24 24" aria-hidden="true">${BANK_ICONS[name] || ''}</svg>`;
+
+/** Where a player's piece stands, in % of the board; in jail it sits behind the bars. */
+function bankTokenPlace(g, pid) {
+  const at = g.pos[pid] || 0;
+  const r = bankSqRect(at);
+  // On a corner the pieces stand toward the middle of the board, clear of its label.
+  if (at === BANK_JAIL) return g.jail[pid] !== undefined ? [r.x + r.w * 0.7, r.y + r.h * 0.3] : [r.x + r.w * 0.3, r.y + r.h * 0.3];
+  if (at === 0) return [r.x + r.w * 0.32, r.y + r.h * 0.32];
+  if (at === BANK_BUS) return [r.x + r.w * 0.68, r.y + r.h * 0.68];
+  if (at === BANK_TOJAIL) return [r.x + r.w * 0.32, r.y + r.h * 0.68];
+  return [r.x + r.w / 2, r.y + r.h / 2];
+}
+
+function bankBoardHtml(g, c) {
+  const pct = (n) => (Math.round(n * 1000) / 1000) + '%';
+  const sel = c.sel;
+  const landed = g.landed && g.phase === 'play' ? g.landed.sq : -1;
+  const squares = BANK_SQUARES.map((q, i) => {
+    const r = bankSqRect(i);
+    const o = (g.own || {})[i];
+    const style = `left:${pct(r.x)};top:${pct(r.y)};width:${pct(r.w)};height:${pct(r.h)}`;
+    let inner = '';
+    let body = '';
+    if (q.t === 'p') {
+      const lvl = o ? o.lvl || 0 : 0;
+      const pips = lvl === 3 ? '<span class="bank-pip bank-pip--souq"></span>' : lvl ? '<span class="bank-pip"></span>'.repeat(lvl) : '';
+      inner += `<span class="bank-band" style="background:${BANK_GROUP_HEX[q.g]}">${pips}</span>`;
+    } else if (r.side === 'corner') {
+      const label = { go: 'go', jail: 'jail', bus: 'bus', tojail: 'tojail' }[q.t];
+      inner += `<span class="bank-corner">${bankIcon(label, 'bank-ic bank-ic--corner')}<span class="bank-corner__t">${escapeHTML(bankSqName(i))}</span>${q.t === 'go' ? `<span class="bank-corner__m" dir="ltr">+${BANK_PASS}</span>` : ''}</span>`;
+    } else {
+      body += bankIcon(q.t === 'st' || q.t === 'co' ? q.icon : q.t);
+    }
+    if (q.t !== 'go' && q.t !== 'jail' && q.t !== 'bus' && q.t !== 'tojail') {
+      const price = q.price ? `<span class="bank-sq__price" dir="ltr">${q.price}</span>` : q.amount ? `<span class="bank-sq__price" dir="ltr">−${q.amount}</span>` : '';
+      body += `<span class="bank-sq__name">${escapeHTML(bankSqName(i))}</span>${price}`;
+      inner += `<span class="bank-sq__in">${body}</span>`;
+    }
+    if (o) inner += `<span class="bank-own" style="background:${bankSeatHex(g, o.by)}"></span>`;
+    const cls = ['bank-sq', 'bank-sq--' + r.side, 'bank-sq--' + q.t, o && o.mort ? 'is-mort' : '', i === landed ? 'is-landed' : '', i === sel ? 'is-sel' : ''].join(' ');
+    return `<button type="button" class="${cls}" style="${style}" data-bank-sq="${i}" aria-label="${escapeHTML(bankSqName(i))}">${inner}</button>`;
+  }).join('');
+  // Pieces: those sharing a square set a little apart.
+  const groups = {};
+  bankActive(g).forEach(pid => {
+    const key = (g.pos[pid] || 0) + (g.jail[pid] !== undefined ? 'j' : '');
+    (groups[key] = groups[key] || []).push(pid);
+  });
+  const SPREAD = [[0, 0], [-1.6, -1.6], [1.6, 1.6], [1.6, -1.6], [-1.6, 1.6], [0, 1.9], [0, -1.9]];
+  const tokens = [];
+  Object.keys(groups).forEach(k => {
+    const list = groups[k];
+    list.forEach((pid, n) => {
+      const p = bankTokenPlace(g, pid);
+      const d = list.length > 1 ? SPREAD[(n % 6) + 1] : SPREAD[0];
+      tokens.push(`<span class="bank-tok ${pid === (g.turn || {}).pid ? 'is-up' : ''} ${list.length > 1 ? 'is-small' : ''}" data-bank-tok="${escapeHTML(pid)}"
+          style="left:${pct(p[0] + d[0])};top:${pct(p[1] + d[1])};--pc:${bankSeatHex(g, pid)}" aria-hidden="true">${bankTokenOf(g, pid)}</span>`);
+    });
+  });
+  return `<div class="bank-board ${c.tv ? 'bank-board--tv' : ''}" dir="ltr" data-bank-board>
+      <div class="bank-ring">
+        ${squares}
+        <div class="bank-mid" dir="${appState.lang === 'en' ? 'ltr' : 'rtl'}">${bankMidHtml(g, c)}</div>
+        <div class="bank-fx" data-bank-fx aria-hidden="true"></div>
+        ${tokens.join('')}
+      </div>
+    </div>`;
+}
+
+/* --- the middle: the dice and the card in play ---------------------------------------------- */
+
+function bankDiceHtml(d) {
+  const face = (n) => (typeof dieFaceHtml === 'function' ? [1, 2, 3, 4, 5, 6].map(dieFaceHtml).join('') : '') + '';
+  return `<div class="bank-dice" dir="ltr">
+      <div class="bank-die"><div class="die" data-bank-die="0">${face(d && d[0])}</div></div>
+      <div class="bank-die"><div class="die" data-bank-die="1">${face(d && d[1])}</div></div>
+    </div>`;
+}
+
+/** A place's card: its colour, its price, what it rents for at every step, who owns it. */
+function bankDeedHtml(i, g) {
+  const q = BANK_SQUARES[i];
+  const o = (g.own || {})[i];
+  const owner = o ? `<p class="bank-deed__owner"><span class="bank-dot" style="background:${bankSeatHex(g, o.by)}"></span>${escapeHTML(bankT('bank_owned_by', { name: (bankUi.names || {})[o.by] || '' }))}${o.mort ? ` · <b>${escapeHTML(bankT('bank_mortgaged'))}</b>` : ''}</p>`
+    : `<p class="bank-deed__owner">${escapeHTML(bankT('bank_for_sale'))}</p>`;
+  const row = (label, v, on) => `<div class="bank-deed__row ${on ? 'is-on' : ''}"><span>${escapeHTML(label)}</span><b dir="ltr">${bankFmt(v)}</b></div>`;
+  let body = '';
+  let head = '#3f3a4d';
+  let ink = '#ffffff';
+  if (q.t === 'p') {
+    head = BANK_GROUP_HEX[q.g];
+    if (q.g === 'ye' || q.g === 'lb') ink = '#1d1b26';
+    const lvl = o ? o.lvl || 0 : 0;
+    const set = o && bankHasSet(g, o.by, q.g);
+    body = row(bankT('bank_rent'), q.rent[0], o && !lvl && !set) +
+      row(bankT('bank_rent_set'), q.rent[0] * 2, o && !lvl && set) +
+      row(bankT('bank_lvl_1'), q.rent[1], lvl === 1) + row(bankT('bank_lvl_2'), q.rent[2], lvl === 2) + row(bankT('bank_lvl_3'), q.rent[3], lvl === 3) +
+      `<p class="bank-deed__note">${escapeHTML(bankT('bank_build_costs', { a: BANK_GROUPS[q.g].house, b: BANK_GROUPS[q.g].house * 2 }))}</p>`;
+  } else if (q.t === 'st') {
+    body = [1, 2, 3, 4].map(n => row(bankT('bank_stations_n', { n: n }), [0, 25, 50, 100, 200][n], o && BANK_STATIONS.filter(k => bankOwnerOf(g, k) === o.by).length === n)).join('');
+  } else if (q.t === 'co') {
+    body = row(bankT('bank_co_one'), 4, o && !BANK_COMPANIES.every(k => bankOwnerOf(g, k) === o.by)) + row(bankT('bank_co_both'), 10, o && BANK_COMPANIES.every(k => bankOwnerOf(g, k) === o.by));
+  }
+  return `<div class="bank-deed">
+      <div class="bank-deed__head" style="background:${head};color:${ink}"><span class="bank-deed__name">${escapeHTML(bankSqName(i))}</span><span class="bank-deed__price" dir="ltr">${bankFmt(q.price)}</span></div>
+      <div class="bank-deed__body">${body}${owner}</div>
+    </div>`;
+}
+
+function bankCardHtml(deck, k) {
+  return `<div class="bank-card bank-card--${deck}">
+      <div class="bank-card__head">${bankIcon(deck)}<span>${escapeHTML(bankT(deck === 'luck' ? 'bank_luck' : 'bank_court'))}</span></div>
+      <p class="bank-card__text">${escapeHTML(bankCardText(deck, k))}</p>
+    </div>`;
+}
+
+function bankMidHtml(g, c) {
+  const dice = g.turn && g.turn.dice ? g.turn.dice : (c.lastDice || null);
+  let panel = '';
+  const sel = c.sel;
+  if (sel !== null && sel !== undefined && bankIsOwnable(sel)) panel = bankDeedHtml(sel, g);
+  else if (sel !== null && sel !== undefined) panel = `<div class="bank-mid__note">${bankIcon(BANK_SQUARES[sel].t === 'st' ? 'train' : BANK_SQUARES[sel].t, 'bank-ic bank-ic--big')}<b>${escapeHTML(bankSqName(sel))}</b><span>${escapeHTML(bankT('bank_sq_' + BANK_SQUARES[sel].t))}</span></div>`;
+  else if (g.landed && g.landed.deck) panel = bankCardHtml(g.landed.deck, g.landed.card);
+  else if (g.landed && bankIsOwnable(g.landed.sq)) panel = bankDeedHtml(g.landed.sq, g);
+  else if (g.landed) panel = `<div class="bank-mid__note">${bankIcon(BANK_SQUARES[g.landed.sq].t, 'bank-ic bank-ic--big')}<b>${escapeHTML(bankSqName(g.landed.sq))}</b><span>${escapeHTML(bankT('bank_sq_' + BANK_SQUARES[g.landed.sq].t))}</span></div>`;
+  else panel = `<div class="bank-mid__brand">${escapeHTML(bankT('setup_bank'))}</div>${c.tv ? '' : `<p class="bank-mid__hint">${escapeHTML(bankT('bank_tap_square'))}</p>`}`;
+  const pot = g.settings && g.settings.pot && g.pot ? `<span class="bank-pot" dir="ltr">💰 ${bankFmt(g.pot)}</span>` : '';
+  return `${bankDiceHtml(dice)}${pot}<div class="bank-mid__panel" data-bank-panel>${panel}${sel !== null && sel !== undefined ? `<button type="button" class="bank-mid__close" onclick="bankSelect(null)" aria-label="${escapeHTML(bankT('close'))}">✕</button>` : ''}</div>`;
+}
+
+/* --- the players, the time, the bar ----------------------------------------------------------- */
+
+function bankStripHtml(c) {
+  const g = c.g;
+  const up = g.phase === 'play' ? g.turn.pid : null;
+  const chips = g.seats.map(pid => {
+    const out = g.out.indexOf(pid) !== -1;
+    const jail = g.jail[pid] !== undefined;
+    const cards = (g.cards[pid] || []).length;
+    const place = g.places ? g.places.indexOf(pid) : -1;
+    return `<div class="bank-chip ${pid === up ? 'is-turn' : ''} ${out ? 'is-out' : ''} ${c.away && c.away[pid] ? 'is-away' : ''}" style="--pc:${bankSeatHex(g, pid)}" data-bank-chip="${escapeHTML(pid)}">
+        <span class="bank-chip__tok" aria-hidden="true">${place >= 0 && place < 3 ? ['🥇', '🥈', '🥉'][place] : bankTokenOf(g, pid)}</span>
+        <span class="bank-chip__who">
+          <span class="bank-chip__name">${escapeHTML(c.names[pid] || '…')}${c.bots && c.bots[pid] ? ' <small>🤖</small>' : ''}</span>
+          <span class="bank-chip__cash">${out ? escapeHTML(bankT('bank_out')) : `<b class="metric" dir="ltr" data-bank-cash="${escapeHTML(pid)}">${bankFmt(g.cash[pid])}</b>`}${jail ? ' 🔒' : ''}${cards ? ` <span title="${escapeHTML(bankT('bank_jail_card'))}">🎟️${cards > 1 ? '×' + cards : ''}</span>` : ''}</span>
+        </span>
+      </div>`;
+  }).join('');
+  return `<div class="bank-strip bank-strip--n${g.seats.length}">${chips}</div>`;
+}
+
+/** The game's own clock: how long is left, and the last lap. */
+function bankTimeHtml(c) {
+  const g = c.g;
+  if (g.phase !== 'play') return '';
+  const clock = c.turnClock ? `<span class="badge badge--accent metric" data-bank-clock></span>` : '';
+  if (g.lastLap) return `<div class="bank-time"><span class="badge badge--danger">🏁 ${escapeHTML(bankT('bank_last_lap'))}</span>${clock}</div>`;
+  if (!g.endsAt) return clock ? `<div class="bank-time">${clock}</div>` : '';
+  return `<div class="bank-time"><span class="badge metric" data-bank-left>⏳</span>${clock}</div>`;
+}
+
+/** What the bar says and offers: only the player whose turn it is gets buttons. */
+function bankBarHtml(c) {
+  const g = c.g;
+  const tn = g.turn || {};
+  const mine = tn.pid === c.me && g.phase === 'play' && !c.tv;
+  const name = c.names[tn.pid] || '';
+  const btn = (label, action, payload, kind, disabled) => `<button type="button" class="btn btn--${kind || 'secondary'} ${kind === 'primary' ? '' : 'btn--sm'} btn--auto" ${disabled ? 'disabled' : ''} onclick="bankDo('${action}', ${payload ? escapeHTML(JSON.stringify(payload)) : 'null'})">${escapeHTML(label)}</button>`;
+  let line = '';
+  let sub = '';
+  let buttons = '';
+  if (!mine) {
+    line = bankT('bank_turn_of', { name: name });
+    sub = c.bots && c.bots[tn.pid] ? bankT('bank_thinking') : tn.stage === 'debt' && g.debt ? bankT('bank_raising', { name: name }) : tn.stage === 'buy' ? bankT('bank_deciding', { name: name }) : '';
+  } else if (tn.stage === 'roll') {
+    const jail = g.jail[c.me] !== undefined;
+    line = jail ? bankT('bank_in_jail') : tn.dice ? bankT('bank_double_again') : bankT('bank_your_turn');
+    sub = jail ? bankT('bank_jail_try', { n: (g.jail[c.me] || 0) + 1 }) : '';
+    buttons = btn(jail ? bankT('bank_roll_double') : bankT('bank_roll'), 'roll', null, 'primary');
+    if (jail) {
+      buttons += btn(bankT('bank_pay_out', { n: BANK_JAIL_FINE }), 'payJail', null, 'secondary', (g.cash[c.me] || 0) < BANK_JAIL_FINE);
+      if ((g.cards[c.me] || []).length) buttons += btn(bankT('bank_use_card'), 'useCard', null, 'secondary');
+    }
+  } else if (tn.stage === 'buy') {
+    const q = BANK_SQUARES[g.pos[c.me]];
+    line = bankT('bank_buy_q', { place: bankSqName(g.pos[c.me]) });
+    sub = (g.cash[c.me] || 0) < q.price ? bankT('bank_short_buy') : '';
+    buttons = btn(bankT('bank_buy', { n: bankFmt(q.price) }), 'buy', { yes: true }, 'primary', (g.cash[c.me] || 0) < q.price) + btn(bankT('bank_leave'), 'buy', { yes: false }, 'ghost');
+  } else if (tn.stage === 'debt' && g.debt) {
+    const to = g.debt.to === 'bank' ? bankT('bank_the_bank') : g.debt.to === 'each' ? bankT('bank_everyone') : (c.names[g.debt.to] || '');
+    line = bankT('bank_you_owe', { n: bankFmt(g.debt.amount), to: to });
+    sub = (g.cash[c.me] || 0) < g.debt.amount ? bankT('bank_raise_hint') : '';
+    buttons = btn(bankT('bank_pay'), 'payDebt', null, 'primary', (g.cash[c.me] || 0) < g.debt.amount) + btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger');
+  } else if (tn.stage === 'act') {
+    line = bankT('bank_your_turn');
+    sub = bankT('bank_act_hint');
+    buttons = btn(bankT('bank_end_turn'), 'endTurn', null, 'primary');
+  }
+  const tools = mine && tn.stage !== 'buy' ? `<div class="bank-bar__tools">
+      <button type="button" class="btn btn--ghost btn--xs btn--auto ${bankUi.panel === 'manage' ? 'is-on' : ''}" onclick="bankPanel('manage')">🏗️ ${escapeHTML(bankT('bank_manage'))}</button>
+      ${tn.stage === 'roll' || tn.stage === 'act' ? `<button type="button" class="btn btn--ghost btn--xs btn--auto ${bankUi.panel === 'trade' ? 'is-on' : ''}" onclick="bankPanel('trade')">🤝 ${escapeHTML(bankT('bank_trade'))}</button>` : ''}
+    </div>` : mine && tn.stage === 'buy' ? `<div class="bank-bar__tools"><button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bankPanel('manage')">🏗️ ${escapeHTML(bankT('bank_manage'))}</button></div>` : '';
+  return `<div class="bank-bar ${mine ? 'is-mine' : ''}" style="--pc:${bankSeatHex(g, tn.pid)}">
+      <div class="bank-bar__txt">
+        <div class="bank-bar__t1"><span class="bank-bar__tok" aria-hidden="true">${tn.pid ? bankTokenOf(g, tn.pid) : ''}</span>${escapeHTML(line)}</div>
+        ${sub ? `<div class="bank-bar__t2">${escapeHTML(sub)}</div>` : ''}
+      </div>
+      ${buttons ? `<div class="bank-bar__btns">${buttons}</div>` : ''}
+      ${tools}
+    </div>`;
+}
+
+/* --- an offer, managing places, making an offer -------------------------------------------- */
+
+function bankSideText(g, side, c) {
+  const bits = [];
+  if (side.cash) bits.push(bankMoney(side.cash));
+  (side.sqs || []).forEach(i => bits.push(bankSqName(i)));
+  (side.cards || []).forEach(() => bits.push(bankT('bank_jail_card')));
+  return bits.length ? bits.join('، ') : bankT('bank_nothing');
+}
+
+/** An offer: to the one it was made to, yes or no; to the one who made it, a way to take it back. */
+function bankOfferHtml(c) {
+  const g = c.g;
+  const o = g.offer;
+  if (!o || c.tv) {
+    return o ? `<div class="bank-offer bank-offer--tv">🤝 ${escapeHTML(bankT('bank_offer_between', { a: c.names[o.from] || '', b: c.names[o.to] || '' }))}</div>` : '';
+  }
+  const give = bankSideText(g, o.give, c);
+  const get = bankSideText(g, o.get, c);
+  if (o.to === c.me) {
+    return `<div class="card card--accent bank-offer">
+        <p class="bank-offer__title">🤝 ${escapeHTML(bankT('bank_offer_from', { name: c.names[o.from] || '' }))}</p>
+        <div class="bank-offer__sides"><div><span>${escapeHTML(bankT('bank_you_get'))}</span><b>${escapeHTML(give)}</b></div><div><span>${escapeHTML(bankT('bank_you_give'))}</span><b>${escapeHTML(get)}</b></div></div>
+        <div class="btn-row"><button class="btn btn--primary btn--auto" onclick="bankDo('answer', { yes: true, id: ${o.id} })">${escapeHTML(bankT('bank_accept'))}</button><button class="btn btn--ghost btn--auto" onclick="bankDo('answer', { yes: false, id: ${o.id} })">${escapeHTML(bankT('bank_refuse'))}</button></div>
+      </div>`;
+  }
+  if (o.from === c.me) {
+    return `<div class="bank-offer bank-offer--mine">⏳ ${escapeHTML(bankT('bank_offer_waiting', { name: c.names[o.to] || '' }))} <button class="btn btn--ghost btn--xs btn--auto" onclick="bankDo('cancelOffer')">${escapeHTML(bankT('cancel'))}</button></div>`;
+  }
+  return `<div class="bank-offer bank-offer--tv">🤝 ${escapeHTML(bankT('bank_offer_between', { a: c.names[o.from] || '', b: c.names[o.to] || '' }))}</div>`;
+}
+
+/** Your places by colour, with what can be done to each right now. */
+function bankManageHtml(c) {
+  const g = c.g;
+  const me = c.me;
+  const places = bankPlacesOf(g, me);
+  if (!places.length) return `<div class="bank-panel"><p class="field__hint">${escapeHTML(bankT('bank_no_places'))}</p></div>`;
+  const st = g.turn.stage;
+  const canBuildNow = st === 'roll' || st === 'buy' || st === 'act';
+  const rows = places.map(i => {
+    const q = BANK_SQUARES[i];
+    const o = g.own[i];
+    const color = q.t === 'p' ? BANK_GROUP_HEX[q.g] : '#3f3a4d';
+    const acts = [];
+    if (q.t === 'p' && canBuildNow && bankCanBuild(g, me, i)) acts.push(['+ ' + bankT('bank_build', { n: bankStepCost(q.g, bankLevel(g, i) + 1) }), 'build', 'primary']);
+    if (q.t === 'p' && bankCanSell(g, me, i)) acts.push(['− ' + bankT('bank_sell', { n: Math.floor(bankStepCost(q.g, bankLevel(g, i)) / 2) }), 'sell', 'secondary']);
+    if (bankCanMortgage(g, me, i)) acts.push([bankT('bank_mortgage', { n: bankMortgageValue(i) }), 'mortgage', 'secondary']);
+    if (o.mort && canBuildNow) acts.push([bankT('bank_unmortgage', { n: bankUnmortgageCost(i) }), 'unmortgage', bankCanUnmortgage(g, me, i) ? 'secondary' : 'ghost', !bankCanUnmortgage(g, me, i)]);
+    const status = o.mort ? bankT('bank_mortgaged') : q.t === 'p' ? bankLevelWord(o.lvl || 0) : '';
+    return `<div class="bank-mrow ${o.mort ? 'is-mort' : ''}">
+        <span class="bank-mrow__band" style="background:${color}"></span>
+        <button type="button" class="bank-mrow__name" onclick="bankSelect(${i})">${escapeHTML(bankSqName(i))}<small>${escapeHTML(status)}</small></button>
+        <span class="bank-mrow__acts">${acts.map(a => `<button type="button" class="btn btn--${a[2]} btn--xs btn--auto" ${a[3] ? 'disabled' : ''} onclick="bankDo('${a[1]}', { sq: ${i} })">${escapeHTML(a[0])}</button>`).join('')}</span>
+      </div>`;
+  }).join('');
+  return `<div class="bank-panel">
+      <p class="bank-panel__title">🏗️ ${escapeHTML(bankT('bank_manage_title'))}</p>
+      <p class="field__hint">${escapeHTML(bankT('bank_manage_hint'))}</p>
+      ${rows}
+    </div>`;
+}
+
+/** The offer being put together: who to, what you give, what you want. */
+function bankTradeHtml(c) {
+  const g = c.g;
+  const me = c.me;
+  const tr = bankUi.trade;
+  const others = bankActive(g).filter(id => id !== me);
+  if (!others.length) return '';
+  if (!tr.to || others.indexOf(tr.to) === -1) tr.to = others[0];
+  const tradable = (pid) => bankPlacesOf(g, pid).filter(i => BANK_SQUARES[i].t !== 'p' || !bankGroupBuilt(g, BANK_SQUARES[i].g));
+  const chip = (side, i) => {
+    const q = BANK_SQUARES[i];
+    const on = (tr[side].sqs || []).indexOf(i) !== -1;
+    return `<button type="button" class="bank-tchip ${on ? 'is-on' : ''} ${g.own[i].mort ? 'is-mort' : ''}" style="--gc:${q.t === 'p' ? BANK_GROUP_HEX[q.g] : '#3f3a4d'}" onclick="bankTradeToggle('${side}', ${i})" aria-pressed="${on}">${escapeHTML(bankSqName(i))}</button>`;
+  };
+  const cardChip = (side, pid) => (g.cards[pid] || []).map((d, k) => {
+    const on = (tr[side].cards || []).length > k;
+    return `<button type="button" class="bank-tchip ${on ? 'is-on' : ''}" onclick="bankTradeCard('${side}')" aria-pressed="${on}">🎟️ ${escapeHTML(bankT('bank_jail_card'))}</button>`;
+  }).join('');
+  const cashIn = (side, pid) => `<label class="bank-tcash"><span>${escapeHTML(bankT('bank_cash'))}</span>
+      <input type="number" inputmode="numeric" min="0" max="${g.cash[pid] || 0}" step="10" value="${tr[side].cash || ''}" placeholder="0" oninput="bankTradeCash('${side}', this.value)"></label>`;
+  const col = (side, pid, title) => `<div class="bank-tcol"><p class="bank-tcol__title">${escapeHTML(title)}</p>
+      <div class="bank-tchips">${tradable(pid).map(i => chip(side, i)).join('') || `<span class="field__hint">${escapeHTML(bankT('bank_no_places'))}</span>`}${cardChip(side, pid)}</div>
+      ${cashIn(side, pid)}</div>`;
+  return `<div class="bank-panel">
+      <p class="bank-panel__title">🤝 ${escapeHTML(bankT('bank_trade_title'))}</p>
+      <div class="chip-set bank-tto">${others.map(id => `<button type="button" class="chip ${id === tr.to ? 'is-selected' : ''}" onclick="bankTradeTo('${jsStringAttr(id)}')">${bankTokenOf(g, id)} ${escapeHTML(c.names[id] || '')}</button>`).join('')}</div>
+      <div class="bank-tcols">
+        ${col('give', me, bankT('bank_you_give'))}
+        ${col('get', tr.to, bankT('bank_you_want', { name: c.names[tr.to] || '' }))}
+      </div>
+      <button type="button" class="btn btn--primary" onclick="bankSendOffer()" ${g.offer ? 'disabled' : ''}>${escapeHTML(bankT('bank_send_offer'))}</button>
+    </div>`;
+}
+
+/* --- the log, the end, the frame ----------------------------------------------------------- */
+
+function bankEventText(c, e) {
+  const n = (pid) => c.names[pid] || '…';
+  switch (e.type) {
+    case 'rolloff': return '🎲 ' + bankT('bank_ev_first', { name: n(e.first) });
+    case 'buy': return '🏠 ' + bankT('bank_ev_buy', { name: n(e.pid), place: bankSqName(e.sq), n: bankFmt(e.price) });
+    case 'rent': return e.amount ? '💵 ' + bankT('bank_ev_rent', { name: n(e.pid), other: n(e.to), n: bankFmt(e.amount) }) : '';
+    case 'tax': return '🧾 ' + bankT('bank_ev_tax', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'card': return (e.deck === 'luck' ? '❓ ' : '⚖️ ') + n(e.pid) + ': ' + bankCardText(e.deck, e.card);
+    case 'start': return '💰 ' + bankT('bank_ev_start', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'jail': return '🔒 ' + bankT(e.why === 'three' ? 'bank_ev_jail_three' : 'bank_ev_jail', { name: n(e.pid) });
+    case 'free': return '🔓 ' + bankT('bank_ev_free_' + (e.how || 'pay'), { name: n(e.pid) });
+    case 'build': return '🏗️ ' + bankT('bank_ev_build', { name: n(e.pid), what: bankLevelWord(e.lvl), place: bankSqName(e.sq) });
+    case 'sell': return bankT('bank_ev_sell', { name: n(e.pid), place: bankSqName(e.sq) });
+    case 'mortgage': return bankT('bank_ev_mortgage', { name: n(e.pid), place: bankSqName(e.sq) });
+    case 'unmortgage': return bankT('bank_ev_unmortgage', { name: n(e.pid), place: bankSqName(e.sq) });
+    case 'bus': return '🚌 ' + bankT('bank_ev_bus', { name: n(e.pid), n: e.n });
+    case 'pot': return '💰 ' + bankT('bank_ev_pot', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'trade': return '🤝 ' + bankT('bank_ev_trade', { a: n(e.from), b: n(e.to) });
+    case 'refuse': return e.why ? '' : bankT('bank_ev_refuse', { name: n(e.to) });
+    case 'bankrupt': return '💸 ' + bankT('bank_ev_bankrupt', { name: n(e.pid) });
+    case 'lastlap': return '🏁 ' + bankT('bank_last_lap_ev');
+    case 'auto': return '⏱️ ' + bankT(e.why === 'host' ? 'bank_ev_host' : 'bank_ev_clock', { name: n(e.pid) });
+    case 'left': return bankT('bank_ev_left', { name: e.name || n(e.pid) });
+    default: return '';
+  }
+}
+
+function bankLogHtml(c) {
+  const lines = (c.g.events || []).slice().reverse().map(e => bankEventText(c, e)).filter(Boolean).slice(0, 4);
+  return lines.map((l, i) => `<div class="bank-log__line ${i === 0 ? 'is-latest' : ''}">${escapeHTML(l)}</div>`).join('');
+}
+
+function bankOverHtml(c) {
+  const g = c.g;
+  const places = g.places || [];
+  const rise = motionFirst(['bank-podium', c.key, places.join(',')].join('|'));
+  const top = places.slice(0, 3);
+  const medals = ['🥇', '🥈', '🥉'];
+  const atOf = (i) => 150 + (top.length - 1 - i) * 520;
+  const podium = `<div class="podium${rise ? ' podium--rise" data-reveal-ms="' + (atOf(0) + 620) : ''}">` + top.map((pid, i) =>
+    `<div class="podium__place podium__place--${i + 1} podium__place--rank${i + 1}" style="--at:${atOf(i)}ms">
+      <div class="podium__who"><span class="podium__medal" aria-hidden="true">${medals[i]}</span><span class="podium__name">${escapeHTML(c.names[pid] || '…')}</span>
+      <span class="podium__score metric" dir="ltr">${g.out.indexOf(pid) === -1 ? bankFmt((g.worth || {})[pid]) : '—'}</span></div>
+      <div class="podium__block"><span class="metric">${i + 1}</span></div></div>`).join('') + '</div>';
+  const why = (g.events || []).slice().reverse().find(e => e.type === 'over');
+  return `<div class="card card--accent bank-over">
+      <p class="bank-over__title">🏁 ${escapeHTML(bankT(why && why.why === 'time' ? 'bank_over_time' : 'bank_over_last'))}</p>
+      ${podium}
+      <p class="field__hint" style="text-align:center">${escapeHTML(bankT('bank_worth_hint'))}</p>
+      ${c.over || ''}
+    </div>`;
+}
+
+/**
+ * A whole frame. c: { g, me, names, bots, away, key, fresh, loud, tv, sel,
+ * over (the end's buttons), host (the host's row), turnClock }.
+ */
+function bankFrameHtml(c) {
+  const g = c.g;
+  const over = g.phase === 'gameover';
+  const mine = !over && !c.tv && g.turn.pid === c.me;
+  const panel = mine && bankUi.panel === 'manage' ? bankManageHtml(c) : mine && bankUi.panel === 'trade' && (g.turn.stage === 'roll' || g.turn.stage === 'act') ? bankTradeHtml(c) : '';
+  return `<div class="bank ${c.tv ? 'bank--tv' : ''} ${over ? 'is-over' : ''}">
+      <div class="bank-layout">
+        <div class="bank-layout__board">${bankBoardHtml(g, c)}</div>
+        <div class="bank-layout__side">
+          ${over ? bankOverHtml(c) : ''}
+          <div class="bank-top">${bankStripHtml(c)}${bankTimeHtml(c)}</div>
+          ${over ? '' : bankOfferHtml(c)}
+          ${over ? '' : bankBarHtml(c)}
+          ${panel}
+          <div class="bank-log">${bankLogHtml(c)}</div>
+          ${c.host || ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* --- what only this screen holds ---------------------------------------------------------------- */
+
+const bankUi = { sel: null, panel: null, trade: { to: null, give: { cash: 0, sqs: [], cards: [] }, get: { cash: 0, sqs: [], cards: [] } }, turnKey: '', names: {} };
+const bankFx = { key: '', lastSeq: 0, busyUntil: 0, timers: [], wokeAt: 0, watched: '', cash: {}, dieTurns: [0, 0], dieCss: ['', ''] };
+
+function bankResetTrade() {
+  bankUi.trade = { to: bankUi.trade.to, give: { cash: 0, sqs: [], cards: [] }, get: { cash: 0, sqs: [], cards: [] } };
+}
+
+/** A new turn or a new stage: the tapped square and the panels are put away. */
+function bankUiFor(g) {
+  const key = [g.turnSeq, g.turn && g.turn.pid].join('|');
+  if (bankUi.turnKey !== key) {
+    if (!g.turn || bankUi.turnKey.split('|')[1] !== String(g.turn.pid)) { bankUi.panel = null; bankResetTrade(); }
+    bankUi.sel = null;
+    bankUi.turnKey = key;
+  }
+}
+
+function bankRepaint() {
+  if (appState.currentView === 'play-bank') paintBank({ keep: true });
+  else if (typeof Room !== 'undefined' && Room.state && Room.state.game === 'bank') {
+    const el = document.getElementById(Room.state.youAreScreen ? 'view-room-tv' : 'view-room-bank');
+    if (el) delete el.dataset.sig;
+    routeRoomState(Room.state);
+  }
+}
+
+function bankSelect(i) {
+  bankUi.sel = i === null || i === undefined || bankUi.sel === i ? null : i;
+  haptic('light');
+  bankRepaint();
+}
+
+function bankPanel(name) {
+  bankUi.panel = bankUi.panel === name ? null : name;
+  haptic('light');
+  bankRepaint();
+  if (bankUi.panel) setTimeout(() => { const p = document.querySelector('.bank-panel'); if (p) p.scrollIntoView({ block: 'nearest', behavior: motionOff() ? 'auto' : 'smooth' }); }, 50);
+}
+
+function bankTradeTo(pid) { bankUi.trade.to = pid; bankUi.trade.get = { cash: 0, sqs: [], cards: [] }; bankRepaint(); }
+function bankTradeToggle(side, i) {
+  const list = bankUi.trade[side].sqs;
+  const k = list.indexOf(i);
+  if (k === -1) list.push(i); else list.splice(k, 1);
+  haptic('light');
+  bankRepaint();
+}
+function bankTradeCard(side) {
+  const s = bankUi.trade[side];
+  s.cards = s.cards.length ? [] : ['?'];
+  bankRepaint();
+}
+function bankTradeCash(side, v) { bankUi.trade[side].cash = Math.max(0, Math.floor(Number(v) || 0)); }
+
+function bankSendOffer() {
+  const g = bankCurrentGame();
+  if (!g) return;
+  const tr = bankUi.trade;
+  const cardsOf = (pid, want) => want.length ? (g.cards[pid] || []).slice(0, 1) : [];
+  const me = bankCurrentMe();
+  const payload = {
+    to: tr.to,
+    give: { cash: tr.give.cash, sqs: tr.give.sqs.slice(), cards: cardsOf(me, tr.give.cards) },
+    get: { cash: tr.get.cash, sqs: tr.get.sqs.slice(), cards: cardsOf(tr.to, tr.get.cards) }
+  };
+  bankDo('offer', payload);
+  bankUi.panel = null;
+  bankResetTrade();
+}
+
+/** The game on screen and who "me" is in it: a game against the phone, or a room. */
+function bankCurrentGame() {
+  if (appState.currentView === 'play-bank') return (bankState().g) || null;
+  return typeof Room !== 'undefined' && Room.state && Room.state.game === 'bank' ? Room.state.shared : null;
+}
+function bankCurrentMe() { return appState.currentView === 'play-bank' ? 'me' : (typeof Room !== 'undefined' ? Room.me : null); }
+
+/** A button on the board or in the bar: the game against the phone, or the room. */
+function bankDo(action, payload) {
+  if (appState.currentView === 'play-bank') bankLocalDo(action, payload || {});
+  else if (typeof bankRoomDo === 'function') bankRoomDo(action, payload || {});
+}
+
+/* --- the motion ------------------------------------------------------------------------------------ */
+
+const bankCanMove = () => !motionOff() && !!(document.body && document.body.animate);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) bankFx.wokeAt = Date.now(); });
+
+function bankFxCancel() {
+  bankFx.timers.forEach(clearTimeout);
+  bankFx.timers = [];
+  bankFx.busyUntil = 0;
+}
+
+function bankEventsToPlay(key, g, fresh) {
+  const events = g.events || [];
+  const maxSeq = events.reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  if (bankFx.key !== key) {
+    bankFx.key = key;
+    bankFx.lastSeq = maxSeq;
+    bankFx.cash = {};
+    if (fresh) {
+      const first = events.find(e => e && e.type === 'rolloff');
+      if (first) bankFx.lastSeq = (Number(first.seq) || 0) - 1;
+    }
+  }
+  const out = events.filter(e => e && (Number(e.seq) || 0) > bankFx.lastSeq);
+  bankFx.lastSeq = Math.max(bankFx.lastSeq, maxSeq);
+  return out;
+}
+
+/** The two dice turned to what was rolled: tumbling there, or already there. */
+function bankDiceShow(root, d, tumble, delay) {
+  if (!d) return;
+  [0, 1].forEach(k => {
+    const die = root.querySelector(`[data-bank-die="${k}"]`);
+    if (!die) return;
+    const land = (typeof DIE_LANDING !== 'undefined' && DIE_LANDING[d[k]]) || [0, 0];
+    const css = (turns) => `rotateX(${turns * 360 + land[0] - 14}deg) rotateY(${turns * 360 + land[1] + (k ? -16 : 16)}deg)`;
+    if (!tumble) { die.style.transition = 'none'; die.style.transform = bankFx.dieCss[k] = css(bankFx.dieTurns[k]); return; }
+    die.style.transition = 'none';
+    die.style.transform = bankFx.dieCss[k] || css(0);
+    void die.offsetWidth;
+    bankFx.timers.push(setTimeout(() => {
+      bankFx.dieTurns[k] += 2 + Math.floor(Math.random() * 2);
+      die.style.transition = '';
+      die.style.transform = bankFx.dieCss[k] = css(bankFx.dieTurns[k]);
+    }, delay || 16));
+  });
+}
+
+/** A piece hops square by square, ending where it is drawn. */
+function bankHop(root, pid, squares, delay) {
+  const tok = root.querySelector(`[data-bank-tok="${CSS.escape(pid)}"]`);
+  const board = root.querySelector('[data-bank-board]');
+  if (!tok || !tok.animate || !board || squares.length < 2) return 0;
+  const size = board.offsetWidth / 100;
+  const fx = parseFloat(tok.style.left);
+  const fy = parseFloat(tok.style.top);
+  const centre = (i) => { const r = bankSqRect(i); return [r.x + r.w / 2, r.y + r.h / 2]; };
+  const pts = squares.map(centre);
+  const n = pts.length - 1;
+  const at = (p) => `translate(${((p[0] - fx) * size).toFixed(1)}px, ${((p[1] - fy) * size).toFixed(1)}px)`;
+  const frames = [];
+  pts.forEach((p, k) => {
+    frames.push({ transform: (k === n ? 'translate(0px, 0px)' : at(p)) + ' scale(1)', offset: k / n });
+    if (k < n) frames.push({ transform: at([(p[0] + pts[k + 1][0]) / 2, (p[1] + pts[k + 1][1]) / 2]) + ' scale(1.35)', offset: (k + 0.5) / n });
+  });
+  const duration = Math.max(260, n * BANK_STEP_MS);
+  tok.style.zIndex = '7';
+  tok.animate(frames, { duration: duration, delay: delay, fill: 'backwards', easing: 'linear' });
+  bankFx.timers.push(setTimeout(() => { tok.style.zIndex = ''; }, delay + duration + 40));
+  return duration;
+}
+
+/** Money flying from one place on screen to another (a chip, the middle of the board). */
+function bankMoneyFly(root, fromEl, toEl, delay) {
+  if (!fromEl || !toEl || typeof flyEmoji !== 'function') return;
+  bankFx.timers.push(setTimeout(() => {
+    const r = fromEl.getBoundingClientRect();
+    if (r.width) flyEmoji('💵', r, 18, toEl);
+  }, delay));
+}
+
+function bankPop(el, delay) {
+  if (!el || !el.animate) return;
+  el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.6)' }, { transform: 'scale(1)' }], { duration: 420, delay: delay, easing: 'ease-out' });
+}
+
+/** The squares a piece passes, in order, from one square to another going forward (or back). */
+function bankPathSquares(from, to, how) {
+  if (how === 'back') { const out = [from]; for (let i = from; i !== to;) { i = (i + 39) % 40; out.push(i); } return out; }
+  const out = [from];
+  for (let i = from; i !== to;) { i = (i + 1) % 40; out.push(i); }
+  return out;
+}
+
+/** After a frame is drawn: the moves it brought, in order. Returns how long they take. */
+function bankAfterPaint(root, c) {
+  const g = c.g;
+  const evs = bankEventsToPlay(c.key, g, c.fresh);
+  const lastRoll = (g.events || []).slice().reverse().find(e => e.type === 'roll' && !e.forRent);
+  const quiet = document.hidden || Date.now() - bankFx.wokeAt < 2500 || !root.getClientRects().length || evs.length > 16;
+  const moving = !quiet && bankCanMove();
+  const chip = (pid) => root.querySelector(`[data-bank-chip="${CSS.escape(pid)}"] .bank-chip__tok`);
+  const mid = root.querySelector('[data-bank-panel]');
+  const cashWas = Object.assign({}, bankFx.cash);
+  // The cash on every chip counts from what it showed before.
+  const countCash = (delay) => {
+    root.querySelectorAll('[data-bank-cash]').forEach(el => {
+      const pid = el.getAttribute('data-bank-cash');
+      const now = g.cash[pid] || 0;
+      const was = cashWas[pid];
+      if (typeof was === 'number' && was !== now && moving && typeof countUp === 'function') {
+        el.textContent = bankFmt(was);
+        bankFx.timers.push(setTimeout(() => countUp(el, was, now), delay));
+      }
+    });
+  };
+  g.seats.forEach(pid => { bankFx.cash[pid] = g.cash[pid] || 0; });
+  const rollNow = moving ? evs.find(e => e.type === 'roll' && !e.forRent) : null;
+  if (lastRoll && !rollNow) bankDiceShow(root, lastRoll.d, false);
+  if (!evs.length) return 0;
+  if (!moving) {
+    if (!quiet) bankEventSounds(evs, c);
+    return 0;
+  }
+  let t = 0;
+  let cashAt = 0;
+  evs.forEach(e => {
+    const loud = c.loud || e.pid === c.me;
+    if (e.type === 'roll' && !e.forRent) {
+      bankDiceShow(root, e.d, true, t);
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound('bankRoll'), t));
+      t += 720;
+    } else if (e.type === 'move') {
+      const d = e.how === 'jail' ? 0 : bankHop(root, e.pid, bankPathSquares(e.from, e.to, e.how), t);
+      if (loud) {
+        const hops = Math.max(1, bankPathSquares(e.from, e.to, e.how).length - 1);
+        for (let k = 1; k <= hops; k += 1) bankFx.timers.push(setTimeout(() => bankSound('bankStep'), t + k * (d / hops) - 20));
+      }
+      t += d + 60;
+    } else if (e.type === 'jail') {
+      const d = bankHop(root, e.pid, [e.from, BANK_JAIL], t);
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound('bankJail'), t + d));
+      t += d + 200;
+    } else if (e.type === 'card') {
+      if (mid && mid.animate) mid.animate([{ transform: 'rotateY(90deg)', opacity: 0.2 }, { transform: 'rotateY(0deg)', opacity: 1 }], { duration: 420, delay: t, fill: 'backwards', easing: 'ease-out' });
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound('bankCard'), t));
+      t += 700;
+    } else if (e.type === 'rent' && e.amount) {
+      bankMoneyFly(root, chip(e.pid), chip(e.to), t);
+      if (loud || e.to === c.me) bankFx.timers.push(setTimeout(() => bankSound('bankCash'), t + 450));
+      cashAt = t + 500;
+      t += 450;
+    } else if (e.type === 'paid' && e.to !== 'bank' && e.to !== 'each') {
+      bankMoneyFly(root, chip(e.pid), chip(e.to), t);
+      cashAt = t + 500;
+      t += 450;
+    } else if (e.type === 'start' || e.type === 'pot') {
+      bankMoneyFly(root, mid, chip(e.pid), t);
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound('bankCash'), t + 450));
+      cashAt = t + 500;
+      t += 300;
+    } else if (e.type === 'buy' || e.type === 'build') {
+      const sq = root.querySelector(`[data-bank-sq="${e.sq}"] ${e.type === 'buy' ? '.bank-own' : '.bank-band'}`);
+      bankPop(sq, t);
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound(e.type === 'buy' ? 'bankBuy' : 'bankBuild'), t));
+      cashAt = t;
+      t += 280;
+    } else if (e.type === 'bankrupt') {
+      const ch = root.querySelector(`[data-bank-chip="${CSS.escape(e.pid)}"]`);
+      if (ch && ch.animate) ch.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 420, delay: t });
+      t += 450;
+    }
+  });
+  countCash(cashAt || t);
+  bankFx.busyUntil = Math.max(bankFx.busyUntil, Date.now() + t);
+  return t;
+}
+
+function bankEventSounds(evs, c) {
+  const mine = (e) => c.loud || e.pid === c.me;
+  if (evs.some(e => e.type === 'rent' && e.amount && (mine(e) || e.to === c.me))) bankSound('bankCash');
+  else if (evs.some(e => e.type === 'roll' && mine(e))) bankSound('bankRoll');
+}
+
+function bankSound(name) {
+  try { if (typeof FX !== 'undefined' && FX[name] && typeof playFx === 'function') playFx(name); } catch (e) {}
+}
+
+/** A tap on a square shows its card in the middle; a second tap puts it away. */
+function bankWire(root) {
+  root.querySelectorAll('[data-bank-sq]').forEach(el => {
+    el.addEventListener('click', () => bankSelect(Number(el.getAttribute('data-bank-sq'))));
+  });
+}
+
+/** The game's time left, drawn every second. */
+function bankTickTime(root, g, turnClockEndsAt) {
+  clearInterval(bankFx.timeTimer);
+  const paint = () => {
+    const left = root.querySelector('[data-bank-left]');
+    if (left && g.endsAt) {
+      const ms = Math.max(0, g.endsAt - bankNow());
+      const m = Math.floor(ms / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      left.textContent = '⏳ ' + m + ':' + String(s).padStart(2, '0');
+    }
+    const clk = root.querySelector('[data-bank-clock]');
+    if (clk && turnClockEndsAt) {
+      const secs = Math.max(0, Math.ceil((turnClockEndsAt - Date.now()) / 1000));
+      clk.textContent = '⏱️ ' + secs;
+      clk.classList.toggle('badge--danger', secs <= 10);
+    }
+  };
+  paint();
+  if (g.phase === 'play' && (g.endsAt || turnClockEndsAt)) bankFx.timeTimer = setInterval(paint, 1000);
+}
+
+/** The game's own clock: a game against the phone only counts while it is on screen. */
+function bankNow() { return Date.now(); }
+
+/* --- against the phone ------------------------------------------------------------------------ */
+
+let bankBotTimer = null;
+
+function bankState() {
+  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, g: null, priv: null, names: {}, bots: {}, gameId: '' };
+  const s = appState.bank;
+  if ([1, 2, 3].indexOf(Number(s.opp)) === -1) s.opp = 2;
+  if (s.level !== 'hard') s.level = 'easy';
+  if (BANK_TOKENS.indexOf(s.token) === -1) s.token = 'car';
+  if (BANK_LENGTHS.indexOf(Number(s.length)) === -1) s.length = BANK_LENGTH_DEFAULT;
+  return s;
+}
+
+function setupBank() {
+  bankStopBot();
+  setView('setup-bank');
+  paintBankSetup();
+}
+
+function paintBankSetup() {
+  const s = bankState();
+  const seg = (id, value) => document.querySelectorAll('#' + id + ' .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === String(value)));
+  seg('bank-opp', s.opp);
+  seg('bank-level', s.level);
+  seg('bank-length', s.length);
+  const tokens = document.getElementById('bank-token');
+  if (tokens) {
+    tokens.innerHTML = BANK_TOKENS.map(tk => `<button type="button" class="bank-tokpick ${tk === s.token ? 'is-active' : ''}" onclick="setBankOption('token', '${tk}')" aria-pressed="${tk === s.token}" aria-label="${escapeHTML(bankT('bank_token_' + tk))}">${BANK_TOKEN_ICON[tk]}</button>`).join('');
+  }
+  const pot = document.getElementById('bank-pot');
+  if (pot) pot.checked = !!s.pot;
+  const go = document.getElementById('bank-go400');
+  if (go) go.checked = !!s.go400;
+  const cont = document.getElementById('bank-continue');
+  if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
+}
+
+function setBankOption(key, value) {
+  const s = bankState();
+  if (key === 'opp') s.opp = Number(value);
+  else if (key === 'level') s.level = value === 'hard' ? 'hard' : 'easy';
+  else if (key === 'token' && BANK_TOKENS.indexOf(value) !== -1) s.token = value;
+  else if (key === 'length') s.length = Number(value);
+  else if (key === 'pot' || key === 'go400') s[key] = !!value;
+  haptic('light');
+  saveToLocal();
+  paintBankSetup();
+}
+
+function startBank() {
+  const s = bankState();
+  bankStopBot();
+  const ids = ['me'];
+  for (let k = 1; k <= s.opp; k++) ids.push('b' + k);
+  const pool = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).slice().sort(() => Math.random() - 0.5);
+  const names = { me: bankT('xo_you') };
+  const bots = {};
+  ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = s.level; });
+  const off = bankRollOff(ids, Math.random);
+  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400 }, Date.now(), Math.random);
+  bankEvent(made.g, 'rolloff', { rounds: off.rounds, first: off.first });
+  s.g = made.g;
+  s.priv = made.priv;
+  s.names = names;
+  s.bots = bots;
+  s.pausedAt = null;
+  s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  bankUi.panel = null;
+  bankUi.sel = null;
+  saveToLocal();
+  if (appState.currentView !== 'play-bank') setView('play-bank');
+  paintBank({ fresh: true });
+  if (typeof scrollToAction === 'function') scrollToAction();
+}
+
+function bankContinue() {
+  setView('play-bank');
+  paintBank({ still: true });
+}
+
+/** Your move against the phone, straight onto the game. */
+function bankLocalDo(action, p) {
+  const s = bankState();
+  const g = s.g;
+  if (!g || g.phase !== 'play') return;
+  const now = Date.now();
+  try {
+    switch (action) {
+      case 'roll': bankRoll(g, s.priv, 'me', [bankRoll6(Math.random), bankRoll6(Math.random)], Math.random); break;
+      case 'buy': bankBuy(g, 'me', !!p.yes); break;
+      case 'payJail': bankPayJail(g, 'me'); break;
+      case 'useCard': bankUseCard(g, s.priv, 'me'); break;
+      case 'payDebt': bankPayDebt(g, s.priv, 'me', Math.random); break;
+      case 'bankrupt': bankBankrupt(g, s.priv, 'me', now); break;
+      case 'endTurn': bankEndTurn(g, 'me', now); break;
+      case 'build': bankBuild(g, 'me', p.sq); break;
+      case 'sell': bankSell(g, 'me', p.sq); break;
+      case 'mortgage': bankMortgage(g, 'me', p.sq); break;
+      case 'unmortgage': bankUnmortgage(g, 'me', p.sq); break;
+      case 'offer': bankOffer(g, 'me', p); break;
+      case 'cancelOffer': bankCancelOffer(g, 'me'); break;
+      default: return;
+    }
+  } catch (err) {
+    showToast(err.message || '', 'error');
+    return;
+  }
+  haptic('light');
+  saveToLocal();
+  paintBank();
+}
+
+/**
+ * What happens without a tap: a computer player's move (and its answer to
+ * your offer), or your only move made for you. Each waits for the motion on
+ * screen to land.
+ */
+function bankLocalNext() {
+  bankStopBot();
+  const s = bankState();
+  const g = s.g;
+  if (!g || g.phase !== 'play' || appState.currentView !== 'play-bank') return;
+  const wait = Math.max(0, bankFx.busyUntil - Date.now());
+  const think = BANK_BOT_MS[0] + Math.floor(Math.random() * (BANK_BOT_MS[1] - BANK_BOT_MS[0]));
+  const offerTo = g.offer && s.bots[g.offer.to] ? g.offer.to : null;
+  const pid = offerTo || g.turn.pid;
+  if (s.bots[pid]) {
+    bankBotTimer = setTimeout(() => {
+      bankBotTimer = null;
+      const st = bankState();
+      const gg = st.g;
+      if (gg !== g || gg.phase !== 'play' || appState.currentView !== 'play-bank') return;
+      const mv = bankBotMove(gg, st.priv, pid, st.bots[pid]);
+      if (mv) {
+        const p = mv.payload || {};
+        const now = Date.now();
+        try {
+          switch (mv.action) {
+            case 'answer': bankAnswer(gg, pid, !!p.yes, p.id); break;
+            case 'roll': bankRoll(gg, st.priv, pid, [bankRoll6(Math.random), bankRoll6(Math.random)], Math.random); break;
+            case 'buy': bankBuy(gg, pid, !!p.yes); break;
+            case 'payJail': bankPayJail(gg, pid); break;
+            case 'useCard': bankUseCard(gg, st.priv, pid); break;
+            case 'payDebt': bankPayDebt(gg, st.priv, pid, Math.random); break;
+            case 'bankrupt': bankBankrupt(gg, st.priv, pid, now); break;
+            case 'endTurn': bankEndTurn(gg, pid, now); break;
+            case 'build': bankBuild(gg, pid, p.sq); break;
+            case 'sell': bankSell(gg, pid, p.sq); break;
+            case 'mortgage': bankMortgage(gg, pid, p.sq); break;
+            case 'unmortgage': bankUnmortgage(gg, pid, p.sq); break;
+          }
+        } catch (err) {
+          // A move the rules refused: the safe one instead, so the table never stalls.
+          try { bankAuto(gg, st.priv, pid, Math.random, Date.now()); } catch (e) {}
+        }
+      }
+      saveToLocal();
+      paintBank();
+    }, wait + think);
+    return;
+  }
+  if (g.turn.pid === 'me') {
+    const only = bankOnlyMove(g, 'me');
+    if (!only) return;
+    bankBotTimer = setTimeout(() => {
+      bankBotTimer = null;
+      const gg = bankState().g;
+      if (gg !== g || appState.currentView !== 'play-bank' || !bankOnlyMove(gg, 'me')) return;
+      bankLocalDo(only.action, only.payload);
+    }, wait + 1400);
+  }
+}
+
+function bankStopBot() {
+  if (bankBotTimer) clearTimeout(bankBotTimer);
+  bankBotTimer = null;
+}
+
+function bankLocalCtx(o) {
+  const s = bankState();
+  const names = Object.assign({}, s.names || {}, { me: bankT('xo_you') });
+  bankUi.names = names;
+  const over = `<div class="btn-stack">
+      <button class="btn btn--primary btn--lg" onclick="startBank()">${escapeHTML(bankT('bank_again'))}</button>
+      <button class="btn btn--ghost btn--sm" onclick="setupBank()">${escapeHTML(bankT('exit'))}</button>
+    </div>`;
+  return { g: s.g, me: 'me', names: names, bots: s.bots || {}, away: {}, key: 'local|' + s.gameId, fresh: !!o.fresh, loud: true, tv: false, sel: bankUi.sel, over: over };
+}
+
+function paintBank(opts) {
+  const o = opts || {};
+  const s = bankState();
+  const el = document.getElementById('bank-stage');
+  if (!el || !s.g) return;
+  if (o.still || o.fresh) bankFxCancel();
+  if (!o.still && !o.fresh && !o.keep && bankFx.busyUntil > Date.now()) {
+    bankStopBot();
+    bankBotTimer = setTimeout(() => { bankBotTimer = null; paintBank(); }, bankFx.busyUntil - Date.now() + 40);
+    return;
+  }
+  bankUiFor(s.g);
+  const c = bankLocalCtx(o);
+  el.innerHTML = bankFrameHtml(c);
+  if (o.still) bankEventsToPlay(c.key, s.g, false);
+  const played = o.keep ? 0 : bankAfterPaint(el, c);
+  if (o.keep) { const last = (s.g.events || []).slice().reverse().find(e => e.type === 'roll' && !e.forRent); if (last) bankDiceShow(el, last.d, false); }
+  bankWire(el);
+  bankTickTime(el, s.g, null);
+  const g = s.g;
+  if (g.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce('bank-end|' + s.gameId) && !o.still) {
+    bankFx.timers.push(setTimeout(() => afterReveal(el, () => {
+      if (g.places[0] === 'me') {
+        playSound('success');
+        if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      } else if (typeof duelSound === 'function') duelSound('lose');
+    }), played));
+  }
+  if (!o.keep) bankLocalNext();
+}
+
+/** After a reload: the board as it was; the time a game against the phone was away doesn't count. */
+function restoreBank() {
+  const s = bankState();
+  if (!s.g || !Array.isArray(s.g.seats) || !s.priv) return false;
+  bankResumeClock();
+  paintBank({ still: true });
+  return true;
+}
+
+/** A game against the phone counts its time only while it is being played. */
+function bankPauseClock() {
+  const s = bankState();
+  if (s.g && s.g.phase === 'play' && s.g.endsAt && !s.pausedAt) { s.pausedAt = Date.now(); saveToLocal(); }
+}
+function bankResumeClock() {
+  const s = bankState();
+  if (s.g && s.pausedAt && s.g.endsAt) { s.g.endsAt += Date.now() - s.pausedAt; }
+  s.pausedAt = null;
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('bank', {
+    setup: 'setup-bank', play: 'play-bank',
+    paintSetup: paintBankSetup, restore: restoreBank,
+    repaint: () => paintBank({ still: true })
+  });
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-bank') { bankStopBot(); bankFxCancel(); bankPauseClock(); clearInterval(bankFx.timeTimer); }
+    if (to === 'play-bank') setTimeout(() => { bankResumeClock(); if (bankState().g) bankLocalNext(); }, 0);
+  });
+}
+document.addEventListener('visibilitychange', () => {
+  if (appState.currentView !== 'play-bank') return;
+  if (document.hidden) bankPauseClock(); else bankResumeClock();
+});
+
+/* --- the sounds: short and quiet, not on the soundboard ------------------------------------------ */
+if (typeof FX !== 'undefined') {
+  Object.assign(FX, {
+    bankRoll(at) {
+      for (let k = 0; k < 5; k++) fxNoise('bandpass', 2400 + k * 250, 1.6, [[0, 0], [0.003, 0.08], [0.03, 0.001]], at + k * 0.055);
+      fxTone('sine', [[0, 280], [0.07, 130]], [[0, 0], [0.004, 0.2], [0.1, 0.001]], at + 0.32);
+    },
+    bankStep(at) {
+      fxTone('sine', [[0, 560], [0.035, 440]], [[0, 0], [0.003, 0.05], [0.045, 0.001]], at);
+    },
+    bankCash(at) {
+      // Coins: two bright pings.
+      fxTone('triangle', [[0, 1320]], [[0, 0], [0.005, 0.1], [0.14, 0.001]], at);
+      fxTone('triangle', [[0, 1760]], [[0, 0], [0.005, 0.08], [0.2, 0.001]], at + 0.07);
+    },
+    bankBuy(at) {
+      fxTone('triangle', [[0, 520], [0.12, 780]], [[0, 0], [0.01, 0.12], [0.2, 0.001]], at);
+    },
+    bankBuild(at) {
+      fxNoise('lowpass', 900, 0.8, [[0, 0], [0.004, 0.2], [0.07, 0.001]], at);
+      fxTone('sine', [[0, 220]], [[0, 0], [0.004, 0.2], [0.1, 0.001]], at + 0.08);
+    },
+    bankCard(at) {
+      fxNoise('highpass', 3000, 0.7, [[0, 0], [0.02, 0.05], [0.12, 0.001]], at);
+    },
+    bankJail(at) {
+      fxTone('square', [[0, 180], [0.25, 120]], [[0, 0], [0.01, 0.06], [0.3, 0.001]], at);
+    }
+  });
+}
+</script>

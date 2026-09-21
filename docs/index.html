@@ -11007,6 +11007,327 @@ html[lang="en"] .ludo-board[dir] .ludo-off__card { direction: ltr; }
   .ludo-die .die, .ludo-chip, .ludo-swatch, .ludo-pc.is-sent { transition: none; }
 }
 
+/* ==========================================================================
+   23. بنك الحظ
+   The owner's option أ "كلاسيك" (21 Sep 2026): a warm paper board with a
+   colour band on each place, line icons on the other squares, the corners
+   labelled, and the middle holding the dice and the card in play. Every
+   square is placed in percent of the board (JS_Bank.html) and sized off the
+   board's own width (a container), so one markup is a map on a phone and a
+   board with every name on a laptop or the TV.
+   ========================================================================== */
+.bank-board {
+  --bank-cell: #fffdf8;
+  --bank-line: #d8cfbd;
+  --bank-ink: #5a5466;
+  --bank-mid: #f6f0e3;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  margin-inline: auto;
+  container-type: inline-size;
+  container-name: bankboard;
+}
+body.dark .bank-board { --bank-cell: #262234; --bank-line: #3a3548; --bank-ink: #d6d0e4; --bank-mid: #1d1a29; }
+.bank-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 1.8%;
+  overflow: hidden;
+  background: var(--bank-line);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 22px rgba(60, 40, 20, 0.12);
+}
+.bank-sq {
+  position: absolute;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: var(--bank-cell);
+  box-shadow: inset 0 0 0 0.5px var(--bank-line);
+  color: var(--bank-ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+  cursor: pointer;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+/* What a square shows, clear of its colour band (inset in % of the square itself). */
+.bank-sq__in { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+.bank-sq--bottom .bank-sq__in { top: 22%; }
+.bank-sq--top .bank-sq__in { bottom: 22%; }
+.bank-sq--left .bank-sq__in { right: 22%; }
+.bank-sq--right .bank-sq__in { left: 22%; }
+.bank-band { position: absolute; display: flex; align-items: center; justify-content: center; gap: 8%; }
+.bank-sq--bottom .bank-band { top: 0; left: 0; right: 0; height: 22%; }
+.bank-sq--top .bank-band { bottom: 0; left: 0; right: 0; height: 22%; }
+.bank-sq--left .bank-band { top: 0; bottom: 0; right: 0; width: 22%; flex-direction: column; }
+.bank-sq--right .bank-band { top: 0; bottom: 0; left: 0; width: 22%; flex-direction: column; }
+.bank-pip { width: 1.1cqw; height: 1.1cqw; min-width: 3px; min-height: 3px; border-radius: 1px; background: #ffffff; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.35); }
+.bank-pip--souq { width: 2.4cqw; min-width: 7px; background: #e5383b; box-shadow: 0 0 0 1px #ffffff; }
+.bank-own { position: absolute; width: 1.9cqw; height: 1.9cqw; min-width: 6px; min-height: 6px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--bank-cell); }
+.bank-sq--bottom .bank-own { bottom: 7%; left: 50%; transform: translateX(-50%); }
+.bank-sq--top .bank-own { top: 7%; left: 50%; transform: translateX(-50%); }
+.bank-sq--left .bank-own { left: 7%; top: 50%; transform: translateY(-50%); }
+.bank-sq--right .bank-own { right: 7%; top: 50%; transform: translateY(-50%); }
+.bank-sq.is-mort { background-image: repeating-linear-gradient(45deg, rgba(90, 84, 102, 0.14) 0 2px, transparent 2px 5px); }
+.bank-sq.is-mort .bank-band { opacity: 0.45; }
+.bank-sq.is-landed { box-shadow: inset 0 0 0 2px var(--accent); z-index: 1; }
+.bank-sq.is-sel { box-shadow: inset 0 0 0 2.5px var(--text); z-index: 1; }
+.bank-sq:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bank-ic { width: min(60%, 4.2cqw); aspect-ratio: 1; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.bank-ic--corner { width: 5cqw; }
+.bank-ic--big { width: 2.2rem; }
+.bank-sq--luck { color: #b07800; }
+.bank-sq--court { color: #2a6f9e; }
+.bank-corner { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 0.3cqw; padding: 5%; text-align: center; }
+/* The label sits toward the board's edge; the pieces stand toward the middle. */
+.bank-sq--go .bank-corner { right: 0; bottom: 0; }
+.bank-sq--jail .bank-corner { left: 0; bottom: 0; }
+.bank-sq--bus .bank-corner { left: 0; top: 0; }
+.bank-sq--tojail .bank-corner { right: 0; top: 0; }
+.bank-corner__t { font-size: clamp(7.5px, 2.2cqw, 17px); font-weight: 800; line-height: 1.05; direction: rtl; }
+html[lang="en"] .bank-corner__t { direction: ltr; }
+.bank-corner__m { font-size: clamp(7px, 1.9cqw, 15px); font-weight: 800; color: #1f9d55; }
+.bank-sq--go { color: var(--bank-ink); }
+.bank-sq--jail .bank-corner { color: #7a4e2d; }
+.bank-sq--bus .bank-corner { color: #6d28d9; }
+.bank-sq--tojail .bank-corner { color: #a33a30; }
+/* A place's name and price: only once the board is wide enough to read them (a laptop, the TV). */
+.bank-sq__name, .bank-sq__price { display: none; }
+@container bankboard (min-width: 520px) {
+  .bank-sq__name { display: block; max-width: 96%; font-size: clamp(7px, 1.32cqw, 14px); font-weight: 800; line-height: 1.1; text-align: center; overflow-wrap: anywhere; direction: rtl; }
+  html[lang="en"] .bank-sq__name { direction: ltr; }
+  .bank-sq__price { display: block; font-size: clamp(6.5px, 1.2cqw, 12.5px); font-weight: 700; opacity: 0.75; }
+  .bank-sq--luck .bank-ic, .bank-sq--court .bank-ic, .bank-sq--tax .bank-ic, .bank-sq--st .bank-ic, .bank-sq--co .bank-ic { width: min(42%, 3.2cqw); }
+}
+.bank-fx { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+
+.bank-tok {
+  position: absolute;
+  z-index: 5;
+  width: 5.2%;
+  aspect-ratio: 1;
+  margin: -2.6% 0 0 -2.6%;
+  border-radius: 50%;
+  background: var(--pc);
+  box-shadow: 0 0 0 2px #ffffff, 0 2px 4px rgba(0, 0, 0, 0.35);
+  display: grid;
+  place-items: center;
+  font-size: 3cqw;
+  line-height: 1;
+  pointer-events: none;
+}
+.bank-tok.is-small { width: 4.2%; margin: -2.1% 0 0 -2.1%; font-size: 2.4cqw; }
+.bank-tok.is-up { box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px var(--pc), 0 2px 6px rgba(0, 0, 0, 0.35); }
+
+/* --- the middle ------------------------------------------------------------------ */
+.bank-mid {
+  position: absolute;
+  left: 13%;
+  top: 13%;
+  width: 74%;
+  height: 74%;
+  background: var(--bank-mid);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5cqw;
+  padding: 3%;
+  box-sizing: border-box;
+}
+.bank-dice { display: flex; gap: 2.5cqw; }
+.bank-die { perspective: 500px; }
+.bank-die .die { --die: 7.5cqw; transition: transform 0.7s cubic-bezier(0.18, 0.72, 0.24, 1); }
+.bank-die .die__face { border-radius: 0.9cqw; }
+.bank-die.is-rolling .die { animation: ludoTumble 0.45s linear infinite; }
+.bank-pot { font-size: clamp(10px, 2.6cqw, 20px); font-weight: 800; color: #1f6b50; background: rgba(31, 107, 80, 0.12); padding: 0.4cqw 1.6cqw; border-radius: 99px; }
+.bank-mid__panel { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 1cqw; perspective: 800px; }
+.bank-mid__close {
+  position: absolute; top: -1.4cqw; inset-inline-end: 2cqw;
+  width: 2.25rem; height: 2.25rem; border-radius: 50%; border: 0;
+  background: var(--surface-solid); color: var(--text); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); font-size: 0.9rem;
+}
+.bank-mid__brand { font-family: var(--font-display); font-weight: var(--fw-black, 900); font-size: clamp(16px, 5.4cqw, 44px); color: var(--text-3); opacity: 0.6; }
+.bank-mid__hint { margin: 0; font-size: clamp(10px, 2.6cqw, 18px); color: var(--text-2); text-align: center; }
+.bank-mid__note { display: flex; flex-direction: column; align-items: center; gap: 1cqw; text-align: center; color: var(--text); }
+.bank-mid__note b { font-size: clamp(13px, 3.8cqw, 28px); font-family: var(--font-display); }
+.bank-mid__note span { font-size: clamp(10px, 2.8cqw, 20px); color: var(--text-2); }
+
+.bank-deed {
+  width: min(100%, 74cqw);
+  border-radius: 2.4cqw;
+  overflow: hidden;
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border), 0 3px 10px rgba(60, 40, 20, 0.12);
+  font-size: clamp(10px, 2.9cqw, 19px);
+}
+.bank-deed__head { display: flex; align-items: center; justify-content: space-between; gap: 1cqw; padding: 1.6cqw 2.4cqw; }
+.bank-deed__name { font-family: var(--font-display); font-weight: 800; font-size: 1.3em; line-height: 1.1; }
+.bank-deed__price { font-weight: 800; background: rgba(255, 255, 255, 0.4); border-radius: 99px; padding: 0.2em 0.6em; }
+.bank-deed__body { padding: 1.4cqw 2.4cqw 1.8cqw; display: flex; flex-direction: column; gap: 0.4cqw; }
+.bank-deed__row { display: flex; justify-content: space-between; color: var(--text-2); font-weight: 600; padding: 0.15em 0.4em; border-radius: 6px; }
+.bank-deed__row b { color: var(--text); }
+.bank-deed__row.is-on { background: var(--accent-soft); color: var(--accent-ink); }
+.bank-deed__row.is-on b { color: var(--accent-ink); }
+.bank-deed__note, .bank-deed__owner { margin: 0.4em 0 0; font-size: 0.85em; color: var(--text-2); display: flex; align-items: center; gap: 0.4em; }
+.bank-dot { width: 0.75em; height: 0.75em; border-radius: 50%; flex: none; }
+.bank-card {
+  width: min(100%, 70cqw);
+  border-radius: 2.4cqw;
+  overflow: hidden;
+  background: var(--surface-solid);
+  box-shadow: 0 0 0 1px var(--border), 0 3px 10px rgba(60, 40, 20, 0.12);
+  font-size: clamp(11px, 3.1cqw, 21px);
+}
+.bank-card__head { display: flex; align-items: center; gap: 0.5em; padding: 1.4cqw 2.4cqw; font-family: var(--font-display); font-weight: 800; color: #ffffff; }
+.bank-card--luck .bank-card__head { background: #d99a00; color: #1d1b26; }
+.bank-card--court .bank-card__head { background: #2a6f9e; }
+.bank-card__head .bank-ic { width: 1.3em; }
+.bank-card__text { margin: 0; padding: 2.2cqw 2.6cqw 2.6cqw; font-weight: 700; line-height: 1.45; color: var(--text); }
+
+/* --- the side: the players, the time, the bar, the panels -------------------------- */
+.bank-layout { display: flex; flex-direction: column; gap: var(--sp-3); }
+.bank-layout__side { display: contents; }
+.bank-layout__board { width: 100%; max-width: 36rem; margin-inline: auto; }
+.bank-layout__side > .bank-over { order: -3; }
+.bank-layout__side > .bank-top { order: -2; }
+.bank-top { display: flex; flex-direction: column; gap: var(--sp-2); }
+.bank-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.bank-strip--n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bank-strip--n4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bank-chip { min-width: 0; display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); }
+.bank-chip.is-turn { border-color: transparent; box-shadow: 0 0 0 2px var(--pc); }
+.bank-chip.is-out { opacity: 0.45; }
+.bank-chip.is-away { opacity: 0.6; }
+.bank-chip__tok { width: 1.7rem; height: 1.7rem; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--pc); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45); font-size: 0.95rem; }
+.bank-chip__who { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bank-chip__name { font-size: 0.78rem; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bank-chip__name small { font-size: 0.7rem; }
+.bank-chip__cash { font-size: 0.78rem; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.bank-chip__cash b { color: var(--text); font-weight: 800; }
+.bank-time { display: flex; justify-content: center; gap: var(--sp-2); }
+
+.bank-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: 20px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  box-shadow: 0 -2px 14px rgba(40, 30, 20, 0.06);
+}
+.bank-bar.is-mine { border-color: transparent; box-shadow: 0 0 0 2px var(--accent), 0 6px 18px rgba(40, 30, 20, 0.1); }
+.bank-bar__txt { flex: 1 1 10rem; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bank-bar__t1 { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.1rem; line-height: 1.25; }
+.bank-bar__tok { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center; background: var(--pc); font-size: 0.9rem; flex: none; }
+.bank-bar__t2 { font-size: 0.8rem; font-weight: 500; color: var(--text-2); }
+.bank-bar__btns { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.bank-bar__tools { flex-basis: 100%; display: flex; gap: var(--sp-2); }
+.bank-bar__tools .is-on { background: var(--accent-soft); color: var(--accent-ink); }
+
+.bank-offer { font-size: 0.85rem; font-weight: 600; color: var(--text-2); text-align: center; }
+.bank-offer.card { display: flex; flex-direction: column; gap: var(--sp-2); text-align: start; color: var(--text); }
+.bank-offer__title { margin: 0; font-weight: 800; }
+.bank-offer__sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.bank-offer__sides div { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2); border-radius: 12px; background: var(--surface-2); }
+.bank-offer__sides span { font-size: 0.75rem; color: var(--text-2); }
+.bank-offer__sides b { font-size: 0.85rem; }
+.bank-offer--mine { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); }
+
+.bank-panel { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); border-radius: 18px; background: var(--surface); border: 1px solid var(--border); }
+.bank-panel__title { margin: 0; font-weight: 800; }
+.bank-mrow { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 0; border-top: 1px solid var(--hairline); }
+.bank-mrow__band { width: 6px; align-self: stretch; border-radius: 3px; flex: none; }
+.bank-mrow__name { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; padding: 0; border: 0; background: none; color: var(--text); font: 700 0.88rem/1.25 var(--font); text-align: start; }
+.bank-mrow__name small { font-weight: 500; font-size: 0.72rem; color: var(--text-2); }
+.bank-mrow.is-mort .bank-mrow__name { opacity: 0.7; }
+.bank-mrow__acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.bank-tto { justify-content: flex-start; }
+.bank-tcols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.bank-tcol { min-width: 0; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2); border-radius: 12px; background: var(--surface-2); }
+.bank-tcol__title { margin: 0; font-size: 0.8rem; font-weight: 800; color: var(--text-2); }
+.bank-tchips { display: flex; flex-wrap: wrap; gap: 4px; }
+.bank-tchip { min-height: 2rem; padding: 2px 8px; border-radius: 10px; border: 1.5px solid var(--gc, var(--border)); background: var(--surface-solid); color: var(--text); font: 700 0.75rem/1.2 var(--font); }
+.bank-tchip.is-on { background: var(--gc, var(--accent)); color: #ffffff; }
+.bank-tchip.is-mort { border-style: dashed; }
+.bank-tcash { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-2); }
+.bank-tcash input { width: 100%; min-width: 0; height: 2.25rem; padding: 0 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--text); font: 700 0.9rem var(--font); }
+
+.bank-log { display: flex; flex-direction: column; gap: 4px; }
+.bank-log__line { font-size: 0.8rem; font-weight: 500; color: var(--text-2); line-height: 1.4; }
+.bank-log__line.is-latest { color: var(--text); font-weight: 600; }
+.bank-over { display: flex; flex-direction: column; gap: var(--sp-3); }
+.bank-over__title { margin: 0; text-align: center; font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.2rem; }
+.bank-over .podium { margin: 0; }
+
+/* --- the setup screen and the room's lobby --------------------------------------- */
+.bank-tokpicks { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--sp-2); }
+.bank-tokpick { width: 100%; max-width: 3rem; aspect-ratio: 1; justify-self: center; padding: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-solid); font-size: 1.4rem; display: grid; place-items: center; cursor: pointer; }
+.bank-tokpick.is-active { box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 5.5px var(--accent); }
+.bank-picks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.bank-pick { min-width: 0; min-height: 3.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--text); cursor: pointer; }
+.bank-pick:disabled { cursor: default; }
+.bank-pick.is-taken:not(.is-mine) { opacity: 0.55; }
+.bank-pick.is-mine { border-color: transparent; box-shadow: 0 0 0 2.5px var(--accent); }
+.bank-pick__icon { font-size: 1.4rem; line-height: 1; }
+.bank-pick__who { max-width: 100%; font-size: 0.72rem; font-weight: 700; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --- a phone on its side, and every wide screen: the board takes the height --- */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .bank-layout { display: grid; grid-template-columns: auto minmax(14rem, 23rem); justify-content: center; align-items: start; gap: var(--sp-4); }
+  .bank-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  .bank-layout__board {
+    position: sticky;
+    top: 0;
+    width: min(calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem), 58vw);
+    max-width: none;
+    margin: 0;
+  }
+  .bank-strip, .bank-strip--n2, .bank-strip--n4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bank-bar { position: static; }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-bank, .shell__main > #view-room-bank { max-width: 76rem; }
+  .bank-layout { gap: var(--sp-6); grid-template-columns: auto minmax(16rem, 25rem); }
+  .bank-layout__board { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 2.5rem), 62vw); }
+}
+
+/* --- the TV ------------------------------------------------------------------------- */
+.bank--tv { height: 100%; min-height: 0; display: flex; }
+.bank--tv .bank-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 30rem); justify-content: center; align-items: center; gap: calc(var(--tv-gap) * 2.5); }
+.bank--tv .bank-layout__side { display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); min-width: 0; }
+.bank--tv .bank-layout__board { position: static; width: min(calc(var(--app-h, 100vh) - 17vmin), 60vw); max-width: none; margin: 0; }
+.bank--tv .bank-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tv-gap); }
+.bank--tv .bank-chip { padding: 1vmin 1.4vmin; border-radius: var(--tv-r); gap: 1.2vmin; }
+.bank--tv .bank-chip__tok { width: 4.6vmin; height: 4.6vmin; font-size: var(--tv-sm); }
+.bank--tv .bank-chip__name { font-size: var(--tv-sm); }
+.bank--tv .bank-chip__cash { font-size: var(--tv-sm); }
+.bank--tv .bank-bar { position: static; padding: 1.4vmin 1.8vmin; border-radius: var(--tv-r); }
+.bank--tv .bank-bar__t1 { font-size: var(--tv-md); }
+.bank--tv .bank-bar__t2, .bank--tv .bank-log__line, .bank--tv .bank-offer { font-size: var(--tv-sm); }
+.bank--tv .bank-over__title { font-size: var(--tv-md); }
+@media (orientation: portrait) {
+  .bank--tv { height: auto; }
+  .bank--tv .bank-layout { grid-template-columns: minmax(0, 1fr); }
+  .bank--tv .bank-layout__board { width: min(100%, 62vh); justify-self: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bank-die .die { transition: none; }
+  .bank-die.is-rolling .die { animation: none; }
+}
+
 </style>
 
     
@@ -16030,6 +16351,1107 @@ const ludoOnlyMove = (g, pid) => {
 };
 
 </script>
+    <script>
+/* ============================================================================
+   بنك الحظ — the board, the cards, the rules and the computer players
+   ----------------------------------------------------------------------------
+   One copy for both sides: the page inlines this file (SHARED_LISTS in
+   tools/build-*.mjs) for a game against the phone and to draw the board, and
+   the rooms server bundles it (FILES in rooms-worker/build.mjs) to judge a
+   room. No DOM, nothing that runs at load, every name prefixed bank / BANK_.
+
+   The owner's rules (21 Sep 2026, asked one at a time, then checked against
+   another AI's rulebook):
+     - The classic 40 squares with Egyptian cities: 1,500 each to start, 200
+       for passing Start (400 for landing on it exactly, a lobby switch, off).
+     - 2 to 6 players. A place nobody buys stays with the bank - no auction.
+     - Buildings are the Egyptian box's جراج ← استراحة ← سوق on a whole colour,
+       built evenly, no limit: rent is the base, twice that for a whole colour,
+       then the classic 1 house, 3 houses and hotel rents. A step costs the
+       colour's price once, then twice, then twice; sold back for half.
+     - Mortgage for half the price, no rent while mortgaged, back for +10%.
+     - Jail: pay 50, use a card, or roll a double (three tries; after the
+       third miss pay 50 and move). Rent is still collected in jail. Three
+       doubles in a row go to jail; a double otherwise rolls again.
+     - The free-parking corner is الأتوبيس السريع: move again by the same
+       number. The free-parking pot is a lobby switch, off: taxes and fines
+       go to the middle and the bus takes them.
+     - The two decks, حظ and محاكمة, sixteen cards each, shuffled once, drawn
+       from the top and put back at the bottom; a get-out-of-jail card is kept
+       (it can be traded) and goes back to its own deck when used.
+     - Trading on your own turn: an offer of places, money and jail cards,
+       which the other accepts or refuses. Places with buildings on their
+       colour can't be traded.
+     - Short of money: raise it (sell buildings, mortgage) or go bankrupt.
+       Bankrupt to a player: they get the cash and the places (the buildings
+       sold to the bank first; mortgaged places stay mortgaged). To the bank:
+       the places go back, free to buy. Paying every player at once (عزومة)
+       and going bankrupt goes to the bank.
+     - The game ends when one is left, or when the time is up: the lap is
+       finished, so everyone has had the same turns, and the richest wins -
+       cash, the places (half if mortgaged) and what the buildings cost.
+
+   The game is two objects. `g` is shaped like a room's `shared` - everything
+   on the table, which every phone may see. `priv` holds what nobody may see:
+   the order of the two decks. Every change is an event (`g.events`, the last
+   BANK_EVENTS), which the screens animate. Money moves are in whole جنيه.
+   ========================================================================= */
+
+const BANK_START_CASH = 1500;
+const BANK_PASS = 200;
+const BANK_GO_EXACT = 400;
+const BANK_JAIL_FINE = 50;
+const BANK_JAIL = 10;
+const BANK_BUS = 20;
+const BANK_TOJAIL = 30;
+const BANK_MIN_PLAYERS = 2;
+const BANK_MAX_PLAYERS = 6;
+const BANK_LENGTHS = [0, 30, 45, 60];     // minutes; 0: until one is left
+const BANK_LENGTH_DEFAULT = 45;
+const BANK_CLOCKS = [0, 60, 90];
+const BANK_EVENTS = 40;
+const BANK_TOKENS = ['car', 'camel', 'boat', 'plane', 'scooter', 'hat'];
+const BANK_STATIONS = [5, 15, 25, 35];
+const BANK_COMPANIES = [12, 28];
+
+/** Each colour and what one step of building on it costs. */
+const BANK_GROUPS = {
+  br: { house: 50 }, lb: { house: 50 }, pk: { house: 100 }, or: { house: 100 },
+  rd: { house: 150 }, ye: { house: 150 }, gr: { house: 200 }, db: { house: 200 }
+};
+const BANK_GROUP_ORDER = ['br', 'lb', 'pk', 'or', 'rd', 'ye', 'gr', 'db'];
+
+/**
+ * The 40 squares from Start, going round. A place (`p`) has its colour, price
+ * and rents: [base, جراج, استراحة, سوق]. Names are [Arabic, English].
+ */
+const BANK_SQUARES = [
+  { t: 'go', n: ['البداية', 'Start'] },
+  { t: 'p', g: 'br', n: ['الفيوم', 'Fayoum'], price: 60, rent: [2, 10, 90, 250] },
+  { t: 'court', n: ['محاكمة', 'Court'] },
+  { t: 'p', g: 'br', n: ['بني سويف', 'Beni Suef'], price: 60, rent: [4, 20, 180, 450] },
+  { t: 'tax', n: ['الضرايب', 'Taxes'], amount: 200 },
+  { t: 'st', n: ['محطة رمسيس', 'Ramses Station'], price: 200, icon: 'train' },
+  { t: 'p', g: 'lb', n: ['المنيا', 'Minya'], price: 100, rent: [6, 30, 270, 550] },
+  { t: 'luck', n: ['حظ', 'Luck'] },
+  { t: 'p', g: 'lb', n: ['أسيوط', 'Assiut'], price: 100, rent: [6, 30, 270, 550] },
+  { t: 'p', g: 'lb', n: ['سوهاج', 'Sohag'], price: 120, rent: [8, 40, 300, 600] },
+  { t: 'jail', n: ['السجن', 'Jail'] },
+  { t: 'p', g: 'pk', n: ['الزقازيق', 'Zagazig'], price: 140, rent: [10, 50, 450, 750] },
+  { t: 'co', n: ['الكهرباء', 'Electricity'], price: 150, icon: 'power' },
+  { t: 'p', g: 'pk', n: ['المنصورة', 'Mansoura'], price: 140, rent: [10, 50, 450, 750] },
+  { t: 'p', g: 'pk', n: ['طنطا', 'Tanta'], price: 160, rent: [12, 60, 500, 900] },
+  { t: 'st', n: ['محطة سيدي جابر', 'Sidi Gaber Station'], price: 200, icon: 'train' },
+  { t: 'p', g: 'or', n: ['السويس', 'Suez'], price: 180, rent: [14, 70, 550, 950] },
+  { t: 'court', n: ['محاكمة', 'Court'] },
+  { t: 'p', g: 'or', n: ['الإسماعيلية', 'Ismailia'], price: 180, rent: [14, 70, 550, 950] },
+  { t: 'p', g: 'or', n: ['بورسعيد', 'Port Said'], price: 200, rent: [16, 80, 600, 1000] },
+  { t: 'bus', n: ['الأتوبيس السريع', 'Express Bus'] },
+  { t: 'p', g: 'rd', n: ['قنا', 'Qena'], price: 220, rent: [18, 90, 700, 1050] },
+  { t: 'luck', n: ['حظ', 'Luck'] },
+  { t: 'p', g: 'rd', n: ['الأقصر', 'Luxor'], price: 220, rent: [18, 90, 700, 1050] },
+  { t: 'p', g: 'rd', n: ['أسوان', 'Aswan'], price: 240, rent: [20, 100, 750, 1100] },
+  { t: 'st', n: ['ميناء دمياط', 'Damietta Port'], price: 200, icon: 'ship' },
+  { t: 'p', g: 'ye', n: ['مرسى مطروح', 'Marsa Matrouh'], price: 260, rent: [22, 110, 800, 1150] },
+  { t: 'p', g: 'ye', n: ['العلمين', 'El Alamein'], price: 260, rent: [22, 110, 800, 1150] },
+  { t: 'co', n: ['المياه', 'Water'], price: 150, icon: 'water' },
+  { t: 'p', g: 'ye', n: ['الإسكندرية', 'Alexandria'], price: 280, rent: [24, 120, 850, 1200] },
+  { t: 'tojail', n: ['روح السجن', 'Go to Jail'] },
+  { t: 'p', g: 'gr', n: ['دهب', 'Dahab'], price: 300, rent: [26, 130, 900, 1275] },
+  { t: 'p', g: 'gr', n: ['الغردقة', 'Hurghada'], price: 300, rent: [26, 130, 900, 1275] },
+  { t: 'court', n: ['محاكمة', 'Court'] },
+  { t: 'p', g: 'gr', n: ['شرم الشيخ', 'Sharm El Sheikh'], price: 320, rent: [28, 150, 1000, 1400] },
+  { t: 'st', n: ['مطار القاهرة', 'Cairo Airport'], price: 200, icon: 'plane' },
+  { t: 'luck', n: ['حظ', 'Luck'] },
+  { t: 'p', g: 'db', n: ['الجيزة', 'Giza'], price: 350, rent: [35, 175, 1100, 1500] },
+  { t: 'tax', n: ['رسوم', 'Fees'], amount: 100 },
+  { t: 'p', g: 'db', n: ['القاهرة', 'Cairo'], price: 400, rent: [50, 200, 1400, 2000] }
+];
+
+/**
+ * The two decks. `go` moves forward to a square, `near` to the next station
+ * or company ahead, `back` back that many squares, `jail` to jail, `free` is
+ * a get-out-of-jail card, `cash` from or to the bank, `repair` [per جراج or
+ * استراحة, per سوق], `each` from or to every other player.
+ */
+const BANK_CARDS = {
+  luck: [
+    { go: 0, ar: 'اتقدّم لنقطة البداية وخد ٢٠٠', en: 'Advance to Start and collect 200' },
+    { go: 39, ar: 'روح القاهرة', en: 'Go to Cairo' },
+    { go: 29, ar: 'روح الإسكندرية، ولو عدّيت على البداية خد ٢٠٠', en: 'Go to Alexandria; if you pass Start, collect 200' },
+    { go: 23, ar: 'روح الأقصر، ولو عدّيت على البداية خد ٢٠٠', en: 'Go to Luxor; if you pass Start, collect 200' },
+    { go: 5, ar: 'روح محطة رمسيس، ولو عدّيت على البداية خد ٢٠٠', en: 'Go to Ramses Station; if you pass Start, collect 200' },
+    { near: 'st', ar: 'روح لأقرب محطة، ولو ليها صاحب ادفعله الإيجار مرتين', en: 'Go to the next station; if someone owns it, pay them twice the rent' },
+    { near: 'co', ar: 'روح لأقرب شركة، ولو ليها صاحب ارمي النرد وادفعله ١٠ أضعاف الرقم', en: 'Go to the next company; if someone owns it, roll and pay them 10 times the dice' },
+    { go: 20, ar: 'اركب الأتوبيس السريع: روح خانته', en: 'Take the Express Bus: go to its square' },
+    { back: 3, ar: 'ارجع ٣ خانات', en: 'Go back 3 squares' },
+    { jail: 1, ar: 'روح السجن على طول، ومن غير ما تعدّي على البداية', en: 'Go straight to jail, without passing Start' },
+    { free: 1, ar: 'كارت خروج من السجن: احتفظ بيه أو بيعه', en: 'Get out of jail free: keep it or sell it' },
+    { cash: 50, ar: 'البنك صرفلك أرباح: خد ٥٠', en: 'The bank pays you a dividend: collect 50' },
+    { cash: 150, ar: 'قسط الشقة خلص: خد ١٥٠', en: 'Your flat is paid off: collect 150' },
+    { cash: -15, ar: 'مخالفة سرعة: ادفع ١٥', en: 'Speeding fine: pay 15' },
+    { repair: [25, 100], ar: 'صيانة: ادفع ٢٥ عن كل جراج أو استراحة، و١٠٠ عن كل سوق', en: 'Upkeep: pay 25 for each garage or rest stop, 100 for each market' },
+    { each: -50, ar: 'عزومة على حسابك: ادفع لكل لاعب ٥٠', en: 'Dinner is on you: pay every player 50' }
+  ],
+  court: [
+    { go: 0, ar: 'اتقدّم لنقطة البداية وخد ٢٠٠', en: 'Advance to Start and collect 200' },
+    { cash: 200, ar: 'غلطة في حساب البنك لصالحك: خد ٢٠٠', en: 'Bank error in your favour: collect 200' },
+    { cash: -50, ar: 'كشف عند الدكتور: ادفع ٥٠', en: "Doctor's visit: pay 50" },
+    { cash: 50, ar: 'بعت حاجة قديمة: خد ٥٠', en: 'You sold something old: collect 50' },
+    { free: 1, ar: 'كارت خروج من السجن: احتفظ بيه أو بيعه', en: 'Get out of jail free: keep it or sell it' },
+    { jail: 1, ar: 'روح السجن على طول، ومن غير ما تعدّي على البداية', en: 'Go straight to jail, without passing Start' },
+    { each: 10, ar: 'عيد ميلادك: كل لاعب يديك ١٠', en: "It's your birthday: every player gives you 10" },
+    { cash: 100, ar: 'عيدية: خد ١٠٠', en: 'Eid money: collect 100' },
+    { cash: 20, ar: 'استرداد ضرايب: خد ٢٠', en: 'Tax refund: collect 20' },
+    { cash: 100, ar: 'التأمين صرفلك: خد ١٠٠', en: 'The insurance pays out: collect 100' },
+    { cash: -100, ar: 'مصاريف مستشفى: ادفع ١٠٠', en: 'Hospital bills: pay 100' },
+    { cash: -50, ar: 'مصاريف المدرسة: ادفع ٥٠', en: 'School fees: pay 50' },
+    { cash: 25, ar: 'أتعاب شغل: خد ٢٥', en: 'Consulting fee: collect 25' },
+    { repair: [40, 115], ar: 'تصليح الشارع: ادفع ٤٠ عن كل جراج أو استراحة، و١١٥ عن كل سوق', en: 'Street repairs: pay 40 for each garage or rest stop, 115 for each market' },
+    { cash: 10, ar: 'كسبت المركز التاني في مسابقة: خد ١٠', en: 'Second prize in a contest: collect 10' },
+    { cash: 100, ar: 'ورثت من قريب: خد ١٠٠', en: 'You inherit from a relative: collect 100' }
+  ]
+};
+
+/* --- small pieces ------------------------------------------------------------------- */
+
+const bankSq = (i) => BANK_SQUARES[i];
+const bankIsOwnable = (i) => { const t = BANK_SQUARES[i].t; return t === 'p' || t === 'st' || t === 'co'; };
+const bankGroupSquares = (grp) => BANK_SQUARES.map((q, i) => (q.g === grp ? i : -1)).filter(i => i !== -1);
+const bankOwnerOf = (g, i) => ((g.own || {})[i] || {}).by || null;
+const bankLevel = (g, i) => ((g.own || {})[i] || {}).lvl || 0;
+const bankActive = (g) => g.seats.filter(pid => g.out.indexOf(pid) === -1);
+const bankRoll6 = (rnd) => 1 + Math.floor((rnd || Math.random)() * 6);
+
+/** What the next step of building costs: the colour's price once, then twice, then twice. */
+const bankStepCost = (grp, lvl) => BANK_GROUPS[grp].house * (lvl <= 1 ? 1 : 2);
+/** What everything built on a place cost. */
+const bankBuiltCost = (grp, lvl) => { let c = 0; for (let k = 1; k <= lvl; k++) c += bankStepCost(grp, k); return c; };
+const bankMortgageValue = (i) => Math.floor(BANK_SQUARES[i].price / 2);
+const bankUnmortgageCost = (i) => Math.ceil(BANK_SQUARES[i].price / 2 * 1.1);
+
+/** Whether `pid` owns every place of a colour. */
+const bankHasSet = (g, pid, grp) => bankGroupSquares(grp).every(i => bankOwnerOf(g, i) === pid);
+const bankGroupBuilt = (g, grp) => bankGroupSquares(grp).some(i => bankLevel(g, i) > 0);
+
+/** The places a player owns. */
+const bankPlacesOf = (g, pid) => Object.keys(g.own || {}).map(Number).filter(i => g.own[i].by === pid).sort((a, b) => a - b);
+
+/**
+ * The rent on a square for someone landing there. `dice` is the roll (for a
+ * company); `mul` doubles a station (the card), `coMul` sets a company's
+ * multiplier (the card's 10).
+ */
+const bankRentOf = (g, i, dice, mul, coMul) => {
+  const q = BANK_SQUARES[i];
+  const o = (g.own || {})[i];
+  if (!o || o.mort) return 0;
+  if (q.t === 'p') {
+    const lvl = o.lvl || 0;
+    if (lvl > 0) return q.rent[lvl];
+    return q.rent[0] * (bankHasSet(g, o.by, q.g) ? 2 : 1);
+  }
+  if (q.t === 'st') {
+    const n = BANK_STATIONS.filter(k => bankOwnerOf(g, k) === o.by).length;
+    return [0, 25, 50, 100, 200][n] * (mul || 1);
+  }
+  if (q.t === 'co') {
+    const both = BANK_COMPANIES.every(k => bankOwnerOf(g, k) === o.by);
+    return (dice || 0) * (coMul || (both ? 10 : 4));
+  }
+  return 0;
+};
+
+/** What a player is worth: cash, the places (half if mortgaged) and what the buildings cost. */
+const bankWorth = (g, pid) => {
+  let w = g.cash[pid] || 0;
+  bankPlacesOf(g, pid).forEach(i => {
+    const o = g.own[i];
+    const q = BANK_SQUARES[i];
+    w += o.mort ? Math.floor(q.price / 2) : q.price;
+    if (q.t === 'p') w += bankBuiltCost(q.g, o.lvl || 0);
+  });
+  return w;
+};
+
+/** How much a player could raise: cash, the buildings sold back, and every place mortgaged. */
+const bankLiquid = (g, pid) => {
+  let w = g.cash[pid] || 0;
+  bankPlacesOf(g, pid).forEach(i => {
+    const o = g.own[i];
+    const q = BANK_SQUARES[i];
+    if (q.t === 'p' && o.lvl) w += Math.floor(bankBuiltCost(q.g, o.lvl) / 2);
+    if (!o.mort) w += bankMortgageValue(i);
+  });
+  return w;
+};
+
+const bankEvent = (g, type, fields) => {
+  const clean = {};
+  Object.keys(fields || {}).forEach(k => { if (fields[k] !== undefined && fields[k] !== null) clean[k] = fields[k]; });
+  g.eventSeq = (g.eventSeq || 0) + 1;
+  g.events = (g.events || []).concat([Object.assign({ seq: g.eventSeq, type: type }, clean)]).slice(-BANK_EVENTS);
+};
+
+const bankShuffle = (arr, rnd) => {
+  const a = arr.slice();
+  const r = rnd || Math.random;
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+};
+
+/* --- a new game -------------------------------------------------------------------------- */
+
+/**
+ * The tokens for the players who didn't pick one: the first free ones, in
+ * the order of BANK_TOKENS.
+ */
+const bankFillTokens = (ids, picked) => {
+  const out = {};
+  const taken = [];
+  ids.forEach(id => {
+    const t = picked && picked[id];
+    if (BANK_TOKENS.indexOf(t) !== -1 && taken.indexOf(t) === -1) { out[id] = t; taken.push(t); }
+  });
+  ids.forEach(id => {
+    if (out[id]) return;
+    const t = BANK_TOKENS.find(x => taken.indexOf(x) === -1);
+    out[id] = t;
+    taken.push(t);
+  });
+  return out;
+};
+
+/**
+ * Who starts: everyone rolls the two dice, the highest starts, and those
+ * level on top roll again. { first, rounds: [[{ pid, d: [a, b] }...]...] }.
+ */
+const bankRollOff = (ids, rnd) => {
+  let left = ids.slice();
+  const rounds = [];
+  for (let k = 0; k < 20 && left.length > 1; k++) {
+    const round = left.map(pid => ({ pid: pid, d: [bankRoll6(rnd), bankRoll6(rnd)] }));
+    rounds.push(round);
+    const top = Math.max.apply(null, round.map(r => r.d[0] + r.d[1]));
+    left = round.filter(r => r.d[0] + r.d[1] === top).map(r => r.pid);
+  }
+  return { first: left[0], rounds: rounds };
+};
+
+/**
+ * A new game. `settings`: { length (minutes, 0 = until one is left), pot,
+ * go400 }. Returns { g, priv }.
+ */
+const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
+  const seats = ids.slice();
+  const cash = {};
+  const pos = {};
+  const cards = {};
+  seats.forEach(id => { cash[id] = BANK_START_CASH; pos[id] = 0; cards[id] = []; });
+  const set = settings || {};
+  const length = BANK_LENGTHS.indexOf(Number(set.length)) !== -1 ? Number(set.length) : BANK_LENGTH_DEFAULT;
+  const g = {
+    seats: seats,
+    tokens: tokens,
+    cash: cash,
+    pos: pos,
+    jail: {},
+    cards: cards,
+    own: {},
+    turn: { pid: seats.indexOf(first) !== -1 ? first : seats[0], stage: 'roll', dice: null, dbl: 0, again: false, total: 0 },
+    pot: 0,
+    settings: { length: length, pot: !!set.pot, go400: !!set.go400 },
+    out: [],
+    phase: 'play',
+    places: null,
+    worth: null,
+    startedAt: now || 0,
+    endsAt: length ? (now || 0) + length * 60000 : null,
+    firstPid: seats.indexOf(first) !== -1 ? first : seats[0],
+    lastLap: false,
+    offer: null,
+    debt: null,
+    landed: null,
+    turnNo: 1,
+    turnSeq: 1,
+    events: [],
+    eventSeq: 0
+  };
+  const idx = (n) => { const a = []; for (let k = 0; k < n; k++) a.push(k); return a; };
+  const priv = { decks: { luck: bankShuffle(idx(BANK_CARDS.luck.length), rnd), court: bankShuffle(idx(BANK_CARDS.court.length), rnd) } };
+  return { g: g, priv: priv };
+};
+
+/* --- money ---------------------------------------------------------------------------- */
+
+/** Money paid to the bank: into the pot when the table plays with one. */
+const bankToBank = (g, amount, fine) => {
+  if (fine && g.settings.pot) g.pot = (g.pot || 0) + amount;
+};
+
+/**
+ * `pid` owes `amount` to `to` (a player, 'bank', or 'each' - every other
+ * player an equal part). Paid at once when the cash is there; otherwise the
+ * turn waits on a debt (stage 'debt') and `then` runs once it is paid.
+ * Returns true when it was paid now.
+ */
+const bankCharge = (g, pid, amount, to, fine, then) => {
+  if (amount <= 0) return true;
+  if ((g.cash[pid] || 0) >= amount) {
+    bankPayNow(g, pid, amount, to, fine);
+    return true;
+  }
+  g.debt = { pid: pid, amount: amount, to: to, fine: !!fine, then: then || { kind: 'after' } };
+  g.turn.stage = 'debt';
+  g.turnSeq = (g.turnSeq || 0) + 1;
+  bankEvent(g, 'debt', { pid: pid, amount: amount, to: to });
+  return false;
+};
+
+const bankPayNow = (g, pid, amount, to, fine) => {
+  g.cash[pid] -= amount;
+  if (to === 'bank') bankToBank(g, amount, fine);
+  else if (to === 'each') {
+    const others = bankActive(g).filter(x => x !== pid);
+    const part = others.length ? Math.floor(amount / others.length) : 0;
+    others.forEach(x => { g.cash[x] += part; });
+  } else if (to && g.cash[to] !== undefined) g.cash[to] += amount;
+};
+
+/* --- moving ------------------------------------------------------------------------------- */
+
+/** Money for going past (or landing on) Start. */
+const bankPassStart = (g, pid, exact) => {
+  const amount = exact && g.settings.go400 ? BANK_GO_EXACT : BANK_PASS;
+  g.cash[pid] += amount;
+  bankEvent(g, 'start', { pid: pid, amount: amount });
+};
+
+/** Moves `pid` forward to square `to` (passing Start pays), then what the square does. */
+const bankMoveTo = (g, priv, pid, to, how, rnd, opts) => {
+  const from = g.pos[pid];
+  g.pos[pid] = to;
+  bankEvent(g, 'move', { pid: pid, from: from, to: to, how: how });
+  if (to < from || (to === 0 && from !== 0)) bankPassStart(g, pid, to === 0);
+  bankLand(g, priv, pid, rnd, opts || {});
+};
+
+/** To jail: no Start, no more rolls this turn. */
+const bankToJail = (g, pid, why) => {
+  const from = g.pos[pid];
+  g.pos[pid] = BANK_JAIL;
+  g.jail[pid] = 0;
+  g.turn.again = false;
+  g.turn.dbl = 0;
+  bankEvent(g, 'jail', { pid: pid, why: why, from: from });
+};
+
+/** What landing on a square does. Leaves the turn at 'buy', 'debt', or carried on (bankAfter). */
+const bankLand = (g, priv, pid, rnd, opts) => {
+  const at = g.pos[pid];
+  const q = BANK_SQUARES[at];
+  g.landed = { pid: pid, sq: at };
+  if (q.t === 'p' || q.t === 'st' || q.t === 'co') {
+    const owner = bankOwnerOf(g, at);
+    if (!owner) {
+      g.turn.stage = 'buy';
+      g.turnSeq = (g.turnSeq || 0) + 1;
+      return;
+    }
+    if (owner !== pid && !g.own[at].mort) {
+      let dice = g.turn.total || 0;
+      let coMul = null;
+      if (q.t === 'co' && opts.coMul) {
+        const d = [bankRoll6(rnd), bankRoll6(rnd)];
+        dice = d[0] + d[1];
+        coMul = opts.coMul;
+        bankEvent(g, 'roll', { pid: pid, d: d, forRent: 1 });
+      }
+      const rent = bankRentOf(g, at, dice, opts.mul, coMul);
+      bankEvent(g, 'rent', { pid: pid, to: owner, sq: at, amount: rent });
+      if (!bankCharge(g, pid, rent, owner, false)) return;
+    }
+    bankAfter(g);
+    return;
+  }
+  if (q.t === 'tax') {
+    bankEvent(g, 'tax', { pid: pid, sq: at, amount: q.amount });
+    if (!bankCharge(g, pid, q.amount, 'bank', true)) return;
+    bankAfter(g);
+    return;
+  }
+  if (q.t === 'luck' || q.t === 'court') {
+    bankDraw(g, priv, pid, q.t, rnd);
+    return;
+  }
+  if (q.t === 'tojail') {
+    bankToJail(g, pid, 'square');
+    bankAfter(g);
+    return;
+  }
+  if (q.t === 'bus') {
+    if (g.settings.pot && g.pot > 0) {
+      g.cash[pid] += g.pot;
+      bankEvent(g, 'pot', { pid: pid, amount: g.pot });
+      g.pot = 0;
+    }
+    const n = g.turn.total || 0;
+    if (n > 0 && !opts.fromBus) {
+      bankEvent(g, 'bus', { pid: pid, n: n });
+      bankMoveTo(g, priv, pid, (BANK_BUS + n) % 40, 'bus', rnd, { fromBus: true });
+      return;
+    }
+    bankAfter(g);
+    return;
+  }
+  // Start, jail (visiting): nothing.
+  bankAfter(g);
+};
+
+/** A card from the top of a deck, put back at the bottom (a jail card is kept). */
+const bankDraw = (g, priv, pid, deck, rnd) => {
+  const list = priv.decks[deck];
+  const k = list.shift();
+  const c = BANK_CARDS[deck][k];
+  if (!c.free) list.push(k);
+  g.landed = { pid: pid, sq: g.pos[pid], deck: deck, card: k };
+  bankEvent(g, 'card', { pid: pid, deck: deck, card: k });
+  if (c.free) {
+    g.cards[pid] = (g.cards[pid] || []).concat([deck]);
+    bankAfter(g);
+    return;
+  }
+  if (c.jail) { bankToJail(g, pid, 'card'); bankAfter(g); return; }
+  if (c.go !== undefined) { bankMoveTo(g, priv, pid, c.go, 'card', rnd); return; }
+  if (c.near) {
+    const list2 = c.near === 'st' ? BANK_STATIONS : BANK_COMPANIES;
+    const here = g.pos[pid];
+    const to = list2.find(i => i > here);
+    bankMoveTo(g, priv, pid, to === undefined ? list2[0] : to, 'card', rnd, c.near === 'st' ? { mul: 2 } : { coMul: 10 });
+    return;
+  }
+  if (c.back) {
+    const from = g.pos[pid];
+    g.pos[pid] = (from - c.back + 40) % 40;
+    bankEvent(g, 'move', { pid: pid, from: from, to: g.pos[pid], how: 'back' });
+    bankLand(g, priv, pid, rnd, {});
+    return;
+  }
+  if (c.cash) {
+    if (c.cash > 0) { g.cash[pid] += c.cash; bankAfter(g); return; }
+    if (!bankCharge(g, pid, -c.cash, 'bank', true)) return;
+    bankAfter(g);
+    return;
+  }
+  if (c.repair) {
+    let total = 0;
+    bankPlacesOf(g, pid).forEach(i => {
+      const lvl = bankLevel(g, i);
+      if (lvl === 3) total += c.repair[1];
+      else if (lvl > 0) total += c.repair[0];
+    });
+    if (total) bankEvent(g, 'repair', { pid: pid, amount: total });
+    if (!bankCharge(g, pid, total, 'bank', true)) return;
+    bankAfter(g);
+    return;
+  }
+  if (c.each) {
+    const others = bankActive(g).filter(x => x !== pid);
+    if (c.each > 0) {
+      // Everyone gives: whoever is short raises it (sold back, mortgaged) or goes bankrupt to them.
+      others.forEach(o => {
+        if (g.out.indexOf(o) !== -1) return;
+        if ((g.cash[o] || 0) < c.each) bankRaise(g, o, c.each);
+        if ((g.cash[o] || 0) >= c.each) { g.cash[o] -= c.each; g.cash[pid] += c.each; }
+        else bankGoBankrupt(g, priv, o, pid);
+      });
+      if (g.phase !== 'play') return;
+      bankAfter(g);
+      return;
+    }
+    if (!bankCharge(g, pid, -c.each * others.length, 'each', false)) return;
+    bankAfter(g);
+  }
+};
+
+/**
+ * After a square has done what it does: another roll after a double, or the
+ * player's turn to build, trade and end. Leaves 'buy' and 'debt' alone.
+ */
+const bankAfter = (g) => {
+  if (g.phase !== 'play') return;
+  if (g.turn.stage === 'buy' || g.turn.stage === 'debt') return;
+  const again = g.turn.again && g.jail[g.turn.pid] === undefined;
+  g.turn.stage = again ? 'roll' : 'act';
+  g.turn.again = false;
+  g.turnSeq = (g.turnSeq || 0) + 1;
+};
+
+/* --- a turn --------------------------------------------------------------------------------- */
+
+const bankMustTurn = (g, pid, stages) => {
+  if (g.phase !== 'play') throw new Error('اللعبة خلصت');
+  if (g.turn.pid !== pid) throw new Error('مش دورك');
+  if (stages && stages.indexOf(g.turn.stage) === -1) throw new Error('مش وقتها');
+};
+
+/** `pid` rolls `d` = [a, b]. */
+const bankRoll = (g, priv, pid, d, rnd) => {
+  bankMustTurn(g, pid, ['roll']);
+  if (g.offer) g.offer = null;
+  const a = d[0];
+  const b = d[1];
+  const dbl = a === b;
+  g.turn.dice = [a, b];
+  g.turn.total = a + b;
+  bankEvent(g, 'roll', { pid: pid, d: [a, b], dbl: dbl ? 1 : undefined });
+  if (g.jail[pid] !== undefined) {
+    if (dbl) {
+      delete g.jail[pid];
+      bankEvent(g, 'free', { pid: pid, how: 'dbl' });
+      g.turn.again = false;
+      bankMoveTo(g, priv, pid, (g.pos[pid] + a + b) % 40, 'dice', rnd);
+      return;
+    }
+    g.jail[pid] += 1;
+    if (g.jail[pid] >= 3) {
+      // The third miss: pay and go.
+      bankEvent(g, 'free', { pid: pid, how: 'forced' });
+      const n = a + b;
+      if (!bankCharge(g, pid, BANK_JAIL_FINE, 'bank', true, { kind: 'jailMove', n: n })) return;
+      delete g.jail[pid];
+      bankMoveTo(g, priv, pid, (g.pos[pid] + n) % 40, 'dice', rnd);
+      return;
+    }
+    g.turn.again = false;
+    bankAfter(g);
+    return;
+  }
+  g.turn.dbl = dbl ? (g.turn.dbl || 0) + 1 : 0;
+  if (g.turn.dbl >= 3) {
+    bankToJail(g, pid, 'three');
+    bankAfter(g);
+    return;
+  }
+  g.turn.again = dbl;
+  bankMoveTo(g, priv, pid, (g.pos[pid] + a + b) % 40, 'dice', rnd);
+};
+
+/** Buys the place just landed on, or leaves it with the bank. */
+const bankBuy = (g, pid, yes) => {
+  bankMustTurn(g, pid, ['buy']);
+  const at = g.pos[pid];
+  const q = BANK_SQUARES[at];
+  if (yes) {
+    if ((g.cash[pid] || 0) < q.price) throw new Error('فلوسك مش مكفية');
+    g.cash[pid] -= q.price;
+    g.own[at] = { by: pid, lvl: 0, mort: false };
+    bankEvent(g, 'buy', { pid: pid, sq: at, price: q.price });
+  } else {
+    bankEvent(g, 'pass', { pid: pid, sq: at });
+  }
+  g.turn.stage = 'landed';
+  bankAfter(g);
+};
+
+/** Out of jail before rolling: 50, or a card. */
+const bankPayJail = (g, pid) => {
+  bankMustTurn(g, pid, ['roll']);
+  if (g.jail[pid] === undefined) throw new Error('انت مش في السجن');
+  if ((g.cash[pid] || 0) < BANK_JAIL_FINE) throw new Error('فلوسك مش مكفية');
+  g.cash[pid] -= BANK_JAIL_FINE;
+  bankToBank(g, BANK_JAIL_FINE, true);
+  delete g.jail[pid];
+  bankEvent(g, 'free', { pid: pid, how: 'pay' });
+  g.turnSeq = (g.turnSeq || 0) + 1;
+};
+
+const bankUseCard = (g, priv, pid) => {
+  bankMustTurn(g, pid, ['roll']);
+  if (g.jail[pid] === undefined) throw new Error('انت مش في السجن');
+  const held = g.cards[pid] || [];
+  if (!held.length) throw new Error('معاكش كارت');
+  const deck = held[0];
+  g.cards[pid] = held.slice(1);
+  const k = BANK_CARDS[deck].findIndex(c => c.free);
+  priv.decks[deck].push(k);
+  delete g.jail[pid];
+  bankEvent(g, 'free', { pid: pid, how: 'card', deck: deck });
+  g.turnSeq = (g.turnSeq || 0) + 1;
+};
+
+/** The debt is paid; what was waiting on it goes on. */
+const bankPayDebt = (g, priv, pid, rnd) => {
+  bankMustTurn(g, pid, ['debt']);
+  const d = g.debt;
+  if (!d || d.pid !== pid) throw new Error('مفيش دين');
+  if ((g.cash[pid] || 0) < d.amount) throw new Error('فلوسك لسه مش مكفية');
+  bankPayNow(g, pid, d.amount, d.to, d.fine);
+  bankEvent(g, 'paid', { pid: pid, amount: d.amount, to: d.to });
+  g.debt = null;
+  g.turn.stage = 'landed';
+  if (d.then && d.then.kind === 'jailMove') {
+    delete g.jail[pid];
+    bankMoveTo(g, priv, pid, (g.pos[pid] + d.then.n) % 40, 'dice', rnd);
+    return;
+  }
+  bankAfter(g);
+};
+
+/** The turn is over: the next player, or - time up and the lap done - the end. */
+const bankEndTurn = (g, pid, now) => {
+  bankMustTurn(g, pid, ['act']);
+  if (g.offer) { bankEvent(g, 'refuse', { from: g.offer.from, to: g.offer.to, why: 'turn' }); g.offer = null; }
+  bankNextTurn(g, now);
+};
+
+const bankLapStart = (g) => {
+  const at = g.seats.indexOf(g.firstPid);
+  for (let k = 0; k < g.seats.length; k++) {
+    const id = g.seats[(at + k) % g.seats.length];
+    if (g.out.indexOf(id) === -1) return id;
+  }
+  return null;
+};
+
+const bankNextTurn = (g, now) => {
+  if (g.phase !== 'play') return;
+  if (g.endsAt && (now || 0) >= g.endsAt && !g.lastLap) {
+    g.lastLap = true;
+    bankEvent(g, 'lastlap', {});
+  }
+  const at = g.seats.indexOf(g.turn.pid);
+  let next = null;
+  for (let k = 1; k <= g.seats.length; k++) {
+    const id = g.seats[(at + k + g.seats.length) % g.seats.length];
+    if (g.out.indexOf(id) === -1) { next = id; break; }
+  }
+  if (!next) return;
+  if (g.lastLap && next === bankLapStart(g)) { bankFinish(g, 'time'); return; }
+  g.turn = { pid: next, stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  g.debt = null;
+  g.landed = null;
+  g.turnNo = (g.turnNo || 0) + 1;
+  g.turnSeq = (g.turnSeq || 0) + 1;
+};
+
+/** The end: the richest first, then whoever went bankrupt last. */
+const bankFinish = (g, why) => {
+  const worth = {};
+  g.seats.forEach(id => { worth[id] = g.out.indexOf(id) === -1 ? bankWorth(g, id) : 0; });
+  const active = bankActive(g).slice().sort((a, b) => (worth[b] - worth[a]) || (g.seats.indexOf(a) - g.seats.indexOf(b)));
+  g.places = active.concat(g.out.slice().reverse());
+  g.worth = worth;
+  g.phase = 'gameover';
+  g.offer = null;
+  g.debt = null;
+  g.turn = { pid: null, stage: null, dice: null, dbl: 0, again: false, total: 0 };
+  g.turnSeq = (g.turnSeq || 0) + 1;
+  bankEvent(g, 'over', { why: why, places: g.places.slice() });
+};
+
+/* --- building, mortgages ---------------------------------------------------------------------- */
+
+const bankOwnPlace = (g, pid, i) => {
+  const sq = Math.floor(Number(i));
+  if (!bankIsOwnable(sq) || bankOwnerOf(g, sq) !== pid) throw new Error('المكان ده مش بتاعك');
+  return sq;
+};
+
+/** Whether `pid` may put the next step on place `i`: the whole colour, none mortgaged, evenly, and the money. */
+const bankCanBuild = (g, pid, i) => {
+  const q = BANK_SQUARES[i];
+  if (!q || q.t !== 'p' || bankOwnerOf(g, i) !== pid) return false;
+  if (!bankHasSet(g, pid, q.g)) return false;
+  const sqs = bankGroupSquares(q.g);
+  if (sqs.some(k => g.own[k].mort)) return false;
+  const lvl = bankLevel(g, i);
+  if (lvl >= 3) return false;
+  if (lvl > Math.min.apply(null, sqs.map(k => bankLevel(g, k)))) return false;
+  return (g.cash[pid] || 0) >= bankStepCost(q.g, lvl + 1);
+};
+
+/** Whether the top step on place `i` may be sold: evenly, from the highest. */
+const bankCanSell = (g, pid, i) => {
+  const q = BANK_SQUARES[i];
+  if (!q || q.t !== 'p' || bankOwnerOf(g, i) !== pid) return false;
+  const lvl = bankLevel(g, i);
+  if (!lvl) return false;
+  return lvl >= Math.max.apply(null, bankGroupSquares(q.g).map(k => bankLevel(g, k)));
+};
+
+const bankCanMortgage = (g, pid, i) => {
+  const q = BANK_SQUARES[i];
+  if (!q || !bankIsOwnable(i) || bankOwnerOf(g, i) !== pid || g.own[i].mort) return false;
+  return q.t !== 'p' || !bankGroupBuilt(g, q.g);
+};
+
+const bankCanUnmortgage = (g, pid, i) => bankIsOwnable(i) && bankOwnerOf(g, i) === pid && !!g.own[i].mort && (g.cash[pid] || 0) >= bankUnmortgageCost(i);
+
+const BANK_MANAGE_STAGES = ['roll', 'buy', 'act', 'debt'];
+
+const bankBuild = (g, pid, i) => {
+  bankMustTurn(g, pid, ['roll', 'buy', 'act']);
+  const sq = bankOwnPlace(g, pid, i);
+  if (!bankCanBuild(g, pid, sq)) throw new Error('مينفعش تبني هنا دلوقتي');
+  const q = BANK_SQUARES[sq];
+  const lvl = bankLevel(g, sq) + 1;
+  const cost = bankStepCost(q.g, lvl);
+  g.cash[pid] -= cost;
+  g.own[sq].lvl = lvl;
+  bankEvent(g, 'build', { pid: pid, sq: sq, lvl: lvl, cost: cost });
+};
+
+const bankSell = (g, pid, i) => {
+  bankMustTurn(g, pid, BANK_MANAGE_STAGES);
+  const sq = bankOwnPlace(g, pid, i);
+  if (!bankCanSell(g, pid, sq)) throw new Error('بيع البنا بالتساوي من الأعلى');
+  const q = BANK_SQUARES[sq];
+  const lvl = bankLevel(g, sq);
+  const back = Math.floor(bankStepCost(q.g, lvl) / 2);
+  g.cash[pid] += back;
+  g.own[sq].lvl = lvl - 1;
+  bankEvent(g, 'sell', { pid: pid, sq: sq, lvl: lvl - 1, amount: back });
+};
+
+const bankMortgage = (g, pid, i) => {
+  bankMustTurn(g, pid, BANK_MANAGE_STAGES);
+  const sq = bankOwnPlace(g, pid, i);
+  if (!bankCanMortgage(g, pid, sq)) throw new Error('مينفعش ترهن ده دلوقتي');
+  g.own[sq].mort = true;
+  const v = bankMortgageValue(sq);
+  g.cash[pid] += v;
+  bankEvent(g, 'mortgage', { pid: pid, sq: sq, amount: v });
+};
+
+const bankUnmortgage = (g, pid, i) => {
+  bankMustTurn(g, pid, ['roll', 'buy', 'act']);
+  const sq = bankOwnPlace(g, pid, i);
+  if (!bankCanUnmortgage(g, pid, sq)) throw new Error('فك الرهن محتاج فلوس أكتر');
+  const cost = bankUnmortgageCost(sq);
+  g.cash[pid] -= cost;
+  g.own[sq].mort = false;
+  bankEvent(g, 'unmortgage', { pid: pid, sq: sq, amount: cost });
+};
+
+/**
+ * Raises money for a player automatically - a computer player, the clock,
+ * or someone who owes a birthday: the buildings sold back (evenly, from the
+ * cheapest colour), then places mortgaged (the ones not in a whole colour
+ * first, the cheapest first), until the cash reaches `need` or nothing is
+ * left. Returns whether it did.
+ */
+const bankRaise = (g, pid, need) => {
+  for (let guard = 0; guard < 200 && (g.cash[pid] || 0) < need; guard++) {
+    const places = bankPlacesOf(g, pid);
+    const sell = places.filter(i => bankCanSell(g, pid, i)).sort((a, b) => BANK_SQUARES[a].price - BANK_SQUARES[b].price)[0];
+    if (sell !== undefined) {
+      const q = BANK_SQUARES[sell];
+      const lvl = bankLevel(g, sell);
+      const back = Math.floor(bankStepCost(q.g, lvl) / 2);
+      g.cash[pid] += back;
+      g.own[sell].lvl = lvl - 1;
+      bankEvent(g, 'sell', { pid: pid, sq: sell, lvl: lvl - 1, amount: back });
+      continue;
+    }
+    const can = places.filter(i => bankCanMortgage(g, pid, i));
+    if (!can.length) break;
+    const inSet = (i) => BANK_SQUARES[i].t === 'p' && bankHasSet(g, pid, BANK_SQUARES[i].g);
+    can.sort((a, b) => (inSet(a) - inSet(b)) || (BANK_SQUARES[a].price - BANK_SQUARES[b].price));
+    const sq = can[0];
+    g.own[sq].mort = true;
+    const v = bankMortgageValue(sq);
+    g.cash[pid] += v;
+    bankEvent(g, 'mortgage', { pid: pid, sq: sq, amount: v });
+  }
+  return (g.cash[pid] || 0) >= need;
+};
+
+/* --- bankruptcy ---------------------------------------------------------------------------- */
+
+/**
+ * `pid` is out. To a player: the buildings are sold to the bank, and the
+ * cash, the places and the jail cards go to them. To the bank ('bank' or
+ * 'each'): the places go back, free to buy, and the jail cards to their decks.
+ */
+const bankGoBankrupt = (g, priv, pid, to) => {
+  if (g.out.indexOf(pid) !== -1) return;
+  const creditor = to && to !== 'bank' && to !== 'each' && g.out.indexOf(to) === -1 && g.cash[to] !== undefined ? to : null;
+  const places = bankPlacesOf(g, pid);
+  places.forEach(i => {
+    const q = BANK_SQUARES[i];
+    if (q.t === 'p' && g.own[i].lvl) {
+      g.cash[pid] += Math.floor(bankBuiltCost(q.g, g.own[i].lvl) / 2);
+      g.own[i].lvl = 0;
+    }
+  });
+  if (creditor) {
+    g.cash[creditor] += Math.max(0, g.cash[pid]);
+    places.forEach(i => { g.own[i].by = creditor; });
+    g.cards[creditor] = (g.cards[creditor] || []).concat(g.cards[pid] || []);
+  } else {
+    places.forEach(i => { delete g.own[i]; });
+    (g.cards[pid] || []).forEach(deck => { priv.decks[deck].push(BANK_CARDS[deck].findIndex(c => c.free)); });
+  }
+  g.cash[pid] = 0;
+  g.cards[pid] = [];
+  delete g.jail[pid];
+  g.out.push(pid);
+  if (g.offer && (g.offer.from === pid || g.offer.to === pid)) g.offer = null;
+  bankEvent(g, 'bankrupt', { pid: pid, to: creditor || 'bank' });
+  if (bankActive(g).length <= 1) bankFinish(g, 'last');
+};
+
+/** The player whose turn it is gives up the debt they can't pay. */
+const bankBankrupt = (g, priv, pid, now) => {
+  bankMustTurn(g, pid, ['debt']);
+  const d = g.debt;
+  g.debt = null;
+  bankGoBankrupt(g, priv, pid, d ? d.to : 'bank');
+  if (g.phase === 'play') bankNextTurn(g, now);
+};
+
+/**
+ * A player leaves the game: out, with everything going back to the bank, and
+ * the turn moving on if it was theirs.
+ */
+const bankRemovePlayer = (g, priv, pid, now) => {
+  if (g.seats.indexOf(pid) === -1 || g.out.indexOf(pid) !== -1 || g.phase !== 'play') return;
+  const wasUp = g.turn.pid === pid;
+  if (wasUp) g.debt = null;
+  bankGoBankrupt(g, priv, pid, 'bank');
+  if (g.phase === 'play' && wasUp) bankNextTurn(g, now);
+};
+
+/* --- trading --------------------------------------------------------------------------------- */
+
+const bankCleanSide = (g, pid, side) => {
+  const s = side || {};
+  const cash = Math.max(0, Math.floor(Number(s.cash) || 0));
+  const sqs = Array.from(new Set((Array.isArray(s.sqs) ? s.sqs : []).map(Number))).filter(i => bankIsOwnable(i));
+  const cards = (Array.isArray(s.cards) ? s.cards : []).filter(d => d === 'luck' || d === 'court').slice(0, 2);
+  if (cash > (g.cash[pid] || 0)) throw new Error('الفلوس دي مش موجودة');
+  sqs.forEach(i => {
+    if (bankOwnerOf(g, i) !== pid) throw new Error('المكان ده مش بتاعه');
+    const q = BANK_SQUARES[i];
+    if (q.t === 'p' && bankGroupBuilt(g, q.g)) throw new Error('بيع البنا الأول قبل ما تبدّل اللون ده');
+  });
+  const held = (g.cards[pid] || []).slice();
+  cards.forEach(d => {
+    const k = held.indexOf(d);
+    if (k === -1) throw new Error('الكارت ده مش معاه');
+    held.splice(k, 1);
+  });
+  return { cash: cash, sqs: sqs, cards: cards };
+};
+
+/** On your own turn: an offer to one other player. */
+const bankOffer = (g, pid, o) => {
+  bankMustTurn(g, pid, ['roll', 'act']);
+  if (g.offer) throw new Error('فيه عرض لسه مستني رد');
+  const to = String((o || {}).to || '');
+  if (to === pid || bankActive(g).indexOf(to) === -1) throw new Error('اختار لاعب');
+  const give = bankCleanSide(g, pid, o.give);
+  const get = bankCleanSide(g, to, o.get);
+  const empty = (s) => !s.cash && !s.sqs.length && !s.cards.length;
+  if (empty(give) && empty(get)) throw new Error('العرض فاضي');
+  g.offerSeq = (g.offerSeq || 0) + 1;
+  g.offer = { id: g.offerSeq, from: pid, to: to, give: give, get: get };
+  bankEvent(g, 'offer', { from: pid, to: to });
+};
+
+const bankCancelOffer = (g, pid) => {
+  if (!g.offer || g.offer.from !== pid) return;
+  bankEvent(g, 'refuse', { from: g.offer.from, to: g.offer.to, why: 'cancel' });
+  g.offer = null;
+};
+
+/** The other player says yes or no. Everything is checked again: the table may have moved. */
+const bankAnswer = (g, pid, yes, id) => {
+  const o = g.offer;
+  if (!o || o.to !== pid || (id !== undefined && id !== null && Number(id) !== o.id)) return;
+  g.offer = null;
+  if (!yes) { bankEvent(g, 'refuse', { from: o.from, to: o.to }); return; }
+  const give = bankCleanSide(g, o.from, o.give);
+  const get = bankCleanSide(g, o.to, o.get);
+  const move = (a, b, s) => {
+    g.cash[a] -= s.cash;
+    g.cash[b] += s.cash;
+    s.sqs.forEach(i => { g.own[i].by = b; });
+    s.cards.forEach(d => {
+      const k = g.cards[a].indexOf(d);
+      g.cards[a].splice(k, 1);
+      g.cards[b] = (g.cards[b] || []).concat([d]);
+    });
+  };
+  move(o.from, o.to, give);
+  move(o.to, o.from, get);
+  bankEvent(g, 'trade', { from: o.from, to: o.to, give: give, get: get });
+};
+
+/* --- the phone plays for someone -------------------------------------------------------------- */
+
+/**
+ * The clock ran out, or the host moved a quiet phone on: the rest of the turn
+ * is played for them - a debt raised and paid (or bankrupt), a roll, no
+ * buying, and the turn ended.
+ */
+const bankAuto = (g, priv, pid, rnd, now) => {
+  for (let guard = 0; guard < 30 && g.phase === 'play' && g.turn.pid === pid; guard++) {
+    const st = g.turn.stage;
+    if (st === 'debt') {
+      bankRaise(g, pid, g.debt.amount);
+      if ((g.cash[pid] || 0) >= g.debt.amount) bankPayDebt(g, priv, pid, rnd);
+      else bankBankrupt(g, priv, pid, now);
+    } else if (st === 'roll') {
+      bankRoll(g, priv, pid, [bankRoll6(rnd), bankRoll6(rnd)], rnd);
+    } else if (st === 'buy') {
+      bankBuy(g, pid, false);
+    } else if (st === 'act') {
+      bankEndTurn(g, pid, now);
+    } else break;
+  }
+};
+
+/* --- the computer players ------------------------------------------------------------------------
+   From the table alone - everything but the decks is on it. They answer
+   offers and never make them. Easy buys most of what it lands on, builds
+   now and then, and pays what it owes by selling the cheapest things first.
+   Hard keeps a cushion, buys what completes or blocks a colour, builds
+   evenly on its colours while it can afford it, pays its way out of jail
+   early in the game and sits in it late, and only takes a trade that pays.
+   ------------------------------------------------------------------------------------------ */
+
+/** How much a colour is worth to someone: a place completing it, or blocking someone else's. */
+const bankSetValue = (g, pid, i) => {
+  const q = BANK_SQUARES[i];
+  if (q.t !== 'p') return 0;
+  const sqs = bankGroupSquares(q.g);
+  const mine = sqs.filter(k => bankOwnerOf(g, k) === pid).length;
+  const others = {};
+  sqs.forEach(k => { const o = bankOwnerOf(g, k); if (o && o !== pid) others[o] = (others[o] || 0) + 1; });
+  let v = 0;
+  if (mine === sqs.length - 1) v += 2;           // completes mine
+  Object.keys(others).forEach(o => { if (others[o] === sqs.length - 1) v += 1; });   // blocks theirs
+  return v;
+};
+
+const bankUnownedLeft = (g) => BANK_SQUARES.filter((q, i) => bankIsOwnable(i) && !bankOwnerOf(g, i)).length;
+
+/** A computer player's next move, as a phone would send it: { action, payload } or null. */
+const bankBotMove = (g, priv, pid, level, rnd) => {
+  if (g.phase !== 'play') return null;
+  const r = rnd || Math.random;
+  const hard = level === 'hard';
+  // An offer waiting on this bot is answered first.
+  if (g.offer && g.offer.to === pid) return { action: 'answer', payload: { yes: bankBotLikes(g, pid, g.offer, level), id: g.offer.id } };
+  if (g.turn.pid !== pid) return null;
+  const st = g.turn.stage;
+  const cash = g.cash[pid] || 0;
+  if (st === 'debt') {
+    const need = g.debt.amount;
+    if (cash >= need) return { action: 'payDebt', payload: {} };
+    if (bankLiquid(g, pid) < need) return { action: 'bankrupt', payload: {} };
+    const places = bankPlacesOf(g, pid);
+    const sell = places.filter(i => bankCanSell(g, pid, i)).sort((a, b) => BANK_SQUARES[a].price - BANK_SQUARES[b].price)[0];
+    if (sell !== undefined) return { action: 'sell', payload: { sq: sell } };
+    const can = places.filter(i => bankCanMortgage(g, pid, i));
+    const inSet = (i) => BANK_SQUARES[i].t === 'p' && bankHasSet(g, pid, BANK_SQUARES[i].g);
+    can.sort((a, b) => (inSet(a) - inSet(b)) || (BANK_SQUARES[a].price - BANK_SQUARES[b].price));
+    return can.length ? { action: 'mortgage', payload: { sq: can[0] } } : { action: 'bankrupt', payload: {} };
+  }
+  if (st === 'roll') {
+    if (g.jail[pid] !== undefined) {
+      if ((g.cards[pid] || []).length) return { action: 'useCard', payload: {} };
+      const early = bankUnownedLeft(g) > 8;
+      if (hard ? (early && cash >= 250) : (cash >= 400 && r() < 0.5)) return { action: 'payJail', payload: {} };
+    }
+    return { action: 'roll', payload: {} };
+  }
+  if (st === 'buy') {
+    const q = BANK_SQUARES[g.pos[pid]];
+    let yes;
+    if (hard) {
+      const special = bankSetValue(g, pid, g.pos[pid]) > 0;
+      yes = cash - q.price >= (special ? 60 : 180);
+    } else {
+      yes = cash - q.price >= 50 && r() < 0.85;
+    }
+    return { action: 'buy', payload: { yes: !!yes } };
+  }
+  if (st === 'act') {
+    const places = bankPlacesOf(g, pid);
+    if (hard) {
+      // Back from the bank first what belongs to a whole colour, then build evenly while a cushion is left.
+      const unm = places.filter(i => g.own[i].mort && cash - bankUnmortgageCost(i) >= 500);
+      if (unm.length) return { action: 'unmortgage', payload: { sq: unm[0] } };
+      const build = places.filter(i => bankCanBuild(g, pid, i) && cash - bankStepCost(BANK_SQUARES[i].g, bankLevel(g, i) + 1) >= 250)
+        .sort((a, b) => BANK_SQUARES[b].price - BANK_SQUARES[a].price);
+      if (build.length) return { action: 'build', payload: { sq: build[0] } };
+    } else {
+      const build = places.filter(i => bankCanBuild(g, pid, i) && cash - bankStepCost(BANK_SQUARES[i].g, bankLevel(g, i) + 1) >= 450);
+      if (build.length && r() < 0.6) return { action: 'build', payload: { sq: build[0] } };
+    }
+    return { action: 'endTurn', payload: {} };
+  }
+  return null;
+};
+
+/** What one side of an offer is worth to `pid`, face value plus what it does to the colours. */
+const bankSideValue = (g, pid, side, receiving, level) => {
+  let v = side.cash || 0;
+  (side.sqs || []).forEach(i => {
+    const q = BANK_SQUARES[i];
+    v += g.own[i] && g.own[i].mort ? Math.floor(q.price / 2) : q.price;
+    if (level === 'hard' && q.t === 'p') {
+      const sqs = bankGroupSquares(q.g);
+      if (receiving) {
+        // Would it give me the whole colour?
+        const mine = sqs.filter(k => bankOwnerOf(g, k) === pid || (side.sqs || []).indexOf(k) !== -1).length;
+        if (mine === sqs.length) v += q.price * 2;
+      }
+    }
+  });
+  v += (side.cards || []).length * 40;
+  return v;
+};
+
+/** Does a computer player take the offer made to it? */
+const bankBotLikes = (g, pid, o, level) => {
+  const receive = bankSideValue(g, pid, o.give, true, level);
+  const giveAway = bankSideValue(g, pid, o.get, false, level);
+  if (level !== 'hard') return receive >= giveAway * 0.9;
+  // Hard: never hand over a colour's last place unless paid for it handsomely.
+  let penalty = 0;
+  (o.get.sqs || []).forEach(i => {
+    const q = BANK_SQUARES[i];
+    if (q.t !== 'p') return;
+    const sqs = bankGroupSquares(q.g);
+    const theirs = sqs.filter(k => bankOwnerOf(g, k) === o.from || (o.get.sqs || []).indexOf(k) !== -1).length;
+    if (theirs === sqs.length) penalty += q.price * 3;
+  });
+  return receive >= (giveAway + penalty) * 1.1;
+};
+
+/**
+ * The one move a player could make, when there is only one: a debt nothing
+ * can cover (bankrupt), or a place they can't pay for and nothing to raise
+ * the money with (leave it). Otherwise null.
+ */
+const bankOnlyMove = (g, pid) => {
+  if (g.phase !== 'play' || g.turn.pid !== pid) return null;
+  if (g.turn.stage === 'debt' && g.debt && bankLiquid(g, pid) < g.debt.amount) return { action: 'bankrupt', payload: {} };
+  if (g.turn.stage === 'buy') {
+    const q = BANK_SQUARES[g.pos[pid]];
+    if (bankLiquid(g, pid) < q.price) return { action: 'buy', payload: { yes: false } };
+  }
+  return null;
+};
+
+</script>
 <script>
       /* The published site. The local preview leaves this out, so it never registers the offline cache. */
       window.STATIC_SITE = true;
@@ -16038,7 +17460,7 @@ const ludoOnlyMove = (g, pid) => {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260921162514";
+      window.BUILD_ID = "20260921172744";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -16944,6 +18366,71 @@ const ludoOnlyMove = (g, pid) => {
       </div>
       <div id="view-play-ludo" class="hidden" data-accent="amber"><div id="ludo-stage"></div></div>
       <div id="view-room-ludo" class="hidden" data-accent="amber"></div>
+
+      <!-- ============ بنك الحظ (against the phone, or a room with the TV) ============ -->
+      <div id="view-setup-bank" class="hidden" data-accent="green">
+        <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('bank', 'device')" data-i18n="ludo_mode_phone">ضد الموبايل</button>
+            <button class="segmented__item" data-mode="online" onclick="setPlayMode('bank', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="bank_online_desc">من 2 لـ 6، كل واحد من موبايله، واللوحة بالأسامي على التلفزيون. تقدر تكمّل العدد بلاعبين كمبيوتر.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('bank')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+          <div class="mode-device-panel">
+            <div class="field">
+              <label class="field__label" data-i18n="ludo_opp_label">كام لاعب كمبيوتر؟</label>
+              <div class="segmented" id="bank-opp" role="group">
+                <button type="button" class="segmented__item" data-value="1" onclick="setBankOption('opp', 1)">1</button>
+                <button type="button" class="segmented__item is-active" data-value="2" onclick="setBankOption('opp', 2)">2</button>
+                <button type="button" class="segmented__item" data-value="3" onclick="setBankOption('opp', 3)">3</button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label" data-i18n="xo_level_label">المستوى</label>
+              <div class="segmented" id="bank-level" role="group">
+                <button type="button" class="segmented__item is-active" data-value="easy" onclick="setBankOption('level', 'easy')" data-i18n="xo_easy">سهل</button>
+                <button type="button" class="segmented__item" data-value="hard" onclick="setBankOption('level', 'hard')" data-i18n="xo_hard">صعب</button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label" data-i18n="bank_your_token">قطعتك</label>
+              <div class="bank-tokpicks" id="bank-token" role="group"></div>
+            </div>
+            <div class="field">
+              <label class="field__label" data-i18n="bank_length">مدة اللعبة</label>
+              <div class="segmented" id="bank-length" role="group">
+                <button type="button" class="segmented__item" data-value="30" onclick="setBankOption('length', 30)" data-i18n="bank_len_30">30 دقيقة</button>
+                <button type="button" class="segmented__item is-active" data-value="45" onclick="setBankOption('length', 45)" data-i18n="bank_len_45">45 دقيقة</button>
+                <button type="button" class="segmented__item" data-value="60" onclick="setBankOption('length', 60)" data-i18n="bank_len_60">60 دقيقة</button>
+                <button type="button" class="segmented__item" data-value="0" onclick="setBankOption('length', 0)" data-i18n="bank_until_one">لحد ما يفضل واحد</button>
+              </div>
+              <p class="field__hint" data-i18n="bank_length_hint">لما الوقت يخلص اللفة بتكمل، والأغنى يكسب.</p>
+            </div>
+            <div class="field">
+              <label class="switch-row" for="bank-pot">
+                <span class="field__label" data-i18n="bank_opt_pot">فلوس في النص</span>
+                <span class="switch"><input type="checkbox" id="bank-pot" role="switch" onchange="setBankOption('pot', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+              </label>
+              <p class="field__hint" data-i18n="bank_opt_pot_hint">الضرايب والغرامات تتحط في النص، واللي يقف على الأتوبيس ياخدها.</p>
+            </div>
+            <div class="field">
+              <label class="switch-row" for="bank-go400">
+                <span class="field__label" data-i18n="bank_opt_go400">٤٠٠ للي يقف على البداية</span>
+                <span class="switch"><input type="checkbox" id="bank-go400" role="switch" onchange="setBankOption('go400', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+              </label>
+            </div>
+            <button type="button" id="bank-continue" class="btn btn--secondary hidden duel-continue" onclick="bankContinue()" data-i18n="solo_continue">كمّل اللعبة</button>
+            <button onclick="startBank()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          </div>
+        </div>
+      </div>
+      <div id="view-play-bank" class="hidden" data-accent="green"><div id="bank-stage"></div></div>
+      <div id="view-room-bank" class="hidden" data-accent="green"></div>
 
       <div id="view-play-chooser" class="hidden" data-accent="orange">
         <div class="chooser__bar">
@@ -20578,6 +22065,7 @@ const ludoOnlyMove = (g, pid) => {
       cat_screw: "كل الإصدارات، كل واحد من موبايله.",
       cat_domino: "عادي أو أمريكاني، فردي أو فرق، على موبايلاتكم.",
       cat_ludo: "طلّع حجارتك بالستة ووصّلها البيت قبل الكل.",
+      cat_bank: "اشتري مدن مصر، ابني، واجمع الإيجار.",
       cat_uno: "طابق اللون أو الرقم، وخلّص ورقك قبل الكل.",
       tool_screw_calc: "حاسبة سكرو",
       cat_screw_calc: "بتلعبوا بالكوتشينة، والتطبيق يحسب الجولات.",
@@ -21299,6 +22787,141 @@ const ludoOnlyMove = (g, pid) => {
       change_players: "تغيير اللاعبين",
       setup_domino: "دومينو",
       setup_ludo: "لودو",
+      setup_bank: "بنك الحظ",
+      bank_online_desc: "من 2 لـ 6، كل واحد من موبايله، واللوحة بالأسامي على التلفزيون. تقدر تكمّل العدد بلاعبين كمبيوتر.",
+      bank_your_token: "قطعتك",
+      bank_len_30: "30 دقيقة",
+      bank_len_45: "45 دقيقة",
+      bank_len_60: "60 دقيقة",
+      bank_money: "{n} ج",
+      bank_lvl_0: "أرض فاضية",
+      bank_lvl_1: "جراج",
+      bank_lvl_2: "استراحة",
+      bank_lvl_3: "سوق",
+      bank_owned_by: "بتاع {name}",
+      bank_mortgaged: "مرهون",
+      bank_for_sale: "للبيع",
+      bank_rent: "الإيجار",
+      bank_rent_set: "اللون كله",
+      bank_build_costs: "البنا: {a} للجراج، و{b} للاستراحة وللسوق",
+      bank_stations_n: "لو معاه {n}",
+      bank_co_one: "شركة واحدة: الزهر ×",
+      bank_co_both: "الاتنين: الزهر ×",
+      bank_luck: "حظ",
+      bank_court: "محاكمة",
+      bank_sq_go: "كل ما تعدّي عليها تاخد ٢٠٠",
+      bank_sq_jail: "زيارة بس، إلا لو اتحبست",
+      bank_sq_bus: "اتحرك تاني بنفس الرقم",
+      bank_sq_tojail: "على السجن على طول",
+      bank_sq_tax: "ادفع للبنك",
+      bank_sq_luck: "اسحب كارت حظ",
+      bank_sq_court: "اسحب كارت محاكمة",
+      bank_tap_square: "دوس على أي خانة تشوف كارتها",
+      bank_out: "مفلس",
+      bank_jail_card: "كارت خروج من السجن",
+      bank_last_lap: "آخر لفة",
+      bank_turn_of: "دور {name}",
+      bank_thinking: "الكمبيوتر بيفكر…",
+      bank_raising: "مستنيين {name} يدبّر الفلوس",
+      bank_deciding: "مستنيين {name} يقرر",
+      bank_in_jail: "انت في السجن",
+      bank_double_again: "دبل! ارمي تاني",
+      bank_your_turn: "دورك!",
+      bank_jail_try: "محاولة {n} من ٣ للدبل",
+      bank_roll_double: "ارمي للدبل",
+      bank_roll: "ارمي",
+      bank_pay_out: "ادفع {n} واخرج",
+      bank_use_card: "استعمل الكارت",
+      bank_buy_q: "تشتري {place}؟",
+      bank_short_buy: "فلوسك مش مكفية: ارهن أو بيع من أملاكك، أو سيبها",
+      bank_buy: "اشتري · {n}",
+      bank_leave: "سيبها",
+      bank_the_bank: "البنك",
+      bank_everyone: "كل اللاعبين",
+      bank_you_owe: "عليك {n} لـ{to}",
+      bank_raise_hint: "دبّر الفلوس من أملاكك (ارهن أو بيع بنا)، أو أعلن إفلاسك",
+      bank_pay: "ادفع",
+      bank_bankrupt: "أعلن الإفلاس",
+      bank_act_hint: "ابني أو بدّل أو ارهن، وبعدين خلّص دورك",
+      bank_end_turn: "خلّص دورك",
+      bank_manage: "أملاكي",
+      bank_trade: "بدّل",
+      bank_nothing: "ولا حاجة",
+      bank_offer_between: "{a} عارض على {b}",
+      bank_offer_from: "{name} عارض عليك",
+      bank_you_get: "هتاخد",
+      bank_you_give: "هتدّي",
+      bank_accept: "موافق",
+      bank_refuse: "لأ",
+      bank_offer_waiting: "مستني رد {name}",
+      bank_no_places: "مفيش أماكن",
+      bank_build: "ابني {n}",
+      bank_sell: "بيع +{n}",
+      bank_mortgage: "ارهن +{n}",
+      bank_unmortgage: "فك الرهن −{n}",
+      bank_manage_title: "أملاكك",
+      bank_manage_hint: "البنا على اللون كله وبالتساوي. الرهن بنص التمن، وفكّه بزيادة ١٠٪.",
+      bank_cash: "فلوس",
+      bank_trade_title: "اعمل عرض",
+      bank_you_want: "هتاخد من {name}",
+      bank_send_offer: "ابعت العرض",
+      bank_ev_first: "البداية: {name}",
+      bank_ev_buy: "{name}: شراء {place} بـ{n}",
+      bank_ev_rent: "إيجار {n}: {name} ← {other}",
+      bank_ev_tax: "{name}: ضريبة {n}",
+      bank_ev_start: "{name}: {n} من البداية",
+      bank_ev_jail: "{name}: على السجن",
+      bank_ev_jail_three: "{name}: ٣ دبل ورا بعض، على السجن",
+      bank_ev_free_dbl: "{name}: خروج من السجن بدبل",
+      bank_ev_free_pay: "{name}: خروج من السجن بـ٥٠",
+      bank_ev_free_card: "{name}: خروج من السجن بالكارت",
+      bank_ev_free_forced: "{name}: التالتة، ٥٠ وخروج",
+      bank_ev_build: "{name}: {what} في {place}",
+      bank_ev_sell: "{name}: بيع بنا في {place}",
+      bank_ev_mortgage: "{name}: رهن {place}",
+      bank_ev_unmortgage: "{name}: فك رهن {place}",
+      bank_ev_bus: "{name}: الأتوبيس السريع، {n} خانات تاني",
+      bank_ev_pot: "{name}: {n} من النص",
+      bank_ev_trade: "تبديل: {a} و{b}",
+      bank_ev_refuse: "{name}: لأ على العرض",
+      bank_ev_bankrupt: "{name}: إفلاس",
+      bank_last_lap_ev: "الوقت خلص: آخر لفة",
+      bank_ev_host: "المضيف لعب بدل {name}",
+      bank_ev_clock: "الوقت خلص: الموبايل لعب بدل {name}",
+      bank_ev_left: "{name}: خروج من اللعبة",
+      bank_over_time: "الوقت خلص",
+      bank_over_last: "فضل واحد بس",
+      bank_worth_hint: "الترتيب بالفلوس والأماكن والبنا",
+      bank_again: "العب تاني",
+      bank_token_car: "سيارة",
+      bank_token_camel: "جمل",
+      bank_token_boat: "مركب",
+      bank_token_plane: "طيارة",
+      bank_token_scooter: "موتوسيكل",
+      bank_token_hat: "برنيطة",
+      bank_free: "فاضية",
+      bank_token_label: "القطع",
+      bank_token_yours: "دوس على قطعتك تاني عشان تسيبها.",
+      bank_token_pick: "اختار قطعتك. اللي مايختارش ياخد واحدة لما اللعبة تبدأ.",
+      bank_watching_next: "انت بتتفرج اللعبة دي.",
+      bank_seats_label: "بيلعبوا ({n} من 6)",
+      bank_seats_hint_host: "اللعب لـ 6 بس: دوس على اسم عشان يلعب أو يتفرج.",
+      bank_seats_hint: "المضيف بيختار مين يلعب، والباقي بيتفرج.",
+      bank_length: "مدة اللعبة",
+      bank_minutes: "{n} دقيقة",
+      bank_until_one: "لحد ما يفضل واحد",
+      bank_length_hint: "لما الوقت يخلص اللفة بتكمل، والأغنى يكسب.",
+      bank_until_one_hint: "اللعبة الأصلية: ممكن تطوّل ساعتين وأكتر.",
+      bank_opt_pot: "فلوس في النص",
+      bank_opt_pot_hint: "الضرايب والغرامات تتحط في النص، واللي يقف على الأتوبيس ياخدها.",
+      bank_opt_go400: "٤٠٠ للي يقف على البداية",
+      bank_opt_go400_hint: "اللي يقف على البداية بالظبط ياخد الضعف.",
+      bank_clock: "وقت الدور",
+      bank_clock_off: "من غير",
+      bank_clock_hint: "لما الوقت يخلص الموبايل بيرمي ويدفع ويخلّص الدور، من غير ما يشتري.",
+      bank_lobby_hint: "مين يبدأ بيتحدد بالزهر: الأعلى يبدأ.",
+      bank_play_for: "العب بدل {name}",
+      bank_wait_host: "المضيف هيختار اللي بعده.",
       ludo_mode_phone: "ضد الموبايل",
       ludo_online_desc: "من 2 لـ 4، كل واحد من موبايله، واللوحة على التلفزيون. تقدر تكمّل العدد بلاعبين كمبيوتر.",
       ludo_opp_label: "كام لاعب كمبيوتر؟",
@@ -22768,6 +24391,7 @@ const ludoOnlyMove = (g, pid) => {
       cat_screw: "Every version, each on their own phone.",
       cat_domino: "Classic or All Fives, solo or in teams.",
       cat_ludo: "Roll a six to set out, then race everyone home.",
+      cat_bank: "Buy Egypt's cities, build, and collect rent.",
       cat_uno: "Match colour or number, and go out first.",
       tool_screw_calc: "Screw score keeper",
       cat_screw_calc: "Real cards on the table; the phone keeps score.",
@@ -23489,6 +25113,141 @@ const ludoOnlyMove = (g, pid) => {
       change_players: "Change Players",
       setup_domino: "Domino",
       setup_ludo: "Ludo",
+      setup_bank: "Lucky Bank",
+      bank_online_desc: "2 to 6, each on their own phone, the board with every name on the TV. Computer players can fill the seats.",
+      bank_your_token: "Your piece",
+      bank_len_30: "30 min",
+      bank_len_45: "45 min",
+      bank_len_60: "60 min",
+      bank_money: "E£{n}",
+      bank_lvl_0: "Empty land",
+      bank_lvl_1: "Garage",
+      bank_lvl_2: "Rest stop",
+      bank_lvl_3: "Market",
+      bank_owned_by: "Owned by {name}",
+      bank_mortgaged: "Mortgaged",
+      bank_for_sale: "For sale",
+      bank_rent: "Rent",
+      bank_rent_set: "Whole colour",
+      bank_build_costs: "Building: {a} a garage, {b} a rest stop or a market",
+      bank_stations_n: "With {n}",
+      bank_co_one: "One company: dice ×",
+      bank_co_both: "Both: dice ×",
+      bank_luck: "Luck",
+      bank_court: "Court",
+      bank_sq_go: "Collect 200 every time you pass",
+      bank_sq_jail: "Just visiting, unless you are locked in",
+      bank_sq_bus: "Move again by the same number",
+      bank_sq_tojail: "Straight to jail",
+      bank_sq_tax: "Pay the bank",
+      bank_sq_luck: "Draw a Luck card",
+      bank_sq_court: "Draw a Court card",
+      bank_tap_square: "Tap any square to see its card",
+      bank_out: "Bankrupt",
+      bank_jail_card: "Get-out-of-jail card",
+      bank_last_lap: "Last lap",
+      bank_turn_of: "{name}'s turn",
+      bank_thinking: "The computer is thinking…",
+      bank_raising: "Waiting for {name} to raise the money",
+      bank_deciding: "Waiting for {name} to decide",
+      bank_in_jail: "You're in jail",
+      bank_double_again: "A double! Roll again",
+      bank_your_turn: "Your turn!",
+      bank_jail_try: "Try {n} of 3 for a double",
+      bank_roll_double: "Roll for a double",
+      bank_roll: "Roll",
+      bank_pay_out: "Pay {n} and leave",
+      bank_use_card: "Use the card",
+      bank_buy_q: "Buy {place}?",
+      bank_short_buy: "Not enough cash: mortgage or sell something, or leave it",
+      bank_buy: "Buy · {n}",
+      bank_leave: "Leave it",
+      bank_the_bank: "the bank",
+      bank_everyone: "everyone",
+      bank_you_owe: "You owe {to} {n}",
+      bank_raise_hint: "Raise it from your places (mortgage or sell buildings), or go bankrupt",
+      bank_pay: "Pay",
+      bank_bankrupt: "Go bankrupt",
+      bank_act_hint: "Build, trade or mortgage, then end your turn",
+      bank_end_turn: "End turn",
+      bank_manage: "My places",
+      bank_trade: "Trade",
+      bank_nothing: "nothing",
+      bank_offer_between: "{a} made {b} an offer",
+      bank_offer_from: "{name} made you an offer",
+      bank_you_get: "You get",
+      bank_you_give: "You give",
+      bank_accept: "Accept",
+      bank_refuse: "No",
+      bank_offer_waiting: "Waiting for {name}",
+      bank_no_places: "No places",
+      bank_build: "Build {n}",
+      bank_sell: "Sell +{n}",
+      bank_mortgage: "Mortgage +{n}",
+      bank_unmortgage: "Redeem −{n}",
+      bank_manage_title: "Your places",
+      bank_manage_hint: "Build on a whole colour, evenly. Mortgage for half the price, redeem for 10% more.",
+      bank_cash: "Cash",
+      bank_trade_title: "Make an offer",
+      bank_you_want: "You take from {name}",
+      bank_send_offer: "Send the offer",
+      bank_ev_first: "{name} starts",
+      bank_ev_buy: "{name} bought {place} for {n}",
+      bank_ev_rent: "Rent {n}: {name} → {other}",
+      bank_ev_tax: "{name} paid {n} tax",
+      bank_ev_start: "{name} collected {n} at Start",
+      bank_ev_jail: "{name} went to jail",
+      bank_ev_jail_three: "{name}: three doubles in a row, to jail",
+      bank_ev_free_dbl: "{name} rolled a double out of jail",
+      bank_ev_free_pay: "{name} paid 50 out of jail",
+      bank_ev_free_card: "{name} used a card out of jail",
+      bank_ev_free_forced: "{name}: third try, paid 50 and out",
+      bank_ev_build: "{name} built a {what} on {place}",
+      bank_ev_sell: "{name} sold a building on {place}",
+      bank_ev_mortgage: "{name} mortgaged {place}",
+      bank_ev_unmortgage: "{name} redeemed {place}",
+      bank_ev_bus: "{name}: the Express Bus, {n} more squares",
+      bank_ev_pot: "{name} took {n} from the middle",
+      bank_ev_trade: "{a} and {b} made a trade",
+      bank_ev_refuse: "{name} said no to the offer",
+      bank_ev_bankrupt: "{name} went bankrupt",
+      bank_last_lap_ev: "Time's up: the last lap",
+      bank_ev_host: "The host played for {name}",
+      bank_ev_clock: "Time's up: the phone played for {name}",
+      bank_ev_left: "{name} left the game",
+      bank_over_time: "Time's up",
+      bank_over_last: "One player left",
+      bank_worth_hint: "Ranked by cash, places and buildings",
+      bank_again: "Play again",
+      bank_token_car: "Car",
+      bank_token_camel: "Camel",
+      bank_token_boat: "Boat",
+      bank_token_plane: "Plane",
+      bank_token_scooter: "Scooter",
+      bank_token_hat: "Hat",
+      bank_free: "Free",
+      bank_token_label: "Pieces",
+      bank_token_yours: "Tap your piece again to let it go.",
+      bank_token_pick: "Pick your piece. Anyone who doesn't gets one at the start.",
+      bank_watching_next: "You're watching this game.",
+      bank_seats_label: "Playing ({n} of 6)",
+      bank_seats_hint_host: "Six play at most: tap a name to seat them or let them watch.",
+      bank_seats_hint: "The host picks who plays; the rest watch.",
+      bank_length: "Game length",
+      bank_minutes: "{n} min",
+      bank_until_one: "Until one is left",
+      bank_length_hint: "When time is up the lap is finished, and the richest wins.",
+      bank_until_one_hint: "The full game: it can take two hours or more.",
+      bank_opt_pot: "Money in the middle",
+      bank_opt_pot_hint: "Taxes and fines go in the middle; whoever lands on the bus takes them.",
+      bank_opt_go400: "400 for landing on Start",
+      bank_opt_go400_hint: "Landing exactly on Start pays double.",
+      bank_clock: "Turn clock",
+      bank_clock_off: "Off",
+      bank_clock_hint: "When it runs out the phone rolls, pays and ends the turn, without buying.",
+      bank_lobby_hint: "The dice decide who starts: highest first.",
+      bank_play_for: "Play for {name}",
+      bank_wait_host: "The host picks what's next.",
       ludo_mode_phone: "Against the phone",
       ludo_online_desc: "2 to 4, each on their own phone, the board on the TV. Computer players can fill the seats.",
       ludo_opp_label: "How many computer players?",
@@ -24798,7 +26557,7 @@ const ludoOnlyMove = (g, pid) => {
         'setup-bomb', 'play-bomb',
         'setup-emoji', 'play-emoji', 'setup-proverbs', 'play-proverbs', 'setup-fiveseconds', 'play-fiveseconds',
         'room-twotruths', 'room-emoji', 'room-proverbs', 'room-fiveseconds', 'room-telephone', 'room-monkey', 'room-herd', 'room-mafia', 'room-mind', 'room-timeline', 'room-uno', 'room-domino',
-        'room-connect4', 'room-dots', 'room-ludo',
+        'room-connect4', 'room-dots', 'room-ludo', 'room-bank',
         'setup-stop', 'play-stop',
         'setup-memory', 'play-memory',
         'setup-xo', 'play-xo',
@@ -25196,6 +26955,8 @@ const ludoOnlyMove = (g, pid) => {
     'play-dots':       { title: 'setup_dots',       up: 'setup-dots',     accent: 'indigo' },
     'setup-ludo':      { title: 'setup_ludo',       up: 'menu',           accent: 'amber' },
     'play-ludo':       { title: 'setup_ludo',       up: 'setup-ludo',     accent: 'amber' },
+    'setup-bank':      { title: 'setup_bank',       up: 'menu',           accent: 'green' },
+    'play-bank':       { title: 'setup_bank',       up: 'setup-bank',     accent: 'green' },
     'setup-sudoku':    { title: 'setup_sudoku',     up: 'menu',           accent: 'indigo' },
     'play-sudoku':     { title: 'setup_sudoku',     up: 'setup-sudoku',   accent: 'indigo' },
     'setup-g2048':     { title: 'setup_g2048',      up: 'menu',           accent: 'orange' },
@@ -25250,7 +27011,8 @@ const ludoOnlyMove = (g, pid) => {
     'room-domino':       { title: 'setup_domino',       up: 'menu',               accent: 'green' },
     'room-connect4':     { title: 'setup_connect4',     up: 'menu',               accent: 'blue' },
     'room-dots':         { title: 'setup_dots',         up: 'menu',               accent: 'indigo' },
-    'room-ludo':         { title: 'setup_ludo',         up: 'menu',               accent: 'amber' }
+    'room-ludo':         { title: 'setup_ludo',         up: 'menu',               accent: 'amber' },
+    'room-bank':         { title: 'setup_bank',         up: 'menu',               accent: 'green' }
   };
 
   // Depth is what makes the slide directional: deeper = forward, shallower = back.
@@ -25354,7 +27116,15 @@ const ludoOnlyMove = (g, pid) => {
       '<rect x="36" y="36" width="19" height="19" rx="4" fill="#1e6fd9"/><rect x="9" y="36" width="19" height="19" rx="4" fill="#e5383b"/>' +
       '<g fill="#fff"><circle cx="18.5" cy="18.5" r="5.5"/><circle cx="45.5" cy="18.5" r="5.5"/><circle cx="45.5" cy="45.5" r="5.5"/><circle cx="18.5" cy="45.5" r="5.5"/></g>' +
       '<circle cx="18.5" cy="18.5" r="3.2" fill="#1f9d55"/><circle cx="45.5" cy="18.5" r="3.2" fill="#f5b400"/><circle cx="45.5" cy="45.5" r="3.2" fill="#1e6fd9"/><circle cx="18.5" cy="45.5" r="3.2" fill="#e5383b"/>' +
-      '<polygon points="28,28 28,36 32,32" fill="#1f9d55"/><polygon points="28,28 36,28 32,32" fill="#f5b400"/><polygon points="36,28 36,36 32,32" fill="#1e6fd9"/><polygon points="28,36 36,36 32,32" fill="#e5383b"/>'
+      '<polygon points="28,28 28,36 32,32" fill="#1f9d55"/><polygon points="28,28 36,28 32,32" fill="#f5b400"/><polygon points="36,28 36,36 32,32" fill="#1e6fd9"/><polygon points="28,36 36,36 32,32" fill="#e5383b"/>',
+    // بنك الحظ: the board's ring, a colour band on each side, and a coin in the middle.
+    bank: '<rect x="6" y="8" width="52" height="52" rx="7" fill="#000" opacity=".18"/>' +
+      '<rect x="6" y="6" width="52" height="52" rx="7" fill="#fffdf8" stroke="#2b2733" stroke-width="1.6"/>' +
+      '<rect x="17" y="17" width="30" height="30" rx="2" fill="#f6f0e3" stroke="#d8cfbd" stroke-width="1"/>' +
+      '<rect x="19" y="12.5" width="26" height="4.5" rx="1" fill="#e5383b"/><rect x="47" y="19" width="4.5" height="26" rx="1" fill="#f5b400"/>' +
+      '<rect x="19" y="47" width="26" height="4.5" rx="1" fill="#2553a8"/><rect x="12.5" y="19" width="4.5" height="26" rx="1" fill="#d6559e"/>' +
+      '<circle cx="32" cy="32" r="9.5" fill="#1f9d55"/><circle cx="32" cy="32" r="6.8" fill="none" stroke="#fff" stroke-width="1.4" opacity=".7"/>' +
+      '<path d="M29 29.5h6M29 34.5h6M32 27v10" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>'
   };
 
   function isArtIcon(icon) { return typeof icon === 'string' && icon.indexOf('art:') === 0; }
@@ -26694,6 +28464,38 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>اللوحة كبيرة قدام الكل، والزهر وكل حركة بتبان عليها.</li>
             </ul>`,
+        bank: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>من 2 لـ 6، كل واحد بيبدأ بـ <b>١٬٥٠٠ ج</b> على البداية. ارمي الزهرين واتحرك بمجموعهم.</li>
+                <li>وقفت على مدينة أو محطة أو شركة محدش شاريها؟ <b>اشتريها</b> أو سيبها للبنك. لو ليها صاحب، الإيجار بيتدفع لوحده.</li>
+                <li>كل ما تعدّي على البداية تاخد <b>٢٠٠</b>. الدبل ليه رمية تانية، و<b>٣ دبل ورا بعض</b> على السجن.</li>
+                <li>لو معاك <b>اللون كله</b> الإيجار بيبقى الضعف، وتقدر <b>تبني بالتساوي</b>: جراج ← استراحة ← سوق، وكل بنا بيعلّي الإيجار.</li>
+                <li>محتاج فلوس؟ <b>ارهن</b> مكان بنص تمنه (مايدخلش إيجار لحد ما تفكّه بزيادة ١٠٪)، أو <b>بيع البنا</b> للبنك بنص تمنه.</li>
+                <li><b>السجن</b>: ادفع ٥٠، أو استعمل كارت خروج، أو ارمي للدبل (٣ محاولات، وبعد التالتة تدفع ٥٠ وتتحرك). وانت جوّه بتقبض الإيجار عادي.</li>
+                <li><b>الأتوبيس السريع</b>: اللي يقف عليه يتحرك تاني بنفس الرقم. <b>حظ</b> و<b>محاكمة</b>: كارت من فوق الكومة.</li>
+                <li>في دورك تقدر <b>تبدّل</b> مع أي لاعب: أماكن وفلوس وكروت خروج، وهو يوافق أو يرفض. الأماكن اللي على لونها بنا ماتتبدلش.</li>
+                <li>مش قادر تدفع حتى بعد الرهن والبيع؟ <b>إفلاس</b>: كل حاجتك للي ليه عليك، أو للبنك.</li>
+                <li>اللعبة بتخلص لما يفضل واحد، أو لما <b>الوقت يخلص</b>: اللفة بتكمل، والأغنى يكسب (الفلوس والأماكن والبنا).</li>
+            </ol>
+            <p class="help-sub">💡 الموبايل بيساعدك</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>دوس على أي خانة تشوف كارتها في نص اللوحة: السعر والإيجار في كل مرحلة وصاحبها.</li>
+                <li>🏗️ أملاكي: ابني وبيع وارهن وفك الرهن من مكان واحد. 🤝 بدّل: اختار لاعب واللي هتدّيه واللي هتاخده.</li>
+            </ul>
+            <p class="help-sub">🤖 ضد الموبايل</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>انت ومن 1 لـ 3 لاعبين كمبيوتر، سهل أو صعب. بيردّوا على عروضك، بس مابيعملوش عروض.</li>
+                <li>الوقت بيتحسب بس وانت بتلعب.</li>
+            </ul>
+            <p class="help-sub">📱 كل واحد من موبايله</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>كل واحد يختار قطعته، والبداية بالزهر. لو أكتر من 6 في الغرفة المضيف بيختار مين يلعب.</li>
+                <li>المضيف بيختار مدة اللعبة (٤٥ دقيقة من الأول)، و"فلوس في النص"، و"٤٠٠ للي يقف على البداية"، ووقت الدور.</li>
+            </ul>
+            <p class="help-sub">📺 على التلفزيون</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اللوحة كبيرة بأسامي المدن وأسعارها، والفلوس والكروت وكل حركة قدام الكل.</li>
+            </ul>`,
         guessnum: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>حدد المدى (من 1 لـ 100 مثلاً) واكتب تخمينك.</li>
@@ -27677,6 +29479,38 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The board big in front of everyone, with every roll and every move.</li>
             </ul>`,
+        bank: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>2 to 6 players, each starting on Start with <b>E£1,500</b>. Roll the two dice and move by their total.</li>
+                <li>Land on a city, a station or a company nobody owns? <b>Buy it</b> or leave it with the bank. If someone owns it, the rent is paid by itself.</li>
+                <li>Every time you pass Start you collect <b>200</b>. A double rolls again, and <b>three doubles in a row</b> go to jail.</li>
+                <li>Own <b>the whole colour</b> and its rent doubles, and you can <b>build evenly</b>: garage ← rest stop ← market, each raising the rent.</li>
+                <li>Need money? <b>Mortgage</b> a place for half its price (no rent until you redeem it for 10% more), or <b>sell buildings</b> back for half.</li>
+                <li><b>Jail</b>: pay 50, use a get-out card, or roll for a double (three tries; after the third you pay 50 and move). You still collect rent inside.</li>
+                <li><b>The Express Bus</b>: land on it and move again by the same number. <b>Luck</b> and <b>Court</b>: a card from the top of the pile.</li>
+                <li>On your turn you can <b>trade</b> with anyone: places, money and get-out cards; they accept or refuse. Places with buildings on their colour can't be traded.</li>
+                <li>Can't pay even after mortgaging and selling? <b>Bankrupt</b>: everything goes to whoever you owe, or to the bank.</li>
+                <li>The game ends when one is left, or when <b>time is up</b>: the lap is finished and the richest wins (cash, places and buildings).</li>
+            </ol>
+            <p class="help-sub">💡 The phone helps</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Tap any square to see its card in the middle of the board: the price, the rent at every step, and who owns it.</li>
+                <li>🏗️ My places: build, sell, mortgage and redeem in one place. 🤝 Trade: pick a player, what you give and what you want.</li>
+            </ul>
+            <p class="help-sub">🤖 Against the phone</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>You and 1 to 3 computer players, easy or hard. They answer your offers but never make their own.</li>
+                <li>The time only counts while you are playing.</li>
+            </ul>
+            <p class="help-sub">📱 On separate phones</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Everyone picks a piece; the dice decide who starts. With more than 6 in the room the host picks who plays.</li>
+                <li>The host picks the length (45 minutes to begin with), "money in the middle", "400 for landing on Start" and a turn clock.</li>
+            </ul>
+            <p class="help-sub">📺 On the TV</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The board big, with every city and its price, and the money, the cards and every move in front of everyone.</li>
+            </ul>`,
         guessnum: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Set the range (1 to 100, say) and type your guess.</li>
@@ -28104,6 +29938,7 @@ const GAME_CATALOG = [
   { id: 'uno',        icon: 'art:uno',   title: 'setup_uno',        desc: 'cat_uno',        accent: 'rose',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('uno') },
   { id: 'domino',     icon: 'art:domino',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
   { id: 'ludo',       icon: 'art:ludo',  title: 'setup_ludo',       desc: 'cat_ludo',       accent: 'amber',  players: [1, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-ludo',      open: () => setupLudo() },
+  { id: 'bank',       icon: 'art:bank',  title: 'setup_bank',       desc: 'cat_bank',       accent: 'green',  players: [1, 6],  mins: 45, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-bank',      open: () => setupBank() },
 
   /* --- لاتنين على موبايل: two people, one phone --- */
   { id: 'memory',     icon: '🎴',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory',      open: () => setupMemory() },
@@ -29566,6 +31401,7 @@ const ROOM_HUB_GAMES = [
   { id: 'uno',        icon: 'art:uno', key: 'setup_uno',        accent: 'rose',   min: 1 },
   { id: 'domino',     icon: 'art:domino', key: 'setup_domino',     accent: 'green',  min: 1 },
   { id: 'ludo',       icon: 'art:ludo', key: 'setup_ludo',       accent: 'amber',  min: 1 },
+  { id: 'bank',       icon: 'art:bank', key: 'setup_bank',       accent: 'green',  min: 1 },
   { id: 'connect4',   icon: '🔴', key: 'setup_connect4',   accent: 'blue',   min: 2 },
   { id: 'dots',       icon: '🔲', key: 'setup_dots',       accent: 'indigo', min: 2 }
 ];
@@ -31572,6 +33408,7 @@ const HELP_ENTRIES = [
   { key: 'domino',      title: 'setup_domino',      icon: 'art:domino', accent: 'green',  group: 'games', room: true },
   { key: 'uno',         title: 'setup_uno',         icon: 'art:uno', accent: 'rose',   group: 'games', roomOnly: true },
   { key: 'ludo',        title: 'setup_ludo',        icon: 'art:ludo', accent: 'amber',  group: 'games', room: true },
+  { key: 'bank',        title: 'setup_bank',        icon: 'art:bank', accent: 'green',  group: 'games', room: true },
   { key: 'chameleon',   title: 'setup_chameleon',   icon: '🦎', accent: 'amber',  group: 'games', room: true },
   { key: 'spyfall',     title: 'setup_spyfall',     icon: '📍', accent: 'rose',   group: 'games', room: true },
   { key: 'timesup',     title: 'setup_timesup',     icon: '⏳', accent: 'blue',   group: 'games' },
@@ -31683,7 +33520,8 @@ const HELP_FOR_VIEW = {
   'room-twotruths': 'twotruths', 'room-telephone': 'telephone', 'room-monkey': 'monkey',
   'room-herd': 'herd', 'room-mafia': 'mafia', 'room-screw': 'screw', 'room-mind': 'mind', 'room-timeline': 'timeline',
   'room-uno': 'uno', 'room-domino': 'domino',
-  'setup-ludo': 'ludo', 'play-ludo': 'ludo', 'room-ludo': 'ludo'
+  'setup-ludo': 'ludo', 'play-ludo': 'ludo', 'room-ludo': 'ludo',
+  'setup-bank': 'bank', 'play-bank': 'bank', 'room-bank': 'bank'
 };
 
 // A game's card, its hero, the header and its help entry show one icon, colour
@@ -74597,6 +76435,1441 @@ TV_GAMES.ludo = {
 
     <script>
 /* ============================================================================
+   بنك الحظ — the board every screen draws, and a game against the phone
+   ----------------------------------------------------------------------------
+   The rules are BankAlhaz.js (the page inlines it, the rooms server bundles
+   it); this file draws a game on a phone, a laptop or the TV, plays its moves,
+   and runs a game against the phone. The room around it is JS_RoomBank.html.
+
+   The look the owner picked (option أ "كلاسيك", 21 Sep 2026): a warm paper
+   board with a colour band on each place, line icons on the other squares,
+   the corners labelled, and the middle of the board holding the dice and the
+   card of the square in play. The board is left to right in every language,
+   Start at the bottom right, as on the box.
+
+   On a phone the ring is a map - a place's name doesn't fit in a square a
+   finger wide - so the squares show their colour, their owner, their
+   buildings and who stands there, and tapping one shows its card in the
+   middle. From about 520px of board (a laptop, the TV) every place carries
+   its name and price as well (a container query).
+
+   Every change is an event (BankAlhaz.js), and each screen plays the ones it
+   hasn't shown: the dice tumble, a piece hops square by square, money flies
+   from the one who pays to the one who is paid and the cash counts, a new
+   building pops. A reload or a phone back from the lock screen replays
+   nothing.
+   ========================================================================= */
+
+const BANK_GROUP_HEX = { br: '#8d5a33', lb: '#4fb0e3', pk: '#d6559e', or: '#f08a24', rd: '#e5383b', ye: '#f5b400', gr: '#1f9d55', db: '#2553a8' };
+const BANK_SEAT_HEX = ['#7c3aed', '#0f8f7e', '#e8590c', '#334155', '#db2777', '#2563eb'];
+const BANK_TOKEN_ICON = { car: '🚗', camel: '🐪', boat: '⛵', plane: '✈️', scooter: '🛵', hat: '🎩' };
+const BANK_STEP_MS = 115;
+const BANK_BOT_MS = [700, 1150];
+const BANK_C = 13;                                  // a corner, in % of the board
+const BANK_W = (100 - 2 * BANK_C) / 9;             // a square along a side
+
+/* --- words -------------------------------------------------------------------------- */
+
+function bankT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || (TRANSLATIONS.ar || {})[key] || '';
+  if (vars) Object.keys(vars).forEach(k => {
+    const v = vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
+    s = s.split('{' + k + '}').join(v && !/^[+-]?[\d,]+$/.test(v) ? '⁨' + v + '⁩' : v);
+  });
+  return s;
+}
+
+const bankFmt = (n) => (Math.round(Number(n) || 0)).toLocaleString('en-US');
+const bankMoney = (n) => bankT('bank_money', { n: bankFmt(n) });
+const bankSqName = (i) => { const q = BANK_SQUARES[i]; return q && q.n ? q.n[appState.lang === 'en' ? 1 : 0] : ''; };
+const bankCardText = (deck, k) => { const c = (BANK_CARDS[deck] || [])[k]; return c ? (appState.lang === 'en' ? c.en : c.ar) : ''; };
+const bankSeatHex = (g, pid) => BANK_SEAT_HEX[Math.max(0, g.seats.indexOf(pid)) % BANK_SEAT_HEX.length];
+const bankTokenOf = (g, pid) => BANK_TOKEN_ICON[(g.tokens || {})[pid]] || '●';
+const bankLevelWord = (lvl) => bankT(['bank_lvl_0', 'bank_lvl_1', 'bank_lvl_2', 'bank_lvl_3'][lvl] || 'bank_lvl_0');
+
+/* --- the board --------------------------------------------------------------------------- */
+
+/** Where square `i` sits on the board, in % of it, and which side it is on (its colour band faces the middle). */
+function bankSqRect(i) {
+  const C = BANK_C;
+  const W = BANK_W;
+  if (i === 0) return { x: 100 - C, y: 100 - C, w: C, h: C, side: 'corner' };
+  if (i < 10) return { x: 100 - C - i * W, y: 100 - C, w: W, h: C, side: 'bottom' };
+  if (i === 10) return { x: 0, y: 100 - C, w: C, h: C, side: 'corner' };
+  if (i < 20) return { x: 0, y: 100 - C - (i - 10) * W, w: C, h: W, side: 'left' };
+  if (i === 20) return { x: 0, y: 0, w: C, h: C, side: 'corner' };
+  if (i < 30) return { x: C + (i - 21) * W, y: 0, w: W, h: C, side: 'top' };
+  if (i === 30) return { x: 100 - C, y: 0, w: C, h: C, side: 'corner' };
+  return { x: 100 - C, y: C + (i - 31) * W, w: C, h: W, side: 'right' };
+}
+
+const BANK_ICONS = {
+  luck: '<path d="M8.5 8.5a3.5 3.5 0 1 1 5 3.2c-1 .5-1.5 1.3-1.5 2.4v.4"/><path d="M12 19h.01"/>',
+  court: '<path d="M12 4v16M7 20h10M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0z"/><path d="M19 7l-3 6a3 3 0 0 0 6 0z"/>',
+  tax: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  train: '<rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 10h12M9 19l-2 2M15 19l2 2"/>',
+  ship: '<circle cx="12" cy="5" r="2"/><path d="M12 7v13M5 13a7 7 0 0 0 14 0M8 10h8"/>',
+  plane: '<path d="M12 3c.9 0 1.4 1 1.4 2.4V9l7 4v2l-7-2v4l2 1.5V20L12 19l-3.4 1v-1.5l2-1.5v-4l-7 2v-2l7-4V5.4C10.6 4 11.1 3 12 3z"/>',
+  power: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  water: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  go: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  jail: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>',
+  bus: '<rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M7 21v-3M17 21v-3"/>',
+  tojail: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M16 9a1.5 1.5 0 0 1 3 0v4a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-2.7L4 14.5a1.5 1.5 0 0 1 2.5-1.6L7 14"/>'
+};
+const bankIcon = (name, cls) => `<svg class="${cls || 'bank-ic'}" viewBox="0 0 24 24" aria-hidden="true">${BANK_ICONS[name] || ''}</svg>`;
+
+/** Where a player's piece stands, in % of the board; in jail it sits behind the bars. */
+function bankTokenPlace(g, pid) {
+  const at = g.pos[pid] || 0;
+  const r = bankSqRect(at);
+  // On a corner the pieces stand toward the middle of the board, clear of its label.
+  if (at === BANK_JAIL) return g.jail[pid] !== undefined ? [r.x + r.w * 0.7, r.y + r.h * 0.3] : [r.x + r.w * 0.3, r.y + r.h * 0.3];
+  if (at === 0) return [r.x + r.w * 0.32, r.y + r.h * 0.32];
+  if (at === BANK_BUS) return [r.x + r.w * 0.68, r.y + r.h * 0.68];
+  if (at === BANK_TOJAIL) return [r.x + r.w * 0.32, r.y + r.h * 0.68];
+  return [r.x + r.w / 2, r.y + r.h / 2];
+}
+
+function bankBoardHtml(g, c) {
+  const pct = (n) => (Math.round(n * 1000) / 1000) + '%';
+  const sel = c.sel;
+  const landed = g.landed && g.phase === 'play' ? g.landed.sq : -1;
+  const squares = BANK_SQUARES.map((q, i) => {
+    const r = bankSqRect(i);
+    const o = (g.own || {})[i];
+    const style = `left:${pct(r.x)};top:${pct(r.y)};width:${pct(r.w)};height:${pct(r.h)}`;
+    let inner = '';
+    let body = '';
+    if (q.t === 'p') {
+      const lvl = o ? o.lvl || 0 : 0;
+      const pips = lvl === 3 ? '<span class="bank-pip bank-pip--souq"></span>' : lvl ? '<span class="bank-pip"></span>'.repeat(lvl) : '';
+      inner += `<span class="bank-band" style="background:${BANK_GROUP_HEX[q.g]}">${pips}</span>`;
+    } else if (r.side === 'corner') {
+      const label = { go: 'go', jail: 'jail', bus: 'bus', tojail: 'tojail' }[q.t];
+      inner += `<span class="bank-corner">${bankIcon(label, 'bank-ic bank-ic--corner')}<span class="bank-corner__t">${escapeHTML(bankSqName(i))}</span>${q.t === 'go' ? `<span class="bank-corner__m" dir="ltr">+${BANK_PASS}</span>` : ''}</span>`;
+    } else {
+      body += bankIcon(q.t === 'st' || q.t === 'co' ? q.icon : q.t);
+    }
+    if (q.t !== 'go' && q.t !== 'jail' && q.t !== 'bus' && q.t !== 'tojail') {
+      const price = q.price ? `<span class="bank-sq__price" dir="ltr">${q.price}</span>` : q.amount ? `<span class="bank-sq__price" dir="ltr">−${q.amount}</span>` : '';
+      body += `<span class="bank-sq__name">${escapeHTML(bankSqName(i))}</span>${price}`;
+      inner += `<span class="bank-sq__in">${body}</span>`;
+    }
+    if (o) inner += `<span class="bank-own" style="background:${bankSeatHex(g, o.by)}"></span>`;
+    const cls = ['bank-sq', 'bank-sq--' + r.side, 'bank-sq--' + q.t, o && o.mort ? 'is-mort' : '', i === landed ? 'is-landed' : '', i === sel ? 'is-sel' : ''].join(' ');
+    return `<button type="button" class="${cls}" style="${style}" data-bank-sq="${i}" aria-label="${escapeHTML(bankSqName(i))}">${inner}</button>`;
+  }).join('');
+  // Pieces: those sharing a square set a little apart.
+  const groups = {};
+  bankActive(g).forEach(pid => {
+    const key = (g.pos[pid] || 0) + (g.jail[pid] !== undefined ? 'j' : '');
+    (groups[key] = groups[key] || []).push(pid);
+  });
+  const SPREAD = [[0, 0], [-1.6, -1.6], [1.6, 1.6], [1.6, -1.6], [-1.6, 1.6], [0, 1.9], [0, -1.9]];
+  const tokens = [];
+  Object.keys(groups).forEach(k => {
+    const list = groups[k];
+    list.forEach((pid, n) => {
+      const p = bankTokenPlace(g, pid);
+      const d = list.length > 1 ? SPREAD[(n % 6) + 1] : SPREAD[0];
+      tokens.push(`<span class="bank-tok ${pid === (g.turn || {}).pid ? 'is-up' : ''} ${list.length > 1 ? 'is-small' : ''}" data-bank-tok="${escapeHTML(pid)}"
+          style="left:${pct(p[0] + d[0])};top:${pct(p[1] + d[1])};--pc:${bankSeatHex(g, pid)}" aria-hidden="true">${bankTokenOf(g, pid)}</span>`);
+    });
+  });
+  return `<div class="bank-board ${c.tv ? 'bank-board--tv' : ''}" dir="ltr" data-bank-board>
+      <div class="bank-ring">
+        ${squares}
+        <div class="bank-mid" dir="${appState.lang === 'en' ? 'ltr' : 'rtl'}">${bankMidHtml(g, c)}</div>
+        <div class="bank-fx" data-bank-fx aria-hidden="true"></div>
+        ${tokens.join('')}
+      </div>
+    </div>`;
+}
+
+/* --- the middle: the dice and the card in play ---------------------------------------------- */
+
+function bankDiceHtml(d) {
+  const face = (n) => (typeof dieFaceHtml === 'function' ? [1, 2, 3, 4, 5, 6].map(dieFaceHtml).join('') : '') + '';
+  return `<div class="bank-dice" dir="ltr">
+      <div class="bank-die"><div class="die" data-bank-die="0">${face(d && d[0])}</div></div>
+      <div class="bank-die"><div class="die" data-bank-die="1">${face(d && d[1])}</div></div>
+    </div>`;
+}
+
+/** A place's card: its colour, its price, what it rents for at every step, who owns it. */
+function bankDeedHtml(i, g) {
+  const q = BANK_SQUARES[i];
+  const o = (g.own || {})[i];
+  const owner = o ? `<p class="bank-deed__owner"><span class="bank-dot" style="background:${bankSeatHex(g, o.by)}"></span>${escapeHTML(bankT('bank_owned_by', { name: (bankUi.names || {})[o.by] || '' }))}${o.mort ? ` · <b>${escapeHTML(bankT('bank_mortgaged'))}</b>` : ''}</p>`
+    : `<p class="bank-deed__owner">${escapeHTML(bankT('bank_for_sale'))}</p>`;
+  const row = (label, v, on) => `<div class="bank-deed__row ${on ? 'is-on' : ''}"><span>${escapeHTML(label)}</span><b dir="ltr">${bankFmt(v)}</b></div>`;
+  let body = '';
+  let head = '#3f3a4d';
+  let ink = '#ffffff';
+  if (q.t === 'p') {
+    head = BANK_GROUP_HEX[q.g];
+    if (q.g === 'ye' || q.g === 'lb') ink = '#1d1b26';
+    const lvl = o ? o.lvl || 0 : 0;
+    const set = o && bankHasSet(g, o.by, q.g);
+    body = row(bankT('bank_rent'), q.rent[0], o && !lvl && !set) +
+      row(bankT('bank_rent_set'), q.rent[0] * 2, o && !lvl && set) +
+      row(bankT('bank_lvl_1'), q.rent[1], lvl === 1) + row(bankT('bank_lvl_2'), q.rent[2], lvl === 2) + row(bankT('bank_lvl_3'), q.rent[3], lvl === 3) +
+      `<p class="bank-deed__note">${escapeHTML(bankT('bank_build_costs', { a: BANK_GROUPS[q.g].house, b: BANK_GROUPS[q.g].house * 2 }))}</p>`;
+  } else if (q.t === 'st') {
+    body = [1, 2, 3, 4].map(n => row(bankT('bank_stations_n', { n: n }), [0, 25, 50, 100, 200][n], o && BANK_STATIONS.filter(k => bankOwnerOf(g, k) === o.by).length === n)).join('');
+  } else if (q.t === 'co') {
+    body = row(bankT('bank_co_one'), 4, o && !BANK_COMPANIES.every(k => bankOwnerOf(g, k) === o.by)) + row(bankT('bank_co_both'), 10, o && BANK_COMPANIES.every(k => bankOwnerOf(g, k) === o.by));
+  }
+  return `<div class="bank-deed">
+      <div class="bank-deed__head" style="background:${head};color:${ink}"><span class="bank-deed__name">${escapeHTML(bankSqName(i))}</span><span class="bank-deed__price" dir="ltr">${bankFmt(q.price)}</span></div>
+      <div class="bank-deed__body">${body}${owner}</div>
+    </div>`;
+}
+
+function bankCardHtml(deck, k) {
+  return `<div class="bank-card bank-card--${deck}">
+      <div class="bank-card__head">${bankIcon(deck)}<span>${escapeHTML(bankT(deck === 'luck' ? 'bank_luck' : 'bank_court'))}</span></div>
+      <p class="bank-card__text">${escapeHTML(bankCardText(deck, k))}</p>
+    </div>`;
+}
+
+function bankMidHtml(g, c) {
+  const dice = g.turn && g.turn.dice ? g.turn.dice : (c.lastDice || null);
+  let panel = '';
+  const sel = c.sel;
+  if (sel !== null && sel !== undefined && bankIsOwnable(sel)) panel = bankDeedHtml(sel, g);
+  else if (sel !== null && sel !== undefined) panel = `<div class="bank-mid__note">${bankIcon(BANK_SQUARES[sel].t === 'st' ? 'train' : BANK_SQUARES[sel].t, 'bank-ic bank-ic--big')}<b>${escapeHTML(bankSqName(sel))}</b><span>${escapeHTML(bankT('bank_sq_' + BANK_SQUARES[sel].t))}</span></div>`;
+  else if (g.landed && g.landed.deck) panel = bankCardHtml(g.landed.deck, g.landed.card);
+  else if (g.landed && bankIsOwnable(g.landed.sq)) panel = bankDeedHtml(g.landed.sq, g);
+  else if (g.landed) panel = `<div class="bank-mid__note">${bankIcon(BANK_SQUARES[g.landed.sq].t, 'bank-ic bank-ic--big')}<b>${escapeHTML(bankSqName(g.landed.sq))}</b><span>${escapeHTML(bankT('bank_sq_' + BANK_SQUARES[g.landed.sq].t))}</span></div>`;
+  else panel = `<div class="bank-mid__brand">${escapeHTML(bankT('setup_bank'))}</div>${c.tv ? '' : `<p class="bank-mid__hint">${escapeHTML(bankT('bank_tap_square'))}</p>`}`;
+  const pot = g.settings && g.settings.pot && g.pot ? `<span class="bank-pot" dir="ltr">💰 ${bankFmt(g.pot)}</span>` : '';
+  return `${bankDiceHtml(dice)}${pot}<div class="bank-mid__panel" data-bank-panel>${panel}${sel !== null && sel !== undefined ? `<button type="button" class="bank-mid__close" onclick="bankSelect(null)" aria-label="${escapeHTML(bankT('close'))}">✕</button>` : ''}</div>`;
+}
+
+/* --- the players, the time, the bar ----------------------------------------------------------- */
+
+function bankStripHtml(c) {
+  const g = c.g;
+  const up = g.phase === 'play' ? g.turn.pid : null;
+  const chips = g.seats.map(pid => {
+    const out = g.out.indexOf(pid) !== -1;
+    const jail = g.jail[pid] !== undefined;
+    const cards = (g.cards[pid] || []).length;
+    const place = g.places ? g.places.indexOf(pid) : -1;
+    return `<div class="bank-chip ${pid === up ? 'is-turn' : ''} ${out ? 'is-out' : ''} ${c.away && c.away[pid] ? 'is-away' : ''}" style="--pc:${bankSeatHex(g, pid)}" data-bank-chip="${escapeHTML(pid)}">
+        <span class="bank-chip__tok" aria-hidden="true">${place >= 0 && place < 3 ? ['🥇', '🥈', '🥉'][place] : bankTokenOf(g, pid)}</span>
+        <span class="bank-chip__who">
+          <span class="bank-chip__name">${escapeHTML(c.names[pid] || '…')}${c.bots && c.bots[pid] ? ' <small>🤖</small>' : ''}</span>
+          <span class="bank-chip__cash">${out ? escapeHTML(bankT('bank_out')) : `<b class="metric" dir="ltr" data-bank-cash="${escapeHTML(pid)}">${bankFmt(g.cash[pid])}</b>`}${jail ? ' 🔒' : ''}${cards ? ` <span title="${escapeHTML(bankT('bank_jail_card'))}">🎟️${cards > 1 ? '×' + cards : ''}</span>` : ''}</span>
+        </span>
+      </div>`;
+  }).join('');
+  return `<div class="bank-strip bank-strip--n${g.seats.length}">${chips}</div>`;
+}
+
+/** The game's own clock: how long is left, and the last lap. */
+function bankTimeHtml(c) {
+  const g = c.g;
+  if (g.phase !== 'play') return '';
+  const clock = c.turnClock ? `<span class="badge badge--accent metric" data-bank-clock></span>` : '';
+  if (g.lastLap) return `<div class="bank-time"><span class="badge badge--danger">🏁 ${escapeHTML(bankT('bank_last_lap'))}</span>${clock}</div>`;
+  if (!g.endsAt) return clock ? `<div class="bank-time">${clock}</div>` : '';
+  return `<div class="bank-time"><span class="badge metric" data-bank-left>⏳</span>${clock}</div>`;
+}
+
+/** What the bar says and offers: only the player whose turn it is gets buttons. */
+function bankBarHtml(c) {
+  const g = c.g;
+  const tn = g.turn || {};
+  const mine = tn.pid === c.me && g.phase === 'play' && !c.tv;
+  const name = c.names[tn.pid] || '';
+  const btn = (label, action, payload, kind, disabled) => `<button type="button" class="btn btn--${kind || 'secondary'} ${kind === 'primary' ? '' : 'btn--sm'} btn--auto" ${disabled ? 'disabled' : ''} onclick="bankDo('${action}', ${payload ? escapeHTML(JSON.stringify(payload)) : 'null'})">${escapeHTML(label)}</button>`;
+  let line = '';
+  let sub = '';
+  let buttons = '';
+  if (!mine) {
+    line = bankT('bank_turn_of', { name: name });
+    sub = c.bots && c.bots[tn.pid] ? bankT('bank_thinking') : tn.stage === 'debt' && g.debt ? bankT('bank_raising', { name: name }) : tn.stage === 'buy' ? bankT('bank_deciding', { name: name }) : '';
+  } else if (tn.stage === 'roll') {
+    const jail = g.jail[c.me] !== undefined;
+    line = jail ? bankT('bank_in_jail') : tn.dice ? bankT('bank_double_again') : bankT('bank_your_turn');
+    sub = jail ? bankT('bank_jail_try', { n: (g.jail[c.me] || 0) + 1 }) : '';
+    buttons = btn(jail ? bankT('bank_roll_double') : bankT('bank_roll'), 'roll', null, 'primary');
+    if (jail) {
+      buttons += btn(bankT('bank_pay_out', { n: BANK_JAIL_FINE }), 'payJail', null, 'secondary', (g.cash[c.me] || 0) < BANK_JAIL_FINE);
+      if ((g.cards[c.me] || []).length) buttons += btn(bankT('bank_use_card'), 'useCard', null, 'secondary');
+    }
+  } else if (tn.stage === 'buy') {
+    const q = BANK_SQUARES[g.pos[c.me]];
+    line = bankT('bank_buy_q', { place: bankSqName(g.pos[c.me]) });
+    sub = (g.cash[c.me] || 0) < q.price ? bankT('bank_short_buy') : '';
+    buttons = btn(bankT('bank_buy', { n: bankFmt(q.price) }), 'buy', { yes: true }, 'primary', (g.cash[c.me] || 0) < q.price) + btn(bankT('bank_leave'), 'buy', { yes: false }, 'ghost');
+  } else if (tn.stage === 'debt' && g.debt) {
+    const to = g.debt.to === 'bank' ? bankT('bank_the_bank') : g.debt.to === 'each' ? bankT('bank_everyone') : (c.names[g.debt.to] || '');
+    line = bankT('bank_you_owe', { n: bankFmt(g.debt.amount), to: to });
+    sub = (g.cash[c.me] || 0) < g.debt.amount ? bankT('bank_raise_hint') : '';
+    buttons = btn(bankT('bank_pay'), 'payDebt', null, 'primary', (g.cash[c.me] || 0) < g.debt.amount) + btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger');
+  } else if (tn.stage === 'act') {
+    line = bankT('bank_your_turn');
+    sub = bankT('bank_act_hint');
+    buttons = btn(bankT('bank_end_turn'), 'endTurn', null, 'primary');
+  }
+  const tools = mine && tn.stage !== 'buy' ? `<div class="bank-bar__tools">
+      <button type="button" class="btn btn--ghost btn--xs btn--auto ${bankUi.panel === 'manage' ? 'is-on' : ''}" onclick="bankPanel('manage')">🏗️ ${escapeHTML(bankT('bank_manage'))}</button>
+      ${tn.stage === 'roll' || tn.stage === 'act' ? `<button type="button" class="btn btn--ghost btn--xs btn--auto ${bankUi.panel === 'trade' ? 'is-on' : ''}" onclick="bankPanel('trade')">🤝 ${escapeHTML(bankT('bank_trade'))}</button>` : ''}
+    </div>` : mine && tn.stage === 'buy' ? `<div class="bank-bar__tools"><button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bankPanel('manage')">🏗️ ${escapeHTML(bankT('bank_manage'))}</button></div>` : '';
+  return `<div class="bank-bar ${mine ? 'is-mine' : ''}" style="--pc:${bankSeatHex(g, tn.pid)}">
+      <div class="bank-bar__txt">
+        <div class="bank-bar__t1"><span class="bank-bar__tok" aria-hidden="true">${tn.pid ? bankTokenOf(g, tn.pid) : ''}</span>${escapeHTML(line)}</div>
+        ${sub ? `<div class="bank-bar__t2">${escapeHTML(sub)}</div>` : ''}
+      </div>
+      ${buttons ? `<div class="bank-bar__btns">${buttons}</div>` : ''}
+      ${tools}
+    </div>`;
+}
+
+/* --- an offer, managing places, making an offer -------------------------------------------- */
+
+function bankSideText(g, side, c) {
+  const bits = [];
+  if (side.cash) bits.push(bankMoney(side.cash));
+  (side.sqs || []).forEach(i => bits.push(bankSqName(i)));
+  (side.cards || []).forEach(() => bits.push(bankT('bank_jail_card')));
+  return bits.length ? bits.join('، ') : bankT('bank_nothing');
+}
+
+/** An offer: to the one it was made to, yes or no; to the one who made it, a way to take it back. */
+function bankOfferHtml(c) {
+  const g = c.g;
+  const o = g.offer;
+  if (!o || c.tv) {
+    return o ? `<div class="bank-offer bank-offer--tv">🤝 ${escapeHTML(bankT('bank_offer_between', { a: c.names[o.from] || '', b: c.names[o.to] || '' }))}</div>` : '';
+  }
+  const give = bankSideText(g, o.give, c);
+  const get = bankSideText(g, o.get, c);
+  if (o.to === c.me) {
+    return `<div class="card card--accent bank-offer">
+        <p class="bank-offer__title">🤝 ${escapeHTML(bankT('bank_offer_from', { name: c.names[o.from] || '' }))}</p>
+        <div class="bank-offer__sides"><div><span>${escapeHTML(bankT('bank_you_get'))}</span><b>${escapeHTML(give)}</b></div><div><span>${escapeHTML(bankT('bank_you_give'))}</span><b>${escapeHTML(get)}</b></div></div>
+        <div class="btn-row"><button class="btn btn--primary btn--auto" onclick="bankDo('answer', { yes: true, id: ${o.id} })">${escapeHTML(bankT('bank_accept'))}</button><button class="btn btn--ghost btn--auto" onclick="bankDo('answer', { yes: false, id: ${o.id} })">${escapeHTML(bankT('bank_refuse'))}</button></div>
+      </div>`;
+  }
+  if (o.from === c.me) {
+    return `<div class="bank-offer bank-offer--mine">⏳ ${escapeHTML(bankT('bank_offer_waiting', { name: c.names[o.to] || '' }))} <button class="btn btn--ghost btn--xs btn--auto" onclick="bankDo('cancelOffer')">${escapeHTML(bankT('cancel'))}</button></div>`;
+  }
+  return `<div class="bank-offer bank-offer--tv">🤝 ${escapeHTML(bankT('bank_offer_between', { a: c.names[o.from] || '', b: c.names[o.to] || '' }))}</div>`;
+}
+
+/** Your places by colour, with what can be done to each right now. */
+function bankManageHtml(c) {
+  const g = c.g;
+  const me = c.me;
+  const places = bankPlacesOf(g, me);
+  if (!places.length) return `<div class="bank-panel"><p class="field__hint">${escapeHTML(bankT('bank_no_places'))}</p></div>`;
+  const st = g.turn.stage;
+  const canBuildNow = st === 'roll' || st === 'buy' || st === 'act';
+  const rows = places.map(i => {
+    const q = BANK_SQUARES[i];
+    const o = g.own[i];
+    const color = q.t === 'p' ? BANK_GROUP_HEX[q.g] : '#3f3a4d';
+    const acts = [];
+    if (q.t === 'p' && canBuildNow && bankCanBuild(g, me, i)) acts.push(['+ ' + bankT('bank_build', { n: bankStepCost(q.g, bankLevel(g, i) + 1) }), 'build', 'primary']);
+    if (q.t === 'p' && bankCanSell(g, me, i)) acts.push(['− ' + bankT('bank_sell', { n: Math.floor(bankStepCost(q.g, bankLevel(g, i)) / 2) }), 'sell', 'secondary']);
+    if (bankCanMortgage(g, me, i)) acts.push([bankT('bank_mortgage', { n: bankMortgageValue(i) }), 'mortgage', 'secondary']);
+    if (o.mort && canBuildNow) acts.push([bankT('bank_unmortgage', { n: bankUnmortgageCost(i) }), 'unmortgage', bankCanUnmortgage(g, me, i) ? 'secondary' : 'ghost', !bankCanUnmortgage(g, me, i)]);
+    const status = o.mort ? bankT('bank_mortgaged') : q.t === 'p' ? bankLevelWord(o.lvl || 0) : '';
+    return `<div class="bank-mrow ${o.mort ? 'is-mort' : ''}">
+        <span class="bank-mrow__band" style="background:${color}"></span>
+        <button type="button" class="bank-mrow__name" onclick="bankSelect(${i})">${escapeHTML(bankSqName(i))}<small>${escapeHTML(status)}</small></button>
+        <span class="bank-mrow__acts">${acts.map(a => `<button type="button" class="btn btn--${a[2]} btn--xs btn--auto" ${a[3] ? 'disabled' : ''} onclick="bankDo('${a[1]}', { sq: ${i} })">${escapeHTML(a[0])}</button>`).join('')}</span>
+      </div>`;
+  }).join('');
+  return `<div class="bank-panel">
+      <p class="bank-panel__title">🏗️ ${escapeHTML(bankT('bank_manage_title'))}</p>
+      <p class="field__hint">${escapeHTML(bankT('bank_manage_hint'))}</p>
+      ${rows}
+    </div>`;
+}
+
+/** The offer being put together: who to, what you give, what you want. */
+function bankTradeHtml(c) {
+  const g = c.g;
+  const me = c.me;
+  const tr = bankUi.trade;
+  const others = bankActive(g).filter(id => id !== me);
+  if (!others.length) return '';
+  if (!tr.to || others.indexOf(tr.to) === -1) tr.to = others[0];
+  const tradable = (pid) => bankPlacesOf(g, pid).filter(i => BANK_SQUARES[i].t !== 'p' || !bankGroupBuilt(g, BANK_SQUARES[i].g));
+  const chip = (side, i) => {
+    const q = BANK_SQUARES[i];
+    const on = (tr[side].sqs || []).indexOf(i) !== -1;
+    return `<button type="button" class="bank-tchip ${on ? 'is-on' : ''} ${g.own[i].mort ? 'is-mort' : ''}" style="--gc:${q.t === 'p' ? BANK_GROUP_HEX[q.g] : '#3f3a4d'}" onclick="bankTradeToggle('${side}', ${i})" aria-pressed="${on}">${escapeHTML(bankSqName(i))}</button>`;
+  };
+  const cardChip = (side, pid) => (g.cards[pid] || []).map((d, k) => {
+    const on = (tr[side].cards || []).length > k;
+    return `<button type="button" class="bank-tchip ${on ? 'is-on' : ''}" onclick="bankTradeCard('${side}')" aria-pressed="${on}">🎟️ ${escapeHTML(bankT('bank_jail_card'))}</button>`;
+  }).join('');
+  const cashIn = (side, pid) => `<label class="bank-tcash"><span>${escapeHTML(bankT('bank_cash'))}</span>
+      <input type="number" inputmode="numeric" min="0" max="${g.cash[pid] || 0}" step="10" value="${tr[side].cash || ''}" placeholder="0" oninput="bankTradeCash('${side}', this.value)"></label>`;
+  const col = (side, pid, title) => `<div class="bank-tcol"><p class="bank-tcol__title">${escapeHTML(title)}</p>
+      <div class="bank-tchips">${tradable(pid).map(i => chip(side, i)).join('') || `<span class="field__hint">${escapeHTML(bankT('bank_no_places'))}</span>`}${cardChip(side, pid)}</div>
+      ${cashIn(side, pid)}</div>`;
+  return `<div class="bank-panel">
+      <p class="bank-panel__title">🤝 ${escapeHTML(bankT('bank_trade_title'))}</p>
+      <div class="chip-set bank-tto">${others.map(id => `<button type="button" class="chip ${id === tr.to ? 'is-selected' : ''}" onclick="bankTradeTo('${jsStringAttr(id)}')">${bankTokenOf(g, id)} ${escapeHTML(c.names[id] || '')}</button>`).join('')}</div>
+      <div class="bank-tcols">
+        ${col('give', me, bankT('bank_you_give'))}
+        ${col('get', tr.to, bankT('bank_you_want', { name: c.names[tr.to] || '' }))}
+      </div>
+      <button type="button" class="btn btn--primary" onclick="bankSendOffer()" ${g.offer ? 'disabled' : ''}>${escapeHTML(bankT('bank_send_offer'))}</button>
+    </div>`;
+}
+
+/* --- the log, the end, the frame ----------------------------------------------------------- */
+
+function bankEventText(c, e) {
+  const n = (pid) => c.names[pid] || '…';
+  switch (e.type) {
+    case 'rolloff': return '🎲 ' + bankT('bank_ev_first', { name: n(e.first) });
+    case 'buy': return '🏠 ' + bankT('bank_ev_buy', { name: n(e.pid), place: bankSqName(e.sq), n: bankFmt(e.price) });
+    case 'rent': return e.amount ? '💵 ' + bankT('bank_ev_rent', { name: n(e.pid), other: n(e.to), n: bankFmt(e.amount) }) : '';
+    case 'tax': return '🧾 ' + bankT('bank_ev_tax', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'card': return (e.deck === 'luck' ? '❓ ' : '⚖️ ') + n(e.pid) + ': ' + bankCardText(e.deck, e.card);
+    case 'start': return '💰 ' + bankT('bank_ev_start', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'jail': return '🔒 ' + bankT(e.why === 'three' ? 'bank_ev_jail_three' : 'bank_ev_jail', { name: n(e.pid) });
+    case 'free': return '🔓 ' + bankT('bank_ev_free_' + (e.how || 'pay'), { name: n(e.pid) });
+    case 'build': return '🏗️ ' + bankT('bank_ev_build', { name: n(e.pid), what: bankLevelWord(e.lvl), place: bankSqName(e.sq) });
+    case 'sell': return bankT('bank_ev_sell', { name: n(e.pid), place: bankSqName(e.sq) });
+    case 'mortgage': return bankT('bank_ev_mortgage', { name: n(e.pid), place: bankSqName(e.sq) });
+    case 'unmortgage': return bankT('bank_ev_unmortgage', { name: n(e.pid), place: bankSqName(e.sq) });
+    case 'bus': return '🚌 ' + bankT('bank_ev_bus', { name: n(e.pid), n: e.n });
+    case 'pot': return '💰 ' + bankT('bank_ev_pot', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'trade': return '🤝 ' + bankT('bank_ev_trade', { a: n(e.from), b: n(e.to) });
+    case 'refuse': return e.why ? '' : bankT('bank_ev_refuse', { name: n(e.to) });
+    case 'bankrupt': return '💸 ' + bankT('bank_ev_bankrupt', { name: n(e.pid) });
+    case 'lastlap': return '🏁 ' + bankT('bank_last_lap_ev');
+    case 'auto': return '⏱️ ' + bankT(e.why === 'host' ? 'bank_ev_host' : 'bank_ev_clock', { name: n(e.pid) });
+    case 'left': return bankT('bank_ev_left', { name: e.name || n(e.pid) });
+    default: return '';
+  }
+}
+
+function bankLogHtml(c) {
+  const lines = (c.g.events || []).slice().reverse().map(e => bankEventText(c, e)).filter(Boolean).slice(0, 4);
+  return lines.map((l, i) => `<div class="bank-log__line ${i === 0 ? 'is-latest' : ''}">${escapeHTML(l)}</div>`).join('');
+}
+
+function bankOverHtml(c) {
+  const g = c.g;
+  const places = g.places || [];
+  const rise = motionFirst(['bank-podium', c.key, places.join(',')].join('|'));
+  const top = places.slice(0, 3);
+  const medals = ['🥇', '🥈', '🥉'];
+  const atOf = (i) => 150 + (top.length - 1 - i) * 520;
+  const podium = `<div class="podium${rise ? ' podium--rise" data-reveal-ms="' + (atOf(0) + 620) : ''}">` + top.map((pid, i) =>
+    `<div class="podium__place podium__place--${i + 1} podium__place--rank${i + 1}" style="--at:${atOf(i)}ms">
+      <div class="podium__who"><span class="podium__medal" aria-hidden="true">${medals[i]}</span><span class="podium__name">${escapeHTML(c.names[pid] || '…')}</span>
+      <span class="podium__score metric" dir="ltr">${g.out.indexOf(pid) === -1 ? bankFmt((g.worth || {})[pid]) : '—'}</span></div>
+      <div class="podium__block"><span class="metric">${i + 1}</span></div></div>`).join('') + '</div>';
+  const why = (g.events || []).slice().reverse().find(e => e.type === 'over');
+  return `<div class="card card--accent bank-over">
+      <p class="bank-over__title">🏁 ${escapeHTML(bankT(why && why.why === 'time' ? 'bank_over_time' : 'bank_over_last'))}</p>
+      ${podium}
+      <p class="field__hint" style="text-align:center">${escapeHTML(bankT('bank_worth_hint'))}</p>
+      ${c.over || ''}
+    </div>`;
+}
+
+/**
+ * A whole frame. c: { g, me, names, bots, away, key, fresh, loud, tv, sel,
+ * over (the end's buttons), host (the host's row), turnClock }.
+ */
+function bankFrameHtml(c) {
+  const g = c.g;
+  const over = g.phase === 'gameover';
+  const mine = !over && !c.tv && g.turn.pid === c.me;
+  const panel = mine && bankUi.panel === 'manage' ? bankManageHtml(c) : mine && bankUi.panel === 'trade' && (g.turn.stage === 'roll' || g.turn.stage === 'act') ? bankTradeHtml(c) : '';
+  return `<div class="bank ${c.tv ? 'bank--tv' : ''} ${over ? 'is-over' : ''}">
+      <div class="bank-layout">
+        <div class="bank-layout__board">${bankBoardHtml(g, c)}</div>
+        <div class="bank-layout__side">
+          ${over ? bankOverHtml(c) : ''}
+          <div class="bank-top">${bankStripHtml(c)}${bankTimeHtml(c)}</div>
+          ${over ? '' : bankOfferHtml(c)}
+          ${over ? '' : bankBarHtml(c)}
+          ${panel}
+          <div class="bank-log">${bankLogHtml(c)}</div>
+          ${c.host || ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* --- what only this screen holds ---------------------------------------------------------------- */
+
+const bankUi = { sel: null, panel: null, trade: { to: null, give: { cash: 0, sqs: [], cards: [] }, get: { cash: 0, sqs: [], cards: [] } }, turnKey: '', names: {} };
+const bankFx = { key: '', lastSeq: 0, busyUntil: 0, timers: [], wokeAt: 0, watched: '', cash: {}, dieTurns: [0, 0], dieCss: ['', ''] };
+
+function bankResetTrade() {
+  bankUi.trade = { to: bankUi.trade.to, give: { cash: 0, sqs: [], cards: [] }, get: { cash: 0, sqs: [], cards: [] } };
+}
+
+/** A new turn or a new stage: the tapped square and the panels are put away. */
+function bankUiFor(g) {
+  const key = [g.turnSeq, g.turn && g.turn.pid].join('|');
+  if (bankUi.turnKey !== key) {
+    if (!g.turn || bankUi.turnKey.split('|')[1] !== String(g.turn.pid)) { bankUi.panel = null; bankResetTrade(); }
+    bankUi.sel = null;
+    bankUi.turnKey = key;
+  }
+}
+
+function bankRepaint() {
+  if (appState.currentView === 'play-bank') paintBank({ keep: true });
+  else if (typeof Room !== 'undefined' && Room.state && Room.state.game === 'bank') {
+    const el = document.getElementById(Room.state.youAreScreen ? 'view-room-tv' : 'view-room-bank');
+    if (el) delete el.dataset.sig;
+    routeRoomState(Room.state);
+  }
+}
+
+function bankSelect(i) {
+  bankUi.sel = i === null || i === undefined || bankUi.sel === i ? null : i;
+  haptic('light');
+  bankRepaint();
+}
+
+function bankPanel(name) {
+  bankUi.panel = bankUi.panel === name ? null : name;
+  haptic('light');
+  bankRepaint();
+  if (bankUi.panel) setTimeout(() => { const p = document.querySelector('.bank-panel'); if (p) p.scrollIntoView({ block: 'nearest', behavior: motionOff() ? 'auto' : 'smooth' }); }, 50);
+}
+
+function bankTradeTo(pid) { bankUi.trade.to = pid; bankUi.trade.get = { cash: 0, sqs: [], cards: [] }; bankRepaint(); }
+function bankTradeToggle(side, i) {
+  const list = bankUi.trade[side].sqs;
+  const k = list.indexOf(i);
+  if (k === -1) list.push(i); else list.splice(k, 1);
+  haptic('light');
+  bankRepaint();
+}
+function bankTradeCard(side) {
+  const s = bankUi.trade[side];
+  s.cards = s.cards.length ? [] : ['?'];
+  bankRepaint();
+}
+function bankTradeCash(side, v) { bankUi.trade[side].cash = Math.max(0, Math.floor(Number(v) || 0)); }
+
+function bankSendOffer() {
+  const g = bankCurrentGame();
+  if (!g) return;
+  const tr = bankUi.trade;
+  const cardsOf = (pid, want) => want.length ? (g.cards[pid] || []).slice(0, 1) : [];
+  const me = bankCurrentMe();
+  const payload = {
+    to: tr.to,
+    give: { cash: tr.give.cash, sqs: tr.give.sqs.slice(), cards: cardsOf(me, tr.give.cards) },
+    get: { cash: tr.get.cash, sqs: tr.get.sqs.slice(), cards: cardsOf(tr.to, tr.get.cards) }
+  };
+  bankDo('offer', payload);
+  bankUi.panel = null;
+  bankResetTrade();
+}
+
+/** The game on screen and who "me" is in it: a game against the phone, or a room. */
+function bankCurrentGame() {
+  if (appState.currentView === 'play-bank') return (bankState().g) || null;
+  return typeof Room !== 'undefined' && Room.state && Room.state.game === 'bank' ? Room.state.shared : null;
+}
+function bankCurrentMe() { return appState.currentView === 'play-bank' ? 'me' : (typeof Room !== 'undefined' ? Room.me : null); }
+
+/** A button on the board or in the bar: the game against the phone, or the room. */
+function bankDo(action, payload) {
+  if (appState.currentView === 'play-bank') bankLocalDo(action, payload || {});
+  else if (typeof bankRoomDo === 'function') bankRoomDo(action, payload || {});
+}
+
+/* --- the motion ------------------------------------------------------------------------------------ */
+
+const bankCanMove = () => !motionOff() && !!(document.body && document.body.animate);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) bankFx.wokeAt = Date.now(); });
+
+function bankFxCancel() {
+  bankFx.timers.forEach(clearTimeout);
+  bankFx.timers = [];
+  bankFx.busyUntil = 0;
+}
+
+function bankEventsToPlay(key, g, fresh) {
+  const events = g.events || [];
+  const maxSeq = events.reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  if (bankFx.key !== key) {
+    bankFx.key = key;
+    bankFx.lastSeq = maxSeq;
+    bankFx.cash = {};
+    if (fresh) {
+      const first = events.find(e => e && e.type === 'rolloff');
+      if (first) bankFx.lastSeq = (Number(first.seq) || 0) - 1;
+    }
+  }
+  const out = events.filter(e => e && (Number(e.seq) || 0) > bankFx.lastSeq);
+  bankFx.lastSeq = Math.max(bankFx.lastSeq, maxSeq);
+  return out;
+}
+
+/** The two dice turned to what was rolled: tumbling there, or already there. */
+function bankDiceShow(root, d, tumble, delay) {
+  if (!d) return;
+  [0, 1].forEach(k => {
+    const die = root.querySelector(`[data-bank-die="${k}"]`);
+    if (!die) return;
+    const land = (typeof DIE_LANDING !== 'undefined' && DIE_LANDING[d[k]]) || [0, 0];
+    const css = (turns) => `rotateX(${turns * 360 + land[0] - 14}deg) rotateY(${turns * 360 + land[1] + (k ? -16 : 16)}deg)`;
+    if (!tumble) { die.style.transition = 'none'; die.style.transform = bankFx.dieCss[k] = css(bankFx.dieTurns[k]); return; }
+    die.style.transition = 'none';
+    die.style.transform = bankFx.dieCss[k] || css(0);
+    void die.offsetWidth;
+    bankFx.timers.push(setTimeout(() => {
+      bankFx.dieTurns[k] += 2 + Math.floor(Math.random() * 2);
+      die.style.transition = '';
+      die.style.transform = bankFx.dieCss[k] = css(bankFx.dieTurns[k]);
+    }, delay || 16));
+  });
+}
+
+/** A piece hops square by square, ending where it is drawn. */
+function bankHop(root, pid, squares, delay) {
+  const tok = root.querySelector(`[data-bank-tok="${CSS.escape(pid)}"]`);
+  const board = root.querySelector('[data-bank-board]');
+  if (!tok || !tok.animate || !board || squares.length < 2) return 0;
+  const size = board.offsetWidth / 100;
+  const fx = parseFloat(tok.style.left);
+  const fy = parseFloat(tok.style.top);
+  const centre = (i) => { const r = bankSqRect(i); return [r.x + r.w / 2, r.y + r.h / 2]; };
+  const pts = squares.map(centre);
+  const n = pts.length - 1;
+  const at = (p) => `translate(${((p[0] - fx) * size).toFixed(1)}px, ${((p[1] - fy) * size).toFixed(1)}px)`;
+  const frames = [];
+  pts.forEach((p, k) => {
+    frames.push({ transform: (k === n ? 'translate(0px, 0px)' : at(p)) + ' scale(1)', offset: k / n });
+    if (k < n) frames.push({ transform: at([(p[0] + pts[k + 1][0]) / 2, (p[1] + pts[k + 1][1]) / 2]) + ' scale(1.35)', offset: (k + 0.5) / n });
+  });
+  const duration = Math.max(260, n * BANK_STEP_MS);
+  tok.style.zIndex = '7';
+  tok.animate(frames, { duration: duration, delay: delay, fill: 'backwards', easing: 'linear' });
+  bankFx.timers.push(setTimeout(() => { tok.style.zIndex = ''; }, delay + duration + 40));
+  return duration;
+}
+
+/** Money flying from one place on screen to another (a chip, the middle of the board). */
+function bankMoneyFly(root, fromEl, toEl, delay) {
+  if (!fromEl || !toEl || typeof flyEmoji !== 'function') return;
+  bankFx.timers.push(setTimeout(() => {
+    const r = fromEl.getBoundingClientRect();
+    if (r.width) flyEmoji('💵', r, 18, toEl);
+  }, delay));
+}
+
+function bankPop(el, delay) {
+  if (!el || !el.animate) return;
+  el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.6)' }, { transform: 'scale(1)' }], { duration: 420, delay: delay, easing: 'ease-out' });
+}
+
+/** The squares a piece passes, in order, from one square to another going forward (or back). */
+function bankPathSquares(from, to, how) {
+  if (how === 'back') { const out = [from]; for (let i = from; i !== to;) { i = (i + 39) % 40; out.push(i); } return out; }
+  const out = [from];
+  for (let i = from; i !== to;) { i = (i + 1) % 40; out.push(i); }
+  return out;
+}
+
+/** After a frame is drawn: the moves it brought, in order. Returns how long they take. */
+function bankAfterPaint(root, c) {
+  const g = c.g;
+  const evs = bankEventsToPlay(c.key, g, c.fresh);
+  const lastRoll = (g.events || []).slice().reverse().find(e => e.type === 'roll' && !e.forRent);
+  const quiet = document.hidden || Date.now() - bankFx.wokeAt < 2500 || !root.getClientRects().length || evs.length > 16;
+  const moving = !quiet && bankCanMove();
+  const chip = (pid) => root.querySelector(`[data-bank-chip="${CSS.escape(pid)}"] .bank-chip__tok`);
+  const mid = root.querySelector('[data-bank-panel]');
+  const cashWas = Object.assign({}, bankFx.cash);
+  // The cash on every chip counts from what it showed before.
+  const countCash = (delay) => {
+    root.querySelectorAll('[data-bank-cash]').forEach(el => {
+      const pid = el.getAttribute('data-bank-cash');
+      const now = g.cash[pid] || 0;
+      const was = cashWas[pid];
+      if (typeof was === 'number' && was !== now && moving && typeof countUp === 'function') {
+        el.textContent = bankFmt(was);
+        bankFx.timers.push(setTimeout(() => countUp(el, was, now), delay));
+      }
+    });
+  };
+  g.seats.forEach(pid => { bankFx.cash[pid] = g.cash[pid] || 0; });
+  const rollNow = moving ? evs.find(e => e.type === 'roll' && !e.forRent) : null;
+  if (lastRoll && !rollNow) bankDiceShow(root, lastRoll.d, false);
+  if (!evs.length) return 0;
+  if (!moving) {
+    if (!quiet) bankEventSounds(evs, c);
+    return 0;
+  }
+  let t = 0;
+  let cashAt = 0;
+  evs.forEach(e => {
+    const loud = c.loud || e.pid === c.me;
+    if (e.type === 'roll' && !e.forRent) {
+      bankDiceShow(root, e.d, true, t);
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound('bankRoll'), t));
+      t += 720;
+    } else if (e.type === 'move') {
+      const d = e.how === 'jail' ? 0 : bankHop(root, e.pid, bankPathSquares(e.from, e.to, e.how), t);
+      if (loud) {
+        const hops = Math.max(1, bankPathSquares(e.from, e.to, e.how).length - 1);
+        for (let k = 1; k <= hops; k += 1) bankFx.timers.push(setTimeout(() => bankSound('bankStep'), t + k * (d / hops) - 20));
+      }
+      t += d + 60;
+    } else if (e.type === 'jail') {
+      const d = bankHop(root, e.pid, [e.from, BANK_JAIL], t);
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound('bankJail'), t + d));
+      t += d + 200;
+    } else if (e.type === 'card') {
+      if (mid && mid.animate) mid.animate([{ transform: 'rotateY(90deg)', opacity: 0.2 }, { transform: 'rotateY(0deg)', opacity: 1 }], { duration: 420, delay: t, fill: 'backwards', easing: 'ease-out' });
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound('bankCard'), t));
+      t += 700;
+    } else if (e.type === 'rent' && e.amount) {
+      bankMoneyFly(root, chip(e.pid), chip(e.to), t);
+      if (loud || e.to === c.me) bankFx.timers.push(setTimeout(() => bankSound('bankCash'), t + 450));
+      cashAt = t + 500;
+      t += 450;
+    } else if (e.type === 'paid' && e.to !== 'bank' && e.to !== 'each') {
+      bankMoneyFly(root, chip(e.pid), chip(e.to), t);
+      cashAt = t + 500;
+      t += 450;
+    } else if (e.type === 'start' || e.type === 'pot') {
+      bankMoneyFly(root, mid, chip(e.pid), t);
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound('bankCash'), t + 450));
+      cashAt = t + 500;
+      t += 300;
+    } else if (e.type === 'buy' || e.type === 'build') {
+      const sq = root.querySelector(`[data-bank-sq="${e.sq}"] ${e.type === 'buy' ? '.bank-own' : '.bank-band'}`);
+      bankPop(sq, t);
+      if (loud) bankFx.timers.push(setTimeout(() => bankSound(e.type === 'buy' ? 'bankBuy' : 'bankBuild'), t));
+      cashAt = t;
+      t += 280;
+    } else if (e.type === 'bankrupt') {
+      const ch = root.querySelector(`[data-bank-chip="${CSS.escape(e.pid)}"]`);
+      if (ch && ch.animate) ch.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 420, delay: t });
+      t += 450;
+    }
+  });
+  countCash(cashAt || t);
+  bankFx.busyUntil = Math.max(bankFx.busyUntil, Date.now() + t);
+  return t;
+}
+
+function bankEventSounds(evs, c) {
+  const mine = (e) => c.loud || e.pid === c.me;
+  if (evs.some(e => e.type === 'rent' && e.amount && (mine(e) || e.to === c.me))) bankSound('bankCash');
+  else if (evs.some(e => e.type === 'roll' && mine(e))) bankSound('bankRoll');
+}
+
+function bankSound(name) {
+  try { if (typeof FX !== 'undefined' && FX[name] && typeof playFx === 'function') playFx(name); } catch (e) {}
+}
+
+/** A tap on a square shows its card in the middle; a second tap puts it away. */
+function bankWire(root) {
+  root.querySelectorAll('[data-bank-sq]').forEach(el => {
+    el.addEventListener('click', () => bankSelect(Number(el.getAttribute('data-bank-sq'))));
+  });
+}
+
+/** The game's time left, drawn every second. */
+function bankTickTime(root, g, turnClockEndsAt) {
+  clearInterval(bankFx.timeTimer);
+  const paint = () => {
+    const left = root.querySelector('[data-bank-left]');
+    if (left && g.endsAt) {
+      const ms = Math.max(0, g.endsAt - bankNow());
+      const m = Math.floor(ms / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      left.textContent = '⏳ ' + m + ':' + String(s).padStart(2, '0');
+    }
+    const clk = root.querySelector('[data-bank-clock]');
+    if (clk && turnClockEndsAt) {
+      const secs = Math.max(0, Math.ceil((turnClockEndsAt - Date.now()) / 1000));
+      clk.textContent = '⏱️ ' + secs;
+      clk.classList.toggle('badge--danger', secs <= 10);
+    }
+  };
+  paint();
+  if (g.phase === 'play' && (g.endsAt || turnClockEndsAt)) bankFx.timeTimer = setInterval(paint, 1000);
+}
+
+/** The game's own clock: a game against the phone only counts while it is on screen. */
+function bankNow() { return Date.now(); }
+
+/* --- against the phone ------------------------------------------------------------------------ */
+
+let bankBotTimer = null;
+
+function bankState() {
+  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, g: null, priv: null, names: {}, bots: {}, gameId: '' };
+  const s = appState.bank;
+  if ([1, 2, 3].indexOf(Number(s.opp)) === -1) s.opp = 2;
+  if (s.level !== 'hard') s.level = 'easy';
+  if (BANK_TOKENS.indexOf(s.token) === -1) s.token = 'car';
+  if (BANK_LENGTHS.indexOf(Number(s.length)) === -1) s.length = BANK_LENGTH_DEFAULT;
+  return s;
+}
+
+function setupBank() {
+  bankStopBot();
+  setView('setup-bank');
+  paintBankSetup();
+}
+
+function paintBankSetup() {
+  const s = bankState();
+  const seg = (id, value) => document.querySelectorAll('#' + id + ' .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === String(value)));
+  seg('bank-opp', s.opp);
+  seg('bank-level', s.level);
+  seg('bank-length', s.length);
+  const tokens = document.getElementById('bank-token');
+  if (tokens) {
+    tokens.innerHTML = BANK_TOKENS.map(tk => `<button type="button" class="bank-tokpick ${tk === s.token ? 'is-active' : ''}" onclick="setBankOption('token', '${tk}')" aria-pressed="${tk === s.token}" aria-label="${escapeHTML(bankT('bank_token_' + tk))}">${BANK_TOKEN_ICON[tk]}</button>`).join('');
+  }
+  const pot = document.getElementById('bank-pot');
+  if (pot) pot.checked = !!s.pot;
+  const go = document.getElementById('bank-go400');
+  if (go) go.checked = !!s.go400;
+  const cont = document.getElementById('bank-continue');
+  if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
+}
+
+function setBankOption(key, value) {
+  const s = bankState();
+  if (key === 'opp') s.opp = Number(value);
+  else if (key === 'level') s.level = value === 'hard' ? 'hard' : 'easy';
+  else if (key === 'token' && BANK_TOKENS.indexOf(value) !== -1) s.token = value;
+  else if (key === 'length') s.length = Number(value);
+  else if (key === 'pot' || key === 'go400') s[key] = !!value;
+  haptic('light');
+  saveToLocal();
+  paintBankSetup();
+}
+
+function startBank() {
+  const s = bankState();
+  bankStopBot();
+  const ids = ['me'];
+  for (let k = 1; k <= s.opp; k++) ids.push('b' + k);
+  const pool = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).slice().sort(() => Math.random() - 0.5);
+  const names = { me: bankT('xo_you') };
+  const bots = {};
+  ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = s.level; });
+  const off = bankRollOff(ids, Math.random);
+  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400 }, Date.now(), Math.random);
+  bankEvent(made.g, 'rolloff', { rounds: off.rounds, first: off.first });
+  s.g = made.g;
+  s.priv = made.priv;
+  s.names = names;
+  s.bots = bots;
+  s.pausedAt = null;
+  s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  bankUi.panel = null;
+  bankUi.sel = null;
+  saveToLocal();
+  if (appState.currentView !== 'play-bank') setView('play-bank');
+  paintBank({ fresh: true });
+  if (typeof scrollToAction === 'function') scrollToAction();
+}
+
+function bankContinue() {
+  setView('play-bank');
+  paintBank({ still: true });
+}
+
+/** Your move against the phone, straight onto the game. */
+function bankLocalDo(action, p) {
+  const s = bankState();
+  const g = s.g;
+  if (!g || g.phase !== 'play') return;
+  const now = Date.now();
+  try {
+    switch (action) {
+      case 'roll': bankRoll(g, s.priv, 'me', [bankRoll6(Math.random), bankRoll6(Math.random)], Math.random); break;
+      case 'buy': bankBuy(g, 'me', !!p.yes); break;
+      case 'payJail': bankPayJail(g, 'me'); break;
+      case 'useCard': bankUseCard(g, s.priv, 'me'); break;
+      case 'payDebt': bankPayDebt(g, s.priv, 'me', Math.random); break;
+      case 'bankrupt': bankBankrupt(g, s.priv, 'me', now); break;
+      case 'endTurn': bankEndTurn(g, 'me', now); break;
+      case 'build': bankBuild(g, 'me', p.sq); break;
+      case 'sell': bankSell(g, 'me', p.sq); break;
+      case 'mortgage': bankMortgage(g, 'me', p.sq); break;
+      case 'unmortgage': bankUnmortgage(g, 'me', p.sq); break;
+      case 'offer': bankOffer(g, 'me', p); break;
+      case 'cancelOffer': bankCancelOffer(g, 'me'); break;
+      default: return;
+    }
+  } catch (err) {
+    showToast(err.message || '', 'error');
+    return;
+  }
+  haptic('light');
+  saveToLocal();
+  paintBank();
+}
+
+/**
+ * What happens without a tap: a computer player's move (and its answer to
+ * your offer), or your only move made for you. Each waits for the motion on
+ * screen to land.
+ */
+function bankLocalNext() {
+  bankStopBot();
+  const s = bankState();
+  const g = s.g;
+  if (!g || g.phase !== 'play' || appState.currentView !== 'play-bank') return;
+  const wait = Math.max(0, bankFx.busyUntil - Date.now());
+  const think = BANK_BOT_MS[0] + Math.floor(Math.random() * (BANK_BOT_MS[1] - BANK_BOT_MS[0]));
+  const offerTo = g.offer && s.bots[g.offer.to] ? g.offer.to : null;
+  const pid = offerTo || g.turn.pid;
+  if (s.bots[pid]) {
+    bankBotTimer = setTimeout(() => {
+      bankBotTimer = null;
+      const st = bankState();
+      const gg = st.g;
+      if (gg !== g || gg.phase !== 'play' || appState.currentView !== 'play-bank') return;
+      const mv = bankBotMove(gg, st.priv, pid, st.bots[pid]);
+      if (mv) {
+        const p = mv.payload || {};
+        const now = Date.now();
+        try {
+          switch (mv.action) {
+            case 'answer': bankAnswer(gg, pid, !!p.yes, p.id); break;
+            case 'roll': bankRoll(gg, st.priv, pid, [bankRoll6(Math.random), bankRoll6(Math.random)], Math.random); break;
+            case 'buy': bankBuy(gg, pid, !!p.yes); break;
+            case 'payJail': bankPayJail(gg, pid); break;
+            case 'useCard': bankUseCard(gg, st.priv, pid); break;
+            case 'payDebt': bankPayDebt(gg, st.priv, pid, Math.random); break;
+            case 'bankrupt': bankBankrupt(gg, st.priv, pid, now); break;
+            case 'endTurn': bankEndTurn(gg, pid, now); break;
+            case 'build': bankBuild(gg, pid, p.sq); break;
+            case 'sell': bankSell(gg, pid, p.sq); break;
+            case 'mortgage': bankMortgage(gg, pid, p.sq); break;
+            case 'unmortgage': bankUnmortgage(gg, pid, p.sq); break;
+          }
+        } catch (err) {
+          // A move the rules refused: the safe one instead, so the table never stalls.
+          try { bankAuto(gg, st.priv, pid, Math.random, Date.now()); } catch (e) {}
+        }
+      }
+      saveToLocal();
+      paintBank();
+    }, wait + think);
+    return;
+  }
+  if (g.turn.pid === 'me') {
+    const only = bankOnlyMove(g, 'me');
+    if (!only) return;
+    bankBotTimer = setTimeout(() => {
+      bankBotTimer = null;
+      const gg = bankState().g;
+      if (gg !== g || appState.currentView !== 'play-bank' || !bankOnlyMove(gg, 'me')) return;
+      bankLocalDo(only.action, only.payload);
+    }, wait + 1400);
+  }
+}
+
+function bankStopBot() {
+  if (bankBotTimer) clearTimeout(bankBotTimer);
+  bankBotTimer = null;
+}
+
+function bankLocalCtx(o) {
+  const s = bankState();
+  const names = Object.assign({}, s.names || {}, { me: bankT('xo_you') });
+  bankUi.names = names;
+  const over = `<div class="btn-stack">
+      <button class="btn btn--primary btn--lg" onclick="startBank()">${escapeHTML(bankT('bank_again'))}</button>
+      <button class="btn btn--ghost btn--sm" onclick="setupBank()">${escapeHTML(bankT('exit'))}</button>
+    </div>`;
+  return { g: s.g, me: 'me', names: names, bots: s.bots || {}, away: {}, key: 'local|' + s.gameId, fresh: !!o.fresh, loud: true, tv: false, sel: bankUi.sel, over: over };
+}
+
+function paintBank(opts) {
+  const o = opts || {};
+  const s = bankState();
+  const el = document.getElementById('bank-stage');
+  if (!el || !s.g) return;
+  if (o.still || o.fresh) bankFxCancel();
+  if (!o.still && !o.fresh && !o.keep && bankFx.busyUntil > Date.now()) {
+    bankStopBot();
+    bankBotTimer = setTimeout(() => { bankBotTimer = null; paintBank(); }, bankFx.busyUntil - Date.now() + 40);
+    return;
+  }
+  bankUiFor(s.g);
+  const c = bankLocalCtx(o);
+  el.innerHTML = bankFrameHtml(c);
+  if (o.still) bankEventsToPlay(c.key, s.g, false);
+  const played = o.keep ? 0 : bankAfterPaint(el, c);
+  if (o.keep) { const last = (s.g.events || []).slice().reverse().find(e => e.type === 'roll' && !e.forRent); if (last) bankDiceShow(el, last.d, false); }
+  bankWire(el);
+  bankTickTime(el, s.g, null);
+  const g = s.g;
+  if (g.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce('bank-end|' + s.gameId) && !o.still) {
+    bankFx.timers.push(setTimeout(() => afterReveal(el, () => {
+      if (g.places[0] === 'me') {
+        playSound('success');
+        if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      } else if (typeof duelSound === 'function') duelSound('lose');
+    }), played));
+  }
+  if (!o.keep) bankLocalNext();
+}
+
+/** After a reload: the board as it was; the time a game against the phone was away doesn't count. */
+function restoreBank() {
+  const s = bankState();
+  if (!s.g || !Array.isArray(s.g.seats) || !s.priv) return false;
+  bankResumeClock();
+  paintBank({ still: true });
+  return true;
+}
+
+/** A game against the phone counts its time only while it is being played. */
+function bankPauseClock() {
+  const s = bankState();
+  if (s.g && s.g.phase === 'play' && s.g.endsAt && !s.pausedAt) { s.pausedAt = Date.now(); saveToLocal(); }
+}
+function bankResumeClock() {
+  const s = bankState();
+  if (s.g && s.pausedAt && s.g.endsAt) { s.g.endsAt += Date.now() - s.pausedAt; }
+  s.pausedAt = null;
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('bank', {
+    setup: 'setup-bank', play: 'play-bank',
+    paintSetup: paintBankSetup, restore: restoreBank,
+    repaint: () => paintBank({ still: true })
+  });
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-bank') { bankStopBot(); bankFxCancel(); bankPauseClock(); clearInterval(bankFx.timeTimer); }
+    if (to === 'play-bank') setTimeout(() => { bankResumeClock(); if (bankState().g) bankLocalNext(); }, 0);
+  });
+}
+document.addEventListener('visibilitychange', () => {
+  if (appState.currentView !== 'play-bank') return;
+  if (document.hidden) bankPauseClock(); else bankResumeClock();
+});
+
+/* --- the sounds: short and quiet, not on the soundboard ------------------------------------------ */
+if (typeof FX !== 'undefined') {
+  Object.assign(FX, {
+    bankRoll(at) {
+      for (let k = 0; k < 5; k++) fxNoise('bandpass', 2400 + k * 250, 1.6, [[0, 0], [0.003, 0.08], [0.03, 0.001]], at + k * 0.055);
+      fxTone('sine', [[0, 280], [0.07, 130]], [[0, 0], [0.004, 0.2], [0.1, 0.001]], at + 0.32);
+    },
+    bankStep(at) {
+      fxTone('sine', [[0, 560], [0.035, 440]], [[0, 0], [0.003, 0.05], [0.045, 0.001]], at);
+    },
+    bankCash(at) {
+      // Coins: two bright pings.
+      fxTone('triangle', [[0, 1320]], [[0, 0], [0.005, 0.1], [0.14, 0.001]], at);
+      fxTone('triangle', [[0, 1760]], [[0, 0], [0.005, 0.08], [0.2, 0.001]], at + 0.07);
+    },
+    bankBuy(at) {
+      fxTone('triangle', [[0, 520], [0.12, 780]], [[0, 0], [0.01, 0.12], [0.2, 0.001]], at);
+    },
+    bankBuild(at) {
+      fxNoise('lowpass', 900, 0.8, [[0, 0], [0.004, 0.2], [0.07, 0.001]], at);
+      fxTone('sine', [[0, 220]], [[0, 0], [0.004, 0.2], [0.1, 0.001]], at + 0.08);
+    },
+    bankCard(at) {
+      fxNoise('highpass', 3000, 0.7, [[0, 0], [0.02, 0.05], [0.12, 0.001]], at);
+    },
+    bankJail(at) {
+      fxTone('square', [[0, 180], [0.25, 120]], [[0, 0], [0.01, 0.06], [0.3, 0.001]], at);
+    }
+  });
+}
+</script>
+
+    <script>
+/* ============================================================================
+   بنك الحظ — rooms and the TV
+   ----------------------------------------------------------------------------
+   The rules are bankAction in RoomBank.js (and BankAlhaz.js, which both sides
+   load); the board, the cards, the bar, the panels and the motion are
+   JS_Bank.html, the same as a game against the phone. This file is the room
+   around them: the lobby (everyone picks a piece; with seven or more the host
+   picks who plays; the host's options), the phone's frame, the TV's frame,
+   the turn clock and the host's way past a phone that went quiet.
+
+   Everything but the decks is on the table, so every phone and the TV draw
+   the same board; the buttons are only ever on the phone whose turn it is,
+   and an offer's yes or no only on the phone it was made to. Someone who
+   joins in the middle watches (lateJoin) and plays the next game.
+   ========================================================================= */
+
+const BANK_OPTS_KEY = 'bankRoom';
+const bankRoomLocal = { sent: '', clockTimer: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '' };
+
+function bankRoomOpts() {
+  const o = recallOptions(BANK_OPTS_KEY, { length: BANK_LENGTH_DEFAULT, pot: false, go400: false, turnClock: 0 });
+  if (BANK_LENGTHS.indexOf(Number(o.length)) === -1) o.length = BANK_LENGTH_DEFAULT;
+  if (BANK_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
+  o.pot = !!o.pot;
+  o.go400 = !!o.go400;
+  return o;
+}
+
+function setBankRoomOpt(key, value) {
+  const patch = {};
+  if (key === 'length' || key === 'turnClock') patch[key] = Number(value) || 0;
+  else patch[key] = !!value;
+  rememberOptions(BANK_OPTS_KEY, patch);
+  haptic('light');
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/* --- the lobby ------------------------------------------------------------------------------ */
+
+/** Who would play if the game started now. Mirrors bankLobbySeated in RoomBank.js - keep the two in step. */
+function bankRoomSeated(state) {
+  const ids = (state.players || []).map(p => p.id);
+  const lobby = ((state.shared || {}).lobby) || {};
+  if (Array.isArray(lobby.seated)) {
+    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
+    ids.forEach(id => { if (kept.length < BANK_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
+    return kept.slice(0, BANK_MAX_PLAYERS);
+  }
+  return ids.slice(0, BANK_MAX_PLAYERS);
+}
+
+function bankTokenTap(token) { haptic('light'); roomAct('token', { token: token }); }
+function bankSeatTap(pid, on) { haptic('light'); roomAct('seat', { playerId: pid, on: !!on }); }
+
+function bankTokenPickerHtml(state) {
+  const seated = bankRoomSeated(state);
+  const tokens = (((state.shared || {}).lobby) || {}).tokens || {};
+  const holder = {};
+  Object.keys(tokens).forEach(id => { if (seated.indexOf(id) !== -1) holder[tokens[id]] = id; });
+  const mineSeated = !state.youAreScreen && seated.indexOf(Room.me) !== -1;
+  const nameOf = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+  const picks = BANK_TOKENS.map(tk => {
+    const who = holder[tk];
+    const mine = who === Room.me;
+    const can = mineSeated && (!who || mine);
+    return `<button type="button" class="bank-pick ${mine ? 'is-mine' : ''} ${who ? 'is-taken' : ''}" ${can ? `onclick="bankTokenTap('${tk}')"` : 'disabled'} aria-pressed="${mine}"
+        aria-label="${escapeHTML(bankT('bank_token_' + tk) + ': ' + (who ? nameOf(who) : bankT('bank_free')))}">
+        <span class="bank-pick__icon" aria-hidden="true">${BANK_TOKEN_ICON[tk]}</span>
+        <span class="bank-pick__who">${escapeHTML(who ? nameOf(who) : bankT('bank_free'))}</span>
+      </button>`;
+  }).join('');
+  const hint = state.youAreScreen ? '' : mineSeated ? bankT(tokens[Room.me] ? 'bank_token_yours' : 'bank_token_pick') : bankT('bank_watching_next');
+  return `<div class="field">
+      <label class="field__label">♟️ ${escapeHTML(bankT('bank_token_label'))}</label>
+      <div class="bank-picks">${picks}</div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+}
+
+function bankSeatsHtml(state) {
+  const players = state.players || [];
+  if (players.length <= BANK_MAX_PLAYERS) return '';
+  const seated = bankRoomSeated(state);
+  const host = !!state.youAreHost;
+  const chip = (p) => {
+    const on = seated.indexOf(p.id) !== -1;
+    const inner = `${p.bot ? '🤖 ' : ''}${escapeHTML(p.name)}`;
+    return host
+      ? `<button type="button" class="chip ${on ? 'is-selected' : ''}" onclick="bankSeatTap('${jsStringAttr(p.id)}', ${!on})" aria-pressed="${on}">${inner}</button>`
+      : `<span class="chip ${on ? 'is-selected' : ''}">${inner}</span>`;
+  };
+  return `<div class="field">
+      <label class="field__label">🪑 ${escapeHTML(bankT('bank_seats_label', { n: seated.length }))}</label>
+      <div class="chip-set">${players.map(chip).join('')}</div>
+      <p class="field__hint">${escapeHTML(host ? bankT('bank_seats_hint_host') : bankT('bank_seats_hint'))}</p>
+    </div>`;
+}
+
+/** The host's options, remembered on the host's phone. */
+function bankOptionsHtml(state) {
+  if (!state.youAreHost) return '';
+  const o = bankRoomOpts();
+  const seg = (key, values, labelOf, current) => `<div class="segmented" role="group">${values.map(v => `<button type="button" class="segmented__item ${Number(current) === v ? 'is-active' : ''}" onclick="setBankRoomOpt('${key}', ${v})">${labelOf(v)}</button>`).join('')}</div>`;
+  const sw = (key, id, icon, label, hint) => `<div class="field">
+      <label class="switch-row" for="${id}">
+        <span class="field__label">${icon} ${escapeHTML(label)}</span>
+        <span class="switch"><input type="checkbox" id="${id}" role="switch" ${o[key] ? 'checked' : ''} onchange="setBankRoomOpt('${key}', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+      </label>
+      <p class="field__hint">${escapeHTML(hint)}</p>
+    </div>`;
+  return `<div class="field">
+        <label class="field__label">⏳ ${escapeHTML(bankT('bank_length'))}</label>
+        ${seg('length', [30, 45, 60, 0], v => escapeHTML(v ? bankT('bank_minutes', { n: v }) : bankT('bank_until_one')), o.length)}
+        <p class="field__hint">${escapeHTML(o.length ? bankT('bank_length_hint') : bankT('bank_until_one_hint'))}</p>
+      </div>
+      ${sw('pot', 'bank-room-pot', '💰', bankT('bank_opt_pot'), bankT('bank_opt_pot_hint'))}
+      ${sw('go400', 'bank-room-go400', '🎯', bankT('bank_opt_go400'), bankT('bank_opt_go400_hint'))}
+      <div class="field">
+        <label class="field__label">⏱️ ${escapeHTML(bankT('bank_clock'))}</label>
+        ${seg('turnClock', BANK_CLOCKS, v => (v ? v + '″' : escapeHTML(bankT('bank_clock_off'))), o.turnClock)}
+        <p class="field__hint">${escapeHTML(bankT('bank_clock_hint'))}</p>
+      </div>`;
+}
+
+/* --- a room's frame ------------------------------------------------------------------------------- */
+
+const bankShared = (state) => (state && state.shared) || {};
+const bankInGame = (state) => !state.youAreScreen && (bankShared(state).seats || []).indexOf(Room.me) !== -1;
+
+/** A move from this phone: a turn's move carries the turn it was made in, managing a place what the phone saw. */
+function bankRoomDo(action, p) {
+  const state = Room.state;
+  if (!state || state.game !== 'bank') return;
+  const s = bankShared(state);
+  const payload = Object.assign({ seq: s.turnSeq, ev: s.eventSeq }, p || {});
+  const stamp = [state.code, s.turnSeq, s.eventSeq, action, JSON.stringify(p || {})].join('|');
+  if (bankRoomLocal.sent === stamp) return;
+  bankRoomLocal.sent = stamp;
+  haptic('light');
+  if (action === 'roll') document.querySelectorAll('#view-room-bank .bank-die').forEach(d => d.classList.add('is-rolling'));
+  Promise.resolve(roomAct(action, payload)).then(() => {
+    if (bankRoomLocal.sent === stamp) bankRoomLocal.sent = '';
+    document.querySelectorAll('#view-room-bank .bank-die.is-rolling').forEach(d => d.classList.remove('is-rolling'));
+  });
+}
+
+function bankRoomSkip() {
+  roomAct('skipTurn', { seq: bankShared(Room.state).turnSeq });
+}
+
+/** The host's way past a phone that went quiet: gone, or holding the turn for 60 seconds. */
+function bankHostButtons(state) {
+  const s = bankShared(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.turn || !s.turn.pid) return [];
+  const p = (state.players || []).find(x => x.id === s.turn.pid);
+  if (p && p.bot) return [];
+  const key = state.code + '|' + s.turnSeq + '|' + s.eventSeq;
+  if (bankRoomLocal.hostKey !== key) {
+    bankRoomLocal.hostKey = key;
+    bankRoomLocal.turnSince = Date.now();
+    clearTimeout(bankRoomLocal.hostTimer);
+    bankRoomLocal.hostTimer = setTimeout(() => {
+      const st = Room.state;
+      if (st && st.game === 'bank') bankRefreshInPlace(document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-bank'), st, !!st.youAreScreen);
+    }, 60500);
+  }
+  const quiet = !p || !p.online || Date.now() - (bankRoomLocal.turnSince || Date.now()) > 60000;
+  if (!quiet || s.turn.pid === Room.me) return [];
+  return [['⏭️ ' + bankT('bank_play_for', { name: p ? p.name : '' }), 'bankRoomSkip()']];
+}
+
+function bankRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('[data-bank-chip]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-bank-chip'));
+    el.classList.toggle('is-away', !!p && !p.bot && !p.online);
+  });
+  const box = root.querySelector('[data-bank-host]');
+  if (box) {
+    const buttons = bankHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._bankHtml !== html) { box.innerHTML = html; box._bankHtml = html; }
+  }
+}
+
+function bankRoomCtx(state, tv) {
+  const s = bankShared(state);
+  const names = {};
+  const bots = {};
+  const away = {};
+  (state.players || []).forEach(p => {
+    names[p.id] = p.name;
+    if (p.bot) bots[p.id] = p.bot;
+    else if (!p.online) away[p.id] = true;
+  });
+  bankUi.names = names;
+  const me = bankInGame(state) ? Room.me : null;
+  let over = '';
+  if (s.phase === 'gameover') {
+    const share = typeof roomShareBtnHtml === 'function' && !tv ? roomShareBtnHtml(state, s.board) : '';
+    if (tv) over = state.youAreHost ? `<div class="tv-actions">${tvBtn(bankT('bank_again'), "roomAct('playAgain')")}${tvBtn(bankT('room_another_game'), "roomAct('backToHub')", 'ghost')}</div>` : '';
+    else if (state.youAreHost) {
+      over = `<div class="btn-stack">
+          <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(bankT('bank_again'))}</button>
+          <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(bankT('room_another_game'))}</button>
+        </div>${share}`;
+    } else over = `<p class="field__hint" style="text-align:center">${escapeHTML(bankT('bank_wait_host'))}</p>${share}`;
+  }
+  return {
+    g: s, me: me, names: names, bots: bots, away: away, tv: !!tv, sel: tv ? null : bankUi.sel,
+    key: state.code + '|' + (s.dealId || ''),
+    fresh: bankFx.watched === state.code,
+    loud: !!tv || !roomHasScreen(),
+    over: over,
+    turnClock: !!s.clockEndsAt,
+    host: tv ? '<div class="tv-actions" data-bank-host></div>' : '<div data-bank-host></div>'
+  };
+}
+
+function bankServerSig(state) {
+  const s = bankShared(state);
+  return [s.dealId || '', s.phase, s.turnSeq, s.eventSeq, s.clockEndsAt || '', JSON.stringify(s.offer || null),
+    (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','), JSON.stringify(s.board || [])].join('|');
+}
+
+function bankDeferRedraw() {
+  if (bankRoomLocal.redrawTimer) return;
+  bankRoomLocal.redrawTimer = setTimeout(() => {
+    bankRoomLocal.redrawTimer = null;
+    const st = Room.state;
+    if (!st || st.game !== 'bank' || st.phase === 'lobby') return;
+    if (st.youAreScreen ? appState.currentView === 'room-tv' : onRoomView()) routeRoomState(st);
+  }, Math.max(40, bankFx.busyUntil - Date.now() + 40));
+}
+
+function bankTurnCue(state, delay) {
+  const s = bankShared(state);
+  const mine = bankInGame(state) && s.phase === 'play' && s.turn && s.turn.pid === Room.me && s.turn.stage === 'roll' && !s.turn.dice;
+  const offered = bankInGame(state) && s.offer && s.offer.to === Room.me;
+  const was = bankRoomLocal.turnMine;
+  bankRoomLocal.turnMine = mine || offered;
+  if ((mine || offered) && !was && bankFx.watched === state.code) {
+    bankFx.timers.push(setTimeout(() => { playSound('tick'); haptic('medium'); }, delay || 0));
+  }
+}
+
+ROOM_GAMES.bank = {
+  bots: { max: BANK_MAX_PLAYERS },
+  lateJoin: true,
+
+  actionKey(state) {
+    const s = bankShared(state);
+    return s.phase === 'gameover' ? [state.code, s.dealId, s.phase].join('|') : '';
+  },
+
+  lobbyOptions(state) {
+    return `<div class="card card--tight bank-lobby">
+        ${bankTokenPickerHtml(state)}
+        ${bankSeatsHtml(state)}
+        ${bankOptionsHtml(state)}
+        <p class="field__hint" style="text-align:center">${escapeHTML(bankT('bank_lobby_hint'))}</p>
+      </div>`;
+  },
+
+  startPayload() {
+    const o = bankRoomOpts();
+    return { length: o.length, pot: o.pot, go400: o.go400, turnClock: o.turnClock };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-bank') setView('room-bank');
+    const el = document.getElementById('view-room-bank');
+    if (!el) return;
+    const s = bankShared(state);
+    if (!Array.isArray(s.seats)) return;
+    const server = bankServerSig(state);
+    const changed = !!(el.dataset.sig && el._bankServer && el._bankServer !== server);
+    if (changed && bankFx.busyUntil > Date.now()) {
+      bankDeferRedraw();
+      bankRefreshInPlace(el, state, false);
+      return;
+    }
+    bankUiFor(s);
+    const c = bankRoomCtx(state, false);
+    const local = [state.youAreHost, appState.lang, Room.me, bankUi.sel, bankUi.panel, JSON.stringify(bankUi.trade)].join('|');
+    const serverChanged = el._bankServer !== server;
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => bankFrameHtml(c) + renderRoomPlayerStrip(state));
+    el._bankServer = server;
+    bankRefreshInPlace(el, state, false);
+    bankTickTime(el, s, s.clockEndsAt);
+    if (!rebuilt) return;
+    bankWire(el);
+    const played = serverChanged ? bankAfterPaint(el, c) : 0;
+    if (!serverChanged) { const last = (s.events || []).slice().reverse().find(e => e.type === 'roll' && !e.forRent); if (last) bankDiceShow(el, last.d, false); }
+    bankTurnCue(state, played);
+    if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce('bank-room-end|' + c.key)) {
+      bankFx.timers.push(setTimeout(() => afterReveal(el, () => {
+        if (s.places[0] === Room.me) {
+          playSound('success');
+          if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+          haptic('double');
+        }
+      }), played));
+    }
+  }
+};
+
+onRoomClocksReset(() => {
+  clearInterval(bankFx.timeTimer);
+  clearTimeout(bankRoomLocal.hostTimer);
+  bankFxCancel();
+  bankRoomLocal.sent = '';
+  bankUi.panel = null;
+  bankUi.sel = null;
+});
+
+Room.onChange((state) => {
+  if (!state) { bankFx.watched = ''; return; }
+  if (state.game === 'bank' && state.phase !== 'lobby' && Array.isArray(bankShared(state).seats)) {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : onRoomView();
+    if (!showing) bankEventsToPlay(state.code + '|' + (bankShared(state).dealId || ''), bankShared(state), false);
+  }
+  bankFx.watched = state.code;
+});
+
+/* --- the TV: the board as tall as the stage, with every name on it ---------------------------------- */
+
+TV_GAMES.bank = {
+  sig(state) {
+    const cur = bankServerSig(state) + '|' + state.youAreHost;
+    if (bankRoomLocal.tvSig && cur !== bankRoomLocal.tvSig && bankFx.busyUntil > Date.now()) { bankDeferRedraw(); return bankRoomLocal.tvSig; }
+    return cur;
+  },
+  frame(state) {
+    bankRoomLocal.tvSig = bankServerSig(state) + '|' + state.youAreHost;
+    const s = bankShared(state);
+    if (!Array.isArray(s.seats)) return '';
+    return bankFrameHtml(bankRoomCtx(state, true));
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    const s = bankShared(state);
+    bankRefreshInPlace(view, state, true);
+    if (!rebuilt || !view) return;
+    bankTickTime(view, s, s.clockEndsAt);
+    const c = bankRoomCtx(state, true);
+    const played = bankAfterPaint(view, c);
+    if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce('bank-tv-end|' + c.key)) {
+      bankFx.timers.push(setTimeout(() => afterReveal(view, () => {
+        playSound('success');
+        if (typeof confetti === 'function') confetti({ particleCount: 160, spread: 90 });
+      }), played));
+    }
+  }
+};
+</script>
+
+    <script>
+/* ============================================================================
    ROOM CHAT — short messages between the phones
    ----------------------------------------------------------------------------
    For a table that isn't at one table. The messages live on the room, outside
@@ -74913,6 +78186,9 @@ function roomTurnOf(state) {
     case 'uno':
       // The player up (a colour to pick, a card to play or a drawn one to decide on).
       return s.phase === 'play' && s.turn && s.turn.pid === me ? 'turn_up' : null;
+    case 'bank':
+      // Your turn, or an offer waiting on your answer.
+      return s.phase === 'play' && ((s.turn && s.turn.pid === me) || (s.offer && s.offer.to === me)) ? 'turn_up' : null;
     case 'ludo':
       // The roll, or the piece to move: whoever holds the turn.
       return s.phase === 'play' && s.turn && s.turn.pid === me ? 'turn_up' : null;

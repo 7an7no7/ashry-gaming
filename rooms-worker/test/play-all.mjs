@@ -3247,6 +3247,103 @@ async function main() {
     H.close();
   }
 
+  /* --- بنك الحظ ------------------------------------------------------------------------ */
+  console.log('• bank (pieces in the lobby, the options, the roll-off, turns and buying, the decks kept secret, an offer, a computer player, leaving)');
+  {
+    const bS = (b) => b.state.shared || {};
+    const until = async (fn, ms = 4000) => {
+      for (const end = Date.now() + ms; Date.now() < end;) {
+        try { if (fn()) return true; } catch (e) {}
+        await sleep(25);
+      }
+      return false;
+    };
+    const K1 = await Bot.host('ليلى', null);
+    const K2 = await Bot.join(K1.code, 'Sam');
+    const K3 = await Bot.join(K1.code, 'حسن');
+    const three = [K1, K2, K3];
+    await K1.must('chooseGame', { game: 'bank' });
+    await K2.must('token', { token: 'camel' });
+    check((await K3.act('token', { token: 'camel' })).ok === false, 'bank: a piece already taken is refused');
+    check((await K2.act('start', {})).ok === false, 'bank: only the host starts');
+    await K1.must('start', { length: 30, pot: true, go400: false, turnClock: 0 });
+    await all(three, (s) => s.phase === 'play' && Array.isArray(s.shared.seats) && s.shared.seats.length === 3, 'bank: three are dealt in');
+    const s0 = bS(K1);
+    check(s0.tokens[K2.pid] === 'camel' && new Set(Object.values(s0.tokens)).size === 3 && s0.settings.length === 30 && s0.settings.pot === true,
+      "bank: the piece picked is kept, the rest filled in, and the host's options apply");
+    check(s0.events.some((e) => e.type === 'rolloff' && e.first === s0.turn.pid) && Object.values(s0.cash).every((c) => c === 1500), 'bank: the roll-off decides who starts; 1,500 each');
+    check(!three.some((b) => JSON.stringify(b.state).includes('"decks"')), 'bank: no phone is sent the order of the decks');
+    const off = three.find((b) => b.pid !== s0.turn.pid);
+    check((await off.act('roll', { seq: s0.turnSeq })).ok === false, 'bank: out of turn is refused');
+    // Play turns: roll, buy what can be bought, end the turn.
+    let refused = 0;
+    let bought = 0;
+    let paidRent = false;
+    for (let k = 0; k < 70 && bS(K1).phase === 'play'; k++) {
+      const s = bS(K1);
+      const up = three.find((b) => b.pid === s.turn.pid);
+      if (!up) break;
+      await until(() => bS(up).turnSeq === s.turnSeq && bS(up).eventSeq === s.eventSeq, 2000);
+      const st = s.turn.stage;
+      let res = { ok: true };
+      if (st === 'roll') res = await up.act('roll', { seq: s.turnSeq });
+      else if (st === 'buy') { res = await up.act('buy', { yes: true, seq: s.turnSeq }); if (res.ok) bought++; }
+      else if (st === 'act') res = await up.act('endTurn', { seq: s.turnSeq });
+      else if (st === 'debt') res = await up.act(s.cash[up.pid] >= s.debt.amount ? 'payDebt' : 'bankrupt', { seq: s.turnSeq });
+      if (!res.ok) { refused++; console.log('  ! refused', st, res.error); }
+      if ((bS(K1).events || []).some((e) => e.type === 'rent' && e.amount > 0)) paidRent = true;
+      await until(() => bS(K1).turnSeq !== s.turnSeq || bS(K1).eventSeq !== s.eventSeq, 3000);
+    }
+    check(refused === 0, 'bank: every move a phone made by the rules was taken');
+    check(bought >= 3, 'bank: places are bought and the turns go round');
+    const sM = bS(K1);
+    check(Object.keys(sM.own).every((i) => sM.seats.indexOf(sM.own[i].by) !== -1) && Object.values(sM.cash).every((c) => c >= 0), 'bank: every place has an owner at the table, and no cash below nothing');
+    // An offer on your own turn, answered by the other phone.
+    await until(() => bS(K1).turn.stage === 'roll' || bS(K1).turn.stage === 'act', 3000);
+    const upO = three.find((b) => b.pid === bS(K1).turn.pid);
+    const other = three.find((b) => b !== upO);
+    const third = three.find((b) => b !== upO && b !== other);
+    await until(() => bS(upO).eventSeq === bS(K1).eventSeq, 2000);
+    const made = await upO.act('offer', { to: other.pid, give: { cash: 10 }, get: {}, ev: bS(upO).eventSeq });
+    check(made.ok, 'bank: an offer is made on your own turn');
+    await other.waitFor((s) => !!s.shared.offer && s.shared.offer.to === other.pid, 'bank: the offer reaches the other phone');
+    const oid = bS(other).offer.id;
+    await third.act('answer', { yes: true, id: oid });
+    await sleep(300);
+    check(!!bS(K1).offer, 'bank: only the player it was made to can answer');
+    const cashBefore = bS(K1).cash[other.pid];
+    await other.must('answer', { yes: true, id: oid });
+    await K1.waitFor((s) => !s.shared.offer && s.shared.cash[other.pid] === cashBefore + 10, 'bank: yes: the money changes hands');
+    // Someone leaves: their places go back to the bank, and play goes on.
+    const leaver = three.find((b) => b !== K1);
+    await api('/leave', { code: K1.code, pid: leaver.pid, key: leaver.key });
+    leaver.close();
+    await K1.waitFor((s) => s.shared.out.indexOf(leaver.pid) !== -1 && !Object.values(s.shared.own).some((o) => o.by === leaver.pid), 'bank: a player who leaves is out, and their places go back to the bank');
+    three.forEach((b) => b.close());
+
+    // A person and a computer player: the bot plays on the server's own clock.
+    const H = await Bot.host('Mona', null);
+    await H.must('chooseGame', { game: 'bank' });
+    await H.must('addBot', { level: 'hard', name: 'زيزو' });
+    await H.must('start', {});
+    const bot = bS(H).seats.find((id) => id !== H.pid);
+    let botRolled = false;
+    for (let k = 0; k < 40 && !botRolled; k++) {
+      const s = bS(H);
+      if ((s.events || []).some((e) => e.type === 'roll' && e.pid === bot)) { botRolled = true; break; }
+      if (s.turn.pid === H.pid) {
+        const st = s.turn.stage;
+        if (st === 'roll') await H.act('roll', { seq: s.turnSeq });
+        else if (st === 'buy') await H.act('buy', { yes: false, seq: s.turnSeq });
+        else if (st === 'act') await H.act('endTurn', { seq: s.turnSeq });
+        else if (st === 'debt') await H.act('bankrupt', { seq: s.turnSeq });
+      }
+      await until(() => bS(H).eventSeq !== s.eventSeq, 3000);
+    }
+    check(botRolled, 'bank bots: the computer player rolls on its own');
+    H.close();
+  }
+
   /* --- prompt memory across rooms ---------------------------------------- */
   console.log('• prompt memory shared between rooms');
   const H = await Bot.host('H', 'codenames');

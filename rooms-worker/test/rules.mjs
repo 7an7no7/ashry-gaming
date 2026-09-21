@@ -3380,6 +3380,218 @@ Date.now = duelTestClock;
   check(!roomForcedMove(fm), "ludo room: the roll is always the player's own tap");
 }
 
+/* --- بنك الحظ: the board, every rule, the room, and whole games of computer players ------ */
+{
+  const { readFileSync } = await import('node:fs');
+  const B = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+    '\nreturn { BANK_SQUARES, BANK_CARDS, BANK_GROUPS, BANK_STATIONS, BANK_COMPANIES, bankNewGame, bankRoll, bankBuy, bankEndTurn, bankBuild, bankSell, bankMortgage,' +
+    ' bankUnmortgage, bankPayJail, bankUseCard, bankPayDebt, bankBankrupt, bankOffer, bankAnswer, bankRentOf, bankWorth, bankCanBuild, bankStepCost, bankAuto,' +
+    ' bankBotMove, bankOnlyMove, bankRemovePlayer, bankFillTokens, bankRollOff, bankGroupSquares, bankLiquid };')();
+  const Q = B.BANK_SQUARES;
+  check(Q.length === 40 && Q[0].t === 'go' && Q[10].t === 'jail' && Q[20].t === 'bus' && Q[30].t === 'tojail', 'bank: 40 squares, the four corners where they belong');
+  check(Q.filter((q) => q.t === 'p').length === 22 && B.BANK_STATIONS.every((i) => Q[i].t === 'st') && B.BANK_COMPANIES.every((i) => Q[i].t === 'co'),
+    'bank: 22 places, 4 stations, 2 companies');
+  check(Object.keys(B.BANK_GROUPS).every((grp) => B.bankGroupSquares(grp).length === (grp === 'br' || grp === 'db' ? 2 : 3)), 'bank: eight colours, two or three places each');
+  check(B.BANK_CARDS.luck.length === 16 && B.BANK_CARDS.court.length === 16 && ['luck', 'court'].every((d) => B.BANK_CARDS[d].every((c) => c.ar && c.en)),
+    'bank: sixteen cards in each deck, in both languages');
+  let prices = true;
+  for (let i = 1; i < 40; i++) for (let j = i + 1; j < 40; j++) if (Q[i].t === 'p' && Q[j].t === 'p' && Q[i].price > Q[j].price) prices = false;
+  check(prices, 'bank: the places get dearer round the board');
+
+  const seq = (list) => { let k = 0; return () => list[k++ % list.length]; };
+  const game = (ids, opts) => {
+    const made = B.bankNewGame(ids, B.bankFillTokens(ids, {}), ids[0], Object.assign({ length: 0 }, opts || {}), 0, Math.random);
+    return made;
+  };
+  let { g, priv } = game(['a', 'b']);
+  check(g.cash.a === 1500 && g.pos.a === 0 && g.turn.pid === 'a' && g.turn.stage === 'roll', 'bank: 1,500 each, everyone on Start');
+  B.bankRoll(g, priv, 'a', [1, 2], Math.random);
+  check(g.pos.a === 3 && g.turn.stage === 'buy', 'bank: land on a free place and the choice is to buy it');
+  B.bankBuy(g, 'a', true);
+  check(g.cash.a === 1440 && g.own[3].by === 'a' && g.turn.stage === 'act', 'bank: bought for its price');
+  B.bankEndTurn(g, 'a', 0);
+  B.bankRoll(g, priv, 'b', [1, 2], Math.random);
+  check(g.cash.b === 1496 && g.cash.a === 1444 && g.turn.stage === 'act', 'bank: rent on landing, paid by itself');
+  ({ g, priv } = game(['a', 'b']));
+  B.bankRoll(g, priv, 'a', [3, 3], Math.random);
+  check(g.pos.a === 6 && g.turn.stage === 'buy', 'bank: a double moves');
+  B.bankBuy(g, 'a', false);
+  check(!g.own[6] && g.turn.stage === 'roll', 'bank: not bought stays with the bank, and a double rolls again');
+  B.bankRoll(g, priv, 'a', [2, 2], Math.random);   // onto the jail square, only visiting
+  B.bankRoll(g, priv, 'a', [5, 5], Math.random);
+  check(g.pos.a === 10 && g.jail.a === 0 && g.turn.stage === 'act', 'bank: three doubles in a row: to jail');
+  // Jail.
+  B.bankEndTurn(g, 'a', 0);
+  B.bankRoll(g, priv, 'b', [1, 3], Math.random);
+  if (g.turn.stage === 'buy') B.bankBuy(g, 'b', false);
+  B.bankEndTurn(g, 'b', 0);
+  B.bankRoll(g, priv, 'a', [1, 2], Math.random);
+  check(g.pos.a === 10 && g.jail.a === 1 && g.turn.stage === 'act', 'bank: in jail, no double: stay');
+  g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  g.jail.a = 2;
+  const cashA = g.cash.a;
+  B.bankRoll(g, priv, 'a', [1, 3], Math.random);
+  check(g.jail.a === undefined && g.cash.a === cashA - 50 && g.pos.a === 14, 'bank: the third miss pays 50 and moves');
+  g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  g.jail.a = 0; g.pos.a = 10;
+  B.bankRoll(g, priv, 'a', [4, 4], Math.random);
+  check(g.jail.a === undefined && g.pos.a === 18 && (g.turn.stage === 'buy' || g.turn.stage === 'act'), 'bank: a double gets out of jail, and moves, with no second roll');
+
+  // Rent: a whole colour doubles, then the three steps; a station, a company.
+  ({ g, priv } = game(['a', 'b']));
+  g.own[37] = { by: 'a', lvl: 0, mort: false };
+  check(B.bankRentOf(g, 37, 7) === 35, 'bank: the base rent');
+  g.own[39] = { by: 'a', lvl: 0, mort: false };
+  check(B.bankRentOf(g, 39, 7) === 100, 'bank: a whole colour doubles it');
+  g.own[39].lvl = 1; check(B.bankRentOf(g, 39, 7) === 200, 'bank: with a جراج');
+  g.own[39].lvl = 2; check(B.bankRentOf(g, 39, 7) === 1400, 'bank: with an استراحة');
+  g.own[39].lvl = 3; check(B.bankRentOf(g, 39, 7) === 2000, 'bank: with a سوق');
+  g.own[39].mort = true; check(B.bankRentOf(g, 39, 7) === 0, 'bank: mortgaged: no rent');
+  g.own[5] = { by: 'b', lvl: 0, mort: false }; g.own[15] = { by: 'b', lvl: 0, mort: false };
+  check(B.bankRentOf(g, 5, 7) === 50 && B.bankRentOf(g, 5, 7, 2) === 100, 'bank: two stations 50, and the card doubles it');
+  g.own[12] = { by: 'b', lvl: 0, mort: false };
+  check(B.bankRentOf(g, 12, 7) === 28, 'bank: one company: four times the dice');
+  g.own[28] = { by: 'b', lvl: 0, mort: false };
+  check(B.bankRentOf(g, 12, 7) === 70, 'bank: both: ten times');
+
+  // Building: the whole colour, evenly, the costs, selling back.
+  ({ g, priv } = game(['a', 'b']));
+  g.own[1] = { by: 'a', lvl: 0, mort: false };
+  check(!B.bankCanBuild(g, 'a', 1), 'bank: no building without the whole colour');
+  g.own[3] = { by: 'a', lvl: 0, mort: false };
+  B.bankBuild(g, 'a', 1);
+  check(g.own[1].lvl === 1 && g.cash.a === 1450, 'bank: a جراج costs the colour\'s price');
+  check(!B.bankCanBuild(g, 'a', 1), 'bank: evenly: the other place first');
+  B.bankBuild(g, 'a', 3); B.bankBuild(g, 'a', 1);
+  check(g.own[1].lvl === 2 && g.cash.a === 1300, 'bank: an استراحة costs twice');
+  let refused = false;
+  try { B.bankSell(g, 'a', 3); } catch (e) { refused = true; }
+  check(refused, 'bank: selling back goes evenly from the highest');
+  B.bankSell(g, 'a', 1);
+  check(g.own[1].lvl === 1 && g.cash.a === 1350, 'bank: sold back for half');
+  refused = false;
+  try { B.bankMortgage(g, 'a', 3); } catch (e) { refused = true; }
+  check(refused, 'bank: no mortgage while the colour has buildings');
+  B.bankSell(g, 'a', 1); B.bankSell(g, 'a', 3);
+  B.bankMortgage(g, 'a', 3);
+  check(g.own[3].mort && g.cash.a === 1430, 'bank: mortgaged for half the price');
+  const before = g.cash.a;
+  B.bankUnmortgage(g, 'a', 3);
+  check(!g.own[3].mort && g.cash.a === before - 33, 'bank: back from the bank for half the price and 10%');
+
+  // A debt: raise it or go bankrupt; to a player, they get everything.
+  ({ g, priv } = game(['a', 'b', 'c']));
+  g.own[39] = { by: 'b', lvl: 3, mort: false }; g.own[37] = { by: 'b', lvl: 3, mort: false };
+  g.own[1] = { by: 'a', lvl: 0, mort: false };
+  g.cash.a = 100; g.pos.a = 35;
+  B.bankRoll(g, priv, 'a', [2, 2], Math.random);
+  check(g.turn.stage === 'debt' && g.debt.amount === 2000 && g.debt.to === 'b', 'bank: a rent more than the cash is a debt');
+  check(B.bankOnlyMove(g, 'a') && B.bankOnlyMove(g, 'a').action === 'bankrupt', 'bank: nothing can cover it: bankrupt is the only move');
+  B.bankBankrupt(g, priv, 'a', 0);
+  check(g.out.indexOf('a') !== -1 && g.own[1].by === 'b' && g.cash.b === 1600 && g.turn.pid !== 'a', 'bank: bankrupt to a player: the cash and the places go to them');
+  ({ g, priv } = game(['a', 'b']));
+  g.own[4 + 1] = { by: 'a', lvl: 0, mort: false };
+  g.cash.a = 100; g.pos.a = 0;
+  B.bankRoll(g, priv, 'a', [1, 3], Math.random);
+  check(g.turn.stage === 'debt' && g.debt.to === 'bank', 'bank: a tax more than the cash is a debt to the bank');
+  B.bankMortgage(g, 'a', 5);
+  B.bankPayDebt(g, priv, 'a', Math.random);
+  check(g.cash.a === 0 && g.turn.stage === 'act', 'bank: mortgage, then pay');
+
+  // Trading.
+  ({ g, priv } = game(['a', 'b']));
+  g.own[1] = { by: 'a', lvl: 0, mort: false }; g.own[6] = { by: 'b', lvl: 0, mort: false };
+  B.bankOffer(g, 'a', { to: 'b', give: { cash: 100, sqs: [1] }, get: { sqs: [6] } });
+  check(g.offer && g.offer.from === 'a', 'bank: an offer waits for the other player');
+  B.bankAnswer(g, 'b', true, g.offer.id);
+  check(g.own[1].by === 'b' && g.own[6].by === 'a' && g.cash.a === 1400 && g.cash.b === 1600 && !g.offer, 'bank: yes: places and money change hands');
+  refused = false;
+  try { B.bankOffer(g, 'b', { to: 'a', give: { cash: 10 } }); } catch (e) { refused = true; }
+  check(refused, 'bank: offers only on your own turn');
+
+  // The cards: a jail card is kept and goes back to its deck; عزومة pays everyone.
+  ({ g, priv } = game(['a', 'b', 'c']));
+  priv.decks.court = [4].concat(priv.decks.court.filter((k) => k !== 4));
+  g.pos.a = 0;
+  B.bankRoll(g, priv, 'a', [1, 1], Math.random);
+  check(g.cards.a.join() === 'court' && priv.decks.court.indexOf(4) === -1, 'bank: a get-out-of-jail card is kept');
+  g.jail.a = 0; g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  B.bankUseCard(g, priv, 'a');
+  check(g.jail.a === undefined && !g.cards.a.length && priv.decks.court[priv.decks.court.length - 1] === 4, 'bank: used, it goes to the bottom of its deck');
+  ({ g, priv } = game(['a', 'b', 'c']));
+  priv.decks.luck = [15].concat(priv.decks.luck.filter((k) => k !== 15));
+  B.bankRoll(g, priv, 'a', [3, 4], Math.random);
+  check(g.cash.a === 1400 && g.cash.b === 1550 && g.cash.c === 1550 && priv.decks.luck[15] === 15, 'bank: عزومة pays every player 50, and the card goes to the bottom');
+  ({ g, priv } = game(['a', 'b']));
+  priv.decks.luck = [5].concat(priv.decks.luck.filter((k) => k !== 5));
+  g.own[15] = { by: 'b', lvl: 0, mort: false };
+  g.pos.a = 5;
+  B.bankRoll(g, priv, 'a', [1, 1], Math.random);
+  check(g.pos.a === 15 && g.cash.a === 1450 && g.cash.b === 1550, 'bank: the next station ahead, and twice the rent');
+  ({ g, priv } = game(['a', 'b'], { pot: true }));
+  B.bankRoll(g, priv, 'a', [1, 3], Math.random);
+  check(g.pot === 200, 'bank: with the pot, taxes go to the middle');
+  g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  g.pos.a = 16;
+  B.bankRoll(g, priv, 'a', [1, 3], Math.random);
+  check(g.pot === 0 && g.cash.a >= 1500 && g.pos.a === 24, 'bank: the bus takes the pot and moves again by the same number');
+
+  // The time: the lap is finished, then the richest wins.
+  ({ g, priv } = game(['a', 'b', 'c'], { length: 30 }));
+  g.endsAt = 1000;
+  g.cash.c = 5000;
+  g.turn = { pid: 'b', stage: 'act', dice: null, dbl: 0, again: false, total: 0 };
+  B.bankEndTurn(g, 'b', 2000);
+  check(g.lastLap && g.phase === 'play' && g.turn.pid === 'c', 'bank: time up: the lap is finished first');
+  g.turn.stage = 'act';
+  B.bankEndTurn(g, 'c', 3000);
+  check(g.phase === 'gameover' && g.places[0] === 'c', 'bank: back at the first player: over, the richest first');
+
+  // Whole games of computer players on the clock. (Until one is left needs
+  // bankruptcies, which bots that never offer trades can take for ever to reach:
+  // that way of playing is for people, and its end is checked above.)
+  const errorWas = console.error;
+  const errors = [];
+  console.error = (...a) => errors.push(a.join(' '));
+  let ended = 0;
+  let games = 0;
+  let conserved = true;
+  for (const n of [2, 3, 4, 6]) {
+    for (const lvl of ['easy', 'hard', 'mix']) {
+      games++;
+      const r = newRoom(['h']);
+      applyRoomAction(r, 'h', 'becomeScreen', {});
+      applyRoomAction(r, 'h', 'chooseGame', { game: 'bank' });
+      for (let k = 0; k < n; k++) applyRoomAction(r, 'h', 'addBot', { level: lvl === 'mix' ? (k % 2 ? 'hard' : 'easy') : lvl, name: 'B' });
+      applyRoomAction(r, 'h', 'start', { length: 30 });
+      const t0 = clock;
+      for (let step = 0; step < 40000 && r.shared.phase === 'play'; step++) {
+        if (typeof r._botAt !== 'number') break;
+        clock = Math.max(clock, r._botAt) + 1;
+        roomTimeout(r, clock);
+        const s = r.shared;
+        if (Object.values(s.cash).some((c) => c < 0 || Number.isNaN(c))) conserved = false;
+        // A 30-minute game: time passes quickly here.
+        if (clock - t0 < 30 * 60000) clock += 3000;
+      }
+      if (r.shared.phase === 'gameover' && r.shared.places.length === n) ended++;
+      else console.log('  ! bank game', n, lvl, r.shared.phase, r.shared.turn && r.shared.turn.stage, JSON.stringify(r.shared.cash));
+    }
+  }
+  console.error = errorWas;
+  check(ended === games, `bank bots: ${games} whole games of bots, 2-6 players, easy and hard, played to the end of the time (${ended})`);
+  check(!errors.length, 'bank bots: no bot move was ever refused' + (errors.length ? ': ' + errors[0] : ''));
+  check(conserved, 'bank: nobody\'s cash ever goes below nothing');
+
+  // The room keeps the decks to itself.
+  const rr = newRoom(['h', 'p']);
+  applyRoomAction(rr, 'h', 'chooseGame', { game: 'bank' });
+  applyRoomAction(rr, 'h', 'token', { token: 'camel' });
+  applyRoomAction(rr, 'h', 'start', {});
+  check(rr.shared.tokens.h === 'camel' && Array.isArray(rr._bank.decks.luck) && !JSON.stringify(rr.shared).includes('"decks"'), 'bank room: the piece picked is kept, and the decks stay on the server');
+  check(rr.shared.settings.length === 45 && !rr.shared.settings.pot && !rr.shared.settings.go400 && rr.shared.clock === 0, 'bank room: 45 minutes, the pot and 400 off, no clock, by default');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

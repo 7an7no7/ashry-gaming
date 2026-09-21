@@ -84,6 +84,7 @@ const clearGameState = (room) => {
   room._mafia = null;
   room._screw = null;
   room._domino = null;
+  room._bank = null;
   room._uno = null;
   // A bot's next move belonged to the game that was cleared.
   room._botAt = null;
@@ -113,7 +114,7 @@ const ROOM_GAME_IDS = [
   'herd', 'mafia', 'screw', 'mind', 'timeline', 'uno', 'domino',
   // The duels (RoomDuels.js): two play, the room watches, winner stays on.
   'connect4', 'dots',
-  'ludo'
+  'ludo', 'bank'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -518,6 +519,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'connect4':   connect4Action(room, playerId, action, payload); break;
     case 'dots':       dotsAction(room, playerId, action, payload); break;
     case 'ludo':       ludoAction(room, playerId, action, payload); break;      // RoomLudo.js
+    case 'bank':       bankAction(room, playerId, action, payload); break;      // RoomBank.js
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -3347,6 +3349,7 @@ const gameDeadline = (room) => {
   if (room.game === 'uno') return unoDeadline(room);
   if (room.game === 'domino') return dominoDeadline(room);
   if (room.game === 'ludo') return ludoDeadline(room);
+  if (room.game === 'bank') return bankDeadline(room);
   return null;
 };
 
@@ -3456,6 +3459,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'uno') return unoTimeout(room, now);
   if (room.game === 'domino') return dominoTimeout(room, now);
   if (room.game === 'ludo') return ludoTimeout(room, now);
+  if (room.game === 'bank') return bankTimeout(room, now);
   return false;
 };
 
@@ -3607,6 +3611,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'ludo':
       ludoPlayerLeft(room, playerId, name);
+      return;
+    case 'bank':
+      bankPlayerLeft(room, playerId, name);
       return;
     case 'connect4':
     case 'dots':

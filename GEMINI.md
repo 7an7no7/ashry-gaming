@@ -44,6 +44,10 @@
   - 🎲 **Ludo (لودو):** the classic board, 2-4 players, against the phone
     (1-3 computer players, easy or hard) or in a room with the TV; every roll
     and every hop animated (*لودو*).
+  - 🏦 **Lucky Bank (بنك الحظ):** Monopoly with Egypt's cities, 2-6
+    players, against the phone or in a room with the TV; buildings are جراج ←
+    استراحة ← سوق, the decks حظ and محاكمة, a 45-minute game by default
+    (*بنك الحظ*).
   - 🎭 **Charades (بدون كلام), 🗣️ Describe It (أوصف لي), ❓ Who Am I? (من أنا؟)**
   - 🧠 **Trivia (تحدي المعلومات):** two ways to play. *دوري المعرفة* is a board for
     two teams on one screen (five categories × 100–500 points, a host reads and
@@ -102,10 +106,23 @@ work changed. Add to it when a decision is made or a batch ships.
 
 ### Waiting
 
-- **بنك الحظ, decided and not built yet** (the owner, 21 Sep 2026, every rule
-  asked one at a time; look أ "كلاسيك" picked from a design sheet of three,
-  which also held the proposed places, prices and card texts - the owner has
-  not yet said yes to those lists):
+- **سكرو, still open** (built as below, each in one place so it can change):
+  - the deck: the owner's own "66-card" table (17 Sep 2026) adds up to 62 -
+    the base with four بصرة (59) plus the thief's three cards - which is what
+    the app deals for Classic + الحرامي; no source that adds up to 66 was found;
+
+- **Two طرنيب ٤١ rules for the owner to decide** (the scorer doesn't guess):
+  a failed bid of 13 scores 0 today (options: keep it; charge a fixed amount
+  such as −36, the value of 12; or the team loses outright, mirroring the
+  outright win for making 13), and when both teams qualify in the same round
+  team 1 wins because it is checked first (options: the higher qualifying
+  player wins; the higher team total wins; play on until only one qualifies).
+
+### The owner's specs, as built
+
+- **بنك الحظ** - the owner's spec of 21 Sep 2026, every rule asked one at a
+  time and then checked against another AI's rulebook; look أ "كلاسيك" and
+  the places, prices and card texts approved from a design sheet (*بنك الحظ*):
   - the classic 40-square board and rules with **Egyptian cities and resorts**
     (22 places in 8 colours, cheapest to dearest: الفيوم، بني سويف · المنيا،
     أسيوط، سوهاج · الزقازيق، المنصورة، طنطا · السويس، الإسماعيلية، بورسعيد ·
@@ -134,20 +151,29 @@ work changed. Add to it when a decision is made or a batch ships.
     exactly on Start pays 400;
   - computer players **easy and hard**, answering trade offers but never
     making them; a turn clock off by default, 60 or 90 seconds.
-
-- **سكرو, still open** (built as below, each in one place so it can change):
-  - the deck: the owner's own "66-card" table (17 Sep 2026) adds up to 62 -
-    the base with four بصرة (59) plus the thief's three cards - which is what
-    the app deals for Classic + الحرامي; no source that adds up to 66 was found;
-
-- **Two طرنيب ٤١ rules for the owner to decide** (the scorer doesn't guess):
-  a failed bid of 13 scores 0 today (options: keep it; charge a fixed amount
-  such as −36, the value of 12; or the team loses outright, mirroring the
-  outright win for making 13), and when both teams qualify in the same round
-  team 1 wins because it is checked first (options: the higher qualifying
-  player wins; the higher team total wins; play on until only one qualifies).
-
-### The owner's specs, as built
+  - **Clarified by the owner before the build** (another AI's notes, checked
+    and corrected): "the nearest station" is the next one ahead (passing
+    Start pays), the rent twice what the owner would charge; "the nearest
+    company" the next one ahead, then a roll and 10 times it; upkeep and
+    street repairs are per place (25 or 40 for a جراج or an استراحة, 100 or
+    115 for a سوق); عزومة pays every other player still in the game 50, and
+    عيد ميلادك has each of them pay 10; a get-out-of-jail card is a list,
+    not a flag (two can be held, each goes back to its own deck, it can be
+    traded); each deck is shuffled once and drawn from the top, a drawn card
+    going to the bottom; a bankruptcy while paying everyone (عزومة) goes to
+    the bank.
+  - Decided for the owner: someone who can't pay the birthday 10 has the
+    money raised for them (buildings sold back, then mortgages, as a
+    computer player would), and goes bankrupt to the birthday player only if
+    nothing covers it; the roll-off rolls the two dice for everyone, on the
+    server; a bankruptcy's buildings are sold to the bank at half and the
+    creditor takes the cash; the game's time counts continuously in a room
+    and only while the screen is open against the phone; a player who leaves
+    is out, their places back to the bank.
+  - Tested but worth knowing: "until one is left" needs bankruptcies, and
+    computer players never make offers, so a table of computer players can
+    circle for ever. That way of playing is for people; the time limit is the
+    default for this reason.
 
 - **لودو (Ludo)** - the owner's spec of 21 Sep 2026, every rule asked one at
   a time, look أ "كلاسيك" picked from a sheet of three (*لودو*):
@@ -978,6 +1004,17 @@ the word search), `countUp` for streaks and scores.
   `JS_RoomLudo.html`, section 22 of `Style.html`, a drawn icon. Rules tests:
   the board's geometry, every rule and 27 whole games of bots, 2-4 players,
   easy and hard. Robot tests: 1429, a لودو round among them. بنك الحظ is next.
+- **21 Sep 2026, بنك الحظ** - built after the owner approved the places,
+  prices and card texts and answered four more questions (*The owner's
+  specs*): the rules once in `BankAlhaz.js` (the board, the two decks in
+  both languages, every rule, the computer players), the room in
+  `RoomBank.js` (the decks stay on the server), the board and its panels in
+  `JS_Bank.html` (against the phone too), the room and the TV in
+  `JS_RoomBank.html`, section 23 of `Style.html`, a drawn icon. Rules tests:
+  every rule from the rent ladder to the last lap, and 12 whole games of
+  computer players, 2 to 6, easy and hard. Found on the way: a percentage
+  padding on the board's squares is measured against the whole board, not
+  the square (*Traps*).
 
 ## Building and Running
 
@@ -1030,8 +1067,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, and the game files bundled after
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -1137,6 +1174,8 @@ is nowhere to hide the key card.
 | `RoomDomino.js` | `dominoAction` and its clock, its leave and its computer players: bundled after `RoomGames.js`, so a game this size keeps its rules in a file of its own. |
 | `Ludo.js` | لودو's board (the track, the home columns, the yards as cells), every rule as one plain game object, and the computer players: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `ludo`. |
 | `RoomLudo.js` | `ludoAction`: the lobby's colours and seats, the server's dice, the clock, leaving, the bots and the forced move. Bundled after `RoomGames.js`. |
+| `BankAlhaz.js` | بنك الحظ's board, its two decks (Arabic and English), every rule as two objects - the table (`g`, a room's `shared`) and what nobody sees (`priv`, the decks) - and the computer players: shared by the page and the Worker, every name prefixed `bank`. |
+| `RoomBank.js` | `bankAction`: the lobby's pieces, seats and options, the server's dice, the turn clock, leaving, the bots and the forced moves; the decks live in `room._bank`, never projected. Bundled after `RoomGames.js`. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -1201,7 +1240,7 @@ compared on join with the same fold as everywhere else (`sameRoomName`), so
 أحمد and احمد can't both sit in one room.
 
 **Computer players** (the owner, 21 Sep 2026: optional, easy and hard). In
-the games that register them - أونو, الدومينو and لودو - the host can seat a bot in
+the games that register them - أونو, الدومينو, لودو and بنك الحظ - the host can seat a bot in
 the lobby, to play alone or to make up a table of four for teams. A bot is an
 ordinary entry in `room.players` with `bot` set to its level (`'easy'` or
 `'hard'`): it holds a seat, is dealt like anyone, and its hand is in
@@ -1253,8 +1292,10 @@ ever speak for it from outside.
   meanwhile is never overruled. A move refused is not tried again for that
   moment (`_forcedFailed`). Registered: أونو (take / draw; waiting as long as
   a bot while someone can be caught), الدومينو (with `helpFit` on, never
-  the last tile) and لودو (one piece that can move, or two on the same
-  square; never the roll, never the last piece home). The duels register nothing: a last move there is often the
+  the last tile), لودو (one piece that can move, or two on the same
+  square; never the roll, never the last piece home) and بنك الحظ (a debt
+  nothing can cover: bankrupt; a place there is no way to pay for: leave
+  it). The duels register nothing: a last move there is often the
   winning one. `roomForcedMove` is exported for the rules tests. The phone draws a line (`uno_auto_*`, `dom_auto_*`) where the
   button would have been.
 - A new game with bots registers `ROOM_BOT_GAMES.<id> = { max, pending,
@@ -2871,6 +2912,57 @@ The numbers, researched on 16 Sep 2026:
   26-26 split carries the 30 to the next deck. Target 101/121/150, 121 by
   default (Egyptian tables); 2-4 players or two teams.
 
+### بنك الحظ
+
+The owner's rules are in *The owner's specs*. Built the way لودو is:
+
+- **`BankAlhaz.js`** (shared, no DOM). `BANK_SQUARES` is the 40 squares from
+  Start (a place has its colour, price and rents `[base, جراج, استراحة,
+  سوق]`); `BANK_GROUPS` a colour's step price; `BANK_CARDS` the two decks,
+  each card an effect (`go`, `near`, `back`, `jail`, `free`, `cash`,
+  `repair`, `each`) with its Arabic and English text. A game is two objects:
+  `g`, everything on the table (cash, positions, owners and levels, jail,
+  jail cards, the turn and its stage, the pot, an offer, a debt, the events)
+  - a room uses it as its `shared` - and `priv`, the order of the decks,
+  which nobody may see. A turn's stages: `roll` → the move and the square
+  (`bankLand`: buy, rent, tax, a card, the bus, jail) → `buy` / `debt` when
+  a choice or a payment waits → `act` (build, trade, mortgage) → the next
+  player (`bankNextTurn`, which also finishes the lap once the time is up and
+  ends the game back at the first player). Money owed that the cash doesn't
+  cover is a debt (`bankCharge`), and what was waiting on it (a jail fine's
+  move) runs once it is paid. `bankRaise` sells back and mortgages for
+  someone (the computer, the clock, the birthday); `bankAuto` plays a turn
+  out for the clock or the host; `bankBotMove` is the computer players;
+  `bankOnlyMove` the forced move.
+- **`RoomBank.js`**: the lobby (`token`, `seat`), `start` / `playAgain`
+  with the host's options (`length`, `pot`, `go400`, `turnClock`), every
+  turn move checked against `seq` (turnSeq) and every place move against
+  `ev` (eventSeq), `answer` from the player an offer was made to, the turn
+  clock (`clockEndsAt`, reset each new turn by `turnNo`), leaving, the bot
+  hook (an offer to a bot is answered first) and the forced moves.
+- **`JS_Bank.html`** draws a game on any screen. The ring is 40 buttons
+  placed in percent of the board (`bankSqRect`: corners 13%, sides 8.2%),
+  each with its colour band toward the middle, its owner's dot toward the
+  edge and its buildings on the band; what a square shows sits in an inner
+  box clear of the band (`.bank-sq__in`). The board is a container: from
+  520px wide every square also shows its name and price, so the phone gets
+  a map and the laptop and the TV the whole board. The middle holds the two
+  dice (the app's 3D die) and the card in play: the square just landed on,
+  the card just drawn, or the square the player tapped. Under the board: the
+  players (their piece, cash, jail and jail cards), the game's time, the bar
+  (only the player whose turn it is gets buttons), an offer card for the
+  one it was made to, and two panels the player opens on their turn:
+  🏗️ their places (build, sell back, mortgage, redeem, each only when the
+  rules allow) and 🤝 an offer (who to, what to give, what to take). The
+  motion: the dice tumble, the piece hops square by square, money flies
+  from the one who pays to the one paid (`flyEmoji`) and the cash counts
+  up, a purchase or a building pops, a card turns over. Against the phone
+  lives here too (`appState.bank`, `bankLocalNext` for the computer players
+  and the forced move), and its time stands still while the screen is shut.
+- **`JS_RoomBank.html`**: the lobby's pieces, seats and options, the room
+  and TV frames, the turn clock and the host's "play for" a phone that went
+  quiet for a minute.
+
 ### لودو
 
 The owner's rules are in *The owner's specs*. Four files and a stylesheet
@@ -3317,6 +3409,15 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A percentage padding is measured against the containing block's width.**
+بنك الحظ's squares first kept their icon clear of the colour band with
+`padding-top: 22%` and the like. On an absolutely placed square that is 22%
+of the whole board's width, not of the square: the squares on two sides grew
+wider than the board's corner, their bands slid under the middle, and a
+square landed on was outlined halfway across the board. Anything sized
+inside a small absolutely placed box goes in an inner box with `inset` (whose
+percentages are the box's own), never in the box's own padding.
 
 **A room game that looks right with no network can still feel wrong on a
 phone.** On the local server the answer to a move comes back in a few

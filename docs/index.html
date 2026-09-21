@@ -620,7 +620,10 @@ p { margin: 0; }
   overflow-x: hidden;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  padding: var(--sp-2) var(--sp-4) var(--sp-6);
+  /* The foot padding is a variable because a sticky bar is held inside it:
+     .view-actions reaches down by exactly this much (see there). */
+  --main-pb: var(--sp-6);
+  padding: var(--sp-2) var(--sp-4) var(--main-pb);
   scrollbar-gutter: stable;
   /* A column so a view can claim the leftover height when it needs to (see
      .view--fill); short views keep their natural height and don't stretch. */
@@ -980,10 +983,15 @@ body.theme-transition *:not(#app-loader):not(#app-loader *) {
 
 /* Sticky action bar at the foot of a scrolling view. Replaces the old
    `position: fixed` bars, which were positioned against whichever ancestor
-   happened to be transformed. */
+   happened to be transformed.
+   A sticky box stops at the scroll area's padding, not its edge, so the bar
+   reaches down by that padding (--main-pb) to sit flush on the edge. It
+   reached down a fixed 8px while the padding was 16-24px, so the page
+   scrolled past in a strip under the button - the switches of a setup
+   screen showing beneath its Start (the owner, 21 Sep 2026). */
 .view-actions {
   position: sticky;
-  bottom: calc(var(--sp-2) * -1);
+  bottom: calc(var(--main-pb, var(--sp-2)) * -1);
   /* No negative inline margin: it made the bar 8px wider than the view, which
      .shell__main then clipped anyway - so it bought nothing and reported as a
      horizontal overflow on every screen that used it. */
@@ -3489,7 +3497,7 @@ html:has(> body.is-tv-view) { font-size: 100% !important; }
   .shell__header      { grid-column: 2; grid-row: 1; }
   .active-room-banner { grid-column: 2; grid-row: 2; }
   .icon-banner        { grid-column: 2; grid-row: 3; }
-  .shell__main        { grid-column: 2; grid-row: 4; padding-bottom: var(--sp-4); }
+  .shell__main        { grid-column: 2; grid-row: 4; --main-pb: var(--sp-4); padding-bottom: var(--main-pb); }
   .shell__nav {
     grid-column: 1;
     grid-row: 1 / -1;
@@ -3675,7 +3683,7 @@ html:has(> body.is-tv-view) { font-size: 100% !important; }
 /* --- Wide: tablets on their side, laptops, monitors, TVs --- */
 @media (min-width: 900px) and (min-height: 501px) {
   :root { --rail-w: 6rem; }
-  .shell__main { padding: var(--sp-4) var(--sp-6) var(--sp-6); }
+  .shell__main { --main-pb: var(--sp-6); padding: var(--sp-4) var(--sp-6) var(--main-pb); }
   .nav-item { min-height: 4.5rem; }
   .nav-label { font-size: var(--fs-xs); }
 
@@ -3750,6 +3758,7 @@ body.is-tv-view .shell__nav,
 body.is-tv-view .active-room-banner { display: none; }
 body.is-tv-view .shell__main {
   height: 100%;
+  --main-pb: 0px;
   padding: 0;
   overflow: hidden;
   scrollbar-gutter: auto;
@@ -17460,7 +17469,7 @@ const bankOnlyMove = (g, pid) => {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260921172744";
+      window.BUILD_ID = "20260921174434";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);

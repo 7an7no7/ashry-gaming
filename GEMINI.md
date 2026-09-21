@@ -3410,6 +3410,17 @@ belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
 
+**A sticky box stops at the scroll area's padding, not at its edge.** The
+Start bar of every setup screen (`.view-actions`, sticky at the foot of
+`.shell__main`) reached down a fixed 8px while the scroll area's foot padding
+was 24px (16px on a phone on its side), so a stuck bar floated 16px above the
+edge and the page scrolled past in the strip beneath it - the owner saw
+بنك الحظ's switches showing under its Start on a PC (21 Sep 2026). The
+padding is a variable now, `--main-pb` on `.shell__main`, and the bar reaches
+down by exactly that. Change the foot padding through `--main-pb`, never with
+a plain `padding-bottom`, or the strip comes back. (The rounded action bars of
+سكرو, أونو, لودو and بنك الحظ float above the edge on purpose.)
+
 **A percentage padding is measured against the containing block's width.**
 بنك الحظ's squares first kept their icon clear of the colour band with
 `padding-top: 22%` and the like. On an absolutely placed square that is 22%
@@ -4138,7 +4149,8 @@ the nav is a **grid row, not a fixed overlay**, so content can never end up
 hidden behind it. That used to clip the Wordle keyboard's Enter row and the tail
 of every long player list.
 
-- Put a bottom action bar in `.view-actions` (sticky inside the scroll area).
+- Put a bottom action bar in `.view-actions` (sticky inside the scroll area,
+  flush with its foot through `--main-pb`: see *Traps*).
   Do not use `position: fixed` inside a view: the view is transformed while its
   enter animation runs, which makes it the containing block and the bar drifts
   into the middle of the content.

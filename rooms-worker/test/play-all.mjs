@@ -1094,6 +1094,145 @@ async function main() {
   }
   await A.must('backToHub');
 
+  /* --- كونكت ٤: winner stays on ------------------------------------------------- */
+  console.log('• connect 4 (winner stays on, a draw, someone joining, a forfeit)');
+  {
+    const H = await Bot.host('هند', null);
+    const J = await Bot.join(H.code, 'جمال');
+    const K = await Bot.join(H.code, 'كريم');
+    let duelBots = [H, J, K];
+    await H.must('chooseGame', { game: 'connect4' });
+    await H.must('start', { mode: 4 });
+    await all(duelBots, (s) => s.game === 'connect4' && s.shared.phase === 'play' && s.shared.seats.length === 2 &&
+                               s.shared.line.length === 1 && s.shared.cols === 7 && s.shared.turn === 0,
+              'connect4: two sit down, one waits in line');
+    const first = byId(duelBots, H.state.shared.seats[0]);
+    const second = byId(duelBots, H.state.shared.seats[1]);
+    const watcher = duelBots.find((b) => b !== first && b !== second);
+    check(duelBots.every((b) => b.state.inGame !== false), 'connect4: everyone in the room at the deal is in it');
+
+    check((await watcher.act('move', { col: 0, move: 0 })).ok === false, 'connect4: someone waiting in line cannot move');
+    check((await second.act('move', { col: 0, move: 0 })).ok === false, 'connect4: nor the player whose turn it is not');
+    check((await first.act('move', { col: 9, move: 0 })).ok === false, 'connect4: a column that is not on the board is refused');
+    let mv = 0;
+    const play = async (bot, col) => { await bot.must('move', { col, move: mv }); mv++; };
+    await play(first, 3);
+    const again = await first.act('move', { col: 3, move: 0 });
+    await sleep(150);
+    check(again.ok && H.state.shared.moves === 1 && H.state.shared.turn === 1, 'connect4: a double tap (a stale move count) is dropped');
+    // The first seat builds four down the middle, the second beside it.
+    for (const [bot, col] of [[second, 4], [first, 3], [second, 4], [first, 3], [second, 4], [first, 3]]) await play(bot, col);
+    await all(duelBots, (s) => s.shared.phase === 'over' && s.shared.result.winnerId === first.pid && s.shared.win.length === 4 &&
+                               s.shared.last.col === 3,
+              'connect4: four in a row wins, on every phone');
+    check(JSON.stringify(H.state.shared.line) === JSON.stringify([watcher.pid, second.pid]), 'connect4: the loser goes to the back of the line');
+    check(H.state.shared.board[0].id === first.pid && H.state.shared.board[0].score === 1, 'connect4: the win is on the board of the room');
+
+    await watcher.must('nextRound', { round: H.state.shared.round });
+    await all(duelBots, (s) => s.shared.phase === 'play' && s.shared.round === 2 && s.shared.seats[0] === watcher.pid && s.shared.seats[1] === first.pid,
+              'connect4: the next in line sits down against the winner, and moves first');
+    const again2 = await second.act('nextRound', { round: 1 });
+    await sleep(150);
+    check(again2.ok && H.state.shared.round === 2 && H.state.shared.phase === 'play', 'connect4: a second "next game" is dropped');
+
+    // Someone joins mid-game: they watch this one and join the back of the line.
+    const L = await Bot.join(H.code, 'لمياء');
+    duelBots = duelBots.concat([L]);
+    await L.waitFor((s) => s.game === 'connect4' && s.shared.phase === 'play' && s.inGame === false, 'connect4: a latecomer sees the game being played');
+    check((await L.act('move', { col: 0, move: 0 })).ok === false, 'connect4: and cannot move in it');
+
+    // A draw: a full board with no line (pairs of columns alternating, row by row),
+    // dropped in an order that alternates the colours.
+    const noLine = (i) => 1 + ((Math.floor(i / 7) + Math.floor((i % 7) / 2)) % 2);
+    const heights = [0, 0, 0, 0, 0, 0, 0];
+    const order = [];
+    const fill = (k) => {
+      if (k === 42) return true;
+      const want = (k % 2) + 1;
+      for (let c = 0; c < 7; c++) {
+        if (heights[c] >= 6) continue;
+        const r = 5 - heights[c];
+        if (noLine(r * 7 + c) !== want) continue;
+        heights[c]++; order.push(c);
+        if (fill(k + 1)) return true;
+        heights[c]--; order.pop();
+      }
+      return false;
+    };
+    check(fill(0), 'connect4: (a drawn board can be played in turn)');
+    mv = 0;
+    const seatsNow = [watcher, first];
+    for (let k = 0; k < order.length; k++) await play(seatsNow[k % 2], order[k]);
+    await all(duelBots, (s) => s.shared.phase === 'over' && s.shared.result.draw && !s.shared.win.length,
+              'connect4: a full board with no line is a draw');
+    check(H.state.shared.champ === first.pid && JSON.stringify(H.state.shared.line) === JSON.stringify([second.pid, L.pid, watcher.pid]),
+          'connect4: after a draw the champion keeps the seat, the latecomer is in line, the challenger goes to the back');
+    check((H.state.shared.scores[watcher.pid] || 0) === 0 && H.state.shared.scores[first.pid] === 1, 'connect4: a draw scores nobody');
+
+    // A seated player who leaves mid-game loses by forfeit.
+    await L.must('nextRound', { round: H.state.shared.round });
+    await all(duelBots, (s) => s.shared.phase === 'play' && s.shared.seats[0] === second.pid && s.shared.seats[1] === first.pid,
+              'connect4: whoever waited longest challenges next');
+    check(L.state.inGame !== false, 'connect4: the latecomer is in the room\'s game now');
+    mv = 0;
+    await play(second, 0);
+    await api('/leave', { code: H.code, pid: second.pid, key: second.key });
+    second.close();
+    duelBots = duelBots.filter((b) => b !== second);
+    await all(duelBots, (s) => s.shared.phase === 'over' && s.shared.result.reason === 'left' && s.shared.result.winnerId === first.pid &&
+                               s.shared.line.indexOf(second.pid) === -1,
+              'connect4: a seated player who leaves loses by forfeit');
+    check(H.state.shared.scores[first.pid] === 2 && H.state.shared.streak.n === 2, 'connect4: the forfeit counts, and the streak with it');
+    await L.must('nextRound', { round: H.state.shared.round });
+    await all(duelBots, (s) => s.shared.phase === 'play' && s.shared.seats[0] === L.pid && s.shared.seats[1] === first.pid,
+              'connect4: the one who joined late sits down next, and moves first');
+    await H.must('backToHub');
+    await H.waitFor((s) => s.phase === 'lobby' && (s.night[first.pid] || 0) === 3, 'connect4: the wins go on the night\'s leaderboard');
+    duelBots.forEach((b) => b.close());
+  }
+
+  /* --- نقط ومربعات --------------------------------------------------------------- */
+  console.log('• dots & boxes (a box keeps the turn, two alternate, the TV cannot move)');
+  {
+    const P = await Bot.host('بسمة', null);
+    const Q = await Bot.join(P.code, 'قاسم');
+    const TV = await Bot.join(P.code, '', true);
+    const pair = [P, Q];
+    await P.must('chooseGame', { game: 'dots' });
+    await P.must('start', { size: 4 });
+    await all(pair.concat([TV]), (s) => s.game === 'dots' && s.shared.phase === 'play' && s.shared.size === 4 && s.shared.lines.length === 40,
+              'dots: the host picks 4x4');
+    const seatBots = P.state.shared.seats.map((id) => byId(pair, id));
+    check((await TV.act('move', { edge: 0, move: 0 })).ok === false, 'dots: the TV cannot draw a line');
+    let turn = 0, mv = 0, last = null;
+    const draw = async (edge) => {
+      const res = await seatBots[turn].must('move', { edge, move: mv });
+      mv++;
+      last = res.state.shared;
+      turn = last.turn;
+    };
+    // Box 0: top, bottom, left, right. Whoever draws the fourth side takes it and goes again.
+    await draw(0); await draw(4); await draw(20);
+    const taker = turn;
+    await draw(21);
+    check(last.boxes[0] === taker + 1 && last.turn === taker && last.count[taker] === 1 && JSON.stringify(last.last.boxes) === '[0]',
+          'dots: the fourth side takes the box, and the same player goes again');
+    check((await seatBots[taker].act('move', { edge: 0, move: mv })).ok === false, 'dots: a line already drawn is refused');
+    check((await seatBots[1 - taker].act('move', { edge: 1, move: mv })).ok === false, 'dots: the other player waits for the turn');
+    for (let e = 0; e < 40 && last.phase === 'play'; e++) if (!last.lines[e]) await draw(e);
+    await all(pair.concat([TV]), (s) => s.shared.phase === 'over' && s.shared.count[0] + s.shared.count[1] === 16,
+              'dots: every box taken ends the game');
+    const c = P.state.shared.count;
+    const r = P.state.shared.result;
+    check(r.draw ? c[0] === c[1] : r.winnerId === P.state.shared.seats[c[0] > c[1] ? 0 : 1], 'dots: the most boxes win');
+    const before = P.state.shared.seats.slice();
+    await Q.must('nextRound', { round: P.state.shared.round });
+    await all(pair, (s) => s.shared.phase === 'play' && s.shared.seats[0] === before[1] && s.shared.seats[1] === before[0],
+              'dots: with two in the room they keep playing, and the first move alternates');
+    await P.must('backToHub');
+    [P, Q, TV].forEach((b) => b.close());
+  }
+
   /* --- مافيا ---------------------------------------------------------------------- */
   console.log('• mafia');
   await A.must('chooseGame', { game: 'mafia' });

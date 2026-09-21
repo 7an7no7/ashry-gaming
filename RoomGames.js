@@ -102,7 +102,9 @@ const ROOM_GAME_IDS = [
   'fakeartist', 'wavelength', 'trivia', 'buzzer', 'stop',
   'chameleon', 'spyfall', 'bomb',
   'twotruths', 'emoji', 'proverbs', 'fiveseconds', 'telephone', 'monkey',
-  'herd', 'mafia', 'screw', 'mind', 'timeline'
+  'herd', 'mafia', 'screw', 'mind', 'timeline',
+  // The duels (RoomDuels.js): two play, the room watches, winner stays on.
+  'connect4', 'dots'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -293,6 +295,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'screw':      screwAction(room, playerId, action, payload); break;
     case 'mind':       mindAction(room, playerId, action, payload); break;
     case 'timeline':   timelineAction(room, playerId, action, payload); break;
+    case 'connect4':   connect4Action(room, playerId, action, payload); break;
+    case 'dots':       dotsAction(room, playerId, action, payload); break;
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -3334,6 +3338,11 @@ const roomPlayerLeft = (room, playerId, name) => {
       return;
     case 'timeline':
       timelinePlayerLeft(room, playerId);
+      return;
+    case 'connect4':
+    case 'dots':
+      // A seated player loses by forfeit; the next in line sits down (RoomDuels.js).
+      duelPlayerLeft(room, playerId);
       return;
     default:
       // على نفس الموجة: the host's skip deals the next psychic.

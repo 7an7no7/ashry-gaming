@@ -9026,8 +9026,10 @@ body.dark .gcard--spotlight {
   place-items: center;
   font-size: calc(var(--uno-w, 3.4rem) * 0.2);
   line-height: 1;
-  direction: ltr;
 }
+/* The corner sits at the start of the reading direction (a hand overlapping in
+   Arabic shows its cards' right edges); the value inside it reads left to right. */
+.uno-card__v { direction: ltr; unicode-bidi: isolate; }
 .uno-card__mini .uno-icon { width: calc(var(--uno-w, 3.4rem) * 0.2); height: calc(var(--uno-w, 3.4rem) * 0.2); stroke-width: 3; }
 .uno-card__mini--end { inset-block: auto calc(var(--uno-w, 3.4rem) * 0.07); inset-inline: auto calc(var(--uno-w, 3.4rem) * 0.09); transform: rotate(180deg); }
 .uno-card__mw { display: block; width: calc(var(--uno-w, 3.4rem) * 0.18); height: calc(var(--uno-w, 3.4rem) * 0.18); border-radius: 50%; background: var(--uno-wheel); }
@@ -9089,8 +9091,9 @@ body.dark .gcard--spotlight {
   min-width: 0;
   min-height: 3rem;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-1) var(--sp-2);
   padding: var(--sp-1) var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -9110,16 +9113,33 @@ body.dark .gcard--spotlight {
   font-weight: 900;
   line-height: 1;
 }
-.uno-seat__who { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; }
+/* A seat too narrow for a name beside its fan (two a row on a phone on its side) puts the fan on a line of its own. */
+.uno-seat__who { flex: 1 1 3.25rem; min-width: 0; display: flex; align-items: center; gap: 4px; }
 .uno-seat__name { min-width: 0; overflow: hidden; color: var(--text-strong); font-size: var(--fs-sm); font-weight: 800; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 .uno-seat__stage { flex: none; font-size: var(--fs-xs); }
-.uno-seat__hand { flex: none; display: block; }
-.uno-seat__n { flex: none; min-width: 1.4rem; color: var(--text-strong); font-size: 1.05rem; font-weight: 900; text-align: center; }
-.uno-fan { position: relative; display: block; width: max(0rem, calc(1.05rem + (var(--of, 1) - 1) * 0.4rem)); height: calc(1.05rem * 1.5); }
+/* The count sits on the fan as a badge, so a name keeps the width of a seat two a row. */
+.uno-seat__hand { position: relative; flex: none; display: block; margin-inline-start: auto; padding-inline-end: 0.55rem; }
+.uno-seat__n {
+  position: absolute;
+  z-index: 2;
+  inset-block-end: -0.3rem;
+  inset-inline-end: -0.15rem;
+  min-width: 1.35rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: 0 0 0 1px var(--border), var(--sh-1);
+  color: var(--text-strong);
+  font-size: 0.8125rem;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+}
+.uno-fan { position: relative; display: block; width: max(1.05rem, calc(1.05rem + (var(--of, 1) - 1) * 0.46rem)); height: calc(1.05rem * 1.5); }
 .uno-fan__card {
   position: absolute;
   inset-block-start: 0;
-  inset-inline-start: calc(var(--k) * 0.4rem);
+  inset-inline-start: calc(var(--k) * 0.46rem);
   transform: rotate(calc((var(--k) - (var(--of) - 1) / 2) * 7deg));
   transform-origin: 50% 110%;
 }
@@ -9332,6 +9352,7 @@ body.dark .gcard--spotlight {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "who pts" "cards cards";
+  align-content: start;
   align-items: center;
   gap: 4px var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
@@ -9342,7 +9363,7 @@ body.dark .gcard--spotlight {
 .uno-rrow.is-winner { border-color: var(--success); box-shadow: 0 0 0 1px var(--success); }
 .uno-rrow__who { grid-area: who; min-width: 0; }
 .uno-rrow__name { display: block; overflow: hidden; color: var(--text-strong); font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
-.uno-rrow__pts { grid-area: pts; display: flex; align-items: baseline; gap: 1px; color: var(--text-strong); font-size: 1.3rem; }
+.uno-rrow__pts { grid-area: pts; display: flex; align-items: baseline; gap: 1px; color: var(--text-strong); font-size: 1.3rem; direction: ltr; }
 .uno-rrow.is-winner .uno-rrow__pts { color: var(--success-ink); }
 .uno-rrow__plus { font-weight: 900; }
 .uno-rrow__cards { grid-area: cards; display: flex; flex-wrap: wrap; gap: 3px; }
@@ -9448,6 +9469,9 @@ body.dark .gcard--spotlight {
 @media (orientation: landscape) and (max-height: 500px) {
   .uno-head { margin-bottom: var(--sp-1); }
   .uno-latest { margin-bottom: var(--sp-1); padding-block: var(--sp-1); }
+  /* 331px of height: the pile comes first in its column, so it is on screen beside your hand; the seats follow. */
+  .uno-layout__table { display: flex; flex-direction: column; }
+  .uno-layout__table > .uno-center { order: -1; }
   .uno-opps { gap: 6px; margin-bottom: var(--sp-2); }
   .uno-seat { min-height: 2.5rem; padding-block: 2px; }
   .uno-center { gap: var(--sp-4); margin-bottom: var(--sp-2); padding: var(--sp-2) var(--sp-2) var(--sp-1); }
@@ -9478,16 +9502,22 @@ body.dark .gcard--spotlight {
 /* --- The TV: seats down both sides, the middle of the table between them --- */
 .uno-tv { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1fr); gap: var(--tv-gap); }
 .uno-tv__side { min-height: 0; display: grid; grid-template-rows: repeat(var(--rows, 3), minmax(0, 1fr)); gap: var(--tv-gap); }
-.uno-tv .uno-seat { min-height: 0; gap: 1.4vmin; padding: 0.8vmin 1.6vmin; border-radius: var(--tv-r); }
+/* A seat is its name over a fan whose cards grow with the room the side has (fewer seats, bigger cards). */
+.uno-tv { --uno-fan-w: clamp(3.4vmin, calc(30vmin / var(--rows, 3)), 7.5vmin); }
+.uno-tv .uno-seat { min-height: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "av who" "hand hand"; align-content: center; column-gap: 1.4vmin; row-gap: 1.2vmin; padding: 0.8vmin 1.6vmin; border-radius: var(--tv-r); }
+.uno-tv .uno-avatar { grid-area: av; }
+.uno-tv .uno-seat__who { grid-area: who; }
+.uno-tv .uno-seat__hand { grid-area: hand; justify-self: center; }
 .uno-tv .uno-seat--pad { visibility: hidden; }
 .uno-tv .uno-avatar { width: 4.6vmin; height: 4.6vmin; font-size: 2.3vmin; }
 .uno-tv .uno-seat__name { font-size: var(--tv-sm); }
-.uno-tv .uno-seat__n { min-width: 4vmin; font-size: var(--tv-md); }
+.uno-tv .uno-seat__hand { display: flex; align-items: center; gap: 1.4vmin; margin: 0; padding: 0; }
+.uno-tv .uno-seat__n { position: static; min-width: 4vmin; padding: 0; background: none; box-shadow: none; font-size: var(--tv-md); line-height: 1; }
 .uno-tv .uno-tag { padding: 0.2vmin 1vmin; font-size: var(--tv-xs); }
 .uno-tv .uno-seat__stage { font-size: var(--tv-xs); }
-.uno-tv .uno-fan { width: max(0vmin, calc(3.6vmin + (var(--of, 1) - 1) * 1.5vmin)); height: 5.4vmin; }
-.uno-tv .uno-fan__card { inset-inline-start: calc(var(--k) * 1.5vmin); }
-.uno-tv .uno-fan .uno-card { --uno-w: 3.6vmin; }
+.uno-tv .uno-fan { width: max(var(--uno-fan-w), calc(var(--uno-fan-w) + (var(--of, 1) - 1) * var(--uno-fan-w) * 0.45)); height: calc(var(--uno-fan-w) * 1.5); }
+.uno-tv .uno-fan__card { inset-inline-start: calc(var(--k) * var(--uno-fan-w) * 0.45); }
+.uno-tv .uno-fan .uno-card { --uno-w: var(--uno-fan-w); }
 .uno-tv__mid { min-height: 0; display: flex; flex-direction: column; justify-content: safe center; gap: var(--tv-gap); overflow: hidden; text-align: center; }
 .uno-tv .uno-head { margin: 0; }
 .uno-tv .badge, .uno-tvres .badge { height: auto; padding: 0.25em 0.7em; font-size: var(--tv-xs); }
@@ -9510,9 +9540,9 @@ body.dark .gcard--spotlight {
 /* Twelve seats down two sides of 1280×720: tighter seats, the fan smaller. */
 .uno-tv--many .uno-seat { padding-block: 0.4vmin; }
 .uno-tv--many .uno-avatar { width: 3.8vmin; height: 3.8vmin; font-size: 1.9vmin; }
-.uno-tv--many .uno-fan { width: max(0vmin, calc(3vmin + (var(--of, 1) - 1) * 1.2vmin)); height: 4.5vmin; }
-.uno-tv--many .uno-fan__card { inset-inline-start: calc(var(--k) * 1.2vmin); }
-.uno-tv--many .uno-fan .uno-card { --uno-w: 3vmin; }
+/* Five or six a side: one line a seat again - the name, the fan, the count. */
+.uno-tv--many .uno-seat { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "av who hand"; }
+.uno-tv--many { --uno-fan-w: 3.4vmin; }
 .uno-tv--many .uno-tv__mid { gap: calc(var(--tv-gap) * 0.6); }
 .uno-tv--many .uno-center .uno-card--lg { --uno-w: 12vmin; }
 .uno-tvres { min-height: 100%; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; gap: calc(var(--tv-gap) * 2); }

@@ -51,9 +51,13 @@ const unoFx = { deal: '', lastSeq: 0, watched: '', prevPhase: '', rects: {}, bus
 function unoT(key, vars) {
   const t = TRANSLATIONS[appState.lang] || {};
   let s = t[key] !== undefined ? t[key] : ((TRANSLATIONS.ar || {})[key] || '');
+  // "+2", "+4", "+{n}" in an Arabic line are held left to right, or they read "2+".
+  if (appState.lang !== 'en') s = s.replace(/\+(\d+|\{\w+\})/g, '\u2066+$1\u2069');
   if (vars) Object.keys(vars).forEach(k => {
     const v = vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
-    s = s.split('{' + k + '}').join(v && !/^\d+$/.test(v) ? '⁨' + v + '⁩' : v);
+    // A signed number ("+85") is held left to right outright: first-strong finds no letter in it.
+    const iso = /^[+\-\u2212]\d/.test(v) ? '\u2066' + v + '\u2069' : '\u2068' + v + '\u2069';
+    s = s.split('{' + k + '}').join(v && !/^\d+$/.test(v) ? iso : v);
   });
   return s;
 }
@@ -95,14 +99,19 @@ const UNO_ICONS = {
 };
 const unoIcon = (v) => `<svg class="uno-icon" viewBox="0 0 24 24" aria-hidden="true">${UNO_ICONS[v] || ''}</svg>`;
 
-/** A card's name in words: "7 أحمر", "Blue Skip", "جوكر +4". */
+/**
+ * A card's name in words: "7 أحمر", "Blue Skip", "جوكر +4". A "+2" or "+4" is
+ * held left to right (LRI ... PDI), or an Arabic line turns it into "2+".
+ */
 function unoCardName(k) {
   if (!k) return '';
+  const ltr = (x) => '\u2066' + x + '\u2069';
   if (k === 'w') return unoT('uno_card_wild');
-  if (k === 'w4') return unoT('uno_card_w4');
+  if (k === 'w4') return unoT('uno_card_wild') + ' ' + ltr('+4');
   const v = unoValueOf(k);
-  const face = v === 's' ? unoT('uno_card_skip') : v === 'v' ? unoT('uno_card_rev') : v === 'd' ? '+2' : v;
-  return unoT('uno_card_of', { v: face, c: unoColorName(unoColorOf(k)) }).replace(/[⁨⁩]/g, '');
+  const face = v === 's' ? unoT('uno_card_skip') : v === 'v' ? unoT('uno_card_rev') : v === 'd' ? ltr('+2') : v;
+  const color = unoColorName(unoColorOf(k));
+  return unoT('uno_card_of').split('{v}').join(face).split('{c}').join(color);
 }
 const UNO_COLOR_KEYS = { r: 'uno_c_r', y: 'uno_c_y', g: 'uno_c_g', b: 'uno_c_b' };
 const unoColorName = (c) => (UNO_COLOR_KEYS[c] ? unoT(UNO_COLOR_KEYS[c]) : '');
@@ -126,7 +135,8 @@ function unoCardHtml(k, opts) {
   else if (k === 'w') art = '<span class="uno-card__wheel"></span>';
   else if (k === 'w4') art = '<span class="uno-card__wheel uno-card__wheel--sm"></span><b class="uno-card__over">+4</b>';
   else art = `<b class="uno-card__big${v === 'd' ? ' uno-card__big--long' : ''}">${v === 'd' ? '+2' : digit(v)}</b>`;
-  const mini = v === 's' || v === 'v' ? unoIcon(v) : k === 'w' ? '<span class="uno-card__mw"></span>' : k === 'w4' ? '+4' : v === 'd' ? '+2' : digit(v);
+  const mini = v === 's' || v === 'v' ? unoIcon(v) : k === 'w' ? '<span class="uno-card__mw"></span>'
+    : `<span class="uno-card__v">${k === 'w4' ? '+4' : v === 'd' ? '+2' : digit(v)}</span>`;
   const chosen = wild && o.color ? ` uno-card--chosen uno-chosen--${o.color}` : '';
   return `<span class="uno-card uno-card--${size} uno-card--face uno-c--${cls}${chosen}" role="img" aria-label="${escapeHTML(unoCardName(k))}">`
     + `<span class="uno-card__mini">${mini}</span><span class="uno-card__art">${art}</span><span class="uno-card__mini uno-card__mini--end">${mini}</span></span>`;
@@ -274,7 +284,7 @@ function unoHeadHtml(state) {
   const set = s.settings || {};
   const bits = [];
   bits.push(`<span class="badge">${escapeHTML(set.length === 'rounds' ? unoT('uno_round_of', { n: s.round || 1, m: s.rounds || set.rounds || '' }) : unoT('uno_one_round'))}</span>`);
-  if (set.stacking) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_stacking'))}">➕ ${escapeHTML(set.stackMode === 'mixed' ? '+2 / +4' : '+2 +2')}</span>`);
+  if (set.stacking) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_stacking'))}">➕ <bdi dir="ltr">${set.stackMode === 'mixed' ? '+4 / +2' : '+2 · +2'}</bdi></span>`);
   if (set.sevenO) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_seven_o'))}"><bdi dir="ltr">7 · 0</bdi></span>`);
   if (set.jumpIn) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_jump_in'))}">⚡</span>`);
   if (set.drawUntil) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_draw_until'))}">🂠∞</span>`);
@@ -310,8 +320,7 @@ function unoSeatHtml(state, pid, tv) {
   return `<div class="${cls.join(' ')}" data-uno-seat="${escapeHTML(pid)}">
       <span class="uno-avatar" aria-hidden="true">${p && p.bot ? '🤖' : escapeHTML(letter)}</span>
       <span class="uno-seat__who"><span class="uno-seat__name">${escapeHTML(name)}</span>${tag}${stage ? `<span class="uno-seat__stage">${stage}</span>` : ''}</span>
-      <span class="uno-seat__hand" data-uno-at="seat:${escapeHTML(pid)}">${unoFanHtml(n, tv ? 7 : 5)}</span>
-      <b class="uno-seat__n metric">${n}</b>
+      <span class="uno-seat__hand" data-uno-at="seat:${escapeHTML(pid)}">${unoFanHtml(n, tv ? 7 : 4)}<b class="uno-seat__n metric">${n}</b></span>
     </div>`;
 }
 
@@ -624,7 +633,7 @@ function unoPodiumHtml(state) {
   if (!html) return '';
   const real = board.slice(0, 3).map(r => (r.score > 0 ? '+' + r.score : r.score < 0 ? '−' + Math.abs(r.score) : '0'));
   let i = 0;
-  return html.replace(/(<span class="podium__score metric">)(-?\d+)(<\/span>)/g, (m, a, n, b) => a + (i < real.length ? real[i++] : n) + b);
+  return html.replace(/(<span class="podium__score metric">)(-?\d+)(<\/span>)/g, (m, a, n, b) => a + '<bdi dir="ltr">' + (i < real.length ? real[i++] : n) + '</bdi>' + b);
 }
 
 function unoResultFrame(state) {
@@ -646,7 +655,7 @@ function unoResultFrame(state) {
       ${unoHeadHtml(state)}
       <div class="card card--accent uno-won">
         <div class="card__title">${escapeHTML(title)}</div>
-        ${r && r.gained ? `<p class="uno-hint">${escapeHTML(unoT('uno_gained', { n: r.gained }))}</p>` : ''}
+        ${r && r.gained ? `<p class="uno-hint">${escapeHTML(unoT('uno_gained', { n: '+' + r.gained }))}</p>` : ''}
       </div>
       ${r ? `<p class="uno-sub">${escapeHTML(unoT('uno_reveal_title'))}</p>${unoRevealHtml(state, false)}` : ''}
       ${r ? `<p class="uno-rule">${escapeHTML(unoT('uno_points_rule'))}</p>` : ''}
@@ -1506,7 +1515,7 @@ TV_GAMES.uno = {
       return `<div class="uno-tvres ${over ? 'is-over' : ''}">
           <div class="uno-tvres__cards">
             <div class="tv-title tv-center-text">${escapeHTML(r ? unoT('uno_round_won', { name: unoName(state, r.winner) }) : unoT('uno_forfeit'))}</div>
-            ${r && r.gained ? `<div class="tv-note">${escapeHTML(unoT('uno_gained', { n: r.gained }))}</div>` : ''}
+            ${r && r.gained ? `<div class="tv-note">${escapeHTML(unoT('uno_gained', { n: '+' + r.gained }))}</div>` : ''}
             ${unoRevealHtml(state, true)}
           </div>
           <div class="uno-tvres__side">

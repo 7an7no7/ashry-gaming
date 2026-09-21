@@ -413,6 +413,21 @@ the word search), `countUp` for streaks and scores.
   a small change if tables find strict too much.
 - The live player count lives on the مع بعض tab, not the header, and hides
   below `LIVE_MIN_PLAYERS`.
+- **Ask before building** (the owner, 21 Sep 2026: "anything you're not sure
+  about, ask - don't just build, so we build everything right from the
+  start"). The four games of that day had every rule put to the owner first,
+  one question at a time, and each game's look picked from a design sheet of
+  three. A rule a table could play two ways is the owner's to choose, not a
+  default to pick and mention afterwards.
+- **ورق وطاولة holds سكرو, أونو and الدومينو as three normal cards** (owner, 21
+  Sep 2026). سكرو's spotlight was only ever because it was alone there; the
+  rule stands (a section of one game is drawn wide), it just no longer applies.
+- **A table game's score keeper lives inside the game, with a shortcut in the
+  tools** (owner, 21 Sep 2026). The domino score keeper became the "على
+  الطاولة" side of the Domino setup screen, like سكرو's, and الأدوات → حاسبات
+  النقط has `screw-calc` and `domino-calc`: catalog entries with no `setup` of
+  their own (so the game's hero is the one drawn there) whose `open` is
+  `openTableCalc(id)` - the game's setup, turned to that side.
 
 ### The log
 
@@ -567,6 +582,16 @@ the word search), `countUp` for streaks and scores.
   sections regrouped so each name is true, setup screens at a form's width
   from 900px. Swept again at all six sizes in both themes: no failures, and
   nothing left on the home that uses part of its row.
+- **21 Sep 2026, four table games asked for** - أونو, الدومينو as a real game
+  (its score keeper kept, as سكرو kept its), كونكت ٤ with four or five in a row,
+  and Plato's نقط ومربعات. Every rule was put to the owner before a line was
+  written, and each look picked from a sheet of three (all four: option أ).
+  Built first, for the table games: computer players (*Computer players*), the
+  shelf of three and the score-keeper shortcuts. On the way, two سكرو
+  questions from the owner turned into fixes: any screw now goes on any screw,
+  and asking what the screws and +20 look like showed that **every سكرو card
+  had been blue since 17 Sep** (a default colour outranking the colour groups,
+  *The owner's specs*); the whole deck was then checked card by card.
 - **21 Sep 2026, the duels** - كونكت ٤ and نقط ومربعات, the owner's decisions
   asked one by one (*The owner's specs*, *The duels*): two on one phone,
   against the phone at three levels, and rooms where two play and the room
@@ -819,6 +844,51 @@ them from the order, أسماء الرموز frees their slot, زي الكل dro
 answer. **A new room game needs its case in `roomPlayerLeft`.** Names are
 compared on join with the same fold as everywhere else (`sameRoomName`), so
 أحمد and احمد can't both sit in one room.
+
+**Computer players** (the owner, 21 Sep 2026: optional, easy and hard). In
+the games that register them - أونو and الدومينو - the host can seat a bot in
+the lobby, to play alone or to make up a table of four for teams. A bot is an
+ordinary entry in `room.players` with `bot` set to its level (`'easy'` or
+`'hard'`): it holds a seat, is dealt like anyone, and its hand is in
+`room.secrets` like anyone's. It has no key and no socket, so nothing can
+ever speak for it from outside.
+
+- **It moves through the same door as a phone.** `applyRoomAction` ends with
+  `scheduleBots(room)`, which asks the game's hook
+  (`ROOM_BOT_GAMES[game].pending(room)`) whether a bot has something to do now,
+  and a key naming that moment. A new moment sets `room._botAt` a second or so
+  ahead (`ROOM_BOT_DELAY_MS`, long enough to watch each move land); the same
+  moment keeps the time it had, so a chat line never makes a bot wait longer.
+  `roomDeadline` is the sooner of the game's own clock (`gameDeadline`) and
+  `_botAt`, so the room's alarm wakes for it, and `roomTimeout` runs
+  `runRoomBot`: the hook's `decide(room, pid)` - from the bot's own secret and
+  what the table can see, never another hand - applied with `applyRoomAction`
+  on a copy, exactly as if a phone had sent it. A move that is refused falls
+  back to the game's always-legal move (`fallback`: draw, pass); if even that
+  fails it tries again in 3s, three times, then waits for a person to move.
+  `roomPlayerLeft` and a game's own timeout call `scheduleBots` too, since the
+  turn may have passed to a bot.
+- **The lobby** (`roomBotControlsHtml`, `roomBotRowHtml` in `JS_Room.html`): a
+  game that seats bots says so on its `ROOM_GAMES` entry (`bots: { max }`); the
+  host gets "+ 🤖 سهل" and "+ 🤖 صعب", a bot's row shows 🤖 where the presence
+  dot would be, and the host taps its level to change it or ✕ to take it out
+  (`addBot`, `setBotLevel`, `removeBot`: room-level actions, lobby only). A TV
+  host gets the same two buttons. The host's phone offers the name from
+  `ROOM_BOT_NAMES` in its own language (زيزو, بندق…; Robo, Chip…), and the
+  server makes it unique (`uniqueBotName`: "زيزو 2").
+- **Bots belong to their game.** `backToHub`, and choosing a game without bots,
+  park them in `room._botsMemo`; choosing a game that has them sits them back
+  down while there are seats (`max`: four at a domino table), and the rest keep
+  waiting. In the hub their seats are free, so the hub's minimum counts people;
+  أونو and الدومينو open from one (`min: 1`).
+- **What the room server does differently** (`room.js`): a bot is projected as
+  always online (with `bot: level` on its row), never becomes host, and a room
+  with nothing but bots and no screen is empty and deletes itself. It is not in
+  the live player count (no socket). A phone can't join under a bot's name.
+- A new game with bots registers `ROOM_BOT_GAMES.<id> = { max, pending,
+  decide, fallback }` beside its rules and `bots: { max }` on its `ROOM_GAMES`
+  entry, and plays a whole bot-filled game in `play-all.mjs` (one person plus
+  bots, finished by the server's clock).
 
 **Clocks the server keeps.** A timed round has to end even when no phone is
 awake to end it. `roomDeadline(room)` in `RoomGames.js` says when to look again
@@ -2520,6 +2590,21 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A default on the base class beats a modifier on the same element.** سكرو's
+card set `--c` (its colour) on `.skr-card`, and each group set it on
+`.skr-c--bad` and the rest - one class each, so the same specificity, and the
+base rule came later in the file. Every card on every phone was the default
+blue for four days, and nothing failed: the markup had the right classes and
+the sweep found no contrast or overflow problem. A default that a modifier is
+meant to override goes in `:where(.base) { … }` (no weight at all) or before
+the modifiers; and a check of a coloured component reads the computed value,
+not the class list.
+
+**The Edit tool decodes `\u` escapes.** Writing `/[\u0000-\u001f]/` into a file
+through it put real control characters in `RoomGames.js`, and git took the
+file for binary. Write such a regex through a script, or check the file with
+`git ls-files --eol` (it says `-text`) after the edit.
 
 **One scope means one name, and the later file wins silently.** Every
 `JS_*.html` is concatenated into one page, so two top-level `function`s with

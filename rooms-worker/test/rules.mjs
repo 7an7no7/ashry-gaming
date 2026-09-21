@@ -2340,6 +2340,493 @@ Date.now = duelTestClock;
         'duel dots: eight boxes each is a draw');
 }
 
+/* --- أونو: the cards, every move, the bots, and what never leaves the server ------ */
+{
+  const UNO = new Function(readFileSync(new URL('../../UnoCards.js', import.meta.url), 'utf8') +
+    '\nreturn { unoDeck, unoCanPlay, unoPoints, unoHandPoints, unoSameCard, unoDecksFor, unoSorted, unoDrawOf, unoColorOf };')();
+  const same = { stacking: true, stackMode: 'same' };
+  const mixed = { stacking: true, stackMode: 'mixed' };
+  const off = { stacking: false, stackMode: 'same' };
+
+  // The cards on their own.
+  const deck = UNO.unoDeck(1);
+  const count = (k) => deck.filter((x) => x === k).length;
+  check(deck.length === 108 && UNO.unoDeck(2).length === 216, 'uno: the deck is 108 cards, two decks 216');
+  check(count('r0') === 1 && count('y5') === 2 && count('gs') === 2 && count('bv') === 2 && count('rd') === 2 && count('w') === 4 && count('w4') === 4,
+    'uno: one 0 and two of each 1-9, skip, reverse and +2 per colour; four wilds and four +4s');
+  check(UNO.unoDecksFor(10) === 1 && UNO.unoDecksFor(11) === 2 && UNO.unoDecksFor(12) === 2, 'uno: one deck up to ten players, two for eleven and twelve');
+  check(UNO.unoPoints('r7') === 7 && UNO.unoPoints('g0') === 0 && UNO.unoPoints('bs') === 20 && UNO.unoPoints('yv') === 20 && UNO.unoPoints('rd') === 20 &&
+    UNO.unoPoints('w') === 50 && UNO.unoPoints('w4') === 50 && UNO.unoHandPoints(['r7', 'bs', 'w4']) === 77,
+    'uno: a number counts its face, skip/reverse/+2 20, a wild 50');
+  check(UNO.unoCanPlay('r2', 'r7', 'r', null, same) && UNO.unoCanPlay('g7', 'r7', 'r', null, same) && UNO.unoCanPlay('gs', 'rs', 'r', null, same) &&
+    !UNO.unoCanPlay('g2', 'r7', 'r', null, same) && !UNO.unoCanPlay('gs', 'rv', 'r', null, same),
+    'uno: a card goes on its colour, its number or its symbol, and nothing else');
+  check(UNO.unoCanPlay('w', 'r7', 'r', null, same) && UNO.unoCanPlay('w4', 'g2', 'g', null, same), 'uno: a wild, and a +4, go on anything (no challenge)');
+  check(UNO.unoCanPlay('r5', 'w', 'r', null, same) && !UNO.unoCanPlay('g5', 'w', 'r', null, same) && UNO.unoCanPlay('b3', 'w4', 'b', null, same),
+    'uno: on a wild, the colour it named');
+  check(!UNO.unoCanPlay('gd', 'rd', 'r', { n: 2, kind: 'd' }, off) && !UNO.unoCanPlay('r5', 'rd', 'r', { n: 2, kind: 'd' }, same),
+    'uno: a draw waiting is answered only by stacking');
+  check(UNO.unoCanPlay('gd', 'rd', 'r', { n: 2, kind: 'd' }, same) && !UNO.unoCanPlay('w4', 'rd', 'r', { n: 2, kind: 'd' }, same) &&
+    UNO.unoCanPlay('w4', 'w4', 'b', { n: 4, kind: 'w4' }, same) && !UNO.unoCanPlay('bd', 'w4', 'b', { n: 4, kind: 'w4' }, same),
+    'uno: stacking: +2 on +2 (any colour), +4 on +4, and not across');
+  check(UNO.unoCanPlay('w4', 'rd', 'r', { n: 2, kind: 'd' }, mixed) && !UNO.unoCanPlay('bd', 'w4', 'b', { n: 6, kind: 'w4' }, mixed),
+    'uno: "also +4 on a +2": a +4 answers a +2, a +2 never answers a +4');
+  check(UNO.unoSameCard('r5', 'r5') && !UNO.unoSameCard('r5', 'g5') && !UNO.unoSameCard('w', 'w') && !UNO.unoSameCard('w4', 'w4'),
+    'uno: jump in is the very same card, never a wild');
+  check(UNO.unoSorted([{ i: 1, k: 'w' }, { i: 2, k: 'b2' }, { i: 3, k: 'r9' }, { i: 4, k: 'r1' }]).map((c) => c.k).join() === 'r1,r9,b2,w',
+    'uno: a hand is held by colour, then value, the wilds last');
+
+  // A table the tests can set: hands by seat, the top card, the colour, who is up.
+  let cid = 5000;
+  const cards = (...ks) => ks.map((k) => ({ i: cid++, k }));
+  const unoStart = (ids, opts) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'uno' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({}, opts || {}));
+    return r;
+  };
+  const u = (r, pid, action, payload = {}) => applyRoomAction(r, pid, action, Object.assign({ seq: r.shared.turnSeq }, payload));
+  const uThrew = (r, pid, action, payload) => threw(() => u(r, pid, action, payload));
+  const seat = (r, i) => r.shared.order[i];
+  const up = (r) => r.shared.turn && r.shared.turn.pid;
+  const hand = (r, pid) => r._uno.hands[pid];
+  const kinds = (r, pid) => hand(r, pid).map((c) => c.k).join();
+  const idOf = (r, pid, k) => (hand(r, pid).find((c) => c.k === k) || {}).i;
+  const topK = (r) => r._uno.pile[r._uno.pile.length - 1].k;
+  // Writes every phone's slice from the table as set (a catch aimed at nobody does nothing but sync).
+  const sync = (r) => applyRoomAction(r, seat(r, 0), 'catchUno', { target: '-' });
+  const setTable = (r, hands, top, o = {}) => {
+    r.shared.order.forEach((id, i) => { r._uno.hands[id] = hands[i] ? cards(...hands[i]) : []; });
+    r._uno.pile = cards(top);
+    if (o.c) r._uno.pile[0].c = o.c;
+    r._uno.deck = cards(...(o.deck || ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g1', 'g2', 'g3']));
+    r._uno.drawnId = null;
+    r.shared.color = o.c || UNO.unoColorOf(top);
+    r.shared.pending = o.pending || null;
+    r.shared.dir = o.dir || 1;
+    r.shared.said = [];
+    r.shared.unoCatch = null;
+    r.shared.turn = { pid: seat(r, o.up || 0), stage: 'play' };
+    r.shared.turnSeq++;
+    sync(r);
+  };
+
+  {
+    // The deal.
+    const r = unoStart(['a', 'b', 'c', 'd']);
+    const total = Object.values(r._uno.hands).reduce((n, h) => n + h.length, 0) + r._uno.deck.length + r._uno.pile.length;
+    check(r.shared.phase === 'play' && r.shared.order.every((id) => hand(r, id).length === 7 && r.shared.counts[id] === 7) && total === 108 && r._uno.pile.length === 1,
+      'uno: seven cards each, one turned up, the rest in the deck');
+    check(topK(r) !== 'w4', 'uno: the card turned up is never a +4');
+    check(r.shared.order.every((id) => r.secrets[id].hand.length === 7 && r.secrets[id].hand.every((c) => hand(r, id).some((x) => x.i === c.i))),
+      "uno: each phone's slice is its own hand");
+    const shared = JSON.stringify(r.shared);
+    const hidden = Object.values(r._uno.hands).flat().concat(r._uno.deck).map((c) => c.i);
+    check(!hidden.some((i) => shared.indexOf('"i":' + i + ',') !== -1 || shared.indexOf('"i":' + i + '}') !== -1), 'uno: shared carries no card of any hand or of the deck');
+    check(r.shared.settings.stacking === true && r.shared.settings.stackMode === 'same' && !r.shared.settings.drawUntil && !r.shared.settings.sevenO &&
+      !r.shared.settings.jumpIn && r.shared.settings.length === 'one' && r.shared.settings.turnClock === 0,
+      'uno: the defaults: stacking (same kind), one card drawn, no 7-0, no jump-in, one round, no clock');
+    const big = unoStart(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']);
+    const bigTotal = Object.values(big._uno.hands).reduce((n, h) => n + h.length, 0) + big._uno.deck.length + big._uno.pile.length;
+    check(bigTotal === 216 && big.shared.decks === 2, 'uno: eleven players play with two decks');
+    check(threw(() => unoStart(['a'])), 'uno: one player alone cannot start');
+  }
+
+  {
+    // The card turned up acts on the first player. Dealt until each kind comes up.
+    const dealUntil = (want, opts) => {
+      for (let n = 0; n < 600; n++) {
+        const r = unoStart(['a', 'b', 'c', 'd'], opts);
+        if (want(r._uno.pile[0].k)) return r;
+      }
+      return null;
+    };
+    const skip = dealUntil((k) => k.charAt(1) === 's');
+    check(skip && up(skip) === seat(skip, 1) && skip.shared.events.some((e) => e.type === 'skip' && e.pid === seat(skip, 0)), 'uno: a skip turned up skips the first player');
+    const rev = dealUntil((k) => k.length === 2 && k.charAt(1) === 'v');
+    check(rev && rev.shared.dir === -1 && up(rev) === seat(rev, 3), 'uno: a reverse turned up turns the play round, and the dealer starts');
+    const d2 = dealUntil((k) => k.charAt(1) === 'd');
+    check(d2 && d2.shared.pending && d2.shared.pending.n === 2 && up(d2) === seat(d2, 0) && hand(d2, seat(d2, 0)).length === 7,
+      'uno: a +2 turned up with stacking on waits on the first player, who may stack on it');
+    const d2off = dealUntil((k) => k.charAt(1) === 'd', { stacking: false });
+    check(d2off && !d2off.shared.pending && hand(d2off, seat(d2off, 0)).length === 9 && up(d2off) === seat(d2off, 1),
+      'uno: without stacking the first player draws two and is skipped');
+    const wild = dealUntil((k) => k === 'w');
+    check(wild && wild.shared.turn.stage === 'color' && wild.shared.color === null && uThrew(wild, seat(wild, 0), 'play', { card: hand(wild, seat(wild, 0))[0].i }),
+      'uno: a wild turned up: the first player picks the colour before anything else');
+    if (wild) {
+      check(uThrew(wild, seat(wild, 1), 'pickColor', { color: 'g' }), 'uno: only the first player picks it');
+      u(wild, seat(wild, 0), 'pickColor', { color: 'g' });
+      check(wild.shared.color === 'g' && wild.shared.turn.stage === 'play' && up(wild) === seat(wild, 0), 'uno: then plays on that colour');
+    }
+  }
+
+  {
+    // Playing, drawing, a stale tap.
+    const r = unoStart(['a', 'b', 'c', 'd']);
+    setTable(r, [['r2', 'g7', 'b9'], ['g2', 'y4', 'y5'], ['b1', 'y2', 'y8'], ['b4', 'b5', 'b6']], 'r7', { deck: ['y9', 'g3'] });
+    const [A, B, C, D] = r.shared.order;
+    check(uThrew(r, B, 'play', { card: idOf(r, B, 'g2') }), 'uno: only the player up plays');
+    check(uThrew(r, A, 'play', { card: idOf(r, A, 'b9') }), 'uno: a card that does not fit is refused');
+    check(uThrew(r, A, 'play', { card: idOf(r, B, 'g2') }), "uno: a card you don't hold is refused");
+    const seq = r.shared.turnSeq;
+    u(r, A, 'play', { card: idOf(r, A, 'g7') });
+    check(topK(r) === 'g7' && r.shared.color === 'g' && up(r) === B && r.shared.counts[A] === 2 && r.shared.turnSeq > seq,
+      'uno: a seven on a seven changes the colour, and the turn passes');
+    const last = r.shared.events[r.shared.events.length - 1];
+    check(last.type === 'play' && last.card.k === 'g7' && last.pid === A && last.left === 2, 'uno: the play is an event with the card and what is left');
+    applyRoomAction(r, A, 'play', { card: idOf(r, A, 'r2'), seq: seq });
+    check(topK(r) === 'g7' && r.shared.counts[A] === 2, 'uno: a tap with a stale seq is dropped quietly');
+    u(r, B, 'play', { card: idOf(r, B, 'g2') });
+    // C holds no green and no 2: draws. The deck gives g3, which fits.
+    check(uThrew(r, C, 'keep'), 'uno: nothing to keep before drawing');
+    u(r, C, 'draw');
+    const drawn = r.secrets[C].drawn;
+    check(hand(r, C).length === 4 && r.shared.turn.stage === 'drawn' && hand(r, C).some((c) => c.i === drawn && c.k === 'g3') && r.secrets[D].drawn === null,
+      'uno: a card drawn that fits waits to be played or kept, and only the drawer knows it');
+    const ev = r.shared.events[r.shared.events.length - 1];
+    check(ev.type === 'draw' && ev.n === 1 && !('card' in ev) && JSON.stringify(r.shared).indexOf('"i":' + drawn + ',') === -1, 'uno: nothing shared says what was drawn');
+    check(uThrew(r, C, 'play', { card: idOf(r, C, 'y2') }), 'uno: after drawing, only the drawn card can be played');
+    u(r, C, 'keep');
+    check(up(r) === D && hand(r, C).length === 4 && topK(r) === 'g2', 'uno: kept, the turn passes');
+    // D holds no green and no 2: draws y9, which doesn't fit, and the turn passes by itself.
+    u(r, D, 'draw');
+    check(up(r) === A && hand(r, D).length === 4 && r.shared.turn.stage === 'play', "uno: a card drawn that doesn't fit ends the turn");
+  }
+
+  {
+    // Draw until you can play.
+    const r = unoStart(['a', 'b'], { drawUntil: true });
+    setTable(r, [['y1', 'y2'], ['b4', 'b5']], 'r7', { deck: ['r3', 'b2', 'g8', 'y6'] });
+    const [A] = r.shared.order;
+    u(r, A, 'draw');
+    check(hand(r, A).length === 6 && r.shared.turn.stage === 'drawn' && r.secrets[A].drawn === idOf(r, A, 'r3') && r.shared.events.slice(-1)[0].n === 4,
+      'uno: "draw until you can play" draws until a card fits (four here), then the same choice');
+    u(r, A, 'play', { card: idOf(r, A, 'r3') });
+    check(topK(r) === 'r3', 'uno: and plays it');
+  }
+
+  {
+    // Stacking, both ways, and without.
+    const r = unoStart(['a', 'b', 'c', 'd']);
+    setTable(r, [['rd', 'r1'], ['gd', 'w4', 'g1'], ['w4', 'b1', 'b2'], ['y1', 'y2']], 'r7');
+    const [A, B, C, D] = r.shared.order;
+    u(r, A, 'play', { card: idOf(r, A, 'rd') });
+    check(r.shared.pending && r.shared.pending.n === 2 && up(r) === B && hand(r, B).length === 3, 'uno: a +2 with stacking waits on the next player');
+    check(uThrew(r, B, 'play', { card: idOf(r, B, 'g1') }) && uThrew(r, B, 'draw'), 'uno: facing a draw you stack or take, nothing else');
+    check(uThrew(r, B, 'play', { card: idOf(r, B, 'w4'), color: 'b' }), 'uno: "+2 on +2, +4 on +4 only": a +4 does not answer a +2');
+    u(r, B, 'play', { card: idOf(r, B, 'gd') });
+    check(r.shared.pending.n === 4 && up(r) === C && r.shared.events.slice(-1)[0].pending === 4, 'uno: stacked, the pile grows and passes on');
+    u(r, C, 'take');
+    check(hand(r, C).length === 7 && !r.shared.pending && up(r) === D, 'uno: taking the whole pile ends the turn');
+
+    const m = unoStart(['a', 'b', 'c'], { stackMode: 'mixed' });
+    setTable(m, [['rd', 'r1'], ['w4', 'bd', 'g1'], ['bd', 'w4', 'b2']], 'r7');
+    const [MA, MB, MC] = m.shared.order;
+    u(m, MA, 'play', { card: idOf(m, MA, 'rd') });
+    check(uThrew(m, MB, 'play', { card: idOf(m, MB, 'w4') }), 'uno: a wild still needs its colour');
+    u(m, MB, 'play', { card: idOf(m, MB, 'w4'), color: 'b' });
+    check(m.shared.pending.n === 6 && m.shared.pending.kind === 'w4' && m.shared.color === 'b', 'uno: "also +4 on a +2": the +4 raises the pile');
+    check(uThrew(m, MC, 'play', { card: idOf(m, MC, 'bd') }), 'uno: and a +2 cannot answer the +4');
+    u(m, MC, 'play', { card: idOf(m, MC, 'w4'), color: 'r' });
+    check(m.shared.pending.n === 10 && up(m) === MA, 'uno: a +4 on the +4');
+
+    const o = unoStart(['a', 'b', 'c'], { stacking: false });
+    setTable(o, [['rd', 'r1'], ['gd', 'g1'], ['b1', 'b2']], 'r7');
+    const [OA, OB, OC] = o.shared.order;
+    u(o, OA, 'play', { card: idOf(o, OA, 'rd') });
+    check(!o.shared.pending && hand(o, OB).length === 4 && up(o) === OC && o.shared.events.some((e) => e.type === 'hit' && e.pid === OB && e.n === 2),
+      'uno: without stacking the next player draws two and is skipped');
+  }
+
+  {
+    // Skip, reverse, wilds.
+    const r = unoStart(['a', 'b', 'c', 'd']);
+    setTable(r, [['rs', 'r1', 'r2'], ['r3', 'r4'], ['rv', 'r5', 'r6'], ['r7', 'r8']], 'r9');
+    const [A, B, C, D] = r.shared.order;
+    u(r, A, 'play', { card: idOf(r, A, 'rs') });
+    check(up(r) === C && r.shared.events.some((e) => e.type === 'skip' && e.pid === B), 'uno: skip skips the next player');
+    u(r, C, 'play', { card: idOf(r, C, 'rv') });
+    check(r.shared.dir === -1 && up(r) === B, 'uno: reverse turns the play round');
+    const two = unoStart(['a', 'b']);
+    setTable(two, [['rv', 'r1', 'r2'], ['r3', 'r4']], 'r9');
+    u(two, seat(two, 0), 'play', { card: idOf(two, seat(two, 0), 'rv') });
+    check(up(two) === seat(two, 0), 'uno: with two players a reverse is a skip');
+    const w = unoStart(['a', 'b']);
+    setTable(w, [['w4', 'g1', 'g2'], ['b3', 'b4']], 'r9');
+    check(uThrew(w, seat(w, 0), 'play', { card: idOf(w, seat(w, 0), 'w4'), color: 'x' }), 'uno: a colour that is not one is refused');
+    u(w, seat(w, 0), 'play', { card: idOf(w, seat(w, 0), 'w4'), color: 'g' });
+    check(w.shared.color === 'g' && w.shared.pending.n === 4 && w._uno.pile.slice(-1)[0].c === 'g', 'uno: a +4 on a red 9, any time, and green is named');
+  }
+
+  {
+    // 7-0.
+    const r = unoStart(['a', 'b', 'c'], { sevenO: true });
+    setTable(r, [['r7', 'r1', 'r2', 'r3'], ['b1'], ['g0', 'g1', 'g2']], 'r9');
+    const [A, B, C] = r.shared.order;
+    check(uThrew(r, A, 'play', { card: idOf(r, A, 'r7') }), 'uno: 7-0: a 7 needs someone to swap with');
+    u(r, A, 'play', { card: idOf(r, A, 'r7'), target: B });
+    check(kinds(r, A) === 'b1' && kinds(r, B) === 'r1,r2,r3' && r.shared.events.some((e) => e.type === 'swap' && e.pid === A && e.target === B && e.n1 === 1 && e.n2 === 3),
+      'uno: 7-0: a 7 swaps your hand with the player you pick');
+    check(r.shared.unoCatch === null, 'uno: 7-0: a hand of one that came by a swap cannot be caught');
+    const z = unoStart(['a', 'b', 'c'], { sevenO: true });
+    setTable(z, [['r0', 'r1'], ['b1', 'b2', 'b3'], ['g1', 'g2', 'g3', 'g4']], 'r9');
+    const [ZA, ZB, ZC] = z.shared.order;
+    u(z, ZA, 'play', { card: idOf(z, ZA, 'r0') });
+    check(kinds(z, ZB) === 'r1' && kinds(z, ZC) === 'b1,b2,b3' && kinds(z, ZA) === 'g1,g2,g3,g4', 'uno: 7-0: a 0 passes every hand one seat on');
+    const last = unoStart(['a', 'b'], { sevenO: true });
+    setTable(last, [['r7'], ['b1', 'b2']], 'r9');
+    u(last, seat(last, 0), 'play', { card: idOf(last, seat(last, 0), 'r7') });
+    check(last.shared.phase === 'gameover' && last.shared.winners[0] === seat(last, 0), 'uno: 7-0: a 7 as the last card ends the round, with no swap');
+  }
+
+  {
+    // Jump in.
+    const r = unoStart(['a', 'b', 'c', 'd'], { jumpIn: true });
+    setTable(r, [['r1', 'r2'], ['r3', 'r4'], ['r9', 'g5', 'g6'], ['y1', 'y2']], 'r9');
+    const [A, B, C, D] = r.shared.order;
+    const top = r._uno.pile[0].i;
+    check(threw(() => applyRoomAction(r, C, 'jump', { card: idOf(r, C, 'g5'), top: top })), 'uno: jump in: only the very same card');
+    applyRoomAction(r, C, 'jump', { card: idOf(r, C, 'r9'), top: 999999 });
+    check(topK(r) === 'r9' && hand(r, C).length === 3, 'uno: jump in aimed at a card already covered is dropped quietly');
+    applyRoomAction(r, C, 'jump', { card: idOf(r, C, 'r9'), top: top });
+    check(topK(r) === 'r9' && r._uno.pile.length === 2 && hand(r, C).length === 2 && up(r) === D && r.shared.events.slice(-1)[0].jump === true,
+      'uno: jump in: the same card out of turn, and play carries on from the one who jumped');
+    const offRoom = unoStart(['a', 'b', 'c']);
+    setTable(offRoom, [['r1'], ['r2'], ['r9', 'g1']], 'r9');
+    check(threw(() => applyRoomAction(offRoom, seat(offRoom, 2), 'jump', { card: idOf(offRoom, seat(offRoom, 2), 'r9'), top: offRoom._uno.pile[0].i })),
+      'uno: jump in is refused when it is off');
+    const wild = unoStart(['a', 'b', 'c'], { jumpIn: true });
+    setTable(wild, [['r1'], ['r2'], ['w', 'g1']], 'w', { c: 'r' });
+    check(threw(() => applyRoomAction(wild, seat(wild, 2), 'jump', { card: idOf(wild, seat(wild, 2), 'w'), color: 'g', top: wild._uno.pile[0].i })),
+      'uno: jump in never with a wild');
+    // A jump in while a draw is waiting (stacking): the same +2 raises it, and it waits on the one after the jumper.
+    const st = unoStart(['a', 'b', 'c', 'd'], { jumpIn: true });
+    setTable(st, [['r1', 'r2'], ['b1', 'b2'], ['y1', 'y2'], ['rd', 'g1', 'g2']], 'rd', { pending: { n: 2, kind: 'd' }, up: 1 });
+    applyRoomAction(st, seat(st, 3), 'jump', { card: idOf(st, seat(st, 3), 'rd'), top: st._uno.pile[0].i });
+    check(st.shared.pending.n === 4 && up(st) === seat(st, 0), 'uno: jump in on a waiting +2 raises the pile, and play goes on from the jumper');
+  }
+
+  {
+    // UNO!
+    const r = unoStart(['a', 'b', 'c']);
+    setTable(r, [['r1', 'r2'], ['r3', 'r4', 'r5'], ['r6', 'r7', 'r8']], 'r9');
+    const [A, B, C] = r.shared.order;
+    u(r, A, 'play', { card: idOf(r, A, 'r1') });
+    check(r.shared.unoCatch === A, 'uno: down to one card without saying it: catchable');
+    check(threw(() => applyRoomAction(r, A, 'catchUno', { target: A })), 'uno: nobody catches themselves');
+    applyRoomAction(r, C, 'catchUno', { target: A });
+    check(hand(r, A).length === 3 && r.shared.unoCatch === null && r.shared.events.slice(-1)[0].type === 'caught' && r.shared.events.slice(-1)[0].pid === A && r.shared.events.slice(-1)[0].by === C,
+      'uno: caught: two cards');
+    applyRoomAction(r, B, 'catchUno', { target: A });
+    check(hand(r, A).length === 3, 'uno: a second catch is too late and does nothing');
+    // The window closes with the next move.
+    const w = unoStart(['a', 'b', 'c']);
+    setTable(w, [['r1', 'r2'], ['r3', 'r4', 'r5'], ['r6', 'r7', 'r8']], 'r9');
+    const [WA, WB, WC] = w.shared.order;
+    u(w, WA, 'play', { card: idOf(w, WA, 'r1') });
+    u(w, WB, 'play', { card: idOf(w, WB, 'r3') });
+    applyRoomAction(w, WC, 'catchUno', { target: WA });
+    check(hand(w, WA).length === 1 && w.shared.unoCatch === null, 'uno: once the next player moves, it is too late to catch');
+    // Said with the card, or just before it.
+    const s1 = unoStart(['a', 'b']);
+    setTable(s1, [['r1', 'r2'], ['r3', 'r4', 'r5']], 'r9');
+    u(s1, seat(s1, 0), 'play', { card: idOf(s1, seat(s1, 0), 'r1'), uno: true });
+    check(s1.shared.unoCatch === null && s1.shared.said.indexOf(seat(s1, 0)) !== -1 && s1.shared.events.slice(-1)[0].uno === true, 'uno: said with the card: safe');
+    const s2 = unoStart(['a', 'b']);
+    setTable(s2, [['r1', 'r2'], ['r3', 'r4', 'r5']], 'r9');
+    check(threw(() => applyRoomAction(s2, seat(s2, 1), 'callUno', {})), 'uno: nobody says it with three cards');
+    applyRoomAction(s2, seat(s2, 0), 'callUno', {});
+    check(s2.shared.said.indexOf(seat(s2, 0)) !== -1 && s2.shared.events.slice(-1)[0].type === 'uno', 'uno: said just before playing');
+    u(s2, seat(s2, 0), 'play', { card: idOf(s2, seat(s2, 0), 'r1') });
+    check(s2.shared.unoCatch === null, 'uno: and then safe');
+    const s3 = unoStart(['a', 'b']);
+    setTable(s3, [['r1', 'r2'], ['b3', 'b4', 'b5']], 'r9');
+    u(s3, seat(s3, 0), 'play', { card: idOf(s3, seat(s3, 0), 'r1') });
+    applyRoomAction(s3, seat(s3, 0), 'callUno', {});
+    check(s3.shared.unoCatch === null && s3.shared.said.length === 1, 'uno: said just after playing, before anyone catches: safe');
+    const s4 = unoStart(['a', 'b']);
+    setTable(s4, [['r1', 'y2'], ['b3', 'b4', 'b5']], 'b9', { deck: ['g1', 'g2', 'g3'] });
+    applyRoomAction(s4, seat(s4, 0), 'callUno', {});
+    u(s4, seat(s4, 0), 'draw');
+    check(s4.shared.said.length === 0, 'uno: a call made, then the hand grows: it has to be said again');
+  }
+
+  {
+    // The end of a round: one round, and a game of rounds.
+    const one = unoStart(['a', 'b', 'c']);
+    setTable(one, [['r1'], ['bs', 'b5'], ['w', 'g2', 'g3']], 'r9');
+    const [OA, OB, OC] = one.shared.order;
+    u(one, OA, 'play', { card: idOf(one, OA, 'r1') });
+    check(one.shared.phase === 'gameover' && one.shared.winners.join() === OA && one.shared.results.gained === 25 + 55 &&
+      one.shared.results.points[OB] === 25 && one.shared.results.hands[OC].join() === 'w,g2,g3',
+      'uno: one round: the first out wins, and the hands are shown with their points');
+    check(one.shared.board.map((x) => x.id + ':' + x.score).join() === [OA + ':80', OB + ':-25', OC + ':-55'].join(),
+      "uno: one round: the board has the winner, then the others by what they were left holding");
+    check(bankNightPoints({ night: {} }, one.shared.board), 'uno: and the night table can bank it');
+    const last2 = unoStart(['a', 'b', 'c']);
+    setTable(last2, [['rd'], ['b5'], ['g2']], 'r9', { deck: ['y1', 'y9'] });
+    u(last2, seat(last2, 0), 'play', { card: idOf(last2, seat(last2, 0), 'rd') });
+    check(last2.shared.results.hands[seat(last2, 1)].length === 3 && last2.shared.results.gained === 5 + 1 + 9 + 2,
+      'uno: a +2 as the last card: the next player still draws, and those cards count');
+
+    const r = unoStart(['a', 'b', 'c'], { length: 'rounds', rounds: 3 });
+    check(r.shared.rounds === 3 && r.shared.round === 1, 'uno: rounds: the host picks how many');
+    setTable(r, [['r1'], ['b5', 'b6'], ['g2']], 'r9');
+    const [A, B, C] = r.shared.order;
+    u(r, A, 'play', { card: idOf(r, A, 'r1') });
+    check(r.shared.phase === 'roundOver' && r.shared.scores[A] === 13 && r.shared.board[0].id === A, "uno: rounds: the winner scores what's left in the other hands");
+    check(threw(() => applyRoomAction(r, B, 'nextRound', { round: 1 })) || r.hostId === B, 'uno: only the host deals the next round');
+    applyRoomAction(r, r.hostId, 'nextRound', { round: 1 });
+    check(r.shared.phase === 'play' && r.shared.round === 2 && r.shared.start === r.shared.order[1] && r.shared.scores[A] === 13,
+      'uno: the next round is dealt, the first seat moved on, the scores kept');
+    applyRoomAction(r, r.hostId, 'nextRound', { round: 1 });
+    check(r.shared.round === 2, 'uno: a stale "next round" is dropped');
+    setTable(r, [['r1', 'r2'], ['b5'], ['g2', 'g3']], 'b9', { up: 1 });
+    u(r, B, 'play', { card: idOf(r, B, 'b5') });
+    applyRoomAction(r, r.hostId, 'nextRound', { round: 2 });
+    setTable(r, [['r1', 'r2'], ['b5', 'b6'], ['g2']], 'g9', { up: 2 });
+    u(r, C, 'play', { card: idOf(r, C, 'g2') });
+    check(r.shared.phase === 'gameover' && r.shared.round === 3 && r.shared.winners.join() === C && r.shared.scores[B] === 8 && r.shared.scores[C] === 14 && r.shared.scores[A] === 13,
+      'uno: after the last round, the most points wins');
+    applyRoomAction(r, r.hostId, 'playAgain', {});
+    check(r.shared.phase === 'play' && r.shared.round === 1 && Object.keys(r.shared.scores).length === 0 && r.shared.settings.length === 'rounds',
+      'uno: play again keeps the options and starts the scores over');
+  }
+
+  {
+    // The turn clock and the host's skip.
+    const r = unoStart(['a', 'b', 'c'], { turnClock: 30 });
+    setTable(r, [['r1', 'r2'], ['b5', 'b6'], ['g2', 'g3']], 'y9', { deck: ['g1', 'g2', 'g3', 'g4', 'y1', 'y2', 'y3'] });
+    r.shared.endsAt = clock + 30000;
+    const [A, B] = r.shared.order;
+    check(roomDeadline(r) === clock + 30000 + 1500, 'uno: the turn clock is a server deadline');
+    check(!roomTimeout(r, clock + 1000), 'uno: nothing happens before it');
+    check(roomTimeout(r, clock + 32000) && hand(r, A).length === 3 && up(r) === B && r.shared.events.some((e) => e.type === 'auto' && e.why === 'clock'),
+      'uno: time up: the phone draws one for the player and passes, even when it fits');
+    r.shared.pending = { n: 4, kind: 'd' };
+    r.shared.endsAt = clock;
+    roomTimeout(r, clock + 2000);
+    check(hand(r, B).length === 6 && !r.shared.pending, 'uno: time up facing a draw: the pile is taken');
+    const h = unoStart(['a', 'b', 'c']);
+    setTable(h, [['r1', 'r2'], ['b5', 'b6'], ['g2', 'g3']], 'y9', { up: 1 });
+    check(threw(() => u(h, 'c', 'skipTurn')), 'uno: only the host skips a turn');
+    u(h, 'a', 'skipTurn');
+    check(hand(h, seat(h, 1)).length === 3 && up(h) === seat(h, 2), "uno: the host's skip plays for a quiet phone: one card, and on");
+  }
+
+  {
+    // Someone leaves.
+    const r = unoStart(['a', 'b', 'c']);
+    setTable(r, [['r1', 'r2'], ['b5', 'b6', 'b7'], ['g2', 'g3']], 'y9', { up: 1 });
+    const [A, B, C] = r.shared.order;
+    const deckWas = r._uno.deck.length;
+    leave(r, B);
+    check(r.shared.order.length === 2 && r._uno.deck.length === deckWas + 3 && up(r) === C && !r.secrets[B],
+      'uno: a player up who leaves: their cards go under the deck, the turn moves on');
+    leave(r, C);
+    check(r.shared.phase === 'gameover' && r.shared.winners.join() === A, 'uno: fewer than two left ends the game');
+  }
+
+  {
+    // Computer players: every move only from their own hand and what the table sees.
+    const botRoom = (levels, opts) => {
+      const r = newRoom(['a']);
+      applyRoomAction(r, 'a', 'chooseGame', { game: 'uno' });
+      levels.forEach((lv, i) => applyRoomAction(r, 'a', 'addBot', { level: lv, name: 'bot' + i }));
+      applyRoomAction(r, 'a', 'start', Object.assign({}, opts || {}));
+      return r;
+    };
+    const botsIn = (r) => r.players.filter((p) => p.bot).map((p) => p.id);
+    const runBots = (r) => { if (typeof r._botAt === 'number') { clock = Math.max(clock, r._botAt) + 1; roomTimeout(r, clock); return true; } return false; };
+
+    // An easy bot plays the first card that fits.
+    const e = botRoom(['easy']);
+    const [bot] = botsIn(e);
+    const human = 'a';
+    const order = e.shared.order;
+    setTable(e, order.map((id) => (id === bot ? ['b1', 'r5', 'r6'] : ['g1', 'g2'])), 'r9', { up: order.indexOf(bot) });
+    check(e._botPid === bot && typeof e._botAt === 'number', 'uno bots: the bot up is scheduled');
+    runBots(e);
+    check(topK(e) === 'r5' && up(e) === human, 'uno bots: an easy bot plays the first card that fits');
+
+    // A hard bot catches a player who forgot to say UNO; the next bot waits for it.
+    const h = botRoom(['easy', 'hard']);
+    const [easy, hard] = botsIn(h);
+    const ho = h.shared.order;
+    setTable(h, ho.map((id) => (id === 'a' ? ['r1', 'r2'] : ['b1', 'b2', 'b3'])), 'r9', { up: ho.indexOf('a') });
+    u(h, 'a', 'play', { card: idOf(h, 'a', 'r1') });
+    check(h.shared.unoCatch === 'a' && h._botPid === hard && h._botAt - clock >= 1500, 'uno bots: a hard bot notices a missing UNO, after a moment');
+    runBots(h);
+    check(hand(h, 'a').length === 3 && h.shared.events.slice(-1)[0].type === 'caught' && h.shared.events.slice(-1)[0].by === hard, 'uno bots: and catches it');
+
+    // A hard bot stacks, keeps its wilds, hits the next player close to going out, and always says UNO.
+    const s = botRoom(['hard']);
+    const [hb] = botsIn(s);
+    const so = s.shared.order;
+    setTable(s, so.map((id) => (id === hb ? ['gd', 'w4', 'g3'] : ['y1', 'y2', 'y3'])), 'rd', { up: so.indexOf(hb), pending: { n: 2, kind: 'd' } });
+    runBots(s);
+    check(topK(s) === 'gd' && s.shared.pending.n === 4, 'uno bots: a hard bot stacks a +2 before spending its +4');
+    setTable(s, so.map((id) => (id === hb ? ['w', 'r3', 'b7', 'b8'] : ['y1', 'y2', 'y3', 'y4', 'y5'])), 'r9', { up: so.indexOf(hb) });
+    runBots(s);
+    check(topK(s) === 'r3', 'uno bots: a hard bot keeps its wild while a colour card fits');
+    setTable(s, so.map((id) => (id === hb ? ['r3', 'rs', 'b7'] : ['y1'])), 'r9', { up: so.indexOf(hb) });
+    runBots(s);
+    check(topK(s) === 'rs', 'uno bots: a hard bot hits the next player when they are about to go out');
+    setTable(s, so.map((id) => (id === hb ? ['r3', 'b7'] : ['y1', 'y2', 'y3'])), 'r9', { up: so.indexOf(hb) });
+    runBots(s);
+    check(topK(s) === 'r3' && s.shared.said.indexOf(hb) !== -1 && s.shared.unoCatch === null, 'uno bots: a hard bot says UNO');
+    setTable(s, so.map((id) => (id === hb ? ['w', 'y7', 'y8', 'g1'] : ['b1', 'b2', 'b3'])), 'r9', { up: so.indexOf(hb) });
+    runBots(s);
+    check(topK(s) === 'w' && s.shared.color === 'y', 'uno bots: a wild names the colour the bot holds most');
+
+    // Whole games with nobody but bots and one quiet human, every rule on or off: every bot move is legal and every game ends.
+    const errors = [];
+    const errorWas = console.error;
+    console.error = (...args) => { errors.push(args.join(' ')); };
+    let ended = 0;
+    let conserved = true;
+    const variants = [
+      {}, { stacking: false }, { stackMode: 'mixed' }, { drawUntil: true }, { sevenO: true }, { jumpIn: true },
+      { sevenO: true, jumpIn: true, stackMode: 'mixed' }, { length: 'rounds', rounds: 3 }, { drawUntil: true, jumpIn: true, stacking: false }
+    ];
+    for (let n = 0; n < 45; n++) {
+      const opts = variants[n % variants.length];
+      const levels = n % 3 === 0 ? ['hard', 'hard', 'easy'] : n % 3 === 1 ? ['easy', 'hard'] : ['hard', 'easy', 'hard', 'easy', 'hard'];
+      const r = botRoom(levels, opts);
+      const cardsIn = (x) => Object.values(x._uno.hands).reduce((k, hh) => k + hh.length, 0) + x._uno.deck.length + x._uno.pile.length;
+      const total = cardsIn(r);
+      for (let step = 0; step < 4000 && r.shared.phase !== 'gameover'; step++) {
+        if (r.shared.phase === 'roundOver') { applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round }); continue; }
+        const humanUp = up(r) === 'a';
+        if (typeof r._botAt === 'number' && (!humanUp || step % 2)) runBots(r);
+        else if (humanUp) {
+          try {
+          // The human plays like a lazy easy player: the first card that fits (a colour for a wild), or draws.
+          const me = r.secrets.a;
+          const top = r._uno.pile[r._uno.pile.length - 1].k;
+          const st = r.shared.turn.stage;
+          if (st === 'color') u(r, 'a', 'pickColor', { color: 'r' });
+          else if (st === 'drawn') u(r, 'a', 'keep');
+          else {
+            const fit = me.hand.find((c) => UNO.unoCanPlay(c.k, top, r.shared.color, r.shared.pending, r.shared.settings));
+            const target = r.shared.order.find((id) => id !== 'a');
+            if (fit) u(r, 'a', 'play', { card: fit.i, color: 'b', target: target, uno: true });
+            else u(r, 'a', r.shared.pending ? 'take' : 'draw');
+          }
+          } catch (err) { errors.push('human: ' + err.message); break; }
+        } else break;
+        if (r.shared.phase === 'play' && cardsIn(r) !== total) conserved = false;
+      }
+      if (r.shared.phase === 'gameover') ended++;
+    }
+    console.error = errorWas;
+    check(ended === 45, `uno bots: 45 games of bots, every variant, all end (${ended})`);
+    check(!errors.length, 'uno bots: no bot move was ever refused' + (errors.length ? ': ' + errors[0] : ''));
+    check(conserved, 'uno: no card is ever lost or made up, through draws, stacks, swaps, jumps and reshuffles');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

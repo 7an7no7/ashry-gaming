@@ -19,6 +19,10 @@ import { stopDictionary, stopAnswerFits, stopWordKnown, foldStopAnswer } from '.
 const SKREW = new Function(readFileSync(new URL('../../SkrewCards.js', import.meta.url), 'utf8') +
   '\nreturn { SKREW_CARDS, skrewMatches, skrewValue, skrewHandValues, skrewPileCommands };')();
 
+// أونو's cards, for the robots to know what fits. They only learn a card the way a phone does: their own hand, or the pile.
+const UNO = new Function(readFileSync(new URL('../../UnoCards.js', import.meta.url), 'utf8') +
+  '\nreturn { unoCanPlay, unoSameCard, unoIsWild, unoValueOf, unoColorOf, unoHandPoints, unoDrawOf };')();
+
 const ARGS = process.argv.slice(2);
 const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
 // --slow also waits out the presence clocks (a silent socket, a host away): about three minutes more.
@@ -1261,6 +1265,444 @@ async function main() {
               'dots: with two in the room they keep playing, and the first move alternates');
     await P.must('backToHub');
     [P, Q, TV].forEach((b) => b.close());
+  }
+
+  /* --- أونو --------------------------------------------------------------------- */
+  console.log('• uno (a round to the end, stacking both ways, draw rules, 7-0, jump-in, UNO and a catch, rounds, bots on the server clock, the turn clock, leaving)');
+  {
+    // The robots play the way a phone lets its player: from their own hand and what the table shows.
+    const players = [A, B, C, D];
+    const unoTopOf = (st) => { const pile = st.shared.pile || []; return pile[pile.length - 1] || null; };
+    const unoFits = (st, c) => UNO.unoCanPlay(c.k, (unoTopOf(st) || {}).k, st.shared.color, st.shared.pending, st.shared.settings);
+    const unoSettle = async (list) => {
+      for (let n = 0; n < 200; n++) {
+        const v = Math.max(...list.map((b) => b.state.version));
+        if (list.every((b) => b.state.version === v)) return;
+        await sleep(10);
+      }
+    };
+    const unoPayload = (bot, card, extra) => {
+      const st = bot.state.shared;
+      const p = Object.assign({ card: card.i }, extra || {});
+      if (UNO.unoIsWild(card.k)) p.color = 'g';
+      if (st.settings.sevenO && UNO.unoValueOf(card.k) === '7' && bot.state.you.hand.length > 1) p.target = st.order.find((id) => id !== bot.pid);
+      return p;
+    };
+    // The phone up makes the move a careful player would: the first card that fits (saying UNO), else draw or take.
+    const unoMove = async (list, opts = {}) => {
+      await unoSettle(list);
+      const s = list[0].state.shared;
+      if (s.phase !== 'play' || !s.turn) return null;
+      const bot = list.find((b) => b.pid === s.turn.pid);
+      if (!bot) { await sleep(40); return null; }        // a computer player's turn: the server's clock plays it
+      const st = bot.state.shared;
+      const hand = bot.state.you.hand;
+      const seq = st.turnSeq;
+      const say = opts.sayUno !== false;
+      if (st.turn.stage === 'color') return bot.act('pickColor', { color: 'r', seq });
+      if (st.turn.stage === 'drawn') {
+        const c = hand.find((x) => x.i === bot.state.you.drawn);
+        return bot.act('play', unoPayload(bot, c, { seq, uno: say && hand.length === 2 }));
+      }
+      const fit = hand.find((c) => unoFits(bot.state, c));
+      if (fit) return bot.act('play', unoPayload(bot, fit, { seq, uno: say && hand.length === 2 }));
+      return bot.act(st.pending ? 'take' : 'draw', { seq });
+    };
+    // Plays until `until(state)` says stop (checked before every move) or the round is over.
+    const unoPlayUntil = async (list, until, max = 600, opts) => {
+      for (let n = 0; n < max; n++) {
+        await unoSettle(list);
+        const st = list[0].state;
+        if (st.shared.phase !== 'play') return false;
+        if (until && until(st)) return true;
+        const res = await unoMove(list, opts);
+        if (res && !res.ok) { check(false, 'uno: a robot move was refused: ' + res.error); return false; }
+      }
+      return false;
+    };
+    const unoNoLeak = (list) => list.every((x) => (x.state.you ? x.state.you.hand : []).every((c) =>
+      list.filter((y) => y !== x).every((y) => { const t = JSON.stringify(y.state); return t.indexOf('"i":' + c.i + ',') === -1 && t.indexOf('"i":' + c.i + '}') === -1; })));
+    const unoUp = (list) => { const s = list[0].state.shared; return s.phase === 'play' && s.turn ? list.find((b) => b.pid === s.turn.pid) || null : null; };
+
+    await A.must('chooseGame', { game: 'uno' });
+    // The bot parked by the computer-players section sits back down; this table is four people.
+    for (const bot of A.state.players.filter((p) => p.bot)) await A.must('removeBot', { playerId: bot.id });
+    await all(players, (s) => s.game === 'uno' && s.players.length === 4, 'uno: four at the table');
+    check((await B.act('start', {})).ok === false, 'uno: only the host deals');
+    await A.must('start', {});
+    await all(players, (s) => s.shared.phase === 'play' && s.you && s.you.hand.length === 7 && s.shared.order.every((id) => s.shared.counts[id] === 7),
+      'uno: seven cards each, on each phone');
+    check(players.every((b) => b.state.shared.settings.stacking === true && b.state.shared.settings.length === 'one'), 'uno: stacking and one round by default');
+    check(unoNoLeak(players), "uno: no phone holds another phone's cards, or can read them");
+    const TVu = await Bot.join(A.code, '', true);
+    await TVu.waitFor((s) => s.youAreScreen && s.game === 'uno' && s.shared.phase === 'play', 'uno: a screen sees the table');
+    check(TVu.state.you === null && players.every((b) => b.state.you.hand.every((c) => JSON.stringify(TVu.state).indexOf('"i":' + c.i + ',') === -1)), 'uno: the screen gets no hand');
+    check((await TVu.act('callUno', {})).ok === false, 'uno: a screen is not a player');
+    TVu.close();
+    await api('/leave', { code: A.code, pid: TVu.pid, key: TVu.key });
+
+    // Out of turn, a card that doesn't fit, a stale tap.
+    await unoPlayUntil(players, (st) => st.shared.turn.stage === 'play' && !st.shared.pending);
+    {
+      const upBot = unoUp(players);
+      const other = players.find((b) => b !== upBot);
+      check((await other.act('play', { card: other.state.you.hand[0].i, seq: other.state.shared.turnSeq })).ok === false, 'uno: only the player up plays');
+      check((await other.act('draw', { seq: other.state.shared.turnSeq })).ok === false, 'uno: or draws');
+      const misfit = upBot.state.you.hand.find((c) => !unoFits(upBot.state, c));
+      if (misfit) check((await upBot.act('play', { card: misfit.i, color: 'r', seq: upBot.state.shared.turnSeq })).ok === false, 'uno: a card that does not fit is refused');
+      const before = upBot.state.shared.counts[upBot.pid];
+      const oldSeq = upBot.state.shared.turnSeq - 1;
+      check((await upBot.act('draw', { seq: oldSeq })).ok === true && upBot.state.shared.counts[upBot.pid] === before, 'uno: a tap with a stale seq is dropped quietly');
+    }
+
+    // A round played to the end, checking the table as it goes.
+    let drewAndPlayed = false;
+    let drewAndPassed = false;
+    let stacked = false;
+    let tookPile = false;
+    for (let n = 0; n < 800 && A.state.shared.phase === 'play'; n++) {
+      await unoSettle(players);
+      const st = A.state.shared;
+      const upBot = unoUp(players);
+      if (!upBot) break;
+      const us = upBot.state.shared;
+      const hand = upBot.state.you.hand;
+      // A draw that fits waits to be played; the drawn card may be played and no other.
+      if (us.turn.stage === 'play' && !us.pending && !hand.some((c) => unoFits(upBot.state, c))) {
+        const countWas = us.counts[upBot.pid];
+        await upBot.must('draw', { seq: us.turnSeq });
+        await unoSettle(players);
+        const after = upBot.state;
+        if (after.shared.turn && after.shared.turn.pid === upBot.pid && after.shared.turn.stage === 'drawn') {
+          const drawn = after.you.hand.find((c) => c.i === after.you.drawn);
+          check(!!drawn && after.shared.counts[upBot.pid] === countWas + 1 && players.filter((b) => b !== upBot).every((b) => b.state.you.drawn === null),
+            'uno: a card drawn that fits is on the drawer\'s phone alone, to play or keep');
+          const other = after.you.hand.find((c) => c.i !== drawn.i && unoFits(after, c));
+          if (other) check((await upBot.act('play', { card: other.i, color: 'r', seq: after.shared.turnSeq })).ok === false, 'uno: after drawing, only the drawn card can be played');
+          await upBot.must('play', unoPayload(upBot, drawn, { seq: after.shared.turnSeq, uno: after.you.hand.length === 2 }));
+          drewAndPlayed = true;
+        } else if (after.shared.phase === 'play') {
+          drewAndPassed = drewAndPassed || (after.shared.counts[upBot.pid] === countWas + 1 && after.shared.turn.pid !== upBot.pid);
+        }
+        continue;
+      }
+      // A draw waiting on the player up: stack it if they can, or take it all.
+      if (us.pending) {
+        const waiting = us.pending.n;
+        const stack = hand.find((c) => unoFits(upBot.state, c));
+        const countWas = us.counts[upBot.pid];
+        if (stack) {
+          await upBot.must('play', unoPayload(upBot, stack, { seq: us.turnSeq, uno: hand.length === 2 }));
+          await unoSettle(players);
+          if (A.state.shared.phase === 'play') {
+            check(A.state.shared.pending && A.state.shared.pending.n === waiting + UNO.unoDrawOf(stack.k), 'uno: stacked, the draw grows and passes on');
+            stacked = true;
+          }
+        } else {
+          await upBot.must('take', { seq: us.turnSeq });
+          await unoSettle(players);
+          check(!A.state.shared.pending && upBot.state.shared.counts[upBot.pid] >= countWas + Math.min(waiting, 1) && A.state.shared.turn.pid !== upBot.pid,
+            'uno: taking the draw ends the turn');
+          tookPile = true;
+        }
+        continue;
+      }
+      if (n % 15 === 0) check(unoNoLeak(players), 'uno: mid-round, no phone can read another hand');
+      const res = await unoMove(players);
+      if (res && !res.ok) { check(false, 'uno: a robot move was refused: ' + res.error); break; }
+    }
+    await all(players, (s) => s.shared.phase === 'gameover' && !!s.shared.results, 'uno: one round: played to the end, the first out wins');
+    {
+      const r = A.state.shared.results;
+      const others = A.state.shared.order.filter((id) => id !== r.winner);
+      check(r.hands[r.winner].length === 0 && A.state.shared.winners.join() === r.winner, 'uno: the winner has no cards left');
+      check(r.gained === others.reduce((sum, id) => sum + UNO.unoHandPoints(r.hands[id]), 0) && others.every((id) => r.points[id] === UNO.unoHandPoints(r.hands[id])),
+        'uno: the round is worth the cards left in the other hands');
+      check(A.state.shared.board[0].id === r.winner && A.state.shared.board[0].score === r.gained && A.state.shared.board.slice(1).every((row) => row.score === -r.points[row.id]),
+        'uno: the board: the winner, then the others by what they held');
+      check(drewAndPlayed || drewAndPassed, 'uno: a turn drew a card, and played it or passed');
+    }
+
+    // Stacking "+2 on +2, +4 on +4" and "also +4 on a +2", and no stacking: games until each has happened.
+    const unoPlayAgain = async (opts) => {
+      await A.must('backToHub');
+      await A.must('chooseGame', { game: 'uno' });
+      await A.must('start', opts);
+      await all(players, (s) => s.shared.phase === 'play' && s.you && s.you.hand.length >= 7, 'uno: dealt again');
+    };
+    let mixedSeen = false;
+    for (let game = 0; game < 14 && !mixedSeen; game++) {
+      await unoPlayAgain({ stackMode: 'mixed' });
+      await unoPlayUntil(players, (st) => {
+        if (!st.shared.pending || st.shared.pending.kind !== 'd') return false;
+        const upBot = unoUp(players);
+        return !!upBot && upBot.state.you.hand.some((c) => c.k === 'w4');
+      });
+      if (A.state.shared.phase !== 'play') continue;
+      const upBot = unoUp(players);
+      const s0 = upBot.state.shared;
+      const w4 = upBot.state.you.hand.find((c) => c.k === 'w4');
+      await upBot.must('play', { card: w4.i, color: 'b', seq: s0.turnSeq, uno: upBot.state.you.hand.length === 2 });
+      await unoSettle(players);
+      if (A.state.shared.phase === 'play') {
+        check(A.state.shared.pending.kind === 'w4' && A.state.shared.pending.n === s0.pending.n + 4 && A.state.shared.color === 'b', 'uno: "also +4 on a +2": the +4 raises the draw');
+        const next = unoUp(players);
+        const two = next.state.you.hand.find((c) => UNO.unoValueOf(c.k) === 'd');
+        if (two) check((await next.act('play', { card: two.i, seq: next.state.shared.turnSeq })).ok === false, 'uno: and a +2 cannot answer it');
+        mixedSeen = true;
+      }
+    }
+    check(mixedSeen, 'uno: a +4 answered a +2 (within fourteen games)');
+    let offSeen = false;
+    for (let game = 0; game < 4 && !offSeen; game++) {
+      await unoPlayAgain({ stacking: false });
+      await unoPlayUntil(players, (st) => {
+        const upBot = unoUp(players);
+        return !!upBot && st.shared.turn.stage === 'play' && upBot.state.you.hand.some((c) => UNO.unoValueOf(c.k) === 'd' && unoFits(upBot.state, c));
+      });
+      if (A.state.shared.phase !== 'play') continue;
+      const upBot = unoUp(players);
+      const s0 = A.state.shared;
+      const d2 = upBot.state.you.hand.find((c) => UNO.unoValueOf(c.k) === 'd' && unoFits(upBot.state, c));
+      const victim = s0.order[(s0.order.indexOf(upBot.pid) + s0.dir + s0.order.length) % s0.order.length];
+      const victimHad = s0.counts[victim];
+      await upBot.must('play', { card: d2.i, seq: upBot.state.shared.turnSeq, uno: upBot.state.you.hand.length === 2 });
+      await unoSettle(players);
+      if (A.state.shared.phase === 'play') {
+        check(!A.state.shared.pending && A.state.shared.counts[victim] === victimHad + 2 && A.state.shared.turn.pid !== victim, 'uno: without stacking the next player draws two and is skipped');
+        offSeen = true;
+      }
+    }
+    check(offSeen, 'uno: a +2 without stacking came up');
+    check(stacked || tookPile, 'uno: a draw waiting was stacked or taken');
+
+    // Draw until you can play: a draw always ends on a card that fits (while the deck lasts).
+    let untilSeen = false;
+    for (let game = 0; game < 4 && !untilSeen; game++) {
+    await unoPlayAgain({ drawUntil: true });
+    for (let n = 0; n < 300 && !untilSeen && A.state.shared.phase === 'play'; n++) {
+      await unoSettle(players);
+      const upBot = unoUp(players);
+      if (!upBot) continue;
+      const us = upBot.state.shared;
+      if (us.turn.stage === 'play' && !us.pending && !upBot.state.you.hand.some((c) => unoFits(upBot.state, c))) {
+        await upBot.must('draw', { seq: us.turnSeq });
+        await unoSettle(players);
+        const ev = A.state.shared.events.filter((e) => e.type === 'draw' && e.pid === upBot.pid).pop();
+        check(!!ev && ev.n >= 1 && (upBot.state.shared.turn.stage === 'drawn' || A.state.shared.deckCount === 0), 'uno: "draw until you can play" stops on a card that fits');
+        untilSeen = true;
+        continue;
+      }
+      await unoMove(players);
+    }
+    }
+    check(untilSeen, 'uno: a player had to draw with "draw until you can play"');
+
+    // 7-0: a 7 swaps two hands, a 0 passes every hand on.
+    let sevenSeen = false;
+    let zeroSeen = false;
+    for (let game = 0; game < 5 && !(sevenSeen && zeroSeen); game++) {
+      await unoPlayAgain({ sevenO: true });
+      for (let n = 0; n < 400 && A.state.shared.phase === 'play' && !(sevenSeen && zeroSeen); n++) {
+        await unoSettle(players);
+        const upBot = unoUp(players);
+        if (!upBot) continue;
+        const us = upBot.state.shared;
+        const hand = upBot.state.you.hand;
+        const seven = !sevenSeen && us.turn.stage === 'play' && !us.pending && hand.length > 2 && hand.find((c) => UNO.unoValueOf(c.k) === '7' && unoFits(upBot.state, c));
+        const zero = !zeroSeen && us.turn.stage === 'play' && !us.pending && hand.length > 2 && hand.find((c) => UNO.unoValueOf(c.k) === '0' && unoFits(upBot.state, c));
+        if (seven) {
+          const target = us.order.find((id) => id !== upBot.pid);
+          const mine = hand.length - 1;
+          const theirs = us.counts[target];
+          check((await upBot.act('play', { card: seven.i, seq: us.turnSeq })).ok === false, 'uno: 7-0: a 7 needs someone to swap with');
+          await upBot.must('play', { card: seven.i, target, seq: us.turnSeq });
+          await unoSettle(players);
+          check(A.state.shared.counts[upBot.pid] === theirs && A.state.shared.counts[target] === mine && A.state.shared.events.some((e) => e.type === 'swap' && e.pid === upBot.pid && e.target === target),
+            'uno: 7-0: a 7 swaps your hand with the one you picked');
+          check(unoNoLeak(players), 'uno: 7-0: a swapped hand reaches its new phone only');
+          sevenSeen = true;
+          continue;
+        }
+        if (zero) {
+          const before = Object.assign({}, us.counts);
+          before[upBot.pid] -= 1;
+          const order = us.order;
+          const dir = us.dir;
+          await upBot.must('play', { card: zero.i, seq: us.turnSeq });
+          await unoSettle(players);
+          const after = A.state.shared.counts;
+          check(order.every((id, i) => after[order[(i + dir + order.length) % order.length]] === before[id]), 'uno: 7-0: a 0 passes every hand one seat on');
+          zeroSeen = true;
+          continue;
+        }
+        await unoMove(players);
+      }
+    }
+    check(sevenSeen && zeroSeen, 'uno: 7-0: a 7 and a 0 were played');
+
+    // Jump in: the very same card as the top one, out of turn.
+    let jumpSeen = false;
+    for (let game = 0; game < 6 && !jumpSeen; game++) {
+      await unoPlayAgain({ jumpIn: true });
+      for (let n = 0; n < 400 && A.state.shared.phase === 'play' && !jumpSeen; n++) {
+        await unoSettle(players);
+        const s = A.state.shared;
+        if (s.phase !== 'play' || !s.turn) continue;
+        const top = unoTopOf(A.state);
+        const jumper = s.turn.stage !== 'color' && top && players.find((b) => b.pid !== s.turn.pid && b.state.you.hand.length > 2 &&
+          b.state.you.hand.some((c) => UNO.unoSameCard(c.k, top.k) && !(s.settings.sevenO && UNO.unoValueOf(c.k) === '7')));
+        if (jumper) {
+          const card = jumper.state.you.hand.find((c) => UNO.unoSameCard(c.k, top.k));
+          const stale = await jumper.act('jump', { card: card.i, top: -1 });
+          check(stale.ok && jumper.state.shared.counts[jumper.pid] === s.counts[jumper.pid], 'uno: jump in aimed at a covered card is dropped');
+          await jumper.must('jump', { card: card.i, top: top.i });
+          await unoSettle(players);
+          const now = A.state.shared;
+          check(now.pile[now.pile.length - 1].i === card.i && now.events.some((e) => e.type === 'play' && e.jump && e.pid === jumper.pid), 'uno: jump in: the same card out of turn goes on the pile');
+          if (/^[0-9]$/.test(UNO.unoValueOf(card.k)) && now.phase === 'play') {
+            const after = s.order[(s.order.indexOf(jumper.pid) + s.dir + s.order.length) % s.order.length];
+            check(now.turn.pid === after, 'uno: and play carries on from the one who jumped');
+          }
+          jumpSeen = true;
+          continue;
+        }
+        await unoMove(players);
+      }
+    }
+    check(jumpSeen, 'uno: someone jumped in');
+    // Jump in is refused when it's off.
+    await unoPlayAgain({});
+    {
+      const top = unoTopOf(A.state);
+      const other = players.find((b) => b.pid !== A.state.shared.turn.pid);
+      check((await other.act('jump', { card: other.state.you.hand[0].i, top: top.i })).ok === false, 'uno: jump in is refused when it is off');
+    }
+
+    // UNO!: said, or forgotten and caught.
+    let caughtSeen = false;
+    let saidSeen = false;
+    for (let game = 0; game < 6 && !(caughtSeen && saidSeen); game++) {
+      if (game) await unoPlayAgain({});
+      for (let n = 0; n < 500 && A.state.shared.phase === 'play' && !(caughtSeen && saidSeen); n++) {
+        await unoSettle(players);
+        const upBot = unoUp(players);
+        if (!upBot) continue;
+        const us = upBot.state.shared;
+        const hand = upBot.state.you.hand;
+        const fit = us.turn.stage === 'play' && hand.length === 2 && hand.find((c) => unoFits(upBot.state, c));
+        if (fit && !caughtSeen) {
+          await upBot.must('play', unoPayload(upBot, fit, { seq: us.turnSeq }));
+          await all(players, (s) => s.shared.unoCatch === upBot.pid, 'uno: down to one card without saying it: catchable');
+          const catcher = players.find((b) => b !== upBot);
+          check((await upBot.act('catchUno', { target: upBot.pid })).ok === false, 'uno: nobody catches themselves');
+          await catcher.must('catchUno', { target: upBot.pid });
+          await all(players, (s) => s.shared.counts[upBot.pid] === 3 && !s.shared.unoCatch && s.shared.events.some((e) => e.type === 'caught' && e.pid === upBot.pid && e.by === catcher.pid),
+            'uno: caught: two cards, and everyone sees who caught whom');
+          const late = players.find((b) => b !== upBot && b !== catcher);
+          await late.must('catchUno', { target: upBot.pid });
+          await unoSettle(players);
+          check(A.state.shared.counts[upBot.pid] === 3, 'uno: a second catch is too late');
+          caughtSeen = true;
+          continue;
+        }
+        if (fit && !saidSeen) {
+          await upBot.must('callUno', {});
+          await all(players, (s) => (s.shared.said || []).indexOf(upBot.pid) !== -1 && s.shared.events.some((e) => e.type === 'uno' && e.pid === upBot.pid), 'uno: said just before playing, on every phone');
+          await upBot.must('play', unoPayload(upBot, fit, { seq: upBot.state.shared.turnSeq }));
+          await unoSettle(players);
+          check(A.state.shared.phase !== 'play' || !A.state.shared.unoCatch, 'uno: said: nobody can catch them');
+          saidSeen = true;
+          continue;
+        }
+        await unoMove(players);
+      }
+    }
+    check(caughtSeen && saidSeen, 'uno: a forgotten UNO was caught, and a said one was safe');
+
+    // A number of rounds, with points.
+    await unoPlayAgain({ length: 'rounds', rounds: 3 });
+    check(A.state.shared.rounds === 3 && A.state.shared.round === 1, 'uno: three rounds chosen');
+    for (let round = 1; round <= 3; round++) {
+      await unoPlayUntil(players, null, 1200);
+      const want = round < 3 ? 'roundOver' : 'gameover';
+      await all(players, (s) => s.shared.phase === want && s.shared.results && s.shared.results.round === round, 'uno: round ' + round + ' played out');
+      const st = A.state.shared;
+      check(st.scores[st.results.winner] >= st.results.gained && st.board[0].score >= st.results.gained, 'uno: the round\'s winner banks the cards left');
+      if (round < 3) {
+        check((await B.act('nextRound', { round })).ok === false || B.state.youAreHost, 'uno: only the host deals the next round');
+        await A.must('nextRound', { round });
+        await all(players, (s) => s.shared.phase === 'play' && s.shared.round === round + 1 && s.you.hand.length >= 7, 'uno: the next round is dealt, the scores kept');
+        await A.must('nextRound', { round });
+        check(A.state.shared.round === round + 1, 'uno: a stale "next round" is dropped');
+      }
+    }
+    {
+      const st = A.state.shared;
+      const best = Math.max(...st.order.map((id) => st.scores[id] || 0));
+      check(st.winners.length >= 1 && st.winners.every((id) => (st.scores[id] || 0) === best) && st.board[0].score === best, 'uno: after the last round, the most points wins');
+    }
+    await A.must('backToHub');
+    check(Object.keys(A.state.night || {}).length > 0, 'uno: the night table banked the game');
+
+    // Leaving: the player up leaves and the turn moves on; fewer than two ends the game.
+    const U1 = await Bot.host('يونس', null);
+    const U2 = await Bot.join(U1.code, 'ياسمين');
+    const U3 = await Bot.join(U1.code, 'يوسف');
+    const uRoom = [U1, U2, U3];
+    await U1.must('chooseGame', { game: 'uno' });
+    await U1.must('start', {});
+    await all(uRoom, (s) => s.shared.phase === 'play' && s.you && s.you.hand.length >= 7, 'uno: a table of three');
+    await unoPlayUntil(uRoom, (st) => st.shared.turn.pid !== U1.pid && st.shared.turn.stage === 'play');
+    {
+      const leaver = uRoom.find((b) => b.pid === U1.state.shared.turn.pid);
+      const stay = uRoom.filter((b) => b !== leaver);
+      const deckWas = U1.state.shared.deckCount;
+      const held = U1.state.shared.counts[leaver.pid];
+      await api('/leave', { code: U1.code, pid: leaver.pid, key: leaver.key });
+      leaver.close();
+      await all(stay, (s) => s.shared.order.length === 2 && s.shared.turn.pid !== leaver.pid && s.shared.deckCount === deckWas + held,
+        'uno: the player up leaves: their cards go under the deck, the turn moves on');
+      const last = stay.find((b) => b !== U1);
+      await api('/leave', { code: U1.code, pid: last.pid, key: last.key });
+      last.close();
+      await U1.waitFor((s) => s.shared.phase === 'gameover' && s.shared.winners.join() === U1.pid, 'uno: one player left ends the game');
+    }
+    U1.close();
+
+    // Computer players: one person and two bots, the bots moving on the server's clock, the turn clock playing once for the person.
+    const H = await Bot.host('هالة', null);
+    await H.must('chooseGame', { game: 'uno' });
+    check((await H.act('start', {})).ok === false, 'uno: one person alone cannot start');
+    await H.must('addBot', { level: 'easy', name: 'بسبوسة' });
+    await H.must('addBot', { level: 'hard', name: 'كراميلا' });
+    await H.must('start', { turnClock: 30 });
+    await H.waitFor((s) => s.shared.phase === 'play' && s.shared.order.length === 3 && s.you.hand.length >= 7, 'uno bots: one person and two computer players are dealt');
+    check(H.state.shared.settings.turnClock === 30 && !!H.state.shared.endsAt, 'uno: the turn clock is on');
+    // Wait for the person's turn, then let the clock run out on it.
+    await H.waitFor((s) => s.shared.phase !== 'play' || s.shared.turn.pid === H.pid, 'uno bots: the bots play until it is the person\'s turn', 20000);
+    if (H.state.shared.phase === 'play') {
+      const had = H.state.you.hand.length;
+      const seqWas = H.state.shared.turnSeq;
+      const pending = H.state.shared.pending ? H.state.shared.pending.n : 0;
+      await H.waitFor((s) => s.shared.turnSeq !== seqWas && s.shared.events.some((e) => e.type === 'auto' && e.pid === H.pid && e.why === 'clock'),
+        'uno: time up: the server plays for the quiet player', 40000);
+      check(H.state.you.hand.length === had + (pending || 1) || H.state.shared.phase !== 'play', 'uno: a draw for them (or the draw that waited), and the turn passes');
+    }
+    // Now the person plays on, quickly; the bots keep moving by themselves.
+    const t0uno = Date.now();
+    for (let n = 0; n < 900 && H.state.shared.phase === 'play' && Date.now() - t0uno < 150000; n++) {
+      const s = H.state.shared;
+      if (s.turn && s.turn.pid === H.pid) {
+        const res = await unoMove([H]);
+        if (res && !res.ok && !/مش دورك|مش دلوقتي/.test(res.error || '')) check(false, 'uno bots: the person\'s move was refused: ' + res.error);
+      } else {
+        await sleep(120);
+      }
+    }
+    check(H.state.shared.phase === 'gameover' && !!H.state.shared.results, 'uno bots: a game with computer players finishes on the server\'s clock');
+    check(H.state.shared.events.some((e) => e.type === 'play' && e.pid !== H.pid), 'uno bots: the computer players played cards');
+    H.close();
   }
 
   /* --- مافيا ---------------------------------------------------------------------- */

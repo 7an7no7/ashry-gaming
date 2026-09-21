@@ -9347,4 +9347,690 @@ body.dark {
   .dots-aim { transition: none; }
 }
 
+/* ==========================================================================
+   20. أونو
+   JS_RoomUno.html: the table on separate phones and on the TV. One card
+   component, .uno-card, sized by --uno-w (its height is 1.5 times that), in
+   the look the owner picked (21 Sep 2026, "بلوكات", the family of سكرو's
+   cards): the whole card in its colour (the --uno-* tokens, the same in both
+   themes) with a soft shine, a big Baloo numeral or a line icon, the value
+   small at the inline-start top and turned at the inline-end bottom (so a
+   card overlapped in a hand still shows it); the wilds near black with a
+   four-colour wheel; the back violet and dotted with "A.". Moves fly between
+   exact places (.uno-ghost, a Web Animation of transform and opacity;
+   .uno-hold keeps a place hidden until what flies to it lands).
+   ========================================================================== */
+
+/* --- The card --- */
+:root {
+  --uno-r: #e5383b;
+  --uno-y: #f5b400;
+  --uno-g: #1f9d55;
+  --uno-b: #1e6fd9;
+  --uno-k: #1d1b26;
+  --uno-y-ink: #3a2a00;      /* white on yellow fails; the yellow cards carry dark ink */
+  --uno-tag: #c62828;        /* the "أونو" tag and the UNO button: a red white text reads on */
+  --uno-amber: #f5c451;
+  --uno-back-1: #7c3aed;
+  --uno-back-2: #4c1d95;
+  --uno-wheel: conic-gradient(var(--uno-r) 0 25%, var(--uno-y) 0 50%, var(--uno-g) 0 75%, var(--uno-b) 0);
+}
+.uno-c--r { --c: var(--uno-r); --ink: #fff; }
+.uno-c--y { --c: var(--uno-y); --ink: var(--uno-y-ink); }
+.uno-c--g { --c: var(--uno-g); --ink: #fff; }
+.uno-c--b { --c: var(--uno-b); --ink: #fff; }
+.uno-c--k { --c: var(--uno-k); --ink: #fff; }
+
+.uno-card {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--uno-w, 3.4rem);
+  height: calc(var(--uno-w, 3.4rem) * 1.5);
+  border-radius: calc(var(--uno-w, 3.4rem) * 0.13);
+  color: var(--ink, #fff);
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: top;
+  overflow: hidden;
+  /* A card too narrow for its corners hides them (below), whatever its size class says. */
+  container-type: inline-size;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.uno-card--xs { --uno-w: 1.05rem; }
+.uno-card--sm { --uno-w: 1.9rem; }
+.uno-card--md { --uno-w: 3.4rem; }
+.uno-card--lg { --uno-w: 4.4rem; }
+.uno-card--xl { --uno-w: 5.5rem; }
+.uno-card--fly { width: 100%; height: 100%; }
+.uno-card--face {
+  background: var(--c);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 78%, white), var(--c) 60%, color-mix(in srgb, var(--c) 80%, black));
+  box-shadow: 0 calc(var(--uno-w, 3.4rem) * 0.1) calc(var(--uno-w, 3.4rem) * 0.24) calc(var(--uno-w, 3.4rem) * -0.13) rgba(15, 12, 24, 0.55);
+}
+.uno-card--face.uno-c--k { background: linear-gradient(160deg, #3b3650, #1d1b26 60%, #0e0d14); }
+/* The soft shine in the top corner. */
+.uno-card--face::after {
+  content: '';
+  position: absolute;
+  inset-block-start: -30%;
+  inset-inline-end: -40%;
+  width: 90%;
+  height: 70%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+}
+.uno-card__art { position: relative; z-index: 1; display: grid; place-items: center; }
+.uno-card__art > * { grid-area: 1 / 1; }
+.uno-card__big {
+  font-size: calc(var(--uno-w, 3.4rem) * 0.62);
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.uno-card__big--long { font-size: calc(var(--uno-w, 3.4rem) * 0.44); }
+/* A 6 and a 9, underlined as on the real cards: the bottom corner is upside down. */
+.uno-u { text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.12em; }
+.uno-c--y .uno-card__big { text-shadow: 0 2px 0 rgba(255, 255, 255, 0.35); }
+.uno-card__over {
+  color: #fff;
+  font-size: calc(var(--uno-w, 3.4rem) * 0.34);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 6px rgba(0, 0, 0, 0.35);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.uno-icon { display: block; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.uno-card__ic .uno-icon { width: calc(var(--uno-w, 3.4rem) * 0.62); height: calc(var(--uno-w, 3.4rem) * 0.62); }
+.uno-card__wheel {
+  display: block;
+  width: calc(var(--uno-w, 3.4rem) * 0.62);
+  height: calc(var(--uno-w, 3.4rem) * 0.62);
+  border-radius: 50%;
+  background: var(--uno-wheel);
+  box-shadow: 0 0 0 calc(var(--uno-w, 3.4rem) * 0.03) #fff;
+}
+.uno-card__wheel--sm { width: calc(var(--uno-w, 3.4rem) * 0.56); height: calc(var(--uno-w, 3.4rem) * 0.56); }
+/* The value in two corners: inline-start at the top, turned at the inline-end bottom. */
+.uno-card__mini {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: calc(var(--uno-w, 3.4rem) * 0.07);
+  inset-inline-start: calc(var(--uno-w, 3.4rem) * 0.09);
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--uno-w, 3.4rem) * 0.2);
+  line-height: 1;
+}
+/* The corner sits at the start of the reading direction (a hand overlapping in
+   Arabic shows its cards' right edges); the value inside it reads left to right. */
+.uno-card__v { direction: ltr; unicode-bidi: isolate; }
+.uno-card__mini .uno-icon { width: calc(var(--uno-w, 3.4rem) * 0.2); height: calc(var(--uno-w, 3.4rem) * 0.2); stroke-width: 3; }
+.uno-card__mini--end { inset-block: auto calc(var(--uno-w, 3.4rem) * 0.07); inset-inline: auto calc(var(--uno-w, 3.4rem) * 0.09); transform: rotate(180deg); }
+.uno-card__mw { display: block; width: calc(var(--uno-w, 3.4rem) * 0.18); height: calc(var(--uno-w, 3.4rem) * 0.18); border-radius: 50%; background: var(--uno-wheel); }
+@container (max-width: 40px) {
+  .uno-card__mini { display: none; }
+}
+/* A wild on the pile wears the colour it named, as a ring. */
+.uno-card--chosen { outline: calc(var(--uno-w, 3.4rem) * 0.05) solid var(--ring, #fff); outline-offset: 2px; overflow: visible; }
+.uno-card--chosen::after { display: none; }
+.uno-chosen--r { --ring: var(--uno-r); }
+.uno-chosen--y { --ring: var(--uno-y); }
+.uno-chosen--g { --ring: var(--uno-g); }
+.uno-chosen--b { --ring: var(--uno-b); }
+/* The back: violet, dotted, "A." with its amber full stop. */
+.uno-card--back {
+  background: linear-gradient(160deg, var(--uno-back-1), var(--uno-back-2));
+  box-shadow: 0 calc(var(--uno-w, 3.4rem) * 0.1) calc(var(--uno-w, 3.4rem) * 0.22) calc(var(--uno-w, 3.4rem) * -0.12) rgba(46, 16, 101, 0.6);
+}
+.uno-card--back::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.2px, transparent 1.4px);
+  background-size: 9px 9px;
+  pointer-events: none;
+}
+.uno-card__a { position: relative; z-index: 1; color: #fff; font-size: calc(var(--uno-w, 3.4rem) * 0.34); line-height: 1; direction: ltr; }
+.uno-card__a i { color: var(--uno-amber); font-style: normal; }
+@container (max-width: 22px) {
+  .uno-card__a { display: none; }
+}
+
+/* --- The frame --- */
+.uno-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-1); margin-bottom: var(--sp-2); }
+/* The play area first (the owner, 21 Sep 2026): the pile, then your hand, then what to do;
+   the other players are a compact strip above it. Wider screens rearrange the same four. */
+.uno-layout { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "center" "mine" "act" "log"; }
+.uno-layout > * { min-width: 0; }
+.uno-layout__center { grid-area: center; }
+.uno-layout__mine { grid-area: mine; }
+.uno-layout__act { grid-area: act; }
+.uno-layout__log { grid-area: log; }
+.uno-latest {
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.uno-latest.is-new { animation: uno-latest-in 380ms var(--ease-out) both; }
+@keyframes uno-latest-in { from { opacity: 0; transform: translateY(-0.4rem) scale(0.98); } }
+.uno-log { display: flex; flex-direction: column; gap: 4px; margin: 0 0 var(--sp-3); padding: 0; list-style: none; }
+.uno-log li { padding: 0.35rem 0.7rem; border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-2); font-size: var(--fs-xs); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+
+/* --- The other players: one strip of compact chips (a sideways scroll on a phone
+   when they don't fit; auto margins centre a strip that does) --- */
+.uno-opps {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 var(--sp-2);
+  padding: 3px 2px 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.uno-opps::-webkit-scrollbar { display: none; }
+.uno-opps > :first-child { margin-inline-start: auto; }
+.uno-opps > :last-child { margin-inline-end: auto; }
+.uno-seat {
+  position: relative;
+  flex: none;
+  min-width: 0;
+  max-width: 11rem;
+  min-height: 2.6rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px var(--sp-2) 3px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+}
+.uno-avatar {
+  flex: none;
+  width: 1.45rem;
+  height: 1.45rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--uno-amber);
+  color: #3b2a05;
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.uno-seat__who { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.uno-seat__name { min-width: 0; max-width: 4.75rem; overflow: hidden; color: var(--text-strong); font-size: var(--fs-sm); font-weight: 800; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.uno-seat__stage { flex: none; font-size: var(--fs-xs); }
+/* The count sits on the fan as a badge. */
+.uno-seat__hand { position: relative; flex: none; display: block; padding-inline-end: 0.55rem; }
+.uno-seat__n {
+  position: absolute;
+  z-index: 2;
+  inset-block-end: -0.3rem;
+  inset-inline-end: -0.2rem;
+  min-width: 1.3rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: 0 0 0 1px var(--border), var(--sh-1);
+  color: var(--text-strong);
+  font-size: 0.8125rem;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+}
+.uno-fan { position: relative; display: block; width: max(1.05rem, calc(1.05rem + (var(--of, 1) - 1) * 0.42rem)); height: calc(1.05rem * 1.5); }
+.uno-fan__card {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: calc(var(--k) * 0.42rem);
+  transform: rotate(calc((var(--k) - (var(--of) - 1) / 2) * 7deg));
+  transform-origin: 50% 110%;
+}
+.uno-seat.is-turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 6px 18px -10px var(--accent-glow); }
+.uno-seat.is-next { border-style: dashed; border-color: var(--accent); }
+.uno-seat.is-away { opacity: 0.6; }
+.uno-seat.is-catch { border-color: var(--danger); }
+.uno-seat.is-catch::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px var(--danger), 0 0 16px 2px color-mix(in srgb, var(--danger) 45%, transparent);
+  pointer-events: none;
+  animation: uno-catch-glow 0.9s ease-in-out infinite alternate;
+}
+@keyframes uno-catch-glow { from { opacity: 0.35; } to { opacity: 1; } }
+.uno-tag {
+  flex: none;
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  background: var(--uno-tag);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 900;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.uno-tag--soft { padding: 0; background: transparent; }
+
+/* --- The middle: the deck, the pile, the colour in play and the direction --- */
+.uno-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  border-radius: var(--r-xl);
+  background: var(--accent-soft);
+}
+.uno-zone { position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.uno-zone__label { max-width: 7rem; overflow: hidden; color: var(--text-2); font-size: var(--fs-xs); font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.uno-deck { position: relative; display: block; }
+.uno-deck__under { position: absolute; inset: 0; opacity: 0.7; transform: translate(3px, -3px); }
+.uno-deck__under--2 { opacity: 0.45; transform: translate(6px, -6px); }
+.uno-count {
+  min-width: 1.6rem;
+  margin-top: -0.55rem;
+  position: relative;
+  z-index: 2;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  color: var(--text-strong);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+.uno-pile { position: relative; display: block; }
+.uno-pile__under { position: absolute; inset: 0; opacity: 0.9; transform: rotate(var(--tilt, 0deg)); }
+.uno-pile__top { position: relative; display: block; transform: rotate(var(--tilt, 0deg)); }
+.uno-pending {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: -0.85rem;
+  inset-inline-end: -1.6rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--r-full);
+  background: var(--danger-btn);
+  box-shadow: var(--sh-2);
+  color: var(--danger-on);
+  font-size: 1rem;
+  font-weight: 900;
+}
+.uno-zone--state { gap: 5px; }
+.uno-dot { display: block; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 28%, transparent); }
+.uno-dot.is-none { background: var(--uno-wheel); box-shadow: none; }
+.uno-state__color { color: var(--text-strong); font-size: var(--fs-sm); font-weight: 900; }
+.uno-dir { display: grid; place-items: center; }
+.uno-dir svg { width: 1.6rem; height: 1.6rem; fill: none; stroke: var(--accent-ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.uno-dir.is-back svg { transform: scaleX(-1); }
+
+/* --- Your hand: a row that overlaps when it has to (unoFitHand), what you can play raised --- */
+.uno-mine {
+  position: relative;
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+}
+.uno-mine.is-turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 28px -14px var(--accent-glow); }
+.uno-mine.is-catch { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger); }
+.uno-mine__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-2); }
+.uno-mine__title { color: var(--text-strong); font-size: var(--fs-sm); font-weight: 900; }
+.uno-mine__n { color: var(--accent-ink); font-size: 1rem; }
+.uno-hand { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-3); padding-top: 0.85rem; }
+.uno-hand__row { min-width: 0; display: flex; justify-content: center; }
+.uno-hand__empty { color: var(--text-3); text-align: center; }
+.uno-hand .uno-card { --uno-w: 3.4rem; }
+.uno-hcard {
+  position: relative;
+  flex: none;
+  display: block;
+  line-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--uno-w, 3.4rem) * 0.13);
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--dur-2) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.uno-hcard + .uno-hcard { margin-inline-start: var(--uno-gap, 0.25rem); }
+.uno-hcard .uno-card { transition: filter var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out); }
+.uno-hcard.is-play { transform: translateY(-0.6rem); }
+.uno-hcard.is-dim .uno-card { filter: saturate(0.35) brightness(0.9); }
+.uno-hcard.is-jump { transform: translateY(-0.6rem); }
+.uno-hcard.is-jump .uno-card { box-shadow: 0 0 0 3px var(--warning), 0 8px 18px -6px color-mix(in srgb, var(--warning) 70%, transparent); }
+.uno-hcard.is-drawn { transform: translateY(-0.85rem); }
+.uno-hcard.is-drawn .uno-card { box-shadow: 0 0 0 3px var(--accent), 0 10px 22px -8px var(--accent-glow); filter: none; }
+.uno-hcard.is-picked { transform: translateY(-1rem); }
+.uno-hcard.is-picked .uno-card { box-shadow: 0 0 0 3px var(--accent), 0 10px 22px -8px var(--accent-glow); }
+.uno-hcard:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+/* --- What to do now: a bar that stays at the foot of the screen --- */
+.uno-actbar {
+  position: sticky;
+  bottom: var(--sp-2);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-4);
+  max-height: calc(var(--app-h, 100dvh) - 10rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.uno-actbar--catch, .uno-actbar--facing { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger), var(--sh-4); }
+.uno-note { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); margin-bottom: var(--sp-3); padding: var(--sp-2) var(--sp-3); text-align: center; }
+.uno-prompt { margin: 0; color: var(--text-strong); font-size: var(--fs-h3); font-weight: 900; line-height: 1.35; text-align: center; }
+.uno-prompt.is-mine { color: var(--accent-ink); }
+.uno-hint { margin: 0; color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; line-height: 1.4; text-align: center; }
+.uno-hint--jump { color: var(--warning-ink); font-weight: 800; }
+.uno-actrow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.uno-actrow .btn { padding-inline: var(--sp-2); }
+.uno-colors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.uno-colorbtn {
+  min-height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--c);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 82%, white), var(--c) 70%);
+  box-shadow: 0 6px 14px -8px var(--c);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.uno-colorbtn__dot { width: 0.75rem; height: 0.75rem; border-radius: 50%; background: currentColor; opacity: 0.85; }
+.uno-targets { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.uno-target {
+  max-width: 11rem;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+}
+.uno-target__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uno-target .metric { color: var(--accent-ink); }
+.uno-say { display: flex; flex-direction: column; gap: 4px; }
+.uno-saybtn { background: var(--uno-tag); color: #fff; font-family: var(--font-display); font-size: 1.2rem; font-weight: 800; box-shadow: 0 8px 18px -10px var(--uno-tag); }
+.uno-say.is-urgent .uno-saybtn { animation: uno-say-pulse 0.8s ease-in-out infinite alternate; }
+@keyframes uno-say-pulse { from { transform: scale(1); } to { transform: scale(1.045); } }
+.uno-catch { display: flex; flex-direction: column; gap: 4px; }
+
+/* --- The end of a round, and of the game --- */
+.uno-won { margin-bottom: var(--sp-3); text-align: center; }
+.uno-won .card__title { overflow-wrap: anywhere; }
+.uno-sub { margin: 0 0 var(--sp-2); color: var(--text-2); font-size: var(--fs-sm); font-weight: 800; text-align: center; }
+.uno-rule { margin: 0 0 var(--sp-3); color: var(--text-2); font-size: var(--fs-xs); font-weight: 600; line-height: 1.5; text-align: center; }
+.uno-over { margin-bottom: var(--sp-3); text-align: center; }
+.uno-over .podium { margin-top: var(--sp-2); }
+.uno-reveal { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.uno-rrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "who pts" "cards cards";
+  align-content: start;
+  align-items: center;
+  gap: 4px var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.uno-rrow.is-winner { border-color: var(--success); box-shadow: 0 0 0 1px var(--success); }
+.uno-rrow__who { grid-area: who; min-width: 0; }
+.uno-rrow__name { display: block; overflow: hidden; color: var(--text-strong); font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.uno-rrow__pts { grid-area: pts; display: flex; align-items: baseline; gap: 1px; color: var(--text-strong); font-size: 1.3rem; direction: ltr; }
+.uno-rrow.is-winner .uno-rrow__pts { color: var(--success-ink); }
+.uno-rrow__plus { font-weight: 900; }
+.uno-rrow__cards { grid-area: cards; display: flex; flex-wrap: wrap; gap: 3px; }
+.uno-rrow__done { color: var(--success-ink); font-size: var(--fs-sm); font-weight: 900; }
+.uno-flip { position: relative; display: inline-block; }
+.uno-flip__face { display: block; }
+.uno-flip__back { position: absolute; inset: 0; }
+.is-revealing .uno-flip__back { animation: uno-flip-back 420ms linear both; animation-delay: var(--at, 0ms); }
+.is-revealing .uno-flip__face { animation: uno-flip-face 420ms var(--ease-out) both; animation-delay: var(--at, 0ms); }
+@keyframes uno-flip-back { 0% { transform: scaleX(1); } 45% { transform: scaleX(0); } 100% { transform: scaleX(0); visibility: hidden; } }
+@keyframes uno-flip-face { 0%, 45% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+
+/* --- The lobby: a fan of five cards over the options --- */
+.uno-lobby__cards { display: flex; justify-content: center; gap: 4px; margin: var(--sp-1) 0 var(--sp-2); }
+.uno-lobby__cards .uno-card:nth-child(1) { transform: rotate(-12deg) translateY(4px); }
+.uno-lobby__cards .uno-card:nth-child(2) { transform: rotate(-6deg); }
+.uno-lobby__cards .uno-card:nth-child(4) { transform: rotate(6deg); }
+.uno-lobby__cards .uno-card:nth-child(5) { transform: rotate(12deg) translateY(4px); }
+.uno-lobby__sub { margin-top: calc(var(--sp-2) * -1); }
+
+/* --- Flights, signs, landings --- */
+.uno-ghost { position: fixed; left: 0; top: 0; z-index: 10001; pointer-events: none; transform-origin: center; will-change: transform; }
+.uno-ghost__flip { position: relative; width: 100%; height: 100%; will-change: transform; }
+.uno-ghost__face { position: absolute; inset: 0; }
+.uno-ghost__face--b { opacity: 0; }
+.uno-ghost .uno-card { box-shadow: var(--sh-3); }
+.uno-hold { visibility: hidden; }
+.uno-landed > .uno-card { animation: uno-land 380ms cubic-bezier(0.2, 1.4, 0.35, 1); }
+@keyframes uno-land { 0% { transform: scale(0.9); } 60% { transform: scale(1.06); } 100% { transform: none; } }
+.uno-pop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 10002;
+  padding: 0.1em 0.45em;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+  color: var(--text-strong);
+  font-size: 1.25rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.uno-pop--big { background: transparent; box-shadow: none; font-size: 2.2rem; }
+.uno-ring { position: fixed; z-index: 10001; border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
+.uno-ring--r { border-color: var(--uno-r); border-width: 5px; }
+.uno-ring--y { border-color: var(--uno-y); border-width: 5px; }
+.uno-ring--g { border-color: var(--uno-g); border-width: 5px; }
+.uno-ring--b { border-color: var(--uno-b); border-width: 5px; }
+.uno-ring--shout, .uno-ring--danger { border-color: var(--uno-tag); }
+.uno-stamp {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 10003;
+  display: grid;
+  place-items: center;
+  padding: 0.1em 0.35em;
+  border: 3px solid currentColor;
+  border-radius: 0.4em;
+  background: var(--surface-solid);
+  color: var(--accent-ink);
+  font-size: 1.6rem;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.uno-stamp .uno-icon { width: 2.2rem; height: 2.2rem; stroke-width: 2.8; }
+.uno-stamp--danger { color: var(--danger-ink); }
+.uno-spark { position: fixed; left: 0; top: 0; z-index: 10002; color: var(--warning); font-size: 0.9rem; line-height: 1; pointer-events: none; }
+.uno-spark--shout { color: var(--uno-tag); }
+.uno-shout {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 10004;
+  padding: 0.15em 0.55em;
+  border-radius: var(--r-full);
+  background: var(--uno-tag);
+  box-shadow: 0 10px 26px -8px rgba(198, 40, 40, 0.7);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.uno-pop.is-tv { font-size: 5vmin; }
+.uno-pop--big.is-tv { font-size: 8vmin; }
+.uno-ring.is-tv { border-width: 0.7vmin; }
+.uno-stamp.is-tv { font-size: 6vmin; }
+.uno-stamp.is-tv .uno-icon { width: 8vmin; height: 8vmin; }
+.uno-spark.is-tv { font-size: 2.6vmin; }
+.uno-shout.is-tv { font-size: 7vmin; }
+
+/* --- A phone on its side: the pile beside your hand and the bar, the seats a strip above --- */
+@media (orientation: landscape) and (max-height: 500px) {
+  .uno-layout { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); grid-template-areas: "center mine" "center act" "log act"; column-gap: var(--sp-3); align-items: start; }
+  .uno-head { margin-bottom: var(--sp-1); }
+  .uno-latest { margin-bottom: var(--sp-1); padding-block: var(--sp-1); }
+  .uno-opps { margin-bottom: var(--sp-1); padding-block: 2px 4px; }
+  .uno-seat { min-height: 2.3rem; padding-block: 2px; }
+  .uno-center { gap: var(--sp-4); margin-bottom: var(--sp-2); padding: var(--sp-2) var(--sp-2) var(--sp-1); }
+  .uno-center .uno-card--lg { --uno-w: 3.6rem; }
+  .uno-center .uno-card--md { --uno-w: 2.5rem; }
+  .uno-mine { margin-bottom: var(--sp-2); padding: var(--sp-1) var(--sp-2) var(--sp-2); }
+  .uno-hand { gap: var(--sp-2); padding-top: 0.7rem; }
+  .uno-hand .uno-card { --uno-w: 2.8rem; }
+  .uno-hcard.is-play, .uno-hcard.is-jump { transform: translateY(-0.45rem); }
+  .uno-actbar { gap: var(--sp-1); padding: var(--sp-2); max-height: calc(var(--app-h, 100dvh) - 4rem); }
+  .uno-actbar .uno-prompt { font-size: var(--fs-sm); line-height: 1.3; }
+  .uno-actbar .btn { min-height: 2.5rem; font-size: var(--fs-sm); }
+  .uno-colorbtn { min-height: 2.5rem; font-size: 1.05rem; }
+  .uno-colors { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .uno-log { display: none; }
+}
+/* --- A laptop, a big screen as a player's own: the pile across the width, your hand
+   under it beside the bar, the cards sized by the screen's height --- */
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-room-uno { max-width: 78rem; }
+  .uno-opps { flex-wrap: wrap; justify-content: center; overflow: visible; }
+  .uno-opps > :first-child, .uno-opps > :last-child { margin-inline: 0; }
+  .uno-seat { max-width: 14rem; }
+  .uno-seat__name { max-width: 8rem; }
+  .uno-layout { grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); grid-template-areas: "center center" "mine act" "log act"; column-gap: var(--sp-5); align-items: start; }
+  .uno-center { gap: clamp(2rem, 6vw, 5rem); padding: var(--sp-5) var(--sp-5) var(--sp-4); }
+  .uno-center .uno-card--lg { --uno-w: clamp(8rem, 17.5vh, 15rem); }
+  .uno-center .uno-card--md { --uno-w: clamp(5.25rem, 11.5vh, 10rem); }
+  .uno-dot { width: 2.5rem; height: 2.5rem; }
+  .uno-dir svg { width: 2.25rem; height: 2.25rem; }
+  .uno-state__color { font-size: var(--fs-h3); }
+  .uno-pending { font-size: 1.4rem; }
+  .uno-mine { margin-bottom: 0; }
+  .uno-hand .uno-card { --uno-w: clamp(4.4rem, 11vh, 8rem); }
+  .uno-hcard.is-play, .uno-hcard.is-jump { transform: translateY(-0.8rem); }
+  .uno-hand { padding-top: 1.1rem; }
+  .uno-actbar { position: static; margin-bottom: 0; }
+  .uno--result .uno-reveal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* --- The TV: the seats a ring of compact chips (along the top, back along the bottom),
+   the pile in the middle taking the screen, the turn and the moves beside it --- */
+.uno-tv { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--tv-gap); --uno-fan-w: 3.6vmin; }
+.uno-tv__ring { min-width: 0; display: flex; justify-content: center; gap: var(--tv-gap); }
+.uno-tv .uno-seat { flex: 0 1 auto; max-width: 30vw; min-height: 0; gap: 1.2vmin; padding: 0.8vmin 2vmin 0.8vmin 0.8vmin; border-width: 0.2vmin; }
+.uno-tv .uno-avatar { width: 5vmin; height: 5vmin; font-size: 2.4vmin; }
+.uno-tv .uno-seat__name { max-width: 18vw; font-size: var(--tv-sm); }
+.uno-tv .uno-seat__hand { display: flex; align-items: center; gap: 1.4vmin; margin: 0; padding: 0; }
+.uno-tv .uno-seat__n { position: static; min-width: 3.6vmin; padding: 0; background: none; box-shadow: none; font-size: var(--tv-md); line-height: 1; }
+.uno-tv .uno-tag { padding: 0.2vmin 1vmin; font-size: var(--tv-xs); }
+.uno-tv .uno-seat__stage { font-size: var(--tv-xs); }
+.uno-tv .uno-fan { width: max(var(--uno-fan-w), calc(var(--uno-fan-w) + (var(--of, 1) - 1) * var(--uno-fan-w) * 0.42)); height: calc(var(--uno-fan-w) * 1.5); }
+.uno-tv .uno-fan__card { inset-inline-start: calc(var(--k) * var(--uno-fan-w) * 0.42); }
+.uno-tv .uno-fan .uno-card { --uno-w: var(--uno-fan-w); }
+.uno-tv__mid { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: calc(var(--tv-gap) * 1.5); align-items: stretch; }
+.uno-tv__info { min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: safe center; gap: var(--tv-gap); overflow: hidden; text-align: center; }
+.uno-tv__table { min-width: 0; min-height: 0; display: flex; }
+.uno-tv .uno-head { margin: 0; }
+.uno-tv .badge, .uno-tvres .badge { height: auto; padding: 0.25em 0.7em; font-size: var(--tv-xs); }
+.uno-tv__turn { color: var(--text-strong); font-size: var(--tv-lg); font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+.uno-tv__catch { color: var(--danger-ink); font-size: var(--tv-sm); font-weight: 900; }
+.uno-tv .uno-latest { margin: 0; padding: 0.8vmin 1.6vmin; border-radius: var(--tv-r); font-size: var(--tv-sm); }
+.uno-tv .uno-center { flex: 1; min-height: 0; margin: 0; gap: 6vmin; padding: 3vmin; border-radius: var(--tv-r); }
+.uno-tv .uno-center .uno-card--lg { --uno-w: min(25vmin, 16vw); }
+.uno-tv .uno-center .uno-card--md { --uno-w: min(16vmin, 10vw); }
+.uno-tv .uno-zone__label { max-width: 24vmin; font-size: var(--tv-sm); }
+.uno-tv .uno-count { font-size: var(--tv-sm); }
+.uno-tv .uno-pending { inset-block-start: -1.5vmin; inset-inline-end: -3vmin; padding: 0.4vmin 1.6vmin; font-size: var(--tv-lg); }
+.uno-tv .uno-dot { width: 8vmin; height: 8vmin; box-shadow: 0 0 0 1.2vmin color-mix(in srgb, var(--c) 28%, transparent); }
+.uno-tv .uno-dir svg { width: 7vmin; height: 7vmin; }
+.uno-tv .uno-state__color { font-size: var(--tv-md); }
+.uno-tv .uno-zone--state { gap: 1.4vmin; }
+.uno-tv .uno-log { margin: 0; }
+.uno-tv .uno-log li { padding: 0.5vmin 1vmin; font-size: var(--tv-xs); }
+.uno-tv .tv-actions { margin: 0; }
+.uno-tv .tv-actions:not(:has(.btn)) { display: none; }
+.uno-tv__host:empty { display: none; }
+/* Five or six a row: smaller chips, the names shorter. */
+.uno-tv--many { --uno-fan-w: 3vmin; }
+.uno-tv--many .uno-seat { gap: 0.8vmin; padding: 0.6vmin 1.4vmin 0.6vmin 0.6vmin; }
+.uno-tv--many .uno-avatar { width: 4vmin; height: 4vmin; font-size: 2vmin; }
+.uno-tv--many .uno-seat__name { max-width: 11vw; }
+.uno-tv--many .uno-seat__n { min-width: 3vmin; font-size: var(--tv-sm); }
+.uno-tvres { min-height: 100%; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; gap: calc(var(--tv-gap) * 2); }
+.uno-tvres__cards, .uno-tvres__side { min-width: 0; display: flex; flex-direction: column; gap: var(--tv-gap); }
+.uno-tvres__side { align-items: center; }
+.uno-tvres__side > .tv-scale { width: 100%; }
+.uno-reveal--tv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tv-gap); margin: 0; }
+.uno-reveal--tv:has(> :nth-child(7)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.uno-reveal--tv .uno-rrow { padding: 1vmin 1.6vmin; border-radius: var(--tv-r); }
+.uno-reveal--tv .uno-rrow__name { font-size: var(--tv-sm); }
+.uno-reveal--tv .uno-rrow__pts { font-size: var(--tv-md); }
+.uno-reveal--tv .uno-card { --uno-w: 4.4vmin; }
+.uno-reveal--tv:has(> :nth-child(7)) .uno-card { --uno-w: 3.4vmin; }
+.uno-reveal--tv .uno-rrow__done { font-size: var(--tv-xs); }
+/* A phone mirrored upright: one column, and the stage scrolls. */
+@media (orientation: portrait) {
+  .uno-tv { height: auto; }
+  .uno-tv__ring { flex-wrap: wrap; }
+  .uno-tv__mid { grid-template-columns: minmax(0, 1fr); }
+  .uno-tvres, .uno-reveal--tv, .uno-reveal--tv:has(> :nth-child(7)) { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uno-landed > .uno-card, .uno-latest.is-new, .is-revealing .uno-flip__face, .uno-say.is-urgent .uno-saybtn, .uno-seat.is-catch::after { animation: none; }
+  .is-revealing .uno-flip__back { display: none; }
+  .uno-hcard, .uno-hcard .uno-card, .uno-seat { transition: none; }
+}
+
 </style>

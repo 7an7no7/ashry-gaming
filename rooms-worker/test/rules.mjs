@@ -2059,7 +2059,9 @@ const leave = (r, id, hook = true) => {
 }
 
 /* --- كونكت ٤ and نقط ومربعات: the shared rules and the phone's player ------- */
-// The phone's player thinks against the real clock: its time budget is a deadline.
+// The phone's player thinks against the real clock: its time budget is a
+// deadline. The test clock is put back after this block, for what follows.
+const duelTestClock = Date.now;
 Date.now = realNow;
 {
   const src = (name) => readFileSync(new URL('../../' + name, import.meta.url), 'utf8');
@@ -2197,6 +2199,7 @@ Date.now = realNow;
   const medium = DB.dotsBestMove(endgame, 1, 'medium', { rnd: seeded(6) });
   check(medium === g4.boxEdges[1][2], 'dots: medium just takes the box');
 }
+Date.now = duelTestClock;
 
 /* --- the duels in rooms: two play, winner stays on --------------------------- */
 {

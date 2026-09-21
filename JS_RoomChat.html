@@ -56,7 +56,8 @@ function chatEventText(m, t) {
     case 'hub':    return '📋 ' + (t.chat_sys_hub || '');
     case 'started': {
       const game = (typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES : []).find(g => g.id === p.game);
-      return (game ? game.icon : '🎮') + ' ' + (t.chat_sys_started || '').replace('{game}', game ? (t[game.key] || game.id) : (p.game || ''));
+      const icon = game ? iconText(game.icon) : '🎮';
+      return (icon ? icon + ' ' : '') + (t.chat_sys_started || '').replace('{game}', game ? (t[game.key] || game.id) : (p.game || ''));
     }
   }
   return '';
@@ -82,7 +83,9 @@ function renderRoomChat(state, opening) {
     ? msgs.map(m => {
         if (m.sys) {
           const text = chatEventText(m, t);
-          return text ? `<div class="chat-sys">${escapeHTML(text)}</div>` : '';
+          const game = m.sys === 'started' && ROOM_HUB_GAMES.find(g => g.id === (m.p || {}).game);
+          const art = game && isArtIcon(game.icon) ? iconHtml(game.icon) + ' ' : '';
+          return text ? `<div class="chat-sys">${art}${escapeHTML(text)}</div>` : '';
         }
         const team = CHAT_TEAM_ICON[m.team] ? m.team : '';
         const big = CHAT_EMOJI_ONLY.test(String(m.text || '').trim());

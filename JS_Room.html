@@ -653,7 +653,7 @@ const ROOM_HUB_GAMES = [
   { id: 'imposter',  icon: '🕵️‍♂️', key: 'setup_imposter',  accent: 'violet', min: 3 },
   { id: 'justone',   icon: '🤫',   key: 'setup_justone',   accent: 'rose',   min: 3 },
   { id: 'whoami',    icon: '❓',   key: 'setup_whoami',    accent: 'teal',   min: 2 },
-  { id: 'codenames', icon: '🔠',   key: 'setup_codenames', accent: 'indigo', min: 4 },
+  { id: 'codenames', icon: '🗝️',   key: 'setup_codenames', accent: 'indigo', min: 4 },
   { id: 'fibbage',    icon: '🤥',  key: 'setup_fibbage',    accent: 'rose',   min: 3 },
   { id: 'wouldyou',   icon: '⚖️',  key: 'setup_wouldyou',   accent: 'violet', min: 2 },
   { id: 'mostlikely', icon: '👉',  key: 'setup_mostlikely', accent: 'amber',  min: 3 },
@@ -675,11 +675,11 @@ const ROOM_HUB_GAMES = [
   { id: 'herd',       icon: '🐄', key: 'setup_herd',       accent: 'green',  min: 3 },
   { id: 'mafia',      icon: '🕴️', key: 'setup_mafia',      accent: 'rose',   min: 5 },
   { id: 'screw',      icon: '🃏', key: 'setup_screw',      accent: 'blue',   min: 2 },
-  { id: 'mind',       icon: '🧠', key: 'setup_mind',       accent: 'teal',   min: 2 },
-  { id: 'timeline',   icon: '🗓️', key: 'setup_timeline',   accent: 'amber',  min: 2 },
+  { id: 'mind',       icon: '💯', key: 'setup_mind',       accent: 'teal',   min: 2 },
+  { id: 'timeline',   icon: '🕰️', key: 'setup_timeline',   accent: 'amber',  min: 2 },
   // Computer players can make up the table, so one person is enough to open these.
-  { id: 'uno',        icon: '🌈', key: 'setup_uno',        accent: 'rose',   min: 1 },
-  { id: 'domino',     icon: '🀄', key: 'setup_domino',     accent: 'green',  min: 1 },
+  { id: 'uno',        icon: 'art:uno', key: 'setup_uno',        accent: 'rose',   min: 1 },
+  { id: 'domino',     icon: 'art:domino', key: 'setup_domino',     accent: 'green',  min: 1 },
   { id: 'connect4',   icon: '🔴', key: 'setup_connect4',   accent: 'blue',   min: 2 },
   { id: 'dots',       icon: '🔲', key: 'setup_dots',       accent: 'indigo', min: 2 }
 ];
@@ -1061,7 +1061,7 @@ function renderRoomHub(state) {
           return `
             <div class="game-card ${enough ? '' : 'is-disabled'}" data-accent="${g.accent}"
                  ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : ''}>
-              <div class="game-icon" aria-hidden="true">${g.icon}</div>
+              <div class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</div>
               <div class="game-title">${t[g.key] || g.id}</div>
               ${badge}
             </div>`;
@@ -1081,7 +1081,7 @@ function renderChosenGame(state, game) {
 
   return `
     <div class="chosen-game">
-      <span class="chosen-game__icon" aria-hidden="true">${entry ? entry.icon : '🎮'}</span>
+      <span class="chosen-game__icon" aria-hidden="true">${entry ? iconHtml(entry.icon) : '🎮'}</span>
       <span class="chosen-game__name">${name}</span>
       ${state.youAreHost
         ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('backToHub')">${t.room_change_game || 'تغيير'}</button>`
@@ -1252,7 +1252,7 @@ function updateRoomBanner() {
     desc = (t.room_in_lobby || '') + ' \u2022 \ud83d\udc65 ' + ((s && s.players) ? s.players.length : 1);
   } else {
     const entry = ROOM_HUB_GAMES.find(g => g.id === s.game);
-    desc = (t.room_playing_status || '') + ': ' + (entry ? entry.icon + ' ' + (t[entry.key] || entry.id) : s.game);
+    desc = (t.room_playing_status || '') + ': ' + (entry ? (iconText(entry.icon) ? iconText(entry.icon) + ' ' : '') + (t[entry.key] || entry.id) : s.game);
   }
   const descEl = document.getElementById('arb-desc');
   if (descEl) descEl.textContent = desc;

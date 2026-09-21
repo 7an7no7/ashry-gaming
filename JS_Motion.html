@@ -74,7 +74,7 @@ function flyEmoji(emoji, fromRect, fromFontPx, target, opts) {
   ghost.style.fontSize = big + 'px';
   const glyph = document.createElement('span');
   glyph.className = 'motion-ghost__glyph';
-  glyph.textContent = emoji;
+  if (isArtIcon(emoji)) glyph.innerHTML = iconHtml(emoji); else glyph.textContent = emoji;
   ghost.appendChild(glyph);
   document.body.appendChild(ghost);
   const size = ghost.getBoundingClientRect();
@@ -151,7 +151,7 @@ function playRoomGameStart(state) {
   el.setAttribute('data-accent', hub.accent || 'violet');
   el.innerHTML =
     '<div class="game-splash__card">' +
-      '<span class="game-splash__icon" aria-hidden="true">' + hub.icon + '</span>' +
+      '<span class="game-splash__icon" aria-hidden="true">' + iconHtml(hub.icon) + '</span>' +
       '<span class="game-splash__name">' + escapeHTML(t[hub.key] || '') + '</span>' +
     '</div>';
   document.body.appendChild(el);
@@ -162,7 +162,7 @@ function playRoomGameStart(state) {
     if (leaving) return;
     leaving = true;
     const target = document.getElementById('app-title-icon');
-    const canFly = !fast && target && target.textContent && !document.body.classList.contains('is-fullscreen-view')
+    const canFly = !fast && target && (target.textContent || target.firstElementChild) && !document.body.classList.contains('is-fullscreen-view')
       && target.getBoundingClientRect().width > 0;
     if (canFly) {
       const from = icon.getBoundingClientRect();

@@ -598,6 +598,17 @@ the word search), `countUp` for streaks and scores.
 - **ورق وطاولة holds سكرو, أونو and الدومينو as three normal cards** (owner, 21
   Sep 2026). سكرو's spotlight was only ever because it was alone there; the
   rule stands (a section of one game is drawn wide), it just no longer applies.
+- **Every icon has to say what its game is** (owner, 21 Sep 2026, after
+  asking for Uno's and Domino's to change). أونو and الدومينو got drawn icons
+  (*Feel*, *Some icons are drawn*): 🌈 said nothing about Uno and 🀄 is not a
+  domino. A pass over all eighty icons then changed four, each put to the
+  owner: العقل 🧠 → 💯 (تحدي المعلومات is 🧠 too; its cards are 1 to 100),
+  قبل ولا بعد 🗓️ → 🕰️ (it looked like تحدي اليوم's 📅), خمن الكلمة 🔤 → 🟩
+  (English letters on an Arabic game; the green square is Wordle's own mark)
+  and أسماء الرموز 🔠 → 🗝️ (the key card the spymasters hold). A new game's
+  icon must not repeat another game's or be English letters.
+- **Domino's "can't play" button says باص / Pass** (owner, 21 Sep 2026); it
+  said دق / Knock, the table word.
 - **A table game's score keeper lives inside the game, with a shortcut in the
   tools** (owner, 21 Sep 2026). The domino score keeper became the "على
   الطاولة" side of the Domino setup screen, like سكرو's, and الأدوات → حاسبات
@@ -846,6 +857,9 @@ the word search), `countUp` for streaks and scores.
   seats two to a row, six tiles to a row, the bar sticky at the foot); and a
   robot test that failed whenever the random seats made the host the one who
   leaves. Robot tests: 1381.
+- **21 Sep 2026, icons** - أونو and الدومينو drawn as their own card and tile
+  (`ICON_ART`, `iconHtml`), four other icons that clashed or said nothing
+  replaced (*Decided, and why*), and domino's دق renamed باص.
 
 ## Building and Running
 
@@ -3957,6 +3971,20 @@ tile or frame: a little bigger, a soft drop shadow, and a faint round halo
 of the game's colour behind them (a radial gradient with no edge), which
 the owner asked for in place of the squares. A game's icon has to be the
 same in `GAME_CATALOG`, `HELP_ENTRIES` and `ROOM_HUB_GAMES`.
+
+**Some icons are drawn.** Emoji has no Uno card and no domino (🀄 is a
+Mahjong tile), so أونو and الدومينو (and the domino score keeper) have
+`icon: 'art:uno'` / `'art:domino'`: a small SVG in `ICON_ART` (JS_Core.html)
+in the game's own colours - UnoCards' red with a white 7 over a blue card, the
+ivory 6|6 with black pips and the brass pin - flat, with no ids, so a page can
+hold it any number of times, and 1.2em square (`.art-icon`) so it sits and
+grows wherever an emoji would. **An icon is never written straight into
+markup**: `iconHtml(icon)` gives the emoji or the SVG, `iconText(icon)` the
+emoji or nothing (a line of plain text: the room banner, the chat's "started"
+line, which draws the SVG beside its text instead), `artIconImage(icon)` an
+image for a canvas (the share card), `flyEmoji` flies either, and markup
+written in `Controller.html` asks for one with `data-art-icon="domino"`,
+filled in at start-up. A new drawn icon is one more entry in `ICON_ART`.
 
 Motion uses the `--ease-*` and `--dur-*` tokens. Everything is gated behind
 `prefers-reduced-motion`, and the drifting background animates `opacity` on a

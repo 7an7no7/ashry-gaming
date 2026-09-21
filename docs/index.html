@@ -458,6 +458,9 @@ p { margin: 0; }
 .shell__title-icon { font-size: 1.1rem; line-height: 1; }
 #app-title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .shell__title-icon:empty { display: none; }
+/* A drawn game icon (أونو, الدومينو; ICON_ART in JS_Core.html): the size of the
+   emoji it stands in for, wherever it is, so it grows with the font like one. */
+.art-icon { display: inline-block; flex: none; width: 1.2em; height: 1.2em; vertical-align: -0.22em; overflow: visible; }
 
 /* The title cross-fades on navigation so it doesn't pop. */
 .shell__title.is-swapping { opacity: 0; }
@@ -15238,7 +15241,7 @@ function dotsBestMove(board, me, level, opts) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260921101515";
+      window.BUILD_ID = "20260921104036";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -17098,7 +17101,7 @@ function dotsBestMove(board, me, level, opts) {
 
     <div id="domino-mode-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
-        <div class="sheet__title"><span data-i18n="domino_mode_title">اختر نظام اللعب</span> <span aria-hidden="true">🀄</span></div>
+        <div class="sheet__title"><span data-i18n="domino_mode_title">اختر نظام اللعب</span> <span aria-hidden="true" data-art-icon="domino"></span></div>
         <p class="sheet__subtitle" data-i18n="domino_mode_sub">لقد اخترت 4 لاعبين. كيف تريد اللعب؟</p>
         <div class="modal-actions">
           <button onclick="setDominoMode('single')" class="btn btn--primary" data-i18n="domino_mode_single">فردي (كل واحد لوحده)</button>
@@ -20832,7 +20835,7 @@ function dotsBestMove(board, me, level, opts) {
       dom_help_points_hint: "قبل ما تنزّل الحجر، كل طرف يركب عليه يقولك هيجيب كام (+2).",
       dom_clock: "وقت الدور",
       dom_clock_off: "من غير",
-      dom_clock_hint: "لو الوقت خلص، الموبايل بيلعب بداله: أول حجر يركب، أو يسحب، أو يدق.",
+      dom_clock_hint: "لو الوقت خلص، الموبايل بيلعب بداله: أول حجر يركب، أو يسحب، أو يقول باص.",
       dom_lobby_hint: "كل واحد حجارته على موبايله. من 2 لـ 4، ولو ناقصين ضيف كمبيوتر.",
       dom_lobby_wait: "المضيف بيختار طريقة اللعب",
       dom_round_n: "جولة {n}",
@@ -20851,7 +20854,7 @@ function dotsBestMove(board, me, level, opts) {
       dom_ev_scored: "{sum} = +{n}",
       dom_ev_draw1: "{name} سحب حجر",
       dom_ev_draw: "{name} سحب {n} حجارة",
-      dom_ev_knock: "{name} دق 👊",
+      dom_ev_knock: "{name} قال باص 👊",
       dom_ev_auto_clock: "⏱️ الوقت خلص: الموبايل لعب بدل {name}",
       dom_ev_auto_host: "⏭️ المضيف لعب بدل {name}",
       dom_ev_out: "{name} خلّص حجارته 🎉",
@@ -20862,7 +20865,7 @@ function dotsBestMove(board, me, level, opts) {
       dom_band_out: "{name} خلّص!",
       dom_band_blocked: "قفلة!",
       dom_spinner: "سبينر",
-      dom_knock_word: "دق!",
+      dom_knock_word: "باص!",
       dom_tiles_n: "{n} حجارة",
       dom_your_tiles: "حجارتك",
       dom_no_tiles: "مفيش معاك حجارة",
@@ -20876,7 +20879,7 @@ function dotsBestMove(board, me, level, opts) {
       dom_end_D: "تحت",
       dom_cancel: "إلغاء",
       dom_draw: "اسحب (الباقي {n})",
-      dom_knock: "دق",
+      dom_knock: "باص",
       dom_no_fit: "الحجر ده مش راكب",
       dom_not_your_turn: "استنى دورك",
       dom_you_can_play: "معاك حجر راكب، دوّر كويس 👀",
@@ -22958,7 +22961,7 @@ function dotsBestMove(board, me, level, opts) {
       dom_help_points_hint: "Before you place a tile, each end it fits says what it would score (+2).",
       dom_clock: "Turn clock",
       dom_clock_off: "Off",
-      dom_clock_hint: "When it runs out the phone plays for them: the first tile that fits, else it draws, else it knocks.",
+      dom_clock_hint: "When it runs out the phone plays for them: the first tile that fits, else it draws, else it passes.",
       dom_lobby_hint: "Everyone holds their tiles on their own phone. 2 to 4 players; add computer players if you're short.",
       dom_lobby_wait: "The host is choosing how to play",
       dom_round_n: "Round {n}",
@@ -22977,7 +22980,7 @@ function dotsBestMove(board, me, level, opts) {
       dom_ev_scored: "{sum} = +{n}",
       dom_ev_draw1: "{name} drew a tile",
       dom_ev_draw: "{name} drew {n} tiles",
-      dom_ev_knock: "{name} knocked 👊",
+      dom_ev_knock: "{name} passed 👊",
       dom_ev_auto_clock: "⏱️ Time's up: the phone played for {name}",
       dom_ev_auto_host: "⏭️ The host played for {name}",
       dom_ev_out: "{name} went out 🎉",
@@ -22988,7 +22991,7 @@ function dotsBestMove(board, me, level, opts) {
       dom_band_out: "{name} is out!",
       dom_band_blocked: "Blocked!",
       dom_spinner: "Spinner",
-      dom_knock_word: "Knock!",
+      dom_knock_word: "Pass!",
       dom_tiles_n: "{n} tiles",
       dom_your_tiles: "Your tiles",
       dom_no_tiles: "No tiles",
@@ -23002,7 +23005,7 @@ function dotsBestMove(board, me, level, opts) {
       dom_end_D: "Down",
       dom_cancel: "Cancel",
       dom_draw: "Draw ({n} left)",
-      dom_knock: "Knock",
+      dom_knock: "Pass",
       dom_no_fit: "That tile doesn't fit",
       dom_not_your_turn: "Wait for your turn",
       dom_you_can_play: "You have a tile that fits - look again 👀",
@@ -23689,6 +23692,8 @@ function dotsBestMove(board, me, level, opts) {
     setTimeout(() => { if (intro.state === 'waiting') introFade(350); }, 3000);
     setSyncing(true);
     stickySetupStarts();
+    // Markup that shows a drawn icon says which (a sheet's title); fill them in once.
+    document.querySelectorAll('[data-art-icon]').forEach(el => { el.innerHTML = iconHtml('art:' + el.getAttribute('data-art-icon')); });
     applyTranslations();
     if (typeof renderHome === 'function') renderHome();
 
@@ -24321,7 +24326,8 @@ function dotsBestMove(board, me, level, opts) {
     });
     // The screen's own icon beside its name; the home shows the mark instead.
     const iconEl = document.getElementById('app-title-icon');
-    if (iconEl) iconEl.textContent = viewId === 'menu' ? '' : screenIcon(viewId);
+    const icon = viewId === 'menu' ? '' : screenIcon(viewId);
+    if (iconEl && iconEl._icon !== icon) { iconEl._icon = icon; iconEl.innerHTML = iconHtml(icon); }
     if (typeof updateRoomBanner === 'function') updateRoomBanner();
   }
 
@@ -24342,6 +24348,55 @@ function dotsBestMove(board, me, level, opts) {
     const key = (typeof HELP_FOR_VIEW !== 'undefined') ? HELP_FOR_VIEW[viewId] : null;
     const entry = (key && typeof helpEntry === 'function') ? helpEntry(key) : null;
     return entry ? entry.icon : '';
+  }
+
+  /*
+   * Drawn icons. Two games have no emoji of their own - there is no Uno card in
+   * emoji, and 🀄 is a Mahjong tile, not a domino (the owner, 21 Sep 2026) - so
+   * their icon is 'art:uno' / 'art:domino': a small SVG in the game's own colours
+   * (UnoCards' red and blue, the domino's ivory, pips and brass pin), 1.2em
+   * square so it sits wherever an emoji would and grows with the font. Flat
+   * colours and no ids, so a page can hold it any number of times. Anything that
+   * shows a game's icon goes through iconHtml (markup) or iconText (a plain line,
+   * where a drawn icon is left out rather than printed as its name).
+   */
+  const ICON_ART = {
+    uno: '<g transform="rotate(-13 26 32)"><rect x="11" y="9.5" width="30" height="45" rx="5.5" fill="#1e6fd9"/>' +
+      '<ellipse cx="19" cy="18" rx="8" ry="4" transform="rotate(-35 19 18)" fill="#fff" opacity=".18"/></g>' +
+      '<g transform="rotate(9 38 33)"><rect x="21.6" y="12" width="30" height="45" rx="5.5" fill="#000" opacity=".22"/>' +
+      '<rect x="23" y="10.5" width="30" height="45" rx="5.5" fill="#e5383b"/>' +
+      '<ellipse cx="31" cy="19" rx="9" ry="4.5" transform="rotate(-35 31 19)" fill="#fff" opacity=".18"/>' +
+      '<path d="M32.5 24h11l-8 19" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></g>',
+    domino: '<g transform="rotate(-28 32 31.5)"><rect x="19" y="7.4" width="26" height="51" rx="5" fill="#c9b58a"/>' +
+      '<rect x="19" y="4.6" width="26" height="51" rx="5" fill="#fffdf7" stroke="#cdbd98" stroke-width="1.2"/>' +
+      '<path d="M22.5 30.1h19" stroke="#1b1b1f" stroke-width="1.5" stroke-linecap="round" opacity=".7"/>' +
+      '<g fill="#1b1b1f"><circle cx="25.8" cy="11.2" r="2.5"/><circle cx="38.2" cy="11.2" r="2.5"/><circle cx="25.8" cy="17.35" r="2.5"/><circle cx="38.2" cy="17.35" r="2.5"/><circle cx="25.8" cy="23.5" r="2.5"/><circle cx="38.2" cy="23.5" r="2.5"/><circle cx="25.8" cy="36.7" r="2.5"/><circle cx="38.2" cy="36.7" r="2.5"/><circle cx="25.8" cy="42.85" r="2.5"/><circle cx="38.2" cy="42.85" r="2.5"/><circle cx="25.8" cy="49" r="2.5"/><circle cx="38.2" cy="49" r="2.5"/></g>' +
+      '<circle cx="32" cy="30.1" r="2.4" fill="#b8892a"/><circle cx="31.3" cy="29.4" r=".9" fill="#fbe7a0"/></g>'
+  };
+
+  function isArtIcon(icon) { return typeof icon === 'string' && icon.indexOf('art:') === 0; }
+
+  /** A game's icon as markup: an emoji as it is, a drawn icon as its SVG. */
+  function iconHtml(icon) {
+    if (!isArtIcon(icon)) return icon || '';
+    const body = ICON_ART[icon.slice(4)];
+    return body ? '<svg class="art-icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false">' + body + '</svg>' : '';
+  }
+
+  /** A game's icon inside a plain line of text: a drawn icon has no text, so it is left out. */
+  function iconText(icon) { return isArtIcon(icon) ? '' : (icon || ''); }
+
+  /** A drawn icon as an image, for a canvas (the share card); null for an emoji or on failure. */
+  function artIconImage(icon, px) {
+    return new Promise((resolve) => {
+      const body = isArtIcon(icon) && ICON_ART[icon.slice(4)];
+      if (!body) return resolve(null);
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="' + (px || 256) + '" height="' + (px || 256) + '">' + body + '</svg>');
+    });
   }
 
   /** The header back button. Falls back to the menu for unregistered views. */
@@ -25482,7 +25537,7 @@ const GAME_RULES = {
                 <li>28 حجر من الأبيض للدوش، وكل واحد ياخد <b>7</b>. مع اتنين أو تلاتة الباقي بيفضل للسحب، ومع أربعة كل الحجارة بتتوزّع.</li>
                 <li>أول جولة يبدأها اللي معاه <b>الدوش</b> (6|6). لو محدش معاه، أعلى دوبل في إيد أي حد، ولو مفيش دوبل خالص، أتقل حجر. الجولات اللي بعدها يبدأها اللي كسب اللي قبلها، بأي حجر.</li>
                 <li>في دورك نزّل حجر فيه نفس رقم طرف من الأطراف. الدوبل بيتحط بالعرض.</li>
-                <li>مفيش حجر راكب؟ مع اتنين أو تلاتة <b>اسحب</b> لحد ما يجيلك حجر يركب ونزّله. مفيش حاجة تتسحب، أو انتوا أربعة؟ <b>دق</b> 👊 والدور يعدّي.</li>
+                <li>مفيش حجر راكب؟ مع اتنين أو تلاتة <b>اسحب</b> لحد ما يجيلك حجر يركب ونزّله. مفيش حاجة تتسحب، أو انتوا أربعة؟ <b>قول باص</b> 👊 والدور يعدّي.</li>
                 <li>الجولة بتخلص لما حد يخلّص حجارته، أو لما الترابيزة <b>تقفل</b>: محدش يقدر ينزّل ومفيش سحب.</li>
                 <li>أول واحد يوصل للهدف يكسب (101 في العادي و50 في الأمريكاني). لو اتنين عدّوه في نفس الجولة، الأعلى يكسب، ولو متعادلين تتلعب جولة كمان.</li>
             </ol>
@@ -25514,7 +25569,7 @@ const GAME_RULES = {
             <p class="help-sub">📱 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>حجارتك على موبايلك، وحجارة الباقيين مقلوبة قدامك بعددها. اضغط على حجر عشان تنزّله، ولو يركب على أكتر من طرف الأطراف بتنوّر: اختار واحد.</li>
-                <li>المضيف بيختار: عادي أو أمريكاني، فرق، الهدف، ووقت الدور (لو خلص، الموبايل بيلعب بدالك: أول حجر يركب، أو يسحب، أو يدق). ومساعدات للترابيزة كلها، مقفولة من الأول: <b>نوّر الحجارة اللي تركب</b>، و<b>نقط الحركة</b> في الأمريكاني.</li>
+                <li>المضيف بيختار: عادي أو أمريكاني، فرق، الهدف، ووقت الدور (لو خلص، الموبايل بيلعب بدالك: أول حجر يركب، أو يسحب، أو يقول باص). ومساعدات للترابيزة كلها، مقفولة من الأول: <b>نوّر الحجارة اللي تركب</b>، و<b>نقط الحركة</b> في الأمريكاني.</li>
                 <li>ناقصين؟ ضيف <b>لاعبين كمبيوتر</b>: السهل بينزّل أول حجر يركب، والصعب بيلعب عشان يكسب. الكمبيوتر مابيشوفش حجارة حد.</li>
                 <li>موبايل حد سكت؟ المضيف يقدر يلعب بداله.</li>
             </ul>
@@ -25525,7 +25580,7 @@ const GAME_RULES = {
             <p class="help-sub">💡 نصايح</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>خلّص من الحجارة التقيلة بدري: لو الترابيزة قفلت، اللي في إيدك بيتحسب عليك.</li>
-                <li>افتكر مين دق على أنهي رقم: الرقم ده مش معاه، فاقفله عليه.</li>
+                <li>افتكر مين قال باص على أنهي رقم: الرقم ده مش معاه، فاقفله عليه.</li>
             </ul>
             <details class="help-more">
                 <summary>🧮 على الطاولة (بالحجارة الحقيقية)</summary>
@@ -26435,7 +26490,7 @@ const GAME_RULES = {
                 <li>28 tiles from double blank to double six, <b>7</b> each. With two or three players the rest are left to draw from; with four every tile is dealt.</li>
                 <li>The first round is opened by whoever holds the <b>double six</b> (6|6); if nobody does, the highest double in anyone's hand, and with no double at all, the heaviest tile. Every later round is led by the winner of the last one, with any tile.</li>
                 <li>On your turn, play a tile with the same number as one of the open ends. A double goes across.</li>
-                <li>Nothing fits? With two or three players, <b>draw</b> until a tile fits, and play it. Nothing left to draw, or four players? <b>Knock</b> 👊 and the turn passes.</li>
+                <li>Nothing fits? With two or three players, <b>draw</b> until a tile fits, and play it. Nothing left to draw, or four players? <b>Pass</b> 👊 and the turn moves on.</li>
                 <li>The round ends when someone plays their last tile, or when the table is <b>blocked</b>: nobody can play and nothing is left to draw.</li>
                 <li>First to the target wins (101 in Classic, 50 in All Fives). Two past it in the same round, the higher total wins; level, one more round.</li>
             </ol>
@@ -26467,7 +26522,7 @@ const GAME_RULES = {
             <p class="help-sub">📱 Each on their own phone</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Your tiles are on your phone; everyone else's lie face down in front of you, just the count. Tap a tile to play it; if it fits more than one end, the ends light up: pick one.</li>
-                <li>The host picks Classic or All Fives, teams, the target and a turn clock (when it runs out the phone plays for you: the first tile that fits, else it draws, else it knocks), and helpers for the whole table, off to begin with: <b>light up the tiles that fit</b>, and <b>a move's points</b> in All Fives.</li>
+                <li>The host picks Classic or All Fives, teams, the target and a turn clock (when it runs out the phone plays for you: the first tile that fits, else it draws, else it passes), and helpers for the whole table, off to begin with: <b>light up the tiles that fit</b>, and <b>a move's points</b> in All Fives.</li>
                 <li>Short of players? Add <b>computer players</b>: the easy one plays the first tile that fits, the hard one plays to win. They never see anyone's tiles.</li>
                 <li>A phone went quiet? The host can play for it.</li>
             </ul>
@@ -26478,7 +26533,7 @@ const GAME_RULES = {
             <p class="help-sub">💡 Tips</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Get rid of heavy tiles early: if the table blocks, what you hold counts against you.</li>
-                <li>Remember who knocked on which number: they don't have it, so close it on them.</li>
+                <li>Remember who passed on which number: they don't have it, so close it on them.</li>
             </ul>
             <details class="help-more">
                 <summary>🧮 At the table (real tiles)</summary>
@@ -26938,7 +26993,9 @@ const GAME_RULES = {
 
      id       what the help sheet and the recent list know it by
      icon     the emoji on its card (the card draws it; translation strings
-              must not carry one - see "Arabic and RTL" in GEMINI.md)
+              must not carry one - see "Arabic and RTL" in GEMINI.md), or
+              'art:<name>' for one drawn in ICON_ART (JS_Core.html): draw it
+              with iconHtml(), never ${g.icon} straight into markup
      title    i18n key of its name;  desc  i18n key of its one-line pitch
      accent   its palette (see [data-accent] in Style.html)
      players  [min, max];  mins  how long a round takes, roughly
@@ -26969,8 +27026,8 @@ const GAME_CATALOG = [
   { id: 'fibbage',    icon: '🤥',   title: 'setup_fibbage',    desc: 'cat_fibbage',    accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('fibbage') },
   { id: 'mafia',      icon: '🕴️',  title: 'setup_mafia',      desc: 'cat_mafia',      accent: 'rose',   players: [5, 12], mins: 25, modes: ['room', 'tv'], faceToFace: true, group: 'deduce', open: () => roomCreateFor('mafia') },
   { id: 'twotruths',  icon: '🙊',   title: 'setup_twotruths',  desc: 'cat_twotruths',  accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('twotruths') },
-  { id: 'mind',       icon: '🧠',   title: 'setup_mind',       desc: 'cat_mind',       accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('mind') },
-  { id: 'timeline',   icon: '🗓️',  title: 'setup_timeline',   desc: 'cat_timeline',   accent: 'amber',  players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'quiz',   open: () => roomCreateFor('timeline') },
+  { id: 'mind',       icon: '💯',   title: 'setup_mind',       desc: 'cat_mind',       accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('mind') },
+  { id: 'timeline',   icon: '🕰️',  title: 'setup_timeline',   desc: 'cat_timeline',   accent: 'amber',  players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'quiz',   open: () => roomCreateFor('timeline') },
 
   /* --- كلمات، رسم وتمثيل --- */
   { id: 'charades',   icon: '🎭',   title: 'setup_charades',   desc: 'cat_charades',   accent: 'violet', players: [2, 20], mins: 5,  modes: ['device'],               group: 'words', setup: 'setup-charades',  open: () => setupCharades() },
@@ -26978,7 +27035,7 @@ const GAME_CATALOG = [
   { id: 'timesup',    icon: '⏳',  title: 'setup_timesup',    desc: 'cat_timesup',    accent: 'blue',   players: [4, 20], mins: 20, modes: ['device'],               group: 'words', setup: 'setup-timesup',   open: () => setupTimesUp() },
   { id: 'whoami',     icon: '❓',   title: 'setup_whoami',     desc: 'cat_whoami',     accent: 'teal',   players: [2, 10], mins: 10, modes: ['device', 'room', 'tv'], faceToFace: true, group: 'words', setup: 'setup-whoami',    open: () => setupWhoAmI() },
   { id: 'justone',    icon: '🤫',   title: 'setup_justone',    desc: 'cat_justone',    accent: 'rose',   players: [3, 10], mins: 15, modes: ['device', 'room', 'tv'], faceToFace: true, group: 'words', setup: 'setup-justone',   open: () => setView('setup-justone') },
-  { id: 'codenames',  icon: '🔠',   title: 'setup_codenames',  desc: 'cat_codenames',  accent: 'indigo', players: [4, 12], mins: 20, modes: ['room', 'tv'],           group: 'words', setup: 'setup-codenames', open: () => setView('setup-codenames') },
+  { id: 'codenames',  icon: '🗝️',   title: 'setup_codenames',  desc: 'cat_codenames',  accent: 'indigo', players: [4, 12], mins: 20, modes: ['room', 'tv'],           group: 'words', setup: 'setup-codenames', open: () => setView('setup-codenames') },
   { id: 'drawguess',  icon: '🎨',   title: 'setup_drawguess',  desc: 'cat_drawguess',  accent: 'blue',   players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'words', open: () => roomCreateFor('drawguess') },
   { id: 'telephone',  icon: '🖍️',  title: 'setup_telephone',  desc: 'cat_telephone',  accent: 'blue',   players: [3, 8],  mins: 15, modes: ['room', 'tv'],           group: 'words', open: () => roomCreateFor('telephone') },
   { id: 'monkey',     icon: '🐵',   title: 'setup_monkey',     desc: 'cat_monkey',     accent: 'amber',  players: [2, 10], mins: 15, modes: ['device', 'room', 'tv'], faceToFace: true, group: 'words', setup: 'setup-monkey',    open: () => setView('setup-monkey') },
@@ -27001,8 +27058,8 @@ const GAME_CATALOG = [
 
   /* --- ورق وطاولة --- */
   { id: 'screw',      icon: '🃏',   title: 'setup_screw',      desc: 'cat_screw',      accent: 'blue',   players: [2, 12], mins: 30, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-screw',     open: () => setView('setup-screw') },
-  { id: 'uno',        icon: '🌈',   title: 'setup_uno',        desc: 'cat_uno',        accent: 'rose',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('uno') },
-  { id: 'domino',     icon: '🀄',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
+  { id: 'uno',        icon: 'art:uno',   title: 'setup_uno',        desc: 'cat_uno',        accent: 'rose',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('uno') },
+  { id: 'domino',     icon: 'art:domino',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
 
   /* --- لاتنين على موبايل: two people, one phone --- */
   { id: 'memory',     icon: '🎴',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory',      open: () => setupMemory() },
@@ -27023,7 +27080,7 @@ const GAME_CATALOG = [
   /* --- كلمات وأسئلة لوحدك: the word games sit together (Wordle and
      Connections used to be under a heading that also said puzzles) --- */
   { id: 'daily',      icon: '📅',   title: 'daily_title',      desc: 'cat_daily',      accent: 'amber',  players: [1, 1],  mins: 15, modes: ['device'],               group: 'brain', setup: 'setup-daily', open: () => openDaily() },
-  { id: 'wordle',     icon: '🔤',   title: 'setup_wordle',     desc: 'cat_wordle',     accent: 'green',  players: [1, 2],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-wordle',      open: () => setupWordle() },
+  { id: 'wordle',     icon: '🟩',   title: 'setup_wordle',     desc: 'cat_wordle',     accent: 'green',  players: [1, 2],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-wordle',      open: () => setupWordle() },
   { id: 'connections', icon: '🧩',  title: 'setup_connections', desc: 'cat_connections', accent: 'teal', players: [1, 4],  mins: 10, modes: ['device'],               group: 'brain', setup: 'setup-connections', open: () => setupConnections() },
   { id: 'streak',     icon: '🔥',   title: 'setup_streak',     desc: 'cat_streak',     accent: 'rose',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-streak', open: () => setupStreak() },
   { id: 'pinpoint',   icon: '🔗',   title: 'setup_pinpoint',   desc: 'cat_pinpoint',   accent: 'violet', players: [1, 1],  mins: 4,  modes: ['device'],               group: 'brain', setup: 'setup-pinpoint', open: () => setupPinpoint() },
@@ -27052,7 +27109,7 @@ const GAME_CATALOG = [
      owner, 21 Sep 2026: "nobody loses it"). No `setup` of their own, so the
      game's hero is the one drawn there. */
   { id: 'screw-calc',  icon: '🃏',  title: 'tool_screw_calc',  desc: 'cat_screw_calc',  accent: 'blue',  players: [2, 12], mins: 30, modes: ['device'],            group: 'tools', kind: 'score', open: () => openTableCalc('screw') },
-  { id: 'domino-calc', icon: '🀄',  title: 'tool_domino_calc', desc: 'cat_domino_calc', accent: 'green', players: [2, 4],  mins: 20, modes: ['device'],            group: 'tools', kind: 'score', open: () => openTableCalc('domino') }
+  { id: 'domino-calc', icon: 'art:domino',  title: 'tool_domino_calc', desc: 'cat_domino_calc', accent: 'green', players: [2, 4],  mins: 20, modes: ['device'],            group: 'tools', kind: 'score', open: () => openTableCalc('domino') }
 ];
 
 /** A table game's score keeper, from the tools: its setup, turned to the "at the table" side. */
@@ -27170,7 +27227,7 @@ function catalogCard(g, t) {
   return `
     <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
       <span class="gcard__top">
-        <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
+        <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
         <span class="gcard__modes">${catalogModes(g, t)}</span>
       </span>
       <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
@@ -27187,7 +27244,7 @@ function catalogCard(g, t) {
 function catalogSpotlight(g, t) {
   return `
     <button type="button" class="gcard gcard--spotlight" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
-      <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
+      <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
       <span class="gcard__body">
         <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
         <span class="gcard__desc">${escapeHTML(catalogDesc(g, t))}</span>
@@ -27200,7 +27257,7 @@ function catalogSpotlight(g, t) {
 function catalogToolRow(g, t) {
   return `
     <button type="button" class="tool-item" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
-      <span class="tool-icon" aria-hidden="true">${g.icon}</span>
+      <span class="tool-icon" aria-hidden="true">${iconHtml(g.icon)}</span>
       <span class="tool-info">
         <span class="tool-name">${escapeHTML(catalogTitle(g, t))}</span>
         <span class="tool-desc">${escapeHTML(catalogDesc(g, t))}</span>
@@ -27452,7 +27509,7 @@ function renderHome() {
         ${recent.map(id => {
           const g = CATALOG_BY_ID[id];
           return `<button type="button" class="recent-tile" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
-                    <span class="recent-tile__icon" aria-hidden="true">${g.icon}</span>
+                    <span class="recent-tile__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
                     <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
                   </button>`;
         }).join('')}
@@ -27604,7 +27661,7 @@ function catalogHeroHtml(g, t) {
   const modes = (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean)
     .map(mode => `<span class="meta-bit meta-bit--mode"><span aria-hidden="true">${mode.icon}</span>${escapeHTML(t[mode.short] || t[mode.label] || '')}</span>`).join('');
   return `
-    <span class="game-hero__icon" aria-hidden="true">${g.icon}</span>
+    <span class="game-hero__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
     <span class="game-hero__text">
       <span class="game-hero__title">${escapeHTML(catalogTitle(g, t))}</span>
       <span class="game-hero__desc">${escapeHTML(catalogDesc(g, t))}</span>
@@ -28437,7 +28494,7 @@ const ROOM_HUB_GAMES = [
   { id: 'imposter',  icon: '🕵️‍♂️', key: 'setup_imposter',  accent: 'violet', min: 3 },
   { id: 'justone',   icon: '🤫',   key: 'setup_justone',   accent: 'rose',   min: 3 },
   { id: 'whoami',    icon: '❓',   key: 'setup_whoami',    accent: 'teal',   min: 2 },
-  { id: 'codenames', icon: '🔠',   key: 'setup_codenames', accent: 'indigo', min: 4 },
+  { id: 'codenames', icon: '🗝️',   key: 'setup_codenames', accent: 'indigo', min: 4 },
   { id: 'fibbage',    icon: '🤥',  key: 'setup_fibbage',    accent: 'rose',   min: 3 },
   { id: 'wouldyou',   icon: '⚖️',  key: 'setup_wouldyou',   accent: 'violet', min: 2 },
   { id: 'mostlikely', icon: '👉',  key: 'setup_mostlikely', accent: 'amber',  min: 3 },
@@ -28459,11 +28516,11 @@ const ROOM_HUB_GAMES = [
   { id: 'herd',       icon: '🐄', key: 'setup_herd',       accent: 'green',  min: 3 },
   { id: 'mafia',      icon: '🕴️', key: 'setup_mafia',      accent: 'rose',   min: 5 },
   { id: 'screw',      icon: '🃏', key: 'setup_screw',      accent: 'blue',   min: 2 },
-  { id: 'mind',       icon: '🧠', key: 'setup_mind',       accent: 'teal',   min: 2 },
-  { id: 'timeline',   icon: '🗓️', key: 'setup_timeline',   accent: 'amber',  min: 2 },
+  { id: 'mind',       icon: '💯', key: 'setup_mind',       accent: 'teal',   min: 2 },
+  { id: 'timeline',   icon: '🕰️', key: 'setup_timeline',   accent: 'amber',  min: 2 },
   // Computer players can make up the table, so one person is enough to open these.
-  { id: 'uno',        icon: '🌈', key: 'setup_uno',        accent: 'rose',   min: 1 },
-  { id: 'domino',     icon: '🀄', key: 'setup_domino',     accent: 'green',  min: 1 },
+  { id: 'uno',        icon: 'art:uno', key: 'setup_uno',        accent: 'rose',   min: 1 },
+  { id: 'domino',     icon: 'art:domino', key: 'setup_domino',     accent: 'green',  min: 1 },
   { id: 'connect4',   icon: '🔴', key: 'setup_connect4',   accent: 'blue',   min: 2 },
   { id: 'dots',       icon: '🔲', key: 'setup_dots',       accent: 'indigo', min: 2 }
 ];
@@ -28845,7 +28902,7 @@ function renderRoomHub(state) {
           return `
             <div class="game-card ${enough ? '' : 'is-disabled'}" data-accent="${g.accent}"
                  ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : ''}>
-              <div class="game-icon" aria-hidden="true">${g.icon}</div>
+              <div class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</div>
               <div class="game-title">${t[g.key] || g.id}</div>
               ${badge}
             </div>`;
@@ -28865,7 +28922,7 @@ function renderChosenGame(state, game) {
 
   return `
     <div class="chosen-game">
-      <span class="chosen-game__icon" aria-hidden="true">${entry ? entry.icon : '🎮'}</span>
+      <span class="chosen-game__icon" aria-hidden="true">${entry ? iconHtml(entry.icon) : '🎮'}</span>
       <span class="chosen-game__name">${name}</span>
       ${state.youAreHost
         ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('backToHub')">${t.room_change_game || 'تغيير'}</button>`
@@ -29036,7 +29093,7 @@ function updateRoomBanner() {
     desc = (t.room_in_lobby || '') + ' \u2022 \ud83d\udc65 ' + ((s && s.players) ? s.players.length : 1);
   } else {
     const entry = ROOM_HUB_GAMES.find(g => g.id === s.game);
-    desc = (t.room_playing_status || '') + ': ' + (entry ? entry.icon + ' ' + (t[entry.key] || entry.id) : s.game);
+    desc = (t.room_playing_status || '') + ': ' + (entry ? (iconText(entry.icon) ? iconText(entry.icon) + ' ' : '') + (t[entry.key] || entry.id) : s.game);
   }
   const descEl = document.getElementById('arb-desc');
   if (descEl) descEl.textContent = desc;
@@ -30450,7 +30507,7 @@ const HELP_ENTRIES = [
   { key: 'charades',    title: 'setup_charades',    icon: '🎭', accent: 'violet', group: 'games' },
   { key: 'whoami',      title: 'setup_whoami',      icon: '❓', accent: 'teal',   group: 'games', room: true },
   { key: 'imposter',    title: 'setup_imposter',    icon: '🕵️', accent: 'violet', group: 'games', room: true },
-  { key: 'codenames',   title: 'setup_codenames',   icon: '🔠', accent: 'indigo', group: 'games', roomOnly: true },
+  { key: 'codenames',   title: 'setup_codenames',   icon: '🗝️', accent: 'indigo', group: 'games', roomOnly: true },
   { key: 'drawguess',   title: 'setup_drawguess',   icon: '🎨', accent: 'blue',   group: 'games', roomOnly: true },
   { key: 'fibbage',     title: 'setup_fibbage',     icon: '🤥', accent: 'rose',   group: 'games', roomOnly: true },
   { key: 'wouldyou',    title: 'setup_wouldyou',    icon: '⚖️', accent: 'violet', group: 'games', roomOnly: true },
@@ -30460,15 +30517,15 @@ const HELP_ENTRIES = [
   { key: 'trivia',      title: 'setup_trivia',      icon: '🧠', accent: 'indigo', group: 'games', room: true },
   { key: 'connections', title: 'setup_connections', icon: '🔗', accent: 'green',  group: 'games' },
   { key: 'monkey',      title: 'setup_monkey',      icon: '🐵', accent: 'amber',  group: 'games', room: true },
-  { key: 'wordle',      title: 'setup_wordle',      icon: '🔤', accent: 'green',  group: 'games' },
+  { key: 'wordle',      title: 'setup_wordle',      icon: '🟩', accent: 'green',  group: 'games' },
   { key: 'guessnum',    title: 'setup_guessnum',    icon: '🔢', accent: 'blue',   group: 'games' },
   { key: 'cs-estimation',    title: 'setup_cs_estimation',    icon: '🎯', accent: 'violet', group: 'games' },
   { key: 'cs-tarneeb',    title: 'setup_cs_tarneeb',    icon: '♠️', accent: 'indigo', group: 'games' },
   { key: 'cs-trix',    title: 'setup_cs_trix',    icon: '♥️', accent: 'rose', group: 'games' },
   { key: 'cs-konkan',    title: 'setup_cs_konkan',    icon: '♦️', accent: 'amber', group: 'games' },
   { key: 'cs-basra',    title: 'setup_cs_basra',    icon: '🎣', accent: 'teal', group: 'games' },
-  { key: 'domino',      title: 'setup_domino',      icon: '🀄', accent: 'green',  group: 'games', room: true },
-  { key: 'uno',         title: 'setup_uno',         icon: '🌈', accent: 'rose',   group: 'games', roomOnly: true },
+  { key: 'domino',      title: 'setup_domino',      icon: 'art:domino', accent: 'green',  group: 'games', room: true },
+  { key: 'uno',         title: 'setup_uno',         icon: 'art:uno', accent: 'rose',   group: 'games', roomOnly: true },
   { key: 'chameleon',   title: 'setup_chameleon',   icon: '🦎', accent: 'amber',  group: 'games', room: true },
   { key: 'spyfall',     title: 'setup_spyfall',     icon: '📍', accent: 'rose',   group: 'games', room: true },
   { key: 'timesup',     title: 'setup_timesup',     icon: '⏳', accent: 'blue',   group: 'games' },
@@ -30477,8 +30534,8 @@ const HELP_ENTRIES = [
   { key: 'mafia',       title: 'setup_mafia',       icon: '🕴️', accent: 'rose',   group: 'games', room: true },
   { key: 'twotruths',   title: 'setup_twotruths',   icon: '🙊', accent: 'rose',   group: 'games', room: true },
   { key: 'herd',        title: 'setup_herd',        icon: '🐄', accent: 'green',  group: 'games', room: true },
-  { key: 'mind',        title: 'setup_mind',        icon: '🧠', accent: 'teal',   group: 'games', room: true },
-  { key: 'timeline',    title: 'setup_timeline',    icon: '🗓️', accent: 'amber',  group: 'games', room: true },
+  { key: 'mind',        title: 'setup_mind',        icon: '💯', accent: 'teal',   group: 'games', room: true },
+  { key: 'timeline',    title: 'setup_timeline',    icon: '🕰️', accent: 'amber',  group: 'games', room: true },
   { key: 'emoji',       title: 'setup_emoji',       icon: '🤔', accent: 'amber',  group: 'games', room: true },
   { key: 'proverbs',    title: 'setup_proverbs',    icon: '📜', accent: 'teal',   group: 'games', room: true },
   { key: 'fiveseconds', title: 'setup_fiveseconds', icon: '5️⃣', accent: 'orange', group: 'games', room: true },
@@ -30729,7 +30786,7 @@ function renderHelpContent() {
     return `
       <details class="help-game-card" id="help-card-${e.key}" data-accent="${e.accent}">
         <summary>
-          <span class="help-game-card__icon" aria-hidden="true">${e.icon}</span>
+          <span class="help-game-card__icon" aria-hidden="true">${iconHtml(e.icon)}</span>
           <span class="help-game-card__text">
             <span class="help-game-card__name">${escapeHTML(titleOf(e))}</span>
             ${helpMetaHtml(e.key, t)}
@@ -30824,7 +30881,7 @@ function renderHelpContext(key, rules, t, searching) {
   slot.innerHTML = `
     <div class="help-hero" data-accent="${entry.accent}">
       <div class="help-hero__head">
-        <span class="help-hero__icon" aria-hidden="true">${entry.icon}</span>
+        <span class="help-hero__icon" aria-hidden="true">${iconHtml(entry.icon)}</span>
         <div class="help-hero__meta">
           <div class="help-hero__eyebrow">${escapeHTML(t.help_here || '')}</div>
           <div class="help-hero__title">${escapeHTML(title)}</div>
@@ -31133,7 +31190,7 @@ function openExitSheet(navTarget) {
       ? exitSheetRow(t.exit_leave_game || 'اخرج من اللعبة', `closeModal('exit-modal'); navGo('${jsStringAttr(navTarget)}')`, 'btn--primary btn--lg')
       : exitSheetRow(t.exit_pick_another || '', "closeModal('exit-modal'); setView('menu')", 'btn--primary btn--lg');
     body.innerHTML = `
-      <div class="modal-icon" aria-hidden="true">${game.icon}</div>
+      <div class="modal-icon" aria-hidden="true">${iconHtml(game.icon)}</div>
       <div class="sheet__title">${escapeHTML(t.exit_game_title || '')}</div>
       <p class="sheet__subtitle">${escapeHTML(t.exit_game_sub || '')}</p>
       <div class="btn-stack">
@@ -43094,7 +43151,7 @@ function renderRoomTv(state) {
 function tvBar(state, t) {
   const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
   const title = entry
-    ? `<span aria-hidden="true">${entry.icon}</span> ${t[entry.key] || entry.id}`
+    ? `<span aria-hidden="true">${iconHtml(entry.icon)}</span> ${t[entry.key] || entry.id}`
     : `<span aria-hidden="true">📺</span> ${t.tv_title || ''}`;
   const icon = (glyph, label, onclick, extra) =>
     `<button class="tv-icon ${extra || ''}" onclick="${onclick}" title="${escapeHTML(label || '')}" aria-label="${escapeHTML(label || '')}">${glyph}</button>`;
@@ -43203,7 +43260,7 @@ function tvLobby(state, t) {
           const enough = count >= g.min;
           return `
             <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : 'disabled'}>
-              <span class="tv-hub__icon" aria-hidden="true">${g.icon}</span>
+              <span class="tv-hub__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
               <span class="tv-hub__name">${t[g.key] || g.id}</span>
               ${enough ? '' : `<span class="tv-hub__need">${g.min}+</span>`}
             </button>`;
@@ -43213,7 +43270,7 @@ function tvLobby(state, t) {
     const game = ROOM_GAMES[state.game];
     control = `
       <div class="tv-chosen">
-        <span class="tv-chosen__name">${entry ? entry.icon + ' ' + (t[entry.key] || entry.id) : escapeHTML(state.game)}</span>
+        <span class="tv-chosen__name">${entry ? iconHtml(entry.icon) + ' ' + (t[entry.key] || entry.id) : escapeHTML(state.game)}</span>
         ${tvBtn(t.room_change_game, "roomAct('backToHub')", 'ghost')}
       </div>
       <div class="tv-scale">${game && game.lobbyOptions ? game.lobbyOptions(state) : ''}</div>
@@ -67165,7 +67222,7 @@ ROOM_GAMES.mind = {
     }
 
     const head = `<div class="cn-score">
-        <span class="cn-score__role">🧠 ${escapeHTML(t.mind_level || '')} ${s.level}</span>
+        <span class="cn-score__role">💯 ${escapeHTML(t.mind_level || '')} ${s.level}</span>
         ${mindLivesHtml(s)}
       </div>`;
 
@@ -67224,7 +67281,7 @@ TV_GAMES.mind = {
         </div>`;
     }
     const top = `<div class="tv-top">
-        <span class="tv-pill">🧠 ${escapeHTML(t.mind_level || '')} ${s.level}</span>
+        <span class="tv-pill">💯 ${escapeHTML(t.mind_level || '')} ${s.level}</span>
         <span class="tv-pill">${mindLivesHtml(s)}</span>
       </div>`;
     if (s.phase === 'levelDone') {
@@ -67403,7 +67460,7 @@ ROOM_GAMES.timeline = {
                  JSON.stringify(s.hands || {}), state.youAreHost, appState.lang].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => `
       <div class="cn-score">
-        <span class="cn-score__role">🗓️ ${escapeHTML(t.tl_turn_of || '')} ${escapeHTML(s.turnName || '')}</span>
+        <span class="cn-score__role">🕰️ ${escapeHTML(t.tl_turn_of || '')} ${escapeHTML(s.turnName || '')}</span>
       </div>
       ${tlLastHtml(s, t)}
       <div class="card">${tlLineHtml(s, t, live)}</div>
@@ -67448,7 +67505,7 @@ TV_GAMES.timeline = {
     }
     return `
       <div class="tv-trivia">
-        <div class="tv-top"><span class="tv-pill">🗓️ ${escapeHTML(t.tl_turn_of || '')} ${escapeHTML(s.turnName || '')}</span></div>
+        <div class="tv-top"><span class="tv-pill">🕰️ ${escapeHTML(t.tl_turn_of || '')} ${escapeHTML(s.turnName || '')}</span></div>
         <div class="tv-scale">${tlLineHtml(s, t, false)}</div>
         ${s.last ? `<div class="tv-note">${s.last.right ? '✅' : '❌'} ${escapeHTML(s.last.name || '')} · ${escapeHTML(s.last.text || '')} · ${s.last.y}</div>` : ''}
         <div class="tv-scale">${tlHandsHtml(state, s)}</div>
@@ -72109,7 +72166,8 @@ function chatEventText(m, t) {
     case 'hub':    return '📋 ' + (t.chat_sys_hub || '');
     case 'started': {
       const game = (typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES : []).find(g => g.id === p.game);
-      return (game ? game.icon : '🎮') + ' ' + (t.chat_sys_started || '').replace('{game}', game ? (t[game.key] || game.id) : (p.game || ''));
+      const icon = game ? iconText(game.icon) : '🎮';
+      return (icon ? icon + ' ' : '') + (t.chat_sys_started || '').replace('{game}', game ? (t[game.key] || game.id) : (p.game || ''));
     }
   }
   return '';
@@ -72135,7 +72193,9 @@ function renderRoomChat(state, opening) {
     ? msgs.map(m => {
         if (m.sys) {
           const text = chatEventText(m, t);
-          return text ? `<div class="chat-sys">${escapeHTML(text)}</div>` : '';
+          const game = m.sys === 'started' && ROOM_HUB_GAMES.find(g => g.id === (m.p || {}).game);
+          const art = game && isArtIcon(game.icon) ? iconHtml(game.icon) + ' ' : '';
+          return text ? `<div class="chat-sys">${art}${escapeHTML(text)}</div>` : '';
         }
         const team = CHAT_TEAM_ICON[m.team] ? m.team : '';
         const big = CHAT_EMOJI_ONLY.test(String(m.text || '').trim());
@@ -72544,7 +72604,7 @@ function flyEmoji(emoji, fromRect, fromFontPx, target, opts) {
   ghost.style.fontSize = big + 'px';
   const glyph = document.createElement('span');
   glyph.className = 'motion-ghost__glyph';
-  glyph.textContent = emoji;
+  if (isArtIcon(emoji)) glyph.innerHTML = iconHtml(emoji); else glyph.textContent = emoji;
   ghost.appendChild(glyph);
   document.body.appendChild(ghost);
   const size = ghost.getBoundingClientRect();
@@ -72621,7 +72681,7 @@ function playRoomGameStart(state) {
   el.setAttribute('data-accent', hub.accent || 'violet');
   el.innerHTML =
     '<div class="game-splash__card">' +
-      '<span class="game-splash__icon" aria-hidden="true">' + hub.icon + '</span>' +
+      '<span class="game-splash__icon" aria-hidden="true">' + iconHtml(hub.icon) + '</span>' +
       '<span class="game-splash__name">' + escapeHTML(t[hub.key] || '') + '</span>' +
     '</div>';
   document.body.appendChild(el);
@@ -72632,7 +72692,7 @@ function playRoomGameStart(state) {
     if (leaving) return;
     leaving = true;
     const target = document.getElementById('app-title-icon');
-    const canFly = !fast && target && target.textContent && !document.body.classList.contains('is-fullscreen-view')
+    const canFly = !fast && target && (target.textContent || target.firstElementChild) && !document.body.classList.contains('is-fullscreen-view')
       && target.getBoundingClientRect().width > 0;
     if (canFly) {
       const from = icon.getBoundingClientRect();
@@ -73357,8 +73417,10 @@ async function drawShareCard(o) {
   ctx.textAlign = 'center';
   ctx.fillStyle = c.ink;
 
-  font('900', 190);
-  ctx.fillText(String(o.icon || '🏆'), mid, 330 + slack);
+  // A drawn icon (أونو, الدومينو) is an image; an emoji is text.
+  const art = await artIconImage(o.icon, 512);
+  if (art) ctx.drawImage(art, mid - 120, 330 + slack - 120, 240, 240);
+  else { font('900', 190); ctx.fillText(String(o.icon || '🏆'), mid, 330 + slack); }
 
   font('900', 78);
   ctx.fillText(shareCardFit(ctx, o.title || '', SHARE_CARD.w - 140), mid, 520 + slack);

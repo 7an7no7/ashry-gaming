@@ -5346,6 +5346,8 @@
     setTimeout(() => { if (intro.state === 'waiting') introFade(350); }, 3000);
     setSyncing(true);
     stickySetupStarts();
+    // Markup that shows a drawn icon says which (a sheet's title); fill them in once.
+    document.querySelectorAll('[data-art-icon]').forEach(el => { el.innerHTML = iconHtml('art:' + el.getAttribute('data-art-icon')); });
     applyTranslations();
     if (typeof renderHome === 'function') renderHome();
 
@@ -5978,7 +5980,8 @@
     });
     // The screen's own icon beside its name; the home shows the mark instead.
     const iconEl = document.getElementById('app-title-icon');
-    if (iconEl) iconEl.textContent = viewId === 'menu' ? '' : screenIcon(viewId);
+    const icon = viewId === 'menu' ? '' : screenIcon(viewId);
+    if (iconEl && iconEl._icon !== icon) { iconEl._icon = icon; iconEl.innerHTML = iconHtml(icon); }
     if (typeof updateRoomBanner === 'function') updateRoomBanner();
   }
 
@@ -5999,6 +6002,55 @@
     const key = (typeof HELP_FOR_VIEW !== 'undefined') ? HELP_FOR_VIEW[viewId] : null;
     const entry = (key && typeof helpEntry === 'function') ? helpEntry(key) : null;
     return entry ? entry.icon : '';
+  }
+
+  /*
+   * Drawn icons. Two games have no emoji of their own - there is no Uno card in
+   * emoji, and 🀄 is a Mahjong tile, not a domino (the owner, 21 Sep 2026) - so
+   * their icon is 'art:uno' / 'art:domino': a small SVG in the game's own colours
+   * (UnoCards' red and blue, the domino's ivory, pips and brass pin), 1.2em
+   * square so it sits wherever an emoji would and grows with the font. Flat
+   * colours and no ids, so a page can hold it any number of times. Anything that
+   * shows a game's icon goes through iconHtml (markup) or iconText (a plain line,
+   * where a drawn icon is left out rather than printed as its name).
+   */
+  const ICON_ART = {
+    uno: '<g transform="rotate(-13 26 32)"><rect x="11" y="9.5" width="30" height="45" rx="5.5" fill="#1e6fd9"/>' +
+      '<ellipse cx="19" cy="18" rx="8" ry="4" transform="rotate(-35 19 18)" fill="#fff" opacity=".18"/></g>' +
+      '<g transform="rotate(9 38 33)"><rect x="21.6" y="12" width="30" height="45" rx="5.5" fill="#000" opacity=".22"/>' +
+      '<rect x="23" y="10.5" width="30" height="45" rx="5.5" fill="#e5383b"/>' +
+      '<ellipse cx="31" cy="19" rx="9" ry="4.5" transform="rotate(-35 31 19)" fill="#fff" opacity=".18"/>' +
+      '<path d="M32.5 24h11l-8 19" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></g>',
+    domino: '<g transform="rotate(-28 32 31.5)"><rect x="19" y="7.4" width="26" height="51" rx="5" fill="#c9b58a"/>' +
+      '<rect x="19" y="4.6" width="26" height="51" rx="5" fill="#fffdf7" stroke="#cdbd98" stroke-width="1.2"/>' +
+      '<path d="M22.5 30.1h19" stroke="#1b1b1f" stroke-width="1.5" stroke-linecap="round" opacity=".7"/>' +
+      '<g fill="#1b1b1f"><circle cx="25.8" cy="11.2" r="2.5"/><circle cx="38.2" cy="11.2" r="2.5"/><circle cx="25.8" cy="17.35" r="2.5"/><circle cx="38.2" cy="17.35" r="2.5"/><circle cx="25.8" cy="23.5" r="2.5"/><circle cx="38.2" cy="23.5" r="2.5"/><circle cx="25.8" cy="36.7" r="2.5"/><circle cx="38.2" cy="36.7" r="2.5"/><circle cx="25.8" cy="42.85" r="2.5"/><circle cx="38.2" cy="42.85" r="2.5"/><circle cx="25.8" cy="49" r="2.5"/><circle cx="38.2" cy="49" r="2.5"/></g>' +
+      '<circle cx="32" cy="30.1" r="2.4" fill="#b8892a"/><circle cx="31.3" cy="29.4" r=".9" fill="#fbe7a0"/></g>'
+  };
+
+  function isArtIcon(icon) { return typeof icon === 'string' && icon.indexOf('art:') === 0; }
+
+  /** A game's icon as markup: an emoji as it is, a drawn icon as its SVG. */
+  function iconHtml(icon) {
+    if (!isArtIcon(icon)) return icon || '';
+    const body = ICON_ART[icon.slice(4)];
+    return body ? '<svg class="art-icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false">' + body + '</svg>' : '';
+  }
+
+  /** A game's icon inside a plain line of text: a drawn icon has no text, so it is left out. */
+  function iconText(icon) { return isArtIcon(icon) ? '' : (icon || ''); }
+
+  /** A drawn icon as an image, for a canvas (the share card); null for an emoji or on failure. */
+  function artIconImage(icon, px) {
+    return new Promise((resolve) => {
+      const body = isArtIcon(icon) && ICON_ART[icon.slice(4)];
+      if (!body) return resolve(null);
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="' + (px || 256) + '" height="' + (px || 256) + '">' + body + '</svg>');
+    });
   }
 
   /** The header back button. Falls back to the menu for unregistered views. */

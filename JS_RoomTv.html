@@ -216,7 +216,7 @@ function renderRoomTv(state) {
 function tvBar(state, t) {
   const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
   const title = entry
-    ? `<span aria-hidden="true">${entry.icon}</span> ${t[entry.key] || entry.id}`
+    ? `<span aria-hidden="true">${iconHtml(entry.icon)}</span> ${t[entry.key] || entry.id}`
     : `<span aria-hidden="true">📺</span> ${t.tv_title || ''}`;
   const icon = (glyph, label, onclick, extra) =>
     `<button class="tv-icon ${extra || ''}" onclick="${onclick}" title="${escapeHTML(label || '')}" aria-label="${escapeHTML(label || '')}">${glyph}</button>`;
@@ -325,7 +325,7 @@ function tvLobby(state, t) {
           const enough = count >= g.min;
           return `
             <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : 'disabled'}>
-              <span class="tv-hub__icon" aria-hidden="true">${g.icon}</span>
+              <span class="tv-hub__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
               <span class="tv-hub__name">${t[g.key] || g.id}</span>
               ${enough ? '' : `<span class="tv-hub__need">${g.min}+</span>`}
             </button>`;
@@ -335,7 +335,7 @@ function tvLobby(state, t) {
     const game = ROOM_GAMES[state.game];
     control = `
       <div class="tv-chosen">
-        <span class="tv-chosen__name">${entry ? entry.icon + ' ' + (t[entry.key] || entry.id) : escapeHTML(state.game)}</span>
+        <span class="tv-chosen__name">${entry ? iconHtml(entry.icon) + ' ' + (t[entry.key] || entry.id) : escapeHTML(state.game)}</span>
         ${tvBtn(t.room_change_game, "roomAct('backToHub')", 'ghost')}
       </div>
       <div class="tv-scale">${game && game.lobbyOptions ? game.lobbyOptions(state) : ''}</div>

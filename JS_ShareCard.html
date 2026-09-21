@@ -133,8 +133,10 @@ async function drawShareCard(o) {
   ctx.textAlign = 'center';
   ctx.fillStyle = c.ink;
 
-  font('900', 190);
-  ctx.fillText(String(o.icon || '🏆'), mid, 330 + slack);
+  // A drawn icon (أونو, الدومينو) is an image; an emoji is text.
+  const art = await artIconImage(o.icon, 512);
+  if (art) ctx.drawImage(art, mid - 120, 330 + slack - 120, 240, 240);
+  else { font('900', 190); ctx.fillText(String(o.icon || '🏆'), mid, 330 + slack); }
 
   font('900', 78);
   ctx.fillText(shareCardFit(ctx, o.title || '', SHARE_CARD.w - 140), mid, 520 + slack);

@@ -320,7 +320,7 @@ function unoSeatHtml(state, pid, tv) {
   return `<div class="${cls.join(' ')}" data-uno-seat="${escapeHTML(pid)}">
       <span class="uno-avatar" aria-hidden="true">${p && p.bot ? '🤖' : escapeHTML(letter)}</span>
       <span class="uno-seat__who"><span class="uno-seat__name">${escapeHTML(name)}</span>${tag}${stage ? `<span class="uno-seat__stage">${stage}</span>` : ''}</span>
-      <span class="uno-seat__hand" data-uno-at="seat:${escapeHTML(pid)}">${unoFanHtml(n, tv ? 7 : 4)}<b class="uno-seat__n metric">${n}</b></span>
+      <span class="uno-seat__hand" data-uno-at="seat:${escapeHTML(pid)}">${unoFanHtml(n, tv ? 5 : 3)}<b class="uno-seat__n metric">${n}</b></span>
     </div>`;
 }
 
@@ -339,7 +339,7 @@ function unoCenterHtml(state, tv) {
   const s = state.shared || {};
   const color = s.color;
   const next = s.phase === 'play' && s.turn ? unoNextOf(s, s.turn.pid) : null;
-  const pending = s.pending && s.pending.n ? `<span class="uno-pending metric" data-uno-at="pending">+${s.pending.n}</span>` : '';
+  const pending = s.pending && s.pending.n ? `<span class="uno-pending metric" data-uno-at="pending"><bdi dir="ltr">+${s.pending.n}</bdi></span>` : '';
   return `<div class="uno-center">
       <div class="uno-zone uno-zone--deck">
         <span class="uno-deck" data-uno-at="deck"><span class="uno-deck__under">${unoCardHtml(null, { size: 'md' })}</span><span class="uno-deck__under uno-deck__under--2">${unoCardHtml(null, { size: 'md' })}</span>${unoCardHtml(null, { size: 'md' })}</span>
@@ -704,23 +704,36 @@ function unoPhoneFrame(state) {
   const at = order.indexOf(me);
   // The table from this seat: the player after you first, round to the one before you.
   const opps = at === -1 ? order.slice() : order.slice(at + 1).concat(order.slice(0, at));
-  return `<div class="uno ${unoMyTurn(state) ? 'is-turn' : ''} ${opps.length >= 3 ? 'uno--many' : ''}">
+  // The owner's rule (21 Sep 2026): while a round is played the pile and your hand
+  // take the screen; the other players are one compact strip above them.
+  return `<div class="uno ${unoMyTurn(state) ? 'is-turn' : ''}">
       ${unoHeadHtml(state)}
       ${unoLatestHtml(state, false)}
+      <div class="uno-opps hscroll-fade" data-uno-opps>${opps.map(pid => unoSeatHtml(state, pid, false)).join('')}</div>
       <div class="uno-layout">
-        <div class="uno-layout__table">
-          <div class="uno-opps ${opps.length >= 3 ? 'uno-opps--grid' : ''}">${opps.map(pid => unoSeatHtml(state, pid, false)).join('')}</div>
-          ${unoCenterHtml(state, false)}
-        </div>
-        <div class="uno-layout__side">
-          ${inGame ? unoMineHtml(state) : `<div class="waiting-note">${escapeHTML((TRANSLATIONS[appState.lang] || {}).vote_spectating || '')}</div>`}
-          ${unoActionsHtml(state)}
-          <div data-uno-host></div>
-          ${unoLogHtml(state, 3)}
-        </div>
+        <div class="uno-layout__center">${unoCenterHtml(state, false)}</div>
+        <div class="uno-layout__mine">${inGame ? unoMineHtml(state) : `<div class="waiting-note">${escapeHTML((TRANSLATIONS[appState.lang] || {}).vote_spectating || '')}</div>`}</div>
+        <div class="uno-layout__act">${unoActionsHtml(state)}<div data-uno-host></div></div>
+        <div class="uno-layout__log">${unoLogHtml(state, 3)}</div>
       </div>
       ${renderRoomPlayerStrip(state)}
     </div>`;
+}
+
+/**
+ * The strip of seats scrolls sideways when it is longer than the screen: it is
+ * turned so the player up is in sight (scrollBy, which means the same in both
+ * reading directions), and never scrolls the page.
+ */
+function unoOppsInView(root) {
+  const strip = root && root.querySelector('[data-uno-opps]');
+  if (!strip || strip.scrollWidth <= strip.clientWidth + 2) return;
+  const seat = strip.querySelector('.uno-seat.is-turn') || strip.querySelector('.uno-seat.is-next');
+  if (!seat) return;
+  const a = strip.getBoundingClientRect();
+  const b = seat.getBoundingClientRect();
+  if (b.left >= a.left + 8 && b.right <= a.right - 8) return;
+  strip.scrollBy({ left: (b.left + b.width / 2) - (a.left + a.width / 2), behavior: motionOff() ? 'auto' : 'smooth' });
 }
 
 ROOM_GAMES.uno = {
@@ -806,6 +819,8 @@ ROOM_GAMES.uno = {
     unoLocal.shownHand = unoHand(state).map(c => c.i);
     unoLocal.shownKey = state.code + '|' + (s.dealId || '');
     unoFitHand(el);
+    unoOppsInView(el);
+    if (typeof watchScrollFade === 'function') watchScrollFade(el.querySelector('[data-uno-opps]'));
     unoAfterDraw(el, state, handWas);
     unoTurnCue(state);
     unoRevealCount(el);
@@ -1458,27 +1473,28 @@ function unoTvTable(state, t) {
   const s = state.shared || {};
   const order = unoOrder(state);
   const half = Math.ceil(order.length / 2);
-  // Round the table: down the first side, up the other.
-  const left = order.slice(0, half);
-  const right = order.slice(half).reverse();
-  const pad = order.length % 2 ? '<div class="uno-seat uno-seat--pad" aria-hidden="true"></div>' : '';
+  // Round the table: along the top, and back along the bottom. The seats are a
+  // ring of compact chips; the pile in the middle takes the screen (the owner, 21 Sep 2026).
+  const top = order.slice(0, half);
+  const bottom = order.slice(half).reverse();
   const w = unoTurnWords(state);
   const catchLine = s.unoCatch ? `<div class="uno-tv__catch">🚨 ${escapeHTML(unoT('uno_catch_hint', { name: unoName(state, s.unoCatch) }))}</div>` : '';
-  let host = '';
-  if (state.youAreHost && s.phase === 'play' && s.turn) host = '<span data-uno-host class="uno-tv__host"></span>';
-  return `<div class="uno-tv ${order.length > 8 ? 'uno-tv--many' : ''}" style="--rows:${Math.max(1, half)}">
-      <div class="uno-tv__side">${left.map(pid => unoSeatHtml(state, pid, true)).join('')}</div>
+  const host = state.youAreHost && s.phase === 'play' && s.turn ? '<span data-uno-host class="uno-tv__host"></span>' : '';
+  return `<div class="uno-tv ${order.length > 8 ? 'uno-tv--many' : ''}">
+      <div class="uno-tv__ring">${top.map(pid => unoSeatHtml(state, pid, true)).join('')}</div>
       <div class="uno-tv__mid">
-        ${unoHeadHtml(state)}
-        <div class="uno-tv__turn">${escapeHTML(w.title)}</div>
-        ${w.hint ? `<div class="tv-note">${escapeHTML(w.hint)}</div>` : ''}
-        ${catchLine}
-        ${unoLatestHtml(state, true)}
-        ${unoCenterHtml(state, true)}
-        <div class="tv-actions">${host}</div>
-        ${unoLogHtml(state, 3)}
+        <div class="uno-tv__info">
+          ${unoHeadHtml(state)}
+          <div class="uno-tv__turn">${escapeHTML(w.title)}</div>
+          ${w.hint ? `<div class="tv-note">${escapeHTML(w.hint)}</div>` : ''}
+          ${catchLine}
+          ${unoLatestHtml(state, true)}
+          <div class="tv-actions">${host}</div>
+          ${unoLogHtml(state, 2)}
+        </div>
+        <div class="uno-tv__table">${unoCenterHtml(state, true)}</div>
       </div>
-      <div class="uno-tv__side">${pad}${right.map(pid => unoSeatHtml(state, pid, true)).join('')}</div>
+      <div class="uno-tv__ring">${bottom.map(pid => unoSeatHtml(state, pid, true)).join('')}</div>
     </div>`;
 }
 

@@ -582,7 +582,8 @@ function domLobbySync(state) {
   const want = !!(o.teams && ids.length === 4);
   const lobby = domShared(state).lobby || null;
   const fits = lobby && !!lobby.teams === want && (!want || (Array.isArray(lobby.order) && lobby.order.length === 4 && ids.every(id => lobby.order.indexOf(id) !== -1)));
-  if (fits || (!want && !lobby)) return;
+  // In step: the next time it isn't (the game chosen again, someone new), it is said again.
+  if (fits || (!want && !lobby)) { domLocal.seatsKey = ''; return; }
   const key = [state.code, ids.join(','), want].join('|');
   if (domLocal.seatsKey === key) return;
   domLocal.seatsKey = key;

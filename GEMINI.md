@@ -325,6 +325,27 @@ the word search), `countUp` for streaks and scores.
   list - and it had a daily. Don't bring it back, in rooms either. A saved
   board is dropped on load (`delete appState.blindrank` in `loadFromLocal`);
   the recent row and the daily hub already ignore ids they don't know.
+- **Every home section says what is in it** (owner, 21 Sep 2026). Two
+  headings both said puzzles - "ثنائي وذهني / Two players & puzzles" held
+  Wordle and Connections beside Memory and X-O, while the other word games
+  were in "كلمات وأسئلة لوحدك" - so nobody could guess where a game was.
+  Wordle and Connections moved to كلمات وأسئلة لوحدك (after تحدي اليوم, which
+  stays first), and what was left, Memory, X-O, Guess the number and the
+  reaction test, is "لاتنين على موبايل / Two on one phone", which is what all
+  four are. A new game goes in the section whose name is true of it.
+- **A section of one game is a spotlight** (owner, 21 Sep 2026).
+  ورق وطاولة holds سكرو alone since the scorers became tools, and on a TV it
+  was one card beside five empty places. The owner calls سكرو the core of the
+  app, so it was kept in its own section and drawn wide (`catalogSpotlight`):
+  a big icon, its line, players, minutes and the ways it plays, and a play
+  pill (just its arrow on a phone upright). Any section left with one game
+  gets the same, with no extra code.
+- **A setup screen is a form, and has a form's width** (owner, 21 Sep 2026).
+  On a laptop or TV setup screens were the phone's form stretched to 47.5rem
+  - a switch 660px from its label, the player counter a long bar around one
+  digit. From 900px wide they are 40rem, centred (680px on a laptop, 800 on
+  a TV). Two columns (options beside players) was offered and not chosen: the
+  setup markup differs screen to screen, so it would be 42 separate jobs.
 - Rooms stay on Cloudflare; WebRTC was rejected. Firebase, if ever, on a
   different Google account from the one already tried.
 - صراحة أو جرأة (truth or dare): a family-clean list is too tame. تخمين السعر
@@ -488,7 +509,11 @@ the word search), `countUp` for streaks and scores.
   (1,596 view/theme/size combinations), and the TV lobby fits 1920x1080,
   1280x720 and 1024x768 without scrolling. Put to the owner: the one-card
   ورق وطاولة section, the two sections that both say puzzles, and whether
-  setup forms should stay full width on a laptop.
+  setup forms should stay full width on a laptop - and the same day decided
+  and built (*Decided, and why*): سكرو as a spotlight across its row, the
+  sections regrouped so each name is true, setup screens at a form's width
+  from 900px. Swept again at all six sizes in both themes: no failures, and
+  nothing left on the home that uses part of its row.
 
 - **20 Sep 2026, the roadmap** - an audit of the whole app became a nine-phase
   plan the owner agreed, built on a branch and shipped in one go at their
@@ -1880,8 +1905,9 @@ from the hub sets `soloHubReturn`, so `soloResult` turns its "again" and
 "exit" into a way back to the hub. A new game with a daily needs a line in
 `DAILY_GAMES`.
 
-The word and quiz games (group `brain`, "كلمات وأسئلة لوحدك"). None has a list
-of its own:
+The word and quiz games (group `brain`, "كلمات وأسئلة لوحدك", which since
+21 Sep 2026 also holds Wordle and Connections, after تحدي اليوم). None of the
+six below has a list of its own:
 
 - **خيوط** (`JS_WordSearch.html`, id `strands`): a Chameleon category and its
   single-word entries hidden in a grid (7 to 9 wide), in the reading

@@ -8904,6 +8904,66 @@ body.dark .gcard__modes { opacity: 0.5; }
   .together-actions > .btn--ghost { grid-column: 1 / -1; justify-self: center; width: auto; padding-inline: var(--sp-5); }
 }
 
+/* --- A section of one game is a spotlight --------------------------------------
+   ورق وطاولة holds سكرو alone since the card scorers became tools: one card
+   and, on a TV, five empty places beside it. The owner calls سكرو the core of
+   the app, so the lone card becomes the widest thing on the home - the icon
+   big, its line, players and minutes and the ways it plays, and a play pill.
+   Any section left with one game gets the same (catalogSpotlight). */
+.gcard-grid > .gcard--spotlight { grid-column: 1 / -1; }
+.gcard--spotlight {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: 0;
+  padding: var(--sp-4);
+  background-image: radial-gradient(26rem 10rem at var(--wash-x) 0%,
+                    color-mix(in srgb, var(--accent) 13%, transparent), transparent 72%);
+}
+body.dark .gcard--spotlight {
+  background-image: radial-gradient(26rem 10rem at var(--wash-x) 0%,
+                    color-mix(in srgb, var(--accent) 22%, transparent), transparent 72%);
+}
+.gcard--spotlight .gcard__icon { flex: none; width: 4.25rem; height: 4.25rem; font-size: 2.75rem; }
+.gcard--spotlight .gcard__body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.gcard--spotlight .gcard__title { font-size: var(--fs-h2); }
+.gcard--spotlight .gcard__desc { min-height: 0; }
+.gcard--spotlight .gcard__meta { padding-top: var(--sp-1); flex-wrap: wrap; }
+.gcard--spotlight .meta-bit--mode { filter: grayscale(1); opacity: 0.5; }
+.gcard__cta {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: var(--tap);
+  padding-inline: var(--sp-5);
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  box-shadow: 0 8px 18px -10px var(--accent-glow);
+}
+.gcard__cta-arrow { font-size: 1.25em; line-height: 1; }
+[dir="rtl"] .gcard__cta-arrow { transform: scaleX(-1); }
+/* On a phone upright the pill would squeeze the line to three: it keeps its
+   arrow and gives the words back to the description. */
+@media (max-width: 699px) {
+  .gcard--spotlight { gap: var(--sp-3); padding: var(--sp-3); }
+  .gcard--spotlight .gcard__icon { width: 3.25rem; height: 3.25rem; font-size: 2.1rem; }
+  .gcard--spotlight .gcard__cta { width: var(--tap); padding: 0; justify-content: center; font-size: 0; }
+  .gcard--spotlight .gcard__cta-arrow { font-size: 1.35rem; }
+}
+
+/* --- A setup screen is a form, and a form has a width --------------------------
+   On a laptop or TV every setup screen was the phone's form stretched to
+   47.5rem: a switch 660px from its label, the player counter a long bar
+   around one digit. They take a form's width there now (the owner's choice,
+   21 Sep 2026), centred; the three tabs keep their wide grids. */
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > [id^="view-setup-"]:not(.fixed) { max-width: 40rem; }
+}
+
 </style>
 
     
@@ -12137,7 +12197,7 @@ function skrewDecksFor(players) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260921044858";
+      window.BUILD_ID = "20260921050012";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -15954,7 +16014,8 @@ function skrewDecksFor(players) {
       grp_party: "حفلة وضحك",
       grp_quiz: "معلومات وتحدي",
       grp_table: "ورق وطاولة",
-      grp_duo: "ثنائي وذهني",
+      grp_duo: "لاتنين على موبايل",
+      cat_play: "العب",
       grp_tools: "أدوات",
       meta_min: "د",
       mode_badge_device: "موبايل واحد",
@@ -16458,7 +16519,7 @@ function skrewDecksFor(players) {
       cat_wavelength: "وصّف مكان الإبرة بين طرفين، وخلي فريقك يحزر.",
       cat_trivia: "لوحة فريقين على شاشة، أو الكل من موبايله.",
       cat_buzzer: "اسأل بصوتك، وأول واحد يضغط الجرس يجاوب.",
-      cat_screw: "سكرو بكل إصداراته، كل واحد من موبايله.",
+      cat_screw: "كل الإصدارات، كل واحد من موبايله.",
       cat_domino: "عدّاد نقاط الدومينو لحد الهدف.",
       cat_monkey: "كوّنوا اسم حرف بحرف، والموبايل هو الحكم.",
       cat_wordle: "خمّن الكلمة في 6 محاولات بمساعدة ألوان الحروف.",
@@ -17831,7 +17892,8 @@ function skrewDecksFor(players) {
       grp_party: "Party & laughs",
       grp_quiz: "Quiz & challenge",
       grp_table: "Cards & table",
-      grp_duo: "Two players & puzzles",
+      grp_duo: "Two on one phone",
+      cat_play: "Play",
       grp_tools: "Tools",
       meta_min: "min",
       mode_badge_device: "One phone",
@@ -18335,7 +18397,7 @@ function skrewDecksFor(players) {
       cat_wavelength: "Describe where the needle sits. Team guesses.",
       cat_trivia: "A two-team board, or everyone on their phone.",
       cat_buzzer: "Ask out loud. First to buzz gets to answer.",
-      cat_screw: "Skrew, every version, on your own phones.",
+      cat_screw: "Every version, each on their own phone.",
       cat_domino: "Domino score counter up to the target.",
       cat_monkey: "Spell a name letter by letter. The phone judges.",
       cat_wordle: "Guess the word in 6 tries. Colours help.",
@@ -22972,25 +23034,30 @@ const GAME_CATALOG = [
   /* --- ورق وطاولة --- */
   { id: 'screw',      icon: '🃏',   title: 'setup_screw',      desc: 'cat_screw',      accent: 'blue',   players: [2, 12], mins: 30, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-screw',     open: () => setView('setup-screw') },
 
-  /* --- ثنائي وذهني --- */
-  { id: 'wordle',     icon: '🔤',   title: 'setup_wordle',     desc: 'cat_wordle',     accent: 'green',  players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-wordle',      open: () => setupWordle() },
-  { id: 'connections', icon: '🧩',  title: 'setup_connections', desc: 'cat_connections', accent: 'teal', players: [1, 4],  mins: 10, modes: ['device'],               group: 'duo', setup: 'setup-connections', open: () => setupConnections() },
+  /* --- لاتنين على موبايل: two people, one phone --- */
   { id: 'memory',     icon: '🎴',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory',      open: () => setupMemory() },
   { id: 'xo',         icon: '⭕',   title: 'setup_xo',         desc: 'cat_xo',         accent: 'blue',   players: [1, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-xo',          open: () => setupXO() },
+  { id: 'guessnum',   icon: '🔢',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 2],  mins: 3,  modes: ['device'],               group: 'duo', setup: 'setup-guessnum',    open: () => setupGuessNumber() },
+  { id: 'reaction',   icon: '⚡',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-reaction',    open: () => setView('setup-reaction') },
+
+  /* --- ألغاز ومخ --- */
   { id: 'sudoku',     icon: '#️⃣',   title: 'setup_sudoku',     desc: 'cat_sudoku',     accent: 'indigo', players: [1, 1],  mins: 10, modes: ['device'],               group: 'puzzle', setup: 'setup-sudoku', open: () => setupSudoku() },
   { id: 'g2048',      icon: '🔷',   title: 'setup_g2048',      desc: 'cat_g2048',      accent: 'orange', players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-g2048',  open: () => setup2048() },
   { id: 'mines',      icon: '🚩',   title: 'setup_mines',      desc: 'cat_mines',      accent: 'teal',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-mines',  open: () => setupMines() },
   { id: 'queens',     icon: '👑',   title: 'setup_queens',     desc: 'cat_queens',     accent: 'amber',  players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-queens',   open: () => setupQueens() },
   { id: 'tango',      icon: '☀️',   title: 'setup_tango',      desc: 'cat_tango',      accent: 'blue',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-tango',    open: () => setupTango() },
   { id: 'nonogram',   icon: '🖼️',   title: 'setup_nonogram',   desc: 'cat_nonogram',   accent: 'green',  players: [1, 1],  mins: 8,  modes: ['device'],               group: 'puzzle', setup: 'setup-nonogram', open: () => setupNonogram() },
+
+  /* --- كلمات وأسئلة لوحدك: the word games sit together (Wordle and
+     Connections used to be under a heading that also said puzzles) --- */
   { id: 'daily',      icon: '📅',   title: 'daily_title',      desc: 'cat_daily',      accent: 'amber',  players: [1, 1],  mins: 15, modes: ['device'],               group: 'brain', setup: 'setup-daily', open: () => openDaily() },
+  { id: 'wordle',     icon: '🔤',   title: 'setup_wordle',     desc: 'cat_wordle',     accent: 'green',  players: [1, 2],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-wordle',      open: () => setupWordle() },
+  { id: 'connections', icon: '🧩',  title: 'setup_connections', desc: 'cat_connections', accent: 'teal', players: [1, 4],  mins: 10, modes: ['device'],               group: 'brain', setup: 'setup-connections', open: () => setupConnections() },
   { id: 'streak',     icon: '🔥',   title: 'setup_streak',     desc: 'cat_streak',     accent: 'rose',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-streak', open: () => setupStreak() },
   { id: 'pinpoint',   icon: '🔗',   title: 'setup_pinpoint',   desc: 'cat_pinpoint',   accent: 'violet', players: [1, 1],  mins: 4,  modes: ['device'],               group: 'brain', setup: 'setup-pinpoint', open: () => setupPinpoint() },
   { id: 'strands',    icon: '🧵',   title: 'setup_strands',    desc: 'cat_strands',    accent: 'teal',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-strands', open: () => setupStrands() },
   { id: 'wordwheel',  icon: '🔡',   title: 'setup_wordwheel',  desc: 'cat_wordwheel',  accent: 'orange', players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-wordwheel', open: () => setupWordWheel() },
   { id: 'flags',      icon: '🌍',   title: 'setup_flags',      desc: 'cat_flags',      accent: 'blue',   players: [1, 1],  mins: 3,  modes: ['device'],               group: 'brain', setup: 'setup-flags', open: () => setupFlags() },
-  { id: 'guessnum',   icon: '🔢',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 2],  mins: 3,  modes: ['device'],               group: 'duo', setup: 'setup-guessnum',    open: () => setupGuessNumber() },
-  { id: 'reaction',   icon: '⚡',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-reaction',    open: () => setView('setup-reaction') },
 
   /* --- أدوات --- */
   { id: 'chooser',   icon: '👆',   title: 'tool_chooser',      desc: 'cat_chooser',    accent: 'orange', group: 'tools', open: () => openChooser() },
@@ -23126,6 +23193,24 @@ function catalogCard(g, t) {
       <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
       <span class="gcard__desc">${escapeHTML(catalogDesc(g, t))}</span>
       <span class="gcard__meta">${catalogMeta(g, t, false, false)}</span>
+    </button>`;
+}
+
+/* A section that holds one game shows it as a spotlight across the whole row
+   rather than one card beside five empty places (on a TV) - which is what the
+   ورق وطاولة section is, with سكرو, the game the owner calls the core of the
+   app. It stays a .gcard with data-game and .gcard__icon, so the filters,
+   flipGrid and both icon flights find it as they find any card. */
+function catalogSpotlight(g, t) {
+  return `
+    <button type="button" class="gcard gcard--spotlight" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
+      <span class="gcard__icon" aria-hidden="true">${g.icon}</span>
+      <span class="gcard__body">
+        <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
+        <span class="gcard__desc">${escapeHTML(catalogDesc(g, t))}</span>
+        <span class="gcard__meta">${catalogMeta(g, t, false, true)}</span>
+      </span>
+      <span class="gcard__cta" aria-hidden="true">${escapeHTML(t.cat_play || '')}<span class="gcard__cta-arrow">›</span></span>
     </button>`;
 }
 
@@ -23398,7 +23483,7 @@ function renderHome() {
     if (!games.length) return '';
     const body = grp.id === 'tools'
       ? `<div class="tools-list">${games.map(g => catalogToolRow(g, t)).join('')}</div>`
-      : `<div class="gcard-grid">${games.map(g => catalogCard(g, t)).join('')}</div>`;
+      : `<div class="gcard-grid">${games.length === 1 ? catalogSpotlight(games[0], t) : games.map(g => catalogCard(g, t)).join('')}</div>`;
     return `
       <section class="section ${grp.id === 'tools' ? 'hidden' : ''}" data-group="${grp.id}">
         <div class="section__head">

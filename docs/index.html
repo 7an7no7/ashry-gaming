@@ -8840,6 +8840,70 @@ body.dark .gcard__modes { opacity: 0.5; }
   .filter-chip--more::after { transition: none; }
 }
 
+/* --- Every size, not just the phone ---------------------------------------------
+   The returning hero was built and checked on a phone, where it is right, and
+   broke everywhere wider. The wide layout makes .home-hero a two-column grid
+   (head | ways in); with the head gone for a returner the ways in fell into
+   the first column and the second - 1.25fr, most of the bar on a laptop - sat
+   empty. A survey of all 133 views at six sizes found it, along with the other
+   phone shapes stretched onto big screens below. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .home-hero--compact { display: block; }
+}
+/* How much the four ways in can say depends on the hero's own width, not the
+   screen's - a tablet upright and a laptop both pass a 700px media query, and
+   only one of them has room for a line under each name (the first try used
+   the screen and wrapped every tile to three lines at 768px). So the hero is
+   a container and the tiles read its width:
+     - a phone upright: the icon over the name, as the owner has it;
+     - from 34rem (a phone on its side, a tablet upright): the icon beside the
+       name, one line, the same height;
+     - from 52rem (a laptop, a TV): the icon beside the name and its line.
+   Where container queries are missing the phone's tiles fill the width,
+   which is where this started and still reads fine. */
+.home-hero--compact .together { container-type: inline-size; }
+@container (min-width: 34rem) {
+  .home-hero--compact .together__tile {
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-3);
+  }
+  .home-hero--compact .together__icon { font-size: 1.25rem; }
+  .home-hero--compact .together__name { font-size: var(--fs-sm); }
+}
+@container (min-width: 52rem) {
+  .home-hero--compact .together__tile {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "icon name" "icon desc";
+    align-items: center;
+    justify-items: start;
+    column-gap: var(--sp-3);
+    row-gap: 1px;
+    min-height: 4.25rem;
+    padding: var(--sp-2) var(--sp-4);
+    text-align: start;
+  }
+  .home-hero--compact .together__icon { grid-area: icon; font-size: 1.75rem; }
+  .home-hero--compact .together__name { grid-area: name; align-self: end; font-size: var(--fs-body); line-height: 1.2; }
+  .home-hero--compact .together__desc { grid-area: desc; align-self: start; display: block; font-size: var(--fs-xs); line-height: 1.3; }
+}
+
+/* The ▾ chip belongs to the row it opens. Pinned to the far end it was
+   right on a phone, where the modes scroll and the end is a thumb away, and a
+   600px hole on a laptop, where they all fit. Taking its content's width and
+   only shrinking when it has to, the row is the same on a phone and the chip
+   sits beside the last mode everywhere else. */
+.filter-bar .filter-row { flex: 0 1 auto; }
+
+/* The share link was a fourth button in a three-column grid, so on anything
+   wide it sat alone under the first. It is the quiet action; it gets its own
+   centred line. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .together-actions > .btn--ghost { grid-column: 1 / -1; justify-self: center; width: auto; padding-inline: var(--sp-5); }
+}
+
 </style>
 
     
@@ -12073,7 +12137,7 @@ function skrewDecksFor(players) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260920190716";
+      window.BUILD_ID = "20260921044858";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -15871,6 +15935,7 @@ function skrewDecksFor(players) {
       home_recent: "لعبتوها مؤخراً",
       home_empty: "مفيش لعبة بالاسم ده. جرّب كلمة تانية.",
       home_pick_btn: "اختارلنا",
+      home_pick_desc: "لعبة عشوائية من اللي قدامكم",
       home_pick_none: "مفيش لعبة مطابقة دلوقتي",
       flt_all: "الكل",
       flt_device: "موبايل واحد",
@@ -17747,6 +17812,7 @@ function skrewDecksFor(players) {
       home_recent: "Played recently",
       home_empty: "Nothing matches that. Try another word.",
       home_pick_btn: "Pick for us",
+      home_pick_desc: "A random game from the ones shown",
       home_pick_none: "No matching games right now",
       flt_all: "All",
       flt_device: "One phone",
@@ -23249,6 +23315,7 @@ function renderHome() {
         <button type="button" class="together__tile together__tile--pick" onclick="homePickForUs(this)">
           <span class="together__icon" aria-hidden="true">🎲</span>
           <span class="together__name">${escapeHTML(t.home_pick_btn || '')}</span>
+          <span class="together__desc">${escapeHTML(t.home_pick_desc || '')}</span>
         </button>` : ''}
       </div>
     </section>`;

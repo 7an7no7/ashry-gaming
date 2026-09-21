@@ -476,6 +476,19 @@ the word search), `countUp` for streaks and scores.
   so most of the grid ended mid-word. Checked by lifting the clamp and
   counting lines: none over, either language. The dark stages stay cold slate
   and the phone pass was declined, both the owner's call.
+- **21 Sep 2026, every size** - the owner opened the home on a PC and found
+  the returning hero's four tiles bunched into the left half of the bar
+  (*The catalog and the home screen*, *Traps*). Fixed, and the tiles now say
+  as much as the hero's own width allows (a container query in three
+  steps); the ▾ chip sits beside the modes wherever they fit; the مع بعض
+  share link has its own centred line instead of a cell under the first
+  button. Then all 133 views at six sizes (375x812, 667x375, 768x1024,
+  1024x768, 1280x720, 1920x1080), both themes, plus a live room on a phone
+  and as a TV at four sizes: no tap, overflow or contrast failure anywhere
+  (1,596 view/theme/size combinations), and the TV lobby fits 1920x1080,
+  1280x720 and 1024x768 without scrolling. Put to the owner: the one-card
+  ورق وطاولة section, the two sections that both say puzzles, and whether
+  setup forms should stay full width on a laptop.
 
 - **20 Sep 2026, the roadmap** - an audit of the whole app became a nine-phase
   plan the owner agreed, built on a branch and shipped in one go at their
@@ -2104,7 +2117,16 @@ target, and the first card sits at 445px now, a whole row above the fold:
 - a phone that has played before gets **only the ways in** - the four tiles,
   اختارلنا among them, on one row (`home-hero--compact`, 67px against 141).
   The mark and the name are in the header on this screen, so nothing is lost;
-  a first visit still gets the whole hero with its title and tagline.
+  a first visit still gets the whole hero with its title and tagline. How
+  much a tile says follows **the hero's own width** (it is a container,
+  `container-type: inline-size`), not the screen's: icon over name on a phone
+  upright, icon beside name from 34rem (a phone on its side, a tablet
+  upright), icon beside name and a line under it from 52rem (a laptop, a TV).
+  The owner found the first version on a PC with the four tiles bunched into
+  the left half of the bar and the rest empty (21 Sep 2026): the wide layout
+  makes `.home-hero` a two-column grid, head | ways in, and the returner's
+  hero has no head, so the ways in fell into the first column. It is
+  `display: block` there now.
 - together/apart and the eight player counts were a second scrolling row
   stacked straight on the first. They **fold behind one chip**
   (`toggleHomeMore`, `.filter-chip--more`) pinned at the end of the first row
@@ -2112,7 +2134,11 @@ target, and the first card sits at 445px now, a whole row above the fold:
   screen, which is worse than the row it replaced. The chip carries a summary
   of whatever it is hiding (`homeMoreLabel`) and opens by itself when one of
   those filters is remembered from last time, so a filter is never hiding out
-  of sight. The row's filtering logic is untouched.
+  of sight. The row's filtering logic is untouched. The row takes its
+  content's width and only shrinks when it must (`flex: 0 1 auto`), so on a
+  phone the chip is pinned at the end of a scrolling row and on a laptop,
+  where every mode fits, it sits beside the last one instead of across a
+  600px hole.
 
 Setup screens whose options live in `appState` (a segmented control, the Stop
 categories) are painted by `paintSetupOptions(viewId)` (`SETUP_PAINTERS` in
@@ -2283,6 +2309,21 @@ those, so on a cold cache a thumb sat where the fallback put it until
 something else happened to redraw. `document.fonts.ready` now runs the same
 coalesced pass (JS_Core.html). Anything else that measures text and caches
 the number needs to be on that pass too.
+
+**A component checked on a phone can still break on every wider layout,
+through a rule on its parent.** The returning hero dropped its head on a
+phone and was right there; the wide block had long made `.home-hero` a grid
+of two columns expecting that head, and on a laptop the four tiles took the
+first column and left most of the bar empty. Nothing overflowed, nothing
+failed contrast, no tap was small - the regression sweep passed at every
+size. What finds it is a **space check**: for every flex or grid container
+wider than 560px whose visible children sit on one line, how much of the
+width the children span (`fill`) and the biggest gap between two
+neighbours (`hole`), and - the case that caught this one - a grid with more
+column tracks than children, where the hole has no child in it to measure.
+Run it over every view at 375x812, 667x375, 768x1024, 1024x768, 1280x720
+and 1920x1080 and read the list: a toolbar with a clock at each end is a
+hole by design, a row of three tiles in a column meant for four is not.
 
 **A contrast sweep that cannot see gradients will drown you in false
 failures.** The first run of the 20 Sep sweep reported 113 failures across

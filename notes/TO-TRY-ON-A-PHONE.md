@@ -72,6 +72,27 @@ can answer:
   asks which end. Whether that feels right at a real table, and whether the
   computer players' pace (about a second a move) is right.
 
+## لودو and بنك الحظ, in your hands
+
+Both were played to the end by robots on the live server (1428 checks), and
+the rules tests played whole games of computer players (27 of لودو, 12 of
+بنك الحظ). What only a real phone and a real table can answer:
+
+- **لودو**: tapping a piece on a 375px phone when two share a square, and
+  whether the forced move (made for you after about a second) feels like
+  help or like the phone playing for you. The pace of the hops and the
+  computer players.
+- **بنك الحظ on a phone**: the ring is a map with no names; tapping a square
+  shows its card in the middle. Whether that is enough, or the names are
+  missed.
+- **بنك الحظ's offers** between two real phones: making one on your turn,
+  and the other phone answering, with the table talking it over.
+- **بنك الحظ's length**: whether 45 minutes is the right default for a
+  family evening, and whether finishing the lap after the time is up feels
+  fair.
+- The dice, the hops and the money flying on a real phone, with sound, and
+  both boards on the TV from the sofa.
+
 ## Motion, where it actually runs
 
 Everything in the motion batch was verified with `document.hidden` overridden,

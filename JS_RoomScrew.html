@@ -192,14 +192,14 @@ const SKR_ICONS = {
   mask: '<path d="M3 9.5c2.5-2.5 6-2.8 9-1 3-1.8 6.5-1.5 9 1-.5 4.5-4 6-6.5 4.2-1-.8-1.7-1.2-2.5-1.2s-1.5.4-2.5 1.2C7 15.5 3.5 14 3 9.5z"/><path d="M7.3 10.6h2.2M14.5 10.6h2.2"/>',
   gift: '<rect x="3.5" y="9" width="17" height="11" rx="1.5"/><path d="M3.5 13h17M12 9v11M12 9c-1.2-3-5-4-5-1.4S12 9 12 9zm0 0c1.2-3 5-4 5-1.4S12 9 12 9z"/>',
   eyeswap: '<path d="M2.5 9s2.6-4.5 7.5-4.5S17.5 9 17.5 9 14.9 13.5 10 13.5 2.5 9 2.5 9z"/><circle cx="10" cy="9" r="2"/><path d="M8 19h12M17.5 16.5 20 19l-2.5 2.5"/>',
-  paddle: '<circle cx="9" cy="9" r="6"/><path d="M13.3 13.3 20 20"/><circle cx="19" cy="5" r="1.6"/>',
+  paddle: '<path d="M8.4 3.2a6.4 6.4 0 0 1 9 9l-2.2 2.2-9-9z"/><path d="M6.2 5.4a6.4 6.4 0 0 0 1 8.5 6.4 6.4 0 0 0 8 0.7"/><path d="M8.2 14.6 4 18.8a1.4 1.4 0 0 0 2 2l4.2-4.2"/><circle cx="19.5" cy="18.5" r="1.8"/>',
   ball: '<circle cx="12" cy="12" r="8"/><path d="M4.6 9.5c4 1.6 10.8 1.6 14.8 0M4.6 14.5c4-1.6 10.8-1.6 14.8 0"/>',
   star: '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
   drum: '<ellipse cx="12" cy="9" rx="8" ry="3"/><path d="M4 9v7c0 1.7 3.6 3 8 3s8-1.3 8-3V9M5 3.5l4 4M19 3.5l-4 4"/>',
   cannon: '<path d="M3 13.5 15 8l2.5 4.6-12 5.4z"/><circle cx="7.5" cy="18" r="2.8"/><path d="M19.5 7l2-1.2M20 10h2.3M18.5 4.2l.9-1.7"/>',
   bowl: '<path d="M3 11h18a9 9 0 0 1-18 0z"/><path d="M9 8c0-1.6 1.5-1.6 1.5-3.4M13.5 8c0-1.6 1.5-1.6 1.5-3.4M8 21h8"/>',
   scream: '<circle cx="12" cy="12.5" r="7.5"/><ellipse cx="12" cy="15.5" rx="2" ry="2.8"/><path d="M9 10h.01M15 10h.01M3 5l2 1.5M21 5l-2 1.5M12 1.5V3"/>',
-  bomb: '<circle cx="10.5" cy="14" r="6.5"/><path d="M15 9.5l2.5-2.5M18.5 3v2M21 5.5h-2M20.3 3.7l-1.4 1.4"/>',
+  bomb: '<circle cx="10" cy="14.5" r="6.5"/><path d="M13.4 8.6l1.9-1.9 2 2-1.9 1.9"/><path d="M16.3 7.7c.6-2 2.2-2.9 3.7-2.2"/><path d="M21.3 3.2l-.9.9M21.8 6.3h-1.2M18.6 2.4l.2 1.2"/><path d="M6.8 12.2a3.6 3.6 0 0 1 2.6-2.3"/>',
   ring: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M6 6l3.1 3.1M18 6l-3.1 3.1M6 18l3.1-3.1M18 18l-3.1-3.1"/>'
 };
 
@@ -232,8 +232,9 @@ function skrCardDesign(id) {
   const d = SKR_DESIGN[id] || [c.kind === 'number' ? 'mid' : 'act', null, false];
   const label = id === 'plus20' ? '+20' : id === 'minus1' ? '−1' : c.copy ? '=' : String(c.value);
   let name = c.kind === 'number' ? '' : appState.lang === 'en' ? c.en : c.ar;
-  if (id === 'plus20') name = skrT('skr_card_penalty', 'عقاب', 'Penalty');
-  if (id === 'minus1') name = skrT('skr_card_minus1', 'سالب واحد', 'Minus one');
+  // +20 is called +20, and says so in the middle and the corners: no band (the owner, 21 Sep 2026).
+  if (id === 'plus20') name = '';
+  if (id === 'minus1') name = '';   // −1 too: the numeral is its name
   return { group: d[0], icon: d[1] || null, iconFace: !!(d[2] && d[1]), label: label, name: name };
 }
 
@@ -270,11 +271,16 @@ function skrCardHtml(id, opts) {
     return `<span class="skr-card skr-card--${size} skr-card--back${full ? ' is-full' : ''}" aria-hidden="true">${inner}</span>`;
   }
   const label = o.value !== undefined && o.value !== null ? String(o.value).replace(/^-/, '−') : d.label;
+  const chars = Array.from(d.label).length;
+  // "10" beside the corner's 🔍 is a size down, or it touches it.
+  const bigCls = chars > 2 ? ' skr-card__big--long' : chars === 2 && d.icon && !d.iconFace ? ' skr-card__big--two' : '';
   const art = d.iconFace
     ? skrIcon(d.icon)
-    : `<b class="skr-card__big${Array.from(d.label).length > 2 ? ' skr-card__big--long' : ''}">${escapeHTML(d.label)}</b>`;
+    : `<b class="skr-card__big${bigCls}">${escapeHTML(d.label)}</b>`;
+  // The bottom corner is upside down, so a 6 and a 9 are underlined, as on real cards.
+  const corner = /^[69]$/.test(label) ? `<span class="skr-card__u">${label}</span>` : escapeHTML(label);
   const corners = full
-    ? `<span class="skr-card__mini">${escapeHTML(label)}${d.icon && !d.iconFace ? skrIcon(d.icon) : ''}</span><span class="skr-card__mini skr-card__mini--end">${escapeHTML(label)}</span>`
+    ? `<span class="skr-card__mini">${corner}${d.icon && !d.iconFace ? skrIcon(d.icon) : ''}</span><span class="skr-card__mini skr-card__mini--end">${corner}</span>`
     : '';
   const band = full && d.name ? `<span class="skr-card__name">${escapeHTML(d.name)}</span>` : '';
   return `<span class="skr-card skr-card--${size} skr-card--face skr-c--${d.group}${full ? ' is-full' : ''}${band ? ' has-name' : ''}" role="img" aria-label="${escapeHTML(d.name ? d.name + ' (' + label + ')' : label)}">`

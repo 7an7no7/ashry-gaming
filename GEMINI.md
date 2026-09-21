@@ -176,6 +176,19 @@ work changed. Add to it when a decision is made or a batch ships.
     The forced throw (and its ⚠️) is gone from the server and the phone. The
     thief and بونج still go into the hand and بينج and المسحراتي still play
     themselves - those are their versions' rules, said plainly, not alerts.
+  - **The cards, checked one by one** (owner, 21 Sep 2026, after asking what the
+    screws and +20 look like). Every face had been the middle blue since the
+    card design of 17 Sep - `.skr-card`'s own default `--c` outranked the
+    colour group on the same element; the default is `:where(.skr-card)` now,
+    so every card shows its group. With the colours showing, المسحراتي's three
+    became a Ramadan-night navy with a gold icon and صاحب صاحبه's an olive-lime
+    (they had been a purple beside 7-10's violet and a cyan beside 1-3's teal).
+    **+20 and −1 have no name band**: the numeral is the name (the band said
+    عقاب and سالب واحد). **9 and 10 are شوف كارت حد** (شوف كارت غيرك was cut
+    off on the card), a pair with شوف كارتك on 7 and 8. The corner 6 and 9 are
+    underlined (the bottom corner is upside down), a 10 beside its corner icon
+    is a size down, the upside-down corner sits above the name band, and بوم's
+    bomb and بينج's paddle were redrawn: they read as ♂ and a magnifying glass.
   - **The two screws are one kind when throwing** (owner, 21 Sep 2026): a red
     screw goes on a green one, a green on a red, and either on its own colour
     (`SKREW_SCREWS` in `skrewMatches`). Before, only red on green (and red on

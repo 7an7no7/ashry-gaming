@@ -72,7 +72,9 @@
   before or after the cards already down.
 - **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
   or two on one phone; ⭕ **Tic Tac Toe (إكس أو)** against a friend or an
-  unbeatable minimax.
+  unbeatable minimax; 🔴 **Connect 4 (كونكت ٤)** and 🔲 **Dots & Boxes
+  (نقط ومربعات)**: two on one phone, against the phone at three levels, or a
+  room where two play and the rest watch, winner stays on (*The duels*).
 - **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
   🚩 Minesweeper, 👑 Queens, ☀️ Tango, 🖼️ Nonogram; 🧵 خيوط, 🔡 كلمات من
   حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 🌍 خمّن الدولة.
@@ -214,6 +216,40 @@ work changed. Add to it when a decision is made or a batch ships.
     2026, asked directly): a 7 counts 7 and an 8 counts 8, not 10. A later
     "fixed +10 for all of them" was put to the owner and they kept the face
     values.
+
+- **كونكت ٤ and نقط ومربعات (the duels)** - the owner's decisions of
+  21 Sep 2026, asked one by one, built the same day (*The duels*):
+  - **Three ways each**: two on one phone; one against the phone at سهل /
+    متوسط / صعب; a room on separate phones with the TV
+    (`modes: ['device', 'room', 'tv']`). Both sit in لاتنين على موبايل
+    (`group: 'duo'`) beside إكس أو and the memory game.
+  - **On one phone**: a running tally across games, and **the first move
+    alternates** - whoever went second starts the next game. **No take-backs
+    at all** (the owner: "never").
+  - **In a room only two play at once: winner stays on.** The loser goes to
+    the back of the line, the next in line sits down against the winner, and
+    **the challenger moves first**. With exactly two in the room they simply
+    keep playing, the first move alternating.
+  - **Connect 4**: 4 in a row on the classic 7 x 6, or 5 in a row on Hasbro's
+    9 x 6 (an option). A full board with no line is a draw.
+  - **Dots & Boxes** (the Plato game): two players only, 4x4, 6x6 or 8x8
+    boxes; the fourth side takes the box and moves again; most boxes wins,
+    and a draw is possible.
+  - **The look**, option أ of a design sheet for both: Connect 4 "كلاسيك
+    أزرق" (a blue board, holes showing the page ground, red and yellow discs
+    with an inner ring, the winning line ringed white, a faint ghost disc over
+    the column about to be played, the players as pills with their disc and
+    score); Dots "نضيف (زي Plato)" (a clean card, slate dots, 6px round-ended
+    lines in blue and rose, faint guides, a box tinted with its owner's
+    colour and their initial, the last line glowing briefly).
+  - **Decided for the owner** (the suggestions they gave, taken): a draw
+    keeps the champion in the seat and sends the challenger to the back; a
+    seated player who leaves mid-game loses by forfeit (a win for the other,
+    counted) and the next in line sits down. Also decided here: anyone in the
+    room can deal the next game (whoever is left at the table must be able
+    to carry on), the first game's seats and first move are drawn at random,
+    the first game's second seat counts as the champion for a draw, and a
+    streak (🔥 wins in a row) is shown from two.
 
 - **مافيا (Mafia / Werewolf)** - the owner's spec of 16 Sep 2026, built the
   same day (*مافيا in rooms*): the app is the narrator (night choices made silently on each phone,
@@ -514,6 +550,24 @@ the word search), `countUp` for streaks and scores.
   sections regrouped so each name is true, setup screens at a form's width
   from 900px. Swept again at all six sizes in both themes: no failures, and
   nothing left on the home that uses part of its row.
+- **21 Sep 2026, the duels** - كونكت ٤ and نقط ومربعات, the owner's decisions
+  asked one by one (*The owner's specs*, *The duels*): two on one phone,
+  against the phone at three levels, and rooms where two play and the room
+  watches, winner stays on. The rules live once, in `Connect4.js` and
+  `DotsBoxes.js`, which the page inlines and the Worker bundles, with the
+  phone's players in the same files (an alpha-beta that deepens until 250ms
+  are up; a Dots player that counts out the safe lines and double-deals in
+  the endgame); the rooms are `RoomDuels.js`. Motion on every move: the disc
+  falls with a bounce, the line draws itself, the box pops, the winning line
+  lights one disc at a time, the turn ring slides, scores count up. Rules
+  tests: 58 new (the win lines, the draw, box capture, the AI always legal,
+  never a third side while a safe line is left, the double-dealing move,
+  winner stays on, a draw, a forfeit, a latecomer). Robot tests: about 1125
+  (a game of each to the end, winner stays on with a latecomer and a forfeit,
+  a played-out draw, illegal and stale moves, the TV unable to move). Found
+  on the way (*Traps*): `rules.mjs` stops the clock, so a search with a time
+  budget never ends there; and a headless Chrome screenshot at 375 wide is
+  laid out at its minimum window width.
 
 - **20 Sep 2026, the roadmap** - an audit of the whole app became a nine-phase
   plan the owner agreed, built on a branch and shipped in one go at their
@@ -585,7 +639,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `RoomGames.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
-  `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
+  `Connect4.js`, `DotsBoxes.js`, `RoomDuels.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -661,7 +716,11 @@ Someone can also **join mid-round**. They aren't in that round's roster, so they
 watch and are dealt into the next game. This is why each game stamps
 `shared.roster` when it starts, and why the games reason about the roster rather
 than `room.players`: without it, a latecomer counts as a Just One writer who
-never submits and the round never advances.
+never submits and the round never advances. A game whose latecomers belong in
+it straight away says so with `lateJoin: true` on its `ROOM_GAMES` entry, and
+`routeRoomState` draws the game for them instead of the "next round" note: the
+duels do (*The duels*), because someone who joins mid-game simply joins the
+line and watches the board like everyone else.
 
 **Both modes always work.** The pass-the-phone flow is untouched — the setup
 screens for الجاسوس, كلمة واحدة and من أنا؟ carry a `.mode-switch` that reveals
@@ -678,6 +737,8 @@ is nowhere to hide the key card.
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `rooms-worker/src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live`. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
+| `RoomDuels.js` | The duels' rooms (كونكت ٤, نقط ومربعات): winner stays on. Bundled after `RoomGames.js`, which only dispatches to it (*The duels*). |
+| `Connect4.js`, `DotsBoxes.js` | The duels' rules and the phone's players, one copy for the page (inlined, `SHARED_LISTS`) and the Worker (bundled). No DOM; every name prefixed `c4` / `dots`. |
 | `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js` | Word lists (and سكرو's cards, and قبل ولا بعد's dates) the rules deal from, bundled into the Worker. Nine of them are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, a Stop phone checks its boxes with the server's own rule, the solo games ask from the room trivia's questions, and a سكرو phone names and draws the cards the server deals. **Two stay server-only, on purpose:** `PartyContent.js`, because the Fibbage answers in it must never reach a page, and `TimelineEvents.js`, because the years of unplayed cards are قبل ولا بعد's whole secret. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
@@ -2082,6 +2143,145 @@ The numbers, researched on 16 Sep 2026:
   26-26 split carries the 30 to the next deck. Target 101/121/150, 121 by
   default (Egyptian tables); 2-4 players or two teams.
 
+### The duels: كونكت ٤ and نقط ومربعات
+
+Two games for two, each played three ways - two on one phone, one against the
+phone, or a room where two play and everyone else watches - to the owner's
+decisions of 21 Sep 2026 (*The owner's specs*).
+
+**One copy of the rules.** `Connect4.js` and `DotsBoxes.js` at the root hold a
+board model, the legal moves, a move applied, the line or box it made, and the
+phone's player, with no DOM and nothing that runs at load. The page inlines
+both (`SHARED_LISTS` in `tools/build-*.mjs`) and the Worker bundles both
+(`FILES` in `rooms-worker/build.mjs`), so a disc on one phone and a disc in a
+room are judged by the same `c4Play`, a line by the same `dotsPlay`. Every
+top-level name is prefixed (`c4…`, `C4_…`, `dots…`, `DOTS_…`; the page files
+use `duel…` for what both share), because the page and the Worker are each one
+scope.
+
+- **كونكت ٤**: a board is `{ cols, rows, n, grid }`, row 0 at the top, cells
+  0/1/2; `c4Mode(4 | 5)` is the classic 7 x 6 or Hasbro's 9 x 6 with five in a
+  row. `c4LinesThrough` returns every cell of every run of n or more through
+  the disc just played, in order along the run, which is what lights the line
+  one disc at a time; a run longer than n lights whole.
+- **نقط ومربعات**: n x n boxes, lines numbered horizontal first (`r*n + c`,
+  r = 0..n) then vertical (`n(n+1) + r*(n+1) + c`); `dotsGeom(n)` works out
+  each line's boxes and each box's lines once per size. `dotsPlay` returns
+  the boxes a line took, `again` (it took one and the board isn't full) and
+  `over`.
+
+**The phone as a player** never holds the page. `c4BestMove(board, me,
+level)`: easy takes a win it sees three times in four, blocks half the time,
+and otherwise drops near the middle at random; medium looks three plies ahead
+and a quarter of the time settles for its second choice if that doesn't hand
+over the game; hard takes a win, blocks a threat, then runs a negamax with
+alpha-beta over columns ordered from the middle out, deepened one ply at a time
+until `C4_BUDGET_MS` (250ms) is up, keeping the best move of the last depth it
+finished. Its judgement of a position (`c4Evaluate`) scores every window of n
+cells that only one side has discs in - a lot when it is one short - the
+opponent's a little heavier than its own, and discs near the middle column.
+`dotsBestMove`: easy takes a box most of the time and otherwise draws about
+anywhere; medium always takes a box, never draws a third side while a safe line
+is left, and in the endgame opens whatever gives away fewest boxes; hard does
+what medium does, and also (1) while a dozen or fewer safe lines are left,
+counts them out to the end (`dotsSafeSearch`, memoised, with its own time
+budget) so that the other side has to open the first chain when that pays -
+the long-chain rule in practice; (2) values the endgame exactly when what is
+left is plain chains and loops (`dotsChainValue`: whoever must open picks the
+cheapest; the other takes all, or takes all but two of a chain or four of a
+loop and hands them back), counting a tangle where chains meet as one chain of
+its size; and (3) plays the **double-dealing move** (`dotsDoubleDeal`: the
+last two boxes of a chain, or four of a loop, left with one line) when what is
+still to come is worth more than the boxes given away. Both searches also stop
+at a node ceiling, not only the clock - see *Traps*. A thinking delay of
+400-700ms (shorter while the phone runs down a chain of boxes) lets the move
+be seen; the timer stops when the board leaves the screen (`onLeaveScreen`)
+and starts again on the way back or after a reload.
+
+**On one phone** (`JS_Connect4.html`, `JS_Dots.html`): the game lives in
+`appState.connect4` / `appState.dots` (options, board, whose turn, who starts,
+the tally, the typed names), so a reload comes back to the board exactly -
+the phone's turn included - through `soloRegister` (the solo games'
+registration, which gives `validViews`, `restoreView` and the setup painter
+without a branch in `JS_Core.html`, as على راسك and the card scorers use it).
+Start is a new match (the tally from nothing); "ماتش كمان" is the next game of
+the same match, started by whoever went second. The setup screen carries the
+one phone / own phones switch, the options, the level (against the phone) or
+two optional names (two on one phone; `data-remember`), and "كمّل" for a game
+left in the middle. A second tap within a quarter second is dropped
+(`busyUntil`), so two on one phone can't play for each other by accident.
+
+**Taking a move**: Connect 4 reads the column from where the finger or the
+mouse is on the board (`c4Wire`): the ghost disc follows it while pressed or
+hovered, and letting go drops there; `touch-action: pan-y`, so a vertical
+swipe still scrolls the page and cancels the drop. The columns are also
+buttons over the grid, for a keyboard (a click with no pointer,
+`event.detail === 0`). Dots picks the nearest free line within 0.38 of a box
+of the finger (`dotsLineAt`), shows it faintly while pressed, and draws it on
+letting go (`touch-action: none` on a playable board), so on 8x8 a line can be
+slid onto before it is committed; a tap in the middle of a box draws nothing.
+
+**What both games draw** (the top of `JS_Connect4.html`): `duelPillsHtml` - the
+two players as pills with their piece, name and score, and one ring that sits
+on whoever is to move - and `duelPillsAfter`, which slides that ring over from
+the pill it was on, counts a score up (`countUp`), and pulses the pill when the
+same player moves again after a box; `duelSound` (a knock, a scratch, a pop, a
+sigh, made with the soundboard's `fxTone` / `fxNoise`); `duelIso`, which
+isolates a name inside a translated line (FSI ... PDI), or "Next: جمال vs هند"
+reorders itself. Motion, per move (`c4AfterPaint`, `dotsAfterPaint`): the disc
+falls from above the board to its cell, speeding up, with a small bounce, and
+knocks on landing; the winning line lights one disc at a time (a CSS animation
+on `.is-lighting`, whose end state is the ring the class already draws); a
+full board shakes; a line draws itself from its first dot (`transform-box:
+fill-box`), glows for a moment, and a box it took pops in with its owner's
+colour and initial. Each is keyed with `motionFirst` (a room redraw doesn't
+replay it) and sounds once per move (`duelOnce`, whatever the motion setting).
+The end of a game waits for its reveal (`afterReveal`): confetti for any win
+two on one phone, only for a human win against the phone, a sigh for a loss.
+
+**In rooms: winner stays on** (`RoomDuels.js`; `connect4Action`, `dotsAction`
+and `duelPlayerLeft` are all `RoomGames.js` dispatches to). Everything is
+public, so it all lives in `shared` and there is no secret at all; the server
+only checks that the move came from the seat whose turn it is, that it is legal
+(`c4Play` / `dotsPlay` return null otherwise), and that it was drawn for this
+board - every move carries `move`, the number of moves the phone saw, and a
+stale one is dropped (`staleTap`). `shared.seats` is [first to move, second]
+(seat 0 is red or blue), `line` the queue, `champ` who stays once a game is
+over, `result`, `prev`, `streak`, and `scores` / `board` (wins, best first,
+which the night's leaderboard banks and the TV strip shows). A game over
+(`duelEnd`): the winner scores and stays, the loser goes to the back of the
+line; a draw keeps the second seat (the champion, or whoever sat there in the
+first game) and sends the challenger back. The next game (`nextRound`, any
+player or the host, `{ round }` against a double tap) is seated by
+`duelSeatNext`: the champion against the first in line, who moves first; the
+same two alone in the room swap who goes first; no champion (they left), the
+first two in line. The line is the old line plus anyone who has joined since,
+in room order (`duelWaiting`), so a latecomer needs no hook - they are in line,
+and `lateJoin: true` shows them the board meanwhile. `duelRoomNext` in
+`JS_RoomConnect4.html` mirrors `duelSeatNext` to say "Next: A vs B" on the
+result card: keep the two in step. A seated player who leaves mid-game loses by
+forfeit (`duelPlayerLeft`: the other scores), and the next game seats whoever
+is next. With fewer than two in the room there is no next game, and the card
+says it is waiting for someone to join. The host picks 4 or 5 in a row, or the
+board size, in the lobby - the same choice as the one-phone setup, kept in
+`appState`. A turn is `turn_up` in `roomTurnOf`. The TV is the room's one
+voice: with a screen in the room only the screen knocks, scratches and pops
+(`duelRoomLoud`); the winner's own phone and the TV get the confetti.
+
+**Layout** (Style.html sections 18 and 19): upright, the pills and a result
+card sit above the board and the rest follows it (`.duel-layout`, with the
+side `display: contents`); on a phone held sideways and on any screen at least
+900 wide the board sits beside its side column, sized off `--app-h` and the
+board's own `--duel-aspect` (width over height, the ghost row included) so it
+never needs scrolling, and sticky, so a room's long side scrolls past it. The
+TV puts the board on one side and the pills, the status, the result and the
+line on the other (`.duel-tv`). Both boards carry `dir="ltr"` and are placed in
+their own left-to-right terms; the piece colours are tokens (`--c4-red`,
+`--c4-yellow`, `--c4-board`, `--dots-c1`, `--dots-c2`, `--dots-dot`,
+`--dots-guide`), the same in both themes except the dots and the guides, and
+the Connect 4 holes are the page ground (`--bg`), so they go dark with the
+theme while the board stays blue.
+
 ### The catalog and the home screen
 
 `GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can
@@ -2362,6 +2562,24 @@ and the way to tell a regression from an old friend is to run the sweep
 twice - once with the new tokens and once with the old ones injected on
 `body` - and diff the two sets of keys.
 
+**A search with a time budget needs a ceiling as well as a clock.**
+`rooms-worker/test/rules.mjs` replaces `Date.now` with a clock that only moves
+when a test moves it, so the trivia and bomb deadlines can be stepped through.
+The duels' hard players stop at a deadline read from `Date.now()`, so under
+that clock their iterative deepening never stopped and `npm run test:rules`
+hung. Their tests put the real clock back first, and both searches now also
+stop at a node count (`C4_MAX_NODES`, `DOTS_MAX_NODES`), so a clock that
+stands still - a test, a throttled tab - can't hold them for ever.
+
+**A headless Chrome screenshot at a phone's width is laid out wider.** New
+headless Chrome keeps a minimum window width of about 500px, so
+`--window-size=375,812` screenshots a 375px slice of a page laid out at 500:
+the pills and the board ran off the right edge in a picture of a page that was
+fine. Emulate the viewport over the DevTools protocol instead
+(`Emulation.setDeviceMetricsOverride`, `mobile: true` below 768) - and
+`Emulation.setEmulatedMedia` for `prefers-reduced-motion`, since a headless
+Chrome on this PC reports `reduce` and every animation is skipped.
+
 **A parse check is per file, and it has to run after every edit.** A stray
 newline inside a string literal in `JS_Solo.html` made the whole file fail to
 parse in the browser - so nothing in it was defined, which took out
@@ -2601,7 +2819,8 @@ Two shapes:
 
 - **Restorable** (Wordle, Guess the Number, Screw, Monkey, Domino, the counter,
   the bracket, the trivia board, and the Bomb, Stop the Bus, Memory and Tic Tac
-  Toe through their `restoreX()` functions): the whole game is in `appState`,
+  Toe through their `restoreX()` functions; كونكت ٤ and نقط ومربعات through
+  `soloRegister`, the phone's move started again if it was its turn): the whole game is in `appState`,
   so the branch just redraws it. The Bomb's fuse and a Stop round's clock are
   deadlines, so they come back with the time they really had left.
   Anything that renders from state needs a `render…()` that rebuilds from
@@ -2840,6 +3059,7 @@ motion. What exists, and the moment each one is for:
 | a secret on a passed phone | `.hold-card` with `data-next` + `holdCardReset` | one-phone roles |
 | confetti or a cheer after any reveal | `afterReveal(el, fn)` | everywhere a reveal is |
 | a list or grid gains and loses items | `flipGrid(root, mutate)` | the home's filter chips and search |
+| whose turn it is, between two | `duelPillsHtml` + `duelPillsAfter` (the ring slides, a score counts up, a pill pulses on another turn) | كونكت ٤, نقط ومربعات |
 
 And the rules they rely on: key a reveal with `motionFirst(key)` so a redraw
 doesn't replay it; check `motionOff()` before moving anything, and set the end

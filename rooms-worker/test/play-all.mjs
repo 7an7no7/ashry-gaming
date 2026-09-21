@@ -3144,6 +3144,109 @@ async function main() {
     skBots = [A, B, C, D];
   }
 
+  /* --- لودو ------------------------------------------------------------------------ */
+  console.log('• ludo (colours in the lobby, who plays with five, the roll-off, turns, the server\'s dice, a computer player, play again, leaving)');
+  {
+    const lS = (b) => b.state.shared || {};
+    const until = async (fn, ms = 4000) => {
+      for (const end = Date.now() + ms; Date.now() < end;) {
+        try { if (fn()) return true; } catch (e) {}
+        await sleep(25);
+      }
+      return false;
+    };
+    const L1 = await Bot.host('نور', null);
+    const L2 = await Bot.join(L1.code, 'Adam');
+    const L3 = await Bot.join(L1.code, 'سلمى');
+    const L4 = await Bot.join(L1.code, 'Omar');
+    const L5 = await Bot.join(L1.code, 'هنا');
+    const five = [L1, L2, L3, L4, L5];
+    await L1.must('chooseGame', { game: 'ludo' });
+    await L2.must('color', { color: 'G' });
+    check((await L3.act('color', { color: 'G' })).ok === false, 'ludo: a colour already taken is refused');
+    check((await L5.act('color', { color: 'Y' })).ok === false, 'ludo: with five in the room the fifth watches and picks no colour');
+    check((await L2.act('seat', { playerId: L5.pid, on: true })).ok === false, 'ludo: only the host picks who plays');
+    await L1.must('seat', { playerId: L4.pid, on: false });
+    await L1.must('seat', { playerId: L5.pid, on: true });
+    await L5.must('color', { color: 'Y' });
+    await all(five, (s) => s.shared.lobby && s.shared.lobby.colors[L5.pid] === 'Y' && s.shared.lobby.colors[L2.pid] === 'G', 'ludo: every phone sees who took which colour');
+    check((await L2.act('start', {})).ok === false, 'ludo: only the host starts');
+    await L1.must('start', { turnClock: 0 });
+    await all(five, (s) => s.phase === 'play' && Array.isArray(s.shared.seats) && s.shared.seats.length === 4, 'ludo: the four seated are dealt in');
+    const s0 = lS(L1);
+    check(s0.seats.indexOf(L4.pid) === -1 && s0.colors[L2.pid] === 'G' && s0.colors[L5.pid] === 'Y' && new Set(Object.values(s0.colors)).size === 4,
+      'ludo: the host benched one; the colours picked are kept and the rest filled in');
+    check(L4.state.inGame !== false, 'ludo: whoever watches still sees the board');
+    check(s0.events.some((e) => e.type === 'rolloff' && e.first === s0.turn.pid), 'ludo: the roll-off decides who starts');
+    check(Object.values(s0.pieces).every((p) => p.every((r) => r === -1)), 'ludo: every piece starts in its yard');
+    const upB = five.find((b) => b.pid === s0.turn.pid);
+    const offB = five.find((b) => b.pid !== s0.turn.pid && s0.seats.indexOf(b.pid) !== -1);
+    check((await offB.act('roll', { seq: s0.turnSeq })).ok === false, 'ludo: out of turn is refused');
+    check((await L4.act('roll', { seq: s0.turnSeq })).ok === false, 'ludo: a watcher cannot roll');
+    check((await upB.act('move', { piece: 0, seq: s0.turnSeq })).ok && lS(L1).turnSeq === s0.turnSeq, 'ludo: a move before the roll does nothing');
+    // Play turns: whoever is up rolls, then moves the first piece that can go (the server moves a lone piece itself).
+    let refused = 0;
+    let rolls = 0;
+    let sawMove = false;
+    let sawForced = false;
+    for (let k = 0; k < 60 && lS(L1).phase === 'play'; k++) {
+      const s = lS(L1);
+      const up = five.find((b) => b.pid === s.turn.pid);
+      await until(() => lS(up).turnSeq === s.turnSeq, 2000);
+      if (s.turn.stage === 'roll') {
+        const res = await up.act('roll', { seq: s.turnSeq });
+        if (!res.ok) refused++;
+        rolls++;
+      } else {
+        // Only one move: the server makes it after a beat. Otherwise the phone picks.
+        if (await until(() => lS(L1).turnSeq !== s.turnSeq, 1500)) sawForced = true;
+        else {
+          const res = await up.act('move', { piece: s.movable[0], seq: s.turnSeq });
+          if (!res.ok) refused++;
+          else sawMove = true;
+        }
+      }
+      await until(() => lS(L1).turnSeq !== s.turnSeq, 3000);
+    }
+    check(refused === 0, 'ludo: every roll and move a phone made by the rules was taken');
+    check(rolls >= 10 && (sawMove || sawForced), 'ludo: turns go round, the dice roll on the server and pieces move');
+    const pieces = lS(L1).pieces;
+    check(Object.keys(pieces).every((id) => pieces[id].length === 4 && pieces[id].every((r) => r >= -1 && r <= 56)), 'ludo: every piece is somewhere on the board');
+    // Someone leaves: their pieces go, and the game goes on while two are left.
+    const leaver = five.find((b) => b.pid !== L1.pid && lS(L1).seats.indexOf(b.pid) !== -1);
+    await api('/leave', { code: L1.code, pid: leaver.pid, key: leaver.key });
+    leaver.close();
+    await L1.waitFor((s) => s.shared.seats.indexOf(leaver.pid) === -1 && !s.shared.pieces[leaver.pid] && s.shared.phase === 'play', 'ludo: a player who leaves takes their pieces off, and play goes on');
+    five.forEach((b) => b.close());
+
+    // A person and a computer player: the bot rolls and moves on the server's own clock.
+    const H = await Bot.host('Laila', null);
+    await H.must('chooseGame', { game: 'ludo' });
+    await H.must('addBot', { level: 'hard', name: 'زيزو' });
+    await H.must('start', {});
+    const bot = lS(H).seats.find((id) => id !== H.pid);
+    const botMoved = async () => {
+      for (let k = 0; k < 80; k++) {
+        const s = lS(H);
+        if (s.phase !== 'play') return false;
+        if (s.events.some((e) => e.type === 'roll' && e.pid === bot)) return true;
+        if (s.turn.pid === H.pid) {
+          if (s.turn.stage === 'roll') await H.act('roll', { seq: s.turnSeq });
+          else await until(() => lS(H).turnSeq !== s.turnSeq, 2500) || await H.act('move', { piece: s.movable[0], seq: s.turnSeq });
+        }
+        await until(() => lS(H).turnSeq !== s.turnSeq, 3000);
+      }
+      return false;
+    };
+    check(await botMoved(), 'ludo bots: the computer player rolls on its own');
+    const P = await Bot.join(H.code, 'Karim');
+    check(P.state.inGame === false && Array.isArray((P.state.shared || {}).seats), 'ludo: someone who joins mid-game is sent the board to watch');
+    // The last person leaves a game with a computer player: it is over.
+    await api('/leave', { code: H.code, pid: P.pid, key: P.key });
+    P.close();
+    H.close();
+  }
+
   /* --- prompt memory across rooms ---------------------------------------- */
   console.log('• prompt memory shared between rooms');
   const H = await Bot.host('H', 'codenames');

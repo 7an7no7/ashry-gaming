@@ -41,6 +41,9 @@
     computer players, solo or two against two, عادي (Egyptian) or أمريكاني
     (All Fives, with the spinner), on ivory tiles with every move animated;
     and the score keeper for a game with real tiles (*الدومينو in rooms*).
+  - 🎲 **Ludo (لودو):** the classic board, 2-4 players, against the phone
+    (1-3 computer players, easy or hard) or in a room with the TV; every roll
+    and every hop animated (*لودو*).
   - 🎭 **Charades (بدون كلام), 🗣️ Describe It (أوصف لي), ❓ Who Am I? (من أنا؟)**
   - 🧠 **Trivia (تحدي المعلومات):** two ways to play. *دوري المعرفة* is a board for
     two teams on one screen (five categories × 100–500 points, a host reads and
@@ -99,6 +102,39 @@ work changed. Add to it when a decision is made or a batch ships.
 
 ### Waiting
 
+- **بنك الحظ, decided and not built yet** (the owner, 21 Sep 2026, every rule
+  asked one at a time; look أ "كلاسيك" picked from a design sheet of three,
+  which also held the proposed places, prices and card texts - the owner has
+  not yet said yes to those lists):
+  - the classic 40-square board and rules with **Egyptian cities and resorts**
+    (22 places in 8 colours, cheapest to dearest: الفيوم، بني سويف · المنيا،
+    أسيوط، سوهاج · الزقازيق، المنصورة، طنطا · السويس، الإسماعيلية، بورسعيد ·
+    قنا، الأقصر، أسوان · مرسى مطروح، العلمين، الإسكندرية · دهب، الغردقة،
+    شرم الشيخ · الجيزة، القاهرة), 4 stations (محطة رمسيس، محطة سيدي جابر،
+    ميناء دمياط، مطار القاهرة), 2 companies (الكهرباء، المياه), money in
+    جنيه: **1,500** to start, 200 for passing Start;
+  - **room + TV and against the phone**; **2-6 players**; pieces picked in the
+    lobby, a roll-off to start, 7+ in the room the host picks who plays;
+  - length a lobby choice, **default 45 minutes** (or until one is left, 30,
+    60); time up: **finish the lap**, then cash + place prices (half if
+    mortgaged) + building cost, highest wins;
+  - a place not bought **stays with the bank** (no auction); **trading on your
+    own turn**, an offer the other accepts or refuses;
+  - buildings are the Egyptian box's **جراج ← استراحة ← سوق**, on a whole
+    colour, built evenly, no limit, with a **steeper rent table** (a full set
+    doubles the rent; the three steps are classic Monopoly's 1 house, 3 houses
+    and hotel rents; building costs 1x, 2x, 2x the group's price per step);
+  - mortgage and selling back **classic**; jail **classic** (50, a card or
+    doubles, rent collected inside, three doubles to jail); bankruptcy
+    **classic** (to the player owed, or back to the bank);
+  - the free-parking corner is **الأتوبيس السريع** (move again by the same
+    number); the decks are **حظ** (moves, surprises) and **محاكمة** (money),
+    16 each, family wording;
+  - two lobby switches **off by default**: the free-parking pot and landing
+    exactly on Start pays 400;
+  - computer players **easy and hard**, answering trade offers but never
+    making them; a turn clock off by default, 60 or 90 seconds.
+
 - **سكرو, still open** (built as below, each in one place so it can change):
   - the deck: the owner's own "66-card" table (17 Sep 2026) adds up to 62 -
     the base with four بصرة (59) plus the thief's three cards - which is what
@@ -112,6 +148,33 @@ work changed. Add to it when a decision is made or a batch ships.
   player wins; the higher team total wins; play on until only one qualifies).
 
 ### The owner's specs, as built
+
+- **لودو (Ludo)** - the owner's spec of 21 Sep 2026, every rule asked one at
+  a time, look أ "كلاسيك" picked from a sheet of three (*لودو*):
+  - **Against the phone** (you and 1-3 computer players, easy or hard, your
+    colour picked) and **a room with the TV**. Not one phone passed round.
+  - **2-4 players, each for themselves**, four pieces each, no quick mode.
+  - A piece leaves its yard on **a 6 only**; **a 6 rolls again**, nothing else
+    does; **a third 6 in a row loses the turn**.
+  - **Safe squares: the four starts and the four stars.** Landing on a single
+    piece of another colour anywhere else sends it back to its yard.
+  - **Two pieces of one player on a square are a wall** nobody else can pass
+    or land on. **Home needs the exact number.** No "must capture first".
+  - **The game plays on for places**, and ends on a podium.
+  - **You tap to roll**; a move with one outcome is made for you after a beat,
+    nothing to move passes by itself, and the move that brings your last
+    piece home stays your own tap (the standing rules).
+  - In a room: **everyone picks a colour in the lobby**, anyone who doesn't
+    gets one; the starter is a **roll-off** (highest, ties roll again); with
+    **five or more the host picks who plays** (the first four by default) and
+    the rest watch; computer players **easy and hard**; a turn clock **off by
+    default, 15 or 30 seconds** (the phone rolls and moves when it runs out).
+  - Decided for the owner: the roll-off is rolled by the server for everyone
+    (nobody has a choice in it, so it isn't a tap); with two players and no
+    colours picked they sit opposite (red and yellow); a wall on a start
+    square also keeps that colour's pieces in their yard; a player who leaves
+    takes their pieces off the board, and one left ends the game in their
+    favour; the host's "play for" button works as the clock would.
 
 - **سكرو (Skrew)** - the owner's spec of 17 Sep 2026 (*سكرو in rooms*, and
   *سكرو on the table* for the calculator): the Skrew card game (Kraken
@@ -905,6 +968,16 @@ the word search), `countUp` for streaks and scores.
   same motion per move (every Skip stamped, every card flown), nothing left
   hidden or floating, one fall per drop on one phone and against the phone,
   a refused move put back, and motion off still without motion.
+- **21 Sep 2026, لودو** - the owner picked لودو and بنك الحظ from a list of
+  ideas, answered every rule of both one question at a time (and checked the
+  بنك الحظ answers against another AI's rulebook, which moved four of them:
+  *Waiting*), and picked look أ for both from a design sheet of three. لودو
+  was built the same day: the rules and the computer players once in
+  `Ludo.js`, the room in `RoomLudo.js`, the board, the die and every move's
+  motion in `JS_Ludo.html` (against the phone too), the room and the TV in
+  `JS_RoomLudo.html`, section 22 of `Style.html`, a drawn icon. Rules tests:
+  the board's geometry, every rule and 27 whole games of bots, 2-4 players,
+  easy and hard. Robot tests: 1429, a لودو round among them. بنك الحظ is next.
 
 ## Building and Running
 
@@ -957,8 +1030,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, and the game files bundled after
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -1062,6 +1135,8 @@ is nowhere to hide the key card.
 | `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js` | Word lists (and سكرو's cards, and قبل ولا بعد's dates) the rules deal from, bundled into the Worker. Nine of them are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, a Stop phone checks its boxes with the server's own rule, the solo games ask from the room trivia's questions, and a سكرو phone names and draws the cards the server deals. **Two stay server-only, on purpose:** `PartyContent.js`, because the Fibbage answers in it must never reach a page, and `TimelineEvents.js`, because the years of unplayed cards are قبل ولا بعد's whole secret. |
 | `DominoTiles.js` | The domino tiles, the table, the ends and their points, a round's result and the table's layout: pure functions, shared by the page (inlined like the lists) and the Worker, every name prefixed `domino`. |
 | `RoomDomino.js` | `dominoAction` and its clock, its leave and its computer players: bundled after `RoomGames.js`, so a game this size keeps its rules in a file of its own. |
+| `Ludo.js` | لودو's board (the track, the home columns, the yards as cells), every rule as one plain game object, and the computer players: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `ludo`. |
+| `RoomLudo.js` | `ludoAction`: the lobby's colours and seats, the server's dice, the clock, leaving, the bots and the forced move. Bundled after `RoomGames.js`. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -1126,7 +1201,7 @@ compared on join with the same fold as everywhere else (`sameRoomName`), so
 أحمد and احمد can't both sit in one room.
 
 **Computer players** (the owner, 21 Sep 2026: optional, easy and hard). In
-the games that register them - أونو and الدومينو - the host can seat a bot in
+the games that register them - أونو, الدومينو and لودو - the host can seat a bot in
 the lobby, to play alone or to make up a table of four for teams. A bot is an
 ordinary entry in `room.players` with `bot` set to its level (`'easy'` or
 `'hard'`): it holds a seat, is dealt like anyone, and its hand is in
@@ -1177,8 +1252,9 @@ ever speak for it from outside.
   move - so a person who tapped first, a jump in, or a turn that changed
   meanwhile is never overruled. A move refused is not tried again for that
   moment (`_forcedFailed`). Registered: أونو (take / draw; waiting as long as
-  a bot while someone can be caught) and الدومينو (with `helpFit` on, never
-  the last tile). The duels register nothing: a last move there is often the
+  a bot while someone can be caught), الدومينو (with `helpFit` on, never
+  the last tile) and لودو (one piece that can move, or two on the same
+  square; never the roll, never the last piece home). The duels register nothing: a last move there is often the
   winning one. `roomForcedMove` is exported for the rules tests. The phone draws a line (`uno_auto_*`, `dom_auto_*`) where the
   button would have been.
 - A new game with bots registers `ROOM_BOT_GAMES.<id> = { max, pending,
@@ -2794,6 +2870,74 @@ The numbers, researched on 16 Sep 2026:
 - **باصرة**: 10 a basra, 1 an ace or jack, 2♣ 2, 10♦ 3, most cards 30 - a
   26-26 split carries the 30 to the next deck. Target 101/121/150, 121 by
   default (Egyptian tables); 2-4 players or two teams.
+
+### لودو
+
+The owner's rules are in *The owner's specs*. Four files and a stylesheet
+section, the way the duels are built:
+
+- **`Ludo.js`** (shared, no DOM). The board is the classic 15 x 15 cross,
+  counted from the top-left, left to right in every language:
+  `LUDO_TRACK_CELLS` is the 52 track squares from G's start, going round
+  clockwise; `LUDO_HOME_CELLS` each colour's column; `LUDO_YARD` and
+  `LUDO_SPOTS` the yards. Yards: G top-left, Y top-right, B bottom-right, R
+  bottom-left, and turns go G, Y, B, R. A piece's place is a number from its
+  own start (-1 yard, 0..50 track, 51..55 its column, 56 home); `ludoGlobal`
+  turns it into a track square and `ludoCellOf` into a place to draw.
+  A game is one plain object shaped like a room's `shared` (`seats`,
+  `colors`, `pieces`, `turn { pid, stage, dice, sixes }`, `movable`,
+  `places`, `phase`, `turnSeq`, `events`), so the server uses it as its
+  `shared` and the phone keeps it in `appState.ludo.g`. `ludoRoll` and
+  `ludoMove` apply the rules and write the events every screen animates
+  (`rolloff`, `roll`, `three`, `nomove`, `move` with `cap`, `finish`, `over`);
+  `ludoTarget` is the one rule for where a piece goes (the 6 out of the yard,
+  walls, the exact number home, captures off the safe squares);
+  `ludoOnlyMove` the forced move (never the finishing one); `ludoBotPick` the
+  computer players - easy picks any move, hard scores each (a capture, home,
+  into the column, out on a 6, out of reach, onto a safe square or a wall,
+  never into reach of a piece behind).
+- **`RoomLudo.js`** is what a room adds: the lobby (`color` - anyone seated
+  takes or lets go of a colour, the host may pick for a bot; `seat` - the
+  host's four with five or more, `shared.lobby`), `start` / `playAgain` (the
+  seats and colours, `ludoFillColors` for the rest, the roll-off rolled on the
+  server, `shared.wins` kept), `roll` and `move` (with `seq`, a stale tap
+  dropped), `skipTurn` and the clock (`ludoAuto`: roll, then the easy move),
+  leaving (`ludoRemovePlayer`), `ROOM_BOT_GAMES.ludo` and
+  `ROOM_FORCED_GAMES.ludo`. Nothing is secret: the whole game is `shared`.
+  The roster is everyone in the room, so whoever watches still gets the
+  board, and a latecomer is drawn the board too (`lateJoin`).
+- **`JS_Ludo.html`** draws a game on any screen: `ludoBoardHtml` (the fixed
+  squares built once, `ludoFixedHtml`, then the pieces placed in percent of
+  the board, pieces sharing a square set a little apart), `ludoFrameHtml`
+  (the strip of players, the board, the bar with the die, the log, and at
+  the end the podium), `ludoAfterPaint` (the events not yet shown, played on
+  the board) and `ludoWire` (a tap moves a piece; a mouse or the keyboard on
+  a piece first shows the squares it would pass). The board turns so your
+  own yard is at the bottom left (`LUDO_ROT`); a watcher's and the TV's are
+  not turned. Against the phone lives here too: `appState.ludo`, the setup
+  painter, `ludoLocalNext` (a computer player's roll or move, or your only
+  move, after the motion has landed), registered through `soloRegister` for
+  the reload.
+- **`JS_RoomLudo.html`** is the room around it: the lobby's colour picker
+  and seats, `ROOM_GAMES.ludo` and `TV_GAMES.ludo`, the turn clock, the
+  host's "play for" button for a quiet phone, and the roll that starts the
+  die spinning as the finger lifts (the number is the server's).
+- **The motion.** Everything is drawn where it ends up, and the motion runs
+  backwards from where it was (Web Animations of transform, `fill:
+  backwards`, delayed one after another): the die (the app's 3D die,
+  `DIE_LANDING`) tumbles to its number, a piece hops square by square (in the
+  board's own turned frame, so the numbers are cells times the board's width
+  over 15), a piece taken bursts and flies back to its yard spinning, a piece
+  home bursts in its colour, and the first turn waits for the roll-off card.
+  `ludoFx.busyUntil` holds the next frame (a room's, or the phone's next
+  computer move) until the last flight has landed. Nothing replays after a
+  reload, the lock screen or joining late. Four short sounds are added to
+  `FX` (`ludoRoll`, `ludoStep`, `ludoCapture`, `ludoHome`); with a TV in the
+  room only the TV plays the table's, a phone its own.
+- **Fitting.** Upright: the players across the top, the board the width of
+  the phone, the bar sticky under it. On a phone's side and from 900px the
+  board takes the height (`--app-h`) with a column beside it; the TV's board
+  is as tall as the stage (83% of 1280 x 720).
 
 ### The duels: كونكت ٤ and نقط ومربعات
 

@@ -112,7 +112,8 @@ const ROOM_GAME_IDS = [
   'twotruths', 'emoji', 'proverbs', 'fiveseconds', 'telephone', 'monkey',
   'herd', 'mafia', 'screw', 'mind', 'timeline', 'uno', 'domino',
   // The duels (RoomDuels.js): two play, the room watches, winner stays on.
-  'connect4', 'dots'
+  'connect4', 'dots',
+  'ludo'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -516,6 +517,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'domino':     dominoAction(room, playerId, action, payload); break;    // RoomDomino.js
     case 'connect4':   connect4Action(room, playerId, action, payload); break;
     case 'dots':       dotsAction(room, playerId, action, payload); break;
+    case 'ludo':       ludoAction(room, playerId, action, payload); break;      // RoomLudo.js
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -3344,6 +3346,7 @@ const gameDeadline = (room) => {
   if (room.game === 'screw' && (s.phase === 'memorize' || s.phase === 'play' || s.phase === 'thiefGuess') && s.endsAt) return s.endsAt + SKREW_GRACE_MS;
   if (room.game === 'uno') return unoDeadline(room);
   if (room.game === 'domino') return dominoDeadline(room);
+  if (room.game === 'ludo') return ludoDeadline(room);
   return null;
 };
 
@@ -3452,6 +3455,7 @@ const gameTimeout = (room, now) => {
   }
   if (room.game === 'uno') return unoTimeout(room, now);
   if (room.game === 'domino') return dominoTimeout(room, now);
+  if (room.game === 'ludo') return ludoTimeout(room, now);
   return false;
 };
 
@@ -3600,6 +3604,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'domino':
       dominoPlayerLeft(room, playerId, name);
+      return;
+    case 'ludo':
+      ludoPlayerLeft(room, playerId, name);
       return;
     case 'connect4':
     case 'dots':

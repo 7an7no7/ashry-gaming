@@ -1,0 +1,802 @@
+<script>
+/* ============================================================================
+   لودو — LUDO: the board every screen draws, and a game against the phone
+   ----------------------------------------------------------------------------
+   The rules and the computer players are Ludo.js, the same file the rooms
+   server judges a room with (the page inlines it: SHARED_LISTS). This file
+   draws a game - on one phone against the phone, in a room (JS_RoomLudo.html)
+   and on the TV - and plays its moves.
+
+   The look the owner picked (option أ "كلاسيك", 21 Sep 2026): the classic
+   cross on white, the four yards in full red, green, yellow and blue (the
+   same four as أونو), a star on the safe squares and an arrow on each start,
+   glossy round pieces with a white rim, and a white die with dark pips. The
+   board is a physical thing, left to right in every language, and it turns
+   so that your own yard is at the bottom left (the TV keeps it as it is).
+
+   Every move is an event (Ludo.js), and each screen plays the ones it hasn't
+   shown, once: the die tumbles to its number, a piece hops square by square,
+   a piece that was taken flies back to its yard, a piece home pops, and the
+   first roll-off is shown before the first turn. A reload, a phone back from
+   the lock screen, or someone who joins in the middle replays nothing.
+   Everything is drawn where it ends up; the motion runs backwards from the
+   squares it passed (Web Animations of transform, `fill: backwards`), so a
+   redraw halfway through is already right.
+
+   Against the phone: you and 1-3 computer players, easy or hard, your colour
+   picked on the setup screen. The game is in appState.ludo, so a reload comes
+   back to the board as it was, the phone's turn included.
+   ========================================================================= */
+
+const LUDO_HEX = { R: '#e5383b', G: '#1f9d55', Y: '#f5b400', B: '#1e6fd9' };
+const LUDO_ROT = { R: 0, G: -90, Y: 180, B: 90 };      // turns the board so this colour's yard is at the bottom left
+const LUDO_STEP_MS = 150;                               // one square of a hop
+const LUDO_BOT_MS = [650, 1050];                        // the phone "thinking" before a roll or a move
+
+/* --- words ------------------------------------------------------------------------ */
+
+/** A translated line with {name}-style values; a value that isn't a plain number is isolated (FSI … PDI). */
+function ludoT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || (TRANSLATIONS.ar || {})[key] || '';
+  if (vars) Object.keys(vars).forEach(k => {
+    const v = vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
+    s = s.split('{' + k + '}').join(v && !/^[+-]?\d+$/.test(v) ? '⁨' + v + '⁩' : v);
+  });
+  return s;
+}
+
+const ludoColorName = (c) => ludoT('ludo_color_' + c);
+const ludoPlaceWord = (n) => ludoT('ludo_place_' + Math.min(4, Math.max(1, n)));
+
+/* --- the board ----------------------------------------------------------------------- */
+
+const ludoPct = (n) => (Math.round(n * 100000 / 15) / 1000) + '%';
+const LUDO_STAR_SVG = '<svg class="ludo-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/></svg>';
+const ludoArrowSvg = (deg) => `<svg class="ludo-arrow" viewBox="0 0 24 24" style="transform:rotate(${deg}deg)" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>`;
+let ludoFixedMemo = '';
+
+/** The squares, the yards and the middle: the same on every board, built once. */
+function ludoFixedHtml() {
+  if (ludoFixedMemo) return ludoFixedMemo;
+  let h = '';
+  LUDO_COLORS.forEach(c => {
+    const y = LUDO_YARD[c];
+    h += `<div class="ludo-yard ludo-yard--${c}" style="left:${ludoPct(y[0])};top:${ludoPct(y[1])}"><div class="ludo-yard__in"></div></div>`;
+  });
+  LUDO_COLORS.forEach(c => {
+    for (let i = 0; i < 4; i++) {
+      const p = ludoCellOf(c, -1, i);
+      h += `<span class="ludo-spot ludo-spot--${c}" style="left:${ludoPct(p[0])};top:${ludoPct(p[1])}"></span>`;
+    }
+  });
+  const arrow = { G: 0, Y: 90, B: 180, R: 270 };
+  LUDO_TRACK_CELLS.forEach((xy, at) => {
+    const start = LUDO_COLORS.find(c => LUDO_START[c] === at);
+    const inner = start ? ludoArrowSvg(arrow[start]) : LUDO_STARS.indexOf(at) !== -1 ? LUDO_STAR_SVG : '';
+    h += `<div class="ludo-cell ${start ? 'ludo-cell--' + start : ''}" style="left:${ludoPct(xy[0])};top:${ludoPct(xy[1])}">${inner}</div>`;
+  });
+  LUDO_COLORS.forEach(c => LUDO_HOME_CELLS[c].forEach(xy => {
+    h += `<div class="ludo-cell ludo-cell--${c}" style="left:${ludoPct(xy[0])};top:${ludoPct(xy[1])}"></div>`;
+  }));
+  h += `<svg class="ludo-mid" viewBox="0 0 3 3" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="0,0 0,3 1.5,1.5" fill="${LUDO_HEX.G}"/><polygon points="0,0 3,0 1.5,1.5" fill="${LUDO_HEX.Y}"/>
+      <polygon points="3,0 3,3 1.5,1.5" fill="${LUDO_HEX.B}"/><polygon points="0,3 3,3 1.5,1.5" fill="${LUDO_HEX.R}"/></svg>`;
+  ludoFixedMemo = h;
+  return h;
+}
+
+/** Where every piece is drawn, in cells, with pieces sharing a square set a little apart. */
+function ludoPiecePlaces(g) {
+  const out = [];
+  const groups = {};
+  (g.seats || []).forEach(pid => {
+    const color = g.colors[pid];
+    (g.pieces[pid] || []).forEach((rel, i) => {
+      const xy = ludoCellOf(color, rel, i);
+      const item = { pid: pid, i: i, color: color, rel: rel, x: xy[0], y: xy[1] };
+      out.push(item);
+      if (rel >= 0) {
+        const k = xy[0].toFixed(2) + ',' + xy[1].toFixed(2);
+        (groups[k] = groups[k] || []).push(item);
+      }
+    });
+  });
+  const SPREAD = {
+    2: [[-0.17, -0.17], [0.17, 0.17]],
+    3: [[-0.2, -0.13], [0.2, -0.13], [0, 0.2]],
+    4: [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]]
+  };
+  Object.keys(groups).forEach(k => {
+    const list = groups[k];
+    if (list.length < 2) return;
+    const spread = SPREAD[Math.min(4, list.length)];
+    list.forEach((p, n) => {
+      const d = spread[n % spread.length];
+      p.x += d[0];
+      p.y += d[1];
+      p.stacked = true;
+    });
+  });
+  return out;
+}
+
+/**
+ * The board. o: { view (the colour at the bottom left), movable (the pieces
+ * this phone may tap: [index]), me (whose they are), tv, names }.
+ */
+function ludoBoardHtml(g, o) {
+  const opt = o || {};
+  const movable = opt.movable || [];
+  const pieces = ludoPiecePlaces(g).map(p => {
+    const can = p.pid === opt.me && movable.indexOf(p.i) !== -1;
+    const label = ludoT('ludo_piece_label', { color: ludoColorName(p.color), n: p.i + 1 });
+    return `<button type="button" class="ludo-pc ludo-pc--${p.color} ${p.stacked ? 'is-stacked' : ''} ${p.rel === LUDO_HOME ? 'is-home' : ''} ${can ? 'is-movable' : ''}"
+        data-ludo-pc="${escapeHTML(p.pid)}|${p.i}" style="left:${ludoPct(p.x)};top:${ludoPct(p.y)}"
+        ${can ? '' : 'tabindex="-1"'} aria-label="${escapeHTML(label)}"></button>`;
+  }).join('');
+  const deg = LUDO_ROT[opt.view] || 0;
+  return `<div class="ludo-board ${opt.tv ? 'ludo-board--tv' : ''} ${movable.length ? 'is-choosing' : ''}" dir="ltr" data-ludo-board>
+      <div class="ludo-rot" style="transform:rotate(${deg}deg)" data-ludo-rot>
+        ${ludoFixedHtml()}
+        <div class="ludo-fx" data-ludo-fx aria-hidden="true"></div>
+        ${pieces}
+      </div>
+    </div>`;
+}
+
+/* --- the die --------------------------------------------------------------------------- */
+
+const ludoDieHtml = (color, clickable, onclick) => {
+  const faces = [1, 2, 3, 4, 5, 6].map(n => (typeof dieFaceHtml === 'function' ? dieFaceHtml(n) : '')).join('');
+  const inner = `<div class="die" data-ludo-die>${faces}</div>`;
+  const style = `--pc:${LUDO_HEX[color] || 'transparent'}`;
+  return clickable
+    ? `<button type="button" class="ludo-die is-rollable" style="${style}" onclick="${onclick}" aria-label="${escapeHTML(ludoT('ludo_roll'))}">${inner}</button>`
+    : `<div class="ludo-die" style="${style}">${inner}</div>`;
+};
+
+const ludoFx = { key: '', lastSeq: 0, busyUntil: 0, timers: [], dieTurns: 0, dieCss: '', wokeAt: 0, watched: '' };
+
+/** The die turned to a value, a few whole turns further round than it was (DIE_LANDING, JS_DescribeIt.html). */
+function ludoDieCss(n, spin) {
+  const land = (typeof DIE_LANDING !== 'undefined' && DIE_LANDING[n]) || [0, 0];
+  if (spin) ludoFx.dieTurns += 2 + Math.floor(Math.random() * 2);
+  const k = ludoFx.dieTurns * 360;
+  return `rotateX(${k + land[0] - 14}deg) rotateY(${k + land[1] + 16}deg)`;
+}
+
+/** The die shows `n`: tumbling to it, or already there. */
+function ludoDieShow(root, n, tumble, delay) {
+  const die = root && root.querySelector('[data-ludo-die]');
+  if (!die || !n) return;
+  if (!tumble) {
+    die.style.transition = 'none';
+    die.style.transform = ludoFx.dieCss = ludoDieCss(n, false);
+    return;
+  }
+  die.style.transition = 'none';
+  die.style.transform = ludoFx.dieCss || ludoDieCss(1, false);
+  void die.offsetWidth;
+  const go = () => {
+    die.style.transition = '';
+    die.style.transform = ludoFx.dieCss = ludoDieCss(n, true);
+    const box = die.parentElement;
+    if (box && box.animate) box.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-30%)' }, { transform: 'translateY(4%)' }, { transform: 'translateY(0)' }], { duration: 520, easing: 'ease-out' });
+  };
+  if (delay) ludoFx.timers.push(setTimeout(go, delay)); else requestAnimationFrame(go);
+}
+
+/* --- the players, the bar and the log ------------------------------------------------ */
+
+/** The strip of players: their colour, name, pieces home, and the one whose turn it is. */
+function ludoStripHtml(c) {
+  const g = c.g;
+  const up = g.phase === 'play' ? g.turn.pid : null;
+  const chips = g.seats.map(pid => {
+    const color = g.colors[pid];
+    const home = (g.pieces[pid] || []).filter(r => r === LUDO_HOME).length;
+    const place = g.places.indexOf(pid);
+    const dots = [0, 1, 2, 3].map(k => `<span class="ludo-chip__dot ${k < home ? 'is-home' : ''}"></span>`).join('');
+    const name = c.names[pid] || '…';
+    const initial = typeof duelInitial === 'function' ? duelInitial(name) : name.charAt(0);
+    const away = c.away && c.away[pid];
+    return `<div class="ludo-chip ${pid === up ? 'is-turn' : ''} ${place !== -1 ? 'is-done' : ''} ${away ? 'is-away' : ''}" style="--pc:${LUDO_HEX[color]}" data-ludo-chip="${escapeHTML(pid)}">
+        <span class="ludo-chip__av ludo-av--${color}" aria-hidden="true">${place !== -1 ? ['🥇', '🥈', '🥉', '4'][place] : c.bots && c.bots[pid] ? '🤖' : escapeHTML(initial)}</span>
+        <span class="ludo-chip__who">
+          <span class="ludo-chip__name">${escapeHTML(name)}${pid === c.me && name !== ludoT('xo_you') ? ` <small>· ${escapeHTML(ludoT('xo_you'))}</small>` : ''}</span>
+          <span class="ludo-chip__dots" aria-label="${escapeHTML(ludoT('ludo_home_count', { n: home }))}">${dots}</span>
+        </span>
+      </div>`;
+  }).join('');
+  return `<div class="ludo-strip ludo-strip--n${g.seats.length}">${chips}</div>`;
+}
+
+/** What the bar says: whose turn, what they rolled, what to do. */
+function ludoBarLines(c) {
+  const g = c.g;
+  const tn = g.turn || {};
+  const name = c.names[tn.pid] || '';
+  const mine = tn.pid === c.me;
+  if (g.phase !== 'play') return [ludoT('ludo_over'), ''];
+  if (mine) {
+    if (tn.stage === 'roll') return [ludoT('ludo_your_turn'), tn.sixes ? ludoT('ludo_again_six') : ludoT('ludo_roll_hint')];
+    const only = ludoOnlyMove(g, c.me) !== -1;
+    return [ludoT('ludo_you_rolled', { n: tn.dice }), only ? ludoT('ludo_moving_itself') : ludoT('ludo_pick_piece')];
+  }
+  if (tn.stage === 'move') return [ludoT('ludo_rolled', { name: name, n: tn.dice }), c.bots && c.bots[tn.pid] ? ludoT('ludo_thinking', { name: name }) : ludoT('ludo_choosing', { name: name })];
+  return [ludoT('ludo_turn_of', { name: name }), c.bots && c.bots[tn.pid] ? ludoT('ludo_thinking', { name: name }) : ''];
+}
+
+function ludoBarHtml(c) {
+  const g = c.g;
+  const tn = g.turn || {};
+  const canRoll = g.phase === 'play' && tn.pid === c.me && tn.stage === 'roll' && !c.tv;
+  const lines = ludoBarLines(c);
+  const color = g.colors[tn.pid] || (c.lastRoller ? g.colors[c.lastRoller] : '');
+  return `<div class="ludo-bar ${canRoll ? 'is-mine' : ''} ${tn.pid === c.me && tn.stage === 'move' ? 'is-picking' : ''}">
+      ${ludoDieHtml(color, canRoll, c.rollJs)}
+      <div class="ludo-bar__txt">
+        <div class="ludo-bar__t1"><span class="ludo-bar__dot" style="background:${LUDO_HEX[g.colors[tn.pid]] || 'transparent'}"></span>${escapeHTML(lines[0])}</div>
+        ${lines[1] ? `<div class="ludo-bar__t2">${escapeHTML(lines[1])}</div>` : ''}
+      </div>
+      ${c.clock ? `<span class="badge badge--accent metric ludo-bar__clock" data-ludo-clock></span>` : ''}
+      ${canRoll ? `<button type="button" class="btn btn--primary btn--auto ludo-bar__roll" onclick="${c.rollJs}">${escapeHTML(ludoT('ludo_roll'))}</button>` : ''}
+    </div>`;
+}
+
+/** One event as a line for the log, or '' for the ones not worth a line. */
+function ludoEventText(c, e) {
+  const name = (pid) => c.names[pid] || '…';
+  switch (e.type) {
+    case 'rolloff': return '🎲 ' + ludoT('ludo_ev_first', { name: name(e.first) });
+    case 'three': return '🎲🎲🎲 ' + ludoT('ludo_ev_three', { name: name(e.pid) });
+    case 'nomove': return ludoT('ludo_ev_nomove', { name: name(e.pid), n: e.n });
+    case 'move': {
+      if (e.cap && e.cap.length) {
+        return '💥 ' + (e.cap[0].pid === c.me ? ludoT('ludo_ev_captured_you', { name: name(e.pid) })
+          : ludoT('ludo_ev_capture', { name: name(e.pid), other: name(e.cap[0].pid) }));
+      }
+      if (e.to === LUDO_HOME) return '🏠 ' + ludoT('ludo_ev_home', { name: name(e.pid) });
+      if (e.from < 0) return ludoT('ludo_ev_out', { name: name(e.pid) });
+      const g = c.g;
+      const color = g.colors[e.pid];
+      if (color && e.to <= LUDO_LAST_TRACK && LUDO_STARS.indexOf(ludoGlobal(color, e.to)) !== -1) return '⭐ ' + ludoT('ludo_ev_star', { name: name(e.pid) });
+      return '';
+    }
+    case 'finish': return (e.place === 1 ? '🏆 ' : '') + ludoT('ludo_ev_finish', { name: name(e.pid), place: ludoPlaceWord(e.place) });
+    case 'auto': return '⏱️ ' + ludoT(e.why === 'host' ? 'ludo_ev_host' : 'ludo_ev_clock', { name: name(e.pid) });
+    case 'left': return ludoT('ludo_ev_left', { name: e.name || name(e.pid) });
+    default: return '';
+  }
+}
+
+function ludoLogHtml(c) {
+  const lines = (c.g.events || []).slice().reverse().map(e => ludoEventText(c, e)).filter(Boolean).slice(0, 3);
+  return lines.map((l, i) => `<div class="ludo-log__line ${i === 0 ? 'is-latest' : ''}">${escapeHTML(l)}</div>`).join('');
+}
+
+/** The places at the end: a podium of the first three, and everyone in order. */
+function ludoPodiumHtml(c) {
+  const g = c.g;
+  const places = g.places || [];
+  if (!places.length) return '';
+  const rise = motionFirst(['ludo-podium', c.key, places.join(',')].join('|'));
+  const top = places.slice(0, 3);
+  const medals = ['🥇', '🥈', '🥉'];
+  const atOf = (i) => 150 + (top.length - 1 - i) * 520;
+  const winMs = atOf(0) + 620;
+  return `<div class="podium${rise ? ' podium--rise" data-reveal-ms="' + winMs : ''}">` + top.map((pid, i) =>
+    `<div class="podium__place podium__place--${i + 1} podium__place--rank${i + 1}" style="--at:${atOf(i)}ms">
+      <div class="podium__who">
+        <span class="podium__medal" aria-hidden="true">${medals[i]}</span>
+        <span class="podium__name">${escapeHTML(c.names[pid] || '…')}</span>
+        <span class="ludo-podium__color ludo-av--${g.colors[pid]}" aria-hidden="true"></span>
+      </div>
+      <div class="podium__block"><span class="metric">${i + 1}</span></div>
+    </div>`).join('') + '</div>';
+}
+
+/**
+ * A whole frame: the strip of players, the board, the bar and the log; at the
+ * end, the podium and what comes next on top. c: { g, me, names, bots, view,
+ * key, tv, rollJs, over (the buttons for the end), host (the host's row), clock }.
+ */
+function ludoFrameHtml(c) {
+  const g = c.g;
+  const over = g.phase === 'gameover';
+  const mineMovable = !over && g.turn && g.turn.pid === c.me && g.turn.stage === 'move' && ludoOnlyMove(g, c.me) === -1 ? (g.movable || []) : [];
+  return `<div class="ludo ${c.tv ? 'ludo--tv' : ''} ${over ? 'is-over' : ''}">
+      <div class="ludo-layout">
+        <div class="ludo-layout__board">${ludoBoardHtml(g, { view: c.view, movable: mineMovable, me: c.me, tv: c.tv })}</div>
+        <div class="ludo-layout__side">
+          ${over ? `<div class="card card--accent ludo-over">
+              <p class="ludo-over__title">🏁 ${escapeHTML(ludoT('ludo_over'))}</p>
+              ${ludoPodiumHtml(c)}
+              ${c.over || ''}
+            </div>` : ''}
+          ${ludoStripHtml(c)}
+          ${over ? '' : ludoBarHtml(c)}
+          <div class="ludo-log" data-ludo-log>${ludoLogHtml(c)}</div>
+          ${c.host || ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* --- the motion -------------------------------------------------------------------------- */
+
+const ludoCanMove = () => !motionOff() && !!(document.body && document.body.animate);
+const ludoWokeRecently = () => Date.now() - ludoFx.wokeAt < 2500;
+document.addEventListener('visibilitychange', () => { if (!document.hidden) ludoFx.wokeAt = Date.now(); });
+
+function ludoFxCancel() {
+  ludoFx.timers.forEach(clearTimeout);
+  ludoFx.timers = [];
+  ludoFx.busyUntil = 0;
+}
+
+/**
+ * The events of this game this screen hasn't played. A game seen for the first
+ * time plays from its start when `fresh` (it was dealt while this screen
+ * watched), otherwise nothing that came before.
+ */
+function ludoEventsToPlay(key, g, fresh) {
+  const events = g.events || [];
+  const maxSeq = events.reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  if (ludoFx.key !== key) {
+    ludoFx.key = key;
+    ludoFx.lastSeq = maxSeq;
+    if (fresh) {
+      const first = events.find(e => e && e.type === 'rolloff');
+      if (first) ludoFx.lastSeq = (Number(first.seq) || 0) - 1;
+    }
+  }
+  const out = events.filter(e => e && (Number(e.seq) || 0) > ludoFx.lastSeq);
+  ludoFx.lastSeq = Math.max(ludoFx.lastSeq, maxSeq);
+  return out;
+}
+
+/** A piece hops from square to square along `points` (in cells), ending where it is drawn. */
+function ludoHop(el, points, unit, delay, big) {
+  if (!el || !el.animate || points.length < 2) return 0;
+  const fx = parseFloat(el.style.left) / 100 * 15;
+  const fy = parseFloat(el.style.top) / 100 * 15;
+  const n = points.length - 1;
+  const at = (p) => `translate(${((p[0] - fx) * unit).toFixed(1)}px, ${((p[1] - fy) * unit).toFixed(1)}px)`;
+  const frames = [];
+  points.forEach((p, k) => {
+    frames.push({ transform: (k === n ? 'translate(0px, 0px)' : at(p)) + ' scale(1)', offset: k / n });
+    if (k < n) {
+      const q = points[k + 1];
+      frames.push({ transform: at([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]) + ` scale(${big ? 1.5 : 1.3})`, offset: (k + 0.5) / n });
+    }
+  });
+  const duration = Math.max(big ? 380 : 0, n * LUDO_STEP_MS);
+  el.style.zIndex = '6';
+  const a = el.animate(frames, { duration: duration, delay: delay, fill: 'backwards', easing: 'linear' });
+  const done = () => { el.style.zIndex = ''; };
+  a.onfinish = done;
+  ludoFx.timers.push(setTimeout(done, delay + duration + 60));
+  return duration;
+}
+
+/** A piece that was taken flies back to its yard, spinning. */
+function ludoSendHome(el, from, unit, delay) {
+  if (!el || !el.animate) return 0;
+  const fx = parseFloat(el.style.left) / 100 * 15;
+  const fy = parseFloat(el.style.top) / 100 * 15;
+  const dx = ((from[0] - fx) * unit).toFixed(1);
+  const dy = ((from[1] - fy) * unit).toFixed(1);
+  el.style.zIndex = '5';
+  el.animate([
+    { transform: `translate(${dx}px, ${dy}px) rotate(0deg) scale(1)` },
+    { transform: `translate(${dx}px, ${dy}px) rotate(-20deg) scale(1.25)`, offset: 0.12 },
+    { transform: `translate(${(dx * 0.4).toFixed(1)}px, ${(dy * 0.4).toFixed(1)}px) rotate(260deg) scale(0.75)`, offset: 0.7 },
+    { transform: 'translate(0px, 0px) rotate(360deg) scale(1)' }
+  ], { duration: 620, delay: delay, fill: 'backwards', easing: 'cubic-bezier(0.3, 0, 0.3, 1)' });
+  ludoFx.timers.push(setTimeout(() => { el.style.zIndex = ''; }, delay + 700));
+  return 620;
+}
+
+/** A burst where something happened: a piece taken, a piece home. */
+function ludoBurst(root, xy, color, delay, big) {
+  const layer = root.querySelector('[data-ludo-fx]');
+  if (!layer) return;
+  ludoFx.timers.push(setTimeout(() => {
+    const b = document.createElement('span');
+    b.className = 'ludo-burst' + (big ? ' ludo-burst--big' : '');
+    b.style.left = ludoPct(xy[0]);
+    b.style.top = ludoPct(xy[1]);
+    b.style.setProperty('--pc', LUDO_HEX[color] || '#fff');
+    layer.appendChild(b);
+    ludoFx.timers.push(setTimeout(() => b.remove(), 900));
+  }, delay));
+}
+
+/** The roll-off before the first turn: everyone's die, the ties rolled again, who starts. */
+function ludoRollOffPanel(root, c, e, delay) {
+  const layer = root.querySelector('[data-ludo-board]');
+  if (!layer || !Array.isArray(e.rounds)) return 0;
+  const ROUND_MS = 1150;
+  const rows = (round, k) => round.map(r => `<div class="ludo-off__row" style="--at:${k * ROUND_MS + 120}ms">
+      <span class="ludo-off__dot ludo-av--${c.g.colors[r.pid]}"></span>
+      <span class="ludo-off__name">${escapeHTML(c.names[r.pid] || '')}</span>
+      <b class="ludo-off__n metric">${r.n}</b></div>`).join('');
+  const panel = document.createElement('div');
+  panel.className = 'ludo-off';
+  panel.innerHTML = `<div class="ludo-off__card">
+      <p class="ludo-off__title">🎲 ${escapeHTML(ludoT('ludo_rolloff'))}</p>
+      ${e.rounds.map((round, k) => `<div class="ludo-off__round" style="--at:${k * ROUND_MS}ms">${k ? `<p class="ludo-off__again">${escapeHTML(ludoT('ludo_rolloff_again'))}</p>` : ''}${rows(round, k)}</div>`).join('')}
+      <p class="ludo-off__first" style="--at:${e.rounds.length * ROUND_MS}ms">${escapeHTML(ludoT('ludo_ev_first', { name: c.names[e.first] || '' }))}</p>
+    </div>`;
+  const total = e.rounds.length * ROUND_MS + 1500;
+  ludoFx.timers.push(setTimeout(() => {
+    layer.appendChild(panel);
+    ludoFx.timers.push(setTimeout(() => panel.classList.add('is-leaving'), total - 350));
+    ludoFx.timers.push(setTimeout(() => panel.remove(), total));
+  }, delay));
+  return total;
+}
+
+/**
+ * After a frame is drawn: the moves it brought, played on it in order. Returns
+ * how long they take (the screen waits that long before it draws the next).
+ * c.loud: this device plays the table's sounds.
+ */
+function ludoAfterPaint(root, c) {
+  const g = c.g;
+  const evs = ludoEventsToPlay(c.key, g, c.fresh);
+  const board = root.querySelector('[data-ludo-board]');
+  const rollEv = (g.events || []).slice().reverse().find(e => e.type === 'roll');
+  const quiet = !board || document.hidden || ludoWokeRecently() || !root.getClientRects().length || evs.length > 12;
+  const moving = !quiet && ludoCanMove();
+  const unit = board ? board.offsetWidth / 15 : 0;
+  // The die shows the last roll; it tumbles to it only as that roll is played.
+  const tumbleRoll = moving ? evs.find(e => e.type === 'roll') : null;
+  if (rollEv && !tumbleRoll) ludoDieShow(root, rollEv.n, false);
+  let t = 0;
+  if (!evs.length) return 0;
+  if (!moving) {
+    if (!quiet) ludoEventSounds(evs, c);
+    return 0;
+  }
+  evs.forEach(e => {
+    if (e.type === 'rolloff') {
+      t += ludoRollOffPanel(root, c, e, t);
+    } else if (e.type === 'roll') {
+      ludoDieShow(root, e.n, true, t);
+      if (c.loud || e.pid === c.me) ludoFx.timers.push(setTimeout(() => ludoSound('ludoRoll'), t));
+      t += 760;
+    } else if (e.type === 'three') {
+      const die = root.querySelector('.ludo-die');
+      ludoFx.timers.push(setTimeout(() => {
+        if (die && die.animate) die.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(0)' }], { duration: 420 });
+        if ((c.loud || e.pid === c.me) && typeof duelSound === 'function') duelSound('lose');
+      }, t));
+      t += 480;
+    } else if (e.type === 'nomove') {
+      t += 250;
+    } else if (e.type === 'move') {
+      const color = g.colors[e.pid];
+      const el = root.querySelector(`[data-ludo-pc="${CSS.escape(e.pid)}|${e.piece}"]`);
+      if (!color || !el || (g.pieces[e.pid] || [])[e.piece] !== e.to) return;
+      const points = [ludoCellOf(color, e.from, e.piece)].concat(ludoPath(e.from, e.to).map(r => ludoCellOf(color, r, e.piece)));
+      const d = ludoHop(el, points, unit, t, e.from < 0);
+      const loud = c.loud || e.pid === c.me;
+      if (loud) {
+        const hops = points.length - 1;
+        for (let k = 1; k <= hops; k++) ludoFx.timers.push(setTimeout(() => ludoSound('ludoStep'), t + k * (d / hops) - 30));
+      }
+      const landAt = points[points.length - 1];
+      let after = t + d;
+      (e.cap || []).forEach(cp => {
+        const vic = root.querySelector(`[data-ludo-pc="${CSS.escape(cp.pid)}|${cp.piece}"]`);
+        if (!vic) return;
+        ludoBurst(root, landAt, g.colors[cp.pid], after - 40, false);
+        const back = ludoSendHome(vic, landAt, unit, after);
+        if (loud || cp.pid === c.me) ludoFx.timers.push(setTimeout(() => ludoSound('ludoCapture'), after - 20));
+        if (cp.pid === c.me) ludoFx.timers.push(setTimeout(() => haptic('double'), after));
+        after = Math.max(after, t + d + back);
+      });
+      if (e.to === LUDO_HOME) {
+        ludoBurst(root, landAt, color, t + d - 20, true);
+        if (loud) ludoFx.timers.push(setTimeout(() => ludoSound('ludoHome'), t + d));
+      }
+      t = after + 60;
+    } else if (e.type === 'finish') {
+      if (e.place === 1 && (c.loud || e.pid === c.me)) ludoFx.timers.push(setTimeout(() => playSound('success'), t));
+    }
+  });
+  ludoFx.busyUntil = Math.max(ludoFx.busyUntil, Date.now() + t);
+  return t;
+}
+
+/** With motion off: the sound of what happened, once. */
+function ludoEventSounds(evs, c) {
+  const mineOrLoud = (e) => c.loud || e.pid === c.me;
+  if (evs.some(e => e.type === 'move' && e.cap && mineOrLoud(e))) ludoSound('ludoCapture');
+  else if (evs.some(e => e.type === 'move' && e.to === LUDO_HOME && mineOrLoud(e))) ludoSound('ludoHome');
+  else if (evs.some(e => e.type === 'roll' && mineOrLoud(e))) ludoSound('ludoRoll');
+}
+
+function ludoSound(name) {
+  try { if (typeof FX !== 'undefined' && FX[name] && typeof playFx === 'function') playFx(name); } catch (e) {}
+}
+
+/**
+ * The finger on a piece that can move: a mouse or a keyboard sees the squares
+ * it would pass and where it lands first ("أكل" where it takes a piece); a tap
+ * moves it. `onMove(index)`.
+ */
+function ludoWire(root, c, onMove) {
+  const board = root.querySelector('[data-ludo-board]');
+  if (!board || typeof onMove !== 'function') return;
+  const layer = board.querySelector('[data-ludo-fx]');
+  const clear = () => { if (layer) layer.querySelectorAll('.ludo-path').forEach(x => x.remove()); };
+  const show = (btn) => {
+    clear();
+    const [pid, i] = String(btn.getAttribute('data-ludo-pc')).split('|');
+    const g = c.g;
+    const tg = ludoTarget(g, pid, Number(i), g.turn.dice);
+    if (!tg || !layer) return;
+    const color = g.colors[pid];
+    const path = ludoPath(tg.from, tg.to);
+    path.forEach((r, k) => {
+      const xy = ludoCellOf(color, r, Number(i));
+      const dot = document.createElement('span');
+      dot.className = 'ludo-path ' + (k === path.length - 1 ? 'ludo-path--end' + (tg.cap.length ? ' is-capture' : '') : 'ludo-path--dot');
+      dot.style.left = ludoPct(xy[0]);
+      dot.style.top = ludoPct(xy[1]);
+      dot.style.setProperty('--pc', LUDO_HEX[color]);
+      if (k === path.length - 1 && tg.cap.length) dot.innerHTML = `<b dir="auto">${escapeHTML(ludoT('ludo_takes'))}</b>`;
+      layer.appendChild(dot);
+    });
+  };
+  board.querySelectorAll('.ludo-pc.is-movable').forEach(btn => {
+    btn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') show(btn); });
+    btn.addEventListener('pointerleave', clear);
+    btn.addEventListener('focus', () => show(btn));
+    btn.addEventListener('blur', clear);
+    btn.addEventListener('click', () => {
+      clear();
+      const i = Number(String(btn.getAttribute('data-ludo-pc')).split('|')[1]);
+      haptic('light');
+      onMove(i);
+    });
+  });
+}
+
+/* --- against the phone -------------------------------------------------------------------- */
+
+let ludoBotTimer = null;
+
+function ludoState() {
+  if (!appState.ludo) appState.ludo = { opp: 1, level: 'easy', color: 'R', g: null, names: {}, bots: {}, gameId: '' };
+  const s = appState.ludo;
+  if ([1, 2, 3].indexOf(Number(s.opp)) === -1) s.opp = 1;
+  if (s.level !== 'hard') s.level = 'easy';
+  if (LUDO_COLORS.indexOf(s.color) === -1) s.color = 'R';
+  return s;
+}
+
+function setupLudo() {
+  ludoStopBot();
+  setView('setup-ludo');
+  paintLudoSetup();
+}
+
+function paintLudoSetup() {
+  const s = ludoState();
+  const seg = (id, value) => document.querySelectorAll('#' + id + ' .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === String(value)));
+  seg('ludo-opp', s.opp);
+  seg('ludo-level', s.level);
+  document.querySelectorAll('#ludo-color .ludo-swatch').forEach(el => {
+    const on = el.dataset.value === s.color;
+    el.classList.toggle('is-active', on);
+    el.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  const cont = document.getElementById('ludo-continue');
+  if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
+}
+
+function setLudoOption(key, value) {
+  const s = ludoState();
+  if (key === 'opp') s.opp = Number(value);
+  else if (key === 'level') s.level = value === 'hard' ? 'hard' : 'easy';
+  else if (key === 'color' && LUDO_COLORS.indexOf(value) !== -1) s.color = value;
+  haptic('light');
+  saveToLocal();
+  paintLudoSetup();
+}
+
+/** A new game: you in your colour, the phone's players in the others, and the roll-off. */
+function startLudo() {
+  const s = ludoState();
+  ludoStopBot();
+  const ids = ['me'];
+  for (let k = 1; k <= s.opp; k++) ids.push('b' + k);
+  const pool = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).slice().sort(() => Math.random() - 0.5);
+  const names = { me: ludoT('xo_you') };
+  const bots = {};
+  ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = s.level; });
+  const colors = ludoFillColors(ids, { me: s.color });
+  const off = ludoRollOff(ids, Math.random);
+  const g = ludoNewGame(ids, colors, off.first);
+  ludoEvent(g, 'rolloff', { rounds: off.rounds, first: off.first });
+  s.g = g;
+  s.names = names;
+  s.bots = bots;
+  s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  saveToLocal();
+  if (appState.currentView !== 'play-ludo') setView('play-ludo');
+  paintLudo({ fresh: true });
+  if (typeof scrollToAction === 'function') scrollToAction();
+}
+
+function ludoContinue() {
+  setView('play-ludo');
+  paintLudo({ still: true });
+}
+
+function ludoLocalRoll() {
+  const s = ludoState();
+  const g = s.g;
+  if (!g || g.phase !== 'play' || g.turn.pid !== 'me' || g.turn.stage !== 'roll') return;
+  if (Date.now() < ludoFx.busyUntil - 150) return;
+  haptic('medium');
+  ludoRoll(g, 'me', 1 + Math.floor(Math.random() * 6));
+  saveToLocal();
+  paintLudo();
+}
+
+function ludoLocalMove(i) {
+  const s = ludoState();
+  const g = s.g;
+  if (!g || g.phase !== 'play' || g.turn.pid !== 'me' || g.turn.stage !== 'move') return;
+  try { ludoMove(g, 'me', i); } catch (e) { return; }
+  saveToLocal();
+  paintLudo();
+}
+
+/**
+ * What happens without a tap: a computer player rolls or moves, and your only
+ * move is made for you. Each waits for the motion on screen to land first.
+ */
+function ludoLocalNext() {
+  ludoStopBot();
+  const s = ludoState();
+  const g = s.g;
+  if (!g || g.phase !== 'play' || appState.currentView !== 'play-ludo') return;
+  const pid = g.turn.pid;
+  const wait = Math.max(0, ludoFx.busyUntil - Date.now());
+  if (s.bots[pid]) {
+    ludoBotTimer = setTimeout(() => {
+      ludoBotTimer = null;
+      const st = ludoState();
+      const gg = st.g;
+      if (!gg || gg !== g || gg.phase !== 'play' || gg.turn.pid !== pid || appState.currentView !== 'play-ludo') return;
+      if (gg.turn.stage === 'roll') ludoRoll(gg, pid, 1 + Math.floor(Math.random() * 6));
+      else {
+        const pick = ludoBotPick(gg, pid, st.bots[pid]);
+        if (pick >= 0) ludoMove(gg, pid, pick);
+      }
+      saveToLocal();
+      paintLudo();
+    }, wait + LUDO_BOT_MS[0] + Math.floor(Math.random() * (LUDO_BOT_MS[1] - LUDO_BOT_MS[0])));
+    return;
+  }
+  if (pid === 'me' && g.turn.stage === 'move') {
+    const only = ludoOnlyMove(g, 'me');
+    if (only === -1) return;
+    ludoBotTimer = setTimeout(() => {
+      ludoBotTimer = null;
+      const gg = ludoState().g;
+      if (gg !== g || gg.turn.pid !== 'me' || gg.turn.stage !== 'move' || appState.currentView !== 'play-ludo') return;
+      ludoLocalMove(only);
+    }, wait + 900);
+  }
+}
+
+function ludoStopBot() {
+  if (ludoBotTimer) clearTimeout(ludoBotTimer);
+  ludoBotTimer = null;
+}
+
+function ludoLocalCtx(opts) {
+  const s = ludoState();
+  const g = s.g;
+  const over = `<div class="btn-stack">
+      <button class="btn btn--primary btn--lg" onclick="startLudo()">${escapeHTML(ludoT('ludo_again'))}</button>
+      <button class="btn btn--ghost btn--sm" onclick="setupLudo()">${escapeHTML(ludoT('exit'))}</button>
+    </div>`;
+  return {
+    // "You" in the language on screen now, not the one the game was started in.
+    g: g, me: 'me', names: Object.assign({}, s.names || {}, { me: ludoT('xo_you') }), bots: s.bots || {}, view: g.colors.me, key: 'local|' + s.gameId,
+    fresh: !!(opts && opts.fresh), loud: true, rollJs: 'ludoLocalRoll()', over: over
+  };
+}
+
+function paintLudo(opts) {
+  const o = opts || {};
+  const s = ludoState();
+  const el = document.getElementById('ludo-stage');
+  if (!el || !s.g) return;
+  if (o.still || o.fresh) ludoFxCancel();
+  const c = ludoLocalCtx(o);
+  // A move still flying: the board it lands on waits until it has.
+  if (!o.still && !o.fresh && ludoFx.busyUntil > Date.now()) {
+    ludoStopBot();
+    ludoBotTimer = setTimeout(() => { ludoBotTimer = null; paintLudo(); }, ludoFx.busyUntil - Date.now() + 40);
+    return;
+  }
+  el.innerHTML = ludoFrameHtml(c);
+  if (o.still) ludoEventsToPlay(c.key, s.g, false);
+  const played = ludoAfterPaint(el, c);
+  ludoWire(el, c, ludoLocalMove);
+  const g = s.g;
+  if (g.phase === 'play' && g.turn.pid === 'me') {
+    if (typeof duelOnce === 'function' && duelOnce(['ludo-turn', s.gameId, g.turnSeq].join('|')) && !o.still) {
+      ludoFx.timers.push(setTimeout(() => { haptic('medium'); }, played));
+    }
+  }
+  if (g.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['ludo-end', s.gameId].join('|')) && !o.still) {
+    const won = g.places[0] === 'me';
+    ludoFx.timers.push(setTimeout(() => afterReveal(el, () => {
+      if (won) {
+        playSound('success');
+        if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      } else if (typeof duelSound === 'function') duelSound('lose');
+    }), played));
+  }
+  ludoLocalNext();
+}
+
+/** After a reload: the board as it was, and the phone plays on if it was its turn. */
+function restoreLudo() {
+  const s = ludoState();
+  if (!s.g || !Array.isArray(s.g.seats) || !s.g.pieces) return false;
+  paintLudo({ still: true });
+  return true;
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('ludo', {
+    setup: 'setup-ludo', play: 'play-ludo',
+    paintSetup: paintLudoSetup, restore: restoreLudo,
+    repaint: () => paintLudo({ still: true })
+  });
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-ludo') { ludoStopBot(); ludoFxCancel(); }
+    if (to === 'play-ludo') setTimeout(() => { if (ludoState().g) ludoLocalNext(); }, 0);
+  });
+}
+
+/* --- the sounds: short and quiet, not on the soundboard ------------------------------------- */
+if (typeof FX !== 'undefined') {
+  Object.assign(FX, {
+    ludoRoll(at) {
+      // A die rattling in a hand and landing: a few quick clicks, then a knock.
+      for (let k = 0; k < 4; k++) fxNoise('bandpass', 2600 + k * 300, 1.6, [[0, 0], [0.003, 0.09], [0.035, 0.001]], at + k * 0.06);
+      fxTone('sine', [[0, 300], [0.07, 140]], [[0, 0], [0.004, 0.22], [0.1, 0.001]], at + 0.3);
+    },
+    ludoStep(at) {
+      // A piece set down on the next square.
+      fxTone('sine', [[0, 620], [0.04, 480]], [[0, 0], [0.003, 0.07], [0.05, 0.001]], at);
+    },
+    ludoCapture(at) {
+      // Knocked off the board: a thump and a falling whistle.
+      fxTone('sine', [[0, 180], [0.1, 70]], [[0, 0], [0.004, 0.4], [0.14, 0.001]], at);
+      fxTone('triangle', [[0, 900], [0.35, 300]], [[0, 0], [0.02, 0.09], [0.38, 0.001]], at + 0.05);
+    },
+    ludoHome(at) {
+      fxTone('triangle', [[0, 660]], [[0, 0], [0.01, 0.12], [0.2, 0.001]], at);
+      fxTone('triangle', [[0, 880]], [[0, 0], [0.01, 0.12], [0.2, 0.001]], at + 0.09);
+      fxTone('triangle', [[0, 1320]], [[0, 0], [0.01, 0.1], [0.34, 0.001]], at + 0.18);
+    }
+  });
+}
+</script>

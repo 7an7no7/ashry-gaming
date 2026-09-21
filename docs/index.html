@@ -10683,6 +10683,330 @@ button.dom-seatchip { cursor: pointer; transition: transform var(--dur-2) var(--
   .dom-reveal__line.is-shown, .dom-htile, .dom-seat, .dom-mine, button.dom-seatchip { transition: none; }
 }
 
+/* ==========================================================================
+   22. لودو
+   The owner's option أ "كلاسيك" (21 Sep 2026): the classic cross on white,
+   the four yards in full red, green, yellow and blue - أونو's four - a star
+   on the safe squares and an arrow on each start, glossy pieces with a white
+   rim, and the app's white 3D die. The board is the same in both themes, like
+   a real one; the page around it follows the theme. Everything on the board
+   is placed in percent of its width (JS_Ludo.html), so one markup fits a
+   phone, a laptop and a TV.
+   ========================================================================== */
+.ludo-av--R { background: #e5383b; } .ludo-av--G { background: #1f9d55; }
+.ludo-av--Y { background: #f5b400; } .ludo-av--B { background: #1e6fd9; }
+
+/* --- the board ------------------------------------------------------------ */
+.ludo-board { position: relative; width: 100%; aspect-ratio: 1; margin-inline: auto; }
+.ludo-rot {
+  position: absolute;
+  inset: 0;
+  border-radius: 2.2%;
+  background: #2b2733;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 22px rgba(20, 15, 30, 0.16);
+}
+.ludo-cell {
+  position: absolute;
+  width: calc(100% / 15 - 1px);
+  height: calc(100% / 15 - 1px);
+  margin: 0.5px;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+}
+.ludo-cell--R { background: #e5383b; } .ludo-cell--G { background: #1f9d55; }
+.ludo-cell--Y { background: #f5b400; } .ludo-cell--B { background: #1e6fd9; }
+.ludo-star { width: 64%; height: 64%; fill: #77737f; }
+.ludo-arrow { width: 62%; height: 62%; fill: none; stroke: #ffffff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.ludo-yard { position: absolute; width: 40%; height: 40%; }
+.ludo-yard--G { background: #1f9d55; border-top-left-radius: 5.5%; }
+.ludo-yard--Y { background: #f5b400; border-top-right-radius: 5.5%; }
+.ludo-yard--B { background: #1e6fd9; border-bottom-right-radius: 5.5%; }
+.ludo-yard--R { background: #e5383b; border-bottom-left-radius: 5.5%; }
+.ludo-yard__in { position: absolute; inset: 16.667%; background: #ffffff; border-radius: 14%; }
+.ludo-spot { position: absolute; width: 8.4%; aspect-ratio: 1; margin: -4.2% 0 0 -4.2%; border-radius: 50%; }
+.ludo-spot--R { background: #fbd3d4; } .ludo-spot--G { background: #cdebd9; }
+.ludo-spot--Y { background: #fdecb8; } .ludo-spot--B { background: #cfe0f8; }
+.ludo-mid { position: absolute; left: 40%; top: 40%; width: 20%; height: 20%; }
+.ludo-fx { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+
+/* A piece: placed by left/top (its centre, by negative margins), so its
+   transform is free for the motion. */
+.ludo-pc {
+  position: absolute;
+  z-index: 2;
+  width: 5.4%;
+  aspect-ratio: 1;
+  margin: -2.7% 0 0 -2.7%;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #ffffff, 0 2px 3px rgba(0, 0, 0, 0.38);
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+.ludo-pc--R { background: radial-gradient(circle at 35% 30%, #ff8a8b, #e5383b 55%, #a82427); }
+.ludo-pc--G { background: radial-gradient(circle at 35% 30%, #5fd08f, #1f9d55 55%, #136b39); }
+.ludo-pc--Y { background: radial-gradient(circle at 35% 30%, #ffe27a, #f5b400 55%, #b98600); }
+.ludo-pc--B { background: radial-gradient(circle at 35% 30%, #6ea7f5, #1e6fd9 55%, #154c98); }
+.ludo-pc.is-stacked { width: 4.4%; margin: -2.2% 0 0 -2.2%; }
+.ludo-pc.is-home { width: 4.2%; margin: -2.1% 0 0 -2.1%; }
+/* The pieces this phone may move: on top, a turning dashed ring, and a bigger place to tap. */
+.ludo-pc.is-movable { z-index: 4; cursor: pointer; }
+.ludo-pc.is-movable::before { content: ""; position: absolute; inset: -70%; border-radius: 50%; }
+.ludo-pc.is-movable::after {
+  content: "";
+  position: absolute;
+  inset: -38%;
+  border-radius: 50%;
+  border: 2px dashed #1d1b26;
+  animation: ludoRing 2.4s linear infinite;
+}
+.ludo-pc.is-movable:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.ludo-pc.is-sent { transform: scale(1.18); transition: transform 0.12s ease-out; }
+.ludo-board.is-choosing .ludo-pc:not(.is-movable) { filter: saturate(0.85); }
+@keyframes ludoRing { to { transform: rotate(360deg); } }
+
+/* The squares a piece would pass, and where it would land (a mouse or a keyboard). */
+.ludo-path { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
+.ludo-path--dot { width: 1.9%; aspect-ratio: 1; background: var(--pc); opacity: 0.7; box-shadow: 0 0 0 1.5px #ffffff; }
+.ludo-path--end { width: 5.8%; aspect-ratio: 1; border: 2.5px solid var(--pc); background: rgba(255, 255, 255, 0.35); }
+.ludo-path--end.is-capture { border-color: #e5383b; }
+.ludo-path--end b {
+  position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+  padding: 2px 6px; border-radius: 8px; background: #e5383b; color: #ffffff;
+  font-size: 10px; font-weight: 800; line-height: 1.2; white-space: nowrap;
+}
+
+/* A piece taken, a piece home: a ring bursting out in its colour. */
+.ludo-burst {
+  position: absolute;
+  width: 6.6%;
+  aspect-ratio: 1;
+  margin: -3.3% 0 0 -3.3%;
+  border-radius: 50%;
+  border: 3px solid var(--pc);
+  animation: ludoBurst 0.8s var(--ease-out, ease-out) forwards;
+}
+.ludo-burst--big { border-width: 4px; animation-duration: 0.9s; }
+@keyframes ludoBurst { from { transform: scale(0.4); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+
+/* The roll-off before the first turn. */
+.ludo-off { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; pointer-events: none; animation: ludoFadeIn 0.25s ease-out both; }
+.ludo-off.is-leaving { animation: ludoFadeOut 0.35s ease-in forwards; }
+.ludo-off__card {
+  min-width: 58%;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg, 20px);
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  direction: inherit;
+}
+.ludo-board[dir] .ludo-off__card { direction: rtl; }
+html[lang="en"] .ludo-board[dir] .ludo-off__card { direction: ltr; }
+.ludo-off__title { margin: 0 0 var(--sp-2); text-align: center; font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.05rem; }
+.ludo-off__again { margin: var(--sp-2) 0 var(--sp-1); text-align: center; font-size: 0.8rem; font-weight: 700; color: var(--text-2); }
+.ludo-off__row { display: flex; align-items: center; gap: var(--sp-2); padding: 3px 0; animation: ludoRowIn 0.3s ease-out both; animation-delay: var(--at); }
+.ludo-off__round { animation: ludoFadeIn 0.2s ease-out both; animation-delay: var(--at); }
+.ludo-off__dot { width: 0.9rem; height: 0.9rem; border-radius: 50%; flex: none; }
+.ludo-off__name { flex: 1; min-width: 0; font-size: 0.9rem; font-weight: 700; }
+.ludo-off__n { font-size: 1.2rem; font-weight: 800; animation: ludoNumIn 0.5s var(--ease-out, ease-out) both; animation-delay: calc(var(--at) + 0.35s); }
+.ludo-off__first { margin: var(--sp-2) 0 0; text-align: center; font-weight: 800; color: var(--accent-ink); animation: ludoFadeIn 0.3s ease-out both; animation-delay: var(--at); }
+@keyframes ludoFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ludoFadeOut { to { opacity: 0; } }
+@keyframes ludoRowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ludoNumIn { 0% { opacity: 0; transform: scale(0.4) rotate(-40deg); } 70% { opacity: 1; transform: scale(1.25); } 100% { transform: scale(1); } }
+
+/* --- the frame: players, board, bar, log ------------------------------------- */
+.ludo-layout { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ludo-layout__side { display: contents; }
+.ludo-layout__board { width: 100%; max-width: 34rem; margin-inline: auto; }
+.ludo-layout__side > .ludo-over { order: -3; }
+.ludo-layout__side > .ludo-strip { order: -2; }
+
+.ludo-strip { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: var(--sp-2); }
+.ludo-strip--n2 { --n: 2; } .ludo-strip--n3 { --n: 3; } .ludo-strip--n4 { --n: 4; }
+.ludo-chip {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 6px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: box-shadow var(--dur-2, 200ms) ease, opacity var(--dur-2, 200ms) ease;
+}
+.ludo-chip.is-turn { border-color: transparent; box-shadow: 0 0 0 2px var(--pc), 0 4px 12px rgba(0, 0, 0, 0.08); }
+.ludo-chip.is-away { opacity: 0.55; }
+.ludo-chip__av {
+  width: 1.5rem; height: 1.5rem; flex: none;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: #ffffff; font-weight: 800; font-size: 0.75rem; line-height: 1;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.ludo-chip__av.ludo-av--Y { color: #1d1b26; }
+.ludo-chip.is-done .ludo-chip__av { background: var(--surface-2); font-size: 1rem; }
+.ludo-chip__who { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ludo-chip__name { font-size: 0.78rem; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ludo-chip__name small { font-weight: 600; color: var(--text-2); }
+.ludo-chip__dots { display: flex; gap: 3px; }
+.ludo-chip__dot { width: 6px; height: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--text-3); opacity: 0.6; }
+.ludo-chip__dot.is-home { background: var(--pc); box-shadow: none; opacity: 1; }
+
+.ludo-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: 20px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  box-shadow: 0 -2px 14px rgba(40, 30, 20, 0.06);
+}
+.ludo-bar.is-mine { box-shadow: 0 0 0 2px var(--accent), 0 6px 18px rgba(40, 30, 20, 0.1); border-color: transparent; }
+.ludo-bar__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ludo-bar__t1 { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.15rem; line-height: 1.2; }
+.ludo-bar__dot { width: 0.7rem; height: 0.7rem; border-radius: 50%; flex: none; }
+.ludo-bar__t2 { font-size: 0.82rem; font-weight: 500; color: var(--text-2); }
+.ludo-bar__clock { flex: none; }
+.ludo-bar__roll { flex: none; min-width: 6rem; }
+
+.ludo-die {
+  --die-ring: var(--pc, transparent);
+  flex: none;
+  width: 3.4rem; height: 3.4rem;
+  display: grid; place-items: center;
+  padding: 0; border: 0; background: none;
+  perspective: 500px;
+  border-radius: 14px;
+}
+.ludo-die .die { --die: 2.6rem; transition: transform 0.72s cubic-bezier(0.18, 0.72, 0.24, 1); }
+.ludo-die .die__face { border-radius: 0.5rem; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12), inset 0 -0.3rem 0.6rem rgba(15, 23, 42, 0.07), 0 0 0 2px var(--die-ring); }
+.ludo-die.is-rollable { cursor: pointer; animation: ludoNudge 1.6s ease-in-out infinite; }
+.ludo-die.is-rolling .die { animation: ludoTumble 0.5s linear infinite; }
+@keyframes ludoNudge { 0%, 70%, 100% { transform: none; } 80% { transform: rotate(-8deg); } 90% { transform: rotate(8deg); } }
+@keyframes ludoTumble { from { transform: rotateX(0deg) rotateY(0deg); } to { transform: rotateX(360deg) rotateY(720deg); } }
+
+.ludo-log { display: flex; flex-direction: column; gap: 4px; min-height: 1.2rem; }
+.ludo-log__line { font-size: 0.8rem; font-weight: 500; color: var(--text-2); line-height: 1.4; }
+.ludo-log__line.is-latest { color: var(--text); font-weight: 600; }
+
+.ludo-over { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ludo-over__title { margin: 0; text-align: center; font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.2rem; }
+.ludo-over .podium { margin: 0; }
+.ludo-podium__color { width: 0.75rem; height: 0.75rem; border-radius: 50%; }
+
+/* --- the setup screen and the room's lobby --------------------------------------- */
+.ludo-swatches { display: flex; gap: var(--sp-3); }
+.ludo-swatch {
+  width: 3rem; height: 3rem;
+  border-radius: 50%;
+  border: 0;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.4), 0 2px 5px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform var(--dur-2, 200ms) var(--ease-out, ease-out), box-shadow var(--dur-2, 200ms) ease;
+}
+.ludo-swatch.is-active { transform: scale(1.08); box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 6px var(--text); }
+.ludo-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.ludo-pick {
+  min-width: 0;
+  min-height: 3.25rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "piece name" "piece who";
+  align-items: center;
+  column-gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: 14px;
+  border: 0;
+  color: #ffffff;
+  text-align: start;
+  cursor: pointer;
+}
+.ludo-pick.ludo-av--Y { color: #1d1b26; }
+.ludo-pick:disabled { cursor: default; }
+.ludo-pick.is-taken:not(.is-mine) { opacity: 0.55; }
+.ludo-pick.is-mine { box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 5.5px var(--text); }
+.ludo-pick__piece { grid-area: piece; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12); }
+.ludo-pick__name { grid-area: name; font-weight: 800; font-size: 0.9rem; line-height: 1.2; }
+.ludo-pick__who { grid-area: who; font-size: 0.78rem; font-weight: 600; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --- a phone on its side, and every wide screen: the board takes the height --- */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .ludo-layout { display: grid; grid-template-columns: auto minmax(13rem, 21rem); justify-content: center; align-items: start; gap: var(--sp-4); }
+  .ludo-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  .ludo-layout__board {
+    position: sticky;
+    top: 0;
+    width: min(calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem), 58vw);
+    max-width: none;
+    margin: 0;
+  }
+  .ludo-strip { grid-template-columns: minmax(0, 1fr); }
+  .ludo-bar { position: static; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .ludo-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ludo-chip { padding-block: 4px; }
+  .ludo-strip { gap: 6px; }
+  .ludo-bar { padding: var(--sp-2); }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-ludo, .shell__main > #view-room-ludo { max-width: 72rem; }
+  .ludo-layout { gap: var(--sp-6); grid-template-columns: auto minmax(15rem, 23rem); }
+  .ludo-layout__board { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 2.5rem), 62vw); }
+  .ludo-chip__name { font-size: 0.9rem; }
+}
+
+/* --- the TV: the board as tall as the stage, the players and the die beside it --- */
+.ludo--tv { height: 100%; min-height: 0; display: flex; }
+.ludo--tv .ludo-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 30rem);
+  justify-content: center;
+  align-items: center;
+  gap: calc(var(--tv-gap) * 2.5);
+}
+.ludo--tv .ludo-layout__side { display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); min-width: 0; }
+.ludo--tv .ludo-layout__board { position: static; width: min(calc(var(--app-h, 100vh) - 17vmin), 60vw); max-width: none; margin: 0; }
+.ludo--tv .ludo-strip { grid-template-columns: minmax(0, 1fr); gap: var(--tv-gap); }
+.ludo--tv .ludo-chip { padding: 1vmin 1.4vmin; border-radius: var(--tv-r); gap: 1.2vmin; }
+.ludo--tv .ludo-chip__av { width: 4.6vmin; height: 4.6vmin; font-size: var(--tv-sm); }
+.ludo--tv .ludo-chip__name { font-size: var(--tv-md); }
+.ludo--tv .ludo-chip__dot { width: 1.2vmin; height: 1.2vmin; }
+.ludo--tv .ludo-chip__dots { gap: 0.6vmin; }
+.ludo--tv .ludo-bar { position: static; padding: 1.4vmin 1.8vmin; border-radius: var(--tv-r); gap: 1.8vmin; }
+.ludo--tv .ludo-bar__t1 { font-size: var(--tv-md); }
+.ludo--tv .ludo-bar__t2 { font-size: var(--tv-sm); }
+.ludo--tv .ludo-die { width: 9vmin; height: 9vmin; }
+.ludo--tv .ludo-die .die { --die: 7vmin; }
+.ludo--tv .ludo-log__line { font-size: var(--tv-sm); }
+.ludo--tv .ludo-over__title { font-size: var(--tv-md); }
+.ludo--tv .ludo-pc { box-shadow: 0 0 0 3px #ffffff, 0 3px 5px rgba(0, 0, 0, 0.4); }
+.ludo--tv .ludo-off__card { padding: 2vmin 3vmin; }
+.ludo--tv .ludo-off__name, .ludo--tv .ludo-off__title { font-size: var(--tv-md); }
+.ludo--tv .ludo-off__n { font-size: var(--tv-lg); }
+/* A phone mirrored upright: one column, and the stage scrolls. */
+@media (orientation: portrait) {
+  .ludo--tv { height: auto; }
+  .ludo--tv .ludo-layout { grid-template-columns: minmax(0, 1fr); }
+  .ludo--tv .ludo-layout__board { width: min(100%, 62vh); justify-self: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ludo-pc.is-movable::after, .ludo-die.is-rollable, .ludo-die.is-rolling .die, .ludo-burst,
+  .ludo-off, .ludo-off__row, .ludo-off__round, .ludo-off__n, .ludo-off__first { animation: none; }
+  .ludo-die .die, .ludo-chip, .ludo-swatch, .ludo-pc.is-sent { transition: none; }
+}
+
 </style>
 
     
@@ -15240,6 +15564,472 @@ function dotsBestMove(board, me, level, opts) {
 }
 
 </script>
+    <script>
+/* ============================================================================
+   لودو — LUDO: the board, the rules and the computer players
+   ----------------------------------------------------------------------------
+   One copy for both sides: the page inlines this file (SHARED_LISTS in
+   tools/build-*.mjs) for a game against the phone and to draw the board, and
+   the rooms server bundles it (FILES in rooms-worker/build.mjs) to judge a
+   room. No DOM, nothing that runs at load, every name prefixed ludo / LUDO_.
+
+   The owner's rules (21 Sep 2026, asked one at a time):
+     - 2 to 4 players, each for themselves, four pieces each.
+     - A piece leaves the yard on a 6 only. A 6 gives another roll; a third 6
+       in a row is not played and the turn passes.
+     - Safe squares: the four start squares and the four stars. Anything else,
+       landing on a single piece of another colour sends it back to its yard.
+     - Two or more of one player's pieces on one square are a wall: no other
+       player can pass it or land on it.
+     - Home needs the exact number.
+     - The game plays on for places: the first home wins, the rest play for
+       second and third, and the last one left takes the last place.
+
+   The board is the classic 15 x 15 cross, left to right in every language
+   (a physical board). Columns and rows are counted from the top-left corner.
+   The four yards: G top-left, Y top-right, B bottom-right, R bottom-left.
+   Pieces go round clockwise, and so do the turns: G, Y, B, R.
+
+   A piece's place is a number from its own start: -1 in the yard, 0..50 on
+   the track (0 its start square, 50 the square before its home column),
+   51..55 its home column, 56 home (the middle).
+
+   The game is one plain object, shaped like a room's `shared` so the server
+   can use it as it is:
+     { seats: [pid...] in turn order, colors: { pid: 'G'|'Y'|'B'|'R' },
+       pieces: { pid: [p, p, p, p] }, turn: { pid, stage: 'roll'|'move',
+       dice, sixes }, movable: [piece...], places: [pid...], phase:
+       'play'|'gameover', turnSeq, events: [...], eventSeq }
+   Every change is an event (`events`, the last LUDO_EVENTS), which is what the
+   screens animate: rolloff, roll, three, nomove, move (with the pieces it
+   sent home), finish, over.
+   ========================================================================= */
+
+const LUDO_COLORS = ['G', 'Y', 'B', 'R'];
+const LUDO_START = { G: 0, Y: 13, B: 26, R: 39 };    // each colour's start square on the shared track
+const LUDO_TRACK = 52;
+const LUDO_LAST_TRACK = 50;
+const LUDO_HOME = 56;
+const LUDO_PIECES = 4;
+const LUDO_SAFE = [0, 8, 13, 21, 26, 34, 39, 47];   // the four starts and the four stars
+const LUDO_STARS = [8, 21, 34, 47];
+const LUDO_MIN_PLAYERS = 2;
+const LUDO_MAX_PLAYERS = 4;
+const LUDO_CLOCKS = [0, 15, 30];
+const LUDO_EVENTS = 40;
+
+/** The shared track, square by square from G's start, as [column, row]. */
+const LUDO_TRACK_CELLS = [
+  [1, 6], [2, 6], [3, 6], [4, 6], [5, 6], [6, 5], [6, 4], [6, 3], [6, 2], [6, 1], [6, 0], [7, 0], [8, 0],
+  [8, 1], [8, 2], [8, 3], [8, 4], [8, 5], [9, 6], [10, 6], [11, 6], [12, 6], [13, 6], [14, 6], [14, 7], [14, 8],
+  [13, 8], [12, 8], [11, 8], [10, 8], [9, 8], [8, 9], [8, 10], [8, 11], [8, 12], [8, 13], [8, 14], [7, 14], [6, 14],
+  [6, 13], [6, 12], [6, 11], [6, 10], [6, 9], [5, 8], [4, 8], [3, 8], [2, 8], [1, 8], [0, 8], [0, 7], [0, 6]
+];
+
+/** Each colour's home column, from its first square to the one before the middle. */
+const LUDO_HOME_CELLS = {
+  G: [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]],
+  Y: [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5]],
+  B: [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7]],
+  R: [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9]]
+};
+
+/** The top-left corner of each yard, and the four spots in it (centres, in cells). */
+const LUDO_YARD = { G: [0, 0], Y: [9, 0], B: [9, 9], R: [0, 9] };
+const LUDO_SPOTS = [[2, 2], [4, 2], [2, 4], [4, 4]];
+/** Where a piece that has come home sits in the middle: in its colour's triangle. */
+const LUDO_MIDDLE = { G: [6.55, 7.5], Y: [7.5, 6.55], B: [8.45, 7.5], R: [7.5, 8.45] };
+
+/** A place on the shared track (0..51), or null in the yard, the home column or home. */
+const ludoGlobal = (color, rel) => (rel >= 0 && rel <= LUDO_LAST_TRACK ? (LUDO_START[color] + rel) % LUDO_TRACK : null);
+
+/**
+ * Where a piece is drawn, in cells (its centre): the yard spot of piece `i`,
+ * a track square, its home column, or the middle.
+ */
+const ludoCellOf = (color, rel, i) => {
+  if (rel < 0) {
+    const y = LUDO_YARD[color];
+    const s = LUDO_SPOTS[i % 4];
+    return [y[0] + s[0], y[1] + s[1]];
+  }
+  if (rel <= LUDO_LAST_TRACK) {
+    const c = LUDO_TRACK_CELLS[ludoGlobal(color, rel)];
+    return [c[0] + 0.5, c[1] + 0.5];
+  }
+  if (rel < LUDO_HOME) {
+    const c = LUDO_HOME_CELLS[color][rel - LUDO_LAST_TRACK - 1];
+    return [c[0] + 0.5, c[1] + 0.5];
+  }
+  return LUDO_MIDDLE[color].slice();
+};
+
+/** The squares a piece passes through on a move, the last one where it stops (in `rel`). */
+const ludoPath = (from, to) => {
+  if (from < 0) return [0];
+  const out = [];
+  for (let r = from + 1; r <= to; r++) out.push(r);
+  return out;
+};
+
+/* --- a game ------------------------------------------------------------------- */
+
+/**
+ * A new game for these players and colours: every piece in its yard, the
+ * seats in the order the turns go (G, Y, B, R), and `first` to play.
+ */
+const ludoNewGame = (ids, colors, first) => {
+  const seats = ids.slice().sort((a, b) => LUDO_COLORS.indexOf(colors[a]) - LUDO_COLORS.indexOf(colors[b]));
+  const pieces = {};
+  seats.forEach(id => { pieces[id] = [-1, -1, -1, -1]; });
+  const cols = {};
+  seats.forEach(id => { cols[id] = colors[id]; });
+  return {
+    seats: seats,
+    colors: cols,
+    pieces: pieces,
+    turn: { pid: seats.indexOf(first) !== -1 ? first : seats[0], stage: 'roll', dice: null, sixes: 0 },
+    movable: [],
+    places: [],
+    phase: 'play',
+    turnSeq: 1,
+    events: [],
+    eventSeq: 0
+  };
+};
+
+/**
+ * The colours for the players who didn't pick one: each takes the free colour
+ * furthest from those already taken, so two players sit opposite each other.
+ * Nobody picked at all: the first starts at the bottom left (R).
+ */
+const ludoFillColors = (ids, picked) => {
+  const out = {};
+  const taken = [];
+  ids.forEach(id => {
+    const c = picked && picked[id];
+    if (LUDO_COLORS.indexOf(c) !== -1 && taken.indexOf(c) === -1) { out[id] = c; taken.push(c); }
+  });
+  ids.forEach(id => {
+    if (out[id]) return;
+    const free = LUDO_COLORS.filter(c => taken.indexOf(c) === -1);
+    if (!free.length) return;
+    let best = taken.length ? free[0] : (free.indexOf('R') !== -1 ? 'R' : free[0]);
+    if (taken.length) {
+      let bestD = -1;
+      free.forEach(c => {
+        const d = Math.min.apply(null, taken.map(t => {
+          const k = Math.abs(LUDO_COLORS.indexOf(c) - LUDO_COLORS.indexOf(t));
+          return Math.min(k, 4 - k);
+        }));
+        if (d > bestD) { bestD = d; best = c; }
+      });
+    }
+    out[id] = best;
+    taken.push(best);
+  });
+  return out;
+};
+
+/**
+ * Who starts: everyone rolls once, the highest starts, and those level on top
+ * roll again. Returns { first, rounds: [[{ pid, n }...]...] } for the screens
+ * to show. `rng` gives a number in [0, 1).
+ */
+const ludoRollOff = (ids, rng) => {
+  const roll = () => 1 + Math.floor((rng || Math.random)() * 6);
+  let left = ids.slice();
+  const rounds = [];
+  for (let k = 0; k < 20 && left.length > 1; k++) {
+    const round = left.map(pid => ({ pid: pid, n: roll() }));
+    rounds.push(round);
+    const top = Math.max.apply(null, round.map(r => r.n));
+    left = round.filter(r => r.n === top).map(r => r.pid);
+  }
+  return { first: left[0], rounds: rounds };
+};
+
+const ludoEvent = (g, type, fields) => {
+  const clean = {};
+  Object.keys(fields || {}).forEach(k => { if (fields[k] !== undefined && fields[k] !== null) clean[k] = fields[k]; });
+  g.eventSeq = (g.eventSeq || 0) + 1;
+  g.events = (g.events || []).concat([Object.assign({ seq: g.eventSeq, type: type }, clean)]).slice(-LUDO_EVENTS);
+};
+
+/** The player whose pieces stand on a track square as a wall (two or more), or null. */
+const ludoWallAt = (g, global) => {
+  for (const pid of g.seats) {
+    const color = g.colors[pid];
+    const n = (g.pieces[pid] || []).filter(r => ludoGlobal(color, r) === global).length;
+    if (n >= 2) return pid;
+  }
+  return null;
+};
+
+/** Every piece of the other players on a track square: [{ pid, piece }]. */
+const ludoOthersAt = (g, pid, global) => {
+  const out = [];
+  g.seats.forEach(o => {
+    if (o === pid) return;
+    (g.pieces[o] || []).forEach((r, i) => { if (ludoGlobal(g.colors[o], r) === global) out.push({ pid: o, piece: i }); });
+  });
+  return out;
+};
+
+/**
+ * Where `pid`'s piece `i` goes with `dice`, or null when it can't:
+ * { from, to, cap: [{ pid, piece }] }.
+ */
+const ludoTarget = (g, pid, i, dice) => {
+  const color = g.colors[pid];
+  const from = (g.pieces[pid] || [])[i];
+  if (from === undefined || from === LUDO_HOME) return null;
+  if (from < 0) {
+    if (dice !== 6) return null;
+    const start = LUDO_START[color];
+    const wall = ludoWallAt(g, start);
+    if (wall && wall !== pid) return null;
+    // The start square is safe: whoever is there stays.
+    return { from: -1, to: 0, cap: [] };
+  }
+  const to = from + dice;
+  if (to > LUDO_HOME) return null;
+  // Nobody passes or lands on another player's wall.
+  for (let r = from + 1; r <= Math.min(to, LUDO_LAST_TRACK); r++) {
+    const wall = ludoWallAt(g, ludoGlobal(color, r));
+    if (wall && wall !== pid) return null;
+  }
+  let cap = [];
+  if (to <= LUDO_LAST_TRACK) {
+    const at = ludoGlobal(color, to);
+    if (LUDO_SAFE.indexOf(at) === -1) cap = ludoOthersAt(g, pid, at);
+  }
+  return { from: from, to: to, cap: cap };
+};
+
+/** The pieces `pid` can move with `dice`. */
+const ludoMovable = (g, pid, dice) => {
+  const out = [];
+  (g.pieces[pid] || []).forEach((r, i) => { if (ludoTarget(g, pid, i, dice)) out.push(i); });
+  return out;
+};
+
+/**
+ * The moves that differ: two pieces on the same place come to the same thing,
+ * so only one of them counts (the lowest index).
+ */
+const ludoDistinct = (g, pid, dice) => {
+  const seen = new Set();
+  return ludoMovable(g, pid, dice).filter(i => {
+    const at = g.pieces[pid][i];
+    if (seen.has(at)) return false;
+    seen.add(at);
+    return true;
+  });
+};
+
+/** A move that brings a player's last piece home: it wins them their place. */
+const ludoIsFinishing = (g, pid, i, dice) => {
+  const t = ludoTarget(g, pid, i, dice);
+  if (!t || t.to !== LUDO_HOME) return false;
+  return g.pieces[pid].every((r, k) => k === i || r === LUDO_HOME);
+};
+
+const ludoFinished = (g, pid) => (g.pieces[pid] || []).length > 0 && g.pieces[pid].every(r => r === LUDO_HOME);
+const ludoActive = (g) => g.seats.filter(pid => g.places.indexOf(pid) === -1);
+
+/** The turn goes round to the next player still playing. */
+const ludoNextTurn = (g) => {
+  const at = g.seats.indexOf(g.turn.pid);
+  for (let k = 1; k <= g.seats.length; k++) {
+    const next = g.seats[(at + k + g.seats.length) % g.seats.length];
+    if (g.places.indexOf(next) === -1) {
+      g.turn = { pid: next, stage: 'roll', dice: null, sixes: 0 };
+      g.movable = [];
+      g.turnSeq = (g.turnSeq || 0) + 1;
+      return;
+    }
+  }
+};
+
+/** Once one player is left, they take the last place and the game is over. */
+const ludoCheckOver = (g) => {
+  const left = ludoActive(g);
+  if (left.length > 1) return false;
+  if (left.length === 1) {
+    g.places.push(left[0]);
+    ludoEvent(g, 'finish', { pid: left[0], place: g.places.length, last: true });
+  }
+  g.phase = 'gameover';
+  g.turn = { pid: null, stage: null, dice: null, sixes: 0 };
+  g.movable = [];
+  g.turnSeq = (g.turnSeq || 0) + 1;
+  ludoEvent(g, 'over', { places: g.places.slice() });
+  return true;
+};
+
+/**
+ * `pid` rolls `n`. A third 6 in a row loses the turn; nothing to move passes
+ * it (a 6 still rolls again); otherwise the player picks a piece.
+ */
+const ludoRoll = (g, pid, n) => {
+  if (g.phase !== 'play' || g.turn.pid !== pid || g.turn.stage !== 'roll') throw new Error('مش وقت الزهر');
+  const dice = Math.max(1, Math.min(6, Math.floor(Number(n)) || 1));
+  const sixes = dice === 6 ? (g.turn.sixes || 0) + 1 : 0;
+  ludoEvent(g, 'roll', { pid: pid, n: dice, sixes: sixes || undefined });
+  if (sixes >= 3) {
+    ludoEvent(g, 'three', { pid: pid });
+    ludoNextTurn(g);
+    return;
+  }
+  const movable = ludoMovable(g, pid, dice);
+  if (!movable.length) {
+    ludoEvent(g, 'nomove', { pid: pid, n: dice });
+    if (dice === 6) {
+      g.turn = { pid: pid, stage: 'roll', dice: null, sixes: sixes };
+      g.movable = [];
+      g.turnSeq = (g.turnSeq || 0) + 1;
+    } else {
+      ludoNextTurn(g);
+    }
+    return;
+  }
+  g.turn = { pid: pid, stage: 'move', dice: dice, sixes: sixes };
+  g.movable = movable;
+  g.turnSeq = (g.turnSeq || 0) + 1;
+};
+
+/** `pid` moves piece `i` by the dice rolled. */
+const ludoMove = (g, pid, i) => {
+  if (g.phase !== 'play' || g.turn.pid !== pid || g.turn.stage !== 'move') throw new Error('مش وقت الحركة');
+  const piece = Math.floor(Number(i));
+  const dice = g.turn.dice;
+  const t = ludoTarget(g, pid, piece, dice);
+  if (!t) throw new Error('الحجر ده مايتحركش بالرقم ده');
+  g.pieces[pid][piece] = t.to;
+  t.cap.forEach(c => { g.pieces[c.pid][c.piece] = -1; });
+  ludoEvent(g, 'move', { pid: pid, piece: piece, from: t.from, to: t.to, n: dice, cap: t.cap.length ? t.cap : undefined });
+  if (ludoFinished(g, pid)) {
+    g.places.push(pid);
+    ludoEvent(g, 'finish', { pid: pid, place: g.places.length });
+    if (ludoCheckOver(g)) return;
+    ludoNextTurn(g);
+    return;
+  }
+  if (dice === 6) {
+    g.turn = { pid: pid, stage: 'roll', dice: null, sixes: g.turn.sixes || 0 };
+    g.movable = [];
+    g.turnSeq = (g.turnSeq || 0) + 1;
+    return;
+  }
+  ludoNextTurn(g);
+};
+
+/**
+ * A player leaves: their pieces go, their turn passes on, and with one player
+ * left the game is over (they take the next place).
+ */
+const ludoRemovePlayer = (g, pid) => {
+  const at = g.seats.indexOf(pid);
+  if (at === -1) return;
+  const wasUp = g.phase === 'play' && g.turn.pid === pid;
+  const next = g.seats[(at + 1) % g.seats.length];
+  g.seats = g.seats.filter(x => x !== pid);
+  delete g.pieces[pid];
+  g.places = g.places.filter(x => x !== pid);
+  if (g.phase !== 'play') return;
+  if (ludoCheckOver(g)) return;
+  if (wasUp) {
+    // The seat after theirs, or the next still playing from there.
+    g.turn = { pid: next, stage: 'roll', dice: null, sixes: 0 };
+    if (g.places.indexOf(next) !== -1) ludoNextTurn(g);
+    else { g.movable = []; g.turnSeq = (g.turnSeq || 0) + 1; }
+  }
+};
+
+/* --- the computer players ---------------------------------------------------------
+   From the board alone - it is all on the table. Easy moves any piece that can.
+   Hard: takes a piece when it can, brings a piece home or into its column,
+   gets a piece out on a 6, runs a piece that could be taken, lands on safe
+   squares and walls, and stays out of reach of the pieces behind it.
+   ------------------------------------------------------------------------------ */
+
+/** How many of the other players' pieces could reach a track square next roll. */
+const ludoThreat = (g, pid, global) => {
+  if (global === null || LUDO_SAFE.indexOf(global) !== -1) return 0;
+  let n = 0;
+  g.seats.forEach(o => {
+    if (o === pid || g.places.indexOf(o) !== -1) return;
+    const color = g.colors[o];
+    (g.pieces[o] || []).forEach(r => {
+      if (r < 0 || r > LUDO_LAST_TRACK) return;
+      const at = ludoGlobal(color, r);
+      const d = (global - at + LUDO_TRACK) % LUDO_TRACK;
+      if (d >= 1 && d <= 6 && r + d <= LUDO_LAST_TRACK) n++;
+    });
+  });
+  return n;
+};
+
+const ludoMoveScore = (g, pid, i, dice) => {
+  const t = ludoTarget(g, pid, i, dice);
+  if (!t) return -Infinity;
+  const color = g.colors[pid];
+  const mine = g.pieces[pid];
+  let score = 0;
+  if (t.cap.length) score += 100 + t.cap.reduce((sum, c) => sum + Math.max(0, g.pieces[c.pid][c.piece]), 0) * 0.6;
+  if (t.to === LUDO_HOME) score += 80;
+  else if (t.from <= LUDO_LAST_TRACK && t.to > LUDO_LAST_TRACK) score += 50;
+  if (t.from < 0) score += 45 + (mine.filter(r => r >= 0).length === 0 ? 20 : 0);
+  const fromG = t.from >= 0 ? ludoGlobal(color, t.from) : null;
+  const toG = t.to <= LUDO_LAST_TRACK ? ludoGlobal(color, t.to) : null;
+  // Out of reach of what could take it now; into reach is the opposite.
+  if (fromG !== null) {
+    const alone = mine.filter(r => r === t.from).length === 1;
+    if (alone) score += ludoThreat(g, pid, fromG) * 30;
+    else score -= 12;            // breaking up a wall
+  }
+  if (toG !== null) {
+    const joins = mine.some((r, k) => k !== i && r === t.to);
+    if (LUDO_SAFE.indexOf(toG) !== -1) score += 22;
+    else if (joins) score += 20;
+    else score -= ludoThreat(Object.assign({}, g, { pieces: Object.assign({}, g.pieces, { [pid]: mine.map((r, k) => (k === i ? t.to : r)) }) }), pid, toG) * 38;
+  }
+  // A little for getting on: a piece near home is worth securing.
+  score += t.to * 0.4;
+  return score;
+};
+
+/** The piece a computer player moves, or -1 when none can. `rng` gives [0, 1). */
+const ludoBotPick = (g, pid, level, rng) => {
+  const dice = g.turn && g.turn.dice;
+  const moves = ludoDistinct(g, pid, dice);
+  if (!moves.length) return -1;
+  const r = rng || Math.random;
+  if (level !== 'hard') return moves[Math.floor(r() * moves.length)];
+  let best = -Infinity;
+  let pick = moves[0];
+  moves.forEach(i => {
+    const v = ludoMoveScore(g, pid, i, dice) + r() * 0.5;
+    if (v > best) { best = v; pick = i; }
+  });
+  return pick;
+};
+
+/**
+ * The one move a player could make, when there is exactly one (two pieces on
+ * the same place count once) and it doesn't bring their last piece home - that
+ * moment is theirs to tap. Otherwise -1.
+ */
+const ludoOnlyMove = (g, pid) => {
+  if (g.phase !== 'play' || !g.turn || g.turn.pid !== pid || g.turn.stage !== 'move') return -1;
+  const moves = ludoDistinct(g, pid, g.turn.dice);
+  if (moves.length !== 1) return -1;
+  if (ludoIsFinishing(g, pid, moves[0], g.turn.dice)) return -1;
+  return moves[0];
+};
+
+</script>
 <script>
       /* The published site. The local preview leaves this out, so it never registers the offline cache. */
       window.STATIC_SITE = true;
@@ -15248,7 +16038,7 @@ function dotsBestMove(board, me, level, opts) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260921121725";
+      window.BUILD_ID = "20260921162514";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -16107,6 +16897,53 @@ function dotsBestMove(board, me, level, opts) {
       </div>
       <div id="view-play-dots" class="hidden" data-accent="indigo"><div id="dots-stage"></div></div>
       <div id="view-room-dots" class="hidden" data-accent="indigo"></div>
+
+      <!-- ============ لودو (against the phone, or a room with the TV) ============ -->
+      <div id="view-setup-ludo" class="hidden" data-accent="amber">
+        <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('ludo', 'device')" data-i18n="ludo_mode_phone">ضد الموبايل</button>
+            <button class="segmented__item" data-mode="online" onclick="setPlayMode('ludo', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="ludo_online_desc">من 2 لـ 4، كل واحد من موبايله، واللوحة على التلفزيون. تقدر تكمّل العدد بلاعبين كمبيوتر.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('ludo')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+          <div class="mode-device-panel">
+            <div class="field">
+              <label class="field__label" data-i18n="ludo_opp_label">كام لاعب كمبيوتر؟</label>
+              <div class="segmented" id="ludo-opp" role="group">
+                <button type="button" class="segmented__item is-active" data-value="1" onclick="setLudoOption('opp', 1)">1</button>
+                <button type="button" class="segmented__item" data-value="2" onclick="setLudoOption('opp', 2)">2</button>
+                <button type="button" class="segmented__item" data-value="3" onclick="setLudoOption('opp', 3)">3</button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label" data-i18n="xo_level_label">المستوى</label>
+              <div class="segmented" id="ludo-level" role="group">
+                <button type="button" class="segmented__item is-active" data-value="easy" onclick="setLudoOption('level', 'easy')" data-i18n="xo_easy">سهل</button>
+                <button type="button" class="segmented__item" data-value="hard" onclick="setLudoOption('level', 'hard')" data-i18n="xo_hard">صعب</button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label" data-i18n="ludo_your_color">لونك</label>
+              <div class="ludo-swatches" id="ludo-color" role="group">
+                <button type="button" class="ludo-swatch ludo-av--R is-active" data-value="R" onclick="setLudoOption('color', 'R')" data-i18n-title="ludo_color_R" aria-pressed="true"></button>
+                <button type="button" class="ludo-swatch ludo-av--G" data-value="G" onclick="setLudoOption('color', 'G')" data-i18n-title="ludo_color_G" aria-pressed="false"></button>
+                <button type="button" class="ludo-swatch ludo-av--Y" data-value="Y" onclick="setLudoOption('color', 'Y')" data-i18n-title="ludo_color_Y" aria-pressed="false"></button>
+                <button type="button" class="ludo-swatch ludo-av--B" data-value="B" onclick="setLudoOption('color', 'B')" data-i18n-title="ludo_color_B" aria-pressed="false"></button>
+              </div>
+            </div>
+            <button type="button" id="ludo-continue" class="btn btn--secondary hidden duel-continue" onclick="ludoContinue()" data-i18n="solo_continue">كمّل اللعبة</button>
+            <button onclick="startLudo()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          </div>
+        </div>
+      </div>
+      <div id="view-play-ludo" class="hidden" data-accent="amber"><div id="ludo-stage"></div></div>
+      <div id="view-room-ludo" class="hidden" data-accent="amber"></div>
 
       <div id="view-play-chooser" class="hidden" data-accent="orange">
         <div class="chooser__bar">
@@ -19740,6 +20577,7 @@ function dotsBestMove(board, me, level, opts) {
       cat_buzzer: "اسأل بصوتك، وأول واحد يضغط الجرس يجاوب.",
       cat_screw: "كل الإصدارات، كل واحد من موبايله.",
       cat_domino: "عادي أو أمريكاني، فردي أو فرق، على موبايلاتكم.",
+      cat_ludo: "طلّع حجارتك بالستة ووصّلها البيت قبل الكل.",
       cat_uno: "طابق اللون أو الرقم، وخلّص ورقك قبل الكل.",
       tool_screw_calc: "حاسبة سكرو",
       cat_screw_calc: "بتلعبوا بالكوتشينة، والتطبيق يحسب الجولات.",
@@ -20460,6 +21298,63 @@ function dotsBestMove(board, me, level, opts) {
       picked_is: "المختار هو",
       change_players: "تغيير اللاعبين",
       setup_domino: "دومينو",
+      setup_ludo: "لودو",
+      ludo_mode_phone: "ضد الموبايل",
+      ludo_online_desc: "من 2 لـ 4، كل واحد من موبايله، واللوحة على التلفزيون. تقدر تكمّل العدد بلاعبين كمبيوتر.",
+      ludo_opp_label: "كام لاعب كمبيوتر؟",
+      ludo_your_color: "لونك",
+      ludo_color_R: "الأحمر",
+      ludo_color_G: "الأخضر",
+      ludo_color_Y: "الأصفر",
+      ludo_color_B: "الأزرق",
+      ludo_color_free: "فاضي",
+      ludo_color_label: "الألوان",
+      ludo_color_pick: "دوس على لون عشان تاخده. اللي مايختارش ياخد لون لما اللعبة تبدأ.",
+      ludo_color_yours: "دوس على لونك تاني عشان تسيبه.",
+      ludo_watching_next: "انت بتتفرج اللعبة دي.",
+      ludo_seats_label: "بيلعبوا ({n} من 4)",
+      ludo_seats_hint_host: "اللعب لـ 4 بس: دوس على اسم عشان يلعب أو يتفرج.",
+      ludo_seats_hint: "المضيف بيختار مين يلعب، والباقي بيتفرج.",
+      ludo_clock: "وقت الدور",
+      ludo_clock_off: "من غير",
+      ludo_clock_hint: "لما الوقت يخلص الموبايل بيرمي ويلعب بدل اللاعب.",
+      ludo_lobby_hint: "مين يبدأ بيتحدد بالزهر: الأعلى يبدأ.",
+      ludo_piece_label: "حجر {color} {n}",
+      ludo_home_count: "{n} من 4 في البيت",
+      ludo_roll: "ارمي",
+      ludo_your_turn: "دورك!",
+      ludo_roll_hint: "ارمي الزهر",
+      ludo_again_six: "ستة! ارمي تاني",
+      ludo_you_rolled: "طلعت {n}",
+      ludo_pick_piece: "اختار حجر من اللي بتنوّر",
+      ludo_moving_itself: "حجر واحد بس يتحرك: هيتحرك لوحده",
+      ludo_rolled: "{name}: الزهر طلع {n}",
+      ludo_thinking: "الكمبيوتر بيفكر…",
+      ludo_choosing: "مستنيين {name}",
+      ludo_turn_of: "دور {name}",
+      ludo_over: "خلصت اللعبة",
+      ludo_again: "العب تاني",
+      ludo_wait_host: "المضيف هيختار اللي بعده.",
+      ludo_play_for: "العب بدل {name}",
+      ludo_takes: "أكل",
+      ludo_rolloff: "مين يبدأ؟",
+      ludo_rolloff_again: "تعادل! تاني",
+      ludo_ev_first: "البداية: {name}",
+      ludo_ev_three: "{name}: ٣ ستات ورا بعض، الدور راح",
+      ludo_ev_nomove: "{name}: مفيش حركة بالـ{n}",
+      ludo_ev_capture: "{name}: أكلة! حجر {other} رجع مكانه",
+      ludo_ev_captured_you: "{name}: أكلة! حجرك رجع مكانه",
+      ludo_ev_home: "{name}: حجر دخل البيت",
+      ludo_ev_out: "{name}: حجر جديد نزل",
+      ludo_ev_star: "{name}: حجر على نجمة، في أمان",
+      ludo_ev_finish: "{name}: المركز {place}",
+      ludo_place_1: "الأول",
+      ludo_place_2: "التاني",
+      ludo_place_3: "التالت",
+      ludo_place_4: "الرابع",
+      ludo_ev_clock: "الوقت خلص: الموبايل لعب بدل {name}",
+      ludo_ev_host: "المضيف لعب بدل {name}",
+      ludo_ev_left: "{name}: خروج من اللعبة",
       setup_uno: "أونو",
       setup_fakeartist: "الفنان المزيف",
       setup_wavelength: "على نفس الموجة",
@@ -21872,6 +22767,7 @@ function dotsBestMove(board, me, level, opts) {
       cat_buzzer: "Ask out loud. First to buzz gets to answer.",
       cat_screw: "Every version, each on their own phone.",
       cat_domino: "Classic or All Fives, solo or in teams.",
+      cat_ludo: "Roll a six to set out, then race everyone home.",
       cat_uno: "Match colour or number, and go out first.",
       tool_screw_calc: "Screw score keeper",
       cat_screw_calc: "Real cards on the table; the phone keeps score.",
@@ -22592,6 +23488,63 @@ function dotsBestMove(board, me, level, opts) {
       picked_is: "Picked is",
       change_players: "Change Players",
       setup_domino: "Domino",
+      setup_ludo: "Ludo",
+      ludo_mode_phone: "Against the phone",
+      ludo_online_desc: "2 to 4, each on their own phone, the board on the TV. Computer players can fill the seats.",
+      ludo_opp_label: "How many computer players?",
+      ludo_your_color: "Your colour",
+      ludo_color_R: "Red",
+      ludo_color_G: "Green",
+      ludo_color_Y: "Yellow",
+      ludo_color_B: "Blue",
+      ludo_color_free: "Free",
+      ludo_color_label: "Colours",
+      ludo_color_pick: "Tap a colour to take it. Anyone who doesn't gets one at the start.",
+      ludo_color_yours: "Tap your colour again to let it go.",
+      ludo_watching_next: "You're watching this game.",
+      ludo_seats_label: "Playing ({n} of 4)",
+      ludo_seats_hint_host: "Four play at most: tap a name to seat them or let them watch.",
+      ludo_seats_hint: "The host picks who plays; the rest watch.",
+      ludo_clock: "Turn clock",
+      ludo_clock_off: "Off",
+      ludo_clock_hint: "When it runs out, the phone rolls and moves for the player.",
+      ludo_lobby_hint: "The dice decide who starts: highest first.",
+      ludo_piece_label: "{color} piece {n}",
+      ludo_home_count: "{n} of 4 home",
+      ludo_roll: "Roll",
+      ludo_your_turn: "Your turn!",
+      ludo_roll_hint: "Roll the die",
+      ludo_again_six: "A six! Roll again",
+      ludo_you_rolled: "You rolled {n}",
+      ludo_pick_piece: "Pick one of the glowing pieces",
+      ludo_moving_itself: "Only one can move: it moves itself",
+      ludo_rolled: "{name} rolled {n}",
+      ludo_thinking: "The computer is thinking…",
+      ludo_choosing: "Waiting for {name}",
+      ludo_turn_of: "{name}'s turn",
+      ludo_over: "Game over",
+      ludo_again: "Play again",
+      ludo_wait_host: "The host picks what's next.",
+      ludo_play_for: "Play for {name}",
+      ludo_takes: "Takes",
+      ludo_rolloff: "Who starts?",
+      ludo_rolloff_again: "A tie! Again",
+      ludo_ev_first: "{name} starts",
+      ludo_ev_three: "{name}: three sixes in a row, turn lost",
+      ludo_ev_nomove: "{name} can't move with a {n}",
+      ludo_ev_capture: "{name} took {other}'s piece",
+      ludo_ev_captured_you: "{name} took your piece",
+      ludo_ev_home: "{name} brought a piece home",
+      ludo_ev_out: "{name} brought a piece out",
+      ludo_ev_star: "{name}'s piece is on a star: safe",
+      ludo_ev_finish: "{name} finished {place}",
+      ludo_place_1: "first",
+      ludo_place_2: "second",
+      ludo_place_3: "third",
+      ludo_place_4: "fourth",
+      ludo_ev_clock: "Time's up: the phone played for {name}",
+      ludo_ev_host: "The host played for {name}",
+      ludo_ev_left: "{name} left the game",
       setup_uno: "Uno",
       setup_fakeartist: "Fake Artist",
       setup_wavelength: "Wavelength",
@@ -23845,7 +24798,7 @@ function dotsBestMove(board, me, level, opts) {
         'setup-bomb', 'play-bomb',
         'setup-emoji', 'play-emoji', 'setup-proverbs', 'play-proverbs', 'setup-fiveseconds', 'play-fiveseconds',
         'room-twotruths', 'room-emoji', 'room-proverbs', 'room-fiveseconds', 'room-telephone', 'room-monkey', 'room-herd', 'room-mafia', 'room-mind', 'room-timeline', 'room-uno', 'room-domino',
-        'room-connect4', 'room-dots',
+        'room-connect4', 'room-dots', 'room-ludo',
         'setup-stop', 'play-stop',
         'setup-memory', 'play-memory',
         'setup-xo', 'play-xo',
@@ -24241,6 +25194,8 @@ function dotsBestMove(board, me, level, opts) {
     'play-connect4':   { title: 'setup_connect4',   up: 'setup-connect4', accent: 'blue' },
     'setup-dots':      { title: 'setup_dots',       up: 'menu',           accent: 'indigo' },
     'play-dots':       { title: 'setup_dots',       up: 'setup-dots',     accent: 'indigo' },
+    'setup-ludo':      { title: 'setup_ludo',       up: 'menu',           accent: 'amber' },
+    'play-ludo':       { title: 'setup_ludo',       up: 'setup-ludo',     accent: 'amber' },
     'setup-sudoku':    { title: 'setup_sudoku',     up: 'menu',           accent: 'indigo' },
     'play-sudoku':     { title: 'setup_sudoku',     up: 'setup-sudoku',   accent: 'indigo' },
     'setup-g2048':     { title: 'setup_g2048',      up: 'menu',           accent: 'orange' },
@@ -24294,7 +25249,8 @@ function dotsBestMove(board, me, level, opts) {
     'room-uno':          { title: 'setup_uno',          up: 'menu',               accent: 'rose' },
     'room-domino':       { title: 'setup_domino',       up: 'menu',               accent: 'green' },
     'room-connect4':     { title: 'setup_connect4',     up: 'menu',               accent: 'blue' },
-    'room-dots':         { title: 'setup_dots',         up: 'menu',               accent: 'indigo' }
+    'room-dots':         { title: 'setup_dots',         up: 'menu',               accent: 'indigo' },
+    'room-ludo':         { title: 'setup_ludo',         up: 'menu',               accent: 'amber' }
   };
 
   // Depth is what makes the slide directional: deeper = forward, shallower = back.
@@ -24390,7 +25346,15 @@ function dotsBestMove(board, me, level, opts) {
       '<rect x="19" y="4.6" width="26" height="51" rx="5" fill="#fffdf7" stroke="#cdbd98" stroke-width="1.2"/>' +
       '<path d="M22.5 30.1h19" stroke="#1b1b1f" stroke-width="1.5" stroke-linecap="round" opacity=".7"/>' +
       '<g fill="#1b1b1f"><circle cx="25.8" cy="11.2" r="2.5"/><circle cx="38.2" cy="11.2" r="2.5"/><circle cx="25.8" cy="17.35" r="2.5"/><circle cx="38.2" cy="17.35" r="2.5"/><circle cx="25.8" cy="23.5" r="2.5"/><circle cx="38.2" cy="23.5" r="2.5"/><circle cx="25.8" cy="36.7" r="2.5"/><circle cx="38.2" cy="36.7" r="2.5"/><circle cx="25.8" cy="42.85" r="2.5"/><circle cx="38.2" cy="42.85" r="2.5"/><circle cx="25.8" cy="49" r="2.5"/><circle cx="38.2" cy="49" r="2.5"/></g>' +
-      '<circle cx="32" cy="30.1" r="2.4" fill="#b8892a"/><circle cx="31.3" cy="29.4" r=".9" fill="#fbe7a0"/></g>'
+      '<circle cx="32" cy="30.1" r="2.4" fill="#b8892a"/><circle cx="31.3" cy="29.4" r=".9" fill="#fbe7a0"/></g>',
+    // لودو: the board, four yards round the cross, a piece in each.
+    ludo: '<rect x="6" y="8" width="52" height="52" rx="8" fill="#000" opacity=".18"/>' +
+      '<rect x="6" y="6" width="52" height="52" rx="8" fill="#fff" stroke="#2b2733" stroke-width="1.6"/>' +
+      '<rect x="9" y="9" width="19" height="19" rx="4" fill="#1f9d55"/><rect x="36" y="9" width="19" height="19" rx="4" fill="#f5b400"/>' +
+      '<rect x="36" y="36" width="19" height="19" rx="4" fill="#1e6fd9"/><rect x="9" y="36" width="19" height="19" rx="4" fill="#e5383b"/>' +
+      '<g fill="#fff"><circle cx="18.5" cy="18.5" r="5.5"/><circle cx="45.5" cy="18.5" r="5.5"/><circle cx="45.5" cy="45.5" r="5.5"/><circle cx="18.5" cy="45.5" r="5.5"/></g>' +
+      '<circle cx="18.5" cy="18.5" r="3.2" fill="#1f9d55"/><circle cx="45.5" cy="18.5" r="3.2" fill="#f5b400"/><circle cx="45.5" cy="45.5" r="3.2" fill="#1e6fd9"/><circle cx="18.5" cy="45.5" r="3.2" fill="#e5383b"/>' +
+      '<polygon points="28,28 28,36 32,32" fill="#1f9d55"/><polygon points="28,28 36,28 32,32" fill="#f5b400"/><polygon points="36,28 36,36 32,32" fill="#1e6fd9"/><polygon points="28,36 36,36 32,32" fill="#e5383b"/>'
   };
 
   function isArtIcon(icon) { return typeof icon === 'string' && icon.indexOf('art:') === 0; }
@@ -25700,6 +26664,36 @@ const GAME_RULES = {
                 <li>ما ترسمش الضلع التالت لمربع طول ما فيه خط تاني آمن.</li>
                 <li>آخر اللعبة المربعات بتبقى سلاسل. أحياناً تسيب آخر مربعين لصاحبك عشان يضطر هو يفتح السلسلة الكبيرة.</li>
             </ul>`,
+        ludo: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>من 2 لـ 4، كل واحد معاه <b>4 حجارة</b> في بيته، الركن اللي بلونه.</li>
+                <li>في دورك ارمي الزهر. الحجر يخرج من بيته <b>بالستة بس</b>، ويقف على الخانة اللي عليها سهم بلونه.</li>
+                <li>الحجارة بتلف حوالين اللوحة مع عقارب الساعة، وبعدين تدخل العمود اللي بلونها لحد النص. <b>الدخول للنص بالرقم بالظبط</b>.</li>
+                <li>الستة ليها رمية تانية. <b>تالت ستة ورا بعض</b> ماتتلعبش والدور يروح.</li>
+                <li>لو وقفت على حجر واحد بلون تاني <b>بتاكله</b>: يرجع بيته. خانات <b>النجمة</b> وخانات البداية <b>أمان</b>: محدش بياكل حد عليها.</li>
+                <li>حجرين من نفس اللون على خانة واحدة يبقوا <b>سدّة</b>: محدش تاني يعدّيها ولا يقف عليها.</li>
+                <li>أول واحد يدخّل الأربعة يكسب، والباقي يكمّلوا على المركز التاني والتالت.</li>
+            </ol>
+            <p class="help-sub">💡 الموبايل بيساعدك</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>الحجارة اللي تقدر تتحرك بتنوّر. لو حجر واحد بس يتحرك، بيتحرك لوحده، إلا الحركة اللي بتدخّل آخر حجر ليك: دي بإيدك.</li>
+                <li>مفيش حركة بالرقم اللي طلع؟ الدور بيعدّي لوحده.</li>
+                <li>اللوحة بتلف عشان بيتك يبقى تحت على الشمال. بالماوس، حط المؤشر على حجر تشوف هيمشي لفين.</li>
+            </ul>
+            <p class="help-sub">🤖 ضد الموبايل</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>انت ومن 1 لـ 3 لاعبين كمبيوتر، سهل أو صعب، وانت اللي بتختار لونك.</li>
+            </ul>
+            <p class="help-sub">📱 كل واحد من موبايله</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>كل واحد يختار لونه في الغرفة، واللي مايختارش ياخد لون. البداية بالزهر: الأعلى يبدأ.</li>
+                <li>لو في الغرفة أكتر من 4، المضيف بيختار مين يلعب والباقي بيتفرج. ممكن تكمّلوا العدد بلاعبين كمبيوتر.</li>
+                <li>وقت الدور اختياري (15 أو 30 ثانية): لما يخلص الموبايل بيرمي ويلعب بدل اللاعب.</li>
+            </ul>
+            <p class="help-sub">📺 على التلفزيون</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اللوحة كبيرة قدام الكل، والزهر وكل حركة بتبان عليها.</li>
+            </ul>`,
         guessnum: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>حدد المدى (من 1 لـ 100 مثلاً) واكتب تخمينك.</li>
@@ -26653,6 +27647,36 @@ const GAME_RULES = {
                 <li>Never draw the third side of a box while a safe line is left.</li>
                 <li>Late in the game the boxes form chains. Sometimes leave the last two for your rival, so they have to open the long chain.</li>
             </ul>`,
+        ludo: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>2 to 4 players, each with <b>4 pieces</b> in their yard, the corner in their colour.</li>
+                <li>On your turn roll the die. A piece leaves its yard <b>on a 6 only</b>, onto the square with the arrow in its colour.</li>
+                <li>Pieces go round the board clockwise, then up the column in their colour to the middle. <b>The middle needs the exact number</b>.</li>
+                <li>A 6 rolls again. <b>A third 6 in a row</b> is not played and the turn passes.</li>
+                <li>Land on a single piece of another colour and you <b>take it</b>: it goes back to its yard. <b>Star</b> squares and start squares are <b>safe</b>: nobody is taken there.</li>
+                <li>Two pieces of one colour on a square are a <b>wall</b>: no one else can pass it or land on it.</li>
+                <li>The first to bring all four home wins, and the rest play on for second and third.</li>
+            </ol>
+            <p class="help-sub">💡 The phone helps</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The pieces that can move glow. When only one can, it moves itself - except the move that brings your last piece home: that one is yours.</li>
+                <li>Nothing can move with what you rolled? The turn passes by itself.</li>
+                <li>The board turns so your yard is at the bottom left. With a mouse, point at a piece to see where it would go.</li>
+            </ul>
+            <p class="help-sub">🤖 Against the phone</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>You and 1 to 3 computer players, easy or hard, in the colour you pick.</li>
+            </ul>
+            <p class="help-sub">📱 On separate phones</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Everyone picks a colour in the room; anyone who doesn't gets one. The dice decide who starts: highest first.</li>
+                <li>With more than 4 in the room, the host picks who plays and the rest watch. Computer players can fill the seats.</li>
+                <li>A turn clock is optional (15 or 30 seconds): when it runs out the phone rolls and moves for the player.</li>
+            </ul>
+            <p class="help-sub">📺 On the TV</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The board big in front of everyone, with every roll and every move.</li>
+            </ul>`,
         guessnum: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Set the range (1 to 100, say) and type your guess.</li>
@@ -27079,6 +28103,7 @@ const GAME_CATALOG = [
   { id: 'screw',      icon: '🃏',   title: 'setup_screw',      desc: 'cat_screw',      accent: 'blue',   players: [2, 12], mins: 30, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-screw',     open: () => setView('setup-screw') },
   { id: 'uno',        icon: 'art:uno',   title: 'setup_uno',        desc: 'cat_uno',        accent: 'rose',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('uno') },
   { id: 'domino',     icon: 'art:domino',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
+  { id: 'ludo',       icon: 'art:ludo',  title: 'setup_ludo',       desc: 'cat_ludo',       accent: 'amber',  players: [1, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-ludo',      open: () => setupLudo() },
 
   /* --- لاتنين على موبايل: two people, one phone --- */
   { id: 'memory',     icon: '🎴',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory',      open: () => setupMemory() },
@@ -28540,6 +29565,7 @@ const ROOM_HUB_GAMES = [
   // Computer players can make up the table, so one person is enough to open these.
   { id: 'uno',        icon: 'art:uno', key: 'setup_uno',        accent: 'rose',   min: 1 },
   { id: 'domino',     icon: 'art:domino', key: 'setup_domino',     accent: 'green',  min: 1 },
+  { id: 'ludo',       icon: 'art:ludo', key: 'setup_ludo',       accent: 'amber',  min: 1 },
   { id: 'connect4',   icon: '🔴', key: 'setup_connect4',   accent: 'blue',   min: 2 },
   { id: 'dots',       icon: '🔲', key: 'setup_dots',       accent: 'indigo', min: 2 }
 ];
@@ -30545,6 +31571,7 @@ const HELP_ENTRIES = [
   { key: 'cs-basra',    title: 'setup_cs_basra',    icon: '🎣', accent: 'teal', group: 'games' },
   { key: 'domino',      title: 'setup_domino',      icon: 'art:domino', accent: 'green',  group: 'games', room: true },
   { key: 'uno',         title: 'setup_uno',         icon: 'art:uno', accent: 'rose',   group: 'games', roomOnly: true },
+  { key: 'ludo',        title: 'setup_ludo',        icon: 'art:ludo', accent: 'amber',  group: 'games', room: true },
   { key: 'chameleon',   title: 'setup_chameleon',   icon: '🦎', accent: 'amber',  group: 'games', room: true },
   { key: 'spyfall',     title: 'setup_spyfall',     icon: '📍', accent: 'rose',   group: 'games', room: true },
   { key: 'timesup',     title: 'setup_timesup',     icon: '⏳', accent: 'blue',   group: 'games' },
@@ -30655,7 +31682,8 @@ const HELP_FOR_VIEW = {
   'setup-fiveseconds': 'fiveseconds', 'play-fiveseconds': 'fiveseconds', 'room-fiveseconds': 'fiveseconds',
   'room-twotruths': 'twotruths', 'room-telephone': 'telephone', 'room-monkey': 'monkey',
   'room-herd': 'herd', 'room-mafia': 'mafia', 'room-screw': 'screw', 'room-mind': 'mind', 'room-timeline': 'timeline',
-  'room-uno': 'uno', 'room-domino': 'domino'
+  'room-uno': 'uno', 'room-domino': 'domino',
+  'setup-ludo': 'ludo', 'play-ludo': 'ludo', 'room-ludo': 'ludo'
 };
 
 // A game's card, its hero, the header and its help entry show one icon, colour
@@ -72343,6 +73371,1232 @@ TV_GAMES.dots = {
 
     <script>
 /* ============================================================================
+   لودو — LUDO: the board every screen draws, and a game against the phone
+   ----------------------------------------------------------------------------
+   The rules and the computer players are Ludo.js, the same file the rooms
+   server judges a room with (the page inlines it: SHARED_LISTS). This file
+   draws a game - on one phone against the phone, in a room (JS_RoomLudo.html)
+   and on the TV - and plays its moves.
+
+   The look the owner picked (option أ "كلاسيك", 21 Sep 2026): the classic
+   cross on white, the four yards in full red, green, yellow and blue (the
+   same four as أونو), a star on the safe squares and an arrow on each start,
+   glossy round pieces with a white rim, and a white die with dark pips. The
+   board is a physical thing, left to right in every language, and it turns
+   so that your own yard is at the bottom left (the TV keeps it as it is).
+
+   Every move is an event (Ludo.js), and each screen plays the ones it hasn't
+   shown, once: the die tumbles to its number, a piece hops square by square,
+   a piece that was taken flies back to its yard, a piece home pops, and the
+   first roll-off is shown before the first turn. A reload, a phone back from
+   the lock screen, or someone who joins in the middle replays nothing.
+   Everything is drawn where it ends up; the motion runs backwards from the
+   squares it passed (Web Animations of transform, `fill: backwards`), so a
+   redraw halfway through is already right.
+
+   Against the phone: you and 1-3 computer players, easy or hard, your colour
+   picked on the setup screen. The game is in appState.ludo, so a reload comes
+   back to the board as it was, the phone's turn included.
+   ========================================================================= */
+
+const LUDO_HEX = { R: '#e5383b', G: '#1f9d55', Y: '#f5b400', B: '#1e6fd9' };
+const LUDO_ROT = { R: 0, G: -90, Y: 180, B: 90 };      // turns the board so this colour's yard is at the bottom left
+const LUDO_STEP_MS = 150;                               // one square of a hop
+const LUDO_BOT_MS = [650, 1050];                        // the phone "thinking" before a roll or a move
+
+/* --- words ------------------------------------------------------------------------ */
+
+/** A translated line with {name}-style values; a value that isn't a plain number is isolated (FSI … PDI). */
+function ludoT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || (TRANSLATIONS.ar || {})[key] || '';
+  if (vars) Object.keys(vars).forEach(k => {
+    const v = vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
+    s = s.split('{' + k + '}').join(v && !/^[+-]?\d+$/.test(v) ? '⁨' + v + '⁩' : v);
+  });
+  return s;
+}
+
+const ludoColorName = (c) => ludoT('ludo_color_' + c);
+const ludoPlaceWord = (n) => ludoT('ludo_place_' + Math.min(4, Math.max(1, n)));
+
+/* --- the board ----------------------------------------------------------------------- */
+
+const ludoPct = (n) => (Math.round(n * 100000 / 15) / 1000) + '%';
+const LUDO_STAR_SVG = '<svg class="ludo-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/></svg>';
+const ludoArrowSvg = (deg) => `<svg class="ludo-arrow" viewBox="0 0 24 24" style="transform:rotate(${deg}deg)" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>`;
+let ludoFixedMemo = '';
+
+/** The squares, the yards and the middle: the same on every board, built once. */
+function ludoFixedHtml() {
+  if (ludoFixedMemo) return ludoFixedMemo;
+  let h = '';
+  LUDO_COLORS.forEach(c => {
+    const y = LUDO_YARD[c];
+    h += `<div class="ludo-yard ludo-yard--${c}" style="left:${ludoPct(y[0])};top:${ludoPct(y[1])}"><div class="ludo-yard__in"></div></div>`;
+  });
+  LUDO_COLORS.forEach(c => {
+    for (let i = 0; i < 4; i++) {
+      const p = ludoCellOf(c, -1, i);
+      h += `<span class="ludo-spot ludo-spot--${c}" style="left:${ludoPct(p[0])};top:${ludoPct(p[1])}"></span>`;
+    }
+  });
+  const arrow = { G: 0, Y: 90, B: 180, R: 270 };
+  LUDO_TRACK_CELLS.forEach((xy, at) => {
+    const start = LUDO_COLORS.find(c => LUDO_START[c] === at);
+    const inner = start ? ludoArrowSvg(arrow[start]) : LUDO_STARS.indexOf(at) !== -1 ? LUDO_STAR_SVG : '';
+    h += `<div class="ludo-cell ${start ? 'ludo-cell--' + start : ''}" style="left:${ludoPct(xy[0])};top:${ludoPct(xy[1])}">${inner}</div>`;
+  });
+  LUDO_COLORS.forEach(c => LUDO_HOME_CELLS[c].forEach(xy => {
+    h += `<div class="ludo-cell ludo-cell--${c}" style="left:${ludoPct(xy[0])};top:${ludoPct(xy[1])}"></div>`;
+  }));
+  h += `<svg class="ludo-mid" viewBox="0 0 3 3" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="0,0 0,3 1.5,1.5" fill="${LUDO_HEX.G}"/><polygon points="0,0 3,0 1.5,1.5" fill="${LUDO_HEX.Y}"/>
+      <polygon points="3,0 3,3 1.5,1.5" fill="${LUDO_HEX.B}"/><polygon points="0,3 3,3 1.5,1.5" fill="${LUDO_HEX.R}"/></svg>`;
+  ludoFixedMemo = h;
+  return h;
+}
+
+/** Where every piece is drawn, in cells, with pieces sharing a square set a little apart. */
+function ludoPiecePlaces(g) {
+  const out = [];
+  const groups = {};
+  (g.seats || []).forEach(pid => {
+    const color = g.colors[pid];
+    (g.pieces[pid] || []).forEach((rel, i) => {
+      const xy = ludoCellOf(color, rel, i);
+      const item = { pid: pid, i: i, color: color, rel: rel, x: xy[0], y: xy[1] };
+      out.push(item);
+      if (rel >= 0) {
+        const k = xy[0].toFixed(2) + ',' + xy[1].toFixed(2);
+        (groups[k] = groups[k] || []).push(item);
+      }
+    });
+  });
+  const SPREAD = {
+    2: [[-0.17, -0.17], [0.17, 0.17]],
+    3: [[-0.2, -0.13], [0.2, -0.13], [0, 0.2]],
+    4: [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]]
+  };
+  Object.keys(groups).forEach(k => {
+    const list = groups[k];
+    if (list.length < 2) return;
+    const spread = SPREAD[Math.min(4, list.length)];
+    list.forEach((p, n) => {
+      const d = spread[n % spread.length];
+      p.x += d[0];
+      p.y += d[1];
+      p.stacked = true;
+    });
+  });
+  return out;
+}
+
+/**
+ * The board. o: { view (the colour at the bottom left), movable (the pieces
+ * this phone may tap: [index]), me (whose they are), tv, names }.
+ */
+function ludoBoardHtml(g, o) {
+  const opt = o || {};
+  const movable = opt.movable || [];
+  const pieces = ludoPiecePlaces(g).map(p => {
+    const can = p.pid === opt.me && movable.indexOf(p.i) !== -1;
+    const label = ludoT('ludo_piece_label', { color: ludoColorName(p.color), n: p.i + 1 });
+    return `<button type="button" class="ludo-pc ludo-pc--${p.color} ${p.stacked ? 'is-stacked' : ''} ${p.rel === LUDO_HOME ? 'is-home' : ''} ${can ? 'is-movable' : ''}"
+        data-ludo-pc="${escapeHTML(p.pid)}|${p.i}" style="left:${ludoPct(p.x)};top:${ludoPct(p.y)}"
+        ${can ? '' : 'tabindex="-1"'} aria-label="${escapeHTML(label)}"></button>`;
+  }).join('');
+  const deg = LUDO_ROT[opt.view] || 0;
+  return `<div class="ludo-board ${opt.tv ? 'ludo-board--tv' : ''} ${movable.length ? 'is-choosing' : ''}" dir="ltr" data-ludo-board>
+      <div class="ludo-rot" style="transform:rotate(${deg}deg)" data-ludo-rot>
+        ${ludoFixedHtml()}
+        <div class="ludo-fx" data-ludo-fx aria-hidden="true"></div>
+        ${pieces}
+      </div>
+    </div>`;
+}
+
+/* --- the die --------------------------------------------------------------------------- */
+
+const ludoDieHtml = (color, clickable, onclick) => {
+  const faces = [1, 2, 3, 4, 5, 6].map(n => (typeof dieFaceHtml === 'function' ? dieFaceHtml(n) : '')).join('');
+  const inner = `<div class="die" data-ludo-die>${faces}</div>`;
+  const style = `--pc:${LUDO_HEX[color] || 'transparent'}`;
+  return clickable
+    ? `<button type="button" class="ludo-die is-rollable" style="${style}" onclick="${onclick}" aria-label="${escapeHTML(ludoT('ludo_roll'))}">${inner}</button>`
+    : `<div class="ludo-die" style="${style}">${inner}</div>`;
+};
+
+const ludoFx = { key: '', lastSeq: 0, busyUntil: 0, timers: [], dieTurns: 0, dieCss: '', wokeAt: 0, watched: '' };
+
+/** The die turned to a value, a few whole turns further round than it was (DIE_LANDING, JS_DescribeIt.html). */
+function ludoDieCss(n, spin) {
+  const land = (typeof DIE_LANDING !== 'undefined' && DIE_LANDING[n]) || [0, 0];
+  if (spin) ludoFx.dieTurns += 2 + Math.floor(Math.random() * 2);
+  const k = ludoFx.dieTurns * 360;
+  return `rotateX(${k + land[0] - 14}deg) rotateY(${k + land[1] + 16}deg)`;
+}
+
+/** The die shows `n`: tumbling to it, or already there. */
+function ludoDieShow(root, n, tumble, delay) {
+  const die = root && root.querySelector('[data-ludo-die]');
+  if (!die || !n) return;
+  if (!tumble) {
+    die.style.transition = 'none';
+    die.style.transform = ludoFx.dieCss = ludoDieCss(n, false);
+    return;
+  }
+  die.style.transition = 'none';
+  die.style.transform = ludoFx.dieCss || ludoDieCss(1, false);
+  void die.offsetWidth;
+  const go = () => {
+    die.style.transition = '';
+    die.style.transform = ludoFx.dieCss = ludoDieCss(n, true);
+    const box = die.parentElement;
+    if (box && box.animate) box.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-30%)' }, { transform: 'translateY(4%)' }, { transform: 'translateY(0)' }], { duration: 520, easing: 'ease-out' });
+  };
+  if (delay) ludoFx.timers.push(setTimeout(go, delay)); else requestAnimationFrame(go);
+}
+
+/* --- the players, the bar and the log ------------------------------------------------ */
+
+/** The strip of players: their colour, name, pieces home, and the one whose turn it is. */
+function ludoStripHtml(c) {
+  const g = c.g;
+  const up = g.phase === 'play' ? g.turn.pid : null;
+  const chips = g.seats.map(pid => {
+    const color = g.colors[pid];
+    const home = (g.pieces[pid] || []).filter(r => r === LUDO_HOME).length;
+    const place = g.places.indexOf(pid);
+    const dots = [0, 1, 2, 3].map(k => `<span class="ludo-chip__dot ${k < home ? 'is-home' : ''}"></span>`).join('');
+    const name = c.names[pid] || '…';
+    const initial = typeof duelInitial === 'function' ? duelInitial(name) : name.charAt(0);
+    const away = c.away && c.away[pid];
+    return `<div class="ludo-chip ${pid === up ? 'is-turn' : ''} ${place !== -1 ? 'is-done' : ''} ${away ? 'is-away' : ''}" style="--pc:${LUDO_HEX[color]}" data-ludo-chip="${escapeHTML(pid)}">
+        <span class="ludo-chip__av ludo-av--${color}" aria-hidden="true">${place !== -1 ? ['🥇', '🥈', '🥉', '4'][place] : c.bots && c.bots[pid] ? '🤖' : escapeHTML(initial)}</span>
+        <span class="ludo-chip__who">
+          <span class="ludo-chip__name">${escapeHTML(name)}${pid === c.me && name !== ludoT('xo_you') ? ` <small>· ${escapeHTML(ludoT('xo_you'))}</small>` : ''}</span>
+          <span class="ludo-chip__dots" aria-label="${escapeHTML(ludoT('ludo_home_count', { n: home }))}">${dots}</span>
+        </span>
+      </div>`;
+  }).join('');
+  return `<div class="ludo-strip ludo-strip--n${g.seats.length}">${chips}</div>`;
+}
+
+/** What the bar says: whose turn, what they rolled, what to do. */
+function ludoBarLines(c) {
+  const g = c.g;
+  const tn = g.turn || {};
+  const name = c.names[tn.pid] || '';
+  const mine = tn.pid === c.me;
+  if (g.phase !== 'play') return [ludoT('ludo_over'), ''];
+  if (mine) {
+    if (tn.stage === 'roll') return [ludoT('ludo_your_turn'), tn.sixes ? ludoT('ludo_again_six') : ludoT('ludo_roll_hint')];
+    const only = ludoOnlyMove(g, c.me) !== -1;
+    return [ludoT('ludo_you_rolled', { n: tn.dice }), only ? ludoT('ludo_moving_itself') : ludoT('ludo_pick_piece')];
+  }
+  if (tn.stage === 'move') return [ludoT('ludo_rolled', { name: name, n: tn.dice }), c.bots && c.bots[tn.pid] ? ludoT('ludo_thinking', { name: name }) : ludoT('ludo_choosing', { name: name })];
+  return [ludoT('ludo_turn_of', { name: name }), c.bots && c.bots[tn.pid] ? ludoT('ludo_thinking', { name: name }) : ''];
+}
+
+function ludoBarHtml(c) {
+  const g = c.g;
+  const tn = g.turn || {};
+  const canRoll = g.phase === 'play' && tn.pid === c.me && tn.stage === 'roll' && !c.tv;
+  const lines = ludoBarLines(c);
+  const color = g.colors[tn.pid] || (c.lastRoller ? g.colors[c.lastRoller] : '');
+  return `<div class="ludo-bar ${canRoll ? 'is-mine' : ''} ${tn.pid === c.me && tn.stage === 'move' ? 'is-picking' : ''}">
+      ${ludoDieHtml(color, canRoll, c.rollJs)}
+      <div class="ludo-bar__txt">
+        <div class="ludo-bar__t1"><span class="ludo-bar__dot" style="background:${LUDO_HEX[g.colors[tn.pid]] || 'transparent'}"></span>${escapeHTML(lines[0])}</div>
+        ${lines[1] ? `<div class="ludo-bar__t2">${escapeHTML(lines[1])}</div>` : ''}
+      </div>
+      ${c.clock ? `<span class="badge badge--accent metric ludo-bar__clock" data-ludo-clock></span>` : ''}
+      ${canRoll ? `<button type="button" class="btn btn--primary btn--auto ludo-bar__roll" onclick="${c.rollJs}">${escapeHTML(ludoT('ludo_roll'))}</button>` : ''}
+    </div>`;
+}
+
+/** One event as a line for the log, or '' for the ones not worth a line. */
+function ludoEventText(c, e) {
+  const name = (pid) => c.names[pid] || '…';
+  switch (e.type) {
+    case 'rolloff': return '🎲 ' + ludoT('ludo_ev_first', { name: name(e.first) });
+    case 'three': return '🎲🎲🎲 ' + ludoT('ludo_ev_three', { name: name(e.pid) });
+    case 'nomove': return ludoT('ludo_ev_nomove', { name: name(e.pid), n: e.n });
+    case 'move': {
+      if (e.cap && e.cap.length) {
+        return '💥 ' + (e.cap[0].pid === c.me ? ludoT('ludo_ev_captured_you', { name: name(e.pid) })
+          : ludoT('ludo_ev_capture', { name: name(e.pid), other: name(e.cap[0].pid) }));
+      }
+      if (e.to === LUDO_HOME) return '🏠 ' + ludoT('ludo_ev_home', { name: name(e.pid) });
+      if (e.from < 0) return ludoT('ludo_ev_out', { name: name(e.pid) });
+      const g = c.g;
+      const color = g.colors[e.pid];
+      if (color && e.to <= LUDO_LAST_TRACK && LUDO_STARS.indexOf(ludoGlobal(color, e.to)) !== -1) return '⭐ ' + ludoT('ludo_ev_star', { name: name(e.pid) });
+      return '';
+    }
+    case 'finish': return (e.place === 1 ? '🏆 ' : '') + ludoT('ludo_ev_finish', { name: name(e.pid), place: ludoPlaceWord(e.place) });
+    case 'auto': return '⏱️ ' + ludoT(e.why === 'host' ? 'ludo_ev_host' : 'ludo_ev_clock', { name: name(e.pid) });
+    case 'left': return ludoT('ludo_ev_left', { name: e.name || name(e.pid) });
+    default: return '';
+  }
+}
+
+function ludoLogHtml(c) {
+  const lines = (c.g.events || []).slice().reverse().map(e => ludoEventText(c, e)).filter(Boolean).slice(0, 3);
+  return lines.map((l, i) => `<div class="ludo-log__line ${i === 0 ? 'is-latest' : ''}">${escapeHTML(l)}</div>`).join('');
+}
+
+/** The places at the end: a podium of the first three, and everyone in order. */
+function ludoPodiumHtml(c) {
+  const g = c.g;
+  const places = g.places || [];
+  if (!places.length) return '';
+  const rise = motionFirst(['ludo-podium', c.key, places.join(',')].join('|'));
+  const top = places.slice(0, 3);
+  const medals = ['🥇', '🥈', '🥉'];
+  const atOf = (i) => 150 + (top.length - 1 - i) * 520;
+  const winMs = atOf(0) + 620;
+  return `<div class="podium${rise ? ' podium--rise" data-reveal-ms="' + winMs : ''}">` + top.map((pid, i) =>
+    `<div class="podium__place podium__place--${i + 1} podium__place--rank${i + 1}" style="--at:${atOf(i)}ms">
+      <div class="podium__who">
+        <span class="podium__medal" aria-hidden="true">${medals[i]}</span>
+        <span class="podium__name">${escapeHTML(c.names[pid] || '…')}</span>
+        <span class="ludo-podium__color ludo-av--${g.colors[pid]}" aria-hidden="true"></span>
+      </div>
+      <div class="podium__block"><span class="metric">${i + 1}</span></div>
+    </div>`).join('') + '</div>';
+}
+
+/**
+ * A whole frame: the strip of players, the board, the bar and the log; at the
+ * end, the podium and what comes next on top. c: { g, me, names, bots, view,
+ * key, tv, rollJs, over (the buttons for the end), host (the host's row), clock }.
+ */
+function ludoFrameHtml(c) {
+  const g = c.g;
+  const over = g.phase === 'gameover';
+  const mineMovable = !over && g.turn && g.turn.pid === c.me && g.turn.stage === 'move' && ludoOnlyMove(g, c.me) === -1 ? (g.movable || []) : [];
+  return `<div class="ludo ${c.tv ? 'ludo--tv' : ''} ${over ? 'is-over' : ''}">
+      <div class="ludo-layout">
+        <div class="ludo-layout__board">${ludoBoardHtml(g, { view: c.view, movable: mineMovable, me: c.me, tv: c.tv })}</div>
+        <div class="ludo-layout__side">
+          ${over ? `<div class="card card--accent ludo-over">
+              <p class="ludo-over__title">🏁 ${escapeHTML(ludoT('ludo_over'))}</p>
+              ${ludoPodiumHtml(c)}
+              ${c.over || ''}
+            </div>` : ''}
+          ${ludoStripHtml(c)}
+          ${over ? '' : ludoBarHtml(c)}
+          <div class="ludo-log" data-ludo-log>${ludoLogHtml(c)}</div>
+          ${c.host || ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* --- the motion -------------------------------------------------------------------------- */
+
+const ludoCanMove = () => !motionOff() && !!(document.body && document.body.animate);
+const ludoWokeRecently = () => Date.now() - ludoFx.wokeAt < 2500;
+document.addEventListener('visibilitychange', () => { if (!document.hidden) ludoFx.wokeAt = Date.now(); });
+
+function ludoFxCancel() {
+  ludoFx.timers.forEach(clearTimeout);
+  ludoFx.timers = [];
+  ludoFx.busyUntil = 0;
+}
+
+/**
+ * The events of this game this screen hasn't played. A game seen for the first
+ * time plays from its start when `fresh` (it was dealt while this screen
+ * watched), otherwise nothing that came before.
+ */
+function ludoEventsToPlay(key, g, fresh) {
+  const events = g.events || [];
+  const maxSeq = events.reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  if (ludoFx.key !== key) {
+    ludoFx.key = key;
+    ludoFx.lastSeq = maxSeq;
+    if (fresh) {
+      const first = events.find(e => e && e.type === 'rolloff');
+      if (first) ludoFx.lastSeq = (Number(first.seq) || 0) - 1;
+    }
+  }
+  const out = events.filter(e => e && (Number(e.seq) || 0) > ludoFx.lastSeq);
+  ludoFx.lastSeq = Math.max(ludoFx.lastSeq, maxSeq);
+  return out;
+}
+
+/** A piece hops from square to square along `points` (in cells), ending where it is drawn. */
+function ludoHop(el, points, unit, delay, big) {
+  if (!el || !el.animate || points.length < 2) return 0;
+  const fx = parseFloat(el.style.left) / 100 * 15;
+  const fy = parseFloat(el.style.top) / 100 * 15;
+  const n = points.length - 1;
+  const at = (p) => `translate(${((p[0] - fx) * unit).toFixed(1)}px, ${((p[1] - fy) * unit).toFixed(1)}px)`;
+  const frames = [];
+  points.forEach((p, k) => {
+    frames.push({ transform: (k === n ? 'translate(0px, 0px)' : at(p)) + ' scale(1)', offset: k / n });
+    if (k < n) {
+      const q = points[k + 1];
+      frames.push({ transform: at([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]) + ` scale(${big ? 1.5 : 1.3})`, offset: (k + 0.5) / n });
+    }
+  });
+  const duration = Math.max(big ? 380 : 0, n * LUDO_STEP_MS);
+  el.style.zIndex = '6';
+  const a = el.animate(frames, { duration: duration, delay: delay, fill: 'backwards', easing: 'linear' });
+  const done = () => { el.style.zIndex = ''; };
+  a.onfinish = done;
+  ludoFx.timers.push(setTimeout(done, delay + duration + 60));
+  return duration;
+}
+
+/** A piece that was taken flies back to its yard, spinning. */
+function ludoSendHome(el, from, unit, delay) {
+  if (!el || !el.animate) return 0;
+  const fx = parseFloat(el.style.left) / 100 * 15;
+  const fy = parseFloat(el.style.top) / 100 * 15;
+  const dx = ((from[0] - fx) * unit).toFixed(1);
+  const dy = ((from[1] - fy) * unit).toFixed(1);
+  el.style.zIndex = '5';
+  el.animate([
+    { transform: `translate(${dx}px, ${dy}px) rotate(0deg) scale(1)` },
+    { transform: `translate(${dx}px, ${dy}px) rotate(-20deg) scale(1.25)`, offset: 0.12 },
+    { transform: `translate(${(dx * 0.4).toFixed(1)}px, ${(dy * 0.4).toFixed(1)}px) rotate(260deg) scale(0.75)`, offset: 0.7 },
+    { transform: 'translate(0px, 0px) rotate(360deg) scale(1)' }
+  ], { duration: 620, delay: delay, fill: 'backwards', easing: 'cubic-bezier(0.3, 0, 0.3, 1)' });
+  ludoFx.timers.push(setTimeout(() => { el.style.zIndex = ''; }, delay + 700));
+  return 620;
+}
+
+/** A burst where something happened: a piece taken, a piece home. */
+function ludoBurst(root, xy, color, delay, big) {
+  const layer = root.querySelector('[data-ludo-fx]');
+  if (!layer) return;
+  ludoFx.timers.push(setTimeout(() => {
+    const b = document.createElement('span');
+    b.className = 'ludo-burst' + (big ? ' ludo-burst--big' : '');
+    b.style.left = ludoPct(xy[0]);
+    b.style.top = ludoPct(xy[1]);
+    b.style.setProperty('--pc', LUDO_HEX[color] || '#fff');
+    layer.appendChild(b);
+    ludoFx.timers.push(setTimeout(() => b.remove(), 900));
+  }, delay));
+}
+
+/** The roll-off before the first turn: everyone's die, the ties rolled again, who starts. */
+function ludoRollOffPanel(root, c, e, delay) {
+  const layer = root.querySelector('[data-ludo-board]');
+  if (!layer || !Array.isArray(e.rounds)) return 0;
+  const ROUND_MS = 1150;
+  const rows = (round, k) => round.map(r => `<div class="ludo-off__row" style="--at:${k * ROUND_MS + 120}ms">
+      <span class="ludo-off__dot ludo-av--${c.g.colors[r.pid]}"></span>
+      <span class="ludo-off__name">${escapeHTML(c.names[r.pid] || '')}</span>
+      <b class="ludo-off__n metric">${r.n}</b></div>`).join('');
+  const panel = document.createElement('div');
+  panel.className = 'ludo-off';
+  panel.innerHTML = `<div class="ludo-off__card">
+      <p class="ludo-off__title">🎲 ${escapeHTML(ludoT('ludo_rolloff'))}</p>
+      ${e.rounds.map((round, k) => `<div class="ludo-off__round" style="--at:${k * ROUND_MS}ms">${k ? `<p class="ludo-off__again">${escapeHTML(ludoT('ludo_rolloff_again'))}</p>` : ''}${rows(round, k)}</div>`).join('')}
+      <p class="ludo-off__first" style="--at:${e.rounds.length * ROUND_MS}ms">${escapeHTML(ludoT('ludo_ev_first', { name: c.names[e.first] || '' }))}</p>
+    </div>`;
+  const total = e.rounds.length * ROUND_MS + 1500;
+  ludoFx.timers.push(setTimeout(() => {
+    layer.appendChild(panel);
+    ludoFx.timers.push(setTimeout(() => panel.classList.add('is-leaving'), total - 350));
+    ludoFx.timers.push(setTimeout(() => panel.remove(), total));
+  }, delay));
+  return total;
+}
+
+/**
+ * After a frame is drawn: the moves it brought, played on it in order. Returns
+ * how long they take (the screen waits that long before it draws the next).
+ * c.loud: this device plays the table's sounds.
+ */
+function ludoAfterPaint(root, c) {
+  const g = c.g;
+  const evs = ludoEventsToPlay(c.key, g, c.fresh);
+  const board = root.querySelector('[data-ludo-board]');
+  const rollEv = (g.events || []).slice().reverse().find(e => e.type === 'roll');
+  const quiet = !board || document.hidden || ludoWokeRecently() || !root.getClientRects().length || evs.length > 12;
+  const moving = !quiet && ludoCanMove();
+  const unit = board ? board.offsetWidth / 15 : 0;
+  // The die shows the last roll; it tumbles to it only as that roll is played.
+  const tumbleRoll = moving ? evs.find(e => e.type === 'roll') : null;
+  if (rollEv && !tumbleRoll) ludoDieShow(root, rollEv.n, false);
+  let t = 0;
+  if (!evs.length) return 0;
+  if (!moving) {
+    if (!quiet) ludoEventSounds(evs, c);
+    return 0;
+  }
+  evs.forEach(e => {
+    if (e.type === 'rolloff') {
+      t += ludoRollOffPanel(root, c, e, t);
+    } else if (e.type === 'roll') {
+      ludoDieShow(root, e.n, true, t);
+      if (c.loud || e.pid === c.me) ludoFx.timers.push(setTimeout(() => ludoSound('ludoRoll'), t));
+      t += 760;
+    } else if (e.type === 'three') {
+      const die = root.querySelector('.ludo-die');
+      ludoFx.timers.push(setTimeout(() => {
+        if (die && die.animate) die.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(0)' }], { duration: 420 });
+        if ((c.loud || e.pid === c.me) && typeof duelSound === 'function') duelSound('lose');
+      }, t));
+      t += 480;
+    } else if (e.type === 'nomove') {
+      t += 250;
+    } else if (e.type === 'move') {
+      const color = g.colors[e.pid];
+      const el = root.querySelector(`[data-ludo-pc="${CSS.escape(e.pid)}|${e.piece}"]`);
+      if (!color || !el || (g.pieces[e.pid] || [])[e.piece] !== e.to) return;
+      const points = [ludoCellOf(color, e.from, e.piece)].concat(ludoPath(e.from, e.to).map(r => ludoCellOf(color, r, e.piece)));
+      const d = ludoHop(el, points, unit, t, e.from < 0);
+      const loud = c.loud || e.pid === c.me;
+      if (loud) {
+        const hops = points.length - 1;
+        for (let k = 1; k <= hops; k++) ludoFx.timers.push(setTimeout(() => ludoSound('ludoStep'), t + k * (d / hops) - 30));
+      }
+      const landAt = points[points.length - 1];
+      let after = t + d;
+      (e.cap || []).forEach(cp => {
+        const vic = root.querySelector(`[data-ludo-pc="${CSS.escape(cp.pid)}|${cp.piece}"]`);
+        if (!vic) return;
+        ludoBurst(root, landAt, g.colors[cp.pid], after - 40, false);
+        const back = ludoSendHome(vic, landAt, unit, after);
+        if (loud || cp.pid === c.me) ludoFx.timers.push(setTimeout(() => ludoSound('ludoCapture'), after - 20));
+        if (cp.pid === c.me) ludoFx.timers.push(setTimeout(() => haptic('double'), after));
+        after = Math.max(after, t + d + back);
+      });
+      if (e.to === LUDO_HOME) {
+        ludoBurst(root, landAt, color, t + d - 20, true);
+        if (loud) ludoFx.timers.push(setTimeout(() => ludoSound('ludoHome'), t + d));
+      }
+      t = after + 60;
+    } else if (e.type === 'finish') {
+      if (e.place === 1 && (c.loud || e.pid === c.me)) ludoFx.timers.push(setTimeout(() => playSound('success'), t));
+    }
+  });
+  ludoFx.busyUntil = Math.max(ludoFx.busyUntil, Date.now() + t);
+  return t;
+}
+
+/** With motion off: the sound of what happened, once. */
+function ludoEventSounds(evs, c) {
+  const mineOrLoud = (e) => c.loud || e.pid === c.me;
+  if (evs.some(e => e.type === 'move' && e.cap && mineOrLoud(e))) ludoSound('ludoCapture');
+  else if (evs.some(e => e.type === 'move' && e.to === LUDO_HOME && mineOrLoud(e))) ludoSound('ludoHome');
+  else if (evs.some(e => e.type === 'roll' && mineOrLoud(e))) ludoSound('ludoRoll');
+}
+
+function ludoSound(name) {
+  try { if (typeof FX !== 'undefined' && FX[name] && typeof playFx === 'function') playFx(name); } catch (e) {}
+}
+
+/**
+ * The finger on a piece that can move: a mouse or a keyboard sees the squares
+ * it would pass and where it lands first ("أكل" where it takes a piece); a tap
+ * moves it. `onMove(index)`.
+ */
+function ludoWire(root, c, onMove) {
+  const board = root.querySelector('[data-ludo-board]');
+  if (!board || typeof onMove !== 'function') return;
+  const layer = board.querySelector('[data-ludo-fx]');
+  const clear = () => { if (layer) layer.querySelectorAll('.ludo-path').forEach(x => x.remove()); };
+  const show = (btn) => {
+    clear();
+    const [pid, i] = String(btn.getAttribute('data-ludo-pc')).split('|');
+    const g = c.g;
+    const tg = ludoTarget(g, pid, Number(i), g.turn.dice);
+    if (!tg || !layer) return;
+    const color = g.colors[pid];
+    const path = ludoPath(tg.from, tg.to);
+    path.forEach((r, k) => {
+      const xy = ludoCellOf(color, r, Number(i));
+      const dot = document.createElement('span');
+      dot.className = 'ludo-path ' + (k === path.length - 1 ? 'ludo-path--end' + (tg.cap.length ? ' is-capture' : '') : 'ludo-path--dot');
+      dot.style.left = ludoPct(xy[0]);
+      dot.style.top = ludoPct(xy[1]);
+      dot.style.setProperty('--pc', LUDO_HEX[color]);
+      if (k === path.length - 1 && tg.cap.length) dot.innerHTML = `<b dir="auto">${escapeHTML(ludoT('ludo_takes'))}</b>`;
+      layer.appendChild(dot);
+    });
+  };
+  board.querySelectorAll('.ludo-pc.is-movable').forEach(btn => {
+    btn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') show(btn); });
+    btn.addEventListener('pointerleave', clear);
+    btn.addEventListener('focus', () => show(btn));
+    btn.addEventListener('blur', clear);
+    btn.addEventListener('click', () => {
+      clear();
+      const i = Number(String(btn.getAttribute('data-ludo-pc')).split('|')[1]);
+      haptic('light');
+      onMove(i);
+    });
+  });
+}
+
+/* --- against the phone -------------------------------------------------------------------- */
+
+let ludoBotTimer = null;
+
+function ludoState() {
+  if (!appState.ludo) appState.ludo = { opp: 1, level: 'easy', color: 'R', g: null, names: {}, bots: {}, gameId: '' };
+  const s = appState.ludo;
+  if ([1, 2, 3].indexOf(Number(s.opp)) === -1) s.opp = 1;
+  if (s.level !== 'hard') s.level = 'easy';
+  if (LUDO_COLORS.indexOf(s.color) === -1) s.color = 'R';
+  return s;
+}
+
+function setupLudo() {
+  ludoStopBot();
+  setView('setup-ludo');
+  paintLudoSetup();
+}
+
+function paintLudoSetup() {
+  const s = ludoState();
+  const seg = (id, value) => document.querySelectorAll('#' + id + ' .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === String(value)));
+  seg('ludo-opp', s.opp);
+  seg('ludo-level', s.level);
+  document.querySelectorAll('#ludo-color .ludo-swatch').forEach(el => {
+    const on = el.dataset.value === s.color;
+    el.classList.toggle('is-active', on);
+    el.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  const cont = document.getElementById('ludo-continue');
+  if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
+}
+
+function setLudoOption(key, value) {
+  const s = ludoState();
+  if (key === 'opp') s.opp = Number(value);
+  else if (key === 'level') s.level = value === 'hard' ? 'hard' : 'easy';
+  else if (key === 'color' && LUDO_COLORS.indexOf(value) !== -1) s.color = value;
+  haptic('light');
+  saveToLocal();
+  paintLudoSetup();
+}
+
+/** A new game: you in your colour, the phone's players in the others, and the roll-off. */
+function startLudo() {
+  const s = ludoState();
+  ludoStopBot();
+  const ids = ['me'];
+  for (let k = 1; k <= s.opp; k++) ids.push('b' + k);
+  const pool = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).slice().sort(() => Math.random() - 0.5);
+  const names = { me: ludoT('xo_you') };
+  const bots = {};
+  ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = s.level; });
+  const colors = ludoFillColors(ids, { me: s.color });
+  const off = ludoRollOff(ids, Math.random);
+  const g = ludoNewGame(ids, colors, off.first);
+  ludoEvent(g, 'rolloff', { rounds: off.rounds, first: off.first });
+  s.g = g;
+  s.names = names;
+  s.bots = bots;
+  s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  saveToLocal();
+  if (appState.currentView !== 'play-ludo') setView('play-ludo');
+  paintLudo({ fresh: true });
+  if (typeof scrollToAction === 'function') scrollToAction();
+}
+
+function ludoContinue() {
+  setView('play-ludo');
+  paintLudo({ still: true });
+}
+
+function ludoLocalRoll() {
+  const s = ludoState();
+  const g = s.g;
+  if (!g || g.phase !== 'play' || g.turn.pid !== 'me' || g.turn.stage !== 'roll') return;
+  if (Date.now() < ludoFx.busyUntil - 150) return;
+  haptic('medium');
+  ludoRoll(g, 'me', 1 + Math.floor(Math.random() * 6));
+  saveToLocal();
+  paintLudo();
+}
+
+function ludoLocalMove(i) {
+  const s = ludoState();
+  const g = s.g;
+  if (!g || g.phase !== 'play' || g.turn.pid !== 'me' || g.turn.stage !== 'move') return;
+  try { ludoMove(g, 'me', i); } catch (e) { return; }
+  saveToLocal();
+  paintLudo();
+}
+
+/**
+ * What happens without a tap: a computer player rolls or moves, and your only
+ * move is made for you. Each waits for the motion on screen to land first.
+ */
+function ludoLocalNext() {
+  ludoStopBot();
+  const s = ludoState();
+  const g = s.g;
+  if (!g || g.phase !== 'play' || appState.currentView !== 'play-ludo') return;
+  const pid = g.turn.pid;
+  const wait = Math.max(0, ludoFx.busyUntil - Date.now());
+  if (s.bots[pid]) {
+    ludoBotTimer = setTimeout(() => {
+      ludoBotTimer = null;
+      const st = ludoState();
+      const gg = st.g;
+      if (!gg || gg !== g || gg.phase !== 'play' || gg.turn.pid !== pid || appState.currentView !== 'play-ludo') return;
+      if (gg.turn.stage === 'roll') ludoRoll(gg, pid, 1 + Math.floor(Math.random() * 6));
+      else {
+        const pick = ludoBotPick(gg, pid, st.bots[pid]);
+        if (pick >= 0) ludoMove(gg, pid, pick);
+      }
+      saveToLocal();
+      paintLudo();
+    }, wait + LUDO_BOT_MS[0] + Math.floor(Math.random() * (LUDO_BOT_MS[1] - LUDO_BOT_MS[0])));
+    return;
+  }
+  if (pid === 'me' && g.turn.stage === 'move') {
+    const only = ludoOnlyMove(g, 'me');
+    if (only === -1) return;
+    ludoBotTimer = setTimeout(() => {
+      ludoBotTimer = null;
+      const gg = ludoState().g;
+      if (gg !== g || gg.turn.pid !== 'me' || gg.turn.stage !== 'move' || appState.currentView !== 'play-ludo') return;
+      ludoLocalMove(only);
+    }, wait + 900);
+  }
+}
+
+function ludoStopBot() {
+  if (ludoBotTimer) clearTimeout(ludoBotTimer);
+  ludoBotTimer = null;
+}
+
+function ludoLocalCtx(opts) {
+  const s = ludoState();
+  const g = s.g;
+  const over = `<div class="btn-stack">
+      <button class="btn btn--primary btn--lg" onclick="startLudo()">${escapeHTML(ludoT('ludo_again'))}</button>
+      <button class="btn btn--ghost btn--sm" onclick="setupLudo()">${escapeHTML(ludoT('exit'))}</button>
+    </div>`;
+  return {
+    // "You" in the language on screen now, not the one the game was started in.
+    g: g, me: 'me', names: Object.assign({}, s.names || {}, { me: ludoT('xo_you') }), bots: s.bots || {}, view: g.colors.me, key: 'local|' + s.gameId,
+    fresh: !!(opts && opts.fresh), loud: true, rollJs: 'ludoLocalRoll()', over: over
+  };
+}
+
+function paintLudo(opts) {
+  const o = opts || {};
+  const s = ludoState();
+  const el = document.getElementById('ludo-stage');
+  if (!el || !s.g) return;
+  if (o.still || o.fresh) ludoFxCancel();
+  const c = ludoLocalCtx(o);
+  // A move still flying: the board it lands on waits until it has.
+  if (!o.still && !o.fresh && ludoFx.busyUntil > Date.now()) {
+    ludoStopBot();
+    ludoBotTimer = setTimeout(() => { ludoBotTimer = null; paintLudo(); }, ludoFx.busyUntil - Date.now() + 40);
+    return;
+  }
+  el.innerHTML = ludoFrameHtml(c);
+  if (o.still) ludoEventsToPlay(c.key, s.g, false);
+  const played = ludoAfterPaint(el, c);
+  ludoWire(el, c, ludoLocalMove);
+  const g = s.g;
+  if (g.phase === 'play' && g.turn.pid === 'me') {
+    if (typeof duelOnce === 'function' && duelOnce(['ludo-turn', s.gameId, g.turnSeq].join('|')) && !o.still) {
+      ludoFx.timers.push(setTimeout(() => { haptic('medium'); }, played));
+    }
+  }
+  if (g.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['ludo-end', s.gameId].join('|')) && !o.still) {
+    const won = g.places[0] === 'me';
+    ludoFx.timers.push(setTimeout(() => afterReveal(el, () => {
+      if (won) {
+        playSound('success');
+        if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      } else if (typeof duelSound === 'function') duelSound('lose');
+    }), played));
+  }
+  ludoLocalNext();
+}
+
+/** After a reload: the board as it was, and the phone plays on if it was its turn. */
+function restoreLudo() {
+  const s = ludoState();
+  if (!s.g || !Array.isArray(s.g.seats) || !s.g.pieces) return false;
+  paintLudo({ still: true });
+  return true;
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('ludo', {
+    setup: 'setup-ludo', play: 'play-ludo',
+    paintSetup: paintLudoSetup, restore: restoreLudo,
+    repaint: () => paintLudo({ still: true })
+  });
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-ludo') { ludoStopBot(); ludoFxCancel(); }
+    if (to === 'play-ludo') setTimeout(() => { if (ludoState().g) ludoLocalNext(); }, 0);
+  });
+}
+
+/* --- the sounds: short and quiet, not on the soundboard ------------------------------------- */
+if (typeof FX !== 'undefined') {
+  Object.assign(FX, {
+    ludoRoll(at) {
+      // A die rattling in a hand and landing: a few quick clicks, then a knock.
+      for (let k = 0; k < 4; k++) fxNoise('bandpass', 2600 + k * 300, 1.6, [[0, 0], [0.003, 0.09], [0.035, 0.001]], at + k * 0.06);
+      fxTone('sine', [[0, 300], [0.07, 140]], [[0, 0], [0.004, 0.22], [0.1, 0.001]], at + 0.3);
+    },
+    ludoStep(at) {
+      // A piece set down on the next square.
+      fxTone('sine', [[0, 620], [0.04, 480]], [[0, 0], [0.003, 0.07], [0.05, 0.001]], at);
+    },
+    ludoCapture(at) {
+      // Knocked off the board: a thump and a falling whistle.
+      fxTone('sine', [[0, 180], [0.1, 70]], [[0, 0], [0.004, 0.4], [0.14, 0.001]], at);
+      fxTone('triangle', [[0, 900], [0.35, 300]], [[0, 0], [0.02, 0.09], [0.38, 0.001]], at + 0.05);
+    },
+    ludoHome(at) {
+      fxTone('triangle', [[0, 660]], [[0, 0], [0.01, 0.12], [0.2, 0.001]], at);
+      fxTone('triangle', [[0, 880]], [[0, 0], [0.01, 0.12], [0.2, 0.001]], at + 0.09);
+      fxTone('triangle', [[0, 1320]], [[0, 0], [0.01, 0.1], [0.34, 0.001]], at + 0.18);
+    }
+  });
+}
+</script>
+
+    <script>
+/* ============================================================================
+   لودو — LUDO in rooms and on the TV
+   ----------------------------------------------------------------------------
+   The rules are ludoAction in RoomLudo.js (and Ludo.js, which both sides
+   load); the board, the die and every move's motion are JS_Ludo.html, the same
+   as a game against the phone. This file is the room around them: the lobby
+   (everyone picks a colour; with five or more the host picks who plays; the
+   host's turn clock), the phone's frame, the TV's frame, the clock and the
+   host's way past a phone that went quiet.
+
+   Everything in لودو is on the table, so every phone and the TV draw the same
+   board from `shared`; your own board is turned so your yard is at the bottom
+   left, a watcher's and the TV's are not. Someone who joins in the middle
+   watches the board (lateJoin) and plays the next game.
+   ========================================================================= */
+
+const LUDO_OPTS_KEY = 'ludoRoom';
+
+/** What only this phone holds: the tap already sent, the clock, the host's timer. */
+const ludoRoomLocal = { sent: '', clock: null, clockKey: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '' };
+
+function ludoRoomOpts() {
+  const o = recallOptions(LUDO_OPTS_KEY, { turnClock: 0 });
+  if (LUDO_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
+  return o;
+}
+
+function setLudoRoomOpt(key, value) {
+  if (key === 'turnClock') rememberOptions(LUDO_OPTS_KEY, { turnClock: Number(value) || 0 });
+  haptic('light');
+  ludoLobbyRedraw();
+}
+
+function ludoLobbyRedraw() {
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/* --- the lobby: colours and seats ---------------------------------------------------------- */
+
+/** Who would play if the game started now. Mirrors ludoLobbySeated in RoomLudo.js - keep the two in step. */
+function ludoRoomSeated(state) {
+  const ids = (state.players || []).map(p => p.id);
+  const lobby = ((state.shared || {}).lobby) || {};
+  if (Array.isArray(lobby.seated)) {
+    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
+    ids.forEach(id => { if (kept.length < LUDO_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
+    return kept.slice(0, LUDO_MAX_PLAYERS);
+  }
+  return ids.slice(0, LUDO_MAX_PLAYERS);
+}
+
+function ludoPickColorTap(color) {
+  const state = Room.state;
+  if (!state || state.phase !== 'lobby') return;
+  haptic('light');
+  roomAct('color', { color: color });
+}
+
+function ludoSeatTap(pid, on) {
+  haptic('light');
+  roomAct('seat', { playerId: pid, on: !!on });
+}
+
+/** The four colours: each shows who has taken it; a tap takes a free one, or lets yours go. */
+function ludoColorPickerHtml(state) {
+  const seated = ludoRoomSeated(state);
+  const lobby = ((state.shared || {}).lobby) || {};
+  const colors = lobby.colors || {};
+  const holder = {};
+  Object.keys(colors).forEach(id => { if (seated.indexOf(id) !== -1) holder[colors[id]] = id; });
+  const mineSeated = !state.youAreScreen && seated.indexOf(Room.me) !== -1;
+  const name = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+  const swatches = LUDO_COLORS.map(c => {
+    const who = holder[c];
+    const mine = who === Room.me;
+    const free = !who;
+    const can = mineSeated && (free || mine);
+    const label = who ? name(who) : ludoT('ludo_color_free');
+    return `<button type="button" class="ludo-pick ludo-av--${c} ${mine ? 'is-mine' : ''} ${who ? 'is-taken' : ''}" ${can ? `onclick="ludoPickColorTap('${c}')"` : 'disabled'}
+        aria-pressed="${mine}" aria-label="${escapeHTML(ludoColorName(c) + ': ' + label)}">
+        <span class="ludo-pick__piece" aria-hidden="true"></span>
+        <span class="ludo-pick__name">${escapeHTML(ludoColorName(c))}</span>
+        <span class="ludo-pick__who">${who ? escapeHTML(label) : escapeHTML(ludoT('ludo_color_free'))}</span>
+      </button>`;
+  }).join('');
+  const hint = state.youAreScreen ? '' : mineSeated ? ludoT(colors[Room.me] ? 'ludo_color_yours' : 'ludo_color_pick') : ludoT('ludo_watching_next');
+  return `<div class="field">
+      <label class="field__label">🎨 ${escapeHTML(ludoT('ludo_color_label'))}</label>
+      <div class="ludo-picks">${swatches}</div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+}
+
+/** With five or more in the room: who plays (four) and who watches. The host moves people between the two. */
+function ludoSeatsHtml(state) {
+  const players = state.players || [];
+  if (players.length <= LUDO_MAX_PLAYERS) return '';
+  const seated = ludoRoomSeated(state);
+  const host = !!state.youAreHost;
+  const chip = (p) => {
+    const on = seated.indexOf(p.id) !== -1;
+    const inner = `${p.bot ? '🤖 ' : ''}${escapeHTML(p.name)}`;
+    return host
+      ? `<button type="button" class="chip ${on ? 'is-selected' : ''}" onclick="ludoSeatTap('${jsStringAttr(p.id)}', ${!on})" aria-pressed="${on}">${inner}</button>`
+      : `<span class="chip ${on ? 'is-selected' : ''}">${inner}</span>`;
+  };
+  return `<div class="field">
+      <label class="field__label">🪑 ${escapeHTML(ludoT('ludo_seats_label', { n: seated.length }))}</label>
+      <div class="chip-set">${players.map(chip).join('')}</div>
+      <p class="field__hint">${escapeHTML(host ? ludoT('ludo_seats_hint_host') : ludoT('ludo_seats_hint'))}</p>
+    </div>`;
+}
+
+/* --- a room's frame ------------------------------------------------------------------------ */
+
+const ludoShared = (state) => (state && state.shared) || {};
+const ludoInGame = (state) => !state.youAreScreen && (ludoShared(state).seats || []).indexOf(Room.me) !== -1;
+const ludoMyTurn = (state) => { const s = ludoShared(state); return s.phase === 'play' && s.turn && s.turn.pid === Room.me && ludoInGame(state); };
+
+function ludoRoomRoll() {
+  const state = Room.state;
+  if (!state || state.game !== 'ludo' || !ludoMyTurn(state)) return;
+  const s = ludoShared(state);
+  if (s.turn.stage !== 'roll') return;
+  const stamp = state.code + '|' + s.turnSeq + '|roll';
+  if (ludoRoomLocal.sent === stamp) return;
+  ludoRoomLocal.sent = stamp;
+  haptic('medium');
+  // The die starts turning as the finger lifts; the number is the server's.
+  const die = document.querySelector('#view-room-ludo .ludo-die');
+  if (die) die.classList.add('is-rolling');
+  Promise.resolve(roomAct('roll', { seq: s.turnSeq })).then(() => {
+    if (ludoRoomLocal.sent === stamp) ludoRoomLocal.sent = '';
+    const d = document.querySelector('#view-room-ludo .ludo-die.is-rolling');
+    if (d) d.classList.remove('is-rolling');
+  });
+}
+
+function ludoRoomMove(i) {
+  const state = Room.state;
+  if (!state || state.game !== 'ludo' || !ludoMyTurn(state)) return;
+  const s = ludoShared(state);
+  if (s.turn.stage !== 'move') return;
+  const stamp = state.code + '|' + s.turnSeq + '|move';
+  if (ludoRoomLocal.sent === stamp) return;
+  ludoRoomLocal.sent = stamp;
+  const btn = document.querySelector(`#view-room-ludo [data-ludo-pc="${CSS.escape(Room.me)}|${i}"]`);
+  if (btn) btn.classList.add('is-sent');
+  Promise.resolve(roomAct('move', { piece: i, seq: s.turnSeq })).then(() => {
+    if (ludoRoomLocal.sent === stamp) ludoRoomLocal.sent = '';
+  });
+}
+
+function ludoRoomSkip() {
+  const s = ludoShared(Room.state);
+  roomAct('skipTurn', { seq: s.turnSeq });
+}
+
+/** The host's way past a phone that went quiet: gone, or holding the turn for 40 seconds. */
+function ludoHostButtons(state) {
+  const s = ludoShared(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.turn || !s.turn.pid) return [];
+  const p = (state.players || []).find(x => x.id === s.turn.pid);
+  if (p && p.bot) return [];
+  const key = state.code + '|' + s.turnSeq;
+  if (ludoRoomLocal.hostKey !== key) {
+    ludoRoomLocal.hostKey = key;
+    ludoRoomLocal.turnSince = Date.now();
+    clearTimeout(ludoRoomLocal.hostTimer);
+    ludoRoomLocal.hostTimer = setTimeout(() => {
+      const st = Room.state;
+      if (st && st.game === 'ludo') ludoRefreshInPlace(document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-ludo'), st, !!st.youAreScreen);
+    }, 40500);
+  }
+  const quiet = !p || !p.online || Date.now() - (ludoRoomLocal.turnSince || Date.now()) > 40000;
+  if (!quiet || s.turn.pid === Room.me) return [];
+  return [['⏭️ ' + ludoT('ludo_play_for', { name: p ? p.name : '' }), 'ludoRoomSkip()']];
+}
+
+/** Presence redraws nothing: who is away and the host's buttons are updated in place. */
+function ludoRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('[data-ludo-chip]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-ludo-chip'));
+    el.classList.toggle('is-away', !!p && !p.bot && !p.online);
+  });
+  const box = root.querySelector('[data-ludo-host]');
+  if (box) {
+    const buttons = ludoHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._ludoHtml !== html) { box.innerHTML = html; box._ludoHtml = html; }
+  }
+}
+
+function ludoStopClock() {
+  if (ludoRoomLocal.clock) ludoRoomLocal.clock.stop();
+  ludoRoomLocal.clock = null;
+  ludoRoomLocal.clockKey = null;
+}
+
+/** Draws the turn clock; the server plays the turn when it runs out. */
+function ludoTickClock(state) {
+  const s = ludoShared(state);
+  const endsAt = s.phase === 'play' ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-ludo-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 5);
+      el.classList.toggle('badge--accent', left > 5);
+    });
+    return left;
+  };
+  if (!endsAt) { ludoStopClock(); return; }
+  paint();
+  if (ludoRoomLocal.clockKey === endsAt && ludoRoomLocal.clock) return;
+  ludoStopClock();
+  ludoRoomLocal.clockKey = endsAt;
+  ludoRoomLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      if (left > 0 && left <= 5 && st && st.game === 'ludo' && ludoShared(st).endsAt === endsAt && (st.youAreScreen || ludoMyTurn(st))) playSound('tick');
+    },
+    onEnd: () => { ludoRoomLocal.clock = null; paint(); }
+  });
+}
+
+/** The context the shared frame is drawn from. */
+function ludoRoomCtx(state, tv) {
+  const s = ludoShared(state);
+  const names = {};
+  const bots = {};
+  const away = {};
+  (state.players || []).forEach(p => {
+    names[p.id] = p.name;
+    if (p.bot) bots[p.id] = p.bot;
+    else if (!p.online) away[p.id] = true;
+  });
+  const seated = ludoInGame(state);
+  const me = seated ? Room.me : null;
+  let over = '';
+  if (s.phase === 'gameover') {
+    const share = typeof roomShareBtnHtml === 'function' && !tv ? roomShareBtnHtml(state, s.board) : '';
+    if (tv) {
+      over = state.youAreHost ? `<div class="tv-actions">${tvBtn(ludoT('ludo_again'), "roomAct('playAgain')")}${tvBtn(ludoT('room_another_game'), "roomAct('backToHub')", 'ghost')}</div>` : '';
+    } else if (state.youAreHost) {
+      over = `<div class="btn-stack">
+          <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(ludoT('ludo_again'))}</button>
+          <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(ludoT('room_another_game'))}</button>
+        </div>${share}`;
+    } else {
+      over = `<p class="field__hint" style="text-align:center">${escapeHTML(ludoT('ludo_wait_host'))}</p>${share}`;
+    }
+  }
+  return {
+    g: s, me: me, names: names, bots: bots, away: away, tv: !!tv,
+    view: me ? s.colors[me] : 'R',
+    key: state.code + '|' + (s.dealId || ''),
+    fresh: ludoFx.watched === state.code,
+    loud: !!tv || !roomHasScreen(),
+    rollJs: 'ludoRoomRoll()',
+    clock: !!s.endsAt,
+    over: over,
+    host: tv ? '<div class="tv-actions" data-ludo-host></div>' : '<div data-ludo-host></div>'
+  };
+}
+
+/** Everything the server said that the screen shows. Presence is not in it (refreshed in place). */
+function ludoServerSig(state) {
+  const s = ludoShared(state);
+  return [s.dealId || '', s.phase, s.turnSeq, s.eventSeq, JSON.stringify(s.pieces || {}), (s.places || []).join(','), s.endsAt || '',
+    (s.seats || []).join(','), (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','), JSON.stringify(s.board || [])].join('|');
+}
+
+/** A frame waiting for a move to land draws itself once it has. */
+function ludoDeferRedraw() {
+  if (ludoRoomLocal.redrawTimer) return;
+  ludoRoomLocal.redrawTimer = setTimeout(() => {
+    ludoRoomLocal.redrawTimer = null;
+    const st = Room.state;
+    if (!st || st.game !== 'ludo' || st.phase === 'lobby') return;
+    if (st.youAreScreen ? appState.currentView === 'room-tv' : onRoomView()) routeRoomState(st);
+  }, Math.max(40, ludoFx.busyUntil - Date.now() + 40));
+}
+
+/** A buzz and a tick when the roll comes to this phone (not on a reload). */
+function ludoTurnCue(state, delay) {
+  const s = ludoShared(state);
+  const mine = ludoMyTurn(state) && s.turn.stage === 'roll';
+  const was = ludoRoomLocal.turnMine;
+  ludoRoomLocal.turnMine = mine;
+  if (mine && !was && ludoFx.watched === state.code) {
+    ludoFx.timers.push(setTimeout(() => { playSound('tick'); haptic('medium'); }, delay || 0));
+  }
+}
+
+ROOM_GAMES.ludo = {
+  bots: { max: LUDO_MAX_PLAYERS },
+  // Someone who joins in the middle watches the board, and plays the next game.
+  lateJoin: true,
+
+  // A move is not a new step to scroll to; the end of the game is drawn from the top.
+  actionKey(state) {
+    const s = ludoShared(state);
+    return s.phase === 'gameover' ? [state.code, s.dealId, s.phase].join('|') : '';
+  },
+
+  lobbyOptions(state) {
+    const o = ludoRoomOpts();
+    const clock = state.youAreHost ? `<div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(ludoT('ludo_clock'))}</label>
+          <div class="segmented" role="group">${LUDO_CLOCKS.map(v => `<button type="button" class="segmented__item ${Number(o.turnClock) === v ? 'is-active' : ''}" onclick="setLudoRoomOpt('turnClock', ${v})">${v ? v + '″' : escapeHTML(ludoT('ludo_clock_off'))}</button>`).join('')}</div>
+          <p class="field__hint">${escapeHTML(ludoT('ludo_clock_hint'))}</p>
+        </div>` : '';
+    return `<div class="card card--tight ludo-lobby">
+        ${ludoColorPickerHtml(state)}
+        ${ludoSeatsHtml(state)}
+        ${clock}
+        <p class="field__hint" style="text-align:center">${escapeHTML(ludoT('ludo_lobby_hint'))}</p>
+      </div>`;
+  },
+
+  startPayload() {
+    return { turnClock: ludoRoomOpts().turnClock };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-ludo') setView('room-ludo');
+    const el = document.getElementById('view-room-ludo');
+    if (!el) return;
+    const s = ludoShared(state);
+    if (!Array.isArray(s.seats)) return;
+    const server = ludoServerSig(state);
+    // A move is still landing: the board it lands on waits until it has.
+    const changed = !!(el.dataset.sig && el._ludoServer && el._ludoServer !== server);
+    if (changed && ludoFx.busyUntil > Date.now()) {
+      ludoDeferRedraw();
+      ludoRefreshInPlace(el, state, false);
+      return;
+    }
+    const c = ludoRoomCtx(state, false);
+    const local = [state.youAreHost, appState.lang, Room.me].join('|');
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => ludoFrameHtml(c) + renderRoomPlayerStrip(state));
+    el._ludoServer = server;
+    ludoRefreshInPlace(el, state, false);
+    ludoTickClock(state);
+    if (!rebuilt) return;
+    const played = ludoAfterPaint(el, c);
+    ludoWire(el, c, ludoRoomMove);
+    ludoTurnCue(state, played);
+    if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['ludo-room-end', c.key].join('|'))) {
+      const won = s.places[0] === Room.me;
+      ludoFx.timers.push(setTimeout(() => afterReveal(el, () => {
+        if (won) {
+          playSound('success');
+          if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+          haptic('double');
+        }
+      }), played));
+    }
+  }
+};
+
+onRoomClocksReset(() => {
+  ludoStopClock();
+  clearTimeout(ludoRoomLocal.hostTimer);
+  ludoFxCancel();
+  ludoRoomLocal.sent = '';
+});
+
+// After the room has drawn this state: a screen that wasn't showing the board
+// counts its moves as seen, so coming back replays nothing; and this page has
+// now watched the room.
+Room.onChange((state) => {
+  if (!state) { ludoFx.watched = ''; return; }
+  if (state.game === 'ludo' && state.phase !== 'lobby' && Array.isArray(ludoShared(state).seats)) {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : onRoomView();
+    if (!showing) ludoEventsToPlay(state.code + '|' + (ludoShared(state).dealId || ''), ludoShared(state), false);
+  }
+  ludoFx.watched = state.code;
+});
+
+/* --- the TV: the board takes the height, the players and the die beside it --------------------- */
+
+TV_GAMES.ludo = {
+  sig(state) {
+    const cur = ludoServerSig(state) + '|' + state.youAreHost;
+    // A move is landing: keep this frame until it has.
+    if (ludoRoomLocal.tvSig && cur !== ludoRoomLocal.tvSig && ludoFx.busyUntil > Date.now()) { ludoDeferRedraw(); return ludoRoomLocal.tvSig; }
+    return cur;
+  },
+  frame(state) {
+    ludoRoomLocal.tvSig = ludoServerSig(state) + '|' + state.youAreHost;
+    const s = ludoShared(state);
+    if (!Array.isArray(s.seats)) return '';
+    return ludoFrameHtml(ludoRoomCtx(state, true));
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    ludoTickClock(state);
+    ludoRefreshInPlace(view, state, true);
+    if (!rebuilt || !view) return;
+    const c = ludoRoomCtx(state, true);
+    const played = ludoAfterPaint(view, c);
+    const s = ludoShared(state);
+    if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['ludo-tv-end', c.key].join('|'))) {
+      ludoFx.timers.push(setTimeout(() => afterReveal(view, () => {
+        playSound('success');
+        if (typeof confetti === 'function') confetti({ particleCount: 160, spread: 90 });
+      }), played));
+    }
+  }
+};
+</script>
+
+    <script>
+/* ============================================================================
    ROOM CHAT — short messages between the phones
    ----------------------------------------------------------------------------
    For a table that isn't at one table. The messages live on the room, outside
@@ -72658,6 +74912,9 @@ function roomTurnOf(state) {
       return s.phase === 'play' && Array.isArray(s.seats) && s.seats[s.turn] === me ? 'turn_up' : null;
     case 'uno':
       // The player up (a colour to pick, a card to play or a drawn one to decide on).
+      return s.phase === 'play' && s.turn && s.turn.pid === me ? 'turn_up' : null;
+    case 'ludo':
+      // The roll, or the piece to move: whoever holds the turn.
       return s.phase === 'play' && s.turn && s.turn.pid === me ? 'turn_up' : null;
     case 'domino':
       // The tile to play, the draw or the knock: whoever holds the turn.

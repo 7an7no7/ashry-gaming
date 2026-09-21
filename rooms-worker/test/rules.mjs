@@ -3191,6 +3191,195 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- لودو: the board, every rule, the room, and whole games of computer players ------ */
+{
+  const { readFileSync } = await import('node:fs');
+  const L = new Function(readFileSync(new URL('../../Ludo.js', import.meta.url), 'utf8') +
+    '\nreturn { LUDO_TRACK_CELLS, LUDO_HOME_CELLS, LUDO_START, LUDO_SAFE, LUDO_STARS, LUDO_HOME, ludoGlobal, ludoCellOf, ludoNewGame, ludoFillColors,' +
+    ' ludoRollOff, ludoTarget, ludoMovable, ludoDistinct, ludoRoll, ludoMove, ludoOnlyMove, ludoBotPick, ludoRemovePlayer, ludoWallAt };')();
+  const cells = L.LUDO_TRACK_CELLS;
+  const key = (c) => c[0] + ',' + c[1];
+  const near = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1])) === 1;
+  check(cells.length === 52 && new Set(cells.map(key)).size === 52 && cells.every((c, i) => near(c, cells[(i + 1) % 52])),
+    'ludo: the track is 52 squares, each next to the one before, all the way round');
+  check(key(cells[L.LUDO_START.G]) === '1,6' && key(cells[L.LUDO_START.Y]) === '8,1' && key(cells[L.LUDO_START.B]) === '13,8' && key(cells[L.LUDO_START.R]) === '6,13',
+    'ludo: the four start squares are where each yard comes out');
+  check(L.LUDO_STARS.map((g) => key(cells[g])).join(' ') === '6,2 12,6 8,12 2,8' && L.LUDO_STARS.every((g, i) => g - L.LUDO_START['GYBR'[i]] === 8),
+    'ludo: a star eight squares after every start');
+  check('GYBR'.split('').every((c) => near(cells[L.ludoGlobal(c, 50)], L.LUDO_HOME_CELLS[c][0]) && L.ludoGlobal(c, 51) === null),
+    'ludo: each colour turns into its own home column from the square before its start');
+  const trackKeys = new Set(cells.map(key));
+  check('GYBR'.split('').every((c) => L.LUDO_HOME_CELLS[c].every((h) => !trackKeys.has(key(h)))), 'ludo: the home columns are off the track');
+
+  // a is red, b yellow, c green, d blue.
+  const game = (pieces, turn) => {
+    const g = L.ludoNewGame(Object.keys(pieces), { a: 'R', b: 'Y', c: 'G', d: 'B' }, turn || 'a');
+    Object.keys(pieces).forEach((id) => { g.pieces[id] = pieces[id].slice(); });
+    return g;
+  };
+  const set = (g, pid, dice) => { g.turn = { pid: pid, stage: 'move', dice: dice, sixes: 0 }; g.movable = L.ludoMovable(g, pid, dice); };
+  // Yellow's own number for the square red calls `rRel`.
+  const yRel = (rRel) => (L.LUDO_START.R + rRel - L.LUDO_START.Y + 52) % 52;
+
+  let g = game({ a: [-1, -1, -1, -1], b: [-1, -1, -1, -1] });
+  check(g.seats.join() === 'b,a' && g.turn.pid === 'a', 'ludo: turns go round the board (Y before R), the roll-off winner first');
+  check(L.ludoMovable(g, 'a', 5).length === 0 && L.ludoMovable(g, 'a', 6).length === 4, 'ludo: a piece leaves the yard on a 6 only');
+  check(L.ludoDistinct(g, 'a', 6).length === 1, 'ludo: four pieces in the yard are one move, not four');
+  L.ludoRoll(g, 'a', 3);
+  check(g.turn.pid === 'b' && g.events.some((e) => e.type === 'nomove'), 'ludo: nothing to move: the turn passes by itself');
+  g = game({ a: [-1, -1, -1, -1], b: [-1, -1, -1, -1] });
+  L.ludoRoll(g, 'a', 6);
+  check(g.turn.pid === 'a' && g.turn.stage === 'move' && g.movable.length === 4, 'ludo: a 6 brings one out');
+  L.ludoMove(g, 'a', 0);
+  check(g.pieces.a[0] === 0 && g.turn.pid === 'a' && g.turn.stage === 'roll', 'ludo: out onto its start square, and a 6 rolls again');
+  L.ludoRoll(g, 'a', 6);
+  L.ludoMove(g, 'a', 0);
+  L.ludoRoll(g, 'a', 6);
+  check(g.turn.pid === 'b' && g.pieces.a[0] === 6 && g.events.some((e) => e.type === 'three'), 'ludo: a third 6 in a row is not played, and the turn passes');
+
+  // Capturing, and where it can't happen.
+  g = game({ a: [10, -1, -1, -1], b: [yRel(12), -1, -1, -1] });
+  set(g, 'a', 2);
+  L.ludoMove(g, 'a', 0);
+  check(g.pieces.b[0] === -1 && g.events.some((e) => e.type === 'move' && e.cap), 'ludo: landing on a single piece of another colour sends it home');
+  g = game({ a: [2, -1, -1, -1], b: [yRel(8), -1, -1, -1] });
+  set(g, 'a', 6);
+  L.ludoMove(g, 'a', 0);
+  check(g.pieces.b[0] === yRel(8) && g.pieces.a[0] === 8, 'ludo: a star is safe: both stay');
+  g = game({ a: [3, -1, -1, -1], b: [yRel(5), yRel(5), -1, -1] });
+  check(L.ludoWallAt(g, L.ludoGlobal('R', 5)) === 'b' && !L.ludoTarget(g, 'a', 0, 2) && !L.ludoTarget(g, 'a', 0, 4) && !!L.ludoTarget(g, 'a', 0, 1),
+    'ludo: two pieces are a wall: nobody lands on it or passes it');
+  g = game({ a: [3, 4, 4, -1], b: [-1, -1, -1, -1] });
+  check(!!L.ludoTarget(g, 'a', 0, 3), "ludo: a player's own wall doesn't stop the same player's pieces");
+
+  // Home.
+  g = game({ a: [53, 56, 56, 56], b: [-1, -1, -1, -1] });
+  check(!L.ludoTarget(g, 'a', 0, 4) && !!L.ludoTarget(g, 'a', 0, 3), 'ludo: home needs the exact number');
+  set(g, 'a', 3);
+  check(L.ludoOnlyMove(g, 'a') === -1, "ludo: the move that brings the last piece home is the player's own tap");
+  g = game({ a: [53, 20, 56, 56], b: [-1, -1, -1, -1] });
+  set(g, 'a', 5);
+  check(L.ludoOnlyMove(g, 'a') === 1, 'ludo: one piece that can move is moved for the player');
+  set(g, 'a', 3);
+  check(L.ludoOnlyMove(g, 'a') === -1, 'ludo: two that can move: the player chooses');
+
+  // Places.
+  g = game({ a: [53, 56, 56, 56], b: [5, -1, -1, -1], c: [7, -1, -1, -1] });
+  set(g, 'a', 3);
+  L.ludoMove(g, 'a', 0);
+  check(g.places.join() === 'a' && g.phase === 'play' && g.turn.pid !== 'a', 'ludo: the first home takes first place, and the others play on');
+  g.pieces.b = [53, 56, 56, 56];
+  set(g, 'b', 3);
+  L.ludoMove(g, 'b', 0);
+  check(g.places.join() === 'a,b,c' && g.phase === 'gameover' && g.events.some((e) => e.type === 'over'), 'ludo: the last one left takes the last place, and it is over');
+  g = game({ a: [5, -1, -1, -1], b: [7, -1, -1, -1], c: [9, -1, -1, -1] }, 'b');
+  L.ludoRemovePlayer(g, 'b');
+  check(g.seats.indexOf('b') === -1 && !g.pieces.b && g.phase === 'play' && g.turn.pid !== 'b', 'ludo: a player who leaves takes their pieces, and the turn moves on');
+  L.ludoRemovePlayer(g, 'c');
+  check(g.phase === 'gameover' && g.places.join() === 'a', 'ludo: one left: the game is over');
+
+  // Colours: two players sit opposite; a pick is kept.
+  const two = L.ludoFillColors(['x', 'y'], {});
+  check(two.x === 'R' && two.y === 'Y', 'ludo: nobody picked: red, and the colour opposite');
+  const kept = L.ludoFillColors(['x', 'y', 'z'], { y: 'G' });
+  check(kept.y === 'G' && kept.x === 'B' && new Set(Object.values(kept)).size === 3, 'ludo: a picked colour is kept, the next goes opposite it');
+  const off = L.ludoRollOff(['x', 'y', 'z', 'w'], Math.random);
+  const lastRound = off.rounds[off.rounds.length - 1];
+  const topN = Math.max(...lastRound.map((r) => r.n));
+  check(lastRound.find((r) => r.pid === off.first).n === topN && lastRound.filter((r) => r.n === topN).length === 1,
+    'ludo: the roll-off: the highest starts, and a tie on top rolls again');
+
+  // The room: colours in the lobby, who plays, the dice, the clock.
+  const lr = newRoom(['h', 'p', 'q', 'r', 's']);
+  applyRoomAction(lr, 'h', 'chooseGame', { game: 'ludo' });
+  applyRoomAction(lr, 'p', 'color', { color: 'G' });
+  let refusedColor = false;
+  try { applyRoomAction(lr, 'q', 'color', { color: 'G' }); } catch (e) { refusedColor = true; }
+  check(refusedColor && lr.shared.lobby.colors.p === 'G', 'ludo room: a colour already taken is refused');
+  let refusedWatcher = false;
+  try { applyRoomAction(lr, 's', 'color', { color: 'Y' }); } catch (e) { refusedWatcher = true; }
+  check(refusedWatcher, 'ludo room: with five in the room the fifth watches, and picks no colour');
+  let refusedFifth = false;
+  try { applyRoomAction(lr, 'h', 'seat', { playerId: 's', on: true }); } catch (e) { refusedFifth = true; }
+  applyRoomAction(lr, 'h', 'seat', { playerId: 'r', on: false });
+  applyRoomAction(lr, 'h', 'seat', { playerId: 's', on: true });
+  applyRoomAction(lr, 's', 'color', { color: 'Y' });
+  check(refusedFifth && lr.shared.lobby.seated.join() === 'h,p,q,s' && lr.shared.lobby.colors.s === 'Y', 'ludo room: the host picks who plays, four at most');
+  applyRoomAction(lr, 'p', 'color', { color: 'G' });
+  check(!lr.shared.lobby.colors.p, 'ludo room: a second tap lets a colour go');
+  applyRoomAction(lr, 'p', 'color', { color: 'G' });
+  applyRoomAction(lr, 'h', 'start', { turnClock: 15 });
+  const ls = lr.shared;
+  check(lr.phase === 'play' && ls.seats.length === 4 && ls.seats.indexOf('r') === -1 && ls.colors.p === 'G' && ls.colors.s === 'Y' && new Set(Object.values(ls.colors)).size === 4,
+    'ludo room: the four seated play, in the colours they picked and the rest filled in');
+  check(ls.events[0].type === 'rolloff' && ls.events[0].first === ls.turn.pid && ls.roster.indexOf('r') !== -1, 'ludo room: the roll-off decides who starts; the fifth watches the board');
+  check(ls.endsAt === clock + 15000, "ludo room: the host's turn clock starts");
+  // The clock runs out: the phone rolls and moves for whoever is up.
+  const upT = ls.turn.pid;
+  check(roomTimeout(lr, ls.endsAt + 2000) === true && lr.shared.events.some((e) => e.type === 'auto' && e.pid === upT && e.why === 'clock'),
+    'ludo room: time up: the phone plays the turn');
+  lr._botAt = null;
+  lr.shared.turn = { pid: lr.shared.seats[0], stage: 'roll', dice: null, sixes: 0 };
+  lr.shared.turnSeq += 1;
+  const upL = lr.shared.turn.pid;
+  const offL = lr.shared.seats.find((id) => id !== upL);
+  let refusedTurn = false;
+  try { applyRoomAction(lr, offL, 'roll', { seq: lr.shared.turnSeq }); } catch (e) { refusedTurn = true; }
+  check(refusedTurn, 'ludo room: out of turn is refused');
+  const seqL = lr.shared.turnSeq;
+  applyRoomAction(lr, upL, 'roll', { seq: seqL - 1 });
+  check(lr.shared.turnSeq === seqL, 'ludo room: a tap from a turn that has moved on is dropped');
+  applyRoomAction(lr, upL, 'roll', { seq: seqL });
+  check(lr.shared.events.some((e) => e.type === 'roll' && e.pid === upL), 'ludo room: the dice are rolled on the server');
+
+  // Whole games of bots, 2 to 4, easy and hard, through the room's own door.
+  const errorWas = console.error;
+  const errors = [];
+  console.error = (...a) => errors.push(a.join(' '));
+  let ended = 0;
+  let sane = true;
+  let games = 0;
+  for (const n of [2, 3, 4]) {
+    for (const lvl of ['easy', 'hard', 'mix']) {
+      for (let rep = 0; rep < 3; rep++) {
+        games++;
+        // The host is the big screen, so four computer players can take all four seats.
+        const r = newRoom(['h']);
+        applyRoomAction(r, 'h', 'becomeScreen', {});
+        applyRoomAction(r, 'h', 'chooseGame', { game: 'ludo' });
+        for (let k = 0; k < n; k++) applyRoomAction(r, 'h', 'addBot', { level: lvl === 'mix' ? (k % 2 ? 'hard' : 'easy') : lvl, name: 'B' });
+        applyRoomAction(r, 'h', 'start', {});
+        for (let step = 0; step < 8000 && r.shared.phase === 'play'; step++) {
+          if (typeof r._botAt !== 'number') break;
+          clock = Math.max(clock, r._botAt) + 1;
+          roomTimeout(r, clock);
+          const pcs = r.shared.pieces;
+          if (Object.keys(pcs).some((id) => pcs[id].length !== 4 || pcs[id].some((x) => x < -1 || x > 56))) sane = false;
+        }
+        if (r.shared.phase === 'gameover' && r.shared.places.length === n && r.shared.board.some((b) => b.score === 1)) ended++;
+      }
+    }
+  }
+  console.error = errorWas;
+  check(ended === games, `ludo bots: ${games} whole games of bots, 2-4 players, easy and hard, all played to the last place (${ended})`);
+  check(!errors.length, 'ludo bots: no bot move was ever refused' + (errors.length ? ': ' + errors[0] : ''));
+  check(sane, 'ludo: every piece is always somewhere on the board');
+
+  // A person with one move has it made for them; the roll is theirs.
+  const fm = newRoom(['h', 'p']);
+  applyRoomAction(fm, 'h', 'chooseGame', { game: 'ludo' });
+  applyRoomAction(fm, 'h', 'start', {});
+  const fs = fm.shared;
+  const who = fs.turn.pid;
+  fs.pieces[who] = [20, 56, 56, -1];
+  fs.turn = { pid: who, stage: 'move', dice: 3, sixes: 0 };
+  fs.movable = [0];
+  const f = roomForcedMove(fm);
+  check(!!f && f.pid === who && f.move.action === 'move' && f.move.payload.piece === 0, 'ludo room: one piece to move is moved for the player after a beat');
+  fs.turn.stage = 'roll';
+  check(!roomForcedMove(fm), "ludo room: the roll is always the player's own tap");
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

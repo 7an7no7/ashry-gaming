@@ -10614,4 +10614,328 @@ button.dom-seatchip { cursor: pointer; transition: transform var(--dur-2) var(--
   .dom-reveal__line.is-shown, .dom-htile, .dom-seat, .dom-mine, button.dom-seatchip { transition: none; }
 }
 
+/* ==========================================================================
+   22. لودو
+   The owner's option أ "كلاسيك" (21 Sep 2026): the classic cross on white,
+   the four yards in full red, green, yellow and blue - أونو's four - a star
+   on the safe squares and an arrow on each start, glossy pieces with a white
+   rim, and the app's white 3D die. The board is the same in both themes, like
+   a real one; the page around it follows the theme. Everything on the board
+   is placed in percent of its width (JS_Ludo.html), so one markup fits a
+   phone, a laptop and a TV.
+   ========================================================================== */
+.ludo-av--R { background: #e5383b; } .ludo-av--G { background: #1f9d55; }
+.ludo-av--Y { background: #f5b400; } .ludo-av--B { background: #1e6fd9; }
+
+/* --- the board ------------------------------------------------------------ */
+.ludo-board { position: relative; width: 100%; aspect-ratio: 1; margin-inline: auto; }
+.ludo-rot {
+  position: absolute;
+  inset: 0;
+  border-radius: 2.2%;
+  background: #2b2733;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 22px rgba(20, 15, 30, 0.16);
+}
+.ludo-cell {
+  position: absolute;
+  width: calc(100% / 15 - 1px);
+  height: calc(100% / 15 - 1px);
+  margin: 0.5px;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+}
+.ludo-cell--R { background: #e5383b; } .ludo-cell--G { background: #1f9d55; }
+.ludo-cell--Y { background: #f5b400; } .ludo-cell--B { background: #1e6fd9; }
+.ludo-star { width: 64%; height: 64%; fill: #77737f; }
+.ludo-arrow { width: 62%; height: 62%; fill: none; stroke: #ffffff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.ludo-yard { position: absolute; width: 40%; height: 40%; }
+.ludo-yard--G { background: #1f9d55; border-top-left-radius: 5.5%; }
+.ludo-yard--Y { background: #f5b400; border-top-right-radius: 5.5%; }
+.ludo-yard--B { background: #1e6fd9; border-bottom-right-radius: 5.5%; }
+.ludo-yard--R { background: #e5383b; border-bottom-left-radius: 5.5%; }
+.ludo-yard__in { position: absolute; inset: 16.667%; background: #ffffff; border-radius: 14%; }
+.ludo-spot { position: absolute; width: 8.4%; aspect-ratio: 1; margin: -4.2% 0 0 -4.2%; border-radius: 50%; }
+.ludo-spot--R { background: #fbd3d4; } .ludo-spot--G { background: #cdebd9; }
+.ludo-spot--Y { background: #fdecb8; } .ludo-spot--B { background: #cfe0f8; }
+.ludo-mid { position: absolute; left: 40%; top: 40%; width: 20%; height: 20%; }
+.ludo-fx { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+
+/* A piece: placed by left/top (its centre, by negative margins), so its
+   transform is free for the motion. */
+.ludo-pc {
+  position: absolute;
+  z-index: 2;
+  width: 5.4%;
+  aspect-ratio: 1;
+  margin: -2.7% 0 0 -2.7%;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #ffffff, 0 2px 3px rgba(0, 0, 0, 0.38);
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+.ludo-pc--R { background: radial-gradient(circle at 35% 30%, #ff8a8b, #e5383b 55%, #a82427); }
+.ludo-pc--G { background: radial-gradient(circle at 35% 30%, #5fd08f, #1f9d55 55%, #136b39); }
+.ludo-pc--Y { background: radial-gradient(circle at 35% 30%, #ffe27a, #f5b400 55%, #b98600); }
+.ludo-pc--B { background: radial-gradient(circle at 35% 30%, #6ea7f5, #1e6fd9 55%, #154c98); }
+.ludo-pc.is-stacked { width: 4.4%; margin: -2.2% 0 0 -2.2%; }
+.ludo-pc.is-home { width: 4.2%; margin: -2.1% 0 0 -2.1%; }
+/* The pieces this phone may move: on top, a turning dashed ring, and a bigger place to tap. */
+.ludo-pc.is-movable { z-index: 4; cursor: pointer; }
+.ludo-pc.is-movable::before { content: ""; position: absolute; inset: -70%; border-radius: 50%; }
+.ludo-pc.is-movable::after {
+  content: "";
+  position: absolute;
+  inset: -38%;
+  border-radius: 50%;
+  border: 2px dashed #1d1b26;
+  animation: ludoRing 2.4s linear infinite;
+}
+.ludo-pc.is-movable:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.ludo-pc.is-sent { transform: scale(1.18); transition: transform 0.12s ease-out; }
+.ludo-board.is-choosing .ludo-pc:not(.is-movable) { filter: saturate(0.85); }
+@keyframes ludoRing { to { transform: rotate(360deg); } }
+
+/* The squares a piece would pass, and where it would land (a mouse or a keyboard). */
+.ludo-path { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
+.ludo-path--dot { width: 1.9%; aspect-ratio: 1; background: var(--pc); opacity: 0.7; box-shadow: 0 0 0 1.5px #ffffff; }
+.ludo-path--end { width: 5.8%; aspect-ratio: 1; border: 2.5px solid var(--pc); background: rgba(255, 255, 255, 0.35); }
+.ludo-path--end.is-capture { border-color: #e5383b; }
+.ludo-path--end b {
+  position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+  padding: 2px 6px; border-radius: 8px; background: #e5383b; color: #ffffff;
+  font-size: 10px; font-weight: 800; line-height: 1.2; white-space: nowrap;
+}
+
+/* A piece taken, a piece home: a ring bursting out in its colour. */
+.ludo-burst {
+  position: absolute;
+  width: 6.6%;
+  aspect-ratio: 1;
+  margin: -3.3% 0 0 -3.3%;
+  border-radius: 50%;
+  border: 3px solid var(--pc);
+  animation: ludoBurst 0.8s var(--ease-out, ease-out) forwards;
+}
+.ludo-burst--big { border-width: 4px; animation-duration: 0.9s; }
+@keyframes ludoBurst { from { transform: scale(0.4); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+
+/* The roll-off before the first turn. */
+.ludo-off { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; pointer-events: none; animation: ludoFadeIn 0.25s ease-out both; }
+.ludo-off.is-leaving { animation: ludoFadeOut 0.35s ease-in forwards; }
+.ludo-off__card {
+  min-width: 58%;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg, 20px);
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  direction: inherit;
+}
+.ludo-board[dir] .ludo-off__card { direction: rtl; }
+html[lang="en"] .ludo-board[dir] .ludo-off__card { direction: ltr; }
+.ludo-off__title { margin: 0 0 var(--sp-2); text-align: center; font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.05rem; }
+.ludo-off__again { margin: var(--sp-2) 0 var(--sp-1); text-align: center; font-size: 0.8rem; font-weight: 700; color: var(--text-2); }
+.ludo-off__row { display: flex; align-items: center; gap: var(--sp-2); padding: 3px 0; animation: ludoRowIn 0.3s ease-out both; animation-delay: var(--at); }
+.ludo-off__round { animation: ludoFadeIn 0.2s ease-out both; animation-delay: var(--at); }
+.ludo-off__dot { width: 0.9rem; height: 0.9rem; border-radius: 50%; flex: none; }
+.ludo-off__name { flex: 1; min-width: 0; font-size: 0.9rem; font-weight: 700; }
+.ludo-off__n { font-size: 1.2rem; font-weight: 800; animation: ludoNumIn 0.5s var(--ease-out, ease-out) both; animation-delay: calc(var(--at) + 0.35s); }
+.ludo-off__first { margin: var(--sp-2) 0 0; text-align: center; font-weight: 800; color: var(--accent-ink); animation: ludoFadeIn 0.3s ease-out both; animation-delay: var(--at); }
+@keyframes ludoFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ludoFadeOut { to { opacity: 0; } }
+@keyframes ludoRowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ludoNumIn { 0% { opacity: 0; transform: scale(0.4) rotate(-40deg); } 70% { opacity: 1; transform: scale(1.25); } 100% { transform: scale(1); } }
+
+/* --- the frame: players, board, bar, log ------------------------------------- */
+.ludo-layout { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ludo-layout__side { display: contents; }
+.ludo-layout__board { width: 100%; max-width: 34rem; margin-inline: auto; }
+.ludo-layout__side > .ludo-over { order: -3; }
+.ludo-layout__side > .ludo-strip { order: -2; }
+
+.ludo-strip { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: var(--sp-2); }
+.ludo-strip--n2 { --n: 2; } .ludo-strip--n3 { --n: 3; } .ludo-strip--n4 { --n: 4; }
+.ludo-chip {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 6px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: box-shadow var(--dur-2, 200ms) ease, opacity var(--dur-2, 200ms) ease;
+}
+.ludo-chip.is-turn { border-color: transparent; box-shadow: 0 0 0 2px var(--pc), 0 4px 12px rgba(0, 0, 0, 0.08); }
+.ludo-chip.is-away { opacity: 0.55; }
+.ludo-chip__av {
+  width: 1.5rem; height: 1.5rem; flex: none;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: #ffffff; font-weight: 800; font-size: 0.75rem; line-height: 1;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.ludo-chip__av.ludo-av--Y { color: #1d1b26; }
+.ludo-chip.is-done .ludo-chip__av { background: var(--surface-2); font-size: 1rem; }
+.ludo-chip__who { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ludo-chip__name { font-size: 0.78rem; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ludo-chip__name small { font-weight: 600; color: var(--text-2); }
+.ludo-chip__dots { display: flex; gap: 3px; }
+.ludo-chip__dot { width: 6px; height: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--text-3); opacity: 0.6; }
+.ludo-chip__dot.is-home { background: var(--pc); box-shadow: none; opacity: 1; }
+
+.ludo-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: 20px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  box-shadow: 0 -2px 14px rgba(40, 30, 20, 0.06);
+}
+.ludo-bar.is-mine { box-shadow: 0 0 0 2px var(--accent), 0 6px 18px rgba(40, 30, 20, 0.1); border-color: transparent; }
+.ludo-bar__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ludo-bar__t1 { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.15rem; line-height: 1.2; }
+.ludo-bar__dot { width: 0.7rem; height: 0.7rem; border-radius: 50%; flex: none; }
+.ludo-bar__t2 { font-size: 0.82rem; font-weight: 500; color: var(--text-2); }
+.ludo-bar__clock { flex: none; }
+.ludo-bar__roll { flex: none; min-width: 6rem; }
+
+.ludo-die {
+  --die-ring: var(--pc, transparent);
+  flex: none;
+  width: 3.4rem; height: 3.4rem;
+  display: grid; place-items: center;
+  padding: 0; border: 0; background: none;
+  perspective: 500px;
+  border-radius: 14px;
+}
+.ludo-die .die { --die: 2.6rem; transition: transform 0.72s cubic-bezier(0.18, 0.72, 0.24, 1); }
+.ludo-die .die__face { border-radius: 0.5rem; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12), inset 0 -0.3rem 0.6rem rgba(15, 23, 42, 0.07), 0 0 0 2px var(--die-ring); }
+.ludo-die.is-rollable { cursor: pointer; animation: ludoNudge 1.6s ease-in-out infinite; }
+.ludo-die.is-rolling .die { animation: ludoTumble 0.5s linear infinite; }
+@keyframes ludoNudge { 0%, 70%, 100% { transform: none; } 80% { transform: rotate(-8deg); } 90% { transform: rotate(8deg); } }
+@keyframes ludoTumble { from { transform: rotateX(0deg) rotateY(0deg); } to { transform: rotateX(360deg) rotateY(720deg); } }
+
+.ludo-log { display: flex; flex-direction: column; gap: 4px; min-height: 1.2rem; }
+.ludo-log__line { font-size: 0.8rem; font-weight: 500; color: var(--text-2); line-height: 1.4; }
+.ludo-log__line.is-latest { color: var(--text); font-weight: 600; }
+
+.ludo-over { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ludo-over__title { margin: 0; text-align: center; font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.2rem; }
+.ludo-over .podium { margin: 0; }
+.ludo-podium__color { width: 0.75rem; height: 0.75rem; border-radius: 50%; }
+
+/* --- the setup screen and the room's lobby --------------------------------------- */
+.ludo-swatches { display: flex; gap: var(--sp-3); }
+.ludo-swatch {
+  width: 3rem; height: 3rem;
+  border-radius: 50%;
+  border: 0;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.4), 0 2px 5px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform var(--dur-2, 200ms) var(--ease-out, ease-out), box-shadow var(--dur-2, 200ms) ease;
+}
+.ludo-swatch.is-active { transform: scale(1.08); box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 6px var(--text); }
+.ludo-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.ludo-pick {
+  min-width: 0;
+  min-height: 3.25rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "piece name" "piece who";
+  align-items: center;
+  column-gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: 14px;
+  border: 0;
+  color: #ffffff;
+  text-align: start;
+  cursor: pointer;
+}
+.ludo-pick.ludo-av--Y { color: #1d1b26; }
+.ludo-pick:disabled { cursor: default; }
+.ludo-pick.is-taken:not(.is-mine) { opacity: 0.55; }
+.ludo-pick.is-mine { box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 5.5px var(--text); }
+.ludo-pick__piece { grid-area: piece; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12); }
+.ludo-pick__name { grid-area: name; font-weight: 800; font-size: 0.9rem; line-height: 1.2; }
+.ludo-pick__who { grid-area: who; font-size: 0.78rem; font-weight: 600; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --- a phone on its side, and every wide screen: the board takes the height --- */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .ludo-layout { display: grid; grid-template-columns: auto minmax(13rem, 21rem); justify-content: center; align-items: start; gap: var(--sp-4); }
+  .ludo-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  .ludo-layout__board {
+    position: sticky;
+    top: 0;
+    width: min(calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem), 58vw);
+    max-width: none;
+    margin: 0;
+  }
+  .ludo-strip { grid-template-columns: minmax(0, 1fr); }
+  .ludo-bar { position: static; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .ludo-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ludo-chip { padding-block: 4px; }
+  .ludo-strip { gap: 6px; }
+  .ludo-bar { padding: var(--sp-2); }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-ludo, .shell__main > #view-room-ludo { max-width: 72rem; }
+  .ludo-layout { gap: var(--sp-6); grid-template-columns: auto minmax(15rem, 23rem); }
+  .ludo-layout__board { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 2.5rem), 62vw); }
+  .ludo-chip__name { font-size: 0.9rem; }
+}
+
+/* --- the TV: the board as tall as the stage, the players and the die beside it --- */
+.ludo--tv { height: 100%; min-height: 0; display: flex; }
+.ludo--tv .ludo-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 30rem);
+  justify-content: center;
+  align-items: center;
+  gap: calc(var(--tv-gap) * 2.5);
+}
+.ludo--tv .ludo-layout__side { display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); min-width: 0; }
+.ludo--tv .ludo-layout__board { position: static; width: min(calc(var(--app-h, 100vh) - 17vmin), 60vw); max-width: none; margin: 0; }
+.ludo--tv .ludo-strip { grid-template-columns: minmax(0, 1fr); gap: var(--tv-gap); }
+.ludo--tv .ludo-chip { padding: 1vmin 1.4vmin; border-radius: var(--tv-r); gap: 1.2vmin; }
+.ludo--tv .ludo-chip__av { width: 4.6vmin; height: 4.6vmin; font-size: var(--tv-sm); }
+.ludo--tv .ludo-chip__name { font-size: var(--tv-md); }
+.ludo--tv .ludo-chip__dot { width: 1.2vmin; height: 1.2vmin; }
+.ludo--tv .ludo-chip__dots { gap: 0.6vmin; }
+.ludo--tv .ludo-bar { position: static; padding: 1.4vmin 1.8vmin; border-radius: var(--tv-r); gap: 1.8vmin; }
+.ludo--tv .ludo-bar__t1 { font-size: var(--tv-md); }
+.ludo--tv .ludo-bar__t2 { font-size: var(--tv-sm); }
+.ludo--tv .ludo-die { width: 9vmin; height: 9vmin; }
+.ludo--tv .ludo-die .die { --die: 7vmin; }
+.ludo--tv .ludo-log__line { font-size: var(--tv-sm); }
+.ludo--tv .ludo-over__title { font-size: var(--tv-md); }
+.ludo--tv .ludo-pc { box-shadow: 0 0 0 3px #ffffff, 0 3px 5px rgba(0, 0, 0, 0.4); }
+.ludo--tv .ludo-off__card { padding: 2vmin 3vmin; }
+.ludo--tv .ludo-off__name, .ludo--tv .ludo-off__title { font-size: var(--tv-md); }
+.ludo--tv .ludo-off__n { font-size: var(--tv-lg); }
+/* A phone mirrored upright: one column, and the stage scrolls. */
+@media (orientation: portrait) {
+  .ludo--tv { height: auto; }
+  .ludo--tv .ludo-layout { grid-template-columns: minmax(0, 1fr); }
+  .ludo--tv .ludo-layout__board { width: min(100%, 62vh); justify-self: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ludo-pc.is-movable::after, .ludo-die.is-rollable, .ludo-die.is-rolling .die, .ludo-burst,
+  .ludo-off, .ludo-off__row, .ludo-off__round, .ludo-off__n, .ludo-off__first { animation: none; }
+  .ludo-die .die, .ludo-chip, .ludo-swatch, .ludo-pc.is-sent { transition: none; }
+}
+
 </style>

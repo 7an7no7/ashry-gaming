@@ -1,0 +1,422 @@
+<script>
+/* ============================================================================
+   لودو — LUDO in rooms and on the TV
+   ----------------------------------------------------------------------------
+   The rules are ludoAction in RoomLudo.js (and Ludo.js, which both sides
+   load); the board, the die and every move's motion are JS_Ludo.html, the same
+   as a game against the phone. This file is the room around them: the lobby
+   (everyone picks a colour; with five or more the host picks who plays; the
+   host's turn clock), the phone's frame, the TV's frame, the clock and the
+   host's way past a phone that went quiet.
+
+   Everything in لودو is on the table, so every phone and the TV draw the same
+   board from `shared`; your own board is turned so your yard is at the bottom
+   left, a watcher's and the TV's are not. Someone who joins in the middle
+   watches the board (lateJoin) and plays the next game.
+   ========================================================================= */
+
+const LUDO_OPTS_KEY = 'ludoRoom';
+
+/** What only this phone holds: the tap already sent, the clock, the host's timer. */
+const ludoRoomLocal = { sent: '', clock: null, clockKey: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '' };
+
+function ludoRoomOpts() {
+  const o = recallOptions(LUDO_OPTS_KEY, { turnClock: 0 });
+  if (LUDO_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
+  return o;
+}
+
+function setLudoRoomOpt(key, value) {
+  if (key === 'turnClock') rememberOptions(LUDO_OPTS_KEY, { turnClock: Number(value) || 0 });
+  haptic('light');
+  ludoLobbyRedraw();
+}
+
+function ludoLobbyRedraw() {
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/* --- the lobby: colours and seats ---------------------------------------------------------- */
+
+/** Who would play if the game started now. Mirrors ludoLobbySeated in RoomLudo.js - keep the two in step. */
+function ludoRoomSeated(state) {
+  const ids = (state.players || []).map(p => p.id);
+  const lobby = ((state.shared || {}).lobby) || {};
+  if (Array.isArray(lobby.seated)) {
+    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
+    ids.forEach(id => { if (kept.length < LUDO_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
+    return kept.slice(0, LUDO_MAX_PLAYERS);
+  }
+  return ids.slice(0, LUDO_MAX_PLAYERS);
+}
+
+function ludoPickColorTap(color) {
+  const state = Room.state;
+  if (!state || state.phase !== 'lobby') return;
+  haptic('light');
+  roomAct('color', { color: color });
+}
+
+function ludoSeatTap(pid, on) {
+  haptic('light');
+  roomAct('seat', { playerId: pid, on: !!on });
+}
+
+/** The four colours: each shows who has taken it; a tap takes a free one, or lets yours go. */
+function ludoColorPickerHtml(state) {
+  const seated = ludoRoomSeated(state);
+  const lobby = ((state.shared || {}).lobby) || {};
+  const colors = lobby.colors || {};
+  const holder = {};
+  Object.keys(colors).forEach(id => { if (seated.indexOf(id) !== -1) holder[colors[id]] = id; });
+  const mineSeated = !state.youAreScreen && seated.indexOf(Room.me) !== -1;
+  const name = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+  const swatches = LUDO_COLORS.map(c => {
+    const who = holder[c];
+    const mine = who === Room.me;
+    const free = !who;
+    const can = mineSeated && (free || mine);
+    const label = who ? name(who) : ludoT('ludo_color_free');
+    return `<button type="button" class="ludo-pick ludo-av--${c} ${mine ? 'is-mine' : ''} ${who ? 'is-taken' : ''}" ${can ? `onclick="ludoPickColorTap('${c}')"` : 'disabled'}
+        aria-pressed="${mine}" aria-label="${escapeHTML(ludoColorName(c) + ': ' + label)}">
+        <span class="ludo-pick__piece" aria-hidden="true"></span>
+        <span class="ludo-pick__name">${escapeHTML(ludoColorName(c))}</span>
+        <span class="ludo-pick__who">${who ? escapeHTML(label) : escapeHTML(ludoT('ludo_color_free'))}</span>
+      </button>`;
+  }).join('');
+  const hint = state.youAreScreen ? '' : mineSeated ? ludoT(colors[Room.me] ? 'ludo_color_yours' : 'ludo_color_pick') : ludoT('ludo_watching_next');
+  return `<div class="field">
+      <label class="field__label">🎨 ${escapeHTML(ludoT('ludo_color_label'))}</label>
+      <div class="ludo-picks">${swatches}</div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+}
+
+/** With five or more in the room: who plays (four) and who watches. The host moves people between the two. */
+function ludoSeatsHtml(state) {
+  const players = state.players || [];
+  if (players.length <= LUDO_MAX_PLAYERS) return '';
+  const seated = ludoRoomSeated(state);
+  const host = !!state.youAreHost;
+  const chip = (p) => {
+    const on = seated.indexOf(p.id) !== -1;
+    const inner = `${p.bot ? '🤖 ' : ''}${escapeHTML(p.name)}`;
+    return host
+      ? `<button type="button" class="chip ${on ? 'is-selected' : ''}" onclick="ludoSeatTap('${jsStringAttr(p.id)}', ${!on})" aria-pressed="${on}">${inner}</button>`
+      : `<span class="chip ${on ? 'is-selected' : ''}">${inner}</span>`;
+  };
+  return `<div class="field">
+      <label class="field__label">🪑 ${escapeHTML(ludoT('ludo_seats_label', { n: seated.length }))}</label>
+      <div class="chip-set">${players.map(chip).join('')}</div>
+      <p class="field__hint">${escapeHTML(host ? ludoT('ludo_seats_hint_host') : ludoT('ludo_seats_hint'))}</p>
+    </div>`;
+}
+
+/* --- a room's frame ------------------------------------------------------------------------ */
+
+const ludoShared = (state) => (state && state.shared) || {};
+const ludoInGame = (state) => !state.youAreScreen && (ludoShared(state).seats || []).indexOf(Room.me) !== -1;
+const ludoMyTurn = (state) => { const s = ludoShared(state); return s.phase === 'play' && s.turn && s.turn.pid === Room.me && ludoInGame(state); };
+
+function ludoRoomRoll() {
+  const state = Room.state;
+  if (!state || state.game !== 'ludo' || !ludoMyTurn(state)) return;
+  const s = ludoShared(state);
+  if (s.turn.stage !== 'roll') return;
+  const stamp = state.code + '|' + s.turnSeq + '|roll';
+  if (ludoRoomLocal.sent === stamp) return;
+  ludoRoomLocal.sent = stamp;
+  haptic('medium');
+  // The die starts turning as the finger lifts; the number is the server's.
+  const die = document.querySelector('#view-room-ludo .ludo-die');
+  if (die) die.classList.add('is-rolling');
+  Promise.resolve(roomAct('roll', { seq: s.turnSeq })).then(() => {
+    if (ludoRoomLocal.sent === stamp) ludoRoomLocal.sent = '';
+    const d = document.querySelector('#view-room-ludo .ludo-die.is-rolling');
+    if (d) d.classList.remove('is-rolling');
+  });
+}
+
+function ludoRoomMove(i) {
+  const state = Room.state;
+  if (!state || state.game !== 'ludo' || !ludoMyTurn(state)) return;
+  const s = ludoShared(state);
+  if (s.turn.stage !== 'move') return;
+  const stamp = state.code + '|' + s.turnSeq + '|move';
+  if (ludoRoomLocal.sent === stamp) return;
+  ludoRoomLocal.sent = stamp;
+  const btn = document.querySelector(`#view-room-ludo [data-ludo-pc="${CSS.escape(Room.me)}|${i}"]`);
+  if (btn) btn.classList.add('is-sent');
+  Promise.resolve(roomAct('move', { piece: i, seq: s.turnSeq })).then(() => {
+    if (ludoRoomLocal.sent === stamp) ludoRoomLocal.sent = '';
+  });
+}
+
+function ludoRoomSkip() {
+  const s = ludoShared(Room.state);
+  roomAct('skipTurn', { seq: s.turnSeq });
+}
+
+/** The host's way past a phone that went quiet: gone, or holding the turn for 40 seconds. */
+function ludoHostButtons(state) {
+  const s = ludoShared(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.turn || !s.turn.pid) return [];
+  const p = (state.players || []).find(x => x.id === s.turn.pid);
+  if (p && p.bot) return [];
+  const key = state.code + '|' + s.turnSeq;
+  if (ludoRoomLocal.hostKey !== key) {
+    ludoRoomLocal.hostKey = key;
+    ludoRoomLocal.turnSince = Date.now();
+    clearTimeout(ludoRoomLocal.hostTimer);
+    ludoRoomLocal.hostTimer = setTimeout(() => {
+      const st = Room.state;
+      if (st && st.game === 'ludo') ludoRefreshInPlace(document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-ludo'), st, !!st.youAreScreen);
+    }, 40500);
+  }
+  const quiet = !p || !p.online || Date.now() - (ludoRoomLocal.turnSince || Date.now()) > 40000;
+  if (!quiet || s.turn.pid === Room.me) return [];
+  return [['⏭️ ' + ludoT('ludo_play_for', { name: p ? p.name : '' }), 'ludoRoomSkip()']];
+}
+
+/** Presence redraws nothing: who is away and the host's buttons are updated in place. */
+function ludoRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('[data-ludo-chip]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-ludo-chip'));
+    el.classList.toggle('is-away', !!p && !p.bot && !p.online);
+  });
+  const box = root.querySelector('[data-ludo-host]');
+  if (box) {
+    const buttons = ludoHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._ludoHtml !== html) { box.innerHTML = html; box._ludoHtml = html; }
+  }
+}
+
+function ludoStopClock() {
+  if (ludoRoomLocal.clock) ludoRoomLocal.clock.stop();
+  ludoRoomLocal.clock = null;
+  ludoRoomLocal.clockKey = null;
+}
+
+/** Draws the turn clock; the server plays the turn when it runs out. */
+function ludoTickClock(state) {
+  const s = ludoShared(state);
+  const endsAt = s.phase === 'play' ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-ludo-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 5);
+      el.classList.toggle('badge--accent', left > 5);
+    });
+    return left;
+  };
+  if (!endsAt) { ludoStopClock(); return; }
+  paint();
+  if (ludoRoomLocal.clockKey === endsAt && ludoRoomLocal.clock) return;
+  ludoStopClock();
+  ludoRoomLocal.clockKey = endsAt;
+  ludoRoomLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      if (left > 0 && left <= 5 && st && st.game === 'ludo' && ludoShared(st).endsAt === endsAt && (st.youAreScreen || ludoMyTurn(st))) playSound('tick');
+    },
+    onEnd: () => { ludoRoomLocal.clock = null; paint(); }
+  });
+}
+
+/** The context the shared frame is drawn from. */
+function ludoRoomCtx(state, tv) {
+  const s = ludoShared(state);
+  const names = {};
+  const bots = {};
+  const away = {};
+  (state.players || []).forEach(p => {
+    names[p.id] = p.name;
+    if (p.bot) bots[p.id] = p.bot;
+    else if (!p.online) away[p.id] = true;
+  });
+  const seated = ludoInGame(state);
+  const me = seated ? Room.me : null;
+  let over = '';
+  if (s.phase === 'gameover') {
+    const share = typeof roomShareBtnHtml === 'function' && !tv ? roomShareBtnHtml(state, s.board) : '';
+    if (tv) {
+      over = state.youAreHost ? `<div class="tv-actions">${tvBtn(ludoT('ludo_again'), "roomAct('playAgain')")}${tvBtn(ludoT('room_another_game'), "roomAct('backToHub')", 'ghost')}</div>` : '';
+    } else if (state.youAreHost) {
+      over = `<div class="btn-stack">
+          <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(ludoT('ludo_again'))}</button>
+          <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(ludoT('room_another_game'))}</button>
+        </div>${share}`;
+    } else {
+      over = `<p class="field__hint" style="text-align:center">${escapeHTML(ludoT('ludo_wait_host'))}</p>${share}`;
+    }
+  }
+  return {
+    g: s, me: me, names: names, bots: bots, away: away, tv: !!tv,
+    view: me ? s.colors[me] : 'R',
+    key: state.code + '|' + (s.dealId || ''),
+    fresh: ludoFx.watched === state.code,
+    loud: !!tv || !roomHasScreen(),
+    rollJs: 'ludoRoomRoll()',
+    clock: !!s.endsAt,
+    over: over,
+    host: tv ? '<div class="tv-actions" data-ludo-host></div>' : '<div data-ludo-host></div>'
+  };
+}
+
+/** Everything the server said that the screen shows. Presence is not in it (refreshed in place). */
+function ludoServerSig(state) {
+  const s = ludoShared(state);
+  return [s.dealId || '', s.phase, s.turnSeq, s.eventSeq, JSON.stringify(s.pieces || {}), (s.places || []).join(','), s.endsAt || '',
+    (s.seats || []).join(','), (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','), JSON.stringify(s.board || [])].join('|');
+}
+
+/** A frame waiting for a move to land draws itself once it has. */
+function ludoDeferRedraw() {
+  if (ludoRoomLocal.redrawTimer) return;
+  ludoRoomLocal.redrawTimer = setTimeout(() => {
+    ludoRoomLocal.redrawTimer = null;
+    const st = Room.state;
+    if (!st || st.game !== 'ludo' || st.phase === 'lobby') return;
+    if (st.youAreScreen ? appState.currentView === 'room-tv' : onRoomView()) routeRoomState(st);
+  }, Math.max(40, ludoFx.busyUntil - Date.now() + 40));
+}
+
+/** A buzz and a tick when the roll comes to this phone (not on a reload). */
+function ludoTurnCue(state, delay) {
+  const s = ludoShared(state);
+  const mine = ludoMyTurn(state) && s.turn.stage === 'roll';
+  const was = ludoRoomLocal.turnMine;
+  ludoRoomLocal.turnMine = mine;
+  if (mine && !was && ludoFx.watched === state.code) {
+    ludoFx.timers.push(setTimeout(() => { playSound('tick'); haptic('medium'); }, delay || 0));
+  }
+}
+
+ROOM_GAMES.ludo = {
+  bots: { max: LUDO_MAX_PLAYERS },
+  // Someone who joins in the middle watches the board, and plays the next game.
+  lateJoin: true,
+
+  // A move is not a new step to scroll to; the end of the game is drawn from the top.
+  actionKey(state) {
+    const s = ludoShared(state);
+    return s.phase === 'gameover' ? [state.code, s.dealId, s.phase].join('|') : '';
+  },
+
+  lobbyOptions(state) {
+    const o = ludoRoomOpts();
+    const clock = state.youAreHost ? `<div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(ludoT('ludo_clock'))}</label>
+          <div class="segmented" role="group">${LUDO_CLOCKS.map(v => `<button type="button" class="segmented__item ${Number(o.turnClock) === v ? 'is-active' : ''}" onclick="setLudoRoomOpt('turnClock', ${v})">${v ? v + '″' : escapeHTML(ludoT('ludo_clock_off'))}</button>`).join('')}</div>
+          <p class="field__hint">${escapeHTML(ludoT('ludo_clock_hint'))}</p>
+        </div>` : '';
+    return `<div class="card card--tight ludo-lobby">
+        ${ludoColorPickerHtml(state)}
+        ${ludoSeatsHtml(state)}
+        ${clock}
+        <p class="field__hint" style="text-align:center">${escapeHTML(ludoT('ludo_lobby_hint'))}</p>
+      </div>`;
+  },
+
+  startPayload() {
+    return { turnClock: ludoRoomOpts().turnClock };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-ludo') setView('room-ludo');
+    const el = document.getElementById('view-room-ludo');
+    if (!el) return;
+    const s = ludoShared(state);
+    if (!Array.isArray(s.seats)) return;
+    const server = ludoServerSig(state);
+    // A move is still landing: the board it lands on waits until it has.
+    const changed = !!(el.dataset.sig && el._ludoServer && el._ludoServer !== server);
+    if (changed && ludoFx.busyUntil > Date.now()) {
+      ludoDeferRedraw();
+      ludoRefreshInPlace(el, state, false);
+      return;
+    }
+    const c = ludoRoomCtx(state, false);
+    const local = [state.youAreHost, appState.lang, Room.me].join('|');
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => ludoFrameHtml(c) + renderRoomPlayerStrip(state));
+    el._ludoServer = server;
+    ludoRefreshInPlace(el, state, false);
+    ludoTickClock(state);
+    if (!rebuilt) return;
+    const played = ludoAfterPaint(el, c);
+    ludoWire(el, c, ludoRoomMove);
+    ludoTurnCue(state, played);
+    if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['ludo-room-end', c.key].join('|'))) {
+      const won = s.places[0] === Room.me;
+      ludoFx.timers.push(setTimeout(() => afterReveal(el, () => {
+        if (won) {
+          playSound('success');
+          if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+          haptic('double');
+        }
+      }), played));
+    }
+  }
+};
+
+onRoomClocksReset(() => {
+  ludoStopClock();
+  clearTimeout(ludoRoomLocal.hostTimer);
+  ludoFxCancel();
+  ludoRoomLocal.sent = '';
+});
+
+// After the room has drawn this state: a screen that wasn't showing the board
+// counts its moves as seen, so coming back replays nothing; and this page has
+// now watched the room.
+Room.onChange((state) => {
+  if (!state) { ludoFx.watched = ''; return; }
+  if (state.game === 'ludo' && state.phase !== 'lobby' && Array.isArray(ludoShared(state).seats)) {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : onRoomView();
+    if (!showing) ludoEventsToPlay(state.code + '|' + (ludoShared(state).dealId || ''), ludoShared(state), false);
+  }
+  ludoFx.watched = state.code;
+});
+
+/* --- the TV: the board takes the height, the players and the die beside it --------------------- */
+
+TV_GAMES.ludo = {
+  sig(state) {
+    const cur = ludoServerSig(state) + '|' + state.youAreHost;
+    // A move is landing: keep this frame until it has.
+    if (ludoRoomLocal.tvSig && cur !== ludoRoomLocal.tvSig && ludoFx.busyUntil > Date.now()) { ludoDeferRedraw(); return ludoRoomLocal.tvSig; }
+    return cur;
+  },
+  frame(state) {
+    ludoRoomLocal.tvSig = ludoServerSig(state) + '|' + state.youAreHost;
+    const s = ludoShared(state);
+    if (!Array.isArray(s.seats)) return '';
+    return ludoFrameHtml(ludoRoomCtx(state, true));
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    ludoTickClock(state);
+    ludoRefreshInPlace(view, state, true);
+    if (!rebuilt || !view) return;
+    const c = ludoRoomCtx(state, true);
+    const played = ludoAfterPaint(view, c);
+    const s = ludoShared(state);
+    if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['ludo-tv-end', c.key].join('|'))) {
+      ludoFx.timers.push(setTimeout(() => afterReveal(view, () => {
+        playSound('success');
+        if (typeof confetti === 'function') confetti({ particleCount: 160, spread: 90 });
+      }), played));
+    }
+  }
+};
+</script>

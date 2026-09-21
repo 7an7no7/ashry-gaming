@@ -3629,6 +3629,17 @@ html:has(> body.is-tv-view) { font-size: 100% !important; }
   .shell__main > #view-room-drawguess,
   .shell__main > #view-room-fakeartist { max-width: 72rem; }
 
+  /* The play area gets the space (the owner, 21 Sep 2026: "always give the
+     space to the game part, not the score or names part"). While a board is
+     being played it takes the screen's height, and its scores, names and
+     tools are a compact column beside it - not a board kept to a phone's size
+     in the middle of a laptop or a TV. */
+  .shell__main > #view-play-xo, .shell__main > #view-play-memory,
+  .shell__main > #view-play-sudoku, .shell__main > #view-play-g2048, .shell__main > #view-play-mines,
+  .shell__main > #view-play-queens, .shell__main > #view-play-tango, .shell__main > #view-play-nonogram,
+  .shell__main > #view-play-strands, .shell__main > #view-play-flags { max-width: 72rem; }
+  /* The solo boards themselves: after section 15's own rules, below. */
+
   .game-grid { grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: var(--sp-4); }
   .game-card { min-height: 7.5rem; }
   .tools-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -4145,6 +4156,12 @@ body.is-tv-view .scoreboard > .section__head { grid-column: 1 / -1; }
   font-size: 0.85em;
 }
 .tv-choice__text { flex: 1; line-height: 1.2; overflow-wrap: anywhere; }
+/* The question being answered is the whole screen (the owner, 21 Sep 2026:
+   the play area gets the space): the four answers take the height left under
+   it, and read bigger for it, instead of four short tiles over an empty half. */
+.tv-trivia > .tv-question { font-size: clamp(1.4rem, 5.4vmin, 4.8rem); }
+.tv-trivia > .tv-choices { flex: 1 1 auto; grid-auto-rows: minmax(clamp(64px, 13vmin, 230px), 1fr); }
+.tv-trivia > .tv-choices .tv-choice { font-size: var(--tv-lg); }
 .tv-choice__count {
   flex: none;
   min-width: 1.8em;
@@ -4234,8 +4251,11 @@ body.is-tv-view .scoreboard > .section__head { grid-column: 1 / -1; }
 
 /* --- Wavelength and the votes --- */
 .tv-spectrum { width: min(92%, 1500px); align-self: center; }
-.tv-spectrum .wl-label { padding: 0.3em 0.7em; font-size: var(--tv-sm); }
-.tv-spectrum .wl-bar { height: clamp(56px, 12vmin, 200px); border-radius: var(--tv-r); }
+/* The dial is the game: a tall band across the TV and ends you can read from
+   the sofa, not a strip in the middle of an empty stage (the owner, 21 Sep
+   2026: the play area gets the space). */
+.tv-spectrum .wl-label { padding: 0.3em 0.7em; font-size: var(--tv-md); }
+.tv-spectrum .wl-bar { height: clamp(80px, 30vmin, 420px); border-radius: var(--tv-r); }
 .tv-spectrum .wl-needle { width: clamp(4px, 0.8vmin, 12px); }
 .tv-spectrum input[type="range"] { height: clamp(44px, 7vmin, 110px); }
 .tv-versus { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: var(--tv-gap); }
@@ -4795,6 +4815,30 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 .xo-cell.is-x { color: var(--accent-ink); }
 .xo-cell.is-o { color: var(--danger-ink); }
 .xo-cell.is-win { background: var(--success-soft); border-color: var(--success); }
+
+/* A phone on its side, and every wide screen: the board takes the height and
+   the tally, the turn and the buttons sit in a column beside it (the owner,
+   21 Sep 2026: the play area gets the space). */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  #xo-stage, #memory-stage {
+    display: grid;
+    grid-template-columns: auto minmax(12rem, 20rem);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    justify-content: center;
+    column-gap: var(--sp-6);
+    align-items: start;
+  }
+  #xo-stage { grid-template-areas: "board tally" "board status" "board actions" "board ."; }
+  #xo-stage .xo-tally { grid-area: tally; }
+  #xo-stage .xo-status { grid-area: status; }
+  #xo-stage .xo-board { grid-area: board; width: min(calc(var(--app-h, 100vh) - var(--header-h) - 3rem), 60vw); margin: 0; container-type: inline-size; }
+  #xo-stage .xo-cell { font-size: 18cqw; }
+  #memory-stage { grid-template-areas: "grid bar" "grid actions" "grid ." "grid ."; }
+  #memory-stage .mem-bar { grid-area: bar; }
+  #memory-stage .mem-grid { grid-area: grid; width: min(calc((var(--app-h, 100vh) - var(--header-h) - 3.25rem) * var(--mem-cols, 4) / var(--mem-rows, 4)), 62vw); margin: 0; container-type: inline-size; }
+  #memory-stage .mem-card__face--front { font-size: calc(46cqw / var(--mem-cols, 4)); }
+  #xo-stage .view-actions, #memory-stage .view-actions { grid-area: actions; position: static; margin: 0; padding: 0; background: none; }
+}
 
 /* --- مين يبدأ (full screen) --- */
 #view-play-chooser {
@@ -5404,9 +5448,12 @@ body.dark .home-hero {
 /* --- فوازير إيموجي · كمّل المثل ------------------------------------------------ */
 .emoji-card { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-3) 0; }
 .emoji-card__e { font-size: 3rem; line-height: 1.3; letter-spacing: 0.08em; text-align: center; overflow-wrap: anywhere; }
-.emoji-card--big .emoji-card__e { font-size: calc(var(--tv-xl) * 1.7); letter-spacing: 0.1em; }
+/* On the TV the riddle is the whole screen (the owner, 21 Sep 2026: the play
+   area gets the space): a fifth of its height, where it was a line of emoji
+   in the middle of an empty stage. */
+.emoji-card--big .emoji-card__e { font-size: clamp(3rem, 20vmin, 15rem); letter-spacing: 0.1em; line-height: 1.15; }
 .prov-card { font-size: var(--fs-h1); font-weight: 900; line-height: 1.7; color: var(--text-strong); text-align: center; padding: var(--sp-2) 0; }
-.prov-card--big { font-size: var(--tv-xl); }
+.prov-card--big { font-size: clamp(1.8rem, 9vmin, 8.5rem); line-height: 1.5; text-wrap: balance; }
 .prov-blank { display: inline-block; min-width: 4ch; padding: 0 0.3em; margin: 0 0.15em; border-bottom: 3px solid var(--accent); color: var(--accent-ink); }
 .prov-blank.is-shown { background: var(--accent-soft); border-radius: var(--r-xs); }
 .quiz-feed { display: flex; flex-direction: column; gap: 4px; margin-top: var(--sp-3); }
@@ -5523,6 +5570,12 @@ body.dark .home-hero {
 .tl-card__text { font-size: var(--fs-sm); font-weight: 700; line-height: 1.25; color: var(--text-strong); }
 .tl-card__year { font-weight: 900; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
 .tl-gap { flex: none; width: 1.25rem; align-self: center; height: 2px; border: 0; background: var(--border); padding: 0; color: transparent; }
+/* On the TV the line is the board: centred while it is short (it began as one
+   card against the left edge of an empty screen) and a size up. The auto
+   margins centre it and still let a long line scroll from its first card. */
+body.is-tv-view .tl-line > :first-child { margin-inline-start: auto; }
+body.is-tv-view .tl-line > :last-child { margin-inline-end: auto; }
+body.is-tv-view .tl-line .tl-card { width: 9.5rem; min-height: 7rem; }
 .tl-gap.is-live {
   width: 2.5rem;
   height: 3rem;
@@ -7669,6 +7722,48 @@ button.herd-group { cursor: pointer; }
   .wheel-grid { max-width: min(calc(var(--ww-cols) * 2.8rem), calc((var(--app-h, 100vh) - 8.5rem) * var(--ww-cols) / var(--ww-rows))); }
   .solo-layout__board:has(.flags-target) { display: block; width: min(52vw, 30rem); }
 }
+/* A laptop, a TV and a phone on its side: the board takes the screen's
+   height (the owner, 21 Sep 2026: the play area gets the space), and its
+   score, hint and buttons are one compact column beside it - the buttons too,
+   which were a bar under the board that the board had to leave room for.
+   Without :has() the buttons simply stay under it. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .solo-layout__board { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 2.5rem), 52vw); }
+  :has(> .solo-layout + .view-actions) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    column-gap: var(--sp-3);
+    align-items: start;
+  }
+  :has(> .solo-layout + .view-actions) > .solo-layout { display: contents; }
+  :has(> .solo-layout + .view-actions) > .solo-layout > .solo-layout__board { grid-column: 1; grid-row: 1 / span 3; }
+  :has(> .solo-layout + .view-actions) > .solo-layout > .solo-layout__side { grid-column: 2; grid-row: 1; }
+  :has(> .solo-layout + .view-actions) > .view-actions { grid-column: 2; grid-row: 2; position: static; margin: 0; padding: 0; background: none; }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .solo-layout { grid-template-columns: auto minmax(13rem, 22rem); justify-content: center; column-gap: var(--sp-6); }
+  .solo-layout__board { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 3rem), 60vw); }
+  .solo-layout__board .sdk-grid, .solo-layout__board .g2048-board, .solo-layout__board .queens-grid,
+  .solo-layout__board .tango-grid, .solo-layout__board .strands-grid, .solo-layout__board .nono-grid { max-width: none; }
+  /* A minefield is taller than it is wide: its width comes from the height. */
+  .solo-layout__board:has(.mines-grid) { width: min(calc((var(--app-h, 100vh) - var(--header-h) - 3rem) * var(--mines-cols, 8) / var(--mines-rows, 9)), 52vw); }
+  .solo-layout__board .mines-grid { max-width: none; }
+  /* A nonogram's clues add a row above the cells: a little narrower, so it still fits. */
+  .solo-layout__board:has(.nono-grid) { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 4rem), 60vw); }
+  :has(> .solo-layout + .view-actions) {
+    display: grid;
+    grid-template-columns: auto minmax(13rem, 22rem);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    justify-content: center;
+    column-gap: var(--sp-6);
+    align-items: start;
+  }
+  :has(> .solo-layout + .view-actions) > .solo-layout { display: contents; }
+  :has(> .solo-layout + .view-actions) > .solo-layout > .solo-layout__board { grid-column: 1; grid-row: 1 / span 3; }
+  :has(> .solo-layout + .view-actions) > .solo-layout > .solo-layout__side { grid-column: 2; grid-row: 1; }
+  :has(> .solo-layout + .view-actions) > .view-actions { grid-column: 2; grid-row: 2; position: static; margin: var(--sp-3) 0 0; padding: 0; background: none; }
+}
 @media (orientation: landscape) and (max-height: 500px) {
   /* The wheel beside the word being made and its four tools, two by two. */
   .solo-layout__side:has(.wheel-ring) {
@@ -9116,7 +9211,10 @@ body.dark .gcard--spotlight {
 
 /* --- A phone on its side, and every wide screen: the board beside its pills and buttons --- */
 @media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
-  .duel-layout { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+  /* The board is what everyone is looking at (the owner, 21 Sep 2026): it
+     takes the height, and the names and scores are a compact column beside
+     it, not half the screen. */
+  .duel-layout { display: grid; grid-template-columns: auto minmax(12rem, 20rem); justify-content: center; gap: var(--sp-4); align-items: start; }
   .duel-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
   /* Sticky, so a long side (a room's line and board of wins) scrolls past a board that stays in view. */
   .duel-layout__board {
@@ -9137,19 +9235,22 @@ body.dark .gcard--spotlight {
 @media (min-width: 900px) and (min-height: 501px) {
   .shell__main > #view-play-connect4, .shell__main > #view-room-connect4,
   .shell__main > #view-play-dots, .shell__main > #view-room-dots { max-width: 72rem; }
-  .duel-layout { gap: var(--sp-6); }
-  .duel-layout__board { width: min(calc((var(--app-h, 100vh) - var(--header-h) - 4rem) * var(--duel-aspect, 1)), 58vw); }
+  .duel-layout { gap: var(--sp-6); grid-template-columns: auto minmax(14rem, 22rem); }
+  .duel-layout__board { width: min(calc((var(--app-h, 100vh) - var(--header-h) - 2.5rem) * var(--duel-aspect, 1)), 62vw); }
 }
 
 /* --- The TV: the board big on one side, the players and the line on the other --- */
 .duel-tv {
   min-height: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  /* The board takes the stage's whole height (the bar and the strip are
+     about 17vmin), the players a column beside it. */
+  grid-template-columns: auto minmax(0, 30rem);
+  justify-content: center;
   align-items: center;
-  gap: calc(var(--tv-gap) * 2);
+  gap: calc(var(--tv-gap) * 2.5);
 }
-.duel-tv__board { width: min(calc((var(--app-h, 100vh) - 24vmin) * var(--duel-aspect, 1)), 58vw); justify-self: center; }
+.duel-tv__board { width: min(calc((var(--app-h, 100vh) - 17vmin) * var(--duel-aspect, 1)), 64vw); justify-self: center; }
 .duel-tv__side { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); }
 .duel-tv__side > .tv-scale { width: 100%; }
 .duel-tv__status { font-size: var(--tv-md); }

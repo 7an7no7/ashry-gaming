@@ -148,13 +148,17 @@ function duelSound(kind) {
 
 /* --- the Connect 4 board, one phone or a room ------------------------------ */
 
-/** How wide the board is against how tall (the ghost row included), for fitting it to a screen's height. */
-const c4Aspect = (b) => (b.cols / (b.rows + 1.4)).toFixed(3);
+/**
+ * How wide the board is against how tall, for fitting it to a screen's height:
+ * with the ghost row above it, or (the TV, where nobody aims) without.
+ */
+const c4Aspect = (b, noGhost) => (b.cols / (b.rows + (noGhost ? 0.45 : 1.4))).toFixed(3);
 
 /**
  * The board. b: { cols, rows, n, grid }; o: { win (cells, in order along the
  * line), last { row, col }, playable (this phone may drop now), next (the
- * colour to move, for the ghost) }.
+ * colour to move, for the ghost), ghost (false: no ghost row - the TV, where
+ * nobody aims and the row was a sixth of the board's height) }.
  */
 function c4BoardHtml(b, o) {
   const t = TRANSLATIONS[appState.lang] || {};
@@ -176,9 +180,11 @@ function c4BoardHtml(b, o) {
   }
   const next = opt.next === 2 ? 2 : 1;
   // dir="ltr": the columns are a physical row, the same way round in Arabic.
+  const ghost = opt.ghost === false ? ''
+    : `<div class="c4-ghostrow" aria-hidden="true"><div class="c4-ghostrow__track"><span class="c4-ghost"><span class="c4-ghost__disc c4-disc--${next}"></span></span></div></div>`;
   return `<div class="c4 ${opt.playable ? 'is-playable' : ''}" dir="ltr" data-cols="${b.cols}"
                style="--c4-cols:${b.cols};--c4-rows:${b.rows};--c4-aim:${Math.floor(b.cols / 2)}">
-      <div class="c4-ghostrow" aria-hidden="true"><div class="c4-ghostrow__track"><span class="c4-ghost"><span class="c4-ghost__disc c4-disc--${next}"></span></span></div></div>
+      ${ghost}
       <div class="c4-board">
         <div class="c4-grid">${cells}<div class="c4-cols">${cols}</div></div>
       </div>
@@ -244,9 +250,11 @@ function c4AnimateDrop(wrap, disc) {
   const cell = disc.parentElement;
   const track = wrap.querySelector('.c4-ghostrow__track');
   const cellR = cell.getBoundingClientRect();
-  const topR = track ? track.getBoundingClientRect() : null;
   const pitch = cellR.height || 1;
-  const dy = topR ? cellR.top - topR.top : pitch;
+  // From the ghost row, or with none (the TV) from a cell's height above the grid.
+  const grid = wrap.querySelector('.c4-grid');
+  const fromTop = track ? track.getBoundingClientRect().top : grid ? grid.getBoundingClientRect().top - pitch : null;
+  const dy = fromTop !== null ? cellR.top - fromTop : pitch;
   if (!(dy > 0)) return 0;
   const rows = Math.max(1, Math.round(dy / pitch));
   const duration = 220 + 55 * rows;

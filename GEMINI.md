@@ -413,6 +413,25 @@ the word search), `countUp` for streaks and scores.
   a small change if tables find strict too much.
 - The live player count lives on the مع بعض tab, not the header, and hides
   below `LIVE_MIN_PLAYERS`.
+- **The play area gets the space** (the owner, 21 Sep 2026: "always give the
+  space to the game part, not the score or names part … you could shrink it
+  when it's finished"; and: "don't change the good looking of any part … we
+  just improve it in every screen"). While a game is being played on a laptop,
+  a TV or a phone on its side, its board takes the screen's height and the
+  names, scores and buttons are a compact column beside it; the result can take
+  the stage once it is over. Measured before and after at 1280x720 (share of
+  the screen's height): إكس أو 52% → 85%, الذاكرة scrolled 411px → 84% with no
+  scroll, 2048 61% → 85%, كاسحة الألغام 53% → 85%, شمس وقمر 57% → 85%, and
+  every solo board ~85% at 1280x720 and ~88% at 1920x1080; on a phone on its
+  side the solo boards went 64% → 78% (Sudoku's cells 26px → 32px). How: those
+  views get 72rem (not the 52rem reading column), the board is sized from
+  `--app-h`, and the buttons that were a bar under the board join the side
+  column (`:has(> .solo-layout + .view-actions)`, a grid the layout's pieces
+  flow into). On the TV: كونكت ٤ drops the ghost row (nobody aims at a TV; the
+  holes grew 71px → 89px), trivia's answers take the height under the question,
+  the emoji riddle is a fifth of the screen, the proverb and the Wavelength dial
+  are big, and قبل ولا بعد's line is centred. The upright phone was left exactly
+  as it was - every rule is inside the landscape and wide queries or TV-only.
 - **Ask before building** (the owner, 21 Sep 2026: "anything you're not sure
   about, ask - don't just build, so we build everything right from the
   start"). The four games of that day had every rule put to the owner first,

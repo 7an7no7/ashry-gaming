@@ -558,6 +558,85 @@ function roomKickButton(state, p, cls) {
   return `<button type="button" class="${cls || 'chip__remove'}" onclick="event.stopPropagation(); roomKick('${jsStringAttr(p.id)}')" title="${label}" aria-label="${label}">✕</button>`;
 }
 
+/* --- computer players ----------------------------------------------------------
+   A game that can seat bots says so on its ROOM_GAMES entry (`bots: { max }`),
+   and the host gets two buttons in its lobby: a bot that plays the first thing
+   that fits, and one that plays to win. The server does the rest (ROOM_BOT_GAMES
+   in RoomGames.js): a bot is a player with `bot` set to its level, always
+   present, dealt like anyone, and it moves on the server's clock. Its name is
+   offered by the host's phone, in the host's language. */
+const ROOM_BOT_NAMES = {
+  ar: ['زيزو', 'بندق', 'سمسم', 'فلفل', 'كوكي', 'توتا', 'شوشو', 'لولي', 'ميمي', 'بسبوسة', 'كراميلا'],
+  en: ['Robo', 'Chip', 'Pixel', 'Byte', 'Echo', 'Nova', 'Bolt', 'Zippy', 'Sparky', 'Widget', 'Dot']
+};
+
+/** The game's bot settings, or null when it has none. */
+function roomBotsOf(state) {
+  const game = state && state.game && ROOM_GAMES[state.game];
+  return game && game.bots ? game.bots : null;
+}
+
+/** A name nobody in the room has, from the list in the host's language. */
+function roomNextBotName(state) {
+  const names = ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar;
+  const taken = (state.players || []).map(p => p.name);
+  const free = names.filter(n => !taken.some(x => samePlayer(x, n)));
+  return free.length ? free[Math.floor(Math.random() * free.length)] : names[0];
+}
+
+function roomAddBot(level) {
+  const state = Room.state;
+  if (!state || !state.youAreHost || !roomBotsOf(state)) return;
+  haptic('light');
+  roomAct('addBot', { level: level === 'hard' ? 'hard' : 'easy', name: roomNextBotName(state) });
+}
+
+const roomBotLevelLabel = (level, t) => (level === 'hard' ? (t.bot_hard || '') : (t.bot_easy || ''));
+
+/** The host's two buttons; a TV draws them its own way. Nothing for anyone else. */
+function roomBotControlsHtml(state, tv) {
+  const bots = roomBotsOf(state);
+  if (!bots || !state.youAreHost) return '';
+  const t = TRANSLATIONS[appState.lang] || {};
+  const count = (state.players || []).filter(p => p.bot).length;
+  const full = (state.players || []).length >= (bots.max || 12);
+  const add = (level) => '+ 🤖 ' + roomBotLevelLabel(level, t);
+  if (tv) {
+    return full ? '' : `<div class="tv-actions tv-actions--bots">${tvBtn(add('easy'), "roomAddBot('easy')", 'secondary')}${tvBtn(add('hard'), "roomAddBot('hard')", 'secondary')}</div>`;
+  }
+  return `
+    <div class="card card--tight room-bots">
+      <div class="room-bots__head">
+        <span class="field__label">🤖 ${escapeHTML(t.bot_title || '')}${count ? ` <span class="badge">${count}</span>` : ''}</span>
+        <div class="room-bots__add">
+          <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="roomAddBot('easy')" ${full ? 'disabled' : ''}>${escapeHTML(add('easy'))}</button>
+          <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="roomAddBot('hard')" ${full ? 'disabled' : ''}>${escapeHTML(add('hard'))}</button>
+        </div>
+      </div>
+      <p class="field__hint">${escapeHTML(full ? (t.bot_full || '') : (t.bot_hint || ''))}</p>
+    </div>`;
+}
+
+/** A computer player's row in the lobby: always here; the host can change its level or take it out. */
+function roomBotRowHtml(state, p, isNew) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const level = roomBotLevelLabel(p.bot, t);
+  const levelEl = state.youAreHost
+    ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('setBotLevel', { playerId: '${jsStringAttr(p.id)}' })" title="${escapeHTML(t.bot_level_change || '')}" aria-label="${escapeHTML((t.bot_level_change || '') + ': ' + level)}">${escapeHTML(level)}</button>`
+    : `<span class="badge">${escapeHTML(level)}</span>`;
+  const remove = state.youAreHost
+    ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('removeBot', { playerId: '${jsStringAttr(p.id)}' })" title="${escapeHTML(t.bot_remove || '')}" aria-label="${escapeHTML(t.bot_remove || '')}">✕</button>`
+    : '';
+  return `
+      <div class="status-row status-row--bot ${isNew ? 'status-row--new' : ''}">
+        <span class="status-row__bot" aria-hidden="true">🤖</span>
+        <div class="status-row__body">
+          <div class="status-row__name">${escapeHTML(p.name)}</div>
+        </div>
+        <div class="status-row__actions">${levelEl}${remove}</div>
+      </div>`;
+}
+
 /** Remembering the name means a returning player types it once, ever. */
 const roomName = {
   get() { try { return localStorage.getItem('ashryName') || ''; } catch (e) { return ''; } },
@@ -597,7 +676,10 @@ const ROOM_HUB_GAMES = [
   { id: 'mafia',      icon: '🕴️', key: 'setup_mafia',      accent: 'rose',   min: 5 },
   { id: 'screw',      icon: '🃏', key: 'setup_screw',      accent: 'blue',   min: 2 },
   { id: 'mind',       icon: '🧠', key: 'setup_mind',       accent: 'teal',   min: 2 },
-  { id: 'timeline',   icon: '🗓️', key: 'setup_timeline',   accent: 'amber',  min: 2 }
+  { id: 'timeline',   icon: '🗓️', key: 'setup_timeline',   accent: 'amber',  min: 2 },
+  // Computer players can make up the table, so one person is enough to open these.
+  { id: 'uno',        icon: '🌈', key: 'setup_uno',        accent: 'rose',   min: 1 },
+  { id: 'domino',     icon: '🀄', key: 'setup_domino',     accent: 'green',  min: 1 }
 ];
 
 /** Create an empty room from the menu — no game chosen yet. */
@@ -816,7 +898,7 @@ function renderRoomLobby(state) {
   if (list) {
     const hostLabel = appState.lang === 'ar' ? 'المضيف' : 'Host';
     const youLabel = appState.lang === 'ar' ? 'أنت' : 'You';
-    list.innerHTML = state.players.map(p => `
+    list.innerHTML = state.players.map(p => p.bot ? roomBotRowHtml(state, p, joined.indexOf(p.id) !== -1) : `
       <div class="status-row ${p.online ? '' : 'status-row--out'} ${joined.indexOf(p.id) !== -1 ? 'status-row--new' : ''}">
         <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
         <div class="status-row__body">
@@ -993,6 +1075,7 @@ function renderChosenGame(state, game) {
   const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
   const name = entry ? (t[entry.key] || state.game) : state.game;
   const options = (game && game.lobbyOptions) ? game.lobbyOptions(state) : '';
+  const bots = roomBotControlsHtml(state);
 
   return `
     <div class="chosen-game">
@@ -1002,6 +1085,7 @@ function renderChosenGame(state, game) {
         ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('backToHub')">${t.room_change_game || 'تغيير'}</button>`
         : ''}
     </div>
+    ${bots}
     ${options}`;
 }
 

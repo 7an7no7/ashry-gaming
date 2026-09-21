@@ -83,6 +83,11 @@ const clearGameState = (room) => {
   room._herd = null;
   room._mafia = null;
   room._screw = null;
+  // A bot's next move belonged to the game that was cleared.
+  room._botAt = null;
+  room._botKey = null;
+  room._botPid = null;
+  room._botFails = 0;
 };
 
 /** The stashed sides, minus anyone who has since left. */
@@ -102,7 +107,7 @@ const ROOM_GAME_IDS = [
   'fakeartist', 'wavelength', 'trivia', 'buzzer', 'stop',
   'chameleon', 'spyfall', 'bomb',
   'twotruths', 'emoji', 'proverbs', 'fiveseconds', 'telephone', 'monkey',
-  'herd', 'mafia', 'screw', 'mind', 'timeline'
+  'herd', 'mafia', 'screw', 'mind', 'timeline', 'uno', 'domino'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -166,6 +171,157 @@ const chatFor = (room, playerId) => {
 const ROOM_MAX_PLAYERS = 12;
 const ROOM_MAX_SCREENS = 3;
 
+/* ==========================================================================
+   COMPUTER PLAYERS
+   --------------------------------------------------------------------------
+   In the games that register here (أونو, الدومينو), the host can add a
+   computer player in the lobby - to play alone, or to make up a table of
+   four for teams. A bot is an ordinary entry in room.players with `bot` set
+   to its level ('easy' or 'hard'): it holds a seat, is dealt like anyone,
+   and its hand is in room.secrets like anyone's. It has no key and no
+   socket, so it can never be a phone.
+
+   It moves through the same door as a phone. After every move the game is
+   asked whether a bot has something to do (`pending`, with a key naming
+   that moment); if so, room._botAt is set a second or so ahead, the server's
+   alarm wakes on it (roomDeadline), and roomTimeout asks the game what that
+   bot does (`decide`, from its own secret and what the table can see - never
+   another hand) and applies it with applyRoomAction, exactly as if the bot
+   had tapped it. A move that is refused falls back to the game's safe move
+   (`fallback`: draw, pass), so a bot never stalls a table.
+
+   Bots belong to their game: going back to the hub parks them (room._botsMemo)
+   and choosing a game that has bots again sits them back down.
+   ========================================================================== */
+const ROOM_BOT_GAMES = {};                // id -> { max, pending(room), decide(room, pid), fallback(room, pid) }
+const ROOM_BOT_LEVELS = ['easy', 'hard'];
+const ROOM_BOT_DELAY_MS = [1000, 1700];   // how long a bot "thinks": long enough to see each move land
+const ROOM_BOT_RETRY_MS = 3000;
+const ROOM_BOT_MAX_FAILS = 3;
+
+const newBotId = () => 'b' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+const isRoomBot = (room, pid) => room.players.some(p => p.id === pid && !!p.bot);
+const roomBotLevel = (room, pid) => ((room.players.find(p => p.id === pid) || {}).bot) || null;
+
+/** A bot's name, as the host's phone offered it, made unique in the room. */
+const uniqueBotName = (room, raw) => {
+  const base = String(raw || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20) || 'Bot';
+  let name = base;
+  for (let n = 2; room.players.some(p => sameRoomName(p.name, name)); n++) name = base + ' ' + n;
+  return name;
+};
+
+/** The seats a bot game can hold. */
+const roomBotCap = (room) => {
+  const hook = ROOM_BOT_GAMES[room.game];
+  return Math.min(ROOM_MAX_PLAYERS, (hook && hook.max) || ROOM_MAX_PLAYERS);
+};
+
+/** Back to the hub, or on to a game without bots: they get up and wait. */
+const parkRoomBots = (room) => {
+  const bots = room.players.filter(p => p.bot);
+  if (!bots.length) return;
+  // Along with any still waiting for a seat from last time.
+  room._botsMemo = bots.concat((room._botsMemo || []).filter(b => !bots.some(x => x.id === b.id)));
+  room.players = room.players.filter(p => !p.bot);
+  if (room.secrets) bots.forEach(b => { delete room.secrets[b.id]; });
+};
+
+/** A game with bots again: the ones parked sit back down, while there are seats. */
+const unparkRoomBots = (room) => {
+  if (!ROOM_BOT_GAMES[room.game] || !Array.isArray(room._botsMemo)) return;
+  const cap = roomBotCap(room);
+  const waiting = [];
+  room._botsMemo.forEach(b => {
+    if (room.players.some(p => p.id === b.id || sameRoomName(p.name, b.name))) return;   // a person has the name now
+    if (room.players.length >= cap) { waiting.push(b); return; }                            // no seat: keeps waiting
+    room.players.push({ id: b.id, name: b.name, bot: ROOM_BOT_LEVELS.indexOf(b.bot) !== -1 ? b.bot : 'easy' });
+  });
+  room._botsMemo = waiting.length ? waiting : null;
+};
+
+/** The host's lobby actions for bots. True when `action` was one of them. */
+const roomBotAction = (room, playerId, action, payload) => {
+  if (action !== 'addBot' && action !== 'removeBot' && action !== 'setBotLevel') return false;
+  requireHost(room, playerId);
+  if (!ROOM_BOT_GAMES[room.game]) throw new Error('اللعبة دي مفيهاش لاعبين كمبيوتر');
+  if (room.phase !== 'lobby') throw new Error('الكمبيوتر يتضاف أو يتشال قبل ما اللعبة تبدأ');
+  const p = payload || {};
+  if (action === 'addBot') {
+    if (room.players.length >= roomBotCap(room)) throw new Error('مفيش أماكن تانية في اللعبة دي');
+    const level = ROOM_BOT_LEVELS.indexOf(p.level) !== -1 ? p.level : 'easy';
+    const name = uniqueBotName(room, p.name);
+    room.players.push({ id: newBotId(), name: name, bot: level });
+    roomEvent(room, 'joined', { name: name, bot: true });
+    return true;
+  }
+  const target = room.players.find(x => x.id === String(p.playerId || '') && x.bot);
+  if (!target) return true;               // already gone: nothing to do
+  if (action === 'setBotLevel') {
+    target.bot = ROOM_BOT_LEVELS.indexOf(p.level) !== -1 ? p.level : (target.bot === 'easy' ? 'hard' : 'easy');
+    return true;
+  }
+  room.players = room.players.filter(x => x.id !== target.id);
+  if (room.secrets) delete room.secrets[target.id];
+  roomEvent(room, 'left', { name: target.name, bot: true });
+  return true;
+};
+
+/**
+ * After anything that can change whose move it is: is a bot up? The same
+ * moment (the same key) keeps the time it already had, so a chat line or a
+ * presence tick never makes a bot wait longer; a new moment gets a new wait.
+ */
+const scheduleBots = (room) => {
+  const hook = room.game && ROOM_BOT_GAMES[room.game];
+  let next = null;
+  if (hook && room.phase !== 'lobby' && room.players.some(p => p.bot)) {
+    try { next = hook.pending(room); } catch (err) { next = null; }
+  }
+  if (!next || !isRoomBot(room, next.pid)) {
+    room._botAt = null; room._botKey = null; room._botPid = null; room._botFails = 0;
+    return;
+  }
+  const key = next.pid + '|' + String(next.key || '');
+  if (room._botKey === key && room._botAt) return;
+  const [lo, hi] = ROOM_BOT_DELAY_MS;
+  room._botKey = key;
+  room._botPid = next.pid;
+  room._botFails = 0;
+  room._botAt = Date.now() + (typeof next.delay === 'number' ? next.delay : lo + Math.floor(Math.random() * (hi - lo)));
+};
+
+/** The bot that is up makes its move. True when the room changed. */
+const runRoomBot = (room) => {
+  const hook = room.game && ROOM_BOT_GAMES[room.game];
+  const pid = room._botPid;
+  room._botAt = null;
+  if (!hook || !pid || !isRoomBot(room, pid)) { scheduleBots(room); return true; }
+  const attempt = (move) => {
+    if (!move || !move.action) return false;
+    // A copy, so a move refused halfway through leaves nothing behind.
+    const trial = structuredClone(room);
+    applyRoomAction(trial, pid, move.action, move.payload || {});
+    Object.keys(room).forEach(k => { delete room[k]; });
+    Object.assign(room, trial);
+    return true;
+  };
+  try {
+    if (attempt(hook.decide(room, pid))) return true;
+  } catch (err) {
+    console.error('bot move', room.game, String((err && err.message) || err));
+  }
+  try {
+    if (hook.fallback && attempt(hook.fallback(room, pid))) return true;
+  } catch (err) {
+    console.error('bot fallback', room.game, String((err && err.message) || err));
+  }
+  // Nothing it tried was allowed: look again shortly, a few times, then leave it to the host.
+  room._botFails = (room._botFails || 0) + 1;
+  if (room._botFails < ROOM_BOT_MAX_FAILS) room._botAt = Date.now() + ROOM_BOT_RETRY_MS;
+  return true;
+};
+
 const applyRoomAction = (room, playerId, action, payload) => {
   // Room-level actions come first: they're about the group, not the game.
 
@@ -218,6 +374,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
     return;
   }
 
+  // The host sits a computer player down, takes one out, or changes its level.
+  if (roomBotAction(room, playerId, action, payload)) return;
+
   if (action === 'chooseGame') {
     requireHost(room, playerId);
     const game = String(payload.game || '');
@@ -226,6 +385,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
     clearGameState(room);
     room.game = game;
     room.phase = 'lobby';
+    // Bots play only the games that know how; the ones parked come back for those.
+    if (ROOM_BOT_GAMES[game]) unparkRoomBots(room); else parkRoomBots(room);
 
     if (game === 'codenames') {
       const teams = rememberedTeams(room);
@@ -244,6 +405,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     clearGameState(room);
     room.game = null;
     room.phase = 'lobby';
+    parkRoomBots(room);
     if (had) roomEvent(room, 'hub');
     return;
   }
@@ -293,6 +455,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'screw':      screwAction(room, playerId, action, payload); break;
     case 'mind':       mindAction(room, playerId, action, payload); break;
     case 'timeline':   timelineAction(room, playerId, action, payload); break;
+    case 'uno':        unoAction(room, playerId, action, payload); break;       // RoomUno.js
+    case 'domino':     dominoAction(room, playerId, action, payload); break;    // RoomDomino.js
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -311,6 +475,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
       (room.shared !== sharedBefore || (dealing && JSON.stringify(room.shared) !== textBefore))) {
     room.shared.dealId = newDealId();
   }
+
+  // Whatever changed, a computer player may be up now.
+  scheduleBots(room);
 };
 
 /* ==========================================================================
@@ -3078,8 +3245,19 @@ const closeTriviaQuestion = (room) => {
    ========================================================================== */
 const DRAW_TIMEOUT_GRACE_MS = 1500;
 
-/** When this room next needs the server to act on its own, or null. */
+/**
+ * When this room next needs the server to act on its own, or null: a game's
+ * own clock, or a computer player's next move, whichever comes first.
+ */
 const roomDeadline = (room) => {
+  const game = gameDeadline(room);
+  const bot = typeof room._botAt === 'number' ? room._botAt : null;
+  if (game === null) return bot;
+  return bot === null ? game : Math.min(game, bot);
+};
+
+/** A game's own clock: the round, the turn, the vote that has to end on time. */
+const gameDeadline = (room) => {
   const s = room.shared || {};
   if (room.game === 'trivia' && s.phase === 'answering' && s.endsAt) {
     return s.endsAt + TRIVIA_GRACE_MS;
@@ -3105,12 +3283,27 @@ const roomDeadline = (room) => {
   if (room.game === 'monkey' && s.phase === 'play' && s.endsAt && !s.timedOut) return s.endsAt + MONKEY_GRACE_MS;
   if (room.game === 'mafia' && (s.phase === 'night' || s.phase === 'day') && s.endsAt) return s.endsAt + MAFIA_GRACE_MS;
   if (room.game === 'screw' && (s.phase === 'memorize' || s.phase === 'play' || s.phase === 'thiefGuess') && s.endsAt) return s.endsAt + SKREW_GRACE_MS;
+  if (room.game === 'uno') return unoDeadline(room);
+  if (room.game === 'domino') return dominoDeadline(room);
   return null;
 };
 
 /** Acts on a deadline that has passed. True when the room changed. */
 const roomTimeout = (room, now) => {
-  const due = roomDeadline(room);
+  let changed = false;
+  if (typeof room._botAt === 'number' && now >= room._botAt) changed = runRoomBot(room);
+  const due = gameDeadline(room);
+  if (due && now >= due && gameTimeout(room, now)) {
+    changed = true;
+    // A turn the clock ended may have handed the move to a bot.
+    scheduleBots(room);
+  }
+  return changed;
+};
+
+/** A game's own clock ran out. True when the room changed. */
+const gameTimeout = (room, now) => {
+  const due = gameDeadline(room);
   if (!due || now < due) return false;
   if (room.game === 'trivia') {
     closeTriviaQuestion(room);
@@ -3198,6 +3391,8 @@ const roomTimeout = (room, now) => {
       return true;
     });
   }
+  if (room.game === 'uno') return unoTimeout(room, now);
+  if (room.game === 'domino') return dominoTimeout(room, now);
   return false;
 };
 
@@ -3217,6 +3412,12 @@ const roomTimeout = (room, now) => {
    leaving always works.
    ========================================================================== */
 const roomPlayerLeft = (room, playerId, name) => {
+  gamePlayerLeft(room, playerId, name);
+  // The turn they held may have moved on to a computer player.
+  scheduleBots(room);
+};
+
+const gamePlayerLeft = (room, playerId, name) => {
   const s = room.shared;
   if (!room.game || !s || typeof s !== 'object') return;
   const here = (id) => room.players.some(p => p.id === id);
@@ -3334,6 +3535,12 @@ const roomPlayerLeft = (room, playerId, name) => {
       return;
     case 'timeline':
       timelinePlayerLeft(room, playerId);
+      return;
+    case 'uno':
+      unoPlayerLeft(room, playerId, name);
+      return;
+    case 'domino':
+      dominoPlayerLeft(room, playerId, name);
       return;
     default:
       // على نفس الموجة: the host's skip deals the next psychic.

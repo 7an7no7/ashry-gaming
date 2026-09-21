@@ -71,6 +71,8 @@ const GAME_CATALOG = [
 
   /* --- ورق وطاولة --- */
   { id: 'screw',      icon: '🃏',   title: 'setup_screw',      desc: 'cat_screw',      accent: 'blue',   players: [2, 12], mins: 30, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-screw',     open: () => setView('setup-screw') },
+  { id: 'uno',        icon: '🌈',   title: 'setup_uno',        desc: 'cat_uno',        accent: 'rose',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('uno') },
+  { id: 'domino',     icon: '🀄',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
 
   /* --- لاتنين على موبايل: two people, one phone --- */
   { id: 'memory',     icon: '🎴',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory',      open: () => setupMemory() },
@@ -113,8 +115,19 @@ const GAME_CATALOG = [
   { id: 'cs-trix',  icon: '♥️',   title: 'setup_cs_trix',  desc: 'cat_cs_trix',  accent: 'rose', players: [4, 4], mins: 60, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-cs-trix', open: () => setupCardScore('trix') },
   { id: 'cs-konkan',  icon: '♦️',   title: 'setup_cs_konkan',  desc: 'cat_cs_konkan',  accent: 'amber', players: [2, 6], mins: 40, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-cs-konkan', open: () => setupCardScore('konkan') },
   { id: 'cs-basra',  icon: '🎣',   title: 'setup_cs_basra',  desc: 'cat_cs_basra',  accent: 'teal', players: [2, 4], mins: 30, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-cs-basra', open: () => setupCardScore('basra') },
-  { id: 'domino',     icon: '🀄',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device'],               group: 'tools', kind: 'score', setup: 'setup-domino',    open: () => setView('setup-domino') }
+  /* The score keepers of the two table games that are games in their own right
+     now: a shortcut to the game's own setup, on its "at the table" side (the
+     owner, 21 Sep 2026: "nobody loses it"). No `setup` of their own, so the
+     game's hero is the one drawn there. */
+  { id: 'screw-calc',  icon: '🃏',  title: 'tool_screw_calc',  desc: 'cat_screw_calc',  accent: 'blue',  players: [2, 12], mins: 30, modes: ['device'],            group: 'tools', kind: 'score', open: () => openTableCalc('screw') },
+  { id: 'domino-calc', icon: '🀄',  title: 'tool_domino_calc', desc: 'cat_domino_calc', accent: 'green', players: [2, 4],  mins: 20, modes: ['device'],            group: 'tools', kind: 'score', open: () => openTableCalc('domino') }
 ];
+
+/** A table game's score keeper, from the tools: its setup, turned to the "at the table" side. */
+function openTableCalc(gameId) {
+  rememberOptions('playMode', { [gameId]: 'device' });
+  setView('setup-' + gameId);
+}
 
 const CATALOG_BY_ID = {};
 GAME_CATALOG.forEach(g => { CATALOG_BY_ID[g.id] = g; });

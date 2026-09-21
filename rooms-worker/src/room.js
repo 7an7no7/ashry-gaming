@@ -183,7 +183,10 @@ export class Room extends DurableObject {
       phase: room.phase,
       hostId: room.hostId,
       youAreHost: room.hostId === pid,
-      players: room.players.map((p) => ({ id: p.id, name: p.name, online: online.has(p.id) })),
+      // A computer player (`bot`: its level) is always here: it has no phone to lose.
+      players: room.players.map((p) => (p.bot
+        ? { id: p.id, name: p.name, online: true, bot: p.bot }
+        : { id: p.id, name: p.name, online: online.has(p.id) })),
       // Big screens showing the room. Not players: dealt nothing, counted nowhere.
       screens: screens.map((s) => ({ id: s.id, online: online.has(s.id) })),
       youAreScreen: isScreen,
@@ -577,10 +580,12 @@ export class Room extends DurableObject {
     this.polled.delete(pid);
     // Hand the room to whoever is left rather than orphaning it: a player if
     // there is one, otherwise a screen.
+    // A computer player can't host, and a room of nothing but them is empty.
+    const people = room.players.filter((p) => !p.bot);
     let newHost = false;
-    if (room.hostId === pid && (room.players.length || room.screens.length)) {
+    if (room.hostId === pid && (people.length || room.screens.length)) {
       const online = this.onlineIds();
-      const heir = room.players.find((p) => online.has(p.id)) || room.players[0] ||
+      const heir = people.find((p) => online.has(p.id)) || people[0] ||
         room.screens.find((s) => online.has(s.id)) || room.screens[0];
       room.hostId = heir.id;
       roomEvent(room, 'host', { name: heir.name || '📺' });
@@ -593,7 +598,7 @@ export class Room extends DurableObject {
       try { ws.send(JSON.stringify({ t: how })); ws.close(4001, how); } catch (e) {}
     }
 
-    if (!room.players.length && !room.screens.length) {
+    if (!people.length && !room.screens.length) {
       await this.destroy();
       return;
     }

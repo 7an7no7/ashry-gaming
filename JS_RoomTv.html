@@ -302,7 +302,7 @@ function tvClock(id, endsAt) {
 function tvLobbySig(state) {
   return [
     state.code,
-    state.players.map(p => p.id + ':' + p.name).join(','),
+    state.players.map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','),
     (state.screens || []).length,
     JSON.stringify(state.shared || {}),
     // The night's table changes as games are banked, and it is drawn in the lobby.
@@ -339,6 +339,7 @@ function tvLobby(state, t) {
         ${tvBtn(t.room_change_game, "roomAct('backToHub')", 'ghost')}
       </div>
       <div class="tv-scale">${game && game.lobbyOptions ? game.lobbyOptions(state) : ''}</div>
+      ${roomBotControlsHtml(state, true)}
       <div class="tv-actions">${tvBtn(t.start, 'roomStartGame()')}</div>`;
   }
 

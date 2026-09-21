@@ -1094,6 +1094,37 @@ async function main() {
   }
   await A.must('backToHub');
 
+  /* --- لاعبين كمبيوتر (the lobby side; each bot game plays its own) ------------ */
+  console.log('• computer players');
+  await A.must('chooseGame', { game: 'uno' });
+  check((await B.act('addBot', { level: 'easy', name: 'زيزو' })).ok === false, 'bots: only the host adds a computer player');
+  await A.must('addBot', { level: 'easy', name: 'زيزو' });
+  await all(bots, (s) => s.players.some((p) => p.bot === 'easy' && p.name === 'زيزو' && p.online), 'bots: everyone sees the bot, always here');
+  await A.must('addBot', { level: 'hard', name: 'زيزو' });
+  await all(bots, (s) => s.players.some((p) => p.bot === 'hard' && p.name === 'زيزو 2'), 'bots: a second bot of the same name is told apart');
+  const botIds = () => A.state.players.filter((p) => p.bot).map((p) => p.id);
+  check(!A.state.players.some((p) => p.bot && JSON.stringify(p).indexOf('key') !== -1), 'bots: a bot carries no key');
+  await A.must('setBotLevel', { playerId: botIds()[0] });
+  await all(bots, (s) => (s.players.find((p) => p.id === botIds()[0]) || {}).bot === 'hard', 'bots: the host changes a level with a tap');
+  check((await B.act('removeBot', { playerId: botIds()[1] })).ok === false, 'bots: only the host removes a bot');
+  await A.must('removeBot', { playerId: botIds()[1] });
+  await all(bots, (s) => s.players.filter((p) => p.bot).length === 1, 'bots: and takes one out');
+  const nameTaken = await api('/join', { code: A.code, name: 'زيزو' });
+  check(nameTaken.ok === false, "bots: a phone can't join under a bot's name");
+  await A.must('backToHub');
+  await all(bots, (s) => !s.game && s.players.length === 4 && !s.players.some((p) => p.bot), 'bots: the hub parks them');
+  await A.must('chooseGame', { game: 'trivia' });
+  check(!A.state.players.some((p) => p.bot), 'bots: a game without bots never seats them');
+  check((await A.act('addBot', { level: 'easy', name: 'Robo' })).ok === false, 'bots: and refuses to add one');
+  await A.must('backToHub');
+  await A.must('chooseGame', { game: 'domino' });
+  check(!A.state.players.some((p) => p.bot) && A.state.players.length === 4, 'bots: a full table of four keeps its people');
+  check((await A.act('addBot', { level: 'easy', name: 'Robo' })).ok === false, 'bots: and has no seat for a fifth');
+  await A.must('backToHub');
+  await A.must('chooseGame', { game: 'uno' });
+  await all(bots, (s) => s.players.some((p) => p.bot && p.name === 'زيزو'), 'bots: a game with bots sits them back down');
+  await A.must('backToHub');
+
   /* --- مافيا ---------------------------------------------------------------------- */
   console.log('• mafia');
   await A.must('chooseGame', { game: 'mafia' });

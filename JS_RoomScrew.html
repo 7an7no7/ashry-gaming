@@ -1023,8 +1023,25 @@ function skrCallScrew() {
   showConfirmModal(msg, () => skrAct(null, 'screw'));
 }
 
+/**
+ * A pick of a player (خد وهات's who to give to, المدفع's whose hand) with only
+ * one player that can be picked: they are picked already - nothing to choose
+ * (the owner, 21 Sep 2026). A card of someone's is already focused the same
+ * way (skrPickFocusOf). Returns the pick.
+ */
+function skrPickOnly(pick) {
+  const state = Room.state;
+  if (!pick || !state) return pick;
+  const need = skrNeed(pick);
+  if (need.player && !need.other && !pick.player) {
+    const ok = skrPickTargets(state, pick).filter(x => x.ok);
+    if (ok.length === 1) pick.player = ok[0].pid;
+  }
+  return pick;
+}
+
 function skrStartPick(kind) {
-  skrLocal.pick = skrNewPick(kind);
+  skrLocal.pick = skrPickOnly(skrNewPick(kind));
   haptic('light');
   skrRedraw();
 }
@@ -1066,7 +1083,7 @@ function skrPickAs(card) {
   if (!skrLocal.pick || skrAsYouLikeChoices(Room.state).indexOf(card) === -1) return;
   const power = (SKREW_CARDS[card] || {}).power;
   if (!power) return;
-  skrLocal.pick = skrNewPick('power', { power: power, as: card });
+  skrLocal.pick = skrPickOnly(skrNewPick('power', { power: power, as: card }));
   haptic('light');
   skrRedraw();
 }
@@ -2290,7 +2307,7 @@ function skrSyncPick(state) {
   if (skrLocal.pick || !skrInGame(state)) return;
   const turn = s.turn;
   const mine = s.phase === 'play' && turn && turn.pid === Room.me;
-  if (mine && turn.stage === 'power' && turn.power) skrLocal.pick = skrNewPick('power', { power: skrPowerOf(turn.power) });
+  if (mine && turn.stage === 'power' && turn.power) skrLocal.pick = skrPickOnly(skrNewPick('power', { power: skrPowerOf(turn.power) }));
   else if (mine && turn.stage === 'khoshaf') skrLocal.pick = skrNewPick('khoshaf');
   else if (skrBoomWaits(state, Room.me)) skrLocal.pick = skrNewPick('boomPick');
   else if (mine && turn.stage === 'steal') skrLocal.pick = skrNewPick('stealSwap');

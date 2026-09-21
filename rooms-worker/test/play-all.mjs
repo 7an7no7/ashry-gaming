@@ -1697,7 +1697,8 @@ async function main() {
     }
     // Now the person plays on, quickly; the bots keep moving by themselves.
     const t0uno = Date.now();
-    for (let n = 0; n < 900 && H.state.shared.phase === 'play' && Date.now() - t0uno < 150000; n++) {
+    // A long game (reshuffles, a hard bot's waits) can run past two minutes: that is a long game, not a stall.
+    for (let n = 0; n < 1600 && H.state.shared.phase === 'play' && Date.now() - t0uno < 240000; n++) {
       const s = H.state.shared;
       if (s.turn && s.turn.pid === H.pid) {
         const res = await unoMove([H]);

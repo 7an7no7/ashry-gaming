@@ -598,6 +598,26 @@ the word search), `countUp` for streaks and scores.
 - **ورق وطاولة holds سكرو, أونو and الدومينو as three normal cards** (owner, 21
   Sep 2026). سكرو's spotlight was only ever because it was alone there; the
   rule stands (a section of one game is drawn wide), it just no longer applies.
+- **One thing to do is done for you** (owner, 21 Sep 2026: "in any scenario
+  where there is only one thing to do, it should be done automatically - check
+  all games"). Where a player's only possible move is known, it is made for
+  them after a beat, with a line saying what is happening instead of a
+  button: أونو's take of a +2/+4 with nothing to stack and the draw when
+  nothing fits (a drawn card that fits still asks: play or keep); the 7 of
+  7-0 with one other player; الدومينو's draw, باص and a move that is the only
+  one - **only with the host's "light up the tiles that fit" on**, because
+  with the helpers off working it out is the game (the owner chose this);
+  the last column, line or square of كونكت ٤, نقط ومربعات and إكس أو, and the
+  memory game's last pair; قبل ولا بعد's last card, picked for you; سكرو's
+  "which player" when only one can be chosen. **Four kinds of tap stay taps**:
+  one that is the game itself (أونو!, العقل, the Buzzer), one that hides who
+  has a role (مافيا's night tap, made by everyone on purpose), anything the
+  player is meant to judge unaided (الدومينو with the helpers off, سكرو's
+  memory), and a pause the table uses to read or talk (the host's "next
+  round"). And in أونو an automatic take waits while someone can still be
+  caught - taking at once would close the امسكه! window on the player who
+  forgot. In rooms the move is the server's (*Forced moves*), so it happens
+  with the phone locked too. A new game checks its turns for the same.
 - **Every icon has to say what its game is** (owner, 21 Sep 2026, after
   asking for Uno's and Domino's to change). أونو and الدومينو got drawn icons
   (*Feel*, *Some icons are drawn*): 🌈 said nothing about Uno and 🀄 is not a
@@ -857,6 +877,14 @@ the word search), `countUp` for streaks and scores.
   seats two to a row, six tiles to a row, the bar sticky at the foot); and a
   robot test that failed whenever the random seats made the host the one who
   leaves. Robot tests: 1381.
+- **21 Sep 2026, one thing to do** - every game checked for a tap that has
+  only one outcome, and each made automatic after a beat (*Decided, and
+  why*: one thing to do is done for you; *Forced moves*): أونو, الدومينو with
+  the helpers on, the duels in rooms and on one phone, إكس أو, the memory
+  game, قبل ولا بعد and سكرو. Rules tests pin the Uno take and draw (and the
+  wait while someone can be caught), Domino with the helpers on and off, and
+  the duels' last move; a robot game's window was widened, since a long
+  three-player أونو can run past two minutes.
 - **21 Sep 2026, icons** - أونو and الدومينو drawn as their own card and tile
   (`ICON_ART`, `iconHtml`), four other icons that clashed or said nothing
   replaced (*Decided, and why*), and domino's دق renamed باص.
@@ -1122,6 +1150,20 @@ ever speak for it from outside.
   always online (with `bot: level` on its row), never becomes host, and a room
   with nothing but bots and no screen is empty and deletes itself. It is not in
   the live player count (no socket). A phone can't join under a bot's name.
+- **Forced moves ride on the same clock** (the owner's "one thing to do is
+  done for you", *Decided, and why*). A game registers
+  `ROOM_FORCED_GAMES.<id> = (room) => { pid, key, move: { action, payload },
+  delay? }` for a person whose only legal move is known; when no bot is up,
+  `scheduleBots` sets `_botAt` for that person `ROOM_FORCED_DELAY_MS` (1.2s)
+  ahead, and `runRoomBot` asks the hook again when the beat is up and makes
+  the move only if it is still the same moment (the key) and still the only
+  move - so a person who tapped first, a jump in, or a turn that changed
+  meanwhile is never overruled. A move refused is not tried again for that
+  moment (`_forcedFailed`). Registered: أونو (take / draw; waiting as long as
+  a bot while someone can be caught), الدومينو (with `helpFit` on), كونكت ٤
+  and نقط ومربعات (the last move). `roomForcedMove` is exported for the rules
+  tests. The phone draws a line (`uno_auto_*`, `dom_auto_*`) where the
+  button would have been.
 - A new game with bots registers `ROOM_BOT_GAMES.<id> = { max, pending,
   decide, fallback }` beside its rules and `bots: { max }` on its `ROOM_GAMES`
   entry, and plays a whole bot-filled game in `play-all.mjs` (one person plus

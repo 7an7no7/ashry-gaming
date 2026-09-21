@@ -6,7 +6,7 @@
  *   npm run test:rules      (builds generated/rules.js first)
  */
 import { readFileSync } from 'node:fs';
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS } from '../generated/rules.js';
 
 let failed = 0;
 const check = (ok, label) => {
@@ -2993,9 +2993,77 @@ Date.now = duelTestClock;
   }
 
   {
+    // Only one thing to do: the server does it for a person, after a beat (ROOM_FORCED_GAMES).
+    const r = unoStart(['a', 'b', 'c']);
+    setTable(r, [['r1', 'r2'], ['b5', 'b6'], ['g2', 'g3']], 'yd', { pending: { n: 2, kind: 'd' } });
+    const [A, B] = r.shared.order;
+    check(r._botPid === A && r._botAt === clock + ROOM_FORCED_DELAY_MS, 'uno forced: facing a +2 with nothing to stack, the take is set for a beat later');
+    check(!roomTimeout(r, clock + 500) && hand(r, A).length === 2, 'uno forced: not before the beat');
+    check(roomTimeout(r, clock + ROOM_FORCED_DELAY_MS) && hand(r, A).length === 4 && !r.shared.pending && up(r) === B,
+      'uno forced: then the two are taken for them and the turn moves on');
+    const d = unoStart(['a', 'b', 'c']);
+    setTable(d, [['r1', 'r2'], ['b5', 'b6'], ['g2', 'g3']], 'y9', { deck: ['g1', 'g2', 'g3'] });
+    roomTimeout(d, clock + ROOM_FORCED_DELAY_MS);
+    check(hand(d, d.shared.order[0]).length === 3 && d.shared.events.some((e) => e.type === 'draw' && e.pid === d.shared.order[0]),
+      'uno forced: nothing fits, no draw waiting: one card is drawn for them');
+    const k = unoStart(['a', 'b', 'c']);
+    setTable(k, [['r1', 'y2'], ['b5', 'b6'], ['g2', 'g3']], 'y9');
+    check(k._botAt === null && !roomTimeout(k, clock + 5000) && hand(k, k.shared.order[0]).length === 2,
+      'uno forced: with a card that fits there is a choice, and nothing is done for them');
+    const w = unoStart(['a', 'b', 'c']);
+    setTable(w, [['r1', 'r5'], ['b5', 'b6'], ['g2', 'g3']], 'r9');
+    // A goes down to one card without saying أونو, and B has nothing that fits.
+    u(w, w.shared.order[0], 'play', { card: idOf(w, w.shared.order[0], 'r1') });
+    check(w.shared.unoCatch === w.shared.order[0] && w._botPid === w.shared.order[1] && w._botAt >= clock + 2800, 'uno forced: while someone can still be caught, it waits as long as a bot would');
+
+    // الدومينو: only with the helper that lights up what fits.
+    const dm = (help) => {
+      const room = newRoom(['a', 'b', 'c', 'd']);
+      applyRoomAction(room, 'a', 'chooseGame', { game: 'domino' });
+      applyRoomAction(room, 'a', 'start', { helpFit: help });
+      return room;
+    };
+    const on = dm(true);
+    const pid = on.shared.turn;
+    on._domino.hands[pid] = ['0-0', '1-1'];
+    on.shared.table = { line: [{ t: '5-6', a: 5, b: 6 }], root: '5-6', spinner: null, up: [], down: [] };
+    on.shared.turnSeq++;
+    applyRoomAction(on, 'a', 'chat', { text: 'x' });
+    const f = roomForcedMove(on);
+    check(f && f.pid === pid && f.move.action === 'pass', 'domino forced: helpers on, four players, nothing fits: باص for them');
+    on._domino.hands[pid] = ['0-0', '1-5'];
+    const g1 = roomForcedMove(on);
+    check(g1 && g1.move.action === 'play' && g1.move.payload.tile === '1-5' && g1.move.payload.end === 'L', 'domino forced: one move only: it is played');
+    on._domino.hands[pid] = ['0-5', '1-5'];
+    check(roomForcedMove(on) === null, 'domino forced: two moves: nothing is done');
+    const off = dm(false);
+    off._domino.hands[off.shared.turn] = ['0-0', '1-1'];
+    off.shared.table = { line: [{ t: '5-6', a: 5, b: 6 }], root: '5-6', spinner: null, up: [], down: [] };
+    check(roomForcedMove(off) === null, 'domino forced: helpers off: nothing is done - the player works it out');
+
+    // The duels: the last possible move of a board.
+    const c4r = newRoom(['a', 'b']);
+    applyRoomAction(c4r, 'a', 'chooseGame', { game: 'connect4' });
+    applyRoomAction(c4r, 'a', 'start', { mode: 4 });
+    check(roomForcedMove(c4r) === null, 'duel forced: an open board has choices');
+    const cols = c4r.shared.cols;
+    c4r.shared.grid = c4r.shared.grid.map((v, i) => (i % cols === 3 ? 0 : 1));
+    const fc = roomForcedMove(c4r);
+    check(fc && fc.pid === c4r.shared.seats[c4r.shared.turn] && fc.move.payload.col === 3 && fc.move.payload.move === c4r.shared.moves,
+      'duel forced: connect 4 with one open column: it is played for whoever is up');
+    const dr = newRoom(['a', 'b']);
+    applyRoomAction(dr, 'a', 'chooseGame', { game: 'dots' });
+    applyRoomAction(dr, 'a', 'start', { size: 4 });
+    dr.shared.lines = dr.shared.lines.map((v, e) => (e === 5 ? 0 : 1));
+    const fd = roomForcedMove(dr);
+    check(fd && fd.move.payload.edge === 5, 'duel forced: dots with one line left: it is drawn');
+  }
+
+  {
     // The turn clock and the host's skip.
     const r = unoStart(['a', 'b', 'c'], { turnClock: 30 });
-    setTable(r, [['r1', 'r2'], ['b5', 'b6'], ['g2', 'g3']], 'y9', { deck: ['g1', 'g2', 'g3', 'g4', 'y1', 'y2', 'y3'] });
+    // A holds a card that fits, so nothing is forced and the clock is what moves.
+    setTable(r, [['r1', 'y2'], ['b5', 'b6'], ['g2', 'g3']], 'y9', { deck: ['g1', 'g2', 'g3', 'g4', 'y1', 'y2', 'y3'] });
     r.shared.endsAt = clock + 30000;
     const [A, B] = r.shared.order;
     check(roomDeadline(r) === clock + 30000 + 1500, 'uno: the turn clock is a server deadline');

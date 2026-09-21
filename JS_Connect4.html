@@ -411,6 +411,7 @@ function c4HumanDrop(col) {
   if (Date.now() < c4Local.busyUntil) return;
   if (c4DropRow(s.board, col) < 0) { c4Refuse(document.querySelector('#connect4-stage .c4')); return; }
   haptic('light');
+  c4StopPhone();   // a last column about to play itself: the tap was quicker
   c4Place(col);
 }
 
@@ -437,19 +438,30 @@ function c4Place(col) {
   c4MaybePhone();
 }
 
-/** The phone's turn: a moment to watch the disc land and "think", then its move. */
+/**
+ * The phone's turn: a moment to watch the disc land and "think", then its move.
+ * A person with one column left gets it played the same way (the owner, 21 Sep
+ * 2026: one thing to do is done for you), after a beat to see it coming.
+ */
 function c4MaybePhone() {
   const s = c4State();
-  if (s.vs !== 'phone' || s.phase !== 'play' || s.turn !== 2 || c4PhoneTimer) return;
+  if (s.phase !== 'play' || !s.board || c4PhoneTimer) return;
   if (appState.currentView !== 'play-connect4') return;
+  const phoneUp = s.vs === 'phone' && s.turn === 2;
+  if (!phoneUp && c4LegalCols(s.board).length !== 1) return;
   const landing = s.last && !motionOff() ? 220 + 55 * (s.last.row + 1) : 0;
   c4PhoneTimer = setTimeout(() => {
     c4PhoneTimer = null;
     const st = c4State();
-    if (st.vs !== 'phone' || st.phase !== 'play' || st.turn !== 2 || appState.currentView !== 'play-connect4') return;
-    const col = c4BestMove(st.board, 2, st.level);
-    if (col >= 0) c4Place(col);
-  }, landing + 400 + Math.floor(Math.random() * 300));
+    if (st.phase !== 'play' || appState.currentView !== 'play-connect4') return;
+    if (st.vs === 'phone' && st.turn === 2) {
+      const col = c4BestMove(st.board, 2, st.level);
+      if (col >= 0) c4Place(col);
+      return;
+    }
+    const only = c4LegalCols(st.board);
+    if (only.length === 1) c4Place(only[0]);
+  }, landing + (phoneUp ? 400 + Math.floor(Math.random() * 300) : 700));
 }
 
 function c4StopPhone() {

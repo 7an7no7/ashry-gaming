@@ -9823,6 +9823,7 @@ body.dark .uno-card--face.uno-c--k { box-shadow: inset 0 0 0 1px rgba(255, 255, 
 .uno-prompt { margin: 0; color: var(--text-strong); font-size: var(--fs-h3); font-weight: 900; line-height: 1.35; text-align: center; }
 .uno-prompt.is-mine { color: var(--accent-ink); }
 .uno-hint { margin: 0; color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; line-height: 1.4; text-align: center; }
+.uno-hint--auto { color: var(--accent-ink); }
 .uno-hint--jump { color: var(--warning-ink); font-weight: 800; }
 .uno-actrow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
 .uno-actrow .btn { padding-inline: var(--sp-2); }
@@ -10414,6 +10415,8 @@ body.dark .dom-felt { background: radial-gradient(120% 90% at 50% 40%, color-mix
 .dom-prompt { margin: 0; color: var(--text-strong); font-size: var(--fs-body); font-weight: 900; line-height: 1.35; text-align: center; }
 .dom-prompt.is-mine { color: var(--accent-ink); }
 .dom-bar--note .dom-prompt { color: var(--text-2); font-size: var(--fs-sm); }
+/* A move the server makes for you in a moment: said, not a button. */
+.dom-bar--inline .dom-prompt--auto { flex: 1.3; color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; }
 .dom-bar__row, .dom-bar__ends { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: var(--sp-2); }
 .dom-bar__row .btn, .dom-bar__ends .btn { padding-inline: var(--sp-2); }
 .dom-bar__v { opacity: 0.8; }
@@ -15241,7 +15244,7 @@ function dotsBestMove(board, me, level, opts) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260921104036";
+      window.BUILD_ID = "20260921111918";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -20872,6 +20875,9 @@ function dotsBestMove(board, me, level, opts) {
       dom_turn_of: "دور {name}",
       dom_your_turn: "دورك! نزّل حجر",
       dom_you_lead: "دورك تبدأ: نزّل أي حجر",
+      dom_auto_draw: "مفيش حجر يركب: هتسحب لوحدك",
+      dom_auto_pass: "مفيش حجر يركب ولا حاجة تتسحب: باص لوحده",
+      dom_auto_play: "حجر واحد بس يركب: هينزل لوحده",
       dom_pick_end: "{tile} يركب على أكتر من ناحية: اختار",
       dom_end_L: "الشمال",
       dom_end_R: "اليمين",
@@ -20954,6 +20960,9 @@ function dotsBestMove(board, me, level, opts) {
       uno_facing_hint_mixed: "ارمي +2 أو +4 عشان تعدّيها للي بعدك، أو اسحبهم",
       uno_facing_hint_w4: "ارمي +4 عشان تعدّيها للي بعدك، أو اسحبهم",
       uno_facing_hint_none: "مفيش معاك كارت تعدّي بيه: اسحبهم",
+      uno_auto_take: "مفيش معاك كارت تعدّي بيه: هتسحب الـ{n} لوحدهم",
+      uno_auto_draw: "مفيش كارت ينزل: هتسحب كارت لوحده",
+      uno_auto_draw_until: "مفيش كارت ينزل: هتسحب لوحدك لحد ما يطلع كارت",
       uno_take: "اسحب الـ{n}",
       uno_drawn: "سحبت {card} وينفع يترمي",
       uno_play_it: "ارميه",
@@ -22998,6 +23007,9 @@ function dotsBestMove(board, me, level, opts) {
       dom_turn_of: "{name}'s turn",
       dom_your_turn: "Your turn! Play a tile",
       dom_you_lead: "You lead: play any tile",
+      dom_auto_draw: "Nothing fits: drawing for you",
+      dom_auto_pass: "Nothing fits and nothing to draw: passing for you",
+      dom_auto_play: "Only one tile fits: it goes down by itself",
       dom_pick_end: "{tile} fits more than one end: pick one",
       dom_end_L: "Left",
       dom_end_R: "Right",
@@ -23080,6 +23092,9 @@ function dotsBestMove(board, me, level, opts) {
       uno_facing_hint_mixed: "Throw a +2 or a +4 to pass it on, or draw them",
       uno_facing_hint_w4: "Throw a +4 to pass it on, or draw them",
       uno_facing_hint_none: "Nothing to pass it on with: draw them",
+      uno_auto_take: "Nothing to pass it on with: the {n} are drawn for you",
+      uno_auto_draw: "Nothing fits: a card is drawn for you",
+      uno_auto_draw_until: "Nothing fits: cards are drawn for you until one does",
       uno_take: "Draw {n}",
       uno_drawn: "You drew {card}, and it fits",
       uno_play_it: "Play it",
@@ -50659,7 +50674,7 @@ function flipMemory(i) {
   if (el) el.classList.add('is-flipped');
   playSound('click');
 
-  if (m.flipped.length < 2) { saveToLocal(); return; }
+  if (m.flipped.length < 2) { saveToLocal(); memoryLastPair(); return; }
 
   m.moves += 1;
   const [a, b] = m.flipped;
@@ -50674,6 +50689,7 @@ function flipMemory(i) {
     memoryPaintBar();
     saveToLocal();
     if (m.cards.every(c => c.m)) memoryFinish();
+    else memoryLastPair();
     return;
   }
   // A miss: leave both up long enough to see them, then turn them back and,
@@ -50688,6 +50704,26 @@ function flipMemory(i) {
     saveToLocal();
   }, 750);
   memoryPaintBar();
+}
+
+/**
+ * Two cards left: they can only be each other, so they turn over by themselves
+ * (the owner, 21 Sep 2026: one thing to do is done for you) - the second a beat
+ * after the first, as a hand would.
+ */
+let memoryLastTimer = null;
+function memoryLastPair() {
+  const m = memoryState();
+  if (m.phase !== 'play' || memoryLastTimer) return;
+  const left = m.cards.map((c, i) => (c.m ? -1 : i)).filter(i => i !== -1);
+  if (left.length !== 2) return;
+  const next = left.find(i => m.flipped.indexOf(i) === -1);
+  if (next === undefined) return;
+  memoryLastTimer = setTimeout(() => {
+    memoryLastTimer = null;
+    if (appState.currentView !== 'play-memory') return;
+    flipMemory(next);
+  }, m.flipped.length ? 380 : 650);
 }
 
 function memoryPaintBar() {
@@ -50773,6 +50809,7 @@ if (typeof onLeaveScreen === 'function') {
     const m = memoryState();
     if (from === 'play-memory' && typeof soloPause === 'function') soloPause(m);
     if (to === 'play-memory' && typeof soloResume === 'function') soloResume(m);
+    if (to === 'play-memory') setTimeout(memoryLastPair, 0);
   });
 }
 if (typeof onLanguageChange === 'function') {
@@ -50870,6 +50907,7 @@ function xoPlay(i) {
   const x = xoState();
   if (x.phase !== 'play' || x.board[i]) return;
   if (x.vs === 'phone' && x.turn !== x.human) return;
+  if (xoPhoneTimer) { clearTimeout(xoPhoneTimer); xoPhoneTimer = null; }   // the last square about to fill itself
   xoPlace(i);
 }
 
@@ -50900,15 +50938,21 @@ function xoPlace(i) {
   xoMaybePhone();
 }
 
+/** The phone's move; or, for a person, the last square, which has nothing to choose (the owner, 21 Sep 2026). */
 function xoMaybePhone() {
   const x = xoState();
-  if (x.vs !== 'phone' || x.phase !== 'play' || x.turn === x.human) return;
+  if (x.phase !== 'play') return;
+  const phoneUp = x.vs === 'phone' && x.turn !== x.human;
+  const empty = () => x.board.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
+  if (!phoneUp && empty().length !== 1) return;
   if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
   xoPhoneTimer = setTimeout(() => {
     xoPhoneTimer = null;
-    if (x.phase !== 'play' || x.turn === x.human) return;
-    xoPlace(xoPhoneMove(x));
-  }, 420);
+    if (x.phase !== 'play' || appState.currentView !== 'play-xo') return;
+    if (x.vs === 'phone' && x.turn !== x.human) { xoPlace(xoPhoneMove(x)); return; }
+    const left = empty();
+    if (left.length === 1) xoPlace(left[0]);
+  }, phoneUp ? 420 : 650);
 }
 
 /*
@@ -64104,8 +64148,25 @@ function skrCallScrew() {
   showConfirmModal(msg, () => skrAct(null, 'screw'));
 }
 
+/**
+ * A pick of a player (خد وهات's who to give to, المدفع's whose hand) with only
+ * one player that can be picked: they are picked already - nothing to choose
+ * (the owner, 21 Sep 2026). A card of someone's is already focused the same
+ * way (skrPickFocusOf). Returns the pick.
+ */
+function skrPickOnly(pick) {
+  const state = Room.state;
+  if (!pick || !state) return pick;
+  const need = skrNeed(pick);
+  if (need.player && !need.other && !pick.player) {
+    const ok = skrPickTargets(state, pick).filter(x => x.ok);
+    if (ok.length === 1) pick.player = ok[0].pid;
+  }
+  return pick;
+}
+
 function skrStartPick(kind) {
-  skrLocal.pick = skrNewPick(kind);
+  skrLocal.pick = skrPickOnly(skrNewPick(kind));
   haptic('light');
   skrRedraw();
 }
@@ -64147,7 +64208,7 @@ function skrPickAs(card) {
   if (!skrLocal.pick || skrAsYouLikeChoices(Room.state).indexOf(card) === -1) return;
   const power = (SKREW_CARDS[card] || {}).power;
   if (!power) return;
-  skrLocal.pick = skrNewPick('power', { power: power, as: card });
+  skrLocal.pick = skrPickOnly(skrNewPick('power', { power: power, as: card }));
   haptic('light');
   skrRedraw();
 }
@@ -65371,7 +65432,7 @@ function skrSyncPick(state) {
   if (skrLocal.pick || !skrInGame(state)) return;
   const turn = s.turn;
   const mine = s.phase === 'play' && turn && turn.pid === Room.me;
-  if (mine && turn.stage === 'power' && turn.power) skrLocal.pick = skrNewPick('power', { power: skrPowerOf(turn.power) });
+  if (mine && turn.stage === 'power' && turn.power) skrLocal.pick = skrPickOnly(skrNewPick('power', { power: skrPowerOf(turn.power) }));
   else if (mine && turn.stage === 'khoshaf') skrLocal.pick = skrNewPick('khoshaf');
   else if (skrBoomWaits(state, Room.me)) skrLocal.pick = skrNewPick('boomPick');
   else if (mine && turn.stage === 'steal') skrLocal.pick = skrNewPick('stealSwap');
@@ -67432,6 +67493,8 @@ ROOM_GAMES.timeline = {
     const mine = (state.you || {}).cards || [];
     // A card picked on a turn that has moved on is no longer a choice.
     if (s.turnId !== Room.me && tlLocal.pick) tlLocal.pick = null;
+    // One card left is the card: it is picked already, and only the gap is asked.
+    if (s.phase === 'play' && s.turnId === Room.me && mine.length === 1) tlLocal.pick = mine[0].id;
 
     if (s.phase === 'gameover') {
       const fresh = renderRoomFrame(el, ['tl-over', s.winnerId, state.youAreHost, appState.lang].join('|'), () => `
@@ -67742,7 +67805,12 @@ function unoTapCard(id) {
   const settings = s.settings || {};
   const needsTarget = settings.sevenO && unoValueOf(card.k) === '7' && unoHand(st).length > 1;
   if (unoIsWild(card.k)) { unoLocal.pick = { card: card.i, need: 'color', jump: false }; unoRedraw(); haptic('light'); return; }
-  if (needsTarget) { unoLocal.pick = { card: card.i, need: 'target', jump: jump }; unoRedraw(); haptic('light'); return; }
+  if (needsTarget) {
+    // Only one other player to swap with: nothing to ask.
+    const others = unoOrder(st).filter(pid => pid !== Room.me);
+    if (others.length === 1) { unoSend(card.i, jump, { target: others[0] }); return; }
+    unoLocal.pick = { card: card.i, need: 'target', jump: jump }; unoRedraw(); haptic('light'); return;
+  }
   unoSend(card.i, jump, {});
 }
 
@@ -68043,6 +68111,15 @@ function unoActionsHtml(state) {
       </div>${say}`);
   }
   const playable = hand.filter(c => unoPlayable(state, c));
+  // Nothing can go: there is nothing to choose, so the server takes or draws
+  // for this phone in a moment (ROOM_FORCED_GAMES.uno). No button, just what happens.
+  if (!playable.length) {
+    const auto = s.pending && s.pending.n ? unoT('uno_auto_take', { n: s.pending.n })
+      : unoT((s.settings || {}).drawUntil ? 'uno_auto_draw_until' : 'uno_auto_draw');
+    const title = s.pending && s.pending.n ? unoT('uno_facing', { n: s.pending.n }) : unoT('uno_your_turn');
+    return bar(`${caught}<p class="uno-prompt is-mine">⭐ ${escapeHTML(title)}</p><p class="uno-hint uno-hint--auto">⏳ ${escapeHTML(auto)}</p>${say}`,
+      s.pending && s.pending.n ? 'uno-actbar--facing' : '');
+  }
   if (s.pending && s.pending.n) {
     const settings = s.settings || {};
     const hintKey = !playable.length ? 'uno_facing_hint_none' : s.pending.kind === 'w4' ? 'uno_facing_hint_w4' : settings.stackMode === 'mixed' ? 'uno_facing_hint_mixed' : 'uno_facing_hint_stack';
@@ -69549,6 +69626,19 @@ function domBarHtml(state) {
   }
   const lead = !table.line.length;
   const canDraw = s.drawing && (Number(s.bone) || 0) > 0;
+  // With the helpers lighting what fits, a turn with one thing to do plays
+  // itself on the server in a moment (ROOM_FORCED_GAMES.domino): say so, no button.
+  if (st.helpFit && !lead) {
+    const hand = (state.you || {}).hand || [];
+    const moves = hand.reduce((n, t) => n + domDistinctEnds(table, t, st.mode).length, 0);
+    if (moves <= 1) {
+      const key = moves ? 'dom_auto_play' : canDraw ? 'dom_auto_draw' : 'dom_auto_pass';
+      return `<div class="dom-bar dom-bar--inline">
+          <p class="dom-prompt is-mine">⭐ ${escapeHTML(domT('dom_your_turn'))}</p>
+          <p class="dom-prompt dom-prompt--auto">⏳ ${escapeHTML(domT(key))}</p>
+        </div>`;
+    }
+  }
   const action = canDraw
     ? `<button type="button" class="btn btn--secondary btn--auto" onclick="domDraw()">✋ ${escapeHTML(domT('dom_draw', { n: s.bone }))}</button>`
     : `<button type="button" class="btn btn--secondary btn--auto" onclick="domKnock()">👊 ${escapeHTML(domT('dom_knock'))}</button>`;
@@ -71031,6 +71121,7 @@ function c4HumanDrop(col) {
   if (Date.now() < c4Local.busyUntil) return;
   if (c4DropRow(s.board, col) < 0) { c4Refuse(document.querySelector('#connect4-stage .c4')); return; }
   haptic('light');
+  c4StopPhone();   // a last column about to play itself: the tap was quicker
   c4Place(col);
 }
 
@@ -71057,19 +71148,30 @@ function c4Place(col) {
   c4MaybePhone();
 }
 
-/** The phone's turn: a moment to watch the disc land and "think", then its move. */
+/**
+ * The phone's turn: a moment to watch the disc land and "think", then its move.
+ * A person with one column left gets it played the same way (the owner, 21 Sep
+ * 2026: one thing to do is done for you), after a beat to see it coming.
+ */
 function c4MaybePhone() {
   const s = c4State();
-  if (s.vs !== 'phone' || s.phase !== 'play' || s.turn !== 2 || c4PhoneTimer) return;
+  if (s.phase !== 'play' || !s.board || c4PhoneTimer) return;
   if (appState.currentView !== 'play-connect4') return;
+  const phoneUp = s.vs === 'phone' && s.turn === 2;
+  if (!phoneUp && c4LegalCols(s.board).length !== 1) return;
   const landing = s.last && !motionOff() ? 220 + 55 * (s.last.row + 1) : 0;
   c4PhoneTimer = setTimeout(() => {
     c4PhoneTimer = null;
     const st = c4State();
-    if (st.vs !== 'phone' || st.phase !== 'play' || st.turn !== 2 || appState.currentView !== 'play-connect4') return;
-    const col = c4BestMove(st.board, 2, st.level);
-    if (col >= 0) c4Place(col);
-  }, landing + 400 + Math.floor(Math.random() * 300));
+    if (st.phase !== 'play' || appState.currentView !== 'play-connect4') return;
+    if (st.vs === 'phone' && st.turn === 2) {
+      const col = c4BestMove(st.board, 2, st.level);
+      if (col >= 0) c4Place(col);
+      return;
+    }
+    const only = c4LegalCols(st.board);
+    if (only.length === 1) c4Place(only[0]);
+  }, landing + (phoneUp ? 400 + Math.floor(Math.random() * 300) : 700));
 }
 
 function c4StopPhone() {
@@ -71439,6 +71541,7 @@ function dotsHumanDraw(e) {
   if (s.vs === 'phone' && s.turn !== 1) return;
   if (Date.now() < dotsLocal.busyUntil || s.board.lines[e]) return;
   haptic('light');
+  dotsStopPhone();   // the last line about to draw itself: the tap was quicker
   dotsPlace(e);
 }
 
@@ -71468,8 +71571,20 @@ function dotsPlace(e) {
 /** The phone's line: a moment to see what just happened, quicker while it runs down a chain. */
 function dotsMaybePhone() {
   const s = dotsState();
-  if (s.vs !== 'phone' || s.phase !== 'play' || s.turn !== 2 || dotsPhoneTimer) return;
+  if (s.phase !== 'play' || !s.board || dotsPhoneTimer) return;
   if (appState.currentView !== 'play-dots') return;
+  // A person with one line left: it draws itself after a beat (nothing to choose).
+  if (!(s.vs === 'phone' && s.turn === 2)) {
+    if (dotsFree(s.board).length !== 1) return;
+    dotsPhoneTimer = setTimeout(() => {
+      dotsPhoneTimer = null;
+      const st = dotsState();
+      if (st.phase !== 'play' || appState.currentView !== 'play-dots') return;
+      const only = dotsFree(st.board);
+      if (only.length === 1) dotsPlace(only[0]);
+    }, (s.last && s.last.boxes && s.last.boxes.length && !motionOff() ? 520 : 200) + 600);
+    return;
+  }
   const chain = s.last && s.last.p === 2 && s.last.boxes && s.last.boxes.length;
   const seen = s.last && s.last.boxes && s.last.boxes.length && !motionOff() ? 520 : 200;
   const wait = chain ? 380 + (motionOff() ? 0 : 300) : seen + 400 + Math.floor(Math.random() * 300);

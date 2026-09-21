@@ -225,7 +225,12 @@ function unoTapCard(id) {
   const settings = s.settings || {};
   const needsTarget = settings.sevenO && unoValueOf(card.k) === '7' && unoHand(st).length > 1;
   if (unoIsWild(card.k)) { unoLocal.pick = { card: card.i, need: 'color', jump: false }; unoRedraw(); haptic('light'); return; }
-  if (needsTarget) { unoLocal.pick = { card: card.i, need: 'target', jump: jump }; unoRedraw(); haptic('light'); return; }
+  if (needsTarget) {
+    // Only one other player to swap with: nothing to ask.
+    const others = unoOrder(st).filter(pid => pid !== Room.me);
+    if (others.length === 1) { unoSend(card.i, jump, { target: others[0] }); return; }
+    unoLocal.pick = { card: card.i, need: 'target', jump: jump }; unoRedraw(); haptic('light'); return;
+  }
   unoSend(card.i, jump, {});
 }
 
@@ -526,6 +531,15 @@ function unoActionsHtml(state) {
       </div>${say}`);
   }
   const playable = hand.filter(c => unoPlayable(state, c));
+  // Nothing can go: there is nothing to choose, so the server takes or draws
+  // for this phone in a moment (ROOM_FORCED_GAMES.uno). No button, just what happens.
+  if (!playable.length) {
+    const auto = s.pending && s.pending.n ? unoT('uno_auto_take', { n: s.pending.n })
+      : unoT((s.settings || {}).drawUntil ? 'uno_auto_draw_until' : 'uno_auto_draw');
+    const title = s.pending && s.pending.n ? unoT('uno_facing', { n: s.pending.n }) : unoT('uno_your_turn');
+    return bar(`${caught}<p class="uno-prompt is-mine">⭐ ${escapeHTML(title)}</p><p class="uno-hint uno-hint--auto">⏳ ${escapeHTML(auto)}</p>${say}`,
+      s.pending && s.pending.n ? 'uno-actbar--facing' : '');
+  }
   if (s.pending && s.pending.n) {
     const settings = s.settings || {};
     const hintKey = !playable.length ? 'uno_facing_hint_none' : s.pending.kind === 'w4' ? 'uno_facing_hint_w4' : settings.stackMode === 'mixed' ? 'uno_facing_hint_mixed' : 'uno_facing_hint_stack';

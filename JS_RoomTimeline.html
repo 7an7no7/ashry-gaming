@@ -121,6 +121,8 @@ ROOM_GAMES.timeline = {
     const mine = (state.you || {}).cards || [];
     // A card picked on a turn that has moved on is no longer a choice.
     if (s.turnId !== Room.me && tlLocal.pick) tlLocal.pick = null;
+    // One card left is the card: it is picked already, and only the gap is asked.
+    if (s.phase === 'play' && s.turnId === Room.me && mine.length === 1) tlLocal.pick = mine[0].id;
 
     if (s.phase === 'gameover') {
       const fresh = renderRoomFrame(el, ['tl-over', s.winnerId, state.youAreHost, appState.lang].join('|'), () => `

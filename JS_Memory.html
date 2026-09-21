@@ -157,7 +157,7 @@ function flipMemory(i) {
   if (el) el.classList.add('is-flipped');
   playSound('click');
 
-  if (m.flipped.length < 2) { saveToLocal(); return; }
+  if (m.flipped.length < 2) { saveToLocal(); memoryLastPair(); return; }
 
   m.moves += 1;
   const [a, b] = m.flipped;
@@ -172,6 +172,7 @@ function flipMemory(i) {
     memoryPaintBar();
     saveToLocal();
     if (m.cards.every(c => c.m)) memoryFinish();
+    else memoryLastPair();
     return;
   }
   // A miss: leave both up long enough to see them, then turn them back and,
@@ -186,6 +187,26 @@ function flipMemory(i) {
     saveToLocal();
   }, 750);
   memoryPaintBar();
+}
+
+/**
+ * Two cards left: they can only be each other, so they turn over by themselves
+ * (the owner, 21 Sep 2026: one thing to do is done for you) - the second a beat
+ * after the first, as a hand would.
+ */
+let memoryLastTimer = null;
+function memoryLastPair() {
+  const m = memoryState();
+  if (m.phase !== 'play' || memoryLastTimer) return;
+  const left = m.cards.map((c, i) => (c.m ? -1 : i)).filter(i => i !== -1);
+  if (left.length !== 2) return;
+  const next = left.find(i => m.flipped.indexOf(i) === -1);
+  if (next === undefined) return;
+  memoryLastTimer = setTimeout(() => {
+    memoryLastTimer = null;
+    if (appState.currentView !== 'play-memory') return;
+    flipMemory(next);
+  }, m.flipped.length ? 380 : 650);
 }
 
 function memoryPaintBar() {
@@ -271,6 +292,7 @@ if (typeof onLeaveScreen === 'function') {
     const m = memoryState();
     if (from === 'play-memory' && typeof soloPause === 'function') soloPause(m);
     if (to === 'play-memory' && typeof soloResume === 'function') soloResume(m);
+    if (to === 'play-memory') setTimeout(memoryLastPair, 0);
   });
 }
 if (typeof onLanguageChange === 'function') {

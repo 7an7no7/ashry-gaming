@@ -83,6 +83,7 @@ function xoPlay(i) {
   const x = xoState();
   if (x.phase !== 'play' || x.board[i]) return;
   if (x.vs === 'phone' && x.turn !== x.human) return;
+  if (xoPhoneTimer) { clearTimeout(xoPhoneTimer); xoPhoneTimer = null; }   // the last square about to fill itself
   xoPlace(i);
 }
 
@@ -113,15 +114,21 @@ function xoPlace(i) {
   xoMaybePhone();
 }
 
+/** The phone's move; or, for a person, the last square, which has nothing to choose (the owner, 21 Sep 2026). */
 function xoMaybePhone() {
   const x = xoState();
-  if (x.vs !== 'phone' || x.phase !== 'play' || x.turn === x.human) return;
+  if (x.phase !== 'play') return;
+  const phoneUp = x.vs === 'phone' && x.turn !== x.human;
+  const empty = () => x.board.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
+  if (!phoneUp && empty().length !== 1) return;
   if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
   xoPhoneTimer = setTimeout(() => {
     xoPhoneTimer = null;
-    if (x.phase !== 'play' || x.turn === x.human) return;
-    xoPlace(xoPhoneMove(x));
-  }, 420);
+    if (x.phase !== 'play' || appState.currentView !== 'play-xo') return;
+    if (x.vs === 'phone' && x.turn !== x.human) { xoPlace(xoPhoneMove(x)); return; }
+    const left = empty();
+    if (left.length === 1) xoPlace(left[0]);
+  }, phoneUp ? 420 : 650);
 }
 
 /*

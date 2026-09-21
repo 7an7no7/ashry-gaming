@@ -90,6 +90,7 @@ const clearGameState = (room) => {
   room._botKey = null;
   room._botPid = null;
   room._botFails = 0;
+  room._forcedFailed = null;
 };
 
 /** The stashed sides, minus anyone who has since left. */
@@ -203,6 +204,32 @@ const ROOM_BOT_DELAY_MS = [1000, 1700];   // how long a bot "thinks": long enoug
 const ROOM_BOT_RETRY_MS = 3000;
 const ROOM_BOT_MAX_FAILS = 3;
 
+/* ==========================================================================
+   Forced moves (the owner, 21 Sep 2026: "in any scenario where only one
+   thing can be done, it should be done automatically"). A game registers
+   ROOM_FORCED_GAMES[id] = (room) => { pid, key, move: { action, payload },
+   delay? } for a person whose only legal move is known - أونو's take when
+   nothing stacks, a draw when nothing fits, the last square of a board - and
+   the same clock that moves the bots makes it for them after a beat
+   (ROOM_FORCED_DELAY_MS), through applyRoomAction like a tap. It is looked
+   at again when the beat is up, so a move the table made meanwhile, or one
+   that stopped being the only one, is never made. Never for what the tap
+   itself is (أونو!, العقل, مافيا's night), nor for anything the player is
+   meant to work out (الدومينو with the helpers off).
+   ========================================================================== */
+const ROOM_FORCED_GAMES = {};
+const ROOM_FORCED_DELAY_MS = 1200;
+
+/** A person with only one thing to do right now, from their game's hook. */
+const roomForcedMove = (room) => {
+  const hook = room.game && ROOM_FORCED_GAMES[room.game];
+  if (!hook || room.phase === 'lobby') return null;
+  let f = null;
+  try { f = hook(room); } catch (err) { f = null; }
+  if (!f || !f.pid || !f.move || isRoomBot(room, f.pid) || !room.players.some(p => p.id === f.pid)) return null;
+  return f;
+};
+
 const newBotId = () => 'b' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
 const isRoomBot = (room, pid) => room.players.some(p => p.id === pid && !!p.bot);
 const roomBotLevel = (room, pid) => ((room.players.find(p => p.id === pid) || {}).bot) || null;
@@ -282,7 +309,17 @@ const scheduleBots = (room) => {
   if (hook && room.phase !== 'lobby' && room.players.some(p => p.bot)) {
     try { next = hook.pending(room); } catch (err) { next = null; }
   }
-  if (!next || !isRoomBot(room, next.pid)) {
+  if (next && !isRoomBot(room, next.pid)) next = null;
+  // No bot up: perhaps a person with only one thing to do (see Forced moves).
+  let forced = false;
+  if (!next) {
+    const f = roomForcedMove(room);
+    if (f && 'f|' + f.pid + '|' + String(f.key || '') !== room._forcedFailed) {
+      next = { pid: f.pid, key: 'f|' + String(f.key || ''), delay: typeof f.delay === 'number' ? f.delay : ROOM_FORCED_DELAY_MS };
+      forced = true;
+    }
+  }
+  if (!next) {
     room._botAt = null; room._botKey = null; room._botPid = null; room._botFails = 0;
     return;
   }
@@ -293,14 +330,15 @@ const scheduleBots = (room) => {
   room._botPid = next.pid;
   room._botFails = 0;
   room._botAt = Date.now() + (typeof next.delay === 'number' ? next.delay : lo + Math.floor(Math.random() * (hi - lo)));
+  if (forced) room._forcedFailed = null;
 };
 
 /** The bot that is up makes its move. True when the room changed. */
 const runRoomBot = (room) => {
   const hook = room.game && ROOM_BOT_GAMES[room.game];
   const pid = room._botPid;
+  const key = room._botKey;
   room._botAt = null;
-  if (!hook || !pid || !isRoomBot(room, pid)) { scheduleBots(room); return true; }
   const attempt = (move) => {
     if (!move || !move.action) return false;
     // A copy, so a move refused halfway through leaves nothing behind.
@@ -310,6 +348,21 @@ const runRoomBot = (room) => {
     Object.assign(room, trial);
     return true;
   };
+  if (pid && !isRoomBot(room, pid)) {
+    // A person's only move: made if it is still that moment and still their only move.
+    const f = roomForcedMove(room);
+    if (f && f.pid === pid && pid + '|f|' + String(f.key || '') === key) {
+      try {
+        if (attempt(f.move)) return true;
+      } catch (err) {
+        console.error('forced move', room.game, String((err && err.message) || err));
+        room._forcedFailed = 'f|' + pid + '|' + String(f.key || '');   // refused: left to the person, not tried again for this moment
+      }
+    }
+    scheduleBots(room);
+    return true;
+  }
+  if (!hook || !pid) { scheduleBots(room); return true; }
   try {
     if (attempt(hook.decide(room, pid))) return true;
   } catch (err) {

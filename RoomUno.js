@@ -845,6 +845,29 @@ const unoBotTurn = (room, pid, level) => {
   return { action: 'play', payload: unoBotPayload(room, pid, hand, card, level, { seq: seq }) };
 };
 
+/**
+ * A person's turn with nothing in hand that can go (the owner, 21 Sep 2026):
+ * the stack waiting is taken for them, or with none a card is drawn - there
+ * is nothing else to do. A card drawn that fits still asks: play or keep.
+ * While somebody can still be caught it waits as long as a bot would, or the
+ * take would close the table's chance to say امسكه!.
+ */
+ROOM_FORCED_GAMES.uno = (room) => {
+  const s = room.shared || {};
+  const g = room._uno;
+  if (s.phase !== 'play' || !s.turn || !g || s.turn.stage !== 'play') return null;
+  const pid = s.turn.pid;
+  const top = g.pile[g.pile.length - 1];
+  if ((g.hands[pid] || []).some(c => unoCanPlay(c.k, top ? top.k : null, s.color, s.pending, s.settings))) return null;
+  const action = s.pending ? 'take' : 'draw';
+  return {
+    pid: pid,
+    key: s.turnSeq + '|' + action,
+    delay: s.unoCatch ? unoBotRand(UNO_BOT_WAIT_MS) : ROOM_FORCED_DELAY_MS,
+    move: { action: action, payload: { seq: s.turnSeq } }
+  };
+};
+
 ROOM_BOT_GAMES.uno = {
   max: 12,
   pending(room) {

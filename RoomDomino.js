@@ -592,6 +592,46 @@ const dominoBotMove = (room, pid, level) => {
   return { action: 'play', payload: { tile: pick.tile, end: pick.end, seq: s.turnSeq } };
 };
 
+/**
+ * The moves that differ: a tile that goes on two ends coming to the same thing
+ * (the same ends left, the same points) is one move, as the phone treats it.
+ */
+const dominoDistinctMoves = (table, hand, mode) => {
+  const out = [];
+  (hand || []).forEach(t => {
+    const seen = new Set();
+    dominoFits(table, t).forEach(end => {
+      const r = dominoPlace(table, t, end, mode);
+      if (!r) return;
+      const sig = dominoEnds(r.table).map(e => e.value + (e.double ? 'd' : '')).sort().join(',') + '#' + dominoMoveScore(table, t, end, mode);
+      if (seen.has(sig)) return;
+      seen.add(sig);
+      out.push({ tile: t, end: end });
+    });
+  });
+  return out;
+};
+
+/**
+ * With the host's "light up the tiles that fit" on, the table already sees
+ * what fits, so a turn with one thing to do plays itself (the owner, 21 Sep
+ * 2026): nothing fits - draw, or باص when there is nothing to draw; one move
+ * only - that move. With the helpers off it is the player's own head that
+ * says so, and nothing is done for them.
+ */
+ROOM_FORCED_GAMES.domino = (room) => {
+  const s = room.shared || {};
+  const g = room._domino;
+  if (s.phase !== 'play' || !s.turn || !g || !s.settings || !s.settings.helpFit) return null;
+  const pid = s.turn;
+  const moves = dominoDistinctMoves(s.table, g.hands[pid] || [], s.settings.mode);
+  if (moves.length > 1) return null;
+  const move = moves.length ? { action: 'play', payload: { tile: moves[0].tile, end: moves[0].end, seq: s.turnSeq } }
+    : s.drawing && g.bone.length ? { action: 'draw', payload: { seq: s.turnSeq } }
+    : { action: 'pass', payload: { seq: s.turnSeq } };
+  return { pid: pid, key: s.turnSeq + '|' + move.action, move: move };
+};
+
 ROOM_BOT_GAMES.domino = {
   max: DOMINO_MAX_PLAYERS,
   pending: (room) => {

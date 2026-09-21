@@ -471,6 +471,19 @@ function domBarHtml(state) {
   }
   const lead = !table.line.length;
   const canDraw = s.drawing && (Number(s.bone) || 0) > 0;
+  // With the helpers lighting what fits, a turn with one thing to do plays
+  // itself on the server in a moment (ROOM_FORCED_GAMES.domino): say so, no button.
+  if (st.helpFit && !lead) {
+    const hand = (state.you || {}).hand || [];
+    const moves = hand.reduce((n, t) => n + domDistinctEnds(table, t, st.mode).length, 0);
+    if (moves <= 1) {
+      const key = moves ? 'dom_auto_play' : canDraw ? 'dom_auto_draw' : 'dom_auto_pass';
+      return `<div class="dom-bar dom-bar--inline">
+          <p class="dom-prompt is-mine">⭐ ${escapeHTML(domT('dom_your_turn'))}</p>
+          <p class="dom-prompt dom-prompt--auto">⏳ ${escapeHTML(domT(key))}</p>
+        </div>`;
+    }
+  }
   const action = canDraw
     ? `<button type="button" class="btn btn--secondary btn--auto" onclick="domDraw()">✋ ${escapeHTML(domT('dom_draw', { n: s.bone }))}</button>`
     : `<button type="button" class="btn btn--secondary btn--auto" onclick="domKnock()">👊 ${escapeHTML(domT('dom_knock'))}</button>`;

@@ -1855,10 +1855,18 @@ const leave = (r, id, hook = true) => {
         'mind: three different numbers from 1 to 100');
   check(JSON.stringify(m.shared.held) === JSON.stringify({ a: 1, b: 1, c: 1 }), 'mind: shared says how many, not which');
   check(!m.shared.pile.length && !m.shared.discarded.length, 'mind: nothing is on the table before a card is played');
-  // Nothing anywhere in shared is a number somebody is still holding.
-  check(!dealt.some((n) => JSON.stringify(m.shared).indexOf(':' + n) !== -1 ||
-                           JSON.stringify(m.shared).indexOf('[' + n) !== -1),
-        'mind: no unplayed number appears anywhere in shared');
+  // Nothing anywhere in shared is a number somebody is still holding. Walked
+  // value by value: a text search for ":1" also finds "level":1 and "lives":3,
+  // which failed this check whenever a 1 or a 3 was dealt.
+  const COUNTERS = new Set(['level', 'lives', 'lostSeq', 'held']);
+  const sharedNumbers = [];
+  const walk = (v, key) => {
+    if (COUNTERS.has(key)) return;
+    if (typeof v === 'number') sharedNumbers.push(v);
+    else if (v && typeof v === 'object') Object.keys(v).forEach((k) => walk(v[k], Array.isArray(v) ? key : k));
+  };
+  walk(m.shared, '');
+  check(!dealt.some((n) => sharedNumbers.indexOf(n) !== -1), 'mind: no unplayed number appears anywhere in shared');
 
   // In order: the lowest first, then the next, then the last - no life lost.
   applyRoomAction(m, lowestHolder(m), 'play', {});

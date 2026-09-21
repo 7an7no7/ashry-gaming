@@ -2,21 +2,1524 @@
 /* ============================================================================
    الدومينو — DOMINO (rooms and the TV)
    ----------------------------------------------------------------------------
-   The rules are dominoAction in RoomDomino.js; the tiles are DominoTiles.js,
-   shared with the server. The score keeper for a game with real tiles is
-   JS_Domino.html, on the same setup screen. Not yet built.
+   The rules are dominoAction in RoomDomino.js; the tiles, the ends, a move's
+   points and where each tile goes on a screen are DominoTiles.js, which both
+   sides load. The score keeper for a game with real tiles is JS_Domino.html,
+   on the same setup screen ("على الطاولة").
+
+   The look is the one the owner picked (option أ, "عاجي"): ivory tiles with
+   black pips, a thin dark bar between the halves and a brass pin in the
+   middle, drawn by one builder (domTileHtml) sized by one custom property
+   (--u, the short side of a tile). The table is a physical layout: its tiles
+   end to end, doubles across, snaking round when the row is full - and in
+   أمريكاني a cross round the spinner - worked out in grid units by
+   dominoLayout and scaled to fit the box it is in (domLayoutTable), left to
+   right in every language.
+
+   Every move is an event (`shared.events`), and each phone plays the ones it
+   hasn't shown, once: a tile flies from the hand (or the player's seat) to
+   its place on the table and turns into position, drawn tiles fly from the
+   pile to the hand, a knock shakes the seat, a scored move floats its points
+   up from the tile. The table waits for a flight to land before it redraws
+   (domFx.busyUntil). A reload, a late joiner or a phone back from the lock
+   screen starts from what is there and replays nothing.
+
+   A tap on a tile plays it; when it goes on more than one end, the ends it
+   fits glow and a second tap (on the table or in the bar) says which. The
+   host's helpers light up the tiles that fit and show what a move would
+   score; with them off nothing is lit, and a tile that doesn't fit is only
+   refused.
    ========================================================================= */
+
+const DOM_OPTS_KEY = 'dominoRoom';
+const DOM_FLY_MS = 460;
+const DOM_MAX_U = 34;                  // the biggest a tile's short side gets on a phone's table
+const DOM_REVEAL_STEP = 420;           // one hand turns over every this many ms at the end of a round
+
+/** What only this phone holds: the tile picked, the seats being swapped, the clock. */
+const domLocal = { pick: null, pickKey: '', half: null, halfKey: '', seatsKey: '', seatSwap: null, turnMine: false,
+  handWas: [], handKey: '', clock: null, clockKey: null, hostTimer: null, handInView: '' };
+
+/** The flights: what this device has shown, where things were before a redraw, how long the table waits. */
+const domFx = { deal: '', lastSeq: 0, watched: '', prevPhase: '', rects: {}, busyUntil: 0, timers: [], wokeAt: 0, redrawTimer: null, tvSig: '' };
+
+/**
+ * A translated line, with {name}-style values filled in. A value that isn't a
+ * plain number is isolated (FSI … PDI), so an English name inside an Arabic
+ * line doesn't take the punctuation beside it along.
+ */
+function domT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || (TRANSLATIONS.ar || {})[key] || '';
+  if (vars) Object.keys(vars).forEach(k => {
+    const v = vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
+    s = s.split('{' + k + '}').join(v && !/^[+-]?\d+$/.test(v) ? '⁨' + v + '⁩' : v);
+  });
+  return s;
+}
+
+/** Points in words, the way each language counts them: نقطة، نقطتين، 3 نقط، 11 نقطة. */
+function domPtsWord(n) {
+  const k = Number(n) || 0;
+  if (k === 1) return domT('dom_pt_one');
+  if (k === 2) return domT('dom_pt_two');
+  return domT(k >= 3 && k <= 10 ? 'dom_pts_n' : 'dom_pt_many', { n: k });
+}
+
+/* --- the host's options ------------------------------------------------------ */
+
+function domOpts() {
+  const o = recallOptions(DOM_OPTS_KEY, { mode: 'normal', teams: false, targetNormal: 101, targetAmerican: 50, helpFit: false, helpPoints: false, turnClock: 0 });
+  if (DOMINO_MODES.indexOf(o.mode) === -1) o.mode = 'normal';
+  if (DOMINO_TARGETS.normal.indexOf(Number(o.targetNormal)) === -1) o.targetNormal = DOMINO_TARGET_DEFAULT.normal;
+  if (DOMINO_TARGETS.american.indexOf(Number(o.targetAmerican)) === -1) o.targetAmerican = DOMINO_TARGET_DEFAULT.american;
+  if (DOMINO_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
+  ['teams', 'helpFit', 'helpPoints'].forEach(k => { o[k] = !!o[k]; });
+  o.target = o.mode === 'american' ? Number(o.targetAmerican) : Number(o.targetNormal);
+  return o;
+}
+
+/** A choice in the lobby is kept the moment it is made, and the lobby redraws. */
+function setDomOpt(key, value) {
+  const o = domOpts();
+  const patch = {};
+  if (key === 'target') patch[o.mode === 'american' ? 'targetAmerican' : 'targetNormal'] = Number(value);
+  else if (key === 'mode') patch.mode = DOMINO_MODES.indexOf(value) !== -1 ? value : 'normal';
+  else if (key === 'turnClock') patch.turnClock = Number(value) || 0;
+  else patch[key] = !!value;
+  rememberOptions(DOM_OPTS_KEY, patch);
+  haptic('light');
+  domLobbyRedraw();
+}
+
+function domLobbyRedraw() {
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/* --- small pieces ------------------------------------------------------------- */
+
+const domShared = (state) => (state && state.shared) || {};
+/** The reading direction of the language on screen, for pieces inside a left-to-right table. */
+const domDir = () => (appState.lang === 'en' ? 'ltr' : 'rtl');
+const domOrder = (state) => domShared(state).order || [];
+const domInGame = (state) => !state.youAreScreen && domOrder(state).indexOf(Room.me) !== -1;
+const domMyTurn = (state) => { const s = domShared(state); return s.phase === 'play' && s.turn === Room.me && domInGame(state); };
+
+function domPlayer(state, pid) { return (state.players || []).find(p => p.id === pid) || null; }
+function domName(state, pid) { const p = domPlayer(state, pid); return p ? p.name : '…'; }
+
+/** 0 or 1 for a side in teams, -1 otherwise. */
+function domTeamIndex(s, pid) {
+  if (!Array.isArray(s.teams)) return -1;
+  return s.teams.findIndex(t => (t || []).indexOf(pid) !== -1);
+}
+
+/** A side in words: its two players. */
+function domTeamName(state, i) {
+  const s = domShared(state);
+  const team = (Array.isArray(s.teams) && s.teams[i]) || [];
+  return team.map(pid => domName(state, pid)).join(appState.lang === 'en' ? ' & ' : ' و');
+}
+
+/** A unit (a player, or a side's key) in words. */
+function domUnitName(state, key) {
+  const i = DOMINO_TEAM_KEYS.indexOf(key);
+  if (i !== -1 && Array.isArray(domShared(state).teams)) return domTeamName(state, i);
+  return domName(state, key);
+}
+
+const domScoreOf = (s, pid) => ((s.scores || {})[dominoUnitOf(s.teams, pid)] || 0);
+const domTeamDot = (s, pid) => { const i = domTeamIndex(s, pid); return i === -1 ? '' : `<span class="dom-team-dot dom-team-dot--${i}" aria-hidden="true"></span>`; };
+
+/** A tile's two numbers as a short label: "5|3". */
+function domTileLabel(id) {
+  const p = dominoParse(id);
+  return p ? p[1] + '|' + p[0] : '';
+}
+
+/* --- the tiles ------------------------------------------------------------------ */
+
+// Where the pips sit on a half's 3 × 3 grid, for a tile standing up; lying down, they turn with it.
+const DOM_PIPS = {
+  0: [], 1: [[1, 1]], 2: [[0, 0], [2, 2]], 3: [[0, 0], [1, 1], [2, 2]], 4: [[0, 0], [0, 2], [2, 0], [2, 2]],
+  5: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]], 6: [[0, 0], [0, 2], [1, 0], [1, 2], [2, 0], [2, 2]]
+};
+
+function domHalfHtml(n, across) {
+  return `<span class="dt__half">${(DOM_PIPS[n] || []).map(([r, c]) => {
+    const rr = across ? c : r;
+    const cc = across ? 2 - r : c;
+    return `<i style="grid-area:${rr + 1}/${cc + 1}"></i>`;
+  }).join('')}</span>`;
+}
+
+/**
+ * One tile face up: `first` on its top (standing) or left (lying) half.
+ * `attrs` go on the element (a key for the flights, a size).
+ */
+function domTileHtml(first, second, across, cls, attrs) {
+  return `<span class="dt ${across ? 'dt--h' : 'dt--v'} ${cls || ''}" ${attrs || ''}>${domHalfHtml(first, across)}<span class="dt__bar"></span>${domHalfHtml(second, across)}<span class="dt__pin"></span></span>`;
+}
+
+/** A tile face down: ivory with an engraved frame. */
+function domBackHtml(across, cls, attrs) {
+  return `<span class="dt dt--back ${across ? 'dt--h' : 'dt--v'} ${cls || ''}" ${attrs || ''}></span>`;
+}
+
+/** A tile id, standing up, the higher number on top. */
+function domStandingHtml(id, cls, attrs) {
+  const p = dominoParse(id) || [0, 0];
+  return domTileHtml(p[1], p[0], false, cls, attrs);
+}
+
+/** A hand in the order people hold one: by the higher number, then the lower. */
+function domSortHand(hand) {
+  return (hand || []).slice().sort((a, b) => {
+    const p = dominoParse(a) || [0, 0];
+    const q = dominoParse(b) || [0, 0];
+    return (q[1] - p[1]) || (q[0] - p[0]);
+  });
+}
+
+/* --- the table ------------------------------------------------------------------- */
+
+/** Where a pick can go: every end it fits, with the ones that come to the same thing counted once. */
+function domDistinctEnds(table, tile, mode) {
+  const seen = new Set();
+  const out = [];
+  dominoFits(table, tile).forEach(end => {
+    const r = dominoPlace(table, tile, end, mode);
+    if (!r) return;
+    const sig = dominoEnds(r.table).map(e => e.value + (e.double ? 'd' : '')).sort().join(',') + '#' + dominoMoveScore(table, tile, end, mode);
+    if (seen.has(sig)) return;
+    seen.add(sig);
+    out.push(end);
+  });
+  return out;
+}
+
+/** The felt: what is left to draw, the ends' sum in أمريكاني, the table itself, and the latest move. */
+function domFeltHtml(state, opts) {
+  const s = domShared(state);
+  const o = opts || {};
+  const table = s.table || dominoNewTable();
+  const american = (s.settings || {}).mode === 'american';
+  const sum = american ? dominoEndsSum(table) : 0;
+  const pts = dominoPointsOf(sum);
+  const bone = s.drawing ? `<span class="dom-bone" data-dom-at="bone" title="${escapeHTML(domT('dom_bone_label'))}">
+      <span class="dom-bone__stack" aria-hidden="true">${domBackHtml(true, 'dom-bone__t')}${domBackHtml(true, 'dom-bone__t')}</span>
+      <span class="dom-bone__n metric">${Number(s.bone) || 0}</span>
+      <span class="dom-bone__label">${escapeHTML(domT('dom_bone_label'))}</span>
+    </span>` : '';
+  const pill = american && table.line.length ? `<span class="dom-sum ${pts ? 'is-scoring' : ''}" data-dom-sum>
+      <span class="dom-sum__label">${escapeHTML(domT('dom_ends_sum'))}</span>
+      <b class="metric">${sum}</b>${pts ? ` <span class="dom-sum__pts">= ${escapeHTML(domPtsWord(pts))}</span>` : ''}
+    </span>` : '';
+  const empty = !table.line.length && s.phase === 'play'
+    ? `<div class="dom-table__empty">${escapeHTML(s.turn ? domT('dom_waiting_lead', { name: domName(state, s.turn) }) : '')}</div>` : '';
+  return `<div class="dom-felt ${o.small ? 'dom-felt--small' : ''}">
+      ${bone || pill ? `<div class="dom-felt__top">${bone}${pill}</div>` : ''}
+      <div class="dom-table" data-dom-table dir="ltr">${empty}</div>
+      ${o.noLatest ? '' : domLatestHtml(state)}
+    </div>`;
+}
+
+/** The last move, in words. */
+function domEventText(state, e) {
+  const name = e.pid ? domName(state, e.pid) : '';
+  switch (e.type) {
+    case 'play': {
+      const base = e.forced
+        ? domT(e.forced === 'double6' ? 'dom_ev_open6' : e.forced === 'double' ? 'dom_ev_open_double' : 'dom_ev_open_heavy', { name: name, tile: domTileLabel(e.tile) })
+        : domT('dom_ev_play', { name: name, tile: domTileLabel(e.tile) });
+      const bits = [base];
+      if (e.spinner) bits.push(domT('dom_ev_spinner'));
+      if (e.pts) bits.push(domT('dom_ev_scored', { n: e.pts, sum: e.sum }));
+      return bits.join(' · ');
+    }
+    case 'draw': return domT(e.n === 1 ? 'dom_ev_draw1' : 'dom_ev_draw', { name: name, n: e.n });
+    case 'pass': return domT('dom_ev_knock', { name: name });
+    case 'auto': return domT(e.why === 'host' ? 'dom_ev_auto_host' : 'dom_ev_auto_clock', { name: name });
+    case 'out': return domT('dom_ev_out', { name: name });
+    case 'blocked': return domT('dom_ev_blocked');
+    case 'left': return domT('dom_ev_left', { name: e.name || name });
+    default: return '';
+  }
+}
+
+function domLatestHtml(state) {
+  const evs = (domShared(state).events || []).filter(e => e.type !== 'deal' && e.type !== 'auto');
+  const e = evs[evs.length - 1];
+  const text = e ? domEventText(state, e) : '';
+  return `<p class="dom-latest" aria-live="polite">${text ? escapeHTML(text) : '&nbsp;'}</p>`;
+}
+
+/**
+ * Lays the table out in its box and draws it: every tile at its place, the
+ * ends a picked tile fits glowing (tappable), and anything that moved since
+ * the last drawing sliding there from where it was. `held` are tiles about to
+ * fly in, hidden until they land.
+ */
+function domLayoutTable(root, state, held) {
+  const box = root && root.querySelector('[data-dom-table]');
+  if (!box) return;
+  const s = domShared(state);
+  const table = s.table || dominoNewTable();
+  if (!table.line.length) return;
+  const tv = root.id === 'view-room-tv';
+  const w = box.clientWidth;
+  const h = box.clientHeight;
+  if (!w || !h) return;
+  const key = [state.code, s.dealId || '', s.round].join('|');
+  if (domLocal.halfKey !== key + (tv ? 'tv' : '')) { domLocal.halfKey = key + (tv ? 'tv' : ''); domLocal.half = null; }
+  const maxU = tv ? Math.max(40, Math.min(96, Math.round(Math.min(window.innerWidth, window.innerHeight) / 11))) : DOM_MAX_U;
+  const fit = dominoFitLayout(table, w - 8, h - 8, maxU, domLocal.half);
+  domLocal.half = fit.half;
+  const lay = fit.layout;
+  const u = Math.floor(fit.u * 10) / 10;
+  const bw = (lay.maxX - lay.minX) * u;
+  const bh = (lay.maxY - lay.minY) * u;
+  const mode = (s.settings || {}).mode;
+  const pick = !tv && domMyTurn(state) ? domLocal.pick : null;
+  const allFits = pick ? dominoFits(table, pick) : [];
+  const helpPts = !!(s.settings || {}).helpPoints;
+  const hold = held || new Set();
+  const place = (x, y) => `left:${((x - lay.minX) * u).toFixed(1)}px;top:${((y - lay.minY) * u).toFixed(1)}px`;
+  const tiles = lay.tiles.map(q => {
+    const across = q.w > q.h;
+    const cls = ['dom-ttile', q.t === table.spinner ? 'is-spinner' : '', hold.has(q.t) ? 'dom-hold' : ''].join(' ');
+    return domTileHtml(q.first, q.second, across, cls,
+      `data-dom-at="tile:${q.t}" style="${place(q.x, q.y)};--u:${u}px" aria-label="${domTileLabel(q.t)}"`);
+  }).join('');
+  const ends = lay.ends.map(e => {
+    const live = allFits.indexOf(e.end) !== -1;
+    const pts = live && helpPts ? dominoMoveScore(table, pick, e.end, mode) : 0;
+    const on = live;
+    return `<button type="button" class="dom-end ${on ? 'is-live' : ''}" data-dom-at="end:${e.end}" ${on ? '' : 'tabindex="-1" aria-hidden="true"'}
+        style="${place(e.x - 0.5, e.y - 0.5)};--u:${u}px" onclick="domPlayAt('${e.end}')"
+        aria-label="${escapeHTML(domT('dom_end_' + e.end))}">${pts ? `<span class="dom-end__pts">+${pts}</span>` : ''}</button>`;
+  }).join('');
+  box.innerHTML = `<div class="dom-line" style="width:${bw.toFixed(1)}px;height:${bh.toFixed(1)}px">${tiles}${ends}</div>`;
+  box.style.setProperty('--u', u + 'px');
+  // The tiles that moved since the table was last drawn slide from where they were.
+  if (domCanMove()) {
+    box.querySelectorAll('.dom-ttile').forEach(el => {
+      const k = el.getAttribute('data-dom-at');
+      const was = domFx.rects[k];
+      if (!was || el.classList.contains('dom-hold')) return;
+      const now = el.getBoundingClientRect();
+      const dx = (was.left + was.width / 2) - (now.left + now.width / 2);
+      const dy = (was.top + was.height / 2) - (now.top + now.height / 2);
+      const sx = was.width / (now.width || 1);
+      const sy = was.height / (now.height || 1);
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.02) return;
+      // A tile that turned (a spinner arriving re-centres the cross) keeps its shape and just slides.
+      const turned = (was.width > was.height) !== (now.width > now.height);
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` + (turned ? '' : ` scale(${sx}, ${sy})`) }, { transform: 'none' }],
+        { duration: 420, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+    });
+  }
+}
+
+/* --- the seats ------------------------------------------------------------------- */
+
+/** How many tiles a player holds, as small backs. */
+function domBacksHtml(n, max) {
+  const shown = Math.min(n, max || 7);
+  let out = '';
+  for (let i = 0; i < shown; i++) out += domBackHtml(false, 'dom-seat__back');
+  return out;
+}
+
+function domSeatHtml(state, pid, opts) {
+  const s = domShared(state);
+  const o = opts || {};
+  const p = domPlayer(state, pid);
+  const n = (s.counts || {})[pid] || 0;
+  const turn = s.phase === 'play' && s.turn === pid;
+  const ti = domTeamIndex(s, pid);
+  const name = p ? p.name : '…';
+  return `<div class="dom-seat ${turn ? 'is-turn' : ''} ${p && !p.online ? 'is-away' : ''} ${ti !== -1 ? 'dom-seat--team' + ti : ''} ${o.cls || ''}" data-dom-seat="${escapeHTML(pid)}" dir="${domDir()}">
+      <div class="dom-seat__who">
+        <span class="dom-avatar" aria-hidden="true">${p && p.bot ? '🤖' : escapeHTML(Array.from(name.trim())[0] || '?')}</span>
+        <span class="dom-seat__name">${domTeamDot(s, pid)}${escapeHTML(name)}</span>
+      </div>
+      <div class="dom-seat__tiles" data-dom-at="seat:${escapeHTML(pid)}" aria-label="${escapeHTML(domT('dom_tiles_n', { n: n }))}">
+        ${domBacksHtml(n, o.max)}${n > (o.max || 7) ? `<span class="dom-seat__more">+${n - (o.max || 7)}</span>` : ''}
+        <span class="dom-seat__count metric">${n}</span>
+      </div>
+    </div>`;
+}
+
+/**
+ * The others round the table as this phone sees it: the one before you on the
+ * left, the one across at the top, the one after you on the right (the turn
+ * goes to the right, as at an Egyptian table).
+ */
+function domOthers(state) {
+  const order = domOrder(state);
+  const at = order.indexOf(Room.me);
+  if (at === -1) return order.slice();
+  const n = order.length;
+  const next = order[(at + 1) % n];
+  const across = order[(at + 2) % n];
+  const prev = order[(at + n - 1) % n];
+  if (n === 2) return [next];
+  if (n === 3) return [prev, next];
+  return [prev, across, next];
+}
+
+/* --- the scores ------------------------------------------------------------------ */
+
+/** The running totals in one line: every player, or the two sides; the target at the end. */
+function domScoreStripHtml(state) {
+  const s = domShared(state);
+  const target = (s.settings || {}).target;
+  let units;
+  if (Array.isArray(s.teams)) {
+    units = s.teams.map((t, i) => `<span class="dom-chip dom-chip--team${i}">${escapeHTML(domTeamName(state, i))} <b class="metric">${(s.scores || {})[DOMINO_TEAM_KEYS[i]] || 0}</b></span>`);
+  } else {
+    units = domOrder(state).map(pid => `<span class="dom-chip ${pid === Room.me ? 'is-me' : ''}">${escapeHTML(domName(state, pid))} <b class="metric">${domScoreOf(s, pid)}</b></span>`);
+  }
+  return `<div class="dom-scores">${units.join('')}<span class="dom-chip dom-chip--target">🎯 <b class="metric">${target || ''}</b></span></div>`;
+}
+
+/* --- the head ---------------------------------------------------------------------- */
+
+function domHeadHtml(state) {
+  const s = domShared(state);
+  const st = s.settings || {};
+  const bits = [];
+  if (s.round) bits.push(`<span class="badge">${escapeHTML(domT('dom_round_n', { n: s.round }))}</span>`);
+  bits.push(`<span class="badge">${escapeHTML(st.mode === 'american' ? domT('dom_mode_american') : domT('dom_mode_normal'))}</span>`);
+  if (st.teams) bits.push(`<span class="badge">🤝 ${escapeHTML(domT('dom_teams_short'))}</span>`);
+  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-dom-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  return `<div class="dom-head">${bits.join('')}</div>`;
+}
+
+/* --- this phone's hand and the bar -------------------------------------------------- */
+
+function domMineHtml(state) {
+  const s = domShared(state);
+  const you = state.you || {};
+  const hand = domSortHand(you.hand || []);
+  const mine = domMyTurn(state);
+  const st = s.settings || {};
+  const table = s.table || dominoNewTable();
+  const help = mine && st.helpFit;
+  const helpPts = mine && st.helpPoints;
+  const tiles = hand.map(id => {
+    const fits = mine ? dominoFits(table, id) : [];
+    const lit = help ? (fits.length ? 'is-fit' : 'is-dim') : '';
+    const picked = domLocal.pick === id ? 'is-picked' : '';
+    let pts = 0;
+    if (helpPts && fits.length) fits.forEach(end => { pts = Math.max(pts, dominoMoveScore(table, id, end, st.mode)); });
+    return `<button type="button" class="dom-htile ${lit} ${picked}" data-dom-at="hand:${id}" onclick="domTap('${id}', this)" aria-label="${domTileLabel(id)}" aria-pressed="${picked ? 'true' : 'false'}">
+        ${domStandingHtml(id)}${pts ? `<span class="dom-htile__pts">+${pts}</span>` : ''}
+      </button>`;
+  }).join('');
+  const ti = domTeamIndex(s, Room.me);
+  return `<div class="dom-mine ${mine ? 'is-turn' : ''} ${ti !== -1 ? 'dom-mine--team' + ti : ''}" data-dom-seat="${escapeHTML(Room.me || '')}">
+      <div class="dom-mine__head">
+        <span class="dom-mine__name">${domTeamDot(s, Room.me)}${escapeHTML(domT('dom_your_tiles'))}</span>
+        <span class="dom-mine__count metric">${hand.length}</span>
+      </div>
+      <div class="dom-hand ${hand.length > 8 ? 'dom-hand--many' : ''}" data-dom-at="seat:${escapeHTML(Room.me || '')}">${tiles || `<span class="dom-hand__none">${escapeHTML(domT('dom_no_tiles'))}</span>`}</div>
+    </div>`;
+}
+
+/** What to do now: the prompt, and draw or knock; with a tile picked, the ends it goes on. */
+function domBarHtml(state) {
+  const s = domShared(state);
+  const st = s.settings || {};
+  const bar = (inner) => `<div class="dom-bar">${inner}</div>`;
+  const note = (inner) => `<div class="dom-bar dom-bar--note">${inner}</div>`;
+  if (s.phase !== 'play') return '';
+  if (!domMyTurn(state)) {
+    const who = s.turn ? domName(state, s.turn) : '';
+    return note(`<p class="dom-prompt">${escapeHTML(s.turn ? domT('dom_turn_of', { name: who }) : '')}</p>`);
+  }
+  const table = s.table || dominoNewTable();
+  const pick = domLocal.pick;
+  if (pick) {
+    const ends = domDistinctEnds(table, pick, st.mode);
+    const buttons = ends.map(end => {
+      const e = dominoEnds(table).find(x => x.end === end);
+      const pts = st.helpPoints ? dominoMoveScore(table, pick, end, st.mode) : 0;
+      return `<button type="button" class="btn btn--primary dom-bar__end--${end}" dir="${domDir()}" onclick="domPlayAt('${end}')">${escapeHTML(domT('dom_end_' + end))}${e ? ` <span class="dom-bar__v metric">${e.value}</span>` : ''}${pts ? ` <span class="dom-bar__pts">+${pts}</span>` : ''}</button>`;
+    }).join('');
+    return bar(`<p class="dom-prompt is-mine">${escapeHTML(domT('dom_pick_end', { tile: domTileLabel(pick) }))}</p>
+      <div class="dom-bar__ends" dir="ltr">${buttons}</div>
+      <button type="button" class="btn btn--ghost btn--sm" onclick="domCancelPick()">${escapeHTML(domT('dom_cancel'))}</button>`);
+  }
+  const lead = !table.line.length;
+  const canDraw = s.drawing && (Number(s.bone) || 0) > 0;
+  const action = canDraw
+    ? `<button type="button" class="btn btn--secondary btn--auto" onclick="domDraw()">✋ ${escapeHTML(domT('dom_draw', { n: s.bone }))}</button>`
+    : `<button type="button" class="btn btn--secondary btn--auto" onclick="domKnock()">👊 ${escapeHTML(domT('dom_knock'))}</button>`;
+  // One line: what to do, and the way out when nothing fits (refused while something does).
+  return `<div class="dom-bar dom-bar--inline">
+      <p class="dom-prompt is-mine">⭐ ${escapeHTML(lead ? domT('dom_you_lead') : domT('dom_your_turn'))}</p>
+      ${lead ? '' : action}
+    </div>`;
+}
+
+/* --- the moves ------------------------------------------------------------------------ */
+
+function domSend(action, payload) {
+  const s = domShared(Room.state);
+  domLocal.pick = null;
+  roomAct(action, Object.assign({ seq: s.turnSeq }, payload || {}));
+}
+
+function domRedraw() {
+  const el = document.getElementById('view-room-domino');
+  if (el) delete el.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/** A tile tapped: it goes, or its ends glow, or it is refused (it doesn't fit, or it isn't your turn). */
+function domTap(tile, el) {
+  const state = Room.state;
+  if (!state) return;
+  const s = domShared(state);
+  if (!domMyTurn(state)) {
+    domShakeEl(el);
+    showToast(domT('dom_not_your_turn'), 'info');
+    return;
+  }
+  if (domLocal.pick === tile) { domCancelPick(); return; }
+  const ends = domDistinctEnds(s.table || dominoNewTable(), tile, (s.settings || {}).mode);
+  if (!ends.length) {
+    domShakeEl(el);
+    haptic('heavy');
+    showToast(domT('dom_no_fit'), 'error');
+    return;
+  }
+  haptic('light');
+  if (ends.length === 1) { domSend('play', { tile: tile, end: ends[0] }); return; }
+  domLocal.pick = tile;
+  domRedraw();
+}
+
+function domPlayAt(end) {
+  const tile = domLocal.pick;
+  if (!tile || !domMyTurn(Room.state || {})) return;
+  haptic('medium');
+  domSend('play', { tile: tile, end: end });
+}
+
+function domCancelPick() {
+  domLocal.pick = null;
+  domRedraw();
+}
+
+/** Draw or knock is only for a hand with nothing that goes: said, without saying which tile does. */
+function domCanPlayNow(state) {
+  const s = domShared(state);
+  return dominoCanPlay(s.table || dominoNewTable(), (state.you || {}).hand || []);
+}
+
+function domDraw() {
+  const state = Room.state;
+  if (!state || !domMyTurn(state)) return;
+  if (domCanPlayNow(state)) { domShakeEl(document.querySelector('#view-room-domino .dom-hand')); showToast(domT('dom_you_can_play'), 'info'); return; }
+  haptic('light');
+  domSend('draw');
+}
+
+function domKnock() {
+  const state = Room.state;
+  if (!state || !domMyTurn(state)) return;
+  if (domCanPlayNow(state)) { domShakeEl(document.querySelector('#view-room-domino .dom-hand')); showToast(domT('dom_you_can_play'), 'info'); return; }
+  haptic('medium');
+  domSend('pass');
+}
+
+/** The host plays for a phone that went quiet, the way the clock would. */
+function domSkip() {
+  const s = domShared(Room.state);
+  roomAct('skipTurn', { seq: s.turnSeq });
+}
+
+/** The turn moved on: a tile picked for the last one is no longer a choice. */
+function domSyncPick(state) {
+  const s = domShared(state);
+  const key = [state.code, s.dealId || '', s.phase, s.turnSeq].join('|');
+  if (domLocal.pickKey !== key) { domLocal.pickKey = key; domLocal.pick = null; }
+  if (domLocal.pick && ((state.you || {}).hand || []).indexOf(domLocal.pick) === -1) domLocal.pick = null;
+}
+
+/* --- the lobby ------------------------------------------------------------------------ */
+
+/**
+ * The host's phone keeps the room's seating in step with its own options:
+ * teams on with four players and no seats drawn for these four yet (or teams
+ * off while the room still says on), it tells the server once - which draws
+ * them at random, the owner's default.
+ */
+function domLobbySync(state) {
+  if (!state || !state.youAreHost || state.phase !== 'lobby' || state.game !== 'domino') return;
+  const o = domOpts();
+  const ids = (state.players || []).map(p => p.id);
+  const want = !!(o.teams && ids.length === 4);
+  const lobby = domShared(state).lobby || null;
+  const fits = lobby && !!lobby.teams === want && (!want || (Array.isArray(lobby.order) && lobby.order.length === 4 && ids.every(id => lobby.order.indexOf(id) !== -1)));
+  if (fits || (!want && !lobby)) return;
+  const key = [state.code, ids.join(','), want].join('|');
+  if (domLocal.seatsKey === key) return;
+  domLocal.seatsKey = key;
+  setTimeout(() => roomAct('seats', { teams: want }), 0);
+}
+
+/** Two taps swap two seats (the host); 🔀 draws them again. */
+function domSeatTap(pid) {
+  const state = Room.state;
+  const lobby = domShared(state).lobby;
+  if (!state || !state.youAreHost || !lobby || !Array.isArray(lobby.order)) return;
+  haptic('light');
+  if (!domLocal.seatSwap || domLocal.seatSwap === pid) {
+    domLocal.seatSwap = domLocal.seatSwap === pid ? null : pid;
+    domLobbyRedraw();
+    return;
+  }
+  const order = lobby.order.slice();
+  const a = order.indexOf(domLocal.seatSwap);
+  const b = order.indexOf(pid);
+  domLocal.seatSwap = null;
+  if (a === -1 || b === -1) { domLobbyRedraw(); return; }
+  order[a] = pid;
+  order[b] = lobby.order[a];
+  roomAct('seats', { teams: true, order: order });
+}
+
+function domSeatShuffle() {
+  domLocal.seatSwap = null;
+  haptic('light');
+  roomAct('seats', { teams: true, shuffle: true });
+}
+
+/** The seating strip: seats 1 and 3 one side, 2 and 4 the other, in the order the turn goes. */
+function domSeatsStripHtml(state) {
+  const lobby = domShared(state).lobby;
+  if (!lobby || !lobby.teams || !Array.isArray(lobby.order)) return '';
+  const host = !!state.youAreHost;
+  const chips = lobby.order.map((pid, i) => {
+    const p = domPlayer(state, pid);
+    const on = domLocal.seatSwap === pid;
+    const inner = `<span class="dom-seatchip__n metric">${i + 1}</span><span class="dom-team-dot dom-team-dot--${i % 2}" aria-hidden="true"></span>${p && p.bot ? '🤖 ' : ''}${escapeHTML(p ? p.name : '…')}`;
+    return host
+      ? `<button type="button" class="dom-seatchip dom-seatchip--team${i % 2} ${on ? 'is-picked' : ''}" onclick="domSeatTap('${jsStringAttr(pid)}')" aria-pressed="${on}">${inner}</button>`
+      : `<span class="dom-seatchip dom-seatchip--team${i % 2}">${inner}</span>`;
+  }).join('');
+  const name = (i) => lobby.order.filter((x, k) => k % 2 === i).map(pid => domName(state, pid)).join(appState.lang === 'en' ? ' & ' : ' و');
+  return `<div class="field dom-seating">
+      <div class="dom-seating__head">
+        <span class="field__label">🪑 ${escapeHTML(domT('dom_seating'))}</span>
+        ${host ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="domSeatShuffle()">🔀 ${escapeHTML(domT('dom_seats_shuffle'))}</button>` : ''}
+      </div>
+      <div class="dom-seating__chips">${chips}</div>
+      <p class="field__hint">${escapeHTML(domT('dom_partners', { a: name(0), b: name(1) }))}</p>
+      ${host ? `<p class="field__hint">${escapeHTML(domLocal.seatSwap ? domT('dom_seats_swap_now') : domT('dom_seats_hint'))}</p>` : ''}
+    </div>`;
+}
+
+/* --- the phone's frame ------------------------------------------------------------------ */
+
+/** Everything the server said that the screen shows. Presence is not in it (refreshed in place). */
+function domServerSig(state) {
+  const s = domShared(state);
+  const evs = s.events || [];
+  return [s.dealId || '', s.phase, s.round, s.turn || '', s.turnSeq, JSON.stringify(s.table || null), JSON.stringify(s.counts || {}),
+    s.bone, JSON.stringify(s.scores || {}), evs.length ? evs[evs.length - 1].seq : 0, s.endsAt || '', JSON.stringify(state.you || null),
+    domOrder(state).join(','), JSON.stringify(s.teams || null), JSON.stringify(s.settings || {}),
+    (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','),
+    s.phase === 'play' ? '' : JSON.stringify(s.result || null) + JSON.stringify(s.winners || null)].join('|');
+}
+
+function domPhoneFrame(state) {
+  const s = domShared(state);
+  if (s.phase === 'roundOver' || s.phase === 'gameover') return domResultFrame(state, false);
+  const others = domOthers(state);
+  return `<div class="dom dom--n${domOrder(state).length} ${domMyTurn(state) ? 'is-mine' : ''} ${domLocal.pick ? 'is-picking' : ''}">
+      <div class="dom-layout">
+        <div class="dom-layout__table">${domFeltHtml(state)}</div>
+        <div class="dom-layout__side">
+          ${domHeadHtml(state)}
+          ${domScoreStripHtml(state)}
+          <div class="dom-seats dom-seats--${others.length}" dir="ltr">${others.map(pid => domSeatHtml(state, pid)).join('')}</div>
+          ${domMineHtml(state)}
+          ${domBarHtml(state)}
+          <div class="dom-host" data-dom-host></div>
+        </div>
+      </div>
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+/* --- the end of a round -------------------------------------------------------------------- */
+
+/** Who took what, and why, in one line - the pips and the points written out. */
+function domResultLine(state) {
+  const s = domShared(state);
+  const r = s.result;
+  if (!r) return '';
+  const american = r.mode === 'american';
+  if (r.tie) return domT('dom_res_tie');
+  if (!r.winner) return '';
+  const who = domUnitName(state, r.winner);
+  const from = (r.from || []).map(k => domUnitName(state, k)).join(appState.lang === 'en' ? ', ' : '، ');
+  const head = r.how === 'out'
+    ? domT(Array.isArray(s.teams) ? 'dom_res_out_team' : 'dom_res_out', { name: domName(state, r.by), team: who, from: from, n: r.raw })
+    : domT(Array.isArray(s.teams) ? 'dom_res_blocked_team' : 'dom_res_blocked', { name: who, from: from, n: r.raw });
+  if (!american) return head;
+  return head + ' ' + domT('dom_res_rounded', { n: r.raw, r: r.points * 5, pts: domPtsWord(r.points) });
+}
+
+/** One player's hand at the end of a round: face down first, turned over in its turn. */
+function domRevealRowHtml(state, pid, i, animate) {
+  const s = domShared(state);
+  const r = s.result || {};
+  const hand = domSortHand((r.hands || {})[pid] || []);
+  const pips = (r.pips || {})[pid] || 0;
+  const unit = dominoUnitOf(s.teams, pid);
+  const won = r.winner && unit === r.winner;
+  const out = r.how === 'out' && r.by === pid;
+  const tiles = hand.map(id => `<span class="dom-rtile">${domStandingHtml(id, 'dom-rtile__face')}${domBackHtml(false, 'dom-rtile__back')}</span>`).join('');
+  return `<div class="dom-rrow ${won ? 'is-won' : ''} ${animate ? 'is-down' : 'is-shown'}" data-dom-reveal="${i}" data-dom-seat="${escapeHTML(pid)}">
+      <div class="dom-rrow__who">${domTeamDot(s, pid)}${escapeHTML(domName(state, pid))}${out ? ` <span class="badge badge--success">${escapeHTML(domT('dom_went_out'))}</span>` : ''}</div>
+      <div class="dom-rrow__tiles">${tiles || `<span class="dom-rrow__none">${escapeHTML(domT('dom_empty_hand'))}</span>`}</div>
+      <div class="dom-rrow__pips"><b class="metric" data-dom-pips="${pips}">${animate ? 0 : pips}</b> <span>${escapeHTML(domT('dom_pips'))}</span></div>
+    </div>`;
+}
+
+/** The totals, each with what this round added; counted up when the reveal reaches them. */
+function domTotalsHtml(state, animate) {
+  const s = domShared(state);
+  const gained = ((s.result || {}).gained) || {};
+  const winnerUnit = s.phase === 'gameover' ? s.winner : null;
+  let rows;
+  if (Array.isArray(s.teams)) {
+    rows = s.teams.map((t, i) => ({ key: DOMINO_TEAM_KEYS[i], name: domTeamName(state, i), dot: `<span class="dom-team-dot dom-team-dot--${i}" aria-hidden="true"></span>` }));
+  } else {
+    rows = domOrder(state).map(pid => ({ key: pid, name: domName(state, pid), dot: '' }));
+  }
+  rows.forEach(r => { r.score = (s.scores || {})[r.key] || 0; r.gain = gained[r.key] || 0; });
+  rows.sort((a, b) => b.score - a.score);
+  return `<div class="section dom-totals">
+      <div class="section__head"><h2 class="section__title">${escapeHTML(domT('dom_totals', { n: (s.settings || {}).target }))}</h2><span class="section__rule"></span></div>
+      ${rows.map(r => `
+        <div class="status-row ${winnerUnit === r.key ? 'status-row--turn' : ''} ${r.key === Room.me ? 'is-me' : ''}">
+          <div class="status-row__body"><div class="status-row__name">${winnerUnit === r.key ? '👑 ' : ''}${r.dot}${escapeHTML(r.name)}</div></div>
+          ${r.gain ? `<span class="badge badge--success dom-totals__gain"><bdi dir="ltr">+${r.gain}</bdi></span>` : ''}
+          <span class="badge badge--accent metric" data-dom-total="${r.score}" data-dom-from="${r.score - r.gain}">${animate ? r.score - r.gain : r.score}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+/** The end of the game: the podium alone, or the two sides. */
+function domGameOverHtml(state, tv) {
+  const s = domShared(state);
+  if (s.phase !== 'gameover') return '';
+  let body;
+  if (Array.isArray(s.teams)) {
+    const k = DOMINO_TEAM_KEYS.indexOf(s.winner);
+    body = `<div class="dom-sides" data-reveal-ms="900">
+        ${s.teams.map((t, i) => `<div class="dom-side dom-side--${i} ${k === i ? 'is-won' : ''}">
+            <span class="dom-side__crown" aria-hidden="true">${k === i ? '🏆' : ''}</span>
+            <span class="dom-side__names">${escapeHTML(domTeamName(state, i))}</span>
+            <b class="dom-side__score metric">${(s.scores || {})[DOMINO_TEAM_KEYS[i]] || 0}</b>
+          </div>`).join('')}
+      </div>`;
+  } else {
+    body = renderPodium(state, s.board || []) || '';
+  }
+  const title = s.winner ? domT('dom_winner', { name: domUnitName(state, s.winner) }) : domT('dom_no_winner');
+  return `<div class="card card--accent dom-over ${tv ? 'dom-over--tv' : ''}">
+      <div class="card__title">🏆 ${escapeHTML(title)}</div>
+      ${s.ended === 'left' ? `<p class="field__hint">${escapeHTML(domT('dom_ended_left'))}</p>` : ''}
+      ${tv ? `<div class="tv-scale">${body}</div>` : body}
+    </div>`;
+}
+
+function domResultFrame(state, tv) {
+  const s = domShared(state);
+  const t = TRANSLATIONS[appState.lang] || {};
+  const r = s.result;
+  const animate = !!r && motionFirst(['dom-res', state.code, s.dealId || '', s.round, tv ? 'tv' : 'ph'].join('|'));
+  const title = !r ? '' : r.how === 'out' ? '🎉 ' + domT('dom_title_out', { name: domName(state, r.by) }) : '🔒 ' + domT('dom_title_blocked');
+  const order = domOrder(state).filter(pid => ((r || {}).hands || {})[pid]);
+  const rows = order.map((pid, i) => domRevealRowHtml(state, pid, i, animate)).join('');
+  const over = s.phase === 'gameover';
+  const hostNext = over
+    ? `<div class="btn-stack">
+         <button type="button" class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.domino.startPayload())">${escapeHTML(t.play_again || '')}</button>
+         <button type="button" class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+       </div>`
+    : `<div class="btn-stack"><button type="button" class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(domT('dom_next_round'))}</button></div>`;
+  const wait = `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`;
+  const reveal = r ? `
+      <div class="dom-reveal" data-dom-reveal-box="${animate ? 1 : 0}">
+        <p class="dom-reveal__title">${escapeHTML(title)}</p>
+        <div class="dom-reveal__rows">${rows}</div>
+        <p class="dom-reveal__line ${animate ? 'is-down' : 'is-shown'}" data-dom-reveal-line>${escapeHTML(domResultLine(state))}</p>
+      </div>` : '';
+  if (tv) {
+    return `<div class="dom-tvres">
+        <div class="dom-tvres__table">${r ? domFeltHtml(state, { noLatest: true }) : ''}</div>
+        <div class="dom-tvres__side">
+          ${over ? domGameOverHtml(state, true) : ''}
+          ${reveal}
+          <div class="tv-scale">${domTotalsHtml(state, animate)}</div>
+          ${state.youAreHost ? `<div class="tv-actions">${over
+            ? tvBtn(t.play_again || '', "roomAct('playAgain', ROOM_GAMES.domino.startPayload())") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')
+            : tvBtn(domT('dom_next_round'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`)}</div>` : ''}
+        </div>
+      </div>`;
+  }
+  return `<div class="dom dom--result">
+      ${domHeadHtml(state)}
+      ${over ? domGameOverHtml(state, false) : ''}
+      ${r ? domFeltHtml(state, { small: true, noLatest: true }) : ''}
+      ${reveal}
+      ${domTotalsHtml(state, animate)}
+      ${over ? roomShareBtnHtml(state, s.board) : ''}
+      ${state.youAreHost ? hostNext : wait}
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+/**
+ * The reveal, once the last move has landed: each hand turns over in turn and
+ * its pips count up, then the line saying who took what, then the totals.
+ */
+function domRunReveal(root, state, startAt) {
+  const box = root && root.querySelector('[data-dom-reveal-box="1"]');
+  const rows = root ? Array.from(root.querySelectorAll('.dom-rrow.is-down')) : [];
+  const line = root && root.querySelector('[data-dom-reveal-line].is-down');
+  const totals = root ? Array.from(root.querySelectorAll('[data-dom-total]')) : [];
+  const later = (ms, fn) => domFx.timers.push(setTimeout(() => { try { fn(); } catch (e) { console.warn('domino reveal', e); } }, ms));
+  const settle = () => {
+    rows.forEach(r => { r.classList.remove('is-down'); r.classList.add('is-shown'); const b = r.querySelector('[data-dom-pips]'); if (b) b.textContent = b.getAttribute('data-dom-pips'); });
+    if (line) { line.classList.remove('is-down'); line.classList.add('is-shown'); }
+    totals.forEach(el => { el.textContent = el.getAttribute('data-dom-total'); });
+  };
+  if (!box || !domCanMove()) { settle(); return 0; }
+  const base = Math.max(0, startAt || 0) + 250;
+  rows.forEach((r, i) => later(base + i * DOM_REVEAL_STEP, () => {
+    r.classList.remove('is-down');
+    r.classList.add('is-shown', 'is-turning');
+    const b = r.querySelector('[data-dom-pips]');
+    if (b) countUp(b, 0, Number(b.getAttribute('data-dom-pips')) || 0);
+    domSound('domClack');
+  }));
+  const lineAt = base + rows.length * DOM_REVEAL_STEP + 250;
+  later(lineAt, () => { if (line) { line.classList.remove('is-down'); line.classList.add('is-shown'); } });
+  const totalsAt = lineAt + 600;
+  later(totalsAt, () => {
+    totals.forEach(el => {
+      const from = Number(el.getAttribute('data-dom-from')) || 0;
+      const to = Number(el.getAttribute('data-dom-total')) || 0;
+      if (to !== from) countUp(el, from, to);
+      else el.textContent = to;
+    });
+    if (totals.length) playRoomFx('success');
+  });
+  return totalsAt + 900;
+}
+
+/* --- the clock and the cues -------------------------------------------------------------- */
+
+function domStopClock() {
+  if (domLocal.clock) domLocal.clock.stop();
+  domLocal.clock = null;
+  domLocal.clockKey = null;
+}
+
+/** Draws the turn clock; the server plays for the player when it runs out. */
+function domTickClock(s) {
+  const endsAt = s && s.phase === 'play' ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-dom-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 10);
+      el.classList.toggle('badge--accent', left > 10);
+    });
+    return left;
+  };
+  if (!endsAt) { domStopClock(); return; }
+  paint();
+  if (domLocal.clockKey === endsAt && domLocal.clock) return;
+  domStopClock();
+  domLocal.clockKey = endsAt;
+  domLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      const ss = st && st.game === 'domino' ? domShared(st) : null;
+      if (left > 0 && left <= 5 && ss && ss.endsAt === endsAt && (st.youAreScreen || domMyTurn(st))) playSound('tick');
+    },
+    onEnd: () => { domLocal.clock = null; paint(); }
+  });
+}
+
+/** A buzz and a tick when the turn comes to this phone (not on a reload). */
+function domTurnCue(state) {
+  const mine = domMyTurn(state);
+  const was = domLocal.turnMine;
+  domLocal.turnMine = mine;
+  if (mine && !was && domFx.watched === state.code) {
+    playSound('tick');
+    haptic('medium');
+    const bar = document.querySelector('#view-room-domino .dom-mine');
+    if (bar && domCanMove()) bar.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.02)' }, { transform: 'scale(1)' }], { duration: 360, easing: 'ease-out' });
+  }
+  domHandInView(state);
+}
+
+/** On your turn the page keeps your hand and the bar in sight - and the ends to choose from, once a tile is picked. */
+function domHandInView(state) {
+  const s = domShared(state);
+  const key = domMyTurn(state) ? [state.code, s.dealId, s.turnSeq, domLocal.pick || ''].join('|') : '';
+  if (!key || domLocal.handInView === key) return;
+  domLocal.handInView = key;
+  requestAnimationFrame(() => {
+    const main = document.getElementById('shell-main');
+    const hand = document.querySelector('#view-room-domino .dom-bar');
+    if (!main || !hand || appState.currentView !== 'room-domino') return;
+    const h = hand.getBoundingClientRect();
+    const m = main.getBoundingClientRect();
+    const over = h.bottom + 8 - m.bottom;
+    if (over > 0) main.scrollBy({ top: over, behavior: motionOff() ? 'auto' : 'smooth' });
+  });
+}
+
+/** The host's way past a phone that went quiet: gone, or holding the turn for 40 seconds. */
+function domHostButtons(state) {
+  const s = domShared(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.turn) return [];
+  const p = domPlayer(state, s.turn);
+  if (p && p.bot) return [];
+  const key = state.code + '|' + s.turnSeq;
+  if (domLocal.hostKey !== key) {
+    domLocal.hostKey = key;
+    domLocal.turnSince = Date.now();
+    clearTimeout(domLocal.hostTimer);
+    domLocal.hostTimer = setTimeout(() => {
+      const st = Room.state;
+      if (st && st.game === 'domino') domRefreshInPlace(document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-domino'), st, !!st.youAreScreen);
+    }, 40500);
+  }
+  const quiet = !p || !p.online || Date.now() - (domLocal.turnSince || Date.now()) > 40000;
+  if (!quiet || s.turn === Room.me) return [];
+  return [['⏭️ ' + domT('dom_play_for', { name: domName(state, s.turn) }), 'domSkip()']];
+}
+
+/** Presence changes redraw nothing: the away seats and the host's buttons are updated in place. */
+function domRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('.dom-seat[data-dom-seat]').forEach(el => {
+    const p = domPlayer(state, el.getAttribute('data-dom-seat'));
+    el.classList.toggle('is-away', !!p && !p.online);
+  });
+  const box = root.querySelector('[data-dom-host]');
+  if (box) {
+    const buttons = domHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._domHtml !== html) { box.innerHTML = html; box._domHtml = html; }
+  }
+}
+
 ROOM_GAMES.domino = {
-  bots: { max: 4 },
-  lobbyOptions() { return ''; },
-  startPayload() { return {}; },
+  bots: { max: DOMINO_MAX_PLAYERS },
+
+  /* The table keeps your hand in sight itself (domHandInView); the end of a
+     round and of the game are drawn from the top. */
+  actionKey(state) {
+    const s = domShared(state);
+    return s.phase === 'play' ? '' : [state.code, s.dealId, s.phase].join('|');
+  },
+
+  lobbyOptions(state) {
+    const n = (state.players || []).length;
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(domT('dom_lobby_hint'))}</p>`;
+    if (!state.youAreHost) {
+      return `${domSeatsStripHtml(state)}${hint}<p class="field__hint" style="text-align:center">${escapeHTML(domT('dom_lobby_wait'))}</p>`;
+    }
+    domLobbySync(state);
+    const o = domOpts();
+    const teamsOk = n === 4;
+    const seg = (key, values, labelOf, current) => `<div class="segmented" role="group">${values.map(v => `<button type="button" class="segmented__item ${current === v ? 'is-active' : ''}" onclick="setDomOpt('${key}', ${typeof v === 'string' ? `'${v}'` : v})">${labelOf(v)}</button>`).join('')}</div>`;
+    const sw = (key, id, icon, label, hint2, disabled) => `<div class="field">
+          <label class="switch-row" for="${id}">
+            <span class="field__label">${icon} ${escapeHTML(label)}</span>
+            <span class="switch"><input type="checkbox" id="${id}" role="switch" ${o[key] && !disabled ? 'checked' : ''} ${disabled ? 'disabled' : ''} onchange="setDomOpt('${key}', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          ${hint2 ? `<p class="field__hint">${escapeHTML(hint2)}</p>` : ''}
+        </div>`;
+    const american = o.mode === 'american';
+    return `<div class="card card--tight dom-lobby">
+        <div class="field">
+          <label class="field__label">${escapeHTML(domT('dom_mode'))}</label>
+          ${seg('mode', DOMINO_MODES, v => escapeHTML(v === 'american' ? domT('dom_mode_american') : domT('dom_mode_normal')), o.mode)}
+          <p class="field__hint">${escapeHTML(american ? domT('dom_mode_american_hint') : domT('dom_mode_normal_hint'))}</p>
+        </div>
+        ${sw('teams', 'dom-teams', '🤝', domT('dom_teams'), teamsOk ? domT('dom_teams_hint') : domT('dom_teams_need4'), !teamsOk)}
+        ${o.teams && teamsOk ? domSeatsStripHtml(state) : ''}
+        <div class="field">
+          <label class="field__label">🎯 ${escapeHTML(domT('dom_target'))}</label>
+          ${seg('target', DOMINO_TARGETS[o.mode], v => v, o.target)}
+        </div>
+        ${sw('helpFit', 'dom-help-fit', '💡', domT('dom_help_fit'), domT('dom_help_fit_hint'), false)}
+        ${american ? sw('helpPoints', 'dom-help-pts', '🔢', domT('dom_help_points'), domT('dom_help_points_hint'), false) : ''}
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(domT('dom_clock'))}</label>
+          ${seg('turnClock', DOMINO_CLOCKS, v => (v ? v + '″' : escapeHTML(domT('dom_clock_off'))), o.turnClock)}
+          <p class="field__hint">${escapeHTML(domT('dom_clock_hint'))}</p>
+        </div>
+        ${hint}
+      </div>`;
+  },
+
+  startPayload() {
+    const o = domOpts();
+    const n = Room.state ? (Room.state.players || []).length : 0;
+    return { mode: o.mode, target: o.target, teams: !!(o.teams && n === 4), helpFit: !!o.helpFit, helpPoints: !!(o.helpPoints && o.mode === 'american'), turnClock: o.turnClock };
+  },
+
   render(state) {
     if (appState.currentView !== 'room-domino') setView('room-domino');
+    const el = document.getElementById('view-room-domino');
+    if (!el) return;
+    const s = domShared(state);
+    domSyncPick(state);
+    const server = domServerSig(state);
+    // A tile is still flying: the table it lands on stays until it has landed.
+    const changed = !!(el.dataset.sig && el._domServer && el._domServer !== server);
+    if (changed && domFx.busyUntil > Date.now()) {
+      domDeferRedraw();
+      domRefreshInPlace(el, state, false);
+      return;
+    }
+    const local = [domLocal.pick || '', state.youAreHost, appState.lang].join('|');
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => { domSnapshot(el); return domPhoneFrame(state); });
+    el._domServer = server;
+    domRefreshInPlace(el, state, false);
+    domTickClock(s);
+    if (!rebuilt) return;
+    domAfterDraw(el, state);
+    domTurnCue(state);
   }
 };
 
+/* --- the flights -------------------------------------------------------------------------------
+   A move is drawn between exact places (data-dom-at: a tile in a hand, a seat,
+   the tiles left to draw, a tile on the table), measured just before the
+   redraw and just after. Web Animations of transform and opacity on ghosts
+   laid over the page, removed when they finish and by a timer if they never
+   do. With motion off nothing flies, and everything is simply where it is.
+   ------------------------------------------------------------------------------------------ */
+
+const domCanMove = () => !motionOff() && !!(document.body && document.body.animate);
+
+function domFxCancel() {
+  domFx.timers.forEach(clearTimeout);
+  domFx.timers = [];
+  domFx.busyUntil = 0;
+  document.querySelectorAll('.dom-hold').forEach(el => el.classList.remove('dom-hold'));
+}
+
+/** Where every tile, seat and the pile are, before a redraw takes them away. */
+function domSnapshot(root) {
+  const rects = {};
+  if (root && root.getClientRects().length) {
+    root.querySelectorAll('[data-dom-at]').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width) rects[el.getAttribute('data-dom-at')] = { left: r.left, top: r.top, width: r.width, height: r.height };
+    });
+  }
+  domFx.rects = rects;
+}
+
+function domEl(root, key) {
+  if (!root || !key) return null;
+  const q = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : String(key).replace(/"/g, '\\"');
+  return root.querySelector('[data-dom-at="' + q + '"]');
+}
+
+/** A live element's place, or where it was before the redraw. */
+function domRect(root, key) {
+  const el = domEl(root, key);
+  if (el) { const r = el.getBoundingClientRect(); if (r.width) return r; }
+  return domFx.rects[key] || null;
+}
+
+/** A fixed layer over the page, in the table's colour. */
+function domLayer(root, rect, cls, html) {
+  const el = document.createElement('div');
+  el.className = cls;
+  const tinted = root && root.closest ? root.closest('[data-accent]') : null;
+  if (tinted) el.setAttribute('data-accent', tinted.getAttribute('data-accent'));
+  if (rect) el.style.cssText = 'left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px';
+  if (root && root.id === 'view-room-tv') el.classList.add('is-tv');
+  if (html) el.innerHTML = html;
+  document.body.appendChild(el);
+  return el;
+}
+
+/** Runs an animation, then `done` - on finish, or by a timer if it never finishes. */
+function domAnimate(el, frames, timing, done) {
+  let over = false;
+  const end = () => { if (over) return; over = true; if (done) done(); };
+  const t = Object.assign({ fill: 'both' }, timing);
+  const anim = el.animate(frames, t);
+  anim.onfinish = end;
+  setTimeout(end, (t.duration || 0) + (t.delay || 0) + 700);
+  return anim;
+}
+
+/**
+ * A tile flying onto `toEl` from `from` (a rect): the ghost is the tile as it
+ * will lie, started on the source's place and shape - turned a quarter if the
+ * source stood and it lies - with its back up first when `back` (someone
+ * else's tile, seen from across the table).
+ */
+function domFly(root, from, toEl, opts) {
+  const o = opts || {};
+  const land = () => { if (toEl) { toEl.classList.remove('dom-hold'); domLanded(toEl); } if (o.onLand) o.onLand(); };
+  if (!from || !toEl || !domCanMove()) { land(); return; }
+  const to = toEl.getBoundingClientRect();
+  if (!to.width || !from.width) { land(); return; }
+  const face = toEl.cloneNode(true);
+  face.classList.remove('dom-hold');
+  face.removeAttribute('data-dom-at');
+  face.style.cssText = '--u:' + (getComputedStyle(toEl).getPropertyValue('--u') || '') + ';position:absolute;left:0;top:0;width:100%;height:100%';
+  const ghost = domLayer(root, to, 'dom-ghost');
+  ghost.appendChild(face);
+  let backEl = null;
+  if (o.back) {
+    backEl = document.createElement('span');
+    backEl.className = 'dt dt--back ' + (to.width > to.height ? 'dt--h' : 'dt--v');
+    backEl.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%';
+    ghost.appendChild(backEl);
+  }
+  const dx = (from.left + from.width / 2) - (to.left + to.width / 2);
+  const dy = (from.top + from.height / 2) - (to.top + to.height / 2);
+  const turned = (from.width > from.height) !== (to.width > to.height);
+  const scale = Math.max(from.width, from.height) / Math.max(to.width, to.height);
+  const rot = turned ? (o.spin || 90) : (o.spin || 0);
+  const arc = (o.arc === undefined ? 30 : o.arc) * (root && root.id === 'view-room-tv' ? 2 : 1);
+  const duration = o.duration || DOM_FLY_MS;
+  const timing = { duration: duration, delay: o.delay || 0, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
+  domAnimate(ghost, [
+    { transform: `translate(${dx}px, ${dy}px) rotate(${rot}deg) scale(${scale})` },
+    { transform: `translate(${dx / 2}px, ${dy / 2 - arc}px) rotate(${rot / 2}deg) scale(${(scale + 1) / 2 * 1.08})`, offset: 0.5 },
+    { transform: 'none' }
+  ], timing, () => { ghost.remove(); land(); });
+  if (backEl) backEl.animate([{ opacity: 1 }, { opacity: 1, offset: 0.45 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }], Object.assign({ fill: 'both' }, timing));
+}
+
+/** A little bump where a tile comes down. */
+function domLanded(el) {
+  if (!el || !domCanMove()) return;
+  el.animate([{ transform: 'scale(1.08)' }, { transform: 'scale(0.97)', offset: 0.6 }, { transform: 'none' }], { duration: 260, easing: 'ease-out' });
+}
+
+/** A back flying from one place to another (a tile drawn, or dealt). */
+function domFlyBack(root, from, to, opts) {
+  const o = opts || {};
+  if (!from || !to || !domCanMove()) { if (o.onLand) o.onLand(); return; }
+  const size = Math.max(10, Math.min(to.width, to.height, 40));
+  const across = !!o.across;
+  const w = across ? size * 2 : size;
+  const h = across ? size : size * 2;
+  const start = { left: from.left + from.width / 2 - w / 2, top: from.top + from.height / 2 - h / 2, width: w, height: h };
+  const ghost = domLayer(root, start, 'dom-ghost', domBackHtml(across, '', 'style="position:absolute;left:0;top:0;width:100%;height:100%"'));
+  const dx = (to.left + to.width / 2) - (start.left + w / 2);
+  const dy = (to.top + to.height / 2) - (start.top + h / 2);
+  domAnimate(ghost, [
+    { transform: 'none', opacity: 1 },
+    { transform: `translate(${dx / 2}px, ${dy / 2 - 24}px) rotate(${across ? 45 : -8}deg)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) rotate(${across ? 90 : 0}deg) scale(0.9)`, opacity: 0.2 }
+  ], { duration: o.duration || 380, delay: o.delay || 0, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }, () => { ghost.remove(); if (o.onLand) o.onLand(); });
+}
+
+/** A sign that rises over a place and fades: +3 over a tile, 👊 over a seat. */
+function domPop(root, rect, text, cls, delay) {
+  if (!rect || !rect.width || !domCanMove()) return;
+  const el = domLayer(root, null, 'dom-pop ' + (cls || ''));
+  el.textContent = text;
+  el.style.left = (rect.left + rect.width / 2) + 'px';
+  el.style.top = (rect.top + rect.height / 2) + 'px';
+  domAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(0.4)', opacity: 0 },
+    { transform: 'translate(-50%, -110%) scale(1.15)', opacity: 1, offset: 0.25 },
+    { transform: 'translate(-50%, -140%) scale(1)', opacity: 1, offset: 0.7 },
+    { transform: 'translate(-50%, -190%) scale(0.9)', opacity: 0 }
+  ], { duration: 1300, delay: delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+/** A ring spreading out from a place: the spinner arriving. */
+function domRing(root, rect, delay) {
+  if (!rect || !rect.width || !domCanMove()) return;
+  const size = Math.max(rect.width, rect.height) * 1.2;
+  const el = domLayer(root, { left: rect.left + rect.width / 2 - size / 2, top: rect.top + rect.height / 2 - size / 2, width: size, height: size }, 'dom-ring');
+  domAnimate(el, [{ transform: 'scale(0.4)', opacity: 0.95 }, { transform: 'scale(2.4)', opacity: 0 }],
+    { duration: 700, delay: delay || 0, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }, () => el.remove());
+}
+
+/** A line across the table: قفلة, or someone going out. */
+function domBand(root, text, tone, delay) {
+  if (!domCanMove()) return;
+  const table = root && root.querySelector('[data-dom-table]');
+  const r = table ? table.getBoundingClientRect() : null;
+  if (!r || !r.width) return;
+  const el = domLayer(root, null, 'dom-band dom-band--' + (tone || 'accent'));
+  el.textContent = text;
+  el.style.left = (r.left + r.width / 2) + 'px';
+  el.style.top = (r.top + r.height / 2) + 'px';
+  domAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(0.6)', opacity: 0 },
+    { transform: 'translate(-50%, -50%) scale(1.06)', opacity: 1, offset: 0.2 },
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.8 },
+    { transform: 'translate(-50%, -50%) scale(0.96)', opacity: 0 }
+  ], { duration: 1500, delay: delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+/** Two knocks on the table: the seat jolts twice. */
+function domKnockAt(root, pid, delay) {
+  const seat = root && root.querySelector('[data-dom-seat="' + (typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(pid) : pid) + '"]');
+  const r = seat ? seat.getBoundingClientRect() : null;
+  if (r) domPop(root, r, '👊 ' + domT('dom_knock_word'), 'dom-pop--knock', delay);
+  domFx.timers.push(setTimeout(() => { domSound('domKnock'); }, delay || 0));
+  if (!seat || !domCanMove()) return;
+  seat.animate([
+    { transform: 'none' }, { transform: 'translateY(3px) scale(0.99)', offset: 0.12 }, { transform: 'none', offset: 0.3 },
+    { transform: 'translateY(3px) scale(0.99)', offset: 0.46 }, { transform: 'none', offset: 0.64 }, { transform: 'none' }
+  ], { duration: 520, delay: delay || 0, easing: 'ease-out' });
+}
+
+function domShakeEl(el) {
+  if (!el || !domCanMove()) return;
+  el.animate([{ transform: 'none' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-3px)' }, { transform: 'none' }],
+    { duration: 360, easing: 'ease-out' });
+}
+
+function domPulse(el) {
+  if (!el || !domCanMove()) return;
+  el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.18)', offset: 0.35 }, { transform: 'scale(1)' }], { duration: 520, easing: 'ease-out' });
+}
+
+function domSound(name) {
+  if (document.hidden) return;
+  if (typeof playFx === 'function' && typeof FX !== 'undefined' && FX[name]) {
+    if (!(typeof roomHasScreen === 'function' && roomHasScreen()) || (Room.state && Room.state.youAreScreen)) playFx(name);
+  }
+}
+
+/* --- which moves to show ------------------------------------------------------------------ */
+
+/**
+ * The events this device hasn't shown. A new deal seen by a page that was
+ * already watching this room plays from the deal; a reload, a late joiner or
+ * a phone that was on another screen starts from the end of the list.
+ */
+function domEventsToPlay(state) {
+  const s = domShared(state);
+  const events = s.events || [];
+  const maxSeq = events.reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  const key = state.code + '|' + (s.dealId || '');
+  if (domFx.deal !== key) {
+    const fresh = domFx.watched === state.code;
+    domFx.deal = key;
+    let from = maxSeq;
+    if (fresh) {
+      const deal = events.find(e => e && e.type === 'deal');
+      if (deal) from = (Number(deal.seq) || 0) - 1;
+    }
+    domFx.lastSeq = from;
+  }
+  const out = events.filter(e => e && (Number(e.seq) || 0) > domFx.lastSeq);
+  domFx.lastSeq = Math.max(domFx.lastSeq, maxSeq);
+  return out;
+}
+
+/** Just back from a locked screen or another app: what was missed is not played again. */
+const domWokeRecently = () => Date.now() - domFx.wokeAt < 2500;
+document.addEventListener('visibilitychange', () => { if (!document.hidden) domFx.wokeAt = Date.now(); });
+
+/** After a frame is drawn: the table laid out, and the moves it brought played on it. */
+function domAfterDraw(root, state) {
+  const s = domShared(state);
+  const evs = domEventsToPlay(state);
+  const quiet = document.hidden || domWokeRecently() || !root.getClientRects().length || evs.length > 12;
+  const moving = !quiet && domCanMove();
+  const held = new Set();
+  if (moving) evs.forEach(e => { if (e.type === 'play' && e.tile) held.add(e.tile); });
+  domLayoutTable(root, state, held);
+  const hand = ((state.you || {}).hand || []).slice();
+  const handKey = state.code + '|' + (s.dealId || '');
+  const handWas = domLocal.handKey === handKey ? domLocal.handWas : [];
+  domLocal.handKey = handKey;
+  domLocal.handWas = hand;
+  let end = 0;
+  if (moving && evs.length) end = domPlayEvents(root, state, evs, handWas);
+  else if (evs.length && !quiet) domEventSounds(evs);
+  if (s.phase === 'roundOver' || s.phase === 'gameover') {
+    const done = domRunReveal(root, state, end);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && motionFirst(['dom-over', state.code, s.dealId || '', JSON.stringify(s.scores || {})].join('|'))) {
+      domFx.timers.push(setTimeout(() => afterReveal(root, () => confetti({ particleCount: 160, spread: 90 })), Math.max(0, done)));
+    }
+  }
+}
+
+/** With motion off: the sounds of what happened, once. */
+function domEventSounds(evs) {
+  if (evs.some(e => e.type === 'blocked')) { playRoomFx('alarm'); return; }
+  if (evs.some(e => e.type === 'out')) { playRoomFx('success'); return; }
+  if (evs.some(e => e.type === 'pass')) domSound('domKnock');
+  else if (evs.some(e => e.type === 'play' || e.type === 'draw')) domSound('domClack');
+}
+
+/* --- each move, choreographed -------------------------------------------------------------- */
+
+function domPlayEvents(root, state, list, handWas) {
+  const s = domShared(state);
+  const tv = root.id === 'view-room-tv';
+  const me = Room.me;
+  const steps = [];
+  const at = (ms, fn) => steps.push([ms, fn]);
+  let t = domFx.prevPhase === 'lobby' ? 900 : 0;      // the room's start splash first
+  const seatRect = (pid) => domRect(root, 'seat:' + pid);
+  const fresh = ((state.you || {}).hand || []).filter(id => (handWas || []).indexOf(id) === -1);
+  list.forEach(e => {
+    switch (e.type) {
+      case 'deal': {
+        // Seven each, round the table, from the middle; my own land face up in my hand.
+        at(t, () => domSound('skrRiffle'));
+        const centre = root.querySelector('[data-dom-table]');
+        const c = centre ? centre.getBoundingClientRect() : null;
+        const from = c ? { left: c.left + c.width / 2 - 1, top: c.top + c.height / 2 - 1, width: 2, height: 2 } : null;
+        const order = domOrder(state);
+        const mine = tv ? [] : Array.from(root.querySelectorAll('.dom-htile'));
+        mine.forEach(el => el.classList.add('dom-hold'));
+        let k = 0;
+        for (let i = 0; i < DOMINO_HAND; i++) {
+          order.forEach(pid => {
+            const target = !tv && pid === me ? mine[i] : null;
+            const to = target ? target.getBoundingClientRect() : seatRect(pid);
+            if (!to) return;
+            const ms = t + 120 + k * 45;
+            at(ms, () => domFlyBack(root, from, to, { duration: 320, onLand: () => { if (target) { target.classList.remove('dom-hold'); domLanded(target); } } }));
+            k++;
+          });
+        }
+        t += 120 + k * 45 + 360;
+        at(t + 800, () => mine.forEach(el => el.classList.remove('dom-hold')));
+        break;
+      }
+      case 'play': {
+        const toEl = domEl(root, 'tile:' + e.tile);
+        const mine = !tv && e.pid === me;
+        const from = mine ? (domFx.rects['hand:' + e.tile] || seatRect(e.pid)) : seatRect(e.pid);
+        const land = t + DOM_FLY_MS;
+        at(t, () => domFly(root, from, toEl, { back: !mine, onLand: () => domSound('domClack') }));
+        if (e.forced) at(t, () => domBand(root, domT(e.forced === 'double6' ? 'dom_band_open6' : 'dom_band_open'), 'accent', 0));
+        if (e.spinner) at(land, () => {
+          const r = toEl ? toEl.getBoundingClientRect() : null;
+          domRing(root, r, 0);
+          domPop(root, r, '🌀 ' + domT('dom_spinner'), 'dom-pop--spinner', 120);
+          if (toEl) toEl.classList.add('is-new-spinner');
+        });
+        if (e.pts) at(land, () => {
+          const r = toEl ? toEl.getBoundingClientRect() : null;
+          domPop(root, r, '+' + e.pts, 'dom-pop--pts', e.spinner ? 350 : 0);
+          domPulse(root.querySelector('[data-dom-sum]'));
+          domSound('domScore');
+        });
+        t = land + (e.pts || e.spinner ? 380 : 120);
+        break;
+      }
+      case 'draw': {
+        const bone = domRect(root, 'bone');
+        const mine = !tv && e.pid === me;
+        const n = Math.max(1, Math.min(14, Number(e.n) || 1));
+        const newEls = mine ? fresh.slice(-n).map(id => domEl(root, 'hand:' + id)).filter(Boolean) : [];
+        newEls.forEach(el => el.classList.add('dom-hold'));
+        for (let i = 0; i < n; i++) {
+          const target = newEls[i] || null;
+          at(t + i * 160, () => {
+            const to = target ? target.getBoundingClientRect() : seatRect(e.pid);
+            domFlyBack(root, bone, to, { across: true, duration: 380, onLand: () => { if (target) { target.classList.remove('dom-hold'); domLanded(target); } domSound('domClack'); } });
+          });
+        }
+        at(t + n * 160 + 700, () => newEls.forEach(el => el.classList.remove('dom-hold')));
+        t += n * 160 + 360;
+        break;
+      }
+      case 'pass':
+        at(t, () => domKnockAt(root, e.pid, 0));
+        t += 620;
+        break;
+      case 'auto': {
+        const r = seatRect(e.pid);
+        at(t, () => domPop(root, r, e.why === 'host' ? '⏭️' : '⏱️', 'dom-pop--big', 0));
+        t += 260;
+        break;
+      }
+      case 'out':
+        at(t, () => { domBand(root, '🎉 ' + domT('dom_band_out', { name: domName(state, e.pid) }), 'success', 0); playRoomFx('success'); });
+        t += 900;
+        break;
+      case 'blocked':
+        at(t, () => { domBand(root, '🔒 ' + domT('dom_band_blocked'), 'danger', 0); domSound('domKnock'); });
+        t += 900;
+        break;
+      default:
+        break;
+    }
+  });
+  steps.forEach(([ms, fn]) => domFx.timers.push(setTimeout(() => {
+    try { fn(); } catch (err) { console.warn('domino flight', err); }
+  }, ms)));
+  // Nothing held stays hidden: a flight that never ran still lands its tile.
+  domFx.timers.push(setTimeout(() => {
+    (root || document).querySelectorAll('.dom-hold').forEach(el => el.classList.remove('dom-hold'));
+  }, t + DOM_FLY_MS + 900));
+  domFx.busyUntil = Math.max(domFx.busyUntil, Date.now() + t + 80);
+  return t;
+}
+
+/** A frame waiting for a flight to land draws itself once it has. */
+function domDeferRedraw() {
+  if (domFx.redrawTimer) return;
+  domFx.redrawTimer = setTimeout(() => {
+    domFx.redrawTimer = null;
+    const st = Room.state;
+    if (!st || st.game !== 'domino' || st.phase === 'lobby') return;
+    if (st.youAreScreen ? appState.currentView === 'room-tv' : onRoomView()) routeRoomState(st);
+  }, Math.max(40, domFx.busyUntil - Date.now() + 40));
+}
+
+onRoomClocksReset(() => {
+  domStopClock();
+  domLocal.pick = null;
+  domLocal.seatSwap = null;
+  clearTimeout(domLocal.hostTimer);
+  domFxCancel();
+});
+
+// After the room has drawn this state: a device that wasn't showing the table
+// (another screen, a spectator) counts the events as seen, so coming back
+// replays nothing; and this page has now watched the room.
+Room.onChange((state) => {
+  if (!state) { domFx.watched = ''; domFx.prevPhase = ''; return; }
+  if (state.game === 'domino' && state.phase !== 'lobby') {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : (onRoomView() && state.inGame !== false);
+    if (!showing) domEventsToPlay(state);
+  }
+  domFx.watched = state.code;
+  domFx.prevPhase = state.phase;
+});
+
+// Turning the phone or resizing the window changes the table's box: lay it out again.
+let domResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(domResizeTimer);
+  domResizeTimer = setTimeout(() => {
+    const st = Room.state;
+    if (!st || st.game !== 'domino' || st.phase === 'lobby') return;
+    const root = document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-domino');
+    if (!root || !root.querySelector('[data-dom-table]')) return;
+    domSnapshot(root);
+    domLayoutTable(root, st, null);
+  }, 140);
+});
+
+/* --- the table's sounds: short, quiet, not on the soundboard (FX_LIST doesn't list them) --- */
+if (typeof FX !== 'undefined') {
+  Object.assign(FX, {
+    domClack(at) {
+      // A tile set down on wood: a bright click with a short hollow body.
+      fxNoise('bandpass', 2400, 1.4, [[0, 0], [0.003, 0.16], [0.05, 0.001]], at);
+      fxTone('sine', [[0, 420], [0.06, 260]], [[0, 0], [0.004, 0.14], [0.08, 0.001]], at);
+    },
+    domKnock(at) {
+      // Two knuckles on the table, دق دق.
+      const knock = (t) => {
+        fxTone('sine', [[0, 190], [0.09, 90]], [[0, 0], [0.004, 0.42], [0.11, 0.001]], t);
+        fxNoise('lowpass', 1200, 0.8, [[0, 0], [0.003, 0.18], [0.06, 0.001]], t);
+      };
+      knock(at);
+      knock(at + 0.16);
+    },
+    domScore(at) {
+      // Points: a small bright chime.
+      fxTone('triangle', [[0, 880]], [[0, 0], [0.01, 0.12], [0.22, 0.001]], at);
+      fxTone('triangle', [[0, 1320]], [[0, 0], [0.01, 0.1], [0.3, 0.001]], at + 0.08);
+    }
+  });
+}
+
+/* --- the TV ---------------------------------------------------------------------------------- */
+
+/** Each seat on its side of the table: the first at the bottom, then round to the right. */
+function domTvSeats(state) {
+  const order = domOrder(state);
+  const where = order.length === 2 ? ['bottom', 'top'] : order.length === 3 ? ['bottom', 'right', 'left'] : ['bottom', 'right', 'top', 'left'];
+  return order.map((pid, i) => ({ pid: pid, where: where[i] || 'top' }));
+}
+
+function domTvTable(state, t) {
+  const s = domShared(state);
+  const seats = domTvSeats(state);
+  const seat = (where) => {
+    const x = seats.find(q => q.where === where);
+    return `<div class="dom-tv__seat dom-tv__seat--${where}" dir="${domDir()}">${x ? domSeatHtml(state, x.pid, { max: 10 }) : ''}</div>`;
+  };
+  const turn = s.phase === 'play' && s.turn ? domT('dom_turn_of', { name: domName(state, s.turn) }) : '';
+  // The seats are round a physical table: left is left in every language.
+  return `<div class="dom-tv dom-tv--n${seats.length}" dir="ltr">
+      ${seat('top')}${seat('left')}
+      <div class="dom-tv__mid" dir="${domDir()}">
+        <div class="dom-tv__head">${domHeadHtml(state)}${domScoreStripHtml(state)}</div>
+        ${domFeltHtml(state)}
+        <div class="dom-tv__turn">${escapeHTML(turn)}</div>
+        <div class="tv-actions"><span data-dom-host class="dom-tv__host"></span></div>
+      </div>
+      ${seat('right')}${seat('bottom')}
+    </div>`;
+}
+
 TV_GAMES.domino = {
-  sig: (state) => ['domino', state.shared && state.shared.phase].join('|'),
-  frame: () => ''
+  sig(state) {
+    const cur = domServerSig(state);
+    // A tile is landing: keep this frame until it has.
+    if (domFx.tvSig && cur !== domFx.tvSig && domFx.busyUntil > Date.now()) { domDeferRedraw(); return domFx.tvSig; }
+    return cur;
+  },
+  frame(state, t) {
+    const view = document.getElementById('view-room-tv');
+    domSnapshot(view);
+    domFx.tvSig = domServerSig(state);
+    const s = domShared(state);
+    if (s.phase === 'roundOver' || s.phase === 'gameover') return domResultFrame(state, true);
+    return domTvTable(state, t);
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    domTickClock(domShared(state));
+    domRefreshInPlace(view, state, true);
+    if (domFx.tvSig !== domServerSig(state)) { domDeferRedraw(); return; }
+    if (!rebuilt || !view) return;
+    domAfterDraw(view, state);
+  }
 };
 </script>

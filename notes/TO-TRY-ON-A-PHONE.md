@@ -55,6 +55,23 @@ and nobody is touching the screen; and whether an Arabic table reads a
 left-to-right timeline naturally. The rule (a physical axis stays LTR) is the
 app's own and the numbers agree with it, but only you can say how it feels.
 
+## The four table games of 21 Sep, in your hands
+
+أونو, الدومينو, كونكت ٤ and نقط ومربعات were played to the end in the browser
+by script and by robots (1381 checks), at every screen size. What only fingers
+can answer:
+
+- **كونكت ٤**: dragging along the board to aim and letting go to drop, on an
+  iPhone - and that a vertical swipe still scrolls instead of dropping a disc.
+- **نقط ومربعات on 8x8**: whether the nearest line under a finger is the one
+  you meant, on a 375px phone.
+- **أونو's jump in and امسكه!** are races. Whether one tap is quick enough, and
+  whether a hard computer player catches you too soon or too late (it waits
+  about two seconds).
+- **الدومينو**: a tile that fits one end plays on one tap; one that fits two
+  asks which end. Whether that feels right at a real table, and whether the
+  computer players' pace (about a second a move) is right.
+
 ## Motion, where it actually runs
 
 Everything in the motion batch was verified with `document.hidden` overridden,

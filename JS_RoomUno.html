@@ -571,7 +571,10 @@ function unoRevealHtml(state, tv) {
   const r = s.results;
   if (!r) return '';
   const order = unoOrder(state).filter(pid => r.hands && r.hands[pid]);
-  const rows = [r.winner].concat(order.filter(pid => pid !== r.winner).sort((a, b) => (r.points[a] || 0) - (r.points[b] || 0)))
+  // One round is won, not scored: the hands turn over with no points beside them.
+  const scored = (s.settings || {}).length === 'rounds';
+  const left = (pid) => (scored ? (r.points[pid] || 0) : (r.hands[pid] || []).length);
+  const rows = [r.winner].concat(order.filter(pid => pid !== r.winner).sort((a, b) => left(a) - left(b)))
     .filter(pid => r.hands && r.hands[pid]);
   const animate = motionFirst(['uno-reveal', state.code, s.dealId || '', r.round, tv ? 'tv' : 'phone'].join('|'));
   const size = tv ? 'md' : 'sm';
@@ -589,7 +592,7 @@ function unoRevealHtml(state, tv) {
       : `<span class="uno-rrow__done">${escapeHTML(unoT('uno_no_cards'))}</span>`;
     return `<div class="uno-rrow ${win ? 'is-winner' : ''}">
         <div class="uno-rrow__who"><span class="uno-rrow__name">${win ? '🏆 ' : ''}${escapeHTML(unoName(state, pid))}</span></div>
-        <div class="uno-rrow__pts">${win ? '<span class="uno-rrow__plus">+</span>' : ''}<b class="metric" data-uno-count="${pts}">${animate ? 0 : pts}</b></div>
+        ${scored ? `<div class="uno-rrow__pts">${win ? '<span class="uno-rrow__plus">+</span>' : ''}<b class="metric" data-uno-count="${pts}">${animate ? 0 : pts}</b></div>` : ''}
         <div class="uno-rrow__cards">${cardsHtml}</div>
       </div>`;
   }).join('');
@@ -618,22 +621,12 @@ function unoWinnersLine(state) {
   return ids.map(pid => unoName(state, pid)).join(sep);
 }
 
-/**
- * The podium. Rounds: the totals, as they are. One round: the winner and then
- * the others by what they were left holding - drawn by rank, with each place's
- * own number put back (+ what the winner took, − what the others held).
- */
+/** The podium of a game of rounds: the totals, as they are. One round has none - it is won, not scored. */
 function unoPodiumHtml(state) {
   const s = state.shared || {};
   const board = (s.board || []).slice();
   if (board.length < 2 || typeof renderPodium !== 'function') return '';
-  if ((s.settings || {}).length === 'rounds') return renderPodium(state, board);
-  const ranked = board.map((row, i) => ({ id: row.id, name: row.name, score: board.length - board.findIndex(x => x.score === row.score) }));
-  const html = renderPodium(state, ranked);
-  if (!html) return '';
-  const real = board.slice(0, 3).map(r => (r.score > 0 ? '+' + r.score : r.score < 0 ? '−' + Math.abs(r.score) : '0'));
-  let i = 0;
-  return html.replace(/(<span class="podium__score metric">)(-?\d+)(<\/span>)/g, (m, a, n, b) => a + '<bdi dir="ltr">' + (i < real.length ? real[i++] : n) + '</bdi>' + b);
+  return renderPodium(state, board);
 }
 
 function unoResultFrame(state) {
@@ -642,7 +635,7 @@ function unoResultFrame(state) {
   const over = s.phase === 'gameover';
   const r = s.results;
   const rounds = (s.settings || {}).length === 'rounds';
-  const title = r ? unoT('uno_round_won', { name: unoName(state, r.winner) }) : unoT('uno_forfeit');
+  const title = r ? unoT(rounds ? 'uno_round_won' : 'uno_won_one', { name: unoName(state, r.winner) }) : unoT('uno_forfeit');
   const hostNext = over
     ? `<div class="btn-stack">
          <button type="button" class="btn btn--primary btn--lg" onclick="unoAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
@@ -655,15 +648,16 @@ function unoResultFrame(state) {
       ${unoHeadHtml(state)}
       <div class="card card--accent uno-won">
         <div class="card__title">${escapeHTML(title)}</div>
-        ${r && r.gained ? `<p class="uno-hint">${escapeHTML(unoT('uno_gained', { n: '+' + r.gained }))}</p>` : ''}
+        ${rounds && r && r.gained ? `<p class="uno-hint">${escapeHTML(unoT('uno_gained', { n: '+' + r.gained }))}</p>` : ''}
       </div>
       ${r ? `<p class="uno-sub">${escapeHTML(unoT('uno_reveal_title'))}</p>${unoRevealHtml(state, false)}` : ''}
-      ${r ? `<p class="uno-rule">${escapeHTML(unoT('uno_points_rule'))}</p>` : ''}
-      ${over ? `<div class="card uno-over">
+      ${rounds && r ? `<p class="uno-rule">${escapeHTML(unoT('uno_points_rule'))}</p>` : ''}
+      ${over && rounds ? `<div class="card uno-over">
           <div class="card__title">🏆 ${escapeHTML(unoT('uno_game_won', { name: unoWinnersLine(state) }))}</div>
           ${unoPodiumHtml(state)}
         </div>` : ''}
       ${rounds ? renderScoreboard(s.board || []) : ''}
+      ${!rounds && (s.board || []).some(row => row.score > 0) ? renderScoreboard(s.board || [], unoT('uno_wins_board')) : ''}
       ${over ? roomShareBtnHtml(state, s.board || []) : ''}
       ${state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
       ${renderRoomPlayerStrip(state)}
@@ -1529,15 +1523,17 @@ TV_GAMES.uno = {
       const over = s.phase === 'gameover';
       const r = s.results;
       const rounds = (s.settings || {}).length === 'rounds';
-      const chips = rounds ? `<div class="tv-strip-inline">${(s.board || []).map((row, i) => `<span class="tv-chip ${i === 0 && row.score > 0 ? 'is-done' : ''}">${i === 0 && row.score > 0 ? '👑 ' : ''}${escapeHTML(row.name || '')} <b class="tv-chip__score">${row.score}</b></span>`).join('')}</div>` : '';
+      // One round: the tally of wins across play again, beside "X wins!".
+      const chips = rounds || (s.board || []).some(row => row.score > 0) ? `<div class="tv-strip-inline">${(s.board || []).map((row, i) => `<span class="tv-chip ${i === 0 && row.score > 0 ? 'is-done' : ''}">${i === 0 && row.score > 0 ? '👑 ' : ''}${escapeHTML(row.name || '')} <b class="tv-chip__score">${row.score}</b></span>`).join('')}</div>` : '';
       return `<div class="uno-tvres ${over ? 'is-over' : ''}">
           <div class="uno-tvres__cards">
-            <div class="tv-title tv-center-text">${escapeHTML(r ? unoT('uno_round_won', { name: unoName(state, r.winner) }) : unoT('uno_forfeit'))}</div>
-            ${r && r.gained ? `<div class="tv-note">${escapeHTML(unoT('uno_gained', { n: '+' + r.gained }))}</div>` : ''}
+            <div class="tv-title tv-center-text">${escapeHTML(r ? unoT(rounds ? 'uno_round_won' : 'uno_won_one', { name: unoName(state, r.winner) }) : unoT('uno_forfeit'))}</div>
+            ${rounds && r && r.gained ? `<div class="tv-note">${escapeHTML(unoT('uno_gained', { n: '+' + r.gained }))}</div>` : ''}
             ${unoRevealHtml(state, true)}
           </div>
           <div class="uno-tvres__side">
-            ${over ? `<div class="tv-title tv-center-text">🏆 ${escapeHTML(unoT('uno_game_won', { name: unoWinnersLine(state) }))}</div><div class="tv-scale">${unoPodiumHtml(state)}</div>` : ''}
+            ${over && rounds ? `<div class="tv-title tv-center-text">🏆 ${escapeHTML(unoT('uno_game_won', { name: unoWinnersLine(state) }))}</div><div class="tv-scale">${unoPodiumHtml(state)}</div>` : ''}
+            ${over && !rounds && (s.board || []).some(row => row.score > 0) ? `<div class="tv-eyebrow">${escapeHTML(unoT('uno_wins_board'))}</div>` : ''}
             ${chips}
             ${over ? host(tvBtn(t.play_again || '', "unoAct(this, 'playAgain')") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost'))
               : host(tvBtn(t.next_round || '', `unoAct(this, 'nextRound', { round: ${Number(s.round) || 0} })`))}

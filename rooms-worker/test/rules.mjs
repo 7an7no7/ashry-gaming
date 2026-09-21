@@ -2951,9 +2951,17 @@ Date.now = duelTestClock;
     check(one.shared.phase === 'gameover' && one.shared.winners.join() === OA && one.shared.results.gained === 25 + 55 &&
       one.shared.results.points[OB] === 25 && one.shared.results.hands[OC].join() === 'w,g2,g3',
       'uno: one round: the first out wins, and the hands are shown with their points');
-    check(one.shared.board.map((x) => x.id + ':' + x.score).join() === [OA + ':80', OB + ':-25', OC + ':-55'].join(),
-      "uno: one round: the board has the winner, then the others by what they were left holding");
+    check(one.shared.board[0].id === OA && one.shared.board.map((x) => x.score).join() === '1,0,0' && !one.shared.scores[OA],
+      'uno: one round is won, not scored: the board counts the wins');
     check(bankNightPoints({ night: {} }, one.shared.board), 'uno: and the night table can bank it');
+    applyRoomAction(one, one.hostId, 'playAgain', {});
+    check(one.shared.phase === 'play' && one.shared.wins[OA] === 1 && one.shared.board.find((x) => x.id === OA).score === 1,
+      'uno: play again keeps the tally of wins');
+    const [PA] = one.shared.order;
+    setTable(one, [['r1'], ['bs', 'b5'], ['w', 'g2']], 'r9');
+    u(one, PA, 'play', { card: idOf(one, PA, 'r1') });
+    check(one.shared.wins[PA] === (PA === OA ? 2 : 1) && one.shared.board.reduce((n, x) => n + x.score, 0) === 2,
+      'uno: and the next win is added to it');
     const last2 = unoStart(['a', 'b', 'c']);
     setTable(last2, [['rd'], ['b5'], ['g2']], 'r9', { deck: ['y1', 'y9'] });
     u(last2, seat(last2, 0), 'play', { card: idOf(last2, seat(last2, 0), 'rd') });

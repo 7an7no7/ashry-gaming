@@ -1220,12 +1220,14 @@ async function main() {
     await all(duelBots, (s) => s.shared.phase === 'over' && s.shared.result.reason === 'left' && s.shared.result.winnerId === first.pid &&
                                s.shared.line.indexOf(second.pid) === -1,
               'connect4: a seated player who leaves loses by forfeit');
-    check(H.state.shared.scores[first.pid] === 2 && H.state.shared.streak.n === 2, 'connect4: the forfeit counts, and the streak with it');
-    await L.must('nextRound', { round: H.state.shared.round });
+    // Read from the champion, who stays: the seats are drawn at random, so the one who left may have been the host.
+    check(first.state.shared.scores[first.pid] === 2 && first.state.shared.streak.n === 2, 'connect4: the forfeit counts, and the streak with it');
+    await L.must('nextRound', { round: first.state.shared.round });
     await all(duelBots, (s) => s.shared.phase === 'play' && s.shared.seats[0] === L.pid && s.shared.seats[1] === first.pid,
               'connect4: the one who joined late sits down next, and moves first');
-    await H.must('backToHub');
-    await H.waitFor((s) => s.phase === 'lobby' && (s.night[first.pid] || 0) === 3, 'connect4: the wins go on the night\'s leaderboard');
+    const hostNow = byId(duelBots, first.state.hostId);
+    await hostNow.must('backToHub');
+    await hostNow.waitFor((s) => s.phase === 'lobby' && (s.night[first.pid] || 0) === 3, 'connect4: the wins go on the night\'s leaderboard');
     duelBots.forEach((b) => b.close());
   }
 
@@ -1422,8 +1424,8 @@ async function main() {
       check(r.hands[r.winner].length === 0 && A.state.shared.winners.join() === r.winner, 'uno: the winner has no cards left');
       check(r.gained === others.reduce((sum, id) => sum + UNO.unoHandPoints(r.hands[id]), 0) && others.every((id) => r.points[id] === UNO.unoHandPoints(r.hands[id])),
         'uno: the round is worth the cards left in the other hands');
-      check(A.state.shared.board[0].id === r.winner && A.state.shared.board[0].score === r.gained && A.state.shared.board.slice(1).every((row) => row.score === -r.points[row.id]),
-        'uno: the board: the winner, then the others by what they held');
+      check(A.state.shared.board[0].id === r.winner && A.state.shared.board[0].score === 1 && A.state.shared.board.slice(1).every((row) => row.score === 0),
+        'uno: one round is won, not scored: the board counts the win');
       check(drewAndPlayed || drewAndPassed, 'uno: a turn drew a card, and played it or passed');
     }
 

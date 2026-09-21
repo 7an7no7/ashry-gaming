@@ -107,14 +107,15 @@ function renderVoteResults(state, opts) {
     </div>`;
 }
 
-function renderScoreboard(board) {
+/** `title` names a board that isn't points (أونو's wins); otherwise it is "the standings". */
+function renderScoreboard(board, title) {
   if (!board || !board.length) return '';
   const t = TRANSLATIONS[appState.lang];
   // data-pid and data-score let animateScoreboards (JS_Motion.html) count up and slide.
   return `
     <div class="section scoreboard">
       <div class="section__head">
-        <h2 class="section__title">${t.scoreboard || 'الترتيب'}</h2>
+        <h2 class="section__title">${title ? escapeHTML(title) : (t.scoreboard || 'الترتيب')}</h2>
         <span class="section__rule"></span>
       </div>
       ${board.map((p, i) => `

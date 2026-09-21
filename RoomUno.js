@@ -129,6 +129,9 @@ const unoNewGame = (room, playerId, action, p) => {
     order: order,
     roster: order.slice(),
     scores: {},
+    // One round is won, not scored (the owner: "first out wins, no points"): the
+    // wins are counted across play again, and they are the board.
+    wins: action === 'playAgain' && prev.wins ? prev.wins : {},
     winners: null,
     // Carried over a play again, so a tap or an animation from the last game is never taken for this one.
     turnSeq: (prev.turnSeq || 0) + 1,
@@ -588,6 +591,10 @@ const unoEndRound = (room, winner) => {
   s.unoCatch = null;
   s.results = { round: s.round, winner: winner, hands: hands, points: points, gained: gained };
   unoEvent(room, 'win', { pid: winner, gained: gained });
+  if (s.settings.length !== 'rounds') {
+    s.wins = s.wins || {};
+    s.wins[winner] = (s.wins[winner] || 0) + 1;
+  }
   if (s.settings.length === 'rounds') {
     // The round's winner scores the cards left in everyone else's hand.
     s.scores[winner] = (s.scores[winner] || 0) + gained;
@@ -621,9 +628,8 @@ const unoGameOver = (room) => {
 };
 
 /**
- * Best first. Rounds: the running totals. One round: the winner with the
- * points in everyone else's hand, then the others by what they were left
- * holding, fewest first, as minus - so the night's table ranks them too.
+ * Best first. Rounds: the running totals. One round: the games won, counted
+ * across play again - one round is won, not scored.
  */
 const unoBoard = (room) => {
   const s = room.shared;
@@ -632,10 +638,8 @@ const unoBoard = (room) => {
   if (s.settings && s.settings.length === 'rounds') {
     return ids.map(id => ({ id: id, name: name(id), score: s.scores[id] || 0 })).sort((a, b) => b.score - a.score);
   }
-  const r = s.results;
-  if (!r) return [];
-  return ids.map(id => ({ id: id, name: name(id), score: id === r.winner ? r.gained : -((r.points || {})[id] || 0) }))
-    .sort((a, b) => b.score - a.score);
+  const wins = s.wins || {};
+  return ids.map(id => ({ id: id, name: name(id), score: wins[id] || 0 })).sort((a, b) => b.score - a.score);
 };
 
 /* --- what the table sees -------------------------------------------------------------- */

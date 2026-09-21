@@ -323,7 +323,10 @@ work changed. Add to it when a decision is made or a batch ships.
   - **Game length**: **one round, first out wins** (the default) or **3 / 5 / 7
     rounds with points** (the winner scores the cards left in the other hands:
     face value, Skip/Reverse/+2 20, wilds 50; most points wins). "First to 500"
-    was put to the owner and rejected.
+    was put to the owner and rejected. **One round has no points at all**
+    (the owner's "No points", checked 21 Sep 2026 when the first build showed
+    "+135"): the result says who won, the hands turn over for the table to see,
+    and the board is the wins, counted across play again.
   - **A turn clock** (off, 30 or 60 seconds): when it runs out the phone plays
     for the player - takes a waiting draw, or draws one and passes - and the
     host has a skip for a phone that went quiet.
@@ -543,9 +546,10 @@ the word search), `countUp` for streaks and scores.
   up holds a card they drew (it stays in their hand) and on a +2 still waiting
   (the same +2 raises it, and it waits on the player after the jumper), never
   with a wild and never before the first colour; nothing left to draw passes
-  the turn; one round's board is the winner with the points in the other hands
-  and everyone else at minus what they held, so the night's table ranks them
-  all; a game left with one player ends, that player winning a one-round game.
+  the turn; a one-round game's board is the wins of the evening at this game
+  (`shared.wins`, kept by play again, started over by a game from the hub), so
+  the night's table ranks whoever won most; a game left with one player ends,
+  that player winning a one-round game (not counted as a win).
   On the phone a card is played with one tap (سكرو picks, then confirms): Uno
   is quick and a jump in is a race, and a card that can't go is shaken and
   refused on the phone without a round trip.
@@ -1751,9 +1755,10 @@ the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
   id of the top card it aimed at: a late tap is dropped. The host's
   `skipTurn` and the clock (`unoDeadline` / `unoTimeout`) do the same thing:
   take a waiting draw, keep a drawn card, or draw one and pass.
-- **The end.** `unoEndRound` scores the other hands (`unoHandPoints`); rounds
+- **The end.** `unoEndRound` counts the other hands (`unoHandPoints`); rounds
   mode banks it (`roundOver`, the host's `nextRound`, the first seat moving on
-  one each round), one round goes straight to `gameover`. A player who leaves
+  one each round), one round adds a win to `shared.wins` and goes straight to
+  `gameover` - the points are still in `results` but no screen shows them. A player who leaves
   (`unoPlayerLeft`) puts their cards under the deck and passes their turn; fewer
   than two ends the game.
 - **Computer players** (`ROOM_BOT_GAMES.uno`): `pending` puts a hard bot's

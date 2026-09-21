@@ -1688,12 +1688,16 @@ async function main() {
     // Wait for the person's turn, then let the clock run out on it.
     await H.waitFor((s) => s.shared.phase !== 'play' || s.shared.turn.pid === H.pid, 'uno bots: the bots play until it is the person\'s turn', 20000);
     if (H.state.shared.phase === 'play') {
-      const had = H.state.you.hand.length;
+      // A turn with nothing that fits is drawn for them at once (forced moves), so
+      // the clock may fire on a later turn: what it did is read from the events.
       const seqWas = H.state.shared.turnSeq;
-      const pending = H.state.shared.pending ? H.state.shared.pending.n : 0;
       await H.waitFor((s) => s.shared.turnSeq !== seqWas && s.shared.events.some((e) => e.type === 'auto' && e.pid === H.pid && e.why === 'clock'),
-        'uno: time up: the server plays for the quiet player', 40000);
-      check(H.state.you.hand.length === had + (pending || 1) || H.state.shared.phase !== 'play', 'uno: a draw for them (or the draw that waited), and the turn passes');
+        'uno: time up: the server plays for the quiet player', 70000);
+      const evs = H.state.shared.events || [];
+      const at = evs.findIndex((e) => e.type === 'auto' && e.pid === H.pid && e.why === 'clock');
+      const did = at === -1 ? null : evs.slice(at + 1).find((e) => e.pid === H.pid && e.type !== 'color');
+      check(H.state.shared.phase !== 'play' || (did && ((did.type === 'draw' && did.n === 1) || did.type === 'take' || did.type === 'keep')),
+        'uno: a draw for them (or the draw that waited, or the drawn card kept), and the turn passes');
     }
     // Now the person plays on, quickly; the bots keep moving by themselves.
     const t0uno = Date.now();

@@ -353,7 +353,10 @@ work changed. Add to it when a decision is made or a batch ships.
   - **The double-six set, 7 each.** With 2 or 3 the rest are left to draw
     from: whoever can't play **draws until they can, and plays**, or passes
     once nothing is left; with 4 there is no drawing, and whoever can't play
-    **knocks (دق)** and passes.
+    **passes**. The button says **باص / Pass** (the owner, 21 Sep 2026: it
+    said دق / Knock, the table word, and "Pass" says what it does); the seat
+    still gets the 👊 and the two knocks of a hand on the table. In the code
+    the move is still `pass` and the table's memory of it `knocked`.
   - **Who starts**: round 1, whoever holds the double six plays it; nobody
     holds it (2-3 players), the highest double in anyone's hand; no double at
     all, the heaviest tile. **Later rounds: the winner of the last round
@@ -416,7 +419,7 @@ work changed. Add to it when a decision is made or a batch ships.
     players - the rest can be a screen or wait); **the host's "skip" plays
     for the player** the way the clock would, rather than passing a turn they
     might have played; and the draw button **draws until a tile fits in one
-    tap** (the table sees how many were drawn), with the knock a tap of its own.
+    tap** (the table sees how many were drawn), with باص a tap of its own.
 
 ### Ideas not built yet (researched 16 Sep 2026)
 
@@ -1935,7 +1938,7 @@ opposite (seats 1 & 3 against 2 & 4, `shared.teams`, keys `A` and `B`).
   tiles into your hand; a play flies the tile from your hand (or face down
   from the player's seat, turning face up on the way) to its place, turning
   a quarter when it lies down, with a band for the opening double six;
-  drawn tiles fly from the pile; a knock jolts the seat with 👊 دق and the
+  drawn tiles fly from the pile; a pass jolts the seat with 👊 باص and the
   knock sound; a scored move floats its +points up from the tile and pulses
   the ends' sum; the spinner rings as it becomes one and keeps an outline;
   going out and قفلة put a band across the table. A round's end shows the

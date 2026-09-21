@@ -22,6 +22,10 @@ const SKREW = new Function(readFileSync(new URL('../../SkrewCards.js', import.me
 // أونو's cards, for the robots to know what fits. They only learn a card the way a phone does: their own hand, or the pile.
 const UNO = new Function(readFileSync(new URL('../../UnoCards.js', import.meta.url), 'utf8') +
   '\nreturn { unoCanPlay, unoSameCard, unoIsWild, unoValueOf, unoColorOf, unoHandPoints, unoDrawOf };')();
+// The domino tiles, read by the robots to find a tile that fits and to check a
+// round's score from the hands it shows at the end - never another hand before that.
+const DOMINO = new Function(readFileSync(new URL('../../DominoTiles.js', import.meta.url), 'utf8') +
+  '\nreturn { dominoParse, dominoFits, dominoEnds, dominoCanPlay, dominoHandPips };')();
 
 const ARGS = process.argv.slice(2);
 const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
@@ -1702,6 +1706,280 @@ async function main() {
     }
     check(H.state.shared.phase === 'gameover' && !!H.state.shared.results, 'uno bots: a game with computer players finishes on the server\'s clock');
     check(H.state.shared.events.some((e) => e.type === 'play' && e.pid !== H.pid), 'uno bots: the computer players played cards');
+    H.close();
+  }
+
+  /* --- الدومينو ------------------------------------------------------------------- */
+  console.log('• domino (2, 3 and 4 players, teams, both modes, drawing and knocking, a blocked table, the helpers, computer players, the clock, leaving)');
+  {
+    const until = async (fn, ms = 4000) => {
+      for (const end = Date.now() + ms; Date.now() < end;) {
+        try { if (fn()) return true; } catch (e) {}
+        await sleep(25);
+      }
+      return false;
+    };
+    const dS = (b) => b.state.shared || {};
+    const dHand = (b) => ((b.state.you || {}).hand || []);
+    const onTable = (s) => (s.table.line || []).concat(s.table.up || [], s.table.down || []).map((x) => x.t);
+    const tilesOnTable = (s) => onTable(s).length;
+    // What a player's phone would send: the first tile that fits, else draw, else knock.
+    const firstFit = (b) => {
+      const s = dS(b);
+      for (const t of dHand(b)) {
+        const f = DOMINO.dominoFits(s.table, t);
+        if (f.length) return { action: 'play', payload: { tile: t, end: f[0], seq: s.turnSeq } };
+      }
+      return { action: s.drawing && s.bone > 0 ? 'draw' : 'pass', payload: { seq: s.turnSeq } };
+    };
+    // A player who closes numbers: the tile whose open number is already most on the table. It blocks tables.
+    const closer = (b) => {
+      const s = dS(b);
+      const down = onTable(s);
+      const count = (v) => down.filter((t) => DOMINO.dominoParse(t).indexOf(v) !== -1).length;
+      let best = null;
+      dHand(b).forEach((t) => DOMINO.dominoFits(s.table, t).forEach((end) => {
+        const p = DOMINO.dominoParse(t);
+        const e = DOMINO.dominoEnds(s.table).find((q) => q.end === end);
+        const open = e ? (p[0] === e.value ? p[1] : p[0]) : p[1];
+        const v = count(open) * 2 + (p[0] === p[1] ? 1 : 0);
+        if (!best || v > best.v) best = { v: v, tile: t, end: end };
+      }));
+      return best ? { action: 'play', payload: { tile: best.tile, end: best.end, seq: s.turnSeq } } : firstFit(b);
+    };
+    // Every phone caught up with the same turn.
+    const settled = (players) => until(() => players.every((b) => dS(b).turnSeq === dS(players[0]).turnSeq && dS(b).phase === dS(players[0]).phase));
+    // No tile in anyone's hand is in what another phone was sent.
+    const leaks = (players) => players.some((b) => {
+      const text = JSON.stringify(b.state);
+      return players.some((o) => o !== b && dHand(o).some((t) => text.indexOf('"' + t + '"') !== -1));
+    });
+    const events = new Map();
+    const note = (b) => (dS(b).events || []).forEach((e) => events.set(e.seq + '|' + b.code, e));
+    let refused = 0;
+    // One round played to its end by the phones whose turn it is (a computer player's turn is the server's).
+    const playRound = async (players, pick, ms = 90000) => {
+      const host = players[0];
+      for (const end = Date.now() + ms; Date.now() < end;) {
+        const s = dS(host);
+        note(host);
+        if (s.phase !== 'play') return true;
+        const up = players.find((b) => b.pid === s.turn);
+        if (!up) { await sleep(60); continue; }
+        await until(() => dS(up).turnSeq === s.turnSeq, 3000);
+        const move = pick(up);
+        const res = await up.act(move.action, move.payload);
+        if (!res.ok) { refused++; console.log('  ! refused', move.action, JSON.stringify(move.payload), res.error); }
+        await until(() => dS(host).turnSeq !== s.turnSeq || dS(host).phase !== 'play', 3000);
+      }
+      return false;
+    };
+    const unitPips = (r, ids) => ids.reduce((sum, id) => sum + DOMINO.dominoHandPips(r.hands[id]), 0);
+    // The end of a round, checked against the rules from the hands it shows.
+    const roundRight = (s, label) => {
+      const r = s.result;
+      if (!r) return false;
+      const units = Array.isArray(s.teams) ? s.teams.map((t, i) => ({ key: 'AB'[i], ids: t })) : s.order.map((id) => ({ key: id, ids: [id] }));
+      const pips = units.map((u) => unitPips(r, u.ids));
+      let winner = null;
+      let raw = 0;
+      if (r.how === 'out') {
+        if (DOMINO.dominoHandPips(r.hands[r.by]) !== 0 || (r.hands[r.by] || []).length) return false;
+        winner = units.find((u) => u.ids.indexOf(r.by) !== -1).key;
+      } else {
+        const low = Math.min(...pips);
+        if (pips.filter((p) => p === low).length === 1) winner = units[pips.indexOf(low)].key;
+        // A blocked table really is: nothing anyone holds goes anywhere.
+        if (s.order.some((id) => DOMINO.dominoCanPlay(s.table, r.hands[id]))) return false;
+      }
+      if (winner) raw = units.reduce((sum, u, i) => (u.key === winner ? sum : sum + pips[i]), 0);
+      const points = s.settings.mode === 'american' ? Math.floor((raw + 2) / 5) : raw;
+      const ok = r.winner === winner && r.raw === raw && r.points === points && (!!r.tie === (!winner && r.how === 'blocked'));
+      if (!ok) console.log('  ! ' + label, JSON.stringify({ r, expect: { winner, raw, points } }));
+      return ok;
+    };
+
+    // Two players: seven each and fourteen to draw from.
+    const P1 = await Bot.host('بسمة', null);
+    const P2 = await Bot.join(P1.code, 'Karim');
+    const two = [P1, P2];
+    await P1.must('chooseGame', { game: 'domino' });
+    check((await P2.act('start', {})).ok === false, 'domino: only the host deals');
+    await P1.must('start', { mode: 'normal', target: 51 });
+    await all(two, (s) => s.shared.phase === 'play' && s.shared.round === 1 && s.you && Array.isArray(s.you.hand), 'domino: two players are dealt');
+    await settled(two);
+    let s2 = dS(P1);
+    check(s2.drawing && tilesOnTable(s2) === 1 && dHand(P1).length + dHand(P2).length + s2.bone + 1 === 28 && s2.counts[P1.pid] === dHand(P1).length,
+      'domino: seven each, fourteen to draw from, and the first tile opens by itself');
+    check(s2.settings.helpFit === false && s2.settings.helpPoints === false && s2.settings.turnClock === 0 && s2.settings.target === 51,
+      'domino: the helpers and the clock are off unless the host turns them on');
+    check(!leaks(two), "domino: no phone is sent another's tiles, or the ones left to draw");
+    const upB = two.find((b) => b.pid === s2.turn);
+    const offB = two.find((b) => b.pid !== s2.turn);
+    check((await offB.act('play', { tile: dHand(offB)[0], seq: s2.turnSeq })).ok === false, 'domino: out of turn is refused');
+    const noFit = dHand(upB).find((t) => !DOMINO.dominoFits(s2.table, t).length);
+    if (noFit) check((await upB.act('play', { tile: noFit, seq: s2.turnSeq })).ok === false, "domino: a tile that doesn't fit is refused, helpers or not");
+    check((await upB.act('play', { tile: dHand(offB)[0], seq: s2.turnSeq })).ok === false, "domino: a tile that isn't yours is refused");
+    if (DOMINO.dominoCanPlay(s2.table, dHand(upB))) check((await upB.act('draw', { seq: s2.turnSeq })).ok === false, 'domino: no drawing while a tile fits');
+    const staleRes = await upB.act('play', { tile: dHand(upB)[0], end: 'R', seq: s2.turnSeq - 1 });
+    await sleep(150);
+    check(staleRes.ok && dS(P1).turnSeq === s2.turnSeq && tilesOnTable(dS(P1)) === 1, 'domino: a tap from a turn that has moved on is dropped');
+    // Play the game out.
+    let rounds = 0;
+    let roundsRight = true;
+    while (dS(P1).phase !== 'gameover' && rounds < 25) {
+      const done = await playRound(two, firstFit);
+      if (!done) break;
+      await settled(two);
+      rounds++;
+      roundsRight = roundsRight && roundRight(dS(P1), '2p round');
+      if (dS(P1).phase === 'roundOver') {
+        const lead = dS(P1).lead;
+        if (rounds === 1) check((await P2.act('nextRound', { round: dS(P1).round })).ok === false, 'domino: only the host deals the next round');
+        await P1.must('nextRound', { round: dS(P1).round });
+        await settled(two);
+        if (rounds === 1 && lead) check(dS(P1).turn === lead && tilesOnTable(dS(P1)) === 0, 'domino: the winner of the last round leads the next with any tile');
+      }
+    }
+    check(refused === 0, 'domino: every move a phone made by the rules was taken');
+    check(roundsRight, 'domino: every round scored by the rules (going out, قفلة, a tie)');
+    const over2 = dS(P1);
+    check(over2.phase === 'gameover' && over2.winners.length === 1 && over2.scores[over2.winner] >= 51 && over2.board[0].id === over2.winner,
+      'domino: the game ends past the target, the board best first');
+    check([...events.values()].some((e) => e.type === 'draw' && e.n >= 1), 'domino: with two, a player who can\'t play draws');
+    await P1.must('playAgain', {});
+    await all(two, (s) => s.shared.phase === 'play' && s.shared.round === 1 && s.shared.settings.target === 51, 'domino: play again keeps the options');
+    await P1.must('backToHub');
+    two.forEach((b) => b.close());
+
+    // Three players, أمريكاني, the helpers on.
+    const Q1 = await Bot.host('نادية', null);
+    const Q2 = await Bot.join(Q1.code, 'Sam');
+    const Q3 = await Bot.join(Q1.code, 'حسن');
+    const three = [Q1, Q2, Q3];
+    await Q1.must('chooseGame', { game: 'domino' });
+    await Q1.must('start', { mode: 'american', target: 30, helpFit: true, helpPoints: true });
+    await all(three, (s) => s.shared.phase === 'play' && s.shared.settings.mode === 'american', 'domino: three players in أمريكاني');
+    await settled(three);
+    check(dS(Q1).bone === 7 && dS(Q1).settings.helpFit && dS(Q1).settings.helpPoints, 'domino: seven left to draw with three, and the helpers the host chose');
+    check(!leaks(three), 'domino: three phones, no tile of another hand in any');
+    events.clear();
+    let rounds3 = 0;
+    let right3 = true;
+    while (dS(Q1).phase !== 'gameover' && rounds3 < 30) {
+      if (!(await playRound(three, firstFit))) break;
+      await settled(three);
+      rounds3++;
+      right3 = right3 && roundRight(dS(Q1), '3p american round');
+      if (dS(Q1).phase === 'roundOver') { await Q1.must('nextRound', { round: dS(Q1).round }); await settled(three); }
+    }
+    const plays = [...events.values()].filter((e) => e.type === 'play' && typeof e.sum === 'number');
+    check(plays.length > 0 && plays.every((e) => (e.sum % 5 === 0 && e.sum > 0 ? e.pts === e.sum / 5 : !e.pts)), 'domino: in أمريكاني every move scores its ends when they add up to a multiple of 5');
+    check(plays.some((e) => e.pts > 0), 'domino: …and some did');
+    check(right3 && dS(Q1).phase === 'gameover', 'domino: أمريكاني rounds rounded to the nearest 5, to the end of the game');
+    await Q1.must('backToHub');
+
+    // Leaving mid-round, on your own: their tiles go, the turn moves on.
+    await Q1.must('chooseGame', { game: 'domino' });
+    await Q1.must('start', { mode: 'normal' });
+    await settled(three);
+    const leaverQ = three.find((b) => b.pid === dS(Q1).turn && b !== Q1) || Q2;
+    await api('/leave', { code: Q1.code, pid: leaverQ.pid, key: leaverQ.key });
+    leaverQ.close();
+    const stayQ = three.filter((b) => b !== leaverQ);
+    await all(stayQ, (s) => s.shared.phase === 'play' && s.shared.order.length === 2 && s.shared.order.indexOf(leaverQ.pid) === -1 && !(leaverQ.pid in s.shared.counts)
+      && s.shared.order.indexOf(s.shared.turn) !== -1, 'domino: whoever leaves on their own, their tiles are set aside and the turn moves on');
+    const last = stayQ.find((b) => b !== Q1);
+    await api('/leave', { code: Q1.code, pid: last.pid, key: last.key });
+    last.close();
+    await Q1.waitFor((s) => s.shared.phase === 'gameover', 'domino: one player left ends the game');
+    Q1.close();
+
+    // Four players in teams: the host seats them, partners opposite, and a blocked table.
+    const T1 = await Bot.host('طارق', null);
+    const T2 = await Bot.join(T1.code, 'Lina');
+    const T3 = await Bot.join(T1.code, 'مها');
+    const T4 = await Bot.join(T1.code, 'Yusuf');
+    const TV = await Bot.join(T1.code, '', true);
+    const four = [T1, T2, T3, T4];
+    await T1.must('chooseGame', { game: 'domino' });
+    check((await T2.act('seats', { teams: true })).ok === false, 'domino: only the host seats the partners');
+    await T1.must('seats', { teams: true });
+    await all(four, (s) => s.shared.lobby && s.shared.lobby.teams && s.shared.lobby.order.length === 4, 'domino: teams on, everyone sees the seats drawn at random');
+    const seats = [T4.pid, T3.pid, T2.pid, T1.pid];
+    await T1.must('seats', { teams: true, order: seats });
+    await all(four, (s) => s.shared.lobby.order.join() === seats.join(), 'domino: the host swaps the seats');
+    await T1.must('start', { mode: 'normal', teams: true, target: 201 });
+    await all(four, (s) => s.shared.phase === 'play' && s.shared.order.join() === seats.join() && s.shared.teams[0].join() === [T4.pid, T2.pid].join()
+      && s.shared.teams[1].join() === [T3.pid, T1.pid].join(), 'domino: seats 1 & 3 against 2 & 4, as the host sat them');
+    await settled(four);
+    check(!dS(T1).drawing && dS(T1).bone === 0 && dS(T1).table.root === '6-6' && four.every((b) => b.state.you.hand.length + (b.pid === dS(T1).events[1].pid ? 1 : 0) === 7),
+      'domino: four players hold all 28 and the double six opens');
+    check('A' in dS(T1).scores && !(T1.pid in dS(T1).scores), 'domino: two sides keep one score each');
+    await until(() => TV.state && TV.state.shared && TV.state.shared.phase === 'play');
+    check(TV.state.youAreScreen && TV.state.you === null && !four.some((b) => dHand(b).some((t) => JSON.stringify(TV.state).indexOf('"' + t + '"') !== -1)),
+      'domino: the big screen sees the table and no hand');
+    check(!leaks(four), 'domino: four phones, no tile of another hand in any');
+    events.clear();
+    let roundsT = 0;
+    let rightT = true;
+    let blockedSeen = false;
+    // The closer plays for a blocked table; rounds go on until one blocks.
+    while (roundsT < 14 && !blockedSeen) {
+      if (!(await playRound(four, closer))) break;
+      await settled(four);
+      roundsT++;
+      const st = dS(T1);
+      rightT = rightT && roundRight(st, 'teams round');
+      if (st.result && st.result.how === 'blocked') blockedSeen = true;
+      if (st.phase === 'roundOver') { await T1.must('nextRound', { round: st.round }); await settled(four); }
+      else if (st.phase === 'gameover') { await T1.must('playAgain', {}); await settled(four); }
+    }
+    check(rightT, "domino: in teams going out takes the two opponents' pips, the partner's counting for nobody; blocked, the lower side takes the other's");
+    check(blockedSeen, 'domino: a blocked table (قفلة) ends the round, and the lower side takes the rest');
+    check([...events.values()].some((e) => e.type === 'pass'), 'domino: with four, a player who can\'t play knocks (دق)');
+    const knockedOk = [...events.values()].filter((e) => e.type === 'pass').length > 0;
+    check(knockedOk && Object.keys(dS(T1).knocked || {}).every((pid) => four.some((b) => b.pid === pid)), 'domino: the table remembers who knocked on which numbers');
+    // Someone leaves a game of teams: a side one short can't play on.
+    await api('/leave', { code: T1.code, pid: T4.pid, key: T4.key });
+    T4.close();
+    await all([T1, T2, T3], (s) => s.shared.phase === 'gameover' && s.shared.ended === 'left', 'domino: in teams, a side one short ends the game');
+    [T1, T2, T3, TV].forEach((b) => b.close());
+
+    // One person and three computer players: the table plays itself on the server's clock, and the turn clock plays for a quiet phone.
+    const H = await Bot.host('هالة', null);
+    await H.must('chooseGame', { game: 'domino' });
+    check((await H.act('start', {})).ok === false, 'domino: one person alone is refused');
+    await H.must('addBot', { level: 'easy', name: 'زيزو' });
+    await H.must('addBot', { level: 'hard', name: 'بندق' });
+    await H.must('addBot', { level: 'hard', name: 'سمسم' });
+    check((await H.act('addBot', { level: 'easy', name: 'Robo' })).ok === false, 'domino: four seats, no fifth');
+    await H.must('start', { mode: 'american', turnClock: 30 });
+    await H.waitFor((s) => s.shared.phase === 'play' && s.shared.order.length === 4 && typeof s.shared.endsAt === 'number', 'domino: a table of one person and three computer players, with a turn clock');
+    const seenHuman = [];
+    // Wait for the person's turn while the computer players play theirs, then let the clock play for them.
+    await until(() => dS(H).phase !== 'play' || dS(H).turn === H.pid, 20000);
+    if (dS(H).phase === 'play' && dS(H).turn === H.pid) {
+      seenHuman.push(JSON.stringify(H.state));
+      const clockAt = dS(H).endsAt;
+      const played = await until(() => (dS(H).events || []).some((e) => e.type === 'auto' && e.why === 'clock' && e.pid === H.pid), clockAt - Date.now() + 9000);
+      check(played, 'domino: when the clock runs out the phone plays for the player (first tile that fits, else draw or knock)');
+    } else check(false, "domino: the person's turn came round");
+    // Then the person plays their own turns until the round is over; the computer players the rest.
+    for (const end = Date.now() + 120000; Date.now() < end && dS(H).phase === 'play';) {
+      if (dS(H).turn === H.pid) {
+        seenHuman.push(JSON.stringify(H.state));
+        const move = firstFit(H);
+        await H.act(move.action, move.payload);
+        await until(() => dS(H).turn !== H.pid || dS(H).phase !== 'play', 3000);
+      } else await sleep(100);
+    }
+    const hr = dS(H);
+    check(hr.phase === 'roundOver' || hr.phase === 'gameover', 'domino: …and the round is played to its end');
+    check((hr.events || []).some((e) => e.type === 'play' && e.pid !== H.pid && !e.forced), 'domino: the computer players moved on the server clock, with no phone to tap');
+    const botTiles = hr.order.filter((id) => id !== H.pid).reduce((acc, id) => acc.concat((hr.result && hr.result.hands[id]) || []), []);
+    check(!!hr.result && !seenHuman.some((text) => botTiles.some((t) => text.indexOf('"' + t + '"') !== -1)), "domino: the person's phone was never sent a computer player's tiles");
+    check(hr.board.length === 4 && hr.board[0].score >= hr.board[3].score, 'domino: the board carries all four, best first');
     H.close();
   }
 

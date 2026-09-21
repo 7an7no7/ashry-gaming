@@ -37,6 +37,10 @@
     alone, singles or two teams, every hand face down on every phone with every
     move shown), and a calculator for a game with real cards; and score keepers for 🎯 إستميشن,
     ♠️ طرنيب, ♥️ تريكس, ♦️ كونكان and 🎣 باصرة (*Card game score keepers*).
+  - 🀄 **Domino (الدومينو):** the whole game in a room, 2-4 players or
+    computer players, solo or two against two, عادي (Egyptian) or أمريكاني
+    (All Fives, with the spinner), on ivory tiles with every move animated;
+    and the score keeper for a game with real tiles (*الدومينو in rooms*).
   - 🎭 **Charades (بدون كلام), 🗣️ Describe It (أوصف لي), ❓ Who Am I? (من أنا؟)**
   - 🧠 **Trivia (تحدي المعلومات):** two ways to play. *دوري المعرفة* is a board for
     two teams on one screen (five categories × 100–500 points, a host reads and
@@ -84,7 +88,8 @@
   - 👆 Who starts? (مين يبدأ؟), the finger chooser: one starts, two teams, or an order.
   - 🏆 Tournament Organizer, 👥 Team Generator, 🎡 Random Picker.
   - ♟️ Chess Clock, ⏱️ General Timers, 🎲 Dice & Coin.
-  - 🀄 Domino Scorer, 🔢 Universal Counter, 🔊 the soundboard.
+  - 🀄 Domino Scorer (a shortcut to the domino setup's "على الطاولة" side),
+    🔢 Universal Counter, 🔊 the soundboard.
 
 ## Where the app is going: ideas, decisions and the log
 
@@ -335,6 +340,80 @@ work changed. Add to it when a decision is made or a batch ships.
     played the pile and your hand get most of the screen, the seats, names and
     counts are a compact strip (a ring on the TV); the results may take over
     once the round is done.
+- **الدومينو (Domino)** - the owner's spec of 21 Sep 2026, asked one rule at
+  a time, built the same day (*الدومينو in rooms*, *الدومينو on the phones and
+  the TV*); the score keeper for real tiles is the setup screen's other side
+  ("على الطاولة", `JS_Domino.html`, untouched).
+  - **2 to 4 players**, people and/or computer players. **Solo or teams**;
+    teams with four only, **partners opposite** (seats 1 & 3 against 2 & 4),
+    **seated by the host in the lobby: at random, with swaps**.
+  - **The double-six set, 7 each.** With 2 or 3 the rest are left to draw
+    from: whoever can't play **draws until they can, and plays**, or passes
+    once nothing is left; with 4 there is no drawing, and whoever can't play
+    **knocks (دق)** and passes.
+  - **Who starts**: round 1, whoever holds the double six plays it; nobody
+    holds it (2-3 players), the highest double in anyone's hand; no double at
+    all, the heaviest tile. **Later rounds: the winner of the last round
+    leads with any tile.**
+  - **عادي (Egyptian)**: a line with two ends; the round ends when someone
+    plays their last tile or the table is blocked (قفلة). **Going out takes
+    the pips left in the opponents' hands - in teams the two opponents only,
+    the partner's leftovers counting for nobody. Blocked: the lowest hand
+    takes the total of all the other hands; in teams the side with the lower
+    total takes the other side's; a tie for the lowest scores nobody.**
+    Target 101 by default (51 / 101 / 151 / 201).
+  - **أمريكاني (All Fives)**: the first double played is the spinner, open on
+    four sides (up and down once both of its sides have a tile). After every
+    tile the open ends are added up (a double at an end both halves, the
+    spinner alone both halves); **a multiple of 5 scores, 5 = 1 point**. The
+    round's winner takes the others' pips (the same who-counts rules)
+    **rounded to the nearest 5 and divided by 5**. Target 50 by default (30 /
+    50 / 100).
+  - **First to the target wins** (in teams the side's total); two past it in
+    the same round, the higher total wins.
+  - **The helpers are the host's, for the whole table, off by default and
+    remembered**: light up the tiles that fit, and show a move's points
+    (أمريكاني: the +2 each end would score). Off, nothing is lit - people use
+    their heads - and a tile that doesn't fit is still refused.
+  - **A turn clock**, off by default, 30 or 60 seconds: when it runs out the
+    phone plays for the player (the first tile that fits, else draw, else
+    knock). The host also gets a small button to play for a phone that went
+    quiet, on the phone and the TV.
+  - **Every lobby setting is remembered on the host's phone.**
+  - **Computer players**: easy plays the first tile that fits; hard plays to
+    win (heavy tiles out, a spread of numbers kept, the knocked numbers
+    remembered and closed on whoever knocked, the partner helped; in
+    أمريكاني the most points now, and no easy multiple of 5 left for the next
+    player), from its own tiles and what the table can see only.
+  - **A tile that fits more than one end**: tap it, the ends glow, tap one;
+    one end, it goes straight there.
+  - **The look**: option أ "عاجي" from the owner's design sheet (ivory, black
+    pips, a brass pin); a snake that turns corners on a phone, a cross round
+    the spinner in أمريكاني; an animation on every move that can have one.
+  - **While a round is played the table gets most of the screen, at every
+    size** (the owner, later the same day): on a laptop and the TV the line
+    of tiles is big and uses the space, never small beside a wide panel of
+    names and scores; seats, tile counts and scores are a compact strip -
+    readable from the sofa on a TV, but not taking the room; on a phone held
+    upright the line and your hand come first; the results can take over
+    once the round or the game is over.
+  - Decided for the owner, and open to change: **the game is decided at the
+    end of a round**, so points scored mid-round in أمريكاني count toward it
+    but the round is played out (the owner's "two past it in the same round"
+    only happens that way); **two level on top play one more round**; **after
+    a tied round nobody won, so the next round opens by the first round's
+    rule**; **the opening tile of that rule is played by the server** (it is
+    no choice); **a blocked table is declared the moment nothing can go**,
+    rather than after everyone has knocked; **with a tile that goes on two
+    ends that come to the same thing** (the same ends left, the same points)
+    it goes straight on, with no question; **a player who leaves on their
+    own has their tiles set aside** (seen and counted by nobody) and play
+    goes on while two are left; **in teams a leave ends the game**, decided by
+    the scores so far; **five or more in the room can't start it** (it is 2-4
+    players - the rest can be a screen or wait); **the host's "skip" plays
+    for the player** the way the clock would, rather than passing a turn they
+    might have played; and the draw button **draws until a tile fits in one
+    tap** (the table sees how many were drawn), with the knock a tap of its own.
 
 ### Ideas not built yet (researched 16 Sep 2026)
 
@@ -720,6 +799,26 @@ the word search), `countUp` for streaks and scores.
   Found on the way, outside the plan: the room trivia clock had never ticked -
   `JS_TriviaBoard.html` is concatenated after `JS_RoomTrivia.html` and its
   `paintTriviaTimer` silently replaced the room's (*Traps*).
+- **21 Sep 2026, الدومينو** - domino as a game of its own, on the phones and
+  the TV, to the owner's rules asked one by one (*The owner's specs*): 2-4
+  players or computer players, solo or partners opposite seated by the host,
+  عادي and أمريكاني with the spinner, drawing with two or three and knocking
+  with four, the double six opening the first round and the winner leading
+  the next, a target, the helpers and a turn clock that are the host's and
+  off by default, and the easy and hard computer players. The shared tile
+  logic (`DominoTiles.js`, with a layout that snakes on a phone and makes a
+  cross round the spinner, checked over hundreds of full tables to never
+  overlap), the rules (`RoomDomino.js`) and the renderer (`JS_RoomDomino.html`,
+  section 18 of `Style.html`) in the ivory look the owner picked, every move
+  animated, the round's hands turned over and counted, a podium or the two
+  sides at the end. Later the same day the owner's rule for every screen -
+  while a round is played the table gets most of the screen, names and
+  scores a compact strip - reshaped the phone, laptop and TV layouts (the
+  table is 97% × 72% of the TV). The score keeper stays the setup's "على
+  الطاولة" side. Robot tests: 1160, with 62 of them domino's; the rules test
+  pins the tiles, the ends, the points, the rounding and every way a round
+  ends. Nothing of the other games changed; a deploy is needed for the rooms
+  server.
 
 - **21 Sep 2026, أونو** - the whole game in rooms and on the TV, to the
   owner's rules asked one at a time (*The owner's specs*), with computer
@@ -885,6 +984,8 @@ is nowhere to hide the key card.
 | `RoomUno.js` | أونو's rules and its computer players, bundled after `RoomGames.js` (whose helpers it uses); `unoAction` is reached from `applyRoomAction`. |
 | `UnoCards.js` | أونو's deck and what may go on what (`unoCanPlay`), inlined into the page and bundled into the Worker, so a phone lights exactly the cards the server takes. |
 | `CodenamesWords.js`, `PartyContent.js`, `SpyWords.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`, `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js` | Word lists (and سكرو's cards, and قبل ولا بعد's dates) the rules deal from, bundled into the Worker. Nine of them are also inlined into the page by `tools/build-*.mjs` (the `SHARED_LISTS` comment in `Controller.html`), because the pass-the-phone versions of those games deal from the same lists, a Stop phone checks its boxes with the server's own rule, the solo games ask from the room trivia's questions, and a سكرو phone names and draws the cards the server deals. **Two stay server-only, on purpose:** `PartyContent.js`, because the Fibbage answers in it must never reach a page, and `TimelineEvents.js`, because the years of unplayed cards are قبل ولا بعد's whole secret. |
+| `DominoTiles.js` | The domino tiles, the table, the ends and their points, a round's result and the table's layout: pure functions, shared by the page (inlined like the lists) and the Worker, every name prefixed `domino`. |
+| `RoomDomino.js` | `dominoAction` and its clock, its leave and its computer players: bundled after `RoomGames.js`, so a game this size keeps its rules in a file of its own. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -1714,6 +1815,159 @@ the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
 - **Bidi.** A "+2", "+4" or "+85" inside an Arabic line is held left to right
   (`unoT` wraps it in LRI...PDI, and card names do the same), or it reads
   "2+".
+**الدومينو in rooms** (`dominoAction` in `RoomDomino.js`, bundled after
+`RoomGames.js`; the tiles in `DominoTiles.js`, shared with the page), the
+owner's spec (see *The owner's specs*). 2 to 4 players, people or computer
+players; everyone for themselves, or with four two sides with partners
+opposite (seats 1 & 3 against 2 & 4, `shared.teams`, keys `A` and `B`).
+
+- **The tiles** are their two numbers low first, `'0-0'` … `'6-6'`
+  (`dominoSet`, `dominoParse`). The table is `shared.table = { line, root,
+  spinner, up, down }`: `line` left to right, each `{ t, a, b }` with `a` the
+  number facing the left end; `root` the first tile of the round; in
+  أمريكاني `spinner` is the first double played (the lead included) and `up` /
+  `down` its other two arms, which open once both of its sides on the line
+  hold a tile (`dominoArmsOpen`). `dominoEnds` gives the open ends,
+  `dominoFits` where a tile goes (an empty table takes anything, on `R`),
+  `dominoPlace` the table after a move, `dominoEndsSum` the ends added up the
+  way أمريكاني counts them (a double across an end both halves, a tile alone
+  both halves, an arm of the spinner nothing is on yet nothing) and
+  `dominoPointsOf` its points (a multiple of 5, 5 = 1). `dominoRoundResult`
+  scores a round from the hands (going out, blocked, a tie, teams, rounding
+  with `dominoRounded`), `dominoStarter` says who opens, `dominoGameWinner`
+  who has won. `rules.mjs` pins every one of these.
+- **What is hidden.** Every hand is `room._domino.hands` and reaches a phone
+  only as its own `room.secrets[pid].hand`; the tiles left to draw
+  (`room._domino.bone`) never leave the server, only their count
+  (`shared.bone`). `shared.counts` says how many each player holds. The hands
+  are published in `shared.result` when a round ends. A player's `knocked`
+  numbers (the ends showing when they knocked) are public - the table saw
+  them - and cleared when they draw new tiles or play one of those numbers.
+- **A round.** `dominoDeal` deals seven each (the rest is the pile to draw
+  from with two or three players, `shared.drawing`; set aside with four). The
+  first round opens by itself: the double six, else the highest double in
+  anyone's hand, else the heaviest tile (`dominoStarter`), played by the
+  server as a `play` event with `forced`. Later rounds are led by the winner
+  of the last one (`shared.lead`) with any tile; after a tie nobody won, so
+  the first round's rule opens again. A turn is `play { tile, end, seq }`
+  (the end may be left out when there is one), `draw { seq }` - refused while
+  a tile fits; it draws until one that fits comes up, and the turn stays -
+  or `pass { seq }`, the knock, refused while a tile fits or there is still
+  something to draw. Every move raises `shared.turnSeq` and carries it, so a
+  stale tap is dropped. After every move: a hand emptied ends the round
+  (`out`); nothing anyone holds fitting and nothing left to draw ends it
+  blocked (`قفلة`, detected at once rather than after everyone has knocked);
+  otherwise the turn goes to the next seat. In أمريكاني each play is scored
+  on the spot (`pts`, `sum` on its event; `shared.gained` keeps the round's).
+  The round's result goes to `shared.result`, the totals to `shared.scores`
+  (a player's id, or `A` / `B`), and the game ends when the round leaves a
+  unit alone on top at or past the target (`gameover`, `winner`, `winners`);
+  two level on top play one more round. `shared.board` is every seated
+  player with their unit's score, best first, for the night's leaderboard.
+- **The host's options** (`ashry…` memory: `recallOptions('dominoRoom')` on
+  the host's phone): عادي or أمريكاني, teams (four only), the target (51 / 101
+  / 151 / 201, or 30 / 50 / 100), the two helpers (`helpFit`, `helpPoints`,
+  أمريكاني only) and the turn clock (0, 30, 60). The seats of a game of teams
+  are the room's, not the phone's: `seats { teams, order | shuffle }` (host,
+  lobby only) keeps `shared.lobby = { teams, order }`, so every phone sees the
+  partners before the start; the host's phone sends it once (`domLobbySync`)
+  when teams is on with four players and no seats are drawn for these four -
+  at random, the owner's default - and two taps on the strip swap two seats.
+  Play again keeps the seats.
+- **Clocks, the host, leaving.** The turn clock is a server deadline
+  (`dominoDeadline` / `dominoTimeout`); when it runs out the server plays for
+  the player (`dominoAuto`: the first tile that fits, else it draws and plays
+  what came, else it knocks) with an `auto` event. The host's `skipTurn`
+  does the same for a phone that went quiet (the button shows for a phone
+  that is away, or that has held the turn 40 seconds). A player who leaves
+  on their own has their tiles set aside - out of the round, seen and counted
+  by nobody - and the turn moves on; one player left ends the game. In teams
+  a side one short can't play on, so a leave ends the game there
+  (`shared.ended = 'left'`), decided by the scores so far.
+- **Computer players** (`ROOM_BOT_GAMES.domino`): a bot's move is computed
+  from its own `room.secrets` hand and the table - never another hand, never
+  the pile. `easy` plays the first tile that fits; `hard` scores every legal
+  move (`dominoBotScore`): heavy tiles and doubles first, a spread of numbers
+  and ends it can follow, the next opponent's knocked numbers left open,
+  nothing its partner knocked on; in أمريكاني what the move scores now, less
+  what the unseen tiles would let the next player score.
+
+**الدومينو on the phones and the TV** (`JS_RoomDomino.html`, section 18 of
+`Style.html`).
+
+- **The look the owner picked** (21 Sep 2026, option أ "عاجي" from a design
+  sheet): ivory tiles (`--dom-ivory-*`, the same in both themes) with a
+  thickness under them, black pips on a 3 × 3 grid per half (turned with the
+  tile), a thin dark bar and a brass pin; the back ivory with an engraved
+  frame. One builder, `domTileHtml` / `domBackHtml`, sized by `--u` (the short
+  side; the default is on `:where(.dt)` so every context that sizes a tile
+  wins). The felt carries the screen's accent.
+- **The table is a physical layout** (`dir="ltr"` in every language), laid out
+  by `dominoLayout` in grid units: a tile 2 × 1, a double across (1 × 2),
+  arms running straight from the root until the next tile would pass the
+  edge, then a corner and back the other way a row further out - the right
+  arm snaking down, the left one up. In أمريكاني the spinner is the middle of
+  a cross and each arm has its quarter (the line's arms keep out of the
+  column above and below the spinner, its up and down arms out of the row
+  beside it), the up arm snaking right and the down arm left. Every placement
+  is checked against what is already down with a unit of look-ahead, so a run
+  stops where its corner still fits; a corner tile and the one after it lie
+  along the line even when they are doubles. `dominoFitLayout` tries widths
+  and keeps the one that shows the tiles biggest in the box (keeping last
+  move's width while it is nearly as good, so rows don't jump), and
+  `domLayoutTable` scales it in, marks the open ends, and slides any tile
+  whose place changed (a spinner re-centres the cross). It runs again on
+  every resize. `rules.mjs` draws hundreds of full tables at phone, sideways
+  and TV sizes and checks that no two tiles overlap.
+- **Playing.** A tap on a tile in your hand plays it; when it goes on ends
+  that come to different things (`domDistinctEnds`: the ends left and the
+  points), those ends glow on the table and in the bar, and a second tap
+  says which. A tile that doesn't fit is only refused (a shake and a line),
+  and draw and knock are refused on the phone while something fits, without
+  saying what. The host's helpers light up what fits (`is-fit`, the rest
+  `is-dim`) and show a move's points on each end and on each tile. The seats
+  are round the table as you sit (the one before you on the left, the one
+  after you on the right - the turn goes right, as at an Egyptian table);
+  each shows its tiles face down with a count.
+- **Every move has its motion** (`domPlayEvents`, one choreography per event,
+  Web Animations of transform and opacity on ghosts laid over the page, the
+  landing tile hidden until then - `dom-hold` - and the table waiting for it,
+  `domFx.busyUntil`): the deal flies seven backs to every seat and your own
+  tiles into your hand; a play flies the tile from your hand (or face down
+  from the player's seat, turning face up on the way) to its place, turning
+  a quarter when it lies down, with a band for the opening double six;
+  drawn tiles fly from the pile; a knock jolts the seat with 👊 دق and the
+  knock sound; a scored move floats its +points up from the tile and pulses
+  the ends' sum; the spinner rings as it becomes one and keeps an outline;
+  going out and قفلة put a band across the table. A round's end shows the
+  final table, then turns the hands over one by one counting their pips up,
+  then says who took what and why (the pips, and in أمريكاني their rounding),
+  then counts the totals up (`domRunReveal`). The game ends on the podium, or
+  on the two sides with the winner crowned, and confetti after it. Nothing
+  replays after a reload or the lock screen (`domWokeRecently`). The sounds
+  are three short ones added to `FX` from this file (`domClack`, `domKnock`,
+  `domScore`), not on the soundboard.
+- **Fitting: while a round is played the table gets the screen** (the owner,
+  21 Sep 2026, for every size): who is at the table is one compact strip
+  (`dom-top`: the round, the mode, the clock and every score as chips, then
+  the seats, each a short line of name, tiles face down and a count), the
+  table takes most of what is left, and your hand with what to do is under
+  it (`dom-play`). Upright on a 375 × 812 phone all of it fits with nothing
+  scrolled; on your turn (and when a tile is picked) the page keeps the hand
+  and the bar in sight (`domHandInView`). On a phone's side the table is one
+  column, full height, and the strip, the seats (one line each) and your hand
+  the other. On a laptop the table runs the whole width under the strip,
+  with your hand and the bar in one row beneath it, and the tiles grow with
+  the box (a phone's stop at 34px a side; here up to 90). The TV is the table
+  under a strip of badges, the seats in turn order (the one up lit) and
+  whose turn it is, with the TV's own score strip at the foot. Measured with
+  the round under way: the table is 97% × 72% of the TV at 1280 × 720 and
+  1920 × 1080, 86-89% × 56-66% of a laptop's window, 86% × 38% of an
+  upright phone (the hand and the bar take the rest). The end of a round
+  and of the game take the screen instead: the table beside the reveal and
+  the totals on a TV and a laptop (the game's end on a TV shows the podium
+  or the sides, the line and the totals, and leaves the last hands to the
+  phones so it fits one screen).
 
 **The Buzzer (الجرس)** has no content at all: the host asks their own questions
 out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps
@@ -2328,10 +2582,16 @@ six below has a list of its own:
 `JS_CardScore.html` is one engine and `JS_CardRules.html` five rule sets
 (`CS_GAMES`: estimation, tarneeb, trix, konkan, basra), each a catalog entry
 with its own `setup-cs-<id>` / `play-cs-<id>` screens. They are tools, not
-games (the owner, 17 Sep 2026): `group: 'tools', kind: 'score'` with the
-domino scorer, listed under حاسبات النقط on the الأدوات tab (`renderTools`
-splits `kind: 'score'` into its own section), their setup screens' `up` is
-`tools`, and the home's ورق وطاولة section is سكرو alone.
+games (the owner, 17 Sep 2026): `group: 'tools', kind: 'score'`, listed
+under حاسبات النقط on the الأدوات tab (`renderTools` splits `kind: 'score'`
+into its own section), and their setup screens' `up` is `tools`. The domino
+score keeper was one of them until domino became a game in its own right
+(21 Sep 2026): it is the "على الطاولة" side of the domino setup screen now
+(`setup-domino`, `up: 'menu'`, beside "نلعب في التطبيق", which opens a room),
+exactly as it was (`JS_Domino.html`), the way سكرو keeps its calculator; the
+tools tab keeps a shortcut to it (`domino-calc`, `openTableCalc('domino')`,
+which turns the setup to that side), next to one for سكرو's. The home's ورق
+وطاولة section holds سكرو, أونو and الدومينو.
 The deck is real; the phone keeps the score. A rule set says who sits
 (`seats`, from the player picker in seating order; teams are 1 & 3 against
 2 & 4, `csTeams`), what a round asks for (`entryHtml`, built from the
@@ -3041,7 +3301,12 @@ rather than trusted to have been varied by hand.
 input runs right to left while `left: 40%` still measures from the left, so
 Wavelength's slider, needle and end labels disagreed in Arabic. The spectrum is
 wrapped in `dir="ltr"`. The same goes for anything that maps a value to a
-position on screen.
+position on screen - and for the seats round a table: الدومينو's seat row is
+the one before you on the left and the one after you on the right, and a grid
+in an Arabic page put them the other way round until the row was given
+`dir="ltr"` (each seat keeps the page's direction for its own name). Its
+table, the buttons for its left and right ends, and the TV's strip of seats
+are left to right for the same reason.
 
 **A button stands in for something said out loud, so it has to be
 take-back-able.** The phone cannot hear the table: someone presses "pass" in

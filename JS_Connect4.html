@@ -1,0 +1,542 @@
+<script>
+/* ============================================================================
+   كونكت ٤ — CONNECT 4 on one phone, and what both duels share
+   ----------------------------------------------------------------------------
+   Two on one phone, or one against the phone (سهل / متوسط / صعب). The rules
+   and the phone's player are Connect4.js, the same file the rooms server
+   judges a room's discs with. The game lives in appState.connect4, so a
+   reload comes back to the board as it was - the phone's turn included.
+   A running tally across games; whoever went second starts the next one.
+   No take-backs (the owner: "never").
+
+   The board (the owner's "كلاسيك أزرق", Style.html section 18): a blue board
+   with round holes showing the page ground, red and yellow discs, a faint
+   ghost disc over the column the finger or the mouse is on. A disc falls
+   down its column with a small bounce, the winning line lights one disc at a
+   time, a full board shakes gently. dir="ltr": the board is a physical axis.
+
+   The top of the file is the duel pieces نقط ومربعات and both rooms use too:
+   the two player pills with the turn ring that slides between them and
+   scores that count up (duelPillsHtml / duelPillsAfter), the sounds
+   (duelSound) and a box's initial (duelInitial).
+   ========================================================================= */
+
+/* --- what both duels share ------------------------------------------------ */
+
+/** A box's letter: the first of a name, past an Arabic "ال" (الموبايل → م). */
+function duelInitial(name) {
+  let s = String(name || '').trim();
+  if (/^ال[ء-ي]{2,}/.test(s)) s = s.slice(2);
+  const ch = Array.from(s)[0] || '?';
+  return ch.toUpperCase();
+}
+
+/**
+ * A name inside a translated line, isolated (FSI ... PDI) so a Latin name in an
+ * Arabic line, or an Arabic one in English, keeps the line's order.
+ */
+const duelIso = (name) => '\u2068' + String(name || '') + '\u2069';
+
+// Keys already played on this phone, whatever the motion setting: a sound or a
+// cheer happens once per thing, even where motionFirst says no (motion off).
+const duelSeen = new Set();
+function duelOnce(key) {
+  if (!key || duelSeen.has(key)) return false;
+  if (duelSeen.size > 400) duelSeen.clear();
+  duelSeen.add(key);
+  return true;
+}
+
+/**
+ * The two players side by side (stacked beside the board on a phone held
+ * sideways): their piece, their name, their score, and one ring that slides
+ * to whoever is to move. o: { players: [{ name, score, mark, sub }], turn: 0 |
+ * 1 | -1, draws (a number, or null for no middle) }.
+ */
+function duelPillsHtml(o) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const turn = o.turn === 0 || o.turn === 1 ? o.turn : -1;
+  const pill = (p, i) => `
+    <div class="duel-pill ${turn === i ? 'is-turn' : ''}" data-duel-pill="${i}">
+      <span class="duel-pill__mark" aria-hidden="true">${p.mark || ''}</span>
+      <span class="duel-pill__who">
+        <span class="duel-pill__name">${escapeHTML(p.name || '')}</span>
+        ${p.sub ? `<span class="duel-pill__sub">${p.sub}</span>` : ''}
+      </span>
+      <b class="duel-pill__score metric" data-duel-score="${i}">${Number(p.score) || 0}</b>
+    </div>`;
+  const mid = o.draws === null || o.draws === undefined ? '' : `
+    <div class="duel-pills__mid"><span>${escapeHTML(t.xo_draws || '')}</span><b class="metric">${Number(o.draws) || 0}</b></div>`;
+  return `<div class="duel-pills ${mid ? 'has-mid' : ''}" data-turn="${turn}">
+      <span class="duel-pills__turn" aria-hidden="true"></span>
+      ${pill(o.players[0] || {}, 0)}${mid}${pill(o.players[1] || {}, 1)}
+    </div>`;
+}
+
+const duelPillMemo = {};
+
+/**
+ * After the pills were drawn: the ring slides over from the pill it was on,
+ * a score that went up counts up, and the same player moving again (a box
+ * taken) makes their pill pulse. `key` names the board (a game on this phone,
+ * a room), so a redraw for any other reason moves nothing.
+ * o: { turn, scores: [a, b], againKey }.
+ */
+function duelPillsAfter(root, key, o) {
+  const box = root && root.querySelector('.duel-pills');
+  if (!box) return;
+  const memo = duelPillMemo[key] || {};
+  const still = typeof motionOff === 'function' ? motionOff() : true;
+  const pills = box.querySelectorAll('[data-duel-pill]');
+  const ring = box.querySelector('.duel-pills__turn');
+  const turn = o.turn === 0 || o.turn === 1 ? o.turn : -1;
+  if (!still && ring && ring.animate && turn !== -1 && (memo.turn === 0 || memo.turn === 1) && memo.turn !== turn) {
+    const from = pills[memo.turn] && pills[memo.turn].getBoundingClientRect();
+    const to = pills[turn] && pills[turn].getBoundingClientRect();
+    if (from && to && to.width) {
+      ring.animate([
+        { transform: 'translate(' + (from.left - to.left) + 'px, ' + (from.top - to.top) + 'px)' },
+        { transform: 'translate(0px, 0px)' }
+      ], { duration: 380, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+    }
+  }
+  const scores = o.scores || [];
+  const was = memo.scores || [];
+  [0, 1].forEach(i => {
+    const el = box.querySelector('[data-duel-score="' + i + '"]');
+    if (!el || still || typeof countUp !== 'function') return;
+    if (typeof was[i] === 'number' && scores[i] > was[i]) countUp(el, was[i], scores[i]);
+  });
+  if (o.againKey && memo.againKey !== o.againKey && turn !== -1 && !still && pills[turn] && pills[turn].animate) {
+    pills[turn].animate([
+      { transform: 'scale(1)' }, { transform: 'scale(1.06)', offset: 0.35 }, { transform: 'scale(1)' }
+    ], { duration: 560, iterations: 2, easing: 'ease-in-out' });
+  }
+  duelPillMemo[key] = { turn: turn, scores: scores.slice(), againKey: o.againKey || memo.againKey || '' };
+}
+
+/**
+ * The duels' own sounds, made like the soundboard's (fxTone / fxNoise in
+ * JS_Sounds.html), short and quiet: a disc landing, a line drawn, a box, and
+ * how a game against the phone ends. A win brings the fanfare with the confetti.
+ */
+function duelSound(kind) {
+  try {
+    if (typeof fxCtx !== 'function' || typeof fxTone !== 'function' || typeof fxNoise !== 'function') {
+      if (kind === 'win') playSound('success');
+      return;
+    }
+    const at = fxCtx().currentTime + 0.01;
+    if (kind === 'drop') {
+      // A plastic disc landing on the ones below: a short knock.
+      fxTone('sine', [[0, 360], [0.07, 150]], [[0, 0], [0.004, 0.3], [0.11, 0.001]], at);
+      fxNoise('lowpass', 1600, 0.8, [[0, 0], [0.003, 0.11], [0.05, 0.001]], at);
+    } else if (kind === 'line') {
+      fxNoise('bandpass', 2600, 1.4, [[0, 0], [0.012, 0.05], [0.13, 0.001]], at);
+    } else if (kind === 'box') {
+      fxTone('triangle', [[0, 620], [0.09, 930]], [[0, 0], [0.01, 0.11], [0.17, 0.001]], at);
+    } else if (kind === 'win') {
+      playSound('success');
+    } else if (kind === 'lose') {
+      fxTone('sine', [[0, 392], [0.36, 247]], [[0, 0], [0.02, 0.12], [0.42, 0.001]], at);
+    } else if (kind === 'draw') {
+      fxTone('sine', [[0, 440], [0.14, 440]], [[0, 0], [0.01, 0.09], [0.16, 0.001]], at);
+      fxTone('sine', [[0, 440], [0.14, 440]], [[0, 0], [0.01, 0.09], [0.16, 0.001]], at + 0.2);
+    }
+  } catch (e) {}
+}
+
+/* --- the Connect 4 board, one phone or a room ------------------------------ */
+
+/** How wide the board is against how tall (the ghost row included), for fitting it to a screen's height. */
+const c4Aspect = (b) => (b.cols / (b.rows + 1.4)).toFixed(3);
+
+/**
+ * The board. b: { cols, rows, n, grid }; o: { win (cells, in order along the
+ * line), last { row, col }, playable (this phone may drop now), next (the
+ * colour to move, for the ghost) }.
+ */
+function c4BoardHtml(b, o) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const opt = o || {};
+  const win = opt.win || [];
+  const lastAt = opt.last ? opt.last.row * b.cols + opt.last.col : -1;
+  let cells = '';
+  for (let i = 0; i < b.grid.length; i++) {
+    const v = b.grid[i];
+    const k = win.indexOf(i);
+    cells += `<div class="c4-cell"><span class="c4-hole"></span>${v
+      ? `<span class="c4-disc c4-disc--${v}${k !== -1 ? ' is-win' : ''}${i === lastAt ? ' is-last' : ''}"${k !== -1 ? ` style="--k:${k}"` : ''}></span>`
+      : ''}</div>`;
+  }
+  let cols = '';
+  for (let c = 0; c < b.cols; c++) {
+    const open = opt.playable && c4DropRow(b, c) >= 0;
+    cols += `<button type="button" class="c4-col" data-col="${c}" ${open ? '' : 'disabled'} aria-label="${escapeHTML((t.c4_col || '').replace('{n}', c + 1))}"></button>`;
+  }
+  const next = opt.next === 2 ? 2 : 1;
+  // dir="ltr": the columns are a physical row, the same way round in Arabic.
+  return `<div class="c4 ${opt.playable ? 'is-playable' : ''}" dir="ltr" data-cols="${b.cols}"
+               style="--c4-cols:${b.cols};--c4-rows:${b.rows};--c4-aim:${Math.floor(b.cols / 2)}">
+      <div class="c4-ghostrow" aria-hidden="true"><div class="c4-ghostrow__track"><span class="c4-ghost"><span class="c4-ghost__disc c4-disc--${next}"></span></span></div></div>
+      <div class="c4-board">
+        <div class="c4-grid">${cells}<div class="c4-cols">${cols}</div></div>
+      </div>
+    </div>`;
+}
+
+/**
+ * The finger or the mouse on a playable board: the ghost follows the column
+ * under it, and letting go drops there. A tap is the same thing, short. A
+ * vertical swipe still scrolls the page (touch-action: pan-y), which cancels
+ * the drop. The column buttons are for a keyboard (a click with no pointer).
+ */
+function c4Wire(wrap, onDrop) {
+  if (!wrap || !wrap.classList.contains('is-playable') || typeof onDrop !== 'function') return;
+  const grid = wrap.querySelector('.c4-grid');
+  const cols = Number(wrap.dataset.cols) || 7;
+  const colAt = (x) => {
+    const r = grid.getBoundingClientRect();
+    return Math.max(0, Math.min(cols - 1, Math.floor((x - r.left) / (r.width / cols))));
+  };
+  const aim = (c) => { wrap.style.setProperty('--c4-aim', c); wrap.classList.add('is-aiming'); };
+  const rest = () => wrap.classList.remove('is-aiming');
+  let down = false;
+  wrap.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || down) aim(colAt(e.clientX)); });
+  wrap.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    down = true;
+    aim(colAt(e.clientX));
+  });
+  wrap.addEventListener('pointerup', (e) => {
+    if (!down) return;
+    down = false;
+    if (e.pointerType !== 'mouse') rest();
+    onDrop(colAt(e.clientX));
+  });
+  wrap.addEventListener('pointercancel', () => { down = false; rest(); });
+  wrap.addEventListener('pointerleave', () => { down = false; rest(); });
+  wrap.querySelectorAll('.c4-col').forEach(btn => {
+    btn.addEventListener('click', (e) => { if (e.detail === 0) onDrop(Number(btn.dataset.col)); });
+    btn.addEventListener('focus', () => aim(Number(btn.dataset.col)));
+    btn.addEventListener('blur', rest);
+  });
+}
+
+/** A column that is full: the ghost shakes its head. */
+function c4Refuse(wrap) {
+  haptic('double');
+  const ghost = wrap && wrap.querySelector('.c4-ghost__disc');
+  if (!ghost || motionOff() || !ghost.animate) return;
+  ghost.animate([
+    { transform: 'translateX(0)' }, { transform: 'translateX(-10%)' }, { transform: 'translateX(10%)' },
+    { transform: 'translateX(-6%)' }, { transform: 'translateX(0)' }
+  ], { duration: 320, easing: 'ease-in-out' });
+}
+
+/**
+ * The disc just played falls from above the board to its cell, speeding up,
+ * with a small bounce where it lands. Its end is its place in the markup, so
+ * nothing depends on the animation finishing. Returns how long it takes.
+ */
+function c4AnimateDrop(wrap, disc) {
+  if (!disc || !disc.animate) return 0;
+  const cell = disc.parentElement;
+  const track = wrap.querySelector('.c4-ghostrow__track');
+  const cellR = cell.getBoundingClientRect();
+  const topR = track ? track.getBoundingClientRect() : null;
+  const pitch = cellR.height || 1;
+  const dy = topR ? cellR.top - topR.top : pitch;
+  if (!(dy > 0)) return 0;
+  const rows = Math.max(1, Math.round(dy / pitch));
+  const duration = 220 + 55 * rows;
+  disc.animate([
+    { transform: 'translateY(' + (-dy) + 'px)', easing: 'cubic-bezier(0.5, 0, 0.9, 0.55)' },
+    { transform: 'translateY(0px)', offset: 0.7, easing: 'cubic-bezier(0.15, 0.6, 0.4, 1)' },
+    { transform: 'translateY(' + (-pitch * 0.14) + 'px)', offset: 0.85, easing: 'cubic-bezier(0.6, 0, 0.9, 0.6)' },
+    { transform: 'translateY(0px)' }
+  ], { duration: duration, fill: 'backwards' });
+  return duration;
+}
+
+/**
+ * Everything after a Connect 4 board is drawn, one phone, a room or the TV:
+ * wiring the finger (o.onDrop), the last disc's fall and knock (once per
+ * o.dropKey), the winning line lighting up one disc at a time or a full board
+ * shaking (once per o.endKey). o.still draws it settled (a reload, a new
+ * language), o.sound false keeps this device quiet. Returns { dropMs, revealMs }.
+ */
+function c4AfterPaint(root, o) {
+  const wrap = root && root.querySelector('.c4');
+  const out = { dropMs: 0, revealMs: 0 };
+  if (!wrap) return out;
+  c4Wire(wrap, o.onDrop);
+  const disc = wrap.querySelector('.c4-disc.is-last');
+  const moving = !!(o.dropKey && disc && typeof motionFirst === 'function' && motionFirst(o.dropKey) && !o.still);
+  if (moving) out.dropMs = c4AnimateDrop(wrap, disc);
+  if (o.dropKey && disc && duelOnce('snd|' + o.dropKey) && !o.still && o.sound !== false) {
+    setTimeout(() => duelSound('drop'), Math.round(out.dropMs * 0.7));
+  }
+  const win = o.win || [];
+  const ending = !!(o.endKey && (win.length || o.draw) && typeof motionFirst === 'function' && motionFirst(o.endKey) && !o.still);
+  if (ending && win.length) {
+    wrap.classList.add('is-lighting');
+    wrap.style.setProperty('--c4-win-at', out.dropMs + 'ms');
+    out.revealMs = out.dropMs + win.length * 160 + 560;
+    wrap.dataset.revealMs = String(out.revealMs);
+  } else if (ending && o.draw) {
+    const board = wrap.querySelector('.c4-board');
+    if (board && board.animate) {
+      board.animate([
+        { transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' },
+        { transform: 'translateX(-4px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }
+      ], { duration: 520, delay: out.dropMs + 120, easing: 'ease-in-out' });
+    }
+    out.revealMs = out.dropMs + 640;
+    wrap.dataset.revealMs = String(out.revealMs);
+  }
+  return out;
+}
+
+/* --- Connect 4 on one phone ------------------------------------------------ */
+
+let c4PhoneTimer = null;          // the phone's move, waiting to be played
+const c4Local = { busyUntil: 0 };
+
+function c4State() {
+  if (!appState.connect4) {
+    appState.connect4 = {
+      vs: 'friend', level: 'medium', mode: 4, phase: 'setup', board: null,
+      turn: 1, first: 1, moves: 0, last: null, win: [], draw: false, winner: 0,
+      scores: { 1: 0, 2: 0, D: 0 }, names: [], gameId: ''
+    };
+  }
+  const s = appState.connect4;
+  if (!s.scores) s.scores = { 1: 0, 2: 0, D: 0 };
+  return s;
+}
+
+function setupConnect4() {
+  c4StopPhone();
+  setView('setup-connect4');
+  paintConnect4Setup();
+}
+
+/** The names on the pills: you and the phone, or the two typed in (red and yellow when left empty). */
+function c4Names(s) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (s.vs === 'phone') return [t.xo_you || '', t.xo_phone || ''];
+  const n = s.names || [];
+  return [n[0] || t.c4_red || '', n[1] || t.c4_yellow || ''];
+}
+
+function duelPaintSegmented(id, value) {
+  document.querySelectorAll('#' + id + ' .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === String(value)));
+}
+
+function paintConnect4Setup() {
+  const s = c4State();
+  const t = TRANSLATIONS[appState.lang] || {};
+  duelPaintSegmented('connect4-mode', s.mode);
+  duelPaintSegmented('connect4-vs', s.vs);
+  duelPaintSegmented('connect4-level', s.level);
+  const level = document.getElementById('connect4-level-field');
+  if (level) level.classList.toggle('hidden', s.vs !== 'phone');
+  const names = document.getElementById('connect4-names-field');
+  if (names) names.classList.toggle('hidden', s.vs !== 'friend');
+  const hint = document.getElementById('connect4-mode-hint');
+  if (hint) hint.textContent = Number(s.mode) === 5 ? (t.c4_mode_5_hint || '') : (t.c4_mode_4_hint || '');
+  const cont = document.getElementById('connect4-continue');
+  if (cont) cont.classList.toggle('hidden', !(s.phase === 'play' && s.board));
+}
+
+function setConnect4Option(key, value) {
+  const s = c4State();
+  s[key] = key === 'mode' ? c4Mode(value) : value;
+  saveToLocal();
+  paintConnect4Setup();
+}
+
+/** Start: a new match, the tally from nothing, and the first player opens. */
+function startConnect4() {
+  const s = c4State();
+  const read = (id) => ((document.getElementById(id) || {}).value || '').trim().slice(0, 16);
+  s.names = [read('connect4-name1'), read('connect4-name2')];
+  s.scores = { 1: 0, 2: 0, D: 0 };
+  s.first = 1;
+  c4NewGame();
+}
+
+/** Back to a game left in the middle, from its setup. */
+function c4Continue() {
+  setView('play-connect4');
+  paintConnect4({ still: true });
+  c4MaybePhone();
+}
+
+/** The next game of the match: whoever went second last time goes first. */
+function c4NewGame() {
+  const s = c4State();
+  c4StopPhone();
+  s.board = c4NewBoard(s.mode);
+  s.turn = s.first;
+  s.moves = 0;
+  s.last = null;
+  s.win = [];
+  s.draw = false;
+  s.winner = 0;
+  s.phase = 'play';
+  s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  saveToLocal();
+  if (appState.currentView !== 'play-connect4') setView('play-connect4');
+  paintConnect4();
+  if (typeof scrollToAction === 'function') scrollToAction();
+  c4MaybePhone();
+}
+
+/** A tap on the board: whoever's turn it is on this phone drops there. */
+function c4HumanDrop(col) {
+  const s = c4State();
+  if (s.phase !== 'play' || !s.board) return;
+  if (s.vs === 'phone' && s.turn !== 1) return;
+  // Two on one phone: a second tap straight after the first isn't the other player's.
+  if (Date.now() < c4Local.busyUntil) return;
+  if (c4DropRow(s.board, col) < 0) { c4Refuse(document.querySelector('#connect4-stage .c4')); return; }
+  haptic('light');
+  c4Place(col);
+}
+
+function c4Place(col) {
+  const s = c4State();
+  const p = s.turn;
+  const res = c4Play(s.board, col, p);
+  if (!res) return;
+  s.moves++;
+  s.last = { col: res.col, row: res.row, p: p };
+  c4Local.busyUntil = Date.now() + 260;
+  if (res.win || res.draw) {
+    s.phase = 'done';
+    s.win = res.cells;
+    s.draw = !!res.draw;
+    s.winner = res.win ? p : 0;
+    s.scores[res.win ? p : 'D'] = (s.scores[res.win ? p : 'D'] || 0) + 1;
+    s.first = 3 - s.first;
+  } else {
+    s.turn = 3 - p;
+  }
+  saveToLocal();
+  paintConnect4();
+  c4MaybePhone();
+}
+
+/** The phone's turn: a moment to watch the disc land and "think", then its move. */
+function c4MaybePhone() {
+  const s = c4State();
+  if (s.vs !== 'phone' || s.phase !== 'play' || s.turn !== 2 || c4PhoneTimer) return;
+  if (appState.currentView !== 'play-connect4') return;
+  const landing = s.last && !motionOff() ? 220 + 55 * (s.last.row + 1) : 0;
+  c4PhoneTimer = setTimeout(() => {
+    c4PhoneTimer = null;
+    const st = c4State();
+    if (st.vs !== 'phone' || st.phase !== 'play' || st.turn !== 2 || appState.currentView !== 'play-connect4') return;
+    const col = c4BestMove(st.board, 2, st.level);
+    if (col >= 0) c4Place(col);
+  }, landing + 400 + Math.floor(Math.random() * 300));
+}
+
+function c4StopPhone() {
+  if (c4PhoneTimer) clearTimeout(c4PhoneTimer);
+  c4PhoneTimer = null;
+}
+
+function paintConnect4(opts) {
+  const o = opts || {};
+  const s = c4State();
+  const el = document.getElementById('connect4-stage');
+  if (!el || !s.board) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const names = c4Names(s);
+  const phoneTurn = s.vs === 'phone' && s.phase === 'play' && s.turn === 2;
+  const playable = s.phase === 'play' && !phoneTurn;
+  let status;
+  if (s.phase === 'done') {
+    if (s.draw) status = t.c4_draw || '';
+    else if (s.vs === 'phone') status = s.winner === 1 ? (t.duel_you_won || '') : (t.duel_phone_won || '');
+    else status = '🏆 ' + (t.duel_won || '').replace('{name}', duelIso(names[s.winner - 1]));
+  } else if (phoneTurn) {
+    status = t.xo_thinking || '';
+  } else {
+    status = s.vs === 'phone' ? (t.duel_your_turn || '') : (t.duel_turn_of || '').replace('{name}', duelIso(names[s.turn - 1]));
+  }
+  const nextLine = s.phase === 'done' ? `<p class="duel-next">${escapeHTML((t.duel_first_next || '').replace('{name}', duelIso(names[s.first - 1])))}</p>` : '';
+  const mark = (p) => `<span class="c4-chip c4-disc--${p}"></span>`;
+  el.innerHTML = `
+    <div class="duel c4-game">
+      <div class="duel-layout">
+        <div class="duel-layout__board" style="--duel-aspect:${c4Aspect(s.board)}">
+          ${c4BoardHtml(s.board, { win: s.win, last: s.last, playable: playable, next: s.turn })}
+        </div>
+        <div class="duel-layout__side">
+          <div class="duel-head">
+            ${duelPillsHtml({
+              players: [{ name: names[0], score: s.scores[1], mark: mark(1) }, { name: names[1], score: s.scores[2], mark: mark(2) }],
+              turn: s.phase === 'play' ? s.turn - 1 : -1,
+              draws: s.scores.D || 0
+            })}
+            <p class="duel-status ${s.phase === 'done' ? 'is-done' : ''} ${phoneTurn ? 'is-thinking' : ''}">${escapeHTML(status)}</p>
+            ${nextLine}
+          </div>
+          <div class="view-actions duel-actions">
+            ${s.phase === 'done' ? `<button class="btn btn--primary btn--lg" onclick="c4NewGame()">${escapeHTML(t.duel_next_game || '')}</button>` : ''}
+            <button class="btn btn--ghost btn--sm" onclick="setupConnect4()">${escapeHTML(t.exit || '')}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  const key = 'c4|' + s.gameId;
+  const fx = c4AfterPaint(el, {
+    onDrop: c4HumanDrop,
+    dropKey: s.last ? key + '|' + s.moves : '',
+    win: s.win, draw: s.draw,
+    endKey: key + '|end',
+    still: o.still
+  });
+  duelPillsAfter(el, 'c4-local', { turn: s.phase === 'play' ? s.turn - 1 : -1, scores: [s.scores[1] || 0, s.scores[2] || 0] });
+  if (s.phase === 'done' && duelOnce(key + '|cheer') && !o.still) {
+    const cheer = s.winner && (s.vs === 'friend' || s.winner === 1);
+    afterReveal(el, () => {
+      if (cheer) {
+        duelSound('win');
+        if (typeof confetti === 'function') confetti({ particleCount: 110, spread: 70, origin: { y: 0.6 } });
+      } else {
+        duelSound(s.winner ? 'lose' : 'draw');
+      }
+    });
+    if (fx.revealMs) haptic(cheer ? 'double' : 'light');
+  }
+}
+
+/** After a reload: the board as it was, and the phone moves if it was its turn. */
+function restoreConnect4() {
+  const s = c4State();
+  if ((s.phase !== 'play' && s.phase !== 'done') || !s.board || !Array.isArray(s.board.grid)) return false;
+  paintConnect4({ still: true });
+  setTimeout(c4MaybePhone, 0);
+  return true;
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('connect4', {
+    setup: 'setup-connect4', play: 'play-connect4',
+    paintSetup: paintConnect4Setup, restore: restoreConnect4,
+    repaint: () => paintConnect4({ still: true })
+  });
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-connect4') c4StopPhone();
+    if (to === 'play-connect4') setTimeout(c4MaybePhone, 0);
+  });
+}
+</script>

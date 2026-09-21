@@ -785,6 +785,112 @@
       </div>
       <div id="view-play-xo" class="hidden" data-accent="blue"><div id="xo-stage"></div></div>
 
+      <!-- ============ THE DUELS: كونكت ٤ · نقط ومربعات (one phone, against the phone, or a room: winner stays on) ============ -->
+      <div id="view-setup-connect4" class="hidden" data-accent="blue">
+        <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('connect4', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online" onclick="setPlayMode('connect4', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="c4_online_desc">اتنين بيلعبوا من موبايلاتهم والباقي بيتفرج، واللوحة على التلفزيون. اللي يكسب يفضل قاعد، واللي عليه الدور يقعد قصاده ويبدأ هو.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('connect4')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+          <div class="mode-device-panel">
+            <div class="field">
+              <label class="field__label" data-i18n="c4_line_label">كام في صف؟</label>
+              <div class="segmented" id="connect4-mode" role="group">
+                <button type="button" class="segmented__item is-active" data-value="4" onclick="setConnect4Option('mode', 4)" data-i18n="c4_mode_4">4 في صف</button>
+                <button type="button" class="segmented__item" data-value="5" onclick="setConnect4Option('mode', 5)" data-i18n="c4_mode_5">5 في صف</button>
+              </div>
+              <p class="field__hint" id="connect4-mode-hint"></p>
+            </div>
+            <div class="field">
+              <label class="field__label" data-i18n="xo_vs_label">ضد مين؟</label>
+              <div class="segmented" id="connect4-vs" role="group">
+                <button type="button" class="segmented__item is-active" data-value="friend" onclick="setConnect4Option('vs', 'friend')" data-i18n="xo_vs_friend">صاحبك</button>
+                <button type="button" class="segmented__item" data-value="phone" onclick="setConnect4Option('vs', 'phone')" data-i18n="xo_vs_phone">الموبايل</button>
+              </div>
+            </div>
+            <div class="field hidden" id="connect4-level-field">
+              <label class="field__label" data-i18n="xo_level_label">المستوى</label>
+              <div class="segmented" id="connect4-level" role="group">
+                <button type="button" class="segmented__item" data-value="easy" onclick="setConnect4Option('level', 'easy')" data-i18n="xo_easy">سهل</button>
+                <button type="button" class="segmented__item is-active" data-value="medium" onclick="setConnect4Option('level', 'medium')" data-i18n="duel_medium">متوسط</button>
+                <button type="button" class="segmented__item" data-value="hard" onclick="setConnect4Option('level', 'hard')" data-i18n="xo_hard">صعب</button>
+              </div>
+            </div>
+            <div class="field" id="connect4-names-field">
+              <label class="field__label" data-i18n="duel_names_label">أسامي اللاعبين (اختياري)</label>
+              <div class="grid-2">
+                <input type="text" id="connect4-name1" maxlength="16" autocomplete="off" data-remember data-i18n-ph="c4_red" placeholder="الأحمر">
+                <input type="text" id="connect4-name2" maxlength="16" autocomplete="off" data-remember data-i18n-ph="c4_yellow" placeholder="الأصفر">
+              </div>
+            </div>
+            <button type="button" id="connect4-continue" class="btn btn--secondary hidden duel-continue" onclick="c4Continue()" data-i18n="solo_continue">كمّل اللعبة</button>
+            <button onclick="startConnect4()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          </div>
+        </div>
+      </div>
+      <div id="view-play-connect4" class="hidden" data-accent="blue"><div id="connect4-stage"></div></div>
+      <div id="view-room-connect4" class="hidden" data-accent="blue"></div>
+
+      <div id="view-setup-dots" class="hidden" data-accent="indigo">
+        <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('dots', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online" onclick="setPlayMode('dots', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="dots_online_desc">اتنين بيلعبوا من موبايلاتهم والباقي بيتفرج، واللوحة على التلفزيون. اللي يكسب يفضل قاعد، واللي عليه الدور يقعد قصاده ويبدأ هو.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('dots')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+          <div class="mode-device-panel">
+            <div class="field">
+              <label class="field__label" data-i18n="dots_size_label">حجم اللوحة</label>
+              <div class="segmented" id="dots-size" role="group">
+                <button type="button" class="segmented__item is-active" data-value="4" onclick="setDotsOption('size', 4)">4×4</button>
+                <button type="button" class="segmented__item" data-value="6" onclick="setDotsOption('size', 6)">6×6</button>
+                <button type="button" class="segmented__item" data-value="8" onclick="setDotsOption('size', 8)">8×8</button>
+              </div>
+              <p class="field__hint" data-i18n="dots_size_hint">كل ما اللوحة تكبر، اللعبة تطول والسلاسل تفرق أكتر.</p>
+            </div>
+            <div class="field">
+              <label class="field__label" data-i18n="xo_vs_label">ضد مين؟</label>
+              <div class="segmented" id="dots-vs" role="group">
+                <button type="button" class="segmented__item is-active" data-value="friend" onclick="setDotsOption('vs', 'friend')" data-i18n="xo_vs_friend">صاحبك</button>
+                <button type="button" class="segmented__item" data-value="phone" onclick="setDotsOption('vs', 'phone')" data-i18n="xo_vs_phone">الموبايل</button>
+              </div>
+            </div>
+            <div class="field hidden" id="dots-level-field">
+              <label class="field__label" data-i18n="xo_level_label">المستوى</label>
+              <div class="segmented" id="dots-level" role="group">
+                <button type="button" class="segmented__item" data-value="easy" onclick="setDotsOption('level', 'easy')" data-i18n="xo_easy">سهل</button>
+                <button type="button" class="segmented__item is-active" data-value="medium" onclick="setDotsOption('level', 'medium')" data-i18n="duel_medium">متوسط</button>
+                <button type="button" class="segmented__item" data-value="hard" onclick="setDotsOption('level', 'hard')" data-i18n="xo_hard">صعب</button>
+              </div>
+            </div>
+            <div class="field" id="dots-names-field">
+              <label class="field__label" data-i18n="duel_names_label">أسامي اللاعبين (اختياري)</label>
+              <div class="grid-2">
+                <input type="text" id="dots-name1" maxlength="16" autocomplete="off" data-remember data-i18n-ph="dots_p1" placeholder="لاعب ١">
+                <input type="text" id="dots-name2" maxlength="16" autocomplete="off" data-remember data-i18n-ph="dots_p2" placeholder="لاعب ٢">
+              </div>
+            </div>
+            <button type="button" id="dots-continue" class="btn btn--secondary hidden duel-continue" onclick="dotsContinue()" data-i18n="solo_continue">كمّل اللعبة</button>
+            <button onclick="startDots()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          </div>
+        </div>
+      </div>
+      <div id="view-play-dots" class="hidden" data-accent="indigo"><div id="dots-stage"></div></div>
+      <div id="view-room-dots" class="hidden" data-accent="indigo"></div>
+
       <div id="view-play-chooser" class="hidden" data-accent="orange">
         <div class="chooser__bar">
           <div class="segmented chooser__modes" id="chooser-modes" role="group">
@@ -3080,6 +3186,10 @@
     <?!= include('JS_RoomScrew'); ?>
     <?!= include('JS_RoomMind'); ?>
     <?!= include('JS_RoomTimeline'); ?>
+    <?!= include('JS_Connect4'); ?>
+    <?!= include('JS_Dots'); ?>
+    <?!= include('JS_RoomConnect4'); ?>
+    <?!= include('JS_RoomDots'); ?>
     <?!= include('JS_RoomChat'); ?>
     <?!= include('JS_RoomTurn'); ?>
     <?!= include('JS_Motion'); ?>

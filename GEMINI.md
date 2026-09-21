@@ -813,7 +813,7 @@ the word search), `countUp` for streaks and scores.
   logic (`DominoTiles.js`, with a layout that snakes on a phone and makes a
   cross round the spinner, checked over hundreds of full tables to never
   overlap), the rules (`RoomDomino.js`) and the renderer (`JS_RoomDomino.html`,
-  section 18 of `Style.html`) in the ivory look the owner picked, every move
+  section 21 of `Style.html`) in the ivory look the owner picked, every move
   animated, the round's hands turned over and counted, a podium or the two
   sides at the end. Later the same day the owner's rule for every screen -
   while a round is played the table gets most of the screen, names and
@@ -827,12 +827,22 @@ the word search), `countUp` for streaks and scores.
 - **21 Sep 2026, أونو** - the whole game in rooms and on the TV, to the
   owner's rules asked one at a time (*The owner's specs*), with computer
   players on the room's bot hook: `UnoCards.js` (shared), `RoomUno.js` (the
-  rules and the bots), `JS_RoomUno.html` (the phones and the TV), section 18 of
+  rules and the bots), `JS_RoomUno.html` (the phones and the TV), section 20 of
   `Style.html`. The look picked from a design sheet (colour blocks, like
   سكرو's), every move animated, the play area first at every size, measured.
   The rules tests play 45 whole games of bots across every variant; the robots
   play every rule on a live server (one person and two bots included, finishing
   on the server's clock).
+- **21 Sep 2026, the four together** - أونو, الدومينو and the duels merged
+  onto one branch with the play-area pass (*Decided, and why*: the play area
+  gets the space) and checked in the browser as a table would play them. Found
+  and fixed: a one-round أونو still printed "+135 points" although the owner
+  had chosen it as the mode with no points (it is won, and counts wins across
+  play again now); a wild card's black face melted into the dark table (a
+  faint rim); on a phone on its side the domino "دق" was below the screen (the
+  seats two to a row, six tiles to a row, the bar sticky at the foot); and a
+  robot test that failed whenever the random seats made the host the one who
+  leaves. Robot tests: 1381.
 
 ## Building and Running
 
@@ -1075,7 +1085,9 @@ ever speak for it from outside.
   back to the game's always-legal move (`fallback`: draw, pass); if even that
   fails it tries again in 3s, three times, then waits for a person to move.
   `roomPlayerLeft` and a game's own timeout call `scheduleBots` too, since the
-  turn may have passed to a bot.
+  turn may have passed to a bot. `pending` may ask for its own `delay` (a hard
+  أونو bot waits a human's moment before catching someone), and a bot can act
+  out of turn through the same hook (أونو's catch and jump in).
 - **The lobby** (`roomBotControlsHtml`, `roomBotRowHtml` in `JS_Room.html`): a
   game that seats bots says so on its `ROOM_GAMES` entry (`bots: { max }`); the
   host gets "+ 🤖 سهل" and "+ 🤖 صعب", a bot's row shows 🤖 where the presence
@@ -1709,24 +1721,6 @@ builder, `skrCardHtml`, sized by `--skr-w`.
   `JS_Sounds.html` (`skrFlick`, `skrRiffle`, `skrDrum`, `skrThump`), not on the
   soundboard; none depends on a hidden card.
 
-**Computer players** (`ROOM_BOT_GAMES`, `scheduleBots`, `runRoomBot` near
-the top of `RoomGames.js`; `roomBotControlsHtml`, `roomBotRowHtml` in
-`JS_Room.html`). In a game that registers them the host adds a bot in the
-lobby: a player in `room.players` with `bot: 'easy' | 'hard'`, always online,
-dealt like anyone, its hand in `room.secrets` like anyone's, with no key and no
-socket. A game registers `{ max, pending(room), decide(room, pid),
-fallback(room, pid) }`: after every move `pending` names the bot that has
-something to do now and a key for that moment (and may ask for its own
-`delay`); `room._botAt` is set a second or so ahead, the alarm wakes on it
-(`roomDeadline` takes the sooner of it and the game's own clock), and
-`roomTimeout` applies what `decide` returns - the move exactly as a phone would
-send it - through `applyRoomAction`, falling back to `fallback` (always legal:
-draw, pass) when refused. `decide` may read only that bot's own
-`room.secrets[pid]` and `room.shared`, never another hand or the deck. A bot
-can act out of turn through the same hook (أونو's catch and jump in). The hub
-parks bots and a game with bots sits them back down; a bot never hosts, and a
-room of nothing but bots is empty.
-
 **أونو in rooms** (`unoAction` in `RoomUno.js`, bundled after `RoomGames.js`;
 the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
 
@@ -1772,7 +1766,7 @@ the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
   variant and checks that no bot move is ever refused and no card is lost.
 
 **أونو on the phones and the TV** (`JS_RoomUno.html`, `ROOM_GAMES.uno` and
-`TV_GAMES.uno`; section 18 of `Style.html`).
+`TV_GAMES.uno`; section 20 of `Style.html`).
 
 - **The cards the owner picked** (option أ "بلوكات", the family of سكرو's): the
   whole card in its colour (`--uno-r` `#e5383b`, `--uno-y` `#f5b400` with dark
@@ -1897,7 +1891,7 @@ opposite (seats 1 & 3 against 2 & 4, `shared.teams`, keys `A` and `B`).
   nothing its partner knocked on; in أمريكاني what the move scores now, less
   what the unseen tiles would let the next player score.
 
-**الدومينو on the phones and the TV** (`JS_RoomDomino.html`, section 18 of
+**الدومينو on the phones and the TV** (`JS_RoomDomino.html`, section 21 of
 `Style.html`).
 
 - **The look the owner picked** (21 Sep 2026, option أ "عاجي" from a design

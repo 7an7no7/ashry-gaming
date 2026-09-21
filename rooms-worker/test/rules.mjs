@@ -667,6 +667,17 @@ const leave = (r, id, hook = true) => {
     r._screw.hands[p0].push({ id: 'x9', card: 'n5', shown: false });
     sk(r, p0, 'match', { slot: 'x9' });
     check(r.shared.hands[p0].find((h) => h.id === 'x9').h.known === 'n5' && r.shared.hands[p0].find((h) => h.id === 'x9').up === null, 'skrew: a 5 on the red screw is wrong');
+    {
+      // The two screws are one kind: green goes on red as red goes on green (the owner, 21 Sep 2026).
+      const green = r._screw.hands[p1].find((h) => h.card === 'green0');
+      const had = r._screw.hands[p1].length;
+      sk(r, p1, 'match', { slot: green.id });
+      check(r._screw.hands[p1].length === had - 1 && r.shared.pile[r.shared.pile.length - 1] === 'green0', 'skrew: a green screw burns on a red screw too');
+      r._screw.hands[p0].push({ id: 'x8', card: 'red25', shown: false });
+      const had0 = r._screw.hands[p0].length;
+      sk(r, p0, 'match', { slot: 'x8' });
+      check(r._screw.hands[p0].length === had0 - 1 && r.shared.pile[r.shared.pile.length - 1] === 'red25', 'skrew: and a red screw on the green one it landed on');
+    }
     // The deck runs out: the pile under its top card is shuffled back in.
     r._screw.deck = [];
     const pileBefore = r._screw.pile.length;

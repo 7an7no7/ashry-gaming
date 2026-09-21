@@ -176,6 +176,10 @@ work changed. Add to it when a decision is made or a batch ships.
     The forced throw (and its ⚠️) is gone from the server and the phone. The
     thief and بونج still go into the hand and بينج and المسحراتي still play
     themselves - those are their versions' rules, said plainly, not alerts.
+  - **The two screws are one kind when throwing** (owner, 21 Sep 2026): a red
+    screw goes on a green one, a green on a red, and either on its own colour
+    (`SKREW_SCREWS` in `skrewMatches`). Before, only red on green (and red on
+    red) was allowed, and the Help said red "only on green".
   - **The three kinds of card** (owner, 20 Sep 2026, laid out as groups and
     then confirmed one by one):
     - **Fires the moment it is drawn, and cannot be kept or skipped**: بوم and

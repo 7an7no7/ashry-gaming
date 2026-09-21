@@ -166,14 +166,18 @@ function skrewHandTotal(cards) {
 /**
  * Can `card` be thrown on `top` (the top of the discard pile)? Numbers and the
  * 7-10 match on their value; every other card on its own kind (a life jacket
- * only on a life jacket, a boom only on a boom); the red screw also burns on a
- * green screw, which is the one way to be rid of it.
+ * only on a life jacket, a boom only on a boom); and the two screws are one
+ * kind: red or green, either goes on either (the owner, 21 Sep 2026 - it was
+ * red on green only).
  */
+const SKREW_SCREWS = ['red25', 'green0'];
+
 function skrewMatches(top, card) {
   if (!top || !card) return false;
   const a = SKREW_CARDS[top], b = SKREW_CARDS[card];
   if (!a || !b) return false;
-  if (card === 'red25') return top === 'red25' || top === 'green0';
+  const screw = (id) => SKREW_SCREWS.indexOf(id) !== -1;
+  if (screw(card) || screw(top)) return screw(card) && screw(top);
   const byValue = (id) => SKREW_CARDS[id].kind === 'number' || /^(p7|p8|s9|s10)$/.test(id);
   if (byValue(top) && byValue(card)) return a.value === b.value;
   return top === card;

@@ -95,6 +95,9 @@ function roomTurnOf(state) {
       return s.phase === 'play' && ((s.held || {})[me] || 0) > 0 ? 'turn_up' : null;
     case 'timeline':
       return s.phase === 'play' && s.turnId === me ? 'turn_up' : null;
+    case 'uno':
+      // The player up (a colour to pick, a card to play or a drawn one to decide on).
+      return s.phase === 'play' && s.turn && s.turn.pid === me ? 'turn_up' : null;
     case 'screw':
       if (s.phase === 'memorize') return has(s.order) && !has(s.ready) ? 'turn_memorize' : null;
       // بوم: every other player picks a card of their own, and the player of it waits.

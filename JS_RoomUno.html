@@ -2,20 +2,1536 @@
 /* ============================================================================
    أونو — UNO (rooms and the TV)
    ----------------------------------------------------------------------------
-   The rules are unoAction in RoomUno.js; the cards are UnoCards.js, shared
-   with the server. Not yet built.
+   The rules are unoAction in RoomUno.js; the cards are UnoCards.js, loaded by
+   both sides, so this phone lights exactly the cards the server will take
+   (unoCanPlay) and names them the same way. What only this phone may know is
+   in state.you: its own hand ({ i, k } each) and, while it decides, the id of
+   the card it has just drawn. Everyone else's hand is a count.
+
+   The table, as the owner picked it (21 Sep 2026, look أ "بلوكات", the same
+   family as سكرو's cards): every card the whole card in its colour, a big
+   numeral or a line icon, the value small in two corners, the wilds on near
+   black with a four-colour wheel, the violet dotted back with "A.". Your hand
+   is a row that overlaps when it has to (unoFitHand), the cards you can play
+   raised and the rest dimmed; the other players are seats with their count
+   and a small fan of backs, "أونو" in red on a seat down to one card.
+
+   Every move is an event (shared.events, numbered by shared.eventSeq), and
+   each device plays each event once, flying between exact places measured
+   just before a redraw (data-uno-at: the deck, the pile, a seat, a card in
+   your hand): a card from a hand onto the pile with a turn, cards from the
+   deck to a seat (face down) or into your hand (turning up), ⊘ stamped on a
+   skipped seat, the direction arrow spinning, a wild's colour rippling out,
+   "أونو!" bursting from a seat, hands flying across for 7 and round the table
+   for 0. With motion off nothing flies and the table simply shows the new
+   state. A phone back from the lock screen replays nothing.
+
+   A card is played with one tap (a wild asks for its colour, a 7 in 7-0 for
+   whom to swap with, in the sticky bar); a card that can't go is refused on
+   the spot with a shake. Every turn move carries `seq` (shared.turnSeq), a
+   jump-in the id of the top card it was aimed at, so a tap that lands late
+   is dropped by the server.
    ========================================================================= */
+
+const UNO_OPTS_KEY = 'uno';
+const UNO_OPTS_DEFAULT = { length: 'one', rounds: 5, stacking: true, stackMode: 'same', drawUntil: false, sevenO: false, jumpIn: false, turnClock: 0 };
+const UNO_ROUND_CHOICES = [3, 5, 7];
+const UNO_CLOCK_CHOICES = [0, 30, 60];
+const UNO_FLY_MS = 430;
+const UNO_ROW_MAX = 12;             // cards in one row of your hand before a second row
+
+/** What only this phone holds: the card waiting for a colour or a partner, the clock, whether it is its turn. */
+const unoLocal = { pick: null, pickKey: '', clock: null, clockKey: null, turnMine: false, handInView: '', shownHand: null, shownKey: '' };
+
+/** The flights: which events this device has shown, and where things were before a redraw. */
+const unoFx = { deal: '', lastSeq: 0, watched: '', prevPhase: '', rects: {}, busyUntil: 0, timers: [], held: new Set(), redrawTimer: null,
+  tvSig: '', tvEnding: false, tvState: null, wokeAt: 0 };
+
+/** A string from the translations, with {vars}: a value that isn't a plain number is isolated, so a name keeps its place in a line of the other language. */
+function unoT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] !== undefined ? t[key] : ((TRANSLATIONS.ar || {})[key] || '');
+  if (vars) Object.keys(vars).forEach(k => {
+    const v = vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
+    s = s.split('{' + k + '}').join(v && !/^\d+$/.test(v) ? '⁨' + v + '⁩' : v);
+  });
+  return s;
+}
+
+/* --- the host's options ------------------------------------------------------ */
+
+function unoOpts() {
+  const o = recallOptions(UNO_OPTS_KEY, UNO_OPTS_DEFAULT);
+  return {
+    length: o.length === 'rounds' ? 'rounds' : 'one',
+    rounds: UNO_ROUND_CHOICES.indexOf(Number(o.rounds)) !== -1 ? Number(o.rounds) : 5,
+    stacking: o.stacking !== false,
+    stackMode: o.stackMode === 'mixed' ? 'mixed' : 'same',
+    drawUntil: o.drawUntil === true,
+    sevenO: o.sevenO === true,
+    jumpIn: o.jumpIn === true,
+    turnClock: UNO_CLOCK_CHOICES.indexOf(Number(o.turnClock)) !== -1 ? Number(o.turnClock) : 0
+  };
+}
+
+/** A lobby choice, kept on this phone the moment it is made (the next game starts straight away). */
+function setUnoOpt(key, value) {
+  const patch = {};
+  patch[key] = (key === 'rounds' || key === 'turnClock') ? Number(value) : value;
+  rememberOptions(UNO_OPTS_KEY, patch);
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/* --- the cards --------------------------------------------------------------- */
+
+const UNO_ICONS = {
+  s: '<circle cx="12" cy="12" r="8"/><path d="M6.6 17.4 17.4 6.6"/>',
+  v: '<path d="M5 9h12.5l-3.5-3.5"/><path d="M19 15H6.5l3.5 3.5"/>'
+};
+const unoIcon = (v) => `<svg class="uno-icon" viewBox="0 0 24 24" aria-hidden="true">${UNO_ICONS[v] || ''}</svg>`;
+
+/** A card's name in words: "7 أحمر", "Blue Skip", "جوكر +4". */
+function unoCardName(k) {
+  if (!k) return '';
+  if (k === 'w') return unoT('uno_card_wild');
+  if (k === 'w4') return unoT('uno_card_w4');
+  const v = unoValueOf(k);
+  const face = v === 's' ? unoT('uno_card_skip') : v === 'v' ? unoT('uno_card_rev') : v === 'd' ? '+2' : v;
+  return unoT('uno_card_of', { v: face, c: unoColorName(unoColorOf(k)) }).replace(/[⁨⁩]/g, '');
+}
+const UNO_COLOR_KEYS = { r: 'uno_c_r', y: 'uno_c_y', g: 'uno_c_g', b: 'uno_c_b' };
+const unoColorName = (c) => (UNO_COLOR_KEYS[c] ? unoT(UNO_COLOR_KEYS[c]) : '');
+
+/**
+ * One card. `k` null draws the back. opts.size: xs, sm, md, lg, xl, or fly (a
+ * flight's own box); opts.color the colour a wild on the pile was given (a
+ * ring of it round the wheel).
+ */
+function unoCardHtml(k, opts) {
+  const o = opts || {};
+  const size = o.size || 'md';
+  if (!k) return `<span class="uno-card uno-card--${size} uno-card--back" aria-hidden="true"><b class="uno-card__a">A<i>.</i></b></span>`;
+  const wild = unoIsWild(k);
+  const v = unoValueOf(k);
+  const cls = wild ? 'k' : unoColorOf(k);
+  // A 6 and a 9 are underlined, as on the real cards: the corner at the bottom is upside down.
+  const digit = (d) => (d === '6' || d === '9' ? `<span class="uno-u">${d}</span>` : escapeHTML(d));
+  let art;
+  if (v === 's' || v === 'v') art = `<span class="uno-card__ic">${unoIcon(v)}</span>`;
+  else if (k === 'w') art = '<span class="uno-card__wheel"></span>';
+  else if (k === 'w4') art = '<span class="uno-card__wheel uno-card__wheel--sm"></span><b class="uno-card__over">+4</b>';
+  else art = `<b class="uno-card__big${v === 'd' ? ' uno-card__big--long' : ''}">${v === 'd' ? '+2' : digit(v)}</b>`;
+  const mini = v === 's' || v === 'v' ? unoIcon(v) : k === 'w' ? '<span class="uno-card__mw"></span>' : k === 'w4' ? '+4' : v === 'd' ? '+2' : digit(v);
+  const chosen = wild && o.color ? ` uno-card--chosen uno-chosen--${o.color}` : '';
+  return `<span class="uno-card uno-card--${size} uno-card--face uno-c--${cls}${chosen}" role="img" aria-label="${escapeHTML(unoCardName(k))}">`
+    + `<span class="uno-card__mini">${mini}</span><span class="uno-card__art">${art}</span><span class="uno-card__mini uno-card__mini--end">${mini}</span></span>`;
+}
+
+/* --- who and where ----------------------------------------------------------- */
+
+const unoOrder = (state) => ((state.shared || {}).order || []);
+const unoInGame = (state) => !state.youAreScreen && unoOrder(state).indexOf(Room.me) !== -1;
+const unoTopCard = (s) => { const pile = s.pile || []; return pile[pile.length - 1] || null; };
+const unoHand = (state) => ((state.you || {}).hand || []);
+
+function unoName(state, pid) {
+  const p = (state.players || []).find(x => x.id === pid);
+  return p ? p.name : '—';
+}
+
+/** The seat `steps` on from pid, in the direction of play (the server's unoNext). */
+function unoNextOf(s, pid, steps) {
+  const seats = s.order || [];
+  const n = seats.length;
+  const at = seats.indexOf(pid);
+  if (at === -1 || !n) return null;
+  const k = (steps === undefined ? 1 : steps) * (s.dir === -1 ? -1 : 1);
+  return seats[(((at + k) % n) + n) % n];
+}
+
+const unoMyTurn = (state) => {
+  const s = state.shared || {};
+  return s.phase === 'play' && !!s.turn && s.turn.pid === Room.me && unoInGame(state);
+};
+
+/** Whether a card of this phone's hand goes on the pile now (always lit: the owner). */
+function unoPlayable(state, card) {
+  const s = state.shared || {};
+  if (!unoMyTurn(state) || !card) return false;
+  if (s.turn.stage === 'color') return false;
+  if (s.turn.stage === 'drawn') return String(card.i) === String((state.you || {}).drawn);
+  const top = unoTopCard(s);
+  return unoCanPlay(card.k, top ? top.k : null, s.color, s.pending, s.settings || {});
+}
+
+/** Jump in: the very same card as the top one, out of turn. */
+function unoJumpable(state, card) {
+  const s = state.shared || {};
+  if (!card || !(s.settings || {}).jumpIn || s.phase !== 'play' || !s.turn || s.turn.stage === 'color' || !unoInGame(state)) return false;
+  if (s.turn.pid === Room.me) return false;
+  const top = unoTopCard(s);
+  return !!top && unoSameCard(card.k, top.k);
+}
+
+/* --- this phone's taps ------------------------------------------------------- */
+
+function unoAct(btn, action, extra) {
+  const st = Room.state;
+  if (!st || st.game !== 'uno') return;
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  haptic('light');
+  roomAct(action, Object.assign({ seq: (st.shared || {}).turnSeq }, extra || {}));
+}
+
+function unoRedraw() {
+  if (Room.state && Room.state.game === 'uno') routeRoomState(Room.state);
+}
+
+/** A card that can't go: it shakes where it is, and nothing is sent. */
+function unoRefuse(id) {
+  haptic('heavy');
+  const el = document.querySelector('#view-room-uno [data-uno-at="card:' + id + '"]');
+  if (el && el.animate && !motionOff()) {
+    el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }],
+      { duration: 320, easing: 'ease-out' });
+  }
+  showToast(unoT('uno_cant'), 'error');
+}
+
+/** One tap plays a card; a wild asks for its colour and a 7 (with 7-0) for someone to swap with, in the bar. */
+function unoTapCard(id) {
+  const st = Room.state;
+  if (!st || st.game !== 'uno') return;
+  const card = unoHand(st).find(c => String(c.i) === String(id));
+  if (!card) return;
+  const s = st.shared || {};
+  const jump = unoJumpable(st, card);
+  if (!jump && !unoPlayable(st, card)) { unoRefuse(id); return; }
+  const settings = s.settings || {};
+  const needsTarget = settings.sevenO && unoValueOf(card.k) === '7' && unoHand(st).length > 1;
+  if (unoIsWild(card.k)) { unoLocal.pick = { card: card.i, need: 'color', jump: false }; unoRedraw(); haptic('light'); return; }
+  if (needsTarget) { unoLocal.pick = { card: card.i, need: 'target', jump: jump }; unoRedraw(); haptic('light'); return; }
+  unoSend(card.i, jump, {});
+}
+
+function unoSend(cardId, jump, extra) {
+  const st = Room.state;
+  if (!st) return;
+  const s = st.shared || {};
+  unoLocal.pick = null;
+  haptic('medium');
+  if (jump) {
+    const top = unoTopCard(s);
+    roomAct('jump', Object.assign({ card: cardId, top: top ? top.i : null }, extra));
+  } else {
+    roomAct('play', Object.assign({ card: cardId, seq: s.turnSeq }, extra));
+  }
+}
+
+function unoPickColor(color) {
+  const st = Room.state;
+  if (!st) return;
+  const s = st.shared || {};
+  if (s.turn && s.turn.stage === 'color' && s.turn.pid === Room.me) { unoAct(null, 'pickColor', { color: color }); return; }
+  const pick = unoLocal.pick;
+  if (!pick || pick.need !== 'color') return;
+  unoSend(pick.card, pick.jump, { color: color });
+}
+
+function unoPickTarget(pid) {
+  const pick = unoLocal.pick;
+  if (!pick || pick.need !== 'target') return;
+  unoSend(pick.card, pick.jump, { target: pid });
+}
+
+function unoCancelPick() {
+  unoLocal.pick = null;
+  unoRedraw();
+}
+
+function unoSayUno(btn) {
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  haptic('heavy');
+  roomAct('callUno', {});
+}
+
+function unoCatchIt(btn, target) {
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  haptic('heavy');
+  roomAct('catchUno', { target: target });
+}
+
+/* --- the table, piece by piece ------------------------------------------------ */
+
+/** The round, the rules in play, the clock. */
+function unoHeadHtml(state) {
+  const s = state.shared || {};
+  const set = s.settings || {};
+  const bits = [];
+  bits.push(`<span class="badge">${escapeHTML(set.length === 'rounds' ? unoT('uno_round_of', { n: s.round || 1, m: s.rounds || set.rounds || '' }) : unoT('uno_one_round'))}</span>`);
+  if (set.stacking) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_stacking'))}">➕ ${escapeHTML(set.stackMode === 'mixed' ? '+2 / +4' : '+2 +2')}</span>`);
+  if (set.sevenO) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_seven_o'))}"><bdi dir="ltr">7 · 0</bdi></span>`);
+  if (set.jumpIn) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_jump_in'))}">⚡</span>`);
+  if (set.drawUntil) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_draw_until'))}">🂠∞</span>`);
+  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-uno-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  return `<div class="uno-head">${bits.join('')}</div>`;
+}
+
+/** A few backs fanned out: how a hand looks from across the table. */
+function unoFanHtml(n, max) {
+  const shown = Math.min(n, max || 5);
+  let out = '';
+  for (let k = 0; k < shown; k++) out += `<span class="uno-fan__card" style="--k:${k};--of:${shown}">${unoCardHtml(null, { size: 'xs' })}</span>`;
+  return `<span class="uno-fan" style="--of:${shown}">${out}</span>`;
+}
+
+/** Another player: a round avatar, the name, how many cards and a fan of their backs; "أونو" in red at one card. */
+function unoSeatHtml(state, pid, tv) {
+  const s = state.shared || {};
+  const p = (state.players || []).find(x => x.id === pid);
+  const n = (s.counts || {})[pid] || 0;
+  const cls = ['uno-seat'];
+  const turn = s.phase === 'play' && s.turn && s.turn.pid === pid;
+  if (turn) cls.push('is-turn');
+  if (s.phase === 'play' && s.turn && !turn && unoNextOf(s, s.turn.pid) === pid) cls.push('is-next');
+  if (!p || !p.online) cls.push('is-away');
+  if (n === 1) cls.push('is-uno');
+  if (s.unoCatch === pid) cls.push('is-catch');
+  const name = p ? p.name : '—';
+  const letter = Array.from(String(name).trim())[0] || '?';
+  const said = (s.said || []).indexOf(pid) !== -1;
+  const tag = n === 1 ? `<span class="uno-tag">${escapeHTML(unoT('uno_tag'))}</span>` : said ? '<span class="uno-tag uno-tag--soft">📣</span>' : '';
+  const stage = turn && s.turn.stage === 'drawn' ? '✋' : turn && s.turn.stage === 'color' ? '🎨' : '';
+  return `<div class="${cls.join(' ')}" data-uno-seat="${escapeHTML(pid)}">
+      <span class="uno-avatar" aria-hidden="true">${p && p.bot ? '🤖' : escapeHTML(letter)}</span>
+      <span class="uno-seat__who"><span class="uno-seat__name">${escapeHTML(name)}</span>${tag}${stage ? `<span class="uno-seat__stage">${stage}</span>` : ''}</span>
+      <span class="uno-seat__hand" data-uno-at="seat:${escapeHTML(pid)}">${unoFanHtml(n, tv ? 7 : 5)}</span>
+      <b class="uno-seat__n metric">${n}</b>
+    </div>`;
+}
+
+/** The pile: the top card big, two under it at their own angles. */
+function unoPileHtml(s, size) {
+  const pile = s.pile || [];
+  const top = pile[pile.length - 1];
+  const under = pile.slice(-3, -1);
+  const tilt = (c) => ((Number(c.i) * 37) % 23) - 11;
+  const unders = under.map(c => `<span class="uno-pile__under" style="--tilt:${tilt(c)}deg">${unoCardHtml(c.k, { size: size, color: c.c })}</span>`).join('');
+  return `<span class="uno-pile">${unders}<span class="uno-pile__top" data-uno-at="pile" style="--tilt:${top ? tilt(top) / 3 : 0}deg">${top ? unoCardHtml(top.k, { size: size, color: top.c }) : ''}</span></span>`;
+}
+
+/** The middle of the table: the deck, the pile (and a draw waiting on it), the colour in play and which way play goes. */
+function unoCenterHtml(state, tv) {
+  const s = state.shared || {};
+  const color = s.color;
+  const next = s.phase === 'play' && s.turn ? unoNextOf(s, s.turn.pid) : null;
+  const pending = s.pending && s.pending.n ? `<span class="uno-pending metric" data-uno-at="pending">+${s.pending.n}</span>` : '';
+  return `<div class="uno-center">
+      <div class="uno-zone uno-zone--deck">
+        <span class="uno-deck" data-uno-at="deck"><span class="uno-deck__under">${unoCardHtml(null, { size: 'md' })}</span><span class="uno-deck__under uno-deck__under--2">${unoCardHtml(null, { size: 'md' })}</span>${unoCardHtml(null, { size: 'md' })}</span>
+        <span class="uno-count metric">${Number(s.deckCount) || 0}</span>
+        <span class="uno-zone__label">${escapeHTML(unoT('uno_deck'))}</span>
+      </div>
+      <div class="uno-zone uno-zone--pile">${unoPileHtml(s, 'lg')}${pending}</div>
+      <div class="uno-zone uno-zone--state">
+        <span class="uno-dot ${color ? 'uno-c--' + color : 'is-none'}" data-uno-at="color" aria-hidden="true"></span>
+        <span class="uno-state__color">${escapeHTML(color ? unoColorName(color) : unoT('uno_no_color'))}</span>
+        <span class="uno-dir ${s.dir === -1 ? 'is-back' : ''}" data-uno-at="dir" title="${escapeHTML(unoT('uno_dir'))}" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></span>
+        ${next ? `<span class="uno-zone__label">${escapeHTML(unoT('uno_next', { name: unoName(state, next) }))}</span>` : ''}
+      </div>
+    </div>`;
+}
+
+/** Your hand in rows of at most UNO_ROW_MAX, overlapping when a row is wider than the screen (unoFitHand). */
+function unoMineHtml(state) {
+  const s = state.shared || {};
+  const hand = unoSorted(unoHand(state));
+  const mine = unoMyTurn(state);
+  const pick = unoLocal.pick;
+  const drawnId = (state.you || {}).drawn;
+  const cls = ['uno-mine'];
+  if (mine) cls.push('is-turn');
+  if (s.unoCatch === Room.me) cls.push('is-catch');
+  const said = (s.said || []).indexOf(Room.me) !== -1;
+  const rows = Math.max(1, Math.ceil(hand.length / UNO_ROW_MAX));
+  const per = Math.ceil(hand.length / rows) || 1;
+  const cardBtn = (c) => {
+    const b = ['uno-hcard'];
+    const play = unoPlayable(state, c);
+    const jump = unoJumpable(state, c);
+    if (mine) b.push(play ? 'is-play' : 'is-dim');
+    if (jump) b.push('is-jump');
+    if (drawnId !== null && drawnId !== undefined && String(c.i) === String(drawnId)) b.push('is-drawn');
+    if (pick && String(pick.card) === String(c.i)) b.push('is-picked');
+    return `<button type="button" class="${b.join(' ')}" data-uno-at="card:${c.i}" onclick="unoTapCard(${Number(c.i)})" aria-label="${escapeHTML(unoCardName(c.k))}">${unoCardHtml(c.k, { size: 'md' })}</button>`;
+  };
+  let body = '';
+  for (let r = 0; r < rows; r++) {
+    const part = hand.slice(r * per, (r + 1) * per);
+    body += `<div class="uno-hand__row" style="--n:${part.length}">${part.map(cardBtn).join('')}</div>`;
+  }
+  const n = hand.length;
+  const tag = n === 1 ? `<span class="uno-tag">${escapeHTML(unoT('uno_tag'))}</span>` : said ? `<span class="badge badge--success">${escapeHTML(unoT('uno_said'))}</span>` : '';
+  return `<div class="${cls.join(' ')}" data-uno-seat="${escapeHTML(Room.me)}">
+      <div class="uno-mine__head"><span class="uno-mine__title">🂠 ${escapeHTML(unoT('uno_your_cards'))}</span><b class="metric uno-mine__n">${n}</b>${tag}</div>
+      <div class="uno-hand" data-uno-at="seat:${escapeHTML(Room.me)}">${body || `<span class="uno-hand__empty">—</span>`}</div>
+    </div>`;
+}
+
+/* --- what happened ------------------------------------------------------------- */
+
+/** One move in words, for the line at the top of the table and the log. */
+function unoEventText(state, e) {
+  if (!e) return '';
+  const name = (pid) => unoName(state, pid);
+  switch (e.type) {
+    case 'deal': return unoT('uno_ev_deal', { n: e.round, card: unoCardName(e.first && e.first.k) });
+    case 'play': {
+      const card = unoCardName(e.card && e.card.k);
+      if (e.jump) return unoT('uno_ev_jump', { name: name(e.pid), card: card }) + (e.color ? ' · ' + unoColorName(e.color) : '');
+      return e.color ? unoT('uno_ev_play_color', { name: name(e.pid), card: card, color: unoColorName(e.color) }) : unoT('uno_ev_play', { name: name(e.pid), card: card });
+    }
+    case 'skip': return unoT('uno_ev_skip', { name: name(e.pid) });
+    case 'reverse': return unoT('uno_ev_reverse');
+    case 'hit': return unoT('uno_ev_hit', { name: name(e.pid), n: e.n });
+    case 'take': return unoT('uno_ev_take', { name: name(e.pid), n: e.n });
+    case 'draw': return e.n > 1 ? unoT('uno_ev_draw_n', { name: name(e.pid), n: e.n }) : unoT('uno_ev_draw', { name: name(e.pid) });
+    case 'keep': return unoT('uno_ev_keep', { name: name(e.pid) });
+    case 'pass': return unoT('uno_ev_pass', { name: name(e.pid) });
+    case 'color': return unoT('uno_ev_color', { name: name(e.pid), color: unoColorName(e.color) });
+    case 'uno': return unoT('uno_ev_uno', { name: name(e.pid) });
+    case 'caught': return unoT('uno_ev_caught', { by: name(e.by), name: name(e.pid), n: e.n });
+    case 'swap': return unoT('uno_ev_swap', { name: name(e.pid), target: name(e.target) });
+    case 'rotate': return unoT('uno_ev_rotate');
+    case 'reshuffle': return unoT('uno_ev_reshuffle');
+    case 'auto': return e.why === 'host' ? unoT('uno_ev_auto_host', { name: name(e.pid) }) : unoT('uno_ev_auto_clock', { name: name(e.pid) });
+    case 'win': return unoT('uno_ev_win', { name: name(e.pid) });
+    case 'left': return unoT('uno_ev_left', { name: e.name || name(e.pid) });
+    default: return '';
+  }
+}
+
+/** The moves worth a line: the ones a player reads, not the bookkeeping. */
+const unoMoves = (state) => ((state.shared || {}).events || []).filter(e => e && e.type !== 'auto' && unoEventText(state, e));
+
+function unoLatestHtml(state, tv) {
+  const list = unoMoves(state);
+  const e = list[list.length - 1];
+  if (!e) return '';
+  const fresh = motionFirst(['uno-latest', state.code, e.seq, tv ? 'tv' : 'phone'].join('|'));
+  return `<p class="uno-latest ${fresh ? 'is-new' : ''}">${escapeHTML(unoEventText(state, e))}</p>`;
+}
+
+function unoLogHtml(state, count) {
+  const list = unoMoves(state).slice(0, -1).slice(-count).reverse();
+  if (!list.length) return '';
+  return `<ul class="uno-log">${list.map(e => `<li>${escapeHTML(unoEventText(state, e))}</li>`).join('')}</ul>`;
+}
+
+/* --- the bar: what to do now -------------------------------------------------- */
+
+function unoColorPickerHtml() {
+  return `<div class="uno-colors">${UNO_COLORS.map(c => `<button type="button" class="uno-colorbtn uno-c--${c}" onclick="unoPickColor('${c}')"><span class="uno-colorbtn__dot" aria-hidden="true"></span>${escapeHTML(unoColorName(c))}</button>`).join('')}</div>`;
+}
+
+function unoTargetsHtml(state) {
+  const s = state.shared || {};
+  const others = unoOrder(state).filter(pid => pid !== Room.me);
+  return `<div class="uno-targets">${others.map(pid => `<button type="button" class="uno-target" onclick="unoPickTarget('${jsStringAttr(pid)}')"><span class="uno-target__name">${escapeHTML(unoName(state, pid))}</span><b class="metric">${(s.counts || {})[pid] || 0}</b></button>`).join('')}</div>`;
+}
+
+/** "أونو!" - when it is yours to say: two cards (just before playing) or one not said yet. */
+function unoSayHtml(state, big) {
+  const s = state.shared || {};
+  const n = unoHand(state).length;
+  if (!unoInGame(state) || s.phase !== 'play' || (n !== 1 && n !== 2) || (s.said || []).indexOf(Room.me) !== -1) return '';
+  const hint = s.unoCatch === Room.me ? unoT('uno_say_now') : n === 2 ? unoT('uno_say_hint') : '';
+  return `<div class="uno-say ${big || s.unoCatch === Room.me ? 'is-urgent' : ''}">
+      <button type="button" class="btn uno-saybtn ${s.unoCatch === Room.me ? 'btn--lg' : ''}" onclick="unoSayUno(this)">📣 ${escapeHTML(unoT('uno_say'))}</button>
+      ${hint ? `<p class="uno-hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+}
+
+/** "امسكه!" - for everyone else, while the one who forgot is still catchable. */
+function unoCatchHtml(state) {
+  const s = state.shared || {};
+  if (!s.unoCatch || s.unoCatch === Room.me || !unoInGame(state) || s.phase !== 'play') return '';
+  const name = unoName(state, s.unoCatch);
+  return `<div class="uno-catch">
+      <button type="button" class="btn btn--danger btn--lg" onclick="unoCatchIt(this, '${jsStringAttr(s.unoCatch)}')">🚨 ${escapeHTML(unoT('uno_catch', { name: name }))}</button>
+      <p class="uno-hint">${escapeHTML(unoT('uno_catch_hint', { name: name }))}</p>
+    </div>`;
+}
+
+/** Whose turn it is and what they are doing, for everyone but them. */
+function unoTurnWords(state) {
+  const s = state.shared || {};
+  if (s.phase !== 'play' || !s.turn) return { title: '', hint: '' };
+  const name = unoName(state, s.turn.pid);
+  let hint = '';
+  if (s.turn.stage === 'color') hint = unoT('uno_waiting_color', { name: name });
+  else if (s.turn.stage === 'drawn') hint = unoT('uno_waiting_drawn', { name: name });
+  else if (s.pending && s.pending.n) hint = unoT('uno_waiting_facing', { name: name, n: s.pending.n });
+  return { title: unoT('uno_turn_of', { name: name }), hint: hint };
+}
+
+function unoActionsHtml(state) {
+  const s = state.shared || {};
+  if (s.phase !== 'play' || !s.turn) return '';
+  const bar = (inner, extra) => `<div class="uno-actbar ${extra || ''}">${inner}</div>`;
+  const note = (inner) => `<div class="uno-note">${inner}</div>`;
+  const inGame = unoInGame(state);
+  const hand = unoHand(state);
+  const say = unoSayHtml(state);
+  const caught = unoCatchHtml(state);
+  const pick = unoLocal.pick;
+  const cancel = `<button type="button" class="btn btn--ghost btn--sm" onclick="unoCancelPick()">${escapeHTML(unoT('uno_cancel'))}</button>`;
+
+  if (pick && pick.need === 'color') return bar(`<p class="uno-prompt is-mine">🎨 ${escapeHTML(unoT('uno_pick_color'))}</p>${unoColorPickerHtml()}${cancel}`);
+  if (pick && pick.need === 'target') return bar(`<p class="uno-prompt is-mine">🔀 ${escapeHTML(unoT('uno_pick_target'))}</p>${unoTargetsHtml(state)}${cancel}`);
+
+  if (!unoMyTurn(state)) {
+    const w = unoTurnWords(state);
+    const jumpable = inGame && hand.some(c => unoJumpable(state, c));
+    const line = `<p class="uno-prompt">${escapeHTML(w.title)}</p>${w.hint ? `<p class="uno-hint">${escapeHTML(w.hint)}</p>` : ''}${jumpable ? `<p class="uno-hint uno-hint--jump">${escapeHTML(unoT('uno_jump_hint'))}</p>` : ''}`;
+    if (caught || say) return bar(caught + say, caught ? 'uno-actbar--catch' : '') + note(line);
+    return note(line);
+  }
+
+  const turn = s.turn;
+  const head = `<p class="uno-prompt is-mine">⭐ ${escapeHTML(unoT('uno_your_turn'))}</p>`;
+  if (turn.stage === 'color') {
+    return bar(`${head}<p class="uno-hint">${escapeHTML(unoT('uno_pick_first_color'))}</p>${unoColorPickerHtml()}`);
+  }
+  if (turn.stage === 'drawn') {
+    const card = hand.find(c => String(c.i) === String((state.you || {}).drawn));
+    return bar(`${caught}${head}<p class="uno-hint">${escapeHTML(unoT('uno_drawn', { card: card ? unoCardName(card.k) : '' }))}</p>
+      <div class="uno-actrow">
+        <button type="button" class="btn btn--primary" onclick="unoTapCard(${card ? Number(card.i) : -1})">▶️ ${escapeHTML(unoT('uno_play_it'))}</button>
+        <button type="button" class="btn btn--secondary" onclick="unoAct(this, 'keep')">✋ ${escapeHTML(unoT('uno_keep_it'))}</button>
+      </div>${say}`);
+  }
+  const playable = hand.filter(c => unoPlayable(state, c));
+  if (s.pending && s.pending.n) {
+    const settings = s.settings || {};
+    const hintKey = !playable.length ? 'uno_facing_hint_none' : s.pending.kind === 'w4' ? 'uno_facing_hint_w4' : settings.stackMode === 'mixed' ? 'uno_facing_hint_mixed' : 'uno_facing_hint_stack';
+    return bar(`${caught}<p class="uno-prompt is-mine">⭐ ${escapeHTML(unoT('uno_facing', { n: s.pending.n }))}</p><p class="uno-hint">${escapeHTML(unoT(hintKey))}</p>
+      <button type="button" class="btn ${playable.length ? 'btn--secondary' : 'btn--primary btn--lg'}" onclick="unoAct(this, 'take')">🂠 ${escapeHTML(unoT('uno_take', { n: s.pending.n }))}</button>${say}`, 'uno-actbar--facing');
+  }
+  const drawLabel = (s.settings || {}).drawUntil ? unoT('uno_draw_until_btn') : unoT('uno_draw');
+  return bar(`${caught}${head}<p class="uno-hint">${escapeHTML(playable.length ? unoT('uno_play_lit') : unoT('uno_nothing_fits'))}</p>
+    <button type="button" class="btn ${playable.length ? 'btn--secondary' : 'btn--primary btn--lg'}" onclick="unoAct(this, 'draw')">🂠 ${escapeHTML(drawLabel)}</button>${say}`);
+}
+
+/* --- the host's way past a phone that went quiet --------------------------------- */
+
+function unoHostButtons(state) {
+  const s = state.shared || {};
+  if (!state.youAreHost || s.phase !== 'play' || !s.turn) return [];
+  const p = (state.players || []).find(x => x.id === s.turn.pid);
+  if (p && (p.online || p.bot)) return [];
+  return [['⏭️ ' + unoT('uno_skip_turn', { name: unoName(state, s.turn.pid) }), "unoAct(this, 'skipTurn')"]];
+}
+
+/** Presence redraws nothing: the away seats, the strip and the host's buttons are updated in place. */
+function unoRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('.uno-seat[data-uno-seat]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-uno-seat'));
+    el.classList.toggle('is-away', !(p && p.online));
+  });
+  const box = root.querySelector('[data-uno-host]');
+  if (box) {
+    const buttons = unoHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._unoHtml !== html) { box.innerHTML = html; box._unoHtml = html; }
+  }
+}
+
+/* --- the end of a round, and of the game ----------------------------------------- */
+
+/** Every hand turned over, one card after another, and what it cost counting up. */
+function unoRevealHtml(state, tv) {
+  const s = state.shared || {};
+  const r = s.results;
+  if (!r) return '';
+  const order = unoOrder(state).filter(pid => r.hands && r.hands[pid]);
+  const rows = [r.winner].concat(order.filter(pid => pid !== r.winner).sort((a, b) => (r.points[a] || 0) - (r.points[b] || 0)))
+    .filter(pid => r.hands && r.hands[pid]);
+  const animate = motionFirst(['uno-reveal', state.code, s.dealId || '', r.round, tv ? 'tv' : 'phone'].join('|'));
+  const size = tv ? 'md' : 'sm';
+  let k = 0;
+  const html = rows.map(pid => {
+    const cards = r.hands[pid] || [];
+    const win = pid === r.winner;
+    const pts = win ? r.gained : (r.points[pid] || 0);
+    const cardsHtml = cards.length
+      ? cards.map(c => {
+          const at = animate ? 250 + (k++) * 60 : null;
+          return at === null ? unoCardHtml(c, { size: size })
+            : `<span class="uno-flip" style="--at:${at}ms"><span class="uno-flip__back">${unoCardHtml(null, { size: size })}</span><span class="uno-flip__face">${unoCardHtml(c, { size: size })}</span></span>`;
+        }).join('')
+      : `<span class="uno-rrow__done">${escapeHTML(unoT('uno_no_cards'))}</span>`;
+    return `<div class="uno-rrow ${win ? 'is-winner' : ''}">
+        <div class="uno-rrow__who"><span class="uno-rrow__name">${win ? '🏆 ' : ''}${escapeHTML(unoName(state, pid))}</span></div>
+        <div class="uno-rrow__pts">${win ? '<span class="uno-rrow__plus">+</span>' : ''}<b class="metric" data-uno-count="${pts}">${animate ? 0 : pts}</b></div>
+        <div class="uno-rrow__cards">${cardsHtml}</div>
+      </div>`;
+  }).join('');
+  const end = animate ? 250 + k * 60 + 450 : 0;
+  return `<div class="uno-reveal ${tv ? 'uno-reveal--tv' : ''} ${animate ? 'is-revealing' : ''}" ${animate ? `data-reveal-ms="${end + 700}" data-uno-count-at="${end}"` : ''}>${html}</div>`;
+}
+
+/** The totals count up once the cards have turned. */
+function unoRevealCount(root) {
+  const box = root && root.querySelector('[data-uno-count-at]');
+  if (!box) return;
+  const at = Number(box.getAttribute('data-uno-count-at')) || 0;
+  unoFx.timers.push(setTimeout(() => {
+    box.querySelectorAll('[data-uno-count]').forEach(el => {
+      const to = Number(el.getAttribute('data-uno-count')) || 0;
+      if (typeof countUp === 'function' && to) countUp(el, 0, to); else el.textContent = to;
+    });
+  }, at));
+}
+
+/** Who won, in words. */
+function unoWinnersLine(state) {
+  const s = state.shared || {};
+  const ids = Array.isArray(s.winners) ? s.winners : [];
+  const sep = appState.lang === 'en' ? ', ' : '، ';
+  return ids.map(pid => unoName(state, pid)).join(sep);
+}
+
+/**
+ * The podium. Rounds: the totals, as they are. One round: the winner and then
+ * the others by what they were left holding - drawn by rank, with each place's
+ * own number put back (+ what the winner took, − what the others held).
+ */
+function unoPodiumHtml(state) {
+  const s = state.shared || {};
+  const board = (s.board || []).slice();
+  if (board.length < 2 || typeof renderPodium !== 'function') return '';
+  if ((s.settings || {}).length === 'rounds') return renderPodium(state, board);
+  const ranked = board.map((row, i) => ({ id: row.id, name: row.name, score: board.length - board.findIndex(x => x.score === row.score) }));
+  const html = renderPodium(state, ranked);
+  if (!html) return '';
+  const real = board.slice(0, 3).map(r => (r.score > 0 ? '+' + r.score : r.score < 0 ? '−' + Math.abs(r.score) : '0'));
+  let i = 0;
+  return html.replace(/(<span class="podium__score metric">)(-?\d+)(<\/span>)/g, (m, a, n, b) => a + (i < real.length ? real[i++] : n) + b);
+}
+
+function unoResultFrame(state) {
+  const s = state.shared || {};
+  const t = TRANSLATIONS[appState.lang] || {};
+  const over = s.phase === 'gameover';
+  const r = s.results;
+  const rounds = (s.settings || {}).length === 'rounds';
+  const title = r ? unoT('uno_round_won', { name: unoName(state, r.winner) }) : unoT('uno_forfeit');
+  const hostNext = over
+    ? `<div class="btn-stack">
+         <button type="button" class="btn btn--primary btn--lg" onclick="unoAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
+         <button type="button" class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+       </div>`
+    : `<div class="btn-stack">
+         <button type="button" class="btn btn--primary btn--lg" onclick="unoAct(this, 'nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(t.next_round || '')}</button>
+       </div>`;
+  return `<div class="uno uno--result">
+      ${unoHeadHtml(state)}
+      <div class="card card--accent uno-won">
+        <div class="card__title">${escapeHTML(title)}</div>
+        ${r && r.gained ? `<p class="uno-hint">${escapeHTML(unoT('uno_gained', { n: r.gained }))}</p>` : ''}
+      </div>
+      ${r ? `<p class="uno-sub">${escapeHTML(unoT('uno_reveal_title'))}</p>${unoRevealHtml(state, false)}` : ''}
+      ${r ? `<p class="uno-rule">${escapeHTML(unoT('uno_points_rule'))}</p>` : ''}
+      ${over ? `<div class="card uno-over">
+          <div class="card__title">🏆 ${escapeHTML(unoT('uno_game_won', { name: unoWinnersLine(state) }))}</div>
+          ${unoPodiumHtml(state)}
+        </div>` : ''}
+      ${rounds ? renderScoreboard(s.board || []) : ''}
+      ${over ? roomShareBtnHtml(state, s.board || []) : ''}
+      ${state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+/* --- the phone's frame ---------------------------------------------------------- */
+
+/** Everything the server said that the table shows. Presence is not in it (refreshed in place). */
+function unoServerSig(state) {
+  const s = state.shared || {};
+  const events = s.events || [];
+  const done = s.phase === 'roundOver' || s.phase === 'gameover';
+  return [s.dealId || '', s.phase, s.round, s.rounds, s.turnSeq, JSON.stringify(s.turn || null), JSON.stringify(s.pending || null), s.color || '', s.dir,
+    (s.pile || []).map(c => c.i + (c.c || '')).join(','), JSON.stringify(s.counts || {}), (s.said || []).join(','), s.unoCatch || '', s.deckCount,
+    events.length ? events[events.length - 1].seq : 0, s.endsAt || '',
+    done ? JSON.stringify(s.results || null) + JSON.stringify(s.scores || {}) + JSON.stringify(s.winners || null) : '',
+    JSON.stringify(state.you || null), (s.order || []).join(','), JSON.stringify(s.settings || {}),
+    (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(',')].join('|');
+}
+
+/** A choice being made (a wild's colour, a 7's partner) belongs to one turn: it goes when the table moves on. */
+function unoSyncPick(state) {
+  const s = state.shared || {};
+  const top = unoTopCard(s);
+  const key = [state.code, s.dealId || '', s.phase, s.turnSeq, top ? top.i : ''].join('|');
+  if (unoLocal.pickKey !== key) { unoLocal.pickKey = key; unoLocal.pick = null; }
+  const pick = unoLocal.pick;
+  if (pick && !unoHand(state).some(c => String(c.i) === String(pick.card))) unoLocal.pick = null;
+}
+
+function unoPhoneFrame(state) {
+  const s = state.shared || {};
+  if (s.phase === 'roundOver' || s.phase === 'gameover') return unoResultFrame(state);
+  const me = Room.me;
+  const inGame = unoInGame(state);
+  const order = unoOrder(state);
+  const at = order.indexOf(me);
+  // The table from this seat: the player after you first, round to the one before you.
+  const opps = at === -1 ? order.slice() : order.slice(at + 1).concat(order.slice(0, at));
+  return `<div class="uno ${unoMyTurn(state) ? 'is-turn' : ''} ${opps.length >= 3 ? 'uno--many' : ''}">
+      ${unoHeadHtml(state)}
+      ${unoLatestHtml(state, false)}
+      <div class="uno-layout">
+        <div class="uno-layout__table">
+          <div class="uno-opps ${opps.length >= 3 ? 'uno-opps--grid' : ''}">${opps.map(pid => unoSeatHtml(state, pid, false)).join('')}</div>
+          ${unoCenterHtml(state, false)}
+        </div>
+        <div class="uno-layout__side">
+          ${inGame ? unoMineHtml(state) : `<div class="waiting-note">${escapeHTML((TRANSLATIONS[appState.lang] || {}).vote_spectating || '')}</div>`}
+          ${unoActionsHtml(state)}
+          <div data-uno-host></div>
+          ${unoLogHtml(state, 3)}
+        </div>
+      </div>
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
 ROOM_GAMES.uno = {
   bots: { max: 12 },
-  lobbyOptions() { return ''; },
-  startPayload() { return {}; },
+  /* The table keeps your hand in view itself (unoHandInView); the end of a round
+     and of the game are drawn from the top. */
+  actionKey(state) {
+    const s = state.shared || {};
+    return s.phase === 'play' ? '' : [state.code, s.dealId, s.phase, s.round].join('|');
+  },
+  lobbyOptions(state) {
+    const n = (state.players || []).length;
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(unoT('uno_lobby_hint'))}</p>`;
+    const few = n < 2 ? `<p class="field__hint tx-warning" style="text-align:center">🤖 ${escapeHTML(unoT('uno_need_two'))}</p>` : '';
+    if (!state.youAreHost) return `${hint}<p class="field__hint" style="text-align:center">${escapeHTML(unoT('uno_lobby_wait'))}</p>`;
+    const o = unoOpts();
+    const seg = (key, values, labelOf) => `<div class="segmented" role="group">${values.map(v =>
+      `<button type="button" class="segmented__item ${o[key] === v ? 'is-active' : ''}" onclick="setUnoOpt('${key}', ${typeof v === 'string' ? `'${v}'` : v})">${labelOf(v)}</button>`).join('')}</div>`;
+    const sw = (key, id, icon, label, hintText) => `<div class="field">
+          <label class="switch-row" for="${id}">
+            <span class="field__label">${icon} ${escapeHTML(label)}</span>
+            <span class="switch"><input type="checkbox" id="${id}" role="switch" ${o[key] ? 'checked' : ''} onchange="setUnoOpt('${key}', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(hintText)}</p>
+        </div>`;
+    return `<div class="card card--tight uno-lobby">
+        <div class="uno-lobby__cards" aria-hidden="true">${['r7', 'yd', 'gs', 'bv', 'w4'].map(k => unoCardHtml(k, { size: 'sm' })).join('')}</div>
+        <p class="field__hint" style="text-align:center">🂠 ${escapeHTML(typeof unoDecksFor === 'function' && unoDecksFor(n) > 1 ? unoT('uno_deck_two') : unoT('uno_deck_one'))}</p>
+        ${few}
+        <div class="field">
+          <label class="field__label">🏁 ${escapeHTML(unoT('uno_length'))}</label>
+          ${seg('length', ['one', 'rounds'], v => escapeHTML(v === 'one' ? unoT('uno_length_one') : unoT('uno_length_rounds')))}
+          <p class="field__hint">${escapeHTML(o.length === 'one' ? unoT('uno_length_hint_one') : unoT('uno_length_hint_rounds'))}</p>
+        </div>
+        ${o.length === 'rounds' ? `<div class="field">
+          <label class="field__label">${escapeHTML(unoT('uno_rounds'))}</label>
+          ${seg('rounds', UNO_ROUND_CHOICES, v => v)}
+        </div>` : ''}
+        ${sw('stacking', 'uno-stacking', '➕', unoT('uno_stacking'), unoT('uno_stacking_hint'))}
+        ${o.stacking ? `<div class="field uno-lobby__sub">
+          ${seg('stackMode', ['same', 'mixed'], v => escapeHTML(v === 'same' ? unoT('uno_stack_same') : unoT('uno_stack_mixed')))}
+          <p class="field__hint">${escapeHTML(o.stackMode === 'same' ? unoT('uno_stack_same_hint') : unoT('uno_stack_mixed_hint'))}</p>
+        </div>` : ''}
+        ${sw('drawUntil', 'uno-draw-until', '🂠', unoT('uno_draw_until'), unoT('uno_draw_until_hint'))}
+        ${sw('sevenO', 'uno-seven-o', '🔀', unoT('uno_seven_o'), unoT('uno_seven_o_hint'))}
+        ${sw('jumpIn', 'uno-jump-in', '⚡', unoT('uno_jump_in'), unoT('uno_jump_in_hint'))}
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(unoT('uno_clock'))}</label>
+          ${seg('turnClock', UNO_CLOCK_CHOICES, v => (v ? v + '″' : escapeHTML(unoT('uno_clock_off'))))}
+          <p class="field__hint">${escapeHTML(unoT('uno_clock_hint'))}</p>
+        </div>
+        ${hint}
+      </div>`;
+  },
+
+  startPayload() {
+    return unoOpts();
+  },
+
   render(state) {
     if (appState.currentView !== 'room-uno') setView('room-uno');
+    const el = document.getElementById('view-room-uno');
+    if (!el) return;
+    const s = state.shared || {};
+    unoSyncPick(state);
+    const server = unoServerSig(state);
+    // A move is still flying: the table it lands on stays until it has landed. A round
+    // that has just ended plays its last moves on that table before the result.
+    const changed = !!(el.dataset.sig && el._unoServer && el._unoServer !== server);
+    if (changed && (unoFx.busyUntil > Date.now() || unoPlayEnding(el, state))) {
+      unoDeferRedraw();
+      unoRefreshInPlace(el, state, false);
+      return;
+    }
+    const local = [JSON.stringify(unoLocal.pick), state.youAreHost, appState.lang].join('|');
+    const handWas = unoLocal.shownKey === state.code + '|' + (s.dealId || '') ? unoLocal.shownHand : null;
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => { unoSnapshot(el); return unoPhoneFrame(state); });
+    el._unoServer = server;
+    unoRefreshInPlace(el, state, false);
+    unoTickClock(s);
+    if (!rebuilt) return;
+    el._unoTable = s.phase === 'play';
+    unoLocal.shownHand = unoHand(state).map(c => c.i);
+    unoLocal.shownKey = state.code + '|' + (s.dealId || '');
+    unoFitHand(el);
+    unoAfterDraw(el, state, handWas);
+    unoTurnCue(state);
+    unoRevealCount(el);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && motionFirst('uno-over|' + state.code + '|' + (s.dealId || '') + '|' + JSON.stringify(s.winners || []))) {
+      afterReveal(el, () => confetti({ particleCount: 150, spread: 90 }));
+    }
   }
 };
 
+/* --- the clock and the cues ----------------------------------------------------- */
+
+function unoStopClock() {
+  if (unoLocal.clock) unoLocal.clock.stop();
+  unoLocal.clock = null;
+  unoLocal.clockKey = null;
+}
+
+/** Draws the turn clock; the server plays for the player when it runs out. */
+function unoTickClock(s) {
+  const endsAt = s && s.phase === 'play' ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-uno-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 10);
+      el.classList.toggle('badge--accent', left > 10);
+    });
+    return left;
+  };
+  if (!endsAt) { unoStopClock(); return; }
+  paint();
+  if (unoLocal.clockKey === endsAt && unoLocal.clock) return;
+  unoStopClock();
+  unoLocal.clockKey = endsAt;
+  unoLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      const ss = st && st.game === 'uno' ? st.shared || {} : null;
+      // The last seconds tick on the TV and on the phone the clock is waiting for.
+      const mine = ss && ss.turn && ss.turn.pid === Room.me;
+      if (left > 0 && left <= 5 && ss && ss.endsAt === endsAt && (st.youAreScreen || mine)) playSound('tick');
+    },
+    onEnd: () => { unoLocal.clock = null; paint(); }
+  });
+}
+
+/** A buzz when the turn comes to this phone (not on a reload), and the hand scrolled into view above the bar. */
+function unoTurnCue(state) {
+  const mine = unoMyTurn(state);
+  const was = unoLocal.turnMine;
+  unoLocal.turnMine = mine;
+  if (mine && !was && unoFx.watched === state.code) { playSound('tick'); haptic('medium'); }
+  unoHandInView(state);
+}
+
+function unoHandInView(state) {
+  const s = state.shared || {};
+  const wants = unoMyTurn(state) || s.unoCatch === Room.me;
+  const key = wants ? [state.code, s.dealId, s.turnSeq].join('|') : '';
+  if (!wants || unoLocal.handInView === key) return;
+  unoLocal.handInView = key;
+  requestAnimationFrame(() => {
+    const main = document.getElementById('shell-main');
+    const root = document.getElementById('view-room-uno');
+    const hand = root && root.querySelector('.uno-mine');
+    const bar = root && root.querySelector('.uno-actbar');
+    if (!main || !hand || !bar || appState.currentView !== 'room-uno') return;
+    const h = hand.getBoundingClientRect();
+    const b = bar.getBoundingClientRect();
+    const top = main.getBoundingClientRect().top;
+    const over = h.bottom + 8 - b.top;
+    if (over <= 0) return;
+    const by = Math.min(over, Math.max(0, h.top - top - 8));
+    if (by > 0) main.scrollBy({ top: by, behavior: motionOff() ? 'auto' : 'smooth' });
+  });
+}
+
+onRoomClocksReset(() => {
+  unoStopClock();
+  unoLocal.pick = null;
+  unoFxCancel();
+});
+
+/**
+ * A row of your hand fits the width it has: when the cards don't, they
+ * overlap by just enough (a negative gap), so the corner of each stays in
+ * sight - the value sits at the inline-start corner for that reason.
+ */
+function unoFitHand(root) {
+  if (!root || !root.getClientRects().length) return;
+  root.querySelectorAll('.uno-hand__row').forEach(row => {
+    const cards = Array.from(row.children);
+    const n = cards.length;
+    row.style.removeProperty('--uno-gap');
+    if (n < 2) return;
+    const w = cards[0].getBoundingClientRect().width;
+    const room = row.clientWidth;
+    const natural = 4;
+    if (n * w + (n - 1) * natural <= room) return;
+    const gap = Math.max(-w * 0.72, (room - n * w) / (n - 1));
+    row.style.setProperty('--uno-gap', gap.toFixed(1) + 'px');
+  });
+}
+
+let unoFitTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(unoFitTimer);
+  unoFitTimer = setTimeout(() => unoFitHand(document.getElementById('view-room-uno')), 120);
+});
+
+/* --- the flights --------------------------------------------------------------------
+
+   Every move has its motion, drawn over the table between exact places
+   (data-uno-at: 'deck', 'pile', 'dir', 'color', 'pending', 'seat:<pid>' -
+   a seat's fan, or your whole hand - and 'card:<id>' for a card of yours).
+   Web Animations of transform and opacity on layers laid over the page
+   (.uno-ghost, .uno-pop, .uno-ring, .uno-stamp, .uno-spark, .uno-shout),
+   removed when they finish and by a timer if they never do. A place a card is
+   flying to is hidden until it lands (.uno-hold). A redraw waits for the
+   flights (unoFx.busyUntil). */
+
+function unoFxCancel() {
+  unoFx.timers.forEach(clearTimeout);
+  unoFx.timers = [];
+  unoFx.held.forEach(el => { el._unoHolds = 0; el.classList.remove('uno-hold'); });
+  unoFx.held.clear();
+  unoFx.busyUntil = 0;
+}
+
+/** Where everything is before a redraw takes it away. */
+function unoSnapshot(root) {
+  const rects = {};
+  if (root && root.getClientRects().length) {
+    root.querySelectorAll('[data-uno-at]').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width) rects[el.getAttribute('data-uno-at')] = { left: r.left, top: r.top, width: r.width, height: r.height };
+    });
+  }
+  unoFx.rects = rects;
+}
+
+function unoEl(root, key) {
+  if (!root || !key) return null;
+  const q = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : String(key).replace(/"/g, '\\"');
+  return root.querySelector('[data-uno-at="' + q + '"]');
+}
+
+/** A live element's place, or where it was before the redraw (a card just played is gone). */
+function unoRect(root, key) {
+  if (key && typeof key === 'object') return key;
+  const el = unoEl(root, key);
+  if (el) {
+    const r = el.getBoundingClientRect();
+    if (r.width) return r;
+  }
+  return unoFx.rects[key] || null;
+}
+
+const unoMid = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+const unoIsTv = (root) => !!(root && root.id === 'view-room-tv');
+const unoCanMove = () => !motionOff() && !!(document.body && document.body.animate);
+
+function unoHold(root, key) {
+  const el = unoEl(root, key);
+  if (!el) return;
+  el._unoHolds = (el._unoHolds || 0) + 1;
+  el.classList.add('uno-hold');
+  unoFx.held.add(el);
+}
+
+function unoRelease(root, key) {
+  const el = unoEl(root, key);
+  if (!el || !el._unoHolds) return;
+  el._unoHolds--;
+  if (el._unoHolds) return;
+  el.classList.remove('uno-hold');
+  unoFx.held.delete(el);
+  el.classList.remove('uno-landed');
+  void el.offsetWidth;
+  el.classList.add('uno-landed');
+  setTimeout(() => el.classList.remove('uno-landed'), 420);
+}
+
+/** A fixed layer over the page, in the table's colour (under <body> it is outside the screen's). */
+function unoLayer(root, rect, cls, html) {
+  const el = document.createElement('div');
+  el.className = cls;
+  const tinted = root && root.closest ? root.closest('[data-accent]') : null;
+  if (tinted) el.setAttribute('data-accent', tinted.getAttribute('data-accent'));
+  if (rect) el.style.cssText = 'left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px';
+  if (unoIsTv(root)) el.classList.add('is-tv');
+  if (html) el.innerHTML = html;
+  document.body.appendChild(el);
+  return el;
+}
+
+/** Runs an animation, then `done` - on finish, or by a timer if it never finishes. */
+function unoAnimate(el, frames, timing, done) {
+  let over = false;
+  const end = () => { if (over) return; over = true; if (done) done(); };
+  const t = Object.assign({ fill: 'both' }, timing);
+  const anim = el.animate(frames, t);
+  anim.onfinish = end;
+  setTimeout(end, (t.duration || 0) + (t.delay || 0) + 700);
+  return anim;
+}
+
+/**
+ * A card from one place to another. `face` a kind (or null: the back), `flip`
+ * 'up' to turn it face up on the way; opts: duration, delay, arc (px the path
+ * bows up), spin (deg it turns), color (a wild's colour), hold (keys released
+ * when it lands), card (a size box for the ghost when `from` is a seat's fan).
+ */
+function unoFly(root, from, to, face, opts) {
+  const o = opts || {};
+  const release = () => (o.hold || []).forEach(k => unoRelease(root, k));
+  const a0 = unoRect(root, from);
+  const b0 = unoRect(root, to);
+  if (!a0 || !b0 || !a0.width || !b0.width || !unoCanMove()) { release(); return; }
+  // A seat or a hand is a box, not a card: the card leaves from (or lands in) its middle at card size.
+  const cardW = o.width || Math.min(b0.width, a0.width, 72);
+  const box = (r, isCard) => {
+    if (isCard) return r;
+    const w = Math.min(cardW, r.width);
+    const c = unoMid(r);
+    return { left: c.x - w / 2, top: c.y - w * 0.75, width: w, height: w * 1.5 };
+  };
+  const cardKey = (k) => typeof k !== 'string' || k === 'pile' || k === 'deck' || k.indexOf('card:') === 0;
+  const a = box(a0, cardKey(from));
+  const b = box(b0, cardKey(to));
+  const first = o.flip === 'up' ? unoCardHtml(null, { size: 'fly' }) : unoCardHtml(face, { size: 'fly', color: o.color });
+  const second = o.flip === 'up' ? unoCardHtml(face, { size: 'fly', color: o.color }) : '';
+  const ghost = unoLayer(root, a, 'uno-ghost', '<div class="uno-ghost__flip"><div class="uno-ghost__face">' + first + '</div>' +
+    (second ? '<div class="uno-ghost__face uno-ghost__face--b">' + second + '</div>' : '') + '</div>');
+  ghost.style.setProperty('--uno-w', a.width + 'px');
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  const scale = b.width / a.width;
+  const duration = o.duration || UNO_FLY_MS;
+  const timing = { duration: duration, delay: o.delay || 0, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
+  const arc = (o.arc || 0) * (unoIsTv(root) ? 1.8 : 1);
+  const spin = o.spin || 0;
+  const frames = [
+    { transform: 'translate(0px, 0px) scale(1) rotate(0deg)' },
+    { transform: 'translate(' + dx / 2 + 'px, ' + (dy / 2 - arc) + 'px) scale(' + ((1 + scale) / 2 * 1.08) + ') rotate(' + spin * 0.7 + 'deg)', offset: 0.5 },
+    { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ') rotate(' + spin + 'deg)' }
+  ];
+  if (second) {
+    const flipper = ghost.firstElementChild;
+    flipper.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)', offset: 0.5 }, { transform: 'scaleX(1)' }], Object.assign({ fill: 'both' }, timing));
+    flipper.children[0].animate([{ opacity: 1 }, { opacity: 1, offset: 0.5 }, { opacity: 0, offset: 0.501 }, { opacity: 0 }], Object.assign({ fill: 'both' }, timing));
+    flipper.children[1].animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, offset: 0.501 }, { opacity: 1 }], Object.assign({ fill: 'both' }, timing));
+  }
+  unoAnimate(ghost, frames, timing, () => { ghost.remove(); release(); });
+}
+
+/** A few backs flying together from one hand to another (7 swaps, 0 passes them on). */
+function unoFlyHand(root, from, to, opts) {
+  const o = opts || {};
+  for (let k = 0; k < 3; k++) unoFly(root, from, to, null, { duration: o.duration || 620, delay: (o.delay || 0) + k * 70, arc: (o.arc || 40) + k * 6, spin: (k - 1) * 10, width: o.width || 44 });
+}
+
+/** A sign that rises over a place and fades. */
+function unoPop(root, where, text, opts) {
+  const o = opts || {};
+  const r = unoRect(root, where);
+  if (!r || !r.width || !unoCanMove()) return;
+  const el = unoLayer(root, null, 'uno-pop' + (o.big ? ' uno-pop--big' : ''));
+  el.textContent = text;
+  el.style.left = (r.left + r.width / 2) + 'px';
+  el.style.top = (r.top + r.height / 2) + 'px';
+  unoAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(0.4)', opacity: 0 },
+    { transform: 'translate(-50%, -85%) scale(1.15)', opacity: 1, offset: 0.25 },
+    { transform: 'translate(-50%, -95%) scale(1)', opacity: 1, offset: 0.72 },
+    { transform: 'translate(-50%, -125%) scale(0.9)', opacity: 0 }
+  ], { duration: o.duration || 1100, delay: o.delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+/** A ring spreading out from a place: a colour named (tone r/y/g/b), a shout, a shock. */
+function unoRing(root, where, opts) {
+  const o = opts || {};
+  const r = unoRect(root, where);
+  if (!r || !r.width || !unoCanMove()) return;
+  const size = Math.max(r.width, r.height) * (o.size || 1);
+  const c = unoMid(r);
+  const el = unoLayer(root, { left: c.x - size / 2, top: c.y - size / 2, width: size, height: size }, 'uno-ring' + (o.tone ? ' uno-ring--' + o.tone : ''));
+  unoAnimate(el, [
+    { transform: 'scale(0.25)', opacity: 0.95 },
+    { transform: 'scale(' + (o.scale || 2.4) + ')', opacity: 0 }
+  ], { duration: o.duration || 700, delay: o.delay || 0, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }, () => el.remove());
+}
+
+/** Something stamped onto a place: ⊘ on a skipped seat, "امسكه!" on a caught one. */
+function unoStamp(root, where, html, opts) {
+  const o = opts || {};
+  const r = unoRect(root, where);
+  if (!r || !r.width || !unoCanMove()) return;
+  const el = unoLayer(root, null, 'uno-stamp' + (o.tone ? ' uno-stamp--' + o.tone : ''), html);
+  const c = unoMid(r);
+  el.style.left = c.x + 'px';
+  el.style.top = c.y + 'px';
+  unoAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(2.6) rotate(-10deg)', opacity: 0 },
+    { transform: 'translate(-50%, -50%) scale(1) rotate(-10deg)', opacity: 1, offset: 0.2 },
+    { transform: 'translate(-50%, -50%) scale(1) rotate(-10deg)', opacity: 1, offset: 0.78 },
+    { transform: 'translate(-50%, -62%) scale(0.95) rotate(-10deg)', opacity: 0 }
+  ], { duration: o.duration || 1050, delay: o.delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+function unoSparks(root, where, opts) {
+  const o = opts || {};
+  const r = unoRect(root, where);
+  if (!r || !r.width || !unoCanMove()) return;
+  const c = unoMid(r);
+  const n = o.count || 9;
+  const reach = Math.max(r.width, r.height) * (o.reach || 1);
+  for (let i = 0; i < n; i++) {
+    const el = unoLayer(root, null, 'uno-spark' + (o.tone ? ' uno-spark--' + o.tone : ''));
+    el.textContent = o.glyph || '✦';
+    el.style.left = c.x + 'px';
+    el.style.top = c.y + 'px';
+    const ang = (Math.PI * 2 * i) / n + (i % 2 ? 0.3 : 0);
+    const d = reach * (0.7 + (i % 3) * 0.15);
+    unoAnimate(el, [
+      { transform: 'translate(-50%, -50%) scale(0.3)', opacity: 1 },
+      { transform: 'translate(-50%, -50%) translate(' + Math.cos(ang) * d + 'px, ' + Math.sin(ang) * d + 'px) scale(1)', opacity: 0 }
+    ], { duration: 560, delay: o.delay || 0, easing: 'cubic-bezier(0.1, 0.7, 0.3, 1)' }, () => el.remove());
+  }
+}
+
+/** "أونو!" bursting out of a seat on every screen. */
+function unoShout(root, where, delay) {
+  const r = unoRect(root, where);
+  if (!r || !r.width || !unoCanMove()) return;
+  const el = unoLayer(root, null, 'uno-shout', escapeHTML(unoT('uno_say')));
+  const c = unoMid(r);
+  el.style.left = c.x + 'px';
+  el.style.top = c.y + 'px';
+  unoAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(0.3) rotate(-12deg)', opacity: 0 },
+    { transform: 'translate(-50%, -70%) scale(1.25) rotate(-6deg)', opacity: 1, offset: 0.22 },
+    { transform: 'translate(-50%, -78%) scale(1) rotate(-6deg)', opacity: 1, offset: 0.75 },
+    { transform: 'translate(-50%, -110%) scale(0.9) rotate(-6deg)', opacity: 0 }
+  ], { duration: 1300, delay: delay || 0, easing: 'cubic-bezier(0.2, 1.3, 0.4, 1)' }, () => el.remove());
+  unoRing(root, where, { tone: 'shout', delay: delay || 0, scale: 2.8 });
+  unoSparks(root, where, { tone: 'shout', delay: (delay || 0) + 80 });
+}
+
+/** The direction arrow turning over, when a reverse turns the play round. */
+function unoSpinDir(root, delay) {
+  const el = unoEl(root, 'dir');
+  if (!el || !unoCanMove()) return;
+  const back = el.classList.contains('is-back');
+  el.animate([{ transform: 'rotate(0deg) scale(1)' }, { transform: 'rotate(' + (back ? -200 : 200) + 'deg) scale(1.35)', offset: 0.6 }, { transform: 'rotate(' + (back ? -360 : 360) + 'deg) scale(1)' }],
+    { duration: 720, delay: delay || 0, easing: 'cubic-bezier(0.3, 0.8, 0.3, 1)' });
+  unoRing(root, 'dir', { delay: (delay || 0) + 200, scale: 2 });
+}
+
+/** A seat shaking once: it was hit, or caught. */
+function unoShakeSeat(root, key, delay) {
+  const el = unoEl(root, key);
+  const seat = el && el.closest ? (el.closest('.uno-seat') || el.closest('.uno-mine')) : null;
+  if (!seat || !unoCanMove()) return;
+  seat.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }],
+    { duration: 380, delay: delay || 0, easing: 'ease-out' });
+}
+
+/* --- the sounds of the table ------------------------------------------------------
+   Short and quiet, made here like the rest of FX (not on the soundboard). With a
+   big screen in the room only the TV plays the table's sounds; a phone still
+   plays its own moves. */
+
+if (typeof FX !== 'undefined') {
+  Object.assign(FX, {
+    unoCard(at) {
+      // A card slapped onto the pile: a short knock and a papery swish.
+      fxNoise('bandpass', 1800, 1.1, [[0, 0], [0.006, 0.09], [0.07, 0.001]], at);
+      fxTone('sine', [[0, 220], [0.06, 120]], [[0, 0], [0.004, 0.12], [0.08, 0.001]], at);
+    },
+    unoDraw(at) {
+      // A card slid off the deck.
+      fxNoise('bandpass', 3400, 1.3, [[0, 0], [0.02, 0.05], [0.11, 0.001]], at);
+    },
+    unoShout(at) {
+      // "أونو!": two bright notes up.
+      fxTone('triangle', [[0, 660], [0.1, 700]], [[0, 0], [0.01, 0.16], [0.11, 0.02]], at);
+      fxTone('triangle', [[0.11, 990], [0.3, 1040]], [[0.11, 0], [0.12, 0.18], [0.34, 0.001]], at);
+    },
+    unoCatch(at) {
+      // Caught: a whistle blown twice.
+      fxTone('sine', [[0, 2100], [0.08, 2300]], [[0, 0], [0.01, 0.12], [0.09, 0.001]], at);
+      fxTone('sine', [[0.13, 2100], [0.3, 1700]], [[0.13, 0], [0.14, 0.12], [0.32, 0.001]], at);
+    }
+  });
+}
+
+function unoSound(name, mine) {
+  if (document.hidden) return;
+  if (!mine && typeof roomHasScreen === 'function' && roomHasScreen()) return;
+  if (typeof playFx === 'function' && typeof FX !== 'undefined' && FX[name]) playFx(name);
+}
+
+/** One sound per batch of moves: the loudest thing that happened, on every screen alike. */
+function unoEventSounds(state, evs) {
+  if (document.hidden || !evs.length) return;
+  const mine = evs.some(e => e.pid === Room.me && !state.youAreScreen);
+  const has = (fn) => evs.some(fn);
+  if (has(e => e.type === 'win')) { playRoomFx('success'); return; }
+  if (has(e => e.type === 'caught')) { unoSound('unoCatch', mine); return; }
+  if (has(e => e.type === 'uno' || (e.type === 'play' && e.uno))) { unoSound('unoShout', mine); return; }
+  if (has(e => e.type === 'play')) { unoSound('unoCard', mine); return; }
+  if (has(e => e.type === 'reshuffle')) { unoSound('unoDraw', mine); return; }
+  if (has(e => ['draw', 'take', 'hit', 'deal'].indexOf(e.type) !== -1)) unoSound('unoDraw', mine);
+}
+
+/* --- which moves to show ----------------------------------------------------------- */
+
+/**
+ * The events this device hasn't shown. A new deal seen by a page that was
+ * already watching the room plays from the deal; a reload, a late joiner or a
+ * phone that was elsewhere starts from the end of the list.
+ */
+function unoEventsToPlay(state) {
+  const s = state.shared || {};
+  const events = s.events || [];
+  const maxSeq = events.reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  const key = state.code + '|' + (s.dealId || '');
+  if (unoFx.deal !== key) {
+    const fresh = unoFx.watched === state.code;
+    unoFx.deal = key;
+    let from = maxSeq;
+    if (fresh) {
+      const deal = events.find(e => e.type === 'deal');
+      if (deal) from = (Number(deal.seq) || 0) - 1;
+    }
+    unoFx.lastSeq = from;
+  }
+  const out = events.filter(e => e && (Number(e.seq) || 0) > unoFx.lastSeq);
+  unoFx.lastSeq = Math.max(unoFx.lastSeq, maxSeq);
+  return out;
+}
+
+/** Just back from a locked screen or another app: what was missed is not played again. */
+const unoWokeRecently = () => Date.now() - unoFx.wokeAt < 2500;
+document.addEventListener('visibilitychange', () => { if (!document.hidden) unoFx.wokeAt = Date.now(); });
+
+/** After a frame is drawn: the sounds and flights for the events it brought. */
+function unoAfterDraw(root, state, handWas) {
+  const s = state.shared || {};
+  const evs = unoEventsToPlay(state);
+  if (document.hidden || unoWokeRecently() || !root.getClientRects().length || !evs.length) return;
+  unoEventSounds(state, evs);
+  if (s.phase !== 'play' || evs.length > 14 || !unoCanMove()) return;
+  const delay = unoFx.prevPhase === 'lobby' ? 1000 : 0;   // the room's start splash first
+  unoPlay(root, state, evs, delay, handWas);
+}
+
+/**
+ * A round ends on the table it was played on: the last card flies onto the
+ * pile (and the last +2 into the next hand) over the table still on screen,
+ * and the result replaces it once they have landed. True while they play.
+ */
+function unoPlayEnding(root, state) {
+  const s = state.shared || {};
+  if (!root || !root._unoTable || (s.phase !== 'roundOver' && s.phase !== 'gameover')) return false;
+  if (document.hidden || unoWokeRecently() || !unoCanMove() || !root.getClientRects().length) return false;
+  const evs = unoEventsToPlay(state).filter(e => e.type !== 'win');
+  if (!evs.length || evs.length > 8) return false;
+  unoSnapshot(root);
+  unoEventSounds(state, evs);
+  unoPlay(root, state, evs, 0, null);
+  return unoFx.busyUntil > Date.now();
+}
+
+/** A frame waiting for a flight to land draws itself once it has. */
+function unoDeferRedraw() {
+  if (unoFx.redrawTimer) return;
+  unoFx.redrawTimer = setTimeout(() => {
+    unoFx.redrawTimer = null;
+    const st = Room.state;
+    if (!st || st.game !== 'uno' || st.phase === 'lobby') return;
+    if (st.youAreScreen ? appState.currentView === 'room-tv' : onRoomView()) routeRoomState(st);
+  }, Math.max(40, unoFx.busyUntil - Date.now() + 40));
+}
+
+/* --- each move, choreographed ----------------------------------------------------- */
+
+function unoPlay(root, state, list, delay, handWas) {
+  const s = state.shared || {};
+  const tv = unoIsTv(root);
+  const me = Room.me;
+  const steps = [];
+  const at = (ms, fn) => steps.push([ms, fn]);
+  let t = delay || 0;
+  const seatKey = (pid) => 'seat:' + pid;
+  // The cards that came into this phone's hand, in the order they came, for the moves that brought them.
+  const hand = unoHand(state).map(c => c.i);
+  const known = Array.isArray(handWas) ? handWas : null;
+  // A deal brings a whole new hand: every card of it flies in, in the order it was dealt.
+  const fresh = list.some(e => e.type === 'deal') ? hand.slice() : known ? hand.filter(i => known.indexOf(i) === -1) : [];
+  const kindOf = (id) => ((unoHand(state).find(c => c.i === id) || {}).k) || null;
+  const mineIn = (pid) => pid === me && !state.youAreScreen && !!unoEl(root, 'seat:' + me);
+  const handChanged = list.some(e => e.type === 'swap' && (e.pid === me || e.target === me)) || list.some(e => e.type === 'rotate');
+  // Cards from the deck into a hand: backs into a seat, or turning up into this phone's own new cards.
+  const dealTo = (pid, n, start, gap) => {
+    let k = 0;
+    for (let c = 0; c < n; c++) {
+      if (mineIn(pid) && !handChanged && fresh.length) {
+        const id = fresh.shift();
+        const key = 'card:' + id;
+        unoHold(root, key);
+        at(start + k * gap, () => unoFly(root, 'deck', key, kindOf(id), { flip: 'up', arc: 26, duration: 440, hold: [key] }));
+      } else {
+        at(start + k * gap, () => unoFly(root, 'deck', seatKey(pid), null, { arc: 20, duration: 420, width: tv ? 64 : 40 }));
+      }
+      k++;
+    }
+    return k ? start + (k - 1) * gap + 440 : start;
+  };
+  list.forEach((e) => {
+    const A = e.pid;
+    switch (e.type) {
+      case 'deal': {
+        // A riffle on the deck, then seven round the table, then the first card turned up.
+        at(t, () => { unoPop(root, 'deck', '🔀', { big: true, duration: 700 }); });
+        t += 300;
+        const order = unoOrder(state);
+        const per = 7;
+        const total = order.length * per;
+        const gap = Math.max(14, Math.min(55, Math.floor(1300 / total)));
+        let k = 0;
+        for (let c = 0; c < per; c++) {
+          order.forEach(pid => {
+            dealTo(pid, 1, t + k * gap, gap);
+            k++;
+          });
+        }
+        t += k * gap + 420;
+        const first = e.first;
+        if (first) {
+          unoHold(root, 'pile');
+          at(t, () => unoFly(root, 'deck', 'pile', first.k, { flip: 'up', arc: 22, duration: 420, spin: 8, hold: ['pile'] }));
+          t += 460;
+        }
+        break;
+      }
+      case 'play': {
+        const from = mineIn(A) && e.card ? 'card:' + e.card.i : seatKey(A);
+        unoHold(root, 'pile');
+        const spin = ((Number(e.card && e.card.i) * 53) % 30) - 15;
+        if (e.jump) at(t, () => unoPop(root, seatKey(A), '⚡', { big: true }));
+        at(t, () => unoFly(root, from, 'pile', e.card && e.card.k, { arc: 34, spin: spin, duration: 460, color: e.color, hold: ['pile'], width: tv ? 80 : 56 }));
+        t += 470;
+        if (e.color) at(t, () => { unoRing(root, 'pile', { tone: e.color, scale: 3.2, duration: 900 }); unoRing(root, 'color', { tone: e.color, scale: 2.4, delay: 120 }); });
+        if (e.pending) at(t, () => unoPop(root, 'pending', '+' + e.pending, { big: true, duration: 900 }));
+        if (e.uno) { at(t, () => unoShout(root, seatKey(A), 0)); t += 500; }
+        if (e.color) t += 250;
+        break;
+      }
+      case 'skip':
+        at(t, () => { unoStamp(root, seatKey(A), unoIcon('s'), { tone: 'danger' }); unoShakeSeat(root, seatKey(A), 120); });
+        t += 520;
+        break;
+      case 'reverse':
+        at(t, () => unoSpinDir(root, 0));
+        t += 560;
+        break;
+      case 'hit': case 'take': case 'draw': {
+        if (!e.n) break;
+        const gap = e.n > 4 ? 90 : 130;
+        if (e.type === 'hit') at(t, () => unoShakeSeat(root, seatKey(A), 0));
+        t = dealTo(A, Math.min(e.n, 12), t, gap) + 20;
+        if (e.type === 'draw' && e.auto) at(t, () => unoPop(root, seatKey(A), '⏱️'));
+        break;
+      }
+      case 'caught':
+        at(t, () => { unoStamp(root, seatKey(A), escapeHTML(unoT('uno_caught_stamp')), { tone: 'danger' }); unoShakeSeat(root, seatKey(A), 150); });
+        t += 480;
+        t = dealTo(A, e.n || 2, t, 150) + 20;
+        break;
+      case 'uno':
+        at(t, () => unoShout(root, seatKey(A), 0));
+        t += 520;
+        break;
+      case 'color':
+        at(t, () => { unoRing(root, 'pile', { tone: e.color, scale: 3.2, duration: 900 }); unoRing(root, 'color', { tone: e.color, scale: 2.4, delay: 120 }); });
+        t += 420;
+        break;
+      case 'swap':
+        at(t, () => { unoFlyHand(root, seatKey(A), seatKey(e.target), { arc: 60 }); unoFlyHand(root, seatKey(e.target), seatKey(A), { arc: -40, delay: 60 }); });
+        at(t + 700, () => unoPop(root, 'pile', '🔀', { big: true }));
+        t += 900;
+        break;
+      case 'rotate': {
+        const order = unoOrder(state);
+        at(t, () => order.forEach((pid, k) => unoFlyHand(root, seatKey(pid), seatKey(unoNextOf(s, pid, e.dir === s.dir ? 1 : -1) || pid), { arc: 30, delay: k * 30 })));
+        at(t + 650, () => unoPop(root, 'pile', '🔁', { big: true }));
+        t += 950;
+        break;
+      }
+      case 'reshuffle':
+        at(t, () => { for (let k = 0; k < 4; k++) unoFly(root, 'pile', 'deck', null, { duration: 420, delay: k * 80, arc: 18, spin: (k - 2) * 8 }); });
+        at(t + 380, () => unoPop(root, 'deck', '🔀', { big: true }));
+        t += 800;
+        break;
+      case 'keep':
+        at(t, () => unoPop(root, seatKey(A), '✋'));
+        t += 250;
+        break;
+      case 'pass':
+        at(t, () => unoPop(root, seatKey(A), '⏭️'));
+        t += 250;
+        break;
+      case 'auto':
+        at(t, () => unoPop(root, seatKey(A), e.why === 'host' ? '⏭️' : '⏱️', { big: true }));
+        t += 300;
+        break;
+      default:
+        break;
+    }
+  });
+  // Anything that landed in this phone's hand without its own flight (a hand from 7-0) arrives in one sweep.
+  if (handChanged) at(t, () => unoRing(root, 'seat:' + me, { scale: 1.3 }));
+  let end = 0;
+  steps.forEach(([ms, fn]) => {
+    end = Math.max(end, ms);
+    unoFx.timers.push(setTimeout(fn, ms));
+  });
+  unoFx.busyUntil = Math.max(unoFx.busyUntil, Date.now() + Math.max(t, end + 480));
+}
+
+// After the room has drawn this state: a device that wasn't showing the table
+// counts the events as seen, so coming back replays nothing.
+Room.onChange((state) => {
+  if (!state) { unoFx.watched = ''; unoFx.prevPhase = ''; return; }
+  if (state.game === 'uno' && state.phase !== 'lobby') {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : (onRoomView() && state.inGame !== false);
+    if (!showing) unoEventsToPlay(state);
+  }
+  unoFx.watched = state.code;
+  unoFx.prevPhase = state.phase;
+});
+
+/* --- the TV -------------------------------------------------------------------------- */
+
+function unoTvTable(state, t) {
+  const s = state.shared || {};
+  const order = unoOrder(state);
+  const half = Math.ceil(order.length / 2);
+  // Round the table: down the first side, up the other.
+  const left = order.slice(0, half);
+  const right = order.slice(half).reverse();
+  const pad = order.length % 2 ? '<div class="uno-seat uno-seat--pad" aria-hidden="true"></div>' : '';
+  const w = unoTurnWords(state);
+  const catchLine = s.unoCatch ? `<div class="uno-tv__catch">🚨 ${escapeHTML(unoT('uno_catch_hint', { name: unoName(state, s.unoCatch) }))}</div>` : '';
+  let host = '';
+  if (state.youAreHost && s.phase === 'play' && s.turn) host = '<span data-uno-host class="uno-tv__host"></span>';
+  return `<div class="uno-tv ${order.length > 8 ? 'uno-tv--many' : ''}" style="--rows:${Math.max(1, half)}">
+      <div class="uno-tv__side">${left.map(pid => unoSeatHtml(state, pid, true)).join('')}</div>
+      <div class="uno-tv__mid">
+        ${unoHeadHtml(state)}
+        <div class="uno-tv__turn">${escapeHTML(w.title)}</div>
+        ${w.hint ? `<div class="tv-note">${escapeHTML(w.hint)}</div>` : ''}
+        ${catchLine}
+        ${unoLatestHtml(state, true)}
+        ${unoCenterHtml(state, true)}
+        <div class="tv-actions">${host}</div>
+        ${unoLogHtml(state, 3)}
+      </div>
+      <div class="uno-tv__side">${pad}${right.map(pid => unoSeatHtml(state, pid, true)).join('')}</div>
+    </div>`;
+}
+
 TV_GAMES.uno = {
-  sig: (state) => ['uno', state.shared && state.shared.phase].join('|'),
-  frame: () => ''
+  sig(state) {
+    const cur = unoServerSig(state);
+    const view = document.getElementById('view-room-tv');
+    if (unoFx.tvSig && cur !== unoFx.tvSig) {
+      // A flight is landing: keep this frame until it has. A round that has just
+      // ended plays its last card on the table before the result.
+      if (unoFx.busyUntil > Date.now()) { unoDeferRedraw(); return unoFx.tvSig; }
+      if (view && unoPlayEnding(view, state)) { unoFx.tvEnding = true; unoDeferRedraw(); return unoFx.tvSig; }
+    }
+    return cur;
+  },
+  frame(state, t) {
+    const view = document.getElementById('view-room-tv');
+    unoSnapshot(view);
+    const s = state.shared || {};
+    const ending = unoFx.tvEnding && unoFx.busyUntil > Date.now() && (s.phase === 'roundOver' || s.phase === 'gameover');
+    if (ending && unoFx.tvState) {
+      if (view) view._unoTable = true;
+      return unoTvTable(unoFx.tvState, t);
+    }
+    unoFx.tvEnding = false;
+    unoFx.tvSig = unoServerSig(state);
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (view) view._unoTable = s.phase === 'play';
+    if (s.phase === 'roundOver' || s.phase === 'gameover') {
+      const over = s.phase === 'gameover';
+      const r = s.results;
+      const rounds = (s.settings || {}).length === 'rounds';
+      const chips = rounds ? `<div class="tv-strip-inline">${(s.board || []).map((row, i) => `<span class="tv-chip ${i === 0 && row.score > 0 ? 'is-done' : ''}">${i === 0 && row.score > 0 ? '👑 ' : ''}${escapeHTML(row.name || '')} <b class="tv-chip__score">${row.score}</b></span>`).join('')}</div>` : '';
+      return `<div class="uno-tvres ${over ? 'is-over' : ''}">
+          <div class="uno-tvres__cards">
+            <div class="tv-title tv-center-text">${escapeHTML(r ? unoT('uno_round_won', { name: unoName(state, r.winner) }) : unoT('uno_forfeit'))}</div>
+            ${r && r.gained ? `<div class="tv-note">${escapeHTML(unoT('uno_gained', { n: r.gained }))}</div>` : ''}
+            ${unoRevealHtml(state, true)}
+          </div>
+          <div class="uno-tvres__side">
+            ${over ? `<div class="tv-title tv-center-text">🏆 ${escapeHTML(unoT('uno_game_won', { name: unoWinnersLine(state) }))}</div><div class="tv-scale">${unoPodiumHtml(state)}</div>` : ''}
+            ${chips}
+            ${over ? host(tvBtn(t.play_again || '', "unoAct(this, 'playAgain')") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost'))
+              : host(tvBtn(t.next_round || '', `unoAct(this, 'nextRound', { round: ${Number(s.round) || 0} })`))}
+          </div>
+        </div>`;
+    }
+    unoFx.tvState = state;
+    return unoTvTable(state, t);
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    const s = state.shared || {};
+    unoTickClock(s);
+    unoRefreshInPlace(view, state, true);
+    if (unoFx.tvSig !== unoServerSig(state)) { unoDeferRedraw(); return; }
+    if (!rebuilt || !view) return;
+    unoAfterDraw(view, state, null);
+    unoRevealCount(view);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && motionFirst('uno-tv-over|' + state.code + '|' + (s.dealId || '') + '|' + JSON.stringify(s.winners || []))) {
+      afterReveal(view, () => confetti({ particleCount: 220, spread: 110, origin: { y: 0.6 } }));
+    }
+  }
 };
 </script>

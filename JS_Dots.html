@@ -1,0 +1,422 @@
+<script>
+/* ============================================================================
+   نقط ومربعات — DOTS & BOXES on one phone (and the board its room draws)
+   ----------------------------------------------------------------------------
+   Two on one phone, or one against the phone (سهل / متوسط / صعب), on a board
+   of 4x4, 6x6 or 8x8 boxes. The rules and the phone's player are
+   DotsBoxes.js, the same file the rooms server judges a room's lines with.
+   Take turns drawing a line between two dots next to each other; the fourth
+   side of a box takes it and you go again; most boxes wins, and an even board
+   can end level. A running tally across games; whoever went second starts
+   the next one. No take-backs.
+
+   The board (the owner's "نضيف، زي Plato", Style.html section 19) is an SVG:
+   slate dots, faint guides where a line can still go, lines 6px with round
+   ends in each player's colour, a box taken tinted with its owner's colour
+   and their initial. A line draws itself from one dot to the other and
+   glows for a moment, a box pops in, and when a box earns another turn the
+   turn ring stays on that player's pill and it pulses. dir="ltr", like every
+   board.
+
+   A line is picked by where the finger is: the nearest free side within
+   reach of it, shown faintly while the finger is down and drawn when it lets
+   go, so a line between two tight dots on 8x8 can be slid onto before it is
+   committed. A tap in the middle of a box reaches no side and draws nothing.
+   ========================================================================= */
+
+/** Where line e runs, in dots: [x1, y1, x2, y2]. */
+function dotsEdgeXY(n, e) {
+  const g = dotsGeom(n).edges[e];
+  return g.h ? [g.c, g.r, g.c + 1, g.r] : [g.c, g.r, g.c, g.r + 1];
+}
+
+/**
+ * The board. b: { n, lines, boxes }; o: { last { edge, boxes }, playable,
+ * next (the colour to move, for the preview line), initials [p1, p2] }.
+ */
+function dotsBoardHtml(b, o) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const opt = o || {};
+  const n = b.n;
+  const initials = opt.initials || ['1', '2'];
+  const last = opt.last || null;
+  const fresh = (last && last.boxes) || [];
+  let boxes = '', guides = '', lines = '', glow = '', dots = '';
+  b.boxes.forEach((v, i) => {
+    if (!v) return;
+    const r = Math.floor(i / n), c = i % n;
+    boxes += `<g class="dots-box dots-box--${v}${fresh.indexOf(i) !== -1 ? ' is-new' : ''}">` +
+      `<rect x="${c + 0.08}" y="${r + 0.08}" width="0.84" height="0.84" rx="0.12"/>` +
+      `<text x="${c + 0.5}" y="${r + 0.53}" font-size="0.5">${escapeHTML(initials[v - 1] || '')}</text></g>`;
+  });
+  b.lines.forEach((v, e) => {
+    const xy = dotsEdgeXY(n, e);
+    const at = `x1="${xy[0]}" y1="${xy[1]}" x2="${xy[2]}" y2="${xy[3]}"`;
+    const dir = xy[1] === xy[3] ? 'is-h' : 'is-v';
+    if (!v) { guides += `<line class="dots-guide" ${at}/>`; return; }
+    const isLast = last && last.edge === e;
+    if (isLast) glow = `<line class="dots-glow dots-line--${v}" ${at}/>`;
+    lines += `<line class="dots-line dots-line--${v} ${dir}${isLast ? ' is-last' : ''}" ${at}/>`;
+  });
+  const rDot = n >= 8 ? 0.12 : (n >= 6 ? 0.105 : 0.09);
+  for (let r = 0; r <= n; r++) for (let c = 0; c <= n; c++) dots += `<circle cx="${c}" cy="${r}" r="${rDot}"/>`;
+  const counts = dotsCounts(b);
+  const label = (t.dots_board_label || '').replace('{a}', counts[1]).replace('{b}', counts[2]);
+  // dir="ltr": the board is a physical grid, the same way round in Arabic.
+  return `<div class="dots ${opt.playable ? 'is-playable' : ''}" dir="ltr" data-n="${n}">
+      <svg class="dots-svg" viewBox="-0.5 -0.5 ${n + 1} ${n + 1}" role="img" aria-label="${escapeHTML(label)}">
+        <g class="dots-boxes">${boxes}</g>
+        <g class="dots-guides">${guides}</g>
+        ${glow}
+        <g class="dots-lines">${lines}</g>
+        <line class="dots-aim dots-line--${opt.next === 2 ? 2 : 1}" x1="0" y1="0" x2="0" y2="0"/>
+        <g class="dots-dots">${dots}</g>
+      </svg>
+    </div>`;
+}
+
+/** The free line nearest to a point on the screen, or -1 when none is within reach. */
+function dotsLineAt(wrap, b, x, y) {
+  const svg = wrap.querySelector('svg');
+  const r = svg.getBoundingClientRect();
+  const n = b.n;
+  const unit = r.width / (n + 1);
+  if (!unit) return -1;
+  const ux = (x - r.left) / unit - 0.5;
+  const uy = (y - r.top) / unit - 0.5;
+  if (ux < -0.45 || uy < -0.45 || ux > n + 0.45 || uy > n + 0.45) return -1;
+  const found = [];
+  const hr = Math.round(uy), hc = Math.floor(ux);
+  if (hr >= 0 && hr <= n && hc >= 0 && hc < n) found.push({ e: hr * n + hc, d: Math.abs(uy - hr) });
+  const vc = Math.round(ux), vr = Math.floor(uy);
+  if (vc >= 0 && vc <= n && vr >= 0 && vr < n) found.push({ e: n * (n + 1) + vr * (n + 1) + vc, d: Math.abs(ux - vc) });
+  found.sort((p, q) => p.d - q.d);
+  const hit = found.find(f => f.d <= 0.38 && !b.lines[f.e]);
+  return hit ? hit.e : -1;
+}
+
+/**
+ * The finger or the mouse on a playable board: the nearest free line shows
+ * faintly while pressed (or hovered, with a mouse), and is drawn on letting
+ * go. touch-action is none on the board, so the aim can slide in any direction.
+ */
+function dotsWire(wrap, b, onDraw) {
+  if (!wrap || !wrap.classList.contains('is-playable') || typeof onDraw !== 'function') return;
+  const aimLine = wrap.querySelector('.dots-aim');
+  let down = false, aimed = -1;
+  const aim = (e) => {
+    aimed = e;
+    if (!aimLine) return;
+    if (e < 0) { aimLine.classList.remove('is-on'); return; }
+    const xy = dotsEdgeXY(b.n, e);
+    aimLine.setAttribute('x1', xy[0]); aimLine.setAttribute('y1', xy[1]);
+    aimLine.setAttribute('x2', xy[2]); aimLine.setAttribute('y2', xy[3]);
+    aimLine.classList.add('is-on');
+  };
+  wrap.addEventListener('pointermove', (ev) => { if (ev.pointerType === 'mouse' || down) aim(dotsLineAt(wrap, b, ev.clientX, ev.clientY)); });
+  wrap.addEventListener('pointerdown', (ev) => {
+    if (ev.button > 0) return;
+    down = true;
+    aim(dotsLineAt(wrap, b, ev.clientX, ev.clientY));
+  });
+  wrap.addEventListener('pointerup', (ev) => {
+    if (!down) return;
+    down = false;
+    const e = dotsLineAt(wrap, b, ev.clientX, ev.clientY);
+    aim(-1);
+    if (e >= 0) onDraw(e);
+  });
+  wrap.addEventListener('pointercancel', () => { down = false; aim(-1); });
+  wrap.addEventListener('pointerleave', () => { down = false; aim(-1); });
+}
+
+/**
+ * Everything after a board is drawn, one phone, a room or the TV: the finger
+ * (o.onDraw), the last line drawing itself and glowing, the boxes it took
+ * popping in with a sound (once per o.lineKey), and o.still for a board drawn
+ * settled. Returns how long the move's animation takes.
+ */
+function dotsAfterPaint(root, b, o) {
+  const wrap = root && root.querySelector('.dots');
+  if (!wrap) return 0;
+  dotsWire(wrap, b, o.onDraw);
+  const line = wrap.querySelector('.dots-line.is-last');
+  const moving = !!(o.lineKey && line && typeof motionFirst === 'function' && motionFirst(o.lineKey) && !o.still);
+  const took = wrap.querySelectorAll('.dots-box.is-new');
+  let ms = 0;
+  if (moving && line.animate) {
+    const h = line.classList.contains('is-h');
+    line.animate([{ transform: h ? 'scaleX(0.02)' : 'scaleY(0.02)' }, { transform: 'none' }],
+                 { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'backwards' });
+    const glow = wrap.querySelector('.dots-glow');
+    if (glow && glow.animate) {
+      glow.animate([{ opacity: 0 }, { opacity: 0.5, offset: 0.2 }, { opacity: 0 }],
+                   { duration: 1400, delay: 120, easing: 'ease-out' });
+    }
+    took.forEach((box, k) => {
+      if (!box.animate) return;
+      box.animate([
+        { opacity: 0, transform: 'scale(0.4)' },
+        { opacity: 1, transform: 'scale(1.1)', offset: 0.65 },
+        { opacity: 1, transform: 'scale(1)' }
+      ], { duration: 420, delay: 200 + k * 90, easing: 'cubic-bezier(0.34, 1.45, 0.5, 1)', fill: 'backwards' });
+    });
+    ms = took.length ? 620 + took.length * 90 : 240;
+  }
+  if (o.lineKey && line && duelOnce('snd|' + o.lineKey) && !o.still && o.sound !== false) {
+    duelSound('line');
+    if (took.length) setTimeout(() => duelSound('box'), moving ? 220 : 60);
+  }
+  if (ms && o.ending) wrap.dataset.revealMs = String(ms + 200);
+  return ms;
+}
+
+/* --- on one phone ------------------------------------------------------------- */
+
+let dotsPhoneTimer = null;
+const dotsLocal = { busyUntil: 0 };
+
+function dotsState() {
+  if (!appState.dots) {
+    appState.dots = {
+      vs: 'friend', level: 'medium', size: 4, phase: 'setup', board: null,
+      turn: 1, first: 1, moves: 0, last: null, winner: 0, draw: false,
+      scores: { 1: 0, 2: 0, D: 0 }, names: [], gameId: ''
+    };
+  }
+  const s = appState.dots;
+  if (!s.scores) s.scores = { 1: 0, 2: 0, D: 0 };
+  return s;
+}
+
+function setupDots() {
+  dotsStopPhone();
+  setView('setup-dots');
+  paintDotsSetup();
+}
+
+/** The names on the pills and the boxes: you and the phone, or the two typed in. */
+function dotsNames(s) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (s.vs === 'phone') return [t.xo_you || '', t.xo_phone || ''];
+  const n = s.names || [];
+  return [n[0] || t.dots_p1 || '', n[1] || t.dots_p2 || ''];
+}
+
+/** A box's letter for each player; two names starting alike fall back to 1 and 2. */
+function dotsInitials(names) {
+  const a = duelInitial(names[0]), b = duelInitial(names[1]);
+  return a === b ? ['1', '2'] : [a, b];
+}
+
+function paintDotsSetup() {
+  const s = dotsState();
+  duelPaintSegmented('dots-size', s.size);
+  duelPaintSegmented('dots-vs', s.vs);
+  duelPaintSegmented('dots-level', s.level);
+  const level = document.getElementById('dots-level-field');
+  if (level) level.classList.toggle('hidden', s.vs !== 'phone');
+  const names = document.getElementById('dots-names-field');
+  if (names) names.classList.toggle('hidden', s.vs !== 'friend');
+  const cont = document.getElementById('dots-continue');
+  if (cont) cont.classList.toggle('hidden', !(s.phase === 'play' && s.board));
+}
+
+function setDotsOption(key, value) {
+  const s = dotsState();
+  s[key] = key === 'size' ? dotsSize(value) : value;
+  saveToLocal();
+  paintDotsSetup();
+}
+
+function startDots() {
+  const s = dotsState();
+  const read = (id) => ((document.getElementById(id) || {}).value || '').trim().slice(0, 16);
+  s.names = [read('dots-name1'), read('dots-name2')];
+  s.scores = { 1: 0, 2: 0, D: 0 };
+  s.first = 1;
+  dotsNewGame();
+}
+
+function dotsContinue() {
+  setView('play-dots');
+  paintDots({ still: true });
+  dotsMaybePhone();
+}
+
+function dotsNewGame() {
+  const s = dotsState();
+  dotsStopPhone();
+  s.board = dotsNewBoard(s.size);
+  s.turn = s.first;
+  s.moves = 0;
+  s.last = null;
+  s.winner = 0;
+  s.draw = false;
+  s.phase = 'play';
+  s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  saveToLocal();
+  if (appState.currentView !== 'play-dots') setView('play-dots');
+  paintDots();
+  if (typeof scrollToAction === 'function') scrollToAction();
+  dotsMaybePhone();
+}
+
+function dotsHumanDraw(e) {
+  const s = dotsState();
+  if (s.phase !== 'play' || !s.board) return;
+  if (s.vs === 'phone' && s.turn !== 1) return;
+  if (Date.now() < dotsLocal.busyUntil || s.board.lines[e]) return;
+  haptic('light');
+  dotsPlace(e);
+}
+
+function dotsPlace(e) {
+  const s = dotsState();
+  const p = s.turn;
+  const res = dotsPlay(s.board, e, p);
+  if (!res) return;
+  s.moves++;
+  s.last = { edge: e, boxes: res.boxes, p: p };
+  dotsLocal.busyUntil = Date.now() + 220;
+  if (res.over) {
+    const c = dotsCounts(s.board);
+    s.phase = 'done';
+    s.winner = c[1] > c[2] ? 1 : (c[2] > c[1] ? 2 : 0);
+    s.draw = !s.winner;
+    s.scores[s.winner || 'D'] = (s.scores[s.winner || 'D'] || 0) + 1;
+    s.first = 3 - s.first;
+  } else if (!res.again) {
+    s.turn = 3 - p;
+  }
+  saveToLocal();
+  paintDots();
+  dotsMaybePhone();
+}
+
+/** The phone's line: a moment to see what just happened, quicker while it runs down a chain. */
+function dotsMaybePhone() {
+  const s = dotsState();
+  if (s.vs !== 'phone' || s.phase !== 'play' || s.turn !== 2 || dotsPhoneTimer) return;
+  if (appState.currentView !== 'play-dots') return;
+  const chain = s.last && s.last.p === 2 && s.last.boxes && s.last.boxes.length;
+  const seen = s.last && s.last.boxes && s.last.boxes.length && !motionOff() ? 520 : 200;
+  const wait = chain ? 380 + (motionOff() ? 0 : 300) : seen + 400 + Math.floor(Math.random() * 300);
+  dotsPhoneTimer = setTimeout(() => {
+    dotsPhoneTimer = null;
+    const st = dotsState();
+    if (st.vs !== 'phone' || st.phase !== 'play' || st.turn !== 2 || appState.currentView !== 'play-dots') return;
+    const e = dotsBestMove(st.board, 2, st.level);
+    if (e >= 0) dotsPlace(e);
+  }, wait);
+}
+
+function dotsStopPhone() {
+  if (dotsPhoneTimer) clearTimeout(dotsPhoneTimer);
+  dotsPhoneTimer = null;
+}
+
+/** The small square on a pill: the player's colour and their letter. */
+const dotsMark = (p, letter) => `<span class="dots-chip dots-chip--${p}">${escapeHTML(letter || '')}</span>`;
+
+function paintDots(opts) {
+  const o = opts || {};
+  const s = dotsState();
+  const el = document.getElementById('dots-stage');
+  if (!el || !s.board) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const names = dotsNames(s);
+  const initials = dotsInitials(names);
+  const counts = dotsCounts(s.board);
+  const phoneTurn = s.vs === 'phone' && s.phase === 'play' && s.turn === 2;
+  const playable = s.phase === 'play' && !phoneTurn;
+  const again = s.phase === 'play' && s.last && s.last.boxes && s.last.boxes.length && s.last.p === s.turn;
+  let status;
+  if (s.phase === 'done') {
+    if (s.draw) status = (t.dots_draw || '').replace('{n}', counts[1]);
+    else if (s.vs === 'phone') status = s.winner === 1 ? (t.duel_you_won || '') : (t.duel_phone_won || '');
+    else status = '🏆 ' + (t.duel_won || '').replace('{name}', duelIso(names[s.winner - 1]));
+  } else if (phoneTurn) {
+    status = again ? (t.dots_again_other || '').replace('{name}', duelIso(names[1])) : (t.xo_thinking || '');
+  } else if (again) {
+    status = s.vs === 'phone' ? (t.dots_again_you || '') : (t.dots_again_other || '').replace('{name}', duelIso(names[s.turn - 1]));
+  } else {
+    status = s.vs === 'phone' ? (t.duel_your_turn || '') : (t.duel_turn_of || '').replace('{name}', duelIso(names[s.turn - 1]));
+  }
+  const wins = (p) => `🏆 ${Number(s.scores[p]) || 0}`;
+  const nextLine = s.phase === 'done' ? `<p class="duel-next">${escapeHTML((t.duel_first_next || '').replace('{name}', duelIso(names[s.first - 1])))}</p>` : '';
+  el.innerHTML = `
+    <div class="duel dots-game">
+      <div class="duel-layout">
+        <div class="duel-layout__board" style="--duel-aspect:1">
+          ${dotsBoardHtml(s.board, { last: s.last, playable: playable, next: s.turn, initials: initials })}
+        </div>
+        <div class="duel-layout__side">
+          <div class="duel-head">
+            ${duelPillsHtml({
+              players: [
+                { name: names[0], score: counts[1], mark: dotsMark(1, initials[0]), sub: wins(1) },
+                { name: names[1], score: counts[2], mark: dotsMark(2, initials[1]), sub: wins(2) }
+              ],
+              turn: s.phase === 'play' ? s.turn - 1 : -1,
+              draws: s.scores.D ? s.scores.D : null
+            })}
+            <p class="duel-status ${s.phase === 'done' ? 'is-done' : ''} ${phoneTurn && !again ? 'is-thinking' : ''} ${again ? 'is-again' : ''}">${escapeHTML(status)}</p>
+            ${nextLine}
+          </div>
+          ${s.phase === 'play' && s.moves === 0 && playable ? `<p class="field__hint duel-hint">${escapeHTML(t.dots_line_hint || '')}</p>` : ''}
+          <div class="view-actions duel-actions">
+            ${s.phase === 'done' ? `<button class="btn btn--primary btn--lg" onclick="dotsNewGame()">${escapeHTML(t.duel_next_game || '')}</button>` : ''}
+            <button class="btn btn--ghost btn--sm" onclick="setupDots()">${escapeHTML(t.exit || '')}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  const key = 'dots|' + s.gameId;
+  dotsAfterPaint(el, s.board, {
+    onDraw: dotsHumanDraw,
+    lineKey: s.last ? key + '|' + s.moves : '',
+    ending: s.phase === 'done',
+    still: o.still
+  });
+  duelPillsAfter(el, 'dots-local', {
+    turn: s.phase === 'play' ? s.turn - 1 : -1,
+    scores: [counts[1], counts[2]],
+    againKey: again ? key + '|' + s.moves : ''
+  });
+  if (s.phase === 'done' && duelOnce(key + '|cheer') && !o.still) {
+    const cheer = s.winner && (s.vs === 'friend' || s.winner === 1);
+    afterReveal(el, () => {
+      if (cheer) {
+        duelSound('win');
+        if (typeof confetti === 'function') confetti({ particleCount: 110, spread: 70, origin: { y: 0.6 } });
+      } else {
+        duelSound(s.winner ? 'lose' : 'draw');
+      }
+    });
+  }
+}
+
+function restoreDots() {
+  const s = dotsState();
+  if ((s.phase !== 'play' && s.phase !== 'done') || !s.board || !Array.isArray(s.board.lines)) return false;
+  paintDots({ still: true });
+  setTimeout(dotsMaybePhone, 0);
+  return true;
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('dots', {
+    setup: 'setup-dots', play: 'play-dots',
+    paintSetup: paintDotsSetup, restore: restoreDots,
+    repaint: () => paintDots({ still: true })
+  });
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-dots') dotsStopPhone();
+    if (to === 'play-dots') setTimeout(dotsMaybePhone, 0);
+  });
+}
+</script>

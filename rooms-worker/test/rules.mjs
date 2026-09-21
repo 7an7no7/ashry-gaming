@@ -5,6 +5,7 @@
  *
  *   npm run test:rules      (builds generated/rules.js first)
  */
+import { readFileSync } from 'node:fs';
 import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft } from '../generated/rules.js';
 
 let failed = 0;
@@ -2066,6 +2067,269 @@ const leave = (r, id, hook = true) => {
   check(mf.shared.narrate === true, 'mafia: and on for the whole room when they do');
   // It never leaks a role, and nothing in shared tells a phone what to say.
   check(!JSON.stringify(mf.shared).includes('"roles":{'), 'mafia: the narrator setting carries no roles with it');
+}
+
+/* --- كونكت ٤ and نقط ومربعات: the shared rules and the phone's player ------- */
+// The phone's player thinks against the real clock: its time budget is a
+// deadline. The test clock is put back after this block, for what follows.
+const duelTestClock = Date.now;
+Date.now = realNow;
+{
+  const src = (name) => readFileSync(new URL('../../' + name, import.meta.url), 'utf8');
+  const C4 = new Function(src('Connect4.js') + '\nreturn { c4NewBoard, c4Play, c4DropRow, c4LegalCols, c4Winner, c4BestMove };')();
+  const DB = new Function(src('DotsBoxes.js') + '\nreturn { dotsNewBoard, dotsPlay, dotsGeom, dotsBestMove, dotsSafe, dotsCaptures, dotsFree, dotsCounts, dotsSides, dotsComponents, dotsDoubleDeal };')();
+  // A seeded source, so a failure can be played again.
+  const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  // A full board with no line of four: pairs of columns alternating, row by row.
+  const noLine = (i) => 1 + ((Math.floor(i / 7) + Math.floor((i % 7) / 2)) % 2);
+
+  // A disc.
+  const playCols = (b, cols) => cols.map((c, i) => C4.c4Play(b, c, (i % 2) + 1));
+  let b = C4.c4NewBoard(4);
+  check(b.cols === 7 && b.rows === 6 && b.grid.length === 42, 'connect4: the classic board is 7 wide and 6 high');
+  check(C4.c4NewBoard(5).cols === 9 && C4.c4NewBoard(5).rows === 6 && C4.c4NewBoard('x').n === 4,
+        'connect4: 5 in a row is Hasbro\'s 9 x 6, anything else the classic 4');
+  const moves = playCols(b, [0, 1, 0, 1, 0, 1]);
+  check(moves[0].row === 5 && moves[2].row === 4 && moves.every((m) => !m.win), 'connect4: a disc falls to the lowest free cell');
+  let last = C4.c4Play(b, 0, 1);
+  check(last.win && last.cells.length === 4 && last.cells.every((i) => i % 7 === 0), 'connect4: four down a column wins, and the run is those four');
+  b = C4.c4NewBoard(4);
+  playCols(b, [0, 0, 1, 1, 2, 2]);
+  last = C4.c4Play(b, 3, 1);
+  check(last.win && JSON.stringify(last.cells) === '[35,36,37,38]', 'connect4: four across wins, lit in order from one end');
+  b = C4.c4NewBoard(4);
+  playCols(b, [0, 1, 1, 2, 2, 3, 2, 3, 3, 6]);
+  last = C4.c4Play(b, 3, 1);
+  check(last.win && last.cells.length === 4, 'connect4: four on a diagonal wins');
+  b = C4.c4NewBoard(5);
+  playCols(b, [0, 0, 1, 1, 2, 2]);
+  last = C4.c4Play(b, 3, 1);
+  check(!last.win, 'connect4: four across is not enough when it is 5 in a row');
+  C4.c4Play(b, 3, 2);
+  last = C4.c4Play(b, 4, 1);
+  check(last.win && last.cells.length === 5, 'connect4: five across wins it');
+  b = C4.c4NewBoard(4);
+  playCols(b, [2, 2, 2, 2, 2, 2]);
+  check(C4.c4DropRow(b, 2) === -1 && C4.c4Play(b, 2, 1) === null && C4.c4Play(b, 7, 1) === null && C4.c4Play(b, 1.5, 1) === null,
+        'connect4: a full column, or no column at all, is refused');
+  const drawn = C4.c4NewBoard(4);
+  drawn.grid = drawn.grid.map((_, i) => noLine(i));
+  check(C4.c4Winner(drawn) === 'draw', 'connect4: a full board with no line is a draw');
+  drawn.grid[0] = 0;
+  const lastDisc = C4.c4Play(drawn, 0, 1);
+  check(lastDisc.draw && !lastDisc.win, 'connect4: and the disc that fills it says so');
+
+  // The phone as a player: always a legal column, a win taken, a threat blocked.
+  let legal = true;
+  const rnd = seeded(7);
+  for (let g = 0; g < 30 && legal; g++) {
+    const bb = C4.c4NewBoard(g % 3 === 0 ? 5 : 4);
+    let p = 1;
+    for (let m = 0; m < 60; m++) {
+      const c = C4.c4BestMove(bb, p, ['easy', 'medium', 'hard'][(g + m) % 3], { rnd: rnd, budget: 30 });
+      const res = C4.c4Play(bb, c, p);
+      if (!res) { legal = false; break; }
+      if (res.win || res.draw) break;
+      p = 3 - p;
+    }
+  }
+  check(legal, 'connect4: the phone always drops in a column with room, at every level');
+  const threat = C4.c4NewBoard(4);
+  playCols(threat, [0, 6, 1, 6, 2]);          // red has three across the bottom
+  check(C4.c4BestMove(threat, 2, 'hard', { rnd: seeded(1) }) === 3 && C4.c4BestMove(threat, 2, 'medium', { rnd: seeded(2) }) === 3,
+        'connect4: medium and hard block three in a row');
+  C4.c4Play(threat, 5, 2);
+  check(C4.c4BestMove(threat, 1, 'hard', { rnd: seeded(3) }) === 3 && C4.c4BestMove(threat, 1, 'medium', { rnd: seeded(4) }) === 3,
+        'connect4: and take a win when it is there');
+  const t0 = Date.now();
+  C4.c4BestMove(C4.c4NewBoard(5), 1, 'hard', { budget: 250 });
+  check(Date.now() - t0 < 600, 'connect4: hard thinks inside its time budget, never holding the page');
+  check(C4.c4BestMove(drawn, 1, 'hard') === -1, 'connect4: a full board has no move');
+
+  // Dots: the lines and the boxes.
+  let d = DB.dotsNewBoard(4);
+  check(d.lines.length === 40 && d.boxes.length === 16 && DB.dotsNewBoard(8).lines.length === 144 && DB.dotsNewBoard(5).n === 4,
+        'dots: 4x4 is 40 lines and 16 boxes, 8x8 144 lines; any other size is 4');
+  const g4 = DB.dotsGeom(4);
+  const box0 = g4.boxEdges[0];
+  const r1 = DB.dotsPlay(d, box0[0], 1), r2 = DB.dotsPlay(d, box0[1], 2), r3 = DB.dotsPlay(d, box0[2], 1);
+  const r4 = DB.dotsPlay(d, box0[3], 2);
+  check(!r1.again && !r2.again && !r3.again && r4.boxes.length === 1 && d.boxes[0] === 2 && r4.again,
+        'dots: the fourth side takes the box for whoever drew it, and they go again');
+  check(DB.dotsPlay(d, box0[0], 1) === null && DB.dotsPlay(d, 999, 1) === null, 'dots: a line already drawn, or no line at all, is refused');
+  d = DB.dotsNewBoard(4);
+  const middle = g4.boxEdges[0][3];     // box 0's right side is box 1's left
+  g4.boxEdges[0].concat(g4.boxEdges[1]).filter((e) => e !== middle).forEach((e) => { d.lines[e] = 1; });
+  const both = DB.dotsPlay(d, middle, 2);
+  check(both.boxes.length === 2 && d.boxes[0] === 2 && d.boxes[1] === 2, 'dots: one line can take two boxes');
+  d = DB.dotsNewBoard(4);
+  let end = null;
+  DB.dotsFree(d).forEach((e, i) => { end = DB.dotsPlay(d, e, (i % 2) + 1); });
+  check(end.over && !end.again && DB.dotsCounts(d)[0] === 0, 'dots: the last line ends the game with every box taken');
+
+  // The phone as a player: always a free line; medium and hard never give a
+  // third side while a safe line is left; medium takes a box that is there.
+  let okDots = true, okSafe = true, okTake = true;
+  const rndD = seeded(11);
+  for (let g = 0; g < 24; g++) {
+    const bd = DB.dotsNewBoard([4, 6, 8][g % 3]);
+    let p = 1;
+    for (let m = 0; m < 400; m++) {
+      const level = ['easy', 'medium', 'hard'][(g + m) % 3];
+      const safe = DB.dotsSafe(bd), caps = DB.dotsCaptures(bd);
+      const e = DB.dotsBestMove(bd, p, level, { rnd: rndD, budget: 40 });
+      if (level !== 'easy' && !caps.length && safe.length && safe.indexOf(e) === -1) okSafe = false;
+      if (level === 'medium' && caps.length && caps.indexOf(e) === -1) okTake = false;
+      const res = DB.dotsPlay(bd, e, p);
+      if (!res) { okDots = false; break; }
+      if (res.over) break;
+      if (!res.again) p = 3 - p;
+    }
+  }
+  check(okDots, 'dots: the phone always draws a free line, at every level and size');
+  check(okSafe, 'dots: medium and hard never give a third side while a safe line is left');
+  check(okTake, 'dots: medium takes a box when one is there');
+
+  // The endgame: a chain of three handed over beside a chain of four. Taking all
+  // three would leave hard to open the four; taking one and handing two back
+  // with the double-dealing line keeps control, and the four with it.
+  const endgame = DB.dotsNewBoard(4);
+  const own = (bx) => { endgame.boxes[bx] = 1; g4.boxEdges[bx].forEach((e) => { endgame.lines[e] = endgame.lines[e] || 1; }); };
+  [3, 4, 5, 6, 7, 12, 13, 14, 15].forEach(own);
+  [0, 1, 2].forEach((bx) => { endgame.lines[g4.boxEdges[bx][0]] = 2; });    // the tops along the edge
+  const comps = DB.dotsComponents(endgame);
+  check(DB.dotsSides(endgame, 2) === 3 && DB.dotsSides(endgame, 0) === 2 && comps.some((c) => c.type === 'chain' && c.size === 4),
+        'dots: the test position is a chain of three opened at one end, beside a chain of four');
+  const firstTake = DB.dotsBestMove(endgame, 1, 'hard', { rnd: seeded(5) });
+  check(firstTake === g4.boxEdges[2][2], 'dots: hard takes the first box of the chain it was handed');
+  DB.dotsPlay(endgame, firstTake, 1);
+  const deal = DB.dotsDoubleDeal(endgame);
+  const dd = DB.dotsBestMove(endgame, 1, 'hard', { rnd: seeded(6) });
+  check(!!deal && dd === deal.edge && dd === g4.boxEdges[0][2],
+        'dots: then leaves the last two with the double-dealing line, keeping control of the chain of four');
+  const medium = DB.dotsBestMove(endgame, 1, 'medium', { rnd: seeded(6) });
+  check(medium === g4.boxEdges[1][2], 'dots: medium just takes the box');
+}
+Date.now = duelTestClock;
+
+/* --- the duels in rooms: two play, winner stays on --------------------------- */
+{
+  const duel = (game, ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const noLine = (i) => 1 + ((Math.floor(i / 7) + Math.floor((i % 7) / 2)) % 2);
+  const drop = (r, col) => applyRoomAction(r, r.shared.seats[r.shared.turn], 'move', { col, move: r.shared.moves });
+
+  const r = duel('connect4', ['a', 'b', 'c'], { mode: 4 });
+  check(r.phase === 'play' && r.shared.phase === 'play' && r.shared.seats.length === 2 && r.shared.line.length === 1 &&
+        r.shared.turn === 0 && r.shared.cols === 7 && r.shared.roster.length === 3,
+        'duel: two sit down, the third waits in line, the first seat moves');
+  const watcher = r.shared.line[0];
+  const firstSeat = r.shared.seats[0], secondSeat = r.shared.seats[1];
+  check(refused(() => applyRoomAction(r, watcher, 'move', { col: 0, move: 0 })), 'duel: someone in the line cannot move');
+  check(refused(() => applyRoomAction(r, secondSeat, 'move', { col: 0, move: 0 })), 'duel: nor the seat whose turn it is not');
+  drop(r, 3);
+  applyRoomAction(r, firstSeat, 'move', { col: 3, move: 0 });
+  check(r.shared.moves === 1 && r.shared.turn === 1, 'duel: a tap drawn for a board that has moved on is dropped');
+  [4, 3, 4, 3, 4, 3].forEach((c) => drop(r, c));
+  check(r.shared.phase === 'over' && r.phase === 'over' && r.shared.result.winnerId === firstSeat && r.shared.win.length === 4,
+        'duel: four in a row ends the game and names the winner');
+  check(r.shared.scores[firstSeat] === 1 && r.shared.board[0].id === firstSeat && r.shared.streak.n === 1,
+        'duel: a win is a point on the board, best first');
+  check(JSON.stringify(r.shared.line) === JSON.stringify([watcher, secondSeat]), 'duel: the loser goes to the back of the line');
+  applyRoomAction(r, watcher, 'move', { col: 0, move: r.shared.moves });
+  check(r.shared.phase === 'over' && r.shared.moves === 7, 'duel: nothing moves once it is over');
+  applyRoomAction(r, watcher, 'nextRound', { round: r.shared.round });
+  check(r.shared.phase === 'play' && r.shared.seats[0] === watcher && r.shared.seats[1] === firstSeat && r.shared.round === 2,
+        'duel: the next in line sits down against the winner, and the challenger moves first');
+  check(r.shared.grid.every((v) => v === 0) && r.shared.turn === 0 && r.shared.prev && r.shared.prev.winnerId === firstSeat,
+        'duel: on a fresh board, with the last game remembered');
+  applyRoomAction(r, watcher, 'nextRound', { round: 1 });
+  check(r.shared.round === 2 && r.shared.phase === 'play', 'duel: a second "next game" for the same game is dropped');
+
+  // A draw: the champion keeps the seat and the challenger goes to the back.
+  r.shared.grid = r.shared.grid.map((_, i) => noLine(i));
+  r.shared.grid[0] = 0;                     // the one empty cell is seat 0's colour
+  r.shared.moves = 41;
+  r.shared.turn = 0;
+  drop(r, 0);
+  check(r.shared.phase === 'over' && r.shared.result.draw && r.shared.champ === firstSeat && r.shared.line[r.shared.line.length - 1] === watcher,
+        'duel: a draw keeps the champion in the seat and sends the challenger to the back');
+  check(!r.shared.scores[watcher] && r.shared.scores[firstSeat] === 1, 'duel: and nobody scores');
+  applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round });
+  check(r.shared.seats[0] === secondSeat && r.shared.seats[1] === firstSeat, 'duel: whoever waited longest challenges next');
+
+  // A seated player leaving loses by forfeit; the next game seats who is left.
+  const quitter = r.shared.seats[0];
+  leave(r, quitter);
+  check(r.shared.phase === 'over' && r.shared.result.reason === 'left' && r.shared.result.winnerId === firstSeat &&
+        r.shared.result.loserName === quitter.toUpperCase() && r.shared.line.indexOf(quitter) === -1,
+        'duel: a seated player who leaves loses by forfeit, and is out of the line');
+  check(r.shared.scores[firstSeat] === 2 && r.shared.streak.n === 2, 'duel: the forfeit is a win for whoever is left');
+  applyRoomAction(r, firstSeat, 'nextRound', { round: r.shared.round });
+  check(r.shared.phase === 'play' && r.shared.seats.indexOf(quitter) === -1 && r.shared.seats[0] === watcher,
+        'duel: the next game seats the two still here, the challenger first');
+
+  // Exactly two: they keep playing, and whoever went second goes first.
+  const two = duel('connect4', ['x', 'y'], {});
+  const t1 = two.shared.seats.slice();
+  [0, 1, 0, 1, 0, 1, 0].forEach((c) => drop(two, c));
+  check(two.shared.result.winnerId === t1[0], 'duel for two: the first seat wins');
+  applyRoomAction(two, 'y', 'nextRound', { round: two.shared.round });
+  check(JSON.stringify(two.shared.seats) === JSON.stringify([t1[1], t1[0]]), 'duel for two: the winner does not keep the first move; it alternates');
+  drop(two, 0);
+  const stayer = two.shared.seats[0];
+  leave(two, two.shared.seats[1]);
+  check(two.shared.phase === 'over' && two.shared.result.reason === 'left' && two.shared.result.winnerId === stayer,
+        'duel for two: leaving mid-game forfeits');
+  check(refused(() => applyRoomAction(two, stayer, 'nextRound', { round: two.shared.round })), 'duel: alone, there is no next game');
+  two.players.push({ id: 'z', name: 'Z' });
+  applyRoomAction(two, 'z', 'nextRound', { round: two.shared.round });
+  check(two.shared.phase === 'play' && two.shared.seats[0] === 'z' && two.shared.seats[1] === stayer,
+        'duel: someone who joins joins the line, and challenges first');
+
+  // Hasbro's board, and the champion leaving between games.
+  const five = duel('connect4', ['p', 'q', 'u'], { mode: 5 });
+  check(five.shared.cols === 9 && five.shared.n === 5, 'duel: the host can pick 5 in a row');
+  const champ5 = five.shared.seats[0];
+  [0, 1, 0, 1, 0, 1, 0, 1, 0].forEach((c) => drop(five, c));
+  check(five.shared.result.winnerId === champ5 && five.shared.win.length === 5, 'duel: five down wins on the big board');
+  leave(five, champ5);
+  applyRoomAction(five, five.players[0].id, 'nextRound', { round: five.shared.round });
+  check(five.shared.phase === 'play' && five.shared.seats.indexOf(champ5) === -1 && five.shared.seats.length === 2,
+        'duel: a champion who leaves between games leaves the seat to the line');
+
+  // نقط ومربعات: a box taken is another turn, the most boxes win, a draw is possible.
+  const dr = duel('dots', ['a', 'b', 'c'], { size: 6 });
+  check(dr.shared.size === 6 && dr.shared.lines.length === 84 && dr.shared.boxes.length === 36, 'duel dots: the host picks the size');
+  const line = (edge) => applyRoomAction(dr, dr.shared.seats[dr.shared.turn], 'move', { edge, move: dr.shared.moves });
+  const sides = [0, 6, 42, 43];              // box (0, 0) on 6x6: top, bottom, left, right
+  line(sides[0]); line(sides[1]); line(sides[2]);
+  const taker = dr.shared.seats[dr.shared.turn];
+  const takerSeat = dr.shared.seats.indexOf(taker);
+  line(sides[3]);
+  check(dr.shared.boxes[0] === takerSeat + 1 && dr.shared.seats[dr.shared.turn] === taker && dr.shared.count[takerSeat] === 1 &&
+        JSON.stringify(dr.shared.last.boxes) === '[0]',
+        'duel dots: the fourth side takes the box and the same player goes again');
+  check(refused(() => line(sides[0])), 'duel dots: a line already drawn is refused');
+  for (let e = 0; e < dr.shared.lines.length && dr.shared.phase === 'play'; e++) if (!dr.shared.lines[e]) line(e);
+  const cnt = dr.shared.count;
+  check(dr.shared.phase === 'over' && cnt[0] + cnt[1] === 36 &&
+        (dr.shared.result.draw ? cnt[0] === cnt[1] : dr.shared.result.winnerId === dr.shared.seats[cnt[0] > cnt[1] ? 0 : 1]),
+        'duel dots: every box taken ends it, and the most boxes win');
+  const lv = duel('dots', ['m', 'n'], { size: 4 });
+  lv.shared.lines = lv.shared.lines.map(() => 1);
+  lv.shared.boxes = lv.shared.boxes.map((_, i) => (i < 8 ? 1 : 2));
+  lv.shared.boxes[15] = 0;
+  lv.shared.lines[39] = 0;                   // box 15's right side, the last line of 4x4
+  lv.shared.turn = 1;
+  applyRoomAction(lv, lv.shared.seats[1], 'move', { edge: 39, move: lv.shared.moves });
+  check(lv.shared.phase === 'over' && lv.shared.result.draw && lv.shared.count[0] === 8 && lv.shared.count[1] === 8 && !lv.shared.scores[lv.shared.seats[1]],
+        'duel dots: eight boxes each is a draw');
 }
 
 Date.now = realNow;

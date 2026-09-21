@@ -1,0 +1,365 @@
+<script>
+/* ============================================================================
+   كونكت ٤ in rooms and on the TV - and what both duels' rooms share
+   ----------------------------------------------------------------------------
+   Winner stays on (connect4Action / dotsAction in RoomDuels.js): two sit down,
+   everyone else watches the same board on their phone or the TV, and after a
+   game the loser goes to the back of the line and the next in line sits down
+   against the winner, moving first. With only two in the room they swap who
+   goes first. Everything is public, so there is nothing in state.you; the
+   server only makes sure the right seat moved, legally, and drops a double
+   tap (the move carries how many moves the phone saw).
+
+   Someone who joins mid-game joins the line (lateJoin: routeRoomState draws
+   the game for them instead of the "next round" note), and the board is on
+   their phone straight away.
+
+   Every phone and the TV play the same moment: the disc falls, the line
+   lights, the ring slides, the scores count up (c4AfterPaint and
+   duelPillsAfter in JS_Connect4.html). The TV is the room's one voice
+   (roomHasScreen): with a screen in the room, only the screen makes the
+   sound of a disc landing.
+   ========================================================================= */
+
+/* --- what both duels' rooms share ---------------------------------------------- */
+
+const duelRoomLocal = { sent: '' };
+
+/** The two seated players' names, kept by the server for after one of them has left. */
+function duelRoomNames(state) {
+  const s = state.shared || {};
+  const names = s.seatNames || [];
+  return (s.seats || []).map((id, i) => names[i] || duelRoomPlayerName(state, id) || '');
+}
+
+/** A player's name from the room, or ''. */
+function duelRoomPlayerName(state, id) {
+  const p = (state.players || []).find(x => x.id === id);
+  return p ? p.name : '';
+}
+
+/**
+ * Who is waiting, in order: the line as the server left it, then anyone who
+ * has joined since, less `exclude`. Mirrors duelWaiting in RoomDuels.js.
+ */
+function duelRoomWaiting(state, exclude) {
+  const s = state.shared || {};
+  const here = (state.players || []).map(p => p.id);
+  const skip = exclude || [];
+  const out = (s.line || []).filter(id => here.indexOf(id) !== -1 && skip.indexOf(id) === -1);
+  here.forEach(id => { if (out.indexOf(id) === -1 && skip.indexOf(id) === -1) out.push(id); });
+  return out;
+}
+
+/** Who sits down next, [first to move, second], or null. Mirrors duelSeatNext in RoomDuels.js - keep the two in step. */
+function duelRoomNext(state) {
+  const s = state.shared || {};
+  const here = (state.players || []).map(p => p.id);
+  const last = s.seats || [];
+  const champ = s.champ && here.indexOf(s.champ) !== -1 ? s.champ : null;
+  const waiting = duelRoomWaiting(state, champ ? [champ] : []);
+  if (champ && waiting.length === 1 && here.length === 2 && last.indexOf(waiting[0]) !== -1 && last.indexOf(champ) !== -1) return [last[1], last[0]];
+  if (champ && waiting.length) return [waiting[0], champ];
+  if (!champ && waiting.length >= 2) return [waiting[0], waiting[1]];
+  return null;
+}
+
+/** The line, as chips: "the next game" first once a game is over, then the rest in order. */
+function duelRoomLineHtml(state, t, tv) {
+  const s = state.shared || {};
+  let ids;
+  if (s.phase === 'over') {
+    const next = duelRoomNext(state) || [];
+    ids = duelRoomWaiting(state, next.concat(s.champ ? [s.champ] : []));
+  } else {
+    ids = duelRoomWaiting(state, s.seats || []);
+  }
+  if (!ids.length) return '';
+  const chips = ids.map((id, i) => {
+    const me = id === Room.me;
+    return `<span class="duel-line__who ${me ? 'is-me' : ''}"><b class="metric">${i + 1}</b>${escapeHTML(duelRoomPlayerName(state, id))}${me ? ` · ${escapeHTML(t.xo_you || '')}` : ''}</span>`;
+  }).join('');
+  return `<div class="duel-line ${tv ? 'duel-line--tv' : ''}">
+      <span class="duel-line__label">${escapeHTML(t.duel_line || '')}</span>${chips}
+    </div>`;
+}
+
+/** What this phone is doing while two others play: its place in the line, or just watching. */
+function duelRoomWatchNote(state, t) {
+  const s = state.shared || {};
+  const pos = duelRoomWaiting(state, s.seats || []).indexOf(Room.me);
+  if (pos === -1) return '';
+  return `<p class="field__hint duel-hint">👀 ${escapeHTML((t.duel_your_place || '').replace('{n}', pos + 1))}</p>`;
+}
+
+/** The status line under the pills. */
+function duelRoomStatus(state, t, again) {
+  const s = state.shared || {};
+  const names = duelRoomNames(state);
+  const seat = (s.seats || []).indexOf(Room.me);
+  if (s.phase === 'over') return duelRoomResultLine(state, t);
+  if (again) {
+    return seat === s.turn ? (t.dots_again_you || '') : (t.dots_again_other || '').replace('{name}', duelIso(names[s.turn] || ''));
+  }
+  if (seat === s.turn && !state.youAreScreen) return t.duel_your_turn || '';
+  return (t.duel_turn_of || '').replace('{name}', duelIso(names[s.turn] || ''));
+}
+
+/** "🏆 the win to X", a draw, or a win by forfeit. */
+function duelRoomResultLine(state, t) {
+  const r = (state.shared || {}).result || {};
+  if (r.draw) return state.game === 'dots'
+    ? (t.dots_draw || '').replace('{n}', ((state.shared || {}).count || [0])[0])
+    : (t.c4_draw || '');
+  const line = '🏆 ' + (t.duel_won || '').replace('{name}', duelIso(r.winnerName || ''));
+  return r.reason === 'left' ? line + ' · ' + (t.duel_forfeit || '') : line;
+}
+
+/**
+ * The card once a game is over: the streak, who plays next, and the button
+ * that deals it - anyone in the room may press it, since whoever is still at
+ * the table must be able to carry on.
+ */
+function duelRoomOverHtml(state, t, tv) {
+  const s = state.shared || {};
+  const r = s.result || {};
+  const next = duelRoomNext(state);
+  const streak = s.streak && s.streak.n >= 2 && r.winnerId === s.streak.id
+    ? `<p class="duel-result__streak">🔥 ${escapeHTML((t.duel_streak || '').replace('{name}', duelIso(r.winnerName || '')).replace('{n}', s.streak.n))}</p>` : '';
+  const who = next
+    ? `<p class="duel-result__next">${escapeHTML((t.duel_next_match || '').replace('{a}', duelIso(duelRoomPlayerName(state, next[0]))).replace('{b}', duelIso(duelRoomPlayerName(state, next[1]))))}</p>`
+    : `<div class="waiting-note">${escapeHTML(t.duel_need_two || '')}</div>`;
+  const canDeal = !!next && (state.youAreHost || (state.players || []).some(p => p.id === Room.me));
+  const press = `roomAct('nextRound', { round: ${Number(s.round) || 0} })`;
+  if (tv) {
+    return `${streak ? `<div class="tv-note">${streak}</div>` : ''}<div class="tv-note">${who}</div>
+      ${state.youAreHost ? `<div class="tv-actions">${canDeal ? tvBtn(t.duel_next_btn, press) : ''}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+  }
+  return `<div class="card card--accent duel-result">
+      ${streak}${who}
+      <div class="btn-stack">
+        ${canDeal ? `<button class="btn btn--primary btn--lg" onclick="${press}">${escapeHTML(t.duel_next_btn || '')}</button>` : ''}
+        ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>` : ''}
+      </div>
+    </div>`;
+}
+
+/** The lobby option for a duel: one segmented choice, remembered on the host's phone. */
+function duelLobbyHtml(state, t, label, values, current, setter, hint) {
+  if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.duel_lobby_hint || '')}</p>`;
+  return `<div class="card card--tight">
+      <div class="field">
+        <label class="field__label">${escapeHTML(label)}</label>
+        <div class="segmented" role="group">
+          ${values.map(v => `<button type="button" class="segmented__item ${String(v[0]) === String(current) ? 'is-active' : ''}" onclick="${setter}(${v[0]})">${escapeHTML(v[1])}</button>`).join('')}
+        </div>
+        ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+      </div>
+      <p class="field__hint" style="text-align:center">${escapeHTML(t.duel_lobby_hint || '')}</p>
+    </div>`;
+}
+
+/** The lobby again, after a choice on it. */
+function duelLobbyRedraw() {
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  haptic('light');
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/** Sends a move once: a second tap before the board changes is not another move. */
+function duelRoomSend(state, payload) {
+  const s = state.shared;
+  const stamp = state.code + '|' + s.round + '|' + s.moves;
+  if (duelRoomLocal.sent === stamp) return;
+  duelRoomLocal.sent = stamp;
+  haptic('light');
+  Promise.resolve(roomAct('move', Object.assign({ move: s.moves }, payload))).then(() => {
+    if (duelRoomLocal.sent === stamp) duelRoomLocal.sent = '';
+  });
+}
+
+/** A duel's sound in a room: the TV's alone when there is one. */
+const duelRoomLoud = (state) => !!(state && (state.youAreScreen || !roomHasScreen()));
+
+/* --- Connect 4 on the phones --------------------------------------------------- */
+
+/** The room's board, as the pure rules want it. */
+const c4RoomBoard = (s) => ({ cols: s.cols, rows: s.rows, n: s.n, grid: s.grid || [] });
+
+function setC4RoomMode(mode) {
+  c4State().mode = c4Mode(mode);
+  saveToLocal();
+  duelLobbyRedraw();
+}
+
+function c4RoomDrop(col) {
+  const state = Room.state;
+  if (!state || state.game !== 'connect4') return;
+  const s = state.shared;
+  if (s.phase !== 'play' || (s.seats || [])[s.turn] !== Room.me) return;
+  if (c4DropRow(c4RoomBoard(s), col) < 0) { c4Refuse(document.querySelector('#view-room-connect4 .c4')); return; }
+  duelRoomSend(state, { col: col });
+}
+
+/** The two pills in a room: the seats, the room's wins, and "you" on your own. */
+function c4RoomPills(state, t) {
+  const s = state.shared;
+  const names = duelRoomNames(state);
+  const scores = s.scores || {};
+  const pill = (i) => ({
+    name: names[i],
+    score: scores[s.seats[i]] || 0,
+    mark: `<span class="c4-chip c4-disc--${i + 1}"></span>`,
+    sub: s.seats[i] === Room.me && !state.youAreScreen ? escapeHTML(t.xo_you || '') : ''
+  });
+  return duelPillsHtml({ players: [pill(0), pill(1)], turn: s.phase === 'play' ? s.turn : -1, draws: null });
+}
+
+ROOM_GAMES.connect4 = {
+  // Someone who joins mid-game joins the line and watches this game (routeRoomState).
+  lateJoin: true,
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    const mode = c4State().mode;
+    return duelLobbyHtml(state, t, t.c4_line_label || '', [[4, t.c4_mode_4 || '4'], [5, t.c4_mode_5 || '5']], mode, 'setC4RoomMode',
+      Number(mode) === 5 ? t.c4_mode_5_hint : t.c4_mode_4_hint);
+  },
+  startPayload() { return { mode: c4State().mode }; },
+
+  render(state) {
+    if (appState.currentView !== 'room-connect4') setView('room-connect4');
+    const el = document.getElementById('view-room-connect4');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const s = state.shared;
+    if (!s || !s.grid) return;
+    const seat = (s.seats || []).indexOf(Room.me);
+    const myTurn = s.phase === 'play' && seat === s.turn;
+    const sig = ['c4r', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
+                 JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name).join(','),
+                 state.youAreHost, appState.lang].join('|');
+    const board = c4RoomBoard(s);
+    const rebuilt = renderRoomFrame(el, sig, () => `
+      <div class="duel c4-game">
+        <div class="duel-layout">
+          <div class="duel-layout__board" style="--duel-aspect:${c4Aspect(board)}">
+            ${c4BoardHtml(board, { win: s.win, last: s.last, playable: myTurn, next: myTurn ? seat + 1 : s.turn + 1 })}
+          </div>
+          <div class="duel-layout__side">
+            <div class="duel-head">
+              ${c4RoomPills(state, t)}
+              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(duelRoomStatus(state, t))}</p>
+            </div>
+            ${s.phase === 'over' ? duelRoomOverHtml(state, t) : duelRoomWatchNote(state, t)}
+            ${duelRoomLineHtml(state, t)}
+            ${(state.players || []).length > 2 ? renderScoreboard(s.board) : ''}
+            ${s.phase === 'over' ? roomShareBtnHtml(state, s.board) : ''}
+            ${renderRoomPlayerStrip(state)}
+          </div>
+        </div>
+      </div>`);
+    if (rebuilt) {
+      const key = ['c4', state.code, s.round].join('|');
+      c4AfterPaint(el, {
+        onDrop: c4RoomDrop,
+        dropKey: s.last ? key + '|' + s.moves : '',
+        win: s.win, draw: !!(s.result && s.result.draw),
+        endKey: s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '',
+        sound: duelRoomLoud(state)
+      });
+      duelPillsAfter(el, 'c4r|' + state.code, {
+        turn: s.phase === 'play' ? s.turn : -1,
+        scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+      });
+      if (myTurn && duelOnce(['c4turn', state.code, s.round, s.moves].join('|'))) haptic('medium');
+      duelRoomCheer(el, state, key);
+    }
+    refreshRoomPlayerStrip(el, state);
+  },
+  // A move is not a new step to scroll to: the board is what everyone is watching.
+  actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
+};
+
+/**
+ * The end of a game in a room: confetti on the winner's own phone (and the
+ * TV), a sigh on the loser's, once per game on each device.
+ */
+function duelRoomCheer(el, state, key) {
+  const s = state.shared || {};
+  if (s.phase !== 'over' || !s.result || !duelOnce(key + '|cheer')) return;
+  const r = s.result;
+  const mine = r.winnerId && r.winnerId === Room.me;
+  const lost = r.loserId && r.loserId === Room.me;
+  afterReveal(el, () => {
+    if (mine || (state.youAreScreen && r.winnerId)) {
+      duelSound('win');
+      if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+    } else if (lost) {
+      duelSound('lose');
+    } else if (r.draw && duelRoomLoud(state)) {
+      duelSound('draw');
+    }
+  });
+  if (mine) haptic('double');
+}
+
+/* --- Connect 4 on the TV ------------------------------------------------------- */
+
+/**
+ * The TV's side of a duel: the pills, what is happening and the line. The
+ * room's wins are already on every chip of the strip under it; a podium after
+ * every game of winner-stays-on ran off a 1080p screen, and said nothing the
+ * strip doesn't.
+ */
+function duelTvSide(state, t, pills, again) {
+  const s = state.shared || {};
+  return `
+    <div class="duel-tv__side">
+      <div class="tv-scale">${pills}</div>
+      <div class="tv-title tv-center-text duel-tv__status ${again ? 'is-again' : ''}">${escapeHTML(duelRoomStatus(state, t, again))}</div>
+      ${s.phase === 'over' ? duelRoomOverHtml(state, t, true) : ''}
+      <div class="tv-scale">${duelRoomLineHtml(state, t, true)}</div>
+    </div>`;
+}
+
+TV_GAMES.connect4 = {
+  sig: (state) => {
+    const s = state.shared || {};
+    return ['c4', s.round, s.phase, s.moves, JSON.stringify(s.line || []), s.champ, JSON.stringify(s.scores || {}),
+            (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    if (!s.grid) return tvLookAtPhones(t);
+    const board = c4RoomBoard(s);
+    return `
+      <div class="duel-tv c4-game">
+        <div class="duel-tv__board" style="--duel-aspect:${c4Aspect(board)}">
+          ${c4BoardHtml(board, { win: s.win, last: s.last, playable: false, next: s.turn + 1 })}
+        </div>
+        ${duelTvSide(state, t, c4RoomPills(state, t))}
+      </div>`;
+  },
+  after(state, rebuilt) {
+    if (!rebuilt) return;
+    const el = document.getElementById('view-room-tv');
+    const s = state.shared || {};
+    if (!el || !s.grid) return;
+    const key = ['c4', state.code, s.round].join('|');
+    c4AfterPaint(el, {
+      dropKey: s.last ? key + '|' + s.moves : '',
+      win: s.win, draw: !!(s.result && s.result.draw),
+      endKey: s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '',
+      sound: true
+    });
+    duelPillsAfter(el, 'c4tv|' + state.code, {
+      turn: s.phase === 'play' ? s.turn : -1,
+      scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+    });
+    duelRoomCheer(el, state, key);
+  }
+};
+</script>

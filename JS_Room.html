@@ -679,7 +679,9 @@ const ROOM_HUB_GAMES = [
   { id: 'timeline',   icon: '🗓️', key: 'setup_timeline',   accent: 'amber',  min: 2 },
   // Computer players can make up the table, so one person is enough to open these.
   { id: 'uno',        icon: '🌈', key: 'setup_uno',        accent: 'rose',   min: 1 },
-  { id: 'domino',     icon: '🀄', key: 'setup_domino',     accent: 'green',  min: 1 }
+  { id: 'domino',     icon: '🀄', key: 'setup_domino',     accent: 'green',  min: 1 },
+  { id: 'connect4',   icon: '🔴', key: 'setup_connect4',   accent: 'blue',   min: 2 },
+  { id: 'dots',       icon: '🔲', key: 'setup_dots',       accent: 'indigo', min: 2 }
 ];
 
 /** Create an empty room from the menu — no game chosen yet. */
@@ -1104,8 +1106,10 @@ function routeRoomState(state) {
     renderRoomLobby(state);
     return;
   }
-  // Joined after this round was dealt: watch, don't break the game.
-  if (state.inGame === false) {
+  // Joined after this round was dealt: watch, don't break the game. A game
+  // whose latecomers simply join the line (the duels: winner stays on) draws
+  // them itself.
+  if (state.inGame === false && !(ROOM_GAMES[state.game] && ROOM_GAMES[state.game].lateJoin)) {
     renderRoomSpectator(state);
     return;
   }

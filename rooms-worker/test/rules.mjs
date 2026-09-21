@@ -2043,6 +2043,296 @@ const leave = (r, id, hook = true) => {
   }
 }
 
+/* --- الدومينو: the tiles, the ends, the points, the round, and what stays hidden --- */
+{
+  const { readFileSync } = await import('node:fs');
+  const DT = new Function(readFileSync(new URL('../../DominoTiles.js', import.meta.url), 'utf8') +
+    '\nreturn { dominoSet, dominoParse, dominoFits, dominoEnds, dominoPlace, dominoEndsSum, dominoPointsOf, dominoRounded, dominoMoveScore,' +
+    ' dominoStarter, dominoRoundResult, dominoGameWinner, dominoLayout, dominoFitLayout, dominoNewTable, dominoArmsOpen, dominoHandPips, dominoCanPlay };')();
+  const lineOf = (tiles, mode) => tiles.reduce((t, [id, end]) => DT.dominoPlace(t, id, end, mode || 'normal').table, DT.dominoNewTable());
+  const endsOf = (t) => DT.dominoEnds(t).map((e) => e.end + e.value).join(' ');
+
+  // The set.
+  const set = DT.dominoSet();
+  check(set.length === 28 && new Set(set).size === 28 && set.filter((id) => DT.dominoParse(id)[0] === DT.dominoParse(id)[1]).length === 7,
+        'domino: a double-six set is 28 tiles, 7 of them doubles');
+  check(DT.dominoParse('6' + '-2') === null && DT.dominoParse('2-6').join() === '2,6' && DT.dominoParse('7-7') === null, 'domino: a tile is its two numbers, low first');
+
+  // Matching and the two ends of عادي.
+  let t = lineOf([['3-5', 'R']]);
+  check(endsOf(t) === 'L3 R5', 'domino: a first tile opens both of its numbers');
+  check(DT.dominoFits(t, '5-6').join() === 'R' && DT.dominoFits(t, '1-3').join() === 'L' && DT.dominoFits(t, '3-5').join() === 'L,R'
+        && DT.dominoFits(t, '0-1').length === 0, 'domino: a tile goes on the end that shows one of its numbers, or nowhere');
+  t = DT.dominoPlace(t, '5-6', 'R', 'normal').table;
+  t = DT.dominoPlace(t, '1-3', 'L', 'normal').table;
+  check(endsOf(t) === 'L1 R6' && t.line.map((x) => x.a + '' + x.b).join(' ') === '13 35 56', 'domino: each tile turns so the numbers meet');
+  check(DT.dominoPlace(t, '2-4', 'R', 'normal') === null, "domino: a tile that doesn't match an end is refused");
+  check(DT.dominoFits(DT.dominoNewTable(), '0-4').join() === 'R', 'domino: an empty table takes any tile');
+  check(lineOf([['5-5', 'R']], 'normal').spinner === null, 'domino: عادي has no spinner, a double is just a double');
+
+  // أمريكاني: the spinner and its four arms.
+  t = lineOf([['5-5', 'R']], 'american');
+  check(t.spinner === '5-5' && endsOf(t) === 'L5 R5', 'domino: the first double is the spinner, open on its two sides first');
+  check(DT.dominoEndsSum(t) === 10 && DT.dominoPointsOf(DT.dominoEndsSum(t)) === 2, 'domino: the spinner alone counts both halves: 10 is 2 points');
+  t = DT.dominoPlace(t, '2-5', 'R', 'american').table;
+  check(!DT.dominoArmsOpen(t) && endsOf(t) === 'L5 R2' && DT.dominoEndsSum(t) === 12, 'domino: a double at an end counts both halves (5+5+2 = 12)');
+  t = DT.dominoPlace(t, '0-5', 'L', 'american').table;
+  check(DT.dominoArmsOpen(t) && endsOf(t) === 'L0 R2 U5 D5', 'domino: with both sides played, its up and down arms open');
+  check(DT.dominoEndsSum(t) === 2, "domino: an arm nothing has gone on yet doesn't count");
+  check(DT.dominoMoveScore(t, '3-5', 'U', 'american') === 1 && DT.dominoMoveScore(t, '3-5', 'U', 'normal') === 0,
+        'domino: 0 + 2 + 3 = 5 is a point, and only in أمريكاني');
+  t = DT.dominoPlace(t, '3-5', 'U', 'american').table;
+  t = DT.dominoPlace(t, '3-3', 'U', 'american').table;
+  check(t.spinner === '5-5' && DT.dominoEndsSum(t) === 8, 'domino: a later double is no second spinner, and across an arm it counts both halves (0+2+6)');
+  t = DT.dominoPlace(t, '2-2', 'R', 'american').table;
+  check(DT.dominoEndsSum(t) === 10 && DT.dominoPointsOf(10) === 2, 'domino: 0 + 4 + 6 = 10, two points');
+  check(DT.dominoPointsOf(15) === 3 && DT.dominoPointsOf(12) === 0 && DT.dominoPointsOf(0) === 0, 'domino: 5 = 1 point; anything not a multiple of 5 nothing');
+  check([[12, 2], [13, 3], [10, 2], [7, 1], [8, 2], [2, 0], [0, 0], [23, 5], [22, 4]].every(([n, p]) => DT.dominoRounded(n) === p),
+        'domino: the round in أمريكاني is rounded to the nearest 5 (12 → 2, 13 → 3, 22 → 4, 23 → 5)');
+
+  // Who opens.
+  check(DT.dominoStarter({ a: ['1-2', '6-6'], b: ['5-5'] }, ['a', 'b']).tile === '6-6', 'domino: the double six opens');
+  const st = DT.dominoStarter({ a: ['1-2', '3-3'], b: ['5-5', '0-6'] }, ['a', 'b']);
+  check(st.pid === 'b' && st.tile === '5-5' && st.how === 'double', 'domino: without it, the highest double in anyone\'s hand');
+  const heavy = DT.dominoStarter({ a: ['1-2', '3-6'], b: ['4-5', '0-6'] }, ['a', 'b']);
+  check(heavy.pid === 'a' && heavy.tile === '3-6' && heavy.how === 'heaviest', 'domino: no double at all, the heaviest tile (3|6 over 4|5)');
+
+  // The end of a round.
+  const solo = (ids) => ids.map((id) => ({ key: id, ids: [id] }));
+  const teamsU = [{ key: 'A', ids: ['a', 'c'] }, { key: 'B', ids: ['b', 'd'] }];
+  let r = DT.dominoRoundResult({ how: 'out', by: 'a', hands: { a: [], b: ['6-6'], c: ['1-2'] }, units: solo(['a', 'b', 'c']), mode: 'normal' });
+  check(r.winner === 'a' && r.raw === 15 && r.points === 15 && r.lead === 'a', 'domino: going out takes every other hand (12 + 3)');
+  r = DT.dominoRoundResult({ how: 'out', by: 'a', hands: { a: [], b: ['6-6'], c: ['1-2'] }, units: solo(['a', 'b', 'c']), mode: 'american' });
+  check(r.raw === 15 && r.points === 3, 'domino: in أمريكاني 15 is 3 points');
+  r = DT.dominoRoundResult({ how: 'out', by: 'a', hands: { a: [], c: ['6-6'], b: ['1-1'], d: ['0-3'] }, units: teamsU, mode: 'normal' });
+  check(r.winner === 'A' && r.raw === 5, "domino: in teams only the opponents' tiles count (2 + 3), not the partner's 12");
+  r = DT.dominoRoundResult({ how: 'blocked', hands: { a: ['1-4'], b: ['0-3'], c: ['4-5'] }, units: solo(['a', 'b', 'c']), mode: 'normal' });
+  check(r.winner === 'b' && r.raw === 14 && r.lead === 'b', 'domino: blocked, the lowest hand takes all the others (5 + 9)');
+  r = DT.dominoRoundResult({ how: 'blocked', hands: { a: ['1-2'], b: ['0-3'], c: ['4-5'] }, units: solo(['a', 'b', 'c']), mode: 'normal' });
+  check(!r.winner && r.tie && r.raw === 0 && r.lead === null, 'domino: blocked with a tie for the lowest, nobody scores');
+  r = DT.dominoRoundResult({ how: 'blocked', hands: { a: ['0-4'], c: ['1-5'], b: ['1-1'], d: ['4-5'] }, units: teamsU, mode: 'american' });
+  check(r.winner === 'A' && r.raw === 11 && r.points === 2 && r.lead === 'a',
+        'domino: blocked in teams, the lower side (4 + 6 against 2 + 9) takes the other side\'s 11, rounded to 2; its lower hand leads');
+  check(DT.dominoGameWinner({ a: 101, b: 90 }, 101) === 'a' && DT.dominoGameWinner({ a: 110, b: 104 }, 101) === 'a'
+        && DT.dominoGameWinner({ a: 105, b: 105 }, 101) === null && DT.dominoGameWinner({ a: 50, b: 60 }, 101) === null,
+        'domino: first to the target wins; two past it, the higher; level on top, one more round');
+
+  // The table's drawing: no two tiles ever overlap, on a phone, sideways, or a TV.
+  const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  let overlaps = 0, missing = 0, endsWrong = 0, tables = 0;
+  for (const mode of ['normal', 'american']) {
+    for (let n = 0; n < 60; n++) {
+      let tb = DT.dominoNewTable();
+      const pool = shuffle(DT.dominoSet());
+      for (let moved = true; moved;) {
+        moved = false;
+        for (let i = 0; i < pool.length && !moved; i++) {
+          const f = DT.dominoFits(tb, pool[i]);
+          if (f.length) { tb = DT.dominoPlace(tb, pool[i], f[Math.floor(Math.random() * f.length)], mode).table; pool.splice(i, 1); moved = true; }
+        }
+      }
+      const count = tb.line.length + tb.up.length + tb.down.length;
+      for (const [w, h] of [[343, 330], [600, 290], [1100, 480]]) {
+        const lay = DT.dominoFitLayout(tb, w, h, 40, null).layout;
+        tables++;
+        if (lay.tiles.length !== count) missing++;
+        if (lay.ends.length !== DT.dominoEnds(tb).length) endsWrong++;
+        for (let i = 0; i < lay.tiles.length; i++) for (let j = i + 1; j < lay.tiles.length; j++) {
+          const p = lay.tiles[i], q = lay.tiles[j];
+          if (Math.min(p.x + p.w, q.x + q.w) - Math.max(p.x, q.x) > 0.01 && Math.min(p.y + p.h, q.y + q.h) - Math.max(p.y, q.y) > 0.01) overlaps++;
+        }
+      }
+    }
+  }
+  check(overlaps === 0 && missing === 0 && endsWrong === 0, `domino: ${tables} full tables drawn, every tile placed, no two overlapping, every open end marked`);
+
+  /* --- the room --- */
+  const dStart = (ids, opts) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'domino' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({ mode: 'normal' }, opts || {}));
+    return r;
+  };
+  const handOf = (r, id) => ((r.secrets[id] || {}).hand || []).slice();
+  const onTable = (r) => r.shared.table.line.length + r.shared.table.up.length + r.shared.table.down.length;
+
+  const one = newRoom(['a']);
+  applyRoomAction(one, 'a', 'chooseGame', { game: 'domino' });
+  check(threw(() => applyRoomAction(one, 'a', 'start', {})), 'domino: one player alone is refused (add a computer player)');
+  const five = newRoom(['a', 'b', 'c', 'd', 'e']);
+  applyRoomAction(five, 'a', 'chooseGame', { game: 'domino' });
+  check(threw(() => applyRoomAction(five, 'a', 'start', {})), 'domino: five is one too many');
+
+  let d = dStart(['a', 'b']);
+  const total = (r) => r.shared.order.reduce((sum, id) => sum + handOf(r, id).length, 0) + r.shared.bone + onTable(r);
+  check(d.shared.drawing && d.shared.order.length === 2 && total(d) === 28 && d.shared.bone === 14, 'domino: two players, seven each and fourteen to draw from');
+  check(onTable(d) === 1 && d.shared.events.some((e) => e.type === 'play' && e.forced), 'domino: the first round opens by itself');
+  // What the opener held: their hand now, and the tile they opened with.
+  const opener = d.shared.events.find((e) => e.type === 'play').pid;
+  const before = { a: handOf(d, 'a'), b: handOf(d, 'b') };
+  before[opener].push(d.shared.table.root);
+  const want = DT.dominoStarter(before, d.shared.order);
+  check(want.pid === opener && want.tile === d.shared.table.root, 'domino: …with the double six, else the highest double, else the heaviest tile');
+  check(d.shared.turn !== opener, 'domino: and the turn passes to the next seat');
+  const leaked = ['a', 'b'].some((id) => handOf(d, id).some((tile) => JSON.stringify(d.shared).indexOf('"' + tile + '"') !== -1));
+  check(!leaked && d.secrets.a.hand && d.secrets.b.hand && !('bone' in (d.secrets.a || {})), 'domino: no tile in a hand, or left to draw, is in what every phone is sent');
+
+  const d4 = dStart(['a', 'b', 'c', 'd']);
+  check(!d4.shared.drawing && d4.shared.bone === 0 && d4.shared.table.root === '6-6', 'domino: four players hold all 28 - no drawing, and the double six always opens');
+
+  // A tap that is stale, out of turn, or illegal.
+  const up = d.shared.turn;
+  const other = d.shared.order.find((id) => id !== up);
+  const seqWas = d.shared.turnSeq;
+  const tableWas = JSON.stringify(d.shared.table);
+  applyRoomAction(d, up, 'play', { tile: handOf(d, up)[0], end: 'R', seq: seqWas - 1 });
+  check(JSON.stringify(d.shared.table) === tableWas && d.shared.turnSeq === seqWas, 'domino: a tap from a turn that has moved on is dropped');
+  check(threw(() => applyRoomAction(d, other, 'play', { tile: handOf(d, other)[0], seq: seqWas })), 'domino: out of turn is refused');
+  check(threw(() => applyRoomAction(d, up, 'play', { tile: handOf(d, other)[0], seq: seqWas })), "domino: a tile that isn't yours is refused");
+
+  // A made-up table: every rule on a hand that is known.
+  const rig = (r, hands, line, opts) => {
+    const g = r._domino;
+    // The seats in the order the hands are written, so the turn goes a, b, c, d.
+    r.shared.order = Object.keys(hands);
+    Object.keys(hands).forEach((id) => { g.hands[id] = hands[id].slice(); });
+    if (opts && opts.bone) g.bone = opts.bone.slice();
+    r.shared.table = lineOf(line, r.shared.settings.mode);
+    r.shared.turn = opts && opts.turn ? opts.turn : r.shared.order[0];
+    r.shared.knocked = {};
+  };
+  d = dStart(['a', 'b']);
+  rig(d, { a: ['0-0', '3-6'], b: ['1-1', '2-2'] }, [['6-6', 'R']], { turn: 'a', bone: ['4-4', '1-6', '1-2', '2-4'] });
+  check(threw(() => applyRoomAction(d, 'a', 'play', { tile: '0-0', seq: d.shared.turnSeq })), "domino: a tile that doesn't go is refused");
+  check(threw(() => applyRoomAction(d, 'a', 'draw', { seq: d.shared.turnSeq })), 'domino: no drawing while a tile goes');
+  check(threw(() => applyRoomAction(d, 'a', 'pass', { seq: d.shared.turnSeq })), 'domino: no knocking while a tile goes');
+  applyRoomAction(d, 'a', 'play', { tile: '3-6', end: 'L', seq: d.shared.turnSeq });
+  check(d.shared.turn === 'b' && handOf(d, 'a').join() === '0-0' && endsOf(d.shared.table) === 'L3 R6', 'domino: a tile played on the end chosen, and the turn passes');
+  // b holds 1-1 and 2-2: nothing goes, so b draws until something does: 2-4 no, 1-2 no, 6-1 yes.
+  check(threw(() => applyRoomAction(d, 'b', 'pass', { seq: d.shared.turnSeq })), 'domino: with tiles left to draw, knocking is refused');
+  applyRoomAction(d, 'b', 'draw', { seq: d.shared.turnSeq });
+  check(handOf(d, 'b').length === 5 && d.shared.bone === 1 && d.shared.turn === 'b' && d.shared.events.some((e) => e.type === 'draw' && e.pid === 'b' && e.n === 3),
+        'domino: whoever can\'t play draws until a tile goes (three here), and it is still their turn');
+  applyRoomAction(d, 'b', 'play', { tile: '1-6', end: 'R', seq: d.shared.turnSeq });
+  check(d.shared.turn === 'a' && endsOf(d.shared.table) === 'L3 R1', 'domino: …then plays it');
+
+  // Knocking, and a blocked table.
+  d = dStart(['a', 'b', 'c', 'd']);
+  rig(d, { a: ['0-1'], b: ['0-2', '5-5'], c: ['3-3', '1-1'], d: ['2-2', '0-4'] }, [['6-6', 'R'], ['5-6', 'R'], ['4-6', 'L']], { turn: 'a' });
+  check(threw(() => applyRoomAction(d, 'a', 'draw', { seq: d.shared.turnSeq })), 'domino: four players never draw');
+  applyRoomAction(d, 'a', 'pass', { seq: d.shared.turnSeq });
+  check(d.shared.turn === 'b' && d.shared.events.some((e) => e.type === 'pass' && e.pid === 'a') && d.shared.knocked.a.join() === '4,5',
+        'domino: whoever can\'t play knocks, and the table knows the numbers they lack');
+  applyRoomAction(d, 'b', 'play', { tile: '5-5', end: 'R', seq: d.shared.turnSeq });
+  check(d.shared.turn === 'c', 'domino: …and play goes on round the table');
+  // c holds no 4 and no 5 and knocks; d's 0-4 goes on the 4, and then a's 0-1 on the 0.
+  applyRoomAction(d, 'c', 'pass', { seq: d.shared.turnSeq });
+  applyRoomAction(d, 'd', 'play', { tile: '0-4', end: 'L', seq: d.shared.turnSeq });
+  check(d.shared.phase === 'play' && d.shared.turn === 'a', 'domino: not blocked while someone holds a tile that goes');
+  applyRoomAction(d, 'a', 'play', { tile: '0-1', end: 'L', seq: d.shared.turnSeq });
+  check(d.shared.phase === 'roundOver' && d.shared.result.how === 'out' && d.shared.result.winner === 'a',
+        'domino: the last tile played ends the round');
+  check(d.shared.result.raw === 2 + 6 + 2 + 4 && d.shared.scores.a === 14, 'domino: and takes every pip left (0|2, 3|3 + 1|1, 2|2)');
+  check(JSON.stringify(d.shared.result.hands.c) === '["3-3","1-1"]', 'domino: the hands are shown at the end of the round');
+  applyRoomAction(d, 'a', 'nextRound', { round: d.shared.round });
+  check(d.shared.phase === 'play' && d.shared.round === 2 && d.shared.turn === 'a' && onTable(d) === 0,
+        'domino: the next round is led by the winner of the last, with any tile');
+  applyRoomAction(d, 'a', 'nextRound', { round: 1 });
+  check(d.shared.round === 2, 'domino: a second "next round" tap from the last round deals nothing');
+
+  // Blocked, in عادي: the lowest hand takes the rest.
+  d = dStart(['a', 'b', 'c']);
+  rig(d, { a: ['1-2', '0-0'], b: ['1-1'], c: ['3-4'] }, [['6-6', 'R'], ['5-6', 'R']], { turn: 'a', bone: [] });
+  applyRoomAction(d, 'a', 'pass', { seq: d.shared.turnSeq });
+  check(d.shared.phase === 'roundOver' && d.shared.result.how === 'blocked' && d.shared.result.winner === 'b' && d.shared.scores.b === 3 + 7,
+        'domino: nothing goes and nothing left to draw is قفلة: the lowest hand (2) takes the others (3 + 7)');
+
+  // أمريكاني: a play scores, and so does the end of the round.
+  d = dStart(['a', 'b'], { mode: 'american' });
+  check(d.shared.settings.target === 50, 'domino: أمريكاني plays to 50 by default');
+  rig(d, { a: ['0-5', '1-2'], b: ['4-6', '3-3'] }, [['5-5', 'R'], ['4-5', 'R']], { turn: 'a', bone: [] });
+  const scoreA = d.shared.scores.a;
+  applyRoomAction(d, 'a', 'play', { tile: '0-5', end: 'L', seq: d.shared.turnSeq });
+  const quiet0 = d.shared.events.slice(-1)[0];
+  check(d.shared.scores.a === scoreA && quiet0.type === 'play' && quiet0.sum === 4 && !quiet0.pts, 'domino: ends 0 + 4 = 4 score nothing');
+
+  // A play that scores.
+  d = dStart(['a', 'b'], { mode: 'american' });
+  rig(d, { a: ['1-5', '2-2'], b: ['6-6', '3-4'] }, [['5-5', 'R'], ['4-5', 'R']], { turn: 'a', bone: [] });
+  const sA = d.shared.scores.a;
+  const gA = d.shared.gained.a || 0;
+  applyRoomAction(d, 'a', 'play', { tile: '1-5', end: 'L', seq: d.shared.turnSeq });
+  const ev = d.shared.events.slice(-1)[0];
+  check(ev.type === 'play' && ev.sum === 5 && ev.pts === 1 && d.shared.scores.a === sA + 1, 'domino: 1 + 4 = 5, a point the moment the tile goes down');
+  check(d.shared.gained.a === gA + 1, "domino: and it counts in the round's own points too");
+
+  // Going out in أمريكاني: the rest rounded to 5.
+  d = dStart(['a', 'b', 'c'], { mode: 'american' });
+  rig(d, { a: ['2-6'], b: ['6-6', '0-1'], c: ['3-4', '0-2'] }, [['5-5', 'R'], ['5-6', 'R']], { turn: 'a', bone: [] });
+  const sa = d.shared.scores.a;
+  applyRoomAction(d, 'a', 'play', { tile: '2-6', end: 'R', seq: d.shared.turnSeq });
+  check(d.shared.phase === 'roundOver' && d.shared.result.raw === 12 + 1 + 7 + 2 && d.shared.result.points === 4 && d.shared.scores.a === sa + 4,
+        'domino: going out in أمريكاني takes 22 pips, rounded to 20: 4 points');
+
+  // Teams: the host's seats, partners opposite.
+  const t4 = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(t4, 'a', 'chooseGame', { game: 'domino' });
+  check(threw(() => applyRoomAction(t4, 'b', 'seats', { teams: true })), 'domino: only the host seats the partners');
+  applyRoomAction(t4, 'a', 'seats', { teams: true });
+  check(t4.shared.lobby.teams && t4.shared.lobby.order.length === 4, 'domino: teams on, the seats are drawn at random');
+  applyRoomAction(t4, 'a', 'seats', { teams: true, order: ['d', 'c', 'b', 'a'] });
+  check(t4.shared.lobby.order.join() === 'd,c,b,a', 'domino: and the host swaps them');
+  applyRoomAction(t4, 'a', 'start', { mode: 'normal', teams: true });
+  check(t4.shared.order.join() === 'd,c,b,a' && t4.shared.teams[0].join() === 'd,b' && t4.shared.teams[1].join() === 'c,a'
+        && 'A' in t4.shared.scores && !('a' in t4.shared.scores), 'domino: seats 1 & 3 against 2 & 4, scored as two sides');
+  const t3 = newRoom(['a', 'b', 'c']);
+  applyRoomAction(t3, 'a', 'chooseGame', { game: 'domino' });
+  check(threw(() => applyRoomAction(t3, 'a', 'start', { teams: true })), 'domino: teams need four');
+
+  // The game ends at the target.
+  d = dStart(['a', 'b'], { target: 51 });
+  rig(d, { a: ['0-6'], b: ['6-6', '5-5', '4-4', '3-3', '2-2'] }, [['0-0', 'R']], { turn: 'a', bone: [] });
+  d.shared.scores.a = 40;
+  applyRoomAction(d, 'a', 'play', { tile: '0-6', seq: d.shared.turnSeq });
+  check(d.shared.phase === 'gameover' && d.shared.winner === 'a' && d.shared.winners.join() === 'a' && d.shared.board[0].id === 'a',
+        'domino: past the target the game is over, and the board is best first');
+  check(threw(() => applyRoomAction(d, 'b', 'playAgain', {})), 'domino: only the host deals again');
+  applyRoomAction(d, 'a', 'playAgain', {});
+  check(d.shared.phase === 'play' && d.shared.round === 1 && d.shared.settings.target === 51 && d.shared.order.join() === d.shared.roster.join(),
+        'domino: play again keeps the options and the seats');
+
+  // The clock plays for a phone that doesn't.
+  d = dStart(['a', 'b'], { turnClock: 30 });
+  check(typeof d.shared.endsAt === 'number' && roomDeadline(d) === d.shared.endsAt + 1500, 'domino: the turn clock is a server deadline');
+  const clockUp = d.shared.turn;
+  const handsWas = handOf(d, clockUp).length;
+  roomTimeout(d, d.shared.endsAt + 1600);
+  check(d.shared.events.some((e) => e.type === 'auto' && e.pid === clockUp && e.why === 'clock') && (d.shared.turn !== clockUp || handOf(d, clockUp).length !== handsWas),
+        'domino: when it runs out the phone plays for them (a tile, a draw, or a knock)');
+
+  // The host moves a quiet phone on, the same way.
+  d = dStart(['a', 'b', 'c']);
+  const quiet = d.shared.turn;
+  const guest = d.shared.order.find((id) => id !== 'a');
+  check(threw(() => applyRoomAction(d, guest, 'skipTurn', { seq: d.shared.turnSeq })), 'domino: only the host plays for someone');
+  applyRoomAction(d, 'a', 'skipTurn', { seq: d.shared.turnSeq });
+  check(d.shared.events.some((e) => e.type === 'auto' && e.pid === quiet && e.why === 'host'), 'domino: the host plays for a quiet phone');
+
+  // Someone leaves.
+  d = dStart(['a', 'b', 'c']);
+  const gone = d.shared.turn;
+  leave(d, gone);
+  check(d.shared.phase === 'play' && d.shared.order.length === 2 && d.shared.order.indexOf(gone) === -1 && d.shared.turn && d.shared.turn !== gone
+        && !(gone in d.shared.counts), 'domino: whoever leaves, their tiles are set aside and the turn moves on');
+  leave(d, d.shared.order.find((id) => id !== 'a'));
+  check(d.shared.phase === 'gameover', 'domino: one player left ends the game');
+  const tl4 = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(tl4, 'a', 'chooseGame', { game: 'domino' });
+  applyRoomAction(tl4, 'a', 'start', { teams: true });
+  leave(tl4, 'c');
+  check(tl4.shared.phase === 'gameover' && tl4.shared.ended === 'left', 'domino: in teams, a side one short ends the game');
+}
+
 /* --- مافيا: the narrator is a room setting, off unless asked for ---------- */
 {
   const mf = newRoom(['a', 'b', 'c', 'd', 'e']);

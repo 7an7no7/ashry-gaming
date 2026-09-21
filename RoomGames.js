@@ -83,6 +83,7 @@ const clearGameState = (room) => {
   room._herd = null;
   room._mafia = null;
   room._screw = null;
+  room._domino = null;
   // A bot's next move belonged to the game that was cleared.
   room._botAt = null;
   room._botKey = null;

@@ -476,7 +476,8 @@ function domBarHtml(state) {
   if (st.helpFit && !lead) {
     const hand = (state.you || {}).hand || [];
     const moves = hand.reduce((n, t) => n + domDistinctEnds(table, t, st.mode).length, 0);
-    if (moves <= 1) {
+    // The last tile that goes out is never put down for you: that one is yours.
+    if (moves === 0 || (moves === 1 && hand.length > 1)) {
       const key = moves ? 'dom_auto_play' : canDraw ? 'dom_auto_draw' : 'dom_auto_pass';
       return `<div class="dom-bar dom-bar--inline">
           <p class="dom-prompt is-mine">⭐ ${escapeHTML(domT('dom_your_turn'))}</p>

@@ -3036,27 +3036,25 @@ Date.now = duelTestClock;
     check(g1 && g1.move.action === 'play' && g1.move.payload.tile === '1-5' && g1.move.payload.end === 'L', 'domino forced: one move only: it is played');
     on._domino.hands[pid] = ['0-5', '1-5'];
     check(roomForcedMove(on) === null, 'domino forced: two moves: nothing is done');
+    on._domino.hands[pid] = ['1-5'];
+    check(roomForcedMove(on) === null, 'domino forced: the last tile, that takes the round, is left to the player');
     const off = dm(false);
     off._domino.hands[off.shared.turn] = ['0-0', '1-1'];
     off.shared.table = { line: [{ t: '5-6', a: 5, b: 6 }], root: '5-6', spinner: null, up: [], down: [] };
     check(roomForcedMove(off) === null, 'domino forced: helpers off: nothing is done - the player works it out');
 
-    // The duels: the last possible move of a board.
+    // The duels: the last move is often the winning one, so it stays the player's (the owner, 21 Sep 2026).
     const c4r = newRoom(['a', 'b']);
     applyRoomAction(c4r, 'a', 'chooseGame', { game: 'connect4' });
     applyRoomAction(c4r, 'a', 'start', { mode: 4 });
-    check(roomForcedMove(c4r) === null, 'duel forced: an open board has choices');
     const cols = c4r.shared.cols;
     c4r.shared.grid = c4r.shared.grid.map((v, i) => (i % cols === 3 ? 0 : 1));
-    const fc = roomForcedMove(c4r);
-    check(fc && fc.pid === c4r.shared.seats[c4r.shared.turn] && fc.move.payload.col === 3 && fc.move.payload.move === c4r.shared.moves,
-      'duel forced: connect 4 with one open column: it is played for whoever is up');
+    check(roomForcedMove(c4r) === null, 'duels: connect 4 with one open column: the player drops it');
     const dr = newRoom(['a', 'b']);
     applyRoomAction(dr, 'a', 'chooseGame', { game: 'dots' });
     applyRoomAction(dr, 'a', 'start', { size: 4 });
     dr.shared.lines = dr.shared.lines.map((v, e) => (e === 5 ? 0 : 1));
-    const fd = roomForcedMove(dr);
-    check(fd && fd.move.payload.edge === 5, 'duel forced: dots with one line left: it is drawn');
+    check(roomForcedMove(dr) === null, 'duels: dots with one line left: the player draws it');
   }
 
   {

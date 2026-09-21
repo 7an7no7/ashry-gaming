@@ -607,14 +607,16 @@ the word search), `countUp` for streaks and scores.
   7-0 with one other player; الدومينو's draw, باص and a move that is the only
   one - **only with the host's "light up the tiles that fit" on**, because
   with the helpers off working it out is the game (the owner chose this);
-  the last column, line or square of كونكت ٤, نقط ومربعات and إكس أو, and the
-  memory game's last pair; قبل ولا بعد's last card, picked for you; سكرو's
-  "which player" when only one can be chosen. **Four kinds of tap stay taps**:
+  the memory game's last pair; قبل ولا بعد's last card, picked for you; سكرو's
+  "which player" when only one can be chosen. **Five kinds of tap stay taps**:
   one that is the game itself (أونو!, العقل, the Buzzer), one that hides who
   has a role (مافيا's night tap, made by everyone on purpose), anything the
   player is meant to judge unaided (الدومينو with the helpers off, سكرو's
-  memory), and a pause the table uses to read or talk (the host's "next
-  round"). And in أونو an automatic take waits while someone can still be
+  memory), a pause the table uses to read or talk (the host's "next round"),
+  and **a winning move** (the owner, the same day): the last disc, line or
+  square of كونكت ٤, نقط ومربعات and إكس أو is always the player's own - it
+  is so often the winning one that it was built and then taken out - and
+  الدومينو's last tile, the one that goes out, is never put down for them. And in أونو an automatic take waits while someone can still be
   caught - taking at once would close the امسكه! window on the player who
   forgot. In rooms the move is the server's (*Forced moves*), so it happens
   with the phone locked too. A new game checks its turns for the same.
@@ -880,11 +882,14 @@ the word search), `countUp` for streaks and scores.
 - **21 Sep 2026, one thing to do** - every game checked for a tap that has
   only one outcome, and each made automatic after a beat (*Decided, and
   why*: one thing to do is done for you; *Forced moves*): أونو, الدومينو with
-  the helpers on, the duels in rooms and on one phone, إكس أو, the memory
-  game, قبل ولا بعد and سكرو. Rules tests pin the Uno take and draw (and the
-  wait while someone can be caught), Domino with the helpers on and off, and
-  the duels' last move; a robot game's window was widened, since a long
-  three-player أونو can run past two minutes.
+  the helpers on, the memory game, قبل ولا بعد and سكرو. The last move of
+  كونكت ٤, نقط ومربعات and إكس أو was made automatic too, then taken out at
+  the owner's word the same day - it is so often the winning move - and
+  الدومينو's last tile was left to the player for the same reason. Rules
+  tests pin the Uno take and draw (and the wait while someone can be
+  caught), Domino with the helpers on and off and its last tile, and the
+  duels' last move left alone; a robot game's window was widened, since a
+  long three-player أونو can run past two minutes.
 - **21 Sep 2026, icons** - أونو and الدومينو drawn as their own card and tile
   (`ICON_ART`, `iconHtml`), four other icons that clashed or said nothing
   replaced (*Decided, and why*), and domino's دق renamed باص.
@@ -1160,9 +1165,9 @@ ever speak for it from outside.
   move - so a person who tapped first, a jump in, or a turn that changed
   meanwhile is never overruled. A move refused is not tried again for that
   moment (`_forcedFailed`). Registered: أونو (take / draw; waiting as long as
-  a bot while someone can be caught), الدومينو (with `helpFit` on), كونكت ٤
-  and نقط ومربعات (the last move). `roomForcedMove` is exported for the rules
-  tests. The phone draws a line (`uno_auto_*`, `dom_auto_*`) where the
+  a bot while someone can be caught) and الدومينو (with `helpFit` on, never
+  the last tile). The duels register nothing: a last move there is often the
+  winning one. `roomForcedMove` is exported for the rules tests. The phone draws a line (`uno_auto_*`, `dom_auto_*`) where the
   button would have been.
 - A new game with bots registers `ROOM_BOT_GAMES.<id> = { max, pending,
   decide, fallback }` beside its rules and `bots: { max }` on its `ROOM_GAMES`

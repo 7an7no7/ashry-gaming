@@ -268,7 +268,6 @@ function dotsHumanDraw(e) {
   if (s.vs === 'phone' && s.turn !== 1) return;
   if (Date.now() < dotsLocal.busyUntil || s.board.lines[e]) return;
   haptic('light');
-  dotsStopPhone();   // the last line about to draw itself: the tap was quicker
   dotsPlace(e);
 }
 
@@ -298,20 +297,8 @@ function dotsPlace(e) {
 /** The phone's line: a moment to see what just happened, quicker while it runs down a chain. */
 function dotsMaybePhone() {
   const s = dotsState();
-  if (s.phase !== 'play' || !s.board || dotsPhoneTimer) return;
+  if (s.vs !== 'phone' || s.phase !== 'play' || s.turn !== 2 || dotsPhoneTimer) return;
   if (appState.currentView !== 'play-dots') return;
-  // A person with one line left: it draws itself after a beat (nothing to choose).
-  if (!(s.vs === 'phone' && s.turn === 2)) {
-    if (dotsFree(s.board).length !== 1) return;
-    dotsPhoneTimer = setTimeout(() => {
-      dotsPhoneTimer = null;
-      const st = dotsState();
-      if (st.phase !== 'play' || appState.currentView !== 'play-dots') return;
-      const only = dotsFree(st.board);
-      if (only.length === 1) dotsPlace(only[0]);
-    }, (s.last && s.last.boxes && s.last.boxes.length && !motionOff() ? 520 : 200) + 600);
-    return;
-  }
   const chain = s.last && s.last.p === 2 && s.last.boxes && s.last.boxes.length;
   const seen = s.last && s.last.boxes && s.last.boxes.length && !motionOff() ? 520 : 200;
   const wait = chain ? 380 + (motionOff() ? 0 : 300) : seen + 400 + Math.floor(Math.random() * 300);

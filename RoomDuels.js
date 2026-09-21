@@ -56,11 +56,6 @@ const DUEL_KINDS = {
       if (res.win) { s.win = res.cells; return { end: true, winner: seat, reason: 'line' }; }
       if (res.draw) return { end: true, winner: null, reason: 'full' };
       return { end: false, again: false };
-    },
-    // The one move left, when there is only one (the last open column).
-    only: (s) => {
-      const cols = c4LegalCols({ cols: s.cols, rows: s.rows, n: s.n, grid: s.grid });
-      return cols.length === 1 ? { col: cols[0] } : null;
     }
   },
   dots: {
@@ -79,25 +74,9 @@ const DUEL_KINDS = {
       s.last = { seat: seat, edge: res.edge, boxes: res.boxes };
       if (res.over) return { end: true, winner: c[1] > c[2] ? 0 : (c[2] > c[1] ? 1 : null), reason: 'boxes' };
       return { end: false, again: res.again };
-    },
-    // The last line.
-    only: (s) => {
-      const free = dotsFree({ n: s.size, lines: s.lines, boxes: s.boxes });
-      return free.length === 1 ? { edge: free[0] } : null;
     }
   }
 };
-
-// The last possible move of a board plays itself (Forced moves in RoomGames.js).
-Object.keys(DUEL_KINDS).forEach(kind => {
-  ROOM_FORCED_GAMES[kind] = (room) => {
-    const s = room.shared || {};
-    if (s.phase !== 'play' || !Array.isArray(s.seats)) return null;
-    const payload = DUEL_KINDS[kind].only(s);
-    if (!payload) return null;
-    return { pid: s.seats[s.turn], key: s.moves, move: { action: 'move', payload: Object.assign({ move: s.moves }, payload) } };
-  };
-});
 
 const duelHere = (room) => room.players.map(p => p.id);
 

@@ -11,6 +11,11 @@
      - The classic 40 squares with Egyptian cities: 1,500 each to start, 200
        for passing Start (400 for landing on it exactly, a lobby switch, off).
      - 2 to 6 players. A place nobody buys stays with the bank - no auction.
+     - Buying starts once you have passed Start (the owner, 22 Sep 2026: a
+       lobby switch, on by default). Until then a free place you land on
+       stays with the bank, and a trade can't give you a place; rent is
+       still paid. A card that takes you to or past Start counts; jail
+       doesn't.
      - Buildings are the Egyptian box's جراج ← استراحة ← سوق on a whole colour,
        built evenly, no limit: rent is the base, twice that for a whole colour,
        then the classic 1 house, 3 houses and hotel rents. A step costs the
@@ -167,6 +172,8 @@ const bankGroupSquares = (grp) => BANK_SQUARES.map((q, i) => (q.g === grp ? i : 
 const bankOwnerOf = (g, i) => ((g.own || {})[i] || {}).by || null;
 const bankLevel = (g, i) => ((g.own || {})[i] || {}).lvl || 0;
 const bankActive = (g) => g.seats.filter(pid => g.out.indexOf(pid) === -1);
+/** Whether `pid` may buy yet: always, or once past Start when the table plays the first lap. */
+const bankCanBuyYet = (g, pid) => !(g.settings && g.settings.firstLap) || !!(g.lapped || {})[pid];
 const bankRoll6 = (rnd) => 1 + Math.floor((rnd || Math.random)() * 6);
 
 /** What the next step of building costs: the colour's price once, then twice, then twice. */
@@ -289,7 +296,7 @@ const bankRollOff = (ids, rnd) => {
 
 /**
  * A new game. `settings`: { length (minutes, 0 = until one is left), pot,
- * go400 }. Returns { g, priv }.
+ * go400, firstLap (on unless false) }. Returns { g, priv }.
  */
 const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
   const seats = ids.slice();
@@ -309,7 +316,8 @@ const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
     own: {},
     turn: { pid: seats.indexOf(first) !== -1 ? first : seats[0], stage: 'roll', dice: null, dbl: 0, again: false, total: 0 },
     pot: 0,
-    settings: { length: length, pot: !!set.pot, go400: !!set.go400 },
+    settings: { length: length, pot: !!set.pot, go400: !!set.go400, firstLap: set.firstLap !== false },
+    lapped: {},
     out: [],
     phase: 'play',
     places: null,
@@ -369,11 +377,14 @@ const bankPayNow = (g, pid, amount, to, fine) => {
 
 /* --- moving ------------------------------------------------------------------------------- */
 
-/** Money for going past (or landing on) Start. */
+/** Money for going past (or landing on) Start; from now on this player may buy. */
 const bankPassStart = (g, pid, exact) => {
   const amount = exact && g.settings.go400 ? BANK_GO_EXACT : BANK_PASS;
   g.cash[pid] += amount;
-  bankEvent(g, 'start', { pid: pid, amount: amount });
+  const first = g.settings.firstLap && !bankCanBuyYet(g, pid);
+  g.lapped = g.lapped || {};
+  g.lapped[pid] = true;
+  bankEvent(g, 'start', first ? { pid: pid, amount: amount, first: 1 } : { pid: pid, amount: amount });
 };
 
 /** Moves `pid` forward to square `to` (passing Start pays), then what the square does. */
@@ -402,6 +413,11 @@ const bankLand = (g, priv, pid, rnd, opts) => {
   g.landed = { pid: pid, sq: at };
   if (q.t === 'p' || q.t === 'st' || q.t === 'co') {
     const owner = bankOwnerOf(g, at);
+    if (!owner && !bankCanBuyYet(g, pid)) {
+      bankEvent(g, 'notYet', { pid: pid, sq: at });
+      bankAfter(g);
+      return;
+    }
     if (!owner) {
       g.turn.stage = 'buy';
       g.turnSeq = (g.turnSeq || 0) + 1;
@@ -592,6 +608,7 @@ const bankBuy = (g, pid, yes) => {
   const at = g.pos[pid];
   const q = BANK_SQUARES[at];
   if (yes) {
+    if (!bankCanBuyYet(g, pid)) throw new Error('تشتري بعد ما تعدّي البداية');
     if ((g.cash[pid] || 0) < q.price) throw new Error('فلوسك مش مكفية');
     g.cash[pid] -= q.price;
     g.own[at] = { by: pid, lvl: 0, mort: false };
@@ -894,6 +911,11 @@ const bankCleanSide = (g, pid, side) => {
   return { cash: cash, sqs: sqs, cards: cards };
 };
 
+/** Nobody gets a place in a trade before they may buy one (money and jail cards may go). */
+const bankTradeLapped = (g, receiver, side) => {
+  if (side.sqs.length && !bankCanBuyYet(g, receiver)) throw new Error('مايقدرش ياخد أماكن قبل ما يعدّي البداية');
+};
+
 /** On your own turn: an offer to one other player. */
 const bankOffer = (g, pid, o) => {
   bankMustTurn(g, pid, ['roll', 'act']);
@@ -902,6 +924,8 @@ const bankOffer = (g, pid, o) => {
   if (to === pid || bankActive(g).indexOf(to) === -1) throw new Error('اختار لاعب');
   const give = bankCleanSide(g, pid, o.give);
   const get = bankCleanSide(g, to, o.get);
+  bankTradeLapped(g, to, give);
+  bankTradeLapped(g, pid, get);
   const empty = (s) => !s.cash && !s.sqs.length && !s.cards.length;
   if (empty(give) && empty(get)) throw new Error('العرض فاضي');
   g.offerSeq = (g.offerSeq || 0) + 1;
@@ -923,6 +947,8 @@ const bankAnswer = (g, pid, yes, id) => {
   if (!yes) { bankEvent(g, 'refuse', { from: o.from, to: o.to }); return; }
   const give = bankCleanSide(g, o.from, o.give);
   const get = bankCleanSide(g, o.to, o.get);
+  bankTradeLapped(g, o.to, give);
+  bankTradeLapped(g, o.from, get);
   const move = (a, b, s) => {
     g.cash[a] -= s.cash;
     g.cash[b] += s.cash;

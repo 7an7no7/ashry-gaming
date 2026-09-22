@@ -3266,10 +3266,10 @@ async function main() {
     await K2.must('token', { token: 'camel' });
     check((await K3.act('token', { token: 'camel' })).ok === false, 'bank: a piece already taken is refused');
     check((await K2.act('start', {})).ok === false, 'bank: only the host starts');
-    await K1.must('start', { length: 30, pot: true, go400: false, turnClock: 0 });
+    await K1.must('start', { length: 30, pot: true, go400: false, firstLap: false, turnClock: 0 });
     await all(three, (s) => s.phase === 'play' && Array.isArray(s.shared.seats) && s.shared.seats.length === 3, 'bank: three are dealt in');
     const s0 = bS(K1);
-    check(s0.tokens[K2.pid] === 'camel' && new Set(Object.values(s0.tokens)).size === 3 && s0.settings.length === 30 && s0.settings.pot === true,
+    check(s0.tokens[K2.pid] === 'camel' && new Set(Object.values(s0.tokens)).size === 3 && s0.settings.length === 30 && s0.settings.pot === true && s0.settings.firstLap === false,
       "bank: the piece picked is kept, the rest filled in, and the host's options apply");
     check(s0.events.some((e) => e.type === 'rolloff' && e.first === s0.turn.pid) && Object.values(s0.cash).every((c) => c === 1500), 'bank: the roll-off decides who starts; 1,500 each');
     check(!three.some((b) => JSON.stringify(b.state).includes('"decks"')), 'bank: no phone is sent the order of the decks');

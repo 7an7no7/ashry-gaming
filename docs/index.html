@@ -16374,6 +16374,11 @@ const ludoOnlyMove = (g, pid) => {
      - The classic 40 squares with Egyptian cities: 1,500 each to start, 200
        for passing Start (400 for landing on it exactly, a lobby switch, off).
      - 2 to 6 players. A place nobody buys stays with the bank - no auction.
+     - Buying starts once you have passed Start (the owner, 22 Sep 2026: a
+       lobby switch, on by default). Until then a free place you land on
+       stays with the bank, and a trade can't give you a place; rent is
+       still paid. A card that takes you to or past Start counts; jail
+       doesn't.
      - Buildings are the Egyptian box's جراج ← استراحة ← سوق on a whole colour,
        built evenly, no limit: rent is the base, twice that for a whole colour,
        then the classic 1 house, 3 houses and hotel rents. A step costs the
@@ -16530,6 +16535,8 @@ const bankGroupSquares = (grp) => BANK_SQUARES.map((q, i) => (q.g === grp ? i : 
 const bankOwnerOf = (g, i) => ((g.own || {})[i] || {}).by || null;
 const bankLevel = (g, i) => ((g.own || {})[i] || {}).lvl || 0;
 const bankActive = (g) => g.seats.filter(pid => g.out.indexOf(pid) === -1);
+/** Whether `pid` may buy yet: always, or once past Start when the table plays the first lap. */
+const bankCanBuyYet = (g, pid) => !(g.settings && g.settings.firstLap) || !!(g.lapped || {})[pid];
 const bankRoll6 = (rnd) => 1 + Math.floor((rnd || Math.random)() * 6);
 
 /** What the next step of building costs: the colour's price once, then twice, then twice. */
@@ -16652,7 +16659,7 @@ const bankRollOff = (ids, rnd) => {
 
 /**
  * A new game. `settings`: { length (minutes, 0 = until one is left), pot,
- * go400 }. Returns { g, priv }.
+ * go400, firstLap (on unless false) }. Returns { g, priv }.
  */
 const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
   const seats = ids.slice();
@@ -16672,7 +16679,8 @@ const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
     own: {},
     turn: { pid: seats.indexOf(first) !== -1 ? first : seats[0], stage: 'roll', dice: null, dbl: 0, again: false, total: 0 },
     pot: 0,
-    settings: { length: length, pot: !!set.pot, go400: !!set.go400 },
+    settings: { length: length, pot: !!set.pot, go400: !!set.go400, firstLap: set.firstLap !== false },
+    lapped: {},
     out: [],
     phase: 'play',
     places: null,
@@ -16732,11 +16740,14 @@ const bankPayNow = (g, pid, amount, to, fine) => {
 
 /* --- moving ------------------------------------------------------------------------------- */
 
-/** Money for going past (or landing on) Start. */
+/** Money for going past (or landing on) Start; from now on this player may buy. */
 const bankPassStart = (g, pid, exact) => {
   const amount = exact && g.settings.go400 ? BANK_GO_EXACT : BANK_PASS;
   g.cash[pid] += amount;
-  bankEvent(g, 'start', { pid: pid, amount: amount });
+  const first = g.settings.firstLap && !bankCanBuyYet(g, pid);
+  g.lapped = g.lapped || {};
+  g.lapped[pid] = true;
+  bankEvent(g, 'start', first ? { pid: pid, amount: amount, first: 1 } : { pid: pid, amount: amount });
 };
 
 /** Moves `pid` forward to square `to` (passing Start pays), then what the square does. */
@@ -16765,6 +16776,11 @@ const bankLand = (g, priv, pid, rnd, opts) => {
   g.landed = { pid: pid, sq: at };
   if (q.t === 'p' || q.t === 'st' || q.t === 'co') {
     const owner = bankOwnerOf(g, at);
+    if (!owner && !bankCanBuyYet(g, pid)) {
+      bankEvent(g, 'notYet', { pid: pid, sq: at });
+      bankAfter(g);
+      return;
+    }
     if (!owner) {
       g.turn.stage = 'buy';
       g.turnSeq = (g.turnSeq || 0) + 1;
@@ -16955,6 +16971,7 @@ const bankBuy = (g, pid, yes) => {
   const at = g.pos[pid];
   const q = BANK_SQUARES[at];
   if (yes) {
+    if (!bankCanBuyYet(g, pid)) throw new Error('تشتري بعد ما تعدّي البداية');
     if ((g.cash[pid] || 0) < q.price) throw new Error('فلوسك مش مكفية');
     g.cash[pid] -= q.price;
     g.own[at] = { by: pid, lvl: 0, mort: false };
@@ -17257,6 +17274,11 @@ const bankCleanSide = (g, pid, side) => {
   return { cash: cash, sqs: sqs, cards: cards };
 };
 
+/** Nobody gets a place in a trade before they may buy one (money and jail cards may go). */
+const bankTradeLapped = (g, receiver, side) => {
+  if (side.sqs.length && !bankCanBuyYet(g, receiver)) throw new Error('مايقدرش ياخد أماكن قبل ما يعدّي البداية');
+};
+
 /** On your own turn: an offer to one other player. */
 const bankOffer = (g, pid, o) => {
   bankMustTurn(g, pid, ['roll', 'act']);
@@ -17265,6 +17287,8 @@ const bankOffer = (g, pid, o) => {
   if (to === pid || bankActive(g).indexOf(to) === -1) throw new Error('اختار لاعب');
   const give = bankCleanSide(g, pid, o.give);
   const get = bankCleanSide(g, to, o.get);
+  bankTradeLapped(g, to, give);
+  bankTradeLapped(g, pid, get);
   const empty = (s) => !s.cash && !s.sqs.length && !s.cards.length;
   if (empty(give) && empty(get)) throw new Error('العرض فاضي');
   g.offerSeq = (g.offerSeq || 0) + 1;
@@ -17286,6 +17310,8 @@ const bankAnswer = (g, pid, yes, id) => {
   if (!yes) { bankEvent(g, 'refuse', { from: o.from, to: o.to }); return; }
   const give = bankCleanSide(g, o.from, o.give);
   const get = bankCleanSide(g, o.to, o.get);
+  bankTradeLapped(g, o.to, give);
+  bankTradeLapped(g, o.from, get);
   const move = (a, b, s) => {
     g.cash[a] -= s.cash;
     g.cash[b] += s.cash;
@@ -17469,7 +17495,7 @@ const bankOnlyMove = (g, pid) => {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260921174434";
+      window.BUILD_ID = "20260922064028";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -18419,6 +18445,13 @@ const bankOnlyMove = (g, pid) => {
                 <button type="button" class="segmented__item" data-value="0" onclick="setBankOption('length', 0)" data-i18n="bank_until_one">لحد ما يفضل واحد</button>
               </div>
               <p class="field__hint" data-i18n="bank_length_hint">لما الوقت يخلص اللفة بتكمل، والأغنى يكسب.</p>
+            </div>
+            <div class="field">
+              <label class="switch-row" for="bank-firstlap">
+                <span class="field__label" data-i18n="bank_opt_firstlap">الشرا بعد أول لفة</span>
+                <span class="switch"><input type="checkbox" id="bank-firstlap" role="switch" checked onchange="setBankOption('firstLap', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+              </label>
+              <p class="field__hint" data-i18n="bank_opt_firstlap_hint">محدش يشتري مكان، ولا ياخده في بدل، قبل ما يعدّي البداية مرة.</p>
             </div>
             <div class="field">
               <label class="switch-row" for="bank-pot">
@@ -22925,6 +22958,15 @@ const bankOnlyMove = (g, pid) => {
       bank_opt_pot_hint: "الضرايب والغرامات تتحط في النص، واللي يقف على الأتوبيس ياخدها.",
       bank_opt_go400: "٤٠٠ للي يقف على البداية",
       bank_opt_go400_hint: "اللي يقف على البداية بالظبط ياخد الضعف.",
+      bank_opt_firstlap: "الشرا بعد أول لفة",
+      bank_opt_firstlap_hint: "محدش يشتري مكان، ولا ياخده في بدل، قبل ما يعدّي البداية مرة.",
+      bank_first_lap: "لسه قبل أول لفة",
+      bank_first_lap_hint: "تقدر تشتري بعد ما تعدّي البداية",
+      bank_for_sale_later: "للبيع، بس بعد أول لفة",
+      bank_ev_not_yet: "{name}: {place}، والشرا بعد أول لفة",
+      bank_ev_start_first: "{name}: {n} من البداية، والشرا بقى مسموح",
+      bank_trade_locked_them: "{name}: الأماكن بعد أول لفة",
+      bank_trade_locked_me: "تاخد أماكن بعد ما تعدّي البداية",
       bank_clock: "وقت الدور",
       bank_clock_off: "من غير",
       bank_clock_hint: "لما الوقت يخلص الموبايل بيرمي ويدفع ويخلّص الدور، من غير ما يشتري.",
@@ -25251,6 +25293,15 @@ const bankOnlyMove = (g, pid) => {
       bank_opt_pot_hint: "Taxes and fines go in the middle; whoever lands on the bus takes them.",
       bank_opt_go400: "400 for landing on Start",
       bank_opt_go400_hint: "Landing exactly on Start pays double.",
+      bank_opt_firstlap: "Buy after the first lap",
+      bank_opt_firstlap_hint: "Nobody buys a place, or takes one in a trade, before passing Start once.",
+      bank_first_lap: "Not round the board yet",
+      bank_first_lap_hint: "You can buy once you pass Start",
+      bank_for_sale_later: "For sale, after a first lap",
+      bank_ev_not_yet: "{name}: {place}, buying starts after the first lap",
+      bank_ev_start_first: "{name} collected {n} at Start, and can buy now",
+      bank_trade_locked_them: "{name}: places only after the first lap",
+      bank_trade_locked_me: "You can take places once you pass Start",
       bank_clock: "Turn clock",
       bank_clock_off: "Off",
       bank_clock_hint: "When it runs out the phone rolls, pays and ends the turn, without buying.",
@@ -28478,6 +28529,7 @@ const GAME_RULES = {
                 <li>من 2 لـ 6، كل واحد بيبدأ بـ <b>١٬٥٠٠ ج</b> على البداية. ارمي الزهرين واتحرك بمجموعهم.</li>
                 <li>وقفت على مدينة أو محطة أو شركة محدش شاريها؟ <b>اشتريها</b> أو سيبها للبنك. لو ليها صاحب، الإيجار بيتدفع لوحده.</li>
                 <li>كل ما تعدّي على البداية تاخد <b>٢٠٠</b>. الدبل ليه رمية تانية، و<b>٣ دبل ورا بعض</b> على السجن.</li>
+                <li><b>الشرا بعد أول لفة</b> (شغّالة من الأول، وتتقفل من الإعدادات): قبل ما تعدّي البداية مرة المكان الفاضي بيفضل للبنك، ومحدش يدّيك مكان في بدل. الإيجار بيتدفع عادي، وجنب اسمك 🔄 لحد ما تعدّيها.</li>
                 <li>لو معاك <b>اللون كله</b> الإيجار بيبقى الضعف، وتقدر <b>تبني بالتساوي</b>: جراج ← استراحة ← سوق، وكل بنا بيعلّي الإيجار.</li>
                 <li>محتاج فلوس؟ <b>ارهن</b> مكان بنص تمنه (مايدخلش إيجار لحد ما تفكّه بزيادة ١٠٪)، أو <b>بيع البنا</b> للبنك بنص تمنه.</li>
                 <li><b>السجن</b>: ادفع ٥٠، أو استعمل كارت خروج، أو ارمي للدبل (٣ محاولات، وبعد التالتة تدفع ٥٠ وتتحرك). وانت جوّه بتقبض الإيجار عادي.</li>
@@ -28499,7 +28551,7 @@ const GAME_RULES = {
             <p class="help-sub">📱 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>كل واحد يختار قطعته، والبداية بالزهر. لو أكتر من 6 في الغرفة المضيف بيختار مين يلعب.</li>
-                <li>المضيف بيختار مدة اللعبة (٤٥ دقيقة من الأول)، و"فلوس في النص"، و"٤٠٠ للي يقف على البداية"، ووقت الدور.</li>
+                <li>المضيف بيختار مدة اللعبة (٤٥ دقيقة من الأول)، و"الشرا بعد أول لفة" (شغّالة من الأول)، و"فلوس في النص"، و"٤٠٠ للي يقف على البداية"، ووقت الدور.</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -29493,6 +29545,7 @@ const GAME_RULES = {
                 <li>2 to 6 players, each starting on Start with <b>E£1,500</b>. Roll the two dice and move by their total.</li>
                 <li>Land on a city, a station or a company nobody owns? <b>Buy it</b> or leave it with the bank. If someone owns it, the rent is paid by itself.</li>
                 <li>Every time you pass Start you collect <b>200</b>. A double rolls again, and <b>three doubles in a row</b> go to jail.</li>
+                <li><b>Buy after the first lap</b> (on to begin with, a switch in the options): until you pass Start once, a free place you land on stays with the bank and nobody can give you a place in a trade. Rent is paid as usual, and 🔄 sits by your name until you pass it.</li>
                 <li>Own <b>the whole colour</b> and its rent doubles, and you can <b>build evenly</b>: garage ← rest stop ← market, each raising the rent.</li>
                 <li>Need money? <b>Mortgage</b> a place for half its price (no rent until you redeem it for 10% more), or <b>sell buildings</b> back for half.</li>
                 <li><b>Jail</b>: pay 50, use a get-out card, or roll for a double (three tries; after the third you pay 50 and move). You still collect rent inside.</li>
@@ -29514,7 +29567,7 @@ const GAME_RULES = {
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Everyone picks a piece; the dice decide who starts. With more than 6 in the room the host picks who plays.</li>
-                <li>The host picks the length (45 minutes to begin with), "money in the middle", "400 for landing on Start" and a turn clock.</li>
+                <li>The host picks the length (45 minutes to begin with), "buy after the first lap" (on to begin with), "money in the middle", "400 for landing on Start" and a turn clock.</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -76612,7 +76665,7 @@ function bankDeedHtml(i, g) {
   const q = BANK_SQUARES[i];
   const o = (g.own || {})[i];
   const owner = o ? `<p class="bank-deed__owner"><span class="bank-dot" style="background:${bankSeatHex(g, o.by)}"></span>${escapeHTML(bankT('bank_owned_by', { name: (bankUi.names || {})[o.by] || '' }))}${o.mort ? ` · <b>${escapeHTML(bankT('bank_mortgaged'))}</b>` : ''}</p>`
-    : `<p class="bank-deed__owner">${escapeHTML(bankT('bank_for_sale'))}</p>`;
+    : `<p class="bank-deed__owner">${escapeHTML(bankT(g.landed && g.landed.sq === i && !bankCanBuyYet(g, g.landed.pid) ? 'bank_for_sale_later' : 'bank_for_sale'))}</p>`;
   const row = (label, v, on) => `<div class="bank-deed__row ${on ? 'is-on' : ''}"><span>${escapeHTML(label)}</span><b dir="ltr">${bankFmt(v)}</b></div>`;
   let body = '';
   let head = '#3f3a4d';
@@ -76672,7 +76725,7 @@ function bankStripHtml(c) {
         <span class="bank-chip__tok" aria-hidden="true">${place >= 0 && place < 3 ? ['🥇', '🥈', '🥉'][place] : bankTokenOf(g, pid)}</span>
         <span class="bank-chip__who">
           <span class="bank-chip__name">${escapeHTML(c.names[pid] || '…')}${c.bots && c.bots[pid] ? ' <small>🤖</small>' : ''}</span>
-          <span class="bank-chip__cash">${out ? escapeHTML(bankT('bank_out')) : `<b class="metric" dir="ltr" data-bank-cash="${escapeHTML(pid)}">${bankFmt(g.cash[pid])}</b>`}${jail ? ' 🔒' : ''}${cards ? ` <span title="${escapeHTML(bankT('bank_jail_card'))}">🎟️${cards > 1 ? '×' + cards : ''}</span>` : ''}</span>
+          <span class="bank-chip__cash">${out ? escapeHTML(bankT('bank_out')) : `<b class="metric" dir="ltr" data-bank-cash="${escapeHTML(pid)}">${bankFmt(g.cash[pid])}</b>`}${!out && g.phase === 'play' && !bankCanBuyYet(g, pid) ? ` <span title="${escapeHTML(bankT('bank_first_lap'))}" aria-label="${escapeHTML(bankT('bank_first_lap'))}">🔄</span>` : ''}${jail ? ' 🔒' : ''}${cards ? ` <span title="${escapeHTML(bankT('bank_jail_card'))}">🎟️${cards > 1 ? '×' + cards : ''}</span>` : ''}</span>
         </span>
       </div>`;
   }).join('');
@@ -76705,7 +76758,7 @@ function bankBarHtml(c) {
   } else if (tn.stage === 'roll') {
     const jail = g.jail[c.me] !== undefined;
     line = jail ? bankT('bank_in_jail') : tn.dice ? bankT('bank_double_again') : bankT('bank_your_turn');
-    sub = jail ? bankT('bank_jail_try', { n: (g.jail[c.me] || 0) + 1 }) : '';
+    sub = jail ? bankT('bank_jail_try', { n: (g.jail[c.me] || 0) + 1 }) : !bankCanBuyYet(g, c.me) ? bankT('bank_first_lap_hint') : '';
     buttons = btn(jail ? bankT('bank_roll_double') : bankT('bank_roll'), 'roll', null, 'primary');
     if (jail) {
       buttons += btn(bankT('bank_pay_out', { n: BANK_JAIL_FINE }), 'payJail', null, 'secondary', (g.cash[c.me] || 0) < BANK_JAIL_FINE);
@@ -76723,7 +76776,7 @@ function bankBarHtml(c) {
     buttons = btn(bankT('bank_pay'), 'payDebt', null, 'primary', (g.cash[c.me] || 0) < g.debt.amount) + btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger');
   } else if (tn.stage === 'act') {
     line = bankT('bank_your_turn');
-    sub = bankT('bank_act_hint');
+    sub = bankCanBuyYet(g, c.me) ? bankT('bank_act_hint') : bankT('bank_first_lap_hint');
     buttons = btn(bankT('bank_end_turn'), 'endTurn', null, 'primary');
   }
   const tools = mine && tn.stage !== 'buy' ? `<div class="bank-bar__tools">
@@ -76823,9 +76876,19 @@ function bankTradeHtml(c) {
   }).join('');
   const cashIn = (side, pid) => `<label class="bank-tcash"><span>${escapeHTML(bankT('bank_cash'))}</span>
       <input type="number" inputmode="numeric" min="0" max="${g.cash[pid] || 0}" step="10" value="${tr[side].cash || ''}" placeholder="0" oninput="bankTradeCash('${side}', this.value)"></label>`;
-  const col = (side, pid, title) => `<div class="bank-tcol"><p class="bank-tcol__title">${escapeHTML(title)}</p>
-      <div class="bank-tchips">${tradable(pid).map(i => chip(side, i)).join('') || `<span class="field__hint">${escapeHTML(bankT('bank_no_places'))}</span>`}${cardChip(side, pid)}</div>
+  // A place only goes to someone who may buy (the first lap): until then that side is money and cards.
+  const locked = { give: !bankCanBuyYet(g, tr.to), get: !bankCanBuyYet(g, me) };
+  ['give', 'get'].forEach(side => { if (locked[side]) tr[side].sqs = []; });
+  const lockNote = (side) => (side === 'give' ? bankT('bank_trade_locked_them', { name: c.names[tr.to] || '' }) : bankT('bank_trade_locked_me'));
+  const col = (side, pid, title) => {
+    const places = tradable(pid);
+    const chips = !places.length ? `<span class="field__hint">${escapeHTML(bankT('bank_no_places'))}</span>`
+      : locked[side] ? `<span class="field__hint">🔄 ${escapeHTML(lockNote(side))}</span>`
+      : places.map(i => chip(side, i)).join('');
+    return `<div class="bank-tcol"><p class="bank-tcol__title">${escapeHTML(title)}</p>
+      <div class="bank-tchips">${chips}${cardChip(side, pid)}</div>
       ${cashIn(side, pid)}</div>`;
+  };
   return `<div class="bank-panel">
       <p class="bank-panel__title">🤝 ${escapeHTML(bankT('bank_trade_title'))}</p>
       <div class="chip-set bank-tto">${others.map(id => `<button type="button" class="chip ${id === tr.to ? 'is-selected' : ''}" onclick="bankTradeTo('${jsStringAttr(id)}')">${bankTokenOf(g, id)} ${escapeHTML(c.names[id] || '')}</button>`).join('')}</div>
@@ -76847,7 +76910,8 @@ function bankEventText(c, e) {
     case 'rent': return e.amount ? '💵 ' + bankT('bank_ev_rent', { name: n(e.pid), other: n(e.to), n: bankFmt(e.amount) }) : '';
     case 'tax': return '🧾 ' + bankT('bank_ev_tax', { name: n(e.pid), n: bankFmt(e.amount) });
     case 'card': return (e.deck === 'luck' ? '❓ ' : '⚖️ ') + n(e.pid) + ': ' + bankCardText(e.deck, e.card);
-    case 'start': return '💰 ' + bankT('bank_ev_start', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'start': return '💰 ' + bankT(e.first ? 'bank_ev_start_first' : 'bank_ev_start', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'notYet': return '🔄 ' + bankT('bank_ev_not_yet', { name: n(e.pid), place: bankSqName(e.sq) });
     case 'jail': return '🔒 ' + bankT(e.why === 'three' ? 'bank_ev_jail_three' : 'bank_ev_jail', { name: n(e.pid) });
     case 'free': return '🔓 ' + bankT('bank_ev_free_' + (e.how || 'pay'), { name: n(e.pid) });
     case 'build': return '🏗️ ' + bankT('bank_ev_build', { name: n(e.pid), what: bankLevelWord(e.lvl), place: bankSqName(e.sq) });
@@ -77227,8 +77291,9 @@ function bankNow() { return Date.now(); }
 let bankBotTimer = null;
 
 function bankState() {
-  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, g: null, priv: null, names: {}, bots: {}, gameId: '' };
+  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, g: null, priv: null, names: {}, bots: {}, gameId: '' };
   const s = appState.bank;
+  if (typeof s.firstLap !== 'boolean') s.firstLap = true;
   if ([1, 2, 3].indexOf(Number(s.opp)) === -1) s.opp = 2;
   if (s.level !== 'hard') s.level = 'easy';
   if (BANK_TOKENS.indexOf(s.token) === -1) s.token = 'car';
@@ -77256,6 +77321,8 @@ function paintBankSetup() {
   if (pot) pot.checked = !!s.pot;
   const go = document.getElementById('bank-go400');
   if (go) go.checked = !!s.go400;
+  const lap = document.getElementById('bank-firstlap');
+  if (lap) lap.checked = !!s.firstLap;
   const cont = document.getElementById('bank-continue');
   if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
 }
@@ -77266,7 +77333,7 @@ function setBankOption(key, value) {
   else if (key === 'level') s.level = value === 'hard' ? 'hard' : 'easy';
   else if (key === 'token' && BANK_TOKENS.indexOf(value) !== -1) s.token = value;
   else if (key === 'length') s.length = Number(value);
-  else if (key === 'pot' || key === 'go400') s[key] = !!value;
+  else if (key === 'pot' || key === 'go400' || key === 'firstLap') s[key] = !!value;
   haptic('light');
   saveToLocal();
   paintBankSetup();
@@ -77282,7 +77349,7 @@ function startBank() {
   const bots = {};
   ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = s.level; });
   const off = bankRollOff(ids, Math.random);
-  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400 }, Date.now(), Math.random);
+  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400, firstLap: s.firstLap }, Date.now(), Math.random);
   bankEvent(made.g, 'rolloff', { rounds: off.rounds, first: off.first });
   s.g = made.g;
   s.priv = made.priv;
@@ -77535,11 +77602,12 @@ const BANK_OPTS_KEY = 'bankRoom';
 const bankRoomLocal = { sent: '', clockTimer: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '' };
 
 function bankRoomOpts() {
-  const o = recallOptions(BANK_OPTS_KEY, { length: BANK_LENGTH_DEFAULT, pot: false, go400: false, turnClock: 0 });
+  const o = recallOptions(BANK_OPTS_KEY, { length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, turnClock: 0 });
   if (BANK_LENGTHS.indexOf(Number(o.length)) === -1) o.length = BANK_LENGTH_DEFAULT;
   if (BANK_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
   o.pot = !!o.pot;
   o.go400 = !!o.go400;
+  o.firstLap = o.firstLap !== false;
   return o;
 }
 
@@ -77634,6 +77702,7 @@ function bankOptionsHtml(state) {
         ${seg('length', [30, 45, 60, 0], v => escapeHTML(v ? bankT('bank_minutes', { n: v }) : bankT('bank_until_one')), o.length)}
         <p class="field__hint">${escapeHTML(o.length ? bankT('bank_length_hint') : bankT('bank_until_one_hint'))}</p>
       </div>
+      ${sw('firstLap', 'bank-room-firstlap', '🔄', bankT('bank_opt_firstlap'), bankT('bank_opt_firstlap_hint'))}
       ${sw('pot', 'bank-room-pot', '💰', bankT('bank_opt_pot'), bankT('bank_opt_pot_hint'))}
       ${sw('go400', 'bank-room-go400', '🎯', bankT('bank_opt_go400'), bankT('bank_opt_go400_hint'))}
       <div class="field">
@@ -77786,7 +77855,7 @@ ROOM_GAMES.bank = {
 
   startPayload() {
     const o = bankRoomOpts();
-    return { length: o.length, pot: o.pot, go400: o.go400, turnClock: o.turnClock };
+    return { length: o.length, pot: o.pot, go400: o.go400, firstLap: o.firstLap, turnClock: o.turnClock };
   },
 
   render(state) {

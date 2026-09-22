@@ -3400,7 +3400,7 @@ Date.now = duelTestClock;
 
   const seq = (list) => { let k = 0; return () => list[k++ % list.length]; };
   const game = (ids, opts) => {
-    const made = B.bankNewGame(ids, B.bankFillTokens(ids, {}), ids[0], Object.assign({ length: 0 }, opts || {}), 0, Math.random);
+    const made = B.bankNewGame(ids, B.bankFillTokens(ids, {}), ids[0], Object.assign({ length: 0, firstLap: false }, opts || {}), 0, Math.random);
     return made;
   };
   let { g, priv } = game(['a', 'b']);
@@ -3537,6 +3537,41 @@ Date.now = duelTestClock;
   check(g.pot === 0 && g.cash.a >= 1500 && g.pos.a === 24, 'bank: the bus takes the pot and moves again by the same number');
 
   // The time: the lap is finished, then the richest wins.
+  // Buying after the first lap (the owner, 22 Sep 2026: a switch, on by default).
+  ({ g, priv } = B.bankNewGame(['a', 'b'], B.bankFillTokens(['a', 'b'], {}), 'a', { length: 0 }, 0, Math.random));
+  check(g.settings.firstLap === true && game(['a', 'b']).g.settings.firstLap === false, 'bank first lap: on unless the table turns it off');
+  B.bankRoll(g, priv, 'a', [1, 2], Math.random);
+  check(g.pos.a === 3 && g.turn.stage === 'act' && !g.own[3] && g.events.some((e) => e.type === 'notYet' && e.pid === 'a' && e.sq === 3),
+    'bank first lap: a free place before passing Start stays with the bank, and the turn goes on');
+  refused = false;
+  g.turn.stage = 'buy';
+  try { B.bankBuy(g, 'a', true); } catch (e) { refused = true; }
+  check(refused && !g.own[3] && g.cash.a === 1500, 'bank first lap: buying is refused before passing Start');
+  g.turn.stage = 'act';
+  g.lapped.b = true;
+  g.own[1] = { by: 'b', lvl: 0, mort: false };
+  refused = false;
+  try { B.bankOffer(g, 'a', { to: 'b', give: { cash: 10 }, get: { sqs: [1] } }); } catch (e) { refused = true; }
+  check(refused && !g.offer, 'bank first lap: nobody takes a place in a trade before passing Start');
+  B.bankOffer(g, 'a', { to: 'b', give: { cash: 10 }, get: {} });
+  B.bankAnswer(g, 'b', true, g.offer.id);
+  check(g.cash.a === 1490 && g.cash.b === 1510, 'bank first lap: money still changes hands in a trade');
+  g.own[6] = { by: 'b', lvl: 0, mort: false };
+  g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  B.bankRoll(g, priv, 'a', [1, 2], Math.random);
+  check(g.pos.a === 6 && g.events.some((e) => e.type === 'rent' && e.pid === 'a' && e.amount > 0), 'bank first lap: rent is still paid');
+  g.pos.a = 36;
+  g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  B.bankRoll(g, priv, 'a', [3, 4], Math.random);
+  check(g.pos.a === 3 && g.lapped.a && g.turn.stage === 'buy' && g.events.some((e) => e.type === 'start' && e.pid === 'a' && e.first),
+    'bank first lap: passing Start and landing on a place in the same move: it can be bought');
+  B.bankBuy(g, 'a', true);
+  check(g.own[3] && g.own[3].by === 'a', 'bank first lap: after passing Start, buying works');
+  ({ g, priv } = B.bankNewGame(['a', 'b'], B.bankFillTokens(['a', 'b'], {}), 'a', { length: 0 }, 0, Math.random));
+  g.pos.a = 27;
+  B.bankRoll(g, priv, 'a', [1, 2], Math.random);
+  check(g.jail.a !== undefined && !(g.lapped || {}).a, 'bank first lap: going to jail is not passing Start');
+
   ({ g, priv } = game(['a', 'b', 'c'], { length: 30 }));
   g.endsAt = 1000;
   g.cash.c = 5000;
@@ -3589,7 +3624,12 @@ Date.now = duelTestClock;
   applyRoomAction(rr, 'h', 'token', { token: 'camel' });
   applyRoomAction(rr, 'h', 'start', {});
   check(rr.shared.tokens.h === 'camel' && Array.isArray(rr._bank.decks.luck) && !JSON.stringify(rr.shared).includes('"decks"'), 'bank room: the piece picked is kept, and the decks stay on the server');
-  check(rr.shared.settings.length === 45 && !rr.shared.settings.pot && !rr.shared.settings.go400 && rr.shared.clock === 0, 'bank room: 45 minutes, the pot and 400 off, no clock, by default');
+  check(rr.shared.settings.length === 45 && !rr.shared.settings.pot && !rr.shared.settings.go400 && rr.shared.settings.firstLap === true && rr.shared.clock === 0,
+    'bank room: 45 minutes, the pot and 400 off, buying after the first lap on, no clock, by default');
+  const r2 = newRoom(['h', 'p']);
+  applyRoomAction(r2, 'h', 'chooseGame', { game: 'bank' });
+  applyRoomAction(r2, 'h', 'start', { firstLap: false });
+  check(r2.shared.settings.firstLap === false, 'bank room: the host can turn buying after the first lap off');
 }
 
 Date.now = realNow;

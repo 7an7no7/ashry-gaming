@@ -168,7 +168,7 @@ function bankDeedHtml(i, g) {
   const q = BANK_SQUARES[i];
   const o = (g.own || {})[i];
   const owner = o ? `<p class="bank-deed__owner"><span class="bank-dot" style="background:${bankSeatHex(g, o.by)}"></span>${escapeHTML(bankT('bank_owned_by', { name: (bankUi.names || {})[o.by] || '' }))}${o.mort ? ` · <b>${escapeHTML(bankT('bank_mortgaged'))}</b>` : ''}</p>`
-    : `<p class="bank-deed__owner">${escapeHTML(bankT('bank_for_sale'))}</p>`;
+    : `<p class="bank-deed__owner">${escapeHTML(bankT(g.landed && g.landed.sq === i && !bankCanBuyYet(g, g.landed.pid) ? 'bank_for_sale_later' : 'bank_for_sale'))}</p>`;
   const row = (label, v, on) => `<div class="bank-deed__row ${on ? 'is-on' : ''}"><span>${escapeHTML(label)}</span><b dir="ltr">${bankFmt(v)}</b></div>`;
   let body = '';
   let head = '#3f3a4d';
@@ -228,7 +228,7 @@ function bankStripHtml(c) {
         <span class="bank-chip__tok" aria-hidden="true">${place >= 0 && place < 3 ? ['🥇', '🥈', '🥉'][place] : bankTokenOf(g, pid)}</span>
         <span class="bank-chip__who">
           <span class="bank-chip__name">${escapeHTML(c.names[pid] || '…')}${c.bots && c.bots[pid] ? ' <small>🤖</small>' : ''}</span>
-          <span class="bank-chip__cash">${out ? escapeHTML(bankT('bank_out')) : `<b class="metric" dir="ltr" data-bank-cash="${escapeHTML(pid)}">${bankFmt(g.cash[pid])}</b>`}${jail ? ' 🔒' : ''}${cards ? ` <span title="${escapeHTML(bankT('bank_jail_card'))}">🎟️${cards > 1 ? '×' + cards : ''}</span>` : ''}</span>
+          <span class="bank-chip__cash">${out ? escapeHTML(bankT('bank_out')) : `<b class="metric" dir="ltr" data-bank-cash="${escapeHTML(pid)}">${bankFmt(g.cash[pid])}</b>`}${!out && g.phase === 'play' && !bankCanBuyYet(g, pid) ? ` <span title="${escapeHTML(bankT('bank_first_lap'))}" aria-label="${escapeHTML(bankT('bank_first_lap'))}">🔄</span>` : ''}${jail ? ' 🔒' : ''}${cards ? ` <span title="${escapeHTML(bankT('bank_jail_card'))}">🎟️${cards > 1 ? '×' + cards : ''}</span>` : ''}</span>
         </span>
       </div>`;
   }).join('');
@@ -261,7 +261,7 @@ function bankBarHtml(c) {
   } else if (tn.stage === 'roll') {
     const jail = g.jail[c.me] !== undefined;
     line = jail ? bankT('bank_in_jail') : tn.dice ? bankT('bank_double_again') : bankT('bank_your_turn');
-    sub = jail ? bankT('bank_jail_try', { n: (g.jail[c.me] || 0) + 1 }) : '';
+    sub = jail ? bankT('bank_jail_try', { n: (g.jail[c.me] || 0) + 1 }) : !bankCanBuyYet(g, c.me) ? bankT('bank_first_lap_hint') : '';
     buttons = btn(jail ? bankT('bank_roll_double') : bankT('bank_roll'), 'roll', null, 'primary');
     if (jail) {
       buttons += btn(bankT('bank_pay_out', { n: BANK_JAIL_FINE }), 'payJail', null, 'secondary', (g.cash[c.me] || 0) < BANK_JAIL_FINE);
@@ -279,7 +279,7 @@ function bankBarHtml(c) {
     buttons = btn(bankT('bank_pay'), 'payDebt', null, 'primary', (g.cash[c.me] || 0) < g.debt.amount) + btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger');
   } else if (tn.stage === 'act') {
     line = bankT('bank_your_turn');
-    sub = bankT('bank_act_hint');
+    sub = bankCanBuyYet(g, c.me) ? bankT('bank_act_hint') : bankT('bank_first_lap_hint');
     buttons = btn(bankT('bank_end_turn'), 'endTurn', null, 'primary');
   }
   const tools = mine && tn.stage !== 'buy' ? `<div class="bank-bar__tools">
@@ -379,9 +379,19 @@ function bankTradeHtml(c) {
   }).join('');
   const cashIn = (side, pid) => `<label class="bank-tcash"><span>${escapeHTML(bankT('bank_cash'))}</span>
       <input type="number" inputmode="numeric" min="0" max="${g.cash[pid] || 0}" step="10" value="${tr[side].cash || ''}" placeholder="0" oninput="bankTradeCash('${side}', this.value)"></label>`;
-  const col = (side, pid, title) => `<div class="bank-tcol"><p class="bank-tcol__title">${escapeHTML(title)}</p>
-      <div class="bank-tchips">${tradable(pid).map(i => chip(side, i)).join('') || `<span class="field__hint">${escapeHTML(bankT('bank_no_places'))}</span>`}${cardChip(side, pid)}</div>
+  // A place only goes to someone who may buy (the first lap): until then that side is money and cards.
+  const locked = { give: !bankCanBuyYet(g, tr.to), get: !bankCanBuyYet(g, me) };
+  ['give', 'get'].forEach(side => { if (locked[side]) tr[side].sqs = []; });
+  const lockNote = (side) => (side === 'give' ? bankT('bank_trade_locked_them', { name: c.names[tr.to] || '' }) : bankT('bank_trade_locked_me'));
+  const col = (side, pid, title) => {
+    const places = tradable(pid);
+    const chips = !places.length ? `<span class="field__hint">${escapeHTML(bankT('bank_no_places'))}</span>`
+      : locked[side] ? `<span class="field__hint">🔄 ${escapeHTML(lockNote(side))}</span>`
+      : places.map(i => chip(side, i)).join('');
+    return `<div class="bank-tcol"><p class="bank-tcol__title">${escapeHTML(title)}</p>
+      <div class="bank-tchips">${chips}${cardChip(side, pid)}</div>
       ${cashIn(side, pid)}</div>`;
+  };
   return `<div class="bank-panel">
       <p class="bank-panel__title">🤝 ${escapeHTML(bankT('bank_trade_title'))}</p>
       <div class="chip-set bank-tto">${others.map(id => `<button type="button" class="chip ${id === tr.to ? 'is-selected' : ''}" onclick="bankTradeTo('${jsStringAttr(id)}')">${bankTokenOf(g, id)} ${escapeHTML(c.names[id] || '')}</button>`).join('')}</div>
@@ -403,7 +413,8 @@ function bankEventText(c, e) {
     case 'rent': return e.amount ? '💵 ' + bankT('bank_ev_rent', { name: n(e.pid), other: n(e.to), n: bankFmt(e.amount) }) : '';
     case 'tax': return '🧾 ' + bankT('bank_ev_tax', { name: n(e.pid), n: bankFmt(e.amount) });
     case 'card': return (e.deck === 'luck' ? '❓ ' : '⚖️ ') + n(e.pid) + ': ' + bankCardText(e.deck, e.card);
-    case 'start': return '💰 ' + bankT('bank_ev_start', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'start': return '💰 ' + bankT(e.first ? 'bank_ev_start_first' : 'bank_ev_start', { name: n(e.pid), n: bankFmt(e.amount) });
+    case 'notYet': return '🔄 ' + bankT('bank_ev_not_yet', { name: n(e.pid), place: bankSqName(e.sq) });
     case 'jail': return '🔒 ' + bankT(e.why === 'three' ? 'bank_ev_jail_three' : 'bank_ev_jail', { name: n(e.pid) });
     case 'free': return '🔓 ' + bankT('bank_ev_free_' + (e.how || 'pay'), { name: n(e.pid) });
     case 'build': return '🏗️ ' + bankT('bank_ev_build', { name: n(e.pid), what: bankLevelWord(e.lvl), place: bankSqName(e.sq) });
@@ -783,8 +794,9 @@ function bankNow() { return Date.now(); }
 let bankBotTimer = null;
 
 function bankState() {
-  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, g: null, priv: null, names: {}, bots: {}, gameId: '' };
+  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, g: null, priv: null, names: {}, bots: {}, gameId: '' };
   const s = appState.bank;
+  if (typeof s.firstLap !== 'boolean') s.firstLap = true;
   if ([1, 2, 3].indexOf(Number(s.opp)) === -1) s.opp = 2;
   if (s.level !== 'hard') s.level = 'easy';
   if (BANK_TOKENS.indexOf(s.token) === -1) s.token = 'car';
@@ -812,6 +824,8 @@ function paintBankSetup() {
   if (pot) pot.checked = !!s.pot;
   const go = document.getElementById('bank-go400');
   if (go) go.checked = !!s.go400;
+  const lap = document.getElementById('bank-firstlap');
+  if (lap) lap.checked = !!s.firstLap;
   const cont = document.getElementById('bank-continue');
   if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
 }
@@ -822,7 +836,7 @@ function setBankOption(key, value) {
   else if (key === 'level') s.level = value === 'hard' ? 'hard' : 'easy';
   else if (key === 'token' && BANK_TOKENS.indexOf(value) !== -1) s.token = value;
   else if (key === 'length') s.length = Number(value);
-  else if (key === 'pot' || key === 'go400') s[key] = !!value;
+  else if (key === 'pot' || key === 'go400' || key === 'firstLap') s[key] = !!value;
   haptic('light');
   saveToLocal();
   paintBankSetup();
@@ -838,7 +852,7 @@ function startBank() {
   const bots = {};
   ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = s.level; });
   const off = bankRollOff(ids, Math.random);
-  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400 }, Date.now(), Math.random);
+  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400, firstLap: s.firstLap }, Date.now(), Math.random);
   bankEvent(made.g, 'rolloff', { rounds: off.rounds, first: off.first });
   s.g = made.g;
   s.priv = made.priv;

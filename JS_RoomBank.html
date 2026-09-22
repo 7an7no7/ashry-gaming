@@ -19,11 +19,12 @@ const BANK_OPTS_KEY = 'bankRoom';
 const bankRoomLocal = { sent: '', clockTimer: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '' };
 
 function bankRoomOpts() {
-  const o = recallOptions(BANK_OPTS_KEY, { length: BANK_LENGTH_DEFAULT, pot: false, go400: false, turnClock: 0 });
+  const o = recallOptions(BANK_OPTS_KEY, { length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, turnClock: 0 });
   if (BANK_LENGTHS.indexOf(Number(o.length)) === -1) o.length = BANK_LENGTH_DEFAULT;
   if (BANK_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
   o.pot = !!o.pot;
   o.go400 = !!o.go400;
+  o.firstLap = o.firstLap !== false;
   return o;
 }
 
@@ -118,6 +119,7 @@ function bankOptionsHtml(state) {
         ${seg('length', [30, 45, 60, 0], v => escapeHTML(v ? bankT('bank_minutes', { n: v }) : bankT('bank_until_one')), o.length)}
         <p class="field__hint">${escapeHTML(o.length ? bankT('bank_length_hint') : bankT('bank_until_one_hint'))}</p>
       </div>
+      ${sw('firstLap', 'bank-room-firstlap', '🔄', bankT('bank_opt_firstlap'), bankT('bank_opt_firstlap_hint'))}
       ${sw('pot', 'bank-room-pot', '💰', bankT('bank_opt_pot'), bankT('bank_opt_pot_hint'))}
       ${sw('go400', 'bank-room-go400', '🎯', bankT('bank_opt_go400'), bankT('bank_opt_go400_hint'))}
       <div class="field">
@@ -270,7 +272,7 @@ ROOM_GAMES.bank = {
 
   startPayload() {
     const o = bankRoomOpts();
-    return { length: o.length, pot: o.pot, go400: o.go400, turnClock: o.turnClock };
+    return { length: o.length, pot: o.pot, go400: o.go400, firstLap: o.firstLap, turnClock: o.turnClock };
   },
 
   render(state) {

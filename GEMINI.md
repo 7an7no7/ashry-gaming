@@ -149,6 +149,15 @@ work changed. Add to it when a decision is made or a batch ships.
     16 each, family wording;
   - two lobby switches **off by default**: the free-parking pot and landing
     exactly on Start pays 400;
+  - **buying starts after the first lap** (the owner, 22 Sep 2026, the day
+    after the build): a lobby switch, **on by default**. Until a player has
+    passed Start (or landed on it) a free place they land on stays with the
+    bank, and **a trade can't give them a place** (money and jail cards
+    still can); rent is paid as usual. A card that takes them to or past
+    Start counts, jail doesn't, and the rest of the move that passes Start
+    may already buy. Decided here: a bankruptcy still hands its places to
+    the creditor either way (it isn't buying or trading), and a game saved
+    before the switch existed plays on as it was;
   - computer players **easy and hard**, answering trade offers but never
     making them; a turn clock off by default, 60 or 90 seconds.
   - **Clarified by the owner before the build** (another AI's notes, checked
@@ -1015,6 +1024,12 @@ the word search), `countUp` for streaks and scores.
   computer players, 2 to 6, easy and hard. Found on the way: a percentage
   padding on the board's squares is measured against the whole board, not
   the square (*Traps*).
+- **22 Sep 2026, بنك الحظ's first lap** - the owner asked for buying to start
+  only after a player has been round the board once; asked as two questions
+  (a switch or always; and trades), built as a lobby switch on by default,
+  with no places in a trade before the first lap (*The owner's specs*). The
+  same day the Start bar of every setup screen was made to sit flush at the
+  foot (*Traps*), after the owner saw بنك الحظ's switches under it on a PC.
 
 ## Building and Running
 
@@ -2933,7 +2948,12 @@ The owner's rules are in *The owner's specs*. Built the way لودو is:
   move) runs once it is paid. `bankRaise` sells back and mortgages for
   someone (the computer, the clock, the birthday); `bankAuto` plays a turn
   out for the clock or the host; `bankBotMove` is the computer players;
-  `bankOnlyMove` the forced move.
+  `bankOnlyMove` the forced move. The first lap is `g.lapped` (who has passed
+  Start, set in `bankPassStart`, whose `start` event carries `first` the
+  first time) and `bankCanBuyYet`, asked by `bankLand` (a free place writes
+  a `notYet` event and the turn goes on), `bankBuy` and both sides of an
+  offer (`bankTradeLapped`); the phone shows 🔄 on the chip of anyone not
+  round yet, says so in the bar and on the card, and in the offer panel.
 - **`RoomBank.js`**: the lobby (`token`, `seat`), `start` / `playAgain`
   with the host's options (`length`, `pot`, `go400`, `turnClock`), every
   turn move checked against `seq` (turnSeq) and every place move against

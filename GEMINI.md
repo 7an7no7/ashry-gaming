@@ -85,7 +85,7 @@
   before or after the cards already down.
 - **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
   or two on one phone; ⭕ **Tic Tac Toe (إكس أو)** against a friend or an
-  unbeatable minimax; 🔴 **Connect 4 (كونكت ٤)** and 🔲 **Dots & Boxes
+  unbeatable minimax, with a "3 marks only" switch that ends the draws; 🔴 **Connect 4 (كونكت ٤)** and 🔲 **Dots & Boxes
   (نقط ومربعات)**: two on one phone, against the phone at three levels, or a
   room where two play and the rest watch, winner stays on (*The duels*).
 - **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
@@ -359,6 +359,26 @@ work changed. Add to it when a decision is made or a batch ships.
     2026, asked directly): a 7 counts 7 and an 8 counts 8, not 10. A later
     "fixed +10 for all of them" was put to the owner and they kept the face
     values.
+
+- **إكس أو, 3 marks only** - the owner, 22 Sep 2026 ("good players always
+  draw"), every rule asked first (`JS_XO.html`):
+  - a **switch on the X-O setup, off by default** (remembered on the phone);
+    against a friend and against the phone, easy and hard;
+  - each side keeps **three marks**; a fourth takes the place of that side's
+    oldest (`x.order`, oldest first), which **fades out** as the new one lands;
+  - the oldest is **shown faded on its owner's turn only** (the owner, the
+    same day: "in my turn the one that will disappear will be faded, but not
+    in his turn, to make it use memory too"), and **the new mark can't go on
+    its square** - it is still on the board while you choose;
+  - **no draws and no move limit**: six marks never fill nine squares, so play
+    goes on until someone makes three in a row.
+  - Built here: a round keeps the rule it was dealt with (`x.rule3`), so the
+    switch changes the next round, never this one; the phone searches a few
+    moves deep with alpha-beta in 180ms at most (`xo3BestMove`), judging a
+    position by the lines each side could still finish without the mark it is
+    about to lose; easy looks two moves ahead and plays at random a third of
+    the time. Simulated: hard beat random play 24 of 24 and easy 16 of 16,
+    every move legal, the slowest 52ms.
 
 - **كونكت ٤ and نقط ومربعات (the duels)** - the owner's decisions of
   21 Sep 2026, asked one by one, built the same day (*The duels*):
@@ -1095,6 +1115,27 @@ the word search), `countUp` for streaks and scores.
   server is older than a rules change; a per-address limit on opening rooms;
   four Codenames words that were a second spelling of another. Rules tests
   and robot tests grew with each (see *Traps* for what was learnt).
+- **22 Sep 2026, later: five design items and the leak check** - the owner
+  asked for the audit's design suggestions and its test idea. Wordle on a
+  phone on its side: Arabic keys 23px → 28.6px (English 28 → 35), the grid
+  sized by its own box so a long word no longer spills into the keyboard
+  (it did, by about 100px, for eight letters), and on a laptop the grid now
+  fills its column (350px → 470px). Keys that stand off the page. The unused
+  `.btn-red` removed (3.67:1 in dark mode). Named layers for everything that
+  sits on the page (*The design system*), every value unchanged and checked
+  in the page. The install sheet waits until the phone has played something.
+  The leak check (`test/leaks.mjs`, *Testing*): all 33 room games played
+  through, every phone checked after every move, nothing found; the view
+  function moved to `src/view.js` so the check uses the server's own. The
+  owner then asked that speed and offline be checked: eight clean loads each
+  against the build before the day's work (DOMContentLoaded 121 → 117ms, the
+  first game card 152 → 135ms), and offline with the server off, which found
+  that the morning's "keep only good answers" had stopped keeping the fonts'
+  stylesheet (*Traps*; live for a few hours) - fixed, and the outside files
+  are now kept after a first visit too, which they never were.
+- **22 Sep 2026, إكس أو with 3 marks only** - the owner's rule, asked first
+  (*The owner's specs*): a setup switch, off by default; on your turn your
+  oldest mark is faded and goes when you place a fourth; no draws.
 
 ## Building and Running
 
@@ -1142,9 +1183,12 @@ Two browser tabs on the preview behave like two phones in one room.
 - **The app:** `npm run build:site` in `tools/`, then commit and push (`docs/`
   included). GitHub Pages redeploys in about a minute; `npm run check:live` in
   `tools/` waits for it and confirms the link serves the build in `docs/`,
-  and fails if the rooms server was deployed before the last committed change
-  to anything it runs (the `FILES` of `rooms-worker/build.mjs` and
-  `rooms-worker/src/`, read from git).
+  and fails if the rooms server runs other rules than this folder: `/health`
+  reports a fingerprint of what the server was built from (the `FILES` of
+  `rooms-worker/build.mjs` and `rooms-worker/src/`, hashed by
+  `rooms-worker/fingerprint.mjs` into `generated/rules.js`), and the folder's
+  is worked out the same way. Contents, not dates: the first version compared
+  commit dates, and a deploy comes before its commit.
 - **The rooms server:** `npm run deploy` in `rooms-worker/`. Needed whenever
   `RoomGames.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
@@ -1183,7 +1227,20 @@ npm run check        # content + i18n
   wrong phone, reconnects, the server's clocks and the shared prompt memory.
   `npm run test:live` runs the same against the deployed server.
 - `npm run test:rules` in `rooms-worker/` checks the trivia scoring and question
-  count straight against `RoomGames.js`, no server needed.
+  count straight against `RoomGames.js`, no server needed, and then runs the
+  **leak check** (`test/leaks.mjs`, about a second): every room game is played
+  through, start to end, and after every move - a phone's, a computer
+  player's, the server's clock - every phone's view and the screen's is built
+  with the server's own projection (`rooms-worker/src/view.js`, which `room.js`
+  uses too) and searched for what that phone must not know, with the server's
+  hidden state (`room._*`, the other slices) as the answer key: the word on a
+  spy's phone, a year in a hand, a card of another hand, a vote before it
+  closes, an answer before its round is scored, any key starting with `_`. A
+  rule that never came up during its game fails the run too, so a check can't
+  pass by never looking; `node test/leaks.mjs uno` runs one game. It was
+  proved by putting old leaks back into a scratch build (the قبل ولا بعد years,
+  the word on the spy's phone, أونو's deck on the pile, a Codenames colour on an
+  unturned card): each one failed it.
 - Everything else is exercised in the local preview.
 
 Client-side logs are in the browser console; the rooms server's are
@@ -1247,6 +1304,7 @@ is nowhere to hide the key card.
 |---|---|
 | `rooms-worker/src/index.js` | The Worker: `/create`, `/join`, `/act`, `/poll`, `/leave`, `/ws`. Knows no game rules. |
 | `rooms-worker/src/room.js` | `Room` Durable Object, one per code: players, keys, sockets, saving, clocks, `project()`. |
+| `rooms-worker/src/view.js` | `roomView(room, pid, online)`: what one device is sent, the projection itself - its own file so the leak check builds every view with the same function. |
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `rooms-worker/src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live`. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
@@ -2441,9 +2499,11 @@ its first screen.
    a list, deal through `nextPrompts` from an action named `start`, `nextRound`
    or `playAgain` (`DEAL_ACTIONS` in `room.js`), so the shared prompt memory is
    loaded for it.
-6. Add a round of it to `rooms-worker/test/play-all.mjs`, then `npm run build:site`
-   in `tools/` and `npm run deploy` in `rooms-worker/` — in that order, because the
-   deploy uploads `docs/`.
+6. Add a round of it to `rooms-worker/test/play-all.mjs`, a driver (a whole
+   game) and its secrets to `rooms-worker/test/leaks.mjs` - the leak check fails
+   on a room game it can't play - then `npm run build:site` in `tools/` and
+   `npm run deploy` in `rooms-worker/` — in that order, because the deploy
+   uploads `docs/`.
 7. Give it a `GAME_CATALOG` entry (see *The catalog and the home screen*) with
    `modes: ['room', 'tv']`, or it is not on the menu, and a `TV_GAMES` entry.
 8. Give it a case in `roomPlayerLeft` (what happens when someone leaves
@@ -2607,7 +2667,15 @@ home-screen icon, the manifest, `?room=` links and the offline service worker
 (`docs/sw.js`) all work. The worker is network first, but opening the app
 waits at most 3 seconds (`NET_WAIT_MS`) before showing the saved copy, so a
 weak connection no longer holds a blank page; only good answers are cached,
-and the pinned CDN files are cache first. The build also writes the rooms server's address
+and the pinned CDN files are cache first (an opaque answer from them is kept
+too: the fonts' stylesheet is fetched without CORS, and refusing it left the
+app with no fonts offline). **Everything outside rooms works offline after
+one visit**: the fonts, confetti and the QR load before the worker is in
+charge on a first visit, so once a worker controls the page it asks for them
+again through it (`warm` in `registerServiceWorker`, five seconds in, almost
+always answered from the browser's own cache). Checked on 22 Sep 2026 with the
+server switched off: the home, the daily hub, Sudoku, Wordle, القنبلة and the
+timers, in the app's own fonts. The build also writes the rooms server's address
 (`roomsUrl` in `tools/site.config.json`) into the page as `window.ROOMS_URL`,
 with a `preconnect` so creating a room doesn't wait for the connection.
 
@@ -2708,7 +2776,12 @@ instead of steps (`installNow`); `appinstalled` closes it.
 
 When: never in the home-screen copy, never over a game, a room or another
 popup - it waits (`installAskSoon`, from `setView` on the home, مع بعض and
-الأدوات and from the end of the intro) - and at most once a visit: a visit
+الأدوات and from the end of the intro) - **never before this phone has
+played something** (`ashryPlayedOnce`, set when a game's `play-*` screen or
+a room game's screen is left; opening a setup doesn't count; the owner
+agreed, 22 Sep 2026: a first visit had the sheet straight after the intro,
+before a single game, which is when it is easiest to dismiss), and at most
+once a visit: a visit
 is a page load at least `INSTALL_VISIT_GAP_MS` (30 minutes) after the last
 ask (`ashryInstallAskedAt`), so a reload mid-evening doesn't ask again and
 the next evening does. Dismissing it is just closing it. "ضفته خلاص"
@@ -3542,6 +3615,15 @@ itself to the same moment in the past - a loop, each run a request on the free
 plan. Every time handed to `setAlarm` is at least a second ahead now, and a
 time that is already past is replaced by the next time worth looking.
 
+**Keeping only good answers loses the fonts offline.** The Google Fonts
+stylesheet is a `<link>` without `crossorigin`, so it is fetched without CORS
+and its answer is opaque: status 0, `ok` false. A worker that keeps only
+`res.ok` never saved it, and offline the fonts were gone even though their
+files were cached. Keep opaque answers from the pinned hosts. And test
+offline with the server really switched off (`curl` it): a page a worker
+controls sends every one of its fetches through that worker, whatever the
+address, so a fetch from the page can't tell you whether the server is up.
+
 **A secret slice is sent whole.** `project()` gives each phone everything in
 `room.secrets[pid]`. قبل ولا بعد kept each hand twice there - the cards with
 their years for the server, the same cards without for the screen - so every
@@ -4280,6 +4362,16 @@ and the two teams of أسماء الرموز and دوري المعرفة have `-
 fill is 2.8:1 on the dark card). A `.btn--auto` inside `.btn-row` keeps its
 own width.
 
+**Layers have names** (section 1, `--z-chrome` … `--z-confetti`). Anything
+that sits on the page rather than inside one component takes one of them:
+the header and the bar, the room banner, floating notes and a game's ghosts,
+popups, alerts, confirms, toasts, the room splash, the intro, a card game's
+flying cards (`--z-fx*`), the full-screen tools and what goes over them, the
+points and وقف's slam, and confetti on top (`JS_Sounds.html` reads that one).
+The values are the numbers each layer always had (22 Sep 2026: forty rules on
+twenty-five numbers from 20 to 100,040, now names); a new popup picks a name,
+never a number. Small numbers inside a component stay local.
+
 **Popups are centred dialogs, and live under `<body>`.** `hoistModals()` in
 `JS_Core.html` moves every `.modal-overlay` there at start-up: most are written
 inside `<main>`, and on iPhone a fixed element inside that scrolling area is drawn
@@ -4290,6 +4382,12 @@ simple dialog is `.modal-content.modal-content--simple`, built only from
 does all the spacing, so don't add `mt-*` / `mb-*` inside one. Help and Settings
 keep the header / body / footer sheet. Full-screen tools (`FULLSCREEN_VIEWS` in
 `setView`) hide the header and nav through `body.is-fullscreen-view`.
+
+**Keys look like keys** (Wordle, ربع قرد's letters): `.key` is white paper
+with a hairline and a lower edge, like the phone's own keyboard - it was
+`--surface-3`, #f7f5f1 on a #f5f3ee page, and the keyboard all but vanished.
+Dark mode keeps `--surface-3` through `:where(body.dark) .key`, weightless so
+the right/present/absent colours still win.
 
 **Buttons and fields size themselves.** `.btn` is 48px (`btn--lg` 54, `btn--sm`
 42), fields are 48px with one font. Don't put `py-*`, `h-*`, `text-xl` or
@@ -4353,7 +4451,7 @@ a wrapper that is plain flow in portrait:
 | wrapper | screen |
 | --- | --- |
 | `.play-stage__playing` (`__head` / `__card` / `__actions`) | Charades, Describe It |
-| `.wordle-layout` | Wordle: board beside the keyboard |
+| `.wordle-layout` | Wordle: board beside the keyboard; on a phone on its side the keyboard takes the width 28px keys need (35px in English) and the board, a size container, fits its grid in what is left (`cqw`/`cqh`), letters scaled to the cell |
 | `.draw-layout` (`__head` / `.draw-wrap` / `__side`) | Draw & Guess, Fake Artist; the canvas is sticky so the tools can scroll |
 | `.cn-layout` | Codenames: board beside the clue and controls |
 | `.tb-play` | دوري المعرفة: board beside the scores |

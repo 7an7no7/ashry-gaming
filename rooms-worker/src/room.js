@@ -12,7 +12,8 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, chatFor, roomPlayerLeft, sameRoomName } from '../generated/rules.js';
+import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName } from '../generated/rules.js';
+import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
 // Big screens (a TV, a laptop) showing the room. They take no player seat.
@@ -177,36 +178,9 @@ export class Room extends DurableObject {
     return null;
   }
 
-  /** What one player may see: the shared state and their own secret. */
+  /** What one player may see: the shared state and their own secret (view.js). */
   project(pid, online) {
-    const room = this.room;
-    const screens = room.screens || [];
-    const isScreen = screens.some((s) => s.id === pid);
-    return {
-      code: room.code,
-      version: room.version,
-      game: room.game,
-      phase: room.phase,
-      hostId: room.hostId,
-      youAreHost: room.hostId === pid,
-      // A computer player (`bot`: its level) is always here: it has no phone to lose.
-      players: room.players.map((p) => (p.bot
-        ? { id: p.id, name: p.name, online: true, bot: p.bot }
-        : { id: p.id, name: p.name, online: online.has(p.id) })),
-      // Big screens showing the room. Not players: dealt nothing, counted nowhere.
-      screens: screens.map((s) => ({ id: s.id, online: online.has(s.id) })),
-      youAreScreen: isScreen,
-      shared: room.shared || {},
-      // The leaderboard of the night: room-level like the chat, so it survives
-      // every deal and the trip back to the hub.
-      night: room.night || {},
-      // Less any other team's channel (أسماء الرموز); a screen reads no team's.
-      chat: chatFor(room, pid),
-      // A screen faces everyone, so it never receives a secret.
-      you: isScreen ? null : ((room.secrets && room.secrets[pid]) || null),
-      // False for someone who joined after this game was dealt.
-      inGame: isScreen || !room.shared || !room.shared.roster ? true : room.shared.roster.indexOf(pid) !== -1
-    };
+    return roomView(this.room, pid, online);
   }
 
   /**

@@ -1296,6 +1296,9 @@
       xo_easy: "سهل",
       xo_hard: "صعب",
       xo_side_label: "أنت تلعب بـ",
+      xo_three: "3 علامات بس لكل واحد",
+      xo_three_hint: "العلامة الرابعة بتمسح أقدم علامة ليك، فمفيش تعادل: اللعب بيكمل لحد ما حد يعمل 3 في صف.",
+      xo_three_play: "3 علامات بس: العلامة الباهتة هتختفي مع حركتك",
       xo_you: "أنت",
       xo_phone: "الموبايل",
       xo_player: "لاعب",
@@ -3642,6 +3645,9 @@
       xo_easy: "Easy",
       xo_hard: "Hard",
       xo_side_label: "You play as",
+      xo_three: "Only 3 marks each",
+      xo_three_hint: "Your 4th mark removes your oldest, so there are no draws: play goes on until someone makes three in a row.",
+      xo_three_play: "3 marks only: the faded mark goes with this move",
       xo_you: "You",
       xo_phone: "Phone",
       xo_player: "Player",
@@ -5656,6 +5662,20 @@
     if (!window.STATIC_SITE || !('serviceWorker' in navigator)) return;
     const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    // The fonts, confetti and the QR come from outside. On a first visit they
+    // load before the worker is in charge, so it never saw them, and offline the
+    // app lost its fonts. Once a worker controls the page, ask for them again
+    // through it so it keeps them: a few requests, almost always answered from
+    // the browser's own cache, well after the app has started.
+    const warm = () => setTimeout(() => {
+      try {
+        const pinned = /^https:\/\/(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
+        performance.getEntriesByType('resource').map(e => e.name).filter(u => pinned.test(u))
+          .forEach(u => fetch(u, { mode: 'cors', credentials: 'omit' }).catch(() => {}));
+      } catch (e) {}
+    }, 5000);
+    if (hadController) warm();
+    else navigator.serviceWorker.addEventListener('controllerchange', warm, { once: true });
     // A new build's worker takes over an open page (skipWaiting + claim). Say so
     // once, with a tap to load it - an iPhone home-screen copy can stay open for
     // days and has no reload button. Not on a first visit, when there was no
@@ -7765,7 +7785,13 @@ const GAME_RULES = {
                 <li>لوحة 3×3. X يبدأ، وكل واحد يحط علامته في خانة فاضية بالدور.</li>
                 <li>أول واحد يعمل <b>3 في صف</b> (أفقي، رأسي أو مايل) يكسب. اللوحة اتملت؟ تعادل.</li>
                 <li>ضد الموبايل: <b>سهل</b> بيغلط أحياناً، <b>صعب</b> مش بيتغلب. الجولة الجديدة يبدأها الطرف التاني.</li>
-            </ol>`,
+            </ol>
+            <p class="help-sub">🔁 3 علامات بس</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>مفتاح في الإعدادات، مقفول في الأول. كل واحد له <b>3 علامات بس</b> على اللوحة: الرابعة بتمسح أقدم علامة ليه.</li>
+                <li>في دورك، أقدم علامة ليك بتبان <b>باهتة</b>: هي اللي هتختفي مع حركتك، ومتقدرش تحط الجديدة مكانها (لسه على اللوحة وانت بتختار). في دور التاني مش بتبان، فلازم تفتكر أقدم علامة ليه.</li>
+                <li><b>مفيش تعادل</b>: اللعب بيكمل لحد ما حد يعمل 3 في صف. الموبايل بيلعبها هو كمان، سهل وصعب، بس الصعب هنا ممكن يتغلب.</li>
+            </ul>`,
         connect4: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>لوحة زرقا واقفة، وكل واحد له لون: أحمر أو أصفر. بالدور، كل واحد ينزّل قطعة في عمود، والقطعة بتقع لحد أوطى خانة فاضية فيه.</li>
@@ -8783,7 +8809,13 @@ const GAME_RULES = {
                 <li>A 3×3 board. X starts, and you take turns placing your mark in an empty cell.</li>
                 <li>First to make <b>three in a row</b> (across, down or diagonally) wins. Full board? A draw.</li>
                 <li>Against the phone: <b>easy</b> slips up now and then, <b>hard</b> cannot be beaten. The other side opens the next round.</li>
-            </ol>`,
+            </ol>
+            <p class="help-sub">🔁 Only 3 marks</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>A switch in the options, off at first. Each side keeps <b>only 3 marks</b> on the board: your 4th removes your oldest.</li>
+                <li>On your turn your oldest mark shows <b>faded</b>: it is the one your move will remove, and the new mark can't go on its square (it is still on the board while you choose). On the other side's turn nothing is faded, so remembering their oldest is up to you.</li>
+                <li><b>No draws</b>: play goes on until someone makes three in a row. The phone plays it too, easy and hard, but hard can be beaten here.</li>
+            </ul>`,
         connect4: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>A blue board standing up, and a colour each: red or yellow. Take turns dropping a disc into a column; it falls to the lowest empty cell.</li>

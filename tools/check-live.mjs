@@ -9,9 +9,10 @@
  *    the service worker a new cache name, so that name identifies the build.
  *    Pages takes about a minute after a push; this waits up to 4 minutes.
  * 3. The rooms server answers /health.
- * 4. The rooms server's own copy of the app (uploaded by npm run deploy) is the
- *    same build. If not, the last deploy came before the last build: fine when
- *    only the page changed, not when anything rooms run did.
+ * 4. The rooms server runs the rules in this folder: its /health fingerprint
+ *    (rooms-worker/fingerprint.mjs) matches this folder's. Its own copy of the
+ *    app (uploaded by npm run deploy) may be an older build when only the page
+ *    changed since the last deploy; that is a note, not a failure.
  */
 import { readFile, stat, readdir } from 'node:fs/promises';
 import { execSync } from 'node:child_process';
@@ -89,22 +90,24 @@ const health = await get(ROOMS + '/health');
 if (health.status === 200 && /"ok"\s*:\s*true/.test(health.text)) ok(`${ROOMS} is up`);
 else fail(`${ROOMS}/health answered HTTP ${health.status}`);
 
-/* 4. the rooms server's copy of the app, and its rules. The files it bundles are
-   read from rooms-worker/build.mjs (FILES), so the list can't go stale here; a
-   rules change committed after the server's last deploy is a failure, not a
-   warning - "Live." used to print with the rooms still on the old rules. */
-const workerBuild = cacheName((await get(ROOMS + '/sw.js')).text);
-const buildSrc = await readFile(path.join(root, 'rooms-worker', 'build.mjs'), 'utf8');
-const serverFiles = ((/const FILES = \[([^\]]*)\]/.exec(buildSrc) || [])[1] || '').match(/'[^']+'/g) || [];
-const changedAt = Number(git(`log -1 --format=%ct -- ${serverFiles.map((f) => JSON.stringify(f.slice(1, -1))).join(' ')} rooms-worker/src`)) || 0;
-const rulesStamp = changedAt ? new Date(changedAt * 1000).toISOString().replace(/[-:.TZ]/g, '').slice(0, 14) : '';
-const workerStamp = String(workerBuild || '').replace(/^ashry-/, '');
-if (workerBuild === local) ok('the rooms server was deployed with this build');
-else if (!workerBuild) fail(`the rooms server's copy of the app can't be read (${ROOMS}/sw.js): deploy it - cd rooms-worker && npm run deploy`);
-else if (rulesStamp && rulesStamp > workerStamp) fail(`the rooms server (deployed ${workerStamp}) is older than the last change to what it runs (${rulesStamp}):\n` +
+/* 4. the rooms server's rules, and its copy of the app. /health reports the
+   fingerprint of what the server was built from (rooms-worker/fingerprint.mjs:
+   the FILES build.mjs bundles, and rooms-worker/src), and this folder's is
+   worked out the same way: a difference is a failure, not a warning - "Live."
+   used to print with the rooms still on the old rules. Comparing contents, not
+   dates, because a deploy comes before its commit. */
+const { rulesFingerprint } = await import(new URL('../rooms-worker/fingerprint.mjs', import.meta.url));
+const mine = await rulesFingerprint();
+let theirs = null;
+try { theirs = JSON.parse(health.text).rules || null; } catch (e) {}
+if (theirs && theirs === mine) ok(`the rooms server runs the rules in this folder (${mine})`);
+else if (theirs) fail(`the rooms server runs other rules (${theirs}) than this folder (${mine}):\n` +
   '  cd rooms-worker && npm run deploy, wait a minute, npm run test:live.');
-else warn(`the rooms server's copy of the app is ${workerBuild}, from before this build.\n` +
-  '  Fine: nothing the rooms server runs has changed since it was deployed (only the page did).');
+else fail('the rooms server does not say what it was built from: deploy it - cd rooms-worker && npm run deploy');
+const workerBuild = cacheName((await get(ROOMS + '/sw.js')).text);
+if (workerBuild === local) ok('the rooms server\'s copy of the app is this build');
+else warn(`the rooms server's copy of the app is ${workerBuild || 'unreadable'}, not this build.\n` +
+  '  Fine when only the page changed since the last deploy: the link above is the app people open.');
 
 console.log(failed ? '\nNOT LIVE YET - fix the ✗ lines above.' : '\nLive.');
 process.exitCode = failed ? 1 : 0;

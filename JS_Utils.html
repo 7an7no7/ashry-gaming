@@ -1013,7 +1013,7 @@ function toggleResults() {
         // Everything else this phone kept under the app's name - bests, the
         // daily streak, room options, the last name - except how the device
         // itself is set up (motion, screen size, the home-screen install).
-        const KEEP = ['ashryMotion', 'ashryUiScale', 'ashryInstallHaveIt', 'ashryInstalledIcon', 'ashryInstallAskedAt', 'ashryIconSnooze'];
+        const KEEP = ['ashryMotion', 'ashryUiScale', 'ashryInstallHaveIt', 'ashryInstalledIcon', 'ashryInstallAskedAt', 'ashryIconSnooze', 'ashryPlayedOnce'];
         try {
             Object.keys(localStorage)
                 .filter(k => k.indexOf('ashry') === 0 && KEEP.indexOf(k) === -1)
@@ -1094,7 +1094,10 @@ function toggleResults() {
      where Chrome allows it, a real one-tap install button instead of steps.
      Only on a phone (not a tablet, a computer or a TV), never in the
      home-screen copy, never over a game or a room: it waits until the home,
-     مع بعض or الأدوات is on screen and the intro has gone. Once a visit: a
+     مع بعض or الأدوات is on screen and the intro has gone - and only once
+     this phone has played something (been on a game's play screen and come
+     back): a first visit used to get it straight after the intro, before a
+     single game, which is the moment it is easiest to dismiss. Once a visit: a
      visit is a page load at least INSTALL_VISIT_GAP_MS after the last ask,
      so a reload mid-evening doesn't ask again, and tomorrow does. "I already
      added it" stops it in this browser for good (a browser can't see the
@@ -1104,6 +1107,12 @@ function toggleResults() {
   const INSTALL_HAVE_KEY = 'ashryInstallHaveIt';
   const INSTALL_VISIT_GAP_MS = 30 * 60 * 1000;
   const INSTALL_ROOT_VIEWS = ['menu', 'together', 'tools'];
+  const INSTALL_PLAYED_KEY = 'ashryPlayedOnce';
+  // Played: left a game's play screen, one phone or a room (not the lobby, not a TV).
+  onLeaveScreen((from) => {
+      if (!/^play-/.test(from) && !(/^room-/.test(from) && from !== 'room-lobby' && from !== 'room-tv')) return;
+      try { localStorage.setItem(INSTALL_PLAYED_KEY, '1'); } catch (e) {}
+  });
   let installAskPending = true;     // this page load hasn't asked yet
   let installPromptEvent = null;    // Chrome's install prompt, kept for our own button
 
@@ -1185,16 +1194,19 @@ function toggleResults() {
       if (!installAskPending) return;
       let have = false;
       let last = 0;
+      let played = true;
       try {
           have = localStorage.getItem(INSTALL_HAVE_KEY) === '1';
           last = Number(localStorage.getItem(INSTALL_ASKED_KEY) || 0);
+          played = localStorage.getItem(INSTALL_PLAYED_KEY) === '1';
       } catch (e) { /* no storage (private browsing): ask this visit anyway */ }
       if (!installTarget() || inStandalone() || have || Date.now() - last < INSTALL_VISIT_GAP_MS) {
           installAskPending = false;
           return;
       }
-      // Not yet: somewhere else (a game, a room link), the intro still up, or
-      // another popup open. The next arrival on the home tries again.
+      // Not yet: nothing played yet, somewhere else (a game, a room link), the
+      // intro still up, or another popup open. The next arrival on the home tries again.
+      if (!played) return;
       if (INSTALL_ROOT_VIEWS.indexOf(appState.currentView) === -1) return;
       const loader = document.getElementById('app-loader');
       if (loader && loader.style.display !== 'none' && !loader.classList.contains('hidden')) return;

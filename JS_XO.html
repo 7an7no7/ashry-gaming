@@ -7,17 +7,31 @@
    best moves so games differ, and throws in a random move a third of the
    time on easy, which is what lets a child win now and then.
    The board is in appState.xo, so a reload keeps the game and the tally.
+
+   3 marks only (the owner, 22 Sep 2026: good players always draw): a switch
+   on the setup, off by default. Each side keeps three marks on the board; a
+   fourth takes the place of that side's oldest, which is shown faded on its
+   owner's turn only - on the other side's turn it looks like any mark, so
+   remembering the other side's oldest is part of the game (the owner) - and
+   can't be played on (it is still there while you choose). Six marks
+   never fill nine squares, so there is no draw and no limit: the game goes on
+   until someone makes three in a row. A round keeps the rule it was dealt
+   with (x.rule3), and x.order is each side's marks, oldest first.
    ========================================================================= */
 
 const XO_LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+const XO_KEEP = 3;          // marks a side keeps with the 3-marks rule
 let xoPhoneTimer = null;
+let xoGone = null;          // the mark a move just took off, for its fade: { cell, mark }
 
 function xoState() {
   if (!appState.xo) {
     appState.xo = { vs: 'phone', level: 'hard', board: Array(9).fill(''), turn: 'X', first: 'X', human: 'X',
-                    phase: 'setup', winner: '', line: null, scores: { X: 0, O: 0, D: 0 } };
+                    phase: 'setup', winner: '', line: null, scores: { X: 0, O: 0, D: 0 }, three: false };
   }
-  return appState.xo;
+  const x = appState.xo;
+  if (!x.order) x.order = { X: [], O: [] };      // a game saved before the rule existed
+  return x;
 }
 
 function setupXO() {
@@ -38,6 +52,8 @@ function paintXOSetup() {
   if (levelField) levelField.classList.toggle('hidden', x.vs !== 'phone');
   const sideField = document.getElementById('xo-side-field');
   if (sideField) sideField.classList.toggle('hidden', x.vs !== 'phone');
+  const three = document.getElementById('xo-three');
+  if (three) three.checked = !!x.three;
 }
 
 function setXOOption(key, value) {
@@ -59,6 +75,9 @@ function xoNewRound() {
   const x = xoState();
   if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
   x.board = Array(9).fill('');
+  x.order = { X: [], O: [] };
+  x.rule3 = !!x.three;
+  xoGone = null;
   x.turn = x.first;
   x.winner = '';
   x.line = null;
@@ -89,6 +108,16 @@ function xoPlay(i) {
 function xoPlace(i) {
   const x = xoState();
   x.board[i] = x.turn;
+  if (x.rule3) {
+    // The fourth mark takes the place of this side's oldest.
+    const mine = x.order[x.turn] || (x.order[x.turn] = []);
+    mine.push(i);
+    if (mine.length > XO_KEEP) {
+      const gone = mine.shift();
+      x.board[gone] = '';
+      xoGone = { cell: gone, mark: x.turn };
+    }
+  }
   playSound('click');
   const result = xoWinner(x.board);
   if (result) {
@@ -136,6 +165,7 @@ function xoPhoneMove(x) {
   const empty = x.board.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
   if (x.level === 'easy' && Math.random() < 0.35) return empty[Math.floor(Math.random() * empty.length)];
   if (empty.length === 9) return XO_OPENINGS[Math.floor(Math.random() * XO_OPENINGS.length)];
+  if (x.rule3) return xo3BestMove(x);
   const me = x.turn;
   let best = -Infinity, choices = [];
   for (const i of empty) {
@@ -172,6 +202,97 @@ function xoMinimax(board, turn, me, depth) {
   return result;
 }
 
+/* --- The phone with 3 marks only -------------------------------------------
+   The game has no end but a line, and the positions repeat, so there is no
+   full minimax to run: a search a few moves deep (alpha-beta, deepened while
+   the time lasts), and a judgement at the bottom that counts the lines each
+   side could still finish - leaving out a side's oldest mark when it has three,
+   since that one leaves on its owner's next move. Easy looks two moves ahead. */
+const XO3_BUDGET_MS = 180;
+const XO3_MAX_NODES = 120000;
+const XO3_WIN = 1000;
+
+function xo3Apply(s, i) {
+  const me = s.turn;
+  s.board[i] = me;
+  s.order[me].push(i);
+  let gone = -1;
+  if (s.order[me].length > XO_KEEP) { gone = s.order[me].shift(); s.board[gone] = ''; }
+  s.turn = xoOther(me);
+  return gone;
+}
+
+function xo3Undo(s, i, gone) {
+  s.turn = xoOther(s.turn);
+  const me = s.turn;
+  s.order[me].pop();
+  s.board[i] = '';
+  if (gone >= 0) { s.order[me].unshift(gone); s.board[gone] = me; }
+}
+
+const xo3Lined = (board, m) => XO_LINES.some(([a, b, c]) => board[a] === m && board[b] === m && board[c] === m);
+
+/** How good the board is for the side to move. */
+function xo3Judge(s) {
+  const score = (m) => {
+    const leaving = s.order[m].length >= XO_KEEP ? s.order[m][0] : -1;
+    let v = 0;
+    for (const line of XO_LINES) {
+      let own = 0, other = false;
+      for (const c of line) {
+        if (s.board[c] === m && c !== leaving) own++;
+        else if (s.board[c] && s.board[c] !== m) other = true;
+      }
+      if (!other) v += own === 2 ? 10 : own;
+    }
+    return v;
+  };
+  return score(s.turn) - score(xoOther(s.turn));
+}
+
+function xo3Search(s, depth, alpha, beta, ply, ctx) {
+  ctx.nodes++;
+  let best = -Infinity;
+  for (let i = 0; i < 9; i++) {
+    if (s.board[i]) continue;
+    const me = s.turn;
+    const gone = xo3Apply(s, i);
+    let v;
+    if (xo3Lined(s.board, me)) v = XO3_WIN - ply;
+    else if (depth <= 1 || ctx.nodes > XO3_MAX_NODES || Date.now() > ctx.until) v = -xo3Judge(s);
+    else v = -xo3Search(s, depth - 1, -beta, -alpha, ply + 1, ctx);
+    xo3Undo(s, i, gone);
+    if (v > best) best = v;
+    if (v > alpha) alpha = v;
+    if (alpha >= beta) break;
+  }
+  return best === -Infinity ? 0 : best;
+}
+
+function xo3BestMove(x) {
+  const s = { board: x.board.slice(), order: { X: x.order.X.slice(), O: x.order.O.slice() }, turn: x.turn };
+  const empty = s.board.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
+  const ctx = { nodes: 0, until: Date.now() + XO3_BUDGET_MS };
+  const maxDepth = x.level === 'easy' ? 2 : 12;
+  let choices = empty.slice();
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    let best = -Infinity, pick = [];
+    for (const i of empty) {
+      const me = s.turn;
+      const gone = xo3Apply(s, i);
+      const v = xo3Lined(s.board, me) ? XO3_WIN : (depth === 1 ? -xo3Judge(s) : -xo3Search(s, depth - 1, -Infinity, Infinity, 1, ctx));
+      xo3Undo(s, i, gone);
+      if (v > best) { best = v; pick = [i]; }
+      else if (v === best) pick.push(i);
+    }
+    // A depth cut short by the clock is not trusted over the last whole one.
+    if (depth > 1 && (ctx.nodes > XO3_MAX_NODES || Date.now() > ctx.until)) break;
+    choices = pick;
+    if (best >= XO3_WIN - 20) break;       // a win found: take the quickest
+  }
+  return choices[Math.floor(Math.random() * choices.length)];
+}
+
 function paintXO() {
   const x = xoState();
   const t = TRANSLATIONS[appState.lang];
@@ -184,6 +305,12 @@ function paintXO() {
   } else {
     status = x.vs === 'phone' && x.turn !== x.human ? (t.xo_thinking || '') : `${t.xo_turn || ''} ${nameOf(x.turn)}`;
   }
+  // With 3 marks only: the mark this move will take off, faded for the side
+  // about to move - never the other side's, which is theirs to remember.
+  const leaving = {};
+  if (x.rule3 && x.phase === 'play') { const o = x.order[x.turn] || []; if (o.length >= XO_KEEP) leaving[o[0]] = true; }
+  const gone = xoGone;
+  xoGone = null;
   el.innerHTML = `
     <div class="xo-tally">
       <div class="xo-tally__item xo-tally__item--x ${x.turn === 'X' && x.phase === 'play' ? 'is-turn' : ''}">
@@ -195,10 +322,12 @@ function paintXO() {
       </div>
     </div>
     <div class="xo-status ${x.phase === 'done' ? 'is-done' : ''}">${escapeHTML(status)}</div>
+    ${x.rule3 && x.phase === 'play' ? `<p class="xo-rule">${escapeHTML(t.xo_three_play || '')}</p>` : ''}
     <div class="xo-board ${x.phase === 'done' ? 'is-done' : ''}">
       ${x.board.map((v, i) => `
-        <button type="button" class="xo-cell ${v ? 'is-' + v.toLowerCase() : ''} ${x.line && x.line.indexOf(i) !== -1 ? 'is-win' : ''}"
-                onclick="xoPlay(${i})" ${v || x.phase !== 'play' ? 'disabled' : ''} aria-label="${i + 1}">${v}</button>`).join('')}
+        <button type="button" class="xo-cell ${v ? 'is-' + v.toLowerCase() : ''} ${x.line && x.line.indexOf(i) !== -1 ? 'is-win' : ''} ${leaving[i] ? 'is-leaving' : ''}"
+                onclick="xoPlay(${i})" ${v || x.phase !== 'play' ? 'disabled' : ''} aria-label="${i + 1}">${v}${gone && gone.cell === i && !v
+                  ? `<span class="xo-cell__gone is-${gone.mark.toLowerCase()}" aria-hidden="true">${gone.mark}</span>` : ''}</button>`).join('')}
     </div>
     <div class="view-actions">
       ${x.phase === 'done'

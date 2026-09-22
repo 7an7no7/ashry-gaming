@@ -112,7 +112,8 @@ await writeFile(path.join(out, 'index.html'), html, 'utf8');
    the network before the saved copy is shown, or a weak connection held the app
    on a blank page. The pinned CDN files (fonts, confetti, QR) are cache-first,
    since their URLs never change; only good answers are kept (a failed one used
-   to stay cached for the whole build). Room traffic is never cached: it is POSTs
+   to stay cached for the whole build), and the page asks for them again once
+   the worker is in charge, so a first visit is enough to play offline. Room traffic is never cached: it is POSTs
    and WebSockets, which this never touches. */
 const SW = `const CACHE = 'ashry-${buildId}';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
@@ -129,8 +130,11 @@ self.addEventListener('activate', (event) => {
 });
 
 const NET_WAIT_MS = 3000;
-const keep = (req, res) => {
-  if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+// A good answer is kept. So is an opaque one from the pinned hosts: the fonts'
+// stylesheet is asked for without CORS, so its status can't be read - and
+// refusing it left the app with no fonts offline.
+const keep = (req, res, pinned) => {
+  if (res && (res.ok || (pinned && res.type === 'opaque'))) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
   return res;
 };
 
@@ -140,7 +144,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   if (PINNED.indexOf(url.hostname) !== -1) {
-    event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => keep(req, res))));
+    event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => keep(req, res, true))));
     return;
   }
   if (url.origin !== self.location.origin) return;

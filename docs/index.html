@@ -53,7 +53,7 @@
       #app-loader {
         position: fixed;
         inset: 0;
-        z-index: 9999;
+        z-index: var(--z-intro, 9999);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -257,6 +257,35 @@
   --dur-4: 460ms;  /* celebratory */
   --press-scale: 0.965;
 
+  /* --- Layers, bottom to top ---
+     Everything that sits on the page rather than inside one component takes
+     one of these, so a new popup can't land under a toast, or a flying card
+     under the header, by picking a number. Small numbers inside a component
+     (a card's corner, a piece on a board) stay local. The values are the ones
+     each layer always had; only the names are new (22 Sep 2026). */
+  --z-chrome:     20;       /* the header and the bottom bar */
+  --z-banner:     25;       /* "you're in a room", under the header */
+  --z-float:      60;       /* over the page: the turn banner, the sync note, a game's ghosts */
+  --z-float-hi:   90;       /* ghosts that pass over those */
+  --z-modal:      100;      /* popups and sheets */
+  --z-alert:      200;      /* an alert over a popup */
+  --z-confirm:    250;      /* a confirm over an alert */
+  --z-toast:      400;
+  --z-splash:     9000;     /* a room dealing a game, on every phone */
+  --z-intro:      9999;     /* the intro (Controller.html's first-paint CSS) */
+  --z-fx:         10000;    /* a card game's motion, over the whole table */
+  --z-fx-ghost:   10001;    /*   a card or tile in flight, a ring */
+  --z-fx-pop:     10002;    /*   a pop, a spark, a sign */
+  --z-fx-stamp:   10003;    /*   a stamp, a band across the table */
+  --z-fx-top:     10004;    /*   an UNO! shout, over all of it */
+  --z-full:       99990;    /* a full-screen tool (على راسك) */
+  --z-full-top:   99999;    /* مين يبدأ, over one */
+  --z-full-modal: 100010;   /* a popup over a full-screen tool */
+  --z-full-toast: 100020;   /* a toast over that */
+  --z-points:     100030;   /* points flying to the board */
+  --z-slam:       100040;   /* وقف's slam */
+  --z-confetti:   100050;   /* over everything (JS_Sounds.html reads it) */
+
   /* --- Layout --- */
   --shell-max: 32.5rem;
   --header-h: 3.5rem;
@@ -455,7 +484,7 @@ p { margin: 0; }
   min-height: var(--header-h);
   padding: var(--safe-top) var(--sp-3) 0;
   position: relative;
-  z-index: 20;
+  z-index: var(--z-chrome);
 }
 
 .shell__title {
@@ -499,7 +528,7 @@ p { margin: 0; }
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
-  z-index: 25;
+  z-index: var(--z-banner);
   animation: slideDownFade 0.25s var(--ease-out);
 }
 
@@ -667,7 +696,7 @@ p { margin: 0; }
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   border-top: 1px solid var(--border);
-  z-index: 20;
+  z-index: var(--z-chrome);
 }
 
 .nav-item {
@@ -731,7 +760,7 @@ p { margin: 0; }
   inset-inline-start: 0.5rem;
   width: 0.4375rem; height: 0.4375rem;
   border-radius: 50%;
-  z-index: 60;
+  z-index: var(--z-float);
   opacity: 0;
   transition: opacity var(--dur-2) var(--ease-out);
 }
@@ -943,17 +972,14 @@ body.theme-transition *:not(#app-loader):not(#app-loader *) {
    which is why three unrelated actions in a row could end up three different
    colours. Call sites now use the tiers above; these aliases stay as a safety
    net so a class left behind anywhere still renders as a proper button rather
-   than as bare text. Colour comes from the screen's accent.
+   than as bare text. Colour comes from the screen's accent. (.btn-red went on
+   22 Sep 2026: white on --danger is 3.67:1 in dark mode, and nothing used it.
+   Meaning comes from .btn--danger, on --danger-btn / --danger-on.)
    -------------------------------------------------------------------------- */
 .btn-blue, .btn-green, .btn-purple, .btn-orange, .btn-indigo {
   background: var(--accent);
   color: var(--accent-on);
   box-shadow: 0 6px 18px -6px var(--accent-glow), var(--sh-inset);
-}
-.btn-red {
-  background: var(--danger);
-  color: #fff;
-  box-shadow: 0 6px 18px -6px rgba(225, 29, 72, 0.4), var(--sh-inset);
 }
 .btn-gray {
   background: transparent;
@@ -1657,7 +1683,7 @@ select {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--z-modal);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1670,8 +1696,8 @@ select {
 }
 @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
 
-#alert-modal { z-index: 200; }
-#custom-confirm-modal { z-index: 250; }
+#alert-modal { z-index: var(--z-alert); }
+#custom-confirm-modal { z-index: var(--z-confirm); }
 
 /* The dialog. Sheets with a header, a scrolling body and a footer (help,
    settings) keep those pinned and get the wider column; everything else is a
@@ -1769,8 +1795,8 @@ body.is-fullscreen-view .shell__nav { display: none !important; }
 /* The full-screen tools sit at z-index 99990+, so their own popups (the chess
    clock's time, "time's up") and toasts have to come above them or ⚙️ seems to
    do nothing. */
-body.is-fullscreen-view .modal-overlay { z-index: 100010; }
-body.is-fullscreen-view .toast { z-index: 100020; }
+body.is-fullscreen-view .modal-overlay { z-index: var(--z-full-modal); }
+body.is-fullscreen-view .toast { z-index: var(--z-full-toast); }
 
 /* --- Settings sheet rows ------------------------------------------------ */
 .setting-row {
@@ -1807,7 +1833,7 @@ body.is-fullscreen-view .toast { z-index: 100020; }
   position: fixed;
   inset-inline: var(--sp-4);
   bottom: calc(var(--nav-h) + var(--safe-bottom) + var(--sp-3));
-  z-index: 400;
+  z-index: var(--z-toast);
   max-width: calc(var(--shell-max) - var(--sp-8));
   margin-inline: auto;
   display: flex;
@@ -2151,7 +2177,10 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
   padding: 0;
   border: 0;
   border-radius: var(--r-xs);
-  background: var(--surface-3);
+  /* White paper with a hairline and a lower edge, like the phone's own keys:
+     --surface-3 is #f7f5f1 on a #f5f3ee page, and the keyboard all but vanished. */
+  background: var(--surface-solid);
+  box-shadow: 0 1px 0 var(--border-strong), inset 0 0 0 1px var(--border);
   color: var(--text-strong);
   font-family: var(--font);
   font-size: 0.95rem;
@@ -2160,6 +2189,9 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
   touch-action: manipulation;
   transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
 }
+/* The dark page is ink, so the lighter surface reads there. :where keeps it
+   weightless, so the right/present/absent colours below still win. */
+:where(body.dark) .key { background: var(--surface-3); }
 .key:active { transform: translateY(1px) scale(0.94); background: var(--accent-soft); }
 .key--wide { flex: 1.6 1 0; font-size: 1.05rem; }
 .key--correct { background: var(--success-btn); color: var(--success-on); }
@@ -3566,6 +3598,19 @@ html:has(> body.is-tv-view) { font-size: 100% !important; }
   .wordle-layout { flex-direction: row; align-items: stretch; gap: var(--sp-4); }
   .wordle-layout__board { flex: 1 1 0; min-width: 0; }
   .wordle-layout > .keypad { flex: 1.35 1 0; min-width: 0; justify-content: center; }
+  /* The grid is sized by its board's box, whichever of the two runs out first.
+     Sized off its own height it came out wider than its column (256px in 229)
+     and a word of eight spilled a hundred pixels into the keyboard. */
+  @supports (width: 1cqh) {
+    .wordle-layout__board { container-type: size; }
+    .wordle-grid {
+      height: auto;
+      max-height: none;
+      max-width: none;
+      width: min(100cqw, 100cqh * var(--wordle-cols) / var(--wordle-rows));
+    }
+    .wordle-cell { font-size: min(1.4rem, min(100cqw, 100cqh * var(--wordle-cols) / var(--wordle-rows)) / var(--wordle-cols) * 0.56); }
+  }
 
   /* Chess clock and reaction duel: one player at each end */
   #view-play-chess, #view-play-reaction { flex-direction: row; }
@@ -3691,6 +3736,13 @@ html:has(> body.is-tv-view) { font-size: 100% !important; }
   .sheet__footer { padding: var(--sp-2) var(--sp-5) var(--sp-3); }
 
   .key { height: 2.875rem; }
+  /* Wordle: the keys are what is tapped every turn. Beside a board as tall as
+     the screen, twelve Arabic keys were 23px each; the keyboard now takes the
+     width 28px keys need (35px in English) and the height the rows can use,
+     and the board takes what is left. */
+  .wordle-layout { gap: var(--sp-3); }
+  .wordle-layout > .keypad { flex: 0 0 auto; width: min(24rem, 68%); }
+  .wordle-layout > .keypad .key { height: 3.25rem; }
   .draw-layout__head .card { padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); }
   .draw-layout__head .metric--md { font-size: 1.35rem; }
   .cn-card { aspect-ratio: auto; min-height: 3rem; }
@@ -4914,6 +4966,25 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 .xo-cell.is-x { color: var(--accent-ink); }
 .xo-cell.is-o { color: var(--danger-ink); }
 .xo-cell.is-win { background: var(--success-soft); border-color: var(--success); }
+/* 3 marks only: a side's oldest waits faded, and the one a move took off fades out where it stood. */
+.xo-cell { position: relative; }
+.xo-cell.is-leaving { opacity: 0.4; }
+.xo-cell__gone {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;                 /* the end state: gone, with or without the motion */
+  pointer-events: none;
+  animation: xo-gone 460ms var(--ease-in) both;
+}
+.xo-cell__gone.is-x { color: var(--accent-ink); }
+.xo-cell__gone.is-o { color: var(--danger-ink); }
+@keyframes xo-gone {
+  from { opacity: 0.4; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.55); }
+}
+.xo-rule { margin: calc(-1 * var(--sp-2)) 0 var(--sp-3); text-align: center; font-size: var(--fs-sm, 0.8125rem); font-weight: var(--fw-body); color: var(--text-3); }
 
 /* A phone on its side, and every wide screen: the board takes the height and
    the tally, the turn and the buttons sit in a column beside it (the owner,
@@ -4927,9 +4998,10 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
     column-gap: var(--sp-6);
     align-items: start;
   }
-  #xo-stage { grid-template-areas: "board tally" "board status" "board actions" "board ."; }
+  #xo-stage { grid-template-areas: "board tally" "board status" "board rule" "board actions" "board ."; grid-template-rows: auto auto auto auto minmax(0, 1fr); }
   #xo-stage .xo-tally { grid-area: tally; }
   #xo-stage .xo-status { grid-area: status; }
+  #xo-stage .xo-rule { grid-area: rule; margin-top: 0; }
   #xo-stage .xo-board { grid-area: board; width: min(calc(var(--app-h, 100vh) - var(--header-h) - 3rem), 60vw); margin: 0; container-type: inline-size; }
   #xo-stage .xo-cell { font-size: 18cqw; }
   #memory-stage { grid-template-areas: "grid bar" "grid actions" "grid ." "grid ."; }
@@ -4943,7 +5015,7 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 #view-play-chooser {
   position: fixed;
   inset: 0;
-  z-index: 99999;
+  z-index: var(--z-full-top);
   display: flex;
   flex-direction: column;
   background: #0f172a;
@@ -5861,7 +5933,7 @@ body.has-fx.has-chat:not(.is-tv-view) .chat-fab { display: inline-flex; }
 /* --- "دورك!" ---------------------------------------------------------------- */
 .turn-banner {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-float);
   top: calc(var(--safe-top) + var(--header-h) + var(--sp-2));
   inset-inline: var(--sp-4);
   max-width: 26rem;
@@ -6205,7 +6277,7 @@ input.stepper__value:focus { border: 0; box-shadow: none; }
 .motion-ghost {
   position: fixed;
   left: 0; top: 0;
-  z-index: 10000;
+  z-index: var(--z-fx);
   line-height: 1;
   white-space: nowrap;
   pointer-events: none;
@@ -6228,7 +6300,7 @@ input.stepper__value:focus { border: 0; box-shadow: none; }
 .game-splash {
   position: fixed;
   inset: 0;
-  z-index: 9000;
+  z-index: var(--z-splash);
   display: grid;
   place-items: center;
   /* No backdrop blur: under the splash the room's screen is being rebuilt and
@@ -6524,7 +6596,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 /* Flying pieces: a Connections tile on its way into its row, a name dealt into its team. */
 .connect-ghost {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-float);
   margin: 0;
   pointer-events: none;
   will-change: transform, opacity;
@@ -6533,7 +6605,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 60;
+  z-index: var(--z-float);
   padding: var(--sp-2) var(--sp-4);
   border: 1px solid var(--border);
   border-radius: var(--r-full);
@@ -6549,7 +6621,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 /* The points you just won, floating onto your row of the board. */
 .fly-points {
   position: fixed;
-  z-index: 100030;
+  z-index: var(--z-points);
   padding: 0.1em 0.5em;
   border-radius: var(--r-sm);
   background: var(--success-btn);
@@ -6568,7 +6640,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .slam {
   position: fixed;
   inset: 0;
-  z-index: 100040;
+  z-index: var(--z-slam);
   display: grid;
   place-content: center;
   gap: var(--sp-2);
@@ -6701,6 +6773,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   .result-list--reveal *, .spy-reveal, .spy-reveal__q, .podium--rise *, .tv-podium--rise * { animation: none; }
   .spy-reveal__cover { display: none; }
   .hold-card > *, .hold-next { transition: none; }
+  .xo-cell__gone { animation: none; }
 }
 
 
@@ -7107,7 +7180,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .strands-word.motion-landed { animation: solo-land 320ms var(--ease-out); }
 .strands-ghost {
   position: fixed;
-  z-index: 90;
+  z-index: var(--z-float-hi);
   display: grid;
   place-items: center;
   border-radius: var(--r-sm);
@@ -7206,7 +7279,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .pin-clue.is-new { animation: pin-flip 420ms var(--ease-out) both; transform-origin: center top; }
 @keyframes pin-flip { from { transform: rotateX(-90deg); opacity: 0; } to { transform: none; opacity: 1; } }
 .pin-ask { margin-bottom: var(--sp-2); color: var(--text-strong); font-weight: 800; text-align: center; }
-.pin-ghost { position: fixed; z-index: 90; color: var(--success-ink); font-size: 1.6rem; font-weight: 900; pointer-events: none; }
+.pin-ghost { position: fixed; z-index: var(--z-float-hi); color: var(--success-ink); font-size: 1.6rem; font-weight: 900; pointer-events: none; }
 
 /* --- Quiz streak --- */
 .streak-card {
@@ -7424,7 +7497,7 @@ button.herd-group { cursor: pointer; }
 #view-play-headsup {
   position: fixed;
   inset: 0;
-  z-index: 99990;
+  z-index: var(--z-full);
   display: flex;
   flex-direction: column;
   background: var(--bg, var(--surface-2));
@@ -8355,7 +8428,7 @@ button.herd-group { cursor: pointer; }
 .skr-log li { padding: 0.4rem 0.7rem; border-radius: var(--r-sm); background: var(--surface-2); color: var(--text); font-size: var(--fs-sm); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
 
 /* --- Flights, signs, landings --- */
-.skr-ghost { position: fixed; left: 0; top: 0; z-index: 10001; pointer-events: none; transform-origin: center; will-change: transform; }
+.skr-ghost { position: fixed; left: 0; top: 0; z-index: var(--z-fx-ghost); pointer-events: none; transform-origin: center; will-change: transform; }
 .skr-ghost__flip { position: relative; width: 100%; height: 100%; will-change: transform; }
 .skr-ghost__face { position: absolute; inset: 0; }
 .skr-ghost__face--b { opacity: 0; }
@@ -8368,7 +8441,7 @@ button.herd-group { cursor: pointer; }
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 10002;
+  z-index: var(--z-fx-pop);
   padding: 0.1em 0.45em;
   border-radius: var(--r-full);
   background: var(--surface-solid);
@@ -8588,18 +8661,18 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 @keyframes skr-spin { to { transform: rotate(1turn); } }
 
 /* --- The layers the moves draw over the page (JS_RoomScrew.html, the flights) --- */
-.skr-sign { position: fixed; left: 0; top: 0; z-index: 10002; font-size: 1.6rem; line-height: 1; pointer-events: none; will-change: transform; }
+.skr-sign { position: fixed; left: 0; top: 0; z-index: var(--z-fx-pop); font-size: 1.6rem; line-height: 1; pointer-events: none; will-change: transform; }
 .skr-sign--big { font-size: 2.4rem; }
-.skr-ring { position: fixed; z-index: 10001; border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
+.skr-ring { position: fixed; z-index: var(--z-fx-ghost); border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
 .skr-ring--danger { border-color: var(--danger); }
 .skr-ring--success { border-color: var(--success); }
-.skr-spark { position: fixed; left: 0; top: 0; z-index: 10002; color: var(--warning); font-size: 0.9rem; line-height: 1; pointer-events: none; }
+.skr-spark { position: fixed; left: 0; top: 0; z-index: var(--z-fx-pop); color: var(--warning); font-size: 0.9rem; line-height: 1; pointer-events: none; }
 .skr-spark--danger { color: var(--danger); }
 .skr-stamp {
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 10003;
+  z-index: var(--z-fx-stamp);
   padding: 0 0.3em;
   border: 3px solid currentColor;
   border-radius: 0.3em;
@@ -8618,7 +8691,7 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 10003;
+  z-index: var(--z-fx-stamp);
   padding: 0.5rem 1.2rem;
   overflow: hidden;
   border-radius: var(--r-full);
@@ -8635,13 +8708,13 @@ body.is-tv-view .skr-pop--big { font-size: 9vmin; }
 .skr-band--success { background: var(--success-btn); color: var(--success-on); }
 .skr-sweep {
   position: fixed;
-  z-index: 10001;
+  z-index: var(--z-fx-ghost);
   border-radius: var(--r-md);
   background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--warning) 45%, transparent) 50%, transparent 80%);
   pointer-events: none;
 }
 .skr-sweep--lock { background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--accent) 40%, transparent) 50%, transparent 75%); }
-.skr-link { position: fixed; z-index: 10002; border-radius: 2px; background: var(--success); transform-origin: left center; pointer-events: none; }
+.skr-link { position: fixed; z-index: var(--z-fx-pop); border-radius: 2px; background: var(--success); transform-origin: left center; pointer-events: none; }
 .skr-sign.is-tv { font-size: 5vmin; }
 .skr-sign--big.is-tv { font-size: 8vmin; }
 .skr-spark.is-tv { font-size: 2.6vmin; }
@@ -9948,7 +10021,7 @@ body.dark .uno-card--face.uno-c--k { box-shadow: inset 0 0 0 1px rgba(255, 255, 
 .uno-lobby__sub { margin-top: calc(var(--sp-2) * -1); }
 
 /* --- Flights, signs, landings --- */
-.uno-ghost { position: fixed; left: 0; top: 0; z-index: 10001; pointer-events: none; transform-origin: center; will-change: transform; }
+.uno-ghost { position: fixed; left: 0; top: 0; z-index: var(--z-fx-ghost); pointer-events: none; transform-origin: center; will-change: transform; }
 .uno-ghost__flip { position: relative; width: 100%; height: 100%; will-change: transform; }
 .uno-ghost__face { position: absolute; inset: 0; }
 .uno-ghost__face--b { opacity: 0; }
@@ -9960,7 +10033,7 @@ body.dark .uno-card--face.uno-c--k { box-shadow: inset 0 0 0 1px rgba(255, 255, 
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 10002;
+  z-index: var(--z-fx-pop);
   padding: 0.1em 0.45em;
   border-radius: var(--r-full);
   background: var(--surface-solid);
@@ -9972,7 +10045,7 @@ body.dark .uno-card--face.uno-c--k { box-shadow: inset 0 0 0 1px rgba(255, 255, 
   pointer-events: none;
 }
 .uno-pop--big { background: transparent; box-shadow: none; font-size: 2.2rem; }
-.uno-ring { position: fixed; z-index: 10001; border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
+.uno-ring { position: fixed; z-index: var(--z-fx-ghost); border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
 .uno-ring--r { border-color: var(--uno-r); border-width: 5px; }
 .uno-ring--y { border-color: var(--uno-y); border-width: 5px; }
 .uno-ring--g { border-color: var(--uno-g); border-width: 5px; }
@@ -9982,7 +10055,7 @@ body.dark .uno-card--face.uno-c--k { box-shadow: inset 0 0 0 1px rgba(255, 255, 
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 10003;
+  z-index: var(--z-fx-stamp);
   display: grid;
   place-items: center;
   padding: 0.1em 0.35em;
@@ -9998,13 +10071,13 @@ body.dark .uno-card--face.uno-c--k { box-shadow: inset 0 0 0 1px rgba(255, 255, 
 }
 .uno-stamp .uno-icon { width: 2.2rem; height: 2.2rem; stroke-width: 2.8; }
 .uno-stamp--danger { color: var(--danger-ink); }
-.uno-spark { position: fixed; left: 0; top: 0; z-index: 10002; color: var(--warning); font-size: 0.9rem; line-height: 1; pointer-events: none; }
+.uno-spark { position: fixed; left: 0; top: 0; z-index: var(--z-fx-pop); color: var(--warning); font-size: 0.9rem; line-height: 1; pointer-events: none; }
 .uno-spark--shout { color: var(--uno-tag); }
 .uno-shout {
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 10004;
+  z-index: var(--z-fx-top);
   padding: 0.15em 0.55em;
   border-radius: var(--r-full);
   background: var(--uno-tag);
@@ -10484,14 +10557,14 @@ button.dom-seatchip { cursor: pointer; transition: transform var(--dur-2) var(--
 .dom-seatchip__n { color: var(--text-3); font-size: var(--fs-xs); }
 
 /* --- Flights, signs, landings --- */
-.dom-ghost { position: fixed; z-index: 10001; pointer-events: none; transform-origin: center; will-change: transform; }
+.dom-ghost { position: fixed; z-index: var(--z-fx-ghost); pointer-events: none; transform-origin: center; will-change: transform; }
 .dom-ghost > .dt { box-shadow: inset 0 -2px 0 rgba(120, 90, 40, 0.18), 0 calc(var(--u, 1.5rem) * 0.1) 0 var(--dom-edge), 0 0.6rem 1.2rem -0.4rem var(--dom-shade); }
 .dom-hold { visibility: hidden; }
 .dom-pop {
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 10002;
+  z-index: var(--z-fx-pop);
   padding: 0.1em 0.55em;
   border-radius: var(--r-full);
   background: var(--surface-solid);
@@ -10507,12 +10580,12 @@ button.dom-seatchip { cursor: pointer; transition: transform var(--dur-2) var(--
 .dom-pop--spinner { background: var(--accent); color: var(--accent-on); }
 .dom-pop--knock { background: var(--warning-btn); color: var(--warning-on); }
 .dom-pop--big { background: transparent; box-shadow: none; font-size: 2rem; }
-.dom-ring { position: fixed; z-index: 10001; border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
+.dom-ring { position: fixed; z-index: var(--z-fx-ghost); border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
 .dom-band {
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 10002;
+  z-index: var(--z-fx-pop);
   padding: 0.45rem 1.3rem;
   border-radius: var(--r-full);
   box-shadow: var(--sh-4);
@@ -17560,7 +17633,7 @@ const bankOnlyMove = (g, pid) => {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260922120535";
+      window.BUILD_ID = "20260922133014";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -18308,6 +18381,13 @@ const bankOnlyMove = (g, pid) => {
               <button type="button" class="segmented__item is-active" data-value="X" onclick="setXOOption('human', 'X')">X</button>
               <button type="button" class="segmented__item" data-value="O" onclick="setXOOption('human', 'O')">O</button>
             </div>
+          </div>
+          <div class="field">
+            <label class="switch-row" for="xo-three">
+              <span class="field__label" data-i18n="xo_three">3 علامات بس لكل واحد</span>
+              <span class="switch"><input type="checkbox" id="xo-three" role="switch" onchange="setXOOption('three', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+            </label>
+            <p class="field__hint" data-i18n="xo_three_hint">العلامة الرابعة بتمسح أقدم علامة ليك، فمفيش تعادل: اللعب بيكمل لحد ما حد يعمل 3 في صف.</p>
           </div>
           <button onclick="startXO()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
         </div>
@@ -22094,6 +22174,9 @@ const bankOnlyMove = (g, pid) => {
       xo_easy: "سهل",
       xo_hard: "صعب",
       xo_side_label: "أنت تلعب بـ",
+      xo_three: "3 علامات بس لكل واحد",
+      xo_three_hint: "العلامة الرابعة بتمسح أقدم علامة ليك، فمفيش تعادل: اللعب بيكمل لحد ما حد يعمل 3 في صف.",
+      xo_three_play: "3 علامات بس: العلامة الباهتة هتختفي مع حركتك",
       xo_you: "أنت",
       xo_phone: "الموبايل",
       xo_player: "لاعب",
@@ -24440,6 +24523,9 @@ const bankOnlyMove = (g, pid) => {
       xo_easy: "Easy",
       xo_hard: "Hard",
       xo_side_label: "You play as",
+      xo_three: "Only 3 marks each",
+      xo_three_hint: "Your 4th mark removes your oldest, so there are no draws: play goes on until someone makes three in a row.",
+      xo_three_play: "3 marks only: the faded mark goes with this move",
       xo_you: "You",
       xo_phone: "Phone",
       xo_player: "Player",
@@ -26454,6 +26540,20 @@ const bankOnlyMove = (g, pid) => {
     if (!window.STATIC_SITE || !('serviceWorker' in navigator)) return;
     const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    // The fonts, confetti and the QR come from outside. On a first visit they
+    // load before the worker is in charge, so it never saw them, and offline the
+    // app lost its fonts. Once a worker controls the page, ask for them again
+    // through it so it keeps them: a few requests, almost always answered from
+    // the browser's own cache, well after the app has started.
+    const warm = () => setTimeout(() => {
+      try {
+        const pinned = /^https:\/\/(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
+        performance.getEntriesByType('resource').map(e => e.name).filter(u => pinned.test(u))
+          .forEach(u => fetch(u, { mode: 'cors', credentials: 'omit' }).catch(() => {}));
+      } catch (e) {}
+    }, 5000);
+    if (hadController) warm();
+    else navigator.serviceWorker.addEventListener('controllerchange', warm, { once: true });
     // A new build's worker takes over an open page (skipWaiting + claim). Say so
     // once, with a tap to load it - an iPhone home-screen copy can stay open for
     // days and has no reload button. Not on a first visit, when there was no
@@ -28563,7 +28663,13 @@ const GAME_RULES = {
                 <li>لوحة 3×3. X يبدأ، وكل واحد يحط علامته في خانة فاضية بالدور.</li>
                 <li>أول واحد يعمل <b>3 في صف</b> (أفقي، رأسي أو مايل) يكسب. اللوحة اتملت؟ تعادل.</li>
                 <li>ضد الموبايل: <b>سهل</b> بيغلط أحياناً، <b>صعب</b> مش بيتغلب. الجولة الجديدة يبدأها الطرف التاني.</li>
-            </ol>`,
+            </ol>
+            <p class="help-sub">🔁 3 علامات بس</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>مفتاح في الإعدادات، مقفول في الأول. كل واحد له <b>3 علامات بس</b> على اللوحة: الرابعة بتمسح أقدم علامة ليه.</li>
+                <li>في دورك، أقدم علامة ليك بتبان <b>باهتة</b>: هي اللي هتختفي مع حركتك، ومتقدرش تحط الجديدة مكانها (لسه على اللوحة وانت بتختار). في دور التاني مش بتبان، فلازم تفتكر أقدم علامة ليه.</li>
+                <li><b>مفيش تعادل</b>: اللعب بيكمل لحد ما حد يعمل 3 في صف. الموبايل بيلعبها هو كمان، سهل وصعب، بس الصعب هنا ممكن يتغلب.</li>
+            </ul>`,
         connect4: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>لوحة زرقا واقفة، وكل واحد له لون: أحمر أو أصفر. بالدور، كل واحد ينزّل قطعة في عمود، والقطعة بتقع لحد أوطى خانة فاضية فيه.</li>
@@ -29581,7 +29687,13 @@ const GAME_RULES = {
                 <li>A 3×3 board. X starts, and you take turns placing your mark in an empty cell.</li>
                 <li>First to make <b>three in a row</b> (across, down or diagonally) wins. Full board? A draw.</li>
                 <li>Against the phone: <b>easy</b> slips up now and then, <b>hard</b> cannot be beaten. The other side opens the next round.</li>
-            </ol>`,
+            </ol>
+            <p class="help-sub">🔁 Only 3 marks</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>A switch in the options, off at first. Each side keeps <b>only 3 marks</b> on the board: your 4th removes your oldest.</li>
+                <li>On your turn your oldest mark shows <b>faded</b>: it is the one your move will remove, and the new mark can't go on its square (it is still on the board while you choose). On the other side's turn nothing is faded, so remembering their oldest is up to you.</li>
+                <li><b>No draws</b>: play goes on until someone makes three in a row. The phone plays it too, easy and hard, but hard can be beaten here.</li>
+            </ul>`,
         connect4: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>A blue board standing up, and a colour each: red or yellow. Take turns dropping a disc into a column; it falls to the lowest empty cell.</li>
@@ -33313,7 +33425,7 @@ function toggleResults() {
         // Everything else this phone kept under the app's name - bests, the
         // daily streak, room options, the last name - except how the device
         // itself is set up (motion, screen size, the home-screen install).
-        const KEEP = ['ashryMotion', 'ashryUiScale', 'ashryInstallHaveIt', 'ashryInstalledIcon', 'ashryInstallAskedAt', 'ashryIconSnooze'];
+        const KEEP = ['ashryMotion', 'ashryUiScale', 'ashryInstallHaveIt', 'ashryInstalledIcon', 'ashryInstallAskedAt', 'ashryIconSnooze', 'ashryPlayedOnce'];
         try {
             Object.keys(localStorage)
                 .filter(k => k.indexOf('ashry') === 0 && KEEP.indexOf(k) === -1)
@@ -33394,7 +33506,10 @@ function toggleResults() {
      where Chrome allows it, a real one-tap install button instead of steps.
      Only on a phone (not a tablet, a computer or a TV), never in the
      home-screen copy, never over a game or a room: it waits until the home,
-     مع بعض or الأدوات is on screen and the intro has gone. Once a visit: a
+     مع بعض or الأدوات is on screen and the intro has gone - and only once
+     this phone has played something (been on a game's play screen and come
+     back): a first visit used to get it straight after the intro, before a
+     single game, which is the moment it is easiest to dismiss. Once a visit: a
      visit is a page load at least INSTALL_VISIT_GAP_MS after the last ask,
      so a reload mid-evening doesn't ask again, and tomorrow does. "I already
      added it" stops it in this browser for good (a browser can't see the
@@ -33404,6 +33519,12 @@ function toggleResults() {
   const INSTALL_HAVE_KEY = 'ashryInstallHaveIt';
   const INSTALL_VISIT_GAP_MS = 30 * 60 * 1000;
   const INSTALL_ROOT_VIEWS = ['menu', 'together', 'tools'];
+  const INSTALL_PLAYED_KEY = 'ashryPlayedOnce';
+  // Played: left a game's play screen, one phone or a room (not the lobby, not a TV).
+  onLeaveScreen((from) => {
+      if (!/^play-/.test(from) && !(/^room-/.test(from) && from !== 'room-lobby' && from !== 'room-tv')) return;
+      try { localStorage.setItem(INSTALL_PLAYED_KEY, '1'); } catch (e) {}
+  });
   let installAskPending = true;     // this page load hasn't asked yet
   let installPromptEvent = null;    // Chrome's install prompt, kept for our own button
 
@@ -33485,16 +33606,19 @@ function toggleResults() {
       if (!installAskPending) return;
       let have = false;
       let last = 0;
+      let played = true;
       try {
           have = localStorage.getItem(INSTALL_HAVE_KEY) === '1';
           last = Number(localStorage.getItem(INSTALL_ASKED_KEY) || 0);
+          played = localStorage.getItem(INSTALL_PLAYED_KEY) === '1';
       } catch (e) { /* no storage (private browsing): ask this visit anyway */ }
       if (!installTarget() || inStandalone() || have || Date.now() - last < INSTALL_VISIT_GAP_MS) {
           installAskPending = false;
           return;
       }
-      // Not yet: somewhere else (a game, a room link), the intro still up, or
-      // another popup open. The next arrival on the home tries again.
+      // Not yet: nothing played yet, somewhere else (a game, a room link), the
+      // intro still up, or another popup open. The next arrival on the home tries again.
+      if (!played) return;
       if (INSTALL_ROOT_VIEWS.indexOf(appState.currentView) === -1) return;
       const loader = document.getElementById('app-loader');
       if (loader && loader.style.display !== 'none' && !loader.classList.contains('hidden')) return;
@@ -54006,17 +54130,31 @@ if (typeof document !== 'undefined') {
    best moves so games differ, and throws in a random move a third of the
    time on easy, which is what lets a child win now and then.
    The board is in appState.xo, so a reload keeps the game and the tally.
+
+   3 marks only (the owner, 22 Sep 2026: good players always draw): a switch
+   on the setup, off by default. Each side keeps three marks on the board; a
+   fourth takes the place of that side's oldest, which is shown faded on its
+   owner's turn only - on the other side's turn it looks like any mark, so
+   remembering the other side's oldest is part of the game (the owner) - and
+   can't be played on (it is still there while you choose). Six marks
+   never fill nine squares, so there is no draw and no limit: the game goes on
+   until someone makes three in a row. A round keeps the rule it was dealt
+   with (x.rule3), and x.order is each side's marks, oldest first.
    ========================================================================= */
 
 const XO_LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+const XO_KEEP = 3;          // marks a side keeps with the 3-marks rule
 let xoPhoneTimer = null;
+let xoGone = null;          // the mark a move just took off, for its fade: { cell, mark }
 
 function xoState() {
   if (!appState.xo) {
     appState.xo = { vs: 'phone', level: 'hard', board: Array(9).fill(''), turn: 'X', first: 'X', human: 'X',
-                    phase: 'setup', winner: '', line: null, scores: { X: 0, O: 0, D: 0 } };
+                    phase: 'setup', winner: '', line: null, scores: { X: 0, O: 0, D: 0 }, three: false };
   }
-  return appState.xo;
+  const x = appState.xo;
+  if (!x.order) x.order = { X: [], O: [] };      // a game saved before the rule existed
+  return x;
 }
 
 function setupXO() {
@@ -54037,6 +54175,8 @@ function paintXOSetup() {
   if (levelField) levelField.classList.toggle('hidden', x.vs !== 'phone');
   const sideField = document.getElementById('xo-side-field');
   if (sideField) sideField.classList.toggle('hidden', x.vs !== 'phone');
+  const three = document.getElementById('xo-three');
+  if (three) three.checked = !!x.three;
 }
 
 function setXOOption(key, value) {
@@ -54058,6 +54198,9 @@ function xoNewRound() {
   const x = xoState();
   if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
   x.board = Array(9).fill('');
+  x.order = { X: [], O: [] };
+  x.rule3 = !!x.three;
+  xoGone = null;
   x.turn = x.first;
   x.winner = '';
   x.line = null;
@@ -54088,6 +54231,16 @@ function xoPlay(i) {
 function xoPlace(i) {
   const x = xoState();
   x.board[i] = x.turn;
+  if (x.rule3) {
+    // The fourth mark takes the place of this side's oldest.
+    const mine = x.order[x.turn] || (x.order[x.turn] = []);
+    mine.push(i);
+    if (mine.length > XO_KEEP) {
+      const gone = mine.shift();
+      x.board[gone] = '';
+      xoGone = { cell: gone, mark: x.turn };
+    }
+  }
   playSound('click');
   const result = xoWinner(x.board);
   if (result) {
@@ -54135,6 +54288,7 @@ function xoPhoneMove(x) {
   const empty = x.board.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
   if (x.level === 'easy' && Math.random() < 0.35) return empty[Math.floor(Math.random() * empty.length)];
   if (empty.length === 9) return XO_OPENINGS[Math.floor(Math.random() * XO_OPENINGS.length)];
+  if (x.rule3) return xo3BestMove(x);
   const me = x.turn;
   let best = -Infinity, choices = [];
   for (const i of empty) {
@@ -54171,6 +54325,97 @@ function xoMinimax(board, turn, me, depth) {
   return result;
 }
 
+/* --- The phone with 3 marks only -------------------------------------------
+   The game has no end but a line, and the positions repeat, so there is no
+   full minimax to run: a search a few moves deep (alpha-beta, deepened while
+   the time lasts), and a judgement at the bottom that counts the lines each
+   side could still finish - leaving out a side's oldest mark when it has three,
+   since that one leaves on its owner's next move. Easy looks two moves ahead. */
+const XO3_BUDGET_MS = 180;
+const XO3_MAX_NODES = 120000;
+const XO3_WIN = 1000;
+
+function xo3Apply(s, i) {
+  const me = s.turn;
+  s.board[i] = me;
+  s.order[me].push(i);
+  let gone = -1;
+  if (s.order[me].length > XO_KEEP) { gone = s.order[me].shift(); s.board[gone] = ''; }
+  s.turn = xoOther(me);
+  return gone;
+}
+
+function xo3Undo(s, i, gone) {
+  s.turn = xoOther(s.turn);
+  const me = s.turn;
+  s.order[me].pop();
+  s.board[i] = '';
+  if (gone >= 0) { s.order[me].unshift(gone); s.board[gone] = me; }
+}
+
+const xo3Lined = (board, m) => XO_LINES.some(([a, b, c]) => board[a] === m && board[b] === m && board[c] === m);
+
+/** How good the board is for the side to move. */
+function xo3Judge(s) {
+  const score = (m) => {
+    const leaving = s.order[m].length >= XO_KEEP ? s.order[m][0] : -1;
+    let v = 0;
+    for (const line of XO_LINES) {
+      let own = 0, other = false;
+      for (const c of line) {
+        if (s.board[c] === m && c !== leaving) own++;
+        else if (s.board[c] && s.board[c] !== m) other = true;
+      }
+      if (!other) v += own === 2 ? 10 : own;
+    }
+    return v;
+  };
+  return score(s.turn) - score(xoOther(s.turn));
+}
+
+function xo3Search(s, depth, alpha, beta, ply, ctx) {
+  ctx.nodes++;
+  let best = -Infinity;
+  for (let i = 0; i < 9; i++) {
+    if (s.board[i]) continue;
+    const me = s.turn;
+    const gone = xo3Apply(s, i);
+    let v;
+    if (xo3Lined(s.board, me)) v = XO3_WIN - ply;
+    else if (depth <= 1 || ctx.nodes > XO3_MAX_NODES || Date.now() > ctx.until) v = -xo3Judge(s);
+    else v = -xo3Search(s, depth - 1, -beta, -alpha, ply + 1, ctx);
+    xo3Undo(s, i, gone);
+    if (v > best) best = v;
+    if (v > alpha) alpha = v;
+    if (alpha >= beta) break;
+  }
+  return best === -Infinity ? 0 : best;
+}
+
+function xo3BestMove(x) {
+  const s = { board: x.board.slice(), order: { X: x.order.X.slice(), O: x.order.O.slice() }, turn: x.turn };
+  const empty = s.board.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
+  const ctx = { nodes: 0, until: Date.now() + XO3_BUDGET_MS };
+  const maxDepth = x.level === 'easy' ? 2 : 12;
+  let choices = empty.slice();
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    let best = -Infinity, pick = [];
+    for (const i of empty) {
+      const me = s.turn;
+      const gone = xo3Apply(s, i);
+      const v = xo3Lined(s.board, me) ? XO3_WIN : (depth === 1 ? -xo3Judge(s) : -xo3Search(s, depth - 1, -Infinity, Infinity, 1, ctx));
+      xo3Undo(s, i, gone);
+      if (v > best) { best = v; pick = [i]; }
+      else if (v === best) pick.push(i);
+    }
+    // A depth cut short by the clock is not trusted over the last whole one.
+    if (depth > 1 && (ctx.nodes > XO3_MAX_NODES || Date.now() > ctx.until)) break;
+    choices = pick;
+    if (best >= XO3_WIN - 20) break;       // a win found: take the quickest
+  }
+  return choices[Math.floor(Math.random() * choices.length)];
+}
+
 function paintXO() {
   const x = xoState();
   const t = TRANSLATIONS[appState.lang];
@@ -54183,6 +54428,12 @@ function paintXO() {
   } else {
     status = x.vs === 'phone' && x.turn !== x.human ? (t.xo_thinking || '') : `${t.xo_turn || ''} ${nameOf(x.turn)}`;
   }
+  // With 3 marks only: the mark this move will take off, faded for the side
+  // about to move - never the other side's, which is theirs to remember.
+  const leaving = {};
+  if (x.rule3 && x.phase === 'play') { const o = x.order[x.turn] || []; if (o.length >= XO_KEEP) leaving[o[0]] = true; }
+  const gone = xoGone;
+  xoGone = null;
   el.innerHTML = `
     <div class="xo-tally">
       <div class="xo-tally__item xo-tally__item--x ${x.turn === 'X' && x.phase === 'play' ? 'is-turn' : ''}">
@@ -54194,10 +54445,12 @@ function paintXO() {
       </div>
     </div>
     <div class="xo-status ${x.phase === 'done' ? 'is-done' : ''}">${escapeHTML(status)}</div>
+    ${x.rule3 && x.phase === 'play' ? `<p class="xo-rule">${escapeHTML(t.xo_three_play || '')}</p>` : ''}
     <div class="xo-board ${x.phase === 'done' ? 'is-done' : ''}">
       ${x.board.map((v, i) => `
-        <button type="button" class="xo-cell ${v ? 'is-' + v.toLowerCase() : ''} ${x.line && x.line.indexOf(i) !== -1 ? 'is-win' : ''}"
-                onclick="xoPlay(${i})" ${v || x.phase !== 'play' ? 'disabled' : ''} aria-label="${i + 1}">${v}</button>`).join('')}
+        <button type="button" class="xo-cell ${v ? 'is-' + v.toLowerCase() : ''} ${x.line && x.line.indexOf(i) !== -1 ? 'is-win' : ''} ${leaving[i] ? 'is-leaving' : ''}"
+                onclick="xoPlay(${i})" ${v || x.phase !== 'play' ? 'disabled' : ''} aria-label="${i + 1}">${v}${gone && gone.cell === i && !v
+                  ? `<span class="xo-cell__gone is-${gone.mark.toLowerCase()}" aria-hidden="true">${gone.mark}</span>` : ''}</button>`).join('')}
     </div>
     <div class="view-actions">
       ${x.phase === 'done'
@@ -65238,6 +65491,9 @@ onLeaveScreen(() => speakStop());
     if (typeof window.confetti !== 'function' || window.confetti.__fx) return !!(window.confetti && window.confetti.__fx && !window.confetti.__overStub);
     const real = window.confetti;
     const overStub = !!real.__stub;
+    // The top layer of the scale in Style.html (--z-confetti), read once it is needed.
+    let layer = 0;
+    const confettiLayer = () => layer || (layer = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--z-confetti'), 10) || 100050);
     const wrapped = function (opts) {
       if (!(typeof roomHasScreen === 'function' && roomHasScreen())) {
         playFx('tada');
@@ -65245,7 +65501,7 @@ onLeaveScreen(() => speakStop());
       if (typeof reducedMotion === 'function' && reducedMotion()) return Promise.resolve();
       const args = Array.prototype.slice.call(arguments);
       if (!opts || typeof opts !== 'object') args[0] = {};
-      if (args[0].zIndex == null) args[0] = Object.assign({}, args[0], { zIndex: 100050 });
+      if (args[0].zIndex == null) args[0] = Object.assign({}, args[0], { zIndex: confettiLayer() });
       return real.apply(this, args);
     };
     wrapped.__fx = true;

@@ -19,6 +19,7 @@
  * Anything else is looked up in the built app (docs/, see [assets] in
  * wrangler.toml) before it reaches this code.
  */
+import { RULES_HASH } from '../generated/rules.js';
 import { Room } from './room.js';
 import { PromptMemory } from './memory.js';
 import { LiveStats } from './live.js';
@@ -155,7 +156,8 @@ export default {
     if (url.pathname === '/test') {
       return new Response(TEST_PAGE, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
     }
-    if (url.pathname === '/health') return json({ ok: true });
+    // `rules`: the fingerprint of the rules this server was built from (fingerprint.mjs).
+    if (url.pathname === '/health') return json({ ok: true, rules: RULES_HASH });
 
     return new Response('not found', { status: 404 });
   }

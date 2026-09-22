@@ -1,4 +1,4 @@
-const CACHE = 'ashry-20260922120535';
+const CACHE = 'ashry-20260922133014';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
@@ -13,8 +13,11 @@ self.addEventListener('activate', (event) => {
 });
 
 const NET_WAIT_MS = 3000;
-const keep = (req, res) => {
-  if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+// A good answer is kept. So is an opaque one from the pinned hosts: the fonts'
+// stylesheet is asked for without CORS, so its status can't be read - and
+// refusing it left the app with no fonts offline.
+const keep = (req, res, pinned) => {
+  if (res && (res.ok || (pinned && res.type === 'opaque'))) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
   return res;
 };
 
@@ -24,7 +27,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   if (PINNED.indexOf(url.hostname) !== -1) {
-    event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => keep(req, res))));
+    event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => keep(req, res, true))));
     return;
   }
   if (url.origin !== self.location.origin) return;

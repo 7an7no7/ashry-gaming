@@ -82,7 +82,12 @@
   🌈 **Uno (أونو):** the whole card game, every hand on its own phone, with
   the house rules as switches and computer players to fill the table;
   🗓️ **Timeline (قبل ولا بعد):** put an event in its place on the line,
-  before or after the cards already down.
+  before or after the cards already down;
+  **Guess Who (خمّن مين):** two duel with a secret face each, yes-or-no
+  questions from a list or out loud, winner stays on (*خمّن مين*).
+- **Words, one phone or a room:** **Hangman (المشنقة):** two on one phone
+  taking turns, or a room where one writes and everyone guesses on their own
+  board, or races on the app's word (*المشنقة*).
 - **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
   or two on one phone; ⭕ **Tic Tac Toe (إكس أو)** against a friend or an
   unbeatable minimax, with a "3 marks only" switch that ends the draws; 🔴 **Connect 4 (كونكت ٤)** and 🔲 **Dots & Boxes
@@ -119,6 +124,68 @@ work changed. Add to it when a decision is made or a batch ships.
   player wins; the higher team total wins; play on until only one qualifies).
 
 ### The owner's specs, as built
+
+- **خمّن مين (Guess Who)** - the owner's spec of 22 Sep 2026, every rule
+  asked one at a time, look ب "ألبوم" picked from a sheet of three
+  (*خمّن مين*):
+  - **A room only: two duel, the rest watch on their phones or the TV, the
+    winner stays on** (the duels' line). Not against the phone, not one phone.
+  - **Drawn faces** (hair, glasses, a cap, a beard, a moustache, earrings,
+    eye colour) with Egyptian first names, a new mix each game; never photos.
+  - **16, 24 or 30 faces**, a lobby choice, 24 by default.
+  - A turn is **one question or one guess**, never both.
+  - A question is **picked from the list** (the server answers it truthfully
+    and the whole room sees it) **or asked out loud** (the other player taps
+    yes or no) - both, the owner's answer.
+  - **After a list question the ruled-out faces fall by themselves**, a lobby
+    switch **on by default**; off, the asker flips them by hand and ends the
+    turn. **An out-loud question is always flipped by hand**: the phone never
+    heard it (the owner asked about exactly this when the switch was put).
+  - **A wrong guess loses the game**, a switch; the other way it loses the
+    turn and that face goes down.
+  - **The secret face is dealt at random**, a switch; the other way each
+    picks their own.
+  - A turn clock **off by default, 30 or 60 seconds**; it passes the turn.
+  - **Computer players, easy and hard.**
+  - Decided here: a computer player can't hear, so against one there is no
+    out-loud question; it asks from the list, hard taking the question that
+    comes closest to halving what it has left; the watchers and the TV see
+    both boards (how many faces each has put down is public, as on a real
+    table) but a secret face only once the game is over; any face can be put
+    down or back up by hand at any time; a seated player who leaves loses by
+    forfeit, as in the duels; a board never holds two faces the list can't
+    tell apart.
+
+- **المشنقة (Hangman)** - the owner's spec of 22 Sep 2026, asked one at a
+  time, look ج "نضيف" picked from a sheet of three (*المشنقة*):
+  - **Two on one phone** and **rooms**; not solo against the phone. **No
+    computer players.**
+  - A letter in the word **shows every place it stands**; one that isn't
+    draws **a piece of the man** - the owner restated this rule themselves.
+    **Six misses, the classic stick man** (chosen over friendlier pictures).
+  - **The whole word may be guessed; wrong, it costs a piece.**
+  - **In Arabic one key a letter**: ا opens أ إ آ, ه opens ة, ي opens ى; the
+    word is always shown as it is spelt. Decided here: ء ؤ ئ ٱ go with ا, و
+    and ي the same way.
+  - Rooms play two ways, a lobby choice, **"one writes, the rest guess" by
+    default**: the writer types **the word only** (no hint) and every other
+    phone guesses it **on its own board**; the writer moves round the table.
+    Or **a race**: the app deals one word to everyone, **a single word from
+    the app's lists with its category as the hint**.
+  - Scoring: a race's solve is **10 plus a bonus by order** (+5, +4 ... +1);
+    with a writer each solver scores **10** and **the writer 5 for every
+    guesser who didn't**.
+  - **3, 5 or 10 words** a game, the host's choice; a word clock **off by
+    default, 60 or 90 seconds**, and when it runs out whoever hasn't solved it
+    has failed.
+  - Two on one phone: **take turns and a running tally** - one types with the
+    letters hidden while the other looks away, the other guesses, then they
+    swap, as many words as they like.
+  - Decided here: a written word is one word of 3 to 12 letters in one
+    alphabet; the race deals 4 to 9 letters from the Chameleon boards; the TV
+    shows each player's man and how many letters they have found, never the
+    letters; a writer who leaves before writing hands the word to the next;
+    fewer than two left ends the game.
 
 - **بنك الحظ** - the owner's spec of 21 Sep 2026, every rule asked one at a
   time and then checked against another AI's rulebook; look أ "كلاسيك" and
@@ -1136,6 +1203,21 @@ the word search), `countUp` for streaks and scores.
 - **22 Sep 2026, إكس أو with 3 marks only** - the owner's rule, asked first
   (*The owner's specs*): a setup switch, off by default; on your turn your
   oldest mark is faded and goes when you place a fourth; no draws.
+- **22 Sep 2026, خمّن مين and المشنقة** - the owner asked for both; every
+  rule was put to them one question at a time and each look picked from a
+  design sheet of three (خمّن مين ب "ألبوم", المشنقة ج "نضيف"). خمّن مين is
+  the duels' winner-stays-on with a secret face on each seated phone: the
+  faces and questions in `GuessWho.js` (shared), the room in
+  `RoomGuessWho.js`, the phones and the TV in `JS_GuessWho.html`, section 24
+  of `Style.html`, computer players easy and hard. المشنقة is two on one
+  phone and rooms (one writes, or a race): `Hangman.js` (shared, the race
+  dealing from the Chameleon boards), `RoomHangman.js`, `JS_Hangman.html`,
+  section 25. Both have drawn icons. Rules tests: faces the list can always
+  tell apart, a computer player that always narrows a board to one face,
+  every rule of both rooms. The leak check plays both (a secret face, the
+  written word, each board's letters). Robot tests: 1477. Found on the way
+  (*Traps*): an iPhone gives a password field only its English keyboard,
+  and two preview tabs share one saved room session.
 
 ## Building and Running
 
@@ -1194,8 +1276,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, and the game files bundled after
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -1319,6 +1401,10 @@ is nowhere to hide the key card.
 | `RoomLudo.js` | `ludoAction`: the lobby's colours and seats, the server's dice, the clock, leaving, the bots and the forced move. Bundled after `RoomGames.js`. |
 | `BankAlhaz.js` | بنك الحظ's board, its two decks (Arabic and English), every rule as two objects - the table (`g`, a room's `shared`) and what nobody sees (`priv`, the decks) - and the computer players: shared by the page and the Worker, every name prefixed `bank`. |
 | `RoomBank.js` | `bankAction`: the lobby's pieces, seats and options, the server's dice, the turn clock, leaving, the bots and the forced moves; the decks live in `room._bank`, never projected. Bundled after `RoomGames.js`. |
+| `GuessWho.js` | خمّن مين's faces (plain features, drawn by the page), the list of questions with their truthful answers, a board every face of which the list can tell apart, and the computer's question: shared by the page and the Worker, every name prefixed `gw`. |
+| `RoomGuessWho.js` | `guessWhoAction`: the duels' seats and line (`duelSeatNext`, `duelEnd` from `RoomDuels.js`, bundled before it), the secret faces in `room._gw`, questions from the list and out loud, flipping, guessing, the clock and the bots. |
+| `Hangman.js` | المشنقة's letters, the fold (one key a letter), a written word's rules, a board and a guess, and the race's words from the Chameleon boards: shared by the page and the Worker, every name prefixed `hm`. |
+| `RoomHangman.js` | `hangmanAction`: one writes or a race, the word in `room._hm`, each board on its own phone, the points, the word clock, leaving. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -1394,7 +1480,7 @@ compared on join with the same fold as everywhere else (`sameRoomName`), so
 أحمد and احمد can't both sit in one room.
 
 **Computer players** (the owner, 21 Sep 2026: optional, easy and hard). In
-the games that register them - أونو, الدومينو, لودو and بنك الحظ - the host can seat a bot in
+the games that register them - أونو, الدومينو, لودو, بنك الحظ and خمّن مين - the host can seat a bot in
 the lobby, to play alone or to make up a table of four for teams. A bot is an
 ordinary entry in `room.players` with `bot` set to its level (`'easy'` or
 `'hard'`): it holds a seat, is dealt like anyone, and its hand is in
@@ -3160,6 +3246,82 @@ The owner's rules are in *The owner's specs*. Built the way لودو is:
   and TV frames, the turn clock and the host's "play for" a phone that went
   quiet for a minute.
 
+### خمّن مين
+
+The owner's rules are in *The owner's specs*. Built on the duels:
+
+- **`GuessWho.js`** (shared, no DOM). A face is a set of plain features
+  (`g`, `skin`, `hair`, `style`, `glasses`, `hat`, `beard`, `mous`, `ear`,
+  `eyes`, `shirt`, and `name`, an index into `GW_NAMES[g]`, one name in
+  both languages). `GW_QUESTIONS` is the list, each a feature with a plain
+  yes or no, answered by `gwAnswer`; a cap is never drawn on a bald head or
+  a bun (it would hide an answer) and a bald head has no hair colour.
+  `gwDealBoard(size)` deals half men and half women with a different answer
+  somewhere in the list for every pair (`gwSignature`), so the list alone can
+  always find any face; `rules.mjs` checks that on hundreds of boards, and
+  that the computer's questions always narrow one down to the secret face.
+  `gwBotQuestion` is the computer's question: hard the one closest to
+  halving the faces still up, easy any that splits them.
+- **`RoomGuessWho.js`** is the room, bundled after `RoomDuels.js`, whose line
+  and seats it uses: `duelSeatNext` seats the next game, `duelEnd` scores
+  one and moves the line, so the champion, the streak and the night's board
+  are the duels' own. The secret faces are `room._gw.secret`, never
+  projected; each seated phone gets its own in `room.secrets[pid].face`, and
+  `shared.reveal` only once the game is over. The stages of a turn are
+  `ask` (a list question, an out-loud one, or a guess), `answer` (the other
+  phone taps yes or no) and `flip` (faces put down by hand, then `done`).
+  `flip { face, down }` works any time in play, so a double tap is one flip.
+  Every turn move carries `seq` (`turnSeq`). The clock (`gwDeadline` /
+  `gwTimeout`) and the host's `skipTurn` pass the turn; in `pick` they
+  deal a face to whoever hasn't picked.
+- **`JS_GuessWho.html`** draws it: `gwFaceSvg` builds a face from its
+  features (a flat SVG in the look of the design sheet), `gwBoardHtml` the
+  board (16 faces 4 wide, 24 and 30 six wide, so a phone's board is short
+  enough for the bar under it), `gwBarHtml` the one bar of what to do, and
+  the pills, the line, the result and the "next game" card are the duels'
+  (`duelPillsHtml`, `duelRoomOverHtml`, `duelRoomLineHtml`). The faces a
+  question rules out fall one after another on every phone and the TV
+  (`gwNewlyDown` compares with what the phone last drew, `gwFall` staggers
+  them); a face flipped by hand is drawn at once and remembered, so the
+  server's board doesn't make it fall again. Upright the board comes under
+  your face and the last question, the bar sticky at the foot; on a phone
+  on its side and from 900px the board takes the height (`--gw-aspect`)
+  with everything else in a column beside it. The TV is both boards and the
+  question between them.
+
+### المشنقة
+
+The owner's rules are in *The owner's specs*.
+
+- **`Hangman.js`** (shared, no DOM): `HM_LETTERS` (28 Arabic keys, 26
+  English), `hmFold` (the key a letter is typed on), `hmClean`, `hmAlphaOf`,
+  `hmWordProblem` (why a written word can't be played), `hmPattern`,
+  `hmApply` (one guess, a letter or the whole word, on a board `{ g, miss,
+  state }`) and `hmPool(lang)`: the race's words, every single word of 4 to
+  9 letters on the Chameleon boards with its board's category as the hint
+  (about 800 in each language), never a list of its own.
+- **`RoomHangman.js`**: `room._hm` holds the word and every board; each
+  guesser's phone gets its own board in `room.secrets[pid]` (its letters,
+  its misses and the pattern it shows), the writer's phone the word, and
+  `shared.progress` only how far each board is (letters shown, misses,
+  solved or hanged, the order of the solves). Phases: `writing` (the host's
+  `skipTurn` moves on from a quiet writer), `guessing` (a word ends when
+  every board is done, on the clock, or on the host's `closeWord`),
+  `result` (the word published, the points banked) and `gameover` after the
+  chosen number of words. Guesses carry the word's `round`, so a tap from
+  the last word is dropped.
+- **`JS_Hangman.html`**: one board builder for one phone and a room
+  (`hmBoardHtml`: the gallows, the tiles, the wrong letters, the keys and the
+  whole-word field) and the two on one phone (`appState.hangman`, restored
+  through `soloRegister`). The man is six strokes with `pathLength="1"`,
+  drawn by letting the dash run out (`hmDrawLast`), a found letter's tile
+  turns over, a miss shakes the stage. The tiles stay on one line, shrinking
+  for a long word. On a phone on its side and from 900px the drawing and the
+  word sit beside the keys, so the whole board is on the screen. The TV
+  (`TV_GAMES.hangman`, `data-accent="orange"` so the man keeps the game's
+  colour in the room's frame) shows the kind of word, its blanks and every
+  player's man.
+
 ### لودو
 
 The owner's rules are in *The owner's specs*. Four files and a stylesheet
@@ -3614,6 +3776,20 @@ the clean-up time was behind it, the alarm fired, found the phone, and set
 itself to the same moment in the past - a loop, each run a request on the free
 plan. Every time handed to `setAlarm` is at least a second ahead now, and a
 time that is already past is replaced by the next time worth looking.
+
+**An iPhone gives a password field only its English keyboard.** المشنقة's
+writer types a word the others mustn't see, and `type="password"` looked like
+the answer - but iOS lets a secure field use only an ASCII keyboard, so the
+word could not be written in Arabic. The field is `type="text"` drawn as dots
+(`-webkit-text-security: disc`, the `is-hidden` class the eye toggles). Hide
+typed text that way everywhere.
+
+**Two preview tabs share one saved room session.** A room's session is saved
+in `localStorage`, which every tab of the preview shares: a tab reloaded (or
+opened) after another joined comes back as that other phone, and joining from
+it as a TV makes that player leave. To act as several phones, open the tabs
+and join from each without reloading - or check who a tab is (`Room.me`)
+after a reload.
 
 **Keeping only good answers loses the fonts offline.** The Google Fonts
 stylesheet is a `<link>` without `crossorigin`, so it is fetched without CORS

@@ -1,0 +1,627 @@
+<script>
+/* ============================================================================
+   خمّن مين — GUESS WHO on the phones and the TV
+   ----------------------------------------------------------------------------
+   The rules are RoomGuessWho.js; the faces and the questions GuessWho.js,
+   which this page inlines too. The line, the seats and "winner stays on" are
+   the duels' own (duelRoom* in JS_RoomConnect4.html, duelPillsHtml in
+   JS_Connect4.html), so the two games of that kind look and move alike.
+
+   The look the owner picked (22 Sep 2026, option ب "ألبوم" of a design
+   sheet of three): white cards with a pastel backdrop and the name under the
+   face, like the rest of the app; a face put down fades, shrinks and is
+   crossed out. The faces are drawn here (gwFaceSvg), never photos.
+
+   A seated phone sees its own board and its own secret face (state.you.face,
+   from room.secrets - the other one's never reaches it), the last question
+   and its answer, and one bar of what to do: ask from the list, ask out
+   loud, guess, answer the other's out-loud question, or, after an out-loud
+   question (or a list one with the app's flipping off), put the faces down
+   by hand and end the turn. A face can be flipped by hand at any time. The
+   ones watching see both boards; the TV draws both boards and the question
+   between them.
+
+   Motion: the faces a question rules out fall one after another (gwFall,
+   newest first from what this phone last showed), the answer pops, the
+   pills' ring slides, the winner's phone and the TV cheer, and at the end
+   both secret faces turn over (gwRevealHtml).
+   ========================================================================= */
+
+const GW_SKIN = ['#f6d5b8', '#e8b98f', '#c98e62', '#8d5a3b'];
+const GW_HAIR_COL = { black: '#2b2320', brown: '#6b4226', blonde: '#e0b454', red: '#b5472a', grey: '#c2beb8' };
+const GW_EYE_COL = { brown: '#5a3a22', blue: '#2f7de1', green: '#169a4a' };
+const GW_SHIRT = ['#0f766e', '#6d28d9', '#e11d48', '#f59e0b', '#2563eb', '#16a34a', '#db2777', '#475569'];
+const GW_BACK = ['#dff3ef', '#ece6fb', '#fde7ea', '#fdf0d5', '#e3ecfd', '#e3f5e6', '#fbe4f0', '#e8ebf0'];
+
+// panel: null | 'ask' | 'guess'; guess / pick: the face chosen before the confirm;
+// down: what each board last showed down, so a redraw knows which faces are newly down.
+const gwLocal = { panel: null, guess: null, pick: null, down: {}, turnKey: '', turnSince: 0, clock: null, clockKey: null };
+
+const gwT = (key, vars) => {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || key;
+  Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
+  return s;
+};
+const gwFaceName = (x) => gwName(x, appState.lang);
+const gwQText = (qi) => {
+  const q = GW_QUESTIONS[qi];
+  return q ? (appState.lang === 'en' ? q.en : q.ar) : '';
+};
+
+/** One face, drawn: the shoulders, the head, the hair, then what it wears. `bg` fills the tile behind it. */
+function gwFaceSvg(x, bg) {
+  if (!x) return '';
+  const h = GW_HAIR_COL[x.hair] || GW_HAIR_COL.black;
+  const s = GW_SKIN[x.skin] || GW_SKIN[0];
+  const o = [];
+  o.push('<svg viewBox="0 0 100 110" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">');
+  if (bg) o.push('<rect width="100" height="110" fill="' + bg + '"/>');
+  if (x.style === 'long') o.push('<path d="M25 46 C22 74 27 90 34 94 L66 94 C73 90 78 74 75 46Z" fill="' + h + '"/>');
+  o.push('<path d="M14 110 C16 88 32 80 50 80 C68 80 84 88 86 110Z" fill="' + (GW_SHIRT[x.shirt] || GW_SHIRT[0]) + '"/>');
+  o.push('<rect x="43" y="66" width="14" height="17" rx="6" fill="' + s + '" style="filter:brightness(.9)"/>');
+  o.push('<circle cx="28" cy="52" r="5.5" fill="' + s + '"/><circle cx="72" cy="52" r="5.5" fill="' + s + '"/>');
+  if (x.ear) o.push('<circle cx="27.5" cy="60" r="2.8" fill="#f5b400"/><circle cx="72.5" cy="60" r="2.8" fill="#f5b400"/>');
+  o.push('<ellipse cx="50" cy="48" rx="22" ry="25" fill="' + s + '"/>');
+  if (x.beard) o.push('<path d="M28 48 C28 70 38 77 50 77 C62 77 72 70 72 48 C69 61 62 66 50 66 C38 66 31 61 28 48Z" fill="' + h + '"/>');
+  if (x.style === 'short') o.push('<path d="M27 46 C26 27 37 20 50 20 C63 20 74 27 73 46 C68 35 59 31 50 31 C41 31 32 35 27 46Z" fill="' + h + '"/>');
+  if (x.style === 'long') o.push('<path d="M27 50 C25 27 37 19 50 19 C63 19 75 27 73 50 C70 38 64 32 50 30 C40 32 30 38 27 50Z" fill="' + h + '"/>');
+  if (x.style === 'bun') o.push('<circle cx="50" cy="15" r="9" fill="' + h + '"/><path d="M27 46 C26 27 37 21 50 21 C63 21 74 27 73 46 C68 35 59 30 50 30 C41 30 32 35 27 46Z" fill="' + h + '"/>');
+  if (x.style === 'curly') {
+    for (let k = 0; k < 7; k++) {
+      const cy = k === 0 || k === 6 ? 38 : (k === 1 || k === 5 ? 29 : 25);
+      o.push('<circle cx="' + (29 + k * 7) + '" cy="' + cy + '" r="8" fill="' + h + '"/>');
+    }
+    if (x.g === 'f') o.push('<circle cx="25" cy="50" r="7" fill="' + h + '"/><circle cx="75" cy="50" r="7" fill="' + h + '"/>');
+  }
+  const brow = x.style === 'bald' ? GW_HAIR_COL.black : h;
+  o.push('<path d="M36 40 q5 -3 10 0 M54 40 q5 -3 10 0" stroke="' + brow + '" stroke-width="2.2" fill="none" stroke-linecap="round"/>');
+  o.push('<ellipse cx="41" cy="48" rx="4" ry="3.6" fill="#fff"/><ellipse cx="59" cy="48" rx="4" ry="3.6" fill="#fff"/>');
+  const ey = GW_EYE_COL[x.eyes] || GW_EYE_COL.brown;
+  o.push('<circle cx="41" cy="48.3" r="2.6" fill="' + ey + '"/><circle cx="59" cy="48.3" r="2.6" fill="' + ey + '"/>');
+  o.push('<circle cx="41" cy="48.3" r="1.1" fill="#111"/><circle cx="59" cy="48.3" r="1.1" fill="#111"/>');
+  o.push('<path d="M50 50 q-2.6 6 0.6 7" stroke="rgba(0,0,0,.28)" stroke-width="1.8" fill="none" stroke-linecap="round"/>');
+  o.push('<path d="M43 62 Q50 67 57 62" stroke="#8a3b2e" stroke-width="2.2" fill="none" stroke-linecap="round"/>');
+  if (x.mous) o.push('<path d="M40 60.5 C43 55.5 48 57 50 58 C52 57 57 55.5 60 60.5 C56 59.2 53 59.8 50 60 C47 59.8 44 59.2 40 60.5Z" fill="' + h + '"/>');
+  if (x.glasses) o.push('<g fill="rgba(255,255,255,.18)" stroke="#1f2430" stroke-width="2.2"><rect x="33" y="42.5" width="15" height="11" rx="4.5"/><rect x="52" y="42.5" width="15" height="11" rx="4.5"/></g><path d="M48 47 h4" stroke="#1f2430" stroke-width="2.2"/>');
+  if (x.hat) o.push('<path d="M26.5 40 C26 22 37 15 50 15 C63 15 74 22 73.5 40Z" fill="#1e40af"/><path d="M48 38 C60 37 80 38 86 42 C79 44.5 62 43 48 42Z" fill="#1e3a8a"/><circle cx="50" cy="16" r="2.4" fill="#1e3a8a"/>');
+  o.push('</svg>');
+  return o.join('');
+}
+
+/** A face as a card: its picture on its backdrop and its name. */
+function gwCardInner(x) {
+  return `<span class="gw-card__pic">${gwFaceSvg(x, GW_BACK[x.shirt] || GW_BACK[0])}</span><span class="gw-card__name">${escapeHTML(gwFaceName(x))}</span>`;
+}
+
+/**
+ * A board: every face, the ones in `down` put down. `fall` holds the faces
+ * that went down since this phone last drew the board - they are drawn up and
+ * fall in gwFall once on screen. o: { tap, picked, guessing, small, fall }.
+ */
+function gwBoardHtml(s, down, o) {
+  const opt = o || {};
+  const d = down || [];
+  const fall = opt.fall || [];
+  const cols = gwCols(s.faces.length);
+  const cards = s.faces.map((x, i) => {
+    const isDown = d.indexOf(i) !== -1;
+    const cls = ['gw-card',
+      isDown && fall.indexOf(i) === -1 ? 'is-down' : '',
+      opt.picked === i ? 'is-picked' : '',
+      opt.guessing && !isDown ? 'is-aim' : ''].join(' ');
+    const attrs = opt.tap ? `type="button" data-gw-face="${i}"` : 'type="button" tabindex="-1" disabled';
+    return `<button ${attrs} class="${cls}" aria-label="${escapeHTML(gwFaceName(x))}${isDown ? ' ✕' : ''}">${gwCardInner(x)}</button>`;
+  }).join('');
+  return `<div class="gw-board ${opt.small ? 'gw-board--small' : ''}" style="--gw-cols:${cols}">${cards}</div>`;
+}
+
+/** A board is 4 faces wide for 16, 6 for 24 (four rows) and 30 (five): short enough to fit under the bar on a phone. */
+const gwCols = (n) => (Number(n) === 16 ? 4 : 6);
+
+/** A board's width over its height (a card is 5 wide by 6 tall), for sizing it off the screen's height. */
+const gwAspect = (n) => {
+  const cols = gwCols(n);
+  const rows = Math.ceil(Number(n) / cols);
+  return ((cols * 5) / (rows * 6)).toFixed(3);
+};
+
+/** The faces newly down on a board since this phone last drew it (none the first time, or after a new deal). */
+function gwNewlyDown(key, down) {
+  const was = gwLocal.down[key];
+  gwLocal.down[key] = (down || []).slice();
+  if (!was || typeof motionOff !== 'function' || motionOff()) return [];
+  return (down || []).filter(i => was.indexOf(i) === -1);
+}
+
+/** The faces a question ruled out fall one after another, once they are on screen. */
+function gwFall(root, fall) {
+  if (!root || !fall.length) return;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    fall.forEach((i, n) => {
+      const card = root.children[i];
+      if (!card) return;
+      setTimeout(() => card.classList.add('is-down'), Math.min(n, 14) * 55);
+    });
+  }));
+}
+
+/** The last question and its answer, or what the table is waiting for. */
+function gwQaHtml(state, tv) {
+  const s = state.shared;
+  const names = duelRoomNames(state);
+  const q = s.q;
+  const last = (s.log || [])[(s.log || []).length - 1];
+  const pending = s.stage === 'answer' && q;
+  // The last thing that happened: a wrong guess or a turn that passed, unless a question is waiting.
+  if (!pending && last && last.kind === 'guess') {
+    return `<div class="gw-qa gw-qa--wrong ${tv ? 'gw-qa--tv' : ''}">
+        <span class="gw-qa__q">${escapeHTML(gwT('gw_guessed_wrong', { name: duelIso(names[last.seat] || ''), face: gwFaceName(s.faces[last.face]) }))}</span>
+      </div>`;
+  }
+  if (!pending && last && last.kind === 'skip') {
+    return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_skipped', { name: duelIso(names[last.seat] || '') }))}</span></div>`;
+  }
+  if (!q) return `<div class="gw-qa gw-qa--empty ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_first_q'))}</span></div>`;
+  const asker = duelIso(names[q.seat] || '');
+  const text = q.kind === 'list' ? gwT('gw_asked_list', { name: asker, q: gwQText(q.qi) }) : gwT('gw_asked_loud', { name: asker });
+  const answered = typeof q.answer === 'boolean';
+  const pop = answered && motionFirst(['gw-qa', state.code, s.round, s.log.length, q.seat].join('|'));
+  const ans = answered
+    ? `<span class="gw-qa__a ${q.answer ? 'is-yes' : 'is-no'} ${pop ? 'is-in' : ''}">${escapeHTML(q.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>` : '<span class="gw-qa__a is-wait">…</span>';
+  const out = typeof q.out === 'number' ? `<span class="gw-qa__out">${escapeHTML(gwT('gw_out', { n: q.out }))}</span>` : '';
+  return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(text)}</span>${ans}${out}</div>`;
+}
+
+/** Every question so far, newest first: what the table has learnt about each face. */
+function gwHistoryHtml(state) {
+  const s = state.shared;
+  const names = duelRoomNames(state);
+  const rows = (s.log || []).slice().reverse().filter(e => e.kind === 'list' || e.kind === 'loud').map(e => {
+    const q = e.kind === 'list' ? gwQText(e.qi) : '🗣️';
+    return `<li><b>${escapeHTML(names[e.seat] || '')}</b> ${escapeHTML(q)} <span class="${e.answer ? 'tx-success' : 'tx-danger'}">${escapeHTML(e.answer ? gwT('gw_yes') : gwT('gw_no'))}</span></li>`;
+  }).join('');
+  if (!rows) return '';
+  return `<details class="gw-history"><summary>${escapeHTML(gwT('gw_history'))}</summary><ul>${rows}</ul></details>`;
+}
+
+/** The two pills: the seats, the wins in the room, and how many faces each has left up. */
+function gwPills(state) {
+  const s = state.shared;
+  const names = duelRoomNames(state);
+  const scores = s.scores || {};
+  const pill = (i) => ({
+    name: names[i],
+    score: scores[s.seats[i]] || 0,
+    mark: `<span class="gw-dot gw-dot--${i + 1}">${escapeHTML(duelInitial(names[i]))}</span>`,
+    sub: escapeHTML((s.seats[i] === Room.me && !state.youAreScreen ? gwT('xo_you') + ' · ' : '') +
+      gwT('gw_left', { n: gwUp(s.faces, s.down[i]).length }))
+  });
+  return duelPillsHtml({ players: [pill(0), pill(1)], turn: s.phase === 'play' ? s.turn : -1, draws: null });
+}
+
+/** "Your face": the one the other player is looking for. */
+function gwMineHtml(state, seat) {
+  const s = state.shared;
+  const face = (state.you || {}).face;
+  if (typeof face !== 'number' || !s.faces[face]) return '';
+  const other = duelRoomNames(state)[1 - seat] || '';
+  return `<div class="gw-mine">
+      <span class="gw-mine__card">${gwCardInner(s.faces[face])}</span>
+      <span class="gw-mine__text"><span class="eyebrow">${escapeHTML(gwT('gw_your_face'))}</span>
+        <span class="field__hint">${escapeHTML(gwT('gw_your_face_hint', { name: duelIso(other) }))}</span></span>
+    </div>`;
+}
+
+/** Both secret faces, turned over, once the game is over. */
+function gwRevealHtml(state, tv) {
+  const s = state.shared;
+  const names = duelRoomNames(state);
+  const rev = s.reveal || [];
+  const turn = motionFirst(['gw-reveal', state.code, s.round].join('|'));
+  return `<div class="gw-reveal ${tv ? 'gw-reveal--tv' : ''} ${turn ? 'is-turning' : ''}" ${turn ? 'data-reveal-ms="900"' : ''}>
+      ${[0, 1].map(i => typeof rev[i] === 'number' && s.faces[rev[i]] ? `
+        <div class="gw-reveal__one" style="--at:${i * 260}ms">
+          <span class="gw-card gw-card--big">${gwCardInner(s.faces[rev[i]])}</span>
+          <span class="gw-reveal__who">${escapeHTML(gwT('gw_face_was', { name: names[i] || '' }))}</span>
+        </div>` : '').join('')}
+    </div>`;
+}
+
+/** The line under the pills: whose turn, or how the game ended. */
+function gwStatus(state) {
+  const s = state.shared;
+  const names = duelRoomNames(state);
+  const seat = (s.seats || []).indexOf(Room.me);
+  if (s.phase === 'over') {
+    const r = s.result || {};
+    if (r.reason === 'wrong') return '🏆 ' + gwT('duel_won', { name: duelIso(r.winnerName || '') }) + ' · ' + gwT('gw_won_wrong', { name: duelIso(r.loserName || '') });
+    if (r.reason === 'guess') return gwT('gw_won_guess', { name: duelIso(r.winnerName || '') });
+    return duelRoomResultLine(state, TRANSLATIONS[appState.lang] || {});
+  }
+  if (s.phase === 'pick') return gwT('gw_pick_all');
+  if (seat === s.turn && !state.youAreScreen) {
+    if (s.stage === 'answer') return gwT('gw_wait_answer', { name: duelIso(names[1 - seat] || '') });
+    if (s.stage === 'flip') return gwT('gw_flip_title');
+    return gwUp(s.faces, s.down[seat]).length === 1 ? gwT('gw_last_one') : gwT('gw_your_turn');
+  }
+  if (s.stage === 'answer' && seat === 1 - s.turn && !state.youAreScreen) return gwT('gw_answer_title', { name: duelIso(names[s.turn] || '') });
+  return gwT('gw_turn_of', { name: duelIso(names[s.turn] || '') });
+}
+
+/** What this phone can do now, in the bar under the board. */
+function gwBarHtml(state, seat) {
+  const s = state.shared;
+  const names = duelRoomNames(state);
+  const seq = Number(s.turnSeq) || 0;
+  const other = names[1 - seat] || '';
+  const vsBot = (state.players || []).some(p => p.id === s.seats[1 - seat] && p.bot);
+  if (s.phase === 'pick') {
+    if (s.picked && s.picked[seat]) return `<p class="gw-bar__say">${escapeHTML(gwT('gw_pick_wait', { name: duelIso(other) }))}</p>`;
+    const chosen = typeof gwLocal.pick === 'number' ? s.faces[gwLocal.pick] : null;
+    return `<p class="gw-bar__say">${escapeHTML(gwT('gw_pick_title', { name: duelIso(other) }))}</p>
+      ${chosen ? `<button type="button" class="btn btn--primary btn--lg" onclick="gwSendPick()">${escapeHTML(gwT('gw_pick_confirm', { name: gwFaceName(chosen) }))}</button>` : ''}`;
+  }
+  if (s.phase !== 'play') return '';
+  const mine = s.turn === seat;
+  if (!mine) {
+    if (s.stage === 'answer') {
+      return `<p class="gw-bar__say">${escapeHTML(gwT('gw_answer_now', { name: duelIso(names[s.turn] || '') }))}</p>
+        <div class="btn-row">
+          <button type="button" class="btn btn--success btn--lg" onclick="roomAct('answer', { yes: true, seq: ${seq} })">${escapeHTML(gwT('gw_yes'))}</button>
+          <button type="button" class="btn btn--danger btn--lg" onclick="roomAct('answer', { yes: false, seq: ${seq} })">${escapeHTML(gwT('gw_no'))}</button>
+        </div>`;
+    }
+    return `<p class="gw-bar__say gw-bar__say--quiet">${escapeHTML(gwT('gw_flip_any'))}</p>`;
+  }
+  if (s.stage === 'answer') return `<p class="gw-bar__say">⏳ ${escapeHTML(gwT('gw_wait_answer', { name: duelIso(other) }))}</p>`;
+  if (s.stage === 'flip') {
+    return `<p class="gw-bar__say">${escapeHTML(gwT('gw_flip_now'))}</p>
+      <button type="button" class="btn btn--primary btn--lg" onclick="roomAct('done', { seq: ${seq} })">${escapeHTML(gwT('gw_done'))}</button>`;
+  }
+  if (gwLocal.panel === 'ask') {
+    const asked = s.asked[seat] || [];
+    return `<p class="gw-bar__say">${escapeHTML(gwT('gw_pick_q'))}</p>
+      <div class="gw-qs">${GW_QUESTIONS.map((q, qi) => asked.indexOf(qi) !== -1
+        ? `<button type="button" class="gw-q is-used" disabled>${escapeHTML(gwQText(qi))}</button>`
+        : `<button type="button" class="gw-q" onclick="gwAsk(${qi})">${escapeHTML(gwQText(qi))}</button>`).join('')}</div>
+      <button type="button" class="btn btn--ghost btn--sm" onclick="gwPanel(null)">${escapeHTML(gwT('gw_back'))}</button>`;
+  }
+  if (gwLocal.panel === 'guess') {
+    const chosen = typeof gwLocal.guess === 'number' ? s.faces[gwLocal.guess] : null;
+    const warn = s.settings.wrong === 'turn' ? gwT('gw_guess_warn_turn') : gwT('gw_guess_warn_lose');
+    return chosen
+      ? `<p class="gw-bar__say"><b>${escapeHTML(gwT('gw_guess_sure', { name: gwFaceName(chosen) }))}</b> ${escapeHTML(warn)}</p>
+         <div class="btn-row">
+           <button type="button" class="btn btn--primary btn--lg" onclick="gwSendGuess()">${escapeHTML(gwT('gw_guess_confirm', { name: gwFaceName(chosen) }))}</button>
+           <button type="button" class="btn btn--ghost" onclick="gwPanel(null)">${escapeHTML(gwT('gw_back'))}</button>
+         </div>`
+      : `<p class="gw-bar__say">🎯 ${escapeHTML(gwT('gw_guess_pick'))}</p>
+         <button type="button" class="btn btn--ghost btn--sm" onclick="gwPanel(null)">${escapeHTML(gwT('gw_back'))}</button>`;
+  }
+  return `<div class="gw-bar__row">
+      <button type="button" class="btn btn--primary" onclick="gwPanel('ask')">${escapeHTML(gwT('gw_ask'))}</button>
+      ${vsBot ? '' : `<button type="button" class="btn btn--secondary" onclick="roomAct('loud', { seq: ${seq} })">${escapeHTML(gwT('gw_loud'))}</button>`}
+      <button type="button" class="btn btn--secondary" onclick="gwPanel('guess')">${escapeHTML(gwT('gw_guess'))}</button>
+    </div>`;
+}
+
+function gwRedraw() {
+  const el = document.getElementById('view-room-guesswho');
+  if (el) delete el.dataset.sig;
+  if (Room.state && Room.state.game === 'guesswho') routeRoomState(Room.state);
+}
+
+function gwPanel(p) {
+  gwLocal.panel = p;
+  gwLocal.guess = null;
+  haptic('light');
+  gwRedraw();
+}
+
+function gwAsk(qi) {
+  const s = (Room.state || {}).shared || {};
+  gwLocal.panel = null;
+  haptic('light');
+  roomAct('ask', { q: qi, seq: s.turnSeq });
+}
+
+function gwSendGuess() {
+  const s = (Room.state || {}).shared || {};
+  const face = gwLocal.guess;
+  gwLocal.panel = null;
+  gwLocal.guess = null;
+  if (typeof face !== 'number') return;
+  haptic('medium');
+  roomAct('guess', { face: face, seq: s.turnSeq });
+}
+
+function gwSendPick() {
+  const face = gwLocal.pick;
+  gwLocal.pick = null;
+  if (typeof face !== 'number') return;
+  haptic('medium');
+  roomAct('pick', { face: face });
+}
+
+/** A tap on a face: choosing one to guess or to hide, or putting it down (or back up) by hand. */
+function gwTapFace(card) {
+  const state = Room.state;
+  if (!state || state.game !== 'guesswho') return;
+  const s = state.shared;
+  const seat = (s.seats || []).indexOf(Room.me);
+  if (seat === -1 || state.youAreScreen) return;
+  const i = Number(card.getAttribute('data-gw-face'));
+  if (s.phase === 'pick') {
+    if (s.picked && s.picked[seat]) return;
+    gwLocal.pick = i;
+    haptic('light');
+    gwRedraw();
+    return;
+  }
+  if (s.phase !== 'play') return;
+  const isDown = s.down[seat].indexOf(i) !== -1;
+  if (gwLocal.panel === 'guess' && s.turn === seat && s.stage === 'ask') {
+    if (isDown) return;
+    gwLocal.guess = i;
+    haptic('light');
+    gwRedraw();
+    return;
+  }
+  // By hand: drawn at once, and the room's board confirms it (already known here, so it doesn't fall again).
+  card.classList.toggle('is-down', !isDown);
+  const key = [state.code, s.dealId, seat].join('|');
+  const known = (gwLocal.down[key] || s.down[seat]).filter(x => x !== i);
+  gwLocal.down[key] = isDown ? known : known.concat([i]);
+  haptic('light');
+  roomAct('flip', { face: i, down: !isDown });
+}
+
+/* --- the lobby: the host's choices, remembered on their phone ----------------- */
+
+const gwRoomOpts = () => recallOptions('guesswhoRoom', { size: 24, pick: 'random', autoFlip: true, wrong: 'lose', turnClock: 0 });
+
+function setGwRoomOpt(key, value) {
+  rememberOptions('guesswhoRoom', { [key]: value });
+  duelLobbyRedraw();
+}
+
+function gwLobbySeg(label, key, values, current, hint) {
+  return `<div class="field">
+      <label class="field__label">${escapeHTML(label)}</label>
+      <div class="segmented" role="group">
+        ${values.map(v => `<button type="button" class="segmented__item ${String(v[0]) === String(current) ? 'is-active' : ''}" onclick="setGwRoomOpt('${key}', ${typeof v[0] === 'string' ? `'${v[0]}'` : v[0]})">${escapeHTML(v[1])}</button>`).join('')}
+      </div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+}
+
+/* --- the phone's clock and the host's skip --------------------------------------- */
+
+function gwStopClock() {
+  if (gwLocal.clock) gwLocal.clock.stop();
+  gwLocal.clock = null;
+  gwLocal.clockKey = null;
+}
+
+function gwTickClock(state) {
+  const s = state.shared || {};
+  const endsAt = s.phase === 'play' ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-gw-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 5);
+    });
+    return left;
+  };
+  if (!endsAt) { gwStopClock(); return; }
+  paint();
+  if (gwLocal.clockKey === endsAt && gwLocal.clock) return;
+  gwStopClock();
+  gwLocal.clockKey = endsAt;
+  gwLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      const mine = st && st.game === 'guesswho' && (st.shared.seats || [])[st.shared.turn] === Room.me;
+      if (left > 0 && left <= 5 && (st && (st.youAreScreen || mine))) playSound('tick');
+    },
+    onEnd: () => { gwLocal.clock = null; paint(); }
+  });
+}
+
+/** The host's way on for a phone that went quiet: after 40 seconds on one turn, or at once for one that's away. */
+function gwHostRow(state, tv) {
+  const s = state.shared || {};
+  if (!state.youAreHost || (s.phase !== 'play' && s.phase !== 'pick')) return '';
+  const key = [state.code, s.round, s.turnSeq].join('|');
+  if (gwLocal.turnKey !== key) { gwLocal.turnKey = key; gwLocal.turnSince = Date.now(); }
+  const waitingOn = s.phase === 'pick' ? (s.seats || []).filter((id, k) => !s.picked[k])
+    : [s.stage === 'answer' ? s.seats[1 - s.turn] : s.seats[s.turn]];
+  const quiet = waitingOn.some(id => {
+    const p = (state.players || []).find(x => x.id === id);
+    return p && !p.bot && id !== Room.me && (!p.online || Date.now() - gwLocal.turnSince > 40000);
+  });
+  if (!quiet) return '';
+  const label = '⏭️ ' + gwT('gw_play_for');
+  const press = `roomAct('skipTurn', { seq: ${Number(s.turnSeq) || 0} })`;
+  return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
+}
+
+/** Everything the server said that this phone shows; presence is refreshed in place. */
+function gwSig(state) {
+  const s = state.shared || {};
+  return [s.dealId || '', s.round, s.phase, s.turn, s.stage, s.turnSeq, JSON.stringify(s.down || []), (s.log || []).length,
+    JSON.stringify(s.q || null), JSON.stringify(s.picked || null), JSON.stringify(s.line || []), s.champ, JSON.stringify(s.scores || {}),
+    (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','), s.endsAt || '',
+    JSON.stringify(state.you || null), state.youAreHost, appState.lang].join('|');
+}
+
+ROOM_GAMES.guesswho = {
+  bots: { max: 12 },
+  // Someone who joins mid-game joins the line and watches (routeRoomState).
+  lateJoin: true,
+
+  lobbyOptions(state) {
+    const o = gwRoomOpts();
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(gwT('gw_lobby_hint'))}</p>`;
+    return `<div class="card card--tight">
+        ${gwLobbySeg(gwT('gw_lobby_size'), 'size', GW_SIZES.map(n => [n, String(n)]), o.size)}
+        ${gwLobbySeg(gwT('gw_lobby_pick'), 'pick', [['random', gwT('gw_pick_random')], ['choose', gwT('gw_pick_choose')]], o.pick)}
+        ${gwLobbySeg(gwT('gw_lobby_flip'), 'autoFlip', [[true, gwT('gw_flip_auto')], [false, gwT('gw_flip_hand')]], o.autoFlip, gwT('gw_flip_hint'))}
+        ${gwLobbySeg(gwT('gw_lobby_wrong'), 'wrong', [['lose', gwT('gw_wrong_lose')], ['turn', gwT('gw_wrong_turn')]], o.wrong)}
+        ${gwLobbySeg('⏱️ ' + gwT('gw_lobby_clock'), 'turnClock', GW_CLOCKS.map(v => [v, v ? v + '″' : gwT('gw_clock_off')]), o.turnClock)}
+        <p class="field__hint" style="text-align:center">${escapeHTML(gwT('gw_lobby_hint'))}</p>
+      </div>`;
+  },
+  startPayload() {
+    const o = gwRoomOpts();
+    return { size: o.size, pick: o.pick, autoFlip: o.autoFlip, wrong: o.wrong, turnClock: o.turnClock };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-guesswho') setView('room-guesswho');
+    const el = document.getElementById('view-room-guesswho');
+    if (!el) return;
+    const s = state.shared;
+    if (!s || !Array.isArray(s.faces)) return;
+    const seat = state.youAreScreen ? -1 : (s.seats || []).indexOf(Room.me);
+    // A choice half made belongs to its own turn.
+    const turnKey = [state.code, s.round, s.turnSeq].join('|');
+    if (gwLocal.forTurn !== turnKey) { gwLocal.forTurn = turnKey; gwLocal.panel = null; gwLocal.guess = null; }
+    if (s.phase !== 'pick') gwLocal.pick = null;
+    const boardKey = (i) => [state.code, s.dealId, i].join('|');
+    const t = TRANSLATIONS[appState.lang] || {};
+    const sig = gwSig(state) + '#' + gwLocal.panel + '#' + gwLocal.guess + '#' + gwLocal.pick;
+    let falls = [];
+    const rebuilt = renderRoomFrame(el, sig, () => {
+      const clock = s.endsAt && s.phase === 'play' ? `<span class="badge badge--accent" data-gw-clock></span>` : '';
+      const head = `<div class="duel-head">${gwPills(state)}
+          <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${seat === s.turn && s.phase === 'play' ? 'is-mine' : ''}">${escapeHTML(gwStatus(state))} ${clock}</p></div>`;
+      if (s.phase === 'over') {
+        return `<div class="gw">${head}
+            ${gwRevealHtml(state)}
+            ${duelRoomOverHtml(state, t)}
+            ${duelRoomLineHtml(state, t)}
+            ${(state.players || []).length > 2 ? renderScoreboard(s.board) : ''}
+            ${roomShareBtnHtml(state, s.board)}
+            ${renderRoomPlayerStrip(state)}
+          </div>`;
+      }
+      if (seat !== -1) {
+        const myDown = s.phase === 'pick' ? [] : s.down[seat];
+        const fall = s.phase === 'play' ? gwNewlyDown(boardKey(seat), myDown) : [];
+        falls = [{ sel: '.gw-board', fall: fall }];
+        return `<div class="gw gw--seated">
+            <div class="gw-layout">
+              <div class="gw-layout__board" style="--gw-aspect:${gwAspect(s.faces.length)}">
+                ${gwBoardHtml(s, myDown, { tap: true, fall: fall, picked: s.phase === 'pick' ? gwLocal.pick : gwLocal.guess, guessing: gwLocal.panel === 'guess' })}
+              </div>
+              <div class="gw-layout__side">
+                ${head}
+                ${s.phase === 'play' ? gwMineHtml(state, seat) + gwQaHtml(state) : ''}
+                <div class="gw-bar">${gwBarHtml(state, seat)}</div>
+                <div data-gw-host></div>
+                ${gwHistoryHtml(state)}
+                ${duelRoomLineHtml(state, t)}
+                ${renderRoomPlayerStrip(state)}
+              </div>
+            </div>
+          </div>`;
+      }
+      // Watching: both boards, and the question between them.
+      const f0 = s.phase === 'play' ? gwNewlyDown(boardKey(0), s.down[0]) : [];
+      const f1 = s.phase === 'play' ? gwNewlyDown(boardKey(1), s.down[1]) : [];
+      falls = [{ sel: '[data-gw-seat="0"] .gw-board', fall: f0 }, { sel: '[data-gw-seat="1"] .gw-board', fall: f1 }];
+      const names = duelRoomNames(state);
+      return `<div class="gw gw--watch">${head}
+          ${s.phase === 'play' ? gwQaHtml(state) : `<div class="waiting-note">${escapeHTML(gwT('gw_pick_all'))}</div>`}
+          ${duelRoomWatchNote(state, t)}
+          <div class="gw-two">
+            ${[0, 1].map(i => `<div class="gw-two__one" data-gw-seat="${i}"><div class="eyebrow">${escapeHTML(gwT('gw_board_of', { name: names[i] || '' }))}</div>
+              ${gwBoardHtml(s, s.phase === 'play' ? s.down[i] : [], { small: true, fall: i ? f1 : f0 })}</div>`).join('')}
+          </div>
+          <div data-gw-host></div>
+          ${gwHistoryHtml(state)}
+          ${duelRoomLineHtml(state, t)}
+          ${renderRoomPlayerStrip(state)}
+        </div>`;
+    });
+    refreshRoomPlayerStrip(el, state);
+    const host = el.querySelector('[data-gw-host]');
+    if (host) { const html = gwHostRow(state); if (host._html !== html) { host.innerHTML = html; host._html = html; } }
+    gwTickClock(state);
+    if (!rebuilt) return;
+    falls.forEach(f => gwFall(el.querySelector(f.sel), f.fall));
+    if (!el._gwWired) {
+      el._gwWired = true;
+      el.addEventListener('click', (e) => {
+        const card = e.target.closest('[data-gw-face]');
+        if (card && el.contains(card)) gwTapFace(card);
+      });
+    }
+    duelPillsAfter(el, 'gw|' + state.code, {
+      turn: s.phase === 'play' ? s.turn : -1,
+      scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+    });
+    const myTurn = s.phase === 'play' && seat === s.turn && s.stage === 'ask';
+    const mustAnswer = s.phase === 'play' && seat === 1 - s.turn && s.stage === 'answer';
+    if ((myTurn || mustAnswer) && duelOnce(['gw-turn', state.code, s.turnSeq].join('|'))) { haptic('medium'); playSound('tick'); }
+    if (s.phase === 'over') duelRoomCheer(el, state, ['gw', state.code, s.round].join('|'));
+  },
+  // A question is not a new step to scroll to; a new game and the end of one are.
+  actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase === 'over' ? 'over' : 'on'].join('|')
+};
+
+onRoomClocksReset(() => {
+  gwStopClock();
+  gwLocal.panel = null;
+  gwLocal.guess = null;
+  gwLocal.pick = null;
+});
+
+/* --- the TV: both boards, the question between them ------------------------------ */
+
+TV_GAMES.guesswho = {
+  sig: (state) => gwSig(state),
+  frame(state, t) {
+    const s = state.shared || {};
+    if (!Array.isArray(s.faces)) return tvLookAtPhones(t);
+    const names = duelRoomNames(state);
+    const key = (i) => ['tv', state.code, s.dealId, i].join('|');
+    const f = [0, 1].map(i => (s.phase === 'play' ? gwNewlyDown(key(i), s.down[i]) : []));
+    gwLocal.tvFalls = f;
+    const board = (i) => `<div class="gw-tv__board" data-gw-seat="${i}">
+        <div class="tv-name gw-tv__name"><span>${escapeHTML(names[i] || '')}</span><i>${escapeHTML(gwT('gw_left', { n: gwUp(s.faces, s.down[i]).length }))}</i></div>
+        ${gwBoardHtml(s, s.phase === 'play' ? s.down[i] : [], { small: true, fall: f[i] })}
+      </div>`;
+    const clock = s.endsAt && s.phase === 'play' ? `<span class="tv-pill" data-gw-clock></span>` : '';
+    const mid = s.phase === 'over'
+      ? `${gwRevealHtml(state, true)}<div class="tv-title tv-center-text">${escapeHTML(gwStatus(state))}</div>${duelRoomOverHtml(state, t, true)}`
+      : `<div class="tv-scale">${gwPills(state)}</div>
+         <div class="tv-title tv-center-text">${escapeHTML(gwStatus(state))} ${clock}</div>
+         ${s.phase === 'play' ? gwQaHtml(state, true) : ''}
+         ${gwHostRow(state, true)}`;
+    // The TV's frame is the room's colour; the game keeps its own.
+    return `<div class="gw-tv" data-accent="teal" style="--gw-aspect:${gwAspect(s.faces.length)}">
+        ${board(0)}
+        <div class="gw-tv__mid">${mid}<div class="tv-scale">${duelRoomLineHtml(state, t, true)}</div></div>
+        ${board(1)}
+      </div>`;
+  },
+  after(state, rebuilt) {
+    gwTickClock(state);
+    const view = document.getElementById('view-room-tv');
+    if (!rebuilt || !view) return;
+    const f = gwLocal.tvFalls || [[], []];
+    [0, 1].forEach(i => gwFall(view.querySelector('[data-gw-seat="' + i + '"] .gw-board'), f[i]));
+    duelPillsAfter(view, 'gwtv|' + state.code, {
+      turn: state.shared.phase === 'play' ? state.shared.turn : -1,
+      scores: [(state.shared.scores || {})[state.shared.seats[0]] || 0, (state.shared.scores || {})[state.shared.seats[1]] || 0]
+    });
+    if (state.shared.phase === 'over') duelRoomCheer(view, state, ['gw', state.code, state.shared.round].join('|'));
+  }
+};
+</script>

@@ -30,6 +30,10 @@ const DOMINO = new Function(readFileSync(new URL('../../DominoTiles.js', import.
 const BANK = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
   '\nreturn { BANK_SQUARES };')();
 
+// خمّن مين's faces and questions: the robots ask from the list and work out what is left on their own board.
+const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') +
+  ';return { gwBotQuestion, gwAnswer, gwUp };')();
+
 const ARGS = process.argv.slice(2);
 const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
 // --slow also waits out the presence clocks (a silent socket, a host away): about three minutes more.
@@ -3364,6 +3368,136 @@ async function main() {
   }
 
   /* --- prompt memory across rooms ---------------------------------------- */
+  /* --- خمّن مين: two duel, the room watches, winner stays on ---------------------- */
+  console.log('• guess who (the secret faces, a list question, one out loud, a wrong guess, winner stays on, a computer player)');
+  {
+    const H = await Bot.host('هاني', null);
+    const J = await Bot.join(H.code, 'جنى');
+    const K = await Bot.join(H.code, 'كمال');
+    const S = await Bot.join(H.code, '', true);
+    const gwBots = [H, J, K];
+    await H.must('chooseGame', { game: 'guesswho' });
+    await H.must('start', { size: 16 });
+    await all(gwBots.concat([S]), (s) => s.game === 'guesswho' && s.shared.phase === 'play' && s.shared.faces.length === 16 &&
+                                         s.shared.seats.length === 2 && s.shared.line.length === 1,
+              'guesswho: two sit down with 16 faces, one waits in line');
+    const first = byId(gwBots, H.state.shared.seats[0]);
+    const second = byId(gwBots, H.state.shared.seats[1]);
+    const watcher = gwBots.find((b) => b !== first && b !== second);
+    check(typeof first.state.you.face === 'number' && typeof second.state.you.face === 'number' && !watcher.state.you && S.state.you === null,
+          'guesswho: each seated phone holds its own face, the one watching and the TV none');
+    check(!leaks(watcher, '"reveal":[') && !leaks(S, '"reveal":['), 'guesswho: no face is shown to the table while it is played');
+    let s = H.state.shared;
+    const q = GW.gwBotQuestion(s.faces, s.down[0], [], 'hard');
+    check((await watcher.act('ask', { q, seq: s.turnSeq })).ok === false, 'guesswho: someone in the line cannot ask');
+    await first.must('ask', { q, seq: s.turnSeq });
+    await all(gwBots, (st) => st.shared.q && st.shared.q.qi === q && typeof st.shared.q.answer === 'boolean' && st.shared.turn === 1,
+              'guesswho: a list question is answered for the whole room, and the turn passes');
+    check(first.state.shared.q.answer === GW.gwAnswer(q, first.state.shared.faces[second.state.you.face]),
+          'guesswho: the answer is the truth about the other player\'s face');
+    // Out loud: the other answers on their phone, then the asker flips by hand.
+    s = second.state.shared;
+    await second.must('loud', { seq: s.turnSeq });
+    await first.waitFor((st) => st.shared.stage === 'answer', 'guesswho: an out-loud question waits on the other phone');
+    await first.must('answer', { yes: true, seq: first.state.shared.turnSeq });
+    await second.waitFor((st) => st.shared.stage === 'flip' && st.shared.q.answer === true, 'guesswho: the answer comes back to the asker');
+    await second.must('flip', { face: 0, down: true });
+    await second.must('done', { seq: second.state.shared.turnSeq });
+    await all(gwBots, (st) => st.shared.turn === 0 && st.shared.down[1].indexOf(0) !== -1, 'guesswho: a face put down by hand is down on every phone');
+    // A wrong guess loses the game.
+    s = first.state.shared;
+    const wrong = s.faces.map((_, i) => i).find((i) => i !== second.state.you.face);
+    await first.must('guess', { face: wrong, seq: s.turnSeq });
+    await all(gwBots.concat([S]), (st) => st.shared.phase === 'over' && st.shared.result.reason === 'wrong' && st.shared.result.winnerId === second.pid &&
+                                         Array.isArray(st.shared.reveal) && st.shared.reveal[1] === second.state.you.face,
+              'guesswho: a wrong guess loses, and both faces are shown on every screen');
+    await watcher.must('nextRound', { round: H.state.shared.round });
+    await all(gwBots, (st) => st.shared.phase === 'play' && st.shared.seats[0] === watcher.pid && st.shared.seats[1] === second.pid,
+              'guesswho: the next in line sits down against the winner, and asks first');
+    check(first.state.you === null || first.state.you.face === undefined, 'guesswho: the one who lost holds no face any more');
+    await H.must('backToHub');
+    gwBots.concat([S]).forEach((b) => b.close());
+
+    // Against a computer player, played to the end on the server's clock.
+    const P = await Bot.host('بسام', null);
+    await P.must('chooseGame', { game: 'guesswho' });
+    await P.must('addBot', { level: 'hard', name: 'زيزو' });
+    await P.must('start', { size: 24 });
+    const end = Date.now() + 90000;
+    while (Date.now() < end && P.state.shared.phase === 'play') {
+      const st = P.state.shared;
+      const seat = st.seats.indexOf(P.pid);
+      if (st.turn === seat && st.stage === 'ask') {
+        const left = GW.gwUp(st.faces, st.down[seat]);
+        const qi = GW.gwBotQuestion(st.faces, st.down[seat], st.asked[seat], 'hard');
+        if (qi < 0 || left.length <= 1) await P.act('guess', { face: left[0], seq: st.turnSeq });
+        else await P.act('ask', { q: qi, seq: st.turnSeq });
+      }
+      await sleep(250);
+    }
+    check(P.state.shared.phase === 'over' && P.state.shared.result.reason === 'guess', 'guesswho: a game against a computer player is played to the end');
+    const botSeat = P.state.shared.seats.findIndex((id) => id !== P.pid);
+    check(P.state.shared.log.filter((e) => e.seat === botSeat).every((e) => e.kind === 'list' || e.kind === 'guess'),
+          'guesswho: the computer player asks from the list');
+    P.close();
+  }
+
+  /* --- المشنقة: one writes and the rest guess, then a race ------------------------ */
+  console.log('• hangman (a written word kept from the guessers, each board its own, the writer\'s points, a race, the clock)');
+  {
+    const H = await Bot.host('هالة', null);
+    const J = await Bot.join(H.code, 'جاد');
+    const K = await Bot.join(H.code, 'Kate');
+    const S = await Bot.join(H.code, '', true);
+    const hmBots = [H, J, K];
+    await H.must('chooseGame', { game: 'hangman' });
+    await H.must('start', { mode: 'setter', rounds: 3, clock: 0, lang: 'ar' });
+    await all(hmBots, (s) => s.game === 'hangman' && s.shared.phase === 'writing' && !!s.shared.setter, 'hangman: one writes the first word');
+    const writer = byId(hmBots, H.state.shared.setter);
+    const guessers = hmBots.filter((b) => b !== writer);
+    check((await guessers[0].act('setWord', { word: 'مدرسة', round: 1 })).ok === false, 'hangman: only the writer writes');
+    check((await writer.act('setWord', { word: 'مدرسة كبيرة', round: 1 })).ok === false, 'hangman: two words are refused');
+    await writer.must('setWord', { word: 'مدرسة', round: 1 });
+    await all(hmBots, (s) => s.shared.phase === 'guessing' && s.shared.len === 5, 'hangman: the word is out, five blanks on every phone');
+    check(writer.state.you.word === 'مدرسة' && guessers.every((b) => !leaks(b, 'مدرسة') && Array.isArray(b.state.you.pattern)) && !leaks(S, 'مدرسة'),
+          'hangman: the word is on the writer\'s phone only - not the guessers\', not the TV');
+    await guessers[0].must('guess', { letter: 'د', round: 1 });
+    await guessers[0].must('guess', { letter: 'ك', round: 1 });
+    await guessers[1].waitFor((s) => s.shared.progress[guessers[0].pid].n === 1 && s.shared.progress[guessers[0].pid].miss === 1,
+                              'hangman: the table sees how far a board is');
+    check(guessers[1].state.you.pattern.join('') === '' && !leaks(guessers[1], '"g":["د"]'), 'hangman: and never its letters');
+    await guessers[0].must('whole', { text: 'مدرسه', round: 1 });
+    for (const l of ['ث', 'ج', 'ح', 'خ', 'ذ', 'ز']) await guessers[1].must('guess', { letter: l, round: 1 });
+    await all(hmBots.concat([S]), (s) => s.shared.phase === 'result' && s.shared.result.word === 'مدرسة', 'hangman: the word ends when all are done, and is shown');
+    check(H.state.shared.scores[guessers[0].pid] === 10 && H.state.shared.scores[writer.pid] === 5 && !H.state.shared.scores[guessers[1].pid],
+          'hangman: a solve is 10, the writer 5 for the one who was hanged');
+    await H.must('nextRound', { round: 1 });
+    await all(hmBots, (s) => s.shared.phase === 'writing' && s.shared.round === 2 && s.shared.setter !== writer.pid, 'hangman: the next word has the next writer');
+    await H.must('backToHub');
+
+    // The race: the app's word, the fastest first, the clock ending it.
+    await H.must('chooseGame', { game: 'hangman' });
+    await H.must('start', { mode: 'race', rounds: 3, clock: 60, lang: 'ar' });
+    await all(hmBots, (s) => s.shared.phase === 'guessing' && !!s.shared.cat && !s.shared.setter && Array.isArray(s.you && s.you.pattern),
+              'hangman: the race deals one word with its kind to everyone');
+    const letters = 'ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي'.split(' ');
+    for (const b of hmBots) {
+      for (const l of letters) {
+        if (!b.state.you || b.state.you.state !== 'play' || b.state.shared.phase !== 'guessing') break;
+        await b.act('guess', { letter: l, round: 1 });
+      }
+    }
+    await all(hmBots, (s) => s.shared.phase === 'result' && s.shared.result.rows.length === 3, 'hangman: a race word ends once every board is done');
+    await H.must('nextRound', { round: 1 });
+    await H.must('closeWord', { round: 2 });
+    await H.must('nextRound', { round: 2 });
+    await H.must('closeWord', { round: 3 });
+    await all(hmBots.concat([S]), (s) => s.shared.phase === 'gameover' && s.phase === 'gameover', 'hangman: the game ends after the chosen number of words');
+    await H.must('backToHub');
+    await H.waitFor((s) => s.phase === 'lobby', 'hangman: back in the hub');
+    hmBots.concat([S]).forEach((b) => b.close());
+  }
+
   console.log('• prompt memory shared between rooms');
   const H = await Bot.host('H', 'codenames');
   const others = [H, await Bot.join(H.code, 'I'), await Bot.join(H.code, 'J'), await Bot.join(H.code, 'K')];

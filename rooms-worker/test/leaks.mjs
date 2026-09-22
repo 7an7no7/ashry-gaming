@@ -363,6 +363,37 @@ const PROBES = {
       return null;
     })];
   },
+  guesswho(room) {
+    const s = room.shared || {};
+    const g = room._gw || { secret: [] };
+    const live = s.phase === 'play' || s.phase === 'pick';
+    return [
+      probe('a secret face is on its own phone only', live, (view, pid) => {
+        if (!view.you || view.you.face === undefined) return null;
+        const seat = (s.seats || []).indexOf(pid);
+        return seat === -1 || g.secret[seat] !== view.you.face ? 'you.face' : null;
+      }),
+      probe('the faces are shown only once the game is over', live, (view) => (hasKey(view.shared, 'reveal') ? 'shared.reveal' : null))
+    ];
+  },
+  hangman(room) {
+    const s = room.shared || {};
+    const h = room._hm || { boards: {} };
+    const live = s.phase === 'guessing';
+    return [
+      secret('the word is on the writer\'s phone only, until the word ends', live ? h.word : null, s.setter ? [s.setter] : []),
+      probe('a board\'s letters reach its own phone only', live, (view, pid) => {
+        if (!view.you || view.you.word !== undefined) return null;
+        const b = h.boards[pid];
+        return !b || JSON.stringify(view.you.g) !== JSON.stringify(b.g) ? 'you.g' : null;
+      }),
+      probe('the table sees how far each board is, never its letters', live, (view) => {
+        const bad = Object.keys(view.shared.progress || {}).find((id) =>
+          Object.keys(view.shared.progress[id]).some((k) => ['n', 'miss', 'state', 'at'].indexOf(k) === -1));
+        return bad ? 'shared.progress.' + bad : null;
+      })
+    ];
+  },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
   connect4: () => [], dots: () => [], ludo: () => []
@@ -789,6 +820,60 @@ const DRIVERS = {
       for (const col of cols) if (act(T, s.seats[s.turn], 'move', { col, move: s.moves })) break;
     }
     return S(T).phase === 'over';
+  },
+  guesswho() {
+    const T = table('guesswho', 3);
+    const up = (s, seat) => s.faces.map((_, i) => i).filter((i) => s.down[seat].indexOf(i) === -1);
+    const play = () => {
+      for (let guard = 0; guard < 200 && (S(T).phase === 'play' || S(T).phase === 'pick'); guard++) {
+        const s = S(T);
+        if (s.phase === 'pick') { s.seats.forEach((id, k) => { if (!s.picked[k]) act(T, id, 'pick', { face: pick(s.faces.map((_, i) => i)) }); }); continue; }
+        const me = s.seats[s.turn], other = s.seats[1 - s.turn], seq = s.turnSeq;
+        if (s.stage === 'answer') { must(T, other, 'answer', { yes: Math.random() < 0.5, seq }); continue; }
+        if (s.stage === 'flip') { act(T, me, 'flip', { face: pick(up(s, s.turn)), down: true }); must(T, me, 'done', { seq: S(T).turnSeq }); continue; }
+        // A random flip by hand can put down the face being looked for: late on, guess any face not guessed yet.
+        const tried = s.log.filter((e) => e.kind === 'guess' && e.seat === s.turn).map((e) => e.face);
+        const fresh = s.faces.map((_, i) => i).filter((i) => tried.indexOf(i) === -1);
+        const left = up(s, s.turn).filter((i) => tried.indexOf(i) === -1);
+        if (left.length <= 2 || guard > 40) { must(T, me, 'guess', { face: pick(left.length && guard <= 60 ? left : fresh), seq }); continue; }
+        if (Math.random() < 0.2) { must(T, me, 'loud', { seq }); continue; }
+        const open = Array.from({ length: 18 }, (_, i) => i).filter((i) => s.asked[s.turn].indexOf(i) === -1);
+        if (!open.length || !act(T, me, 'ask', { q: pick(open), seq })) must(T, me, 'guess', { face: pick(left), seq });
+      }
+    };
+    must(T, T.host, 'start', {});
+    play();
+    must(T, T.host, 'nextRound', { round: S(T).round });
+    play();
+    must(T, T.host, 'backToHub');
+    must(T, T.host, 'chooseGame', { game: 'guesswho' });
+    must(T, T.host, 'start', { pick: 'choose', autoFlip: false, wrong: 'turn', size: 16 });
+    play();
+    return S(T).phase === 'over';
+  },
+  hangman() {
+    const T = table('hangman', 3);
+    const AR = 'ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي'.split(' ');
+    const play = () => {
+      for (let guard = 0; guard < 400 && S(T).phase !== 'gameover'; guard++) {
+        const s = S(T);
+        if (s.phase === 'writing') { must(T, s.setter, 'setWord', { word: pick(['مدرسة', 'برتقال', 'قطة', 'زرافة']), round: s.round }); continue; }
+        if (s.phase === 'result') { must(T, T.host, 'nextRound', { round: s.round }); continue; }
+        const playing = Object.keys(s.progress).filter((id) => s.progress[id].state === 'play');
+        if (!playing.length) break;
+        for (const id of playing) {
+          if (Math.random() < 0.08) act(T, id, 'whole', { text: pick(['موز', 'مدرسه', 'برتقال']), round: s.round });
+          else act(T, id, 'guess', { letter: pick(AR), round: s.round });
+        }
+      }
+    };
+    must(T, T.host, 'start', { rounds: 3 });
+    play();
+    must(T, T.host, 'backToHub');
+    must(T, T.host, 'chooseGame', { game: 'hangman' });
+    must(T, T.host, 'start', { mode: 'race', rounds: 3, lang: 'ar', clock: 60 });
+    play();
+    return S(T).phase === 'gameover';
   },
   dots() {
     const T = table('dots', 2);

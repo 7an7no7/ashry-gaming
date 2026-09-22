@@ -95,6 +95,17 @@ function roomTurnOf(state) {
       return s.phase === 'play' && ((s.held || {})[me] || 0) > 0 ? 'turn_up' : null;
     case 'timeline':
       return s.phase === 'play' && s.turnId === me ? 'turn_up' : null;
+    case 'guesswho':
+      // Your face to pick, your question or guess, faces to flip, or the other's out-loud question to answer.
+      if (!Array.isArray(s.seats) || s.seats.indexOf(me) === -1) return null;
+      if (s.phase === 'pick') return s.picked && !s.picked[s.seats.indexOf(me)] ? 'turn_up' : null;
+      if (s.phase !== 'play') return null;
+      if (s.stage === 'answer') return s.seats[1 - s.turn] === me ? 'turn_up' : null;
+      return s.seats[s.turn] === me ? 'turn_up' : null;
+    case 'hangman':
+      // The word to write, or your own board still being guessed.
+      if (s.phase === 'writing') return s.setter === me ? 'turn_up' : null;
+      return s.phase === 'guessing' && (state.you || {}).state === 'play' ? 'turn_up' : null;
     case 'connect4':
     case 'dots':
       // The duels: only the seat whose move it is (RoomDuels.js).

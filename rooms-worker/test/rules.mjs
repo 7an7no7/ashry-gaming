@@ -3645,8 +3645,9 @@ Date.now = duelTestClock;
   ({ g, priv } = game(['a', 'b'], { oneDie: true }));
   check(B.bankDice(g, Math.random).length === 1 && B.bankRollOff(['a', 'b', 'c'], Math.random, 1).rounds[0].every((r) => r.d.length === 1),
     'bank one die: one die to roll, and to decide who starts');
-  B.bankRoll(g, priv, 'a', [2, 5], Math.random);
-  check(g.pos.a === 2 && g.turn.dice.length === 1 && g.turn.total === 2 && !g.turn.again, 'bank one die: you move by the one die');
+  // A 3, onto a place: a 2 lands on a card square, whose card may move the piece on.
+  B.bankRoll(g, priv, 'a', [3, 5], Math.random);
+  check(g.pos.a === 3 && g.turn.dice.length === 1 && g.turn.total === 3 && !g.turn.again, 'bank one die: you move by the one die');
   g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
   g.pos.a = 0;
   B.bankRoll(g, priv, 'a', [6], Math.random);
@@ -3822,6 +3823,276 @@ Date.now = duelTestClock;
     applyRoomAction(rr, 'h', 'playAgain', {});
     check(rr.shared.clock === 60, 'bank room: play again keeps the turn clock');
   }
+}
+
+/* --- خمّن مين: the faces, the questions, winner stays on ------------------------ */
+{
+  const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') +
+    '\nreturn { gwDealBoard, gwSignature, gwAnswer, gwRuledOut, gwBotQuestion, gwUp, GW_QUESTIONS, GW_NAMES, gwName };')();
+  let distinct = true, sized = true, named = true, capsOk = true;
+  for (const n of [16, 24, 30]) {
+    for (let k = 0; k < 40; k++) {
+      const faces = GW.gwDealBoard(n);
+      if (faces.length !== n) sized = false;
+      if (new Set(faces.map(GW.gwSignature)).size !== n) distinct = false;
+      const names = faces.map((f) => f.g + f.name);
+      if (new Set(names).size !== n || faces.some((f) => !GW.gwName(f, 'ar') || !GW.gwName(f, 'en'))) named = false;
+      if (faces.some((f) => f.hat && (f.style === 'bald' || f.style === 'bun'))) capsOk = false;
+    }
+  }
+  check(sized && distinct, 'guesswho: a board is 16, 24 or 30 faces, and the list can tell every two of them apart');
+  check(named, 'guesswho: every face has its own name, in Arabic and English');
+  check(capsOk, 'guesswho: no cap on a bald head or a bun, where it would hide an answer');
+  const bald = { g: 'm', style: 'bald', hair: 'black', eyes: 'blue' };
+  const qi = (id) => GW.GW_QUESTIONS.findIndex((q) => q.id === id);
+  check(!GW.gwAnswer(qi('black'), bald) && GW.gwAnswer(qi('bald'), bald) && GW.gwAnswer(qi('eyeblue'), bald),
+    'guesswho: a bald head has no hair colour, and the other answers are plain');
+
+  // The computer's questions narrow any board down to one face.
+  let narrows = true;
+  for (let k = 0; k < 60; k++) {
+    const faces = GW.gwDealBoard(30);
+    const secret = Math.floor(Math.random() * 30);
+    let down = [];
+    const asked = [];
+    for (let step = 0; step < 40 && GW.gwUp(faces, down).length > 1; step++) {
+      const q = GW.gwBotQuestion(faces, down, asked, k % 2 ? 'hard' : 'easy');
+      if (q < 0) break;
+      asked.push(q);
+      down = down.concat(GW.gwRuledOut(faces, down, q, GW.gwAnswer(q, faces[secret])));
+    }
+    const left = GW.gwUp(faces, down);
+    if (left.length !== 1 || left[0] !== secret) narrows = false;
+  }
+  check(narrows, 'guesswho: asking from the list always narrows a board down to the secret face');
+
+  const gw = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'guesswho' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const up = (r, seat) => GW.gwUp(r.shared.faces, r.shared.down[seat]);
+
+  let r = gw(['a', 'b', 'c'], {});
+  let s = r.shared;
+  check(s.phase === 'play' && s.seats.length === 2 && s.line.length === 1 && s.faces.length === 24 && s.stage === 'ask' &&
+    s.settings.autoFlip === true && s.settings.wrong === 'lose' && s.settings.pick === 'random',
+    'guesswho: two sit down, one waits, 24 faces, and the defaults are the owner\'s');
+  const [p0, p1] = s.seats;
+  const watcher = s.line[0];
+  check(r.secrets[p0].face === r._gw.secret[0] && r.secrets[p1].face === r._gw.secret[1] && !r.secrets[watcher] &&
+    JSON.stringify(s).indexOf('secret') === -1,
+    'guesswho: each seated phone holds its own face, the watcher none, and the table neither');
+  check(refused(() => applyRoomAction(r, watcher, 'ask', { q: 0, seq: s.turnSeq })), 'guesswho: someone in the line cannot ask');
+  check(refused(() => applyRoomAction(r, p1, 'ask', { q: 0, seq: s.turnSeq })), 'guesswho: nor the player whose turn it is not');
+  // A question that splits the board, answered truthfully and flipped.
+  let q = GW.gwBotQuestion(s.faces, s.down[0], [], 'hard');
+  const truth = GW.gwAnswer(q, s.faces[r._gw.secret[1]]);
+  const expect = GW.gwRuledOut(s.faces, [], q, truth).length;
+  const seq = s.turnSeq;
+  applyRoomAction(r, p0, 'ask', { q, seq });
+  check(s.q.answer === truth && s.q.out === expect && s.down[0].length === expect && s.down[0].indexOf(r._gw.secret[1]) === -1 &&
+    s.turn === 1 && s.stage === 'ask',
+    'guesswho: a list question is answered truthfully, what it rules out falls, and the turn passes');
+  applyRoomAction(r, p0, 'ask', { q, seq });
+  check(s.turn === 1 && s.log.length === 1, 'guesswho: the same tap again, drawn for the last turn, is dropped');
+  // Out loud: the other answers, the asker flips by hand and ends the turn.
+  applyRoomAction(r, p1, 'loud', { seq: s.turnSeq });
+  check(s.stage === 'answer' && s.q.kind === 'loud', 'guesswho: an out-loud question waits for the other player');
+  check(refused(() => applyRoomAction(r, p1, 'answer', { yes: true, seq: s.turnSeq })), 'guesswho: the asker can\'t answer their own question');
+  applyRoomAction(r, p0, 'answer', { yes: false, seq: s.turnSeq });
+  check(s.stage === 'flip' && s.q.answer === false && s.down[1].length === 0, 'guesswho: after an out-loud answer nothing falls by itself');
+  applyRoomAction(r, p1, 'flip', { face: 3, down: true });
+  applyRoomAction(r, p1, 'flip', { face: 3, down: true });
+  applyRoomAction(r, p1, 'flip', { face: 5, down: true });
+  applyRoomAction(r, p1, 'flip', { face: 5, down: false });
+  check(JSON.stringify(s.down[1]) === '[3]', 'guesswho: a face is put down and back up by hand, and a double tap is one flip');
+  applyRoomAction(r, p1, 'done', { seq: s.turnSeq });
+  check(s.turn === 0 && s.stage === 'ask', 'guesswho: "done" ends the turn');
+  check(refused(() => applyRoomAction(r, p0, 'ask', { q, seq: s.turnSeq })), 'guesswho: a list question can\'t be asked twice');
+  // A wrong guess loses the game (the default).
+  const wrongFace = up(r, 0).find((i) => i !== r._gw.secret[1]);
+  applyRoomAction(r, p0, 'guess', { face: wrongFace, seq: s.turnSeq });
+  check(s.phase === 'over' && s.result.winnerId === p1 && s.result.reason === 'wrong' &&
+    JSON.stringify(s.reveal) === JSON.stringify(r._gw.secret) && s.scores[p1] === 1,
+    'guesswho: a wrong guess loses the game, and both faces are shown');
+  check(JSON.stringify(s.line) === JSON.stringify([watcher, p0]), 'guesswho: the loser goes to the back of the line');
+  applyRoomAction(r, 'a', 'nextRound', { round: s.round });
+  s = r.shared;
+  check(s.phase === 'play' && s.seats[0] === watcher && s.seats[1] === p1 && s.down[0].length === 0 &&
+    !!r.secrets[watcher] && !r.secrets[p0],
+    'guesswho: the next in line sits down against the winner, moves first, and a new board is dealt');
+  // A right guess wins.
+  applyRoomAction(r, watcher, 'guess', { face: r._gw.secret[1], seq: s.turnSeq });
+  check(s.phase === 'over' && s.result.winnerId === watcher && s.result.reason === 'guess', 'guesswho: naming the face wins');
+
+  // A wrong guess losing only the turn; faces flipped by hand after a list question.
+  r = gw(['a', 'b'], { wrong: 'turn', autoFlip: false, size: 16 });
+  s = r.shared;
+  check(s.faces.length === 16 && s.settings.wrong === 'turn' && s.settings.autoFlip === false, 'guesswho: the host\'s switches are kept');
+  const w0 = s.seats[0];
+  const miss = GW.gwUp(s.faces, []).find((i) => i !== r._gw.secret[1]);
+  applyRoomAction(r, w0, 'guess', { face: miss, seq: s.turnSeq });
+  check(s.phase === 'play' && s.turn === 1 && s.down[0].indexOf(miss) !== -1, 'guesswho: with the switch, a wrong guess puts that face down and passes the turn');
+  q = GW.gwBotQuestion(s.faces, s.down[1], [], 'hard');
+  applyRoomAction(r, s.seats[1], 'ask', { q, seq: s.turnSeq });
+  check(s.stage === 'flip' && s.down[1].length === 0 && typeof s.q.answer === 'boolean', 'guesswho: with app flipping off, a list answer waits for the hand');
+
+  // Each picks their own face.
+  r = gw(['a', 'b'], { pick: 'choose' });
+  s = r.shared;
+  check(s.phase === 'pick' && !r.secrets.a && !r.secrets.b, 'guesswho: with the switch, each picks their face first');
+  applyRoomAction(r, s.seats[0], 'pick', { face: 4 });
+  check(s.phase === 'pick' && r.secrets[s.seats[0]].face === 4 && !r.secrets[s.seats[1]], 'guesswho: a face picked is on that phone only');
+  applyRoomAction(r, s.seats[1], 'pick', { face: 9 });
+  check(s.phase === 'play' && r._gw.secret[0] === 4 && r._gw.secret[1] === 9 && s.stage === 'ask', 'guesswho: once both have picked, play starts');
+
+  // The turn clock passes the turn.
+  r = gw(['a', 'b'], { turnClock: 30 });
+  s = r.shared;
+  check(roomDeadline(r) === s.endsAt + 1500, 'guesswho: the turn clock is a server deadline');
+  clock = s.endsAt + 2000;
+  roomTimeout(r, clock);
+  check(s.turn === 1 && s.log[s.log.length - 1].kind === 'skip', 'guesswho: when it runs out the turn passes, with no question');
+
+  // Someone seated leaves: a forfeit.
+  r = gw(['a', 'b', 'c'], {});
+  s = r.shared;
+  const leaver = s.seats[1];
+  r.players = r.players.filter((p) => p.id !== leaver);
+  roomPlayerLeft(r, leaver, 'X');
+  check(s.phase === 'over' && s.result.reason === 'left' && s.result.winnerId === s.seats[0], 'guesswho: a seated player who leaves loses by forfeit');
+
+  // A computer player plays a whole game, and can't be asked out loud.
+  r = newRoom(['h']);
+  applyRoomAction(r, 'h', 'chooseGame', { game: 'guesswho' });
+  applyRoomAction(r, 'h', 'addBot', { level: 'hard', name: 'Robo' });
+  applyRoomAction(r, 'h', 'start', { size: 30 });
+  s = r.shared;
+  const botSeat = s.seats.findIndex((id) => id !== 'h');
+  if (s.turn !== botSeat) {
+    check(refused(() => applyRoomAction(r, 'h', 'loud', { seq: s.turnSeq })), 'guesswho: a computer player can\'t be asked out loud');
+  } else check(true, 'guesswho: a computer player can\'t be asked out loud (the bot went first)');
+  let steps = 0;
+  while (r.shared.phase === 'play' && steps < 200) {
+    steps++;
+    const sh = r.shared;
+    if (sh.turn === botSeat) { clock = (r._botAt || clock) + 10; roomTimeout(r, clock); continue; }
+    const hq = GW.gwBotQuestion(sh.faces, sh.down[1 - botSeat], sh.asked[1 - botSeat], 'easy');
+    if (hq < 0) applyRoomAction(r, 'h', 'guess', { face: up(r, 1 - botSeat)[0], seq: sh.turnSeq });
+    else applyRoomAction(r, 'h', 'ask', { q: hq, seq: sh.turnSeq });
+  }
+  const botLog = r.shared.log.filter((e) => e.seat === botSeat);
+  check(r.shared.phase === 'over' && botLog.every((e) => e.kind === 'list' || e.kind === 'guess'),
+    'guesswho: a hard computer player asks from the list and plays the game to the end');
+
+  // Two computer players against each other, many times: a hard one never guesses wrong.
+  let bothFine = true;
+  for (let k = 0; k < 20; k++) {
+    const rb = newRoom(['h']);
+    applyRoomAction(rb, 'h', 'chooseGame', { game: 'guesswho' });
+    applyRoomAction(rb, 'h', 'addBot', { level: 'hard', name: 'A' });
+    applyRoomAction(rb, 'h', 'addBot', { level: 'hard', name: 'B' });
+    rb.players = rb.players.filter((p) => p.id !== 'h');
+    rb.hostId = rb.players[0].id;
+    applyRoomAction(rb, rb.hostId, 'start', { size: [16, 24, 30][k % 3] });
+    let n = 0;
+    while (rb.shared.phase === 'play' && n < 200) { n++; clock = (rb._botAt || clock) + 10; roomTimeout(rb, clock); }
+    if (rb.shared.phase !== 'over' || rb.shared.result.reason !== 'guess') bothFine = false;
+  }
+  check(bothFine, 'guesswho: two hard computer players always finish with a right guess');
+}
+
+/* --- المشنقة: the letters, the fold, the two ways a room plays ---------------- */
+{
+  const HM = new Function(readFileSync(new URL('../../ChameleonWords.js', import.meta.url), 'utf8') + readFileSync(new URL('../../Hangman.js', import.meta.url), 'utf8') +
+    '\nreturn { hmFold, hmPool, hmPattern, hmApply, hmNewBoard, hmWordProblem, hmAlphaOf, hmSolved };')();
+  const ar = HM.hmPool('ar'), en = HM.hmPool('en');
+  const okLen = (p) => p.every((x) => { const n = Array.from(x.w).length; return n >= 4 && n <= 9 && !/\s/.test(x.w) && x.c; });
+  check(ar.length > 150 && en.length > 150 && okLen(ar) && okLen(en) && ar.every((x) => HM.hmAlphaOf(x.w) === 'ar') && en.every((x) => HM.hmAlphaOf(x.w) === 'en'),
+    'hangman: the race deals single words of 4 to 9 letters from the Chameleon boards, with their category (' + ar.length + ' ar, ' + en.length + ' en)');
+  const b = HM.hmNewBoard();
+  check(HM.hmApply(b, 'أسوان', 'ا') === 'hit' && HM.hmPattern('أسوان', b.g).join('|') === 'أ|||ا|',
+    'hangman: ا opens أ too, and the word shows as it is spelt');
+  const b2 = HM.hmNewBoard();
+  HM.hmApply(b2, 'زرافة', 'ه');
+  check(HM.hmPattern('زرافة', b2.g)[4] === 'ة', 'hangman: ه opens ة');
+  const b3 = HM.hmNewBoard();
+  check(HM.hmApply(b3, 'مستشفى', 'ي') === 'hit' && HM.hmPattern('مستشفى', b3.g)[5] === 'ى', 'hangman: ي opens ى');
+  const b4 = HM.hmNewBoard();
+  ['ق', 'ث', 'ج', 'ح', 'خ'].forEach((l) => HM.hmApply(b4, 'برتقال', l));
+  check(b4.miss.length === 4 && b4.state === 'play', 'hangman: a letter in the word costs nothing, one that isn\'t costs a piece');
+  check(HM.hmApply(b4, 'برتقال', 'ث') === '' && b4.miss.length === 4, 'hangman: a letter tried twice costs nothing the second time');
+  check(HM.hmApply(b4, 'برتقال', 'موز', true) === 'miss' && b4.miss.length === 5, 'hangman: a wrong whole word costs a piece');
+  check(HM.hmApply(b4, 'برتقال', 'د') === 'lost' && b4.state === 'lost', 'hangman: the sixth miss hangs the man');
+  const b5 = HM.hmNewBoard();
+  check(HM.hmApply(b5, 'برتقال', 'برتقال', true) === 'won' && HM.hmSolved('برتقال', b5.g), 'hangman: the right whole word solves it');
+  check(HM.hmWordProblem('برتقال') === '' && HM.hmWordProblem('ab') === 'short' && HM.hmWordProblem('two words') === 'space' &&
+    HM.hmWordProblem('abc1') === 'letters' && HM.hmWordProblem('بيتx') === 'letters' && HM.hmWordProblem('Cairo') === '',
+    'hangman: a written word is one word of 3 to 12 letters, in one alphabet');
+
+  const hm = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'hangman' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+
+  let r = hm(['a', 'b', 'c'], { rounds: 3 });
+  let s = r.shared;
+  check(s.phase === 'writing' && s.settings.mode === 'setter' && s.rounds === 3 && !!s.setter, 'hangman: one writes first, by default');
+  const setter = s.setter;
+  const others = ['a', 'b', 'c'].filter((x) => x !== setter);
+  check(refused(() => applyRoomAction(r, others[0], 'setWord', { word: 'قطة', round: 1 })), 'hangman: only the writer writes the word');
+  check(refused(() => applyRoomAction(r, setter, 'setWord', { word: 'قطة سوداء', round: 1 })), 'hangman: two words are refused');
+  applyRoomAction(r, setter, 'setWord', { word: 'مَدرسة', round: 1 });
+  check(s.phase === 'guessing' && s.len === 5 && JSON.stringify(s).indexOf('مدرس') === -1 && r.secrets[setter].word === 'مدرسة' &&
+    !r.secrets[others[0]].word && r.secrets[others[0]].pattern.join('') === '',
+    'hangman: the word is out - the writer\'s phone has it, the table and the guessers don\'t');
+  applyRoomAction(r, others[0], 'guess', { letter: 'د', round: 1 });
+  applyRoomAction(r, others[0], 'guess', { letter: 'ك', round: 1 });
+  check(s.progress[others[0]].n === 1 && s.progress[others[0]].miss === 1 && r.secrets[others[0]].pattern[1] === 'د' &&
+    r.secrets[others[1]].pattern.join('') === '' && JSON.stringify(s.progress).indexOf('د') === -1,
+    'hangman: each board is its own; the table sees how many letters and misses, never which');
+  check(refused(() => applyRoomAction(r, setter, 'guess', { letter: 'م', round: 1 })), 'hangman: the writer doesn\'t guess');
+  applyRoomAction(r, others[0], 'whole', { text: 'مدرسه', round: 1 });
+  check(s.progress[others[0]].state === 'won' && s.phase === 'guessing', 'hangman: the whole word, typed with ه for ة, solves it');
+  ['ث', 'ج', 'ح', 'خ', 'ذ', 'ز'].forEach((l) => applyRoomAction(r, others[1], 'guess', { letter: l, round: 1 }));
+  check(s.phase === 'result' && s.result.word === 'مدرسة' && s.scores[others[0]] === 10 && s.scores[setter] === 5 && !s.scores[others[1]],
+    'hangman: the word ends when all are done; a solve is 10, the writer 5 for each who was hanged');
+  applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+  check(s.round === 2 && s.phase === 'writing' && s.setter !== setter, 'hangman: the next word has the next writer');
+  // The writer leaves before writing: the next one writes.
+  const w2 = s.setter;
+  r.players = r.players.filter((p) => p.id !== w2);
+  roomPlayerLeft(r, w2, 'W');
+  check(s.phase === 'writing' && !!s.setter && s.setter !== w2 && r.players.some((p) => p.id === s.setter), 'hangman: a writer who leaves hands the word to the next');
+
+  // The race: the app's word, the fastest solve scores most.
+  r = hm(['a', 'b', 'c'], { mode: 'race', rounds: 3, clock: 60, lang: 'ar' });
+  s = r.shared;
+  const word = r._hm.word;
+  check(s.phase === 'guessing' && !!s.cat && s.len === Array.from(word).length && !s.setter && Object.keys(s.progress).length === 3,
+    'hangman: the race deals the app\'s word to everyone, with its category');
+  applyRoomAction(r, 'c', 'whole', { text: word, round: 1 });
+  applyRoomAction(r, 'a', 'whole', { text: word, round: 1 });
+  check(s.phase === 'guessing' && !s.scores.c, 'hangman: points go on the board when the word ends, not before');
+  check(roomDeadline(r) === s.endsAt + 1500, 'hangman: the word\'s clock is a server deadline');
+  clock = s.endsAt + 2000;
+  roomTimeout(r, clock);
+  check(s.phase === 'result' && s.scores.c === 15 && s.scores.a === 14 && s.result.rows.find((x) => x.id === 'b').state === 'lost',
+    'hangman: when the clock runs out whoever hasn\'t solved it has failed; the first solve is 10 + 5, the second 10 + 4');
+  applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+  applyRoomAction(r, 'a', 'closeWord', { round: 2 });
+  applyRoomAction(r, 'a', 'nextRound', { round: 2 });
+  applyRoomAction(r, 'a', 'closeWord', { round: 3 });
+  check(s.phase === 'gameover' && r.phase === 'gameover', 'hangman: the game ends after the chosen number of words');
+  applyRoomAction(r, 'a', 'playAgain', {});
+  check(r.shared.phase === 'guessing' && r.shared.round === 1 && r.shared.settings.mode === 'race' && r.shared.settings.clock === 60,
+    'hangman: play again keeps the way of playing');
 }
 
 Date.now = realNow;

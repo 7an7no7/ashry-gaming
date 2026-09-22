@@ -3298,7 +3298,18 @@ async function main() {
     check(bought >= 3, 'bank: places are bought and the turns go round');
     const sM = bS(K1);
     check(Object.keys(sM.own).every((i) => sM.seats.indexOf(sM.own[i].by) !== -1) && Object.values(sM.cash).every((c) => c >= 0), 'bank: every place has an owner at the table, and no cash below nothing');
-    // An offer on your own turn, answered by the other phone.
+    // An offer on your own turn, answered by the other phone. The loop above
+    // stops wherever the turn was; offers are made from 'roll' or 'act', so a
+    // purchase or a debt waiting is settled first.
+    for (let k = 0; k < 8 && bS(K1).phase === 'play'; k++) {
+      const s = bS(K1);
+      if (s.turn.stage === 'roll' || s.turn.stage === 'act') break;
+      const up = three.find((b) => b.pid === s.turn.pid);
+      await until(() => bS(up).turnSeq === s.turnSeq && bS(up).eventSeq === s.eventSeq, 2000);
+      if (s.turn.stage === 'buy') await up.act('buy', { yes: false, seq: s.turnSeq });
+      else if (s.turn.stage === 'debt') await up.act(s.cash[up.pid] >= s.debt.amount ? 'payDebt' : 'bankrupt', { seq: s.turnSeq });
+      await until(() => bS(K1).turnSeq !== s.turnSeq || bS(K1).eventSeq !== s.eventSeq, 3000);
+    }
     await until(() => bS(K1).turn.stage === 'roll' || bS(K1).turn.stage === 'act', 3000);
     const upO = three.find((b) => b.pid === bS(K1).turn.pid);
     const other = three.find((b) => b !== upO);
@@ -3307,7 +3318,7 @@ async function main() {
     const made = await upO.act('offer', { to: other.pid, give: { cash: 10 }, get: {}, ev: bS(upO).eventSeq });
     check(made.ok, 'bank: an offer is made on your own turn');
     await other.waitFor((s) => !!s.shared.offer && s.shared.offer.to === other.pid, 'bank: the offer reaches the other phone');
-    const oid = bS(other).offer.id;
+    const oid = (bS(other).offer || {}).id;
     await third.act('answer', { yes: true, id: oid });
     await sleep(300);
     check(!!bS(K1).offer, 'bank: only the player it was made to can answer');

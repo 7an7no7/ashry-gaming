@@ -21,6 +21,12 @@
        cheapest up to 50 on القاهرة, by its price, doubled for a whole
        colour; a جراج then pays at least the whole colour's rent + 10, so a
        building always pays more than the step before.
+     - One die (the owner, 22 Sep 2026: a lobby switch, off): you move by one
+       die; a 6 is what a double is with two - another roll, three in a row
+       to jail, out of jail on one of the three tries (moving 6, and no
+       roll after); a company rents for the die x 8, or x 20 with both
+       (the same money on average as two dice), and the "nearest company"
+       card the die x 20. The roll-off uses the same one die.
      - Buildings are the Egyptian box's جراج ← استراحة ← سوق on a whole colour,
        built evenly, no limit: rent is the base, twice that for a whole colour,
        then the classic 1 house, 3 houses and hotel rents. A step costs the
@@ -180,6 +186,9 @@ const bankActive = (g) => g.seats.filter(pid => g.out.indexOf(pid) === -1);
 /** Whether `pid` may buy yet: always, or once past Start when the table plays the first lap. */
 const bankCanBuyYet = (g, pid) => !(g.settings && g.settings.firstLap) || !!(g.lapped || {})[pid];
 const bankRoll6 = (rnd) => 1 + Math.floor((rnd || Math.random)() * 6);
+/** A roll for this table: one die, or two (the lobby's switch). */
+const bankDice = (g, rnd) => (g && g.settings && g.settings.oneDie ? [bankRoll6(rnd)] : [bankRoll6(rnd), bankRoll6(rnd)]);
+const bankDiceSum = (d) => d.reduce((s, x) => s + x, 0);
 
 /** What the next step of building costs: the colour's price once, then twice, then twice. */
 const bankStepCost = (grp, lvl) => BANK_GROUPS[grp].house * (lvl <= 1 ? 1 : 2);
@@ -229,7 +238,8 @@ const bankRentOf = (g, i, dice, mul, coMul) => {
   }
   if (q.t === 'co') {
     const both = BANK_COMPANIES.every(k => bankOwnerOf(g, k) === o.by);
-    return (dice || 0) * (coMul || (both ? 10 : 4));
+    // One die rolls half as much, so it pays twice as much a pip.
+    return (dice || 0) * (coMul || (both ? 10 : 4)) * (g.settings && g.settings.oneDie ? 2 : 1);
   }
   return 0;
 };
@@ -301,21 +311,22 @@ const bankFillTokens = (ids, picked) => {
  * Who starts: everyone rolls the two dice, the highest starts, and those
  * level on top roll again. { first, rounds: [[{ pid, d: [a, b] }...]...] }.
  */
-const bankRollOff = (ids, rnd) => {
+const bankRollOff = (ids, rnd, dice) => {
   let left = ids.slice();
   const rounds = [];
+  const one = dice === 1;
   for (let k = 0; k < 20 && left.length > 1; k++) {
-    const round = left.map(pid => ({ pid: pid, d: [bankRoll6(rnd), bankRoll6(rnd)] }));
+    const round = left.map(pid => ({ pid: pid, d: one ? [bankRoll6(rnd)] : [bankRoll6(rnd), bankRoll6(rnd)] }));
     rounds.push(round);
-    const top = Math.max.apply(null, round.map(r => r.d[0] + r.d[1]));
-    left = round.filter(r => r.d[0] + r.d[1] === top).map(r => r.pid);
+    const top = Math.max.apply(null, round.map(r => bankDiceSum(r.d)));
+    left = round.filter(r => bankDiceSum(r.d) === top).map(r => r.pid);
   }
   return { first: left[0], rounds: rounds };
 };
 
 /**
  * A new game. `settings`: { length (minutes, 0 = until one is left), pot,
- * go400, firstLap (on unless false), highRent }. Returns { g, priv }.
+ * go400, firstLap (on unless false), highRent, oneDie }. Returns { g, priv }.
  */
 const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
   const seats = ids.slice();
@@ -335,7 +346,7 @@ const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
     own: {},
     turn: { pid: seats.indexOf(first) !== -1 ? first : seats[0], stage: 'roll', dice: null, dbl: 0, again: false, total: 0 },
     pot: 0,
-    settings: { length: length, pot: !!set.pot, go400: !!set.go400, firstLap: set.firstLap !== false, highRent: !!set.highRent },
+    settings: { length: length, pot: !!set.pot, go400: !!set.go400, firstLap: set.firstLap !== false, highRent: !!set.highRent, oneDie: !!set.oneDie },
     lapped: {},
     out: [],
     phase: 'play',
@@ -446,8 +457,8 @@ const bankLand = (g, priv, pid, rnd, opts) => {
       let dice = g.turn.total || 0;
       let coMul = null;
       if (q.t === 'co' && opts.coMul) {
-        const d = [bankRoll6(rnd), bankRoll6(rnd)];
-        dice = d[0] + d[1];
+        const d = bankDice(g, rnd);
+        dice = bankDiceSum(d);
         coMul = opts.coMul;
         bankEvent(g, 'roll', { pid: pid, d: d, forRent: 1 });
       }
@@ -583,25 +594,27 @@ const bankMustTurn = (g, pid, stages) => {
 const bankRoll = (g, priv, pid, d, rnd) => {
   bankMustTurn(g, pid, ['roll']);
   if (g.offer) g.offer = null;
-  const a = d[0];
-  const b = d[1];
-  const dbl = a === b;
-  g.turn.dice = [a, b];
-  g.turn.total = a + b;
-  bankEvent(g, 'roll', { pid: pid, d: [a, b], dbl: dbl ? 1 : undefined });
+  // With one die a 6 is what a double is with two.
+  const one = !!(g.settings && g.settings.oneDie);
+  const dice = one ? [d[0]] : [d[0], d[1]];
+  const total = bankDiceSum(dice);
+  const dbl = one ? dice[0] === 6 : dice[0] === dice[1];
+  g.turn.dice = dice;
+  g.turn.total = total;
+  bankEvent(g, 'roll', { pid: pid, d: dice, dbl: dbl ? 1 : undefined });
   if (g.jail[pid] !== undefined) {
     if (dbl) {
       delete g.jail[pid];
       bankEvent(g, 'free', { pid: pid, how: 'dbl' });
       g.turn.again = false;
-      bankMoveTo(g, priv, pid, (g.pos[pid] + a + b) % 40, 'dice', rnd);
+      bankMoveTo(g, priv, pid, (g.pos[pid] + total) % 40, 'dice', rnd);
       return;
     }
     g.jail[pid] += 1;
     if (g.jail[pid] >= 3) {
       // The third miss: pay and go.
       bankEvent(g, 'free', { pid: pid, how: 'forced' });
-      const n = a + b;
+      const n = total;
       if (!bankCharge(g, pid, BANK_JAIL_FINE, 'bank', true, { kind: 'jailMove', n: n })) return;
       delete g.jail[pid];
       bankMoveTo(g, priv, pid, (g.pos[pid] + n) % 40, 'dice', rnd);
@@ -618,7 +631,7 @@ const bankRoll = (g, priv, pid, d, rnd) => {
     return;
   }
   g.turn.again = dbl;
-  bankMoveTo(g, priv, pid, (g.pos[pid] + a + b) % 40, 'dice', rnd);
+  bankMoveTo(g, priv, pid, (g.pos[pid] + total) % 40, 'dice', rnd);
 };
 
 /** Buys the place just landed on, or leaves it with the bank. */
@@ -998,7 +1011,7 @@ const bankAuto = (g, priv, pid, rnd, now) => {
       if ((g.cash[pid] || 0) >= g.debt.amount) bankPayDebt(g, priv, pid, rnd);
       else bankBankrupt(g, priv, pid, now);
     } else if (st === 'roll') {
-      bankRoll(g, priv, pid, [bankRoll6(rnd), bankRoll6(rnd)], rnd);
+      bankRoll(g, priv, pid, bankDice(g, rnd), rnd);
     } else if (st === 'buy') {
       bankBuy(g, pid, false);
     } else if (st === 'act') {

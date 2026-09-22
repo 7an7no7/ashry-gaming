@@ -3386,7 +3386,7 @@ Date.now = duelTestClock;
   const B = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
     '\nreturn { BANK_SQUARES, BANK_CARDS, BANK_GROUPS, BANK_STATIONS, BANK_COMPANIES, bankNewGame, bankRoll, bankBuy, bankEndTurn, bankBuild, bankSell, bankMortgage,' +
     ' bankUnmortgage, bankPayJail, bankUseCard, bankPayDebt, bankBankrupt, bankOffer, bankAnswer, bankRentOf, bankWorth, bankCanBuild, bankStepCost, bankAuto,' +
-    ' bankBotMove, bankOnlyMove, bankRemovePlayer, bankFillTokens, bankRollOff, bankGroupSquares, bankLiquid, bankRents };')();
+    ' bankBotMove, bankOnlyMove, bankRemovePlayer, bankFillTokens, bankRollOff, bankGroupSquares, bankLiquid, bankRents, bankDice };')();
   const Q = B.BANK_SQUARES;
   check(Q.length === 40 && Q[0].t === 'go' && Q[10].t === 'jail' && Q[20].t === 'bus' && Q[30].t === 'tojail', 'bank: 40 squares, the four corners where they belong');
   check(Q.filter((q) => q.t === 'p').length === 22 && B.BANK_STATIONS.every((i) => Q[i].t === 'st') && B.BANK_COMPANIES.every((i) => Q[i].t === 'co'),
@@ -3590,6 +3590,33 @@ Date.now = duelTestClock;
   });
   check(rising, 'bank high rents: every building pays more than the step before, on every place');
 
+  // One die (the owner, 22 Sep 2026: a switch, off): a 6 is what a double is with two.
+  ({ g, priv } = game(['a', 'b']));
+  check(!g.settings.oneDie && B.bankDice(g, Math.random).length === 2, 'bank: two dice by default');
+  ({ g, priv } = game(['a', 'b'], { oneDie: true }));
+  check(B.bankDice(g, Math.random).length === 1 && B.bankRollOff(['a', 'b', 'c'], Math.random, 1).rounds[0].every((r) => r.d.length === 1),
+    'bank one die: one die to roll, and to decide who starts');
+  B.bankRoll(g, priv, 'a', [2, 5], Math.random);
+  check(g.pos.a === 2 && g.turn.dice.length === 1 && g.turn.total === 2 && !g.turn.again, 'bank one die: you move by the one die');
+  g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  g.pos.a = 0;
+  B.bankRoll(g, priv, 'a', [6], Math.random);
+  check(g.pos.a === 6 && g.turn.again, 'bank one die: a 6 rolls again');
+  g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 2, again: true, total: 0 };
+  B.bankRoll(g, priv, 'a', [6], Math.random);
+  check(g.jail.a !== undefined && g.pos.a === 10, 'bank one die: a third 6 in a row goes to jail');
+  g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  B.bankRoll(g, priv, 'a', [4], Math.random);
+  check(g.jail.a === 1 && g.pos.a === 10, 'bank one die: in jail, anything but a 6 stays');
+  g.turn = { pid: 'a', stage: 'roll', dice: null, dbl: 0, again: false, total: 0 };
+  B.bankRoll(g, priv, 'a', [6], Math.random);
+  check(g.jail.a === undefined && g.pos.a === 16 && !g.turn.again, 'bank one die: a 6 gets out of jail and moves 6, with no roll after');
+  g.own[12] = { by: 'b', lvl: 0, mort: false };
+  const co1 = B.bankRentOf(g, 12, 3);
+  g.own[28] = { by: 'b', lvl: 0, mort: false };
+  const co2 = B.bankRentOf(g, 12, 3);
+  check(co1 === 24 && co2 === 60, `bank one die: a company is the die x 8, or x 20 with both (${co1}, ${co2})`);
+
   ({ g, priv } = B.bankNewGame(['a', 'b'], B.bankFillTokens(['a', 'b'], {}), 'a', { length: 0 }, 0, Math.random));
   g.pos.a = 27;
   B.bankRoll(g, priv, 'a', [1, 2], Math.random);
@@ -3621,7 +3648,7 @@ Date.now = duelTestClock;
       applyRoomAction(r, 'h', 'becomeScreen', {});
       applyRoomAction(r, 'h', 'chooseGame', { game: 'bank' });
       for (let k = 0; k < n; k++) applyRoomAction(r, 'h', 'addBot', { level: lvl === 'mix' ? (k % 2 ? 'hard' : 'easy') : lvl, name: 'B' });
-      applyRoomAction(r, 'h', 'start', { length: 30, highRent: lvl === 'mix' });
+      applyRoomAction(r, 'h', 'start', { length: 30, highRent: lvl === 'mix', oneDie: lvl === 'hard' });
       const t0 = clock;
       for (let step = 0; step < 40000 && r.shared.phase === 'play'; step++) {
         if (typeof r._botAt !== 'number') break;
@@ -3651,9 +3678,11 @@ Date.now = duelTestClock;
     'bank room: 45 minutes, the pot and 400 off, buying after the first lap on, no clock, by default');
   const r2 = newRoom(['h', 'p']);
   applyRoomAction(r2, 'h', 'chooseGame', { game: 'bank' });
-  applyRoomAction(r2, 'h', 'start', { firstLap: false, highRent: true });
+  applyRoomAction(r2, 'h', 'start', { firstLap: false, highRent: true, oneDie: true });
   check(r2.shared.settings.firstLap === false && r2.shared.settings.highRent === true && rr.shared.settings.highRent === false,
     'bank room: high rents off by default; the host can turn them on and buying after the first lap off');
+  check(r2.shared.settings.oneDie === true && rr.shared.settings.oneDie === false && r2.shared.events.find((e) => e.type === 'rolloff').rounds[0].every((x) => x.d.length === 1),
+    'bank room: one die off by default; on, the room rolls one die, the roll-off too');
 }
 
 Date.now = realNow;

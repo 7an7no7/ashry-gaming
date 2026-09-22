@@ -166,9 +166,19 @@ work changed. Add to it when a decision is made or a batch ships.
     on the cheapest up to 50 on القاهرة, by its price (`round(15 + (price -
     60) × 35 / 340)`), doubled for a whole colour (30 to 100); a جراج pays at
     least the whole colour's rent + 10, so every building still pays more
-    than the step before; the استراحة and سوق rents are unchanged. The game
-    is played with **two dice** in every mode (the owner asked; doubles,
-    jail and the companies' rent all need two);
+    than the step before; the استراحة and سوق rents are unchanged;
+  - **one die** (the owner, 22 Sep 2026, the same day; a lobby switch,
+    **off** - two dice by default): you move by one die and **a 6 is what a
+    double is with two** - another roll, three 6s in a row to jail, and in
+    jail a 6 gets you out and moves you 6 **with no roll after** (the
+    owner's answer, like a double out of jail); after the third miss you
+    pay 50 and move by that roll, as with two. **A company rents for the
+    die x 8, or x 20 with both** (the owner's pick: the same money on
+    average as two dice), and the "nearest company" card is the die x 20.
+    Decided here: the roll-off rolls the same one die. Put to the owner
+    first and kept on only as a switch: one die halves how far a lap goes,
+    so a 45-minute game passes Start about half as often, and with buying
+    after the first lap nobody can buy for about eleven turns each;
   - computer players **easy and hard**, answering trade offers but never
     making them; a turn clock off by default, 60 or 90 seconds.
   - **Clarified by the owner before the build** (another AI's notes, checked
@@ -1043,7 +1053,8 @@ the word search), `countUp` for streaks and scores.
   foot (*Traps*), after the owner saw بنك الحظ's switches under it on a PC.
   Then high rents as a second switch, off, after the owner found the classic
   rents too small (*The owner's specs*); the classic numbers stay the
-  default.
+  default. And one die as a third, off, with a 6 standing for a double and
+  the companies paying twice as much a pip.
 
 ## Building and Running
 
@@ -2965,7 +2976,10 @@ The owner's rules are in *The owner's specs*. Built the way لودو is:
   `bankOnlyMove` the forced move. `bankRents(g, i)` is a place's four rents
   as the table plays them (the classic ones, or with `highRent`); the rent
   rule and the card on screen both read it, never `BANK_SQUARES[i].rent`
-  directly. The first lap is `g.lapped` (who has passed
+  directly. `bankDice(g, rnd)` is a roll for this table (one die or two,
+  `settings.oneDie`) and every roll goes through it - the turn, the clock's
+  roll, the company card's - and `bankRollOff(ids, rnd, 1 | 2)` the start;
+  in `bankRoll` a 6 on one die is the `dbl` of two. The first lap is `g.lapped` (who has passed
   Start, set in `bankPassStart`, whose `start` event carries `first` the
   first time) and `bankCanBuyYet`, asked by `bankLand` (a free place writes
   a `notYet` event and the turn goes on), `bankBuy` and both sides of an

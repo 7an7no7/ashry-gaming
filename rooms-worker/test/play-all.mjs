@@ -1938,8 +1938,10 @@ async function main() {
     let roundsT = 0;
     let rightT = true;
     let blockedSeen = false;
-    // The closer plays for a blocked table; rounds go on until one blocks.
-    while (roundsT < 14 && !blockedSeen) {
+    // The closer plays for a blocked table; rounds go on until one blocks and someone has had to pass
+    // (a deal can block before anyone knocks, and the knock is checked below).
+    const passSeen = () => [...events.values()].some((e) => e.type === 'pass');
+    while (roundsT < 14 && !(blockedSeen && passSeen())) {
       if (!(await playRound(four, closer))) break;
       await settled(four);
       roundsT++;

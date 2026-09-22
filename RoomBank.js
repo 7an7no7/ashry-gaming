@@ -13,7 +13,8 @@
    roll-off of the two dice, rolled by the server. The host's options: how
    long a game is (45 minutes by default; 30, 60, or until one is left), the
    free-parking pot and 400 for landing on Start (both off), buying only
-   after the first lap (on, 22 Sep 2026), and a turn clock
+   after the first lap (on, 22 Sep 2026), high rents (off, the same day), and
+   a turn clock
    (off, 60 or 90 seconds: when it runs out the phone rolls, pays what is
    owed, doesn't buy, and ends the turn).
 
@@ -138,7 +139,7 @@ const bankNewRoomGame = (room, playerId, action, p) => {
   const pick = (key, list, dflt) => (list.indexOf(Number(p[key])) !== -1 ? Number(p[key]) : (list.indexOf(Number(was[key])) !== -1 ? Number(was[key]) : dflt));
   const flag = (key) => (typeof p[key] === 'boolean' ? p[key] : !!was[key]);
   const settings = { length: pick('length', BANK_LENGTHS, BANK_LENGTH_DEFAULT), pot: flag('pot'), go400: flag('go400'),
-    firstLap: typeof p.firstLap === 'boolean' ? p.firstLap : was.firstLap !== false };
+    firstLap: typeof p.firstLap === 'boolean' ? p.firstLap : was.firstLap !== false, highRent: flag('highRent') };
   const clock = pick('turnClock', BANK_CLOCKS, 0);
   const off = bankRollOff(ids, Math.random);
   // The seats go round from whoever starts, the rest in the room's order.

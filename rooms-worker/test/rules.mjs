@@ -3386,7 +3386,7 @@ Date.now = duelTestClock;
   const B = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
     '\nreturn { BANK_SQUARES, BANK_CARDS, BANK_GROUPS, BANK_STATIONS, BANK_COMPANIES, bankNewGame, bankRoll, bankBuy, bankEndTurn, bankBuild, bankSell, bankMortgage,' +
     ' bankUnmortgage, bankPayJail, bankUseCard, bankPayDebt, bankBankrupt, bankOffer, bankAnswer, bankRentOf, bankWorth, bankCanBuild, bankStepCost, bankAuto,' +
-    ' bankBotMove, bankOnlyMove, bankRemovePlayer, bankFillTokens, bankRollOff, bankGroupSquares, bankLiquid };')();
+    ' bankBotMove, bankOnlyMove, bankRemovePlayer, bankFillTokens, bankRollOff, bankGroupSquares, bankLiquid, bankRents };')();
   const Q = B.BANK_SQUARES;
   check(Q.length === 40 && Q[0].t === 'go' && Q[10].t === 'jail' && Q[20].t === 'bus' && Q[30].t === 'tojail', 'bank: 40 squares, the four corners where they belong');
   check(Q.filter((q) => q.t === 'p').length === 22 && B.BANK_STATIONS.every((i) => Q[i].t === 'st') && B.BANK_COMPANIES.every((i) => Q[i].t === 'co'),
@@ -3567,6 +3567,29 @@ Date.now = duelTestClock;
     'bank first lap: passing Start and landing on a place in the same move: it can be bought');
   B.bankBuy(g, 'a', true);
   check(g.own[3] && g.own[3].by === 'a', 'bank first lap: after passing Start, buying works');
+  // High rents (the owner, 22 Sep 2026: a switch, off - the classic numbers by default).
+  ({ g, priv } = game(['a', 'b']));
+  g.own[1] = { by: 'b', lvl: 0, mort: false };
+  check(!g.settings.highRent && B.bankRentOf(g, 1, 7) === 2, 'bank: the classic rents by default (الفيوم 2)');
+  ({ g, priv } = game(['a', 'b'], { highRent: true }));
+  g.own[1] = { by: 'b', lvl: 0, mort: false };
+  g.own[39] = { by: 'b', lvl: 0, mort: false };
+  const hr1 = B.bankRentOf(g, 1, 7);
+  const hr39 = B.bankRentOf(g, 39, 7);
+  g.own[3] = { by: 'b', lvl: 0, mort: false };
+  const hrSet = B.bankRentOf(g, 1, 7);
+  g.own[1].lvl = 1;
+  g.own[3].lvl = 1;
+  const hrGarage = B.bankRentOf(g, 1, 7);
+  check(hr1 === 15 && hr39 === 50 && hrSet === 30 && hrGarage === 40, `bank high rents: 15 to 50 by price, doubled for the colour, a جراج above that (${hr1}, ${hr39}, ${hrSet}, ${hrGarage})`);
+  let rising = true;
+  Q.forEach((q, i) => {
+    if (q.t !== 'p') return;
+    const r = B.bankRents(g, i);
+    if (!(r[1] > r[0] * 2 && r[2] > r[1] && r[3] > r[2])) rising = false;
+  });
+  check(rising, 'bank high rents: every building pays more than the step before, on every place');
+
   ({ g, priv } = B.bankNewGame(['a', 'b'], B.bankFillTokens(['a', 'b'], {}), 'a', { length: 0 }, 0, Math.random));
   g.pos.a = 27;
   B.bankRoll(g, priv, 'a', [1, 2], Math.random);
@@ -3598,7 +3621,7 @@ Date.now = duelTestClock;
       applyRoomAction(r, 'h', 'becomeScreen', {});
       applyRoomAction(r, 'h', 'chooseGame', { game: 'bank' });
       for (let k = 0; k < n; k++) applyRoomAction(r, 'h', 'addBot', { level: lvl === 'mix' ? (k % 2 ? 'hard' : 'easy') : lvl, name: 'B' });
-      applyRoomAction(r, 'h', 'start', { length: 30 });
+      applyRoomAction(r, 'h', 'start', { length: 30, highRent: lvl === 'mix' });
       const t0 = clock;
       for (let step = 0; step < 40000 && r.shared.phase === 'play'; step++) {
         if (typeof r._botAt !== 'number') break;
@@ -3628,8 +3651,9 @@ Date.now = duelTestClock;
     'bank room: 45 minutes, the pot and 400 off, buying after the first lap on, no clock, by default');
   const r2 = newRoom(['h', 'p']);
   applyRoomAction(r2, 'h', 'chooseGame', { game: 'bank' });
-  applyRoomAction(r2, 'h', 'start', { firstLap: false });
-  check(r2.shared.settings.firstLap === false, 'bank room: the host can turn buying after the first lap off');
+  applyRoomAction(r2, 'h', 'start', { firstLap: false, highRent: true });
+  check(r2.shared.settings.firstLap === false && r2.shared.settings.highRent === true && rr.shared.settings.highRent === false,
+    'bank room: high rents off by default; the host can turn them on and buying after the first lap off');
 }
 
 Date.now = realNow;

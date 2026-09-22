@@ -158,6 +158,17 @@ work changed. Add to it when a decision is made or a batch ships.
     may already buy. Decided here: a bankruptcy still hands its places to
     the creditor either way (it isn't buying or trading), and a game saved
     before the switch existed plays on as it was;
+  - **high rents from the start** (the owner, 22 Sep 2026, after noticing
+    that بني سويف rents for 4: the classic numbers had been copied square for
+    square from the international board, and the Egyptian box they remember
+    runs about 15 to 50): a lobby switch, **off by default - the classic
+    numbers stay the default**. On, a place with no buildings rents for 15
+    on the cheapest up to 50 on القاهرة, by its price (`round(15 + (price -
+    60) × 35 / 340)`), doubled for a whole colour (30 to 100); a جراج pays at
+    least the whole colour's rent + 10, so every building still pays more
+    than the step before; the استراحة and سوق rents are unchanged. The game
+    is played with **two dice** in every mode (the owner asked; doubles,
+    jail and the companies' rent all need two);
   - computer players **easy and hard**, answering trade offers but never
     making them; a turn clock off by default, 60 or 90 seconds.
   - **Clarified by the owner before the build** (another AI's notes, checked
@@ -1030,6 +1041,9 @@ the word search), `countUp` for streaks and scores.
   with no places in a trade before the first lap (*The owner's specs*). The
   same day the Start bar of every setup screen was made to sit flush at the
   foot (*Traps*), after the owner saw بنك الحظ's switches under it on a PC.
+  Then high rents as a second switch, off, after the owner found the classic
+  rents too small (*The owner's specs*); the classic numbers stay the
+  default.
 
 ## Building and Running
 
@@ -2948,7 +2962,10 @@ The owner's rules are in *The owner's specs*. Built the way لودو is:
   move) runs once it is paid. `bankRaise` sells back and mortgages for
   someone (the computer, the clock, the birthday); `bankAuto` plays a turn
   out for the clock or the host; `bankBotMove` is the computer players;
-  `bankOnlyMove` the forced move. The first lap is `g.lapped` (who has passed
+  `bankOnlyMove` the forced move. `bankRents(g, i)` is a place's four rents
+  as the table plays them (the classic ones, or with `highRent`); the rent
+  rule and the card on screen both read it, never `BANK_SQUARES[i].rent`
+  directly. The first lap is `g.lapped` (who has passed
   Start, set in `bankPassStart`, whose `start` event carries `first` the
   first time) and `bankCanBuyYet`, asked by `bankLand` (a free place writes
   a `notYet` event and the turn goes on), `bankBuy` and both sides of an

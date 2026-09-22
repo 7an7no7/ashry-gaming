@@ -16,6 +16,11 @@
        stays with the bank, and a trade can't give you a place; rent is
        still paid. A card that takes you to or past Start counts; jail
        doesn't.
+     - High rents (the owner, 22 Sep 2026: a lobby switch, off - the classic
+       numbers by default): a place with no buildings rents for 15 on the
+       cheapest up to 50 on القاهرة, by its price, doubled for a whole
+       colour; a جراج then pays at least the whole colour's rent + 10, so a
+       building always pays more than the step before.
      - Buildings are the Egyptian box's جراج ← استراحة ← سوق on a whole colour,
        built evenly, no limit: rent is the base, twice that for a whole colour,
        then the classic 1 house, 3 houses and hotel rents. A step costs the
@@ -195,14 +200,28 @@ const bankPlacesOf = (g, pid) => Object.keys(g.own || {}).map(Number).filter(i =
  * company); `mul` doubles a station (the card), `coMul` sets a company's
  * multiplier (the card's 10).
  */
+/**
+ * A place's rents as this table plays them: [no buildings, جراج, استراحة, سوق].
+ * The classic numbers, or with high rents on: 15 up to 50 by price, and a
+ * جراج that still pays more than the whole colour does.
+ */
+const bankRents = (g, i) => {
+  const q = BANK_SQUARES[i];
+  if (!q.rent) return null;
+  if (!(g && g.settings && g.settings.highRent)) return q.rent;
+  const base = Math.round(15 + (q.price - 60) * 35 / 340);
+  return [base, Math.max(q.rent[1], base * 2 + 10), q.rent[2], q.rent[3]];
+};
+
 const bankRentOf = (g, i, dice, mul, coMul) => {
   const q = BANK_SQUARES[i];
   const o = (g.own || {})[i];
   if (!o || o.mort) return 0;
   if (q.t === 'p') {
     const lvl = o.lvl || 0;
-    if (lvl > 0) return q.rent[lvl];
-    return q.rent[0] * (bankHasSet(g, o.by, q.g) ? 2 : 1);
+    const rents = bankRents(g, i);
+    if (lvl > 0) return rents[lvl];
+    return rents[0] * (bankHasSet(g, o.by, q.g) ? 2 : 1);
   }
   if (q.t === 'st') {
     const n = BANK_STATIONS.filter(k => bankOwnerOf(g, k) === o.by).length;
@@ -296,7 +315,7 @@ const bankRollOff = (ids, rnd) => {
 
 /**
  * A new game. `settings`: { length (minutes, 0 = until one is left), pot,
- * go400, firstLap (on unless false) }. Returns { g, priv }.
+ * go400, firstLap (on unless false), highRent }. Returns { g, priv }.
  */
 const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
   const seats = ids.slice();
@@ -316,7 +335,7 @@ const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
     own: {},
     turn: { pid: seats.indexOf(first) !== -1 ? first : seats[0], stage: 'roll', dice: null, dbl: 0, again: false, total: 0 },
     pot: 0,
-    settings: { length: length, pot: !!set.pot, go400: !!set.go400, firstLap: set.firstLap !== false },
+    settings: { length: length, pot: !!set.pot, go400: !!set.go400, firstLap: set.firstLap !== false, highRent: !!set.highRent },
     lapped: {},
     out: [],
     phase: 'play',

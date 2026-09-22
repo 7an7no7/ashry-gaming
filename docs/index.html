@@ -16379,6 +16379,11 @@ const ludoOnlyMove = (g, pid) => {
        stays with the bank, and a trade can't give you a place; rent is
        still paid. A card that takes you to or past Start counts; jail
        doesn't.
+     - High rents (the owner, 22 Sep 2026: a lobby switch, off - the classic
+       numbers by default): a place with no buildings rents for 15 on the
+       cheapest up to 50 on القاهرة, by its price, doubled for a whole
+       colour; a جراج then pays at least the whole colour's rent + 10, so a
+       building always pays more than the step before.
      - Buildings are the Egyptian box's جراج ← استراحة ← سوق on a whole colour,
        built evenly, no limit: rent is the base, twice that for a whole colour,
        then the classic 1 house, 3 houses and hotel rents. A step costs the
@@ -16558,14 +16563,28 @@ const bankPlacesOf = (g, pid) => Object.keys(g.own || {}).map(Number).filter(i =
  * company); `mul` doubles a station (the card), `coMul` sets a company's
  * multiplier (the card's 10).
  */
+/**
+ * A place's rents as this table plays them: [no buildings, جراج, استراحة, سوق].
+ * The classic numbers, or with high rents on: 15 up to 50 by price, and a
+ * جراج that still pays more than the whole colour does.
+ */
+const bankRents = (g, i) => {
+  const q = BANK_SQUARES[i];
+  if (!q.rent) return null;
+  if (!(g && g.settings && g.settings.highRent)) return q.rent;
+  const base = Math.round(15 + (q.price - 60) * 35 / 340);
+  return [base, Math.max(q.rent[1], base * 2 + 10), q.rent[2], q.rent[3]];
+};
+
 const bankRentOf = (g, i, dice, mul, coMul) => {
   const q = BANK_SQUARES[i];
   const o = (g.own || {})[i];
   if (!o || o.mort) return 0;
   if (q.t === 'p') {
     const lvl = o.lvl || 0;
-    if (lvl > 0) return q.rent[lvl];
-    return q.rent[0] * (bankHasSet(g, o.by, q.g) ? 2 : 1);
+    const rents = bankRents(g, i);
+    if (lvl > 0) return rents[lvl];
+    return rents[0] * (bankHasSet(g, o.by, q.g) ? 2 : 1);
   }
   if (q.t === 'st') {
     const n = BANK_STATIONS.filter(k => bankOwnerOf(g, k) === o.by).length;
@@ -16659,7 +16678,7 @@ const bankRollOff = (ids, rnd) => {
 
 /**
  * A new game. `settings`: { length (minutes, 0 = until one is left), pot,
- * go400, firstLap (on unless false) }. Returns { g, priv }.
+ * go400, firstLap (on unless false), highRent }. Returns { g, priv }.
  */
 const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
   const seats = ids.slice();
@@ -16679,7 +16698,7 @@ const bankNewGame = (ids, tokens, first, settings, now, rnd) => {
     own: {},
     turn: { pid: seats.indexOf(first) !== -1 ? first : seats[0], stage: 'roll', dice: null, dbl: 0, again: false, total: 0 },
     pot: 0,
-    settings: { length: length, pot: !!set.pot, go400: !!set.go400, firstLap: set.firstLap !== false },
+    settings: { length: length, pot: !!set.pot, go400: !!set.go400, firstLap: set.firstLap !== false, highRent: !!set.highRent },
     lapped: {},
     out: [],
     phase: 'play',
@@ -17495,7 +17514,7 @@ const bankOnlyMove = (g, pid) => {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260922064028";
+      window.BUILD_ID = "20260922070534";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -18452,6 +18471,13 @@ const bankOnlyMove = (g, pid) => {
                 <span class="switch"><input type="checkbox" id="bank-firstlap" role="switch" checked onchange="setBankOption('firstLap', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
               </label>
               <p class="field__hint" data-i18n="bank_opt_firstlap_hint">محدش يشتري مكان، ولا ياخده في بدل، قبل ما يعدّي البداية مرة.</p>
+            </div>
+            <div class="field">
+              <label class="switch-row" for="bank-highrent">
+                <span class="field__label" data-i18n="bank_opt_highrent">إيجار عالي من الأول</span>
+                <span class="switch"><input type="checkbox" id="bank-highrent" role="switch" onchange="setBankOption('highRent', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+              </label>
+              <p class="field__hint" data-i18n="bank_opt_highrent_hint">المكان من غير بنا إيجاره من ١٥ لـ ٥٠ (والضعف للون كله)، فالفلوس بتلف أسرع واللعبة أسرع.</p>
             </div>
             <div class="field">
               <label class="switch-row" for="bank-pot">
@@ -22967,6 +22993,8 @@ const bankOnlyMove = (g, pid) => {
       bank_ev_start_first: "{name}: {n} من البداية، والشرا بقى مسموح",
       bank_trade_locked_them: "{name}: الأماكن بعد أول لفة",
       bank_trade_locked_me: "تاخد أماكن بعد ما تعدّي البداية",
+      bank_opt_highrent: "إيجار عالي من الأول",
+      bank_opt_highrent_hint: "المكان من غير بنا إيجاره من ١٥ لـ ٥٠ (والضعف للون كله)، فالفلوس بتلف أسرع واللعبة أسرع.",
       bank_clock: "وقت الدور",
       bank_clock_off: "من غير",
       bank_clock_hint: "لما الوقت يخلص الموبايل بيرمي ويدفع ويخلّص الدور، من غير ما يشتري.",
@@ -25302,6 +25330,8 @@ const bankOnlyMove = (g, pid) => {
       bank_ev_start_first: "{name} collected {n} at Start, and can buy now",
       bank_trade_locked_them: "{name}: places only after the first lap",
       bank_trade_locked_me: "You can take places once you pass Start",
+      bank_opt_highrent: "High rents from the start",
+      bank_opt_highrent_hint: "A place with no buildings rents for 15 to 50 (double for a whole colour), so money moves faster and games are quicker.",
       bank_clock: "Turn clock",
       bank_clock_off: "Off",
       bank_clock_hint: "When it runs out the phone rolls, pays and ends the turn, without buying.",
@@ -28531,6 +28561,7 @@ const GAME_RULES = {
                 <li>كل ما تعدّي على البداية تاخد <b>٢٠٠</b>. الدبل ليه رمية تانية، و<b>٣ دبل ورا بعض</b> على السجن.</li>
                 <li><b>الشرا بعد أول لفة</b> (شغّالة من الأول، وتتقفل من الإعدادات): قبل ما تعدّي البداية مرة المكان الفاضي بيفضل للبنك، ومحدش يدّيك مكان في بدل. الإيجار بيتدفع عادي، وجنب اسمك 🔄 لحد ما تعدّيها.</li>
                 <li>لو معاك <b>اللون كله</b> الإيجار بيبقى الضعف، وتقدر <b>تبني بالتساوي</b>: جراج ← استراحة ← سوق، وكل بنا بيعلّي الإيجار.</li>
+                <li><b>إيجار عالي من الأول</b> (مقفولة من الأول): المكان من غير بنا إيجاره من ١٥ لـ ٥٠ حسب تمنه، والضعف للون كله، فكل وقفة بتوجع من أول دور. كارت المكان في النص بيوري الأرقام اللي شغّالة.</li>
                 <li>محتاج فلوس؟ <b>ارهن</b> مكان بنص تمنه (مايدخلش إيجار لحد ما تفكّه بزيادة ١٠٪)، أو <b>بيع البنا</b> للبنك بنص تمنه.</li>
                 <li><b>السجن</b>: ادفع ٥٠، أو استعمل كارت خروج، أو ارمي للدبل (٣ محاولات، وبعد التالتة تدفع ٥٠ وتتحرك). وانت جوّه بتقبض الإيجار عادي.</li>
                 <li><b>الأتوبيس السريع</b>: اللي يقف عليه يتحرك تاني بنفس الرقم. <b>حظ</b> و<b>محاكمة</b>: كارت من فوق الكومة.</li>
@@ -28551,7 +28582,7 @@ const GAME_RULES = {
             <p class="help-sub">📱 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>كل واحد يختار قطعته، والبداية بالزهر. لو أكتر من 6 في الغرفة المضيف بيختار مين يلعب.</li>
-                <li>المضيف بيختار مدة اللعبة (٤٥ دقيقة من الأول)، و"الشرا بعد أول لفة" (شغّالة من الأول)، و"فلوس في النص"، و"٤٠٠ للي يقف على البداية"، ووقت الدور.</li>
+                <li>المضيف بيختار مدة اللعبة (٤٥ دقيقة من الأول)، و"الشرا بعد أول لفة" (شغّالة من الأول)، و"إيجار عالي من الأول"، و"فلوس في النص"، و"٤٠٠ للي يقف على البداية"، ووقت الدور.</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -29547,6 +29578,7 @@ const GAME_RULES = {
                 <li>Every time you pass Start you collect <b>200</b>. A double rolls again, and <b>three doubles in a row</b> go to jail.</li>
                 <li><b>Buy after the first lap</b> (on to begin with, a switch in the options): until you pass Start once, a free place you land on stays with the bank and nobody can give you a place in a trade. Rent is paid as usual, and 🔄 sits by your name until you pass it.</li>
                 <li>Own <b>the whole colour</b> and its rent doubles, and you can <b>build evenly</b>: garage ← rest stop ← market, each raising the rent.</li>
+                <li><b>High rents from the start</b> (off to begin with): a place with no buildings rents for 15 to 50 by its price, double for a whole colour, so every landing hurts from the first turn. The card in the middle of the board shows the numbers in play.</li>
                 <li>Need money? <b>Mortgage</b> a place for half its price (no rent until you redeem it for 10% more), or <b>sell buildings</b> back for half.</li>
                 <li><b>Jail</b>: pay 50, use a get-out card, or roll for a double (three tries; after the third you pay 50 and move). You still collect rent inside.</li>
                 <li><b>The Express Bus</b>: land on it and move again by the same number. <b>Luck</b> and <b>Court</b>: a card from the top of the pile.</li>
@@ -29567,7 +29599,7 @@ const GAME_RULES = {
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Everyone picks a piece; the dice decide who starts. With more than 6 in the room the host picks who plays.</li>
-                <li>The host picks the length (45 minutes to begin with), "buy after the first lap" (on to begin with), "money in the middle", "400 for landing on Start" and a turn clock.</li>
+                <li>The host picks the length (45 minutes to begin with), "buy after the first lap" (on to begin with), "high rents from the start", "money in the middle", "400 for landing on Start" and a turn clock.</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -76675,9 +76707,10 @@ function bankDeedHtml(i, g) {
     if (q.g === 'ye' || q.g === 'lb') ink = '#1d1b26';
     const lvl = o ? o.lvl || 0 : 0;
     const set = o && bankHasSet(g, o.by, q.g);
-    body = row(bankT('bank_rent'), q.rent[0], o && !lvl && !set) +
-      row(bankT('bank_rent_set'), q.rent[0] * 2, o && !lvl && set) +
-      row(bankT('bank_lvl_1'), q.rent[1], lvl === 1) + row(bankT('bank_lvl_2'), q.rent[2], lvl === 2) + row(bankT('bank_lvl_3'), q.rent[3], lvl === 3) +
+    const rent = bankRents(g, i);
+    body = row(bankT('bank_rent'), rent[0], o && !lvl && !set) +
+      row(bankT('bank_rent_set'), rent[0] * 2, o && !lvl && set) +
+      row(bankT('bank_lvl_1'), rent[1], lvl === 1) + row(bankT('bank_lvl_2'), rent[2], lvl === 2) + row(bankT('bank_lvl_3'), rent[3], lvl === 3) +
       `<p class="bank-deed__note">${escapeHTML(bankT('bank_build_costs', { a: BANK_GROUPS[q.g].house, b: BANK_GROUPS[q.g].house * 2 }))}</p>`;
   } else if (q.t === 'st') {
     body = [1, 2, 3, 4].map(n => row(bankT('bank_stations_n', { n: n }), [0, 25, 50, 100, 200][n], o && BANK_STATIONS.filter(k => bankOwnerOf(g, k) === o.by).length === n)).join('');
@@ -77291,7 +77324,7 @@ function bankNow() { return Date.now(); }
 let bankBotTimer = null;
 
 function bankState() {
-  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, g: null, priv: null, names: {}, bots: {}, gameId: '' };
+  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, highRent: false, g: null, priv: null, names: {}, bots: {}, gameId: '' };
   const s = appState.bank;
   if (typeof s.firstLap !== 'boolean') s.firstLap = true;
   if ([1, 2, 3].indexOf(Number(s.opp)) === -1) s.opp = 2;
@@ -77323,6 +77356,8 @@ function paintBankSetup() {
   if (go) go.checked = !!s.go400;
   const lap = document.getElementById('bank-firstlap');
   if (lap) lap.checked = !!s.firstLap;
+  const hi = document.getElementById('bank-highrent');
+  if (hi) hi.checked = !!s.highRent;
   const cont = document.getElementById('bank-continue');
   if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
 }
@@ -77333,7 +77368,7 @@ function setBankOption(key, value) {
   else if (key === 'level') s.level = value === 'hard' ? 'hard' : 'easy';
   else if (key === 'token' && BANK_TOKENS.indexOf(value) !== -1) s.token = value;
   else if (key === 'length') s.length = Number(value);
-  else if (key === 'pot' || key === 'go400' || key === 'firstLap') s[key] = !!value;
+  else if (key === 'pot' || key === 'go400' || key === 'firstLap' || key === 'highRent') s[key] = !!value;
   haptic('light');
   saveToLocal();
   paintBankSetup();
@@ -77349,7 +77384,7 @@ function startBank() {
   const bots = {};
   ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = s.level; });
   const off = bankRollOff(ids, Math.random);
-  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400, firstLap: s.firstLap }, Date.now(), Math.random);
+  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400, firstLap: s.firstLap, highRent: s.highRent }, Date.now(), Math.random);
   bankEvent(made.g, 'rolloff', { rounds: off.rounds, first: off.first });
   s.g = made.g;
   s.priv = made.priv;
@@ -77602,12 +77637,13 @@ const BANK_OPTS_KEY = 'bankRoom';
 const bankRoomLocal = { sent: '', clockTimer: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '' };
 
 function bankRoomOpts() {
-  const o = recallOptions(BANK_OPTS_KEY, { length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, turnClock: 0 });
+  const o = recallOptions(BANK_OPTS_KEY, { length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, highRent: false, turnClock: 0 });
   if (BANK_LENGTHS.indexOf(Number(o.length)) === -1) o.length = BANK_LENGTH_DEFAULT;
   if (BANK_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
   o.pot = !!o.pot;
   o.go400 = !!o.go400;
   o.firstLap = o.firstLap !== false;
+  o.highRent = !!o.highRent;
   return o;
 }
 
@@ -77703,6 +77739,7 @@ function bankOptionsHtml(state) {
         <p class="field__hint">${escapeHTML(o.length ? bankT('bank_length_hint') : bankT('bank_until_one_hint'))}</p>
       </div>
       ${sw('firstLap', 'bank-room-firstlap', '🔄', bankT('bank_opt_firstlap'), bankT('bank_opt_firstlap_hint'))}
+      ${sw('highRent', 'bank-room-highrent', '📈', bankT('bank_opt_highrent'), bankT('bank_opt_highrent_hint'))}
       ${sw('pot', 'bank-room-pot', '💰', bankT('bank_opt_pot'), bankT('bank_opt_pot_hint'))}
       ${sw('go400', 'bank-room-go400', '🎯', bankT('bank_opt_go400'), bankT('bank_opt_go400_hint'))}
       <div class="field">
@@ -77855,7 +77892,7 @@ ROOM_GAMES.bank = {
 
   startPayload() {
     const o = bankRoomOpts();
-    return { length: o.length, pot: o.pot, go400: o.go400, firstLap: o.firstLap, turnClock: o.turnClock };
+    return { length: o.length, pot: o.pot, go400: o.go400, firstLap: o.firstLap, highRent: o.highRent, turnClock: o.turnClock };
   },
 
   render(state) {

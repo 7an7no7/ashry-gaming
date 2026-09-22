@@ -178,9 +178,10 @@ function bankDeedHtml(i, g) {
     if (q.g === 'ye' || q.g === 'lb') ink = '#1d1b26';
     const lvl = o ? o.lvl || 0 : 0;
     const set = o && bankHasSet(g, o.by, q.g);
-    body = row(bankT('bank_rent'), q.rent[0], o && !lvl && !set) +
-      row(bankT('bank_rent_set'), q.rent[0] * 2, o && !lvl && set) +
-      row(bankT('bank_lvl_1'), q.rent[1], lvl === 1) + row(bankT('bank_lvl_2'), q.rent[2], lvl === 2) + row(bankT('bank_lvl_3'), q.rent[3], lvl === 3) +
+    const rent = bankRents(g, i);
+    body = row(bankT('bank_rent'), rent[0], o && !lvl && !set) +
+      row(bankT('bank_rent_set'), rent[0] * 2, o && !lvl && set) +
+      row(bankT('bank_lvl_1'), rent[1], lvl === 1) + row(bankT('bank_lvl_2'), rent[2], lvl === 2) + row(bankT('bank_lvl_3'), rent[3], lvl === 3) +
       `<p class="bank-deed__note">${escapeHTML(bankT('bank_build_costs', { a: BANK_GROUPS[q.g].house, b: BANK_GROUPS[q.g].house * 2 }))}</p>`;
   } else if (q.t === 'st') {
     body = [1, 2, 3, 4].map(n => row(bankT('bank_stations_n', { n: n }), [0, 25, 50, 100, 200][n], o && BANK_STATIONS.filter(k => bankOwnerOf(g, k) === o.by).length === n)).join('');
@@ -794,7 +795,7 @@ function bankNow() { return Date.now(); }
 let bankBotTimer = null;
 
 function bankState() {
-  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, g: null, priv: null, names: {}, bots: {}, gameId: '' };
+  if (!appState.bank) appState.bank = { opp: 2, level: 'easy', token: 'car', length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, highRent: false, g: null, priv: null, names: {}, bots: {}, gameId: '' };
   const s = appState.bank;
   if (typeof s.firstLap !== 'boolean') s.firstLap = true;
   if ([1, 2, 3].indexOf(Number(s.opp)) === -1) s.opp = 2;
@@ -826,6 +827,8 @@ function paintBankSetup() {
   if (go) go.checked = !!s.go400;
   const lap = document.getElementById('bank-firstlap');
   if (lap) lap.checked = !!s.firstLap;
+  const hi = document.getElementById('bank-highrent');
+  if (hi) hi.checked = !!s.highRent;
   const cont = document.getElementById('bank-continue');
   if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
 }
@@ -836,7 +839,7 @@ function setBankOption(key, value) {
   else if (key === 'level') s.level = value === 'hard' ? 'hard' : 'easy';
   else if (key === 'token' && BANK_TOKENS.indexOf(value) !== -1) s.token = value;
   else if (key === 'length') s.length = Number(value);
-  else if (key === 'pot' || key === 'go400' || key === 'firstLap') s[key] = !!value;
+  else if (key === 'pot' || key === 'go400' || key === 'firstLap' || key === 'highRent') s[key] = !!value;
   haptic('light');
   saveToLocal();
   paintBankSetup();
@@ -852,7 +855,7 @@ function startBank() {
   const bots = {};
   ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = s.level; });
   const off = bankRollOff(ids, Math.random);
-  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400, firstLap: s.firstLap }, Date.now(), Math.random);
+  const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400, firstLap: s.firstLap, highRent: s.highRent }, Date.now(), Math.random);
   bankEvent(made.g, 'rolloff', { rounds: off.rounds, first: off.first });
   s.g = made.g;
   s.priv = made.priv;

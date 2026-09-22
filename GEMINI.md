@@ -15,7 +15,7 @@
 - **Storage:** no database. Word lists are code (`SpyWords.js`, `PartyContent.js`, `ChameleonWords.js`, `SpyfallPlaces.js`, `BombPrompts.js`, the `JS_*.html` banks); names, groups and the "already dealt" memory live in each phone's `localStorage`; a room lives in its Durable Object's storage while it is played.
 - **Frontend:** HTML5, CSS3, Vanilla JavaScript
 - **UI Framework:** Tailwind CSS v3, compiled locally to `Tailwind.html` (see *Styling*)
-- **External Libraries:** `canvas-confetti` and a QR code generator, pinned on jsDelivr
+- **External Libraries:** `canvas-confetti` and a QR code generator, pinned on jsDelivr with SRI hashes and loaded `async` (a stub in the head takes confetti calls until the library arrives)
 
 ### Architecture
 - **Source files at the root** are still written the Apps Script way: `Controller.html` pulls the other `.html` files in with `<?!= include('X'); ?>` and has a few `<?!= … ?>` template values. Nothing runs them on Apps Script any more; `tools/build-site.mjs` (and `build-preview.mjs`) inline the includes and fill the values in.
@@ -660,7 +660,10 @@ the word search), `countUp` for streaks and scores.
   caught (only playing down to one counts), and a hand that changes owners
   forgets its UNO; the catch window closes at the next move anyone makes (a
   play, a draw, a take, a keep, a colour, a jump, the clock) and never on an UNO
-  or a catch; UNO said with two cards is forgotten if the hand grows again; a
+  or a catch; UNO said with two cards is forgotten if the hand grows again
+  (`g.saidAt` keeps the count it was said at, and `unoSync` drops the call
+  once the hand has grown past it - before 22 Sep 2026 a card drawn back up to
+  two left an old call standing, and the player could not be caught); a
   +2 or +4 as the last card still makes the next player draw (the whole stack),
   and those cards count (Mattel's rule); a Reverse turned up lets the dealer
   start the other way (Mattel's rule) and a +2 turned up with stacking on waits
@@ -675,6 +678,17 @@ the word search), `countUp` for streaks and scores.
   On the phone a card is played with one tap (سكرو picks, then confirms): Uno
   is quick and a jump in is a race, and a card that can't go is shaken and
   refused on the phone without a round trip.
+- **Three rules settled in the audit of 22 Sep 2026** (the owner, asked one at
+  a time): in قبل ولا بعد the replacements are kept and **the board decides**
+  once they run out (*قبل ولا بعد in rooms*); in الفنان المزيف **the fake can
+  go first** - the first painter is anyone, as in the real game (it was never
+  the fake, which told the table who wasn't); and in مافيا **the Doctor's save
+  still counts** when the Doctor leaves the room in the night after choosing:
+  the choice was made before leaving, so it stands (the Mafia's own picks go
+  with a Mafia member who leaves) - left exactly as built. الموقع السري's first asker
+  is anyone at the table too, spy included, on one phone and in rooms; and in
+  المختلف the pair's two words are dealt either way round, so the close word
+  isn't always the second.
 - Rooms stay on Cloudflare; WebRTC was rejected. Firebase, if ever, on a
   different Google account from the one already tried.
 - صراحة أو جرأة (truth or dare): a family-clean list is too tame. تخمين السعر
@@ -1055,6 +1069,32 @@ the word search), `countUp` for streaks and scores.
   rents too small (*The owner's specs*); the classic numbers stay the
   default. And one die as a third, off, with a 6 standing for a double and
   the companies paying twice as much a pip.
+- **22 Sep 2026, the audit** - a read-only audit of the whole app (the
+  `read-only-audit` skill: Gemini through agy for the first pass, every
+  finding checked against the code before it was reported), then every
+  critical, moderate and minor finding fixed at the owner's word. The three
+  critical ones: a room left idle with a phone connected woke its alarm in a
+  loop (an alarm set in the past fires at once); قبل ولا بعد sent every phone
+  its own cards' years (they sat in its secret slice beside the hidden copy);
+  and الموقع السري on one phone always made the first players picked the
+  spies. Among the rest: the replacements and the end of قبل ولا بعد; the
+  first asker and the fake artist dealt at random; a Just One clue that is
+  the word itself refused; a guess naming another card no longer right; the
+  drawing telephone passing on the last step that has something in it; ربع
+  قرد's عكس الحكم working after the game ends; an UNO call forgotten when the
+  hand grows; بنك الحظ's debt to a player who leaves cancelled and the lobby
+  clock kept; room screens that showed the last deal for a moment (`dealId` in
+  their signatures); the chess clock charging exact milliseconds and pausing
+  when left; the general timer surviving a reload; a daily from the archive
+  never replacing today's, and the archive quiz streak ending after its ten;
+  a Sudoku undo bringing back the notes it cleared; fixing an old round in the
+  card scorers replaying the rounds after it (باصرة's carried 30, كونكان's
+  totals); confetti and the QR pinned with SRI and loaded `async` behind a
+  stub, the fonts no longer blocking the first paint, the offline page shown
+  after 3 seconds of a weak connection; `check:live` failing when the rooms
+  server is older than a rules change; a per-address limit on opening rooms;
+  four Codenames words that were a second spelling of another. Rules tests
+  and robot tests grew with each (see *Traps* for what was learnt).
 
 ## Building and Running
 
@@ -1101,7 +1141,10 @@ Two browser tabs on the preview behave like two phones in one room.
 ### Publishing
 - **The app:** `npm run build:site` in `tools/`, then commit and push (`docs/`
   included). GitHub Pages redeploys in about a minute; `npm run check:live` in
-  `tools/` waits for it and confirms the link serves the build in `docs/`.
+  `tools/` waits for it and confirms the link serves the build in `docs/`,
+  and fails if the rooms server was deployed before the last committed change
+  to anything it runs (the `FILES` of `rooms-worker/build.mjs` and
+  `rooms-worker/src/`, read from git).
 - **The rooms server:** `npm run deploy` in `rooms-worker/`. Needed whenever
   `RoomGames.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
@@ -1126,6 +1169,8 @@ npm run check        # content + i18n
   level's number of groups (3 / 4 / 5), four words each, with **no word repeated across groups** (a duplicate renders two
   identical tiles and makes the grid ambiguous), Fibbage questions must contain
   a `___` blank, and the Draw & Guess / Codenames banks must be duplicate-free
+  - compared the way a clue is (`normaliseClue`: hamza forms, the article), so
+  بير beside بئر or مغرب beside المغرب fails, since a clue could name both -
   and large enough to deal from. The trivia board bank needs at least five
   questions per category and level, no question twice, and no answer written
   inside its own question.
@@ -1264,7 +1309,18 @@ time): a phone that died without closing its socket used to count as online
 forever, so the handover never started. The alarm closes silent sockets and
 watches the host's, so a room with a connected host wakes about every 70s. A
 timeout that throws is not retried for 30s (`failedDeadline`), so a bug can't
-spin the alarm on the free plan.
+spin the alarm on the free plan - and neither is a timeout that ran but left
+the same deadline in the past. The alarm is never set less than a second
+ahead (`ALARM_FLOOR_MS`), and a room past its 6 idle hours with a phone still
+connected looks again every 10 minutes (`IDLE_RECHECK_MS`), not at once: a
+Durable Object alarm set in the past fires straight away, and that room used
+to wake in a loop until the phone left (*Traps*).
+
+**Opening rooms is limited per address.** `/create` answers 429 after 60 rooms
+from one address in 10 minutes (`CREATE_LIMIT`, `CREATE_WINDOW_MS` in
+`index.js`, keyed on `CF-Connecting-IP`), so a script can't fill the free
+plan's storage with rooms. A table opens a handful in an evening; `npm test`
+opens about twenty.
 
 **Leaving mid-round.** `removeDevice` in `room.js` does a leave and a `kick`
 the same way - the secret and key go, the host passes on, "left" is said in
@@ -1385,7 +1441,13 @@ off in a word of five letters or more (never in a short one: كباب is not
 كتاب); close for most of the letters, the same first four, or all but one
 word of a phrase. ارسم وخمّن, the fake artist's guess and the quiz cards
 (فوازير إيموجي, كمّل المثل; a near miss shows "🔥 قريب!" in the feed) judge
-through it; `rules.mjs` pins the cases. Fibbage lies, Just One clues and
+through it; `rules.mjs` pins the cases. **A guess that is another word of the
+same list is never right by the lenient rules** (22 Sep 2026): the callers
+pass their bank (`guessVerdict(text, answers, bank)`: `DRAW_WORDS[lang]`, the
+quiz game's own bank), and a guess that names a different card there skips
+the stem and the one-letter rule - House was judged right for Horse, and
+شمس for شمسية. It is `close` instead. An ending is only dropped when enough
+is left to be a word (`guessStem`: three letters, four after `ون`). Fibbage lies, Just One clues and
 Codenames still use the plain fold: there "the same word" is the point.
 
 **Draw & Guess words are things a phone can draw and a table can name.** The
@@ -1770,16 +1832,24 @@ one smaller and you score a point; wrong and the year is shown, the card is
 out and you **draw a replacement**, so a hand only ever shrinks on a card put
 in the right place. First to empty wins, and because everyone starts with the
 same hand the board (cards placed correctly) and the winner always agree.
+**When the replacements run out the board decides** (the owner, 22 Sep 2026):
+a wrong card with nothing left to draw ends the game (`shared.ended = 'deck'`,
+`timelineEndOnBoard`), and whoever placed most wins, nobody if nobody placed
+one; a hand emptied by a wrong card that couldn't be replaced never wins.
 The bank is `TimelineEvents.js`: 22 events, 1869-2015, Egyptian and Arab
 first with famous world dates mixed in (the owner, 20 Sep 2026), each with one
 year nobody argues about. **It is bundled into the Worker only** - deliberately
 not inlined into the page like the other shared lists - because the years of
 unplayed cards are the whole secret and the app would otherwise ship the
-answer key, the same reason `PartyContent.js` stays server-side. `npm run
+answer key, the same reason `PartyContent.js` stays server-side. For the same
+reason a hand with its years is `room._timeline.hands` (never projected), and
+a phone's `room.secrets[pid]` holds only the hidden cards: `project()` sends a
+player their *whole* slice, so the years kept there beside the hidden copy
+were in every phone's own traffic until 22 Sep 2026 (*Traps*). `npm run
 check` fails on a repeated year or a missing language. The hand size is worked
-out from the cards that actually came back, so twelve players get one each
-instead of the deal failing on a bank of 22, and spare cards are dealt for the
-replacements. The line carries `dir="ltr"` in both languages: it is a physical
+out from the cards that actually came back, keeping at least one spare per
+player for the replacements (seven players get two cards each and seven
+spares; twelve get one each and nine spares). The line carries `dir="ltr"` in both languages: it is a physical
 axis like Wavelength's spectrum, and mirrored in Arabic it would read 2015
 before 1869. A gap is a button only on your turn and only once you have picked
 a card.
@@ -2534,7 +2604,10 @@ than chips in a stale order. `pickerOrder` is what holds them still.
 The app ships as a static site: `npm run build:site` (tools/build-site.mjs)
 writes `docs/`, and GitHub Pages publishes it. It is the top-level page, so the
 home-screen icon, the manifest, `?room=` links and the offline service worker
-(`docs/sw.js`) all work. The build also writes the rooms server's address
+(`docs/sw.js`) all work. The worker is network first, but opening the app
+waits at most 3 seconds (`NET_WAIT_MS`) before showing the saved copy, so a
+weak connection no longer holds a blank page; only good answers are cached,
+and the pinned CDN files are cache first. The build also writes the rooms server's address
 (`roomsUrl` in `tools/site.config.json`) into the page as `window.ROOMS_URL`,
 with a `preconnect` so creating a room doesn't wait for the connection.
 
@@ -3460,6 +3533,36 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A Durable Object alarm set in the past fires at once.** `scheduleAlarm`
+took the soonest of the game's deadline, the presence check and the idle
+clean-up; once a room was past its 6 idle hours with a phone still connected,
+the clean-up time was behind it, the alarm fired, found the phone, and set
+itself to the same moment in the past - a loop, each run a request on the free
+plan. Every time handed to `setAlarm` is at least a second ahead now, and a
+time that is already past is replaced by the next time worth looking.
+
+**A secret slice is sent whole.** `project()` gives each phone everything in
+`room.secrets[pid]`. قبل ولا بعد kept each hand twice there - the cards with
+their years for the server, the same cards without for the screen - so every
+phone received its own answers in its traffic, while the screen showed none.
+Anything the owner of a slice must not see (its own answers, a deck, a vote)
+goes in a `room._*` field; the slice holds only what that phone may read.
+
+**jsDelivr's `.min.js` files are made on request, so an SRI hash on one can
+break.** jsDelivr says not to use SRI on its minified-on-the-fly files; the
+confetti and QR scripts are pinned to files the packages ship themselves
+(`dist/confetti.browser.js`, `qrcode.js`). To bump either, download that exact
+file and hash it (`openssl dgst -sha384 -binary | openssl base64 -A`): a wrong
+hash means the script never runs, silently.
+
+**`defer` still holds `DOMContentLoaded`.** The app starts on
+`DOMContentLoaded`, and a deferred script from a CDN that is slow (or blocked)
+holds it until it arrives or fails - the whole app waited on the confetti.
+The two CDN scripts are `async` now, and an ES5 stub in the head takes
+`confetti()` calls until the library replaces it (`JS_Sounds.html` wraps
+whichever is there, and wraps again on the library's `load`). Anything else
+loaded from outside: `async`, a stub, and a page that works without it.
 
 **A sticky box stops at the scroll area's padding, not at its edge.** The
 Start bar of every setup screen (`.view-actions`, sticky at the foot of

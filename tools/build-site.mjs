@@ -39,8 +39,11 @@ const SPY_WORDS = new Function(spySource + '\nreturn SPY_WORDS;')();
 const scriptJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 
 let html = await read('Controller');
+// A replacer function, not a string: in a replacement string $&, $' and $` are
+// patterns, and any of them in an included file would be silently rewritten.
 for (const [tag, name] of [...html.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g)]) {
-  html = html.replace(tag, await read(name));
+  const body = await read(name);
+  html = html.replace(tag, () => body);
 }
 
 const HEAD = `<title>عشرى جيمينج</title>
@@ -56,11 +59,11 @@ const HEAD = `<title>عشرى جيمينج</title>
 // Controller.html marks where the title, icons and manifest links go.
 const iconNote = /<!-- tools\/build-site\.mjs writes the title, home-screen icons and manifest links in here\. -->/;
 if (!iconNote.test(html)) throw new Error('Controller.html: icon comment not found');
-html = html.replace(iconNote, HEAD);
+html = html.replace(iconNote, () => HEAD);
 
 // The join code and the page's own address are read when the page loads.
 html = html
-  .replace('<?!= initialSpyData ?>', scriptJson(SPY_WORDS))
+  .replace('<?!= initialSpyData ?>', () => scriptJson(SPY_WORDS))
   .replace('<?!= initialRoom ?>',
     "(function () { var m = /[?&]room=([A-Za-z0-9]{1,8})/.exec(location.search); return m ? m[1].toUpperCase() : ''; })()")
   .replace('<?!= webAppUrl ?>', 'location.origin + location.pathname');
@@ -88,7 +91,7 @@ const RUNTIME = `<script>
     </script>
 </head>`;
 if (html.indexOf('</head>') === -1) throw new Error('Controller.html: no </head>');
-html = html.replace('</head>', RUNTIME);
+html = html.replace('</head>', () => RUNTIME);
 
 // Word lists the page shares with the rooms server: one file, both sides.
 const SHARED_LISTS = ['ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Ludo.js', 'BankAlhaz.js'];
@@ -96,7 +99,7 @@ const sharedListsHtml = (await Promise.all(SHARED_LISTS.map(async (name) =>
   `<script>\n${await readFile(path.join(root, name), 'utf8')}\n</script>`))).join('\n    ');
 const listsMark = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;
 if (!listsMark.test(html)) throw new Error('Controller.html: SHARED_LISTS comment not found');
-html = html.replace(listsMark, sharedListsHtml);
+html = html.replace(listsMark, () => sharedListsHtml);
 
 const leftover = html.match(/<\?!?=?[\s\S]{0,40}\?>/);
 if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);
@@ -105,9 +108,12 @@ await mkdir(out, { recursive: true });
 await writeFile(path.join(out, 'index.html'), html, 'utf8');
 
 /* Offline copy. Network first, so a new version shows on the next open and the
-   cache is only the fallback; the pinned CDN files (fonts, confetti, QR) are
-   cache-first, since their URLs never change. Room traffic is never cached: it
-   is POSTs and WebSockets, which this never touches. */
+   cache is only the fallback - but the page itself waits at most NET_WAIT_MS for
+   the network before the saved copy is shown, or a weak connection held the app
+   on a blank page. The pinned CDN files (fonts, confetti, QR) are cache-first,
+   since their URLs never change; only good answers are kept (a failed one used
+   to stay cached for the whole build). Room traffic is never cached: it is POSTs
+   and WebSockets, which this never touches. */
 const SW = `const CACHE = 'ashry-${buildId}';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
@@ -122,26 +128,35 @@ self.addEventListener('activate', (event) => {
     .then(() => self.clients.claim()));
 });
 
+const NET_WAIT_MS = 3000;
+const keep = (req, res) => {
+  if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+  return res;
+};
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
   if (PINNED.indexOf(url.hostname) !== -1) {
-    event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(req, copy));
-      return res;
-    })));
+    event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => keep(req, res))));
     return;
   }
   if (url.origin !== self.location.origin) return;
 
-  event.respondWith(fetch(req).then((res) => {
-    const copy = res.clone();
-    caches.open(CACHE).then((c) => c.put(req, copy));
-    return res;
-  }).catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html'))));
+  const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
+  const net = fetch(req).then((res) => keep(req, res));
+  if (req.mode !== 'navigate') { event.respondWith(net.catch(cached)); return; }
+  // Opening the app: the network if it answers soon, else the saved copy; the
+  // network answer still refreshes the cache for next time.
+  event.respondWith(new Promise((resolve) => {
+    let done = false;
+    const give = (res) => { if (!done && res) { done = true; resolve(res); } };
+    const timer = setTimeout(() => cached().then((hit) => { if (hit) give(hit); }), NET_WAIT_MS);
+    net.then((res) => { clearTimeout(timer); give(res); })
+       .catch(() => { clearTimeout(timer); cached().then((hit) => give(hit || Response.error())); });
+  }));
 });
 `;
 await writeFile(path.join(out, 'sw.js'), SW, 'utf8');

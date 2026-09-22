@@ -23,8 +23,26 @@
     <meta name="theme-color" content="#6366f1">
     <meta name="mobile-web-app-capable" content="yes">
     <!-- PWA-READY -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400..800&family=Cairo:wght@300..900&display=swap" rel="stylesheet">
+    <!-- Loaded without holding up the first paint: a slow or blocked Google Fonts
+         used to keep the whole page (the intro included) blank until it answered.
+         The app draws in the fallback face first; display=swap and the
+         document.fonts.ready pass in JS_Core.html handle the swap. -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400..800&family=Cairo:wght@300..900&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400..800&family=Cairo:wght@300..900&display=swap"></noscript>
+    <script>
+      /* A silent confetti until the real one arrives (it loads async at the end of
+         the page), or for good if the CDN never answers: about thirty places call
+         confetti() and the picker wheel stayed disabled without it. ES5, like the
+         browser gate. JS_Sounds.html swaps the real one in when it loads. */
+      (function () {
+        if (typeof window.confetti === 'function') return;
+        var stub = function () { return typeof Promise !== 'undefined' ? Promise.resolve() : undefined; };
+        stub.__stub = true;
+        window.confetti = stub;
+      })();
+    </script>
 
     <style>
       /* The intro, there before any script runs: the mark settles, a line draws
@@ -17281,6 +17299,21 @@ const bankRemovePlayer = (g, priv, pid, now) => {
   const wasUp = g.turn.pid === pid;
   if (wasUp) g.debt = null;
   bankGoBankrupt(g, priv, pid, 'bank');
+  // The player up may owe the one who left. That debt is gone (their places went
+  // back to the bank, and nobody is there to pay), and a "pay everyone" debt
+  // loses the leaver's share - it used to bankrupt the debtor over rent on a place
+  // the bank now owns, or pay the money to someone no longer in the game.
+  const d = g.debt;
+  if (g.phase === 'play' && !wasUp && d && d.pid !== pid) {
+    if (d.to === pid) {
+      g.debt = null;
+      g.turn.stage = 'landed';
+      bankAfter(g);
+    } else if (d.to === 'each') {
+      const n = bankActive(g).filter(x => x !== d.pid).length;
+      d.amount = Math.floor(d.amount / (n + 1)) * n;
+    }
+  }
   if (g.phase === 'play' && wasUp) bankNextTurn(g, now);
 };
 
@@ -17527,7 +17560,7 @@ const bankOnlyMove = (g, pid) => {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260922072740";
+      window.BUILD_ID = "20260922120535";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -20801,7 +20834,16 @@ const bankOnlyMove = (g, pid) => {
   }
 
   /* --- AUDIO SYSTEM --- */
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // A browser without Web Audio (or with it turned off) gets a silent stand-in:
+  // creating it unguarded threw here and stopped this whole script - the app.
+  const audioCtx = (() => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) return new Ctx();
+    } catch (e) {}
+    const node = () => ({ connect() {}, disconnect() {}, start() {}, stop() {}, frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} }, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} } });
+    return { state: 'closed', currentTime: 0, destination: {}, resume() { return Promise.resolve(); }, createOscillator: node, createGain: node, createBiquadFilter: node, createBufferSource: node, createBuffer: () => ({ getChannelData: () => new Float32Array(1) }), createDynamicsCompressor: node, sampleRate: 44100 };
+  })();
   let lastClickAt = 0;
   let lastTapClickAt = 0;
 
@@ -21225,7 +21267,10 @@ const bankOnlyMove = (g, pid) => {
    */
   function createClock(options) {
       const countUp = !!options.countUp;
-      const totalMs = Math.max(0, Math.round(options.seconds || 0)) * 1000;
+      // `ms` for a countdown that must keep its fraction of a second (the chess clock).
+      const totalMs = options.ms != null
+          ? Math.max(0, Math.round(options.ms))
+          : Math.max(0, Math.round(options.seconds || 0)) * 1000;
       const onTick = options.onTick || function() {};
       const onEnd = options.onEnd || function() {};
 
@@ -22364,6 +22409,8 @@ const bankOnlyMove = (g, pid) => {
       tl_none: "خلص ورقك",
       tl_skip: "عدّي الدور",
       tl_over: "خلصت اللعبة",
+      tl_deck_out: "الورق خلص: يكسب اللي حط أكتر ورق في مكانه الصح",
+      tl_nobody: "محدش حط كارت في مكانه الصح",
       setup_mind: "العقل",
       cat_mind: "أرقام سرية تنزل بالترتيب من غير ما تتكلموا.",
       mind_lobby_hint: "كل واحد هياخد أرقام من 1 لـ 100 محدش غيره شايفها. نزّلوها بالترتيب من غير ما حد يتكلم.",
@@ -24708,6 +24755,8 @@ const bankOnlyMove = (g, pid) => {
       tl_none: "You are out of cards",
       tl_skip: "Skip the turn",
       tl_over: "Game over",
+      tl_deck_out: "The cards ran out: most cards in the right place wins",
+      tl_nobody: "Nobody put a card in the right place",
       setup_mind: "The Mind",
       cat_mind: "Secret numbers, played in order, without a word.",
       mind_lobby_hint: "Everyone gets numbers from 1 to 100 that nobody else can see. Lay them down in rising order, without talking.",
@@ -27512,7 +27561,9 @@ const bankOnlyMove = (g, pid) => {
 
   if (EDGE_IOS) {
     document.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) { edgeReset(); return; }
+      // A second finger calls the swipe off - and puts the screen back where it
+      // was: it used to stay shifted by the drag, on every later visit too.
+      if (e.touches.length !== 1) { if (edge.el) edge.el.style.transform = ''; edgeReset(); return; }
       const t = e.touches[0];
       if (t.clientX > EDGE_PX || !edgeCanGoBack()) return;
       e.preventDefault();
@@ -30970,7 +31021,9 @@ const Room = (() => {
     if (wasIn) {
       showToast(message, 'error');
       emit(true);
-      setView('menu');
+      // Only from a room screen: someone playing a one-phone game or using a timer
+      // meanwhile stays put (setView would stop that game's clocks).
+      if (String(appState.currentView || '').indexOf('room-') === 0) setView('menu');
     }
   };
 
@@ -31162,7 +31215,10 @@ const Room = (() => {
         if (res.gone) { handleDropped(DROPPED.gone); return; }
         if (res.kicked) { handleDropped(DROPPED.kicked); return; }
         if (res.same && state) {
-          state.players.forEach(p => { p.online = res.online.indexOf(p.id) !== -1; });
+          // A computer player has no phone to lose (the server always shows it
+          // here), and a big screen's presence decides who plays the table's sounds.
+          state.players.forEach(p => { p.online = !!p.bot || res.online.indexOf(p.id) !== -1; });
+          (state.screens || []).forEach(x => { x.online = res.online.indexOf(x.id) !== -1; });
         } else if (res.state) {
           state = res.state;
         }
@@ -31183,7 +31239,13 @@ const Room = (() => {
   }
 
   const adoptSession = (res, game) => {
+    const old = session;
     disconnect();
+    // Opening or joining a room while in another one leaves the old one properly,
+    // or it kept a ghost seat (and, for a host, two minutes before handing over).
+    if (old && old.code && old.playerId && old.playerId !== res.playerId) {
+      request('/leave', { code: old.code, pid: old.playerId, key: old.key }).catch(() => {});
+    }
     session = { code: res.state.code, playerId: res.playerId, key: res.key, game: game };
     state = res.state;
     lastSignature = '';
@@ -31744,7 +31806,13 @@ function renderRoomLobby(state) {
   const url = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl)
     ? window.SERVER_DATA.webAppUrl + '?room=' + state.code
     : '';
-  renderJoinQR('room-qr', url);
+  // Encoded once per code, not on every presence tick. The skeleton empties it
+  // while a room loads, hence the innerHTML check.
+  const qrEl = document.getElementById('room-qr');
+  if (!qrEl || qrEl.dataset.url !== url || !qrEl.innerHTML) {
+    renderJoinQR('room-qr', url);
+    if (qrEl) qrEl.dataset.url = url;
+  }
 
   const list = document.getElementById('room-player-list');
   const count = document.getElementById('room-player-count');
@@ -32046,10 +32114,13 @@ Room.onChange((state) => {
   const stage = state.phase + '|' + (state.game || '');
   const moved = roomStageSeen !== '' && roomStageSeen !== stage;
   const wasInGame = roomStageSeen !== '' && roomStageSeen.indexOf('lobby|') !== 0;
+  const prevGame = roomStageSeen.split('|')[1] || '';
   roomStageSeen = stage;
 
   if (!onRoomView()) {
-    if (moved && state.phase !== 'lobby') {
+    // Only a game dealt from the lobby: many games change phase inside a round
+    // (night and day, reveal and vote), which used to buzz with this every time.
+    if (moved && state.phase !== 'lobby' && !wasInGame) {
       const t = TRANSLATIONS[appState.lang] || {};
       showToast(t.room_started_away || 'اللعبة بدأت في الغرفة');
       haptic('light');
@@ -32058,9 +32129,10 @@ Room.onChange((state) => {
   }
   // A game was just dealt from the lobby: the same moment on every phone.
   if (moved && state.phase !== 'lobby' && !wasInGame && typeof playRoomGameStart === 'function') playRoomGameStart(state);
-  // The host took the room back to the hub while this phone was mid-round:
-  // say so, or the screen changing under them looks like a fault.
-  if (moved && state.phase === 'lobby' && wasInGame && !state.youAreHost) {
+  // The host took the room back to the hub (or on to another game) while this
+  // phone was mid-round: say so, or the screen changing under them looks like a
+  // fault. Not for "play again", which several games do through the lobby.
+  if (moved && state.phase === 'lobby' && wasInGame && (!state.game || state.game !== prevGame) && !state.youAreHost) {
     const t = TRANSLATIONS[appState.lang] || {};
     showToast(t.room_game_ended || '');
   }
@@ -32642,7 +32714,7 @@ function addPlayerFromSetup(btn) {
       if (box) box.classList.remove('hidden');
       playSound('success');
       haptic('double');
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+      if (typeof confetti === 'function') confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
       if (btn) btn.disabled = false;
   }
 
@@ -32751,11 +32823,16 @@ function addPlayerFromSetup(btn) {
           if (tm.interval) tm.interval.stop();
           tm.interval = null;
           tm.running = false;
-          btn.innerText = TRANSLATIONS[appState.lang].start_btn;
+          tm.endsAt = null;
+          if (btn) btn.innerText = TRANSLATIONS[appState.lang].start_btn;
       } else {
           if(tm.time <= 0) return;
           tm.running = true;
-          btn.innerText = TRANSLATIONS[appState.lang].pause_btn;
+          // The deadline is saved with the app, so a reload (or iOS dropping the page
+          // while the phone is locked) doesn't leave the timer silently stopped.
+          tm.endsAt = Date.now() + tm.time * 1000;
+          saveToLocal();
+          if (btn) btn.innerText = TRANSLATIONS[appState.lang].pause_btn;
           // It keeps counting when the screen is left (a timer for a pot on the
           // stove, a break between games), and rings wherever the phone is.
           tm.interval = createClock({
@@ -32769,6 +32846,7 @@ function addPlayerFromSetup(btn) {
                   tm.interval = null;
                   tm.time = 0;
                   tm.running = false;
+                  tm.endsAt = null;
                   updateGenDisplay();
                   playSound('alarm');
                   haptic('heavy');
@@ -32788,10 +32866,31 @@ function addPlayerFromSetup(btn) {
       if (tm.interval) tm.interval.stop();
       tm.interval = null;
       tm.running = false;
+      tm.endsAt = null;
       tm.time = 0;
       updateGenDisplay();
       document.getElementById('gen-start-btn').innerText = TRANSLATIONS[appState.lang].start_btn;
   }
+
+  /** After a reload: a timer that was running goes on with the time really left, or says it finished meanwhile. */
+  function restoreGenTimer() {
+      const tm = appState.timers.general;
+      if (!tm.endsAt || (tm.interval && tm.interval.isRunning && tm.interval.isRunning())) return;
+      const left = Math.ceil((tm.endsAt - Date.now()) / 1000);
+      tm.running = false;
+      tm.interval = null;
+      if (left > 0) {
+          tm.time = left;
+          toggleGenTimer();
+      } else {
+          tm.endsAt = null;
+          tm.time = 0;
+          updateGenDisplay();
+          const t = TRANSLATIONS[appState.lang] || {};
+          showToast('⏰ ' + (t.timer_done || 'خلص وقت المؤقت'), 'success');
+      }
+  }
+  document.addEventListener('DOMContentLoaded', () => { try { restoreGenTimer(); } catch (e) {} });
 
   /* --- UPGRADED FULL SCREEN CHESS LOGIC --- */
   function exitChessTimer(event) {
@@ -32830,6 +32929,8 @@ function addPlayerFromSetup(btn) {
       tm.active = null;
       tm.time1 = tm.initial;
       tm.time2 = tm.initial;
+      tm.ms1 = tm.initial * 1000;
+      tm.ms2 = tm.initial * 1000;
       updateChessUI();
       playSound('click');
   }
@@ -32850,8 +32951,27 @@ function addPlayerFromSetup(btn) {
       playSound('click');
   }
 
+  /* Each side's time is kept to the millisecond (ms1, ms2) and charged exactly
+     when its turn ends. Whole seconds charged on each tick made a move inside a
+     second free and rounded every move in the mover's favour - in blitz that
+     is real time. time1/time2 stay the seconds on screen. */
+  const chessMs = (tm, side) => {
+      const shown = (side === 1 ? tm.time1 : tm.time2) * 1000;
+      const kept = side === 1 ? tm.ms1 : tm.ms2;
+      // Never more than the seconds on screen: a reload mid-turn saved the ticks but not the charge.
+      return typeof kept === 'number' && Math.ceil(kept / 1000) * 1000 <= shown ? kept : shown;
+  };
+
   function stopChessClock() {
       const tm = appState.timers.chess;
+      if (tm.interval && (tm.active === 1 || tm.active === 2) && tm.turnAt && typeof tm.turnMs === 'number') {
+          // From what the turn started with: the ticks have been lowering time1/time2 meanwhile.
+          const left = Math.max(0, tm.turnMs - (Date.now() - tm.turnAt));
+          if (tm.active === 1) { tm.ms1 = left; tm.time1 = Math.ceil(left / 1000); }
+          else { tm.ms2 = left; tm.time2 = Math.ceil(left / 1000); }
+      }
+      tm.turnAt = null;
+      tm.turnMs = null;
       if (tm.interval) tm.interval.stop();
       tm.interval = null;
   }
@@ -32862,22 +32982,30 @@ function addPlayerFromSetup(btn) {
       tm.active = activePlayer;
       updateChessUI();
 
-      // One clock per turn, seeded with whatever that player has banked. A chess
-      // clock is the case where counting ticks hurt most: a phone that throttled
-      // the tab handed back time the player had actually used.
-      const remaining = activePlayer === 1 ? tm.time1 : tm.time2;
+      // One clock per turn, seeded with exactly what that player has banked. A
+      // chess clock is the case where counting ticks hurt most: a phone that
+      // throttled the tab handed back time the player had actually used.
+      tm.turnMs = chessMs(tm, activePlayer);
+      tm.turnAt = Date.now();
       tm.interval = createClock({
-          seconds: remaining,
+          ms: tm.turnMs,
           onTick: (left) => {
               if (activePlayer === 1) tm.time1 = left; else tm.time2 = left;
               updateChessUI();
           },
           onEnd: () => {
-              if (activePlayer === 1) tm.time1 = 0; else tm.time2 = 0;
+              if (activePlayer === 1) { tm.time1 = 0; tm.ms1 = 0; } else { tm.time2 = 0; tm.ms2 = 0; }
+              tm.turnAt = null;
               updateChessUI();
               chessGameOver();
           }
       });
+  }
+
+  // Leaving the chess clock pauses it, charging the turn so far (clearAllIntervals
+  // would only stop the clock, losing the part of a second the player used).
+  if (typeof onLeaveScreen === 'function') {
+      onLeaveScreen((from) => { if (from === 'play-chess' && appState.timers.chess.interval) pauseChess(); });
   }
 
   function pauseChess(event) {
@@ -33175,7 +33303,10 @@ function toggleResults() {
     const msg = appState.lang === 'ar' ? 'هل أنت متأكد من حذف جميع البيانات والبدء من جديد؟' : 'Are you sure you want to reset all data and start over?';
 
     showConfirmModal(msg, () => {
-        // 1. Stop all running timers
+        // 1. Stop all running timers - the general timer too, which clearAllIntervals
+        // leaves running on purpose (it rings from any screen) and would ring later.
+        const gen = appState.timers && appState.timers.general;
+        if (gen && gen.interval && gen.interval.stop) gen.interval.stop();
         clearAllIntervals();
         // Only once confirmed: Cancel used to wipe the recent games anyway.
         if (typeof forgetRecent === 'function') forgetRecent();
@@ -33959,7 +34090,7 @@ function saveCurrentGroup() {
 
     // Populate the update dropdown
     const updateSelect = document.getElementById('update-group-select');
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     
     updateSelect.innerHTML = `<option value="">${groupPickerLabel()}</option>`;
     Object.keys(groups).forEach(name => {
@@ -34006,7 +34137,7 @@ function updateExistingGroup(mode) {
         return;
     }
 
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     let currentGroupPlayers = groups[groupName] || [];
 
     if (mode === 'add') {
@@ -34027,9 +34158,9 @@ function updateExistingGroup(mode) {
 
 // Helper: Saves data and cleans up UI
 function saveDataToGroup(groupName, playersArray) {
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     groups[groupName] = playersArray;
-    localStorage.setItem('ashry_saved_groups', JSON.stringify(groups));
+    writeSavedGroups(groups);
     
     closeModal('group-name-modal');
     renderSavedGroups(); 
@@ -34055,7 +34186,7 @@ function loadGroup(groupName) {
         return; 
     }
 
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     const selectedNames = groups[groupName];
 
     if (selectedNames && selectedNames.length > 0) {
@@ -34081,9 +34212,9 @@ function deleteGroupFromModal() {
     
     if (typeof showConfirmModal === 'function') {
         showConfirmModal(msg, () => {
-            let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+            let groups = readSavedGroups();
             delete groups[groupName];
-            localStorage.setItem('ashry_saved_groups', JSON.stringify(groups));
+            writeSavedGroups(groups);
             
             if (appState.currentGroup === groupName) {
                 appState.currentGroup = "";
@@ -34105,11 +34236,24 @@ function deleteGroupFromModal() {
     }
 }
 
+/* Saved groups live in this phone's storage. A browser that blocks storage (all
+   cookies off, a kiosk, a TV) throws on the read, which stopped every chip tap
+   halfway: the list changed but the chips never redrew. */
+function readSavedGroups() {
+  try {
+    const g = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    return g && typeof g === 'object' && !Array.isArray(g) ? g : {};
+  } catch (e) { return {}; }
+}
+function writeSavedGroups(groups) {
+  try { localStorage.setItem('ashry_saved_groups', JSON.stringify(groups)); } catch (e) {}
+}
+
 function renderSavedGroups() {
     const selects = document.querySelectorAll('.saved-groups-select');
     if (selects.length === 0) return;
 
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     const defaultText = appState.lang === 'ar' ? '-- اختر مجموعة محفوظة --' : '-- Select Saved Group --';
     
     selects.forEach(select => {
@@ -42537,7 +42681,10 @@ function exitReactionGame(event) {
       appState.imposter.config.undercover = undercover;
       if (undercover) {
           const pairs = typeof SPY_PAIRS !== 'undefined' ? SPY_PAIRS : [];
-          const pair = freshPick('imppair', pairs, 1, { key: p => p[0] + '|' + p[1] })[0];
+          const picked = freshPick('imppair', pairs, 1, { key: p => p[0] + '|' + p[1] })[0];
+          // Either word can be the odd one's: always the second of the pair (a list the
+          // page ships) told whoever held it that they were the odd one out.
+          const pair = picked && Math.random() < 0.5 ? [picked[1], picked[0]] : picked;
           appState.imposter.secretWord = pair ? pair[0] : '';
           appState.imposter.pairOther = pair ? pair[1] : '';
       } else {
@@ -43846,7 +43993,7 @@ ROOM_GAMES.justone = {
       // While you are still writing, nothing on your screen depends on how many
       // others have finished - so the frame doesn't change and the box you are
       // typing in survives. Once you have submitted, the counter is the point.
-      const sig = 'writing|' + s.round + '|' + amGuesser + '|' + iSubmitted + '|' + state.youAreHost + '|' + appState.lang
+      const sig = 'writing|' + s.dealId + '|' + s.round + '|' + amGuesser + '|' + iSubmitted + '|' + state.youAreHost + '|' + appState.lang
                 + (amGuesser || iSubmitted ? '|' + done + '/' + need : '');
 
       renderRoomFrame(el, sig, () => head + (amGuesser
@@ -43879,7 +44026,7 @@ ROOM_GAMES.justone = {
     if (s.phase === 'guessing') {
       const clues = (s.clues || []).filter(c => !c.removed);
       const removed = s.removedCount || 0;
-      const gsig = 'guessing|' + s.round + '|' + amGuesser + '|' + clues.length + '|' + removed + '|' + state.youAreHost + '|' + appState.lang;
+      const gsig = 'guessing|' + s.dealId + '|' + s.round + '|' + amGuesser + '|' + clues.length + '|' + removed + '|' + state.youAreHost + '|' + appState.lang;
       renderRoomFrame(el, gsig, () => head + `
         <div class="card">
           ${removed ? `<p class="field__hint" style="text-align:center; color: var(--danger)">
@@ -43902,7 +44049,7 @@ ROOM_GAMES.justone = {
 
     if (s.phase === 'judging' || s.phase === 'result') {
       const right = s.lastResult === 'correct';
-      renderRoomFrame(el, [s.phase, s.round, s.guess, s.lastResult, state.youAreHost, appState.lang].join('|'), () => head + `
+      renderRoomFrame(el, [s.phase, s.dealId, s.round, s.guess, s.lastResult, state.youAreHost, appState.lang].join('|'), () => head + `
         <div class="card" style="text-align:center">
           <div class="eyebrow">${t.jo_the_guess || 'التخمين'}</div>
           <div class="metric metric--md" style="margin-bottom: var(--sp-3)">${escapeHTML(s.guess || '—')}</div>
@@ -44026,7 +44173,7 @@ ROOM_GAMES.whoami = {
     }
 
     const others = (state.you && state.you.others) || [];
-    renderRoomFrame(el, ['wa-play', guessed.join(','), myPlace, state.youAreHost, appState.lang].join('|'), () => `
+    renderRoomFrame(el, ['wa-play', s.dealId, guessed.join(','), myPlace, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="role-card ${myPlace !== -1 ? 'role-card--done' : ''}">
           <div class="role-card__label">${t.whoami_you || 'هويتك'}</div>
@@ -44226,7 +44373,7 @@ ROOM_GAMES.wouldyou = {
     const t = TRANSLATIONS[appState.lang];
     const v = state.shared.vote;
 
-    renderRoomFrame(el, ['wyr', state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
+    renderRoomFrame(el, ['wyr', state.shared.dealId, state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="card__title" style="margin-bottom:0">${t.setup_wouldyou || 'لو خيروك'}</div>
@@ -44251,7 +44398,7 @@ ROOM_GAMES.mostlikely = {
     const t = TRANSLATIONS[appState.lang];
     const v = state.shared.vote;
 
-    renderRoomFrame(el, ['mlt', state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
+    renderRoomFrame(el, ['mlt', state.shared.dealId, state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="prompt-text">${escapeHTML(state.shared.prompt || '')}</div>
@@ -44292,7 +44439,7 @@ ROOM_GAMES.fibbage = {
       const iSubmitted = (s.submitted || []).indexOf(Room.me) !== -1;
       // Same rule as Just One: while you are inventing a lie, other people
       // finishing theirs must not rebuild the box out from under you.
-      const wsig = 'writing|' + s.round + '|' + iSubmitted + '|' + state.youAreHost + (iSubmitted ? '|' + done + '/' + need : '');
+      const wsig = 'writing|' + s.dealId + '|' + s.round + '|' + iSubmitted + '|' + state.youAreHost + (iSubmitted ? '|' + done + '/' + need : '');
       renderRoomFrame(el, wsig, () => question + `
         <div class="card">
           ${iSubmitted
@@ -44309,14 +44456,14 @@ ROOM_GAMES.fibbage = {
     }
 
     if (s.phase === 'voting' || (s.vote && s.vote.phase === 'voting')) {
-      renderRoomFrame(el, ['fibvote', s.round, s.vote.voted.length, state.youAreHost].join('|'),
+      renderRoomFrame(el, ['fibvote', s.dealId, s.round, s.vote.voted.length, state.youAreHost].join('|'),
                       () => question + renderBallot(state) + renderRoomPlayerStrip(state));
       refreshRoomPlayerStrip(el, state);
       return;
     }
 
     // Results: mark the real answer, then show who fooled whom.
-    renderRoomFrame(el, ['fibresult', s.round, state.youAreHost].join('|'), () => question + `
+    renderRoomFrame(el, ['fibresult', s.dealId, s.round, state.youAreHost].join('|'), () => question + `
       <div class="card card--accent" style="text-align:center">
         <div class="eyebrow">${t.fib_truth || 'الإجابة الصحيحة'}</div>
         <div class="metric metric--md metric--accent">${escapeHTML(s.truth || '')}</div>
@@ -44817,11 +44964,18 @@ function bindDrawSurface(canDraw) {
   draw.canvas = document.getElementById('draw-canvas');
   if (!draw.canvas) return;
   draw.ctx = draw.canvas.getContext('2d', { willReadFrequently: true });
+  // A new surface has no finger on it. The round can end mid-stroke, and the old
+  // canvas (with the pointer captured) is thrown away before its pointerup fires,
+  // which left draw.drawing true and every later repaint skipped on this phone.
+  draw.drawing = false;
+  draw.current = null;
+  draw.snapshot = null;
   clearSurface();
   draw.painted = 0;
   draw.live = null;
   draw.liveShown = false;
-  if (!draw.local) { draw.onUndo = undoDrawStroke; draw.onRedo = redoDrawStroke; }
+  // Undo and redo are the drawer's; a viewer's Ctrl+Z asked the server for an undo it refused.
+  if (!draw.local) { draw.onUndo = canDraw ? undoDrawStroke : null; draw.onRedo = canDraw ? redoDrawStroke : null; }
   if (!canDraw) return;
 
   const pos = (e) => {
@@ -45929,10 +46083,11 @@ function startTriviaClock(s) {
         if (!st || st.game !== 'trivia' || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
         Room.act('closeQuestion').catch(() => {});
       };
-      // The host closes on time; anyone else a few seconds later if the host
-      // hasn't. The server closes it as well (roomTimeout), even if every
-      // phone is asleep.
-      if (Room.isHost) close();
+      // The host closes once the server's grace is over (TRIVIA_GRACE_MS: an
+      // answer tapped as the clock hit zero is still on its way, and counts);
+      // anyone else a moment later if the host hasn't. The server closes it as
+      // well (roomTimeout), even if every phone is asleep.
+      if (Room.isHost) setTimeout(close, 2000);
       else setTimeout(close, 3000);
     }
   });
@@ -46059,14 +46214,24 @@ function toggleTvFullscreen() {
   }
 }
 
+/** How many of this deal's players are still in the room: the TV's "answered 2 / 4" redraws when one leaves. */
+const tvPresent = (state) => ((state.shared && state.shared.roster) || []).filter(id => (state.players || []).some(p => p.id === id)).length;
+
 /** A TV that dims in the middle of a game is the one thing nobody can fix from the sofa. */
 async function keepTvAwake() {
-  if (tv.wake || document.hidden || !('wakeLock' in navigator)) return;
+  // One request at a time: a second one, sent while the first was pending, held a
+  // lock that nothing released, and the laptop never dimmed after leaving the TV.
+  if (tv.wake || tv.waking || document.hidden || !('wakeLock' in navigator)) return;
+  tv.waking = true;
   try {
-    tv.wake = await navigator.wakeLock.request('screen');
-    tv.wake.addEventListener('release', () => { tv.wake = null; });
+    const lock = await navigator.wakeLock.request('screen');
+    if (appState.currentView !== 'room-tv') { lock.release().catch(() => {}); return; }
+    tv.wake = lock;
+    lock.addEventListener('release', () => { if (tv.wake === lock) tv.wake = null; });
   } catch (e) {
     tv.wake = null;
+  } finally {
+    tv.waking = false;
   }
 }
 
@@ -46464,7 +46629,7 @@ function tvCancelCodenames() {
 TV_GAMES.trivia = {
   sig(state) {
     const s = state.shared;
-    return [s.phase, s.qIndex, (s.answered || []).length].join('|');
+    return [s.phase, s.qIndex, (s.answered || []).length, tvPresent(state)].join('|');
   },
 
   frame(state, t) {
@@ -46798,7 +46963,7 @@ TV_GAMES.mostlikely = {
 TV_GAMES.fibbage = {
   sig(state) {
     const s = state.shared;
-    return [s.round, s.phase, (s.submitted || []).length, s.vote ? s.vote.phase + s.vote.voted.length : ''].join('|');
+    return [s.round, s.phase, (s.submitted || []).length, s.vote ? s.vote.phase + s.vote.voted.length : '', tvPresent(state)].join('|');
   },
   frame(state, t) {
     const s = state.shared;
@@ -46900,7 +47065,7 @@ TV_GAMES.imposter = {
 TV_GAMES.justone = {
   sig(state) {
     const s = state.shared;
-    return [s.phase, s.round, (s.submitted || []).length, s.guess || '', s.lastResult || ''].join('|');
+    return [s.phase, s.round, (s.submitted || []).length, s.guess || '', s.lastResult || '', tvPresent(state)].join('|');
   },
   frame(state, t) {
     const s = state.shared;
@@ -46952,7 +47117,7 @@ TV_GAMES.justone = {
 };
 
 TV_GAMES.whoami = {
-  sig: (state) => [state.phase, !!state.shared.revealed, (state.shared.guessed || []).join(','), JSON.stringify(state.shared.scores || {})].join('|'),
+  sig: (state) => [state.phase, !!state.shared.revealed, (state.shared.guessed || []).join(','), JSON.stringify(state.shared.scores || {}), tvPresent(state)].join('|'),
   frame(state, t) {
     const s = state.shared;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
@@ -51579,7 +51744,9 @@ function startSpyfallGame(again) {
   }
   const shuffledPlayers = shuffleArray(selected);
   spyfallState.players = shuffledPlayers;
-  spyfallState.spies = shuffledPlayers.slice(0, spyCount);
+  // Drawn separately from the order the phone is passed in: taking the first names
+  // of that same order made the first person handed the phone always the spy.
+  spyfallState.spies = shuffleArray(selected).slice(0, spyCount);
 
   // Assign roles to civilians
   const civilianRoles = shuffleArray(loc.roles);
@@ -53161,10 +53328,18 @@ function paintBomb() {
     </div>`;
 }
 
-/** After a reload: carry on if the fuse is still burning. */
+/** After a reload: carry on if the fuse is still burning; if it ran out meanwhile, the boom (whose hands?). */
 function restoreBomb() {
   const b = bombState();
   if (b.phase === 'ticking' && b.endsAt > Date.now()) { paintBomb(); bombArm(); return true; }
+  if (b.phase === 'ticking') {
+    // It went off while the page was away. Dropping to the setup lost the round
+    // and the next Start wiped the game's strikes; the table still says whose it was.
+    b.phase = 'boom';
+    saveToLocal();
+    paintBomb();
+    return true;
+  }
   if (b.phase === 'boom' || (b.phase === 'over' && b.players.length)) { paintBomb(); return true; }
   return false;
 }
@@ -54187,6 +54362,8 @@ function soloRng(seed) {
 }
 
 var soloArchiveDay = null;
+// Set while an archive day is dealt after the player already agreed to replace the board.
+var soloArchiveSure = false;
 
 /** Today on this phone, as YYYY-MM-DD (local time, so the day turns at midnight here). */
 function soloToday(date) {
@@ -54194,6 +54371,14 @@ function soloToday(date) {
   const d = date || new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+
+/**
+ * The real date, even while a past day is being played from the archive
+ * (soloArchiveDay makes soloToday() answer with that day). Anything that asks
+ * "is this today's daily?" uses this: with soloToday() an archive play decided
+ * today's half-played daily wasn't live and dealt over it.
+ */
+function soloRealToday() { return soloToday(new Date()); }
 
 function soloDaySeed(id, day) {
   return soloHash('ashry-daily:' + id + ':' + (day || soloArchiveDay || soloToday()));
@@ -54284,9 +54469,15 @@ function soloMarkDaily(id, result, day) {
   all[key] = all[key] || {};
   if (all[key][id]) return all[key][id];
   all[key][id] = result;
-  // Two months is plenty for a streak.
+  // The last two months keep their results (the archive shows them); older days
+  // keep only which games were done, so the streak, the best streak and the
+  // totals go on counting - deleting them capped every streak at 63 days.
   const cutoff = soloToday(new Date(Date.now() - 62 * 24 * 3600 * 1000));
-  Object.keys(all).forEach(d => { if (d < cutoff) delete all[d]; });
+  const hard = soloToday(new Date(Date.now() - 400 * 24 * 3600 * 1000));
+  Object.keys(all).forEach(d => {
+    if (d < hard) delete all[d];
+    else if (d < cutoff) Object.keys(all[d] || {}).forEach(k => { all[d][k] = 1; });
+  });
   try { localStorage.setItem(SOLO_DAILY_KEY, JSON.stringify(all)); } catch (e) {}
   const kept = soloDailyKept();
   if (kept[id] && kept[id].day === key) { delete kept[id]; soloDailyKeptSave(kept); }
@@ -54320,7 +54511,7 @@ function soloDailyKept() {
 }
 
 function soloDailyKeptSave(all) {
-  const today = soloToday();
+  const today = soloRealToday();
   Object.keys(all).forEach(id => { if (!all[id] || all[id].day !== today) delete all[id]; });
   try { localStorage.setItem(SOLO_DAILY_PLAY_KEY, JSON.stringify(all)); } catch (e) {}
 }
@@ -54328,15 +54519,17 @@ function soloDailyKeptSave(all) {
 /** Today's daily is the game's current board, still being played. */
 function soloDailyLive(g) {
   const s = g && g.state ? g.state() : null;
-  return !!(s && s.daily && s.daily === soloToday() && s.phase === 'play' && !soloDailyResult(g.id));
+  const today = soloRealToday();
+  return !!(s && s.daily && s.daily === today && s.phase === 'play' && !soloDailyResult(g.id, today));
 }
 
 /** Today's daily of `id` was started and isn't finished (on its board, or set aside). */
 function soloDailyInProgress(id) {
-  if (soloDailyResult(id)) return false;
+  const today = soloRealToday();
+  if (soloDailyResult(id, today)) return false;
   if (soloDailyLive(SOLO_GAMES[id])) return true;
   const kept = soloDailyKept()[id];
-  return !!(kept && kept.day === soloToday() && kept.state);
+  return !!(kept && kept.day === today && kept.state);
 }
 
 /** Called before a game deals a new board: today's daily in progress is kept aside, not lost. */
@@ -54387,9 +54580,15 @@ function soloDailyResume(id) {
 function soloConfirmNew(id, hasWork, go) {
   const g = SOLO_GAMES[id];
   const s = g && g.state ? g.state() : null;
-  if (!s || s.phase !== 'play' || (s.daily && s.daily === soloToday()) || !hasWork(s)) return false;
+  if (soloArchiveSure) return false;
+  if (!s || s.phase !== 'play' || (s.daily && s.daily === soloRealToday()) || !hasWork(s)) return false;
   const t = TRANSLATIONS[appState.lang] || {};
-  showConfirmModal(t.solo_new_confirm || t.g2048_new_confirm || 'تبدأ لعبة جديدة وتسيب اللي شغال؟', go);
+  // Asked while a past day was being opened from the archive: "yes" opens that
+  // day. The game's own callback would run after the archive day is gone and
+  // deal today's daily instead.
+  const archive = soloArchiveDay;
+  const yes = archive && typeof playArchive === 'function' ? () => playArchive(id, archive, true) : go;
+  showConfirmModal(t.solo_new_confirm || t.g2048_new_confirm || 'تبدأ لعبة جديدة وتسيب اللي شغال؟', yes);
   return true;
 }
 
@@ -55031,8 +55230,13 @@ function enterSudoku(n) {
       playSound('alarm');
     } else {
       // The number is settled here: it can't be a candidate for its row, column or box.
+      // The pencil marks it clears go on this move's undo step, so undo puts them back.
+      const step = s.undo[s.undo.length - 1];
       for (let k = 0; k < 81; k++) {
-        if (Math.floor(k / 9) === Math.floor(i / 9) || k % 9 === i % 9 || SUDOKU_BOX[k] === SUDOKU_BOX[i]) s.notes[k] &= ~(1 << n);
+        if (k !== i && (Math.floor(k / 9) === Math.floor(i / 9) || k % 9 === i % 9 || SUDOKU_BOX[k] === SUDOKU_BOX[i]) && (s.notes[k] & (1 << n))) {
+          if (step) (step.peers = step.peers || {})[k] = s.notes[k];
+          s.notes[k] &= ~(1 << n);
+        }
       }
     }
   }
@@ -55058,6 +55262,7 @@ function undoSudoku() {
   if (!last || s.phase !== 'play') return;
   sudokuSetCell(last.i, last.v);
   s.notes[last.i] = last.n;
+  if (last.peers) Object.keys(last.peers).forEach(k => { s.notes[Number(k)] = last.peers[k]; });
   s.sel = last.i;
   saveToLocal();
   paintSudoku();
@@ -58389,6 +58594,9 @@ function setStreakSource(source) {
   paintStreakSetup();
 }
 
+/** A run with a fixed deck: today's daily, or a past day from the archive (which clears s.daily). */
+const streakDecked = (s) => !!(s.deck && s.deck.length);
+
 function startStreak(daily) {
   if (daily && soloDailyResume('streak')) return;
   soloDailySetAside('streak');
@@ -58413,7 +58621,7 @@ function continueStreak() {
 /** Puts the next question up, with a fresh deadline. */
 function streakNext() {
   const s = streakState();
-  const q = s.daily ? s.deck[s.asked] : streakDeal(s.playSource, s.lang);
+  const q = streakDecked(s) ? s.deck[s.asked] : streakDeal(s.playSource, s.lang);
   s.q = q ? Object.assign(q, { endsAt: Date.now() + STREAK_SECONDS * 1000, picked: null }) : null;
   saveToLocal();
 }
@@ -58450,7 +58658,7 @@ function paintStreak(fresh) {
     : escapeHTML(q.prompt);
   const bar = soloBarHtml([
     { label: t.streak_lives || '', value: `<span class="streak-hearts" id="streak-hearts">${streakHearts(s)}</span>` },
-    { label: s.daily ? `📅 ${s.asked + 1}/${s.deck.length}` : (t.streak_score || ''), value: s.score, id: 'streak-score' },
+    { label: streakDecked(s) ? `📅 ${s.asked + 1}/${s.deck.length}` : (t.streak_score || ''), value: s.score, id: 'streak-score' },
     { label: t.streak_time || '', value: Math.ceil(answered ? 0 : left), id: 'streak-left' }
   ]);
   el.innerHTML = `
@@ -58515,7 +58723,7 @@ function answerStreak(i) {
 function streakAdvance() {
   const s = streakState();
   if (s.phase !== 'play' || appState.currentView !== 'play-streak') return;
-  if (s.lives <= 0 || (s.daily && s.asked >= s.deck.length)) { streakFinish(); return; }
+  if (s.lives <= 0 || (streakDecked(s) && s.asked >= s.deck.length)) { streakFinish(); return; }
   streakNext();
   if (!s.q) { streakFinish(); return; }
   paintStreak(true);
@@ -58529,7 +58737,7 @@ function streakFinish() {
   s.phase = 'done';
   saveToLocal();
   const source = s.playSource || s.source;
-  const rec = s.daily ? { record: false, prev: null } : soloRecord('streak', source, { score: s.score }, (a, b) => a.score > b.score);
+  const rec = streakDecked(s) ? { record: false, prev: null } : soloRecord('streak', source, { score: s.score }, (a, b) => a.score > b.score);
   let share = '';
   const lines = [];
   if (s.daily) {
@@ -58540,8 +58748,8 @@ function streakFinish() {
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.score}`);
   soloResult({
     icon: '🔥', title: s.daily ? (s.lives > 0 ? (t.daily_done_today || '') : (t.streak_over || '')) : (rec.record && s.score ? (t.solo_new_best || '') : (t.streak_over || '')),
-    value: s.score, valueLabel: s.daily ? `/ ${s.deck.length}` : (t.streak_in_a_row || ''), lines: lines,
-    win: rec.record && s.score > 0 || (s.daily && s.score >= 7), share: share,
+    value: s.score, valueLabel: streakDecked(s) ? `/ ${s.deck.length}` : (t.streak_in_a_row || ''), lines: lines,
+    win: rec.record && s.score > 0 || (streakDecked(s) && s.score >= 7), share: share,
     again: () => startStreak(false), exit: setupStreak
   });
 }
@@ -59174,17 +59382,26 @@ function selectArchiveDay(day) {
  * Starts past daily for game `id` on date `day`.
  * Deals with identical seed, sets s.archive, clears s.daily so soloMarkDaily is not called.
  */
-function playArchive(id, day) {
+function playArchive(id, day, sure) {
   const g = DAILY_GAMES.find(x => x.id === id);
   const soloG = typeof SOLO_GAMES !== 'undefined' ? SOLO_GAMES[id] : null;
   if (!g || !soloG) return;
+  // Today is the real daily, never practice: the archive dealt today's puzzle as a
+  // board that records nothing, and "again" replayed it before the real go.
+  if (day >= soloRealToday()) { playDaily(id); return; }
   soloHubReturn = false;
+  const epoch = soloEpochs[id] || 0;
   soloArchiveDay = day;
+  soloArchiveSure = !!sure;
   try {
     g.start();
   } finally {
     soloArchiveDay = null;
+    soloArchiveSure = false;
   }
+  // Nothing was dealt (a "start a new game?" question is waiting): the board on
+  // screen is still the old one, and must not be relabelled as that day.
+  if ((soloEpochs[id] || 0) === epoch) return;
   const s = soloG.state ? soloG.state() : null;
   if (s) {
     s.archive = day;
@@ -60284,6 +60501,29 @@ function csWatchPicker(id) {
 
 /* --- Play ------------------------------------------------------------------------------- */
 
+/** The game as it stood before round n. */
+const csAsOf = (s, n) => Object.assign({}, s, { rounds: s.rounds.slice(0, n) });
+
+/**
+ * What the round card works against: the game so far, or - while an earlier
+ * round is being fixed - the game as it stood then. A fixed round used to be
+ * read, checked and scored against the whole game: كونكان's players out by
+ * now were missing from round 3, إستميشن's speed rounds hid round 5's caller.
+ */
+const csView = (s) => (typeof s.editing === 'number' && s.rounds[s.editing] ? csAsOf(s, s.editing) : s);
+
+/** The rounds from `from` on, scored again against the game before each: a fixed round moves what came after it (a tie's carried 30, a doubled round). */
+function csReplay(g, s, rounds, from) {
+  const out = rounds.slice();
+  for (let k = from; k < out.length; k++) {
+    const r = out[k];
+    if (!r || !r.input) continue;
+    const res = g.score(r.input, Object.assign({}, s, { rounds: out.slice(0, k) }));
+    out[k] = Object.assign({}, r, res, { points: res.points, tag: res.tag || '', label: res.label || '' });
+  }
+  return out;
+}
+
 function csTotals(id) {
   const s = csState(id);
   return s.seats.map((_, i) => csSum(s.rounds.map(r => r.points[i])));
@@ -60334,8 +60574,9 @@ function paintCardScore(id, fresh) {
   const over = s.phase === 'over';
   const roundNo = isEdit ? s.editing + 1 : s.rounds.length + 1;
   const goal = g.goalText ? g.goalText(s, t) : '';
-  const dealer = g.dealer ? (typeof g.dealer === 'function' ? g.dealer(s) : csDealer(s)) : '';
-  const labels = [g.roundLabel ? g.roundLabel(s, t) : '', dealer ? '🃏 ' + (t.cs_dealer || 'بيوزّع: {name}').replace('{name}', dealer) : ''].filter(Boolean);
+  const view = csView(s);
+  const dealer = g.dealer ? (typeof g.dealer === 'function' ? g.dealer(view) : csDealer(view)) : '';
+  const labels = [g.roundLabel ? g.roundLabel(view, t) : '', dealer ? '🃏 ' + (t.cs_dealer || 'بيوزّع: {name}').replace('{name}', dealer) : ''].filter(Boolean);
   el.innerHTML = `
     <div class="cs-layout${over ? ' cs-layout--over' : ''}">
     <div class="cs-layout__side">
@@ -60360,7 +60601,7 @@ function paintCardScore(id, fresh) {
           <b>${escapeHTML((t.cs_round || '').replace('{n}', roundNo))}</b>
           ${labels.length ? `<span class="chip-set">${labels.map(l => `<span class="badge">${escapeHTML(l)}</span>`).join('')}</span>` : ''}
         </div>
-        ${g.entryHtml(s, t)}
+        ${g.entryHtml(view, t)}
       </div>`}
       ${csHistoryHtml(id, s, g, t)}
       <button type="button" class="btn btn--ghost btn--sm" onclick="setupCardScore('${id}')">${escapeHTML(t.exit || '')}</button>
@@ -60379,7 +60620,7 @@ function paintCardScore(id, fresh) {
                : `<button type="button" class="btn btn--primary btn--lg" onclick="saveCardScoreRound('${id}')">${escapeHTML(t.cs_save_round || '')}</button>`}
            </div>`}
     </div>`;
-  if (g.afterPaint) g.afterPaint(s);
+  if (g.afterPaint) g.afterPaint(view);
   if (!over) csRefresh(id);
   if (fresh && !motionOff() && typeof countUp === 'function') {
     el.querySelectorAll('.cs-total__score').forEach(scoreEl => {
@@ -60435,12 +60676,12 @@ function csFinalHtml(id, order, t) {
 function csProject(id, input) {
   const g = CS_GAMES[id];
   const s = csState(id);
-  const result = g.score(input, s);
+  const result = g.score(input, csView(s));
   const totals = csTotals(id);
   const isEdit = typeof s.editing === 'number' && s.rounds[s.editing];
   const roundObj = Object.assign({}, result, { input: input, points: result.points });
   const nextRounds = isEdit
-    ? s.rounds.map((r, i) => (i === s.editing ? roundObj : r))
+    ? csReplay(g, s, s.rounds.map((r, i) => (i === s.editing ? roundObj : r)), s.editing + 1)
     : s.rounds.concat([roundObj]);
   const after = s.seats.map((_, i) => csSum(nextRounds.map(r => r.points[i])));
   const next = Object.assign({}, s, { rounds: nextRounds });
@@ -60472,8 +60713,9 @@ function csPaintPreview(id) {
   const t = csT();
   let html = '';
   try {
-    const input = g.read(s);
-    if (s.phase === 'play' && !g.check(input, s, t)) {
+    const view = csView(s);
+    const input = g.read(view);
+    if (s.phase === 'play' && !g.check(input, view, t)) {
       const p = csProject(id, input);
       html = p.rows.map(r => `<span class="badge${r.won ? ' badge--success' : (r.out ? ' badge--danger' : '')}">${r.won ? '🏆 ' : ''}<bdi>${escapeHTML(r.name)}</bdi>&nbsp;<span class="metric">${r.score}</span>&nbsp;<span class="metric">(${r.delta > 0 ? '+' : ''}${r.delta})</span></span>`).join('');
       if (p.end) html += `<span class="badge badge--success">🏁 ${escapeHTML(t.cs_preview_end || 'الجولة دي بتنهي اللعبة')}</span>`;
@@ -60499,7 +60741,7 @@ function csPaintQuick(id) {
   const g = CS_GAMES[id];
   const s = csState(id);
   const t = csT();
-  const groups = g.quick ? g.quick(s, t) : [];
+  const groups = g.quick ? g.quick(csView(s), t) : [];
   const nameOf = (i) => (s.seats[i] ? s.seats[i].name : '');
   const offered = {};
   const chip = (key, value, name, shown) => {
@@ -60545,13 +60787,15 @@ function saveCardScoreRound(id) {
   const s = csState(id);
   const t = csT();
   if (s.phase !== 'play') return;
-  const input = g.read(s);
-  const problem = g.check(input, s, t);
+  const view = csView(s);
+  const input = g.read(view);
+  const problem = g.check(input, view, t);
   if (problem) { showToast(problem, 'error'); haptic('medium'); return; }
-  const result = g.score(input, s);
+  const result = g.score(input, view);
   const roundObj = Object.assign({}, result, { input: input, draft: csDraftOf(id), points: result.points, tag: result.tag || '', label: result.label || '' });
   if (typeof s.editing === 'number' && s.rounds[s.editing]) {
     s.rounds[s.editing] = roundObj;
+    s.rounds = csReplay(g, s, s.rounds, s.editing + 1);
     delete s.editing;
   } else {
     s.rounds.push(roundObj);
@@ -61072,7 +61316,8 @@ CS_GAMES.konkan = {
   goalText: (s, t) => (s.opts.end === 'l101' ? (t.cs_konkan_goal_limit || '') : (t.cs_rounds_of || '').replace('{n}', s.rounds.length).replace('{m}', s.opts.end === 'r7' ? 7 : 5)),
   inGame(s) {
     const limit = CS_GAMES.konkan.limit(s);
-    const totals = csTotals('konkan');
+    // From the rounds handed in, not the live game: a fixed earlier round asks who was in *then*.
+    const totals = s.seats.map((_, i) => csSum(s.rounds.map(r => r.points[i])));
     return s.seats.map((_, i) => i).filter(i => limit === null || totals[i] <= limit);
   },
   entryHtml(s, t) {
@@ -61503,6 +61748,12 @@ function chooserReset() {
   const t = TRANSLATIONS[appState.lang];
   const hint = document.getElementById('chooser-hint');
   if (hint) hint.textContent = t.ch_hint_start || '';
+}
+
+// Any way off the chooser (the ✕, the phone's back, the iPhone swipe) stops its
+// countdown: only the ✕ used to, and the pick then buzzed on the tools screen.
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from) => { if (from === 'play-chooser') chooserReset(); });
 }
 </script>
 
@@ -63907,7 +64158,9 @@ function armQuizClock(endsAt) {
     if (el) el.textContent = String(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
   };
   paint();
-  if (quiz.clockKey === endsAt && quiz.clock) return;
+  // A clock stopped by leaving the screen (setView stops every clock without its
+  // onEnd) is not running: coming back through the banner starts it again.
+  if (quiz.clockKey === endsAt && quiz.clock && quiz.clock.isRunning()) return;
   stopQuizClock();
   quiz.clockKey = endsAt;
   quiz.clock = createClock({
@@ -63920,8 +64173,9 @@ function armQuizClock(endsAt) {
         if (!st || (st.game !== 'emoji' && st.game !== 'proverbs') || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
         Room.act('closeQuestion').catch(() => {});
       };
-      // The host closes on time, anyone else a moment later; the server too.
-      if (Room.isHost) close(); else setTimeout(close, 3000);
+      // The host closes after the server's grace (QUIZ_GRACE_MS), so an answer sent
+      // as the clock hit zero still counts; anyone else a moment later; the server too.
+      if (Room.isHost) setTimeout(close, 2000); else setTimeout(close, 3000);
     }
   });
 }
@@ -64145,11 +64399,15 @@ function armFiveClock(endsAt, loud, onEnd) {
     if (num) num.textContent = String(Math.ceil(left));
   };
   paint();
-  if (five.clockKey === endsAt && five.clock) return;
+  // A clock stopped by leaving the screen (setView stops every clock without its
+  // onEnd) is not running, whatever the key says: start it again.
+  if (five.clockKey === endsAt && five.clock && five.clock.isRunning()) return;
   stopFiveClock();
   five.clockKey = endsAt;
   let raf = null;
-  const smooth = () => { paint(); if (five.clockKey === endsAt) raf = requestAnimationFrame(smooth); };
+  // The ring only animates while its clock runs: it used to go on at 60 frames a
+  // second on whatever screen came next.
+  const smooth = () => { paint(); if (five.clockKey === endsAt && (!five.clock || five.clock.isRunning())) raf = requestAnimationFrame(smooth); };
   raf = requestAnimationFrame(smooth);
   five.clock = createClock({
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
@@ -64165,6 +64423,10 @@ function stopFiveClock() {
   five.clockKey = null;
 }
 onRoomClocksReset(stopFiveClock);
+// Leaving the screen (one phone or a room) stops the ring and its animation loop.
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from) => { if (from === 'play-fiveseconds' || from === 'room-fiveseconds') stopFiveClock(); });
+}
 
 function fiveRingHtml(s, big) {
   return `<div class="five-ring ${big ? 'five-ring--big' : ''}" id="five-ring" style="--five-p:1"><span id="five-num" class="metric">5</span></div>`;
@@ -64969,9 +65231,13 @@ onLeaveScreen(() => speakStop());
    It is drawn above everything, full-screen tools (على راسك, the chess clock)
    included, which otherwise hid it. */
 (function () {
+  // The page starts with a silent stand-in (Controller.html) while the real
+  // confetti loads async. The stand-in is wrapped too (so the fanfare still
+  // plays if the CDN never answers), and the real one is wrapped when it lands.
   const wrap = () => {
-    if (typeof window.confetti !== 'function' || window.confetti.__fx) return false;
+    if (typeof window.confetti !== 'function' || window.confetti.__fx) return !!(window.confetti && window.confetti.__fx && !window.confetti.__overStub);
     const real = window.confetti;
+    const overStub = !!real.__stub;
     const wrapped = function (opts) {
       if (!(typeof roomHasScreen === 'function' && roomHasScreen())) {
         playFx('tada');
@@ -64983,8 +65249,9 @@ onLeaveScreen(() => speakStop());
       return real.apply(this, args);
     };
     wrapped.__fx = true;
+    wrapped.__overStub = overStub;
     window.confetti = wrapped;
-    return true;
+    return !overStub;
   };
   if (!wrap()) window.addEventListener('load', wrap);
 })();
@@ -65151,10 +65418,12 @@ ROOM_GAMES.monkey = {
 
     if (s.phase === 'gameover') {
       stopMkClock();
-      const fresh = renderRoomFrame(el, ['mk-over', state.youAreHost, appState.lang].join('|'), () => `
+      const canFlip = state.youAreHost && s.verdict && s.verdict.canFlip && !s.verdict.flipped;
+      const fresh = renderRoomFrame(el, ['mk-over', s.dealId, canFlip, state.youAreHost, appState.lang].join('|'), () => `
         <div class="card card--accent" style="text-align:center">
           <div class="eyebrow">${escapeHTML(t.mk_winners || '')}</div>
           <div class="metric metric--md">🏆 ${escapeHTML((s.winnerNames || []).join('، '))}</div>
+          ${s.verdict ? `<div class="mk-verdict">${escapeHTML(mkVerdictText(s.verdict, t))}${canFlip ? ` <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('flip')">${escapeHTML(t.mk_flip || '')}</button>` : ''}</div>` : ''}
         </div>
         ${mkBoardHtml(s, state, t)}
         ${state.youAreHost
@@ -65245,8 +65514,10 @@ TV_GAMES.monkey = {
       return `<div class="tv-vote">
         <div class="tv-eyebrow tv-center-text">${escapeHTML(t.mk_winners || '')}</div>
         <div class="tv-title tv-center-text">🏆 ${escapeHTML((s.winnerNames || []).join('، '))}</div>
+        ${s.verdict ? `<div class="tv-note tv-center-text">${escapeHTML(mkVerdictText(s.verdict, t))}</div>` : ''}
         ${boardStrip}
-        ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.monkey.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+        ${host((s.verdict && s.verdict.canFlip && !s.verdict.flipped ? tvBtn(t.mk_flip, "roomAct('flip')", 'ghost') : '') +
+          tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.monkey.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
       </div>`;
     }
     const verdict = s.verdict ? `<div class="tv-note">${escapeHTML(mkVerdictText(s.verdict, t))}</div>` +
@@ -70490,10 +70761,11 @@ ROOM_GAMES.timeline = {
     if (s.phase === 'play' && s.turnId === Room.me && mine.length === 1) tlLocal.pick = mine[0].id;
 
     if (s.phase === 'gameover') {
-      const fresh = renderRoomFrame(el, ['tl-over', s.winnerId, state.youAreHost, appState.lang].join('|'), () => `
+      const fresh = renderRoomFrame(el, ['tl-over', s.dealId, s.winnerId, s.ended, state.youAreHost, appState.lang].join('|'), () => `
         <div class="card card--accent" style="text-align:center">
           <div class="eyebrow">${escapeHTML(t.tl_over || '')}</div>
-          ${renderPodium(state, s.board) || `<div class="metric metric--md">🏆 ${escapeHTML(s.winnerName || '')}</div>`}
+          ${s.ended === 'deck' ? `<p class="field__hint">${escapeHTML(t.tl_deck_out || '')}</p>` : ''}
+          ${renderPodium(state, s.board) || (s.winnerName ? `<div class="metric metric--md">🏆 ${escapeHTML(s.winnerName)}</div>` : `<p class="field__hint">${escapeHTML(t.tl_nobody || '')}</p>`)}
         </div>
         ${tlLineHtml(s, t, false)}
         ${renderScoreboard(s.board)}
@@ -70505,7 +70777,7 @@ ROOM_GAMES.timeline = {
              </div>`
           : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
         ${renderRoomPlayerStrip(state)}`);
-      if (fresh && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 150, spread: 90 }));
+      if (fresh && s.winnerId && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 150, spread: 90 }));
       refreshRoomPlayerStrip(el, state);
       return;
     }
@@ -70553,7 +70825,8 @@ TV_GAMES.timeline = {
     if (s.phase === 'gameover') {
       return `
         <div class="tv-vote">
-          <div class="tv-title tv-center-text">🏆 ${escapeHTML(s.winnerName || '')}</div>
+          ${s.ended === 'deck' ? `<div class="tv-note tv-center-text">${escapeHTML(t.tl_deck_out || '')}</div>` : ''}
+          <div class="tv-title tv-center-text">${s.winnerName ? '🏆 ' + escapeHTML(s.winnerName) : escapeHTML(t.tl_nobody || '')}</div>
           <div class="tv-scale">${tlLineHtml(s, t, false)}</div>
           <div class="tv-scale">${renderScoreboard(s.board)}</div>
           ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.timeline.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
@@ -78047,7 +78320,7 @@ TV_GAMES.bank = {
      play reads it but can't write to it.
    ========================================================================= */
 
-const roomChat = { seen: 0, notified: 0, inRoom: false, to: 'all' };
+const roomChat = { seen: 0, notified: 0, inRoom: false, to: 'all', code: '' };
 
 const roomChatOpen = () => {
   const m = document.getElementById('chat-modal');
@@ -78187,9 +78460,12 @@ function syncRoomChat(state, opening) {
   const last = msgs.length ? msgs[msgs.length - 1] : null;
   const lastTalk = talk.length ? talk[talk.length - 1] : null;
   if (!inRoom) { roomChat.inRoom = false; roomChat.seen = 0; roomChat.notified = 0; roomChat.to = 'all'; return; }
-  if (!roomChat.inRoom) {
-    // Just arrived: what is already here is history, not news.
+  if (!roomChat.inRoom || roomChat.code !== state.code) {
+    // Just arrived (or straight on to another room): what is already here is
+    // history, not news - and another room's line ids mean nothing here.
     roomChat.inRoom = true;
+    roomChat.code = state.code;
+    roomChat.to = 'all';
     roomChat.seen = last ? last.id : 0;
     roomChat.notified = roomChat.seen;
   }
@@ -79503,8 +79779,14 @@ function shareRoomResult() {
 }
 </script>
 
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- async: a slow or blocked CDN no longer holds the app on the intro
+         (DOMContentLoaded waited for these, and so did initializeApp and its
+         intro fallback). The packages' own files, not jsDelivr's .min.js, which is
+         minified on the fly and so can't carry a fixed integrity hash. -->
+    <script async src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.js"
+            integrity="sha384-qmDHVszK26iWDlfhGzXz71t2qRopa/FvIuOkCTJJT4QRkIZf9h+OiJZzco9XtgPX" crossorigin="anonymous"></script>
     <!-- QR for room join links. Optional: the 4-letter code is always shown too. -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"
+            integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
   </body>
 </html>

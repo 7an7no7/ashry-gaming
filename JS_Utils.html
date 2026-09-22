@@ -414,7 +414,7 @@ function addPlayerFromSetup(btn) {
       if (box) box.classList.remove('hidden');
       playSound('success');
       haptic('double');
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+      if (typeof confetti === 'function') confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
       if (btn) btn.disabled = false;
   }
 
@@ -523,11 +523,16 @@ function addPlayerFromSetup(btn) {
           if (tm.interval) tm.interval.stop();
           tm.interval = null;
           tm.running = false;
-          btn.innerText = TRANSLATIONS[appState.lang].start_btn;
+          tm.endsAt = null;
+          if (btn) btn.innerText = TRANSLATIONS[appState.lang].start_btn;
       } else {
           if(tm.time <= 0) return;
           tm.running = true;
-          btn.innerText = TRANSLATIONS[appState.lang].pause_btn;
+          // The deadline is saved with the app, so a reload (or iOS dropping the page
+          // while the phone is locked) doesn't leave the timer silently stopped.
+          tm.endsAt = Date.now() + tm.time * 1000;
+          saveToLocal();
+          if (btn) btn.innerText = TRANSLATIONS[appState.lang].pause_btn;
           // It keeps counting when the screen is left (a timer for a pot on the
           // stove, a break between games), and rings wherever the phone is.
           tm.interval = createClock({
@@ -541,6 +546,7 @@ function addPlayerFromSetup(btn) {
                   tm.interval = null;
                   tm.time = 0;
                   tm.running = false;
+                  tm.endsAt = null;
                   updateGenDisplay();
                   playSound('alarm');
                   haptic('heavy');
@@ -560,10 +566,31 @@ function addPlayerFromSetup(btn) {
       if (tm.interval) tm.interval.stop();
       tm.interval = null;
       tm.running = false;
+      tm.endsAt = null;
       tm.time = 0;
       updateGenDisplay();
       document.getElementById('gen-start-btn').innerText = TRANSLATIONS[appState.lang].start_btn;
   }
+
+  /** After a reload: a timer that was running goes on with the time really left, or says it finished meanwhile. */
+  function restoreGenTimer() {
+      const tm = appState.timers.general;
+      if (!tm.endsAt || (tm.interval && tm.interval.isRunning && tm.interval.isRunning())) return;
+      const left = Math.ceil((tm.endsAt - Date.now()) / 1000);
+      tm.running = false;
+      tm.interval = null;
+      if (left > 0) {
+          tm.time = left;
+          toggleGenTimer();
+      } else {
+          tm.endsAt = null;
+          tm.time = 0;
+          updateGenDisplay();
+          const t = TRANSLATIONS[appState.lang] || {};
+          showToast('⏰ ' + (t.timer_done || 'خلص وقت المؤقت'), 'success');
+      }
+  }
+  document.addEventListener('DOMContentLoaded', () => { try { restoreGenTimer(); } catch (e) {} });
 
   /* --- UPGRADED FULL SCREEN CHESS LOGIC --- */
   function exitChessTimer(event) {
@@ -602,6 +629,8 @@ function addPlayerFromSetup(btn) {
       tm.active = null;
       tm.time1 = tm.initial;
       tm.time2 = tm.initial;
+      tm.ms1 = tm.initial * 1000;
+      tm.ms2 = tm.initial * 1000;
       updateChessUI();
       playSound('click');
   }
@@ -622,8 +651,27 @@ function addPlayerFromSetup(btn) {
       playSound('click');
   }
 
+  /* Each side's time is kept to the millisecond (ms1, ms2) and charged exactly
+     when its turn ends. Whole seconds charged on each tick made a move inside a
+     second free and rounded every move in the mover's favour - in blitz that
+     is real time. time1/time2 stay the seconds on screen. */
+  const chessMs = (tm, side) => {
+      const shown = (side === 1 ? tm.time1 : tm.time2) * 1000;
+      const kept = side === 1 ? tm.ms1 : tm.ms2;
+      // Never more than the seconds on screen: a reload mid-turn saved the ticks but not the charge.
+      return typeof kept === 'number' && Math.ceil(kept / 1000) * 1000 <= shown ? kept : shown;
+  };
+
   function stopChessClock() {
       const tm = appState.timers.chess;
+      if (tm.interval && (tm.active === 1 || tm.active === 2) && tm.turnAt && typeof tm.turnMs === 'number') {
+          // From what the turn started with: the ticks have been lowering time1/time2 meanwhile.
+          const left = Math.max(0, tm.turnMs - (Date.now() - tm.turnAt));
+          if (tm.active === 1) { tm.ms1 = left; tm.time1 = Math.ceil(left / 1000); }
+          else { tm.ms2 = left; tm.time2 = Math.ceil(left / 1000); }
+      }
+      tm.turnAt = null;
+      tm.turnMs = null;
       if (tm.interval) tm.interval.stop();
       tm.interval = null;
   }
@@ -634,22 +682,30 @@ function addPlayerFromSetup(btn) {
       tm.active = activePlayer;
       updateChessUI();
 
-      // One clock per turn, seeded with whatever that player has banked. A chess
-      // clock is the case where counting ticks hurt most: a phone that throttled
-      // the tab handed back time the player had actually used.
-      const remaining = activePlayer === 1 ? tm.time1 : tm.time2;
+      // One clock per turn, seeded with exactly what that player has banked. A
+      // chess clock is the case where counting ticks hurt most: a phone that
+      // throttled the tab handed back time the player had actually used.
+      tm.turnMs = chessMs(tm, activePlayer);
+      tm.turnAt = Date.now();
       tm.interval = createClock({
-          seconds: remaining,
+          ms: tm.turnMs,
           onTick: (left) => {
               if (activePlayer === 1) tm.time1 = left; else tm.time2 = left;
               updateChessUI();
           },
           onEnd: () => {
-              if (activePlayer === 1) tm.time1 = 0; else tm.time2 = 0;
+              if (activePlayer === 1) { tm.time1 = 0; tm.ms1 = 0; } else { tm.time2 = 0; tm.ms2 = 0; }
+              tm.turnAt = null;
               updateChessUI();
               chessGameOver();
           }
       });
+  }
+
+  // Leaving the chess clock pauses it, charging the turn so far (clearAllIntervals
+  // would only stop the clock, losing the part of a second the player used).
+  if (typeof onLeaveScreen === 'function') {
+      onLeaveScreen((from) => { if (from === 'play-chess' && appState.timers.chess.interval) pauseChess(); });
   }
 
   function pauseChess(event) {
@@ -947,7 +1003,10 @@ function toggleResults() {
     const msg = appState.lang === 'ar' ? 'هل أنت متأكد من حذف جميع البيانات والبدء من جديد؟' : 'Are you sure you want to reset all data and start over?';
 
     showConfirmModal(msg, () => {
-        // 1. Stop all running timers
+        // 1. Stop all running timers - the general timer too, which clearAllIntervals
+        // leaves running on purpose (it rings from any screen) and would ring later.
+        const gen = appState.timers && appState.timers.general;
+        if (gen && gen.interval && gen.interval.stop) gen.interval.stop();
         clearAllIntervals();
         // Only once confirmed: Cancel used to wipe the recent games anyway.
         if (typeof forgetRecent === 'function') forgetRecent();
@@ -1731,7 +1790,7 @@ function saveCurrentGroup() {
 
     // Populate the update dropdown
     const updateSelect = document.getElementById('update-group-select');
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     
     updateSelect.innerHTML = `<option value="">${groupPickerLabel()}</option>`;
     Object.keys(groups).forEach(name => {
@@ -1778,7 +1837,7 @@ function updateExistingGroup(mode) {
         return;
     }
 
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     let currentGroupPlayers = groups[groupName] || [];
 
     if (mode === 'add') {
@@ -1799,9 +1858,9 @@ function updateExistingGroup(mode) {
 
 // Helper: Saves data and cleans up UI
 function saveDataToGroup(groupName, playersArray) {
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     groups[groupName] = playersArray;
-    localStorage.setItem('ashry_saved_groups', JSON.stringify(groups));
+    writeSavedGroups(groups);
     
     closeModal('group-name-modal');
     renderSavedGroups(); 
@@ -1827,7 +1886,7 @@ function loadGroup(groupName) {
         return; 
     }
 
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     const selectedNames = groups[groupName];
 
     if (selectedNames && selectedNames.length > 0) {
@@ -1853,9 +1912,9 @@ function deleteGroupFromModal() {
     
     if (typeof showConfirmModal === 'function') {
         showConfirmModal(msg, () => {
-            let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+            let groups = readSavedGroups();
             delete groups[groupName];
-            localStorage.setItem('ashry_saved_groups', JSON.stringify(groups));
+            writeSavedGroups(groups);
             
             if (appState.currentGroup === groupName) {
                 appState.currentGroup = "";
@@ -1877,11 +1936,24 @@ function deleteGroupFromModal() {
     }
 }
 
+/* Saved groups live in this phone's storage. A browser that blocks storage (all
+   cookies off, a kiosk, a TV) throws on the read, which stopped every chip tap
+   halfway: the list changed but the chips never redrew. */
+function readSavedGroups() {
+  try {
+    const g = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    return g && typeof g === 'object' && !Array.isArray(g) ? g : {};
+  } catch (e) { return {}; }
+}
+function writeSavedGroups(groups) {
+  try { localStorage.setItem('ashry_saved_groups', JSON.stringify(groups)); } catch (e) {}
+}
+
 function renderSavedGroups() {
     const selects = document.querySelectorAll('.saved-groups-select');
     if (selects.length === 0) return;
 
-    let groups = JSON.parse(localStorage.getItem('ashry_saved_groups') || '{}');
+    let groups = readSavedGroups();
     const defaultText = appState.lang === 'ar' ? '-- اختر مجموعة محفوظة --' : '-- Select Saved Group --';
     
     selects.forEach(select => {

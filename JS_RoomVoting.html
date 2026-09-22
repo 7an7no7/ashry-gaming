@@ -157,7 +157,7 @@ ROOM_GAMES.wouldyou = {
     const t = TRANSLATIONS[appState.lang];
     const v = state.shared.vote;
 
-    renderRoomFrame(el, ['wyr', state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
+    renderRoomFrame(el, ['wyr', state.shared.dealId, state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="card__title" style="margin-bottom:0">${t.setup_wouldyou || 'لو خيروك'}</div>
@@ -182,7 +182,7 @@ ROOM_GAMES.mostlikely = {
     const t = TRANSLATIONS[appState.lang];
     const v = state.shared.vote;
 
-    renderRoomFrame(el, ['mlt', state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
+    renderRoomFrame(el, ['mlt', state.shared.dealId, state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="prompt-text">${escapeHTML(state.shared.prompt || '')}</div>
@@ -223,7 +223,7 @@ ROOM_GAMES.fibbage = {
       const iSubmitted = (s.submitted || []).indexOf(Room.me) !== -1;
       // Same rule as Just One: while you are inventing a lie, other people
       // finishing theirs must not rebuild the box out from under you.
-      const wsig = 'writing|' + s.round + '|' + iSubmitted + '|' + state.youAreHost + (iSubmitted ? '|' + done + '/' + need : '');
+      const wsig = 'writing|' + s.dealId + '|' + s.round + '|' + iSubmitted + '|' + state.youAreHost + (iSubmitted ? '|' + done + '/' + need : '');
       renderRoomFrame(el, wsig, () => question + `
         <div class="card">
           ${iSubmitted
@@ -240,14 +240,14 @@ ROOM_GAMES.fibbage = {
     }
 
     if (s.phase === 'voting' || (s.vote && s.vote.phase === 'voting')) {
-      renderRoomFrame(el, ['fibvote', s.round, s.vote.voted.length, state.youAreHost].join('|'),
+      renderRoomFrame(el, ['fibvote', s.dealId, s.round, s.vote.voted.length, state.youAreHost].join('|'),
                       () => question + renderBallot(state) + renderRoomPlayerStrip(state));
       refreshRoomPlayerStrip(el, state);
       return;
     }
 
     // Results: mark the real answer, then show who fooled whom.
-    renderRoomFrame(el, ['fibresult', s.round, state.youAreHost].join('|'), () => question + `
+    renderRoomFrame(el, ['fibresult', s.dealId, s.round, state.youAreHost].join('|'), () => question + `
       <div class="card card--accent" style="text-align:center">
         <div class="eyebrow">${t.fib_truth || 'الإجابة الصحيحة'}</div>
         <div class="metric metric--md metric--accent">${escapeHTML(s.truth || '')}</div>

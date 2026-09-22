@@ -159,10 +159,12 @@ ROOM_GAMES.monkey = {
 
     if (s.phase === 'gameover') {
       stopMkClock();
-      const fresh = renderRoomFrame(el, ['mk-over', state.youAreHost, appState.lang].join('|'), () => `
+      const canFlip = state.youAreHost && s.verdict && s.verdict.canFlip && !s.verdict.flipped;
+      const fresh = renderRoomFrame(el, ['mk-over', s.dealId, canFlip, state.youAreHost, appState.lang].join('|'), () => `
         <div class="card card--accent" style="text-align:center">
           <div class="eyebrow">${escapeHTML(t.mk_winners || '')}</div>
           <div class="metric metric--md">🏆 ${escapeHTML((s.winnerNames || []).join('، '))}</div>
+          ${s.verdict ? `<div class="mk-verdict">${escapeHTML(mkVerdictText(s.verdict, t))}${canFlip ? ` <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('flip')">${escapeHTML(t.mk_flip || '')}</button>` : ''}</div>` : ''}
         </div>
         ${mkBoardHtml(s, state, t)}
         ${state.youAreHost
@@ -253,8 +255,10 @@ TV_GAMES.monkey = {
       return `<div class="tv-vote">
         <div class="tv-eyebrow tv-center-text">${escapeHTML(t.mk_winners || '')}</div>
         <div class="tv-title tv-center-text">🏆 ${escapeHTML((s.winnerNames || []).join('، '))}</div>
+        ${s.verdict ? `<div class="tv-note tv-center-text">${escapeHTML(mkVerdictText(s.verdict, t))}</div>` : ''}
         ${boardStrip}
-        ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.monkey.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+        ${host((s.verdict && s.verdict.canFlip && !s.verdict.flipped ? tvBtn(t.mk_flip, "roomAct('flip')", 'ghost') : '') +
+          tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.monkey.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
       </div>`;
     }
     const verdict = s.verdict ? `<div class="tv-note">${escapeHTML(mkVerdictText(s.verdict, t))}</div>` +

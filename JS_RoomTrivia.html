@@ -237,10 +237,11 @@ function startTriviaClock(s) {
         if (!st || st.game !== 'trivia' || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
         Room.act('closeQuestion').catch(() => {});
       };
-      // The host closes on time; anyone else a few seconds later if the host
-      // hasn't. The server closes it as well (roomTimeout), even if every
-      // phone is asleep.
-      if (Room.isHost) close();
+      // The host closes once the server's grace is over (TRIVIA_GRACE_MS: an
+      // answer tapped as the clock hit zero is still on its way, and counts);
+      // anyone else a moment later if the host hasn't. The server closes it as
+      // well (roomTimeout), even if every phone is asleep.
+      if (Room.isHost) setTimeout(close, 2000);
       else setTimeout(close, 3000);
     }
   });

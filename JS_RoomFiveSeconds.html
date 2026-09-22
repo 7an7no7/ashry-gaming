@@ -33,11 +33,15 @@ function armFiveClock(endsAt, loud, onEnd) {
     if (num) num.textContent = String(Math.ceil(left));
   };
   paint();
-  if (five.clockKey === endsAt && five.clock) return;
+  // A clock stopped by leaving the screen (setView stops every clock without its
+  // onEnd) is not running, whatever the key says: start it again.
+  if (five.clockKey === endsAt && five.clock && five.clock.isRunning()) return;
   stopFiveClock();
   five.clockKey = endsAt;
   let raf = null;
-  const smooth = () => { paint(); if (five.clockKey === endsAt) raf = requestAnimationFrame(smooth); };
+  // The ring only animates while its clock runs: it used to go on at 60 frames a
+  // second on whatever screen came next.
+  const smooth = () => { paint(); if (five.clockKey === endsAt && (!five.clock || five.clock.isRunning())) raf = requestAnimationFrame(smooth); };
   raf = requestAnimationFrame(smooth);
   five.clock = createClock({
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
@@ -53,6 +57,10 @@ function stopFiveClock() {
   five.clockKey = null;
 }
 onRoomClocksReset(stopFiveClock);
+// Leaving the screen (one phone or a room) stops the ring and its animation loop.
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from) => { if (from === 'play-fiveseconds' || from === 'room-fiveseconds') stopFiveClock(); });
+}
 
 function fiveRingHtml(s, big) {
   return `<div class="five-ring ${big ? 'five-ring--big' : ''}" id="five-ring" style="--five-p:1"><span id="five-num" class="metric">5</span></div>`;

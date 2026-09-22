@@ -55,7 +55,9 @@ function armQuizClock(endsAt) {
     if (el) el.textContent = String(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
   };
   paint();
-  if (quiz.clockKey === endsAt && quiz.clock) return;
+  // A clock stopped by leaving the screen (setView stops every clock without its
+  // onEnd) is not running: coming back through the banner starts it again.
+  if (quiz.clockKey === endsAt && quiz.clock && quiz.clock.isRunning()) return;
   stopQuizClock();
   quiz.clockKey = endsAt;
   quiz.clock = createClock({
@@ -68,8 +70,9 @@ function armQuizClock(endsAt) {
         if (!st || (st.game !== 'emoji' && st.game !== 'proverbs') || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
         Room.act('closeQuestion').catch(() => {});
       };
-      // The host closes on time, anyone else a moment later; the server too.
-      if (Room.isHost) close(); else setTimeout(close, 3000);
+      // The host closes after the server's grace (QUIZ_GRACE_MS), so an answer sent
+      // as the clock hit zero still counts; anyone else a moment later; the server too.
+      if (Room.isHost) setTimeout(close, 2000); else setTimeout(close, 3000);
     }
   });
 }

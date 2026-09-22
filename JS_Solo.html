@@ -139,6 +139,8 @@ function soloRng(seed) {
 }
 
 var soloArchiveDay = null;
+// Set while an archive day is dealt after the player already agreed to replace the board.
+var soloArchiveSure = false;
 
 /** Today on this phone, as YYYY-MM-DD (local time, so the day turns at midnight here). */
 function soloToday(date) {
@@ -146,6 +148,14 @@ function soloToday(date) {
   const d = date || new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+
+/**
+ * The real date, even while a past day is being played from the archive
+ * (soloArchiveDay makes soloToday() answer with that day). Anything that asks
+ * "is this today's daily?" uses this: with soloToday() an archive play decided
+ * today's half-played daily wasn't live and dealt over it.
+ */
+function soloRealToday() { return soloToday(new Date()); }
 
 function soloDaySeed(id, day) {
   return soloHash('ashry-daily:' + id + ':' + (day || soloArchiveDay || soloToday()));
@@ -236,9 +246,15 @@ function soloMarkDaily(id, result, day) {
   all[key] = all[key] || {};
   if (all[key][id]) return all[key][id];
   all[key][id] = result;
-  // Two months is plenty for a streak.
+  // The last two months keep their results (the archive shows them); older days
+  // keep only which games were done, so the streak, the best streak and the
+  // totals go on counting - deleting them capped every streak at 63 days.
   const cutoff = soloToday(new Date(Date.now() - 62 * 24 * 3600 * 1000));
-  Object.keys(all).forEach(d => { if (d < cutoff) delete all[d]; });
+  const hard = soloToday(new Date(Date.now() - 400 * 24 * 3600 * 1000));
+  Object.keys(all).forEach(d => {
+    if (d < hard) delete all[d];
+    else if (d < cutoff) Object.keys(all[d] || {}).forEach(k => { all[d][k] = 1; });
+  });
   try { localStorage.setItem(SOLO_DAILY_KEY, JSON.stringify(all)); } catch (e) {}
   const kept = soloDailyKept();
   if (kept[id] && kept[id].day === key) { delete kept[id]; soloDailyKeptSave(kept); }
@@ -272,7 +288,7 @@ function soloDailyKept() {
 }
 
 function soloDailyKeptSave(all) {
-  const today = soloToday();
+  const today = soloRealToday();
   Object.keys(all).forEach(id => { if (!all[id] || all[id].day !== today) delete all[id]; });
   try { localStorage.setItem(SOLO_DAILY_PLAY_KEY, JSON.stringify(all)); } catch (e) {}
 }
@@ -280,15 +296,17 @@ function soloDailyKeptSave(all) {
 /** Today's daily is the game's current board, still being played. */
 function soloDailyLive(g) {
   const s = g && g.state ? g.state() : null;
-  return !!(s && s.daily && s.daily === soloToday() && s.phase === 'play' && !soloDailyResult(g.id));
+  const today = soloRealToday();
+  return !!(s && s.daily && s.daily === today && s.phase === 'play' && !soloDailyResult(g.id, today));
 }
 
 /** Today's daily of `id` was started and isn't finished (on its board, or set aside). */
 function soloDailyInProgress(id) {
-  if (soloDailyResult(id)) return false;
+  const today = soloRealToday();
+  if (soloDailyResult(id, today)) return false;
   if (soloDailyLive(SOLO_GAMES[id])) return true;
   const kept = soloDailyKept()[id];
-  return !!(kept && kept.day === soloToday() && kept.state);
+  return !!(kept && kept.day === today && kept.state);
 }
 
 /** Called before a game deals a new board: today's daily in progress is kept aside, not lost. */
@@ -339,9 +357,15 @@ function soloDailyResume(id) {
 function soloConfirmNew(id, hasWork, go) {
   const g = SOLO_GAMES[id];
   const s = g && g.state ? g.state() : null;
-  if (!s || s.phase !== 'play' || (s.daily && s.daily === soloToday()) || !hasWork(s)) return false;
+  if (soloArchiveSure) return false;
+  if (!s || s.phase !== 'play' || (s.daily && s.daily === soloRealToday()) || !hasWork(s)) return false;
   const t = TRANSLATIONS[appState.lang] || {};
-  showConfirmModal(t.solo_new_confirm || t.g2048_new_confirm || 'تبدأ لعبة جديدة وتسيب اللي شغال؟', go);
+  // Asked while a past day was being opened from the archive: "yes" opens that
+  // day. The game's own callback would run after the archive day is gone and
+  // deal today's daily instead.
+  const archive = soloArchiveDay;
+  const yes = archive && typeof playArchive === 'function' ? () => playArchive(id, archive, true) : go;
+  showConfirmModal(t.solo_new_confirm || t.g2048_new_confirm || 'تبدأ لعبة جديدة وتسيب اللي شغال؟', yes);
   return true;
 }
 

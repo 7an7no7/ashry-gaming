@@ -280,6 +280,29 @@ function csWatchPicker(id) {
 
 /* --- Play ------------------------------------------------------------------------------- */
 
+/** The game as it stood before round n. */
+const csAsOf = (s, n) => Object.assign({}, s, { rounds: s.rounds.slice(0, n) });
+
+/**
+ * What the round card works against: the game so far, or - while an earlier
+ * round is being fixed - the game as it stood then. A fixed round used to be
+ * read, checked and scored against the whole game: كونكان's players out by
+ * now were missing from round 3, إستميشن's speed rounds hid round 5's caller.
+ */
+const csView = (s) => (typeof s.editing === 'number' && s.rounds[s.editing] ? csAsOf(s, s.editing) : s);
+
+/** The rounds from `from` on, scored again against the game before each: a fixed round moves what came after it (a tie's carried 30, a doubled round). */
+function csReplay(g, s, rounds, from) {
+  const out = rounds.slice();
+  for (let k = from; k < out.length; k++) {
+    const r = out[k];
+    if (!r || !r.input) continue;
+    const res = g.score(r.input, Object.assign({}, s, { rounds: out.slice(0, k) }));
+    out[k] = Object.assign({}, r, res, { points: res.points, tag: res.tag || '', label: res.label || '' });
+  }
+  return out;
+}
+
 function csTotals(id) {
   const s = csState(id);
   return s.seats.map((_, i) => csSum(s.rounds.map(r => r.points[i])));
@@ -330,8 +353,9 @@ function paintCardScore(id, fresh) {
   const over = s.phase === 'over';
   const roundNo = isEdit ? s.editing + 1 : s.rounds.length + 1;
   const goal = g.goalText ? g.goalText(s, t) : '';
-  const dealer = g.dealer ? (typeof g.dealer === 'function' ? g.dealer(s) : csDealer(s)) : '';
-  const labels = [g.roundLabel ? g.roundLabel(s, t) : '', dealer ? '🃏 ' + (t.cs_dealer || 'بيوزّع: {name}').replace('{name}', dealer) : ''].filter(Boolean);
+  const view = csView(s);
+  const dealer = g.dealer ? (typeof g.dealer === 'function' ? g.dealer(view) : csDealer(view)) : '';
+  const labels = [g.roundLabel ? g.roundLabel(view, t) : '', dealer ? '🃏 ' + (t.cs_dealer || 'بيوزّع: {name}').replace('{name}', dealer) : ''].filter(Boolean);
   el.innerHTML = `
     <div class="cs-layout${over ? ' cs-layout--over' : ''}">
     <div class="cs-layout__side">
@@ -356,7 +380,7 @@ function paintCardScore(id, fresh) {
           <b>${escapeHTML((t.cs_round || '').replace('{n}', roundNo))}</b>
           ${labels.length ? `<span class="chip-set">${labels.map(l => `<span class="badge">${escapeHTML(l)}</span>`).join('')}</span>` : ''}
         </div>
-        ${g.entryHtml(s, t)}
+        ${g.entryHtml(view, t)}
       </div>`}
       ${csHistoryHtml(id, s, g, t)}
       <button type="button" class="btn btn--ghost btn--sm" onclick="setupCardScore('${id}')">${escapeHTML(t.exit || '')}</button>
@@ -375,7 +399,7 @@ function paintCardScore(id, fresh) {
                : `<button type="button" class="btn btn--primary btn--lg" onclick="saveCardScoreRound('${id}')">${escapeHTML(t.cs_save_round || '')}</button>`}
            </div>`}
     </div>`;
-  if (g.afterPaint) g.afterPaint(s);
+  if (g.afterPaint) g.afterPaint(view);
   if (!over) csRefresh(id);
   if (fresh && !motionOff() && typeof countUp === 'function') {
     el.querySelectorAll('.cs-total__score').forEach(scoreEl => {
@@ -431,12 +455,12 @@ function csFinalHtml(id, order, t) {
 function csProject(id, input) {
   const g = CS_GAMES[id];
   const s = csState(id);
-  const result = g.score(input, s);
+  const result = g.score(input, csView(s));
   const totals = csTotals(id);
   const isEdit = typeof s.editing === 'number' && s.rounds[s.editing];
   const roundObj = Object.assign({}, result, { input: input, points: result.points });
   const nextRounds = isEdit
-    ? s.rounds.map((r, i) => (i === s.editing ? roundObj : r))
+    ? csReplay(g, s, s.rounds.map((r, i) => (i === s.editing ? roundObj : r)), s.editing + 1)
     : s.rounds.concat([roundObj]);
   const after = s.seats.map((_, i) => csSum(nextRounds.map(r => r.points[i])));
   const next = Object.assign({}, s, { rounds: nextRounds });
@@ -468,8 +492,9 @@ function csPaintPreview(id) {
   const t = csT();
   let html = '';
   try {
-    const input = g.read(s);
-    if (s.phase === 'play' && !g.check(input, s, t)) {
+    const view = csView(s);
+    const input = g.read(view);
+    if (s.phase === 'play' && !g.check(input, view, t)) {
       const p = csProject(id, input);
       html = p.rows.map(r => `<span class="badge${r.won ? ' badge--success' : (r.out ? ' badge--danger' : '')}">${r.won ? '🏆 ' : ''}<bdi>${escapeHTML(r.name)}</bdi>&nbsp;<span class="metric">${r.score}</span>&nbsp;<span class="metric">(${r.delta > 0 ? '+' : ''}${r.delta})</span></span>`).join('');
       if (p.end) html += `<span class="badge badge--success">🏁 ${escapeHTML(t.cs_preview_end || 'الجولة دي بتنهي اللعبة')}</span>`;
@@ -495,7 +520,7 @@ function csPaintQuick(id) {
   const g = CS_GAMES[id];
   const s = csState(id);
   const t = csT();
-  const groups = g.quick ? g.quick(s, t) : [];
+  const groups = g.quick ? g.quick(csView(s), t) : [];
   const nameOf = (i) => (s.seats[i] ? s.seats[i].name : '');
   const offered = {};
   const chip = (key, value, name, shown) => {
@@ -541,13 +566,15 @@ function saveCardScoreRound(id) {
   const s = csState(id);
   const t = csT();
   if (s.phase !== 'play') return;
-  const input = g.read(s);
-  const problem = g.check(input, s, t);
+  const view = csView(s);
+  const input = g.read(view);
+  const problem = g.check(input, view, t);
   if (problem) { showToast(problem, 'error'); haptic('medium'); return; }
-  const result = g.score(input, s);
+  const result = g.score(input, view);
   const roundObj = Object.assign({}, result, { input: input, draft: csDraftOf(id), points: result.points, tag: result.tag || '', label: result.label || '' });
   if (typeof s.editing === 'number' && s.rounds[s.editing]) {
     s.rounds[s.editing] = roundObj;
+    s.rounds = csReplay(g, s, s.rounds, s.editing + 1);
     delete s.editing;
   } else {
     s.rounds.push(roundObj);

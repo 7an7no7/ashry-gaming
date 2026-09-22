@@ -15,8 +15,26 @@
     <meta name="theme-color" content="#6366f1">
     <meta name="mobile-web-app-capable" content="yes">
     <!-- PWA-READY -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400..800&family=Cairo:wght@300..900&display=swap" rel="stylesheet">
+    <!-- Loaded without holding up the first paint: a slow or blocked Google Fonts
+         used to keep the whole page (the intro included) blank until it answered.
+         The app draws in the fallback face first; display=swap and the
+         document.fonts.ready pass in JS_Core.html handle the swap. -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400..800&family=Cairo:wght@300..900&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400..800&family=Cairo:wght@300..900&display=swap"></noscript>
+    <script>
+      /* A silent confetti until the real one arrives (it loads async at the end of
+         the page), or for good if the CDN never answers: about thirty places call
+         confetti() and the picker wheel stayed disabled without it. ES5, like the
+         browser gate. JS_Sounds.html swaps the real one in when it loads. */
+      (function () {
+        if (typeof window.confetti === 'function') return;
+        var stub = function () { return typeof Promise !== 'undefined' ? Promise.resolve() : undefined; };
+        stub.__stub = true;
+        window.confetti = stub;
+      })();
+    </script>
 
     <style>
       /* The intro, there before any script runs: the mark settles, a line draws
@@ -3353,8 +3371,14 @@
     <?!= include('JS_RoomTurn'); ?>
     <?!= include('JS_Motion'); ?>
     <?!= include('JS_ShareCard'); ?>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- async: a slow or blocked CDN no longer holds the app on the intro
+         (DOMContentLoaded waited for these, and so did initializeApp and its
+         intro fallback). The packages' own files, not jsDelivr's .min.js, which is
+         minified on the fly and so can't carry a fixed integrity hash. -->
+    <script async src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.js"
+            integrity="sha384-qmDHVszK26iWDlfhGzXz71t2qRopa/FvIuOkCTJJT4QRkIZf9h+OiJZzco9XtgPX" crossorigin="anonymous"></script>
     <!-- QR for room join links. Optional: the 4-letter code is always shown too. -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"
+            integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
   </body>
 </html>

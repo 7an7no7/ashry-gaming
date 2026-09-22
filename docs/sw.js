@@ -1,4 +1,4 @@
-const CACHE = 'ashry-20260922072740';
+const CACHE = 'ashry-20260922120535';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
@@ -12,24 +12,33 @@ self.addEventListener('activate', (event) => {
     .then(() => self.clients.claim()));
 });
 
+const NET_WAIT_MS = 3000;
+const keep = (req, res) => {
+  if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+  return res;
+};
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
   if (PINNED.indexOf(url.hostname) !== -1) {
-    event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(req, copy));
-      return res;
-    })));
+    event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => keep(req, res))));
     return;
   }
   if (url.origin !== self.location.origin) return;
 
-  event.respondWith(fetch(req).then((res) => {
-    const copy = res.clone();
-    caches.open(CACHE).then((c) => c.put(req, copy));
-    return res;
-  }).catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html'))));
+  const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
+  const net = fetch(req).then((res) => keep(req, res));
+  if (req.mode !== 'navigate') { event.respondWith(net.catch(cached)); return; }
+  // Opening the app: the network if it answers soon, else the saved copy; the
+  // network answer still refreshes the cache for next time.
+  event.respondWith(new Promise((resolve) => {
+    let done = false;
+    const give = (res) => { if (!done && res) { done = true; resolve(res); } };
+    const timer = setTimeout(() => cached().then((hit) => { if (hit) give(hit); }), NET_WAIT_MS);
+    net.then((res) => { clearTimeout(timer); give(res); })
+       .catch(() => { clearTimeout(timer); cached().then((hit) => give(hit || Response.error())); });
+  }));
 });

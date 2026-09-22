@@ -92,9 +92,28 @@ const CN = load(ROOT + 'CodenamesWords.js', 'CODENAMES_WORDS');
 // Draw & Guess needs enough words that a long session never repeats, and every
 // entry has to be something you can actually draw — the reason it stopped
 // sharing the Codenames bank, which is full of abstractions like "time".
+// The fold the rooms compare words with (normaliseClue in RoomGames.js): two
+// spellings of one word are one card - بئر and بير, مغرب and المغرب - so a list
+// may not hold both. A raw-string check let four such pairs into Codenames,
+// where both could land on one board as two identical cards.
+const clueKey = (t) => {
+  let out = String(t).toLowerCase().replace(/[ً-ْٰـ]/g, '')
+    .replace(/[أإآٱ]/g, 'ا').replace(/[ىی]/g, 'ي').replace(/ة/g, 'ه').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+    .replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
+  if (out.indexOf('the ') === 0) out = out.slice(4);
+  for (let i = 0; i < 2 && out.length > 3 && out.indexOf('ال') === 0; i++) out = out.slice(2);
+  return out.replace(/\s+/g, '');
+};
+const clueRepeats = (list) => {
+  const seen = new Map();
+  const out = [];
+  list.forEach((w) => { const k = clueKey(w); if (seen.has(k)) out.push(seen.get(k) + ' / ' + w); else seen.set(k, w); });
+  return out;
+};
+
 for (const [lang, list] of Object.entries(DRAW)) {
-  const dup = list.filter((v, i, a) => a.indexOf(v) !== i);
-  if (dup.length) note(`draw.${lang}: duplicates ${JSON.stringify(dup)}`);
+  const dup = clueRepeats(list);
+  if (dup.length) note(`draw.${lang}: the same word twice ${JSON.stringify(dup)}`);
   if (list.length < 100) note(`draw.${lang}: only ${list.length} words, wants 100+`);
   list.forEach((w, i) => { if (!w || !w.trim()) note(`draw.${lang}[${i}]: empty`); });
   console.log(`draw.${lang}: ${list.length} words`);
@@ -102,8 +121,8 @@ for (const [lang, list] of Object.entries(DRAW)) {
 
 // A Codenames board is 25 cards drawn without replacement.
 for (const [lang, list] of Object.entries(CN)) {
-  const dup = list.filter((v, i, a) => a.indexOf(v) !== i);
-  if (dup.length) note(`codenames.${lang}: duplicates ${JSON.stringify(dup)}`);
+  const dup = clueRepeats(list);
+  if (dup.length) note(`codenames.${lang}: the same word twice ${JSON.stringify(dup)}`);
   if (list.length < 25) note(`codenames.${lang}: ${list.length} words, a board needs 25`);
   console.log(`codenames.${lang}: ${list.length} words`);
 }

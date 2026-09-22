@@ -475,11 +475,18 @@ function bindDrawSurface(canDraw) {
   draw.canvas = document.getElementById('draw-canvas');
   if (!draw.canvas) return;
   draw.ctx = draw.canvas.getContext('2d', { willReadFrequently: true });
+  // A new surface has no finger on it. The round can end mid-stroke, and the old
+  // canvas (with the pointer captured) is thrown away before its pointerup fires,
+  // which left draw.drawing true and every later repaint skipped on this phone.
+  draw.drawing = false;
+  draw.current = null;
+  draw.snapshot = null;
   clearSurface();
   draw.painted = 0;
   draw.live = null;
   draw.liveShown = false;
-  if (!draw.local) { draw.onUndo = undoDrawStroke; draw.onRedo = redoDrawStroke; }
+  // Undo and redo are the drawer's; a viewer's Ctrl+Z asked the server for an undo it refused.
+  if (!draw.local) { draw.onUndo = canDraw ? undoDrawStroke : null; draw.onRedo = canDraw ? redoDrawStroke : null; }
   if (!canDraw) return;
 
   const pos = (e) => {

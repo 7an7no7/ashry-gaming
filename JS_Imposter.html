@@ -105,7 +105,10 @@
       appState.imposter.config.undercover = undercover;
       if (undercover) {
           const pairs = typeof SPY_PAIRS !== 'undefined' ? SPY_PAIRS : [];
-          const pair = freshPick('imppair', pairs, 1, { key: p => p[0] + '|' + p[1] })[0];
+          const picked = freshPick('imppair', pairs, 1, { key: p => p[0] + '|' + p[1] })[0];
+          // Either word can be the odd one's: always the second of the pair (a list the
+          // page ships) told whoever held it that they were the odd one out.
+          const pair = picked && Math.random() < 0.5 ? [picked[1], picked[0]] : picked;
           appState.imposter.secretWord = pair ? pair[0] : '';
           appState.imposter.pairOther = pair ? pair[1] : '';
       } else {

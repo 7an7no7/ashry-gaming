@@ -196,6 +196,7 @@ const unoDeal = (room) => {
   s.color = unoColorOf(first.k);
   s.pending = null;
   s.said = [];
+  g.saidAt = {};      // how many cards each call was made on (server-only)
   s.unoCatch = null;
   s.results = null;
   s.turn = null;
@@ -338,7 +339,7 @@ const unoPlay = (room, me, p, jump) => {
   s.color = color;
   // UNO: said with this card, just before it (callUno), or not at all.
   const saidNow = p.uno === true && leftAfter === 1 && s.said.indexOf(me) === -1;
-  if (saidNow) s.said.push(me);
+  if (saidNow) { s.said.push(me); (g.saidAt = g.saidAt || {})[me] = leftAfter; }
   const said = s.said.indexOf(me) !== -1;
   const draw = unoDrawOf(card.k);
   unoEvent(room, 'play', {
@@ -555,6 +556,7 @@ const unoCall = (room, me) => {
   if (count < 1 || count > 2) throw new Error('أونو بتتقال لما يفضل معاك كارت أو كارتين');
   if (s.said.indexOf(me) !== -1) return;       // said already: nothing to do
   s.said.push(me);
+  (g.saidAt = g.saidAt || {})[me] = count;
   if (s.unoCatch === me) s.unoCatch = null;
   unoEvent(room, 'uno', { pid: me });
 };
@@ -656,8 +658,17 @@ const unoSync = (room) => {
   s.pileCount = g.pile.length;
   s.deckCount = g.deck.length;
   s.decks = unoDecksFor((s.order || []).length);
-  // A call counts for a hand of one or two; a hand that grew again has to say it again.
-  s.said = (s.said || []).filter(id => counts[id] === 1 || counts[id] === 2);
+  // A call counts for a hand of one or two, and only until the hand grows again:
+  // cards drawn after it (one card said, then a draw back to two) mean saying it
+  // again. saidAt keeps the smallest the hand has been since the call.
+  const saidAt = g.saidAt = g.saidAt || {};
+  s.said = (s.said || []).filter(id => {
+    const n = counts[id];
+    const keep = (n === 1 || n === 2) && !(saidAt[id] !== undefined && n > saidAt[id]);
+    if (keep) saidAt[id] = saidAt[id] === undefined ? n : Math.min(saidAt[id], n);
+    else delete saidAt[id];
+    return keep;
+  });
   if (s.unoCatch && counts[s.unoCatch] !== 1) s.unoCatch = null;
   room.secrets = {};
   unoSeated(room).forEach(id => {

@@ -62,11 +62,17 @@ if (onlyAr.length) { errors++; console.log('missing from en (%d): %s', onlyAr.le
 if (onlyEn.length) { errors++; console.log('missing from ar (%d): %s', onlyEn.length, onlyEn.join(', ')); }
 
 // --- 2. every data-i18n attribute must name a real key ---------------------
-const markup = fs.readFileSync(path.join(ROOT, 'Controller.html'), 'utf8');
+// Every attribute applyTranslations reads (-title fills a tooltip and aria-label),
+// in the page and in the markup the JS files build. A key built at runtime
+// ("${...}") can't be checked here and is skipped.
+const markupFiles = ['Controller.html'].concat(fs.readdirSync(ROOT).filter(f => /^JS_.*\.html$/.test(f)));
 const attrKeys = new Set();
 let m;
-const attrRe = /data-i18n(?:-ph|-aria)?="([^"]+)"/g;
-while ((m = attrRe.exec(markup))) attrKeys.add(m[1]);
+const attrRe = /data-i18n(?:-ph|-aria|-title)?="([^"$]+)"/g;
+for (const f of markupFiles) {
+  const markup = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  while ((m = attrRe.exec(markup))) attrKeys.add(m[1]);
+}
 const unknownAttrs = [...attrKeys].filter(k => !ar.has(k) || !en.has(k));
 if (unknownAttrs.length) {
   errors++;

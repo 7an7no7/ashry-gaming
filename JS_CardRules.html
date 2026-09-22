@@ -290,7 +290,8 @@ CS_GAMES.konkan = {
   goalText: (s, t) => (s.opts.end === 'l101' ? (t.cs_konkan_goal_limit || '') : (t.cs_rounds_of || '').replace('{n}', s.rounds.length).replace('{m}', s.opts.end === 'r7' ? 7 : 5)),
   inGame(s) {
     const limit = CS_GAMES.konkan.limit(s);
-    const totals = csTotals('konkan');
+    // From the rounds handed in, not the live game: a fixed earlier round asks who was in *then*.
+    const totals = s.seats.map((_, i) => csSum(s.rounds.map(r => r.points[i])));
     return s.seats.map((_, i) => i).filter(i => limit === null || totals[i] <= limit);
   },
   entryHtml(s, t) {

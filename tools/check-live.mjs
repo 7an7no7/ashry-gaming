@@ -89,12 +89,22 @@ const health = await get(ROOMS + '/health');
 if (health.status === 200 && /"ok"\s*:\s*true/.test(health.text)) ok(`${ROOMS} is up`);
 else fail(`${ROOMS}/health answered HTTP ${health.status}`);
 
-/* 4. the rooms server's copy of the app */
+/* 4. the rooms server's copy of the app, and its rules. The files it bundles are
+   read from rooms-worker/build.mjs (FILES), so the list can't go stale here; a
+   rules change committed after the server's last deploy is a failure, not a
+   warning - "Live." used to print with the rooms still on the old rules. */
 const workerBuild = cacheName((await get(ROOMS + '/sw.js')).text);
+const buildSrc = await readFile(path.join(root, 'rooms-worker', 'build.mjs'), 'utf8');
+const serverFiles = ((/const FILES = \[([^\]]*)\]/.exec(buildSrc) || [])[1] || '').match(/'[^']+'/g) || [];
+const changedAt = Number(git(`log -1 --format=%ct -- ${serverFiles.map((f) => JSON.stringify(f.slice(1, -1))).join(' ')} rooms-worker/src`)) || 0;
+const rulesStamp = changedAt ? new Date(changedAt * 1000).toISOString().replace(/[-:.TZ]/g, '').slice(0, 14) : '';
+const workerStamp = String(workerBuild || '').replace(/^ashry-/, '');
 if (workerBuild === local) ok('the rooms server was deployed with this build');
-else warn(`the rooms server's copy of the app is ${workerBuild || 'unknown'}: the last deploy came before this build.\n` +
-  '  Fine if only the page changed. If RoomGames.js, PartyContent.js, TriviaQuestions.js, CodenamesWords.js, SpyWords.js or\n' +
-  '  rooms-worker/src changed: cd rooms-worker && npm run deploy, wait a minute, npm run test:live.');
+else if (!workerBuild) fail(`the rooms server's copy of the app can't be read (${ROOMS}/sw.js): deploy it - cd rooms-worker && npm run deploy`);
+else if (rulesStamp && rulesStamp > workerStamp) fail(`the rooms server (deployed ${workerStamp}) is older than the last change to what it runs (${rulesStamp}):\n` +
+  '  cd rooms-worker && npm run deploy, wait a minute, npm run test:live.');
+else warn(`the rooms server's copy of the app is ${workerBuild}, from before this build.\n` +
+  '  Fine: nothing the rooms server runs has changed since it was deployed (only the page did).');
 
 console.log(failed ? '\nNOT LIVE YET - fix the ✗ lines above.' : '\nLive.');
 process.exitCode = failed ? 1 : 0;

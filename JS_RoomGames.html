@@ -84,7 +84,7 @@ ROOM_GAMES.justone = {
       // While you are still writing, nothing on your screen depends on how many
       // others have finished - so the frame doesn't change and the box you are
       // typing in survives. Once you have submitted, the counter is the point.
-      const sig = 'writing|' + s.round + '|' + amGuesser + '|' + iSubmitted + '|' + state.youAreHost + '|' + appState.lang
+      const sig = 'writing|' + s.dealId + '|' + s.round + '|' + amGuesser + '|' + iSubmitted + '|' + state.youAreHost + '|' + appState.lang
                 + (amGuesser || iSubmitted ? '|' + done + '/' + need : '');
 
       renderRoomFrame(el, sig, () => head + (amGuesser
@@ -117,7 +117,7 @@ ROOM_GAMES.justone = {
     if (s.phase === 'guessing') {
       const clues = (s.clues || []).filter(c => !c.removed);
       const removed = s.removedCount || 0;
-      const gsig = 'guessing|' + s.round + '|' + amGuesser + '|' + clues.length + '|' + removed + '|' + state.youAreHost + '|' + appState.lang;
+      const gsig = 'guessing|' + s.dealId + '|' + s.round + '|' + amGuesser + '|' + clues.length + '|' + removed + '|' + state.youAreHost + '|' + appState.lang;
       renderRoomFrame(el, gsig, () => head + `
         <div class="card">
           ${removed ? `<p class="field__hint" style="text-align:center; color: var(--danger)">
@@ -140,7 +140,7 @@ ROOM_GAMES.justone = {
 
     if (s.phase === 'judging' || s.phase === 'result') {
       const right = s.lastResult === 'correct';
-      renderRoomFrame(el, [s.phase, s.round, s.guess, s.lastResult, state.youAreHost, appState.lang].join('|'), () => head + `
+      renderRoomFrame(el, [s.phase, s.dealId, s.round, s.guess, s.lastResult, state.youAreHost, appState.lang].join('|'), () => head + `
         <div class="card" style="text-align:center">
           <div class="eyebrow">${t.jo_the_guess || 'التخمين'}</div>
           <div class="metric metric--md" style="margin-bottom: var(--sp-3)">${escapeHTML(s.guess || '—')}</div>
@@ -264,7 +264,7 @@ ROOM_GAMES.whoami = {
     }
 
     const others = (state.you && state.you.others) || [];
-    renderRoomFrame(el, ['wa-play', guessed.join(','), myPlace, state.youAreHost, appState.lang].join('|'), () => `
+    renderRoomFrame(el, ['wa-play', s.dealId, guessed.join(','), myPlace, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="role-card ${myPlace !== -1 ? 'role-card--done' : ''}">
           <div class="role-card__label">${t.whoami_you || 'هويتك'}</div>

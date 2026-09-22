@@ -19,7 +19,7 @@
      play reads it but can't write to it.
    ========================================================================= */
 
-const roomChat = { seen: 0, notified: 0, inRoom: false, to: 'all' };
+const roomChat = { seen: 0, notified: 0, inRoom: false, to: 'all', code: '' };
 
 const roomChatOpen = () => {
   const m = document.getElementById('chat-modal');
@@ -159,9 +159,12 @@ function syncRoomChat(state, opening) {
   const last = msgs.length ? msgs[msgs.length - 1] : null;
   const lastTalk = talk.length ? talk[talk.length - 1] : null;
   if (!inRoom) { roomChat.inRoom = false; roomChat.seen = 0; roomChat.notified = 0; roomChat.to = 'all'; return; }
-  if (!roomChat.inRoom) {
-    // Just arrived: what is already here is history, not news.
+  if (!roomChat.inRoom || roomChat.code !== state.code) {
+    // Just arrived (or straight on to another room): what is already here is
+    // history, not news - and another room's line ids mean nothing here.
     roomChat.inRoom = true;
+    roomChat.code = state.code;
+    roomChat.to = 'all';
     roomChat.seen = last ? last.id : 0;
     roomChat.notified = roomChat.seen;
   }

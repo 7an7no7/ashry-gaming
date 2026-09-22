@@ -918,6 +918,21 @@ const bankRemovePlayer = (g, priv, pid, now) => {
   const wasUp = g.turn.pid === pid;
   if (wasUp) g.debt = null;
   bankGoBankrupt(g, priv, pid, 'bank');
+  // The player up may owe the one who left. That debt is gone (their places went
+  // back to the bank, and nobody is there to pay), and a "pay everyone" debt
+  // loses the leaver's share - it used to bankrupt the debtor over rent on a place
+  // the bank now owns, or pay the money to someone no longer in the game.
+  const d = g.debt;
+  if (g.phase === 'play' && !wasUp && d && d.pid !== pid) {
+    if (d.to === pid) {
+      g.debt = null;
+      g.turn.stage = 'landed';
+      bankAfter(g);
+    } else if (d.to === 'each') {
+      const n = bankActive(g).filter(x => x !== d.pid).length;
+      d.amount = Math.floor(d.amount / (n + 1)) * n;
+    }
+  }
   if (g.phase === 'play' && wasUp) bankNextTurn(g, now);
 };
 

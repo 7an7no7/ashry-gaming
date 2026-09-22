@@ -31,6 +31,12 @@ const TIMEOUT_RETRY_MS = 30000;
 const IDLE_MS = 6 * 3600 * 1000;
 // ...or after this long with no moves at all, even with a forgotten tab open.
 const ABANDONED_MS = 24 * 3600 * 1000;
+// An idle room with a tab still open is looked at again this often. Its idle time
+// is already in the past, and an alarm set in the past fires at once, over and
+// over: a TV left on overnight used to spin the alarm for up to 18 hours.
+const IDLE_RECHECK_MS = 10 * 60 * 1000;
+// No alarm is ever set sooner than this, whatever a game's deadline says.
+const ALARM_FLOOR_MS = 1000;
 // Rapid moves (drawing, the dial) are saved at most this often; the phones get them at once.
 const QUICK_SAVE_MS = 1000;
 const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial']);
@@ -281,8 +287,11 @@ export class Room extends DurableObject {
     // be set in the past and fire again at once, over and over.
     const failed = this.failedDeadline;
     if (failed && deadline === failed.due) deadline = Math.max(deadline, failed.retryAt);
-    const times = [deadline, extra, room.updatedAt + IDLE_MS].filter((t) => typeof t === 'number');
-    const soonest = Math.min(...times);
+    const now = Date.now();
+    const idleAt = room.updatedAt + IDLE_MS;
+    const cleanup = idleAt > now ? idleAt : Math.min(room.updatedAt + ABANDONED_MS, now + IDLE_RECHECK_MS);
+    const times = [deadline, extra, cleanup].filter((t) => typeof t === 'number');
+    const soonest = Math.max(Math.min(...times), now + ALARM_FLOOR_MS);
     const current = replace ? null : await this.ctx.storage.getAlarm();
     if (current === null || soonest < current - 250) await this.ctx.storage.setAlarm(soonest);
   }
@@ -313,7 +322,10 @@ export class Room extends DurableObject {
       const next = structuredClone(room);
       try {
         if (roomTimeout(next, now)) { this.room = next; changed = true; }
-        this.failedDeadline = null;
+        // A timeout that left its own deadline due would bring the alarm straight
+        // back; treat it like one that threw and look again later.
+        const still = roomDeadline(this.room);
+        this.failedDeadline = still !== null && still <= now ? { due: still, retryAt: now + TIMEOUT_RETRY_MS } : null;
       } catch (err) {
         console.error('roomTimeout', errorText(err));
         this.failedDeadline = { due, retryAt: now + TIMEOUT_RETRY_MS };

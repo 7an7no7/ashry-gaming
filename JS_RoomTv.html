@@ -109,14 +109,24 @@ function toggleTvFullscreen() {
   }
 }
 
+/** How many of this deal's players are still in the room: the TV's "answered 2 / 4" redraws when one leaves. */
+const tvPresent = (state) => ((state.shared && state.shared.roster) || []).filter(id => (state.players || []).some(p => p.id === id)).length;
+
 /** A TV that dims in the middle of a game is the one thing nobody can fix from the sofa. */
 async function keepTvAwake() {
-  if (tv.wake || document.hidden || !('wakeLock' in navigator)) return;
+  // One request at a time: a second one, sent while the first was pending, held a
+  // lock that nothing released, and the laptop never dimmed after leaving the TV.
+  if (tv.wake || tv.waking || document.hidden || !('wakeLock' in navigator)) return;
+  tv.waking = true;
   try {
-    tv.wake = await navigator.wakeLock.request('screen');
-    tv.wake.addEventListener('release', () => { tv.wake = null; });
+    const lock = await navigator.wakeLock.request('screen');
+    if (appState.currentView !== 'room-tv') { lock.release().catch(() => {}); return; }
+    tv.wake = lock;
+    lock.addEventListener('release', () => { if (tv.wake === lock) tv.wake = null; });
   } catch (e) {
     tv.wake = null;
+  } finally {
+    tv.waking = false;
   }
 }
 
@@ -514,7 +524,7 @@ function tvCancelCodenames() {
 TV_GAMES.trivia = {
   sig(state) {
     const s = state.shared;
-    return [s.phase, s.qIndex, (s.answered || []).length].join('|');
+    return [s.phase, s.qIndex, (s.answered || []).length, tvPresent(state)].join('|');
   },
 
   frame(state, t) {
@@ -848,7 +858,7 @@ TV_GAMES.mostlikely = {
 TV_GAMES.fibbage = {
   sig(state) {
     const s = state.shared;
-    return [s.round, s.phase, (s.submitted || []).length, s.vote ? s.vote.phase + s.vote.voted.length : ''].join('|');
+    return [s.round, s.phase, (s.submitted || []).length, s.vote ? s.vote.phase + s.vote.voted.length : '', tvPresent(state)].join('|');
   },
   frame(state, t) {
     const s = state.shared;
@@ -950,7 +960,7 @@ TV_GAMES.imposter = {
 TV_GAMES.justone = {
   sig(state) {
     const s = state.shared;
-    return [s.phase, s.round, (s.submitted || []).length, s.guess || '', s.lastResult || ''].join('|');
+    return [s.phase, s.round, (s.submitted || []).length, s.guess || '', s.lastResult || '', tvPresent(state)].join('|');
   },
   frame(state, t) {
     const s = state.shared;
@@ -1002,7 +1012,7 @@ TV_GAMES.justone = {
 };
 
 TV_GAMES.whoami = {
-  sig: (state) => [state.phase, !!state.shared.revealed, (state.shared.guessed || []).join(','), JSON.stringify(state.shared.scores || {})].join('|'),
+  sig: (state) => [state.phase, !!state.shared.revealed, (state.shared.guessed || []).join(','), JSON.stringify(state.shared.scores || {}), tvPresent(state)].join('|'),
   frame(state, t) {
     const s = state.shared;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');

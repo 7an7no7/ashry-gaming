@@ -120,7 +120,9 @@ const Room = (() => {
     if (wasIn) {
       showToast(message, 'error');
       emit(true);
-      setView('menu');
+      // Only from a room screen: someone playing a one-phone game or using a timer
+      // meanwhile stays put (setView would stop that game's clocks).
+      if (String(appState.currentView || '').indexOf('room-') === 0) setView('menu');
     }
   };
 
@@ -312,7 +314,10 @@ const Room = (() => {
         if (res.gone) { handleDropped(DROPPED.gone); return; }
         if (res.kicked) { handleDropped(DROPPED.kicked); return; }
         if (res.same && state) {
-          state.players.forEach(p => { p.online = res.online.indexOf(p.id) !== -1; });
+          // A computer player has no phone to lose (the server always shows it
+          // here), and a big screen's presence decides who plays the table's sounds.
+          state.players.forEach(p => { p.online = !!p.bot || res.online.indexOf(p.id) !== -1; });
+          (state.screens || []).forEach(x => { x.online = res.online.indexOf(x.id) !== -1; });
         } else if (res.state) {
           state = res.state;
         }
@@ -333,7 +338,13 @@ const Room = (() => {
   }
 
   const adoptSession = (res, game) => {
+    const old = session;
     disconnect();
+    // Opening or joining a room while in another one leaves the old one properly,
+    // or it kept a ghost seat (and, for a host, two minutes before handing over).
+    if (old && old.code && old.playerId && old.playerId !== res.playerId) {
+      request('/leave', { code: old.code, pid: old.playerId, key: old.key }).catch(() => {});
+    }
     session = { code: res.state.code, playerId: res.playerId, key: res.key, game: game };
     state = res.state;
     lastSignature = '';
@@ -894,7 +905,13 @@ function renderRoomLobby(state) {
   const url = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl)
     ? window.SERVER_DATA.webAppUrl + '?room=' + state.code
     : '';
-  renderJoinQR('room-qr', url);
+  // Encoded once per code, not on every presence tick. The skeleton empties it
+  // while a room loads, hence the innerHTML check.
+  const qrEl = document.getElementById('room-qr');
+  if (!qrEl || qrEl.dataset.url !== url || !qrEl.innerHTML) {
+    renderJoinQR('room-qr', url);
+    if (qrEl) qrEl.dataset.url = url;
+  }
 
   const list = document.getElementById('room-player-list');
   const count = document.getElementById('room-player-count');
@@ -1196,10 +1213,13 @@ Room.onChange((state) => {
   const stage = state.phase + '|' + (state.game || '');
   const moved = roomStageSeen !== '' && roomStageSeen !== stage;
   const wasInGame = roomStageSeen !== '' && roomStageSeen.indexOf('lobby|') !== 0;
+  const prevGame = roomStageSeen.split('|')[1] || '';
   roomStageSeen = stage;
 
   if (!onRoomView()) {
-    if (moved && state.phase !== 'lobby') {
+    // Only a game dealt from the lobby: many games change phase inside a round
+    // (night and day, reveal and vote), which used to buzz with this every time.
+    if (moved && state.phase !== 'lobby' && !wasInGame) {
       const t = TRANSLATIONS[appState.lang] || {};
       showToast(t.room_started_away || 'اللعبة بدأت في الغرفة');
       haptic('light');
@@ -1208,9 +1228,10 @@ Room.onChange((state) => {
   }
   // A game was just dealt from the lobby: the same moment on every phone.
   if (moved && state.phase !== 'lobby' && !wasInGame && typeof playRoomGameStart === 'function') playRoomGameStart(state);
-  // The host took the room back to the hub while this phone was mid-round:
-  // say so, or the screen changing under them looks like a fault.
-  if (moved && state.phase === 'lobby' && wasInGame && !state.youAreHost) {
+  // The host took the room back to the hub (or on to another game) while this
+  // phone was mid-round: say so, or the screen changing under them looks like a
+  // fault. Not for "play again", which several games do through the lobby.
+  if (moved && state.phase === 'lobby' && wasInGame && (!state.game || state.game !== prevGame) && !state.youAreHost) {
     const t = TRANSLATIONS[appState.lang] || {};
     showToast(t.room_game_ended || '');
   }

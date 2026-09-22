@@ -86,6 +86,7 @@ const clearGameState = (room) => {
   room._domino = null;
   room._bank = null;
   room._uno = null;
+  room._timeline = null;
   // A bot's next move belonged to the game that was cleared.
   room._botAt = null;
   room._botKey = null;
@@ -931,7 +932,8 @@ const spyfallRoomAction = (room, playerId, action, payload) => {
       // A card of 24 places to guess from, the real one among them: the whole
       // list is too long to read on a phone and too dense on a TV.
       locations: shuffled(shuffled(pool.map(l => l.location).filter(l => l !== loc.location)).slice(0, SPYFALL_CARD - 1).concat([loc.location])),
-      firstId: order[spyCount] || order[0],
+      // Anyone may ask first, the spy included: always a non-spy told the table who wasn't the spy.
+      firstId: order[Math.floor(Math.random() * order.length)],
       scores: action === 'start' ? {} : (prev.scores || {}),
       roster: roster,
       vote: null,
@@ -1302,6 +1304,9 @@ const imposterAction = (room, playerId, action, payload) => {
 
     // PromptMemory keys on the dealt value, so deal the pair as one string.
     const pair = undercover ? nextPrompt(room, SPY_PAIRS.map(p => p[0] + '|' + p[1]), 'imppair').split('|') : null;
+    // Either word can be the odd one: always the second of a list the page ships
+    // meant holding "نسكافيه" told you you were the odd one out.
+    if (pair && Math.random() < 0.5) pair.reverse();
     const secret = undercover ? pair[0] : nextPrompt(room, words, 'imp_' + category);
     const pairOther = undercover ? pair[1] : null;
     const spyCount = Math.max(1, Math.min(Number(payload.spies) || 1, room.players.length - 2));
@@ -1497,6 +1502,8 @@ const justOneAction = (room, playerId, action, payload) => {
 
     const clue = String(payload.clue || '').trim().slice(0, 24);
     if (!clue) throw new Error('اكتب تلميحاً');
+    // The word itself would be shown to the guesser; the one-phone game refuses it too.
+    if (normaliseClue(clue) === normaliseClue(room._joWord || '')) throw new Error('التلميح مينفعش يكون الكلمة نفسها');
 
     room._clueText = room._clueText || {};
     room._clueText[playerId] = clue;
@@ -2645,13 +2652,25 @@ const guessWords = (text) => foldArabicLetters(text)
     return w;
   }).filter(Boolean);
 
-/** A word without one unit or plural ending, when at least three letters remain. */
+/** A word without one unit or plural ending, when enough letters remain (three; four for ون, or زيتون would be زيت). */
 const guessStem = (w) => {
-  const rules = [[/ايه$/, ''], [/ات$/, ''], [/ين$/, ''], [/ون$/, ''], [/يه$/, ''], [/ه$/, ''], [/ies$/, 'y'], [/es$/, ''], [/s$/, '']];
-  for (const [re, to] of rules) {
-    if (re.test(w)) { const out = w.replace(re, to); if (out.length >= 3) return out; }
+  const rules = [[/ايه$/, '', 3], [/ات$/, '', 3], [/ين$/, '', 3], [/ون$/, '', 4], [/يه$/, '', 3], [/ه$/, '', 3], [/ies$/, 'y', 3], [/es$/, '', 3], [/s$/, '', 3]];
+  for (const [re, to, min] of rules) {
+    if (re.test(w)) { const out = w.replace(re, to); if (out.length >= min) return out; }
   }
   return w;
+};
+
+/** A game's own list, folded the way a guess is, once per list. */
+const GUESS_BANKS = new WeakMap();
+const guessBankSet = (bank) => {
+  if (!Array.isArray(bank)) return null;
+  let set = GUESS_BANKS.get(bank);
+  if (!set) {
+    set = new Set(bank.map(w => guessWords(typeof w === 'string' ? w : ((w && w.a) || '')).join('')).filter(Boolean));
+    GUESS_BANKS.set(bank, set);
+  }
+  return set;
 };
 
 const guessDistance = (a, b) => Math.round((1 - stringSimilarity(a, b)) * Math.max(a.length, b.length));
@@ -2659,11 +2678,19 @@ const guessDistance = (a, b) => Math.round((1 - stringSimilarity(a, b)) * Math.m
 /** Two stems are one word; the unit ending swallows a final و or ا (مانجو → مانجاية, كولا → كولاية). */
 const sameStem = (a, b) => a === b || (a.length >= 3 && (a + 'و' === b || a + 'ا' === b)) || (b.length >= 3 && (b + 'و' === a || b + 'ا' === a));
 
-const guessVerdict = (text, answers) => {
+/**
+ * `bank` (optional) is the game's own list. A guess that is another word on it
+ * names a different thing - House for Horse, Monkey for Donkey, شمس for شمسية,
+ * يد for عربية يد - so the lenient rules below, which are for spellings of the
+ * answer, don't make it right; it can still be close.
+ */
+const guessVerdict = (text, answers, bank) => {
   const g = guessWords(text);
   if (!g.length) return '';
   const gWhole = g.join('');
   const gCore = (() => { const rest = g.filter(w => !GUESS_MEASURE_WORDS.has(w)); return (rest.length ? rest : g).map(guessStem).join(''); })();
+  const bankSet = guessBankSet(bank);
+  const namesOther = !!bankSet && bankSet.has(gWhole) && !(answers || []).some(a => guessWords(a).join('') === gWhole);
   let close = false;
   for (const answer of answers || []) {
     const a = guessWords(answer);
@@ -2672,8 +2699,8 @@ const guessVerdict = (text, answers) => {
     if (gWhole === aWhole) return 'right';
     const aRest = a.filter(w => !GUESS_MEASURE_WORDS.has(w));
     const aCore = (aRest.length ? aRest : a).map(guessStem).join('');
-    if (sameStem(gCore, aCore)) return 'right';
-    if (Math.min(gCore.length, aCore.length) >= 5 && guessDistance(gCore, aCore) <= 1) return 'right';
+    if (!namesOther && sameStem(gCore, aCore)) return 'right';
+    if (!namesOther && Math.min(gCore.length, aCore.length) >= 5 && guessDistance(gCore, aCore) <= 1) return 'right';
     // Close: most of the letters, the same start, or all but one word of a phrase.
     if (stringSimilarity(gWhole, aWhole) >= 0.6 || stringSimilarity(gCore, aCore) >= 0.6) close = true;
     else if (Math.min(gWhole.length, aWhole.length) >= 4 && (gWhole.indexOf(aWhole.slice(0, 4)) === 0 || aWhole.indexOf(gWhole.slice(0, 4)) === 0)) close = true;
@@ -2810,7 +2837,7 @@ const drawGuessAction = (room, playerId, action, payload) => {
     const player = room.players.find(p => p.id === playerId);
     // Judged the way the table hears it (guessVerdict): طماطم is طماطماية, a
     // letter off in a long word still counts, and a near miss gets a nudge.
-    const verdict = guessVerdict(text, [room._word]);
+    const verdict = guessVerdict(text, [room._word], DRAW_WORDS[s.lang] || DRAW_WORDS.ar);
     const right = verdict === 'right';
     const close = verdict === 'close';
 
@@ -2885,9 +2912,10 @@ const fakeArtistAction = (room, playerId, action, payload) => {
     const lang = roomLangOf(room, payload);
     const scores = action === 'nextRound' ? (room.shared.scores || {}) : {};
     const order = shuffled(room.players.map(p => p.id));
+    // The order is fully random, so the fake may open and has to bluff (the owner,
+    // 22 Sep 2026): "the fake never goes first" let a table of three work the fake
+    // out from the order alone.
     const fakeId = order[Math.floor(Math.random() * order.length)];
-    // Opening with nothing on the page to copy is a giveaway, so the fake never goes first.
-    if (order[0] === fakeId) order.push(order.shift());
     const word = nextPrompt(room, DRAW_WORDS[lang], 'draw_' + lang);
 
     room.secrets = {};
@@ -2967,7 +2995,7 @@ const fakeArtistAction = (room, playerId, action, payload) => {
     const guess = String((payload && payload.guess) || '').trim().slice(0, 40);
     if (!guess) throw new Error('اكتب تخمينك');
     s.fakeGuessWord = guess;
-    finishFakeArtist(room, guessVerdict(guess, [room._word]) === 'right' ? 'fake' : 'artists');
+    finishFakeArtist(room, guessVerdict(guess, [room._word], DRAW_WORDS[s.lang] || DRAW_WORDS.ar) === 'right' ? 'fake' : 'artists');
     return;
   }
 
@@ -3813,7 +3841,7 @@ const QUIZ_GAMES = {
 };
 
 /** 'right', 'close' or '' for a typed answer against the card's answer and its alternatives. */
-const quizAnswerVerdict = (item, text) => guessVerdict(text, [item.a].concat(item.alt || []));
+const quizAnswerVerdict = (item, text, bank) => guessVerdict(text, [item.a].concat(item.alt || []), bank);
 
 const quizAction = (room, playerId, action, payload) => {
   const cfg = QUIZ_GAMES[room.game];
@@ -3843,7 +3871,8 @@ const quizAction = (room, playerId, action, payload) => {
     if (now > s.endsAt + QUIZ_GRACE_MS) { closeQuizCard(room); return; }
     room._answers = room._answers || {};
     if (room._answers[playerId]) return;       // already right, or the one try is used
-    const verdict = quizAnswerVerdict(room._card, text);
+    const quizBank = cfg.bank();
+    const verdict = quizAnswerVerdict(room._card, text, quizBank[s.lang] || quizBank.ar);
     const right = verdict === 'right';
     const name = roomPlayerName(room, playerId);
     if (right) {
@@ -4147,9 +4176,14 @@ const startTelephoneStep = (room, k) => {
   s.endsAt = Date.now() + s.seconds * 1000;
   s.collectEndsAt = null;
   room.secrets = {};
+  // What this step works from: the latest step of the kind it needs that isn't
+  // blank. A player who left (or never sent) leaves a blank in their chain, and
+  // the next player used to be asked to draw "" or describe an empty page.
+  const want = s.kind === 'draw' ? 'text' : 'draw';
+  const filled = (st) => st && st.kind === want && (want === 'text' ? !!st.text : (st.strokes || []).length > 0);
   room._chains.forEach((chain, c) => {
     const pid = s.roster[(c + k) % n];
-    const prev = chain.steps[k - 1] || { kind: 'text', text: '' };
+    const prev = chain.steps.slice(0, k).reverse().find(filled) || chain.steps[k - 1] || { kind: 'text', text: '' };
     room.secrets[pid] = {
       task: {
         chain: c,
@@ -4232,7 +4266,8 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
   // double tap would otherwise hand the next player a quarter too. Checked
   // before the end of the game, which the first tap may have brought about.
   if ((action === 'penalty' || action === 'skip') && staleTap(payload, 'target', s.phase === 'play' ? s.turnId : null)) return;
-  if (s.phase !== 'play' && action !== 'setQuarters') throw new Error('اللعبة انتهت');
+  // A flip is allowed on the verdict that ended the game too: the one-phone game offers "عكس الحكم" there.
+  if (s.phase !== 'play' && action !== 'setQuarters' && !(action === 'flip' && s.phase === 'gameover')) throw new Error('اللعبة انتهت');
   const isTurn = playerId === s.turnId;
   const me = room.players.find(p => p.id === playerId);
 
@@ -4290,6 +4325,7 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
     requireHost(room, playerId);
     const v = s.verdict;
     if (!v || !v.canFlip || v.flipped) return;
+    const wasOver = s.phase === 'gameover';
     if ((s.quarters[v.loserId] || 0) > 0) s.quarters[v.loserId]--;
     monkeyQuarter(room, v.otherId);
     v.flipped = true;
@@ -4297,7 +4333,12 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
     v.loser = roomPlayerName(room, v.loserId);
     v.kind = 'flipped';
     s.board = monkeyBoard(room);
-    monkeyCheckEnd(room);
+    if (wasOver) { s.phase = 'play'; room.phase = 'play'; s.winnerNames = null; }
+    if (monkeyCheckEnd(room)) return;
+    // The verdict that ended the game was overruled: play goes on after the new loser.
+    if (wasOver) { advanceMonkey(room, Math.max(0, s.order.indexOf(v.loserId))); return; }
+    // Overruled onto the player up: they may be a monkey now, and a monkey can't play.
+    if ((s.quarters[s.turnId] || 0) >= 4) advanceMonkey(room, s.turn);
     return;
   }
 
@@ -4844,22 +4885,39 @@ const timelineCard = (ev, lang, n) => ({ id: 't' + n, text: (lang === 'en' ? ev.
 /** …and as its holder sees it: the same card with the year taken off. */
 const timelineHidden = (card) => ({ id: card.id, text: card.text });
 
+/** The real hands, years included, live here on the server and nowhere else. */
+const timelineHand = (room, pid) => ((room._timeline && room._timeline.hands) || {})[pid] || [];
+
 /** shared.hands: how many each player is still holding, never which. */
 const timelineCounts = (room) => {
   const held = {};
   activeRoster(room, room.shared.order).forEach(pid => {
-    held[pid] = ((room.secrets[pid] || {}).hand || []).length;
+    held[pid] = timelineHand(room, pid).length;
   });
   return held;
 };
 
-/** Each phone is given its own hand, with the years off. */
+/**
+ * Each phone is given its own hand with the years off - and nothing else. The
+ * slice used to keep the real hand beside it, and project() sends a player
+ * their whole slice, so every phone was sent the years of its own cards.
+ */
 const timelineWriteSecrets = (room) => {
-  const s = room.shared;
-  (s.order || []).forEach(pid => {
-    const hand = ((room.secrets[pid] || {}).hand || []).map(timelineHidden);
-    room.secrets[pid] = Object.assign({}, room.secrets[pid], { cards: hand });
+  (room.shared.order || []).forEach(pid => {
+    room.secrets[pid] = { cards: timelineHand(room, pid).map(timelineHidden) };
   });
+};
+
+/** The game ends; the most cards put in the right place wins (ties share the podium). */
+const timelineEndOnBoard = (room, why) => {
+  const s = room.shared;
+  s.board = scoreboardOf(room);
+  const top = s.board[0];
+  s.phase = 'gameover';
+  s.ended = why;
+  s.winnerId = top && top.score > 0 ? top.id : null;
+  s.winnerName = top && top.score > 0 ? top.name : '';
+  room.phase = 'gameover';
 };
 
 /** The next card off the deck, or null once it is empty. */
@@ -4900,13 +4958,16 @@ const timelineAction = (room, playerId, action, payload) => {
     const want = Math.min(TIMELINE_EVENTS.length, 1 + order.length * (TIMELINE_HAND + 2));
     const dealt = nextPrompts(room, TIMELINE_EVENTS, 'timeline', want)
       .map((ev, i) => timelineCard(ev, lang, i));
-    const hand = Math.max(1, Math.min(TIMELINE_HAND, Math.floor((dealt.length - 1) / order.length)));
+    // At least one spare card per player is kept back for replacements (the
+    // owner, 22 Sep 2026): with the whole bank dealt, a wrong placement had
+    // nothing to draw and still emptied the hand - and won.
+    const hand = Math.max(1, Math.min(TIMELINE_HAND, Math.floor((dealt.length - 1 - order.length) / order.length)));
     const first = dealt.shift();
     room.secrets = {};
+    room._timeline = { deck: dealt.slice(order.length * hand), lang: lang, hands: {} };
     order.forEach((pid, i) => {
-      room.secrets[pid] = { hand: dealt.slice(i * hand, (i + 1) * hand) };
+      room._timeline.hands[pid] = dealt.slice(i * hand, (i + 1) * hand);
     });
-    room._timeline = { deck: dealt.slice(order.length * hand), lang: lang };
     room.shared = {
       phase: 'play',
       lang: lang,
@@ -4936,19 +4997,20 @@ const timelineAction = (room, playerId, action, payload) => {
   if (action === 'place') {
     if (s.phase !== 'play') return;
     if (s.turnId !== playerId) throw new Error('مش دورك');
-    const hand = (room.secrets[playerId] || {}).hand || [];
+    const hand = timelineHand(room, playerId);
     const card = hand.find(c => c.id === String(payload && payload.card));
     if (!card) throw new Error('الورقة دي مش معاك');
     const at = Number(payload && payload.at);
     if (!(at >= 0 && at <= s.timeline.length && at === Math.floor(at))) throw new Error('مكان غير صحيح');
 
     const right = timelineFits(s.timeline, at, card.y);
-    room.secrets[playerId] = { hand: hand.filter(c => c.id !== card.id) };
+    room._timeline.hands[playerId] = hand.filter(c => c.id !== card.id);
     s.lastSeq = (s.lastSeq || 0) + 1;
     s.last = {
       seq: s.lastSeq, by: playerId, name: roomPlayerName(room, playerId),
       text: card.text, y: card.y, at: at, right: right
     };
+    let deckOut = false;
     if (right) {
       s.timeline = s.timeline.slice(0, at).concat([card], s.timeline.slice(at));
       addScore(room, playerId, 1);
@@ -4956,14 +5018,19 @@ const timelineAction = (room, playerId, action, payload) => {
       // Out of the game, and a fresh card in its place - so a hand only ever
       // shrinks on a card put in the right spot.
       const replacement = timelineDraw(room);
-      if (replacement) room.secrets[playerId].hand = room.secrets[playerId].hand.concat([replacement]);
+      if (replacement) room._timeline.hands[playerId] = room._timeline.hands[playerId].concat([replacement]);
+      else deckOut = true;
     }
     timelineWriteSecrets(room);
     s.hands = timelineCounts(room);
     s.board = scoreboardOf(room);
 
-    if (!room.secrets[playerId].hand.length) {
+    // Only a card put in the right place can empty a hand and win. A wrong one
+    // with nothing left to draw ends the game on the board (the owner, 22 Sep 2026).
+    if (deckOut) { timelineEndOnBoard(room, 'deck'); return; }
+    if (right && !room._timeline.hands[playerId].length) {
       s.phase = 'gameover';
+      s.ended = 'out';
       s.winnerId = playerId;
       s.winnerName = roomPlayerName(room, playerId);
       room.phase = 'gameover';
@@ -4989,6 +5056,7 @@ const timelinePlayerLeft = (room, playerId) => {
   if (!s || s.phase !== 'play') return;
   const wasUp = s.turnId === playerId;
   if (room.secrets) delete room.secrets[playerId];
+  if (room._timeline && room._timeline.hands) delete room._timeline.hands[playerId];
   s.order = (s.order || []).filter(id => id !== playerId);
   if (s.hands) delete s.hands[playerId];
   if (activeRoster(room, s.order).length < TIMELINE_MIN_PLAYERS) {
@@ -5001,7 +5069,9 @@ const timelinePlayerLeft = (room, playerId) => {
   s.hands = timelineCounts(room);
   s.board = scoreboardOf(room);
   if (wasUp) {
-    s.turn = Math.max(0, s.turn - 1);
+    // One before the seat that left, so the advance lands on the player after
+    // them. Clamping at 0 skipped that player when seat 0 left.
+    s.turn = (s.turn - 1 + s.order.length) % s.order.length;
     timelineAdvance(room);
   } else {
     s.turn = Math.max(0, s.order.indexOf(s.turnId));

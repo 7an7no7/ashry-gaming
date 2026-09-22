@@ -52,6 +52,26 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
 const cleanCode = (raw) => String(raw || '').trim().toUpperCase();
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code));
 
+// Opening rooms is capped per address, so a script can't spend the free plan's
+// requests making them. Far above any real table (a household shares one
+// address), and above the robot tests (npm run test:live opens about 20 rooms a
+// run from one address). Per Worker instance - a light brake, not a wall.
+const CREATE_LIMIT = 60;
+const CREATE_WINDOW_MS = 10 * 60 * 1000;
+const createdBy = new Map();   // address -> { n, since }
+const createAllowed = (request) => {
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+  if (!ip) return true;
+  const now = Date.now();
+  if (createdBy.size > 5000) {
+    for (const [k, v] of createdBy) if (now - v.since > CREATE_WINDOW_MS) createdBy.delete(k);
+  }
+  const seen = createdBy.get(ip);
+  if (!seen || now - seen.since > CREATE_WINDOW_MS) { createdBy.set(ip, { n: 1, since: now }); return true; }
+  seen.n++;
+  return seen.n <= CREATE_LIMIT;
+};
+
 const randomCode = () => {
   const bytes = new Uint8Array(ROOM_CODE_LEN);
   crypto.getRandomValues(bytes);
@@ -106,6 +126,9 @@ export default {
         body = JSON.parse(text || '{}') || {};
       } catch (e) {
         return json({ ok: false, error: 'bad request' }, 400);
+      }
+      if (url.pathname === '/create' && !createAllowed(request)) {
+        return json({ ok: false, error: 'فتحت غرف كتير في وقت قصير، استنى شوية وجرب تاني' }, 429);
       }
       try {
         return json(await handle(env, url.pathname, body));

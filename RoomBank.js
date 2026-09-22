@@ -140,7 +140,10 @@ const bankNewRoomGame = (room, playerId, action, p) => {
   const flag = (key) => (typeof p[key] === 'boolean' ? p[key] : !!was[key]);
   const settings = { length: pick('length', BANK_LENGTHS, BANK_LENGTH_DEFAULT), pot: flag('pot'), go400: flag('go400'),
     firstLap: typeof p.firstLap === 'boolean' ? p.firstLap : was.firstLap !== false, highRent: flag('highRent'), oneDie: flag('oneDie') };
-  const clock = pick('turnClock', BANK_CLOCKS, 0);
+  // The clock is kept as shared.clock, not in settings: "play again" sends no
+  // options, and reading settings.turnClock switched the host's clock off.
+  const clock = BANK_CLOCKS.indexOf(Number(p.turnClock)) !== -1 ? Number(p.turnClock)
+    : (BANK_CLOCKS.indexOf(Number(prev.clock)) !== -1 ? Number(prev.clock) : 0);
   const off = bankRollOff(ids, Math.random, settings.oneDie ? 1 : 2);
   // The seats go round from whoever starts, the rest in the room's order.
   const made = bankNewGame(ids, bankFillTokens(ids, tokens), off.first, settings, Date.now(), Math.random);

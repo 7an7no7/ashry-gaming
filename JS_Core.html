@@ -36,7 +36,16 @@
   }
 
   /* --- AUDIO SYSTEM --- */
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // A browser without Web Audio (or with it turned off) gets a silent stand-in:
+  // creating it unguarded threw here and stopped this whole script - the app.
+  const audioCtx = (() => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) return new Ctx();
+    } catch (e) {}
+    const node = () => ({ connect() {}, disconnect() {}, start() {}, stop() {}, frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} }, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} } });
+    return { state: 'closed', currentTime: 0, destination: {}, resume() { return Promise.resolve(); }, createOscillator: node, createGain: node, createBiquadFilter: node, createBufferSource: node, createBuffer: () => ({ getChannelData: () => new Float32Array(1) }), createDynamicsCompressor: node, sampleRate: 44100 };
+  })();
   let lastClickAt = 0;
   let lastTapClickAt = 0;
 
@@ -460,7 +469,10 @@
    */
   function createClock(options) {
       const countUp = !!options.countUp;
-      const totalMs = Math.max(0, Math.round(options.seconds || 0)) * 1000;
+      // `ms` for a countdown that must keep its fraction of a second (the chess clock).
+      const totalMs = options.ms != null
+          ? Math.max(0, Math.round(options.ms))
+          : Math.max(0, Math.round(options.seconds || 0)) * 1000;
       const onTick = options.onTick || function() {};
       const onEnd = options.onEnd || function() {};
 
@@ -1599,6 +1611,8 @@
       tl_none: "خلص ورقك",
       tl_skip: "عدّي الدور",
       tl_over: "خلصت اللعبة",
+      tl_deck_out: "الورق خلص: يكسب اللي حط أكتر ورق في مكانه الصح",
+      tl_nobody: "محدش حط كارت في مكانه الصح",
       setup_mind: "العقل",
       cat_mind: "أرقام سرية تنزل بالترتيب من غير ما تتكلموا.",
       mind_lobby_hint: "كل واحد هياخد أرقام من 1 لـ 100 محدش غيره شايفها. نزّلوها بالترتيب من غير ما حد يتكلم.",
@@ -3943,6 +3957,8 @@
       tl_none: "You are out of cards",
       tl_skip: "Skip the turn",
       tl_over: "Game over",
+      tl_deck_out: "The cards ran out: most cards in the right place wins",
+      tl_nobody: "Nobody put a card in the right place",
       setup_mind: "The Mind",
       cat_mind: "Secret numbers, played in order, without a word.",
       mind_lobby_hint: "Everyone gets numbers from 1 to 100 that nobody else can see. Lay them down in rising order, without talking.",
@@ -6747,7 +6763,9 @@
 
   if (EDGE_IOS) {
     document.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) { edgeReset(); return; }
+      // A second finger calls the swipe off - and puts the screen back where it
+      // was: it used to stay shifted by the drag, on every later visit too.
+      if (e.touches.length !== 1) { if (edge.el) edge.el.style.transform = ''; edgeReset(); return; }
       const t = e.touches[0];
       if (t.clientX > EDGE_PX || !edgeCanGoBack()) return;
       e.preventDefault();

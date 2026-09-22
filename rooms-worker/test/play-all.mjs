@@ -26,6 +26,9 @@ const UNO = new Function(readFileSync(new URL('../../UnoCards.js', import.meta.u
 // round's score from the hands it shows at the end - never another hand before that.
 const DOMINO = new Function(readFileSync(new URL('../../DominoTiles.js', import.meta.url), 'utf8') +
   '\nreturn { dominoParse, dominoFits, dominoEnds, dominoCanPlay, dominoHandPips };')();
+// بنك الحظ's board, for the robots to see what a place costs before they buy it, as a player reads the card.
+const BANK = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+  '\nreturn { BANK_SQUARES };')();
 
 const ARGS = process.argv.slice(2);
 const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
@@ -3287,7 +3290,12 @@ async function main() {
       const st = s.turn.stage;
       let res = { ok: true };
       if (st === 'roll') res = await up.act('roll', { seq: s.turnSeq });
-      else if (st === 'buy') { res = await up.act('buy', { yes: true, seq: s.turnSeq }); if (res.ok) bought++; }
+      else if (st === 'buy') {
+        // Buy what the cash covers; leave the rest with the bank, as a player would.
+        const yes = (s.cash[up.pid] || 0) >= BANK.BANK_SQUARES[s.pos[up.pid]].price;
+        res = await up.act('buy', { yes, seq: s.turnSeq });
+        if (res.ok && yes) bought++;
+      }
       else if (st === 'act') res = await up.act('endTurn', { seq: s.turnSeq });
       else if (st === 'debt') res = await up.act(s.cash[up.pid] >= s.debt.amount ? 'payDebt' : 'bankrupt', { seq: s.turnSeq });
       if (!res.ok) { refused++; console.log('  ! refused', st, res.error); }

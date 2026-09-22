@@ -31,7 +31,9 @@ let html = await read('Controller');
 // Resolve <?!= include('X'); ?> the way HtmlService would.
 const includes = [...html.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g)];
 for (const [tag, name] of includes) {
-  html = html.replace(tag, await read(name));
+  // A replacer function: $&, $' and $` in a replacement string are patterns.
+  const body = await read(name);
+  html = html.replace(tag, () => body);
 }
 
 // `--room CODE` opens the preview on the join screen with that code filled in,
@@ -41,10 +43,12 @@ const previewRoom = process.argv.includes('--room')
   : '';
 
 html = html
-  .replace('<?!= initialSpyData ?>', JSON.stringify(SPY_WORDS))
-  .replace('<?!= initialRoom ?>', JSON.stringify(previewRoom))
-  .replace('<?!= webAppUrl ?>', JSON.stringify('http://127.0.0.1:8777/index.html'))
-  .replace('</head>', `${STUB}\n</head>`);
+  .replace('<?!= initialSpyData ?>', () => JSON.stringify(SPY_WORDS))
+  .replace('<?!= initialRoom ?>', () => JSON.stringify(previewRoom))
+  // Wherever the preview is served (port 4321 by the launch config): room links,
+  // the QR and the share button pointed at a port nothing served.
+  .replace('<?!= webAppUrl ?>', 'location.origin + location.pathname')
+  .replace('</head>', () => `${STUB}\n</head>`);
 
 // Word lists the page shares with the rooms server: one file, both sides.
 const SHARED_LISTS = ['ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Ludo.js', 'BankAlhaz.js'];
@@ -52,7 +56,7 @@ const sharedListsHtml = (await Promise.all(SHARED_LISTS.map(async (name) =>
   `<script>\n${await readFile(path.join(root, name), 'utf8')}\n</script>`))).join('\n    ');
 const listsMark = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;
 if (!listsMark.test(html)) throw new Error('Controller.html: SHARED_LISTS comment not found');
-html = html.replace(listsMark, sharedListsHtml);
+html = html.replace(listsMark, () => sharedListsHtml);
 
 const leftover = html.match(/<\?!?=?[\s\S]{0,40}\?>/);
 if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);

@@ -125,10 +125,11 @@ ROOM_GAMES.timeline = {
     if (s.phase === 'play' && s.turnId === Room.me && mine.length === 1) tlLocal.pick = mine[0].id;
 
     if (s.phase === 'gameover') {
-      const fresh = renderRoomFrame(el, ['tl-over', s.winnerId, state.youAreHost, appState.lang].join('|'), () => `
+      const fresh = renderRoomFrame(el, ['tl-over', s.dealId, s.winnerId, s.ended, state.youAreHost, appState.lang].join('|'), () => `
         <div class="card card--accent" style="text-align:center">
           <div class="eyebrow">${escapeHTML(t.tl_over || '')}</div>
-          ${renderPodium(state, s.board) || `<div class="metric metric--md">🏆 ${escapeHTML(s.winnerName || '')}</div>`}
+          ${s.ended === 'deck' ? `<p class="field__hint">${escapeHTML(t.tl_deck_out || '')}</p>` : ''}
+          ${renderPodium(state, s.board) || (s.winnerName ? `<div class="metric metric--md">🏆 ${escapeHTML(s.winnerName)}</div>` : `<p class="field__hint">${escapeHTML(t.tl_nobody || '')}</p>`)}
         </div>
         ${tlLineHtml(s, t, false)}
         ${renderScoreboard(s.board)}
@@ -140,7 +141,7 @@ ROOM_GAMES.timeline = {
              </div>`
           : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
         ${renderRoomPlayerStrip(state)}`);
-      if (fresh && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 150, spread: 90 }));
+      if (fresh && s.winnerId && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 150, spread: 90 }));
       refreshRoomPlayerStrip(el, state);
       return;
     }
@@ -188,7 +189,8 @@ TV_GAMES.timeline = {
     if (s.phase === 'gameover') {
       return `
         <div class="tv-vote">
-          <div class="tv-title tv-center-text">🏆 ${escapeHTML(s.winnerName || '')}</div>
+          ${s.ended === 'deck' ? `<div class="tv-note tv-center-text">${escapeHTML(t.tl_deck_out || '')}</div>` : ''}
+          <div class="tv-title tv-center-text">${s.winnerName ? '🏆 ' + escapeHTML(s.winnerName) : escapeHTML(t.tl_nobody || '')}</div>
           <div class="tv-scale">${tlLineHtml(s, t, false)}</div>
           <div class="tv-scale">${renderScoreboard(s.board)}</div>
           ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.timeline.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}

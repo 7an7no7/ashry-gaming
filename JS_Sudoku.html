@@ -337,8 +337,13 @@ function enterSudoku(n) {
       playSound('alarm');
     } else {
       // The number is settled here: it can't be a candidate for its row, column or box.
+      // The pencil marks it clears go on this move's undo step, so undo puts them back.
+      const step = s.undo[s.undo.length - 1];
       for (let k = 0; k < 81; k++) {
-        if (Math.floor(k / 9) === Math.floor(i / 9) || k % 9 === i % 9 || SUDOKU_BOX[k] === SUDOKU_BOX[i]) s.notes[k] &= ~(1 << n);
+        if (k !== i && (Math.floor(k / 9) === Math.floor(i / 9) || k % 9 === i % 9 || SUDOKU_BOX[k] === SUDOKU_BOX[i]) && (s.notes[k] & (1 << n))) {
+          if (step) (step.peers = step.peers || {})[k] = s.notes[k];
+          s.notes[k] &= ~(1 << n);
+        }
       }
     }
   }
@@ -364,6 +369,7 @@ function undoSudoku() {
   if (!last || s.phase !== 'play') return;
   sudokuSetCell(last.i, last.v);
   s.notes[last.i] = last.n;
+  if (last.peers) Object.keys(last.peers).forEach(k => { s.notes[Number(k)] = last.peers[k]; });
   s.sel = last.i;
   saveToLocal();
   paintSudoku();

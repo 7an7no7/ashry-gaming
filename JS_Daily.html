@@ -182,17 +182,26 @@ function selectArchiveDay(day) {
  * Starts past daily for game `id` on date `day`.
  * Deals with identical seed, sets s.archive, clears s.daily so soloMarkDaily is not called.
  */
-function playArchive(id, day) {
+function playArchive(id, day, sure) {
   const g = DAILY_GAMES.find(x => x.id === id);
   const soloG = typeof SOLO_GAMES !== 'undefined' ? SOLO_GAMES[id] : null;
   if (!g || !soloG) return;
+  // Today is the real daily, never practice: the archive dealt today's puzzle as a
+  // board that records nothing, and "again" replayed it before the real go.
+  if (day >= soloRealToday()) { playDaily(id); return; }
   soloHubReturn = false;
+  const epoch = soloEpochs[id] || 0;
   soloArchiveDay = day;
+  soloArchiveSure = !!sure;
   try {
     g.start();
   } finally {
     soloArchiveDay = null;
+    soloArchiveSure = false;
   }
+  // Nothing was dealt (a "start a new game?" question is waiting): the board on
+  // screen is still the old one, and must not be relabelled as that day.
+  if ((soloEpochs[id] || 0) === epoch) return;
   const s = soloG.state ? soloG.state() : null;
   if (s) {
     s.archive = day;

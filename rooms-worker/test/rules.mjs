@@ -248,6 +248,18 @@ check(v('اسم', 'أسد') !== 'right' && v('قط', 'قطة') === 'close' && v(
 check(v('طماطماااا', 'طماطم') === 'close' && v('إسعاف', 'عربية إسعاف') === 'right' && v('عربية', 'عربية إسعاف') === 'close' && v('قزح', 'قوس قزح') === 'close',
   'guess: a near miss and a missing word are close, not right');
 check(v('ترابيزة', 'كرسي') === '' && v('', 'كرسي') === '' && v('كرسي', ['ترابيزة', 'كرسي']) === 'right', 'guess: a different word is wrong, an alternative answer counts');
+{
+  // Another word on the game's own list is a different thing, not a spelling of the answer (audit, 22 Sep 2026).
+  const DW = new Function(readFileSync(new URL('../../PartyContent.js', import.meta.url), 'utf8') + '\nreturn DRAW_WORDS;')();
+  const vb = (guess, answer, lang) => guessVerdict(guess, [answer], DW[lang]);
+  check(vb('House', 'Horse', 'en') === 'close' && vb('Monkey', 'Donkey', 'en') === 'close' && vb('Carrot', 'Parrot', 'en') === 'close',
+    'guess: House for Horse, Monkey for Donkey, Carrot for Parrot are close, not right');
+  check(vb('شمس', 'شمسية', 'ar') === 'close' && vb('ناموسة', 'جاموسة', 'ar') === 'close' && vb('ملك', 'ملكة', 'ar') === 'close',
+    'guess: شمس for شمسية, ناموسة for جاموسة, ملك for ملكة are close, not right');
+  check(vb('طماطماية', 'طماطم', 'ar') === 'right' && vb('الطماطم', 'طماطم', 'ar') === 'right' && vb('Horse', 'Horse', 'en') === 'right',
+    'guess: the answer itself, and its spellings, are still right with the list');
+  check(v('زيت', 'زيتون') !== 'right', 'guess: زيت is not زيتون (ون is only a plural on a longer word)');
+}
 
 /* --- someone leaves mid-round: what room.js does, then the game's hook ------ */
 const leave = (r, id, hook = true) => {
@@ -1952,7 +1964,8 @@ const leave = (r, id, hook = true) => {
     applyRoomAction(r, ids[0], 'start', { lang: lang || 'ar' });
     return r;
   };
-  const hand = (r, id) => ((r.secrets[id] || {}).hand || []).slice();
+  // The real hands (years included) are server-only scratch; a phone's slice has only `cards`.
+  const hand = (r, id) => (((r._timeline && r._timeline.hands) || {})[id] || []).slice();
   const up = (r) => r.shared.turnId;
 
   const tl = tlStart(['a', 'b', 'c']);
@@ -1961,6 +1974,8 @@ const leave = (r, id, hook = true) => {
         'timeline: the same number of cards each');
   check(['a', 'b', 'c'].every((id) => (tl.secrets[id].cards || []).every((c) => c.y === undefined)),
         'timeline: a phone is given its own cards with the years taken off');
+  check(['a', 'b', 'c'].every((id) => Object.keys(tl.secrets[id]).join() === 'cards' && JSON.stringify(tl.secrets[id]).indexOf('"y"') === -1),
+        'timeline: and nothing else - no year anywhere in what a phone is sent');
   check(hand(tl, 'a').every((c) => typeof c.y === 'number'), 'timeline: the server keeps the real years');
   const unplayed = ['a', 'b', 'c'].reduce((acc, id) => acc.concat(hand(tl, id).map((c) => c.y)), []);
   const publishedYears = JSON.stringify(tl.shared);
@@ -2028,7 +2043,7 @@ const leave = (r, id, hook = true) => {
   {
     const win = tlStart(['a', 'b']);
     const who = up(win);
-    win.secrets[who] = { hand: [hand(win, who)[0]] };
+    win._timeline.hands[who] = [hand(win, who)[0]];
     const card = hand(win, who)[0];
     let at = 0;
     while (at < win.shared.timeline.length && win.shared.timeline[at].y < card.y) at++;
@@ -2060,6 +2075,40 @@ const leave = (r, id, hook = true) => {
     const big = tlStart(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l']);
     check(big.shared.handSize >= 1 && big.shared.order.every((id) => hand(big, id).length === big.shared.handSize),
           'timeline: a full table still gets an even deal');
+  }
+
+  // Spares are kept back: a replacement per player where the bank allows (the owner, 22 Sep 2026).
+  // At 7 it does; at 12 a bank of 22 can't (1 + 12 + 12 > 22), so every spare left is kept and
+  // the board decides if they run out.
+  {
+    const seven = tlStart('abcdefg'.split(''));
+    check(seven._timeline.deck.length >= 7, 'timeline: 7 players leave at least one spare card each');
+    const twelve = tlStart('abcdefghijkl'.split(''));
+    check(twelve.shared.handSize === 1 && twelve._timeline.deck.length === 22 - 1 - 12, 'timeline: 12 players get one card each and every other card is a spare');
+  }
+
+  // Only a right placement can win: a wrong one with nothing to draw ends the game on the board.
+  {
+    const r = tlStart(['a', 'b', 'c']);
+    const who = up(r);
+    r._timeline.deck = [];
+    r._timeline.hands[who] = [hand(r, who)[0]];
+    const card = hand(r, who)[0];
+    r.shared.timeline = [{ id: 'seed', text: 'seed', y: card.y - 1 }];
+    applyRoomAction(r, who, 'place', { card: card.id, at: 0 });   // before a card from the year before: wrong
+    check(r.shared.last.right === false && r.shared.phase === 'gameover' && r.shared.ended === 'deck',
+          'timeline: a wrong placement with the deck empty ends the game');
+    check(r.shared.winnerId !== who || (r.shared.scores || {})[who] > 0, 'timeline: and emptying a hand that way wins nothing');
+  }
+
+  // Seat 0 leaving on their turn hands it to seat 1, not seat 2.
+  {
+    const r = tlStart(['a', 'b', 'c', 'd']);
+    const first = r.shared.order[0];
+    const next = r.shared.order[1];
+    r.shared.turn = 0; r.shared.turnId = first;
+    leave(r, first);
+    check(r.shared.turnId === next, 'timeline: when seat 0 leaves on their turn, the next seat plays');
   }
 }
 
@@ -3683,6 +3732,96 @@ Date.now = duelTestClock;
     'bank room: high rents off by default; the host can turn them on and buying after the first lap off');
   check(r2.shared.settings.oneDie === true && rr.shared.settings.oneDie === false && r2.shared.events.find((e) => e.type === 'rolloff').rounds[0].every((x) => x.d.length === 1),
     'bank room: one die off by default; on, the room rolls one die, the roll-off too');
+}
+
+/* --- the audit of 22 Sep 2026: one check per fix ---------------------------- */
+{
+  // الموقع السري: anyone may ask first, the spy included (always a non-spy told the table who wasn't).
+  let spyFirst = false;
+  for (let k = 0; k < 60 && !spyFirst; k++) {
+    const r = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'spyfall' });
+    applyRoomAction(r, 'a', 'start', {});
+    if (r._spyIds.indexOf(r.shared.firstId) !== -1) spyFirst = true;
+  }
+  check(spyFirst, 'spyfall: the spy can be the one who asks first');
+
+  // الفنان المزيف: the order is fully random, so the fake may open (the owner, 22 Sep 2026).
+  let fakeFirst = false;
+  for (let k = 0; k < 60 && !fakeFirst; k++) {
+    const r = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'fakeartist' });
+    applyRoomAction(r, 'a', 'start', {});
+    if (r.shared.drawerOrder[0] === r._fakeId) fakeFirst = true;
+  }
+  check(fakeFirst, 'fake artist: the fake can be the first to draw');
+
+  // كلمة واحدة: the word itself is refused as a clue.
+  {
+    const r = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'justone' });
+    applyRoomAction(r, 'a', 'start', {});
+    const writer = ['a', 'b', 'c'].find((id) => id !== r.shared.guesserId);
+    check(threw(() => applyRoomAction(r, writer, 'submitClue', { clue: 'ال' + r._joWord })) && r.shared.submitted.indexOf(writer) === -1,
+      'just one: the secret word is refused as a clue');
+  }
+
+  // أونو: a call made on one card is forgotten when the hand grows again; one made on two still counts on one.
+  {
+    const r = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'uno' });
+    applyRoomAction(r, 'a', 'start', {});
+    const p = r.shared.order[0];
+    const other = r.shared.order[1];
+    r.shared.said = [p]; r._uno.saidAt = { [p]: 1 }; r._uno.hands[p] = r._uno.hands[p].slice(0, 2);
+    applyRoomAction(r, other, 'catchUno', { target: '-' });   // a catch aimed at nobody only syncs
+    check(r.shared.said.indexOf(p) === -1, 'uno: UNO said on one card is forgotten once the hand grows to two');
+    r.shared.said = [p]; r._uno.saidAt = { [p]: 2 }; r._uno.hands[p] = r._uno.hands[p].slice(0, 1);
+    applyRoomAction(r, other, 'catchUno', { target: '-' });
+    check(r.shared.said.indexOf(p) !== -1, 'uno: UNO said on two cards still counts once down to one');
+    r._uno.hands[p] = r._uno.hands[p].concat(r._uno.deck.splice(0, 1));
+    applyRoomAction(r, other, 'catchUno', { target: '-' });
+    check(r.shared.said.indexOf(p) === -1, 'uno: ...and is forgotten when the hand grows back to two');
+  }
+
+  // ربع قرد: the verdict that ended the game can be flipped, and play goes on.
+  {
+    const r = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'monkey' });
+    applyRoomAction(r, 'a', 'start', { lang: 'ar', mode: 'letters', category: 'countries', timer: 0, winners: 1 });
+    r.shared.quarters = { a: 4, b: 4, c: 0 };
+    r.shared.verdict = { kind: 'liar-right', loserId: 'b', otherId: 'c', loser: 'B', canFlip: true };
+    r.shared.phase = 'gameover'; r.phase = 'gameover'; r.shared.turnId = null;
+    applyRoomAction(r, 'a', 'flip', {});
+    check(r.shared.phase === 'play' && r.shared.quarters.b === 3 && r.shared.quarters.c === 1 && r.shared.turnId !== 'a',
+      'monkey: flipping the deciding verdict reopens the game, and a monkey is not up');
+  }
+
+  // بنك الحظ: a debt to a player who leaves is cancelled; a "pay everyone" debt loses their share.
+  {
+    const BB = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+      '\nreturn { bankNewGame, bankFillTokens, bankRemovePlayer };')();
+    const mk = () => BB.bankNewGame(['a', 'b', 'c'], BB.bankFillTokens(['a', 'b', 'c'], {}), 'a', { length: 0, firstLap: false }, 0, Math.random);
+    let { g, priv } = mk();
+    g.turn.stage = 'debt';
+    g.debt = { pid: 'a', amount: 2000, to: 'b', fine: false, then: { kind: 'after' } };
+    BB.bankRemovePlayer(g, priv, 'b', 0);
+    check(g.phase === 'play' && g.debt === null && g.turn.pid === 'a' && g.turn.stage !== 'debt',
+      'bank: a debt owed to a player who leaves is cancelled, and the turn goes on');
+    ({ g, priv } = mk());
+    g.turn.stage = 'debt';
+    g.debt = { pid: 'a', amount: 100, to: 'each', fine: false, then: { kind: 'after' } };
+    BB.bankRemovePlayer(g, priv, 'c', 0);
+    check(g.debt && g.debt.amount === 50, 'bank: a "pay everyone" debt loses the share of the player who left');
+
+    // Play again keeps the host's turn clock.
+    const rr = newRoom(['h', 'p']);
+    applyRoomAction(rr, 'h', 'chooseGame', { game: 'bank' });
+    applyRoomAction(rr, 'h', 'start', { turnClock: 60 });
+    rr.shared.phase = 'gameover'; rr.phase = 'gameover';
+    applyRoomAction(rr, 'h', 'playAgain', {});
+    check(rr.shared.clock === 60, 'bank room: play again keeps the turn clock');
+  }
 }
 
 Date.now = realNow;

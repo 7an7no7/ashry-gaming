@@ -294,10 +294,18 @@ function paintBomb() {
     </div>`;
 }
 
-/** After a reload: carry on if the fuse is still burning. */
+/** After a reload: carry on if the fuse is still burning; if it ran out meanwhile, the boom (whose hands?). */
 function restoreBomb() {
   const b = bombState();
   if (b.phase === 'ticking' && b.endsAt > Date.now()) { paintBomb(); bombArm(); return true; }
+  if (b.phase === 'ticking') {
+    // It went off while the page was away. Dropping to the setup lost the round
+    // and the next Start wiped the game's strikes; the table still says whose it was.
+    b.phase = 'boom';
+    saveToLocal();
+    paintBomb();
+    return true;
+  }
   if (b.phase === 'boom' || (b.phase === 'over' && b.players.length)) { paintBomb(); return true; }
   return false;
 }

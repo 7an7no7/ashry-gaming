@@ -340,9 +340,13 @@ onLeaveScreen(() => speakStop());
    It is drawn above everything, full-screen tools (على راسك, the chess clock)
    included, which otherwise hid it. */
 (function () {
+  // The page starts with a silent stand-in (Controller.html) while the real
+  // confetti loads async. The stand-in is wrapped too (so the fanfare still
+  // plays if the CDN never answers), and the real one is wrapped when it lands.
   const wrap = () => {
-    if (typeof window.confetti !== 'function' || window.confetti.__fx) return false;
+    if (typeof window.confetti !== 'function' || window.confetti.__fx) return !!(window.confetti && window.confetti.__fx && !window.confetti.__overStub);
     const real = window.confetti;
+    const overStub = !!real.__stub;
     const wrapped = function (opts) {
       if (!(typeof roomHasScreen === 'function' && roomHasScreen())) {
         playFx('tada');
@@ -354,8 +358,9 @@ onLeaveScreen(() => speakStop());
       return real.apply(this, args);
     };
     wrapped.__fx = true;
+    wrapped.__overStub = overStub;
     window.confetti = wrapped;
-    return true;
+    return !overStub;
   };
   if (!wrap()) window.addEventListener('load', wrap);
 })();

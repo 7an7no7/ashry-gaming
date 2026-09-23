@@ -102,13 +102,13 @@
 - **Cards, in rooms:** **كدّاب (I Doubt It):** lay cards face down and say what they are; anyone can call «كدّاب!», the first tap wins; computer players (*كدّاب*). **الشايب (Old Maid):** draw a card blind from the next hand, pair up, and don't be left holding the drawn old man; drag your cards about while someone is lifting one (*الشايب*).
 - **Sports, in real 3D (three.js):** 🎳 **Bowling (بولينج):** swipe the ball down a
   wooden lane, a curve in the swipe hooks it; solo for a best score, or a
-  room where everyone bowls in turn and everyone watches (*بولينج*). ⛳ **Mini Golf (ميني جولف):** eighteen holes, each
-  its own place (a windmill, a bridge over water, the souq's arrow tiles, camel
-  humps, the funfair's bumpers, a pyramid, a ramp over the Nile, a waterwheel,
-  Siwa's dunes and mud, a lighthouse, the Citadel's one-way gates, a sliding
-  gate, the port's conveyors, a temple's magic door, Saint Catherine's ice,
-  an oasis, Cairo Tower's lift), pull back from the ball and let go; games of
-  3, 6, 9 or 18 holes; solo with the best kept on the phone, or a room with the
+  room where everyone bowls in turn and everyone watches (*بولينج*). ⛳ **Mini Golf (ميني جولف):** sixty holes, twenty
+  easy, twenty medium and twenty hard, each its own place (a windmill, the
+  Corniche, Khan el-Khalili's magic lamp, the metro's turnstiles, Qaitbay's
+  moat, the Blue Hole, the Suez Canal's ferries, Ibn Tulun's spiral, a pinball
+  table, a rocket in space…), pull back from the ball and let go; games of 3,
+  6, 9 or 18 holes drawn at random from the difficulty chosen (or mixed,
+  easiest first); solo with the best kept on the phone, or a room with the
   TV where every ball plays the hole at once, or in turns with the balls
   knocking each other (*ميني جولف*).
 - **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
@@ -239,14 +239,15 @@ work changed. Add to it when a decision is made or a batch ships.
     balls are faint on a phone); a hole moves on once every ball is in or
     picked up. In turns: one putt at a time round the table, everyone watching.
   - **3, 6, 9 or 18 holes, 6 by default** (the host's choice; solo a setup
-    choice) - the first 3, 6, 9 or all 18 of the course, in order. About a
-    minute a hole. (18 added by the owner later the same day; the first build
-    had nine.)
+    choice). About a minute a hole. (18 added by the owner later the same
+    day; the first build had nine. Until the third round below, a game played
+    the first holes of the course in order.)
   - **Par + 3 strokes at most** (the owner, later on 23 Sep 2026, replacing
     "6 strokes, then 7"): par 2 allows 5, par 3 six, par 4 seven, par 5
     eight; not in by then, the ball is picked up and the hole counts that most
-    + 1. The strip shows «بار 3 · أقصى 6» and, before the final stroke,
-    «آخر ضربة!». One place: `golfMaxOf` (a hole may carry its own `max`).
+    + 1. The strip shows «المطلوب 3 · أقصى 6» (the third round's word, below)
+    and, before the final stroke, «آخر ضربة!». One place: `golfMaxOf` (a hole
+    may carry its own `max`).
   - **Ball hits ball in the room's "in turns" only** (the owner, the same
     day). All at once the balls still pass through each other; solo has one
     ball. In turns a putt meets every ball lying on the course - **a ball is on
@@ -305,6 +306,46 @@ work changed. Add to it when a decision is made or a batch ships.
     ball and their card with them; the last player alone plays on; the winner
     of a room game (lowest total) counts a win for the evening only when there
     was somebody to beat; a latecomer watches the hole and plays the next game.
+  - **The third round** (the owner, later on 23 Sep 2026, every point asked
+    first):
+    - **The word «بار» goes**: the owner didn't know it. The strip says
+      **«المطلوب 3 · أقصى 6»** ("Target 3 · max 6"), and every other place
+      uses the same plain words: the scorecard's row «المطلوب», «+1 عن
+      المطلوب», a result «زي المطلوب!» ("On target!"). The fun names of a
+      score stay (هول إن وان، بيردي، إيجل، ألباتروس، بوجي، دبل بوجي) and are
+      explained once in 📘 («🏅 أسامي النتايج»).
+    - **Sixty holes: twenty easy, twenty medium, twenty hard.** The first
+      eighteen sorted in by how they really play, and 42 new ones, each its
+      own place, its own shape (a frying pan, a jigsaw piece, an egg, a
+      rocket, a spiral, a pinball table, an island, a stadium, a figure of
+      eight, a winding alley…) and only the 0-3 pieces that fit it. Easy:
+      short, wide, forgiving, asks for 2 or 3. Medium: asks for 3, one or two
+      pieces used cleverly. Hard: asks for 3 to 5, combinations, narrow
+      lines, moving pieces to time.
+    - **A difficulty choice, and random holes**: solo setup and the room's
+      lobby choose **سهل / متوسط / صعب / مكس**; a game of 3, 6, 9 or 18
+      draws its holes at random from that kind; **mixed** takes a third of
+      each and **plays them easiest first**. **Holes played lately don't come
+      back until the kind has gone round**: solo through `freshPick` (per
+      phone), rooms through `nextPrompts` (the server's memory across rooms),
+      so every phone in a room plays the same list (`shared.holes`, the ids
+      in order). The order is never a fixed one.
+    - Everything else as it was: the pieces' physics, knocks in turns, the
+      water rule, at most what the hole asks for + 3, the putt clock, the
+      guide, the TV, solo bests.
+    - Decided here (open to change, each one place in the code): **mixed is
+      the default** (solo and lobby); **the best total is kept per length and
+      kind** (`'mix:6'`, `'hard:9'`…; the bests kept before, per length only
+      over the fixed first holes, are no longer shown - they were a different
+      course); **Cairo Tower moved to easy and now asks for 3** (its lift makes
+      it the easiest of the old eighteen), **the bridge to medium**; which
+      old hole is which kind: easy first, souq, humps, pyramid, siwa,
+      lighthouse, tower; medium bridge, fair, nile, saqia, citadel, port,
+      temple; hard mill, gate, sinai, oasis. The kinds were judged by the
+      test's search and by a simulated player of middling skill (a spread on
+      aim, strength and timing; about 2.9 strokes a hole on easy, 3.5 on
+      medium, 4.8 on hard). A room saved before the holes were drawn plays the
+      first holes (`mgCourse`); a solo game saved before gets them too.
 
 - **كدّاب (I Doubt It)** - the owner's spec of 23 Sep 2026, every rule asked
   one at a time, look ب "بلوكات" picked from a design sheet of four games
@@ -1755,6 +1796,26 @@ the word search), `countUp` for streaks and scores.
   holes in a room); the leak check plays nine holes in turns; robot tests:
   1846, with a knock on a live server and nine holes in turns. A deploy is
   needed for the rooms server.
+- **23 Sep 2026, ميني جولف: sixty holes, a difficulty, «المطلوب»** - the
+  owner's third round, every point asked first (*The owner's specs*): the word
+  بار replaced by المطلوب everywhere; 42 new holes and the eighteen sorted into
+  twenty easy, twenty medium and twenty hard; a difficulty choice (mixed by
+  default, easiest first) with the holes drawn at random through the page's
+  and the server's memory of recent deals (`shared.holes`); bests per length
+  and kind. Every hole was checked the way the tests check it (the search gets
+  in within what it asks for + 1, nowhere to rest that the cup can't be reached
+  from, the gentle putt holes out) and played by a simulated player of
+  middling skill to sort the kinds; each new hole was screenshot at 375×812
+  and reviewed, a sample at 667×375, 1280×720 and the TV at 1920×1080, Arabic
+  and English, light and dark, a room of two phones and a TV playing a mixed
+  game, reloads mid-hole on one phone and in a room, and Help - no console
+  errors. Rules tests: the golf block is 88 checks (sixty holes; the kinds
+  and what each asks for; the draw from a kind, no hole twice, mixed rising;
+  a room's holes on the server, the same on every phone; two games of one
+  kind in a room not sharing a hole; each hole's own most strokes); robot
+  tests 2022 (a mixed game and nine hard holes in turns on a live server).
+  The built page grew 93 KB (5,637,521 → 5,730,957 bytes, 1.7%). A deploy is
+  needed for the rooms server.
 - **23 Sep 2026, one sets, everyone solves** - the owner's decisions asked
   one by one (*The owner's specs*): المشنقة's room way as an engine
   (`RoomSolve.js`, the four games' rules in `SolveGames.js`), and خمن الكلمة,
@@ -1968,8 +2029,8 @@ is nowhere to hide the key card.
 | `RoomOldMaid.js` | `oldMaidAction`: الشايب's deal (the deck grows with the table), the lift and the draw, dragging or shuffling a hand, pairs, the loser and the tally, the clock, leaving; every hand in `room._om`. |
 | `Bowling.js` | بولينج's lane, pins and one throw as plain arithmetic (the same pins on every phone and the server from four whole numbers), and the score sheet: shared by the page and the Worker, every name prefixed `bowl`. |
 | `RoomBowling.js` | `bowlingAction`: the order, each player's card, a throw run on the server (`bowlThrow`) and replayed by every phone, the clock and the host's gentle ball, leaving, the end. |
-| `MiniGolf.js` | ميني جولف's eighteen holes and one putt as plain arithmetic (only + - * / and `Math.sqrt` / `floor` / `abs` / `min` / `max`, never `Math.sin`) - the other balls it knocks included - the pieces (ice, mud, pads, belts, portals, bumpers, ramps, gates), the most strokes (`golfMaxOf`), the way to the cup (`golfField`) and the clock's gentle putt (`golfAutoShot`): shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `golf`. |
-| `RoomMiniGolf.js` | `minigolfAction`: all at once or in turns (the balls on the course knocking each other, `mgOthers`), the server's result of every putt, picking up past par + 3, the hole's card and the next hole on the server's clock, the putt clock, leaving. Bundled after `RoomGames.js`. |
+| `MiniGolf.js` | ميني جولف's sixty holes in three kinds and the draw of a game's holes (`golfDealCourse`), one putt as plain arithmetic (only + - * / and `Math.sqrt` / `floor` / `abs` / `min` / `max`, never `Math.sin`) - the other balls it knocks included - the pieces (ice, mud, pads, belts, portals, bumpers, ramps, gates), the most strokes (`golfMaxOf`), the way to the cup (`golfField`) and the clock's gentle putt (`golfAutoShot`): shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `golf`. |
+| `RoomMiniGolf.js` | `minigolfAction`: the holes dealt through `nextPrompts` (`shared.holes`), all at once or in turns (the balls on the course knocking each other, `mgOthers`), the server's result of every putt, picking up past par + 3, the hole's card and the next hole on the server's clock, the putt clock, leaving. Bundled after `RoomGames.js`. |
 | `WordleWords.js`, `Countries.js` | خمن الكلمة's lists and keypad (`WORDLE_DB`, `WORDLE_LAYOUTS`) and خمّن الدولة's table with the distances (`COUNTRIES`, `FLAG_ALIASES`, `FLAG_MODES`, `flagsDistance`, `flagsBearing`): moved out of `JS_Wordle.html` and `JS_Flags.html` for the rooms, shared by the page (inlined, `SHARED_LISTS`) and the Worker. |
 | `SolveGames.js` | The four solve games' own rules (every name `sv` / `SV_`): a written word and its colours, the ranges and higher / lower, the country hints, an emoji clue's problems: shared by the page (a setter's form checks what it sends) and the Worker. |
 | `RoomSolve.js` | `solveAction`: one sets, everyone solves - the engine (the order, the boards, the points, the clock, leaving) and its four plug-ins (`SOLVE_KINDS`). Bundled after `RoomGames.js`. |
@@ -4343,6 +4404,20 @@ section (27):
 
 The owner's rules are in *The owner's specs*.
 
+- **The course** (the third round, 23 Sep 2026): `GOLF_HOLES` is sixty holes,
+  each with `lvl` 1 easy, 2 medium, 3 hard (twenty each, the array in that
+  order). `golfHoleById`, `golfLevelIds(lvl)`, `golfCourseSplit(count,
+  level)` (one kind, or `'mix'`: a third of each, a hole left over going to
+  the easier kinds) and `golfDealCourse(count, level, pick)`: the ids of a
+  game in the order played, `pick(ids, n, lvl)` choosing within a kind - the
+  page's `freshPick('golf_' + lvl, …)`, the server's `nextPrompts(room, ids,
+  'golf_' + lvl, n)` (from `start` and `playAgain`, both `DEAL_ACTIONS`), a
+  shuffle when none is given. `golfParOf(list)` adds up what a list asks for.
+  `GOLF_LEVELS` is `easy`, `medium`, `hard`, `mix`. A room keeps the ids as
+  `shared.holes` and `settings.level`; `s.hole` is an index into that list
+  (`mgCourse`, `mgHole`). The new holes were drawn with a small geometry kit
+  (arcs, rounded boxes, corridors round a centre line, blobs) and written out
+  as plain numbers, as the old ones were; their comments say what each is.
 - **`MiniGolf.js`** (shared, no DOM). A hole is x to the right and y away from
   the tee in course units (about 10 cm each): `green` (one polygon; its edges
   are rails), `walls` (more rails), `blocks` (solid polygons with a `look`:
@@ -4471,8 +4546,14 @@ The owner's rules are in *The owner's specs*.
     course with the players and the scorecard in a column beside it.
   - Solo lives in `appState.minigolf` and is restored through `soloRegister`;
     a putt's result is kept the moment it is hit, so a reload mid-roll comes
-    back to where the ball ends. The best total per course length is
-    `soloRecord('minigolf', '3' | '6' | '9' | '18')`.
+    back to where the ball ends. The game's holes are `s.game.course` (ids,
+    drawn at start), its kind `s.game.level`. The best total per length and
+    kind is `soloRecord('minigolf', 'mix:6' | 'hard:9' | …)` (`mgBestKey`).
+  - **The strip and the cards read the game's own list** (`mgCourseOf`,
+    `mgRoomHoles`, `mgRoomHole`, `mgSoloCourse`): the hole's name, a chip of
+    its kind (سهل / متوسط / صعب), «المطلوب n · أقصى m» (`mgParMax`), and a
+    scorecard whose «المطلوب» row is each played hole's own (`mgCardHtml(rows,
+    course, …)`).
   - **The new pieces on the screen** (`mgPadMesh`, `mgBeltMesh`,
     `mgRampMesh`, `mgBumperMesh`, `mgPortalMesh`, `mgGateMesh`; ice and mud
     as flat glossy polygons with a rim): a pad's amber arrows and a belt's
@@ -4492,6 +4573,23 @@ The owner's rules are in *The owner's specs*.
     roll that takes a ball another roll is still moving ends that one at once
     (a screen that fell behind). In turns a ball not yet hit from the tee is
     off the course: only the player up waits on the tee.
+  - **The sixty holes' places** (the third round): `MG_LOOKS[id].ground` puts
+    a course on the sea, the moon (with a night sky), a tiled floor or paving
+    instead of the rough (no trees scattered there); `planks` / `kerbs` lay a
+    plank walk; `MG_BLOCKS` draws a hole's obstacles as what they are there
+    (a flagpole with Egypt's flag, a bench, training cones, toy blocks with
+    studs, the giraffes' paddock, a lit Ramadan lantern, a sandcastle,
+    painted eggs, a fountain, a dovecote, pylons, metro pillars, suitcases,
+    Qaitbay's keep, the Sphinx, a golden sarcophagus, chalk mushrooms,
+    corals, Abu Simbel's colossi, rams, a library desk, trays of kahk, a
+    wheelhouse, deck chairs); new `MG_DECO` pieces (hot-air balloons that
+    bob, buildings, giraffes, acacias, umbrellas, stadium stands, toy piles,
+    a metro train, an airliner, planets, hills, crocodiles, bookcases,
+    arcade machines, a small mosque, stars). The scattered trees keep 2.6
+    units from every rail (`mgScenery`'s `edgeGap`), not just off the
+    course's box. A tall piece never stands on a near side: the camera looks
+    from the tee's end on an upright phone and from the +x side on a phone on
+    its side or a big screen.
   - **Each hole's own place** is `MG_LOOKS` (its scenery from `MG_DECO`:
     palms, a felucca, a fountain, a ferris wheel, minarets, a crane and
     containers, Karnak's columns, pines, snowmen and the monastery, Cairo
@@ -5016,6 +5114,26 @@ the lane, was flattened to nothing by perspective (the far half of the push is
 metres long on the lane and a few pixels on the screen); the same bow measured
 on the screen is what the thumb drew. A direction, on the other hand, belongs
 on the lane, where the ball rolls.
+
+**A course's box is not the course.** ميني جولف's scattered trees kept off
+the green grown outward from its box's middle, which is right for a rectangle
+and wrong for a hole that turns a corner: bushes grew in the elbow of an L,
+their crowns over the rail. They keep a distance from every edge of the green
+now. And a tall piece of scenery placed "beside" the course can stand between
+it and the camera: on a phone on its side and on a big screen the camera looks
+from the +x side, so a building there hid half a hole in landscape while the
+upright view was fine. Look at every hole both ways round.
+
+**A maze written as a list of open passages must read them either way.** The
+first hedge maze listed its passages as 'a|b' and checked only 'a|b', so the
+ones written the other way round became walls and the maze had no way through
+(the test's search said so at once). Normalise a pair before looking it up.
+
+**The rules tests have no prompt memory across rooms.** `nextPrompts` reads
+the shared memory through `PropertiesService`, which `rules.mjs` doesn't have,
+so each room there only remembers its own deals. A test that holes don't come
+back across games deals them in one room (back to the hub and start again);
+across rooms is the live server's job.
 
 **A half-pipe is a pipe until you check which half.** The bowling gutters
 are half of a `CylinderGeometry` (`thetaStart`, `thetaLength` π) turned

@@ -618,7 +618,7 @@ function mg3SetHole(h, key) {
 
   // The rough, far and wide, and the course raised on a stone plinth.
   const ground = look.ground || (look.snow ? 'snow' : look.desert ? 'sand' : 'rough');
-  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex(ground, 30, 30), roughness: ground === 'sea' ? 0.35 : ground === 'tiles' ? 0.6 : 1 }), false, true);
+  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex(ground, ground === 'sea' ? 12 : 30, ground === 'sea' ? 12 : 30), roughness: ground === 'sea' ? 0.35 : ground === 'tiles' ? 0.6 : 1 }), false, true);
   // The sky: night over the moon, day everywhere else.
   MG3.scene.background.set(look.night ? 0x0b1026 : 0xbfe3f2);
   rough.rotation.x = -Math.PI / 2;
@@ -702,7 +702,7 @@ function mg3SetHole(h, key) {
     G.add(pl);
     // its edges: low stone kerbs where the planks meet the water
     const kerbMat = mgMat({ color: 0x9c8c74, roughness: 0.8 });
-    [[0, 3], [1, 2]].forEach(([a, c]) => {
+    (look.kerbs || [[0, 3], [1, 2]]).forEach(([a, c]) => {
       const p = look.planks[a], q = look.planks[c];
       G.add(mgBar(p[0], p[1], q[0], q[1], 0.12, 0.08, kerbMat, 0.02));
     });
@@ -1409,8 +1409,17 @@ function mgScenery(G, h, look) {
   if (look.ground) return;     // no trees on the sea, the moon, a floor or paving
   const avoid = (look.deco || []).map(d => [d.x, d.y]);
   const near = (x, y) => avoid.some(p => Math.hypot(p[0] - x, p[1] - y) < 2.4);
-  const grown = mgGrow(h.green, 1.6);
-  const onCourse = (x, y) => x > b.x0 - 1.6 && x < b.x1 + 1.6 && y > b.y0 - 1.6 && y < b.y1 + 1.6 && golfInPoly(x, y, grown);
+  // Never on the course, nor near enough its rails for a crown to hang over them (a hole that turns a corner has rough inside its box).
+  const edgeGap = (x, y) => {
+    let best = Infinity;
+    h.green.forEach((p, i) => {
+      const q = h.green[(i + 1) % h.green.length], ex = q[0] - p[0], ey = q[1] - p[1], l2 = ex * ex + ey * ey;
+      const u = l2 ? Math.max(0, Math.min(1, ((x - p[0]) * ex + (y - p[1]) * ey) / l2)) : 0;
+      best = Math.min(best, Math.hypot(x - p[0] - ex * u, y - p[1] - ey * u));
+    });
+    return best;
+  };
+  const onCourse = (x, y) => golfInPoly(x, y, h.green) || edgeGap(x, y) < 2.6;
   let placed = 0, tries = 0;
   const want = 50;
   while (placed < want && tries < 900) {
@@ -1479,13 +1488,6 @@ function mgInstances(G, geo, mat, list, cast) {
   m.receiveShadow = true;
   G.add(m);
   return m;
-}
-/** A polygon grown outward by `d` (roughly: from its middle), for keeping the scenery off the course. */
-function mgGrow(poly, d) {
-  const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-  poly.forEach(p => { b.x0 = Math.min(b.x0, p[0]); b.y0 = Math.min(b.y0, p[1]); b.x1 = Math.max(b.x1, p[0]); b.y1 = Math.max(b.y1, p[1]); });
-  const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
-  return poly.map(p => [p[0] + Math.sign(p[0] - cx) * d, p[1] + Math.sign(p[1] - cy) * d]);
 }
 
 const MG_DECO = {
@@ -1858,7 +1860,7 @@ Object.assign(MG_TEXTURES, {
     const [c, g] = mgCanvas(256, 256), r = mgRnd(111);
     g.fillStyle = '#2b86c5'; g.fillRect(0, 0, 256, 256);
     for (let k = 0; k < 500; k++) { g.fillStyle = `rgba(${r() < 0.5 ? '20,90,150' : '120,200,240'},0.25)`; g.beginPath(); g.ellipse(r() * 256, r() * 256, 6 + r() * 16, 2 + r() * 4, 0, 0, 7); g.fill(); }
-    for (let k = 0; k < 160; k++) { g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(r() * 256, r() * 256, 3 + r() * 6, 1); }
+    for (let k = 0; k < 60; k++) { g.fillStyle = 'rgba(255,255,255,.28)'; g.beginPath(); g.ellipse(r() * 256, r() * 256, 3 + r() * 4, 1.2, 0, 0, 7); g.fill(); }
     return c;
   },
   moon() {
@@ -2391,56 +2393,56 @@ Object.assign(MG_DECO, {
 
 Object.assign(MG_LOOKS, {
   corniche: { ground: 'sea', deco: [{ k: 'lantern', x: -0.6, y: 3 }, { k: 'lantern', x: -0.4, y: 10 }, { k: 'lantern', x: 7.8, y: 5 }, { k: 'lantern', x: 8.8, y: 12 },
-    { k: 'felucca', x: 13.5, y: 6 }, { k: 'felucca', x: -3.5, y: 22 }, { k: 'palm', x: 9.6, y: 8.2 }, { k: 'felucca', x: 15, y: 20 }] },
-  kitchen: { ground: 'tiles', deco: [{ k: 'building', x: -3.2, y: 20, w: 2.4, dd: 2, hh: 4, c: 0xffffff, roof: 0xdddddd }, { k: 'building', x: 15.2, y: 12, w: 2, dd: 8, hh: 1.9, c: 0xc9a27a, roof: 0x6d4c41 },
+    { k: 'felucca', x: 13.5, y: 6 }, { k: 'felucca', x: -3.5, y: 22 }, { k: 'felucca', x: 15, y: 20 }] },
+  kitchen: { ground: 'tiles', deco: [{ k: 'building', x: -3.2, y: 20, w: 2.4, dd: 2, hh: 4, c: 0xffffff, roof: 0xdddddd }, { k: 'building', x: 16, y: 12, w: 2, dd: 8, hh: 1.9, c: 0xc9a27a, roof: 0x6d4c41 },
     { k: 'building', x: -3, y: 6, w: 2, dd: 6, hh: 1.9, c: 0xc9a27a, roof: 0x6d4c41 }, { k: 'toybox', x: 12, y: -3 }] },
-  balloons: { deco: [{ k: 'balloon', x: -4.5, y: 12, hgt: 6.5 }, { k: 'balloon', x: 16.5, y: 18, hgt: 8 }, { k: 'balloon', x: 4, y: 31, hgt: 9, s: 1.2 }, { k: 'balloon', x: 15, y: 4, hgt: 5, s: 0.8 },
+  balloons: { deco: [{ k: 'balloon', x: 0.2, y: 3, hgt: 3.6, s: 0.8 }, { k: 'balloon', x: 12.6, y: 6, hgt: 4.2, s: 0.9 }, { k: 'balloon', x: -1.8, y: 26, hgt: 4.6, s: 1.1 }, { k: 'balloon', x: 15, y: 22, hgt: 6, s: 0.8 },
     { k: 'columns', x: -3.4, y: 22 }, { k: 'palm', x: 14.6, y: 26 }, { k: 'palm', x: -2.4, y: 3 }] },
-  school: { ground: 'tiles', deco: [{ k: 'building', x: -5.5, y: 21, w: 9, dd: 4, hh: 6, c: 0xf2d0a4 }, { k: 'building', x: 17.5, y: 6, w: 4, dd: 10, hh: 5, c: 0xf2d0a4 },
-    { k: 'flowerbed', x: 14.6, y: 18, len: 8 }, { k: 'palm', x: 3, y: 18.4 }] },
-  football: { deco: [{ k: 'stands', x: -2.5, y: 13, len: 22, dir: -1 }, { k: 'stands', x: 14.5, y: 13, len: 22, dir: 1 }, { k: 'building', x: 6, y: 32, w: 10, dd: 2, hh: 5, c: 0xe63946, roof: 0x222222 }] },
+  school: { ground: 'tiles', deco: [{ k: 'building', x: -5.5, y: 21, w: 9, dd: 4, hh: 6, c: 0xf2d0a4 }, { k: 'building', x: 20.5, y: 8, w: 4, dd: 10, hh: 5, c: 0xf2d0a4 },
+    { k: 'flowerbed', x: 15, y: 18, len: 8 }, { k: 'palm', x: -2.6, y: 20.5 }] },
+  football: { deco: [{ k: 'stands', x: -2.5, y: 13, len: 22, dir: -1 }, { k: 'stands', x: 15.2, y: 13, len: 22, dir: 1 }, { k: 'building', x: 6, y: 32, w: 10, dd: 2, hh: 5, c: 0xe63946, roof: 0x222222 }] },
   toys: { ground: 'tiles', deco: [{ k: 'toybox', x: -5, y: 3 }, { k: 'toybox', x: 16.5, y: 18 }, { k: 'toybox', x: 16, y: 5 }, { k: 'building', x: -6, y: 20, w: 2, dd: 6, hh: 3, c: 0x8ecae6, roof: 0x219ebc }] },
-  zoo: { deco: [{ k: 'giraffe', x: -3.5, y: 12, r: 1.2 }, { k: 'acacia', x: -4, y: 18 }, { k: 'acacia', x: 15.5, y: 8 }, { k: 'palm', x: 15, y: 20 }, { k: 'tent', x: 16, y: 1 }, { k: 'arch', x: 6, y: -1.7 }] },
-  lanterns: { deco: [{ k: 'building', x: -3.8, y: 8, w: 4, dd: 7, hh: 5, c: 0xe9c46a }, { k: 'building', x: 13.2, y: 14, w: 4, dd: 8, hh: 6, c: 0xf4a261 }, { k: 'dome', x: -4, y: 21, s: 0.9 },
+  zoo: { deco: [{ k: 'giraffe', x: -3.5, y: 12, r: 1.2 }, { k: 'acacia', x: -4, y: 18 }, { k: 'acacia', x: 16.8, y: 8 }, { k: 'palm', x: 16.8, y: 20 }, { k: 'tent', x: 16, y: 1 }, { k: 'arch', x: 6, y: -1.7 }] },
+  lanterns: { deco: [{ k: 'building', x: -3.8, y: 8, w: 4, dd: 7, hh: 5, c: 0xe9c46a }, { k: 'building', x: 18, y: 14, w: 4, dd: 8, hh: 6, c: 0xf4a261 }, { k: 'dome', x: -4, y: 21, s: 0.9 },
     { k: 'lantern', x: 11, y: 4 }, { k: 'lantern', x: 0.2, y: 16 }, { k: 'lantern', x: 11.4, y: 22 }] },
   beach: { desert: true, deco: [{ k: 'umbrella', x: -2.6, y: 6 }, { k: 'umbrella', x: -3, y: 14 }, { k: 'umbrella', x: -2.4, y: 22 }, { k: 'palm', x: -5, y: 10 }, { k: 'palm', x: 6, y: 29 }, { k: 'felucca', x: 15, y: 13 }] },
-  sham: { deco: [{ k: 'tulips', x: -2.6, y: 6 }, { k: 'tulips', x: 14.6, y: 12 }, { k: 'flowerbed', x: -2.2, y: 16, len: 8 }, { k: 'palm', x: 14.6, y: 22 }, { k: 'acacia', x: -3.6, y: 24 }] },
+  sham: { deco: [{ k: 'tulips', x: -2.6, y: 6 }, { k: 'tulips', x: 14.6, y: 12 }, { k: 'flowerbed', x: -2.2, y: 16, len: 8 }, { k: 'palm', x: 16.6, y: 22 }, { k: 'acacia', x: -3.6, y: 24 }] },
   garden: { deco: [{ k: 'arch', x: 6, y: -1.8 }, { k: 'flowerbed', x: -1.8, y: 14, len: 5 }, { k: 'flowerbed', x: 13.8, y: 14, len: 5 }, { k: 'tulips', x: 6, y: 27.6 }, { k: 'palm', x: -3, y: 22 }] },
-  village: { deco: [{ k: 'nubian', x: -4, y: 12, r: 0.3 }, { k: 'nubian', x: 15.8, y: 16, r: -0.4 }, { k: 'wheel', x: 11.4, y: 6.4 }, { k: 'palm', x: 1.5, y: 7 }, { k: 'camel', x: 13.5, y: 2, r: 2.2 }] },
+  village: { deco: [{ k: 'nubian', x: -4, y: 12, r: 0.3 }, { k: 'nubian', x: 17.2, y: 16, r: -0.4 }, { k: 'wheel', x: 11.4, y: 6.4 }, { k: 'palm', x: -1.6, y: 5 }, { k: 'camel', x: 13.5, y: 2, r: 2.2 }] },
   philae: { ground: 'sea', deco: [{ k: 'felucca', x: -3.5, y: 6 }, { k: 'felucca', x: 16, y: 12 }, { k: 'papyrus', x: 3.4, y: 2 }, { k: 'papyrus', x: 10, y: 3.4 }, { k: 'palm', x: -1.5, y: 21 }] },
-  khan: { deco: [{ k: 'building', x: -5, y: 16, w: 5, dd: 8, hh: 6, c: 0xd9a066 }, { k: 'building', x: 14, y: 6, w: 4, dd: 8, hh: 5, c: 0xe9c46a }, { k: 'dome', x: 12, y: 25 },
+  khan: { deco: [{ k: 'building', x: -5, y: 16, w: 5, dd: 8, hh: 6, c: 0xd9a066 }, { k: 'building', x: 18.6, y: 6, w: 4, dd: 8, hh: 5, c: 0xe9c46a }, { k: 'dome', x: 16.6, y: 27 },
     { k: 'lantern', x: 7.5, y: 21 }, { k: 'lantern', x: 0, y: 12 }, { k: 'tent', x: -5.4, y: 4 }] },
-  metro: { ground: 'tiles', deco: [{ k: 'train', x: -2.6, y: 13, len: 22 }, { k: 'train', x: 16.6, y: 13, len: 22 }] },
+  metro: { ground: 'tiles', deco: [{ k: 'train', x: -2.6, y: 13, len: 22 }, { k: 'train', x: 17.4, y: 13, len: 22 }] },
   airport: { ground: 'tiles', deco: [{ k: 'plane', x: 21, y: 13, r: 0 }, { k: 'building', x: -6, y: 13, w: 6, dd: 14, hh: 5, c: 0xdfe7ef, roof: 0x6c7a89 }, { k: 'palm', x: 7, y: 30 }] },
   qaitbay: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 10 }, { k: 'felucca', x: 17.5, y: 18 }, { k: 'lighthouse', x: 16.5, y: 30 }, { k: 'palm', x: -2.5, y: 27 }] },
-  fayoum: { deco: [{ k: 'wheel', x: -2.6, y: 8 }, { k: 'papyrus', x: 14, y: 14 }, { k: 'palm', x: 15, y: 4 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'nubian', x: 16, y: 23 }, { k: 'papyrus', x: -1.6, y: 14.6 }] },
+  fayoum: { deco: [{ k: 'wheel', x: -2.6, y: 8 }, { k: 'papyrus', x: 14, y: 14 }, { k: 'palm', x: 17, y: 4 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'nubian', x: 18, y: 23 }, { k: 'papyrus', x: -1.6, y: 14.6 }] },
   icecream: { ground: 'tiles', deco: [{ k: 'umbrella', x: -2.8, y: 6 }, { k: 'umbrella', x: 14.8, y: 8 }, { k: 'building', x: 6, y: 29.5, w: 8, dd: 3, hh: 4, c: 0xffc8dd, roof: 0xff5d8f }, { k: 'toybox', x: 15.5, y: 20 }] },
   carousel: { deco: [{ k: 'ferris', x: 6.4, y: 29.8 }, { k: 'tent', x: -3.6, y: 8 }, { k: 'tent', x: 16.4, y: 15 }, { k: 'arch', x: 6.4, y: -1.7 }, { k: 'balloon', x: -4, y: 20, hgt: 5, s: 0.6 }] },
-  sphinx: { desert: true, deco: [{ k: 'farPyramid', x: -10, y: 36, s: 1.4 }, { k: 'farPyramid', x: 22, y: 40, s: 1.1 }, { k: 'camel', x: -3.2, y: 6, r: 1.4 }, { k: 'palm', x: 16, y: 10 }, { k: 'palm', x: -2.8, y: 22 }] },
-  dam: { deco: [{ k: 'hill', x: -8, y: 18, rad: 6 }, { k: 'hill', x: 20, y: 22, rad: 6 }, { k: 'nubian', x: -3.8, y: 5 }, { k: 'palm', x: 15.4, y: 5 }, { k: 'felucca', x: 10.6, y: 20.6 }] },
+  sphinx: { desert: true, deco: [{ k: 'farPyramid', x: -10, y: 36, s: 1.4 }, { k: 'farPyramid', x: 22, y: 40, s: 1.1 }, { k: 'camel', x: -3.2, y: 6, r: 1.4 }, { k: 'palm', x: 17.6, y: 10 }, { k: 'palm', x: -2.8, y: 22 }] },
+  dam: { deco: [{ k: 'hill', x: -8, y: 18, rad: 6 }, { k: 'hill', x: 21.5, y: 22, rad: 6 }, { k: 'nubian', x: -3.8, y: 5 }, { k: 'palm', x: 17.2, y: 5 }, { k: 'felucca', x: 10.6, y: 20.6 }] },
   whitedesert: { desert: true, deco: [{ k: 'tent', x: -3.4, y: 22 }, { k: 'camel', x: 16, y: 20, r: 2 }, { k: 'hill', x: 22, y: 8, rad: 5, c: 0xf1eadb }, { k: 'hill', x: -9, y: 10, rad: 5, c: 0xf1eadb }] },
-  redsea: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 20 }, { k: 'felucca', x: 16.5, y: 6 }, { k: 'umbrella', x: 6.5, y: -2.4 }] },
-  abusimbel: { desert: true, deco: [{ k: 'hill', x: 6.5, y: 34, rad: 9, sy: 0.6 }, { k: 'camel', x: -3.5, y: 8, r: 1 }, { k: 'palm', x: 16, y: 5 }, { k: 'palm', x: -2.6, y: 18 }] },
+  redsea: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 20 }, { k: 'felucca', x: 16.5, y: 6 }, { k: 'felucca', x: 6.5, y: -3 }] },
+  abusimbel: { desert: true, deco: [{ k: 'hill', x: 6.5, y: 34, rad: 9, sy: 0.6 }, { k: 'camel', x: -3.5, y: 8, r: 1 }, { k: 'palm', x: 17.6, y: 5 }, { k: 'palm', x: -2.6, y: 18 }] },
   giza: { desert: true, deco: [{ k: 'farPyramid', x: -12, y: 36, s: 1.3 }, { k: 'camel', x: -3, y: 4, r: 1.8 }, { k: 'camel', x: 17, y: 12, r: 3.4 }, { k: 'tent', x: 17, y: 24 }, { k: 'palm', x: -2.4, y: 22 }] },
-  kings: { desert: true, deco: [{ k: 'hill', x: -7, y: 14, rad: 7, sy: 0.7 }, { k: 'hill', x: 20, y: 8, rad: 7, sy: 0.6 }, { k: 'hill', x: 7, y: 36, rad: 9, sy: 0.6 }, { k: 'camel', x: 15, y: 18, r: 3 }] },
+  kings: { desert: true, deco: [{ k: 'hill', x: -7, y: 14, rad: 7, sy: 0.7 }, { k: 'hill', x: 23.5, y: 8, rad: 7, sy: 0.6 }, { k: 'hill', x: 7, y: 36, rad: 9, sy: 0.6 }, { k: 'camel', x: 15, y: 18, r: 3 }] },
   space: { ground: 'moon', night: true, deco: [{ k: 'stars', x: 7, y: 13 }, { k: 'planet', x: -6, y: 22, hgt: 7, rad: 2, c: 0xf4a261, ring: true }, { k: 'planet', x: 20, y: 8, hgt: 5, rad: 1.2, c: 0x4cc9f0 },
     { k: 'planet', x: 16, y: 30, hgt: 9, rad: 1.6, c: 0xe63946 }] },
-  bluehole: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 8 }, { k: 'felucca', x: 19, y: 20 }, { k: 'umbrella', x: 7.5, y: -2.6 }] },
-  hatshepsut: { desert: true, deco: [{ k: 'hill', x: 7, y: 36, rad: 12, sy: 0.7 }, { k: 'palm', x: -2.8, y: 4 }, { k: 'palm', x: 16.8, y: 4 }, { k: 'columns', x: -2, y: 14 }, { k: 'columns', x: 16, y: 14 }] },
-  suez: { desert: true, deco: [{ k: 'crane', x: 18, y: 14 }, { k: 'containers', x: -4, y: 20 }, { k: 'containers', x: 16, y: 3 }, { k: 'palm', x: -2.6, y: 6 }] },
-  ibntulun: { ground: 'paving', deco: [{ k: 'minaret', x: -3, y: 20 }, { k: 'dome', x: 15.5, y: 18 }, { k: 'arch', x: 6, y: -1.8 }, { k: 'lantern', x: 13.4, y: 6 }] },
-  komombo: { desert: true, deco: [{ k: 'croc', x: -2.4, y: 13, r: 0.3 }, { k: 'croc', x: 16.4, y: 14, r: 2.8 }, { k: 'columns', x: 16.4, y: 23 }, { k: 'palm', x: -2.6, y: 4 }, { k: 'palm', x: -2.8, y: 24 }] },
-  rink: { snow: true, deco: [{ k: 'pine', x: -2.4, y: 6 }, { k: 'pine', x: 14.4, y: 10 }, { k: 'pine', x: -2.8, y: 20 }, { k: 'snowman', x: 14.2, y: 22 }, { k: 'snowman', x: 6, y: -2.4 }] },
-  library: { ground: 'tiles', deco: [{ k: 'shelf', x: -1.6, y: 13, len: 22 }, { k: 'shelf', x: 14.6, y: 13, len: 22 }, { k: 'shelf', x: 6.5, y: 29.6, len: 10, r: Math.PI / 2 }] },
-  avenue: { desert: true, deco: [{ k: 'palm', x: -4, y: 8 }, { k: 'palm', x: 8.8, y: 14 }, { k: 'palm', x: -4.2, y: 20 }, { k: 'columns', x: 11.4, y: 27 }, { k: 'columns', x: -5.4, y: 28 }, { k: 'farPyramid', x: 22, y: 40, s: 1 }] },
+  bluehole: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 8 }, { k: 'felucca', x: 19, y: 20 }, { k: 'felucca', x: 7.5, y: -3 }] },
+  hatshepsut: { desert: true, deco: [{ k: 'hill', x: 7, y: 36, rad: 12, sy: 0.7 }, { k: 'palm', x: -2.8, y: 4 }, { k: 'palm', x: 17.6, y: 4 }, { k: 'columns', x: -2, y: 14 }, { k: 'columns', x: 19.5, y: 14 }] },
+  suez: { desert: true, deco: [{ k: 'crane', x: 21, y: 14 }, { k: 'containers', x: -4, y: 20 }, { k: 'containers', x: 17.6, y: 3 }, { k: 'palm', x: -2.6, y: 6 }] },
+  ibntulun: { ground: 'paving', deco: [{ k: 'minaret', x: -3, y: 20 }, { k: 'dome', x: 19, y: 18 }, { k: 'arch', x: 6, y: -1.8 }, { k: 'lantern', x: 13.4, y: 6 }] },
+  komombo: { desert: true, planks: [[6, 9], [6, 10.608], [10.2, 13.808], [10.2, 18], [7, 18], [7, 15.392], [2.8, 12.192], [2.8, 9]], kerbs: [[0, 1], [1, 2], [2, 3], [4, 5], [5, 6], [6, 7]], deco: [{ k: 'croc', x: -2.4, y: 13, r: 0.3 }, { k: 'croc', x: 16.4, y: 14, r: 2.8 }, { k: 'columns', x: 19, y: 23 }, { k: 'palm', x: -2.6, y: 4 }, { k: 'palm', x: -2.8, y: 24 }] },
+  rink: { snow: true, deco: [{ k: 'pine', x: -2.4, y: 6 }, { k: 'pine', x: 16, y: 10 }, { k: 'pine', x: -2.8, y: 20 }, { k: 'snowman', x: 14.2, y: 22 }, { k: 'snowman', x: 6, y: -2.4 }] },
+  library: { ground: 'tiles', deco: [{ k: 'shelf', x: -1.6, y: 13, len: 22 }, { k: 'shelf', x: 16, y: 13, len: 22 }, { k: 'shelf', x: 6.5, y: 29.6, len: 10, r: Math.PI / 2 }] },
+  avenue: { desert: true, deco: [{ k: 'palm', x: -4, y: 8 }, { k: 'palm', x: 10.6, y: 14 }, { k: 'palm', x: -4.2, y: 20 }, { k: 'columns', x: 14, y: 27 }, { k: 'columns', x: -5.4, y: 28 }, { k: 'farPyramid', x: 22, y: 40, s: 1 }] },
   stanley: { ground: 'sea', deco: [{ k: 'felucca', x: -3.6, y: 12 }, { k: 'felucca', x: 16.6, y: 14 }, { k: 'felucca', x: 6, y: 31 }, { k: 'lighthouse', x: 18, y: 28 }] },
-  moez: { ground: 'paving', deco: [{ k: 'building', x: -4, y: 10, w: 4, dd: 8, hh: 6, c: 0xd9a066 }, { k: 'building', x: 14.6, y: 17, w: 4, dd: 8, hh: 7, c: 0xe9c46a }, { k: 'minaret', x: 14.6, y: 4 },
+  moez: { ground: 'paving', deco: [{ k: 'building', x: -4, y: 10, w: 4, dd: 8, hh: 6, c: 0xd9a066 }, { k: 'building', x: 19, y: 17, w: 4, dd: 8, hh: 7, c: 0xe9c46a }, { k: 'minaret', x: 18, y: 4 },
     { k: 'dome', x: -4.4, y: 24 }, { k: 'lantern', x: 11.6, y: 10 }, { k: 'lantern', x: 0.6, y: 21 }] },
-  bakery: { ground: 'tiles', deco: [{ k: 'building', x: -3.6, y: 12.5, w: 3, dd: 6, hh: 3, c: 0xa0522d, roof: 0x5a3d2a }, { k: 'shelf', x: 16, y: 13, len: 14 }, { k: 'toybox', x: 16, y: -2 }] },
-  montaza: { deco: [{ k: 'building', x: 7, y: 32, w: 8, dd: 4, hh: 6, c: 0xd9b48f, roof: 0x7b2d26 }, { k: 'palm', x: -2.8, y: 10 }, { k: 'palm', x: 16.8, y: 18 }, { k: 'palm', x: 16.4, y: 4 },
+  bakery: { ground: 'tiles', deco: [{ k: 'building', x: -3.6, y: 12.5, w: 3, dd: 6, hh: 3, c: 0xa0522d, roof: 0x5a3d2a }, { k: 'shelf', x: 17.5, y: 13, len: 14 }, { k: 'toybox', x: 16, y: -2 }] },
+  montaza: { deco: [{ k: 'building', x: 7, y: 32, w: 8, dd: 4, hh: 6, c: 0xd9b48f, roof: 0x7b2d26 }, { k: 'palm', x: -2.8, y: 10 }, { k: 'palm', x: 18, y: 18 }, { k: 'palm', x: 18, y: 4 },
     { k: 'flowerbed', x: -2, y: 20, len: 6 }] },
   arcade: { ground: 'tiles', deco: [{ k: 'cabinet', x: -1.6, y: 6, r: Math.PI / 2, c: 0x7b2cbf }, { k: 'cabinet', x: -1.6, y: 10, r: Math.PI / 2, c: 0xe63946 }, { k: 'cabinet', x: -1.6, y: 14, r: Math.PI / 2, c: 0x219ebc },
-    { k: 'cabinet', x: 15.6, y: 8, r: -Math.PI / 2, c: 0xffb703 }, { k: 'cabinet', x: 15.6, y: 12, r: -Math.PI / 2, c: 0x2a9d8f }, { k: 'toybox', x: 16, y: 22 }] },
+    { k: 'cabinet', x: 17, y: 8, r: -Math.PI / 2, c: 0xffb703 }, { k: 'cabinet', x: 17, y: 12, r: -Math.PI / 2, c: 0x2a9d8f }, { k: 'toybox', x: 16, y: 22 }] },
   nilecruise: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 14 }, { k: 'felucca', x: 17, y: 6 }, { k: 'farPyramid', x: -14, y: 40, s: 1.2 }, { k: 'palm', x: 22, y: 28, s: 1.2 }] }
 });
 

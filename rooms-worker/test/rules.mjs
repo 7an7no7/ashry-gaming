@@ -4175,6 +4175,176 @@ Date.now = duelTestClock;
     'hangman: play again keeps the way of playing');
 }
 
+/* --- حرب السفن: the fleets, the shots, the phone's admiral, winner stays on ------- */
+{
+  const BS = new Function(readFileSync(new URL('../../Battleship.js', import.meta.url), 'utf8') +
+    '\nreturn { BS_SHIPS, BS_SEA, BS_MISS, BS_HIT, BS_SUNK, BS_CLEAR, bsFleetProblem, bsCanPlace, bsRandomFleet, bsNewSea, bsFire, bsAiShot, bsAllSunk, bsShipCells, bsCoord, bsOccupancy, bsRandomCell };')();
+  const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  // A fleet along the top-left, every ship a row apart: it sails.
+  const rows = () => [{ x: 0, y: 0, d: 'h' }, { x: 0, y: 2, d: 'h' }, { x: 0, y: 4, d: 'h' }, { x: 0, y: 6, d: 'h' }, { x: 0, y: 8, d: 'h' }];
+  check(BS.BS_SHIPS.map((s) => s.len).join(',') === '5,4,3,3,2', 'battleship: five ships, 5, 4, 3, 3 and 2');
+  check(BS.bsFleetProblem(rows()) === null, 'battleship: a fleet a row apart sails');
+  const touching = rows(); touching[1] = { x: 0, y: 1, d: 'h' };
+  check(BS.bsFleetProblem(touching) === 'touch', 'battleship: two ships side by side are refused');
+  const diag = rows(); diag[3] = { x: 5, y: 6, d: 'h' }; diag[4] = { x: 8, y: 7, d: 'h' };  // (7, 6) and (8, 7) meet at a corner
+  check(BS.bsFleetProblem(diag) === 'touch', 'battleship: ships meeting only at a corner are refused too');
+  const over = rows(); over[1] = { x: 2, y: 0, d: 'v' };
+  check(BS.bsFleetProblem(over) === 'overlap', 'battleship: two ships on one square are refused');
+  const out = rows(); out[0] = { x: 7, y: 0, d: 'h' };
+  check(BS.bsFleetProblem(out) === 'out' && BS.bsFleetProblem([]) === 'shape' && BS.bsFleetProblem(rows().map((p) => ({ x: p.x + 0.5, y: p.y, d: p.d }))) === 'shape',
+    'battleship: off the board, or not five whole placements, is refused');
+  check(!BS.bsCanPlace(rows(), 4, { x: 3, y: 7, d: 'v' }) && BS.bsCanPlace(rows(), 4, { x: 9, y: 9, d: 'h' }) === false && BS.bsCanPlace(rows(), 4, { x: 8, y: 9, d: 'h' }) && BS.bsCanPlace(rows(), 4, { x: 8, y: 1, d: 'v' }),
+    'battleship: a ship moved on the board fits only where it touches nothing');
+  let random = true;
+  for (let k = 0; k < 300; k++) if (BS.bsFleetProblem(BS.bsRandomFleet(Math.random, k % 3 ? 'easy' : 'hard'))) random = false;
+  check(random, 'battleship: a random fleet (the 🎲, the server\'s, the phone\'s hard one) always sails');
+  check(BS.bsCoord(0) === 'A1' && BS.bsCoord(17) === 'H2' && BS.bsCoord(99) === 'J10', 'battleship: a square is named by its column letter and its row number');
+
+  // Shots at a sea: a miss, a hit, a sunk ship with the water round it marked.
+  const sea = BS.bsNewSea();
+  const fleet = rows();
+  const m = BS.bsFire(sea, fleet, 82);
+  check(m.res === 'miss' && sea.grid[82] === BS.BS_MISS && BS.bsFire(sea, fleet, 82) === null && BS.bsFire(sea, fleet, 100) === null,
+    'battleship: a miss is marked, and a square already fired at (or off the board) can\'t be fired at again');
+  const h1 = BS.bsFire(sea, fleet, 80);
+  check(h1.res === 'hit' && sea.grid[80] === BS.BS_HIT && sea.sunk.length === 0, 'battleship: a hit is marked and the ship is still afloat');
+  const h2 = BS.bsFire(sea, fleet, 81);
+  check(h2.res === 'sunk' && h2.ship === 4 && JSON.stringify(h2.cells) === '[80,81]' && sea.grid[80] === BS.BS_SUNK &&
+    JSON.stringify(sea.sunk) === JSON.stringify([{ i: 4, x: 0, y: 8, d: 'h' }]),
+    'battleship: the last square of a ship sinks it, and which ship it was is known');
+  check(JSON.stringify(h2.water.slice().sort((a, b) => a - b)) === '[70,71,72,90,91,92]' && [70, 71, 72, 90, 91, 92].every((c) => sea.grid[c] === BS.BS_CLEAR) && sea.grid[82] === BS.BS_MISS,
+    'battleship: the water round a sunk ship is marked (a square already missed stays a miss)');
+  [0, 1, 2, 3, 4, 20, 21, 22, 23, 40, 41, 42, 60, 61].forEach((c) => BS.bsFire(sea, fleet, c));
+  const last = BS.bsFire(sea, fleet, 62);
+  check(last.res === 'sunk' && last.over && BS.bsAllSunk(sea), 'battleship: the last ship down ends it');
+
+  // The admiral: always a legal square, always finishes, hard beats easy.
+  let legal = true, finished = true;
+  const fleetShots = (level, rnd) => {
+    const s2 = BS.bsNewSea();
+    const f = BS.bsRandomFleet(rnd);
+    let n = 0;
+    while (!BS.bsAllSunk(s2) && n < 100) {
+      const c = BS.bsAiShot(s2, level, rnd);
+      if (!BS.bsFire(s2, f, c)) { legal = false; break; }
+      n++;
+    }
+    if (!BS.bsAllSunk(s2)) finished = false;
+    return n;
+  };
+  const avg = {};
+  ['easy', 'medium', 'hard'].forEach((lv, k) => {
+    const rnd = seeded(97 + k);
+    let t = 0;
+    for (let g = 0; g < 60; g++) t += fleetShots(lv, rnd);
+    avg[lv] = t / 60;
+  });
+  check(legal && finished, 'battleship: the phone\'s shot is always a square not fired at, and it always sinks the fleet (easy, medium, hard)');
+  check(avg.hard < avg.medium && avg.medium < avg.easy && avg.hard < 50,
+    `battleship: hard needs fewer shots than medium, medium than easy (${avg.hard.toFixed(1)} / ${avg.medium.toFixed(1)} / ${avg.easy.toFixed(1)})`);
+  // Head to head, a hit shooting again: hard against easy.
+  const duel = (a, b, rnd) => {
+    const seas = [BS.bsNewSea(), BS.bsNewSea()], fl = [BS.bsRandomFleet(rnd, a), BS.bsRandomFleet(rnd, b)], lv = [a, b];
+    let turn = rnd() < 0.5 ? 0 : 1;
+    for (let k = 0; k < 400; k++) {
+      const res = BS.bsFire(seas[1 - turn], fl[1 - turn], BS.bsAiShot(seas[1 - turn], lv[turn], rnd));
+      if (res.over) return turn;
+      if (res.res === 'miss') turn = 1 - turn;
+    }
+    return -1;
+  };
+  const rnd = seeded(4242);
+  let hardWins = 0;
+  for (let g = 0; g < 60; g++) if (duel('hard', 'easy', rnd) === 0) hardWins++;
+  check(hardWins >= 50, `battleship: hard beats easy head to head (${hardWins} of 60)`);
+  // The admiral knows ships never touch: next to a lone hit it never fires on a corner.
+  const s3 = BS.bsNewSea();
+  s3.grid[44] = BS.BS_HIT;
+  let corners = 0;
+  for (let k = 0; k < 40; k++) if ([33, 35, 53, 55].indexOf(BS.bsAiShot(s3, 'hard')) !== -1) corners++;
+  const med = BS.bsAiShot(s3, 'medium');
+  check(corners === 0 && [34, 43, 45, 54].indexOf(med) !== -1, 'battleship: after a hit, medium and hard fire beside it, never on a corner');
+
+  // The room: two sit down, the room watches, winner stays on.
+  const bsRoom = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'battleship' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  let r = bsRoom(['a', 'b', 'c'], {});
+  let s = r.shared;
+  check(s.phase === 'place' && s.seats.length === 2 && s.line.length === 1 && s.settings.turnClock === 0 && !s.endsAt &&
+    JSON.stringify(s.ready) === '[false,false]', 'battleship room: two sit down to place their fleets, one waits, and the clock is off by default');
+  const [p0, p1] = s.seats;
+  const watcher = s.line[0];
+  check(JSON.stringify(r.secrets[p0].fleet) === JSON.stringify(r._bs.fleets[0]) && JSON.stringify(r.secrets[p1].fleet) === JSON.stringify(r._bs.fleets[1]) &&
+    !r.secrets[watcher] && JSON.stringify(s).indexOf('fleet') === -1 && BS.bsFleetProblem(r._bs.fleets[0]) === null,
+    'battleship room: each seated phone is dealt its own fleet to start from, the watcher none, the table neither');
+  check(refused(() => applyRoomAction(r, p0, 'place', { fleet: touching })) && !s.ready[0], 'battleship room: a fleet with ships touching is refused');
+  check(refused(() => applyRoomAction(r, watcher, 'place', { fleet: rows() })), 'battleship room: someone in the line has no fleet to place');
+  check(refused(() => applyRoomAction(r, p0, 'fire', { cell: 0, seq: s.turnSeq })) === false && s.phase === 'place', 'battleship room: no shot while the fleets are being placed');
+  applyRoomAction(r, p0, 'place', { fleet: rows() });
+  check(s.ready[0] && !s.ready[1] && s.phase === 'place' && JSON.stringify(r._bs.fleets[0]) === JSON.stringify(rows()),
+    'battleship room: ready with the fleet as placed; the game waits for the other');
+  applyRoomAction(r, p0, 'unready', {});
+  check(!s.ready[0], 'battleship room: ready can be taken back to move the ships again');
+  applyRoomAction(r, p0, 'place', { fleet: rows() });
+  const f1 = BS.bsRandomFleet();
+  applyRoomAction(r, p1, 'place', { fleet: f1 });
+  check(s.phase === 'play' && s.turn === 0, 'battleship room: both ready, the first seat fires');
+  check(refused(() => applyRoomAction(r, p1, 'fire', { cell: 0, seq: s.turnSeq })), 'battleship room: out of turn is refused');
+  check(refused(() => applyRoomAction(r, watcher, 'fire', { cell: 0, seq: s.turnSeq })), 'battleship room: someone in the line can\'t fire');
+  // p0 fires at p1's fleet (f1): a hit shoots again, a miss passes the turn.
+  const occ1 = BS.bsOccupancy(f1);
+  const water1 = occ1.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
+  const ship1 = occ1.map((v, i) => (v ? i : -1)).filter((i) => i >= 0);
+  const seq0 = s.turnSeq;
+  applyRoomAction(r, p0, 'fire', { cell: ship1[0], seq: seq0 });
+  check(s.turn === 0 && s.last.res !== 'miss' && s.seas[1].grid[ship1[0]] >= BS.BS_HIT && s.tally[0].hits === 1, 'battleship room: a hit shoots again');
+  applyRoomAction(r, p0, 'fire', { cell: water1[0], seq: seq0 });
+  check(s.shots === 1, 'battleship room: a second tap drawn for the shot before is dropped');
+  check(refused(() => applyRoomAction(r, p0, 'fire', { cell: ship1[0], seq: s.turnSeq })), 'battleship room: a square already fired at is refused');
+  applyRoomAction(r, p0, 'fire', { cell: water1[0], seq: s.turnSeq });
+  check(s.turn === 1 && s.last.res === 'miss' && s.seas[1].grid[water1[0]] === BS.BS_MISS, 'battleship room: a miss passes the turn');
+  // p1 sinks p0's destroyer (rows(): 80, 81): the ship becomes public, the water round it marked.
+  applyRoomAction(r, p1, 'fire', { cell: 80, seq: s.turnSeq });
+  applyRoomAction(r, p1, 'fire', { cell: 81, seq: s.turnSeq });
+  check(s.turn === 1 && s.last.res === 'sunk' && s.last.ship === 4 && JSON.stringify(s.seas[0].sunk) === JSON.stringify([{ i: 4, x: 0, y: 8, d: 'h' }]) &&
+    s.seas[0].grid[70] === BS.BS_CLEAR, 'battleship room: a ship sunk is shown whole to the table, the water round it marked, and its sinker fires again');
+  check(!s.reveal, 'battleship room: nothing else of a fleet is shown while it is played');
+  // p1 sinks the rest: the game is over, the fleets revealed, the loser to the back of the line.
+  [0, 1, 2, 3, 4, 20, 21, 22, 23, 40, 41, 42, 60, 61, 62].forEach((c) => { if (s.phase === 'play') applyRoomAction(r, p1, 'fire', { cell: c, seq: s.turnSeq }); });
+  check(s.phase === 'over' && s.result.winnerId === p1 && s.result.reason === 'fleet' && s.scores[p1] === 1 &&
+    JSON.stringify(s.reveal) === JSON.stringify([rows(), f1]), 'battleship room: the last ship down wins, and both fleets are shown');
+  check(JSON.stringify(s.line) === JSON.stringify([watcher, p0]), 'battleship room: the loser goes to the back of the line');
+  applyRoomAction(r, 'c', 'nextRound', { round: s.round });
+  s = r.shared;
+  check(s.phase === 'place' && s.seats[0] === watcher && s.seats[1] === p1 && !!r.secrets[watcher] && !r.secrets[p0] &&
+    s.seas[0].grid.every((v) => v === BS.BS_SEA), 'battleship room: the next in line sits down against the winner, fires first, and the seas are new');
+
+  // The clock: placing ends with the fleets as they are, a shot is fired at random.
+  r = bsRoom(['a', 'b'], { turnClock: 15 });
+  s = r.shared;
+  check(s.settings.turnClock === 15 && s.endsAt && roomDeadline(r) === s.endsAt + 1500, 'battleship room: with a clock on, placing has one too, on the server');
+  roomTimeout(r, s.endsAt + 2000);
+  check(s.phase === 'play' && s.ready[0] && s.ready[1] && s.endsAt > 0, 'battleship room: when placing runs out, both sail with the fleet on their board');
+  const before = s.shots;
+  const turnWas = s.turn;
+  roomTimeout(r, s.endsAt + 2000);
+  check(s.shots === before + 1 && s.last.seat === turnWas, 'battleship room: when the turn clock runs out, the phone fires at a random square for the player');
+  applyRoomAction(r, 'a', 'skipTurn', { seq: s.turnSeq });
+  check(s.shots === before + 2, 'battleship room: the host\'s "play for" does the same for a quiet phone');
+  check(refused(() => applyRoomAction(r, 'b', 'skipTurn', { seq: s.turnSeq })), 'battleship room: only the host can play for someone');
+  // Someone seated leaves: the other wins by forfeit.
+  const leaver = s.seats[s.turn];
+  r.players = r.players.filter((p) => p.id !== leaver);
+  roomPlayerLeft(r, leaver, 'X');
+  check(s.phase === 'over' && s.result.reason === 'left' && s.result.winnerId !== leaver && Array.isArray(s.reveal), 'battleship room: a seated player who leaves loses by forfeit');
+  check(refused(() => bsRoom(['a'], {})), 'battleship room: it takes two (no computer players in rooms)');
+}
+
 /* --- بولينج: the score sheet, the physics every phone replays, the room's turns --- */
 {
   const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');

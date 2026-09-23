@@ -11749,6 +11749,269 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 }
 
 /* ==========================================================================
+   27. حرب السفن
+   JS_Battleship.html: the one-phone game against the phone, the room phones
+   and the TV. The sea itself is a WebGL canvas (three.js), laid over a
+   gradient of the same sea so the stage is never an empty box while it
+   loads; where WebGL can't draw it is the flat board (.bs-flat). The screen
+   is the duels' (section 18): the pills, the status, the line; the stage
+   takes the space, the rest is a compact column beside it on a phone held
+   sideways and on anything wide, and under it upright. The two sides'
+   colours are the pills' too: the first seat (or you) blue, the other orange.
+   ========================================================================== */
+.bs-game { --duel-c1: #3b82f6; --duel-c2: #f97316; }
+.bs-layout { display: flex; flex-direction: column; gap: var(--sp-3); }
+.bs-layout__side { display: contents; }
+/* Upright: who plays on top, then the sea, then what to do, then the rest. */
+.bs-head { order: -2; }
+.bs-layout__stage { order: -1; min-width: 0; }
+.bs-bar { order: 0; }
+.bs-side { order: 1; display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.bs-head .duel-status { margin-top: var(--sp-2); }
+
+.bs-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1.02;
+  min-height: 17rem;
+  max-height: calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 17rem);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 0%, #cfe6f7 0%, #7fb2d8 38%, #1b5f8c 72%, #0f4668 100%);
+  box-shadow: var(--sh-3), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  isolation: isolate;
+}
+:where(body.dark) .bs-stage { background: radial-gradient(120% 90% at 50% 0%, #2a3658 0%, #16294a 40%, #0b2239 75%, #071828 100%); box-shadow: var(--sh-3), inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+.bs-view {
+  position: absolute;
+  inset: 0;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Dragging a ship must not scroll the page. */
+.bs-view.is-placing { touch-action: none; cursor: grab; }
+.bs-view.is-firing { cursor: crosshair; }
+.bs-canvas { display: block; width: 100%; height: 100%; }
+
+/* The name over each sea, placed by the renderer at its far edge. */
+.bs-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.125rem 0.625rem;
+  margin-top: -0.25rem;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--bs-c, #3b82f6) 85%, #0b1220);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.bs-label.is-off, .bs-view.is-flat .bs-label, .bs-view.is-loading .bs-label { opacity: 0; }
+
+/* See the other sea for a moment: a small glass pill in the corner. */
+.bs-peek {
+  position: absolute;
+  top: var(--sp-2);
+  inset-inline-end: var(--sp-2);
+  z-index: 3;
+  min-height: 2.5rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--r-full);
+  background: rgba(8, 24, 40, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+.bs-peek:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+/* The result of a shot, big over the sea for a moment. */
+.bs-toast {
+  position: absolute;
+  inset-inline: var(--sp-3);
+  top: 42%;
+  z-index: 4;
+  pointer-events: none;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 7vmin, 2.6rem);
+  font-weight: var(--fw-black);
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25), 0 4px 18px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transform: translateY(0.5rem) scale(0.9);
+  transition: opacity 220ms var(--ease-out), transform 320ms var(--ease-spring);
+}
+.bs-toast.is-on { opacity: 1; transform: none; }
+.bs-toast.is-hit { color: #ffd2a8; }
+.bs-toast.is-sunk { color: #ffb4a0; }
+.bs-toast.is-miss { color: #e3f4ff; }
+.bs-toast.is-note { font-family: inherit; font-size: var(--fs-body); font-weight: var(--fw-bold); top: auto; bottom: var(--sp-3); }
+.bs-toast.is-note span, .bs-toast.is-note { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); }
+
+/* While three.js arrives: the sea's own gradient with a slow shimmer. */
+.bs-loading { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity var(--dur-3) var(--ease-out); }
+.bs-view.is-loading .bs-loading { opacity: 1; }
+.bs-loading span {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.22) 50%, transparent 70%);
+  background-size: 250% 100%;
+  animation: bsShimmer 1.6s linear infinite;
+}
+@keyframes bsShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+/* --- The flat sea: where WebGL can't draw, and the small map beside the big one --- */
+.bs-flat { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: var(--sp-4); padding: var(--sp-3); }
+.bs-flat .bs-fsea { height: 100%; max-width: 100%; }
+.bs-flat.is-both .bs-fsea { height: auto; width: calc(50% - var(--sp-2)); }
+/* The corner pill sits over the letters of a flat board: the board steps down under it. */
+.bs-view.is-flat:has(.bs-peek:not([hidden])) .bs-flat { padding-top: 3.25rem; }
+.bs-fsea {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  grid-template-rows: 1.25rem minmax(0, 1fr);
+  aspect-ratio: 1;
+  color: #fff;
+  font-weight: var(--fw-bold);
+}
+.bs-fsea__cols, .bs-fsea__rows { display: grid; font-size: var(--fs-xs); text-align: center; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+.bs-fsea__cols { grid-area: 1 / 2; grid-template-columns: repeat(10, minmax(0, 1fr)); align-items: end; }
+.bs-fsea__rows { grid-area: 2 / 1; grid-template-rows: repeat(10, minmax(0, 1fr)); align-items: center; }
+.bs-fsea__field {
+  grid-area: 2 / 2;
+  position: relative;
+  display: grid;
+  grid-template: repeat(10, minmax(0, 1fr)) / repeat(10, minmax(0, 1fr));
+  aspect-ratio: 1;
+  border: 2px solid var(--bs-c, #3b82f6);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px 10%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px 10%),
+    linear-gradient(160deg, #2c7fb8, #135a8a 60%, #0d4a73);
+}
+.bs-fc { position: relative; }
+.bs-fc.is-clear { background: rgba(4, 22, 40, 0.3); }
+.bs-fc.is-clear::after { content: ''; position: absolute; inset: 44%; border-radius: 50%; background: rgba(255, 255, 255, 0.5); }
+.bs-fc.is-miss::after { content: ''; position: absolute; inset: 26%; border-radius: 50%; border: 2px solid #fff; }
+.bs-fc.is-hit::after, .bs-fc.is-sunk::after { content: ''; position: absolute; inset: 22%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #ffd27a, #ff6a2b 55%, #c2261a); box-shadow: 0 0 8px 2px rgba(255, 110, 40, 0.7); z-index: 2; }
+.bs-fc.is-sunk { background: rgba(140, 25, 20, 0.45); }
+.bs-fc.is-sunk::after { background: #3a1410; box-shadow: none; inset: 34%; }
+.bs-fc.is-aim { box-shadow: inset 0 0 0 3px #ffe27a; background: rgba(255, 226, 122, 0.25); z-index: 3; }
+.bs-fc.is-new::after { animation: bsPop 480ms var(--ease-spring) both; }
+@keyframes bsPop { 0% { transform: scale(0.2); opacity: 0; } 60% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); } }
+.bs-fship {
+  position: absolute;
+  z-index: 1;
+  left: calc(var(--x) * 10%);
+  top: calc(var(--y) * 10%);
+  width: calc(var(--len) * 10%);
+  height: 10%;
+  pointer-events: none;
+}
+.bs-fship.is-v { width: 10%; height: calc(var(--len) * 10%); }
+.bs-fship::before {
+  content: '';
+  position: absolute;
+  inset: 16% 3%;
+  border-radius: 999px 40% 40% 999px;
+  background: linear-gradient(180deg, #c7d0da, #7d8a98 55%, #5d6875);
+  box-shadow: inset 0 0 0 2px var(--bs-c, #3b82f6), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+.bs-fship.is-v::before { inset: 3% 16%; border-radius: 999px 999px 40% 40%; background: linear-gradient(90deg, #c7d0da, #7d8a98 55%, #5d6875); }
+.bs-fship.is-sunk::before { background: linear-gradient(180deg, #5b3a33, #2e1c18); box-shadow: inset 0 0 0 2px #ff8a6a; }
+.bs-fship.is-ghost::before { background: transparent; box-shadow: none; border: 2px dashed #34d399; }
+.bs-fship.is-ghost.is-bad::before { border-color: #ef4444; }
+.bs-fsea--mini { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); width: min(100%, 9.5rem); }
+.bs-fsea--mini .bs-fsea__field { grid-area: 1 / 1; border-width: 1.5px; border-radius: var(--r-xs); }
+.bs-fsea--mini .bs-fc.is-miss::after { border-width: 1px; }
+.bs-fsea--mini .bs-fc.is-hit::after { box-shadow: none; }
+
+.bs-mini { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
+.bs-mini__label { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-3); }
+.bs-fleets { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-solid); }
+.bs-fleet { display: flex; flex-direction: column; align-items: stretch; gap: 0.2rem; min-width: 0; }
+.bs-fleet__who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--text-2); }
+.bs-fleet__ships { display: flex; flex-wrap: wrap; gap: 0.3rem; direction: ltr; }
+.bs-fleet__ship { display: inline-flex; gap: 1px; }
+.bs-fleet__ship i { display: block; width: 0.55rem; height: 0.55rem; border-radius: 2px; background: var(--bs-c, #3b82f6); }
+.bs-fleet__ship.is-sunk i { background: var(--danger, #d64545); opacity: 0.35; }
+.bs-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--bs-c);
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+}
+.bs-bar { display: flex; flex-direction: column; gap: var(--sp-2); }
+.bs-bar:empty { display: none; }
+.bs-bar__say { margin: 0; text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-med); color: var(--text-2); }
+.bs-bar .btn-row { display: flex; gap: var(--sp-2); }
+.bs-bar .btn-row > .btn { flex: 1; }
+.bs-bar .bs-fire { font-family: var(--font-display); }
+.bs-tally { margin: 0; text-align: center; font-size: var(--fs-sm); color: var(--text-2); }
+
+/* --- A phone on its side, and every wide screen: the sea takes the height, the rest a column beside it --- */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .bs-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12.5rem, 19rem); gap: var(--sp-4); align-items: start; }
+  .bs-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  .bs-layout__stage { position: sticky; top: 0; }
+  .bs-stage { aspect-ratio: auto; height: calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem); max-height: none; min-height: 0; }
+  .bs-fleets { padding: var(--sp-2); }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .bs-layout { grid-template-columns: minmax(0, 1fr) minmax(11rem, 13rem); gap: var(--sp-3); }
+  .bs-head .duel-status { margin-top: var(--sp-1); font-size: var(--fs-sm); }
+  .bs-bar__say { font-size: var(--fs-xs); }
+  .bs-fsea--mini { width: min(100%, 7rem); }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-battleship, .shell__main > #view-room-battleship { max-width: 84rem; }
+  .bs-layout { gap: var(--sp-5, 1.25rem); grid-template-columns: minmax(0, 1fr) minmax(15rem, 21rem); }
+  .bs-label { font-size: var(--fs-sm); }
+}
+
+/* --- The TV: both seas side by side across the stage, the players and the line beside them --- */
+.bs-tv { --duel-c1: #3b82f6; --duel-c2: #f97316; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 26rem); gap: calc(var(--tv-gap) * 2); align-items: center; }
+.bs-tv__stage { min-width: 0; }
+.bs-stage--tv { aspect-ratio: auto; height: calc(var(--app-h, 100vh) - 17vmin); max-height: none; min-height: 0; border-radius: var(--tv-r); }
+.bs-tv__side { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); }
+.bs-tv__side > .tv-scale { width: 100%; }
+.bs-tv .bs-label { font-size: clamp(0.8rem, 2vmin, 1.6rem); padding: 0.2em 0.8em; }
+.bs-tv .bs-toast { font-size: clamp(2rem, 7vmin, 5rem); }
+@media (orientation: portrait) {
+  .bs-tv { grid-template-columns: minmax(0, 1fr); }
+  .bs-stage--tv { height: 60vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bs-toast, .bs-label { transition: none; }
+  .bs-fc.is-new::after, .bs-loading span { animation: none; }
+}
+
+/* ==========================================================================
    28. بولينج
    JS_Bowling.html. The lane is a WebGL canvas (three.js) and gets the screen
    at every size; over it, the score sheet of whoever is bowling (a compact

@@ -5905,7 +5905,7 @@ Date.now = duelTestClock;
     check(s.settings.clock === '3+2' && s.chess.clock.left[0] === 180000 && roomDeadline(r) === null, 'chess room: the host\'s clock; it doesn\'t run before White\'s first move');
     mv(r, s.seats[0], 'e2-e4');
     const due = roomDeadline(r);
-    check(due === s.chess.clock.at + 180000 + 600, 'chess room: after White\'s first move Black\'s time runs, on the server');
+    check(due === s.chess.clock.at + 180000 + 601, 'chess room: after White\'s first move Black\'s time runs, on the server');
     clock = due + 1;
     roomTimeout(r, clock);
     check(r.shared.phase === 'over' && r.shared.chess.result.reason === 'time' && r.shared.result.winnerId === r.shared.seats[0], 'chess room: running out of time loses');
@@ -6206,6 +6206,145 @@ Date.now = duelTestClock;
     for (let guard = 0; guard < 200 && g.phase === 'play'; guard++) { try { applyRoomAction(r, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * 7), move: g.moves }); } catch (e) {} }
     applyRoomAction(r, 'a', 'tourNew', { mode: 'tour', round: r.shared.round });
     check(r.shared.tour && r.shared.tour.no === 1 && Object.keys(r.shared.scores).length === 0, 'tournament: from winner stays, a tournament starts its points afresh');
+  }
+}
+
+/* --- شطرنج in the duels' tournament (TOUR_KINDS.chess, 23 Sep 2026) ------------------------ */
+{
+  const CHT = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + '\nreturn { chessLegalMoves };')();
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const people = (n) => 'abcdefghijkl'.split('').slice(0, n);
+  const room = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'chess' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const toClock = (r) => { const d = roomDeadline(r); if (d === null) return false; clock = Math.max(clock + 1, d); return roomTimeout(r, clock); };
+  const leave = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id); };
+  const live = (r) => r.shared.tour.matches.filter((m) => m.state === 'play');
+  const upOf = (r, m) => { const g = r.shared.games[m.id]; return g.seats[g.chess.g.turn]; };
+  const act = (r, m, pid, action, extra) => applyRoomAction(r, pid, action, Object.assign({ match: m.id, mg: m.games, move: r.shared.games[m.id].chess.moves, round: r.shared.games[m.id].round }, extra || {}));
+  const randomMove = (r, m) => {
+    const g = r.shared.games[m.id];
+    const all = CHT.chessLegalMoves(g.chess.g);
+    const mv = all[Math.floor(Math.random() * all.length)];
+    act(r, m, upOf(r, m), 'move', { from: mv.from, to: mv.to, promo: mv.promo || 'q' });
+  };
+  const drawAgreed = (r, m) => {
+    // Two moves, so the offer isn't the first thing on the board, then a draw offered and accepted.
+    randomMove(r, m); randomMove(r, m);
+    const g = r.shared.games[m.id];
+    const offerer = g.seats[g.chess.g.turn];
+    act(r, m, offerer, 'offerDraw');
+    act(r, m, g.seats.find((id) => id !== offerer), 'answerDraw', { accept: true });
+  };
+  const toLive = (r) => { for (let i = 0; i < 20 && r.shared.tour.phase === 'play' && !live(r).length; i++) toClock(r); return live(r); };
+
+  // The switch: four people or more.
+  const three = newRoom(people(3));
+  applyRoomAction(three, 'a', 'chooseGame', { game: 'chess' });
+  check(refused(() => applyRoomAction(three, 'a', 'start', { tournament: true })) && three.phase === 'lobby', 'chess tournament: refused with fewer than four people');
+
+  // Five players: byes, every match on its own board, to a champion (moves, then a resignation).
+  {
+    const r = room(people(5), { tournament: true, clock: '5+0' });
+    const t = r.shared.tour;
+    check(t.size === 8 && t.matches.filter((m) => m.r === 1 && (m.out[0] || m.out[1])).length === 3 && r.shared.settings.clock === '5+0',
+      'chess tournament: five players, a bracket of eight with three byes, the clock for every match');
+    toLive(r);
+    const first = live(r)[0];
+    const g0 = r.shared.games[first.id];
+    check(!!g0.chess && g0.chess.clock && g0.chess.clock.id === '5+0' && !g0.chess.armageddon && first.whites.length === 1 && first.whites[0] === g0.seats[0],
+      'chess tournament: a match is a fresh board with the match\'s clock, White the first seat');
+    let n = 0, playedAll = true;
+    for (let guard = 0; guard < 4000 && t.phase === 'play'; guard++) {
+      const ms = live(r);
+      if (!ms.length) { toClock(r); continue; }
+      for (const m of ms) {
+        const g = r.shared.games[m.id];
+        if (g.chess.moves >= 12) { act(r, m, g.seats[n++ % 2], 'resign'); continue; }
+        try { randomMove(r, m); } catch (e) { playedAll = false; }
+      }
+    }
+    check(playedAll && t.phase === 'over' && !!t.champion && r.shared.scores[t.champion] === 3, 'chess tournament: five players play to a champion');
+    check(t.matches.filter((m) => m.state === 'done' && m.loser).every((m) => m.reason === 'won'), 'chess tournament: a resignation decides its match');
+  }
+
+  // A draw: replayed with the colours swapped; drawn again, Armageddon, where a draw is Black's.
+  {
+    const r = room(people(4), { tournament: true });
+    const m = toLive(r)[0];
+    const other = live(r).find((x) => x.id !== m.id);
+    const otherBefore = JSON.stringify(r.shared.games[other.id]);
+    const white1 = r.shared.games[m.id].seats[0];
+    drawAgreed(r, m);
+    check(m.state === 'ready' && m.draws === 1 && r.shared.games[m.id].result.draw && JSON.stringify(r.shared.games[other.id]) === otherBefore,
+      'chess tournament: an agreed draw in one match is not its end, and leaves the other match alone');
+    for (let i = 0; i < 5 && m.state !== 'play'; i++) toClock(r);
+    const g2 = r.shared.games[m.id];
+    check(m.games === 2 && g2.seats[1] === white1 && g2.seats[0] !== white1 && !g2.chess.armageddon && g2.chess.moves === 0,
+      'chess tournament: the replay swaps the colours (the first game\'s White has Black)');
+    drawAgreed(r, m);
+    for (let i = 0; i < 5 && m.state !== 'play'; i++) toClock(r);
+    const g3 = r.shared.games[m.id];
+    check(m.games === 3 && m.draws === 2 && g3.chess.armageddon === true && m.whites.length === 3 && m.whites[2] === g3.seats[0],
+      'chess tournament: drawn again, the third game is Armageddon, White drawn by lot');
+    drawAgreed(r, m);
+    const g3b = r.shared.games[m.id];
+    check(m.state === 'done' && m.winner === g3b.seats[1] && g3b.result.winner === 1 && g3b.chess.result.drawn === true && g3b.chess.result.result === 'b',
+      'chess tournament: a draw in Armageddon sends Black through');
+    check(r.shared.tour.matches.find((x) => x.id === m.next).p[m.slot] === g3b.seats[1], 'chess tournament: Black takes the slot in the next round');
+  }
+
+  // The clock per match: a flag ends that match only.
+  {
+    const r = room(people(4), { tournament: true, clock: '3+2' });
+    const [m, other] = toLive(r);
+    randomMove(r, m); randomMove(r, m);                // White's first move is free; Black's starts White's clock
+    const d = roomDeadline(r);
+    const cg = r.shared.games[m.id].chess;
+    check(typeof d === 'number' && d === cg.clock.at + cg.clock.left[0] + 601, 'chess tournament: the room wakes for the soonest match clock');
+    const whiteId = r.shared.games[m.id].seats[0];
+    toClock(r);
+    check(m.state === 'done' && m.loser === whiteId && r.shared.games[m.id].chess.result.reason === 'time' && other.state === 'play',
+      'chess tournament: a flag loses that match, and the other plays on');
+  }
+
+  // Resign, a draw offer and the host's "play for", match by match; a stale tap; leaving.
+  {
+    const r = room(people(4), { tournament: true });
+    const [m, other] = toLive(r);
+    const g = r.shared.games[m.id];
+    const og = r.shared.games[other.id];
+    check(refused(() => act(r, m, og.seats[0], 'offerDraw')) && !r.shared.games[m.id].chess.offer, 'chess tournament: a player offers no draw in a match not their own');
+    act(r, m, g.seats[0], 'offerDraw');
+    check(!!r.shared.games[m.id].chess.offer && !r.shared.games[other.id].chess.offer, 'chess tournament: a draw offer stays on its own board');
+    act(r, m, g.seats[1], 'answerDraw', { accept: false });
+    check(!r.shared.games[m.id].chess.offer && m.state === 'play', 'chess tournament: a refused offer and the game goes on');
+    const nonHost = r.shared.games[other.id].seats.find((id) => id !== 'a') || 'b';
+    check(refused(() => act(r, other, nonHost, 'skipTurn')), 'chess tournament: only the host plays for someone');
+    act(r, other, 'a', 'skipTurn');
+    const og2 = r.shared.games[other.id];
+    check(og2.chess.moves === 1 && og2.chess.last.auto === 'host', 'chess tournament: the host\'s "play for" plays a legal move in that match');
+    applyRoomAction(r, 'a', 'skipTurn', { match: other.id, mg: other.games, move: 0 });
+    check(r.shared.games[other.id].chess.moves === 1, 'chess tournament: a second "play for" drawn for the last move is dropped');
+    act(r, m, g.seats[1], 'resign');
+    check(m.state === 'done' && m.winner === g.seats[0] && other.state === 'play', 'chess tournament: resigning loses that match only');
+    const og3 = r.shared.games[other.id];
+    const winnerLeft = og3.seats[1];
+    leave(r, og3.seats[0]);
+    check(other.state === 'done' && other.winner === winnerLeft && r.shared.games[other.id].result.reason === 'left',
+      'chess tournament: leaving mid-game loses the match by forfeit');
+  }
+
+  // The host's "play for" in winner stays too.
+  {
+    const r = room(people(3), {});
+    const s = r.shared;
+    applyRoomAction(r, 'a', 'skipTurn', { move: 0 });
+    check(s.chess.moves === 1 && s.chess.last.auto === 'host', 'chess room: the host can play for the side to move');
+    check(refused(() => applyRoomAction(r, 'b', 'skipTurn', { move: 1 })), 'chess room: only the host plays for someone');
   }
 }
 

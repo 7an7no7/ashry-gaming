@@ -34,6 +34,9 @@ const BANK = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta
 const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') +
   ';return { gwBotQuestion, gwAnswer, gwUp, gwRuledOut };')();
 
+// شطرنج's legal moves, for the robots of a chess tournament.
+const CHM = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+
 const ARGS = process.argv.slice(2);
 const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
 // --slow also waits out the presence clocks (a silent socket, a host away): about three minutes more.
@@ -199,6 +202,20 @@ const TOUR_MOVE = {
     const qi = GW.gwBotQuestion(g.faces, g.down[seat], g.asked[seat], 'easy');
     return qi < 0 ? { action: 'guess', payload: { face: up[0], seq: g.turnSeq } } : { action: 'ask', payload: { q: qi, seq: g.turnSeq } };
   },
+  chess: (b, g, m) => {
+    // The first round's match is drawn twice by agreement (the replay, then Armageddon, where a draw is
+    // Black's); every other game is random moves and a resignation after twenty.
+    const seat = g.seats.indexOf(b.pid);
+    const bd = g.chess;
+    if (g.phase !== 'play' || !bd || bd.result) return null;
+    if (bd.offer) return bd.offer.seat !== seat ? { action: 'answerDraw', payload: { accept: true } } : null;
+    if (bd.g.turn !== seat) return null;
+    if (m.r === 1 && bd.moves === 2 && bd.offered[seat] !== bd.moves) return { action: 'offerDraw', payload: { move: bd.moves } };
+    if (bd.moves >= 20) return { action: 'resign', payload: { round: g.round } };
+    const all = CHM.chessLegalMoves(bd.g);
+    const mv = all[Math.floor(Math.random() * all.length)];
+    return { action: 'move', payload: { from: mv.from, to: mv.to, promo: mv.promo, move: bd.moves } };
+  },
   battleship: (b, g) => {
     const seat = g.seats.indexOf(b.pid);
     if (g.phase === 'place') return !g.ready[seat] && b.state.you && b.state.you.fleet ? { action: 'place', payload: { fleet: b.state.you.fleet } } : null;
@@ -272,7 +289,7 @@ async function duelTourRobots() {
     xoBots.forEach((b) => b.close());
   }
 
-  for (const game of ['connect4', 'dots', 'xo', 'guesswho', 'battleship']) {
+  for (const game of ['connect4', 'dots', 'xo', 'guesswho', 'battleship', 'chess']) {
     console.log(`• ${game}: a tournament of five (byes, matches at once, the bracket, a podium)`);
     const names = ['نادر', 'Lina', 'سمير', 'Tarek', 'هبة'];
     const H = await Bot.host(names[0], null);
@@ -280,7 +297,7 @@ async function duelTourRobots() {
     for (const n of names.slice(1)) bots.push(await Bot.join(H.code, n));
     const S = await Bot.join(H.code, '', true);
     await H.must('chooseGame', { game });
-    const opts = { connect4: { mode: 4 }, dots: { size: 4 }, xo: { three: false }, guesswho: { size: 16 }, battleship: {} }[game];
+    const opts = { connect4: { mode: 4 }, dots: { size: 4 }, xo: { three: false }, guesswho: { size: 16 }, battleship: {}, chess: { clock: '5+0' } }[game];
     // Four people or more: the tournament; the host alone starts it.
     check((await bots[1].act('start', Object.assign({ tournament: true }, opts))).ok === false, `${game}: only the host starts a tournament`);
     await H.must('start', Object.assign({ tournament: true }, opts));
@@ -306,6 +323,14 @@ async function duelTourRobots() {
     check(H.state.shared.board[0].id === t.champion && H.state.shared.board[0].score === 3 && H.state.shared.scores[t.runnerUp] === 2 &&
           t.semis.length === 2 && t.semis.every((id) => H.state.shared.scores[id] === 1),
           `${game}: the champion 3, the runner-up 2, the two semi-finalists 1`);
+    if (game === 'chess') {
+      const r1 = t.matches.find((m) => m.r === 1 && m.p[0] && m.p[1]);
+      check(r1.draws === 2 && r1.games === 3 && r1.whites.length === 3 && r1.whites[1] !== r1.whites[0],
+            'chess: a drawn match is replayed with the colours swapped, then played as Armageddon');
+      check(r1.state === 'done' && r1.winner === r1.p.find((id) => id !== r1.whites[2]) && r1.reason === 'won',
+            'chess: a draw in Armageddon sends Black through');
+      check(H.state.shared.settings.clock === '5+0', 'chess: the lobby clock is every match clock');
+    }
     if (game === 'connect4') {
       // Someone joins now: they watch, and are in the next tournament.
       late = await Bot.join(H.code, 'متأخر');

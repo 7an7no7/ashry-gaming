@@ -18,6 +18,13 @@
    server's clock, so it keeps the smallest gap it has seen between a clock
    start and the moment it heard of it (chRoomLocal.offset): at most one
    network delay behind, well inside the grace the server gives a move.
+
+   In the duels' tournament (JS_RoomTournament.html) this file draws one
+   match: the room is read through duelRoomState() (the match on this phone's
+   screen, shaped like winner stays) and every move is sent through duelAct(),
+   which carries the match. A tournament's replay and its Armageddon game say
+   so above the status (chRoomTagHtml); the TV's live cards are small flat
+   boards with their clocks (TOUR_CLIENT.chess in JS_RoomTournament.html).
    ========================================================================= */
 
 // sel: the piece picked up; early: this phone's move, drawn before the server answers;
@@ -66,11 +73,38 @@ function chRoomPaintClocks(state) {
   });
 }
 
+/** The game whose clocks this screen shows big: the room's, or in a tournament the match on screen (or null). */
+function chRoomLiveState() {
+  const st = Room.state;
+  if (!st || st.game !== 'chess' || !st.shared) return null;
+  if (!st.shared.tour) return st.shared.chess ? st : null;
+  const id = st.youAreScreen ? tourTvFocusId(st) : tourFocusId(st);
+  const ms = id ? tourMatchState(st, id) : null;
+  return ms && ms.shared.chess ? ms : null;
+}
+
+/** The TV's live cards: every match's clocks, read from the tournament. */
+function chRoomPaintMiniClocks(full) {
+  const els = document.querySelectorAll('[data-ch-mclock]');
+  if (!els.length) return false;
+  const games = ((full || {}).shared || {}).games || {};
+  els.forEach(el => {
+    const parts = el.dataset.chMclock.split(':');
+    const g = games[parts[0]];
+    if (!g || !g.chess) return;
+    const text = chClockText(chRoomClockLeft({ shared: g }, Number(parts[1])));
+    if (el.textContent !== text) el.textContent = text;
+  });
+  return true;
+}
+
 function chRoomTickStart() {
   if (chRoomLocal.tick) return;
   chRoomLocal.tick = setInterval(() => {
-    const st = Room.state;
-    if (!st || st.game !== 'chess' || !st.shared || !st.shared.chess) { chRoomTickStop(); return; }
+    const full = Room.state;
+    const minis = full && full.game === 'chess' && full.shared && full.shared.tour ? chRoomPaintMiniClocks(full) : false;
+    const st = chRoomLiveState();
+    if (!st) { if (!minis) chRoomTickStop(); return; }
     chRoomPaintClocks(st);
     const bd = st.shared.chess;
     const seat = chRoomSeat(st);
@@ -89,7 +123,7 @@ function chRoomTickStop() {
 
 /** Your move: drawn now, sent to the server, and taken back if the server says no. */
 function chRoomPlay(from, to, promo) {
-  const state = Room.state;
+  const state = duelRoomState();
   if (!state || state.game !== 'chess') return;
   const s = state.shared;
   const bd = s.chess;
@@ -106,11 +140,11 @@ function chRoomPlay(from, to, promo) {
   chRoomLocal.sel = '';
   haptic('light');
   chRoomRedraw();
-  Promise.resolve(roomAct('move', { from: from, to: to, promo: promo, move: bd.moves })).then(() => {
-    const st = Room.state;
+  Promise.resolve(duelAct('move', { from: from, to: to, promo: promo, move: bd.moves })).then(() => {
+    const st = duelRoomState();
     const e = chRoomLocal.early;
     if (!e || e.n !== n) return;
-    if (!st || st.game !== 'chess' || st.shared.round !== e.round || st.shared.chess.moves < n) {
+    if (!st || st.game !== 'chess' || !st.shared.chess || st.shared.round !== e.round || st.shared.chess.moves < n) {
       chRoomLocal.early = null;
       chRoomRedraw(true);
     }
@@ -118,17 +152,18 @@ function chRoomPlay(from, to, promo) {
 }
 
 function chRoomRedraw(still) {
-  const st = Room.state;
-  if (!st || st.game !== 'chess') return;
-  if (st.youAreScreen) { if (appState.currentView === 'room-tv') TV_GAMES.chess.after(st, false); return; }
+  const full = Room.state;
+  if (!full || full.game !== 'chess') return;
+  if (full.youAreScreen) { if (appState.currentView === 'room-tv') TV_GAMES.chess.after(full, false); return; }
   if (appState.currentView !== 'room-chess') return;
-  chRoomRender(st, still);
+  chRoomRender(duelRoomState(), still);
 }
 
 function chRoomResign() {
-  const st = Room.state;
-  if (!st) return;
-  showConfirmModal(chT('ch_resign_confirm'), () => roomAct('resign', { round: st.shared.round }));
+  const st = duelRoomState();
+  if (!st || !st.shared.chess) return;
+  const round = st.shared.round;
+  showConfirmModal(chT('ch_resign_confirm'), () => duelAct('resign', { round: round }));
 }
 
 /** The model the board draws for a room screen. */
@@ -187,6 +222,11 @@ function chRoomStatus(state, tv) {
   const names = duelRoomNames(state);
   if (s.phase === 'over' && bd.result) {
     if (bd.result.reason === 'left') return duelRoomResultLine(state, TRANSLATIONS[appState.lang] || {});
+    // Armageddon: the game was drawn, and the draw is Black's.
+    if (bd.result.drawn) {
+      const how = chT('ch_end_' + bd.result.reason);
+      return '🏆 ' + chT('ch_arma_won', { name: duelIso(names[1] || '') }) + (how ? ' · ' + how : '');
+    }
     return chResultLine(bd.result.result, bd.result.reason, names);
   }
   const view = chRoomBoard(state);
@@ -211,15 +251,78 @@ function chRoomBarHtml(state) {
   if (bd.offer && bd.offer.seat !== seat) {
     return `<div class="ch-offer"><p>½ ${escapeHTML(chT('ch_offer_to_you', { name: duelIso(duelRoomNames(state)[bd.offer.seat]) }))}</p>
       <div class="btn-row">
-        <button type="button" class="btn btn--primary" onclick="roomAct('answerDraw', { accept: true })">🤝 ${escapeHTML(chT('ch_accept'))}</button>
-        <button type="button" class="btn btn--ghost" onclick="roomAct('answerDraw', { accept: false })">${escapeHTML(chT('ch_refuse'))}</button>
+        <button type="button" class="btn btn--primary" onclick="duelAct('answerDraw', { accept: true })">🤝 ${escapeHTML(chT('ch_accept'))}</button>
+        <button type="button" class="btn btn--ghost" onclick="duelAct('answerDraw', { accept: false })">${escapeHTML(chT('ch_refuse'))}</button>
       </div></div>`;
   }
   const canOffer = !bd.offer && (bd.offered || [])[seat] !== bd.moves;
   return `<div class="ch-bar__row">
-      <button type="button" class="btn btn--ghost btn--sm btn--auto" ${canOffer ? '' : 'disabled'} onclick="roomAct('offerDraw', { move: ${Number(bd.moves) || 0} })">½ ${escapeHTML(bd.offer ? chT('ch_offer_sent') : chT('ch_offer'))}</button>
+      <button type="button" class="btn btn--ghost btn--sm btn--auto" ${canOffer ? '' : 'disabled'} onclick="duelAct('offerDraw', { move: ${Number(bd.moves) || 0} })">½ ${escapeHTML(bd.offer ? chT('ch_offer_sent') : chT('ch_offer'))}</button>
       <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chRoomResign()">🏳️ ${escapeHTML(chT('ch_resign'))}</button>
     </div>`;
+}
+
+/** The key a room's game is kept under on this phone (a tournament's by its number and the match's game). */
+function chRoomGameKey(state) {
+  const s = state.shared || {};
+  const full = Room.state;
+  if (s.tourMid) return 'room|' + state.code + '|t' + (((full && full.shared && full.shared.tour) || {}).no || 0) + '.' + (s.dealId || s.round);
+  return 'room|' + state.code + '|' + s.round;
+}
+
+/** A tournament's game that isn't a match's first: the replay with the colours swapped, or Armageddon. */
+function chRoomTagHtml(state) {
+  const s = state.shared || {};
+  const bd = s.chess;
+  if (!s.tourMid || !bd) return '';
+  if (bd.armageddon) return `<p class="ch-tag ch-tag--arma">⚔️ ${escapeHTML(chT('ch_arma_tag'))}</p>`;
+  if ((s.tourGames || 0) >= 2) return `<p class="ch-tag">🔁 ${escapeHTML(chT('ch_replay_tag'))}</p>`;
+  return '';
+}
+
+/**
+ * The host's way on for a phone that went quiet (40 seconds on one move, or at
+ * once for one that's away): the computer plays one move for it, at a low
+ * rating (chessHostMove in RoomChess.js). With a clock, running out is the
+ * other way on.
+ */
+function chRoomHostRow(state, tv) {
+  const s = state.shared || {};
+  const bd = s.chess;
+  if (!state.youAreHost || s.phase !== 'play' || !bd || bd.result) return '';
+  const key = [state.code, s.round, bd.moves].join('|');
+  if (chRoomLocal.turnKey !== key) { chRoomLocal.turnKey = key; chRoomLocal.turnSince = Date.now(); }
+  const id = (s.seats || [])[bd.g.turn];
+  const p = (state.players || []).find(x => x.id === id);
+  if (!p || id === Room.me) return '';
+  const wait = 40000 - (Date.now() - chRoomLocal.turnSince);
+  if (p.online && wait > 0) {
+    // Nothing else redraws a quiet board: look again when the 40 seconds are up.
+    if (chRoomLocal.hostTimerKey !== key) {
+      chRoomLocal.hostTimerKey = key;
+      clearTimeout(chRoomLocal.hostTimer);
+      chRoomLocal.hostTimer = setTimeout(() => chRoomRedraw(true), wait + 300);
+    }
+    return '';
+  }
+  const label = '⏭️ ' + chT('ch_play_for', { name: duelIso(duelRoomNames(state)[bd.g.turn] || '') });
+  const press = `duelAct('skipTurn', { move: ${Number(bd.moves) || 0} })`;
+  return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
+}
+
+/**
+ * A tournament: every game this phone played is kept for the review as it ends,
+ * whatever the phone is showing (the final ends on the podium, not the board).
+ */
+function chRoomKeepTourGames(full) {
+  const s = (full && full.shared) || {};
+  if (!s.tour || full.youAreScreen) return;
+  s.tour.matches.forEach(m => {
+    const g = (s.games || {})[m.id];
+    if (!g || g.phase !== 'over' || (g.seats || []).indexOf(Room.me) === -1) return;
+    const ms = tourMatchState(full, m.id);
+    if (ms) chRoomKeepGame(ms);
+  });
 }
 
 /** Once a game is over, every phone that played it keeps it for the review. */
@@ -227,9 +330,10 @@ function chRoomKeepGame(state) {
   const s = state.shared;
   const bd = s.chess;
   if (s.phase !== 'over' || !bd || !bd.result || !bd.hist || !bd.hist.length || chRoomSeat(state) === -1) return;
-  const key = 'room|' + state.code + '|' + s.round;
-  if (chRoomLocal.stored === key) return;
-  chRoomLocal.stored = key;
+  const key = chRoomGameKey(state);
+  chRoomLocal.storedKeys = chRoomLocal.storedKeys || {};
+  if (chRoomLocal.storedKeys[key]) return;
+  chRoomLocal.storedKeys[key] = true;
   const names = duelRoomNames(state);
   chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: chRoomSeat(state), result: bd.result.result || 'd', reason: bd.result.reason || '', start: '', moves: bd.hist.slice(), key: key });
 }
@@ -248,18 +352,20 @@ function chRoomRender(state, still) {
   const view = chRoomBoard(state);
   const myTurn = s.phase === 'play' && !bd.result && seat === view.g.turn;
   const over = s.phase === 'over';
-  chSetHtml(el, '[data-ch-head]', `${chRoomPills(state)}<p class="duel-status ${over ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(chRoomStatus(state))}</p>`);
-  chSetHtml(el, '[data-ch-bar]', chRoomBarHtml(state));
+  chSetHtml(el, '[data-ch-head]', `${chRoomPills(state)}${chRoomTagHtml(state)}<p class="duel-status ${over ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(chRoomStatus(state))}</p>`);
+  chSetHtml(el, '[data-ch-bar]', chRoomBarHtml(state) + chRoomHostRow(state));
   const side = [];
-  if (over) side.push(duelRoomOverHtml(state, t), `<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(Room.state)">📊 ${escapeHTML(chT('ch_review'))}</button>`);
+  if (over) side.push(duelRoomOverHtml(state, t), `<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
   side.push(chMovesHtml(view.sans, { current: view.sans.length - 1 }));
   side.push(duelRoomLineHtml(state, t));
-  if ((state.players || []).length > 2) side.push(renderScoreboard(s.board));
-  if (over) side.push(roomShareBtnHtml(state, s.board));
+  if ((state.players || []).length > 2 && !s.tourMid) side.push(renderScoreboard(s.board));
+  if (over && !s.tourMid) side.push(roomShareBtnHtml(state, s.board));
   side.push(renderRoomPlayerStrip(state));
   chSetHtml(el, '[data-ch-side]', side.join(''));
   const mv = el.querySelector('.ch-moves');
   if (mv) mv.scrollTop = mv.scrollHeight;
+  // A tournament's places in this screen (the round, the other matches, what comes next).
+  if (s.tourMid && typeof tourAfterMatch === 'function') tourAfterMatch(el, Room.state, s.tourMid);
   chRoomPaintClocks(state);
   if (bd.clock) chRoomTickStart(); else chRoomTickStop();
   duelPillsAfter(el, 'chr|' + state.code, { turn: s.phase === 'play' && !bd.result ? view.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
@@ -330,8 +436,10 @@ TV_GAMES.chess = {
     const moves = bd.sans.length ? `<div class="ch-tv__moves">${chMovesHtml(bd.sans, { current: bd.sans.length - 1 })}</div>` : '';
     const html = `
       <div class="tv-scale">${chRoomPills(state, true)}</div>
+      ${chRoomTagHtml(state)}
       <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(chRoomStatus(state, true))}</div>
       ${over ? duelRoomOverHtml(state, t, true) : moves}
+      ${chRoomHostRow(state, true)}
       <div class="tv-scale">${duelRoomLineHtml(state, t, true)}</div>`;
     const side = view.querySelector('[data-ch-tvside]');
     if (side && side._chHtml !== html) {
@@ -339,6 +447,7 @@ TV_GAMES.chess = {
       side._chHtml = html;
       const mv = side.querySelector('.ch-moves');
       if (mv) mv.scrollTop = mv.scrollHeight;
+      if (s.tourMid && typeof tourAfterMatch === 'function') tourAfterMatch(view, Room.state, s.tourMid);
     }
     chRoomPaintClocks(state);
     if (bd.clock) chRoomTickStart(); else chRoomTickStop();

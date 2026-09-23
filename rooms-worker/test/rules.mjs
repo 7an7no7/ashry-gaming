@@ -5203,6 +5203,354 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- شطرنج: every rule (perft), the draws, the clock, Armageddon, the phone's player, winner stays on --- */
+{
+  const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
+    '\nreturn { chessNew, chessFromFen, chessFen, chessPerft, chessPlay, chessStatus, chessLegalMoves, chessBestMove, chessInsufficient, chessCanMate,' +
+    ' chessClockNew, chessClockPress, chessClockFlagged, chessClockLeft, chessFlagResult, chessMatchNext, chessArmageddonResult, chessKey, chessCheckSq,' +
+    ' chessEloSettings, chessEloBand, chessElo, chessClassify, chessMoveAccuracy, chessAnalyse, chessMoveGood, chessReview, chessThreats, chessPins, chessUci };')();
+  const threwC = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const perft = (fen, depth) => CH.chessPerft(CH.chessFromFen(fen), depth);
+  // The standard perft positions (chessprogramming.org): every legal move counted, deep.
+  const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  const KIWI = 'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1';
+  check([1, 2, 3, 4].map((d) => perft(START, d)).join() === '20,400,8902,197281', 'chess: perft from the start, depth 1-4: 20, 400, 8902, 197281');
+  check([1, 2, 3].map((d) => perft(KIWI, d)).join() === '48,2039,97862', 'chess: perft "Kiwipete" (castling, pins, en passant), depth 1-3: 48, 2039, 97862');
+  check(perft('8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1', 5) === 674624, 'chess: perft position 3 (en passant along a pin), depth 5: 674624');
+  check(perft('r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1', 4) === 422333, 'chess: perft position 4 (promotions, castling in check), depth 4: 422333');
+  check(perft('rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8', 3) === 62379, 'chess: perft position 5 (promotion with capture), depth 3: 62379');
+  check(perft('r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10', 3) === 89890, 'chess: perft position 6, depth 3: 89890');
+
+  const play = (g, list) => list.every((m) => { const [from, to, promo] = m.split(/[-=]/); return !!CH.chessPlay(g, { from, to, promo }); });
+  const can = (fen, from, to) => CH.chessLegalMoves(CH.chessFromFen(fen)).some((m) => m.from === from && m.to === to);
+  // Castling: both ways, and every condition.
+  const CASTLE = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+  check(can(CASTLE, 'e1', 'g1') && can(CASTLE, 'e1', 'c1') && can(CASTLE.replace(' w ', ' b '), 'e8', 'g8') && can(CASTLE.replace(' w ', ' b '), 'e8', 'c8'),
+    'chess: castling short and long, White and Black');
+  {
+    const g = CH.chessFromFen(CASTLE);
+    const r1 = CH.chessPlay(g, { from: 'e1', to: 'g1' });
+    check(r1.san === 'O-O' && r1.castle === 'short' && g.board[5] === 4 && g.board[6] === 6 && !g.board[7], 'chess: O-O puts the rook on f1 beside the king on g1');
+    const r2 = CH.chessPlay(g, { from: 'e8', to: 'c8' });
+    check(r2.san === 'O-O-O' && g.board[59] === 12 && g.board[58] === 14 && !g.board[56], 'chess: O-O-O puts the rook on d8 beside the king on c8');
+  }
+  check(!can('r3k2r/8/8/8/8/8/8/R3K2R w - - 0 1', 'e1', 'g1'), 'chess: no castling once the right is gone');
+  check(!can('r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1'.replace('R3K2R', 'R3KB1R'), 'e1', 'g1'), 'chess: no castling with a piece between');
+  check(!can('4k3/8/8/8/8/8/8/R3K2R w KQ - 0 1'.replace('4k3', '4r1k1'), 'e1', 'g1'), 'chess: no castling out of check');
+  check(!can('5rk1/8/8/8/8/8/8/R3K2R w KQ - 0 1', 'e1', 'g1') && can('5rk1/8/8/8/8/8/8/R3K2R w KQ - 0 1', 'e1', 'c1'), 'chess: no castling through an attacked square (f1), the other side still can');
+  check(!can('6rk/8/8/8/8/8/8/R3K2R w KQ - 0 1', 'e1', 'g1'), 'chess: no castling into check (g1)');
+  check(can('1r2k3/8/8/8/8/8/8/R3K2R w Q - 0 1', 'e1', 'c1'), 'chess: long castling with b1 attacked is allowed (the king never crosses it)');
+  {
+    const g = CH.chessFromFen(CASTLE);
+    play(g, ['h1-h2', 'a8-a7', 'h2-h1', 'a7-a8']);
+    check(!CH.chessLegalMoves(g).some((m) => m.from === 'e1' && m.to === 'g1') && CH.chessLegalMoves(g).some((m) => m.from === 'e1' && m.to === 'c1'),
+      'chess: a rook that moved (and came back) takes that side\'s castling away');
+    const k = CH.chessFromFen(CASTLE);
+    play(k, ['e1-e2', 'e8-e7', 'e2-e1', 'e7-e8']);
+    check(!CH.chessLegalMoves(k).some((m) => m.from === 'e1' && (m.to === 'g1' || m.to === 'c1')), 'chess: a king that moved can never castle');
+    const x = CH.chessFromFen('r3k2r/8/8/8/8/8/6b1/R3K2R b KQkq - 0 1');
+    play(x, ['g2-h1']);
+    check(!CH.chessLegalMoves(x).some((m) => m.from === 'e1' && m.to === 'g1'), 'chess: a rook taken on its square takes that castling away');
+  }
+  // En passant: only straight after the double step, and never into a pin.
+  {
+    const g = CH.chessFromFen('4k3/8/8/3P4/8/8/8/4K3 b - - 0 1');
+    play(g, ['c7-c5'.replace('c7', 'e8').replace('c5', 'd8')]);   // a king move first
+    const h = CH.chessFromFen('4k3/2p5/8/3P4/8/8/8/4K3 b - - 0 1');
+    play(h, ['c7-c5']);
+    const ep = CH.chessPlay(h, { from: 'd5', to: 'c6' });
+    check(!!ep && ep.ep && ep.capture === 'p' && ep.captureSq === 'c5' && !h.board[34] && ep.san === 'dxc6', 'chess: en passant takes the pawn that just stepped past (dxc6)');
+    const late = CH.chessFromFen('4k3/2p4p/8/3P4/8/8/8/4K3 b - - 0 1');
+    play(late, ['c7-c5', 'e1-e2', 'h7-h6']);
+    check(!CH.chessLegalMoves(late).some((m) => m.from === 'd5' && m.to === 'c6'), 'chess: en passant is gone a move later');
+    check(!can('8/8/8/KpP4r/8/8/8/7k w - b6 0 1', 'c5', 'b6'), 'chess: en passant that would open the king to a rook along the rank is refused');
+    check(CH.chessKey(CH.chessFromFen('4k3/8/8/8/3p4/8/4P3/4K3 w - - 0 1')) !== CH.chessKey((() => { const q = CH.chessFromFen('4k3/8/8/8/3p4/8/4P3/4K3 w - - 0 1'); play(q, ['e2-e4']); return q; })()),
+      'chess: a position where en passant is possible is not the same position for repetition');
+    void g;
+  }
+  // Promotion: a choice of four, the queen when none is said.
+  {
+    const P = '8/4P1k1/8/8/8/8/8/4K3 w - - 0 1';
+    check(CH.chessLegalMoves(CH.chessFromFen(P)).filter((m) => m.from === 'e7' && m.to === 'e8').map((m) => m.promo).sort().join('') === 'bnqr',
+      'chess: a pawn on the last rank becomes a queen, rook, bishop or knight');
+    const n = CH.chessFromFen(P);
+    const rn = CH.chessPlay(n, { from: 'e7', to: 'e8', promo: 'n' });
+    check(rn.san === 'e8=N+' && n.board[60] === 2, 'chess: promotion to a knight (e8=N+, a check from the knight)');
+    const q = CH.chessFromFen(P);
+    const rq = CH.chessPlay(q, { from: 'e7', to: 'e8' });
+    check(rq.promo === 'q' && q.board[60] === 5, 'chess: a promotion sent without a piece is a queen');
+  }
+  // Check, mate, stalemate.
+  {
+    const g = CH.chessNew();
+    play(g, ['f2-f3', 'e7-e5', 'g2-g4']);
+    const m = CH.chessPlay(g, { from: 'd8', to: 'h4' });
+    check(m.san === 'Qh4#' && m.status.over && m.status.reason === 'mate' && m.status.result === 'b', 'chess: the fool\'s mate is mate (Qh4#), Black wins');
+    check(CH.chessPlay(g, { from: 'e1', to: 'f2' }) === null && CH.chessLegalMoves(g).length === 0, 'chess: nothing can be played after mate');
+    const c = CH.chessNew();
+    play(c, ['e2-e4', 'f7-f6', 'd1-h5']);
+    check(CH.chessCheckSq(c) === 'e8' && CH.chessLegalMoves(c).every((mv) => mv.to !== 'f7' || mv.from !== 'e8') && CH.chessLegalMoves(c).length === 1 && CH.chessStatus(c).check,
+      'chess: in check only a move out of it is legal (here g6, the one move)');
+    const st = CH.chessStatus(CH.chessFromFen('k7/8/1Q6/8/8/8/8/7K b - - 0 1'));
+    check(st.over && st.reason === 'stalemate' && st.result === 'd' && !st.check, 'chess: no legal move and not in check is stalemate, a draw');
+    check(CH.chessStatus(CH.chessNew()).over === false, 'chess: the start position is not over');
+  }
+  // Threefold repetition and the fifty-move rule, both automatic.
+  {
+    const g = CH.chessNew();
+    const shuffle = ['g1-f3', 'g8-f6', 'f3-g1', 'f6-g8'];
+    play(g, shuffle);
+    check(!CH.chessStatus(g).over, 'chess: a position twice is not yet a draw');
+    play(g, shuffle.slice(0, 3));
+    const last = CH.chessPlay(g, { from: 'f6', to: 'g8' });
+    check(last.status.over && last.status.reason === 'repetition' && last.status.result === 'd', 'chess: the same position a third time is a draw (threefold repetition)');
+    const f = CH.chessFromFen('4k3/8/8/8/8/8/8/R3K3 w - - 99 80');
+    const r = CH.chessPlay(f, { from: 'a1', to: 'a2' });
+    check(r.status.over && r.status.reason === 'fifty', 'chess: fifty moves each with no capture or pawn move is a draw');
+    const mateOn100 = CH.chessFromFen('6k1/5ppp/8/8/8/8/8/R5K1 w - - 99 80');
+    const rm = CH.chessPlay(mateOn100, { from: 'a1', to: 'a8' });
+    check(rm.status.reason === 'mate', 'chess: a mate on the hundredth half-move is mate, not fifty moves');
+    const pawn = CH.chessFromFen('4k3/8/8/8/8/8/4P3/4K3 w - - 99 80');
+    check(!CH.chessPlay(pawn, { from: 'e2', to: 'e3' }).status.over, 'chess: a pawn move starts the fifty moves again');
+  }
+  // Too little to mate.
+  {
+    const ins = (fen) => CH.chessInsufficient(CH.chessFromFen(fen).board);
+    check(ins('4k3/8/8/8/8/8/8/4K3 w - - 0 1') && ins('4k3/8/8/8/8/8/8/2B1K3 w - - 0 1') && ins('4k3/8/8/8/8/8/8/1N2K3 w - - 0 1'),
+      'chess: king against king, and a king and one bishop or knight against a king, can\'t mate');
+    check(ins('3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1') && !ins('2b1k3/8/8/8/8/8/8/2B1K3 w - - 0 1'), 'chess: bishops on squares of one colour can\'t mate; of both colours they can');
+    check(!ins('4k3/8/8/8/8/8/8/1NN1K3 w - - 0 1') && !ins('4k3/8/8/8/8/8/4P3/4K3 w - - 0 1'), 'chess: two knights, or a pawn, is not declared a draw');
+    const g = CH.chessFromFen('4k3/8/8/8/8/8/3q4/4K3 w - - 0 1');
+    const r = CH.chessPlay(g, { from: 'e1', to: 'd2' });
+    check(r.capture === 'q' && r.status.over && r.status.reason === 'material', 'chess: taking the last piece leaves king against king, a draw');
+  }
+  // SAN: which piece moved, when two could.
+  {
+    const s1 = CH.chessPlay(CH.chessFromFen('k7/8/8/8/8/5N2/8/1N2K3 w - - 0 1'), { from: 'b1', to: 'd2' });
+    const s2 = CH.chessPlay(CH.chessFromFen('7k/8/8/R7/8/8/8/R3K3 w - - 0 1'), { from: 'a1', to: 'a3' });
+    check(s1.san === 'Nbd2' && s2.san === 'R1a3', 'chess: two pieces that could go there are told apart (Nbd2, R1a3)');
+  }
+  // The clock: the first move free, the increment, running out, and who wins then.
+  {
+    const c = CH.chessClockNew('3+2');
+    check(c.left[0] === 180000 && c.left[1] === 180000 && c.inc === 2000 && c.at === null && CH.chessClockNew('off') === null && CH.chessClockNew('7+7') === null,
+      'chess clock: 3+2 is three minutes each and two seconds a move; off is no clock');
+    CH.chessClockPress(c, 0, 1000, 0, true);
+    check(c.left[0] === 180000 && c.at === 1000, 'chess clock: White\'s first move is free; Black\'s time starts with it');
+    CH.chessClockPress(c, 1, 11000, 0, false);
+    check(c.left[1] === 180000 - 10000 + 2000 && c.at === 11000, 'chess clock: the time a move took comes off, and the increment is added');
+    check(!CH.chessClockFlagged(c, 0, 11000 + 179000, 0) && CH.chessClockFlagged(c, 0, 11000 + 181000, 0), 'chess clock: the side to move runs out when its time is gone');
+    check(CH.chessClockPress(c, 0, 11000 + 181000, 500) === false, 'chess clock: a move after the time has gone (beyond the grace) is too late');
+    const b = (fen) => CH.chessFromFen(fen).board;
+    check(CH.chessFlagResult(b('4k3/8/8/8/8/8/8/Q3K3 w - - 0 1'), 1) === 'w', 'chess clock: Black runs out, White has a queen: White wins');
+    check(CH.chessFlagResult(b('4k3/8/8/8/8/8/8/Q3K3 w - - 0 1'), 0) === 'd', 'chess clock: White runs out with the queen, Black has only the king: a draw');
+    check(CH.chessFlagResult(b('4k3/8/8/8/8/8/8/1N2K3 w - - 0 1'), 1) === 'd' && CH.chessFlagResult(b('4k3/4p3/8/8/8/8/8/1N2K3 w - - 0 1'), 1) === 'w',
+      'chess clock: a lone knight can\'t mate a bare king (draw), but can with a pawn to block (a win)');
+  }
+  // Armageddon and the match in a bracket: replay once with the colours swapped, then Armageddon.
+  {
+    check(CH.chessArmageddonResult('d') === 'b' && CH.chessArmageddonResult('w') === 'w' && CH.chessArmageddonResult('b') === 'b', 'chess: in Armageddon a draw is a win for Black');
+    const m = { first: 'a', games: [] };
+    const n0 = CH.chessMatchNext(m);
+    check(!n0.done && n0.white === 'a' && !n0.armageddon, 'chess match: game 1, the first has White');
+    check(CH.chessMatchNext({ first: 'a', games: [{ white: 'a', result: 'b' }] }).winner === 'b', 'chess match: a decisive game 1 decides the match');
+    const n1 = CH.chessMatchNext({ first: 'a', games: [{ white: 'a', result: 'd' }] });
+    check(!n1.done && n1.white === 'b' && !n1.armageddon, 'chess match: a draw is replayed with the colours swapped');
+    check(CH.chessMatchNext({ first: 'a', games: [{ white: 'a', result: 'd' }, { white: 'b', result: 'w' }] }).winner === 'b', 'chess match: the replay decides it when it is won');
+    const n2 = CH.chessMatchNext({ first: 'a', games: [{ white: 'a', result: 'd' }, { white: 'b', result: 'd' }] }, () => 0.9);
+    check(!n2.done && n2.armageddon && n2.white === 'b', 'chess match: drawn twice, one Armageddon game (White by lot)');
+    const w3 = CH.chessMatchNext({ first: 'a', games: [{ white: 'a', result: 'd' }, { white: 'b', result: 'd' }, { white: 'b', result: 'd', armageddon: true }] });
+    check(w3.done && w3.winner === 'a', 'chess match: a drawn Armageddon goes to whoever had Black');
+  }
+  // The phone's player: never an illegal move, it stops on its ceiling, and hard beats easy.
+  {
+    let legal = true, count = 0;
+    const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const rnd = seeded(7);
+    for (let game = 0; game < 6; game++) {
+      const g = CH.chessNew();
+      for (let ply = 0; ply < 40 && !CH.chessStatus(g).over; ply++) {
+        const elo = [400, 1200, 2000][ply % 3];
+        const mv = CH.chessBestMove(g, { elo, nodes: 4000, rnd });
+        const ok = CH.chessLegalMoves(g).some((m) => m.from === mv.from && m.to === mv.to && (m.promo || '') === (mv.promo || ''));
+        if (!ok) legal = false;
+        // Half the moves random, so the positions go everywhere.
+        const all = CH.chessLegalMoves(g);
+        const pick = rnd() < 0.5 ? mv : all[Math.floor(rnd() * all.length)];
+        CH.chessPlay(g, pick);
+        count++;
+      }
+    }
+    check(legal && count > 150, `chess AI: every move at every rating is legal (${count} positions)`);
+    const t0 = realNow();
+    const hard = CH.chessBestMove(CH.chessNew(), { elo: 2000 });
+    check(!!hard && realNow() - t0 < 8000, 'chess AI: with the clock standing still (this test) 2000 stops at its ceiling of positions');
+    const a = CH.chessBestMove(CH.chessFromFen(KIWI), { elo: 2000, nodes: 20000, rnd: seeded(3) });
+    const b = CH.chessBestMove(CH.chessFromFen(KIWI), { elo: 2000, nodes: 20000, rnd: seeded(3) });
+    check(a.from === b.from && a.to === b.to, 'chess AI: the same position and ceiling give the same move');
+    check((() => { const m = CH.chessBestMove(CH.chessFromFen('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1'), { elo: 1200 }); return m.from === 'a1' && m.to === 'a8'; })(),
+      'chess AI: 1200 finds a mate in one (Ra8#)');
+    check((() => { const m = CH.chessBestMove(CH.chessFromFen('4k3/8/8/8/8/8/3q4/3QK3 w - - 0 1'), { elo: 2000, nodes: 20000 }); return m.to === 'd2'; })(),
+      'chess AI: 2000 takes a queen left en prise');
+    let hardWins = 0, hardLost = 0;
+    for (let game = 0; game < 4; game++) {
+      const g = CH.chessNew();
+      const hardIs = game % 2;       // 1800 plays Black in games 1 and 3
+      for (let ply = 0; ply < 300 && !CH.chessStatus(g).over; ply++) {
+        const elo = g.turn === hardIs ? 1800 : 600;
+        CH.chessPlay(g, CH.chessBestMove(g, { elo, nodes: elo === 1800 ? 25000 : undefined, rnd }));
+      }
+      const st = CH.chessStatus(g);
+      const hardColour = hardIs ? 'b' : 'w';
+      if (st.result === hardColour) hardWins++;
+      else if (st.result && st.result !== 'd') hardLost++;
+    }
+    check(hardWins >= 3 && hardLost === 0, `chess AI: 1800 beats 600 (${hardWins} of 4, none lost)`);
+    // The rating: 400 to 2000 in hundreds, stronger all the way up.
+    const steps = [];
+    for (let e = 400; e <= 2000; e += 100) steps.push(CH.chessEloSettings(e));
+    check(steps.length === 17 && steps.every((x, i) => !i || (x.depth >= steps[i - 1].depth && x.nodes > steps[i - 1].nodes && x.blunder <= steps[i - 1].blunder && x.noise <= steps[i - 1].noise)),
+      'chess AI: each step of the rating looks at least as deep, at more positions, wobbling and slipping less');
+    check(CH.chessElo(90) === 400 && CH.chessElo(2600) === 2000 && CH.chessElo(1234) === 1200 && CH.chessEloSettings(400).qdepth === 0 && CH.chessEloSettings(400).blunder > 0.2 && CH.chessEloSettings(2000).blunder === 0,
+      'chess AI: 400 looks one move ahead with no captures after it and slips a quarter of the time; 2000 never slips');
+    check(CH.chessEloBand(400) === 'beginner' && CH.chessEloBand(1000) === 'intermediate' && CH.chessEloBand(1500) === 'strong' && CH.chessEloBand(2000) === 'expert', 'chess AI: each rating has its name');
+    let wins = 0, losses = 0;
+    for (let game = 0; game < 4; game++) {
+      const g = CH.chessNew();
+      const upIs = game % 2;
+      for (let ply = 0; ply < 300 && !CH.chessStatus(g).over; ply++) {
+        const elo = g.turn === upIs ? 1400 : 400;
+        CH.chessPlay(g, CH.chessBestMove(g, { elo, nodes: Math.min(CH.chessEloSettings(elo).nodes, 20000), rnd }));
+      }
+      const st = CH.chessStatus(g);
+      if (st.result === (upIs ? 'b' : 'w')) wins++; else if (st.result && st.result !== 'd') losses++;
+    }
+    check(wins >= 3 && losses === 0, `chess AI: 1400 beats 400 (${wins} of 4, none lost)`);
+  }
+
+  // The coach: verdicts, the reasons, a hint, the accuracy and a review that comes out the same every time.
+  {
+    const same = { nodes: 20000, now: () => 0 };
+    check(CH.chessClassify(0) === 'best' && CH.chessClassify(15) === 'best' && CH.chessClassify(30) === 'good' && CH.chessClassify(70) === 'inaccuracy' &&
+      CH.chessClassify(150) === 'mistake' && CH.chessClassify(299) === 'mistake' && CH.chessClassify(300) === 'blunder' && CH.chessClassify(900) === 'blunder',
+      'chess coach: the verdicts by centipawns lost: best up to 15, good under 50, inaccuracy under 100, mistake under 300, blunder from 300');
+    check(Math.abs(CH.chessMoveAccuracy(40, 40) - 100) < 0.01 && CH.chessMoveAccuracy(0, -900) < 20 && CH.chessMoveAccuracy(900, 700) > CH.chessMoveAccuracy(100, -100),
+      'chess coach: a move that keeps the score is 100% accurate; throwing a piece away is under 20%; losing a little in a won game costs less than in a level one');
+    const qh4 = CH.chessReview({ start: '', moves: ['e2e4', 'e7e5', 'g1f3', 'd8h4', 'f3h4'] }, same);
+    const blunder = qh4.moves[3];
+    check(blunder.cls === 'blunder' && blunder.reasons[0].k === 'hang' && blunder.reasons[0].piece === 'q' && blunder.reasons[0].sq === 'h4' && blunder.best && blunder.best.san !== 'Qh4',
+      'chess coach: a queen put where a knight takes it is a blunder, "your queen on h4 can be taken", with a better move');
+    check(qh4.moves[4].cls === 'best' && qh4.moves[4].reasons[0].k === 'wins' && qh4.moves[4].reasons[0].piece === 'q', 'chess coach: taking it is the best move, and it wins the queen');
+    const scholar = CH.chessReview({ start: '', moves: ['e2e4', 'e7e5', 'd1h5', 'b8c6', 'f1c4', 'g8f6', 'h5f7'] }, same);
+    check(scholar.moves[5].cls === 'blunder' && scholar.moves[5].reasons[0].k === 'mate_allowed' && scholar.moves[5].reasons[0].n === 1,
+      'chess coach: a move that allows mate in one is a blunder, and says so');
+    check(scholar.key.some((k) => k.i === 5 && k.kind === 'turn'), 'chess coach: the blunder is a key moment (a turning point)');
+    check(scholar.graph.length === 8 && scholar.graph[7] === 1000, 'chess coach: the graph has a point before the first move and after each, mate at the top');
+    const g = CH.chessFromFen('r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4');
+    const hint = CH.chessAnalyse(g, same);
+    const why = CH.chessMoveGood(g, hint.move, hint);
+    check(hint.move.from === 'h5' && hint.move.to === 'f7' && hint.mate === 1 && why[0].k === 'mate_in' && why[0].n === 1, 'chess coach: the hint finds the mate in one (Qxf7#) and says so');
+    const perfect = { start: '', moves: [] };
+    const pg = CH.chessNew();
+    for (let i = 0; i < 12; i++) { const a = CH.chessAnalyse(pg, same); perfect.moves.push(CH.chessUci(a.move)); CH.chessPlay(pg, a.move); }
+    const pr = CH.chessReview(perfect, same);
+    check(pr.moves.every((m) => m.cls === 'best' || m.cls === 'brilliant') && pr.accuracy[0] > 99 && pr.accuracy[1] > 99, `chess coach: a game of the engine's own moves is ~100% accurate (${pr.accuracy.join(' / ')})`);
+    const again = CH.chessReview({ start: '', moves: ['e2e4', 'e7e5', 'd1h5', 'b8c6', 'f1c4', 'g8f6', 'h5f7'] }, same);
+    check(JSON.stringify(again) === JSON.stringify(scholar), 'chess coach: the review of a stored game comes out the same every time');
+    const th = CH.chessThreats(CH.chessFromFen('rnb1kbnr/pppp1ppp/8/4p3/4P2q/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3'));
+    check(th.w.join() === 'e4' && th.b.sort().join() === 'e5,h4', 'chess coach: the pieces in danger, each side (attacked and not defended, or by something cheaper)');
+    const pins = CH.chessPins(CH.chessFromFen('4k3/8/8/8/1b6/8/3N4/4K3 w - - 0 1').board, 0);
+    check(pins.length === 1 && pins[0].sq === 'd2' && pins[0].to === 'k', 'chess coach: a knight pinned to its king by a bishop is seen');
+  }
+
+  // The room: two sit down, White moves first, winner stays on.
+  const chRoom = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'chess' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const mv = (r, pid, m) => { const [from, to, promo] = m.split(/[-=]/); applyRoomAction(r, pid, 'move', { from, to, promo, move: r.shared.chess.moves }); };
+  {
+    let r = chRoom(['a', 'b', 'c'], {});
+    let s = r.shared;
+    const [W, B] = s.seats;
+    const watcher = s.line[0];
+    check(s.phase === 'play' && s.seats.length === 2 && s.line.length === 1 && s.settings.clock === 'off' && s.chess.clock === null && s.chess.g.turn === 0,
+      'chess room: two sit down (seat 0 White), one waits, the clock is off by default');
+    check(threwC(() => mv(r, B, 'e7-e5')), 'chess room: Black can\'t move first');
+    check(threwC(() => mv(r, watcher, 'e2-e4')), 'chess room: someone in the line can\'t move');
+    check(threwC(() => mv(r, W, 'e2-e5')), 'chess room: an illegal move is refused');
+    mv(r, W, 'f2-f3');
+    applyRoomAction(r, W, 'move', { from: 'f3', to: 'f4', move: 0 });
+    check(r.shared.chess.moves === 1 && r.shared.chess.g.turn === 1, 'chess room: a second tap drawn for the board before is dropped');
+    mv(r, B, 'e7-e5'); mv(r, W, 'g2-g4'); mv(r, B, 'd8-h4');
+    s = r.shared;
+    check(s.phase === 'over' && s.chess.result.reason === 'mate' && s.result.winnerId === B && s.chess.sans.join(' ') === 'f3 e5 g4 Qh4#',
+      'chess room: mate ends the game; the move list is kept in algebraic notation');
+    check(JSON.stringify(s.line) === JSON.stringify([watcher, W]) && s.scores[B] === 1, 'chess room: the winner scores, the loser goes to the back of the line');
+    applyRoomAction(r, W, 'nextRound', { round: s.round });
+    s = r.shared;
+    check(s.phase === 'play' && s.seats[0] === watcher && s.seats[1] === B && s.chess.moves === 0, 'chess room: the next in line sits down with White against the champion');
+    // A draw offered: once a move, answered by the other, declined by a move.
+    const [W2, B2] = s.seats;
+    applyRoomAction(r, W2, 'offerDraw', { move: 0 });
+    check(s.chess.offer && s.chess.offer.seat === 0, 'chess room: a draw is offered');
+    check(threwC(() => applyRoomAction(r, W2, 'offerDraw', { move: 0 })) && threwC(() => applyRoomAction(r, W2, 'answerDraw', { accept: true })),
+      'chess room: you can\'t offer twice, or accept your own offer');
+    applyRoomAction(r, B2, 'answerDraw', { accept: false });
+    check(!r.shared.chess.offer && r.shared.phase === 'play', 'chess room: refused, the game goes on');
+    check(threwC(() => applyRoomAction(r, W2, 'offerDraw', { move: 0 })), 'chess room: a new offer waits for your next move');
+    mv(r, W2, 'e2-e4');
+    applyRoomAction(r, W2, 'offerDraw', { move: 1 });
+    mv(r, B2, 'e7-e5');
+    check(!r.shared.chess.offer, 'chess room: moving instead of answering says no');
+    applyRoomAction(r, B2, 'offerDraw', { move: 2 });
+    applyRoomAction(r, W2, 'answerDraw', { accept: true });
+    s = r.shared;
+    check(s.phase === 'over' && s.chess.result.reason === 'agreed' && s.result.draw && s.champ === B2, 'chess room: accepted, a draw - and the champion keeps the seat');
+    applyRoomAction(r, W2, 'nextRound', { round: s.round });
+    s = r.shared;
+    applyRoomAction(r, s.seats[1], 'resign', { round: s.round });
+    check(r.shared.phase === 'over' && r.shared.chess.result.reason === 'resign' && r.shared.result.winnerId === r.shared.seats[0], 'chess room: resigning gives the game to the other');
+    // The clock.
+    r = chRoom(['a', 'b'], { clock: '3+2' });
+    s = r.shared;
+    check(s.settings.clock === '3+2' && s.chess.clock.left[0] === 180000 && roomDeadline(r) === null, 'chess room: the host\'s clock; it doesn\'t run before White\'s first move');
+    mv(r, s.seats[0], 'e2-e4');
+    const due = roomDeadline(r);
+    check(due === s.chess.clock.at + 180000 + 600, 'chess room: after White\'s first move Black\'s time runs, on the server');
+    clock = due + 1;
+    roomTimeout(r, clock);
+    check(r.shared.phase === 'over' && r.shared.chess.result.reason === 'time' && r.shared.result.winnerId === r.shared.seats[0], 'chess room: running out of time loses');
+    r = chRoom(['a', 'b'], { clock: '5+0' });
+    s = r.shared;
+    mv(r, s.seats[0], 'e2-e4');
+    s.chess.g = CH.chessFromFen('4k3/8/8/8/8/8/8/q3K3 b - - 0 1');
+    clock = roomDeadline(r) + 1;
+    roomTimeout(r, clock);
+    check(r.shared.chess.result.reason === 'time' && r.shared.chess.result.result === 'd' && r.shared.result.draw,
+      'chess room: out of time is only a draw when the other side has nothing to mate with');
+    r = chRoom(['a', 'b'], { clock: '3+2' });
+    s = r.shared;
+    mv(r, s.seats[0], 'e2-e4');
+    clock += 190000;
+    mv(r, s.seats[1], 'e7-e5');
+    check(r.shared.phase === 'over' && r.shared.chess.result.reason === 'time' && r.shared.chess.sans.length === 1, 'chess room: a move that arrives after the time ran out loses on time, and isn\'t played');
+    // Leaving.
+    r = chRoom(['a', 'b', 'c']);
+    s = r.shared;
+    const leaver = s.seats[0];
+    r.players = r.players.filter((p) => p.id !== leaver);
+    roomPlayerLeft(r, leaver, leaver);
+    check(r.shared.phase === 'over' && r.shared.result.reason === 'left' && r.shared.result.winnerId === s.seats[1], 'chess room: a seated player who leaves loses by forfeit');
+    applyRoomAction(r, 'b', 'nextRound', { round: r.shared.round });
+    check(r.shared.phase === 'play' && r.shared.seats.indexOf(leaver) === -1, 'chess room: and the next game seats whoever is here');
+    check(roomForcedMove(r) === null, 'chess room: a single legal move is never played for anyone (the move is the game)');
+  }
+}
+
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

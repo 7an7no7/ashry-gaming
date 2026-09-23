@@ -127,7 +127,9 @@ const ROOM_GAME_IDS = [
   // كدّاب (RoomDoubt.js) and الشايب (RoomOldMaid.js): the playing cards.
   'doubt', 'oldmaid',
   // ميني جولف (RoomMiniGolf.js): every ball on the same hole, or one putt at a time.
-  'minigolf'
+  'minigolf',
+  // شطرنج (RoomChess.js): the duels' line, winner stays on, a chess clock.
+  'chess'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -532,6 +534,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'connect4':   connect4Action(room, playerId, action, payload); break;
     case 'dots':       dotsAction(room, playerId, action, payload); break;
     case 'battleship': battleshipAction(room, playerId, action, payload); break;  // RoomBattleship.js
+    case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
     case 'ludo':       ludoAction(room, playerId, action, payload); break;      // RoomLudo.js
     case 'bank':       bankAction(room, playerId, action, payload); break;      // RoomBank.js
     case 'guesswho':   guessWhoAction(room, playerId, action, payload); break;  // RoomGuessWho.js
@@ -3399,6 +3402,7 @@ const gameDeadline = (room) => {
   if (room.game === 'bank') return bankDeadline(room);
   if (room.game === 'guesswho') return gwDeadline(room);
   if (room.game === 'battleship') return bsDeadline(room);
+  if (room.game === 'chess') return chessDeadline(room);
   if (room.game === 'hangman') return hmDeadline(room);
   if (room.game === 'bowling') return bowlDeadline(room);
   if (room.game === 'doubt') return doubtDeadline(room);
@@ -3516,6 +3520,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'bank') return bankTimeout(room, now);
   if (room.game === 'guesswho') return gwTimeout(room, now);
   if (room.game === 'battleship') return bsTimeout(room, now);
+  if (room.game === 'chess') return chessTimeout(room, now);
   if (room.game === 'hangman') return hmTimeout(room, now);
   if (room.game === 'bowling') return bowlTimeout(room, now);
   if (room.game === 'doubt') return doubtTimeout(room, now);
@@ -3683,6 +3688,10 @@ const gamePlayerLeft = (room, playerId, name) => {
     case 'battleship':
       // A seated player loses by forfeit, as in the duels (RoomBattleship.js).
       bsPlayerLeft(room, playerId);
+      return;
+    case 'chess':
+      // A seated player loses by forfeit, as in the duels (RoomChess.js).
+      chessPlayerLeft(room, playerId);
       return;
     case 'hangman':
       hmPlayerLeft(room, playerId);

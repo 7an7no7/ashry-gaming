@@ -89,6 +89,8 @@ const clearGameState = (room) => {
   room._timeline = null;
   room._doubt = null;
   room._om = null;
+  // The engine's secret and boards (RoomSolve.js).
+  room._solve = null;
   // A bot's next move belonged to the game that was cleared.
   room._botAt = null;
   room._botKey = null;
@@ -127,7 +129,9 @@ const ROOM_GAME_IDS = [
   // كدّاب (RoomDoubt.js) and الشايب (RoomOldMaid.js): the playing cards.
   'doubt', 'oldmaid',
   // ميني جولف (RoomMiniGolf.js): every ball on the same hole, or one putt at a time.
-  'minigolf'
+  'minigolf',
+  // One sets, everyone solves (RoomSolve.js): خمن الكلمة, خمّن الرقم, خمّن الدولة (and فوازير إيموجي's written way).
+  'wordle', 'guessnum', 'flags'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -517,7 +521,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'spyfall':    spyfallRoomAction(room, playerId, action, payload); break;
     case 'bomb':       bombRoomAction(room, playerId, action, payload); break;
     case 'twotruths':  twoTruthsAction(room, playerId, action, payload); break;
-    case 'emoji':
+    // فوازير إيموجي: a riddle a player writes, or the app's as a race, is the engine's (RoomSolve.js); the quiz is quizAction.
+    case 'emoji':      (svEmojiOnEngine(room, action, payload) ? solveAction : quizAction)(room, playerId, action, payload); break;
     case 'proverbs':   quizAction(room, playerId, action, payload); break;
     case 'fiveseconds': fiveSecondsAction(room, playerId, action, payload); break;
     case 'telephone':  telephoneAction(room, playerId, action, payload); break;
@@ -540,6 +545,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'bowling':    bowlingAction(room, playerId, action, payload); break;   // RoomBowling.js
     case 'doubt':      doubtAction(room, playerId, action, payload); break;     // RoomDoubt.js
     case 'oldmaid':    oldMaidAction(room, playerId, action, payload); break;   // RoomOldMaid.js
+    case 'wordle':
+    case 'guessnum':
+    case 'flags':      solveAction(room, playerId, action, payload); break;     // RoomSolve.js
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -3404,6 +3412,7 @@ const gameDeadline = (room) => {
   if (room.game === 'doubt') return doubtDeadline(room);
   if (room.game === 'oldmaid') return omDeadline(room);
   if (room.game === 'minigolf') return mgDeadline(room);
+  if (svKindOf(room)) return svDeadline(room);   // RoomSolve.js
   return null;
 };
 
@@ -3424,6 +3433,8 @@ const roomTimeout = (room, now) => {
 const gameTimeout = (room, now) => {
   const due = gameDeadline(room);
   if (!due || now < due) return false;
+  // The engine first: فوازير إيموجي on it must not reach the quiz's clock below (RoomSolve.js).
+  if (svKindOf(room)) return svTimeout(room, now);
   if (room.game === 'trivia') {
     closeTriviaQuestion(room);
     return true;
@@ -3609,6 +3620,7 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'emoji':
     case 'proverbs':
+      if (svKindOf(room)) { svPlayerLeft(room, playerId); return; }   // a written riddle, or the race (RoomSolve.js)
       if (s.phase === 'answering' && activeRoster(room, s.roster).every(id => (room._answers || {})[id])) closeQuizCard(room);
       return;
     case 'buzzer':
@@ -3686,6 +3698,11 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'hangman':
       hmPlayerLeft(room, playerId);
+      return;
+    case 'wordle':
+    case 'guessnum':
+    case 'flags':
+      svPlayerLeft(room, playerId);   // RoomSolve.js
       return;
     case 'minigolf':
       // Their ball leaves the hole; the turn and the hole move on without them (RoomMiniGolf.js).

@@ -256,7 +256,7 @@ const repeats = (list, key = fold) => [...new Set(list.map(key).filter((v, i, a)
 
 // Wordle only works if every word is exactly its length and typeable on the
 // keypad (hamza-on-alef is folded to plain alef when a word is dealt).
-const WORD = load(G + 'JS_Wordle.html', 'WORDLE_DB');
+const WORD = load(G + 'WordleWords.js', 'WORDLE_DB');
 for (const [lang, byLen] of Object.entries(WORD)) {
   for (const [len, list] of Object.entries(byLen)) {
     const bad = list.filter(w => [...w].length !== Number(len)

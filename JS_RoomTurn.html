@@ -72,6 +72,7 @@ function roomTurnOf(state) {
       return s.phase === 'answering' && inRound && !has(s.answered) ? 'turn_answer' : null;
     case 'emoji':
     case 'proverbs':
+      if (s.solve) return roomSolveTurn(state);   // a written riddle, or the race (JS_RoomSolve.html)
       return s.phase === 'answering' && inRound && !has(s.solved) && (s.retry || !has(s.tried)) ? 'turn_answer' : null;
     case 'fiveseconds':
       return s.phase === 'ready' && s.turnId === me ? 'turn_up' : null;
@@ -102,6 +103,10 @@ function roomTurnOf(state) {
       if (s.phase !== 'play') return null;
       if (s.stage === 'answer') return s.seats[1 - s.turn] === me ? 'turn_up' : null;
       return s.seats[s.turn] === me ? 'turn_up' : null;
+    case 'wordle':
+    case 'guessnum':
+    case 'flags':
+      return roomSolveTurn(state);
     case 'hangman':
       // The word to write, or your own board still being guessed.
       if (s.phase === 'writing') return s.setter === me ? 'turn_up' : null;

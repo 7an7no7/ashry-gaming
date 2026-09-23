@@ -1,0 +1,897 @@
+<script>
+/* ============================================================================
+   ONE SETS, EVERYONE SOLVES — the phones and the TV
+   ----------------------------------------------------------------------------
+   The owner's decisions of 23 Sep 2026: المشنقة's room way made an engine -
+   one sets a secret and everyone else solves it on their own phone, the
+   setter moving round the table, or a race on the app's pick - and four games
+   on it: خمن الكلمة, خمّن الرقم, خمّن الدولة and فوازير إيموجي written by a
+   player. The rules are RoomSolve.js (the server keeps the secret and answers
+   every guess) and SolveGames.js (shared: what a setter may send).
+
+   One renderer for the four (svRender, svTvFrame); what each game adds is a
+   plug-in in SV_UI: the setter's form, the solver's board, the public part
+   of the secret, what the table sees of a board, and the reveal. A phone only
+   ever holds its own board: another player's row is the colours (خمن الكلمة),
+   the closest they came (خمّن الدولة) or just how many tries.
+
+   What a phone is typing is never redrawn under it: the frame's signature is
+   what this phone shows of its own (`state.you`, the round, the phase), and
+   the table's progress, the host's buttons and the clock are refreshed in
+   place (svPaintLive).
+
+   Motion (the toolkit): a new row turns over, a verdict pops, a distance
+   counts up, a wrong riddle guess shakes; at the end of a round the secret
+   turns over for everyone (svRevealHtml, motionFirst), the points a phone won
+   fly to its row (flyPoints) and the board counts up (animateScoreboards); the
+   game ends on the podium with confetti.
+   ========================================================================= */
+
+const svT = (key, vars) => {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || key;
+  Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
+  return s;
+};
+
+// sinceKey / since: how long the setter has been up (the host's skip); draft: a خمن الكلمة row being typed;
+// pick: the country a setter picked; seen: what this phone last drew of its own board (the motion).
+const svRoom = { clock: null, clockKey: null, sinceKey: '', since: 0, draft: { key: '', text: '' }, pick: { key: '', code: '' }, emojiKind: 'film', seen: {}, scoreKey: '', myScore: 0, liveHtml: {} };
+
+const SV_ICONS = { wordle: '🟩', guessnum: '🔢', flags: '🌍', emoji: '🤔' };
+
+function svRoomOpts(kind) {
+  const d = { mode: 'setter', rounds: 5, clock: 0 };
+  if (kind === 'wordle') d.len = 5;
+  if (kind === 'guessnum') d.max = 100;
+  if (kind === 'flags') { d.clue = 'flag'; d.level = 'easy'; }
+  if (kind === 'emoji') d.way = 'setter';
+  const o = recallOptions('solveRoom_' + kind, d);
+  if (kind === 'emoji') o.mode = o.way === 'race' ? 'race' : 'setter';
+  return o;
+}
+
+function setSvRoomOpt(kind, key, value) {
+  rememberOptions('solveRoom_' + kind, { [key]: value });
+  duelLobbyRedraw();
+}
+
+/* --- the lobby ---------------------------------------------------------------------- */
+
+function svSeg(label, kind, key, values, current, hint) {
+  return `<div class="field">
+      <label class="field__label">${escapeHTML(label)}</label>
+      <div class="segmented" role="group">${values.map(v => `<button type="button" class="segmented__item ${String(v[0]) === String(current) ? 'is-active' : ''}" onclick="setSvRoomOpt('${kind}', '${key}', ${typeof v[0] === 'string' ? `'${v[0]}'` : v[0]})">${escapeHTML(v[1])}</button>`).join('')}</div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+}
+
+/** The host's choices: the way (one sets, or a race), the game's own, how many, the clock. */
+function svLobbyFields(kind, o) {
+  const race = o.mode === 'race';
+  const extra = {
+    wordle: race ? svSeg(svT('sv_wordle_len'), kind, 'len', SV_WORDLE_LENGTHS.map(n => [n, String(n)]), o.len, svT('sv_wordle_len_hint')) : '',
+    guessnum: svSeg(svT('sv_num_range'), kind, 'max', SV_NUM_RANGES.map(n => [n, '1 - ' + n]), o.max, svT('sv_num_range_hint')),
+    flags: svSeg(svT('flags_mode'), kind, 'clue', [['flag', svT('flags_mode_flag')], ['far', svT('flags_mode_far')]], o.clue) +
+      (race ? svSeg(svT('solo_level'), kind, 'level', [['easy', svT('flags_lvl_easy')], ['hard', svT('flags_lvl_hard')]], o.level) : ''),
+    emoji: ''
+  }[kind];
+  return `${extra}
+    ${svSeg(svT('sv_lobby_rounds'), kind, 'rounds', SV_ROUNDS.map(n => [n, String(n)]), o.rounds)}
+    ${svSeg('⏱️ ' + svT('sv_lobby_clock'), kind, 'clock', SV_CLOCKS[kind].map(v => [v, v ? v + '″' : svT('gw_clock_off')]), o.clock, svT('sv_clock_hint'))}`;
+}
+
+function svLobbyHtml(kind, state) {
+  const o = svRoomOpts(kind);
+  if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(svT('sv_lobby_hint'))}</p>`;
+  return `<div class="card card--tight">
+      ${svSeg(svT('sv_lobby_mode'), kind, 'mode', [['setter', svT('sv_mode_setter')], ['race', svT('sv_mode_race')]], o.mode, svT(o.mode === 'race' ? 'sv_race_hint_' + kind : 'sv_setter_hint_' + kind))}
+      ${svLobbyFields(kind, o)}
+    </div>`;
+}
+
+function svStartPayload(kind) {
+  const o = svRoomOpts(kind);
+  const p = { mode: o.mode, rounds: o.rounds, clock: o.clock, lang: contentLang() };
+  if (kind === 'wordle') p.len = o.len;
+  if (kind === 'guessnum') p.max = o.max;
+  if (kind === 'flags') { p.clue = o.clue; p.level = o.level; }
+  if (kind === 'emoji') p.way = o.mode;
+  return p;
+}
+
+/* --- small pieces --------------------------------------------------------------------- */
+
+const svName = (state, id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+const svRound = (s) => Number(s.round) || 0;
+
+/** The dotted field a secret is typed in (never type="password": an iPhone gives that only its English keyboard). */
+function svHiddenInput(name, ph, extra) {
+  return `<div class="sv-hidden">
+      <input type="text" class="is-hidden" name="${name}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ${extra || ''}
+        placeholder="${escapeHTML(ph)}" aria-label="${escapeHTML(ph)}">
+      <button type="button" class="btn btn--ghost btn--auto" onclick="svToggleEye(this)" aria-label="${escapeHTML(svT('sv_show_secret'))}" title="${escapeHTML(svT('sv_show_secret'))}">👁️</button>
+    </div>`;
+}
+
+function svToggleEye(btn) {
+  const input = btn.parentNode.querySelector('input');
+  if (!input) return;
+  input.classList.toggle('is-hidden');
+  input.focus();
+}
+
+/** A form's error line and its shake: '' clears it. */
+function svFormError(form, text) {
+  const box = form.querySelector('.sv-err');
+  if (box) box.textContent = text || '';
+  if (!text) return;
+  if (!motionOff()) { form.classList.remove('animate-shake'); void form.offsetWidth; form.classList.add('animate-shake'); setTimeout(() => form.classList.remove('animate-shake'), 600); }
+  haptic('heavy');
+}
+
+/** Sends a move; a refusal is said in the form it came from. */
+async function svSend(action, payload, form) {
+  try {
+    await Room.act(action, payload);
+    return true;
+  } catch (err) {
+    if (form) svFormError(form, err.message || '');
+    else showToast(err.message || '', 'error');
+    return false;
+  }
+}
+
+/* --- خمن الكلمة -------------------------------------------------------------------------- */
+
+const SV_WORDLE_CLS = { c: 'correct', p: 'present', a: 'absent' };
+
+function svWordleCells(word, colours, cls) {
+  return Array.from(word).map((ch, i) => `<div class="wordle-cell ${colours ? 'wordle-cell--' + SV_WORDLE_CLS[colours[i]] : ''} ${cls || ''}">${escapeHTML(ch)}</div>`).join('');
+}
+
+function svWordleRow(len, cells) {
+  return `<div class="wordle-row" style="grid-template-columns: repeat(${len}, 1fr)">${cells}</div>`;
+}
+
+/** The keys of the word's alphabet, lit by what this board has learnt of each. */
+function svWordleKeysHtml(alpha, rows, on) {
+  const state = {};
+  const rank = { c: 3, p: 2, a: 1 };
+  rows.forEach(r => Array.from(r.w).forEach((ch, i) => { const c = r.c[i]; if (!state[ch] || rank[c] > rank[state[ch]]) state[ch] = c; }));
+  const layout = WORDLE_LAYOUTS[alpha === 'en' ? 'en' : 'ar'];
+  const key = (ch) => `<button type="button" class="key ${state[ch] ? 'key--' + SV_WORDLE_CLS[state[ch]] : ''}" ${on ? `onclick="svWordleKey('${ch}')"` : 'disabled'}>${ch}</button>`;
+  return `<div class="keypad sv-keypad" dir="${alpha === 'en' ? 'ltr' : 'rtl'}">
+      ${layout.map(row => `<div class="keypad__row">${row.split('').map(key).join('')}</div>`).join('')}
+      ${on ? `<div class="keypad__row">
+        <button type="button" class="key key--wide" onclick="svWordleKey('BACK')" aria-label="${escapeHTML(svT('sv_back_key'))}">⌫</button>
+        <button type="button" class="key key--wide" onclick="svWordleKey('ENTER')">${escapeHTML(svT('sv_enter_key'))}</button>
+      </div>` : ''}
+    </div>`;
+}
+
+/** The draft being typed belongs to this round only. */
+function svDraft(s) {
+  const key = [s.dealId, s.round].join('|');
+  if (svRoom.draft.key !== key) svRoom.draft = { key: key, text: '' };
+  return svRoom.draft;
+}
+
+function svWordlePaintDraft() {
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  const row = document.querySelector('[data-sv-draft]');
+  if (!row || !s.pub) return;
+  const text = Array.from(svDraft(s).text);
+  row.querySelectorAll('.wordle-cell').forEach((cell, i) => {
+    const ch = text[i] || '';
+    if (cell.textContent === ch) return;
+    cell.textContent = ch;
+    cell.className = 'wordle-cell ' + (ch ? 'wordle-cell--filled animate-pop' : 'wordle-cell--empty');
+  });
+}
+
+function svWordleKey(key) {
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  if (!st || s.phase !== 'solving' || !st.you || st.you.state !== 'play' || !s.pub) return;
+  const d = svDraft(s);
+  const chars = Array.from(d.text);
+  if (key === 'BACK') { chars.pop(); d.text = chars.join(''); svWordlePaintDraft(); return; }
+  if (key === 'ENTER') {
+    const row = document.querySelector('[data-sv-draft]');
+    if (chars.length !== s.pub.len) {
+      if (row && !motionOff()) { row.classList.remove('animate-shake'); void row.offsetWidth; row.classList.add('animate-shake'); setTimeout(() => row.classList.remove('animate-shake'), 600); }
+      showToast(svT('sv_wordle_short', { n: s.pub.len }));
+      haptic('heavy');
+      return;
+    }
+    const text = d.text;
+    d.text = '';
+    haptic('light');
+    svSend('guess', { text: text, round: svRound(s) }).then(ok => { if (!ok) { d.text = text; svWordlePaintDraft(); } });
+    return;
+  }
+  if (chars.length >= s.pub.len) return;
+  d.text += svWordleFold(key);
+  svWordlePaintDraft();
+}
+
+/** A computer's keyboard types too, in the word's alphabet, never into a field or under a popup. */
+function svWordleKeydown(e) {
+  if (appState.currentView !== 'room-wordle' || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  if (document.querySelector('.modal-overlay:not(.hidden)')) return;
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  if (!st || s.phase !== 'solving' || !st.you || st.you.state !== 'play' || !s.pub) return;
+  if (e.key === 'Enter') { e.preventDefault(); svWordleKey('ENTER'); return; }
+  if (e.key === 'Backspace') { e.preventDefault(); svWordleKey('BACK'); return; }
+  if (!e.key || !(e.key.length === 1 || /^ل[اأإآ]$/.test(e.key))) return;
+  const keys = WORDLE_LAYOUTS[s.pub.alpha === 'en' ? 'en' : 'ar'].join('');
+  const chars = Array.from(svWordleFold(e.key));
+  if (!chars.length || !chars.every(ch => keys.indexOf(ch) !== -1)) return;
+  e.preventDefault();
+  chars.forEach(ch => svWordleKey(ch));
+}
+if (typeof document !== 'undefined') document.addEventListener('keydown', svWordleKeydown);
+
+/* --- خمّن الدولة: the search a setter and a solver type in --------------------------------- */
+
+function svCountryMatches(query, taken, lang) {
+  const q = foldWord(query);
+  if (!q) return [];
+  const scored = [];
+  COUNTRIES.forEach(c => {
+    if (taken.indexOf(c.code) !== -1) return;
+    const names = [c.ar, c.en].concat((FLAG_ALIASES[c.code] || '').split('|').filter(Boolean)).map(foldWord);
+    let score = 0;
+    names.forEach(n => {
+      if (n === q) score = Math.max(score, 3);
+      else if (n.indexOf(q) === 0) score = Math.max(score, 2);
+      else if (q.length >= 2 && n.indexOf(q) !== -1) score = Math.max(score, 1);
+    });
+    if (score) scored.push({ c: c, score: score });
+  });
+  return scored.sort((a, b) => b.score - a.score || a.c.tier - b.c.tier || flagName(a.c, lang).localeCompare(flagName(b.c, lang))).slice(0, 6).map(x => x.c);
+}
+
+/** The suggestions under a search box: `flags` shows each one's flag (never to a solver guessing a flag). */
+function svCountrySuggest(input, onpick, flags) {
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  const box = input.closest('.sv-country').querySelector('.flags-suggest');
+  if (!box) return;
+  const taken = st && st.you && st.you.board ? st.you.board.g.map(g => g.code) : [];
+  const lang = (s.settings && s.settings.lang) || contentLang();
+  const list = svCountryMatches(input.value, taken, lang);
+  box.innerHTML = list.map(c => `
+    <button type="button" class="flags-chip" onclick="${onpick}('${c.code}')">
+      <span class="flag-emoji" aria-hidden="true">${flags ? flagEmoji(c.code) : ''}</span>${escapeHTML(flagName(c, lang))}</button>`).join('')
+    || (foldWord(input.value) ? `<span class="field__hint">${escapeHTML(svT('flags_none'))}</span>` : '');
+}
+
+function svCountrySearchHtml(onpick, flags) {
+  return `<div class="sv-country">
+      <input type="text" autocomplete="off" autocorrect="off" spellcheck="false" dir="auto" placeholder="${escapeHTML(svT('flags_type'))}" aria-label="${escapeHTML(svT('flags_type'))}"
+        oninput="svCountrySuggest(this, '${onpick}', ${flags ? 'true' : 'false'})"
+        onkeydown="if (event.key === 'Enter') { event.preventDefault(); const b = this.closest('.sv-country').querySelector('.flags-chip'); if (b) b.click(); }">
+      <div class="flags-suggest"></div>
+    </div>`;
+}
+
+function svFlagsPick(code) {
+  const s = ((Room.state || {}).shared) || {};
+  svRoom.pick = { key: [s.dealId, s.round].join('|'), code: code };
+  const form = document.querySelector('.sv-set-flags');
+  if (form) form.outerHTML = svSetFlagsHtml(s);
+  haptic('light');
+}
+
+function svFlagsRandom() {
+  const pool = COUNTRIES.filter(c => c.tier <= 2);
+  svFlagsPick(pool[Math.floor(Math.random() * pool.length)].code);
+}
+
+function svFlagsGuess(code) {
+  const s = ((Room.state || {}).shared) || {};
+  haptic('light');
+  svSend('guess', { code: code, round: svRound(s) });
+}
+
+function svSetFlagsHtml(s) {
+  const key = [s.dealId, s.round].join('|');
+  const code = svRoom.pick.key === key ? svRoom.pick.code : '';
+  const c = code ? flagCountry(code) : null;
+  const lang = (s.settings && s.settings.lang) || contentLang();
+  return `<div class="sv-set-flags">
+      ${c ? `<div class="sv-picked"><span class="flag-emoji sv-picked__flag" aria-hidden="true">${flagEmoji(c.code)}</span><b>${escapeHTML(flagName(c, lang))}</b></div>` : ''}
+      ${svCountrySearchHtml('svFlagsPick', true)}
+      <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="svFlagsRandom()">🎲 ${escapeHTML(svT('sv_pick_random'))}</button>
+      <p class="field__hint tx-danger sv-err" role="alert"></p>
+      <button type="button" class="btn btn--primary btn--lg" ${c ? '' : 'disabled'} onclick="svFlagsSet(this)">${escapeHTML(svT('sv_send_country'))}</button>
+    </div>`;
+}
+
+function svFlagsSet(btn) {
+  const s = ((Room.state || {}).shared) || {};
+  const code = svRoom.pick.key === [s.dealId, s.round].join('|') ? svRoom.pick.code : '';
+  if (!code) return;
+  haptic('medium');
+  svSend('setSecret', { code: code, round: svRound(s) }, btn.closest('.sv-set-flags'));
+}
+
+function svFlagRowHtml(g, lang, fresh) {
+  const c = flagCountry(g.code);
+  const right = g.km === 0 && g.p === 100;
+  return `<li class="flags-row${right ? ' is-right' : ''}${fresh ? ' is-new' : ''}" style="--p:${right ? 1 : g.p / 100}">
+    <span class="flags-row__fill" aria-hidden="true"></span>
+    <span class="flag-emoji flags-row__flag" aria-hidden="true">${flagEmoji(g.code)}</span>
+    <b class="flags-row__name">${escapeHTML(flagName(c, lang))}</b>
+    ${right ? '<span class="flags-row__win">🎉</span>' : `
+      <span class="flags-row__km"><span class="metric" data-km="${g.km}">${Number(g.km).toLocaleString('en-US')}</span> ${escapeHTML(svT('flags_km'))}</span>
+      <span class="flags-row__arrow" style="--deg:${Math.round(g.deg)}deg" aria-label="${Math.round(g.deg)}°">↑</span>
+      <span class="flags-row__p metric">${g.p}%</span>`}
+  </li>`;
+}
+
+/* --- the forms a setter fills ---------------------------------------------------------------- */
+
+function svWordleSet(form) {
+  const s = ((Room.state || {}).shared) || {};
+  const input = form.querySelector('input[name="w"]');
+  const text = input ? input.value : '';
+  const p = svWordleProblem(text);
+  if (p) { svFormError(form, svT(p === 'length' ? 'sv_wordle_bad_len' : 'sv_wordle_bad_letters')); return; }
+  svFormError(form, '');
+  haptic('medium');
+  svSend('setSecret', { word: text, round: svRound(s) }, form);
+}
+
+function svNumSet(form) {
+  const s = ((Room.state || {}).shared) || {};
+  const input = form.querySelector('input[name="n"]');
+  const n = Number(String(input ? input.value : '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim());
+  if (svNumProblem(n, s.settings.max)) { svFormError(form, svT('sv_num_bad', { max: s.settings.max })); return; }
+  svFormError(form, '');
+  haptic('medium');
+  svSend('setSecret', { n: n, round: svRound(s) }, form);
+}
+
+function svNumRandom(btn) {
+  const s = ((Room.state || {}).shared) || {};
+  const input = btn.closest('form').querySelector('input[name="n"]');
+  if (input) input.value = String(1 + Math.floor(Math.random() * ((s.settings && s.settings.max) || 100)));
+  haptic('light');
+}
+
+function svEmojiSetKind(kind) {
+  svRoom.emojiKind = SV_EMOJI_KINDS.indexOf(kind) !== -1 ? kind : 'thing';
+  document.querySelectorAll('.sv-kinds .pick-chip').forEach(b => {
+    const on = b.dataset.kind === svRoom.emojiKind;
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  haptic('light');
+}
+
+function svEmojiPreview(input) {
+  const box = input.closest('form').querySelector('.sv-emoji-preview');
+  if (box) box.textContent = input.value.trim();
+}
+
+function svEmojiSet(form) {
+  const s = ((Room.state || {}).shared) || {};
+  const answer = (form.querySelector('input[name="a"]') || {}).value || '';
+  const clue = (form.querySelector('input[name="e"]') || {}).value || '';
+  const ap = svEmojiAnswerProblem(answer);
+  if (ap) { svFormError(form, svT(ap === 'long' ? 'sv_emoji_long' : 'sv_emoji_no_answer')); return; }
+  const cp = svEmojiClueProblem(clue, answer);
+  if (cp) { svFormError(form, svT(cp === 'spells' ? 'sv_emoji_spells' : cp === 'letters' ? 'sv_emoji_letters' : cp === 'long' ? 'sv_emoji_clue_long' : 'sv_emoji_no_clue')); return; }
+  svFormError(form, '');
+  haptic('medium');
+  svSend('setSecret', { answer: answer, clue: clue, kind: svRoom.emojiKind, round: svRound(s) }, form);
+}
+
+function svSetFormHtml(kind, s) {
+  if (kind === 'wordle') {
+    return `<form class="sv-form" onsubmit="event.preventDefault(); svWordleSet(this)">
+        ${svHiddenInput('w', svT('sv_wordle_ph'), 'maxlength="12"')}
+        <p class="field__hint">${escapeHTML(svT('sv_wordle_set_hint'))}</p>
+        <p class="field__hint tx-danger sv-err" role="alert"></p>
+        <button type="submit" class="btn btn--primary btn--lg">${escapeHTML(svT('sv_send_word'))}</button>
+      </form>`;
+  }
+  if (kind === 'guessnum') {
+    return `<form class="sv-form" onsubmit="event.preventDefault(); svNumSet(this)">
+        <p class="sheet__subtitle">${escapeHTML(svT('sv_num_set_range', { max: s.settings.max }))}</p>
+        ${svHiddenInput('n', svT('sv_num_ph'), 'inputmode="numeric" maxlength="4"')}
+        <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="svNumRandom(this)">🎲 ${escapeHTML(svT('sv_pick_random'))}</button>
+        <p class="field__hint tx-danger sv-err" role="alert"></p>
+        <button type="submit" class="btn btn--primary btn--lg">${escapeHTML(svT('sv_send_number'))}</button>
+      </form>`;
+  }
+  if (kind === 'flags') return svSetFlagsHtml(s);
+  return `<form class="sv-form" onsubmit="event.preventDefault(); svEmojiSet(this)">
+      <div class="chip-set sv-kinds" role="group" aria-label="${escapeHTML(svT('sv_emoji_kind'))}">${SV_EMOJI_KINDS.map(k => `<button type="button" class="pick-chip ${svRoom.emojiKind === k ? 'is-on' : ''}" data-kind="${k}" aria-pressed="${svRoom.emojiKind === k}" onclick="svEmojiSetKind('${k}')"><span class="pick-chip__name">${escapeHTML(svT('sv_ek_' + k))}</span></button>`).join('')}</div>
+      ${svHiddenInput('a', svT('sv_emoji_answer_ph'), 'maxlength="' + SV_EMOJI_ANSWER_MAX + '"')}
+      <input type="text" name="e" class="sv-emoji-input" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="${SV_EMOJI_CLUE_MAX}"
+        placeholder="${escapeHTML(svT('sv_emoji_clue_ph'))}" aria-label="${escapeHTML(svT('sv_emoji_clue_ph'))}" oninput="svEmojiPreview(this)">
+      <div class="emoji-card__e sv-emoji-preview" aria-hidden="true"></div>
+      <p class="field__hint">${escapeHTML(svT('sv_emoji_set_hint'))}</p>
+      <p class="field__hint tx-danger sv-err" role="alert"></p>
+      <button type="submit" class="btn btn--primary btn--lg">${escapeHTML(svT('sv_send_riddle'))}</button>
+    </form>`;
+}
+
+/* --- what the table may see of the secret, and the secret itself ---------------------------- */
+
+/** The kind of riddle: a setter's chip, or the bank's category in the race. */
+const svEmojiKindLabel = (pub) => (pub.k ? svT('sv_ek_' + pub.k) : (pub.c || ''));
+
+function svPubHtml(kind, s, big) {
+  const p = s.pub || {};
+  if (kind === 'wordle') return hmTilesHtml(Array.from({ length: p.len || 0 }, () => ''), p.alpha, {});
+  if (kind === 'guessnum') return `<div class="sv-range metric ${big ? 'sv-range--big' : ''}">1 – ${p.max}</div>`;
+  if (kind === 'flags') {
+    return p.clue === 'flag'
+      ? `<span class="flag-emoji flags-target__flag sv-flag ${big ? 'sv-flag--big' : ''}">${escapeHTML(p.flag || '')}</span>`
+      : `<span class="flags-target__flag sv-flag ${big ? 'sv-flag--big' : ''}" aria-hidden="true">🧭</span>`;
+  }
+  return `<div class="emoji-card ${big ? 'emoji-card--big' : ''}"><div class="emoji-card__e">${escapeHTML(p.e || '')}</div>
+      ${svEmojiKindLabel(p) ? `<span class="badge badge--accent">${escapeHTML(svEmojiKindLabel(p))}</span>` : ''}</div>`;
+}
+
+/** The secret, for the setter while the others solve, and for everyone at the end. */
+function svSecretHtml(kind, x, s) {
+  if (!x) return '';
+  const lang = (s.settings && s.settings.lang) || contentLang();
+  if (kind === 'wordle') { const w = x.word || ''; return hmTilesHtml(Array.from(w), svWordleAlpha(svWordleFold(w)) || 'ar', {}); }
+  if (kind === 'guessnum') return `<div class="sv-range sv-range--answer metric">${Number(x.n)}</div>`;
+  if (kind === 'flags') {
+    const c = flagCountry(x.code);
+    return `<div class="sv-picked sv-picked--big"><span class="flag-emoji sv-picked__flag" aria-hidden="true">${flagEmoji(x.code)}</span><b>${escapeHTML(flagName(c, lang))}</b></div>`;
+  }
+  return `<div class="emoji-card"><div class="emoji-card__e">${escapeHTML(x.e || '')}</div></div><div class="sv-answer">${escapeHTML(x.a || '')}</div>`;
+}
+
+/* --- a solver's own board ------------------------------------------------------------------------ */
+
+function svBoardHtml(kind, state, fx) {
+  const s = state.shared;
+  const you = state.you || {};
+  const b = you.board || { g: [] };
+  const on = you.state === 'play';
+  const lang = (s.settings && s.settings.lang) || contentLang();
+  const newest = fx.fresh ? b.g.length - 1 : -1;
+  const tries = `<span class="sv-tries">${escapeHTML(svT('sv_tries', { n: you.n || 0, m: s.maxTries || 0 }))}</span>`;
+  if (kind === 'wordle') {
+    const len = s.pub.len, rows = s.maxTries;
+    const out = b.g.map((r, i) => svWordleRow(len, svWordleCells(r.w, r.c, i === newest ? 'animate-flip' : '')));
+    if (on) {
+      const d = Array.from(svDraft(s).text);
+      out.push(`<div class="wordle-row" data-sv-draft style="grid-template-columns: repeat(${len}, 1fr)">${Array.from({ length: len }, (_, i) =>
+        `<div class="wordle-cell ${d[i] ? 'wordle-cell--filled' : 'wordle-cell--empty'}">${escapeHTML(d[i] || '')}</div>`).join('')}</div>`);
+    }
+    while (out.length < rows) out.push(svWordleRow(len, Array.from({ length: len }, () => '<div class="wordle-cell wordle-cell--empty"></div>').join('')));
+    return `<div class="sv-board sv-board--wordle">
+        <div class="sv-board__head">${tries}</div>
+        <div class="wordle-grid sv-wordle-grid" style="--wordle-cols:${len}; --wordle-rows:${rows}">${out.join('')}</div>
+        ${svWordleKeysHtml(s.pub.alpha, b.g, on)}
+      </div>`;
+  }
+  if (kind === 'guessnum') {
+    const last = b.g[b.g.length - 1];
+    const verdict = !last ? svT('sv_num_start') : last.v === 'right' ? svT('sv_num_right', { n: last.n }) : last.v === 'higher' ? svT('sv_num_higher') : svT('sv_num_lower');
+    return `<div class="sv-board sv-board--num">
+        <div class="sv-board__head">${tries}</div>
+        <div class="sv-num">
+          <div class="sv-num__range"><span class="eyebrow">${escapeHTML(svT('sv_num_between'))}</span><b class="metric">${b.lo} – ${b.hi}</b></div>
+          <div class="sv-num__verdict ${last ? 'is-' + last.v : ''} ${fx.fresh ? 'animate-pop' : ''}">${escapeHTML(verdict)}</div>
+          ${on ? `<form class="input-group sv-num__form" onsubmit="event.preventDefault(); svNumGuess(this)">
+              <input type="text" inputmode="numeric" name="n" autocomplete="off" maxlength="4" class="field-big" placeholder="?" aria-label="${escapeHTML(svT('sv_num_ph'))}">
+              <button type="submit" class="btn btn--primary btn--auto">${escapeHTML(svT('sv_guess_btn'))}</button>
+            </form>` : ''}
+          <ol class="sv-num__hist">${b.g.slice().reverse().map((r, i) => `<li class="is-${r.v}"><span class="tx-muted">#${b.g.length - i}</span><b class="metric">${r.n}</b><span>${r.v === 'right' ? '✅' : r.v === 'higher' ? '⬆️' : '⬇️'}</span></li>`).join('')}</ol>
+        </div>
+      </div>`;
+  }
+  if (kind === 'flags') {
+    const h = b.hints || {};
+    const hints = [];
+    if (h.cont) hints.push('🧭 ' + escapeHTML(svT('flags_cont_' + h.cont)));
+    if (h.letter) hints.push('🔤 ' + escapeHTML(h.letter) + '…');
+    return `<div class="sv-board sv-board--flags">
+        <div class="sv-board__head">${tries}</div>
+        <div class="flags-target">
+          ${svPubHtml('flags', s, false)}
+          <span class="flags-target__ask">${escapeHTML(s.pub.clue === 'flag' ? svT('flags_ask_flag') : svT('flags_ask_far'))}</span>
+          ${hints.length ? `<span class="flags-hints">${hints.join(' · ')}</span>` : ''}
+        </div>
+        ${on ? svCountrySearchHtml('svFlagsGuess', s.pub.clue !== 'flag') : ''}
+        <ol class="flags-guesses">
+          ${b.g.map((g, i) => svFlagRowHtml(g, lang, i === newest)).join('')}
+          ${on ? Array.from({ length: Math.max(0, (s.maxTries || 0) - b.g.length) }, () => '<li class="flags-row is-empty"></li>').join('') : ''}
+        </ol>
+      </div>`;
+  }
+  return `<div class="sv-board sv-board--emoji">
+      <div class="sv-board__head">${tries}</div>
+      <div class="card sv-emoji-clue">${svPubHtml('emoji', s, false)}</div>
+      ${on ? `<form class="input-group sv-emoji__form ${fx.miss ? 'animate-shake' : ''}" onsubmit="event.preventDefault(); svEmojiGuess(this)">
+          <input type="text" name="t" autocomplete="off" maxlength="${SV_EMOJI_GUESS_MAX}" placeholder="${escapeHTML(svT('emoji_guess_ph'))}" aria-label="${escapeHTML(svT('emoji_guess_ph'))}">
+          <button type="submit" class="btn btn--primary btn--auto">${escapeHTML(svT('sv_guess_btn'))}</button>
+        </form>` : ''}
+      <ol class="sv-emoji__hist">${b.g.slice().reverse().map(g => `<li class="is-${g.v || 'miss'}">${g.v === 'right' ? '✅' : g.v === 'close' ? '🔥' : '❌'} <span dir="auto">${escapeHTML(g.t)}</span>${g.v === 'close' ? ` <b class="tx-warning">${escapeHTML(svT('draw_close'))}</b>` : ''}</li>`).join('')}</ol>
+    </div>`;
+}
+
+function svNumGuess(form) {
+  const s = ((Room.state || {}).shared) || {};
+  const input = form.querySelector('input[name="n"]');
+  const n = Number(String(input ? input.value : '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim());
+  if (svNumProblem(n, s.pub.max)) { showToast(svT('sv_num_bad', { max: s.pub.max })); haptic('heavy'); return; }
+  haptic('light');
+  svSend('guess', { n: n, round: svRound(s) });
+}
+
+function svEmojiGuess(form) {
+  const s = ((Room.state || {}).shared) || {};
+  const input = form.querySelector('input[name="t"]');
+  const text = String(input ? input.value : '').trim();
+  if (!text) return;
+  haptic('light');
+  svSend('guess', { text: text, round: svRound(s) });
+}
+
+/** What changed on this phone's own board since it was last drawn: a new guess, a solve, a miss. */
+function svBoardFx(state) {
+  const s = state.shared;
+  const you = state.you || {};
+  const key = [state.code, s.dealId, s.round].join('|');
+  const was = svRoom.seen[key];
+  const now = { n: (you.board && you.board.g || []).length, state: you.state };
+  svRoom.seen = { [key]: now };
+  if (!was) return {};
+  return { fresh: now.n > was.n, miss: now.n > was.n && now.state !== 'won', won: now.state === 'won' && was.state !== 'won', lost: now.state === 'lost' && was.state !== 'lost' };
+}
+
+/* --- what the table sees of every board, and the end of a round ------------------------------ */
+
+function svProgressHtml(kind, state, tv) {
+  const s = state.shared;
+  const prog = s.progress || {};
+  const ids = Object.keys(prog);
+  if (!ids.length) return '';
+  const rows = ids.map(id => {
+    const p = prog[id];
+    const st = p.state === 'won' ? ('✅ ' + (typeof p.at === 'number' ? svT('hm_place', { n: p.at + 1 }) : svT('sv_state_won')))
+      : (p.state === 'lost' ? svT('sv_state_lost') : svT('hm_state_play'));
+    let extra = '';
+    if (kind === 'wordle') {
+      // The colours in the order the word is read, as on the player's own grid.
+      extra = `<div class="sv-mini" dir="${s.pub && s.pub.alpha === 'en' ? 'ltr' : 'rtl'}" style="--cols:${(s.pub && s.pub.len) || 5}">${(p.rows || []).map(r => Array.from(r).map(c => `<i class="is-${c}"></i>`).join('')).join('')}</div>`;
+    } else if (kind === 'flags' && p.best) {
+      extra = `<div class="sv-best"><span style="--p:${p.best / 100}"></span></div><span class="sv-row__sub metric">${p.best}%</span>`;
+    }
+    return `<div class="sv-row is-${p.state} ${id === Room.me ? 'is-me' : ''}">
+        <span class="sv-row__who">${escapeHTML(svName(state, id))}</span>
+        ${extra}
+        <span class="sv-row__sub">${escapeHTML(svT('sv_tries', { n: p.n, m: s.maxTries || 0 }))}</span>
+        <span class="sv-row__st">${escapeHTML(st)}</span>
+      </div>`;
+  }).join('');
+  return `<div class="sv-rows ${tv ? 'sv-rows--tv' : ''}">${rows}</div>`;
+}
+
+/** The secret turns over for everyone, then who took what. */
+function svResultHtml(kind, state, tv) {
+  const s = state.shared;
+  const r = s.result || {};
+  const turn = motionFirst(['sv-reveal', state.code, s.dealId, s.round, tv ? 'tv' : 'phone'].join('|'));
+  const rows = (r.rows || []).map((x, i) => `<li class="sv-res is-${x.state}" style="--at:${700 + i * 140}ms"><span>${x.state === 'won' ? '✅' : '💀'} ${escapeHTML(x.name)} <small class="tx-muted">${escapeHTML(svT('sv_tries_short', { n: x.n }))}</small></span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');
+  const setter = r.setter && r.setterName ? `<li class="sv-res is-setter" style="--at:${700 + (r.rows || []).length * 140}ms"><span>✍️ ${escapeHTML(svT('sv_setter_pts', { name: r.setterName }))}</span><b class="metric">${r.setterPts ? '+' + r.setterPts : '0'}</b></li>` : '';
+  return `<div class="card card--accent sv-result ${tv ? 'sv-result--tv' : ''} ${turn ? 'is-turning' : ''}" ${turn ? 'data-reveal-ms="700"' : ''}>
+      <p class="eyebrow">${escapeHTML(r.setter ? svT('sv_secret_of', { name: r.setterName || '' }) : svT('sv_the_answer'))}</p>
+      <div class="sv-result__secret">${svSecretHtml(kind, r.reveal, s)}</div>
+      <ul class="sv-results">${rows}${setter}</ul>
+    </div>`;
+}
+
+function svStopClock() {
+  if (svRoom.clock) svRoom.clock.stop();
+  svRoom.clock = null;
+  svRoom.clockKey = null;
+}
+onRoomClocksReset(() => { svStopClock(); });
+
+function svTickClock(state) {
+  const s = state.shared || {};
+  const endsAt = s.phase === 'solving' ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-sv-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 10);
+    });
+    return left;
+  };
+  if (!endsAt) { svStopClock(); return; }
+  paint();
+  if (svRoom.clockKey === endsAt && svRoom.clock) return;
+  svStopClock();
+  svRoom.clockKey = endsAt;
+  svRoom.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      if (left > 0 && left <= 5 && st && st.shared && st.shared.solve && (st.youAreScreen || !roomHasScreen())) playSound('tick');
+    },
+    onEnd: () => { svRoom.clock = null; paint(); }
+  });
+}
+
+/** The host's buttons: close the round early; move on from a setter whose phone went quiet. */
+function svHostButtons(state) {
+  const s = state.shared || {};
+  if (!state.youAreHost) return [];
+  const key = [state.code, s.round, s.phase].join('|');
+  if (svRoom.sinceKey !== key) { svRoom.sinceKey = key; svRoom.since = Date.now(); }
+  if (s.phase === 'solving') return [['⏹️ ' + svT('sv_close_round'), `roomAct('closeRound', { round: ${svRound(s)} })`]];
+  if (s.phase === 'setting' && s.setter !== Room.me) {
+    const p = (state.players || []).find(x => x.id === s.setter);
+    if (!p || !p.online || Date.now() - svRoom.since > 40000) return [['⏭️ ' + svT('sv_skip_setter'), `roomAct('skipTurn', { round: ${svRound(s)} })`]];
+  }
+  return [];
+}
+
+/** What changes without a redraw: the table's progress, the host's buttons, the board and the clock. */
+function svPaintLive(el, kind, state) {
+  const put = (sel, html) => {
+    const box = el.querySelector(sel);
+    if (box && box._html !== html) { box.innerHTML = html; box._html = html; }
+  };
+  put('[data-sv-progress]', svProgressHtml(kind, state, false));
+  put('[data-sv-host]', roomHostRow(svHostButtons(state)));
+  const s = state.shared || {};
+  if (s.phase === 'setting') put('[data-sv-board]', (s.board || []).some(p => p.score) ? renderScoreboard(s.board) : '');
+  refreshRoomPlayerStrip(el, state);
+  svTickClock(state);
+}
+
+/** What this phone shows of its own: never the others' progress, so a field being typed in stays. */
+function svSig(state) {
+  const s = state.shared || {};
+  const done = s.phase === 'result' || s.phase === 'gameover';
+  return ['sv', s.solve, s.dealId || '', s.round, s.phase, s.setter || '', JSON.stringify(state.you || null),
+    done ? JSON.stringify(s.result || null) + JSON.stringify(s.board || []) : '',
+    s.endsAt ? 'clock' : '', state.youAreHost, appState.lang].join('|');
+}
+
+/* --- a phone ------------------------------------------------------------------------------------ */
+
+function svRender(kind, state) {
+  const view = 'room-' + kind;
+  if (appState.currentView !== view) setView(view);
+  const el = document.getElementById('view-' + view);
+  if (!el) return;
+  const s = state.shared;
+  if (!s || !s.solve) return;
+  const you = state.you || {};
+  let fx = {};
+  const rebuilt = renderRoomFrame(el, svSig(state), () => {
+    const head = `<div class="cn-score"><span class="cn-score__role">${SV_ICONS[kind]} ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
+        ${s.endsAt && s.phase === 'solving' ? '<span class="badge badge--accent" data-sv-clock></span>' : ''}</div>`;
+    if (s.phase === 'gameover') {
+      const podium = renderPodium(state, s.board);
+      return `<div class="sv-room">
+          ${s.result && s.result.reveal ? svResultHtml(kind, state) : ''}
+          ${podium || renderScoreboard(s.board)}
+          ${state.youAreHost
+            ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(svT('play_again'))}</button>
+               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(svT('room_another_game'))}</button></div>`
+            : `<div class="waiting-note">${escapeHTML(svT('room_wait_host'))}</div>`}
+          ${roomShareBtnHtml(state, s.board)}
+          ${renderRoomPlayerStrip(state)}
+        </div>`;
+    }
+    if (s.phase === 'result') {
+      return `<div class="sv-room">${head}
+          ${svResultHtml(kind, state)}
+          ${renderScoreboard(s.board)}
+          ${state.youAreHost
+            ? `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${svRound(s)} })">${escapeHTML(svT('sv_next_round'))}</button>`
+            : `<div class="waiting-note">${escapeHTML(svT('room_wait_host'))}</div>`}
+          ${renderRoomPlayerStrip(state)}
+        </div>`;
+    }
+    if (s.phase === 'setting') {
+      const mine = s.setter === Room.me && !state.youAreScreen;
+      return `<div class="sv-room">${head}
+          ${mine
+            ? `<div class="card sv-set-card"><p class="sheet__title">✍️ ${escapeHTML(svT('sv_you_set_' + kind))}</p>${svSetFormHtml(kind, s)}</div>`
+            : `<div class="card hm-wait"><div class="hm-wait__icon" aria-hidden="true">✍️</div>
+                 <p class="sheet__title">${escapeHTML(svT('sv_setting_' + kind, { name: s.setterName || '' }))}</p></div>`}
+          <div data-sv-host></div>
+          <div data-sv-board></div>
+          ${renderRoomPlayerStrip(state)}
+        </div>`;
+    }
+    // Solving: my board, the secret if I set it, or the public part to watch.
+    const title = s.setter ? svT('sv_secret_of', { name: s.setterName || '' }) : svT('sv_race_title_' + kind);
+    let mine;
+    if (you.mine) {
+      mine = `<div class="card sv-mine"><p class="eyebrow">${escapeHTML(svT('sv_your_secret'))}</p>${svSecretHtml(kind, you.mine, s)}
+          <p class="field__hint">${escapeHTML(svT('sv_you_watch'))}</p></div>`;
+    } else if (you.board) {
+      fx = svBoardFx(state);
+      mine = `<p class="sv-title">${escapeHTML(title)}</p>${svBoardHtml(kind, state, fx)}`;
+      if (you.state !== 'play') mine += `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(you.state === 'won' ? svT('sv_you_won') : svT('sv_you_lost'))}</p>
+          <p class="field__hint">${escapeHTML(svT('hm_done_wait'))}</p></div>`;
+    } else {
+      mine = `<div class="card hm-wait"><p class="sheet__title">${escapeHTML(svT('sv_watching'))}</p>${svPubHtml(kind, s, false)}</div>`;
+    }
+    return `<div class="sv-room">${head}
+        <div class="sv-layout">
+          <div class="sv-layout__board">${mine}</div>
+          <div class="sv-layout__side">
+            <div data-sv-progress></div>
+            <div data-sv-host></div>
+            ${renderRoomPlayerStrip(state)}
+          </div>
+        </div>
+      </div>`;
+  });
+  svPaintLive(el, kind, state);
+  if (kind === 'flags' && typeof flagsEnsureFont === 'function') flagsEnsureFont();
+  if (!rebuilt) return;
+  svAfter(el, state, fx);
+}
+
+/** After a redraw: a count-up, a cheer, the points flying to the board, focus back in the field. */
+function svAfter(el, state, fx) {
+  const s = state.shared;
+  const km = fx.fresh ? el.querySelector('.flags-row.is-new [data-km]') : null;
+  if (km && !motionOff()) countUp(km, 0, Number(km.dataset.km));
+  if (fx.fresh) { playSound(fx.won ? 'success' : 'click'); haptic(fx.won ? 'double' : 'light'); }
+  if (fx.lost) playSound('wrong');
+  if (fx.won) afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 110, spread: 75, origin: { y: 0.6 } }); });
+  // A field to type the next guess in keeps the focus on a computer (a phone's keyboard would jump).
+  const field = s.phase === 'solving' && el.querySelector('.sv-num__form input, .sv-emoji__form input, .sv-board--flags .sv-country input');
+  if (field && fx.fresh && window.matchMedia && window.matchMedia('(pointer: fine)').matches) field.focus();
+  // The points this phone just won float from the secret onto its own row: the difference from the
+  // board it drew earlier in the same deal (a reload or a latecomer has nothing to compare with).
+  const key = state.code + '|' + (s.dealId || '');
+  const mineRow = (s.board || []).find(r => r.id === Room.me);
+  const now = mineRow ? Number(mineRow.score) || 0 : 0;
+  const gain = svRoom.scoreKey === key ? now - svRoom.myScore : 0;
+  svRoom.scoreKey = key;
+  svRoom.myScore = now;
+  if (s.phase === 'result' || s.phase === 'gameover') {
+    const card = el.querySelector('.sv-result');
+    const row = el.querySelector(`[data-pid="${CSS.escape(Room.me || '')}"]`);
+    if (gain > 0 && card && row && typeof flyPoints === 'function') afterReveal(el, () => flyPoints('+' + gain, card.getBoundingClientRect(), row));
+    if (s.phase === 'gameover' && (s.board || [])[0] && s.board[0].id === Room.me && duelOnce(['sv-over', state.code, s.dealId].join('|'))) {
+      afterReveal(el, () => { playSound('success'); if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 85 }); });
+    }
+  }
+}
+
+/* --- the TV: the public part big, everyone's progress, the reveal ----------------------------- */
+
+function svTvFrame(kind, state, t) {
+  const s = state.shared || {};
+  if (!s.settings) return tvLookAtPhones(t);
+  const accent = SV_UI_ACCENTS[kind];
+  const host = (buttons) => (state.youAreHost && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
+  const top = `<div class="tv-top">
+      <span class="tv-pill">${SV_ICONS[kind]} ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
+      ${s.endsAt && s.phase === 'solving' ? '<span class="tv-pill" data-sv-clock></span>' : ''}
+    </div>`;
+  if (s.phase === 'gameover') {
+    return `<div class="tv-vote" data-accent="${accent}">
+        <div class="tv-title tv-center-text">🏆</div>
+        ${renderPodium(state, s.board) || `<div class="tv-scale">${renderScoreboard(s.board)}</div>`}
+        ${host([[t.play_again, "roomAct('playAgain')"], [t.room_another_game, "roomAct('backToHub')", 'ghost']])}
+      </div>`;
+  }
+  if (s.phase === 'result') {
+    return `<div class="tv-trivia" data-accent="${accent}">${top}
+        <div class="tv-center sv-tv-result">${svResultHtml(kind, state, true)}</div>
+        ${host([[svT('sv_next_round'), `roomAct('nextRound', { round: ${svRound(s)} })`]])}
+      </div>`;
+  }
+  if (s.phase === 'setting') {
+    return `<div class="tv-trivia" data-accent="${accent}">${top}
+        <div class="tv-center">
+          <div class="tv-big-icon" aria-hidden="true">✍️</div>
+          <div class="tv-title">${escapeHTML(svT('sv_setting_' + kind, { name: s.setterName || '' }))}</div>
+        </div>
+        ${host(svHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
+      </div>`;
+  }
+  return `<div class="tv-trivia sv-tv" data-accent="${accent}">${top}
+      <div class="sv-tv__head">
+        <div class="tv-title">${escapeHTML(s.setter ? svT('sv_secret_of', { name: s.setterName || '' }) : svT('sv_race_title_' + kind))}</div>
+        ${svPubHtml(kind, s, true)}
+      </div>
+      ${svProgressHtml(kind, state, true)}
+      ${host(svHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
+    </div>`;
+}
+
+const SV_UI_ACCENTS = { wordle: 'green', guessnum: 'blue', flags: 'blue', emoji: 'amber' };
+
+function svTvSig(state) {
+  const s = state.shared || {};
+  return ['svtv', s.solve, s.dealId || '', s.round, s.phase, s.setter || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
+    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, appState.lang].join('|');
+}
+
+function svTvAfter(state) {
+  svTickClock(state);
+  if (state.shared && state.shared.solve === 'flags' && typeof flagsEnsureFont === 'function') flagsEnsureFont();
+}
+
+/** "دورك!" (JS_RoomTurn.html): the secret to set, or your own board still being solved. */
+function roomSolveTurn(state) {
+  const s = state.shared || {};
+  if (s.phase === 'setting') return s.setter === Room.me ? 'turn_up' : null;
+  return s.phase === 'solving' && (state.you || {}).state === 'play' ? 'turn_up' : null;
+}
+
+/* --- the three games that are rooms of their own, and فوازير إيموجي's ways --------------------- */
+
+['wordle', 'guessnum', 'flags'].forEach(kind => {
+  ROOM_GAMES[kind] = {
+    lobbyOptions: (state) => svLobbyHtml(kind, state),
+    startPayload: () => svStartPayload(kind),
+    render: (state) => svRender(kind, state),
+    // A guess is not a new step; a new secret, its result and the end are.
+    actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
+  };
+  TV_GAMES[kind] = { sig: svTvSig, frame: (state, t) => svTvFrame(kind, state, t), after: svTvAfter };
+});
+
+// فوازير إيموجي in a room plays three ways (the owner, 23 Sep 2026: a player writing the riddle is a
+// way of the same game): a player writes it, the app's riddles as a race (both on the engine), or the
+// quiz it always was, where the table sees every wrong guess. The quiz's own renderer is kept as it is.
+const SV_EMOJI_QUIZ = ROOM_GAMES.emoji;
+const SV_EMOJI_QUIZ_TV = TV_GAMES.emoji;
+const svEmojiWay = () => { const w = recallOptions('solveRoom_emoji', { way: 'setter' }).way; return w === 'race' || w === 'quiz' ? w : 'setter'; };
+
+ROOM_GAMES.emoji = {
+  lobbyOptions(state) {
+    const way = svEmojiWay();
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(svT('sv_emoji_lobby_hint'))}</p>`;
+    const o = svRoomOpts('emoji');
+    const ways = svSeg(svT('sv_lobby_mode'), 'emoji', 'way', [['setter', svT('sv_mode_setter')], ['race', svT('sv_mode_race')], ['quiz', svT('sv_mode_quiz')]], way,
+      svT(way === 'quiz' ? 'sv_quiz_hint_emoji' : way === 'race' ? 'sv_race_hint_emoji' : 'sv_setter_hint_emoji'));
+    if (way === 'quiz') return `<div class="card card--tight">${ways}</div>${SV_EMOJI_QUIZ.lobbyOptions(state)}`;
+    return `<div class="card card--tight">${ways}${svLobbyFields('emoji', o)}</div>`;
+  },
+  startPayload() {
+    const way = svEmojiWay();
+    if (way === 'quiz') return Object.assign({ way: 'quiz' }, SV_EMOJI_QUIZ.startPayload());
+    return svStartPayload('emoji');
+  },
+  render(state) {
+    if (state.shared && state.shared.solve) svRender('emoji', state);
+    else SV_EMOJI_QUIZ.render(state);
+  },
+  actionKey(state) {
+    const s = state.shared || {};
+    return s.solve ? [state.code, s.round, s.phase].join('|') : roomActionKey(state);
+  }
+};
+
+TV_GAMES.emoji = {
+  sig: (state) => (state.shared && state.shared.solve ? svTvSig(state) : 'quiz|' + SV_EMOJI_QUIZ_TV.sig(state)),
+  frame: (state, t) => (state.shared && state.shared.solve ? svTvFrame('emoji', state, t) : SV_EMOJI_QUIZ_TV.frame(state, t)),
+  after(state, rebuilt) {
+    if (state.shared && state.shared.solve) svTvAfter(state);
+    else if (SV_EMOJI_QUIZ_TV.after) SV_EMOJI_QUIZ_TV.after(state, rebuilt);
+  }
+};
+</script>

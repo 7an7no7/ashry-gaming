@@ -13313,4 +13313,156 @@ span.om-back { cursor: default; }
   .db-hcard, .om-hcard, .om-back, .db-seat, .om-seat, .db-callbtn { transition: none; }
 }
 
+/* ==========================================================================
+   32. ONE SETS, EVERYONE SOLVES (خمن الكلمة, خمّن الرقم, خمّن الدولة, فوازير إيموجي in rooms)
+   JS_RoomSolve.html, on the engine of RoomSolve.js. Each phone's own board is
+   the one-phone game's own look (the Wordle grid and keys, the flags rows, the
+   emoji card), so a table knows it at once; the others' progress is a strip of
+   small cards (the colours of a Wordle row without its letters, the closest a
+   country came); the secret turns over for everyone at the end of a round.
+   The layout follows المشنقة's: upright one column, the board first; from
+   900px the board beside a narrow column of the others.
+   ========================================================================== */
+.sv-room { display: flex; flex-direction: column; gap: var(--sp-3); }
+.sv-layout { display: flex; flex-direction: column; gap: var(--sp-3); }
+.sv-layout__board { width: 100%; max-width: 32rem; margin-inline: auto; display: flex; flex-direction: column; gap: var(--sp-3); }
+.sv-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.sv-title { margin: 0; text-align: center; font-family: var(--font-display); font-weight: 700; font-size: 1.0625rem; color: var(--text-strong); }
+.sv-board { display: flex; flex-direction: column; gap: var(--sp-3); }
+.sv-board__head { display: flex; justify-content: flex-end; }
+.sv-tries { font-size: 0.8125rem; font-weight: 700; color: var(--text-2); padding: 0.125rem 0.625rem; border-radius: var(--r-full); background: var(--surface-2); }
+
+/* The setter's form: the secret typed as dots until the eye is pressed. */
+.sv-set-card { display: flex; flex-direction: column; gap: var(--sp-2); }
+.sv-form, .sv-set-flags { display: flex; flex-direction: column; gap: var(--sp-2); }
+.sv-hidden { display: flex; gap: var(--sp-2); }
+.sv-hidden input { flex: 1 1 auto; min-width: 0; font-size: 1.125rem; }
+.sv-hidden input.is-hidden { -webkit-text-security: disc; text-security: disc; }
+.sv-err:empty { display: none; }
+.sv-kinds { justify-content: center; }
+.sv-emoji-input { font-size: 1.5rem; text-align: center; }
+.sv-emoji-preview { min-height: 1em; font-size: 2.5rem; }
+.sv-emoji-preview:empty { display: none; }
+.sv-picked { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); font-size: 1.125rem; color: var(--text-strong); }
+.sv-picked__flag { font-size: 2.5rem; line-height: 1; }
+.sv-picked--big { flex-direction: column; font-size: 1.5rem; }
+.sv-picked--big .sv-picked__flag { font-size: 4.5rem; }
+.sv-set-flags > .btn--ghost { align-self: center; }
+.sv-form > .btn--ghost { align-self: center; }
+.sv-mine { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); text-align: center; }
+.sv-answer { font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; color: var(--text-strong); text-align: center; }
+
+/* خمن الكلمة: the one-phone grid, sized by its own width here (the room screen scrolls). */
+.sv-wordle-grid { height: auto; width: min(100%, calc(var(--wordle-cols) * 3.25rem)); max-width: 100%; max-height: none; }
+.sv-keypad .key:disabled { cursor: default; }
+
+/* خمّن الرقم: where it is between, big; the answer; the tries in order. */
+.sv-num { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-3); text-align: center; }
+.sv-num__range { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-2xl); background: var(--surface-solid); }
+.sv-num__range b { font-size: 2.25rem; color: var(--text-strong); }
+.sv-num__verdict { font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; color: var(--text-2); }
+.sv-num__verdict.is-higher { color: var(--accent-ink); }
+.sv-num__verdict.is-lower { color: var(--danger-ink); }
+.sv-num__verdict.is-right { color: var(--success-ink, var(--success)); }
+.sv-num__form input { text-align: center; }
+.sv-num__hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.375rem; }
+.sv-num__hist li { display: flex; justify-content: space-between; align-items: center; padding: 0.375rem 0.875rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.sv-num__hist li b { font-size: 1.25rem; color: var(--text-strong); }
+.sv-num__hist li.is-right { border-color: var(--success); background: var(--success-soft); }
+.sv-range { font-family: var(--font-display); font-weight: 800; font-size: 2rem; color: var(--text-strong); text-align: center; }
+.sv-range--answer { font-size: 3.5rem; color: var(--accent-ink); }
+.sv-range--big { font-size: clamp(3rem, 14vmin, 11rem); }
+
+/* خمّن الدولة: the one-phone rows and suggestions; the flag. */
+.sv-board--flags .flags-target { margin-bottom: 0; }
+.sv-country input { width: 100%; }
+.sv-flag--big { font-size: clamp(5rem, 26vmin, 18rem); }
+
+/* فوازير إيموجي: the clue, and this phone's tries. */
+.sv-emoji-clue { padding: var(--sp-2); }
+.sv-emoji__hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.375rem; }
+.sv-emoji__hist li { padding: 0.375rem 0.875rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); font-weight: 600; }
+.sv-emoji__hist li.is-close { border-color: var(--warning); background: var(--warning-soft); }
+.sv-emoji__hist li.is-right { border-color: var(--success); background: var(--success-soft); }
+
+/* Everyone's progress: tries, state, and what may be seen of a board. */
+.sv-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: var(--sp-2); }
+.sv-row { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); text-align: center; }
+.sv-row.is-me { box-shadow: 0 0 0 2px var(--accent-border); }
+.sv-row.is-won { border-color: var(--success); }
+.sv-row.is-lost { opacity: 0.6; }
+.sv-row__who { font-weight: 800; color: var(--text-strong); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-row__sub, .sv-row__st { font-size: 0.75rem; color: var(--text-2); }
+.sv-mini { display: grid; grid-template-columns: repeat(var(--cols, 5), 0.625rem); gap: 2px; }
+.sv-mini i { display: block; width: 0.625rem; height: 0.625rem; border-radius: 2px; background: var(--n-500); }
+.sv-mini i.is-c { background: var(--success-btn); }
+.sv-mini i.is-p { background: var(--warning-btn); }
+body.dark .sv-mini i.is-a { background: var(--n-700); }
+.sv-best { width: 100%; height: 0.375rem; border-radius: var(--r-full); background: var(--surface-2); overflow: hidden; }
+.sv-best span { display: block; height: 100%; background: var(--accent); transform: scaleX(var(--p, 0)); transform-origin: left center; }
+[dir="rtl"] .sv-best span { transform-origin: right center; }
+
+/* The end of a round: the secret turns over, then who took what. */
+.sv-result { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); text-align: center; }
+.sv-result__secret { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); width: 100%; }
+.sv-result.is-turning .sv-result__secret { animation: svTurn 700ms var(--ease-out) both; }
+.sv-result.is-turning .sv-res { animation: svRow 360ms var(--ease-out) var(--at, 700ms) both; }
+@keyframes svTurn { 0% { transform: perspective(600px) rotateX(90deg); opacity: 0; } 60% { transform: perspective(600px) rotateX(-12deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes svRow { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sv-results { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 0.25rem; }
+.sv-res { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); padding: 0.375rem 0.625rem; border-radius: var(--r-sm); background: var(--surface-2); font-weight: 600; }
+.sv-res.is-setter { background: var(--accent-soft); }
+.sv-res small { font-weight: 500; }
+
+@media (min-width: 900px) and (min-height: 501px) {
+  .sv-layout { display: grid; grid-template-columns: minmax(0, 36rem) minmax(11rem, 16rem); justify-content: center; gap: var(--sp-4); align-items: start; }
+  .sv-layout__board { max-width: none; margin: 0; }
+  .shell__main > #view-room-wordle, .shell__main > #view-room-guessnum, .shell__main > #view-room-flags { max-width: 64rem; }
+  /* A Wordle grid beside its keys, the grid no taller than the screen leaves it: the whole board on the screen. */
+  .sv-layout:has(.sv-board--wordle) { grid-template-columns: minmax(0, 48rem) minmax(11rem, 15rem); }
+  .sv-board--wordle { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); grid-template-areas: "head head" "grid keys"; align-items: center; column-gap: var(--sp-4); }
+  .sv-board--wordle > .sv-board__head { grid-area: head; }
+  .sv-board--wordle > .wordle-grid { grid-area: grid; width: min(100%, calc(var(--wordle-cols) * 3.25rem), calc((var(--app-h, 100vh) - 15rem) * var(--wordle-cols) / var(--wordle-rows))); }
+  .sv-board--wordle > .keypad { grid-area: keys; }
+}
+/* A phone on its side: a Wordle grid beside its keys, so both are on the screen. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .sv-board--wordle { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); grid-template-areas: "head keys" "grid keys"; align-items: center; column-gap: var(--sp-3); }
+  .sv-board--wordle > .sv-board__head { grid-area: head; }
+  .sv-board--wordle > .wordle-grid { grid-area: grid; width: min(100%, calc(var(--wordle-cols) * 2.1rem)); }
+  .sv-board--wordle > .keypad { grid-area: keys; }
+  .sv-layout__board { max-width: 40rem; }
+  /* The flag, the number or the riddle with the field on one side, the tries on the other. */
+  .sv-board--flags, .sv-board--num, .sv-board--emoji { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--sp-3); row-gap: var(--sp-2); align-items: start; }
+  .sv-board--flags > .sv-board__head, .sv-board--num > .sv-board__head, .sv-board--emoji > .sv-board__head { grid-column: 1 / -1; }
+  .sv-board--flags > .flags-guesses { grid-column: 2; grid-row: 2 / span 2; }
+  .sv-board--flags > .flags-target .flags-target__flag { font-size: 3.5rem; }
+  .sv-board--num > .sv-num { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--sp-3); align-items: start; }
+  .sv-num > .sv-num__hist { grid-column: 2; grid-row: 1 / span 3; }
+  .sv-board--emoji > .sv-emoji__hist { grid-column: 2; grid-row: 2 / span 2; }
+}
+
+/* The TV: what may be seen of the secret big, everyone's card under it. */
+.sv-tv { align-content: start; }
+.sv-tv__head { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); }
+.sv-tv .hm-tile { width: 8.5vmin; height: 10vmin; font-size: 5.4vmin; border-radius: var(--tv-r); }
+/* auto-fit: the empty tracks fold away, so a few cards sit in the middle rather than at one side. */
+.sv-rows--tv { grid-template-columns: repeat(auto-fit, minmax(22vmin, 27vmin)); justify-content: center; gap: var(--tv-gap); }
+.sv-rows--tv .sv-row { padding: 1.4vmin; border-radius: var(--tv-r); }
+.sv-rows--tv .sv-row__who { font-size: var(--tv-sm); }
+.sv-rows--tv .sv-row__sub, .sv-rows--tv .sv-row__st { font-size: 1.8vmin; }
+.sv-rows--tv .sv-mini { grid-template-columns: repeat(var(--cols, 5), 2.2vmin); gap: 0.4vmin; }
+.sv-rows--tv .sv-mini i { width: 2.2vmin; height: 2.2vmin; }
+.sv-result--tv { font-size: var(--tv-sm); width: min(100%, 46rem); margin-inline: auto; padding: 3vmin; gap: 2.4vmin; }
+.sv-result--tv .sv-res { padding: 1vmin 1.6vmin; border-radius: var(--tv-r); }
+.sv-result--tv .hm-tile { width: 6.4vmin; height: 7.4vmin; font-size: 3.8vmin; }
+.sv-result--tv .sv-range--answer { font-size: 12vmin; }
+.sv-result--tv .sv-picked--big .sv-picked__flag { font-size: 14vmin; }
+.sv-result--tv .emoji-card__e { font-size: 8vmin; }
+.sv-tv-result { width: min(100%, 60rem); margin-inline: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-result.is-turning .sv-result__secret, .sv-result.is-turning .sv-res { animation: none; }
+}
+
 </style>

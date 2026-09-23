@@ -19,6 +19,10 @@
  */
 import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, ROOM_GAME_IDS } from '../generated/rules.js';
 import { roomView } from '../src/view.js';
+import { readFileSync } from 'node:fs';
+
+// The countries, for the engine's خمّن الدولة driver to guess with (one sets, everyone solves).
+const SOLVE_LISTS = new Function(readFileSync(new URL('../../Countries.js', import.meta.url), 'utf8') + '\nreturn { COUNTRIES };')();
 
 const realNow = Date.now;
 let clock = realNow();
@@ -222,7 +226,59 @@ const PROBES = {
     }
     return out;
   },
-  emoji: (room) => PROBES.quiz(room),
+  // فوازير إيموجي: the quiz, or a riddle on the engine (one sets, everyone solves).
+  emoji: (room) => ((room.shared || {}).solve ? PROBES.solve(room) : PROBES.quiz(room)),
+  wordle: (room) => PROBES.solve(room),
+  guessnum: (room) => PROBES.solve(room),
+  flags: (room) => PROBES.solve(room),
+  // One sets, everyone solves (RoomSolve.js): the secret on the setter's phone
+  // only until the round is scored, each board on its own phone only, and the
+  // table told how far each board is - never a guess.
+  solve(room) {
+    const s = room.shared || {};
+    const h = room._solve || { boards: {} };
+    const x = h.secret;
+    const live = s.phase === 'solving' && !!x;
+    const out = [];
+    if (!live) return out;
+    // Whoever solved it has typed it on their own board; the setter wrote it.
+    const knows = Object.keys(h.boards).filter((id) => h.boards[id].state === 'won').concat(s.setter ? [s.setter] : []);
+    // Where a number may be any count or score, and a word a setting ('ar' is Argentina's code too).
+    const counts = ['shared.settings', 'shared.scores', 'shared.board', 'shared.tries', 'shared.progress', 'shared.round', 'shared.rounds',
+      'shared.maxTries', 'shared.pub', 'shared.setterAt', 'shared.endsAt', 'you.board.hints', 'you.n',
+      // Where a solver's own board has narrowed the number to: its own deduction, which may land on it.
+      'you.board.lo', 'you.board.hi'];
+    const words = ['shared.settings', 'you.board.hints'];
+    const country = SOLVE_LISTS.COUNTRIES.find((c) => c.code === x.code) || {};
+    const values = s.solve === 'wordle' ? [x.w, x.show]
+      : s.solve === 'guessnum' ? [x.n]
+      : s.solve === 'flags' ? [x.code, country.ar, country.en]
+      : [x.a].concat(x.alt || []);
+    for (const v of values) {
+      out.push(secret('the secret is on the setter\'s phone only, until the round is scored', v, knows, { except: typeof v === 'number' ? counts : words }));
+    }
+    const guessOf = (g) => (g.w !== undefined ? g.w : g.n !== undefined ? g.n : g.code !== undefined ? g.code : g.t);
+    out.push(probe('a board reaches its own phone only', true, (view, pid) => {
+      const you = view.you;
+      if (!you) return null;
+      if (you.mine) return pid === s.setter ? null : 'you.mine';
+      const b = h.boards[pid];
+      if (!b) return you.board ? 'you.board (not a solver)' : null;
+      const mine = (you.board && you.board.g) || [];
+      const own = b.g.map(guessOf);
+      return mine.length !== own.length || mine.some((g, i) => guessOf(g) !== own[i]) ? 'you.board.g' : null;
+    }));
+    out.push(probe('the table sees how far each board is, never a guess', true, (view) => {
+      const prog = view.shared.progress || {};
+      for (const id of Object.keys(prog)) {
+        const bad = Object.keys(prog[id]).find((k) => ['n', 'state', 'at', 'rows', 'best'].indexOf(k) === -1);
+        if (bad) return 'shared.progress.' + id + '.' + bad;
+        if ((prog[id].rows || []).some((r) => !/^[cpa]+$/.test(r))) return 'shared.progress.' + id + '.rows (a letter)';
+      }
+      return null;
+    }));
+    return out;
+  },
   proverbs: (room) => PROBES.quiz(room),
   quiz(room) {
     const s = room.shared || {};
@@ -748,7 +804,59 @@ const DRIVERS = {
     }
     return S(T).phase === 'gameover';
   },
-  emoji: () => DRIVERS.quizGame('emoji'),
+  // The quiz, then a riddle a player writes and the race on the app's (RoomSolve.js).
+  emoji: () => DRIVERS.quizGame('emoji') && DRIVERS.solveGame('emoji'),
+  wordle: () => DRIVERS.solveGame('wordle'),
+  guessnum: () => DRIVERS.solveGame('guessnum'),
+  flags: () => DRIVERS.solveGame('flags'),
+  /** One sets, everyone solves: both ways, with the clock, the host's close and skip, and right and wrong guesses. */
+  solveGame(game) {
+    const AR = 'ضصثقفغعهخحجدشسيبلاتنمكطئءؤرذىةوزظ'.split('');
+    const EN = 'QWERTYUIOPASDFGHJKLZXCVBNM'.split('');
+    const codes = SOLVE_LISTS.COUNTRIES.map((c) => c.code);
+    const setters = {
+      wordle: () => ({ word: pick(['مدرسة', 'ليمون', 'سفينة', 'HOUSE', 'PLANTS', 'طماطم']) }),
+      guessnum: (s) => ({ n: 11 + Math.floor(Math.random() * (s.settings.max - 11)) }),
+      flags: () => ({ code: pick(codes) }),
+      emoji: () => pick([{ answer: 'الفيل الأزرق', clue: '🐘🔵', kind: 'film' }, { answer: 'ملوخية', clue: '🥬🍲', kind: 'dish' }, { answer: 'الأهرامات', clue: '🔺🔺🔺🐫', kind: 'place' }])
+    };
+    const guesses = {
+      wordle: (s) => ({ text: Array.from({ length: s.pub.len }, () => pick(s.pub.alpha === 'en' ? EN : AR)).join('') }),
+      guessnum: (s) => ({ n: 1 + Math.floor(Math.random() * s.pub.max) }),
+      flags: () => ({ code: pick(codes) }),
+      emoji: () => ({ text: pick(['قطة', 'بيت كبير', 'Car', 'شاي بلبن']) })
+    };
+    const right = { wordle: (x) => ({ text: x.w }), guessnum: (x) => ({ n: x.n }), flags: (x) => ({ code: x.code }), emoji: (x) => ({ text: x.a }) };
+    let T = null;
+    const play = () => {
+      for (let guard = 0; guard < 600 && S(T).phase !== 'gameover'; guard++) {
+        const s = S(T);
+        if (s.phase === 'setting') {
+          if (guard % 9 === 4) { must(T, T.host, 'skipTurn', { round: s.round }); continue; }
+          act(T, s.setter, 'setSecret', Object.assign({ round: s.round }, setters[game](s)));
+          continue;
+        }
+        if (s.phase === 'result') { must(T, T.host, 'nextRound', { round: s.round }); continue; }
+        if (guard % 13 === 7) { runClock(T, (r) => r.shared.phase !== 'solving', 20); continue; }
+        if (guard % 17 === 11) { act(T, T.host, 'closeRound', { round: s.round }); continue; }
+        const x = T.room._solve.secret;
+        const playing = Object.keys(s.progress).filter((id) => s.progress[id].state === 'play');
+        if (!playing.length) break;
+        for (const id of playing) act(T, id, 'guess', Object.assign({ round: s.round }, Math.random() < 0.2 ? right[game](x) : guesses[game](s)));
+      }
+    };
+    const opts = { wordle: { len: 6 }, guessnum: { max: 1000 }, flags: { clue: 'flag', level: 'hard' }, emoji: {} }[game];
+    const clock = game === 'wordle' ? 90 : 60;
+    T = table(game, 4);
+    must(T, T.host, 'start', Object.assign({ way: 'setter', mode: 'setter', rounds: 5, lang: 'ar', clock: clock }, opts));
+    play();
+    if (S(T).phase !== 'gameover') return false;
+    must(T, T.host, 'backToHub');
+    must(T, T.host, 'chooseGame', { game });
+    must(T, T.host, 'start', Object.assign({ way: 'race', mode: 'race', rounds: 3, lang: 'ar', clock: clock }, opts, game === 'flags' ? { clue: 'far' } : {}));
+    play();
+    return S(T).phase === 'gameover';
+  },
   proverbs: () => DRIVERS.quizGame('proverbs'),
   quizGame(game) {
     const T = table(game, 3);

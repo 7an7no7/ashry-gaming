@@ -71,6 +71,9 @@ const server = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split('?')[0]);
   const [, top, ...rest] = url.split('/');
   const dir = top === 'site' ? SITE : top === 'preview' ? PREVIEW : null;
+  // Like Cloudflare, the site answers its index.html with a redirect to the folder: an offline
+  // copy that keeps such an answer can't open a page from it (23 Sep 2026, ERR_FAILED).
+  if (top === 'site' && rest.join('/') === 'index.html') { res.writeHead(307, { location: '/site/' }); res.end(); return; }
   let f = dir ? path.join(dir, rest.join('/') || 'index.html') : null;
   if (!f || !f.startsWith(dir)) { res.writeHead(404); res.end(); return; }
   if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(dir, 'index.html');

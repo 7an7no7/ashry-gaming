@@ -5678,6 +5678,18 @@ belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
 
+**A page can't be opened from an answer that came through a redirect.** The
+offline copy saved `./index.html`; GitHub Pages answers that directly, but
+Cloudflare (the second address, and the rooms server's copy) answers it with a
+307 to `./`. The worker kept the followed answer, and every open after the
+first failed with ERR_FAILED - the owner found it on the second address the
+evening it went up. The worker now saves the page from `./` (answered directly
+everywhere) and rebuilds any redirected answer as a plain one (`clean` in the
+worker, `tools/build-site.mjs`); `npm run test:ui`'s server redirects
+`index.html` the way Cloudflare does, so the site part would catch it again. A
+phone with the broken worker recovers by itself on the next open but one: the
+failed open still fetches the new `sw.js`.
+
 **What reads the address has to run before the build's script at the end of
 `<head>`.** That script (`RUNTIME` in `tools/build-site.mjs`) takes `?room=`
 and `?install=` off the address, so a reload doesn't reopen the join screen.

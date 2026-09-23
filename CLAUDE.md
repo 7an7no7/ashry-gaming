@@ -4,7 +4,9 @@ Arabic-first (RTL, ar/en) party-games web app for phones.
 
 - **App:** static site in `docs/`, built from the root `*.html` / `*.js` sources
   by `tools/build-site.mjs`, published by GitHub Pages (`master` → `/docs`):
-  https://7an7no7.github.io/ashry-gaming/
+  https://7an7no7.github.io/ashry-gaming/ - and the same build on Cloudflare,
+  https://ashry-app.rooms-worker.workers.dev (`site-worker/`, the fast second
+  address for when GitHub Pages is slow)
 - **Rooms** (playing on separate phones): `rooms-worker/`, Cloudflare Workers +
   Durable Objects over WebSockets: https://ashry-rooms.rooms-worker.workers.dev
 - **The old Apps Script version** is a frozen copy in `C:\Users\TPC\Apps Script\G`
@@ -61,7 +63,10 @@ The full guide is GEMINI.md — read it before changing anything:
    rule needs its text in `GAME_RULES`, `HELP_ENTRIES` and `HELP_FOR_VIEW`.
 6. `cd tools && npm run build:site`.
 7. If step 4 applied: `cd rooms-worker && npm run deploy`, wait about a minute
-   (a deploy restarts every room), then `npm run test:live`.
+   (a deploy restarts every room), then `npm run test:live`. Always:
+   `cd tools && npm run deploy:site` - the app's second address on Cloudflare
+   (https://ashry-app.rooms-worker.workers.dev), the same `docs/`; it restarts
+   nothing.
 8. Update GEMINI.md if how something works changed. Commit everything, `docs/`
    included, and push to `master`.
 9. `cd tools && npm run check:live` — waits for GitHub Pages, then confirms the
@@ -73,7 +78,8 @@ The full guide is GEMINI.md — read it before changing anything:
 cd tools && npm run check           # content + translations
 cd tools && npm run build:preview   # the app in .preview/, rooms on :8787
 cd tools && npm run build:site      # rebuild docs/ (commit it)
-cd tools && npm run check:live      # is the link serving this build?
+cd tools && npm run check:live      # are both addresses serving this build?
+cd tools && npm run deploy:site     # the second address (Cloudflare) - every release
 cd tools && npm run test:ui         # every screen, every room game, the offline copy (needs npm run dev)
 cd tools && npm run export:trivia -- <path>  # the board bank as trivia_bank.js
 cd tools && npm run build:icons     # the brand mark (Logo.html) and the icons in docs/

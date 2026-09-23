@@ -2114,6 +2114,9 @@ the word search), `countUp` for streaks and scores.
   نسخة», «⬇️ … بتتنزّل» (a tap opens it when it arrives), «✨ … اضغط للتحديث»
   (already on the phone) or «📴 مش متصل» (`paintAppVersion`, `appVersionTap`).
   The time is the build's, in the phone's own time zone.
+  Then the second address on Cloudflare, https://ashry-app.rooms-worker.workers.dev
+  (*The static site*): the same build, 1.3 s for the page where GitHub took
+  24-84 s that day; every release publishes both.
 
 ## Building and Running
 
@@ -3729,8 +3732,24 @@ Anything the rooms server runs (`RoomGames.js`, the lists in `FILES` in
 `rooms-worker/build.mjs`, `rooms-worker/src/`): also `npm run deploy`
 in `rooms-worker/`, or rooms keep the old rules. `docs/README.md` has the steps.
 
+**The app's second address: https://ashry-app.rooms-worker.workers.dev** (the
+owner's decision of 23 Sep 2026, after GitHub Pages sent the page at 20-80 KB/s).
+`site-worker/wrangler.toml` is a Cloudflare Worker with no code, only static
+files - `docs/` - so it is free and unlimited (requests to static files cost
+nothing), stores nothing, and publishing it restarts no room. Every release
+publishes it (`npm run deploy:site` in `tools/`, CLAUDE.md step 7) and
+`check:live` fails unless it serves the same build (`backupUrl` in
+`tools/site.config.json`). GitHub stays the main link; this is the fast one to
+share. A phone keeps separate saved data per address (names, settings, bests),
+and a room link shared from a phone uses the address that phone is on - both
+reach the same rooms. (A first try with `wrangler pages project create`, run
+inside `rooms-worker/`, deployed a whole second rooms server named
+`ashry-gaming` instead of a Pages project - wrangler's Pages is now Workers and
+it took that folder's config. It serves the app and is unused; the owner can
+delete it in the Cloudflare dashboard.)
+
 The rooms server also serves a copy of `docs/` at its own address, uploaded on
-every deploy — a second address for the app if `github.io` is ever blocked.
+every deploy — a third address for the app if `github.io` is ever blocked.
 
 **New builds reach an open app.** When a new build's worker takes over a page
 (`controllerchange`) that is older than it (the build writes its id into the

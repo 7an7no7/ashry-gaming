@@ -8,6 +8,7 @@
  * 2. GitHub Pages serves the docs/ build you have here. Every build:site gives
  *    the service worker a new cache name, so that name identifies the build.
  *    Pages takes about a minute after a push; this waits up to 4 minutes.
+ * 2b. The second address (site-worker/, the same docs/ on Cloudflare) serves it too.
  * 3. The rooms server answers /health.
  * 4. The rooms server runs the rules in this folder: its /health fingerprint
  *    (rooms-worker/fingerprint.mjs) matches this folder's. Its own copy of the
@@ -25,6 +26,8 @@ const config = JSON.parse(await readFile(path.join(here, 'site.config.json'), 'u
 const SITE = 'https://7an7no7.github.io/ashry-gaming/';
 const ROOMS = String(config.roomsUrl || 'https://ashry-rooms.rooms-worker.workers.dev').replace(/\/$/, '');
 const WAIT_MS = 4 * 60 * 1000;
+// The second address: the same build, served by Cloudflare (site-worker/, npm run deploy:site).
+const BACKUP = String(config.backupUrl || '').replace(/\/?$/, '/');
 
 const cacheName = (text) => (String(text).match(/ashry-\d{8,}/) || [])[0] || null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -84,6 +87,13 @@ for (;;) {
 }
 if (live === local) ok(`${SITE} serves this build`);
 else fail(`${SITE} serves ${live}, not ${local}. Was docs/ committed and pushed to master?`);
+
+/* 2b. the second address */
+if (config.backupUrl) {
+  const backup = cacheName((await get(BACKUP + 'sw.js')).text);
+  if (backup === local) ok(`${BACKUP} serves this build too`);
+  else fail(`${BACKUP} serves ${backup || 'nothing'}, not ${local}: cd tools && npm run deploy:site`);
+}
 
 /* 3. rooms server */
 const health = await get(ROOMS + '/health');

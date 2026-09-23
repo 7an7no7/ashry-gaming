@@ -11898,6 +11898,9 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .mg-chip--clock { font-variant-numeric: tabular-nums; }
 .mg-chip--clock.is-low { background: #d62839; }
 .mg-chip--par { direction: ltr; }
+/* the final stroke a hole allows (par + 3): said, in red, before it is played */
+.mg-chip--last { background: #d62839; color: #fff; animation: mgLastPulse 1.2s ease-in-out infinite; }
+@keyframes mgLastPulse { 50% { transform: scale(1.06); } }
 
 /* --- the line at the foot, the players' chips, the host's buttons --- */
 .mg-hint {
@@ -12013,6 +12016,12 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 /* the scorecard: holes across, a row a player; it scrolls sideways when it must */
 .mg-card { overflow-x: auto; border-radius: var(--r-md); border: 1px solid var(--border); }
 .mg-card table { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+/* eighteen holes: the first nine, then the rest with the total */
+.mg-card table + table { border-top: 2px solid var(--border); }
+.mg-card.mg-card--two table { font-size: 0.75rem; }
+.mg-card.mg-card--two th, .mg-card.mg-card--two td { padding: 0.3rem 0.12rem; }
+.mg-card.mg-card--two .mg-card__who { max-width: 5.5rem; }
+.mg-card--two .mg-card__c.is-ace { border-radius: 0.5rem; }
 .mg-card th, .mg-card td { padding: 0.3rem 0.35rem; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mg-card thead th { color: var(--text-3); font-weight: var(--fw-semi); background: var(--surface-2); }
 .mg-card__par td, .mg-card__par th { color: var(--text-2); font-size: 0.75rem; background: var(--surface-2); }
@@ -12069,6 +12078,8 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .mg-side .mg-card__tot b { font-size: 1.15em; }
 .mg-side .mg-card__tot small { font-size: 0.7em; }
 .mg-side .mg-card__who { max-width: 12em; }
+.mg-side .mg-card--two th, .mg-side .mg-card--two td { padding: 0.35em 0.18em; }
+.mg-side .mg-card--two .mg-card__who { max-width: 7em; }
 @media (orientation: portrait) {
   .mg-screen--tv { flex-direction: column; }
   .mg-side { flex: 0 0 auto; max-height: 30vh; }
@@ -12078,6 +12089,7 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
   .mg-namecard.is-on { animation: none; opacity: 1; transform: translate(-50%, 0); }
   .mg-banner, .mg-hint { transition: none; }
   .mg-panel, .mg-panel__card { animation: none; }
+  .mg-chip--last { animation: none; }
 }
 
 /* ==========================================================================
@@ -20374,14 +20386,27 @@ const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
 //   walls     more rails inside it, as segments
 //   blocks    solid obstacles (a closed polygon each: a rock, the pyramid)
 //   sand      bunkers: the ball slows hard
-//   water     the ball goes back to where it was hit from, a stroke added
+//   mud       puddles: slower still than sand
+//   ice       the ball barely slows
+//   water     the ball goes back to where it lay, a stroke added
 //   hills     a smooth hump (or a dip, push < 0) running along x or y
 //   bowls     a round dip that pulls the ball to its middle
+//   pads      arrow pads that push the ball along their direction
+//   belts     conveyors that carry the ball along them
+//   portals   in at one ring, out of the other at the same speed, a set way
+//   bumpers   round posts that send the ball away harder than it came
+//   ramps     a slope up to a lip: fast enough and the ball flies off it
+//   gates     one-way flaps: through one way, a rail the other
 //   mills     a windmill: its tunnel's door shut while a sail hangs in front
 //   sliders   a gate sliding to and fro
 //   spinners  a bar turning round a post
 // Every moving piece is on the hole's clock, which every phone shares: a putt
 // carries t0, the clock in ms when it was hit.
+//
+// Other balls (a room played in turns): a putt can take the balls lying on
+// the course as `others` ([{ id, at }]); they are hit, rolled with the same
+// steps, and come back in the result (`moved`). Everything is still decided
+// by the same numbers, in the same order, on every engine.
 
 const GOLF = {
   BALL_R: 0.22,
@@ -20390,13 +20415,27 @@ const GOLF = {
   MAX_SPEED: 24,
   GREEN: 3.0,             // how fast the green slows the ball, units/s²
   SAND: 13,
+  MUD: 24,                // stickier than sand
+  ICE: 0.55,              // the ball barely slows
   STOP: 0.14,
   REST_SLOPE: 2.4,        // a ball stops only where the ground pulls less than this
   SINK_SPEED: 6.2,        // faster than this over the middle of the cup and it lips out (less at the rim)
   BOUNCE: 0.72,
+  BALL_BOUNCE: 0.9,       // ball on ball: equal balls, a little of the knock lost
+  PAD: 34,                // a speed pad's push, units/s²
+  BELT_GRIP: 2.6,         // how fast a belt brings the ball to its own speed
+  PORTAL_R: 0.6,          // a portal's ring; the ball goes in within three quarters of it
+  BUMPER: 1.35,           // a bumper sends the ball back this much faster
+  BUMPER_MIN: 3,          // and at least this fast
+  BUMPER_MAX: 15,         // and no faster than this
+  RAMP_G: 9,              // a ramp's pull back down it
+  RAMP_H: 0.45,           // the lip's height (for the screen, and where a flight starts)
+  RAMP_LIFT: 0.5,         // up speed off the lip, for each unit of speed along the ramp
+  AIR_G: 20,              // the fall, in the air
+  LAND: 0.75,             // speed kept on landing
   DT: 1 / 240,
   MAX_T: 14,
-  CAP: 6,                 // strokes, then the ball is picked up and the hole counts CAP + 1
+  OVER_PAR: 3,            // strokes past par, then the ball is picked up (golfMaxOf)
   PENALTY: 1
 };
 
@@ -20405,25 +20444,41 @@ const GOLF_HUMP_MAX = 3.0792;
 const GOLF_BOWL_MAX = 0.3849;
 
 /* --- the course -------------------------------------------------------------------
-   Nine holes, played in order: a game of 3 plays the first three, of 6 the
-   first six. Each is taller than wide, so it fills a phone held upright.
-   Every hole is checked by rooms-worker/test/rules.mjs: a search finds a way
-   into the cup within par + 1, and no ball can come to rest where the cup
-   can't be reached from. */
+   Eighteen holes, played in order, harder as the course goes on: a game of 3
+   plays the first three, of 6 the first six, and so on. Each hole has its own
+   place and only the pieces that belong there (the owner, 23 Sep 2026: "each
+   map unique, with some of what fits in it"). Each is taller than wide, so it
+   fills a phone held upright. Every hole is checked by
+   rooms-worker/test/rules.mjs: a search finds a way into the cup within
+   par + 1, no ball can come to rest where the cup can't be reached from, and
+   the clock's gentle putt holes out in the end. Curved edges are written out
+   as numbers (never worked out with Math.cos at load: every engine must see
+   the very same rails). */
 const GOLF_HOLES = [
   {
-    // A first straight putt, a round rock in the way.
+    // A first straight putt up to a rounded end, a round rock in the way.
     id: 'first', par: 2,
     tee: [4, 2], cup: [4, 16.5],
-    green: [[0, 0], [8, 0], [8, 20], [0, 20]],
+    green: [[0, 0], [8, 0], [8, 16], [7.696, 17.531], [6.828, 18.828], [5.531, 19.696], [4, 20], [2.469, 19.696], [1.172, 18.828], [0.304, 17.531], [0, 16]],
     blocks: [{ poly: [[4.924, 9.117], [4.924, 9.883], [4.383, 10.424], [3.617, 10.424], [3.076, 9.883], [3.076, 9.117], [3.617, 8.576], [4.383, 8.576]], look: 'rock' }]
   },
   {
+    // A narrow bridge over the water, the cup behind a bunker under a rounded end.
+    id: 'bridge', par: 3,
+    tee: [2.8, 2], cup: [3, 20.5],
+    green: [[0, 0], [12, 0], [12, 20], [11.706, 21.854], [10.854, 23.527], [9.527, 24.854], [7.854, 25.706], [6, 26], [4.146, 25.706], [2.473, 24.854], [1.146, 23.527], [0.294, 21.854], [0, 20]],
+    water: [
+      [[0, 8], [3.4, 8], [5.8, 15], [0, 15]],
+      [[6.2, 8], [12, 8], [12, 15], [8.6, 15]]
+    ],
+    sand: [[[5, 17.4], [7, 17.1], [7.6, 18.8], [5.8, 19.5], [4.8, 18.6]]]
+  },
+  {
     // The windmill: through the tunnel when no sail hangs in front of it, and
-    // round the corner past the pond.
+    // round the corner past the pond to a rounded far end.
     id: 'mill', par: 3,
     tee: [3, 2], cup: [13, 22],
-    green: [[0, 0], [6, 0], [6, 16], [16, 16], [16, 26], [0, 26]],
+    green: [[0, 0], [6, 0], [6, 16], [16, 16], [16, 23], [15.853, 23.927], [15.427, 24.763], [14.763, 25.427], [13.927, 25.853], [13, 26], [0, 26]],
     blocks: [
       { poly: [[0, 9], [2, 9], [2, 10.6], [0, 10.6]], look: 'mill' },
       { poly: [[4, 9], [6, 9], [6, 10.6], [4, 10.6]], look: 'mill' }
@@ -20434,21 +20489,25 @@ const GOLF_HOLES = [
     mills: [{ x: 3, y: 9, dir: 'y', half: 1, blades: 4, w: 1.3, phase: 0.3, shut: 0.17 }]
   },
   {
-    // A narrow bridge over the water, the cup behind a bunker.
-    id: 'bridge', par: 3,
-    tee: [2.8, 2], cup: [3, 20.5],
-    green: [[0, 0], [12, 0], [12, 24], [0, 24]],
-    water: [
-      [[0, 8], [3.4, 8], [5.8, 15], [0, 15]],
-      [[6.2, 8], [12, 8], [12, 15], [8.6, 15]]
+    // The souq: round the corner into the lane of stalls, and the arrow tiles do the rest.
+    id: 'souq', par: 3,
+    tee: [9, 2.5], cup: [3, 23.5],
+    green: [[0, 0], [12, 0], [12, 10], [6, 10], [6, 26], [0, 26]],
+    pads: [
+      { x: 3, y: 12.4, dx: 0, dy: 1, w: 2.4, l: 2.2 },
+      { x: 7.4, y: 5, dx: -1, dy: 0, w: 2, l: 2.2 }
     ],
-    sand: [[[5, 17.4], [7, 17.1], [7.6, 18.8], [5.8, 19.5], [4.8, 18.6]]]
+    blocks: [
+      { poly: [[0, 16], [1.8, 16], [1.8, 17.4], [0, 17.4]], look: 'stall' },
+      { poly: [[4.2, 19], [6, 19], [6, 20.4], [4.2, 20.4]], look: 'stall' }
+    ],
+    sand: [[[9.4, 6.6], [11.4, 6.8], [11.5, 9.2], [9.2, 9]]]
   },
   {
     // Over the camel's two humps: too soft and it rolls back, too hard and it runs on.
     id: 'humps', par: 3,
     tee: [5, 2], cup: [6.6, 20.5],
-    green: [[0, 0], [10, 0], [10, 25], [0, 25]],
+    green: [[0, 0], [10, 0], [10, 23.5], [8.5, 25], [1.5, 25], [0, 23.5]],
     hills: [
       { x0: 0, y0: 5.5, x1: 10, y1: 10.5, axis: 'y', push: 4.4, h: 0.9 },
       { x0: 0, y0: 11.5, x1: 10, y1: 16.5, axis: 'y', push: 4.4, h: 0.9 }
@@ -20456,7 +20515,18 @@ const GOLF_HOLES = [
     blocks: [
       { poly: [[6.6, 17.6], [6.6, 18.4], [6, 18.8], [5.4, 18.4], [5.4, 17.6], [6, 17.2]], look: 'rock' }
     ],
-    sand: [[[4.4, 22.6], [8.6, 22.4], [9, 24], [4, 24.2]]]
+    sand: [[[4.4, 22.6], [8.6, 22.4], [8.8, 23.6], [4, 23.8]]]
+  },
+  {
+    // The funfair (the moulid): pinball posts on the way and round the cup.
+    id: 'fair', par: 3,
+    tee: [6, 2], cup: [6, 19],
+    green: [[0, 0], [12, 0], [12, 19], [11.706, 20.854], [10.854, 22.527], [9.527, 23.854], [7.854, 24.706], [6, 25], [4.146, 24.706], [2.473, 23.854], [1.146, 22.527], [0.294, 20.854], [0, 19]],
+    bumpers: [
+      { x: 6, y: 9.5, r: 0.5 }, { x: 3, y: 12.5, r: 0.45 }, { x: 9, y: 12.5, r: 0.45 },
+      { x: 3.9, y: 19.8, r: 0.45 }, { x: 8.1, y: 19.8, r: 0.45 }, { x: 6, y: 21.6, r: 0.45 }
+    ],
+    sand: [[[0.8, 5], [2.6, 4.8], [2.8, 7], [1, 7.2]]]
   },
   {
     // The pyramid in the middle: round it, or off a side wall.
@@ -20470,14 +20540,42 @@ const GOLF_HOLES = [
     ]
   },
   {
-    // The waterwheel's beam turning in the middle of the green.
+    // The Nile: jump it off the ramp, or go round by the little bridge; mud on the far bank.
+    id: 'nile', par: 3,
+    tee: [4, 2], cup: [4.5, 20.5],
+    green: [[0, 0], [12, 0], [12, 24], [0, 24]],
+    ramps: [{ x: 4, y: 7.4, dx: 0, dy: 1, len: 2.6, w: 2.2 }],
+    walls: [[2.8, 7.4, 2.8, 10], [5.2, 7.4, 5.2, 10], [9.7, 10, 9.7, 13.5]],
+    water: [[[0, 10], [9.7, 10], [9.7, 13.5], [0, 13.5]]],
+    mud: [[[0.6, 15.2], [2.6, 14.8], [3, 16.6], [1, 17]]],
+    sand: [[[7.4, 19], [9.6, 18.8], [9.8, 20.8], [7.6, 21]]]
+  },
+  {
+    // The waterwheel's beam turning in the middle of the green; the field's mud by its channel.
     id: 'saqia', par: 3,
     tee: [6, 2], cup: [7.8, 20.5],
-    green: [[0, 0], [12, 0], [12, 25], [0, 25]],
+    green: [[0, 0], [12, 0], [12, 22], [11.772, 23.148], [11.121, 24.121], [10.148, 24.772], [9, 25], [3, 25], [1.852, 24.772], [0.879, 24.121], [0.228, 23.148], [0, 22]],
     spinners: [{ x: 6, y: 11.5, r: 2.8, w: 1.1, phase: 0.4 }],
     blocks: [{ poly: [[8.2, 17.3], [8.2, 18.1], [7.6, 18.5], [7, 18.1], [7, 17.3], [7.6, 16.9]], look: 'jar' }],
     water: [[[0.8, 5.6], [3.2, 5.2], [3.8, 7.8], [2.6, 9.2], [0.8, 8.8]]],
+    mud: [[[1.2, 9.8], [3.4, 9.6], [3.8, 11.2], [1.4, 11.6]]],
     sand: [[[2.2, 18.6], [4.6, 18.3], [5, 20.3], [2.8, 21]]]
+  },
+  {
+    // Siwa: over the dunes, past the salt rocks, and mind the mud of the salt marsh.
+    id: 'siwa', par: 3,
+    tee: [5, 2], cup: [6.5, 20.5],
+    green: [[0, 0], [10, 0], [10, 22.5], [8.5, 24], [1.5, 24], [0, 22.5]],
+    hills: [{ x0: 0, y0: 6.5, x1: 10, y1: 11.5, axis: 'y', push: 3.6, h: 0.8 }],
+    mud: [
+      [[5.2, 22.1], [8, 21.9], [8.5, 23.1], [4.8, 23.3]],
+      [[0.8, 14.2], [3, 13.8], [3.4, 15.8], [1.6, 16.6], [0.6, 15.6]]
+    ],
+    sand: [[[6.8, 14.4], [9.2, 14.6], [9.4, 16.4], [7, 16.6]]],
+    blocks: [
+      { poly: [[3.8, 18.6], [3.6, 19.2], [3.1, 19.4], [2.6, 19.1], [2.5, 18.5], [2.9, 18], [3.4, 18]], look: 'salt' },
+      { poly: [[8.6, 4.4], [8.4, 5], [7.9, 5.2], [7.4, 4.9], [7.3, 4.3], [7.7, 3.8], [8.2, 3.8]], look: 'salt' }
+    ]
   },
   {
     // Up the column and round the curved wall, the lighthouse at the corner.
@@ -20489,10 +20587,27 @@ const GOLF_HOLES = [
     blocks: [{ poly: [[6, 14], [7.2, 14], [6, 15.2]], look: 'rock' }]
   },
   {
-    // The gate: a door sliding in the gap between two towers.
+    // The Citadel: two walls, and flaps that open only one way; the wrong door doesn't give.
+    id: 'citadel', par: 3,
+    tee: [3, 2], cup: [9, 22.5],
+    green: [[0, 0], [12, 0], [12, 26], [0, 26]],
+    walls: [[0, 9, 4, 9], [6.4, 9, 12, 9], [3.4, 17, 8.6, 17], [11, 17, 12, 17]],
+    gates: [
+      { x1: 4, y1: 9, x2: 6.4, y2: 9, dx: 0, dy: 1 },
+      { x1: 0, y1: 17, x2: 3.4, y2: 17, dx: 0, dy: -1 },
+      { x1: 8.6, y1: 17, x2: 11, y2: 17, dx: 0, dy: 1 }
+    ],
+    blocks: [
+      { poly: [[7.4, 8.4], [8.6, 8.4], [8.6, 9.6], [7.4, 9.6]], look: 'tower' },
+      { poly: [[5.4, 16.4], [6.6, 16.4], [6.6, 17.6], [5.4, 17.6]], look: 'tower' }
+    ],
+    sand: [[[1, 20.6], [3.4, 20.4], [3.6, 22.6], [1.2, 22.8]]]
+  },
+  {
+    // The gate: a door sliding in the gap between two towers, the cup under a rounded end.
     id: 'gate', par: 3,
     tee: [5, 2], cup: [5, 20],
-    green: [[0, 0], [10, 0], [10, 24], [0, 24]],
+    green: [[0, 0], [10, 0], [10, 20], [9.619, 21.913], [8.536, 23.536], [6.913, 24.619], [5, 25], [3.087, 24.619], [1.464, 23.536], [0.381, 21.913], [0, 20]],
     blocks: [
       { poly: [[0, 11.4], [2, 11.4], [2, 12.6], [0, 12.6]], look: 'tower' },
       { poly: [[8, 11.4], [10, 11.4], [10, 12.6], [8, 12.6]], look: 'tower' }
@@ -20501,26 +20616,94 @@ const GOLF_HOLES = [
     sand: [[[6.6, 16.6], [8.8, 16.8], [9, 18.6], [7, 18.8]]]
   },
   {
-    // The oasis: up, across past the pond, and up to a cup in a hollow.
+    // The port: two conveyors over the harbour, one carrying the ball over, one bringing it back.
+    id: 'port', par: 3,
+    tee: [3, 2.5], cup: [8.5, 21.5],
+    green: [[0, 0], [12, 0], [12, 26], [0, 26]],
+    belts: [
+      { x0: 1.8, y0: 10.6, x1: 4.2, y1: 15.4, vx: 0, vy: 3.2 },
+      { x0: 7.8, y0: 10.6, x1: 10.2, y1: 15.4, vx: 0, vy: -3 }
+    ],
+    walls: [[1.8, 11, 1.8, 15], [4.2, 11, 4.2, 15], [7.8, 11, 7.8, 15], [10.2, 11, 10.2, 15]],
+    water: [
+      [[0, 11], [1.8, 11], [1.8, 15], [0, 15]],
+      [[4.2, 11], [7.8, 11], [7.8, 15], [4.2, 15]],
+      [[10.2, 11], [12, 11], [12, 15], [10.2, 15]]
+    ],
+    sand: [[[9.6, 23], [11.4, 22.8], [11.6, 24.8], [9.8, 25]]]
+  },
+  {
+    // Karnak: a wall across the temple, a magic door from one shrine to the other; or walk round by the far gap.
+    id: 'temple', par: 3,
+    tee: [3, 2], cup: [8, 22.5],
+    green: [[0, 0], [12, 0], [12, 26], [0, 26]],
+    walls: [[0, 13, 10.4, 13]],
+    portals: [{ x: 3, y: 10.4, ox: 5, oy: 15.4, dx: 0, dy: 1 }],
+    blocks: [
+      { poly: [[1.6, 9.9], [2.2, 9.9], [2.2, 10.9], [1.6, 10.9]], look: 'obelisk' },
+      { poly: [[3.8, 9.9], [4.4, 9.9], [4.4, 10.9], [3.8, 10.9]], look: 'obelisk' },
+      { poly: [[7.6, 5], [8.6, 5], [8.6, 6], [7.6, 6]], look: 'obelisk' },
+      { poly: [[2.2, 19.6], [3.2, 19.6], [3.2, 20.6], [2.2, 20.6]], look: 'obelisk' }
+    ],
+    sand: [
+      [[9.4, 17], [11.4, 16.8], [11.6, 18.8], [9.6, 19]],
+      [[0.8, 3.4], [2.4, 3.2], [2.6, 5], [1, 5.2]]
+    ]
+  },
+  {
+    // Saint Catherine: the mountain's frozen pond, a zigzag of walls across the ice, snowy rocks.
+    id: 'sinai', par: 3,
+    tee: [6, 2], cup: [3, 23],
+    green: [[0, 0], [12, 0], [12, 22], [11.706, 23.854], [10.854, 25.527], [9.527, 26.854], [7.854, 27.706], [6, 28], [4.146, 27.706], [2.473, 26.854], [1.146, 25.527], [0.294, 23.854], [0, 22]],
+    ice: [[[0.5, 4.6], [11.5, 4.6], [11.5, 19.4], [0.5, 19.4]]],
+    walls: [[0, 10, 7.6, 10], [4.4, 15.6, 12, 15.6]],
+    blocks: [
+      { poly: [[10.2, 7], [10, 7.6], [9.5, 7.8], [9, 7.5], [8.9, 6.9], [9.3, 6.4], [9.8, 6.4]], look: 'snow' },
+      { poly: [[3, 13], [2.8, 13.6], [2.3, 13.8], [1.8, 13.5], [1.7, 12.9], [2.1, 12.4], [2.6, 12.4]], look: 'snow' }
+    ]
+  },
+  {
+    // The oasis: up, across past the pond and its muddy edge, and up to a cup in a hollow.
     id: 'oasis', par: 4,
     tee: [11, 2], cup: [3.5, 24],
     green: [[8, 0], [14, 0], [14, 18], [7, 18], [7, 28], [0, 28], [0, 10], [8, 10]],
     water: [[[5.4, 12.6], [7.6, 12.1], [9.6, 12.8], [10, 14.6], [8.4, 15.9], [6, 15.8], [5, 14.6]]],
+    mud: [[[10.2, 15.2], [12, 15], [12.4, 16.6], [10.6, 17]]],
     sand: [
       [[8.6, 5.8], [10.2, 5.4], [10.8, 7.2], [9.2, 7.8]],
       [[4.8, 19.6], [6.4, 20], [6.2, 21.6], [4.8, 21.4]]
     ],
     bowls: [{ x: 3.5, y: 24, r: 2.4, pull: 2.2, h: 0.4 }]
+  },
+  {
+    // Cairo Tower: the gardens at its foot, the arrow path up the promenade, and the tower's lift -
+    // a magic door that brings the ball out at the top, rolling for the cup.
+    id: 'tower', par: 4,
+    tee: [3, 2], cup: [10, 24.5],
+    green: [[0, 0], [14, 0], [14, 28], [0, 28]],
+    walls: [[0, 9, 8.5, 9], [5, 19, 14, 19]],
+    pads: [{ x: 11.2, y: 12.5, dx: 0, dy: 1, w: 2.4, l: 2.2 }],
+    portals: [{ x: 2, y: 6.4, ox: 12.6, oy: 24.5, dx: -1, dy: 0 }],
+    blocks: [
+      { poly: [[5.4, 14.2], [6.4, 13.8], [7.2, 14.4], [7, 15.4], [6, 15.8], [5.2, 15.2]], look: 'rock' },
+      { poly: [[3.4, 11.8], [4.4, 11.4], [5.2, 12], [5, 13], [4, 13.4], [3.2, 12.8]], look: 'rock' }
+    ],
+    sand: [[[6.6, 22.8], [8.2, 22.6], [8.4, 24.4], [6.8, 24.6]]]
   }
 ];
 
-const GOLF_HOLE_COUNTS = [3, 6, 9];
+const GOLF_HOLE_COUNTS = [3, 6, 9, 18];
 
 /** The par of the first `n` holes. */
 function golfParOf(n) {
   let p = 0;
   for (let i = 0; i < n && i < GOLF_HOLES.length; i++) p += GOLF_HOLES[i].par;
   return p;
+}
+
+/** The most strokes a hole allows: par + 3 (or the hole's own `max`). One more and the ball is picked up, the hole counting max + 1. */
+function golfMaxOf(h) {
+  return h && h.max ? h.max : ((h && h.par) || 3) + GOLF.OVER_PAR;
 }
 
 function golfInPoly(x, y, poly) {
@@ -20530,6 +20713,11 @@ function golfInPoly(x, y, poly) {
     if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+function golfInAny(x, y, list) {
+  if (!list) return false;
+  for (let i = 0; i < list.length; i++) if (golfInPoly(x, y, list[i])) return true;
+  return false;
 }
 
 // sin and cos from a polynomial (a spinner's bar): the same bits on every engine.
@@ -20555,6 +20743,45 @@ function golfSegs(h) {
   (h.blocks || []).forEach(b => loop(b.poly));
   GOLF_SEGS[h.id] = out;
   return out;
+}
+/** What a ball in the air still meets: the fence round the green and the blocks (the rails are low). */
+const GOLF_TALL = {};
+function golfTallSegs(h) {
+  if (GOLF_TALL[h.id]) return GOLF_TALL[h.id];
+  const out = [];
+  const loop = (poly) => { for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; out.push([a[0], a[1], b[0], b[1]]); } };
+  loop(h.green);
+  (h.blocks || []).forEach(b => loop(b.poly));
+  GOLF_TALL[h.id] = out;
+  return out;
+}
+
+/** A unit vector (a pad's, a ramp's, a portal's or a gate's way). */
+function golfUnit(dx, dy) {
+  const l = Math.sqrt(dx * dx + dy * dy) || 1;
+  return [dx / l, dy / l];
+}
+/** A speed pad under (x, y)? Its unit direction, else null. */
+function golfPadAt(pad, x, y) {
+  const u = golfUnit(pad.dx, pad.dy);
+  const rx = x - pad.x, ry = y - pad.y;
+  const along = rx * u[0] + ry * u[1], across = ry * u[0] - rx * u[1];
+  return Math.abs(along) <= pad.l / 2 && Math.abs(across) <= pad.w / 2 ? u : null;
+}
+/** How far up a ramp (x, y) is (0 at its foot, len at its lip), or -1 off it. */
+function golfRampU(rp, x, y) {
+  const u = golfUnit(rp.dx, rp.dy);
+  const rx = x - rp.x, ry = y - rp.y;
+  const along = rx * u[0] + ry * u[1], across = ry * u[0] - rx * u[1];
+  return along >= 0 && along <= rp.len && Math.abs(across) <= rp.w / 2 ? along : -1;
+}
+function golfBeltAt(h, x, y) {
+  const belts = h.belts || [];
+  for (let i = 0; i < belts.length; i++) {
+    const bl = belts[i];
+    if (x >= bl.x0 && x <= bl.x1 && y >= bl.y0 && y <= bl.y1) return bl;
+  }
+  return null;
 }
 
 // Is a windmill's door shut at time t (seconds on the hole's clock)? A blade
@@ -20591,7 +20818,7 @@ function golfSpinnerSeg(sp, t) {
 }
 function golfSpinnerAngle(sp, t) { return sp.phase + sp.w * t; }
 
-/** How high the ground is (display units; hills up, bowls down). The rules only use its slope. */
+/** How high the ground is (display units; hills and ramps up, bowls down). The rules only use its slope. */
 function golfHeight(h, x, y) {
   let z = 0;
   (h.hills || []).forEach(hl => {
@@ -20605,6 +20832,10 @@ function golfHeight(h, x, y) {
     const d2 = (dx * dx + dy * dy) / (bw.r * bw.r);
     if (d2 >= 1) return;
     z -= bw.h * (1 - d2) * (1 - d2);
+  });
+  (h.ramps || []).forEach(rp => {
+    const u = golfRampU(rp, x, y);
+    if (u >= 0) z += GOLF.RAMP_H * u / rp.len;
   });
   return z;
 }
@@ -20635,6 +20866,15 @@ function golfPull(h, x, y) {
   return [ax, ay];
 }
 
+/** How fast the ground under (x, y) slows a rolling ball: the green, ice, sand or mud. */
+function golfDragAt(h, x, y) {
+  let drag = GOLF.GREEN;
+  if (golfInAny(x, y, h.ice)) drag = GOLF.ICE;
+  if (golfInAny(x, y, h.sand)) drag = GOLF.SAND;
+  if (golfInAny(x, y, h.mud)) drag = GOLF.MUD;
+  return drag;
+}
+
 function golfCleanShot(s) {
   const n = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
   let dx = n(s && s.dx, -1000, 1000), dy = n(s && s.dy, -1000, 1000);
@@ -20642,21 +20882,50 @@ function golfCleanShot(s) {
   return { dx, dy, power: n(s && s.power, 20, 1000), t0: n(s && s.t0, 0, 3600000) };
 }
 
+/** One ball on the course: where it is, how it moves, and what has happened to it. */
+function golfBody(x, y) {
+  return {
+    x, y, sx: x, sy: y, vx: 0, vy: 0, roll: 0,
+    end: null,            // 'rest' | 'cup' | 'water'
+    lip: 0,
+    sand: false, mud: false, ice: false, pad: false, belt: false,   // what it is on this step (for the screen)
+    hits: 0,              // rails and pieces hit (for the knock on screen)
+    air: false, z: 0, vz: 0, jumps: 0,
+    bumps: 0, warps: 0, warp: null, knocks: 0, moved: false
+  };
+}
+
 // from: where the ball lies. shot.t0 is the hole's clock in ms at the putt.
-function golfStart(hole, from, shot) {
+// others: the balls lying on the course that this one can hit ([{ id, at }]).
+function golfStart(hole, from, shot, others) {
   shot = golfCleanShot(shot);
   const l = Math.sqrt(shot.dx * shot.dx + shot.dy * shot.dy);
   const v = GOLF.MAX_SPEED * shot.power / 1000;
-  return {
-    hole, shot, t: 0,
-    x: from[0], y: from[1], sx: from[0], sy: from[1],
+  const sim = golfBody(from[0], from[1]);
+  Object.assign(sim, {
+    hole, shot, t: 0, id: null,
     vx: shot.dx / l * v, vy: shot.dy / l * v,
-    roll: 0,
-    end: null,            // 'rest' | 'cup' | 'water'
-    lip: 0,
-    sand: false,          // on sand this step (for the puff on screen)
-    hits: 0               // rails and pieces hit (for the knock on screen)
-  };
+    moved: true,
+    others: [],           // the other balls, each a body with its `id`
+    done: false,          // every ball has stopped, sunk or splashed
+    ghost: {},            // pairs lying on each other at the start pass through until they part
+    flaps: {},            // gate k: the hole's clock (s) when a ball last swung it
+    bumped: {}            // bumper k: the clock (s) when a ball last hit it
+  });
+  (others || []).forEach(o => {
+    const b = golfBody(Number(o.at[0]), Number(o.at[1]));
+    b.id = o.id;
+    b.end = 'rest';
+    sim.others.push(b);
+  });
+  if (sim.others.length) {
+    const all = [sim].concat(sim.others), R2 = 2 * GOLF.BALL_R;
+    for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+      const dx = all[i].x - all[j].x, dy = all[i].y - all[j].y;
+      if (dx * dx + dy * dy < R2 * R2) sim.ghost[i + ':' + j] = true;
+    }
+  }
+  return sim;
 }
 
 // A rail against the ball. (wvx, wvy) is how the rail itself moves at the
@@ -20679,6 +20948,31 @@ function golfSegHit(sim, x1, y1, x2, y2, rr, wvx, wvy) {
     sim.hits++;
   }
   return true;
+}
+
+/**
+ * A one-way gate: a ball on its far side coming back meets it as a rail; one
+ * coming through the right way swings the flap and goes on. Returns true when
+ * the ball swung it.
+ */
+function golfGateHit(b, g, rr) {
+  const ex = g.x2 - g.x1, ey = g.y2 - g.y1;
+  const len2 = ex * ex + ey * ey;
+  let u = len2 ? ((b.x - g.x1) * ex + (b.y - g.y1) * ey) / len2 : 0;
+  u = u < 0 ? 0 : u > 1 ? 1 : u;
+  const px = g.x1 + ex * u, py = g.y1 + ey * u;
+  const dx = b.x - px, dy = b.y - py;
+  if (dx * dx + dy * dy >= rr * rr) return false;
+  // the line's normal, turned toward the way through
+  const w = golfUnit(g.dx, g.dy);
+  let nx = -ey, ny = ex;
+  if (nx * w[0] + ny * w[1] < 0) { nx = -nx; ny = -ny; }
+  const nl = Math.sqrt(nx * nx + ny * ny) || 1;
+  nx /= nl; ny /= nl;
+  const side = (b.x - g.x1) * nx + (b.y - g.y1) * ny;
+  const vn = b.vx * nx + b.vy * ny;
+  if (side > 0 && vn < 0) { golfSegHit(b, g.x1, g.y1, g.x2, g.y2, rr, 0, 0); return false; }
+  return vn > 0;
 }
 
 /** Is the ball where a moving piece will reach it? Then it isn't allowed to stop there. */
@@ -20706,103 +21000,306 @@ function golfInSweep(h, x, y) {
   return false;
 }
 
-function golfStep(sim) {
-  if (sim.end) return;
+/** A ball in the air: it flies on, meeting only the fence and the blocks, and lands. */
+function golfFly(sim, b) {
   const h = sim.hole, dt = GOLF.DT;
-  sim.t += dt;
-  const clock = sim.shot.t0 / 1000 + sim.t;
-
-  const pull = golfPull(h, sim.x, sim.y);
-  const ax = pull[0], ay = pull[1];
-  const slope = Math.sqrt(ax * ax + ay * ay);
-  let drag = GOLF.GREEN;
-  sim.sand = false;
-  const sand = h.sand || [];
-  for (let i = 0; i < sand.length; i++) if (golfInPoly(sim.x, sim.y, sand[i])) { drag = GOLF.SAND; sim.sand = true; }
-
-  sim.vx += ax * dt; sim.vy += ay * dt;
-  const sp = Math.sqrt(sim.vx * sim.vx + sim.vy * sim.vy);
-  if (sp > 0) {
-    const k = sp > drag * dt ? (sp - drag * dt) / sp : 0;
-    sim.vx *= k; sim.vy *= k;
-  }
-  sim.x += sim.vx * dt; sim.y += sim.vy * dt;
-  sim.roll += sp * dt / GOLF.BALL_R;
-
+  b.x += b.vx * dt; b.y += b.vy * dt;
+  b.z += b.vz * dt; b.vz -= GOLF.AIR_G * dt;
   const rr = GOLF.BALL_R + GOLF.WALL_R;
-  const segs = golfSegs(h);
-  for (let i = 0; i < segs.length; i++) { const w = segs[i]; golfSegHit(sim, w[0], w[1], w[2], w[3], rr, 0, 0); }
-  const mills = h.mills || [];
-  for (let i = 0; i < mills.length; i++) {
-    const m = mills[i];
-    if (!golfMillShut(m, clock)) continue;
-    if (m.dir === 'y') golfSegHit(sim, m.x - m.half, m.y, m.x + m.half, m.y, rr, 0, 0);
-    else golfSegHit(sim, m.x, m.y - m.half, m.x, m.y + m.half, rr, 0, 0);
+  const tall = golfTallSegs(h);
+  for (let i = 0; i < tall.length; i++) { const w = tall[i]; golfSegHit(b, w[0], w[1], w[2], w[3], rr, 0, 0); }
+  if (b.z <= 0) {
+    b.z = 0; b.vz = 0; b.air = false;
+    b.vx *= GOLF.LAND; b.vy *= GOLF.LAND;
   }
-  const sliders = h.sliders || [];
-  for (let i = 0; i < sliders.length; i++) {
-    const sl = sliders[i];
-    const s1 = golfSliderSeg(sl, clock), c0 = golfSliderAt(sl, clock - dt), c1 = golfSliderAt(sl, clock);
-    golfSegHit(sim, s1[0], s1[1], s1[2], s1[3], rr, (c1[0] - c0[0]) / dt, (c1[1] - c0[1]) / dt);
-  }
-  const spinners = h.spinners || [];
-  for (let i = 0; i < spinners.length; i++) {
-    const spn = spinners[i];
-    const s1 = golfSpinnerSeg(spn, clock);
-    // The bar's own speed where it meets the ball: ω × r.
-    const rx = sim.x - spn.x, ry = sim.y - spn.y;
-    golfSegHit(sim, s1[0], s1[1], s1[2], s1[3], rr, -spn.w * ry, spn.w * rx);
+}
+
+/** One step of one ball: the ground, the rails and pieces, the water, the cup, and whether it stops. */
+function golfMove(sim, b, clock) {
+  const h = sim.hole, dt = GOLF.DT;
+  let slope = 0, onBelt = false;
+  if (b.air) {
+    golfFly(sim, b);
+    if (b.air) return;
+    const pl = golfPull(h, b.x, b.y);
+    slope = Math.sqrt(pl[0] * pl[0] + pl[1] * pl[1]);
+  } else {
+    const pull = golfPull(h, b.x, b.y);
+    let ax = pull[0], ay = pull[1];
+    // A speed pad pushes along its arrow; a ramp pulls back down to its foot.
+    b.pad = false;
+    const pads = h.pads || [];
+    for (let i = 0; i < pads.length; i++) {
+      const u = golfPadAt(pads[i], b.x, b.y);
+      if (u) { const push = pads[i].push || GOLF.PAD; ax += u[0] * push; ay += u[1] * push; b.pad = true; }
+    }
+    let ramp = null;
+    const ramps = h.ramps || [];
+    for (let i = 0; i < ramps.length; i++) {
+      if (golfRampU(ramps[i], b.x, b.y) >= 0) { ramp = ramps[i]; const u = golfUnit(ramp.dx, ramp.dy); ax -= u[0] * GOLF.RAMP_G; ay -= u[1] * GOLF.RAMP_G; }
+    }
+    slope = Math.sqrt(ax * ax + ay * ay);
+    let drag = GOLF.GREEN;
+    b.sand = false; b.mud = false; b.ice = false;
+    const ice = h.ice || [];
+    for (let i = 0; i < ice.length; i++) if (golfInPoly(b.x, b.y, ice[i])) { drag = GOLF.ICE; b.ice = true; }
+    const sand = h.sand || [];
+    for (let i = 0; i < sand.length; i++) if (golfInPoly(b.x, b.y, sand[i])) { drag = GOLF.SAND; b.sand = true; b.ice = false; }
+    const mud = h.mud || [];
+    for (let i = 0; i < mud.length; i++) if (golfInPoly(b.x, b.y, mud[i])) { drag = GOLF.MUD; b.mud = true; b.sand = false; b.ice = false; }
+    const belt = (h.belts || []).length ? golfBeltAt(h, b.x, b.y) : null;
+    onBelt = !!belt;
+    b.belt = onBelt;
+
+    b.vx += ax * dt; b.vy += ay * dt;
+    const sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+    if (belt) {
+      // The belt brings the ball to its own speed.
+      const k = GOLF.BELT_GRIP * dt;
+      b.vx += (belt.vx - b.vx) * k; b.vy += (belt.vy - b.vy) * k;
+    } else if (sp > 0) {
+      const k = sp > drag * dt ? (sp - drag * dt) / sp : 0;
+      b.vx *= k; b.vy *= k;
+    }
+    if (b.pad && sp > GOLF.MAX_SPEED) { const k = GOLF.MAX_SPEED / sp; b.vx *= k; b.vy *= k; }
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    b.roll += sp * dt / GOLF.BALL_R;
+
+    const rr = GOLF.BALL_R + GOLF.WALL_R;
+    const segs = golfSegs(h);
+    for (let i = 0; i < segs.length; i++) { const w = segs[i]; golfSegHit(b, w[0], w[1], w[2], w[3], rr, 0, 0); }
+    const gates = h.gates || [];
+    for (let i = 0; i < gates.length; i++) if (golfGateHit(b, gates[i], rr)) sim.flaps[i] = clock;
+    const mills = h.mills || [];
+    for (let i = 0; i < mills.length; i++) {
+      const m = mills[i];
+      if (!golfMillShut(m, clock)) continue;
+      if (m.dir === 'y') golfSegHit(b, m.x - m.half, m.y, m.x + m.half, m.y, rr, 0, 0);
+      else golfSegHit(b, m.x, m.y - m.half, m.x, m.y + m.half, rr, 0, 0);
+    }
+    const sliders = h.sliders || [];
+    for (let i = 0; i < sliders.length; i++) {
+      const sl = sliders[i];
+      const s1 = golfSliderSeg(sl, clock), c0 = golfSliderAt(sl, clock - dt), c1 = golfSliderAt(sl, clock);
+      golfSegHit(b, s1[0], s1[1], s1[2], s1[3], rr, (c1[0] - c0[0]) / dt, (c1[1] - c0[1]) / dt);
+    }
+    const spinners = h.spinners || [];
+    for (let i = 0; i < spinners.length; i++) {
+      const spn = spinners[i];
+      const s1 = golfSpinnerSeg(spn, clock);
+      // The bar's own speed where it meets the ball: ω × r.
+      const rx = b.x - spn.x, ry = b.y - spn.y;
+      golfSegHit(b, s1[0], s1[1], s1[2], s1[3], rr, -spn.w * ry, spn.w * rx);
+    }
+    // A bumper sends the ball away harder than it came.
+    const bumpers = h.bumpers || [];
+    for (let i = 0; i < bumpers.length; i++) {
+      const bp = bumpers[i];
+      const br = bp.r + GOLF.BALL_R;
+      const dx = b.x - bp.x, dy = b.y - bp.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= br * br) continue;
+      const d = Math.sqrt(d2) || 1e-6, nx = d2 ? dx / d : 1, ny = d2 ? dy / d : 0;
+      b.x = bp.x + nx * br; b.y = bp.y + ny * br;
+      const vn = b.vx * nx + b.vy * ny;
+      if (vn < 0) {
+        const out = Math.min(GOLF.BUMPER_MAX, Math.max(GOLF.BUMPER_MIN, -vn * GOLF.BUMPER));
+        b.vx += (out - vn) * nx; b.vy += (out - vn) * ny;
+        const s2 = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+        if (s2 > GOLF.BUMPER_MAX) { const k = GOLF.BUMPER_MAX / s2; b.vx *= k; b.vy *= k; }
+        b.bumps++; b.hits++;
+        sim.bumped[i] = clock;
+      }
+    }
+    // A portal: in at one ring, out of the other at the same speed, its own way.
+    const portals = h.portals || [];
+    for (let i = 0; i < portals.length; i++) {
+      const pt = portals[i];
+      const dx = b.x - pt.x, dy = b.y - pt.y, rin = GOLF.PORTAL_R * 0.75;
+      if (dx * dx + dy * dy >= rin * rin) continue;
+      const s2 = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+      const u = golfUnit(pt.dx, pt.dy);
+      b.x = pt.ox + u[0] * 0.3; b.y = pt.oy + u[1] * 0.3;
+      b.vx = u[0] * s2; b.vy = u[1] * s2;
+      b.lip = 0;
+      b.warps++;
+      b.warp = { k: i, t: clock };
+      break;
+    }
+    // Off a ramp's lip fast enough, it flies.
+    if (ramp) {
+      const u = golfUnit(ramp.dx, ramp.dy);
+      const rx = b.x - ramp.x, ry = b.y - ramp.y;
+      const along = rx * u[0] + ry * u[1], across = ry * u[0] - rx * u[1];
+      const va = b.vx * u[0] + b.vy * u[1];
+      if (along > ramp.len && Math.abs(across) <= ramp.w / 2 + GOLF.BALL_R && va > 0) {
+        b.air = true; b.z = GOLF.RAMP_H; b.vz = va * GOLF.RAMP_LIFT; b.jumps++;
+        return;
+      }
+    }
   }
 
   const water = h.water || [];
-  for (let i = 0; i < water.length; i++) {
-    if (golfInPoly(sim.x, sim.y, water[i])) { sim.end = 'water'; sim.vx = sim.vy = 0; return; }
+  if (!onBelt) {
+    for (let i = 0; i < water.length; i++) {
+      if (golfInPoly(b.x, b.y, water[i])) { b.end = 'water'; b.vx = b.vy = 0; return; }
+    }
   }
 
   // the cup: slow enough and it drops; too fast and it rattles out. Over the
   // middle of the cup it takes a firmer ball than across its rim.
-  const cx = sim.x - h.cup[0], cy = sim.y - h.cup[1];
+  const cx = b.x - h.cup[0], cy = b.y - h.cup[1];
   const cd2 = cx * cx + cy * cy;
-  const sp2 = Math.sqrt(sim.vx * sim.vx + sim.vy * sim.vy);
+  const sp2 = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
   if (cd2 < GOLF.CUP_R * GOLF.CUP_R) {
-    if (sp2 < GOLF.SINK_SPEED * (1 - 0.55 * cd2 / (GOLF.CUP_R * GOLF.CUP_R))) { sim.end = 'cup'; sim.x = h.cup[0]; sim.y = h.cup[1]; sim.vx = sim.vy = 0; return; }
-    if (!sim.lip) { sim.lip = 1; sim.vx *= 0.7; sim.vy *= 0.7; }
-  } else if (sim.lip && cd2 > (GOLF.CUP_R + 0.3) * (GOLF.CUP_R + 0.3)) sim.lip = 0;
+    if (sp2 < GOLF.SINK_SPEED * (1 - 0.55 * cd2 / (GOLF.CUP_R * GOLF.CUP_R))) { b.end = 'cup'; b.x = h.cup[0]; b.y = h.cup[1]; b.vx = b.vy = 0; return; }
+    if (!b.lip) { b.lip = 1; b.vx *= 0.7; b.vy *= 0.7; }
+  } else if (b.lip && cd2 > (GOLF.CUP_R + 0.3) * (GOLF.CUP_R + 0.3)) b.lip = 0;
 
-  if (sp2 < GOLF.STOP && slope < GOLF.REST_SLOPE && !golfInSweep(h, sim.x, sim.y)) { sim.end = 'rest'; sim.vx = sim.vy = 0; return; }
-  if (sim.t >= GOLF.MAX_T) { sim.end = 'rest'; sim.vx = sim.vy = 0; }
+  if (sp2 < GOLF.STOP && slope < GOLF.REST_SLOPE && !onBelt && !golfInSweep(h, b.x, b.y)) { b.end = 'rest'; b.vx = b.vy = 0; return; }
+  if (sim.t >= GOLF.MAX_T) { b.end = 'rest'; b.vx = b.vy = 0; }
 }
 
-function golfRun(hole, from, shot) {
-  const sim = golfStart(hole, from, shot);
-  while (!sim.end) golfStep(sim);
+/** Balls meeting on the ground: equal balls, the knock shared along the line between them. */
+function golfBallsMeet(sim, all) {
+  const R2 = 2 * GOLF.BALL_R;
+  for (let i = 0; i < all.length; i++) {
+    const a = all[i];
+    if (a.air || (a.end && a.end !== 'rest')) continue;
+    for (let j = i + 1; j < all.length; j++) {
+      const b = all[j];
+      if (b.air || (b.end && b.end !== 'rest')) continue;
+      if (a.end === 'rest' && b.end === 'rest') continue;
+      const dx = a.x - b.x, dy = a.y - b.y;
+      const d2 = dx * dx + dy * dy;
+      const key = i + ':' + j;
+      if (sim.ghost[key]) { if (d2 >= R2 * R2) delete sim.ghost[key]; continue; }
+      if (d2 >= R2 * R2) continue;
+      const d = Math.sqrt(d2);
+      const nx = d > 1e-9 ? dx / d : 1, ny = d > 1e-9 ? dy / d : 0;
+      const over = (R2 - d) / 2;
+      a.x += nx * over; a.y += ny * over;
+      b.x -= nx * over; b.y -= ny * over;
+      const vrel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+      if (vrel < 0) {
+        const k = -(1 + GOLF.BALL_BOUNCE) * vrel / 2;
+        a.vx += k * nx; a.vy += k * ny;
+        b.vx -= k * nx; b.vy -= k * ny;
+        a.knocks++; b.knocks++;
+      }
+      if (a.end === 'rest') a.end = null;
+      if (b.end === 'rest') b.end = null;
+      a.moved = true; b.moved = true;
+    }
+  }
+}
+
+function golfStep(sim) {
+  if (sim.done) return;
+  sim.t += GOLF.DT;
+  const clock = sim.shot.t0 / 1000 + sim.t;
+  if (!sim.end) golfMove(sim, sim, clock);
+  const others = sim.others;
+  if (!others.length) { sim.done = !!sim.end; return; }
+  for (let i = 0; i < others.length; i++) if (!others[i].end) golfMove(sim, others[i], clock);
+  const all = [sim].concat(others);
+  golfBallsMeet(sim, all);
+  if (sim.t >= GOLF.MAX_T) all.forEach(b => { if (!b.end) { b.end = 'rest'; b.vx = b.vy = 0; } });
+  let done = true;
+  for (let i = 0; i < all.length; i++) if (!all[i].end) { done = false; break; }
+  sim.done = done;
+}
+
+function golfRun(hole, from, shot, others) {
+  const sim = golfStart(hole, from, shot, others);
+  while (!sim.done) golfStep(sim);
   return sim;
+}
+
+const golfR3 = (v) => Math.round(v * 1000) / 1000;
+
+/**
+ * Where a ball that went into the water goes back to: the spot it was hit
+ * (or knocked) from - unless another ball lies there now, then the tee.
+ */
+function golfWetSpot(h, spot, taken) {
+  const R2 = 2 * GOLF.BALL_R;
+  const busy = taken.some(p => { const dx = p[0] - spot[0], dy = p[1] - spot[1]; return dx * dx + dy * dy < R2 * R2; });
+  return busy ? [h.tee[0], h.tee[1]] : [spot[0], spot[1]];
 }
 
 // One putt from start to finish: where the ball lies after it, and how it ended.
 // In the water the ball goes back to where it was hit from, a stroke added.
-function golfPutt(hole, from, shot) {
-  const sim = golfRun(hole, from, shot);
-  if (sim.end === 'water') return { end: 'water', at: [from[0], from[1]], strokes: 1 + GOLF.PENALTY, t: sim.t, wet: [Math.round(sim.x * 1000) / 1000, Math.round(sim.y * 1000) / 1000] };
-  return { end: sim.end, at: [Math.round(sim.x * 1000) / 1000, Math.round(sim.y * 1000) / 1000], strokes: 1, t: sim.t };
+// With `others`, the balls it hit are in `moved` ([{ id, end, at, wet? }]): a
+// ball knocked into the water goes back to its own spot with no stroke added,
+// one knocked into the cup is holed.
+function golfPutt(hole, from, shot, others) {
+  const sim = golfRun(hole, from, shot, others);
+  const withOthers = Array.isArray(others);
+  if (!withOthers) {
+    if (sim.end === 'water') return { end: 'water', at: [from[0], from[1]], strokes: 1 + GOLF.PENALTY, t: sim.t, wet: [golfR3(sim.x), golfR3(sim.y)] };
+    return { end: sim.end, at: [golfR3(sim.x), golfR3(sim.y)], strokes: 1, t: sim.t };
+  }
+  // Where every ball on the course ends up, in the order the balls are listed.
+  const all = [sim].concat(sim.others);
+  const fin = all.map(b => (b.end === 'rest' ? [golfR3(b.x), golfR3(b.y)] : null));
+  const takenBut = (k) => fin.filter((p, i) => p && i !== k);
+  const out = { end: sim.end, at: null, strokes: 1, t: sim.t, moved: [] };
+  if (sim.end === 'water') {
+    const spot = golfWetSpot(hole, from, takenBut(0));
+    fin[0] = spot;
+    out.at = spot; out.strokes = 1 + GOLF.PENALTY; out.wet = [golfR3(sim.x), golfR3(sim.y)];
+  } else out.at = sim.end === 'cup' ? [hole.cup[0], hole.cup[1]] : fin[0].slice();
+  sim.others.forEach((b, k) => {
+    if (!b.moved) return;
+    const i = k + 1;
+    if (b.end === 'water') {
+      const spot = golfWetSpot(hole, [b.sx, b.sy], takenBut(i));
+      fin[i] = spot;
+      out.moved.push({ id: b.id, end: 'water', at: spot, wet: [golfR3(b.x), golfR3(b.y)] });
+    } else if (b.end === 'cup') out.moved.push({ id: b.id, end: 'cup', at: [hole.cup[0], hole.cup[1]] });
+    else out.moved.push({ id: b.id, end: 'rest', at: fin[i].slice() });
+  });
+  return out;
 }
 
 /* --- the way to the cup ------------------------------------------------------------
    A grid over the hole, every square the ball could lie on, and how far each
    is from the cup going round rails, blocks and water (moving pieces are left
-   out: they open again). The clock's gentle putt aims along it, and the tests
-   use it to judge how close a putt got. */
+   out: they open again; a one-way gate is crossed only its own way; a ramp and
+   a portal are shortcuts the walk never needs). The clock's gentle putt aims
+   along it, and the tests use it to judge how close a putt got. */
 const GOLF_FIELD = {};
 const GOLF_CELL = 0.5;
 
-/** Could the ball lie here: on the green, dry, clear of every rail and block. */
+/** Could the ball lie here: on the green, dry, off the ramps, clear of every rail, block and bumper. */
 function golfOpen(h, x, y) {
   if (!golfInPoly(x, y, h.green)) return false;
   const water = h.water || [];
   for (let i = 0; i < water.length; i++) if (golfInPoly(x, y, water[i])) return false;
   const blocks = h.blocks || [];
   for (let i = 0; i < blocks.length; i++) if (golfInPoly(x, y, blocks[i].poly)) return false;
+  const ramps = h.ramps || [];
+  for (let i = 0; i < ramps.length; i++) if (golfRampU(ramps[i], x, y) >= 0) return false;
+  const bumpers = h.bumpers || [];
+  for (let i = 0; i < bumpers.length; i++) {
+    const bp = bumpers[i], dx = x - bp.x, dy = y - bp.y, r = bp.r + GOLF.BALL_R - 0.02;
+    if (dx * dx + dy * dy < r * r) return false;
+  }
   const rr = GOLF.BALL_R + GOLF.WALL_R - 0.02;
+  // What a moving piece never leaves: the middle of a sliding gate, a beam's post.
+  const sliders = h.sliders || [];
+  for (let i = 0; i < sliders.length; i++) {
+    const sl = sliders[i], core = sl.len / 2 - sl.travel;
+    if (core <= 0) continue;
+    const along = sl.axis === 'x' ? x - sl.x : y - sl.y, across = sl.axis === 'x' ? y - sl.y : x - sl.x;
+    if (Math.abs(across) < rr && Math.abs(along) < core + GOLF.BALL_R) return false;
+  }
+  const spinners = h.spinners || [];
+  for (let i = 0; i < spinners.length; i++) {
+    const dx = x - spinners[i].x, dy = y - spinners[i].y;
+    if (dx * dx + dy * dy < rr * rr) return false;
+  }
   const segs = golfSegs(h);
   for (let i = 0; i < segs.length; i++) {
     const w = segs[i];
@@ -20815,6 +21312,35 @@ function golfOpen(h, x, y) {
   return true;
 }
 
+/** Has the hole a way that goes one way only: a gate or a conveyor? */
+function golfOneWay(h) { return (h.gates || []).length > 0 || (h.belts || []).length > 0; }
+
+/** Does going from a to b cross a one-way gate the wrong way, or go against a conveyor? */
+function golfGateBlocks(h, ax, ay, bx, by) {
+  const belts = h.belts || [];
+  for (let i = 0; i < belts.length; i++) {
+    const bl = belts[i];
+    if ((bx - ax) * bl.vx + (by - ay) * bl.vy >= 0) continue;
+    // against the belt: blocked where the way runs over it
+    for (let k = 0; k <= 8; k++) {
+      const x = ax + (bx - ax) * k / 8, y = ay + (by - ay) * k / 8;
+      if (x >= bl.x0 && x <= bl.x1 && y >= bl.y0 && y <= bl.y1) return true;
+    }
+  }
+  const gates = h.gates || [];
+  for (let i = 0; i < gates.length; i++) {
+    const g = gates[i];
+    const d1x = bx - ax, d1y = by - ay, d2x = g.x2 - g.x1, d2y = g.y2 - g.y1;
+    const den = d1x * d2y - d1y * d2x;
+    if (!den) continue;
+    const s = ((g.x1 - ax) * d2y - (g.y1 - ay) * d2x) / den;
+    const t = ((g.x1 - ax) * d1y - (g.y1 - ay) * d1x) / den;
+    if (s < 0 || s > 1 || t < 0 || t > 1) continue;
+    if (d1x * g.dx + d1y * g.dy <= 0) return true;
+  }
+  return false;
+}
+
 function golfField(h) {
   if (GOLF_FIELD[h.id]) return GOLF_FIELD[h.id];
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -20825,6 +21351,7 @@ function golfField(h) {
   for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) open[j * cols + i] = golfOpen(h, x0 + (i + 0.5) * c, y0 + (j + 0.5) * c);
   const dist = new Array(cols * rows).fill(Infinity);
   const f = { x0, y0, cols, rows, open, dist };
+  const gated = golfOneWay(h);
   // Dijkstra from the cup's square, eight ways round.
   const ci = Math.min(cols - 1, Math.max(0, Math.floor((h.cup[0] - x0) / c)));
   const cj = Math.min(rows - 1, Math.max(0, Math.floor((h.cup[1] - y0) / c)));
@@ -20866,6 +21393,8 @@ function golfField(h) {
       const nk = nj * cols + ni;
       if (!open[nk]) continue;
       if (di && dj && (!open[j * cols + ni] || !open[nj * cols + i])) continue;
+      // the ball would go from the neighbour to this square: a gate only lets it through its own way
+      if (gated && golfGateBlocks(h, x0 + (ni + 0.5) * c, y0 + (nj + 0.5) * c, x0 + (i + 0.5) * c, y0 + (j + 0.5) * c)) continue;
       const nd = d + (di && dj ? DIAG : c);
       if (nd < dist[nk]) { dist[nk] = nd; push(nd, nk); }
     }
@@ -20885,17 +21414,50 @@ function golfDistance(h, x, y) {
     const k = nj * f.cols + ni;
     if (!f.open[k] || f.dist[k] === Infinity) continue;
     const cx = f.x0 + (ni + 0.5) * c - x, cy = f.y0 + (nj + 0.5) * c - y;
+    if (golfOneWay(h) && golfGateBlocks(h, x, y, x + cx, y + cy)) continue;
     best = Math.min(best, f.dist[k] + Math.sqrt(cx * cx + cy * cy));
   }
   return best;
 }
 
-/** Can a ball roll straight from a to b without meeting a rail, a block or the water? */
+/**
+ * Can a ball roll straight from a to b without meeting a rail, a block or a
+ * gate the wrong way - and without passing the water close enough to drop in?
+ */
 function golfClearLine(h, ax, ay, bx, by) {
   const dx = bx - ax, dy = by - ay;
-  const n = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / 0.2));
-  for (let k = 1; k <= n; k++) if (!golfOpen(h, ax + dx * k / n, ay + dy * k / n)) return false;
+  if (golfOneWay(h) && golfGateBlocks(h, ax, ay, bx, by)) return false;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  const n = Math.max(1, Math.ceil(d / 0.2));
+  const water = h.water || [];
+  const m = 0.45, sx = d ? -dy / d * m : 0, sy = d ? dx / d * m : 0;
+  for (let k = 1; k <= n; k++) {
+    const x = ax + dx * k / n, y = ay + dy * k / n;
+    if (!golfOpen(h, x, y)) return false;
+    // the water kept a ball's width and a little more away on either side
+    if (water.length && (golfInAny(x + sx, y + sy, water) || golfInAny(x - sx, y - sy, water))) return false;
+  }
   return true;
+}
+
+/**
+ * The speed a ball needs to roll straight from a to b and stop there: the
+ * ground's drag all the way (ice, sand, mud), less what a speed pad on the
+ * way gives it. Slopes are left out.
+ */
+function golfSpeedFor(h, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (!d) return 0;
+  const n = Math.max(1, Math.ceil(d / 0.1)), ds = d / n, ux = dx / d, uy = dy / d;
+  let need = 0;       // the speed squared still needed, from b back to a
+  for (let k = n - 1; k >= 0; k--) {
+    const x = ax + dx * (k + 0.5) / n, y = ay + dy * (k + 0.5) / n;
+    let push = 0;
+    (h.pads || []).forEach(p => { const u = golfPadAt(p, x, y); if (u) push += (p.push || GOLF.PAD) * (u[0] * ux + u[1] * uy); });
+    need = Math.max(0, need + 2 * (golfDragAt(h, x, y) - push) * ds);
+  }
+  return Math.sqrt(need);
 }
 
 /**
@@ -20921,8 +21483,10 @@ function golfAutoShot(h, at, t0) {
   }
   const dx = tx - at[0], dy = ty - at[1];
   const d = Math.sqrt(dx * dx + dy * dy) || 1;
-  const reach = Math.min(toCup ? d + 0.6 : d, 12);
-  const v = Math.sqrt(2 * GOLF.GREEN * reach);
+  // Just past the cup (a putt that dies at the rim drops), just to a point on the way.
+  const over = toCup ? 0.6 : 0;
+  const reach = Math.min(d + over, 12);
+  const v = Math.min(10, golfSpeedFor(h, at[0], at[1], at[0] + dx / d * reach, at[1] + dy / d * reach));
   return {
     dx: Math.round(dx / d * 1000), dy: Math.round(dy / d * 1000),
     power: Math.max(40, Math.min(700, Math.round(v / GOLF.MAX_SPEED * 1000))),
@@ -21467,7 +22031,7 @@ function bowlTotal(card) {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260923105251";
+      window.BUILD_ID = "20260923110618";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -22360,13 +22924,14 @@ function bowlTotal(card) {
             </div>
           </div>
           <div class="mode-device-panel">
-            <p class="card__subtitle" data-i18n="mg_device_desc">9 حفر فيها طواحين وكباري ومية ورمل. أحسن نتيجة بتتحفظ على موبايلك.</p>
+            <p class="card__subtitle" data-i18n="mg_device_desc">18 حفرة فيها طواحين وكباري ومية وتلج ومطالع وأبواب سحرية. أحسن نتيجة بتتحفظ على موبايلك.</p>
             <div class="field">
               <label class="field__label" data-i18n="mg_holes_label">كام حفرة؟</label>
               <div class="segmented" id="mg-holes" role="group">
                 <button type="button" class="segmented__item" data-value="3" onclick="setMiniGolfOption('holes', 3)">3</button>
                 <button type="button" class="segmented__item is-active" data-value="6" onclick="setMiniGolfOption('holes', 6)">6</button>
                 <button type="button" class="segmented__item" data-value="9" onclick="setMiniGolfOption('holes', 9)">9</button>
+                <button type="button" class="segmented__item" data-value="18" onclick="setMiniGolfOption('holes', 18)">18</button>
               </div>
               <p class="field__hint" id="mg-best"></p>
             </div>
@@ -26479,13 +27044,16 @@ function bowlTotal(card) {
       setup_minigolf: "ميني جولف",
       cat_minigolf: "اسحب لورا وسيب، ودخّل الكورة بأقل ضربات.",
       mg_device_mode: "لوحدك",
-      mg_device_desc: "9 حفر فيها طواحين وكباري ومية ورمل. أحسن نتيجة بتتحفظ على موبايلك.",
+      mg_device_desc: "18 حفرة فيها طواحين وكباري ومية وتلج ومطالع وأبواب سحرية. أحسن نتيجة بتتحفظ على موبايلك.",
       mg_online_desc: "كل واحد يضرب من موبايله على نفس الحفرة، والملعب على التلفزيون.",
       mg_holes_label: "كام حفرة؟",
       mg_guide: "مساعدة التصويب",
       mg_guide_hint: "بتوريك الكورة هتمشي فين قبل ما تسيبها.",
-      mg_best: "أحسن نتيجة لـ {h} حفر: {n} ({d})",
-      mg_no_best: "لسه مفيش نتيجة لـ {h} حفر.",
+      mg_best: "أحسن نتيجة لـ {hh}: {n} ({d})",
+      mg_holes_n: "{n} حفر",
+      mg_holes_n11: "{n} حفرة",
+      mg_again: "العب تاني",
+      mg_no_best: "لسه مفيش نتيجة لـ {hh}.",
       mg_hole: "حفرة {n}/{m}",
       mg_hole_big: "الحفرة {n}",
       mg_par: "بار {n}",
@@ -26508,7 +27076,14 @@ function bowlTotal(card) {
       mg_in_n: "في {n} ضربات",
       mg_in_2: "في ضربتين",
       mg_water: "في المية! +1",
-      mg_picked: "اتشالت الكورة · 7",
+      mg_picked: "اتشالت الكورة · {n}",
+      mg_par_max: "بار {n} · أقصى {m}",
+      mg_last_stroke: "آخر ضربة!",
+      mg_out: "أول 9",
+      mg_knocked_in_you: "{by} خبط كورتك دخّلها!",
+      mg_knocked_in: "{name}: دخلت بخبطة من {by}!",
+      mg_knocked_wet_you: "{by} وقّع كورتك في المية: رجعت مكانها من غير ضربة زيادة",
+      mg_knocked_wet: "كورة {name} وقعت في المية ورجعت مكانها",
       mg_someone: "{name}: {word}",
       mg_next_hole: "الحفرة الجاية",
       mg_next_in: "الحفرة الجاية بعد {n}",
@@ -26519,16 +27094,16 @@ function bowlTotal(card) {
       mg_mode_together: "كلنا مع بعض",
       mg_mode_turns: "بالدور",
       mg_mode_together_hint: "كل واحد يضرب وقت ما يحب على نفس الحفرة، والكور بتعدّي من جوه بعض.",
-      mg_mode_turns_hint: "ضربة لكل واحد بالدور، والكل بيتفرج.",
+      mg_mode_turns_hint: "ضربة لكل واحد بالدور والكل بيتفرج، والكور بتخبط في بعض.",
       mg_lobby_clock: "وقت الضربة",
       mg_clock_hint: "لما الوقت يخلص، الموبايل بيضرب ضربة هادية ناحية الحفرة.",
       mg_lobby_hint: "المضيف بيختار عدد الحفر وطريقة اللعب.",
       mg_no_3d: "الجهاز ده مش قادر يرسم الملعب ثلاثي الأبعاد. جرّب متصفح تاني أو جهاز تاني.",
       mg_loading: "بنجهّز الملعب…",
-      mg_result_title: "خلصت الـ {n} حفر!",
+      mg_result_title: "خلصت الـ {hh}!",
       mg_total_label: "مجموع الضربات",
       mg_vs_par: "{d} عن البار ({p})",
-      mg_share: "⛳ ميني جولف: {n} ضربة في {h} حفر ({d})",
+      mg_share: "⛳ ميني جولف: {n} ضربة في {hh} ({d})",
       mg_you: "انت",
       mg_h_first: "أول ضربة",
       mg_h_mill: "الطاحونة",
@@ -26539,6 +27114,15 @@ function bowlTotal(card) {
       mg_h_lighthouse: "الفنار",
       mg_h_gate: "البوابة",
       mg_h_oasis: "الواحة",
+      mg_h_siwa: "سيوة",
+      mg_h_souq: "السوق",
+      mg_h_nile: "النيل",
+      mg_h_fair: "الملاهي",
+      mg_h_citadel: "القلعة",
+      mg_h_port: "الميناء",
+      mg_h_temple: "المعبد",
+      mg_h_sinai: "سانت كاترين",
+      mg_h_tower: "برج القاهرة",
       setup_doubt: "كدّاب",
       cat_doubt: "ارمي ورقك مقلوب وقول هو إيه… صادق ولا كدّاب؟",
       setup_oldmaid: "الشايب",
@@ -29202,13 +29786,16 @@ function bowlTotal(card) {
       setup_minigolf: "Mini golf",
       cat_minigolf: "Pull back, let go, and sink it in fewest putts.",
       mg_device_mode: "Solo",
-      mg_device_desc: "Nine holes with a windmill, a bridge, water and sand. Your best is kept on this phone.",
+      mg_device_desc: "Eighteen holes with a windmill, bridges, water, ice, ramps and magic doors. Your best is kept on this phone.",
       mg_online_desc: "Everyone putts from their own phone on the same hole, the course on the TV.",
       mg_holes_label: "How many holes?",
       mg_guide: "Aim guide",
       mg_guide_hint: "Shows where the ball will go before you let go.",
-      mg_best: "Best over {h} holes: {n} ({d})",
-      mg_no_best: "No score over {h} holes yet.",
+      mg_best: "Best over {hh}: {n} ({d})",
+      mg_holes_n: "{n} holes",
+      mg_holes_n11: "{n} holes",
+      mg_again: "Play again",
+      mg_no_best: "No score over {hh} yet.",
       mg_hole: "Hole {n}/{m}",
       mg_hole_big: "Hole {n}",
       mg_par: "Par {n}",
@@ -29231,7 +29818,14 @@ function bowlTotal(card) {
       mg_in_n: "in {n}",
       mg_in_2: "in 2",
       mg_water: "In the water! +1",
-      mg_picked: "Picked up · 7",
+      mg_picked: "Picked up · {n}",
+      mg_par_max: "Par {n} · max {m}",
+      mg_last_stroke: "Last stroke!",
+      mg_out: "Out",
+      mg_knocked_in_you: "{by} knocked your ball in!",
+      mg_knocked_in: "{name}: knocked in by {by}!",
+      mg_knocked_wet_you: "{by} knocked your ball into the water: back on its spot, no stroke added",
+      mg_knocked_wet: "{name}'s ball went into the water and is back on its spot",
       mg_someone: "{name}: {word}",
       mg_next_hole: "Next hole",
       mg_next_in: "Next hole in {n}",
@@ -29242,16 +29836,16 @@ function bowlTotal(card) {
       mg_mode_together: "All at once",
       mg_mode_turns: "In turns",
       mg_mode_together_hint: "Everyone putts when ready on the same hole; the balls pass through each other.",
-      mg_mode_turns_hint: "One putt at a time round the table, everyone watching.",
+      mg_mode_turns_hint: "One putt at a time round the table, everyone watching; the balls knock each other.",
       mg_lobby_clock: "Putt clock",
       mg_clock_hint: "When it runs out, the phone putts gently toward the hole.",
       mg_lobby_hint: "The host picks the holes and the way to play.",
       mg_no_3d: "This device can't draw the 3D course. Try another browser or device.",
       mg_loading: "Setting up the course…",
-      mg_result_title: "{n} holes done!",
+      mg_result_title: "{hh} done!",
       mg_total_label: "Total strokes",
       mg_vs_par: "{d} vs par ({p})",
-      mg_share: "⛳ Mini golf: {n} strokes over {h} holes ({d})",
+      mg_share: "⛳ Mini golf: {n} strokes over {hh} ({d})",
       mg_you: "You",
       mg_h_first: "First putt",
       mg_h_mill: "The windmill",
@@ -29262,6 +29856,15 @@ function bowlTotal(card) {
       mg_h_lighthouse: "The lighthouse",
       mg_h_gate: "The gate",
       mg_h_oasis: "The oasis",
+      mg_h_siwa: "Siwa",
+      mg_h_souq: "The souq",
+      mg_h_nile: "The Nile",
+      mg_h_fair: "The funfair",
+      mg_h_citadel: "The Citadel",
+      mg_h_port: "The port",
+      mg_h_temple: "The temple",
+      mg_h_sinai: "Saint Catherine",
+      mg_h_tower: "Cairo Tower",
       setup_doubt: "I Doubt It",
       cat_doubt: "Lay cards face down and say what they are. Lie?",
       setup_oldmaid: "Old Maid",
@@ -33680,11 +34283,23 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li><b>اسحب لورا</b> من الكورة زي النبلة، والسهم بيوريك الاتجاه والقوة، و<b>سيب</b>: الكورة بتمشي عكس سحبتك.</li>
                 <li>دخّل الكورة الحفرة في أقل عدد ضربات. كل حفرة ليها <b>بار</b>: عدد الضربات المتوقع.</li>
-                <li><b>المية</b>: الكورة بترجع مكان ما ضربتها، وبتتحسب ضربة زيادة. <b>الرمل</b> بيهدّي الكورة جامد، و<b>التل</b> لو ضربتك ضعيفة بترجّعها.</li>
-                <li><b>الحاجات اللي بتتحرك</b> (الطاحونة، البوابة، الساقية) ليها توقيت: استنى اللحظة الصح.</li>
-                <li><b>6 ضربات</b> والكورة بتتشال، والحفرة بتتحسب <b>7</b>.</li>
-                <li>3 أو 6 أو 9 حفر، واللي مجموعه أقل هو الكسبان. هول إن وان = دخلت من أول ضربة.</li>
+                <li><b>أقصى عدد ضربات = البار + 3</b> (بار 3 يعني 6 ضربات، ومكتوب فوق جنب البار). لو الكورة ما دخلتش فيهم بتتشال، والحفرة بتتحسب الأقصى + 1. قبل آخر ضربة بيظهر <b>آخر ضربة!</b></li>
+                <li><b>المية</b>: الكورة بترجع المكان اللي اتضربت منه، وبتتحسب ضربة زيادة. لو فيه كورة تانية واقفة في المكان ده، بترجع لنقطة البداية.</li>
+                <li>الملعب 18 حفرة، والماتش 3 أو 6 أو 9 أو 18 منهم بالترتيب. اللي مجموعه أقل هو الكسبان. هول إن وان = دخلت من أول ضربة.</li>
             </ol>
+            <details class="help-more">
+                <summary>🗺️ اللي في الملعب</summary>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li><b>الرمل</b> بيهدّي الكورة جامد، و<b>الطين</b> أتقل منه كمان. على <b>التلج</b> الكورة بتتزحلق ومش بتهدى تقريبًا.</li>
+                    <li><b>التل</b> لو ضربتك ضعيفة بيرجّعها، و<b>الحفرة الواطية</b> بتسحب الكورة لجوه.</li>
+                    <li><b>أسهم السرعة</b> بتزق الكورة أسرع في اتجاه الأسهم. <b>السير المتحرك</b> بيشيل الكورة معاه، وفيه سير ماشي بالعكس.</li>
+                    <li><b>الباب السحري</b>: الكورة تدخل من الحلقة البنفسجي وتطلع من البرتقاني بنفس سرعتها، في اتجاه السهم.</li>
+                    <li><b>العواميد المخططة</b> بتزق الكورة بعيد أقوى من ما جت.</li>
+                    <li><b>المطلع</b>: لو طلعته بسرعة كفاية الكورة بتطير فوق المية أو السور الواطي وتنزل وراه. لو بطيئة بترجع تنزل تاني.</li>
+                    <li><b>بوابة الاتجاه الواحد</b>: بتفتح لو جاي من ناحية السهم اللي على الأرض، ومن الناحية التانية بتقفل زي السور.</li>
+                    <li><b>الحاجات اللي بتتحرك</b> (الطاحونة، البوابة اللي بتزحف، الساقية) ليها توقيت: استنى اللحظة الصح.</li>
+                </ul>
+            </details>
             <p class="help-sub">🧘 لوحدك</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>أحسن مجموع لكل عدد حفر بيتحفظ على موبايلك. <b>مساعدة التصويب</b> (مقفولة من الأول) بتوريك الكورة هتمشي فين.</li>
@@ -33693,6 +34308,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>كلنا مع بعض</b>: كل الكور على نفس الحفرة، وكل واحد يضرب وقت ما يحب. الكور بتعدّي من جوه بعض، وكور الباقيين باهتة. الحفرة الجاية بتيجي لما الكل يخلص.</li>
                 <li><b>بالدور</b>: ضربة لكل واحد والكل بيتفرج. في الحفرة الجاية، اللي جاب أحسن نتيجة يبدأ.</li>
+                <li>بالدور <b>الكور بتخبط في بعض</b>: كورتك بتنزل الملعب من أول ما تضربها من البداية، ولحد ما تدخل. لو حد <b>خبط كورتك ودخّلها</b> الحفرة، بتتحسب بضرباتك لحد ساعتها. لو <b>وقّعها في المية</b>، بترجع مكانها من غير ضربة زيادة (ولو مكانها مشغول، لنقطة البداية).</li>
                 <li>المضيف بيختار عدد الحفر، ومساعدة التصويب، ووقت للضربة لو حابب (20 أو 40 ثانية): لما يخلص، الموبايل بيضرب ضربة هادية ناحية الحفرة.</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
@@ -34879,11 +35495,23 @@ const GAME_RULES = {
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li><b>Pull back</b> from the ball like a slingshot - the arrow shows the direction and the power - and <b>let go</b>: the ball goes the other way from your pull.</li>
                 <li>Sink the ball in as few strokes as you can. Every hole has a <b>par</b>: the strokes it should take.</li>
-                <li><b>Water</b>: the ball goes back to where you hit it from, and it costs a stroke. <b>Sand</b> slows the ball hard, and a <b>hill</b> sends a soft putt back down.</li>
-                <li><b>The moving pieces</b> (the windmill, the gate, the waterwheel) keep time: wait for the right moment.</li>
-                <li>After <b>6 strokes</b> the ball is picked up and the hole counts <b>7</b>.</li>
-                <li>3, 6 or 9 holes; the lowest total wins. A hole in one is in with the first putt.</li>
+                <li><b>At most par + 3 strokes</b> (par 3 allows 6; it's shown at the top beside the par). Not in by then, the ball is picked up and the hole counts that most + 1. Before the final one, <b>Last stroke!</b> shows.</li>
+                <li><b>Water</b>: the ball goes back to where you hit it from, and it costs a stroke. If another ball lies on that spot now, it goes back to the tee.</li>
+                <li>The course has 18 holes; a game plays the first 3, 6, 9 or all 18, in order. The lowest total wins. A hole in one is in with the first putt.</li>
             </ol>
+            <details class="help-more">
+                <summary>🗺️ What's on the course</summary>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li><b>Sand</b> slows the ball hard, and <b>mud</b> harder still. On <b>ice</b> the ball slides and hardly slows at all.</li>
+                    <li>A <b>hill</b> sends a soft putt back down, and a <b>hollow</b> pulls the ball in.</li>
+                    <li><b>Speed arrows</b> push the ball faster the way they point. A <b>conveyor</b> carries the ball along with it - and one runs the other way.</li>
+                    <li><b>Magic doors</b>: the ball goes into the violet ring and comes out of the orange one at the same speed, the way its arrow points.</li>
+                    <li><b>Striped posts</b> send the ball away harder than it came.</li>
+                    <li><b>Ramps</b>: up one fast enough and the ball flies over the water or a low wall and lands beyond. Too slow and it rolls back down.</li>
+                    <li><b>One-way gates</b>: they swing open from the side of the arrow on the ground; from the other side they are a wall.</li>
+                    <li><b>The moving pieces</b> (the windmill, the sliding gate, the waterwheel) keep time: wait for the right moment.</li>
+                </ul>
+            </details>
             <p class="help-sub">🧘 Solo</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Your best total for each number of holes is kept on this phone. The <b>aim guide</b> (off to start) shows where the ball will go.</li>
@@ -34892,6 +35520,7 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>All at once</b>: every ball on the same hole, everyone putting when ready. The balls pass through each other, and the others' balls are faint. The next hole comes once everyone is done.</li>
                 <li><b>In turns</b>: one putt each, everyone watching. On the next hole, the best score goes first.</li>
+                <li>In turns <b>the balls hit each other</b>: your ball is on the course from the moment you hit it from the tee until it drops. If someone <b>knocks your ball into the cup</b>, it counts with your strokes so far. If they <b>knock it into the water</b>, it goes back to its spot with no stroke added (to the tee if the spot is taken).</li>
                 <li>The host picks the holes, the aim guide, and a putt clock if they like (20 or 40 seconds): when it runs out, the phone putts gently toward the hole.</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>
@@ -89528,6 +90157,16 @@ TV_GAMES.battleship = {
    - A putt is rolled on the screen by the same golfStep the server runs, so a
      replay on another phone is the same roll. Everything that moves on a hole
      (the windmill, the gate, the waterwheel) reads the hole's clock (MG3.clock).
+   - The pieces added on 23 Sep 2026, each drawn in the same look: ice (pale,
+     glassy), mud (dark, glossy puddles), speed pads and conveyors (their
+     arrows and ribs always moving, quietly at 30 frames a second), portals
+     (a turning swirl in a violet ring, out of an amber one), bumpers (a
+     striped post whose cap flashes), ramps (a wedge of planks; the ball flies
+     off it at the height the rules give) and one-way gates (a flap that swings
+     open the way through). Each hole has its own scenery (MG_LOOKS).
+   - In a room played in turns the balls knock each other: a roll carries the
+     balls it may hit (sim.others), and each of them is moved by that roll
+     (drivenBy) until everything has stopped.
    ========================================================================= */
 
 const mgT = (key, vars) => {
@@ -89543,6 +90182,8 @@ const MG_COLORS = ['#ffffff', '#ffd23f', '#ff6b9a', '#4fc3f7', '#ff9f43', '#7bed
 // Bidi marks and the Arabic block, built from char codes: an editor can't decode them into invisible characters.
 const MG_LRI = String.fromCharCode(0x2066), MG_PDI = String.fromCharCode(0x2069);
 const MG_ARABIC = new RegExp('[' + String.fromCharCode(0x0600) + '-' + String.fromCharCode(0x06FF) + ']');
+/** "6 holes" - in Arabic حفر up to ten and حفرة past it, as the language counts. */
+const mgHolesText = (n) => mgT(Number(n) > 10 ? 'mg_holes_n11' : 'mg_holes_n', { n });
 const mgHoleName = (i) => mgT('mg_h_' + ((GOLF_HOLES[i] || {}).id || ''));
 /** A score against par for a line of text: "+2", "−1", or "on par"; held left to right in Arabic. */
 const mgDelta = (d) => (d === 0 ? mgT('mg_even') : MG_LRI + (d > 0 ? '+' + d : '−' + Math.abs(d)) + MG_PDI);
@@ -89576,6 +90217,32 @@ function mgSound(kind) {
       fxNoise('highpass', 2400, 0.6, [[0, 0], [0.02, 0.05], [0.22, 0.001]], at);
     } else if (kind === 'turn') {
       fxTone('sine', [[0, 660], [0.08, 880]], [[0, 0], [0.01, 0.12], [0.16, 0.001]], at);
+    } else if (kind === 'knock') {
+      // ball on ball: a hard click
+      fxTone('sine', [[0, 2100], [0.03, 1400]], [[0, 0], [0.002, 0.22], [0.05, 0.001]], at);
+      fxNoise('highpass', 4200, 1, [[0, 0], [0.001, 0.1], [0.025, 0.001]], at);
+    } else if (kind === 'bump') {
+      // a bumper's boing
+      fxTone('sine', [[0, 320], [0.09, 760], [0.22, 520]], [[0, 0], [0.005, 0.22], [0.26, 0.001]], at);
+      fxTone('triangle', [[0, 980], [0.06, 1300]], [[0, 0], [0.004, 0.08], [0.1, 0.001]], at);
+    } else if (kind === 'warp') {
+      fxTone('sine', [[0, 1100], [0.28, 240]], [[0, 0], [0.02, 0.16], [0.32, 0.001]], at);
+      fxTone('sine', [[0, 240], [0.28, 1300]], [[0, 0], [0.02, 0.1], [0.32, 0.001]], at + 0.12);
+      fxNoise('bandpass', 2600, 3, [[0, 0], [0.05, 0.05], [0.4, 0.001]], at);
+    } else if (kind === 'whoosh') {
+      fxNoise('bandpass', 900, 1.4, [[0, 0], [0.06, 0.12], [0.3, 0.001]], at);
+      fxTone('sine', [[0, 420], [0.22, 900]], [[0, 0], [0.03, 0.07], [0.25, 0.001]], at);
+    } else if (kind === 'mud') {
+      fxTone('sine', [[0, 180], [0.08, 90]], [[0, 0], [0.005, 0.22], [0.14, 0.001]], at);
+      fxNoise('lowpass', 700, 1, [[0, 0], [0.01, 0.12], [0.2, 0.001]], at);
+    } else if (kind === 'jump') {
+      fxTone('sine', [[0, 300], [0.2, 720]], [[0, 0], [0.02, 0.12], [0.24, 0.001]], at);
+    } else if (kind === 'land') {
+      fxTone('sine', [[0, 150], [0.08, 70]], [[0, 0], [0.004, 0.3], [0.14, 0.001]], at);
+    } else if (kind === 'flap') {
+      fxTone('triangle', [[0, 520], [0.05, 380]], [[0, 0], [0.003, 0.14], [0.09, 0.001]], at);
+    } else if (kind === 'ice') {
+      fxNoise('highpass', 5200, 0.8, [[0, 0], [0.04, 0.035], [0.5, 0.001]], at);
     }
   } catch (e) {}
 }
@@ -89922,6 +90589,97 @@ const MG_TEXTURES = {
     for (let k = 0; k < 2500; k++) { g.fillStyle = `rgba(${r() < 0.5 ? '120,50,25' : '240,170,120'},${0.1 + r() * 0.15})`; g.fillRect(r() * 128, r() * 128, 1.5, 1.5); }
     for (let y = 20; y < 128; y += 22) { g.fillStyle = 'rgba(90,35,15,.25)'; g.fillRect(0, y, 128, 2); }
     return c;
+  },
+  ice() {
+    // Pale blue-white, frosted in patches, with thin cracks and skate-like streaks.
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(81);
+    g.fillStyle = '#e4f3fb'; g.fillRect(0, 0, 256, 256);
+    for (let k = 0; k < 60; k++) {
+      const x = r() * 256, y = r() * 256, rad = 12 + r() * 40;
+      const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+      gr.addColorStop(0, `rgba(${r() < 0.5 ? '255,255,255' : '190,225,245'},0.55)`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    g.lineWidth = 1;
+    for (let k = 0; k < 26; k++) {
+      g.strokeStyle = `rgba(${r() < 0.5 ? '150,195,225' : '255,255,255'},${0.35 + r() * 0.4})`;
+      let x = r() * 256, y = r() * 256;
+      g.beginPath(); g.moveTo(x, y);
+      for (let s = 0; s < 5; s++) { x += (r() - 0.5) * 50; y += (r() - 0.5) * 50; g.lineTo(x, y); }
+      g.stroke();
+    }
+    g.strokeStyle = 'rgba(255,255,255,.5)';
+    for (let k = 0; k < 14; k++) { g.beginPath(); const y = r() * 256; g.moveTo(0, y); g.bezierCurveTo(90, y + (r() - 0.5) * 60, 170, y + (r() - 0.5) * 60, 256, y + (r() - 0.5) * 30); g.stroke(); }
+    return c;
+  },
+  mud() {
+    // Dark brown, wet, with glossy puddles and a few pebbles.
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(91);
+    g.fillStyle = '#4a2f1b'; g.fillRect(0, 0, 256, 256);
+    for (let k = 0; k < 700; k++) { g.fillStyle = `rgba(${r() < 0.5 ? '35,20,10' : '110,75,45'},${0.2 + r() * 0.3})`; g.beginPath(); g.arc(r() * 256, r() * 256, 2 + r() * 7, 0, 7); g.fill(); }
+    for (let k = 0; k < 16; k++) {
+      const x = r() * 256, y = r() * 256, rw = 14 + r() * 30, rh = 8 + r() * 16;
+      g.fillStyle = 'rgba(28,16,8,.75)'; g.beginPath(); g.ellipse(x, y, rw, rh, r() * 3, 0, 7); g.fill();
+      g.fillStyle = 'rgba(210,190,170,.22)'; g.beginPath(); g.ellipse(x - rw * 0.3, y - rh * 0.3, rw * 0.35, rh * 0.25, 0, 0, 7); g.fill();
+    }
+    for (let k = 0; k < 40; k++) { g.fillStyle = 'rgba(150,130,110,.8)'; g.beginPath(); g.arc(r() * 256, r() * 256, 1 + r() * 1.6, 0, 7); g.fill(); }
+    return c;
+  },
+  chevron() {
+    // A speed pad's arrows, pointing up the texture (toward the far end of the pad).
+    const [c, g] = mgCanvas(128, 128);
+    g.fillStyle = '#20222b'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#ffb703';
+    for (const y0 of [8, 72]) {
+      g.beginPath();
+      g.moveTo(14, y0 + 44); g.lineTo(64, y0 + 6); g.lineTo(114, y0 + 44); g.lineTo(114, y0 + 58); g.lineTo(64, y0 + 20); g.lineTo(14, y0 + 58);
+      g.closePath(); g.fill();
+    }
+    return c;
+  },
+  belt() {
+    // A rubber belt with ribs across it.
+    const [c, g] = mgCanvas(64, 128);
+    g.fillStyle = '#2b2d33'; g.fillRect(0, 0, 64, 128);
+    for (let y = 0; y < 128; y += 16) { g.fillStyle = '#3d4049'; g.fillRect(0, y, 64, 6); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, y + 6, 64, 2); }
+    g.fillStyle = 'rgba(255,183,3,.9)';
+    for (let y = 4; y < 128; y += 64) { g.beginPath(); g.moveTo(22, y + 20); g.lineTo(32, y + 8); g.lineTo(42, y + 20); g.lineTo(38, y + 22); g.lineTo(32, y + 15); g.lineTo(26, y + 22); g.closePath(); g.fill(); }
+    return c;
+  },
+  swirl() {
+    // A portal's swirl: arms of light round a dark middle.
+    const [c, g] = mgCanvas(256, 256);
+    g.clearRect(0, 0, 256, 256);
+    const gr = g.createRadialGradient(128, 128, 10, 128, 128, 128);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(210,170,255,.9)'); gr.addColorStop(1, 'rgba(80,30,160,.0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineCap = 'round';
+    for (let arm = 0; arm < 4; arm++) {
+      g.lineWidth = 7; g.beginPath();
+      for (let k = 0; k <= 40; k++) { const a = arm * Math.PI / 2 + k * 0.12, rr = 10 + k * 2.8; const x = 128 + Math.cos(a) * rr, y = 128 + Math.sin(a) * rr; if (k) g.lineTo(x, y); else g.moveTo(x, y); }
+      g.stroke();
+    }
+    return c;
+  },
+  stripes() {
+    // A bumper's red and white bands.
+    const [c, g] = mgCanvas(64, 64);
+    for (let i = 0; i < 4; i++) { g.fillStyle = i % 2 ? '#fdf6ec' : '#e63946'; g.fillRect(0, i * 16, 64, 16); }
+    return c;
+  },
+  snow() {
+    // The mountain's snow, round the course: white, soft blue shadows, a few rocks showing through.
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(101);
+    g.fillStyle = '#eef3f8'; g.fillRect(0, 0, 256, 256);
+    for (let k = 0; k < 500; k++) { g.fillStyle = `rgba(${r() < 0.6 ? '190,205,225' : '255,255,255'},0.35)`; g.beginPath(); g.arc(r() * 256, r() * 256, 3 + r() * 10, 0, 7); g.fill(); }
+    for (let k = 0; k < 30; k++) { g.fillStyle = 'rgba(110,100,90,.5)'; g.beginPath(); g.arc(r() * 256, r() * 256, 1 + r() * 2.5, 0, 7); g.fill(); }
+    return c;
+  },
+  awning() {
+    // A souq stall's striped awning.
+    const [c, g] = mgCanvas(64, 32);
+    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#fdf6ec' : '#2a9d8f'; g.fillRect(i * 8, 0, 8, 32); }
+    return c;
   }
 };
 
@@ -89987,7 +90745,7 @@ function mg3SetHole(h, key) {
   const look = MG_LOOKS[h.id] || {};
 
   // The rough, far and wide, and the course raised on a stone plinth.
-  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex('rough', 30, 30), roughness: 1 }), false, true);
+  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex(look.snow ? 'snow' : look.desert ? 'sand' : 'rough', 30, 30), roughness: 1 }), false, true);
   rough.rotation.x = -Math.PI / 2;
   rough.position.set(cx, -0.36, -cy);
   G.add(rough);
@@ -90041,6 +90799,28 @@ function mg3SetHole(h, key) {
     mgUvWorld(bank.geometry, 2);
     G.add(bank);
   });
+  // Ice: pale and glassy, a frosted rim. Mud: dark and wet, glossy puddles.
+  if ((h.ice || []).length) {
+    const iceMat = mgMat({ physical: true, p: { map: mgTex('ice', 1, 1), color: 0xf2fbff, roughness: 0.12, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.5, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 } });
+    const frost = mgMat({ color: 0xffffff, roughness: 0.5 });
+    h.ice.forEach(p => {
+      G.add(mgFlat(mgShape(p), iceMat, 0.005, 5));
+      const pts = p.map(q => new THREE.Vector3(q[0], 0.014, -q[1]));
+      G.add(mgMesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.2), 80, 0.06, 5, true), frost, false, true));
+    });
+  }
+  if ((h.mud || []).length) {
+    const mudMat = mgMat({ physical: true, p: { map: mgTex('mud', 1, 1), roughness: 0.32, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.25, envMapIntensity: 1.1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 } });
+    const lip = mgMat({ color: 0x3b2516, roughness: 0.9 });
+    h.mud.forEach(p => {
+      G.add(mgFlat(mgShape(p), mudMat, 0.005, 3));
+      const pts = p.map(q => new THREE.Vector3(q[0], 0.012, -q[1]));
+      G.add(mgMesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.2), 64, 0.07, 5, true), lip, false, true));
+    });
+  }
+  (h.pads || []).forEach(p => mgPadMesh(G, h, p));
+  (h.belts || []).forEach(bl => mgBeltMesh(G, h, bl));
+  (h.ramps || []).forEach(rp => mgRampMesh(G, h, rp));
   if (look.planks) {
     const pl = mgFlat(mgShape(look.planks), mgMat({ map: mgTex('plank', 1, 1), roughness: 0.7 }), 0.03, 2.4);
     pl.castShadow = false;
@@ -90073,6 +90853,9 @@ function mg3SetHole(h, key) {
   (h.mills || []).forEach(m => mgMill(G, h, m));
   (h.sliders || []).forEach(sl => mgSlider(G, h, sl));
   (h.spinners || []).forEach(sp => mgSpinner(G, h, sp));
+  (h.bumpers || []).forEach((bp, k) => mgBumperMesh(G, h, bp, k));
+  (h.portals || []).forEach((pt, k) => mgPortalMesh(G, h, pt, k));
+  (h.gates || []).forEach((gt, k) => mgGateMesh(G, h, gt, k));
 
   // The rough's trees, bushes and flowers, and each hole's own touch.
   mgScenery(G, h, look);
@@ -90138,7 +90921,7 @@ function mgRail(G, h, s, mat) {
   const THREE = MG3.T;
   const [x1, y1, x2, y2] = s;
   const len = Math.hypot(x2 - x1, y2 - y1);
-  const hilly = (h.hills || []).length || (h.bowls || []).length;
+  const hilly = (h.hills || []).length || (h.bowls || []).length || (h.ramps || []).length;
   const n = hilly ? Math.max(1, Math.ceil(len / 0.8)) : 1;
   const T = GOLF.WALL_R * 2, H = 0.42;
   for (let k = 0; k < n; k++) {
@@ -90278,6 +91061,59 @@ function mgBlock(G, h, bk) {
     G.add(jar);
     const base = mgMesh(new THREE.CylinderGeometry(0.62, 0.7, 0.14, 24), mgMat({ color: 0x8d7a60, roughness: 0.9 }));
     base.position.set(cx, 0.07, -cy);
+    G.add(base);
+    return;
+  }
+  if (bk.look === 'salt' || bk.look === 'snow') {
+    // A lump of white salt crystal, as on Siwa's salt lakes; or a snowy rock on the mountain.
+    const r = Math.max(...poly.map(p => Math.hypot(p[0] - cx, p[1] - cy)));
+    const geo = new THREE.IcosahedronGeometry(r, 1);
+    const pa = geo.attributes.position, rr = mgRnd(Math.round(cx * 97 + cy * 13));
+    for (let i = 0; i < pa.count; i++) { const k = 0.82 + rr() * 0.3; pa.setXYZ(i, pa.getX(i) * k, Math.max(-0.1, pa.getY(i) * k * 0.8), pa.getZ(i) * k); }
+    geo.computeVertexNormals();
+    const rock = mgMesh(geo, mgMat({ physical: true, p: { color: bk.look === 'snow' ? 0xdfe8f0 : 0xf4f7fb, roughness: 0.35, clearcoat: 0.6, flatShading: true, sheen: 0.4 } }));
+    rock.position.set(cx, r * 0.45, -cy);
+    G.add(rock);
+    return;
+  }
+  if (bk.look === 'stall') {
+    // A souq stall: a wooden counter under a striped awning, with pots and lanterns on it.
+    const b = { x0: Math.min(...poly.map(p => p[0])), x1: Math.max(...poly.map(p => p[0])), y0: Math.min(...poly.map(p => p[1])), y1: Math.max(...poly.map(p => p[1])) };
+    const w = b.x1 - b.x0, d = b.y1 - b.y0;
+    const wood = mgMat({ map: mgTex('plank', 1, 1), roughness: 0.65 });
+    const counter = mgMesh(new THREE.BoxGeometry(w, 0.7, d), wood);
+    counter.position.set(cx, 0.35, -cy);
+    G.add(counter);
+    const iron = mgMat({ color: 0x3b3b3b, roughness: 0.5, metalness: 0.7 });
+    [[b.x0 + 0.08, b.y0 + 0.08], [b.x1 - 0.08, b.y0 + 0.08], [b.x0 + 0.08, b.y1 - 0.08], [b.x1 - 0.08, b.y1 - 0.08]].forEach(([x, y]) => {
+      const p = mgMesh(new THREE.CylinderGeometry(0.04, 0.04, 1.7, 6), iron); p.position.set(x, 0.85, -y); G.add(p);
+    });
+    const awn = mgMesh(new THREE.BoxGeometry(w + 0.4, 0.05, d + 0.4), mgMat({ map: mgTex('awning', 1, 1), roughness: 0.8 }));
+    awn.position.set(cx, 1.72, -cy); awn.rotation.x = 0.12;
+    G.add(awn);
+    const goods = [];
+    const cols = [0xe76f51, 0xf4a261, 0xe9c46a, 0x2a9d8f, 0x9b5de5];
+    const rr = mgRnd(Math.round(cx * 31 + cy * 7));
+    for (let k = 0; k < 6; k++) goods.push({ p: [b.x0 + 0.25 + rr() * (w - 0.5), 0.8, -(b.y0 + 0.25 + rr() * (d - 0.5))], s: [1, 0.8 + rr() * 0.6, 1], c: cols[k % 5] });
+    mgInstances(G, new THREE.SphereGeometry(0.16, 10, 8), mgMat({ color: 0xffffff, roughness: 0.6 }), goods, true);
+    return;
+  }
+  if (bk.look === 'obelisk') {
+    // An obelisk: a tall tapering pillar with a gold tip.
+    const r = Math.max(...poly.map(p => Math.abs(p[0] - cx))) * Math.SQRT2;
+    const H = 3.4;
+    const geo = new THREE.CylinderGeometry(r * 0.62, r, H, 4, 4);
+    mgUvWorld(geo, 1.4);
+    const ob = mgMesh(geo, mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.85, flatShading: true }));
+    ob.rotation.y = Math.PI / 4;
+    ob.position.set(cx, H / 2, -cy);
+    G.add(ob);
+    const tip = mgMesh(new THREE.ConeGeometry(r * 0.62, 0.5, 4), mgMat({ color: 0xe8b64a, roughness: 0.25, metalness: 0.8 }));
+    tip.rotation.y = Math.PI / 4;
+    tip.position.set(cx, H + 0.25, -cy);
+    G.add(tip);
+    const base = mgMesh(new THREE.BoxGeometry(r * 1.6, 0.2, r * 1.6), mgMat({ map: mgTex('stone', 1, 1), roughness: 0.9 }));
+    base.position.set(cx, 0.1, -cy);
     G.add(base);
     return;
   }
@@ -90457,25 +91293,232 @@ function mgSpinner(G, h, sp) {
   MG3.movers.push({ kind: 'spinner', sp, g });
 }
 
+/** A group on the course at (x, y), turned so its local +x runs along the course direction (ux, uy). */
+function mgAlong(x, y, ux, uy, up) {
+  const g = new MG3.T.Group();
+  g.position.set(x, up || 0, -y);
+  g.rotation.y = Math.atan2(uy, ux);
+  return g;
+}
+/** A texture of its own (its offset moves on its own), thrown away with the hole. */
+function mgOwnTex(name, rx, ry) {
+  const tx = mgTex(name, 1, 1).clone();
+  tx.needsUpdate = true;
+  tx.repeat.set(rx, ry);
+  return mgKeep(tx);
+}
+
+/** A speed pad: a dark plate whose amber arrows run the way it pushes. */
+function mgPadMesh(G, h, p) {
+  const THREE = MG3.T;
+  const u = golfUnit(p.dx, p.dy);
+  const g = mgAlong(p.x, p.y, u[0], u[1], golfHeight(h, p.x, p.y) + 0.008);
+  const tx = mgOwnTex('chevron', 1, Math.max(1, Math.round(p.l / p.w * 1.5)));
+  const plate = mgMesh(new THREE.PlaneGeometry(p.w, p.l), mgMat({ map: tx, emissive: 0xffb703, emissiveMap: tx, emissiveIntensity: 0.55, roughness: 0.45, metalness: 0.2, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), false, true);
+  plate.rotation.x = -Math.PI / 2;
+  plate.rotation.z = -Math.PI / 2;     // the texture's up along the group's +x
+  g.add(plate);
+  // a steel frame round it
+  const steel = mgMat({ color: 0x8d99ae, roughness: 0.35, metalness: 0.8 });
+  [[0, p.w / 2], [0, -p.w / 2]].forEach(([a, c]) => { const bar = mgMesh(new THREE.BoxGeometry(p.l + 0.1, 0.03, 0.06), steel, false, true); bar.position.set(a, 0.01, c); g.add(bar); });
+  [[p.l / 2, 0], [-p.l / 2, 0]].forEach(([a]) => { const bar = mgMesh(new THREE.BoxGeometry(0.06, 0.03, p.w + 0.1), steel, false, true); bar.position.set(a, 0.01, 0); g.add(bar); });
+  G.add(g);
+  MG3.movers.push({ kind: 'pad', tx, rate: 1.4 });
+}
+
+/** A conveyor: a ribbed rubber belt running between two rollers, its arrows moving at its own speed. */
+function mgBeltMesh(G, h, bl) {
+  const THREE = MG3.T;
+  const u = golfUnit(bl.vx, bl.vy);
+  const alongY = Math.abs(bl.vy) >= Math.abs(bl.vx);
+  const len = alongY ? bl.y1 - bl.y0 : bl.x1 - bl.x0, wid = alongY ? bl.x1 - bl.x0 : bl.y1 - bl.y0;
+  const cx = (bl.x0 + bl.x1) / 2, cy = (bl.y0 + bl.y1) / 2;
+  const g = mgAlong(cx, cy, u[0], u[1], 0.035);
+  const reps = Math.max(1, Math.round(len / wid * 2));
+  const tx = mgOwnTex('belt', 1, reps);
+  const belt = mgMesh(new THREE.PlaneGeometry(wid, len), mgMat({ map: tx, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), false, true);
+  belt.rotation.x = -Math.PI / 2;
+  belt.rotation.z = -Math.PI / 2;
+  g.add(belt);
+  const steel = mgMat({ color: 0x9aa5b1, roughness: 0.3, metalness: 0.85 });
+  const rollers = [];
+  [len / 2, -len / 2].forEach(a => {
+    const r = mgMesh(new THREE.CylinderGeometry(0.12, 0.12, wid + 0.1, 16), steel);
+    r.rotation.x = Math.PI / 2;
+    r.position.set(a, -0.05, 0);
+    g.add(r);
+    rollers.push(r);
+  });
+  // yellow and black hazard ends
+  const hz = mgMat({ color: 0xffc300, roughness: 0.5 });
+  [len / 2 + 0.16, -len / 2 - 0.16].forEach(a => { const s = mgMesh(new THREE.BoxGeometry(0.12, 0.02, wid), hz, false, true); s.position.set(a, -0.02, 0); g.add(s); });
+  G.add(g);
+  const speed = Math.sqrt(bl.vx * bl.vx + bl.vy * bl.vy);
+  MG3.movers.push({ kind: 'belt', tx, rate: speed * reps / len, rollers, spin: speed / 0.12 });
+}
+
+/** A ramp: a wedge of planks up to a white lip, yellow trim down its sides. */
+function mgRampMesh(G, h, rp) {
+  const THREE = MG3.T;
+  const u = golfUnit(rp.dx, rp.dy);
+  const H = GOLF.RAMP_H;
+  const s = new THREE.Shape();
+  s.moveTo(0, 0); s.lineTo(rp.len, 0); s.lineTo(rp.len, H); s.lineTo(0, 0.002);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: rp.w, bevelEnabled: false });
+  geo.translate(0, 0, -rp.w / 2);
+  mgUvWorld(geo, 1.1);
+  const g = mgAlong(rp.x, rp.y, u[0], u[1], 0);
+  g.add(mgMesh(geo, mgMat({ map: mgTex('plank', 1, 1), roughness: 0.6 })));
+  const lip = mgMesh(new THREE.BoxGeometry(0.1, 0.06, rp.w), mgMat({ color: 0xffffff, roughness: 0.4 }));
+  lip.position.set(rp.len - 0.05, H - 0.02, 0);
+  g.add(lip);
+  // an arrow painted up the ramp
+  const tx = mgOwnTex('chevron', 1, 1);
+  const k = H / rp.len;
+  const arrow = mgMesh(new THREE.PlaneGeometry(rp.w * 0.45, rp.len * 0.45), mgMat({ map: tx, transparent: true, opacity: 0.85, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), false, true);
+  arrow.rotation.set(-Math.PI / 2, 0, -Math.PI / 2);
+  const tilt = new THREE.Group();
+  tilt.rotation.z = Math.atan(k);
+  tilt.position.set(rp.len * 0.45, rp.len * 0.45 * k + 0.012, 0);
+  tilt.add(arrow);
+  g.add(tilt);
+  G.add(g);
+}
+
+/** A bumper: a striped post with a rubber ring and a cap that lights up when it's hit. */
+function mgBumperMesh(G, h, bp, k) {
+  const THREE = MG3.T;
+  const g = new THREE.Group();
+  g.position.set(bp.x, 0, -bp.y);
+  const post = mgMesh(new THREE.CylinderGeometry(bp.r, bp.r * 1.08, 0.5, 28), mgMat({ map: mgTex('stripes', 1, 1), roughness: 0.45 }));
+  post.position.y = 0.25;
+  g.add(post);
+  const ring = mgMesh(new THREE.TorusGeometry(bp.r + 0.02, 0.07, 10, 36), mgMat({ color: 0x1d1d24, roughness: 0.7 }));
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = GOLF.BALL_R;
+  g.add(ring);
+  const capMat = mgMat({ color: 0xffd23f, emissive: 0xffc300, emissiveIntensity: 0.15, roughness: 0.25, metalness: 0.3 });
+  const cap = mgMesh(new THREE.SphereGeometry(bp.r * 0.9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), capMat);
+  cap.position.y = 0.5;
+  g.add(cap);
+  G.add(g);
+  MG3.movers.push({ kind: 'bumper', k, g, capMat, last: -99 });
+}
+
+/** A portal: a violet ring with a turning swirl, and an amber ring it comes out of, an arrow on its way. */
+function mgPortalMesh(G, h, pt, k) {
+  const THREE = MG3.T;
+  const R = GOLF.PORTAL_R;
+  const swirlTx = mgTex('swirl', 1, 1);
+  const make = (x, y, color) => {
+    const g = new THREE.Group();
+    g.position.set(x, golfHeight(h, x, y) + 0.02, -y);
+    const ring = mgMesh(new THREE.TorusGeometry(R, 0.09, 12, 44), mgMat({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.3, metalness: 0.2 }));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.04;
+    g.add(ring);
+    const disc = mgMesh(new THREE.CircleGeometry(R * 0.95, 40), mgMat({ map: swirlTx, color, emissive: color, emissiveMap: swirlTx, emissiveIntensity: 0.9, transparent: true, depthWrite: false, roughness: 0.4 }), false, false);
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.y = 0.01;
+    g.add(disc);
+    const base = mgMesh(new THREE.CylinderGeometry(R + 0.16, R + 0.2, 0.08, 36), mgMat({ map: mgTex('stone', 1, 1), roughness: 0.8 }), false, true);
+    base.position.y = -0.02;
+    g.add(base);
+    G.add(g);
+    return disc;
+  };
+  const inDisc = make(pt.x, pt.y, 0x9b5de5);
+  const outDisc = make(pt.ox, pt.oy, 0xff9e00);
+  // the way out: an arrow just past the out ring
+  const u = golfUnit(pt.dx, pt.dy);
+  const ag = mgAlong(pt.ox + u[0] * (R + 0.5), pt.oy + u[1] * (R + 0.5), u[0], u[1], 0.012);
+  const arrow = mgMesh(new THREE.PlaneGeometry(0.6, 0.6), mgMat({ map: mgOwnTex('chevron', 1, 1), transparent: true, opacity: 0.9, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), false, true);
+  arrow.rotation.x = -Math.PI / 2;
+  arrow.rotation.z = -Math.PI / 2;
+  ag.add(arrow);
+  G.add(ag);
+  MG3.movers.push({ kind: 'portal', k, discs: [inDisc, outDisc] });
+}
+
+/** A one-way gate: two posts and a beam, a wooden flap hanging from it that swings open the way through; an arrow on the ground says which way. */
+function mgGateMesh(G, h, gt, k) {
+  const THREE = MG3.T;
+  const ex = gt.x2 - gt.x1, ey = gt.y2 - gt.y1, len = Math.sqrt(ex * ex + ey * ey) || 1;
+  const lx = ex / len, ly = ey / len;
+  const g = mgAlong((gt.x1 + gt.x2) / 2, (gt.y1 + gt.y2) / 2, lx, ly, 0);
+  const iron = mgMat({ color: 0x3b3b3b, roughness: 0.4, metalness: 0.8 });
+  const brass = mgMat({ color: 0xd4a017, roughness: 0.3, metalness: 0.7 });
+  [len / 2, -len / 2].forEach(a => {
+    const post = mgMesh(new THREE.CylinderGeometry(0.09, 0.11, 0.8, 10), iron);
+    post.position.set(a, 0.4, 0);
+    g.add(post);
+    const knob = mgMesh(new THREE.SphereGeometry(0.11, 10, 8), brass);
+    knob.position.set(a, 0.84, 0);
+    g.add(knob);
+  });
+  const beam = mgMesh(new THREE.BoxGeometry(len, 0.07, 0.08), iron);
+  beam.position.set(0, 0.72, 0);
+  g.add(beam);
+  const pivot = new THREE.Group();
+  pivot.position.y = 0.7;
+  const flap = mgMesh(new THREE.BoxGeometry(len - 0.24, 0.6, 0.05), mgMat({ map: mgTex('plank', 1, 1), roughness: 0.6 }));
+  flap.position.y = -0.33;
+  pivot.add(flap);
+  g.add(pivot);
+  // which side of the flap is the way out: local +z is course (sin φ, -cos φ)
+  const w = golfUnit(gt.dx, gt.dy);
+  const sign = (w[0] * ly - w[1] * lx) > 0 ? 1 : -1;     // local +z = course (ly, -lx)
+  G.add(g);
+  // the arrow on the way in
+  const ag = mgAlong((gt.x1 + gt.x2) / 2 - w[0] * 0.7, (gt.y1 + gt.y2) / 2 - w[1] * 0.7, w[0], w[1], 0.012);
+  const arrow = mgMesh(new THREE.PlaneGeometry(0.55, Math.min(1, len * 0.4)), mgMat({ map: mgOwnTex('chevron', 1, 1), transparent: true, opacity: 0.9, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), false, true);
+  arrow.rotation.x = -Math.PI / 2;
+  arrow.rotation.z = -Math.PI / 2;
+  ag.add(arrow);
+  G.add(ag);
+  MG3.movers.push({ kind: 'gate', k, pivot, sign, last: -99 });
+}
+
 /* --- the scenery -------------------------------------------------------------------------- */
 
+// Each hole's own place round the course: its scenery (MG_DECO), kept off the green.
 const MG_LOOKS = {
-  first: { deco: [{ k: 'arch', x: 4, y: -1.7 }, { k: 'flowerbed', x: -1.9, y: 6, len: 8 }, { k: 'flowerbed', x: 9.9, y: 12, len: 8 }] },
-  mill: { deco: [{ k: 'tulips', x: 8, y: 6 }, { k: 'tulips', x: 11, y: 10 }] },
+  first: { deco: [{ k: 'arch', x: 4, y: -1.7 }, { k: 'flowerbed', x: -1.9, y: 6, len: 8 }, { k: 'flowerbed', x: 9.9, y: 12, len: 8 }, { k: 'tulips', x: 4, y: 21.6 },
+    { k: 'fountain', x: -3.6, y: 16 }, { k: 'lantern', x: -0.9, y: 1 }, { k: 'lantern', x: 8.9, y: 1 }] },
   bridge: {
     planks: [[3.4, 8], [6.2, 8], [8.6, 15], [5.8, 15]],
     deco: [{ k: 'felucca', x: 1.9, y: 11.8 }, { k: 'papyrus', x: 11, y: 9.2 }, { k: 'papyrus', x: 0.7, y: 14.1 }, { k: 'papyrus', x: 11.2, y: 14 },
-      { k: 'lantern', x: 3.1, y: 7.7 }, { k: 'lantern', x: 6.5, y: 7.7 }, { k: 'lantern', x: 5.5, y: 15.3 }, { k: 'lantern', x: 8.9, y: 15.3 }]
+      { k: 'lantern', x: 3.1, y: 7.7 }, { k: 'lantern', x: 6.5, y: 7.7 }, { k: 'lantern', x: 5.5, y: 15.3 }, { k: 'lantern', x: 8.9, y: 15.3 },
+      { k: 'palm', x: -2.2, y: 19 }, { k: 'palm', x: 14.2, y: 21 }, { k: 'palm', x: 14, y: 4 }]
   },
-  humps: { deco: [{ k: 'camel', x: 12.6, y: 12, r: 0.6 }, { k: 'nubian', x: -3.6, y: 18 }, { k: 'palm', x: -2, y: 7 }] },
-  pyramid: { deco: [{ k: 'palm', x: -2.2, y: 8 }, { k: 'palm', x: 16.2, y: 6 }, { k: 'palm', x: 16.4, y: 16 }, { k: 'farPyramid', x: -12, y: 34, s: 1.4 }, { k: 'farPyramid', x: 26, y: 40, s: 1 }] },
-  saqia: { deco: [{ k: 'wheel', x: -2.6, y: 7.4 }, { k: 'palm', x: 14, y: 8 }, { k: 'nubian', x: 15, y: 20 }] },
-  lighthouse: { deco: [{ k: 'lighthouse', x: -2.2, y: 24.4 }, { k: 'palm', x: 18.3, y: 24 }] },
-  gate: { deco: [{ k: 'lantern', x: -0.9, y: 13.3 }, { k: 'lantern', x: 10.9, y: 13.3 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'palm', x: 12.6, y: 4 }] },
+  mill: { deco: [{ k: 'tulips', x: 8, y: 6 }, { k: 'tulips', x: 11, y: 10 }, { k: 'tulips', x: 8.6, y: 12.6 }, { k: 'flowerbed', x: 17.9, y: 21, len: 6 }, { k: 'fountain', x: 11, y: 29.4 }] },
+  souq: { deco: [{ k: 'lantern', x: 6.7, y: 12.4 }, { k: 'lantern', x: 6.7, y: 17.6 }, { k: 'lantern', x: 6.7, y: 22.8 }, { k: 'lantern', x: -0.8, y: 14 }, { k: 'lantern', x: -0.8, y: 21 },
+    { k: 'tent', x: 10, y: 15.5 }, { k: 'tent', x: 10.4, y: 22.4 }, { k: 'camel', x: 14.8, y: 4.4, r: 2.6 }, { k: 'arch', x: 9, y: -1.7 }] },
+  humps: { deco: [{ k: 'camel', x: 12.6, y: 12, r: 0.6 }, { k: 'camel', x: -3.2, y: 9, r: 2.4 }, { k: 'nubian', x: -3.6, y: 18 }, { k: 'palm', x: -2, y: 3 }, { k: 'tent', x: 13, y: 21 }, { k: 'farPyramid', x: 26, y: 38, s: 0.9 }] },
+  fair: { deco: [{ k: 'ferris', x: 6, y: 30.6 }, { k: 'tent', x: 14.6, y: 8 }, { k: 'tent', x: 14.8, y: 16 }, { k: 'arch', x: 6, y: -1.7 }, { k: 'flowerbed', x: 13, y: 21, len: 5 }] },
+  pyramid: { deco: [{ k: 'palm', x: -2.2, y: 8 }, { k: 'palm', x: 16.2, y: 6 }, { k: 'palm', x: 16.4, y: 16 }, { k: 'farPyramid', x: -12, y: 34, s: 1.4 }, { k: 'farPyramid', x: 26, y: 40, s: 1 },
+    { k: 'camel', x: -3, y: 16, r: 1.2 }, { k: 'columns', x: 16.4, y: 23 }] },
+  nile: {
+    planks: [[9.7, 10], [12, 10], [12, 13.5], [9.7, 13.5]],
+    deco: [{ k: 'felucca', x: 7.2, y: 11.8 }, { k: 'papyrus', x: 0.7, y: 13.1 }, { k: 'papyrus', x: 8.6, y: 10.5 }, { k: 'palm', x: -2.2, y: 5 }, { k: 'palm', x: 14.2, y: 18 }, { k: 'palm', x: -2.3, y: 19 },
+      { k: 'lantern', x: 9.45, y: 10.15 }, { k: 'lantern', x: 12.4, y: 9.6 }, { k: 'lantern', x: 9.45, y: 13.35 }, { k: 'lantern', x: 12.4, y: 13.9 }]
+  },
+  saqia: { deco: [{ k: 'wheel', x: -2.6, y: 7.4 }, { k: 'palm', x: 14, y: 8 }, { k: 'nubian', x: 15, y: 20 }, { k: 'papyrus', x: -1.2, y: 11 }, { k: 'tulips', x: 6, y: 26.4 }] },
+  siwa: { deco: [{ k: 'palm', x: -2.2, y: 6 }, { k: 'palm', x: 12.3, y: 13 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'palm', x: 12.6, y: 22 }, { k: 'nubian', x: 13.4, y: 3, r: -0.3 },
+    { k: 'camel', x: -3, y: 13, r: 1.8 }, { k: 'tent', x: 5, y: 27 }], desert: true },
+  lighthouse: { deco: [{ k: 'lighthouse', x: -2.2, y: 24.4 }, { k: 'palm', x: 18.3, y: 24 }, { k: 'palm', x: 9, y: 8 }, { k: 'lantern', x: 16.9, y: 13.4 }] },
+  citadel: { deco: [{ k: 'minaret', x: -2.8, y: 23 }, { k: 'minaret', x: 14.8, y: 25 }, { k: 'lantern', x: -0.8, y: 9 }, { k: 'lantern', x: 12.8, y: 9 }, { k: 'lantern', x: -0.8, y: 17 }, { k: 'lantern', x: 12.8, y: 17 }, { k: 'palm', x: 14.3, y: 4 }] },
+  gate: { deco: [{ k: 'lantern', x: -0.9, y: 13.3 }, { k: 'lantern', x: 10.9, y: 13.3 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'palm', x: 12.6, y: 4 }, { k: 'minaret', x: 13, y: 24 }, { k: 'flowerbed', x: -1.9, y: 5, len: 6 }] },
+  port: { deco: [{ k: 'crane', x: 17.4, y: 12.8 }, { k: 'containers', x: -3.2, y: 19 }, { k: 'containers', x: 14.6, y: 21 }, { k: 'lighthouse', x: -2.6, y: 4 }, { k: 'felucca', x: 6, y: 12.6 }] },
+  temple: { deco: [{ k: 'columns', x: -1.9, y: 7 }, { k: 'columns', x: -1.9, y: 17 }, { k: 'columns', x: 13.9, y: 12 }, { k: 'palm', x: 14.2, y: 22 }, { k: 'farPyramid', x: -14, y: 34, s: 1.2 }, { k: 'papyrus', x: 13, y: 3 }] },
+  sinai: { deco: [{ k: 'pine', x: -2, y: 4 }, { k: 'pine', x: -2.6, y: 12 }, { k: 'pine', x: 14, y: 8 }, { k: 'pine', x: 14.4, y: 17 }, { k: 'pine', x: 12.6, y: 27 }, { k: 'pine', x: -1.4, y: 26 },
+    { k: 'snowman', x: 13.6, y: 2.6 }, { k: 'snowman', x: -1.8, y: 20 }, { k: 'monastery', x: 6, y: 32 }], snow: true },
   oasis: {
     deco: [{ k: 'palm', x: 9.2, y: 20.5 }, { k: 'palm', x: 11.4, y: 23.8 }, { k: 'palm', x: 9.6, y: 26.6 }, { k: 'palm', x: 13, y: 20.8 }, { k: 'palm', x: 3.6, y: 7 },
       { k: 'palm', x: 1.6, y: 3.2 }, { k: 'tent', x: 12.4, y: 26.4 }, { k: 'camel', x: 4.4, y: 3.8, r: 2.2 }, { k: 'papyrus', x: 5.6, y: 15.3 }]
-  }
+  },
+  tower: { deco: [{ k: 'cairoTower', x: 3, y: 31.6 }, { k: 'palm', x: 16.2, y: 6 }, { k: 'palm', x: 16.4, y: 18 }, { k: 'palm', x: -2.2, y: 24 }, { k: 'flowerbed', x: 15.9, y: 12, len: 6 },
+    { k: 'fountain', x: 11, y: 31 }, { k: 'lantern', x: -0.9, y: 16 }, { k: 'lantern', x: 14.9, y: 26 }] }
 };
 
 /** Trees, bushes and flowers scattered on the rough round the course, never on it. */
@@ -90499,7 +91542,7 @@ function mgScenery(G, h, look) {
     if (onCourse(x, y) || near(x, y)) continue;
     const kind = r();
     const gy = -0.36, z = -y;
-    if (kind < 0.36) {
+    if (kind < 0.36 && !look.desert) {
       const s = 0.85 + r() * 0.6;
       trunks.push({ p: [x, gy + 0.5 * s, z], s: [s, s, s] });
       for (let k = 0; k < 3; k++) {
@@ -90770,6 +91813,157 @@ const MG_DECO = {
     const stripe = mgMesh(new THREE.CylinderGeometry(1.25, 1.42, 0.25, 6, 1, true), mgMat({ color: 0xc1121f, roughness: 0.8, side: THREE.DoubleSide })); stripe.position.y = 0.45; g.add(stripe);
     g.position.set(d.x, -0.36, -d.y);
     G.add(g);
+  },
+  ferris(G, h, d) {
+    // A big wheel at the fair, turning slowly, its cabins in every colour.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const steel = mgMat({ color: 0xf1f1f1, roughness: 0.35, metalness: 0.6 });
+    const R = 3;
+    [-0.5, 0.5].forEach(z => {
+      [-1, 1].forEach(s => { const leg = mgMesh(new THREE.CylinderGeometry(0.08, 0.1, 4.2, 6), steel); leg.position.set(s * 1.1, 1.9, z); leg.rotation.z = s * 0.27; g.add(leg); });
+    });
+    const wheel = new THREE.Group();
+    wheel.position.set(0, 3.9, 0);
+    [-0.4, 0.4].forEach(z => { const ring = mgMesh(new THREE.TorusGeometry(R, 0.06, 6, 40), steel); ring.position.z = z; wheel.add(ring); });
+    for (let k = 0; k < 8; k++) { const sp = mgMesh(new THREE.BoxGeometry(R * 2, 0.05, 0.05), steel); sp.rotation.z = k / 8 * Math.PI; wheel.add(sp); }
+    const cols = [0xe63946, 0xffd166, 0x06d6a0, 0x118ab2, 0x9b5de5, 0xff9e00, 0xef476f, 0x4cc9f0];
+    const cabins = [];
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; cabins.push({ p: [Math.cos(a) * R, Math.sin(a) * R - 0.3, 0], s: [1, 1, 1], c: cols[k] }); }
+    mgInstances(wheel, new THREE.BoxGeometry(0.55, 0.5, 0.7), mgMat({ color: 0xffffff, roughness: 0.5 }), cabins, true);
+    g.add(wheel);
+    g.position.set(d.x, -0.36, -d.y);
+    g.rotation.y = 0.35;
+    G.add(g);
+    MG3.movers.push({ kind: 'deco-wheel', g: wheel, rate: 0.25 });
+  },
+  minaret(G, h, d) {
+    // A minaret of the Citadel: a slim tower, two balconies, a pointed top.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.85 });
+    const white = mgMat({ color: 0xf1ebe0, roughness: 0.7 });
+    const base = mgMesh(new THREE.CylinderGeometry(0.75, 0.85, 2.4, 8), stone); base.position.y = 1.2; g.add(base);
+    const mid = mgMesh(new THREE.CylinderGeometry(0.5, 0.58, 2.6, 12), white); mid.position.y = 3.7; g.add(mid);
+    const top = mgMesh(new THREE.CylinderGeometry(0.36, 0.42, 1.4, 12), stone); top.position.y = 5.7; g.add(top);
+    [2.5, 5.05].forEach((y, i) => { const bal = mgMesh(new THREE.CylinderGeometry(0.82 - i * 0.2, 0.62 - i * 0.16, 0.2, 14), white); bal.position.y = y; g.add(bal); });
+    const cone = mgMesh(new THREE.ConeGeometry(0.42, 1.2, 12), mgMat({ color: 0x5c6b73, roughness: 0.4, metalness: 0.5 })); cone.position.y = 7; g.add(cone);
+    const ball = mgMesh(new THREE.SphereGeometry(0.1, 8, 6), mgMat({ color: 0xe8b64a, roughness: 0.25, metalness: 0.8 })); ball.position.y = 7.65; g.add(ball);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  crane(G, h, d) {
+    // A harbour crane: two yellow legs, a beam over, a hook hanging.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const yel = mgMat({ color: 0xffc300, roughness: 0.5, metalness: 0.3 });
+    [[-1.2, -0.8], [-1.2, 0.8], [1.2, -0.8], [1.2, 0.8]].forEach(([x, z]) => { const l = mgMesh(new THREE.BoxGeometry(0.22, 4.6, 0.22), yel); l.position.set(x, 2.3, z); g.add(l); });
+    const beam = mgMesh(new THREE.BoxGeometry(0.4, 0.4, 6.4), yel); beam.position.set(0, 4.7, -1.8); g.add(beam);
+    const cab = mgMesh(new THREE.BoxGeometry(0.9, 0.8, 0.9), mgMat({ color: 0x2b2d42, roughness: 0.5 })); cab.position.set(0, 4.2, 0.8); g.add(cab);
+    const rope = mgMesh(new THREE.CylinderGeometry(0.02, 0.02, 2.2, 4), mgMat({ color: 0x222222, roughness: 0.6 })); rope.position.set(0, 3.4, -4.4); g.add(rope);
+    const box = mgMesh(new THREE.BoxGeometry(0.9, 0.7, 1.6), mgMat({ color: 0x2a9d8f, roughness: 0.6 })); box.position.set(0, 2, -4.4); g.add(box);
+    g.position.set(d.x, -0.36, -d.y);
+    g.rotation.y = Math.PI / 2;
+    G.add(g);
+  },
+  containers(G, h, d) {
+    // Shipping containers stacked on the quay.
+    const THREE = MG3.T;
+    const cols = [0xe63946, 0x118ab2, 0xf4a261, 0x2a9d8f, 0x6d597a];
+    const list = [];
+    [[0, 0, 0], [0, 0, 1.3], [0, 1.05, 0.6], [2.8, 0, 0.4]].forEach(([x, y, z], i) => list.push({ p: [d.x + z, y + 0.16, -(d.y + x)], s: [1, 1, 1], c: cols[i % 5] }));
+    mgInstances(G, new THREE.BoxGeometry(1.2, 1, 2.6), mgMat({ color: 0xffffff, roughness: 0.6, metalness: 0.2 }), list, true);
+  },
+  columns(G, h, d) {
+    // Karnak's columns: a row of stone pillars with open lotus tops, a lintel over them.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.9 });
+    for (let k = 0; k < 4; k++) {
+      const c = mgMesh(new THREE.CylinderGeometry(0.42, 0.48, 3.6, 12), stone); c.position.set(0, 1.8, -k * 1.6 + 2.4); g.add(c);
+      const cap = mgMesh(new THREE.CylinderGeometry(0.7, 0.42, 0.5, 12), stone); cap.position.set(0, 3.85, -k * 1.6 + 2.4); g.add(cap);
+    }
+    const lintel = mgMesh(new THREE.BoxGeometry(1.2, 0.5, 6.4), stone); lintel.position.set(0, 4.35, 0); g.add(lintel);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  fountain(G, h, d) {
+    // A garden fountain: a stone basin, water in it, a jet rising from the middle.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const stone = mgMat({ map: mgTex('stone', 1, 1), roughness: 0.85 });
+    const basin = mgMesh(new THREE.CylinderGeometry(1.5, 1.6, 0.5, 24, 1, true), stone); basin.position.y = 0.25; g.add(basin);
+    const rim = mgMesh(new THREE.TorusGeometry(1.5, 0.12, 8, 32), stone); rim.rotation.x = Math.PI / 2; rim.position.y = 0.5; g.add(rim);
+    const water = mgMesh(new THREE.CircleGeometry(1.45, 32), mgMat({ color: 0x3aa0e8, roughness: 0.1, metalness: 0.1, normalMap: mgTex('ripple', 1, 1, false) }), false, true);
+    water.rotation.x = -Math.PI / 2; water.position.y = 0.4; g.add(water);
+    const post = mgMesh(new THREE.CylinderGeometry(0.2, 0.3, 1, 12), stone); post.position.y = 0.8; g.add(post);
+    const bowl = mgMesh(new THREE.SphereGeometry(0.55, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), stone); bowl.position.y = 1.5; g.add(bowl);
+    const jet = mgMesh(new THREE.ConeGeometry(0.16, 1.3, 10, 1, true), mgMat({ color: 0xdff3ff, transparent: true, opacity: 0.7, roughness: 0.1 }), false, false);
+    jet.position.y = 2.1; jet.rotation.x = Math.PI; g.add(jet);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  pine(G, h, d) {
+    // A mountain pine with snow on its branches.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const trunk = mgMesh(new THREE.CylinderGeometry(0.14, 0.2, 1, 7), mgMat({ map: mgTex('bark', 1, 1), roughness: 0.9 })); trunk.position.y = 0.5; g.add(trunk);
+    const tiers = [], caps = [];
+    for (let k = 0; k < 3; k++) {
+      tiers.push({ p: [0, 1.2 + k * 0.8, 0], s: [1.3 - k * 0.3, 1, 1.3 - k * 0.3] });
+      caps.push({ p: [0, 1.5 + k * 0.8, 0], s: [0.9 - k * 0.22, 0.45, 0.9 - k * 0.22] });
+    }
+    mgInstances(g, new THREE.ConeGeometry(1, 1.3, 8), mgMat({ color: 0x1f5d3a, roughness: 0.85, flatShading: true }), tiers, true);
+    mgInstances(g, new THREE.ConeGeometry(1, 0.9, 8), mgMat({ color: 0xf6fbff, roughness: 0.7, flatShading: true }), caps, false);
+    const s = 0.9 + ((d.x * 7 + d.y * 3) % 3) * 0.15;
+    g.scale.setScalar(s);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  snowman(G, h, d) {
+    // A snowman: three balls, a carrot nose, a scarf.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const snow = mgMat({ color: 0xfbfdff, roughness: 0.8 });
+    [[0.62, 0.55], [0.44, 1.45], [0.3, 2.08]].forEach(([r, y]) => { const b = mgMesh(new THREE.SphereGeometry(r, 18, 12), snow); b.position.y = y; g.add(b); });
+    const nose = mgMesh(new THREE.ConeGeometry(0.06, 0.34, 8), mgMat({ color: 0xff8c1a, roughness: 0.6 })); nose.rotation.x = Math.PI / 2; nose.position.set(0, 2.1, 0.42); g.add(nose);
+    const scarf = mgMesh(new THREE.TorusGeometry(0.3, 0.07, 8, 20), mgMat({ color: 0xe63946, roughness: 0.7 })); scarf.rotation.x = Math.PI / 2; scarf.position.y = 1.82; g.add(scarf);
+    const eyes = [{ p: [-0.1, 2.2, 0.27], s: [1, 1, 1] }, { p: [0.1, 2.2, 0.27], s: [1, 1, 1] }];
+    mgInstances(g, new THREE.SphereGeometry(0.04, 6, 4), mgMat({ color: 0x111111, roughness: 0.5 }), eyes, false);
+    g.position.set(d.x, -0.36, -d.y);
+    g.rotation.y = 0.4;
+    G.add(g);
+  },
+  monastery(G, h, d) {
+    // Saint Catherine's monastery below the mountain: stone walls, a bell tower, a dome.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.9 });
+    const wall = mgMesh(new THREE.BoxGeometry(7, 2.2, 3), stone); wall.position.y = 1.1; g.add(wall);
+    const tower = mgMesh(new THREE.BoxGeometry(1.4, 4, 1.4), stone); tower.position.set(2.2, 2, 0); g.add(tower);
+    const roof = mgMesh(new THREE.ConeGeometry(1.1, 1, 4), mgMat({ color: 0x8d6e63, roughness: 0.7 })); roof.rotation.y = Math.PI / 4; roof.position.set(2.2, 4.5, 0); g.add(roof);
+    const dome = mgMesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mgMat({ color: 0xe8e1d4, roughness: 0.7 })); dome.position.set(-1.6, 2.2, 0); g.add(dome);
+    const snowcap = mgMesh(new THREE.BoxGeometry(7.1, 0.12, 3.1), mgMat({ color: 0xffffff, roughness: 0.8 })); snowcap.position.y = 2.26; g.add(snowcap);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  cairoTower(G, h, d) {
+    // Cairo Tower: a tall latticed shaft, the round lookout on top, a spire.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const pts = [];
+    for (let k = 0; k <= 12; k++) { const y = k / 12 * 8; pts.push(new THREE.Vector2(0.75 - 0.25 * Math.sin(k / 12 * Math.PI) + (k === 0 ? 0.2 : 0), y)); }
+    const shaft = mgMesh(new THREE.LatheGeometry(pts, 16), mgMat({ color: 0xd9cbb0, roughness: 0.8 }));
+    g.add(shaft);
+    // the lattice: rings round the shaft
+    const rings = [];
+    for (let k = 1; k < 12; k++) rings.push({ p: [0, k / 12 * 8, 0], s: [1, 1, 1], r: [Math.PI / 2, 0, 0] });
+    mgInstances(g, new THREE.TorusGeometry(0.62, 0.04, 4, 20), mgMat({ color: 0x8d7a60, roughness: 0.7 }), rings, false);
+    const pod = mgMesh(new THREE.CylinderGeometry(1.1, 0.8, 0.9, 20), mgMat({ color: 0xf4efe6, roughness: 0.5 })); pod.position.y = 8.4; g.add(pod);
+    const glass = mgMesh(new THREE.CylinderGeometry(1.12, 1.12, 0.28, 20), mgMat({ color: 0x2f5d8a, roughness: 0.1, metalness: 0.4 })); glass.position.y = 8.3; g.add(glass);
+    const spire = mgMesh(new THREE.CylinderGeometry(0.05, 0.12, 1.8, 8), mgMat({ color: 0xc1121f, roughness: 0.5 })); spire.position.y = 9.75; g.add(spire);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
   }
 };
 
@@ -90853,7 +92047,8 @@ function mgLabelSprite(text, color) {
 
 /**
  * The balls on the hole: [{ id, at, color, ghost, hidden, label }]. A ball
- * rolling a putt keeps rolling; one at rest is put where it lies.
+ * rolling a putt keeps rolling, and so does one another ball's putt is
+ * knocking about (drivenBy); one at rest is put where it lies.
  */
 function mg3SyncBalls(list) {
   if (!mg3Ready()) return;
@@ -90863,7 +92058,7 @@ function mg3SyncBalls(list) {
   list.forEach(o => {
     let b = MG3.balls.get(o.id);
     const look = o.color + '|' + (o.ghost ? 1 : 0) + '|' + (o.label || '');
-    if (b && b.look !== look) { mg3RemoveBall(b); MG3.balls.delete(o.id); b = null; }
+    if (b && b.look !== look && !b.play && !b.drivenBy) { mg3RemoveBall(b); MG3.balls.delete(o.id); b = null; }
     if (!b) {
       const mesh = new THREE.Mesh(MG3.geo.ball, mgBallMat(o.color, o.ghost));
       mesh.castShadow = !o.ghost;
@@ -90871,11 +92066,12 @@ function mg3SyncBalls(list) {
       MG3.scene.add(mesh);
       const label = o.label ? mgLabelSprite(o.label, o.color) : null;
       if (label) MG3.scene.add(label);
-      b = { id: o.id, mesh, label, look, play: null, at: o.at.slice(), hidden: false, sink: 0 };
+      b = { id: o.id, mesh, label, look, play: null, drivenBy: null, at: o.at.slice(), want: o.at.slice(), hidden: false, sink: 0 };
       MG3.balls.set(o.id, b);
     }
     b.hiddenWanted = !!o.hidden;
-    if (!b.play && !b.sink) {
+    b.want = o.at.slice();
+    if (!b.play && !b.sink && !b.drivenBy) {
       b.at = o.at.slice();
       mg3PlaceBall(b, o.at[0], o.at[1]);
       b.hidden = b.hiddenWanted;
@@ -90890,92 +92086,189 @@ function mg3RemoveBall(b) {
   b.mesh.material.dispose();
   if (b.label) { MG3.scene.remove(b.label); b.label.material.map.dispose(); b.label.material.dispose(); }
 }
-function mg3PlaceBall(b, x, y, dz) {
+/** A ball at (x, y): on the ground (a ramp, a hill), `dz` above it, or at height `z` when it flies. */
+function mg3PlaceBall(b, x, y, dz, z) {
   const h = MG3.hole;
-  const z = h ? golfHeight(h, x, y) : 0;
-  b.mesh.position.set(x, z + GOLF.BALL_R + (dz || 0), -y);
-  if (b.label) b.label.position.set(x, z + 1.05, -y);
+  const g = typeof z === 'number' ? z : (h ? golfHeight(h, x, y) : 0);
+  b.mesh.position.set(x, g + GOLF.BALL_R + (dz || 0), -y);
+  if (b.label) b.label.position.set(x, g + 1.05, -y);
 }
 
 /**
  * Rolls `sim` (golfStart) for ball `id`, already `off` seconds in (a putt
- * replayed from another phone starts where the hole's clock says it is).
- * onEnd(sim) when it stops, sinks or splashes; `from` is where a wet ball goes back to.
+ * replayed from another phone starts where the hole's clock says it is). The
+ * balls it may knock (sim.others) move with it. onEnd(sim) when every ball
+ * has stopped, sunk or splashed; `returns` is where a wet ball goes back to
+ * ({ main: [x, y], <id>: [x, y] }, from the putt's result).
  */
 function mg3Play(id, sim, off, opts) {
   const b = MG3.balls.get(id);
   if (!b || !mg3Ready()) return false;
   const o = opts || {};
-  b.play = { sim, start: performance.now(), off: Math.max(0, off || 0), onEnd: o.onEnd || null, from: o.from || [sim.sx, sim.sy], loud: o.loud !== false, sand: false, hits: 0 };
+  const from = o.from || [sim.sx, sim.sy];
+  // A roll this screen is still showing, of this ball or of one knocking it, ends at once (a screen that fell behind).
+  const settle = (ball) => { if (ball && ball.play) mg3StepBall(ball, performance.now() + 1e7, 0); };
+  settle(b);
+  if (b.drivenBy) { settle(MG3.balls.get(b.drivenBy)); b.drivenBy = null; }
+  (sim.others || []).forEach(ob => { const ball = MG3.balls.get(ob.id); if (ball) { settle(ball); if (ball.drivenBy && ball.drivenBy !== id) settle(MG3.balls.get(ball.drivenBy)); } });
+  b.play = {
+    sim, start: performance.now(), off: Math.max(0, off || 0), onEnd: o.onEnd || null,
+    returns: Object.assign({ main: from }, o.returns || {}), loud: o.loud !== false, seen: {}, flaps: {}, bumped: {}
+  };
   b.hidden = false; b.sink = 0;
   b.mesh.visible = true;
   if (b.label) b.label.visible = true;
+  (sim.others || []).forEach(ob => {
+    const ball = MG3.balls.get(ob.id);
+    if (!ball) return;
+    ball.drivenBy = id;
+    ball.play = null; ball.sink = 0;
+    ball.hidden = false; ball.mesh.visible = true;
+    if (ball.label) ball.label.visible = true;
+    ball.at = [ob.x, ob.y];
+    mg3PlaceBall(ball, ob.x, ob.y);
+  });
   mg3Start();
   return true;
 }
 function mg3Rolling(id) {
-  if (id) { const b = MG3.balls.get(id); return !!(b && (b.play || b.sink)); }
+  if (id) { const b = MG3.balls.get(id); return !!(b && (b.play || b.sink || b.drivenBy)); }
   let any = false;
-  MG3.balls.forEach(b => { if (b.play || b.sink) any = true; });
+  MG3.balls.forEach(b => { if (b.play || b.sink || b.drivenBy) any = true; });
   return any;
+}
+/** Lets go of the balls a putt was knocking about: each back where the table says it lies. */
+function mg3Release(id) {
+  MG3.balls.forEach(ob => {
+    if (ob.drivenBy !== id) return;
+    ob.drivenBy = null; ob.sink = 0;
+    ob.at = (ob.want || ob.at).slice();
+    mg3PlaceBall(ob, ob.at[0], ob.at[1]);
+    ob.hidden = !!ob.hiddenWanted;
+    ob.mesh.visible = !ob.hidden;
+    if (ob.label) ob.label.visible = !ob.hidden;
+  });
 }
 /** Stops a roll where it is (a refused putt), and puts the ball at `at`. */
 function mg3StopBall(id, at) {
   const b = MG3.balls.get(id);
   if (!b) return;
+  if (b.play) mg3Release(id);
   b.play = null; b.sink = 0;
   if (at) { b.at = at.slice(); mg3PlaceBall(b, at[0], at[1]); }
 }
 
-const mgUp = { v: null, t: null, q: null };
-function mg3StepBall(b, now, dt) {
-  const p = b.play;
-  const target = p.off + (now - p.start) / 1000;
-  let n = 0;
-  while (p.sim.t < target && !p.sim.end && n < 3600) { golfStep(p.sim); n++; }
-  const s = p.sim;
-  mg3PlaceBall(b, s.x, s.y);
-  // it rolls
-  const v = Math.hypot(s.vx, s.vy);
-  if (v > 0.01) {
-    const THREE = MG3.T;
-    if (!mgUp.v) { mgUp.v = new THREE.Vector3(0, 1, 0); mgUp.t = new THREE.Vector3(); mgUp.q = new THREE.Quaternion(); }
-    mgUp.t.set(s.vx, 0, -s.vy).normalize().cross(mgUp.v).negate();
-    mgUp.q.setFromAxisAngle(mgUp.t, v * dt / GOLF.BALL_R);
-    b.mesh.quaternion.premultiply(mgUp.q);
-  }
-  if (s.sand && !p.sand && p.loud) { mg3Puff(s.x, s.y); mgSound('sand'); }
-  p.sand = s.sand;
-  if (s.hits > p.hits) { if (p.loud && v > 1.2) mgSound('wall'); p.hits = s.hits; }
-  if (!s.end) return;
-  const end = s.end;
-  const onEnd = p.onEnd;
-  b.play = null;
-  if (end === 'cup') {
-    b.sink = now;
-    mg3PlaceBall(b, MG3.hole.cup[0], MG3.hole.cup[1]);
-    if (p.loud) mgSound('cup');
+const mgUp = { v: null, ax: null, q: null };
+/** Turns a ball as it rolls at (vx, vy) for dt seconds. */
+function mg3Roll(ball, vx, vy, dt) {
+  const v = Math.hypot(vx, vy);
+  if (v < 0.01 || !dt) return;
+  const THREE = MG3.T;
+  if (!mgUp.v) { mgUp.v = new THREE.Vector3(0, 1, 0); mgUp.ax = new THREE.Vector3(); mgUp.q = new THREE.Quaternion(); }
+  mgUp.ax.set(vx, 0, -vy).normalize().cross(mgUp.v).negate();
+  mgUp.q.setFromAxisAngle(mgUp.ax, v * dt / GOLF.BALL_R);
+  ball.mesh.quaternion.premultiply(mgUp.q);
+}
+
+/**
+ * One body of a roll on the screen: put where the rules have it, and what
+ * happened to it since the last frame played - the sand's puff, the mud's
+ * plop, a pad's whoosh, a flight and its landing, a portal, a knock, the cup
+ * and the water.
+ */
+function mg3ShowBody(ball, body, key, p, now, dt) {
+  const was = p.seen[key] || (p.seen[key] = { end: null, sand: false, mud: false, ice: false, pad: false, air: false, hits: body.hits, warps: body.warps, jumps: body.jumps, bumps: body.bumps, knocks: body.knocks });
+  const loud = p.loud;
+  if (was.end === 'cup' || was.end === 'water') return;
+  if (body.end === 'cup') {
+    was.end = 'cup';
+    ball.sink = now;
+    mg3PlaceBall(ball, MG3.hole.cup[0], MG3.hole.cup[1]);
+    if (loud) mgSound('cup');
     if (MG3.flag) MG3.flag.jump = now;
     mg3Ring(MG3.hole.cup[0], MG3.hole.cup[1], 0xffffff);
-  } else if (end === 'water') {
-    mg3Splash(s.x, s.y);
-    if (p.loud) mgSound('splash');
-    b.hidden = true;
-    b.mesh.visible = false;
-    if (b.label) b.label.visible = false;
-    const from = p.from;
-    setTimeout(() => {
-      if (!MG3.balls.get(b.id) || b.play) return;
-      b.hidden = !!b.hiddenWanted;
-      b.at = from.slice();
-      mg3PlaceBall(b, from[0], from[1]);
-      b.mesh.visible = !b.hidden;
-      if (b.label) b.label.visible = !b.hidden;
-      mg3Ring(from[0], from[1], 0x9fd3ff);
-    }, 850);
-  } else {
-    b.at = [s.x, s.y];
+    return;
   }
+  if (body.end === 'water') {
+    was.end = 'water';
+    mg3Splash(body.x, body.y);
+    if (loud) mgSound('splash');
+    ball.hidden = true;
+    ball.mesh.visible = false;
+    if (ball.label) ball.label.visible = false;
+    const back = (p.returns[key] || [body.sx, body.sy]).slice();
+    setTimeout(() => {
+      // Not if a new putt has taken this ball since.
+      if (MG3.balls.get(ball.id) !== ball || (ball.play && ball.play !== p)) return;
+      ball.hidden = ball.play || ball.drivenBy ? false : !!ball.hiddenWanted;
+      ball.at = back.slice();
+      mg3PlaceBall(ball, back[0], back[1]);
+      ball.mesh.visible = !ball.hidden;
+      if (ball.label) ball.label.visible = !ball.hidden;
+      mg3Ring(back[0], back[1], 0x9fd3ff);
+    }, 850);
+    return;
+  }
+  // a portal: gone into one ring, out of the other
+  if (body.warps > was.warps && body.warp) {
+    const pt = (MG3.hole.portals || [])[body.warp.k];
+    if (pt) { mg3Ring(pt.x, pt.y, 0xc77dff); mg3Ring(pt.ox, pt.oy, 0xffb347); mg3Particles(pt.ox, pt.oy, 0xffe0a8, 22, 1.2, 2.6, 0.1); }
+    if (loud) mgSound('warp');
+    ball.pop = now;
+  }
+  const pop = ball.pop && now - ball.pop < 260 ? (now - ball.pop) / 260 : 1;
+  ball.mesh.scale.setScalar(pop < 1 ? 0.3 + 0.7 * pop : 1);
+  mg3PlaceBall(ball, body.x, body.y, 0, body.air ? body.z : undefined);
+  if (!body.air) mg3Roll(ball, body.vx, body.vy, dt);
+  const v = Math.hypot(body.vx, body.vy);
+  if (body.sand && !was.sand && loud) { mg3Puff(body.x, body.y); mgSound('sand'); }
+  if (body.mud && !was.mud) { mg3Particles(body.x, body.y, 0x5a3a22, 18, 0.8, 1.6, 0.11); if (loud) mgSound('mud'); }
+  if (body.ice && !was.ice && loud && v > 1) mgSound('ice');
+  if (body.pad && !was.pad && loud) mgSound('whoosh');
+  if (body.jumps > was.jumps && loud) mgSound('jump');
+  if (was.air && !body.air) { mg3Particles(body.x, body.y, 0x9bd08a, 14, 0.9, 1.4, 0.08); if (loud) mgSound('land'); }
+  if (body.knocks > was.knocks && loud) mgSound('knock');
+  else if (body.bumps > was.bumps && loud) mgSound('bump');
+  else if (body.hits > was.hits && loud && v > 1.2) mgSound('wall');
+  Object.assign(was, { sand: body.sand, mud: body.mud, ice: body.ice, pad: body.pad, air: body.air, hits: body.hits, warps: body.warps, jumps: body.jumps, bumps: body.bumps, knocks: body.knocks });
+}
+
+function mg3StepBall(b, now, dt) {
+  const p = b.play;
+  const s = p.sim;
+  const target = p.off + (now - p.start) / 1000;
+  let n = 0;
+  while (s.t < target && !s.done && n < 3600) { golfStep(s); n++; }
+  if (!b.sink) mg3ShowBody(b, s, 'main', p, now, dt);
+  (s.others || []).forEach(o => {
+    const ball = MG3.balls.get(o.id);
+    if (ball && ball.drivenBy === b.id && !ball.sink) mg3ShowBody(ball, o, o.id, p, now, dt);
+  });
+  // A gate swung, a bumper hit: the piece moves (and knocks) on the screen too.
+  Object.keys(s.flaps).forEach(k => {
+    if (p.flaps[k] === s.flaps[k]) return;
+    const first = p.flaps[k] === undefined || s.flaps[k] - p.flaps[k] > 0.4;
+    p.flaps[k] = s.flaps[k];
+    MG3.movers.forEach(m => { if (m.kind === 'gate' && String(m.k) === k) m.last = s.flaps[k]; });
+    if (first && p.loud) mgSound('flap');
+  });
+  Object.keys(s.bumped).forEach(k => {
+    if (p.bumped[k] === s.bumped[k]) return;
+    p.bumped[k] = s.bumped[k];
+    MG3.movers.forEach(m => { if (m.kind === 'bumper' && String(m.k) === k) m.last = s.bumped[k]; });
+  });
+  if (!s.done) return;
+  const onEnd = p.onEnd;
+  b.play = null;
+  if (!s.end || s.end === 'rest') b.at = [s.x, s.y];
+  // the balls it knocked: settled where the rules left them
+  (s.others || []).forEach(o => {
+    const ball = MG3.balls.get(o.id);
+    if (!ball || ball.drivenBy !== b.id) return;
+    ball.drivenBy = null;
+    if (o.end === 'rest') ball.at = [o.x, o.y];
+    else if (o.end === 'cup' && !ball.sink) { ball.hidden = true; ball.mesh.visible = false; if (ball.label) ball.label.visible = false; }
+  });
   if (onEnd) { try { onEnd(s); } catch (e) { console.warn(e); } }
 }
 
@@ -91105,14 +92398,16 @@ function mg3DrawAim() {
   MG3.band.visible = true;
   // the aim guide: the path the putt would take, dotted
   if (MG3.input.guide && MG3.input.guide()) {
-    const sim = golfStart(MG3.hole, from, Object.assign({ t0: Math.max(0, Math.round(MG3.clock())) }, s));
+    const others = MG3.input.others ? MG3.input.others() : null;
+    const sim = golfStart(MG3.hole, from, Object.assign({ t0: Math.max(0, Math.round(MG3.clock())) }, s), others || undefined);
     const pts = MG3.guidePts;
+    const up = () => (sim.air ? sim.z : golfHeight(MG3.hole, sim.x, sim.y)) + 0.06;
     let n = 0, steps = 0;
-    while (!sim.end && steps < 2400 && n < 399) {
+    while (!sim.done && !(sim.end && sim.end !== 'rest') && steps < 2400 && n < 399) {
       golfStep(sim); steps++;
-      if (steps % 9 === 0) { pts[n * 3] = sim.x; pts[n * 3 + 1] = golfHeight(MG3.hole, sim.x, sim.y) + 0.06; pts[n * 3 + 2] = -sim.y; n++; }
+      if (steps % 9 === 0 && !sim.end) { pts[n * 3] = sim.x; pts[n * 3 + 1] = up(); pts[n * 3 + 2] = -sim.y; n++; }
     }
-    pts[n * 3] = sim.x; pts[n * 3 + 1] = golfHeight(MG3.hole, sim.x, sim.y) + 0.06; pts[n * 3 + 2] = -sim.y; n++;
+    pts[n * 3] = sim.x; pts[n * 3 + 1] = up(); pts[n * 3 + 2] = -sim.y; n++;
     MG3.guide.geometry.setDrawRange(0, n);
     MG3.guide.geometry.attributes.position.needsUpdate = true;
     MG3.guide.geometry.computeBoundingSphere();
@@ -91151,8 +92446,23 @@ function mg3Tick(now, dt) {
     if (mv.kind === 'mill') mv.hub.rotation.z = golfMillAngle(mv.m, t);
     else if (mv.kind === 'slider') { const c = golfSliderAt(mv.sl, t); mv.g.position.set(c[0], golfHeight(MG3.hole, c[0], c[1]), -c[1]); }
     else if (mv.kind === 'spinner') mv.g.rotation.y = golfSpinnerAngle(mv.sp, t);
-    else if (mv.kind === 'deco-wheel') mv.g.rotation.z = -t * 0.5;
+    else if (mv.kind === 'deco-wheel') mv.g.rotation.z = -t * (mv.rate || 0.5);
     else if (mv.kind === 'deco-beam') mv.g.rotation.y = t * 0.6;
+    // The arrows of a pad, a belt's ribs and rollers, a portal's swirl: always on the move, quietly.
+    else if (mv.kind === 'pad') mv.tx.offset.y = -((t * mv.rate) % 1);
+    else if (mv.kind === 'belt') { mv.tx.offset.y = -((t * mv.rate) % 1); mv.rollers.forEach(r => { r.rotation.y = -t * mv.spin; }); }
+    else if (mv.kind === 'portal') { mv.discs[0].rotation.z = -t * 2.4; mv.discs[1].rotation.z = t * 1.6; }
+    // A gate's flap swings open the way through and falls back; a bumper's cap flashes.
+    else if (mv.kind === 'gate') {
+      const age = t - mv.last;
+      const open = age < 0 || age > 1.2 ? 0 : age < 0.12 ? age / 0.12 : 1 - (age - 0.12) / 1.08;
+      mv.pivot.rotation.x = -mv.sign * open * open * 1.25;
+    } else if (mv.kind === 'bumper') {
+      const age = t - mv.last;
+      const k = age >= 0 && age < 0.45 ? 1 - age / 0.45 : 0;
+      mv.capMat.emissiveIntensity = 0.15 + k * 2.2;
+      mv.g.scale.set(1 + k * 0.12, 1, 1 + k * 0.12);
+    }
   });
   const calm = reducedMotion();
   const f = MG3.flag;
@@ -91170,7 +92480,7 @@ function mg3Tick(now, dt) {
   MG3.bobbers.forEach(bb => { bb.g.position.y = bb.base + Math.sin(t * 1.4 + bb.ph) * 0.03; bb.g.rotation.z = Math.sin(t * 1.1 + bb.ph) * 0.03; });
   MG3.balls.forEach(b => {
     if (b.play) mg3StepBall(b, now, dt);
-    else if (b.sink) {
+    if (b.sink) {
       const k = (now - b.sink) / 380;
       const h = MG3.hole;
       mg3PlaceBall(b, h.cup[0], h.cup[1], -Math.min(1, k) * 0.5);
@@ -91237,13 +92547,17 @@ function mgMountIn(root, onReady) {
   });
 }
 
-/** The strip at the top: the hole, its par, the strokes; `extra` on the end (a clock, whose turn). */
+/** "Par 3 · max 6": the hole's par and the most strokes it allows. */
+const mgParMax = (i) => mgT('mg_par_max', { n: GOLF_HOLES[i].par, m: golfMaxOf(GOLF_HOLES[i]) });
+
+/** The strip at the top: the hole, its par and most strokes, the strokes; "last stroke" on the final one; `extra` on the end (a clock, whose turn). */
 function mgHudHtml(o) {
   const chips = [
     `<span class="mg-chip mg-chip--hole">⛳ <b>${escapeHTML(mgT('mg_hole', { n: o.hole + 1, m: o.holes }))}</b><span class="mg-chip__name">${escapeHTML(mgHoleName(o.hole))}</span></span>`,
-    `<span class="mg-chip">${escapeHTML(mgT('mg_par', { n: GOLF_HOLES[o.hole].par }))}</span>`
+    `<span class="mg-chip">${escapeHTML(mgParMax(o.hole))}</span>`
   ];
   if (typeof o.strokes === 'number') chips.push(`<span class="mg-chip mg-chip--strokes">${escapeHTML(mgT('mg_strokes', { n: o.strokes }))}</span>`);
+  if (o.last) chips.push(`<span class="mg-chip mg-chip--last">${escapeHTML(mgT('mg_last_stroke'))}</span>`);
   if (typeof o.vsPar === 'number') chips.push(`<span class="mg-chip mg-chip--par">${escapeHTML(mgDelta(o.vsPar))}</span>`);
   if (o.extra) chips.push(o.extra);
   return `<div class="mg-hud__row">${chips.join('')}</div>`;
@@ -91268,7 +92582,7 @@ function mgNameCard(root, hole, holes, key) {
   if (!motionFirst(['mg-name', key].join('|'))) return;
   el.innerHTML = `<span class="mg-namecard__n">${escapeHTML(mgT('mg_hole_big', { n: hole + 1 }))}</span>
       <span class="mg-namecard__name">${escapeHTML(mgHoleName(hole))}</span>
-      <span class="mg-namecard__par">${escapeHTML(mgT('mg_par', { n: GOLF_HOLES[hole].par }))}</span>`;
+      <span class="mg-namecard__par">${escapeHTML(mgParMax(hole))}</span>`;
   el.classList.remove('is-on');
   void el.offsetWidth;
   el.classList.add('is-on');
@@ -91280,25 +92594,33 @@ function mgNameCard(root, hole, holes, key) {
 function mgCardHtml(rows, holes, o) {
   const opt = o || {};
   const upto = Math.max(1, opt.upto || holes);
-  const cols = [];
-  for (let i = 0; i < upto; i++) cols.push(i);
-  const par = cols.reduce((a, i) => a + GOLF_HOLES[i].par, 0);
   const cell = (v, i) => {
     if (typeof v !== 'number') return '<td class="mg-card__c">·</td>';
     const d = v - GOLF_HOLES[i].par;
     return `<td class="mg-card__c ${v === 1 ? 'is-ace' : d < 0 ? 'is-under' : d > 0 ? 'is-over' : ''}">${v}</td>`;
   };
-  return `<div class="mg-card"><table>
-      <thead><tr><th class="mg-card__who"></th>${cols.map(i => `<th>${i + 1}</th>`).join('')}<th class="mg-card__tot">Σ</th></tr>
+  // Up to nine holes, one table; past nine, two, as on a real card: the first nine
+  // with their own sum, then the rest with the total.
+  const table = (from, to, last) => {
+    const cols = [];
+    for (let i = from; i < to; i++) cols.push(i);
+    const span = last ? upto : to;
+    let par = 0;
+    for (let i = last ? 0 : from; i < span; i++) par += GOLF_HOLES[i].par;
+    return `<table>
+      <thead><tr><th class="mg-card__who"></th>${cols.map(i => `<th>${i + 1}</th>`).join('')}<th class="mg-card__tot">${last ? 'Σ' : escapeHTML(mgT('mg_out'))}</th></tr>
         <tr class="mg-card__par"><th class="mg-card__who">${escapeHTML(mgT('mg_par', { n: '' }).trim())}</th>${cols.map(i => `<td>${GOLF_HOLES[i].par}</td>`).join('')}<td class="mg-card__tot">${par}</td></tr></thead>
       <tbody>${rows.map(r => {
         let total = 0, played = 0;
-        cols.forEach(i => { if (typeof r.card[i] === 'number') { total += r.card[i]; played += GOLF_HOLES[i].par; } });
-        const from = typeof opt.countHole === 'number' && typeof r.card[opt.countHole] === 'number' ? total - r.card[opt.countHole] : total;
+        for (let i = last ? 0 : from; i < span; i++) if (typeof r.card[i] === 'number') { total += r.card[i]; played += GOLF_HOLES[i].par; }
+        const counted = last && typeof opt.countHole === 'number' && typeof r.card[opt.countHole] === 'number';
+        const tot = last ? `<b data-mg-from="${counted ? total - r.card[opt.countHole] : total}" data-mg-to="${total}">${total}</b><small>${escapeHTML(played ? mgDelta(total - played) : '')}</small>` : `<b>${total}</b>`;
         return `<tr class="${r.me ? 'is-me' : ''}"><th class="mg-card__who"><span class="mg-dot" style="--c:${r.color}"></span><bdi>${escapeHTML(r.name)}</bdi></th>
-          ${cols.map(i => cell(r.card[i], i)).join('')}<td class="mg-card__tot"><b data-mg-from="${from}" data-mg-to="${total}">${total}</b><small>${escapeHTML(played ? mgDelta(total - played) : '')}</small></td></tr>`;
+          ${cols.map(i => cell(r.card[i], i)).join('')}<td class="mg-card__tot">${tot}</td></tr>`;
       }).join('')}</tbody>
-    </table></div>`;
+    </table>`;
+  };
+  return upto > 9 ? `<div class="mg-card mg-card--two">${table(0, 9, false) + table(9, upto, true)}</div>` : `<div class="mg-card">${table(0, upto, true)}</div>`;
 }
 
 /** A card's totals count up from what they were before the hole just played (once per hole). */
@@ -91336,7 +92658,7 @@ function paintMiniGolfSetup() {
   if (guide) guide.checked = !!s.guide;
   const best = soloBest('minigolf', String(s.holes));
   const line = document.getElementById('mg-best');
-  if (line) line.textContent = best ? '🏆 ' + mgT('mg_best', { h: s.holes, n: best.total, d: mgDelta(best.total - best.par) }) : mgT('mg_no_best', { h: s.holes });
+  if (line) line.textContent = best ? '🏆 ' + mgT('mg_best', { hh: mgHolesText(s.holes), n: best.total, d: mgDelta(best.total - best.par) }) : mgT('mg_no_best', { hh: mgHolesText(s.holes) });
   const cont = document.getElementById('minigolf-continue');
   if (cont) cont.classList.toggle('hidden', !mgSoloLive(s));
 }
@@ -91413,7 +92735,8 @@ function mgSoloChrome() {
   const hole = s.hole || 0;
   let played = 0, total = 0;
   (s.card || []).forEach((v, i) => { if (typeof v === 'number') { total += v; played += GOLF_HOLES[i].par; } });
-  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole, holes: g.holes, strokes: s.n || 0, vsPar: played ? total - played : undefined }));
+  const max = golfMaxOf(GOLF_HOLES[hole]);
+  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole, holes: g.holes, strokes: s.n || 0, vsPar: played ? total - played : undefined, last: s.phase === 'play' && (s.n || 0) === max - 1 }));
   const hint = mgPart(root, 'hint');
   if (hint) {
     hint.textContent = s.phase === 'play' && !mg3Rolling('me') ? mgT('mg_pull_hint') : '';
@@ -91425,7 +92748,7 @@ function mgSoloChrome() {
     panel.classList.toggle('hidden', !showCard);
     if (showCard) {
       const last = s.card[hole];
-      const word = typeof last === 'number' ? (last >= GOLF.CAP + 1 && s.picked ? mgT('mg_picked') : mgWordOf(last, GOLF_HOLES[hole].par)) : '';
+      const word = typeof last === 'number' ? (last > max && s.picked ? mgT('mg_picked', { n: max + 1 }) : mgWordOf(last, GOLF_HOLES[hole].par)) : '';
       const done = s.phase === 'done';
       mgSet(panel, `<div class="mg-panel__card card">
           <p class="eyebrow">${escapeHTML(mgT('mg_hole_big', { n: hole + 1 }))} · ${escapeHTML(mgHoleName(hole))}</p>
@@ -91455,15 +92778,16 @@ function mgSoloPutt(shot) {
   s.n += r.strokes;
   s.at = r.at.slice();
   s.picked = false;
+  const max = golfMaxOf(h);
   if (r.end === 'cup') { s.card[hole] = s.n; s.phase = 'holeDone'; }
-  else if (s.n >= GOLF.CAP) { s.card[hole] = GOLF.CAP + 1; s.n = GOLF.CAP + 1; s.picked = true; s.phase = 'holeDone'; }
+  else if (s.n >= max) { s.card[hole] = max + 1; s.n = max + 1; s.picked = true; s.phase = 'holeDone'; }
   if (s.phase === 'holeDone' && hole + 1 >= (s.game || {}).holes) s.phase = 'done';
   saveToLocal();
   mgSound('putt');
   haptic('medium');
   const root = mgSoloRoot();
   mg3Play('me', golfStart(h, from, full), 0, {
-    from,
+    from, returns: { main: r.at },
     onEnd: (sim) => {
       if (appState.currentView !== 'play-minigolf') return;
       if (sim.end === 'water') mgBanner(root, mgT('mg_water'), '', 'water');
@@ -91473,7 +92797,7 @@ function mgSoloPutt(shot) {
         if (n <= h.par) { playSound('success'); if (n === 1 && typeof playFx === 'function') playFx('applause'); }
         if (n < h.par && typeof confetti === 'function') confetti({ particleCount: n === 1 ? 180 : 90, spread: 80, origin: { y: 0.55 } });
         haptic('double');
-      } else if (s.picked) mgBanner(root, mgT('mg_picked'), '', 'picked');
+      } else if (s.picked) mgBanner(root, mgT('mg_picked', { n: golfMaxOf(h) + 1 }), '', 'picked');
       if (s.phase === 'holeDone' || s.phase === 'done') {
         mgSoloTimers.push(setTimeout(() => {
           if (appState.currentView !== 'play-minigolf') return;
@@ -91511,12 +92835,12 @@ function mgSoloShowResult() {
   saveToLocal();
   const lines = [escapeHTML(mgT('mg_vs_par', { d: mgDelta(total - par), p: par }))];
   if (rec.record) lines.push('🏆 ' + escapeHTML(mgT('solo_new_best')));
-  else if (rec.prev) lines.push(escapeHTML(mgT('mg_best', { h: g.holes, n: rec.prev.total, d: mgDelta(rec.prev.total - rec.prev.par) })));
+  else if (rec.prev) lines.push(escapeHTML(mgT('mg_best', { hh: mgHolesText(g.holes), n: rec.prev.total, d: mgDelta(rec.prev.total - rec.prev.par) })));
   soloResult({
-    icon: '⛳', title: mgT('mg_result_title', { n: g.holes }), value: total, valueLabel: mgT('mg_total_label'), lines,
+    icon: '⛳', title: mgT('mg_result_title', { hh: mgHolesText(g.holes) }), value: total, valueLabel: mgT('mg_total_label'), lines,
     win: rec.record || total <= par,
     quiet: shown,
-    share: mgT('mg_share', { n: total, h: g.holes, d: mgDelta(total - par) }) + '\n' + mgCardText(s.card, g.holes),
+    share: mgT('mg_share', { n: total, hh: mgHolesText(g.holes), d: mgDelta(total - par) }) + '\n' + mgCardText(s.card, g.holes),
     again: startMiniGolf, againLabel: '⛳ ' + mgT('mg_again'),
     exit: setupMiniGolf
   });
@@ -91578,6 +92902,26 @@ function mgRoomCanPutt(state) {
   return !mg3Rolling(Room.me);
 }
 
+/**
+ * The balls a putt by `pid` can hit - the very list the server makes
+ * (mgOthers in RoomMiniGolf.js): in turns, every ball lying on the course,
+ * hit from the tee and not yet in, in the table's order. All at once, none.
+ */
+function mgRoomOthers(s, pid) {
+  if (!s || !s.settings || s.settings.mode !== 'turns') return null;
+  return (s.order || []).filter(id => {
+    const b = (s.balls || {})[id];
+    return id !== pid && b && !b.done && b.n > 0;
+  }).map(id => ({ id, at: s.balls[id].at.slice() }));
+}
+/** Where each wet ball of a putt goes back to, from its result: { main, <id> }. */
+function mgReturns(end, at, moved) {
+  const out = {};
+  if (end === 'water' && at) out.main = at.slice();
+  (moved || []).forEach(m => { if (m.end === 'water') out[m.id] = m.at.slice(); });
+  return out;
+}
+
 function mgRoomPutt(shot) {
   const state = Room.state;
   if (!state || state.game !== 'minigolf' || !mgRoomCanPutt(state)) return;
@@ -91586,11 +92930,14 @@ function mgRoomPutt(shot) {
   const h = GOLF_HOLES[s.hole];
   const full = golfCleanShot(Object.assign({}, shot, { t0: Math.round(mgRoomClock()) }));
   const from = b.at.slice();
+  const others = mgRoomOthers(s, Room.me);
+  // The server will come to the same result from the same numbers; this phone knows it now.
+  const r = others ? golfPutt(h, from, full, others) : golfPutt(h, from, full);
   mgRoom.pending = Object.assign({ n: b.n, hole: s.hole, key: state.code + '|' + s.dealId }, full);
   // The ball rolls as the finger lifts; the server's putt, when it comes, is the same roll.
   mgSound('putt');
   haptic('medium');
-  mg3Play(Room.me, golfStart(h, from, full), 0, { from, onEnd: (sim) => mgRoomEnded(Room.me, sim) });
+  mg3Play(Room.me, golfStart(h, from, full, others || undefined), 0, { from, returns: mgReturns(r.end, r.at, r.moved), onEnd: (sim) => mgRoomEnded(Room.me, sim) });
   mgRoomChrome(state, document.getElementById('view-room-minigolf'), false);
   const sentN = b.n;
   Room.act('putt', Object.assign({ hole: s.hole, n: b.n }, full)).then(() => {
@@ -91629,7 +92976,18 @@ function mgRoomEnded(pid, sim) {
     if ((mine || tv) && n <= h.par) { playSound('success'); if (n === 1 && typeof playFx === 'function') playFx('applause'); }
     if (mine && n < h.par && typeof confetti === 'function') confetti({ particleCount: n === 1 ? 180 : 90, spread: 80, origin: { y: 0.55 } });
     if (mine) haptic('double');
-  } else if (sh && sh.n > GOLF.CAP && mine) mgBanner(root, mgT('mg_picked'), '', 'picked');
+  } else if (sh && sh.n > golfMaxOf(h) && mine) mgBanner(root, mgT('mg_picked', { n: golfMaxOf(h) + 1 }), '', 'picked');
+  // A ball this putt knocked in, or into the water: said on its own phone and the TV.
+  (sim.others || []).forEach(o => {
+    if (o.end !== 'cup' && o.end !== 'water') return;
+    const itsMine = o.id === Room.me && !tv;
+    if (!itsMine && !tv) return;
+    const who = mgName(state, o.id), by = mgName(state, pid);
+    const text = o.end === 'cup' ? (itsMine ? mgT('mg_knocked_in_you', { by }) : mgT('mg_knocked_in', { name: who, by }))
+      : (itsMine ? mgT('mg_knocked_wet_you', { by }) : mgT('mg_knocked_wet', { name: who }));
+    setTimeout(() => mgBanner(root, text, '', o.end === 'cup' ? 'good' : 'water'), 1900);
+    if (o.end === 'cup' && itsMine) { playSound('success'); haptic('double'); }
+  });
   // A card or the end may have been waiting for this ball.
   clearTimeout(mgRoom.redraw);
   mgRoom.redraw = setTimeout(() => { if (Room.state && Room.state.game === 'minigolf') routeRoomState(Room.state); }, 1200);
@@ -91643,17 +93001,17 @@ function mgRoomReplays(state, tv) {
   if (mgRoom.key !== key) { mgRoom.key = key; mgRoom.seen = {}; mgRoom.fresh = true; }
   const first = mgRoom.fresh;
   mgRoom.fresh = false;
-  Object.keys(s.shots || {}).forEach(pid => {
-    const sh = s.shots[pid];
+  // In the order they were made: a putt that knocked a ball is rolled before that ball's own next one.
+  Object.keys(s.shots || {}).map(pid => [pid, s.shots[pid]]).sort((a, b) => ((a[1] || {}).seq || 0) - ((b[1] || {}).seq || 0)).forEach(([pid, sh]) => {
     if (!sh || (mgRoom.seen[pid] || 0) >= sh.seq) return;
     mgRoom.seen[pid] = sh.seq;
     const p = mgRoom.pending;
     if (pid === Room.me && !tv && p && p.n === sh.n - sh.add && p.t0 === sh.t0 && p.dx === sh.dx && p.dy === sh.dy && p.power === sh.power && mg3Rolling(pid)) return;
     const off = (mgRoomClock() - sh.t0) / 1000;
-    // Too late to watch (a reload, a phone that slept): the ball is simply where it lies.
-    if (first || off * 1000 > sh.dur + 300) { mg3StopBall(pid, sh.at); return; }
+    // Too late to watch (a reload, a phone that slept): every ball is simply where it lies.
+    if (first || off * 1000 > sh.dur + 300) { mg3StopBall(pid, ((s.balls || {})[pid] || {}).at || sh.at); return; }
     const loud = pid === Room.me ? !tv : (tv || !roomHasScreen());
-    mg3Play(pid, golfStart(h, sh.from, sh), off, { from: sh.from, loud, onEnd: (sim) => mgRoomEnded(pid, sim) });
+    mg3Play(pid, golfStart(h, sh.from, sh, sh.others || undefined), off, { from: sh.from, returns: mgReturns(sh.end, sh.at, sh.moved), loud, onEnd: (sim) => mgRoomEnded(pid, sim) });
   });
 }
 
@@ -91668,10 +93026,13 @@ function mgRoomCourse(state, root, tv) {
     MG3.balls.forEach(b => mg3RemoveBall(b));
     MG3.balls.clear();
   }
+  const turns = s.settings.mode === 'turns';
   const balls = (s.order || []).map(pid => {
     const b = s.balls[pid] || {};
     const me = pid === Room.me && !tv;
-    return { id: pid, at: b.at || h.tee, color: mgRoomColor(s, pid), ghost: !tv && !me && !(s.settings.mode === 'turns'), hidden: !!b.done, label: me ? '' : mgName(state, pid) };
+    // In turns a ball comes onto the course when it is hit from the tee: till then only the one up waits there.
+    const offCourse = turns && !b.n && s.turn !== pid;
+    return { id: pid, at: b.at || h.tee, color: mgRoomColor(s, pid), ghost: !tv && !me && !turns, hidden: !!b.done || offCourse, label: me ? '' : mgName(state, pid) };
   });
   mg3SyncBalls(balls);
   mgRoomReplays(state, tv);
@@ -91679,10 +93040,12 @@ function mgRoomCourse(state, root, tv) {
     can: () => !!Room.state && mgRoomCanPutt(Room.state) && appState.currentView === 'room-minigolf',
     from: () => { const st = Room.state; const b = st && st.shared.balls[Room.me]; return b ? b.at : h.tee; },
     guide: () => !!((Room.state || {}).shared || {}).settings && !!Room.state.shared.settings.guide,
+    others: () => mgRoomOthers((Room.state || {}).shared, Room.me),
     onShot: mgRoomPutt
   };
   MG3.onFrame = null;
 }
+
 
 /** The host's buttons: putt for a phone that went quiet (away, or its ball waiting 30 seconds). */
 function mgHostButtons(state) {
@@ -91782,7 +93145,7 @@ function mgBetweenHtml(state, tv) {
   const words = rows.map(r => {
     const v = r.card[s.hole];
     return `<li class="mg-res ${r.me ? 'is-me' : ''}"><span class="mg-dot" style="--c:${r.color}"></span><span class="mg-res__name">${escapeHTML(r.name)}</span>
-        <span class="mg-res__word">${typeof v === 'number' ? escapeHTML(v > GOLF.CAP ? mgT('mg_picked') : mgWordOf(v, h.par)) : ''}</span><b class="metric">${typeof v === 'number' ? v : '·'}</b></li>`;
+        <span class="mg-res__word">${typeof v === 'number' ? escapeHTML(v > golfMaxOf(h) ? mgT('mg_picked', { n: v }) : mgWordOf(v, h.par)) : ''}</span><b class="metric">${typeof v === 'number' ? v : '·'}</b></li>`;
   }).join('');
   return `<div class="mg-panel__card card">
       <p class="eyebrow">${escapeHTML(mgT('mg_hole_big', { n: s.hole + 1 }))} · ${escapeHTML(mgHoleName(s.hole))}</p>
@@ -91806,7 +93169,7 @@ function mgOverHtml(state, tv) {
   const w = (s.result || {}).winners || [];
   const line = w.length && rows.length > 1 ? `<p class="mg-panel__word">🏆 ${escapeHTML(w.map(id => mgName(state, id)).join(appState.lang === 'en' ? ', ' : '، '))}</p>` : '';
   return `<div class="mg-panel__card card mg-panel__card--over">
-      <p class="eyebrow">${escapeHTML(mgT('mg_result_title', { n: s.holes }))}</p>
+      <p class="eyebrow">${escapeHTML(mgT('mg_result_title', { hh: mgHolesText(s.holes) }))}</p>
       ${line}
       ${podium}
       ${mgCardHtml(rows, s.holes, { upto: s.holes })}
@@ -91823,7 +93186,8 @@ function mgRoomChrome(state, root, tv) {
   const mine = !tv && !!me;
   const clock = s.settings.clock && s.phase === 'play' ? '<span class="mg-chip mg-chip--clock" data-mg-clock></span>' : '';
   const up = s.settings.mode === 'turns' && s.turn ? `<span class="mg-chip mg-chip--turn">${escapeHTML(s.turn === Room.me && !tv ? mgT('mg_your_turn').split('!')[0] + '!' : mgT('mg_turn_of', { name: mgName(state, s.turn) }))}</span>` : '';
-  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole: s.hole, holes: s.holes, strokes: mine ? me.n : undefined, extra: up + clock }));
+  const last = mine && s.phase === 'play' && !me.done && me.n === golfMaxOf(GOLF_HOLES[s.hole]) - 1;
+  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole: s.hole, holes: s.holes, strokes: mine ? me.n : undefined, last, extra: up + clock }));
   mgSet(mgPart(root, 'players'), tv ? '' : mgPlayersHtml(state, tv));
   const hint = mgPart(root, 'hint');
   if (hint) {

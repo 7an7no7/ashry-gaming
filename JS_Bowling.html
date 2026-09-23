@@ -520,7 +520,12 @@ function bowlGfxMount(stage, retry) {
   bowlGfxMessage(stage, 'loading');
   return g.ready.then(ok => {
     if (!ok) { bowlGfxMessage(stage, g.why); return false; }
-    // The screen may have closed while three.js loaded.
+    const v = appState.currentView;
+    const onLane = v === 'play-bowling' || v === 'room-bowling' || (v === 'room-tv' && typeof Room !== 'undefined' && Room.state && Room.state.game === 'bowling');
+    // The screens of bowling were left while three.js loaded: the lane just built lets go at once
+    // (its screen's leaving found nothing to dispose yet).
+    if (!onLane) { bowlGfxDispose(); return false; }
+    // This screen was redrawn meanwhile: the new one mounts the lane itself.
     if (!stage.isConnected) return false;
     return place();
   });

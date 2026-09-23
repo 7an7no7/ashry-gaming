@@ -748,7 +748,11 @@ work changed. Add to it when a decision is made or a batch ships.
     table) but a secret face only once the game is over; any face can be put
     down or back up by hand at any time; a seated player who leaves loses by
     forfeit, as in the duels; a board never holds two faces the list can't
-    tell apart.
+    tell apart. **With the turn clock on, picking your own face has a clock
+    of its own, 60 seconds** (`GW_PICK_SECS`, the audit of 23 Sep 2026: it had
+    none, so one player could hold the game), and whoever hasn't picked is
+    dealt a face; a turn skipped while the other was to answer says so
+    («… ما ردّش»), not that the asker didn't ask.
 
 - **المشنقة (Hangman)** - the owner's spec of 22 Sep 2026, asked one at a
   time, look ج "نضيف" picked from a sheet of three (*المشنقة*):
@@ -2073,6 +2077,32 @@ the word search), `countUp` for streaks and scores.
   headless Chrome: four phones at 375×812 (and one sideways) and the TV at
   1920×1080 and 1280×720, Arabic and English, a reload mid-match, Help, the
   review of a tournament game, no console errors.
+- **23 Sep 2026, the audit of the day's games and every finding fixed** - a
+  read-only audit of everything written on 22-23 Sep (agy's Gemini read seven
+  modules, Claude reviewers the rest when agy's quota ran out; every moderate
+  finding checked against the code), then the owner asked for every moderate
+  and minor finding to be fixed. Fixed: المشنقة's whole-word box wiped by
+  others' guesses; خمّن مين's bubble and drum roll silent after the eighth
+  entry, no clock while picking a face, the wrong name on a skipped answer;
+  the tournament's TV bracket button, its game numbers, a double tap's error,
+  hidden state kept after a match; the duels' motion silent in a second game
+  from the hub; حرب السفن telling a sinking (ships afloat, the fleet list, the
+  win) before the shell landed; a called play in كدّاب / الشايب stuck over
+  every screen; الشايب's draw from a hand that just left; the setter order
+  in المشنقة and the solve engine; one letter in the whole-word box, and a
+  guess's length; شطرنج's room games kept under one key, the room clock after
+  a reload (the server's time, above), the computer's clock during the blunder
+  warning, the take back's clock, the clock of a locked phone, "try the
+  better move" replacing a game without asking, a refused early move, the
+  review stepping back, timers after the board was disposed; ميني جولف
+  drawing in the background after leaving mid-load, a pull on a ball under
+  water, old saves on the old holes, a ball in the air at the time limit;
+  بولينج's lane built after leaving; a three.js load that could never be
+  retried. Rules tests: 24 new ("audit/…"); run on the old code, they fail at
+  once (the tournament's double tap throws, the Hangman order picks the wrong
+  writer).
+  The slow opening the owner saw the same day was GitHub Pages sending at
+  20-50 KB/s (the page is 1.6 MB); left for now at the owner's word.
 
 ## Building and Running
 
@@ -2419,6 +2449,17 @@ awake to end it. `roomDeadline(room)` in `RoomGames.js` says when to look again
 and `roomTimeout(room, now)` acts on it: a Trivia question closes, a Draw & Guess
 round reveals its word. Phones still end rounds on time themselves; the server is
 the backstop a moment later.
+
+**A phone reads a running clock by the server's time.** Every projection
+carries `serverNow` (the server's `Date.now()` as it was sent, `view.js`), and
+the room engine stamps each one with `receivedAt` as it arrives (`arrived` in
+`JS_Room.html`). The smallest `receivedAt - serverNow` seen is the network's
+share, so a phone that has just reloaded or joined shows a chess clock (and
+mini golf's moving pieces) right at once. It used to learn the gap from the
+clock's own start stamp, which after a reload is as old as the move being
+thought about: the audit of 23 Sep 2026 found a player 40 seconds into a move
+shown 40 seconds too many. Measure from the arrival, never from the drawing: a
+screen that isn't showing draws its update seconds later.
 
 **The voting engine.** لو خيروك, مين أكثر واحد and فيبج all run on one
 implementation in `RoomGames.js`: `openVote` / `castVote` / `closeVote`, plus
@@ -5562,6 +5603,42 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A play-once key must carry the deal, not only the round.** A room's round
+starts at 1 again at every new game from the hub and every new tournament, and
+a capped list's length stops changing once it is full. The duels keyed their
+motion, sounds and confetti on the room code and the round, خمّن مين its answer
+bubble on the log's length (kept at 8): the next tournament's games, a second
+game from the hub, and every question after the eighth played silently. The
+keys carry `roomDealKey(state)` now, خمّن مين a counter that only goes up
+(`s.logSeq`), and a tournament's game number is `t.no * 1000 + gameSeq`. The same
+mistake kept only the first chess game of a room for review (`chRoomGameKey`
+has the deal in it now).
+
+**A 3D screen has to ask, when three.js arrives, whether it is still wanted.**
+Leaving mini golf while three.js was loading found nothing to dispose; the
+course was then built into the hidden screen and drew 30 frames a second in
+the background until golf was opened again. `mg3Mount` and `bowlGfxMount`
+check the screen after loading and let go (chess and battleship already did).
+
+**Redrawing a room screen with innerHTML wipes what is being typed.** المشنقة
+rebuilt its frame on everyone's progress, so a name typed in the whole-word box
+vanished whenever someone else guessed a letter. `hmKeepTyping` /
+`hmRestoreTyping` keep the value, the caret and the focus across the rebuild
+(خمّن مين does the same with `gwLocal.typed`). Any room screen with a text
+field needs one of the two.
+
+**A setter's place in the order is a number: move it when the order shrinks.**
+المشنقة and "one sets, everyone solves" count the next setter from `setterAt`.
+Someone before it leaving shifted everyone after them, so one player set twice
+and the next was skipped; `setterAt` now moves back one when someone at or
+before it leaves.
+
+**`wrangler dev` on Windows fails when its storage path is too long.** A copy
+of the project deep in a temp folder answered every room with "internal
+error" (SQLite behind the Durable Objects hit the path limit); `--persist-to`
+a short folder fixed it. Also: `.preview/` has one fixed place, so a second
+session building its own preview overwrites the first's.
 
 **A room screen's signature must carry the deal.** ارسم وخمّن keyed its frame
 on the round, the drawer and the phase; going back to the hub and dealing the

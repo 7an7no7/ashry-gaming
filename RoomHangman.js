@@ -294,6 +294,10 @@ const hmTimeout = (room, now) => {
 const hmPlayerLeft = (room, playerId) => {
   const s = room.shared;
   if (!s || !s.settings || s.phase === 'gameover') return;
+  // The next setter is counted from setterAt: someone leaving at or before it moves it back one,
+  // or the next one in the order would be skipped (and the one before would set twice).
+  const leftAt = (s.order || []).indexOf(playerId);
+  if (leftAt !== -1 && typeof s.setterAt === 'number' && leftAt <= s.setterAt) s.setterAt -= 1;
   s.order = (s.order || []).filter(id => id !== playerId);
   if (s.phase === 'guessing' && room._hm && room._hm.boards[playerId]) {
     delete room._hm.boards[playerId];
@@ -310,8 +314,7 @@ const hmPlayerLeft = (room, playerId) => {
     return;
   }
   if (s.phase === 'writing' && s.setter === playerId) {
-    // The one who left was up; setterAt moves back one so the next in the order writes.
-    s.setterAt = (s.setterAt || 0) - 1;
+    // The one who left was up (setterAt has moved back one above): the next in the order writes.
     hmDeal(room);
     return;
   }

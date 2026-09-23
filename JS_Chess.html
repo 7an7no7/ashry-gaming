@@ -209,6 +209,8 @@ function chPieceParts(THREE) {
 }
 
 function chMake3D(THREE, root) {
+  // Disposed: the timers a move left behind find nothing to draw on.
+  let dead = false;
   const canvas = document.createElement('canvas');
   canvas.className = 'ch-canvas';
   root.insertBefore(canvas, root.firstChild);
@@ -527,7 +529,7 @@ function chMake3D(THREE, root) {
     if (a.promo) {
       const code = CH_LETTER_KIND[a.promo] | (grp.userData.code & 8);
       setTimeout(() => {
-        if (pieces.get(to) !== grp) return;
+        if (dead || pieces.get(to) !== grp) return;
         const np = buildPiece(code);
         np.position.copy(sqPos(to));
         scene.add(np);
@@ -733,8 +735,10 @@ function chMake3D(THREE, root) {
           }
         }
       }
+      // Settle on this model once whatever is moving has finished - also when nothing new moved but
+      // something still is (a move refused mid-slide: the board goes back to the room's).
       if (!moved && !tweens.length) snap();
-      else if (moved) setTimeout(() => { if (model === m && !tweens.length && !drag) { snap(); render(); } }, Math.max(0, busyUntil - Date.now() + 30));
+      else setTimeout(() => { if (!dead && model === m && !tweens.length && !drag) { snap(); render(); } }, Math.max(0, busyUntil - Date.now() + 30));
       if (!moved) markCheck();
       if (m.mate && mateKey !== m.key + '|mate') {
         mateKey = m.key + '|mate';
@@ -748,6 +752,7 @@ function chMake3D(THREE, root) {
   /* --- the loop: only while something moves --- */
   let raf = 0, running = false, paused = false;
   function render() {
+    if (dead) return;
     renderer.render(scene, cam);
   }
   function frame(now) {
@@ -782,6 +787,7 @@ function chMake3D(THREE, root) {
   resize();
 
   function dispose() {
+    dead = true;
     if (raf) cancelAnimationFrame(raf);
     ro.disconnect();
     const seen = new Set();
@@ -1183,6 +1189,8 @@ function chEloLabel(elo) {
 
 function paintShatranjSetup() {
   const s = chState();
+  // A "try the better move" game played against the computer is over: the setup is as it was chosen.
+  if (s.vsBefore && !(s.practice && s.phase === 'play')) { s.vs = s.vsBefore; s.vsBefore = null; saveToLocal(); }
   duelPaintSegmented('shatranj-vs', s.vs);
   duelPaintSegmented('shatranj-color', s.color);
   duelPaintSegmented('shatranj-clock', s.clock);
@@ -1283,6 +1291,8 @@ function chPlayLocal(from, to, promo) {
   if (!chHumanTurn(s) || Date.now() < chLocal.busy || chLocal.pending) return;
   const before = chessCloneGame(s.g);
   const beforeLost = [s.lost[0].slice(), s.lost[1].slice()];
+  // The clock as it was before this move (and when it was made), for a take back.
+  const beforeClk = s.clk ? { clk: JSON.parse(JSON.stringify(s.clk)), side: s.g.turn, at: Date.now() } : null;
   s.comment = null;
   const info = chApplyMove(s, { from: from, to: to, promo: promo });
   if (!info) return;
@@ -1291,7 +1301,7 @@ function chPlayLocal(from, to, promo) {
   // The coach watches your moves against the computer: a blunder is caught before it counts.
   if (s.vs === 'phone' && s.coach && s.phase === 'play' && (s.coachOpts.warn !== false || s.coachOpts.comment !== false)) {
     chPaint();
-    setTimeout(() => chCoachJudge(before, beforeLost, info), 40);
+    setTimeout(() => chCoachJudge(before, beforeLost, info, beforeClk), 40);
     return;
   }
   chPaint();
@@ -1465,7 +1475,7 @@ function chCoachPrepare() {
 }
 
 /** Your move against the computer, judged: a blunder waits for you to take it back or play it anyway. */
-function chCoachJudge(before, beforeLost, info) {
+function chCoachJudge(before, beforeLost, info, beforeClk) {
   const s = chState();
   const key = s.gameId + '|' + (s.hist.length - 1);
   const pre = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : chessAnalyse(before, { nodes: CH_COACH_NODES, ms: 900 });
@@ -1473,7 +1483,11 @@ function chCoachJudge(before, beforeLost, info) {
   const mv = { from: info.from, to: info.to, promo: info.promo || '' };
   const verdict = chessJudge(before, mv, pre, after);
   if (s.coachOpts.warn !== false && verdict.cls === 'blunder' && s.phase !== 'done') {
-    chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: s.clk ? JSON.parse(JSON.stringify(s.clk)) : null };
+    chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null };
+    // Nobody's clock runs while the warning is read: the computer's is stopped where it is, and it
+    // runs again on "play it anyway" (chAfterMove); a take back puts yours back as it was.
+    chStopTimers();
+    chPauseClock();
     chPaint();
     chCoachWarn(verdict);
     return;
@@ -1511,8 +1525,16 @@ function chCoachTakeBack() {
   s.lost = p.lost;
   s.hist = s.hist.slice(0, p.hist - 1);
   s.sans = s.sans.slice(0, p.hist - 1);
-  if (p.clk) s.clk = p.clk;
-  if (s.clk && s.clk.at) s.clk.at = Date.now();
+  if (p.clk) {
+    // Your clock as it stood when you moved (no increment for a move that is gone); if it wasn't
+    // running yet (White's free first move), it still isn't.
+    const c = p.clk.clk;
+    if (c.at !== null && c.at !== undefined) {
+      c.left[p.clk.side] = Math.max(0, chessClockLeft(c, p.clk.side, p.clk.side, p.clk.at));
+      c.at = Date.now();
+    }
+    s.clk = c;
+  }
   s.phase = 'play';
   s.result = null;
   s.last = null;
@@ -1727,4 +1749,12 @@ if (typeof onLeaveScreen === 'function') {
     if (!keep) chViewDrop();
   });
 }
+
+// The clock counts only while the board is looked at: a locked phone or another app stops it, as
+// leaving the screen does (the guide's "stands still while the board is off screen").
+document.addEventListener('visibilitychange', () => {
+  if (appState.currentView !== 'play-shatranj') return;
+  if (document.hidden) { chStopTimers(); chPauseClock(); }
+  else if (!chLocal.pending) chAfterMove();
+});
 </script>

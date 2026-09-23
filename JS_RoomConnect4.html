@@ -286,7 +286,7 @@ function c4RoomDropEarly(state, col) {
   const board = c4Clone(c4RoomBoard(s));
   const res = c4Play(board, col, seat + 1);
   if (!res) return;
-  const key = ['c4', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  const key = ['c4', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
   duelRoomDrawEarly('connect4', key, c4BoardHtml(board, { last: { row: res.row, col: res.col }, playable: false, next: 2 - seat }),
     (box) => c4AfterPaint(box, { dropKey: key, sound: duelRoomLoud(state) }));
 }
@@ -349,7 +349,7 @@ ROOM_GAMES.connect4 = {
         </div>
       </div>`);
     if (rebuilt) {
-      const key = ['c4', state.code, s.round].join('|');
+      const key = ['c4', roomDealKey(state), s.round].join('|');
       const dropKey = s.last ? key + '|' + s.moves : '';
       c4AfterPaint(el, {
         onDrop: c4RoomDrop,
@@ -363,7 +363,7 @@ ROOM_GAMES.connect4 = {
         turn: s.phase === 'play' ? s.turn : -1,
         scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
       });
-      if (myTurn && duelOnce(['c4turn', state.code, s.round, s.moves].join('|'))) haptic('medium');
+      if (myTurn && duelOnce(['c4turn', roomDealKey(state), s.round, s.moves].join('|'))) haptic('medium');
       duelRoomCheer(el, state, key);
     }
     refreshRoomPlayerStrip(el, state);
@@ -437,7 +437,7 @@ TV_GAMES.connect4 = {
     const el = document.getElementById('view-room-tv');
     const s = state.shared || {};
     if (!el || !s.grid) return;
-    const key = ['c4', state.code, s.round].join('|');
+    const key = ['c4', roomDealKey(state), s.round].join('|');
     c4AfterPaint(el, {
       dropKey: s.last ? key + '|' + s.moves : '',
       win: s.win, draw: !!(s.result && s.result.draw),

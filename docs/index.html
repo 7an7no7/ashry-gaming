@@ -22587,8 +22587,11 @@ const hmApply = (board, word, guess, whole) => {
   if (!board || board.state !== 'play') return '';
   const alpha = hmAlphaOf(word);
   if (whole) {
-    const text = hmClean(guess);
+    // No guess is longer than the longest word that can be written (the field says 28 too).
+    const text = hmClean(String(guess || '').slice(0, 64));
     if (!text) return '';
+    // One letter typed in the word's box is that letter, not a wrong word.
+    if (hmLettersOf(text).length === 1) return hmApply(board, word, text, false);
     if (hmSameWord(text, word)) {
       hmLettersOf(word).forEach(c => { const k = hmFold(c); if (board.g.indexOf(k) === -1) board.g.push(k); });
       board.state = 'won';
@@ -23432,6 +23435,12 @@ const GOLF_BY_ID = {};
 GOLF_HOLES.forEach(h => { GOLF_BY_ID[h.id] = h; });
 /** A hole by its id; an id this build doesn't know is the first hole, never a crash. */
 function golfHoleById(id) { return GOLF_BY_ID[id] || GOLF_HOLES[0]; }
+
+// The course's order before the holes were sorted into kinds (a game saved then kept only how many
+// holes it had, and played them in this order): such a game carries on on the holes it was playing.
+const GOLF_LEGACY_ORDER = ['first', 'bridge', 'mill', 'souq', 'humps', 'fair', 'pyramid', 'nile', 'saqia', 'siwa', 'lighthouse', 'citadel', 'gate', 'port', 'temple', 'sinai', 'oasis', 'tower'];
+/** The first n holes of that order (a game saved with a count instead of its list). */
+function golfLegacyCourse(n) { return GOLF_LEGACY_ORDER.slice(0, Math.max(1, Number(n) || 6)); }
 /** The ids of every hole of one kind (1 easy, 2 medium, 3 hard). */
 function golfLevelIds(lvl) { return GOLF_HOLES.filter(h => h.lvl === lvl).map(h => h.id); }
 
@@ -23470,7 +23479,7 @@ function golfDealCourse(count, level, pick) {
 
 /** What a list of holes asks for, added up (ids or holes); a number is the first n holes. */
 function golfParOf(list) {
-  if (typeof list === 'number') list = GOLF_HOLES.slice(0, list);
+  if (typeof list === 'number') list = golfLegacyCourse(list);
   let p = 0;
   (list || []).forEach(x => { const h = typeof x === 'string' ? golfHoleById(x) : x; if (h) p += h.par; });
   return p;
@@ -23979,7 +23988,9 @@ function golfStep(sim) {
   for (let i = 0; i < others.length; i++) if (!others[i].end) golfMove(sim, others[i], clock);
   const all = [sim].concat(others);
   golfBallsMeet(sim, all);
-  if (sim.t >= GOLF.MAX_T) all.forEach(b => { if (!b.end) { b.end = 'rest'; b.vx = b.vy = 0; } });
+  // Out of time: every ball on the ground stops where it is; one in the air first lands (golfMove
+  // rests it then, after the water and the cup have had their say), never stopping over the water.
+  if (sim.t >= GOLF.MAX_T) all.forEach(b => { if (!b.end && !b.air) { b.end = 'rest'; b.vx = b.vy = 0; } });
   let done = true;
   for (let i = 0; i < all.length; i++) if (!all[i].end) { done = false; break; }
   sim.done = done;
@@ -25514,7 +25525,7 @@ const svEmojiClueProblem = (clue, answer) => {
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260923152416";
+      window.BUILD_ID = "20260923170726";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -30779,6 +30790,8 @@ const svEmojiClueProblem = (clue, answer) => {
       gw_out: "وقع {n}",
       gw_guessed_wrong: "تخمين {name}: {face}، وطلع غلط",
       gw_skipped: "دور {name} عدّى من غير سؤال",
+      gw_skipped_answer: "{name} ما ردّش، والدور عدّى",
+      gw_skipped_flip: "دور {name} عدّى قبل ما ينزّل الوشوش",
       gw_pick_title: "اختار وشّك السري قدام {name}",
       gw_pick_confirm: "ده وشّي: {name}",
       gw_pick_wait: "مستنيين اختيار {name}…",
@@ -32441,6 +32454,7 @@ const svEmojiClueProblem = (clue, answer) => {
       cs_change_rules: "غيّر القواعد (لعبة جديدة)",
       cs_confirm_end: "اللعبة اللي شغالة هتتمسح عشان تغيّر القواعد. متأكد؟",
       cs_confirm_new: "فيه لعبة شغالة. تبدأ لعبة جديدة وتمسحها؟",
+      ch_try_replace: "فيه ماتش شطرنج لسه ما خلصش. تجرّب الحركة الأحسن مكانه؟",
       cs_seating: "ترتيب القعدة",
       cs_seating_swap: "اضغط على اسمين عشان تبدّل مكانهم.",
       cs_dealer: "بيوزّع: {name}",
@@ -33833,6 +33847,8 @@ const svEmojiClueProblem = (clue, answer) => {
       gw_out: "{n} went down",
       gw_guessed_wrong: "{name} guessed {face}: wrong",
       gw_skipped: "{name}'s turn passed with no question",
+      gw_skipped_answer: "{name} didn't answer, so the turn passed",
+      gw_skipped_flip: "{name}'s turn passed before the faces went down",
       gw_pick_title: "Pick your secret face against {name}",
       gw_pick_confirm: "That's mine: {name}",
       gw_pick_wait: "Waiting for {name} to pick…",
@@ -35495,6 +35511,7 @@ const svEmojiClueProblem = (clue, answer) => {
       cs_change_rules: "Change the rules (new game)",
       cs_confirm_end: "The game in progress will be deleted to change the rules. Sure?",
       cs_confirm_new: "A game is in progress. Start a new one and delete it?",
+      ch_try_replace: "A chess game isn't finished yet. Try the better move in its place?",
       cs_seating: "Seating order",
       cs_seating_swap: "Tap two names to swap their seats.",
       cs_dealer: "Deals: {name}",
@@ -41397,6 +41414,9 @@ const Room = (() => {
 
   let session = null;      // { code, playerId, key, game }
   let state = null;        // last projection from the server
+  // When each projection reached this phone, beside the server's time on it (serverNow): the
+  // two together are the network's delay, whenever the screen gets round to drawing it.
+  const arrived = (s) => { if (s && typeof s === 'object') s.receivedAt = Date.now(); return s; };
   let heardAt = 0;         // when the server last answered, over either path
   let listeners = [];
   let liveListeners = [];
@@ -41608,7 +41628,7 @@ const Room = (() => {
     heardAt = Date.now();
 
     if (msg.t === 'state') {
-      state = msg.state;
+      state = arrived(msg.state);
       emit(false);
     } else if (msg.t === 'strokes') {
       applyStrokes(msg);
@@ -41641,7 +41661,7 @@ const Room = (() => {
 
   function settleAck(msg) {
     if (msg.patch) applyStrokes(msg.patch);
-    else if (msg.state) { state = msg.state; emit(false); }
+    else if (msg.state) { state = arrived(msg.state); emit(false); }
 
     const waiter = pending.get(msg.id);
     if (!waiter) return;
@@ -41678,7 +41698,7 @@ const Room = (() => {
           state.players.forEach(p => { p.online = !!p.bot || res.online.indexOf(p.id) !== -1; });
           (state.screens || []).forEach(x => { x.online = res.online.indexOf(x.id) !== -1; });
         } else if (res.state) {
-          state = res.state;
+          state = arrived(res.state);
         }
         setSyncing(false);
         emit(false);
@@ -41705,7 +41725,7 @@ const Room = (() => {
       request('/leave', { code: old.code, pid: old.playerId, key: old.key }).catch(() => {});
     }
     session = { code: res.state.code, playerId: res.playerId, key: res.key, game: game };
-    state = res.state;
+    state = arrived(res.state);
     lastSignature = '';
     remember();
     emit(true);
@@ -41778,7 +41798,7 @@ const Room = (() => {
             throw new Error(res.gone ? DROPPED.gone : DROPPED.kicked);
           }
           if (!res.ok) throw new Error(res.error || 'تعذر تنفيذ الإجراء');
-          if (res.state && session) { state = res.state; emit(false); }
+          if (res.state && session) { state = arrived(res.state); emit(false); }
           connect();
           return state;
         });
@@ -41822,7 +41842,7 @@ const Room = (() => {
           remember();
           return false;
         }
-        state = res.state;
+        state = arrived(res.state);
         emit(true);
         connect();
         return true;
@@ -85501,7 +85521,7 @@ function c4RoomDropEarly(state, col) {
   const board = c4Clone(c4RoomBoard(s));
   const res = c4Play(board, col, seat + 1);
   if (!res) return;
-  const key = ['c4', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  const key = ['c4', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
   duelRoomDrawEarly('connect4', key, c4BoardHtml(board, { last: { row: res.row, col: res.col }, playable: false, next: 2 - seat }),
     (box) => c4AfterPaint(box, { dropKey: key, sound: duelRoomLoud(state) }));
 }
@@ -85564,7 +85584,7 @@ ROOM_GAMES.connect4 = {
         </div>
       </div>`);
     if (rebuilt) {
-      const key = ['c4', state.code, s.round].join('|');
+      const key = ['c4', roomDealKey(state), s.round].join('|');
       const dropKey = s.last ? key + '|' + s.moves : '';
       c4AfterPaint(el, {
         onDrop: c4RoomDrop,
@@ -85578,7 +85598,7 @@ ROOM_GAMES.connect4 = {
         turn: s.phase === 'play' ? s.turn : -1,
         scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
       });
-      if (myTurn && duelOnce(['c4turn', state.code, s.round, s.moves].join('|'))) haptic('medium');
+      if (myTurn && duelOnce(['c4turn', roomDealKey(state), s.round, s.moves].join('|'))) haptic('medium');
       duelRoomCheer(el, state, key);
     }
     refreshRoomPlayerStrip(el, state);
@@ -85652,7 +85672,7 @@ TV_GAMES.connect4 = {
     const el = document.getElementById('view-room-tv');
     const s = state.shared || {};
     if (!el || !s.grid) return;
-    const key = ['c4', state.code, s.round].join('|');
+    const key = ['c4', roomDealKey(state), s.round].join('|');
     c4AfterPaint(el, {
       dropKey: s.last ? key + '|' + s.moves : '',
       win: s.win, draw: !!(s.result && s.result.draw),
@@ -85705,7 +85725,7 @@ function dotsRoomDrawEarly(state, e) {
   const board = { n: b.n, lines: b.lines.slice(), boxes: b.boxes.slice() };
   const res = dotsPlay(board, e, seat + 1);
   if (!res) return;
-  const key = ['dots', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  const key = ['dots', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
   const html = dotsBoardHtml(board, { last: { edge: e, boxes: res.boxes }, playable: false, next: seat + 1, initials: dotsInitials(duelRoomNames(state)) });
   duelRoomDrawEarly('dots', key, html, (box) => dotsAfterPaint(box, board, { lineKey: key, sound: duelRoomLoud(state) }));
 }
@@ -85771,7 +85791,7 @@ ROOM_GAMES.dots = {
         </div>
       </div>`);
     if (rebuilt) {
-      const key = ['dots', state.code, s.round].join('|');
+      const key = ['dots', roomDealKey(state), s.round].join('|');
       const lineKey = s.last ? key + '|' + s.moves : '';
       dotsAfterPaint(el, board, {
         onDraw: dotsRoomDraw,
@@ -85785,7 +85805,7 @@ ROOM_GAMES.dots = {
         scores: (s.count || [0, 0]).slice(),
         againKey: again ? key + '|' + s.moves : ''
       });
-      if (myTurn && duelOnce(['dotsturn', state.code, s.round, s.moves].join('|'))) haptic('medium');
+      if (myTurn && duelOnce(['dotsturn', roomDealKey(state), s.round, s.moves].join('|'))) haptic('medium');
       duelRoomCheer(el, state, key);
     }
     refreshRoomPlayerStrip(el, state);
@@ -85816,7 +85836,7 @@ TV_GAMES.dots = {
     const el = document.getElementById('view-room-tv');
     const s = state.shared || {};
     if (!el || !s.lines) return;
-    const key = ['dots', state.code, s.round].join('|');
+    const key = ['dots', roomDealKey(state), s.round].join('|');
     const again = dotsRoomAgain(s);
     dotsAfterPaint(el, dotsRoomBoard(s), {
       lineKey: s.last ? key + '|' + s.moves : '',
@@ -85919,7 +85939,7 @@ function xoRoomEarly(state, cell) {
   const order = { X: ((s.order || {}).X || []).slice(), O: ((s.order || {}).O || []).slice() };
   const placed = xoMark(cells, order, s.rule3, cell, seat === 0 ? 'X' : 'O');
   if (!placed) return;
-  const key = ['xo', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  const key = ['xo', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
   const next = Object.assign({}, s, { cells: cells, order: order, last: { seat: seat, cell: cell, gone: placed.gone }, win: [] });
   duelRoomDrawEarly('xo', key, xoRoomBoardHtml(next, { popKey: key }), () => {
     if (duelOnce('snd|' + key)) duelSound('drop');
@@ -85967,7 +85987,7 @@ ROOM_GAMES.xo = {
     const seat = (s.seats || []).indexOf(Room.me);
     const myTurn = s.phase === 'play' && seat === s.turn && !state.youAreScreen;
     const leaving = xoRoomLeaving(state);
-    const key = ['xo', state.code, s.round].join('|');
+    const key = ['xo', roomDealKey(state), s.round].join('|');
     const moveKey = s.last ? key + '|' + s.moves : '';
     const sig = ['xor', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
                  JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name).join(','),
@@ -86000,7 +86020,7 @@ ROOM_GAMES.xo = {
         turn: s.phase === 'play' ? s.turn : -1,
         scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
       });
-      if (myTurn && duelOnce(['xoturn', state.code, s.round, s.moves].join('|'))) haptic('medium');
+      if (myTurn && duelOnce(['xoturn', roomDealKey(state), s.round, s.moves].join('|'))) haptic('medium');
       duelRoomCheer(el, state, key);
     }
     refreshRoomPlayerStrip(el, state);
@@ -86018,7 +86038,7 @@ TV_GAMES.xo = {
   frame(state, t) {
     const s = state.shared || {};
     if (!Array.isArray(s.cells)) return tvLookAtPhones(t);
-    const key = ['xo', state.code, s.round].join('|');
+    const key = ['xo', roomDealKey(state), s.round].join('|');
     return `
       <div class="duel-tv xo-game" data-accent="blue">
         <div class="duel-tv__board" style="--duel-aspect:1">
@@ -86032,7 +86052,7 @@ TV_GAMES.xo = {
     const el = document.getElementById('view-room-tv');
     const s = state.shared || {};
     if (!el || !Array.isArray(s.cells)) return;
-    const key = ['xo', state.code, s.round].join('|');
+    const key = ['xo', roomDealKey(state), s.round].join('|');
     xoRoomAfter(el, state, key, true);
     duelPillsAfter(el, 'xotv|' + state.code, {
       turn: s.phase === 'play' ? s.turn : -1,
@@ -86097,6 +86117,8 @@ const gwT = (key, vars) => {
   return s;
 };
 const gwFaceName = (x) => gwName(x, appState.lang);
+// The number of the log's newest entry (the log keeps only its last few; a room saved before logSeq counts its length).
+const gwLogSeq = (s) => (typeof s.logSeq === 'number' ? s.logSeq : (s.log || []).length);
 const gwQText = (qi) => {
   const q = GW_QUESTIONS[qi];
   return q ? (appState.lang === 'en' ? q.en : q.ar) : '';
@@ -86213,7 +86235,8 @@ function gwQaHtml(state, tv) {
       </div>`;
   }
   if (!pending && last && last.kind === 'skip') {
-    return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_skipped', { name: duelIso(names[last.seat] || '') }))}</span></div>`;
+    const said = last.stage === 'answer' ? 'gw_skipped_answer' : last.stage === 'flip' ? 'gw_skipped_flip' : 'gw_skipped';
+    return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT(said, { name: duelIso(names[last.seat] || '') }))}</span></div>`;
   }
   if (!q) return `<div class="gw-qa gw-qa--empty ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_first_q'))}</span></div>`;
   if (q.kind === 'guess') return `<div class="gw-qa gw-qa--empty ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_first_q'))}</span></div>`;
@@ -86221,7 +86244,7 @@ function gwQaHtml(state, tv) {
   const text = q.kind === 'list' ? gwT('gw_asked_list', { name: asker, q: gwQText(q.qi) })
     : q.kind === 'typed' ? gwT('gw_asked_list', { name: asker, q: q.text || '' }) : gwT('gw_asked_loud', { name: asker });
   const answered = typeof q.answer === 'boolean';
-  const pop = answered && motionFirst(['gw-qa', roomDealKey(state), s.round, s.log.length, q.seat].join('|'));
+  const pop = answered && motionFirst(['gw-qa', roomDealKey(state), s.round, gwLogSeq(s), q.seat].join('|'));
   const thinking = `<span class="gw-qa__a is-wait gw-think">💭 ${escapeHTML(gwT('gw_thinking', { name: duelIso(names[1 - q.seat] || '') }))}<span class="gw-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>`;
   const ans = answered
     ? `<span class="gw-qa__a ${q.answer ? 'is-yes' : 'is-no'} ${pop ? 'is-in' : ''}">${escapeHTML(q.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>` : thinking;
@@ -86468,7 +86491,7 @@ function gwMoments(state, loud) {
   const log = s.log || [];
   const last = log[log.length - 1];
   if (!last || s.phase === 'pick') return;
-  const key = ['gw-moment', state.code, s.round, log.length].join('|');
+  const key = ['gw-moment', roomDealKey(state), s.round, gwLogSeq(s)].join('|');
   if (!duelOnce(key)) return;
   const quiet = typeof motionOff === 'function' && motionOff();
   const names = duelRoomNames(state);
@@ -86599,7 +86622,7 @@ function gwStopClock() {
 
 function gwTickClock(state) {
   const s = state.shared || {};
-  const endsAt = s.phase === 'play' ? s.endsAt : null;
+  const endsAt = s.phase === 'play' || s.phase === 'pick' ? s.endsAt : null;
   const paint = () => {
     const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
     document.querySelectorAll('[data-gw-clock]').forEach(el => {
@@ -86618,7 +86641,11 @@ function gwTickClock(state) {
     onTick: () => {
       const left = paint();
       const st = duelRoomState();
-      const mine = st && st.game === 'guesswho' && (st.shared.seats || [])[st.shared.turn] === Room.me;
+      const seats = (st && st.shared.seats) || [];
+      // Picking, the clock is everyone's who hasn't picked yet; playing, the one up's.
+      const mine = st && st.game === 'guesswho' && (st.shared.phase === 'pick'
+        ? seats.indexOf(Room.me) !== -1 && !(st.shared.picked || [])[seats.indexOf(Room.me)]
+        : seats[st.shared.turn] === Room.me);
       if (left > 0 && left <= 5 && (st && (st.youAreScreen || mine))) playSound('tick');
     },
     onEnd: () => { gwLocal.clock = null; paint(); }
@@ -86693,7 +86720,7 @@ ROOM_GAMES.guesswho = {
     const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#view-room-guesswho .gw-typed');
     let falls = [];
     const rebuilt = renderRoomFrame(el, sig, () => {
-      const clock = s.endsAt && s.phase === 'play' ? `<span class="badge badge--accent" data-gw-clock></span>` : '';
+      const clock = s.endsAt && (s.phase === 'play' || s.phase === 'pick') ? `<span class="badge badge--accent" data-gw-clock></span>` : '';
       const head = `<div class="duel-head">${gwPills(state)}
           <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${seat === s.turn && s.phase === 'play' ? 'is-mine' : ''}">${escapeHTML(gwStatus(state))} ${clock}</p></div>`;
       if (s.phase === 'over') {
@@ -86770,7 +86797,7 @@ ROOM_GAMES.guesswho = {
     const myTurn = s.phase === 'play' && seat === s.turn && s.stage === 'ask';
     const mustAnswer = s.phase === 'play' && seat === 1 - s.turn && s.stage === 'answer';
     if ((myTurn || mustAnswer) && duelOnce(['gw-turn', state.code, s.turnSeq].join('|'))) { haptic('medium'); playSound('tick'); }
-    if (s.phase === 'over') duelRoomCheer(el, state, ['gw', state.code, s.round].join('|'));
+    if (s.phase === 'over') duelRoomCheer(el, state, ['gw', roomDealKey(state), s.round].join('|'));
   },
   // A question is not a new step to scroll to; a new game and the end of one are.
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase === 'over' ? 'over' : 'on'].join('|')
@@ -86800,7 +86827,7 @@ TV_GAMES.guesswho = {
         <div class="tv-name gw-tv__name"><span>${escapeHTML(names[i] || '')}</span><i>${escapeHTML(gwT('gw_left', { n: gwUp(s.faces, s.down[i]).length }))}</i></div>
         ${gwBoardHtml(s, s.phase === 'play' ? s.down[i] : [], { small: true, fall: f[i] })}
       </div>`;
-    const clock = s.endsAt && s.phase === 'play' ? `<span class="tv-pill" data-gw-clock></span>` : '';
+    const clock = s.endsAt && (s.phase === 'play' || s.phase === 'pick') ? `<span class="tv-pill" data-gw-clock></span>` : '';
     const mid = s.phase === 'over'
       ? `${gwRevealHtml(state, true)}<div class="tv-title tv-center-text">${escapeHTML(gwStatus(state))}</div>${duelRoomOverHtml(state, t, true)}`
       : `<div class="tv-scale">${gwPills(state)}</div>
@@ -87005,6 +87032,37 @@ function hmWriteFormHtml(submit, placeholderName) {
       <p class="field__hint tx-danger hm-write__err" role="alert"></p>
       <button type="submit" class="btn btn--primary btn--lg">${escapeHTML(placeholderName)}</button>
     </form>`;
+}
+
+/**
+ * What is being typed in a room's fields (the whole word, the writer's word and
+ * hint), so a redraw for someone else's letter or a join doesn't wipe it: the
+ * frame is rebuilt with innerHTML whenever anyone's progress changes.
+ */
+function hmKeepTyping(el) {
+  const kept = [];
+  el.querySelectorAll('form.hm-whole input, form.hm-write input').forEach(inp => {
+    const key = inp.form.className + '|' + inp.name;
+    const focused = document.activeElement === inp;
+    if (!inp.value && !focused) return;
+    let sel = null;
+    try { sel = [inp.selectionStart, inp.selectionEnd]; } catch (e) {}
+    kept.push({ key: key, value: inp.value, focused: focused, sel: sel, shown: !inp.classList.contains('is-hidden') });
+  });
+  return kept;
+}
+
+function hmRestoreTyping(el, kept) {
+  kept.forEach(k => {
+    const inp = [...el.querySelectorAll('form.hm-whole input, form.hm-write input')].find(i => i.form.className + '|' + i.name === k.key);
+    if (!inp) return;
+    inp.value = k.value;
+    if (k.shown && inp.name === 'w' && inp.form.classList.contains('hm-write')) inp.classList.remove('is-hidden');
+    if (k.focused) {
+      inp.focus({ preventScroll: true });
+      if (k.sel) { try { inp.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} }
+    }
+  });
 }
 
 function hmToggleEye(btn) {
@@ -87358,6 +87416,7 @@ ROOM_GAMES.hangman = {
     if (!s || !s.settings) return;
     const you = state.you || {};
     let fx = {};
+    const typing = hmKeepTyping(el);
     const rebuilt = renderRoomFrame(el, hmRoomSig(state), () => {
       const round = `<div class="cn-score"><span class="cn-score__role">🪢 ${escapeHTML(hmT('hm_round', { n: s.round, m: s.rounds }))}</span>
           ${s.endsAt && s.phase === 'guessing' ? '<span class="badge badge--accent" data-hm-clock></span>' : ''}</div>`;
@@ -87430,6 +87489,7 @@ ROOM_GAMES.hangman = {
           </div>
         </div>`;
     });
+    if (rebuilt && typing.length) hmRestoreTyping(el, typing);
     refreshRoomPlayerStrip(el, state);
     const host = el.querySelector('[data-hm-host]');
     if (host) { const html = roomHostRow(hmHostButtons(state)); if (host._html !== html) { host.innerHTML = html; host._html = html; } }
@@ -88544,6 +88604,9 @@ function pcFxCancel(fx) {
   fx.held.forEach(el => { el._pcHolds = 0; el.classList.remove('pc-hold'); });
   fx.held.clear();
   fx.busyUntil = 0;
+  // The layers laid over the page (a called play turned over, cards in flight) are removed by the
+  // timers just cleared: without this they would stay on top of every screen until a reload.
+  document.querySelectorAll('.pc-reveal, .pc-ghost').forEach(el => el.remove());
 }
 
 /** Where every place is, just before a redraw takes it away. */
@@ -90703,7 +90766,8 @@ function loadThree() {
     el.integrity = THREE_SRI;
     el.crossOrigin = 'anonymous';
     el.async = true;
-    el.onload = () => (window.THREE ? resolve(window.THREE) : reject(new Error('three')));
+    // Loaded but no THREE (a proxy or an extension changed the file): forgotten like a failure, so "try again" can work.
+    el.onload = () => { if (window.THREE) { resolve(window.THREE); return; } threePromise = null; el.remove(); reject(new Error('three')); };
     el.onerror = () => { threePromise = null; el.remove(); reject(new Error('three')); };
     document.head.appendChild(el);
   });
@@ -91244,7 +91308,12 @@ function bowlGfxMount(stage, retry) {
   bowlGfxMessage(stage, 'loading');
   return g.ready.then(ok => {
     if (!ok) { bowlGfxMessage(stage, g.why); return false; }
-    // The screen may have closed while three.js loaded.
+    const v = appState.currentView;
+    const onLane = v === 'play-bowling' || v === 'room-bowling' || (v === 'room-tv' && typeof Room !== 'undefined' && Room.state && Room.state.game === 'bowling');
+    // The screens of bowling were left while three.js loaded: the lane just built lets go at once
+    // (its screen's leaving found nothing to dispose yet).
+    if (!onLane) { bowlGfxDispose(); return false; }
+    // This screen was redrawn meanwhile: the new one mounts the lane itself.
     if (!stage.isConnected) return false;
     return place();
   });
@@ -92902,6 +92971,20 @@ function bsSeaBefore(sea, last) {
   }
   grid[last.cell] = BS_SEA;
   return { grid: grid, sunk: sunk };
+}
+
+/**
+ * Seat k's sea as the table may see it now: while the shell of the last shot is
+ * still in the air, the sea it falls on is shown as it was before (its ships
+ * afloat, its fleet list), so nothing tells the result before the landing.
+ */
+function bsSeaShown(seas, k, last, flying) {
+  return flying && last && typeof last.cell === 'number' && k === 1 - last.seat ? bsSeaBefore(seas[k], last) : seas[k];
+}
+
+/** A score as the table may see it: the win the last shot brought counts once its shell has landed. */
+function bsScoreShown(score, k, last, flying, over) {
+  return flying && over && last && k === last.seat ? Math.max(0, (score || 0) - 1) : (score || 0);
 }
 
 /* --- sounds, made like the soundboard's (JS_Sounds.html) -------------------------- */
@@ -94840,8 +94923,8 @@ function bsPhoneStatus(s, flying) {
 function bsPhoneHeadHtml(s, flying) {
   const pills = duelPillsHtml({
     players: [
-      { name: bsT('xo_you'), score: s.scores.me, mark: bsMark(0), sub: escapeHTML(bsT('bs_afloat', { n: bsAfloatCount(s.seas[0]) })) },
-      { name: bsT('xo_phone'), score: s.scores.ai, mark: bsMark(1), sub: escapeHTML(bsT('bs_afloat', { n: bsAfloatCount(s.seas[1]) })) }
+      { name: bsT('xo_you'), score: bsScoreShown(s.scores.me, 0, s.last, flying, s.phase === 'done'), mark: bsMark(0), sub: escapeHTML(bsT('bs_afloat', { n: bsAfloatCount(bsSeaShown(s.seas, 0, s.last, flying)) })) },
+      { name: bsT('xo_phone'), score: bsScoreShown(s.scores.ai, 1, s.last, flying, s.phase === 'done'), mark: bsMark(1), sub: escapeHTML(bsT('bs_afloat', { n: bsAfloatCount(bsSeaShown(s.seas, 1, s.last, flying)) })) }
     ],
     turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
     draws: null
@@ -94876,7 +94959,7 @@ function bsPhoneSideHtml(s, model, flying) {
     const other = model.focus === 1 ? 0 : 1;
     const sea = model.seas[other];
     parts.push(bsMiniHtml(sea, sea.label));
-    parts.push(`<div class="bs-fleets">${bsFleetHtml(s.seas[0], bsT('bs_fleet_you'), BS_SIDE_COL[0])}${bsFleetHtml(s.seas[1], bsT('xo_phone'), BS_SIDE_COL[1])}</div>`);
+    parts.push(`<div class="bs-fleets">${bsFleetHtml(bsSeaShown(s.seas, 0, s.last, flying), bsT('bs_fleet_you'), BS_SIDE_COL[0])}${bsFleetHtml(bsSeaShown(s.seas, 1, s.last, flying), bsT('xo_phone'), BS_SIDE_COL[1])}</div>`);
   }
   if (s.phase === 'done' && !flying) {
     const acc = (k) => (s.tally[k].shots ? Math.round(s.tally[k].hits / s.tally[k].shots * 100) : 0);
@@ -94900,7 +94983,7 @@ function paintBattleship(opts) {
   bsSetHtml(el, '[data-bs-head]', bsPhoneHeadHtml(s, flying));
   bsSetHtml(el, '[data-bs-bar]', bsPhoneBarHtml(s, flying));
   bsSetHtml(el, '[data-bs-side]', bsPhoneSideHtml(s, model, flying));
-  duelPillsAfter(el, 'bs-local', { turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1, scores: [s.scores.me || 0, s.scores.ai || 0] });
+  duelPillsAfter(el, 'bs-local', { turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1, scores: [bsScoreShown(s.scores.me, 0, s.last, flying, s.phase === 'done'), bsScoreShown(s.scores.ai, 1, s.last, flying, s.phase === 'done')] });
   if (s.phase === 'done' && !flying && duelOnce('bs|' + s.gameId + '|cheer') && !o.still) {
     const won = s.winner === 0;
     setTimeout(() => {
@@ -95160,10 +95243,10 @@ function bsRoomPills(state, t, tv) {
   const seat = tv ? -1 : bsRoomSeat(state);
   const pill = (k) => ({
     name: names[k],
-    score: scores[s.seats[k]] || 0,
+    score: bsScoreShown(scores[s.seats[k]], k, s.last, flying, s.phase === 'over'),
     mark: bsMark(k),
     sub: escapeHTML((k === seat ? (t.xo_you || '') + ' · ' : '') + (s.phase === 'place'
-      ? (s.ready[k] ? '✅' : '⏳') : bsT('bs_afloat', { n: bsAfloatCount(s.seas[k]) })))
+      ? (s.ready[k] ? '✅' : '⏳') : bsT('bs_afloat', { n: bsAfloatCount(bsSeaShown(s.seas, k, s.last, flying)) })))
   });
   return duelPillsHtml({ players: [pill(0), pill(1)], turn: flying ? s.last.seat : s.phase === 'play' ? s.turn : -1, draws: null });
 }
@@ -95192,7 +95275,8 @@ function bsRoomBarHtml(state, flying) {
 function bsRoomFleetsHtml(state) {
   const s = state.shared;
   const names = duelRoomNames(state);
-  return `<div class="bs-fleets">${[0, 1].map(k => bsFleetHtml(s.seas[k], names[k] || '', BS_SIDE_COL[k])).join('')}</div>`;
+  const flying = !!bsRoomLocal.flying && s.last;
+  return `<div class="bs-fleets">${[0, 1].map(k => bsFleetHtml(bsSeaShown(s.seas, k, s.last, flying), names[k] || '', BS_SIDE_COL[k])).join('')}</div>`;
 }
 
 /** The host's way on for a phone that went quiet: after 40 seconds on one step, or at once for one that's away. */
@@ -95293,7 +95377,8 @@ ROOM_GAMES.battleship = {
     if (s.phase === 'over' && !flying) side.push(duelRoomOverHtml(state, t));
     if (s.phase !== 'place') side.push(bsMiniHtml(model.seas[other], model.seas[other].label), bsRoomFleetsHtml(state));
     side.push(`<div data-bs-hostrow></div>`, duelRoomLineHtml(state, t));
-    if ((state.players || []).length > 2) side.push(renderScoreboard(s.board));
+    // The board already has the last shot's win: it waits for the shell to land like everything else.
+    if ((state.players || []).length > 2 && !(flying && s.phase === 'over')) side.push(renderScoreboard(s.board));
     if (s.phase === 'over' && !flying) side.push(roomShareBtnHtml(state, s.board));
     side.push(renderRoomPlayerStrip(state));
     bsSetHtml(el, '[data-bs-side]', side.join(''));
@@ -95302,7 +95387,7 @@ ROOM_GAMES.battleship = {
     bsTickClock(state);
     duelPillsAfter(el, 'bsr|' + state.code, {
       turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
-      scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+      scores: [0, 1].map(k => bsScoreShown((s.scores || {})[s.seats[k]], k, s.last, flying, s.phase === 'over'))
     });
     if (myTurn && !flying && duelOnce(['bs-turn', state.code, s.round, s.turnSeq].join('|'))) haptic('medium');
     if (s.phase === 'over' && !flying) duelRoomCheer(el, state, ['bs', state.code, s.round].join('|'));
@@ -95358,7 +95443,7 @@ TV_GAMES.battleship = {
     bsTickClock(state);
     duelPillsAfter(view, 'bstv|' + state.code, {
       turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
-      scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+      scores: [0, 1].map(k => bsScoreShown((s.scores || {})[s.seats[k]], k, s.last, flying, s.phase === 'over'))
     });
     if (s.phase === 'over' && !flying) duelRoomCheer(view, state, ['bs', state.code, s.round].join('|'));
   }
@@ -95576,6 +95661,8 @@ function chPieceParts(THREE) {
 }
 
 function chMake3D(THREE, root) {
+  // Disposed: the timers a move left behind find nothing to draw on.
+  let dead = false;
   const canvas = document.createElement('canvas');
   canvas.className = 'ch-canvas';
   root.insertBefore(canvas, root.firstChild);
@@ -95894,7 +95981,7 @@ function chMake3D(THREE, root) {
     if (a.promo) {
       const code = CH_LETTER_KIND[a.promo] | (grp.userData.code & 8);
       setTimeout(() => {
-        if (pieces.get(to) !== grp) return;
+        if (dead || pieces.get(to) !== grp) return;
         const np = buildPiece(code);
         np.position.copy(sqPos(to));
         scene.add(np);
@@ -96100,8 +96187,10 @@ function chMake3D(THREE, root) {
           }
         }
       }
+      // Settle on this model once whatever is moving has finished - also when nothing new moved but
+      // something still is (a move refused mid-slide: the board goes back to the room's).
       if (!moved && !tweens.length) snap();
-      else if (moved) setTimeout(() => { if (model === m && !tweens.length && !drag) { snap(); render(); } }, Math.max(0, busyUntil - Date.now() + 30));
+      else setTimeout(() => { if (!dead && model === m && !tweens.length && !drag) { snap(); render(); } }, Math.max(0, busyUntil - Date.now() + 30));
       if (!moved) markCheck();
       if (m.mate && mateKey !== m.key + '|mate') {
         mateKey = m.key + '|mate';
@@ -96115,6 +96204,7 @@ function chMake3D(THREE, root) {
   /* --- the loop: only while something moves --- */
   let raf = 0, running = false, paused = false;
   function render() {
+    if (dead) return;
     renderer.render(scene, cam);
   }
   function frame(now) {
@@ -96149,6 +96239,7 @@ function chMake3D(THREE, root) {
   resize();
 
   function dispose() {
+    dead = true;
     if (raf) cancelAnimationFrame(raf);
     ro.disconnect();
     const seen = new Set();
@@ -96550,6 +96641,8 @@ function chEloLabel(elo) {
 
 function paintShatranjSetup() {
   const s = chState();
+  // A "try the better move" game played against the computer is over: the setup is as it was chosen.
+  if (s.vsBefore && !(s.practice && s.phase === 'play')) { s.vs = s.vsBefore; s.vsBefore = null; saveToLocal(); }
   duelPaintSegmented('shatranj-vs', s.vs);
   duelPaintSegmented('shatranj-color', s.color);
   duelPaintSegmented('shatranj-clock', s.clock);
@@ -96650,6 +96743,8 @@ function chPlayLocal(from, to, promo) {
   if (!chHumanTurn(s) || Date.now() < chLocal.busy || chLocal.pending) return;
   const before = chessCloneGame(s.g);
   const beforeLost = [s.lost[0].slice(), s.lost[1].slice()];
+  // The clock as it was before this move (and when it was made), for a take back.
+  const beforeClk = s.clk ? { clk: JSON.parse(JSON.stringify(s.clk)), side: s.g.turn, at: Date.now() } : null;
   s.comment = null;
   const info = chApplyMove(s, { from: from, to: to, promo: promo });
   if (!info) return;
@@ -96658,7 +96753,7 @@ function chPlayLocal(from, to, promo) {
   // The coach watches your moves against the computer: a blunder is caught before it counts.
   if (s.vs === 'phone' && s.coach && s.phase === 'play' && (s.coachOpts.warn !== false || s.coachOpts.comment !== false)) {
     chPaint();
-    setTimeout(() => chCoachJudge(before, beforeLost, info), 40);
+    setTimeout(() => chCoachJudge(before, beforeLost, info, beforeClk), 40);
     return;
   }
   chPaint();
@@ -96832,7 +96927,7 @@ function chCoachPrepare() {
 }
 
 /** Your move against the computer, judged: a blunder waits for you to take it back or play it anyway. */
-function chCoachJudge(before, beforeLost, info) {
+function chCoachJudge(before, beforeLost, info, beforeClk) {
   const s = chState();
   const key = s.gameId + '|' + (s.hist.length - 1);
   const pre = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : chessAnalyse(before, { nodes: CH_COACH_NODES, ms: 900 });
@@ -96840,7 +96935,11 @@ function chCoachJudge(before, beforeLost, info) {
   const mv = { from: info.from, to: info.to, promo: info.promo || '' };
   const verdict = chessJudge(before, mv, pre, after);
   if (s.coachOpts.warn !== false && verdict.cls === 'blunder' && s.phase !== 'done') {
-    chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: s.clk ? JSON.parse(JSON.stringify(s.clk)) : null };
+    chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null };
+    // Nobody's clock runs while the warning is read: the computer's is stopped where it is, and it
+    // runs again on "play it anyway" (chAfterMove); a take back puts yours back as it was.
+    chStopTimers();
+    chPauseClock();
     chPaint();
     chCoachWarn(verdict);
     return;
@@ -96878,8 +96977,16 @@ function chCoachTakeBack() {
   s.lost = p.lost;
   s.hist = s.hist.slice(0, p.hist - 1);
   s.sans = s.sans.slice(0, p.hist - 1);
-  if (p.clk) s.clk = p.clk;
-  if (s.clk && s.clk.at) s.clk.at = Date.now();
+  if (p.clk) {
+    // Your clock as it stood when you moved (no increment for a move that is gone); if it wasn't
+    // running yet (White's free first move), it still isn't.
+    const c = p.clk.clk;
+    if (c.at !== null && c.at !== undefined) {
+      c.left[p.clk.side] = Math.max(0, chessClockLeft(c, p.clk.side, p.clk.side, p.clk.at));
+      c.at = Date.now();
+    }
+    s.clk = c;
+  }
   s.phase = 'play';
   s.result = null;
   s.last = null;
@@ -97094,6 +97201,14 @@ if (typeof onLeaveScreen === 'function') {
     if (!keep) chViewDrop();
   });
 }
+
+// The clock counts only while the board is looked at: a locked phone or another app stops it, as
+// leaving the screen does (the guide's "stands still while the board is off screen").
+document.addEventListener('visibilitychange', () => {
+  if (appState.currentView !== 'play-shatranj') return;
+  if (document.hidden) { chStopTimers(); chPauseClock(); }
+  else if (!chLocal.pending) chAfterMove();
+});
 </script>
 
     <script>
@@ -97168,7 +97283,7 @@ function chPaintHistory() {
 
 // rec: the game; rv: the engine's step-by-step review; res: the finished review;
 // infos: each move as played (for what was taken); ply: 0 = the start, k = after move k.
-const chRv = { id: '', rec: null, rv: null, res: null, infos: [], lost: [], ply: 0, better: false, timer: null, from: '' };
+const chRv = { id: '', rec: null, rv: null, res: null, infos: [], lost: [], ply: 0, better: false, timer: null, from: '', shown: null };
 
 /** Opens a kept game's review. */
 function chOpenReview(id) {
@@ -97193,13 +97308,14 @@ function chOpenRoomReview(state) {
   const r = bd.result || {};
   const seat = state.youAreScreen ? -1 : (s.seats || []).indexOf(Room.me);
   const rec = chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: seat, result: r.result || 'd', reason: r.reason || '',
-    start: '', moves: bd.hist.slice(), key: 'room|' + state.code + '|' + s.round });
+    start: '', moves: bd.hist.slice(), key: chRoomGameKey(state) });
   if (rec) chReviewShow(rec);
 }
 
 function chReviewShow(rec) {
   chReviewStop();
   chRv.id = rec.id;
+  chRv.shown = null;
   chRv.rec = rec;
   chRv.res = rec.review || null;
   chRv.rv = chessReviewBegin(rec);
@@ -97282,13 +97398,20 @@ function chReviewTry() {
   if (!res || k < 0 || !res.moves[k] || !res.moves[k].best) return;
   const before = chRv.rv.positions[k];
   const s = chState();
-  s.vs = 'phone';
-  chNewGame({ fen: chessFen(before), me: before.turn, practice: true });
-  const st = chState();
-  const best = res.moves[k].best;
-  chApplyMove(st, { from: best.from, to: best.to, promo: best.promo });
-  chPaint();
-  chAfterMove();
+  const go = () => {
+    // Played against the computer; the setup's own choice comes back afterwards (paintShatranjSetup).
+    if (!s.practice && s.vs !== 'phone') s.vsBefore = s.vs;
+    s.vs = 'phone';
+    chNewGame({ fen: chessFen(before), me: before.turn, practice: true });
+    const st = chState();
+    const best = res.moves[k].best;
+    chApplyMove(st, { from: best.from, to: best.to, promo: best.promo });
+    chPaint();
+    chAfterMove();
+  };
+  // A game left in the middle on this phone isn't replaced without asking.
+  if (s.g && s.phase === 'play' && !s.practice && (s.hist || []).length) showConfirmModal(chT('ch_try_replace'), go);
+  else go();
 }
 
 function chReviewHtml() {
@@ -97346,6 +97469,8 @@ function chReviewPaint(fresh, justDone) {
   const rec = chRv.rec, rv = chRv.rv, res = chRv.res;
   const n = rv.moves.length;
   const k = chRv.ply - 1;            // the move just made at this step
+  const stepped = typeof chRv.shown === 'number' ? chRv.ply - chRv.shown : 1;
+  chRv.shown = chRv.ply;
   const showBefore = chRv.better && k >= 0;
   const pos = rv.positions[showBefore ? k : chRv.ply];
   const info = k >= 0 ? chRv.infos[k] : null;
@@ -97360,7 +97485,8 @@ function chReviewPaint(fresh, justDone) {
   const model = {
     key: 'review|' + rec.id, board: pos.board, orient: orient, loud: true,
     last: !showBefore && info ? { from: info.from, to: info.to } : null,
-    anim: info && !showBefore ? Object.assign({ key: 'rv|' + rec.id + '|' + chRv.ply, still: !!fresh }, info) : { key: 'rv|' + rec.id + '|b' + chRv.ply, still: true },
+    // A move slides only when the step is that move, one forward; stepping back or jumping just shows the position.
+    anim: info && !showBefore ? Object.assign({ key: 'rv|' + rec.id + '|' + chRv.ply, still: !!fresh || stepped !== 1 }, info) : { key: 'rv|' + rec.id + '|b' + chRv.ply, still: true },
     check: chessCheckSq(pos), mate: '',
     sel: '', targets: [], marks: [], arrows: arrows,
     lost: chRv.lost[showBefore ? k : chRv.ply] || [[], []],
@@ -97509,6 +97635,18 @@ function chRoomBoard(state) {
 
 /** The server's clock, read on this phone. */
 function chRoomNoteClock(state) {
+  // The server says its time with every state (serverNow): the smallest gap seen between that and
+  // now is the network's share. Only an older server leaves the clock's own start stamp to go by,
+  // which after a reload is as old as the move being thought about.
+  if (typeof state.serverNow === 'number') {
+    if (chRoomLocal.seenAt !== 'n' + state.serverNow) {
+      chRoomLocal.seenAt = 'n' + state.serverNow;
+      // From when it arrived (the room engine notes it), not when the screen drew it.
+      const gap = (state.receivedAt || Date.now()) - state.serverNow;
+      chRoomLocal.offset = chRoomLocal.offset === null ? gap : Math.min(chRoomLocal.offset, gap);
+    }
+    return;
+  }
   const c = ((state.shared || {}).chess || {}).clock;
   if (!c || c.at === null || c.at === undefined) return;
   if (chRoomLocal.seenAt !== c.at) {
@@ -97637,7 +97775,7 @@ function chRoomModel(state, tv, still) {
   const seat = tv ? -1 : chRoomSeat(state);
   const view = chRoomBoard(state);
   const mine = !tv && s.phase === 'play' && !bd.result && seat === view.g.turn && !chRoomLocal.early;
-  const selKey = [state.code, s.round, view.n].join('|');
+  const selKey = [roomDealKey(state), s.round, view.n].join('|');
   if (chRoomLocal.selKey !== selKey) { chRoomLocal.selKey = selKey; chRoomLocal.sel = ''; }
   const ctx = {
     g: view.g, side: seat, sel: chRoomLocal.sel,
@@ -97647,11 +97785,11 @@ function chRoomModel(state, tv, still) {
   };
   const over = s.phase === 'over' && bd.result;
   return {
-    key: ['room', state.code, s.round, tv ? 'tv' : 'p'].join('|'),
+    key: ['room', roomDealKey(state), s.round, tv ? 'tv' : 'p'].join('|'),
     board: view.g.board, orient: seat === 1 ? 1 : 0, tv: !!tv,
     loud: duelRoomLoud(state) || !!chRoomLocal.early,
     last: view.last ? { from: view.last.from, to: view.last.to } : null,
-    anim: view.last ? Object.assign({ key: [state.code, s.round, view.last.n].join('|'), still: !!still }, view.last) : null,
+    anim: view.last ? Object.assign({ key: [roomDealKey(state), s.round, view.last.n].join('|'), still: !!still }, view.last) : null,
     check: chessCheckSq(view.g),
     mate: over && bd.result.reason === 'mate' ? chMateKing(view.g) : '',
     sel: mine ? chRoomLocal.sel : '',
@@ -97731,7 +97869,8 @@ function chRoomGameKey(state) {
   const s = state.shared || {};
   const full = Room.state;
   if (s.tourMid) return 'room|' + state.code + '|t' + (((full && full.shared && full.shared.tour) || {}).no || 0) + '.' + (s.dealId || s.round);
-  return 'room|' + state.code + '|' + s.round;
+  // Every chess start in a room is round 1 again: the deal tells two games apart.
+  return 'room|' + state.code + '|' + (s.dealId || '') + '|' + s.round;
 }
 
 /** A tournament's game that isn't a match's first: the replay with the colours swapped, or Armageddon. */
@@ -97754,7 +97893,7 @@ function chRoomHostRow(state, tv) {
   const s = state.shared || {};
   const bd = s.chess;
   if (!state.youAreHost || s.phase !== 'play' || !bd || bd.result) return '';
-  const key = [state.code, s.round, bd.moves].join('|');
+  const key = [roomDealKey(state), s.round, bd.moves].join('|');
   if (chRoomLocal.turnKey !== key) { chRoomLocal.turnKey = key; chRoomLocal.turnSince = Date.now(); }
   const id = (s.seats || [])[bd.g.turn];
   const p = (state.players || []).find(x => x.id === id);
@@ -97833,8 +97972,8 @@ function chRoomRender(state, still) {
   chRoomPaintClocks(state);
   if (bd.clock) chRoomTickStart(); else chRoomTickStop();
   duelPillsAfter(el, 'chr|' + state.code, { turn: s.phase === 'play' && !bd.result ? view.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
-  if (myTurn && duelOnce(['chturn', state.code, s.round, bd.moves].join('|'))) haptic('medium');
-  if (over) { chRoomKeepGame(state); duelRoomCheer(el, state, ['ch', state.code, s.round].join('|')); }
+  if (myTurn && duelOnce(['chturn', roomDealKey(state), s.round, bd.moves].join('|'))) haptic('medium');
+  if (over) { chRoomKeepGame(state); duelRoomCheer(el, state, ['ch', roomDealKey(state), s.round].join('|')); }
 }
 
 /* --- the lobby: the clock, the host's choice, remembered on their phone ---------- */
@@ -97916,7 +98055,7 @@ TV_GAMES.chess = {
     chRoomPaintClocks(state);
     if (bd.clock) chRoomTickStart(); else chRoomTickStop();
     duelPillsAfter(view, 'chtv|' + state.code, { turn: s.phase === 'play' && !bd.result ? bd.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
-    if (over) duelRoomCheer(view, state, ['ch', state.code, s.round].join('|'));
+    if (over) duelRoomCheer(view, state, ['ch', roomDealKey(state), s.round].join('|'));
   }
 };
 </script>
@@ -98156,7 +98295,8 @@ function tourCountHtml(at, key) {
 function tourCountLoop() {
   if (tourLocal.loop) return;
   const tick = () => {
-    const els = document.querySelectorAll('[data-tour-at]');
+    // Only countdowns still running on a screen being shown: a room view left behind keeps its old markup.
+    const els = [...document.querySelectorAll('[data-tour-at]')].filter(el => el.offsetParent !== null && Number(el.dataset.tourAt) > Date.now() - 1000);
     if (!els.length) { tourLocal.loop = null; return; }
     els.forEach(el => {
       const left = Math.max(0, Math.ceil((Number(el.dataset.tourAt) - Date.now()) / 1000));
@@ -98774,7 +98914,7 @@ const MG_ARABIC = new RegExp('[' + String.fromCharCode(0x0600) + '-' + String.fr
 const mgHolesText = (n) => mgT(Number(n) > 10 ? 'mg_holes_n11' : 'mg_holes_n', { n });
 const mgHoleName = (h) => mgT('mg_h_' + ((h || {}).id || ''));
 /** A game's holes as objects, from its ids in order (a game saved before holes were drawn played the first ones). */
-const mgCourseOf = (ids, n) => (Array.isArray(ids) ? ids : GOLF_HOLES.slice(0, Number(ids || n) || 6).map(h => h.id)).map(golfHoleById);
+const mgCourseOf = (ids, n) => (Array.isArray(ids) ? ids : golfLegacyCourse(ids || n)).map(golfHoleById);
 /** The kind of a game, as a word: سهل، متوسط، صعب، مكس. */
 const mgLevelText = (level) => mgT('mg_level_' + (GOLF_LEVELS.indexOf(level) !== -1 ? level : 'mix'));
 /** A score against par for a line of text: "+2", "−1", or "on par"; held left to right in Arabic. */
@@ -98872,8 +99012,17 @@ function mg3Mount(host) {
       return true;
     }).catch(() => false).then(ok => { MG3.loading = null; return ok; });
   }
-  return MG3.loading.then(ok => { if (ok) mg3Attach(host); return ok; });
+  return MG3.loading.then(ok => {
+    // The screen may have closed while three.js loaded: then the course lets go at once, rather than
+    // drawing into a hidden view until the next visit.
+    if (ok && (!host.isConnected || !mgOnCourseScreen(appState.currentView))) { mg3Dispose(); return false; }
+    if (ok) mg3Attach(host);
+    return ok;
+  });
 }
+
+/** The screens that show the course (solo, a room's phone, the TV of a golf room). */
+const mgOnCourseScreen = (v) => v === 'play-minigolf' || v === 'room-minigolf' || (v === 'room-tv' && typeof Room !== 'undefined' && Room.state && Room.state.game === 'minigolf');
 
 function mg3Create() {
   const THREE = MG3.T;
@@ -101330,6 +101479,9 @@ function mg3Play(id, sim, off, opts) {
   mg3Start();
   return true;
 }
+/** A ball in the water, not yet back on its spot: it can't be pulled. */
+function mgBallWet(id) { const b = MG3.balls.get(id); return !!(b && b.wet); }
+
 function mg3Rolling(id) {
   if (id) { const b = MG3.balls.get(id); return !!(b && (b.play || b.sink || b.drivenBy)); }
   let any = false;
@@ -101395,8 +101547,11 @@ function mg3ShowBody(ball, body, key, p, now, dt) {
     ball.hidden = true;
     ball.mesh.visible = false;
     if (ball.label) ball.label.visible = false;
+    // Under water until it is put back (mgBallWet): nobody pulls a ball that isn't there.
+    ball.wet = true;
     const back = (p.returns[key] || [body.sx, body.sy]).slice();
     setTimeout(() => {
+      ball.wet = false;
       // Not if a new putt has taken this ball since.
       if (MG3.balls.get(ball.id) !== ball || (ball.play && ball.play !== p)) return;
       ball.hidden = ball.play || ball.drivenBy ? false : !!ball.hiddenWanted;
@@ -101699,7 +101854,7 @@ function mg3Draw(force) {
 
 // Leaving the course's screens lets go of the renderer (and its memory).
 onLeaveScreen((from, to) => {
-  const golf = (v) => v === 'play-minigolf' || v === 'room-minigolf' || (v === 'room-tv' && Room.state && Room.state.game === 'minigolf');
+  const golf = mgOnCourseScreen;
   if (golf(from) && !golf(to)) {
     mg3Dispose();
     mgSoloStopTimers();
@@ -101849,7 +102004,7 @@ const mgBestKey = (level, holes) => (GOLF_LEVELS.indexOf(level) !== -1 ? level :
 /** The solo game's holes, as objects (a game saved before holes were drawn: the first ones). */
 function mgSoloCourse(s) {
   const g = s.game || {};
-  if (!Array.isArray(g.course)) g.course = GOLF_HOLES.slice(0, Number(g.holes || s.holes) || 6).map(h => h.id);
+  if (!Array.isArray(g.course)) g.course = golfLegacyCourse(g.holes || s.holes);
   return g.course.map(golfHoleById);
 }
 const mgSoloLive = (s) => s.phase === 'play' || s.phase === 'holeDone';
@@ -101933,7 +102088,7 @@ function mgSoloPaint() {
     const rolling = mg3Rolling('me');
     mg3SyncBalls([{ id: 'me', at: s.at, color: MG_COLORS[0], hidden: s.phase !== 'play' && !rolling }]);
     MG3.input = {
-      can: () => s.phase === 'play' && !mg3Rolling('me') && appState.currentView === 'play-minigolf',
+      can: () => s.phase === 'play' && !mg3Rolling('me') && !mgBallWet('me') && appState.currentView === 'play-minigolf',
       from: () => s.at,
       guide: () => !!g.guide,
       onShot: mgSoloPutt
@@ -102102,10 +102257,15 @@ function setMgRoomOpt(key, value) {
   duelLobbyRedraw();
 }
 
-/** The server's clock, as this phone's: the smallest gap seen between a change and its arrival. */
-function mgRoomSeeStamp(s) {
-  if (!s || !s.stamp) return;
-  const gap = Date.now() - s.stamp;
+/**
+ * The server's clock, as this phone's: the smallest gap seen between the server's time
+ * with a state (serverNow) and its arrival - or, from an older server, the last change's stamp,
+ * which after a reload is as old as that change.
+ */
+function mgRoomSeeStamp(s, now, receivedAt) {
+  const at = typeof now === 'number' ? now : s && s.stamp;
+  if (!at) return;
+  const gap = (typeof now === 'number' && receivedAt ? receivedAt : Date.now()) - at;
   if (mgRoom.offset === null || gap < mgRoom.offset) mgRoom.offset = gap;
 }
 const mgServerNow = () => Date.now() - (mgRoom.offset || 0);
@@ -102124,6 +102284,7 @@ function mgRoomCanPutt(state) {
   if (state.youAreScreen || s.phase !== 'play' || !s.balls) return false;
   const b = s.balls[Room.me];
   if (!b || b.done || mgRoom.pending) return false;
+  if (mgBallWet(Room.me)) return false;
   if (s.settings.mode === 'turns') return s.turn === Room.me && !mg3Rolling();
   return !mg3Rolling(Room.me);
 }
@@ -102458,7 +102619,7 @@ function mgRoomChrome(state, root, tv) {
 /** A screen's frame for the room: built once per game, everything else in place. */
 function mgRoomRender(state, root, tv) {
   const s = state.shared;
-  mgRoomSeeStamp(s);
+  mgRoomSeeStamp(s, state.serverNow, state.receivedAt);
   const frameKey = [state.code, s.dealId, tv ? 'tv' : 'phone', appState.lang].join('|');
   if (root.dataset.mgFrame !== frameKey || !root.querySelector('.mg-screen')) {
     root.dataset.mgFrame = frameKey;

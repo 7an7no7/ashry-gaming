@@ -460,6 +460,10 @@ const svTimeout = (room, now) => {
 const svPlayerLeft = (room, playerId) => {
   const s = room.shared;
   if (!svKindOf(room) || s.phase === 'gameover') return;
+  // The next setter is counted from setterAt: someone leaving at or before it moves it back one,
+  // or the next one in the order would be skipped (and the one before would set twice).
+  const leftAt = (s.order || []).indexOf(playerId);
+  if (leftAt !== -1 && typeof s.setterAt === 'number' && leftAt <= s.setterAt) s.setterAt -= 1;
   s.order = (s.order || []).filter(id => id !== playerId);
   if (s.phase === 'solving' && room._solve && room._solve.boards[playerId]) {
     delete room._solve.boards[playerId];
@@ -476,8 +480,7 @@ const svPlayerLeft = (room, playerId) => {
     return;
   }
   if (s.phase === 'setting' && s.setter === playerId) {
-    // The one who left was up; setterAt moves back one so the next in the order sets.
-    s.setterAt = (s.setterAt || 0) - 1;
+    // The one who left was up (setterAt has moved back one above): the next in the order sets.
     svDeal(room);
     return;
   }

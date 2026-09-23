@@ -52,6 +52,8 @@ const gwT = (key, vars) => {
   return s;
 };
 const gwFaceName = (x) => gwName(x, appState.lang);
+// The number of the log's newest entry (the log keeps only its last few; a room saved before logSeq counts its length).
+const gwLogSeq = (s) => (typeof s.logSeq === 'number' ? s.logSeq : (s.log || []).length);
 const gwQText = (qi) => {
   const q = GW_QUESTIONS[qi];
   return q ? (appState.lang === 'en' ? q.en : q.ar) : '';
@@ -168,7 +170,8 @@ function gwQaHtml(state, tv) {
       </div>`;
   }
   if (!pending && last && last.kind === 'skip') {
-    return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_skipped', { name: duelIso(names[last.seat] || '') }))}</span></div>`;
+    const said = last.stage === 'answer' ? 'gw_skipped_answer' : last.stage === 'flip' ? 'gw_skipped_flip' : 'gw_skipped';
+    return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT(said, { name: duelIso(names[last.seat] || '') }))}</span></div>`;
   }
   if (!q) return `<div class="gw-qa gw-qa--empty ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_first_q'))}</span></div>`;
   if (q.kind === 'guess') return `<div class="gw-qa gw-qa--empty ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_first_q'))}</span></div>`;
@@ -176,7 +179,7 @@ function gwQaHtml(state, tv) {
   const text = q.kind === 'list' ? gwT('gw_asked_list', { name: asker, q: gwQText(q.qi) })
     : q.kind === 'typed' ? gwT('gw_asked_list', { name: asker, q: q.text || '' }) : gwT('gw_asked_loud', { name: asker });
   const answered = typeof q.answer === 'boolean';
-  const pop = answered && motionFirst(['gw-qa', roomDealKey(state), s.round, s.log.length, q.seat].join('|'));
+  const pop = answered && motionFirst(['gw-qa', roomDealKey(state), s.round, gwLogSeq(s), q.seat].join('|'));
   const thinking = `<span class="gw-qa__a is-wait gw-think">💭 ${escapeHTML(gwT('gw_thinking', { name: duelIso(names[1 - q.seat] || '') }))}<span class="gw-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>`;
   const ans = answered
     ? `<span class="gw-qa__a ${q.answer ? 'is-yes' : 'is-no'} ${pop ? 'is-in' : ''}">${escapeHTML(q.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>` : thinking;
@@ -423,7 +426,7 @@ function gwMoments(state, loud) {
   const log = s.log || [];
   const last = log[log.length - 1];
   if (!last || s.phase === 'pick') return;
-  const key = ['gw-moment', state.code, s.round, log.length].join('|');
+  const key = ['gw-moment', roomDealKey(state), s.round, gwLogSeq(s)].join('|');
   if (!duelOnce(key)) return;
   const quiet = typeof motionOff === 'function' && motionOff();
   const names = duelRoomNames(state);
@@ -554,7 +557,7 @@ function gwStopClock() {
 
 function gwTickClock(state) {
   const s = state.shared || {};
-  const endsAt = s.phase === 'play' ? s.endsAt : null;
+  const endsAt = s.phase === 'play' || s.phase === 'pick' ? s.endsAt : null;
   const paint = () => {
     const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
     document.querySelectorAll('[data-gw-clock]').forEach(el => {
@@ -573,7 +576,11 @@ function gwTickClock(state) {
     onTick: () => {
       const left = paint();
       const st = duelRoomState();
-      const mine = st && st.game === 'guesswho' && (st.shared.seats || [])[st.shared.turn] === Room.me;
+      const seats = (st && st.shared.seats) || [];
+      // Picking, the clock is everyone's who hasn't picked yet; playing, the one up's.
+      const mine = st && st.game === 'guesswho' && (st.shared.phase === 'pick'
+        ? seats.indexOf(Room.me) !== -1 && !(st.shared.picked || [])[seats.indexOf(Room.me)]
+        : seats[st.shared.turn] === Room.me);
       if (left > 0 && left <= 5 && (st && (st.youAreScreen || mine))) playSound('tick');
     },
     onEnd: () => { gwLocal.clock = null; paint(); }
@@ -648,7 +655,7 @@ ROOM_GAMES.guesswho = {
     const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#view-room-guesswho .gw-typed');
     let falls = [];
     const rebuilt = renderRoomFrame(el, sig, () => {
-      const clock = s.endsAt && s.phase === 'play' ? `<span class="badge badge--accent" data-gw-clock></span>` : '';
+      const clock = s.endsAt && (s.phase === 'play' || s.phase === 'pick') ? `<span class="badge badge--accent" data-gw-clock></span>` : '';
       const head = `<div class="duel-head">${gwPills(state)}
           <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${seat === s.turn && s.phase === 'play' ? 'is-mine' : ''}">${escapeHTML(gwStatus(state))} ${clock}</p></div>`;
       if (s.phase === 'over') {
@@ -725,7 +732,7 @@ ROOM_GAMES.guesswho = {
     const myTurn = s.phase === 'play' && seat === s.turn && s.stage === 'ask';
     const mustAnswer = s.phase === 'play' && seat === 1 - s.turn && s.stage === 'answer';
     if ((myTurn || mustAnswer) && duelOnce(['gw-turn', state.code, s.turnSeq].join('|'))) { haptic('medium'); playSound('tick'); }
-    if (s.phase === 'over') duelRoomCheer(el, state, ['gw', state.code, s.round].join('|'));
+    if (s.phase === 'over') duelRoomCheer(el, state, ['gw', roomDealKey(state), s.round].join('|'));
   },
   // A question is not a new step to scroll to; a new game and the end of one are.
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase === 'over' ? 'over' : 'on'].join('|')
@@ -755,7 +762,7 @@ TV_GAMES.guesswho = {
         <div class="tv-name gw-tv__name"><span>${escapeHTML(names[i] || '')}</span><i>${escapeHTML(gwT('gw_left', { n: gwUp(s.faces, s.down[i]).length }))}</i></div>
         ${gwBoardHtml(s, s.phase === 'play' ? s.down[i] : [], { small: true, fall: f[i] })}
       </div>`;
-    const clock = s.endsAt && s.phase === 'play' ? `<span class="tv-pill" data-gw-clock></span>` : '';
+    const clock = s.endsAt && (s.phase === 'play' || s.phase === 'pick') ? `<span class="tv-pill" data-gw-clock></span>` : '';
     const mid = s.phase === 'over'
       ? `${gwRevealHtml(state, true)}<div class="tv-title tv-center-text">${escapeHTML(gwStatus(state))}</div>${duelRoomOverHtml(state, t, true)}`
       : `<div class="tv-scale">${gwPills(state)}</div>

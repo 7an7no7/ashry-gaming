@@ -29,7 +29,8 @@ function loadThree() {
     el.integrity = THREE_SRI;
     el.crossOrigin = 'anonymous';
     el.async = true;
-    el.onload = () => (window.THREE ? resolve(window.THREE) : reject(new Error('three')));
+    // Loaded but no THREE (a proxy or an extension changed the file): forgotten like a failure, so "try again" can work.
+    el.onload = () => { if (window.THREE) { resolve(window.THREE); return; } threePromise = null; el.remove(); reject(new Error('three')); };
     el.onerror = () => { threePromise = null; el.remove(); reject(new Error('three')); };
     document.head.appendChild(el);
   });

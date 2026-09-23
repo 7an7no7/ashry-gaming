@@ -176,6 +176,37 @@ function hmWriteFormHtml(submit, placeholderName) {
     </form>`;
 }
 
+/**
+ * What is being typed in a room's fields (the whole word, the writer's word and
+ * hint), so a redraw for someone else's letter or a join doesn't wipe it: the
+ * frame is rebuilt with innerHTML whenever anyone's progress changes.
+ */
+function hmKeepTyping(el) {
+  const kept = [];
+  el.querySelectorAll('form.hm-whole input, form.hm-write input').forEach(inp => {
+    const key = inp.form.className + '|' + inp.name;
+    const focused = document.activeElement === inp;
+    if (!inp.value && !focused) return;
+    let sel = null;
+    try { sel = [inp.selectionStart, inp.selectionEnd]; } catch (e) {}
+    kept.push({ key: key, value: inp.value, focused: focused, sel: sel, shown: !inp.classList.contains('is-hidden') });
+  });
+  return kept;
+}
+
+function hmRestoreTyping(el, kept) {
+  kept.forEach(k => {
+    const inp = [...el.querySelectorAll('form.hm-whole input, form.hm-write input')].find(i => i.form.className + '|' + i.name === k.key);
+    if (!inp) return;
+    inp.value = k.value;
+    if (k.shown && inp.name === 'w' && inp.form.classList.contains('hm-write')) inp.classList.remove('is-hidden');
+    if (k.focused) {
+      inp.focus({ preventScroll: true });
+      if (k.sel) { try { inp.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} }
+    }
+  });
+}
+
 function hmToggleEye(btn) {
   const input = btn.closest('form').querySelector('input[name="w"]');
   if (!input) return;
@@ -527,6 +558,7 @@ ROOM_GAMES.hangman = {
     if (!s || !s.settings) return;
     const you = state.you || {};
     let fx = {};
+    const typing = hmKeepTyping(el);
     const rebuilt = renderRoomFrame(el, hmRoomSig(state), () => {
       const round = `<div class="cn-score"><span class="cn-score__role">🪢 ${escapeHTML(hmT('hm_round', { n: s.round, m: s.rounds }))}</span>
           ${s.endsAt && s.phase === 'guessing' ? '<span class="badge badge--accent" data-hm-clock></span>' : ''}</div>`;
@@ -599,6 +631,7 @@ ROOM_GAMES.hangman = {
           </div>
         </div>`;
     });
+    if (rebuilt && typing.length) hmRestoreTyping(el, typing);
     refreshRoomPlayerStrip(el, state);
     const host = el.querySelector('[data-hm-host]');
     if (host) { const html = roomHostRow(hmHostButtons(state)); if (host._html !== html) { host.innerHTML = html; host._html = html; } }

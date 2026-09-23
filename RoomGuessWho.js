@@ -73,12 +73,18 @@ const gwOptions = (payload, prev) => {
 
 const gwLog = (s, entry) => {
   s.log = (s.log || []).concat([entry]).slice(-GW_LOG_MAX);
+  // The log keeps its last few entries; this number keeps counting, so a phone plays each entry's moment once.
+  s.logSeq = (s.logSeq || 0) + 1;
 };
+
+// With the turn clock on, picking a secret face has a clock of its own (a face for whoever hasn't picked).
+const GW_PICK_SECS = 60;
 
 const gwStartClock = (room) => {
   const s = room.shared;
   const secs = (s.settings || {}).turnClock || 0;
-  s.endsAt = s.phase === 'play' && secs ? Date.now() + secs * 1000 : null;
+  const len = s.phase === 'pick' ? GW_PICK_SECS : secs;
+  s.endsAt = (s.phase === 'play' || s.phase === 'pick') && secs ? Date.now() + len * 1000 : null;
 };
 
 /** The secret faces reach their own phones only. */
@@ -124,6 +130,7 @@ const gwDeal = (room) => {
     s.phase = 'pick';
     room.phase = 'play';
     s.picked = [false, false];
+    gwStartClock(room);
   } else {
     const a = Math.floor(Math.random() * faces.length);
     const b = Math.floor(Math.random() * faces.length);
@@ -236,8 +243,10 @@ const gwAuto = (room, why) => {
     gwTakeAnswer(room, gwAnswer(s.q.qi, s.faces[room._gw.secret[1 - s.q.seat]]));
     return;
   }
-  if (s.stage === 'answer') s.q = null;
-  gwLog(s, { seat: s.turn, kind: 'skip', why: why });
+  // Who was waited on: the one answering, or the one up (asking, or putting faces down).
+  const answering = s.stage === 'answer';
+  if (answering) s.q = null;
+  gwLog(s, { seat: answering ? 1 - s.turn : s.turn, kind: 'skip', why: why, stage: s.stage || 'ask' });
   gwNextTurn(room);
 };
 
@@ -358,12 +367,12 @@ const guessWhoAction = (room, playerId, action, payload) => {
 
 const gwDeadline = (room) => {
   const s = room.shared || {};
-  return s.phase === 'play' && s.endsAt ? s.endsAt + GW_GRACE_MS : null;
+  return (s.phase === 'play' || s.phase === 'pick') && s.endsAt ? s.endsAt + GW_GRACE_MS : null;
 };
 
 const gwTimeout = (room, now) => {
   const s = room.shared || {};
-  if (s.phase !== 'play' || !s.endsAt || now < s.endsAt + GW_GRACE_MS) return false;
+  if ((s.phase !== 'play' && s.phase !== 'pick') || !s.endsAt || now < s.endsAt + GW_GRACE_MS) return false;
   gwAuto(room, 'clock');
   return true;
 };

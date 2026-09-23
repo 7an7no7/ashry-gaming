@@ -36,6 +36,9 @@ export const roomView = (room, pid, online) => {
     // A screen faces everyone, so it never receives a secret.
     you: isScreen ? null : ((room.secrets && room.secrets[pid]) || null),
     // False for someone who joined after this game was dealt.
-    inGame: isScreen || !room.shared || !room.shared.roster ? true : room.shared.roster.indexOf(pid) !== -1
+    inGame: isScreen || !room.shared || !room.shared.roster ? true : room.shared.roster.indexOf(pid) !== -1,
+    // The server's clock as this was sent: a phone that has just reloaded or joined can read a
+    // running clock right away (a stamp of the last change is as old as that change).
+    serverNow: Date.now()
   };
 };

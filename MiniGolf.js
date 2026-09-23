@@ -814,6 +814,12 @@ const GOLF_BY_ID = {};
 GOLF_HOLES.forEach(h => { GOLF_BY_ID[h.id] = h; });
 /** A hole by its id; an id this build doesn't know is the first hole, never a crash. */
 function golfHoleById(id) { return GOLF_BY_ID[id] || GOLF_HOLES[0]; }
+
+// The course's order before the holes were sorted into kinds (a game saved then kept only how many
+// holes it had, and played them in this order): such a game carries on on the holes it was playing.
+const GOLF_LEGACY_ORDER = ['first', 'bridge', 'mill', 'souq', 'humps', 'fair', 'pyramid', 'nile', 'saqia', 'siwa', 'lighthouse', 'citadel', 'gate', 'port', 'temple', 'sinai', 'oasis', 'tower'];
+/** The first n holes of that order (a game saved with a count instead of its list). */
+function golfLegacyCourse(n) { return GOLF_LEGACY_ORDER.slice(0, Math.max(1, Number(n) || 6)); }
 /** The ids of every hole of one kind (1 easy, 2 medium, 3 hard). */
 function golfLevelIds(lvl) { return GOLF_HOLES.filter(h => h.lvl === lvl).map(h => h.id); }
 
@@ -852,7 +858,7 @@ function golfDealCourse(count, level, pick) {
 
 /** What a list of holes asks for, added up (ids or holes); a number is the first n holes. */
 function golfParOf(list) {
-  if (typeof list === 'number') list = GOLF_HOLES.slice(0, list);
+  if (typeof list === 'number') list = golfLegacyCourse(list);
   let p = 0;
   (list || []).forEach(x => { const h = typeof x === 'string' ? golfHoleById(x) : x; if (h) p += h.par; });
   return p;
@@ -1361,7 +1367,9 @@ function golfStep(sim) {
   for (let i = 0; i < others.length; i++) if (!others[i].end) golfMove(sim, others[i], clock);
   const all = [sim].concat(others);
   golfBallsMeet(sim, all);
-  if (sim.t >= GOLF.MAX_T) all.forEach(b => { if (!b.end) { b.end = 'rest'; b.vx = b.vy = 0; } });
+  // Out of time: every ball on the ground stops where it is; one in the air first lands (golfMove
+  // rests it then, after the water and the cup have had their say), never stopping over the water.
+  if (sim.t >= GOLF.MAX_T) all.forEach(b => { if (!b.end && !b.air) { b.end = 'rest'; b.vx = b.vy = 0; } });
   let done = true;
   for (let i = 0; i < all.length; i++) if (!all[i].end) { done = false; break; }
   sim.done = done;

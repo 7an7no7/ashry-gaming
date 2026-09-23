@@ -54,7 +54,7 @@ const MG_ARABIC = new RegExp('[' + String.fromCharCode(0x0600) + '-' + String.fr
 const mgHolesText = (n) => mgT(Number(n) > 10 ? 'mg_holes_n11' : 'mg_holes_n', { n });
 const mgHoleName = (h) => mgT('mg_h_' + ((h || {}).id || ''));
 /** A game's holes as objects, from its ids in order (a game saved before holes were drawn played the first ones). */
-const mgCourseOf = (ids, n) => (Array.isArray(ids) ? ids : GOLF_HOLES.slice(0, Number(ids || n) || 6).map(h => h.id)).map(golfHoleById);
+const mgCourseOf = (ids, n) => (Array.isArray(ids) ? ids : golfLegacyCourse(ids || n)).map(golfHoleById);
 /** The kind of a game, as a word: سهل، متوسط، صعب، مكس. */
 const mgLevelText = (level) => mgT('mg_level_' + (GOLF_LEVELS.indexOf(level) !== -1 ? level : 'mix'));
 /** A score against par for a line of text: "+2", "−1", or "on par"; held left to right in Arabic. */
@@ -152,8 +152,17 @@ function mg3Mount(host) {
       return true;
     }).catch(() => false).then(ok => { MG3.loading = null; return ok; });
   }
-  return MG3.loading.then(ok => { if (ok) mg3Attach(host); return ok; });
+  return MG3.loading.then(ok => {
+    // The screen may have closed while three.js loaded: then the course lets go at once, rather than
+    // drawing into a hidden view until the next visit.
+    if (ok && (!host.isConnected || !mgOnCourseScreen(appState.currentView))) { mg3Dispose(); return false; }
+    if (ok) mg3Attach(host);
+    return ok;
+  });
 }
+
+/** The screens that show the course (solo, a room's phone, the TV of a golf room). */
+const mgOnCourseScreen = (v) => v === 'play-minigolf' || v === 'room-minigolf' || (v === 'room-tv' && typeof Room !== 'undefined' && Room.state && Room.state.game === 'minigolf');
 
 function mg3Create() {
   const THREE = MG3.T;
@@ -2610,6 +2619,9 @@ function mg3Play(id, sim, off, opts) {
   mg3Start();
   return true;
 }
+/** A ball in the water, not yet back on its spot: it can't be pulled. */
+function mgBallWet(id) { const b = MG3.balls.get(id); return !!(b && b.wet); }
+
 function mg3Rolling(id) {
   if (id) { const b = MG3.balls.get(id); return !!(b && (b.play || b.sink || b.drivenBy)); }
   let any = false;
@@ -2675,8 +2687,11 @@ function mg3ShowBody(ball, body, key, p, now, dt) {
     ball.hidden = true;
     ball.mesh.visible = false;
     if (ball.label) ball.label.visible = false;
+    // Under water until it is put back (mgBallWet): nobody pulls a ball that isn't there.
+    ball.wet = true;
     const back = (p.returns[key] || [body.sx, body.sy]).slice();
     setTimeout(() => {
+      ball.wet = false;
       // Not if a new putt has taken this ball since.
       if (MG3.balls.get(ball.id) !== ball || (ball.play && ball.play !== p)) return;
       ball.hidden = ball.play || ball.drivenBy ? false : !!ball.hiddenWanted;
@@ -2979,7 +2994,7 @@ function mg3Draw(force) {
 
 // Leaving the course's screens lets go of the renderer (and its memory).
 onLeaveScreen((from, to) => {
-  const golf = (v) => v === 'play-minigolf' || v === 'room-minigolf' || (v === 'room-tv' && Room.state && Room.state.game === 'minigolf');
+  const golf = mgOnCourseScreen;
   if (golf(from) && !golf(to)) {
     mg3Dispose();
     mgSoloStopTimers();
@@ -3129,7 +3144,7 @@ const mgBestKey = (level, holes) => (GOLF_LEVELS.indexOf(level) !== -1 ? level :
 /** The solo game's holes, as objects (a game saved before holes were drawn: the first ones). */
 function mgSoloCourse(s) {
   const g = s.game || {};
-  if (!Array.isArray(g.course)) g.course = GOLF_HOLES.slice(0, Number(g.holes || s.holes) || 6).map(h => h.id);
+  if (!Array.isArray(g.course)) g.course = golfLegacyCourse(g.holes || s.holes);
   return g.course.map(golfHoleById);
 }
 const mgSoloLive = (s) => s.phase === 'play' || s.phase === 'holeDone';
@@ -3213,7 +3228,7 @@ function mgSoloPaint() {
     const rolling = mg3Rolling('me');
     mg3SyncBalls([{ id: 'me', at: s.at, color: MG_COLORS[0], hidden: s.phase !== 'play' && !rolling }]);
     MG3.input = {
-      can: () => s.phase === 'play' && !mg3Rolling('me') && appState.currentView === 'play-minigolf',
+      can: () => s.phase === 'play' && !mg3Rolling('me') && !mgBallWet('me') && appState.currentView === 'play-minigolf',
       from: () => s.at,
       guide: () => !!g.guide,
       onShot: mgSoloPutt
@@ -3382,10 +3397,15 @@ function setMgRoomOpt(key, value) {
   duelLobbyRedraw();
 }
 
-/** The server's clock, as this phone's: the smallest gap seen between a change and its arrival. */
-function mgRoomSeeStamp(s) {
-  if (!s || !s.stamp) return;
-  const gap = Date.now() - s.stamp;
+/**
+ * The server's clock, as this phone's: the smallest gap seen between the server's time
+ * with a state (serverNow) and its arrival - or, from an older server, the last change's stamp,
+ * which after a reload is as old as that change.
+ */
+function mgRoomSeeStamp(s, now, receivedAt) {
+  const at = typeof now === 'number' ? now : s && s.stamp;
+  if (!at) return;
+  const gap = (typeof now === 'number' && receivedAt ? receivedAt : Date.now()) - at;
   if (mgRoom.offset === null || gap < mgRoom.offset) mgRoom.offset = gap;
 }
 const mgServerNow = () => Date.now() - (mgRoom.offset || 0);
@@ -3404,6 +3424,7 @@ function mgRoomCanPutt(state) {
   if (state.youAreScreen || s.phase !== 'play' || !s.balls) return false;
   const b = s.balls[Room.me];
   if (!b || b.done || mgRoom.pending) return false;
+  if (mgBallWet(Room.me)) return false;
   if (s.settings.mode === 'turns') return s.turn === Room.me && !mg3Rolling();
   return !mg3Rolling(Room.me);
 }
@@ -3738,7 +3759,7 @@ function mgRoomChrome(state, root, tv) {
 /** A screen's frame for the room: built once per game, everything else in place. */
 function mgRoomRender(state, root, tv) {
   const s = state.shared;
-  mgRoomSeeStamp(s);
+  mgRoomSeeStamp(s, state.serverNow, state.receivedAt);
   const frameKey = [state.code, s.dealId, tv ? 'tv' : 'phone', appState.lang].join('|');
   if (root.dataset.mgFrame !== frameKey || !root.querySelector('.mg-screen')) {
     root.dataset.mgFrame = frameKey;

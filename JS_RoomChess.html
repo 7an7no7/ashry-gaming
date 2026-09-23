@@ -45,6 +45,18 @@ function chRoomBoard(state) {
 
 /** The server's clock, read on this phone. */
 function chRoomNoteClock(state) {
+  // The server says its time with every state (serverNow): the smallest gap seen between that and
+  // now is the network's share. Only an older server leaves the clock's own start stamp to go by,
+  // which after a reload is as old as the move being thought about.
+  if (typeof state.serverNow === 'number') {
+    if (chRoomLocal.seenAt !== 'n' + state.serverNow) {
+      chRoomLocal.seenAt = 'n' + state.serverNow;
+      // From when it arrived (the room engine notes it), not when the screen drew it.
+      const gap = (state.receivedAt || Date.now()) - state.serverNow;
+      chRoomLocal.offset = chRoomLocal.offset === null ? gap : Math.min(chRoomLocal.offset, gap);
+    }
+    return;
+  }
   const c = ((state.shared || {}).chess || {}).clock;
   if (!c || c.at === null || c.at === undefined) return;
   if (chRoomLocal.seenAt !== c.at) {
@@ -173,7 +185,7 @@ function chRoomModel(state, tv, still) {
   const seat = tv ? -1 : chRoomSeat(state);
   const view = chRoomBoard(state);
   const mine = !tv && s.phase === 'play' && !bd.result && seat === view.g.turn && !chRoomLocal.early;
-  const selKey = [state.code, s.round, view.n].join('|');
+  const selKey = [roomDealKey(state), s.round, view.n].join('|');
   if (chRoomLocal.selKey !== selKey) { chRoomLocal.selKey = selKey; chRoomLocal.sel = ''; }
   const ctx = {
     g: view.g, side: seat, sel: chRoomLocal.sel,
@@ -183,11 +195,11 @@ function chRoomModel(state, tv, still) {
   };
   const over = s.phase === 'over' && bd.result;
   return {
-    key: ['room', state.code, s.round, tv ? 'tv' : 'p'].join('|'),
+    key: ['room', roomDealKey(state), s.round, tv ? 'tv' : 'p'].join('|'),
     board: view.g.board, orient: seat === 1 ? 1 : 0, tv: !!tv,
     loud: duelRoomLoud(state) || !!chRoomLocal.early,
     last: view.last ? { from: view.last.from, to: view.last.to } : null,
-    anim: view.last ? Object.assign({ key: [state.code, s.round, view.last.n].join('|'), still: !!still }, view.last) : null,
+    anim: view.last ? Object.assign({ key: [roomDealKey(state), s.round, view.last.n].join('|'), still: !!still }, view.last) : null,
     check: chessCheckSq(view.g),
     mate: over && bd.result.reason === 'mate' ? chMateKing(view.g) : '',
     sel: mine ? chRoomLocal.sel : '',
@@ -267,7 +279,8 @@ function chRoomGameKey(state) {
   const s = state.shared || {};
   const full = Room.state;
   if (s.tourMid) return 'room|' + state.code + '|t' + (((full && full.shared && full.shared.tour) || {}).no || 0) + '.' + (s.dealId || s.round);
-  return 'room|' + state.code + '|' + s.round;
+  // Every chess start in a room is round 1 again: the deal tells two games apart.
+  return 'room|' + state.code + '|' + (s.dealId || '') + '|' + s.round;
 }
 
 /** A tournament's game that isn't a match's first: the replay with the colours swapped, or Armageddon. */
@@ -290,7 +303,7 @@ function chRoomHostRow(state, tv) {
   const s = state.shared || {};
   const bd = s.chess;
   if (!state.youAreHost || s.phase !== 'play' || !bd || bd.result) return '';
-  const key = [state.code, s.round, bd.moves].join('|');
+  const key = [roomDealKey(state), s.round, bd.moves].join('|');
   if (chRoomLocal.turnKey !== key) { chRoomLocal.turnKey = key; chRoomLocal.turnSince = Date.now(); }
   const id = (s.seats || [])[bd.g.turn];
   const p = (state.players || []).find(x => x.id === id);
@@ -369,8 +382,8 @@ function chRoomRender(state, still) {
   chRoomPaintClocks(state);
   if (bd.clock) chRoomTickStart(); else chRoomTickStop();
   duelPillsAfter(el, 'chr|' + state.code, { turn: s.phase === 'play' && !bd.result ? view.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
-  if (myTurn && duelOnce(['chturn', state.code, s.round, bd.moves].join('|'))) haptic('medium');
-  if (over) { chRoomKeepGame(state); duelRoomCheer(el, state, ['ch', state.code, s.round].join('|')); }
+  if (myTurn && duelOnce(['chturn', roomDealKey(state), s.round, bd.moves].join('|'))) haptic('medium');
+  if (over) { chRoomKeepGame(state); duelRoomCheer(el, state, ['ch', roomDealKey(state), s.round].join('|')); }
 }
 
 /* --- the lobby: the clock, the host's choice, remembered on their phone ---------- */
@@ -452,7 +465,7 @@ TV_GAMES.chess = {
     chRoomPaintClocks(state);
     if (bd.clock) chRoomTickStart(); else chRoomTickStop();
     duelPillsAfter(view, 'chtv|' + state.code, { turn: s.phase === 'play' && !bd.result ? bd.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
-    if (over) duelRoomCheer(view, state, ['ch', state.code, s.round].join('|'));
+    if (over) duelRoomCheer(view, state, ['ch', roomDealKey(state), s.round].join('|'));
   }
 };
 </script>

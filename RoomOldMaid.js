@@ -401,9 +401,9 @@ const omPlayerLeft = (room, playerId) => {
     // The drawer is gone: the next one still playing draws.
     omStartTurn(room, omNextHolding(room, playerId));
   } else if (s.turn && (s.turn.from === playerId || omHolding(room).indexOf(s.turn.from) === -1)) {
-    // The hand being drawn from is gone: the drawer draws from the next one, and lifts again.
-    g.aimId = null;
-    s.turn.from = omNextHolding(room, drawer);
+    // The hand being drawn from is gone: the drawer draws from the next one, and lifts again - a new
+    // turn, so a tap aimed at the old hand is dropped as stale and the clock starts over.
+    omStartTurn(room, drawer);
   }
   omSync(room);
 };

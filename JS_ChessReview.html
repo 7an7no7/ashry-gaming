@@ -70,7 +70,7 @@ function chPaintHistory() {
 
 // rec: the game; rv: the engine's step-by-step review; res: the finished review;
 // infos: each move as played (for what was taken); ply: 0 = the start, k = after move k.
-const chRv = { id: '', rec: null, rv: null, res: null, infos: [], lost: [], ply: 0, better: false, timer: null, from: '' };
+const chRv = { id: '', rec: null, rv: null, res: null, infos: [], lost: [], ply: 0, better: false, timer: null, from: '', shown: null };
 
 /** Opens a kept game's review. */
 function chOpenReview(id) {
@@ -95,13 +95,14 @@ function chOpenRoomReview(state) {
   const r = bd.result || {};
   const seat = state.youAreScreen ? -1 : (s.seats || []).indexOf(Room.me);
   const rec = chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: seat, result: r.result || 'd', reason: r.reason || '',
-    start: '', moves: bd.hist.slice(), key: 'room|' + state.code + '|' + s.round });
+    start: '', moves: bd.hist.slice(), key: chRoomGameKey(state) });
   if (rec) chReviewShow(rec);
 }
 
 function chReviewShow(rec) {
   chReviewStop();
   chRv.id = rec.id;
+  chRv.shown = null;
   chRv.rec = rec;
   chRv.res = rec.review || null;
   chRv.rv = chessReviewBegin(rec);
@@ -184,13 +185,20 @@ function chReviewTry() {
   if (!res || k < 0 || !res.moves[k] || !res.moves[k].best) return;
   const before = chRv.rv.positions[k];
   const s = chState();
-  s.vs = 'phone';
-  chNewGame({ fen: chessFen(before), me: before.turn, practice: true });
-  const st = chState();
-  const best = res.moves[k].best;
-  chApplyMove(st, { from: best.from, to: best.to, promo: best.promo });
-  chPaint();
-  chAfterMove();
+  const go = () => {
+    // Played against the computer; the setup's own choice comes back afterwards (paintShatranjSetup).
+    if (!s.practice && s.vs !== 'phone') s.vsBefore = s.vs;
+    s.vs = 'phone';
+    chNewGame({ fen: chessFen(before), me: before.turn, practice: true });
+    const st = chState();
+    const best = res.moves[k].best;
+    chApplyMove(st, { from: best.from, to: best.to, promo: best.promo });
+    chPaint();
+    chAfterMove();
+  };
+  // A game left in the middle on this phone isn't replaced without asking.
+  if (s.g && s.phase === 'play' && !s.practice && (s.hist || []).length) showConfirmModal(chT('ch_try_replace'), go);
+  else go();
 }
 
 function chReviewHtml() {
@@ -248,6 +256,8 @@ function chReviewPaint(fresh, justDone) {
   const rec = chRv.rec, rv = chRv.rv, res = chRv.res;
   const n = rv.moves.length;
   const k = chRv.ply - 1;            // the move just made at this step
+  const stepped = typeof chRv.shown === 'number' ? chRv.ply - chRv.shown : 1;
+  chRv.shown = chRv.ply;
   const showBefore = chRv.better && k >= 0;
   const pos = rv.positions[showBefore ? k : chRv.ply];
   const info = k >= 0 ? chRv.infos[k] : null;
@@ -262,7 +272,8 @@ function chReviewPaint(fresh, justDone) {
   const model = {
     key: 'review|' + rec.id, board: pos.board, orient: orient, loud: true,
     last: !showBefore && info ? { from: info.from, to: info.to } : null,
-    anim: info && !showBefore ? Object.assign({ key: 'rv|' + rec.id + '|' + chRv.ply, still: !!fresh }, info) : { key: 'rv|' + rec.id + '|b' + chRv.ply, still: true },
+    // A move slides only when the step is that move, one forward; stepping back or jumping just shows the position.
+    anim: info && !showBefore ? Object.assign({ key: 'rv|' + rec.id + '|' + chRv.ply, still: !!fresh || stepped !== 1 }, info) : { key: 'rv|' + rec.id + '|b' + chRv.ply, still: true },
     check: chessCheckSq(pos), mate: '',
     sel: '', targets: [], marks: [], arrows: arrows,
     lost: chRv.lost[showBefore ? k : chRv.ply] || [[], []],

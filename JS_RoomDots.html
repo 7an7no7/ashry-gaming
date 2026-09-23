@@ -35,7 +35,7 @@ function dotsRoomDrawEarly(state, e) {
   const board = { n: b.n, lines: b.lines.slice(), boxes: b.boxes.slice() };
   const res = dotsPlay(board, e, seat + 1);
   if (!res) return;
-  const key = ['dots', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  const key = ['dots', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
   const html = dotsBoardHtml(board, { last: { edge: e, boxes: res.boxes }, playable: false, next: seat + 1, initials: dotsInitials(duelRoomNames(state)) });
   duelRoomDrawEarly('dots', key, html, (box) => dotsAfterPaint(box, board, { lineKey: key, sound: duelRoomLoud(state) }));
 }
@@ -101,7 +101,7 @@ ROOM_GAMES.dots = {
         </div>
       </div>`);
     if (rebuilt) {
-      const key = ['dots', state.code, s.round].join('|');
+      const key = ['dots', roomDealKey(state), s.round].join('|');
       const lineKey = s.last ? key + '|' + s.moves : '';
       dotsAfterPaint(el, board, {
         onDraw: dotsRoomDraw,
@@ -115,7 +115,7 @@ ROOM_GAMES.dots = {
         scores: (s.count || [0, 0]).slice(),
         againKey: again ? key + '|' + s.moves : ''
       });
-      if (myTurn && duelOnce(['dotsturn', state.code, s.round, s.moves].join('|'))) haptic('medium');
+      if (myTurn && duelOnce(['dotsturn', roomDealKey(state), s.round, s.moves].join('|'))) haptic('medium');
       duelRoomCheer(el, state, key);
     }
     refreshRoomPlayerStrip(el, state);
@@ -146,7 +146,7 @@ TV_GAMES.dots = {
     const el = document.getElementById('view-room-tv');
     const s = state.shared || {};
     if (!el || !s.lines) return;
-    const key = ['dots', state.code, s.round].join('|');
+    const key = ['dots', roomDealKey(state), s.round].join('|');
     const again = dotsRoomAgain(s);
     dotsAfterPaint(el, dotsRoomBoard(s), {
       lineKey: s.last ? key + '|' + s.moves : '',

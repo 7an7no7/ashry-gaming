@@ -43,6 +43,7 @@ const clearGameState = (room) => {
   // Every piece of server-side scratch, or the previous game's answer survives
   // into the next one.
   room._key = null;
+  room._tourHidden = null;
   room._assignments = null;
   room._clueText = null;
   room._truth = null;

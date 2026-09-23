@@ -145,6 +145,9 @@ function pcFxCancel(fx) {
   fx.held.forEach(el => { el._pcHolds = 0; el.classList.remove('pc-hold'); });
   fx.held.clear();
   fx.busyUntil = 0;
+  // The layers laid over the page (a called play turned over, cards in flight) are removed by the
+  // timers just cleared: without this they would stay on top of every screen until a reload.
+  document.querySelectorAll('.pc-reveal, .pc-ghost').forEach(el => el.remove());
 }
 
 /** Where every place is, just before a redraw takes it away. */

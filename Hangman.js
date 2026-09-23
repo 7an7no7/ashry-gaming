@@ -160,8 +160,11 @@ const hmApply = (board, word, guess, whole) => {
   if (!board || board.state !== 'play') return '';
   const alpha = hmAlphaOf(word);
   if (whole) {
-    const text = hmClean(guess);
+    // No guess is longer than the longest word that can be written (the field says 28 too).
+    const text = hmClean(String(guess || '').slice(0, 64));
     if (!text) return '';
+    // One letter typed in the word's box is that letter, not a wrong word.
+    if (hmLettersOf(text).length === 1) return hmApply(board, word, text, false);
     if (hmSameWord(text, word)) {
       hmLettersOf(word).forEach(c => { const k = hmFold(c); if (board.g.indexOf(k) === -1) board.g.push(k); });
       board.state = 'won';

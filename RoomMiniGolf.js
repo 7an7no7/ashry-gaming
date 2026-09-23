@@ -79,7 +79,7 @@ const mgRoomOptions = (payload, prev) => {
 const mgHere = (room) => room.players.map(p => p.id);
 
 /** This game's holes, ids in order (a game saved before they were drawn played the first ones). */
-const mgCourse = (s) => (Array.isArray(s.holes) ? s.holes : GOLF_HOLES.slice(0, Number(s.holes) || 6).map(h => h.id));
+const mgCourse = (s) => (Array.isArray(s.holes) ? s.holes : golfLegacyCourse(s.holes));
 /** The hole being played. */
 const mgHole = (s) => golfHoleById(mgCourse(s)[s.hole]);
 

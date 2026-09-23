@@ -84,7 +84,7 @@ function xoRoomEarly(state, cell) {
   const order = { X: ((s.order || {}).X || []).slice(), O: ((s.order || {}).O || []).slice() };
   const placed = xoMark(cells, order, s.rule3, cell, seat === 0 ? 'X' : 'O');
   if (!placed) return;
-  const key = ['xo', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  const key = ['xo', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
   const next = Object.assign({}, s, { cells: cells, order: order, last: { seat: seat, cell: cell, gone: placed.gone }, win: [] });
   duelRoomDrawEarly('xo', key, xoRoomBoardHtml(next, { popKey: key }), () => {
     if (duelOnce('snd|' + key)) duelSound('drop');
@@ -132,7 +132,7 @@ ROOM_GAMES.xo = {
     const seat = (s.seats || []).indexOf(Room.me);
     const myTurn = s.phase === 'play' && seat === s.turn && !state.youAreScreen;
     const leaving = xoRoomLeaving(state);
-    const key = ['xo', state.code, s.round].join('|');
+    const key = ['xo', roomDealKey(state), s.round].join('|');
     const moveKey = s.last ? key + '|' + s.moves : '';
     const sig = ['xor', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
                  JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name).join(','),
@@ -165,7 +165,7 @@ ROOM_GAMES.xo = {
         turn: s.phase === 'play' ? s.turn : -1,
         scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
       });
-      if (myTurn && duelOnce(['xoturn', state.code, s.round, s.moves].join('|'))) haptic('medium');
+      if (myTurn && duelOnce(['xoturn', roomDealKey(state), s.round, s.moves].join('|'))) haptic('medium');
       duelRoomCheer(el, state, key);
     }
     refreshRoomPlayerStrip(el, state);
@@ -183,7 +183,7 @@ TV_GAMES.xo = {
   frame(state, t) {
     const s = state.shared || {};
     if (!Array.isArray(s.cells)) return tvLookAtPhones(t);
-    const key = ['xo', state.code, s.round].join('|');
+    const key = ['xo', roomDealKey(state), s.round].join('|');
     return `
       <div class="duel-tv xo-game" data-accent="blue">
         <div class="duel-tv__board" style="--duel-aspect:1">
@@ -197,7 +197,7 @@ TV_GAMES.xo = {
     const el = document.getElementById('view-room-tv');
     const s = state.shared || {};
     if (!el || !Array.isArray(s.cells)) return;
-    const key = ['xo', state.code, s.round].join('|');
+    const key = ['xo', roomDealKey(state), s.round].join('|');
     xoRoomAfter(el, state, key, true);
     duelPillsAfter(el, 'xotv|' + state.code, {
       turn: s.phase === 'play' ? s.turn : -1,

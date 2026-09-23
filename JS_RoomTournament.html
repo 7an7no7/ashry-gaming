@@ -233,7 +233,8 @@ function tourCountHtml(at, key) {
 function tourCountLoop() {
   if (tourLocal.loop) return;
   const tick = () => {
-    const els = document.querySelectorAll('[data-tour-at]');
+    // Only countdowns still running on a screen being shown: a room view left behind keeps its old markup.
+    const els = [...document.querySelectorAll('[data-tour-at]')].filter(el => el.offsetParent !== null && Number(el.dataset.tourAt) > Date.now() - 1000);
     if (!els.length) { tourLocal.loop = null; return; }
     els.forEach(el => {
       const left = Math.max(0, Math.ceil((Number(el.dataset.tourAt) - Date.now()) / 1000));

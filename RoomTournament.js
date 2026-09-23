@@ -247,7 +247,8 @@ const tourDeal = (room, m) => {
   v.secrets = {};
   Object.keys(v).forEach(k => { if (k.charAt(0) === '_') delete v[k]; });
   v.shared = {
-    round: t.gameSeq,                                  // unique in the tournament: the phones key their motion on it
+    // Unique across the evening's tournaments too: the phones key their play-once motion on it.
+    round: (Number(t.no) || 0) * 1000 + t.gameSeq,
     dealId: m.id + '.' + (m.games + 1),
     seats: seats.slice(),
     seatNames: seats.map(id => t.names[id] || roomPlayerName(room, id)),
@@ -260,7 +261,16 @@ const tourDeal = (room, m) => {
   m.startAt = null;
   tourCommit(room, m, v);
   // Both players have moved on: the games that brought them here aren't needed on every phone any more.
-  t.matches.forEach(x => { if (x.next === m.id && x.state === 'done') delete s.games[x.id]; });
+  t.matches.forEach(x => { if (x.next === m.id && x.state === 'done') tourDropGame(room, x.id); });
+};
+
+/** A finished match's board and hidden state go (and the TV stops showing it big). */
+const tourDropGame = (room, id) => {
+  const s = room.shared;
+  const t = s.tour;
+  if (s.games) delete s.games[id];
+  if (room._tourHidden) delete room._tourHidden[id];
+  if (t && t.featured === id) t.featured = null;
 };
 
 /** A match is decided: the winner goes on to the next one, or the tournament is over. */
@@ -393,6 +403,8 @@ const tourNew = (room, playerId, payload, game) => {
   // A second tap for the same new tournament (or the same switch) is dropped before anything else.
   if (staleTap(payload, 'round', s.round)) return;
   const over = s.tour ? s.tour.phase === 'over' : s.phase === 'over';
+  // A tap that carries what it saw and finds the room already moved on is a double tap: dropped quietly.
+  if (!over && payload && payload.round !== undefined) return;
   if (!over) throw new Error('استنى لما الماتش يخلص');
   const settings = s.tour ? Object.assign({}, s.settings) : kind.settingsOf(s);
   if (payload.mode === 'tour') {
@@ -427,7 +439,8 @@ const tourAction = (room, playerId, action, payload, game) => {
   if (action === 'tourFeature') {
     // The match the TV shows big (null: the bracket).
     requireHost(room, playerId);
-    const id = p.match ? String(p.match) : null;
+    // 'bracket' (the TV's own button) or nothing: the bracket; else a match that is really there.
+    const id = p.match && p.match !== 'bracket' ? String(p.match) : null;
     if (!id || tourMatch(t, id)) t.featured = id;
     return true;
   }

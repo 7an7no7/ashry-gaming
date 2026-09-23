@@ -6238,7 +6238,12 @@ Date.now = duelTestClock;
       'tournament: a new one is a new draw, the points of the last one kept');
     applyRoomAction(r, 'a', 'tourNew', { mode: 'tour', round: 1 });
     check(r.shared.tour.no === 2, 'tournament: a second tap for the same new tournament is dropped');
-    check(refused(() => applyRoomAction(r, 'a', 'tourNew', { mode: 'stay', round: r.shared.round })), 'tournament: nothing to switch to until it is over');
+    // A tap that says what it saw is dropped quietly until the tournament is over (a double tap on the
+    // switch lands here); one that says nothing is refused.
+    const tourBefore = r.shared.tour;
+    applyRoomAction(r, 'a', 'tourNew', { mode: 'stay', round: r.shared.round });
+    check(r.shared.tour === tourBefore && r.shared.tour.phase === 'play' && refused(() => applyRoomAction(r, 'a', 'tourNew', { mode: 'stay' })),
+      'tournament: nothing to switch to until it is over');
     const t2 = r.shared.tour;
     for (let guard = 0; guard < 3000 && t2.phase === 'play'; guard++) {
       const m = t2.matches.find((x) => x.state === 'play');
@@ -6393,6 +6398,128 @@ Date.now = duelTestClock;
     applyRoomAction(r, 'a', 'skipTurn', { move: 0 });
     check(s.chess.moves === 1 && s.chess.last.auto === 'host', 'chess room: the host can play for the side to move');
     check(refused(() => applyRoomAction(r, 'b', 'skipTurn', { move: 1 })), 'chess room: only the host plays for someone');
+  }
+}
+
+/* The audit of 23 Sep 2026: the rules fixed after it. */
+{
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const leave = (r, id) => {
+    r.players = r.players.filter((p) => p.id !== id);
+    if (r.hostId === id) r.hostId = r.players[0].id;
+    roomPlayerLeft(r, id, id.toUpperCase());
+  };
+  const start = (game, ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+
+  // Hangman: someone before the writer in the order leaves - the order carries on without a skip.
+  {
+    const r = start('hangman', ['a', 'b', 'c', 'd'], { rounds: 10 });
+    const s = r.shared;
+    const ord = s.order.slice();
+    check(s.setter === ord[0], 'audit/hangman: the first in the order writes first');
+    applyRoomAction(r, ord[0], 'setWord', { word: 'قطة', round: 1 });
+    applyRoomAction(r, r.hostId, 'closeWord', { round: 1 });
+    applyRoomAction(r, r.hostId, 'nextRound', { round: 1 });
+    check(s.setter === ord[1], 'audit/hangman: then the second');
+    leave(r, ord[0]);
+    applyRoomAction(r, ord[1], 'setWord', { word: 'بيت', round: 2 });
+    applyRoomAction(r, r.hostId, 'closeWord', { round: 2 });
+    applyRoomAction(r, r.hostId, 'nextRound', { round: 2 });
+    check(s.setter === ord[2], 'audit/hangman: one who wrote earlier leaves - the next writer is the next in the order, nobody skipped');
+    // The writer leaves after writing: the one after them writes next.
+    applyRoomAction(r, ord[2], 'setWord', { word: 'شمس', round: 3 });
+    leave(r, ord[2]);
+    applyRoomAction(r, r.hostId, 'closeWord', { round: 3 });
+    applyRoomAction(r, r.hostId, 'nextRound', { round: 3 });
+    check(s.setter === ord[3], 'audit/hangman: a writer who leaves after writing hands on to the next in the order');
+  }
+  {
+    const HM = new Function(src('ChameleonWords.js') + src('EmojiRiddles.js') + src('Hangman.js') + '\nreturn { hmApply, hmNewBoard };')();
+    const b = HM.hmNewBoard();
+    check(HM.hmApply(b, 'برتقال', 'ب', true) === 'hit' && b.g.indexOf('ب') !== -1 && b.miss.length === 0,
+      'audit/hangman: one letter typed in the whole-word box is that letter, not a wrong word');
+    HM.hmApply(b, 'برتقال', 'س'.repeat(5000), true);
+    check(b.miss.length === 1 && Array.from(b.miss[0]).length <= 64, 'audit/hangman: a guess is never longer than a word can be');
+  }
+
+  // The solve engine: the same order rule.
+  {
+    const r = start('guessnum', ['a', 'b', 'c', 'd'], { rounds: 10, max: 50 });
+    const s = r.shared;
+    const ord = s.order.slice();
+    const round = (n) => {
+      applyRoomAction(r, s.setter, 'setSecret', { n: 7, round: n });
+      applyRoomAction(r, r.hostId, 'closeRound', { round: n });
+      applyRoomAction(r, r.hostId, 'nextRound', { round: n });
+    };
+    round(1);
+    check(s.setter === ord[1], 'audit/solve: the second in the order sets second');
+    leave(r, ord[0]);
+    round(2);
+    check(s.setter === ord[2], 'audit/solve: one who set earlier leaves - the next setter is the next in the order');
+  }
+
+  // Guess Who: the clock deals a face to whoever hasn't picked; a quiet answerer is named as the one skipped.
+  {
+    const r = start('guesswho', ['a', 'b'], { pick: 'choose', turnClock: 30 });
+    const s = r.shared;
+    check(s.phase === 'pick' && !!s.endsAt && roomDeadline(r) >= s.endsAt, 'audit/guesswho: with the clock on, picking a face has a clock');
+    clock = s.endsAt + 5000;
+    roomTimeout(r, clock);
+    check(s.phase === 'play' && typeof r._gw.secret[0] === 'number' && typeof r._gw.secret[1] === 'number' && !!s.endsAt,
+      'audit/guesswho: when it runs out, whoever hasn\'t picked gets a face, and the game starts on the turn clock');
+    const asker = s.seats[s.turn];
+    const seq0 = s.logSeq || 0;
+    applyRoomAction(r, asker, 'loud', { seq: s.turnSeq });
+    check(s.stage === 'answer', 'audit/guesswho: a question out loud waits for the answer');
+    applyRoomAction(r, r.hostId, 'skipTurn', { seq: s.turnSeq });
+    const last = s.log[s.log.length - 1];
+    check(last.kind === 'skip' && last.stage === 'answer' && s.seats[last.seat] !== asker,
+      'audit/guesswho: skipping a quiet answerer names the answerer, not the one who asked');
+    check((s.logSeq || 0) > seq0, 'audit/guesswho: the log counts its entries, past the few it keeps');
+  }
+
+  // الشايب: the hand being drawn from leaves - a new turn, so a tap aimed at it is stale.
+  {
+    const r = start('oldmaid', ['a', 'b', 'c', 'd'], {});
+    const s = r.shared;
+    const drawer = s.turn.pid, from = s.turn.from;
+    const seq0 = s.turnSeq;
+    leave(r, from);
+    check(s.phase === 'play' && s.turn.pid === drawer && s.turn.from !== from && s.turnSeq > seq0,
+      'audit/oldmaid: the hand being drawn from leaves - the drawer draws from the next, as a new turn');
+    try { applyRoomAction(r, drawer, 'lift', { pos: 0, seq: seq0 }); } catch (e) {}
+    check(!r._om.aimId, 'audit/oldmaid: a lift sent before that is dropped');
+  }
+
+  // The tournament: the TV's bracket button, and game numbers new in every tournament.
+  {
+    const r = start('connect4', ['a', 'b', 'c', 'd'], { tournament: true });
+    const t = r.shared.tour;
+    const m = t.matches.find((x) => x.p[0] && x.p[1]);
+    applyRoomAction(r, 'a', 'tourFeature', { match: m.id });
+    check(t.featured === m.id, 'audit/tournament: the host puts a match big on the TV');
+    applyRoomAction(r, 'a', 'tourFeature', { match: 'bracket' });
+    check(t.featured === null, 'audit/tournament: and the bracket button brings the bracket back');
+    clock += 10000;
+    roomTimeout(r, clock);
+    const g = r.shared.games[m.id];
+    check(!!g && g.round >= 1000 * (t.no || 1), 'audit/tournament: a match\'s game number carries the tournament\'s, so the next tournament\'s are new');
+    check(refused(() => applyRoomAction(r, 'a', 'tourNew', { mode: 'stay' })) && r.shared.tour === t, 'audit/tournament: a tap that says nothing is still refused mid-tournament');
+  }
+
+  // Mini golf: a game saved with a count of holes plays the old order's holes.
+  {
+    const MG = new Function(src('MiniGolf.js') + '\nreturn { golfLegacyCourse, golfParOf };')();
+    const c = MG.golfLegacyCourse(6);
+    check(c.join(',') === 'first,bridge,mill,souq,humps,fair' && MG.golfParOf(6) === MG.golfParOf(c),
+      'audit/minigolf: a game saved before the holes had kinds carries on on the holes it was playing');
   }
 }
 

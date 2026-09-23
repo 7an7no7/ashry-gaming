@@ -5,7 +5,10 @@
    holes and the physics are MiniGolf.js, shared with the page.
 
    The owner's rules for a room (23 Sep 2026, asked one at a time):
-   - 3, 6, 9 or 18 holes, 6 by default; the first holes of the course, in order.
+   - 3, 6, 9 or 18 holes, 6 by default, drawn at random from the kind the host
+     picks: easy, medium, hard or mixed (the default; a third of each, easiest
+     first). Dealt through nextPrompts, so holes played lately don't come back
+     until the kind has gone round (start and playAgain are DEAL_ACTIONS).
    - Two ways to play, the host's choice: all at once (the default) - every
      ball on the same hole together, each player putting from their own phone
      whenever they are ready, the balls passing through each other - or in
@@ -39,8 +42,8 @@
 
    Nothing is hidden: everything is `shared`.
      phase     'play' | 'between' (the hole's card, then the next) | 'gameover'
-     settings  { mode: 'together' | 'turns', holes, guide, clock }
-     hole      the hole being played (0-based) · holes  how many
+     settings  { mode: 'together' | 'turns', holes (how many), level, guide, clock }
+     holes     the ids of this game's holes, in the order played · hole  the one being played (0-based)
      startedAt the server's clock when this hole started · stamp  when shared last changed
      order     who plays, in turn order for this hole
      balls     { pid: { at, n (strokes counted), done: '' | 'cup' | 'picked', restAt, clockAt } }
@@ -49,7 +52,7 @@
      shotSeq   putts so far this game · turn  whose putt it is (turns)
      card      { pid: [strokes of each hole, null until done] }
      board     [{ id, name, score }] lowest total first · scores  { pid: total }
-     nextAt    when 'between' moves on · result  { winners, par }
+     nextAt    when 'between' moves on · result  { winners, par (what the course asks for) }
      wins      games won this evening, kept by play again
    ========================================================================= */
 const MG_HOLE_COUNTS = [3, 6, 9, 18];
@@ -67,12 +70,18 @@ const mgRoomOptions = (payload, prev) => {
   return {
     mode: mode,
     holes: pickN(MG_HOLE_COUNTS, p.holes, was.holes, 6),
+    level: GOLF_LEVELS.indexOf(p.level) !== -1 ? p.level : (GOLF_LEVELS.indexOf(was.level) !== -1 ? was.level : 'mix'),
     guide: p.guide === undefined ? !!was.guide : !!p.guide,
     clock: pickN(MG_CLOCKS, p.clock, was.clock, 0)
   };
 };
 
 const mgHere = (room) => room.players.map(p => p.id);
+
+/** This game's holes, ids in order (a game saved before they were drawn played the first ones). */
+const mgCourse = (s) => (Array.isArray(s.holes) ? s.holes : GOLF_HOLES.slice(0, Number(s.holes) || 6).map(h => h.id));
+/** The hole being played. */
+const mgHole = (s) => golfHoleById(mgCourse(s)[s.hole]);
 
 /** Totals so far, lowest first: the holes each player has finished. */
 const mgBoard = (room) => {
@@ -100,7 +109,7 @@ const mgClockFor = (room, pid, from) => {
 /** A hole begins: every ball on the tee, the hole's clock at 0. */
 const mgStartHole = (room, index) => {
   const s = room.shared;
-  const h = GOLF_HOLES[index];
+  const h = golfHoleById(mgCourse(s)[index]);
   const now = Date.now();
   s.hole = index;
   s.phase = 'play';
@@ -133,7 +142,7 @@ const mgNewGame = (room, playerId, payload, again) => {
   order.forEach(pid => { card[pid] = new Array(settings.holes).fill(null); });
   room.shared = {
     settings: settings,
-    holes: settings.holes,
+    holes: golfDealCourse(settings.holes, settings.level, (ids, n, lvl) => nextPrompts(room, ids, 'golf_' + lvl, n)),
     order: order,
     card: card,
     shotSeq: 0,
@@ -162,7 +171,7 @@ const mgEndHole = (room) => {
   s.turn = null;
   Object.keys(s.balls).forEach(pid => { s.balls[pid].clockAt = null; });
   mgBoard(room);
-  if (s.hole + 1 >= s.holes) {
+  if (s.hole + 1 >= mgCourse(s).length) {
     s.phase = 'gameover';
     room.phase = 'gameover';
     s.nextAt = null;
@@ -171,7 +180,7 @@ const mgEndHole = (room) => {
     const winners = rows.filter(r => r.score === best).map(r => r.id);
     // One on their own counts no win: there was nobody to beat.
     if (rows.length > 1) winners.forEach(pid => { s.wins[pid] = (s.wins[pid] || 0) + 1; });
-    s.result = { winners: winners, par: golfParOf(s.holes), settleAt: settle };
+    s.result = { winners: winners, par: golfParOf(mgCourse(s)), settleAt: settle };
     return;
   }
   s.phase = 'between';
@@ -208,7 +217,7 @@ const mgPutt = (room, pid, raw, auto) => {
   const s = room.shared;
   const b = s.balls[pid];
   const now = Date.now();
-  const h = GOLF_HOLES[s.hole];
+  const h = mgHole(s);
   const own = Math.max(0, now - s.startedAt);
   const t0 = !auto && Math.abs((Number(raw.t0) || 0) - own) <= MG_T0_SLACK ? Math.max(0, Math.round(Number(raw.t0) || 0)) : own;
   const shot = golfCleanShot({ dx: raw.dx, dy: raw.dy, power: raw.power, t0: t0 });
@@ -230,7 +239,7 @@ const mgPutt = (room, pid, raw, auto) => {
   b.restAt = now + dur;
   if (r.end === 'cup') b.done = 'cup';
   else if (b.n >= max) { b.done = 'picked'; b.n = max + 1; }
-  if (b.done) (s.card[pid] = s.card[pid] || new Array(s.holes).fill(null))[s.hole] = b.n;
+  if (b.done) (s.card[pid] = s.card[pid] || new Array(mgCourse(s).length).fill(null))[s.hole] = b.n;
   // The balls it knocked: where they lie now; one knocked in is holed with its strokes so far.
   (r.moved || []).forEach(m => {
     const o = s.balls[m.id];
@@ -240,7 +249,7 @@ const mgPutt = (room, pid, raw, auto) => {
     if (m.end === 'cup') {
       o.done = 'cup';
       o.clockAt = null;
-      (s.card[m.id] = s.card[m.id] || new Array(s.holes).fill(null))[s.hole] = o.n;
+      (s.card[m.id] = s.card[m.id] || new Array(mgCourse(s).length).fill(null))[s.hole] = o.n;
     }
   });
   if (s.settings.mode === 'turns') {
@@ -279,7 +288,7 @@ const minigolfAction = (room, playerId, action, payload) => {
       if (action === 'playFor') return;
       throw new Error('مش دورك');
     }
-    if (action === 'playFor') mgPutt(room, target, golfAutoShot(GOLF_HOLES[s.hole], b.at, Date.now() - s.startedAt), true);
+    if (action === 'playFor') mgPutt(room, target, golfAutoShot(mgHole(s), b.at, Date.now() - s.startedAt), true);
     else mgPutt(room, target, p, false);
     s.stamp = Date.now();
     return;
@@ -329,7 +338,7 @@ const mgTimeout = (room, now) => {
     const b = s.balls[pid];
     if (s.phase !== 'play' || s.hole !== hole || !b || b.done) return;
     if (s.settings.mode === 'turns' && s.turn !== pid) return;
-    mgPutt(room, pid, golfAutoShot(GOLF_HOLES[s.hole], b.at, now - s.startedAt), true);
+    mgPutt(room, pid, golfAutoShot(mgHole(s), b.at, now - s.startedAt), true);
   });
   s.stamp = now;
   return true;
@@ -357,7 +366,7 @@ const mgPlayerLeft = (room, playerId) => {
     room.phase = 'gameover';
     s.turn = null;
     s.nextAt = null;
-    s.result = { winners: [], par: golfParOf(s.holes), settleAt: Date.now() };
+    s.result = { winners: [], par: golfParOf(mgCourse(s)), settleAt: Date.now() };
     mgBoard(room);
     return;
   }

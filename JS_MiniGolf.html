@@ -52,7 +52,11 @@ const MG_LRI = String.fromCharCode(0x2066), MG_PDI = String.fromCharCode(0x2069)
 const MG_ARABIC = new RegExp('[' + String.fromCharCode(0x0600) + '-' + String.fromCharCode(0x06FF) + ']');
 /** "6 holes" - in Arabic حفر up to ten and حفرة past it, as the language counts. */
 const mgHolesText = (n) => mgT(Number(n) > 10 ? 'mg_holes_n11' : 'mg_holes_n', { n });
-const mgHoleName = (i) => mgT('mg_h_' + ((GOLF_HOLES[i] || {}).id || ''));
+const mgHoleName = (h) => mgT('mg_h_' + ((h || {}).id || ''));
+/** A game's holes as objects, from its ids in order (a game saved before holes were drawn played the first ones). */
+const mgCourseOf = (ids, n) => (Array.isArray(ids) ? ids : GOLF_HOLES.slice(0, Number(ids || n) || 6).map(h => h.id)).map(golfHoleById);
+/** The kind of a game, as a word: سهل، متوسط، صعب، مكس. */
+const mgLevelText = (level) => mgT('mg_level_' + (GOLF_LEVELS.indexOf(level) !== -1 ? level : 'mix'));
 /** A score against par for a line of text: "+2", "−1", or "on par"; held left to right in Arabic. */
 const mgDelta = (d) => (d === 0 ? mgT('mg_even') : MG_LRI + (d > 0 ? '+' + d : '−' + Math.abs(d)) + MG_PDI);
 /** "in 3" under a hole's word: nothing for a hole in one, and Arabic's own word for two. */
@@ -613,7 +617,10 @@ function mg3SetHole(h, key) {
   const look = MG_LOOKS[h.id] || {};
 
   // The rough, far and wide, and the course raised on a stone plinth.
-  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex(look.snow ? 'snow' : look.desert ? 'sand' : 'rough', 30, 30), roughness: 1 }), false, true);
+  const ground = look.ground || (look.snow ? 'snow' : look.desert ? 'sand' : 'rough');
+  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex(ground, 30, 30), roughness: ground === 'sea' ? 0.35 : ground === 'tiles' ? 0.6 : 1 }), false, true);
+  // The sky: night over the moon, day everywhere else.
+  MG3.scene.background.set(look.night ? 0x0b1026 : 0xbfe3f2);
   rough.rotation.x = -Math.PI / 2;
   rough.position.set(cx, -0.36, -cy);
   G.add(rough);
@@ -887,6 +894,7 @@ function mgBlock(G, h, bk) {
   const THREE = MG3.T;
   const poly = bk.poly;
   const cx = poly.reduce((a, p) => a + p[0], 0) / poly.length, cy = poly.reduce((a, p) => a + p[1], 0) / poly.length;
+  if (MG_BLOCKS[bk.look]) return MG_BLOCKS[bk.look](G, h, bk, mgBlockInfo(poly));
   if (bk.look === 'mill') return;   // the windmill's house is drawn with its sails
   if (bk.look === 'pyramid') {
     const r = Math.max(...poly.map(p => Math.hypot(p[0] - cx, p[1] - cy)));
@@ -1398,6 +1406,7 @@ function mgScenery(G, h, look) {
   const leafCols = [0x2f7d3a, 0x3c8f45, 0x276b33, 0x4a9d4f];
   const flowerCols = [0xff6b6b, 0xffd166, 0xf1f1f1, 0xc77dff, 0xff9ff3];
   const trunks = [], crowns = [], flowers = [];
+  if (look.ground) return;     // no trees on the sea, the moon, a floor or paving
   const avoid = (look.deco || []).map(d => [d.x, d.y]);
   const near = (x, y) => avoid.some(p => Math.hypot(p[0] - x, p[1] - y) < 2.4);
   const grown = mgGrow(h.green, 1.6);
@@ -1834,6 +1843,606 @@ const MG_DECO = {
     G.add(g);
   }
 };
+
+/* ==========================================================================
+   The sixty holes' own places (23 Sep 2026): the grounds round a course
+   (sea, the moon, a tiled floor, paving), the obstacles drawn as what they
+   are on their hole (a flagpole, toy blocks, a giraffes' paddock, a Ramadan
+   lantern, Qaitbay's keep, the Sphinx, Abu Simbel's colossi…) and the
+   scenery round each new hole. Everything repeated is instanced; everything
+   is made with the hole and thrown away with it (mgKeep).
+   ========================================================================== */
+
+Object.assign(MG_TEXTURES, {
+  sea() {
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(111);
+    g.fillStyle = '#2b86c5'; g.fillRect(0, 0, 256, 256);
+    for (let k = 0; k < 500; k++) { g.fillStyle = `rgba(${r() < 0.5 ? '20,90,150' : '120,200,240'},0.25)`; g.beginPath(); g.ellipse(r() * 256, r() * 256, 6 + r() * 16, 2 + r() * 4, 0, 0, 7); g.fill(); }
+    for (let k = 0; k < 160; k++) { g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(r() * 256, r() * 256, 3 + r() * 6, 1); }
+    return c;
+  },
+  moon() {
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(121);
+    g.fillStyle = '#8d8f99'; g.fillRect(0, 0, 256, 256);
+    for (let k = 0; k < 3000; k++) { g.fillStyle = `rgba(${r() < 0.5 ? '60,62,70' : '200,202,210'},${0.1 + r() * 0.2})`; g.fillRect(r() * 256, r() * 256, 1.5, 1.5); }
+    for (let k = 0; k < 40; k++) {
+      const x = r() * 256, y = r() * 256, rad = 4 + r() * 18;
+      g.fillStyle = 'rgba(55,57,66,.45)'; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill();
+      g.strokeStyle = 'rgba(220,222,230,.45)'; g.lineWidth = 2; g.beginPath(); g.arc(x - 1, y - 1, rad, 3.6, 5.8); g.stroke();
+    }
+    return c;
+  },
+  tiles() {
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(131);
+    for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) {
+      g.fillStyle = (i + j) % 2 ? `hsl(35,20%,${84 + r() * 5}%)` : `hsl(210,18%,${70 + r() * 5}%)`;
+      g.fillRect(i * 32, j * 32, 32, 32);
+    }
+    g.strokeStyle = 'rgba(80,80,90,.35)'; g.lineWidth = 1.5;
+    for (let k = 0; k <= 256; k += 32) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, 256); g.moveTo(0, k); g.lineTo(256, k); g.stroke(); }
+    return c;
+  },
+  paving() {
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(141);
+    g.fillStyle = '#c9b48f'; g.fillRect(0, 0, 256, 256);
+    for (let row = 0; row < 8; row++) {
+      let x = row % 2 ? -20 : 0;
+      while (x < 256) { const w = 34 + r() * 26; g.fillStyle = `hsl(${34 + r() * 8},${28 + r() * 10}%,${62 + r() * 10}%)`; g.fillRect(x + 1.5, row * 32 + 1.5, w - 3, 29); x += w; }
+    }
+    return c;
+  },
+  eflag() {
+    // Egypt's flag: red, white with a golden eagle, black.
+    const [c, g] = mgCanvas(96, 64);
+    g.fillStyle = '#ce1126'; g.fillRect(0, 0, 96, 22);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 21, 96, 22);
+    g.fillStyle = '#111111'; g.fillRect(0, 42, 96, 22);
+    g.fillStyle = '#c09300'; g.beginPath(); g.moveTo(48, 24); g.lineTo(55, 32); g.lineTo(52, 40); g.lineTo(44, 40); g.lineTo(41, 32); g.closePath(); g.fill();
+    return c;
+  },
+  windows() {
+    // A wall of windows, for a building seen from the course.
+    const [c, g] = mgCanvas(128, 128), r = mgRnd(151);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 128);
+    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+      g.fillStyle = r() < 0.25 ? '#ffe7a3' : '#35506b';
+      g.fillRect(8 + i * 30, 10 + j * 30, 18, 20);
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(8 + i * 30, 30 + j * 30, 18, 3);
+    }
+    return c;
+  },
+  spots() {
+    // A giraffe's coat.
+    const [c, g] = mgCanvas(128, 128), r = mgRnd(161);
+    g.fillStyle = '#f2d49b'; g.fillRect(0, 0, 128, 128);
+    for (let k = 0; k < 26; k++) { g.fillStyle = '#b86b2a'; g.beginPath(); const x = r() * 128, y = r() * 128; g.moveTo(x, y); for (let s = 0; s < 6; s++) g.lineTo(x + Math.cos(s) * (8 + r() * 5), y + Math.sin(s) * (8 + r() * 5)); g.closePath(); g.fill(); }
+    return c;
+  },
+  eggpaint() {
+    // Sham El-Nessim's painted eggs: bands of colour and dots.
+    const [c, g] = mgCanvas(128, 128);
+    const cols = ['#ff6b9a', '#ffd166', '#06d6a0', '#118ab2', '#9b5de5', '#ff9e00'];
+    for (let i = 0; i < 8; i++) { g.fillStyle = cols[i % cols.length]; g.fillRect(0, i * 16, 128, 16); }
+    g.fillStyle = '#ffffff';
+    for (let i = 0; i < 8; i++) for (let k = 0; k < 8; k++) { g.beginPath(); g.arc(8 + k * 16, 8 + i * 16, 2.4, 0, 7); g.fill(); }
+    return c;
+  },
+  books() {
+    const [c, g] = mgCanvas(128, 64), r = mgRnd(171);
+    g.fillStyle = '#5a3a22'; g.fillRect(0, 0, 128, 64);
+    const cols = ['#b23a48', '#2a6f97', '#e9c46a', '#2a9d8f', '#6d597a', '#f4a261'];
+    for (let row = 0; row < 2; row++) { let x = 2; while (x < 126) { const w = 4 + r() * 6; g.fillStyle = cols[Math.floor(r() * 6)]; g.fillRect(x, 3 + row * 31, w - 1, 26 - r() * 5); x += w; } }
+    return c;
+  }
+});
+
+/** A mesh put at a course point, `up` above the course's surface (the green is at 0, the rough at -0.36). */
+function mgAt(G, m, x, y, up) { m.position.set(x, up || 0, -y); G.add(m); return m; }
+/** A block's middle, its box and its radius. */
+function mgBlockInfo(poly) {
+  const cx = poly.reduce((a, p) => a + p[0], 0) / poly.length, cy = poly.reduce((a, p) => a + p[1], 0) / poly.length;
+  const b = { x0: Math.min(...poly.map(p => p[0])), x1: Math.max(...poly.map(p => p[0])), y0: Math.min(...poly.map(p => p[1])), y1: Math.max(...poly.map(p => p[1])) };
+  return { cx, cy, b, w: b.x1 - b.x0, d: b.y1 - b.y0, r: Math.max(...poly.map(p => Math.hypot(p[0] - cx, p[1] - cy))), rin: Math.min(...poly.map(p => Math.hypot(p[0] - cx, p[1] - cy))) };
+}
+function mgBox(G, w, hgt, d, mat, x, y, up) { return mgAt(G, mgMesh(new MG3.T.BoxGeometry(w, hgt, d), mat), x, y, (up || 0) + hgt / 2); }
+
+const MG_BLOCKS = {
+  pole(G, h, bk, o) {
+    // The school yard's flagpole on a stone base, Egypt's flag at the top.
+    const THREE = MG3.T;
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(o.rin * 0.95, o.rin, 0.3, 12), mgMat({ map: mgTex('stone', 1, 1), roughness: 0.9 })), o.cx, o.cy, 0.15);
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(0.05, 0.06, 3.6, 8), mgMat({ color: 0xdfe3e8, roughness: 0.3, metalness: 0.7 })), o.cx, o.cy, 1.8);
+    const flag = mgAt(G, mgMesh(new THREE.PlaneGeometry(1.2, 0.8), mgMat({ map: mgTex('eflag', 1, 1), roughness: 0.7, side: THREE.DoubleSide })), o.cx + 0.62, o.cy, 3.1);
+    flag.rotation.y = 0.35;
+  },
+  bench(G, h, bk, o) {
+    const wood = mgMat({ map: mgTex('plank', 1, 1), roughness: 0.7 }), iron = mgMat({ color: 0x2f3b45, roughness: 0.5, metalness: 0.6 });
+    const along = o.w >= o.d, L = along ? o.w : o.d, T = along ? o.d : o.w;
+    [-0.3, 0, 0.3].forEach(k => mgBox(G, along ? L : T * 0.3, 0.06, along ? T * 0.3 : L, wood, o.cx + (along ? 0 : k * T), o.cy + (along ? k * T : 0), 0.42));
+    [-0.4, 0.4].forEach(k => mgBox(G, along ? 0.08 : T, 0.42, along ? T : 0.08, iron, o.cx + (along ? k * L : 0), o.cy + (along ? 0 : k * L), 0));
+  },
+  cone(G, h, bk, o) {
+    // A training cone.
+    const THREE = MG3.T;
+    mgBox(G, o.rin * 2.1, 0.06, o.rin * 2.1, mgMat({ color: 0xff7a1a, roughness: 0.6 }), o.cx, o.cy, 0);
+    mgAt(G, mgMesh(new THREE.ConeGeometry(o.rin * 0.9, 0.95, 20), mgMat({ color: 0xff7a1a, roughness: 0.55 })), o.cx, o.cy, 0.53);
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(o.rin * 0.5, o.rin * 0.62, 0.14, 20), mgMat({ color: 0xffffff, roughness: 0.5 })), o.cx, o.cy, 0.5);
+  },
+  toy(G, h, bk, o) {
+    // A toy building block with studs on top, in its own colour.
+    const THREE = MG3.T;
+    const cols = [0xe63946, 0xffb703, 0x219ebc, 0x2a9d8f, 0x9b5de5];
+    const col = cols[Math.abs(Math.round(o.cx * 7 + o.cy * 3)) % cols.length];
+    const mat = mgMat({ color: col, roughness: 0.35 });
+    mgBox(G, o.w, 0.9, o.d, mat, o.cx, o.cy, 0);
+    const studs = [];
+    [-0.25, 0.25].forEach(a => [-0.25, 0.25].forEach(b2 => studs.push({ p: [o.cx + a * o.w, 0.97, -(o.cy + b2 * o.d)], s: [1, 1, 1] })));
+    mgInstances(G, new THREE.CylinderGeometry(o.w * 0.14, o.w * 0.14, 0.14, 16), mat, studs, true);
+  },
+  pen(G, h, bk, o) {
+    // The giraffes' paddock: a wooden fence round sand, an acacia and two giraffes.
+    const THREE = MG3.T;
+    const sand = mgFlat(mgShape(bk.poly), mgMat({ map: mgTex('sand', 1, 1), roughness: 1 }), 0.012, 3);
+    G.add(sand);
+    const wood = mgMat({ map: mgTex('bark', 1, 1), roughness: 0.85 });
+    const posts = [], rails = [];
+    bk.poly.forEach((p, i) => {
+      const q = bk.poly[(i + 1) % bk.poly.length];
+      const L = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.max(1, Math.round(L / 0.9));
+      for (let k = 0; k < n; k++) posts.push({ p: [p[0] + (q[0] - p[0]) * k / n, 0.4, -(p[1] + (q[1] - p[1]) * k / n)], s: [1, 1, 1] });
+      [0.3, 0.65].forEach(hy => G.add(mgBar(p[0], p[1], q[0], q[1], 0.08, 0.08, wood, hy)));
+    });
+    mgInstances(G, new THREE.CylinderGeometry(0.07, 0.08, 0.8, 6), wood, posts, true);
+    MG_DECO.acacia(G, h, { x: o.cx + o.w * 0.2, y: o.cy + o.d * 0.25, base: 0 });
+    MG_DECO.giraffe(G, h, { x: o.cx - o.w * 0.15, y: o.cy - o.d * 0.1, r: 0.6, base: 0 });
+    MG_DECO.giraffe(G, h, { x: o.cx + o.w * 0.1, y: o.cy - o.d * 0.32, r: 2.4, base: 0, s: 0.8 });
+  },
+  fanous(G, h, bk, o) {
+    // A big Ramadan lantern: coloured glass in a brass frame, a dome, a ring; lit from inside.
+    const THREE = MG3.T;
+    const brass = mgMat({ color: 0xc9a227, roughness: 0.3, metalness: 0.85 });
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(o.rin * 0.8, o.rin * 0.95, 0.25, 8), brass), o.cx, o.cy, 0.12);
+    const glass = mgMesh(new THREE.CylinderGeometry(o.rin * 0.95, o.rin * 0.62, 1.5, 8, 1, true), mgMat({ color: 0xff4d6d, emissive: 0xff7b00, emissiveIntensity: 0.9, roughness: 0.2, transparent: true, opacity: 0.85, side: THREE.DoubleSide }));
+    mgAt(G, glass, o.cx, o.cy, 1);
+    const bars = [];
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + Math.PI / 8; bars.push({ p: [o.cx + Math.cos(a) * o.rin * 0.8, 1, -(o.cy + Math.sin(a) * o.rin * 0.8)], s: [1, 1, 1], r: [0, -a, Math.sin(a) * 0.1] }); }
+    mgInstances(G, new THREE.BoxGeometry(0.05, 1.55, 0.05), brass, bars, true);
+    mgAt(G, mgMesh(new THREE.SphereGeometry(o.rin * 0.95, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), brass), o.cx, o.cy, 1.75);
+    mgAt(G, mgMesh(new THREE.TorusGeometry(0.18, 0.04, 8, 16), brass), o.cx, o.cy, o.rin * 0.95 + 1.95);
+    const light = new THREE.PointLight(0xffa24a, 1.2, 6);
+    mgAt(G, light, o.cx, o.cy, 1.1);
+  },
+  castle(G, h, bk, o) {
+    // A sandcastle: a round keep, four little towers, a flag.
+    const THREE = MG3.T;
+    const sand = mgMat({ map: mgTex('sand', 1, 1), roughness: 1 });
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(o.rin * 0.8, o.rin, 0.6, 16), sand), o.cx, o.cy, 0.3);
+    const towers = [];
+    for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2 + 0.4; towers.push({ p: [o.cx + Math.cos(a) * o.rin * 0.62, 0.9, -(o.cy + Math.sin(a) * o.rin * 0.62)], s: [1, 1, 1] }); }
+    mgInstances(G, new THREE.CylinderGeometry(0.2, 0.24, 0.6, 10), sand, towers, true);
+    mgInstances(G, new THREE.ConeGeometry(0.25, 0.35, 10), sand, towers.map(t => ({ p: [t.p[0], 1.37, t.p[2]], s: [1, 1, 1] })), true);
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(0.015, 0.015, 0.8, 4), mgMat({ color: 0x8d6e63 })), o.cx, o.cy, 0.95);
+    mgAt(G, mgMesh(new THREE.PlaneGeometry(0.34, 0.22), mgMat({ color: 0xe63946, side: THREE.DoubleSide })), o.cx + 0.17, o.cy, 1.22);
+  },
+  egg(G, h, bk, o) {
+    const THREE = MG3.T;
+    const egg = mgMesh(new THREE.SphereGeometry(o.rin, 20, 14), mgMat({ map: mgTex('eggpaint', 1, 1), roughness: 0.4 }));
+    egg.scale.set(1, 1.35, 1);
+    egg.rotation.set(0.1, o.cx, 0.15);
+    mgAt(G, egg, o.cx, o.cy, o.rin * 1.3);
+  },
+  fountain(G, h, bk, o) {
+    // A garden fountain in the middle of the lawn: a stone basin, water, a jet.
+    const THREE = MG3.T;
+    const stone = mgMat({ map: mgTex('stone', 1, 1), roughness: 0.85 });
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(o.r * 0.98, o.r, 0.5, 24, 1, true), stone), o.cx, o.cy, 0.25);
+    const rim = mgAt(G, mgMesh(new THREE.TorusGeometry(o.r * 0.97, 0.1, 8, 32), stone), o.cx, o.cy, 0.5); rim.rotation.x = Math.PI / 2;
+    const water = mgAt(G, mgMesh(new THREE.CircleGeometry(o.r * 0.95, 32), mgMat({ color: 0x3aa0e8, roughness: 0.1, metalness: 0.1, normalMap: mgTex('ripple', 1, 1, false) }), false, true), o.cx, o.cy, 0.4);
+    water.rotation.x = -Math.PI / 2;
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(0.16, 0.24, 0.9, 12), stone), o.cx, o.cy, 0.75);
+    const jet = mgAt(G, mgMesh(new THREE.ConeGeometry(0.14, 1.1, 10, 1, true), mgMat({ color: 0xdff3ff, transparent: true, opacity: 0.7, roughness: 0.1 }), false, false), o.cx, o.cy, 1.7);
+    jet.rotation.x = Math.PI;
+  },
+  dovecote(G, h, bk, o) {
+    // A village dovecote: a tapering mud tower studded with pots, a white top, pigeons.
+    const THREE = MG3.T;
+    const clay = mgMat({ map: mgTex('clay', 1, 1), roughness: 0.85 });
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(o.rin * 0.55, o.rin, 2.6, 14), clay), o.cx, o.cy, 1.3);
+    mgAt(G, mgMesh(new THREE.SphereGeometry(o.rin * 0.58, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), mgMat({ color: 0xf2e8d5, roughness: 0.9 })), o.cx, o.cy, 2.6);
+    const holes = [], birds = [];
+    for (let k = 0; k < 18; k++) { const a = k * 2.4, y = 0.6 + (k % 6) * 0.35, rr = o.rin * (1 - (y / 2.6) * 0.45) + 0.01; holes.push({ p: [o.cx + Math.cos(a) * rr, y, -(o.cy + Math.sin(a) * rr)], s: [1, 1, 1] }); }
+    mgInstances(G, new THREE.SphereGeometry(0.07, 6, 4), mgMat({ color: 0x2b1a10, roughness: 1 }), holes, false);
+    for (let k = 0; k < 4; k++) { const a = k * 1.7; birds.push({ p: [o.cx + Math.cos(a) * 0.3, 2.95, -(o.cy + Math.sin(a) * 0.3)], s: [1, 0.8, 1.4], r: [0, a, 0] }); }
+    mgInstances(G, new THREE.SphereGeometry(0.09, 8, 6), mgMat({ color: 0xf5f5f5, roughness: 0.7 }), birds, true);
+  },
+  pylon(G, h, bk, o) {
+    // A temple pylon: a tapering sandstone gateway tower, a painted cornice.
+    const THREE = MG3.T;
+    const geo = new THREE.BoxGeometry(o.w, 3, o.d);
+    const pa = geo.attributes.position;
+    for (let i = 0; i < pa.count; i++) if (pa.getY(i) > 0) { pa.setX(i, pa.getX(i) * 0.82); pa.setZ(i, pa.getZ(i) * 0.8); }
+    geo.computeVertexNormals();
+    mgUvWorld(geo, 1.6);
+    mgAt(G, mgMesh(geo, mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.85 })), o.cx, o.cy, 1.5);
+    mgBox(G, o.w * 0.86, 0.22, o.d * 0.84, mgMat({ color: 0x2a6f97, roughness: 0.7 }), o.cx, o.cy, 3);
+  },
+  pillar(G, h, bk, o) {
+    // A metro station's pillar: white tiles, a blue band, the M of the metro in a circle.
+    const THREE = MG3.T;
+    mgBox(G, o.w, 2.8, o.d, mgMat({ map: mgTex('tiles', 1, 1), roughness: 0.4 }), o.cx, o.cy, 0);
+    mgBox(G, o.w + 0.04, 0.3, o.d + 0.04, mgMat({ color: 0x1d4ed8, roughness: 0.5 }), o.cx, o.cy, 1.9);
+    const sign = mgAt(G, mgMesh(new THREE.CircleGeometry(0.22, 20), mgMat({ color: 0xe63946, emissive: 0xe63946, emissiveIntensity: 0.4 }), false, false), o.cx, o.b.y0 - 0.02, 2.35);
+    sign.rotation.y = Math.PI;
+  },
+  bag(G, h, bk, o) {
+    // A suitcase left by the gate: hard shell, a handle, wheels.
+    const THREE = MG3.T;
+    const col = [0xe63946, 0x2a9d8f, 0xffb703, 0x6d597a][Math.abs(Math.round(o.cx * 5 + o.cy)) % 4];
+    mgBox(G, o.w, 0.95, o.d, mgMat({ color: col, roughness: 0.35, metalness: 0.1 }), o.cx, o.cy, 0.08);
+    const handle = mgAt(G, mgMesh(new THREE.TorusGeometry(0.16, 0.035, 6, 14, Math.PI), mgMat({ color: 0x222222 })), o.cx, o.cy, 1.03);
+    if (o.d > o.w) handle.rotation.y = Math.PI / 2;
+    const wheels = [];
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b2]) => wheels.push({ p: [o.cx + a * (o.w / 2 - 0.1), 0.06, -(o.cy + b2 * (o.d / 2 - 0.1))], s: [1, 1, 1] }));
+    mgInstances(G, new THREE.SphereGeometry(0.07, 8, 6), mgMat({ color: 0x111111 }), wheels, false);
+  },
+  fort(G, h, bk, o) {
+    // Qaitbay's keep: a square sandstone tower, round towers at its corners, battlements, the little mosque tower on top.
+    const THREE = MG3.T;
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.85 });
+    const geo = new THREE.BoxGeometry(o.w * 0.86, 2.6, o.d * 0.86); mgUvWorld(geo, 2);
+    mgAt(G, mgMesh(geo, stone), o.cx, o.cy, 1.3);
+    const corners = [];
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b2]) => corners.push({ p: [o.cx + a * (o.w / 2 - 0.5), 1.55, -(o.cy + b2 * (o.d / 2 - 0.5))], s: [1, 1, 1] }));
+    mgInstances(G, new THREE.CylinderGeometry(0.5, 0.55, 3.1, 14), stone, corners, true);
+    const mer = [];
+    for (let k = 0; k < 10; k++) { const t = k / 9; [[t, 0], [t, 1], [0, t], [1, t]].forEach(([u, v]) => mer.push({ p: [o.b.x0 + 0.07 * o.w + u * o.w * 0.86, 2.75, -(o.b.y0 + 0.07 * o.d + v * o.d * 0.86)], s: [1, 1, 1] })); }
+    mgInstances(G, new THREE.BoxGeometry(0.22, 0.3, 0.22), stone, mer, true);
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(0.4, 0.45, 1.3, 12), stone), o.cx, o.cy, 3.25);
+    mgAt(G, mgMesh(new THREE.SphereGeometry(0.42, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), stone), o.cx, o.cy, 3.9);
+  },
+  sphinx(G, h, bk, o) {
+    // The Sphinx lying across the way: a plinth, the lion's body, the paws toward the tee, the head in its striped headdress.
+    const THREE = MG3.T;
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.9 });
+    mgBox(G, o.w, 0.3, o.d, mgMat({ map: mgTex('stone', 1, 1), roughness: 0.9 }), o.cx, o.cy, 0);
+    const body = mgAt(G, mgMesh(new THREE.CapsuleGeometry(o.d * 0.28, o.w * 0.6, 6, 14), stone), o.cx + o.w * 0.08, o.cy + o.d * 0.08, 0.3 + o.d * 0.28);
+    body.rotation.z = Math.PI / 2; body.scale.set(1, 1, 0.9);
+    [-0.1, 0.1].forEach(k => mgBox(G, 0.55, 0.45, o.d * 0.55, stone, o.b.x0 + o.w * (0.18 + k), o.b.y0 + o.d * 0.28, 0.3));
+    const hx = o.b.x0 + o.w * 0.2, hy = o.cy - o.d * 0.02;
+    mgBox(G, 1.1, 1.2, 0.9, stone, hx, hy, 0.3 + o.d * 0.45);
+    const nemes = mgAt(G, mgMesh(new THREE.CylinderGeometry(0.62, 0.95, 1.5, 4), mgMat({ map: mgTex('awning', 1, 1), roughness: 0.8 })), hx, hy + 0.2, 0.3 + o.d * 0.45 + 0.5);
+    nemes.rotation.y = Math.PI / 4;
+    mgBox(G, 0.95, 0.7, 0.5, stone, hx, hy - 0.4, 0.3 + o.d * 0.45 + 0.35);
+  },
+  sarcophagus(G, h, bk, o) {
+    // A golden sarcophagus: the case, the lid with its face and folded arms.
+    const THREE = MG3.T;
+    const gold = mgMat({ color: 0xe0b44a, roughness: 0.28, metalness: 0.85 });
+    const blue = mgMat({ color: 0x1e4f8a, roughness: 0.4, metalness: 0.3 });
+    mgBox(G, o.w, 0.7, o.d, gold, o.cx, o.cy, 0);
+    const lid = mgAt(G, mgMesh(new THREE.CapsuleGeometry(o.d * 0.42, o.w - o.d * 0.84, 6, 16), gold), o.cx, o.cy, 0.72);
+    lid.rotation.z = Math.PI / 2; lid.scale.set(0.5, 1, 1);
+    mgBox(G, o.w * 0.5, 0.06, o.d * 0.9, blue, o.cx + o.w * 0.1, o.cy, 0.9);
+    mgAt(G, mgMesh(new THREE.SphereGeometry(o.d * 0.32, 14, 10), gold), o.b.x0 + o.d * 0.45, o.cy, 1.02);
+  },
+  chalk(G, h, bk, o) {
+    // A White Desert chalk mushroom: a narrow stem, a wide white cap.
+    const THREE = MG3.T;
+    const chalk = mgMat({ color: 0xf6f3ea, roughness: 0.85, flatShading: true });
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(o.rin * 0.5, o.rin * 0.85, 1.2, 9), chalk), o.cx, o.cy, 0.6);
+    const cap = mgAt(G, mgMesh(new THREE.IcosahedronGeometry(o.r * 1.2, 1), chalk), o.cx, o.cy, 1.45);
+    cap.scale.set(1, 0.45, 1);
+  },
+  coral(G, h, bk, o) {
+    // A coral head: branches in pinks and oranges on a rock.
+    const THREE = MG3.T;
+    const rock = mgAt(G, mgMesh(new THREE.IcosahedronGeometry(o.rin, 1), mgMat({ color: 0xcdb28a, roughness: 0.9, flatShading: true })), o.cx, o.cy, 0.2);
+    rock.scale.set(1, 0.55, 1);
+    const cols = [0xff6f91, 0xff9671, 0xffc75f, 0xd65db1, 0x4ecdc4];
+    const br = [], tips = [];
+    for (let k = 0; k < 9; k++) {
+      const a = k * 2.3, rr = o.rin * 0.45 * (k % 3) / 2, hgt = 0.5 + (k % 4) * 0.18;
+      const x = o.cx + Math.cos(a) * rr, z = -(o.cy + Math.sin(a) * rr);
+      br.push({ p: [x, 0.35 + hgt / 2, z], s: [1, hgt, 1], r: [Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3], c: cols[k % 5] });
+      tips.push({ p: [x + Math.sin(a) * hgt * 0.15, 0.35 + hgt, z], s: [1, 1, 1], c: cols[k % 5] });
+    }
+    mgInstances(G, new THREE.CylinderGeometry(0.07, 0.1, 1, 6), mgMat({ color: 0xffffff, roughness: 0.7 }), br, true);
+    mgInstances(G, new THREE.SphereGeometry(0.12, 8, 6), mgMat({ color: 0xffffff, roughness: 0.6 }), tips, true);
+  },
+  colossus(G, h, bk, o) {
+    // One of Abu Simbel's seated colossi: the throne, the legs, the body, the head in its headdress.
+    const THREE = MG3.T;
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.9 });
+    mgBox(G, o.w, 1.1, o.d, stone, o.cx, o.cy + o.d * 0.1, 0);
+    mgBox(G, o.w * 0.62, 0.9, o.d * 0.5, stone, o.cx, o.cy - o.d * 0.18, 1.1);
+    mgBox(G, o.w * 0.5, 1.2, o.d * 0.4, stone, o.cx, o.cy + o.d * 0.12, 1.1);
+    mgBox(G, o.w * 0.66, 0.9, o.d * 0.45, stone, o.cx, o.cy + o.d * 0.12, 2.3);
+    const head = mgAt(G, mgMesh(new THREE.CylinderGeometry(0.34, 0.5, 0.9, 4), stone), o.cx, o.cy + o.d * 0.1, 3.6);
+    head.rotation.y = Math.PI / 4;
+    mgAt(G, mgMesh(new THREE.SphereGeometry(0.3, 12, 10), stone), o.cx, o.cy - o.d * 0.02, 3.5);
+  },
+  ram(G, h, bk, o) {
+    // A ram-headed sphinx of the avenue on its plinth.
+    const THREE = MG3.T;
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.9 });
+    mgBox(G, o.w, 0.45, o.d, mgMat({ map: mgTex('stone', 1, 1), roughness: 0.9 }), o.cx, o.cy, 0);
+    const along = o.w > o.d, L = along ? o.w : o.d;
+    const body = mgAt(G, mgMesh(new THREE.CapsuleGeometry(0.34, L * 0.5, 5, 10), stone), o.cx, o.cy, 0.8);
+    body.rotation.z = along ? Math.PI / 2 : 0; if (!along) body.rotation.x = Math.PI / 2;
+    const dir = o.cx < 3.2 ? 1 : -1;       // the heads face the middle of the avenue
+    const hx = along ? o.cx + dir * L * 0.36 : o.cx, hy = along ? o.cy : o.cy;
+    mgAt(G, mgMesh(new THREE.SphereGeometry(0.3, 12, 10), stone), hx, hy, 1.15).scale.set(1.2, 1, 0.9);
+    const horns = mgAt(G, mgMesh(new THREE.TorusGeometry(0.2, 0.07, 6, 14), mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.8 })), hx - dir * 0.08, hy, 1.2);
+    horns.rotation.y = Math.PI / 2;
+  },
+  desk(G, h, bk, o) {
+    // A reading desk of the library, books piled on it and a green lamp.
+    const THREE = MG3.T;
+    const wood = mgMat({ map: mgTex('plank', 1, 1), roughness: 0.6 });
+    mgBox(G, o.w, 0.12, o.d, wood, o.cx, o.cy, 0.72);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b2]) => mgBox(G, 0.1, 0.72, 0.1, wood, o.cx + a * (o.w / 2 - 0.1), o.cy + b2 * (o.d / 2 - 0.1), 0));
+    const cols = [0xb23a48, 0x2a6f97, 0xe9c46a, 0x2a9d8f];
+    const books = [];
+    for (let k = 0; k < 6; k++) books.push({ p: [o.cx - o.w * 0.3 + (k > 2 ? 0.7 : 0), 0.9 + (k % 3) * 0.1, -o.cy], s: [1, 1, 1], r: [0, k * 0.3, 0], c: cols[k % 4] });
+    mgInstances(G, new THREE.BoxGeometry(0.5, 0.09, 0.36), mgMat({ color: 0xffffff, roughness: 0.7 }), books, true);
+    mgAt(G, mgMesh(new THREE.SphereGeometry(0.2, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), mgMat({ color: 0x1f7a4d, emissive: 0x1f7a4d, emissiveIntensity: 0.3 })), o.cx + o.w * 0.32, o.cy, 1.25);
+  },
+  tray(G, h, bk, o) {
+    // A baking tray of kahk, dusted with sugar.
+    const THREE = MG3.T;
+    mgBox(G, o.w, 0.12, o.d, mgMat({ color: 0xb8bcc2, roughness: 0.35, metalness: 0.8 }), o.cx, o.cy, 0);
+    const kahk = [];
+    const nx = Math.max(2, Math.floor(o.w / 0.4)), ny = Math.max(2, Math.floor(o.d / 0.4));
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) kahk.push({ p: [o.b.x0 + (i + 0.5) * o.w / nx, 0.17, -(o.b.y0 + (j + 0.5) * o.d / ny)], s: [1, 1, 1] });
+    mgInstances(G, new THREE.CylinderGeometry(0.15, 0.16, 0.1, 12), mgMat({ color: 0xf5ead2, roughness: 0.9 }), kahk, true);
+  },
+  cabin(G, h, bk, o) {
+    // The cruise boat's wheelhouse: white, a band of dark windows, a roof, the funnel.
+    const THREE = MG3.T;
+    mgBox(G, o.w, 1.6, o.d, mgMat({ color: 0xf7f7f2, roughness: 0.5 }), o.cx, o.cy, 0);
+    mgBox(G, o.w + 0.02, 0.4, o.d + 0.02, mgMat({ color: 0x2f5d8a, roughness: 0.15, metalness: 0.4 }), o.cx, o.cy, 1);
+    mgBox(G, o.w + 0.4, 0.12, o.d + 0.4, mgMat({ color: 0x1d3557, roughness: 0.6 }), o.cx, o.cy, 1.6);
+    mgAt(G, mgMesh(new THREE.CylinderGeometry(0.3, 0.34, 1, 14), mgMat({ color: 0xe63946, roughness: 0.5 })), o.cx + o.w * 0.3, o.cy + o.d * 0.1, 2.2);
+  },
+  lounger(G, h, bk, o) {
+    // A deck chair: a white frame and a blue cushion, tilted up at one end.
+    const frame = mgBox(G, o.w, 0.3, o.d, mgMat({ color: 0xf7f7f2, roughness: 0.5 }), o.cx, o.cy, 0);
+    void frame;
+    const back = mgBox(G, o.w * 0.35, 0.08, o.d * 0.95, mgMat({ color: 0x118ab2, roughness: 0.7 }), o.b.x0 + o.w * 0.18, o.cy, 0.42);
+    back.rotation.z = -0.5;
+    mgBox(G, o.w * 0.62, 0.08, o.d * 0.95, mgMat({ color: 0x118ab2, roughness: 0.7 }), o.cx + o.w * 0.17, o.cy, 0.3);
+  }
+};
+
+Object.assign(MG_DECO, {
+  balloon(G, h, d) {
+    // A Luxor hot-air balloon floating over the course, bobbing gently.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const cols = [[0xe63946, 0xffd166], [0x118ab2, 0xffffff], [0x06d6a0, 0xff9e00], [0x9b5de5, 0xffd166]];
+    const c = cols[Math.abs(Math.round(d.x + d.y)) % cols.length];
+    const gores = [];
+    for (let k = 0; k < 12; k++) gores.push({ p: [0, 0, 0], s: [1, 1, 1], r: [0, k / 12 * Math.PI * 2, 0], c: k % 2 ? c[0] : c[1] });
+    mgInstances(g, new THREE.SphereGeometry(1.6, 6, 16, 0, Math.PI / 6 + 0.01), mgMat({ color: 0xffffff, roughness: 0.6, flatShading: true }), gores, true);
+    g.children[g.children.length - 1].scale.set(1, 1.2, 1);
+    const basket = mgMesh(new THREE.BoxGeometry(0.6, 0.45, 0.6), mgMat({ map: mgTex('bark', 1, 1), roughness: 0.9 }));
+    basket.position.y = -2.6; g.add(basket);
+    const ropes = [];
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b2]) => ropes.push({ p: [a * 0.45, -2.05, b2 * 0.45], s: [1, 1, 1], r: [b2 * 0.25, 0, -a * 0.25] }));
+    mgInstances(g, new THREE.CylinderGeometry(0.015, 0.015, 1, 4), mgMat({ color: 0x5a3d2a }), ropes, false);
+    g.position.set(d.x, d.hgt || 6, -d.y);
+    g.scale.setScalar(d.s || 1);
+    G.add(g);
+    MG3.bobbers.push({ g, base: g.position.y, ph: d.x });
+  },
+  building(G, h, d) {
+    // A building beside the course: walls of windows, a roof; its colour and size its own.
+    const THREE = MG3.T;
+    const w = d.w || 4, dd = d.dd || 3, hh = d.hh || 4;
+    const walls = mgMat({ map: mgTex('windows', 1, 1), color: d.c || 0xf1e3c8, roughness: 0.8 });
+    const geo = new THREE.BoxGeometry(w, hh, dd);
+    const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * Math.max(1, Math.round(w / 2.4)), uv.getY(i) * Math.max(1, Math.round(hh / 2.4)));
+    const b = mgMesh(geo, walls);
+    b.position.set(d.x, -0.36 + hh / 2, -d.y); b.rotation.y = d.r || 0;
+    G.add(b);
+    const roof = mgMesh(new THREE.BoxGeometry(w + 0.3, 0.25, dd + 0.3), mgMat({ color: d.roof || 0x9c6644, roughness: 0.8 }));
+    roof.position.set(d.x, -0.36 + hh + 0.12, -d.y); roof.rotation.y = d.r || 0;
+    G.add(roof);
+  },
+  giraffe(G, h, d) {
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const coat = mgMat({ map: mgTex('spots', 1, 1), roughness: 0.85 });
+    const body = mgMesh(new THREE.CapsuleGeometry(0.34, 0.9, 5, 10), coat); body.rotation.z = Math.PI / 2; body.position.y = 1.6; g.add(body);
+    const neck = mgMesh(new THREE.CylinderGeometry(0.12, 0.2, 1.6, 8), coat); neck.position.set(0.55, 2.45, 0); neck.rotation.z = -0.35; g.add(neck);
+    const head = mgMesh(new THREE.CapsuleGeometry(0.13, 0.3, 4, 8), coat); head.rotation.z = Math.PI / 2 + 0.3; head.position.set(0.95, 3.2, 0); g.add(head);
+    const legs = [];
+    [[-0.45, 0.18], [-0.45, -0.18], [0.45, 0.18], [0.45, -0.18]].forEach(([x, z]) => legs.push({ p: [x, 0.7, z], s: [1, 1, 1] }));
+    mgInstances(g, new THREE.CylinderGeometry(0.06, 0.05, 1.4, 6), coat, legs, true);
+    const horns = [{ p: [0.9, 3.45, 0.07], s: [1, 1, 1] }, { p: [0.9, 3.45, -0.07], s: [1, 1, 1] }];
+    mgInstances(g, new THREE.CylinderGeometry(0.025, 0.03, 0.18, 5), mgMat({ color: 0x5a3d2a }), horns, false);
+    g.position.set(d.x, d.base === undefined ? -0.36 : d.base, -d.y); g.rotation.y = d.r || 0; g.scale.setScalar(d.s || 1);
+    G.add(g);
+  },
+  acacia(G, h, d) {
+    // An acacia: a thin trunk and a wide flat crown.
+    const THREE = MG3.T;
+    const base = d.base === undefined ? -0.36 : d.base;
+    const trunk = mgMesh(new THREE.CylinderGeometry(0.1, 0.16, 2.4, 7), mgMat({ map: mgTex('bark', 1, 1), roughness: 0.9 }));
+    trunk.position.set(d.x, base + 1.2, -d.y); trunk.rotation.z = 0.12; G.add(trunk);
+    const crown = mgMesh(new THREE.IcosahedronGeometry(1.4, 1), mgMat({ color: 0x5f8f3a, roughness: 0.85, flatShading: true }));
+    crown.scale.set(1.3, 0.35, 1.1); crown.position.set(d.x + 0.25, base + 2.55, -d.y); G.add(crown);
+  },
+  umbrella(G, h, d) {
+    // A beach umbrella in stripes.
+    const THREE = MG3.T;
+    const pole = mgMesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 6), mgMat({ color: 0xf1f1f1 }));
+    pole.position.set(d.x, -0.36 + 1.1, -d.y); G.add(pole);
+    const top = mgMesh(new THREE.ConeGeometry(1.2, 0.5, 12, 1, true), mgMat({ map: mgTex('stripes', 1, 1), roughness: 0.7, side: THREE.DoubleSide }));
+    top.position.set(d.x, -0.36 + 2.15, -d.y); G.add(top);
+  },
+  stands(G, h, d) {
+    // A stadium's stands: stepped rows of seats in the team's colours.
+    const THREE = MG3.T;
+    const len = d.len || 16, dir = d.dir || 1;
+    const concrete = mgMat({ color: 0xc8c8c8, roughness: 0.9 });
+    const seats = [];
+    const cols = [0xc1121f, 0xffffff, 0x111111];
+    for (let row = 0; row < 4; row++) {
+      const step = mgMesh(new THREE.BoxGeometry(0.9, 0.5 * (row + 1), len), concrete);
+      step.position.set(d.x + dir * row * 0.9, -0.36 + 0.25 * (row + 1), -d.y); G.add(step);
+      for (let k = 0; k < len / 0.7 - 1; k++) seats.push({ p: [d.x + dir * row * 0.9, -0.36 + 0.5 * (row + 1) + 0.12, -(d.y - len / 2 + 0.5 + k * 0.7)], s: [1, 1, 1], c: cols[(row + Math.floor(k / 4)) % 3] });
+    }
+    mgInstances(G, new THREE.BoxGeometry(0.4, 0.24, 0.45), mgMat({ color: 0xffffff, roughness: 0.6 }), seats, false);
+  },
+  toybox(G, h, d) {
+    // Toy blocks piled on the floor, and a big ball.
+    const THREE = MG3.T;
+    const cols = [0xe63946, 0xffb703, 0x219ebc, 0x2a9d8f, 0x9b5de5];
+    const blocks = [];
+    [[0, 0, 0], [0.9, 0, 0.2], [0.4, 0.8, 0.1], [-0.9, 0, -0.4]].forEach(([x, y, z], i) => blocks.push({ p: [d.x + x, -0.36 + 0.4 + y, -(d.y + z)], s: [1, 1, 1], r: [0, i * 0.4, 0], c: cols[(i + Math.round(d.x)) % 5] }));
+    mgInstances(G, new THREE.BoxGeometry(0.8, 0.8, 0.8), mgMat({ color: 0xffffff, roughness: 0.4 }), blocks, true);
+    const ball = mgMesh(new THREE.SphereGeometry(0.7, 20, 14), mgMat({ map: mgTex('stripes', 1, 1), roughness: 0.4 }));
+    ball.position.set(d.x + 2, -0.36 + 0.7, -(d.y + 1)); ball.rotation.z = 0.6; G.add(ball);
+  },
+  train(G, h, d) {
+    // A metro train at the platform: silver cars, a red stripe, windows.
+    const THREE = MG3.T;
+    const len = d.len || 14;
+    const car = mgMesh(new THREE.BoxGeometry(2.2, 2.2, len), mgMat({ map: mgTex('windows', 1, 1), color: 0xd9dde3, roughness: 0.35, metalness: 0.5 }));
+    car.position.set(d.x, -0.36 + 1.3, -d.y); G.add(car);
+    const stripe = mgMesh(new THREE.BoxGeometry(2.24, 0.2, len), mgMat({ color: 0xc1121f, roughness: 0.5 }));
+    stripe.position.set(d.x, -0.36 + 0.75, -d.y); G.add(stripe);
+  },
+  plane(G, h, d) {
+    // An airliner waiting at the gate.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const white = mgMat({ color: 0xf4f6f8, roughness: 0.4, metalness: 0.2 });
+    const body = mgMesh(new THREE.CapsuleGeometry(0.9, 9, 6, 16), white); body.rotation.x = Math.PI / 2; body.position.y = 1.6; g.add(body);
+    const wing = mgMesh(new THREE.BoxGeometry(12, 0.15, 2), white); wing.position.set(0, 1.3, 0.5); g.add(wing);
+    const tail = mgMesh(new THREE.BoxGeometry(0.15, 2.2, 1.6), mgMat({ color: 0x1d4ed8, roughness: 0.5 })); tail.position.set(0, 3, 4.6); g.add(tail);
+    const stab = mgMesh(new THREE.BoxGeometry(4, 0.12, 1), white); stab.position.set(0, 2, 4.8); g.add(stab);
+    g.position.set(d.x, -0.36, -d.y); g.rotation.y = d.r || 0;
+    G.add(g);
+  },
+  planet(G, h, d) {
+    // A planet hanging in the sky over the moon, some with a ring.
+    const THREE = MG3.T;
+    const p = mgMesh(new THREE.SphereGeometry(d.rad || 1.4, 24, 16), mgMat({ color: d.c || 0xf4a261, roughness: 0.8, emissive: d.c || 0xf4a261, emissiveIntensity: 0.15 }), false, false);
+    p.position.set(d.x, d.hgt || 5, -d.y); G.add(p);
+    if (d.ring) {
+      const ring = mgMesh(new THREE.RingGeometry((d.rad || 1.4) * 1.4, (d.rad || 1.4) * 2, 40), mgMat({ color: 0xe9c46a, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }), false, false);
+      ring.position.copy(p.position); ring.rotation.x = -1.2; G.add(ring);
+    }
+  },
+  hill(G, h, d) {
+    // A sandy hill (a mountain far off, with d.s).
+    const THREE = MG3.T;
+    const m = mgMesh(new THREE.IcosahedronGeometry(d.rad || 5, 2), mgMat({ color: d.c || 0xd8b27a, roughness: 1, flatShading: true }), false, true);
+    m.scale.set(1, d.sy || 0.45, 1); m.position.set(d.x, -0.36, -d.y); G.add(m);
+  },
+  croc(G, h, d) {
+    // A Nile crocodile sunning itself on the bank.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const skin = mgMat({ color: 0x4f6b3a, roughness: 0.7, flatShading: true });
+    const body = mgMesh(new THREE.CapsuleGeometry(0.28, 1.4, 4, 8), skin); body.rotation.z = Math.PI / 2; body.scale.set(1, 1, 0.6); body.position.y = 0.2; g.add(body);
+    const snout = mgMesh(new THREE.BoxGeometry(0.8, 0.14, 0.3), skin); snout.position.set(1.2, 0.18, 0); g.add(snout);
+    const tail = mgMesh(new THREE.ConeGeometry(0.2, 1.3, 6), skin); tail.rotation.z = Math.PI / 2; tail.position.set(-1.5, 0.15, 0); g.add(tail);
+    g.position.set(d.x, -0.36, -d.y); g.rotation.y = d.r || 0;
+    G.add(g);
+  },
+  shelf(G, h, d) {
+    // A bookcase full of books.
+    const THREE = MG3.T;
+    const len = d.len || 6;
+    const m = mgMesh(new THREE.BoxGeometry(0.6, 2.6, len), mgMat({ map: mgTex('books', 1, 1), roughness: 0.8 }));
+    const uv = m.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * len / 2, uv.getY(i) * 2);
+    m.position.set(d.x, -0.36 + 1.3, -d.y); m.rotation.y = d.r || 0;
+    G.add(m);
+  },
+  cabinet(G, h, d) {
+    // An arcade machine, its screen lit.
+    const THREE = MG3.T;
+    const col = d.c || 0x7b2cbf;
+    const body = mgMesh(new THREE.BoxGeometry(1.2, 2.4, 1), mgMat({ color: col, roughness: 0.4 }));
+    body.position.set(d.x, -0.36 + 1.2, -d.y); body.rotation.y = d.r || 0; G.add(body);
+    const screen = mgMesh(new THREE.BoxGeometry(0.9, 0.7, 0.05), mgMat({ color: 0x4cc9f0, emissive: 0x4cc9f0, emissiveIntensity: 1.2 }), false, false);
+    screen.position.set(d.x + Math.sin(d.r || 0) * 0.51, -0.36 + 1.7, -d.y + Math.cos(d.r || 0) * 0.51); screen.rotation.y = d.r || 0; G.add(screen);
+  },
+  dome(G, h, d) {
+    // A small mosque: a cube, a dome, the crescent on top.
+    const THREE = MG3.T;
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.85 });
+    const s = d.s || 1;
+    const cube = mgMesh(new THREE.BoxGeometry(3 * s, 2.6 * s, 3 * s), stone); cube.position.set(d.x, -0.36 + 1.3 * s, -d.y); G.add(cube);
+    const dm = mgMesh(new THREE.SphereGeometry(1.35 * s, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), mgMat({ color: 0x3f7d6b, roughness: 0.5 })); dm.position.set(d.x, -0.36 + 2.6 * s, -d.y); G.add(dm);
+    const cr = mgMesh(new THREE.TorusGeometry(0.18 * s, 0.04 * s, 6, 14, Math.PI * 1.4), mgMat({ color: 0xe8b64a, roughness: 0.25, metalness: 0.8 })); cr.position.set(d.x, -0.36 + 4.2 * s, -d.y); G.add(cr);
+  },
+  stars(G, h, d) {
+    // The night sky's stars, a dome of little lights over the course.
+    const THREE = MG3.T;
+    const r = mgRnd(7), list = [];
+    for (let k = 0; k < 220; k++) { const a = r() * Math.PI * 2, e = 0.15 + r() * 1.2, R = 70; list.push({ p: [d.x + Math.cos(a) * Math.cos(e) * R, Math.sin(e) * R, -(d.y + Math.sin(a) * Math.cos(e) * R)], s: [1, 1, 1] }); }
+    mgInstances(G, new THREE.SphereGeometry(0.18, 5, 4), mgKeep(new THREE.MeshBasicMaterial({ color: 0xffffff })), list, false);
+  }
+});
+
+Object.assign(MG_LOOKS, {
+  corniche: { ground: 'sea', deco: [{ k: 'lantern', x: -0.6, y: 3 }, { k: 'lantern', x: -0.4, y: 10 }, { k: 'lantern', x: 7.8, y: 5 }, { k: 'lantern', x: 8.8, y: 12 },
+    { k: 'felucca', x: 13.5, y: 6 }, { k: 'felucca', x: -3.5, y: 22 }, { k: 'palm', x: 9.6, y: 8.2 }, { k: 'felucca', x: 15, y: 20 }] },
+  kitchen: { ground: 'tiles', deco: [{ k: 'building', x: -3.2, y: 20, w: 2.4, dd: 2, hh: 4, c: 0xffffff, roof: 0xdddddd }, { k: 'building', x: 15.2, y: 12, w: 2, dd: 8, hh: 1.9, c: 0xc9a27a, roof: 0x6d4c41 },
+    { k: 'building', x: -3, y: 6, w: 2, dd: 6, hh: 1.9, c: 0xc9a27a, roof: 0x6d4c41 }, { k: 'toybox', x: 12, y: -3 }] },
+  balloons: { deco: [{ k: 'balloon', x: -4.5, y: 12, hgt: 6.5 }, { k: 'balloon', x: 16.5, y: 18, hgt: 8 }, { k: 'balloon', x: 4, y: 31, hgt: 9, s: 1.2 }, { k: 'balloon', x: 15, y: 4, hgt: 5, s: 0.8 },
+    { k: 'columns', x: -3.4, y: 22 }, { k: 'palm', x: 14.6, y: 26 }, { k: 'palm', x: -2.4, y: 3 }] },
+  school: { ground: 'tiles', deco: [{ k: 'building', x: -5.5, y: 21, w: 9, dd: 4, hh: 6, c: 0xf2d0a4 }, { k: 'building', x: 17.5, y: 6, w: 4, dd: 10, hh: 5, c: 0xf2d0a4 },
+    { k: 'flowerbed', x: 14.6, y: 18, len: 8 }, { k: 'palm', x: 3, y: 18.4 }] },
+  football: { deco: [{ k: 'stands', x: -2.5, y: 13, len: 22, dir: -1 }, { k: 'stands', x: 14.5, y: 13, len: 22, dir: 1 }, { k: 'building', x: 6, y: 32, w: 10, dd: 2, hh: 5, c: 0xe63946, roof: 0x222222 }] },
+  toys: { ground: 'tiles', deco: [{ k: 'toybox', x: -5, y: 3 }, { k: 'toybox', x: 16.5, y: 18 }, { k: 'toybox', x: 16, y: 5 }, { k: 'building', x: -6, y: 20, w: 2, dd: 6, hh: 3, c: 0x8ecae6, roof: 0x219ebc }] },
+  zoo: { deco: [{ k: 'giraffe', x: -3.5, y: 12, r: 1.2 }, { k: 'acacia', x: -4, y: 18 }, { k: 'acacia', x: 15.5, y: 8 }, { k: 'palm', x: 15, y: 20 }, { k: 'tent', x: 16, y: 1 }, { k: 'arch', x: 6, y: -1.7 }] },
+  lanterns: { deco: [{ k: 'building', x: -3.8, y: 8, w: 4, dd: 7, hh: 5, c: 0xe9c46a }, { k: 'building', x: 13.2, y: 14, w: 4, dd: 8, hh: 6, c: 0xf4a261 }, { k: 'dome', x: -4, y: 21, s: 0.9 },
+    { k: 'lantern', x: 11, y: 4 }, { k: 'lantern', x: 0.2, y: 16 }, { k: 'lantern', x: 11.4, y: 22 }] },
+  beach: { desert: true, deco: [{ k: 'umbrella', x: -2.6, y: 6 }, { k: 'umbrella', x: -3, y: 14 }, { k: 'umbrella', x: -2.4, y: 22 }, { k: 'palm', x: -5, y: 10 }, { k: 'palm', x: 6, y: 29 }, { k: 'felucca', x: 15, y: 13 }] },
+  sham: { deco: [{ k: 'tulips', x: -2.6, y: 6 }, { k: 'tulips', x: 14.6, y: 12 }, { k: 'flowerbed', x: -2.2, y: 16, len: 8 }, { k: 'palm', x: 14.6, y: 22 }, { k: 'acacia', x: -3.6, y: 24 }] },
+  garden: { deco: [{ k: 'arch', x: 6, y: -1.8 }, { k: 'flowerbed', x: -1.8, y: 14, len: 5 }, { k: 'flowerbed', x: 13.8, y: 14, len: 5 }, { k: 'tulips', x: 6, y: 27.6 }, { k: 'palm', x: -3, y: 22 }] },
+  village: { deco: [{ k: 'nubian', x: -4, y: 12, r: 0.3 }, { k: 'nubian', x: 15.8, y: 16, r: -0.4 }, { k: 'wheel', x: 11.4, y: 6.4 }, { k: 'palm', x: 1.5, y: 7 }, { k: 'camel', x: 13.5, y: 2, r: 2.2 }] },
+  philae: { ground: 'sea', deco: [{ k: 'felucca', x: -3.5, y: 6 }, { k: 'felucca', x: 16, y: 12 }, { k: 'papyrus', x: 3.4, y: 2 }, { k: 'papyrus', x: 10, y: 3.4 }, { k: 'palm', x: -1.5, y: 21 }] },
+  khan: { deco: [{ k: 'building', x: -5, y: 16, w: 5, dd: 8, hh: 6, c: 0xd9a066 }, { k: 'building', x: 14, y: 6, w: 4, dd: 8, hh: 5, c: 0xe9c46a }, { k: 'dome', x: 12, y: 25 },
+    { k: 'lantern', x: 7.5, y: 21 }, { k: 'lantern', x: 0, y: 12 }, { k: 'tent', x: -5.4, y: 4 }] },
+  metro: { ground: 'tiles', deco: [{ k: 'train', x: -2.6, y: 13, len: 22 }, { k: 'train', x: 16.6, y: 13, len: 22 }] },
+  airport: { ground: 'tiles', deco: [{ k: 'plane', x: 21, y: 13, r: 0 }, { k: 'building', x: -6, y: 13, w: 6, dd: 14, hh: 5, c: 0xdfe7ef, roof: 0x6c7a89 }, { k: 'palm', x: 7, y: 30 }] },
+  qaitbay: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 10 }, { k: 'felucca', x: 17.5, y: 18 }, { k: 'lighthouse', x: 16.5, y: 30 }, { k: 'palm', x: -2.5, y: 27 }] },
+  fayoum: { deco: [{ k: 'wheel', x: -2.6, y: 8 }, { k: 'papyrus', x: 14, y: 14 }, { k: 'palm', x: 15, y: 4 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'nubian', x: 16, y: 23 }, { k: 'papyrus', x: -1.6, y: 14.6 }] },
+  icecream: { ground: 'tiles', deco: [{ k: 'umbrella', x: -2.8, y: 6 }, { k: 'umbrella', x: 14.8, y: 8 }, { k: 'building', x: 6, y: 29.5, w: 8, dd: 3, hh: 4, c: 0xffc8dd, roof: 0xff5d8f }, { k: 'toybox', x: 15.5, y: 20 }] },
+  carousel: { deco: [{ k: 'ferris', x: 6.4, y: 29.8 }, { k: 'tent', x: -3.6, y: 8 }, { k: 'tent', x: 16.4, y: 15 }, { k: 'arch', x: 6.4, y: -1.7 }, { k: 'balloon', x: -4, y: 20, hgt: 5, s: 0.6 }] },
+  sphinx: { desert: true, deco: [{ k: 'farPyramid', x: -10, y: 36, s: 1.4 }, { k: 'farPyramid', x: 22, y: 40, s: 1.1 }, { k: 'camel', x: -3.2, y: 6, r: 1.4 }, { k: 'palm', x: 16, y: 10 }, { k: 'palm', x: -2.8, y: 22 }] },
+  dam: { deco: [{ k: 'hill', x: -8, y: 18, rad: 6 }, { k: 'hill', x: 20, y: 22, rad: 6 }, { k: 'nubian', x: -3.8, y: 5 }, { k: 'palm', x: 15.4, y: 5 }, { k: 'felucca', x: 10.6, y: 20.6 }] },
+  whitedesert: { desert: true, deco: [{ k: 'tent', x: -3.4, y: 22 }, { k: 'camel', x: 16, y: 20, r: 2 }, { k: 'hill', x: 22, y: 8, rad: 5, c: 0xf1eadb }, { k: 'hill', x: -9, y: 10, rad: 5, c: 0xf1eadb }] },
+  redsea: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 20 }, { k: 'felucca', x: 16.5, y: 6 }, { k: 'umbrella', x: 6.5, y: -2.4 }] },
+  abusimbel: { desert: true, deco: [{ k: 'hill', x: 6.5, y: 34, rad: 9, sy: 0.6 }, { k: 'camel', x: -3.5, y: 8, r: 1 }, { k: 'palm', x: 16, y: 5 }, { k: 'palm', x: -2.6, y: 18 }] },
+  giza: { desert: true, deco: [{ k: 'farPyramid', x: -12, y: 36, s: 1.3 }, { k: 'camel', x: -3, y: 4, r: 1.8 }, { k: 'camel', x: 17, y: 12, r: 3.4 }, { k: 'tent', x: 17, y: 24 }, { k: 'palm', x: -2.4, y: 22 }] },
+  kings: { desert: true, deco: [{ k: 'hill', x: -7, y: 14, rad: 7, sy: 0.7 }, { k: 'hill', x: 20, y: 8, rad: 7, sy: 0.6 }, { k: 'hill', x: 7, y: 36, rad: 9, sy: 0.6 }, { k: 'camel', x: 15, y: 18, r: 3 }] },
+  space: { ground: 'moon', night: true, deco: [{ k: 'stars', x: 7, y: 13 }, { k: 'planet', x: -6, y: 22, hgt: 7, rad: 2, c: 0xf4a261, ring: true }, { k: 'planet', x: 20, y: 8, hgt: 5, rad: 1.2, c: 0x4cc9f0 },
+    { k: 'planet', x: 16, y: 30, hgt: 9, rad: 1.6, c: 0xe63946 }] },
+  bluehole: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 8 }, { k: 'felucca', x: 19, y: 20 }, { k: 'umbrella', x: 7.5, y: -2.6 }] },
+  hatshepsut: { desert: true, deco: [{ k: 'hill', x: 7, y: 36, rad: 12, sy: 0.7 }, { k: 'palm', x: -2.8, y: 4 }, { k: 'palm', x: 16.8, y: 4 }, { k: 'columns', x: -2, y: 14 }, { k: 'columns', x: 16, y: 14 }] },
+  suez: { desert: true, deco: [{ k: 'crane', x: 18, y: 14 }, { k: 'containers', x: -4, y: 20 }, { k: 'containers', x: 16, y: 3 }, { k: 'palm', x: -2.6, y: 6 }] },
+  ibntulun: { ground: 'paving', deco: [{ k: 'minaret', x: -3, y: 20 }, { k: 'dome', x: 15.5, y: 18 }, { k: 'arch', x: 6, y: -1.8 }, { k: 'lantern', x: 13.4, y: 6 }] },
+  komombo: { desert: true, deco: [{ k: 'croc', x: -2.4, y: 13, r: 0.3 }, { k: 'croc', x: 16.4, y: 14, r: 2.8 }, { k: 'columns', x: 16.4, y: 23 }, { k: 'palm', x: -2.6, y: 4 }, { k: 'palm', x: -2.8, y: 24 }] },
+  rink: { snow: true, deco: [{ k: 'pine', x: -2.4, y: 6 }, { k: 'pine', x: 14.4, y: 10 }, { k: 'pine', x: -2.8, y: 20 }, { k: 'snowman', x: 14.2, y: 22 }, { k: 'snowman', x: 6, y: -2.4 }] },
+  library: { ground: 'tiles', deco: [{ k: 'shelf', x: -1.6, y: 13, len: 22 }, { k: 'shelf', x: 14.6, y: 13, len: 22 }, { k: 'shelf', x: 6.5, y: 29.6, len: 10, r: Math.PI / 2 }] },
+  avenue: { desert: true, deco: [{ k: 'palm', x: -4, y: 8 }, { k: 'palm', x: 8.8, y: 14 }, { k: 'palm', x: -4.2, y: 20 }, { k: 'columns', x: 11.4, y: 27 }, { k: 'columns', x: -5.4, y: 28 }, { k: 'farPyramid', x: 22, y: 40, s: 1 }] },
+  stanley: { ground: 'sea', deco: [{ k: 'felucca', x: -3.6, y: 12 }, { k: 'felucca', x: 16.6, y: 14 }, { k: 'felucca', x: 6, y: 31 }, { k: 'lighthouse', x: 18, y: 28 }] },
+  moez: { ground: 'paving', deco: [{ k: 'building', x: -4, y: 10, w: 4, dd: 8, hh: 6, c: 0xd9a066 }, { k: 'building', x: 14.6, y: 17, w: 4, dd: 8, hh: 7, c: 0xe9c46a }, { k: 'minaret', x: 14.6, y: 4 },
+    { k: 'dome', x: -4.4, y: 24 }, { k: 'lantern', x: 11.6, y: 10 }, { k: 'lantern', x: 0.6, y: 21 }] },
+  bakery: { ground: 'tiles', deco: [{ k: 'building', x: -3.6, y: 12.5, w: 3, dd: 6, hh: 3, c: 0xa0522d, roof: 0x5a3d2a }, { k: 'shelf', x: 16, y: 13, len: 14 }, { k: 'toybox', x: 16, y: -2 }] },
+  montaza: { deco: [{ k: 'building', x: 7, y: 32, w: 8, dd: 4, hh: 6, c: 0xd9b48f, roof: 0x7b2d26 }, { k: 'palm', x: -2.8, y: 10 }, { k: 'palm', x: 16.8, y: 18 }, { k: 'palm', x: 16.4, y: 4 },
+    { k: 'flowerbed', x: -2, y: 20, len: 6 }] },
+  arcade: { ground: 'tiles', deco: [{ k: 'cabinet', x: -1.6, y: 6, r: Math.PI / 2, c: 0x7b2cbf }, { k: 'cabinet', x: -1.6, y: 10, r: Math.PI / 2, c: 0xe63946 }, { k: 'cabinet', x: -1.6, y: 14, r: Math.PI / 2, c: 0x219ebc },
+    { k: 'cabinet', x: 15.6, y: 8, r: -Math.PI / 2, c: 0xffb703 }, { k: 'cabinet', x: 15.6, y: 12, r: -Math.PI / 2, c: 0x2a9d8f }, { k: 'toybox', x: 16, y: 22 }] },
+  nilecruise: { ground: 'sea', deco: [{ k: 'felucca', x: -4, y: 14 }, { k: 'felucca', x: 17, y: 6 }, { k: 'farPyramid', x: -14, y: 40, s: 1.2 }, { k: 'palm', x: 22, y: 28, s: 1.2 }] }
+});
 
 /* --- the camera: the whole hole on the screen, turned to fit it -------------------------- */
 
@@ -2415,14 +3024,15 @@ function mgMountIn(root, onReady) {
   });
 }
 
-/** "Par 3 · max 6": the hole's par and the most strokes it allows. */
-const mgParMax = (i) => mgT('mg_par_max', { n: GOLF_HOLES[i].par, m: golfMaxOf(GOLF_HOLES[i]) });
+/** «المطلوب 3 · أقصى 6» ("Target 3 · max 6"): what the hole asks for and the most strokes it allows. */
+const mgParMax = (h) => mgT('mg_par_max', { n: h.par, m: golfMaxOf(h) });
 
 /** The strip at the top: the hole, its par and most strokes, the strokes; "last stroke" on the final one; `extra` on the end (a clock, whose turn). */
 function mgHudHtml(o) {
   const chips = [
-    `<span class="mg-chip mg-chip--hole">⛳ <b>${escapeHTML(mgT('mg_hole', { n: o.hole + 1, m: o.holes }))}</b><span class="mg-chip__name">${escapeHTML(mgHoleName(o.hole))}</span></span>`,
-    `<span class="mg-chip">${escapeHTML(mgParMax(o.hole))}</span>`
+    `<span class="mg-chip mg-chip--hole">⛳ <b>${escapeHTML(mgT('mg_hole', { n: o.hole + 1, m: o.holes }))}</b><span class="mg-chip__name">${escapeHTML(mgHoleName(o.h))}</span></span>`,
+    `<span class="mg-chip mg-chip--lvl mg-lvl--${o.h.lvl}">${escapeHTML(mgT('mg_level_' + GOLF_LEVELS[o.h.lvl - 1]))}</span>`,
+    `<span class="mg-chip">${escapeHTML(mgParMax(o.h))}</span>`
   ];
   if (typeof o.strokes === 'number') chips.push(`<span class="mg-chip mg-chip--strokes">${escapeHTML(mgT('mg_strokes', { n: o.strokes }))}</span>`);
   if (o.last) chips.push(`<span class="mg-chip mg-chip--last">${escapeHTML(mgT('mg_last_stroke'))}</span>`);
@@ -2444,13 +3054,13 @@ function mgBanner(root, text, sub, kind) {
 }
 
 /** A new hole's card flies in, rests a beat, and flies up to the strip. Once per hole. */
-function mgNameCard(root, hole, holes, key) {
+function mgNameCard(root, hole, h, key) {
   const el = mgPart(root, 'namecard');
   if (!el) return;
   if (!motionFirst(['mg-name', key].join('|'))) return;
   el.innerHTML = `<span class="mg-namecard__n">${escapeHTML(mgT('mg_hole_big', { n: hole + 1 }))}</span>
-      <span class="mg-namecard__name">${escapeHTML(mgHoleName(hole))}</span>
-      <span class="mg-namecard__par">${escapeHTML(mgParMax(hole))}</span>`;
+      <span class="mg-namecard__name">${escapeHTML(mgHoleName(h))}</span>
+      <span class="mg-namecard__par"><span class="mg-lvl mg-lvl--${h.lvl}">${escapeHTML(mgT('mg_level_' + GOLF_LEVELS[h.lvl - 1]))}</span> ${escapeHTML(mgParMax(h))}</span>`;
   el.classList.remove('is-on');
   void el.offsetWidth;
   el.classList.add('is-on');
@@ -2458,13 +3068,14 @@ function mgNameCard(root, hole, holes, key) {
   el._t = setTimeout(() => el.classList.remove('is-on'), 2300);
 }
 
-/** A scorecard: every hole played so far, the par, each row's strokes and total. */
-function mgCardHtml(rows, holes, o) {
+/** A scorecard: every hole of the game so far, what each asks for, each row's strokes and total. `course` is the holes, in order. */
+function mgCardHtml(rows, course, o) {
   const opt = o || {};
+  const holes = course.length;
   const upto = Math.max(1, opt.upto || holes);
   const cell = (v, i) => {
     if (typeof v !== 'number') return '<td class="mg-card__c">·</td>';
-    const d = v - GOLF_HOLES[i].par;
+    const d = v - course[i].par;
     return `<td class="mg-card__c ${v === 1 ? 'is-ace' : d < 0 ? 'is-under' : d > 0 ? 'is-over' : ''}">${v}</td>`;
   };
   // Up to nine holes, one table; past nine, two, as on a real card: the first nine
@@ -2474,13 +3085,13 @@ function mgCardHtml(rows, holes, o) {
     for (let i = from; i < to; i++) cols.push(i);
     const span = last ? upto : to;
     let par = 0;
-    for (let i = last ? 0 : from; i < span; i++) par += GOLF_HOLES[i].par;
+    for (let i = last ? 0 : from; i < span; i++) par += course[i].par;
     return `<table>
       <thead><tr><th class="mg-card__who"></th>${cols.map(i => `<th>${i + 1}</th>`).join('')}<th class="mg-card__tot">${last ? 'Σ' : escapeHTML(mgT('mg_out'))}</th></tr>
-        <tr class="mg-card__par"><th class="mg-card__who">${escapeHTML(mgT('mg_par', { n: '' }).trim())}</th>${cols.map(i => `<td>${GOLF_HOLES[i].par}</td>`).join('')}<td class="mg-card__tot">${par}</td></tr></thead>
+        <tr class="mg-card__par"><th class="mg-card__who">${escapeHTML(mgT('mg_target_row'))}</th>${cols.map(i => `<td>${course[i].par}</td>`).join('')}<td class="mg-card__tot">${par}</td></tr></thead>
       <tbody>${rows.map(r => {
         let total = 0, played = 0;
-        for (let i = last ? 0 : from; i < span; i++) if (typeof r.card[i] === 'number') { total += r.card[i]; played += GOLF_HOLES[i].par; }
+        for (let i = last ? 0 : from; i < span; i++) if (typeof r.card[i] === 'number') { total += r.card[i]; played += course[i].par; }
         const counted = last && typeof opt.countHole === 'number' && typeof r.card[opt.countHole] === 'number';
         const tot = last ? `<b data-mg-from="${counted ? total - r.card[opt.countHole] : total}" data-mg-to="${total}">${total}</b><small>${escapeHTML(played ? mgDelta(total - played) : '')}</small>` : `<b>${total}</b>`;
         return `<tr class="${r.me ? 'is-me' : ''}"><th class="mg-card__who"><span class="mg-dot" style="--c:${r.color}"></span><bdi>${escapeHTML(r.name)}</bdi></th>
@@ -2505,10 +3116,19 @@ function mgCountTotals(root, key) {
    ========================================================================== */
 
 function mgSoloState() {
-  if (!appState.minigolf) appState.minigolf = { holes: 6, guide: false, phase: 'none' };
+  if (!appState.minigolf) appState.minigolf = { holes: 6, level: 'mix', guide: false, phase: 'none' };
   const s = appState.minigolf;
   if (GOLF_HOLE_COUNTS.indexOf(Number(s.holes)) === -1) s.holes = 6;
+  if (GOLF_LEVELS.indexOf(s.level) === -1) s.level = 'mix';
   return s;
+}
+/** The best is kept for each length and each kind: 'mix:6', 'hard:9'… */
+const mgBestKey = (level, holes) => (GOLF_LEVELS.indexOf(level) !== -1 ? level : 'mix') + ':' + holes;
+/** The solo game's holes, as objects (a game saved before holes were drawn: the first ones). */
+function mgSoloCourse(s) {
+  const g = s.game || {};
+  if (!Array.isArray(g.course)) g.course = GOLF_HOLES.slice(0, Number(g.holes || s.holes) || 6).map(h => h.id);
+  return g.course.map(golfHoleById);
 }
 const mgSoloLive = (s) => s.phase === 'play' || s.phase === 'holeDone';
 const mgSoloTimers = [];
@@ -2522,11 +3142,15 @@ function setupMiniGolf() {
 function paintMiniGolfSetup() {
   const s = mgSoloState();
   document.querySelectorAll('#mg-holes .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === Number(s.holes)));
+  document.querySelectorAll('#mg-level .segmented__item').forEach(b => b.classList.toggle('is-active', b.dataset.value === s.level));
+  const lh = document.getElementById('mg-level-hint');
+  if (lh) lh.textContent = mgT('mg_level_hint_' + s.level);
   const guide = document.getElementById('mg-guide');
   if (guide) guide.checked = !!s.guide;
-  const best = soloBest('minigolf', String(s.holes));
+  const best = soloBest('minigolf', mgBestKey(s.level, s.holes));
   const line = document.getElementById('mg-best');
-  if (line) line.textContent = best ? '🏆 ' + mgT('mg_best', { hh: mgHolesText(s.holes), n: best.total, d: mgDelta(best.total - best.par) }) : mgT('mg_no_best', { hh: mgHolesText(s.holes) });
+  const hh = mgHolesText(s.holes) + ' · ' + mgLevelText(s.level);
+  if (line) line.textContent = best ? '🏆 ' + mgT('mg_best', { hh, n: best.total, d: mgDelta(best.total - best.par) }) : mgT('mg_no_best', { hh });
   const cont = document.getElementById('minigolf-continue');
   if (cont) cont.classList.toggle('hidden', !mgSoloLive(s));
 }
@@ -2534,6 +3158,7 @@ function paintMiniGolfSetup() {
 function setMiniGolfOption(key, value) {
   const s = mgSoloState();
   if (key === 'holes' && GOLF_HOLE_COUNTS.indexOf(Number(value)) !== -1) s.holes = Number(value);
+  if (key === 'level' && GOLF_LEVELS.indexOf(value) !== -1) s.level = value;
   if (key === 'guide') s.guide = !!value;
   saveToLocal();
   haptic('light');
@@ -2544,7 +3169,9 @@ function startMiniGolf() {
   const s = mgSoloState();
   soloNewGame('minigolf');
   mgSoloStopTimers();
-  Object.assign(s, { phase: 'play', game: { holes: s.holes, guide: !!s.guide }, hole: 0, n: 0, at: GOLF_HOLES[0].tee.slice(), card: new Array(s.holes).fill(null), startedAt: Date.now(), last: null, deal: Date.now().toString(36) });
+  // The holes, drawn from the kind chosen; the ones this phone played lately wait until the kind has gone round.
+  const course = golfDealCourse(s.holes, s.level, (ids, n, lvl) => freshPick('golf_' + lvl, ids, n));
+  Object.assign(s, { phase: 'play', game: { holes: course.length, level: s.level, course, guide: !!s.guide }, hole: 0, n: 0, at: golfHoleById(course[0]).tee.slice(), card: new Array(course.length).fill(null), startedAt: Date.now(), last: null, deal: Date.now().toString(36) });
   saveToLocal();
   setView('play-minigolf');
   mgSoloPaint();
@@ -2573,13 +3200,14 @@ function mgSoloPaint() {
   if (!root) return;
   if (!root.querySelector('.mg-screen')) root.innerHTML = mgScreenHtml({});
   const g = s.game || { holes: s.holes, guide: s.guide };
-  const hole = Math.min(s.hole || 0, GOLF_HOLES.length - 1);
-  const h = GOLF_HOLES[hole];
+  const course = mgSoloCourse(s);
+  const hole = Math.min(s.hole || 0, course.length - 1);
+  const h = course[hole];
   MG3.pad = { top: 0.1, bottom: 0.05, side: 0.04 };
   const ready = () => {
     if (!mg3Ready()) return;
     MG3.clock = mgSoloClock;
-    if (mg3SetHole(h, ['solo', s.deal, hole].join('|')) && s.phase === 'play' && !s.n) mgNameCard(root, hole, g.holes, ['solo', s.deal, hole].join('|'));
+    if (mg3SetHole(h, ['solo', s.deal, hole].join('|')) && s.phase === 'play' && !s.n) mgNameCard(root, hole, h, ['solo', s.deal, hole].join('|'));
     const rolling = mg3Rolling('me');
     mg3SyncBalls([{ id: 'me', at: s.at, color: MG_COLORS[0], hidden: s.phase !== 'play' && !rolling }]);
     MG3.input = {
@@ -2600,11 +3228,12 @@ function mgSoloChrome() {
   const root = mgSoloRoot();
   if (!root) return;
   const g = s.game || { holes: s.holes };
+  const course = mgSoloCourse(s);
   const hole = s.hole || 0;
   let played = 0, total = 0;
-  (s.card || []).forEach((v, i) => { if (typeof v === 'number') { total += v; played += GOLF_HOLES[i].par; } });
-  const max = golfMaxOf(GOLF_HOLES[hole]);
-  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole, holes: g.holes, strokes: s.n || 0, vsPar: played ? total - played : undefined, last: s.phase === 'play' && (s.n || 0) === max - 1 }));
+  (s.card || []).forEach((v, i) => { if (typeof v === 'number' && course[i]) { total += v; played += course[i].par; } });
+  const max = golfMaxOf(course[hole]);
+  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole, h: course[hole], holes: course.length, strokes: s.n || 0, vsPar: played ? total - played : undefined, last: s.phase === 'play' && (s.n || 0) === max - 1 }));
   const hint = mgPart(root, 'hint');
   if (hint) {
     hint.textContent = s.phase === 'play' && !mg3Rolling('me') ? mgT('mg_pull_hint') : '';
@@ -2616,12 +3245,12 @@ function mgSoloChrome() {
     panel.classList.toggle('hidden', !showCard);
     if (showCard) {
       const last = s.card[hole];
-      const word = typeof last === 'number' ? (last > max && s.picked ? mgT('mg_picked', { n: max + 1 }) : mgWordOf(last, GOLF_HOLES[hole].par)) : '';
+      const word = typeof last === 'number' ? (last > max && s.picked ? mgT('mg_picked', { n: max + 1 }) : mgWordOf(last, course[hole].par)) : '';
       const done = s.phase === 'done';
       mgSet(panel, `<div class="mg-panel__card card">
-          <p class="eyebrow">${escapeHTML(mgT('mg_hole_big', { n: hole + 1 }))} · ${escapeHTML(mgHoleName(hole))}</p>
+          <p class="eyebrow">${escapeHTML(mgT('mg_hole_big', { n: hole + 1 }))} · ${escapeHTML(mgHoleName(course[hole]))}</p>
           <p class="mg-panel__word">${escapeHTML(word)}</p>
-          ${mgCardHtml([{ name: mgT('mg_you'), color: MG_COLORS[0], card: s.card, me: true }], g.holes, { upto: g.holes, countHole: hole })}
+          ${mgCardHtml([{ name: mgT('mg_you'), color: MG_COLORS[0], card: s.card, me: true }], course, { upto: course.length, countHole: hole })}
           <div class="btn-stack">
             ${done
               ? `<button type="button" class="btn btn--primary btn--lg" onclick="mgSoloShowResult()">${escapeHTML(mgT('mg_total'))} 🏁</button>
@@ -2638,7 +3267,8 @@ function mgSoloPutt(shot) {
   const s = mgSoloState();
   if (s.phase !== 'play' || mg3Rolling('me')) return;
   const hole = s.hole;
-  const h = GOLF_HOLES[hole];
+  const course = mgSoloCourse(s);
+  const h = course[hole];
   const full = golfCleanShot(Object.assign({}, shot, { t0: Math.round(mgSoloClock()) }));
   const from = s.at.slice();
   const r = golfPutt(h, from, full);
@@ -2649,7 +3279,7 @@ function mgSoloPutt(shot) {
   const max = golfMaxOf(h);
   if (r.end === 'cup') { s.card[hole] = s.n; s.phase = 'holeDone'; }
   else if (s.n >= max) { s.card[hole] = max + 1; s.n = max + 1; s.picked = true; s.phase = 'holeDone'; }
-  if (s.phase === 'holeDone' && hole + 1 >= (s.game || {}).holes) s.phase = 'done';
+  if (s.phase === 'holeDone' && hole + 1 >= course.length) s.phase = 'done';
   saveToLocal();
   mgSound('putt');
   haptic('medium');
@@ -2683,7 +3313,7 @@ function mgSoloNext() {
   if (s.phase !== 'holeDone') return;
   s.hole++;
   s.n = 0;
-  s.at = GOLF_HOLES[s.hole].tee.slice();
+  s.at = mgSoloCourse(s)[s.hole].tee.slice();
   s.startedAt = Date.now();
   s.phase = 'play';
   s.picked = false;
@@ -2695,20 +3325,23 @@ function mgSoloNext() {
 function mgSoloShowResult() {
   const s = mgSoloState();
   const g = s.game || { holes: s.holes };
+  const course = mgSoloCourse(s);
   const total = (s.card || []).reduce((a, v) => a + (Number(v) || 0), 0);
-  const par = golfParOf(g.holes);
+  const par = golfParOf(course);
   const shown = s.resultShown === s.deal;
-  const rec = shown ? { record: false, prev: soloBest('minigolf', String(g.holes)) } : soloRecord('minigolf', String(g.holes), { total, par, at: Date.now() }, (a, b) => a.total < b.total);
+  const key = mgBestKey(g.level, course.length);
+  const hh = mgHolesText(course.length) + ' · ' + mgLevelText(g.level);
+  const rec = shown ? { record: false, prev: soloBest('minigolf', key) } : soloRecord('minigolf', key, { total, par, at: Date.now() }, (a, b) => a.total < b.total);
   s.resultShown = s.deal;
   saveToLocal();
   const lines = [escapeHTML(mgT('mg_vs_par', { d: mgDelta(total - par), p: par }))];
   if (rec.record) lines.push('🏆 ' + escapeHTML(mgT('solo_new_best')));
-  else if (rec.prev) lines.push(escapeHTML(mgT('mg_best', { hh: mgHolesText(g.holes), n: rec.prev.total, d: mgDelta(rec.prev.total - rec.prev.par) })));
+  else if (rec.prev) lines.push(escapeHTML(mgT('mg_best', { hh, n: rec.prev.total, d: mgDelta(rec.prev.total - rec.prev.par) })));
   soloResult({
-    icon: '⛳', title: mgT('mg_result_title', { hh: mgHolesText(g.holes) }), value: total, valueLabel: mgT('mg_total_label'), lines,
+    icon: '⛳', title: mgT('mg_result_title', { hh: mgHolesText(course.length) }), value: total, valueLabel: mgT('mg_total_label'), lines,
     win: rec.record || total <= par,
     quiet: shown,
-    share: mgT('mg_share', { n: total, hh: mgHolesText(g.holes), d: mgDelta(total - par) }) + '\n' + mgCardText(s.card, g.holes),
+    share: mgT('mg_share', { n: total, hh, d: mgDelta(total - par) }) + '\n' + mgCardText(s.card, course.length),
     again: startMiniGolf, againLabel: '⛳ ' + mgT('mg_again'),
     exit: setupMiniGolf
   });
@@ -2738,7 +3371,10 @@ const mgRoom = {
   key: '', seen: {}, offset: null, pending: null, words: {}, clock: null, clockKey: '',
   since: {}, redraw: 0, hostKey: ''
 };
-const mgRoomOpts = () => recallOptions('minigolfRoom', { mode: 'together', holes: 6, guide: false, clock: 0 });
+const mgRoomOpts = () => recallOptions('minigolfRoom', { mode: 'together', holes: 6, level: 'mix', guide: false, clock: 0 });
+/** The room game's holes, as objects, and the one being played. */
+const mgRoomHoles = (s) => mgCourseOf(s.holes, (s.settings || {}).holes);
+const mgRoomHole = (s) => mgRoomHoles(s)[s.hole] || GOLF_HOLES[0];
 function setMgRoomOpt(key, value) {
   rememberOptions('minigolfRoom', { [key]: value });
   duelLobbyRedraw();
@@ -2795,7 +3431,7 @@ function mgRoomPutt(shot) {
   if (!state || state.game !== 'minigolf' || !mgRoomCanPutt(state)) return;
   const s = state.shared;
   const b = s.balls[Room.me];
-  const h = GOLF_HOLES[s.hole];
+  const h = mgRoomHole(s);
   const full = golfCleanShot(Object.assign({}, shot, { t0: Math.round(mgRoomClock()) }));
   const from = b.at.slice();
   const others = mgRoomOthers(s, Room.me);
@@ -2835,7 +3471,7 @@ function mgRoomEnded(pid, sim) {
   const root = document.getElementById(tv ? 'view-room-tv' : 'view-room-minigolf');
   const sh = (s.shots || {})[pid];
   const mine = pid === Room.me && !tv;
-  const h = GOLF_HOLES[s.hole];
+  const h = mgRoomHole(s);
   if (sim.end === 'water') { if (mine || tv) mgBanner(root, mine ? mgT('mg_water') : mgT('mg_someone', { name: mgName(state, pid), word: mgT('mg_water') }), '', 'water'); }
   else if (sim.end === 'cup' && sh) {
     const n = sh.n;
@@ -2864,7 +3500,7 @@ function mgRoomEnded(pid, sim) {
 /** Each putt on the table that this screen hasn't rolled yet: rolled from where the hole's clock is now. */
 function mgRoomReplays(state, tv) {
   const s = state.shared;
-  const h = GOLF_HOLES[s.hole];
+  const h = mgRoomHole(s);
   const key = state.code + '|' + s.dealId + '|' + s.hole;
   if (mgRoom.key !== key) { mgRoom.key = key; mgRoom.seen = {}; mgRoom.fresh = true; }
   const first = mgRoom.fresh;
@@ -2887,7 +3523,7 @@ function mgRoomReplays(state, tv) {
 function mgRoomCourse(state, root, tv) {
   if (!mg3Ready()) return;
   const s = state.shared;
-  const h = GOLF_HOLES[s.hole];
+  const h = mgRoomHole(s);
   MG3.clock = mgRoomClock;
   const holeKey = [state.code, s.dealId, s.hole].join('|');
   if (mg3SetHole(h, holeKey)) {
@@ -3007,7 +3643,7 @@ function mgPodiumHtml(state) {
 /** Between two holes: this hole's strokes and the totals, and when the next comes. */
 function mgBetweenHtml(state, tv) {
   const s = state.shared;
-  const h = GOLF_HOLES[s.hole];
+  const h = mgRoomHole(s);
   const rows = mgRoomRows(state, tv);
   const left = s.nextAt ? Math.max(0, Math.ceil((s.nextAt + (mgRoom.offset || 0) - Date.now()) / 1000)) : 0;
   const words = rows.map(r => {
@@ -3016,9 +3652,9 @@ function mgBetweenHtml(state, tv) {
         <span class="mg-res__word">${typeof v === 'number' ? escapeHTML(v > golfMaxOf(h) ? mgT('mg_picked', { n: v }) : mgWordOf(v, h.par)) : ''}</span><b class="metric">${typeof v === 'number' ? v : '·'}</b></li>`;
   }).join('');
   return `<div class="mg-panel__card card">
-      <p class="eyebrow">${escapeHTML(mgT('mg_hole_big', { n: s.hole + 1 }))} · ${escapeHTML(mgHoleName(s.hole))}</p>
+      <p class="eyebrow">${escapeHTML(mgT('mg_hole_big', { n: s.hole + 1 }))} · ${escapeHTML(mgHoleName(h))}</p>
       <ul class="mg-results">${words}</ul>
-      ${mgCardHtml(rows, s.holes, { upto: s.hole + 1, countHole: s.hole })}
+      ${mgCardHtml(rows, mgRoomHoles(s), { upto: s.hole + 1, countHole: s.hole })}
       <p class="field__hint mg-next" data-mg-next>${escapeHTML(mgT('mg_next_in', { n: left }))}</p>
       ${state.youAreHost ? (tv ? `<div class="tv-actions">${tvBtn(mgT('mg_next_hole') + ' ⏭️', `roomAct('nextHole', { hole: ${Number(s.hole) || 0} })`)}</div>`
         : `<button type="button" class="btn btn--primary" onclick="roomAct('nextHole', { hole: ${Number(s.hole) || 0} })">${escapeHTML(mgT('mg_next_hole'))} ⏭️</button>`) : ''}
@@ -3037,10 +3673,10 @@ function mgOverHtml(state, tv) {
   const w = (s.result || {}).winners || [];
   const line = w.length && rows.length > 1 ? `<p class="mg-panel__word">🏆 ${escapeHTML(w.map(id => mgName(state, id)).join(appState.lang === 'en' ? ', ' : '، '))}</p>` : '';
   return `<div class="mg-panel__card card mg-panel__card--over">
-      <p class="eyebrow">${escapeHTML(mgT('mg_result_title', { hh: mgHolesText(s.holes) }))}</p>
+      <p class="eyebrow">${escapeHTML(mgT('mg_result_title', { hh: mgHolesText(mgRoomHoles(s).length) }))}</p>
       ${line}
       ${podium}
-      ${mgCardHtml(rows, s.holes, { upto: s.holes })}
+      ${mgCardHtml(rows, mgRoomHoles(s), { upto: mgRoomHoles(s).length })}
       ${host}
       ${!tv && typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, (s.board || []).map(r => ({ id: r.id, name: r.name, score: r.score }))) : ''}
     </div>`;
@@ -3054,8 +3690,8 @@ function mgRoomChrome(state, root, tv) {
   const mine = !tv && !!me;
   const clock = s.settings.clock && s.phase === 'play' ? '<span class="mg-chip mg-chip--clock" data-mg-clock></span>' : '';
   const up = s.settings.mode === 'turns' && s.turn ? `<span class="mg-chip mg-chip--turn">${escapeHTML(s.turn === Room.me && !tv ? mgT('mg_your_turn').split('!')[0] + '!' : mgT('mg_turn_of', { name: mgName(state, s.turn) }))}</span>` : '';
-  const last = mine && s.phase === 'play' && !me.done && me.n === golfMaxOf(GOLF_HOLES[s.hole]) - 1;
-  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole: s.hole, holes: s.holes, strokes: mine ? me.n : undefined, last, extra: up + clock }));
+  const last = mine && s.phase === 'play' && !me.done && me.n === golfMaxOf(mgRoomHole(s)) - 1;
+  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole: s.hole, h: mgRoomHole(s), holes: mgRoomHoles(s).length, strokes: mine ? me.n : undefined, last, extra: up + clock }));
   mgSet(mgPart(root, 'players'), tv ? '' : mgPlayersHtml(state, tv));
   const hint = mgPart(root, 'hint');
   if (hint) {
@@ -3093,7 +3729,7 @@ function mgRoomChrome(state, root, tv) {
     }
   }
   const side = mgPart(root, 'side');
-  if (side) mgSet(side, `<div class="mg-side__players">${mgPlayersHtml(state, true)}</div>${mgCardHtml(mgRoomRows(state, true), s.holes, { upto: Math.max(1, s.phase === 'play' ? s.hole : s.hole + 1) })}`);
+  if (side) mgSet(side, `<div class="mg-side__players">${mgPlayersHtml(state, true)}</div>${mgCardHtml(mgRoomRows(state, true), mgRoomHoles(s), { upto: Math.max(1, s.phase === 'play' ? s.hole : s.hole + 1) })}`);
   mgTickClock(state);
 }
 
@@ -3110,7 +3746,7 @@ function mgRoomRender(state, root, tv) {
   mgMountIn(root, () => { const st = Room.state; if (st && st.game === 'minigolf') { mgRoomCourse(st, root, tv); mgRoomChrome(st, root, tv); } });
   if (mg3Ready() && MG3.canvas.parentNode === mgPart(root, 'canvas')) mgRoomCourse(state, root, tv);
   // A new hole's card flies in (once, on every screen that sees it start).
-  if (s.phase === 'play') mgNameCard(root, s.hole, s.holes, [state.code, s.dealId, s.hole].join('|'));
+  if (s.phase === 'play') mgNameCard(root, s.hole, mgRoomHole(s), [state.code, s.dealId, s.hole].join('|'));
   mgRoomChrome(state, root, tv);
   // A turn that comes to this phone: a tick and a buzz.
   const upKey = s.settings.mode === 'turns' && s.turn === Room.me && !tv ? [state.code, s.dealId, s.hole, s.shotSeq].join('|') : '';
@@ -3132,6 +3768,7 @@ ROOM_GAMES.minigolf = {
       </div>`;
     return `<div class="card card--tight">
         ${seg(mgT('mg_lobby_mode'), 'mode', [['together', mgT('mg_mode_together')], ['turns', mgT('mg_mode_turns')]], o.mode, o.mode === 'turns' ? mgT('mg_mode_turns_hint') : mgT('mg_mode_together_hint'))}
+        ${seg(mgT('mg_level_label'), 'level', GOLF_LEVELS.map(v => [v, mgT('mg_level_' + v)]), o.level, mgT('mg_level_hint_' + (GOLF_LEVELS.indexOf(o.level) !== -1 ? o.level : 'mix')))}
         ${seg(mgT('mg_holes_label'), 'holes', GOLF_HOLE_COUNTS.map(n => [n, String(n)]), o.holes)}
         <div class="field">
           <label class="switch-row" for="mg-room-guide">
@@ -3145,7 +3782,7 @@ ROOM_GAMES.minigolf = {
   },
   startPayload() {
     const o = mgRoomOpts();
-    return { mode: o.mode, holes: o.holes, guide: !!o.guide, clock: o.clock };
+    return { mode: o.mode, holes: o.holes, level: GOLF_LEVELS.indexOf(o.level) !== -1 ? o.level : 'mix', guide: !!o.guide, clock: o.clock };
   },
   render(state) {
     if (appState.currentView !== 'room-minigolf') setView('room-minigolf');

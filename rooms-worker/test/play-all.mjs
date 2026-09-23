@@ -3689,8 +3689,9 @@ async function main() {
   }
 
   /* --- ميني جولف: all at once, then in turns ------------------------------------------ */
-  console.log('• minigolf (every ball on the hole at once, the putt on every phone, par + 3 strokes then picked up, turns with the balls knocking each other over nine holes, the next hole on the server\'s clock)');
+  console.log('• minigolf (a mixed game drawn on the server, every ball on the hole at once, the putt on every phone, what the hole asks for + 3 strokes then picked up; nine hard holes in turns with the balls knocking each other, the next hole on the server\'s clock)');
   {
+    const MG = new Function(readFileSync(new URL('../../MiniGolf.js', import.meta.url), 'utf8') + '\nreturn { golfHoleById, golfMaxOf };')();
     const G1 = await Bot.host('جميلة', null);
     const G2 = await Bot.join(G1.code, 'Gus');
     const G3 = await Bot.join(G1.code, 'غادة');
@@ -3706,6 +3707,11 @@ async function main() {
     await G1.must('start', { holes: 3 });
     await all(golfers.concat([TV]), (s) => s.game === 'minigolf' && s.shared.phase === 'play' && s.shared.hole === 0 && Object.keys(s.shared.balls).length === 3,
               'minigolf: every ball on the first tee, all at once by default');
+    const course = G1.state.shared.holes;
+    check(G1.state.shared.settings.level === 'mix' && course.length === 3 && course.map((id) => MG.golfHoleById(id).lvl).join() === '1,2,3' &&
+          golfers.concat([TV]).every((b) => JSON.stringify(b.state.shared.holes) === JSON.stringify(course)),
+          'minigolf: a mixed game of three is one easy, one medium and one hard hole, the same list on every phone and the TV (' + course.join(', ') + ')');
+    const tee0 = MG.golfHoleById(course[0]).tee, max0 = MG.golfMaxOf(MG.golfHoleById(course[0]));
     check(TV.state.you === null && !JSON.stringify(G2.state).includes('"_'), 'minigolf: nothing is hidden, and nothing server-only is sent');
     // Two putt together; every phone gets both putts to replay.
     const sent = now(G2);
@@ -3713,27 +3719,30 @@ async function main() {
     await all(golfers.concat([TV]), (s) => s.shared.shots[G2.pid] && s.shared.shots[G3.pid] && s.shared.shotSeq === 2,
               'minigolf: two putt at once, and every phone and the TV get both putts');
     const sh = G1.state.shared.shots[G2.pid];
-    check(sh.t0 === sent && sh.from[1] === 2 && Array.isArray(sh.at) && sh.dur > 0, 'minigolf: the putter\'s own moment is kept, with where the ball stopped and how long it rolled');
+    check(sh.t0 === sent && sh.from.join() === tee0.join() && Array.isArray(sh.at) && sh.dur > 0, 'minigolf: the putter\'s own moment is kept, with where the ball stopped and how long it rolled');
     check((await G2.act('putt', { dx: 0, dy: 1000, power: 300, t0: now(G2), hole: 0, n: 0 })).ok && G2.state.shared.balls[G2.pid].n === 1,
           'minigolf: a putt for a stroke already played is dropped');
     // Everyone runs out of strokes: picked up at 6, the hole counts 7, the next hole on the server's clock.
     for (const b of golfers) {
-      for (let k = 0; k < 7 && !b.state.shared.balls[b.pid].done; k++) await putt(b, { dx: 0, dy: 1000, power: 20 });
+      for (let k = 0; k < 9 && !b.state.shared.balls[b.pid].done; k++) await putt(b, { dx: 0, dy: 1000, power: 20 });
     }
-    await all(golfers, (s) => s.shared.phase === 'between' && s.shared.card[G1.pid][0] === 6, 'minigolf: par 2 allows five strokes, then the ball is picked up; the hole counts 6 and its card shows');
+    await all(golfers, (s) => s.shared.phase === 'between' && s.shared.card[G1.pid][0] === max0 + 1,
+              'minigolf: what the hole asks for + 3 strokes, then the ball is picked up; the hole counts ' + (max0 + 1) + ' and its card shows');
     await all(golfers, (s) => s.shared.phase === 'play' && s.shared.hole === 1, 'minigolf: the next hole starts by itself', 15000);
     await G1.must('backToHub');
 
     // In turns: one putt at a time, round the table, the balls knocking each other; nine holes.
     await G1.must('chooseGame', { game: 'minigolf' });
-    await G1.must('start', { mode: 'turns', holes: 9, guide: true });
-    await all(golfers, (s) => s.shared.phase === 'play' && s.shared.settings.mode === 'turns' && !!s.shared.turn && s.shared.settings.guide && s.shared.holes === 9,
+    await G1.must('start', { mode: 'turns', holes: 9, guide: true, level: 'hard' });
+    await all(golfers, (s) => s.shared.phase === 'play' && s.shared.settings.mode === 'turns' && !!s.shared.turn && s.shared.settings.guide && s.shared.holes.length === 9,
               'minigolf: in turns, nine holes, one player is up');
+    check(G1.state.shared.settings.level === 'hard' && G1.state.shared.holes.every((id) => MG.golfHoleById(id).lvl === 3) && new Set(G1.state.shared.holes).size === 9,
+          'minigolf: a hard game deals nine different hard holes');
     let up = byId(golfers, G1.state.shared.turn);
     const notUp = golfers.find((b) => b !== up);
     check((await putt(notUp, { dx: 0, dy: 1000, power: 200 })).ok === false, 'minigolf: in turns, a putt out of turn is refused');
     const settle = async (pred) => { for (let i = 0; i < 80 && !pred(G1.state); i++) await sleep(50); };
-    await putt(up, { dx: 0, dy: 1000, power: 230 });
+    await putt(up, { dx: 0, dy: 1000, power: 100 });
     await all(golfers, (s) => s.shared.turn && s.shared.turn !== up.pid, 'minigolf: the turn goes round the table');
     check(Array.isArray(G1.state.shared.shots[up.pid].others) && !G1.state.shared.shots[up.pid].others.length,
           'minigolf: the first putt of the hole has no other ball to meet (the rest are still on the tee, off the course)');
@@ -3742,7 +3751,10 @@ async function main() {
     const lay = G1.state.shared.balls[firstBall].at.slice();
     up = byId(golfers, G1.state.shared.turn);
     const seq0 = G1.state.shared.shotSeq;
-    await putt(up, { dx: 0, dy: 1000, power: 430 });
+    // aimed from the tee at the ball lying a metre up the hole
+    const aimAt = [lay[0] - G1.state.shared.balls[up.pid].at[0], lay[1] - G1.state.shared.balls[up.pid].at[1]];
+    const aimL = Math.hypot(aimAt[0], aimAt[1]) || 1;
+    await putt(up, { dx: Math.round(aimAt[0] / aimL * 1000), dy: Math.round(aimAt[1] / aimL * 1000), power: 260 });
     await settle((s) => s.shared.shotSeq > seq0);
     const knock = G1.state.shared.shots[up.pid];
     check(knock.others.some((o) => o.id === firstBall) && knock.moved.some((m) => m.id === firstBall) &&
@@ -3755,6 +3767,7 @@ async function main() {
         await putt(up, { dx: 0, dy: 1000, power: 20 });
         await settle((s) => s.shared.shotSeq > seq);
       }
+      if (G1.state.shared.phase === 'play' && G1.state.shared.hole === hole) break;
       if (hole < 8) {
         await G1.waitFor((s) => s.shared.phase === 'between', 'minigolf: in turns, hole ' + (hole + 1) + ' ends when every ball is done');
         await G1.must('nextHole', { hole });

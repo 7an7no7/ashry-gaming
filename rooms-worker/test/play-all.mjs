@@ -3046,12 +3046,14 @@ async function main() {
         if (turns > 70 && !sks().caller && sks().lap >= 3) { await skDo(skUp(), 'screw'); continue; }
         const up = skUp();
         const from = sks().eventSeq;
+        // After a سكرو the first caller stays the caller (the owner's rule), so the wake-up's caller is theirs.
+        const callerBefore = sks().caller || null;
         await skDrawTurn(sks().caller ? new Set() : want4);
         turns++;
         const wake = sks().events.find((e) => e.seq > from && e.type === 'wakeUp');
         if (wake && !woke) {
-          check(wake.pid === up.pid && sks().phase !== 'play' && sks().results.caller === up.pid && sks().pile.includes('mesaharaty') && sks().order.every((id) => skHand(id).every((h) => !!h.up)),
-            'skrew: المسحراتي drawn: the round is revealed at once, the one who drew it as the caller');
+          check(wake.pid === up.pid && sks().phase !== 'play' && sks().results.caller === (callerBefore || up.pid) && sks().pile.includes('mesaharaty') && sks().order.every((id) => skHand(id).every((h) => !!h.up)),
+            'skrew: المسحراتي drawn: the round is revealed at once, the one who drew it as the caller (after a سكرو, the first caller)');
           woke = true;
         }
       }

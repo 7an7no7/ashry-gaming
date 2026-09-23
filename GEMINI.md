@@ -88,6 +88,11 @@
 - **Words, one phone or a room:** **Hangman (المشنقة):** two on one phone
   taking turns, or a room where one writes and everyone guesses on their own
   board, or races on the app's word (*المشنقة*).
+- **One sets, everyone solves, in rooms** (*One sets, everyone solves*): 🟩
+  **خمن الكلمة**, 🔢 **خمّن الرقم** and 🌍 **خمّن الدولة** gain a room where one
+  sets the secret and every other phone solves it on its own board, or a race
+  on the app's pick; 🤔 **فوازير إيموجي** gains a riddle written by a player
+  (and the same race) beside its quiz.
 - **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
   or two on one phone; ⭕ **Tic Tac Toe (إكس أو)** against a friend or an
   unbeatable minimax, with a "3 marks only" switch that ends the draws; 🔴 **Connect 4 (كونكت ٤)** and 🔲 **Dots & Boxes
@@ -137,6 +142,88 @@ work changed. Add to it when a decision is made or a batch ships.
   player wins; the higher team total wins; play on until only one qualifies).
 
 ### The owner's specs, as built
+
+- **One sets, everyone solves** - the owner's decisions of 23 Sep 2026,
+  asked one by one (*One sets, everyone solves*):
+  - **المشنقة's room way made an engine**: a setter writes or picks a
+    secret, every other phone solves it **on its own board** (never seeing
+    the others' guesses, only how far each is), **the setter moves round the
+    table**; or **a race on the app's pick** (nobody sets). **A lobby choice,
+    "one sets, the rest solve" by default.** A future game of the kind is a
+    plug-in. Hangman may move onto it if that is clean and safe - left as it
+    is, decided here (below).
+  - **Scoring like المشنقة's race, in both ways**: each solver **10 + a bonus
+    by order** (+5 first, +4 ... +1); **the setter 5 for every player who
+    didn't solve it**; **fewer tries break ties** on the board.
+  - **خمن الكلمة**: the setter types a word, everyone guesses in their own
+    grid with the right / present / absent colours; the race deals from the
+    Wordle lists; the keyboard follows the word's alphabet.
+  - **خمّن الرقم**: the setter picks a number in the host's range, everyone
+    guesses with higher / lower on their own phone; the race: the app picks.
+  - **خمّن الدولة**: the setter picks a country from the table (searchable,
+    both languages), everyone guesses from the flag or by distance (the
+    host's choice) with the one-phone game's hints; the race: the app picks,
+    tiers like the one-phone game's.
+  - **فوازير إيموجي written by a player**: an answer, its kind (a chip: a
+    film, a proverb, a dish, a place, a thing) and its clue in emoji only; a
+    clue that spells the answer is refused; guesses typed and judged by
+    `guessVerdict` (right / close, "🔥 قريب") with retries; the race uses
+    `EmojiRiddles.js`. **The existing emoji quiz stays**; a new way of the
+    same game rather than a separate entry is preferred.
+  - **3, 5 or 10 a game and a clock off / 60 / 90 seconds** like المشنقة
+    (sensible per game); the host can skip a quiet setter; a setter who leaves
+    before setting hands it on; fewer than two ends the game; latecomers
+    watch.
+  - **The TV** shows the setter, the shape of the secret where it has one,
+    each player's progress (tries, the order they solved in) - never a
+    guess's content that would give the secret away.
+  - **Hidden information**: the secret on the server and the setter's phone
+    only, each board on its own phone only, `shared` progress only; a Wordle
+    solver's colours and the number's higher / lower worked out on the
+    server.
+  - Decided here (open to change, each one place in the code):
+    - **المشنقة stays on its own code** (`RoomHangman.js`): moving it would
+      change its shared fields (`len`, `shape`, `progress.n` / `miss`), its
+      actions (`setWord`, `whole`) and its tests for nothing a player would
+      see; the engine is its generalisation, and a later move is a plug-in.
+    - **فوازير إيموجي plays three ways in a room**: «واحد يكتب» (the
+      default), «سباق» (the app's riddles, each guessing on their own phone)
+      and «مسابقة» (the quiz as it was, wrong guesses shown to the table). The
+      race is on the engine rather than being the quiz because the quiz shows
+      everyone's wrong guesses, which the owner's engine does not. A phone
+      too old to send the way starts the quiz, as before.
+    - **The tries**: خمن الكلمة 6, or 7 for a word of 7 or 8 (the one-phone
+      game's); خمّن الرقم two more than halving needs (8, 9, 12 for 1-50,
+      1-100, 1-1000); خمّن الدولة 6 from the flag, 8 by distance (the
+      one-phone game's); فوازير إيموجي 6. Out of tries is a miss, so the
+      setter's points mean something even with no clock.
+    - **"Fewer tries" is the tries it took to get the ones a player got**,
+      summed over the game (`shared.tries`); a miss adds nothing.
+    - **A written word is checked for its length (5-8) and its letters (one
+      keypad), not against a dictionary**: the one-phone game takes any guess
+      too, and a list would refuse names and dialect. Guesses are the same:
+      the right length on the word's keypad. A repeated guess costs nothing.
+    - **ه is not ة in خمن الكلمة**: a key each, as on one phone (only أ إ آ ٱ
+      fold to ا).
+    - **The ranges**: 1-50, 1-100 (default), 1-1000; the race's number is
+      picked at random. **The clocks**: خمن الكلمة 90 or 120 seconds (typing
+      five letters six times takes longer), the others 60 or 90.
+    - **What the table sees of a board**: its tries, its state and its place;
+      for خمن الكلمة the colours of each row without the letters (a Wordle
+      grid as people share it); for خمّن الدولة the closest a player has come
+      as a percentage. For خمّن الرقم the tries only - another solver's
+      narrowed range would give the number away - and the same for the
+      riddles.
+    - **The flag is the clue itself** in the flag way, so it reaches every
+      phone and the TV as the flag emoji (two regional letters: a phone that
+      reads its own traffic sees what the screen shows it anyway); by
+      distance nothing is shown.
+    - A riddle's clue is up to 40 characters of emoji (keycaps, families and
+      skin tones included), the answer 2 letters to 8 words; the letter emoji
+      (a flag's regional letters, 🅰️, 🆗 …) may not spell the answer or a word
+      of it.
+    - A setter may pick any country; the race asks tier 1 (easy, the
+      default) or every country (hard).
 
 - **ميني جولف (Mini Golf)** - the owner's rules of 23 Sep 2026, asked one at
   a time; look أ «نجيلة» picked from the lead's 3D preview (striped mown grass,
@@ -1668,6 +1755,25 @@ the word search), `countUp` for streaks and scores.
   holes in a room); the leak check plays nine holes in turns; robot tests:
   1846, with a knock on a live server and nine holes in turns. A deploy is
   needed for the rooms server.
+- **23 Sep 2026, one sets, everyone solves** - the owner's decisions asked
+  one by one (*The owner's specs*): المشنقة's room way as an engine
+  (`RoomSolve.js`, the four games' rules in `SolveGames.js`), and خمن الكلمة,
+  خمّن الرقم and خمّن الدولة in rooms, and فوازير إيموجي written by a player
+  (with the same race, beside its quiz). The Wordle lists and the countries
+  moved into files of their own (`WordleWords.js`, `Countries.js`), since the
+  rooms server deals and answers from them now. One renderer for the four
+  (`JS_RoomSolve.html`, section 32 of `Style.html`). Rules tests: 57 new
+  (the colours with repeated letters, the written word, the ranges and
+  higher / lower, the distances and hints, the emoji clue and the judging,
+  and the engine: the order, the points, a tie on tries, the race, the skip,
+  leaving, the clock, play again, the quiz way untouched). The leak check
+  plays all four both ways, with three probes (the secret on the setter's
+  phone only until the round is scored; a board on its own phone only; the
+  table sees tries and colours, never a guess), proved by putting the secret
+  into `shared`, another board into a slice and a guess into the progress in
+  a scratch build: each failed it. Robot tests: a round of each on a live
+  server, both ways. Found on the way (*Traps*): the quiz's clock branch
+  catches every `QUIZ_GAMES` room, the engine's emoji rooms included.
 
 ## Building and Running
 
@@ -1726,8 +1832,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Bowling.js`, `MiniGolf.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomBowling.js`, `RoomMiniGolf.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, and the game files bundled after
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -1864,6 +1970,9 @@ is nowhere to hide the key card.
 | `RoomBowling.js` | `bowlingAction`: the order, each player's card, a throw run on the server (`bowlThrow`) and replayed by every phone, the clock and the host's gentle ball, leaving, the end. |
 | `MiniGolf.js` | ميني جولف's eighteen holes and one putt as plain arithmetic (only + - * / and `Math.sqrt` / `floor` / `abs` / `min` / `max`, never `Math.sin`) - the other balls it knocks included - the pieces (ice, mud, pads, belts, portals, bumpers, ramps, gates), the most strokes (`golfMaxOf`), the way to the cup (`golfField`) and the clock's gentle putt (`golfAutoShot`): shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `golf`. |
 | `RoomMiniGolf.js` | `minigolfAction`: all at once or in turns (the balls on the course knocking each other, `mgOthers`), the server's result of every putt, picking up past par + 3, the hole's card and the next hole on the server's clock, the putt clock, leaving. Bundled after `RoomGames.js`. |
+| `WordleWords.js`, `Countries.js` | خمن الكلمة's lists and keypad (`WORDLE_DB`, `WORDLE_LAYOUTS`) and خمّن الدولة's table with the distances (`COUNTRIES`, `FLAG_ALIASES`, `FLAG_MODES`, `flagsDistance`, `flagsBearing`): moved out of `JS_Wordle.html` and `JS_Flags.html` for the rooms, shared by the page (inlined, `SHARED_LISTS`) and the Worker. |
+| `SolveGames.js` | The four solve games' own rules (every name `sv` / `SV_`): a written word and its colours, the ranges and higher / lower, the country hints, an emoji clue's problems: shared by the page (a setter's form checks what it sends) and the Worker. |
+| `RoomSolve.js` | `solveAction`: one sets, everyone solves - the engine (the order, the boards, the points, the clock, leaving) and its four plug-ins (`SOLVE_KINDS`). Bundled after `RoomGames.js`. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -3502,7 +3611,7 @@ six below has a list of its own:
   so a reload comes back with the time it has left, or counts it as missed.
   The daily is ten seeded questions.
 - **خمّن الدولة** (`JS_Flags.html`, id `flags`): from the flag (6 guesses) or
-  by distance alone (8). `COUNTRIES` is the one new list of the batch, because
+  by distance alone (8). `COUNTRIES` (`Countries.js` since 23 Sep 2026, shared with the rooms server) is the one new list of the batch, because
   nothing else knew where a country is: 196 countries with their code, the
   names as ربع قرد spells them, the middle of the country, the continent and a
   tier (1 everyone knows it, 3 small or far); easy asks tier 1, the daily
@@ -3802,6 +3911,73 @@ The owner's rules are in *The owner's specs*.
   (`TV_GAMES.hangman`, `data-accent="orange"` so the man keeps the game's
   colour in the room's frame) shows the kind of word, its blanks and every
   player's man.
+
+### One sets, everyone solves
+
+The owner's decisions are in *The owner's specs*. خمن الكلمة, خمّن الرقم and
+خمّن الدولة are rooms of their own (`room-wordle`, `room-guessnum`,
+`room-flags`); فوازير إيموجي's written riddle and its race are two ways of the
+emoji room (`room-emoji`), whose third way is the quiz.
+
+- **`SolveGames.js`** (shared, no DOM): what each game adds that the page and
+  the server both need. `svWordleFold` (marks off, أ إ آ ٱ as ا, capitals),
+  `svWordleAlpha` / `svWordleProblem` (5-8 letters on one keypad of
+  `WORDLE_LAYOUTS`), `svWordleColours` (c / p / a a letter; greens first,
+  each yellow using up one of the letters left), `svWordleTries`;
+  `SV_NUM_RANGES`, `svNumTries`, `svNumVerdict`; `svCountryPool`,
+  `svFlagHintsAt`, `svCountryLetter`; `SV_EMOJI_KINDS`,
+  `svEmojiAnswerProblem`, `svEmojiClueProblem` (emoji only - pictographs,
+  flags, skin tones, joiners and keycaps are taken out and nothing may be
+  left - and its letter emoji, read as letters by `svEmojiLetters`, may not
+  spell the answer). `SV_CLOCKS` per game. The Arabic marks are built from
+  their char codes (*Traps*).
+- **`RoomSolve.js`**, the engine. `shared.solve` names the game on it (the
+  emoji room's quiz has none: `svKindOf`, and `svEmojiOnEngine` says which
+  way an emoji move goes - a start by its `way`, anything after by the
+  room). Phases `setting` (the setter's form; the host's `skipTurn` moves on)
+  → `solving` (`guess` from each solver, `closeRound` from the host, the
+  clock) → `result` (`nextRound`) → `gameover` (`playAgain` keeps the
+  settings). A plug-in in `SOLVE_KINDS` gives `options`, `check` (the
+  setter's payload to a secret, or an Arabic error), `deal` (the race's pick,
+  through `nextPrompt` - the emoji race shares the quiz's memory key), `pub`
+  (what the table may see), `board`, `tries`, `guess` (`'won'`, `'miss'` or
+  `''` for nothing - a repeat, which costs no try), `view` (the board as its
+  own phone sees it), `progress` (what the table sees besides the tries),
+  `reveal` and `mine`. Secrets: `room._solve = { secret, boards }`; each
+  solver's `room.secrets[pid] = { board, state, n }` through the solving and
+  the result, the setter's `{ mine }` while the others solve. Every move
+  carries `round` (`staleTap`). The board is `svBoard`: `scoreboardOf` with
+  `tries` on each row, fewer first on a tie.
+- **`JS_RoomSolve.html`**: one renderer (`svRender`, `svTvFrame`) and the
+  four games' pieces - the setter's forms (`svSetFormHtml`: the secret typed
+  as dots with an eye, as المشنقة's; the country search with 🎲; the emoji
+  chips and a live preview), a solver's board (`svBoardHtml`: the one-phone
+  Wordle grid and keys with a draft row typed in place - `svWordleKey`, the
+  computer's keyboard too; the number's range narrowing and its history; the
+  flags rows and the search; the riddle and its tries), the public part
+  (`svPubHtml`) and the secret (`svSecretHtml`). **What a phone is typing
+  is never redrawn under it**: the frame's signature (`svSig`) is this
+  phone's own state, and the table's progress, the host's buttons, the
+  board between rounds and the clock are refreshed in place
+  (`svPaintLive`). The emoji room keeps the quiz's renderer (`SV_EMOJI_QUIZ`)
+  and hands a room on the engine to `svRender`; its lobby has the three ways.
+  `roomSolveTurn` answers `roomTurnOf`.
+- **Motion**: a new Wordle row flips, a verdict pops, a distance counts up
+  (`countUp`), a wrong riddle shakes; at the end of a round the secret turns
+  over (`svResultHtml`, keyed with `motionFirst`, `data-reveal-ms`) and the
+  rows follow it in, the points this phone won fly to its row (`flyPoints`,
+  measured against the board it drew earlier in the same deal), the board
+  counts up (`animateScoreboards`), and the game ends on the podium with
+  confetti for the winner.
+- **Layout** (section 32 of `Style.html`): المشنقة's - upright one column,
+  the board first; a phone on its side puts a Wordle grid beside its keys and
+  the other boards' field beside their tries; from 900px the board beside a
+  narrow column of the others, and a Wordle grid beside its keys, sized by
+  the screen's height so the whole board is on it. The TV: the public part
+  big, a card each under it (`auto-fit`, so a few sit in the middle).
+- Tests: `rules.mjs` (the games' rules and the engine), `leaks.mjs`
+  (`DRIVERS.solveGame`, `PROBES.solve`: all four both ways), `play-all.mjs`
+  (a round of each both ways on a live server).
 
 ### كدّاب
 
@@ -4803,6 +4979,27 @@ context that was interrupted by another app (the camera, WhatsApp, the share
 sheet) can stay silent however often a tap resumes it; only a new one works.
 Detect it (not running, or its `currentTime` not moving, a moment after a tap)
 and replace it in the next tap (*The soundboard*).
+
+**A game's clock branch can catch a room that isn't playing that game.**
+`gameTimeout` ends a card of any `QUIZ_GAMES` room (`if (QUIZ_GAMES[room.game])
+{ closeQuizCard(room); return true; }`), so an emoji room on the engine
+(one sets, everyone solves) would have had its deadline "handled" by the
+quiz - nothing closed, `true` returned, and the round never timing out. The
+engine's check comes first in `gameTimeout`. A game that gives an existing
+room a second way checks every per-game branch (the clock, leaving, the turn)
+for the room's own state, not just its `room.game`.
+
+**A number secret is any count.** The leak check finds a value anywhere in
+a view; a secret number (خمّن الرقم's 7) is also a score, a round or a try
+count, and a solver's own narrowed range may land on it. Its probe looks for
+the number outside the places that hold counts, and another probe checks
+that a solver's board is exactly its own.
+
+**Stopping `wrangler dev` through its shell leaves it running on Windows.**
+The background task's shell dies and the node process under it, with its
+`workerd` children, goes on holding the port; a second `wrangler dev` on the
+same port then starts beside it, and requests to the port hang. Kill the
+node process by its command line (`--port NNNN`) with `taskkill /T`.
 
 **Physics that passes a test can still be wrong everywhere else.** The first
 bowling pins passed "a pocket hit strikes more often than not" - and struck

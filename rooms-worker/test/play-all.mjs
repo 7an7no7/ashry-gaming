@@ -3598,6 +3598,96 @@ async function main() {
     hmBots.concat([S]).forEach((b) => b.close());
   }
 
+  /* --- one sets, everyone solves (RoomSolve.js): خمن الكلمة, خمّن الرقم, خمّن الدولة, فوازير إيموجي ---- */
+  console.log('• one sets, everyone solves (the secret on the setter\'s phone only, each board its own, the order\'s bonus, the setter\'s points, a race)');
+  {
+    // What each game's setter sends, a wrong guess, the right one, and a check of a wrong guess's answer on the solver's own board.
+    const GAMES = {
+      wordle: {
+        start: { len: 5 }, secret: { word: 'مدرسة' }, bad: { word: 'قطة' }, show: 'مدرسة',
+        wrong: { text: 'ملعقة' }, rightG: { text: 'مدرسة' },
+        mark: (b) => b.board.g[0].c === 'caaac', markLabel: 'the colours come from the server (ملعقة against مدرسة: green, grey, grey, grey, green)',
+        pub: (s) => s.pub.len === 5 && s.pub.alpha === 'ar'
+      },
+      guessnum: {
+        start: { max: 100 }, secret: { n: 64 }, bad: { n: 101 }, show: 64,
+        wrong: { n: 50 }, rightG: { n: 64 },
+        mark: (b) => b.board.g[0].v === 'higher' && b.board.lo === 51, markLabel: 'higher or lower comes from the server, and the narrowed range is the solver\'s own',
+        pub: (s) => s.pub.max === 100 && s.maxTries === 9
+      },
+      flags: {
+        start: { clue: 'flag', level: 'easy' }, secret: { code: 'JP' }, bad: { code: 'ZZ' }, show: 'JP',
+        wrong: { code: 'EG' }, rightG: { code: 'JP' },
+        mark: (b) => b.board.g[0].km > 9000 && b.board.g[0].deg > 0 && b.board.g[0].p < 60, markLabel: 'the distance and the direction come from the server',
+        pub: (s) => s.pub.clue === 'flag' && !!s.pub.flag && s.maxTries === 6
+      },
+      emoji: {
+        start: { way: 'setter' }, secret: { answer: 'الفيل الأزرق', clue: '🐘🔵', kind: 'film' }, bad: { answer: 'الفيل الأزرق', clue: 'فيل 🐘', kind: 'film' }, show: 'الفيل الأزرق',
+        wrong: { text: 'الأسد الملك' }, rightG: { text: 'الفيل الازرق' },
+        mark: (b) => b.board.g[0].v === '', markLabel: 'a wrong guess is judged on the server',
+        pub: (s) => s.pub.e === '🐘🔵' && s.pub.k === 'film'
+      }
+    };
+    for (const game of Object.keys(GAMES)) {
+      const G = GAMES[game];
+      const H = await Bot.host('سارة', null);
+      const J = await Bot.join(H.code, 'Jude');
+      const K = await Bot.join(H.code, 'كريم');
+      const S = await Bot.join(H.code, '', true);
+      const svBots = [H, J, K];
+      await H.must('chooseGame', { game });
+      await H.must('start', Object.assign({ mode: 'setter', rounds: 3, clock: 0, lang: 'ar' }, G.start));
+      await all(svBots, (s) => s.game === game && s.shared.solve === game && s.shared.phase === 'setting' && !!s.shared.setter, game + ': one sets the first secret, by default');
+      const setter = byId(svBots, H.state.shared.setter);
+      const [a, b] = svBots.filter((x) => x !== setter);
+      check((await a.act('setSecret', Object.assign({ round: 1 }, G.secret))).ok === false, game + ': only the setter sets it');
+      check((await setter.act('setSecret', Object.assign({ round: 1 }, G.bad))).ok === false, game + ': a secret that breaks the rules is refused');
+      await setter.must('setSecret', Object.assign({ round: 1 }, G.secret));
+      await all(svBots.concat([S]), (s) => s.shared.phase === 'solving' && G.pub(s.shared), game + ': the secret is set, and what the table may see of it is on every screen');
+      // A number is looked for as a value (a timestamp holds any digits); a word or a code anywhere.
+      const hidden = (bot) => (typeof G.show === 'number'
+        ? !(bot.state.you && bot.state.you.mine) && !new RegExp(':' + G.show + '[,}]').test(JSON.stringify(bot.state.shared))
+        : JSON.stringify(bot.state).indexOf(JSON.stringify(G.show)) === -1);
+      check(!!setter.state.you.mine && hidden(a) && hidden(b) && hidden(S) && Array.isArray(a.state.you.board.g),
+            game + ': the secret is on the setter\'s phone only - not a solver\'s, not the TV');
+      await a.must('guess', Object.assign({ round: 1 }, G.wrong));
+      check(G.mark(a.state.you), game + ': ' + G.markLabel);
+      await b.waitFor((s) => s.shared.progress[a.pid].n === 1, game + ': the table sees how many tries a board has made');
+      check(b.state.you.board.g.length === 0 && JSON.stringify(b.state.shared.progress).indexOf(JSON.stringify(G.wrong[Object.keys(G.wrong)[0]])) === -1,
+            game + ': and never what they were');
+      await b.must('guess', Object.assign({ round: 1 }, G.rightG));
+      await a.must('guess', Object.assign({ round: 1 }, G.rightG));
+      await all(svBots.concat([S]), (s) => s.shared.phase === 'result' && !!s.shared.result.reveal, game + ': the round ends once every board is done, and the secret is shown');
+      check(H.state.shared.scores[b.pid] === 15 && H.state.shared.scores[a.pid] === 14 && !H.state.shared.scores[setter.pid],
+            game + ': the first solve is 10 + 5, the second 10 + 4; nobody failed, so the setter has nothing');
+      check(H.state.shared.board[0].id === b.pid && H.state.shared.board[0].tries === 1, game + ': the board keeps the tries for a tie');
+      await H.must('nextRound', { round: 1 });
+      await all(svBots, (s) => s.shared.phase === 'setting' && s.shared.round === 2 && s.shared.setter !== setter.pid, game + ': the next secret has the next setter');
+      await H.must('skipTurn', { round: 2 });
+      await all(svBots, (s) => s.shared.phase === 'setting' && s.shared.round === 2, game + ': the host moves on from a quiet setter');
+      await H.must('backToHub');
+
+      // The race: the app's pick, nobody sets; the host closes it.
+      await H.must('chooseGame', { game });
+      await H.must('start', Object.assign({ mode: 'race', way: 'race', rounds: 3, clock: game === 'wordle' ? 90 : 60, lang: 'ar' }, game === 'emoji' ? {} : G.start, game === 'emoji' ? { way: 'race' } : {}));
+      await all(svBots.concat([S]), (s) => s.shared.phase === 'solving' && !s.shared.setter && !!s.shared.endsAt, game + ': the race deals the app\'s pick to everyone, on the clock');
+      check(svBots.every((x) => !x.state.you.mine && Array.isArray(x.state.you.board.g)), game + ': in the race nobody holds the secret, everyone a board');
+      if (game === 'guessnum') {
+        // Halving finds it: the verdicts are all a phone needs.
+        for (let k = 0; k < 9 && J.state.you.state === 'play'; k++) {
+          const lo = J.state.you.board.lo, hi = J.state.you.board.hi;
+          await J.must('guess', { n: Math.floor((lo + hi) / 2), round: 1 });
+        }
+        check(J.state.you.state === 'won', 'guessnum: halving on the server\'s higher and lower finds the number');
+      }
+      await H.must('closeRound', { round: 1 });
+      await all(svBots.concat([S]), (s) => s.shared.phase === 'result' && s.shared.result.rows.length === 3 && !s.shared.result.setterPts, game + ': the host closes the race, and nobody sets, so nobody takes a setter\'s points');
+      await H.must('backToHub');
+      await H.waitFor((s) => s.phase === 'lobby', game + ': back in the hub');
+      svBots.concat([S]).forEach((x) => x.close());
+    }
+  }
+
   /* --- ميني جولف: all at once, then in turns ------------------------------------------ */
   console.log('• minigolf (every ball on the hole at once, the putt on every phone, par + 3 strokes then picked up, turns with the balls knocking each other over nine holes, the next hole on the server\'s clock)');
   {

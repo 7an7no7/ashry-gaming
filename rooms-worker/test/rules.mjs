@@ -4175,6 +4175,187 @@ Date.now = duelTestClock;
     'hangman: play again keeps the way of playing');
 }
 
+/* --- one sets, everyone solves (RoomSolve.js): the engine and its four games ---- */
+{
+  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const SV = new Function(src('WordleWords.js') + src('Countries.js') + src('SolveGames.js') +
+    '\nreturn { svWordleColours, svWordleProblem, svWordleFold, svWordleTries, svNumTries, svNumVerdict, svNumProblem, svEmojiClueProblem, svEmojiAnswerProblem, svCountryLetter, svFlagHintsAt, flagCountry, flagsDistance, flagsBearing, flagsProximity, WORDLE_DB, COUNTRIES };')();
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+
+  // The board rules, each game's own.
+  check(SV.svWordleColours('SPEED', 'ERASE') === 'pappa' && SV.svWordleColours('LEVEL', 'HELLO') === 'pcaap' &&
+    SV.svWordleColours('ALLEY', 'LLAMA') === 'pcpaa' && SV.svWordleColours('EERIE', 'THEME') === 'paaac',
+    'solve/wordle: a repeated letter is yellow only as often as the word holds it, the greens taken first');
+  check(SV.svWordleColours('HELLO', 'HELLO') === 'ccccc' && SV.svWordleColours('ملعقة', 'مدرسة') === 'caaac', 'solve/wordle: the right word is all green, in Arabic too');
+  check(SV.svWordleProblem('أسوان') === '' && SV.svWordleProblem('apple') === '' && SV.svWordleProblem('app') === 'length' &&
+    SV.svWordleProblem('computers') === 'length' && SV.svWordleProblem('ab1cd') === 'letters' && SV.svWordleProblem('abcمن') === 'letters' &&
+    SV.svWordleProblem('') === 'empty', 'solve/wordle: a written word is 5 to 8 letters on one keypad');
+  check(SV.svWordleFold('إِسْكَنْدَرية') === 'اسكندرية' && SV.svWordleFold('Apple') === 'APPLE', 'solve/wordle: a word is folded as the keypad types it (marks off, أ إ آ as ا, capitals)');
+  check(SV.svWordleTries(5) === 6 && SV.svWordleTries(6) === 6 && SV.svWordleTries(7) === 7 && SV.svWordleTries(8) === 7, 'solve/wordle: 6 tries, 7 for a word of 7 or 8, as on one phone');
+  check(SV.svNumTries(50) === 8 && SV.svNumTries(100) === 9 && SV.svNumTries(1000) === 12, 'solve/guessnum: two tries more than halving always needs (8, 9, 12)');
+  check(SV.svNumVerdict(40, 50) === 'higher' && SV.svNumVerdict(60, 50) === 'lower' && SV.svNumVerdict(50, 50) === 'right', 'solve/guessnum: higher, lower, right');
+  check(SV.svNumProblem(1, 100) === '' && SV.svNumProblem(100, 100) === '' && SV.svNumProblem(0, 100) && SV.svNumProblem(101, 100) && SV.svNumProblem(2.5, 100),
+    'solve/guessnum: a number is a whole number in the range');
+  const eg = SV.flagCountry('EG'), fr = SV.flagCountry('FR'), br = SV.flagCountry('BR');
+  const bear = SV.flagsBearing(eg, fr);
+  check(Math.abs(SV.flagsDistance(eg, fr) - 3313) < 5 && bear > 290 && bear < 330 && SV.flagsBearing(eg, br) > 230 && SV.flagsBearing(eg, br) < 270,
+    'solve/flags: Egypt to France is about 3,300 km to the north-west, to Brazil west-south-west');
+  check(SV.flagsProximity(0) === 100 && SV.flagsProximity(20015) === 0 && SV.svCountryLetter(SV.flagCountry('MA'), 'ar') === 'م' && SV.svCountryLetter(fr, 'en') === 'F',
+    'solve/flags: closeness runs 100 to 0, and the first-letter hint skips ال');
+  check(JSON.stringify(SV.svFlagHintsAt('flag')) === '{"cont":3,"letter":5}' && JSON.stringify(SV.svFlagHintsAt('far')) === '{"cont":4,"letter":6}',
+    'solve/flags: the continent, then the first letter, after the one-phone game\'s number of misses');
+  check(SV.svEmojiClueProblem('🦁👑', 'The Lion King') === '' && SV.svEmojiClueProblem('🦁🇰🇮🇳🇬', 'The Lion King') === 'spells' &&
+    SV.svEmojiClueProblem('🦁 lion', 'x') === 'letters' && SV.svEmojiClueProblem('3️⃣🐷', 'Three little pigs') === '' &&
+    SV.svEmojiClueProblem('🍯⚫', 'عسل أسود') === '' && SV.svEmojiClueProblem('👨‍👩‍👧👍🏽', 'family') === '' && SV.svEmojiClueProblem('🆗', 'ok') === '' &&
+    SV.svEmojiClueProblem('🐱🇨🇦🇹', 'cat') === 'spells' && SV.svEmojiClueProblem('', 'x') === 'empty' && SV.svEmojiClueProblem('قطة', 'x') === 'letters',
+    'solve/emoji: a clue is emoji only (keycaps, families and skin tones too), and its letter emoji may not spell the answer');
+  check(SV.svEmojiAnswerProblem('الفيل الأزرق') === '' && SV.svEmojiAnswerProblem('x') === 'short' && SV.svEmojiAnswerProblem('') === 'empty' &&
+    SV.svEmojiAnswerProblem('one two three four five six seven eight nine') === 'long', 'solve/emoji: an answer is two letters or more, up to 8 words');
+
+  // The engine in a room.
+  const sv = (game, ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  let r = sv('wordle', ['a', 'b', 'c'], { rounds: 3 });
+  let s = r.shared;
+  check(s.solve === 'wordle' && s.phase === 'setting' && s.settings.mode === 'setter' && s.rounds === 3 && !!s.setter, 'solve: one sets first, by default');
+  const setter = s.setter;
+  const [p1, p2] = ['a', 'b', 'c'].filter((x) => x !== setter);
+  check(refused(() => applyRoomAction(r, p1, 'setSecret', { word: 'مدرسة', round: 1 })), 'solve: only the setter sets it');
+  check(refused(() => applyRoomAction(r, setter, 'setSecret', { word: 'قطة', round: 1 })) && refused(() => applyRoomAction(r, setter, 'setSecret', { word: 'abc12', round: 1 })),
+    'solve/wordle: a word of the wrong length or letters is refused');
+  applyRoomAction(r, setter, 'setSecret', { word: 'مَدرسة', round: 2 });
+  check(s.phase === 'setting', 'solve: a tap from another round is dropped');
+  applyRoomAction(r, setter, 'setSecret', { word: 'مَدرسة', round: 1 });
+  check(s.phase === 'solving' && s.pub.len === 5 && s.pub.alpha === 'ar' && JSON.stringify(s).indexOf('مدرس') === -1 &&
+    r.secrets[setter].mine.word === 'مدرسة' && !('mine' in r.secrets[p1]) && r.secrets[p1].board.g.length === 0,
+    'solve: the secret is set - the setter\'s phone has it, the table and the solvers don\'t');
+  check(refused(() => applyRoomAction(r, setter, 'guess', { text: 'مدرسة', round: 1 })), 'solve: the setter doesn\'t solve');
+  check(refused(() => applyRoomAction(r, p1, 'guess', { text: 'مدرس', round: 1 })), 'solve/wordle: a guess of the wrong length is refused');
+  applyRoomAction(r, p1, 'guess', { text: 'ملعقة', round: 1 });
+  check(r.secrets[p1].board.g[0].c === 'caaac' && s.progress[p1].n === 1 && s.progress[p1].rows[0] === 'caaac' &&
+    JSON.stringify(s.progress).indexOf('ملعق') === -1 && r.secrets[p2].board.g.length === 0,
+    'solve/wordle: the colours are worked out on the server; the table sees a row\'s colours, never its letters');
+  applyRoomAction(r, p1, 'guess', { text: 'ملعقة', round: 1 });
+  check(s.progress[p1].n === 1, 'solve/wordle: the same guess twice costs nothing');
+  applyRoomAction(r, p2, 'guess', { text: 'مدرسه', round: 1 });
+  check(s.progress[p2].state === 'play', 'solve/wordle: ه is not ة in خمن الكلمة (a key each)');
+  applyRoomAction(r, p2, 'guess', { text: 'مدرسة', round: 1 });
+  applyRoomAction(r, p1, 'guess', { text: 'مدرسة', round: 1 });
+  check(s.phase === 'result' && s.result.reveal.word === 'مدرسة' && s.scores[p2] === 15 && s.scores[p1] === 14 && !s.scores[setter],
+    'solve: a solve is 10 + a bonus by order (+5, +4); nobody failed, so the setter scores nothing');
+  check(s.board[0].id === p2 && s.board[0].tries === 2 && s.board[1].tries === 2, 'solve: the board keeps each player\'s tries');
+  applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+  check(s.round === 2 && s.phase === 'setting' && s.setter !== setter, 'solve: the next secret has the next setter');
+  const setter2 = s.setter;
+  const solvers2 = ['a', 'b', 'c'].filter((x) => x !== setter2);
+  applyRoomAction(r, setter2, 'setSecret', { word: 'apple', round: 2 });
+  check(s.pub.alpha === 'en' && r.secrets[setter2].mine.word === 'APPLE', 'solve/wordle: the keyboard follows the word\'s alphabet');
+  for (const w of ['BRAVE', 'CHORD', 'FUNKY', 'GHOST', 'JUMPS', 'MIGHT']) applyRoomAction(r, solvers2[0], 'guess', { text: w, round: 2 });
+  check(s.progress[solvers2[0]].state === 'lost' && s.phase === 'solving', 'solve/wordle: six misses and the board is lost');
+  applyRoomAction(r, solvers2[1], 'guess', { text: 'apple', round: 2 });
+  check(s.phase === 'result' && s.result.setterPts === 5, 'solve: the setter takes 5 for the one who didn\'t solve it');
+  // A tie on points: fewer tries first.
+  const tie = sv('guessnum', ['a', 'b', 'c'], { mode: 'race', rounds: 3, max: 100 });
+  tie.shared.scores = { a: 30, b: 30 };
+  tie.shared.tries = { a: 9, b: 4 };
+  applyRoomAction(tie, 'a', 'closeRound', { round: 1 });
+  check(tie.shared.board[0].id === 'b' && tie.shared.board[1].id === 'a', 'solve: a tie on points goes to fewer tries');
+
+  // The setter leaves before setting: the next one sets. The host can skip a quiet setter.
+  r = sv('guessnum', ['a', 'b', 'c', 'd'], { rounds: 3, max: 50 });
+  s = r.shared;
+  const quiet = s.setter;
+  applyRoomAction(r, 'a', 'skipTurn', { round: 1 });
+  check(s.phase === 'setting' && s.setter && s.setter !== quiet, 'solve: the host moves on from a quiet setter');
+  const leaver = s.setter;
+  r.players = r.players.filter((p) => p.id !== leaver);
+  roomPlayerLeft(r, leaver, 'L');
+  check(s.phase === 'setting' && s.setter !== leaver && r.players.some((p) => p.id === s.setter), 'solve: a setter who leaves before setting hands it on');
+  check(refused(() => applyRoomAction(r, s.setter, 'setSecret', { n: 51, round: 1 })), 'solve/guessnum: a number outside the host\'s range is refused');
+  applyRoomAction(r, s.setter, 'setSecret', { n: 37, round: 1 });
+  const ns = Object.keys(s.progress);
+  check(s.pub.max === 50 && s.maxTries === 8 && ns.length === 2 && JSON.stringify(s).indexOf('37') === -1, 'solve/guessnum: the range is public, the number is not');
+  applyRoomAction(r, ns[0], 'guess', { n: 25, round: 1 });
+  applyRoomAction(r, ns[0], 'guess', { n: 40, round: 1 });
+  const nb = r.secrets[ns[0]].board;
+  check(nb.g[0].v === 'higher' && nb.g[1].v === 'lower' && nb.lo === 26 && nb.hi === 39 && r.secrets[ns[1]].board.g.length === 0 && !('lo' in s.progress[ns[0]]),
+    'solve/guessnum: higher and lower come from the server, and where a board has narrowed it to stays on its own phone');
+  check(refused(() => applyRoomAction(r, ns[0], 'guess', { n: 0, round: 1 })), 'solve/guessnum: a guess outside the range is refused');
+  // A solver leaves: the round is over when everyone left is done.
+  applyRoomAction(r, ns[0], 'guess', { n: 37, round: 1 });
+  r.players = r.players.filter((p) => p.id !== ns[1]);
+  roomPlayerLeft(r, ns[1], 'L');
+  check(s.phase === 'result' && s.scores[ns[0]] === 15 && s.result.rows.length === 1, 'solve: a solver who leaves takes their board, and the round ends without them');
+  r.players = r.players.filter((p) => p.id !== ns[0]);
+  roomPlayerLeft(r, ns[0], 'L');
+  check(s.phase === 'gameover' && r.phase === 'gameover', 'solve: fewer than two ends the game');
+
+  // The race and the clock.
+  r = sv('flags', ['a', 'b', 'c'], { mode: 'race', rounds: 3, clock: 60, clue: 'flag', level: 'easy', lang: 'ar' });
+  s = r.shared;
+  const code = r._solve.secret.code;
+  check(s.phase === 'solving' && !s.setter && SV.flagCountry(code).tier === 1 && Object.keys(s.progress).length === 3 && s.pub.clue === 'flag' && !!s.pub.flag &&
+    JSON.stringify(s).indexOf('"' + code + '"') === -1 && JSON.stringify(r.secrets).indexOf('"' + code + '"') === -1,
+    'solve/flags: the race deals a well-known country to everyone; the flag is the clue, the country stays on the server');
+  const wrong = SV.COUNTRIES.filter((c) => c.code !== code).map((c) => c.code);
+  for (let i = 0; i < 3; i++) applyRoomAction(r, 'a', 'guess', { code: wrong[i], round: 1 });
+  const fa = r.secrets.a.board;
+  const target = SV.flagCountry(code);
+  check(fa.g[0].km === SV.flagsDistance(SV.flagCountry(wrong[0]), target) && fa.g[0].deg === Math.round(SV.flagsBearing(SV.flagCountry(wrong[0]), target)) &&
+    fa.hints.cont === target.cont && !fa.hints.letter && !r.secrets.b.board.hints.cont && s.progress.a.best === Math.max(...fa.g.map((g) => g.p)),
+    'solve/flags: the distance and the direction from the server; the continent after three misses, on that phone only');
+  applyRoomAction(r, 'a', 'guess', { code: wrong[3], round: 1 });
+  applyRoomAction(r, 'a', 'guess', { code: wrong[4], round: 1 });
+  check(!!r.secrets.a.board.hints.letter, 'solve/flags: and the first letter after five');
+  applyRoomAction(r, 'c', 'guess', { code: code, round: 1 });
+  check(s.phase === 'solving' && !s.scores.c, 'solve: points go on the board when the round ends, not before');
+  check(roomDeadline(r) === s.endsAt + 1500, 'solve: the clock is a server deadline');
+  clock = s.endsAt + 2000;
+  roomTimeout(r, clock);
+  check(s.phase === 'result' && s.scores.c === 15 && s.result.rows.find((x) => x.id === 'b').state === 'lost' && s.result.reveal.code === code && !s.result.setterPts,
+    'solve: when the clock runs out whoever hasn\'t solved it has failed; the race has no setter');
+  applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+  applyRoomAction(r, 'a', 'closeRound', { round: 2 });
+  applyRoomAction(r, 'a', 'nextRound', { round: 2 });
+  applyRoomAction(r, 'a', 'closeRound', { round: 3 });
+  check(s.phase === 'gameover' && r.phase === 'gameover', 'solve: the game ends after the chosen number');
+  applyRoomAction(r, 'a', 'playAgain', {});
+  check(r.shared.phase === 'solving' && r.shared.round === 1 && r.shared.settings.mode === 'race' && r.shared.settings.clock === 60 && r.shared.settings.clue === 'flag',
+    'solve: play again keeps the way of playing');
+  r = sv('flags', ['a', 'b'], { mode: 'race', clue: 'far', level: 'hard' });
+  check(r.shared.pub.clue === 'far' && !r.shared.pub.flag && r.shared.maxTries === 8, 'solve/flags: by distance nothing is shown, and there are 8 tries');
+  r = sv('flags', ['a', 'b'], { rounds: 3 });
+  check(refused(() => applyRoomAction(r, r.shared.setter, 'setSecret', { code: 'XX', round: 1 })), 'solve/flags: the setter picks a country from the table');
+
+  // فوازير إيموجي: a written riddle, the race on the app's, and the quiz that stays.
+  r = sv('emoji', ['a', 'b', 'c'], { way: 'setter', rounds: 3, lang: 'ar' });
+  s = r.shared;
+  check(s.solve === 'emoji' && s.phase === 'setting', 'solve/emoji: a riddle a player writes is a way of فوازير إيموجي');
+  const es = s.setter;
+  const [e1, e2] = ['a', 'b', 'c'].filter((x) => x !== es);
+  check(refused(() => applyRoomAction(r, es, 'setSecret', { answer: 'طماطماية', clue: 'طماطم 🍅', kind: 'dish', round: 1 })), 'solve/emoji: a clue with letters is refused');
+  applyRoomAction(r, es, 'setSecret', { answer: 'طماطماية', clue: '🍅🍅', kind: 'dish', round: 1 });
+  check(s.pub.e === '🍅🍅' && s.pub.k === 'dish' && JSON.stringify(s).indexOf('طماطم') === -1, 'solve/emoji: the clue and its kind are public, the answer is not');
+  applyRoomAction(r, e1, 'guess', { text: 'طمطم', round: 1 });
+  applyRoomAction(r, e1, 'guess', { text: 'طماطم', round: 1 });
+  check(r.secrets[e1].board.g[0].v === 'close' && s.progress[e1].state === 'won', 'solve/emoji: a guess is judged the way the table hears it (close, then طماطم for طماطماية)');
+  for (const g of ['بطاطس', 'خيار', 'جزر', 'فلفل', 'بصل', 'ثوم']) applyRoomAction(r, e2, 'guess', { text: g, round: 1 });
+  check(s.phase === 'result' && s.result.setterPts === 5 && s.result.reveal.a === 'طماطماية', 'solve/emoji: six tries, then the setter takes 5');
+  r = sv('emoji', ['a', 'b'], { way: 'race', rounds: 3, lang: 'ar' });
+  check(r.shared.solve === 'emoji' && r.shared.phase === 'solving' && !!r.shared.pub.c && !!r.shared.pub.e && !r.shared.setter,
+    'solve/emoji: the race deals the app\'s riddles with their kind');
+  applyRoomAction(r, 'a', 'guess', { text: r._solve.secret.a, round: 1 });
+  check(r.shared.progress.a.state === 'won', 'solve/emoji: the answer as the bank writes it solves it');
+  r = sv('emoji', ['a', 'b'], { way: 'quiz', count: 5, lang: 'ar' });
+  check(!r.shared.solve && r.shared.phase === 'answering' && r._deck.length === 5, 'solve/emoji: the quiz way is the old quiz, unchanged');
+  r = sv('emoji', ['a', 'b'], { lang: 'ar', count: 5 });
+  check(!r.shared.solve && r.shared.phase === 'answering', 'solve/emoji: a phone too old to say the way still starts the quiz');
+}
+
 /* --- ميني جولف: the course, the physics, the two ways a room plays ------------ */
 {
   const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');

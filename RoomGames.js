@@ -125,7 +125,9 @@ const ROOM_GAME_IDS = [
   // بولينج (RoomBowling.js): everyone bowls in turn, everyone watches every throw.
   'bowling',
   // كدّاب (RoomDoubt.js) and الشايب (RoomOldMaid.js): the playing cards.
-  'doubt', 'oldmaid'
+  'doubt', 'oldmaid',
+  // ميني جولف (RoomMiniGolf.js): every ball on the same hole, or one putt at a time.
+  'minigolf'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -534,6 +536,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'bank':       bankAction(room, playerId, action, payload); break;      // RoomBank.js
     case 'guesswho':   guessWhoAction(room, playerId, action, payload); break;  // RoomGuessWho.js
     case 'hangman':    hangmanAction(room, playerId, action, payload); break;   // RoomHangman.js
+    case 'minigolf':   minigolfAction(room, playerId, action, payload); break;  // RoomMiniGolf.js
     case 'bowling':    bowlingAction(room, playerId, action, payload); break;   // RoomBowling.js
     case 'doubt':      doubtAction(room, playerId, action, payload); break;     // RoomDoubt.js
     case 'oldmaid':    oldMaidAction(room, playerId, action, payload); break;   // RoomOldMaid.js
@@ -3400,6 +3403,7 @@ const gameDeadline = (room) => {
   if (room.game === 'bowling') return bowlDeadline(room);
   if (room.game === 'doubt') return doubtDeadline(room);
   if (room.game === 'oldmaid') return omDeadline(room);
+  if (room.game === 'minigolf') return mgDeadline(room);
   return null;
 };
 
@@ -3516,6 +3520,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'bowling') return bowlTimeout(room, now);
   if (room.game === 'doubt') return doubtTimeout(room, now);
   if (room.game === 'oldmaid') return omTimeout(room, now);
+  if (room.game === 'minigolf') return mgTimeout(room, now);
   return false;
 };
 
@@ -3681,6 +3686,10 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'hangman':
       hmPlayerLeft(room, playerId);
+      return;
+    case 'minigolf':
+      // Their ball leaves the hole; the turn and the hole move on without them (RoomMiniGolf.js).
+      mgPlayerLeft(room, playerId);
       return;
     case 'bowling':
       bowlPlayerLeft(room, playerId);

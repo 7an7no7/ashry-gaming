@@ -255,10 +255,28 @@ work changed. Add to it when a decision is made or a batch ships.
     promotion with a choice of four, check, mate, stalemate, threefold
     repetition, the fifty-move rule, insufficient material; a draw offered
     (the other accepts or refuses) and resigning.
-  - **In a tournament** (the duels' tournament mode, wired in by the lead): a
-    drawn match is replayed once with the colours swapped; drawn again, one
-    **Armageddon** game where a draw counts as a win for Black. In winner
-    stays a draw is the duels' draw: the champion keeps the seat.
+  - **In a tournament** (the duels' tournament, plugged in 23 Sep 2026 with the
+    owner's decisions of that day): exactly like the other duels - the lobby
+    switch from four people, the matches of a round at once, random byes, the
+    bracket, the podium, a new tournament or back to winner stays. **A drawn
+    game is replayed once with the colours swapped; drawn again, one
+    Armageddon game where a draw counts as a win for Black** - said on the
+    phones and the TV («إعادة بالألوان معكوسة», «أرماجدون: التعادل للأسود»).
+    **The host's clock runs per match** (off, 3+2, 5+0, 10+0; a flag ends that
+    match only), draw offers and resigning work per match, your own match
+    comes up by itself on the 3D board (your colour at the bottom), anyone
+    watches any match, every game you played is kept for the review, and the
+    TV shows the bracket with a small flat board and both clocks for every
+    match being played (the big one, the host's pick or the last match left,
+    on the 3D board). In winner stays a draw is the duels' draw: the champion
+    keeps the seat.
+  - **The host's "play for"** (decided here, in winner stays and in a
+    tournament's match): after 40 seconds on one move, or at once for a phone
+    that's away, the host can have **the computer play one move** for the side
+    to move - an ordinary move at a low rating (800, one move deep, a few
+    hundred positions: `chessHostMove`), never the engine's best, since it is
+    the player's game and not the host's, and cheap enough for the server's
+    free-plan time. With a clock on, running out is the other way on.
   - **The computer has a rating, 400 to 2000 in steps of 100** (replacing
     easy / medium / hard), a slider with a name for each band - مبتدئ 400-700,
     متوسط 800-1200, قوي 1300-1600, خبير 1700-2000 - remembered on the phone.
@@ -366,9 +384,11 @@ work changed. Add to it when a decision is made or a batch ships.
       first hands it to the other, who then walks their next opponent through;
       a match with nobody left sends nobody on; a final with nobody left ends
       with no champion. **A latecomer watches and plays the next tournament.**
-    - The turn clocks and the host's "play for" (خمّن مين, حرب السفن) work per
-      match, on the match the host is looking at; كونكت ٤, نقط ومربعات and إكس
-      أو have no clock, and a phone gone quiet is the host's ✕ (a forfeit).
+    - The turn clocks and the host's "play for" (خمّن مين, حرب السفن, شطرنج)
+      work per match, on the match the host is looking at (on the TV, the
+      match it shows big); كونكت ٤, نقط ومربعات and إكس أو have no clock, and
+      a phone gone quiet is the host's ✕ (a forfeit). Chess's draw rule is its
+      own (*The owner's specs*, شطرنج).
     - A phone shows its own match by itself - the one it plays, a replay, the
       one it just won or lost while its board is kept - and the bracket
       otherwise; a new match of its own takes it back there.
@@ -1970,6 +1990,28 @@ the word search), `countUp` for streaks and scores.
   latecomer, a leave, a new tournament, back to winner stays).
   Found on the way (*Traps*): the duels' `shared.board` is the scoreboard, and
   كونكت ٤'s lobby choice is already called `mode`.
+- **23 Sep 2026, شطرنج in the tournament** - chess plugged into the duels'
+  tournament to the owner's decisions of the day: everything the other duels
+  have, a drawn game replayed once with the colours swapped and then an
+  Armageddon game where a draw is Black's (`chessMatchNext` through the
+  adapter's `deal` and `drawRule`), the clock per match, draw offers and
+  resigning per match, the review for every tournament game, and the TV's
+  live cards as small flat boards with ticking clocks (the big match on the
+  3D board). Decided here: the host's "play for" is the computer's ordinary
+  move at 800 (in winner stays too). Also: the TV's host buttons in a
+  tournament act on the match the TV shows big (`tourFocusState` asks
+  `tourTvFocusId` on a screen - before, a TV's "play for" in خمّن مين or حرب
+  السفن named no match and was refused), and chess's flag deadline is 1 ms
+  past the grace. Rules tests: 22 (fewer than four refused, five with byes to
+  a champion, a draw replayed with the colours swapped, a second draw to
+  Armageddon and Black through on a draw there, a flag ending one match only,
+  offers, resigning and "play for" per match, stale taps, a forfeit on
+  leaving, "play for" in winner stays). The leak check plays a chess
+  tournament (`tour:chess`); the robots play one of five to a champion, the
+  first-round match drawn twice by agreement into Armageddon. Looked at in
+  headless Chrome: four phones at 375×812 (and one sideways) and the TV at
+  1920×1080 and 1280×720, Arabic and English, a reload mid-match, Help, the
+  review of a tournament game, no console errors.
 
 ## Building and Running
 
@@ -4381,7 +4423,34 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
   `chessTimeout` (the flag), `chessPlayerLeft` (a forfeit). A move carries
   `move` (the count the phone saw) against a double tap; a move that arrives
   after the time ran out loses on time and isn't played. No computer players,
-  no forced moves.
+  no forced moves. The host's `skipTurn` plays one move for the side to move
+  (`chessHostMove`: `chessBestMove` at 800, depth 1, 600 positions, marked
+  `last.auto = 'host'`), carrying `move` against a double tap.
+  `chessBoardDeadline` is the first moment the flag counts (the grace + 1 ms:
+  `chessClockFlagged` wants *more* than the grace, and an alarm at the grace
+  itself found nothing to do).
+- **In the tournament** (`TOUR_KINDS.chess` in `RoomTournament.js`): `deal`
+  makes a board through `chessRoomDeal(v, { armageddon })`; the match keeps
+  `whites` (who had White in each game, public) and `chessMatchNext` (from
+  `chessTourRecord(m)`) says the next game's White and whether it is
+  Armageddon - the second game is the swap the tournament's own replay already
+  makes, the third has White by lot, and the seats are turned when the lot says
+  so. `drawRule` asks `chessMatchNext` too: a draw is replayed until it says
+  the match is decided (an Armageddon draw never reaches it - the board
+  already made it Black's win, `result.drawn`). `act`, `deadline` / `timeout`
+  (the flag), `left` and `stay` are chess's own room functions on the match's
+  small room; `chessAction` hands every action to `tourAction` first.
+  On the page (`JS_RoomChess.html`) everything reads the room through
+  `duelRoomState()` and sends through `duelAct()`, so the same screen draws a
+  match; `chRoomTagHtml` says «إعادة بالألوان معكوسة» or «أرماجدون: التعادل
+  للأسود» over the status, an Armageddon draw's result line says Black won it,
+  `chRoomKeepTourGames` keeps every game the phone played as it ends (the
+  final ends on the podium, not the board), and `chRoomLiveState` /
+  `chRoomPaintMiniClocks` keep the big board's clocks and the TV's live cards'
+  ticking. `TOUR_CLIENT.chess` (in `JS_RoomTournament.html`, which loads after
+  this file) is the live card - a flat `chFlatBoardHtml` without coordinates,
+  both clocks, ⚔️ on Armageddon - and the optional hooks the tournament gained
+  for it (`liveSig`, `replayHead`, `drawNote`, `after`, `onState`).
 - **`JS_Chess.html`** - the board and one phone:
   - **One board view per page** (`chView`, as `bsView`): a root moved into
     whichever screen shows a board, thrown away when none does. The 3D board
@@ -5102,7 +5171,7 @@ so a tap for a match that moved on is dropped. `gameDeadline` / `gameTimeout`
 ask `isTourRoom` first. A match's board is dropped once both its players have
 moved on (`tourDeal`), so a room's state stays small with six matches going.
 
-**Plugging a duel in** (chess is the next): an adapter in `TOUR_KINDS` -
+**Plugging a duel in** (chess is plugged in the same way, below): an adapter in `TOUR_KINDS` -
 `options(payload, prev)` and `settingsOf(shared)` (the lobby's choices, from
 a start or a winner-stays game), `deal(v, settings, match)` (a fresh game on
 `v.shared`, whose seats, names and round are set; `match.games` and

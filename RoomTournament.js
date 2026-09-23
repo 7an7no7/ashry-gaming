@@ -97,6 +97,53 @@ const TOUR_KINDS = {
   }
 };
 
+/* شطرنج: a drawn game is replayed once with the colours swapped; drawn again, one
+   Armageddon game, White drawn by lot, in which a draw counts as a win for Black
+   (the owner's rule, chessMatchNext in Chess.js). match.whites keeps who had White
+   in each game of the match (public: the table saw it). */
+const chessTourRecord = (m) => ({
+  first: (m.whites || [])[0] === m.p[1] ? 'b' : 'a',
+  games: (m.whites || []).map((w, i) => ({ white: w === m.p[1] ? 'b' : 'a', result: 'd', armageddon: i >= 2 }))
+});
+
+TOUR_KINDS.chess = {
+  options: (payload, prev) => chessRoomOptions(payload || {}, prev || {}),
+  settingsOf: (s) => chessRoomOptions({}, (s || {}).settings || {}),
+  deal: (v, settings, m) => {
+    const s = v.shared;
+    s.settings = Object.assign({}, settings);
+    let arma = false;
+    if (m.games) {
+      // Every earlier game of the match was drawn (or the match would be over).
+      const next = chessMatchNext(chessTourRecord(m), Math.random);
+      arma = !!next.armageddon;
+      const white = next.white === 'b' ? m.p[1] : m.p[0];
+      if (s.seats[0] !== white) {
+        s.seats.reverse();
+        s.seatNames.reverse();
+        m.seats = s.seats.slice();
+      }
+    } else {
+      m.whites = [];
+    }
+    m.whites = (m.whites || []).concat([s.seats[0]]);
+    s.line = [];
+    chessRoomDeal(v, { armageddon: arma });
+    s.roster = s.seats.slice();
+  },
+  act: (v, pid, action, payload) => chessAction(v, pid, action, payload),
+  deadline: (v) => chessDeadline(v),
+  timeout: (v, now) => chessTimeout(v, now),
+  left: (v, pid) => chessPlayerLeft(v, pid),
+  stay: (room, pid, settings) => chessAction(room, pid, 'start', Object.assign({}, settings)),
+  // An Armageddon draw is already Black's win on its board: a draw reaching here is game 1 or 2.
+  drawRule: (m, g) => {
+    const next = chessMatchNext(chessTourRecord(m), () => 0);
+    if (!next.done) return 'replay';
+    return { winner: (g.seats || [])[0] === (next.winner === 'b' ? m.p[1] : m.p[0]) ? 0 : 1 };
+  }
+};
+
 const isTourRoom = (room) => !!(room && room.shared && room.shared.tour && TOUR_KINDS[room.game]);
 
 /* --- the bracket ------------------------------------------------------------------ */

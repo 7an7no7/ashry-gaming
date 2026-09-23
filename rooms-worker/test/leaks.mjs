@@ -1302,6 +1302,31 @@ const TOUR_DRIVERS = {
       act(T, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * g.cols), move: g.moves, match: m.id, mg: m.games });
     }
     return S(T).tour.phase === 'over';
+  },
+  'tour:chess'() {
+    // Nothing hidden, but every match on its own board: random moves, a draw agreed now and then (the
+    // replay and Armageddon), the host playing for someone, a resignation after 30 moves, a clock that runs out.
+    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+    const T = table('tour:chess', 5, { tourOf: 'chess' });
+    must(T, T.host, 'start', { tournament: true, clock: '3+2' });
+    for (let guard = 0; guard < 6000 && S(T).tour.phase === 'play'; guard++) {
+      const s = S(T);
+      const live = s.tour.matches.filter((m) => m.state === 'play');
+      if (!live.length || guard % 97 === 0) { runClock(T, (r) => r.shared.tour.phase !== 'play' || r.shared.tour.matches.some((m) => m.state === 'play'), 3); if (!live.length) continue; }
+      const m = pick(live);
+      const g = s.games[m.id];
+      if (!g || g.phase !== 'play') continue;
+      const bd = g.chess;
+      const base = { match: m.id, mg: m.games };
+      const up = g.seats[bd.g.turn];
+      if (bd.offer) { act(T, g.seats[1 - bd.offer.seat], 'answerDraw', Object.assign({ accept: Math.random() < 0.7 }, base)); continue; }
+      if (bd.moves === 4 && Math.random() < 0.5) { act(T, up, 'offerDraw', Object.assign({ move: bd.moves }, base)); continue; }
+      if (bd.moves === 6 && Math.random() < 0.3) { act(T, T.host, 'skipTurn', Object.assign({ move: bd.moves }, base)); continue; }
+      if (bd.moves >= 30) { act(T, up, 'resign', Object.assign({ round: g.round }, base)); continue; }
+      const mv = pick(CH.chessLegalMoves(bd.g));
+      act(T, up, 'move', Object.assign({ from: mv.from, to: mv.to, promo: mv.promo, move: bd.moves }, base));
+    }
+    return S(T).tour.phase === 'over';
   }
 };
 

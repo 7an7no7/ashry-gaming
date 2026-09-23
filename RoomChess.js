@@ -145,7 +145,8 @@ function chessBoardAnswer(bd, seat, accept) {
 
 function chessBoardDeadline(bd) {
   if (!bd || bd.result || !bd.clock || bd.clock.at === null || bd.clock.at === undefined) return null;
-  return bd.clock.at + bd.clock.left[bd.g.turn] + CHESS_GRACE_MS;
+  // The first moment the flag counts (chessClockFlagged wants more than the grace).
+  return bd.clock.at + bd.clock.left[bd.g.turn] + CHESS_GRACE_MS + 1;
 }
 
 function chessBoardFlag(bd, now) {
@@ -165,10 +166,10 @@ function chessRoomOptions(payload, prev) {
   return { clock: chessClockId(p.clock !== undefined ? p.clock : was.clock) };
 }
 
-/** A fresh board for the seats just set. */
-function chessRoomDeal(room) {
+/** A fresh board for the seats just set (opts.armageddon: a tournament's third game of a match). */
+function chessRoomDeal(room, opts) {
   const s = room.shared;
-  s.chess = chessBoardNew((s.settings || {}).clock);
+  s.chess = chessBoardNew((s.settings || {}).clock, opts);
   s.result = null;
   s.roster = duelHere(room);
   s.phase = 'play';
@@ -181,6 +182,8 @@ function chessRoomEnd(room, res) {
 }
 
 function chessAction(room, playerId, action, payload) {
+  // A tournament takes its own actions, and runs every match's moves back through this function.
+  if (tourAction(room, playerId, action, payload, 'chess')) return;
   const p = payload || {};
   if (action === 'start') {
     requireHost(room, playerId);
@@ -247,6 +250,19 @@ function chessAction(room, playerId, action, payload) {
     return;
   }
 
+  if (action === 'skipTurn') {
+    // The host plays for a phone that went quiet: the computer's move at a low rating (chessHostMove).
+    requireHost(room, playerId);
+    if (s.phase !== 'play' || bd.result || staleTap(p, 'move', bd.moves)) return;
+    const mv = chessHostMove(bd.g);
+    if (!mv) return;
+    const up = bd.g.turn;
+    const res = chessBoardMove(bd, up, mv, Date.now());
+    if (bd.last && bd.last.n === bd.moves) bd.last.auto = 'host';
+    if (res) chessRoomEnd(room, res);
+    return;
+  }
+
   if (action === 'answerDraw') {
     if (s.phase !== 'play' || bd.result || !bd.offer) return;
     if (seat === -1 || seat === bd.offer.seat) throw new Error('العرض ده مش ليك');
@@ -256,6 +272,18 @@ function chessAction(room, playerId, action, payload) {
   }
 
   throw new Error('إجراء غير معروف');
+}
+
+/**
+ * The host's "play for" (the owner's duels have it for a phone gone quiet): a
+ * legal move chosen by the phone's computer at a low rating - a sensible move,
+ * never a brilliant one, since it is the player's game and not the host's. One
+ * ply with the captures after it and a few hundred positions at most: the
+ * server's time budget on the free plan is a few milliseconds.
+ */
+const CHESS_HOST_ELO = 800;
+function chessHostMove(g) {
+  return chessBestMove(g, { elo: CHESS_HOST_ELO, depth: 1, nodes: 600, ms: 40, noise: 60 });
 }
 
 /* --- the clock ------------------------------------------------------------------ */

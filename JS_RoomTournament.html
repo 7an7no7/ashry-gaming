@@ -33,10 +33,16 @@
    count up on the board (animateScoreboards).
 
    PLUGGING A DUEL IN: one entry in TOUR_CLIENT - its ROOM_GAMES / TV_GAMES
-   are wrapped at load, and `mini(game, names)` is the match's small board on
-   the TV's live cards - besides the adapter in RoomTournament.js. The game's
-   own code reads the room through duelRoomState() and sends moves through
-   duelAct() (JS_RoomConnect4.html), which carry the match.
+   are wrapped at load, and `mini(game, names, match)` is the match's small
+   board on the TV's live cards - besides the adapter in RoomTournament.js.
+   Optional: `liveSig(game)` (what redraws a live card when the game keeps its
+   moves somewhere tourSig can't see), `replayHead(state, match)` (the line
+   over a drawn match's countdown), `drawNote(match)` (the bracket's note on a
+   match that took more than one game), `after(root, state)` (once the TV's
+   bracket is drawn) and `onState(state)` (every state, whatever is on screen);
+   chess uses all five. The game's own code reads the room through
+   duelRoomState() and sends moves through duelAct() (JS_RoomConnect4.html),
+   which carry the match - on the TV, the match it shows big.
    ========================================================================= */
 
 const TOUR_MIN_PEOPLE = 4;
@@ -57,6 +63,29 @@ const TOUR_CLIENT = {
     // How many faces each still has up: what the table sees of a real board.
     mini: (g, names) => (Array.isArray(g.faces) && g.down ? `<div class="tour-mini__count">${[0, 1].map(k =>
       `<span><b class="metric">${gwUp(g.faces, g.down[k] || []).length}</b><i>${escapeHTML(tourT('tour_faces_left'))}</i></span>`).join('<em>·</em>')}</div>` : '')
+  },
+  chess: {
+    // A small flat board with both clocks (JS_RoomChess.html ticks them) and the Armageddon mark.
+    mini: (g, names, m) => {
+      const bd = g.chess;
+      if (!bd || !bd.g || typeof chFlatBoardHtml !== 'function') return '';
+      const clocks = bd.clock ? `<div class="ch-mini__clocks" dir="ltr">${[0, 1].map(k =>
+        `<span class="${!bd.result && bd.g.turn === k && bd.clock.at ? 'is-running' : ''}"><i class="ch-mini__dot ${k ? 'is-dark' : 'is-light'}" aria-hidden="true"></i><b class="metric" data-ch-mclock="${m ? m.id : ''}:${k}">${chClockText(chRoomClockLeft({ shared: g }, k))}</b></span>`).join('')}</div>` : '';
+      const tag = bd.armageddon ? `<div class="ch-mini__tag">⚔️ ${escapeHTML(chT('ch_arma_short'))}</div>` : '';
+      return `<div class="tour-mini__board ch-mini">${chFlatBoardHtml({ board: bd.g.board, orient: 0, last: bd.last ? { from: bd.last.from, to: bd.last.to } : null, check: chessCheckSq(bd.g) })}</div>${clocks}${tag}`;
+    },
+    // What redraws a live card: a move, a draw offered, the end.
+    liveSig: (g) => (g.chess ? [g.chess.moves, g.chess.offer ? 1 : 0, g.chess.result ? g.chess.result.reason : ''].join('.') : ''),
+    // A drawn match's countdown: the replay with the colours swapped (the first game's Black has White), then Armageddon.
+    replayHead: (state, m) => ((m.draws || 0) >= 2
+      ? '⚔️ ' + escapeHTML(chT('ch_tour_arma_next'))
+      : '🔁 ' + escapeHTML(chT('ch_tour_replay_next', { name: '⁨' + tourName(state, (m.seats || [])[1]) + '⁩' }))),
+    // A decided match that took more than one game.
+    drawNote: (m) => ((m.draws || 0) >= 2 ? '⚔️ ' + escapeHTML(chT('ch_arma_short')) : '🔁 ' + escapeHTML(chT('ch_replay_short'))),
+    // The TV's live cards keep their clocks running.
+    after: () => { if (typeof chRoomTickStart === 'function') chRoomTickStart(); },
+    // Every game this phone played is kept for the review, the final's too (it ends on the podium).
+    onState: (state) => { if (typeof chRoomKeepTourGames === 'function') chRoomKeepTourGames(state); }
   },
   battleship: {
     // The ships still afloat on each side.
@@ -160,10 +189,11 @@ function tourMatchState(state, id) {
   });
 }
 
-/** The match this phone is looking at, shaped for the game's renderer, or null for the bracket. */
+/** The match this phone (or the TV) is looking at, shaped for the game's renderer, or null for the bracket. */
 function tourFocusState(state) {
   if (!tourOn(state)) return null;
-  const id = tourFocusId(state);
+  // The TV's big match is its own choice (the host's pick, or the only one left): its host buttons act on that one.
+  const id = state.youAreScreen ? tourTvFocusId(state) : tourFocusId(state);
   return id ? tourMatchState(state, id) : null;
 }
 
@@ -239,7 +269,10 @@ function tourMatchCellHtml(state, m, tv) {
   if (m.state === 'play') badge = `<span class="tour-m__live"><i aria-hidden="true"></i>${escapeHTML(tourT('tour_live'))}</span>`;
   else if (m.state === 'ready') badge = `<span class="tour-m__soon">${m.games ? '🤝 ' : '⏳ '}${tourCountHtml(m.startAt, m.games ? 'tour_replay_in' : 'tour_starts_in')}</span>`;
   else if (m.state === 'done' && m.reason === 'left' && m.winner) badge = `<span class="tour-m__note">${escapeHTML(tourT('tour_walkover'))}</span>`;
-  else if (m.state === 'done' && m.draws) badge = `<span class="tour-m__note">🤝 ${escapeHTML(tourT('tour_after_draws', { n: m.draws }))}</span>`;
+  else if (m.state === 'done' && m.draws) {
+    const kind = TOUR_CLIENT[state.game];
+    badge = `<span class="tour-m__note">${kind && kind.drawNote ? kind.drawNote(m) : '🤝 ' + escapeHTML(tourT('tour_after_draws', { n: m.draws }))}</span>`;
+  }
   const mine = m.p.indexOf(me) !== -1;
   const cls = `tour-m is-${m.state} ${mine ? 'is-mine' : ''} ${m.out[0] || m.out[1] ? 'is-bye' : ''} ${tourLocal.view === m.id ? 'is-watching' : ''}`;
   const inner = `${row(0)}${row(1)}${badge ? `<span class="tour-m__badge">${badge}</span>` : ''}`;
@@ -431,7 +464,8 @@ function tourMatchOverCardHtml(state, id, tv) {
   let head = '', next = '';
   if (m.state === 'ready' && m.games) {
     const first = (m.seats || [])[1];       // the replay swaps the seats: the second seat of this game starts it
-    head = `🤝 ${escapeHTML(tourT('tour_replay', { name: '⁨' + tourName(state, first) + '⁩' }))}`;
+    const kind = TOUR_CLIENT[state.game];
+    head = kind && kind.replayHead ? kind.replayHead(state, m) : `🤝 ${escapeHTML(tourT('tour_replay', { name: '⁨' + tourName(state, first) + '⁩' }))}`;
     next = tourCountHtml(m.startAt, 'tour_replay_in');
   } else if (m.state === 'play') {
     return '';
@@ -569,6 +603,8 @@ function tourCheer(root, state) {
 }
 
 function tourAfterPaint(root, state) {
+  const kind = TOUR_CLIENT[state.game];
+  if (kind && kind.after) kind.after(root, state);
   tourDealDraw(root, state);
   tourFlyWinners(root, state);
   tourCheer(root, state);
@@ -583,7 +619,8 @@ function tourSig(state, focus) {
   // The TV's live cards show each board: every move of a match being played redraws it there.
   const live = focus === 'tv' ? tr.matches.filter(m => m.state === 'play' && s.games[m.id]).map(m => {
     const g = s.games[m.id];
-    return [m.id, g.phase, g.moves, g.turn, g.turnSeq, g.shots].join(':');
+    const kind = TOUR_CLIENT[state.game];
+    return [m.id, g.phase, g.moves, g.turn, g.turnSeq, g.shots, kind && kind.liveSig ? kind.liveSig(g) : ''].join(':');
   }).join(',') : '';
   return ['tour', state.code, tr.no, tr.phase, focus || '', tourLocal.view || '', tr.featured || '', live,
     JSON.stringify(tr.matches.map(m => [m.state, m.p, m.winner, m.games, m.draws, m.startAt])),
@@ -597,6 +634,8 @@ function tourRender(state, id, orig) {
   const el = document.getElementById('view-' + view);
   if (!el) return;
   tourSyncAuto(state);
+  const kind = TOUR_CLIENT[id];
+  if (kind && kind.onState) kind.onState(state);
   const focus = tourFocusId(state);
   const ms = focus ? tourMatchState(state, focus) : null;
   if (ms) {
@@ -627,7 +666,7 @@ function tourLiveCardHtml(state, m) {
   const g = s.games[m.id] || {};
   const names = [0, 1].map(i => tourName(state, (g.seats || m.p)[i]));
   const kind = TOUR_CLIENT[state.game];
-  const mini = kind && kind.mini ? kind.mini(g, names) : '';
+  const mini = kind && kind.mini ? kind.mini(g, names, m) : '';
   const turn = g.phase === 'play' || g.phase === 'place' || g.phase === 'pick' ? g.turn : -1;
   const who = (i) => `<span class="tour-live__who ${turn === i && g.phase === 'play' ? 'is-turn' : ''}">${escapeHTML(names[i] || '')}</span>`;
   const status = m.state === 'ready'

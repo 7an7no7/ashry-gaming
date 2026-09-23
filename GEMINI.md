@@ -4558,8 +4558,26 @@ a touch, and iOS suspends it again ('interrupted') when the phone locks or a
 call comes in. `wakeAudio` in `JS_Core.html` resumes it on any touch, key or
 return to the page, and `playSound` tries too - but a sound that arrives from
 the room with no touch (the bomb landing on this phone) can't wake it, so the
-holder's screen says "tap to hear the ticking" while it is asleep. An iPhone
-on silent plays no web sound at all; nothing on the page can change that. The
+holder's screen says "tap to hear the ticking" while it is asleep.
+
+**A tap doesn't always wake it on an iPhone** (the owner, 23 Sep 2026: "most of
+the times when I join a room I don't hear the game, I must refresh"). Joining
+usually comes from another app that had the sound (the camera that read the QR,
+WhatsApp), and opening a room goes out to the share sheet; iOS then leaves the
+context 'interrupted', or 'running' with its clock standing still, and resume()
+inside a tap no longer brings it back - a refresh helped only because it made a
+new context. So `wakeAudio` listens to pointerdown, touchend, click and keydown;
+in a tap it also starts a one-sample silent buffer (what really opens iOS's
+output), and 350ms later checks that the context is running *and its
+`currentTime` moved*; if not (`audioStuck`), or if it is 'interrupted', the
+next tap closes it and makes a new one inside the tap, where a new one always
+starts. That is why `audioCtx` is a `let`: nothing may keep a context of its
+own - every sound reads `audioCtx` or `fxCtx()` each time it plays (an
+`AudioBuffer`, like the applause's noise, works in any context). The narrator's
+speech warm-up (`speakPrime`) runs on a click or touchend for the same reason:
+iOS doesn't count a pointerdown as a tap. An iPhone on its silent switch still
+plays no web sound (Safari's `navigator.audioSession.type = 'playback'` could
+change that, but it would also stop the phone's music - not done). The
 bomb ticks with its own `playSound('bomb')`, a wooden tick-tock loud enough to
 hear across a table, on the holder's phone and the TV only.
 
@@ -4628,6 +4646,12 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A sound bug that a refresh fixes is a stale audio context.** On iOS a
+context that was interrupted by another app (the camera, WhatsApp, the share
+sheet) can stay silent however often a tap resumes it; only a new one works.
+Detect it (not running, or its `currentTime` not moving, a moment after a tap)
+and replace it in the next tap (*The soundboard*).
 
 **Physics that passes a test can still be wrong everywhere else.** The first
 bowling pins passed "a pocket hit strikes more often than not" - and struck

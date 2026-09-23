@@ -38,13 +38,18 @@
   /* --- AUDIO SYSTEM --- */
   // A browser without Web Audio (or with it turned off) gets a silent stand-in:
   // creating it unguarded threw here and stopped this whole script - the app.
-  const audioCtx = (() => {
+  const audioMake = () => {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (Ctx) return new Ctx();
     } catch (e) {}
+    return null;
+  };
+  // `let`, not `const`: a context iOS won't wake is replaced (see wakeAudio), and
+  // every sound in the app reads this binding (or fxCtx()) each time it plays.
+  let audioCtx = audioMake() || (() => {
     const node = () => ({ connect() {}, disconnect() {}, start() {}, stop() {}, frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} }, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} } });
-    return { state: 'closed', currentTime: 0, destination: {}, resume() { return Promise.resolve(); }, createOscillator: node, createGain: node, createBiquadFilter: node, createBufferSource: node, createBuffer: () => ({ getChannelData: () => new Float32Array(1) }), createDynamicsCompressor: node, sampleRate: 44100 };
+    return { stub: true, state: 'closed', currentTime: 0, destination: {}, resume() { return Promise.resolve(); }, createOscillator: node, createGain: node, createBiquadFilter: node, createBufferSource: node, createBuffer: () => ({ getChannelData: () => new Float32Array(1) }), createDynamicsCompressor: node, sampleRate: 44100 };
   })();
   let lastClickAt = 0;
   let lastTapClickAt = 0;
@@ -63,13 +68,59 @@
   // when the phone locks or a call comes in ('suspended' or 'interrupted'). Any
   // touch or key wakes it again; a sound that arrives from the room without one
   // (the bomb landing on this phone) can't.
-  const wakeAudio = () => {
-    if (audioCtx.state !== 'running' && audioCtx.state !== 'closed') {
-      try { const p = audioCtx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
-    }
+  //
+  // On an iPhone that isn't always enough (the owner, 23 Sep 2026: "most of the
+  // times when I join a room I don't hear the game, I must refresh"): joining
+  // usually comes from another app that had the sound (the camera that read the
+  // QR, WhatsApp), and opening a room goes out to the share sheet, and iOS leaves
+  // the page's context 'interrupted' - or 'running' on paper and silent - where
+  // resume() inside a tap no longer brings it back. A refresh made a new context,
+  // which is why it helped. So a tap also plays a one-sample silent buffer (what
+  // really opens iOS's output), and a context that is 'interrupted', or that a
+  // tap already failed to wake, is thrown away and made again inside the tap,
+  // where a new one always starts.
+  let audioStuck = false, audioRemadeAt = 0, audioCheckAt = 0;
+  const audioUnlock = (ctx) => {
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate || 22050);
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch (e) {}
   };
-  ['pointerdown', 'touchend', 'keydown'].forEach((ev) => document.addEventListener(ev, wakeAudio, { capture: true, passive: true }));
+  const wakeAudio = (e) => {
+    if (audioCtx.stub) return;
+    const inTap = !!(e && e.type);
+    const now = Date.now();
+    if (inTap && (audioCtx.state === 'interrupted' || audioCtx.state === 'closed' || audioStuck) && now - audioRemadeAt > 1500) {
+      const fresh = audioMake();
+      if (fresh) {
+        try { if (audioCtx.state !== 'closed') audioCtx.close(); } catch (err) {}
+        audioCtx = fresh;
+        audioRemadeAt = now;
+        audioStuck = false;
+      }
+    }
+    if (audioCtx.state !== 'running' && audioCtx.state !== 'closed') {
+      try { const p = audioCtx.resume(); if (p && p.catch) p.catch(() => {}); } catch (err) {}
+    }
+    if (!inTap) return;
+    audioUnlock(audioCtx);
+    // A moment later: still not running, or 'running' with its clock standing still
+    // (no sound is really coming out), and the next tap makes a new one.
+    if (now - audioCheckAt < 1000) return;
+    audioCheckAt = now;
+    const ctx = audioCtx, t0 = ctx.currentTime;
+    setTimeout(() => {
+      if (ctx !== audioCtx || document.hidden) return;
+      if (ctx.state !== 'running' || ctx.currentTime - t0 < 0.1) audioStuck = true;
+    }, 350);
+  };
+  ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, wakeAudio, { capture: true, passive: true }));
   document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeAudio(); });
+  // The page coming back from the app switcher or a share sheet on iOS
+  // (pageshow from the back-forward cache) is a return from away too.
+  window.addEventListener('pageshow', () => wakeAudio());
 
   function playSound(type, fromTap) {
     if (type === 'click') {

@@ -328,8 +328,9 @@ function speakPrime() {
     window.speechSynthesis.speak(warm);
   } catch (e) {}
 }
-document.addEventListener('pointerdown', speakPrime, { once: true, capture: true });
-document.addEventListener('keydown', speakPrime, { once: true, capture: true });
+// On the tap itself (click, touchend), not the finger coming down: iOS doesn't
+// count a pointerdown as a tap for speech, and the one warm-up was spent on it.
+['click', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, speakPrime, { capture: true, passive: true }));
 // The voice list arrives late on most browsers; nothing to do but let it.
 try { if (window.speechSynthesis) window.speechSynthesis.addEventListener('voiceschanged', () => {}); } catch (e) {}
 onLeaveScreen(() => speakStop());

@@ -134,21 +134,33 @@ work changed. Add to it when a decision is made or a batch ships.
     eye colour) with Egyptian first names, a new mix each game; never photos.
   - **16, 24 or 30 faces**, a lobby choice, 24 by default.
   - A turn is **one question or one guess**, never both.
-  - A question is **picked from the list** (the server answers it truthfully
-    and the whole room sees it) **or asked out loud** (the other player taps
-    yes or no) - both, the owner's answer.
-  - **After a list question the ruled-out faces fall by themselves**, a lobby
-    switch **on by default**; off, the asker flips them by hand and ends the
-    turn. **An out-loud question is always flipped by hand**: the phone never
-    heard it (the owner asked about exactly this when the switch was put).
+  - A question is **picked from the list**, **typed**, or **asked out loud**,
+    and **the other player answers it**, yes or no, on their phone - a list
+    question too (the owner, 23 Sep 2026, changing the first build, where
+    the server answered a list question itself: "it's like playing vs the
+    computer"). The list question shows big beside the answerer's own secret
+    face, and **a wrong tap is refused** - the phone says «بص تاني على وشك»
+    and sends nothing, and the server checks it the same way - so a slip
+    never spoils a game. A typed or out-loud answer is taken as given.
+  - **Faces are put down by hand, by default** (the owner, 23 Sep 2026: "like
+    the board"); the lobby switch that lets a list question's ruled-out faces
+    fall by themselves stays, **off by default**. A typed or out-loud
+    question is always flipped by hand: the phone can't judge it.
+  - **The table's moments** (the owner's picks, 23 Sep 2026): while the other
+    decides, the asker sees «💭 الإجابة عند …» with three breathing dots; the
+    answer lands as **a big أيوه / لأ bubble with a sound** on both phones, the
+    watchers' and the TV; **a guess is a drum roll over «منى: هو مجدي؟»**, then
+    صح or لأ, and the secret faces turn only after it. (Quick reactions were
+    offered and not chosen.)
   - **A wrong guess loses the game**, a switch; the other way it loses the
     turn and that face goes down.
   - **The secret face is dealt at random**, a switch; the other way each
     picks their own.
   - A turn clock **off by default, 30 or 60 seconds**; it passes the turn.
   - **Computer players, easy and hard.**
-  - Decided here: a computer player can't hear, so against one there is no
-    out-loud question; it asks from the list, hard taking the question that
+  - Decided here: a computer player can't hear or read, so against one there
+    is no out-loud or typed question; it asks from the list and answers a
+    list question put to it (after a second's thought), hard taking the question that
     comes closest to halving what it has left; the watchers and the TV see
     both boards (how many faces each has put down is public, as on a real
     table) but a secret face only once the game is over; any face can be put
@@ -1253,6 +1265,17 @@ the word search), `countUp` for streaks and scores.
   turned `hmClean`'s `\u064B-\u065F` escapes into the marks themselves,
   which also swallowed the Arabic digits; the class is now built from char
   codes (`HM_MARKS`), which no editor can decode.
+- **23 Sep 2026, خمّن مين with the other player answering** - the owner
+  played it and found the app answering list questions "like playing vs the
+  computer": the other player answers every question now (a wrong tap to a
+  list question refused on the phone and the server), faces go down by hand
+  by default, typed questions, the answer bubble and the guess's drum roll
+  (*The owner's specs*, *خمّن مين*). The same day the owner asked for
+  المشنقة's keyboard to follow the word's alphabet: it already did
+  (`shared.alpha`, `hmAlphaOf`), checked in a room and on one phone - an
+  older copy of the app cached on the phone is the likely cause. Found on
+  the way (*Traps*): a keyframe that doesn't name a property animates it
+  back to the element's own value.
 
 ## Building and Running
 
@@ -3303,12 +3326,20 @@ The owner's rules are in *The owner's specs*. Built on the duels:
   are the duels' own. The secret faces are `room._gw.secret`, never
   projected; each seated phone gets its own in `room.secrets[pid].face`, and
   `shared.reveal` only once the game is over. The stages of a turn are
-  `ask` (a list question, an out-loud one, or a guess), `answer` (the other
-  phone taps yes or no) and `flip` (faces put down by hand, then `done`).
-  `flip { face, down }` works any time in play, so a double tap is one flip.
-  Every turn move carries `seq` (`turnSeq`). The clock (`gwDeadline` /
-  `gwTimeout`) and the host's `skipTurn` pass the turn; in `pick` they
-  deal a face to whoever hasn't picked.
+  `ask` (a list question `ask { q }`, a typed one `typed { text }` - one
+  line, 80 characters - an out-loud one `loud`, or a guess), `answer` (the
+  other phone taps yes or no: `gwTakeAnswer` refuses a list answer that
+  isn't the truth about the answerer's face, and nothing about it is in
+  `shared` until it is given) and `flip` (faces put down by hand, then
+  `done`; with the switch on, a list answer drops them itself and the turn
+  passes). `flip { face, down }` works any time in play, so a double tap is
+  one flip. Every turn move carries `seq` (`turnSeq`). The clock restarts
+  for whoever must act - the asker, then the one answering, then the asker
+  flipping (`gwStartClock`); the clock and the host's `skipTurn` pass the
+  turn, except that a list question caught unanswered is answered
+  truthfully by the server (an out-loud or typed one is dropped); in `pick`
+  they deal a face to whoever hasn't picked. A guess leaves `shared.q =
+  { kind: 'guess', face, right }` for the page's drum roll.
 - **`JS_GuessWho.html`** draws it: `gwFaceSvg` builds a face from its
   features (a flat SVG in the look of the design sheet), `gwBoardHtml` the
   board (16 faces 4 wide, 24 and 30 six wide, so a phone's board is short
@@ -3318,7 +3349,16 @@ The owner's rules are in *The owner's specs*. Built on the duels:
   question rules out fall one after another on every phone and the TV
   (`gwNewlyDown` compares with what the phone last drew, `gwFall` staggers
   them); a face flipped by hand is drawn at once and remembered, so the
-  server's board doesn't make it fall again. Upright the board comes under
+  server's board doesn't make it fall again. The answerer's card is
+  `gwAnswerCardHtml`, and `gwSendAnswer` checks a list answer against the
+  phone's own face before sending. `gwMoments` plays the newest log entry
+  once per phone (`duelOnce`): an answer as the bubble, a guess as the drum
+  roll (`gwLocal.drama` holds the reveal's turn until it is over, through
+  `--gw-wait` and `data-reveal-ms`); the sounds are `gwSound`, heard where
+  `duelRoomLoud` says. A typed question survives a redraw under it
+  (`gwLocal.typed`, focus put back). The lobby's flipping switch is
+  remembered as the host's own choice only once they touch it
+  (`flipChosen`): a phone that remembered the old default isn't kept on it. Upright the board comes under
   your face and the last question, the bar sticky at the foot; on a phone
   on its side and from 900px the board takes the height (`--gw-aspect`)
   with everything else in a column beside it. The TV is both boards and the
@@ -3814,6 +3854,14 @@ the clean-up time was behind it, the alarm fired, found the phone, and set
 itself to the same moment in the past - a loop, each run a request on the free
 plan. Every time handed to `setAlarm` is at least a second ahead now, and a
 time that is already past is replaced by the next time worth looking.
+
+**A keyframe that leaves a property out animates it back to the element's
+own value.** خمّن مين's verdict («صح!») sits at `opacity: 0` until its turn,
+and pops with `gwPop`, whose last keyframe names only `transform`. With
+`fill: both` the pop ended by fading the verdict back to the 0 it started
+from. The rule that starts the animation also sets the end state
+(`opacity: 1; transform: none`), so the element's own value is the one the
+animation ends on.
 
 **An iPhone gives a password field only its English keyboard.** المشنقة's
 writer types a word the others mustn't see, and `type="password"` looked like

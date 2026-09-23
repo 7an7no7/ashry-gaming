@@ -1,9 +1,12 @@
 # GEMINI.md - Ashry Gaming (عشرى جيمينج) 🎮
 
 ## Project Overview
-**Ashry Gaming** is a party-games web app for phones: a hub of social games and utility tools with a responsive UI in Arabic and English, and dark mode. It began as a Google Apps Script web app; it is now a static site on GitHub Pages, with multiplayer rooms on Cloudflare.
+**Ashry Gaming** is a party-games web app for phones: a hub of social games and utility tools with a responsive UI in Arabic and English, and dark mode. It began as a Google Apps Script web app; it is now a static site on Cloudflare (and the same build on GitHub Pages), with multiplayer rooms on Cloudflare.
 
-- **App:** https://7an7no7.github.io/ashry-gaming/ (GitHub Pages, `master` → `/docs`)
+- **App:** https://play.3ashry.workers.dev - the main address since 24 Sep 2026
+  (`site-worker/`, *The static site*): every link the app shares points here.
+  The same build on GitHub Pages, https://7an7no7.github.io/ashry-gaming/
+  (`master` → `/docs`), keeps old icons, links and QR codes working.
 - **Rooms server:** https://ashry-rooms.3ashry.workers.dev (`rooms-worker/`)
 - **The old Apps Script version** is a frozen copy in `C:\Users\TPC\Apps Script\G`
   (git tag `apps-script-v177`). Its `/exec` link still works, with its own rooms; nothing
@@ -2125,6 +2128,33 @@ the word search), `countUp` for streaks and scores.
   Durable Objects and the prompt memory stay). A Worker moves with the account
   name by itself; the old `*.rooms-worker.workers.dev` addresses stopped at once,
   so the page was released to both hosts straight after the rename.
+  The owner then made Cloudflare **the main address**: every link the app
+  shares (Settings → شارك التطبيق, a room's link and its QR) points to
+  https://play.3ashry.workers.dev from either copy (`appUrl` in
+  `tools/site.config.json`, written into the page as `SERVER_DATA.webAppUrl`),
+  so whoever it reaches lands on the fast one; `check:live` checks both, the
+  main address named as such. The preview keeps its own address for its links.
+- **24 Sep 2026, the audit's second pass** - every module of the 23 Sep audit
+  read again by a different AI from the one that read it first (Gemini for the
+  modules Claude reviewers had read; Gemini Pro, then Claude reviewers when
+  agy's quota ran out, for the modules Gemini Flash had read), told to break the
+  first reader's "clean" claims. 20 new findings, each checked against the code:
+  17 fixed, 3 dropped (a "leak" the forced context loss already frees, a paused
+  loop that costs nothing in a hidden tab, the golf water timer already
+  guarded). Fixed: the tournament's TV bracket button when one match is live
+  (`featured: 'bracket'` kept as such); the TV's chess mini-clocks by the
+  server's time; chess - the coach's judge after leaving, the promotion picker
+  left open when the move can no longer be made, "try the better move" games
+  counting in the tally and taking a kept game's place, their pieces already
+  taken, the mode a practice game borrowed; حرب السفن's small map waiting for
+  the shell; الشايب's quick double tap drawing the lifted card; بولينج - a lost
+  GPU context mid-throw leaving the lane stuck, the solo best kept with the last
+  ball, the other screens after the player up leaves, a long slow swing losing
+  its backswing; ميني جولف - a leaver's knocked balls stuck "rolling", your own
+  putt rolled twice when the answer came after it stopped, its banner reading
+  the shot before, the solo clock stopping after an hour, the solo best kept
+  with the last putt, a pull back to the room screen, the putt clock frozen
+  after leaving and coming back, instanced meshes freed with their hole.
 
 ## Building and Running
 

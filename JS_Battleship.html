@@ -1988,8 +1988,8 @@ function bsPhoneModel(s, o, flying) {
     key: 'phone|' + s.gameId,
     loud: true,
     seas: [
-      { grid: s.seas[0].grid, sunk: s.seas[0].sunk, fleet: s.fleet, color: BS_SIDE_COL[0], mine: true, label: bsT('bs_your_sea') },
-      { grid: s.seas[1].grid, sunk: s.seas[1].sunk, fleet: done && !flying ? s.ai : null, appear: done && !flying && !o.still && motionFirst('bs-reveal|' + s.gameId), color: BS_SIDE_COL[1], label: bsT('bs_phone_sea') }
+      { k: 0, grid: s.seas[0].grid, sunk: s.seas[0].sunk, fleet: s.fleet, color: BS_SIDE_COL[0], mine: true, label: bsT('bs_your_sea') },
+      { k: 1, grid: s.seas[1].grid, sunk: s.seas[1].sunk, fleet: done && !flying ? s.ai : null, appear: done && !flying && !o.still && motionFirst('bs-reveal|' + s.gameId), color: BS_SIDE_COL[1], label: bsT('bs_phone_sea') }
     ],
     focus: focus,
     both: false,
@@ -2053,7 +2053,8 @@ function bsPhoneSideHtml(s, model, flying) {
   const parts = [];
   if (s.phase !== 'place') {
     const other = model.focus === 1 ? 0 : 1;
-    const sea = model.seas[other];
+    // The small map waits for the shell too (the other sea can be looked at while it flies).
+    const sea = Object.assign({}, model.seas[other], bsSeaShown(s.seas, model.seas[other].k, s.last, flying));
     parts.push(bsMiniHtml(sea, sea.label));
     parts.push(`<div class="bs-fleets">${bsFleetHtml(bsSeaShown(s.seas, 0, s.last, flying), bsT('bs_fleet_you'), BS_SIDE_COL[0])}${bsFleetHtml(bsSeaShown(s.seas, 1, s.last, flying), bsT('xo_phone'), BS_SIDE_COL[1])}</div>`);
   }
@@ -2290,6 +2291,7 @@ function bsRoomModel(state, tv) {
     key: ['room', state.code, s.round, s.dealId || '', seat].join('|'),
     loud: duelRoomLoud(state),
     seas: sides.map((k) => ({
+      k: k,
       grid: s.seas[k].grid, sunk: s.seas[k].sunk, fleet: fleetOf(k), color: BS_SIDE_COL[k], mine: k === seat, label: label(k),
       appear: over && !flying && k !== seat && motionFirst(revealKey + '|' + k)
     })),
@@ -2471,7 +2473,10 @@ ROOM_GAMES.battleship = {
     const other = model.focus === 1 ? 0 : 1;
     const side = [];
     if (s.phase === 'over' && !flying) side.push(duelRoomOverHtml(state, t));
-    if (s.phase !== 'place') side.push(bsMiniHtml(model.seas[other], model.seas[other].label), bsRoomFleetsHtml(state));
+    if (s.phase !== 'place') {
+      const mini = Object.assign({}, model.seas[other], bsSeaShown(s.seas, model.seas[other].k, s.last, flying && s.last));
+      side.push(bsMiniHtml(mini, mini.label), bsRoomFleetsHtml(state));
+    }
     side.push(`<div data-bs-hostrow></div>`, duelRoomLineHtml(state, t));
     // The board already has the last shot's win: it waits for the shell to land like everything else.
     if ((state.players || []).length > 2 && !(flying && s.phase === 'over')) side.push(renderScoreboard(s.board));

@@ -6506,7 +6506,7 @@ Date.now = duelTestClock;
     applyRoomAction(r, 'a', 'tourFeature', { match: m.id });
     check(t.featured === m.id, 'audit/tournament: the host puts a match big on the TV');
     applyRoomAction(r, 'a', 'tourFeature', { match: 'bracket' });
-    check(t.featured === null, 'audit/tournament: and the bracket button brings the bracket back');
+    check(t.featured === 'bracket', 'audit/tournament: and the bracket button brings the bracket back (even with one match live)');
     clock += 10000;
     roomTimeout(r, clock);
     const g = r.shared.games[m.id];

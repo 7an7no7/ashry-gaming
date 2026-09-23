@@ -8,7 +8,7 @@
  * 2. GitHub Pages serves the docs/ build you have here. Every build:site gives
  *    the service worker a new cache name, so that name identifies the build.
  *    Pages takes about a minute after a push; this waits up to 4 minutes.
- * 2b. The second address (site-worker/, the same docs/ on Cloudflare) serves it too.
+ * 2b. The main address (appUrl: site-worker/, the same docs/ on Cloudflare) serves it too.
  * 3. The rooms server answers /health.
  * 4. The rooms server runs the rules in this folder: its /health fingerprint
  *    (rooms-worker/fingerprint.mjs) matches this folder's. Its own copy of the
@@ -23,11 +23,12 @@ import path from 'node:path';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const config = JSON.parse(await readFile(path.join(here, 'site.config.json'), 'utf8'));
-const SITE = 'https://7an7no7.github.io/ashry-gaming/';
+// GitHub Pages: the first address, kept for old icons and links (githubUrl).
+const SITE = String(config.githubUrl || 'https://7an7no7.github.io/ashry-gaming/').replace(/\/?$/, '/');
 const ROOMS = String(config.roomsUrl || 'https://ashry-rooms.3ashry.workers.dev').replace(/\/$/, '');
 const WAIT_MS = 4 * 60 * 1000;
-// The second address: the same build, served by Cloudflare (site-worker/, npm run deploy:site).
-const BACKUP = String(config.backupUrl || '').replace(/\/?$/, '/');
+// The main address: the same build, served by Cloudflare (site-worker/, npm run deploy:site).
+const MAIN = String(config.appUrl || '').replace(/\/?$/, '/');
 
 const cacheName = (text) => (String(text).match(/ashry-\d{8,}/) || [])[0] || null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -85,14 +86,14 @@ for (;;) {
   console.log(`  the link still serves ${live || 'nothing (HTTP ' + r.status + ')'}, waiting for GitHub Pages...`);
   await sleep(20000);
 }
-if (live === local) ok(`${SITE} serves this build`);
+if (live === local) ok(`${SITE} serves this build (the GitHub copy)`);
 else fail(`${SITE} serves ${live}, not ${local}. Was docs/ committed and pushed to master?`);
 
-/* 2b. the second address */
-if (config.backupUrl) {
-  const backup = cacheName((await get(BACKUP + 'sw.js')).text);
-  if (backup === local) ok(`${BACKUP} serves this build too`);
-  else fail(`${BACKUP} serves ${backup || 'nothing'}, not ${local}: cd tools && npm run deploy:site`);
+/* 2b. the main address */
+if (config.appUrl) {
+  const main = cacheName((await get(MAIN + 'sw.js')).text);
+  if (main === local) ok(`${MAIN} serves this build (the main address)`);
+  else fail(`${MAIN} (the main address) serves ${main || 'nothing'}, not ${local}: cd tools && npm run deploy:site`);
 }
 
 /* 3. rooms server */

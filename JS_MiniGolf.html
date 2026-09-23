@@ -1481,7 +1481,8 @@ function mgFrondGeometry() {
 function mgInstances(G, geo, mat, list, cast) {
   if (!list.length) { geo.dispose(); return null; }
   const THREE = MG3.T;
-  const m = new THREE.InstancedMesh(mgKeep(geo), mat, list.length);
+  // Kept like the rest: its instance buffers are freed only by the mesh's own dispose.
+  const m = mgKeep(new THREE.InstancedMesh(mgKeep(geo), mat, list.length));
   const o = new THREE.Object3D(), col = new THREE.Color();
   list.forEach((it, i) => {
     o.position.set(it.p[0], it.p[1], it.p[2]);
@@ -2542,7 +2543,9 @@ function mg3SyncBalls(list) {
   if (!mg3Ready()) return;
   const THREE = MG3.T;
   const want = new Set(list.map(b => b.id));
-  MG3.balls.forEach((b, id) => { if (!want.has(id)) { mg3RemoveBall(b); MG3.balls.delete(id); } });
+  // A ball gone mid-roll (its player left) lets go of the balls it was knocking first, or they
+  // stay "rolling" on this screen for good (no putt, no card between holes).
+  MG3.balls.forEach((b, id) => { if (!want.has(id)) { if (b.play) mg3Release(id); mg3RemoveBall(b); MG3.balls.delete(id); } });
   list.forEach(o => {
     let b = MG3.balls.get(o.id);
     const look = o.color + '|' + (o.ghost ? 1 : 0) + '|' + (o.label || '');
@@ -2998,6 +3001,9 @@ onLeaveScreen((from, to) => {
   if (golf(from) && !golf(to)) {
     mg3Dispose();
     mgSoloStopTimers();
+    // The room's redraw timer and its putt clock too: the clock is started afresh on the way back.
+    if (mgRoom.redraw) { clearTimeout(mgRoom.redraw); mgRoom.redraw = null; }
+    if (typeof mgStopClock === 'function') mgStopClock();
   }
 });
 
@@ -3207,7 +3213,9 @@ function restoreMiniGolf() {
 }
 
 /** The hole's clock in ms (the moving pieces), from when the hole started on this phone. */
-const mgSoloClock = () => { const s = mgSoloState(); return Math.min(3600000, Math.max(0, Date.now() - (s.startedAt || Date.now()))); };
+// Round the hour rather than stopping at it: a game left mid-hole and taken up hours later still has
+// its windmill turning - on screen and in the putt alike (a putt's t0 is kept under the hour too).
+const mgSoloClock = () => { const s = mgSoloState(); return Math.max(0, Date.now() - (s.startedAt || Date.now())) % 3600000; };
 
 function mgSoloRoot() { return document.getElementById('minigolf-stage'); }
 
@@ -3297,6 +3305,8 @@ function mgSoloPutt(shot) {
   if (r.end === 'cup') { s.card[hole] = s.n; s.phase = 'holeDone'; }
   else if (s.n >= max) { s.card[hole] = max + 1; s.n = max + 1; s.picked = true; s.phase = 'holeDone'; }
   if (s.phase === 'holeDone' && hole + 1 >= course.length) s.phase = 'done';
+  // The best is kept with the last putt, in the same save: leaving while it rolls can't lose it.
+  if (s.phase === 'done') mgSoloKeepBest(s);
   saveToLocal();
   mgSound('putt');
   haptic('medium');
@@ -3339,6 +3349,17 @@ function mgSoloNext() {
   mgSoloPaint();
 }
 
+/** The best total for this length and kind, kept once a game (its result is shown later). */
+function mgSoloKeepBest(s) {
+  if (s.bestDeal === s.deal) return;
+  const g = s.game || { holes: s.holes };
+  const course = mgSoloCourse(s);
+  const total = (s.card || []).reduce((a, v) => a + (Number(v) || 0), 0);
+  const rec = soloRecord('minigolf', mgBestKey(g.level, course.length), { total, par: golfParOf(course), at: Date.now() }, (a, b) => a.total < b.total);
+  s.bestDeal = s.deal;
+  s.bestRec = { record: !!rec.record, prev: rec.prev || null };
+}
+
 function mgSoloShowResult() {
   const s = mgSoloState();
   const g = s.game || { holes: s.holes };
@@ -3348,7 +3369,9 @@ function mgSoloShowResult() {
   const shown = s.resultShown === s.deal;
   const key = mgBestKey(g.level, course.length);
   const hh = mgHolesText(course.length) + ' · ' + mgLevelText(g.level);
-  const rec = shown ? { record: false, prev: soloBest('minigolf', key) } : soloRecord('minigolf', key, { total, par, at: Date.now() }, (a, b) => a.total < b.total);
+  const rec = shown ? { record: false, prev: soloBest('minigolf', key) }
+    : s.bestDeal === s.deal ? s.bestRec          // kept with the last putt
+    : soloRecord('minigolf', key, { total, par, at: Date.now() }, (a, b) => a.total < b.total);
   s.resultShown = s.deal;
   saveToLocal();
   const lines = [escapeHTML(mgT('mg_vs_par', { d: mgDelta(total - par), p: par }))];
@@ -3464,7 +3487,9 @@ function mgRoomPutt(shot) {
   // The ball rolls as the finger lifts; the server's putt, when it comes, is the same roll.
   mgSound('putt');
   haptic('medium');
-  mg3Play(Room.me, golfStart(h, from, full, others || undefined), 0, { from, returns: mgReturns(r.end, r.at, r.moved), onEnd: (sim) => mgRoomEnded(Room.me, sim) });
+  // The count is known now: the banner doesn't wait for the server's copy (it may come after the ball drops).
+  const nAfter = b.n + r.strokes;
+  mg3Play(Room.me, golfStart(h, from, full, others || undefined), 0, { from, returns: mgReturns(r.end, r.at, r.moved), onEnd: (sim) => mgRoomEnded(Room.me, sim, nAfter) });
   mgRoomChrome(state, document.getElementById('view-room-minigolf'), false);
   const sentN = b.n;
   Room.act('putt', Object.assign({ hole: s.hole, n: b.n }, full)).then(() => {
@@ -3486,7 +3511,7 @@ function mgRoomPutt(shot) {
 }
 
 /** A ball of this room stopped rolling on this screen: the banner, and whatever waited for it. */
-function mgRoomEnded(pid, sim) {
+function mgRoomEnded(pid, sim, known) {
   const state = Room.state;
   if (!state || state.game !== 'minigolf') return;
   const s = state.shared || {};
@@ -3496,14 +3521,14 @@ function mgRoomEnded(pid, sim) {
   const mine = pid === Room.me && !tv;
   const h = mgRoomHole(s);
   if (sim.end === 'water') { if (mine || tv) mgBanner(root, mine ? mgT('mg_water') : mgT('mg_someone', { name: mgName(state, pid), word: mgT('mg_water') }), '', 'water'); }
-  else if (sim.end === 'cup' && sh) {
-    const n = sh.n;
+  else if (sim.end === 'cup' && (sh || typeof known === 'number')) {
+    const n = typeof known === 'number' ? known : sh.n;
     const word = mgWordOf(n, h.par);
     if (mine || tv || n <= h.par) mgBanner(root, mine ? word : mgT('mg_someone', { name: mgName(state, pid), word }), mine ? mgInN(n) : '', n === 1 ? 'ace' : (n < h.par ? 'good' : ''));
     if ((mine || tv) && n <= h.par) { playSound('success'); if (n === 1 && typeof playFx === 'function') playFx('applause'); }
     if (mine && n < h.par && typeof confetti === 'function') confetti({ particleCount: n === 1 ? 180 : 90, spread: 80, origin: { y: 0.55 } });
     if (mine) haptic('double');
-  } else if (sh && sh.n > golfMaxOf(h) && mine) mgBanner(root, mgT('mg_picked', { n: golfMaxOf(h) + 1 }), '', 'picked');
+  } else if (mine && (typeof known === 'number' ? known : sh ? sh.n : 0) > golfMaxOf(h)) mgBanner(root, mgT('mg_picked', { n: golfMaxOf(h) + 1 }), '', 'picked');
   // A ball this putt knocked in, or into the water: said on its own phone and the TV.
   (sim.others || []).forEach(o => {
     if (o.end !== 'cup' && o.end !== 'water') return;
@@ -3517,7 +3542,7 @@ function mgRoomEnded(pid, sim) {
   });
   // A card or the end may have been waiting for this ball.
   clearTimeout(mgRoom.redraw);
-  mgRoom.redraw = setTimeout(() => { if (Room.state && Room.state.game === 'minigolf') routeRoomState(Room.state); }, 1200);
+  mgRoom.redraw = setTimeout(() => { if (Room.state && Room.state.game === 'minigolf' && mgOnCourseScreen(appState.currentView)) routeRoomState(Room.state); }, 1200);
 }
 
 /** Each putt on the table that this screen hasn't rolled yet: rolled from where the hole's clock is now. */
@@ -3533,7 +3558,7 @@ function mgRoomReplays(state, tv) {
     if (!sh || (mgRoom.seen[pid] || 0) >= sh.seq) return;
     mgRoom.seen[pid] = sh.seq;
     const p = mgRoom.pending;
-    if (pid === Room.me && !tv && p && p.n === sh.n - sh.add && p.t0 === sh.t0 && p.dx === sh.dx && p.dy === sh.dy && p.power === sh.power && mg3Rolling(pid)) return;
+    if (pid === Room.me && !tv && p && p.n === sh.n - sh.add && p.t0 === sh.t0 && p.dx === sh.dx && p.dy === sh.dy && p.power === sh.power) return;   // this phone's own putt, rolled (or rolling) already
     const off = (mgRoomClock() - sh.t0) / 1000;
     // Too late to watch (a reload, a phone that slept): every ball is simply where it lies.
     if (first || off * 1000 > sh.dur + 300) { mg3StopBall(pid, ((s.balls || {})[pid] || {}).at || sh.at); return; }

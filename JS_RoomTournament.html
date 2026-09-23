@@ -83,7 +83,12 @@ const TOUR_CLIENT = {
     // A decided match that took more than one game.
     drawNote: (m) => ((m.draws || 0) >= 2 ? '⚔️ ' + escapeHTML(chT('ch_arma_short')) : '🔁 ' + escapeHTML(chT('ch_replay_short'))),
     // The TV's live cards keep their clocks running.
-    after: () => { if (typeof chRoomTickStart === 'function') chRoomTickStart(); },
+    // The TV's live cards keep their clocks running - read by the server's time, which the
+    // bracket view has to learn too (the big board's renderer is not drawn there).
+    after: (root, state) => {
+      if (typeof chRoomNoteClock === 'function' && state) chRoomNoteClock(state);
+      if (typeof chRoomTickStart === 'function') chRoomTickStart();
+    },
     // Every game this phone played is kept for the review, the final's too (it ends on the podium).
     onState: (state) => { if (typeof chRoomKeepTourGames === 'function') chRoomKeepTourGames(state); }
   },

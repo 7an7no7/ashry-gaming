@@ -439,9 +439,10 @@ const tourAction = (room, playerId, action, payload, game) => {
   if (action === 'tourFeature') {
     // The match the TV shows big (null: the bracket).
     requireHost(room, playerId);
-    // 'bracket' (the TV's own button) or nothing: the bracket; else a match that is really there.
-    const id = p.match && p.match !== 'bracket' ? String(p.match) : null;
-    if (!id || tourMatch(t, id)) t.featured = id;
+    // 'bracket' (the TV's own button) is kept as it is: with no pick at all (null) the TV shows
+    // the only match being played, so the button has to say "the bracket" in so many words.
+    const id = p.match === 'bracket' ? 'bracket' : (p.match ? String(p.match) : null);
+    if (!id || id === 'bracket' || tourMatch(t, id)) t.featured = id;
     return true;
   }
   // Winner stays' own "next game", or a second start: nothing to do in a tournament.

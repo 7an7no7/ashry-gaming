@@ -88,7 +88,9 @@ function omTapBack(btn) {
   const row = btn.parentElement;
   const pos = Array.from(row.children).indexOf(btn);
   const s = omShared(st);
-  if (s.aim && s.aim.pos === pos && btn.classList.contains('is-lifted')) { omTake(); return; }
+  // The lifted one: taken - also when the server hasn't answered the lift yet (a quick double
+  // tap): a phone's moves reach the server in order, so the take follows the lift.
+  if (btn.classList.contains('is-lifted') && ((s.aim && s.aim.pos === pos) || omLocal.lifting === pos)) { omTake(); return; }
   haptic('light');
   // Up at once on this phone; the server's lift follows.
   row.querySelectorAll('.om-back').forEach(el => el.classList.toggle('is-lifted', el === btn));

@@ -68,7 +68,9 @@ html = html
   .replace('<?!= initialSpyData ?>', () => scriptJson(SPY_WORDS))
   .replace('<?!= initialRoom ?>',
     "(function () { var m = /[?&]room=([A-Za-z0-9]{1,8})/.exec(location.search); return m ? m[1].toUpperCase() : ''; })()")
-  .replace('<?!= webAppUrl ?>', 'location.origin + location.pathname');
+  // Every link the app shares (the app, a room's link and QR) goes to the main address, from
+  // either copy, so whoever it reaches lands on the fast one (appUrl in site.config.json).
+  .replace('<?!= webAppUrl ?>', () => (config.appUrl ? JSON.stringify(config.appUrl) : 'location.origin + location.pathname'));
 
 // One id for this build: the offline cache's name and the page's own, so an open
 // page can tell whether the worker that just took over is a newer build.

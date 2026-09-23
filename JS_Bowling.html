@@ -561,6 +561,11 @@ function bowlGfxFrame(now) {
 /** Everything goes: the GPU's memory, the canvas, the loop. A bowling screen makes it again. */
 function bowlGfxDispose() {
   const g = bowlGfx;
+  // A throw or the pinsetter still waiting hears it is over (null), or its caller stays busy for
+  // good - a context the GPU took back mid-throw left the lane with no input until the screen was left.
+  const waiting = g.cancel;
+  g.cancel = null;
+  if (waiting) { try { waiting(); } catch (e) {} }
   g.gen++;
   if (g.raf) cancelAnimationFrame(g.raf);
   g.raf = 0;
@@ -1104,7 +1109,10 @@ function bowlPointerMove(e) {
     let kb = 0;
     for (let i = 1; i < tr.pts.length; i++) if (tr.pts[i].ly !== null && (tr.pts[kb].ly === null || tr.pts[i].ly <= tr.pts[kb].ly)) kb = i;
     const drop = Math.min(tr.pts.length - 400, Math.max(0, kb - 60));
-    tr.pts.splice(1, drop > 0 ? drop : tr.pts.length - 400);
+    // Room before the farthest point back: the oldest points go. None (a quick pull, a long slow
+    // push): the ones just after it go instead, so the backswing that sets the line is kept.
+    if (drop > 0) tr.pts.splice(1, drop);
+    else tr.pts.splice(kb + 1, tr.pts.length - 400);
   }
   bowlSwingBall(tr, e.clientX, e.clientY);
   if (g.input.guide && performance.now() - g.input.guideAt > 40) {
@@ -1404,7 +1412,7 @@ function setBowlingOption(key, value) {
 function startBowling() {
   const o = bowlOpts();
   const s = bowlSoloState();
-  Object.assign(s, { phase: 'play', card: bowlNewCard(o.frames), frames: o.frames, guide: o.guide, strikes: 0, spares: 0, balls: 0, recorded: false });
+  Object.assign(s, { phase: 'play', card: bowlNewCard(o.frames), frames: o.frames, guide: o.guide, strikes: 0, spares: 0, balls: 0, recorded: false, overRec: null, overShown: false });
   bowlSolo.gen++;
   bowlSolo.busy = false;
   bowlSolo.shown = null;
@@ -1485,6 +1493,13 @@ function bowlSoloShot(shot) {
   if (out.kind === 'strike') s.strikes = (s.strikes || 0) + 1;
   if (out.kind === 'spare') s.spares = (s.spares || 0) + 1;
   if (out.over) s.phase = 'over';
+  // The best is kept with the last ball, in the same save: leaving or reloading while it rolls
+  // (the result sheet comes seconds later) can't lose a new best.
+  if (s.phase === 'over' && !s.recorded) {
+    const r = soloRecord('bowling', String(s.card.total), { score: bowlTotal(s.card) }, (a, b) => a.score > b.score);
+    s.recorded = true;
+    s.overRec = { record: !!r.record, prev: r.prev ? r.prev.score : null };
+  }
   // Saved before the ball is seen, so a reload can't take a bad ball back.
   saveToLocal();
   bowlSolo.busy = true;
@@ -1515,11 +1530,15 @@ function bowlSoloOver() {
   bowlSolo.busy = false;
   const total = bowlTotal(s.card);
   let rec = { record: false, prev: soloBest('bowling', String(s.card.total)) };
-  if (!s.recorded) {
+  // Kept when the last ball was thrown (a save from before that is recorded here, as it was).
+  if (s.overRec) rec = { record: s.overRec.record, prev: s.overRec.prev !== null ? { score: s.overRec.prev } : null };
+  else if (!s.recorded) {
     rec = soloRecord('bowling', String(s.card.total), { score: total }, (a, b) => a.score > b.score);
     s.recorded = true;
     saveToLocal();
   }
+  s.overShown = true;
+  saveToLocal();
   bowlSoloHud();
   const lines = [bowlT('bowl_counts', { x: s.strikes || 0, s: s.spares || 0 })];
   if (rec.record && rec.prev) lines.unshift('🎉 ' + escapeHTML(bowlT('bowl_new_best')));
@@ -1536,6 +1555,8 @@ function restoreBowling() {
   if (!s.card || (s.phase !== 'play' && s.phase !== 'over')) return false;
   bowlSolo.busy = false;
   bowlSolo.shown = null;
+  // A game that ended as the page went: its result sheet, once.
+  if (s.phase === 'over' && s.overShown === false) setTimeout(() => { if (appState.currentView === 'play-bowling') bowlSoloOver(); }, 600);
   return paintBowling();
 }
 
@@ -1622,9 +1643,15 @@ function bowlRoomRemember(state) {
     bowlGfxCancel();
   }
   const seq = s.throwSeq || 0;
+  const turnNow = bowlClone(s.turn) || { pid: null, over: true };
   if (!bowlRoom.cardsAt[seq]) {
     bowlRoom.cardsAt[seq] = bowlClone(s.cards);
-    bowlRoom.turnAt[seq] = bowlClone(s.turn) || { pid: null, over: true };
+    bowlRoom.turnAt[seq] = turnNow;
+  } else if (!bowlRoom.busy && bowlRoom.shownSeq === seq && JSON.stringify(bowlRoom.turnAt[seq]) !== JSON.stringify(turnNow)) {
+    // The turn moved on with no new ball (the player up left): show who is up now, their rack.
+    bowlRoom.cardsAt[seq] = bowlClone(s.cards);
+    bowlRoom.turnAt[seq] = turnNow;
+    bowlRoom.idleKey = '';
   }
   // Forget all but the last few.
   Object.keys(bowlRoom.cardsAt).forEach(k => { if (Number(k) < seq - 4) { delete bowlRoom.cardsAt[k]; delete bowlRoom.turnAt[k]; } });
@@ -1742,7 +1769,9 @@ function bowlRoomPlay(state, last, own) {
   bowlRoomPaint(state);
   const key = bowlRoom.key;
   bowlGfxThrow(last.before, last.shot).then(sim => {
-    if (!sim || key !== bowlRoom.key) return;
+    // No ball to show (the lane was taken away mid-roll): the next state carries on from the room.
+    if (!sim) { if (key === bowlRoom.key) { bowlRoom.busy = false; bowlRoom.playing = null; } return; }
+    if (key !== bowlRoom.key) return;
     if (own) return bowlRoomOwnLanded(sim);
     bowlRoomLanded(last);
   });

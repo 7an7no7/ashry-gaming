@@ -3,10 +3,11 @@
 Arabic-first (RTL, ar/en) party-games web app for phones.
 
 - **App:** static site in `docs/`, built from the root `*.html` / `*.js` sources
-  by `tools/build-site.mjs`, published by GitHub Pages (`master` → `/docs`):
-  https://7an7no7.github.io/ashry-gaming/ - and the same build on Cloudflare,
-  https://play.3ashry.workers.dev (`site-worker/`, the fast second
-  address for when GitHub Pages is slow)
+  by `tools/build-site.mjs`. **The main address is Cloudflare**:
+  https://play.3ashry.workers.dev (`site-worker/`, `npm run deploy:site`) - every
+  link the app shares points there. The same build stays on GitHub Pages
+  (`master` → `/docs`), https://7an7no7.github.io/ashry-gaming/, so old icons,
+  links and QR codes keep working. Every release goes to both.
 - **Rooms** (playing on separate phones): `rooms-worker/`, Cloudflare Workers +
   Durable Objects over WebSockets: https://ashry-rooms.3ashry.workers.dev
 - **The old Apps Script version** is a frozen copy in `C:\Users\TPC\Apps Script\G`

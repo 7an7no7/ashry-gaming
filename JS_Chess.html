@@ -924,6 +924,10 @@ function chViewShow(host, model) {
   if (root.parentNode !== host) host.appendChild(root);
   chView.model = model;
   root.classList.toggle('is-live', !!(model.input && model.input.canMove));
+  // A promotion being chosen belongs to a move this board can still make: once it can't (the
+  // other side resigned, a flag fell, the review took the board), the picker goes, unchosen.
+  const promo = root.querySelector('[data-ch-promo]');
+  if (promo && !promo.hidden && !(model.input && model.input.canMove)) { promo.hidden = true; promo.innerHTML = ''; }
   if (chView.r) { chView.r.setModel(model); return; }
   if (!chView.loading) chViewStart();
 }
@@ -1231,6 +1235,8 @@ function startShatranj() {
   s.names = [read('shatranj-name1'), read('shatranj-name2')];
   s.scores = [0, 0, 0];
   s.firstWhite = 0;
+  // A practice game left in the middle borrowed "against the computer": the match is the chosen way.
+  if (s.vsBefore) { s.vs = s.vsBefore; s.vsBefore = null; }
   s.practice = false;
   s.start = '';
   chNewGame();
@@ -1251,7 +1257,8 @@ function chNewGame(opts) {
   s.start = o.fen || '';
   s.hist = [];
   s.sans = [];
-  s.lost = [[], []];
+  // A game from a position (try the better move) keeps what had been taken by then.
+  s.lost = o.lost ? [o.lost[0].slice(), o.lost[1].slice()] : [[], []];
   s.last = null;
   s.result = null;
   s.comment = null;
@@ -1301,7 +1308,8 @@ function chPlayLocal(from, to, promo) {
   // The coach watches your moves against the computer: a blunder is caught before it counts.
   if (s.vs === 'phone' && s.coach && s.phase === 'play' && (s.coachOpts.warn !== false || s.coachOpts.comment !== false)) {
     chPaint();
-    setTimeout(() => chCoachJudge(before, beforeLost, info, beforeClk), 40);
+    // Not if the board was left meanwhile (a warning would open over another screen).
+    setTimeout(() => { if (appState.currentView === 'play-shatranj' && chState().phase === 'play') chCoachJudge(before, beforeLost, info, beforeClk); }, 40);
     return;
   }
   chPaint();
@@ -1355,7 +1363,9 @@ function chEnd(s, result, reason) {
   s.phase = 'done';
   s.result = { result: result, reason: reason };
   if (s.clk && s.clk.at) { const side = s.g.turn; s.clk.left[side] = Math.max(0, chessClockLeft(s.clk, side, side, Date.now())); s.clk.at = null; }
-  // The tally: [player 1 (or you), player 2 (or the computer), draws].
+  // The tally: [player 1 (or you), player 2 (or the computer), draws]. A "try the better move"
+  // game is practice: it counts for nobody and isn't kept among the last 20 games.
+  if (s.practice) { chStopTimers(); return; }
   if (result === 'd') s.scores[2]++;
   else {
     const winnerColour = result === 'w' ? 0 : 1;

@@ -2108,6 +2108,12 @@ the word search), `countUp` for streaks and scores.
   blank), the layout sweep unchanged and a room link still filling its code.
   The two old questions (سكرو's 66 cards, two طرنيب ٤١ rules) were closed by
   the owner as built.
+  Then Settings → الإصدار (the owner's ask): when this copy was published, as
+  a date and time (never a number), and whether it is the latest - the page
+  asks for `sw.js` (2 KB) and compares its stamp with `BUILD_ID`: «✅ أحدث
+  نسخة», «⬇️ … بتتنزّل» (a tap opens it when it arrives), «✨ … اضغط للتحديث»
+  (already on the phone) or «📴 مش متصل» (`paintAppVersion`, `appVersionTap`).
+  The time is the build's, in the phone's own time zone.
 
 ## Building and Running
 

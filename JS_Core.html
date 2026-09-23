@@ -3355,6 +3355,13 @@
       exit_leave_game: "اخرج من اللعبة",
       timer_done: "خلص وقت المؤقت",
       update_ready: "فيه نسخة جديدة من التطبيق - اضغط للتحديث",
+      app_version: "الإصدار",
+      ver_checking: "بنتأكد إنها أحدث نسخة…",
+      ver_latest: "✅ أحدث نسخة",
+      ver_downloading: "⬇️ فيه نسخة أحدث بتتنزّل - اضغط وهتفتح أول ما تخلص",
+      ver_ready: "✨ فيه نسخة أحدث - اضغط للتحديث",
+      ver_offline: "📴 مش متصل، مش عارفين نتأكد",
+      ver_preview: "نسخة تجربة على الجهاز",
       update_downloading: "بنزّل النسخة الجديدة… هتفتح لوحدها",
       room_kick: "شيله من الغرفة",
       room_kick_confirm: "تشيل {name} من الغرفة؟ يقدر يدخل تاني بالكود.",
@@ -6413,6 +6420,13 @@
       exit_leave_game: "Leave the game",
       timer_done: "The timer is up",
       update_ready: "A new version of the app is ready - tap to update",
+      app_version: "Version",
+      ver_checking: "Checking it is the latest…",
+      ver_latest: "✅ The latest version",
+      ver_downloading: "⬇️ A newer version is downloading - tap and it opens when it is done",
+      ver_ready: "✨ A newer version is ready - tap to update",
+      ver_offline: "📴 Offline, can't check",
+      ver_preview: "A test copy on this computer",
       update_downloading: "Downloading the new version… it will open by itself",
       room_kick: "Remove from the room",
       room_kick_confirm: "Remove {name} from the room? They can join again with the code.",
@@ -7130,6 +7144,11 @@
     // app; tools/build-site.mjs writes it.
     if (!window.STATIC_SITE || !('serviceWorker' in navigator)) return;
     const hadController = !!navigator.serviceWorker.controller;
+    // A new build taking over while Settings is open: its version row says so at once.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      const m = document.getElementById('settings-modal');
+      if (m && !m.classList.contains('hidden')) paintAppVersion();
+    });
     const reg = navigator.serviceWorker.register('sw.js').catch(() => null);
     // The app opens from the copy on the phone (docs/sw.js), so a new build is found by
     // asking for sw.js again. The browser does that when the app is opened; an iPhone
@@ -7415,6 +7434,67 @@
     if (typeof showToast === 'function') showToast(t.update_downloading || 'بنزّل النسخة الجديدة…', 'info');
     // A download that never ends (the network went) still gets a reload.
     setTimeout(reloadApp, 120000);
+  }
+
+  /* --- Settings → الإصدار: when this copy was published, and whether it is the latest --- */
+  let appVersionState = '';
+
+  // BUILD_ID is the build's time in UTC, YYYYMMDDHHMMSS (tools/build-site.mjs).
+  function appBuildDate() {
+    const id = String(window.BUILD_ID || '');
+    if (!/^\d{14}$/.test(id)) return null;
+    return new Date(Date.UTC(+id.slice(0, 4), +id.slice(4, 6) - 1, +id.slice(6, 8), +id.slice(8, 10), +id.slice(10, 12), +id.slice(12, 14)));
+  }
+
+  // A date and a time, never a version number (the owner's rule: no "v12").
+  function appVersionLabel() {
+    const d = appBuildDate();
+    if (!d) return '';
+    try {
+      return d.toLocaleString(appState.lang === 'en' ? 'en-GB' : 'ar-EG', { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', hour12: true });
+    } catch (e) { return d.toISOString().slice(0, 16).replace('T', ' '); }
+  }
+
+  /**
+   * Asks the server for sw.js (a couple of KB, quick however slow the page itself would be):
+   * its stamp is the newest build. Newer than this page and already on the phone (its cache
+   * is there): ready, a tap switches. Newer and not yet here: it is being fetched now.
+   */
+  async function paintAppVersion() {
+    const val = document.getElementById('settings-version-value');
+    const st = document.getElementById('settings-version-status');
+    if (!val || !st) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const set = (k) => { appVersionState = k; st.textContent = t['ver_' + k] || ''; };
+    val.textContent = appVersionLabel();
+    if (!window.STATIC_SITE || !window.BUILD_ID) { set('preview'); return; }
+    set('checking');
+    let latest = null;
+    try {
+      const res = await fetch('sw.js', { cache: 'no-store' });
+      const m = /const CACHE = 'ashry-(\d+)'/.exec(await res.text());
+      latest = m && m[1];
+    } catch (e) { latest = null; }
+    if (!latest) { set('offline'); return; }
+    if (latest <= String(window.BUILD_ID)) { set('latest'); return; }
+    let here = false;
+    try { here = (await caches.keys()).indexOf('ashry-' + latest) !== -1; } catch (e) {}
+    if (here) { set('ready'); return; }
+    set('downloading');
+    try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) reg.update(); } catch (e) {}
+  }
+
+  function appVersionTap() {
+    if (appVersionState === 'ready') { reloadApp(); return; }
+    // Being fetched: a tap asks for it to open as soon as it has arrived.
+    if (appVersionState === 'downloading') {
+      updateApp();
+      const st = document.getElementById('settings-version-status');
+      const t = TRANSLATIONS[appState.lang] || {};
+      if (st) st.textContent = t.update_downloading || '';
+      return;
+    }
+    paintAppVersion();
   }
 
   function reloadApp() {
@@ -8762,6 +8842,7 @@
   function openSettings() {
       playSound('click');
       updateSettingsLabels();
+      paintAppVersion();
       const el = document.getElementById('settings-modal');
       if (el) el.classList.remove('hidden');
   }
@@ -8774,6 +8855,11 @@
       if (icon) icon.innerText = appState.isDarkMode ? '☀️' : '🌙';
       if (themeVal) themeVal.innerText = appState.isDarkMode ? t.theme_dark : t.theme_light;
       if (langVal) langVal.innerText = appState.lang === 'ar' ? 'العربية' : 'English';
+      // The version row in the language just chosen (no new check: paintAppVersion did it).
+      const verVal = document.getElementById('settings-version-value');
+      const verSt = document.getElementById('settings-version-status');
+      if (verVal && verVal.textContent) verVal.textContent = appVersionLabel();
+      if (verSt && appVersionState) verSt.textContent = t['ver_' + appVersionState] || '';
       const gameLangVal = document.getElementById('settings-gamelang-value');
       if (gameLangVal) gameLangVal.innerText = appState.gameLang === 'ar' ? 'العربية' : appState.gameLang === 'en' ? 'English' : (t.game_lang_auto || '');
       const nameVal = document.getElementById('settings-name-value');

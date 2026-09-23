@@ -71,10 +71,8 @@
       }
     </style>
 
-    <!-- Only the utilities this app uses, built by tools/ (npm run build:css) -->
-    <?!= include('Tailwind'); ?>
-    <?!= include('Style'); ?>
-    
+    <!-- Before the build's script at the end of <head>, which takes ?room= off the address:
+         this reads it first. -->
     <script>
       // INJECTED DATA FROM SERVER
       window.SERVER_DATA = {
@@ -87,7 +85,11 @@
       // StopWords.js, the letter wheel), as the rooms server does.
       window.SPY_WORDS = window.SERVER_DATA.spyData;
     </script>
-    <!-- tools/build-site.mjs and build-preview.mjs inline the word lists shared with the rooms server here (SHARED_LISTS). -->
+
+    <!-- The app's styles and the shared rule files come after the intro,
+         in <body>: the logo is drawn from the first few KB of the page, not after
+         1.4 MB of them (a first visit on a slow connection was a black and a
+         white screen before the logo). -->
 </head>
   <body class="transition-colors duration-300">
 
@@ -199,6 +201,14 @@
         else window.addEventListener('load', drawQr);
       })();
     </script>
+
+    <!-- Moved from <head> (see the note there): everything below the intro can wait for these. -->
+    <!-- Only the utilities this app uses, built by tools/ (npm run build:css) -->
+    <?!= include('Tailwind'); ?>
+    <?!= include('Style'); ?>
+    
+
+    <!-- tools/build-site.mjs and build-preview.mjs inline the word lists shared with the rooms server here (SHARED_LISTS). -->
 
     <div id="sync-status" title="حالة الاتصال"></div>
     

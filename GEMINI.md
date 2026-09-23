@@ -133,20 +133,6 @@ This part is the memory of the project for whoever picks it up next, person
 or AI: what the owner has decided, what is waiting, and what each batch of
 work changed. Add to it when a decision is made or a batch ships.
 
-### Waiting
-
-- **سكرو, still open** (built as below, each in one place so it can change):
-  - the deck: the owner's own "66-card" table (17 Sep 2026) adds up to 62 -
-    the base with four بصرة (59) plus the thief's three cards - which is what
-    the app deals for Classic + الحرامي; no source that adds up to 66 was found;
-
-- **Two طرنيب ٤١ rules for the owner to decide** (the scorer doesn't guess):
-  a failed bid of 13 scores 0 today (options: keep it; charge a fixed amount
-  such as −36, the value of 12; or the team loses outright, mirroring the
-  outright win for making 13), and when both teams qualify in the same round
-  team 1 wins because it is checked first (options: the higher qualifying
-  player wins; the higher team total wins; play on until only one qualifies).
-
 ### The owner's specs, as built
 
 - **One sets, everyone solves** - the owner's decisions of 23 Sep 2026,
@@ -928,8 +914,9 @@ work changed. Add to it when a decision is made or a batch ships.
     and 8 (look at your own) four each, 9 and 10 (look at someone's) four each,
     خد وهات 4, بصرة 2, كعب داير 2 (one card of every player, or two of yours),
     +20 four, the red screw (+25) two, the green screw (0) two, −1 one; one of
-    each version card. That is 57 base cards; the owner said 66 (see
-    *Waiting*).
+    each version card. That is 57 base cards (the owner's "66-card" table
+    adds up to 62 with four بصرة and the thief's three cards, which is what
+    the app deals; the owner closed the question on 23 Sep 2026, as built).
   - **Versions**: Classic (the base deck); الحرامي (the thief, خد بس, شوف
     وبدّل); صاحب صاحبه (teams, بينج, بونج, على كيفك - a mimic of a command
     card on the pile, below); المسحراتي (المسحراتي, المدفع, الخشاف);
@@ -1294,6 +1281,11 @@ drawn at random, `flyEmoji` or a ghost flight for placing things (Timeline,
 the word search), `countUp` for streaks and scores.
 
 ### Decided, and why
+
+- **Nothing is waiting on the owner** (23 Sep 2026): the two old questions
+  were closed as built - سكرو deals 62 cards for Classic + الحرامي (the
+  owner's "66-card" table adds up to 62), and طرنيب ٤١ scores a failed 13 as
+  0 and lets team 1 win when both qualify in the same round.
 
 - **New games use the lists the app already has** (owner, 16 Sep 2026): no
   small new list when a large one exists, and no copy of a list another game
@@ -2110,7 +2102,12 @@ the word search), `countUp` for streaks and scores.
   open is the saved copy (0 bytes, 73 ms), a new build installs in the
   background (the page downloaded once, not twice) and the page switches to it
   by itself where nothing is lost (*The static site*). The owner was told the
-  one trade-off first: an update can reach a phone one open later.
+  one trade-off first: an update can reach a phone one open later. Then the
+  logo first in the page (*Traps*): after 14 KB instead of 400 KB, checked on
+  a throttled connection (the logo at 1.5 s where the old page was still
+  blank), the layout sweep unchanged and a room link still filling its code.
+  The two old questions (سكرو's 66 cards, two طرنيب ٤١ rules) were closed by
+  the owner as built.
 
 ## Building and Running
 
@@ -4049,8 +4046,10 @@ What a real table needed, added after the audit of 17 Sep 2026:
 - The five games share element ids, so painting one empties the others'
   stages. Konkan's "out over 101" is for players on their own only (in teams
   only partners could be left), and one colour and one suit are exclusive.
-  Tarneeb 41 refuses made bids adding up to more than 13. Two Tarneeb 41
-  cases are waiting on the owner (see *Waiting*).
+  Tarneeb 41 refuses made bids adding up to more than 13. A failed bid of
+  13 scores 0, and when both teams qualify in the same round team 1 wins
+  (it is checked first): the owner closed both questions on 23 Sep 2026,
+  as built.
 - **The bracket** takes 3-16 players from the player picker, with byes placed
   as in a seeded draw, a take-back of the last result, and the champion on a
   podium. **Domino** keeps a rounds table whose take-back removes exactly the
@@ -5627,6 +5626,21 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**What reads the address has to run before the build's script at the end of
+`<head>`.** That script (`RUNTIME` in `tools/build-site.mjs`) takes `?room=`
+and `?install=` off the address, so a reload doesn't reopen the join screen.
+`window.SERVER_DATA.room` reads the code from the address, so it stays in
+`<head>` above it. Moving it into `<body>` with the styles (23 Sep 2026, the
+logo-first change) would have opened every room link on the home screen
+with no code - caught before it shipped.
+
+**The logo comes first in the page.** Controller.html keeps only the small
+intro styles and the page data in `<head>`; `Tailwind.html`, `Style.html` and
+the shared rule files (`SHARED_LISTS`) are in `<body>`, after the intro and
+its two small scripts. A first visit on a slow connection used to be a black
+and then a white screen until 1.4 MB (400 KB compressed) had arrived; the logo
+now comes after 14 KB. Don't move anything big above `#app-loader`.
 
 **A play-once key must carry the deal, not only the round.** A room's round
 starts at 1 again at every new game from the hub and every new tournament, and

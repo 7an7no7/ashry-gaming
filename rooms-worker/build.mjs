@@ -14,7 +14,7 @@ import { rulesFingerprint } from './fingerprint.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
-const FILES = ['SpyWords.js', 'CodenamesWords.js', 'PartyContent.js', 'TriviaQuestions.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'SkrewCards.js', 'TimelineEvents.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Ludo.js', 'BankAlhaz.js', 'GuessWho.js', 'Hangman.js', 'RoomGames.js', 'RoomUno.js', 'RoomDomino.js', 'RoomDuels.js', 'RoomLudo.js', 'RoomBank.js', 'RoomGuessWho.js', 'RoomHangman.js'];
+const FILES = ['SpyWords.js', 'CodenamesWords.js', 'PartyContent.js', 'TriviaQuestions.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'SkrewCards.js', 'TimelineEvents.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Ludo.js', 'BankAlhaz.js', 'GuessWho.js', 'Hangman.js', 'Bowling.js', 'RoomGames.js', 'RoomUno.js', 'RoomDomino.js', 'RoomDuels.js', 'RoomLudo.js', 'RoomBank.js', 'RoomGuessWho.js', 'RoomHangman.js', 'RoomBowling.js'];
 const EXPORTS = ['RULES_HASH', 'ROOM_GAME_IDS', 'applyRoomAction', 'roomDeadline', 'roomTimeout', 'withPromptMemory', 'normaliseClue', 'guessVerdict', 'bankNightPoints', 'foldStopAnswer', 'stopAnswerFits', 'stopWordKnown', 'stopDictionary', 'roomEvent', 'chatFor', 'roomPlayerLeft', 'sameRoomName', 'roomForcedMove', 'ROOM_FORCED_DELAY_MS'];
 
 const sources = await Promise.all(FILES.map(async (name) =>

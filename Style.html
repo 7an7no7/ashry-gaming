@@ -11748,4 +11748,335 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
   .gw-qa__a.is-in, .gw-reveal.is-turning .gw-reveal__one .gw-card, .hm-tile.is-new, .gw-ask-me.is-in, .gw-dots i, .gw-bubble, .gw-drama__card { animation: none; }
 }
 
+/* ==========================================================================
+   28. بولينج
+   JS_Bowling.html. The lane is a WebGL canvas (three.js) and gets the screen
+   at every size; over it, the score sheet of whoever is bowling (a compact
+   strip across the top), the word after a ball, and the hint. The sheet over
+   the lane is always light-on-dark: it sits on the hall, not on the page.
+   Below the lane (a phone upright) or beside it (a phone on its side, a
+   laptop, the TV) everyone's sheet, in the page's own colours.
+   ========================================================================== */
+.bowl-solo { display: flex; flex-direction: column; min-height: 0; }
+#view-play-bowling > #bowling-stage { display: flex; flex-direction: column; }
+.bowl-stage {
+  --bowl-ink: #fff8ee;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 18rem;
+  border-radius: var(--r-2xl);
+  overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 30%, #2a1a12 0%, #120c09 60%, #0b0706 100%);
+  isolation: isolate;
+  box-shadow: 0 10px 30px rgba(20, 12, 6, 0.28);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.bowl-canvas-box { position: absolute; inset: 0; }
+.bowl-canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; }
+/* Only the lane you are about to throw on takes the finger; otherwise the page scrolls as usual. */
+.bowl-canvas.is-live { touch-action: none; cursor: grab; }
+.bowl-canvas.is-live:active { cursor: grabbing; }
+
+.bowl-hud {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.5rem 0.5rem 0;
+  pointer-events: none;
+  color: var(--bowl-ink);
+}
+.bowl-hud__row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding-inline: 0.125rem; }
+.bowl-hud__who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.bowl-hud__clock { flex: 0 0 auto; }
+.bowl-hud__clock[hidden] { display: none; }
+.bowl-stage .bowl-fr__sum { color: var(--bowl-ink); }
+
+/* The sheet: a box a frame, the balls on top, the running total under them. Left to right in every
+   language, like the card on a real lane. */
+.bowl-sheet {
+  display: grid;
+  grid-template-columns: repeat(var(--bowl-n, 5), minmax(0, 1fr)) minmax(2.5rem, 1.25fr);
+  gap: 3px;
+}
+.bowl-sheet[style*="--bowl-n:10"] .bowl-fr--last { grid-column: span 1; }
+.bowl-fr {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border-radius: 8px;
+  background: rgba(14, 9, 7, 0.93);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--bowl-ink);
+  overflow: hidden;
+}
+.bowl-fr.is-cur { border-color: #ffcf8a; box-shadow: inset 0 0 0 1px #ffcf8a; }
+.bowl-fr__n { font-size: 0.5625rem; line-height: 1; padding-top: 2px; text-align: center; opacity: 0.55; font-weight: 700; }
+.bowl-fr__balls { display: flex; justify-content: center; gap: 1px; min-height: 1rem; padding-inline: 1px; }
+.bowl-fr__ball {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 1.1rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+.bowl-fr__ball.is-x { color: #ffcf8a; }
+.bowl-fr__ball.is-sp { color: #c4b5fd; }
+.bowl-fr__sum { text-align: center; font-weight: 800; font-size: 0.875rem; line-height: 1.25; min-height: 1.15rem; padding-bottom: 1px; }
+.bowl-fr--tot { justify-content: center; }
+.bowl-fr__sum--tot { font-family: var(--font-display); font-size: 1.125rem; }
+.bowl-sheet[style*="--bowl-n:10"] .bowl-fr__ball { font-size: 0.625rem; }
+.bowl-sheet[style*="--bowl-n:10"] .bowl-fr__sum { font-size: 0.6875rem; }
+.bowl-sheet[style*="--bowl-n:10"] .bowl-fr__n { display: none; }
+
+/* The word after a ball: سترايك in gold with the pins flying out, سبير in the violet, a count plain. */
+.bowl-banner {
+  position: absolute;
+  inset-inline: 0;
+  top: 36%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  text-align: center;
+  pointer-events: none;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.6);
+}
+.bowl-banner.is-on { animation: bowlBanner 1500ms var(--ease-spring) both; }
+.bowl-banner.is-strike.is-on { animation-duration: 2100ms; }
+.bowl-banner__main {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.6rem, 13vmin, 5.5rem);
+  line-height: 1;
+  text-shadow: 0 4px 22px rgba(0, 0, 0, 0.6);
+}
+.bowl-banner.is-strike .bowl-banner__main {
+  background: linear-gradient(180deg, #fff5d6 0%, #ffcf6a 55%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 4px 18px rgba(255, 170, 60, 0.55));
+}
+.bowl-banner.is-spare .bowl-banner__main { color: #ddd6fe; text-shadow: 0 0 24px rgba(167, 139, 250, 0.8), 0 4px 18px rgba(0, 0, 0, 0.6); }
+.bowl-banner.is-miss .bowl-banner__main { font-size: clamp(2rem, 9vmin, 4rem); color: #e7dccd; }
+.bowl-banner__sub { font-weight: 700; font-size: 0.9375rem; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8); color: #f3e8d6; }
+.bowl-banner__pins { position: relative; width: 0; height: 0; }
+.bowl-banner__pins i {
+  position: absolute;
+  inset-inline-start: 0;
+  top: -3rem;
+  width: 0.7rem;
+  height: 1.8rem;
+  border-radius: 45% 45% 40% 40% / 30% 30% 60% 60%;
+  background: linear-gradient(180deg, #fff 0 38%, #d7261e 38% 44%, #fff 44% 50%, #d7261e 50% 55%, #fff 55%);
+  opacity: 0;
+}
+.bowl-banner.is-strike.is-on .bowl-banner__pins i { animation: bowlPinFly 1300ms var(--ease-out) both; }
+.bowl-banner__pins i:nth-child(1)  { --dx: -9rem;  --dy: -5rem; --r: -220deg; animation-delay: 60ms; }
+.bowl-banner__pins i:nth-child(2)  { --dx: 8rem;   --dy: -6rem; --r: 260deg;  animation-delay: 90ms; }
+.bowl-banner__pins i:nth-child(3)  { --dx: -5rem;  --dy: -8rem; --r: -160deg; animation-delay: 30ms; }
+.bowl-banner__pins i:nth-child(4)  { --dx: 5rem;   --dy: -8.5rem; --r: 200deg; animation-delay: 110ms; }
+.bowl-banner__pins i:nth-child(5)  { --dx: -11rem; --dy: -1rem; --r: -300deg; animation-delay: 140ms; }
+.bowl-banner__pins i:nth-child(6)  { --dx: 11rem;  --dy: -2rem; --r: 320deg;  animation-delay: 70ms; }
+.bowl-banner__pins i:nth-child(7)  { --dx: -2rem;  --dy: -10rem; --r: 120deg; animation-delay: 20ms; }
+.bowl-banner__pins i:nth-child(8)  { --dx: 2.5rem; --dy: -9.5rem; --r: -140deg; animation-delay: 130ms; }
+.bowl-banner__pins i:nth-child(9)  { --dx: -7rem;  --dy: 3rem; --r: -250deg;  animation-delay: 170ms; }
+.bowl-banner__pins i:nth-child(10) { --dx: 7rem;   --dy: 2.5rem; --r: 240deg; animation-delay: 150ms; }
+@keyframes bowlBanner {
+  0% { opacity: 0; transform: scale(0.55); }
+  16% { opacity: 1; transform: scale(1.08); }
+  26% { transform: scale(1); }
+  82% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96) translateY(-0.5rem); }
+}
+@keyframes bowlPinFly {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--r)); }
+}
+
+.bowl-hint {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0.875rem;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms var(--ease-out);
+}
+.bowl-hint.is-on { opacity: 1; }
+.bowl-hint::before { content: none; }
+.bowl-hint {
+  font-weight: 800;
+  font-size: 0.9375rem;
+  color: #fff;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.85);
+}
+.bowl-hint.is-on { animation: bowlHint 1800ms ease-in-out infinite; }
+@keyframes bowlHint { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+.bowl-msg {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--bowl-ink);
+  font-weight: 700;
+}
+.bowl-msg[hidden] { display: none; }
+.bowl-msg p { margin: 0; max-width: 20rem; line-height: 1.6; }
+.bowl-msg__icon, .bowl-msg__spin { font-size: 3rem; }
+.bowl-msg__spin { animation: bowlSpin 1.4s linear infinite; }
+@keyframes bowlSpin { to { transform: rotate(360deg); } }
+
+.bowl-over-slot { position: absolute; inset-inline: 0; bottom: 0; z-index: 5; display: flex; justify-content: center; padding: var(--sp-3); pointer-events: none; }
+.bowl-over-slot:empty { display: none; }
+.bowl-over { pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-4); width: min(100%, 22rem); text-align: center; }
+.bowl-over__score { font-family: var(--font-display); font-weight: 800; font-size: 3rem; line-height: 1; color: var(--accent-ink); }
+.bowl-over .btn-row { width: 100%; }
+
+/* A room on a phone: the lane first, everyone's sheet under it. */
+.bowl-room { display: flex; flex-direction: column; gap: var(--sp-3); min-height: 0; }
+.bowl-room > .bowl-stage {
+  flex: 0 0 auto;
+  height: calc(var(--app-h, 100dvh) - var(--header-h) - var(--nav-h) - var(--safe-top) - var(--safe-bottom) - 3.5rem);
+  min-height: 18rem;
+}
+.bowl-room__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.bowl-room--over { gap: var(--sp-4); }
+.bowl-watching { text-align: center; margin: 0; }
+.bowl-list { min-width: 0; }
+.bowl-rows { display: flex; flex-direction: column; gap: var(--sp-2); }
+.bowl-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.bowl-row.is-up { border-color: var(--accent-border); box-shadow: 0 0 0 2px var(--accent-soft); }
+.bowl-row.is-away { opacity: 0.6; }
+.bowl-row__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
+.bowl-row__name { font-weight: 800; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.bowl-row.is-me .bowl-row__name { color: var(--accent-ink); }
+.bowl-row__tot { font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; color: var(--text-strong); }
+.bowl-sheet--compact .bowl-fr { background: var(--surface-2); border-color: var(--border); color: var(--text-strong); border-radius: 6px; }
+.bowl-sheet--compact .bowl-fr.is-cur { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.bowl-sheet--compact .bowl-fr__ball.is-x { color: var(--warning-ink, #b45309); }
+.bowl-sheet--compact .bowl-fr__ball.is-sp { color: var(--accent-ink); }
+.bowl-sheet--compact .bowl-fr--tot { display: none; }
+.bowl-sheet--compact { grid-template-columns: repeat(var(--bowl-n, 5), minmax(0, 1fr)); }
+
+/* A phone on its side, and every wide screen: the lane takes the height, the sheets beside it. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .bowl-room:not(.bowl-room--over) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(13rem, 19rem);
+    align-items: start;
+    gap: var(--sp-3);
+  }
+  .bowl-room:not(.bowl-room--over) > .bowl-stage {
+    position: sticky;
+    top: 0;
+    height: calc(var(--app-h, 100dvh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem);
+    min-height: 16rem;
+  }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .bowl-stage { min-height: 15rem; border-radius: var(--r-xl); }
+  #view-play-bowling .bowl-stage { height: calc(var(--app-h, 100dvh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 1.75rem); flex: 0 0 auto; }
+  .bowl-room:not(.bowl-room--over) { grid-template-columns: minmax(0, 1fr) minmax(8.5rem, 10.5rem); gap: var(--sp-2); }
+  .bowl-room:not(.bowl-room--over) > .bowl-stage { height: calc(var(--app-h, 100dvh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 1.75rem); min-height: 14rem; }
+  /* Beside a lane on a phone's side there is room for names and totals; the sheet itself is over the lane. */
+  .bowl-room__side .bowl-sheet--compact { display: none; }
+  .bowl-room__side .bowl-row { padding: 0.375rem 0.625rem; }
+  .bowl-room__side .bowl-row__tot { font-size: 1.0625rem; }
+  .bowl-room__side .chip-set { margin-top: var(--sp-1) !important; }
+  .bowl-banner { top: 30%; }
+  .bowl-hud__sheet { max-width: 34rem; margin-inline: auto; width: 100%; }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-bowling, .shell__main > #view-room-bowling { max-width: 76rem; }
+  .bowl-room:not(.bowl-room--over) { grid-template-columns: minmax(0, 1fr) minmax(15rem, 22rem); gap: var(--sp-4); }
+  .bowl-hud__sheet { width: min(100%, 38rem); margin-inline: auto; }
+  .bowl-fr__ball { font-size: 0.875rem; }
+  .bowl-fr__sum { font-size: 1rem; }
+  .bowl-hud__who { font-size: 0.9375rem; }
+  .bowl-room--over { max-width: 44rem; margin-inline: auto; width: 100%; }
+}
+
+/* The TV: the lane big, everyone's sheet beside it, readable from the sofa. */
+.bowl-tv {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 31%);
+  gap: var(--tv-gap);
+}
+.bowl-tv > .bowl-stage { min-height: 0; height: 100%; border-radius: var(--tv-r); }
+.bowl-tv__side { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--tv-gap); }
+.bowl-stage--tv .bowl-hud { padding: 1.2vmin 1.2vmin 0; gap: 0.8vmin; }
+.bowl-stage--tv .bowl-hud__sheet { width: min(100%, 110vmin); margin-inline: auto; }
+.bowl-stage--tv .bowl-sheet { gap: 0.5vmin; grid-template-columns: repeat(var(--bowl-n, 5), minmax(0, 1fr)) minmax(8vmin, 1.25fr); }
+.bowl-stage--tv .bowl-fr { border-radius: 1vmin; }
+.bowl-stage--tv .bowl-fr__n { font-size: 1.5vmin; display: block; }
+.bowl-stage--tv .bowl-fr__balls { min-height: 3.2vmin; }
+.bowl-stage--tv .bowl-fr__ball { font-size: 2.6vmin; max-width: 3.6vmin; }
+.bowl-stage--tv .bowl-fr__sum { font-size: 2.9vmin; min-height: 3.6vmin; }
+.bowl-stage--tv .bowl-fr__sum--tot { font-size: 3.6vmin; }
+.bowl-stage--tv .bowl-hud__who { font-size: var(--tv-sm); }
+.bowl-stage--tv .bowl-hint { font-size: var(--tv-md); bottom: 2.4vmin; }
+.bowl-stage--tv .bowl-banner__main { font-size: 15vmin; }
+.bowl-stage--tv .bowl-banner__sub { font-size: var(--tv-md); }
+.bowl-list--tv .bowl-rows { gap: calc(var(--tv-gap) * 0.7); }
+.bowl-list--tv .bowl-row { padding: 1.1vmin 1.4vmin; border-radius: var(--tv-r); gap: 0.8vmin; }
+.bowl-list--tv .bowl-row__name { font-size: var(--tv-sm); }
+.bowl-list--tv .bowl-row__tot { font-size: var(--tv-md); }
+.bowl-list--tv .bowl-sheet { gap: 0.4vmin; }
+.bowl-list--tv .bowl-fr__balls { min-height: 2.4vmin; }
+.bowl-list--tv .bowl-fr__ball { font-size: 1.9vmin; max-width: 2.6vmin; }
+.bowl-list--tv .bowl-fr__sum { font-size: 1.9vmin; min-height: 2.5vmin; }
+.bowl-list--tv .bowl-fr__n { display: none; }
+.bowl-tv-over { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); min-height: 0; overflow-y: auto; }
+.bowl-tv-over .bowl-list--tv { width: min(100%, 110vmin); }
+.bowl-tv-over .podium { zoom: 1.35; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bowl-banner.is-on { animation: none; opacity: 1; transform: none; }
+  .bowl-banner__pins { display: none; }
+  .bowl-hint.is-on { animation: none; }
+  .bowl-msg__spin { animation: none; }
+}
+
 </style>

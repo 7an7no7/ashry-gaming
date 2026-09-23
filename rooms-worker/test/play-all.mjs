@@ -3526,6 +3526,68 @@ async function main() {
     hmBots.concat([S]).forEach((b) => b.close());
   }
 
+  /* --- بولينج: turns, the same pins on every phone, the clock's ball, the end ------------ */
+  console.log('• bowling (turns, the server\'s pins equal a replay of the shot, the clock throws a gentle ball, a leave, the end)');
+  {
+    const BW = new Function(readFileSync(new URL('../../Bowling.js', import.meta.url), 'utf8') +
+      '\nreturn { bowlThrow, bowlGentleShot, bowlTotal };')();
+    const H = await Bot.host('باسم', null);
+    const J = await Bot.join(H.code, 'Jana');
+    const K = await Bot.join(H.code, 'كريم');
+    const S = await Bot.join(H.code, '', true);
+    const bw = [H, J, K];
+    await H.must('chooseGame', { game: 'bowling' });
+    await H.must('start', { frames: 5, clock: 20, guide: true });
+    await all(bw.concat([S]), (s) => s.game === 'bowling' && s.shared.phase === 'play' && s.shared.settings.frames === 5 &&
+      s.shared.settings.guide === true && !!s.shared.turn, 'bowling: the game starts, 5 frames and the host\'s choices on every phone');
+    const upBot = () => byId(bw, H.state.shared.turn.pid);
+    const first = upBot();
+    const other = bw.find((b) => b !== first);
+    check((await other.act('throw', { x: 0, aim: 0, speed: 700, spin: 0, seq: H.state.shared.turnSeq })).ok === false, 'bowling: only the player up throws');
+    const shot = { x: 4, aim: 2, speed: 780, spin: 35 };
+    const seq0 = first.state.shared.turnSeq;
+    await first.must('throw', Object.assign({ seq: seq0 }, shot));
+    await all(bw.concat([S]), (s) => s.shared.throwSeq === 1 && !!s.shared.last, 'bowling: every phone and the TV get the ball');
+    const replay = BW.bowlThrow(Array(10).fill(true), shot);
+    const last = S.state.shared.last;
+    check(JSON.stringify(last.shot) === JSON.stringify(shot) && JSON.stringify(last.after) === JSON.stringify(replay.after) && last.down === replay.down,
+      'bowling: the pins the server has down are the ones a phone gets replaying the shot');
+    check(S.state.you === null && S.state.shared.board.length === 0, 'bowling: the TV has no secret, and no board to give a ball away before it falls');
+    const dup = await first.act('throw', Object.assign({ seq: seq0 }, shot));
+    check(dup.ok && H.state.shared.throwSeq === 1, 'bowling: a second tap for the same ball is dropped');
+    // The clock throws for whoever is up.
+    const upNow = H.state.shared.turn.pid;
+    const endsAt = H.state.shared.endsAt;
+    check(endsAt > H.state.shared.readyAt, 'bowling: the turn clock counts from when the lane is set again');
+    await H.waitFor((s) => s.shared.throwSeq === 2, 'bowling: the clock runs out and the server throws', Math.max(8000, endsAt - Date.now() + 6000));
+    check(H.state.shared.last.auto === 'clock' && H.state.shared.last.pid === upNow &&
+      JSON.stringify(H.state.shared.last.shot) === JSON.stringify(BW.bowlGentleShot()), 'bowling: that ball is a gentle straight one, thrown for the player up');
+    // The host plays for someone.
+    const before3 = H.state.shared.turn.pid;
+    await H.must('skipTurn', { seq: H.state.shared.turnSeq });
+    await H.waitFor((s) => s.shared.throwSeq === 3 && s.shared.last.auto === 'host' && s.shared.last.pid === before3, 'bowling: the host throws for a quiet phone');
+    // Someone leaves: their card goes and the turn goes on.
+    await api('/leave', { code: K.code, pid: K.pid, key: K.key });
+    await H.waitFor((s) => !s.shared.cards[K.pid] && s.shared.order.indexOf(K.pid) === -1 && s.shared.phase === 'play', 'bowling: a player who leaves takes their card with them');
+    K.close();
+    // Play it out.
+    for (let guard = 0; guard < 60 && H.state.shared.phase === 'play'; guard++) {
+      const up = byId([H, J], H.state.shared.turn.pid);
+      if (!up) break;
+      await up.act('throw', { x: -6, aim: 1, speed: 800, spin: 30, seq: H.state.shared.turnSeq });
+      await sleep(60);
+    }
+    await all([H, J, S], (s) => s.shared.phase === 'gameover' && s.phase === 'gameover' && s.shared.board.length === 2, 'bowling: the game ends after the last frame, the board is everyone\'s pins');
+    const b = H.state.shared.board;
+    check(b[0].score >= b[1].score && b.every((r) => r.score === BW.bowlTotal(H.state.shared.cards[r.id])) && (H.state.shared.winners || []).indexOf(b[0].id) !== -1,
+      'bowling: the most pins wins');
+    await H.must('playAgain');
+    await H.waitFor((s) => s.shared.phase === 'play' && s.shared.throwSeq === 0 && s.shared.settings.frames === 5, 'bowling: play again keeps the choices');
+    await H.must('backToHub');
+    await H.waitFor((s) => s.phase === 'lobby', 'bowling: back in the hub');
+    [H, J, S].forEach((x) => x.close());
+  }
+
   console.log('• prompt memory shared between rooms');
   const H = await Bot.host('H', 'codenames');
   const others = [H, await Bot.join(H.code, 'I'), await Bot.join(H.code, 'J'), await Bot.join(H.code, 'K')];

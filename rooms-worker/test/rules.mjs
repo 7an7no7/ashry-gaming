@@ -4175,6 +4175,164 @@ Date.now = duelTestClock;
     'hangman: play again keeps the way of playing');
 }
 
+/* --- بولينج: the score sheet, the physics every phone replays, the room's turns --- */
+{
+  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const BW = new Function(src('Bowling.js') +
+    '\nreturn { BOWL, bowlScore, bowlFrameNext, bowlMarks, bowlBallKind, bowlStart, bowlStep, bowlRun, bowlThrow, bowlStanding, bowlCleanShot, bowlGentleShot, bowlNewCard, bowlApply, bowlTotal };')();
+  // A second copy, built apart, stands in for another phone: the same numbers must give the same pins.
+  const BW2 = new Function(src('Bowling.js') + '\nreturn { bowlRun, bowlStanding };')();
+  const FULL = Array(10).fill(true);
+  const play = (total, rolls) => {
+    const card = BW.bowlNewCard(total);
+    rolls.forEach((n) => { if (!card.over) BW.bowlApply(card, card.standing.map(() => false), n, false); });
+    return card;
+  };
+
+  // The sheet: a perfect game, all spares, open frames, and the last frame's bonus balls.
+  const perfect10 = play(10, Array(12).fill(10));
+  check(perfect10.over && BW.bowlTotal(perfect10) === 300 && perfect10.frames[9].length === 3, 'bowling: twelve strikes in 10 frames are 300, three balls in the last');
+  const perfect5 = play(5, Array(7).fill(10));
+  check(perfect5.over && BW.bowlTotal(perfect5) === 150, 'bowling: seven strikes in 5 frames are 150');
+  const spares = play(10, Array(21).fill(5));
+  check(spares.over && BW.bowlTotal(spares) === 150 && spares.frames[9].length === 3, 'bowling: all 5-spares are 150, with a bonus ball');
+  const open = play(5, [3, 4, 9, 0, 0, 0, 2, 2, 8, 1]);
+  check(open.over && BW.bowlTotal(open) === 29 && open.frames[4].length === 2, 'bowling: open frames add up, and the last frame has no bonus ball without a mark');
+  const mixed = play(5, [10, 7, 3, 9, 0, 10, 10, 10, 8]);
+  check(JSON.stringify(BW.bowlScore(mixed.frames, 5)) === JSON.stringify([20, 39, 48, 78, 106]),
+    'bowling: a strike counts the next two balls, a spare the next one (20, 39, 48, 78, 106)');
+  const pending = play(5, [10, 10]);
+  check(JSON.stringify(BW.bowlScore(pending.frames, 5)) === '[null,null,null,null,null]' && BW.bowlTotal(pending) === 0,
+    'bowling: a strike waits for its two balls before it is scored');
+  check(BW.bowlFrameNext([10], false) === 'done' && BW.bowlFrameNext([4], false) === 'second' && BW.bowlFrameNext([10], true) === 'fresh' &&
+    BW.bowlFrameNext([10, 3], true) === 'second' && BW.bowlFrameNext([6, 4], true) === 'fresh' && BW.bowlFrameNext([6, 3], true) === 'done',
+    'bowling: what comes after a ball, in a frame and in the last frame');
+  check(BW.bowlMarks([10, 10, 10], true).join('') === 'XXX' && BW.bowlMarks([7, 3, 10], true).join('') === '7/X' &&
+    BW.bowlMarks([10, 3, 7], true).join('') === 'X3/' && BW.bowlMarks([0, 10], false).join('') === '-/' && BW.bowlMarks([9, 0], false).join('') === '9-',
+    'bowling: the marks on the sheet (X, /, -)');
+  const second = BW.bowlNewCard(5);
+  const after = [false, true, true, false, false, false, true, false, false, true];
+  const r1 = BW.bowlApply(second, after, 6, false);
+  check(!r1.frameDone && JSON.stringify(second.standing) === JSON.stringify(after) && r1.kind === 'count', 'bowling: the second ball is at the pins left standing');
+  const r2 = BW.bowlApply(second, after, 0, true);
+  check(r2.frameDone && r2.kind === 'gutter' && second.standing.every(Boolean) && second.frames.length === 2, 'bowling: a frame done sets a full rack for the next');
+
+  // A shot is four whole numbers, cleaned the same everywhere.
+  check(JSON.stringify(BW.bowlCleanShot({ x: 99, aim: -500, speed: 5, spin: 12.6 })) === '{"x":40,"aim":-110,"speed":380,"spin":13}' &&
+    JSON.stringify(BW.bowlCleanShot({ x: 'a', aim: null })) === '{"x":0,"aim":0,"speed":380,"spin":0}',
+    'bowling: a shot\'s numbers are clamped and rounded');
+
+  // Determinism: the same shot gives the same pins, every time and in every copy of the file.
+  let same = true;
+  const rnd = (() => { let q = 7; return () => { q = (q * 1103515245 + 12345) % 2147483648; return q / 2147483648; }; })();
+  for (let i = 0; i < 120 && same; i++) {
+    const shot = { x: Math.round(rnd() * 80 - 40), aim: Math.round(rnd() * 80 - 40), speed: Math.round(420 + rnd() * 560), spin: Math.round(rnd() * 200 - 100) };
+    const standing = i % 3 ? FULL : FULL.map(() => rnd() < 0.5);
+    const a = BW.bowlRun(standing, shot), b = BW2.bowlRun(standing, shot), c = BW.bowlRun(standing, shot);
+    const key = (sim) => JSON.stringify([sim.t, sim.hits, sim.ball.x, sim.ball.y, sim.pins.map((p) => [p.x, p.y, p.state, p.tilt, p.dx, p.dy])]);
+    same = key(a) === key(b) && key(a) === key(c);
+  }
+  check(same, 'bowling: 120 shots, each thrown three times over two copies of the rules, leave the very same pins in the very same places');
+  let stepped = true;
+  {
+    const shot = { x: 6, aim: -2, speed: 780, spin: 35 };
+    const sim = BW.bowlStart(FULL, shot);
+    while (!sim.done) BW.bowlStep(sim);
+    stepped = JSON.stringify(BW.bowlStanding(sim)) === JSON.stringify(BW.bowlThrow(FULL, shot).after);
+  }
+  check(stepped, 'bowling: a replay stepped frame by frame ends where the server\'s throw does');
+
+  // The physics plays like bowling: gutters score nothing, a pocket hit usually strikes, the lane settles.
+  const gutter = BW.bowlThrow(FULL, { x: 40, aim: 60, speed: 700, spin: 0 });
+  check(gutter.gutter && gutter.down === 0, 'bowling: a ball in the gutter knocks nothing down');
+  let pocket = 0, pocketN = 0, allDone = true, longest = 0;
+  for (const speed of [600, 720, 840]) for (const spin of [20, 45, 70]) for (let aim = -30; aim <= 30; aim += 1) {
+    const sim = BW.bowlRun(FULL, { x: 0, aim, speed, spin });
+    longest = Math.max(longest, sim.t);
+    if (sim.t >= BW.BOWL.MAX_T) allDone = false;
+    // Where it met the head pin's row.
+    const probe = BW.bowlStart(FULL.map(() => false), { x: 0, aim, speed, spin });
+    while (!probe.done && probe.ball.y < BW.BOWL.HEAD_Y && !probe.ball.gutter) BW.bowlStep(probe);
+    if (!probe.ball.gutter && probe.ball.x > 0.035 && probe.ball.x < 0.085) {
+      pocketN++;
+      if (BW.bowlStanding(sim).every((x) => !x)) pocket++;
+    }
+  }
+  check(pocketN >= 6 && pocket / pocketN >= 0.5, `bowling: a ball into the 1-3 pocket strikes more often than not (${pocket} of ${pocketN})`);
+  check(allDone, `bowling: every throw settles before the 8-second cap (the longest ${longest.toFixed(1)}s)`);
+  const gentle = BW.bowlThrow(FULL, BW.bowlGentleShot());
+  check(!gentle.gutter && gentle.down > 0, 'bowling: the clock\'s gentle straight ball reaches the pins (' + gentle.down + ' down)');
+
+  // The room: turns, the server's result equal to a replay, stale taps, the clock, leaving, the end.
+  const bw = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'bowling' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  let r = bw(['a', 'b', 'c']);
+  let s = r.shared;
+  check(s.phase === 'play' && s.settings.frames === 5 && s.settings.clock === 0 && s.settings.guide === false && s.turn.pid === 'a' &&
+    s.order.join('') === 'abc' && s.cards.a.total === 5, 'bowling: 5 frames, no clock and no aim guide by default; everyone bowls in turn');
+  check(r.secrets && Object.keys(r.secrets).length === 0, 'bowling: nothing is secret');
+  check(refused(() => applyRoomAction(r, 'b', 'throw', { x: 0, aim: 0, speed: 700, spin: 0, seq: s.turnSeq })), 'bowling: only the player up throws');
+  const shot1 = { x: 3, aim: 1, speed: 760, spin: 30 };
+  const seq0 = s.turnSeq;
+  applyRoomAction(r, 'a', 'throw', Object.assign({ seq: seq0 }, shot1));
+  s = r.shared;
+  const replay = BW.bowlThrow(FULL, shot1);
+  check(s.last && s.last.seq === 1 && s.last.pid === 'a' && JSON.stringify(s.last.before) === JSON.stringify(FULL) &&
+    JSON.stringify(s.last.after) === JSON.stringify(replay.after) && s.last.down === replay.down && s.cards.a.frames[0][0] === replay.down,
+    'bowling: the server\'s pins are the ones a phone gets replaying the shot from the pins that were up');
+  applyRoomAction(r, 'a', 'throw', Object.assign({ seq: seq0 }, shot1));
+  check(r.shared.throwSeq === 1, 'bowling: a second tap for the same ball is dropped');
+  if (s.turn.pid === 'a') {
+    const before2 = s.cards.a.standing.slice();
+    applyRoomAction(r, 'a', 'throw', { x: -40, aim: -90, speed: 700, spin: 0, seq: s.turnSeq });
+    check(JSON.stringify(s.last.before) === JSON.stringify(before2) && s.cards.a.frames[0].length === 2 && s.turn.pid === 'b',
+      'bowling: the second ball is at what was left, and then the turn passes');
+  } else {
+    check(s.cards.a.frames[0][0] === 10 && s.turn.pid === 'b', 'bowling: a strike ends the frame, and the turn passes');
+  }
+  check(s.board.length === 0 && typeof s.scores.a === 'number', 'bowling: no board while playing (the TV strip would give a ball away before its pins fall)');
+  // The clock: a gentle ball thrown for a player who doesn't.
+  r = bw(['a', 'b'], { frames: 10, clock: 20, guide: true });
+  s = r.shared;
+  check(s.settings.frames === 10 && s.settings.clock === 20 && s.settings.guide === true && s.cards.a.total === 10, 'bowling: the host\'s choices: 10 frames, a clock, the aim guide');
+  check(roomDeadline(r) === s.endsAt + 1500 && s.endsAt >= clock + 20000, 'bowling: the turn clock is a server deadline');
+  clock = s.endsAt + 2000;
+  roomTimeout(r, clock);
+  check(s.last && s.last.auto === 'clock' && s.last.pid === 'a' && JSON.stringify(s.last.shot) === JSON.stringify(BW.bowlGentleShot()),
+    'bowling: when the clock runs out the phone throws a gentle straight ball');
+  check(s.endsAt >= s.readyAt + 20000 && s.readyAt >= clock + s.last.ms, 'bowling: the next clock starts once that ball has been watched');
+  check(refused(() => applyRoomAction(r, 'b', 'skipTurn', { seq: s.turnSeq })), 'bowling: only the host plays for a quiet phone');
+  const up = s.turn.pid;
+  applyRoomAction(r, 'a', 'skipTurn', { seq: s.turnSeq });
+  check(s.last.auto === 'host' && s.last.pid === up, 'bowling: the host\'s "play for" throws the same gentle ball');
+  // Leaving: the turn passes on, the card goes.
+  r = bw(['a', 'b', 'c']);
+  s = r.shared;
+  r.players = r.players.filter((p) => p.id !== 'a');
+  roomPlayerLeft(r, 'a', 'A');
+  check(s.turn.pid === 'b' && !s.cards.a && s.order.join('') === 'bc' && s.phase === 'play', 'bowling: a player who leaves takes their card, and the turn passes on');
+  // A whole game of gutter balls ends after the last frame, the board decides.
+  r = bw(['a', 'b'], { frames: 5 });
+  s = r.shared;
+  let guard = 0;
+  while (s.phase === 'play' && guard++ < 60) {
+    const pid = s.turn.pid;
+    const shot = pid === 'a' ? { x: 0, aim: 2, speed: 800, spin: 30 } : { x: 40, aim: 80, speed: 700, spin: 0 };
+    applyRoomAction(r, pid, 'throw', Object.assign({ seq: s.turnSeq }, shot));
+    s = r.shared;
+  }
+  check(s.phase === 'gameover' && r.phase === 'gameover' && s.cards.a.over && s.cards.b.over && BW.bowlTotal(s.cards.b) === 0 &&
+    s.board.length === 2 && s.board[0].id === 'a' && s.winners.join() === 'a' && s.wins.a === 1, 'bowling: the game ends after the last frame; the board is the pins, and the most pins wins');
+  applyRoomAction(r, 'a', 'playAgain', {});
+  s = r.shared;
+  check(s.phase === 'play' && s.settings.frames === 5 && s.wins.a === 1 && s.throwSeq === 0 && s.turnSeq > 1, 'bowling: play again keeps the way of playing and the wins');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

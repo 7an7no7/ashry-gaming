@@ -97,11 +97,15 @@
 - **Cards, in rooms:** **كدّاب (I Doubt It):** lay cards face down and say what they are; anyone can call «كدّاب!», the first tap wins; computer players (*كدّاب*). **الشايب (Old Maid):** draw a card blind from the next hand, pair up, and don't be left holding the drawn old man; drag your cards about while someone is lifting one (*الشايب*).
 - **Sports, in real 3D (three.js):** 🎳 **Bowling (بولينج):** swipe the ball down a
   wooden lane, a curve in the swipe hooks it; solo for a best score, or a
-  room where everyone bowls in turn and everyone watches (*بولينج*). ⛳ **Mini Golf (ميني جولف):** nine holes (a
-  windmill, a bridge over water, camel humps, a pyramid, a waterwheel's beam,
-  a curved wall under a lighthouse, a sliding gate, an oasis), pull back from
-  the ball and let go; solo with the best kept on the phone, or a room with the
-  TV where every ball plays the hole at once, or in turns (*ميني جولف*).
+  room where everyone bowls in turn and everyone watches (*بولينج*). ⛳ **Mini Golf (ميني جولف):** eighteen holes, each
+  its own place (a windmill, a bridge over water, the souq's arrow tiles, camel
+  humps, the funfair's bumpers, a pyramid, a ramp over the Nile, a waterwheel,
+  Siwa's dunes and mud, a lighthouse, the Citadel's one-way gates, a sliding
+  gate, the port's conveyors, a temple's magic door, Saint Catherine's ice,
+  an oasis, Cairo Tower's lift), pull back from the ball and let go; games of
+  3, 6, 9 or 18 holes; solo with the best kept on the phone, or a room with the
+  TV where every ball plays the hole at once, or in turns with the balls
+  knocking each other (*ميني جولف*).
 - **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
   🚩 Minesweeper, 👑 Queens, ☀️ Tango, 🖼️ Nonogram; 🧵 خيوط, 🔡 كلمات من
   حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 🌍 خمّن الدولة.
@@ -147,12 +151,45 @@ work changed. Add to it when a decision is made or a batch ships.
     phone whenever ready; **the balls pass through each other** (the others'
     balls are faint on a phone); a hole moves on once every ball is in or
     picked up. In turns: one putt at a time round the table, everyone watching.
-  - **3, 6 or 9 holes, 6 by default** (the host's choice; solo a setup
-    choice) - the first 3, 6 or 9 of the course, in order. About a minute a hole.
-  - **6 strokes, then the ball is picked up and the hole counts 7.**
-  - On the holes: **walls, slopes (hills), water (back to where you shot from,
-    +1), sand (slows), and moving pieces** (the windmill, a sliding gate, a
-    turning beam) on a clock every phone shares.
+  - **3, 6, 9 or 18 holes, 6 by default** (the host's choice; solo a setup
+    choice) - the first 3, 6, 9 or all 18 of the course, in order. About a
+    minute a hole. (18 added by the owner later the same day; the first build
+    had nine.)
+  - **Par + 3 strokes at most** (the owner, later on 23 Sep 2026, replacing
+    "6 strokes, then 7"): par 2 allows 5, par 3 six, par 4 seven, par 5
+    eight; not in by then, the ball is picked up and the hole counts that most
+    + 1. The strip shows «بار 3 · أقصى 6» and, before the final stroke,
+    «آخر ضربة!». One place: `golfMaxOf` (a hole may carry its own `max`).
+  - **Ball hits ball in the room's "in turns" only** (the owner, the same
+    day). All at once the balls still pass through each other; solo has one
+    ball. In turns a putt meets every ball lying on the course - **a ball is on
+    the course once it has been hit from the tee** (Plato's way: the others
+    wait off it) and until it drops. Equal balls, a slightly soft knock; a
+    knocked ball rolls on with the ground and every piece, **the server
+    deciding every ball** and each phone and the TV replaying the same roll.
+    **A ball knocked into the cup is holed with its strokes so far** (no stroke
+    added).
+  - **Water, Plato's rule** (the owner, the same day): the ball goes back to
+    where it lay (where it was hit from), a stroke added; **if another ball
+    lies on that spot now, back to the tee**. **A ball knocked into the water
+    by someone else goes back to its own spot with no stroke added** (the tee
+    if that spot is taken).
+  - On the holes: **walls, slopes (hills), water, sand (slows), and moving
+    pieces** (the windmill, a sliding gate, a turning beam) on a clock every
+    phone shares - and **eight new ones** (the owner, the same day, all
+    eight asked for): **ice** (the ball barely slows), **mud** (slower than
+    sand), **speed pads** (arrows that push), **conveyors** (carry the ball),
+    **portals** (in one ring, out of the other at the same speed, a set way),
+    **bumpers** (send it back harder than it came), **ramps** (fast enough and
+    the ball flies over the water or a low wall; too slow and it rolls back)
+    and **one-way gates** (through one way, a rail the other).
+  - **Every hole unique** (the owner, the same day: "not all in one - each map
+    unique, with some of what fits in it"): each of the nine new holes has its
+    own place and only the one to three new pieces that fit it; the nine first
+    holes were given better shapes (rounded ends, a chamfered top) and richer
+    scenery, and a new piece only where it clearly fits (mud by the
+    waterwheel's channel and by the oasis pond); the eighteen are ordered so
+    the course gets harder, and the first 3, 6 and 9 make good short games.
   - **Top view at an angle; pull back from the ball like a slingshot and let
     go.** A short arrow while pulling shows the direction and the power - it is
     the control, always there. **The full aim guide (the predicted path) is a
@@ -163,8 +200,18 @@ work changed. Add to it when a decision is made or a batch ships.
     button for a quiet phone.
   - On the home in the new **«رياضة / Sports»** section; icon ⛳.
   - Decided here (open to change, each one place in the code): the course's
-    nine holes and their pars (2, 3, 3, 3, 3, 3, 3, 3, 4 - 8 for three holes,
-    17 for six, 27 for nine); in turns **the best score on the last hole tees
+    eighteen holes, their order and their pars - first 2, bridge 3, mill 3,
+    souq 3, humps 3, fair 3, pyramid 3, nile 3, saqia 3, siwa 3, lighthouse 3,
+    citadel 3, gate 3, port 3, temple 3, sinai 3, oasis 4, tower 4 (8 for
+    three holes, 17 for six, 26 for nine, 55 for eighteen); which pieces go on
+    which new hole (Siwa: dunes and mud; the souq: pads; the Nile: a ramp and a
+    muddy bank; the funfair: bumpers; the Citadel: one-way gates, one of them
+    the wrong door; the port: two conveyors, one running back; the temple: a
+    portal between two shrines; Saint Catherine: ice with a zigzag of walls;
+    Cairo Tower: a pad up the promenade and a portal as the tower's lift);
+    a ramp and a portal are shortcuts - every hole can also be walked; a ball
+    "lies on" a spot when it is within a ball's width of it; balls lying on
+    each other when a putt starts pass through each other until they part; in turns **the best score on the last hole tees
     off first** (golf's honour; ties keep their order); the card between two
     holes shows for **7 seconds** after the last ball stops, then the next hole
     comes by itself (the host can skip ahead); a player who leaves takes their
@@ -1566,6 +1613,30 @@ the word search), `countUp` for streaks and scores.
   clock's gentle putt, leaving, the podium. The leak check plays both modes
   (nothing is hidden: the generic rules). Robot tests: 1527 (a mini golf round
   in each mode on a live server). A deploy is needed for the rooms server.
+- **23 Sep 2026, ميني جولف: eighteen holes** - the owner's next round of
+  rules, asked one at a time (*The owner's specs*): par + 3 strokes at most;
+  balls that knock each other in the room's "in turns"; Plato's water rule
+  (back where it lay, the tee if that spot is taken, no stroke for a ball
+  someone else knocked in); eight new pieces - ice, mud, speed pads,
+  conveyors, portals, bumpers, ramps and one-way gates; nine new holes and
+  games of 18. Then the owner's word that every hole be unique: each new hole
+  its own Egyptian place with only the pieces that fit it, the first nine
+  reshaped and dressed (rounded ends, fountains, flowerbeds, camels, minarets),
+  the eighteen ordered by difficulty. Physics: `golfStart` takes the other
+  balls, `golfMove` is one ball's step (the old step, bit for bit - 3,000
+  putts on the first nine were compared with the build before), `golfBallsMeet`
+  the knocks, and `golfPutt` returns the balls moved. The field learnt gates
+  and conveyors (a way only their own way), bumpers and ramps (not a place to
+  lie), and what a moving piece never leaves; the gentle putt learnt the
+  ground's drag (`golfSpeedFor`) and to keep off the water's edge - found on
+  the way: it had been stuck for ever on the old gate hole (straight into the
+  sliding door) and the oasis (grazing the pond's corner into the water).
+  Rules tests: 76 golf checks (each piece, the knocks, the water spots, the
+  most strokes, 300 multi-ball putts twice, a phone's stepped roll equal to
+  the server's, every hole within par + 1 and holed by the gentle putt, 18
+  holes in a room); the leak check plays nine holes in turns; robot tests:
+  1846, with a knock on a live server and nine holes in turns. A deploy is
+  needed for the rooms server.
 
 ## Building and Running
 
@@ -1760,8 +1831,8 @@ is nowhere to hide the key card.
 | `RoomOldMaid.js` | `oldMaidAction`: الشايب's deal (the deck grows with the table), the lift and the draw, dragging or shuffling a hand, pairs, the loser and the tally, the clock, leaving; every hand in `room._om`. |
 | `Bowling.js` | بولينج's lane, pins and one throw as plain arithmetic (the same pins on every phone and the server from four whole numbers), and the score sheet: shared by the page and the Worker, every name prefixed `bowl`. |
 | `RoomBowling.js` | `bowlingAction`: the order, each player's card, a throw run on the server (`bowlThrow`) and replayed by every phone, the clock and the host's gentle ball, leaving, the end. |
-| `MiniGolf.js` | ميني جولف's nine holes and one putt as plain arithmetic (only + - * / and `Math.sqrt` / `floor` / `abs` / `min` / `max`, never `Math.sin`), the way to the cup (`golfField`) and the clock's gentle putt (`golfAutoShot`): shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `golf`. |
-| `RoomMiniGolf.js` | `minigolfAction`: all at once or in turns, the server's result of every putt, picking up at 6, the hole's card and the next hole on the server's clock, the putt clock, leaving. Bundled after `RoomGames.js`. |
+| `MiniGolf.js` | ميني جولف's eighteen holes and one putt as plain arithmetic (only + - * / and `Math.sqrt` / `floor` / `abs` / `min` / `max`, never `Math.sin`) - the other balls it knocks included - the pieces (ice, mud, pads, belts, portals, bumpers, ramps, gates), the most strokes (`golfMaxOf`), the way to the cup (`golfField`) and the clock's gentle putt (`golfAutoShot`): shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `golf`. |
+| `RoomMiniGolf.js` | `minigolfAction`: all at once or in turns (the balls on the course knocking each other, `mgOthers`), the server's result of every putt, picking up past par + 3, the hole's card and the next hole on the server's clock, the putt clock, leaving. Bundled after `RoomGames.js`. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -4064,6 +4135,44 @@ The owner's rules are in *The owner's specs*.
   the square in sight that is farthest along, with only the strength to get
   there - the clock's gentle putt and the host's "putt for". `golfHeight` is
   the ground's height for the screen only.
+- **The pieces added on 23 Sep 2026** (all in `golfMove`, one ball's step,
+  kept bit for bit the old step for the old pieces): `ice` / `mud` polygons
+  change the drag (`GOLF.ICE` 0.55, `GOLF.MUD` 24 against the green's 3 and
+  sand's 13; `golfDragAt`); `pads` (`{ x, y, dx, dy, w, l, push? }`, a
+  rectangle along its arrow) add `GOLF.PAD` along it; `belts` (an
+  axis-aligned rectangle and `{ vx, vy }`) bring the ball to their speed
+  (`GOLF.BELT_GRIP`) instead of the drag, and a ball can't rest on one;
+  `portals` (`{ x, y, ox, oy, dx, dy }`) take a ball within three quarters of
+  `GOLF.PORTAL_R` and put it out at `ox, oy` with its speed along `dx, dy`
+  (`warp` on the ball for the screen); `bumpers` (`{ x, y, r }`) send the
+  ball out at `GOLF.BUMPER` times its speed, between `BUMPER_MIN` and
+  `BUMPER_MAX` (`bumped[k]` on the sim); `ramps` (`{ x, y, dx, dy, len, w }`,
+  the foot and the way up) pull `GOLF.RAMP_G` back down, and a ball over the
+  lip still going up flies (`air`, `z`, `vz`, `AIR_G`): in the air it meets
+  only the fence and the blocks (`golfTallSegs`), lands at `GOLF.LAND` of its
+  speed, and only then the water or the cup counts; `gates` (`{ x1, y1, x2,
+  y2, dx, dy }`) are a rail only to a ball on their far side coming back
+  (`golfGateHit`, `flaps[k]` when one swings). Rails beside a ramp are plain
+  `walls`; the screen raises them with the ramp.
+- **Other balls** (in turns): `golfStart(hole, from, shot, others)` makes a
+  body of each (`golfBody`; the sim itself is the putter's body, so a sim
+  with no others is exactly the old one), `golfStep` moves every body that
+  isn't at rest and then `golfBallsMeet`: equal balls, the knock along the
+  line between them with `GOLF.BALL_BOUNCE`; a ball at rest that is touched
+  rolls again (`moved`); balls lying on each other at the start pass through
+  until they part (`ghost`). `sim.done` is every ball stopped, sunk or wet.
+  `golfPutt(..., others)` adds `moved: [{ id, end, at, wet }]`; a wet ball's
+  spot is `golfWetSpot` - where it lay, or the tee when another ball's final
+  place is within a ball's width. The order of the list (the room's order) is
+  part of the result, so every phone lists them the same way.
+- **The field and the gentle putt** know the new pieces: `golfGateBlocks`
+  refuses a step against a gate or a conveyor (in `golfField`,
+  `golfDistance` and `golfClearLine`); ramps, bumpers, the middle of a
+  sliding gate and a beam's post are not places to lie (`golfOpen`); a clear
+  line keeps 0.45 from the water on either side; `golfSpeedFor` is the speed
+  that stops a ball at a point over this ground (drag in, pads out), which the
+  gentle putt and the tests' search use. Portals and ramps are shortcuts the
+  field never needs: every hole can be walked.
 - **`RoomMiniGolf.js`**. Nothing is hidden: everything is `shared` (`phase`
   'play' | 'between' | 'gameover', `settings { mode, holes, guide, clock }`,
   `hole`, `startedAt` - the server's clock when the hole started - `stamp`,
@@ -4075,7 +4184,12 @@ The owner's rules are in *The owner's specs*.
   writes the result. The clock (`mgDeadline` / `mgTimeout`) is per ball all at
   once (from when it came to rest, or the hole's name card) and for the player
   up in turns; running out, it plays `golfAutoShot`. 'between' moves on at
-  `nextAt` (7 s after the last ball stops), or on the host's `nextHole`.
+  `nextAt` (7 s after the last ball stops), or on the host's `nextHole`. A
+  ball is picked up at `golfMaxOf(h)` strokes and counts one more. In turns
+  `mgOthers` is every other ball with `n > 0` and not done, in `order`; the
+  putt keeps them as `shots[pid].others` (where they lay before it) and
+  `moved`, and the server moves those balls (one knocked into the cup is done
+  with its own `n`). The phone makes the very same list (`mgRoomOthers`).
 - **`JS_MiniGolf.html`**:
   - **One 3D engine per page (`MG3`)**: one `WebGLRenderer` (pixel ratio ≤ 2,
     ACES tone mapping, soft shadows, a sky environment from `PMREMGenerator`),
@@ -4125,7 +4239,33 @@ The owner's rules are in *The owner's specs*.
   - Solo lives in `appState.minigolf` and is restored through `soloRegister`;
     a putt's result is kept the moment it is hit, so a reload mid-roll comes
     back to where the ball ends. The best total per course length is
-    `soloRecord('minigolf', '3' | '6' | '9')`.
+    `soloRecord('minigolf', '3' | '6' | '9' | '18')`.
+  - **The new pieces on the screen** (`mgPadMesh`, `mgBeltMesh`,
+    `mgRampMesh`, `mgBumperMesh`, `mgPortalMesh`, `mgGateMesh`; ice and mud
+    as flat glossy polygons with a rim): a pad's amber arrows and a belt's
+    ribs run on their own texture (`mgOwnTex`) and a portal's swirls turn -
+    ambient movers, so an idle hole still draws at 30 frames a second; a
+    bumper's cap flashes and the post swells when `bumped[k]` changes, a
+    gate's flap swings open the way through and falls back after `flaps[k]`.
+    A flying ball is drawn at the rules' height (`z`); `mg3ShowBody` plays
+    each ball's moments (sand, mud, ice, a pad, a jump and its landing, a
+    portal's two rings, a knock, a bumper, the cup, the water) with sounds
+    `knock`, `bump`, `warp`, `whoosh`, `mud`, `jump`, `land`, `flap`, `ice`.
+  - **Knocked balls** move with the roll that hits them: `mg3Play` marks each
+    ball of `sim.others` `drivenBy` the putter, `mg3SyncBalls` leaves it alone
+    until the roll is done (`want` keeps where the table says it lies), and
+    where a wet one goes back to comes from the putt's result (`returns`,
+    from `moved`, or the phone's own `golfPutt` for its own putt). A newer
+    roll that takes a ball another roll is still moving ends that one at once
+    (a screen that fell behind). In turns a ball not yet hit from the tee is
+    off the course: only the player up waits on the tee.
+  - **Each hole's own place** is `MG_LOOKS` (its scenery from `MG_DECO`:
+    palms, a felucca, a fountain, a ferris wheel, minarets, a crane and
+    containers, Karnak's columns, pines, snowmen and the monastery, Cairo
+    Tower…; `snow` and `desert` turn the rough to snow or sand), and new block
+    looks `salt`, `snow`, `stall` and `obelisk`.
+  - Past nine holes the scorecard is two tables (`mg-card--two`): the first
+    nine with their sum («أول 9»), then the rest with the total.
 
 ### لودو
 
@@ -4583,6 +4723,23 @@ ball in the gutter was half inside it. `-π/2` gives the lower half; the
 material is `DoubleSide` (you look at its inside) and the ball rests on its
 floor (`BALL_R - GUTTER / 2`). Look at a new curved piece from the camera's
 own angle, not only from above.
+
+**A line that is clear for the ball's middle can still drop it in the
+water.** ميني جولف's gentle putt aimed along lines checked only at the
+ball's centre, every 0.2 units; on the oasis a line grazed the pond's corner,
+the ball clipped it, went back to where it lay, and the same putt was chosen
+again - for ever, a stroke each time. And on the gate hole the sliding door
+always covers its own middle, so the straight putt at the cup bounced back
+every time. The field and the clear line now keep off the water by more than a
+ball's width and treat what a moving piece never leaves as solid. A check that
+a helper "gets there" has to play it again and again, not once from the tee.
+
+**A tab of the built-in browser that isn't in front gets no animation
+frames.** Driving the app in a background tab of the desktop app's browser
+pane, a golf roll never moved (`requestAnimationFrame` never came), and a
+second roll then took the first one's balls. Test rolls in your own headless
+Chrome (`--use-angle=swiftshader`, a browser context per phone), not in a
+tab you don't own.
 
 **A class name for a wrapper and for a widget can collide.** The solo
 view's wrapper was `.mg-host` and so was the host's row of buttons,

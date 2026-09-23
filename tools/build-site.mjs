@@ -17,7 +17,9 @@ import path from 'node:path';
 
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
-const out = path.join(root, 'docs');
+// SITE_OUT: somewhere else than docs/ (the screen test builds a copy of the site to try its
+// offline copy and updates on, without touching what is published).
+const out = process.env.SITE_OUT ? path.resolve(process.env.SITE_OUT) : path.join(root, 'docs');
 const read = (name) => readFile(path.join(root, `${name}.html`), 'utf8');
 
 const config = JSON.parse(await readFile(path.join(here, 'site.config.json'), 'utf8'));

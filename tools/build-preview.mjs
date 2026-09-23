@@ -61,7 +61,8 @@ html = html.replace(listsMark, () => sharedListsHtml);
 const leftover = html.match(/<\?!?=?[\s\S]{0,40}\?>/);
 if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);
 
-const outDir = path.join(root, '.preview');
+// PREVIEW_OUT: somewhere else than .preview/ (the screen test builds its own copy).
+const outDir = process.env.PREVIEW_OUT ? path.resolve(process.env.PREVIEW_OUT) : path.join(root, '.preview');
 await mkdir(outDir, { recursive: true });
 await writeFile(path.join(outDir, 'index.html'), html, 'utf8');
 

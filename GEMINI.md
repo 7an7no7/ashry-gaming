@@ -2219,6 +2219,32 @@ npm run check        # content + i18n
   proved by putting old leaks back into a scratch build (the قبل ولا بعد years,
   the word on the spy's phone, أونو's deck on the pile, a Codenames colour on an
   unturned card): each one failed it.
+- `npm run test:ui` in `tools/` (with `npm run dev` running in `rooms-worker/`,
+  or the rooms server's address as its argument) is the screen test, in
+  headless Chrome over the DevTools protocol, no packages: it builds its own
+  copy of the preview and of the published site into a temporary folder
+  (`PREVIEW_OUT`, `SITE_OUT` - `.preview/` and `docs/` are left alone) and
+  checks, printing ✓ / ✗ like the others:
+  - **screens**: every view on one phone at 375x812, 667x375 and 1280x720, in
+    Arabic light and English dark - nothing wider than the screen, no control
+    off it, no text cut off (text that is only emoji aside), no console error -
+    and every game started from its setup's Start; first it proves the check
+    catches a button off the screen and a label cut off;
+  - **rooms**: every room game dealt to five phones (each its own browser
+    context, so its own storage and room session: the *Traps* note about tabs
+    sharing one session doesn't bite) and a TV, the host doing what a host does
+    first (the lobby open, sides for أسماء الرموز, a phone made a screen for
+    الدومينو), the same checks on every phone and the TV;
+  - **fixes**: the audit of 23 Sep 2026's fixes that live on the page - a room
+    link fills its code, a half-typed name in المشنقة survives others' guesses,
+    خمّن مين's face pick has a clock, a chess clock is right after a reload,
+    حرب السفن's count waits for the shell;
+  - **site**: the offline copy - the second open downloads nothing, a new build
+    (the same site under a newer stamp) is switched to by itself on the home,
+    waits with a note in a game and switches back on the home with the game
+    kept, and Settings → الإصدار says latest, then newer.
+  `ONLY=screens,rooms,fixes,site` runs some parts; `CHROME=` points at Chrome.
+  About 15 minutes whole.
 - Everything else is exercised in the local preview.
 
 Client-side logs are in the browser console; the rooms server's are

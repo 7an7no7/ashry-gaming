@@ -47,7 +47,11 @@ The full guide is GEMINI.md — read it before changing anything:
    bundles - the `FILES` in `rooms-worker/build.mjs` - or `rooms-worker/src/`)?
    `cd rooms-worker && npm run test:rules`, then, with `npm run dev` running,
    `npm test`. Every check must pass.
-5. **Look at it in the browser.** `cd tools && npm run build:preview`, then start
+5. **The screen test**: with `npm run dev` running in `rooms-worker/`,
+   `cd tools && npm run test:ui` (every screen at three sizes, every room game on
+   five phones and a TV, the offline copy and its updates; about 15 minutes, or
+   `ONLY=rooms` etc. for a part). Every check must pass. Then
+   **look at it in the browser.** `cd tools && npm run build:preview`, then start
    `rooms-worker` and `preview` from `.claude/launch.json` (http://localhost:4321).
    At phone width, sideways and on a big screen (375×667, 667×375 and
    1280×720), in Arabic and English:
@@ -70,6 +74,7 @@ cd tools && npm run check           # content + translations
 cd tools && npm run build:preview   # the app in .preview/, rooms on :8787
 cd tools && npm run build:site      # rebuild docs/ (commit it)
 cd tools && npm run check:live      # is the link serving this build?
+cd tools && npm run test:ui         # every screen, every room game, the offline copy (needs npm run dev)
 cd tools && npm run export:trivia -- <path>  # the board bank as trivia_bank.js
 cd tools && npm run build:icons     # the brand mark (Logo.html) and the icons in docs/
 cd rooms-worker && npm run dev      # local rooms server on :8787

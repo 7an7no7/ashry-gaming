@@ -2053,7 +2053,9 @@ the stem and the one-letter rule - House was judged right for Horse, and
 is left to be a word (`guessStem`: three letters, four after `ون`). Fibbage lies, Just One clues and
 Codenames still use the plain fold: there "the same word" is the point.
 
-**Draw & Guess words are things a phone can draw and a table can name.** The
+**Draw & Guess words are things a phone can draw and a table can name.** (23 Sep
+2026: the owner met ترومبيت and didn't know it; طوقان, ساكسفون, إكسيليفون, هارب,
+يعسوب, بوق and رنة went with it - 682 words.) The
 owner was dealt خلد (17 Sep 2026). The Arabic list had grown to 900 with a
 bulk of animals, dishes, herbs and body parts (قضاعة, نيص, رتيلاء, بصارة,
 عرقسوس, شريان) that nobody can draw or would guess; it is 690 curated words
@@ -4786,6 +4788,15 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A room screen's signature must carry the deal.** ارسم وخمّن keyed its frame
+on the round, the drawer and the phase; going back to the hub and dealing the
+game again is round 1 with the same drawer, so the drawer's phone kept the last
+deal's frame - its word - while the server had dealt a new one (the owner, 23
+Sep 2026: "the same word again and again"). `renderRoomFrame` now puts the
+room's code, game and `shared.dealId` in front of every signature, the drawing
+screen keys on `roomDealKey`, and the TV's signature has the deal too. A screen
+that compares its own signature must do the same.
 
 **A sound bug that a refresh fixes is a stale audio context.** On iOS a
 context that was interrupted by another app (the camera, WhatsApp, the share

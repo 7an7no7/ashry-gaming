@@ -275,8 +275,15 @@ function renderImposterResult(el, state, t) {
  * Returns true when it rebuilt, for anything that should only fire on a change.
  */
 function renderRoomFrame(el, sig, build) {
-  if (el.dataset.sig === sig) return false;
-  el.dataset.sig = sig;
+  // The deal is part of every frame (the owner, 23 Sep 2026: back to the hub,
+  // ارسم وخمّن chosen again, and the same word "again and again"). A new deal of
+  // the same game starts at round 1 with the same player up, so a screen keyed
+  // on the round alone kept the last deal's frame - its word included - while
+  // the server had dealt a new one.
+  const st = typeof Room !== 'undefined' ? Room.state : null;
+  const full = (st ? [st.code, st.game || '', (st.shared && st.shared.dealId) || ''].join('~') + '~' : '') + sig;
+  if (el.dataset.sig === full) return false;
+  el.dataset.sig = full;
   el.innerHTML = build();
   return true;
 }

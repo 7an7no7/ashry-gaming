@@ -1172,7 +1172,7 @@ const DRIVERS = {
     play();
     must(T, T.host, 'backToHub');
     must(T, T.host, 'chooseGame', { game: 'minigolf' });
-    must(T, T.host, 'start', { mode: 'turns', holes: 9, clock: 20, guide: true });
+    must(T, T.host, 'start', { mode: 'turns', holes: 9, clock: 20, guide: true, level: 'hard' });
     play();
     return S(T).phase === 'gameover';
   },

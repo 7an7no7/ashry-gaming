@@ -14,12 +14,20 @@
 
    A seated phone sees its own board and its own secret face (state.you.face,
    from room.secrets - the other one's never reaches it), the last question
-   and its answer, and one bar of what to do: ask from the list, ask out
-   loud, guess, answer the other's out-loud question, or, after an out-loud
-   question (or a list one with the app's flipping off), put the faces down
-   by hand and end the turn. A face can be flipped by hand at any time. The
-   ones watching see both boards; the TV draws both boards and the question
-   between them.
+   and its answer, and one bar of what to do: ask from the list, type a
+   question, ask out loud, guess; answer the other's question (from the list
+   too, since 23 Sep 2026: the owner found the app answering for you "like
+   playing vs the computer"); or put the faces down by hand and end the
+   turn. A list answer that doesn't match your face is stopped on the phone
+   ("look again") before it is sent - the server checks it the same way. A
+   face can be flipped by hand at any time. The ones watching see both
+   boards; the TV draws both boards and the question between them.
+
+   The table moments (the owner, 23 Sep 2026): while the other decides, the
+   asker sees them thinking; the answer lands as a big أيوه / لأ bubble with
+   a sound on both phones, the watchers' and the TV; a guess is a
+   drum roll over "is it Karim?" before the verdict, and the secret faces
+   turn only after it (gwMoments).
 
    Motion: the faces a question rules out fall one after another (gwFall,
    newest first from what this phone last showed), the answer pops, the
@@ -35,7 +43,7 @@ const GW_BACK = ['#dff3ef', '#ece6fb', '#fde7ea', '#fdf0d5', '#e3ecfd', '#e3f5e6
 
 // panel: null | 'ask' | 'guess'; guess / pick: the face chosen before the confirm;
 // down: what each board last showed down, so a redraw knows which faces are newly down.
-const gwLocal = { panel: null, guess: null, pick: null, down: {}, turnKey: '', turnSince: 0, clock: null, clockKey: null };
+const gwLocal = { panel: null, guess: null, pick: null, down: {}, turnKey: '', turnSince: 0, clock: null, clockKey: null, typed: '', drama: null };
 
 const gwT = (key, vars) => {
   const t = TRANSLATIONS[appState.lang] || {};
@@ -163,12 +171,15 @@ function gwQaHtml(state, tv) {
     return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_skipped', { name: duelIso(names[last.seat] || '') }))}</span></div>`;
   }
   if (!q) return `<div class="gw-qa gw-qa--empty ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_first_q'))}</span></div>`;
+  if (q.kind === 'guess') return `<div class="gw-qa gw-qa--empty ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_first_q'))}</span></div>`;
   const asker = duelIso(names[q.seat] || '');
-  const text = q.kind === 'list' ? gwT('gw_asked_list', { name: asker, q: gwQText(q.qi) }) : gwT('gw_asked_loud', { name: asker });
+  const text = q.kind === 'list' ? gwT('gw_asked_list', { name: asker, q: gwQText(q.qi) })
+    : q.kind === 'typed' ? gwT('gw_asked_list', { name: asker, q: q.text || '' }) : gwT('gw_asked_loud', { name: asker });
   const answered = typeof q.answer === 'boolean';
   const pop = answered && motionFirst(['gw-qa', state.code, s.round, s.log.length, q.seat].join('|'));
+  const thinking = `<span class="gw-qa__a is-wait gw-think">💭 ${escapeHTML(gwT('gw_thinking', { name: duelIso(names[1 - q.seat] || '') }))}<span class="gw-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>`;
   const ans = answered
-    ? `<span class="gw-qa__a ${q.answer ? 'is-yes' : 'is-no'} ${pop ? 'is-in' : ''}">${escapeHTML(q.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>` : '<span class="gw-qa__a is-wait">…</span>';
+    ? `<span class="gw-qa__a ${q.answer ? 'is-yes' : 'is-no'} ${pop ? 'is-in' : ''}">${escapeHTML(q.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>` : thinking;
   const out = typeof q.out === 'number' ? `<span class="gw-qa__out">${escapeHTML(gwT('gw_out', { n: q.out }))}</span>` : '';
   return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(text)}</span>${ans}${out}</div>`;
 }
@@ -177,8 +188,8 @@ function gwQaHtml(state, tv) {
 function gwHistoryHtml(state) {
   const s = state.shared;
   const names = duelRoomNames(state);
-  const rows = (s.log || []).slice().reverse().filter(e => e.kind === 'list' || e.kind === 'loud').map(e => {
-    const q = e.kind === 'list' ? gwQText(e.qi) : '🗣️';
+  const rows = (s.log || []).slice().reverse().filter(e => e.kind === 'list' || e.kind === 'loud' || e.kind === 'typed').map(e => {
+    const q = e.kind === 'list' ? gwQText(e.qi) : e.kind === 'typed' ? '✍️ ' + (e.text || '') : '🗣️';
     return `<li><b>${escapeHTML(names[e.seat] || '')}</b> ${escapeHTML(q)} <span class="${e.answer ? 'tx-success' : 'tx-danger'}">${escapeHTML(e.answer ? gwT('gw_yes') : gwT('gw_no'))}</span></li>`;
   }).join('');
   if (!rows) return '';
@@ -219,7 +230,9 @@ function gwRevealHtml(state, tv) {
   const names = duelRoomNames(state);
   const rev = s.reveal || [];
   const turn = motionFirst(['gw-reveal', state.code, s.round].join('|'));
-  return `<div class="gw-reveal ${tv ? 'gw-reveal--tv' : ''} ${turn ? 'is-turning' : ''}" ${turn ? 'data-reveal-ms="900"' : ''}>
+  // After a guess the faces turn once the drum roll has had its moment.
+  const wait = turn && gwLocal.drama && gwLocal.drama.round === s.round ? Math.max(0, gwLocal.drama.until - Date.now()) : 0;
+  return `<div class="gw-reveal ${tv ? 'gw-reveal--tv' : ''} ${turn ? 'is-turning' : ''}" ${turn ? `data-reveal-ms="${900 + wait}" style="--gw-wait:${wait}ms"` : ''}>
       ${[0, 1].map(i => typeof rev[i] === 'number' && s.faces[rev[i]] ? `
         <div class="gw-reveal__one" style="--at:${i * 260}ms">
           <span class="gw-card gw-card--big">${gwCardInner(s.faces[rev[i]])}</span>
@@ -245,7 +258,7 @@ function gwStatus(state) {
     if (s.stage === 'flip') return gwT('gw_flip_title');
     return gwUp(s.faces, s.down[seat]).length === 1 ? gwT('gw_last_one') : gwT('gw_your_turn');
   }
-  if (s.stage === 'answer' && seat === 1 - s.turn && !state.youAreScreen) return gwT('gw_answer_title', { name: duelIso(names[s.turn] || '') });
+  if (s.stage === 'answer' && seat === 1 - s.turn && !state.youAreScreen) return gwT('gw_q_from', { name: duelIso(names[s.turn] || '') });
   return gwT('gw_turn_of', { name: duelIso(names[s.turn] || '') });
 }
 
@@ -265,16 +278,12 @@ function gwBarHtml(state, seat) {
   if (s.phase !== 'play') return '';
   const mine = s.turn === seat;
   if (!mine) {
-    if (s.stage === 'answer') {
-      return `<p class="gw-bar__say">${escapeHTML(gwT('gw_answer_now', { name: duelIso(names[s.turn] || '') }))}</p>
-        <div class="btn-row">
-          <button type="button" class="btn btn--success btn--lg" onclick="roomAct('answer', { yes: true, seq: ${seq} })">${escapeHTML(gwT('gw_yes'))}</button>
-          <button type="button" class="btn btn--danger btn--lg" onclick="roomAct('answer', { yes: false, seq: ${seq} })">${escapeHTML(gwT('gw_no'))}</button>
-        </div>`;
-    }
+    if (s.stage === 'answer') return gwAnswerCardHtml(state, seat);
     return `<p class="gw-bar__say gw-bar__say--quiet">${escapeHTML(gwT('gw_flip_any'))}</p>`;
   }
-  if (s.stage === 'answer') return `<p class="gw-bar__say">⏳ ${escapeHTML(gwT('gw_wait_answer', { name: duelIso(other) }))}</p>`;
+  if (s.stage === 'answer') {
+    return `<p class="gw-bar__say gw-think">💭 ${escapeHTML(gwT('gw_thinking', { name: duelIso(other) }))}<span class="gw-dots" aria-hidden="true"><i></i><i></i><i></i></span></p>`;
+  }
   if (s.stage === 'flip') {
     return `<p class="gw-bar__say">${escapeHTML(gwT('gw_flip_now'))}</p>
       <button type="button" class="btn btn--primary btn--lg" onclick="roomAct('done', { seq: ${seq} })">${escapeHTML(gwT('gw_done'))}</button>`;
@@ -285,6 +294,15 @@ function gwBarHtml(state, seat) {
       <div class="gw-qs">${GW_QUESTIONS.map((q, qi) => asked.indexOf(qi) !== -1
         ? `<button type="button" class="gw-q is-used" disabled>${escapeHTML(gwQText(qi))}</button>`
         : `<button type="button" class="gw-q" onclick="gwAsk(${qi})">${escapeHTML(gwQText(qi))}</button>`).join('')}</div>
+      <button type="button" class="btn btn--ghost btn--sm" onclick="gwPanel(null)">${escapeHTML(gwT('gw_back'))}</button>`;
+  }
+  if (gwLocal.panel === 'typed') {
+    return `<p class="gw-bar__say">${escapeHTML(gwT('gw_typed_title', { name: duelIso(other) }))}</p>
+      <form class="gw-typed" onsubmit="event.preventDefault(); gwSendTyped(this)">
+        <input class="input" name="q" maxlength="80" autocomplete="off" enterkeyhint="send" dir="auto"
+          placeholder="${escapeHTML(gwT('gw_typed_ph'))}" value="${escapeHTML(gwLocal.typed || '')}" oninput="gwLocal.typed = this.value">
+        <button type="submit" class="btn btn--primary">${escapeHTML(gwT('gw_typed_send'))}</button>
+      </form>
       <button type="button" class="btn btn--ghost btn--sm" onclick="gwPanel(null)">${escapeHTML(gwT('gw_back'))}</button>`;
   }
   if (gwLocal.panel === 'guess') {
@@ -299,11 +317,135 @@ function gwBarHtml(state, seat) {
       : `<p class="gw-bar__say">🎯 ${escapeHTML(gwT('gw_guess_pick'))}</p>
          <button type="button" class="btn btn--ghost btn--sm" onclick="gwPanel(null)">${escapeHTML(gwT('gw_back'))}</button>`;
   }
-  return `<div class="gw-bar__row">
+  return `<div class="gw-bar__row ${vsBot ? '' : 'gw-bar__row--four'}">
       <button type="button" class="btn btn--primary" onclick="gwPanel('ask')">${escapeHTML(gwT('gw_ask'))}</button>
-      ${vsBot ? '' : `<button type="button" class="btn btn--secondary" onclick="roomAct('loud', { seq: ${seq} })">${escapeHTML(gwT('gw_loud'))}</button>`}
+      ${vsBot ? '' : `<button type="button" class="btn btn--secondary" onclick="gwPanel('typed')">${escapeHTML(gwT('gw_typed'))}</button>
+      <button type="button" class="btn btn--secondary" onclick="roomAct('loud', { seq: ${seq} })">${escapeHTML(gwT('gw_loud'))}</button>`}
       <button type="button" class="btn btn--secondary" onclick="gwPanel('guess')">${escapeHTML(gwT('gw_guess'))}</button>
     </div>`;
+}
+
+/** The question put to this phone, big, beside its own secret face, with yes and no. */
+function gwAnswerCardHtml(state, seat) {
+  const s = state.shared;
+  const q = s.q || {};
+  const names = duelRoomNames(state);
+  const face = (state.you || {}).face;
+  const text = q.kind === 'list' ? gwQText(q.qi) : q.kind === 'typed' ? (q.text || '') : gwT('gw_loud_asked');
+  const card = typeof face === 'number' && s.faces[face] ? `<span class="gw-ask-me__face gw-mine__card">${gwCardInner(s.faces[face])}</span>` : '';
+  return `<div class="gw-ask-me ${motionFirst(['gw-askme', state.code, s.round, s.turnSeq].join('|')) ? 'is-in' : ''}">
+      ${card}
+      <div class="gw-ask-me__text">
+        <span class="eyebrow">${escapeHTML(gwT('gw_q_from', { name: duelIso(names[s.turn] || '') }))}</span>
+        <span class="gw-ask-me__q" dir="auto">${escapeHTML(text)}</span>
+        <span class="gw-ask-me__look" data-gw-look hidden>👀 ${escapeHTML(gwT('gw_look_again'))}</span>
+      </div>
+    </div>
+    <div class="btn-row gw-ask-me__btns">
+      <button type="button" class="btn btn--success btn--lg" onclick="gwSendAnswer(true)">${escapeHTML(gwT('gw_yes'))}</button>
+      <button type="button" class="btn btn--danger btn--lg" onclick="gwSendAnswer(false)">${escapeHTML(gwT('gw_no'))}</button>
+    </div>`;
+}
+
+/** Yes or no. A list answer that doesn't match this phone's face is stopped here: look again. */
+function gwSendAnswer(yes) {
+  const state = Room.state;
+  if (!state || state.game !== 'guesswho') return;
+  const s = state.shared;
+  const face = (state.you || {}).face;
+  if (s.q && s.q.kind === 'list' && typeof face === 'number' && gwAnswer(s.q.qi, s.faces[face]) !== yes) {
+    const look = document.querySelector('#view-room-guesswho [data-gw-look]');
+    if (look) look.hidden = false;
+    const card = document.querySelector('#view-room-guesswho .gw-ask-me');
+    if (card && !motionOff()) { card.classList.remove('animate-shake'); void card.offsetWidth; card.classList.add('animate-shake'); }
+    haptic('heavy');
+    return;
+  }
+  haptic('medium');
+  roomAct('answer', { yes: yes, seq: s.turnSeq });
+}
+
+function gwSendTyped(form) {
+  const s = (Room.state || {}).shared || {};
+  const input = form.querySelector('input[name="q"]');
+  const text = String(input ? input.value : '').replace(/\s+/g, ' ').trim();
+  if (!text) { if (input) input.focus(); return; }
+  gwLocal.typed = '';
+  gwLocal.panel = null;
+  haptic('light');
+  roomAct('typed', { text: text, seq: s.turnSeq });
+}
+
+/* --- the table's moments: the answer bubble and the guess's drum roll ------------- */
+
+function gwSound(kind) {
+  try {
+    if (typeof fxCtx !== 'function' || typeof fxTone !== 'function') return;
+    const at = fxCtx().currentTime + 0.01;
+    if (kind === 'yes') {
+      fxTone('triangle', [[0, 523]], [[0, 0], [0.01, 0.22], [0.14, 0.001]], at);
+      fxTone('triangle', [[0, 784]], [[0, 0], [0.01, 0.22], [0.2, 0.001]], at + 0.12);
+    } else if (kind === 'no') {
+      fxTone('triangle', [[0, 392], [0.2, 300]], [[0, 0], [0.01, 0.22], [0.22, 0.001]], at);
+      fxTone('triangle', [[0, 262], [0.2, 200]], [[0, 0], [0.01, 0.2], [0.26, 0.001]], at + 0.16);
+    } else if (kind === 'roll') {
+      // A snare roll that swells: short noise taps, closer and louder.
+      for (let i = 0; i < 26; i++) {
+        const t = at + i * 0.075 - i * i * 0.0006;
+        const v = 0.03 + i * 0.004;
+        fxNoise('bandpass', 1800, 0.9, [[0, 0], [0.004, v], [0.05, 0.001]], t);
+      }
+    } else if (kind === 'hit') {
+      fxTone('sine', [[0, 140], [0.3, 60]], [[0, 0], [0.008, 0.4], [0.35, 0.001]], at);
+      fxNoise('lowpass', 2400, 0.7, [[0, 0], [0.004, 0.16], [0.25, 0.001]], at);
+    }
+  } catch (e) {}
+}
+
+/** A layer over the screen for a moment: gone by itself, whatever happens underneath. */
+function gwOverlay(html, cls, ms) {
+  const el = document.createElement('div');
+  el.className = 'gw-over ' + (cls || '');
+  el.innerHTML = html;
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('is-out'), ms);
+  setTimeout(() => el.remove(), ms + 400);
+  return el;
+}
+
+/**
+ * The newest thing in the log, played once per phone: an answer pops as a
+ * big bubble; a guess gets the drum roll, then right or wrong. `loud`: this
+ * screen plays the sound (the TV when there is one, else the two playing).
+ */
+function gwMoments(state, loud) {
+  const s = state.shared || {};
+  const log = s.log || [];
+  const last = log[log.length - 1];
+  if (!last || s.phase === 'pick') return;
+  const key = ['gw-moment', state.code, s.round, log.length].join('|');
+  if (!duelOnce(key)) return;
+  const quiet = typeof motionOff === 'function' && motionOff();
+  const names = duelRoomNames(state);
+  if (last.kind === 'list' || last.kind === 'loud' || last.kind === 'typed') {
+    if (loud) gwSound(last.answer ? 'yes' : 'no');
+    if (quiet) return;
+    gwOverlay(`<span class="gw-bubble ${last.answer ? 'is-yes' : 'is-no'}">${escapeHTML(last.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>`, 'gw-over--bubble', 1100);
+    return;
+  }
+  if (last.kind === 'guess') {
+    const face = s.faces[last.face];
+    if (!face) return;
+    gwLocal.drama = { round: s.round, until: Date.now() + (quiet ? 0 : 2400) };
+    if (quiet) { if (loud) gwSound('hit'); return; }
+    if (loud) gwSound('roll');
+    const el = gwOverlay(`<div class="gw-drama">
+        <span class="gw-drama__who">${escapeHTML(gwT('gw_guess_is', { name: duelIso(names[last.seat] || ''), face: gwFaceName(face) }))}</span>
+        <span class="gw-card gw-card--big gw-drama__card">${gwCardInner(face)}</span>
+        <span class="gw-drama__verdict ${last.right ? 'is-right' : 'is-wrong'}">${escapeHTML(last.right ? gwT('gw_guess_right') : gwT('gw_guess_wrong'))}</span>
+      </div>`, 'gw-over--drama', 3300);
+    setTimeout(() => { el.classList.add('is-verdict'); if (loud) gwSound('hit'); }, 2200);
+  }
 }
 
 function gwRedraw() {
@@ -379,10 +521,16 @@ function gwTapFace(card) {
 
 /* --- the lobby: the host's choices, remembered on their phone ----------------- */
 
-const gwRoomOpts = () => recallOptions('guesswhoRoom', { size: 24, pick: 'random', autoFlip: true, wrong: 'lose', turnClock: 0 });
+// By hand is the default since 23 Sep 2026: a phone that remembered the old default (faces falling by
+// themselves) hadn't chosen it, so only a choice made on this switch since then (flipChosen) is kept.
+const gwRoomOpts = () => {
+  const o = recallOptions('guesswhoRoom', { size: 24, pick: 'random', autoFlip: false, wrong: 'lose', turnClock: 0 });
+  if (!o.flipChosen) o.autoFlip = false;
+  return o;
+};
 
 function setGwRoomOpt(key, value) {
-  rememberOptions('guesswhoRoom', { [key]: value });
+  rememberOptions('guesswhoRoom', key === 'autoFlip' ? { autoFlip: value, flipChosen: true } : { [key]: value });
   duelLobbyRedraw();
 }
 
@@ -470,7 +618,7 @@ ROOM_GAMES.guesswho = {
     return `<div class="card card--tight">
         ${gwLobbySeg(gwT('gw_lobby_size'), 'size', GW_SIZES.map(n => [n, String(n)]), o.size)}
         ${gwLobbySeg(gwT('gw_lobby_pick'), 'pick', [['random', gwT('gw_pick_random')], ['choose', gwT('gw_pick_choose')]], o.pick)}
-        ${gwLobbySeg(gwT('gw_lobby_flip'), 'autoFlip', [[true, gwT('gw_flip_auto')], [false, gwT('gw_flip_hand')]], o.autoFlip, gwT('gw_flip_hint'))}
+        ${gwLobbySeg(gwT('gw_lobby_flip'), 'autoFlip', [[false, gwT('gw_flip_hand')], [true, gwT('gw_flip_auto')]], o.autoFlip, gwT('gw_flip_hint'))}
         ${gwLobbySeg(gwT('gw_lobby_wrong'), 'wrong', [['lose', gwT('gw_wrong_lose')], ['turn', gwT('gw_wrong_turn')]], o.wrong)}
         ${gwLobbySeg('⏱️ ' + gwT('gw_lobby_clock'), 'turnClock', GW_CLOCKS.map(v => [v, v ? v + '″' : gwT('gw_clock_off')]), o.turnClock)}
         <p class="field__hint" style="text-align:center">${escapeHTML(gwT('gw_lobby_hint'))}</p>
@@ -495,6 +643,9 @@ ROOM_GAMES.guesswho = {
     const boardKey = (i) => [state.code, s.dealId, i].join('|');
     const t = TRANSLATIONS[appState.lang] || {};
     const sig = gwSig(state) + '#' + gwLocal.panel + '#' + gwLocal.guess + '#' + gwLocal.pick;
+    // The answer bubble and the guess's drum roll, before the frame: the reveal under it waits for the roll.
+    gwMoments(state, duelRoomLoud(state));
+    const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#view-room-guesswho .gw-typed');
     let falls = [];
     const rebuilt = renderRoomFrame(el, sig, () => {
       const clock = s.endsAt && s.phase === 'play' ? `<span class="badge badge--accent" data-gw-clock></span>` : '';
@@ -550,6 +701,11 @@ ROOM_GAMES.guesswho = {
         </div>`;
     });
     refreshRoomPlayerStrip(el, state);
+    // A question half typed keeps its place when the board is redrawn under it.
+    if (rebuilt && typing && gwLocal.panel === 'typed') {
+      const input = el.querySelector('.gw-typed input');
+      if (input) { input.focus(); try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} }
+    }
     const host = el.querySelector('[data-gw-host]');
     if (host) { const html = gwHostRow(state); if (host._html !== html) { host.innerHTML = html; host._html = html; } }
     gwTickClock(state);
@@ -577,6 +733,7 @@ ROOM_GAMES.guesswho = {
 
 onRoomClocksReset(() => {
   gwStopClock();
+  gwLocal.typed = '';
   gwLocal.panel = null;
   gwLocal.guess = null;
   gwLocal.pick = null;
@@ -589,6 +746,7 @@ TV_GAMES.guesswho = {
   frame(state, t) {
     const s = state.shared || {};
     if (!Array.isArray(s.faces)) return tvLookAtPhones(t);
+    gwMoments(state, true);
     const names = duelRoomNames(state);
     const key = (i) => ['tv', state.code, s.dealId, i].join('|');
     const f = [0, 1].map(i => (s.phase === 'play' ? gwNewlyDown(key(i), s.down[i]) : []));

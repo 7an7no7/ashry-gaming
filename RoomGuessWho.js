@@ -8,16 +8,28 @@
    The owner's rules (22 Sep 2026, asked one at a time): a room only, two
    play and everyone else watches on their phone or the TV, the winner stays
    on. Each player has a secret face on their own phone; a turn is one
-   question or one guess, never both. A question is picked from the list
-   (the server answers it truthfully and the whole room sees it) or asked
-   out loud, the other player tapping yes or no. After a list question the
-   faces it rules out fall by themselves - a lobby switch, on by default -
-   and after an out-loud one the asker flips them by hand, since the phone
-   never heard what was asked. A wrong guess loses the game (a switch: or
+   question or one guess, never both. A question is picked from the list,
+   asked out loud or typed; the other player taps yes or no.
+
+   The owner, 23 Sep 2026 ("it's like playing vs the computer"): a list
+   question is answered by the other player too, the question big on their
+   phone beside their secret face, and a wrong tap is refused - the phone
+   says look again, and the server checks the same (gwAnswer), so a slip
+   never spoils a game. Faces are put down by hand by default (the lobby
+   switch for letting them fall by themselves stays, off); an out-loud or a
+   typed question is always flipped by hand, the phone can't judge it. While
+   the other decides the asker sees them thinking, the answer is a big
+   bubble on both phones and the TV, and a guess has its drum roll before
+   both faces turn (the page's side).
+
+   A wrong guess loses the game (a switch: or
    only the turn, that face going down). The secret face is dealt at random
    (a switch: each picks their own). 16, 24 or 30 faces; a turn clock off,
    30 or 60 seconds, passing the turn; computer players easy and hard, who
-   ask from the list only (an out-loud question can't be put to one).
+   ask from the list only and answer it (an out-loud or typed question can't
+   be put to one). The clock starts again for whoever must act: the asker,
+   then the one answering; a list question the clock or the host's skip
+   catches unanswered is answered truthfully, an out-loud one is dropped.
 
    What is hidden: the two secret faces, in room._gw.secret (never
    projected); each seated phone gets its own in room.secrets[pid].face.
@@ -33,12 +45,14 @@
      turn      the seat up · stage  'ask' | 'answer' | 'flip'
      turnSeq   raised at every turn and stage; moves carry it as `seq`
      asked     [list questions seat 0 asked, seat 1's]
-     q         the last question { seat, kind: 'list' | 'loud', qi, answer, out }
+     q         the last question or guess { seat, kind: 'list' | 'loud' | 'typed' | 'guess',
+               qi, text, answer (null until answered), out, face, right }
      log       the last questions and guesses, newest last
      endsAt    the turn clock · reveal  [seat 0's face, seat 1's], once over
    ========================================================================= */
 const GW_GRACE_MS = 1500;       // the server's clock acts this long after the phones'
 const GW_LOG_MAX = 8;
+const GW_TYPED_MAX = 80;        // a typed question, in characters
 
 const gwSeatOf = (s, pid) => (s.seats || []).indexOf(pid);
 
@@ -50,7 +64,7 @@ const gwOptions = (payload, prev) => {
   return {
     size: gwSize(p.size !== undefined ? p.size : was.size),
     pick: pickOf(p.pick) || pickOf(was.pick) || 'random',
-    autoFlip: typeof p.autoFlip === 'boolean' ? p.autoFlip : (typeof was.autoFlip === 'boolean' ? was.autoFlip : true),
+    autoFlip: typeof p.autoFlip === 'boolean' ? p.autoFlip : (typeof was.autoFlip === 'boolean' ? was.autoFlip : false),
     wrong: wrongOf(p.wrong) || wrongOf(was.wrong) || 'lose',
     turnClock: GW_CLOCKS.indexOf(Number(p.turnClock)) !== -1 ? Number(p.turnClock)
       : (GW_CLOCKS.indexOf(Number(was.turnClock)) !== -1 ? Number(was.turnClock) : 0)
@@ -143,29 +157,60 @@ const gwFlipOut = (s, seat, qi, answer) => {
   return out.length;
 };
 
-/** A question from the list, answered by the server. */
+/** A question from the list: it waits for the other player's yes or no. */
 const gwAsk = (room, seat, qi) => {
   const s = room.shared;
   if (!GW_QUESTIONS[qi]) throw new Error('سؤال غير معروف');
   if (s.asked[seat].indexOf(qi) !== -1) throw new Error('سألت السؤال ده قبل كده');
-  const answer = gwAnswer(qi, s.faces[room._gw.secret[1 - seat]]);
   s.asked[seat] = s.asked[seat].concat([qi]);
-  const bot = isRoomBot(room, s.seats[seat]);
-  const auto = bot || !!s.settings.autoFlip;
-  const out = auto ? gwFlipOut(s, seat, qi, answer) : null;
-  s.q = { seat: seat, kind: 'list', qi: qi, answer: answer, out: out };
-  gwLog(s, { seat: seat, kind: 'list', qi: qi, answer: answer, out: out });
-  if (auto) { gwNextTurn(room); return; }
+  s.q = { seat: seat, kind: 'list', qi: qi, answer: null, out: null };
+  gwWaitAnswer(room);
+};
+
+/** The question is out: the other player is up, with the clock started again for them. */
+const gwWaitAnswer = (room) => {
+  const s = room.shared;
+  s.stage = 'answer';
+  s.turnSeq = (s.turnSeq || 0) + 1;
+  gwStartClock(room);
+};
+
+/**
+ * The answer to the question waiting. A list question's is checked against
+ * the answerer's own face: a wrong tap is refused. Out loud and typed, the
+ * phone can't know, so it is taken as given and flipped by hand.
+ */
+const gwTakeAnswer = (room, yes) => {
+  const s = room.shared;
+  const q = s.q;
+  const asker = q.seat;
+  if (q.kind === 'list') {
+    const truth = gwAnswer(q.qi, s.faces[room._gw.secret[1 - asker]]);
+    if (yes !== truth) throw new Error('بص تاني على وشك');
+    const auto = isRoomBot(room, s.seats[asker]) || !!s.settings.autoFlip;
+    const out = auto ? gwFlipOut(s, asker, q.qi, yes) : null;
+    s.q = Object.assign({}, q, { answer: yes, out: out });
+    gwLog(s, { seat: asker, kind: 'list', qi: q.qi, answer: yes, out: out });
+    if (auto) { gwNextTurn(room); return; }
+  } else {
+    s.q = Object.assign({}, q, { answer: yes });
+    gwLog(s, q.kind === 'typed' ? { seat: asker, kind: 'typed', text: q.text, answer: yes } : { seat: asker, kind: 'loud', answer: yes });
+  }
   // Flipped by hand: the asker puts the faces down, then ends the turn.
   s.stage = 'flip';
-  s.turnSeq++;
+  s.turnSeq = (s.turnSeq || 0) + 1;
+  gwStartClock(room);
 };
+
+/** A typed question, cleaned: one line, no control characters, at most GW_TYPED_MAX. */
+const gwCleanTyped = (text) => String(text || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, GW_TYPED_MAX);
 
 /** A guess at the other player's face. */
 const gwGuess = (room, seat, face) => {
   const s = room.shared;
   if (!(face >= 0 && face < s.faces.length)) throw new Error('وش غير معروف');
   const right = room._gw.secret[1 - seat] === face;
+  s.q = { seat: seat, kind: 'guess', face: face, right: right };
   gwLog(s, { seat: seat, kind: 'guess', face: face, right: right });
   if (right) { gwEnd(room, seat, 'guess'); return; }
   if (s.settings.wrong === 'lose') { gwEnd(room, 1 - seat, 'wrong'); return; }
@@ -186,7 +231,12 @@ const gwAuto = (room, why) => {
     return;
   }
   if (s.phase !== 'play') return;
-  if (s.stage === 'answer') s.q = null;      // the question was never answered: it doesn't count
+  // A list question left unanswered is answered truthfully; one out loud or typed can't be, and doesn't count.
+  if (s.stage === 'answer' && s.q && s.q.kind === 'list') {
+    gwTakeAnswer(room, gwAnswer(s.q.qi, s.faces[room._gw.secret[1 - s.q.seat]]));
+    return;
+  }
+  if (s.stage === 'answer') s.q = null;
   gwLog(s, { seat: s.turn, kind: 'skip', why: why });
   gwNextTurn(room);
 };
@@ -267,18 +317,14 @@ const guessWhoAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'answer') {
-    // The other player answers an out-loud question.
-    if (s.phase !== 'play' || s.stage !== 'answer' || staleTap(p, 'seq', s.turnSeq)) return;
+    // The other player answers the question waiting: from the list (checked), out loud or typed.
+    if (s.phase !== 'play' || s.stage !== 'answer' || !s.q || staleTap(p, 'seq', s.turnSeq)) return;
     if (seat === -1 || seat === s.turn) throw new Error('الإجابة على اللي اتسأل');
-    const answer = !!p.yes;
-    s.q = Object.assign({}, s.q, { answer: answer });
-    gwLog(s, { seat: s.turn, kind: 'loud', answer: answer });
-    s.stage = 'flip';
-    s.turnSeq++;
+    gwTakeAnswer(room, !!p.yes);
     return;
   }
 
-  if (action === 'ask' || action === 'loud' || action === 'guess' || action === 'done') {
+  if (action === 'ask' || action === 'loud' || action === 'typed' || action === 'guess' || action === 'done') {
     if (s.phase !== 'play' || staleTap(p, 'seq', s.turnSeq)) return;
     if (seat === -1) throw new Error('انت بتتفرج دلوقتي، استنى دورك في الطابور');
     if (seat !== s.turn) throw new Error('مش دورك');
@@ -290,11 +336,16 @@ const guessWhoAction = (room, playerId, action, payload) => {
     if (s.stage !== 'ask') return;
     if (action === 'ask') { gwAsk(room, seat, Number(p.q)); return; }
     if (action === 'guess') { gwGuess(room, seat, Number(p.face)); return; }
-    // Out loud: the other player answers on their phone. A computer player can't hear one.
+    // Out loud or typed: the other player answers on their phone. A computer player can't hear or read one.
     if (isRoomBot(room, s.seats[1 - seat])) throw new Error('الكمبيوتر مش بيسمع: اسأل من القائمة');
-    s.q = { seat: seat, kind: 'loud', qi: null, answer: null, out: null };
-    s.stage = 'answer';
-    s.turnSeq++;
+    if (action === 'typed') {
+      const text = gwCleanTyped(p.text);
+      if (!text) throw new Error('اكتب السؤال');
+      s.q = { seat: seat, kind: 'typed', text: text, answer: null, out: null };
+    } else {
+      s.q = { seat: seat, kind: 'loud', qi: null, answer: null, out: null };
+    }
+    gwWaitAnswer(room);
     return;
   }
 
@@ -348,6 +399,10 @@ ROOM_BOT_GAMES.guesswho = {
     if (s.phase === 'play' && s.stage === 'ask' && isRoomBot(room, s.seats[s.turn])) {
       return { pid: s.seats[s.turn], key: s.turnSeq, delay: 1400 + Math.floor(Math.random() * 900) };
     }
+    // A computer player answers a list question put to it, after a moment's thought.
+    if (s.phase === 'play' && s.stage === 'answer' && s.q && s.q.kind === 'list' && isRoomBot(room, s.seats[1 - s.turn])) {
+      return { pid: s.seats[1 - s.turn], key: 'ans|' + s.turnSeq, delay: 1100 + Math.floor(Math.random() * 900) };
+    }
     return null;
   },
   decide: (room, pid) => {
@@ -355,6 +410,9 @@ ROOM_BOT_GAMES.guesswho = {
     const seat = gwSeatOf(s, pid);
     if (seat === -1) return null;
     if (s.phase === 'pick') return { action: 'pick', payload: { face: Math.floor(Math.random() * s.faces.length) } };
+    if (s.phase === 'play' && s.stage === 'answer' && s.q && s.q.kind === 'list' && seat === 1 - s.turn) {
+      return { action: 'answer', payload: { yes: gwAnswer(s.q.qi, s.faces[room._gw.secret[seat]]), seq: s.turnSeq } };
+    }
     if (s.phase !== 'play' || s.turn !== seat || s.stage !== 'ask') return null;
     const level = roomBotLevel(room, pid);
     const up = gwUp(s.faces, s.down[seat]);
@@ -370,6 +428,9 @@ ROOM_BOT_GAMES.guesswho = {
     const seat = gwSeatOf(s, pid);
     if (seat === -1) return null;
     if (s.phase === 'pick') return { action: 'pick', payload: { face: 0 } };
+    if (s.phase === 'play' && s.stage === 'answer' && s.q && s.q.kind === 'list' && seat === 1 - s.turn) {
+      return { action: 'answer', payload: { yes: gwAnswer(s.q.qi, s.faces[room._gw.secret[seat]]), seq: s.turnSeq } };
+    }
     if (s.phase !== 'play' || s.turn !== seat || s.stage !== 'ask') return null;
     const up = gwUp(s.faces, s.down[seat]);
     return { action: 'guess', payload: { face: up.length ? up[0] : 0, seq: s.turnSeq } };

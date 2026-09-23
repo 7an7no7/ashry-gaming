@@ -1,0 +1,49 @@
+<script>
+/* ============================================================================
+   three.js, loaded when a 3D game opens (بولينج, ميني جولف)
+   ----------------------------------------------------------------------------
+   The owner asked for real graphics in the sports games (23 Sep 2026: the flat
+   drawings looked "like a pixeled game from the 80s"), so they are drawn with
+   three.js. It is 160 KB over the wire, so it is not on the page: the first
+   3D screen asks for it (loadThree), pinned to one file with its SRI hash and
+   loaded from jsDelivr like the confetti and the QR (see Traps: pin the file
+   the package ships, never a minified-on-request one). The service worker
+   keeps it after the first time (jsDelivr is one of its pinned hosts), so a
+   game that has been opened once plays offline too.
+
+   r158 is the last release that ships a classic script (build/three.min.js,
+   a UMD build that defines window.THREE); later ones are ES modules only.
+   It logs one deprecation warning when it loads - a warning, not an error.
+   ========================================================================= */
+const THREE_SRC = 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js';
+const THREE_SRI = 'sha384-5UGTcMIxVUKFeJH0zOS3lqMAZNBG+fCXJbi3UglUq6ABO4MQJu6rxNa+MPP+qtwq';
+let threePromise = null;
+
+/** window.THREE, once it has loaded: a promise, shared by everyone who asks. Rejects when it can't load. */
+function loadThree() {
+  if (window.THREE) return Promise.resolve(window.THREE);
+  if (threePromise) return threePromise;
+  threePromise = new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = THREE_SRC;
+    el.integrity = THREE_SRI;
+    el.crossOrigin = 'anonymous';
+    el.async = true;
+    el.onload = () => (window.THREE ? resolve(window.THREE) : reject(new Error('three')));
+    el.onerror = () => { threePromise = null; el.remove(); reject(new Error('three')); };
+    document.head.appendChild(el);
+  });
+  return threePromise;
+}
+
+/** Can this device draw WebGL at all? Asked once, before a 3D game is offered a canvas. */
+let threeWebglOk = null;
+function threeCanDraw() {
+  if (threeWebglOk !== null) return threeWebglOk;
+  try {
+    const c = document.createElement('canvas');
+    threeWebglOk = !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
+  } catch (e) { threeWebglOk = false; }
+  return threeWebglOk;
+}
+</script>

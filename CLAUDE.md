@@ -5,10 +5,10 @@ Arabic-first (RTL, ar/en) party-games web app for phones.
 - **App:** static site in `docs/`, built from the root `*.html` / `*.js` sources
   by `tools/build-site.mjs`, published by GitHub Pages (`master` → `/docs`):
   https://7an7no7.github.io/ashry-gaming/ - and the same build on Cloudflare,
-  https://ashry-app.rooms-worker.workers.dev (`site-worker/`, the fast second
+  https://play.3ashry.workers.dev (`site-worker/`, the fast second
   address for when GitHub Pages is slow)
 - **Rooms** (playing on separate phones): `rooms-worker/`, Cloudflare Workers +
-  Durable Objects over WebSockets: https://ashry-rooms.rooms-worker.workers.dev
+  Durable Objects over WebSockets: https://ashry-rooms.3ashry.workers.dev
 - **The old Apps Script version** is a frozen copy in `C:\Users\TPC\Apps Script\G`
   (git tag `apps-script-v177`). All new work happens here; don't change that folder.
 
@@ -65,7 +65,7 @@ The full guide is GEMINI.md — read it before changing anything:
 7. If step 4 applied: `cd rooms-worker && npm run deploy`, wait about a minute
    (a deploy restarts every room), then `npm run test:live`. Always:
    `cd tools && npm run deploy:site` - the app's second address on Cloudflare
-   (https://ashry-app.rooms-worker.workers.dev), the same `docs/`; it restarts
+   (https://play.3ashry.workers.dev), the same `docs/`; it restarts
    nothing.
 8. Update GEMINI.md if how something works changed. Commit everything, `docs/`
    included, and push to `master`.

@@ -24,7 +24,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const config = JSON.parse(await readFile(path.join(here, 'site.config.json'), 'utf8'));
 const SITE = 'https://7an7no7.github.io/ashry-gaming/';
-const ROOMS = String(config.roomsUrl || 'https://ashry-rooms.rooms-worker.workers.dev').replace(/\/$/, '');
+const ROOMS = String(config.roomsUrl || 'https://ashry-rooms.3ashry.workers.dev').replace(/\/$/, '');
 const WAIT_MS = 4 * 60 * 1000;
 // The second address: the same build, served by Cloudflare (site-worker/, npm run deploy:site).
 const BACKUP = String(config.backupUrl || '').replace(/\/?$/, '/');

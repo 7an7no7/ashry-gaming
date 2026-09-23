@@ -5,7 +5,7 @@
  * the prompt memory shared between rooms.
  *
  *   node test/play-all.mjs                         # local: npx wrangler dev
- *   node test/play-all.mjs https://ashry-rooms.rooms-worker.workers.dev
+ *   node test/play-all.mjs https://ashry-rooms.3ashry.workers.dev
  *
  * Needs Node 22+ (built-in fetch and WebSocket). Takes about half a minute,
  * most of it waiting for a trivia question to time out on the server.

@@ -4,7 +4,7 @@ Multiplayer rooms for Ashry Gaming, on Cloudflare Workers + Durable Objects
 (free plan). Every phone keeps a WebSocket open to its room, so a move reaches
 the other phones in well under a tenth of a second, from any network.
 
-- Live: https://ashry-rooms.rooms-worker.workers.dev
+- Live: https://ashry-rooms.3ashry.workers.dev
   (`/test` is a connection test page; `/` serves a copy of the app from `../docs`)
 - The app finds it through `roomsUrl` in `../tools/site.config.json`.
 

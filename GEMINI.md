@@ -4,7 +4,7 @@
 **Ashry Gaming** is a party-games web app for phones: a hub of social games and utility tools with a responsive UI in Arabic and English, and dark mode. It began as a Google Apps Script web app; it is now a static site on GitHub Pages, with multiplayer rooms on Cloudflare.
 
 - **App:** https://7an7no7.github.io/ashry-gaming/ (GitHub Pages, `master` → `/docs`)
-- **Rooms server:** https://ashry-rooms.rooms-worker.workers.dev (`rooms-worker/`)
+- **Rooms server:** https://ashry-rooms.3ashry.workers.dev (`rooms-worker/`)
 - **The old Apps Script version** is a frozen copy in `C:\Users\TPC\Apps Script\G`
   (git tag `apps-script-v177`). Its `/exec` link still works, with its own rooms; nothing
   changed here reaches it.
@@ -2114,9 +2114,17 @@ the word search), `countUp` for streaks and scores.
   نسخة», «⬇️ … بتتنزّل» (a tap opens it when it arrives), «✨ … اضغط للتحديث»
   (already on the phone) or «📴 مش متصل» (`paintAppVersion`, `appVersionTap`).
   The time is the build's, in the phone's own time zone.
-  Then the second address on Cloudflare, https://ashry-app.rooms-worker.workers.dev
+  Then the second address on Cloudflare, https://play.3ashry.workers.dev
   (*The static site*): the same build, 1.3 s for the page where GitHub took
   24-84 s that day; every release publishes both.
+- **24 Sep 2026, the addresses renamed** - the owner chose the Cloudflare
+  account name **3ashry** («عشري» typed the Egyptian way; "ashry" was taken):
+  the app's second address is now https://play.3ashry.workers.dev (the
+  `site-worker/` Worker renamed `play`) and the rooms server
+  https://ashry-rooms.3ashry.workers.dev (its Worker's own name kept, so its
+  Durable Objects and the prompt memory stay). A Worker moves with the account
+  name by itself; the old `*.rooms-worker.workers.dev` addresses stopped at once,
+  so the page was released to both hosts straight after the rename.
 
 ## Building and Running
 
@@ -3732,7 +3740,7 @@ Anything the rooms server runs (`RoomGames.js`, the lists in `FILES` in
 `rooms-worker/build.mjs`, `rooms-worker/src/`): also `npm run deploy`
 in `rooms-worker/`, or rooms keep the old rules. `docs/README.md` has the steps.
 
-**The app's second address: https://ashry-app.rooms-worker.workers.dev** (the
+**The app's second address: https://play.3ashry.workers.dev** (the
 owner's decision of 23 Sep 2026, after GitHub Pages sent the page at 20-80 KB/s).
 `site-worker/wrangler.toml` is a Cloudflare Worker with no code, only static
 files - `docs/` - so it is free and unlimited (requests to static files cost

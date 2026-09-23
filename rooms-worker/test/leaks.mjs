@@ -1113,7 +1113,7 @@ const DRIVERS = {
 const TOUR_DRIVERS = {
   'tour:guesswho'() {
     const T = table('tour:guesswho', 6, { tourOf: 'guesswho' });
-    must(T, T.host, 'start', { mode: 'tour', pick: 'choose', size: 16 });
+    must(T, T.host, 'start', { tournament: true, pick: 'choose', size: 16 });
     for (let guard = 0; guard < 3000 && S(T).tour.phase === 'play'; guard++) {
       const s = S(T);
       const live = s.tour.matches.filter((m) => m.state === 'play');
@@ -1133,7 +1133,7 @@ const TOUR_DRIVERS = {
   },
   'tour:battleship'() {
     const T = table('tour:battleship', 5, { tourOf: 'battleship' });
-    must(T, T.host, 'start', { mode: 'tour', turnClock: 15 });
+    must(T, T.host, 'start', { tournament: true, turnClock: 15 });
     for (let guard = 0; guard < 6000 && S(T).tour.phase === 'play'; guard++) {
       const s = S(T);
       const live = s.tour.matches.filter((m) => m.state === 'play');
@@ -1154,7 +1154,7 @@ const TOUR_DRIVERS = {
   },
   'tour:connect4'() {
     const T = table('tour:connect4', 5, { tourOf: 'connect4' });
-    must(T, T.host, 'start', { mode: 'tour', mode4: 4 });
+    must(T, T.host, 'start', { tournament: true, mode: 4 });
     for (let guard = 0; guard < 3000 && S(T).tour.phase === 'play'; guard++) {
       const s = S(T);
       const live = s.tour.matches.filter((m) => m.state === 'play');

@@ -5254,16 +5254,17 @@ Date.now = duelTestClock;
   {
     const three = newRoom(['a', 'b', 'c']);
     applyRoomAction(three, 'a', 'chooseGame', { game: 'connect4' });
-    check(refused(() => applyRoomAction(three, 'a', 'start', { mode: 'tour' })) && three.phase === 'lobby', 'tournament: the server refuses one with fewer than four people');
+    check(refused(() => applyRoomAction(three, 'a', 'start', { tournament: true })) && three.phase === 'lobby', 'tournament: the server refuses one with fewer than four people');
     const gw = newRoom(['a', 'b', 'c']);
     applyRoomAction(gw, 'a', 'chooseGame', { game: 'guesswho' });
     applyRoomAction(gw, 'a', 'addBot', { level: 'easy', name: 'Robo' });
-    check(refused(() => applyRoomAction(gw, 'a', 'start', { mode: 'tour' })), 'tournament: computer players don\'t count toward the four');
+    check(refused(() => applyRoomAction(gw, 'a', 'start', { tournament: true })), 'tournament: computer players don\'t count toward the four');
     const four = newRoom(people(4));
     applyRoomAction(four, 'a', 'chooseGame', { game: 'connect4' });
-    check(refused(() => applyRoomAction(four, 'b', 'start', { mode: 'tour' })), 'tournament: only the host starts one');
-    applyRoomAction(four, 'a', 'start', { mode: 'tour', mode4: 1 });
-    check(four.shared.mode === 'tour' && four.shared.tour.size === 4 && four.shared.tour.rounds === 2 && four.phase === 'play', 'tournament: four people make a bracket of four, two rounds');
+    check(refused(() => applyRoomAction(four, 'b', 'start', { tournament: true })), 'tournament: only the host starts one');
+    applyRoomAction(four, 'a', 'start', { tournament: true, mode: 5 });
+    check(!!four.shared.tour && four.shared.tour.size === 4 && four.shared.tour.rounds === 2 && four.phase === 'play' && four.shared.settings.mode === 5,
+      'tournament: four people make a bracket of four, two rounds, with the lobby choices for every match');
   }
 
   // Brackets from 4 to 12: the byes of a seeded draw, everyone plays until out, one champion.
@@ -5271,7 +5272,7 @@ Date.now = duelTestClock;
     let byesRight = true, playedOut = true, oneChamp = true, points = true, simultaneous = true, noLeak = true;
     for (let n = 4; n <= 12; n++) {
       for (const game of ['connect4', 'dots', 'xo']) {
-        const r = room(game, people(n), { mode: 'tour', size: 4 });
+        const r = room(game, people(n), { tournament: true, size: 4 });
         const t = r.shared.tour;
         let size = 2; while (size < n) size *= 2;
         const r1 = t.matches.filter((m) => m.r === 1);
@@ -5323,7 +5324,7 @@ Date.now = duelTestClock;
 
   // A draw is replayed with the other player starting, until someone wins.
   {
-    const r = room('xo', people(4), { mode: 'tour', three: false });
+    const r = room('xo', people(4), { tournament: true, three: false });
     toClock(r);
     const m = r.shared.tour.matches.find((x) => x.state === 'play');
     const g0 = r.shared.games[m.id];
@@ -5349,7 +5350,7 @@ Date.now = duelTestClock;
   // Leaving: a match being played, one about to start, a bye, and both players of one match.
   {
     const leave = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id); };
-    const r = room('connect4', people(5), { mode: 'tour' });
+    const r = room('connect4', people(5), { tournament: true });
     const t = r.shared.tour;
     const ready = t.matches.find((m) => m.r === 1 && m.state === 'ready');
     const byeMatch = t.matches.find((m) => m.r === 1 && (m.out[0] || m.out[1]));
@@ -5370,7 +5371,7 @@ Date.now = duelTestClock;
         'tournament: leaving mid-game loses the match by forfeit');
     }
     // Both players of a match leave: the first hands it to the other, who is then gone from the final.
-    const r2 = room('connect4', people(4), { mode: 'tour' });
+    const r2 = room('connect4', people(4), { tournament: true });
     const t2 = r2.shared.tour;
     const [m1, m2] = t2.matches.filter((m) => m.r === 1);
     const [x1, y1] = m1.p;
@@ -5390,7 +5391,7 @@ Date.now = duelTestClock;
     check(t2.phase === 'over' && t2.champion === m2.winner && fin.reason === 'left',
       'tournament: the other semi\'s winner walks over the final and is champion');
     // Nobody left on one side of a final: an empty slot, and the other side goes through.
-    const r3 = room('connect4', people(4), { mode: 'tour' });
+    const r3 = room('connect4', people(4), { tournament: true });
     const t3 = r3.shared.tour;
     const fin3 = t3.matches.find((m) => !m.next);
     const [s1, s2] = t3.matches.filter((m) => m.r === 1);
@@ -5406,7 +5407,7 @@ Date.now = duelTestClock;
 
   // Guess who and battleship: each match's secrets stay with that match's two phones.
   {
-    const r = room('guesswho', people(6), { mode: 'tour', size: 16 });
+    const r = room('guesswho', people(6), { tournament: true, size: 16 });
     toClock(r);
     const t = r.shared.tour;
     const live = t.matches.filter((m) => m.state === 'play');
@@ -5432,14 +5433,14 @@ Date.now = duelTestClock;
       } catch (e) {}
     }
     check(t.phase === 'over' && !!t.champion, 'tournament (guess who): six players play to a champion');
-    const b = room('battleship', people(5), { mode: 'tour', turnClock: 15 });
+    const b = room('battleship', people(5), { tournament: true, turnClock: 15 });
     for (let guard = 0; guard < 6000 && b.shared.tour.phase === 'play'; guard++) toClock(b);
     check(b.shared.tour.phase === 'over' && !!b.shared.tour.champion, 'tournament (battleship): five players, every shot the clock\'s, to a champion');
   }
 
   // After the end: the host deals a new tournament (points kept) or goes back to winner stays (banked).
   {
-    const r = room('connect4', people(4), { mode: 'tour' });
+    const r = room('connect4', people(4), { tournament: true });
     const t = r.shared.tour;
     for (let guard = 0; guard < 3000 && t.phase === 'play'; guard++) {
       const m = t.matches.find((x) => x.state === 'play');

@@ -39,7 +39,7 @@
    action function calls tourAction(room, pid, action, payload, game) first, and
    the client's side is one line in TOUR_CLIENT (JS_RoomTournament.html).
 
-   shared (mode 'tour'):
+   The lobby's start carries `tournament: true`; shared, once it has begun:
      round     the tournament's number (tourNew carries it)
      settings  the lobby's choices, the same for every match
      tour      { no, size, rounds, entrants, names, phase: 'play' | 'over',
@@ -317,7 +317,6 @@ const tourStart = (room, playerId, payload, game) => {
     champion: null, runnerUp: null, semis: []
   };
   room.shared = {
-    mode: 'tour',
     round: t.no,
     settings: kind.options(payload, prev.tour ? prev.settings : null),
     tour: t,
@@ -373,7 +372,8 @@ const tourAction = (room, playerId, action, payload, game) => {
   if (!kind) return false;
   const p = payload || {};
   const s = room.shared || {};
-  if (action === 'start' && p.mode === 'tour') { tourStart(room, playerId, p, game); return true; }
+  // `tournament`, not `mode`: كونكت ٤'s own lobby choice is already called mode (4 or 5 in a row).
+  if (action === 'start' && p.tournament === true) { tourStart(room, playerId, p, game); return true; }
   if (action === 'tourNew') { tourNew(room, playerId, p, game); return true; }
   if (!s.tour) return false;
   const t = s.tour;

@@ -299,14 +299,16 @@ function tourMeHtml(state) {
   }
   if (mine.state === 'wait') {
     const f = tourPendingFeeder(tr, mine);
+    // Through on a bye, or on a win.
+    const bye = tr.matches.some(x => x.next === mine.id && x.winner === Room.me && x.reason === 'bye');
     if (f && f.p[0] && f.p[1]) {
       return `<div class="tour-me tour-me--wait">
           <span class="tour-me__round">${escapeHTML(tourRoundName(tr, mine.r))}</span>
-          <span class="tour-me__line">⏳ ${escapeHTML(tourT('tour_you_wait', { a: '⁨' + tourName(state, f.p[0]) + '⁩', b: '⁨' + tourName(state, f.p[1]) + '⁩' }))}</span>
+          <span class="tour-me__line">⏳ ${escapeHTML(tourT(bye ? 'tour_bye_wait' : 'tour_you_wait', { a: '⁨' + tourName(state, f.p[0]) + '⁩', b: '⁨' + tourName(state, f.p[1]) + '⁩' }))}</span>
           ${s.games[f.id] ? `<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="tourShow('${f.id}')">👀 ${escapeHTML(tourT('tour_watch'))}</button>` : ''}
         </div>`;
     }
-    return `<div class="tour-me tour-me--wait">⏳ ${escapeHTML(tourT('tour_you_wait_one'))}</div>`;
+    return `<div class="tour-me tour-me--wait">⏳ ${escapeHTML(tourT(bye ? 'tour_bye_wait_one' : 'tour_you_wait_one'))}</div>`;
   }
   if (mine.loser === Room.me || tr.gone[Room.me]) return `<div class="tour-me tour-me--out">🙌 ${escapeHTML(tourT('tour_you_out'))}</div>`;
   return '';
@@ -368,7 +370,7 @@ function tourStageLine(tr) {
   const live = tr.matches.filter(m => m.state === 'play' || m.state === 'ready');
   const rounds = [...new Set(live.map(m => m.r))];
   if (rounds.length === 1) return tourRoundName(tr, rounds[0]);
-  return tourT('tour_matches_on', { n: tr.matches.filter(m => m.state === 'play').length });
+  return tourT('tour_matches_on', { n: live.length });
 }
 
 /** The bracket screen on a phone: where you stand, what is being played, the bracket, and at the end the podium. */
@@ -578,7 +580,12 @@ function tourAfterPaint(root, state) {
 function tourSig(state, focus) {
   const s = state.shared;
   const tr = s.tour;
-  return ['tour', state.code, tr.no, tr.phase, focus || '', tourLocal.view || '', tr.featured || '',
+  // The TV's live cards show each board: every move of a match being played redraws it there.
+  const live = focus === 'tv' ? tr.matches.filter(m => m.state === 'play' && s.games[m.id]).map(m => {
+    const g = s.games[m.id];
+    return [m.id, g.phase, g.moves, g.turn, g.turnSeq, g.shots].join(':');
+  }).join(',') : '';
+  return ['tour', state.code, tr.no, tr.phase, focus || '', tourLocal.view || '', tr.featured || '', live,
     JSON.stringify(tr.matches.map(m => [m.state, m.p, m.winner, m.games, m.draws, m.startAt])),
     JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name + (p.online ? 1 : 0)).join(','),
     state.youAreHost, appState.lang].join('|');
@@ -642,7 +649,8 @@ function tourTvFrame(state, t) {
   const soon = tour.matches.filter(m => m.state === 'ready' && !m.games);
   let side;
   if (tour.phase === 'over') {
-    side = `${tourOverHtml(state, true)}<div class="tv-scale">${renderScoreboard(s.board, tourT('tour_points'))}</div>`;
+    // The points are on the TV's strip of players already (tvStrip reads the board).
+    side = tourOverHtml(state, true);
   } else {
     side = `<div class="tv-title tour-tv__stage">${escapeHTML(tourStageLine(tour))}</div>
       ${live.length ? `<div class="tour-tv__live">${live.map(m => tourLiveCardHtml(state, m)).join('')}</div>` : ''}
@@ -708,7 +716,7 @@ function tourWrap(id) {
     const p = Object.assign({}, orig.startPayload ? orig.startPayload() : {});
     const st = Room.state;
     const people = st ? (st.players || []).filter(x => !x.bot).length : 0;
-    if (tourModeOf(id) === 'tour' && people >= TOUR_MIN_PEOPLE) p.mode = 'tour';
+    if (tourModeOf(id) === 'tour' && people >= TOUR_MIN_PEOPLE) p.tournament = true;
     return p;
   };
   if (!tv) return;

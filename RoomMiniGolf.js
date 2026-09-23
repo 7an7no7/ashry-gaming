@@ -5,13 +5,22 @@
    holes and the physics are MiniGolf.js, shared with the page.
 
    The owner's rules for a room (23 Sep 2026, asked one at a time):
-   - 3, 6 or 9 holes, 6 by default; the first holes of the course, in order.
+   - 3, 6, 9 or 18 holes, 6 by default; the first holes of the course, in order.
    - Two ways to play, the host's choice: all at once (the default) - every
      ball on the same hole together, each player putting from their own phone
      whenever they are ready, the balls passing through each other - or in
      turns, one putt at a time round the table while everyone watches.
-   - 6 strokes, then the ball is picked up and the hole counts 7. Water puts
-     the ball back where it was hit from, a stroke added.
+   - Par + 3 strokes at most (golfMaxOf: par 3 allows 6), then the ball is
+     picked up and the hole counts one more (the owner, 23 Sep 2026).
+   - In turns, balls hit each other (the owner, 23 Sep 2026): a putt meets
+     every ball lying on the course - a ball is on it once it has been hit
+     from the tee, until it drops - and a ball it knocks rolls on with it.
+     All at once, the balls still pass through each other.
+   - Water puts the ball back where it lay, a stroke added; if another ball
+     lies on that spot now, back to the tee. A ball knocked into the water by
+     someone else goes back to its own spot with no stroke added (the tee if
+     that spot is taken), and one knocked into the cup is holed with its
+     strokes so far.
    - A hole moves on once every ball is in the cup or picked up.
    - The aim guide (the path a putt would take) is the host's switch, off by
      default; the short arrow while pulling is always there, it is the control.
@@ -35,14 +44,15 @@
      startedAt the server's clock when this hole started · stamp  when shared last changed
      order     who plays, in turn order for this hole
      balls     { pid: { at, n (strokes counted), done: '' | 'cup' | 'picked', restAt, clockAt } }
-     shots     { pid: the last putt: { seq, n, from, dx, dy, power, t0, end, at, add, dur, auto, wet } }
+     shots     { pid: the last putt: { seq, n, from, dx, dy, power, t0, end, at, add, dur, auto, wet,
+                others (in turns: the balls it could hit, [{ id, at }] before it), moved ([{ id, end, at, wet }]) } }
      shotSeq   putts so far this game · turn  whose putt it is (turns)
      card      { pid: [strokes of each hole, null until done] }
      board     [{ id, name, score }] lowest total first · scores  { pid: total }
      nextAt    when 'between' moves on · result  { winners, par }
      wins      games won this evening, kept by play again
    ========================================================================= */
-const MG_HOLE_COUNTS = [3, 6, 9];
+const MG_HOLE_COUNTS = [3, 6, 9, 18];
 const MG_CLOCKS = [0, 20, 40];
 const MG_T0_SLACK = 1500;       // a phone's hole clock may be this far from the server's
 const MG_INTRO_MS = 2500;       // the hole's name card, before its first clock starts
@@ -180,6 +190,19 @@ const mgNextTurn = (room, from) => {
   return null;
 };
 
+/**
+ * The balls a putt by `pid` can hit: in turns, every ball lying on the course
+ * - hit from the tee at least once, and not yet in or picked up - in the
+ * table's order (every phone lists them the same way). All at once, none.
+ */
+const mgOthers = (s, pid) => {
+  if (s.settings.mode !== 'turns') return null;
+  return s.order.filter(id => {
+    const b = s.balls[id];
+    return id !== pid && b && !b.done && b.n > 0;
+  }).map(id => ({ id: id, at: s.balls[id].at.slice() }));
+};
+
 /** One putt for `pid`: the server's result on the table for every phone to replay. */
 const mgPutt = (room, pid, raw, auto) => {
   const s = room.shared;
@@ -189,8 +212,10 @@ const mgPutt = (room, pid, raw, auto) => {
   const own = Math.max(0, now - s.startedAt);
   const t0 = !auto && Math.abs((Number(raw.t0) || 0) - own) <= MG_T0_SLACK ? Math.max(0, Math.round(Number(raw.t0) || 0)) : own;
   const shot = golfCleanShot({ dx: raw.dx, dy: raw.dy, power: raw.power, t0: t0 });
-  const r = golfPutt(h, b.at, shot);
-  const dur = Math.round(r.t * 1000) + (r.end === 'water' ? MG_SPLASH_MS : 0);
+  const others = mgOthers(s, pid);
+  const r = others ? golfPutt(h, b.at, shot, others) : golfPutt(h, b.at, shot);
+  const wetAny = r.end === 'water' || (r.moved || []).some(m => m.end === 'water');
+  const dur = Math.round(r.t * 1000) + (wetAny ? MG_SPLASH_MS : 0);
   s.shotSeq = (s.shotSeq || 0) + 1;
   s.shots[pid] = {
     seq: s.shotSeq, n: b.n + r.strokes, from: b.at.slice(),
@@ -198,12 +223,26 @@ const mgPutt = (room, pid, raw, auto) => {
     end: r.end, at: r.at.slice(), add: r.strokes, dur: dur, auto: !!auto,
     wet: r.wet || null
   };
+  if (others) { s.shots[pid].others = others; s.shots[pid].moved = r.moved; }
+  const max = golfMaxOf(h);
   b.n += r.strokes;
   b.at = r.at.slice();
   b.restAt = now + dur;
   if (r.end === 'cup') b.done = 'cup';
-  else if (b.n >= GOLF.CAP) { b.done = 'picked'; b.n = GOLF.CAP + 1; }
+  else if (b.n >= max) { b.done = 'picked'; b.n = max + 1; }
   if (b.done) (s.card[pid] = s.card[pid] || new Array(s.holes).fill(null))[s.hole] = b.n;
+  // The balls it knocked: where they lie now; one knocked in is holed with its strokes so far.
+  (r.moved || []).forEach(m => {
+    const o = s.balls[m.id];
+    if (!o) return;
+    o.at = m.at.slice();
+    o.restAt = Math.max(o.restAt || 0, now + dur);
+    if (m.end === 'cup') {
+      o.done = 'cup';
+      o.clockAt = null;
+      (s.card[m.id] = s.card[m.id] || new Array(s.holes).fill(null))[s.hole] = o.n;
+    }
+  });
   if (s.settings.mode === 'turns') {
     b.clockAt = null;
     const next = mgNextTurn(room, pid);

@@ -73,6 +73,32 @@ function mgSound(kind) {
       fxNoise('highpass', 2400, 0.6, [[0, 0], [0.02, 0.05], [0.22, 0.001]], at);
     } else if (kind === 'turn') {
       fxTone('sine', [[0, 660], [0.08, 880]], [[0, 0], [0.01, 0.12], [0.16, 0.001]], at);
+    } else if (kind === 'knock') {
+      // ball on ball: a hard click
+      fxTone('sine', [[0, 2100], [0.03, 1400]], [[0, 0], [0.002, 0.22], [0.05, 0.001]], at);
+      fxNoise('highpass', 4200, 1, [[0, 0], [0.001, 0.1], [0.025, 0.001]], at);
+    } else if (kind === 'bump') {
+      // a bumper's boing
+      fxTone('sine', [[0, 320], [0.09, 760], [0.22, 520]], [[0, 0], [0.005, 0.22], [0.26, 0.001]], at);
+      fxTone('triangle', [[0, 980], [0.06, 1300]], [[0, 0], [0.004, 0.08], [0.1, 0.001]], at);
+    } else if (kind === 'warp') {
+      fxTone('sine', [[0, 1100], [0.28, 240]], [[0, 0], [0.02, 0.16], [0.32, 0.001]], at);
+      fxTone('sine', [[0, 240], [0.28, 1300]], [[0, 0], [0.02, 0.1], [0.32, 0.001]], at + 0.12);
+      fxNoise('bandpass', 2600, 3, [[0, 0], [0.05, 0.05], [0.4, 0.001]], at);
+    } else if (kind === 'whoosh') {
+      fxNoise('bandpass', 900, 1.4, [[0, 0], [0.06, 0.12], [0.3, 0.001]], at);
+      fxTone('sine', [[0, 420], [0.22, 900]], [[0, 0], [0.03, 0.07], [0.25, 0.001]], at);
+    } else if (kind === 'mud') {
+      fxTone('sine', [[0, 180], [0.08, 90]], [[0, 0], [0.005, 0.22], [0.14, 0.001]], at);
+      fxNoise('lowpass', 700, 1, [[0, 0], [0.01, 0.12], [0.2, 0.001]], at);
+    } else if (kind === 'jump') {
+      fxTone('sine', [[0, 300], [0.2, 720]], [[0, 0], [0.02, 0.12], [0.24, 0.001]], at);
+    } else if (kind === 'land') {
+      fxTone('sine', [[0, 150], [0.08, 70]], [[0, 0], [0.004, 0.3], [0.14, 0.001]], at);
+    } else if (kind === 'flap') {
+      fxTone('triangle', [[0, 520], [0.05, 380]], [[0, 0], [0.003, 0.14], [0.09, 0.001]], at);
+    } else if (kind === 'ice') {
+      fxNoise('highpass', 5200, 0.8, [[0, 0], [0.04, 0.035], [0.5, 0.001]], at);
     }
   } catch (e) {}
 }
@@ -419,6 +445,97 @@ const MG_TEXTURES = {
     for (let k = 0; k < 2500; k++) { g.fillStyle = `rgba(${r() < 0.5 ? '120,50,25' : '240,170,120'},${0.1 + r() * 0.15})`; g.fillRect(r() * 128, r() * 128, 1.5, 1.5); }
     for (let y = 20; y < 128; y += 22) { g.fillStyle = 'rgba(90,35,15,.25)'; g.fillRect(0, y, 128, 2); }
     return c;
+  },
+  ice() {
+    // Pale blue-white, frosted in patches, with thin cracks and skate-like streaks.
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(81);
+    g.fillStyle = '#e4f3fb'; g.fillRect(0, 0, 256, 256);
+    for (let k = 0; k < 60; k++) {
+      const x = r() * 256, y = r() * 256, rad = 12 + r() * 40;
+      const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+      gr.addColorStop(0, `rgba(${r() < 0.5 ? '255,255,255' : '190,225,245'},0.55)`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    g.lineWidth = 1;
+    for (let k = 0; k < 26; k++) {
+      g.strokeStyle = `rgba(${r() < 0.5 ? '150,195,225' : '255,255,255'},${0.35 + r() * 0.4})`;
+      let x = r() * 256, y = r() * 256;
+      g.beginPath(); g.moveTo(x, y);
+      for (let s = 0; s < 5; s++) { x += (r() - 0.5) * 50; y += (r() - 0.5) * 50; g.lineTo(x, y); }
+      g.stroke();
+    }
+    g.strokeStyle = 'rgba(255,255,255,.5)';
+    for (let k = 0; k < 14; k++) { g.beginPath(); const y = r() * 256; g.moveTo(0, y); g.bezierCurveTo(90, y + (r() - 0.5) * 60, 170, y + (r() - 0.5) * 60, 256, y + (r() - 0.5) * 30); g.stroke(); }
+    return c;
+  },
+  mud() {
+    // Dark brown, wet, with glossy puddles and a few pebbles.
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(91);
+    g.fillStyle = '#4a2f1b'; g.fillRect(0, 0, 256, 256);
+    for (let k = 0; k < 700; k++) { g.fillStyle = `rgba(${r() < 0.5 ? '35,20,10' : '110,75,45'},${0.2 + r() * 0.3})`; g.beginPath(); g.arc(r() * 256, r() * 256, 2 + r() * 7, 0, 7); g.fill(); }
+    for (let k = 0; k < 16; k++) {
+      const x = r() * 256, y = r() * 256, rw = 14 + r() * 30, rh = 8 + r() * 16;
+      g.fillStyle = 'rgba(28,16,8,.75)'; g.beginPath(); g.ellipse(x, y, rw, rh, r() * 3, 0, 7); g.fill();
+      g.fillStyle = 'rgba(210,190,170,.22)'; g.beginPath(); g.ellipse(x - rw * 0.3, y - rh * 0.3, rw * 0.35, rh * 0.25, 0, 0, 7); g.fill();
+    }
+    for (let k = 0; k < 40; k++) { g.fillStyle = 'rgba(150,130,110,.8)'; g.beginPath(); g.arc(r() * 256, r() * 256, 1 + r() * 1.6, 0, 7); g.fill(); }
+    return c;
+  },
+  chevron() {
+    // A speed pad's arrows, pointing up the texture (toward the far end of the pad).
+    const [c, g] = mgCanvas(128, 128);
+    g.fillStyle = '#20222b'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#ffb703';
+    for (const y0 of [8, 72]) {
+      g.beginPath();
+      g.moveTo(14, y0 + 44); g.lineTo(64, y0 + 6); g.lineTo(114, y0 + 44); g.lineTo(114, y0 + 58); g.lineTo(64, y0 + 20); g.lineTo(14, y0 + 58);
+      g.closePath(); g.fill();
+    }
+    return c;
+  },
+  belt() {
+    // A rubber belt with ribs across it.
+    const [c, g] = mgCanvas(64, 128);
+    g.fillStyle = '#2b2d33'; g.fillRect(0, 0, 64, 128);
+    for (let y = 0; y < 128; y += 16) { g.fillStyle = '#3d4049'; g.fillRect(0, y, 64, 6); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, y + 6, 64, 2); }
+    g.fillStyle = 'rgba(255,183,3,.9)';
+    for (let y = 4; y < 128; y += 64) { g.beginPath(); g.moveTo(22, y + 20); g.lineTo(32, y + 8); g.lineTo(42, y + 20); g.lineTo(38, y + 22); g.lineTo(32, y + 15); g.lineTo(26, y + 22); g.closePath(); g.fill(); }
+    return c;
+  },
+  swirl() {
+    // A portal's swirl: arms of light round a dark middle.
+    const [c, g] = mgCanvas(256, 256);
+    g.clearRect(0, 0, 256, 256);
+    const gr = g.createRadialGradient(128, 128, 10, 128, 128, 128);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(210,170,255,.9)'); gr.addColorStop(1, 'rgba(80,30,160,.0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineCap = 'round';
+    for (let arm = 0; arm < 4; arm++) {
+      g.lineWidth = 7; g.beginPath();
+      for (let k = 0; k <= 40; k++) { const a = arm * Math.PI / 2 + k * 0.12, rr = 10 + k * 2.8; const x = 128 + Math.cos(a) * rr, y = 128 + Math.sin(a) * rr; if (k) g.lineTo(x, y); else g.moveTo(x, y); }
+      g.stroke();
+    }
+    return c;
+  },
+  stripes() {
+    // A bumper's red and white bands.
+    const [c, g] = mgCanvas(64, 64);
+    for (let i = 0; i < 4; i++) { g.fillStyle = i % 2 ? '#fdf6ec' : '#e63946'; g.fillRect(0, i * 16, 64, 16); }
+    return c;
+  },
+  snow() {
+    // The mountain's snow, round the course: white, soft blue shadows, a few rocks showing through.
+    const [c, g] = mgCanvas(256, 256), r = mgRnd(101);
+    g.fillStyle = '#eef3f8'; g.fillRect(0, 0, 256, 256);
+    for (let k = 0; k < 500; k++) { g.fillStyle = `rgba(${r() < 0.6 ? '190,205,225' : '255,255,255'},0.35)`; g.beginPath(); g.arc(r() * 256, r() * 256, 3 + r() * 10, 0, 7); g.fill(); }
+    for (let k = 0; k < 30; k++) { g.fillStyle = 'rgba(110,100,90,.5)'; g.beginPath(); g.arc(r() * 256, r() * 256, 1 + r() * 2.5, 0, 7); g.fill(); }
+    return c;
+  },
+  awning() {
+    // A souq stall's striped awning.
+    const [c, g] = mgCanvas(64, 32);
+    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#fdf6ec' : '#2a9d8f'; g.fillRect(i * 8, 0, 8, 32); }
+    return c;
   }
 };
 
@@ -484,7 +601,7 @@ function mg3SetHole(h, key) {
   const look = MG_LOOKS[h.id] || {};
 
   // The rough, far and wide, and the course raised on a stone plinth.
-  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex('rough', 30, 30), roughness: 1 }), false, true);
+  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex(look.snow ? 'snow' : 'rough', 30, 30), roughness: 1 }), false, true);
   rough.rotation.x = -Math.PI / 2;
   rough.position.set(cx, -0.36, -cy);
   G.add(rough);
@@ -538,6 +655,28 @@ function mg3SetHole(h, key) {
     mgUvWorld(bank.geometry, 2);
     G.add(bank);
   });
+  // Ice: pale and glassy, a frosted rim. Mud: dark and wet, glossy puddles.
+  if ((h.ice || []).length) {
+    const iceMat = mgMat({ physical: true, p: { map: mgTex('ice', 1, 1), color: 0xf2fbff, roughness: 0.12, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.5, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 } });
+    const frost = mgMat({ color: 0xffffff, roughness: 0.5 });
+    h.ice.forEach(p => {
+      G.add(mgFlat(mgShape(p), iceMat, 0.005, 5));
+      const pts = p.map(q => new THREE.Vector3(q[0], 0.014, -q[1]));
+      G.add(mgMesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.2), 80, 0.06, 5, true), frost, false, true));
+    });
+  }
+  if ((h.mud || []).length) {
+    const mudMat = mgMat({ physical: true, p: { map: mgTex('mud', 1, 1), roughness: 0.32, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.25, envMapIntensity: 1.1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 } });
+    const lip = mgMat({ color: 0x3b2516, roughness: 0.9 });
+    h.mud.forEach(p => {
+      G.add(mgFlat(mgShape(p), mudMat, 0.005, 3));
+      const pts = p.map(q => new THREE.Vector3(q[0], 0.012, -q[1]));
+      G.add(mgMesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.2), 64, 0.07, 5, true), lip, false, true));
+    });
+  }
+  (h.pads || []).forEach(p => mgPadMesh(G, h, p));
+  (h.belts || []).forEach(bl => mgBeltMesh(G, h, bl));
+  (h.ramps || []).forEach(rp => mgRampMesh(G, h, rp));
   if (look.planks) {
     const pl = mgFlat(mgShape(look.planks), mgMat({ map: mgTex('plank', 1, 1), roughness: 0.7 }), 0.03, 2.4);
     pl.castShadow = false;
@@ -570,6 +709,9 @@ function mg3SetHole(h, key) {
   (h.mills || []).forEach(m => mgMill(G, h, m));
   (h.sliders || []).forEach(sl => mgSlider(G, h, sl));
   (h.spinners || []).forEach(sp => mgSpinner(G, h, sp));
+  (h.bumpers || []).forEach((bp, k) => mgBumperMesh(G, h, bp, k));
+  (h.portals || []).forEach((pt, k) => mgPortalMesh(G, h, pt, k));
+  (h.gates || []).forEach((gt, k) => mgGateMesh(G, h, gt, k));
 
   // The rough's trees, bushes and flowers, and each hole's own touch.
   mgScenery(G, h, look);
@@ -635,7 +777,7 @@ function mgRail(G, h, s, mat) {
   const THREE = MG3.T;
   const [x1, y1, x2, y2] = s;
   const len = Math.hypot(x2 - x1, y2 - y1);
-  const hilly = (h.hills || []).length || (h.bowls || []).length;
+  const hilly = (h.hills || []).length || (h.bowls || []).length || (h.ramps || []).length;
   const n = hilly ? Math.max(1, Math.ceil(len / 0.8)) : 1;
   const T = GOLF.WALL_R * 2, H = 0.42;
   for (let k = 0; k < n; k++) {
@@ -775,6 +917,59 @@ function mgBlock(G, h, bk) {
     G.add(jar);
     const base = mgMesh(new THREE.CylinderGeometry(0.62, 0.7, 0.14, 24), mgMat({ color: 0x8d7a60, roughness: 0.9 }));
     base.position.set(cx, 0.07, -cy);
+    G.add(base);
+    return;
+  }
+  if (bk.look === 'salt' || bk.look === 'snow') {
+    // A lump of white salt crystal, as on Siwa's salt lakes; or a snowy rock on the mountain.
+    const r = Math.max(...poly.map(p => Math.hypot(p[0] - cx, p[1] - cy)));
+    const geo = new THREE.IcosahedronGeometry(r, 1);
+    const pa = geo.attributes.position, rr = mgRnd(Math.round(cx * 97 + cy * 13));
+    for (let i = 0; i < pa.count; i++) { const k = 0.82 + rr() * 0.3; pa.setXYZ(i, pa.getX(i) * k, Math.max(-0.1, pa.getY(i) * k * 0.8), pa.getZ(i) * k); }
+    geo.computeVertexNormals();
+    const rock = mgMesh(geo, mgMat({ physical: true, p: { color: bk.look === 'snow' ? 0xdfe8f0 : 0xf4f7fb, roughness: 0.35, clearcoat: 0.6, flatShading: true, sheen: 0.4 } }));
+    rock.position.set(cx, r * 0.45, -cy);
+    G.add(rock);
+    return;
+  }
+  if (bk.look === 'stall') {
+    // A souq stall: a wooden counter under a striped awning, with pots and lanterns on it.
+    const b = { x0: Math.min(...poly.map(p => p[0])), x1: Math.max(...poly.map(p => p[0])), y0: Math.min(...poly.map(p => p[1])), y1: Math.max(...poly.map(p => p[1])) };
+    const w = b.x1 - b.x0, d = b.y1 - b.y0;
+    const wood = mgMat({ map: mgTex('plank', 1, 1), roughness: 0.65 });
+    const counter = mgMesh(new THREE.BoxGeometry(w, 0.7, d), wood);
+    counter.position.set(cx, 0.35, -cy);
+    G.add(counter);
+    const iron = mgMat({ color: 0x3b3b3b, roughness: 0.5, metalness: 0.7 });
+    [[b.x0 + 0.08, b.y0 + 0.08], [b.x1 - 0.08, b.y0 + 0.08], [b.x0 + 0.08, b.y1 - 0.08], [b.x1 - 0.08, b.y1 - 0.08]].forEach(([x, y]) => {
+      const p = mgMesh(new THREE.CylinderGeometry(0.04, 0.04, 1.7, 6), iron); p.position.set(x, 0.85, -y); G.add(p);
+    });
+    const awn = mgMesh(new THREE.BoxGeometry(w + 0.4, 0.05, d + 0.4), mgMat({ map: mgTex('awning', 1, 1), roughness: 0.8 }));
+    awn.position.set(cx, 1.72, -cy); awn.rotation.x = 0.12;
+    G.add(awn);
+    const goods = [];
+    const cols = [0xe76f51, 0xf4a261, 0xe9c46a, 0x2a9d8f, 0x9b5de5];
+    const rr = mgRnd(Math.round(cx * 31 + cy * 7));
+    for (let k = 0; k < 6; k++) goods.push({ p: [b.x0 + 0.25 + rr() * (w - 0.5), 0.8, -(b.y0 + 0.25 + rr() * (d - 0.5))], s: [1, 0.8 + rr() * 0.6, 1], c: cols[k % 5] });
+    mgInstances(G, new THREE.SphereGeometry(0.16, 10, 8), mgMat({ color: 0xffffff, roughness: 0.6 }), goods, true);
+    return;
+  }
+  if (bk.look === 'obelisk') {
+    // An obelisk: a tall tapering pillar with a gold tip.
+    const r = Math.max(...poly.map(p => Math.abs(p[0] - cx))) * Math.SQRT2;
+    const H = 3.4;
+    const geo = new THREE.CylinderGeometry(r * 0.62, r, H, 4, 4);
+    mgUvWorld(geo, 1.4);
+    const ob = mgMesh(geo, mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.85, flatShading: true }));
+    ob.rotation.y = Math.PI / 4;
+    ob.position.set(cx, H / 2, -cy);
+    G.add(ob);
+    const tip = mgMesh(new THREE.ConeGeometry(r * 0.62, 0.5, 4), mgMat({ color: 0xe8b64a, roughness: 0.25, metalness: 0.8 }));
+    tip.rotation.y = Math.PI / 4;
+    tip.position.set(cx, H + 0.25, -cy);
+    G.add(tip);
+    const base = mgMesh(new THREE.BoxGeometry(r * 1.6, 0.2, r * 1.6), mgMat({ map: mgTex('stone', 1, 1), roughness: 0.9 }));
+    base.position.set(cx, 0.1, -cy);
     G.add(base);
     return;
   }
@@ -954,25 +1149,232 @@ function mgSpinner(G, h, sp) {
   MG3.movers.push({ kind: 'spinner', sp, g });
 }
 
+/** A group on the course at (x, y), turned so its local +x runs along the course direction (ux, uy). */
+function mgAlong(x, y, ux, uy, up) {
+  const g = new MG3.T.Group();
+  g.position.set(x, up || 0, -y);
+  g.rotation.y = Math.atan2(uy, ux);
+  return g;
+}
+/** A texture of its own (its offset moves on its own), thrown away with the hole. */
+function mgOwnTex(name, rx, ry) {
+  const tx = mgTex(name, 1, 1).clone();
+  tx.needsUpdate = true;
+  tx.repeat.set(rx, ry);
+  return mgKeep(tx);
+}
+
+/** A speed pad: a dark plate whose amber arrows run the way it pushes. */
+function mgPadMesh(G, h, p) {
+  const THREE = MG3.T;
+  const u = golfUnit(p.dx, p.dy);
+  const g = mgAlong(p.x, p.y, u[0], u[1], golfHeight(h, p.x, p.y) + 0.008);
+  const tx = mgOwnTex('chevron', 1, Math.max(1, Math.round(p.l / p.w * 1.5)));
+  const plate = mgMesh(new THREE.PlaneGeometry(p.w, p.l), mgMat({ map: tx, emissive: 0xffb703, emissiveMap: tx, emissiveIntensity: 0.55, roughness: 0.45, metalness: 0.2, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), false, true);
+  plate.rotation.x = -Math.PI / 2;
+  plate.rotation.z = -Math.PI / 2;     // the texture's up along the group's +x
+  g.add(plate);
+  // a steel frame round it
+  const steel = mgMat({ color: 0x8d99ae, roughness: 0.35, metalness: 0.8 });
+  [[0, p.w / 2], [0, -p.w / 2]].forEach(([a, c]) => { const bar = mgMesh(new THREE.BoxGeometry(p.l + 0.1, 0.03, 0.06), steel, false, true); bar.position.set(a, 0.01, c); g.add(bar); });
+  [[p.l / 2, 0], [-p.l / 2, 0]].forEach(([a]) => { const bar = mgMesh(new THREE.BoxGeometry(0.06, 0.03, p.w + 0.1), steel, false, true); bar.position.set(a, 0.01, 0); g.add(bar); });
+  G.add(g);
+  MG3.movers.push({ kind: 'pad', tx, rate: 1.4 });
+}
+
+/** A conveyor: a ribbed rubber belt running between two rollers, its arrows moving at its own speed. */
+function mgBeltMesh(G, h, bl) {
+  const THREE = MG3.T;
+  const u = golfUnit(bl.vx, bl.vy);
+  const alongY = Math.abs(bl.vy) >= Math.abs(bl.vx);
+  const len = alongY ? bl.y1 - bl.y0 : bl.x1 - bl.x0, wid = alongY ? bl.x1 - bl.x0 : bl.y1 - bl.y0;
+  const cx = (bl.x0 + bl.x1) / 2, cy = (bl.y0 + bl.y1) / 2;
+  const g = mgAlong(cx, cy, u[0], u[1], 0.035);
+  const reps = Math.max(1, Math.round(len / wid * 2));
+  const tx = mgOwnTex('belt', 1, reps);
+  const belt = mgMesh(new THREE.PlaneGeometry(wid, len), mgMat({ map: tx, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), false, true);
+  belt.rotation.x = -Math.PI / 2;
+  belt.rotation.z = -Math.PI / 2;
+  g.add(belt);
+  const steel = mgMat({ color: 0x9aa5b1, roughness: 0.3, metalness: 0.85 });
+  const rollers = [];
+  [len / 2, -len / 2].forEach(a => {
+    const r = mgMesh(new THREE.CylinderGeometry(0.12, 0.12, wid + 0.1, 16), steel);
+    r.rotation.x = Math.PI / 2;
+    r.position.set(a, -0.05, 0);
+    g.add(r);
+    rollers.push(r);
+  });
+  // yellow and black hazard ends
+  const hz = mgMat({ color: 0xffc300, roughness: 0.5 });
+  [len / 2 + 0.16, -len / 2 - 0.16].forEach(a => { const s = mgMesh(new THREE.BoxGeometry(0.12, 0.02, wid), hz, false, true); s.position.set(a, -0.02, 0); g.add(s); });
+  G.add(g);
+  const speed = Math.sqrt(bl.vx * bl.vx + bl.vy * bl.vy);
+  MG3.movers.push({ kind: 'belt', tx, rate: speed * reps / len, rollers, spin: speed / 0.12 });
+}
+
+/** A ramp: a wedge of planks up to a white lip, yellow trim down its sides. */
+function mgRampMesh(G, h, rp) {
+  const THREE = MG3.T;
+  const u = golfUnit(rp.dx, rp.dy);
+  const H = GOLF.RAMP_H;
+  const s = new THREE.Shape();
+  s.moveTo(0, 0); s.lineTo(rp.len, 0); s.lineTo(rp.len, H); s.lineTo(0, 0.002);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: rp.w, bevelEnabled: false });
+  geo.translate(0, 0, -rp.w / 2);
+  mgUvWorld(geo, 1.1);
+  const g = mgAlong(rp.x, rp.y, u[0], u[1], 0);
+  g.add(mgMesh(geo, mgMat({ map: mgTex('plank', 1, 1), roughness: 0.6 })));
+  const lip = mgMesh(new THREE.BoxGeometry(0.1, 0.06, rp.w), mgMat({ color: 0xffffff, roughness: 0.4 }));
+  lip.position.set(rp.len - 0.05, H - 0.02, 0);
+  g.add(lip);
+  // an arrow painted up the ramp
+  const tx = mgOwnTex('chevron', 1, 1);
+  const k = H / rp.len;
+  const arrow = mgMesh(new THREE.PlaneGeometry(rp.w * 0.45, rp.len * 0.45), mgMat({ map: tx, transparent: true, opacity: 0.85, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), false, true);
+  arrow.rotation.set(-Math.PI / 2, 0, -Math.PI / 2);
+  const tilt = new THREE.Group();
+  tilt.rotation.z = Math.atan(k);
+  tilt.position.set(rp.len * 0.45, rp.len * 0.45 * k + 0.012, 0);
+  tilt.add(arrow);
+  g.add(tilt);
+  G.add(g);
+}
+
+/** A bumper: a striped post with a rubber ring and a cap that lights up when it's hit. */
+function mgBumperMesh(G, h, bp, k) {
+  const THREE = MG3.T;
+  const g = new THREE.Group();
+  g.position.set(bp.x, 0, -bp.y);
+  const post = mgMesh(new THREE.CylinderGeometry(bp.r, bp.r * 1.08, 0.5, 28), mgMat({ map: mgTex('stripes', 1, 1), roughness: 0.45 }));
+  post.position.y = 0.25;
+  g.add(post);
+  const ring = mgMesh(new THREE.TorusGeometry(bp.r + 0.02, 0.07, 10, 36), mgMat({ color: 0x1d1d24, roughness: 0.7 }));
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = GOLF.BALL_R;
+  g.add(ring);
+  const capMat = mgMat({ color: 0xffd23f, emissive: 0xffc300, emissiveIntensity: 0.15, roughness: 0.25, metalness: 0.3 });
+  const cap = mgMesh(new THREE.SphereGeometry(bp.r * 0.9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), capMat);
+  cap.position.y = 0.5;
+  g.add(cap);
+  G.add(g);
+  MG3.movers.push({ kind: 'bumper', k, g, capMat, last: -99 });
+}
+
+/** A portal: a violet ring with a turning swirl, and an amber ring it comes out of, an arrow on its way. */
+function mgPortalMesh(G, h, pt, k) {
+  const THREE = MG3.T;
+  const R = GOLF.PORTAL_R;
+  const swirlTx = mgTex('swirl', 1, 1);
+  const make = (x, y, color) => {
+    const g = new THREE.Group();
+    g.position.set(x, golfHeight(h, x, y) + 0.02, -y);
+    const ring = mgMesh(new THREE.TorusGeometry(R, 0.09, 12, 44), mgMat({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.3, metalness: 0.2 }));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.04;
+    g.add(ring);
+    const disc = mgMesh(new THREE.CircleGeometry(R * 0.95, 40), mgMat({ map: swirlTx, color, emissive: color, emissiveMap: swirlTx, emissiveIntensity: 0.9, transparent: true, depthWrite: false, roughness: 0.4 }), false, false);
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.y = 0.01;
+    g.add(disc);
+    const base = mgMesh(new THREE.CylinderGeometry(R + 0.16, R + 0.2, 0.08, 36), mgMat({ map: mgTex('stone', 1, 1), roughness: 0.8 }), false, true);
+    base.position.y = -0.02;
+    g.add(base);
+    G.add(g);
+    return disc;
+  };
+  const inDisc = make(pt.x, pt.y, 0x9b5de5);
+  const outDisc = make(pt.ox, pt.oy, 0xff9e00);
+  // the way out: an arrow just past the out ring
+  const u = golfUnit(pt.dx, pt.dy);
+  const ag = mgAlong(pt.ox + u[0] * (R + 0.5), pt.oy + u[1] * (R + 0.5), u[0], u[1], 0.012);
+  const arrow = mgMesh(new THREE.PlaneGeometry(0.6, 0.6), mgMat({ map: mgOwnTex('chevron', 1, 1), transparent: true, opacity: 0.9, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), false, true);
+  arrow.rotation.x = -Math.PI / 2;
+  arrow.rotation.z = -Math.PI / 2;
+  ag.add(arrow);
+  G.add(ag);
+  MG3.movers.push({ kind: 'portal', k, discs: [inDisc, outDisc] });
+}
+
+/** A one-way gate: two posts and a beam, a wooden flap hanging from it that swings open the way through; an arrow on the ground says which way. */
+function mgGateMesh(G, h, gt, k) {
+  const THREE = MG3.T;
+  const ex = gt.x2 - gt.x1, ey = gt.y2 - gt.y1, len = Math.sqrt(ex * ex + ey * ey) || 1;
+  const lx = ex / len, ly = ey / len;
+  const g = mgAlong((gt.x1 + gt.x2) / 2, (gt.y1 + gt.y2) / 2, lx, ly, 0);
+  const iron = mgMat({ color: 0x3b3b3b, roughness: 0.4, metalness: 0.8 });
+  const brass = mgMat({ color: 0xd4a017, roughness: 0.3, metalness: 0.7 });
+  [len / 2, -len / 2].forEach(a => {
+    const post = mgMesh(new THREE.CylinderGeometry(0.09, 0.11, 0.8, 10), iron);
+    post.position.set(a, 0.4, 0);
+    g.add(post);
+    const knob = mgMesh(new THREE.SphereGeometry(0.11, 10, 8), brass);
+    knob.position.set(a, 0.84, 0);
+    g.add(knob);
+  });
+  const beam = mgMesh(new THREE.BoxGeometry(len, 0.07, 0.08), iron);
+  beam.position.set(0, 0.72, 0);
+  g.add(beam);
+  const pivot = new THREE.Group();
+  pivot.position.y = 0.7;
+  const flap = mgMesh(new THREE.BoxGeometry(len - 0.24, 0.6, 0.05), mgMat({ map: mgTex('plank', 1, 1), roughness: 0.6 }));
+  flap.position.y = -0.33;
+  pivot.add(flap);
+  g.add(pivot);
+  // which side of the flap is the way out: local +z is course (sin φ, -cos φ)
+  const w = golfUnit(gt.dx, gt.dy);
+  const sign = (w[0] * ly - w[1] * lx) > 0 ? 1 : -1;     // local +z = course (ly, -lx)
+  G.add(g);
+  // the arrow on the way in
+  const ag = mgAlong((gt.x1 + gt.x2) / 2 - w[0] * 0.7, (gt.y1 + gt.y2) / 2 - w[1] * 0.7, w[0], w[1], 0.012);
+  const arrow = mgMesh(new THREE.PlaneGeometry(0.55, Math.min(1, len * 0.4)), mgMat({ map: mgOwnTex('chevron', 1, 1), transparent: true, opacity: 0.9, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), false, true);
+  arrow.rotation.x = -Math.PI / 2;
+  arrow.rotation.z = -Math.PI / 2;
+  ag.add(arrow);
+  G.add(ag);
+  MG3.movers.push({ kind: 'gate', k, pivot, sign, last: -99 });
+}
+
 /* --- the scenery -------------------------------------------------------------------------- */
 
+// Each hole's own place round the course: its scenery (MG_DECO), kept off the green.
 const MG_LOOKS = {
-  first: { deco: [{ k: 'arch', x: 4, y: -1.7 }, { k: 'flowerbed', x: -1.9, y: 6, len: 8 }, { k: 'flowerbed', x: 9.9, y: 12, len: 8 }] },
-  mill: { deco: [{ k: 'tulips', x: 8, y: 6 }, { k: 'tulips', x: 11, y: 10 }] },
+  first: { deco: [{ k: 'arch', x: 4, y: -1.7 }, { k: 'flowerbed', x: -1.9, y: 6, len: 8 }, { k: 'flowerbed', x: 9.9, y: 12, len: 8 }, { k: 'tulips', x: 4, y: 21.6 },
+    { k: 'fountain', x: -3.6, y: 16 }, { k: 'lantern', x: -0.9, y: 1 }, { k: 'lantern', x: 8.9, y: 1 }] },
   bridge: {
     planks: [[3.4, 8], [6.2, 8], [8.6, 15], [5.8, 15]],
     deco: [{ k: 'felucca', x: 1.9, y: 11.8 }, { k: 'papyrus', x: 11, y: 9.2 }, { k: 'papyrus', x: 0.7, y: 14.1 }, { k: 'papyrus', x: 11.2, y: 14 },
-      { k: 'lantern', x: 3.1, y: 7.7 }, { k: 'lantern', x: 6.5, y: 7.7 }, { k: 'lantern', x: 5.5, y: 15.3 }, { k: 'lantern', x: 8.9, y: 15.3 }]
+      { k: 'lantern', x: 3.1, y: 7.7 }, { k: 'lantern', x: 6.5, y: 7.7 }, { k: 'lantern', x: 5.5, y: 15.3 }, { k: 'lantern', x: 8.9, y: 15.3 },
+      { k: 'palm', x: -2.2, y: 19 }, { k: 'palm', x: 14.2, y: 21 }, { k: 'palm', x: 14, y: 4 }]
   },
-  humps: { deco: [{ k: 'camel', x: 12.6, y: 12, r: 0.6 }, { k: 'nubian', x: -3.6, y: 18 }, { k: 'palm', x: -2, y: 7 }] },
-  pyramid: { deco: [{ k: 'palm', x: -2.2, y: 8 }, { k: 'palm', x: 16.2, y: 6 }, { k: 'palm', x: 16.4, y: 16 }, { k: 'farPyramid', x: -12, y: 34, s: 1.4 }, { k: 'farPyramid', x: 26, y: 40, s: 1 }] },
-  saqia: { deco: [{ k: 'wheel', x: -2.6, y: 7.4 }, { k: 'palm', x: 14, y: 8 }, { k: 'nubian', x: 15, y: 20 }] },
-  lighthouse: { deco: [{ k: 'lighthouse', x: -2.2, y: 24.4 }, { k: 'palm', x: 18.3, y: 24 }] },
-  gate: { deco: [{ k: 'lantern', x: -0.9, y: 13.3 }, { k: 'lantern', x: 10.9, y: 13.3 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'palm', x: 12.6, y: 4 }] },
+  mill: { deco: [{ k: 'tulips', x: 8, y: 6 }, { k: 'tulips', x: 11, y: 10 }, { k: 'tulips', x: 8.6, y: 12.6 }, { k: 'flowerbed', x: 17.9, y: 21, len: 6 }, { k: 'fountain', x: 11, y: 29.4 }] },
+  souq: { deco: [{ k: 'lantern', x: 6.7, y: 12.4 }, { k: 'lantern', x: 6.7, y: 17.6 }, { k: 'lantern', x: 6.7, y: 22.8 }, { k: 'lantern', x: -0.8, y: 14 }, { k: 'lantern', x: -0.8, y: 21 },
+    { k: 'tent', x: 10, y: 15.5 }, { k: 'tent', x: 10.4, y: 22.4 }, { k: 'camel', x: 14.8, y: 4.4, r: 2.6 }, { k: 'arch', x: 9, y: -1.7 }] },
+  humps: { deco: [{ k: 'camel', x: 12.6, y: 12, r: 0.6 }, { k: 'camel', x: -3.2, y: 9, r: 2.4 }, { k: 'nubian', x: -3.6, y: 18 }, { k: 'palm', x: -2, y: 3 }, { k: 'tent', x: 13, y: 21 }, { k: 'farPyramid', x: 26, y: 38, s: 0.9 }] },
+  fair: { deco: [{ k: 'ferris', x: -4.6, y: 17 }, { k: 'tent', x: 14.6, y: 8 }, { k: 'tent', x: 14.8, y: 16 }, { k: 'arch', x: 6, y: -1.7 }, { k: 'flowerbed', x: 13, y: 21, len: 5 }] },
+  pyramid: { deco: [{ k: 'palm', x: -2.2, y: 8 }, { k: 'palm', x: 16.2, y: 6 }, { k: 'palm', x: 16.4, y: 16 }, { k: 'farPyramid', x: -12, y: 34, s: 1.4 }, { k: 'farPyramid', x: 26, y: 40, s: 1 },
+    { k: 'camel', x: -3, y: 16, r: 1.2 }, { k: 'columns', x: 16.4, y: 23 }] },
+  nile: {
+    planks: [[9.7, 10], [12, 10], [12, 13.5], [9.7, 13.5]],
+    deco: [{ k: 'felucca', x: 7.2, y: 11.8 }, { k: 'papyrus', x: 0.7, y: 13.1 }, { k: 'papyrus', x: 8.6, y: 10.5 }, { k: 'palm', x: -2.2, y: 5 }, { k: 'palm', x: 14.2, y: 18 }, { k: 'palm', x: -2.3, y: 19 },
+      { k: 'lantern', x: 9.45, y: 10.15 }, { k: 'lantern', x: 12.4, y: 9.6 }, { k: 'lantern', x: 9.45, y: 13.35 }, { k: 'lantern', x: 12.4, y: 13.9 }]
+  },
+  saqia: { deco: [{ k: 'wheel', x: -2.6, y: 7.4 }, { k: 'palm', x: 14, y: 8 }, { k: 'nubian', x: 15, y: 20 }, { k: 'papyrus', x: -1.2, y: 11 }, { k: 'tulips', x: 6, y: 26.4 }] },
+  siwa: { deco: [{ k: 'palm', x: -2.2, y: 6 }, { k: 'palm', x: 12.3, y: 13 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'palm', x: 12.6, y: 22 }, { k: 'nubian', x: 13.4, y: 3, r: -0.3 },
+    { k: 'camel', x: -3, y: 13, r: 1.8 }, { k: 'tent', x: 5, y: 27 }] },
+  lighthouse: { deco: [{ k: 'lighthouse', x: -2.2, y: 24.4 }, { k: 'palm', x: 18.3, y: 24 }, { k: 'palm', x: 9, y: 8 }, { k: 'lantern', x: 16.9, y: 13.4 }] },
+  citadel: { deco: [{ k: 'minaret', x: -2.8, y: 23 }, { k: 'minaret', x: 14.8, y: 25 }, { k: 'lantern', x: -0.8, y: 9 }, { k: 'lantern', x: 12.8, y: 9 }, { k: 'lantern', x: -0.8, y: 17 }, { k: 'lantern', x: 12.8, y: 17 }, { k: 'palm', x: 14.3, y: 4 }] },
+  gate: { deco: [{ k: 'lantern', x: -0.9, y: 13.3 }, { k: 'lantern', x: 10.9, y: 13.3 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'palm', x: 12.6, y: 4 }, { k: 'minaret', x: 13, y: 24 }, { k: 'flowerbed', x: -1.9, y: 5, len: 6 }] },
+  port: { deco: [{ k: 'crane', x: 14.6, y: 12.8 }, { k: 'containers', x: -3.2, y: 19 }, { k: 'containers', x: 14.6, y: 21 }, { k: 'lighthouse', x: -2.6, y: 4 }, { k: 'felucca', x: 6, y: 12.6 }] },
+  temple: { deco: [{ k: 'columns', x: -1.9, y: 7 }, { k: 'columns', x: -1.9, y: 17 }, { k: 'columns', x: 13.9, y: 12 }, { k: 'palm', x: 14.2, y: 22 }, { k: 'farPyramid', x: -14, y: 34, s: 1.2 }, { k: 'papyrus', x: 13, y: 3 }] },
+  sinai: { deco: [{ k: 'pine', x: -2, y: 4 }, { k: 'pine', x: -2.6, y: 12 }, { k: 'pine', x: 14, y: 8 }, { k: 'pine', x: 14.4, y: 17 }, { k: 'pine', x: 12.6, y: 27 }, { k: 'pine', x: -1.4, y: 26 },
+    { k: 'snowman', x: 13.6, y: 2.6 }, { k: 'snowman', x: -1.8, y: 20 }, { k: 'monastery', x: 6, y: 32 }], snow: true },
   oasis: {
     deco: [{ k: 'palm', x: 9.2, y: 20.5 }, { k: 'palm', x: 11.4, y: 23.8 }, { k: 'palm', x: 9.6, y: 26.6 }, { k: 'palm', x: 13, y: 20.8 }, { k: 'palm', x: 3.6, y: 7 },
       { k: 'palm', x: 1.6, y: 3.2 }, { k: 'tent', x: 12.4, y: 26.4 }, { k: 'camel', x: 4.4, y: 3.8, r: 2.2 }, { k: 'papyrus', x: 5.6, y: 15.3 }]
-  }
+  },
+  tower: { deco: [{ k: 'cairoTower', x: -4.2, y: 6.4 }, { k: 'palm', x: 16.2, y: 6 }, { k: 'palm', x: 16.4, y: 18 }, { k: 'palm', x: -2.2, y: 24 }, { k: 'flowerbed', x: 15.9, y: 12, len: 6 },
+    { k: 'fountain', x: 7, y: 31.4 }, { k: 'lantern', x: -0.9, y: 16 }, { k: 'lantern', x: 14.9, y: 26 }] }
 };
 
 /** Trees, bushes and flowers scattered on the rough round the course, never on it. */
@@ -1267,6 +1669,157 @@ const MG_DECO = {
     const stripe = mgMesh(new THREE.CylinderGeometry(1.25, 1.42, 0.25, 6, 1, true), mgMat({ color: 0xc1121f, roughness: 0.8, side: THREE.DoubleSide })); stripe.position.y = 0.45; g.add(stripe);
     g.position.set(d.x, -0.36, -d.y);
     G.add(g);
+  },
+  ferris(G, h, d) {
+    // A big wheel at the fair, turning slowly, its cabins in every colour.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const steel = mgMat({ color: 0xf1f1f1, roughness: 0.35, metalness: 0.6 });
+    const R = 3;
+    [-0.5, 0.5].forEach(z => {
+      [-1, 1].forEach(s => { const leg = mgMesh(new THREE.CylinderGeometry(0.08, 0.1, 4.2, 6), steel); leg.position.set(s * 1.1, 1.9, z); leg.rotation.z = s * 0.27; g.add(leg); });
+    });
+    const wheel = new THREE.Group();
+    wheel.position.set(0, 3.9, 0);
+    [-0.4, 0.4].forEach(z => { const ring = mgMesh(new THREE.TorusGeometry(R, 0.06, 6, 40), steel); ring.position.z = z; wheel.add(ring); });
+    for (let k = 0; k < 8; k++) { const sp = mgMesh(new THREE.BoxGeometry(R * 2, 0.05, 0.05), steel); sp.rotation.z = k / 8 * Math.PI; wheel.add(sp); }
+    const cols = [0xe63946, 0xffd166, 0x06d6a0, 0x118ab2, 0x9b5de5, 0xff9e00, 0xef476f, 0x4cc9f0];
+    const cabins = [];
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; cabins.push({ p: [Math.cos(a) * R, Math.sin(a) * R - 0.3, 0], s: [1, 1, 1], c: cols[k] }); }
+    mgInstances(wheel, new THREE.BoxGeometry(0.55, 0.5, 0.7), mgMat({ color: 0xffffff, roughness: 0.5 }), cabins, true);
+    g.add(wheel);
+    g.position.set(d.x, -0.36, -d.y);
+    g.rotation.y = 0.35;
+    G.add(g);
+    MG3.movers.push({ kind: 'deco-wheel', g: wheel, rate: 0.25 });
+  },
+  minaret(G, h, d) {
+    // A minaret of the Citadel: a slim tower, two balconies, a pointed top.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.85 });
+    const white = mgMat({ color: 0xf1ebe0, roughness: 0.7 });
+    const base = mgMesh(new THREE.CylinderGeometry(0.75, 0.85, 2.4, 8), stone); base.position.y = 1.2; g.add(base);
+    const mid = mgMesh(new THREE.CylinderGeometry(0.5, 0.58, 2.6, 12), white); mid.position.y = 3.7; g.add(mid);
+    const top = mgMesh(new THREE.CylinderGeometry(0.36, 0.42, 1.4, 12), stone); top.position.y = 5.7; g.add(top);
+    [2.5, 5.05].forEach((y, i) => { const bal = mgMesh(new THREE.CylinderGeometry(0.82 - i * 0.2, 0.62 - i * 0.16, 0.2, 14), white); bal.position.y = y; g.add(bal); });
+    const cone = mgMesh(new THREE.ConeGeometry(0.42, 1.2, 12), mgMat({ color: 0x5c6b73, roughness: 0.4, metalness: 0.5 })); cone.position.y = 7; g.add(cone);
+    const ball = mgMesh(new THREE.SphereGeometry(0.1, 8, 6), mgMat({ color: 0xe8b64a, roughness: 0.25, metalness: 0.8 })); ball.position.y = 7.65; g.add(ball);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  crane(G, h, d) {
+    // A harbour crane: two yellow legs, a beam over, a hook hanging.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const yel = mgMat({ color: 0xffc300, roughness: 0.5, metalness: 0.3 });
+    [[-1.2, -0.8], [-1.2, 0.8], [1.2, -0.8], [1.2, 0.8]].forEach(([x, z]) => { const l = mgMesh(new THREE.BoxGeometry(0.22, 4.6, 0.22), yel); l.position.set(x, 2.3, z); g.add(l); });
+    const beam = mgMesh(new THREE.BoxGeometry(0.4, 0.4, 6.4), yel); beam.position.set(0, 4.7, -1.8); g.add(beam);
+    const cab = mgMesh(new THREE.BoxGeometry(0.9, 0.8, 0.9), mgMat({ color: 0x2b2d42, roughness: 0.5 })); cab.position.set(0, 4.2, 0.8); g.add(cab);
+    const rope = mgMesh(new THREE.CylinderGeometry(0.02, 0.02, 2.2, 4), mgMat({ color: 0x222222, roughness: 0.6 })); rope.position.set(0, 3.4, -4.4); g.add(rope);
+    const box = mgMesh(new THREE.BoxGeometry(0.9, 0.7, 1.6), mgMat({ color: 0x2a9d8f, roughness: 0.6 })); box.position.set(0, 2, -4.4); g.add(box);
+    g.position.set(d.x, -0.36, -d.y);
+    g.rotation.y = Math.PI / 2;
+    G.add(g);
+  },
+  containers(G, h, d) {
+    // Shipping containers stacked on the quay.
+    const THREE = MG3.T;
+    const cols = [0xe63946, 0x118ab2, 0xf4a261, 0x2a9d8f, 0x6d597a];
+    const list = [];
+    [[0, 0, 0], [0, 0, 1.3], [0, 1.05, 0.6], [2.8, 0, 0.4]].forEach(([x, y, z], i) => list.push({ p: [d.x + z, y + 0.16, -(d.y + x)], s: [1, 1, 1], c: cols[i % 5] }));
+    mgInstances(G, new THREE.BoxGeometry(1.2, 1, 2.6), mgMat({ color: 0xffffff, roughness: 0.6, metalness: 0.2 }), list, true);
+  },
+  columns(G, h, d) {
+    // Karnak's columns: a row of stone pillars with open lotus tops, a lintel over them.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.9 });
+    for (let k = 0; k < 4; k++) {
+      const c = mgMesh(new THREE.CylinderGeometry(0.42, 0.48, 3.6, 12), stone); c.position.set(0, 1.8, -k * 1.6 + 2.4); g.add(c);
+      const cap = mgMesh(new THREE.CylinderGeometry(0.7, 0.42, 0.5, 12), stone); cap.position.set(0, 3.85, -k * 1.6 + 2.4); g.add(cap);
+    }
+    const lintel = mgMesh(new THREE.BoxGeometry(1.2, 0.5, 6.4), stone); lintel.position.set(0, 4.35, 0); g.add(lintel);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  fountain(G, h, d) {
+    // A garden fountain: a stone basin, water in it, a jet rising from the middle.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const stone = mgMat({ map: mgTex('stone', 1, 1), roughness: 0.85 });
+    const basin = mgMesh(new THREE.CylinderGeometry(1.5, 1.6, 0.5, 24, 1, true), stone); basin.position.y = 0.25; g.add(basin);
+    const rim = mgMesh(new THREE.TorusGeometry(1.5, 0.12, 8, 32), stone); rim.rotation.x = Math.PI / 2; rim.position.y = 0.5; g.add(rim);
+    const water = mgMesh(new THREE.CircleGeometry(1.45, 32), mgMat({ color: 0x3aa0e8, roughness: 0.1, metalness: 0.1, normalMap: mgTex('ripple', 1, 1, false) }), false, true);
+    water.rotation.x = -Math.PI / 2; water.position.y = 0.4; g.add(water);
+    const post = mgMesh(new THREE.CylinderGeometry(0.2, 0.3, 1, 12), stone); post.position.y = 0.8; g.add(post);
+    const bowl = mgMesh(new THREE.SphereGeometry(0.55, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), stone); bowl.position.y = 1.5; g.add(bowl);
+    const jet = mgMesh(new THREE.ConeGeometry(0.16, 1.3, 10, 1, true), mgMat({ color: 0xdff3ff, transparent: true, opacity: 0.7, roughness: 0.1 }), false, false);
+    jet.position.y = 2.1; jet.rotation.x = Math.PI; g.add(jet);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  pine(G, h, d) {
+    // A mountain pine with snow on its branches.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const trunk = mgMesh(new THREE.CylinderGeometry(0.14, 0.2, 1, 7), mgMat({ map: mgTex('bark', 1, 1), roughness: 0.9 })); trunk.position.y = 0.5; g.add(trunk);
+    const tiers = [], caps = [];
+    for (let k = 0; k < 3; k++) {
+      tiers.push({ p: [0, 1.2 + k * 0.8, 0], s: [1.3 - k * 0.3, 1, 1.3 - k * 0.3] });
+      caps.push({ p: [0, 1.5 + k * 0.8, 0], s: [0.9 - k * 0.22, 0.45, 0.9 - k * 0.22] });
+    }
+    mgInstances(g, new THREE.ConeGeometry(1, 1.3, 8), mgMat({ color: 0x1f5d3a, roughness: 0.85, flatShading: true }), tiers, true);
+    mgInstances(g, new THREE.ConeGeometry(1, 0.9, 8), mgMat({ color: 0xf6fbff, roughness: 0.7, flatShading: true }), caps, false);
+    const s = 0.9 + ((d.x * 7 + d.y * 3) % 3) * 0.15;
+    g.scale.setScalar(s);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  snowman(G, h, d) {
+    // A snowman: three balls, a carrot nose, a scarf.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const snow = mgMat({ color: 0xfbfdff, roughness: 0.8 });
+    [[0.62, 0.55], [0.44, 1.45], [0.3, 2.08]].forEach(([r, y]) => { const b = mgMesh(new THREE.SphereGeometry(r, 18, 12), snow); b.position.y = y; g.add(b); });
+    const nose = mgMesh(new THREE.ConeGeometry(0.06, 0.34, 8), mgMat({ color: 0xff8c1a, roughness: 0.6 })); nose.rotation.x = Math.PI / 2; nose.position.set(0, 2.1, 0.42); g.add(nose);
+    const scarf = mgMesh(new THREE.TorusGeometry(0.3, 0.07, 8, 20), mgMat({ color: 0xe63946, roughness: 0.7 })); scarf.rotation.x = Math.PI / 2; scarf.position.y = 1.82; g.add(scarf);
+    const eyes = [{ p: [-0.1, 2.2, 0.27], s: [1, 1, 1] }, { p: [0.1, 2.2, 0.27], s: [1, 1, 1] }];
+    mgInstances(g, new THREE.SphereGeometry(0.04, 6, 4), mgMat({ color: 0x111111, roughness: 0.5 }), eyes, false);
+    g.position.set(d.x, -0.36, -d.y);
+    g.rotation.y = 0.4;
+    G.add(g);
+  },
+  monastery(G, h, d) {
+    // Saint Catherine's monastery below the mountain: stone walls, a bell tower, a dome.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const stone = mgMat({ map: mgTex('sandstone', 1, 1), roughness: 0.9 });
+    const wall = mgMesh(new THREE.BoxGeometry(7, 2.2, 3), stone); wall.position.y = 1.1; g.add(wall);
+    const tower = mgMesh(new THREE.BoxGeometry(1.4, 4, 1.4), stone); tower.position.set(2.2, 2, 0); g.add(tower);
+    const roof = mgMesh(new THREE.ConeGeometry(1.1, 1, 4), mgMat({ color: 0x8d6e63, roughness: 0.7 })); roof.rotation.y = Math.PI / 4; roof.position.set(2.2, 4.5, 0); g.add(roof);
+    const dome = mgMesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mgMat({ color: 0xe8e1d4, roughness: 0.7 })); dome.position.set(-1.6, 2.2, 0); g.add(dome);
+    const snowcap = mgMesh(new THREE.BoxGeometry(7.1, 0.12, 3.1), mgMat({ color: 0xffffff, roughness: 0.8 })); snowcap.position.y = 2.26; g.add(snowcap);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
+  },
+  cairoTower(G, h, d) {
+    // Cairo Tower: a tall latticed shaft, the round lookout on top, a spire.
+    const THREE = MG3.T;
+    const g = new THREE.Group();
+    const pts = [];
+    for (let k = 0; k <= 12; k++) { const y = k / 12 * 8; pts.push(new THREE.Vector2(0.75 - 0.25 * Math.sin(k / 12 * Math.PI) + (k === 0 ? 0.2 : 0), y)); }
+    const shaft = mgMesh(new THREE.LatheGeometry(pts, 16), mgMat({ color: 0xd9cbb0, roughness: 0.8 }));
+    g.add(shaft);
+    // the lattice: rings round the shaft
+    const rings = [];
+    for (let k = 1; k < 12; k++) rings.push({ p: [0, k / 12 * 8, 0], s: [1, 1, 1], r: [Math.PI / 2, 0, 0] });
+    mgInstances(g, new THREE.TorusGeometry(0.62, 0.04, 4, 20), mgMat({ color: 0x8d7a60, roughness: 0.7 }), rings, false);
+    const pod = mgMesh(new THREE.CylinderGeometry(1.1, 0.8, 0.9, 20), mgMat({ color: 0xf4efe6, roughness: 0.5 })); pod.position.y = 8.4; g.add(pod);
+    const glass = mgMesh(new THREE.CylinderGeometry(1.12, 1.12, 0.28, 20), mgMat({ color: 0x2f5d8a, roughness: 0.1, metalness: 0.4 })); glass.position.y = 8.3; g.add(glass);
+    const spire = mgMesh(new THREE.CylinderGeometry(0.05, 0.12, 1.8, 8), mgMat({ color: 0xc1121f, roughness: 0.5 })); spire.position.y = 9.75; g.add(spire);
+    g.position.set(d.x, -0.36, -d.y);
+    G.add(g);
   }
 };
 
@@ -1350,7 +1903,8 @@ function mgLabelSprite(text, color) {
 
 /**
  * The balls on the hole: [{ id, at, color, ghost, hidden, label }]. A ball
- * rolling a putt keeps rolling; one at rest is put where it lies.
+ * rolling a putt keeps rolling, and so does one another ball's putt is
+ * knocking about (drivenBy); one at rest is put where it lies.
  */
 function mg3SyncBalls(list) {
   if (!mg3Ready()) return;
@@ -1360,7 +1914,7 @@ function mg3SyncBalls(list) {
   list.forEach(o => {
     let b = MG3.balls.get(o.id);
     const look = o.color + '|' + (o.ghost ? 1 : 0) + '|' + (o.label || '');
-    if (b && b.look !== look) { mg3RemoveBall(b); MG3.balls.delete(o.id); b = null; }
+    if (b && b.look !== look && !b.play && !b.drivenBy) { mg3RemoveBall(b); MG3.balls.delete(o.id); b = null; }
     if (!b) {
       const mesh = new THREE.Mesh(MG3.geo.ball, mgBallMat(o.color, o.ghost));
       mesh.castShadow = !o.ghost;
@@ -1368,11 +1922,12 @@ function mg3SyncBalls(list) {
       MG3.scene.add(mesh);
       const label = o.label ? mgLabelSprite(o.label, o.color) : null;
       if (label) MG3.scene.add(label);
-      b = { id: o.id, mesh, label, look, play: null, at: o.at.slice(), hidden: false, sink: 0 };
+      b = { id: o.id, mesh, label, look, play: null, drivenBy: null, at: o.at.slice(), want: o.at.slice(), hidden: false, sink: 0 };
       MG3.balls.set(o.id, b);
     }
     b.hiddenWanted = !!o.hidden;
-    if (!b.play && !b.sink) {
+    b.want = o.at.slice();
+    if (!b.play && !b.sink && !b.drivenBy) {
       b.at = o.at.slice();
       mg3PlaceBall(b, o.at[0], o.at[1]);
       b.hidden = b.hiddenWanted;
@@ -1387,92 +1942,184 @@ function mg3RemoveBall(b) {
   b.mesh.material.dispose();
   if (b.label) { MG3.scene.remove(b.label); b.label.material.map.dispose(); b.label.material.dispose(); }
 }
-function mg3PlaceBall(b, x, y, dz) {
+/** A ball at (x, y): on the ground (a ramp, a hill), `dz` above it, or at height `z` when it flies. */
+function mg3PlaceBall(b, x, y, dz, z) {
   const h = MG3.hole;
-  const z = h ? golfHeight(h, x, y) : 0;
-  b.mesh.position.set(x, z + GOLF.BALL_R + (dz || 0), -y);
-  if (b.label) b.label.position.set(x, z + 1.05, -y);
+  const g = typeof z === 'number' ? z : (h ? golfHeight(h, x, y) : 0);
+  b.mesh.position.set(x, g + GOLF.BALL_R + (dz || 0), -y);
+  if (b.label) b.label.position.set(x, g + 1.05, -y);
 }
 
 /**
  * Rolls `sim` (golfStart) for ball `id`, already `off` seconds in (a putt
- * replayed from another phone starts where the hole's clock says it is).
- * onEnd(sim) when it stops, sinks or splashes; `from` is where a wet ball goes back to.
+ * replayed from another phone starts where the hole's clock says it is). The
+ * balls it may knock (sim.others) move with it. onEnd(sim) when every ball
+ * has stopped, sunk or splashed; `returns` is where a wet ball goes back to
+ * ({ main: [x, y], <id>: [x, y] }, from the putt's result).
  */
 function mg3Play(id, sim, off, opts) {
   const b = MG3.balls.get(id);
   if (!b || !mg3Ready()) return false;
   const o = opts || {};
-  b.play = { sim, start: performance.now(), off: Math.max(0, off || 0), onEnd: o.onEnd || null, from: o.from || [sim.sx, sim.sy], loud: o.loud !== false, sand: false, hits: 0 };
+  const from = o.from || [sim.sx, sim.sy];
+  b.play = {
+    sim, start: performance.now(), off: Math.max(0, off || 0), onEnd: o.onEnd || null,
+    returns: Object.assign({ main: from }, o.returns || {}), loud: o.loud !== false, seen: {}, flaps: {}, bumped: {}
+  };
   b.hidden = false; b.sink = 0;
   b.mesh.visible = true;
   if (b.label) b.label.visible = true;
+  (sim.others || []).forEach(ob => {
+    const ball = MG3.balls.get(ob.id);
+    if (!ball) return;
+    ball.drivenBy = id;
+    ball.play = null; ball.sink = 0;
+    ball.hidden = false; ball.mesh.visible = true;
+    if (ball.label) ball.label.visible = true;
+    ball.at = [ob.x, ob.y];
+    mg3PlaceBall(ball, ob.x, ob.y);
+  });
   mg3Start();
   return true;
 }
 function mg3Rolling(id) {
-  if (id) { const b = MG3.balls.get(id); return !!(b && (b.play || b.sink)); }
+  if (id) { const b = MG3.balls.get(id); return !!(b && (b.play || b.sink || b.drivenBy)); }
   let any = false;
-  MG3.balls.forEach(b => { if (b.play || b.sink) any = true; });
+  MG3.balls.forEach(b => { if (b.play || b.sink || b.drivenBy) any = true; });
   return any;
+}
+/** Lets go of the balls a putt was knocking about: each back where the table says it lies. */
+function mg3Release(id) {
+  MG3.balls.forEach(ob => {
+    if (ob.drivenBy !== id) return;
+    ob.drivenBy = null; ob.sink = 0;
+    ob.at = (ob.want || ob.at).slice();
+    mg3PlaceBall(ob, ob.at[0], ob.at[1]);
+    ob.hidden = !!ob.hiddenWanted;
+    ob.mesh.visible = !ob.hidden;
+    if (ob.label) ob.label.visible = !ob.hidden;
+  });
 }
 /** Stops a roll where it is (a refused putt), and puts the ball at `at`. */
 function mg3StopBall(id, at) {
   const b = MG3.balls.get(id);
   if (!b) return;
+  if (b.play) mg3Release(id);
   b.play = null; b.sink = 0;
   if (at) { b.at = at.slice(); mg3PlaceBall(b, at[0], at[1]); }
 }
 
-const mgUp = { v: null, t: null, q: null };
-function mg3StepBall(b, now, dt) {
-  const p = b.play;
-  const target = p.off + (now - p.start) / 1000;
-  let n = 0;
-  while (p.sim.t < target && !p.sim.end && n < 3600) { golfStep(p.sim); n++; }
-  const s = p.sim;
-  mg3PlaceBall(b, s.x, s.y);
-  // it rolls
-  const v = Math.hypot(s.vx, s.vy);
-  if (v > 0.01) {
-    const THREE = MG3.T;
-    if (!mgUp.v) { mgUp.v = new THREE.Vector3(0, 1, 0); mgUp.t = new THREE.Vector3(); mgUp.q = new THREE.Quaternion(); }
-    mgUp.t.set(s.vx, 0, -s.vy).normalize().cross(mgUp.v).negate();
-    mgUp.q.setFromAxisAngle(mgUp.t, v * dt / GOLF.BALL_R);
-    b.mesh.quaternion.premultiply(mgUp.q);
-  }
-  if (s.sand && !p.sand && p.loud) { mg3Puff(s.x, s.y); mgSound('sand'); }
-  p.sand = s.sand;
-  if (s.hits > p.hits) { if (p.loud && v > 1.2) mgSound('wall'); p.hits = s.hits; }
-  if (!s.end) return;
-  const end = s.end;
-  const onEnd = p.onEnd;
-  b.play = null;
-  if (end === 'cup') {
-    b.sink = now;
-    mg3PlaceBall(b, MG3.hole.cup[0], MG3.hole.cup[1]);
-    if (p.loud) mgSound('cup');
+const mgUp = { v: null, ax: null, q: null };
+/** Turns a ball as it rolls at (vx, vy) for dt seconds. */
+function mg3Roll(ball, vx, vy, dt) {
+  const v = Math.hypot(vx, vy);
+  if (v < 0.01 || !dt) return;
+  const THREE = MG3.T;
+  if (!mgUp.v) { mgUp.v = new THREE.Vector3(0, 1, 0); mgUp.ax = new THREE.Vector3(); mgUp.q = new THREE.Quaternion(); }
+  mgUp.ax.set(vx, 0, -vy).normalize().cross(mgUp.v).negate();
+  mgUp.q.setFromAxisAngle(mgUp.ax, v * dt / GOLF.BALL_R);
+  ball.mesh.quaternion.premultiply(mgUp.q);
+}
+
+/**
+ * One body of a roll on the screen: put where the rules have it, and what
+ * happened to it since the last frame played - the sand's puff, the mud's
+ * plop, a pad's whoosh, a flight and its landing, a portal, a knock, the cup
+ * and the water.
+ */
+function mg3ShowBody(ball, body, key, p, now, dt) {
+  const was = p.seen[key] || (p.seen[key] = { end: null, sand: false, mud: false, ice: false, pad: false, air: false, hits: body.hits, warps: body.warps, jumps: body.jumps, bumps: body.bumps, knocks: body.knocks });
+  const loud = p.loud;
+  if (was.end === 'cup' || was.end === 'water') return;
+  if (body.end === 'cup') {
+    was.end = 'cup';
+    ball.sink = now;
+    mg3PlaceBall(ball, MG3.hole.cup[0], MG3.hole.cup[1]);
+    if (loud) mgSound('cup');
     if (MG3.flag) MG3.flag.jump = now;
     mg3Ring(MG3.hole.cup[0], MG3.hole.cup[1], 0xffffff);
-  } else if (end === 'water') {
-    mg3Splash(s.x, s.y);
-    if (p.loud) mgSound('splash');
-    b.hidden = true;
-    b.mesh.visible = false;
-    if (b.label) b.label.visible = false;
-    const from = p.from;
-    setTimeout(() => {
-      if (!MG3.balls.get(b.id) || b.play) return;
-      b.hidden = !!b.hiddenWanted;
-      b.at = from.slice();
-      mg3PlaceBall(b, from[0], from[1]);
-      b.mesh.visible = !b.hidden;
-      if (b.label) b.label.visible = !b.hidden;
-      mg3Ring(from[0], from[1], 0x9fd3ff);
-    }, 850);
-  } else {
-    b.at = [s.x, s.y];
+    return;
   }
+  if (body.end === 'water') {
+    was.end = 'water';
+    mg3Splash(body.x, body.y);
+    if (loud) mgSound('splash');
+    ball.hidden = true;
+    ball.mesh.visible = false;
+    if (ball.label) ball.label.visible = false;
+    const back = (p.returns[key] || [body.sx, body.sy]).slice();
+    setTimeout(() => {
+      // Not if a new putt has taken this ball since.
+      if (MG3.balls.get(ball.id) !== ball || (ball.play && ball.play !== p)) return;
+      ball.hidden = ball.play || ball.drivenBy ? false : !!ball.hiddenWanted;
+      ball.at = back.slice();
+      mg3PlaceBall(ball, back[0], back[1]);
+      ball.mesh.visible = !ball.hidden;
+      if (ball.label) ball.label.visible = !ball.hidden;
+      mg3Ring(back[0], back[1], 0x9fd3ff);
+    }, 850);
+    return;
+  }
+  // a portal: gone into one ring, out of the other
+  if (body.warps > was.warps && body.warp) {
+    const pt = (MG3.hole.portals || [])[body.warp.k];
+    if (pt) { mg3Ring(pt.x, pt.y, 0xc77dff); mg3Ring(pt.ox, pt.oy, 0xffb347); mg3Particles(pt.ox, pt.oy, 0xffe0a8, 22, 1.2, 2.6, 0.1); }
+    if (loud) mgSound('warp');
+    ball.pop = now;
+  }
+  const pop = ball.pop && now - ball.pop < 260 ? (now - ball.pop) / 260 : 1;
+  ball.mesh.scale.setScalar(pop < 1 ? 0.3 + 0.7 * pop : 1);
+  mg3PlaceBall(ball, body.x, body.y, 0, body.air ? body.z : undefined);
+  if (!body.air) mg3Roll(ball, body.vx, body.vy, dt);
+  const v = Math.hypot(body.vx, body.vy);
+  if (body.sand && !was.sand && loud) { mg3Puff(body.x, body.y); mgSound('sand'); }
+  if (body.mud && !was.mud) { mg3Particles(body.x, body.y, 0x5a3a22, 18, 0.8, 1.6, 0.11); if (loud) mgSound('mud'); }
+  if (body.ice && !was.ice && loud && v > 1) mgSound('ice');
+  if (body.pad && !was.pad && loud) mgSound('whoosh');
+  if (body.jumps > was.jumps && loud) mgSound('jump');
+  if (was.air && !body.air) { mg3Particles(body.x, body.y, 0x9bd08a, 14, 0.9, 1.4, 0.08); if (loud) mgSound('land'); }
+  if (body.knocks > was.knocks && loud) mgSound('knock');
+  else if (body.bumps > was.bumps && loud) mgSound('bump');
+  else if (body.hits > was.hits && loud && v > 1.2) mgSound('wall');
+  Object.assign(was, { sand: body.sand, mud: body.mud, ice: body.ice, pad: body.pad, air: body.air, hits: body.hits, warps: body.warps, jumps: body.jumps, bumps: body.bumps, knocks: body.knocks });
+}
+
+function mg3StepBall(b, now, dt) {
+  const p = b.play;
+  const s = p.sim;
+  const target = p.off + (now - p.start) / 1000;
+  let n = 0;
+  while (s.t < target && !s.done && n < 3600) { golfStep(s); n++; }
+  if (!b.sink) mg3ShowBody(b, s, 'main', p, now, dt);
+  (s.others || []).forEach(o => {
+    const ball = MG3.balls.get(o.id);
+    if (ball && ball.drivenBy === b.id && !ball.sink) mg3ShowBody(ball, o, o.id, p, now, dt);
+  });
+  // A gate swung, a bumper hit: the piece moves (and knocks) on the screen too.
+  Object.keys(s.flaps).forEach(k => {
+    if (p.flaps[k] === s.flaps[k]) return;
+    const first = p.flaps[k] === undefined || s.flaps[k] - p.flaps[k] > 0.4;
+    p.flaps[k] = s.flaps[k];
+    MG3.movers.forEach(m => { if (m.kind === 'gate' && String(m.k) === k) m.last = s.flaps[k]; });
+    if (first && p.loud) mgSound('flap');
+  });
+  Object.keys(s.bumped).forEach(k => {
+    if (p.bumped[k] === s.bumped[k]) return;
+    p.bumped[k] = s.bumped[k];
+    MG3.movers.forEach(m => { if (m.kind === 'bumper' && String(m.k) === k) m.last = s.bumped[k]; });
+  });
+  if (!s.done) return;
+  const onEnd = p.onEnd;
+  b.play = null;
+  if (!s.end || s.end === 'rest') b.at = [s.x, s.y];
+  // the balls it knocked: settled where the rules left them
+  (s.others || []).forEach(o => {
+    const ball = MG3.balls.get(o.id);
+    if (!ball || ball.drivenBy !== b.id) return;
+    ball.drivenBy = null;
+    if (o.end === 'rest') ball.at = [o.x, o.y];
+    else if (o.end === 'cup' && !ball.sink) { ball.hidden = true; ball.mesh.visible = false; if (ball.label) ball.label.visible = false; }
+  });
   if (onEnd) { try { onEnd(s); } catch (e) { console.warn(e); } }
 }
 
@@ -1602,14 +2249,16 @@ function mg3DrawAim() {
   MG3.band.visible = true;
   // the aim guide: the path the putt would take, dotted
   if (MG3.input.guide && MG3.input.guide()) {
-    const sim = golfStart(MG3.hole, from, Object.assign({ t0: Math.max(0, Math.round(MG3.clock())) }, s));
+    const others = MG3.input.others ? MG3.input.others() : null;
+    const sim = golfStart(MG3.hole, from, Object.assign({ t0: Math.max(0, Math.round(MG3.clock())) }, s), others || undefined);
     const pts = MG3.guidePts;
+    const up = () => (sim.air ? sim.z : golfHeight(MG3.hole, sim.x, sim.y)) + 0.06;
     let n = 0, steps = 0;
-    while (!sim.end && steps < 2400 && n < 399) {
+    while (!sim.done && !(sim.end && sim.end !== 'rest') && steps < 2400 && n < 399) {
       golfStep(sim); steps++;
-      if (steps % 9 === 0) { pts[n * 3] = sim.x; pts[n * 3 + 1] = golfHeight(MG3.hole, sim.x, sim.y) + 0.06; pts[n * 3 + 2] = -sim.y; n++; }
+      if (steps % 9 === 0 && !sim.end) { pts[n * 3] = sim.x; pts[n * 3 + 1] = up(); pts[n * 3 + 2] = -sim.y; n++; }
     }
-    pts[n * 3] = sim.x; pts[n * 3 + 1] = golfHeight(MG3.hole, sim.x, sim.y) + 0.06; pts[n * 3 + 2] = -sim.y; n++;
+    pts[n * 3] = sim.x; pts[n * 3 + 1] = up(); pts[n * 3 + 2] = -sim.y; n++;
     MG3.guide.geometry.setDrawRange(0, n);
     MG3.guide.geometry.attributes.position.needsUpdate = true;
     MG3.guide.geometry.computeBoundingSphere();
@@ -1648,8 +2297,23 @@ function mg3Tick(now, dt) {
     if (mv.kind === 'mill') mv.hub.rotation.z = golfMillAngle(mv.m, t);
     else if (mv.kind === 'slider') { const c = golfSliderAt(mv.sl, t); mv.g.position.set(c[0], golfHeight(MG3.hole, c[0], c[1]), -c[1]); }
     else if (mv.kind === 'spinner') mv.g.rotation.y = golfSpinnerAngle(mv.sp, t);
-    else if (mv.kind === 'deco-wheel') mv.g.rotation.z = -t * 0.5;
+    else if (mv.kind === 'deco-wheel') mv.g.rotation.z = -t * (mv.rate || 0.5);
     else if (mv.kind === 'deco-beam') mv.g.rotation.y = t * 0.6;
+    // The arrows of a pad, a belt's ribs and rollers, a portal's swirl: always on the move, quietly.
+    else if (mv.kind === 'pad') mv.tx.offset.y = -((t * mv.rate) % 1);
+    else if (mv.kind === 'belt') { mv.tx.offset.y = -((t * mv.rate) % 1); mv.rollers.forEach(r => { r.rotation.y = -t * mv.spin; }); }
+    else if (mv.kind === 'portal') { mv.discs[0].rotation.z = -t * 2.4; mv.discs[1].rotation.z = t * 1.6; }
+    // A gate's flap swings open the way through and falls back; a bumper's cap flashes.
+    else if (mv.kind === 'gate') {
+      const age = t - mv.last;
+      const open = age < 0 || age > 1.2 ? 0 : age < 0.12 ? age / 0.12 : 1 - (age - 0.12) / 1.08;
+      mv.pivot.rotation.x = -mv.sign * open * open * 1.25;
+    } else if (mv.kind === 'bumper') {
+      const age = t - mv.last;
+      const k = age >= 0 && age < 0.45 ? 1 - age / 0.45 : 0;
+      mv.capMat.emissiveIntensity = 0.15 + k * 2.2;
+      mv.g.scale.set(1 + k * 0.12, 1, 1 + k * 0.12);
+    }
   });
   const calm = reducedMotion();
   const f = MG3.flag;
@@ -1667,7 +2331,7 @@ function mg3Tick(now, dt) {
   MG3.bobbers.forEach(bb => { bb.g.position.y = bb.base + Math.sin(t * 1.4 + bb.ph) * 0.03; bb.g.rotation.z = Math.sin(t * 1.1 + bb.ph) * 0.03; });
   MG3.balls.forEach(b => {
     if (b.play) mg3StepBall(b, now, dt);
-    else if (b.sink) {
+    if (b.sink) {
       const k = (now - b.sink) / 380;
       const h = MG3.hole;
       mg3PlaceBall(b, h.cup[0], h.cup[1], -Math.min(1, k) * 0.5);
@@ -1734,13 +2398,17 @@ function mgMountIn(root, onReady) {
   });
 }
 
-/** The strip at the top: the hole, its par, the strokes; `extra` on the end (a clock, whose turn). */
+/** "Par 3 · max 6": the hole's par and the most strokes it allows. */
+const mgParMax = (i) => mgT('mg_par_max', { n: GOLF_HOLES[i].par, m: golfMaxOf(GOLF_HOLES[i]) });
+
+/** The strip at the top: the hole, its par and most strokes, the strokes; "last stroke" on the final one; `extra` on the end (a clock, whose turn). */
 function mgHudHtml(o) {
   const chips = [
     `<span class="mg-chip mg-chip--hole">⛳ <b>${escapeHTML(mgT('mg_hole', { n: o.hole + 1, m: o.holes }))}</b><span class="mg-chip__name">${escapeHTML(mgHoleName(o.hole))}</span></span>`,
-    `<span class="mg-chip">${escapeHTML(mgT('mg_par', { n: GOLF_HOLES[o.hole].par }))}</span>`
+    `<span class="mg-chip">${escapeHTML(mgParMax(o.hole))}</span>`
   ];
   if (typeof o.strokes === 'number') chips.push(`<span class="mg-chip mg-chip--strokes">${escapeHTML(mgT('mg_strokes', { n: o.strokes }))}</span>`);
+  if (o.last) chips.push(`<span class="mg-chip mg-chip--last">${escapeHTML(mgT('mg_last_stroke'))}</span>`);
   if (typeof o.vsPar === 'number') chips.push(`<span class="mg-chip mg-chip--par">${escapeHTML(mgDelta(o.vsPar))}</span>`);
   if (o.extra) chips.push(o.extra);
   return `<div class="mg-hud__row">${chips.join('')}</div>`;
@@ -1765,7 +2433,7 @@ function mgNameCard(root, hole, holes, key) {
   if (!motionFirst(['mg-name', key].join('|'))) return;
   el.innerHTML = `<span class="mg-namecard__n">${escapeHTML(mgT('mg_hole_big', { n: hole + 1 }))}</span>
       <span class="mg-namecard__name">${escapeHTML(mgHoleName(hole))}</span>
-      <span class="mg-namecard__par">${escapeHTML(mgT('mg_par', { n: GOLF_HOLES[hole].par }))}</span>`;
+      <span class="mg-namecard__par">${escapeHTML(mgParMax(hole))}</span>`;
   el.classList.remove('is-on');
   void el.offsetWidth;
   el.classList.add('is-on');
@@ -1777,25 +2445,33 @@ function mgNameCard(root, hole, holes, key) {
 function mgCardHtml(rows, holes, o) {
   const opt = o || {};
   const upto = Math.max(1, opt.upto || holes);
-  const cols = [];
-  for (let i = 0; i < upto; i++) cols.push(i);
-  const par = cols.reduce((a, i) => a + GOLF_HOLES[i].par, 0);
   const cell = (v, i) => {
     if (typeof v !== 'number') return '<td class="mg-card__c">·</td>';
     const d = v - GOLF_HOLES[i].par;
     return `<td class="mg-card__c ${v === 1 ? 'is-ace' : d < 0 ? 'is-under' : d > 0 ? 'is-over' : ''}">${v}</td>`;
   };
-  return `<div class="mg-card"><table>
-      <thead><tr><th class="mg-card__who"></th>${cols.map(i => `<th>${i + 1}</th>`).join('')}<th class="mg-card__tot">Σ</th></tr>
+  // Up to nine holes, one table; past nine, two, as on a real card: the first nine
+  // with their own sum, then the rest with the total.
+  const table = (from, to, last) => {
+    const cols = [];
+    for (let i = from; i < to; i++) cols.push(i);
+    const span = last ? upto : to;
+    let par = 0;
+    for (let i = last ? 0 : from; i < span; i++) par += GOLF_HOLES[i].par;
+    return `<table>
+      <thead><tr><th class="mg-card__who"></th>${cols.map(i => `<th>${i + 1}</th>`).join('')}<th class="mg-card__tot">${last ? 'Σ' : escapeHTML(mgT('mg_out'))}</th></tr>
         <tr class="mg-card__par"><th class="mg-card__who">${escapeHTML(mgT('mg_par', { n: '' }).trim())}</th>${cols.map(i => `<td>${GOLF_HOLES[i].par}</td>`).join('')}<td class="mg-card__tot">${par}</td></tr></thead>
       <tbody>${rows.map(r => {
         let total = 0, played = 0;
-        cols.forEach(i => { if (typeof r.card[i] === 'number') { total += r.card[i]; played += GOLF_HOLES[i].par; } });
-        const from = typeof opt.countHole === 'number' && typeof r.card[opt.countHole] === 'number' ? total - r.card[opt.countHole] : total;
+        for (let i = last ? 0 : from; i < span; i++) if (typeof r.card[i] === 'number') { total += r.card[i]; played += GOLF_HOLES[i].par; }
+        const counted = last && typeof opt.countHole === 'number' && typeof r.card[opt.countHole] === 'number';
+        const tot = last ? `<b data-mg-from="${counted ? total - r.card[opt.countHole] : total}" data-mg-to="${total}">${total}</b><small>${escapeHTML(played ? mgDelta(total - played) : '')}</small>` : `<b>${total}</b>`;
         return `<tr class="${r.me ? 'is-me' : ''}"><th class="mg-card__who"><span class="mg-dot" style="--c:${r.color}"></span><bdi>${escapeHTML(r.name)}</bdi></th>
-          ${cols.map(i => cell(r.card[i], i)).join('')}<td class="mg-card__tot"><b data-mg-from="${from}" data-mg-to="${total}">${total}</b><small>${escapeHTML(played ? mgDelta(total - played) : '')}</small></td></tr>`;
+          ${cols.map(i => cell(r.card[i], i)).join('')}<td class="mg-card__tot">${tot}</td></tr>`;
       }).join('')}</tbody>
-    </table></div>`;
+    </table>`;
+  };
+  return `<div class="mg-card">${upto > 9 ? table(0, 9, false) + table(9, upto, true) : table(0, upto, true)}</div>`;
 }
 
 /** A card's totals count up from what they were before the hole just played (once per hole). */
@@ -1910,7 +2586,8 @@ function mgSoloChrome() {
   const hole = s.hole || 0;
   let played = 0, total = 0;
   (s.card || []).forEach((v, i) => { if (typeof v === 'number') { total += v; played += GOLF_HOLES[i].par; } });
-  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole, holes: g.holes, strokes: s.n || 0, vsPar: played ? total - played : undefined }));
+  const max = golfMaxOf(GOLF_HOLES[hole]);
+  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole, holes: g.holes, strokes: s.n || 0, vsPar: played ? total - played : undefined, last: s.phase === 'play' && (s.n || 0) === max - 1 }));
   const hint = mgPart(root, 'hint');
   if (hint) {
     hint.textContent = s.phase === 'play' && !mg3Rolling('me') ? mgT('mg_pull_hint') : '';
@@ -1922,7 +2599,7 @@ function mgSoloChrome() {
     panel.classList.toggle('hidden', !showCard);
     if (showCard) {
       const last = s.card[hole];
-      const word = typeof last === 'number' ? (last >= GOLF.CAP + 1 && s.picked ? mgT('mg_picked') : mgWordOf(last, GOLF_HOLES[hole].par)) : '';
+      const word = typeof last === 'number' ? (last > max && s.picked ? mgT('mg_picked', { n: max + 1 }) : mgWordOf(last, GOLF_HOLES[hole].par)) : '';
       const done = s.phase === 'done';
       mgSet(panel, `<div class="mg-panel__card card">
           <p class="eyebrow">${escapeHTML(mgT('mg_hole_big', { n: hole + 1 }))} · ${escapeHTML(mgHoleName(hole))}</p>
@@ -1952,15 +2629,16 @@ function mgSoloPutt(shot) {
   s.n += r.strokes;
   s.at = r.at.slice();
   s.picked = false;
+  const max = golfMaxOf(h);
   if (r.end === 'cup') { s.card[hole] = s.n; s.phase = 'holeDone'; }
-  else if (s.n >= GOLF.CAP) { s.card[hole] = GOLF.CAP + 1; s.n = GOLF.CAP + 1; s.picked = true; s.phase = 'holeDone'; }
+  else if (s.n >= max) { s.card[hole] = max + 1; s.n = max + 1; s.picked = true; s.phase = 'holeDone'; }
   if (s.phase === 'holeDone' && hole + 1 >= (s.game || {}).holes) s.phase = 'done';
   saveToLocal();
   mgSound('putt');
   haptic('medium');
   const root = mgSoloRoot();
   mg3Play('me', golfStart(h, from, full), 0, {
-    from,
+    from, returns: { main: r.at },
     onEnd: (sim) => {
       if (appState.currentView !== 'play-minigolf') return;
       if (sim.end === 'water') mgBanner(root, mgT('mg_water'), '', 'water');
@@ -1970,7 +2648,7 @@ function mgSoloPutt(shot) {
         if (n <= h.par) { playSound('success'); if (n === 1 && typeof playFx === 'function') playFx('applause'); }
         if (n < h.par && typeof confetti === 'function') confetti({ particleCount: n === 1 ? 180 : 90, spread: 80, origin: { y: 0.55 } });
         haptic('double');
-      } else if (s.picked) mgBanner(root, mgT('mg_picked'), '', 'picked');
+      } else if (s.picked) mgBanner(root, mgT('mg_picked', { n: golfMaxOf(h) + 1 }), '', 'picked');
       if (s.phase === 'holeDone' || s.phase === 'done') {
         mgSoloTimers.push(setTimeout(() => {
           if (appState.currentView !== 'play-minigolf') return;
@@ -2075,6 +2753,26 @@ function mgRoomCanPutt(state) {
   return !mg3Rolling(Room.me);
 }
 
+/**
+ * The balls a putt by `pid` can hit - the very list the server makes
+ * (mgOthers in RoomMiniGolf.js): in turns, every ball lying on the course,
+ * hit from the tee and not yet in, in the table's order. All at once, none.
+ */
+function mgRoomOthers(s, pid) {
+  if (!s || !s.settings || s.settings.mode !== 'turns') return null;
+  return (s.order || []).filter(id => {
+    const b = (s.balls || {})[id];
+    return id !== pid && b && !b.done && b.n > 0;
+  }).map(id => ({ id, at: s.balls[id].at.slice() }));
+}
+/** Where each wet ball of a putt goes back to, from its result: { main, <id> }. */
+function mgReturns(end, at, moved) {
+  const out = {};
+  if (end === 'water' && at) out.main = at.slice();
+  (moved || []).forEach(m => { if (m.end === 'water') out[m.id] = m.at.slice(); });
+  return out;
+}
+
 function mgRoomPutt(shot) {
   const state = Room.state;
   if (!state || state.game !== 'minigolf' || !mgRoomCanPutt(state)) return;
@@ -2083,11 +2781,14 @@ function mgRoomPutt(shot) {
   const h = GOLF_HOLES[s.hole];
   const full = golfCleanShot(Object.assign({}, shot, { t0: Math.round(mgRoomClock()) }));
   const from = b.at.slice();
+  const others = mgRoomOthers(s, Room.me);
+  // The server will come to the same result from the same numbers; this phone knows it now.
+  const r = others ? golfPutt(h, from, full, others) : golfPutt(h, from, full);
   mgRoom.pending = Object.assign({ n: b.n, hole: s.hole, key: state.code + '|' + s.dealId }, full);
   // The ball rolls as the finger lifts; the server's putt, when it comes, is the same roll.
   mgSound('putt');
   haptic('medium');
-  mg3Play(Room.me, golfStart(h, from, full), 0, { from, onEnd: (sim) => mgRoomEnded(Room.me, sim) });
+  mg3Play(Room.me, golfStart(h, from, full, others || undefined), 0, { from, returns: mgReturns(r.end, r.at, r.moved), onEnd: (sim) => mgRoomEnded(Room.me, sim) });
   mgRoomChrome(state, document.getElementById('view-room-minigolf'), false);
   const sentN = b.n;
   Room.act('putt', Object.assign({ hole: s.hole, n: b.n }, full)).then(() => {
@@ -2126,7 +2827,18 @@ function mgRoomEnded(pid, sim) {
     if ((mine || tv) && n <= h.par) { playSound('success'); if (n === 1 && typeof playFx === 'function') playFx('applause'); }
     if (mine && n < h.par && typeof confetti === 'function') confetti({ particleCount: n === 1 ? 180 : 90, spread: 80, origin: { y: 0.55 } });
     if (mine) haptic('double');
-  } else if (sh && sh.n > GOLF.CAP && mine) mgBanner(root, mgT('mg_picked'), '', 'picked');
+  } else if (sh && sh.n > golfMaxOf(h) && mine) mgBanner(root, mgT('mg_picked', { n: golfMaxOf(h) + 1 }), '', 'picked');
+  // A ball this putt knocked in, or into the water: said on its own phone and the TV.
+  (sim.others || []).forEach(o => {
+    if (o.end !== 'cup' && o.end !== 'water') return;
+    const itsMine = o.id === Room.me && !tv;
+    if (!itsMine && !tv) return;
+    const who = mgName(state, o.id), by = mgName(state, pid);
+    const text = o.end === 'cup' ? (itsMine ? mgT('mg_knocked_in_you', { by }) : mgT('mg_knocked_in', { name: who, by }))
+      : (itsMine ? mgT('mg_knocked_wet_you', { by }) : mgT('mg_knocked_wet', { name: who }));
+    setTimeout(() => mgBanner(root, text, '', o.end === 'cup' ? 'good' : 'water'), 1900);
+    if (o.end === 'cup' && itsMine) { playSound('success'); haptic('double'); }
+  });
   // A card or the end may have been waiting for this ball.
   clearTimeout(mgRoom.redraw);
   mgRoom.redraw = setTimeout(() => { if (Room.state && Room.state.game === 'minigolf') routeRoomState(Room.state); }, 1200);
@@ -2140,17 +2852,17 @@ function mgRoomReplays(state, tv) {
   if (mgRoom.key !== key) { mgRoom.key = key; mgRoom.seen = {}; mgRoom.fresh = true; }
   const first = mgRoom.fresh;
   mgRoom.fresh = false;
-  Object.keys(s.shots || {}).forEach(pid => {
-    const sh = s.shots[pid];
+  // In the order they were made: a putt that knocked a ball is rolled before that ball's own next one.
+  Object.keys(s.shots || {}).map(pid => [pid, s.shots[pid]]).sort((a, b) => ((a[1] || {}).seq || 0) - ((b[1] || {}).seq || 0)).forEach(([pid, sh]) => {
     if (!sh || (mgRoom.seen[pid] || 0) >= sh.seq) return;
     mgRoom.seen[pid] = sh.seq;
     const p = mgRoom.pending;
     if (pid === Room.me && !tv && p && p.n === sh.n - sh.add && p.t0 === sh.t0 && p.dx === sh.dx && p.dy === sh.dy && p.power === sh.power && mg3Rolling(pid)) return;
     const off = (mgRoomClock() - sh.t0) / 1000;
-    // Too late to watch (a reload, a phone that slept): the ball is simply where it lies.
-    if (first || off * 1000 > sh.dur + 300) { mg3StopBall(pid, sh.at); return; }
+    // Too late to watch (a reload, a phone that slept): every ball is simply where it lies.
+    if (first || off * 1000 > sh.dur + 300) { mg3StopBall(pid, ((s.balls || {})[pid] || {}).at || sh.at); return; }
     const loud = pid === Room.me ? !tv : (tv || !roomHasScreen());
-    mg3Play(pid, golfStart(h, sh.from, sh), off, { from: sh.from, loud, onEnd: (sim) => mgRoomEnded(pid, sim) });
+    mg3Play(pid, golfStart(h, sh.from, sh, sh.others || undefined), off, { from: sh.from, returns: mgReturns(sh.end, sh.at, sh.moved), loud, onEnd: (sim) => mgRoomEnded(pid, sim) });
   });
 }
 
@@ -2165,10 +2877,13 @@ function mgRoomCourse(state, root, tv) {
     MG3.balls.forEach(b => mg3RemoveBall(b));
     MG3.balls.clear();
   }
+  const turns = s.settings.mode === 'turns';
   const balls = (s.order || []).map(pid => {
     const b = s.balls[pid] || {};
     const me = pid === Room.me && !tv;
-    return { id: pid, at: b.at || h.tee, color: mgRoomColor(s, pid), ghost: !tv && !me && !(s.settings.mode === 'turns'), hidden: !!b.done, label: me ? '' : mgName(state, pid) };
+    // In turns a ball comes onto the course when it is hit from the tee: till then only the one up waits there.
+    const offCourse = turns && !b.n && s.turn !== pid;
+    return { id: pid, at: b.at || h.tee, color: mgRoomColor(s, pid), ghost: !tv && !me && !turns, hidden: !!b.done || offCourse, label: me ? '' : mgName(state, pid) };
   });
   mg3SyncBalls(balls);
   mgRoomReplays(state, tv);
@@ -2176,10 +2891,12 @@ function mgRoomCourse(state, root, tv) {
     can: () => !!Room.state && mgRoomCanPutt(Room.state) && appState.currentView === 'room-minigolf',
     from: () => { const st = Room.state; const b = st && st.shared.balls[Room.me]; return b ? b.at : h.tee; },
     guide: () => !!((Room.state || {}).shared || {}).settings && !!Room.state.shared.settings.guide,
+    others: () => mgRoomOthers((Room.state || {}).shared, Room.me),
     onShot: mgRoomPutt
   };
   MG3.onFrame = null;
 }
+
 
 /** The host's buttons: putt for a phone that went quiet (away, or its ball waiting 30 seconds). */
 function mgHostButtons(state) {
@@ -2279,7 +2996,7 @@ function mgBetweenHtml(state, tv) {
   const words = rows.map(r => {
     const v = r.card[s.hole];
     return `<li class="mg-res ${r.me ? 'is-me' : ''}"><span class="mg-dot" style="--c:${r.color}"></span><span class="mg-res__name">${escapeHTML(r.name)}</span>
-        <span class="mg-res__word">${typeof v === 'number' ? escapeHTML(v > GOLF.CAP ? mgT('mg_picked') : mgWordOf(v, h.par)) : ''}</span><b class="metric">${typeof v === 'number' ? v : '·'}</b></li>`;
+        <span class="mg-res__word">${typeof v === 'number' ? escapeHTML(v > golfMaxOf(h) ? mgT('mg_picked', { n: v }) : mgWordOf(v, h.par)) : ''}</span><b class="metric">${typeof v === 'number' ? v : '·'}</b></li>`;
   }).join('');
   return `<div class="mg-panel__card card">
       <p class="eyebrow">${escapeHTML(mgT('mg_hole_big', { n: s.hole + 1 }))} · ${escapeHTML(mgHoleName(s.hole))}</p>
@@ -2320,7 +3037,8 @@ function mgRoomChrome(state, root, tv) {
   const mine = !tv && !!me;
   const clock = s.settings.clock && s.phase === 'play' ? '<span class="mg-chip mg-chip--clock" data-mg-clock></span>' : '';
   const up = s.settings.mode === 'turns' && s.turn ? `<span class="mg-chip mg-chip--turn">${escapeHTML(s.turn === Room.me && !tv ? mgT('mg_your_turn').split('!')[0] + '!' : mgT('mg_turn_of', { name: mgName(state, s.turn) }))}</span>` : '';
-  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole: s.hole, holes: s.holes, strokes: mine ? me.n : undefined, extra: up + clock }));
+  const last = mine && s.phase === 'play' && !me.done && me.n === golfMaxOf(GOLF_HOLES[s.hole]) - 1;
+  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole: s.hole, holes: s.holes, strokes: mine ? me.n : undefined, last, extra: up + clock }));
   mgSet(mgPart(root, 'players'), tv ? '' : mgPlayersHtml(state, tv));
   const hint = mgPart(root, 'hint');
   if (hint) {

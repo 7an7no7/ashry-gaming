@@ -4179,14 +4179,15 @@ Date.now = duelTestClock;
 {
   const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
   const MG = new Function(src('MiniGolf.js') +
-    '\nreturn { GOLF, GOLF_HOLES, golfStart, golfStep, golfRun, golfPutt, golfField, golfDistance, golfAutoShot, golfClearLine, golfMillShut, golfSliderSeg, golfSpinnerSeg, golfSinCos, golfParOf };')();
+    '\nreturn { GOLF, GOLF_HOLES, GOLF_HOLE_COUNTS, golfStart, golfStep, golfRun, golfPutt, golfField, golfDistance, golfAutoShot, golfClearLine, golfSpeedFor, golfMillShut, golfSliderSeg, golfSpinnerSeg, golfSinCos, golfParOf, golfMaxOf, golfWetSpot };')();
   const H = (id) => MG.GOLF_HOLES.find((h) => h.id === id);
   const moving = (h) => !!((h.mills || []).length || (h.sliders || []).length || (h.spinners || []).length);
 
   // A way into the cup: a beam search, each putt aimed at the cup or at the
-  // squares in sight that are farthest along (golfField), a few strengths, and
-  // for a hole with moving pieces a few moments to hit it. Every place a ball
-  // came to rest on the way is kept, to check that none is a trap.
+  // squares in sight that are farthest along (golfField), a few strengths
+  // round what the ground asks for there (golfSpeedFor: ice, sand, mud,
+  // pads), and for a hole with moving pieces a few moments to hit it. Every
+  // place a ball came to rest on the way is kept, to check that none is a trap.
   const solveHole = (h, maxStrokes) => {
     const f = MG.golfField(h);
     const t0s = moving(h) ? [0, 400, 800, 1200, 1700, 2300] : [0];
@@ -4212,7 +4213,8 @@ Date.now = duelTestClock;
         for (const tg of targets) {
           const dx = tg[0] - st.at[0], dy = tg[1] - st.at[1], d = Math.hypot(dx, dy) || 1;
           const offs = tg[2] ? [0] : [-0.06, -0.03, 0, 0.03, 0.06];
-          const pows = tg[2] ? [150, 300, 500, 800] : [0.6, 0.85, 1, 1.15, 1.4, 1.8].map((k) => Math.round(Math.sqrt(6 * (d * k + 0.3)) / 24 * 1000));
+          const v0 = MG.golfSpeedFor(h, st.at[0], st.at[1], tg[0] + dx / d * 0.3, tg[1] + dy / d * 0.3);
+          const pows = tg[2] ? [150, 300, 500, 800] : [0.6, 0.85, 1, 1.15, 1.4, 1.8].map((k) => Math.round(v0 * k / MG.GOLF.MAX_SPEED * 1000));
           for (const off of offs) for (const power of pows) for (const t0 of t0s) {
             const ang = Math.atan2(dy, dx) + off;
             const shot = { dx: Math.round(Math.cos(ang) * 1000), dy: Math.round(Math.sin(ang) * 1000), power: Math.max(20, Math.min(1000, power)), t0 };
@@ -4245,10 +4247,15 @@ Date.now = duelTestClock;
       if (!r.ok) { allOk = false; names.push(h.id); }
       r.rests.forEach((p) => { if (MG.golfDistance(h, p[0], p[1]) === Infinity) trapped.push(h.id + '@' + p.join(',')); });
     }
-    check(MG.GOLF_HOLES.length === 9 && allOk,
-      'minigolf: nine holes, each one gets into the cup within par + 1 (' + MG.GOLF_HOLES.map((h) => h.id + ' ' + (solved[h.id].strokes || '✗') + '/' + h.par).join(', ') + ')' + (names.length ? ' - not: ' + names.join(', ') : ''));
+    check(MG.GOLF_HOLES.length === 18 && allOk,
+      'minigolf: eighteen holes, each one gets into the cup within par + 1 (' + MG.GOLF_HOLES.map((h) => h.id + ' ' + (solved[h.id].strokes || '✗') + '/' + h.par).join(', ') + ')' + (names.length ? ' - not: ' + names.join(', ') : ''));
     check(!trapped.length, 'minigolf: no ball comes to rest where the cup can\'t be reached from' + (trapped.length ? ' (' + trapped.slice(0, 3).join(' ') + ')' : ''));
-    check(MG.golfParOf(3) === 8 && MG.golfParOf(6) === 17 && MG.golfParOf(9) === 27, 'minigolf: par 8 for 3 holes, 17 for 6, 27 for 9');
+    check(MG.golfParOf(3) === 8 && MG.golfParOf(6) === 17 && MG.golfParOf(9) === 26 && MG.golfParOf(18) === 55 && MG.GOLF_HOLE_COUNTS.join() === '3,6,9,18',
+      'minigolf: games of 3, 6, 9 or 18 holes; par 8, 17, 26 and 55');
+    check(['first', 'mill', 'bridge', 'humps', 'pyramid', 'saqia', 'lighthouse', 'gate', 'oasis'].every((id) => !!H(id)) && MG.GOLF_HOLES[0].id === 'first' &&
+      MG.GOLF_HOLES.every((h, i) => !i || h.par >= MG.GOLF_HOLES[i - 1].par),
+      'minigolf: the nine holes of the first course are all still there, and the pars never drop as the course goes on');
+    check(new Set(MG.GOLF_HOLES.map((h) => h.id)).size === 18, 'minigolf: every hole has its own name');
     MG.solved = solved;
 
     // Every hole fits a phone held upright: taller than it is wide.
@@ -4256,37 +4263,150 @@ Date.now = duelTestClock;
       const xs = h.green.map((p) => p[0]), ys = h.green.map((p) => p[1]);
       return Math.max(...ys) - Math.min(...ys) > Math.max(...xs) - Math.min(...xs);
     }), 'minigolf: every hole is taller than wide, to fill a phone held upright');
+    // Each hole takes only the new pieces that fit it: never more than three; all eight are on the course.
+    const kinds = ['ice', 'mud', 'pads', 'belts', 'portals', 'bumpers', 'ramps', 'gates'];
+    const used = new Set();
+    MG.GOLF_HOLES.forEach((h) => kinds.forEach((k) => { if ((h[k] || []).length) used.add(k); }));
+    check(used.size === 8 && MG.GOLF_HOLES.every((h) => kinds.filter((k) => (h[k] || []).length).length <= 3),
+      'minigolf: all eight new pieces are on the course, and no hole has more than three of them');
 
-    // The same putt ends the same way, every time: 300 of them, twice.
-    let same = true;
+    // At most par + 3 strokes (or a hole's own), then the ball is picked up.
+    check(MG.golfMaxOf({ par: 2 }) === 5 && MG.golfMaxOf({ par: 3 }) === 6 && MG.golfMaxOf({ par: 4 }) === 7 && MG.golfMaxOf({ par: 5 }) === 8 && MG.golfMaxOf({ par: 3, max: 9 }) === 9,
+      'minigolf: the most strokes a hole allows is par + 3 (par 2: 5, 3: 6, 4: 7, 5: 8), or the hole\'s own max');
+
+    // The same putt ends the same way, every time: 300 of them, twice, on every hole -
+    // and 300 more with other balls lying about.
+    let same = true, sameMany = true;
     const rnd = (k) => ((k * 2654435761) % 1000) / 1000;
     for (let k = 0; k < 300; k++) {
-      const h = MG.GOLF_HOLES[k % 9];
+      const h = MG.GOLF_HOLES[k % 18];
       const shot = { dx: Math.round(rnd(k) * 2000 - 1000), dy: Math.round(rnd(k + 7) * 2000 - 1000), power: 20 + Math.round(rnd(k + 13) * 980), t0: Math.round(rnd(k + 29) * 60000) };
       const a = MG.golfPutt(h, h.tee, shot), b = MG.golfPutt(h, h.tee, shot);
       if (JSON.stringify(a) !== JSON.stringify(b)) same = false;
+      const others = [0, 1, 2].map((i) => ({ id: 'o' + i, at: [h.tee[0] + (rnd(k + i * 3) - 0.5) * 3, h.tee[1] + 1 + rnd(k + i * 5) * 5] }));
+      const c = MG.golfPutt(h, h.tee, shot, others), d = MG.golfPutt(h, h.tee, shot, others);
+      if (JSON.stringify(c) !== JSON.stringify(d)) sameMany = false;
     }
     check(same, 'minigolf: a putt is the same numbers in and the same result out, every time (300 putts, run twice)');
+    check(sameMany, 'minigolf: and with other balls to knock about, every ball ends the same way too (300 putts, run twice)');
     check(Math.abs(MG.golfSinCos(1.2)[0] - Math.sin(1.2)) < 1e-7 && Math.abs(MG.golfSinCos(-4)[1] - Math.cos(-4)) < 1e-7 && Math.abs(MG.golfSinCos(10)[0] - Math.sin(10)) < 1e-7,
       'minigolf: the spinner\'s sin and cos come from a polynomial, as close as Math.sin');
+    // A roll on a phone is the server's roll: golfStep by golfStep from the same start ends where golfPutt says, other balls and all.
+    {
+      const h = H('fair');
+      const others = [{ id: 'x', at: [6, 6] }, { id: 'y', at: [5, 8] }];
+      const shot = { dx: 0, dy: 1000, power: 520, t0: 900 };
+      const sim = MG.golfStart(h, h.tee, shot, others);
+      while (!sim.done) MG.golfStep(sim);
+      const r = MG.golfPutt(h, h.tee, shot, others);
+      const at = (b) => [Math.round(b.x * 1000) / 1000, Math.round(b.y * 1000) / 1000].join();
+      const ok = (r.end !== 'rest' || at(sim) === r.at.join()) && r.moved.every((m) => { const o = sim.others.find((q) => q.id === m.id); return o.end === m.end && (m.end !== 'rest' || at(o) === m.at.join()); });
+      check(ok && r.moved.length > 0, 'minigolf: a putt stepped on a phone ends where the server\'s golfPutt says, every ball it knocked included');
+    }
 
     // Water: back where it was hit from, a stroke added.
     const br = H('bridge');
     const wet = MG.golfPutt(br, br.tee, { dx: 0, dy: 1000, power: 420, t0: 0 });
     check(wet.end === 'water' && wet.at[0] === br.tee[0] && wet.at[1] === br.tee[1] && wet.strokes === 2,
       'minigolf: into the water, the ball goes back to where it was hit from and it costs a stroke more');
-    // Sand slows: the same putt on a plain green goes further than through a bunker.
-    const plain = { id: 'plain-test', par: 2, tee: [2, 1], cup: [2, 39], green: [[0, 0], [4, 0], [4, 40], [0, 40]] };
-    const sandy = Object.assign({}, plain, { id: 'sandy-test', sand: [[[0, 4], [4, 4], [4, 8], [0, 8]]] });
-    const far = MG.golfPutt(plain, plain.tee, { dx: 0, dy: 1000, power: 400, t0: 0 }), short = MG.golfPutt(sandy, sandy.tee, { dx: 0, dy: 1000, power: 400, t0: 0 });
+    // The ground: the same putt down a plain lane, through sand, mud and ice.
+    const lane = (id, extra) => Object.assign({ id, par: 3, tee: [2, 1], cup: [2, 39], green: [[0, 0], [4, 0], [4, 40], [0, 40]] }, extra || {});
+    const up = (power) => ({ dx: 0, dy: 1000, power, t0: 0 });
+    const band = [[[0, 4], [4, 4], [4, 8], [0, 8]]];
+    const far = MG.golfPutt(lane('plain-test'), [2, 1], up(400)), short = MG.golfPutt(lane('sandy-test', { sand: band }), [2, 1], up(400));
     check(far.end === 'rest' && short.end === 'rest' && short.at[1] < far.at[1] - 5, 'minigolf: sand slows the ball hard');
-    // A hump: too soft and it rolls back down.
+    const muddy = MG.golfPutt(lane('mud-test', { mud: band }), [2, 1], up(400));
+    check(muddy.end === 'rest' && muddy.at[1] < short.at[1] - 0.5, 'minigolf: mud stops the ball sooner than sand (' + muddy.at[1] + ' against ' + short.at[1] + ')');
+    const plain3 = MG.golfPutt(lane('plain-test'), [2, 1], up(300)), icy = MG.golfPutt(lane('ice-test', { ice: [[[0, 4], [4, 4], [4, 12], [0, 12]]] }), [2, 1], up(300));
+    check(icy.end === 'rest' && icy.at[1] > plain3.at[1] + 4, 'minigolf: on ice the ball slides much farther than on the green (' + icy.at[1] + ' against ' + plain3.at[1] + ')');
+    // A speed pad pushes the ball on the way it points.
+    const padded = MG.golfPutt(lane('pad-test', { pads: [{ x: 2, y: 5, dx: 0, dy: 1, w: 2, l: 2 }] }), [2, 1], up(200)), unpadded = MG.golfPutt(lane('plain-test'), [2, 1], up(200));
+    check(padded.at[1] > unpadded.at[1] + 10, 'minigolf: a speed pad sends the ball on much faster (' + padded.at[1] + ' against ' + unpadded.at[1] + ')');
+    // A conveyor carries the ball along; one running the other way brings it back.
+    const onBelt = MG.golfPutt(lane('belt-test', { belts: [{ x0: 0, y0: 4, x1: 4, y1: 10, vx: 0, vy: 3 }] }), [2, 1], up(230)), offBelt = MG.golfPutt(lane('plain-test'), [2, 1], up(230));
+    check(offBelt.at[1] < 10 && onBelt.at[1] > 10, 'minigolf: a conveyor carries the ball to its far end (' + onBelt.at[1] + ', ' + offBelt.at[1] + ' without it)');
+    const back = MG.golfPutt(lane('belt-back-test', { belts: [{ x0: 0, y0: 4, x1: 4, y1: 10, vx: 0, vy: -3 }] }), [2, 1], up(300));
+    check(back.at[1] < 4.2, 'minigolf: a conveyor running the other way brings the ball back off it');
+    // A portal: in at one ring, out of the other at the same speed, its own way.
+    {
+      const h = lane('portal-test', { portals: [{ x: 2, y: 5, ox: 2, oy: 25, dx: 0, dy: 1 }] });
+      const sim = MG.golfStart(h, h.tee, up(200));
+      let vin = 0, vout = 0, at = null;
+      while (!sim.done) { const w = sim.warps, v = Math.hypot(sim.vx, sim.vy); MG.golfStep(sim); if (sim.warps > w) { vin = v; vout = Math.hypot(sim.vx, sim.vy); at = [sim.x, sim.y]; } }
+      check(at && Math.abs(at[1] - 25.3) < 0.01 && Math.abs(vout - vin) < 0.1 && sim.y > 25, 'minigolf: a portal takes the ball in at one ring and out of the other at the same speed (' + vin.toFixed(2) + ' → ' + vout.toFixed(2) + ')');
+    }
+    // A bumper sends the ball back faster than it came.
+    {
+      const h = lane('bumper-test', { bumpers: [{ x: 2, y: 6, r: 0.5 }] });
+      const sim = MG.golfStart(h, h.tee, up(300));
+      let vin = 0, vout = 0;
+      while (!sim.done) { const n = sim.bumps, v = Math.hypot(sim.vx, sim.vy); MG.golfStep(sim); if (sim.bumps > n && !vin) { vin = v; vout = Math.hypot(sim.vx, sim.vy); } }
+      check(vin > 0 && vout > vin * 1.2, 'minigolf: a bumper sends the ball back harder than it came (' + vin.toFixed(2) + ' → ' + vout.toFixed(2) + ')');
+    }
+    // A ramp: fast enough and the ball flies over the water; too slow and it rolls back down.
+    {
+      const h = lane('ramp-test', { green: [[0, 0], [4, 0], [4, 30], [0, 30]], cup: [2, 28], ramps: [{ x: 2, y: 4, dx: 0, dy: 1, len: 2.6, w: 2.2 }], water: [[[0, 6.6], [4, 6.6], [4, 10], [0, 10]]] });
+      const fly = MG.golfStart(h, h.tee, up(520));
+      let top = 0;
+      while (!fly.done) { MG.golfStep(fly); top = Math.max(top, fly.z); }
+      const slow = MG.golfPutt(h, h.tee, up(250));
+      check(fly.end === 'rest' && fly.y > 10 && fly.jumps === 1 && top > MG.GOLF.RAMP_H, 'minigolf: off a ramp fast enough, the ball flies over the water and lands beyond it');
+      check(slow.end === 'rest' && slow.at[1] < 4, 'minigolf: too slow for the ramp, the ball rolls back down it');
+    }
+    // A one-way gate: through the way it opens, a rail the other way.
+    {
+      const h = lane('gate-test', { gates: [{ x1: 0, y1: 8, x2: 4, y2: 8, dx: 0, dy: 1 }] });
+      const through = MG.golfPutt(h, [2, 1], up(400));
+      const blocked = MG.golfPutt(h, [2, 20], { dx: 0, dy: -1000, power: 500, t0: 0 });
+      check(through.at[1] > 8.5 && blocked.at[1] > 8.3, 'minigolf: a one-way gate lets the ball through one way and stops it the other (' + through.at[1] + ', ' + blocked.at[1] + ')');
+      const below = Object.assign({}, h, { id: 'gate-below-test', cup: [2, 3] });
+      check(MG.golfDistance(below, 2, 12) === Infinity && MG.golfDistance(h, 2, 3) < Infinity && MG.golfDistance(H('citadel'), 1.7, 19) < Infinity,
+        'minigolf: the way to the cup goes through a gate only the way it opens');
+    }
+    // Ball on ball: equal balls, the knock passed on.
+    {
+      const plain = lane('plain-test');
+      const r = MG.golfPutt(plain, [2, 1], up(300), [{ id: 'x', at: [2, 6] }]);
+      const alone = MG.golfPutt(plain, [2, 1], up(300));
+      check(r.at[1] < 6 && r.moved.length === 1 && r.moved[0].id === 'x' && r.moved[0].end === 'rest' && r.moved[0].at[1] > 6 + 2 && alone.at[1] > r.at[1] + 3,
+        'minigolf: a ball hits a ball lying in its way, and that one rolls on (' + r.at[1] + ' / ' + r.moved[0].at[1] + ')');
+      const missed = MG.golfPutt(plain, [2, 1], up(300), [{ id: 'x', at: [3.5, 6] }]);
+      check(!missed.moved.length && missed.at.join() === alone.at.join(), 'minigolf: a ball it passes by isn\'t touched, and isn\'t in the result');
+      // Knocked into the cup: holed.
+      const cupLane = lane('cup-test', { cup: [2, 9] });
+      let into = null;
+      for (let p = 200; p <= 420 && !into; p += 5) { const q = MG.golfPutt(cupLane, [2, 1], up(p), [{ id: 'x', at: [2, 7] }]); if (q.moved.length && q.moved[0].end === 'cup') into = q; }
+      check(!!into && into.moved[0].at.join() === '2,9', 'minigolf: a ball knocked into the cup drops in');
+      // Knocked into the water: back to its own spot - or, when the ball that knocked it lies there, the tee.
+      const pond = lane('wet-test', { tee: [2, 0.6], water: [[[0, 12], [4, 12], [4, 14], [0, 14]]] });
+      // Head on, the ball that hit it stops about where it lay: that spot is taken, so the tee.
+      const headOn = MG.golfPutt(pond, [2, 1], up(500), [{ id: 'x', at: [2, 6] }]);
+      check(headOn.moved.length === 1 && headOn.moved[0].end === 'water' && headOn.moved[0].at.join() === pond.tee.join() && headOn.end === 'rest',
+        'minigolf: a ball knocked into the water whose spot the other ball now lies on goes back to the tee');
+      // A glancing knock sends the two apart: the wet one goes back to its own spot.
+      let own = null;
+      for (let off = 0.1; off <= 0.35 && !own; off += 0.05) for (let p = 300; p <= 900 && !own; p += 20) {
+        const q = MG.golfPutt(pond, [2, 1], up(p), [{ id: 'x', at: [2 + off, 6] }]);
+        const m = q.moved[0];
+        if (m && m.end === 'water' && m.at.join() === [2 + off, 6].join()) own = q;
+      }
+      check(!!own && own.end === 'rest', 'minigolf: a ball knocked into the water goes back to its own spot');
+      check(MG.golfWetSpot(pond, [2, 6], [[2.1, 6.2]]).join() === '2,0.6' && MG.golfWetSpot(pond, [2, 6], [[2.6, 6]]).join() === '2,6',
+        'minigolf: a spot another ball lies on is taken, and a wet ball goes to the tee instead');
+      // Into the water, back where it lay; with another ball lying there now (one it
+      // sat against at the start, which it never touched), back to the tee.
+      const spot = [2, 5];
+      const clear = MG.golfPutt(pond, spot, up(800), []);
+      const taken = MG.golfPutt(pond, spot, up(800), [{ id: 'x', at: [2.2, 5.1] }]);
+      check(clear.end === 'water' && clear.at.join() === spot.join() && clear.strokes === 2, 'minigolf: a ball in the water goes back where it lay, a stroke added');
+      check(taken.end === 'water' && taken.at.join() === pond.tee.join() && !taken.moved.length, 'minigolf: and when another ball lies on that spot, back to the tee');
+    }
+    // The sand, the humps, the windmill, the gate and the waterwheel, as before.
     const hu = H('humps');
-    const back = MG.golfPutt(hu, hu.tee, { dx: 0, dy: 1000, power: 260, t0: 0 });
-    check(back.end === 'rest' && back.at[1] < 6.5, 'minigolf: a putt too soft for the hump rolls back down it');
+    const backDown = MG.golfPutt(hu, hu.tee, { dx: 0, dy: 1000, power: 260, t0: 0 });
+    check(backDown.end === 'rest' && backDown.at[1] < 6.5, 'minigolf: a putt too soft for the hump rolls back down it');
     const over = MG.golfPutt(hu, hu.tee, { dx: 0, dy: 1000, power: 520, t0: 0 });
     check(over.at[1] > 16.5 || over.end === 'cup', 'minigolf: a firm one gets over both humps');
-    // The windmill: the same putt passes or is stopped, by when it is hit.
     const mi = H('mill');
     const ends = new Set();
     for (let t0 = 0; t0 < 2600; t0 += 50) {
@@ -4294,16 +4414,17 @@ Date.now = duelTestClock;
       ends.add(r.at[1] < 9 ? 'stopped' : 'through');
     }
     check(ends.has('stopped') && ends.has('through'), 'minigolf: the windmill\'s sails let a putt through or stop it, by when it is hit');
-    // The gate and the waterwheel move on the same clock.
     const gatePaths = new Set(), wheelPaths = new Set();
     for (let t0 = 0; t0 < 6000; t0 += 150) {
       gatePaths.add(MG.golfPutt(H('gate'), H('gate').tee, { dx: 160, dy: 987, power: 420, t0 }).at[1] > 12.5 ? 'through' : 'stopped');
       wheelPaths.add(MG.golfPutt(H('saqia'), H('saqia').tee, { dx: 0, dy: 1000, power: 420, t0 }).at[1] > 14.5 ? 'through' : 'stopped');
     }
     check(gatePaths.size === 2 && wheelPaths.size === 2, 'minigolf: the sliding gate and the waterwheel\'s beam change a putt by when it is hit');
-    // The phone's gentle putt for a quiet player: never into the water, and it
-    // takes the ball closer (past a moving piece, at a moment it is open).
+    // The phone's gentle putt for a quiet player: never into the water, it takes
+    // the ball closer (past a moving piece, at a moment it is open), and putt
+    // after putt it holes out on every hole, new pieces and all.
     let gentle = true;
+    const stuck = [];
     for (const h of MG.GOLF_HOLES) {
       let closer = false;
       for (let t0 = 0; t0 < 3000; t0 += 250) {
@@ -4313,8 +4434,16 @@ Date.now = duelTestClock;
         if (r.end === 'cup' || MG.golfDistance(h, r.at[0], r.at[1]) < MG.golfDistance(h, h.tee[0], h.tee[1]) - 1) closer = true;
       }
       if (!closer) gentle = false;
+      let at = h.tee.slice(), holed = false;
+      for (let k = 0; k < 12 && !holed; k++) {
+        const r = MG.golfPutt(h, at, MG.golfAutoShot(h, at, k * 700));
+        holed = r.end === 'cup';
+        at = r.at;
+      }
+      if (!holed) stuck.push(h.id);
     }
     check(gentle, 'minigolf: the clock\'s gentle putt never goes in the water, and takes the ball closer to the cup');
+    check(!stuck.length, 'minigolf: the gentle putt, again and again, gets into the cup on every hole' + (stuck.length ? ' - not: ' + stuck.join(', ') : ''));
   }
 
   const mg = (ids, payload) => {
@@ -4346,6 +4475,8 @@ Date.now = duelTestClock;
   applyRoomAction(r, 'a', 'putt', { dx: 0, dy: 1000, power: 300, t0: clock - s.startedAt, hole: 0, n: 0 });
   check(s.balls.a.n === 1 && s.balls.b.n === 1 && s.shots.a.seq === 2 && s.shots.b.seq === 1 && s.shots.a.from.join() === MG.GOLF_HOLES[0].tee.join(),
     'minigolf: all at once, each player putts from their own phone whenever ready, and the putt is on the table to replay');
+  check(s.shots.a.at.join() === s.shots.b.at.join() && !s.shots.a.others && !s.shots.a.moved,
+    'minigolf: all at once, the balls pass through each other: the same putt from the same tee ends in the same place');
   // A tap for a stroke already played, or for another hole, is dropped.
   applyRoomAction(r, 'a', 'putt', { dx: 0, dy: 1000, power: 300, t0: 0, hole: 0, n: 0 });
   applyRoomAction(r, 'a', 'putt', { dx: 0, dy: 1000, power: 300, t0: 0, hole: 1, n: 1 });
@@ -4356,21 +4487,25 @@ Date.now = duelTestClock;
   const okT0 = s.shots.a.t0;
   applyRoomAction(r, 'b', 'putt', { dx: 0, dy: 1000, power: 60, t0: 1000, hole: 0, n: 1 });
   check(okT0 === 4000 && s.shots.b.t0 === 5000, 'minigolf: the phone\'s t0 is used when within 1.5 s of the server\'s, else the server\'s own');
-  // 6 strokes and the ball is picked up; the hole counts 7.
-  for (let k = 0; k < 4; k++) tiny(r, 'a');
-  check(s.balls.a.done === 'picked' && s.balls.a.n === 7 && s.card.a[0] === 7, 'minigolf: after 6 strokes the ball is picked up and the hole counts 7');
+  // Par 2 allows 5 strokes: the ball is picked up and the hole counts 6.
+  for (let k = 0; k < 6 && !s.balls.a.done; k++) tiny(r, 'a');
+  check(s.balls.a.done === 'picked' && s.balls.a.n === 6 && s.card.a[0] === 6, 'minigolf: par 2 allows 5 strokes; then the ball is picked up and the hole counts 6');
   check(s.phase === 'play', 'minigolf: the hole goes on while a ball is still out');
-  for (let k = 0; k < 4; k++) tiny(r, 'b');
+  for (let k = 0; k < 6 && !s.balls.b.done; k++) tiny(r, 'b');
   check(s.phase === 'between' && s.nextAt > clock && roomDeadline(r) === s.nextAt,
     'minigolf: once every ball is in or picked up, the hole\'s card shows, and the next hole comes on the server\'s clock');
   clock = s.nextAt + 10;
   roomTimeout(r, clock);
   check(s.phase === 'play' && s.hole === 1 && s.balls.a.n === 0 && s.balls.a.at.join() === MG.GOLF_HOLES[1].tee.join(), 'minigolf: the next hole, every ball on its tee');
   // A hole in: the cup, and the card.
-  holeOut(r, 'a', MG.solved.mill.path);
-  check(s.balls.a.done === 'cup' && s.card.a[1] === MG.solved.mill.strokes, 'minigolf: a ball in the cup is done, and its strokes go on the card');
-  check(s.board.find((x) => x.id === 'a').score === 7 + MG.solved.mill.strokes && s.board[0].score <= s.board[1].score,
+  const second1 = MG.solved[MG.GOLF_HOLES[1].id];
+  holeOut(r, 'a', second1.path);
+  check(s.balls.a.done === 'cup' && s.card.a[1] === second1.strokes, 'minigolf: a ball in the cup is done, and its strokes go on the card');
+  check(s.board.find((x) => x.id === 'a').score === 6 + second1.strokes && s.board[0].score <= s.board[1].score,
     'minigolf: the board is the totals of the holes played, lowest first');
+  // Par 3 allows 6: picked up at 6, the hole counts 7.
+  for (let k = 0; k < 7 && !s.balls.b.done; k++) tiny(r, 'b');
+  check(s.balls.b.done === 'picked' && s.card.b[1] === 7, 'minigolf: par 3 allows 6 strokes; the hole counts 7');
 
   // In turns: one putt at a time round the table; the honour on the next hole.
   r = mg(['a', 'b', 'c'], { mode: 'turns', holes: 3, clock: 20, guide: true });
@@ -4381,10 +4516,13 @@ Date.now = duelTestClock;
   check(roomDeadline(r) === s.startedAt + 2500 + 20000 && s.balls[second].clockAt === null, 'minigolf: in turns, only the player up has the clock running');
   tiny(r, first);
   check(s.turn === second && s.balls[second].clockAt > clock, 'minigolf: after a putt the turn goes round the table, and the clock starts for the next');
+  check(Array.isArray(s.shots[first].others) && s.shots[first].others.length === 0,
+    'minigolf: in turns, the balls still on the tee aren\'t on the course yet: the first putt has nothing to hit');
   clock = s.balls[second].clockAt + 10;
   roomTimeout(r, clock);
   check(s.shots[second] && s.shots[second].auto === true && s.balls[second].n === 1 && s.turn === s.order[2],
     'minigolf: when the clock runs out, the phone putts gently for the player, and the turn moves on');
+  check(s.shots[second].others.map((o) => o.id).join() === first, 'minigolf: in turns, a ball hit from the tee is on the course, for the next putts to meet');
   // The one up leaves: the turn moves on; the rest play on.
   const third = s.turn;
   r.players = r.players.filter((x) => x.id !== third);
@@ -4395,34 +4533,101 @@ Date.now = duelTestClock;
   check(s.shots[first].auto === true && s.turn === second, 'minigolf: the host\'s "play for" is the phone\'s gentle putt');
   check(refused(() => applyRoomAction(r, 'b', 'playFor', { target: 'b', hole: 0 })), 'minigolf: only the host plays for someone');
   // Finish hole 1, a putt a turn: `second` holes out on a way solved from
-  // where the clock's putt left it, `first` picks up.
-  const queue = solveHole(Object.assign({}, MG.GOLF_HOLES[0], { tee: s.balls[second].at.slice(), id: 'first-from' }), 5).path.slice();
+  // where the clock's putt left it (with the other ball where it lies), `first` picks up.
+  const from1 = Object.assign({}, MG.GOLF_HOLES[0], { tee: s.balls[second].at.slice(), id: 'first-from' });
+  const queue = solveHole(from1, 5).path.slice();
   for (let guard = 0; guard < 30 && s.phase === 'play'; guard++) {
-    const up = s.turn;
-    if (up === second && queue.length) {
+    const upNow = s.turn;
+    if (upNow === second && queue.length) {
       const shot = queue.shift();
       applyRoomAction(r, second, 'putt', Object.assign({}, shot, { t0: clock - s.startedAt, hole: 0, n: s.balls[second].n }));
       continue;
     }
-    tiny(r, up);
+    tiny(r, upNow);
   }
-  check(s.phase === 'between' && s.balls[second].done === 'cup' && s.balls[first].done === 'picked', 'minigolf: in turns the hole ends once every ball is done');
+  check(s.phase === 'between' && s.balls[first].done === 'picked', 'minigolf: in turns the hole ends once every ball is done');
   check(refused(() => applyRoomAction(r, 'b', 'nextHole', { hole: 0 })) && s.phase === 'between', 'minigolf: only the host moves to the next hole early');
   applyRoomAction(r, 'a', 'nextHole', { hole: 0 });
-  check(s.hole === 1 && s.turn === second && s.order[0] === second, 'minigolf: the next hole, the best score on the last one tees off first');
+  check(s.hole === 1 && s.order[0] === s.turn && s.card[s.order[0]][0] <= s.card[s.order[1]][0], 'minigolf: the next hole, the best score on the last one tees off first');
+
+  // Ball on ball in a room played in turns: a knock, a ball knocked into the cup, one knocked into the water.
+  {
+    r = mg(['a', 'b'], { mode: 'turns', holes: 3 });
+    s = r.shared;
+    const [p1, p2] = s.order;
+    const h0 = MG.GOLF_HOLES[0];
+    // p1's ball lies a little way up; p2 putts from the tee straight into it.
+    s.balls[p1].n = 1; s.balls[p1].at = [4, 5];
+    s.turn = p2;
+    applyRoomAction(r, p2, 'putt', { dx: 0, dy: 1000, power: 300, t0: clock - s.startedAt, hole: 0, n: 0 });
+    const sh = s.shots[p2];
+    check(sh.others.length === 1 && sh.others[0].id === p1 && sh.others[0].at.join() === '4,5' && sh.moved.length === 1 && sh.moved[0].id === p1 &&
+      s.balls[p1].at.join() === sh.moved[0].at.join() && s.balls[p1].at[1] > 5.5 && s.balls[p1].n === 1,
+      'minigolf: in turns a putt knocks a ball lying in its way; that ball is where the knock left it, with no stroke added');
+    check(sh.at[1] < 5, 'minigolf: and the ball that hit it stops short');
+    // A ball near the cup, knocked in: holed with its strokes so far.
+    s.balls[p1].at = [4, 15.4]; s.balls[p1].n = 2;
+    s.balls[p2].at = [4, 12.6];
+    s.turn = p2;
+    let knocked = false;
+    for (let p = 150; p <= 400 && !knocked; p += 6) {
+      const trial = JSON.parse(JSON.stringify(r));
+      applyRoomAction(trial, p2, 'putt', { dx: 0, dy: 1000, power: p, t0: clock - trial.shared.startedAt, hole: 0, n: trial.shared.balls[p2].n });
+      if (trial.shared.balls[p1].done === 'cup') {
+        knocked = true;
+        check(trial.shared.card[p1][0] === 2 && trial.shared.balls[p2].n === s.balls[p2].n + 1 && trial.shared.shots[p2].moved[0].end === 'cup',
+          'minigolf: a ball knocked into the cup is holed, counted with its own strokes so far');
+        check(trial.shared.turn === p2 || trial.shared.balls[p2].done, 'minigolf: and the turn skips it from then on');
+      }
+    }
+    check(knocked, 'minigolf: a putt can knock another ball into the cup');
+    void h0;
+  }
+  {
+    // The bridge: a ball on the bank, knocked into the water, comes back to its spot, no stroke added.
+    r = mg(['a', 'b'], { mode: 'turns', holes: 3 });
+    s = r.shared;
+    const [p1, p2] = s.order;
+    const bi = MG.GOLF_HOLES.findIndex((h) => h.id === 'bridge');
+    s.hole = bi; s.startedAt = clock;
+    const tee = MG.GOLF_HOLES[bi].tee;
+    Object.keys(s.balls).forEach((id) => { s.balls[id].at = tee.slice(); s.balls[id].n = 0; });
+    s.balls[p1].n = 1; s.balls[p1].at = [2, 6.8];
+    s.turn = p2;
+    let back = null;
+    for (let p = 250; p <= 700 && !back; p += 10) {
+      const trial = JSON.parse(JSON.stringify(r));
+      applyRoomAction(trial, p2, 'putt', { dx: -100, dy: 995, power: p, t0: 0, hole: bi, n: 0 });
+      const m = (trial.shared.shots[p2].moved || [])[0];
+      if (m && m.end === 'water') back = trial;
+    }
+    check(!!back && back.shared.balls[p1].n === 1 && !back.shared.balls[p1].done &&
+      (back.shared.balls[p1].at.join() === '2,6.8' || back.shared.balls[p1].at.join() === tee.join()),
+      'minigolf: a ball knocked into the water goes back to its own spot (or the tee), with no stroke added');
+  }
 
   // The end: the podium is the lowest total, a win counted, play again keeps the settings and the wins.
   r = mg(['a', 'b'], { holes: 3 });
   s = r.shared;
   for (let hole = 0; hole < 3; hole++) {
     holeOut(r, 'a', MG.solved[MG.GOLF_HOLES[hole].id].path);
-    for (let k = 0; k < 6 && !s.balls.b.done; k++) tiny(r, 'b');
+    for (let k = 0; k < 8 && !s.balls.b.done; k++) tiny(r, 'b');
     if (hole < 2) applyRoomAction(r, 'a', 'nextHole', { hole });
   }
-  check(s.phase === 'gameover' && r.phase === 'gameover' && s.result.winners.join() === 'a' && s.wins.a === 1 && s.board[0].id === 'a' && s.board[1].score === 21,
+  check(s.phase === 'gameover' && r.phase === 'gameover' && s.result.winners.join() === 'a' && s.wins.a === 1 && s.board[0].id === 'a' && s.board[1].score === 20,
     'minigolf: after the last hole the lowest total wins, and the win is counted');
   applyRoomAction(r, 'a', 'playAgain', {});
   check(r.shared.phase === 'play' && r.shared.hole === 0 && r.shared.holes === 3 && r.shared.wins.a === 1, 'minigolf: play again keeps the number of holes and the wins');
+  // Eighteen holes: the whole course, every hole's card, the total.
+  r = mg(['a', 'b'], { holes: 18 });
+  s = r.shared;
+  for (let hole = 0; hole < 18 && s.phase !== 'gameover'; hole++) {
+    for (const pid of ['a', 'b']) for (let k = 0; k < 9 && !s.balls[pid].done; k++) tiny(r, pid);
+    if (s.phase === 'between') applyRoomAction(r, 'a', 'nextHole', { hole });
+  }
+  const maxAll = MG.GOLF_HOLES.reduce((t, h) => t + MG.golfMaxOf(h) + 1, 0);
+  check(s.holes === 18 && s.phase === 'gameover' && s.card.a.length === 18 && s.card.a.every((v) => typeof v === 'number') && s.board[0].score <= maxAll,
+    'minigolf: a game of 18 holes plays the whole course');
   // Everyone leaves: the game is over, not stuck.
   r = mg(['a', 'b']);
   r.players = r.players.filter((x) => x.id !== 'b');

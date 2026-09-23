@@ -176,7 +176,7 @@ function gwQaHtml(state, tv) {
   const text = q.kind === 'list' ? gwT('gw_asked_list', { name: asker, q: gwQText(q.qi) })
     : q.kind === 'typed' ? gwT('gw_asked_list', { name: asker, q: q.text || '' }) : gwT('gw_asked_loud', { name: asker });
   const answered = typeof q.answer === 'boolean';
-  const pop = answered && motionFirst(['gw-qa', state.code, s.round, s.log.length, q.seat].join('|'));
+  const pop = answered && motionFirst(['gw-qa', roomDealKey(state), s.round, s.log.length, q.seat].join('|'));
   const thinking = `<span class="gw-qa__a is-wait gw-think">💭 ${escapeHTML(gwT('gw_thinking', { name: duelIso(names[1 - q.seat] || '') }))}<span class="gw-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>`;
   const ans = answered
     ? `<span class="gw-qa__a ${q.answer ? 'is-yes' : 'is-no'} ${pop ? 'is-in' : ''}">${escapeHTML(q.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>` : thinking;
@@ -229,7 +229,7 @@ function gwRevealHtml(state, tv) {
   const s = state.shared;
   const names = duelRoomNames(state);
   const rev = s.reveal || [];
-  const turn = motionFirst(['gw-reveal', state.code, s.round].join('|'));
+  const turn = motionFirst(['gw-reveal', roomDealKey(state), s.round].join('|'));
   // After a guess the faces turn once the drum roll has had its moment.
   const wait = turn && gwLocal.drama && gwLocal.drama.round === s.round ? Math.max(0, gwLocal.drama.until - Date.now()) : 0;
   return `<div class="gw-reveal ${tv ? 'gw-reveal--tv' : ''} ${turn ? 'is-turning' : ''}" ${turn ? `data-reveal-ms="${900 + wait}" style="--gw-wait:${wait}ms"` : ''}>
@@ -333,7 +333,7 @@ function gwAnswerCardHtml(state, seat) {
   const face = (state.you || {}).face;
   const text = q.kind === 'list' ? gwQText(q.qi) : q.kind === 'typed' ? (q.text || '') : gwT('gw_loud_asked');
   const card = typeof face === 'number' && s.faces[face] ? `<span class="gw-ask-me__face gw-mine__card">${gwCardInner(s.faces[face])}</span>` : '';
-  return `<div class="gw-ask-me ${motionFirst(['gw-askme', state.code, s.round, s.turnSeq].join('|')) ? 'is-in' : ''}">
+  return `<div class="gw-ask-me ${motionFirst(['gw-askme', roomDealKey(state), s.round, s.turnSeq].join('|')) ? 'is-in' : ''}">
       ${card}
       <div class="gw-ask-me__text">
         <span class="eyebrow">${escapeHTML(gwT('gw_q_from', { name: duelIso(names[s.turn] || '') }))}</span>

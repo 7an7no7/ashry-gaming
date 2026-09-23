@@ -535,7 +535,7 @@ TV_GAMES.trivia = {
       const medals = ['🥇', '🥈', '🥉'];
       const top = (s.board || []).slice(0, 3);
       // Third rises, then second, then the winner, the first time (JS_Motion.html, section 9).
-      const rise = motionFirst(['tvpodium', state.code, JSON.stringify(top)].join('|'));
+      const rise = motionFirst(['tvpodium', roomDealKey(state), JSON.stringify(top)].join('|'));
       const atOf = (i) => 150 + (top.length - 1 - i) * 520;
       return `
         <div class="tv-trivia">
@@ -1121,7 +1121,7 @@ TV_GAMES.stop = {
   after(state) {
     const s = state.shared || {};
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
-    if (s.phase === 'writing' && motionFirst(['tvstop', state.code, s.round, s.letter].join('|'))) {
+    if (s.phase === 'writing' && motionFirst(['tvstop', roomDealKey(state), s.round, s.letter].join('|'))) {
       spinLetter(document.querySelector('#view-room-tv .tv-stop-letter'), s.letter, stopLetterPool(s.letter), () => playSound('success'));
     }
   }

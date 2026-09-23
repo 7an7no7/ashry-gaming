@@ -11748,4 +11748,247 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
   .gw-qa__a.is-in, .gw-reveal.is-turning .gw-reveal__one .gw-card, .hm-tile.is-new, .gw-ask-me.is-in, .gw-dots i, .gw-bubble, .gw-drama__card { animation: none; }
 }
 
+/* ==========================================================================
+   29. ميني جولف
+   --------------------------------------------------------------------------
+   JS_MiniGolf.html. The course is a 3D canvas that takes the whole view at
+   every size (the play area gets the space); what the player needs to read
+   sits over it as a compact strip of chips at the top, a line at the foot,
+   the players' chips, and a card between holes and at the end. The chips are
+   frosted ink over the sky and the grass, the same in both themes: they sit
+   on the course, not on the page.
+   ========================================================================== */
+#view-play-minigolf:not(.hidden), #view-room-minigolf:not(.hidden) { display: flex; flex-direction: column; min-height: 0; }
+#view-play-minigolf > .mg-host, #view-room-minigolf > .mg-screen { flex: 1 1 auto; min-height: 0; align-self: stretch; width: 100%; }
+.mg-host { display: flex; flex-direction: column; min-height: 0; }
+.mg-screen { flex: 1 1 auto; display: flex; min-height: 0; gap: var(--sp-3); width: 100%; }
+.mg-stage {
+  --mg-ink: rgba(22, 18, 32, 0.66);
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 15rem;
+  border-radius: var(--r-2xl);
+  overflow: hidden;
+  background: linear-gradient(#bfe3f2, #9fcf8f);
+  box-shadow: var(--sh-3);
+  isolation: isolate;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.mg-canvas-host { position: absolute; inset: 0; }
+.mg-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+.mg-msg {
+  position: absolute; inset: 0; display: grid; place-items: center; padding: var(--sp-6);
+  text-align: center; color: #1d2a1f; font-weight: var(--fw-semi); font-size: var(--fs-body, 1rem);
+}
+.mg-msg.hidden { display: none; }
+
+/* --- the strip at the top --- */
+.mg-hud {
+  position: absolute; top: var(--sp-2); inset-inline: var(--sp-2);
+  display: flex; justify-content: center; pointer-events: none; z-index: 2;
+}
+.mg-hud__row { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.375rem; }
+.mg-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  min-height: 1.875rem; padding: 0.2rem 0.7rem;
+  border-radius: var(--r-full);
+  background: var(--mg-ink);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  color: #fff; font-size: 0.8125rem; font-weight: var(--fw-semi); line-height: 1.2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+}
+.mg-chip b { font-family: var(--font-display); font-weight: var(--fw-bold); }
+.mg-chip__name { font-weight: var(--fw-med); opacity: 0.85; }
+.mg-chip--strokes { background: rgba(255, 255, 255, 0.92); color: #1d1a2b; }
+.mg-chip--turn { background: #ffd23f; color: #2b2300; }
+.mg-chip--clock { font-variant-numeric: tabular-nums; }
+.mg-chip--clock.is-low { background: #d62839; }
+.mg-chip--par { direction: ltr; }
+
+/* --- the line at the foot, the players' chips, the host's buttons --- */
+.mg-hint {
+  position: absolute; bottom: var(--sp-3); left: 50%;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.3rem 0.95rem; border-radius: var(--r-full);
+  background: var(--mg-ink); color: #fff;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  font-weight: var(--fw-bold); font-size: 0.875rem; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none; z-index: 2;
+  opacity: 0; transform: translate(-50%, 6px);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.mg-hint.is-on { opacity: 1; transform: translate(-50%, 0); }
+.mg-hint:empty { visibility: hidden; }
+.mg-players {
+  position: absolute; bottom: calc(var(--sp-3) + 2.4rem); inset-inline: var(--sp-2);
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 0.3rem; pointer-events: none; z-index: 2;
+}
+.mg-players:empty { display: none; }
+.mg-pchip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.15rem 0.55rem; border-radius: var(--r-full);
+  background: rgba(22, 18, 32, 0.55); color: #fff; font-size: 0.75rem; font-weight: var(--fw-med);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  max-width: 9rem;
+}
+.mg-pchip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mg-pchip b { font-family: var(--font-display); }
+.mg-pchip.is-me { background: rgba(255, 255, 255, 0.9); color: #1d1a2b; }
+.mg-pchip.is-up { outline: 2px solid #ffd23f; }
+.mg-pchip.is-away { opacity: 0.55; }
+.mg-dot { width: 0.7rem; height: 0.7rem; flex: none; border-radius: 50%; background: var(--c, #fff); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.35); }
+.mg-hostrow { position: absolute; top: calc(var(--sp-2) + 2.25rem); inset-inline-end: var(--sp-2); z-index: 3; }
+.mg-hostrow .room-host-row { margin-top: 0 !important; }
+.mg-hostrow:empty { display: none; }
+
+/* --- the banner: a word for how a hole went --- */
+.mg-banner {
+  position: absolute; inset-inline: 0; top: 34%;
+  display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+  pointer-events: none; z-index: 3;
+  opacity: 0; transform: scale(0.6);
+  transition: opacity 250ms var(--ease-out), transform 350ms var(--ease-spring);
+}
+.mg-banner.is-on { opacity: 1; transform: scale(1); }
+.mg-banner__text {
+  font-family: var(--font-display); font-weight: var(--fw-black);
+  font-size: clamp(2rem, 9vmin, 4.2rem); line-height: 1.1; color: #fff; text-align: center;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.5), 0 2px 0 rgba(0, 0, 0, 0.25);
+  padding-inline: var(--sp-4);
+}
+.mg-banner small { color: #fff; font-weight: var(--fw-bold); font-size: 1rem; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7); }
+.mg-banner--ace .mg-banner__text { color: #ffd23f; font-size: clamp(2.4rem, 11vmin, 5rem); }
+.mg-banner--good .mg-banner__text { color: #b8ff9f; }
+.mg-banner--water .mg-banner__text { color: #bfe6ff; font-size: clamp(1.6rem, 7vmin, 3rem); }
+.mg-banner--picked .mg-banner__text { font-size: clamp(1.4rem, 6vmin, 2.6rem); }
+
+/* --- a new hole's card: flies in, rests, and flies up to the strip --- */
+.mg-namecard {
+  position: absolute; top: 30%; left: 50%;
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  padding: var(--sp-4) var(--sp-6);
+  border-radius: var(--r-2xl);
+  background: rgba(255, 255, 255, 0.94); color: #1d1a2b;
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.45);
+  pointer-events: none; z-index: 4;
+  opacity: 0; transform: translate(-50%, 0) scale(0.7);
+  min-width: 12rem;
+}
+.mg-namecard.is-on { animation: mg-namecard 2.2s var(--ease-out) both; }
+@keyframes mg-namecard {
+  0%   { opacity: 0; transform: translate(-50%, 30px) scale(0.7) rotate(-4deg); }
+  16%  { opacity: 1; transform: translate(-50%, 0) scale(1.04) rotate(1deg); }
+  24%  { transform: translate(-50%, 0) scale(1) rotate(0); }
+  70%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -180%) scale(0.45); }
+}
+.mg-namecard__n { font-family: var(--font-display); font-weight: var(--fw-black); font-size: 1.9rem; line-height: 1; color: var(--accent-ink); }
+.mg-namecard__n small { font-size: 0.55em; opacity: 0.6; margin-inline-start: 0.15em; }
+.mg-namecard__name { font-family: var(--font-display); font-weight: var(--fw-bold); font-size: 1.25rem; }
+.mg-namecard__par { font-size: 0.8rem; font-weight: var(--fw-semi); color: #5b566f; }
+
+/* --- the card between holes, and the end --- */
+.mg-panel {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-3);
+  background: rgba(10, 20, 14, 0.28);
+  overflow-y: auto;
+  touch-action: pan-y;
+  animation: mg-fade var(--dur-3) var(--ease-out) both;
+}
+.mg-panel.hidden { display: none; }
+@keyframes mg-fade { from { opacity: 0; } to { opacity: 1; } }
+.mg-panel__card {
+  width: min(100%, 30rem); margin: auto;
+  display: flex; flex-direction: column; gap: var(--sp-3);
+  animation: mg-rise var(--dur-4) var(--ease-spring) both;
+}
+.mg-panel__card--over { width: min(100%, 36rem); }
+@keyframes mg-rise { from { opacity: 0; transform: translateY(24px) scale(0.96); } to { opacity: 1; transform: none; } }
+.mg-panel__word { margin: 0; font-family: var(--font-display); font-weight: var(--fw-black); font-size: 1.75rem; line-height: 1.15; color: var(--accent-ink); text-align: center; }
+.mg-panel .btn-stack { margin: 0; }
+.mg-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.mg-res { display: flex; align-items: center; gap: var(--sp-2); padding: 0.35rem 0.6rem; border-radius: var(--r-md); background: var(--surface-2); }
+.mg-res.is-me { outline: 2px solid var(--accent); }
+.mg-res__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-semi); }
+.mg-res__word { color: var(--text-2); font-size: 0.8125rem; font-weight: var(--fw-med); }
+.mg-res b { font-family: var(--font-display); font-size: 1.1rem; min-width: 1.5rem; text-align: center; }
+.mg-next { text-align: center; margin: 0; }
+
+/* the scorecard: holes across, a row a player; it scrolls sideways when it must */
+.mg-card { overflow-x: auto; border-radius: var(--r-md); border: 1px solid var(--border); }
+.mg-card table { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+.mg-card th, .mg-card td { padding: 0.3rem 0.35rem; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mg-card thead th { color: var(--text-3); font-weight: var(--fw-semi); background: var(--surface-2); }
+.mg-card__par td, .mg-card__par th { color: var(--text-2); font-size: 0.75rem; background: var(--surface-2); }
+.mg-card tbody tr + tr { border-top: 1px solid var(--hairline); }
+.mg-card tbody tr.is-me { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.mg-card__who { text-align: start !important; width: 99%; max-width: 8rem; overflow: hidden; text-overflow: ellipsis; font-weight: var(--fw-semi); }
+.mg-card__who .mg-dot { display: inline-block; vertical-align: -0.1em; margin-inline-end: 0.3rem; }
+.mg-card__c { font-weight: var(--fw-semi); }
+.mg-card__c.is-under { color: var(--success); }
+.mg-card__c.is-over { color: var(--danger); }
+.mg-card__c.is-ace { color: #fff; background: var(--success-btn); border-radius: 50%; }
+.mg-card__tot { font-weight: var(--fw-bold); }
+.mg-card__tot b { font-family: var(--font-display); font-size: 1rem; }
+.mg-card__tot small { display: block; font-size: 0.6875rem; color: var(--text-3); font-weight: var(--fw-med); }
+
+/* --- a phone on its side and every wide screen: the course still takes it all --- */
+@media (orientation: landscape) and (max-height: 500px) {
+  .mg-stage { border-radius: var(--r-xl); min-height: 12rem; }
+  .mg-chip { min-height: 1.6rem; font-size: 0.75rem; padding: 0.1rem 0.55rem; }
+  .mg-banner { top: 28%; }
+  .mg-namecard { top: 22%; padding: var(--sp-3) var(--sp-5); }
+  .mg-players { bottom: var(--sp-2); inset-inline-start: var(--sp-2); inset-inline-end: auto; flex-direction: column; align-items: flex-start; }
+  .mg-hint { bottom: var(--sp-2); }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-minigolf, .shell__main > #view-room-minigolf { max-width: 80rem; width: 100%; margin-inline: auto; }
+  .mg-chip { font-size: 0.875rem; min-height: 2rem; }
+  .mg-players { inset-inline-start: var(--sp-3); inset-inline-end: auto; bottom: var(--sp-3); flex-direction: column; align-items: flex-start; }
+  .mg-pchip { font-size: 0.8125rem; max-width: 12rem; }
+}
+
+/* --- the TV: the course big, every player and the scorecard beside it --- */
+.mg-tv { display: flex; min-height: 0; }
+.mg-screen--tv { flex: 1 1 auto; gap: var(--tv-gap); }
+.mg-screen--tv .mg-stage { border-radius: var(--tv-r); min-height: 0; }
+.mg-screen--tv .mg-chip { font-size: var(--tv-sm); min-height: 0; padding: 0.3em 0.9em; }
+.mg-screen--tv .mg-hint:not(:empty) { font-size: var(--tv-md); }
+.mg-screen--tv .mg-banner__text { font-size: clamp(2.4rem, 10vmin, 7rem); }
+.mg-screen--tv .mg-namecard { transform-origin: center; zoom: 1.5; }
+.mg-screen--tv .mg-panel__card { width: min(100%, 44rem); zoom: 1.2; }
+.mg-screen--tv .mg-hostrow { top: auto; bottom: var(--tv-gap); inset-inline-end: var(--tv-gap); }
+.mg-side {
+  flex: 0 0 clamp(16rem, 30vw, 34rem); min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; gap: var(--tv-gap); overflow-y: auto;
+}
+.mg-side__players { display: flex; flex-direction: column; gap: calc(var(--tv-gap) * 0.6); }
+.mg-side .mg-pchip { max-width: none; font-size: var(--tv-sm); padding: 0.35em 0.9em; background: var(--surface-solid, #fff); color: var(--text); box-shadow: var(--sh-2); }
+.mg-side .mg-pchip b { margin-inline-start: auto; font-size: 1.2em; }
+.mg-side .mg-pchip.is-up { outline: 3px solid #ffd23f; }
+.mg-side .mg-card { background: var(--surface-solid, #fff); }
+.mg-side .mg-card table { font-size: var(--tv-sm); }
+.mg-side .mg-card th, .mg-side .mg-card td { padding: 0.45em 0.5em; }
+.mg-side .mg-card__par td, .mg-side .mg-card__par th { font-size: var(--tv-xs); }
+.mg-side .mg-card__tot b { font-size: 1.15em; }
+.mg-side .mg-card__tot small { font-size: 0.7em; }
+.mg-side .mg-card__who { max-width: 12em; }
+@media (orientation: portrait) {
+  .mg-screen--tv { flex-direction: column; }
+  .mg-side { flex: 0 0 auto; max-height: 30vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-namecard.is-on { animation: none; opacity: 1; transform: translate(-50%, 0); }
+  .mg-banner, .mg-hint { transition: none; }
+  .mg-panel, .mg-panel__card { animation: none; }
+}
+
 </style>

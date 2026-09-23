@@ -396,7 +396,7 @@ const PROBES = {
   },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
-  connect4: () => [], dots: () => [], ludo: () => []
+  connect4: () => [], dots: () => [], ludo: () => [], minigolf: () => []
 };
 
 /* --- the table ------------------------------------------------------------------ */
@@ -874,6 +874,33 @@ const DRIVERS = {
     must(T, T.host, 'backToHub');
     must(T, T.host, 'chooseGame', { game: 'hangman' });
     must(T, T.host, 'start', { mode: 'race', rounds: 3, lang: 'ar', clock: 60 });
+    play();
+    return S(T).phase === 'gameover';
+  },
+  minigolf() {
+    // Every putt is on the table, so only the generic rules apply; played both ways, the clock finishing what the players don't.
+    const T = table('minigolf', 3);
+    const play = () => {
+      for (let guard = 0; guard < 600 && S(T).phase !== 'gameover'; guard++) {
+        const s = S(T);
+        if (s.phase === 'between') { runClock(T, (r) => r.shared.phase !== 'between'); continue; }
+        const up = s.settings.mode === 'turns' ? [s.turn] : s.order.filter((id) => s.balls[id] && !s.balls[id].done);
+        if (!up.length || !up[0]) break;
+        const id = pick(up);
+        if (Math.random() < 0.6) {
+          act(T, id, 'putt', { dx: Math.round(Math.random() * 2000 - 1000), dy: Math.round(Math.random() * 1000), power: 40 + Math.floor(Math.random() * 500), t0: clock - s.startedAt, hole: s.hole, n: s.balls[id].n });
+        } else {
+          const seq = s.shotSeq;
+          runClock(T, (r) => r.shared.shotSeq !== seq || r.shared.phase !== 'play', 20);
+        }
+        clock += 500;
+      }
+    };
+    must(T, T.host, 'start', { holes: 3, clock: 20 });
+    play();
+    must(T, T.host, 'backToHub');
+    must(T, T.host, 'chooseGame', { game: 'minigolf' });
+    must(T, T.host, 'start', { mode: 'turns', holes: 3, clock: 20, guide: true });
     play();
     return S(T).phase === 'gameover';
   },

@@ -895,6 +895,46 @@
       <div id="view-play-hangman" class="hidden" data-accent="orange"><div id="hangman-stage"></div></div>
       <div id="view-room-hangman" class="hidden" data-accent="orange"></div>
 
+      <!-- ============ ميني جولف (solo, or a room with the TV: every ball on the hole at once, or in turns) ============ -->
+      <div id="view-setup-minigolf" class="hidden" data-accent="green">
+        <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('minigolf', 'device')" data-i18n="mg_device_mode">لوحدك</button>
+            <button class="segmented__item" data-mode="online" onclick="setPlayMode('minigolf', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="mg_online_desc">كل واحد يضرب من موبايله على نفس الحفرة، والملعب على التلفزيون.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('minigolf')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+          <div class="mode-device-panel">
+            <p class="card__subtitle" data-i18n="mg_device_desc">9 حفر فيها طواحين وكباري ومية ورمل. أحسن نتيجة بتتحفظ على موبايلك.</p>
+            <div class="field">
+              <label class="field__label" data-i18n="mg_holes_label">كام حفرة؟</label>
+              <div class="segmented" id="mg-holes" role="group">
+                <button type="button" class="segmented__item" data-value="3" onclick="setMiniGolfOption('holes', 3)">3</button>
+                <button type="button" class="segmented__item is-active" data-value="6" onclick="setMiniGolfOption('holes', 6)">6</button>
+                <button type="button" class="segmented__item" data-value="9" onclick="setMiniGolfOption('holes', 9)">9</button>
+              </div>
+              <p class="field__hint" id="mg-best"></p>
+            </div>
+            <div class="field">
+              <label class="switch-row" for="mg-guide">
+                <span class="field__label" data-i18n="mg_guide">مساعدة التصويب</span>
+                <span class="switch"><input type="checkbox" id="mg-guide" role="switch" onchange="setMiniGolfOption('guide', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+              </label>
+              <p class="field__hint" data-i18n="mg_guide_hint">بتوريك الكورة هتمشي فين قبل ما تسيبها.</p>
+            </div>
+            <button type="button" id="minigolf-continue" class="btn btn--secondary hidden duel-continue" onclick="mgContinue()" data-i18n="solo_continue">كمّل اللعبة</button>
+            <button onclick="startMiniGolf()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          </div>
+        </div>
+      </div>
+      <div id="view-play-minigolf" class="hidden view--fill" data-accent="green"><div id="minigolf-stage" class="mg-host"></div></div>
+      <div id="view-room-minigolf" class="hidden view--fill" data-accent="green"></div>
+
       <div id="view-setup-dots" class="hidden" data-accent="indigo">
         <div class="card">
           <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
@@ -3405,6 +3445,7 @@
     <?!= include('JS_GuessWho'); ?>
     <?!= include('JS_Hangman'); ?>
     <?!= include('JS_Three'); ?>
+    <?!= include('JS_MiniGolf'); ?>
     <?!= include('JS_Ludo'); ?>
     <?!= include('JS_RoomLudo'); ?>
     <?!= include('JS_Bank'); ?>

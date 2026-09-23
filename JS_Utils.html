@@ -1402,6 +1402,7 @@ const HELP_ENTRIES = [
   { key: 'connect4',    title: 'setup_connect4',    icon: '🔴', accent: 'blue',   group: 'games', room: true },
   { key: 'dots',        title: 'setup_dots',        icon: '🔲', accent: 'indigo', group: 'games', room: true },
   { key: 'battleship',  title: 'setup_battleship',  icon: '🚢', accent: 'teal',   group: 'games', room: true },
+  { key: 'shatranj',    title: 'setup_shatranj',    icon: 'art:chess', accent: 'amber', group: 'games', room: true },
   { key: 'guesswho',    title: 'setup_guesswho',    icon: 'art:guesswho', accent: 'teal', group: 'games', room: true },
   { key: 'hangman',     title: 'setup_hangman',     icon: 'art:hangman', accent: 'orange', group: 'games', room: true },
   { key: 'bowling',     title: 'setup_bowling',     icon: '🎳', accent: 'violet', group: 'games', room: true },
@@ -1482,6 +1483,7 @@ const HELP_FOR_VIEW = {
   'setup-connect4': 'connect4', 'play-connect4': 'connect4', 'room-connect4': 'connect4',
   'setup-dots': 'dots', 'play-dots': 'dots', 'room-dots': 'dots',
   'setup-battleship': 'battleship', 'play-battleship': 'battleship', 'room-battleship': 'battleship',
+  'setup-shatranj': 'shatranj', 'play-shatranj': 'shatranj', 'review-shatranj': 'shatranj', 'room-chess': 'shatranj',
   'setup-sudoku': 'sudoku', 'play-sudoku': 'sudoku',
   'setup-g2048': 'g2048', 'play-g2048': 'g2048',
   'setup-mines': 'mines', 'play-mines': 'mines',
@@ -1523,6 +1525,10 @@ HELP_ENTRIES.forEach(e => {
 });
 const helpEntry = (key) => HELP_ENTRIES.find(e => e.key === key) || null;
 
+// A room game whose help lives under another key: the room's شطرنج is 'chess', and
+// 'chess' in the help is the chess clock tool, so the game's own rules are 'shatranj'.
+const ROOM_HELP_KEY = { chess: 'shatranj' };
+
 /**
  * What this player most likely wants explained.
  *
@@ -1532,8 +1538,8 @@ const helpEntry = (key) => HELP_ENTRIES.find(e => e.key === key) || null;
 function helpContextKey() {
   const view = appState.currentView;
   if (view === 'room-lobby' && typeof Room !== 'undefined' && Room.isIn
-      && Room.state && Room.state.game && helpEntry(Room.state.game)) {
-    return Room.state.game;
+      && Room.state && Room.state.game && helpEntry(ROOM_HELP_KEY[Room.state.game] || Room.state.game)) {
+    return ROOM_HELP_KEY[Room.state.game] || Room.state.game;
   }
   return HELP_FOR_VIEW[view] || null;
 }
@@ -2017,6 +2023,8 @@ document.addEventListener('DOMContentLoaded', () => {
 function exitGameOf(viewId) {
   const up = ((typeof VIEW_META !== 'undefined' && VIEW_META[viewId]) || {}).up || '';
   if (up.indexOf('setup-') !== 0 || typeof GAME_CATALOG === 'undefined') return null;
+  // A screen that only looks at a finished game (the chess review) leaves nothing behind.
+  if (((typeof VIEW_META !== 'undefined' && VIEW_META[viewId]) || {}).noExit) return null;
   const g = GAME_CATALOG.find(x => x.setup === up);
   return (g && g.group !== 'tools') ? g : null;
 }

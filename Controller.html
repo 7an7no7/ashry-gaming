@@ -908,6 +908,85 @@
       <div id="view-play-battleship" class="hidden" data-accent="teal"><div id="battleship-stage"></div></div>
       <div id="view-room-battleship" class="hidden" data-accent="teal"></div>
 
+      <!-- ============ شطرنج (two on one phone, against the computer with a coach, or a room: winner stays on) ============ -->
+      <div id="view-setup-shatranj" class="hidden" data-accent="amber">
+        <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('shatranj', 'device')" data-i18n="mode_device">على هذا الجهاز</button>
+            <button class="segmented__item" data-mode="online" onclick="setPlayMode('shatranj', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="ch_online_desc">اتنين بيلعبوا من موبايلاتهم والباقي بيتفرج، والرقعة على التلفزيون.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('chess')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+          <div class="mode-device-panel">
+            <div class="field">
+              <label class="field__label" data-i18n="xo_vs_label">ضد مين؟</label>
+              <div class="segmented" id="shatranj-vs" role="group">
+                <button type="button" class="segmented__item" data-value="friend" onclick="setShatranjOption('vs', 'friend')" data-i18n="xo_vs_friend">صاحبك</button>
+                <button type="button" class="segmented__item is-active" data-value="phone" onclick="setShatranjOption('vs', 'phone')" data-i18n="ch_vs_cpu">الكمبيوتر</button>
+              </div>
+            </div>
+            <div class="field" id="shatranj-elo-field">
+              <label class="field__label" for="shatranj-elo"><span data-i18n="ch_elo_label">قوة الكمبيوتر</span> · <b id="shatranj-elo-out" class="ch-elo-out">1200</b></label>
+              <input type="range" id="shatranj-elo" class="ch-elo" min="400" max="2000" step="100" value="1200" dir="ltr" oninput="setShatranjOption('elo', this.value)">
+              <div class="ch-elo-ticks" dir="ltr" aria-hidden="true"><span>400</span><span>800</span><span>1200</span><span>1600</span><span>2000</span></div>
+              <p class="field__hint" data-i18n="ch_elo_hint">من 400 لـ 2000.</p>
+            </div>
+            <div class="field" id="shatranj-color-field">
+              <label class="field__label" data-i18n="ch_color_label">هتلعب بإيه؟</label>
+              <div class="segmented" id="shatranj-color" role="group">
+                <button type="button" class="segmented__item is-active" data-value="w" onclick="setShatranjOption('color', 'w')" data-i18n="ch_color_w">الأبيض</button>
+                <button type="button" class="segmented__item" data-value="random" onclick="setShatranjOption('color', 'random')" data-i18n="ch_color_random">عشوائي</button>
+                <button type="button" class="segmented__item" data-value="b" onclick="setShatranjOption('color', 'b')" data-i18n="ch_color_b">الأسود</button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label" data-i18n="ch_clock_label">ساعة الشطرنج</label>
+              <div class="segmented" id="shatranj-clock" role="group" dir="ltr">
+                <button type="button" class="segmented__item is-active" data-value="off" onclick="setShatranjOption('clock', 'off')" data-i18n="gw_clock_off">مفيش</button>
+                <button type="button" class="segmented__item" data-value="3+2" onclick="setShatranjOption('clock', '3+2')">3+2</button>
+                <button type="button" class="segmented__item" data-value="5+0" onclick="setShatranjOption('clock', '5+0')">5+0</button>
+                <button type="button" class="segmented__item" data-value="10+0" onclick="setShatranjOption('clock', '10+0')">10+0</button>
+              </div>
+            </div>
+            <div class="field" id="shatranj-coach-field">
+              <label class="switch-row" for="shatranj-coach">
+                <span class="field__label">🎓 <span data-i18n="ch_coach_label">المدرب</span></span>
+                <span class="switch"><input type="checkbox" id="shatranj-coach" role="switch" onchange="setShatranjOption('coach', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+              </label>
+              <p class="field__hint" data-i18n="ch_coach_hint">بينبّهك قبل الغلطة الكبيرة.</p>
+              <div id="shatranj-coach-opts" class="ch-coach-opts hidden">
+                <label class="switch-row" for="shatranj-coach-warn"><span data-i18n="ch_coach_warn">نبّهني قبل الغلطة الكبيرة</span>
+                  <span class="switch"><input type="checkbox" id="shatranj-coach-warn" role="switch" onchange="setShatranjOption('coach.warn', this.checked)"><span class="switch__track" aria-hidden="true"></span></span></label>
+                <label class="switch-row" for="shatranj-coach-hint"><span data-i18n="ch_coach_hint_opt">زرار التلميح</span>
+                  <span class="switch"><input type="checkbox" id="shatranj-coach-hint" role="switch" onchange="setShatranjOption('coach.hint', this.checked)"><span class="switch__track" aria-hidden="true"></span></span></label>
+                <label class="switch-row" for="shatranj-coach-comment"><span data-i18n="ch_coach_comment">تعليق بعد كل نقلة</span>
+                  <span class="switch"><input type="checkbox" id="shatranj-coach-comment" role="switch" onchange="setShatranjOption('coach.comment', this.checked)"><span class="switch__track" aria-hidden="true"></span></span></label>
+                <label class="switch-row" for="shatranj-coach-threats"><span data-i18n="ch_coach_threats">وريني الحجارة اللي في خطر</span>
+                  <span class="switch"><input type="checkbox" id="shatranj-coach-threats" role="switch" onchange="setShatranjOption('coach.threats', this.checked)"><span class="switch__track" aria-hidden="true"></span></span></label>
+              </div>
+            </div>
+            <div class="field hidden" id="shatranj-names-field">
+              <label class="field__label" data-i18n="duel_names_label">أسامي اللاعبين (اختياري)</label>
+              <div class="grid-2">
+                <input type="text" id="shatranj-name1" maxlength="16" autocomplete="off" data-remember data-i18n-ph="ch_player1" placeholder="لاعب ١">
+                <input type="text" id="shatranj-name2" maxlength="16" autocomplete="off" data-remember data-i18n-ph="ch_player2" placeholder="لاعب ٢">
+              </div>
+            </div>
+            <div class="field hidden" id="shatranj-history"></div>
+            <button type="button" id="shatranj-continue" class="btn btn--secondary hidden duel-continue" onclick="chContinue()" data-i18n="solo_continue">كمّل اللعبة</button>
+            <button onclick="startShatranj()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          </div>
+        </div>
+      </div>
+      <div id="view-play-shatranj" class="hidden" data-accent="amber"><div id="shatranj-stage"></div></div>
+      <div id="view-review-shatranj" class="hidden" data-accent="amber"><div id="review-shatranj-stage"></div></div>
+      <div id="view-room-chess" class="hidden" data-accent="amber"></div>
+
       <!-- ============ خمّن مين (a room: two duel, the room watches) · المشنقة (two on one phone, or a room) ============ -->
       <div id="view-room-guesswho" class="hidden" data-accent="teal"></div>
       <div id="view-setup-hangman" class="hidden" data-accent="orange">
@@ -2027,6 +2106,18 @@
         <div class="modal-actions">
           <button onclick="onCustomConfirm()" class="btn btn--danger btn--lg" data-i18n="yes">نعم، متأكد</button>
           <button onclick="closeModal('custom-confirm-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="ch-warn-modal" class="modal-overlay hidden">
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">🎓</div>
+        <div class="sheet__title" data-i18n="ch_warn_title">استنى لحظة!</div>
+        <div id="ch-warn-body" class="sheet__subtitle"></div>
+        <div class="modal-actions">
+          <button onclick="chCoachTakeBack()" class="btn btn--primary btn--lg" data-i18n="ch_warn_take">رجّع النقلة</button>
+          <button onclick="chCoachPlayAnyway()" class="btn btn--ghost" data-i18n="ch_warn_play">العبها برضه</button>
         </div>
       </div>
     </div>
@@ -3568,6 +3659,9 @@
     <?!= include('JS_Three'); ?>
     <?!= include('JS_Bowling'); ?>
     <?!= include('JS_Battleship'); ?>
+    <?!= include('JS_Chess'); ?>
+    <?!= include('JS_ChessReview'); ?>
+    <?!= include('JS_RoomChess'); ?>
     <?!= include('JS_MiniGolf'); ?>
     <?!= include('JS_Ludo'); ?>
     <?!= include('JS_RoomLudo'); ?>

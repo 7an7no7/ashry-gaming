@@ -17,6 +17,7 @@
  * and its secrets in PROBES. A probe that never came up during its game fails
  * the run too, so a probe can't pass by never looking.
  */
+import { readFileSync } from 'node:fs';
 import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, ROOM_GAME_IDS } from '../generated/rules.js';
 import { roomView } from '../src/view.js';
 import { readFileSync } from 'node:fs';
@@ -536,7 +537,9 @@ const PROBES = {
   },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
-  connect4: () => [], dots: () => [], ludo: () => [], bowling: () => []
+  connect4: () => [], dots: () => [], ludo: () => [], bowling: () => [],
+  // شطرنج: the whole game is on the table.
+  chess: () => []
 };
 
 /* --- the table ------------------------------------------------------------------ */
@@ -1151,6 +1154,34 @@ const DRIVERS = {
       must(T, s.turn.pid, 'throw', { x: Math.round(Math.random() * 40 - 20), aim: Math.round(Math.random() * 30 - 15), speed: 500 + Math.round(Math.random() * 400), spin: Math.round(Math.random() * 120 - 60), seq: s.turnSeq });
     }
     return S(T).phase === 'gameover';
+  },
+  chess() {
+    // Moves at random until the game ends (mate, a draw, or a resignation after 200), then the next game on a clock that runs out.
+    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+    const T = table('chess', 3);
+    const play = () => {
+      for (let guard = 0; guard < 200 && S(T).phase === 'play'; guard++) {
+        const s = S(T);
+        const all = CH.chessLegalMoves(s.chess.g);
+        const m = pick(all);
+        if (guard === 7) must(T, s.seats[s.chess.g.turn], 'offerDraw', { move: s.chess.moves });
+        if (guard === 8 && S(T).chess.offer) must(T, s.seats[s.chess.g.turn], 'answerDraw', { accept: false });
+        must(T, s.seats[S(T).chess.g.turn], 'move', { from: m.from, to: m.to, promo: m.promo, move: S(T).chess.moves });
+      }
+      if (S(T).phase === 'play') must(T, S(T).seats[0], 'resign', { round: S(T).round });
+    };
+    must(T, T.host, 'start', {});
+    play();
+    must(T, T.host, 'nextRound', { round: S(T).round });
+    play();
+    must(T, T.host, 'backToHub');
+    must(T, T.host, 'chooseGame', { game: 'chess' });
+    must(T, T.host, 'start', { clock: '3+2' });
+    const s = S(T);
+    const first = CH.chessLegalMoves(s.chess.g)[0];
+    must(T, s.seats[0], 'move', { from: first.from, to: first.to, promo: first.promo, move: 0 });
+    runClock(T, (r) => r.shared.phase === 'over', 50);
+    return S(T).phase === 'over';
   },
   dots() {
     const T = table('dots', 2);

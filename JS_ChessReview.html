@@ -1,0 +1,365 @@
+<script>
+/* ============================================================================
+   شطرنج — THE GAMES KEPT ON THE PHONE, AND THE REVIEW
+   ----------------------------------------------------------------------------
+   The owner's coach (23 Sep 2026): every game gets a review - against the
+   computer, two on one phone, and a room's once it is over, on each phone:
+   every move rated (brilliant / best / good / inaccuracy / mistake / blunder)
+   with the better move and a short why, an accuracy for each player, the
+   evaluation as a graph, the game replayed on the board with jumps to the key
+   moments, and "try the better move" - from any moment, play the suggested
+   line out against the computer.
+
+   The last CH_KEEP games are kept on this phone (localStorage, not appState:
+   appState is saved on every screen change and these can be long), each with
+   its review once it has been worked out, so opening it again is instant.
+   A review is worked out a position at a time (chessReviewStep in Chess.js),
+   one per tick with a progress bar, so the page never freezes; each position
+   has a ceiling of positions to search, so a game's review comes out the same.
+   ========================================================================= */
+
+const CH_GAMES_KEY = 'ashryChessGames_v1';
+const CH_KEEP = 20;
+const CH_REVIEW_NODES = 20000;
+
+function chLoadGames() {
+  try { const list = JSON.parse(localStorage.getItem(CH_GAMES_KEY) || '[]'); return Array.isArray(list) ? list : []; } catch (e) { return []; }
+}
+
+function chSaveGames(list) {
+  try { localStorage.setItem(CH_GAMES_KEY, JSON.stringify(list.slice(0, CH_KEEP))); }
+  catch (e) {
+    // Full: drop the kept reviews (they can be worked out again) and try once more.
+    try { localStorage.setItem(CH_GAMES_KEY, JSON.stringify(list.slice(0, CH_KEEP).map(g => Object.assign({}, g, { review: null })))); } catch (x) {}
+  }
+}
+
+/** A finished game kept for the review (newest first). The same game twice (a redraw, a reload) is kept once. */
+function chStoreGame(rec) {
+  if (!rec || !rec.moves || !rec.moves.length) return null;
+  const list = chLoadGames();
+  const at = list.findIndex(g => g.key && g.key === rec.key);
+  const game = Object.assign({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), at: Date.now(), review: null }, rec);
+  if (at !== -1) { game.id = list[at].id; list.splice(at, 1); }
+  list.unshift(game);
+  chSaveGames(list);
+  return game;
+}
+
+/** The past games on the setup screen: who played, how it ended, and a way into the review. */
+function chPaintHistory() {
+  const box = document.getElementById('shatranj-history');
+  if (!box) return;
+  const list = chLoadGames();
+  if (!list.length) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const fmt = (ts) => { try { return new Date(ts).toLocaleDateString(appState.lang === 'en' ? 'en-GB' : 'ar-EG', { day: 'numeric', month: 'short' }); } catch (e) { return ''; } };
+  box.innerHTML = `<p class="field__label">📊 ${escapeHTML(chT('ch_history'))}</p>
+    <div class="ch-hist">${list.slice(0, CH_KEEP).map(g => {
+      const res = g.result === 'd' ? '½-½' : g.result === 'w' ? '1-0' : '0-1';
+      const acc = g.review && g.review.accuracy ? ` · ${g.review.accuracy.map(a => (a === null ? '-' : Math.round(a) + '%')).join(' / ')}` : '';
+      return `<button type="button" class="ch-hist__row" onclick="chOpenReview('${jsStringAttr(g.id)}')">
+          <span class="ch-hist__who"><bdi>${escapeHTML(g.names[0] || '')}</bdi> – <bdi>${escapeHTML(g.names[1] || '')}</bdi></span>
+          <span class="ch-hist__meta"><b dir="ltr">${res}</b> · ${Math.ceil(g.moves.length / 2)} ${escapeHTML(chT('ch_moves_n'))} · ${escapeHTML(fmt(g.at))}${acc}</span>
+          <span class="ch-hist__go" aria-hidden="true">📊</span>
+        </button>`;
+    }).join('')}</div>`;
+}
+
+/* --- the review screen ------------------------------------------------------------- */
+
+// rec: the game; rv: the engine's step-by-step review; res: the finished review;
+// infos: each move as played (for what was taken); ply: 0 = the start, k = after move k.
+const chRv = { id: '', rec: null, rv: null, res: null, infos: [], lost: [], ply: 0, better: false, timer: null, from: '' };
+
+/** Opens a kept game's review. */
+function chOpenReview(id) {
+  const rec = chLoadGames().find(g => g.id === id);
+  if (!rec) return;
+  chReviewShow(rec);
+}
+
+/** The review of the game just finished on this phone. */
+function chOpenLastReview() {
+  const s = chState();
+  const rec = chLoadGames().find(g => g.key === 'local|' + s.gameId);
+  if (rec) chReviewShow(rec);
+}
+
+/** A room's game, reviewed on this phone (kept too, for later). */
+function chOpenRoomReview(state) {
+  const s = state.shared || {};
+  const bd = s.chess;
+  if (!bd || !bd.hist || !bd.hist.length) return;
+  const names = duelRoomNames(state);
+  const r = bd.result || {};
+  const seat = state.youAreScreen ? -1 : (s.seats || []).indexOf(Room.me);
+  const rec = chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: seat, result: r.result || 'd', reason: r.reason || '',
+    start: '', moves: bd.hist.slice(), key: 'room|' + state.code + '|' + s.round });
+  if (rec) chReviewShow(rec);
+}
+
+function chReviewShow(rec) {
+  chReviewStop();
+  chRv.id = rec.id;
+  chRv.rec = rec;
+  chRv.res = rec.review || null;
+  chRv.rv = chessReviewBegin(rec);
+  chRv.better = false;
+  // What each move took, to set the taken pieces beside the board at every step.
+  const g = rec.start ? chessFromFen(rec.start) : chessNew();
+  chRv.infos = [];
+  chRv.lost = [[[], []]];
+  const lost = [[], []];
+  chRv.rv.moves.forEach(mv => {
+    const mover = g.turn;
+    const info = chessPlay(g, mv);
+    chRv.infos.push(info);
+    if (info && info.capture) lost[1 - mover].push(info.capture);
+    chRv.lost.push([lost[0].slice(), lost[1].slice()]);
+  });
+  chRv.ply = chRv.rv.moves.length;
+  appState.shatranjReview = { id: rec.id, ply: chRv.ply };
+  if (appState.currentView !== 'review-shatranj') setView('review-shatranj');
+  chReviewPaint(true);
+  if (!chRv.res) chReviewRun();
+}
+
+/** Works the review out a position a tick, the progress bar filling, then keeps it with the game. */
+function chReviewRun() {
+  const rv = chRv.rv;
+  const id = chRv.id;
+  const step = () => {
+    chRv.timer = null;
+    if (chRv.id !== id || appState.currentView !== 'review-shatranj') return;
+    const t0 = Date.now();
+    let done = false;
+    // A slice of about 60ms, then the page breathes.
+    while (!done && Date.now() - t0 < 60) done = chessReviewStep(rv, { nodes: CH_REVIEW_NODES, ms: 1500 });
+    chReviewProgress(rv.i / rv.positions.length);
+    if (!done) { chRv.timer = setTimeout(step, 16); return; }
+    chRv.res = chessReviewResult(rv);
+    const list = chLoadGames();
+    const at = list.findIndex(g => g.id === id);
+    if (at !== -1) { list[at].review = chRv.res; chSaveGames(list); }
+    chReviewPaint(false, true);
+  };
+  chReviewProgress(0);
+  chRv.timer = setTimeout(step, 60);
+}
+
+function chReviewStop() {
+  if (chRv.timer) clearTimeout(chRv.timer);
+  chRv.timer = null;
+}
+
+function chReviewProgress(f) {
+  const bar = document.querySelector('#review-shatranj-stage [data-ch-progress]');
+  if (bar) bar.style.setProperty('--p', Math.round(f * 100) + '%');
+  const txt = document.querySelector('#review-shatranj-stage [data-ch-progress-txt]');
+  if (txt) txt.textContent = chT('ch_reviewing', { p: Math.round(f * 100) });
+}
+
+function chReviewGo(ply) {
+  const n = chRv.rv ? chRv.rv.moves.length : 0;
+  const p = Math.max(0, Math.min(n, ply));
+  if (p === chRv.ply && !chRv.better) return;
+  chRv.ply = p;
+  chRv.better = false;
+  if (appState.shatranjReview) appState.shatranjReview.ply = p;
+  haptic('light');
+  chReviewPaint();
+}
+
+function chReviewBetter() {
+  chRv.better = !chRv.better;
+  haptic('light');
+  chReviewPaint();
+}
+
+/** From this moment, against the computer: the better move played for you, then it's the computer's turn. */
+function chReviewTry() {
+  const k = chRv.ply - 1;
+  const res = chRv.res;
+  if (!res || k < 0 || !res.moves[k] || !res.moves[k].best) return;
+  const before = chRv.rv.positions[k];
+  const s = chState();
+  s.vs = 'phone';
+  chNewGame({ fen: chessFen(before), me: before.turn, practice: true });
+  const st = chState();
+  const best = res.moves[k].best;
+  chApplyMove(st, { from: best.from, to: best.to, promo: best.promo });
+  chPaint();
+  chAfterMove();
+}
+
+function chReviewHtml() {
+  return `<div class="ch-game duel ch-review">
+      <div class="ch-layout">
+        <div class="ch-layout__stage"><div class="ch-stage" data-ch-host></div></div>
+        <div class="ch-layout__side">
+          <div class="ch-rv-head" data-ch-rvhead></div>
+          <div class="ch-rv-nav" dir="ltr">
+            <button type="button" class="btn btn--ghost btn--sm" onclick="chReviewGo(0)" aria-label="⏮">⏮</button>
+            <button type="button" class="btn btn--secondary btn--sm" onclick="chReviewGo(chRv.ply - 1)" aria-label="◀">◀</button>
+            <span class="ch-rv-nav__at metric" data-ch-rvat></span>
+            <button type="button" class="btn btn--secondary btn--sm" onclick="chReviewGo(chRv.ply + 1)" aria-label="▶">▶</button>
+            <button type="button" class="btn btn--ghost btn--sm" onclick="chReviewGo(99999)" aria-label="⏭">⏭</button>
+          </div>
+          <div data-ch-rvnote></div>
+          <div data-ch-rvbody></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/** The evaluation as a graph: White's share above the line, the current move marked. */
+function chGraphHtml(graph, ply, moves) {
+  const n = graph.length - 1;
+  if (n < 1) return '';
+  const W = 300, H = 90;
+  const x = (i) => (i / n) * W;
+  const y = (v) => H / 2 - (v / 1000) * (H / 2 - 3);
+  let path = `M0 ${H} `;
+  graph.forEach((v, i) => { path += `L${x(i).toFixed(1)} ${y(v).toFixed(1)} `; });
+  path += `L${W} ${H} Z`;
+  const dots = (moves || []).map((m, i) => (m.cls === 'blunder' || m.cls === 'mistake' || m.cls === 'brilliant')
+    ? `<circle class="ch-graph__dot ch-graph__dot--${m.cls}" cx="${x(i + 1).toFixed(1)}" cy="${y(graph[i + 1]).toFixed(1)}" r="3.4"/>` : '').join('');
+  return `<div class="ch-graph" dir="ltr">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" onclick="chGraphClick(event, ${n})" role="img" aria-label="${escapeHTML(chT('ch_graph'))}">
+        <rect width="${W}" height="${H}" class="ch-graph__bg"/>
+        <path d="${path}" class="ch-graph__white"/>
+        <line x1="0" x2="${W}" y1="${H / 2}" y2="${H / 2}" class="ch-graph__mid"/>
+        <line x1="${x(ply).toFixed(1)}" x2="${x(ply).toFixed(1)}" y1="0" y2="${H}" class="ch-graph__at"/>
+        ${dots}
+      </svg>
+    </div>`;
+}
+
+function chGraphClick(ev, n) {
+  const r = ev.currentTarget.getBoundingClientRect();
+  chReviewGo(Math.round((ev.clientX - r.left) / r.width * n));
+}
+
+function chReviewPaint(fresh, justDone) {
+  const el = document.getElementById('review-shatranj-stage');
+  if (!el || !chRv.rv) return;
+  if (!el.querySelector('.ch-review') || el._chLang !== appState.lang || fresh) { el.innerHTML = chReviewHtml(); el._chLang = appState.lang; }
+  const rec = chRv.rec, rv = chRv.rv, res = chRv.res;
+  const n = rv.moves.length;
+  const k = chRv.ply - 1;            // the move just made at this step
+  const showBefore = chRv.better && k >= 0;
+  const pos = rv.positions[showBefore ? k : chRv.ply];
+  const info = k >= 0 ? chRv.infos[k] : null;
+  const verdict = res && k >= 0 ? res.moves[k] : null;
+  const arrows = [];
+  if (showBefore && verdict && verdict.best) {
+    arrows.push({ from: rv.moves[k].from, to: rv.moves[k].to, color: 'rgba(249, 115, 22, 0.8)' });
+    arrows.push({ from: verdict.best.from, to: verdict.best.to, color: 'rgba(34, 197, 94, 0.9)' });
+  }
+  // The side you played at the bottom (a game you watched, or two on one phone: White).
+  const orient = rec.me === 1 ? 1 : 0;
+  const model = {
+    key: 'review|' + rec.id, board: pos.board, orient: orient, loud: true,
+    last: !showBefore && info ? { from: info.from, to: info.to } : null,
+    anim: info && !showBefore ? Object.assign({ key: 'rv|' + rec.id + '|' + chRv.ply, still: !!fresh }, info) : { key: 'rv|' + rec.id + '|b' + chRv.ply, still: true },
+    check: chessCheckSq(pos), mate: '',
+    sel: '', targets: [], marks: [], arrows: arrows,
+    lost: chRv.lost[showBefore ? k : chRv.ply] || [[], []],
+    input: null
+  };
+  chViewShow(el.querySelector('[data-ch-host]'), model);
+  const names = rec.names || ['', ''];
+  const acc = res ? res.accuracy : [null, null];
+  const head = `<div class="ch-rv-players">${[0, 1].map(c => `
+      <div class="ch-rv-player">
+        <span class="ch-mark ${c ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (c ? 8 : 0))}</span>
+        <span class="ch-rv-player__name"><bdi>${escapeHTML(names[c] || '')}</bdi></span>
+        <span class="ch-rv-player__acc">${acc[c] === null ? '' : `<b class="metric" data-ch-acc="${c}">${acc[c]}</b><small>%</small>`}</span>
+      </div>`).join('')}</div>
+    <p class="duel-status is-done">${escapeHTML(chResultLine(rec.result, rec.reason, names))}</p>
+    ${res ? '' : `<div class="ch-progress"><span class="ch-progress__bar" data-ch-progress style="--p:0%"></span></div><p class="field__hint ch-progress__txt" data-ch-progress-txt>${escapeHTML(chT('ch_reviewing', { p: 0 }))}</p>`}`;
+  chSetHtml(el, '[data-ch-rvhead]', head);
+  const at = el.querySelector('[data-ch-rvat]');
+  if (at) at.textContent = chRv.ply + ' / ' + n;
+  // The note on the move at this step.
+  let note = '';
+  if (k < 0) note = `<p class="field__hint">${escapeHTML(chT('ch_rv_start'))}</p>`;
+  else if (!verdict) note = `<div class="ch-comment"><span class="ch-comment__head"><b dir="ltr">${Math.floor(k / 2) + 1}${k % 2 ? '…' : '.'} ${escapeHTML(chFigurine(rv.sans[k]))}</b></span></div>`;
+  else {
+    const why = chReasonsLine(verdict.reasons, 2);
+    const worse = verdict.cls !== 'best' && verdict.cls !== 'brilliant';
+    note = `<div class="ch-comment ch-comment--${verdict.cls}">
+        <span class="ch-comment__head"><b dir="ltr">${Math.floor(k / 2) + 1}${k % 2 ? '…' : '.'} ${escapeHTML(chFigurine(rv.sans[k]))}</b> ${chClassDot(verdict.cls)} ${escapeHTML(chT('ch_cls_' + verdict.cls))}</span>
+        ${why ? `<span class="ch-comment__why">${escapeHTML(why)}</span>` : ''}
+        ${worse && verdict.best ? `<span class="ch-comment__better">${escapeHTML(chT('ch_better'))} <b dir="ltr">${escapeHTML(chFigurine(verdict.best.san))}</b></span>` : ''}
+        ${worse && verdict.best ? `<span class="ch-comment__btns">
+            <button type="button" class="btn btn--secondary btn--xs btn--auto" onclick="chReviewBetter()">👁 ${escapeHTML(chRv.better ? chT('ch_rv_back') : chT('ch_rv_show_better'))}</button>
+            <button type="button" class="btn btn--primary btn--xs btn--auto" onclick="chReviewTry()">🎯 ${escapeHTML(chT('ch_rv_try'))}</button>
+          </span>` : ''}
+      </div>`;
+  }
+  chSetHtml(el, '[data-ch-rvnote]', note);
+  // The rest: the key moments, the graph, the counts, the moves.
+  let body = '';
+  if (res) {
+    if (res.key.length) {
+      body += `<div class="ch-keys"><p class="field__label">⚡ ${escapeHTML(chT('ch_rv_keys'))}</p><div class="chip-set">${res.key.map(x =>
+        `<button type="button" class="chip ch-key ch-key--${x.kind} ${chRv.ply === x.i + 1 ? 'is-active' : ''}" onclick="chReviewGo(${x.i + 1})">${escapeHTML(chT('ch_key_' + x.kind))} · <b dir="ltr">${Math.floor(x.i / 2) + 1}${x.i % 2 ? '…' : '.'} ${escapeHTML(chFigurine(rv.sans[x.i]))}</b></button>`).join('')}</div></div>`;
+    }
+    body += chGraphHtml(res.graph, chRv.ply, res.moves);
+    const kinds = ['brilliant', 'best', 'good', 'inaccuracy', 'mistake', 'blunder'];
+    const count = (c, kind) => res.moves.filter(m => m.color === c && m.cls === kind).length;
+    body += `<div class="ch-counts"><span></span><span class="ch-counts__who"><bdi>${escapeHTML(names[0])}</bdi></span><span class="ch-counts__who"><bdi>${escapeHTML(names[1])}</bdi></span>${kinds.map(kind =>
+      `<span class="ch-counts__k">${chClassDot(kind)} ${escapeHTML(chT('ch_cls_' + kind))}</span><b class="metric">${count(0, kind)}</b><b class="metric">${count(1, kind)}</b>`).join('')}</div>`;
+  }
+  body += chMovesHtml(rv.sans, { current: chRv.ply - 1, marks: res ? res.moves.map(m => m.cls) : null, onClick: 'chReviewGoMove' });
+  body += `<div class="duel-actions"><button type="button" class="btn btn--ghost btn--sm" onclick="chReviewExit()">${escapeHTML(chT('exit'))}</button></div>`;
+  chSetHtml(el, '[data-ch-rvbody]', body);
+  // The current move kept in sight inside the list (never by scrolling the page away from the board).
+  const cur = el.querySelector('.ch-mv.is-current');
+  const list = el.querySelector('.ch-moves');
+  if (cur && list) {
+    const top = cur.offsetTop - list.offsetTop;
+    if (top < list.scrollTop || top > list.scrollTop + list.clientHeight - cur.offsetHeight) list.scrollTop = Math.max(0, top - list.clientHeight / 2);
+  }
+  if (justDone && res && !motionOff()) {
+    [0, 1].forEach(c => { const a = el.querySelector(`[data-ch-acc="${c}"]`); if (a && acc[c] !== null && typeof countUp === 'function') countUp(a, 0, Math.round(acc[c])); });
+  }
+}
+
+const chReviewGoMove = (k) => chReviewGo(k + 1);
+
+function chReviewExit() {
+  chReviewStop();
+  appState.shatranjReview = null;
+  if (typeof Room !== 'undefined' && Room.isIn && Room.state && Room.state.game === 'chess' && typeof roomReturnToActive === 'function') { roomReturnToActive(); return; }
+  setupShatranj();
+}
+
+/** Arrow keys on a laptop step through the game. */
+document.addEventListener('keydown', (e) => {
+  if (appState.currentView !== 'review-shatranj' || (typeof soloKeyBlocked === 'function' && soloKeyBlocked(e))) return;
+  if (e.key === 'ArrowLeft') { chReviewGo(chRv.ply - 1); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { chReviewGo(chRv.ply + 1); e.preventDefault(); }
+});
+
+/** A reload on the review: the same game, the same step (worked out again if it wasn't kept). */
+function restoreShatranjReview() {
+  const r = appState.shatranjReview;
+  if (!r || !r.id) return false;
+  const rec = chLoadGames().find(g => g.id === r.id);
+  if (!rec) return false;
+  chReviewShow(rec);
+  if (r.ply !== undefined) chReviewGo(r.ply);
+  return true;
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('shatranjReview', { setup: 'setup-shatranj', play: 'review-shatranj', restore: restoreShatranjReview, repaint: () => chReviewPaint(true) });
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from) => { if (from === 'review-shatranj') chReviewStop(); });
+}
+</script>

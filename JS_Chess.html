@@ -1,0 +1,1730 @@
+<script>
+/* ============================================================================
+   شطرنج — CHESS on the page: the 3D board, the flat one, and one phone
+   ----------------------------------------------------------------------------
+   The rules and the computer are Chess.js (shared with the rooms server).
+   This file is what every chess screen is made of:
+     - the board (chView): ONE renderer per page, moved into whichever screen
+       shows a board (one phone, a room's phone, the TV, the review) and thrown
+       away when none does - real 3D with three.js (loadThree, JS_Three.html)
+       where WebGL can draw, a clean flat board where it can't. It draws only
+       when something changes or moves: the loop runs while a piece is in the
+       air or a finger drags one, and stops;
+     - the pieces as drawings (chPieceSvg) for the flat board, the promotion
+       picker, the captured pieces and the move list's figurines;
+     - two on one phone and against the computer (appState.shatranj), with the
+       clock and the live coach (JS_ChessReview.html has the stored games and
+       the review; JS_RoomChess.html the room and the TV).
+
+   The look (the owner, 23 Sep 2026: "real 3D like bowling and golf"): a wooden
+   board - maple and walnut squares with their grain, a walnut frame with the
+   squares' names a-h and 1-8 - and Staunton pieces turned on a lathe: pawns
+   with a collar and a ball, rooks with their battlements, bishops with the
+   cut in the mitre, a carved knight's head, the queen's coronet and the
+   king's cross; boxwood and ebony with a lacquer. Seen at an angle from your
+   side. A move slides (a knight hops), a piece taken is knocked off and set
+   beside the board, the king in check glows red, the last move's squares are
+   tinted, and a piece picked up shows where it can go (a dot on an empty
+   square, a ring round a piece it can take).
+
+   The board is a physical thing: dir="ltr", squares named a-h / 1-8 in both
+   languages. Board and square names are the same everywhere.
+   ========================================================================= */
+
+const CH_FILES = 'abcdefgh';
+const chSqIndex = (name) => { const f = CH_FILES.indexOf(String(name || '')[0]); const r = Number(String(name || '')[1]) - 1; return f < 0 || !(r >= 0 && r < 8) ? -1 : r * 8 + f; };
+const chSqName = (i) => (i >= 0 && i < 64 ? CH_FILES[i & 7] + ((i >> 3) + 1) : '');
+
+/** A translated line, {name} values filled in. */
+function chT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] !== undefined ? t[key] : ((TRANSLATIONS.ar || {})[key] || '');
+  if (vars) Object.keys(vars).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
+  return s;
+}
+
+/* --- the pieces as drawings ----------------------------------------------------- */
+
+// One drawing per kind (1 pawn … 6 king) in a 45 × 45 box, drawn for this app:
+// a light piece in boxwood with a dark line, a dark one in ebony with a light line.
+const CH_PIECE_PATHS = {
+  1: '<path d="M11 39.5h23v-3.8H11z"/><path d="M14.5 35.7c.8-4.8 3.4-8 6-9.2h4c2.6 1.2 5.2 4.4 6 9.2z"/><path d="M17.8 26.6h9.4v-2.7h-9.4z"/><circle cx="22.5" cy="17.4" r="5.9"/>',
+  2: '<path d="M10.5 39.5h24v-3.8h-24z"/><path d="M14 35.7c0-6.2 3.1-9.3 7.2-12.3-3 .4-6 2-8.1 4.6-1.6-1-1.6-3.2 0-4.7l8.2-9.6c.5-2.6 2-4.6 3.5-5.6l1.1 3.1c5.6.5 10.1 5.6 10.6 13.2.5 6.1-.5 9.6-1.5 11.3z"/><circle class="ch-svg-dot" cx="25.3" cy="15.8" r="1.3"/>',
+  3: '<path d="M10.5 39.5h24v-3.8h-24z"/><path d="M14 35.7c1-4.2 3-6.7 5.2-7.7h7.6c2.2 1 4.2 3.5 5.2 7.7z"/><path d="M17.3 28h10.4v-2.8H17.3z"/><path d="M22.5 8.6c-4.6 3-7.2 7.6-7.2 11.6 0 3.1 2.6 5.9 7.2 5.9s7.2-2.8 7.2-5.9c0-4-2.6-8.6-7.2-11.6z"/><circle cx="22.5" cy="6.8" r="2.3"/><path class="ch-svg-line" d="M25 13.2l-4.3 6" fill="none"/>',
+  4: '<path d="M10 39.5h25v-3.8H10z"/><path d="M13.2 35.7h18.6l-1.6-4.2H14.8z"/><path d="M15.2 31.5h14.6V18H15.2z"/><path d="M12 18h21v-6.2h-4.1v2.9h-3.6v-2.9h-5.6v2.9h-3.6v-2.9H12z"/><path class="ch-svg-line" d="M15.2 18h14.6M15.2 31.5h14.6" fill="none"/>',
+  5: '<path d="M10 39.5h25v-3.8H10z"/><path d="M13.5 35.7c1.5-5.2 2.4-10.2 2-15h14c-.4 4.8.5 9.8 2 15z"/><path d="M11.8 21.2L9.3 11.2l6 5 3.2-8.3 4 7.6 4-7.6 3.2 8.3 6-5-2.5 10z"/><circle cx="9" cy="10" r="2.2"/><circle cx="18.5" cy="7" r="2.2"/><circle cx="26.5" cy="7" r="2.2"/><circle cx="36" cy="10" r="2.2"/><path class="ch-svg-line" d="M16 24.5h13" fill="none"/>',
+  6: '<path d="M10 39.5h25v-3.8H10z"/><path d="M13.2 35.7c1.5-5 2.5-9.6 2-14.2h14.6c-.5 4.6.5 9.2 2 14.2z"/><path d="M15.1 21.7c-1-6.1 3-9.7 7.4-9.7s8.4 3.6 7.4 9.7z"/><path d="M21.3 3.8h2.4v3.1h3.1v2.4h-3.1v3.1h-2.4V9.3h-3.1V6.9h3.1z"/><path class="ch-svg-line" d="M15.4 25.3h14.2" fill="none"/>'
+};
+
+/** A piece drawn: code as on the board (kind, +8 for black). */
+function chPieceSvg(code, cls) {
+  const kind = code & 7;
+  if (!kind) return '';
+  const dark = code >> 3;
+  return `<svg class="ch-svg ${dark ? 'is-dark' : 'is-light'} ${cls || ''}" viewBox="0 0 45 45" aria-hidden="true" focusable="false">${CH_PIECE_PATHS[kind]}</svg>`;
+}
+
+const CH_LETTER_KIND = { p: 1, n: 2, b: 3, r: 4, q: 5, k: 6 };
+const CH_FIGURINES = { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞' };
+
+/** A move in algebraic notation with the piece as a figurine (♞f3): the same in every language. */
+const chFigurine = (san) => String(san || '').replace(/^[KQRBN]/, (m) => CH_FIGURINES[m]).replace(/=([QRBN])/, (x, m) => '=' + CH_FIGURINES[m]);
+
+/** A piece's name in the page's language: الوزير, the queen … */
+const chPieceName = (letter) => chT('ch_piece_' + (String(letter || 'p').toLowerCase()));
+
+/* --- sounds: a wooden clack, a heavier knock for a capture, the check ----------- */
+
+function chSound(kind) {
+  try {
+    if (typeof fxCtx !== 'function' || typeof fxTone !== 'function' || typeof fxNoise !== 'function') return;
+    const at = fxCtx().currentTime + 0.01;
+    if (kind === 'move' || kind === 'castle') {
+      fxNoise('bandpass', 1900, 2.2, [[0, 0], [0.003, 0.22], [0.06, 0.001]], at);
+      fxTone('sine', [[0, 520], [0.05, 330]], [[0, 0], [0.004, 0.12], [0.09, 0.001]], at);
+      if (kind === 'castle') {
+        fxNoise('bandpass', 1700, 2.2, [[0, 0], [0.003, 0.2], [0.06, 0.001]], at + 0.16);
+        fxTone('sine', [[0, 480], [0.05, 300]], [[0, 0], [0.004, 0.1], [0.09, 0.001]], at + 0.16);
+      }
+    } else if (kind === 'capture') {
+      fxNoise('lowpass', 1400, 0.9, [[0, 0], [0.003, 0.3], [0.1, 0.001]], at);
+      fxTone('triangle', [[0, 300], [0.1, 150]], [[0, 0], [0.004, 0.16], [0.14, 0.001]], at);
+    } else if (kind === 'check') {
+      fxTone('triangle', [[0, 660], [0.12, 660]], [[0, 0], [0.01, 0.1], [0.14, 0.001]], at);
+      fxTone('triangle', [[0, 880], [0.12, 880]], [[0, 0], [0.01, 0.1], [0.16, 0.001]], at + 0.13);
+    } else if (kind === 'pick') {
+      fxTone('sine', [[0, 880], [0.04, 990]], [[0, 0], [0.004, 0.05], [0.06, 0.001]], at);
+    } else if (kind === 'refuse') {
+      fxTone('sine', [[0, 220], [0.08, 180]], [[0, 0], [0.01, 0.1], [0.12, 0.001]], at);
+    } else if (kind === 'hint') {
+      fxTone('sine', [[0, 700], [0.18, 1050]], [[0, 0], [0.02, 0.07], [0.22, 0.001]], at);
+    }
+  } catch (e) {}
+}
+
+/* ============================================================================
+   The 3D board
+   ========================================================================= */
+
+// The pieces' size against a square, and how tall each kind stands.
+const CH_PIECE_SCALE = 1.18;
+
+function chRand(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+function chCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return [c, c.getContext('2d')];
+}
+
+/** Wood with its grain: a base colour, long wavy lines darker and lighter, rings drawn in. */
+function chWood(g, x, y, w, h, base, seed, across) {
+  const rnd = chRand(seed);
+  g.save();
+  g.beginPath(); g.rect(x, y, w, h); g.clip();
+  g.fillStyle = base; g.fillRect(x, y, w, h);
+  const lines = Math.round((across ? h : w) / 3);
+  for (let i = 0; i < lines; i++) {
+    const t = rnd();
+    g.strokeStyle = t < 0.5 ? `rgba(40,20,5,${0.05 + rnd() * 0.08})` : `rgba(255,240,215,${0.03 + rnd() * 0.06})`;
+    g.lineWidth = 0.6 + rnd() * 1.6;
+    g.beginPath();
+    const off = rnd() * (across ? h : w);
+    const amp = 1 + rnd() * 3, freq = 0.01 + rnd() * 0.02, ph = rnd() * 6;
+    const len = across ? w : h;
+    for (let k = 0; k <= len; k += 6) {
+      const wave = Math.sin(k * freq + ph) * amp;
+      if (across) { if (k === 0) g.moveTo(x + k, y + off + wave); else g.lineTo(x + k, y + off + wave); }
+      else { if (k === 0) g.moveTo(x + off + wave, y + k); else g.lineTo(x + off + wave, y + k); }
+    }
+    g.stroke();
+  }
+  g.restore();
+}
+
+/** A soft room of light for the lacquer to reflect: warm above, darker below. */
+function chRoomEnv(THREE, pmrem) {
+  const [c, g] = chCanvas(512, 256);
+  const grd = g.createLinearGradient(0, 0, 0, 256);
+  grd.addColorStop(0, '#fff6ea'); grd.addColorStop(0.45, '#e9dccb'); grd.addColorStop(0.55, '#7a6a5c'); grd.addColorStop(1, '#2a221c');
+  g.fillStyle = grd; g.fillRect(0, 0, 512, 256);
+  // Two windows' worth of light, for highlights along the pieces.
+  g.fillStyle = 'rgba(255,255,255,0.9)';
+  g.fillRect(90, 50, 70, 60); g.fillRect(340, 40, 90, 50);
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const env = pmrem.fromEquirectangular(tex).texture;
+  tex.dispose();
+  return env;
+}
+
+/** The lathe profiles, [radius, height] from the base up, for each kind; and the extras (battlements, cut, coronet, cross). */
+function chPieceParts(THREE) {
+  const V = (pts) => pts.map(([r, y]) => new THREE.Vector2(r, y));
+  const arc = (cy, ry, rx, a0, a1, n) => {
+    const out = [];
+    for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; out.push([Math.max(0, Math.cos(a) * rx), cy + Math.sin(a) * ry]); }
+    return out;
+  };
+  const base = (r) => [[0, 0], [r, 0], [r, 0.05], [r - 0.03, 0.085], [r - 0.06, 0.1], [r - 0.08, 0.13]];
+  const lathe = (pts) => new THREE.LatheGeometry(V(pts), 40);
+  const parts = {};
+  parts[1] = { body: lathe(base(0.29).concat([[0.15, 0.2], [0.11, 0.3], [0.1, 0.35], [0.165, 0.37], [0.165, 0.395], [0.09, 0.415]]).concat(arc(0.51, 0.12, 0.12, -1.25, Math.PI / 2, 10))), h: 0.63 };
+  parts[4] = { body: lathe(base(0.32).concat([[0.21, 0.19], [0.18, 0.46], [0.21, 0.49], [0.245, 0.53], [0.245, 0.66], [0.17, 0.66], [0.17, 0.6], [0.001, 0.6]])), h: 0.74 };
+  parts[3] = { body: lathe(base(0.31).concat([[0.16, 0.21], [0.115, 0.37], [0.105, 0.44], [0.17, 0.46], [0.17, 0.485], [0.1, 0.505]]).concat(arc(0.64, 0.155, 0.135, -1.2, Math.PI / 2 - 0.25, 12)).concat(arc(0.83, 0.045, 0.045, -Math.PI / 2, Math.PI / 2, 6))), h: 0.88 };
+  parts[5] = { body: lathe(base(0.34).concat([[0.2, 0.2], [0.135, 0.44], [0.12, 0.62], [0.185, 0.645], [0.185, 0.67], [0.125, 0.69], [0.15, 0.74], [0.2, 0.86], [0.12, 0.84], [0.06, 0.87], [0.001, 0.875]])), h: 0.98 };
+  parts[6] = { body: lathe(base(0.35).concat([[0.21, 0.2], [0.145, 0.45], [0.13, 0.66], [0.195, 0.685], [0.195, 0.71], [0.135, 0.73], [0.17, 0.81], [0.195, 0.9], [0.12, 0.94], [0.001, 0.95]])), h: 1.15 };
+  parts[2] = { body: lathe(base(0.31).concat([[0.2, 0.16], [0.19, 0.18], [0.001, 0.18]])), h: 0.86 };
+  // The knight's head: a carved profile, extruded and bevelled; it faces +x.
+  const s = new THREE.Shape();
+  s.moveTo(-0.2, 0.16);
+  s.quadraticCurveTo(-0.25, 0.32, -0.21, 0.47);
+  s.quadraticCurveTo(-0.17, 0.6, -0.1, 0.69);
+  s.lineTo(-0.075, 0.8);
+  s.lineTo(-0.035, 0.88);
+  s.lineTo(0.005, 0.77);
+  s.quadraticCurveTo(0.09, 0.745, 0.15, 0.68);
+  s.quadraticCurveTo(0.25, 0.58, 0.32, 0.5);
+  s.quadraticCurveTo(0.35, 0.45, 0.32, 0.405);
+  s.lineTo(0.25, 0.4);
+  s.lineTo(0.22, 0.415);
+  s.quadraticCurveTo(0.13, 0.43, 0.07, 0.47);
+  s.quadraticCurveTo(0.03, 0.43, 0.06, 0.37);
+  s.quadraticCurveTo(0.16, 0.3, 0.19, 0.16);
+  s.lineTo(-0.2, 0.16);
+  const head = new THREE.ExtrudeGeometry(s, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.035, bevelSegments: 5, curveSegments: 12 });
+  head.translate(0, 0, -0.06);
+  parts[2].head = head;
+  parts.eye = new THREE.SphereGeometry(0.022, 10, 8);
+  parts.merlon = new THREE.BoxGeometry(0.1, 0.085, 0.075);
+  parts.cut = new THREE.BoxGeometry(0.014, 0.28, 0.33);
+  parts.bead = new THREE.SphereGeometry(0.042, 12, 10);
+  parts.crossV = new THREE.BoxGeometry(0.07, 0.26, 0.07);
+  parts.crossH = new THREE.BoxGeometry(0.2, 0.07, 0.07);
+  return parts;
+}
+
+function chMake3D(THREE, root) {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'ch-canvas';
+  root.insertBefore(canvas, root.firstChild);
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 0);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.92;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const scene = new THREE.Scene();
+  const env = chRoomEnv(THREE, pmrem);
+  scene.environment = env;
+  const cam = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
+  const big = Math.min(window.screen ? Math.max(window.screen.width, window.screen.height) : 1000, 4000) > 1400;
+
+  const hemi = new THREE.HemisphereLight(0xfff3e2, 0x3b2b20, 0.45);
+  scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xfff4e6, 1.9);
+  key.position.set(-5, 11, 6);
+  key.castShadow = true;
+  key.shadow.mapSize.set(big ? 2048 : 1024, big ? 2048 : 1024);
+  Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 2, far: 30 });
+  key.shadow.bias = -0.0005;
+  key.shadow.normalBias = 0.02;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffe2c4, 0.45);
+  fill.position.set(6, 5, -4);
+  scene.add(fill);
+
+  // The board: a walnut frame, and a top of maple and walnut squares with the names round them.
+  const [bc, bg] = chCanvas(1024, 1024);
+  const boardTex = new THREE.CanvasTexture(bc);
+  boardTex.colorSpace = THREE.SRGBColorSpace;
+  boardTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  let boardOrient = -1;
+  function drawBoard(orient) {
+    if (boardOrient === orient) return;
+    boardOrient = orient;
+    const S = 1024, u = S / 10;
+    chWood(bg, 0, 0, S, S, '#5a3a24', 11, true);
+    bg.fillStyle = 'rgba(0,0,0,0.25)';
+    bg.fillRect(u - 6, u - 6, 8 * u + 12, 8 * u + 12);
+    for (let r = 0; r < 8; r++) {
+      for (let f = 0; f < 8; f++) {
+        const light = (r + f) % 2 === 1;
+        const x = u + f * u, y = u + (7 - r) * u;
+        chWood(bg, x, y, u, u, light ? '#dfc08c' : '#74421f', 100 + r * 8 + f, (r + f) % 2 === 0);
+      }
+    }
+    bg.strokeStyle = 'rgba(30,15,5,0.55)'; bg.lineWidth = 3;
+    bg.strokeRect(u - 1, u - 1, 8 * u + 2, 8 * u + 2);
+    bg.strokeStyle = 'rgba(240,215,170,0.35)'; bg.lineWidth = 2;
+    bg.strokeRect(u - 10, u - 10, 8 * u + 20, 8 * u + 20);
+    // The names, facing whoever sits at the near side.
+    bg.fillStyle = 'rgba(245,228,196,0.92)';
+    bg.font = `600 ${Math.round(u * 0.36)}px system-ui, sans-serif`;
+    bg.textAlign = 'center'; bg.textBaseline = 'middle';
+    const put = (text, x, y) => {
+      bg.save(); bg.translate(x, y); if (orient) bg.rotate(Math.PI); bg.fillText(text, 0, 0); bg.restore();
+    };
+    for (let i = 0; i < 8; i++) {
+      put(CH_FILES[i], u + i * u + u / 2, orient ? u / 2 : S - u / 2);
+      put(String(i + 1), orient ? S - u / 2 : u / 2, u + (7 - i) * u + u / 2);
+    }
+    boardTex.needsUpdate = true;
+  }
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a2f1d, roughness: 0.55, metalness: 0 });
+  const frameMesh = new THREE.Mesh(new THREE.BoxGeometry(10, 0.42, 10), woodMat);
+  frameMesh.position.y = -0.215;
+  frameMesh.receiveShadow = true;
+  frameMesh.castShadow = true;
+  scene.add(frameMesh);
+  const topMat = new THREE.MeshPhysicalMaterial({ map: boardTex, roughness: 0.5, clearcoat: 0.3, clearcoatRoughness: 0.35, envMapIntensity: 0.45 });
+  const top = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), topMat);
+  top.rotation.x = -Math.PI / 2;
+  top.position.y = 0.002;
+  top.receiveShadow = true;
+  scene.add(top);
+  // A shadow on the table under it all (the stage behind is the page's own ground).
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity: 0.28 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.44;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // What sits on the squares: the last move, the piece picked up and where it can go, check, danger, arrows.
+  const [oc, og] = chCanvas(1024, 1024);
+  const overTex = new THREE.CanvasTexture(oc);
+  overTex.colorSpace = THREE.SRGBColorSpace;
+  overTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const over = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.MeshBasicMaterial({ map: overTex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  over.rotation.x = -Math.PI / 2;
+  over.position.y = 0.006;
+  over.renderOrder = 2;
+  scene.add(over);
+
+  // The pieces.
+  const parts = chPieceParts(THREE);
+  const mats = [
+    { body: new THREE.MeshPhysicalMaterial({ color: 0xf6ead2, roughness: 0.36, clearcoat: 0.6, clearcoatRoughness: 0.18, envMapIntensity: 0.8 }),
+      mark: new THREE.MeshStandardMaterial({ color: 0x7a6247, roughness: 0.7 }) },
+    { body: new THREE.MeshPhysicalMaterial({ color: 0x2a211c, roughness: 0.3, clearcoat: 0.85, clearcoatRoughness: 0.12, envMapIntensity: 0.9 }),
+      mark: new THREE.MeshStandardMaterial({ color: 0x0d0a08, roughness: 0.7 }) }
+  ];
+  const glowMat = [0, 1].map(c => mats[c].body.clone());
+  glowMat.forEach(m => { m.emissive = new THREE.Color(0xff2a1a); m.emissiveIntensity = 0.55; });
+
+  function buildPiece(code) {
+    const kind = code & 7, c = code >> 3;
+    const grp = new THREE.Group();
+    const P = parts[kind];
+    const add = (geo, mat, x, y, z) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x || 0, y || 0, z || 0);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      grp.add(m);
+      return m;
+    };
+    const body = add(P.body, mats[c].body);
+    body.userData.body = true;
+    if (kind === 2) {
+      const head = add(P.head, mats[c].body);
+      head.userData.body = true;
+      // The head looks towards the other side and a little outwards, so its
+      // profile reads from where the players sit (a head seen from straight
+      // behind is a sliver).
+      head.rotation.y = c ? -0.7 : 2.44;
+      [1, -1].forEach(sgn => {
+        const eye = new THREE.Mesh(parts.eye, mats[c].mark);
+        eye.position.set(0.16, 0.63, sgn * 0.108);
+        head.add(eye);
+      });
+    }
+    if (kind === 4) {
+      for (let k = 0; k < 6; k++) {
+        const a = k * Math.PI / 3 + Math.PI / 6;
+        const m = add(parts.merlon, mats[c].body, Math.cos(a) * 0.205, 0.7, Math.sin(a) * 0.205);
+        m.rotation.y = -a;
+        m.userData.body = true;
+      }
+    }
+    if (kind === 3) {
+      // The mitre's cut: a thin dark slab through it, slanting, showing front and back.
+      const cut = add(parts.cut, mats[c].mark, 0, 0.67, 0);
+      cut.rotation.z = c ? -0.62 : 0.62;
+    }
+    if (kind === 5) {
+      for (let k = 0; k < 8; k++) {
+        const a = k * Math.PI / 4;
+        const b = add(parts.bead, mats[c].body, Math.cos(a) * 0.185, 0.875, Math.sin(a) * 0.185);
+        b.userData.body = true;
+      }
+      const tb = add(parts.bead, mats[c].body, 0, 0.92, 0);
+      tb.scale.setScalar(1.4);
+      tb.userData.body = true;
+    }
+    if (kind === 6) {
+      add(parts.crossV, mats[c].body, 0, 1.07, 0).userData.body = true;
+      add(parts.crossH, mats[c].body, 0, 1.1, 0).userData.body = true;
+    }
+    grp.scale.setScalar(CH_PIECE_SCALE);
+    grp.userData.code = code;
+    return grp;
+  }
+
+  // Where a square is in the world: White's first rank at +z, the a-file at -x.
+  const sqPos = (i, y) => new THREE.Vector3((i & 7) - 3.5, y || 0, 3.5 - (i >> 3));
+
+  const pieces = new Map();        // square index -> group
+  const yard = [[], []];           // pieces taken, as groups, White's lost and Black's lost
+  let model = null, modelKey = '', animKey = '', mateKey = '', aspect = 1, orient = 0;
+  const tweens = [];
+  let busyUntil = 0;
+  let drag = null;
+
+  function removePiece(grp) { if (grp && grp.parent) grp.parent.remove(grp); }
+
+  /** Where the n-th piece a side lost sits beside the board. */
+  function yardPos(side, n) {
+    // side 0: White's lost pieces, which sit on Black's side of the table.
+    const row = Math.floor(n / 8), col = n % 8;
+    const along = -3.2 + col * 0.9;
+    const out = 5.65 + row * 0.7;
+    const wide = aspect >= 1.15;
+    let x, z;
+    if (wide) { x = side === 0 ? -out : out; z = side === 0 ? along : -along; }
+    else { z = side === 0 ? -out : out; x = side === 0 ? -along : along; }
+    return new THREE.Vector3(x, 0, z).applyAxisAngle(new THREE.Vector3(0, 1, 0), orient ? Math.PI : 0);
+  }
+
+  function placeYard() {
+    [0, 1].forEach(side => yard[side].forEach((grp, n) => {
+      const p = yardPos(side, n);
+      grp.position.set(p.x, -0.43, p.z);
+      grp.rotation.set(0, grp.userData.spin || 0, 0);
+      grp.scale.setScalar(CH_PIECE_SCALE * 0.62);
+    }));
+  }
+
+  /** The board as the model says, with no motion: every square's piece, the pieces taken. */
+  function snap() {
+    const b = model.board;
+    for (let i = 0; i < 64; i++) {
+      const want = b[i] || 0;
+      const have = pieces.get(i);
+      if (have && (!want || have.userData.code !== want)) { removePiece(have); pieces.delete(i); }
+      if (want && (!pieces.get(i))) {
+        const grp = buildPiece(want);
+        scene.add(grp);
+        pieces.set(i, grp);
+      }
+      const grp = pieces.get(i);
+      if (grp && !(drag && drag.grp === grp)) {
+        const p = sqPos(i);
+        grp.position.copy(p);
+        grp.rotation.set(0, 0, 0);
+        grp.traverse(m => { if (m.userData.body) m.material = mats[grp.userData.code >> 3].body; });
+      }
+    }
+    const lost = model.lost || [[], []];
+    [0, 1].forEach(side => {
+      const want = lost[side] || [];
+      while (yard[side].length > want.length) removePiece(yard[side].pop());
+      want.forEach((letter, n) => {
+        const code = CH_LETTER_KIND[letter] | (side ? 8 : 0);
+        if (!yard[side][n] || yard[side][n].userData.code !== code) {
+          if (yard[side][n]) removePiece(yard[side][n]);
+          const grp = buildPiece(code);
+          grp.userData.spin = (n * 0.7) % 1.2 - 0.6;
+          scene.add(grp);
+          yard[side][n] = grp;
+        }
+      });
+    });
+    placeYard();
+    markCheck();
+  }
+
+  function markCheck() {
+    const ck = model && model.check ? chSqIndex(model.check) : -1;
+    pieces.forEach((grp, i) => {
+      const c = grp.userData.code >> 3;
+      const hot = i === ck;
+      grp.traverse(m => { if (m.userData.body) m.material = hot ? glowMat[c] : mats[c].body; });
+    });
+  }
+
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+
+  function tween(dur, update, delay) {
+    const t0 = performance.now() + (delay || 0);
+    tweens.push({ t0: t0, dur: dur, update: update });
+    busyUntil = Math.max(busyUntil, Date.now() + (delay || 0) + dur);
+    kick();
+  }
+
+  /** A move played: the piece slides (a knight hops), a piece taken is knocked off to the side, a rook follows its king. */
+  function animateMove(a) {
+    const from = chSqIndex(a.from), to = chSqIndex(a.to);
+    const grp = pieces.get(from);
+    if (!grp) return false;
+    const capAt = a.captureSq ? chSqIndex(a.captureSq) : (a.capture ? to : -1);
+    const victim = capAt >= 0 ? pieces.get(capAt) : null;
+    pieces.delete(from);
+    if (victim) pieces.delete(capAt);
+    pieces.set(to, grp);
+    const start = grp.position.clone();
+    const end = sqPos(to);
+    const dist = start.distanceTo(end);
+    const knight = (grp.userData.code & 7) === 2;
+    const lift = knight ? 0.75 : 0.12 + dist * 0.035;
+    const dur = Math.min(560, 230 + dist * 45);
+    tween(dur, (k) => {
+      const e = ease(k);
+      grp.position.lerpVectors(start, end, e);
+      grp.position.y = start.y + (end.y - start.y) * e + lift * 4 * e * (1 - e);
+    });
+    if (victim) {
+      // Knocked off: up, spinning, onto its place beside the board.
+      const side = victim.userData.code >> 3;
+      const n = yard[side].length;
+      yard[side].push(victim);
+      victim.userData.spin = (n * 0.7) % 1.2 - 0.6;
+      const vFrom = victim.position.clone();
+      const dir = new THREE.Vector3().subVectors(vFrom, start).setY(0).normalize();
+      tween(560, (k) => {
+        const e = easeOut(k);
+        const p = yardPos(side, n);
+        const knock = vFrom.clone().addScaledVector(dir, 0.35 * Math.min(1, k * 4));
+        victim.position.lerpVectors(knock, new THREE.Vector3(p.x, -0.43, p.z), e);
+        victim.position.y += 1.3 * 4 * e * (1 - e);
+        victim.rotation.x = (1 - e) * 5.5 * (dir.z || 0.4);
+        victim.rotation.z = (1 - e) * -5.5 * (dir.x || 0.4);
+        victim.rotation.y = victim.userData.spin * e;
+        victim.scale.setScalar(CH_PIECE_SCALE * (1 - 0.38 * e));
+      }, dur * 0.72);
+    }
+    if (a.castle) {
+      const rf = to > from ? to + 1 : to - 2, rt = to > from ? to - 1 : to + 1;
+      const rook = pieces.get(rf);
+      if (rook) {
+        pieces.delete(rf);
+        pieces.set(rt, rook);
+        const rs = rook.position.clone(), re = sqPos(rt);
+        tween(300, (k) => {
+          const e = ease(k);
+          rook.position.lerpVectors(rs, re, e);
+          rook.position.y = 0.3 * 4 * e * (1 - e);
+        }, dur * 0.5);
+      }
+    }
+    if (a.promo) {
+      const code = CH_LETTER_KIND[a.promo] | (grp.userData.code & 8);
+      setTimeout(() => {
+        if (pieces.get(to) !== grp) return;
+        const np = buildPiece(code);
+        np.position.copy(sqPos(to));
+        scene.add(np);
+        removePiece(grp);
+        pieces.set(to, np);
+        tween(420, (k) => { np.scale.setScalar(CH_PIECE_SCALE * (0.3 + 0.7 * easeOut(k)) * (1 + 0.15 * Math.sin(k * Math.PI))); });
+      }, dur);
+    }
+    return true;
+  }
+
+  /** Mate: the king topples. */
+  function topple(sqName) {
+    const grp = pieces.get(chSqIndex(sqName));
+    if (!grp) return;
+    const base = grp.position.clone();
+    tween(1100, (k) => {
+      const e = easeOut(k);
+      grp.rotation.z = 1.45 * e;
+      grp.position.x = base.x + 0.42 * e;
+      grp.position.y = base.y + 0.1 * Math.sin(e * Math.PI);
+    }, busyUntil > Date.now() ? busyUntil - Date.now() + 120 : 120);
+  }
+
+  /** The king in check: a short shake. */
+  function shake(sqName) {
+    const grp = pieces.get(chSqIndex(sqName));
+    if (!grp) return;
+    const bx = sqPos(chSqIndex(sqName)).x;
+    tween(480, (k) => { grp.position.x = bx + Math.sin(k * Math.PI * 6) * 0.05 * (1 - k); }, busyUntil > Date.now() ? busyUntil - Date.now() : 0);
+  }
+
+  let overKey = '';
+  function drawOverlay() {
+    const m = model || {};
+    const keyNow = JSON.stringify([m.last, m.sel, m.targets, m.check, m.marks, m.arrows, m.orient]);
+    if (keyNow === overKey) return;
+    overKey = keyNow;
+    const S = 1024, u = S / 8;
+    og.clearRect(0, 0, S, S);
+    const at = (name) => { const i = chSqIndex(name); return i < 0 ? null : { x: (i & 7) * u, y: (7 - (i >> 3)) * u }; };
+    if (m.last) [m.last.from, m.last.to].forEach(sq => { const p = at(sq); if (p) { og.fillStyle = 'rgba(255, 214, 64, 0.38)'; og.fillRect(p.x, p.y, u, u); } });
+    if (m.sel) { const p = at(m.sel); if (p) { og.fillStyle = 'rgba(80, 200, 255, 0.42)'; og.fillRect(p.x, p.y, u, u); } }
+    if (m.check) {
+      const p = at(m.check);
+      if (p) {
+        const grd = og.createRadialGradient(p.x + u / 2, p.y + u / 2, 4, p.x + u / 2, p.y + u / 2, u * 0.7);
+        grd.addColorStop(0, 'rgba(255,40,20,0.95)'); grd.addColorStop(0.55, 'rgba(255,40,20,0.45)'); grd.addColorStop(1, 'rgba(255,40,20,0)');
+        og.fillStyle = grd; og.fillRect(p.x - u * 0.2, p.y - u * 0.2, u * 1.4, u * 1.4);
+      }
+    }
+    (m.marks || []).forEach(mk => {
+      const p = at(mk.sq);
+      if (!p) return;
+      og.strokeStyle = mk.kind === 'mine' ? 'rgba(239, 68, 68, 0.95)' : 'rgba(34, 197, 94, 0.95)';
+      og.lineWidth = 9;
+      og.setLineDash([16, 10]);
+      og.beginPath(); og.arc(p.x + u / 2, p.y + u / 2, u * 0.43, 0, Math.PI * 2); og.stroke();
+      og.setLineDash([]);
+    });
+    (m.targets || []).forEach(tg => {
+      const p = at(tg.to);
+      if (!p) return;
+      og.fillStyle = 'rgba(20, 60, 90, 0.42)';
+      if (tg.capture) {
+        og.strokeStyle = 'rgba(20, 60, 90, 0.5)'; og.lineWidth = 12;
+        og.beginPath(); og.arc(p.x + u / 2, p.y + u / 2, u * 0.42, 0, Math.PI * 2); og.stroke();
+      } else {
+        og.beginPath(); og.arc(p.x + u / 2, p.y + u / 2, u * 0.16, 0, Math.PI * 2); og.fill();
+      }
+    });
+    (m.arrows || []).forEach(ar => {
+      const a = at(ar.from), b = at(ar.to);
+      if (!a || !b) return;
+      const x0 = a.x + u / 2, y0 = a.y + u / 2, x1 = b.x + u / 2, y1 = b.y + u / 2;
+      const ang = Math.atan2(y1 - y0, x1 - x0), len = Math.hypot(x1 - x0, y1 - y0);
+      og.save();
+      og.translate(x0, y0); og.rotate(ang);
+      og.fillStyle = ar.color || 'rgba(34, 197, 94, 0.85)';
+      const w = 22, head = 54, hw = 40;
+      og.beginPath();
+      og.moveTo(0, -w / 2); og.lineTo(len - head, -w / 2); og.lineTo(len - head, -hw); og.lineTo(len, 0);
+      og.lineTo(len - head, hw); og.lineTo(len - head, w / 2); og.lineTo(0, w / 2); og.closePath();
+      og.fill();
+      og.restore();
+    });
+    overTex.needsUpdate = true;
+  }
+
+  /* --- the camera: from your side, at an angle, the board (and what's beside it) filling the view --- */
+  const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
+  function aimCamera() {
+    const w = root.clientWidth, h = root.clientHeight;
+    if (!w || !h) return;
+    aspect = w / h;
+    cam.aspect = aspect;
+    const tv = !!(model && model.tv);
+    const el = (tv ? 46 : aspect >= 1.15 ? 47 : 53) * Math.PI / 180;
+    const back = orient ? -1 : 1;
+    const wide = aspect >= 1.15;
+    // What must be seen: the frame's corners, the tops of the far pieces, the pieces beside the board.
+    const pts = [];
+    [-5, 5].forEach(x => [-5, 5].forEach(z => pts.push(new THREE.Vector3(x, 0, z))));
+    [-4, 4].forEach(x => pts.push(new THREE.Vector3(x, 1.4, -3.5 * back)));
+    const side = wide ? [[-6.1, -3.3], [-6.1, 3.3], [6.1, -3.3], [6.1, 3.3]] : [[-3.3, -6.1], [3.3, -6.1], [-3.3, 6.1], [3.3, 6.1]];
+    side.forEach(([x, z]) => pts.push(new THREE.Vector3(x, 0, z)));
+    const look = new THREE.Vector3(0, 0, wide ? 0 : 0.25 * back);
+    const dir = new THREE.Vector3(0, Math.sin(el), Math.cos(el) * back);
+    const fits = (d) => {
+      cam.position.copy(look).addScaledVector(dir, d);
+      cam.lookAt(look);
+      cam.updateMatrixWorld();
+      cam.updateProjectionMatrix();
+      return pts.every(p => { const q = p.clone().project(cam); return Math.abs(q.x) <= 0.97 && q.y <= 0.95 && q.y >= -0.97; });
+    };
+    let lo = 5, hi = 80;
+    for (let k = 0; k < 24; k++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+    camPos.copy(look).addScaledVector(dir, hi);
+    camLook.copy(look);
+    cam.position.copy(camPos);
+    cam.lookAt(camLook);
+    cam.updateProjectionMatrix();
+    placeYard();
+  }
+
+  /* --- picking: the square under a finger --- */
+  const ray = new THREE.Raycaster();
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  function boardPoint(clientX, clientY, y) {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width) return null;
+    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, cam);
+    const hit = new THREE.Vector3();
+    plane.constant = -(y || 0);
+    return ray.ray.intersectPlane(plane, hit) ? hit : null;
+  }
+  function pick(clientX, clientY) {
+    // A tall piece stands in front of the square behind it: try the plane at a piece's middle first.
+    const tryAt = (y) => {
+      const hit = boardPoint(clientX, clientY, y);
+      if (!hit) return -1;
+      const f = Math.floor(hit.x + 4), r = Math.floor(4 - hit.z);
+      return f >= 0 && f < 8 && r >= 0 && r < 8 ? r * 8 + f : -1;
+    };
+    const mid = tryAt(0.35);
+    if (mid >= 0 && pieces.has(mid)) return chSqName(mid);
+    return chSqName(tryAt(0));
+  }
+
+  /* --- dragging a piece: it lifts and follows the finger --- */
+  function dragStart(sq) {
+    const grp = pieces.get(chSqIndex(sq));
+    if (!grp) return false;
+    drag = { sq: sq, grp: grp };
+    kick();
+    return true;
+  }
+  function dragMove(clientX, clientY) {
+    if (!drag) return;
+    const hit = boardPoint(clientX, clientY, 0);
+    if (!hit) return;
+    drag.grp.position.set(Math.max(-4.3, Math.min(4.3, hit.x)), 0.55, Math.max(-4.3, Math.min(4.3, hit.z)));
+    kick();
+  }
+  function dragEnd(played) {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    if (played) return;
+    // Not played: back to its square.
+    const from = d.grp.position.clone(), to = sqPos(chSqIndex(d.sq));
+    tween(200, (k) => { const e = easeOut(k); d.grp.position.lerpVectors(from, to, e); });
+  }
+
+  function setModel(m) {
+    const fresh = !model || m.key !== modelKey;
+    const prevOrient = orient;
+    model = m;
+    orient = m.orient ? 1 : 0;
+    drawBoard(orient);
+    if (fresh) {
+      modelKey = m.key;
+      animKey = m.anim ? m.anim.key : '';
+      mateKey = m.mate ? m.key + '|mate' : '';
+      tweens.length = 0;
+      pieces.forEach(removePiece); pieces.clear();
+      yard.forEach(list => { list.forEach(removePiece); list.length = 0; });
+      aimCamera();
+      snap();
+    } else {
+      if (prevOrient !== orient) aimCamera();
+      let moved = false;
+      if (m.anim && m.anim.key !== animKey) {
+        animKey = m.anim.key;
+        if (!motionOff() && (!m.anim.still)) {
+          moved = animateMove(m.anim);
+          if (moved) {
+            const k = m.anim.capture ? 'capture' : m.anim.castle ? 'castle' : 'move';
+            if (m.loud !== false) chSound(k);
+            if (m.check && m.loud !== false) setTimeout(() => chSound('check'), 260);
+            if (m.check) shake(m.check);
+          }
+        }
+      }
+      if (!moved && !tweens.length) snap();
+      else if (moved) setTimeout(() => { if (model === m && !tweens.length && !drag) { snap(); render(); } }, Math.max(0, busyUntil - Date.now() + 30));
+      if (!moved) markCheck();
+      if (m.mate && mateKey !== m.key + '|mate') {
+        mateKey = m.key + '|mate';
+        if (!motionOff()) topple(m.mate);
+      }
+    }
+    drawOverlay();
+    kick();
+  }
+
+  /* --- the loop: only while something moves --- */
+  let raf = 0, running = false, paused = false;
+  function render() {
+    renderer.render(scene, cam);
+  }
+  function frame(now) {
+    raf = 0;
+    if (!root.isConnected || paused) { running = false; return; }
+    for (let k = tweens.length - 1; k >= 0; k--) {
+      const tw = tweens[k];
+      if (now < tw.t0) continue;
+      const t = Math.min(1, (now - tw.t0) / tw.dur);
+      tw.update(t);
+      if (t >= 1) tweens.splice(k, 1);
+    }
+    render();
+    if (tweens.length || drag) { raf = requestAnimationFrame(frame); running = true; }
+    else running = false;
+  }
+  function kick() {
+    if (raf || paused) return;
+    raf = requestAnimationFrame(frame);
+    running = true;
+  }
+
+  function resize() {
+    const w = root.clientWidth, h = root.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    aimCamera();
+    kick();
+  }
+  const ro = new ResizeObserver(resize);
+  ro.observe(root);
+  resize();
+
+  function dispose() {
+    if (raf) cancelAnimationFrame(raf);
+    ro.disconnect();
+    const seen = new Set();
+    scene.traverse(o => {
+      if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
+      const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      ms.forEach(mm => { if (!seen.has(mm)) { seen.add(mm); if (mm.map) mm.map.dispose(); mm.dispose(); } });
+    });
+    Object.keys(parts).forEach(k => { const p = parts[k]; if (p && p.dispose) p.dispose(); if (p && p.body) { p.body.dispose(); if (p.head) p.head.dispose(); } });
+    [mats[0], mats[1]].forEach(s => { s.body.dispose(); s.mark.dispose(); });
+    glowMat.forEach(m => m.dispose());
+    boardTex.dispose(); overTex.dispose(); env.dispose(); pmrem.dispose();
+    renderer.dispose();
+    try { renderer.forceContextLoss(); } catch (e) {}
+    canvas.remove();
+  }
+
+  return {
+    kind: '3d',
+    setModel: setModel, pick: pick, dragStart: dragStart, dragMove: dragMove, dragEnd: dragEnd,
+    resize: resize, dispose: dispose,
+    pause: (p) => { paused = !!p; if (!p) kick(); },
+    busyUntil: () => busyUntil,
+    /** Where a square's middle is on the page (the promotion picker; the tests tap there). */
+    screenOf: (sq) => {
+      const r = canvas.getBoundingClientRect();
+      const q = sqPos(chSqIndex(sq), 0.2).project(cam);
+      return { x: r.left + (q.x * 0.5 + 0.5) * r.width, y: r.top + (-q.y * 0.5 + 0.5) * r.height };
+    }
+  };
+}
+
+/* ============================================================================
+   The flat board: where WebGL can't draw, and the review's small boards
+   ========================================================================= */
+
+/** The board as markup: squares, pieces, marks and arrows. m: the view's model. */
+function chFlatBoardHtml(m) {
+  const o = m.orient ? 1 : 0;
+  const last = m.last ? [m.last.from, m.last.to] : [];
+  const tg = {};
+  (m.targets || []).forEach(x => { tg[x.to] = x.capture ? 'cap' : 'dot'; });
+  const mk = {};
+  (m.marks || []).forEach(x => { mk[x.sq] = x.kind; });
+  let cells = '';
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const f = o ? 7 - col : col, r = o ? row : 7 - row;
+      const i = r * 8 + f, name = chSqName(i);
+      const light = (r + f) % 2 === 1;
+      const cls = ['ch-fsq', light ? 'is-light' : 'is-dark'];
+      if (last.indexOf(name) !== -1) cls.push('is-last');
+      if (m.sel === name) cls.push('is-sel');
+      if (m.check === name) cls.push('is-check');
+      if (mk[name]) cls.push(mk[name] === 'mine' ? 'is-danger' : 'is-chance');
+      const coord = (col === 0 ? `<i class="ch-fsq__r">${r + 1}</i>` : '') + (row === 7 ? `<i class="ch-fsq__f">${CH_FILES[f]}</i>` : '');
+      cells += `<span class="${cls.join(' ')}" data-sq="${name}">${coord}${m.board[i] ? chPieceSvg(m.board[i]) : ''}${tg[name] ? `<b class="ch-fsq__${tg[name]}"></b>` : ''}</span>`;
+    }
+  }
+  const arrows = (m.arrows || []).map(a => {
+    const p = (name) => { const i = chSqIndex(name); const f = i & 7, r = i >> 3; const col = o ? 7 - f : f, row = o ? r : 7 - r; return [col + 0.5, row + 0.5]; };
+    const [x0, y0] = p(a.from), [x1, y1] = p(a.to);
+    const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+    const ux = (x1 - x0) / len, uy = (y1 - y0) / len;
+    const hx = x1 - ux * 0.38, hy = y1 - uy * 0.38;
+    return `<line x1="${x0}" y1="${y0}" x2="${hx}" y2="${hy}" stroke="${a.color || 'rgba(34,197,94,0.85)'}" stroke-width="0.17" stroke-linecap="round"/>
+      <polygon points="${x1},${y1} ${hx - uy * 0.3},${hy + ux * 0.3} ${hx + uy * 0.3},${hy - ux * 0.3}" fill="${a.color || 'rgba(34,197,94,0.85)'}"/>`;
+  }).join('');
+  return `<div class="ch-fboard" dir="ltr">${cells}${arrows ? `<svg class="ch-farrows" viewBox="0 0 8 8" aria-hidden="true">${arrows}</svg>` : ''}</div>`;
+}
+
+function chMakeFlat(root) {
+  const box = document.createElement('div');
+  box.className = 'ch-flat';
+  root.insertBefore(box, root.firstChild);
+  let model = null, animKey = '';
+  function setModel(m) {
+    const fresh = !model || model.key !== m.key;
+    model = m;
+    box.innerHTML = chFlatBoardHtml(m);
+    if (!fresh && m.anim && m.anim.key !== animKey) {
+      animKey = m.anim.key;
+      if (m.loud !== false) chSound(m.anim.capture ? 'capture' : m.anim.castle ? 'castle' : 'move');
+      const el = box.querySelector(`[data-sq="${m.anim.to}"] .ch-svg`);
+      if (el && !motionOff()) el.classList.add('is-arrived');
+    } else if (fresh && m.anim) animKey = m.anim.key;
+  }
+  function pick(clientX, clientY) {
+    const b = box.querySelector('.ch-fboard');
+    if (!b) return '';
+    const r = b.getBoundingClientRect();
+    const col = Math.floor((clientX - r.left) / r.width * 8), row = Math.floor((clientY - r.top) / r.height * 8);
+    if (col < 0 || col > 7 || row < 0 || row > 7) return '';
+    const o = model && model.orient ? 1 : 0;
+    const f = o ? 7 - col : col, rk = o ? row : 7 - row;
+    return chSqName(rk * 8 + f);
+  }
+  return {
+    kind: 'flat',
+    setModel: setModel, pick: pick,
+    dragStart: () => false, dragMove: () => {}, dragEnd: () => {},
+    resize: () => {}, pause: () => {},
+    dispose: () => box.remove(),
+    busyUntil: () => 0,
+    screenOf: (sq) => {
+      const el = box.querySelector(`[data-sq="${sq}"]`);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+  };
+}
+
+/* ============================================================================
+   The view: one per page, moved into whichever screen shows a board
+   ========================================================================= */
+
+const chView = { root: null, r: null, model: null, loading: false };
+
+function chViewRoot() {
+  if (chView.root) return chView.root;
+  const el = document.createElement('div');
+  el.className = 'ch-view';
+  el.innerHTML = `<div class="ch-loading" aria-hidden="true"><span></span></div><div class="ch-promo" data-ch-promo hidden></div>`;
+  chWireInput(el);
+  chView.root = el;
+  return el;
+}
+
+/** Shows `model` in `host`, making the board the first time (3D when it can, flat when it can't). */
+function chViewShow(host, model) {
+  if (!host) return;
+  const root = chViewRoot();
+  if (root.parentNode !== host) host.appendChild(root);
+  chView.model = model;
+  root.classList.toggle('is-live', !!(model.input && model.input.canMove));
+  if (chView.r) { chView.r.setModel(model); return; }
+  if (!chView.loading) chViewStart();
+}
+
+function chViewStart() {
+  const root = chView.root;
+  const flat = () => {
+    root.querySelectorAll('canvas').forEach(c => c.remove());
+    chView.r = chMakeFlat(root);
+    root.classList.add('is-flat');
+    root.classList.remove('is-loading');
+    if (chView.model) chView.r.setModel(chView.model);
+  };
+  if (typeof loadThree !== 'function' || typeof threeCanDraw !== 'function' || !threeCanDraw()) { flat(); return; }
+  chView.loading = true;
+  root.classList.add('is-loading');
+  loadThree().then((THREE) => {
+    if (chView.root !== root) return;
+    chView.loading = false;
+    try { chView.r = chMake3D(THREE, root); }
+    catch (e) { console.warn('chess 3d', e); flat(); return; }
+    root.classList.remove('is-loading', 'is-flat');
+    if (chView.model) chView.r.setModel(chView.model);
+  }).catch(() => {
+    if (chView.root !== root) return;
+    chView.loading = false;
+    flat();
+  });
+}
+
+function chViewDrop() {
+  if (chView.r) { try { chView.r.dispose(); } catch (e) {} }
+  if (chView.root) chView.root.remove();
+  chView.r = null;
+  chView.root = null;
+  chView.model = null;
+  chView.loading = false;
+}
+
+const chViewBusyLeft = () => (chView.r ? Math.max(0, chView.r.busyUntil() - Date.now()) : 0);
+
+document.addEventListener('visibilitychange', () => { if (chView.r) chView.r.pause(document.hidden); });
+
+/* --- the finger on the board: a tap picks a piece or a square, a drag carries a piece --- */
+
+function chWireInput(root) {
+  let press = null;
+  root.addEventListener('pointerdown', (e) => {
+    const m = chView.model, r = chView.r;
+    if (!m || !r || !m.input || e.button > 0 || e.target.closest('button')) return;
+    const sq = r.pick(e.clientX, e.clientY);
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, sq: sq, dragging: false, own: false };
+    if (!sq || !m.input.canMove) return;
+    const code = m.board[chSqIndex(sq)];
+    press.own = !!code && (code >> 3) === m.input.side;
+    if (press.own) { try { root.setPointerCapture(e.pointerId); } catch (x) {} }
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!press || press.id !== e.pointerId || !press.own) return;
+    const r = chView.r;
+    if (!press.dragging && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) {
+      if (r.dragStart(press.sq)) {
+        press.dragging = true;
+        const m = chView.model;
+        if (m && m.input && m.input.onPick && m.sel !== press.sq) m.input.onPick(press.sq, true);
+      }
+    }
+    if (press.dragging) { e.preventDefault(); r.dragMove(e.clientX, e.clientY); }
+  });
+  const end = (e, cancel) => {
+    if (!press || press.id !== e.pointerId) return;
+    const pr = press;
+    press = null;
+    const m = chView.model, r = chView.r;
+    if (!m || !r || !m.input) return;
+    if (pr.dragging) {
+      const to = cancel ? '' : r.pick(e.clientX, e.clientY);
+      const played = !!(to && to !== pr.sq && m.input.onDrop && m.input.onDrop(pr.sq, to));
+      r.dragEnd(played);
+      return;
+    }
+    if (cancel || Math.hypot(e.clientX - pr.x, e.clientY - pr.y) > 14) return;
+    if (pr.sq && m.input.onPick) m.input.onPick(pr.sq, false);
+  };
+  root.addEventListener('pointerup', (e) => end(e, false));
+  root.addEventListener('pointercancel', (e) => end(e, true));
+}
+
+/* --- the promotion picker: four pieces over the square the pawn goes to --- */
+
+function chAskPromotion(to, color, onPick) {
+  const root = chView.root;
+  const r = chView.r;
+  const box = root && root.querySelector('[data-ch-promo]');
+  if (!box) { onPick('q'); return; }
+  const at = r && r.screenOf ? r.screenOf(to) : null;
+  const rr = root.getBoundingClientRect();
+  box.innerHTML = `<span class="ch-promo__title">${escapeHTML(chT('ch_promote'))}</span><span class="ch-promo__row">${['q', 'r', 'b', 'n'].map(l =>
+    `<button type="button" class="ch-promo__btn" data-promo="${l}" aria-label="${escapeHTML(chPieceName(l))}">${chPieceSvg(CH_LETTER_KIND[l] | (color ? 8 : 0))}</button>`).join('')}</span>
+    <button type="button" class="ch-promo__x" data-promo="" aria-label="${escapeHTML(chT('cancel'))}">✕</button>`;
+  box.hidden = false;
+  // Over the square, but never past the board's edges.
+  const bw = box.offsetWidth, bh = box.offsetHeight;
+  const cx = at ? at.x - rr.left : rr.width / 2, cy = at ? at.y - rr.top : rr.height / 2;
+  box.style.left = Math.max(bw / 2 + 8, Math.min(rr.width - bw / 2 - 8, cx)) + 'px';
+  box.style.top = Math.max(bh / 2 + 8, Math.min(rr.height - bh / 2 - 8, cy)) + 'px';
+  const done = (v) => { box.hidden = true; box.innerHTML = ''; onPick(v); };
+  box.querySelectorAll('[data-promo]').forEach(b => b.addEventListener('click', (ev) => { ev.stopPropagation(); done(b.dataset.promo); }));
+  if (typeof haptic === 'function') haptic('light');
+}
+
+/** A tap on the board, the same wherever it happens: pick a piece of your own, then a square it can go to. */
+function chTapLogic(ctx, sq, fromDrag) {
+  // ctx: { g, side, sel, setSel(sq), play(from, to, promo) }
+  const i = chSqIndex(sq);
+  const code = ctx.g.board[i];
+  const legal = chessLegalMoves(ctx.g);
+  if (ctx.sel && ctx.sel !== sq) {
+    const moves = legal.filter(mv => mv.from === ctx.sel && mv.to === sq);
+    if (moves.length) {
+      const from = ctx.sel;
+      ctx.setSel('');
+      if (moves.length > 1) chAskPromotion(sq, ctx.side, (p) => { if (p) ctx.play(from, sq, p); });
+      else ctx.play(from, sq, moves[0].promo || '');
+      return true;
+    }
+  }
+  if (code && (code >> 3) === ctx.side) {
+    if (ctx.sel === sq && !fromDrag) { ctx.setSel(''); return false; }
+    ctx.setSel(sq);
+    if (!fromDrag) chSound('pick');
+    return false;
+  }
+  if (ctx.sel) { ctx.setSel(''); if (code || true) chSound('refuse'); }
+  return false;
+}
+
+/** The targets of the piece picked up. */
+const chTargets = (g, sel) => (sel ? chessLegalMoves(g).filter(m => m.from === sel).map(m => ({ to: m.to, capture: m.capture })) : [])
+  .filter((x, k, arr) => arr.findIndex(y => y.to === x.to) === k);
+
+/** A drop: a move if it is legal (asking for the promotion piece), false (the piece goes back) if not. */
+function chDropLogic(ctx, from, to) {
+  const moves = chessLegalMoves(ctx.g).filter(mv => mv.from === from && mv.to === to);
+  if (!moves.length) { chSound('refuse'); ctx.setSel(''); return false; }
+  ctx.setSel('');
+  if (moves.length > 1) { chAskPromotion(to, ctx.side, (p) => { if (p) ctx.play(from, to, p); else ctx.redraw(); }); return true; }
+  ctx.play(from, to, moves[0].promo || '');
+  return true;
+}
+
+/* ============================================================================
+   What every chess screen shows beside the board
+   ========================================================================= */
+
+/** "03:25", or "0:09.4" under ten seconds. */
+function chClockText(ms) {
+  if (!isFinite(ms)) return '';
+  const v = Math.max(0, ms);
+  if (v < 10000) return '0:' + String(Math.floor(v / 1000)).padStart(2, '0') + '.' + Math.floor((v % 1000) / 100);
+  const s = Math.ceil(v / 1000);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+/** The pieces a side has taken, drawn small, and how far ahead it is in material. */
+function chTakenHtml(lostByOther, lead) {
+  const order = ['q', 'r', 'b', 'n', 'p'];
+  const list = (lostByOther || []).slice().sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  if (!list.length && !(lead > 0)) return '';
+  return `<span class="ch-taken" dir="ltr">${list.map(l => chPieceSvg(CH_LETTER_KIND[l] | 0, 'ch-taken__pc')).join('')}${lead > 0 ? `<b class="ch-taken__lead">+${lead}</b>` : ''}</span>`;
+}
+
+const CH_POINTS = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+/** How far side `side` is ahead in material, in pawns, from what each has lost. */
+const chLead = (lost, side) => (lost[1 - side] || []).reduce((a, l) => a + (CH_POINTS[l] || 0), 0) - (lost[side] || []).reduce((a, l) => a + (CH_POINTS[l] || 0), 0);
+
+/** The moves so far, in pairs, figurines, the newest marked. marks: an optional verdict per move. */
+function chMovesHtml(sans, opts) {
+  const o = opts || {};
+  if (!sans || !sans.length) return `<p class="ch-moves__empty">${escapeHTML(chT('ch_no_moves'))}</p>`;
+  let rows = '';
+  for (let i = 0; i < sans.length; i += 2) {
+    const cell = (k) => {
+      if (k >= sans.length) return '<span></span>';
+      const cls = (o.marks && o.marks[k]) ? ' ch-mv--' + o.marks[k] : '';
+      const cur = o.current === k ? ' is-current' : '';
+      const on = o.onClick ? ` onclick="${o.onClick}(${k})" role="button" tabindex="0"` : '';
+      return `<span class="ch-mv${cls}${cur}"${on}>${escapeHTML(chFigurine(sans[k]))}${o.marks && o.marks[k] ? chClassDot(o.marks[k]) : ''}</span>`;
+    };
+    rows += `<span class="ch-mvn">${i / 2 + 1}.</span>${cell(i)}${cell(i + 1)}`;
+  }
+  return `<div class="ch-moves" dir="ltr">${rows}</div>`;
+}
+
+const CH_CLASS_ICON = { brilliant: '!!', best: '★', good: '✓', inaccuracy: '?!', mistake: '?', blunder: '??' };
+const chClassDot = (cls) => `<i class="ch-cls ch-cls--${cls}" aria-hidden="true">${CH_CLASS_ICON[cls] || ''}</i>`;
+
+/** One reason, as a sentence: "your queen on h4 can be taken (Nxh4)". */
+function chReasonText(r) {
+  if (!r) return '';
+  const v = {
+    piece: chPieceName(r.piece), sq: '⁦' + (r.sq || '') + '⁩',
+    san: '⁦' + chFigurine(r.san || '') + '⁩', n: r.n
+  };
+  const key = 'ch_why_' + r.k + (r.k === 'win_missed' && r.piece ? '_piece' : '');
+  return chT(key, v) || '';
+}
+
+/** The first reasons of a verdict, joined into one line. */
+const chReasonsLine = (reasons, max) => (reasons || []).slice(0, max || 2).map(chReasonText).filter(Boolean).join(' · ');
+
+/** The end of a game, in one line: who won and how. result 'w'|'b'|'d', reason, names [white, black]. */
+function chResultLine(result, reason, names) {
+  const how = chT('ch_end_' + reason) || '';
+  if (result === 'd') return '🤝 ' + chT('ch_draw') + (how ? ' · ' + how : '');
+  const who = result === 'w' ? names[0] : names[1];
+  return '🏆 ' + chT('ch_won', { name: duelIso(who || '') }) + (how ? ' · ' + how : '');
+}
+
+/* ============================================================================
+   Two on one phone, and against the computer
+   ========================================================================= */
+
+// busy: a second tap too soon; thinking: the computer's timer; tick: the clock's.
+const chLocal = { sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '' };
+
+function chState() {
+  if (!appState.shatranj) {
+    appState.shatranj = {
+      vs: 'phone', elo: 1200, color: 'w', clock: 'off', names: [], coach: false,
+      coachOpts: { warn: true, hint: true, comment: true, threats: true },
+      phase: 'setup', g: null, hist: [], sans: [], lost: [[], []], last: null, clk: null, result: null,
+      me: 0, firstWhite: 0, gameId: '', scores: [0, 0, 0], flip: false, start: '', comment: null, practice: false
+    };
+  }
+  const s = appState.shatranj;
+  if (!s.coachOpts) s.coachOpts = { warn: true, hint: true, comment: true, threats: true };
+  if (!s.scores) s.scores = [0, 0, 0];
+  if (!s.lost) s.lost = [[], []];
+  return s;
+}
+
+function setupShatranj() {
+  chStopTimers();
+  setView('setup-shatranj');
+  paintShatranjSetup();
+}
+
+/** The names on each side: [White's, Black's]. Against the computer, you and "the computer (1200)". */
+function chNames(s) {
+  if (s.vs === 'phone') {
+    const you = chT('xo_you'), cpu = chT('ch_cpu', { elo: s.elo });
+    return s.me === 0 ? [you, cpu] : [cpu, you];
+  }
+  const n = s.names || [];
+  const p1 = n[0] || chT('ch_player1'), p2 = n[1] || chT('ch_player2');
+  return s.firstWhite === 0 ? [p1, p2] : [p2, p1];
+}
+
+function chEloLabel(elo) {
+  return elo + ' · ' + chT('ch_band_' + chessEloBand(elo));
+}
+
+function paintShatranjSetup() {
+  const s = chState();
+  duelPaintSegmented('shatranj-vs', s.vs);
+  duelPaintSegmented('shatranj-color', s.color);
+  duelPaintSegmented('shatranj-clock', s.clock);
+  const phone = s.vs === 'phone';
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+  show('shatranj-elo-field', phone);
+  show('shatranj-color-field', phone);
+  show('shatranj-coach-field', phone);
+  show('shatranj-names-field', !phone);
+  const elo = document.getElementById('shatranj-elo');
+  if (elo && Number(elo.value) !== s.elo) elo.value = s.elo;
+  if (elo) elo.style.setProperty('--fill', ((s.elo - 400) / 16) + '%');
+  const out = document.getElementById('shatranj-elo-out');
+  if (out) out.textContent = chEloLabel(s.elo);
+  const coach = document.getElementById('shatranj-coach');
+  if (coach) coach.checked = !!s.coach;
+  show('shatranj-coach-opts', phone && !!s.coach);
+  ['warn', 'hint', 'comment', 'threats'].forEach(k => { const el = document.getElementById('shatranj-coach-' + k); if (el) el.checked = s.coachOpts[k] !== false; });
+  const cont = document.getElementById('shatranj-continue');
+  if (cont) cont.classList.toggle('hidden', !(s.phase === 'play' && s.g));
+  if (typeof chPaintHistory === 'function') chPaintHistory();
+}
+
+function setShatranjOption(key, value) {
+  const s = chState();
+  if (key === 'elo') s.elo = chessElo(value);
+  else if (key === 'coach') s.coach = !!value;
+  else if (key.indexOf('coach.') === 0) s.coachOpts[key.slice(6)] = !!value;
+  else s[key] = value;
+  saveToLocal();
+  paintShatranjSetup();
+}
+
+/** Start: a new match (the tally from nothing). */
+function startShatranj() {
+  const s = chState();
+  const read = (id) => ((document.getElementById(id) || {}).value || '').trim().slice(0, 16);
+  s.names = [read('shatranj-name1'), read('shatranj-name2')];
+  s.scores = [0, 0, 0];
+  s.firstWhite = 0;
+  s.practice = false;
+  s.start = '';
+  chNewGame();
+}
+
+function chContinue() {
+  setView('play-shatranj');
+  chPaint({ still: true });
+  chAfterMove();
+}
+
+/** A new game: against the computer your colour as chosen; two on one phone, the colours swap each game. */
+function chNewGame(opts) {
+  const o = opts || {};
+  const s = chState();
+  chStopTimers();
+  s.g = o.fen ? chessFromFen(o.fen) : chessNew();
+  s.start = o.fen || '';
+  s.hist = [];
+  s.sans = [];
+  s.lost = [[], []];
+  s.last = null;
+  s.result = null;
+  s.comment = null;
+  s.flip = false;
+  s.practice = !!o.practice;
+  if (s.vs === 'phone') s.me = o.me !== undefined ? o.me : (s.color === 'b' ? 1 : s.color === 'random' ? (Math.random() < 0.5 ? 0 : 1) : 0);
+  s.clk = chessClockNew(s.clock);
+  s.phase = 'play';
+  s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  chLocal.sel = '';
+  chLocal.coachBefore = null; chLocal.coachKey = '';
+  chLocal.hint = null; chLocal.hintKey = '';
+  chLocal.pending = null;
+  saveToLocal();
+  if (appState.currentView !== 'play-shatranj') setView('play-shatranj');
+  chPaint();
+  if (typeof scrollToAction === 'function') scrollToAction();
+  chAfterMove();
+}
+
+/** The next game of the match. */
+function chNextGame() {
+  const s = chState();
+  if (s.vs === 'friend') s.firstWhite = 1 - (s.firstWhite || 0);
+  chNewGame();
+}
+
+const chHumanTurn = (s) => s.phase === 'play' && (s.vs === 'friend' || s.g.turn === s.me);
+
+/** Who sits at the bottom: against the computer, you; two on one phone, White (or Black, turned by ↻). */
+const chOrient = (s) => (s.vs === 'phone' ? s.me : (s.flip ? 1 : 0));
+
+/* --- a move on one phone ----------------------------------------------------------- */
+
+function chPlayLocal(from, to, promo) {
+  const s = chState();
+  if (!chHumanTurn(s) || Date.now() < chLocal.busy || chLocal.pending) return;
+  const before = chessCloneGame(s.g);
+  const beforeLost = [s.lost[0].slice(), s.lost[1].slice()];
+  s.comment = null;
+  const info = chApplyMove(s, { from: from, to: to, promo: promo });
+  if (!info) return;
+  chLocal.busy = Date.now() + 250;
+  haptic('light');
+  // The coach watches your moves against the computer: a blunder is caught before it counts.
+  if (s.vs === 'phone' && s.coach && s.phase === 'play' && (s.coachOpts.warn !== false || s.coachOpts.comment !== false)) {
+    chPaint();
+    setTimeout(() => chCoachJudge(before, beforeLost, info), 40);
+    return;
+  }
+  chPaint();
+  chAfterMove();
+}
+
+/** Plays a move on the one-phone game: the clock, the record, what was taken, the end. */
+function chApplyMove(s, mv) {
+  const mover = s.g.turn;
+  const now = Date.now();
+  if (s.clk && chessClockFlagged(s.clk, mover, now, 0)) { chFlag(s, mover); return null; }
+  const info = chessPlay(s.g, mv);
+  if (!info) return null;
+  if (s.clk) chessClockPress(s.clk, mover, now, 0, s.hist.length === 0);
+  s.hist.push(info.from + info.to + (info.promo || ''));
+  s.sans.push(info.san);
+  if (info.capture) s.lost[1 - mover].push(info.capture);
+  s.last = { from: info.from, to: info.to, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, n: s.hist.length };
+  chLocal.hint = null;
+  if (info.status.over) chEnd(s, info.status.result, info.status.reason);
+  saveToLocal();
+  return info;
+}
+
+function chFlag(s, side) {
+  chEnd(s, chessFlagResult(s.g.board, side), 'time');
+  saveToLocal();
+  chPaint();
+}
+
+function chResignLocal() {
+  const s = chState();
+  if (s.phase !== 'play') return;
+  showConfirmModal(chT('ch_resign_confirm'), () => {
+    const loser = s.vs === 'phone' ? s.me : s.g.turn;
+    chEnd(s, loser === 0 ? 'b' : 'w', 'resign');
+    saveToLocal();
+    chPaint();
+  });
+}
+
+function chDrawLocal() {
+  const s = chState();
+  if (s.phase !== 'play' || s.vs !== 'friend') return;
+  showConfirmModal(chT('ch_draw_confirm'), () => { chEnd(s, 'd', 'agreed'); saveToLocal(); chPaint(); });
+}
+
+/** The game is over: the tally, the clock stopped, the game kept for the review. */
+function chEnd(s, result, reason) {
+  if (s.phase !== 'play') return;
+  s.phase = 'done';
+  s.result = { result: result, reason: reason };
+  if (s.clk && s.clk.at) { const side = s.g.turn; s.clk.left[side] = Math.max(0, chessClockLeft(s.clk, side, side, Date.now())); s.clk.at = null; }
+  // The tally: [player 1 (or you), player 2 (or the computer), draws].
+  if (result === 'd') s.scores[2]++;
+  else {
+    const winnerColour = result === 'w' ? 0 : 1;
+    const p1Colour = s.vs === 'phone' ? s.me : s.firstWhite === 0 ? 0 : 1;
+    s.scores[winnerColour === p1Colour ? 0 : 1]++;
+  }
+  chStopTimers();
+  if (typeof chStoreGame === 'function') {
+    const names = chNames(s);
+    chStoreGame({ mode: s.vs === 'phone' ? 'phone' : 'friend', names: names, elo: s.vs === 'phone' ? s.elo : null, me: s.vs === 'phone' ? s.me : null,
+      result: result, reason: reason, start: s.start || '', moves: s.hist.slice(), key: 'local|' + s.gameId });
+  }
+}
+
+/** After every move: the computer's turn, the clock, the coach's look at the new position. */
+function chAfterMove() {
+  const s = chState();
+  if (appState.currentView !== 'play-shatranj' || !s.g) return;
+  chTickStart();
+  if (s.phase !== 'play') return;
+  if (s.vs === 'phone' && s.g.turn !== s.me) chComputerSoon();
+  else if (s.vs === 'phone' && s.coach) chCoachPrepare();
+}
+
+function chComputerSoon() {
+  const s = chState();
+  if (chLocal.thinking || s.phase !== 'play' || s.g.turn === s.me) return;
+  // Let the last move land first, then think.
+  const wait = chViewBusyLeft() + 250;
+  chLocal.thinking = setTimeout(() => {
+    chLocal.thinking = null;
+    const st = chState();
+    if (appState.currentView !== 'play-shatranj' || st.phase !== 'play' || st.g.turn === st.me || st.vs !== 'phone') return;
+    const settings = chessEloSettings(st.elo);
+    let ms = settings.ms;
+    if (st.clk && st.clk.at) ms = Math.min(ms, Math.max(80, chessClockLeft(st.clk, st.g.turn, st.g.turn, Date.now()) / 25));
+    const t0 = Date.now();
+    const mv = chessBestMove(st.g, { elo: st.elo, ms: ms });
+    // A move found at once still waits a human moment, so it can be seen coming.
+    const pause = Math.max(0, 450 - (Date.now() - t0));
+    chLocal.thinking = setTimeout(() => {
+      chLocal.thinking = null;
+      const s2 = chState();
+      if (appState.currentView !== 'play-shatranj' || s2.phase !== 'play' || s2.g.turn === s2.me) return;
+      if (mv) chApplyMove(s2, mv);
+      chPaint();
+      chAfterMove();
+    }, pause);
+  }, wait);
+}
+
+function chStopTimers() {
+  if (chLocal.thinking) clearTimeout(chLocal.thinking);
+  chLocal.thinking = null;
+  if (chLocal.tick) clearInterval(chLocal.tick);
+  chLocal.tick = null;
+}
+
+/* --- the clock on one phone: it counts only while the board is on screen --- */
+
+function chTickStart() {
+  const s = chState();
+  if (chLocal.tick) clearInterval(chLocal.tick);
+  chLocal.tick = null;
+  if (!s.clk || s.phase !== 'play') { chPaintClocks(); return; }
+  if (!s.clk.at && s.hist.length) s.clk.at = Date.now();
+  chPaintClocks();
+  // The time is read from the clock's own stamps each tick, never counted down.
+  chLocal.tick = setInterval(() => {
+    const st = chState();
+    if (appState.currentView !== 'play-shatranj' || !st.clk || st.phase !== 'play') { clearInterval(chLocal.tick); chLocal.tick = null; return; }
+    const side = st.g.turn;
+    if (chessClockFlagged(st.clk, side, Date.now(), 0)) { clearInterval(chLocal.tick); chLocal.tick = null; chStopTimers(); chFlag(st, side); return; }
+    chPaintClocks();
+  }, 200);
+}
+
+/** Leaving the board stops the clock where it stands; coming back starts it again. */
+function chPauseClock() {
+  const s = chState();
+  if (s.clk && s.clk.at && s.phase === 'play') {
+    const side = s.g.turn;
+    s.clk.left[side] = Math.max(0, chessClockLeft(s.clk, side, side, Date.now()));
+    s.clk.at = null;
+    saveToLocal();
+  }
+}
+
+function chPaintClocks() {
+  const s = chState();
+  document.querySelectorAll('#shatranj-stage [data-ch-clock]').forEach(el => {
+    const side = Number(el.dataset.chClock);
+    if (!s.clk) { el.textContent = ''; return; }
+    const left = chessClockLeft(s.clk, side, s.g.turn, Date.now());
+    el.textContent = chClockText(left);
+    el.classList.toggle('is-running', s.phase === 'play' && s.g.turn === side && !!s.clk.at);
+    el.classList.toggle('is-low', left < 20000);
+  });
+}
+
+/* --- the coach, against the computer ---------------------------------------------- */
+
+const CH_COACH_NODES = 25000;
+
+/** On your turn the coach looks at the position once: the hint and the warning read it. */
+function chCoachPrepare() {
+  const s = chState();
+  const key = s.gameId + '|' + s.hist.length;
+  if (chLocal.coachKey === key) { chPaint(); return; }
+  setTimeout(() => {
+    const st = chState();
+    if (st.phase !== 'play' || st.gameId + '|' + st.hist.length !== key || appState.currentView !== 'play-shatranj') return;
+    chLocal.coachBefore = chessAnalyse(st.g, { nodes: CH_COACH_NODES, ms: 900 });
+    chLocal.coachKey = key;
+    chPaint();
+  }, chViewBusyLeft() + 80);
+}
+
+/** Your move against the computer, judged: a blunder waits for you to take it back or play it anyway. */
+function chCoachJudge(before, beforeLost, info) {
+  const s = chState();
+  const key = s.gameId + '|' + (s.hist.length - 1);
+  const pre = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : chessAnalyse(before, { nodes: CH_COACH_NODES, ms: 900 });
+  const after = chessAnalyse(s.g, { nodes: CH_COACH_NODES, ms: 900 });
+  const mv = { from: info.from, to: info.to, promo: info.promo || '' };
+  const verdict = chessJudge(before, mv, pre, after);
+  if (s.coachOpts.warn !== false && verdict.cls === 'blunder' && s.phase !== 'done') {
+    chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: s.clk ? JSON.parse(JSON.stringify(s.clk)) : null };
+    chPaint();
+    chCoachWarn(verdict);
+    return;
+  }
+  chCoachAccept(verdict);
+}
+
+function chCoachAccept(verdict) {
+  const s = chState();
+  chLocal.pending = null;
+  if (s.coachOpts.comment !== false) s.comment = { cls: verdict.cls, reasons: verdict.reasons, best: verdict.best, n: s.hist.length };
+  saveToLocal();
+  chPaint();
+  chAfterMove();
+}
+
+/** "Careful - your queen can be taken": take it back, or play it anyway. */
+function chCoachWarn(verdict) {
+  const body = document.getElementById('ch-warn-body');
+  if (body) {
+    body.innerHTML = `<p class="ch-warn__why">${escapeHTML(chReasonsLine(verdict.reasons, 2) || chT('ch_warn_generic'))}</p>`;
+  }
+  const m = document.getElementById('ch-warn-modal');
+  if (m) m.classList.remove('hidden');
+  chSound('refuse');
+  haptic('double');
+}
+
+function chCoachTakeBack() {
+  const s = chState();
+  const p = chLocal.pending;
+  closeModal('ch-warn-modal');
+  if (!p) return;
+  s.g = p.before;
+  s.lost = p.lost;
+  s.hist = s.hist.slice(0, p.hist - 1);
+  s.sans = s.sans.slice(0, p.hist - 1);
+  if (p.clk) s.clk = p.clk;
+  if (s.clk && s.clk.at) s.clk.at = Date.now();
+  s.phase = 'play';
+  s.result = null;
+  s.last = null;
+  chLocal.pending = null;
+  chLocal.sel = '';
+  saveToLocal();
+  chPaint({ still: true });
+  chAfterMove();
+}
+
+function chCoachPlayAnyway() {
+  const p = chLocal.pending;
+  closeModal('ch-warn-modal');
+  if (!p) return;
+  chCoachAccept(p.verdict);
+}
+
+/** The hint: the best move as an arrow on the board, and why in one line. */
+function chHint() {
+  const s = chState();
+  if (!chHumanTurn(s) || !s.coach) return;
+  const key = s.gameId + '|' + s.hist.length;
+  const a = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : chessAnalyse(s.g, { nodes: CH_COACH_NODES, ms: 900 });
+  chLocal.coachBefore = a; chLocal.coachKey = key;
+  if (!a.move) return;
+  chLocal.hint = { move: a.move, san: a.san, reasons: chessMoveGood(s.g, a.move, a), key: key };
+  chSound('hint');
+  haptic('light');
+  chPaint();
+}
+
+/* --- drawing the one-phone screen -------------------------------------------------- */
+
+function chLayoutHtml(prefix) {
+  return `<div class="ch-game duel">
+      <div class="ch-layout">
+        <div class="ch-layout__stage"><div class="ch-stage" data-ch-host></div></div>
+        <div class="ch-layout__side">
+          <div class="duel-head ch-head" data-ch-head></div>
+          <div class="ch-bar" data-ch-bar></div>
+          <div class="ch-side" data-ch-side></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function chSetHtml(root, sel, html) {
+  const el = root && root.querySelector(sel);
+  if (!el || el._chHtml === html) return false;
+  el.innerHTML = html;
+  el._chHtml = html;
+  return true;
+}
+
+/** The two players as the duels' pills: the piece colour, the name, the clock and what they have taken. */
+function chPillsHtml(names, turn, scores, clk, lost, subs) {
+  const pill = (k) => ({
+    name: names[k],
+    score: scores ? scores[k] : 0,
+    mark: `<span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>`,
+    sub: (subs && subs[k] ? subs[k] + ' ' : '') + (clk ? `<b class="ch-clock metric" data-ch-clock="${k}"></b>` : '') + chTakenHtml(lost ? lost[1 - k] : [], lost ? chLead(lost, k) : 0)
+  });
+  return duelPillsHtml({ players: [pill(0), pill(1)], turn: turn, draws: null });
+}
+
+function chPaint(opts) {
+  const o = opts || {};
+  const s = chState();
+  const el = document.getElementById('shatranj-stage');
+  if (!el || !s.g) return;
+  if (!el.querySelector('.ch-game') || el._chLang !== appState.lang) { el.innerHTML = chLayoutHtml(); el._chLang = appState.lang; }
+  const names = chNames(s);
+  const humanTurn = chHumanTurn(s) && !chLocal.pending;
+  const side = s.vs === 'phone' ? s.me : s.g.turn;
+  const threats = s.vs === 'phone' && s.coach && s.coachOpts.threats !== false && s.phase === 'play' ? chessThreats(s.g) : null;
+  const marks = [];
+  if (threats) {
+    const mine = s.me ? 'b' : 'w';
+    threats[mine].forEach(sq => marks.push({ sq: sq, kind: 'mine' }));
+    threats[mine === 'w' ? 'b' : 'w'].forEach(sq => marks.push({ sq: sq, kind: 'theirs' }));
+  }
+  const hint = chLocal.hint && chLocal.hint.key === s.gameId + '|' + s.hist.length ? chLocal.hint : null;
+  const ended = s.phase === 'done' && s.result;
+  const ctx = {
+    g: s.g, side: side, sel: chLocal.sel,
+    setSel: (sq) => { chLocal.sel = sq; chPaint(); },
+    play: (from, to, promo) => chPlayLocal(from, to, promo),
+    redraw: () => chPaint()
+  };
+  const model = {
+    key: 'local|' + s.gameId,
+    board: s.g.board, orient: chOrient(s), loud: true,
+    last: s.last ? { from: s.last.from, to: s.last.to } : null,
+    anim: s.last ? Object.assign({ key: s.gameId + '|' + s.last.n, still: !!o.still }, s.last) : null,
+    check: chessCheckSq(s.g),
+    mate: ended && s.result.reason === 'mate' ? chMateKing(s.g) : '',
+    sel: humanTurn ? chLocal.sel : '',
+    targets: humanTurn ? chTargets(s.g, chLocal.sel) : [],
+    marks: marks,
+    arrows: hint ? [{ from: hint.move.from, to: hint.move.to }] : [],
+    lost: s.lost,
+    input: humanTurn ? { canMove: true, side: side, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) } : null
+  };
+  chViewShow(el.querySelector('[data-ch-host]'), model);
+  const scores = s.scores || [0, 0, 0];
+  // The pills are by colour; the tally is by player.
+  const p1Colour = s.vs === 'phone' ? s.me : (s.firstWhite === 0 ? 0 : 1);
+  const byColour = p1Colour === 0 ? [scores[0], scores[1]] : [scores[1], scores[0]];
+  const subs = null;
+  chSetHtml(el, '[data-ch-head]', chPillsHtml(names, s.phase === 'play' ? s.g.turn : -1, byColour, s.clk, s.lost, subs) +
+    `<p class="duel-status ${ended ? 'is-done' : ''} ${chLocal.thinking ? 'is-thinking' : ''}">${escapeHTML(chLocalStatus(s, names))}</p>`);
+  chSetHtml(el, '[data-ch-bar]', chLocalBarHtml(s, hint));
+  chSetHtml(el, '[data-ch-side]', chLocalSideHtml(s, names));
+  duelPillsAfter(el, 'ch-local', { turn: s.phase === 'play' ? s.g.turn : -1, scores: byColour });
+  chPaintClocks();
+  if (ended && duelOnce('ch|' + s.gameId + '|cheer') && !o.still) {
+    const r = s.result.result;
+    const won = s.vs === 'phone' ? (r === (s.me ? 'b' : 'w')) : r !== 'd';
+    setTimeout(() => {
+      if (appState.currentView !== 'play-shatranj') return;
+      if (won) { duelSound('win'); if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } }); }
+      else duelSound(r === 'd' ? 'draw' : 'lose');
+    }, chViewBusyLeft() + 700);
+    haptic(won ? 'double' : 'light');
+  }
+}
+
+/** The king that is mated, for the board to topple. */
+function chMateKing(g) {
+  const k = 6 | (g.turn ? 8 : 0);
+  const i = g.board.indexOf(k);
+  return i >= 0 ? chSqName(i) : '';
+}
+
+function chLocalStatus(s, names) {
+  if (s.phase === 'done' && s.result) return chResultLine(s.result.result, s.result.reason, names);
+  if (chLocal.pending) return chT('ch_coach_wait');
+  const check = chessCheckSq(s.g) ? ' · ' + chT('ch_check') : '';
+  if (s.vs === 'phone') return (s.g.turn === s.me ? chT('duel_your_turn') : chT('xo_thinking')) + check;
+  return chT('duel_turn_of', { name: duelIso(names[s.g.turn]) }) + check;
+}
+
+function chLocalBarHtml(s, hint) {
+  if (s.phase === 'done') {
+    return `<div class="btn-row">
+        <button type="button" class="btn btn--primary btn--lg" onclick="chNextGame()">${escapeHTML(chT('duel_next_game'))}</button>
+        <button type="button" class="btn btn--secondary" onclick="chOpenLastReview()">📊 ${escapeHTML(chT('ch_review'))}</button>
+      </div>`;
+  }
+  const parts = [];
+  if (s.vs === 'phone' && s.coach && s.coachOpts.hint !== false && chHumanTurn(s)) {
+    parts.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chHint()">💡 ${escapeHTML(chT('ch_hint'))}</button>`);
+  }
+  if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chFlipLocal()" aria-label="${escapeHTML(chT('ch_flip'))}">↻ ${escapeHTML(chT('ch_flip'))}</button>`);
+  if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chDrawLocal()">½ ${escapeHTML(chT('ch_draw_agree'))}</button>`);
+  parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chResignLocal()">🏳️ ${escapeHTML(chT('ch_resign'))}</button>`);
+  const hintLine = hint ? `<p class="ch-hintline">💡 <b dir="ltr">${escapeHTML(chFigurine(hint.san))}</b> · ${escapeHTML(chReasonsLine(hint.reasons, 1))}</p>` : '';
+  return `${hintLine}<div class="ch-bar__row">${parts.join('')}</div>`;
+}
+
+function chLocalSideHtml(s, names) {
+  const out = [];
+  if (s.comment && s.vs === 'phone' && s.coach) out.push(chCommentHtml(s.comment));
+  out.push(chMovesHtml(s.sans, { current: s.sans.length - 1 }));
+  if (s.practice) out.push(`<p class="field__hint">🎯 ${escapeHTML(chT('ch_practice_note'))}</p>`);
+  out.push(`<div class="duel-actions"><button type="button" class="btn btn--ghost btn--sm" onclick="setupShatranj()">${escapeHTML(chT('exit'))}</button></div>`);
+  return out.join('');
+}
+
+/** The coach's word on your last move: the verdict, why, and the better move. */
+function chCommentHtml(c) {
+  const why = chReasonsLine(c.reasons, 2);
+  const better = c.best && c.cls !== 'best' && c.cls !== 'brilliant' ? `<span class="ch-comment__better">${escapeHTML(chT('ch_better'))} <b dir="ltr">${escapeHTML(chFigurine(c.best.san))}</b></span>` : '';
+  return `<div class="ch-comment ch-comment--${c.cls}">
+      <span class="ch-comment__head">${chClassDot(c.cls)} ${escapeHTML(chT('ch_cls_' + c.cls))}</span>
+      ${why ? `<span class="ch-comment__why">${escapeHTML(why)}</span>` : ''}${better}
+    </div>`;
+}
+
+function chFlipLocal() {
+  const s = chState();
+  s.flip = !s.flip;
+  saveToLocal();
+  chPaint({ still: true });
+}
+
+/** After a reload: the board as it was, the clock stopped while away, the computer thinking again if it was its turn. */
+function restoreShatranj() {
+  const s = chState();
+  if ((s.phase !== 'play' && s.phase !== 'done') || !s.g || !Array.isArray(s.g.board)) return false;
+  chLocal.pending = null;
+  if (s.clk && s.clk.at && s.phase === 'play') s.clk.at = Date.now();
+  chPaint({ still: true });
+  setTimeout(chAfterMove, 0);
+  return true;
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('shatranj', {
+    setup: 'setup-shatranj', play: 'play-shatranj',
+    paintSetup: paintShatranjSetup, restore: restoreShatranj,
+    repaint: () => chPaint({ still: true })
+  });
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-shatranj') { chStopTimers(); chPauseClock(); }
+    if (to === 'play-shatranj') setTimeout(chAfterMove, 0);
+    // One board per page: gone as soon as no screen shows one.
+    const keep = to === 'play-shatranj' || to === 'review-shatranj' || to === 'room-chess' || (to === 'room-tv' && typeof Room !== 'undefined' && Room.state && Room.state.game === 'chess');
+    if (!keep) chViewDrop();
+  });
+}
+</script>

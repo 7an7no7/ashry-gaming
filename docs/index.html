@@ -11707,6 +11707,8 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .hm-write__row input { flex: 1 1 auto; min-width: 0; font-size: 1.125rem; }
 .hm-write__row input.is-hidden { -webkit-text-security: disc; text-security: disc; }
 .hm-write__err:empty { display: none; }
+.hm-hint { font-size: 0.875rem; font-weight: 700; color: var(--accent-ink); background: var(--accent-soft); border-radius: var(--r-full); padding: 0.125rem 0.625rem; }
+.hm-board__who { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; min-width: 0; }
 .hm-end { text-align: center; display: flex; flex-direction: column; gap: var(--sp-2); align-items: stretch; }
 .hm-end__word { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 1.75rem; color: var(--text-strong); }
 .hm-wait { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
@@ -18175,7 +18177,8 @@ const gwBotQuestion = (faces, down, asked, level, rnd) => {
    famous person or a film - up to three words (HM_WORDS_MAX), never a
    sentence. It is shown exactly as it was typed, a box a letter and a gap
    between the words, so five letters are five boxes. Only the marks that are
-   not letters (the diacritics, the tatweel) are dropped.
+   not letters (the diacritics, the tatweel) are dropped. The writer may add
+   a hint, or not (hmCleanHint); a hint that spells the word out is refused.
 
    The fold works both ways (the owner, 23 Sep 2026): ا finds أ إ آ and أ
    finds ا; ه and ة, ي and ى, و and ؤ, ي and ئ the same, in a letter and in a
@@ -18211,7 +18214,10 @@ const hmFold = (ch) => {
 };
 
 /** A word as it was typed, without what isn't a letter: the diacritics and the tatweel go, the spaces become single. */
-const hmClean = (text) => String(text || '').replace(/[ً-ٰٟـ]/g, '').replace(/\s+/g, ' ').trim();
+// The diacritics U+064B-U+065F, the superscript alef U+0670 and the tatweel U+0640, built from their
+// numbers: an editor that decodes escapes writes the marks themselves into the source (GEMINI.md, Traps).
+const HM_MARKS = new RegExp('[' + String.fromCharCode(0x064B) + '-' + String.fromCharCode(0x065F) + String.fromCharCode(0x0670) + String.fromCharCode(0x0640) + ']', 'g');
+const hmClean = (text) => String(text || '').replace(HM_MARKS, '').replace(/\s+/g, ' ').trim();
 
 /** The letters of a word, without its spaces. */
 const hmLettersOf = (word) => Array.from(hmClean(word)).filter(c => c !== ' ');
@@ -18240,6 +18246,21 @@ const hmWordProblem = (text) => {
   if (n < HM_WRITE_MIN) return 'short';
   if (n > HM_WRITE_MAX || shape.some(k => k > HM_WORD_MAX)) return 'long';
   return '';
+};
+
+/**
+ * The writer's hint (the owner, 23 Sep 2026: optional): a few words the
+ * guessers see above the boxes, or nothing. Cleaned like a word, at most
+ * HM_HINT_MAX characters.
+ */
+const HM_HINT_MAX = 30;
+const hmCleanHint = (text) => String(text || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, HM_HINT_MAX);
+
+/** Why a hint can't go with a word, or '': one that spells the word out gives it away. */
+const hmHintProblem = (hint, word) => {
+  const h = hmLettersOf(hint).map(hmFold).join('');
+  const w = hmLettersOf(word).map(hmFold).join('');
+  return h && w && h.indexOf(w) !== -1 ? 'word' : '';
 };
 
 /** What the race may deal from one list entry: a single word of 4 to 9 letters, or a name or a title of two or three words. */
@@ -18337,7 +18358,7 @@ const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260923040946";
+      window.BUILD_ID = "20260923042626";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -23091,6 +23112,8 @@ const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
       hm_write_hint: "كلمة، أو اسم مشهور أو فيلم لحد 3 كلمات، زي ما هو بالظبط. الحروف مستخبية وانت بتكتب.",
       hm_write_bad: "اكتب كلمة أو اسم من 3 لـ 20 حرف، حروف بس.",
       hm_write_sentence: "كلمة أو اسم لحد 3 كلمات بس، مش جملة.",
+      hm_hint_ph: "تلميح (اختياري): ممثل، فيلم، أكلة…",
+      hm_hint_bad: "التلميح فيه الكلمة نفسها.",
       hm_show_word: "ورّيني الكلمة",
       hm_guess_title: "كلمة {setter}، والدور على {name}",
       hm_won: "🎉 حليتها!",
@@ -25547,6 +25570,8 @@ const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
       hm_write_hint: "A word, or a famous name or a film of up to 3 words, exactly as it's spelt. The letters are hidden as you type.",
       hm_write_bad: "Write a word or a name of 3 to 20 letters, letters only.",
       hm_write_sentence: "A word or a name of up to 3 words, not a sentence.",
+      hm_hint_ph: "A hint (optional): an actor, a film, a dish…",
+      hm_hint_bad: "The hint has the word itself in it.",
       hm_show_word: "Show the word",
       hm_guess_title: "{setter}'s word, {name} to guess",
       hm_won: "🎉 Solved!",
@@ -29768,7 +29793,7 @@ const GAME_RULES = {
             </ul>`,
         hangman: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>واحد يكتب كلمة، أو اسم مشهور أو فيلم لحد 3 كلمات (مش جملة)، والباقي يشوفوا مربع لكل حرف ومسافة بين الكلمات.</li>
+                <li>واحد يكتب كلمة، أو اسم مشهور أو فيلم لحد 3 كلمات (مش جملة)، والباقي يشوفوا مربع لكل حرف ومسافة بين الكلمات. تقدر تكتب <b>تلميح</b> لو حابب (ممثل، فيلم…)، أو تسيبه فاضي.</li>
                 <li>خمّن حرف: لو في الكلمة <b>بيظهر في كل مكانه</b>. لو مش فيها بيترسم <b>حتة من الراجل</b>.</li>
                 <li><b>6 غلطات</b> والراجل يتشنق. حلّ الكلمة قبلها.</li>
                 <li>تقدر تخمّن <b>الكلمة كلها</b> مرة واحدة: لو غلط بتتحسب حتة زي الحرف الغلط.</li>
@@ -30833,7 +30858,7 @@ const GAME_RULES = {
             </ul>`,
         hangman: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>One writes a word, or a famous name or a film of up to 3 words (never a sentence); everyone else sees a box for each letter and a gap between the words.</li>
+                <li>One writes a word, or a famous name or a film of up to 3 words (never a sentence); everyone else sees a box for each letter and a gap between the words. A <b>hint</b> is up to the writer (an actor, a film…), or none.</li>
                 <li>Guess a letter: in the word, <b>it shows everywhere it stands</b>. Not in it, <b>a piece of the man</b> is drawn.</li>
                 <li><b>6 misses</b> and he's hanged. Solve the word before that.</li>
                 <li>You can guess <b>the whole word</b> at once: wrong, it costs a piece like a wrong letter.</li>
@@ -77659,7 +77684,7 @@ function hmKeysHtml(alpha, g, miss, on, press) {
  * One board to guess on, the same on one phone and in a room. o: { pattern,
  * alpha, g, miss, state, word (to show at the end), on (can guess now),
  * press (the letter handler's name), whole (the word handler's name),
- * newMiss, open, head (the line above) }.
+ * newMiss, open, head (the line above), hint (the writer's, or none) }.
  */
 function hmBoardHtml(o) {
   const misses = (o.miss || []).length;
@@ -77667,7 +77692,7 @@ function hmBoardHtml(o) {
   const done = o.state === 'won' || o.state === 'lost';
   return `<div class="hm-board ${done ? 'is-' + o.state : ''}">
       <div class="hm-board__head">
-        ${o.head || ''}
+        <span class="hm-board__who">${o.head || ''}${hmHintHtml(o.hint)}</span>
         <span class="hm-lives" aria-label="${escapeHTML(hmT('hm_misses', { n: misses }))}">${escapeHTML(hmT('hm_misses', { n: misses }))}</span>
       </div>
       <div class="hm-stage">
@@ -77723,6 +77748,8 @@ function hmWriteFormHtml(submit, placeholderName) {
         <button type="button" class="btn btn--ghost btn--auto hm-write__eye" onclick="hmToggleEye(this)" aria-label="${escapeHTML(hmT('hm_show_word'))}" title="${escapeHTML(hmT('hm_show_word'))}">👁️</button>
       </div>
       <p class="field__hint">${escapeHTML(hmT('hm_write_hint'))}</p>
+      <input type="text" name="h" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false"
+        placeholder="${escapeHTML(hmT('hm_hint_ph'))}" aria-label="${escapeHTML(hmT('hm_hint_ph'))}">
       <p class="field__hint tx-danger hm-write__err" role="alert"></p>
       <button type="submit" class="btn btn--primary btn--lg">${escapeHTML(placeholderName)}</button>
     </form>`;
@@ -77739,16 +77766,21 @@ function hmToggleEye(btn) {
 function hmReadWrite(form) {
   const input = form.querySelector('input[name="w"]');
   const text = hmClean(input ? input.value : '');
-  const err = hmWriteError(text);
+  const hintEl = form.querySelector('input[name="h"]');
+  const hint = hmCleanHint(hintEl ? hintEl.value : '');
+  const err = hmWriteError(text) || (hmHintProblem(hint, text) ? hmT('hm_hint_bad') : '');
   const box = form.querySelector('.hm-write__err');
   if (box) box.textContent = err;
   if (err) {
     if (!motionOff()) { form.classList.add('animate-shake'); setTimeout(() => form.classList.remove('animate-shake'), 600); }
     haptic('heavy');
-    return '';
+    return null;
   }
-  return text;
+  return { word: text, hint: hint };
 }
+
+/** The writer's hint above the boxes, when there is one. */
+const hmHintHtml = (hint) => (hint ? `<span class="hm-hint">💡 ${escapeHTML(hint)}</span>` : '');
 
 /* ==========================================================================
    Two on one phone
@@ -77800,10 +77832,11 @@ function hmContinue() {
 }
 
 function hmLocalWrite(form) {
-  const word = hmReadWrite(form);
-  if (!word) return;
+  const got = hmReadWrite(form);
+  if (!got) return;
   const s = hmLocalState();
-  s.word = word;
+  s.word = got.word;
+  s.hint = got.hint;
   s.board = hmNewBoard();
   s.step = 'guess';
   saveToLocal();
@@ -77843,6 +77876,7 @@ function hmLocalNext() {
   s.setter = 1 - s.setter;
   s.step = 'write';
   s.word = '';
+  s.hint = '';
   s.board = null;
   saveToLocal();
   paintHangman();
@@ -77877,7 +77911,7 @@ function paintHangman(fx) {
     ${hmBoardHtml({
       pattern: hmPattern(s.word, b.g), alpha: hmAlphaOf(s.word), g: b.g, miss: b.miss, state: b.state, word: s.word,
       on: !done, press: 'hmLocalGuess', whole: 'hmLocalWhole', newMiss: o.newMiss, open: o.open,
-      head: `<span class="hm-cat">${escapeHTML(hmT('hm_guess_title', { name: guesser, setter: writer }))}</span>`
+      head: `<span class="hm-cat">${escapeHTML(hmT('hm_guess_title', { name: guesser, setter: writer }))}</span>`, hint: s.hint
     })}
     ${done ? `<div class="card card--accent hm-end">
         <p class="sheet__title">${escapeHTML(b.state === 'won' ? hmT('hm_won') : hmT('hm_lost_was'))}</p>
@@ -77933,10 +77967,10 @@ function hmRoomWhole(form) {
 
 function hmRoomWrite(form) {
   const s = ((Room.state || {}).shared) || {};
-  const word = hmReadWrite(form);
-  if (!word) return;
+  const got = hmReadWrite(form);
+  if (!got) return;
   haptic('medium');
-  roomAct('setWord', { word: word, round: s.round });
+  roomAct('setWord', { word: got.word, hint: got.hint, round: s.round });
 }
 
 /** Everyone's man, how far they are and how it ended: what the table may see of each board. */
@@ -78112,8 +78146,10 @@ ROOM_GAMES.hangman = {
           </div>`;
       }
       // Guessing.
-      const head = s.cat ? `<span class="hm-cat">${escapeHTML(s.cat)}</span>`
+      // The race's hint is the kind of word; a writer's word says whose it is, and their hint if they gave one.
+      const head = !s.setter ? `<span class="hm-cat">${escapeHTML(s.cat)}</span>`
         : `<span class="hm-cat">${escapeHTML(hmT('hm_word_from', { name: s.setterName || '' }))}</span>`;
+      const hint = s.setter ? s.cat : '';
       let mine = '';
       if (you.word) {
         mine = `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
@@ -78123,7 +78159,7 @@ ROOM_GAMES.hangman = {
         fx = hmRoomFx(state, you);
         mine = hmBoardHtml({
           pattern: you.pattern, alpha: s.alpha, g: you.g, miss: you.miss, state: you.state, word: '',
-          on: you.state === 'play', press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head
+          on: you.state === 'play', press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head, hint: hint
         });
         if (you.state !== 'play') mine += `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(you.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p>
             <p class="field__hint">${escapeHTML(hmT('hm_done_wait'))}</p></div>`;
@@ -78199,7 +78235,8 @@ TV_GAMES.hangman = {
     // The TV's frame is the room's colour; the man and the tiles keep the game's orange.
     return `<div class="tv-trivia hm-tv" data-accent="orange">${top}
         <div class="hm-tv__head">
-          <div class="tv-title">${escapeHTML(s.cat || hmT('hm_word_from', { name: s.setterName || '' }))}</div>
+          <div class="tv-title">${escapeHTML(!s.setter ? s.cat : hmT('hm_word_from', { name: s.setterName || '' }))}</div>
+          ${s.setter && s.cat ? `<div class="tv-note">💡 ${escapeHTML(s.cat)}</div>` : ''}
           ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}
         </div>
         ${hmProgressHtml(state, true)}

@@ -105,7 +105,7 @@ function hmKeysHtml(alpha, g, miss, on, press) {
  * One board to guess on, the same on one phone and in a room. o: { pattern,
  * alpha, g, miss, state, word (to show at the end), on (can guess now),
  * press (the letter handler's name), whole (the word handler's name),
- * newMiss, open, head (the line above) }.
+ * newMiss, open, head (the line above), hint (the writer's, or none) }.
  */
 function hmBoardHtml(o) {
   const misses = (o.miss || []).length;
@@ -113,7 +113,7 @@ function hmBoardHtml(o) {
   const done = o.state === 'won' || o.state === 'lost';
   return `<div class="hm-board ${done ? 'is-' + o.state : ''}">
       <div class="hm-board__head">
-        ${o.head || ''}
+        <span class="hm-board__who">${o.head || ''}${hmHintHtml(o.hint)}</span>
         <span class="hm-lives" aria-label="${escapeHTML(hmT('hm_misses', { n: misses }))}">${escapeHTML(hmT('hm_misses', { n: misses }))}</span>
       </div>
       <div class="hm-stage">
@@ -169,6 +169,8 @@ function hmWriteFormHtml(submit, placeholderName) {
         <button type="button" class="btn btn--ghost btn--auto hm-write__eye" onclick="hmToggleEye(this)" aria-label="${escapeHTML(hmT('hm_show_word'))}" title="${escapeHTML(hmT('hm_show_word'))}">👁️</button>
       </div>
       <p class="field__hint">${escapeHTML(hmT('hm_write_hint'))}</p>
+      <input type="text" name="h" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false"
+        placeholder="${escapeHTML(hmT('hm_hint_ph'))}" aria-label="${escapeHTML(hmT('hm_hint_ph'))}">
       <p class="field__hint tx-danger hm-write__err" role="alert"></p>
       <button type="submit" class="btn btn--primary btn--lg">${escapeHTML(placeholderName)}</button>
     </form>`;
@@ -185,16 +187,21 @@ function hmToggleEye(btn) {
 function hmReadWrite(form) {
   const input = form.querySelector('input[name="w"]');
   const text = hmClean(input ? input.value : '');
-  const err = hmWriteError(text);
+  const hintEl = form.querySelector('input[name="h"]');
+  const hint = hmCleanHint(hintEl ? hintEl.value : '');
+  const err = hmWriteError(text) || (hmHintProblem(hint, text) ? hmT('hm_hint_bad') : '');
   const box = form.querySelector('.hm-write__err');
   if (box) box.textContent = err;
   if (err) {
     if (!motionOff()) { form.classList.add('animate-shake'); setTimeout(() => form.classList.remove('animate-shake'), 600); }
     haptic('heavy');
-    return '';
+    return null;
   }
-  return text;
+  return { word: text, hint: hint };
 }
+
+/** The writer's hint above the boxes, when there is one. */
+const hmHintHtml = (hint) => (hint ? `<span class="hm-hint">💡 ${escapeHTML(hint)}</span>` : '');
 
 /* ==========================================================================
    Two on one phone
@@ -246,10 +253,11 @@ function hmContinue() {
 }
 
 function hmLocalWrite(form) {
-  const word = hmReadWrite(form);
-  if (!word) return;
+  const got = hmReadWrite(form);
+  if (!got) return;
   const s = hmLocalState();
-  s.word = word;
+  s.word = got.word;
+  s.hint = got.hint;
   s.board = hmNewBoard();
   s.step = 'guess';
   saveToLocal();
@@ -289,6 +297,7 @@ function hmLocalNext() {
   s.setter = 1 - s.setter;
   s.step = 'write';
   s.word = '';
+  s.hint = '';
   s.board = null;
   saveToLocal();
   paintHangman();
@@ -323,7 +332,7 @@ function paintHangman(fx) {
     ${hmBoardHtml({
       pattern: hmPattern(s.word, b.g), alpha: hmAlphaOf(s.word), g: b.g, miss: b.miss, state: b.state, word: s.word,
       on: !done, press: 'hmLocalGuess', whole: 'hmLocalWhole', newMiss: o.newMiss, open: o.open,
-      head: `<span class="hm-cat">${escapeHTML(hmT('hm_guess_title', { name: guesser, setter: writer }))}</span>`
+      head: `<span class="hm-cat">${escapeHTML(hmT('hm_guess_title', { name: guesser, setter: writer }))}</span>`, hint: s.hint
     })}
     ${done ? `<div class="card card--accent hm-end">
         <p class="sheet__title">${escapeHTML(b.state === 'won' ? hmT('hm_won') : hmT('hm_lost_was'))}</p>
@@ -379,10 +388,10 @@ function hmRoomWhole(form) {
 
 function hmRoomWrite(form) {
   const s = ((Room.state || {}).shared) || {};
-  const word = hmReadWrite(form);
-  if (!word) return;
+  const got = hmReadWrite(form);
+  if (!got) return;
   haptic('medium');
-  roomAct('setWord', { word: word, round: s.round });
+  roomAct('setWord', { word: got.word, hint: got.hint, round: s.round });
 }
 
 /** Everyone's man, how far they are and how it ended: what the table may see of each board. */
@@ -558,8 +567,10 @@ ROOM_GAMES.hangman = {
           </div>`;
       }
       // Guessing.
-      const head = s.cat ? `<span class="hm-cat">${escapeHTML(s.cat)}</span>`
+      // The race's hint is the kind of word; a writer's word says whose it is, and their hint if they gave one.
+      const head = !s.setter ? `<span class="hm-cat">${escapeHTML(s.cat)}</span>`
         : `<span class="hm-cat">${escapeHTML(hmT('hm_word_from', { name: s.setterName || '' }))}</span>`;
+      const hint = s.setter ? s.cat : '';
       let mine = '';
       if (you.word) {
         mine = `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
@@ -569,7 +580,7 @@ ROOM_GAMES.hangman = {
         fx = hmRoomFx(state, you);
         mine = hmBoardHtml({
           pattern: you.pattern, alpha: s.alpha, g: you.g, miss: you.miss, state: you.state, word: '',
-          on: you.state === 'play', press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head
+          on: you.state === 'play', press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head, hint: hint
         });
         if (you.state !== 'play') mine += `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(you.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p>
             <p class="field__hint">${escapeHTML(hmT('hm_done_wait'))}</p></div>`;
@@ -645,7 +656,8 @@ TV_GAMES.hangman = {
     // The TV's frame is the room's colour; the man and the tiles keep the game's orange.
     return `<div class="tv-trivia hm-tv" data-accent="orange">${top}
         <div class="hm-tv__head">
-          <div class="tv-title">${escapeHTML(s.cat || hmT('hm_word_from', { name: s.setterName || '' }))}</div>
+          <div class="tv-title">${escapeHTML(!s.setter ? s.cat : hmT('hm_word_from', { name: s.setterName || '' }))}</div>
+          ${s.setter && s.cat ? `<div class="tv-note">💡 ${escapeHTML(s.cat)}</div>` : ''}
           ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}
         </div>
         ${hmProgressHtml(state, true)}

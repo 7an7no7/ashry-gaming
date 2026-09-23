@@ -4074,7 +4074,10 @@ Date.now = duelTestClock;
   const others = ['a', 'b', 'c'].filter((x) => x !== setter);
   check(refused(() => applyRoomAction(r, others[0], 'setWord', { word: 'قطة', round: 1 })), 'hangman: only the writer writes the word');
   check(refused(() => applyRoomAction(r, setter, 'setWord', { word: 'قطة سوداء كبيرة جدا', round: 1 })), 'hangman: four words are a sentence, and refused');
-  applyRoomAction(r, setter, 'setWord', { word: 'مَدرسة', round: 1 });
+  check(refused(() => applyRoomAction(r, setter, 'setWord', { word: 'مدرسة', hint: 'فيها مدرسه وفصول', round: 1 })),
+    'hangman: a hint that spells the word out is refused');
+  applyRoomAction(r, setter, 'setWord', { word: 'مَدرسة', hint: '  مكان   ', round: 1 });
+  check(r.shared.cat === 'مكان', 'hangman: the writer\'s hint, when there is one, is above the boxes for everyone');
   check(s.phase === 'guessing' && s.len === 5 && JSON.stringify(s).indexOf('مدرس') === -1 && r.secrets[setter].word === 'مدرسة' &&
     !r.secrets[others[0]].word && r.secrets[others[0]].pattern.join('') === '',
     'hangman: the word is out - the writer\'s phone has it, the table and the guessers don\'t');
@@ -4090,7 +4093,7 @@ Date.now = duelTestClock;
   check(s.phase === 'result' && s.result.word === 'مدرسة' && s.scores[others[0]] === 10 && s.scores[setter] === 5 && !s.scores[others[1]],
     'hangman: the word ends when all are done; a solve is 10, the writer 5 for each who was hanged');
   applyRoomAction(r, 'a', 'nextRound', { round: 1 });
-  check(s.round === 2 && s.phase === 'writing' && s.setter !== setter, 'hangman: the next word has the next writer');
+  check(s.round === 2 && s.phase === 'writing' && s.setter !== setter && !s.cat, 'hangman: the next word has the next writer, and no hint yet');
   // The writer leaves before writing: the next one writes.
   const w2 = s.setter;
   r.players = r.players.filter((p) => p.id !== w2);

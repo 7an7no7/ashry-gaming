@@ -15,7 +15,8 @@
    famous person or a film - up to three words (HM_WORDS_MAX), never a
    sentence. It is shown exactly as it was typed, a box a letter and a gap
    between the words, so five letters are five boxes. Only the marks that are
-   not letters (the diacritics, the tatweel) are dropped.
+   not letters (the diacritics, the tatweel) are dropped. The writer may add
+   a hint, or not (hmCleanHint); a hint that spells the word out is refused.
 
    The fold works both ways (the owner, 23 Sep 2026): ا finds أ إ آ and أ
    finds ا; ه and ة, ي and ى, و and ؤ, ي and ئ the same, in a letter and in a
@@ -51,7 +52,10 @@ const hmFold = (ch) => {
 };
 
 /** A word as it was typed, without what isn't a letter: the diacritics and the tatweel go, the spaces become single. */
-const hmClean = (text) => String(text || '').replace(/[ً-ٰٟـ]/g, '').replace(/\s+/g, ' ').trim();
+// The diacritics U+064B-U+065F, the superscript alef U+0670 and the tatweel U+0640, built from their
+// numbers: an editor that decodes escapes writes the marks themselves into the source (GEMINI.md, Traps).
+const HM_MARKS = new RegExp('[' + String.fromCharCode(0x064B) + '-' + String.fromCharCode(0x065F) + String.fromCharCode(0x0670) + String.fromCharCode(0x0640) + ']', 'g');
+const hmClean = (text) => String(text || '').replace(HM_MARKS, '').replace(/\s+/g, ' ').trim();
 
 /** The letters of a word, without its spaces. */
 const hmLettersOf = (word) => Array.from(hmClean(word)).filter(c => c !== ' ');
@@ -80,6 +84,21 @@ const hmWordProblem = (text) => {
   if (n < HM_WRITE_MIN) return 'short';
   if (n > HM_WRITE_MAX || shape.some(k => k > HM_WORD_MAX)) return 'long';
   return '';
+};
+
+/**
+ * The writer's hint (the owner, 23 Sep 2026: optional): a few words the
+ * guessers see above the boxes, or nothing. Cleaned like a word, at most
+ * HM_HINT_MAX characters.
+ */
+const HM_HINT_MAX = 30;
+const hmCleanHint = (text) => String(text || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, HM_HINT_MAX);
+
+/** Why a hint can't go with a word, or '': one that spells the word out gives it away. */
+const hmHintProblem = (hint, word) => {
+  const h = hmLettersOf(hint).map(hmFold).join('');
+  const w = hmLettersOf(word).map(hmFold).join('');
+  return h && w && h.indexOf(w) !== -1 ? 'word' : '';
 };
 
 /** What the race may deal from one list entry: a single word of 4 to 9 letters, or a name or a title of two or three words. */

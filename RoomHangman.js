@@ -6,7 +6,7 @@
 
    The owner's rules for a room (22 Sep 2026): two ways, the host's choice.
    "One writes, the rest guess" (the default): the writer types a word, a
-   name or a film (up to three words, no hint), and everyone else guesses it on their own board, each
+   name or a film (up to three words, a hint if they like), and everyone else guesses it on their own board, each
    with their own man; the writer moves round the table. "A race": the app
    deals one word, with its category as the hint, and everyone races on their
    own board. A word ends when every guesser has solved it or been hanged, on
@@ -28,7 +28,7 @@
      round     the word number (1..rounds) · rounds
      order     the writers' order (setter) · setter, setterName
      len       the word's letters · shape  each word's length, for the blanks
-     alpha     'ar' | 'en' · cat  the race's hint
+     alpha     'ar' | 'en' · cat  the hint: the race's category, or the writer's (optional)
      progress  { pid: { n, miss, state, at } } · solved  [pid, …] in order
      endsAt    the word's clock
      result    { word, cat, setter, setterName, setterPts, rows: [{ id, name, state, miss, pts }] }
@@ -223,7 +223,10 @@ const hangmanAction = (room, playerId, action, payload) => {
     const problem = hmWordProblem(p.word);
     if (problem) throw new Error(problem === 'sentence' ? 'كلمة أو اسم لحد 3 كلمات بس، مش جملة' : 'اكتب كلمة أو اسم من 3 لـ 20 حرف، حروف بس');
     if (hmGuessers(room).length < 1) throw new Error('مفيش حد يخمّن');
-    hmBeginGuessing(room, hmClean(p.word), '');
+    // The hint is the writer's choice: a few words above the boxes, or nothing.
+    const hint = hmCleanHint(p.hint);
+    if (hmHintProblem(hint, p.word)) throw new Error('التلميح فيه الكلمة نفسها');
+    hmBeginGuessing(room, hmClean(p.word), hint);
     return;
   }
 

@@ -174,13 +174,19 @@ work changed. Add to it when a decision is made or a batch ships.
     (five letters, five boxes) and a gap between words; only the marks that
     aren't letters (diacritics, the tatweel) are dropped. A whole name typed
     without its spaces still counts.
+  - **A hint is optional** (the owner, 23 Sep 2026, changing "the word only"
+    of the day before): a second field under the word, «تلميح (اختياري)»;
+    filled in, the guessers see it as a pill above the boxes (and the TV
+    under the title), left empty, nothing. Decided here: at most 30
+    characters, and a hint that spells the word out is refused. On one phone
+    and in a room alike.
   - **The race deals names and films too** (the owner, 23 Sep 2026): every
     Chameleon entry of up to three words (the actors, footballers, singers,
     historical figures) with its category, and the films of the emoji
     riddles as "a film 🎬" - not their proverbs.
   - Rooms play two ways, a lobby choice, **"one writes, the rest guess" by
-    default**: the writer types **the word only** (no hint; a word or a name,
-    as above) and every other
+    default**: the writer types the word (a word or a name, as above) and,
+    if they like, a hint and every other
     phone guesses it **on its own board**; the writer moves round the table.
     Or **a race**: the app deals one word to everyone, **a single word from
     the app's lists with its category as the hint**.
@@ -1240,6 +1246,13 @@ the word search), `countUp` for streaks and scores.
   letter's width, not its flex-basis, once the tiles were grouped by word -
   a tile needs a `width` (*Traps*). Also: the robot test's four-player
   domino rounds now wait for a pass as well as a blocked table.
+- **23 Sep 2026, المشنقة: an optional hint** - the owner asked; a second
+  field under the word, `shared.cat` in a room (the race's category uses the
+  same field), `appState.hangman.hint` on one phone, refused when it spells
+  the word out (`hmHintProblem`). Found on the way: the Write tool had
+  turned `hmClean`'s `\u064B-\u065F` escapes into the marks themselves,
+  which also swallowed the Arabic digits; the class is now built from char
+  codes (`HM_MARKS`), which no editor can decode.
 
 ## Building and Running
 

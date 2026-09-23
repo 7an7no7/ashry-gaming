@@ -11660,11 +11660,15 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .hm-gallows--mini { width: 3.25rem; }
 .hm-gallows--mini .hm-man { transition: none; }
 
-/* One line always: a long word's tiles shrink rather than wrap, which would split the word. */
-.hm-tiles { display: flex; flex-wrap: nowrap; justify-content: center; gap: 0.375rem; width: 100%; }
+/* A word stays on one line, its tiles shrinking rather than splitting it; a name of two or three
+   words wraps only between them, with a wider gap there than between two letters. */
+.hm-tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.1rem; width: 100%; }
+.hm-tiles__word { display: flex; flex-wrap: nowrap; justify-content: center; gap: 0.375rem; min-width: 0; max-width: 100%; }
+.hm-tiles.is-long .hm-tiles__word { gap: 0.25rem; }
 .hm-tile {
-  flex: 0 1 2.375rem;
-  min-width: 0;
+  flex: 0 1 auto;
+  width: 2.375rem;
+  min-width: 1.25rem;
   height: 2.75rem;
   display: grid;
   place-items: center;
@@ -11677,8 +11681,7 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
   line-height: 1;
   color: var(--text-strong);
 }
-.hm-tiles.is-long { gap: 0.25rem; }
-.hm-tiles.is-long .hm-tile { height: 2.375rem; font-size: 1.125rem; }
+.hm-tiles.is-long .hm-tile { width: 1.875rem; height: 2.375rem; font-size: 1.125rem; }
 .hm-tile.is-open { background: var(--accent-soft); border-color: var(--accent); }
 .hm-tile.is-new { animation: hmTile 440ms var(--ease-out) both; }
 .hm-tile.is-lost { background: var(--danger-soft); border-color: var(--danger); color: var(--danger-ink); }
@@ -11753,20 +11756,20 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 @media (orientation: landscape) and (max-height: 500px) {
   .hm-stage { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
   .hm-gallows { width: 5.75rem; }
-  .hm-tile { flex-basis: 2rem; height: 2.375rem; font-size: 1.125rem; }
+  .hm-tile { width: 2rem; height: 2.375rem; font-size: 1.125rem; }
   .hm-keys .key { height: 2.375rem; font-size: 1rem; }
   .hm-board { row-gap: var(--sp-2); }
 }
 @media (min-width: 900px) and (min-height: 501px) {
   .shell__main > #view-room-hangman { max-width: 64rem; }
   .hm-gallows { width: min(13rem, 40%); }
-  .hm-tile { flex-basis: 2.75rem; height: 3.125rem; font-size: 1.5rem; }
+  .hm-tile { width: 2.75rem; height: 3.125rem; font-size: 1.5rem; }
 }
 
 /* The TV: the kind of word and its blanks on top, everyone's man under it. */
 .hm-tv__head { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); }
 .hm-tv { align-content: start; }
-.hm-tv .hm-tile { flex-basis: 8.5vmin; height: 10vmin; font-size: 5.4vmin; border-radius: var(--tv-r); }
+.hm-tv .hm-tile { width: 8.5vmin; height: 10vmin; font-size: 5.4vmin; border-radius: var(--tv-r); }
 .hm-rows--tv { grid-template-columns: repeat(auto-fill, minmax(22vmin, 27vmin)); justify-content: center; gap: var(--tv-gap); }
 .hm-rows--tv .hm-row { padding: 1.4vmin; border-radius: var(--tv-r); }
 .hm-rows--tv .hm-gallows--mini { width: 14vmin; }
@@ -11774,7 +11777,7 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .hm-rows--tv .hm-row__prog, .hm-rows--tv .hm-row__st { font-size: 1.8vmin; }
 .hm-result--tv { font-size: var(--tv-sm); width: min(100%, 46rem); margin-inline: auto; padding: 3vmin; gap: 2.4vmin; }
 .hm-result--tv .hm-res { padding: 1vmin 1.6vmin; border-radius: var(--tv-r); }
-.hm-result--tv .hm-tile { flex-basis: 6.4vmin; height: 7.4vmin; font-size: 3.8vmin; }
+.hm-result--tv .hm-tile { width: 6.4vmin; height: 7.4vmin; font-size: 3.8vmin; }
 .hm-tv-result { width: min(100%, 60rem); margin-inline: auto; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -18166,40 +18169,59 @@ const gwBotQuestion = (faces, down, asked, level, rnd) => {
    The owner's rules (22 Sep 2026): a letter that is in the word shows every
    place it stands; one that isn't draws a piece of the man, and the sixth
    (HM_MISSES) finishes him. A whole word may be guessed at once, and a wrong
-   one costs a piece like a wrong letter. In Arabic the keyboard has one key
-   a letter: ا opens أ إ آ, ه opens ة, ي opens ى - and, decided here, ء ؤ ئ
-   and ٱ go with ا, و and ي the same way (hmFold). The word is always shown
-   as it is spelt.
+   one costs a piece like a wrong letter.
 
-   A word the app deals (a room's race) is a single word of 4 to 9 letters
-   from the Chameleon boards, with its category as the hint (hmPool): the
-   app's big shared list, never a small one of its own. A word a player
-   writes is any single word of 3 to 12 letters in one alphabet.
+   What is guessed (the owner, 23 Sep 2026): one word, or the name of a
+   famous person or a film - up to three words (HM_WORDS_MAX), never a
+   sentence. It is shown exactly as it was typed, a box a letter and a gap
+   between the words, so five letters are five boxes. Only the marks that are
+   not letters (the diacritics, the tatweel) are dropped.
+
+   The fold works both ways (the owner, 23 Sep 2026): ا finds أ إ آ and أ
+   finds ا; ه and ة, ي and ى, و and ؤ, ي and ئ the same, in a letter and in a
+   whole word (hmFold). The keyboard has one key for each family. ء and ٱ go
+   with ا, decided here.
+
+   A word the app deals (a room's race, hmPool) comes from the app's big
+   shared lists, never a small one of its own: every entry of the Chameleon
+   boards that fits - a single word of 4 to 9 letters, or a name of two or
+   three words (the actors, the footballers, the singers, the historical
+   figures) - with its board's category as the hint, and the films of the
+   emoji riddles (not their proverbs, which are sentences).
    ========================================================================= */
 const HM_MISSES = 6;
 const HM_LETTERS = {
   ar: ['ا', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'],
   en: 'abcdefghijklmnopqrstuvwxyz'.split('')
 };
-const HM_WRITE_MIN = 3;
-const HM_WRITE_MAX = 12;
-const HM_DEAL_MIN = 4;
+const HM_WORDS_MAX = 3;           // a name or a title; more is a sentence
+const HM_WRITE_MIN = 3;           // letters in all, for a written word
+const HM_WRITE_MAX = 20;
+const HM_WORD_MAX = 12;           // letters in any one word
+const HM_DEAL_MIN = 4;            // a single word the race deals
 const HM_DEAL_MAX = 9;
+const HM_DEAL_NAME_MAX = 16;      // letters in a name or a title the race deals
 
 const HM_FOLD = { 'أ': 'ا', 'إ': 'ا', 'آ': 'ا', 'ٱ': 'ا', 'ء': 'ا', 'ة': 'ه', 'ى': 'ي', 'ئ': 'ي', 'ؤ': 'و' };
 
-/** The key a letter is typed on. */
+/** The key a letter is typed on: both sides of a guess go through it, so أ and ا find each other. */
 const hmFold = (ch) => {
   const c = String(ch || '');
   return HM_FOLD[c] || c.toLowerCase();
 };
 
-/** A word as it is spelt, without the marks: diacritics and the tatweel go, spaces round it too. */
-const hmClean = (text) => String(text || '').replace(/[ً-ٰٟـ]/g, '').trim();
+/** A word as it was typed, without what isn't a letter: the diacritics and the tatweel go, the spaces become single. */
+const hmClean = (text) => String(text || '').replace(/[ً-ٰٟـ]/g, '').replace(/\s+/g, ' ').trim();
+
+/** The letters of a word, without its spaces. */
+const hmLettersOf = (word) => Array.from(hmClean(word)).filter(c => c !== ' ');
+
+/** The length of each word, which is what the blanks show: [5] for مدرسة, [4, 4] for محمد صلاح. */
+const hmShape = (word) => hmClean(word).split(' ').filter(Boolean).map(w => Array.from(w).length);
 
 /** 'ar' or 'en' when every letter of the word is on that keyboard, else null. */
 const hmAlphaOf = (word) => {
-  const chars = Array.from(hmClean(word));
+  const chars = hmLettersOf(word);
   if (!chars.length) return null;
   for (const lang of ['ar', 'en']) {
     if (chars.every(c => HM_LETTERS[lang].indexOf(hmFold(c)) !== -1)) return lang;
@@ -18207,45 +18229,66 @@ const hmAlphaOf = (word) => {
   return null;
 };
 
-/** Why a written word can't be played, or '' when it can: one word, one alphabet, 3 to 12 letters. */
+/** Why a written word can't be played, or '' when it can: up to three words, one alphabet, 3 to 20 letters. */
 const hmWordProblem = (text) => {
   const w = hmClean(text);
   if (!w) return 'empty';
-  if (/\s/.test(w)) return 'space';
+  const shape = hmShape(w);
+  if (shape.length > HM_WORDS_MAX) return 'sentence';
   if (!hmAlphaOf(w)) return 'letters';
-  const n = Array.from(w).length;
+  const n = hmLettersOf(w).length;
   if (n < HM_WRITE_MIN) return 'short';
-  if (n > HM_WRITE_MAX) return 'long';
+  if (n > HM_WRITE_MAX || shape.some(k => k > HM_WORD_MAX)) return 'long';
   return '';
 };
 
-/** The words a room's race deals in a language: [{ w, c }], single words of 4 to 9 letters with their category. */
+/** What the race may deal from one list entry: a single word of 4 to 9 letters, or a name or a title of two or three words. */
+const hmDealable = (raw, lang) => {
+  const w = hmClean(raw);
+  const shape = hmShape(w);
+  if (!shape.length || shape.length > HM_WORDS_MAX || hmAlphaOf(w) !== lang) return '';
+  const n = hmLettersOf(w).length;
+  if (shape.length === 1) return n >= HM_DEAL_MIN && n <= HM_DEAL_MAX ? w : '';
+  return n <= HM_DEAL_NAME_MAX && shape.every(k => k >= 2) ? w : '';
+};
+
+/**
+ * The race's words in a language: [{ w, c }], `c` the hint. Every Chameleon
+ * entry that fits, with its board's category, and the films of the emoji
+ * riddles as "a film".
+ */
 const hmPool = (lang) => {
   const out = [];
   const seen = {};
+  const add = (raw, hint) => {
+    const w = hmDealable(raw, lang);
+    if (!w) return;
+    const key = hmLettersOf(w).map(hmFold).join('');
+    if (seen[key]) return;
+    seen[key] = true;
+    out.push({ w: w, c: hint });
+  };
   const boards = (typeof CHAMELEON_DB !== 'undefined' && CHAMELEON_DB[lang]) || [];
-  boards.forEach(b => {
-    (b.words || []).forEach(raw => {
-      const w = hmClean(raw);
-      const n = Array.from(w).length;
-      if (/\s/.test(w) || n < HM_DEAL_MIN || n > HM_DEAL_MAX || hmAlphaOf(w) !== lang) return;
-      const key = Array.from(w).map(hmFold).join('');
-      if (seen[key]) return;
-      seen[key] = true;
-      out.push({ w: w, c: b.category });
-    });
-  });
+  boards.forEach(b => (b.words || []).forEach(raw => add(raw, b.category)));
+  const riddles = (typeof EMOJI_RIDDLES !== 'undefined' && EMOJI_RIDDLES[lang]) || [];
+  riddles.forEach(r => { if (/أفلام|movie|film/i.test(r.c || '')) add(r.a, r.c + ' 🎬'); });
   return out;
 };
 
-/** The word with only the guessed letters showing: a letter, or '' for a blank. */
-const hmPattern = (word, guessed) => Array.from(hmClean(word)).map(c => ((guessed || []).indexOf(hmFold(c)) !== -1 ? c : ''));
+/** The word with only the guessed letters showing: a letter, '' for a blank, ' ' between two words. */
+const hmPattern = (word, guessed) => Array.from(hmClean(word)).map(c => {
+  if (c === ' ') return ' ';
+  return (guessed || []).indexOf(hmFold(c)) !== -1 ? c : '';
+});
+
+/** How many of the word's letters a pattern shows (spaces are not letters). */
+const hmFound = (pattern) => (pattern || []).filter(c => c !== '' && c !== ' ').length;
 
 /** Every letter of the word has been guessed. */
 const hmSolved = (word, guessed) => hmPattern(word, guessed).every(c => c !== '');
 
-/** The same word, as the keyboard types it. */
-const hmSameWord = (a, b) => Array.from(hmClean(a)).map(hmFold).join('') === Array.from(hmClean(b)).map(hmFold).join('');
+/** The same word, as the keyboard types it, with or without the spaces. */
+const hmSameWord = (a, b) => hmLettersOf(a).map(hmFold).join('') === hmLettersOf(b).map(hmFold).join('');
 
 /**
  * One guess on one board: { g: letters guessed, miss: wrong letters and words,
@@ -18259,19 +18302,19 @@ const hmApply = (board, word, guess, whole) => {
   const alpha = hmAlphaOf(word);
   if (whole) {
     const text = hmClean(guess);
-    if (!text || /\s/.test(text)) return '';
+    if (!text) return '';
     if (hmSameWord(text, word)) {
-      Array.from(hmClean(word)).forEach(c => { const k = hmFold(c); if (board.g.indexOf(k) === -1) board.g.push(k); });
+      hmLettersOf(word).forEach(c => { const k = hmFold(c); if (board.g.indexOf(k) === -1) board.g.push(k); });
       board.state = 'won';
       return 'won';
     }
-    if (board.miss.some(m => m.length > 1 && hmSameWord(m, text))) return '';
+    if (board.miss.some(m => Array.from(m).length > 1 && hmSameWord(m, text))) return '';
     board.miss.push(text);
   } else {
-    const k = hmFold(Array.from(String(guess || ''))[0] || '');
+    const k = hmFold(Array.from(String(guess || '').trim())[0] || '');
     if (!k || HM_LETTERS[alpha].indexOf(k) === -1) return '';
     if (board.g.indexOf(k) !== -1 || board.miss.indexOf(k) !== -1) return '';
-    if (Array.from(hmClean(word)).some(c => hmFold(c) === k)) {
+    if (hmLettersOf(word).some(c => hmFold(c) === k)) {
       board.g.push(k);
       if (hmSolved(word, board.g)) { board.state = 'won'; return 'won'; }
       return 'hit';
@@ -18294,7 +18337,7 @@ const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260922195123";
+      window.BUILD_ID = "20260923040946";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -23045,8 +23088,9 @@ const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
       hm_write_hide: "{name}، عينك بعيد عن الشاشة 🙈",
       hm_write_ph: "الكلمة",
       hm_write_go_to: "جاهزة: الموبايل لـ {name}",
-      hm_write_hint: "كلمة واحدة، حروف بس، من 3 لـ 12 حرف. الحروف مستخبية وانت بتكتب.",
-      hm_write_bad: "اكتب كلمة واحدة من 3 لـ 12 حرف، حروف بس.",
+      hm_write_hint: "كلمة، أو اسم مشهور أو فيلم لحد 3 كلمات، زي ما هو بالظبط. الحروف مستخبية وانت بتكتب.",
+      hm_write_bad: "اكتب كلمة أو اسم من 3 لـ 20 حرف، حروف بس.",
+      hm_write_sentence: "كلمة أو اسم لحد 3 كلمات بس، مش جملة.",
       hm_show_word: "ورّيني الكلمة",
       hm_guess_title: "كلمة {setter}، والدور على {name}",
       hm_won: "🎉 حليتها!",
@@ -23073,7 +23117,7 @@ const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
       hm_mode_setter: "واحد يكتب",
       hm_mode_race: "سباق",
       hm_mode_setter_hint: "واحد يكتب كلمة والباقي يخمّن، كل واحد على موبايله. اللي بيكتب بيتغير كل كلمة، وبياخد 5 عن كل واحد اتشنق.",
-      hm_mode_race_hint: "التطبيق بيدّي الكل نفس الكلمة ونوعها، واللي يحلّ الأول ياخد أكتر.",
+      hm_mode_race_hint: "التطبيق بيدّي الكل نفس الكلمة (أو اسم مشهور أو فيلم) ونوعها، واللي يحلّ الأول ياخد أكتر.",
       hm_lobby_rounds: "كام كلمة؟",
       hm_lobby_clock: "وقت الكلمة",
       hm_clock_hint: "لما الوقت يخلص، اللي ماحلّهاش يتحسب اتشنق.",
@@ -25500,8 +25544,9 @@ const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
       hm_write_hide: "{name}, eyes off the screen 🙈",
       hm_write_ph: "The word",
       hm_write_go_to: "Ready: hand it to {name}",
-      hm_write_hint: "One word, letters only, 3 to 12 of them. The letters are hidden as you type.",
-      hm_write_bad: "Write one word of 3 to 12 letters, letters only.",
+      hm_write_hint: "A word, or a famous name or a film of up to 3 words, exactly as it's spelt. The letters are hidden as you type.",
+      hm_write_bad: "Write a word or a name of 3 to 20 letters, letters only.",
+      hm_write_sentence: "A word or a name of up to 3 words, not a sentence.",
       hm_show_word: "Show the word",
       hm_guess_title: "{setter}'s word, {name} to guess",
       hm_won: "🎉 Solved!",
@@ -25528,7 +25573,7 @@ const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
       hm_mode_setter: "One writes",
       hm_mode_race: "A race",
       hm_mode_setter_hint: "One writes a word and everyone else guesses on their own phone. The writer changes every word and scores 5 for everyone hanged.",
-      hm_mode_race_hint: "The app gives everyone the same word and its kind; the first to solve it scores most.",
+      hm_mode_race_hint: "The app gives everyone the same word (or a famous name, or a film) and its kind; the first to solve it scores most.",
       hm_lobby_rounds: "How many words?",
       hm_lobby_clock: "Word clock",
       hm_clock_hint: "When it runs out, anyone who hasn't solved it counts as hanged.",
@@ -29723,11 +29768,11 @@ const GAME_RULES = {
             </ul>`,
         hangman: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>واحد يكتب كلمة، والباقي يشوفوا مربع لكل حرف.</li>
+                <li>واحد يكتب كلمة، أو اسم مشهور أو فيلم لحد 3 كلمات (مش جملة)، والباقي يشوفوا مربع لكل حرف ومسافة بين الكلمات.</li>
                 <li>خمّن حرف: لو في الكلمة <b>بيظهر في كل مكانه</b>. لو مش فيها بيترسم <b>حتة من الراجل</b>.</li>
                 <li><b>6 غلطات</b> والراجل يتشنق. حلّ الكلمة قبلها.</li>
                 <li>تقدر تخمّن <b>الكلمة كلها</b> مرة واحدة: لو غلط بتتحسب حتة زي الحرف الغلط.</li>
-                <li>في العربي كل حرف زرار واحد: <b>ا</b> بتفتح أ إ آ، و<b>ه</b> بتفتح ة، و<b>ي</b> بتفتح ى.</li>
+                <li>في العربي كل حرف زرار واحد: <b>ا</b> بتفتح أ إ آ، و<b>ه</b> بتفتح ة، و<b>ي</b> بتفتح ى، والعكس كمان: لو الكلمة كلها اتكتبت بـ أ أو ا، الاتنين واحد. الكلمة بتبان زي ما اتكتبت بالظبط.</li>
             </ol>
             <p class="help-sub">📱 لاتنين على موبايل</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -29736,7 +29781,7 @@ const GAME_RULES = {
             <p class="help-sub">👥 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>واحد يكتب</b>: كل واحد يخمّن الكلمة على لوحته، واللي بيكتب بيتغيّر كل كلمة. اللي يحلّها ياخد 10، واللي كتبها ياخد 5 عن كل واحد اتشنق.</li>
-                <li><b>سباق</b>: التطبيق بيدّي الكل نفس الكلمة ونوعها. اللي يحلّها ياخد 10، والأول +5، التاني +4… وهكذا.</li>
+                <li><b>سباق</b>: التطبيق بيدّي الكل نفس الكلمة (أو اسم ممثل أو لاعب أو فيلم) ونوعها. اللي يحلّها ياخد 10، والأول +5، التاني +4… وهكذا.</li>
                 <li>المضيف بيختار 3 أو 5 أو 10 كلمات، ووقت للكلمة لو حابب (60 أو 90 ثانية).</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
@@ -30788,11 +30833,11 @@ const GAME_RULES = {
             </ul>`,
         hangman: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>One writes a word; everyone else sees a box for each letter.</li>
+                <li>One writes a word, or a famous name or a film of up to 3 words (never a sentence); everyone else sees a box for each letter and a gap between the words.</li>
                 <li>Guess a letter: in the word, <b>it shows everywhere it stands</b>. Not in it, <b>a piece of the man</b> is drawn.</li>
                 <li><b>6 misses</b> and he's hanged. Solve the word before that.</li>
                 <li>You can guess <b>the whole word</b> at once: wrong, it costs a piece like a wrong letter.</li>
-                <li>In Arabic each letter is one key: <b>ا</b> opens أ إ آ, <b>ه</b> opens ة and <b>ي</b> opens ى.</li>
+                <li>In Arabic each letter is one key: <b>ا</b> opens أ إ آ, <b>ه</b> opens ة and <b>ي</b> opens ى, and the other way round: a whole word typed with أ or with ا is the same word. The word shows exactly as it was typed.</li>
             </ol>
             <p class="help-sub">📱 Two on one phone</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -30801,7 +30846,7 @@ const GAME_RULES = {
             <p class="help-sub">👥 Everyone on their own phone</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>One writes</b>: everyone guesses the word on their own board, and the writer changes every word. A solve scores 10; the writer scores 5 for everyone hanged.</li>
-                <li><b>A race</b>: the app gives everyone the same word and its kind. A solve scores 10, the first +5, the second +4, and so on.</li>
+                <li><b>A race</b>: the app gives everyone the same word (or an actor, a footballer, a film) and its kind. A solve scores 10, the first +5, the second +4, and so on.</li>
                 <li>The host picks 3, 5 or 10 words, and a clock for each word if they like (60 or 90 seconds).</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>
@@ -77575,16 +77620,28 @@ function hmDrawLast(root) {
  */
 function hmTilesHtml(pattern, alpha, o) {
   const opt = o || {};
-  const full = opt.word ? Array.from(opt.word) : null;
+  const full = opt.word ? Array.from(hmClean(opt.word)) : null;
   const open = opt.open || '';
-  const tiles = pattern.map((c, i) => {
+  // Each word is kept together; a name of two or three words may wrap between them, never inside one.
+  const words = [[]];
+  pattern.forEach((c, i) => {
+    if (c === ' ') { words.push([]); return; }
     const raw = c || (full ? full[i] : '');
     const shown = alpha === 'en' ? raw.toUpperCase() : raw;
     const cls = ['hm-tile', c ? 'is-open' : '', !c && full ? (opt.lost ? 'is-lost' : 'is-open') : '',
       c && open && hmFold(c) === open ? 'is-new' : ''].join(' ');
-    return `<span class="${cls}">${escapeHTML(shown)}</span>`;
-  }).join('');
-  return `<div class="hm-tiles ${pattern.length > 9 ? 'is-long' : ''}" dir="${alpha === 'en' ? 'ltr' : 'rtl'}">${tiles}</div>`;
+    words[words.length - 1].push(`<span class="${cls}">${escapeHTML(shown)}</span>`);
+  });
+  const letters = pattern.filter(c => c !== ' ').length;
+  return `<div class="hm-tiles ${letters > 9 ? 'is-long' : ''}" dir="${alpha === 'en' ? 'ltr' : 'rtl'}">${words.map(w => `<span class="hm-tiles__word">${w.join('')}</span>`).join('')}</div>`;
+}
+
+/** The blanks of a word nobody here can see: a box a letter, a gap between words (shared.shape). */
+function hmBlankPattern(s) {
+  const shape = Array.isArray(s.shape) && s.shape.length ? s.shape : [s.len || 0];
+  const out = [];
+  shape.forEach((n, k) => { if (k) out.push(' '); for (let i = 0; i < n; i++) out.push(''); });
+  return out;
 }
 
 /** The keyboard of the word's alphabet: a letter tried is green when it was in, faded when it wasn't. */
@@ -77620,7 +77677,7 @@ function hmBoardHtml(o) {
       </div>
       ${done ? '' : hmKeysHtml(o.alpha, o.g, o.miss, !!o.on, o.press)}
       ${done || !o.on ? '' : `<form class="hm-whole" onsubmit="event.preventDefault(); ${o.whole}(this)">
-          <input type="text" name="w" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHTML(hmT('hm_whole_ph'))}" aria-label="${escapeHTML(hmT('hm_whole_ph'))}">
+          <input type="text" name="w" maxlength="28" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHTML(hmT('hm_whole_ph'))}" aria-label="${escapeHTML(hmT('hm_whole_ph'))}">
           <button type="submit" class="btn btn--secondary btn--auto">${escapeHTML(hmT('hm_whole_btn'))}</button>
         </form>`}
     </div>`;
@@ -77648,7 +77705,8 @@ function hmAfterBoard(root, o) {
 /** The word a player writes, as it will be refused: '' when it can be played. */
 function hmWriteError(text) {
   const p = hmWordProblem(text);
-  return p ? hmT('hm_write_bad') : '';
+  if (!p) return '';
+  return p === 'sentence' ? hmT('hm_write_sentence') : hmT('hm_write_bad');
 }
 
 /**
@@ -77660,7 +77718,7 @@ function hmWriteError(text) {
 function hmWriteFormHtml(submit, placeholderName) {
   return `<form class="hm-write" onsubmit="event.preventDefault(); ${submit}(this)">
       <div class="hm-write__row">
-        <input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="20" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        <input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           placeholder="${escapeHTML(hmT('hm_write_ph'))}" aria-label="${escapeHTML(hmT('hm_write_ph'))}">
         <button type="button" class="btn btn--ghost btn--auto hm-write__eye" onclick="hmToggleEye(this)" aria-label="${escapeHTML(hmT('hm_show_word'))}" title="${escapeHTML(hmT('hm_show_word'))}">👁️</button>
       </div>
@@ -77911,7 +77969,7 @@ function hmResultHtml(state, tv) {
   const setter = r.setter && r.setterName ? `<li class="hm-res is-setter"><span>✍️ ${escapeHTML(hmT('hm_setter_pts', { name: r.setterName }))}</span><b class="metric">${r.setterPts ? '+' + r.setterPts : '0'}</b></li>` : '';
   return `<div class="card card--accent hm-result ${tv ? 'hm-result--tv' : ''}">
       <p class="eyebrow">${escapeHTML(r.cat || hmT('hm_the_word'))}</p>
-      ${hmTilesHtml(Array.from(r.word || ''), alpha, {})}
+      ${hmTilesHtml(Array.from(hmClean(r.word || '')), alpha, {})}
       <ul class="hm-results">${rows}${setter}</ul>
     </div>`;
 }
@@ -78059,7 +78117,7 @@ ROOM_GAMES.hangman = {
       let mine = '';
       if (you.word) {
         mine = `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
-            ${hmTilesHtml(Array.from(you.word), hmAlphaOf(you.word), {})}
+            ${hmTilesHtml(Array.from(hmClean(you.word)), hmAlphaOf(you.word), {})}
             <p class="field__hint">${escapeHTML(hmT('hm_you_watch'))}</p></div>`;
       } else if (Array.isArray(you.pattern)) {
         fx = hmRoomFx(state, you);
@@ -78071,7 +78129,7 @@ ROOM_GAMES.hangman = {
             <p class="field__hint">${escapeHTML(hmT('hm_done_wait'))}</p></div>`;
       } else {
         mine = `<div class="card hm-wait"><p class="sheet__title">${escapeHTML(hmT('hm_watching'))}</p>
-            ${hmTilesHtml(Array.from({ length: s.len }, () => ''), s.alpha, {})}${s.cat ? `<p class="field__hint">${escapeHTML(s.cat)}</p>` : ''}</div>`;
+            ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}${s.cat ? `<p class="field__hint">${escapeHTML(s.cat)}</p>` : ''}</div>`;
       }
       return `<div class="hm-room">${round}
           <div class="hm-layout">
@@ -78142,7 +78200,7 @@ TV_GAMES.hangman = {
     return `<div class="tv-trivia hm-tv" data-accent="orange">${top}
         <div class="hm-tv__head">
           <div class="tv-title">${escapeHTML(s.cat || hmT('hm_word_from', { name: s.setterName || '' }))}</div>
-          ${hmTilesHtml(Array.from({ length: s.len }, () => ''), s.alpha, {})}
+          ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}
         </div>
         ${hmProgressHtml(state, true)}
         ${host(hmHostButtons(state).map(b => [b[0], b[1], 'ghost']))}

@@ -3458,7 +3458,7 @@ async function main() {
     const writer = byId(hmBots, H.state.shared.setter);
     const guessers = hmBots.filter((b) => b !== writer);
     check((await guessers[0].act('setWord', { word: 'مدرسة', round: 1 })).ok === false, 'hangman: only the writer writes');
-    check((await writer.act('setWord', { word: 'مدرسة كبيرة', round: 1 })).ok === false, 'hangman: two words are refused');
+    check((await writer.act('setWord', { word: 'مدرسة كبيرة في البلد', round: 1 })).ok === false, 'hangman: four words are a sentence, and refused');
     await writer.must('setWord', { word: 'مدرسة', round: 1 });
     await all(hmBots, (s) => s.shared.phase === 'guessing' && s.shared.len === 5, 'hangman: the word is out, five blanks on every phone');
     check(writer.state.you.word === 'مدرسة' && guessers.every((b) => !leaks(b, 'مدرسة') && Array.isArray(b.state.you.pattern)) && !leaks(S, 'مدرسة'),

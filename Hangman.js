@@ -9,40 +9,59 @@
    The owner's rules (22 Sep 2026): a letter that is in the word shows every
    place it stands; one that isn't draws a piece of the man, and the sixth
    (HM_MISSES) finishes him. A whole word may be guessed at once, and a wrong
-   one costs a piece like a wrong letter. In Arabic the keyboard has one key
-   a letter: ا opens أ إ آ, ه opens ة, ي opens ى - and, decided here, ء ؤ ئ
-   and ٱ go with ا, و and ي the same way (hmFold). The word is always shown
-   as it is spelt.
+   one costs a piece like a wrong letter.
 
-   A word the app deals (a room's race) is a single word of 4 to 9 letters
-   from the Chameleon boards, with its category as the hint (hmPool): the
-   app's big shared list, never a small one of its own. A word a player
-   writes is any single word of 3 to 12 letters in one alphabet.
+   What is guessed (the owner, 23 Sep 2026): one word, or the name of a
+   famous person or a film - up to three words (HM_WORDS_MAX), never a
+   sentence. It is shown exactly as it was typed, a box a letter and a gap
+   between the words, so five letters are five boxes. Only the marks that are
+   not letters (the diacritics, the tatweel) are dropped.
+
+   The fold works both ways (the owner, 23 Sep 2026): ا finds أ إ آ and أ
+   finds ا; ه and ة, ي and ى, و and ؤ, ي and ئ the same, in a letter and in a
+   whole word (hmFold). The keyboard has one key for each family. ء and ٱ go
+   with ا, decided here.
+
+   A word the app deals (a room's race, hmPool) comes from the app's big
+   shared lists, never a small one of its own: every entry of the Chameleon
+   boards that fits - a single word of 4 to 9 letters, or a name of two or
+   three words (the actors, the footballers, the singers, the historical
+   figures) - with its board's category as the hint, and the films of the
+   emoji riddles (not their proverbs, which are sentences).
    ========================================================================= */
 const HM_MISSES = 6;
 const HM_LETTERS = {
   ar: ['ا', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'],
   en: 'abcdefghijklmnopqrstuvwxyz'.split('')
 };
-const HM_WRITE_MIN = 3;
-const HM_WRITE_MAX = 12;
-const HM_DEAL_MIN = 4;
+const HM_WORDS_MAX = 3;           // a name or a title; more is a sentence
+const HM_WRITE_MIN = 3;           // letters in all, for a written word
+const HM_WRITE_MAX = 20;
+const HM_WORD_MAX = 12;           // letters in any one word
+const HM_DEAL_MIN = 4;            // a single word the race deals
 const HM_DEAL_MAX = 9;
+const HM_DEAL_NAME_MAX = 16;      // letters in a name or a title the race deals
 
 const HM_FOLD = { 'أ': 'ا', 'إ': 'ا', 'آ': 'ا', 'ٱ': 'ا', 'ء': 'ا', 'ة': 'ه', 'ى': 'ي', 'ئ': 'ي', 'ؤ': 'و' };
 
-/** The key a letter is typed on. */
+/** The key a letter is typed on: both sides of a guess go through it, so أ and ا find each other. */
 const hmFold = (ch) => {
   const c = String(ch || '');
   return HM_FOLD[c] || c.toLowerCase();
 };
 
-/** A word as it is spelt, without the marks: diacritics and the tatweel go, spaces round it too. */
-const hmClean = (text) => String(text || '').replace(/[ً-ٰٟـ]/g, '').trim();
+/** A word as it was typed, without what isn't a letter: the diacritics and the tatweel go, the spaces become single. */
+const hmClean = (text) => String(text || '').replace(/[ً-ٰٟـ]/g, '').replace(/\s+/g, ' ').trim();
+
+/** The letters of a word, without its spaces. */
+const hmLettersOf = (word) => Array.from(hmClean(word)).filter(c => c !== ' ');
+
+/** The length of each word, which is what the blanks show: [5] for مدرسة, [4, 4] for محمد صلاح. */
+const hmShape = (word) => hmClean(word).split(' ').filter(Boolean).map(w => Array.from(w).length);
 
 /** 'ar' or 'en' when every letter of the word is on that keyboard, else null. */
 const hmAlphaOf = (word) => {
-  const chars = Array.from(hmClean(word));
+  const chars = hmLettersOf(word);
   if (!chars.length) return null;
   for (const lang of ['ar', 'en']) {
     if (chars.every(c => HM_LETTERS[lang].indexOf(hmFold(c)) !== -1)) return lang;
@@ -50,45 +69,66 @@ const hmAlphaOf = (word) => {
   return null;
 };
 
-/** Why a written word can't be played, or '' when it can: one word, one alphabet, 3 to 12 letters. */
+/** Why a written word can't be played, or '' when it can: up to three words, one alphabet, 3 to 20 letters. */
 const hmWordProblem = (text) => {
   const w = hmClean(text);
   if (!w) return 'empty';
-  if (/\s/.test(w)) return 'space';
+  const shape = hmShape(w);
+  if (shape.length > HM_WORDS_MAX) return 'sentence';
   if (!hmAlphaOf(w)) return 'letters';
-  const n = Array.from(w).length;
+  const n = hmLettersOf(w).length;
   if (n < HM_WRITE_MIN) return 'short';
-  if (n > HM_WRITE_MAX) return 'long';
+  if (n > HM_WRITE_MAX || shape.some(k => k > HM_WORD_MAX)) return 'long';
   return '';
 };
 
-/** The words a room's race deals in a language: [{ w, c }], single words of 4 to 9 letters with their category. */
+/** What the race may deal from one list entry: a single word of 4 to 9 letters, or a name or a title of two or three words. */
+const hmDealable = (raw, lang) => {
+  const w = hmClean(raw);
+  const shape = hmShape(w);
+  if (!shape.length || shape.length > HM_WORDS_MAX || hmAlphaOf(w) !== lang) return '';
+  const n = hmLettersOf(w).length;
+  if (shape.length === 1) return n >= HM_DEAL_MIN && n <= HM_DEAL_MAX ? w : '';
+  return n <= HM_DEAL_NAME_MAX && shape.every(k => k >= 2) ? w : '';
+};
+
+/**
+ * The race's words in a language: [{ w, c }], `c` the hint. Every Chameleon
+ * entry that fits, with its board's category, and the films of the emoji
+ * riddles as "a film".
+ */
 const hmPool = (lang) => {
   const out = [];
   const seen = {};
+  const add = (raw, hint) => {
+    const w = hmDealable(raw, lang);
+    if (!w) return;
+    const key = hmLettersOf(w).map(hmFold).join('');
+    if (seen[key]) return;
+    seen[key] = true;
+    out.push({ w: w, c: hint });
+  };
   const boards = (typeof CHAMELEON_DB !== 'undefined' && CHAMELEON_DB[lang]) || [];
-  boards.forEach(b => {
-    (b.words || []).forEach(raw => {
-      const w = hmClean(raw);
-      const n = Array.from(w).length;
-      if (/\s/.test(w) || n < HM_DEAL_MIN || n > HM_DEAL_MAX || hmAlphaOf(w) !== lang) return;
-      const key = Array.from(w).map(hmFold).join('');
-      if (seen[key]) return;
-      seen[key] = true;
-      out.push({ w: w, c: b.category });
-    });
-  });
+  boards.forEach(b => (b.words || []).forEach(raw => add(raw, b.category)));
+  const riddles = (typeof EMOJI_RIDDLES !== 'undefined' && EMOJI_RIDDLES[lang]) || [];
+  riddles.forEach(r => { if (/أفلام|movie|film/i.test(r.c || '')) add(r.a, r.c + ' 🎬'); });
   return out;
 };
 
-/** The word with only the guessed letters showing: a letter, or '' for a blank. */
-const hmPattern = (word, guessed) => Array.from(hmClean(word)).map(c => ((guessed || []).indexOf(hmFold(c)) !== -1 ? c : ''));
+/** The word with only the guessed letters showing: a letter, '' for a blank, ' ' between two words. */
+const hmPattern = (word, guessed) => Array.from(hmClean(word)).map(c => {
+  if (c === ' ') return ' ';
+  return (guessed || []).indexOf(hmFold(c)) !== -1 ? c : '';
+});
+
+/** How many of the word's letters a pattern shows (spaces are not letters). */
+const hmFound = (pattern) => (pattern || []).filter(c => c !== '' && c !== ' ').length;
 
 /** Every letter of the word has been guessed. */
 const hmSolved = (word, guessed) => hmPattern(word, guessed).every(c => c !== '');
 
-/** The same word, as the keyboard types it. */
-const hmSameWord = (a, b) => Array.from(hmClean(a)).map(hmFold).join('') === Array.from(hmClean(b)).map(hmFold).join('');
+/** The same word, as the keyboard types it, with or without the spaces. */
+const hmSameWord = (a, b) => hmLettersOf(a).map(hmFold).join('') === hmLettersOf(b).map(hmFold).join('');
 
 /**
  * One guess on one board: { g: letters guessed, miss: wrong letters and words,
@@ -102,19 +142,19 @@ const hmApply = (board, word, guess, whole) => {
   const alpha = hmAlphaOf(word);
   if (whole) {
     const text = hmClean(guess);
-    if (!text || /\s/.test(text)) return '';
+    if (!text) return '';
     if (hmSameWord(text, word)) {
-      Array.from(hmClean(word)).forEach(c => { const k = hmFold(c); if (board.g.indexOf(k) === -1) board.g.push(k); });
+      hmLettersOf(word).forEach(c => { const k = hmFold(c); if (board.g.indexOf(k) === -1) board.g.push(k); });
       board.state = 'won';
       return 'won';
     }
-    if (board.miss.some(m => m.length > 1 && hmSameWord(m, text))) return '';
+    if (board.miss.some(m => Array.from(m).length > 1 && hmSameWord(m, text))) return '';
     board.miss.push(text);
   } else {
-    const k = hmFold(Array.from(String(guess || ''))[0] || '');
+    const k = hmFold(Array.from(String(guess || '').trim())[0] || '');
     if (!k || HM_LETTERS[alpha].indexOf(k) === -1) return '';
     if (board.g.indexOf(k) !== -1 || board.miss.indexOf(k) !== -1) return '';
-    if (Array.from(hmClean(word)).some(c => hmFold(c) === k)) {
+    if (hmLettersOf(word).some(c => hmFold(c) === k)) {
       board.g.push(k);
       if (hmSolved(word, board.g)) { board.state = 'won'; return 'won'; }
       return 'hit';

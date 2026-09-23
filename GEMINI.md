@@ -166,9 +166,21 @@ work changed. Add to it when a decision is made or a batch ships.
   - **The whole word may be guessed; wrong, it costs a piece.**
   - **In Arabic one key a letter**: ا opens أ إ آ, ه opens ة, ي opens ى; the
     word is always shown as it is spelt. Decided here: ء ؤ ئ ٱ go with ا, و
-    and ي the same way.
+    and ي the same way. **Both ways** (the owner, 23 Sep 2026): أ finds ا as
+    ا finds أ, in a letter and in a whole word (`hmFold` on both sides).
+  - **What is guessed** (the owner, 23 Sep 2026): **one word, or a famous
+    name or a film of up to three words - never a sentence**; four words
+    are refused. It stays **exactly as it was typed**, **a box a letter**
+    (five letters, five boxes) and a gap between words; only the marks that
+    aren't letters (diacritics, the tatweel) are dropped. A whole name typed
+    without its spaces still counts.
+  - **The race deals names and films too** (the owner, 23 Sep 2026): every
+    Chameleon entry of up to three words (the actors, footballers, singers,
+    historical figures) with its category, and the films of the emoji
+    riddles as "a film 🎬" - not their proverbs.
   - Rooms play two ways, a lobby choice, **"one writes, the rest guess" by
-    default**: the writer types **the word only** (no hint) and every other
+    default**: the writer types **the word only** (no hint; a word or a name,
+    as above) and every other
     phone guesses it **on its own board**; the writer moves round the table.
     Or **a race**: the app deals one word to everyone, **a single word from
     the app's lists with its category as the hint**.
@@ -181,8 +193,9 @@ work changed. Add to it when a decision is made or a batch ships.
   - Two on one phone: **take turns and a running tally** - one types with the
     letters hidden while the other looks away, the other guesses, then they
     swap, as many words as they like.
-  - Decided here: a written word is one word of 3 to 12 letters in one
-    alphabet; the race deals 4 to 9 letters from the Chameleon boards; the TV
+  - Decided here: a written word is 3 to 20 letters in one alphabet, no word
+    over 12; the race deals a single word of 4 to 9 letters, or a name of up
+    to 16 letters whose words are two letters or more; the TV
     shows each player's man and how many letters they have found, never the
     letters; a writer who leaves before writing hands the word to the next;
     fewer than two left ends the game.
@@ -1218,6 +1231,15 @@ the word search), `countUp` for streaks and scores.
   written word, each board's letters). Robot tests: 1477. Found on the way
   (*Traps*): an iPhone gives a password field only its English keyboard,
   and two preview tabs share one saved room session.
+- **23 Sep 2026, المشنقة: names and films** - the owner's word on what is
+  guessed: a word or a famous name or a film of up to three words, never a
+  sentence, shown as typed with a box a letter and a gap between words; the
+  fold both ways; the race dealing names (Chameleon) and films (the emoji
+  riddles) too, about 1,200 in each language. `shared.shape` (each word's
+  length) draws the blanks. Found on the way: a flex item's box took its
+  letter's width, not its flex-basis, once the tiles were grouped by word -
+  a tile needs a `width` (*Traps*). Also: the robot test's four-player
+  domino rounds now wait for a pass as well as a blocked table.
 
 ## Building and Running
 
@@ -3298,8 +3320,11 @@ The owner's rules are in *The owner's specs*.
   `hmWordProblem` (why a written word can't be played), `hmPattern`,
   `hmApply` (one guess, a letter or the whole word, on a board `{ g, miss,
   state }`) and `hmPool(lang)`: the race's words, every single word of 4 to
-  9 letters on the Chameleon boards with its board's category as the hint
-  (about 800 in each language), never a list of its own.
+  9 letters or name of up to three words on the Chameleon boards, with its
+  board's category as the hint, and the emoji riddles' films (about 1,200 in
+  each language), never a list of its own. `hmShape` is each word's length
+  (`shared.shape`, the blanks), `hmPattern` puts a ' ' between words and
+  `hmFound` counts letters only.
 - **`RoomHangman.js`**: `room._hm` holds the word and every board; each
   guesser's phone gets its own board in `room.secrets[pid]` (its letters,
   its misses and the pattern it shows), the writer's phone the word, and
@@ -3783,6 +3808,13 @@ the answer - but iOS lets a secure field use only an ASCII keyboard, so the
 word could not be written in Arabic. The field is `type="text"` drawn as dots
 (`-webkit-text-security: disc`, the `is-hidden` class the eye toggles). Hide
 typed text that way everywhere.
+
+**A flex item's intrinsic size ignores its flex-basis.** المشنقة's tiles were
+`flex: 0 1 2.375rem` with no width, which was fine while they sat straight in
+the row. Grouped into one flex container per word, each group took its
+max-content width from its tiles' content - one letter each - and the tiles
+shrank to a few pixels. A box that must keep a size inside a nested flex
+gets a `width` (and a `min-width` to shrink to), not only a basis.
 
 **Two preview tabs share one saved room session.** A room's session is saved
 in `localStorage`, which every tab of the preview shares: a tab reloaded (or

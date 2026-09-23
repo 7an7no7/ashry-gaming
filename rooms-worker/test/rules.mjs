@@ -4007,12 +4007,20 @@ Date.now = duelTestClock;
 
 /* --- المشنقة: the letters, the fold, the two ways a room plays ---------------- */
 {
-  const HM = new Function(readFileSync(new URL('../../ChameleonWords.js', import.meta.url), 'utf8') + readFileSync(new URL('../../Hangman.js', import.meta.url), 'utf8') +
-    '\nreturn { hmFold, hmPool, hmPattern, hmApply, hmNewBoard, hmWordProblem, hmAlphaOf, hmSolved };')();
+  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const HM = new Function(src('ChameleonWords.js') + src('EmojiRiddles.js') + src('Hangman.js') +
+    '\nreturn { hmFold, hmPool, hmPattern, hmApply, hmNewBoard, hmWordProblem, hmAlphaOf, hmSolved, hmShape, hmFound };')();
   const ar = HM.hmPool('ar'), en = HM.hmPool('en');
-  const okLen = (p) => p.every((x) => { const n = Array.from(x.w).length; return n >= 4 && n <= 9 && !/\s/.test(x.w) && x.c; });
-  check(ar.length > 150 && en.length > 150 && okLen(ar) && okLen(en) && ar.every((x) => HM.hmAlphaOf(x.w) === 'ar') && en.every((x) => HM.hmAlphaOf(x.w) === 'en'),
-    'hangman: the race deals single words of 4 to 9 letters from the Chameleon boards, with their category (' + ar.length + ' ar, ' + en.length + ' en)');
+  const okDeal = (p) => p.every((x) => {
+    const shape = HM.hmShape(x.w);
+    const n = shape.reduce((a, b) => a + b, 0);
+    return x.c && shape.length <= 3 && (shape.length === 1 ? n >= 4 && n <= 9 : n <= 16 && shape.every((k) => k >= 2));
+  });
+  check(ar.length > 150 && en.length > 150 && okDeal(ar) && okDeal(en) && ar.every((x) => HM.hmAlphaOf(x.w) === 'ar') && en.every((x) => HM.hmAlphaOf(x.w) === 'en'),
+    'hangman: the race deals words of 4 to 9 letters and names of up to 3 words, each with its kind (' + ar.length + ' ar, ' + en.length + ' en)');
+  check(ar.some((x) => x.w === 'محمد صلاح') && ar.some((x) => x.w === 'عادل إمام') && ar.some((x) => /🎬/.test(x.c) && x.w === 'الفيل الأزرق'),
+    'hangman: famous people from the Chameleon boards and films from the emoji riddles are in the race');
+  check(!ar.some((x) => /أمثال/.test(x.c)), 'hangman: the proverbs are not (they are sentences)');
   const b = HM.hmNewBoard();
   check(HM.hmApply(b, 'أسوان', 'ا') === 'hit' && HM.hmPattern('أسوان', b.g).join('|') === 'أ|||ا|',
     'hangman: ا opens أ too, and the word shows as it is spelt');
@@ -4029,9 +4037,27 @@ Date.now = duelTestClock;
   check(HM.hmApply(b4, 'برتقال', 'د') === 'lost' && b4.state === 'lost', 'hangman: the sixth miss hangs the man');
   const b5 = HM.hmNewBoard();
   check(HM.hmApply(b5, 'برتقال', 'برتقال', true) === 'won' && HM.hmSolved('برتقال', b5.g), 'hangman: the right whole word solves it');
-  check(HM.hmWordProblem('برتقال') === '' && HM.hmWordProblem('ab') === 'short' && HM.hmWordProblem('two words') === 'space' &&
+  check(HM.hmWordProblem('برتقال') === '' && HM.hmWordProblem('ab') === 'short' && HM.hmWordProblem('two words') === '' &&
+    HM.hmWordProblem('الناصر صلاح الدين') === '' && HM.hmWordProblem('انا رايح المدرسة بكرة') === 'sentence' &&
     HM.hmWordProblem('abc1') === 'letters' && HM.hmWordProblem('بيتx') === 'letters' && HM.hmWordProblem('Cairo') === '',
-    'hangman: a written word is one word of 3 to 12 letters, in one alphabet');
+    'hangman: a written word is a word or a name of up to 3 words (never a sentence), in one alphabet');
+  // A name: a box a letter, a gap between the words, the gap never a letter to find.
+  const nb = HM.hmNewBoard();
+  const name = 'محمد  صلاح';
+  check(JSON.stringify(HM.hmShape(name)) === '[4,4]' && HM.hmPattern(name, []).join('|') === '||||' + ' ' + '||||',
+    'hangman: a name shows a box a letter and one gap between its words, however it was spaced');
+  HM.hmApply(nb, name, 'م');
+  check(HM.hmFound(HM.hmPattern(name, nb.g)) === 2, 'hangman: a letter shows in every word it is in; the gap is not counted');
+  check(HM.hmApply(nb, name, 'محمدصلاح', true) === 'won', 'hangman: the whole name typed without its space counts');
+  // The fold, both ways.
+  const f1 = HM.hmNewBoard();
+  check(HM.hmApply(f1, 'أحمد', 'ا') === 'hit' && HM.hmPattern('أحمد', f1.g)[0] === 'أ', 'hangman: ا finds أ, and the word shows أ as it was typed');
+  const f2 = HM.hmNewBoard();
+  check(HM.hmApply(f2, 'احمد', 'أ') === 'hit' && HM.hmPattern('احمد', f2.g)[0] === 'ا', 'hangman: and أ finds ا');
+  const f3 = HM.hmNewBoard();
+  check(HM.hmApply(f3, 'مدرسه', 'مدرسة', true) === 'won' && HM.hmApply(HM.hmNewBoard(), 'إسكندرية', 'اسكندريه', true) === 'won' &&
+    HM.hmApply(HM.hmNewBoard(), 'مستشفي', 'مستشفى', true) === 'won',
+    'hangman: a whole word folds both ways: ة and ه, أ إ آ and ا, ى and ي');
 
   const hm = (ids, payload) => {
     const r = newRoom(ids);
@@ -4047,7 +4073,7 @@ Date.now = duelTestClock;
   const setter = s.setter;
   const others = ['a', 'b', 'c'].filter((x) => x !== setter);
   check(refused(() => applyRoomAction(r, others[0], 'setWord', { word: 'قطة', round: 1 })), 'hangman: only the writer writes the word');
-  check(refused(() => applyRoomAction(r, setter, 'setWord', { word: 'قطة سوداء', round: 1 })), 'hangman: two words are refused');
+  check(refused(() => applyRoomAction(r, setter, 'setWord', { word: 'قطة سوداء كبيرة جدا', round: 1 })), 'hangman: four words are a sentence, and refused');
   applyRoomAction(r, setter, 'setWord', { word: 'مَدرسة', round: 1 });
   check(s.phase === 'guessing' && s.len === 5 && JSON.stringify(s).indexOf('مدرس') === -1 && r.secrets[setter].word === 'مدرسة' &&
     !r.secrets[others[0]].word && r.secrets[others[0]].pattern.join('') === '',
@@ -4075,7 +4101,8 @@ Date.now = duelTestClock;
   r = hm(['a', 'b', 'c'], { mode: 'race', rounds: 3, clock: 60, lang: 'ar' });
   s = r.shared;
   const word = r._hm.word;
-  check(s.phase === 'guessing' && !!s.cat && s.len === Array.from(word).length && !s.setter && Object.keys(s.progress).length === 3,
+  check(s.phase === 'guessing' && !!s.cat && s.len === Array.from(word.replace(/ /g, '')).length &&
+    s.shape.reduce((a, b) => a + b, 0) === s.len && !s.setter && Object.keys(s.progress).length === 3,
     'hangman: the race deals the app\'s word to everyone, with its category');
   applyRoomAction(r, 'c', 'whole', { text: word, round: 1 });
   applyRoomAction(r, 'a', 'whole', { text: word, round: 1 });

@@ -66,16 +66,28 @@ function hmDrawLast(root) {
  */
 function hmTilesHtml(pattern, alpha, o) {
   const opt = o || {};
-  const full = opt.word ? Array.from(opt.word) : null;
+  const full = opt.word ? Array.from(hmClean(opt.word)) : null;
   const open = opt.open || '';
-  const tiles = pattern.map((c, i) => {
+  // Each word is kept together; a name of two or three words may wrap between them, never inside one.
+  const words = [[]];
+  pattern.forEach((c, i) => {
+    if (c === ' ') { words.push([]); return; }
     const raw = c || (full ? full[i] : '');
     const shown = alpha === 'en' ? raw.toUpperCase() : raw;
     const cls = ['hm-tile', c ? 'is-open' : '', !c && full ? (opt.lost ? 'is-lost' : 'is-open') : '',
       c && open && hmFold(c) === open ? 'is-new' : ''].join(' ');
-    return `<span class="${cls}">${escapeHTML(shown)}</span>`;
-  }).join('');
-  return `<div class="hm-tiles ${pattern.length > 9 ? 'is-long' : ''}" dir="${alpha === 'en' ? 'ltr' : 'rtl'}">${tiles}</div>`;
+    words[words.length - 1].push(`<span class="${cls}">${escapeHTML(shown)}</span>`);
+  });
+  const letters = pattern.filter(c => c !== ' ').length;
+  return `<div class="hm-tiles ${letters > 9 ? 'is-long' : ''}" dir="${alpha === 'en' ? 'ltr' : 'rtl'}">${words.map(w => `<span class="hm-tiles__word">${w.join('')}</span>`).join('')}</div>`;
+}
+
+/** The blanks of a word nobody here can see: a box a letter, a gap between words (shared.shape). */
+function hmBlankPattern(s) {
+  const shape = Array.isArray(s.shape) && s.shape.length ? s.shape : [s.len || 0];
+  const out = [];
+  shape.forEach((n, k) => { if (k) out.push(' '); for (let i = 0; i < n; i++) out.push(''); });
+  return out;
 }
 
 /** The keyboard of the word's alphabet: a letter tried is green when it was in, faded when it wasn't. */
@@ -111,7 +123,7 @@ function hmBoardHtml(o) {
       </div>
       ${done ? '' : hmKeysHtml(o.alpha, o.g, o.miss, !!o.on, o.press)}
       ${done || !o.on ? '' : `<form class="hm-whole" onsubmit="event.preventDefault(); ${o.whole}(this)">
-          <input type="text" name="w" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHTML(hmT('hm_whole_ph'))}" aria-label="${escapeHTML(hmT('hm_whole_ph'))}">
+          <input type="text" name="w" maxlength="28" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHTML(hmT('hm_whole_ph'))}" aria-label="${escapeHTML(hmT('hm_whole_ph'))}">
           <button type="submit" class="btn btn--secondary btn--auto">${escapeHTML(hmT('hm_whole_btn'))}</button>
         </form>`}
     </div>`;
@@ -139,7 +151,8 @@ function hmAfterBoard(root, o) {
 /** The word a player writes, as it will be refused: '' when it can be played. */
 function hmWriteError(text) {
   const p = hmWordProblem(text);
-  return p ? hmT('hm_write_bad') : '';
+  if (!p) return '';
+  return p === 'sentence' ? hmT('hm_write_sentence') : hmT('hm_write_bad');
 }
 
 /**
@@ -151,7 +164,7 @@ function hmWriteError(text) {
 function hmWriteFormHtml(submit, placeholderName) {
   return `<form class="hm-write" onsubmit="event.preventDefault(); ${submit}(this)">
       <div class="hm-write__row">
-        <input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="20" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        <input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           placeholder="${escapeHTML(hmT('hm_write_ph'))}" aria-label="${escapeHTML(hmT('hm_write_ph'))}">
         <button type="button" class="btn btn--ghost btn--auto hm-write__eye" onclick="hmToggleEye(this)" aria-label="${escapeHTML(hmT('hm_show_word'))}" title="${escapeHTML(hmT('hm_show_word'))}">👁️</button>
       </div>
@@ -402,7 +415,7 @@ function hmResultHtml(state, tv) {
   const setter = r.setter && r.setterName ? `<li class="hm-res is-setter"><span>✍️ ${escapeHTML(hmT('hm_setter_pts', { name: r.setterName }))}</span><b class="metric">${r.setterPts ? '+' + r.setterPts : '0'}</b></li>` : '';
   return `<div class="card card--accent hm-result ${tv ? 'hm-result--tv' : ''}">
       <p class="eyebrow">${escapeHTML(r.cat || hmT('hm_the_word'))}</p>
-      ${hmTilesHtml(Array.from(r.word || ''), alpha, {})}
+      ${hmTilesHtml(Array.from(hmClean(r.word || '')), alpha, {})}
       <ul class="hm-results">${rows}${setter}</ul>
     </div>`;
 }
@@ -550,7 +563,7 @@ ROOM_GAMES.hangman = {
       let mine = '';
       if (you.word) {
         mine = `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
-            ${hmTilesHtml(Array.from(you.word), hmAlphaOf(you.word), {})}
+            ${hmTilesHtml(Array.from(hmClean(you.word)), hmAlphaOf(you.word), {})}
             <p class="field__hint">${escapeHTML(hmT('hm_you_watch'))}</p></div>`;
       } else if (Array.isArray(you.pattern)) {
         fx = hmRoomFx(state, you);
@@ -562,7 +575,7 @@ ROOM_GAMES.hangman = {
             <p class="field__hint">${escapeHTML(hmT('hm_done_wait'))}</p></div>`;
       } else {
         mine = `<div class="card hm-wait"><p class="sheet__title">${escapeHTML(hmT('hm_watching'))}</p>
-            ${hmTilesHtml(Array.from({ length: s.len }, () => ''), s.alpha, {})}${s.cat ? `<p class="field__hint">${escapeHTML(s.cat)}</p>` : ''}</div>`;
+            ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}${s.cat ? `<p class="field__hint">${escapeHTML(s.cat)}</p>` : ''}</div>`;
       }
       return `<div class="hm-room">${round}
           <div class="hm-layout">
@@ -633,7 +646,7 @@ TV_GAMES.hangman = {
     return `<div class="tv-trivia hm-tv" data-accent="orange">${top}
         <div class="hm-tv__head">
           <div class="tv-title">${escapeHTML(s.cat || hmT('hm_word_from', { name: s.setterName || '' }))}</div>
-          ${hmTilesHtml(Array.from({ length: s.len }, () => ''), s.alpha, {})}
+          ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}
         </div>
         ${hmProgressHtml(state, true)}
         ${host(hmHostButtons(state).map(b => [b[0], b[1], 'ghost']))}

@@ -5,8 +5,8 @@
    Hangman.js, shared with the page.
 
    The owner's rules for a room (22 Sep 2026): two ways, the host's choice.
-   "One writes, the rest guess" (the default): the writer types a word - the
-   word only, no hint - and everyone else guesses it on their own board, each
+   "One writes, the rest guess" (the default): the writer types a word, a
+   name or a film (up to three words, no hint), and everyone else guesses it on their own board, each
    with their own man; the writer moves round the table. "A race": the app
    deals one word, with its category as the hint, and everyone races on their
    own board. A word ends when every guesser has solved it or been hanged, on
@@ -27,7 +27,8 @@
      settings  { mode: 'setter' | 'race', rounds, clock }
      round     the word number (1..rounds) · rounds
      order     the writers' order (setter) · setter, setterName
-     len       the word's length · alpha  'ar' | 'en' · cat  the race's hint
+     len       the word's letters · shape  each word's length, for the blanks
+     alpha     'ar' | 'en' · cat  the race's hint
      progress  { pid: { n, miss, state, at } } · solved  [pid, …] in order
      endsAt    the word's clock
      result    { word, cat, setter, setterName, setterPts, rows: [{ id, name, state, miss, pts }] }
@@ -76,7 +77,7 @@ const hmWriteSecrets = (room) => {
 
 /** What the table sees of one board. */
 const hmProgressOf = (word, b, at) => ({
-  n: hmPattern(word, b.g).filter(c => c !== '').length,
+  n: hmFound(hmPattern(word, b.g)),
   miss: b.miss.length,
   state: b.state,
   at: at
@@ -90,7 +91,8 @@ const hmBeginGuessing = (room, word, cat) => {
   s.progress = {};
   guessers.forEach(pid => { room._hm.boards[pid] = hmNewBoard(); s.progress[pid] = hmProgressOf(word, room._hm.boards[pid], null); });
   s.solved = [];
-  s.len = Array.from(word).length;
+  s.len = hmLettersOf(word).length;
+  s.shape = hmShape(word);
   s.alpha = hmAlphaOf(word);
   s.cat = cat || '';
   s.phase = 'guessing';
@@ -119,6 +121,7 @@ const hmDeal = (room) => {
   s.endsAt = null;
   s.cat = '';
   s.len = 0;
+  s.shape = [];
   room._hm = { word: '', boards: {} };
   if (s.settings.mode === 'race') {
     const pool = hmPool(s.settings.lang);
@@ -218,7 +221,7 @@ const hangmanAction = (room, playerId, action, payload) => {
     if (s.phase !== 'writing' || staleTap(p, 'round', s.round)) return;
     if (playerId !== s.setter) throw new Error('مش انت اللي بتكتب الكلمة دي');
     const problem = hmWordProblem(p.word);
-    if (problem) throw new Error('اكتب كلمة واحدة من 3 لـ 12 حرف، حروف بس');
+    if (problem) throw new Error(problem === 'sentence' ? 'كلمة أو اسم لحد 3 كلمات بس، مش جملة' : 'اكتب كلمة أو اسم من 3 لـ 20 حرف، حروف بس');
     if (hmGuessers(room).length < 1) throw new Error('مفيش حد يخمّن');
     hmBeginGuessing(room, hmClean(p.word), '');
     return;

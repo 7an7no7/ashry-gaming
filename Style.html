@@ -11573,11 +11573,15 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .hm-gallows--mini { width: 3.25rem; }
 .hm-gallows--mini .hm-man { transition: none; }
 
-/* One line always: a long word's tiles shrink rather than wrap, which would split the word. */
-.hm-tiles { display: flex; flex-wrap: nowrap; justify-content: center; gap: 0.375rem; width: 100%; }
+/* A word stays on one line, its tiles shrinking rather than splitting it; a name of two or three
+   words wraps only between them, with a wider gap there than between two letters. */
+.hm-tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.1rem; width: 100%; }
+.hm-tiles__word { display: flex; flex-wrap: nowrap; justify-content: center; gap: 0.375rem; min-width: 0; max-width: 100%; }
+.hm-tiles.is-long .hm-tiles__word { gap: 0.25rem; }
 .hm-tile {
-  flex: 0 1 2.375rem;
-  min-width: 0;
+  flex: 0 1 auto;
+  width: 2.375rem;
+  min-width: 1.25rem;
   height: 2.75rem;
   display: grid;
   place-items: center;
@@ -11590,8 +11594,7 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
   line-height: 1;
   color: var(--text-strong);
 }
-.hm-tiles.is-long { gap: 0.25rem; }
-.hm-tiles.is-long .hm-tile { height: 2.375rem; font-size: 1.125rem; }
+.hm-tiles.is-long .hm-tile { width: 1.875rem; height: 2.375rem; font-size: 1.125rem; }
 .hm-tile.is-open { background: var(--accent-soft); border-color: var(--accent); }
 .hm-tile.is-new { animation: hmTile 440ms var(--ease-out) both; }
 .hm-tile.is-lost { background: var(--danger-soft); border-color: var(--danger); color: var(--danger-ink); }
@@ -11666,20 +11669,20 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 @media (orientation: landscape) and (max-height: 500px) {
   .hm-stage { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
   .hm-gallows { width: 5.75rem; }
-  .hm-tile { flex-basis: 2rem; height: 2.375rem; font-size: 1.125rem; }
+  .hm-tile { width: 2rem; height: 2.375rem; font-size: 1.125rem; }
   .hm-keys .key { height: 2.375rem; font-size: 1rem; }
   .hm-board { row-gap: var(--sp-2); }
 }
 @media (min-width: 900px) and (min-height: 501px) {
   .shell__main > #view-room-hangman { max-width: 64rem; }
   .hm-gallows { width: min(13rem, 40%); }
-  .hm-tile { flex-basis: 2.75rem; height: 3.125rem; font-size: 1.5rem; }
+  .hm-tile { width: 2.75rem; height: 3.125rem; font-size: 1.5rem; }
 }
 
 /* The TV: the kind of word and its blanks on top, everyone's man under it. */
 .hm-tv__head { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); }
 .hm-tv { align-content: start; }
-.hm-tv .hm-tile { flex-basis: 8.5vmin; height: 10vmin; font-size: 5.4vmin; border-radius: var(--tv-r); }
+.hm-tv .hm-tile { width: 8.5vmin; height: 10vmin; font-size: 5.4vmin; border-radius: var(--tv-r); }
 .hm-rows--tv { grid-template-columns: repeat(auto-fill, minmax(22vmin, 27vmin)); justify-content: center; gap: var(--tv-gap); }
 .hm-rows--tv .hm-row { padding: 1.4vmin; border-radius: var(--tv-r); }
 .hm-rows--tv .hm-gallows--mini { width: 14vmin; }
@@ -11687,7 +11690,7 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .hm-rows--tv .hm-row__prog, .hm-rows--tv .hm-row__st { font-size: 1.8vmin; }
 .hm-result--tv { font-size: var(--tv-sm); width: min(100%, 46rem); margin-inline: auto; padding: 3vmin; gap: 2.4vmin; }
 .hm-result--tv .hm-res { padding: 1vmin 1.6vmin; border-radius: var(--tv-r); }
-.hm-result--tv .hm-tile { flex-basis: 6.4vmin; height: 7.4vmin; font-size: 3.8vmin; }
+.hm-result--tv .hm-tile { width: 6.4vmin; height: 7.4vmin; font-size: 3.8vmin; }
 .hm-tv-result { width: min(100%, 60rem); margin-inline: auto; }
 
 @media (prefers-reduced-motion: reduce) {

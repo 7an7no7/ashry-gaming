@@ -117,8 +117,8 @@ const ROOM_GAME_IDS = [
   'chameleon', 'spyfall', 'bomb',
   'twotruths', 'emoji', 'proverbs', 'fiveseconds', 'telephone', 'monkey',
   'herd', 'mafia', 'screw', 'mind', 'timeline', 'uno', 'domino',
-  // The duels (RoomDuels.js): two play, the room watches, winner stays on.
-  'connect4', 'dots',
+  // The duels (RoomDuels.js): two play, the room watches, winner stays on - or a knockout tournament (RoomTournament.js).
+  'connect4', 'dots', 'xo',
   // حرب السفن (RoomBattleship.js): the duels' line, a secret fleet on each seated phone.
   'battleship',
   'ludo', 'bank',
@@ -538,6 +538,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'domino':     dominoAction(room, playerId, action, payload); break;    // RoomDomino.js
     case 'connect4':   connect4Action(room, playerId, action, payload); break;
     case 'dots':       dotsAction(room, playerId, action, payload); break;
+    case 'xo':         xoRoomAction(room, playerId, action, payload); break;     // RoomDuels.js
     case 'battleship': battleshipAction(room, playerId, action, payload); break;  // RoomBattleship.js
     case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
     case 'ludo':       ludoAction(room, playerId, action, payload); break;      // RoomLudo.js
@@ -3380,6 +3381,8 @@ const roomDeadline = (room) => {
 /** A game's own clock: the round, the turn, the vote that has to end on time. */
 const gameDeadline = (room) => {
   const s = room.shared || {};
+  // A knockout tournament of a duel: every match's clock, and the next match's start (RoomTournament.js).
+  if (isTourRoom(room)) return tourDeadline(room);
   if (room.game === 'trivia' && s.phase === 'answering' && s.endsAt) {
     return s.endsAt + TRIVIA_GRACE_MS;
   }
@@ -3439,6 +3442,7 @@ const gameTimeout = (room, now) => {
   if (!due || now < due) return false;
   // The engine first: فوازير إيموجي on it must not reach the quiz's clock below (RoomSolve.js).
   if (svKindOf(room)) return svTimeout(room, now);
+  if (isTourRoom(room)) return tourTimeout(room, now);
   if (room.game === 'trivia') {
     closeTriviaQuestion(room);
     return true;
@@ -3580,6 +3584,8 @@ const gamePlayerLeft = (room, playerId, name) => {
     return;
   }
   if (room.phase === 'lobby') return;
+  // A tournament: their match is lost by forfeit, and so is any they would have played (RoomTournament.js).
+  if (isTourRoom(room)) { tourPlayerLeft(room, playerId); return; }
 
   switch (room.game) {
     case 'imposter':
@@ -3728,6 +3734,7 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'connect4':
     case 'dots':
+    case 'xo':
       // A seated player loses by forfeit; the next in line sits down (RoomDuels.js).
       duelPlayerLeft(room, playerId);
       return;

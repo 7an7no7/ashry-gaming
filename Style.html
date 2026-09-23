@@ -13827,4 +13827,297 @@ input.ch-elo[type="range"]:focus-visible { outline: 3px solid var(--accent); out
   .ch-progress__bar { transition: none; }
 }
 
+/* ==========================================================================
+   33. THE DUELS' TOURNAMENT · إكس أو IN ROOMS (23 Sep 2026)
+   JS_RoomTournament.html and JS_RoomXO.html. The bracket is a column a round
+   (in the page's direction: in Arabic the first round is on the right and the
+   final on the left), each round's matches in pairs so a bracket line joins
+   the two to the match they feed (.tour-pair::after, the next match's
+   ::before); a pair's two matches sit at a quarter and three quarters of its
+   height (space-around, margins not gaps, so the lines meet exactly). A match
+   being played wears a red LIVE tag, one about to start its countdown; the
+   winner of a match is ticked, the loser crossed out, the champion crowned.
+   The TV is the bracket beside the matches being played, each a small live
+   board; the podium is the app's own (.podium) with a fourth place.
+   ========================================================================== */
+
+/* --- إكس أو in a room: the one-phone game's squares between the duels' pills --- */
+.xo-game { --duel-c1: var(--accent); --duel-c2: var(--danger); }
+.duel .xo-board, .duel-tv .xo-board, .tour-mini__board .xo-board { width: 100%; margin: 0; container-type: inline-size; }
+.duel .xo-cell, .duel-tv .xo-cell { font-size: 20cqw; }
+/* Three squares and their gaps: a little under the stage's height, or the TV's stage scrolls. */
+.duel-tv.xo-game .duel-tv__board { width: min(calc(var(--app-h, 100vh) - 22vmin), 60vw); }
+.xo-chip { display: inline-grid; place-items: center; width: 1.75rem; font-family: var(--font-display); font-size: 1.35rem; font-weight: var(--fw-black); line-height: 1; }
+.xo-chip.is-x { color: var(--accent-ink); }
+.xo-chip.is-o { color: var(--danger-ink); }
+.xo-rule--room { margin: var(--sp-2) 0 0; }
+/* A mark lands with a small bounce; the winning line lights one square at a time. */
+.xo-cell.is-new { animation: xo-land 420ms var(--ease-spring) both; }
+@keyframes xo-land { from { transform: scale(0.35); opacity: 0.25; } 60% { transform: scale(1.1); opacity: 1; } to { transform: none; opacity: 1; } }
+.xo-board.is-lighting .xo-cell.is-win { animation: xo-win 520ms var(--ease-spring) both; animation-delay: calc(var(--k, 0) * 160ms); }
+@keyframes xo-win { 0% { transform: scale(1); } 45% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-room-xo { max-width: 72rem; }
+}
+
+/* --- the places a match's screen keeps for the tournament --- */
+[data-tour-strip]:empty, [data-tour-over]:empty { display: none; }
+.duel-layout__side > [data-tour-over] { order: -1; }
+
+.tour { display: flex; flex-direction: column; gap: var(--sp-3); }
+.tour-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-2); }
+.tour-head__icon { font-size: 1.75rem; line-height: 1; }
+.tour-head__title { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: var(--fw-black); color: var(--text-strong); }
+
+/* Where this phone stands: its next match and the countdown, waiting, out, or watching. */
+.tour-me {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  text-align: center;
+}
+.tour-me--next { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface-solid)); }
+.tour-me__round { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--accent-ink); }
+.tour-me__line { font-weight: var(--fw-bold); color: var(--text-strong); }
+.tour-me .btn { margin-top: var(--sp-1); }
+.tour-count { font-variant-numeric: tabular-nums; font-weight: var(--fw-bold); color: var(--accent-ink); }
+
+/* The matches being played, to watch: a row of chips that scrolls sideways. */
+.tour-live-row { display: flex; align-items: center; gap: var(--sp-2); overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.tour-live-row::-webkit-scrollbar { display: none; }
+.tour-live-row__label { flex: none; display: inline-flex; align-items: center; gap: 0.375rem; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-3); }
+.tour-dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--danger); animation: tour-pulse 1.4s ease-in-out infinite; }
+@keyframes tour-pulse { 50% { opacity: 0.35; transform: scale(0.8); } }
+.tour-chip {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 2.75rem;
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.tour-chip.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.tour-chip__round { font-size: var(--fs-xs); font-weight: var(--fw-semi); color: var(--text-3); }
+.tour-chip__vs { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-strong); white-space: nowrap; }
+.tour-chip__vs em, .tour-strip em, .tour-live__vs em, .tour-soon em { margin-inline: 0.25rem; font-style: normal; font-weight: var(--fw-med); color: var(--text-3); }
+
+/* --- the bracket --- */
+.tour-bracket-wrap { overflow-x: auto; margin-inline: calc(-1 * var(--sp-2)); padding: var(--sp-2) var(--sp-2) var(--sp-1); }
+.tour-bracket {
+  --tour-gap: 0.9rem;
+  --tour-w: 6.5rem;
+  --tour-line: var(--border-strong);
+  display: grid;
+  grid-template-columns: repeat(var(--tour-rounds, 3), minmax(var(--tour-w), 1fr));
+  column-gap: var(--tour-gap);
+  min-width: min-content;
+}
+.tour-col { display: flex; flex-direction: column; min-width: 0; }
+.tour-col__title { margin-bottom: var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-3); text-align: center; white-space: nowrap; }
+.tour-col--final .tour-col__title { color: var(--accent-ink); }
+.tour-col__body { flex: 1; display: flex; flex-direction: column; }
+.tour-pair { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: space-around; }
+/* The line from a pair's two matches to the match they feed. */
+.tour-pair.is-pair::after {
+  content: '';
+  position: absolute;
+  inset-block: 25%;
+  inset-inline-end: calc(-0.5 * var(--tour-gap));
+  width: calc(0.5 * var(--tour-gap));
+  border: 2px solid var(--tour-line);
+  border-inline-start: 0;
+  border-start-end-radius: 0.5rem;
+  border-end-end-radius: 0.5rem;
+  pointer-events: none;
+}
+.tour-col:not(:first-child) .tour-m::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  inset-inline-start: calc(-0.5 * var(--tour-gap) - 1px);
+  width: calc(0.5 * var(--tour-gap));
+  border-top: 2px solid var(--tour-line);
+  pointer-events: none;
+}
+.tour-m {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-block: var(--sp-2);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+button.tour-m { cursor: pointer; }
+button.tour-m:active { transform: scale(0.98); }
+.tour-m.is-mine { border-color: var(--accent); }
+.tour-m.is-play { border-color: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent), var(--sh-1); }
+.tour-m.is-watching { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tour-m.is-bye { box-shadow: none; background: var(--surface-2); }
+.tour-m__row { display: flex; align-items: center; gap: 0.25rem; min-height: 1.875rem; padding: 0.125rem 0.5rem; font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--text); }
+.tour-m__row + .tour-m__row { border-top: 1px solid var(--border); }
+.tour-m__row:first-child { border-start-start-radius: inherit; border-start-end-radius: inherit; }
+.tour-m__row:nth-child(2) { border-end-start-radius: inherit; border-end-end-radius: inherit; }
+.tour-m__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tour-m__row.is-me .tour-m__name { color: var(--accent-ink); }
+.tour-m__row.is-won { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--text-strong); font-weight: var(--fw-black); }
+.tour-m__row.is-out { color: var(--text-3); }
+.tour-m__row.is-out .tour-m__name { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.tour-m__row.is-champ { background: color-mix(in srgb, var(--warning) 26%, transparent); }
+.tour-m__tick { flex: none; font-weight: var(--fw-black); color: var(--success-ink); }
+.tour-m__empty { font-weight: var(--fw-med); color: var(--text-3); }
+.tour-m__crown { display: inline-block; margin-inline-end: 0.25rem; animation: tour-crown 900ms var(--ease-spring) both; }
+@keyframes tour-crown { from { transform: translateY(-0.6rem) scale(0.2) rotate(-25deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.tour-m__badge { position: absolute; z-index: 1; inset-block-start: -0.6rem; inset-inline-end: 0.375rem; display: flex; pointer-events: none; }
+.tour-m__live, .tour-m__soon, .tour-m__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.4rem;
+  border-radius: var(--r-full);
+  font-size: 0.625rem;
+  font-weight: var(--fw-black);
+  line-height: 1.1rem;
+  white-space: nowrap;
+}
+.tour-m__live { background: var(--danger-btn); color: var(--danger-on); }
+.tour-m__live i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: currentColor; animation: tour-pulse 1.4s ease-in-out infinite; }
+.tour-m__soon, .tour-m__note { border: 1px solid var(--border); background: var(--surface-3); color: var(--text-2); }
+.tour-m__soon .tour-count { color: inherit; }
+
+/* A name flying into the bracket: the draw, and a winner going through. */
+.tour-ghost {
+  position: fixed;
+  z-index: var(--z-fx-ghost);
+  display: flex;
+  align-items: center;
+  padding-inline: 0.5rem;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--accent-on);
+  box-shadow: var(--sh-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-black);
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tour-ghost__name { overflow: hidden; text-overflow: ellipsis; }
+.tour-hold { visibility: hidden; }
+
+/* --- a match's screen: the round, the other matches, the bracket; after a game, what comes next --- */
+.tour-strip { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-solid); }
+.tour-strip__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-1) var(--sp-2); }
+.tour-strip__round { font-weight: var(--fw-black); color: var(--accent-ink); }
+.tour-strip__watch { font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--text-2); }
+.tour-strip__btns { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.tour-over-card__head { margin: 0; font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--fw-black); color: var(--text-strong); }
+.tour-over-card__next { margin: var(--sp-2) 0; font-weight: var(--fw-semi); color: var(--text); }
+.tour-over-card { animation: tour-card-in 420ms var(--ease-spring) both; }
+@keyframes tour-card-in { from { opacity: 0; transform: translateY(0.5rem) scale(0.96); } }
+
+/* --- the end: the champion, the podium of four, the points --- */
+.tour-over { display: flex; flex-direction: column; gap: var(--sp-3); text-align: center; }
+.tour-champ { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: var(--fw-black); color: var(--accent-ink); }
+.tour-podium .podium__place { max-width: 6.5rem; }
+.tour-podium__label { font-size: var(--fs-xs); font-weight: var(--fw-semi); color: var(--text-3); }
+.tour-points-hint { margin-top: calc(-1 * var(--sp-2)); text-align: center; }
+
+/* --- the lobby switch --- */
+.tour-lobby { margin-top: var(--sp-3); }
+
+@media (min-width: 900px) and (min-height: 501px) {
+  .tour-bracket { --tour-w: 9rem; --tour-gap: 1.5rem; }
+  .tour-bracket-wrap { margin-inline: 0; }
+}
+
+/* --- the TV: the bracket, and beside it the matches being played --- */
+.tour-tv { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: center; gap: calc(var(--tv-gap) * 2); }
+.tour-tv.is-over { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+.tour-tv__main { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); }
+.tour-tv__title { font-family: var(--font-display); font-size: var(--tv-lg); font-weight: 900; color: var(--text-strong); text-align: center; }
+.tour-tv__side { min-width: 0; max-height: 100%; display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); overflow: hidden; }
+.tour-tv__side > .tv-scale { width: 100%; }
+.tour-tv__stage { text-align: center; }
+.tour-tv__hint { margin: 0; font-size: var(--tv-xs); color: var(--text-3); text-align: center; }
+.tour-bracket--tv { --tour-gap: 3vmin; --tour-w: 0px; }
+.tour-bracket--tv .tour-col__title { font-size: 2vmin; margin-bottom: 1vmin; }
+.tour-bracket--tv .tour-m { margin-block: 0.9vmin; border-radius: 1.2vmin; }
+.tour-bracket--tv .tour-m__row { min-height: 4.2vmin; padding: 0.3vmin 1vmin; font-size: 2.2vmin; }
+.tour-bracket--tv .tour-m__live, .tour-bracket--tv .tour-m__soon, .tour-bracket--tv .tour-m__note { font-size: 1.4vmin; line-height: 2.4vmin; padding: 0 0.8vmin; }
+.tour-bracket--tv .tour-m__badge { inset-block-start: -1.3vmin; }
+.tour-bracket--tv[style*="--tour-rounds:4"] .tour-m__row { min-height: 2.9vmin; font-size: 1.7vmin; }
+.tour-bracket--tv[style*="--tour-rounds:4"] .tour-m { margin-block: 0.5vmin; }
+.tour-tv__live { display: grid; grid-template-columns: repeat(auto-fit, minmax(22vmin, 1fr)); gap: var(--tv-gap); }
+.tour-live {
+  display: flex;
+  flex-direction: column;
+  gap: 1vmin;
+  padding: 1.4vmin;
+  border: 1px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+button.tour-live { cursor: pointer; }
+.tour-live__head { display: flex; align-items: center; justify-content: space-between; gap: 1vmin; font-size: 1.7vmin; font-weight: 700; color: var(--text-3); }
+.tour-live__status { display: inline-flex; align-items: center; gap: 0.6vmin; color: var(--danger-ink); }
+.tour-live__vs { display: flex; align-items: center; justify-content: center; gap: 0.6vmin; font-size: 2.3vmin; font-weight: 900; color: var(--text-strong); }
+.tour-live__who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tour-live__who.is-turn { color: var(--accent-ink); }
+.tour-mini__board { width: 100%; max-width: 24vmin; margin-inline: auto; pointer-events: none; }
+.tour-tv__live > :nth-child(n+5) .tour-mini__board, .tour-tv__live:has(> :nth-child(5)) .tour-mini__board { max-width: 15vmin; }
+.tour-mini__board .xo-cell { font-size: 20cqw; border-radius: 0.8vmin; box-shadow: none; }
+.tour-mini__board .xo-board { gap: 0.6vmin; }
+.tour-mini__count { display: flex; align-items: baseline; justify-content: center; gap: 2vmin; font-size: 1.8vmin; color: var(--text-3); }
+.tour-mini__count span { display: flex; align-items: baseline; gap: 0.6vmin; }
+.tour-mini__count b { font-size: 4.5vmin; color: var(--text-strong); }
+.tour-mini__count i { font-style: normal; }
+.tour-tv__soon { display: flex; flex-direction: column; gap: 1vmin; }
+.tour-soon { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1vmin; padding: 1vmin 1.4vmin; border: 1px dashed var(--border-strong); border-radius: var(--tv-r); font-size: 2vmin; }
+.tour-soon span:first-child { color: var(--text-3); font-weight: 700; }
+.tour-podium--tv { gap: var(--tv-gap); }
+.tour-podium--tv .podium__place { max-width: 22vmin; }
+.tour-podium--tv .podium__name { font-size: var(--tv-sm); }
+.tour-podium--tv .podium__medal { font-size: var(--tv-lg); }
+.tour-podium--tv .tour-podium__label { font-size: var(--tv-xs); }
+.tour-podium--tv .podium__place--rank1 .podium__block { height: 16vmin; }
+.tour-podium--tv .podium__place--rank2 .podium__block { height: 11vmin; }
+.tour-podium--tv .podium__place--rank3 .podium__block { height: 7.5vmin; }
+.tour-podium--tv .podium__block { font-size: var(--tv-md); }
+.tour-tv .tour-champ { font-size: var(--tv-lg); text-align: center; }
+.tour-tv .tour-strip, .duel-tv .tour-strip--tv { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; }
+.tour-strip--tv { display: flex; gap: var(--sp-2) var(--sp-3); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-solid); font-size: var(--fs-sm); }
+.tour-strip--tv .tour-strip__more { color: var(--text-3); font-weight: 700; }
+@media (orientation: portrait) {
+  .tour-tv, .tour-tv.is-over { grid-template-columns: minmax(0, 1fr); height: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xo-cell.is-new, .xo-board.is-lighting .xo-cell.is-win, .tour-dot, .tour-m__live i, .tour-m__crown, .tour-over-card { animation: none; }
+}
+
 </style>

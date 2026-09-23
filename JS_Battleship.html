@@ -2143,12 +2143,12 @@ function bsRoomRandom() {
 }
 
 function bsRoomReady() {
-  const state = Room.state;
+  const state = duelRoomState();
   if (!state || state.game !== 'battleship') return;
   const fleet = bsRoomDraft(state);
   if (!fleet || bsFleetProblem(fleet)) return;
   haptic('medium');
-  roomAct('place', { fleet: fleet });
+  duelAct('place', { fleet: fleet });
 }
 
 function bsRoomRedraw() {
@@ -2168,7 +2168,7 @@ function bsRoomAimOf(state) {
 
 /** A tap on the other sea: aim there, or fire where you aimed. */
 function bsRoomTap(cell) {
-  const state = Room.state;
+  const state = duelRoomState();
   if (!state || state.game !== 'battleship') return;
   const s = state.shared;
   const seat = bsRoomSeat(state);
@@ -2186,7 +2186,7 @@ function bsRoomTap(cell) {
  * server's answer lands it - nothing waits on the round trip.
  */
 function bsRoomFire() {
-  const state = Room.state;
+  const state = duelRoomState();
   if (!state || state.game !== 'battleship') return;
   const s = state.shared;
   const seat = bsRoomSeat(state);
@@ -2201,9 +2201,9 @@ function bsRoomFire() {
   if (bsView.r && bsView.r.launch) bsView.r.launch(1, cell);
   haptic('medium');
   bsRoomRedraw();
-  Promise.resolve(roomAct('fire', { cell: cell, seq: s.turnSeq })).then(() => {
+  Promise.resolve(duelAct('fire', { cell: cell, seq: s.turnSeq })).then(() => {
     if (bsRoomLocal.sent === stamp) bsRoomLocal.sent = '';
-    const st = Room.state;
+    const st = duelRoomState();
     // Refused (or gone): the shell in the air never lands, and the page says so no longer.
     if (bsRoomLocal.flying === expect && !(st && st.game === 'battleship' && [st.code, st.shared.round, st.shared.shots].join('|') === expect)) {
       bsRoomLocal.flying = '';
@@ -2340,7 +2340,7 @@ function bsRoomBarHtml(state, flying) {
   if (seat === -1) return duelRoomWatchNote(state, t);
   if (s.phase === 'place') {
     if (s.ready[seat]) {
-      return `<button type="button" class="btn btn--ghost btn--sm" onclick="roomAct('unready')">${escapeHTML(bsT('bs_unready'))}</button>`;
+      return `<button type="button" class="btn btn--ghost btn--sm" onclick="duelAct('unready')">${escapeHTML(bsT('bs_unready'))}</button>`;
     }
     return `<p class="bs-bar__say">${escapeHTML(bsT('bs_place_hint'))}</p>
       <div class="btn-row">
@@ -2373,7 +2373,7 @@ function bsHostRow(state, tv) {
   });
   if (!quiet) return '';
   const label = '⏭️ ' + bsT(s.phase === 'place' ? 'bs_sail_for' : 'bs_play_for');
-  const press = `roomAct('skipTurn', { seq: ${Number(s.turnSeq) || 0} })`;
+  const press = `duelAct('skipTurn', { seq: ${Number(s.turnSeq) || 0} })`;
   return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
 }
 
@@ -2405,7 +2405,7 @@ function bsTickClock(state) {
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
     onTick: () => {
       const left = paint();
-      const st = Room.state;
+      const st = duelRoomState();
       if (!st || st.game !== 'battleship') return;
       const sh = st.shared || {};
       const seat = bsRoomSeat(st);

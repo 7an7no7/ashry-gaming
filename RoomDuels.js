@@ -1,5 +1,5 @@
 /* ==========================================================================
-   كونكت ٤ · نقط ومربعات — THE DUELS IN ROOMS: WINNER STAYS ON
+   كونكت ٤ · نقط ومربعات · إكس أو — THE DUELS IN ROOMS: WINNER STAYS ON
    --------------------------------------------------------------------------
    Two games for two, played by a whole room: two sit down, everyone else
    watches on their phones or the TV, and after each game the loser goes to
@@ -30,6 +30,13 @@
      scores / board   wins so far, best first: the night's leaderboard banks it
      connect4:  mode (4 | 5 in a row), cols, rows, n, grid, win (the lit cells), last { seat, col, row }
      dots:      size (4 | 6 | 8), lines, boxes, count [seat 0, seat 1], last { seat, edge, boxes }
+     xo:        three (the lobby's switch), rule3 (this game's), cells (the 9 squares: board is the
+                scoreboard here), order { X, O }, win, last { seat, cell, gone }
+
+   A room of four people or more may play a knockout tournament instead
+   (RoomTournament.js, the owner's decision of 23 Sep 2026): duelAction hands
+   every action to tourAction first, which runs each match's board through
+   these same DUEL_KINDS.
 
    Decided for the owner (21 Sep 2026): a draw keeps the champion in the seat
    and sends the challenger to the back, like a loss; a seated player who
@@ -74,6 +81,29 @@ const DUEL_KINDS = {
       s.last = { seat: seat, edge: res.edge, boxes: res.boxes };
       if (res.over) return { end: true, winner: c[1] > c[2] ? 0 : (c[2] > c[1] ? 1 : null), reason: 'boxes' };
       return { end: false, again: res.again };
+    }
+  },
+  // إكس أو in rooms (23 Sep 2026): seat 0 is X and moves first; the lobby's
+  // "3 marks only" switch (the owner's rule of 22 Sep 2026) is `three`, and a
+  // game keeps the rule it was dealt with (`rule3`). The rules are TicTacToe.js.
+  xo: {
+    options: (payload, prev) => ({ three: payload && typeof payload.three === 'boolean' ? payload.three : !!(prev || {}).three }),
+    deal: (s) => {
+      s.cells = ['', '', '', '', '', '', '', '', ''];
+      s.order = { X: [], O: [] };
+      s.rule3 = !!s.three;
+      s.win = [];
+    },
+    move: (s, payload, seat) => {
+      const mark = seat === 0 ? 'X' : 'O';
+      const cell = Number(payload && payload.cell);
+      const placed = xoMark(s.cells, s.order, s.rule3, cell, mark);
+      if (!placed) throw new Error('المربع ده مش فاضي');
+      s.last = { seat: seat, cell: cell, gone: placed.gone };
+      const w = xoWinner(s.cells);
+      if (w && w.mark !== 'D') { s.win = w.line; return { end: true, winner: seat, reason: 'line' }; }
+      if (w) return { end: true, winner: null, reason: 'full' };
+      return { end: false, again: false };
     }
   }
 };
@@ -170,6 +200,8 @@ const duelDeal = (room, kind) => {
 };
 
 const duelAction = (room, playerId, action, payload, kind) => {
+  // A knockout tournament (RoomTournament.js) runs the same boards, one per match.
+  if (tourAction(room, playerId, action, payload, kind)) return;
   const k = DUEL_KINDS[kind];
   if (action === 'start') {
     requireHost(room, playerId);
@@ -224,6 +256,7 @@ const duelAction = (room, playerId, action, payload, kind) => {
 
 const connect4Action = (room, playerId, action, payload) => duelAction(room, playerId, action, payload, 'connect4');
 const dotsAction = (room, playerId, action, payload) => duelAction(room, playerId, action, payload, 'dots');
+const xoRoomAction = (room, playerId, action, payload) => duelAction(room, playerId, action, payload, 'xo');
 
 /**
  * Someone left. Out of the line; a seated player mid-game loses by forfeit and

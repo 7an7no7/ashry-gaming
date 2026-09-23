@@ -19,8 +19,7 @@
    with (x.rule3), and x.order is each side's marks, oldest first.
    ========================================================================= */
 
-const XO_LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
-const XO_KEEP = 3;          // marks a side keeps with the 3-marks rule
+// XO_LINES, XO_KEEP, xoWinner and xoMark are TicTacToe.js, shared with the rooms server.
 let xoPhoneTimer = null;
 let xoGone = null;          // the mark a move just took off, for its fade: { cell, mark }
 
@@ -90,14 +89,6 @@ function xoNewRound() {
 
 const xoOther = (m) => (m === 'X' ? 'O' : 'X');
 
-function xoWinner(board) {
-  for (const line of XO_LINES) {
-    const [a, b, c] = line;
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) return { mark: board[a], line: line };
-  }
-  return board.every(Boolean) ? { mark: 'D', line: null } : null;
-}
-
 function xoPlay(i) {
   const x = xoState();
   if (x.phase !== 'play' || x.board[i]) return;
@@ -107,17 +98,10 @@ function xoPlay(i) {
 
 function xoPlace(i) {
   const x = xoState();
-  x.board[i] = x.turn;
-  if (x.rule3) {
-    // The fourth mark takes the place of this side's oldest.
-    const mine = x.order[x.turn] || (x.order[x.turn] = []);
-    mine.push(i);
-    if (mine.length > XO_KEEP) {
-      const gone = mine.shift();
-      x.board[gone] = '';
-      xoGone = { cell: gone, mark: x.turn };
-    }
-  }
+  // The fourth mark takes the place of this side's oldest (3 marks only).
+  const placed = xoMark(x.board, x.order, x.rule3, i, x.turn);
+  if (!placed) return;
+  if (placed.gone >= 0) xoGone = { cell: placed.gone, mark: x.turn };
   playSound('click');
   const result = xoWinner(x.board);
   if (result) {

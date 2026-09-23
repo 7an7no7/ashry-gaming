@@ -38,6 +38,8 @@ const ARGS = process.argv.slice(2);
 const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
 // --slow also waits out the presence clocks (a silent socket, a host away): about three minutes more.
 const SLOW = ARGS.includes('--slow');
+// --only=duels runs just the tournament and إكس أو rounds (duelTourRobots), for working on them.
+const ONLY = ((ARGS.find((a) => a.startsWith('--only=')) || '').slice(7));
 const WS_BASE = BASE.replace(/^http/, 'ws');
 
 let passed = 0;
@@ -163,9 +165,189 @@ const all = (bots, pred, label, ms) => Promise.all(bots.map((b) => b.waitFor(pre
 const byId = (bots, id) => bots.find((b) => b.pid === id);
 const leaks = (bot, text) => JSON.stringify(bot.state).indexOf(text) !== -1;
 
+/* --- إكس أو in rooms, and the duels' tournament (RoomTournament.js) ------------------------- */
+
+// A robot's move in its own match of a tournament, from what its phone sees: the match's game, and its own secret.
+const TOUR_MOVE = {
+  connect4: (b, g) => {
+    if (g.seats[g.turn] !== b.pid) return null;
+    const open = Array.from({ length: g.cols }, (_, c) => c).filter((c) => !g.grid[c]);
+    return { action: 'move', payload: { col: open[Math.floor(Math.random() * open.length)], move: g.moves } };
+  },
+  dots: (b, g) => {
+    if (g.seats[g.turn] !== b.pid) return null;
+    const free = g.lines.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
+    return { action: 'move', payload: { edge: free[Math.floor(Math.random() * free.length)], move: g.moves } };
+  },
+  xo: (b, g) => {
+    if (g.seats[g.turn] !== b.pid) return null;
+    const free = g.cells.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
+    return { action: 'move', payload: { cell: free[Math.floor(Math.random() * free.length)], move: g.moves } };
+  },
+  guesswho: (b, g) => {
+    const seat = g.seats.indexOf(b.pid);
+    const you = b.state.you || {};
+    if (g.phase !== 'play') return null;
+    if (g.stage === 'answer' && seat === 1 - g.turn) {
+      const yes = g.q && g.q.kind === 'list' ? GW.gwAnswer(g.q.qi, g.faces[you.face]) : Math.random() < 0.5;
+      return { action: 'answer', payload: { yes, seq: g.turnSeq } };
+    }
+    if (seat !== g.turn) return null;
+    if (g.stage === 'flip') return { action: 'done', payload: { seq: g.turnSeq } };
+    const up = GW.gwUp(g.faces, g.down[seat]);
+    if (up.length <= 3 || Math.random() < 0.25) return { action: 'guess', payload: { face: up[Math.floor(Math.random() * up.length)], seq: g.turnSeq } };
+    const qi = GW.gwBotQuestion(g.faces, g.down[seat], g.asked[seat], 'easy');
+    return qi < 0 ? { action: 'guess', payload: { face: up[0], seq: g.turnSeq } } : { action: 'ask', payload: { q: qi, seq: g.turnSeq } };
+  },
+  battleship: (b, g) => {
+    const seat = g.seats.indexOf(b.pid);
+    if (g.phase === 'place') return !g.ready[seat] && b.state.you && b.state.you.fleet ? { action: 'place', payload: { fleet: b.state.you.fleet } } : null;
+    if (g.phase !== 'play' || g.turn !== seat) return null;
+    const open = g.seas[1 - seat].grid.map((v, i) => (v === 0 ? i : -1)).filter((i) => i >= 0);
+    return { action: 'fire', payload: { cell: open[Math.floor(Math.random() * open.length)], seq: g.turnSeq } };
+  }
+};
+
+/** Every robot plays its own match until the tournament is over; `watch` sees each state as it goes. */
+async function playTournament(game, bots, watch, ms = 150000) {
+  const until = Date.now() + ms;
+  const seen = { together: 0 };
+  while (Date.now() < until) {
+    const t = bots[0].state && bots[0].state.shared && bots[0].state.shared.tour;
+    if (!t || t.phase === 'over') break;
+    if (t.matches.filter((m) => m.state === 'play').length > 1) seen.together++;
+    if (watch) watch(seen);
+    let moved = false;
+    for (const b of bots) {
+      const s = b.state && b.state.shared;
+      if (!s || !s.tour || b.closedWith) continue;
+      const m = s.tour.matches.find((x) => x.state === 'play' && (x.seats || []).indexOf(b.pid) !== -1);
+      const g = m && s.games[m.id];
+      if (!g) continue;
+      const mv = TOUR_MOVE[game](b, g, m);
+      if (!mv) continue;
+      moved = true;
+      await b.act(mv.action, Object.assign({ match: m.id, mg: m.games }, mv.payload));
+    }
+    if (!moved) await sleep(120);
+  }
+  return seen;
+}
+
+async function duelTourRobots() {
+  console.log('• إكس أو in a room (winner stays, 3 marks only)');
+  {
+    const H = await Bot.host('هالة', null);
+    const J = await Bot.join(H.code, 'جميل');
+    const K = await Bot.join(H.code, 'كمال');
+    const xoBots = [H, J, K];
+    await H.must('chooseGame', { game: 'xo' });
+    await H.must('start', { three: true });
+    await all(xoBots, (s) => s.game === 'xo' && s.shared.phase === 'play' && s.shared.cells.length === 9 && s.shared.rule3 === true && s.shared.line.length === 1,
+              'xo: two sit down on an empty board with 3 marks only, one waits in line');
+    const first = byId(xoBots, H.state.shared.seats[0]);
+    const second = byId(xoBots, H.state.shared.seats[1]);
+    const watcher = xoBots.find((b) => b !== first && b !== second);
+    check((await watcher.act('move', { cell: 0, move: 0 })).ok === false, 'xo: someone waiting in line cannot move');
+    let mv = 0;
+    const mark = async (bot, cell) => { await bot.must('move', { cell, move: mv }); mv++; };
+    for (const [bot, cell] of [[first, 0], [second, 3], [first, 1], [second, 4], [first, 8], [second, 7]]) await mark(bot, cell);
+    check((await first.act('move', { cell: 0, move: mv })).ok === false, 'xo: the new mark can\'t go where the oldest still stands');
+    await mark(first, 2);
+    await all(xoBots, (s) => s.shared.cells[0] === '' && s.shared.cells[2] === 'X' && s.shared.last.gone === 0,
+              'xo: a fourth mark takes the oldest off, on every phone');
+    for (let guard = 0; guard < 80 && H.state.shared.phase === 'play'; guard++) {
+      const s = H.state.shared;
+      const free = s.cells.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
+      const bot = byId(xoBots, s.seats[s.turn]);
+      await bot.act('move', { cell: free[Math.floor(Math.random() * free.length)], move: s.moves });
+      await sleep(20);
+    }
+    await all(xoBots, (s) => s.shared.phase === 'over' && !s.shared.result.draw && s.shared.win.length === 3,
+              'xo: with 3 marks only it ends on a line');
+    await watcher.must('nextRound', { round: H.state.shared.round });
+    await all(xoBots, (s) => s.shared.phase === 'play' && s.shared.round === 2 && s.shared.seats[0] === watcher.pid,
+              'xo: the next in line sits down against the winner and plays X');
+    await H.must('backToHub');
+    xoBots.forEach((b) => b.close());
+  }
+
+  for (const game of ['connect4', 'dots', 'xo', 'guesswho', 'battleship']) {
+    console.log(`• ${game}: a tournament of five (byes, matches at once, the bracket, a podium)`);
+    const names = ['نادر', 'Lina', 'سمير', 'Tarek', 'هبة'];
+    const H = await Bot.host(names[0], null);
+    const bots = [H];
+    for (const n of names.slice(1)) bots.push(await Bot.join(H.code, n));
+    const S = await Bot.join(H.code, '', true);
+    await H.must('chooseGame', { game });
+    const opts = { connect4: { mode: 4 }, dots: { size: 4 }, xo: { three: false }, guesswho: { size: 16 }, battleship: {} }[game];
+    // Four people or more: the tournament; the host alone starts it.
+    check((await bots[1].act('start', Object.assign({ tournament: true }, opts))).ok === false, `${game}: only the host starts a tournament`);
+    await H.must('start', Object.assign({ tournament: true }, opts));
+    await all(bots.concat([S]), (s) => s.game === game && s.shared.tour && s.shared.tour.size === 8 && s.shared.tour.rounds === 3 &&
+                                        s.shared.tour.matches.filter((m) => m.r === 1 && (m.out[0] || m.out[1])).length === 3,
+              `${game}: five people: a bracket of eight, three byes, on every phone and the TV`);
+    check(S.state.you === null, `${game}: the TV holds no secret`);
+    let wrongYou = false;
+    let late = null;
+    const seen = await playTournament(game, bots, () => {
+      for (const b of bots) {
+        const you = b.state && b.state.you;
+        if (!you) continue;
+        const m = b.state.shared.tour.matches.find((x) => x.id === you.tm);
+        if (!m || (m.seats || m.p).indexOf(b.pid) === -1) wrongYou = true;
+      }
+    });
+    check(seen.together > 0, `${game}: two matches are played at the same time`);
+    check(!wrongYou, `${game}: a phone holds a secret only of the match it is playing`);
+    await all(bots.concat([S]), (s) => s.shared.tour.phase === 'over' && !!s.shared.tour.champion && s.phase === 'over',
+              `${game}: the final ends the tournament, with a champion, on every screen`, 20000);
+    const t = H.state.shared.tour;
+    check(H.state.shared.board[0].id === t.champion && H.state.shared.board[0].score === 3 && H.state.shared.scores[t.runnerUp] === 2 &&
+          t.semis.length === 2 && t.semis.every((id) => H.state.shared.scores[id] === 1),
+          `${game}: the champion 3, the runner-up 2, the two semi-finalists 1`);
+    if (game === 'connect4') {
+      // Someone joins now: they watch, and are in the next tournament.
+      late = await Bot.join(H.code, 'متأخر');
+      await late.waitFor((s) => s.shared.tour && s.inGame === false, 'connect4: someone who joins after the draw watches the tournament');
+      await H.must('tourNew', { mode: 'tour', round: H.state.shared.round });
+      await all(bots.concat([late]), (s) => s.shared.tour.no === 2 && s.shared.tour.phase === 'play' && s.shared.tour.entrants.length === 6 &&
+                                           s.shared.scores[t.champion] === 3,
+                `connect4: a new tournament: a new draw with everyone in the room, the points kept`);
+      // A player of a match about to start leaves: the other goes through.
+      const t2 = H.state.shared.tour;
+      // (Not the last champion, whose points are checked on the night's leaderboard below.)
+      const m = t2.matches.find((x) => x.state === 'ready' && x.p.indexOf(H.pid) === -1 && x.p.some((id) => id !== t.champion));
+      const leaverId = m.p.find((id) => id !== t.champion);
+      const stays = m.p.find((id) => id !== leaverId);
+      const leaver = byId(bots.concat([late]), leaverId);
+      await api('/leave', { code: H.code, pid: leaver.pid, key: leaver.key });
+      leaver.close();
+      await H.waitFor((s) => { const x = s.shared.tour.matches.find((y) => y.id === m.id); return x.state === 'done' && x.winner === stays && x.reason === 'left'; },
+                      'connect4: a player who leaves before their match hands it over');
+      await H.must('backToHub');
+      await H.waitFor((s) => s.phase === 'lobby' && (s.night[t.champion] || 0) === 3, 'connect4: the tournament\'s points go on the night\'s leaderboard');
+    } else if (game === 'dots') {
+      await H.must('tourNew', { mode: 'stay', round: H.state.shared.round });
+      await all(bots, (s) => !s.shared.tour && s.shared.phase === 'play' && s.shared.seats.length === 2 && s.shared.line.length === 3,
+                'dots: back to winner stays after a tournament');
+      await H.must('backToHub');
+    } else {
+      await H.must('backToHub');
+    }
+    bots.concat([S, late]).filter(Boolean).forEach((b) => b.close());
+  }
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
+  if (ONLY === 'duels') {
+    await duelTourRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
 
   /* --- room basics ------------------------------------------------------- */
   console.log('• room: create, join, presence, keys');
@@ -4035,6 +4217,8 @@ async function main() {
     await H.must('backToHub');
     omBots.concat([S]).forEach((b) => b.close());
   }
+
+  await duelTourRobots();
 
   console.log('• prompt memory shared between rooms');
   const H = await Bot.host('H', 'codenames');

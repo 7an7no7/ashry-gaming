@@ -286,7 +286,7 @@ function gwBarHtml(state, seat) {
   }
   if (s.stage === 'flip') {
     return `<p class="gw-bar__say">${escapeHTML(gwT('gw_flip_now'))}</p>
-      <button type="button" class="btn btn--primary btn--lg" onclick="roomAct('done', { seq: ${seq} })">${escapeHTML(gwT('gw_done'))}</button>`;
+      <button type="button" class="btn btn--primary btn--lg" onclick="duelAct('done', { seq: ${seq} })">${escapeHTML(gwT('gw_done'))}</button>`;
   }
   if (gwLocal.panel === 'ask') {
     const asked = s.asked[seat] || [];
@@ -320,7 +320,7 @@ function gwBarHtml(state, seat) {
   return `<div class="gw-bar__row ${vsBot ? '' : 'gw-bar__row--four'}">
       <button type="button" class="btn btn--primary" onclick="gwPanel('ask')">${escapeHTML(gwT('gw_ask'))}</button>
       ${vsBot ? '' : `<button type="button" class="btn btn--secondary" onclick="gwPanel('typed')">${escapeHTML(gwT('gw_typed'))}</button>
-      <button type="button" class="btn btn--secondary" onclick="roomAct('loud', { seq: ${seq} })">${escapeHTML(gwT('gw_loud'))}</button>`}
+      <button type="button" class="btn btn--secondary" onclick="duelAct('loud', { seq: ${seq} })">${escapeHTML(gwT('gw_loud'))}</button>`}
       <button type="button" class="btn btn--secondary" onclick="gwPanel('guess')">${escapeHTML(gwT('gw_guess'))}</button>
     </div>`;
 }
@@ -349,7 +349,7 @@ function gwAnswerCardHtml(state, seat) {
 
 /** Yes or no. A list answer that doesn't match this phone's face is stopped here: look again. */
 function gwSendAnswer(yes) {
-  const state = Room.state;
+  const state = duelRoomState();
   if (!state || state.game !== 'guesswho') return;
   const s = state.shared;
   const face = (state.you || {}).face;
@@ -362,18 +362,18 @@ function gwSendAnswer(yes) {
     return;
   }
   haptic('medium');
-  roomAct('answer', { yes: yes, seq: s.turnSeq });
+  duelAct('answer', { yes: yes, seq: s.turnSeq });
 }
 
 function gwSendTyped(form) {
-  const s = (Room.state || {}).shared || {};
+  const s = (duelRoomState() || {}).shared || {};
   const input = form.querySelector('input[name="q"]');
   const text = String(input ? input.value : '').replace(/\s+/g, ' ').trim();
   if (!text) { if (input) input.focus(); return; }
   gwLocal.typed = '';
   gwLocal.panel = null;
   haptic('light');
-  roomAct('typed', { text: text, seq: s.turnSeq });
+  duelAct('typed', { text: text, seq: s.turnSeq });
 }
 
 /* --- the table's moments: the answer bubble and the guess's drum roll ------------- */
@@ -462,20 +462,20 @@ function gwPanel(p) {
 }
 
 function gwAsk(qi) {
-  const s = (Room.state || {}).shared || {};
+  const s = (duelRoomState() || {}).shared || {};
   gwLocal.panel = null;
   haptic('light');
-  roomAct('ask', { q: qi, seq: s.turnSeq });
+  duelAct('ask', { q: qi, seq: s.turnSeq });
 }
 
 function gwSendGuess() {
-  const s = (Room.state || {}).shared || {};
+  const s = (duelRoomState() || {}).shared || {};
   const face = gwLocal.guess;
   gwLocal.panel = null;
   gwLocal.guess = null;
   if (typeof face !== 'number') return;
   haptic('medium');
-  roomAct('guess', { face: face, seq: s.turnSeq });
+  duelAct('guess', { face: face, seq: s.turnSeq });
 }
 
 function gwSendPick() {
@@ -483,12 +483,12 @@ function gwSendPick() {
   gwLocal.pick = null;
   if (typeof face !== 'number') return;
   haptic('medium');
-  roomAct('pick', { face: face });
+  duelAct('pick', { face: face });
 }
 
 /** A tap on a face: choosing one to guess or to hide, or putting it down (or back up) by hand. */
 function gwTapFace(card) {
-  const state = Room.state;
+  const state = duelRoomState();
   if (!state || state.game !== 'guesswho') return;
   const s = state.shared;
   const seat = (s.seats || []).indexOf(Room.me);
@@ -516,7 +516,7 @@ function gwTapFace(card) {
   const known = (gwLocal.down[key] || s.down[seat]).filter(x => x !== i);
   gwLocal.down[key] = isDown ? known : known.concat([i]);
   haptic('light');
-  roomAct('flip', { face: i, down: !isDown });
+  duelAct('flip', { face: i, down: !isDown });
 }
 
 /* --- the lobby: the host's choices, remembered on their phone ----------------- */
@@ -572,7 +572,7 @@ function gwTickClock(state) {
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
     onTick: () => {
       const left = paint();
-      const st = Room.state;
+      const st = duelRoomState();
       const mine = st && st.game === 'guesswho' && (st.shared.seats || [])[st.shared.turn] === Room.me;
       if (left > 0 && left <= 5 && (st && (st.youAreScreen || mine))) playSound('tick');
     },
@@ -594,7 +594,7 @@ function gwHostRow(state, tv) {
   });
   if (!quiet) return '';
   const label = '⏭️ ' + gwT('gw_play_for');
-  const press = `roomAct('skipTurn', { seq: ${Number(s.turnSeq) || 0} })`;
+  const press = `duelAct('skipTurn', { seq: ${Number(s.turnSeq) || 0} })`;
   return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
 }
 

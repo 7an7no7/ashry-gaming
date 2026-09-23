@@ -265,6 +265,8 @@ const gwNewRoomGame = (room, playerId, payload) => {
 
 const guessWhoAction = (room, playerId, action, payload) => {
   const p = payload || {};
+  // A knockout tournament (RoomTournament.js) runs these same rules, one board per match.
+  if (tourAction(room, playerId, action, payload, 'guesswho')) return;
   if (action === 'start') { gwNewRoomGame(room, playerId, p); return; }
 
   const s = room.shared;

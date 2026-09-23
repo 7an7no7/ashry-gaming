@@ -162,6 +162,8 @@ const bsNewRoomGame = (room, playerId, payload) => {
 
 const battleshipAction = (room, playerId, action, payload) => {
   const p = payload || {};
+  // A knockout tournament (RoomTournament.js) runs these same rules, one board per match.
+  if (tourAction(room, playerId, action, payload, 'battleship')) return;
   if (action === 'start') { bsNewRoomGame(room, playerId, p); return; }
 
   const s = room.shared;

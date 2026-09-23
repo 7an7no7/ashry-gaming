@@ -1,0 +1,209 @@
+<script>
+/* ============================================================================
+   إكس أو in rooms and on the TV (23 Sep 2026)
+   ----------------------------------------------------------------------------
+   The owner brought X-O into rooms with the tournament: a room duel like
+   كونكت ٤ (xoRoomAction in RoomDuels.js, DUEL_KINDS.xo) - winner stays on, or
+   a knockout for four or more (RoomTournament.js). The rules are
+   TicTacToe.js, the page's and the server's one copy (xoMark, xoWinner); the
+   look is the one-phone game's (the .xo-board and .xo-cell of JS_XO.html),
+   between the duels' pills; the line, the result and the next game are the
+   duels' own (JS_RoomConnect4.html). Seat 0 is X and moves first.
+
+   "3 marks only" is the host's lobby switch, off by default and remembered
+   with the one-phone game's (appState.xo.three). A game keeps the rule it was
+   dealt with (shared.rule3). With it, the mark a move will take off is faded
+   on the phone of the player about to move, and only there: on the other
+   player's turn, on a watcher's phone and on the TV it looks like any mark,
+   so remembering it is part of the game (the owner's rule of 22 Sep 2026).
+
+   Motion: a mark pops in where it lands (once per move, keyed with
+   motionFirst), the mark it took off fades where it stood, the winning line
+   lights one square at a time, and your own mark lands as your finger lifts -
+   the server's board, when it comes, is the same board (duelRoomSend's early
+   step), so nothing pops twice.
+   ========================================================================= */
+
+/** The board, the one-phone game's squares. o: { playable, leaving, popKey, lighting }. */
+function xoRoomBoardHtml(s, o) {
+  o = o || {};
+  const win = s.win || [];
+  const last = s.last || null;
+  const pop = !!o.popKey && typeof motionFirst === 'function' && motionFirst(o.popKey);
+  const gone = pop && last && last.gone >= 0 ? { cell: last.gone, mark: last.seat === 0 ? 'X' : 'O' } : null;
+  return `<div class="xo-board xo-board--room ${s.phase === 'over' ? 'is-done' : ''} ${o.lighting ? 'is-lighting' : ''}" dir="ltr">
+      ${(s.cells || []).map((v, i) => {
+        const k = win.indexOf(i);
+        const cls = [v ? 'is-' + v.toLowerCase() : '', k !== -1 ? 'is-win' : '', o.leaving === i ? 'is-leaving' : '',
+          pop && last && last.cell === i ? 'is-new' : ''].join(' ');
+        return `<button type="button" class="xo-cell ${cls}" style="--k:${Math.max(0, k)}" data-xo-cell="${i}"
+            onclick="xoRoomTap(${i})" ${o.playable && !v ? '' : 'disabled'} aria-label="${i + 1}">${v || ''}${gone && gone.cell === i && !v
+              ? `<span class="xo-cell__gone is-${gone.mark.toLowerCase()}" aria-hidden="true">${gone.mark}</span>` : ''}</button>`;
+      }).join('')}
+    </div>`;
+}
+
+/** A pill's piece: the letter in its colour. */
+const xoRoomChip = (seat) => `<span class="xo-chip is-${seat === 0 ? 'x' : 'o'}" aria-hidden="true">${seat === 0 ? 'X' : 'O'}</span>`;
+
+function xoRoomPills(state, t) {
+  const s = state.shared;
+  const names = duelRoomNames(state);
+  const scores = s.scores || {};
+  const pill = (i) => ({
+    name: names[i],
+    score: scores[s.seats[i]] || 0,
+    mark: xoRoomChip(i),
+    sub: s.seats[i] === Room.me && !state.youAreScreen ? escapeHTML(t.xo_you || '') : ''
+  });
+  return duelPillsHtml({ players: [pill(0), pill(1)], turn: s.phase === 'play' ? s.turn : -1, draws: null });
+}
+
+/** The square this phone's next mark will take off (3 marks only), faded on its own turn only. */
+function xoRoomLeaving(state) {
+  const s = state.shared || {};
+  const seat = state.youAreScreen ? -1 : (s.seats || []).indexOf(Room.me);
+  if (!s.rule3 || s.phase !== 'play' || seat === -1 || seat !== s.turn) return -1;
+  const mine = (s.order || {})[seat === 0 ? 'X' : 'O'] || [];
+  return mine.length >= XO_KEEP ? mine[0] : -1;
+}
+
+function xoRoomTap(cell) {
+  const state = duelRoomState();
+  if (!state || state.game !== 'xo') return;
+  const s = state.shared;
+  if (s.phase !== 'play' || (s.seats || [])[s.turn] !== Room.me || (s.cells || [])[cell]) return;
+  duelRoomSend(state, { cell: cell }, () => xoRoomEarly(state, cell));
+}
+
+/** Your mark lands as your finger lifts; the room's board carries it on. */
+function xoRoomEarly(state, cell) {
+  const s = state.shared;
+  const seat = (s.seats || []).indexOf(Room.me);
+  const cells = (s.cells || []).slice();
+  const order = { X: ((s.order || {}).X || []).slice(), O: ((s.order || {}).O || []).slice() };
+  const placed = xoMark(cells, order, s.rule3, cell, seat === 0 ? 'X' : 'O');
+  if (!placed) return;
+  const key = ['xo', state.code, s.round].join('|') + '|' + (s.moves + 1);
+  const next = Object.assign({}, s, { cells: cells, order: order, last: { seat: seat, cell: cell, gone: placed.gone }, win: [] });
+  duelRoomDrawEarly('xo', key, xoRoomBoardHtml(next, { popKey: key }), () => {
+    if (duelOnce('snd|' + key)) duelSound('drop');
+  });
+}
+
+function setXORoomThree(on) {
+  xoState().three = !!on;
+  saveToLocal();
+  duelLobbyRedraw();
+}
+
+/** The mark sounds once per move; a win lights the line one square after another. */
+function xoRoomAfter(root, state, key, loud) {
+  const s = state.shared || {};
+  const moveKey = s.last ? key + '|' + s.moves : '';
+  if (moveKey && duelOnce('snd|' + moveKey) && loud) duelSound('drop');
+  if (s.phase === 'over' && s.win && s.win.length) {
+    const board = root.querySelector('.xo-board');
+    if (board && typeof motionFirst === 'function' && motionFirst(key + '|light')) {
+      board.classList.add('is-lighting');
+      board.dataset.revealMs = String(s.win.length * 160 + 520);
+    }
+  }
+}
+
+ROOM_GAMES.xo = {
+  // Someone who joins mid-game joins the line and watches this game (routeRoomState).
+  lateJoin: true,
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    const three = !!xoState().three;
+    return duelLobbyHtml(state, t, t.xo_rule_label || '', [[false, t.xo_rule_classic || ''], [true, t.xo_rule_three || '']], three,
+      'setXORoomThree', three ? t.xo_three_hint : '');
+  },
+  startPayload() { return { three: !!xoState().three }; },
+
+  render(state) {
+    if (appState.currentView !== 'room-xo') setView('room-xo');
+    const el = document.getElementById('view-room-xo');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const s = state.shared;
+    if (!s || !Array.isArray(s.cells)) return;
+    const seat = (s.seats || []).indexOf(Room.me);
+    const myTurn = s.phase === 'play' && seat === s.turn && !state.youAreScreen;
+    const leaving = xoRoomLeaving(state);
+    const key = ['xo', state.code, s.round].join('|');
+    const moveKey = s.last ? key + '|' + s.moves : '';
+    const sig = ['xor', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
+                 JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name).join(','),
+                 state.youAreHost, appState.lang].join('|');
+    // The move this phone already drew as the finger lifted: the room's board is the same, and doesn't pop again.
+    duelRoomEarlyFor(moveKey);
+    const rebuilt = renderRoomFrame(el, sig, () => `
+      <div class="duel xo-game">
+        <div class="duel-layout">
+          <div class="duel-layout__board" style="--duel-aspect:1">
+            ${xoRoomBoardHtml(s, { playable: myTurn, leaving: leaving, popKey: moveKey })}
+          </div>
+          <div class="duel-layout__side">
+            <div class="duel-head">
+              ${xoRoomPills(state, t)}
+              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(duelRoomStatus(state, t))}</p>
+              ${myTurn && leaving >= 0 ? `<p class="xo-rule xo-rule--room">${escapeHTML(t.xo_three_play || '')}</p>` : ''}
+            </div>
+            ${s.phase === 'over' ? duelRoomOverHtml(state, t) : duelRoomWatchNote(state, t)}
+            ${duelRoomLineHtml(state, t)}
+            ${(state.players || []).length > 2 ? renderScoreboard(s.board) : ''}
+            ${s.phase === 'over' ? roomShareBtnHtml(state, s.board) : ''}
+            ${renderRoomPlayerStrip(state)}
+          </div>
+        </div>
+      </div>`);
+    if (rebuilt) {
+      xoRoomAfter(el, state, key, duelRoomLoud(state));
+      duelPillsAfter(el, 'xor|' + state.code, {
+        turn: s.phase === 'play' ? s.turn : -1,
+        scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+      });
+      if (myTurn && duelOnce(['xoturn', state.code, s.round, s.moves].join('|'))) haptic('medium');
+      duelRoomCheer(el, state, key);
+    }
+    refreshRoomPlayerStrip(el, state);
+  },
+  // A mark is not a new step to scroll to: the board is what everyone is watching.
+  actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
+};
+
+TV_GAMES.xo = {
+  sig: (state) => {
+    const s = state.shared || {};
+    return ['xo', s.round, s.phase, s.moves, JSON.stringify(s.line || []), s.champ, JSON.stringify(s.scores || {}),
+            (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    if (!Array.isArray(s.cells)) return tvLookAtPhones(t);
+    const key = ['xo', state.code, s.round].join('|');
+    return `
+      <div class="duel-tv xo-game" data-accent="blue">
+        <div class="duel-tv__board" style="--duel-aspect:1">
+          ${xoRoomBoardHtml(s, { playable: false, popKey: s.last ? key + '|' + s.moves : '' })}
+        </div>
+        ${duelTvSide(state, t, xoRoomPills(state, t))}
+      </div>`;
+  },
+  after(state, rebuilt) {
+    if (!rebuilt) return;
+    const el = document.getElementById('view-room-tv');
+    const s = state.shared || {};
+    if (!el || !Array.isArray(s.cells)) return;
+    const key = ['xo', state.code, s.round].join('|');
+    xoRoomAfter(el, state, key, true);
+    duelPillsAfter(el, 'xotv|' + state.code, {
+      turn: s.phase === 'play' ? s.turn : -1,
+      scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+    });
+    duelRoomCheer(el, state, key);
+  }
+};
+</script>

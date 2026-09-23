@@ -3606,7 +3606,11 @@ async function main() {
     const G3 = await Bot.join(G1.code, 'غادة');
     const TV = await Bot.join(G1.code, '', true);
     const golfers = [G1, G2, G3];
-    const now = (b) => Date.now() - b.state.shared.startedAt;
+    // The hole's clock the way a phone keeps it: the server's clock, not this computer's (they can be
+    // seconds apart on the live server), taken from the smallest gap between a change and its arrival.
+    const skew = new Map();
+    const seeStamp = (b) => { const st = b.state.shared.stamp; if (!st) return; const gap = Date.now() - st; if (!skew.has(b) || gap < skew.get(b)) skew.set(b, gap); };
+    const now = (b) => { seeStamp(b); return Date.now() - (skew.get(b) || 0) - b.state.shared.startedAt; };
     const putt = (b, shot) => b.act('putt', Object.assign({ hole: b.state.shared.hole, n: b.state.shared.balls[b.pid].n, t0: now(b) }, shot));
     await G1.must('chooseGame', { game: 'minigolf' });
     await G1.must('start', { holes: 3 });

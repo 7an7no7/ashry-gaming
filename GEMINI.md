@@ -310,9 +310,14 @@ work changed. Add to it when a decision is made or a batch ships.
     one-phone pass-around, **no computer players**.
   - **5 or 10 frames, 5 by default**; real ten-pin scoring (strikes and spares
     carry; the last frame's bonus balls).
-  - **Swipe the ball**: the direction aims, the swipe's speed is the ball's
-    speed, **a curve in the swipe hooks it**; where the finger starts is where
-    the ball is let go along the foul line.
+  - **Swing the ball** (the owner, 23 Sep 2026, after playing the first
+    build: "move it from back to front like in Plato and in real life - it
+    affects the speed too, like I'm swinging it"): the ball follows the
+    finger on the approach; **pull it back, then swing it forward and let
+    go**. The forward swing's speed is the ball's speed and **a longer
+    backswing adds to it** (a swing with none gives three quarters); its line
+    aims, **a curve in it hooks**; where the ball is when it is let go is
+    where it is released. (The first build only read an upward swipe.)
   - **Seen from behind the ball, in perspective** (three.js, real 3D).
   - In a room **everyone bowls in turn and everyone watches every throw**, on
     their phones and the TV. **No bumpers.**
@@ -3994,12 +3999,17 @@ section (27):
     'return')`), the strike: the deck lights flare, `tada`, confetti, the word
     in gold with pins flying out of it; the spare `ding`; a gutter the duels'
     sigh.
-  - **The swipe** (`bowlShotFrom`): the start's screen x on the foul line is
-    the release; the aim is the direction the finger drew *on the lane* (both
-    ends ray-cast onto the lane, so perspective is the finger's own); the
-    speed is the last 120 ms in screen heights a second; the spin how far the
-    middle of the swipe bows off the straight line (middle to the left of the
-    chord hooks right). `touch-action: none` only while it is your throw
+  - **The swing** (`bowlShotFrom`, `bowlSwingBall`): the ball follows the
+    finger across the approach (`bowlSwingSpot`: ray-cast onto the lane, up
+    to `BOWL_BACK_MAX` 1.6 m behind the line and `BOWL_BALL_X_MAX` across);
+    the farthest point back starts the forward swing. The aim is that
+    swing's line *on the lane*; the speed is its last 120 ms in screen heights
+    a second, times 0.75 to 1.25 by the backswing (how far back from where it
+    was picked up, up to a sixth of the screen); the spin how far the middle
+    of the forward swing bows off its straight line (middle to the left of
+    the chord hooks right). The throw's numbers are unchanged, so rooms and
+    replays are untouched; only your own ball starts from your hand
+    (`g.release`, carried to the line in `BOWL_RELEASE_S`). `touch-action: none` only while it is your throw
     (`.bowl-canvas.is-live`).
   - **Solo** (`appState.bowling`, `soloRegister('bowling')`): a ball's result
     is written and saved *before* it is shown (a reload can't take a bad ball
@@ -4563,6 +4573,16 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A half-pipe is a pipe until you check which half.** The bowling gutters
+are half of a `CylinderGeometry` (`thetaStart`, `thetaLength` π) turned
+along the lane, and with `thetaStart` π/2 the turn left the *upper* half: two
+pipes lying on the lane's edges instead of two channels below it. Drawn dark
+and one-sided, it read as "a black pipe on both sides" (the owner), and a
+ball in the gutter was half inside it. `-π/2` gives the lower half; the
+material is `DoubleSide` (you look at its inside) and the ball rests on its
+floor (`BALL_R - GUTTER / 2`). Look at a new curved piece from the camera's
+own angle, not only from above.
 
 **A class name for a wrapper and for a widget can collide.** The solo
 view's wrapper was `.mg-host` and so was the host's row of buttons,

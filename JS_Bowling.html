@@ -66,7 +66,8 @@ const bowlGfx = {
   sim: null, acc: 0, onSettled: null,
   cam0: null, camT: null, camK: 0,
   set: null,          // the pinsetter's timeline while it runs
-  input: { on: false, onShot: null, guide: false, trail: null, guideAt: 0 },
+  input: { on: false, onShot: null, guide: false, trail: null, guideAt: 0, release: null },
+  release: null,
   loud: true, rumble: null, heard: { knocks: 0, clacks: 0, hit: false },
   pulse: 0, ready: null, aimX: 0, gone: []
 };
@@ -258,7 +259,9 @@ function bowlGfxBuild() {
   const laneMat = new T.MeshStandardMaterial({ map: woodMap, roughness: 0.16, metalness: 0, envMapIntensity: 1.1 });
   const deckMat = new T.MeshStandardMaterial({ map: deckMap, roughness: 0.2, metalness: 0 });
   const approachMat = new T.MeshStandardMaterial({ map: bowlTex(bowlWoodCanvas(true), 1, 2), roughness: 0.35 });
-  const gutterMat = new T.MeshStandardMaterial({ color: 0x2b2b30, roughness: 0.35, metalness: 0.7 });
+  // The gutter is seen from inside (DoubleSide): with only its outer face drawn, the camera looked through it
+  // to the dark floor and the ball in it was half gone (the owner, 23 Sep 2026: "like a black pipe").
+  const gutterMat = new T.MeshStandardMaterial({ color: 0x9aa1ab, roughness: 0.32, metalness: 0.75, side: T.DoubleSide });
   const capMat = new T.MeshStandardMaterial({ color: 0x3b2417, roughness: 0.5 });
   const markMat = new T.MeshStandardMaterial({ color: 0x5a2a12, roughness: 0.3 });
   const redMat = new T.MeshStandardMaterial({ color: 0xb3261e, roughness: 0.3 });
@@ -295,7 +298,8 @@ function bowlGfxBuild() {
     const fl = new T.Mesh(new T.PlaneGeometry(BOWL.LANE_HALF * 2 + BOWL.GUTTER * 2 + 0.3, 0.025), redMat);
     fl.rotation.x = -Math.PI / 2; fl.position.set(0, 0.001, 0); grp.add(fl);
     [-1, 1].forEach(s => {
-      const gt = new T.Mesh(new T.CylinderGeometry(BOWL.GUTTER / 2, BOWL.GUTTER / 2, L, 20, 1, true, Math.PI / 2, Math.PI), gutterMat);
+      // The lower half of a pipe: a channel below the lane, open at the top (the other half was a pipe lying on it).
+      const gt = new T.Mesh(new T.CylinderGeometry(BOWL.GUTTER / 2, BOWL.GUTTER / 2, L, 20, 1, true, -Math.PI / 2, Math.PI), gutterMat);
       gt.rotation.x = Math.PI / 2; gt.rotation.z = Math.PI; gt.position.set(s * (BOWL.LANE_HALF + BOWL.GUTTER / 2), 0, -L / 2);
       gt.receiveShadow = true; grp.add(gt);
       const cap = new T.Mesh(new T.BoxGeometry(0.12, 0.05, L + 5.6), capMat);
@@ -647,7 +651,15 @@ function bowlDrawSim(sim, dt) {
   if (b.gone) {
     g.ball.position.y -= dt * 2.2;
   } else {
-    g.ball.position.set(b.x, BOWL.BALL_R - (b.gutter ? 0.06 : 0), -b.y);
+    // In the gutter the ball rests on its floor (the half-pipe's lowest line), its top above the lane.
+    g.ball.position.set(b.x, b.gutter ? BOWL.BALL_R - BOWL.GUTTER / 2 + 0.004 : BOWL.BALL_R, -b.y);
+    // Your own ball leaves from where your hand let it go, and reaches the line in the first moment.
+    const rel = g.release;
+    if (rel && sim.t < BOWL_RELEASE_S) {
+      const k = bowlEase(sim.t / BOWL_RELEASE_S);
+      g.ball.position.x = rel.x + (b.x - rel.x) * k;
+      g.ball.position.z = -(rel.y + (b.y - rel.y) * k);
+    }
     const sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
     if (sp > 0.01) {
       v.a.set(b.vx, 0, -b.vy).normalize().cross(v.up).negate();
@@ -696,11 +708,15 @@ function bowlGfxThrow(standing, shot) {
     g.input.trail = null;
     g.gone = [];
     g.sim = bowlStart(standing, shot);
+    // Where the hand let go (a swing ends behind the line); a replay of someone else's ball starts on the line.
+    g.release = g.input.release && g.input.release.at > performance.now() - 1500 ? g.input.release : null;
+    g.input.release = null;
     g.acc = 0;
     g.mode = 'roll';
     g.heard = { knocks: 0, clacks: 0, hit: false };
     bowlPlacePins(standing);
-    bowlPlaceBall(g.sim.ball.x);
+    if (g.release) { g.ball.visible = true; g.ball.position.set(g.release.x, BOWL.BALL_R, -g.release.y); }
+    else bowlPlaceBall(g.sim.ball.x);
     g.onSettled = (sim) => { if (gen === g.gen) resolve(sim); else resolve(null); };
     g.cancel = () => resolve(null);
     if (g.loud) bowlRumbleStart();
@@ -914,43 +930,81 @@ function bowlLaneAt(clientX, clientY) {
   return { x: hit.x, y: -hit.z };
 }
 
-/**
- * The four numbers from a swipe: the direction the finger drew on the lane aims, the
- * speed of its last moment is the ball's speed, and how far its middle bows off the
- * straight line is the hook.
+/*
+ * The swing (the owner, 23 Sep 2026: "move it from back to front, like in Plato and in real
+ * life - it affects the speed too, like I'm swinging it"). Touch the ball and it follows the
+ * finger on the approach: pull it back towards you (the backswing), then push it forward and
+ * let go. The forward push is the throw - its speed is the ball's speed, and a longer
+ * backswing adds up to half again, the way a bigger swing does; its line from the farthest
+ * point back to the release aims; a curve in it hooks. The ball can be anywhere across the
+ * approach while you swing: where it is when you let go is where it is released.
  */
+const BOWL_BACK_MAX = 1.6;        // metres behind the foul line the ball can be pulled back
+const BOWL_RELEASE_S = 0.16;      // your ball reaches the line from your hand in this long
+const BOWL_BALL_X_MAX = 0.40;     // how far across the approach the ball can be carried
+
+/** Where the finger is on the approach, as the ball's place: x across, y along (negative behind the line). */
+function bowlSwingSpot(clientX, clientY) {
+  const hit = bowlLaneAt(clientX, clientY);
+  if (!hit) return null;
+  return {
+    x: Math.max(-BOWL_BALL_X_MAX, Math.min(BOWL_BALL_X_MAX, hit.x)),
+    y: Math.max(-BOWL_BACK_MAX, Math.min(BOWL.START_Y, hit.y))
+  };
+}
+
+/** The four numbers of a throw from the swing: speed from the push and the backswing, aim from its line, hook from its bow. */
 function bowlShotFrom(tr) {
   const g = bowlGfx;
   const pts = tr.pts;
-  const a = pts[0], z = pts[pts.length - 1];
-  const up = a.y - z.y, dx = z.x - a.x;
+  if (pts.length < 2) return null;
+  // The farthest point back: where the forward push starts.
+  let kb = 0;
+  for (let i = 1; i < pts.length; i++) if (pts[i].y >= pts[kb].y) kb = i;
+  const back = pts[kb], z = pts[pts.length - 1];
+  const up = back.y - z.y, dx = z.x - back.x;
   if (up < 30) return null;
   const r = g.canvas.getBoundingClientRect();
-  // Speed: the last 120ms of the swipe, in screens a second.
+  // The push: the last 120ms of it, in screens a second.
   let k = pts.length - 1;
-  while (k > 0 && z.t - pts[k].t < 120) k--;
+  while (k > kb && z.t - pts[k].t < 120) k--;
   const p = pts[k], dtm = Math.max(16, z.t - p.t);
   const rel = Math.max(0, (p.y - z.y) / dtm * 1000 / r.height);
-  const speed = Math.round(Math.max(380, Math.min(1000, 400 + (rel - 0.5) / 3 * 600)));
-  // Aim: the finger's line on the lane itself (perspective and all), else its angle on the screen.
+  // The backswing: how far the ball was pulled back from where it was picked up, up to a sixth of the screen.
+  const swing = Math.max(0, Math.min(1, (back.y - pts[0].y) / (r.height * 0.16)));
+  const base = 400 + (rel - 0.5) / 3 * 600;
+  const speed = Math.round(Math.max(380, Math.min(1000, 380 + (base - 380) * (0.75 + 0.5 * swing))));
+  // Aim: the push's line on the lane itself (perspective and all), else its angle on the screen.
   let aim = Math.round(dx / up * 100);
-  const la = bowlLaneAt(a.x, a.y), lz = bowlLaneAt(z.x, z.y);
+  const la = bowlLaneAt(back.x, back.y), lz = bowlLaneAt(z.x, z.y);
   if (la && lz && lz.y - la.y > 0.3) aim = Math.round((lz.x - la.x) / (lz.y - la.y) * 1000);
   aim = Math.max(-110, Math.min(110, aim));
-  // Hook: the middle of the swipe to the left of the line from start to end hooks right, and back.
-  const m = pts[Math.floor(pts.length / 2)];
+  // Hook: the middle of the push to the left of its straight line hooks right, and back.
+  const m = pts[kb + Math.floor((pts.length - 1 - kb) / 2)];
   const len2 = dx * dx + up * up;
-  const cross = dx * (a.y - m.y) - up * (m.x - a.x);
+  const cross = dx * (back.y - m.y) - up * (m.x - back.x);
   const spin = Math.round(Math.max(-100, Math.min(100, cross / len2 * 420)));
   return bowlCleanShot({ x: tr.x, aim, speed, spin });
+}
+
+/** The ball under the finger while it swings. */
+function bowlSwingBall(tr, clientX, clientY) {
+  const g = bowlGfx;
+  const at = bowlSwingSpot(clientX, clientY);
+  if (!at) return;
+  tr.ball = at;
+  tr.x = Math.max(-40, Math.min(40, Math.round(at.x * 100)));
+  g.ball.visible = true;
+  g.ball.position.set(at.x, BOWL.BALL_R, -at.y);
 }
 
 function bowlPointerDown(e) {
   const g = bowlGfx;
   if (!g.input.on || g.mode !== 'idle' || g.input.trail) return;
   e.preventDefault();
-  g.input.trail = { id: e.pointerId, pts: [{ x: e.clientX, y: e.clientY, t: performance.now() }], x: bowlLaneXAt(e.clientX) };
-  bowlPlaceBall(g.input.trail.x / 100);
+  g.input.trail = { id: e.pointerId, pts: [{ x: e.clientX, y: e.clientY, t: performance.now() }], x: bowlLaneXAt(e.clientX), ball: null };
+  bowlSwingBall(g.input.trail, e.clientX, e.clientY);
+  if (!g.input.trail.ball) bowlPlaceBall(g.input.trail.x / 100);
   try { g.canvas.setPointerCapture(e.pointerId); } catch (err) {}
   if (typeof haptic === 'function') haptic('light');
   bowlGfxKick();
@@ -960,9 +1014,14 @@ function bowlPointerMove(e) {
   const g = bowlGfx, tr = g.input.trail;
   if (!tr || e.pointerId !== tr.id) return;
   tr.pts.push({ x: e.clientX, y: e.clientY, t: performance.now() });
-  if (tr.pts.length > 240) tr.pts.splice(1, tr.pts.length - 240);
-  // Before the swipe has gone anywhere the ball slides along the foul line under the finger.
-  if (tr.pts[0].y - e.clientY < 20) { tr.x = bowlLaneXAt(e.clientX); tr.pts[0].x = e.clientX; bowlPlaceBall(tr.x / 100); }
+  if (tr.pts.length > 240) {
+    // Keep the start and the farthest point back; the push is what is near the end.
+    let kb = 0;
+    for (let i = 1; i < tr.pts.length; i++) if (tr.pts[i].y >= tr.pts[kb].y) kb = i;
+    if (kb > 1 && tr.pts.length - kb < 200) tr.pts.splice(1, kb - 1);
+    else tr.pts.splice(1, tr.pts.length - 240);
+  }
+  bowlSwingBall(tr, e.clientX, e.clientY);
   if (g.input.guide && performance.now() - g.input.guideAt > 50) {
     g.input.guideAt = performance.now();
     bowlShowGuide(bowlShotFrom(tr) || { x: tr.x, aim: 0, speed: 700, spin: 0 });
@@ -977,7 +1036,13 @@ function bowlPointerUp(e) {
   g.input.trail = null;
   bowlClearGuide();
   const shot = bowlShotFrom(tr);
-  if (!shot) { bowlGfxKick(); return; }
+  if (!shot) {
+    // Not thrown: the ball goes back to the line where it was.
+    bowlPlaceBall(tr.x / 100);
+    bowlGfxKick();
+    return;
+  }
+  g.input.release = tr.ball ? { x: tr.ball.x, y: tr.ball.y, at: performance.now() } : null;
   const fn = g.input.onShot;
   if (fn) fn(shot);
 }
@@ -987,6 +1052,7 @@ function bowlPointerCancel(e) {
   if (!tr || e.pointerId !== tr.id) return;
   g.input.trail = null;
   bowlClearGuide();
+  bowlPlaceBall(tr.x / 100);
   bowlGfxKick();
 }
 

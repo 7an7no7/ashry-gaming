@@ -173,7 +173,7 @@ const unoDeal = (room) => {
   const kinds = shuffled(unoDeck(unoDecksFor(n)));
   // Ids at random, so an id says nothing about its card.
   const ids = shuffled(kinds.map((k, j) => j));
-  const g = { deck: kinds.map((k, j) => ({ i: ids[j], k: k })), pile: [], hands: {}, drawnId: null };
+  const g = { deck: kinds.map((k, j) => ({ i: ids[j], k: k })), pile: [], hands: {}, drawnId: null, nextId: kinds.length };
   room._uno = g;
   // The player after the dealer starts; the dealer moves on one seat every round.
   const start = (s.round - 1) % n;
@@ -497,8 +497,13 @@ const unoTake = (room, n) => {
   for (let k = 0; k < n; k++) {
     if (!g.deck.length && g.pile.length > 1) {
       const top = g.pile.pop();
-      // A wild's chosen colour goes with it back into the deck.
-      g.deck = shuffled(g.pile.map(c => ({ i: c.i, k: c.k })));
+      // A wild's chosen colour goes with it back into the deck, and every card a
+      // new id: the old ones are on the table's last moves, and an id in the deck
+      // or a hand is never one anybody has seen.
+      const base = g.nextId || 1000;
+      const fresh = shuffled(g.pile.map((c, j) => base + j));
+      g.nextId = base + g.pile.length;
+      g.deck = shuffled(g.pile.map((c, j) => ({ i: fresh[j], k: c.k })));
       g.pile = [top];
       unoEvent(room, 'reshuffle', { n: g.deck.length });
     }

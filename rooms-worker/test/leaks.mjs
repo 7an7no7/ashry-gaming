@@ -28,7 +28,7 @@ const realNow = Date.now;
 let clock = realNow();
 Date.now = () => clock;
 
-const SCREEN = 'tv';
+const SCREEN = 'the-screen';   // not 'tv': that is Tuvalu, a country خمّن الدولة can deal
 const ONLINE = { has: () => true };        // every phone connected
 const NAMES = ['نور', 'Adam', 'سلمى', 'Omar', 'هنا', 'Karim', 'ليلى', 'Sam'];
 const pick = (list) => list[Math.floor(Math.random() * list.length)];

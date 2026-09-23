@@ -4278,7 +4278,9 @@ Date.now = duelTestClock;
   check(refused(() => applyRoomAction(r, s.setter, 'setSecret', { n: 51, round: 1 })), 'solve/guessnum: a number outside the host\'s range is refused');
   applyRoomAction(r, s.setter, 'setSecret', { n: 37, round: 1 });
   const ns = Object.keys(s.progress);
-  check(s.pub.max === 50 && s.maxTries === 8 && ns.length === 2 && JSON.stringify(s).indexOf('37') === -1, 'solve/guessnum: the range is public, the number is not');
+  // The value itself anywhere in the table - not its digits inside a random id or a time.
+  const holdsValue = (node, v) => node === v || node === String(v) || (!!node && typeof node === 'object' && Object.keys(node).some((k) => holdsValue(node[k], v)));
+  check(s.pub.max === 50 && s.maxTries === 8 && ns.length === 2 && !holdsValue(s, 37), 'solve/guessnum: the range is public, the number is not');
   applyRoomAction(r, ns[0], 'guess', { n: 25, round: 1 });
   applyRoomAction(r, ns[0], 'guess', { n: 40, round: 1 });
   const nb = r.secrets[ns[0]].board;
@@ -5930,7 +5932,8 @@ Date.now = duelTestClock;
     r.players = r.players.filter((p) => p.id !== leaver);
     roomPlayerLeft(r, leaver, leaver);
     check(r.shared.phase === 'over' && r.shared.result.reason === 'left' && r.shared.result.winnerId === s.seats[1], 'chess room: a seated player who leaves loses by forfeit');
-    applyRoomAction(r, 'b', 'nextRound', { round: r.shared.round });
+    // Whoever is still here deals it (the seats are drawn at random, so 'b' may be the one who left).
+    applyRoomAction(r, r.players[0].id, 'nextRound', { round: r.shared.round });
     check(r.shared.phase === 'play' && r.shared.seats.indexOf(leaver) === -1, 'chess room: and the next game seats whoever is here');
     check(roomForcedMove(r) === null, 'chess room: a single legal move is never played for anyone (the move is the game)');
   }

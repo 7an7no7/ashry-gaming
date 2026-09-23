@@ -6,6 +6,13 @@
 //
 // Units are metres and seconds. The lane runs along +y from the foul line
 // (y = 0) to the pins; x is across, negative on the bowler's left.
+//
+// The pins are circles on the deck: a standing pin is its base; a falling or
+// lying pin is also its belly and its head along the way it fell (dx, dy),
+// so a pin that goes down sweeps the pins beside it - the "pin action" that
+// turns a pocket hit into a strike. A lying pin spins on the deck (spinZ)
+// around its middle. Nothing here draws anything; hopAt / hopV are only read
+// by the page, to lift a pin that was hit hard into the air for a moment.
 
 const BOWL = {
   LANE_HALF: 0.527,      // 41.5in / 2
@@ -17,10 +24,14 @@ const BOWL = {
   BALL_R: 0.109,
   PIN_R: 0.0605,
   PIN_HEAD: 0.30,        // from the base to where a falling pin's head hits
+  PIN_BELLY: 0.12,       // from the base to the widest part
+  PIN_MID: 0.15,         // a lying pin turns round this point
   HEAD_R: 0.034,
   BALL_M: 7,
   PIN_M: 1.55,
   OIL_END: 12.2,
+  HOOK_A: 1.35,          // m/s² of hook at full spin, once the oil runs out
+  HOOK_MAX: 0.62,        // m/s the hook can add sideways at full spin (the ball rolls out)
   DT: 1 / 240,
   MAX_T: 8,
   START_Y: 0.35
@@ -62,6 +73,11 @@ function bowlCleanShot(s) {
   return { x: n(s && s.x, -40, 40), aim: n(s && s.aim, -110, 110), speed: n(s && s.speed, 380, 1000), spin: n(s && s.spin, -100, 100) };
 }
 
+// A gentle straight ball down the middle: what the phone throws for a player whose clock ran out.
+function bowlGentleShot() {
+  return { x: 0, aim: 0, speed: 560, spin: 0 };
+}
+
 // standing: ten booleans, the pins up before this ball.
 function bowlStart(standing, shot) {
   shot = bowlCleanShot(shot);
@@ -70,46 +86,60 @@ function bowlStart(standing, shot) {
   return {
     t: 0,
     shot,
-    ball: { x: shot.x / 100, y: BOWL.START_Y, vx, vy: Math.sqrt(v * v - vx * vx), roll: 0, gutter: 0, gone: false },
+    ball: { x: shot.x / 100, y: BOWL.START_Y, vx, vy: Math.sqrt(v * v - vx * vx), roll: 0, hook: 0, gutter: 0, gone: false, hitAt: 0 },
     pins: spots.map(([x, y], i) => ({
       n: i + 1, x, y, vx: 0, vy: 0,
       up: !!standing[i],       // standing when the ball was thrown
       state: standing[i] ? 0 : 3, // 0 standing, 1 falling, 2 down, 3 not in play
-      tilt: 0, tw: 0, dx: 0, dy: 1, wob: 0, wobT: 0, spinZ: 0
+      tilt: 0, tw: 0, dx: 0, dy: 1, wob: 0, wobT: 0, spinZ: 0,
+      hopAt: -1, hopV: 0, downAt: -1
     })),
-    hits: 0,
+    hits: 0,       // the ball's hits on pins
+    knocks: 0,     // pins that started to fall
+    clacks: 0,     // hard pin-on-pin hits (for the sound)
     done: false
   };
 }
 
 function bowlCircles(sim) {
-  // every circle that can be hit: each pin's base, and a falling pin's head
+  // every circle that can be hit: each pin's base, and a falling pin's belly and head
   const out = [];
   for (const p of sim.pins) {
     if (p.state === 3 || p.gone) continue;
-    out.push({ p, x: p.x, y: p.y, r: BOWL.PIN_R, head: false });
+    out.push({ p, x: p.x, y: p.y, r: BOWL.PIN_R, part: 0, arm: 0 });
     if (p.state > 0 && p.tilt > 0.35) {
       const [s] = bowlSinCos(p.tilt);
-      out.push({ p, x: p.x + p.dx * BOWL.PIN_HEAD * s, y: p.y + p.dy * BOWL.PIN_HEAD * s, r: BOWL.HEAD_R, head: true });
+      out.push({ p, x: p.x + p.dx * BOWL.PIN_BELLY * s, y: p.y + p.dy * BOWL.PIN_BELLY * s, r: BOWL.PIN_R, part: 1, arm: BOWL.PIN_BELLY });
+      out.push({ p, x: p.x + p.dx * BOWL.PIN_HEAD * s, y: p.y + p.dy * BOWL.PIN_HEAD * s, r: BOWL.HEAD_R, part: 2, arm: BOWL.PIN_HEAD });
     }
   }
   return out;
 }
 
-function bowlKnock(p, dv, nx, ny) {
+function bowlKnock(sim, p, dv, nx, ny) {
+  if (dv > 1.1 && dv > p.hopV) {
+    // A hard hit throws the pin up for a moment (the page draws it; the rules don't).
+    p.hopAt = sim.t;
+    p.hopV = Math.min(2.6, (dv - 0.8) * 0.55);
+  }
   if (p.state === 0) {
     if (dv > 0.42) {
       p.state = 1;
+      sim.knocks++;
+      p.wob = 0;
       const l = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
       if (l > 0.05) { p.dx = p.vx / l; p.dy = p.vy / l; } else { p.dx = nx; p.dy = ny; }
       p.tilt = 0.06;
       p.tw = 1.6 + dv * 1.8;
-      p.spinZ = (nx * 3.1 - ny * 1.7) * dv;
+      p.spinZ = Math.max(-6, Math.min(6, (nx * 3.1 - ny * 1.7) * dv * 0.6));
     } else if (dv > 0.08) {
       p.wob = Math.min(0.22, p.wob + dv * 0.4);
       p.wobT = 0;
       p.dx = nx; p.dy = ny;
     }
+  } else if (p.state === 2 && dv > 0.3) {
+    // A lying pin hit off its middle starts to spin.
+    p.spinZ = Math.max(-9, Math.min(9, p.spinZ + (nx * p.dy - ny * p.dx) * dv * 1.6));
   }
 }
 
@@ -122,13 +152,21 @@ function bowlStep(sim) {
   if (!b.gone) {
     if (!b.gutter) {
       const hook = sim.shot.spin / 100;
-      const ax = b.y > BOWL.OIL_END ? hook * 1.7 : hook * 0.12;
+      let ax = hook * 0.12;
+      if (b.y > BOWL.OIL_END) {
+        // Out of the oil the ball grips and turns, until it rolls out.
+        const cap = BOWL.HOOK_MAX * Math.abs(hook);
+        ax = Math.abs(b.hook) < cap ? hook * BOWL.HOOK_A : 0;
+        b.hook += ax * dt;
+      }
       b.vx += ax * dt;
       // keep its speed: the hook turns it, it doesn't push it
       const sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
       const want = sp - 0.09 * dt;
       b.vx = b.vx * want / sp; b.vy = b.vy * want / sp;
     }
+    // Seven kilos through the pins: the ball always carries on into the pit.
+    if (b.hitAt && b.vy < 1.2) b.vy = 1.2;
     b.x += b.vx * dt; b.y += b.vy * dt;
     b.roll += Math.sqrt(b.vx * b.vx + b.vy * b.vy) * dt / BOWL.BALL_R;
     if (!b.gutter && b.y < BOWL.DECK_END && (b.x > BOWL.LANE_HALF + 0.02 || b.x < -BOWL.LANE_HALF - 0.02)) {
@@ -142,7 +180,7 @@ function bowlStep(sim) {
     if (b.y > BOWL.PIT_Y) b.gone = true;
   }
 
-  // the pins move, fall and wobble
+  // the pins move, fall, spin and wobble
   for (const p of sim.pins) {
     if (p.state === 3 || p.gone) continue;
     const sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
@@ -159,10 +197,23 @@ function bowlStep(sim) {
       if (p.tilt >= 1.5707963267948966) {
         p.tilt = 1.5707963267948966;
         p.state = 2;
+        p.downAt = sim.t;
         p.tw = 0;
         // the fall pushes it a little along its length
         p.vx += p.dx * 0.35; p.vy += p.dy * 0.35;
       }
+    } else if (p.state === 2 && p.spinZ !== 0) {
+      // A lying pin turns round its middle, slowing on the wood.
+      const a = p.spinZ * dt;
+      const [s, c] = bowlSinCos(a);
+      const mx = p.x + p.dx * BOWL.PIN_MID, my = p.y + p.dy * BOWL.PIN_MID;
+      let dx = p.dx * c - p.dy * s, dy = p.dx * s + p.dy * c;
+      const l = Math.sqrt(dx * dx + dy * dy);
+      dx /= l; dy /= l;
+      p.dx = dx; p.dy = dy;
+      p.x = mx - dx * BOWL.PIN_MID; p.y = my - dy * BOWL.PIN_MID;
+      const f = (6 + 1.2 * Math.abs(p.spinZ)) * dt;
+      p.spinZ = Math.abs(p.spinZ) > f ? p.spinZ - (p.spinZ > 0 ? f : -f) : 0;
     } else if (p.state === 0 && p.wob > 0) {
       p.wobT += dt;
       p.wob -= p.wob * 3.2 * dt;
@@ -170,7 +221,12 @@ function bowlStep(sim) {
     }
     // off the deck: into the pit or a gutter
     if (p.y > BOWL.DECK_END + 0.12 || p.x > BOWL.LANE_HALF + 0.04 || p.x < -BOWL.LANE_HALF - 0.04) {
-      if (p.state === 0) { p.state = 1; p.tilt = 0.3; p.tw = 4; p.dx = p.vx; p.dy = p.vy; const l = Math.sqrt(p.dx * p.dx + p.dy * p.dy) || 1; p.dx /= l; p.dy /= l; }
+      if (p.state === 0) {
+        p.state = 1; p.tilt = 0.3; p.tw = 4; p.wob = 0; sim.knocks++;
+        p.dx = p.vx; p.dy = p.vy;
+        const l = Math.sqrt(p.dx * p.dx + p.dy * p.dy);
+        if (l > 0) { p.dx /= l; p.dy /= l; } else { p.dx = 0; p.dy = 1; }
+      }
       if (p.y > BOWL.PIT_Y || p.x > BOWL.LANE_HALF + BOWL.GUTTER || p.x < -BOWL.LANE_HALF - BOWL.GUTTER) p.gone = true;
     }
     // the kickbacks throw pins back in
@@ -194,39 +250,41 @@ function bowlStep(sim) {
       const over = rr - d;
       const im1 = 1 / BOWL.BALL_M, im2 = 1 / BOWL.PIN_M;
       b.x -= nx * over * im1 / (im1 + im2); b.y -= ny * over * im1 / (im1 + im2);
-      p.x += nx * over * im2 / (im1 + im2); p.y += ny * over * im2 / (im1 + im2);
+      if (c.part < 2) { p.x += nx * over * im2 / (im1 + im2); p.y += ny * over * im2 / (im1 + im2); }
       if (rel <= 0) continue;
       const j = (1 + 0.72) * rel / (im1 + im2);
       b.vx -= j * im1 * nx; b.vy -= j * im1 * ny;
       p.vx += j * im2 * nx; p.vy += j * im2 * ny;
       sim.hits++;
-      bowlKnock(p, j * im2, nx, ny);
+      if (!b.hitAt) b.hitAt = sim.t;
+      bowlKnock(sim, p, j * im2, nx, ny);
     }
   }
   for (let i = 0; i < cs.length; i++) {
     for (let k = i + 1; k < cs.length; k++) {
       const a = cs[i], c = cs[k];
       if (a.p === c.p) continue;
-      if (a.head && c.head) continue;
+      if (a.part === 2 && c.part === 2) continue;
       const dx = c.x - a.x, dy = c.y - a.y, rr = a.r + c.r;
       const d2 = dx * dx + dy * dy;
       if (d2 >= rr * rr || d2 === 0) continue;
       const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
       const p = a.p, q = c.p;
-      // a falling head carries the fall's own speed
+      // a falling belly or head carries the fall's own speed
       let avx = p.vx, avy = p.vy, cvx = q.vx, cvy = q.vy;
-      if (a.head) { const [, co] = bowlSinCos(p.tilt); avx += p.dx * BOWL.PIN_HEAD * co * p.tw; avy += p.dy * BOWL.PIN_HEAD * co * p.tw; }
-      if (c.head) { const [, co] = bowlSinCos(q.tilt); cvx += q.dx * BOWL.PIN_HEAD * co * q.tw; cvy += q.dy * BOWL.PIN_HEAD * co * q.tw; }
+      if (a.part) { const [, co] = bowlSinCos(p.tilt); avx += p.dx * a.arm * co * p.tw; avy += p.dy * a.arm * co * p.tw; }
+      if (c.part) { const [, co] = bowlSinCos(q.tilt); cvx += q.dx * c.arm * co * q.tw; cvy += q.dy * c.arm * co * q.tw; }
       const over = (rr - d) / 2;
-      if (!a.head) { p.x -= nx * over; p.y -= ny * over; }
-      if (!c.head) { q.x += nx * over; q.y += ny * over; }
+      if (a.part < 2) { p.x -= nx * over; p.y -= ny * over; }
+      if (c.part < 2) { q.x += nx * over; q.y += ny * over; }
       const rel = (avx - cvx) * nx + (avy - cvy) * ny;
       if (rel <= 0) continue;
       const j = (1 + 0.6) * rel / 2;
       p.vx -= j * nx; p.vy -= j * ny;
       q.vx += j * nx; q.vy += j * ny;
-      bowlKnock(p, j, -nx, -ny);
-      bowlKnock(q, j, nx, ny);
+      if (j > 0.9) sim.clacks++;
+      bowlKnock(sim, p, j, -nx, -ny);
+      bowlKnock(sim, q, j, nx, ny);
     }
   }
 
@@ -235,7 +293,7 @@ function bowlStep(sim) {
     let still = true;
     for (const p of sim.pins) {
       if (p.state === 3 || p.gone) continue;
-      if (p.state === 1 || p.vx * p.vx + p.vy * p.vy > 0.0009 || p.wob > 0.02) { still = false; break; }
+      if (p.state === 1 || p.vx * p.vx + p.vy * p.vy > 0.0009 || (p.state === 0 && p.wob > 0.02) || (p.state === 2 && Math.abs(p.spinZ) > 0.2)) { still = false; break; }
     }
     if (still) sim.done = true;
   }
@@ -313,3 +371,61 @@ function bowlFrameNext(fr, last) {
   return 'done';
 }
 
+// The marks on the sheet for one frame: 'X', '/', '-' or a number, per ball.
+function bowlMarks(fr, last) {
+  const out = [];
+  for (let k = 0; k < fr.length; k++) {
+    const v = fr[k];
+    // A ball is on a fresh rack when it is the first, or (in the last frame)
+    // after a strike or a spare.
+    const fresh = k === 0 || (last && (k === 1 ? fr[0] === 10 : (fr[1] === 10 && fr[0] === 10) || (fr[0] !== 10 && fr[0] + fr[1] === 10)));
+    if (fresh && v === 10) out.push('X');
+    else if (!fresh && fr[k - 1] + v === 10) out.push('/');
+    else out.push(v === 0 ? '-' : String(v));
+  }
+  return out;
+}
+
+// What a ball did, for the banner: 'strike', 'spare', 'gutter', 'miss' or 'count'.
+function bowlBallKind(fr, last, gutter) {
+  const k = fr.length - 1;
+  if (k < 0) return 'count';
+  const m = bowlMarks(fr, last)[k];
+  if (m === 'X') return 'strike';
+  if (m === '/') return 'spare';
+  if (fr[k] === 0) return gutter ? 'gutter' : 'miss';
+  return 'count';
+}
+
+// A whole game for one player, as the room and the phone both keep it:
+// frames [[..]], standing (the pins up now), and where it is.
+function bowlNewCard(total) {
+  return { frames: [[]], standing: [true, true, true, true, true, true, true, true, true, true], total: total, over: false };
+}
+
+// One ball onto a card: its pins, then the rack for the next ball. Returns
+// what happened: { down, kind, frameDone, over, fresh }.
+function bowlApply(card, after, down, gutter) {
+  const f = card.frames.length - 1;
+  const fr = card.frames[f];
+  const last = f === card.total - 1;
+  fr.push(down);
+  const kind = bowlBallKind(fr, last, gutter);
+  const next = bowlFrameNext(fr, last);
+  let frameDone = false, fresh = false;
+  if (next === 'done') {
+    frameDone = true;
+    if (last) card.over = true;
+    else { card.frames.push([]); card.standing = [true, true, true, true, true, true, true, true, true, true]; fresh = true; }
+  } else if (next === 'fresh') { card.standing = [true, true, true, true, true, true, true, true, true, true]; fresh = true; }
+  else card.standing = after.slice();
+  return { down, kind, frameDone, over: card.over, fresh };
+}
+
+// The card's total so far (the last scored frame).
+function bowlTotal(card) {
+  const sc = bowlScore(card.frames, card.total);
+  let t = 0;
+  sc.forEach(v => { if (v !== null) t = v; });
+  return t;
+}

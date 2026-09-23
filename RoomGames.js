@@ -117,7 +117,9 @@ const ROOM_GAME_IDS = [
   'connect4', 'dots',
   'ludo', 'bank',
   // خمّن مين (RoomGuessWho.js, winner stays on like the duels) and المشنقة (RoomHangman.js).
-  'guesswho', 'hangman'
+  'guesswho', 'hangman',
+  // بولينج (RoomBowling.js): everyone bowls in turn, everyone watches every throw.
+  'bowling'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -525,6 +527,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'bank':       bankAction(room, playerId, action, payload); break;      // RoomBank.js
     case 'guesswho':   guessWhoAction(room, playerId, action, payload); break;  // RoomGuessWho.js
     case 'hangman':    hangmanAction(room, playerId, action, payload); break;   // RoomHangman.js
+    case 'bowling':    bowlingAction(room, playerId, action, payload); break;   // RoomBowling.js
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -3384,6 +3387,7 @@ const gameDeadline = (room) => {
   if (room.game === 'bank') return bankDeadline(room);
   if (room.game === 'guesswho') return gwDeadline(room);
   if (room.game === 'hangman') return hmDeadline(room);
+  if (room.game === 'bowling') return bowlDeadline(room);
   return null;
 };
 
@@ -3496,6 +3500,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'bank') return bankTimeout(room, now);
   if (room.game === 'guesswho') return gwTimeout(room, now);
   if (room.game === 'hangman') return hmTimeout(room, now);
+  if (room.game === 'bowling') return bowlTimeout(room, now);
   return false;
 };
 
@@ -3657,6 +3662,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'hangman':
       hmPlayerLeft(room, playerId);
+      return;
+    case 'bowling':
+      bowlPlayerLeft(room, playerId);
       return;
     case 'connect4':
     case 'dots':

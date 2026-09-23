@@ -895,6 +895,45 @@
       <div id="view-play-hangman" class="hidden" data-accent="orange"><div id="hangman-stage"></div></div>
       <div id="view-room-hangman" class="hidden" data-accent="orange"></div>
 
+      <!-- ============ بولينج (solo on this phone, or a room: everyone bowls in turn, everyone watches) ============ -->
+      <div id="view-setup-bowling" class="hidden" data-accent="violet">
+        <div class="card">
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('bowling', 'device')" data-i18n="bowl_mode_solo">لوحدك</button>
+            <button class="segmented__item" data-mode="online" onclick="setPlayMode('bowling', 'online')" data-i18n="mode_online">أجهزة متعددة</button>
+          </div>
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="bowl_online_desc">كل واحد بيرمي من موبايله بالدور، والكل بيتفرج على كل رمية على الموبايلات والتلفزيون.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('bowling')" class="btn btn--primary btn--lg" data-i18n="room_create">إنشاء غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">انضم لغرفة</button>
+            </div>
+          </div>
+          <div class="mode-device-panel">
+            <p class="card__subtitle" data-i18n="bowl_solo_desc">العب لوحدك وحاول تكسر أحسن نتيجة ليك.</p>
+            <div class="field">
+              <label class="field__label" data-i18n="bowl_frames">كام إطار؟</label>
+              <div class="segmented" id="bowling-frames" role="group">
+                <button type="button" class="segmented__item is-active" data-value="5" onclick="setBowlingOption('frames', 5)">5</button>
+                <button type="button" class="segmented__item" data-value="10" onclick="setBowlingOption('frames', 10)">10</button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="switch-row" for="bowling-guide">
+                <span class="field__label" data-i18n="bowl_guide">مساعدة التصويب</span>
+                <span class="switch"><input type="checkbox" id="bowling-guide" role="switch" onchange="setBowlingOption('guide', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+              </label>
+              <p class="field__hint" data-i18n="bowl_guide_hint">خط بيوريك الكورة هتروح فين وانت بتسحب.</p>
+            </div>
+            <p class="field__hint hidden" id="bowling-best"></p>
+            <button type="button" id="bowling-continue" class="btn btn--secondary hidden duel-continue" onclick="bowlingContinue()" data-i18n="solo_continue">كمّل اللعبة</button>
+            <button onclick="startBowling()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          </div>
+        </div>
+      </div>
+      <div id="view-play-bowling" class="hidden view--fill" data-accent="violet"><div id="bowling-stage" class="bowl-solo"></div></div>
+      <div id="view-room-bowling" class="hidden view--fill" data-accent="violet"></div>
+
       <div id="view-setup-dots" class="hidden" data-accent="indigo">
         <div class="card">
           <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
@@ -3405,6 +3444,7 @@
     <?!= include('JS_GuessWho'); ?>
     <?!= include('JS_Hangman'); ?>
     <?!= include('JS_Three'); ?>
+    <?!= include('JS_Bowling'); ?>
     <?!= include('JS_Ludo'); ?>
     <?!= include('JS_RoomLudo'); ?>
     <?!= include('JS_Bank'); ?>

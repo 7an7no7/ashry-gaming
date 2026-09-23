@@ -396,7 +396,7 @@ const PROBES = {
   },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
-  connect4: () => [], dots: () => [], ludo: () => []
+  connect4: () => [], dots: () => [], ludo: () => [], bowling: () => []
 };
 
 /* --- the table ------------------------------------------------------------------ */
@@ -875,6 +875,18 @@ const DRIVERS = {
     must(T, T.host, 'chooseGame', { game: 'hangman' });
     must(T, T.host, 'start', { mode: 'race', rounds: 3, lang: 'ar', clock: 60 });
     play();
+    return S(T).phase === 'gameover';
+  },
+  bowling() {
+    // Nothing is hidden; the driver plays a whole game: thrown balls, the clock's ball and the host's.
+    const T = table('bowling', 3);
+    must(T, T.host, 'start', { frames: 5, clock: 20 });
+    for (let guard = 0; guard < 80 && S(T).phase === 'play'; guard++) {
+      const s = S(T);
+      if (guard % 7 === 3) { runClock(T, (r) => r.shared.throwSeq > s.throwSeq, 4); continue; }
+      if (guard % 11 === 5) { must(T, T.host, 'skipTurn', { seq: s.turnSeq }); continue; }
+      must(T, s.turn.pid, 'throw', { x: Math.round(Math.random() * 40 - 20), aim: Math.round(Math.random() * 30 - 15), speed: 500 + Math.round(Math.random() * 400), spin: Math.round(Math.random() * 120 - 60), seq: s.turnSeq });
+    }
     return S(T).phase === 'gameover';
   },
   dots() {

@@ -4673,22 +4673,106 @@ Date.now = duelTestClock;
   const gutter = BW.bowlThrow(FULL, { x: 40, aim: 60, speed: 700, spin: 0 });
   check(gutter.gutter && gutter.down === 0, 'bowling: a ball in the gutter knocks nothing down');
   let pocket = 0, pocketN = 0, allDone = true, longest = 0;
-  for (const speed of [600, 720, 840]) for (const spin of [20, 45, 70]) for (let aim = -30; aim <= 30; aim += 1) {
-    const sim = BW.bowlRun(FULL, { x: 0, aim, speed, spin });
+  let hookAngle = 0;
+  for (const speed of [650, 800, 950]) for (const spin of [60, 80, 100]) for (const x of [-40, -30, -20]) for (let aim = -110; aim <= 40; aim += 2) {
+    const sim = BW.bowlRun(FULL, { x, aim, speed, spin });
     longest = Math.max(longest, sim.t);
     if (sim.t >= BW.BOWL.MAX_T) allDone = false;
-    // Where it met the head pin's row.
-    const probe = BW.bowlStart(FULL.map(() => false), { x: 0, aim, speed, spin });
+    // Where it met the head pin's row, and at what angle.
+    const probe = BW.bowlStart(FULL.map(() => false), { x, aim, speed, spin });
     while (!probe.done && probe.ball.y < BW.BOWL.HEAD_Y && !probe.ball.gutter) BW.bowlStep(probe);
-    if (!probe.ball.gutter && probe.ball.x > 0.035 && probe.ball.x < 0.085) {
+    const angle = Math.atan2(probe.ball.vx, probe.ball.vy) * 180 / Math.PI;
+    if (!probe.ball.gutter && Math.abs(probe.ball.x) < 0.1) hookAngle = Math.max(hookAngle, angle);
+    // A ball hooking right (spin +) carries into the pocket on the head pin's left, the 1-2
+    // (a left-hander's 1-3): the hook drives it across the rack.
+    if (!probe.ball.gutter && angle >= 3 && probe.ball.x < -0.035 && probe.ball.x > -0.085) {
       pocketN++;
-      if (BW.bowlStanding(sim).every((x) => !x)) pocket++;
+      if (BW.bowlStanding(sim).every((u) => !u)) pocket++;
     }
   }
-  check(pocketN >= 6 && pocket / pocketN >= 0.5, `bowling: a ball into the 1-3 pocket strikes more often than not (${pocket} of ${pocketN})`);
+  check(hookAngle >= 5 && hookAngle <= 8, `bowling: a full hook reaches the head pin at a bowler's angle (up to ${hookAngle.toFixed(1)} degrees)`);
+  check(pocketN >= 6 && pocket / pocketN >= 0.6, `bowling: a hook into its pocket strikes more often than not (${pocket} of ${pocketN})`);
   check(allDone, `bowling: every throw settles before the 8-second cap (the longest ${longest.toFixed(1)}s)`);
   const gentle = BW.bowlThrow(FULL, BW.bowlGentleShot());
   check(!gentle.gutter && gentle.down > 0, 'bowling: the clock\'s gentle straight ball reaches the pins (' + gentle.down + ' down)');
+
+  // What falls follows what was hit, the way the USBC pin-carry study has it: a ball rolled into
+  // the pins from 1.2m out at a set spot (cm off the head pin, + to the right) and entry angle.
+  const bowlAt = (standing, xcm, deg, v) => {
+    const sim = BW.bowlStart(standing, { x: 0, aim: 0, speed: v * 100, spin: 0 });
+    const a = deg * Math.PI / 180;
+    Object.assign(sim.ball, { vx: -Math.sin(a) * v, vy: Math.cos(a) * v, x: xcm / 100 + Math.sin(a) * 1.2, y: BW.BOWL.HEAD_Y - 1.2 });
+    sim.shot = { x: 0, aim: 0, speed: 0, spin: 0 };
+    while (!sim.done) BW.bowlStep(sim);
+    return BW.bowlStanding(sim).map((u, i) => (u ? i + 1 : 0)).filter(Boolean);
+  };
+  const PIN_COL = [0, -1, 1, -2, 0, 2, -3, -1, 1, 3];
+  const carry = (x0, x1, deg) => {
+    let n = 0, x = 0, split = 0;
+    for (let xc = x0; xc <= x1 + 1e-9; xc += 0.25) for (const v of [6.5, 7.5, 8.5]) {
+      const left = bowlAt(FULL, xc, deg, v);
+      n++;
+      if (!left.length) x++;
+      // a split: the head pin down, and two pins left with a gap between them
+      else if (!left.includes(1) && left.some((a) => left.some((b) => Math.abs(PIN_COL[a - 1] - PIN_COL[b - 1]) > 2))) split++;
+    }
+    return { strike: x / n, split: split / n };
+  };
+  const pc = (v) => Math.round(v * 100) + '%';
+  const pocket6 = carry(4, 9, 6), pocket0 = carry(5.5, 8, 0), nose = carry(-1.5, 1.5, 0), light = carry(12, 16, 6), far = carry(-16, -12, 6);
+  check(pocket6.strike >= 0.7, `bowling: into the 1-3 pocket at 6 degrees it strikes (${pc(pocket6.strike)})`);
+  check(pocket0.strike < pocket6.strike - 0.2, `bowling: a straight ball into the same pocket carries less (${pc(pocket0.strike)} against ${pc(pocket6.strike)})`);
+  check(nose.strike <= 0.4 && nose.split >= 0.15, `bowling: head-on at the head pin mostly splits (${pc(nose.strike)} strikes, ${pc(nose.split)} splits)`);
+  check(light.strike <= 0.2 && far.strike <= 0.3, `bowling: a light hit and the far side seldom strike (${pc(light.strike)}, ${pc(far.strike)})`);
+  {
+    // Mirror: a straight ball into the left pocket carries like one into the right.
+    const left = carry(-8, -5.5, 0);
+    check(Math.abs(left.strike - pocket0.strike) <= 0.2, `bowling: the two pockets of a straight ball carry alike (${pc(left.strike)} and ${pc(pocket0.strike)})`);
+  }
+  {
+    // A touch of the ball takes a pin: every single-pin spare the ball reaches goes down.
+    const spots = [[0, 0], [-15.24, 26.4], [15.24, 26.4], [-30.48, 52.8], [0, 52.8], [30.48, 52.8], [-45.72, 79.2], [-15.24, 79.2], [15.24, 79.2], [45.72, 79.2]];
+    const missed = [];
+    [1, 2, 4, 5, 7].forEach((pin) => {
+      for (let off = -16.5; off <= 16.5; off += 1.5) for (const v of [4.5, 6, 8]) {
+        if (Math.abs(spots[pin - 1][0] + off) > 50) continue;   // that ball is in the gutter
+        const left = bowlAt(FULL.map((u, i) => i === pin - 1), spots[pin - 1][0] + off, 0, v);
+        if (left.length) missed.push(pin + '@' + off);
+      }
+    });
+    check(!missed.length, 'bowling: a ball that touches a lone pin takes it' + (missed.length ? ' (missed ' + missed.slice(0, 4).join(', ') + ')' : ''));
+  }
+  {
+    // The swing (JS_Bowling.html): the line is the backswing's, steady while the push arcs; a bow hooks.
+    const html = readFileSync(new URL('../../JS_Bowling.html', import.meta.url), 'utf8');
+    const fn = (name) => { const i = html.indexOf('function ' + name + '('); let d = 0; for (let k = html.indexOf('{', i); k < html.length; k++) { if (html[k] === '{') d++; else if (html[k] === '}' && --d === 0) return html.slice(i, k + 1); } return ''; };
+    const consts = html.match(/const BOWL_PULL_MIN[\s\S]*?const BOWL_HOOK_K = \d+;/)[0];
+    const SW = new Function(src('Bowling.js') + consts + fn('bowlFitSlope') + fn('bowlSwingShot') + '\nreturn { bowlSwingShot };')();
+    let q = 11;
+    const noise = () => { q = (q * 16807) % 2147483647; return q / 2147483647 - 0.5; };
+    const H = 800;
+    const swing = (o) => {
+      const pts = [], guides = [];
+      let t = 0;
+      const add = (lx, ly) => { lx += noise() * 0.015; ly += noise() * 0.015; pts.push({ lx, ly, sx: 200 + lx * 300, sy: H - (ly + 2) * 150, t }); t += 8; };
+      const ball = () => ({ x: pts[pts.length - 1].lx, y: Math.min(0.35, pts[pts.length - 1].ly) });
+      if (o.slide !== undefined) for (let i = 0; i <= 20; i++) add(o.slide + (o.x0 - o.slide) * i / 20, 0.2);
+      for (let i = 0; i <= 50; i++) add(o.x0 + (o.xb - o.x0) * i / 50, 0.2 - 1.4 * i / 50);
+      for (let i = 1; i <= 22; i++) {
+        const u = i / 22;
+        add(o.xb + (o.x1 - o.xb) * u + (o.bow || 0) * 4 * u * (1 - u), -1.2 + 1.5 * u);
+        guides.push(SW.bowlSwingShot(pts, ball(), H, false).shot.aim);
+      }
+      return { shot: SW.bowlSwingShot(pts, ball(), H, true).shot, guides };
+    };
+    const arc = swing({ x0: 0, xb: 0, x1: 0, bow: -0.12 });
+    const steady = arc.guides.every((a) => a === arc.shot.aim) && Math.abs(arc.shot.aim) <= 5;
+    check(steady && arc.shot.spin > 10, `bowling: an arcing push leaves the line where the backswing set it and hooks (aim ${arc.shot.aim}, spin ${arc.shot.spin})`);
+    const slid = swing({ slide: 0.3, x0: -0.2, xb: -0.2, x1: -0.2 });
+    check(Math.abs(slid.shot.aim) <= 5 && slid.shot.x === -20, `bowling: sliding the ball across first doesn't aim the throw (aim ${slid.shot.aim}, from ${slid.shot.x}cm)`);
+    const diag = swing({ x0: -0.2, xb: -0.3, x1: -0.3 });
+    check(diag.shot.aim >= 55 && diag.shot.aim <= 90 && diag.shot.spin === 0, `bowling: a slanted backswing aims along its slant (aim ${diag.shot.aim})`);
+  }
 
   // The room: turns, the server's result equal to a replay, stale taps, the clock, leaving, the end.
   const bw = (ids, payload) => {

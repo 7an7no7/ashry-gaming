@@ -30,11 +30,34 @@ const BOWL = {
   BALL_M: 7,
   PIN_M: 1.55,
   OIL_END: 12.2,
-  HOOK_A: 1.35,          // m/s² of hook at full spin, once the oil runs out
-  HOOK_MAX: 0.62,        // m/s the hook can add sideways at full spin (the ball rolls out)
+  BALL_DECEL: 0.4,       // m/s² the ball slows down the lane (8 m/s at the line is about 7 at the pins)
+  HOOK_A: 1.75,          // m/s² of hook at full spin, once the oil runs out
+  HOOK_MAX: 0.85,        // m/s the hook can add sideways at full spin (the ball rolls out): 5-6° into the pins
   DT: 1 / 240,
   MAX_T: 8,
-  START_Y: 0.35
+  START_Y: 0.35,
+  // the pins' physics (tuned against the USBC pin-carry study, see rules.mjs)
+  E_BALL: 0.76,          // ball on pin: how much of the closing speed comes back
+  E_PIN: 0.56,            // pin on pin
+  KNOCK: 1.06,           // m/s a standing pin needs from another pin to go over
+  KNOCK_BALL: 0.25,      // and from the ball, seven kilos at its belly: a touch is enough
+  WOBBLE: 0.08,          // less than KNOCK and more than this: it rocks and stays up
+  F_STAND: 6.12,            // m/s² a standing pin slides to a stop
+  F_FALL: 1.53,           // a pin in the air, going over
+  F_LIE: 6.73,            // a pin lying on the deck
+  TW0: 2.54,              // rad/s a knocked pin starts going over at
+  TWK: 0.6,              // and more for a harder hit
+  TIP_G: 38,             // how fast gravity takes it over (g / the pin's reach)
+  LAND_PUSH: 0.35,       // m/s a pin slides along its length as it lands
+  ARM_TILT: 0.32,        // past this tilt a falling pin's belly and head can hit
+  SPIN_K: 1,             // a glancing hit sets a pin spinning (rad/s per m/s across)
+  SPIN_MAX: 6,
+  LIE_SPIN_K: 0.77,       // a lying pin hit off its middle
+  LIE_SPIN_MAX: 9,
+  SPIN_F: 6,             // rad/s² the deck slows a lying pin's spin
+  SPIN_F2: 1.2,
+  KICK_E: 0.45,          // the kickbacks send a pin back with this much of its speed
+  KICK_F: 0.02              // and keep this much of the speed along them
 };
 
 // Pins 1-10 as a bowler numbers them: 1 the head pin, 7 at the back left.
@@ -107,7 +130,7 @@ function bowlCircles(sim) {
   for (const p of sim.pins) {
     if (p.state === 3 || p.gone) continue;
     out.push({ p, x: p.x, y: p.y, r: BOWL.PIN_R, part: 0, arm: 0 });
-    if (p.state > 0 && p.tilt > 0.35) {
+    if (p.state > 0 && p.tilt > BOWL.ARM_TILT) {
       const [s] = bowlSinCos(p.tilt);
       out.push({ p, x: p.x + p.dx * BOWL.PIN_BELLY * s, y: p.y + p.dy * BOWL.PIN_BELLY * s, r: BOWL.PIN_R, part: 1, arm: BOWL.PIN_BELLY });
       out.push({ p, x: p.x + p.dx * BOWL.PIN_HEAD * s, y: p.y + p.dy * BOWL.PIN_HEAD * s, r: BOWL.HEAD_R, part: 2, arm: BOWL.PIN_HEAD });
@@ -116,30 +139,30 @@ function bowlCircles(sim) {
   return out;
 }
 
-function bowlKnock(sim, p, dv, nx, ny) {
+function bowlKnock(sim, p, dv, nx, ny, across, byBall) {
   if (dv > 1.1 && dv > p.hopV) {
     // A hard hit throws the pin up for a moment (the page draws it; the rules don't).
     p.hopAt = sim.t;
     p.hopV = Math.min(2.6, (dv - 0.8) * 0.55);
   }
   if (p.state === 0) {
-    if (dv > 0.42) {
+    if (dv > (byBall ? BOWL.KNOCK_BALL : BOWL.KNOCK)) {
       p.state = 1;
       sim.knocks++;
       p.wob = 0;
       const l = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
       if (l > 0.05) { p.dx = p.vx / l; p.dy = p.vy / l; } else { p.dx = nx; p.dy = ny; }
       p.tilt = 0.06;
-      p.tw = 1.6 + dv * 1.8;
-      p.spinZ = Math.max(-6, Math.min(6, (nx * 3.1 - ny * 1.7) * dv * 0.6));
-    } else if (dv > 0.08) {
+      p.tw = BOWL.TW0 + dv * BOWL.TWK;
+      p.spinZ = Math.max(-BOWL.SPIN_MAX, Math.min(BOWL.SPIN_MAX, BOWL.SPIN_K * (across || 0)));
+    } else if (dv > BOWL.WOBBLE) {
       p.wob = Math.min(0.22, p.wob + dv * 0.4);
       p.wobT = 0;
       p.dx = nx; p.dy = ny;
     }
   } else if (p.state === 2 && dv > 0.3) {
     // A lying pin hit off its middle starts to spin.
-    p.spinZ = Math.max(-9, Math.min(9, p.spinZ + (nx * p.dy - ny * p.dx) * dv * 1.6));
+    p.spinZ = Math.max(-BOWL.LIE_SPIN_MAX, Math.min(BOWL.LIE_SPIN_MAX, p.spinZ + (nx * p.dy - ny * p.dx) * dv * BOWL.LIE_SPIN_K));
   }
 }
 
@@ -162,7 +185,7 @@ function bowlStep(sim) {
       b.vx += ax * dt;
       // keep its speed: the hook turns it, it doesn't push it
       const sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
-      const want = sp - 0.09 * dt;
+      const want = sp - BOWL.BALL_DECEL * dt;
       b.vx = b.vx * want / sp; b.vy = b.vy * want / sp;
     }
     // Seven kilos through the pins: the ball always carries on into the pit.
@@ -185,14 +208,14 @@ function bowlStep(sim) {
     if (p.state === 3 || p.gone) continue;
     const sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
     if (sp > 0) {
-      const fr = (p.state === 0 ? 7 : p.state === 1 ? 2.2 : 3.4) * dt;
+      const fr = (p.state === 0 ? BOWL.F_STAND : p.state === 1 ? BOWL.F_FALL : BOWL.F_LIE) * dt;
       const k = sp > fr ? (sp - fr) / sp : 0;
       p.vx *= k; p.vy *= k;
     }
     p.x += p.vx * dt; p.y += p.vy * dt;
     if (p.state === 1) {
       const [s] = bowlSinCos(p.tilt);
-      p.tw += (38 * s + 1.5) * dt;
+      p.tw += (BOWL.TIP_G * s + 1.5) * dt;
       p.tilt += p.tw * dt;
       if (p.tilt >= 1.5707963267948966) {
         p.tilt = 1.5707963267948966;
@@ -200,7 +223,7 @@ function bowlStep(sim) {
         p.downAt = sim.t;
         p.tw = 0;
         // the fall pushes it a little along its length
-        p.vx += p.dx * 0.35; p.vy += p.dy * 0.35;
+        p.vx += p.dx * BOWL.LAND_PUSH; p.vy += p.dy * BOWL.LAND_PUSH;
       }
     } else if (p.state === 2 && p.spinZ !== 0) {
       // A lying pin turns round its middle, slowing on the wood.
@@ -212,7 +235,7 @@ function bowlStep(sim) {
       dx /= l; dy /= l;
       p.dx = dx; p.dy = dy;
       p.x = mx - dx * BOWL.PIN_MID; p.y = my - dy * BOWL.PIN_MID;
-      const f = (6 + 1.2 * Math.abs(p.spinZ)) * dt;
+      const f = (BOWL.SPIN_F + BOWL.SPIN_F2 * Math.abs(p.spinZ)) * dt;
       p.spinZ = Math.abs(p.spinZ) > f ? p.spinZ - (p.spinZ > 0 ? f : -f) : 0;
     } else if (p.state === 0 && p.wob > 0) {
       p.wobT += dt;
@@ -233,7 +256,8 @@ function bowlStep(sim) {
     const wall = BOWL.LANE_HALF + BOWL.GUTTER;
     if (p.y > BOWL.KICK_Y && (p.x > wall - BOWL.PIN_R || p.x < -wall + BOWL.PIN_R)) {
       p.x = p.x > 0 ? wall - BOWL.PIN_R : -wall + BOWL.PIN_R;
-      p.vx = -p.vx * 0.45;
+      p.vx = -p.vx * BOWL.KICK_E;
+      p.vy *= 1 - BOWL.KICK_F;
     }
   }
 
@@ -252,12 +276,13 @@ function bowlStep(sim) {
       b.x -= nx * over * im1 / (im1 + im2); b.y -= ny * over * im1 / (im1 + im2);
       if (c.part < 2) { p.x += nx * over * im2 / (im1 + im2); p.y += ny * over * im2 / (im1 + im2); }
       if (rel <= 0) continue;
-      const j = (1 + 0.72) * rel / (im1 + im2);
+      const j = (1 + BOWL.E_BALL) * rel / (im1 + im2);
+      const across = (b.vx - p.vx) * ny - (b.vy - p.vy) * nx;
       b.vx -= j * im1 * nx; b.vy -= j * im1 * ny;
       p.vx += j * im2 * nx; p.vy += j * im2 * ny;
       sim.hits++;
       if (!b.hitAt) b.hitAt = sim.t;
-      bowlKnock(sim, p, j * im2, nx, ny);
+      bowlKnock(sim, p, j * im2, nx, ny, across, true);
     }
   }
   for (let i = 0; i < cs.length; i++) {
@@ -279,12 +304,13 @@ function bowlStep(sim) {
       if (c.part < 2) { q.x += nx * over; q.y += ny * over; }
       const rel = (avx - cvx) * nx + (avy - cvy) * ny;
       if (rel <= 0) continue;
-      const j = (1 + 0.6) * rel / 2;
+      const j = (1 + BOWL.E_PIN) * rel / 2;
+      const across = (avx - cvx) * ny - (avy - cvy) * nx;
       p.vx -= j * nx; p.vy -= j * ny;
       q.vx += j * nx; q.vy += j * ny;
       if (j > 0.9) sim.clacks++;
-      bowlKnock(sim, p, j, -nx, -ny);
-      bowlKnock(sim, q, j, nx, ny);
+      bowlKnock(sim, p, j, -nx, -ny, -across);
+      bowlKnock(sim, q, j, nx, ny, across);
     }
   }
 

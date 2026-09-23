@@ -318,6 +318,27 @@ work changed. Add to it when a decision is made or a batch ships.
     backswing adds to it** (a swing with none gives three quarters); its line
     aims, **a curve in it hooks**; where the ball is when it is let go is
     where it is released. (The first build only read an upward swipe.)
+  - **The line holds still** (the owner, 23 Sep 2026, the same evening:
+    "the shot assist is not working correctly ... the line is moved when I
+    swing"; asked, they confirmed the line jumped and wobbled while swinging):
+    **the backswing sets the line, like a pendulum** - pull back straight and
+    the ball rolls straight, on a slant and it rolls on that slant - and on
+    the way forward the ball swings along that line whatever the thumb does,
+    so the aim guide starts at the ball in the hand and doesn't move; the
+    thumb's sideways wander in the forward swing is the hook (the guide's far
+    end bends as it forms). A throw with no backswing (a flick from the line)
+    goes the way the flick went. Sliding the ball across first, to line up,
+    is not part of the backswing.
+  - **Pins that fall the way real ones do** (the owner, the same evening:
+    "the accurate of what is falling based on what was hit, more real"): the
+    pin physics were tuned against the shape of the USBC pin-carry study - a
+    hook into the pocket at 5-6 degrees strikes about four times in five, a
+    straight ball into the same pocket about one in three, a ball full on the
+    head pin mostly splits (4-6, 7-10, 4-7-10), a light pocket hit leaves the
+    5 or the 5-7, a high one the 6-10, a soft hit on the 3 the 2-4-5 bucket,
+    and any touch of the ball takes a lone pin. A full hook now reaches the
+    pins at 5-6 degrees (it was about 2.5, too little to carry), and the ball
+    loses about 1 m/s down the lane, as a real one does.
   - **Seen from behind the ball, in perspective** (three.js, real 3D).
   - In a room **everyone bowls in turn and everyone watches every throw**, on
     their phones and the TV. **No bumpers.**
@@ -1566,6 +1587,16 @@ the word search), `countUp` for streaks and scores.
   clock's gentle putt, leaving, the podium. The leak check plays both modes
   (nothing is hidden: the generic rules). Robot tests: 1527 (a mini golf round
   in each mode on a live server). A deploy is needed for the rooms server.
+- **23 Sep 2026, بولينج's second pass** - the owner played it and asked for a
+  truer throw and truer pins, and reported the aim guide moving during the
+  swing (*The owner's specs*, *بولينج*). The line is now the backswing's and
+  holds still; the pins' physics are named constants tuned against the USBC
+  pin-carry study's shape (they had struck from almost anywhere - a third of
+  head-on hits and half of the crossovers); a full hook reaches 5-6 degrees.
+  Found on the way (*Traps*): the old test of "a pocket hit strikes" sent a
+  right-hooking ball into the right-hand pocket and passed only because the
+  old physics struck anywhere, and a glancing hit's spin was worked out from
+  absolute directions, so a mirrored throw didn't fall mirrored.
 
 ## Building and Running
 
@@ -3949,15 +3980,27 @@ section (27):
   a pin that goes down sweeps its neighbours (the pin action that turns a
   pocket hit into a strike). A lying pin spins round its middle (`spinZ`,
   capped and damped). The hook grips once the oil runs out (12.2 m) and stops
-  when the ball rolls out (`HOOK_MAX`). The ball always carries on into the pit
+  when the ball rolls out (`HOOK_MAX`, 0.85 m/s: 5-6 degrees into the pins at
+  full spin); the ball slows `BALL_DECEL` down the lane. The ball always carries on into the pit
   once it has hit (it used to stall among the lying pins). `hopAt`/`hopV` are
   for the page only (a pin hit hard is lifted into the air for a moment).
   The score sheet: `bowlScore`, `bowlFrameNext`, `bowlMarks` (X / - …),
   `bowlBallKind`, and a card: `bowlNewCard`, `bowlApply` (one ball onto it,
   and the rack for the next), `bowlTotal`. `bowlGentleShot` is the clock's
-  ball. Tuned: a ball into the 1-3 pocket strikes more often than not; every
-  throw settles within about 1.5 s of the first hit (the longest in the tests
-  4.3 s from the release).
+  ball. **Every number of the pins' physics is a named constant in `BOWL`**
+  (restitutions, the knock thresholds - `KNOCK_BALL` for the ball, lower, and
+  `KNOCK` for a pin, higher, so a gentle nudge rocks a pin rather than setting
+  off a chain of dominoes - the frictions, how fast a pin goes over, the
+  spin a glancing hit gives, the kickbacks), found by a search that rolled the
+  ball into a full rack at every spot from 22 cm left of the head pin to 26
+  right, at 0-8 degrees and three speeds, and matched the strike rate of each
+  against the pin-carry study's shape. `rules.mjs` holds the result: the
+  pocket at 6 degrees strikes at least 70%, a straight ball into it 20 points
+  less, head-on mostly splits, a light hit and the far side seldom strike, the
+  two pockets of a straight ball carry alike, a touch takes a lone pin, and a
+  full hook reaches the head pin at 5-8 degrees. A ball hooking right (spin +)
+  carries into the pocket left of the head pin (the 1-2), one hooking left
+  into the 1-3. Every throw settles within about 1.5 s of the first hit.
 - **`RoomBowling.js`**: `shared` holds the whole game (nothing is secret):
   `order`, `cards`, `turn`, `turnSeq` (raised every ball; a throw carries it,
   a stale one is dropped), `throwSeq` and `last { seq, pid, shot, before,
@@ -3999,17 +4042,29 @@ section (27):
     'return')`), the strike: the deck lights flare, `tada`, confetti, the word
     in gold with pins flying out of it; the spare `ding`; a gutter the duels'
     sigh.
-  - **The swing** (`bowlShotFrom`, `bowlSwingBall`): the ball follows the
-    finger across the approach (`bowlSwingSpot`: ray-cast onto the lane, up
-    to `BOWL_BACK_MAX` 1.6 m behind the line and `BOWL_BALL_X_MAX` across);
-    the farthest point back starts the forward swing. The aim is that
-    swing's line *on the lane*; the speed is its last 120 ms in screen heights
-    a second, times 0.75 to 1.25 by the backswing (how far back from where it
-    was picked up, up to a sixth of the screen); the spin how far the middle
-    of the forward swing bows off its straight line (middle to the left of
-    the chord hooks right). The throw's numbers are unchanged, so rooms and
-    replays are untouched; only your own ball starts from your hand
-    (`g.release`, carried to the line in `BOWL_RELEASE_S`). `touch-action: none` only while it is your throw
+  - **The swing** (`bowlSwingShot`, a pure function of the finger's path;
+    `bowlShotFrom`, `bowlSwingBall`): every point the finger passes
+    (coalesced pointer events, each with its place on the screen and on the
+    lane) is kept. The ball follows the finger across the approach
+    (`bowlSwingSpot`: ray-cast onto the lane, up to `BOWL_BACK_MAX` 1.6 m
+    behind the line and `BOWL_BALL_X_MAX` across); the farthest point back
+    starts the forward swing. **The line is the backswing's**: a least-squares
+    fit on the lane through the steady pull back that ended there (a sideways
+    slide first isn't part of it, nor the top 15% where the finger turns),
+    once it is `BOWL_PULL_MIN` 0.2 m long; with less, the push's own fit. On
+    the way forward the ball is kept on that line (`tr.back`), so it crosses
+    the foul line exactly where the guide starts and the guide holds still.
+    The speed is the push's last 120 ms in screen heights a second, times 0.75
+    to 1.25 by the backswing (how far back from where it was picked up, up to
+    a sixth of the screen); the spin is the push's bow off its chord **on the
+    screen** (on the lane perspective flattens the far half to nothing), with
+    a dead zone (`BOWL_HOOK_DEAD`) so a nearly straight thumb throws straight;
+    middle to the left of the chord hooks right. The throw is still the same
+    four numbers, so rooms and replays are untouched; only your own ball
+    starts from your hand (`g.release`, carried to the line in
+    `BOWL_RELEASE_S`). `rules.mjs` pins it: an arcing push leaves the line
+    where the backswing set it at every step and hooks; a slide across first
+    doesn't aim; a slanted backswing aims along its slant. `touch-action: none` only while it is your throw
     (`.bowl-canvas.is-live`).
   - **Solo** (`appState.bowling`, `soloRegister('bowling')`): a ball's result
     is written and saved *before* it is shown (a reload can't take a bad ball
@@ -4573,6 +4628,22 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**Physics that passes a test can still be wrong everywhere else.** The first
+bowling pins passed "a pocket hit strikes more often than not" - and struck
+from 40% of head-on hits and more than half of the crossovers, because the
+test only looked where a strike was expected. Measure a physics model over the
+whole range of inputs against what should happen at each (a table of strike
+rates by spot and angle, and the leaves), not at the one spot a test names.
+And a formula written from absolute directions (`nx * 3.1 - ny * 1.7`) breaks
+mirror symmetry: build it from the contact's own normal and relative velocity
+(a cross product flips sign in a mirror, as it should).
+
+**Read a gesture where it was drawn.** A bow in the bowling swing, measured on
+the lane, was flattened to nothing by perspective (the far half of the push is
+metres long on the lane and a few pixels on the screen); the same bow measured
+on the screen is what the thumb drew. A direction, on the other hand, belongs
+on the lane, where the ball rolls.
 
 **A half-pipe is a pipe until you check which half.** The bowling gutters
 are half of a `CylinderGeometry` (`thetaStart`, `thetaLength` π) turned

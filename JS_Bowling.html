@@ -935,13 +935,21 @@ function bowlLaneAt(clientX, clientY) {
  * life - it affects the speed too, like I'm swinging it"). Touch the ball and it follows the
  * finger on the approach: pull it back towards you (the backswing), then push it forward and
  * let go. The forward push is the throw - its speed is the ball's speed, and a longer
- * backswing adds up to half again, the way a bigger swing does; its line from the farthest
- * point back to the release aims; a curve in it hooks. The ball can be anywhere across the
- * approach while you swing: where it is when you let go is where it is released.
+ * backswing adds up to half again, the way a bigger swing does. The line is the backswing's:
+ * a pendulum comes forward the way it went back, so the line is set while you pull back (read
+ * on the lane itself, perspective and all, fitted through every point of the pull rather than
+ * two of them) and a thumb's natural arc on the way forward doesn't swing it. A throw with no
+ * backswing, a flick from the line, goes the way the flick went. A bow in the push hooks. The
+ * ball leaves your hand on that line and crosses the foul line where the line does, so the
+ * aim guide (the owner, 23 Sep 2026: "the line is moved when I swing") shows exactly the ball
+ * you are about to throw, and stays still while your finger does.
  */
 const BOWL_BACK_MAX = 1.6;        // metres behind the foul line the ball can be pulled back
 const BOWL_RELEASE_S = 0.16;      // your ball reaches the line from your hand in this long
 const BOWL_BALL_X_MAX = 0.40;     // how far across the approach the ball can be carried
+const BOWL_PULL_MIN = 0.2;        // metres of backswing that set the line
+const BOWL_HOOK_DEAD = 0.03;      // a bow smaller than this (of the push's length) is a straight ball
+const BOWL_HOOK_K = 520;          // spin per bow
 
 /** Where the finger is on the approach, as the ball's place: x across, y along (negative behind the line). */
 function bowlSwingSpot(clientX, clientY) {
@@ -953,78 +961,150 @@ function bowlSwingSpot(clientX, clientY) {
   };
 }
 
-/** The four numbers of a throw from the swing: speed from the push and the backswing, aim from its line, hook from its bow. */
-function bowlShotFrom(tr) {
-  const g = bowlGfx;
-  const pts = tr.pts;
+/** A line through points on the lane, x as a function of y: the slope dx/dy, least squares. */
+function bowlFitSlope(pts) {
   if (pts.length < 2) return null;
-  // The farthest point back: where the forward push starts.
-  let kb = 0;
-  for (let i = 1; i < pts.length; i++) if (pts[i].y >= pts[kb].y) kb = i;
-  const back = pts[kb], z = pts[pts.length - 1];
-  const up = back.y - z.y, dx = z.x - back.x;
-  if (up < 30) return null;
-  const r = g.canvas.getBoundingClientRect();
-  // The push: the last 120ms of it, in screens a second.
-  let k = pts.length - 1;
-  while (k > kb && z.t - pts[k].t < 120) k--;
-  const p = pts[k], dtm = Math.max(16, z.t - p.t);
-  const rel = Math.max(0, (p.y - z.y) / dtm * 1000 / r.height);
-  // The backswing: how far the ball was pulled back from where it was picked up, up to a sixth of the screen.
-  const swing = Math.max(0, Math.min(1, (back.y - pts[0].y) / (r.height * 0.16)));
-  const base = 400 + (rel - 0.5) / 3 * 600;
-  const speed = Math.round(Math.max(380, Math.min(1000, 380 + (base - 380) * (0.75 + 0.5 * swing))));
-  // Aim: the push's line on the lane itself (perspective and all), else its angle on the screen.
-  let aim = Math.round(dx / up * 100);
-  const la = bowlLaneAt(back.x, back.y), lz = bowlLaneAt(z.x, z.y);
-  if (la && lz && lz.y - la.y > 0.3) aim = Math.round((lz.x - la.x) / (lz.y - la.y) * 1000);
-  aim = Math.max(-110, Math.min(110, aim));
-  // Hook: the middle of the push to the left of its straight line hooks right, and back.
-  const m = pts[kb + Math.floor((pts.length - 1 - kb) / 2)];
-  const len2 = dx * dx + up * up;
-  const cross = dx * (back.y - m.y) - up * (m.x - back.x);
-  const spin = Math.round(Math.max(-100, Math.min(100, cross / len2 * 420)));
-  return bowlCleanShot({ x: tr.x, aim, speed, spin });
+  let my = 0, mx = 0;
+  pts.forEach(p => { my += p.ly; mx += p.lx; });
+  my /= pts.length; mx /= pts.length;
+  let syy = 0, sxy = 0;
+  pts.forEach(p => { syy += (p.ly - my) * (p.ly - my); sxy += (p.ly - my) * (p.lx - mx); });
+  if (syy < 1e-4) return null;
+  return sxy / syy;
 }
 
-/** The ball under the finger while it swings. */
+/**
+ * The four numbers of a throw from a swing, without the page: `pts` is the finger's path, each
+ * { sx, sy, t, lx, ly } (on the screen in px, the time in ms, and on the lane in metres; lx/ly
+ * null above the horizon), `ball` where the ball is now, `screenH` the lane's height on the
+ * screen. `final` is the release, which needs a real push forward; while swinging there is
+ * always an answer, for the aim guide. Returns { shot, slope } or null.
+ */
+function bowlSwingShot(pts, ball, screenH, final) {
+  const lane = pts.filter(p => p.ly !== null && p.ly !== undefined && p.ly < BOWL.START_Y + 3);
+  if (!lane.length || !ball) return null;
+  // The farthest point back on the lane: where the forward push starts.
+  let kb = 0;
+  for (let i = 1; i < lane.length; i++) if (lane[i].ly <= lane[kb].ly) kb = i;
+  const back = lane[kb], z = lane[lane.length - 1];
+  const pushLen = z.ly - back.ly;
+  const push = lane.slice(kb);
+  // The backswing: the steady pull back that ended there (a sideways move to line the ball up
+  // first is not part of it), fitted without its top, where the finger was still turning.
+  let s = kb, top = back.ly;
+  while (s > 0 && lane[s - 1].ly >= top - 0.03) { s--; top = Math.max(top, lane[s].ly); }
+  const range = top - back.ly;
+  const pull = lane.slice(s, kb + 1).filter(q => q.ly <= back.ly + 0.85 * range);
+  // The line: the backswing's when there was one (a pendulum comes forward the way it went
+  // back); a throw straight from the line has only its push to go by.
+  let slope = 0;
+  if (range >= BOWL_PULL_MIN) slope = bowlFitSlope(pull) || 0;
+  else if (push.length >= 3 && pushLen >= 0.3) slope = bowlFitSlope(push) || 0;
+  slope = Math.max(-0.11, Math.min(0.11, slope));
+  const aim = Math.max(-110, Math.min(110, Math.round(1000 * slope / Math.sqrt(1 + slope * slope))));
+
+  // The speed: the push's last 120ms, in screens a second (on the screen, where a flick is a flick).
+  const end = pts[pts.length - 1];
+  let k = pts.length - 1;
+  while (k > 0 && end.t - pts[k].t < 120 && pts[k - 1].t >= back.t) k--;
+  const p = pts[k], dtm = Math.max(16, end.t - p.t);
+  const rel = Math.max(0, (p.sy - end.sy) / dtm * 1000 / screenH);
+  // The backswing: how far the ball was pulled back from where it was picked up, up to a sixth of the screen.
+  const swing = Math.max(0, Math.min(1, (back.sy - pts[0].sy) / (screenH * 0.16)));
+  if (final && (back.sy - end.sy < 30 || pushLen < 0.05)) return null;
+  const base = rel > 0.05 ? 400 + (rel - 0.5) / 3 * 600 : 650;
+  const speed = Math.round(Math.max(380, Math.min(1000, 380 + (base - 380) * (0.75 + 0.5 * swing))));
+
+  // The hook: the push's bow off its own line, as a share of its length - on the screen, where
+  // the thumb draws it (on the lane, perspective would flatten the far half). Middle to the left
+  // hooks right.
+  let spin = 0;
+  const sp = pts.filter(q => q.t >= back.t);
+  if (sp.length >= 4 && pushLen > 0.2) {
+    const a0 = sp[0], a1 = sp[sp.length - 1];
+    const cx = a1.sx - a0.sx, cy = a0.sy - a1.sy, len = Math.sqrt(cx * cx + cy * cy);
+    if (len > 40) {
+      let sum = 0;
+      sp.forEach(q => { sum += (cx * (a0.sy - q.sy) - cy * (q.sx - a0.sx)) / len; });
+      const bow = 1.5 * sum / sp.length / len;
+      const over = Math.abs(bow) - BOWL_HOOK_DEAD;
+      if (over > 0) spin = Math.round(Math.max(-100, Math.min(100, Math.sign(bow) * over * BOWL_HOOK_K)));
+    }
+  }
+  // The ball goes on along the line from where it is to the foul line: that is where it is released.
+  const x = Math.round((ball.x + slope * (BOWL.START_Y - ball.y)) * 100);
+  return { shot: bowlCleanShot({ x, aim, speed, spin }), slope, pulled: range >= BOWL_PULL_MIN };
+}
+
+/** The throw of the swing so far (or at the release, `final`), from the page's trail. */
+function bowlShotFrom(tr, final) {
+  const g = bowlGfx;
+  const r = g.canvas.getBoundingClientRect();
+  const ball = tr.ball || { x: tr.x / 100, y: BOWL.START_Y };
+  const out = bowlSwingShot(tr.pts, ball, r.height, final);
+  return out ? out.shot : null;
+}
+
+/**
+ * The ball under the finger while it swings. Pulling back it goes where the finger goes; on the
+ * way forward after a backswing it swings along the backswing's line, as a ball on an arm does,
+ * wherever the thumb wanders (the wander is the hook), so the ball crosses the foul line where
+ * the aim guide said it would.
+ */
 function bowlSwingBall(tr, clientX, clientY) {
   const g = bowlGfx;
   const at = bowlSwingSpot(clientX, clientY);
   if (!at) return;
+  const hit = bowlLaneAt(clientX, clientY);
+  if (!tr.back || hit.y <= tr.back.ly) tr.back = { x: at.x, y: at.y, ly: hit.y };
+  else {
+    const r = g.canvas.getBoundingClientRect();
+    const line = bowlSwingShot(tr.pts, tr.ball || at, r.height, false);
+    if (line && line.pulled) at.x = Math.max(-BOWL_BALL_X_MAX, Math.min(BOWL_BALL_X_MAX, tr.back.x + line.slope * (at.y - tr.back.y)));
+  }
   tr.ball = at;
   tr.x = Math.max(-40, Math.min(40, Math.round(at.x * 100)));
   g.ball.visible = true;
   g.ball.position.set(at.x, BOWL.BALL_R, -at.y);
 }
 
+/** One point of the finger's path: on the screen and on the lane. */
+function bowlTrailPoint(e) {
+  const l = bowlLaneAt(e.clientX, e.clientY);
+  const t = e.timeStamp > 0 && Math.abs(e.timeStamp - performance.now()) < 5000 ? e.timeStamp : performance.now();
+  return { sx: e.clientX, sy: e.clientY, t, lx: l ? l.x : null, ly: l ? l.y : null };
+}
+
 function bowlPointerDown(e) {
   const g = bowlGfx;
   if (!g.input.on || g.mode !== 'idle' || g.input.trail) return;
   e.preventDefault();
-  g.input.trail = { id: e.pointerId, pts: [{ x: e.clientX, y: e.clientY, t: performance.now() }], x: bowlLaneXAt(e.clientX), ball: null };
+  g.input.trail = { id: e.pointerId, pts: [bowlTrailPoint(e)], x: bowlLaneXAt(e.clientX), ball: null, back: null };
   bowlSwingBall(g.input.trail, e.clientX, e.clientY);
   if (!g.input.trail.ball) bowlPlaceBall(g.input.trail.x / 100);
   try { g.canvas.setPointerCapture(e.pointerId); } catch (err) {}
   if (typeof haptic === 'function') haptic('light');
+  if (g.input.guide) bowlShowGuide(bowlShotFrom(g.input.trail, false), g.input.trail.ball);
   bowlGfxKick();
 }
 
 function bowlPointerMove(e) {
   const g = bowlGfx, tr = g.input.trail;
   if (!tr || e.pointerId !== tr.id) return;
-  tr.pts.push({ x: e.clientX, y: e.clientY, t: performance.now() });
-  if (tr.pts.length > 240) {
-    // Keep the start and the farthest point back; the push is what is near the end.
+  // Every point the finger passed, not only one a frame: the line is fitted through them.
+  const evs = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+  (evs.length ? evs : [e]).forEach(ev => tr.pts.push(bowlTrailPoint(ev)));
+  if (tr.pts.length > 400) {
+    // Keep the start, the farthest point back and what came after it: the push is near the end.
     let kb = 0;
-    for (let i = 1; i < tr.pts.length; i++) if (tr.pts[i].y >= tr.pts[kb].y) kb = i;
-    if (kb > 1 && tr.pts.length - kb < 200) tr.pts.splice(1, kb - 1);
-    else tr.pts.splice(1, tr.pts.length - 240);
+    for (let i = 1; i < tr.pts.length; i++) if (tr.pts[i].ly !== null && (tr.pts[kb].ly === null || tr.pts[i].ly <= tr.pts[kb].ly)) kb = i;
+    const drop = Math.min(tr.pts.length - 400, Math.max(0, kb - 60));
+    tr.pts.splice(1, drop > 0 ? drop : tr.pts.length - 400);
   }
   bowlSwingBall(tr, e.clientX, e.clientY);
-  if (g.input.guide && performance.now() - g.input.guideAt > 50) {
+  if (g.input.guide && performance.now() - g.input.guideAt > 40) {
     g.input.guideAt = performance.now();
-    bowlShowGuide(bowlShotFrom(tr) || { x: tr.x, aim: 0, speed: 700, spin: 0 });
+    bowlShowGuide(bowlShotFrom(tr, false), tr.ball);
   }
   bowlGfxKick();
 }
@@ -1032,10 +1112,10 @@ function bowlPointerMove(e) {
 function bowlPointerUp(e) {
   const g = bowlGfx, tr = g.input.trail;
   if (!tr || e.pointerId !== tr.id) return;
-  tr.pts.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+  tr.pts.push(bowlTrailPoint(e));
   g.input.trail = null;
   bowlClearGuide();
-  const shot = bowlShotFrom(tr);
+  const shot = bowlShotFrom(tr, true);
   if (!shot) {
     // Not thrown: the ball goes back to the line where it was.
     bowlPlaceBall(tr.x / 100);
@@ -1064,17 +1144,20 @@ function bowlClearGuide() {
   g.guide = null;
 }
 
-/** The aim guide: the path this swipe would send the ball down, as far as the head pin. */
-function bowlShowGuide(shot) {
+/** The aim guide: from the ball in your hand, the path this swing would send the ball down, as far as the head pin. */
+function bowlShowGuide(shot, ball) {
   const g = bowlGfx, T = g.T;
   bowlClearGuide();
+  if (!shot) return;
   const sim = bowlStart(Array(10).fill(false), shot);
   const pts = [];
+  if (ball && ball.y < BOWL.START_Y - 0.05) pts.push(new T.Vector3(ball.x, 0.004, -ball.y));
+  pts.push(new T.Vector3(sim.ball.x, 0.004, -sim.ball.y));
   let n = 0;
   while (!sim.ball.gone && sim.ball.y < BOWL.HEAD_Y && n < 4000) {
     bowlStep(sim);
-    if (n % 12 === 0) pts.push(new T.Vector3(sim.ball.x, 0.004, -sim.ball.y));
     n++;
+    if (n % 12 === 0) pts.push(new T.Vector3(sim.ball.x, 0.004, -sim.ball.y));
     if (sim.ball.gutter) break;
   }
   if (pts.length < 2) return;

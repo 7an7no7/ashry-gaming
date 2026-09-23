@@ -93,7 +93,8 @@ function chOpenRoomReview(state) {
   if (!bd || !bd.hist || !bd.hist.length) return;
   const names = duelRoomNames(state);
   const r = bd.result || {};
-  const rec = chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], result: r.result || 'd', reason: r.reason || '',
+  const seat = state.youAreScreen ? -1 : (s.seats || []).indexOf(Room.me);
+  const rec = chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: seat, result: r.result || 'd', reason: r.reason || '',
     start: '', moves: bd.hist.slice(), key: 'room|' + state.code + '|' + s.round });
   if (rec) chReviewShow(rec);
 }
@@ -256,7 +257,8 @@ function chReviewPaint(fresh, justDone) {
     arrows.push({ from: rv.moves[k].from, to: rv.moves[k].to, color: 'rgba(249, 115, 22, 0.8)' });
     arrows.push({ from: verdict.best.from, to: verdict.best.to, color: 'rgba(34, 197, 94, 0.9)' });
   }
-  const orient = rec.mode === 'phone' && rec.me === 1 ? 1 : 0;
+  // The side you played at the bottom (a game you watched, or two on one phone: White).
+  const orient = rec.me === 1 ? 1 : 0;
   const model = {
     key: 'review|' + rec.id, board: pos.board, orient: orient, loud: true,
     last: !showBefore && info ? { from: info.from, to: info.to } : null,

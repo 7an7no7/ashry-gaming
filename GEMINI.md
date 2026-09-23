@@ -3745,8 +3745,8 @@ and a room link shared from a phone uses the address that phone is on - both
 reach the same rooms. (A first try with `wrangler pages project create`, run
 inside `rooms-worker/`, deployed a whole second rooms server named
 `ashry-gaming` instead of a Pages project - wrangler's Pages is now Workers and
-it took that folder's config. It serves the app and is unused; the owner can
-delete it in the Cloudflare dashboard.)
+it took that folder's config. The owner deleted it the same evening. Run
+wrangler for the second address from `site-worker/` only.)
 
 The rooms server also serves a copy of `docs/` at its own address, uploaded on
 every deploy — a third address for the app if `github.io` is ever blocked.

@@ -3355,6 +3355,7 @@
       exit_leave_game: "اخرج من اللعبة",
       timer_done: "خلص وقت المؤقت",
       update_ready: "فيه نسخة جديدة من التطبيق - اضغط للتحديث",
+      update_downloading: "بنزّل النسخة الجديدة… هتفتح لوحدها",
       room_kick: "شيله من الغرفة",
       room_kick_confirm: "تشيل {name} من الغرفة؟ يقدر يدخل تاني بالكود.",
       bot_title: "لاعبين كمبيوتر",
@@ -6412,6 +6413,7 @@
       exit_leave_game: "Leave the game",
       timer_done: "The timer is up",
       update_ready: "A new version of the app is ready - tap to update",
+      update_downloading: "Downloading the new version… it will open by itself",
       room_kick: "Remove from the room",
       room_kick_confirm: "Remove {name} from the room? They can join again with the code.",
       bot_title: "Computer players",
@@ -7128,7 +7130,17 @@
     // app; tools/build-site.mjs writes it.
     if (!window.STATIC_SITE || !('serviceWorker' in navigator)) return;
     const hadController = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    const reg = navigator.serviceWorker.register('sw.js').catch(() => null);
+    // The app opens from the copy on the phone (docs/sw.js), so a new build is found by
+    // asking for sw.js again. The browser does that when the app is opened; an iPhone
+    // home-screen copy can sit in the background for days, so ask on coming back too
+    // (at most every 10 minutes).
+    let askedAt = Date.now();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || Date.now() - askedAt < 600000) return;
+      askedAt = Date.now();
+      reg.then(r => r && r.update()).catch(() => {});
+    });
     // The fonts, confetti and the QR come from outside. On a first visit they
     // load before the worker is in charge, so it never saw them, and offline the
     // app lost its fonts. Once a worker controls the page, ask for them again
@@ -7149,11 +7161,11 @@
     // worker before and nothing is out of date.
     let told = false;
     navigator.serviceWorker.addEventListener('controllerchange', async () => {
+      // Settings → تحديث البيانات asked for the new build: it is here, so switch now.
+      if (appUpdateAsked) { reloadApp(); return; }
       if (!hadController || told) return;
-      // The first open after a new build already loads the new page (the worker
-      // fetches the network first), and that build's worker then takes over too -
-      // which is not news. Only say so when the worker's build differs from the
-      // page on screen.
+      // A first visit, or a page that already is the new build (a phone that had no
+      // copy yet went to the network), is not news: only a page older than the worker is.
       try {
         const res = await fetch('sw.js', { cache: 'no-store' });
         const m = /const CACHE = 'ashry-(\d+)'/.exec(await res.text());
@@ -7161,6 +7173,13 @@
       } catch (e) { return; }   // offline: nothing new can be loaded anyway
       if (told) return;
       told = true;
+      // The new build is already on the phone, so switching is a fraction of a second.
+      // It happens by itself when nothing is lost: under the intro, or on the home,
+      // مع بعض or الأدوات with no room open, no popup, no field being typed in and no
+      // tap for a few seconds - or when the app goes to the background. In a game or
+      // a room the note below says so, and a tap switches.
+      if (appUpdateQuiet()) { reloadApp(); return; }
+      appUpdateWatch();
       const t = TRANSLATIONS[appState.lang] || {};
       const el = document.createElement('button');
       el.type = 'button';
@@ -7170,6 +7189,39 @@
       document.body.appendChild(el);
       requestAnimationFrame(() => el.classList.add('show'));
       setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, 15000);
+    });
+  }
+
+  /* --- a new build, switched to when nothing is lost (registerServiceWorker) --- */
+  let lastTapAt = 0;
+  document.addEventListener('pointerdown', () => { lastTapAt = Date.now(); }, true);
+  document.addEventListener('keydown', () => { lastTapAt = Date.now(); }, true);
+
+  // Screens a reload loses nothing on: the three tabs and the setup screens (their
+  // choices are saved as they change) - never a game being played or a room.
+  function appUpdateSafeView() {
+    const v = appState.currentView || '';
+    if (typeof Room !== 'undefined' && Room.state) return false;
+    return ['menu', 'together', 'tools'].indexOf(v) !== -1 || v.indexOf('setup-') === 0;
+  }
+
+  function appUpdateQuiet() {
+    // Still on the intro: nothing is on screen yet.
+    if (typeof intro !== 'undefined' && intro.state !== 'done') return true;
+    // While someone is on a setup screen, choosing: only when the app goes to the background.
+    if (!appUpdateSafeView() || (appState.currentView || '').indexOf('setup-') === 0) return false;
+    if (document.querySelector('.modal-overlay:not(.hidden)')) return false;
+    const a = document.activeElement;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return false;
+    return Date.now() - lastTapAt > 4000;
+  }
+
+  // Waiting for a quiet moment: every few seconds, and when the app goes to the background.
+  function appUpdateWatch() {
+    const tick = setInterval(() => { if (appUpdateQuiet()) { clearInterval(tick); reloadApp(); } }, 3000);
+    // Gone to the background on a screen that loses nothing: back to the new build.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && appUpdateSafeView()) { clearInterval(tick); reloadApp(); }
     });
   }
 
@@ -7346,6 +7398,25 @@
   /* Settings → تحديث البيانات. A real reload: the service worker fetches the
      network first, so this is how a home-screen copy (which has no reload
      button) picks up a new build. Re-running initializeApp loaded nothing new. */
+  /**
+   * Settings → تحديث البيانات. The app opens from the copy on the phone, so a plain reload
+   * would show that copy again: ask for sw.js first, and if a newer build is being
+   * installed, the page switches the moment its worker takes over (controllerchange above).
+   */
+  let appUpdateAsked = false;
+  async function updateApp() {
+    const sw = window.STATIC_SITE && navigator.serviceWorker;
+    const reg = sw ? await navigator.serviceWorker.getRegistration().catch(() => null) : null;
+    if (!reg) { reloadApp(); return; }
+    appUpdateAsked = true;
+    try { await reg.update(); } catch (e) {}
+    if (!reg.installing && !reg.waiting) { reloadApp(); return; }
+    const t = TRANSLATIONS[appState.lang] || {};
+    if (typeof showToast === 'function') showToast(t.update_downloading || 'بنزّل النسخة الجديدة…', 'info');
+    // A download that never ends (the network went) still gets a reload.
+    setTimeout(reloadApp, 120000);
+  }
+
   function reloadApp() {
       try { saveToLocal(); } catch (e) {}
       location.reload();

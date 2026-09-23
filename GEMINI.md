@@ -2103,6 +2103,14 @@ the word search), `countUp` for streaks and scores.
   writer).
   The slow opening the owner saw the same day was GitHub Pages sending at
   20-50 KB/s (the page is 1.6 MB); left for now at the owner's word.
+- **23 Sep 2026, later: the app opens from the copy on the phone** - the owner
+  asked why the app had gone from instant to a minute on its logo. GitHub Pages
+  was sending the page at 20-80 KB/s (the same file from the rooms server's copy
+  took 1.4 s), and the worker waited for the network on every open. Now every
+  open is the saved copy (0 bytes, 73 ms), a new build installs in the
+  background (the page downloaded once, not twice) and the page switches to it
+  by itself where nothing is lost (*The static site*). The owner was told the
+  one trade-off first: an update can reach a phone one open later.
 
 ## Building and Running
 
@@ -3664,9 +3672,17 @@ than chips in a stale order. `pickerOrder` is what holds them still.
 The app ships as a static site: `npm run build:site` (tools/build-site.mjs)
 writes `docs/`, and GitHub Pages publishes it. It is the top-level page, so the
 home-screen icon, the manifest, `?room=` links and the offline service worker
-(`docs/sw.js`) all work. The worker is network first, but opening the app
-waits at most 3 seconds (`NET_WAIT_MS`) before showing the saved copy, so a
-weak connection no longer holds a blank page; only good answers are cached,
+(`docs/sw.js`) all work. **Opening the app answers from the copy on the phone**
+(the owner's decision of 23 Sep 2026, after GitHub Pages sent the 1.6 MB page at
+20-60 KB/s and the app sat on its logo for most of a minute): the worker of a
+build saved that build's page when it was installed, and every open is that
+page at once (73 ms, 0 bytes, measured). The network is asked only by a phone
+with no copy yet. A new build is a new `sw.js`, which the browser looks for as
+the app opens, and the page asks again when it comes back to the screen (at
+most every 10 minutes, `reg.update()`); installing it downloads the page once,
+past the browser's HTTP cache (`cache: 'reload'`: GitHub's `max-age=600` could
+hand back the build before), and keeps it under `./` and `./index.html` both -
+it used to download the whole page twice. Only good answers are cached,
 and the pinned CDN files are cache first (an opaque answer from them is kept
 too: the fonts' stylesheet is fetched without CORS, and refusing it left the
 app with no fonts offline). **Everything outside rooms works offline after
@@ -3687,16 +3703,24 @@ in `rooms-worker/`, or rooms keep the old rules. `docs/README.md` has the steps.
 The rooms server also serves a copy of `docs/` at its own address, uploaded on
 every deploy — a second address for the app if `github.io` is ever blocked.
 
-**New builds reach an open app.** Settings → تحديث البيانات is a real
-`location.reload()` (the worker fetches the network first), and when a new
-build's worker takes over a page that already had one (`controllerchange`),
-a tappable toast says a new version is ready. An iPhone home-screen copy can
-stay open for days and has no reload button of its own. The worker takes
-over as the app opens too (the page was fetched fresh from the network, and
-the new worker claims it a moment later), which showed the toast on a page
-that already was the new build: the build writes its id into the page
-(`window.BUILD_ID`, the same stamp as the cache name in `sw.js`), and the
-toast asks `sw.js` for its stamp first and stays quiet when they match. A phone opening the
+**New builds reach an open app.** When a new build's worker takes over a page
+(`controllerchange`) that is older than it (the build writes its id into the
+page, `window.BUILD_ID`, the same stamp as the cache name in `sw.js`; the page
+asks `sw.js` for its stamp and stays quiet when they match), the new build is
+already on the phone, so switching is a fraction of a second. **It switches by
+itself when nothing is lost** (`appUpdateQuiet`, `appUpdateSafeView` in
+`JS_Core.html`): under the intro; on the home, مع بعض or الأدوات with no room
+open, no popup, no field being typed in and no tap for 4 seconds; or when the
+app goes to the background on one of those or a setup screen. Anywhere else -
+a game, a room - a tappable toast says a new version is ready and the page
+waits for one of those moments; a game is never reloaded under a player (a
+timed round on one phone can't come back from a reload). So the first open
+after a release can show the build before for a moment. Settings → تحديث
+البيانات (`updateApp`) asks for `sw.js` first and opens the new build as soon
+as it has downloaded; with nothing new it is a plain reload. Checked on 23 Sep
+2026 against the built site with three builds in a row: idle on the home it
+switched by itself, in a Sudoku game it showed the toast and stayed, back on
+the home it switched, the game kept. A phone opening the
 app for the first time starts in its own light or dark theme, and
 `<meta name="theme-color">` follows the page's background.
 

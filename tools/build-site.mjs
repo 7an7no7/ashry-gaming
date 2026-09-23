@@ -107,20 +107,34 @@ if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);
 await mkdir(out, { recursive: true });
 await writeFile(path.join(out, 'index.html'), html, 'utf8');
 
-/* Offline copy. Network first, so a new version shows on the next open and the
-   cache is only the fallback - but the page itself waits at most NET_WAIT_MS for
-   the network before the saved copy is shown, or a weak connection held the app
-   on a blank page. The pinned CDN files (fonts, confetti, QR) are cache-first,
+/* Offline copy, and the app's own copy on the phone. Opening the app answers
+   from the copy this build's worker saved when it was installed - at once, however
+   slow the network is (23 Sep 2026: GitHub Pages sent the 1.6 MB page at 20-60
+   KB/s, and the app sat on its logo for most of a minute). A new build is a new
+   sw.js; the browser finds it when the app is opened (and the page asks again
+   when it comes back to the screen), installs it in the background - the page
+   downloaded once, past the browser's own HTTP cache, and kept under both of its
+   addresses - and the open page switches to it (registerServiceWorker in
+   JS_Core.html). A phone with no saved copy yet goes to the network, and to the
+   saved copy only if that fails. The pinned CDN files (fonts, confetti, QR) are cache-first,
    since their URLs never change; only good answers are kept (a failed one used
    to stay cached for the whole build), and the page asks for them again once
    the worker is in charge, so a first visit is enough to play offline. Room traffic is never cached: it is POSTs
    and WebSockets, which this never touches. */
 const SW = `const CACHE = 'ashry-${buildId}';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
+const SHELL = ['./manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
+// The page is fetched once (not once for './' and again for './index.html'), and past the
+// browser's HTTP cache, which could still hold the build before this one for ten minutes.
+const fresh = (u) => new Request(u, { cache: 'reload' });
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then((c) =>
+    fetch(fresh('./index.html')).then((res) => {
+      if (!res.ok) throw new Error('index ' + res.status);
+      return Promise.all([c.put('./index.html', res.clone()), c.put('./', res)]);
+    }).then(() => c.addAll(SHELL.map(fresh)))
+  ).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -129,7 +143,6 @@ self.addEventListener('activate', (event) => {
     .then(() => self.clients.claim()));
 });
 
-const NET_WAIT_MS = 3000;
 // A good answer is kept. So is an opaque one from the pinned hosts: the fonts'
 // stylesheet is asked for without CORS, so its status can't be read - and
 // refusing it left the app with no fonts offline.
@@ -150,17 +163,11 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
-  const net = fetch(req).then((res) => keep(req, res));
-  if (req.mode !== 'navigate') { event.respondWith(net.catch(cached)); return; }
-  // Opening the app: the network if it answers soon, else the saved copy; the
-  // network answer still refreshes the cache for next time.
-  event.respondWith(new Promise((resolve) => {
-    let done = false;
-    const give = (res) => { if (!done && res) { done = true; resolve(res); } };
-    const timer = setTimeout(() => cached().then((hit) => { if (hit) give(hit); }), NET_WAIT_MS);
-    net.then((res) => { clearTimeout(timer); give(res); })
-       .catch(() => { clearTimeout(timer); cached().then((hit) => give(hit || Response.error())); });
-  }));
+  if (req.mode !== 'navigate') { event.respondWith(fetch(req).then((res) => keep(req, res)).catch(cached)); return; }
+  // Opening the app (a room link's ?room= too): this build's saved page at once; the
+  // network only when there is none yet. A newer build arrives as a newer worker.
+  event.respondWith(caches.match('./index.html').then((hit) => hit ||
+    fetch(req).then((res) => keep(req, res)).catch(() => cached().then((c) => c || Response.error()))));
 });
 `;
 await writeFile(path.join(out, 'sw.js'), SW, 'utf8');

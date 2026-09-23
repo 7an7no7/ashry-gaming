@@ -1,9 +1,17 @@
-const CACHE = 'ashry-20260923170726';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
+const CACHE = 'ashry-20260923182613';
+const SHELL = ['./manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
+// The page is fetched once (not once for './' and again for './index.html'), and past the
+// browser's HTTP cache, which could still hold the build before this one for ten minutes.
+const fresh = (u) => new Request(u, { cache: 'reload' });
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then((c) =>
+    fetch(fresh('./index.html')).then((res) => {
+      if (!res.ok) throw new Error('index ' + res.status);
+      return Promise.all([c.put('./index.html', res.clone()), c.put('./', res)]);
+    }).then(() => c.addAll(SHELL.map(fresh)))
+  ).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -12,7 +20,6 @@ self.addEventListener('activate', (event) => {
     .then(() => self.clients.claim()));
 });
 
-const NET_WAIT_MS = 3000;
 // A good answer is kept. So is an opaque one from the pinned hosts: the fonts'
 // stylesheet is asked for without CORS, so its status can't be read - and
 // refusing it left the app with no fonts offline.
@@ -33,15 +40,9 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
-  const net = fetch(req).then((res) => keep(req, res));
-  if (req.mode !== 'navigate') { event.respondWith(net.catch(cached)); return; }
-  // Opening the app: the network if it answers soon, else the saved copy; the
-  // network answer still refreshes the cache for next time.
-  event.respondWith(new Promise((resolve) => {
-    let done = false;
-    const give = (res) => { if (!done && res) { done = true; resolve(res); } };
-    const timer = setTimeout(() => cached().then((hit) => { if (hit) give(hit); }), NET_WAIT_MS);
-    net.then((res) => { clearTimeout(timer); give(res); })
-       .catch(() => { clearTimeout(timer); cached().then((hit) => give(hit || Response.error())); });
-  }));
+  if (req.mode !== 'navigate') { event.respondWith(fetch(req).then((res) => keep(req, res)).catch(cached)); return; }
+  // Opening the app (a room link's ?room= too): this build's saved page at once; the
+  // network only when there is none yet. A newer build arrives as a newer worker.
+  event.respondWith(caches.match('./index.html').then((hit) => hit ||
+    fetch(req).then((res) => keep(req, res)).catch(() => cached().then((c) => c || Response.error()))));
 });

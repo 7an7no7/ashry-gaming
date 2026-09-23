@@ -20,7 +20,6 @@
 import { readFileSync } from 'node:fs';
 import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, ROOM_GAME_IDS } from '../generated/rules.js';
 import { roomView } from '../src/view.js';
-import { readFileSync } from 'node:fs';
 
 // The countries, for the engine's خمّن الدولة driver to guess with (one sets, everyone solves).
 const SOLVE_LISTS = new Function(readFileSync(new URL('../../Countries.js', import.meta.url), 'utf8') + '\nreturn { COUNTRIES };')();

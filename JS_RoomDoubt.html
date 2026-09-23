@@ -1,0 +1,895 @@
+<script>
+/* ============================================================================
+   كدّاب — I DOUBT IT (rooms and the TV)
+   ----------------------------------------------------------------------------
+   The rules are doubtAction in RoomDoubt.js; the cards are PlayingCards.js,
+   drawn by JS_Cards.html. What only this phone may know is state.you.hand
+   (its own cards, sorted); everyone else's hand is a count, and the pile is
+   a count and the plays on it (who laid how many) - a card's face reaches the
+   table only when a call turns its play over.
+
+   The phone: the other players are a strip of compact seats (a fan of backs
+   and a count, "باص" once they passed, the medal once out), then the table
+   (the claim on top, the pile, the rank, the plays of this rank), the big
+   red كدّاب! for every other seated phone while a play is open, your hand,
+   and the bar: when you lead, the ranks as chips and "ارمي N «سبعات»"; when
+   you follow, that button and باص. You pick cards by tapping them (they
+   rise); leading, picking cards of one rank names it for you.
+
+   Every move is an event and plays once per device (pcEventsToPlay): the
+   deal, cards laid face down onto the pile, a pass, the call - the shout, the
+   play's cards turned over one by one, the stamp «كدّاب!» or «صادق», the
+   pile flying to whoever takes it - the pile going out, a player out. A game
+   that ends on a move plays it on the table first (dbPlayEnding), and your
+   own move never waits behind the table's (dbOwnMoveWaiting).
+   ========================================================================= */
+
+const DB_OPTS_KEY = 'doubt';
+const DB_OPTS_DEFAULT = { end: 'first', turnClock: 0 };
+const DB_CLOCK_CHOICES = [0, 30, 60];
+const DB_ROW_MAX = 13;
+const dbWide = () => window.innerWidth > window.innerHeight;
+
+const dbLocal = { sel: [], rank: null, key: '', clock: null, clockKey: null, turnMine: false, handInView: '', shownHand: null, shownKey: '' };
+const dbFx = Object.assign(pcFx(), { tvSig: '', tvEnding: false, tvState: null });
+
+/* --- the host's options --------------------------------------------------------- */
+
+function dbOpts() {
+  const o = recallOptions(DB_OPTS_KEY, DB_OPTS_DEFAULT);
+  return {
+    end: o.end === 'places' ? 'places' : 'first',
+    turnClock: DB_CLOCK_CHOICES.indexOf(Number(o.turnClock)) !== -1 ? Number(o.turnClock) : 0
+  };
+}
+
+function setDbOpt(key, value) {
+  const patch = {};
+  patch[key] = key === 'turnClock' ? Number(value) : value;
+  rememberOptions(DB_OPTS_KEY, patch);
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/* --- who and where --------------------------------------------------------------- */
+
+const dbShared = (state) => state.shared || {};
+/** The seats still in the room, in turn order (a player who left keeps a seat on the server). */
+const dbSeats = (state) => (dbShared(state).order || []).filter(id => (state.players || []).some(p => p.id === id));
+const dbInGame = (state) => !state.youAreScreen && dbSeats(state).indexOf(Room.me) !== -1;
+const dbHand = (state) => ((state.you || {}).hand || []);
+const dbIsOut = (s, pid) => (s.places || []).indexOf(pid) !== -1;
+const dbHolding = (s, pid) => ((s.counts || {})[pid] || 0) > 0 && !dbIsOut(s, pid);
+const dbMyTurn = (state) => {
+  const s = dbShared(state);
+  return s.phase === 'play' && !!s.turn && s.turn.pid === Room.me && dbInGame(state);
+};
+/** كدّاب! is for every seated phone still holding cards, while a play that isn't theirs is open. */
+const dbCanCall = (state) => {
+  const s = dbShared(state);
+  return s.phase === 'play' && !!s.last && s.last.pid !== Room.me && dbInGame(state) && dbHolding(s, Room.me);
+};
+
+/** "3 × سبعات": a claim as the table says it. */
+function dbClaim(n, rank) {
+  // Not isolated inside: the claim is one run, read in its own language's direction
+  // ("٢ × سبعات" right to left, "2 × Sevens" left to right) wherever it is put.
+  const t = TRANSLATIONS[appState.lang] || {};
+  return String(t.db_claim || '{n} × {rank}').split('{n}').join(String(n)).split('{rank}').join(pcRankPlural(rank));
+}
+
+/** "×3" held left to right in any line. */
+const dbTimes = (n) => '\u2066×' + n + '\u2069';
+
+/* --- this phone's taps -------------------------------------------------------------- */
+
+function dbAct(btn, action, extra) {
+  const st = Room.state;
+  if (!st || st.game !== 'doubt') return;
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  haptic('light');
+  roomAct(action, Object.assign({ seq: dbShared(st).turnSeq }, extra || {}));
+}
+
+function dbRedraw() {
+  if (Room.state && Room.state.game === 'doubt') routeRoomState(Room.state);
+}
+
+/** A card of your hand, picked or put back. */
+function dbTapCard(id) {
+  const st = Room.state;
+  if (!st || st.game !== 'doubt' || !dbInGame(st)) return;
+  const at = dbLocal.sel.indexOf(id);
+  if (at === -1) dbLocal.sel.push(id); else dbLocal.sel.splice(at, 1);
+  haptic('light');
+  dbRedraw();
+}
+
+function dbPickRank(r) {
+  dbLocal.rank = dbLocal.rank === r ? null : r;
+  haptic('light');
+  dbRedraw();
+}
+
+/** The rank a lead claims: the one picked, or the one every picked card shares. */
+function dbLeadRank(state) {
+  if (dbLocal.rank) return dbLocal.rank;
+  const hand = dbHand(state);
+  const ranks = dbLocal.sel.map(id => pcRank((hand.find(c => c.i === id) || {}).c)).filter(Boolean);
+  return ranks.length && ranks.every(r => r === ranks[0]) ? ranks[0] : null;
+}
+
+function dbSend() {
+  const st = Room.state;
+  if (!st || !dbMyTurn(st) || !dbLocal.sel.length) return;
+  const s = dbShared(st);
+  const payload = { cards: dbLocal.sel.slice(), seq: s.turnSeq };
+  if (s.turn.stage === 'lead') {
+    const r = dbLeadRank(st);
+    if (!r) { showToast(pcT('db_pick_rank'), 'error'); return; }
+    payload.rank = r;
+  }
+  haptic('medium');
+  // The cards rise at once (an iPhone has no buzz to say the tap landed) and fly from there.
+  dbLocal.sel.forEach(id => {
+    const el = document.querySelector('#view-room-doubt [data-pc-at="card:' + id + '"]');
+    if (el) el.classList.add('is-sent');
+  });
+  const sent = roomAct('play', payload);
+  Promise.resolve(sent).then(() => {
+    document.querySelectorAll('#view-room-doubt .db-hcard.is-sent').forEach(el => el.classList.remove('is-sent'));
+  });
+}
+
+function dbCall(btn) {
+  const st = Room.state;
+  if (!st || !dbCanCall(st)) return;
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  haptic('heavy');
+  roomAct('call', { play: dbShared(st).last.id });
+}
+
+/** Picks belong to the hand they were made in: cards gone are dropped, a new deal starts over. */
+function dbSyncPick(state) {
+  const s = dbShared(state);
+  const key = [state.code, s.dealId || ''].join('|');
+  if (dbLocal.key !== key) { dbLocal.key = key; dbLocal.sel = []; dbLocal.rank = null; }
+  const ids = dbHand(state).map(c => c.i);
+  dbLocal.sel = dbLocal.sel.filter(id => ids.indexOf(id) !== -1);
+  if (!(s.turn && s.turn.pid === Room.me && s.turn.stage === 'lead')) dbLocal.rank = null;
+}
+
+/* --- the table, piece by piece --------------------------------------------------- */
+
+function dbHeadHtml(state) {
+  const s = dbShared(state);
+  const set = s.settings || {};
+  const bits = [];
+  bits.push(`<span class="badge">${escapeHTML(set.end === 'places' ? pcT('db_end_places') : pcT('db_end_first'))}</span>`);
+  if ((s.decks || 1) > 1) bits.push(`<span class="badge">🂠 ×${s.decks}</span>`);
+  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-db-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  return `<div class="db-head">${bits.join('')}</div>`;
+}
+
+function dbSeatHtml(state, pid, tv) {
+  const s = dbShared(state);
+  const p = (state.players || []).find(x => x.id === pid);
+  const n = (s.counts || {})[pid] || 0;
+  const cls = ['db-seat'];
+  const turn = s.phase === 'play' && s.turn && s.turn.pid === pid;
+  if (turn) cls.push('is-turn');
+  if (!p || !p.online) cls.push('is-away');
+  if (s.last && s.last.pid === pid) cls.push('is-last');
+  const place = (s.places || []).indexOf(pid);
+  if (place !== -1) cls.push('is-out');
+  let tag = '';
+  if (place !== -1) tag = `<span class="db-tag db-tag--out">${['🥇', '🥈', '🥉'][place] || '✓'}</span>`;
+  else if (s.pendingOut === pid) tag = `<span class="db-tag db-tag--hot">${escapeHTML(pcT('db_tag_last'))}</span>`;
+  else if ((s.passed || []).indexOf(pid) !== -1) tag = `<span class="db-tag">${escapeHTML(pcT('db_tag_pass'))}</span>`;
+  else if (s.last && s.last.pid === pid) tag = `<span class="db-tag db-tag--play">${dbTimes(s.last.n)}</span>`;
+  return `<div class="${cls.join(' ')}" data-pc-seat="${escapeHTML(pid)}">
+      <span class="db-avatar" aria-hidden="true">${pcInitial(state, pid)}</span>
+      <span class="db-seat__who"><span class="db-seat__name">${escapeHTML(p ? p.name : '—')}</span>${tag}</span>
+      <span class="db-seat__hand" data-pc-at="seat:${escapeHTML(pid)}">${pcFanHtml(n, tv ? 4 : 3)}<b class="db-seat__n metric">${n}</b></span>
+    </div>`;
+}
+
+/** The last event that says what the pile is now: a play, a call, the pile going out. */
+function dbLastTableEvent(s) {
+  const list = (s.events || []).filter(e => e && (e.type === 'play' || e.type === 'call' || e.type === 'pileOut' || e.type === 'deal'));
+  return list[list.length - 1] || null;
+}
+
+/** A call turned over, as it stays on the table until the next play: the cards, the stamp, who took the pile. */
+function dbCallResultHtml(state, e, tv) {
+  const cards = (e.cards || []).map(c => pcCardHtml(c, { size: tv ? 'md' : 'sm' })).join('');
+  const truth = !!e.truth;
+  return `<div class="db-called ${truth ? 'is-true' : 'is-lie'}">
+      <div class="db-called__cards" dir="ltr">${cards}<span class="db-called__stamp">${escapeHTML(truth ? pcT('db_stamp_true') : pcT('db_stamp_lie'))}</span></div>
+      <p class="db-called__line">${escapeHTML(pcT('db_called_took', { name: pcName(state, e.taker), n: e.n }))}</p>
+    </div>`;
+}
+
+/** The middle of the table: what was claimed, the pile, the rank, the plays of this rank. */
+function dbTableHtml(state, tv) {
+  const s = dbShared(state);
+  const n = Number(s.pileCount) || 0;
+  const plays = s.plays || [];
+  let top;
+  const ev = dbLastTableEvent(s);
+  if (s.last) {
+    top = `<div class="db-bubble is-open"><bdi>${escapeHTML(pcName(state, s.last.pid))}</bdi>: <b><bdi>${escapeHTML(dbClaim(s.last.n, s.last.rank))}</bdi></b></div>`;
+  } else if (plays.length && s.rank) {
+    const lp = plays[plays.length - 1];
+    top = `<div class="db-bubble"><bdi>${escapeHTML(pcName(state, lp.pid))}</bdi>: <b><bdi>${escapeHTML(dbClaim(lp.n, s.rank))}</bdi></b></div>`;
+  } else if (ev && ev.type === 'call' && s.phase === 'play') {
+    top = dbCallResultHtml(state, ev, tv);
+  } else if (s.phase === 'play' && s.turn) {
+    top = `<div class="db-bubble is-quiet">${escapeHTML(pcT(ev && ev.type === 'pileOut' ? 'db_pile_went' : 'db_new_rank', { name: pcName(state, s.turn.pid) }))}</div>`;
+  } else top = '';
+  const layers = Math.min(n, 5);
+  let stack = '';
+  for (let k = 0; k < layers; k++) stack += `<span class="db-pile__card" style="--k:${k};--tilt:${((k * 47 + n * 13) % 22) - 11}deg">${pcCardHtml(null, { size: tv ? 'lg' : 'md' })}</span>`;
+  const rank = s.rank ? `<span class="db-rank"><span class="db-rank__label">${escapeHTML(pcT('db_rank'))}</span><b>${escapeHTML(pcRankPlural(s.rank))}</b></span>`
+    : `<span class="db-rank is-open"><span class="db-rank__label">${escapeHTML(pcT('db_rank'))}</span><b>${escapeHTML(pcT('db_rank_open'))}</b></span>`;
+  const chips = plays.length ? `<div class="db-plays">${plays.map((p, i) => `<span class="db-play ${i === plays.length - 1 ? 'is-top' : ''}"><bdi>${escapeHTML(pcName(state, p.pid))}</bdi> <b class="metric">${dbTimes(p.n)}</b></span>`).join('')}</div>` : '';
+  return `<div class="db-table">
+      ${top}
+      <div class="db-pilezone">
+        <span class="db-pile ${n ? '' : 'is-empty'}" data-pc-at="pile">${stack || `<span class="db-pile__empty">${pcCardHtml(null, { size: tv ? 'lg' : 'md' })}</span>`}</span>
+        <div class="db-pileinfo">
+          <span class="db-pile__n"><b class="metric">${n}</b> ${escapeHTML(pcT('db_in_pile'))}</span>
+          ${rank}
+        </div>
+      </div>
+      ${chips}
+    </div>`;
+}
+
+/** كدّاب!: big and red, for every seated phone that can call the play on top. */
+function dbCallBtnHtml(state) {
+  if (!dbCanCall(state)) return '';
+  const s = dbShared(state);
+  const hot = s.pendingOut === s.last.pid;
+  return `<div class="db-callbox ${hot ? 'is-hot' : ''}">
+      <button type="button" class="db-callbtn" onclick="dbCall(this)">${escapeHTML(pcT('db_call'))}</button>
+      <p class="db-hint">${escapeHTML(pcT(hot ? 'db_call_hint_last' : 'db_call_hint', { name: pcName(state, s.last.pid), claim: dbClaim(s.last.n, s.last.rank) }))}</p>
+    </div>`;
+}
+
+/** Your hand in rows of at most DB_ROW_MAX, overlapping when a row is wider than the screen. */
+function dbMineHtml(state) {
+  const s = dbShared(state);
+  const hand = dbHand(state);
+  const mine = dbMyTurn(state);
+  // Upright, rows of at most DB_ROW_MAX; on a phone's side and wider, one row that overlaps.
+  const rows = dbWide() ? 1 : Math.max(1, Math.ceil(hand.length / DB_ROW_MAX));
+  const per = Math.ceil(hand.length / rows) || 1;
+  const cardBtn = (c) => {
+    const sel = dbLocal.sel.indexOf(c.i) !== -1;
+    return `<button type="button" class="db-hcard ${sel ? 'is-sel' : ''}" data-pc-at="card:${c.i}" onclick="dbTapCard(${Number(c.i)})" aria-pressed="${sel}" aria-label="${escapeHTML(pcCardName(c.c))}">${pcCardHtml(c.c, { size: 'md' })}</button>`;
+  };
+  let body = '';
+  for (let r = 0; r < rows; r++) body += `<div class="db-hand__row pc-row" dir="ltr">${hand.slice(r * per, (r + 1) * per).map(cardBtn).join('')}</div>`;
+  const picked = dbLocal.sel.length ? `<span class="badge badge--accent">${escapeHTML(pcT('db_picked', { n: dbLocal.sel.length }))}</span>` : '';
+  const view = document.getElementById('view-room-doubt');
+  if (view) view._dbWide = dbWide();
+  return `<div class="db-mine ${mine ? 'is-turn' : ''}" data-pc-seat="${escapeHTML(Room.me)}">
+      <div class="db-mine__head"><span class="db-mine__title">🂠 ${escapeHTML(pcT('db_your_cards'))}</span><b class="metric db-mine__n">${hand.length}</b>${picked}</div>
+      <div class="db-hand" data-pc-at="seat:${escapeHTML(Room.me)}">${body || `<span class="db-hand__empty">${escapeHTML(pcT('db_no_cards'))}</span>`}</div>
+    </div>`;
+}
+
+/* --- what happened ------------------------------------------------------------------- */
+
+function dbEventText(state, e) {
+  if (!e) return '';
+  const name = (pid) => pcName(state, pid);
+  switch (e.type) {
+    case 'deal': return pcT('db_ev_deal', { n: e.n });
+    case 'play': return e.lead ? pcT('db_ev_lead', { name: name(e.pid), claim: dbClaim(e.n, e.rank) }) : pcT('db_ev_play', { name: name(e.pid), claim: dbClaim(e.n, e.rank) });
+    case 'pass': return pcT('db_ev_pass', { name: name(e.pid) });
+    case 'call': return pcT(e.truth ? 'db_called_true' : 'db_called_lie', { name: name(e.target), by: name(e.pid), n: e.n });
+    case 'pileOut': return pcT('db_ev_pile_out', { n: e.n, name: name(e.lead) });
+    case 'out': return pcT('db_ev_out', { name: name(e.pid), n: e.place });
+    case 'auto': return e.why === 'host' ? pcT('db_ev_auto_host', { name: name(e.pid) }) : pcT('db_ev_auto_clock', { name: name(e.pid) });
+    case 'win': return e.pid ? pcT('db_ev_win', { name: name(e.pid) }) : '';
+    case 'left': return pcT('db_ev_left', { name: name(e.pid) });
+    default: return '';
+  }
+}
+
+const dbMoves = (state) => (dbShared(state).events || []).filter(e => e && e.type !== 'auto' && dbEventText(state, e));
+
+function dbLatestHtml(state, tv) {
+  const list = dbMoves(state);
+  const e = list[list.length - 1];
+  if (!e) return '';
+  const fresh = motionFirst(['db-latest', state.code, e.seq, tv ? 'tv' : 'phone'].join('|'));
+  return `<p class="db-latest ${fresh ? 'is-new' : ''} ${e.type === 'call' ? (e.truth ? 'is-true' : 'is-lie') : ''}">${escapeHTML(dbEventText(state, e))}</p>`;
+}
+
+function dbLogHtml(state, count) {
+  const list = dbMoves(state).slice(0, -1).slice(-count).reverse();
+  if (!list.length) return '';
+  return `<ul class="db-log">${list.map(e => `<li>${escapeHTML(dbEventText(state, e))}</li>`).join('')}</ul>`;
+}
+
+/* --- the bar: what to do now --------------------------------------------------------- */
+
+function dbRankChipsHtml(state) {
+  const pick = dbLeadRank(state);
+  return `<div class="db-ranks" dir="ltr">${PC_RANKS.map(r => `<button type="button" class="db-rankchip ${pick === r ? 'is-on' : ''}" onclick="dbPickRank('${r}')" aria-pressed="${pick === r}" aria-label="${escapeHTML(pcRankPlural(r))}">${r}</button>`).join('')}</div>`;
+}
+
+function dbActionsHtml(state) {
+  const s = dbShared(state);
+  if (s.phase !== 'play' || !s.turn) return '';
+  const bar = (inner, extra) => `<div class="db-actbar ${extra || ''}">${inner}</div>`;
+  const note = (inner) => `<div class="db-note">${inner}</div>`;
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (!dbInGame(state)) return note(`<p class="db-hint">${escapeHTML(t.vote_spectating || '')}</p>`);
+  const place = (s.places || []).indexOf(Room.me);
+  if (place !== -1) return note(`<p class="db-prompt">🏅 ${escapeHTML(pcT('db_you_out', { n: place + 1 }))}</p><p class="db-hint">${escapeHTML(pcT('db_you_out_hint'))}</p>`);
+  if (!dbMyTurn(state)) {
+    const name = pcName(state, s.turn.pid);
+    const hint = s.pendingOut && s.pendingOut !== Room.me ? pcT('db_waiting_last', { name: pcName(state, s.pendingOut) })
+      : s.turn.stage === 'lead' ? pcT('db_waiting_lead', { name: name }) : pcT('db_waiting_follow', { name: name, rank: pcRankPlural(s.rank) });
+    return note(`<p class="db-prompt">${escapeHTML(pcT('db_turn_of', { name: name }))}</p><p class="db-hint">${escapeHTML(hint)}</p>`);
+  }
+  const n = dbLocal.sel.length;
+  if (s.turn.stage === 'lead') {
+    const r = dbLeadRank(state);
+    const label = n && r ? pcT('db_throw', { claim: dbClaim(n, r) }) : n ? pcT('db_pick_rank') : pcT('db_pick_cards');
+    return bar(`<p class="db-prompt is-mine">⭐ ${escapeHTML(pcT('db_your_lead'))}</p>
+      <p class="db-hint">${escapeHTML(pcT('db_lead_hint'))}</p>
+      ${dbRankChipsHtml(state)}
+      <button type="button" class="btn btn--primary btn--lg" onclick="dbSend()" ${n && r ? '' : 'disabled'}>${escapeHTML(label)}</button>`);
+  }
+  const label = n ? pcT('db_throw', { claim: dbClaim(n, s.rank) }) : pcT('db_pick_cards');
+  return bar(`<p class="db-prompt is-mine">⭐ ${escapeHTML(pcT('db_your_follow', { rank: pcRankPlural(s.rank) }))}</p>
+    <p class="db-hint">${escapeHTML(pcT('db_follow_hint', { rank: pcRankPlural(s.rank) }))}</p>
+    <div class="db-actrow">
+      <button type="button" class="btn btn--primary" onclick="dbSend()" ${n ? '' : 'disabled'}>${escapeHTML(label)}</button>
+      <button type="button" class="btn btn--secondary" onclick="dbAct(this, 'pass')">${escapeHTML(pcT('db_pass'))}</button>
+    </div>`);
+}
+
+/* --- the host's way past a phone that went quiet ---------------------------------- */
+
+function dbHostButtons(state) {
+  const s = dbShared(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.turn) return [];
+  const p = (state.players || []).find(x => x.id === s.turn.pid);
+  if (p && (p.online || p.bot)) return [];
+  return [['⏭️ ' + pcT('db_skip_turn', { name: pcName(state, s.turn.pid) }), "dbAct(this, 'skipTurn')"]];
+}
+
+function dbRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('.db-seat[data-pc-seat]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-pc-seat'));
+    el.classList.toggle('is-away', !(p && p.online));
+  });
+  const box = root.querySelector('[data-db-host]');
+  if (box) {
+    const buttons = dbHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._dbHtml !== html) { box.innerHTML = html; box._dbHtml = html; }
+  }
+}
+
+/* --- the end of the game -------------------------------------------------------------- */
+
+function dbResultFrame(state) {
+  const s = dbShared(state);
+  const t = TRANSLATIONS[appState.lang] || {};
+  const places = s.places || [];
+  const first = (s.winners || [])[0];
+  const placesMode = (s.settings || {}).end === 'places';
+  const win = (s.events || []).filter(e => e.type === 'win').slice(-1)[0] || {};
+  const title = !first ? pcT('db_over_none') : win.why === 'left' ? pcT('db_over_left', { name: pcName(state, first) }) : pcT('db_won', { name: pcName(state, first) });
+  const list = placesMode && places.length > 1
+    ? `${pcPlacesPodium(state, places, s.dealId)}<ol class="db-places">${places.map((id, i) => `<li><span class="db-places__n metric">${i + 1}</span><span class="db-places__name">${escapeHTML(pcName(state, id))}</span></li>`).join('')}</ol>`
+    : '';
+  const hostNext = `<div class="btn-stack">
+      <button type="button" class="btn btn--primary btn--lg" onclick="dbAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
+      <button type="button" class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+    </div>`;
+  const anyWins = (s.board || []).some(r => r.score > 0);
+  return `<div class="db db--result">
+      ${dbHeadHtml(state)}
+      <div class="card card--accent db-won">
+        <div class="db-won__icon" aria-hidden="true">🏆</div>
+        <div class="card__title">${escapeHTML(title)}</div>
+      </div>
+      ${list}
+      ${anyWins ? renderScoreboard(s.board || [], pcT('db_wins_board')) : ''}
+      ${roomShareBtnHtml(state, s.board || [])}
+      ${state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+/* --- the phone's frame ----------------------------------------------------------------- */
+
+function dbServerSig(state) {
+  const s = dbShared(state);
+  const events = s.events || [];
+  return [s.dealId || '', s.phase, s.turnSeq, JSON.stringify(s.turn || null), JSON.stringify(s.last || null), s.rank || '', s.pileCount,
+    JSON.stringify(s.counts || {}), (s.passed || []).join(','), (s.places || []).join(','), s.pendingOut || '', JSON.stringify(s.plays || []),
+    events.length ? events[events.length - 1].seq : 0, s.endsAt || '', JSON.stringify(s.board || []), JSON.stringify(state.you || null),
+    (s.order || []).join(','), JSON.stringify(s.settings || {}), (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(',')].join('|');
+}
+
+function dbPhoneFrame(state) {
+  const s = dbShared(state);
+  if (s.phase === 'gameover') return dbResultFrame(state);
+  const me = Room.me;
+  const seats = dbSeats(state);
+  const at = seats.indexOf(me);
+  const opps = at === -1 ? seats.slice() : seats.slice(at + 1).concat(seats.slice(0, at));
+  return `<div class="db ${dbMyTurn(state) ? 'is-turn' : ''}">
+      ${dbHeadHtml(state)}
+      ${dbLatestHtml(state, false)}
+      <div class="db-opps hscroll-fade" data-db-opps>${opps.map(pid => dbSeatHtml(state, pid, false)).join('')}</div>
+      <div class="db-layout">
+        <div class="db-layout__center">${dbTableHtml(state, false)}${dbCallBtnHtml(state)}</div>
+        <div class="db-layout__mine">${dbInGame(state) ? dbMineHtml(state) : ''}</div>
+        <div class="db-layout__act">${dbActionsHtml(state)}<div data-db-host></div></div>
+        <div class="db-layout__log">${dbLogHtml(state, 3)}</div>
+      </div>
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+function dbOppsInView(root) {
+  const strip = root && root.querySelector('[data-db-opps]');
+  if (!strip || strip.scrollWidth <= strip.clientWidth + 2) return;
+  const seat = strip.querySelector('.db-seat.is-turn') || strip.querySelector('.db-seat.is-last');
+  if (!seat) return;
+  const a = strip.getBoundingClientRect();
+  const b = seat.getBoundingClientRect();
+  if (b.left >= a.left + 8 && b.right <= a.right - 8) return;
+  strip.scrollBy({ left: (b.left + b.width / 2) - (a.left + a.width / 2), behavior: motionOff() ? 'auto' : 'smooth' });
+}
+
+ROOM_GAMES.doubt = {
+  bots: { max: 12 },
+  // The table keeps your hand in view itself; the end of the game is drawn from the top.
+  actionKey(state) {
+    const s = dbShared(state);
+    return s.phase === 'play' ? '' : [state.code, s.dealId, s.phase].join('|');
+  },
+  lobbyOptions(state) {
+    const n = (state.players || []).length;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(pcT('db_lobby_hint'))}</p>`;
+    const few = n < 3 ? `<p class="field__hint tx-warning" style="text-align:center">🤖 ${escapeHTML(pcT('db_need_three'))}</p>` : '';
+    const fan = `<div class="pc-lobby__cards" aria-hidden="true" dir="ltr">${['7h', '7s', null, 'Qd', 'Ac'].map(c => pcCardHtml(c, { size: 'sm' })).join('')}</div>`;
+    if (!state.youAreHost) return `${fan}${hint}${few}<p class="field__hint" style="text-align:center">${escapeHTML(t.room_wait_host || '')}</p>`;
+    const o = dbOpts();
+    const seg = (key, values, labelOf) => `<div class="segmented" role="group">${values.map(v =>
+      `<button type="button" class="segmented__item ${o[key] === v ? 'is-active' : ''}" onclick="setDbOpt('${key}', ${typeof v === 'string' ? `'${v}'` : v})">${labelOf(v)}</button>`).join('')}</div>`;
+    return `<div class="card card--tight pc-lobby">
+        ${fan}
+        <p class="field__hint" style="text-align:center">🂠 ${escapeHTML(n >= 7 ? pcT('db_deck_two') : pcT('db_deck_one'))}</p>
+        ${few}
+        <div class="field">
+          <label class="field__label">🏁 ${escapeHTML(pcT('db_end'))}</label>
+          ${seg('end', ['first', 'places'], v => escapeHTML(v === 'first' ? pcT('db_end_first') : pcT('db_end_places')))}
+          <p class="field__hint">${escapeHTML(o.end === 'first' ? pcT('db_end_first_hint') : pcT('db_end_places_hint'))}</p>
+        </div>
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(pcT('db_clock'))}</label>
+          ${seg('turnClock', DB_CLOCK_CHOICES, v => (v ? v + '″' : escapeHTML(pcT('db_clock_off'))))}
+          <p class="field__hint">${escapeHTML(pcT('db_clock_hint'))}</p>
+        </div>
+        ${hint}
+      </div>`;
+  },
+  startPayload() {
+    return dbOpts();
+  },
+  render(state) {
+    if (appState.currentView !== 'room-doubt') setView('room-doubt');
+    const el = document.getElementById('view-room-doubt');
+    if (!el) return;
+    const s = dbShared(state);
+    dbSyncPick(state);
+    const server = dbServerSig(state);
+    const changed = !!(el.dataset.sig && el._dbServer && el._dbServer !== server);
+    const busy = dbFx.busyUntil > Date.now();
+    const own = changed && busy && dbOwnMoveWaiting(state);
+    if (changed && ((busy && !own) || dbPlayEnding(el, state))) {
+      pcDeferRedraw(dbFx, 'doubt');
+      dbRefreshInPlace(el, state, false);
+      return;
+    }
+    const local = [dbLocal.sel.join(','), dbLocal.rank || '', state.youAreHost, appState.lang].join('|');
+    const handWas = dbLocal.shownKey === state.code + '|' + (s.dealId || '') ? dbLocal.shownHand : null;
+    const serverChanged = el._dbServer !== server;
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => { if (serverChanged) pcSnapshot(dbFx, el); return dbPhoneFrame(state); });
+    el._dbServer = server;
+    dbRefreshInPlace(el, state, false);
+    dbTickClock(s);
+    if (!rebuilt) return;
+    el._dbTable = s.phase === 'play';
+    pcFitRows(el, '.db-hand__row');
+    dbOppsInView(el);
+    if (typeof watchScrollFade === 'function') watchScrollFade(el.querySelector('[data-db-opps]'));
+    if (serverChanged) {
+      dbLocal.shownHand = dbHand(state).map(c => ({ i: c.i, c: c.c }));
+      dbLocal.shownKey = state.code + '|' + (s.dealId || '');
+      dbAfterDraw(el, state, handWas);
+    }
+    dbTurnCue(state);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && (s.winners || [])[0] === Room.me &&
+        motionFirst('db-over|' + state.code + '|' + (s.dealId || ''))) {
+      afterReveal(el, () => confetti({ particleCount: 150, spread: 90 }));
+    }
+  }
+};
+
+/* --- the clock and the cues --------------------------------------------------------- */
+
+function dbStopClock() {
+  if (dbLocal.clock) dbLocal.clock.stop();
+  dbLocal.clock = null;
+  dbLocal.clockKey = null;
+}
+
+function dbTickClock(s) {
+  const endsAt = s && s.phase === 'play' ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-db-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 10);
+      el.classList.toggle('badge--accent', left > 10);
+    });
+    return left;
+  };
+  if (!endsAt) { dbStopClock(); return; }
+  paint();
+  if (dbLocal.clockKey === endsAt && dbLocal.clock) return;
+  dbStopClock();
+  dbLocal.clockKey = endsAt;
+  dbLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      const ss = st && st.game === 'doubt' ? st.shared || {} : null;
+      const mine = ss && ss.turn && ss.turn.pid === Room.me;
+      if (left > 0 && left <= 5 && ss && ss.endsAt === endsAt && (st.youAreScreen || mine)) playSound('tick');
+    },
+    onEnd: () => { dbLocal.clock = null; paint(); }
+  });
+}
+
+function dbTurnCue(state) {
+  const mine = dbMyTurn(state);
+  const was = dbLocal.turnMine;
+  dbLocal.turnMine = mine;
+  if (mine && !was && dbFx.watched === state.code) { playSound('tick'); haptic('medium'); }
+  dbHandInView(state);
+}
+
+/** On your turn the page keeps your hand and the bar in sight. */
+function dbHandInView(state) {
+  const s = dbShared(state);
+  const wants = dbMyTurn(state);
+  const key = wants ? [state.code, s.dealId, s.turnSeq].join('|') : '';
+  if (!wants || dbLocal.handInView === key) return;
+  dbLocal.handInView = key;
+  requestAnimationFrame(() => {
+    const main = document.getElementById('shell-main');
+    const root = document.getElementById('view-room-doubt');
+    const hand = root && root.querySelector('.db-mine');
+    const bar = root && root.querySelector('.db-actbar');
+    if (!main || !hand || !bar || appState.currentView !== 'room-doubt') return;
+    const h = hand.getBoundingClientRect();
+    const b = bar.getBoundingClientRect();
+    if (b.top <= h.top + 4) return;
+    const top = main.getBoundingClientRect().top;
+    const over = h.bottom + 8 - b.top;
+    if (over <= 0) return;
+    const by = Math.min(over, Math.max(0, h.top - top - 8));
+    if (by > 0) main.scrollBy({ top: by, behavior: motionOff() ? 'auto' : 'smooth' });
+  });
+}
+
+onRoomClocksReset(() => {
+  dbStopClock();
+  dbLocal.sel = [];
+  dbLocal.rank = null;
+  pcFxCancel(dbFx);
+});
+
+let dbFitTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(dbFitTimer);
+  dbFitTimer = setTimeout(() => {
+    const el = document.getElementById('view-room-doubt');
+    // Turned on its side (or back): the hand is laid out again, one row or several.
+    if (el && el._dbWide !== undefined && el._dbWide !== dbWide() && Room.state && Room.state.game === 'doubt') { delete el.dataset.sig; dbRedraw(); }
+    pcFitRows(el, '.db-hand__row');
+  }, 120);
+});
+
+/* --- the flights -------------------------------------------------------------------- */
+
+const DB_OWN_MOVES = ['play', 'pass', 'call'];
+
+/** Your own move is drawn the moment the server takes it, not after the table's motion. */
+function dbOwnMoveWaiting(state) {
+  const s = dbShared(state);
+  if (state.youAreScreen || dbFx.deal !== state.code + '|' + (s.dealId || '')) return false;
+  return (s.events || []).some(e => e && (Number(e.seq) || 0) > dbFx.lastSeq && e.pid === Room.me && DB_OWN_MOVES.indexOf(e.type) !== -1);
+}
+
+function dbAfterDraw(root, state, handWas) {
+  const s = dbShared(state);
+  const evs = pcEventsToPlay(dbFx, state);
+  if (document.hidden || pcWokeRecently(dbFx) || !root.getClientRects().length || !evs.length) return;
+  dbEventSounds(state, evs);
+  if (s.phase !== 'play' || evs.length > 14 || !pcCanMove()) return;
+  dbPlay(root, state, dbCatchUp(evs), dbFx.prevPhase === 'lobby' ? 1000 : 0, handWas);
+}
+
+/**
+ * A screen that fell behind (a call's reveal takes seconds, and computer
+ * players don't wait for it) plays the last call and what came after it, and
+ * otherwise only the last three moves, so it catches up with the table.
+ */
+function dbCatchUp(evs) {
+  const lastCall = evs.map(e => e.type).lastIndexOf('call');
+  const from = Math.min(lastCall === -1 ? evs.length : lastCall, Math.max(0, evs.length - 3));
+  return evs.some(e => e.type === 'deal') ? evs : evs.slice(from);
+}
+
+/** The game ends on the table it was played on: the last move plays out before the result. */
+function dbPlayEnding(root, state) {
+  const s = dbShared(state);
+  if (!root || !root._dbTable || s.phase !== 'gameover') return false;
+  if (document.hidden || pcWokeRecently(dbFx) || !pcCanMove() || !root.getClientRects().length) return false;
+  const evs = pcEventsToPlay(dbFx, state).filter(e => e.type !== 'win');
+  if (!evs.length || evs.length > 8) return false;
+  pcSnapshot(dbFx, root);
+  dbEventSounds(state, evs);
+  dbPlay(root, state, evs, 0, null);
+  return dbFx.busyUntil > Date.now();
+}
+
+function dbEventSounds(state, evs) {
+  if (document.hidden || !evs.length) return;
+  const mine = evs.some(e => e.pid === Room.me && !state.youAreScreen);
+  const has = (fn) => evs.some(fn);
+  if (has(e => e.type === 'win')) { playRoomFx('success'); return; }
+  if (has(e => e.type === 'call')) {
+    const call = evs.find(e => e.type === 'call');
+    pcSound('pcCall', mine);
+    const later = state.youAreScreen || !roomHasScreen() || mine;
+    if (later) setTimeout(() => pcSound(call.truth ? 'pcTrue' : 'pcLie', true), 900 + (call.cards || []).length * 260);
+    return;
+  }
+  if (has(e => e.type === 'play')) { pcSound('pcCard', mine); return; }
+  if (has(e => e.type === 'pileOut' || e.type === 'deal')) pcSound('pcSlide', mine);
+}
+
+function dbPlay(root, state, list, delay, handWas) {
+  const s = dbShared(state);
+  const fx = dbFx;
+  const me = Room.me;
+  const tv = pcIsTv(root);
+  const steps = [];
+  const at = (ms, fn) => steps.push([ms, fn]);
+  let t = delay || 0;
+  const seatKey = (pid) => 'seat:' + pid;
+  const mineHere = (pid) => pid === me && !state.youAreScreen && !!pcEl(root, 'seat:' + me);
+  const handNow = dbHand(state);
+  const was = Array.isArray(handWas) ? handWas : null;
+  const gone = was ? was.filter(c => !handNow.some(x => x.i === c.i)) : [];
+  const came = was ? handNow.filter(c => !was.some(x => x.i === c.i)) : [];
+  list.forEach((e) => {
+    const A = e.pid;
+    switch (e.type) {
+      case 'deal': {
+        at(t, () => pcPop(fx, root, 'pile', '🔀', { big: true, duration: 700 }));
+        t += 280;
+        const seats = dbSeats(state);
+        let k = 0;
+        for (let c = 0; c < 3; c++) seats.forEach(pid => {
+          if (mineHere(pid)) return;
+          at(t + k * 40, () => pcFly(fx, root, 'pile', seatKey(pid), null, { arc: 18, duration: 380, width: tv ? 60 : 34 }));
+          k++;
+        });
+        if (dbInGame(state) && !state.youAreScreen) {
+          handNow.slice(0, 18).forEach((c, j) => {
+            const key = 'card:' + c.i;
+            pcHold(fx, root, key);
+            at(t + j * 45, () => pcFly(fx, root, 'pile', key, c.c, { flip: 'up', arc: 24, duration: 420, hold: [key] }));
+          });
+        }
+        t += Math.max(k * 40, Math.min(18, handNow.length) * 45) + 420;
+        break;
+      }
+      case 'play': {
+        // The pile hides its new cards only once they are on their way to it.
+        at(t, () => pcHold(fx, root, 'pile'));
+        const n = Math.min(e.n || 1, 6);
+        const mine = mineHere(A) && gone.length;
+        for (let k = 0; k < n; k++) {
+          const c = mine ? gone[k] : null;
+          const from = c ? 'card:' + c.i : seatKey(A);
+          at(t + k * 70, () => pcFly(fx, root, from, 'pile', c ? c.c : null, { flip: c ? 'down' : null, arc: 30, spin: (k - n / 2) * 7, duration: 440, width: tv ? 80 : 50, hold: k === n - 1 ? ['pile'] : [] }));
+        }
+        t += (n - 1) * 70 + 450;
+        at(t, () => pcPop(fx, root, 'pile', dbTimes(e.n), { big: true, duration: 900 }));
+        t += 120;
+        break;
+      }
+      case 'pass':
+        at(t, () => pcPop(fx, root, seatKey(A), pcT('db_pass')));
+        t += 260;
+        break;
+      case 'call': {
+        at(t, () => pcShout(fx, root, seatKey(A), pcT('db_call'), 0));
+        t += 520;
+        const cards = e.cards || [];
+        let revealEnd = 0;
+        at(t, () => { revealEnd = pcRevealRow(fx, root, 'pile', cards, { hold: 900 }); });
+        const turned = t + 200 + cards.length * 260 + 380;
+        at(turned, () => pcStamp(fx, root, 'pile', e.truth ? pcT('db_stamp_true') : pcT('db_stamp_lie'), { tone: e.truth ? 'success' : 'danger', duration: 1500 }));
+        t = turned + 1300;
+        const flyN = Math.min(e.n || 1, 6);
+        const to = e.taker;
+        const intoMine = mineHere(to) && came.length;
+        for (let k = 0; k < flyN; k++) {
+          const c = intoMine ? came[k] : null;
+          const dest = c ? 'card:' + c.i : seatKey(to);
+          if (c) pcHold(fx, root, dest);
+          at(t + k * 70, () => pcFly(fx, root, 'pile', dest, c ? c.c : null, { flip: c ? 'up' : null, arc: 26, duration: 460, width: tv ? 64 : 40, hold: c ? [dest] : [] }));
+        }
+        if (intoMine) came.slice(flyN).forEach(c => { /* the rest simply appear */ });
+        t += (flyN - 1) * 70 + 480;
+        at(t, () => { pcPop(fx, root, seatKey(to), '\u2066+' + e.n + '\u2069', { big: true }); pcShake(fx, root, seatKey(to), 0); });
+        t += 300;
+        break;
+      }
+      case 'pileOut': {
+        const n = Math.min(e.n || 1, 5);
+        const r = pcRect(fx, root, 'pile');
+        if (r) {
+          const away = { left: r.left, top: r.top - r.height * 1.6, width: r.width, height: r.height };
+          for (let k = 0; k < n; k++) at(t + k * 60, () => pcFly(fx, root, 'pile', away, null, { duration: 520, spin: (k - 2) * 14, fade: true, width: tv ? 80 : 50 }));
+        }
+        at(t + 200, () => pcPop(fx, root, 'pile', pcT('db_pop_pile_out'), { duration: 1200 }));
+        t += n * 60 + 560;
+        break;
+      }
+      case 'out':
+        at(t, () => { pcRing(fx, root, seatKey(A), { tone: 'success', scale: 2.2 }); pcPop(fx, root, seatKey(A), ['🥇', '🥈', '🥉'][e.place - 1] || '✓', { big: true }); });
+        t += 500;
+        break;
+      case 'auto':
+        at(t, () => pcPop(fx, root, seatKey(A), e.why === 'host' ? '⏭️' : '⏱️', { big: true }));
+        t += 280;
+        break;
+      default:
+        break;
+    }
+  });
+  let end = 0;
+  steps.forEach(([ms, fn]) => {
+    end = Math.max(end, ms);
+    fx.timers.push(setTimeout(fn, ms));
+  });
+  fx.busyUntil = Math.max(fx.busyUntil, Date.now() + Math.max(t, end + 480));
+}
+
+Room.onChange((state) => {
+  if (!state) { dbFx.watched = ''; dbFx.prevPhase = ''; return; }
+  if (state.game === 'doubt' && state.phase !== 'lobby') {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : (onRoomView() && state.inGame !== false);
+    if (!showing) pcEventsToPlay(dbFx, state);
+  }
+  dbFx.watched = state.code;
+  dbFx.prevPhase = state.phase;
+});
+
+/* --- the TV ---------------------------------------------------------------------------- */
+
+function dbTurnWords(state) {
+  const s = dbShared(state);
+  if (s.phase !== 'play' || !s.turn) return { title: '', hint: '' };
+  const name = pcName(state, s.turn.pid);
+  const hint = s.pendingOut ? pcT('db_waiting_last', { name: pcName(state, s.pendingOut) })
+    : s.turn.stage === 'lead' ? pcT('db_waiting_lead', { name: name }) : pcT('db_waiting_follow', { name: name, rank: pcRankPlural(s.rank) });
+  return { title: pcT('db_turn_of', { name: name }), hint: hint };
+}
+
+function dbTvTable(state) {
+  const s = dbShared(state);
+  const seats = dbSeats(state);
+  const half = Math.ceil(seats.length / 2);
+  const top = seats.slice(0, half);
+  const bottom = seats.slice(half).reverse();
+  const w = dbTurnWords(state);
+  const host = state.youAreHost && s.phase === 'play' && s.turn ? '<span data-db-host class="db-tv__host"></span>' : '';
+  return `<div class="db-tv ${seats.length > 8 ? 'db-tv--many' : ''}">
+      <div class="db-tv__ring">${top.map(pid => dbSeatHtml(state, pid, true)).join('')}</div>
+      <div class="db-tv__mid">
+        <div class="db-tv__info">
+          ${dbHeadHtml(state)}
+          <div class="db-tv__turn">${escapeHTML(w.title)}</div>
+          ${w.hint ? `<div class="tv-note">${escapeHTML(w.hint)}</div>` : ''}
+          ${s.last ? `<div class="db-tv__call">🤥 ${escapeHTML(pcT('db_tv_call', { name: pcName(state, s.last.pid) }))}</div>` : ''}
+          ${dbLatestHtml(state, true)}
+          <div class="tv-actions">${host}</div>
+          ${dbLogHtml(state, 2)}
+        </div>
+        <div class="db-tv__table">${dbTableHtml(state, true)}</div>
+      </div>
+      <div class="db-tv__ring">${bottom.map(pid => dbSeatHtml(state, pid, true)).join('')}</div>
+    </div>`;
+}
+
+TV_GAMES.doubt = {
+  sig(state) {
+    const cur = dbServerSig(Object.assign({}, state, { you: null }));
+    const view = document.getElementById('view-room-tv');
+    if (dbFx.tvSig && cur !== dbFx.tvSig) {
+      if (dbFx.busyUntil > Date.now()) { pcDeferRedraw(dbFx, 'doubt'); return dbFx.tvSig; }
+      if (view && dbPlayEnding(view, state)) { dbFx.tvEnding = true; pcDeferRedraw(dbFx, 'doubt'); return dbFx.tvSig; }
+    }
+    return cur;
+  },
+  frame(state, t) {
+    const view = document.getElementById('view-room-tv');
+    pcSnapshot(dbFx, view);
+    const s = dbShared(state);
+    if (dbFx.tvEnding && dbFx.busyUntil > Date.now() && s.phase === 'gameover' && dbFx.tvState) {
+      if (view) view._dbTable = true;
+      return dbTvTable(dbFx.tvState);
+    }
+    dbFx.tvEnding = false;
+    dbFx.tvSig = dbServerSig(Object.assign({}, state, { you: null }));
+    if (view) view._dbTable = s.phase === 'play';
+    if (s.phase === 'gameover') {
+      const places = s.places || [];
+      const first = (s.winners || [])[0];
+      const placesMode = (s.settings || {}).end === 'places';
+      const host = state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again || '', "dbAct(this, 'playAgain')")}${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>` : '';
+      const chips = (s.board || []).some(r => r.score > 0) ? `<div class="tv-eyebrow">${escapeHTML(pcT('db_wins_board'))}</div><div class="tv-strip-inline">${(s.board || []).map((row, i) => `<span class="tv-chip ${i === 0 && row.score > 0 ? 'is-done' : ''}">${i === 0 && row.score > 0 ? '👑 ' : ''}${escapeHTML(row.name || '')} <b class="tv-chip__score">${row.score}</b></span>`).join('')}</div>` : '';
+      return `<div class="db-tvres">
+          <div class="tv-big-icon" aria-hidden="true">🏆</div>
+          <div class="tv-title tv-center-text">${escapeHTML(first ? pcT('db_won', { name: pcName(state, first) }) : pcT('db_over_none'))}</div>
+          ${placesMode && places.length > 1 ? `<div class="tv-scale">${pcPlacesPodium(state, places, 'tv' + (s.dealId || ''))}</div>` : ''}
+          ${chips}
+          ${host}
+        </div>`;
+    }
+    dbFx.tvState = state;
+    return dbTvTable(state);
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    const s = dbShared(state);
+    dbTickClock(s);
+    dbRefreshInPlace(view, state, true);
+    if (dbFx.tvSig !== dbServerSig(Object.assign({}, state, { you: null }))) { pcDeferRedraw(dbFx, 'doubt'); return; }
+    if (!rebuilt || !view) return;
+    dbAfterDraw(view, state, null);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && motionFirst('db-tv-over|' + state.code + '|' + (s.dealId || ''))) {
+      afterReveal(view, () => confetti({ particleCount: 220, spread: 110, origin: { y: 0.6 } }));
+    }
+  }
+};
+</script>

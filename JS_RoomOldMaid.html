@@ -1,0 +1,879 @@
+<script>
+/* ============================================================================
+   الشايب — OLD MAID (rooms and the TV)
+   ----------------------------------------------------------------------------
+   The rules are oldMaidAction in RoomOldMaid.js; the cards are
+   PlayingCards.js, drawn by JS_Cards.html. What only this phone may know is
+   state.you.hand, in the order it is held; everyone else's hand is a count,
+   and the hand being drawn from is a row of backs with the lifted one up
+   (shared.aim.pos). Which card was drawn, and where it went, never reaches
+   another phone.
+
+   The draw, as at a real table: the one whose turn it is taps a back of the
+   next hand to lift it - every phone and the TV see which one is up - and
+   taps it again (or "take it") to draw it. Meanwhile the one being drawn
+   from may drag their cards about: the lifted card moves with its card, and
+   the drawer sees the backs move. With the hands shuffled by the server
+   instead (a lobby switch) nobody drags.
+
+   A lift and a drag change no frame: the sig leaves out shared.aim, the
+   `move` events and the order of your own hand, and omLive puts the lifted
+   back up, slides a moved back from its old place to its new one (FLIP) and
+   puts your own cards in the server's order - except while a drag of yours
+   is still on its way (omLocal.pending), so a card never jumps back under
+   your finger.
+
+   Every other move plays once per device: the deal, the pairs flying out to
+   the middle two by two, a card flying from one hand to the other (face down
+   to everyone but the two it concerns), a player safe, the shuffle. The game
+   ends on الشايب turned over in the loser's hand, the order the others got
+   out, and the tally across play again.
+   ========================================================================= */
+
+const OM_OPTS_KEY = 'oldmaid';
+const OM_OPTS_DEFAULT = { mode: 'drag', turnClock: 0 };
+const OM_CLOCK_CHOICES = [0, 15, 30];
+
+const omLocal = { clock: null, clockKey: null, turnMine: false, handInView: '', shownHand: null, shownKey: '', moveSeq: 0, pending: 0, drag: null, lifting: null };
+const omFx = Object.assign(pcFx(), { tvSig: '', tvEnding: false, tvState: null });
+
+/* --- the host's options --------------------------------------------------------- */
+
+function omOpts() {
+  const o = recallOptions(OM_OPTS_KEY, OM_OPTS_DEFAULT);
+  return {
+    mode: o.mode === 'shuffle' ? 'shuffle' : 'drag',
+    turnClock: OM_CLOCK_CHOICES.indexOf(Number(o.turnClock)) !== -1 ? Number(o.turnClock) : 0
+  };
+}
+
+function setOmOpt(key, value) {
+  const patch = {};
+  patch[key] = key === 'turnClock' ? Number(value) : value;
+  rememberOptions(OM_OPTS_KEY, patch);
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/* --- who and where --------------------------------------------------------------- */
+
+const omShared = (state) => state.shared || {};
+const omSeats = (state) => (omShared(state).order || []).filter(id => (state.players || []).some(p => p.id === id));
+const omInGame = (state) => !state.youAreScreen && omSeats(state).indexOf(Room.me) !== -1;
+const omHand = (state) => ((state.you || {}).hand || []);
+const omMyTurn = (state) => {
+  const s = omShared(state);
+  return s.phase === 'play' && !!s.turn && s.turn.pid === Room.me && omInGame(state);
+};
+const omDragging = (state) => omShared(state).settings && omShared(state).settings.mode === 'drag';
+
+/* --- this phone's taps ------------------------------------------------------------- */
+
+function omAct(btn, action, extra) {
+  const st = Room.state;
+  if (!st || st.game !== 'oldmaid') return;
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  haptic('light');
+  roomAct(action, Object.assign({ seq: omShared(st).turnSeq }, extra || {}));
+}
+
+/** A back of the other hand: the first tap lifts it, a tap on the lifted one takes it. */
+function omTapBack(btn) {
+  const st = Room.state;
+  if (!st || !omMyTurn(st) || !btn) return;
+  const row = btn.parentElement;
+  const pos = Array.from(row.children).indexOf(btn);
+  const s = omShared(st);
+  if (s.aim && s.aim.pos === pos && btn.classList.contains('is-lifted')) { omTake(); return; }
+  haptic('light');
+  // Up at once on this phone; the server's lift follows.
+  row.querySelectorAll('.om-back').forEach(el => el.classList.toggle('is-lifted', el === btn));
+  omLocal.lifting = pos;
+  roomAct('lift', { pos: pos, seq: s.turnSeq });
+}
+
+function omTake() {
+  const st = Room.state;
+  if (!st || !omMyTurn(st)) return;
+  const s = omShared(st);
+  haptic('medium');
+  const lifted = document.querySelector('#view-room-oldmaid .om-back.is-lifted');
+  if (lifted) lifted.classList.add('is-sent');
+  roomAct('take', { seq: s.turnSeq });
+}
+
+/* --- dragging your own cards ------------------------------------------------------- */
+
+function omHandRow() { return document.querySelector('#view-room-oldmaid .om-hand'); }
+
+function omDragStart(ev) {
+  const st = Room.state;
+  const card = ev.target && ev.target.closest ? ev.target.closest('.om-hcard') : null;
+  if (!st || !card || !omInGame(st) || !omDragging(st) || omShared(st).phase !== 'play') return;
+  if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+  omLocal.drag = { el: card, id: card.getAttribute('data-card'), x0: ev.clientX, y0: ev.clientY, pid: ev.pointerId, on: false, from: Array.from(card.parentElement.children).indexOf(card), grab: 0 };
+}
+
+function omDragMove(ev) {
+  const d = omLocal.drag;
+  if (!d || ev.pointerId !== d.pid) return;
+  const dx = ev.clientX - d.x0;
+  const dy = ev.clientY - d.y0;
+  if (!d.on) {
+    if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) {
+      if (Math.abs(dy) > 12) omLocal.drag = null;     // a scroll, not a drag
+      return;
+    }
+    d.on = true;
+    try { d.el.setPointerCapture(ev.pointerId); } catch (e) {}
+    d.el.classList.add('is-dragging');
+    const r = d.el.getBoundingClientRect();
+    d.grab = d.x0 - (r.left + r.width / 2);
+    haptic('light');
+  }
+  ev.preventDefault();
+  const row = d.el.parentElement;
+  const others = Array.from(row.children).filter(x => x !== d.el);
+  // Where the finger is among the other cards' middles, left to right.
+  let to = 0;
+  others.forEach(o => { const r = o.getBoundingClientRect(); if (ev.clientX - d.grab > r.left + r.width / 2) to++; });
+  const now = Array.from(row.children).indexOf(d.el);
+  if (to !== now) {
+    const before = new Map(others.map(o => [o, o.getBoundingClientRect().left]));
+    const ref = others[to] || null;
+    row.insertBefore(d.el, ref);
+    if (pcCanMove()) others.forEach(o => {
+      const dxo = before.get(o) - o.getBoundingClientRect().left;
+      if (Math.abs(dxo) > 0.5) o.animate([{ transform: 'translateX(' + dxo + 'px)' }, { transform: 'translateX(0)' }], { duration: 160, easing: 'ease-out' });
+    });
+  }
+  d.el.style.transform = 'none';
+  const r = d.el.getBoundingClientRect();
+  d.el.style.transform = 'translate(' + (ev.clientX - d.grab - (r.left + r.width / 2)) + 'px, -0.9rem)';
+}
+
+function omDragEnd(ev) {
+  const d = omLocal.drag;
+  if (!d || (ev && ev.pointerId !== d.pid)) return;
+  omLocal.drag = null;
+  if (!d.on) return;
+  const el = d.el;
+  const row = el.parentElement;
+  const to = row ? Array.from(row.children).indexOf(el) : d.from;
+  const tf = el.style.transform;
+  el.style.transform = '';
+  el.classList.remove('is-dragging');
+  if (pcCanMove() && tf) el.animate([{ transform: tf }, { transform: 'none' }], { duration: 180, easing: 'ease-out' });
+  // A drag is not a tap.
+  el._omNoClick = Date.now();
+  if (to === d.from || to < 0) return;
+  omLocal.pending++;
+  Promise.resolve(roomAct('move', { card: Number(d.id), to: to })).then(() => {
+    omLocal.pending = Math.max(0, omLocal.pending - 1);
+    const st = Room.state;
+    if (st && st.game === 'oldmaid') omLive(document.getElementById('view-room-oldmaid'), st, false);
+  });
+}
+
+document.addEventListener('pointerdown', (ev) => { if (ev.target && ev.target.closest && ev.target.closest('#view-room-oldmaid .om-hand')) omDragStart(ev); }, true);
+document.addEventListener('pointermove', omDragMove, { passive: false });
+document.addEventListener('pointerup', omDragEnd);
+document.addEventListener('pointercancel', omDragEnd);
+
+/* --- the table, piece by piece --------------------------------------------------- */
+
+function omHeadHtml(state) {
+  const s = omShared(state);
+  const set = s.settings || {};
+  const bits = [];
+  bits.push(`<span class="badge">${escapeHTML(set.mode === 'shuffle' ? pcT('om_mode_shuffle') : pcT('om_mode_drag'))}</span>`);
+  if (s.pairs) bits.push(`<span class="badge">${escapeHTML(pcT('om_pairs_badge', { n: (s.thrown || []).length, of: s.pairs }))}</span>`);
+  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-om-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  return `<div class="om-head">${bits.join('')}</div>`;
+}
+
+function omSeatHtml(state, pid, tv) {
+  const s = omShared(state);
+  const p = (state.players || []).find(x => x.id === pid);
+  const n = (s.counts || {})[pid] || 0;
+  const cls = ['om-seat'];
+  const turn = s.phase === 'play' && s.turn;
+  if (turn && s.turn.pid === pid) cls.push('is-turn');
+  if (turn && s.turn.from === pid) cls.push('is-from');
+  if (!p || !p.online) cls.push('is-away');
+  const place = (s.out || []).indexOf(pid);
+  if (place !== -1) cls.push('is-out');
+  if (s.loser === pid) cls.push('is-loser');
+  let tag = '';
+  if (s.loser === pid) tag = `<span class="om-tag om-tag--loser">🧓</span>`;
+  else if (place !== -1) tag = `<span class="om-tag om-tag--out">✓ ${place + 1}</span>`;
+  else if (turn && s.turn.pid === pid) tag = `<span class="om-tag om-tag--turn">${escapeHTML(pcT('om_tag_drawing'))}</span>`;
+  else if (turn && s.turn.from === pid) tag = `<span class="om-tag">${escapeHTML(pcT('om_tag_from'))}</span>`;
+  return `<div class="${cls.join(' ')}" data-pc-seat="${escapeHTML(pid)}">
+      <span class="om-avatar" aria-hidden="true">${pcInitial(state, pid)}</span>
+      <span class="om-seat__who"><span class="om-seat__name">${escapeHTML(p ? p.name : '—')}</span>${tag}</span>
+      <span class="om-seat__hand" data-pc-at="seat:${escapeHTML(pid)}">${pcFanHtml(n, tv ? 4 : 3)}<b class="om-seat__n metric">${n}</b></span>
+    </div>`;
+}
+
+/** The pairs thrown out, fanned in the middle: the last few, and how many of all. */
+function omMidHtml(state, tv) {
+  const s = omShared(state);
+  const thrown = s.thrown || [];
+  const shown = thrown.slice(-(tv ? 8 : 6));
+  const size = tv ? 'md' : 'sm';
+  const pairs = shown.map((tp, k) => `<span class="om-pair" style="--k:${k};--tilt:${((k * 29 + thrown.length * 7) % 18) - 9}deg">${pcCardHtml(tp.cards[0], { size: size })}${pcCardHtml(tp.cards[1], { size: size })}</span>`).join('');
+  return `<div class="om-mid" data-pc-at="mid">
+      <div class="om-mid__pairs" dir="ltr">${pairs || `<span class="om-mid__empty">${escapeHTML(pcT('om_no_pairs'))}</span>`}</div>
+      <p class="om-mid__label">${escapeHTML(pcT('om_pairs_out', { n: thrown.length, of: s.pairs || 0 }))}</p>
+    </div>`;
+}
+
+/** The hand being drawn from: a row of backs, the lifted one up; buttons for the drawer, a picture for everyone else. */
+function omBacksHtml(state, size) {
+  const s = omShared(state);
+  if (!s.turn) return '';
+  const n = (s.counts || {})[s.turn.from] || 0;
+  const mine = omMyTurn(state);
+  const aim = s.aim ? s.aim.pos : -1;
+  let out = '';
+  for (let k = 0; k < n; k++) {
+    const cls = 'om-back' + (k === aim ? ' is-lifted' : '');
+    out += mine
+      ? `<button type="button" class="${cls}" data-pc-at="back:${k}" onclick="omTapBack(this)" aria-label="${escapeHTML(pcT('om_back_label', { n: k + 1 }))}">${pcCardHtml(null, { size: size })}</button>`
+      : `<span class="${cls}" data-pc-at="back:${k}">${pcCardHtml(null, { size: size })}</span>`;
+  }
+  return `<div class="om-backs pc-row" dir="ltr">${out}</div>`;
+}
+
+function omDrawHtml(state, tv) {
+  const s = omShared(state);
+  if (s.phase !== 'play' || !s.turn) return '';
+  const drawer = pcName(state, s.turn.pid);
+  const from = pcName(state, s.turn.from);
+  if (s.turn.from === Room.me && !state.youAreScreen) {
+    return `<div class="om-draw is-victim">
+        <p class="om-draw__title">${escapeHTML(pcT('om_drawing_from_you', { name: drawer }))}</p>
+        <p class="om-hint">${escapeHTML(omDragging(state) ? pcT('om_victim_hint_drag') : pcT('om_victim_hint'))}</p>
+      </div>`;
+  }
+  const title = omMyTurn(state) ? pcT('om_draw_from', { name: from }) : pcT('om_drawing', { name: drawer, from: from });
+  return `<div class="om-draw ${omMyTurn(state) ? 'is-mine' : ''}">
+      <p class="om-draw__title">${omMyTurn(state) ? '⭐ ' : ''}${escapeHTML(title)}</p>
+      ${omBacksHtml(state, tv ? 'lg' : 'md')}
+    </div>`;
+}
+
+function omMineHtml(state) {
+  const s = omShared(state);
+  const hand = omHand(state);
+  const place = (s.out || []).indexOf(Room.me);
+  const victim = s.phase === 'play' && s.turn && s.turn.from === Room.me;
+  const aim = victim && s.aim ? s.aim.pos : -1;
+  if (!hand.length) {
+    return `<div class="om-mine is-empty"><p class="om-mine__safe">${escapeHTML(place !== -1 ? pcT('om_you_safe', { n: place + 1 }) : pcT('om_no_cards'))}</p></div>`;
+  }
+  const cards = hand.map((c, k) => `<span class="om-hcard ${k === aim ? 'is-aimed' : ''}" data-card="${c.i}" data-pc-at="card:${c.i}">${pcCardHtml(c.c, { size: 'md' })}</span>`).join('');
+  const hint = omDragging(state) ? pcT('om_hand_hint_drag') : pcT('om_hand_hint_shuffle');
+  return `<div class="om-mine ${victim ? 'is-victim' : ''}" data-pc-seat="${escapeHTML(Room.me)}">
+      <div class="om-mine__head"><span class="om-mine__title">🂠 ${escapeHTML(pcT('om_your_cards'))}</span><b class="metric om-mine__n">${hand.length}</b><span class="om-mine__hint">${escapeHTML(hint)}</span></div>
+      <div class="om-hand pc-row ${omDragging(state) ? 'is-draggable' : ''}" dir="ltr" data-pc-at="seat:${escapeHTML(Room.me)}">${cards}</div>
+    </div>`;
+}
+
+/* --- what happened ------------------------------------------------------------------- */
+
+function omEventText(state, e) {
+  if (!e) return '';
+  const name = (pid) => pcName(state, pid);
+  switch (e.type) {
+    case 'deal': return pcT('om_ev_deal', { n: e.n, pairs: e.pairs });
+    case 'pairs': return e.deal ? pcT('om_ev_pairs_deal', { name: name(e.pid), n: (e.cards || []).length / 2 }) : pcT('om_ev_pair', { name: name(e.pid) });
+    case 'draw': return pcT('om_ev_draw', { name: name(e.pid), from: name(e.from) });
+    case 'out': return pcT('om_ev_out', { name: name(e.pid), n: e.place });
+    case 'shuffle': return pcT('om_ev_shuffle');
+    case 'auto': return e.why === 'host' ? pcT('om_ev_auto_host', { name: name(e.pid) }) : pcT('om_ev_auto_clock', { name: name(e.pid) });
+    case 'over': return e.pid ? pcT('om_ev_over', { name: name(e.pid) }) : '';
+    case 'left': return pcT('om_ev_left', { name: name(e.pid) });
+    default: return '';
+  }
+}
+
+const omMoves = (state) => (omShared(state).events || []).filter(e => e && e.type !== 'move' && e.type !== 'auto' && e.type !== 'shuffle' && omEventText(state, e));
+
+function omLatestHtml(state, tv) {
+  const list = omMoves(state);
+  const e = list[list.length - 1];
+  if (!e) return '';
+  const fresh = motionFirst(['om-latest', state.code, e.seq, tv ? 'tv' : 'phone'].join('|'));
+  return `<p class="om-latest ${fresh ? 'is-new' : ''}">${escapeHTML(omEventText(state, e))}</p>`;
+}
+
+function omLogHtml(state, count) {
+  const list = omMoves(state).slice(0, -1).slice(-count).reverse();
+  if (!list.length) return '';
+  return `<ul class="om-log">${list.map(e => `<li>${escapeHTML(omEventText(state, e))}</li>`).join('')}</ul>`;
+}
+
+/* --- the bar -------------------------------------------------------------------------- */
+
+function omActionsHtml(state) {
+  const s = omShared(state);
+  if (s.phase !== 'play' || !s.turn) return '';
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (!omInGame(state)) return `<div class="om-note"><p class="om-hint">${escapeHTML(t.vote_spectating || '')}</p></div>`;
+  if (!omMyTurn(state)) return '';
+  const lifted = !!s.aim;
+  return `<div class="om-actbar">
+      <p class="om-hint" data-om-take-hint>${escapeHTML(lifted ? pcT('om_take_hint') : pcT('om_lift_hint'))}</p>
+      <button type="button" class="btn btn--primary btn--lg" data-om-take onclick="omTake()" ${lifted ? '' : 'disabled'}>${escapeHTML(pcT('om_take'))}</button>
+    </div>`;
+}
+
+function omHostButtons(state) {
+  const s = omShared(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.turn) return [];
+  const p = (state.players || []).find(x => x.id === s.turn.pid);
+  if (p && p.online) return [];
+  return [['⏭️ ' + pcT('om_skip_turn', { name: pcName(state, s.turn.pid) }), "omAct(this, 'skipTurn')"]];
+}
+
+function omRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('.om-seat[data-pc-seat]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-pc-seat'));
+    el.classList.toggle('is-away', !(p && p.online));
+  });
+  const box = root.querySelector('[data-om-host]');
+  if (box) {
+    const buttons = omHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._omHtml !== html) { box.innerHTML = html; box._omHtml = html; }
+  }
+}
+
+/**
+ * What a lift and a drag change, without a new frame: the lifted back (and
+ * your own lifted card when the drawer is at your hand), a back that moved
+ * sliding to its new place, and your own cards in the order the server holds.
+ */
+function omLive(root, state, rebuilt) {
+  if (!root) return;
+  const s = omShared(state);
+  const aim = s.phase === 'play' && s.aim ? s.aim.pos : -1;
+  const backs = root.querySelector('.om-backs');
+  // A back that moved: from its old place to its new one, sliding (the drawer sees the hand move).
+  const moves = (s.events || []).filter(e => e && e.type === 'move' && (Number(e.seq) || 0) > omLocal.moveSeq);
+  omLocal.moveSeq = Math.max(omLocal.moveSeq, (s.events || []).reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0));
+  if (backs && !rebuilt && s.turn) {
+    moves.filter(e => e.pid === s.turn.from).forEach(e => {
+      const kids = Array.from(backs.children);
+      const el = kids[e.from];
+      if (!el || e.to < 0 || e.to >= kids.length) return;
+      const before = new Map(kids.map(k => [k, k.getBoundingClientRect().left]));
+      const rest = kids.filter(k => k !== el);
+      backs.insertBefore(el, rest[e.to] || null);
+      if (pcCanMove()) kids.forEach(k => {
+        const dx = before.get(k) - k.getBoundingClientRect().left;
+        if (Math.abs(dx) > 0.5) k.animate([{ transform: 'translate(' + dx + 'px, ' + (k === el ? '-0.6rem' : '0') + ')' }, { transform: 'translate(0, 0)' }], { duration: 260, easing: 'cubic-bezier(0.3, 0.8, 0.3, 1)' });
+      });
+    });
+    Array.from(backs.children).forEach((el, k) => el.setAttribute('data-pc-at', 'back:' + k));
+  }
+  if (backs && (omLocal.lifting === null || aim === omLocal.lifting || !omMyTurn(state))) {
+    Array.from(backs.children).forEach((el, k) => el.classList.toggle('is-lifted', k === aim));
+    if (aim === omLocal.lifting) omLocal.lifting = null;
+  }
+  // The bar follows a lift made without a new frame.
+  const take = root.querySelector('[data-om-take]');
+  if (take) {
+    const up = aim !== -1 || omLocal.lifting !== null;
+    take.disabled = !up;
+    const hint = root.querySelector('[data-om-take-hint]');
+    if (hint) hint.textContent = up ? pcT('om_take_hint') : pcT('om_lift_hint');
+  }
+  // Your own cards: in the server's order (unless a drag of yours is still on its way).
+  const row = root.querySelector('.om-hand');
+  if (row && !omLocal.drag && !omLocal.pending) {
+    const want = omHand(state).map(c => String(c.i));
+    const have = Array.from(row.children).map(el => el.getAttribute('data-card'));
+    if (want.join(',') !== have.join(',') && want.length === have.length && want.every(id => have.indexOf(id) !== -1)) {
+      const before = new Map(Array.from(row.children).map(el => [el, el.getBoundingClientRect().left]));
+      want.forEach(id => { const el = row.querySelector('[data-card="' + id + '"]'); if (el) row.appendChild(el); });
+      if (pcCanMove()) Array.from(row.children).forEach(el => {
+        const dx = before.get(el) - el.getBoundingClientRect().left;
+        if (Math.abs(dx) > 0.5) el.animate([{ transform: 'translateX(' + dx + 'px)' }, { transform: 'translateX(0)' }], { duration: 240, easing: 'ease-out' });
+      });
+    }
+    const victim = s.phase === 'play' && s.turn && s.turn.from === Room.me;
+    Array.from(row.children).forEach((el, k) => el.classList.toggle('is-aimed', victim && k === aim));
+  }
+}
+
+/* --- the end of the game -------------------------------------------------------------- */
+
+/** الشايب turned over in the loser's hand, and who it was. */
+function omRevealHtml(state, tv) {
+  const s = omShared(state);
+  const r = s.reveal;
+  if (!r) return '';
+  const animate = motionFirst(['om-reveal', state.code, s.dealId || '', tv ? 'tv' : 'phone'].join('|'));
+  const size = tv ? 'xl' : 'lg';
+  const cards = (r.cards || []).map((c, k) => animate
+    ? `<span class="pc-flip" style="--at:${600 + k * 300}ms"><span class="pc-flip__back">${pcCardHtml(null, { size: size })}</span><span class="pc-flip__face">${pcCardHtml(c, { size: size })}</span></span>`
+    : pcCardHtml(c, { size: size })).join('');
+  return `<div class="om-reveal ${animate ? 'is-revealing' : ''}" ${animate ? 'data-reveal-ms="1500"' : ''}>
+      <div class="om-reveal__cards" dir="ltr">${cards}</div>
+      <p class="om-reveal__who">🧓 ${escapeHTML(pcT(r.pid === Room.me && !state.youAreScreen ? 'om_you_lost' : 'om_lost', { name: pcName(state, r.pid) }))}</p>
+    </div>`;
+}
+
+/** The tally across play again: the fewest times left holding الشايب first. */
+function omTallyHtml(state, tv) {
+  const s = omShared(state);
+  const board = s.board || [];
+  if (!board.some(r => r.score > 0)) return '';
+  if (tv) return `<div class="tv-eyebrow">${escapeHTML(pcT('om_tally'))}</div><div class="tv-strip-inline">${board.map(row => `<span class="tv-chip">${escapeHTML(row.name || '')} <b class="tv-chip__score">🧓 ${row.score}</b></span>`).join('')}</div>`;
+  return `<div class="section om-tally">
+      <div class="section__head"><h2 class="section__title">${escapeHTML(pcT('om_tally'))}</h2><span class="section__rule"></span></div>
+      ${board.map((row, i) => `<div class="status-row ${i === 0 ? 'status-row--turn' : ''}" data-pid="${escapeHTML(String(row.id))}">
+          <div class="status-row__body"><div class="status-row__name">${i === 0 ? '👑 ' : ''}${escapeHTML(row.name)}</div></div>
+          <span class="badge ${row.score ? 'badge--warning' : 'badge--success'}">🧓 ${row.score}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function omResultFrame(state) {
+  const s = omShared(state);
+  const t = TRANSLATIONS[appState.lang] || {};
+  const hostNext = `<div class="btn-stack">
+      <button type="button" class="btn btn--primary btn--lg" onclick="omAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
+      <button type="button" class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+    </div>`;
+  const out = s.out || [];
+  return `<div class="om om--result">
+      ${omHeadHtml(state)}
+      <div class="card card--accent om-over">
+        ${s.loser ? omRevealHtml(state, false) : `<div class="card__title">${escapeHTML(pcT('om_over_left'))}</div>`}
+      </div>
+      ${out.length > 1 ? `<p class="om-sub">${escapeHTML(pcT('om_out_order'))}</p>${pcPlacesPodium(state, out, s.dealId)}` : ''}
+      ${omTallyHtml(state, false)}
+      ${state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+/* --- the phone's frame --------------------------------------------------------------- */
+
+/** Everything a frame shows, less what a lift or a drag changes (omLive draws those in place). */
+function omServerSig(state) {
+  const s = omShared(state);
+  const events = (s.events || []).filter(e => e && e.type !== 'move');
+  const hand = omHand(state).map(c => c.i).sort((a, b) => a - b).join(',');
+  return [s.dealId || '', s.phase, s.turnSeq, JSON.stringify(s.turn || null), JSON.stringify(s.counts || {}), (s.out || []).join(','),
+    (s.thrown || []).length, events.length ? events[events.length - 1].seq : 0, s.endsAt || '', s.loser || '', JSON.stringify(s.board || []),
+    hand, (s.order || []).join(','), JSON.stringify(s.settings || {}), (state.players || []).map(p => p.id + ':' + p.name).join(',')].join('|');
+}
+
+function omPhoneFrame(state) {
+  const s = omShared(state);
+  if (s.phase === 'gameover') return omResultFrame(state);
+  const me = Room.me;
+  const seats = omSeats(state);
+  const at = seats.indexOf(me);
+  const opps = at === -1 ? seats.slice() : seats.slice(at + 1).concat(seats.slice(0, at));
+  return `<div class="om ${omMyTurn(state) ? 'is-turn' : ''}">
+      ${omHeadHtml(state)}
+      ${omLatestHtml(state, false)}
+      <div class="om-opps hscroll-fade" data-om-opps>${opps.map(pid => omSeatHtml(state, pid, false)).join('')}</div>
+      <div class="om-layout">
+        <div class="om-layout__draw">${omDrawHtml(state, false)}</div>
+        <div class="om-layout__mid">${omMidHtml(state, false)}</div>
+        <div class="om-layout__mine">${omInGame(state) ? omMineHtml(state) : ''}</div>
+        <div class="om-layout__act">${omActionsHtml(state)}<div data-om-host></div></div>
+        <div class="om-layout__log">${omLogHtml(state, 3)}</div>
+      </div>
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+ROOM_GAMES.oldmaid = {
+  actionKey(state) {
+    const s = omShared(state);
+    return s.phase === 'play' ? '' : [state.code, s.dealId, s.phase].join('|');
+  },
+  lobbyOptions(state) {
+    const n = (state.players || []).length;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const pairs = Math.min(26, 8 * Math.max(2, n));
+    const fan = `<div class="pc-lobby__cards" aria-hidden="true" dir="ltr">${['7h', '7d', 'OM', 'Ks', 'Kc'].map(c => pcCardHtml(c, { size: 'sm' })).join('')}</div>`;
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(pcT('om_lobby_hint'))}</p>`;
+    const deck = `<p class="field__hint" style="text-align:center">🂠 ${escapeHTML(pcT('om_deck', { n: pairs * 2 + 1, pairs: pairs }))}</p>`;
+    const few = n > 8 ? `<p class="field__hint tx-warning" style="text-align:center">${escapeHTML(pcT('om_too_many'))}</p>` : '';
+    if (!state.youAreHost) return `${fan}${deck}${hint}<p class="field__hint" style="text-align:center">${escapeHTML(t.room_wait_host || '')}</p>`;
+    const o = omOpts();
+    const seg = (key, values, labelOf) => `<div class="segmented" role="group">${values.map(v =>
+      `<button type="button" class="segmented__item ${o[key] === v ? 'is-active' : ''}" onclick="setOmOpt('${key}', ${typeof v === 'string' ? `'${v}'` : v})">${labelOf(v)}</button>`).join('')}</div>`;
+    return `<div class="card card--tight pc-lobby">
+        ${fan}${deck}${few}
+        <div class="field">
+          <label class="field__label">🤲 ${escapeHTML(pcT('om_mode'))}</label>
+          ${seg('mode', ['drag', 'shuffle'], v => escapeHTML(v === 'drag' ? pcT('om_mode_drag') : pcT('om_mode_shuffle')))}
+          <p class="field__hint">${escapeHTML(o.mode === 'drag' ? pcT('om_mode_drag_hint') : pcT('om_mode_shuffle_hint'))}</p>
+        </div>
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(pcT('om_clock'))}</label>
+          ${seg('turnClock', OM_CLOCK_CHOICES, v => (v ? v + '″' : escapeHTML(pcT('db_clock_off'))))}
+          <p class="field__hint">${escapeHTML(pcT('om_clock_hint'))}</p>
+        </div>
+        ${hint}
+      </div>`;
+  },
+  startPayload() {
+    return omOpts();
+  },
+  render(state) {
+    if (appState.currentView !== 'room-oldmaid') setView('room-oldmaid');
+    const el = document.getElementById('view-room-oldmaid');
+    if (!el) return;
+    const s = omShared(state);
+    const server = omServerSig(state);
+    const changed = !!(el.dataset.sig && el._omServer && el._omServer !== server);
+    const busy = omFx.busyUntil > Date.now();
+    const own = changed && busy && omOwnMoveWaiting(state);
+    if (changed && ((busy && !own) || omPlayEnding(el, state))) {
+      pcDeferRedraw(omFx, 'oldmaid');
+      omRefreshInPlace(el, state, false);
+      if (!busy) omLive(el, state, false);
+      return;
+    }
+    if (omLocal.drag && changed === false) { omLive(el, state, false); omRefreshInPlace(el, state, false); return; }
+    const local = [state.youAreHost, appState.lang].join('|');
+    const handWas = omLocal.shownKey === state.code + '|' + (s.dealId || '') ? omLocal.shownHand : null;
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => { omLocal.drag = null; omLocal.lifting = null; pcSnapshot(omFx, el); return omPhoneFrame(state); });
+    el._omServer = server;
+    omRefreshInPlace(el, state, false);
+    omTickClock(s);
+    if (rebuilt) {
+      pcFitRows(el, '.om-hand, .om-backs');
+      omOppsInView(el);
+      if (typeof watchScrollFade === 'function') watchScrollFade(el.querySelector('[data-om-opps]'));
+    }
+    omLive(el, state, rebuilt);
+    if (!rebuilt) return;
+    el._omTable = s.phase === 'play';
+    omLocal.shownHand = omHand(state).map(c => ({ i: c.i, c: c.c }));
+    omLocal.shownKey = state.code + '|' + (s.dealId || '');
+    omAfterDraw(el, state, handWas);
+    omTurnCue(state);
+  }
+};
+
+function omOppsInView(root) {
+  const strip = root && root.querySelector('[data-om-opps]');
+  if (!strip || strip.scrollWidth <= strip.clientWidth + 2) return;
+  const seat = strip.querySelector('.om-seat.is-turn') || strip.querySelector('.om-seat.is-from');
+  if (!seat) return;
+  const a = strip.getBoundingClientRect();
+  const b = seat.getBoundingClientRect();
+  if (b.left >= a.left + 8 && b.right <= a.right - 8) return;
+  strip.scrollBy({ left: (b.left + b.width / 2) - (a.left + a.width / 2), behavior: motionOff() ? 'auto' : 'smooth' });
+}
+
+/* --- the clock and the cues ------------------------------------------------------------ */
+
+function omStopClock() {
+  if (omLocal.clock) omLocal.clock.stop();
+  omLocal.clock = null;
+  omLocal.clockKey = null;
+}
+
+function omTickClock(s) {
+  const endsAt = s && s.phase === 'play' ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-om-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 5);
+      el.classList.toggle('badge--accent', left > 5);
+    });
+    return left;
+  };
+  if (!endsAt) { omStopClock(); return; }
+  paint();
+  if (omLocal.clockKey === endsAt && omLocal.clock) return;
+  omStopClock();
+  omLocal.clockKey = endsAt;
+  omLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      const ss = st && st.game === 'oldmaid' ? st.shared || {} : null;
+      const mine = ss && ss.turn && ss.turn.pid === Room.me;
+      if (left > 0 && left <= 5 && ss && ss.endsAt === endsAt && (st.youAreScreen || mine)) playSound('tick');
+    },
+    onEnd: () => { omLocal.clock = null; paint(); }
+  });
+}
+
+function omTurnCue(state) {
+  const mine = omMyTurn(state);
+  const was = omLocal.turnMine;
+  omLocal.turnMine = mine;
+  if (mine && !was && omFx.watched === state.code) { playSound('tick'); haptic('medium'); }
+}
+
+onRoomClocksReset(() => {
+  omStopClock();
+  omLocal.drag = null;
+  omLocal.lifting = null;
+  pcFxCancel(omFx);
+});
+
+let omFitTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(omFitTimer);
+  omFitTimer = setTimeout(() => {
+    pcFitRows(document.getElementById('view-room-oldmaid'), '.om-hand, .om-backs');
+    pcFitRows(document.getElementById('view-room-tv'), '.om-backs');
+  }, 120);
+});
+
+/* --- the flights ------------------------------------------------------------------------ */
+
+function omOwnMoveWaiting(state) {
+  const s = omShared(state);
+  if (state.youAreScreen || omFx.deal !== state.code + '|' + (s.dealId || '')) return false;
+  return (s.events || []).some(e => e && (Number(e.seq) || 0) > omFx.lastSeq && e.type === 'draw' && e.pid === Room.me);
+}
+
+function omAfterDraw(root, state, handWas) {
+  const s = omShared(state);
+  const evs = pcEventsToPlay(omFx, state).filter(e => e.type !== 'move');
+  if (document.hidden || pcWokeRecently(omFx) || !root.getClientRects().length || !evs.length) return;
+  omEventSounds(state, evs);
+  if (s.phase !== 'play' || evs.length > 16 || !pcCanMove()) return;
+  omPlay(root, state, evs, omFx.prevPhase === 'lobby' ? 1000 : 0, handWas);
+}
+
+/** The last draw plays on the table before the loser is shown. */
+function omPlayEnding(root, state) {
+  const s = omShared(state);
+  if (!root || !root._omTable || s.phase !== 'gameover') return false;
+  if (document.hidden || pcWokeRecently(omFx) || !pcCanMove() || !root.getClientRects().length) return false;
+  const evs = pcEventsToPlay(omFx, state).filter(e => e.type !== 'over' && e.type !== 'move');
+  if (!evs.length || evs.length > 8) return false;
+  pcSnapshot(omFx, root);
+  omEventSounds(state, evs);
+  omPlay(root, state, evs, 0, omLocal.shownHand);
+  return omFx.busyUntil > Date.now();
+}
+
+function omEventSounds(state, evs) {
+  if (document.hidden || !evs.length) return;
+  const mine = evs.some(e => (e.pid === Room.me || e.from === Room.me) && !state.youAreScreen);
+  const has = (fn) => evs.some(fn);
+  if (has(e => e.type === 'over' && e.pid)) { pcSound('pcLie', mine); return; }
+  if (has(e => e.type === 'pairs')) { pcSound('pcPair', mine); return; }
+  if (has(e => e.type === 'draw' || e.type === 'deal' || e.type === 'shuffle')) pcSound('pcSlide', mine);
+}
+
+function omPlay(root, state, list, delay, handWas) {
+  const s = omShared(state);
+  const fx = omFx;
+  const me = Room.me;
+  const tv = pcIsTv(root);
+  const steps = [];
+  const at = (ms, fn) => steps.push([ms, fn]);
+  let t = delay || 0;
+  const seatKey = (pid) => 'seat:' + pid;
+  const mineHere = (pid) => pid === me && !state.youAreScreen && !!pcEl(root, 'seat:' + me);
+  const handNow = omHand(state);
+  const was = Array.isArray(handWas) ? handWas : [];
+  const gone = was.filter(c => !handNow.some(x => x.i === c.i));
+  const came = handNow.filter(c => !was.some(x => x.i === c.i));
+  let flights = 0;
+  list.forEach((e) => {
+    const A = e.pid;
+    switch (e.type) {
+      case 'deal': {
+        at(t, () => pcPop(fx, root, 'mid', '🔀', { big: true, duration: 700 }));
+        t += 260;
+        let k = 0;
+        for (let c = 0; c < 3; c++) omSeats(state).forEach(pid => {
+          if (mineHere(pid)) return;
+          at(t + k * 45, () => pcFly(fx, root, 'mid', seatKey(pid), null, { arc: 18, duration: 380, width: tv ? 60 : 34 }));
+          k++;
+        });
+        const mine = omInGame(state) && !state.youAreScreen ? (was.length ? [] : handNow) : [];
+        mine.slice(0, 16).forEach((c, j) => {
+          const key = 'card:' + c.i;
+          pcHold(fx, root, key);
+          at(t + j * 50, () => pcFly(fx, root, 'mid', key, c.c, { flip: 'up', arc: 24, duration: 420, hold: [key] }));
+        });
+        t += Math.max(k * 45, Math.min(16, mine.length) * 50) + 420;
+        break;
+      }
+      case 'pairs': {
+        const cards = e.cards || [];
+        const pairs = [];
+        for (let k = 0; k + 1 < cards.length; k += 2) pairs.push([cards[k], cards[k + 1]]);
+        const mine = mineHere(A);
+        const pool = gone.slice();
+        pairs.slice(0, 4).forEach((pr, k) => {
+          if (flights > 14) return;
+          const from = pr.map(c => {
+            if (!mine) return seatKey(A);
+            const j = pool.findIndex(x => x.c === c);
+            return j === -1 ? seatKey(A) : 'card:' + pool.splice(j, 1)[0].i;
+          });
+          const at0 = t + k * 260;
+          at(at0, () => {
+            pcFly(fx, root, from[0], 'mid', pr[0], { arc: 34, spin: -8, duration: 520, width: tv ? 70 : 42 });
+            pcFly(fx, root, from[1], 'mid', pr[1], { arc: 40, spin: 8, duration: 540, width: tv ? 70 : 42 });
+          });
+          at(at0 + 540, () => pcRing(fx, root, 'mid', { tone: 'gold', scale: 1.6, duration: 560 }));
+          flights += 2;
+        });
+        t += Math.min(4, pairs.length) * 260 + 560;
+        if (pairs.length > 4) at(t - 200, () => pcPop(fx, root, 'mid', '+' + pairs.length, { big: true }));
+        break;
+      }
+      case 'draw': {
+        const drawer = A;
+        const from = e.from;
+        const pos = 'back:' + e.pos;
+        let src = pcRect(fx, root, pos) ? pos : seatKey(from);
+        let face = null;
+        let flip = null;
+        if (mineHere(from) && gone.length) { src = 'card:' + gone[0].i; face = gone[0].c; flip = 'down'; }
+        let dest = seatKey(drawer);
+        if (mineHere(drawer) && came.length) {
+          const got = came[came.length - 1];
+          dest = 'card:' + got.i;
+          face = got.c;
+          flip = 'up';
+          if (pcEl(root, dest)) pcHold(fx, root, dest);
+        }
+        at(t, () => pcFly(fx, root, src, dest, face, { flip: flip, arc: 46, spin: 10, duration: 560, width: tv ? 70 : 46, hold: dest.indexOf('card:') === 0 ? [dest] : [] }));
+        if (e.auto) at(t, () => pcPop(fx, root, seatKey(drawer), '⏱️', { big: true }));
+        t += 600;
+        break;
+      }
+      case 'out':
+        at(t, () => { pcRing(fx, root, seatKey(A), { tone: 'success', scale: 2.2 }); pcPop(fx, root, seatKey(A), '✓', { big: true }); });
+        t += 420;
+        break;
+      case 'shuffle':
+        at(t, () => omSeats(state).forEach(pid => pcShake(fx, root, seatKey(pid), 0)));
+        t += 200;
+        break;
+      case 'left':
+        if (e.to) at(t, () => pcFly(fx, root, seatKey(A), seatKey(e.to), null, { arc: 20, duration: 500 }));
+        t += 300;
+        break;
+      default:
+        break;
+    }
+  });
+  let end = 0;
+  steps.forEach(([ms, fn]) => {
+    end = Math.max(end, ms);
+    fx.timers.push(setTimeout(fn, ms));
+  });
+  fx.busyUntil = Math.max(fx.busyUntil, Date.now() + Math.max(t, end + 480));
+}
+
+Room.onChange((state) => {
+  if (!state) { omFx.watched = ''; omFx.prevPhase = ''; return; }
+  if (state.game === 'oldmaid' && state.phase !== 'lobby') {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : (onRoomView() && state.inGame !== false);
+    if (!showing) pcEventsToPlay(omFx, state);
+  }
+  omFx.watched = state.code;
+  omFx.prevPhase = state.phase;
+});
+
+/* --- the TV -------------------------------------------------------------------------- */
+
+function omTvTable(state) {
+  const s = omShared(state);
+  const seats = omSeats(state);
+  const half = Math.ceil(seats.length / 2);
+  const top = seats.slice(0, half);
+  const bottom = seats.slice(half).reverse();
+  const host = state.youAreHost && s.phase === 'play' && s.turn ? '<span data-om-host class="om-tv__host"></span>' : '';
+  const title = s.turn ? pcT('om_drawing', { name: pcName(state, s.turn.pid), from: pcName(state, s.turn.from) }) : '';
+  return `<div class="om-tv">
+      <div class="om-tv__ring">${top.map(pid => omSeatHtml(state, pid, true)).join('')}</div>
+      <div class="om-tv__mid">
+        <div class="om-tv__info">
+          ${omHeadHtml(state)}
+          ${omLatestHtml(state, true)}
+          <div class="tv-actions">${host}</div>
+          ${omLogHtml(state, 2)}
+        </div>
+        <div class="om-tv__table">
+          <div class="om-draw"><p class="om-draw__title">${escapeHTML(title)}</p>${omBacksHtml(Object.assign({}, state, { youAreScreen: true }), 'lg')}</div>
+          ${omMidHtml(state, true)}
+        </div>
+      </div>
+      <div class="om-tv__ring">${bottom.map(pid => omSeatHtml(state, pid, true)).join('')}</div>
+    </div>`;
+}
+
+TV_GAMES.oldmaid = {
+  sig(state) {
+    const cur = omServerSig(Object.assign({}, state, { you: null }));
+    const view = document.getElementById('view-room-tv');
+    if (omFx.tvSig && cur !== omFx.tvSig) {
+      if (omFx.busyUntil > Date.now()) { pcDeferRedraw(omFx, 'oldmaid'); return omFx.tvSig; }
+      if (view && omPlayEnding(view, state)) { omFx.tvEnding = true; pcDeferRedraw(omFx, 'oldmaid'); return omFx.tvSig; }
+    }
+    return cur;
+  },
+  frame(state, t) {
+    const view = document.getElementById('view-room-tv');
+    pcSnapshot(omFx, view);
+    const s = omShared(state);
+    if (omFx.tvEnding && omFx.busyUntil > Date.now() && s.phase === 'gameover' && omFx.tvState) {
+      if (view) view._omTable = true;
+      return omTvTable(omFx.tvState);
+    }
+    omFx.tvEnding = false;
+    omFx.tvSig = omServerSig(Object.assign({}, state, { you: null }));
+    if (view) view._omTable = s.phase === 'play';
+    if (s.phase === 'gameover') {
+      const out = s.out || [];
+      const host = state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again || '', "omAct(this, 'playAgain')")}${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>` : '';
+      return `<div class="om-tvres">
+          <div class="om-tvres__loser">${s.loser ? omRevealHtml(state, true) : `<div class="tv-title tv-center-text">${escapeHTML(pcT('om_over_left'))}</div>`}</div>
+          <div class="om-tvres__side">
+            ${out.length > 1 ? `<div class="tv-eyebrow">${escapeHTML(pcT('om_out_order'))}</div><div class="tv-scale">${pcPlacesPodium(state, out, 'tv' + (s.dealId || ''))}</div>` : ''}
+            ${omTallyHtml(state, true)}
+            ${host}
+          </div>
+        </div>`;
+    }
+    omFx.tvState = state;
+    return omTvTable(state);
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    const s = omShared(state);
+    omTickClock(s);
+    omRefreshInPlace(view, state, true);
+    if (omFx.tvSig !== omServerSig(Object.assign({}, state, { you: null }))) { pcDeferRedraw(omFx, 'oldmaid'); return; }
+    if (rebuilt && view) pcFitRows(view, '.om-backs');
+    omLive(view, state, rebuilt);
+    if (!rebuilt || !view) return;
+    omAfterDraw(view, state, null);
+  }
+};
+</script>

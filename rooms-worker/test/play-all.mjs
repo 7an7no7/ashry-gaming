@@ -3526,6 +3526,155 @@ async function main() {
     hmBots.concat([S]).forEach((b) => b.close());
   }
 
+  /* --- كدّاب: claims face down, a call, the pile out, the end; computer players ------------ */
+  console.log('• doubt (hands on their own phones, a claim, a call turned over, passes and the pile out, first out, bots on the server clock)');
+  {
+    const H = await Bot.host('حسن', null);
+    const J = await Bot.join(H.code, 'جنى');
+    const K = await Bot.join(H.code, 'Kim');
+    const S = await Bot.join(H.code, '', true);
+    const dbBots = [H, J, K];
+    await H.must('chooseGame', { game: 'doubt' });
+    await H.must('start', { end: 'first', turnClock: 0 });
+    await all(dbBots.concat([S]), (s) => s.game === 'doubt' && s.shared.phase === 'play' && !!s.shared.turn, 'doubt: dealt to three');
+    const handOf = (b) => (b.state.you && b.state.you.hand) || [];
+    check(dbBots.every((b) => handOf(b).length >= 17) && dbBots.reduce((n, b) => n + handOf(b).length, 0) === 52 && S.state.you === null,
+          'doubt: one deck, every card dealt, each hand on its own phone, none on the TV');
+    check(!/"c":"/.test(JSON.stringify(S.state.shared)), 'doubt: no card face in what the table sees');
+    const upBot = () => byId(dbBots, H.state.shared.turn.pid);
+    const lead = upBot();
+    const two = handOf(lead).slice(0, 2);
+    await lead.must('play', { cards: two.map((c) => c.i), rank: '7', seq: lead.state.shared.turnSeq });
+    await all(dbBots.concat([S]), (s) => s.shared.last && s.shared.last.n === 2 && s.shared.last.rank === '7' && s.shared.pileCount === 2, 'doubt: a claim reaches every phone: two cards, sevens');
+    check(dbBots.filter((b) => b !== lead).every((b) => !two.some((c) => JSON.stringify(b.state).includes('"i":' + c.i + ','))) && !JSON.stringify(S.state).includes('"i":' + two[0].i + ','),
+          'doubt: the cards laid are on no other phone and not on the TV');
+    const liar = two.some((c) => !/^7/.test(c.c));
+    const caller = dbBots.find((b) => b !== lead);
+    check((await lead.act('call', { play: lead.state.shared.last.id })).ok === false, 'doubt: nobody calls their own play');
+    await caller.must('call', { play: caller.state.shared.last.id });
+    await all(dbBots.concat([S]), (s) => { const e = (s.shared.events || []).slice(-1)[0]; return e && e.type === 'call' && e.cards.length === 2; }, 'doubt: a call turns the play over for everyone');
+    const callEv = H.state.shared.events.slice(-1)[0];
+    check(callEv.truth === !liar && callEv.taker === (liar ? lead.pid : caller.pid) && H.state.shared.turn.stage === 'lead' &&
+          H.state.shared.turn.pid === (liar ? caller.pid : lead.pid), 'doubt: the liar or the caller takes the pile, and whoever was right leads');
+    // Everyone passes: the pile goes out.
+    const l2 = upBot();
+    await l2.must('play', { cards: [handOf(l2)[0].i], rank: 'K', seq: l2.state.shared.turnSeq });
+    await all(dbBots, (s) => s.shared.last && s.shared.last.pid === l2.pid, 'doubt: the lead lands');
+    for (let k = 0; k < 2; k++) {
+      const b = upBot();
+      await b.must('pass', { seq: b.state.shared.turnSeq });
+      await all(dbBots, (s) => (s.shared.passed || []).length === k + 1 || s.shared.pileCount === 0, 'doubt: the pass lands');
+    }
+    await all(dbBots, (s) => s.shared.pileCount === 0 && s.shared.turn.pid === l2.pid && s.shared.turn.stage === 'lead' && s.shared.events.slice(-1)[0].type === 'pileOut',
+              'doubt: everyone passes: the pile is out, and the last to play leads');
+    // Played truthfully to the end: the first out wins.
+    for (let guard = 0; guard < 600 && H.state.shared.phase === 'play'; guard++) {
+      const s = H.state.shared;
+      const b = byId(dbBots, s.turn.pid);
+      await b.waitFor((st) => st.shared.turnSeq === s.turnSeq, 'doubt: the phone up sees its turn', 3000);
+      const hand = handOf(b);
+      const bs = b.state.shared;
+      if (bs.turn.stage === 'lead') {
+        const r = hand[0].c.slice(0, -1);
+        await b.act('play', { cards: hand.filter((c) => c.c.slice(0, -1) === r).map((c) => c.i), rank: r, seq: bs.turnSeq });
+      } else {
+        const mine = hand.filter((c) => c.c.slice(0, -1) === bs.rank);
+        if (mine.length) await b.act('play', { cards: mine.map((c) => c.i), seq: bs.turnSeq });
+        else await b.act('pass', { seq: bs.turnSeq });
+      }
+      await H.waitFor((st) => st.shared.turnSeq !== s.turnSeq || st.shared.phase !== 'play', 'doubt: the move lands', 3000);
+    }
+    await all(dbBots.concat([S]), (s) => s.shared.phase === 'gameover' && s.shared.winners.length === 1 && s.shared.board[0].score === 1, 'doubt: first out wins, counted on the board');
+    await H.must('playAgain', {});
+    await all(dbBots, (s) => s.shared.phase === 'play' && Object.values(s.shared.wins).reduce((a, b) => a + b, 0) === 1, 'doubt: play again keeps the tally');
+    await H.must('backToHub');
+    dbBots.concat([S]).forEach((b) => b.close());
+
+    // With computer players: they lead, follow, bluff and call on the server's clock.
+    const P = await Bot.host('بسمة', null);
+    await P.must('chooseGame', { game: 'doubt' });
+    await P.must('addBot', { level: 'hard', name: 'زيزو' });
+    await P.must('addBot', { level: 'easy', name: 'بندق' });
+    await P.must('start', { end: 'places', turnClock: 30 });
+    const botIds = P.state.players.filter((p) => p.bot).map((p) => p.id);
+    let botMoves = 0;
+    const until = Date.now() + 25000;
+    while (Date.now() < until && P.state.shared.phase === 'play' && botMoves < 4) {
+      const s = P.state.shared;
+      botMoves = (s.events || []).filter((e) => ['play', 'pass', 'call'].indexOf(e.type) !== -1 && botIds.indexOf(e.pid) !== -1).length;
+      if (s.turn && s.turn.pid === P.pid) {
+        const hand = P.state.you.hand;
+        if (s.turn.stage === 'lead') await P.act('play', { cards: [hand[0].i], rank: hand[0].c.slice(0, -1), seq: s.turnSeq });
+        else await P.act('pass', { seq: s.turnSeq });
+      }
+      await sleep(300);
+    }
+    check(botMoves >= 4, 'doubt: computer players take their turns on the server (' + botMoves + ' moves)');
+    check(P.state.you.hand.length === P.state.shared.counts[P.pid], "doubt: a person's phone holds its own hand, and the bots' are counts");
+    await P.must('backToHub');
+    P.close();
+  }
+
+  /* --- الشايب: a lift the table sees, a drag the lifted card follows, the draw, the loser --- */
+  console.log('• oldmaid (the deck for the table, a lifted card, dragging, the draw kept secret, pairs out, the loser and the tally, shuffled hands, leaving)');
+  {
+    const H = await Bot.host('هدى', null);
+    const J = await Bot.join(H.code, 'جمال');
+    const K = await Bot.join(H.code, 'Karl');
+    const S = await Bot.join(H.code, '', true);
+    const omBots = [H, J, K];
+    await H.must('chooseGame', { game: 'oldmaid' });
+    await H.must('start', { mode: 'drag', turnClock: 0 });
+    await all(omBots.concat([S]), (s) => s.game === 'oldmaid' && s.shared.phase === 'play' && !!s.shared.turn, 'oldmaid: dealt to three');
+    const handOf = (b) => (b.state.you && b.state.you.hand) || [];
+    const s0 = H.state.shared;
+    check(s0.deckSize === 49 && s0.pairs === 24 && omBots.reduce((n, b) => n + handOf(b).length, 0) + s0.thrown.length * 2 === 49,
+          'oldmaid: three players: 24 pairs and الشايب, every card dealt, the pairs in a hand thrown out');
+    check(!JSON.stringify(S.state).includes('"OM"') && S.state.you === null && omBots.filter((b) => !handOf(b).some((c) => c.c === 'OM')).every((b) => !JSON.stringify(b.state).includes('"OM"')),
+          'oldmaid: الشايب is on its holder\'s phone only');
+    const drawer = byId(omBots, s0.turn.pid);
+    const victim = byId(omBots, s0.turn.from);
+    await drawer.must('lift', { pos: 0, seq: drawer.state.shared.turnSeq });
+    await all(omBots.concat([S]), (s) => s.shared.aim && s.shared.aim.pos === 0, 'oldmaid: everyone sees which card is lifted');
+    const lifted = handOf(victim)[0];
+    await victim.must('move', { card: lifted.i, to: handOf(victim).length - 1 });
+    await drawer.waitFor((s) => s.shared.aim && s.shared.aim.pos === s.shared.counts[victim.pid] - 1, 'oldmaid: the lifted card moves with its card when it is dragged');
+    check(!JSON.stringify(drawer.state).includes('"i":' + lifted.i + ',') && !JSON.stringify(drawer.state).includes('"i":' + lifted.i + '}'), 'oldmaid: the drawer never sees the ids of the other hand');
+    const before = handOf(drawer).length;
+    await drawer.must('take', { seq: drawer.state.shared.turnSeq });
+    await all(omBots.concat([S]), (s) => s.shared.turn && s.shared.turn.pid === victim.pid, 'oldmaid: the one drawn from draws next');
+    const got = handOf(drawer);
+    check((got.length === before + 1 && got.some((c) => c.c === lifted.c)) || got.length === before - 1, 'oldmaid: the drawer has the card (or its pair went out)');
+    const third = omBots.find((b) => b !== drawer && b !== victim);
+    const thrownNow = H.state.shared.thrown.flatMap((t) => t.cards);
+    check(thrownNow.indexOf(lifted.c) !== -1 || (!JSON.stringify(third.state).includes('"' + lifted.c + '"') && !JSON.stringify(S.state).includes('"' + lifted.c + '"')),
+          'oldmaid: which card was drawn stays with the two it concerns');
+    for (let guard = 0; guard < 400 && H.state.shared.phase === 'play'; guard++) {
+      const s = H.state.shared;
+      const b = byId(omBots, s.turn.pid);
+      await b.waitFor((st) => st.shared.turnSeq === s.turnSeq, 'oldmaid: the phone up sees its turn', 3000);
+      await b.act('lift', { pos: Math.floor(Math.random() * b.state.shared.counts[s.turn.from]), seq: s.turnSeq });
+      await b.act('take', { seq: s.turnSeq });
+      await H.waitFor((st) => st.shared.turnSeq !== s.turnSeq || st.shared.phase !== 'play', 'oldmaid: the draw lands', 3000);
+    }
+    await all(omBots.concat([S]), (s) => s.shared.phase === 'gameover' && !!s.shared.loser && s.shared.reveal.cards.join() === 'OM' && s.shared.losses[s.shared.loser] === 1,
+              'oldmaid: the last one holding cards holds الشايب, shown to everyone only now');
+    await H.must('playAgain', { mode: 'shuffle' });
+    await all(omBots, (s) => s.shared.phase === 'play' && s.shared.settings.mode === 'shuffle' && Object.values(s.shared.losses).reduce((a, b) => a + b, 0) === 1,
+              'oldmaid: play again keeps the tally, with the hands shuffled this time');
+    check((await J.act('move', { card: handOf(J)[0].i, to: 1 })).ok === false, 'oldmaid: shuffled hands cannot be dragged');
+    // Someone leaves mid-game: their cards go to the next hand still playing.
+    const leaver = H.state.shared.turn.from === H.pid ? byId(omBots, H.state.shared.turn.pid) : byId(omBots, H.state.shared.turn.from);
+    const stay = omBots.filter((b) => b !== leaver);
+    const total = H.state.shared.deckSize;
+    await api('/leave', { code: H.code, pid: leaver.pid, key: leaver.key });
+    await all(stay, (s) => s.players.length === 2 && (s.shared.phase === 'gameover' || (s.shared.counts[leaver.pid] === 0 && s.shared.turn && s.shared.turn.pid !== leaver.pid && s.shared.turn.from !== leaver.pid)),
+              "oldmaid: a leaver's cards go to the next hand, and the draw goes on without them");
+    check(stay[0].state.shared.phase === 'gameover' || stay.reduce((n, b) => n + handOf(b).length, 0) + stay[0].state.shared.thrown.length * 2 === total, 'oldmaid: no card is lost when someone leaves');
+    await H.must('backToHub');
+    omBots.concat([S]).forEach((b) => b.close());
+  }
+
   console.log('• prompt memory shared between rooms');
   const H = await Bot.host('H', 'codenames');
   const others = [H, await Bot.join(H.code, 'I'), await Bot.join(H.code, 'J'), await Bot.join(H.code, 'K')];

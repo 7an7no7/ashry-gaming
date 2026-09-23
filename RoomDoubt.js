@@ -6,13 +6,15 @@
    cards are PlayingCards.js, shared with the page.
 
    The owner's rules (23 Sep 2026, asked one at a time):
-     - 3 to 12 players, one deck up to six, two decks shuffled together from
-       seven; every card dealt. Computer players, easy and hard.
+     - 3 to 12 players (computer players count), one deck up to six, two decks
+       shuffled together from seven; every card dealt. Computer players, easy
+       and hard.
      - The same rank until a call: whoever leads names any rank and lays any
        number of cards face down; everyone after lays cards claiming that same
        rank, or passes.
-     - Anyone may call كدّاب! on the last play, the first tap wins (the order
-       the server heard them in), until the next player lays cards or passes.
+     - Anyone still holding cards may call كدّاب! on the last play, the first
+       tap wins (the order the server heard them in), until the next player
+       lays cards or passes.
      - The cards of that play are turned over. A lie: the liar takes the whole
        pile. The truth: the caller takes it. Whoever was right leads the next
        rank.
@@ -24,22 +26,30 @@
        a call turns their cards over true.
      - Four of a rank is nothing special. A turn clock, off by default, 30 or
        60 seconds: the phone passes, or when leading lays one card truthfully.
+       The host's skip does the same for a phone that went quiet.
+     - Play again keeps a tally of the games won (the board).
 
    Where the cards are:
      room._doubt         every hand ({ i, c }), the pile (each play with its
-                         cards) and the computer players' choices. Never
-                         projected.
-     room.secrets[pid]   that phone's own hand.
+                         cards) and the computer players' choice of caller.
+                         Never projected.
+     room.secrets[pid]   that phone's own hand, sorted.
      room.shared         the table: how many cards each holds, the rank being
                          claimed, the plays on the pile (who, how many), the
                          play open to a call, who passed, whose turn, the
                          places, and every move as an event - a card's face
                          only once a call has turned it over.
+
+   A player who leaves keeps their seat in shared.order (so "the next seat"
+   still means the same thing) but is out of the game: their hand leaves it,
+   their last play can no longer be called, and a turn of theirs passes.
    ========================================================================= */
 const DOUBT_CLOCKS = [0, 30, 60];
+const DOUBT_ENDS = ['first', 'places'];
 const DOUBT_EVENTS = 40;
 const DOUBT_GRACE_MS = 1500;
 const DOUBT_MIN = 3;
+const DOUBT_MAX = 12;
 const DOUBT_PLAYS_SHOWN = 12;
 const DOUBT_BOT_TURN_MS = [1900, 2900];     // long enough for the table to call first
 const DOUBT_BOT_CALL_MS = [900, 1800];
@@ -91,8 +101,9 @@ const doubtNewGame = (room, playerId, action, p) => {
   const prev = room.shared || {};
   if (action === 'playAgain' && prev.phase !== 'gameover') return;
   if (room.players.length < DOUBT_MIN) throw new Error('كدّاب محتاج 3 لاعبين على الأقل: ضيف لاعب كمبيوتر');
+  if (room.players.length > DOUBT_MAX) throw new Error('كدّاب لحد 12 لاعب');
   const was = action === 'playAgain' ? (prev.settings || {}) : {};
-  const end = p.end === 'places' || p.end === 'first' ? p.end : (was.end === 'places' ? 'places' : 'first');
+  const end = DOUBT_ENDS.indexOf(p.end) !== -1 ? p.end : (DOUBT_ENDS.indexOf(was.end) !== -1 ? was.end : 'first');
   const clock = DOUBT_CLOCKS.indexOf(Number(p.turnClock)) !== -1 ? Number(p.turnClock) : (DOUBT_CLOCKS.indexOf(Number(was.turnClock)) !== -1 ? Number(was.turnClock) : 0);
   const order = shuffled(room.players.map(pl => pl.id));
   room.secrets = {};
@@ -101,7 +112,9 @@ const doubtNewGame = (room, playerId, action, p) => {
     order: order,
     roster: order.slice(),
     decks: doubtDecksFor(order.length),
+    // The games won at this table, counted across play again: the board.
     wins: action === 'playAgain' && prev.wins ? prev.wins : {},
+    // Carried over a play again, so a tap or an animation from the last game is never taken for this one.
     turnSeq: (prev.turnSeq || 0) + 1,
     eventSeq: prev.eventSeq || 0,
     dealId: newDealId()
@@ -113,6 +126,7 @@ const doubtNewGame = (room, playerId, action, p) => {
 const doubtDeal = (room) => {
   const s = room.shared;
   const cards = shuffled(pcDeck(s.decks));
+  // Ids at random, so an id says nothing about its card.
   const ids = shuffled(cards.map((c, j) => j));
   const g = { hands: {}, pile: [], botCall: {}, nextPlay: 1 };
   room._doubt = g;
@@ -129,21 +143,19 @@ const doubtDeal = (room) => {
   s.winners = null;
   s.events = [];
   s.endsAt = null;
-  // The one after the first dealt card leads: the order is shuffled, so it is anyone.
   doubtEvent(room, 'deal', { n: cards.length, decks: s.decks });
+  // The seats are shuffled, so the first seat - who leads - is anyone.
   doubtStartTurn(room, s.order[0], 'lead');
 };
 
 /* --- who is still playing, and whose turn ----------------------------------------- */
 
 const doubtHand = (room, id) => (room._doubt.hands[id] || []);
-/** Still holding cards (or out only once the next move passes without a call). */
-const doubtActive = (room) => {
+/** Those who can still play a card: here, not placed, and holding cards (a player whose last play waits on a call holds none). */
+const doubtHolding = (room) => {
   const s = room.shared;
-  return (s.order || []).filter(id => doubtHere(room, id) && s.places.indexOf(id) === -1 && (doubtHand(room, id).length > 0 || s.pendingOut === id));
+  return (s.order || []).filter(id => doubtHere(room, id) && s.places.indexOf(id) === -1 && doubtHand(room, id).length > 0);
 };
-/** Those who can still play a card: the active ones, less a player whose last play waits on a call. */
-const doubtHolding = (room) => doubtActive(room).filter(id => doubtHand(room, id).length > 0);
 
 /** The next seat after `pid` that holds cards. */
 const doubtNextSeat = (room, pid) => {
@@ -152,7 +164,7 @@ const doubtNextSeat = (room, pid) => {
   const at = s.order.indexOf(pid);
   const holding = doubtHolding(room);
   for (let k = 1; k <= n; k++) {
-    const id = s.order[((at === -1 ? 0 : at) + k) % n];
+    const id = s.order[((at === -1 ? n - 1 : at) + k) % n];
     if (holding.indexOf(id) !== -1) return id;
   }
   return null;
@@ -186,15 +198,16 @@ const doubtFinish = (room, pid) => {
   if (s.places.indexOf(pid) !== -1) return;
   s.places.push(pid);
   doubtEvent(room, 'out', { pid: pid, place: s.places.length });
-  if (s.settings.end === 'first') { doubtGameOver(room, 'out'); return; }
+  if (s.settings.end === 'first') { doubtGameOver(room, 'out', true); return; }
   const left = doubtHolding(room);
   if (left.length <= 1) {
     left.forEach(id => { s.places.push(id); });
-    doubtGameOver(room, 'places');
+    doubtGameOver(room, 'places', true);
   }
 };
 
-const doubtGameOver = (room, why) => {
+/** The game is over. `counted`: the first place was won at the table (not by everyone else leaving). */
+const doubtGameOver = (room, why, counted) => {
   const s = room.shared;
   if (s.phase === 'gameover') return;
   s.phase = 'gameover';
@@ -202,9 +215,10 @@ const doubtGameOver = (room, why) => {
   s.turn = null;
   s.endsAt = null;
   s.last = null;
+  s.pendingOut = null;
   const first = s.places[0] || null;
   s.winners = first ? [first] : [];
-  if (first) s.wins[first] = (s.wins[first] || 0) + 1;
+  if (first && counted) s.wins[first] = (s.wins[first] || 0) + 1;
   doubtEvent(room, 'win', { pid: first, why: why });
 };
 
@@ -216,8 +230,9 @@ const doubtPlay = (room, me, p) => {
   const want = Array.isArray(p.cards) ? p.cards.map(String) : [];
   const picked = hand.filter(c => want.indexOf(String(c.i)) !== -1);
   if (!picked.length || picked.length !== new Set(want).size) throw new Error('اختار كروت من إيدك');
+  const lead = s.turn.stage === 'lead';
   let rank = s.rank;
-  if (s.turn.stage === 'lead') {
+  if (lead) {
     rank = String(p.rank || '');
     if (PC_RANKS.indexOf(rank) === -1) throw new Error('قول الكروت دي إيه');
   }
@@ -227,11 +242,12 @@ const doubtPlay = (room, me, p) => {
   g.hands[me] = hand.filter(c => picked.indexOf(c) === -1);
   const id = 'p' + (g.nextPlay++);
   g.pile.push({ id: id, pid: me, cards: picked, rank: rank });
+  g.botCall = {};
   s.rank = rank;
   s.last = { id: id, pid: me, n: picked.length, rank: rank };
   s.plays = (s.plays || []).concat([{ id: id, pid: me, n: picked.length }]).slice(-DOUBT_PLAYS_SHOWN);
   s.passed = [];
-  doubtEvent(room, 'play', { pid: me, n: picked.length, rank: rank, lead: s.turn.stage === 'lead', id: id });
+  doubtEvent(room, 'play', { pid: me, n: picked.length, rank: rank, lead: lead, id: id });
   if (!g.hands[me].length) s.pendingOut = me;
   const next = doubtNextSeat(room, me);
   // Nobody else holds a card: the last play stands, and its player is out.
@@ -239,20 +255,25 @@ const doubtPlay = (room, me, p) => {
   doubtStartTurn(room, next, 'follow');
 };
 
-const doubtPass = (room, me) => {
+/** Who made the last play on the pile, open to a call or not. */
+const doubtLastPlayer = (room) => {
   const s = room.shared;
-  if (!s.turn || s.turn.pid !== me) throw new Error('مش دورك');
-  if (s.turn.stage !== 'follow') throw new Error('لازم تبدأ بكروت');
-  const lastPid = s.last ? s.last.pid : (s.plays.length ? s.plays[s.plays.length - 1].pid : null);
-  doubtCloseCall(room);
-  if (s.phase !== 'play') return;
-  s.passed = (s.passed || []).concat([me]);
-  doubtEvent(room, 'pass', { pid: me });
-  // Everyone else has passed: the pile goes out, and the last to play leads.
+  if (s.last) return s.last.pid;
+  return s.plays && s.plays.length ? s.plays[s.plays.length - 1].pid : null;
+};
+
+/**
+ * After a pass (or a turn that passed because its player left): everyone who
+ * could answer the last play has passed, so the pile goes out and the last to
+ * play leads; otherwise the next seat follows.
+ */
+const doubtAfterPass = (room, from, lastPid) => {
+  const s = room.shared;
   const others = doubtHolding(room).filter(id => id !== lastPid);
   if (others.every(id => s.passed.indexOf(id) !== -1)) {
     const n = room._doubt.pile.reduce((a, pl) => a + pl.cards.length, 0);
     room._doubt.pile = [];
+    room._doubt.botCall = {};
     s.rank = null;
     s.plays = [];
     s.passed = [];
@@ -261,7 +282,19 @@ const doubtPass = (room, me) => {
     doubtStartTurn(room, lead, 'lead');
     return;
   }
-  doubtStartTurn(room, doubtNextSeat(room, me), 'follow');
+  doubtStartTurn(room, doubtNextSeat(room, from), 'follow');
+};
+
+const doubtPass = (room, me) => {
+  const s = room.shared;
+  if (!s.turn || s.turn.pid !== me) throw new Error('مش دورك');
+  if (s.turn.stage !== 'follow') throw new Error('لازم تبدأ بكروت');
+  const lastPid = doubtLastPlayer(room);
+  doubtCloseCall(room);
+  if (s.phase !== 'play') return;
+  s.passed = (s.passed || []).concat([me]);
+  doubtEvent(room, 'pass', { pid: me });
+  doubtAfterPass(room, me, lastPid);
 };
 
 const doubtCall = (room, me) => {
@@ -279,11 +312,13 @@ const doubtCall = (room, me) => {
   g.pile.forEach(pl => pl.cards.forEach(c => all.push(c)));
   g.hands[taker] = doubtHand(room, taker).concat(all);
   g.pile = [];
+  g.botCall = {};
   s.rank = null;
   s.plays = [];
   s.passed = [];
   s.last = null;
-  doubtEvent(room, 'call', { pid: me, target: play.pid, rank: play.rank, cards: play.cards.map(c => c.c), truth: truth, taker: taker, n: all.length });
+  // The play's own faces, and nothing else of the pile: the rest goes to the taker face down.
+  doubtEvent(room, 'call', { pid: me, target: play.pid, rank: play.rank, cards: play.cards.map(c => c.c), truth: truth, taker: taker, n: all.length, id: play.id });
   // A last play called true: its player is out. Called a lie: they take the pile and play on.
   if (s.pendingOut === play.pid) {
     if (truth) doubtFinish(room, play.pid);
@@ -349,7 +384,7 @@ const doubtDeadline = (room) => {
 
 const doubtTimeout = (room, now) => {
   const s = room.shared || {};
-  if (s.phase !== 'play' || !s.turn || !s.endsAt || now < s.endsAt + DOUBT_GRACE_MS) return false;
+  if (s.phase !== 'play' || !s.turn || !s.endsAt || now < s.endsAt + DOUBT_GRACE_MS || !room._doubt) return false;
   doubtApply(room, () => doubtAuto(room, 'clock'));
   return true;
 };
@@ -359,33 +394,49 @@ const doubtTimeout = (room, now) => {
 const doubtPlayerLeft = (room, playerId) => {
   const s = room.shared;
   const g = room._doubt;
-  if (!s || !g || s.phase !== 'play') return;
+  if (!s || !g || s.phase !== 'play' || (s.order || []).indexOf(playerId) === -1) return;
   const wasTurn = s.turn && s.turn.pid === playerId;
-  const after = doubtNextSeat(room, playerId);
+  const stage = wasTurn ? s.turn.stage : null;
+  const lastPid = doubtLastPlayer(room);
   g.hands[playerId] = [];
   if (s.pendingOut === playerId) s.pendingOut = null;
   if (s.last && s.last.pid === playerId) s.last = null;
-  s.order = s.order.filter(id => id !== playerId);
+  s.passed = (s.passed || []).filter(id => id !== playerId);
   doubtEvent(room, 'left', { pid: playerId });
-  const holding = doubtHolding(room);
+  let holding = doubtHolding(room);
   if (holding.length < 2) {
-    holding.forEach(id => { if (s.places.indexOf(id) === -1) s.places.push(id); });
-    doubtGameOver(room, 'left');
+    // A last play still open stands: its player is out, and may have won.
+    if (s.pendingOut) doubtCloseCall(room);
+    if (s.phase === 'play') {
+      const earned = s.places.length > 0;
+      doubtHolding(room).forEach(id => { if (s.places.indexOf(id) === -1) s.places.push(id); });
+      doubtGameOver(room, 'left', earned);
+    }
   } else if (wasTurn) {
-    const next = holding.indexOf(after) !== -1 ? after : holding[0];
-    doubtStartTurn(room, next, s.rank ? 'follow' : 'lead');
+    // Their turn passes: a lead goes to the next seat, a follow counts as a pass.
+    if (stage === 'lead' || !s.rank) doubtStartTurn(room, doubtNextSeat(room, playerId), 'lead');
+    else doubtAfterPass(room, playerId, lastPid);
   }
   doubtSync(room);
 };
 
 /* --- computer players ------------------------------------------------------------------
    From their own hand and what the table saw. On a play, one bot may call: it
-   knows a claim is a lie when its own copies of the rank and the claim add up
-   to more than the decks hold; otherwise it calls on a hunch, more often on a
-   big claim or a player about to go out (hard). On its turn it leads the rank
-   it holds most, follows truthfully when it can, and otherwise bluffs a card
-   or passes (hard bluffs when the pile is small or its hand nearly empty).
+   knows a claim is a lie when its own copies of the rank - in its hand and
+   the ones it laid on this pile itself - and the claim add up to more than
+   the decks hold; otherwise it calls on a hunch, more often on a big claim or
+   a player about to go out (hard). On its turn it leads the rank it holds
+   most, follows truthfully when it can, and otherwise bluffs a card or passes
+   (hard bluffs when the pile is small or its hand nearly empty).
    ------------------------------------------------------------------------------ */
+
+/** The copies of `rank` a bot has seen for itself: in its hand, and the true ones it laid on this pile. */
+const doubtBotSeen = (room, id, rank) => {
+  const inHand = doubtHand(room, id).filter(c => pcRank(c.c) === rank).length;
+  const laid = room._doubt.pile.filter(pl => pl.pid === id)
+    .reduce((a, pl) => a + pl.cards.filter(c => pcRank(c.c) === rank).length, 0);
+  return inHand + laid;
+};
 
 const doubtBotCaller = (room) => {
   const s = room.shared;
@@ -398,7 +449,7 @@ const doubtBotCaller = (room) => {
   const bots = doubtHolding(room).filter(id => id !== last.pid && isRoomBot(room, id));
   for (const id of shuffled(bots)) {
     const level = roomBotLevel(room, id) || 'easy';
-    const mine = doubtHand(room, id).filter(c => pcRank(c.c) === last.rank).length;
+    const mine = level === 'hard' ? doubtBotSeen(room, id, last.rank) : doubtHand(room, id).filter(c => pcRank(c.c) === last.rank).length;
     let chance;
     if (mine + last.n > copies) chance = level === 'hard' ? 1 : 0.6;
     else if (s.pendingOut === last.pid) chance = level === 'hard' ? 0.7 : 0.3;
@@ -406,6 +457,7 @@ const doubtBotCaller = (room) => {
     else chance = 0.1;
     if (Math.random() < chance) { who = id; break; }
   }
+  g.botCall = {};
   g.botCall[last.id] = who;
   return who;
 };
@@ -440,7 +492,7 @@ const doubtBotTurn = (room, pid, level) => {
 };
 
 ROOM_BOT_GAMES.doubt = {
-  max: 11,
+  max: DOUBT_MAX,
   pending(room) {
     const s = room.shared || {};
     if (s.phase !== 'play' || !s.turn || !room._doubt) return null;

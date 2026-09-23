@@ -1,0 +1,498 @@
+<script>
+/* ============================================================================
+   The playing cards on the phones and the TV (كدّاب, الشايب)
+   ----------------------------------------------------------------------------
+   The deck itself is PlayingCards.js (shared with the rooms server); this file
+   draws it, and holds what both games' screens share: the card, its back and
+   الشايب's own card, a hand that overlaps to fit its row, the flights between
+   places, and a few short sounds. Every name starts with pc / PC_.
+
+   The look the owner picked for both games (23 Sep 2026, option ب "بلوكات"
+   from the design sheet, the family of أونو's and سكرو's cards): every card a
+   colour block - the red suits red, the black suits ink - with a big Baloo
+   numeral or letter, its index in the top-left corner and the suit again at
+   the bottom right, and a soft shine; the back is the app's violet dotted
+   back with «A.»; الشايب is a deep violet card with a gold frame and a drawn
+   old man (a fez, a white moustache, round glasses) over the band «الشايب».
+   A card is a physical thing, so it is laid out left to right in every
+   language (the index where a hand's overlap leaves it showing), and nothing
+   on it is an emoji: the suits are drawn.
+
+   Flights: pcFx() makes one table's motion state. A place is an element with
+   data-pc-at (a seat, a card of yours, the pile, a back in a hand); its rect
+   is taken just before a redraw (snapshot), so a card can fly from where it
+   was to where it lands. Web Animations of transform and opacity on layers
+   laid over the page, removed when they finish and by a timer if they never
+   do; a place a card is flying to is hidden until it lands (hold/release).
+   ========================================================================= */
+
+const PC_SUIT_PATHS = {
+  h: '<path d="M12 21.4C5.3 15.9 2 12.6 2 8.7 2 5.6 4.4 3.3 7.3 3.3c1.9 0 3.6.9 4.7 2.5 1.1-1.6 2.8-2.5 4.7-2.5C19.6 3.3 22 5.6 22 8.7c0 3.9-3.3 7.2-10 12.7z"/>',
+  d: '<path d="M12 1.8 20.6 12 12 22.2 3.4 12z"/>',
+  s: '<path d="M12 1.6C9.2 5.8 3.2 9 3.2 13.4c0 2.7 2.1 4.8 4.7 4.8 1.4 0 2.7-.6 3.5-1.6-.3 2-1.3 3.6-3 5h7.2c-1.7-1.4-2.7-3-3-5 .8 1 2.1 1.6 3.5 1.6 2.6 0 4.7-2.1 4.7-4.8C20.8 9 14.8 5.8 12 1.6z"/>',
+  c: '<circle cx="12" cy="6.8" r="4.4"/><circle cx="6.6" cy="14" r="4.4"/><circle cx="17.4" cy="14" r="4.4"/><circle cx="12" cy="12.4" r="2.6"/><path d="M12 12.5 9.6 22.3h4.8z"/>'
+};
+
+function pcSuitSvg(s, cls) {
+  return `<svg class="${cls || 'pc-suit'}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${PC_SUIT_PATHS[s] || ''}</svg>`;
+}
+
+/** The old man of الشايب: a fez with its tassel, white hair and brows, round glasses, a big white moustache. */
+const PC_OLD_MAN_SVG = '<svg class="pc-om__art" viewBox="0 0 60 66" aria-hidden="true" focusable="false">' +
+  '<ellipse cx="30" cy="63" rx="20" ry="5" fill="#2e1065" opacity=".45"/>' +
+  '<path d="M9 66c1.5-9 9-14 21-14s19.5 5 21 14z" fill="#fbbf24"/><path d="M24 53.5 30 60l6-6.5" fill="none" stroke="#b45309" stroke-width="2" stroke-linejoin="round"/>' +
+  '<ellipse cx="13.5" cy="33" rx="3.6" ry="5" fill="#eab48c"/><ellipse cx="46.5" cy="33" rx="3.6" ry="5" fill="#eab48c"/>' +
+  '<path d="M12 27c-2 4-1.5 9 1 12M48 27c2 4 1.5 9-1 12" stroke="#f1f5f9" stroke-width="4" stroke-linecap="round" fill="none"/>' +
+  '<ellipse cx="30" cy="34" rx="16" ry="18" fill="#f5cfaa"/>' +
+  '<path d="M17 21.5 19.5 6.5Q30 3 40.5 6.5L43 21.5Q30 24 17 21.5z" fill="#c81e3a"/>' +
+  '<path d="M17.6 18.6Q30 21 42.4 18.6L43 21.5Q30 24 17 21.5z" fill="#8f1027"/>' +
+  '<path d="M30 5.2Q37 2.4 41 9.5" stroke="#1c1917" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M41 9.5l-1.8 6h3.6z" fill="#1c1917"/>' +
+  '<path d="M19.5 27q4-3.2 8-.6M32.5 26.4q4-2.6 8 .6" stroke="#f8fafc" stroke-width="2.4" stroke-linecap="round" fill="none"/>' +
+  '<circle cx="24" cy="32" r="4.6" fill="#e0f2fe" fill-opacity=".35" stroke="#1f2937" stroke-width="1.5"/><circle cx="36" cy="32" r="4.6" fill="#e0f2fe" fill-opacity=".35" stroke="#1f2937" stroke-width="1.5"/>' +
+  '<path d="M28.6 32h2.8" stroke="#1f2937" stroke-width="1.5"/>' +
+  '<circle cx="24" cy="32.6" r="1.4" fill="#1f2937"/><circle cx="36" cy="32.6" r="1.4" fill="#1f2937"/>' +
+  '<ellipse cx="30" cy="38" rx="2.7" ry="3.3" fill="#dd9a72"/>' +
+  '<path d="M30 41.2c-2.8-1.4-7.6-1.6-11.4 2.2-1.3 1.3-2.8 1.4-4 .3 1.3 4.6 7 5.8 11.2 3.4 1.8-1 3.2-2 4.2-2s2.4 1 4.2 2c4.2 2.4 9.9 1.2 11.2-3.4-1.2 1.1-2.7 1-4-.3-3.8-3.8-8.6-3.6-11.4-2.2z" fill="#f8fafc"/>' +
+  '<path d="M26.3 48.6q3.7 2.6 7.4 0" stroke="#9f3a2c" stroke-width="1.5" fill="none" stroke-linecap="round"/>' +
+  '<circle cx="19" cy="40" r="2.2" fill="#f28b82" opacity=".45"/><circle cx="41" cy="40" r="2.2" fill="#f28b82" opacity=".45"/>' +
+  '</svg>';
+
+/** A rank as a table says it, alone ("7", "ولد") and in a claim ("سبعات", "Jacks"). */
+const PC_RANK_PLURAL = {
+  ar: { A: 'آسات', 2: 'اتنينات', 3: 'تلاتات', 4: 'أربعات', 5: 'خمسات', 6: 'ستات', 7: 'سبعات', 8: 'تمانيات', 9: 'تسعات', 10: 'عشرات', J: 'ولاد', Q: 'بنات', K: 'شياب' },
+  en: { A: 'Aces', 2: 'Twos', 3: 'Threes', 4: 'Fours', 5: 'Fives', 6: 'Sixes', 7: 'Sevens', 8: 'Eights', 9: 'Nines', 10: 'Tens', J: 'Jacks', Q: 'Queens', K: 'Kings' }
+};
+const pcLang = () => (appState.lang === 'en' ? 'en' : 'ar');
+const pcRankPlural = (r) => (PC_RANK_PLURAL[pcLang()][r] || r);
+const PC_SUIT_NAMES = { ar: { s: 'بستوني', h: 'كبة', d: 'ديناري', c: 'سباتي' }, en: { s: 'spades', h: 'hearts', d: 'diamonds', c: 'clubs' } };
+
+/** A card in words, for a screen reader: "7 كبة", "Queen of spades", "الشايب". */
+function pcCardName(c) {
+  if (!c) return '';
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (c === PC_OLD_MAID) return t.pc_old_maid || 'الشايب';
+  const lang = pcLang();
+  const r = pcRankName(pcRank(c), lang);
+  const s = PC_SUIT_NAMES[lang][pcSuit(c)] || '';
+  return lang === 'en' ? r + ' of ' + s : r + ' ' + s;
+}
+
+/**
+ * One card. `c` a card ('7h', 'OM'), or null for the back. opts.size: xs, sm,
+ * md, lg, xl, or fly (a flight's own box).
+ */
+function pcCardHtml(c, opts) {
+  const o = opts || {};
+  const size = o.size || 'md';
+  if (!c) return `<span class="pc-card pc-card--${size} pc-card--back" aria-hidden="true"><b class="pc-card__a">A<i>.</i></b></span>`;
+  if (c === PC_OLD_MAID) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    return `<span class="pc-card pc-card--${size} pc-card--om" role="img" aria-label="${escapeHTML(pcCardName(c))}">` +
+      `<span class="pc-om__frame" aria-hidden="true"></span><span class="pc-om__pic">${PC_OLD_MAN_SVG}</span>` +
+      `<span class="pc-om__band">${escapeHTML(t.pc_old_maid || 'الشايب')}</span></span>`;
+  }
+  const r = pcRank(c);
+  const s = pcSuit(c);
+  return `<span class="pc-card pc-card--${size} pc-card--face ${pcRed(c) ? 'pc-red' : 'pc-black'}" role="img" aria-label="${escapeHTML(pcCardName(c))}">` +
+    `<span class="pc-card__corner" aria-hidden="true"><b>${r}</b>${pcSuitSvg(s, 'pc-card__cs')}</span>` +
+    `<b class="pc-card__big${r === '10' ? ' pc-card__big--10' : ''}" aria-hidden="true">${r}</b>` +
+    `${pcSuitSvg(s, 'pc-card__suit')}</span>`;
+}
+
+/** A few backs fanned out: how a hand looks from across the table. */
+function pcFanHtml(n, max) {
+  const shown = Math.min(n, max || 4);
+  let out = '';
+  for (let k = 0; k < shown; k++) out += `<span class="pc-fan__card" style="--k:${k};--of:${shown}">${pcCardHtml(null, { size: 'xs' })}</span>`;
+  return `<span class="pc-fan" style="--of:${Math.max(1, shown)}">${out}</span>`;
+}
+
+/**
+ * A row of cards fits the width it has: when it doesn't, the cards overlap by
+ * just enough (a negative gap) and the left strip of each - where its index
+ * is - stays in sight. `sel` picks the rows under `root`.
+ */
+function pcFitRows(root, sel) {
+  if (!root || !root.getClientRects().length) return;
+  root.querySelectorAll(sel || '.pc-row').forEach(row => {
+    const cards = Array.from(row.children).filter(el => el.nodeType === 1);
+    const n = cards.length;
+    row.style.removeProperty('--pc-gap');
+    if (n < 2) return;
+    const w = cards[0].getBoundingClientRect().width;
+    const room = row.clientWidth;
+    const natural = parseFloat(getComputedStyle(row).getPropertyValue('--pc-gap-natural')) || 4;
+    if (n * w + (n - 1) * natural <= room) return;
+    const gap = Math.max(-w * 0.78, (room - n * w) / (n - 1));
+    row.style.setProperty('--pc-gap', gap.toFixed(1) + 'px');
+  });
+}
+
+/* --- the flights -------------------------------------------------------------- */
+
+function pcFx() {
+  return { deal: '', lastSeq: 0, watched: '', prevPhase: '', rects: {}, busyUntil: 0, timers: [], held: new Set(), redrawTimer: null, wokeAt: 0, gen: 0 };
+}
+
+const pcCanMove = () => !motionOff() && !!(document.body && document.body.animate);
+const pcMid = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+const pcIsTv = (root) => !!(root && root.id === 'view-room-tv');
+
+function pcFxCancel(fx) {
+  fx.gen++;
+  fx.timers.forEach(clearTimeout);
+  fx.timers = [];
+  fx.held.forEach(el => { el._pcHolds = 0; el.classList.remove('pc-hold'); });
+  fx.held.clear();
+  fx.busyUntil = 0;
+}
+
+/** Where every place is, just before a redraw takes it away. */
+function pcSnapshot(fx, root) {
+  const rects = {};
+  if (root && root.getClientRects().length) {
+    root.querySelectorAll('[data-pc-at]').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width) rects[el.getAttribute('data-pc-at')] = { left: r.left, top: r.top, width: r.width, height: r.height };
+    });
+  }
+  fx.rects = rects;
+}
+
+function pcEl(root, key) {
+  if (!root || !key) return null;
+  const q = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : String(key).replace(/"/g, '\\"');
+  return root.querySelector('[data-pc-at="' + q + '"]');
+}
+
+/** A live place, or where it was before the redraw (a card just played is gone). */
+function pcRect(fx, root, key) {
+  if (key && typeof key === 'object') return key;
+  const el = pcEl(root, key);
+  if (el) {
+    const r = el.getBoundingClientRect();
+    if (r.width) return r;
+  }
+  return fx.rects[key] || null;
+}
+
+function pcHold(fx, root, key) {
+  const el = pcEl(root, key);
+  if (!el) return;
+  el._pcHolds = (el._pcHolds || 0) + 1;
+  el.classList.add('pc-hold');
+  fx.held.add(el);
+}
+
+function pcRelease(fx, root, key) {
+  const el = pcEl(root, key);
+  if (!el || !el._pcHolds) return;
+  el._pcHolds--;
+  if (el._pcHolds) return;
+  el.classList.remove('pc-hold');
+  fx.held.delete(el);
+  el.classList.remove('pc-landed');
+  void el.offsetWidth;
+  el.classList.add('pc-landed');
+  setTimeout(() => el.classList.remove('pc-landed'), 420);
+}
+
+/** A fixed layer over the page, in the table's colour (under <body> it is outside the screen's). */
+function pcLayer(root, rect, cls, html) {
+  const el = document.createElement('div');
+  el.className = cls;
+  const tinted = root && root.closest ? root.closest('[data-accent]') : null;
+  if (tinted) el.setAttribute('data-accent', tinted.getAttribute('data-accent'));
+  if (rect) el.style.cssText = 'left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px';
+  if (pcIsTv(root)) el.classList.add('is-tv');
+  if (html) el.innerHTML = html;
+  document.body.appendChild(el);
+  return el;
+}
+
+/** Runs an animation, then `done` - on finish, or by a timer if it never finishes. */
+function pcAnimate(el, frames, timing, done) {
+  let over = false;
+  const end = () => { if (over) return; over = true; if (done) done(); };
+  const t = Object.assign({ fill: 'both' }, timing);
+  const anim = el.animate(frames, t);
+  anim.onfinish = end;
+  setTimeout(end, (t.duration || 0) + (t.delay || 0) + 700);
+  return anim;
+}
+
+/**
+ * A card from one place to another. `face` a card (or null: the back); opts:
+ * flip 'up' (a back that turns face up on the way) or 'down' (the other way),
+ * duration, delay, arc (px the path bows up), spin (deg), hold (keys released
+ * when it lands), width (the card's width when a place is a box, not a card),
+ * fade (it fades out as it lands: a pile going out of the game).
+ */
+function pcFly(fx, root, from, to, face, opts) {
+  const o = opts || {};
+  const gen = fx.gen;
+  const release = () => { if (gen === fx.gen) (o.hold || []).forEach(k => pcRelease(fx, root, k)); };
+  const a0 = pcRect(fx, root, from);
+  const b0 = pcRect(fx, root, to);
+  if (!a0 || !b0 || !a0.width || !b0.width || !pcCanMove()) { release(); return; }
+  const cardW = o.width || Math.min(b0.width, a0.width, 64);
+  const isCard = (k) => typeof k === 'string' && /^(card|back|pile|mid)/.test(k);
+  const box = (r, card) => {
+    if (card && r.width <= r.height * 0.9) return r;
+    const w = Math.min(cardW, r.width);
+    const c = pcMid(r);
+    return { left: c.x - w / 2, top: c.y - w * 0.71, width: w, height: w * 1.42 };
+  };
+  const a = box(a0, isCard(from) || (from && typeof from === 'object'));
+  const b = box(b0, isCard(to) || (to && typeof to === 'object'));
+  const flip = o.flip === 'up' || o.flip === 'down';
+  const first = pcCardHtml(o.flip === 'up' ? null : face, { size: 'fly' });
+  const second = flip ? pcCardHtml(o.flip === 'up' ? face : null, { size: 'fly' }) : '';
+  const ghost = pcLayer(root, a, 'pc-ghost', '<div class="pc-ghost__flip"><div class="pc-ghost__face">' + first + '</div>' +
+    (second ? '<div class="pc-ghost__face pc-ghost__face--b">' + second + '</div>' : '') + '</div>');
+  ghost.style.setProperty('--pc-w', a.width + 'px');
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  const scale = b.width / a.width;
+  const duration = o.duration || 440;
+  const timing = { duration: duration, delay: o.delay || 0, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
+  const arc = (o.arc || 0) * (pcIsTv(root) ? 1.8 : 1);
+  const spin = o.spin || 0;
+  const frames = [
+    { transform: 'translate(0px, 0px) scale(1) rotate(0deg)', opacity: 1 },
+    { transform: 'translate(' + dx / 2 + 'px, ' + (dy / 2 - arc) + 'px) scale(' + ((1 + scale) / 2 * 1.08) + ') rotate(' + spin * 0.7 + 'deg)', opacity: 1, offset: 0.5 },
+    { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ') rotate(' + spin + 'deg)', opacity: o.fade ? 0 : 1 }
+  ];
+  if (second) {
+    const flipper = ghost.firstElementChild;
+    flipper.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)', offset: 0.5 }, { transform: 'scaleX(1)' }], Object.assign({ fill: 'both' }, timing));
+    flipper.children[0].animate([{ opacity: 1 }, { opacity: 1, offset: 0.5 }, { opacity: 0, offset: 0.501 }, { opacity: 0 }], Object.assign({ fill: 'both' }, timing));
+    flipper.children[1].animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, offset: 0.501 }, { opacity: 1 }], Object.assign({ fill: 'both' }, timing));
+  }
+  pcAnimate(ghost, frames, timing, () => { ghost.remove(); release(); });
+}
+
+/** A sign that rises over a place and fades. */
+function pcPop(fx, root, where, text, opts) {
+  const o = opts || {};
+  const r = pcRect(fx, root, where);
+  if (!r || !r.width || !pcCanMove()) return;
+  const el = pcLayer(root, null, 'pc-pop' + (o.big ? ' pc-pop--big' : '') + (o.tone ? ' pc-pop--' + o.tone : ''));
+  el.textContent = text;
+  el.style.left = (r.left + r.width / 2) + 'px';
+  el.style.top = (r.top + r.height / 2) + 'px';
+  pcAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(0.4)', opacity: 0 },
+    { transform: 'translate(-50%, -85%) scale(1.15)', opacity: 1, offset: 0.25 },
+    { transform: 'translate(-50%, -95%) scale(1)', opacity: 1, offset: 0.72 },
+    { transform: 'translate(-50%, -125%) scale(0.9)', opacity: 0 }
+  ], { duration: o.duration || 1100, delay: o.delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+/** A ring spreading out from a place. */
+function pcRing(fx, root, where, opts) {
+  const o = opts || {};
+  const r = pcRect(fx, root, where);
+  if (!r || !r.width || !pcCanMove()) return;
+  const size = Math.max(r.width, r.height) * (o.size || 1);
+  const c = pcMid(r);
+  const el = pcLayer(root, { left: c.x - size / 2, top: c.y - size / 2, width: size, height: size }, 'pc-ring' + (o.tone ? ' pc-ring--' + o.tone : ''));
+  pcAnimate(el, [
+    { transform: 'scale(0.25)', opacity: 0.95 },
+    { transform: 'scale(' + (o.scale || 2.4) + ')', opacity: 0 }
+  ], { duration: o.duration || 700, delay: o.delay || 0, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }, () => el.remove());
+}
+
+/** A rubber stamp slammed onto a place: «كدّاب!», «صادق». */
+function pcStamp(fx, root, where, text, opts) {
+  const o = opts || {};
+  const r = pcRect(fx, root, where);
+  if (!r || !r.width || !pcCanMove()) return;
+  const el = pcLayer(root, null, 'pc-stamp' + (o.tone ? ' pc-stamp--' + o.tone : ''));
+  el.textContent = text;
+  const c = pcMid(r);
+  el.style.left = c.x + 'px';
+  el.style.top = c.y + 'px';
+  pcAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(2.8) rotate(-12deg)', opacity: 0 },
+    { transform: 'translate(-50%, -50%) scale(1) rotate(-12deg)', opacity: 1, offset: 0.18 },
+    { transform: 'translate(-50%, -50%) scale(1) rotate(-12deg)', opacity: 1, offset: 0.82 },
+    { transform: 'translate(-50%, -60%) scale(0.96) rotate(-12deg)', opacity: 0 }
+  ], { duration: o.duration || 1400, delay: o.delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+/** A place shaking once. */
+function pcShake(fx, root, key, delay) {
+  const el = pcEl(root, key);
+  const box = el && el.closest ? (el.closest('[data-pc-seat]') || el) : null;
+  if (!box || !pcCanMove()) return;
+  box.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }],
+    { duration: 380, delay: delay || 0, easing: 'ease-out' });
+}
+
+/** A shout bursting out of a place: «كدّاب!». */
+function pcShout(fx, root, where, text, delay) {
+  const r = pcRect(fx, root, where);
+  if (!r || !r.width || !pcCanMove()) return;
+  const el = pcLayer(root, null, 'pc-shout', escapeHTML(text));
+  const c = pcMid(r);
+  el.style.left = c.x + 'px';
+  el.style.top = c.y + 'px';
+  pcAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(0.3) rotate(-12deg)', opacity: 0 },
+    { transform: 'translate(-50%, -70%) scale(1.25) rotate(-6deg)', opacity: 1, offset: 0.22 },
+    { transform: 'translate(-50%, -78%) scale(1) rotate(-6deg)', opacity: 1, offset: 0.75 },
+    { transform: 'translate(-50%, -110%) scale(0.9) rotate(-6deg)', opacity: 0 }
+  ], { duration: 1200, delay: delay || 0, easing: 'cubic-bezier(0.2, 1.3, 0.4, 1)' }, () => el.remove());
+  pcRing(fx, root, where, { tone: 'danger', delay: delay || 0, scale: 2.8 });
+}
+
+/**
+ * Cards laid face down in a row over a place, turned face up one by one: a
+ * called play turned over for the whole table. Returns how long it takes, and
+ * the layer (it is removed at `hold` ms after the last card has turned).
+ */
+function pcRevealRow(fx, root, where, cards, opts) {
+  const o = opts || {};
+  const r = pcRect(fx, root, where);
+  if (!r || !r.width || !pcCanMove() || !cards.length) return 0;
+  const tv = pcIsTv(root);
+  const w = Math.min(o.width || (tv ? 110 : 64), (window.innerWidth - 32) / Math.max(1, cards.length) - 6);
+  const c = pcMid(r);
+  const total = cards.length * (w + 6);
+  const layer = pcLayer(root, { left: Math.max(8, c.x - total / 2), top: c.y - w * 0.71, width: total, height: w * 1.42 }, 'pc-reveal');
+  layer.style.setProperty('--pc-w', w + 'px');
+  const step = o.step || 260;
+  const start = o.delay || 0;
+  layer.innerHTML = cards.map((card, k) => `<span class="pc-flip" style="--at:${start + 200 + k * step}ms"><span class="pc-flip__back">${pcCardHtml(null, { size: 'fly' })}</span><span class="pc-flip__face">${pcCardHtml(card, { size: 'fly' })}</span></span>`).join('');
+  layer.classList.add('is-revealing');
+  pcAnimate(layer, [{ opacity: 0, transform: 'scale(0.9)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 220, delay: start, easing: 'ease-out' });
+  const end = start + 200 + cards.length * step + 420;
+  const hold = o.hold || 1400;
+  fx.timers.push(setTimeout(() => {
+    pcAnimate(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: 'ease-in' }, () => layer.remove());
+  }, end + hold));
+  return end;
+}
+
+/* --- which moves to show ------------------------------------------------------ */
+
+/**
+ * The events this device hasn't shown. A new deal seen by a page that was
+ * already watching the room plays from the deal; a reload, a latecomer or a
+ * phone that was elsewhere starts from the end of the list.
+ */
+function pcEventsToPlay(fx, state) {
+  const s = state.shared || {};
+  const events = s.events || [];
+  const maxSeq = events.reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  const key = state.code + '|' + (s.dealId || '');
+  if (fx.deal !== key) {
+    const fresh = fx.watched === state.code;
+    fx.deal = key;
+    let from = maxSeq;
+    if (fresh) {
+      const deal = events.find(e => e.type === 'deal');
+      if (deal) from = (Number(deal.seq) || 0) - 1;
+    }
+    fx.lastSeq = from;
+  }
+  const out = events.filter(e => e && (Number(e.seq) || 0) > fx.lastSeq);
+  fx.lastSeq = Math.max(fx.lastSeq, maxSeq);
+  return out;
+}
+
+const pcWokeRecently = (fx) => Date.now() - fx.wokeAt < 2500;
+
+/** A frame waiting for flights to land draws itself once they have. */
+function pcDeferRedraw(fx, game) {
+  if (fx.redrawTimer) return;
+  fx.redrawTimer = setTimeout(() => {
+    fx.redrawTimer = null;
+    const st = Room.state;
+    if (!st || st.game !== game || st.phase === 'lobby') return;
+    if (st.youAreScreen ? appState.currentView === 'room-tv' : onRoomView()) routeRoomState(st);
+  }, Math.max(40, fx.busyUntil - Date.now() + 40));
+}
+
+/* --- the sounds of the table ------------------------------------------------------
+   Short and quiet, made like the rest of FX (not on the soundboard). With a big
+   screen in the room only the TV plays the table's sounds; a phone its own. */
+
+if (typeof FX !== 'undefined') {
+  Object.assign(FX, {
+    pcCard(at) {
+      fxNoise('bandpass', 1900, 1.1, [[0, 0], [0.006, 0.08], [0.07, 0.001]], at);
+      fxTone('sine', [[0, 230], [0.06, 130]], [[0, 0], [0.004, 0.1], [0.08, 0.001]], at);
+    },
+    pcSlide(at) {
+      fxNoise('bandpass', 3400, 1.3, [[0, 0], [0.02, 0.05], [0.12, 0.001]], at);
+    },
+    pcCall(at) {
+      // «كدّاب!»: a sharp low stamp and a rising squeak.
+      fxNoise('lowpass', 900, 0.8, [[0, 0], [0.005, 0.22], [0.16, 0.001]], at);
+      fxTone('square', [[0.02, 180], [0.14, 120]], [[0.02, 0], [0.03, 0.08], [0.18, 0.001]], at);
+    },
+    pcLie(at) {
+      fxTone('sawtooth', [[0, 330], [0.35, 150]], [[0, 0], [0.02, 0.08], [0.4, 0.001]], at);
+    },
+    pcTrue(at) {
+      fxTone('triangle', [[0, 660], [0.1, 660]], [[0, 0], [0.01, 0.14], [0.12, 0.02]], at);
+      fxTone('triangle', [[0.12, 880], [0.3, 880]], [[0.12, 0], [0.13, 0.16], [0.34, 0.001]], at);
+    },
+    pcPair(at) {
+      fxTone('sine', [[0, 880], [0.08, 1320]], [[0, 0], [0.01, 0.1], [0.14, 0.001]], at);
+    }
+  });
+}
+
+function pcSound(name, mine) {
+  if (document.hidden) return;
+  if (!mine && typeof roomHasScreen === 'function' && roomHasScreen()) return;
+  if (typeof playFx === 'function' && typeof FX !== 'undefined' && FX[name]) playFx(name);
+}
+
+/** A string from the translations with {vars}; a value that isn't a plain number is isolated, so a name keeps its place in a line of the other language. */
+function pcT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] !== undefined ? t[key] : ((TRANSLATIONS.ar || {})[key] || '');
+  if (vars) Object.keys(vars).forEach(k => {
+    const v = vars[k] === undefined || vars[k] === null ? '' : String(vars[k]);
+    s = s.split('{' + k + '}').join(v && !/^\d+$/.test(v) ? '⁨' + v + '⁩' : v);
+  });
+  return s;
+}
+
+/** A player's name in a room, and the first letter of it for an avatar. */
+function pcName(state, pid) {
+  const p = (state.players || []).find(x => x.id === pid);
+  return p ? p.name : '—';
+}
+function pcInitial(state, pid) {
+  const p = (state.players || []).find(x => x.id === pid);
+  if (p && p.bot) return '🤖';
+  return escapeHTML(Array.from(String(p ? p.name : '?').trim())[0] || '?');
+}
+
+/** A place on the podium of a game played for places: medals, no numbers. */
+function pcPlacesPodium(state, ids, key) {
+  const top = (ids || []).slice(0, 3).map(id => ({ id: id, name: pcName(state, id) }));
+  if (top.length < 2) return '';
+  const rise = motionFirst(['pc-podium', state.code, key || '', top.map(x => x.id).join(',')].join('|'));
+  const medals = ['🥇', '🥈', '🥉'];
+  const atOf = (i) => 150 + (top.length - 1 - i) * 520;
+  return '<div class="podium pc-podium' + (rise ? ' podium--rise" data-reveal-ms="' + (atOf(0) + 620) + '"' : '"') + '>' +
+    top.map((p, i) => '<div class="podium__place podium__place--' + (i + 1) + ' podium__place--rank' + (i + 1) + '" style="--at:' + atOf(i) + 'ms">' +
+      '<div class="podium__who"><span class="podium__medal" aria-hidden="true">' + medals[i] + '</span>' +
+      '<span class="podium__name">' + escapeHTML(p.name) + '</span></div>' +
+      '<div class="podium__block"><span class="metric">' + (i + 1) + '</span></div></div>').join('') +
+    '</div>';
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  const now = Date.now();
+  if (typeof dbFx !== 'undefined') dbFx.wokeAt = now;
+  if (typeof omFx !== 'undefined') omFx.wokeAt = now;
+});
+</script>

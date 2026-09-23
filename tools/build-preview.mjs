@@ -51,7 +51,7 @@ html = html
   .replace('</head>', () => `${STUB}\n</head>`);
 
 // Word lists the page shares with the rooms server: one file, both sides.
-const SHARED_LISTS = ['ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Ludo.js', 'BankAlhaz.js', 'GuessWho.js', 'Hangman.js', 'Bowling.js'];
+const SHARED_LISTS = ['ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Ludo.js', 'BankAlhaz.js', 'GuessWho.js', 'Hangman.js', 'PlayingCards.js', 'Bowling.js'];
 const sharedListsHtml = (await Promise.all(SHARED_LISTS.map(async (name) =>
   `<script>\n${await readFile(path.join(root, name), 'utf8')}\n</script>`))).join('\n    ');
 const listsMark = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;

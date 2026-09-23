@@ -87,6 +87,8 @@ const clearGameState = (room) => {
   room._bank = null;
   room._uno = null;
   room._timeline = null;
+  room._doubt = null;
+  room._om = null;
   // A bot's next move belonged to the game that was cleared.
   room._botAt = null;
   room._botKey = null;
@@ -119,7 +121,9 @@ const ROOM_GAME_IDS = [
   // خمّن مين (RoomGuessWho.js, winner stays on like the duels) and المشنقة (RoomHangman.js).
   'guesswho', 'hangman',
   // بولينج (RoomBowling.js): everyone bowls in turn, everyone watches every throw.
-  'bowling'
+  'bowling',
+  // كدّاب (RoomDoubt.js) and الشايب (RoomOldMaid.js): the playing cards.
+  'doubt', 'oldmaid'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -528,6 +532,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'guesswho':   guessWhoAction(room, playerId, action, payload); break;  // RoomGuessWho.js
     case 'hangman':    hangmanAction(room, playerId, action, payload); break;   // RoomHangman.js
     case 'bowling':    bowlingAction(room, playerId, action, payload); break;   // RoomBowling.js
+    case 'doubt':      doubtAction(room, playerId, action, payload); break;     // RoomDoubt.js
+    case 'oldmaid':    oldMaidAction(room, playerId, action, payload); break;   // RoomOldMaid.js
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -3388,6 +3394,8 @@ const gameDeadline = (room) => {
   if (room.game === 'guesswho') return gwDeadline(room);
   if (room.game === 'hangman') return hmDeadline(room);
   if (room.game === 'bowling') return bowlDeadline(room);
+  if (room.game === 'doubt') return doubtDeadline(room);
+  if (room.game === 'oldmaid') return omDeadline(room);
   return null;
 };
 
@@ -3501,6 +3509,8 @@ const gameTimeout = (room, now) => {
   if (room.game === 'guesswho') return gwTimeout(room, now);
   if (room.game === 'hangman') return hmTimeout(room, now);
   if (room.game === 'bowling') return bowlTimeout(room, now);
+  if (room.game === 'doubt') return doubtTimeout(room, now);
+  if (room.game === 'oldmaid') return omTimeout(room, now);
   return false;
 };
 
@@ -3665,6 +3675,12 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'bowling':
       bowlPlayerLeft(room, playerId);
+      return;
+    case 'doubt':
+      doubtPlayerLeft(room, playerId);
+      return;
+    case 'oldmaid':
+      omPlayerLeft(room, playerId);
       return;
     case 'connect4':
     case 'dots':

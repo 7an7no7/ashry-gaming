@@ -4333,6 +4333,364 @@ Date.now = duelTestClock;
   check(s.phase === 'play' && s.settings.frames === 5 && s.wins.a === 1 && s.throwSeq === 0 && s.turnSeq > 1, 'bowling: play again keeps the way of playing and the wins');
 }
 
+/* --- كدّاب and الشايب: the playing cards, every rule, whole games of computer players ------ */
+{
+  const PC = new Function(readFileSync(new URL('../../PlayingCards.js', import.meta.url), 'utf8') +
+    '\nreturn { PC_RANKS, pcDeck, pcRank, pcRed, pcPairs, pcSorted, PC_OLD_MAID };')();
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  check(PC.pcDeck(1).length === 52 && new Set(PC.pcDeck(1)).size === 52 && PC.pcDeck(2).length === 104, 'cards: a deck is 52 different cards, two decks 104');
+  check(PC.pcPairs('7h', '7d') && PC.pcPairs('Ks', 'Kc') && !PC.pcPairs('7h', '7s') && !PC.pcPairs('7h', '8h') && !PC.pcPairs('OM', '7h'),
+    'cards: a pair in الشايب is the same rank and the same colour; الشايب pairs with nothing');
+  check(PC.pcSorted(['Kd', '2s', 'OM', 'Ah', '2c']).join() === 'Ah,2s,2c,Kd,OM', 'cards: a hand is sorted by rank, then suit, الشايب last');
+
+  /* كدّاب */
+  let did = 9000;
+  const dcards = (...cs) => cs.map((c) => ({ i: did++, c }));
+  const doubtStart = (ids, opts) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'doubt' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({}, opts || {}));
+    return r;
+  };
+  const d = (r, pid, action, payload = {}) => applyRoomAction(r, pid, action, Object.assign({ seq: r.shared.turnSeq }, payload));
+  const dThrew = (r, pid, action, payload) => threw(() => d(r, pid, action, payload));
+  const dSeat = (r, i) => r.shared.order[i];
+  const dUp = (r) => r.shared.turn && r.shared.turn.pid;
+  const dHand = (r, pid) => r._doubt.hands[pid];
+  const dIds = (r, pid, ...faces) => faces.map((f) => { const c = dHand(r, pid).find((x) => x.c === f && !x.used); c.used = true; return c.i; });
+  // Hands by seat, seat 0 (or o.up) to lead; the next move writes every phone's slice.
+  const dTable = (r, hands, o = {}) => {
+    r.shared.order.forEach((id, i) => { r._doubt.hands[id] = hands[i] ? dcards(...hands[i]) : []; });
+    r._doubt.pile = [];
+    Object.assign(r.shared, { rank: null, plays: [], last: null, passed: [], places: [], pendingOut: null });
+    r.shared.turn = { pid: dSeat(r, o.up || 0), stage: 'lead' };
+    r.shared.turnSeq++;
+  };
+
+  {
+    const r = doubtStart(['a', 'b', 'c']);
+    const total = Object.values(r._doubt.hands).reduce((n, h) => n + h.length, 0);
+    check(r.shared.phase === 'play' && total === 52 && r.shared.order.every((id) => Math.abs(dHand(r, id).length - 52 / 3) < 1) &&
+      r.shared.turn.stage === 'lead' && r.shared.decks === 1, 'doubt: one deck dealt out to three, the first seat leads');
+    check(r.shared.order.every((id) => r.secrets[id].hand.length === dHand(r, id).length && r.secrets[id].hand.every((c) => dHand(r, id).some((x) => x.i === c.i))),
+      "doubt: each phone's slice is its own hand");
+    check(!/"c":"/.test(JSON.stringify(r.shared)), 'doubt: no card face in what the table sees');
+    check(r.shared.settings.end === 'first' && r.shared.settings.turnClock === 0, 'doubt: the defaults: first out wins, no clock');
+    const big = doubtStart(['a', 'b', 'c', 'd', 'e', 'f', 'g']);
+    check(big.shared.decks === 2 && Object.values(big._doubt.hands).reduce((n, h) => n + h.length, 0) === 104, 'doubt: seven play with two decks');
+    check(threw(() => doubtStart(['a', 'b'])), 'doubt: two alone cannot start');
+  }
+
+  {
+    // Claims, passes, the pile going out.
+    const r = doubtStart(['a', 'b', 'c']);
+    const [A, B, C] = r.shared.order;
+    dTable(r, [['7h', '7s', '2c', 'Kd'], ['7d', '3h', '4h'], ['5c', '6c', '9d']]);
+    check(dThrew(r, A, 'play', { cards: dIds(r, A, '7h') }), 'doubt: whoever leads has to name the rank');
+    check(dThrew(r, B, 'play', { cards: dIds(r, B, '7d'), rank: '7' }), 'doubt: only the player up plays');
+    check(dThrew(r, A, 'pass'), 'doubt: whoever leads cannot pass');
+    d(r, A, 'play', { cards: dIds(r, A, '7s', '2c'), rank: '7' });
+    const s = r.shared;
+    check(s.rank === '7' && s.last.n === 2 && s.last.pid === A && dUp(r) === B && s.turn.stage === 'follow' && s.pileCount === 2 && s.counts[A] === 2,
+      'doubt: a lead lays any number of cards face down and names the rank; the next follows it');
+    check(!JSON.stringify(s).includes('"2c"') && s.events.slice(-1)[0].type === 'play' && !('cards' in s.events.slice(-1)[0]), 'doubt: a play says how many and what rank, never which cards');
+    d(r, B, 'pass');
+    check(dUp(r) === C && s.passed.join() === B && !s.last, 'doubt: a pass closes the call on the last play, and the next follows');
+    d(r, C, 'play', { cards: dIds(r, C, '9d'), rank: 'K' });
+    check(s.rank === '7' && s.last.pid === C && s.last.rank === '7', 'doubt: a follow always claims the rank named, whatever is sent');
+    d(r, A, 'pass');
+    d(r, B, 'pass');
+    check(s.rank === null && s.pileCount === 0 && dUp(r) === C && s.turn.stage === 'lead' && s.events.slice(-1)[0].type === 'pileOut' &&
+      s.events.slice(-1)[0].n === 3, 'doubt: everyone passes after a play: the pile goes out, and the last to play leads');
+  }
+
+  {
+    // The call: a lie, the truth, who leads.
+    const r = doubtStart(['a', 'b', 'c']);
+    const [A, B, C] = r.shared.order;
+    dTable(r, [['7h', '7s', '2c', 'Kd'], ['7d', '3h', '4h'], ['5c', '6c', '9d']]);
+    d(r, A, 'play', { cards: dIds(r, A, '7h', '2c'), rank: '7' });
+    const lastId = r.shared.last.id;
+    check(threw(() => applyRoomAction(r, A, 'call', { play: lastId })), 'doubt: nobody calls their own play');
+    applyRoomAction(r, C, 'call', { play: lastId });
+    const s = r.shared;
+    const ev = s.events.slice(-1)[0];
+    check(ev.type === 'call' && ev.truth === false && ev.taker === A && ev.cards.sort().join() === '2c,7h' && dHand(r, A).length === 4 && s.pileCount === 0,
+      'doubt: a lie is turned over and the liar takes the whole pile');
+    check(dUp(r) === C && s.turn.stage === 'lead' && s.rank === null, 'doubt: the caller was right, so the caller leads the next rank');
+    applyRoomAction(r, B, 'call', { play: lastId });
+    check(dHand(r, B).length === 3, 'doubt: a second call on a play already turned over does nothing');
+    d(r, C, 'play', { cards: dIds(r, C, '5c'), rank: '5' });
+    const truthId = r.shared.last.id;
+    d(r, A, 'play', { cards: dIds(r, A, '7s'), rank: '5' });
+    applyRoomAction(r, B, 'call', { play: truthId });
+    check(dHand(r, B).length === 3 && r.shared.last.pid === A, 'doubt: a call aimed at a play already covered is dropped');
+    applyRoomAction(r, B, 'call', { play: r.shared.last.id });
+    check(r.shared.events.slice(-1)[0].truth === false && dHand(r, A).length === 5, 'doubt: the lie on top is the one called');
+    // The truth: the caller takes the pile, the player leads.
+    dTable(r, [['7h', '7s', '2c'], ['7d', '3h', '4h'], ['5c', '6c', '9d']]);
+    d(r, A, 'play', { cards: dIds(r, A, '7h', '7s'), rank: '7' });
+    applyRoomAction(r, B, 'call', { play: r.shared.last.id });
+    check(r.shared.events.slice(-1)[0].truth === true && dHand(r, B).length === 5 && dUp(r) === A && r.shared.turn.stage === 'lead',
+      'doubt: the truth: the caller takes the pile and the player leads');
+    check(!JSON.stringify(r.shared).includes('"3h"'), 'doubt: only the called play is turned over, the rest goes to the taker face down');
+  }
+
+  {
+    // The end: a last play still has to survive a call.
+    const r = doubtStart(['a', 'b', 'c']);
+    const [A, B, C] = r.shared.order;
+    dTable(r, [['9h'], ['7d', '3h'], ['5c', '6c']]);
+    d(r, A, 'play', { cards: dIds(r, A, '9h'), rank: '9' });
+    check(r.shared.phase === 'play' && r.shared.pendingOut === A && r.shared.places.length === 0, 'doubt: laying the last card is not out yet');
+    d(r, B, 'pass');
+    check(r.shared.phase === 'gameover' && r.shared.winners[0] === A && r.shared.wins[A] === 1 && r.shared.board[0].id === A,
+      'doubt: first out wins once the next player passes without a call');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'play' && r.shared.wins[A] === 1, 'doubt: play again keeps the tally of wins');
+    // Called a lie: back in with the pile.
+    dTable(r, [['9h'], ['7d', '3h'], ['5c', '6c']]);
+    const [A2, B2] = r.shared.order;
+    d(r, A2, 'play', { cards: dIds(r, A2, '9h'), rank: '2' });
+    applyRoomAction(r, B2, 'call', { play: r.shared.last.id });
+    check(r.shared.phase === 'play' && dHand(r, A2).length === 1 && !r.shared.pendingOut && dUp(r) === B2, 'doubt: a last play called a lie: the liar takes the pile and plays on');
+    // Called true: out, and the game won.
+    dTable(r, [['9h'], ['7d', '3h'], ['5c', '6c']]);
+    d(r, A2, 'play', { cards: dIds(r, A2, '9h'), rank: '9' });
+    applyRoomAction(r, dSeat(r, 2), 'call', { play: r.shared.last.id });
+    check(r.shared.phase === 'gameover' && r.shared.winners[0] === A2, 'doubt: a last play called true: that player is out');
+  }
+
+  {
+    // Play on for places.
+    const r = doubtStart(['a', 'b', 'c', 'd'], { end: 'places' });
+    const [A, B, C, D] = r.shared.order;
+    dTable(r, [['9h'], ['2d'], ['5c', '6c'], ['4s', '4d']]);
+    d(r, A, 'play', { cards: dIds(r, A, '9h'), rank: '9' });
+    d(r, B, 'play', { cards: dIds(r, B, '2d') });
+    check(r.shared.places.join() === A && r.shared.phase === 'play' && r.shared.pendingOut === B, 'doubt: places: the first out takes first place, and the game goes on');
+    d(r, C, 'pass');
+    d(r, D, 'pass');
+    check(r.shared.places.join() === [A, B].join() && dUp(r) === C && r.shared.turn.stage === 'lead', 'doubt: places: the pile goes out, and the next still playing leads');
+    d(r, C, 'play', { cards: dIds(r, C, '5c', '6c'), rank: '5' });
+    d(r, D, 'pass');
+    check(r.shared.phase === 'gameover' && r.shared.places.join() === [A, B, C, D].join() && r.shared.winners[0] === A,
+      'doubt: places: the game ends with one left, every place given');
+  }
+
+  {
+    // The clock, the host, leaving.
+    const r = doubtStart(['a', 'b', 'c'], { turnClock: 30 });
+    const [A, B, C] = r.shared.order;
+    dTable(r, [['7h', '7s', '2c'], ['7d', '3h'], ['5c', '6c']]);
+    const due = roomDeadline(r);
+    check(r.shared.endsAt && due === r.shared.endsAt + 1500, 'doubt: the turn clock is a server deadline');
+    clock = due + 1;
+    roomTimeout(r, clock);
+    check(r.shared.last && r.shared.last.pid === A && r.shared.last.n === 1 && r.shared.last.rank === '7' && dHand(r, A).length === 2,
+      'doubt: the clock leads one card, truthfully, of the rank held most');
+    clock = roomDeadline(r) + 1;
+    roomTimeout(r, clock);
+    check(r.shared.passed.join() === B && dUp(r) === C, 'doubt: the clock passes on a follow');
+    check(threw(() => d(r, r.shared.order.find((id) => id !== 'a'), 'skipTurn')), 'doubt: only the host skips a turn');
+    d(r, 'a', 'skipTurn');
+    check(r.shared.rank === null && dUp(r) === A && r.shared.turn.stage === 'lead', "doubt: the host's skip passes too, and everyone passing puts the pile out");
+    r.players = r.players.filter((p) => p.id !== A);
+    roomPlayerLeft(r, A, A);
+    check(r.shared.phase === 'play' && dUp(r) === B && r.shared.turn.stage === 'lead' && r.shared.counts[A] === 0, "doubt: a leaver's lead passes to the next seat");
+    r.players = r.players.filter((p) => p.id !== C);
+    roomPlayerLeft(r, C, C);
+    check(r.shared.phase === 'gameover' && r.shared.winners[0] === B && !r.shared.wins[B], 'doubt: one left ends the game, not counted as a win');
+  }
+
+  {
+    // Computer players.
+    const botRoom = (levels, opts) => {
+      const r = newRoom(['a']);
+      applyRoomAction(r, 'a', 'chooseGame', { game: 'doubt' });
+      levels.forEach((lv) => applyRoomAction(r, 'a', 'addBot', { level: lv, name: 'زيزو' }));
+      applyRoomAction(r, 'a', 'start', Object.assign({ turnClock: 30 }, opts || {}));
+      return r;
+    };
+    const runBots = (r) => { if (typeof r._botAt === 'number') { clock = Math.max(clock, r._botAt) + 1; roomTimeout(r, clock); return true; } return false; };
+    const r = botRoom(['hard', 'hard']);
+    const o = r.shared.order;
+    const hands = o.map((id) => (id === 'a' ? ['7h', '2c', '3c'] : r.players.find((p) => p.id === id).bot ? ['7s', '7d', '7c', '9h'] : []));
+    dTable(r, hands, { up: o.indexOf('a') });
+    d(r, 'a', 'play', { cards: dIds(r, 'a', '2c'), rank: '7' });
+    // Each hard bot holds three sevens: one claimed seven more makes... 3 + 1 = 4, still possible. Two claimed is five: a sure lie.
+    dTable(r, hands, { up: o.indexOf('a') });
+    d(r, 'a', 'play', { cards: dIds(r, 'a', '2c', '3c'), rank: '7' });
+    check(o.includes(r._botPid) && r._botKey.indexOf('call|') !== -1, 'doubt bots: a hard bot that knows a claim is a lie calls it');
+    runBots(r);
+    check(r.shared.events.slice(-1)[0].type === 'call' && r.shared.events.slice(-1)[0].truth === false, 'doubt bots: and turns the lie over');
+
+    const errors = [];
+    const errorWas = console.error;
+    console.error = (...args) => { errors.push(args.join(' ')); };
+    let ended = 0, conserved = true;
+    const variants = [{}, { end: 'places' }];
+    for (let n = 0; n < 30; n++) {
+      const levels = n % 3 === 0 ? ['hard', 'hard'] : n % 3 === 1 ? ['easy', 'hard', 'easy'] : ['hard', 'easy', 'hard', 'easy', 'hard', 'easy'];
+      const g = botRoom(levels, variants[n % 2]);
+      const total = g.shared.decks * 52;
+      let outCards = 0;
+      let seen = g.shared.eventSeq;
+      for (let step = 0; step < 6000 && g.shared.phase !== 'gameover'; step++) {
+        if (!runBots(g)) {
+          const due = roomDeadline(g);
+          if (due === null) break;
+          clock = due + 1;
+          roomTimeout(g, clock);
+        }
+        (g.shared.events || []).filter((e) => e.seq > seen).forEach((e) => { if (e.type === 'pileOut') outCards += e.n; });
+        seen = g.shared.eventSeq;
+        const held = Object.values(g._doubt.hands).reduce((k, h) => k + h.length, 0) + g._doubt.pile.reduce((k, p) => k + p.cards.length, 0);
+        if (held + outCards !== total) conserved = false;
+      }
+      if (g.shared.phase === 'gameover') ended++;
+    }
+    console.error = errorWas;
+    check(ended === 30, `doubt bots: 30 games of bots and one person on the clock, both ways of ending, all end (${ended})`);
+    check(!errors.length, 'doubt bots: no bot move was ever refused' + (errors.length ? ': ' + errors[0] : ''));
+    check(conserved, 'doubt: no card is lost or made up, through plays, calls and piles going out');
+  }
+
+  /* الشايب */
+  const omStart = (ids, opts) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'oldmaid' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({}, opts || {}));
+    return r;
+  };
+  const o = (r, pid, action, payload = {}) => applyRoomAction(r, pid, action, Object.assign({ seq: r.shared.turnSeq }, payload));
+  const oHand = (r, pid) => r._om.hands[pid];
+  const allCards = (r) => Object.values(r._om.hands).flat().map((c) => c.c).concat(r.shared.thrown.flatMap((t) => t.cards));
+  let oid = 20000;
+  const oTable = (r, hands, up) => {
+    r.shared.order.forEach((id, i) => { r._om.hands[id] = (hands[i] || []).map((c) => ({ i: oid++, c })); });
+    Object.assign(r.shared, { out: [], thrown: [], phase: 'play' });
+    r.shared.turn = { pid: r.shared.order[up || 0], from: r.shared.order[((up || 0) + 1) % r.shared.order.length] };
+    r._om.aimId = null;
+    r.shared.turnSeq++;
+    const mode = r.shared.settings.mode;
+    r.shared.settings.mode = 'drag';
+    applyRoomAction(r, r.shared.order[0], 'move', { card: -1, to: 0 });
+    r.shared.settings.mode = mode;
+  };
+  {
+    const sizes = [2, 3, 4, 8].map((n) => omStart(Array.from({ length: n }, (_, i) => 'p' + i)));
+    check(sizes.map((r) => r.shared.deckSize).join() === '33,49,53,53' && sizes.map((r) => r.shared.pairs).join() === '16,24,26,26',
+      'oldmaid: the deck grows with the table: 8 pairs a player, at most 26, and الشايب');
+    const okDeck = sizes.every((r) => {
+      const cards = allCards(r);
+      const om = cards.filter((c) => c === 'OM').length;
+      const rest = cards.filter((c) => c !== 'OM');
+      return om === 1 && rest.every((c) => rest.filter((x) => PC.pcPairs(c, x)).length === 1);
+    });
+    check(okDeck, 'oldmaid: every card has exactly one partner of its rank and colour, and there is one الشايب');
+    check(sizes.every((r) => r.shared.order.every((id) => !oHand(r, id).some((c, k) => oHand(r, id).some((x, j) => j !== k && PC.pcPairs(c.c, x.c))))),
+      'oldmaid: the pairs dealt in a hand go out at the start');
+    const r = sizes[1];
+    check(r.shared.events.filter((e) => e.type === 'pairs' && e.deal).reduce((n, e) => n + e.cards.length, 0) === r.shared.thrown.length * 2,
+      'oldmaid: the pairs thrown out at the start are shown, face up');
+    check(!JSON.stringify(r.shared).includes('"OM"') && r.shared.order.every((id) => JSON.stringify(r.secrets[id].hand) === JSON.stringify(oHand(r, id))),
+      "oldmaid: each phone holds its own hand, in its order, and الشايب is in nobody's view but its holder's");
+    check(r.shared.settings.mode === 'drag' && r.shared.settings.turnClock === 0 && r.shared.turn.from === r.shared.order[1],
+      'oldmaid: the defaults: rearranged by dragging, no clock; the first seat draws from the next');
+    check(threw(() => omStart(['a'])) && threw(() => omStart(Array.from({ length: 9 }, (_, i) => 'p' + i))), 'oldmaid: two to eight players');
+  }
+  {
+    // A draw: lift, drag, take, a pair out.
+    const r = omStart(['a', 'b', 'c']);
+    const [A, B, C] = r.shared.order;
+    oTable(r, [['7h', '2s', 'OM'], ['9c', '7d', '3h'], ['2c', '9s', '3d']]);
+    check(threw(() => o(r, B, 'lift', { pos: 0 })), 'oldmaid: only the one whose turn it is draws');
+    check(threw(() => o(r, A, 'take')), 'oldmaid: a card is lifted before it is taken');
+    o(r, A, 'lift', { pos: 1 });
+    check(r.shared.aim.pos === 1 && !JSON.stringify(r.shared).includes('"7d"'), 'oldmaid: the lifted card is shown by where it sits, never by what it is');
+    const liftedId = oHand(r, B)[1].i;
+    applyRoomAction(r, B, 'move', { card: liftedId, to: 2 });
+    check(r.shared.aim.pos === 2 && oHand(r, B)[2].i === liftedId && r.shared.events.slice(-1)[0].type === 'move' &&
+      r.shared.events.slice(-1)[0].from === 1 && r.shared.events.slice(-1)[0].to === 2, 'oldmaid: the other can drag their cards, and the lifted card moves with its card');
+    o(r, A, 'take');
+    const s = r.shared;
+    check(s.counts[B] === 2 && s.counts[A] === 2 && s.thrown.some((t) => t.cards.sort().join() === '7d,7h') && s.events.some((e) => e.type === 'pairs' && e.pid === A),
+      'oldmaid: the card goes to the drawer, and the pair it makes goes out face up');
+    check(s.turn.pid === B && s.turn.from === C && !s.aim, 'oldmaid: the turn goes round: the one drawn from draws next, from the next');
+    const drew = s.events.find((e) => e.type === 'draw');
+    check(drew.pos === 2 && !('card' in drew) && !JSON.stringify(drew).includes('7d'), 'oldmaid: a draw says from where, never what');
+    // A card drawn without a pair gets a new id and a random place.
+    const before = oHand(r, C).map((c) => c.i);
+    o(r, B, 'take', { pos: 0 });
+    const got = oHand(r, B).find((c) => before.indexOf(c.i) !== -1);
+    check(!got && oHand(r, B).length + oHand(r, C).length === 5, 'oldmaid: a drawn card changes its id, so the one who gave it up cannot follow it');
+  }
+  {
+    // Safe, the loser, the tally.
+    const r = omStart(['a', 'b', 'c']);
+    const [A, B, C] = r.shared.order;
+    oTable(r, [['7h', 'OM'], ['7d'], []]);
+    o(r, A, 'lift', { pos: 0 });
+    o(r, A, 'take');
+    check(r.shared.out.join() === B, 'oldmaid: an empty hand is safe, in the order they got out');
+    const s = r.shared;
+    check(s.phase === 'gameover' && s.loser === A && s.losses[A] === 1 && s.reveal.pid === A && s.reveal.cards.join() === 'OM',
+      'oldmaid: the last holding cards holds الشايب and loses; only now is it shown');
+    check(s.board[s.board.length - 1].id === A && s.board[0].score === 0, 'oldmaid: the board puts the fewest times الشايب first');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'play' && r.shared.losses[A] === 1 && !r.shared.reveal && !r.shared.loser, 'oldmaid: play again keeps the tally, and hides everything again');
+  }
+  {
+    // Shuffled hands, the clock, leaving.
+    const r = omStart(['a', 'b', 'c'], { mode: 'shuffle', turnClock: 15 });
+    const [A, B, C] = r.shared.order;
+    check(threw(() => applyRoomAction(r, A, 'move', { card: oHand(r, A)[0].i, to: 1 })), 'oldmaid: with the hands shuffled nobody drags');
+    oTable(r, [['7h', '2s', 'OM'], ['9c', '7d', '3h', 'Qd'], ['2c', '9s', '3d']]);
+    o(r, A, 'take', { pos: 0 });
+    check(r.shared.events.some((e) => e.type === 'shuffle'), 'oldmaid: shuffled hands are shuffled by the server after every turn');
+    const due = roomDeadline(r);
+    check(r.shared.endsAt && due === r.shared.endsAt + 1500, 'oldmaid: the turn clock is a server deadline');
+    clock = due + 1;
+    roomTimeout(r, clock);
+    check(r.shared.events.some((e) => e.type === 'auto' && e.why === 'clock') && r.shared.events.some((e) => e.type === 'draw' && e.auto === 'clock'),
+      'oldmaid: when the clock runs out a card is drawn at random');
+    const m = omStart(['a', 'b', 'c']);
+    const [A2, B2, C2] = m.shared.order;
+    oTable(m, [['7h', 'OM'], ['9c', '2c'], ['9s', '2s']]);
+    m.players = m.players.filter((p) => p.id !== B2);
+    roomPlayerLeft(m, B2, B2);
+    check(oHand(m, C2).length === 0 && m.shared.thrown.length === 2 && m.shared.out.indexOf(C2) !== -1,
+      "oldmaid: a leaver's cards go to the next hand still playing, and their pairs go out");
+    check(m.shared.phase === 'gameover' && m.shared.loser === A2, 'oldmaid: one left holding cards loses');
+    const two = omStart(['a', 'b']);
+    two.players = two.players.filter((p) => p.id !== 'b');
+    roomPlayerLeft(two, 'b', 'b');
+    check(two.shared.phase === 'gameover' && !two.shared.loser && two.shared.ended === 'left', 'oldmaid: fewer than two left ends the game with no loser');
+  }
+  {
+    // Whole games: random draws and drags, every game ends with one loser holding الشايب.
+    let ok = 0, fair = true;
+    for (let n = 0; n < 40; n++) {
+      const ids = Array.from({ length: 2 + (n % 7) }, (_, i) => 'q' + i);
+      const r = omStart(ids, { mode: n % 3 ? 'drag' : 'shuffle' });
+      for (let step = 0; step < 800 && r.shared.phase === 'play'; step++) {
+        const s = r.shared;
+        if (Math.random() < 0.3 && s.settings.mode === 'drag') {
+          const h = oHand(r, s.turn.from);
+          applyRoomAction(r, s.turn.from, 'move', { card: h[Math.floor(Math.random() * h.length)].i, to: Math.floor(Math.random() * h.length) });
+        }
+        o(r, s.turn.pid, 'lift', { pos: Math.floor(Math.random() * s.counts[s.turn.from]) });
+        o(r, r.shared.turn.pid, 'take');
+        if (allCards(r).length !== r.shared.deckSize) fair = false;
+      }
+      if (r.shared.phase === 'gameover' && r.shared.loser && oHand(r, r.shared.loser).map((c) => c.c).join() === 'OM') ok++;
+    }
+    check(ok === 40, `oldmaid: 40 whole games, 2 to 8 players, both ways of holding: each ends with one loser holding الشايب alone (${ok})`);
+    check(fair, 'oldmaid: no card is lost or made up');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

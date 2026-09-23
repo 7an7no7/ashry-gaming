@@ -394,6 +394,50 @@ const PROBES = {
       })
     ];
   },
+  doubt(room) {
+    const s = room.shared || {};
+    const g = room._doubt || { hands: {}, pile: [] };
+    const where = {};
+    for (const id of Object.keys(g.hands)) for (const c of g.hands[id]) where[c.i] = id;
+    for (const pl of g.pile) for (const c of pl.cards) where[c.i] = 'pile';
+    const cardsIn = (node, out = []) => {
+      if (!node || typeof node !== 'object') return out;
+      if ('i' in node && 'c' in node) out.push(node);
+      for (const k of Object.keys(node)) cardsIn(node[k], out);
+      return out;
+    };
+    const FACE = /"(?:A|[2-9]|10|J|Q|K)[shdc]"/;
+    return [
+      probe('a card in a hand is on that phone only, and the pile on none', s.phase === 'play', (view, pid) => {
+        const seen = cardsIn(view.shared).concat(cardsIn(view.you));
+        const bad = seen.find((c) => where[c.i] !== undefined && where[c.i] !== pid);
+        return bad ? 'a ' + (where[bad.i] === 'pile' ? 'pile' : 'hand') + ' card (' + bad.i + ')' : null;
+      }),
+      probe('the table sees a face only once a call turns its play over', s.phase === 'play', (view) => {
+        const sh = Object.assign({}, view.shared, { events: (view.shared.events || []).filter((e) => e.type !== 'call') });
+        return FACE.test(JSON.stringify(sh)) ? 'shared (a card face)' : null;
+      })
+    ];
+  },
+  oldmaid(room) {
+    const s = room.shared || {};
+    const g = room._om || { hands: {} };
+    const live = s.phase === 'play';
+    const where = {};
+    for (const id of Object.keys(g.hands)) for (const c of g.hands[id]) where[c.i] = id;
+    return [
+      probe('a hand is on its own phone only', live, (view, pid) => {
+        if (pid === SCREEN) return null;
+        const mine = (view.you && view.you.hand) || [];
+        return mine.some((c) => where[c.i] !== pid) ? 'you.hand' : null;
+      }),
+      probe('who holds الشايب, and what was drawn, stay hidden until the end', live, (view) => {
+        const sh = Object.assign({}, view.shared, { thrown: [], events: (view.shared.events || []).filter((e) => e.type !== 'pairs') });
+        const text = JSON.stringify(sh);
+        return /"OM"|"(?:A|[2-9]|10|J|Q|K)[shdc]"/.test(text) || hasKey(view.shared, 'reveal') ? 'shared' : null;
+      })
+    ];
+  },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
   connect4: () => [], dots: () => [], ludo: () => [], bowling: () => []
@@ -798,6 +842,26 @@ const DRIVERS = {
       if (!ok) act(T, T.host, 'skipTurn', {});
     }
     return S(T).phase === 'gameover';
+  },
+  doubt: () => DRIVERS.withBots('doubt', 3, { turnClock: 30, end: 'places' }),
+  oldmaid() {
+    const T = table('oldmaid', 4);
+    const play = () => {
+      for (let guard = 0; guard < 600 && S(T).phase === 'play'; guard++) {
+        const s = S(T);
+        const from = s.turn.from;
+        const hand = (T.room.secrets[from] || {}).hand || [];
+        if (s.settings.mode === 'drag' && hand.length > 1 && Math.random() < 0.3) act(T, from, 'move', { card: pick(hand).i, to: Math.floor(Math.random() * hand.length) });
+        if (guard % 9 === 4) { runClock(T, (r) => r.shared.turnSeq !== s.turnSeq || r.shared.phase !== 'play'); continue; }
+        must(T, s.turn.pid, 'lift', { pos: Math.floor(Math.random() * s.counts[from]), seq: s.turnSeq });
+        must(T, S(T).turn.pid, 'take', { seq: S(T).turnSeq });
+      }
+    };
+    must(T, T.host, 'start', { turnClock: 15 });
+    play();
+    must(T, T.host, 'playAgain', { mode: 'shuffle' });
+    play();
+    return S(T).phase === 'gameover' && !!S(T).loser;
   },
   // The four with computer players: one person, bots for the rest, the turn clock for the person.
   uno: () => DRIVERS.withBots('uno', 3, { turnClock: 30 }),

@@ -3599,7 +3599,7 @@ async function main() {
   }
 
   /* --- ميني جولف: all at once, then in turns ------------------------------------------ */
-  console.log('• minigolf (every ball on the hole at once, the putt on every phone, 6 strokes then picked up, turns, the next hole on the server\'s clock)');
+  console.log('• minigolf (every ball on the hole at once, the putt on every phone, par + 3 strokes then picked up, turns with the balls knocking each other over nine holes, the next hole on the server\'s clock)');
   {
     const G1 = await Bot.host('جميلة', null);
     const G2 = await Bot.join(G1.code, 'Gus');
@@ -3630,35 +3630,49 @@ async function main() {
     for (const b of golfers) {
       for (let k = 0; k < 7 && !b.state.shared.balls[b.pid].done; k++) await putt(b, { dx: 0, dy: 1000, power: 20 });
     }
-    await all(golfers, (s) => s.shared.phase === 'between' && s.shared.card[G1.pid][0] === 7, 'minigolf: six strokes and the ball is picked up; the hole counts 7 and its card shows');
+    await all(golfers, (s) => s.shared.phase === 'between' && s.shared.card[G1.pid][0] === 6, 'minigolf: par 2 allows five strokes, then the ball is picked up; the hole counts 6 and its card shows');
     await all(golfers, (s) => s.shared.phase === 'play' && s.shared.hole === 1, 'minigolf: the next hole starts by itself', 15000);
     await G1.must('backToHub');
 
-    // In turns: one putt at a time, round the table.
+    // In turns: one putt at a time, round the table, the balls knocking each other; nine holes.
     await G1.must('chooseGame', { game: 'minigolf' });
-    await G1.must('start', { mode: 'turns', holes: 3, guide: true });
-    await all(golfers, (s) => s.shared.phase === 'play' && s.shared.settings.mode === 'turns' && !!s.shared.turn && s.shared.settings.guide,
-              'minigolf: in turns, one player is up');
+    await G1.must('start', { mode: 'turns', holes: 9, guide: true });
+    await all(golfers, (s) => s.shared.phase === 'play' && s.shared.settings.mode === 'turns' && !!s.shared.turn && s.shared.settings.guide && s.shared.holes === 9,
+              'minigolf: in turns, nine holes, one player is up');
     let up = byId(golfers, G1.state.shared.turn);
     const notUp = golfers.find((b) => b !== up);
     check((await putt(notUp, { dx: 0, dy: 1000, power: 200 })).ok === false, 'minigolf: in turns, a putt out of turn is refused');
-    await putt(up, { dx: 0, dy: 1000, power: 200 });
-    await all(golfers, (s) => s.shared.turn && s.shared.turn !== up.pid, 'minigolf: the turn goes round the table');
     const settle = async (pred) => { for (let i = 0; i < 80 && !pred(G1.state); i++) await sleep(50); };
-    for (let hole = 0; hole < 3; hole++) {
+    await putt(up, { dx: 0, dy: 1000, power: 230 });
+    await all(golfers, (s) => s.shared.turn && s.shared.turn !== up.pid, 'minigolf: the turn goes round the table');
+    check(Array.isArray(G1.state.shared.shots[up.pid].others) && !G1.state.shared.shots[up.pid].others.length,
+          'minigolf: the first putt of the hole has no other ball to meet (the rest are still on the tee, off the course)');
+    // The next one putts from the tee straight up the line into the ball lying there.
+    const firstBall = up.pid;
+    const lay = G1.state.shared.balls[firstBall].at.slice();
+    up = byId(golfers, G1.state.shared.turn);
+    const seq0 = G1.state.shared.shotSeq;
+    await putt(up, { dx: 0, dy: 1000, power: 430 });
+    await settle((s) => s.shared.shotSeq > seq0);
+    const knock = G1.state.shared.shots[up.pid];
+    check(knock.others.some((o) => o.id === firstBall) && knock.moved.some((m) => m.id === firstBall) &&
+          G1.state.shared.balls[firstBall].n === 1 && JSON.stringify(G1.state.shared.balls[firstBall].at) === JSON.stringify(knock.moved.find((m) => m.id === firstBall).at),
+          'minigolf: in turns a putt knocks the ball lying in its way, on every phone the same (it lay at ' + lay.join(',') + ')');
+    for (let hole = 0; hole < 9; hole++) {
       for (let guard = 0; guard < 40 && G1.state.shared.phase === 'play' && G1.state.shared.hole === hole; guard++) {
         up = byId(golfers, G1.state.shared.turn);
         const seq = G1.state.shared.shotSeq;
         await putt(up, { dx: 0, dy: 1000, power: 20 });
         await settle((s) => s.shared.shotSeq > seq);
       }
-      if (hole < 2) {
-        await G1.waitFor((s) => s.shared.phase === 'between', 'minigolf: in turns, the hole ends when every ball is done');
+      if (hole < 8) {
+        await G1.waitFor((s) => s.shared.phase === 'between', 'minigolf: in turns, hole ' + (hole + 1) + ' ends when every ball is done');
         await G1.must('nextHole', { hole });
       }
     }
     await all(golfers.concat([TV]), (s) => s.shared.phase === 'gameover' && s.phase === 'gameover' && s.shared.board.length === 3 &&
-              s.shared.board[0].score <= s.shared.board[2].score, 'minigolf: after the last hole the game is over, lowest total first');
+              s.shared.card[G1.pid].every((v) => typeof v === 'number') && s.shared.board[0].score <= s.shared.board[2].score,
+              'minigolf: after the ninth hole the game is over, lowest total first');
     await G1.must('backToHub');
     golfers.concat([TV]).forEach((b) => b.close());
   }

@@ -40,6 +40,8 @@ const MG_COLORS = ['#ffffff', '#ffd23f', '#ff6b9a', '#4fc3f7', '#ff9f43', '#7bed
 // Bidi marks and the Arabic block, built from char codes: an editor can't decode them into invisible characters.
 const MG_LRI = String.fromCharCode(0x2066), MG_PDI = String.fromCharCode(0x2069);
 const MG_ARABIC = new RegExp('[' + String.fromCharCode(0x0600) + '-' + String.fromCharCode(0x06FF) + ']');
+/** "6 holes" - in Arabic حفر up to ten and حفرة past it, as the language counts. */
+const mgHolesText = (n) => mgT(Number(n) > 10 ? 'mg_holes_n11' : 'mg_holes_n', { n });
 const mgHoleName = (i) => mgT('mg_h_' + ((GOLF_HOLES[i] || {}).id || ''));
 /** A score against par for a line of text: "+2", "−1", or "on par"; held left to right in Arabic. */
 const mgDelta = (d) => (d === 0 ? mgT('mg_even') : MG_LRI + (d > 0 ? '+' + d : '−' + Math.abs(d)) + MG_PDI);
@@ -601,7 +603,7 @@ function mg3SetHole(h, key) {
   const look = MG_LOOKS[h.id] || {};
 
   // The rough, far and wide, and the course raised on a stone plinth.
-  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex(look.snow ? 'snow' : 'rough', 30, 30), roughness: 1 }), false, true);
+  const rough = mgMesh(new THREE.PlaneGeometry(160, 160), mgMat({ map: mgTex(look.snow ? 'snow' : look.desert ? 'sand' : 'rough', 30, 30), roughness: 1 }), false, true);
   rough.rotation.x = -Math.PI / 2;
   rough.position.set(cx, -0.36, -cy);
   G.add(rough);
@@ -1351,7 +1353,7 @@ const MG_LOOKS = {
   souq: { deco: [{ k: 'lantern', x: 6.7, y: 12.4 }, { k: 'lantern', x: 6.7, y: 17.6 }, { k: 'lantern', x: 6.7, y: 22.8 }, { k: 'lantern', x: -0.8, y: 14 }, { k: 'lantern', x: -0.8, y: 21 },
     { k: 'tent', x: 10, y: 15.5 }, { k: 'tent', x: 10.4, y: 22.4 }, { k: 'camel', x: 14.8, y: 4.4, r: 2.6 }, { k: 'arch', x: 9, y: -1.7 }] },
   humps: { deco: [{ k: 'camel', x: 12.6, y: 12, r: 0.6 }, { k: 'camel', x: -3.2, y: 9, r: 2.4 }, { k: 'nubian', x: -3.6, y: 18 }, { k: 'palm', x: -2, y: 3 }, { k: 'tent', x: 13, y: 21 }, { k: 'farPyramid', x: 26, y: 38, s: 0.9 }] },
-  fair: { deco: [{ k: 'ferris', x: -4.6, y: 17 }, { k: 'tent', x: 14.6, y: 8 }, { k: 'tent', x: 14.8, y: 16 }, { k: 'arch', x: 6, y: -1.7 }, { k: 'flowerbed', x: 13, y: 21, len: 5 }] },
+  fair: { deco: [{ k: 'ferris', x: 6, y: 30.6 }, { k: 'tent', x: 14.6, y: 8 }, { k: 'tent', x: 14.8, y: 16 }, { k: 'arch', x: 6, y: -1.7 }, { k: 'flowerbed', x: 13, y: 21, len: 5 }] },
   pyramid: { deco: [{ k: 'palm', x: -2.2, y: 8 }, { k: 'palm', x: 16.2, y: 6 }, { k: 'palm', x: 16.4, y: 16 }, { k: 'farPyramid', x: -12, y: 34, s: 1.4 }, { k: 'farPyramid', x: 26, y: 40, s: 1 },
     { k: 'camel', x: -3, y: 16, r: 1.2 }, { k: 'columns', x: 16.4, y: 23 }] },
   nile: {
@@ -1361,11 +1363,11 @@ const MG_LOOKS = {
   },
   saqia: { deco: [{ k: 'wheel', x: -2.6, y: 7.4 }, { k: 'palm', x: 14, y: 8 }, { k: 'nubian', x: 15, y: 20 }, { k: 'papyrus', x: -1.2, y: 11 }, { k: 'tulips', x: 6, y: 26.4 }] },
   siwa: { deco: [{ k: 'palm', x: -2.2, y: 6 }, { k: 'palm', x: 12.3, y: 13 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'palm', x: 12.6, y: 22 }, { k: 'nubian', x: 13.4, y: 3, r: -0.3 },
-    { k: 'camel', x: -3, y: 13, r: 1.8 }, { k: 'tent', x: 5, y: 27 }] },
+    { k: 'camel', x: -3, y: 13, r: 1.8 }, { k: 'tent', x: 5, y: 27 }], desert: true },
   lighthouse: { deco: [{ k: 'lighthouse', x: -2.2, y: 24.4 }, { k: 'palm', x: 18.3, y: 24 }, { k: 'palm', x: 9, y: 8 }, { k: 'lantern', x: 16.9, y: 13.4 }] },
   citadel: { deco: [{ k: 'minaret', x: -2.8, y: 23 }, { k: 'minaret', x: 14.8, y: 25 }, { k: 'lantern', x: -0.8, y: 9 }, { k: 'lantern', x: 12.8, y: 9 }, { k: 'lantern', x: -0.8, y: 17 }, { k: 'lantern', x: 12.8, y: 17 }, { k: 'palm', x: 14.3, y: 4 }] },
   gate: { deco: [{ k: 'lantern', x: -0.9, y: 13.3 }, { k: 'lantern', x: 10.9, y: 13.3 }, { k: 'palm', x: -2.4, y: 20 }, { k: 'palm', x: 12.6, y: 4 }, { k: 'minaret', x: 13, y: 24 }, { k: 'flowerbed', x: -1.9, y: 5, len: 6 }] },
-  port: { deco: [{ k: 'crane', x: 14.6, y: 12.8 }, { k: 'containers', x: -3.2, y: 19 }, { k: 'containers', x: 14.6, y: 21 }, { k: 'lighthouse', x: -2.6, y: 4 }, { k: 'felucca', x: 6, y: 12.6 }] },
+  port: { deco: [{ k: 'crane', x: 17.4, y: 12.8 }, { k: 'containers', x: -3.2, y: 19 }, { k: 'containers', x: 14.6, y: 21 }, { k: 'lighthouse', x: -2.6, y: 4 }, { k: 'felucca', x: 6, y: 12.6 }] },
   temple: { deco: [{ k: 'columns', x: -1.9, y: 7 }, { k: 'columns', x: -1.9, y: 17 }, { k: 'columns', x: 13.9, y: 12 }, { k: 'palm', x: 14.2, y: 22 }, { k: 'farPyramid', x: -14, y: 34, s: 1.2 }, { k: 'papyrus', x: 13, y: 3 }] },
   sinai: { deco: [{ k: 'pine', x: -2, y: 4 }, { k: 'pine', x: -2.6, y: 12 }, { k: 'pine', x: 14, y: 8 }, { k: 'pine', x: 14.4, y: 17 }, { k: 'pine', x: 12.6, y: 27 }, { k: 'pine', x: -1.4, y: 26 },
     { k: 'snowman', x: 13.6, y: 2.6 }, { k: 'snowman', x: -1.8, y: 20 }, { k: 'monastery', x: 6, y: 32 }], snow: true },
@@ -1373,8 +1375,8 @@ const MG_LOOKS = {
     deco: [{ k: 'palm', x: 9.2, y: 20.5 }, { k: 'palm', x: 11.4, y: 23.8 }, { k: 'palm', x: 9.6, y: 26.6 }, { k: 'palm', x: 13, y: 20.8 }, { k: 'palm', x: 3.6, y: 7 },
       { k: 'palm', x: 1.6, y: 3.2 }, { k: 'tent', x: 12.4, y: 26.4 }, { k: 'camel', x: 4.4, y: 3.8, r: 2.2 }, { k: 'papyrus', x: 5.6, y: 15.3 }]
   },
-  tower: { deco: [{ k: 'cairoTower', x: -4.2, y: 6.4 }, { k: 'palm', x: 16.2, y: 6 }, { k: 'palm', x: 16.4, y: 18 }, { k: 'palm', x: -2.2, y: 24 }, { k: 'flowerbed', x: 15.9, y: 12, len: 6 },
-    { k: 'fountain', x: 7, y: 31.4 }, { k: 'lantern', x: -0.9, y: 16 }, { k: 'lantern', x: 14.9, y: 26 }] }
+  tower: { deco: [{ k: 'cairoTower', x: 3, y: 31.6 }, { k: 'palm', x: 16.2, y: 6 }, { k: 'palm', x: 16.4, y: 18 }, { k: 'palm', x: -2.2, y: 24 }, { k: 'flowerbed', x: 15.9, y: 12, len: 6 },
+    { k: 'fountain', x: 11, y: 31 }, { k: 'lantern', x: -0.9, y: 16 }, { k: 'lantern', x: 14.9, y: 26 }] }
 };
 
 /** Trees, bushes and flowers scattered on the rough round the course, never on it. */
@@ -1398,7 +1400,7 @@ function mgScenery(G, h, look) {
     if (onCourse(x, y) || near(x, y)) continue;
     const kind = r();
     const gy = -0.36, z = -y;
-    if (kind < 0.36) {
+    if (kind < 0.36 && !look.desert) {
       const s = 0.85 + r() * 0.6;
       trunks.push({ p: [x, gy + 0.5 * s, z], s: [s, s, s] });
       for (let k = 0; k < 3; k++) {
@@ -1962,6 +1964,11 @@ function mg3Play(id, sim, off, opts) {
   if (!b || !mg3Ready()) return false;
   const o = opts || {};
   const from = o.from || [sim.sx, sim.sy];
+  // A roll this screen is still showing, of this ball or of one knocking it, ends at once (a screen that fell behind).
+  const settle = (ball) => { if (ball && ball.play) mg3StepBall(ball, performance.now() + 1e7, 0); };
+  settle(b);
+  if (b.drivenBy) { settle(MG3.balls.get(b.drivenBy)); b.drivenBy = null; }
+  (sim.others || []).forEach(ob => { const ball = MG3.balls.get(ob.id); if (ball) { settle(ball); if (ball.drivenBy && ball.drivenBy !== id) settle(MG3.balls.get(ball.drivenBy)); } });
   b.play = {
     sim, start: performance.now(), off: Math.max(0, off || 0), onEnd: o.onEnd || null,
     returns: Object.assign({ main: from }, o.returns || {}), loud: o.loud !== false, seen: {}, flaps: {}, bumped: {}
@@ -2471,7 +2478,7 @@ function mgCardHtml(rows, holes, o) {
       }).join('')}</tbody>
     </table>`;
   };
-  return `<div class="mg-card">${upto > 9 ? table(0, 9, false) + table(9, upto, true) : table(0, upto, true)}</div>`;
+  return upto > 9 ? `<div class="mg-card mg-card--two">${table(0, 9, false) + table(9, upto, true)}</div>` : `<div class="mg-card">${table(0, upto, true)}</div>`;
 }
 
 /** A card's totals count up from what they were before the hole just played (once per hole). */
@@ -2509,7 +2516,7 @@ function paintMiniGolfSetup() {
   if (guide) guide.checked = !!s.guide;
   const best = soloBest('minigolf', String(s.holes));
   const line = document.getElementById('mg-best');
-  if (line) line.textContent = best ? '🏆 ' + mgT('mg_best', { h: s.holes, n: best.total, d: mgDelta(best.total - best.par) }) : mgT('mg_no_best', { h: s.holes });
+  if (line) line.textContent = best ? '🏆 ' + mgT('mg_best', { hh: mgHolesText(s.holes), n: best.total, d: mgDelta(best.total - best.par) }) : mgT('mg_no_best', { hh: mgHolesText(s.holes) });
   const cont = document.getElementById('minigolf-continue');
   if (cont) cont.classList.toggle('hidden', !mgSoloLive(s));
 }
@@ -2686,12 +2693,12 @@ function mgSoloShowResult() {
   saveToLocal();
   const lines = [escapeHTML(mgT('mg_vs_par', { d: mgDelta(total - par), p: par }))];
   if (rec.record) lines.push('🏆 ' + escapeHTML(mgT('solo_new_best')));
-  else if (rec.prev) lines.push(escapeHTML(mgT('mg_best', { h: g.holes, n: rec.prev.total, d: mgDelta(rec.prev.total - rec.prev.par) })));
+  else if (rec.prev) lines.push(escapeHTML(mgT('mg_best', { hh: mgHolesText(g.holes), n: rec.prev.total, d: mgDelta(rec.prev.total - rec.prev.par) })));
   soloResult({
-    icon: '⛳', title: mgT('mg_result_title', { n: g.holes }), value: total, valueLabel: mgT('mg_total_label'), lines,
+    icon: '⛳', title: mgT('mg_result_title', { hh: mgHolesText(g.holes) }), value: total, valueLabel: mgT('mg_total_label'), lines,
     win: rec.record || total <= par,
     quiet: shown,
-    share: mgT('mg_share', { n: total, h: g.holes, d: mgDelta(total - par) }) + '\n' + mgCardText(s.card, g.holes),
+    share: mgT('mg_share', { n: total, hh: mgHolesText(g.holes), d: mgDelta(total - par) }) + '\n' + mgCardText(s.card, g.holes),
     again: startMiniGolf, againLabel: '⛳ ' + mgT('mg_again'),
     exit: setupMiniGolf
   });
@@ -3020,7 +3027,7 @@ function mgOverHtml(state, tv) {
   const w = (s.result || {}).winners || [];
   const line = w.length && rows.length > 1 ? `<p class="mg-panel__word">🏆 ${escapeHTML(w.map(id => mgName(state, id)).join(appState.lang === 'en' ? ', ' : '، '))}</p>` : '';
   return `<div class="mg-panel__card card mg-panel__card--over">
-      <p class="eyebrow">${escapeHTML(mgT('mg_result_title', { n: s.holes }))}</p>
+      <p class="eyebrow">${escapeHTML(mgT('mg_result_title', { hh: mgHolesText(s.holes) }))}</p>
       ${line}
       ${podium}
       ${mgCardHtml(rows, s.holes, { upto: s.holes })}

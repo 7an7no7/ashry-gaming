@@ -3469,6 +3469,78 @@ async function main() {
     P.close();
   }
 
+  /* --- حرب السفن: two duel, the room watches, winner stays on ------------------------- */
+  console.log('• battleship (each fleet on its own phone, placing and ready, a hit shoots again, a sunk ship shown, winner stays on, the host plays for a quiet phone)');
+  {
+    const H = await Bot.host('بحري', null);
+    const J = await Bot.join(H.code, 'Jana');
+    const K = await Bot.join(H.code, 'كريم');
+    const S = await Bot.join(H.code, '', true);
+    const bsBots = [H, J, K];
+    const cellsOf = (fleet) => {
+      const out = [];
+      [5, 4, 3, 3, 2].forEach((len, i) => { const p = fleet[i]; const c = []; for (let n = 0; n < len; n++) c.push(p.d === 'v' ? (p.y + n) * 10 + p.x : p.y * 10 + p.x + n); out.push(c); });
+      return out;
+    };
+    await H.must('chooseGame', { game: 'battleship' });
+    await H.must('start', {});
+    await all(bsBots.concat([S]), (s) => s.game === 'battleship' && s.shared.phase === 'place' && s.shared.seats.length === 2 && s.shared.line.length === 1,
+              'battleship: two sit down to place their fleets, one waits in line');
+    const first = byId(bsBots, H.state.shared.seats[0]);
+    const second = byId(bsBots, H.state.shared.seats[1]);
+    const watcher = bsBots.find((b) => b !== first && b !== second);
+    check(first.state.you && first.state.you.fleet.length === 5 && second.state.you && second.state.you.fleet.length === 5 && !watcher.state.you && S.state.you === null,
+          'battleship: each seated phone holds its own fleet, the one watching and the TV none');
+    check(!leaks(watcher, '"fleet"') && !leaks(S, '"fleet"') && !leaks(first, JSON.stringify(second.state.you.fleet)),
+          'battleship: no fleet reaches another phone or the TV');
+    const touching = [{ x: 0, y: 0, d: 'h' }, { x: 0, y: 1, d: 'h' }, { x: 0, y: 4, d: 'h' }, { x: 0, y: 6, d: 'h' }, { x: 0, y: 8, d: 'h' }];
+    check((await first.act('place', { fleet: touching })).ok === false, 'battleship: a fleet with ships touching is refused');
+    await first.must('place', { fleet: first.state.you.fleet });
+    await second.waitFor((s) => s.shared.ready[0] === true && s.shared.phase === 'place', 'battleship: ready shows on the other phone, and the game waits');
+    await second.must('place', { fleet: second.state.you.fleet });
+    await all(bsBots.concat([S]), (s) => s.shared.phase === 'play' && s.shared.turn === 0, 'battleship: both ready, the first seat fires');
+    let seq = first.state.shared.turnSeq;
+    check((await second.act('fire', { cell: 0, seq: second.state.shared.turnSeq })).ok === false, 'battleship: out of turn is refused');
+    check((await watcher.act('fire', { cell: 0, seq })).ok === false, 'battleship: someone in the line cannot fire');
+    // The robots know where the other fleet is (the test must); the rules don't care how the square was chosen.
+    const target = cellsOf(second.state.you.fleet);
+    await first.must('fire', { cell: target[4][0], seq });
+    await all(bsBots.concat([S]), (s) => s.shared.shots === 1 && s.shared.turn === 0 && s.shared.last.res === 'hit',
+              'battleship: a hit reaches every screen, and the same player fires again');
+    await first.must('fire', { cell: target[4][1], seq: first.state.shared.turnSeq });
+    await all(bsBots.concat([S]), (s) => s.shared.last.res === 'sunk' && s.shared.last.ship === 4 && s.shared.seas[1].sunk.length === 1 &&
+                                         s.shared.seas[1].sunk[0].x === second.state.you.fleet[4].x && s.shared.seas[1].grid.some((v) => v === 4),
+              'battleship: a sunk ship is shown whole on every screen, the water round it marked');
+    const water = second.state.shared.seas[1].grid.map((v, i) => i).find((i) => second.state.shared.seas[1].grid[i] === 0 && !target.some((c) => c.indexOf(i) !== -1));
+    await first.must('fire', { cell: water, seq: first.state.shared.turnSeq });
+    await all(bsBots, (s) => s.shared.turn === 1 && s.shared.last.res === 'miss', 'battleship: a miss passes the turn');
+    // Played to the end: whoever is up fires at the next square of a ship afloat.
+    const fleets = [cellsOf(first.state.you.fleet), target];
+    for (let k = 0; k < 60 && H.state.shared.phase === 'play'; k++) {
+      const s = H.state.shared;
+      const up = byId(bsBots, s.seats[s.turn]);
+      // The first sinks ships; the second only finds water, so the first wins.
+      const aim = s.turn === 0 ? fleets[1].flat().find((c) => s.seas[1].grid[c] === 0)
+        : s.seas[0].grid.map((v, i) => i).find((i) => s.seas[0].grid[i] === 0 && !fleets[0].flat().includes(i));
+      await up.must('fire', { cell: aim, seq: s.turnSeq });
+      await H.waitFor((st) => st.shared.shots > s.shots, 'battleship: a shot lands', 3000);
+    }
+    await all(bsBots.concat([S]), (s) => s.shared.phase === 'over' && s.shared.result.winnerId === first.pid && s.shared.result.reason === 'fleet' &&
+                                         Array.isArray(s.shared.reveal) && JSON.stringify(s.shared.reveal[1]) === JSON.stringify(second.state.you.fleet),
+              'battleship: the last ship down wins, and both fleets are shown on every screen');
+    await watcher.must('nextRound', { round: H.state.shared.round });
+    await all(bsBots, (s) => s.shared.phase === 'place' && s.shared.seats[0] === watcher.pid && s.shared.seats[1] === first.pid,
+              'battleship: the next in line sits down against the winner, and fires first');
+    check(!second.state.you || second.state.you.fleet === undefined, 'battleship: the one who lost holds no fleet any more');
+    // The host plays for a quiet phone: placing, then a shot at random.
+    await H.must('skipTurn', { seq: H.state.shared.turnSeq });
+    await all(bsBots, (s) => s.shared.phase === 'play', 'battleship: the host\'s "play for" sails both fleets as they are');
+    await H.must('skipTurn', { seq: H.state.shared.turnSeq });
+    await all(bsBots, (s) => s.shared.shots === 1, 'battleship: and fires one shot at random for the player up');
+    await H.must('backToHub');
+    bsBots.concat([S]).forEach((b) => b.close());
+  }
+
   /* --- المشنقة: one writes and the rest guess, then a race ------------------------ */
   console.log('• hangman (a written word kept from the guessers, each board its own, the writer\'s points, a race, the clock)');
   {

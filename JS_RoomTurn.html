@@ -106,6 +106,11 @@ function roomTurnOf(state) {
       // The word to write, or your own board still being guessed.
       if (s.phase === 'writing') return s.setter === me ? 'turn_up' : null;
       return s.phase === 'guessing' && (state.you || {}).state === 'play' ? 'turn_up' : null;
+    case 'battleship':
+      // Your fleet to place, or your shot (RoomBattleship.js).
+      if (!Array.isArray(s.seats) || s.seats.indexOf(me) === -1) return null;
+      if (s.phase === 'place') return Array.isArray(s.ready) && !s.ready[s.seats.indexOf(me)] ? 'turn_up' : null;
+      return s.phase === 'play' && s.seats[s.turn] === me ? 'turn_up' : null;
     case 'connect4':
     case 'dots':
       // The duels: only the seat whose move it is (RoomDuels.js).

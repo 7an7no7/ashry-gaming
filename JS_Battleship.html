@@ -1,0 +1,2531 @@
+<script>
+/* ============================================================================
+   حرب السفن — BATTLESHIP on the phones, the TV, and against the phone
+   ----------------------------------------------------------------------------
+   The rules are Battleship.js (shared with the rooms server) and, in rooms,
+   RoomBattleship.js. This file draws the sea and plays it:
+
+   - The sea (bsView*): one view per page, moved into whichever screen shows a
+     sea (the one-phone board, a room phone, the TV), so there is only ever one
+     WebGL renderer, and it is thrown away when the last such screen is left
+     (onLeaveScreen). With three.js (loadThree in JS_Three.html) it is a real
+     3D sea: moving water (two scrolling normal maps under a sky's reflection),
+     crafted low-poly ships, a shell arcing over, a splash on a miss, fire and
+     smoke on a hit, a ship listing and settling when it sinks. Seen from above
+     at an angle; the camera glides to the sea being fired at. Without WebGL -
+     or while three.js can't load - the same sea is a clean flat board.
+   - Placing (both): drag a ship, tap it to turn it, 🎲 for a random fleet. A
+     ship dropped where it touches another goes back where it was.
+   - Firing: tap a square to aim (its name shows, "B7"), tap it again or press
+     Fire. The shot flies before its result is shown anywhere on the page.
+
+   What each screen shows is a "model" (bsViewModel): two seas side by side
+   (side 0 is yours - or the first seat's for anyone watching - side 1 the
+   other), which one the camera frames, the fleets that may be drawn (your own;
+   a ship once it has sunk; everything once the game is over), and the newest
+   shot, which is animated once and only once per phone.
+
+   The owner's look (23 Sep 2026): "like the bowling and golf" - real 3D, not
+   the flat drawings they called "a pixeled game from the 80s".
+   ========================================================================= */
+
+const BS_SEA_X = 6.6;             // each sea's centre, left and right of the middle
+const BS_SIDE_COL = ['#3b82f6', '#f97316'];   // side 0 (you / the first seat), side 1
+
+const bsT = (key, vars) => {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || key;
+  Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
+  return s;
+};
+const bsShipLabel = (i) => bsShipName(i, appState.lang === 'en' ? 'en' : 'ar');
+const bsShipShort = (i) => bsShipName(i, appState.lang === 'en' ? 'en' : 'arShort');
+// A square's name inside a translated line keeps its own order ("B7", not "7B").
+const bsCoordIso = (cell) => '⁦' + bsCoord(cell) + '⁩';
+
+/**
+ * The sea just before its newest shot, worked out from the sea after it and
+ * the shot itself: the square back to water, and on a sinking the ship back to
+ * hits and the water round it unmarked (unless another sunk ship marked it).
+ */
+function bsSeaBefore(sea, last) {
+  const grid = sea.grid.slice();
+  let sunk = (sea.sunk || []).slice();
+  if (!last || typeof last.cell !== 'number') return { grid: grid, sunk: sunk };
+  if (last.res === 'sunk' && typeof last.ship === 'number') {
+    const p = sunk.find(x => x.i === last.ship);
+    sunk = sunk.filter(x => x.i !== last.ship);
+    if (p) {
+      const cells = bsShipCells(p, BS_SHIPS[p.i].len);
+      const kept = new Set();
+      sunk.forEach(q => bsShipCells(q, BS_SHIPS[q.i].len).forEach(c => { kept.add(c); bsNeighbours(c).forEach(n => kept.add(n)); }));
+      cells.forEach(c => {
+        grid[c] = BS_HIT;
+        bsNeighbours(c).forEach(n => { if (grid[n] === BS_CLEAR && !kept.has(n)) grid[n] = BS_SEA; });
+      });
+    }
+  }
+  grid[last.cell] = BS_SEA;
+  return { grid: grid, sunk: sunk };
+}
+
+/* --- sounds, made like the soundboard's (JS_Sounds.html) -------------------------- */
+
+function bsSound(kind) {
+  try {
+    if (typeof fxCtx !== 'function' || typeof fxTone !== 'function' || typeof fxNoise !== 'function') return;
+    const at = fxCtx().currentTime + 0.01;
+    if (kind === 'fire') {
+      // The gun: a deep thump and a crack.
+      fxTone('sine', [[0, 120], [0.25, 38]], [[0, 0], [0.005, 0.5], [0.3, 0.001]], at);
+      fxNoise('lowpass', 1400, 0.7, [[0, 0], [0.004, 0.35], [0.22, 0.001]], at);
+    } else if (kind === 'whistle') {
+      fxTone('sine', [[0, 1500], [0.8, 520]], [[0, 0], [0.1, 0.05], [0.7, 0.06], [0.85, 0.001]], at);
+    } else if (kind === 'splash') {
+      fxNoise('lowpass', 900, 0.6, [[0, 0], [0.01, 0.32], [0.5, 0.001]], at);
+      fxNoise('bandpass', 2600, 1.2, [[0, 0], [0.03, 0.06], [0.35, 0.001]], at + 0.05);
+      for (let i = 0; i < 4; i++) fxTone('sine', [[0, 500 + i * 140], [0.06, 900 + i * 160]], [[0, 0], [0.005, 0.05], [0.07, 0.001]], at + 0.25 + i * 0.07);
+    } else if (kind === 'boom') {
+      fxTone('sine', [[0, 90], [0.6, 28]], [[0, 0], [0.006, 0.6], [0.7, 0.001]], at);
+      fxNoise('lowpass', 2200, 0.6, [[0, 0], [0.004, 0.45], [0.9, 0.001]], at);
+      fxNoise('highpass', 3000, 0.7, [[0, 0], [0.002, 0.08], [0.15, 0.001]], at);
+    } else if (kind === 'sink') {
+      fxNoise('lowpass', 260, 0.8, [[0, 0], [0.2, 0.32], [1.8, 0.001]], at);
+      fxTone('sawtooth', [[0, 110], [1.6, 42]], [[0, 0], [0.1, 0.06], [1.7, 0.001]], at);
+      for (let i = 0; i < 7; i++) fxTone('sine', [[0, 300 + Math.random() * 400], [0.05, 700 + Math.random() * 500]], [[0, 0], [0.004, 0.05], [0.06, 0.001]], at + 0.5 + i * 0.16);
+    } else if (kind === 'place') {
+      fxTone('triangle', [[0, 240], [0.08, 150]], [[0, 0], [0.005, 0.18], [0.12, 0.001]], at);
+      fxNoise('lowpass', 1200, 0.8, [[0, 0], [0.003, 0.08], [0.05, 0.001]], at);
+    } else if (kind === 'turn') {
+      fxTone('triangle', [[0, 520], [0.06, 700]], [[0, 0], [0.005, 0.1], [0.09, 0.001]], at);
+    } else if (kind === 'refuse') {
+      fxTone('square', [[0, 180]], [[0, 0], [0.005, 0.05], [0.08, 0.001]], at);
+      fxTone('square', [[0, 150]], [[0, 0], [0.005, 0.05], [0.1, 0.001]], at + 0.11);
+    } else if (kind === 'aim') {
+      fxTone('sine', [[0, 880]], [[0, 0], [0.004, 0.05], [0.06, 0.001]], at);
+    }
+  } catch (e) {}
+}
+
+/* ============================================================================
+   The 3D sea
+   ========================================================================= */
+
+/** A seeded source, so textures and the ships' details come out the same every time. */
+function bsRand(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+function bsCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return [c, c.getContext('2d')];
+}
+
+/**
+ * A tileable normal map for the water: a height field of sine waves whose
+ * directions are whole numbers of waves across the tile, so it repeats with
+ * no seam, turned into normals.
+ */
+function bsWaterNormals(seed, size, waves) {
+  const r = bsRand(seed);
+  const n = size;
+  const hgt = new Float32Array(n * n);
+  const list = [];
+  for (let k = 0; k < waves; k++) {
+    const fx = Math.round((r() - 0.5) * 2 * (2 + k)), fy = Math.round((r() - 0.5) * 2 * (2 + k)) || 1;
+    list.push([fx, fy, 1 / (1 + k * 0.55), r() * Math.PI * 2]);
+  }
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      let v = 0;
+      for (const [fx, fy, a, ph] of list) v += a * Math.sin((fx * x + fy * y) / n * Math.PI * 2 + ph);
+      hgt[y * n + x] = v;
+    }
+  }
+  const [c, g] = bsCanvas(n, n);
+  const img = g.createImageData(n, n);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const l = hgt[y * n + ((x - 1 + n) % n)], rr = hgt[y * n + ((x + 1) % n)];
+      const u = hgt[((y - 1 + n) % n) * n + x], d = hgt[((y + 1) % n) * n + x];
+      let nx = (l - rr) * 1.6, ny = (u - d) * 1.6, nz = 1;
+      const len = Math.hypot(nx, ny, nz);
+      nx /= len; ny /= len; nz /= len;
+      const i = (y * n + x) * 4;
+      img.data[i] = Math.round((nx * 0.5 + 0.5) * 255);
+      img.data[i + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+      img.data[i + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+      img.data[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+/** A soft round sprite for the particles: fire and splash (smooth), smoke (a lumpy puff). */
+function bsPuffCanvas(lumpy) {
+  const [c, g] = bsCanvas(64, 64);
+  if (!lumpy) {
+    const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(255,255,255,1)');
+    grd.addColorStop(0.35, 'rgba(255,255,255,0.75)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+    return c;
+  }
+  const r = bsRand(17);
+  for (let k = 0; k < 9; k++) {
+    const x = 20 + r() * 24, y = 20 + r() * 24, rad = 10 + r() * 12;
+    const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+    grd.addColorStop(0, 'rgba(255,255,255,0.55)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  }
+  return c;
+}
+
+/** The carrier's flight deck: dark, with its lines and its number. */
+function bsCarrierDeck() {
+  const [c, g] = bsCanvas(512, 96);
+  g.fillStyle = '#3a4048'; g.fillRect(0, 0, 512, 96);
+  const r = bsRand(5);
+  for (let k = 0; k < 400; k++) { g.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '0,0,0'},${0.03 + r() * 0.05})`; g.fillRect(r() * 512, r() * 96, 2 + r() * 8, 1 + r() * 2); }
+  g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 3; g.setLineDash([16, 12]);
+  g.beginPath(); g.moveTo(24, 48); g.lineTo(488, 48); g.stroke();
+  g.setLineDash([]); g.strokeStyle = 'rgba(250,204,21,0.85)'; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(10, 8); g.lineTo(502, 8); g.moveTo(10, 88); g.lineTo(502, 88); g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(120, 20); g.lineTo(330, 70); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = '800 40px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.save(); g.translate(452, 48); g.rotate(Math.PI / 2); g.fillText('07', 0, 0); g.restore();
+  return c;
+}
+
+/** Foam: white, broken, strongest at the hull's edge - mapped across a hull's outline. */
+function bsFoamCanvas() {
+  const [c, g] = bsCanvas(256, 64);
+  const r = bsRand(29);
+  const grd = g.createLinearGradient(0, 0, 0, 64);
+  grd.addColorStop(0, 'rgba(255,255,255,0.55)'); grd.addColorStop(0.18, 'rgba(255,255,255,0.12)');
+  grd.addColorStop(0.82, 'rgba(255,255,255,0.12)'); grd.addColorStop(1, 'rgba(255,255,255,0.55)');
+  g.fillStyle = grd; g.fillRect(0, 0, 256, 64);
+  for (let k = 0; k < 260; k++) {
+    g.fillStyle = `rgba(255,255,255,${0.15 + r() * 0.4})`;
+    const y = r() < 0.5 ? r() * 12 : 64 - r() * 12;
+    g.beginPath(); g.arc(r() * 256, y, 0.8 + r() * 2.2, 0, 7); g.fill();
+  }
+  return c;
+}
+
+/** A crosshair for the square being aimed at: corner brackets and a soft glow. */
+function bsCrossCanvas() {
+  const [c, g] = bsCanvas(128, 128);
+  g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 9; g.lineCap = 'round';
+  const k = 34, a = 12, b = 116;
+  [[a, a, 1, 1], [b, a, -1, 1], [a, b, 1, -1], [b, b, -1, -1]].forEach(([x, y, sx, sy]) => {
+    g.beginPath(); g.moveTo(x, y + sy * k); g.lineTo(x, y); g.lineTo(x + sx * k, y); g.stroke();
+  });
+  g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(14, 14, 100, 100);
+  g.fillStyle = 'rgba(255,255,255,0.95)';
+  g.beginPath(); g.arc(64, 64, 6, 0, 7); g.fill();
+  return c;
+}
+
+/** The sky the water reflects, as an environment (a gradient dome and a sun). */
+function bsSkyEnv(THREE, pmrem, dark) {
+  const s = new THREE.Scene();
+  const geo = new THREE.SphereGeometry(50, 32, 16);
+  const col = [];
+  const pos = geo.attributes.position;
+  const top = new THREE.Color(dark ? 0x0b1630 : 0x4d8fd6);
+  const hor = new THREE.Color(dark ? 0x3a3552 : 0xe8f2fb);
+  const low = new THREE.Color(dark ? 0x05080f : 0x2a5877);
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) / 50;
+    const c = y > 0 ? hor.clone().lerp(top, Math.pow(y, 0.6)) : hor.clone().lerp(low, Math.min(1, -y * 3));
+    col.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  s.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  if (!dark) {
+    const sun = new THREE.Mesh(new THREE.SphereGeometry(3, 16, 8), new THREE.MeshBasicMaterial({ color: 0xf2f6fb }));
+    sun.position.set(-30, 26, -24);
+    s.add(sun);
+  }
+  const tex = pmrem.fromScene(s, 0.02).texture;
+  s.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  return tex;
+}
+
+/* --- the ships ------------------------------------------------------------------- */
+
+/**
+ * A hull outline, seen from above: a squared stern with rounded corners, the
+ * sides straight, then a pointed bow. u runs along the ship (stern -L/2 to
+ * bow +L/2), v across it.
+ */
+function bsHullShape(THREE, L, b, bow) {
+  const s = new THREE.Shape();
+  const h = L / 2, r = Math.min(0.08, b * 0.4);
+  s.moveTo(-h, -b + r);
+  s.quadraticCurveTo(-h, -b, -h + r, -b);
+  s.lineTo(h - bow, -b);
+  s.quadraticCurveTo(h - bow * 0.2, -b * 0.92, h, 0);
+  s.quadraticCurveTo(h - bow * 0.2, b * 0.92, h - bow, b);
+  s.lineTo(-h + r, b);
+  s.quadraticCurveTo(-h, b, -h, b - r);
+  s.closePath();
+  return s;
+}
+
+/** A hull's size seen from above: its length, half its width, and how long its bow runs. */
+function bsHullDims(kind) {
+  const L = BS_SHIPS[kind].len - 0.14;
+  const b = kind === 0 ? 0.33 : kind === 4 ? 0.26 : kind === 2 ? 0.29 : kind === 3 ? 0.21 : 0.32;
+  return { L: L, b: b, bow: Math.min(0.9, L * 0.26) };
+}
+
+/** A slab of a shape, `h` tall from y0 up, lying along x. */
+function bsSlab(THREE, shape, h, y0, bevel) {
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: h, bevelEnabled: !!bevel, bevelThickness: bevel || 0, bevelSize: bevel || 0, bevelSegments: 1, curveSegments: 6
+  });
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(0, y0, 0);
+  return geo;
+}
+
+/**
+ * The materials of one side's ships: steel greys with the side's colour as a
+ * stripe and on the turret tops, the red below the waterline (seen as a ship
+ * lists), and dark for windows and guns. `charred` is the same set burnt, for
+ * a ship that sank.
+ */
+function bsShipMats(THREE, accent, enemy) {
+  const m = (color, rough, metal) => new THREE.MeshStandardMaterial({ color: color, roughness: rough, metalness: metal, flatShading: true });
+  const set = {
+    hull: m(enemy ? 0x5a6069 : 0x7d8a98, 0.62, 0.25),
+    lower: m(0x8f2a26, 0.7, 0.1),
+    deck: m(enemy ? 0x7a7f86 : 0x9ea9b4, 0.75, 0.1),
+    top: m(enemy ? 0x8a9097 : 0xc3ccd5, 0.55, 0.2),
+    dark: m(0x22262d, 0.5, 0.4),
+    glass: new THREE.MeshStandardMaterial({ color: 0x1b2a3a, roughness: 0.15, metalness: 0.6 }),
+    accent: m(new THREE.Color(accent).getHex(), 0.5, 0.2),
+    sub: m(enemy ? 0x2c3038 : 0x323b47, 0.45, 0.35)
+  };
+  const deckTex = new THREE.CanvasTexture(bsCarrierDeck());
+  deckTex.colorSpace = THREE.SRGBColorSpace;
+  deckTex.anisotropy = 4;
+  set.flight = new THREE.MeshStandardMaterial({ map: deckTex, roughness: 0.85, metalness: 0.05 });
+  const burnt = {};
+  Object.keys(set).forEach(k => {
+    const c = set[k].color.clone().lerp(new THREE.Color(0x1a1512), 0.62);
+    burnt[k] = new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, metalness: 0.05, flatShading: true });
+  });
+  set.charred = burnt;
+  return set;
+}
+
+/**
+ * One ship, built from simple shapes but crafted: a hull with a flared bow,
+ * a deck, and what makes each kind recognisable - the carrier's flight deck,
+ * island and parked jets; the battleship's three turrets, tower and funnel;
+ * the cruiser's gun and radar mast; the submarine's low hull and sail; the
+ * destroyer's single gun. Lies along +x, its middle at the origin, the
+ * waterline at y = 0. `kind` is the ship's index in BS_SHIPS.
+ */
+function bsBuildShip(THREE, kind, mats) {
+  const g = new THREE.Group();
+  const add = (geo, mat, x, y, z, shadow) => {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x || 0, y || 0, z || 0);
+    mesh.castShadow = shadow !== false;
+    mesh.receiveShadow = true;
+    g.add(mesh);
+    return mesh;
+  };
+  const len = BS_SHIPS[kind].len;
+  const L = len - 0.14;
+  const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  const cyl = (rt, rb, h, seg) => new THREE.CylinderGeometry(rt, rb, h, seg || 10);
+  const turret = (x, y, dir, barrels, size) => {
+    const s = size || 1;
+    const tur = new THREE.Group();
+    const base = new THREE.Mesh(cyl(0.13 * s, 0.15 * s, 0.05, 12), mats.top);
+    base.castShadow = true;
+    tur.add(base);
+    const house = new THREE.Mesh(box(0.24 * s, 0.1 * s, 0.22 * s), mats.top);
+    house.position.set(0.01 * s, 0.07 * s, 0);
+    house.castShadow = true;
+    tur.add(house);
+    const cap = new THREE.Mesh(box(0.2 * s, 0.02, 0.18 * s), mats.accent);
+    cap.position.set(0.01 * s, 0.13 * s, 0);
+    tur.add(cap);
+    for (let k = 0; k < barrels; k++) {
+      const b = new THREE.Mesh(cyl(0.017 * s, 0.02 * s, 0.34 * s, 6), mats.dark);
+      b.rotation.z = -Math.PI / 2;
+      b.position.set(0.28 * s, 0.075 * s, (k - (barrels - 1) / 2) * 0.06 * s);
+      b.castShadow = true;
+      tur.add(b);
+    }
+    tur.position.set(x, y, 0);
+    tur.rotation.y = dir;
+    g.add(tur);
+    return tur;
+  };
+
+  if (kind === 3) {
+    // The submarine: a long low body, mostly under water, and its sail.
+    const body = new THREE.CapsuleGeometry(0.21, L - 0.42, 6, 14);
+    body.rotateZ(Math.PI / 2);
+    body.scale(1, 0.82, 1);
+    add(body, mats.sub, 0, -0.03, 0);
+    const deck = box(L * 0.62, 0.03, 0.14);
+    add(deck, mats.sub, 0.08, 0.13, 0);
+    const sailShape = new THREE.Shape();
+    sailShape.moveTo(-0.26, -0.08); sailShape.lineTo(0.16, -0.08);
+    sailShape.quadraticCurveTo(0.3, 0, 0.16, 0.08); sailShape.lineTo(-0.26, 0.08);
+    sailShape.quadraticCurveTo(-0.34, 0, -0.26, -0.08);
+    add(bsSlab(THREE, sailShape, 0.24, 0.12), mats.sub, 0.3, 0, 0);
+    add(box(0.05, 0.015, 0.36), mats.sub, 0.36, 0.28, 0);
+    add(cyl(0.012, 0.012, 0.16, 6), mats.dark, 0.26, 0.42, 0);
+    add(box(0.18, 0.02, 0.26), mats.accent, 0.35, 0.365, 0);
+    const fin = new THREE.Shape();
+    fin.moveTo(0, 0); fin.lineTo(0.22, 0); fin.lineTo(0.02, 0.2); fin.closePath();
+    const finGeo = new THREE.ExtrudeGeometry(fin, { depth: 0.025, bevelEnabled: false });
+    finGeo.translate(0, 0, -0.0125);
+    add(finGeo, mats.sub, -L / 2 + 0.02, 0.05, 0);
+    return g;
+  }
+
+  const b = bsHullDims(kind).b;
+  const bow = bsHullDims(kind).bow;
+  const outline = bsHullShape(THREE, L, b, bow);
+  add(bsSlab(THREE, outline, 0.16, -0.2, 0.02), mats.lower, 0, 0, 0);
+  add(bsSlab(THREE, bsHullShape(THREE, L, b + 0.012, bow), 0.03, -0.045), mats.dark, 0, 0, 0, false);
+  add(bsSlab(THREE, bsHullShape(THREE, L, b + 0.018, bow), 0.15, -0.015, 0.012), mats.hull, 0, 0, 0);
+  add(bsSlab(THREE, bsHullShape(THREE, L - 0.06, b - 0.035, bow * 0.95), 0.015, 0.135), mats.deck, 0, 0, 0, false);
+  // The side's colour, a stripe along the hull under the deck.
+  add(bsSlab(THREE, bsHullShape(THREE, L * 0.98, b + 0.022, bow), 0.018, 0.1), mats.accent, 0, 0, 0, false);
+
+  if (kind === 0) {
+    // The carrier: a flight deck wider than the hull, the island on one side, jets parked.
+    add(box(L + 0.02, 0.06, 0.74), [mats.hull, mats.hull, mats.flight, mats.hull, mats.hull, mats.hull], 0.02, 0.19, 0.04);
+    const island = new THREE.Group();
+    const i1 = new THREE.Mesh(box(0.62, 0.2, 0.16), mats.top); i1.position.y = 0.1; i1.castShadow = true; island.add(i1);
+    const i2 = new THREE.Mesh(box(0.36, 0.14, 0.13), mats.top); i2.position.set(0.06, 0.27, 0); i2.castShadow = true; island.add(i2);
+    const w = new THREE.Mesh(box(0.37, 0.04, 0.135), mats.glass); w.position.set(0.06, 0.3, 0); island.add(w);
+    const mast = new THREE.Mesh(cyl(0.012, 0.018, 0.34, 6), mats.dark); mast.position.set(0.06, 0.5, 0); mast.castShadow = true; island.add(mast);
+    const radar = new THREE.Mesh(box(0.02, 0.05, 0.2), mats.dark); radar.position.set(0.06, 0.6, 0); island.add(radar);
+    radar.userData.spin = 1.6;
+    const funnel = new THREE.Mesh(box(0.14, 0.16, 0.1), mats.accent); funnel.position.set(-0.22, 0.22, 0); island.add(funnel);
+    island.position.set(0.55, 0.22, -0.31);
+    g.add(island);
+    const jet = () => {
+      const j = new THREE.Group();
+      const f = new THREE.Mesh(box(0.34, 0.045, 0.06), mats.top); j.add(f);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.1, 6), mats.top); nose.rotation.z = -Math.PI / 2; nose.position.x = 0.21; j.add(nose);
+      const wing = new THREE.Shape(); wing.moveTo(0.06, 0); wing.lineTo(-0.1, 0.17); wing.lineTo(-0.14, 0.17); wing.lineTo(-0.06, 0); wing.lineTo(-0.14, -0.17); wing.lineTo(-0.1, -0.17); wing.closePath();
+      const wg = new THREE.ExtrudeGeometry(wing, { depth: 0.012, bevelEnabled: false }); wg.rotateX(-Math.PI / 2);
+      const wm = new THREE.Mesh(wg, mats.top); wm.position.y = 0; j.add(wm);
+      const tail = new THREE.Mesh(box(0.08, 0.08, 0.012), mats.accent); tail.position.set(-0.13, 0.05, 0); j.add(tail);
+      j.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      return j;
+    };
+    [[-1.6, 0.18, 0.4], [-1.05, 0.2, 0.3], [-0.45, 0.16, 0.5], [1.6, 0.06, 0]].forEach(([x, z, rot]) => {
+      const j = jet(); j.position.set(x, 0.245, z); j.rotation.y = rot; g.add(j);
+    });
+    return g;
+  }
+
+  // Warships: a superstructure in the middle, turrets fore and aft.
+  const mid = kind === 1 ? -0.05 : kind === 2 ? -0.1 : -0.12;
+  const sup = new THREE.Group();
+  const s1 = new THREE.Mesh(box(kind === 4 ? 0.36 : 0.66, 0.11, b * 1.1), mats.top); s1.position.y = 0.2; s1.castShadow = true; sup.add(s1);
+  const s2 = new THREE.Mesh(box(kind === 4 ? 0.22 : 0.4, 0.12, b * 0.85), mats.top); s2.position.set(0.08, 0.31, 0); s2.castShadow = true; sup.add(s2);
+  const win = new THREE.Mesh(box(kind === 4 ? 0.225 : 0.405, 0.035, b * 0.86), mats.glass); win.position.set(0.08, 0.34, 0); sup.add(win);
+  if (kind === 1) {
+    const s3 = new THREE.Mesh(box(0.2, 0.16, 0.16), mats.top); s3.position.set(0.12, 0.45, 0); s3.castShadow = true; sup.add(s3);
+  }
+  const fun = new THREE.Mesh(cyl(0.06, 0.075, kind === 4 ? 0.2 : 0.26, 10), mats.hull); fun.position.set(-0.2, 0.36, 0); fun.rotation.z = 0.12; fun.castShadow = true; sup.add(fun);
+  const funTop = new THREE.Mesh(cyl(0.062, 0.062, 0.04, 10), mats.dark); funTop.position.set(-0.215, 0.48, 0); funTop.rotation.z = 0.12; sup.add(funTop);
+  const mast = new THREE.Mesh(cyl(0.012, 0.02, kind === 1 ? 0.5 : 0.42, 6), mats.dark); mast.position.set(0.1, kind === 1 ? 0.72 : 0.55, 0); mast.castShadow = true; sup.add(mast);
+  const yard = new THREE.Mesh(box(0.02, 0.02, b * 1.2), mats.dark); yard.position.set(0.1, kind === 1 ? 0.84 : 0.66, 0); sup.add(yard);
+  const radar = new THREE.Mesh(box(0.03, 0.06, b * 0.9), mats.dark); radar.position.set(0.1, kind === 1 ? 0.92 : 0.74, 0); radar.userData.spin = 1.9; sup.add(radar);
+  sup.position.x = mid;
+  g.add(sup);
+  if (kind === 1) {
+    turret(1.08, 0.14, 0, 3, 1.15);
+    const barb = add(cyl(0.14, 0.15, 0.06, 12), mats.hull, 0.66, 0.17, 0);
+    barb.castShadow = true;
+    turret(0.66, 0.2, 0, 3, 1.05);
+    turret(-1.1, 0.14, Math.PI, 3, 1.15);
+  } else if (kind === 2) {
+    turret(0.78, 0.14, 0, 2, 1);
+    turret(-0.86, 0.14, Math.PI, 2, 0.9);
+  } else if (kind === 4) {
+    turret(0.52, 0.14, 0, 1, 0.9);
+    add(box(0.14, 0.05, 0.1), mats.dark, -0.62, 0.17, 0);
+  }
+  return g;
+}
+
+/* --- particles: fire, smoke, splashes, sparks - one pool each way of blending ---- */
+
+function bsParticles(THREE, max, additive, sprite) {
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(max * 3);
+  const col = new Float32Array(max * 4);
+  const size = new Float32Array(max);
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('pcolor', new THREE.BufferAttribute(col, 4).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('psize', new THREE.BufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uScale: { value: 400 }, uMap: { value: sprite } },
+    vertexShader: `
+      attribute vec4 pcolor; attribute float psize; varying vec4 vColor; uniform float uScale;
+      void main() { vColor = pcolor; vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = psize * uScale / max(0.1, -mv.z); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `
+      varying vec4 vColor; uniform sampler2D uMap;
+      void main() { vec4 sp = texture2D(uMap, gl_PointCoord); float a = sp.a * vColor.a; if (a < 0.004) discard;
+        gl_FragColor = vec4(vColor.rgb * ${additive ? 'a' : '1.0'}, ${additive ? '1.0' : 'a'}); }`,
+    transparent: true,
+    depthWrite: false,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending
+  });
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  points.renderOrder = additive ? 6 : 5;
+  const P = {
+    points: points, max: max, next: 0, live: 0,
+    x: new Float32Array(max * 3), v: new Float32Array(max * 3),
+    age: new Float32Array(max), life: new Float32Array(max), s0: new Float32Array(max), s1: new Float32Array(max),
+    c: new Float32Array(max * 4), kind: new Uint8Array(max), on: new Uint8Array(max)
+  };
+  P.spawn = (kind, x, y, z, vx, vy, vz, life, s0, s1, r, g, b, a) => {
+    const i = P.next;
+    P.next = (P.next + 1) % max;
+    P.on[i] = 1; P.kind[i] = kind; P.age[i] = 0; P.life[i] = life; P.s0[i] = s0; P.s1[i] = s1;
+    P.x[i * 3] = x; P.x[i * 3 + 1] = y; P.x[i * 3 + 2] = z;
+    P.v[i * 3] = vx; P.v[i * 3 + 1] = vy; P.v[i * 3 + 2] = vz;
+    P.c[i * 4] = r; P.c[i * 4 + 1] = g; P.c[i * 4 + 2] = b; P.c[i * 4 + 3] = a;
+  };
+  // Kinds: 0 fire (rises, yellow to red to nothing), 1 smoke (rises slowly, grows, fades),
+  // 2 water (thrown up, falls), 3 spark (falls fast), 4 flash (a moment, big).
+  P.update = (dt) => {
+    let live = 0;
+    for (let i = 0; i < max; i++) {
+      if (!P.on[i]) { size[i] = 0; continue; }
+      P.age[i] += dt;
+      const t = P.age[i] / P.life[i];
+      if (t >= 1) { P.on[i] = 0; size[i] = 0; continue; }
+      live++;
+      const k = P.kind[i];
+      const vi = i * 3;
+      if (k === 2 || k === 3) P.v[vi + 1] -= (k === 3 ? 7 : 9.5) * dt;
+      else if (k === 0) { P.v[vi + 1] += 0.6 * dt; P.v[vi] *= 0.97; P.v[vi + 2] *= 0.97; }
+      else if (k === 1) { P.v[vi] += 0.12 * dt; P.v[vi] *= 0.99; P.v[vi + 2] *= 0.99; }
+      P.x[vi] += P.v[vi] * dt; P.x[vi + 1] += P.v[vi + 1] * dt; P.x[vi + 2] += P.v[vi + 2] * dt;
+      if (k === 2 && P.x[vi + 1] < 0) { P.on[i] = 0; size[i] = 0; continue; }
+      pos[vi] = P.x[vi]; pos[vi + 1] = P.x[vi + 1]; pos[vi + 2] = P.x[vi + 2];
+      size[i] = P.s0[i] + (P.s1[i] - P.s0[i]) * t;
+      const ci = i * 4;
+      let a = P.c[ci + 3];
+      let r = P.c[ci], gg = P.c[ci + 1], bb = P.c[ci + 2];
+      if (k === 0) { a *= t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85; gg *= 1 - t * 0.7; bb *= 1 - t; }
+      else if (k === 1) a *= t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8;
+      else if (k === 4) a *= 1 - t;
+      else a *= 1 - t * t;
+      col[ci] = r; col[ci + 1] = gg; col[ci + 2] = bb; col[ci + 3] = Math.max(0, a);
+    }
+    P.live = live;
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.pcolor.needsUpdate = true;
+    geo.attributes.psize.needsUpdate = true;
+  };
+  P.clear = () => { P.on.fill(0); size.fill(0); geo.attributes.psize.needsUpdate = true; };
+  return P;
+}
+
+const bsEase = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const bsEaseOut = (t) => 1 - Math.pow(1 - t, 3);
+
+/**
+ * The 3D sea in `root` (an element the view owns). Returns what the view
+ * drives: setModel(model, fresh), pick(clientX, clientY), setAim, setDrag,
+ * resize, dispose, and busyUntil (when the shot in flight will have landed).
+ */
+function bsMake3D(THREE, root) {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'bs-canvas';
+  root.insertBefore(canvas, root.firstChild);
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(dpr);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.02;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(38, 1, 0.1, 400);
+  const big = Math.min(window.screen ? Math.max(window.screen.width, window.screen.height) : 1000, 4000) > 1400;
+
+  // Light: a sun that throws soft shadows across both seas, and the sky's own light.
+  const hemi = new THREE.HemisphereLight(0xdcecff, 0x1d3b52, 0.75);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xfff1dc, 2.2);
+  sun.position.set(-12, 15, 3);
+  sun.target.position.set(0, 0, 0);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(big ? 2048 : 1024, big ? 2048 : 1024);
+  Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 9, bottom: -9, near: 2, far: 50 });
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.02;
+  scene.add(sun); scene.add(sun.target);
+  const flash = new THREE.PointLight(0xffa04a, 0, 7, 1.6);
+  scene.add(flash);
+
+  // The water: two normal maps scrolling different ways under a clear coat, the sky in it.
+  const n1 = new THREE.CanvasTexture(bsWaterNormals(3, 256, 7));
+  const n2 = new THREE.CanvasTexture(bsWaterNormals(11, 256, 6));
+  [n1, n2].forEach(tx => { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.anisotropy = 4; });
+  n1.repeat.set(26, 26);
+  n2.repeat.set(15, 15);
+  const water = new THREE.MeshPhysicalMaterial({
+    color: 0x0f4c73, roughness: 0.3, metalness: 0,
+    normalMap: n1, normalScale: new THREE.Vector2(0.42, 0.42),
+    clearcoat: 0.5, clearcoatRoughness: 0.2, clearcoatNormalMap: n2, clearcoatNormalScale: new THREE.Vector2(0.45, 0.45),
+    envMapIntensity: 1.1
+  });
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), water);
+  sea.rotation.x = -Math.PI / 2;
+  sea.receiveShadow = true;
+  scene.add(sea);
+
+  let dark = null;
+  const envs = {};
+  function applyTheme() {
+    const d = document.body.classList.contains('dark');
+    if (d === dark) return;
+    dark = d;
+    if (!envs[d]) envs[d] = bsSkyEnv(THREE, pmrem, d);
+    scene.environment = envs[d];
+    const bg = new THREE.Color(d ? 0x15203a : 0xb9d9f0);
+    scene.background = bg;
+    scene.fog = new THREE.Fog(bg.getHex(), d ? 26 : 30, d ? 70 : 90);
+    water.color.set(d ? 0x14507e : 0x11557f);
+    hemi.color.set(d ? 0x8fa6d6 : 0xdcecff);
+    hemi.groundColor.set(d ? 0x0b1a2a : 0x1d3b52);
+    hemi.intensity = d ? 0.95 : 0.75;
+    sun.color.set(d ? 0xbfd0ff : 0xfff1dc);
+    sun.intensity = d ? 0.9 : 2.0;
+    renderer.toneMappingExposure = d ? 1.2 : 1.02;
+    boards.forEach(b => { b.drawn = ''; });
+  }
+
+  // Each sea's board: a transparent layer on the water - the lines, the letters and numbers, the marks.
+  const BOARD = 12;               // 10 squares and a square's margin all round
+  const boards = [0, 1].map(side => {
+    const [c, g] = bsCanvas(1024, 1024);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(BOARD, BOARD), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(side ? BS_SEA_X : -BS_SEA_X, 0.012, 0);
+    mesh.renderOrder = 2;
+    scene.add(mesh);
+    const group = new THREE.Group();
+    group.position.set(side ? BS_SEA_X : -BS_SEA_X, 0, 0);
+    scene.add(group);
+    return { side: side, canvas: c, g: g, tex: tex, mesh: mesh, group: group, drawn: '', ships: [], pegs: new Map(), fires: new Map() };
+  });
+
+  /** Where a square's middle is in the world. */
+  const cellPos = (side, cell) => new THREE.Vector3((side ? BS_SEA_X : -BS_SEA_X) + (cell % 10) - 4.5, 0, Math.floor(cell / 10) - 4.5);
+
+  function drawBoard(b, sea, opts) {
+    const key = JSON.stringify([sea.grid, dark, opts.color, opts.mine]);
+    if (b.drawn === key) return;
+    b.drawn = key;
+    const g = b.g, S = 1024, u = S / BOARD, o = u;
+    g.clearRect(0, 0, S, S);
+    // The playing field, a shade lighter than the sea, with a soft edge.
+    const fld = g.createRadialGradient(S / 2, S / 2, u, S / 2, S / 2, u * 7.5);
+    fld.addColorStop(0, dark ? 'rgba(90,170,255,0.16)' : 'rgba(120,230,255,0.24)');
+    fld.addColorStop(1, dark ? 'rgba(90,170,255,0.07)' : 'rgba(120,230,255,0.1)');
+    g.fillStyle = fld;
+    g.fillRect(o, o, u * 10, u * 10);
+    // Squares: marked water, misses, hits, sunk ships.
+    for (let c = 0; c < 100; c++) {
+      const v = sea.grid[c];
+      const x = o + (c % 10) * u, y = o + Math.floor(c / 10) * u;
+      if (v === BS_CLEAR) {
+        g.fillStyle = dark ? 'rgba(5,15,35,0.35)' : 'rgba(10,40,70,0.22)';
+        g.fillRect(x + 3, y + 3, u - 6, u - 6);
+        g.fillStyle = 'rgba(255,255,255,0.45)';
+        g.beginPath(); g.arc(x + u / 2, y + u / 2, 4.5, 0, 7); g.fill();
+      } else if (v === BS_MISS) {
+        g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 6;
+        g.beginPath(); g.arc(x + u / 2, y + u / 2, u * 0.22, 0, 7); g.stroke();
+      } else if (v === BS_HIT) {
+        const grd = g.createRadialGradient(x + u / 2, y + u / 2, 2, x + u / 2, y + u / 2, u * 0.55);
+        grd.addColorStop(0, 'rgba(255,90,40,0.95)'); grd.addColorStop(1, 'rgba(255,60,30,0)');
+        g.fillStyle = grd; g.fillRect(x, y, u, u);
+      } else if (v === BS_SUNK) {
+        g.fillStyle = 'rgba(150,25,25,0.3)';
+        g.fillRect(x + 2, y + 2, u - 4, u - 4);
+      }
+    }
+    // The lines.
+    g.strokeStyle = dark ? 'rgba(200,225,255,0.38)' : 'rgba(255,255,255,0.55)';
+    g.lineWidth = 2.5;
+    g.beginPath();
+    for (let k = 1; k < 10; k++) {
+      g.moveTo(o + k * u, o); g.lineTo(o + k * u, o + 10 * u);
+      g.moveTo(o, o + k * u); g.lineTo(o + 10 * u, o + k * u);
+    }
+    g.stroke();
+    g.strokeStyle = opts.color; g.lineWidth = 9;
+    g.globalAlpha = 0.9;
+    g.strokeRect(o - 2, o - 2, 10 * u + 4, 10 * u + 4);
+    g.globalAlpha = 1;
+    // Sunk ships: an outline round each.
+    g.strokeStyle = 'rgba(255,120,90,0.95)'; g.lineWidth = 5;
+    (sea.sunk || []).forEach(p => {
+      const len = BS_SHIPS[p.i].len;
+      const w = p.d === 'h' ? len : 1, h = p.d === 'v' ? len : 1;
+      g.strokeRect(o + p.x * u + 6, o + p.y * u + 6, w * u - 12, h * u - 12);
+    });
+    // The letters along the top, the numbers down the side.
+    g.font = '700 ' + Math.round(u * 0.44) + 'px "Segoe UI", Roboto, Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 7; g.strokeStyle = 'rgba(6,28,48,0.55)'; g.fillStyle = '#ffffff';
+    for (let k = 0; k < 10; k++) {
+      const L = BS_COLS[k], N = String(k + 1);
+      g.strokeText(L, o + k * u + u / 2, o / 2 + 4); g.fillText(L, o + k * u + u / 2, o / 2 + 4);
+      g.strokeText(N, o / 2, o + k * u + u / 2); g.fillText(N, o / 2, o + k * u + u / 2);
+    }
+    b.tex.needsUpdate = true;
+  }
+
+  // The shared bits: materials for each side, a buoy, a scorch mark, the crosshair, the ghost footprint.
+  const mats = [bsShipMats(THREE, BS_SIDE_COL[0], false), bsShipMats(THREE, BS_SIDE_COL[1], true)];
+  const buoyGeo = new THREE.CylinderGeometry(0.1, 0.13, 0.26, 10);
+  buoyGeo.translate(0, 0.06, 0);
+  const buoyTop = new THREE.SphereGeometry(0.1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  buoyTop.translate(0, 0.19, 0);
+  const buoyMat = new THREE.MeshStandardMaterial({ color: 0xf5f7fa, roughness: 0.4 });
+  const pegMat = new THREE.MeshStandardMaterial({ color: 0xe23b2e, roughness: 0.35, emissive: 0x5a0d05, emissiveIntensity: 0.6 });
+  const crossTex = new THREE.CanvasTexture(bsCrossCanvas());
+  crossTex.colorSpace = THREE.SRGBColorSpace;
+  const cross = new THREE.Mesh(new THREE.PlaneGeometry(1.12, 1.12), new THREE.MeshBasicMaterial({ map: crossTex, transparent: true, depthWrite: false, toneMapped: false, color: 0xfff1a8 }));
+  cross.rotation.x = -Math.PI / 2;
+  cross.renderOrder = 4;
+  cross.visible = false;
+  scene.add(cross);
+  const ghostMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.35, depthWrite: false, toneMapped: false });
+  const ghost = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), ghostMat);
+  ghost.rotation.x = -Math.PI / 2;
+  ghost.renderOrder = 3;
+  ghost.visible = false;
+  scene.add(ghost);
+  const foamMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bsFoamCanvas()), transparent: true, depthWrite: false, toneMapped: false, opacity: 0.8 });
+  const ringGeo = new THREE.RingGeometry(0.2, 0.32, 32);
+  ringGeo.rotateX(-Math.PI / 2);
+  const shellGeo = new THREE.SphereGeometry(0.13, 12, 8);
+  shellGeo.scale(1.9, 1, 1);
+  const shellMat = new THREE.MeshStandardMaterial({ color: 0x3a3530, roughness: 0.3, metalness: 0.7, emissive: 0xff8a2a, emissiveIntensity: 1.1 });
+
+  const fx = [bsParticles(THREE, 900, false, new THREE.CanvasTexture(bsPuffCanvas(true))), bsParticles(THREE, 1100, true, new THREE.CanvasTexture(bsPuffCanvas(false)))];
+  const smoke = fx[0], glow = fx[1];
+  scene.add(smoke.points); scene.add(glow.points);
+
+  // What is animating: shells in the air, ripples, ships sinking or rising, the camera.
+  const anims = [];
+  let camFrom = null, camTo = null, camT = 1, camKey = '';
+  const camPos = new THREE.Vector3(0, 20, 16), camLook = new THREE.Vector3(0, 0, 0);
+  let shake = 0;
+  let model = null;
+  let shownShot = '';
+  let busyUntil = 0;
+  let pending = null;             // the shot in flight: { side, before }
+  const shown = [null, null];     // what each sea shows right now: { grid, sunk }
+  let aim = { side: -1, cell: -1 };
+  let dragInfo = null;
+  let labels = [];
+
+  // A ship object on a sea: its group, where it lies, how it is doing.
+  function placeShipGroup(side, i, p, grp) {
+    const len = BS_SHIPS[i].len;
+    const x = (p.d === 'h' ? p.x + len / 2 : p.x + 0.5) - 5;
+    const z = (p.d === 'v' ? p.y + len / 2 : p.y + 0.5) - 5;
+    grp.position.set(x, 0, z);
+    grp.rotation.set(0, p.d === 'v' ? -Math.PI / 2 : 0, 0);
+  }
+
+  /** A ship taken off the sea: its own shapes are thrown away (the materials are the side's, kept). */
+  function dropShip(b, o) {
+    b.group.remove(o.grp);
+    o.grp.traverse(m => { if (m.isMesh && m.geometry) m.geometry.dispose(); });
+  }
+
+  function shipsFor(b, list, side) {
+    // list: [{ i, p, sunk, animate, appear }] - a ship that moved (not by a drag here) is built again.
+    const want = new Map(list.map(s => [s.i, s]));
+    b.ships = b.ships.filter(o => {
+      const w = want.get(o.i);
+      if (w && w.p.x === o.p.x && w.p.y === o.p.y && w.p.d === o.p.d) return true;
+      if (w && !o.sunk && !w.sunk) { glideTo(side, o, w.p); return true; }
+      dropShip(b, o);
+      return false;
+    });
+    list.forEach(s => {
+      let o = b.ships.find(x => x.i === s.i);
+      if (!o) {
+        const grp = new THREE.Group();
+        const body = bsBuildShip(THREE, s.i, mats[side]);
+        grp.add(body);
+        const dims = bsHullDims(s.i);
+        const foam = new THREE.Mesh(new THREE.ShapeGeometry(bsHullShape(THREE, dims.L + 0.26, dims.b + 0.11, dims.bow + 0.1), 6), foamMat);
+        foam.rotation.x = -Math.PI / 2;
+        foam.position.y = 0.02;
+        foam.renderOrder = 3;
+        grp.add(foam);
+        placeShipGroup(side, s.i, s.p, grp);
+        b.group.add(grp);
+        o = { i: s.i, p: s.p, grp: grp, body: body, sunk: false, phase: Math.random() * 6, rise: null };
+        if (s.appear) o.rise = { at: performance.now() + (s.delay || 0), dur: 900 };
+        b.ships.push(o);
+      }
+      if (s.sunk && !o.sunk) sinkShip(o, side, s.animate);
+    });
+  }
+
+  function charShip(o, side) {
+    const burnt = mats[side].charred;
+    o.body.traverse(m => {
+      if (!m.isMesh || !m.material || Array.isArray(m.material)) return;
+      const k = Object.keys(mats[side]).find(key => mats[side][key] === m.material);
+      if (k && burnt[k]) m.material = burnt[k];
+    });
+  }
+
+  /** A ship goes down: it lists, dips its bow and settles low, burnt, still there to be seen. */
+  function sinkShip(o, side, animate) {
+    o.sunk = true;
+    charShip(o, side);
+    const to = { y: -0.17, roll: 0.3 * (o.i % 2 ? 1 : -1), pitch: -0.06 };
+    if (!animate) { o.sink = { t: 1, to: to }; return; }
+    o.sink = { start: performance.now(), dur: 2600, t: 0, to: to };
+    anims.push({ until: performance.now() + 2700 });
+  }
+
+  function pegFor(b, side, cell, kind) {
+    const key = cell + ':' + kind;
+    if (b.pegs.has(key)) return;
+    const grp = new THREE.Group();
+    if (kind === 'miss') {
+      const m1 = new THREE.Mesh(buoyGeo, buoyMat); m1.castShadow = true; grp.add(m1);
+      const m2 = new THREE.Mesh(buoyTop, buoyMat); grp.add(m2);
+    } else {
+      const m1 = new THREE.Mesh(buoyGeo, pegMat); m1.castShadow = true; grp.add(m1);
+      const m2 = new THREE.Mesh(buoyTop, pegMat); grp.add(m2);
+      grp.scale.set(0.8, 0.8, 0.8);
+    }
+    const p = cellPos(side, cell);
+    grp.position.set(p.x - b.group.position.x, 0, p.z);
+    grp.userData.phase = cell * 0.7;
+    b.group.add(grp);
+    b.pegs.set(key, grp);
+  }
+
+  /** Everything a sea shows: its board, its pegs, its fires, its ships. */
+  function paintSea(side) {
+    const b = boards[side];
+    const s = model.seas[side];
+    const view = shown[side];
+    drawBoard(b, view, { color: model.seas[side].color || BS_SIDE_COL[side], mine: !!s.mine });
+    // Pegs: a white buoy on a miss; a red one on a hit where no ship is drawn.
+    const drawnCells = new Set();
+    const ships = [];
+    const sunkIdx = new Set((view.sunk || []).map(x => x.i));
+    (s.fleet || []).forEach((p, i) => {
+      if (!p) return;
+      ships.push({ i: i, p: p, sunk: sunkIdx.has(i), animate: s.animateSink === i, appear: s.appear, delay: s.appear ? i * 180 : 0 });
+    });
+    (view.sunk || []).forEach(x => {
+      if (!ships.some(o => o.i === x.i)) ships.push({ i: x.i, p: { x: x.x, y: x.y, d: x.d }, sunk: true, animate: s.animateSink === x.i, appear: s.animateSink === x.i });
+    });
+    ships.forEach(o => bsShipCells(o.p, BS_SHIPS[o.i].len).forEach(c => drawnCells.add(c)));
+    shipsFor(b, ships, side);
+    const keep = new Set();
+    view.grid.forEach((v, c) => {
+      if (v === BS_MISS) { pegFor(b, side, c, 'miss'); keep.add(c + ':miss'); }
+      else if (v === BS_HIT && !drawnCells.has(c)) { pegFor(b, side, c, 'hit'); keep.add(c + ':hit'); }
+    });
+    b.pegs.forEach((grp, key) => { if (!keep.has(key)) { b.group.remove(grp); b.pegs.delete(key); } });
+    // Fires: a hit afloat burns; a sunk ship smokes.
+    b.fires = new Map();
+    view.grid.forEach((v, c) => {
+      if (v === BS_HIT) b.fires.set(c, { fire: true, onShip: drawnCells.has(c) });
+    });
+    (view.sunk || []).forEach(x => {
+      const cells = bsShipCells(x, BS_SHIPS[x.i].len);
+      b.fires.set(cells[Math.floor(cells.length / 2)], { fire: false, smoke: true });
+    });
+  }
+
+  // --- the camera: frame a sea (or both) whatever the screen's shape ---
+  function frameFor(focus, both) {
+    const w = canvas.clientWidth || 1, h = canvas.clientHeight || 1;
+    const aspect = w / h;
+    const cx = both ? 0 : (focus ? BS_SEA_X : -BS_SEA_X);
+    const x0 = both ? -BS_SEA_X - 6.05 : cx - 6.05;
+    const x1 = both ? BS_SEA_X + 5.3 : cx + 5.3;
+    const z0 = -6.1, z1 = 5.25;
+    const el = (both ? 46 : aspect < 0.85 ? 58 : 52) * Math.PI / 180;
+    const target = new THREE.Vector3((x0 + x1) / 2, 0, (z0 + z1) / 2);
+    const dir = new THREE.Vector3(0, Math.sin(el), Math.cos(el));
+    const probe = cam.clone();
+    probe.aspect = aspect;
+    probe.updateProjectionMatrix();
+    const corners = [[x0, z0], [x1, z0], [x0, z1], [x1, z1]].map(([x, z]) => new THREE.Vector3(x, 0, z));
+    const fits = (d) => {
+      probe.position.copy(target).addScaledVector(dir, d);
+      probe.lookAt(target);
+      probe.updateMatrixWorld();
+      return corners.every(c => { const p = c.clone().project(probe); return Math.abs(p.x) <= 0.985 && Math.abs(p.y) <= 0.975 && p.z < 1; });
+    };
+    let lo = 4, hi = 120;
+    for (let k = 0; k < 22; k++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+    // Nudge the frame so the far edge's letters sit clear of the top.
+    return { pos: target.clone().addScaledVector(dir, hi), look: target };
+  }
+
+  function aimCamera(instant) {
+    if (!model) return;
+    const key = [model.both ? 'both' : model.focus, canvas.clientWidth, canvas.clientHeight].join('|');
+    if (key === camKey && !instant) return;
+    camKey = key;
+    const f = frameFor(model.focus, model.both);
+    if (instant || !camTo || typeof motionOff === 'function' && motionOff()) {
+      camPos.copy(f.pos); camLook.copy(f.look); camT = 1; camTo = f;
+      return;
+    }
+    camFrom = { pos: camPos.clone(), look: camLook.clone() };
+    camTo = f;
+    camT = 0;
+  }
+
+  // --- a shot: the shell arcs from the shooter's sea, then a splash or a blast ---
+  function fireShot(shot, onLand) {
+    const side = shot.side;
+    const to = cellPos(side, shot.cell);
+    // From a ship of the shooter's still afloat, if any is drawn; otherwise from over their sea.
+    const other = boards[1 - side];
+    const afloat = other.ships.filter(o => !o.sunk);
+    let from;
+    if (afloat.length) {
+      const o = afloat[Math.floor(Math.random() * afloat.length)];
+      from = new THREE.Vector3();
+      o.grp.getWorldPosition(from);
+      from.y = 0.45;
+      muzzle(from, to);
+    } else {
+      from = new THREE.Vector3((1 - side ? BS_SEA_X : -BS_SEA_X) + (Math.random() - 0.5) * 6, 0.5, (Math.random() - 0.5) * 6);
+    }
+    const dist = from.distanceTo(to);
+    const dur = 900 + dist * 38;
+    const apex = 3 + dist * 0.28;
+    const shell = new THREE.Mesh(shellGeo, shellMat);
+    shell.castShadow = true;
+    scene.add(shell);
+    const start = performance.now();
+    busyUntil = Math.max(busyUntil, Date.now() + dur + 200);
+    bsSoundLoud('fire');
+    setTimeout(() => bsSoundLoud('whistle'), Math.max(0, dur - 900));
+    anims.push({
+      until: start + dur + 50,
+      step: (now) => {
+        const t = Math.min(1, (now - start) / dur);
+        const p = from.clone().lerp(to, t);
+        p.y = from.y + (to.y - from.y) * t + apex * 4 * t * (1 - t);
+        const q = from.clone().lerp(to, Math.min(1, t + 0.02));
+        q.y = from.y + (to.y - from.y) * (t + 0.02) + apex * 4 * (t + 0.02) * (1 - t - 0.02);
+        shell.position.copy(p);
+        shell.lookAt(q);
+        shell.rotateY(-Math.PI / 2);
+        // A glowing tail and a thin trail of smoke, so the shell reads at any size.
+        glow.spawn(4, p.x, p.y, p.z, 0, 0, 0, 0.45, 0.62, 0.12, 1, 0.78, 0.4, 0.9);
+        glow.spawn(4, p.x, p.y, p.z, 0, 0, 0, 0.22, 0.95, 0.3, 1, 0.95, 0.75, 0.6);
+        smoke.spawn(1, p.x, p.y, p.z, (Math.random() - 0.5) * 0.1, 0.06, (Math.random() - 0.5) * 0.1, 1.1, 0.16, 0.55, 0.92, 0.92, 0.92, 0.42);
+        if (t >= 1) {
+          scene.remove(shell);
+          onLand(to);
+          return false;
+        }
+        return true;
+      }
+    });
+  }
+
+  function muzzle(from, to) {
+    const d = to.clone().sub(from).setY(0).normalize();
+    for (let k = 0; k < 14; k++) {
+      glow.spawn(4, from.x + d.x * 0.2, from.y, from.z + d.z * 0.2, d.x * (1 + Math.random() * 2), 0.6 + Math.random(), d.z * (1 + Math.random() * 2), 0.25, 0.6, 0.2, 1, 0.8, 0.4, 0.9);
+      smoke.spawn(1, from.x + d.x * 0.3, from.y + 0.05, from.z + d.z * 0.3, d.x * 0.6 + (Math.random() - 0.5) * 0.3, 0.3, d.z * 0.6 + (Math.random() - 0.5) * 0.3, 1.6, 0.3, 1.1, 0.8, 0.8, 0.8, 0.45);
+    }
+  }
+
+  function splash(p) {
+    bsSoundLoud('splash');
+    for (let k = 0; k < 60; k++) {
+      const a = Math.random() * Math.PI * 2, r = Math.random() * 0.9;
+      smoke.spawn(2, p.x + Math.cos(a) * 0.08, 0.05, p.z + Math.sin(a) * 0.08, Math.cos(a) * r, 3 + Math.random() * 3.2, Math.sin(a) * r, 1.2, 0.35, 0.18, 0.92, 0.97, 1, 0.9);
+    }
+    for (let k = 0; k < 10; k++) smoke.spawn(1, p.x + (Math.random() - 0.5) * 0.4, 0.2, p.z + (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.3, 0.5, (Math.random() - 0.5) * 0.3, 1.4, 0.35, 1.0, 0.95, 0.98, 1, 0.5);
+    ripple(p, 0xffffff, 1.8);
+  }
+
+  function blast(p, big) {
+    bsSoundLoud('boom');
+    flash.position.set(p.x, 0.8, p.z);
+    flash.intensity = big ? 60 : 36;
+    shake = big ? 0.35 : 0.2;
+    const n = big ? 90 : 55;
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 1.6;
+      glow.spawn(0, p.x, 0.25, p.z, Math.cos(a) * r, 1 + Math.random() * 2.4, Math.sin(a) * r, 0.5 + Math.random() * 0.5, 0.45, 0.9, 1, 0.72, 0.3, 1);
+    }
+    for (let k = 0; k < 30; k++) {
+      const a = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 3;
+      glow.spawn(3, p.x, 0.3, p.z, Math.cos(a) * r, 2 + Math.random() * 3, Math.sin(a) * r, 0.6 + Math.random() * 0.4, 0.08, 0.03, 1, 0.85, 0.5, 1);
+    }
+    glow.spawn(4, p.x, 0.5, p.z, 0, 0, 0, 0.3, 2.6, 3.2, 1, 0.85, 0.6, 1);
+    for (let k = 0; k < 22; k++) smoke.spawn(1, p.x + (Math.random() - 0.5) * 0.5, 0.35 + Math.random() * 0.3, p.z + (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.6, 0.7 + Math.random() * 0.6, (Math.random() - 0.5) * 0.6, 2.4 + Math.random(), 0.5, 1.9, 0.18, 0.16, 0.15, 0.75);
+    ripple(p, 0xffc27a, 2.4);
+  }
+
+  function ripple(p, color, size) {
+    const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.7, depthWrite: false, toneMapped: false }));
+    m.position.set(p.x, 0.03, p.z);
+    m.renderOrder = 3;
+    scene.add(m);
+    const start = performance.now();
+    anims.push({
+      until: start + 1100,
+      step: (now) => {
+        const t = Math.min(1, (now - start) / 1000);
+        const s = 1 + t * size * 2.4;
+        m.scale.set(s, 1, s);
+        m.material.opacity = 0.7 * (1 - t);
+        if (t >= 1) { scene.remove(m); m.material.dispose(); return false; }
+        return true;
+      }
+    });
+  }
+
+  let shotSeq = 0;
+  let pre = null;      // a shell this phone fired before the server answered: { id, side, cell, landed, shot }
+
+  function playShot(shot) {
+    const id = ++shotSeq;
+    pending = { id: id, side: shot.side, before: bsSeaBefore(model.seas[shot.side], shot) };
+    shown[shot.side] = pending.before;
+    paintSea(shot.side);
+    fireShot(shot, (p) => landShot(shot, p, id));
+  }
+
+  /**
+   * Your own shot leaves as your finger lifts (a room answers a moment later):
+   * the shell is already in the air, and the result the server sends lands it.
+   * With no answer it simply doesn't land.
+   */
+  function launch(side, cell) {
+    if (typeof motionOff === 'function' && motionOff()) return;
+    const P = { id: ++shotSeq, side: side, cell: cell, landed: null, shot: null };
+    pre = P;
+    fireShot({ side: side, cell: cell }, (p) => {
+      P.landed = p;
+      if (pre !== P) return;
+      if (P.shot) landShot(P.shot, p, P.id);
+      else setTimeout(() => { if (pre === P && !P.shot) pre = null; }, 2500);
+    });
+  }
+
+  function landShot(shot, p, id) {
+    const side = shot.side;
+    if (pre && pre.id === id) pre = null;
+    // A newer shot overtook this one on the way: just the splash or the blast, the sea is the newer one's.
+    if (!pending || pending.id !== id) { if (shot.res === 'miss') splash(p); else blast(p, false); return; }
+    pending = null;
+    shown[side] = { grid: model.seas[side].grid.slice(), sunk: (model.seas[side].sunk || []).slice() };
+    if (shot.res === 'miss') splash(p);
+    else blast(p, shot.res === 'sunk');
+    if (shot.res === 'sunk') {
+      model.seas[side].animateSink = shot.ship;
+      setTimeout(() => bsSoundLoud('sink'), 500);
+      // The whole ship blows, square after square.
+      const sunkP = (model.seas[side].sunk || []).find(x => x.i === shot.ship);
+      if (sunkP) bsShipCells(sunkP, BS_SHIPS[sunkP.i].len).forEach((c, k) => {
+        if (c !== shot.cell) setTimeout(() => blastSmall(cellPos(side, c)), 180 + k * 140);
+      });
+    }
+    paintSea(side);
+    model.seas[side].animateSink = null;
+    busyUntil = Math.max(busyUntil, Date.now() + (shot.res === 'sunk' ? 1600 : 500));
+    if (typeof model.onLand === 'function') { try { model.onLand(shot); } catch (e) {} }
+  }
+
+  function blastSmall(p) {
+    for (let k = 0; k < 26; k++) {
+      const a = Math.random() * Math.PI * 2, r = 0.3 + Math.random() * 1.1;
+      glow.spawn(0, p.x, 0.3, p.z, Math.cos(a) * r, 1 + Math.random() * 1.6, Math.sin(a) * r, 0.45 + Math.random() * 0.4, 0.4, 0.8, 1, 0.7, 0.3, 1);
+    }
+    for (let k = 0; k < 8; k++) smoke.spawn(1, p.x, 0.4, p.z, (Math.random() - 0.5) * 0.5, 0.8, (Math.random() - 0.5) * 0.5, 2.2, 0.5, 1.6, 0.2, 0.18, 0.16, 0.7);
+  }
+
+  // --- the model: what to show ---
+  function setModel(m) {
+    const fresh = !model || model.key !== m.key;
+    const prevModel = model;
+    model = m;
+    applyTheme();
+    if (fresh) {
+      boards.forEach(b => {
+        b.ships.forEach(o => dropShip(b, o));
+        b.ships = [];
+        b.pegs.forEach(g => b.group.remove(g));
+        b.pegs.clear();
+        b.drawn = '';
+      });
+      smoke.clear(); glow.clear();
+      pending = null;
+      shownShot = m.shotKey || '';
+    }
+    // A new shot is played once; any older one missed on the way is simply shown.
+    const shot = m.shot;
+    const newShot = !fresh && shot && m.shotKey && m.shotKey !== shownShot;
+    const animate = newShot && !(typeof motionOff === 'function' && motionOff()) && m.animate !== false;
+    shownShot = m.shotKey || shownShot;
+    boards.forEach((b, side) => mats[side].accent.color.set(m.seas[side].color || BS_SIDE_COL[side]));
+    [0, 1].forEach(side => {
+      if (pending && pending.side === side && !newShot) return;   // still in the air: keep showing the sea before it
+      shown[side] = { grid: m.seas[side].grid.slice(), sunk: (m.seas[side].sunk || []).slice() };
+    });
+    if (animate && pre && pre.side === shot.side && pre.cell === shot.cell && !pre.shot) {
+      // The shell this phone sent is already flying: the answer lands it.
+      pre.shot = shot;
+      pending = { id: pre.id, side: shot.side, before: bsSeaBefore(m.seas[shot.side], shot) };
+      shown[shot.side] = pending.before;
+      [0, 1].forEach(side => paintSea(side));
+      if (pre.landed) landShot(shot, pre.landed, pre.id);
+    } else if (animate) {
+      playShot(shot);
+      [0, 1].forEach(side => { if (side !== shot.side) paintSea(side); });
+    } else {
+      if (newShot && shot) {
+        pending = null;
+        pre = null;
+        if (shot.res === 'sunk') m.seas[shot.side].animateSink = null;
+        // Shown at once (motion off, or a shot missed on the way): the page is told it has landed.
+        if (typeof m.onLand === 'function') setTimeout(() => { try { m.onLand(shot); } catch (e) {} }, 0);
+      }
+      [0, 1].forEach(side => paintSea(side));
+    }
+    setAim(m.aim);
+    // The camera waits for a shot in the air to land before it moves.
+    const wait = Math.max(0, busyUntil - Date.now());
+    if (fresh || !prevModel) aimCamera(true);
+    else if (wait) setTimeout(() => aimCamera(false), wait + 250);
+    else aimCamera(false);
+    placeLabels();
+  }
+
+  function setAim(a) {
+    aim = a && a.cell >= 0 ? a : { side: -1, cell: -1 };
+    if (aim.cell >= 0) {
+      const p = cellPos(aim.side, aim.cell);
+      cross.position.set(p.x, 0.03, p.z);
+      cross.visible = true;
+    } else cross.visible = false;
+  }
+
+  /** While a ship is dragged: its footprint, green where it fits, red where it doesn't. */
+  function setDrag(d) {
+    dragInfo = d;
+    if (!d) { ghost.visible = false; return; }
+    const len = BS_SHIPS[d.i].len;
+    const w = d.p.d === 'h' ? len : 1, h = d.p.d === 'v' ? len : 1;
+    const side = d.side || 0;
+    ghost.scale.set(w - 0.08, h - 0.08, 1);
+    ghost.position.set((side ? BS_SEA_X : -BS_SEA_X) + d.p.x + w / 2 - 5, 0.025, d.p.y + h / 2 - 5);
+    ghostMat.color.set(d.ok ? 0x34d399 : 0xef4444);
+    ghost.visible = true;
+    const b = boards[side];
+    const o = b.ships.find(x => x.i === d.i);
+    if (o) {
+      o.dragTo = { p: d.p };
+      o.lift = 1;
+    }
+  }
+
+  /** A drag let go of: the ship back to rest where the fleet says. */
+  function endDrag(side, i) {
+    dragInfo = null;
+    ghost.visible = false;
+    const o = boards[side || 0].ships.find(x => x.i === i);
+    if (o) { o.dragTo = null; o.lift = 0; }
+  }
+
+  /** The ship at rest where the fleet says, after a drag or a turn: it glides there and settles. */
+  function settleShip(side, i, p) {
+    const o = boards[side].ships.find(x => x.i === i);
+    if (o) glideTo(side, o, p);
+  }
+  function glideTo(side, o, p) {
+    const i = o.i;
+    o.p = p;
+    o.dragTo = null;
+    o.lift = 0;
+    const target = new THREE.Group();
+    placeShipGroup(side, i, p, target);
+    o.glide = { from: o.grp.position.clone(), rot: o.grp.rotation.y, to: target.position.clone(), toRot: target.rotation.y, start: performance.now(), dur: 260 };
+    anims.push({ until: performance.now() + 300 });
+  }
+
+  /** A turn refused, or a drop where the ship can't go: it shakes its head. */
+  function wobble(side, i) {
+    const o = boards[side].ships.find(x => x.i === i);
+    if (!o) return;
+    o.wob = performance.now();
+    anims.push({ until: performance.now() + 450 });
+  }
+
+  // --- labels over the seas (names), placed by projecting each board's top edge ---
+  function placeLabels() {
+    labels = Array.from(root.querySelectorAll('[data-bs-label]'));
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    labels.forEach(el => {
+      const side = Number(el.dataset.bsLabel);
+      const p = new THREE.Vector3(side ? BS_SEA_X : -BS_SEA_X, 0, -BOARD / 2 - 0.1).project(cam);
+      const on = model && (model.both || model.focus === side) && p.z < 1;
+      el.style.transform = `translate(${Math.round((p.x * 0.5 + 0.5) * w)}px, ${Math.round((-p.y * 0.5 + 0.5) * h)}px) translate(-50%, -100%)`;
+      el.classList.toggle('is-off', !on);
+    });
+  }
+
+  // --- picking: the square under a finger ---
+  const ray = new THREE.Raycaster();
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  function pick(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width) return null;
+    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, cam);
+    const hit = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(plane, hit)) return null;
+    const side = hit.x > 0 ? 1 : 0;
+    const fx = hit.x - (side ? BS_SEA_X : -BS_SEA_X) + 5;
+    const fy = hit.z + 5;
+    const inside = fx >= 0 && fy >= 0 && fx < 10 && fy < 10;
+    return { side: side, fx: fx, fy: fy, cell: inside ? Math.floor(fy) * 10 + Math.floor(fx) : -1 };
+  }
+
+  // --- the loop ---
+  let raf = 0, last = performance.now(), frameNo = 0, running = true;
+  const shipTmp = new THREE.Group();
+  function tick(now) {
+    raf = requestAnimationFrame(tick);
+    if (!running || !root.isConnected) return;
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    frameNo++;
+    // Quiet: nothing flying and no camera move - half the frames are enough for the water and the fires.
+    const active = anims.length || camT < 1 || dragInfo || glow.live > 0;
+    if (!active && frameNo % 2) return;
+    const step = active ? dt : dt * 2;
+    const tt = now / 1000;
+    n1.offset.set(tt * 0.012, tt * 0.008);
+    n2.offset.set(-tt * 0.009, tt * 0.013);
+    for (let k = anims.length - 1; k >= 0; k--) {
+      const a = anims[k];
+      const keep = a.step ? a.step(now) : now < a.until;
+      if (!keep || now > a.until + 3000) anims.splice(k, 1);
+    }
+    // Framing one sea, the other is put away once the camera has settled (seen while it travels).
+    boards.forEach((b, side) => {
+      const v = !model || model.both || camT < 1 || model.focus === side;
+      if (b.mesh.visible !== v) { b.mesh.visible = v; b.group.visible = v; }
+    });
+    // Ships: bob on the swell, glide after a drag, sink, rise.
+    boards.forEach((b, side) => {
+      b.ships.forEach(o => {
+        const g = o.grp;
+        if (o.dragTo) {
+          placeShipGroup(side, o.i, o.dragTo.p, shipTmp);
+          g.position.lerp(shipTmp.position, 0.35);
+          g.rotation.y += (shipTmp.rotation.y - g.rotation.y) * 0.35;
+        } else if (o.glide) {
+          const t = Math.min(1, (now - o.glide.start) / o.glide.dur);
+          const e = bsEaseOut(t);
+          g.position.lerpVectors(o.glide.from, o.glide.to, e);
+          g.rotation.y = o.glide.rot + (o.glide.toRot - o.glide.rot) * e;
+          if (t >= 1) o.glide = null;
+        }
+        let y = Math.sin(tt * 1.3 + o.phase) * 0.018 + (o.lift ? 0.12 : 0);
+        let roll = Math.sin(tt * 0.9 + o.phase) * 0.025, pitch = Math.sin(tt * 0.7 + o.phase * 1.3) * 0.012;
+        if (o.sink) {
+          if (o.sink.start) o.sink.t = Math.min(1, (now - o.sink.start) / o.sink.dur);
+          const e = bsEaseOut(o.sink.t);
+          y = y * (1 - e) + o.sink.to.y * e;
+          roll = roll * (1 - e) + o.sink.to.roll * e;
+          pitch = pitch * (1 - e) + o.sink.to.pitch * e;
+        }
+        if (o.rise) {
+          const t = Math.max(0, Math.min(1, (now - o.rise.at) / o.rise.dur));
+          y += (1 - bsEaseOut(t)) * -0.9;
+          if (t >= 1) o.rise = null;
+          else anims.length || anims.push({ until: now + 100 });
+        }
+        if (o.wob) {
+          const t = (now - o.wob) / 420;
+          if (t >= 1) o.wob = 0;
+          else o.body.rotation.y = Math.sin(t * Math.PI * 5) * 0.08 * (1 - t);
+        } else o.body.rotation.y = 0;
+        o.body.position.y = y;
+        o.body.rotation.x = roll;
+        o.body.rotation.z = pitch;
+        o.body.traverse(m => { if (m.userData.spin) m.rotation.y += m.userData.spin * step; });
+      });
+      b.pegs.forEach(grp => { grp.position.y = Math.sin(tt * 1.6 + grp.userData.phase) * 0.02; });
+      // Fires and smoke keep going where a ship burns (on the sea in view).
+      if (b.group.visible) b.fires.forEach((f, cell) => {
+        const p = cellPos(side, cell);
+        if (f.fire && Math.random() < step * 16) {
+          glow.spawn(0, p.x + (Math.random() - 0.5) * 0.25, f.onShip ? 0.25 : 0.2, p.z + (Math.random() - 0.5) * 0.25,
+            (Math.random() - 0.5) * 0.15, 0.5 + Math.random() * 0.5, (Math.random() - 0.5) * 0.15, 0.55 + Math.random() * 0.35, 0.34, 0.12, 1, 0.62, 0.22, 0.95);
+        }
+        if (Math.random() < step * (f.smoke ? 2.2 : 4.5)) {
+          smoke.spawn(1, p.x + (Math.random() - 0.5) * 0.3, 0.35, p.z + (Math.random() - 0.5) * 0.3,
+            (Math.random() - 0.5) * 0.08, 0.35 + Math.random() * 0.25, (Math.random() - 0.5) * 0.08, 2.2 + Math.random() * 1.0, 0.3, f.smoke ? 1.1 : 1.3, 0.2, 0.19, 0.19, f.smoke ? 0.4 : 0.5);
+        }
+      });
+    });
+    smoke.update(step);
+    glow.update(step);
+    if (flash.intensity > 0) flash.intensity = Math.max(0, flash.intensity - step * 140);
+    if (cross.visible) { const s = 1 + Math.sin(tt * 6) * 0.05; cross.scale.set(s, s, 1); }
+    // The camera glides.
+    if (camT < 1 && camFrom && camTo) {
+      camT = Math.min(1, camT + step / 0.95);
+      const e = bsEase(camT);
+      camPos.lerpVectors(camFrom.pos, camTo.pos, e);
+      camLook.lerpVectors(camFrom.look, camTo.look, e);
+    }
+    cam.position.copy(camPos);
+    if (shake > 0) {
+      cam.position.x += (Math.random() - 0.5) * shake;
+      cam.position.y += (Math.random() - 0.5) * shake * 0.6;
+      shake = Math.max(0, shake - step * 0.9);
+    }
+    cam.lookAt(camLook);
+    if (camT < 1 || frameNo % 10 === 0) placeLabels();
+    const scale = renderer.domElement.height / (2 * Math.tan(cam.fov * Math.PI / 360));
+    smoke.points.material.uniforms.uScale.value = scale;
+    glow.points.material.uniforms.uScale.value = scale;
+    renderer.render(scene, cam);
+  }
+  raf = requestAnimationFrame(tick);
+
+  function resize() {
+    const w = root.clientWidth, h = root.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    cam.aspect = w / h;
+    cam.updateProjectionMatrix();
+    camKey = '';
+    aimCamera(true);
+    placeLabels();
+  }
+  const ro = new ResizeObserver(resize);
+  ro.observe(root);
+  resize();
+
+  function pause(p) { running = !p; if (!p) last = performance.now(); }
+
+  function dispose() {
+    cancelAnimationFrame(raf);
+    ro.disconnect();
+    const seen = new Set();
+    scene.traverse(o => {
+      if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
+      const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      ms.forEach(m => {
+        if (seen.has(m)) return;
+        seen.add(m);
+        ['map', 'normalMap', 'clearcoatNormalMap'].forEach(k => { if (m[k]) m[k].dispose(); });
+        if (m.uniforms && m.uniforms.uMap) m.uniforms.uMap.value.dispose();
+        m.dispose();
+      });
+    });
+    [mats[0], mats[1]].forEach(set => Object.keys(set.charred).forEach(k => set.charred[k].dispose()));
+    boards.forEach(b => b.tex.dispose());
+    Object.keys(envs).forEach(k => envs[k].dispose());
+    pmrem.dispose();
+    renderer.dispose();
+    try { renderer.forceContextLoss(); } catch (e) {}
+    canvas.remove();
+  }
+
+  return {
+    kind: '3d',
+    setModel: setModel, pick: pick, setAim: setAim, launch: launch, setDrag: setDrag, endDrag: endDrag, settleShip: settleShip, wobble: wobble,
+    resize: resize, pause: pause, dispose: dispose,
+    busyUntil: () => busyUntil,
+    /** Where a square's middle is on the page (the tests tap there). */
+    screenOf: (side, cell) => {
+      const r = canvas.getBoundingClientRect();
+      const q = cellPos(side, cell).project(cam);
+      return { x: r.left + (q.x * 0.5 + 0.5) * r.width, y: r.top + (-q.y * 0.5 + 0.5) * r.height };
+    },
+  };
+}
+
+// Sounds from the sea: the view says whether this screen is the room's voice.
+let bsLoud = true;
+function bsSoundLoud(kind) { if (bsLoud) bsSound(kind); }
+
+/* ============================================================================
+   The flat sea: where WebGL can't draw (or three.js can't load), and the small
+   map of the other sea beside the big one
+   ========================================================================= */
+
+/**
+ * One sea as a flat board: the letters across the top, the numbers down the
+ * side, the squares with their marks, and the ships that may be drawn.
+ * s: { grid, sunk, fleet, color }; o: { side, aim, newest, drag, mini }.
+ */
+function bsFlatSeaHtml(s, o) {
+  const opt = o || {};
+  const sunkIdx = new Set((s.sunk || []).map(x => x.i));
+  let cells = '';
+  for (let c = 0; c < 100; c++) {
+    const v = s.grid[c];
+    const cls = v === BS_MISS ? 'is-miss' : v === BS_HIT ? 'is-hit' : v === BS_SUNK ? 'is-sunk' : v === BS_CLEAR ? 'is-clear' : '';
+    cells += `<span class="bs-fc ${cls}${opt.aim === c ? ' is-aim' : ''}${opt.newest === c ? ' is-new' : ''}"></span>`;
+  }
+  const ships = [];
+  (s.fleet || []).forEach((p, i) => { if (p) ships.push({ i: i, p: p, sunk: sunkIdx.has(i) }); });
+  (s.sunk || []).forEach(x => { if (!ships.some(o2 => o2.i === x.i)) ships.push({ i: x.i, p: x, sunk: true }); });
+  const bar = (i, p, cls) => `<span class="bs-fship ${p.d === 'v' ? 'is-v' : 'is-h'} ${cls}" style="--x:${p.x};--y:${p.y};--len:${BS_SHIPS[i].len}" data-ship="${i}"></span>`;
+  const shipHtml = ships.map(x => bar(x.i, x.p, x.sunk ? 'is-sunk' : '')).join('');
+  const ghost = opt.drag ? bar(opt.drag.i, opt.drag.p, 'is-ghost ' + (opt.drag.ok ? 'is-ok' : 'is-bad')) : '';
+  const letters = opt.mini ? '' : `<span class="bs-fsea__cols">${BS_COLS.split('').map(l => `<span>${l}</span>`).join('')}</span>
+      <span class="bs-fsea__rows">${Array.from({ length: 10 }, (_, k) => `<span>${k + 1}</span>`).join('')}</span>`;
+  return `<div class="bs-fsea ${opt.mini ? 'bs-fsea--mini' : ''}" dir="ltr" style="--bs-c:${s.color || BS_SIDE_COL[opt.side || 0]}" ${opt.mini ? '' : `data-side="${opt.side || 0}"`}>
+      ${letters}<span class="bs-fsea__field" ${opt.mini ? '' : `data-bs-field="${opt.side || 0}"`}>${cells}${shipHtml}${ghost}</span>
+    </div>`;
+}
+
+function bsMakeFlat(root) {
+  const box = document.createElement('div');
+  box.className = 'bs-flat';
+  root.insertBefore(box, root.firstChild);
+  let model = null, aim = null, drag = null, shownShot = '', busy = 0, newest = null;
+  function draw() {
+    if (!model) return;
+    const sides = model.both ? [0, 1] : [model.focus];
+    box.classList.toggle('is-both', !!model.both);
+    box.innerHTML = sides.map(side => bsFlatSeaHtml(model.seas[side], {
+      side: side,
+      aim: aim && aim.side === side ? aim.cell : -1,
+      newest: newest && newest.side === side ? newest.cell : -1,
+      drag: drag && (drag.side || 0) === side ? drag : null
+    })).join('');
+  }
+  function setModel(m) {
+    const fresh = !model || model.key !== m.key;
+    model = m;
+    aim = m.aim && m.aim.cell >= 0 ? m.aim : null;
+    newest = null;
+    if (fresh) shownShot = m.shotKey || '';
+    else if (m.shot && m.shotKey && m.shotKey !== shownShot) {
+      shownShot = m.shotKey;
+      newest = { side: m.shot.side, cell: m.shot.cell };
+      const shot = m.shot;
+      bsSoundLoud(shot.res === 'miss' ? 'splash' : 'boom');
+      if (shot.res === 'sunk') setTimeout(() => bsSoundLoud('sink'), 300);
+      busy = Date.now() + 450;
+      setTimeout(() => { if (model && typeof model.onLand === 'function') { try { model.onLand(shot); } catch (e) {} } }, 300);
+    }
+    draw();
+  }
+  function pick(clientX, clientY) {
+    const fields = box.querySelectorAll('[data-bs-field]');
+    for (const f of fields) {
+      const r = f.getBoundingClientRect();
+      if (clientX < r.left - 12 || clientX > r.right + 12 || clientY < r.top - 12 || clientY > r.bottom + 12) continue;
+      const fx = (clientX - r.left) / r.width * 10, fy = (clientY - r.top) / r.height * 10;
+      const inside = fx >= 0 && fy >= 0 && fx < 10 && fy < 10;
+      return { side: Number(f.dataset.bsField), fx: Math.max(0, Math.min(9.99, fx)), fy: Math.max(0, Math.min(9.99, fy)), cell: inside ? Math.floor(fy) * 10 + Math.floor(fx) : -1 };
+    }
+    return null;
+  }
+  return {
+    kind: 'flat',
+    setModel: setModel,
+    pick: pick,
+    setAim: (a) => { aim = a && a.cell >= 0 ? a : null; draw(); },
+    setDrag: (d) => { drag = d; draw(); },
+    endDrag: () => { drag = null; },
+    settleShip: () => { drag = null; draw(); },
+    wobble: (side, i) => {
+      const el = box.querySelector(`[data-side="${side}"] [data-ship="${i}"]`);
+      if (el && !motionOff()) { el.classList.remove('animate-shake'); void el.offsetWidth; el.classList.add('animate-shake'); }
+    },
+    launch: () => {},
+    screenOf: (side, cell) => {
+      const f = box.querySelector(`[data-bs-field="${side}"]`);
+      if (!f) return null;
+      const r = f.getBoundingClientRect();
+      return { x: r.left + ((cell % 10) + 0.5) * r.width / 10, y: r.top + (Math.floor(cell / 10) + 0.5) * r.height / 10 };
+    },
+    resize: () => {},
+    pause: () => {},
+    dispose: () => box.remove(),
+    busyUntil: () => busy
+  };
+}
+
+/** The small map of a sea (the one the camera isn't on), and a fleet's ships: afloat, or crossed out. */
+function bsMiniHtml(s, label) {
+  return `<div class="bs-mini"><span class="bs-mini__label">${escapeHTML(label || '')}</span>${bsFlatSeaHtml(s, { mini: true })}</div>`;
+}
+
+function bsFleetHtml(sea, label, color) {
+  const gone = (sea.sunk || []).map(x => x.i);
+  return `<div class="bs-fleet" style="--bs-c:${color}" title="${escapeHTML(label || '')}">
+      <span class="bs-fleet__who">${escapeHTML(label || '')}</span>
+      <span class="bs-fleet__ships">${BS_SHIPS.map((s, i) => `<span class="bs-fleet__ship ${gone.indexOf(i) !== -1 ? 'is-sunk' : ''}" title="${escapeHTML(bsShipShort(i))}" aria-label="${escapeHTML(bsShipShort(i))}${gone.indexOf(i) !== -1 ? ' ✕' : ''}">${'<i></i>'.repeat(s.len)}</span>`).join('')}</span>
+    </div>`;
+}
+
+/* ============================================================================
+   The view: one per page, moved into whichever screen shows a sea
+   ========================================================================= */
+
+const bsView = { root: null, r: null, model: null, loading: false };
+
+function bsViewRoot() {
+  if (bsView.root) return bsView.root;
+  const el = document.createElement('div');
+  el.className = 'bs-view';
+  el.innerHTML = `
+    <span class="bs-label" data-bs-label="0"></span><span class="bs-label" data-bs-label="1"></span>
+    <button type="button" class="bs-peek" data-bs-peek hidden></button>
+    <div class="bs-toast" data-bs-toast aria-live="polite"></div>
+    <div class="bs-loading" aria-hidden="true"><span></span></div>`;
+  bsWireInput(el);
+  bsView.root = el;
+  return el;
+}
+
+/** Shows `model` in `host`, making the sea the first time (3D when it can, flat when it can't). */
+function bsViewShow(host, model) {
+  if (!host) return;
+  const root = bsViewRoot();
+  if (root.parentNode !== host) host.appendChild(root);
+  bsView.model = model;
+  bsLoud = model.loud !== false;
+  root.classList.toggle('is-placing', !!(model.input && model.input.mode === 'place'));
+  root.classList.toggle('is-firing', !!(model.input && model.input.mode === 'fire'));
+  root.classList.toggle('is-both', !!model.both);
+  [0, 1].forEach(side => {
+    const el = root.querySelector(`[data-bs-label="${side}"]`);
+    if (el.textContent !== (model.seas[side].label || '')) el.textContent = model.seas[side].label || '';
+    el.style.setProperty('--bs-c', model.seas[side].color || BS_SIDE_COL[side]);
+  });
+  const peek = root.querySelector('[data-bs-peek]');
+  if (model.peek) {
+    peek.hidden = false;
+    if (peek.textContent !== model.peek.label) peek.textContent = model.peek.label;
+    peek.onclick = model.peek.onClick;
+  } else peek.hidden = true;
+  if (bsView.r) { bsView.r.setModel(model); return; }
+  if (!bsView.loading) bsViewStart();
+}
+
+function bsViewStart() {
+  const root = bsView.root;
+  const flat = () => {
+    root.querySelectorAll('canvas').forEach(c => c.remove());
+    bsView.r = bsMakeFlat(root);
+    root.classList.add('is-flat');
+    root.classList.remove('is-loading');
+    if (bsView.model) bsView.r.setModel(bsView.model);
+  };
+  if (typeof loadThree !== 'function' || typeof threeCanDraw !== 'function' || !threeCanDraw()) { flat(); return; }
+  bsView.loading = true;
+  root.classList.add('is-loading');
+  loadThree().then((THREE) => {
+    if (bsView.root !== root) return;       // left meanwhile
+    bsView.loading = false;
+    try { bsView.r = bsMake3D(THREE, root); }
+    catch (e) { console.warn('battleship 3d', e); flat(); return; }
+    root.classList.remove('is-loading', 'is-flat');
+    if (bsView.model) bsView.r.setModel(bsView.model);
+  }).catch(() => {
+    if (bsView.root !== root) return;
+    bsView.loading = false;
+    flat();
+  });
+}
+
+/** Everything the sea holds is thrown away: the renderer, its textures, its canvas. */
+function bsViewDrop() {
+  if (bsView.r) { try { bsView.r.dispose(); } catch (e) {} }
+  if (bsView.root) bsView.root.remove();
+  bsView.r = null;
+  bsView.root = null;
+  bsView.model = null;
+  bsView.loading = false;
+}
+
+/** How long before the shot in the air has landed (0 when nothing is flying). */
+const bsViewBusyLeft = () => (bsView.r ? Math.max(0, bsView.r.busyUntil() - Date.now()) : 0);
+
+/** A big word over the sea for a moment: the result of a shot. */
+function bsViewToast(html, cls) {
+  const el = bsView.root && bsView.root.querySelector('[data-bs-toast]');
+  if (!el) return;
+  el.innerHTML = html;
+  el.className = 'bs-toast is-on ' + (cls || '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = 'bs-toast ' + (cls || ''); }, 1500);
+}
+
+/** The words for a shot that has landed. */
+function bsShotToast(shot) {
+  if (!shot) return;
+  if (shot.res === 'miss') bsViewToast(`💦 ${escapeHTML(bsT('bs_res_miss'))}`, 'is-miss');
+  else if (shot.res === 'hit') bsViewToast(`💥 ${escapeHTML(bsT('bs_res_hit'))}`, 'is-hit');
+  else bsViewToast(`🔥 ${escapeHTML(bsT('bs_res_sunk', { ship: bsShipLabel(shot.ship) }))}`, 'is-sunk');
+  if (shot.res !== 'miss') haptic(shot.res === 'sunk' ? 'double' : 'medium');
+}
+
+document.addEventListener('visibilitychange', () => { if (bsView.r) bsView.r.pause(document.hidden); });
+
+/* --- the finger on the sea: dragging and turning ships, aiming and firing -------- */
+
+function bsWireInput(root) {
+  let press = null;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  root.addEventListener('pointerdown', (e) => {
+    const m = bsView.model, r = bsView.r;
+    if (!m || !r || !m.input || e.button > 0 || e.target.closest('button')) return;
+    const p = r.pick(e.clientX, e.clientY);
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, p: p, drag: null, moved: false };
+    if (m.input.mode === 'place' && p && p.side === m.input.side && p.cell >= 0) {
+      const fleet = m.input.fleet;
+      const i = bsOccupancy(fleet)[p.cell] - 1;
+      if (i >= 0) {
+        const cells = bsShipCells(fleet[i], BS_SHIPS[i].len);
+        press.drag = { i: i, k: Math.max(0, cells.indexOf(p.cell)), from: fleet[i], pos: fleet[i], ok: true };
+        try { root.setPointerCapture(e.pointerId); } catch (x) {}
+        e.preventDefault();
+      }
+    }
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!press || press.id !== e.pointerId) return;
+    if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) press.moved = true;
+    const d = press.drag;
+    const m = bsView.model, r = bsView.r;
+    if (!d || !press.moved || !m || !r || !m.input) return;
+    const p = r.pick(e.clientX, e.clientY);
+    if (!p || p.side !== m.input.side) return;
+    const len = BS_SHIPS[d.i].len, dir = d.from.d;
+    const x = clamp(Math.floor(p.fx) - (dir === 'h' ? d.k : 0), 0, dir === 'h' ? 10 - len : 9);
+    const y = clamp(Math.floor(p.fy) - (dir === 'v' ? d.k : 0), 0, dir === 'v' ? 10 - len : 9);
+    if (d.pos && d.pos.x === x && d.pos.y === y && d.shown) return;
+    d.pos = { x: x, y: y, d: dir };
+    d.shown = true;
+    d.ok = bsCanPlace(m.input.fleet, d.i, d.pos);
+    r.setDrag({ side: m.input.side, i: d.i, p: d.pos, ok: d.ok });
+  });
+  const end = (e, cancel) => {
+    if (!press || press.id !== e.pointerId) return;
+    const pr = press;
+    press = null;
+    const m = bsView.model, r = bsView.r;
+    if (!m || !r || !m.input) return;
+    const side = m.input.side;
+    const d = pr.drag;
+    if (d) {
+      r.endDrag(side, d.i);
+      if (cancel) { r.settleShip(side, d.i, d.from); return; }
+      if (!pr.moved) { bsTurnShip(m, d.i); return; }
+      if (d.ok && (d.pos.x !== d.from.x || d.pos.y !== d.from.y)) {
+        const fleet = m.input.fleet.slice();
+        fleet[d.i] = d.pos;
+        r.settleShip(side, d.i, d.pos);
+        bsSound('place');
+        haptic('light');
+        m.input.onFleet(fleet);
+      } else {
+        r.settleShip(side, d.i, d.from);
+        if (!d.ok) { r.wobble(side, d.i); bsSound('refuse'); haptic('double'); if (m.input.onRefuse) m.input.onRefuse('touch'); }
+      }
+      return;
+    }
+    if (cancel || pr.moved || m.input.mode !== 'fire') return;
+    const p = r.pick(e.clientX, e.clientY) || pr.p;
+    if (!p) return;
+    if (p.side !== m.input.side) { if (m.input.onOther) m.input.onOther(p.side); return; }
+    if (p.cell >= 0) m.input.onTap(p.cell);
+  };
+  root.addEventListener('pointerup', (e) => end(e, false));
+  root.addEventListener('pointercancel', (e) => end(e, true));
+}
+
+/**
+ * A ship tapped: it turns about its first square. Hanging off the board it is
+ * pushed back on; touching another ship it takes the nearest place it fits,
+ * and with none it shakes its head.
+ */
+function bsTurnShip(m, i) {
+  const fleet = m.input.fleet;
+  const p = fleet[i];
+  const len = BS_SHIPS[i].len;
+  const d = p.d === 'h' ? 'v' : 'h';
+  const bx = Math.min(p.x, d === 'h' ? 10 - len : 9), by = Math.min(p.y, d === 'v' ? 10 - len : 9);
+  const tries = [];
+  for (let r = 0; r <= 3; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        tries.push({ x: bx + dx, y: by + dy, d: d, w: Math.abs(dx) + Math.abs(dy) });
+      }
+    }
+  }
+  tries.sort((a, b) => a.w - b.w);
+  const fit = tries.find(q => bsCanPlace(fleet, i, q));
+  const r = bsView.r;
+  if (!fit) {
+    if (r) r.wobble(m.input.side, i);
+    bsSound('refuse');
+    haptic('double');
+    if (m.input.onRefuse) m.input.onRefuse('turn');
+    return;
+  }
+  const next = fleet.slice();
+  next[i] = { x: fit.x, y: fit.y, d: d };
+  if (r) r.settleShip(m.input.side, i, next[i]);
+  bsSound('turn');
+  haptic('light');
+  m.input.onFleet(next);
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    // One renderer per screen: gone as soon as no screen shows a sea.
+    const keep = to === 'play-battleship' || to === 'room-battleship' || (to === 'room-tv' && Room.state && Room.state.game === 'battleship');
+    if (!keep) bsViewDrop();
+  });
+}
+
+/* ============================================================================
+   What every battleship screen is made of
+   ========================================================================= */
+
+/** Sets an element's markup only when it changed (a room redraws on every presence tick). */
+function bsSetHtml(root, sel, html) {
+  const el = root && root.querySelector(sel);
+  if (!el || el._bsHtml === html) return false;
+  el.innerHTML = html;
+  el._bsHtml = html;
+  return true;
+}
+
+/** The screen: the sea, and beside it (or under it, upright) who plays, what to do, the other sea small. */
+function bsLayoutHtml() {
+  return `<div class="bs-game duel">
+      <div class="bs-layout">
+        <div class="bs-layout__stage"><div class="bs-stage" data-bs-host></div></div>
+        <div class="bs-layout__side">
+          <div class="duel-head bs-head" data-bs-head></div>
+          <div class="bs-bar" data-bs-bar></div>
+          <div class="bs-side" data-bs-side></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+const bsMark = (k) => `<span class="bs-mark" style="--bs-c:${BS_SIDE_COL[k]}" aria-hidden="true">⚓</span>`;
+const bsAfloatCount = (sea) => BS_SHIPS.length - (sea.sunk || []).length;
+
+/** The line under a ship that couldn't go where it was dropped or turned. */
+function bsRefuseHint(why) {
+  bsViewToast(escapeHTML(bsT(why === 'turn' ? 'bs_turn_refused' : 'bs_touch')), 'is-note');
+}
+
+/* ============================================================================
+   Against the phone
+   ========================================================================= */
+
+let bsPhoneTimer = null;
+// peek: the sea the player asked to see this turn (null: the one being fired at);
+// flying: the shot whose shell is still in the air, so the page doesn't tell its result first.
+const bsPhoneLocal = { peek: null, peekKey: '', busyUntil: 0, flying: '' };
+
+function bsPhoneState() {
+  if (!appState.battleship) {
+    appState.battleship = {
+      level: 'medium', phase: 'setup', fleet: null, ai: null, seas: null, turn: 0, shots: 0, last: null,
+      aim: -1, winner: -1, gameId: '', scores: { me: 0, ai: 0 }, tally: [{ shots: 0, hits: 0 }, { shots: 0, hits: 0 }]
+    };
+  }
+  const s = appState.battleship;
+  if (!s.scores) s.scores = { me: 0, ai: 0 };
+  if (!s.tally) s.tally = [{ shots: 0, hits: 0 }, { shots: 0, hits: 0 }];
+  return s;
+}
+
+function setupBattleship() {
+  bsPhoneStop();
+  setView('setup-battleship');
+  paintBattleshipSetup();
+}
+
+function paintBattleshipSetup() {
+  const s = bsPhoneState();
+  duelPaintSegmented('battleship-level', s.level);
+  const cont = document.getElementById('battleship-continue');
+  if (cont) cont.classList.toggle('hidden', !((s.phase === 'play' || s.phase === 'place') && s.seas));
+}
+
+function setBattleshipLevel(v) {
+  bsPhoneState().level = bsLevel(v);
+  saveToLocal();
+  paintBattleshipSetup();
+}
+
+/** Start: a new match, the tally from nothing. */
+function startBattleship() {
+  const s = bsPhoneState();
+  s.scores = { me: 0, ai: 0 };
+  bsPhoneNewGame();
+}
+
+function bsPhoneContinue() {
+  setView('play-battleship');
+  paintBattleship({ still: true });
+  bsPhoneMaybeAi();
+}
+
+/** A new game: your last fleet (or a random one) to place, and the phone's hidden. */
+function bsPhoneNewGame() {
+  const s = bsPhoneState();
+  bsPhoneStop();
+  s.fleet = s.fleet && !bsFleetProblem(s.fleet) ? s.fleet : bsRandomFleet();
+  s.ai = bsRandomFleet(Math.random, s.level === 'hard' ? 'hard' : 'easy');
+  s.seas = [bsNewSea(), bsNewSea()];
+  s.phase = 'place';
+  s.turn = 0;
+  s.shots = 0;
+  s.last = null;
+  s.aim = -1;
+  s.winner = -1;
+  s.tally = [{ shots: 0, hits: 0 }, { shots: 0, hits: 0 }];
+  s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  bsPhoneLocal.flying = '';
+  saveToLocal();
+  if (appState.currentView !== 'play-battleship') setView('play-battleship');
+  paintBattleship();
+  if (typeof scrollToAction === 'function') scrollToAction();
+}
+
+function bsPhoneSetFleet(fleet) {
+  const s = bsPhoneState();
+  if (s.phase !== 'place' || bsFleetProblem(fleet)) return;
+  s.fleet = fleet;
+  saveToLocal();
+  paintBattleship();
+}
+
+function bsPhoneRandom() {
+  const s = bsPhoneState();
+  if (s.phase !== 'place') return;
+  s.fleet = bsRandomFleet();
+  bsSound('place');
+  haptic('light');
+  saveToLocal();
+  paintBattleship();
+}
+
+/** Ready: the fleets sail, and who fires first is drawn at random. */
+function bsPhoneReady() {
+  const s = bsPhoneState();
+  if (s.phase !== 'place' || bsFleetProblem(s.fleet)) return;
+  s.phase = 'play';
+  s.turn = Math.random() < 0.5 ? 0 : 1;
+  saveToLocal();
+  haptic('medium');
+  paintBattleship();
+  bsViewToast(escapeHTML(s.turn === 0 ? bsT('bs_first_you') : bsT('bs_first_phone')), 'is-note');
+  bsPhoneMaybeAi();
+}
+
+function bsPhonePeek(side) {
+  bsPhoneLocal.peek = side;
+  haptic('light');
+  paintBattleship();
+}
+
+/** A tap on the phone's sea: aim there, or fire where you aimed. */
+function bsPhoneTap(cell) {
+  const s = bsPhoneState();
+  if (s.phase !== 'play' || s.turn !== 0 || Date.now() < bsPhoneLocal.busyUntil || bsPhoneLocal.flying) return;
+  if (s.seas[1].grid[cell] !== BS_SEA) { bsSound('refuse'); bsViewToast(escapeHTML(bsT('bs_already')), 'is-note'); return; }
+  if (s.aim === cell) { bsPhoneFire(); return; }
+  s.aim = cell;
+  bsSound('aim');
+  haptic('light');
+  paintBattleship();
+}
+
+function bsPhoneFire() {
+  const s = bsPhoneState();
+  const cell = s.aim;
+  if (s.phase !== 'play' || s.turn !== 0 || cell < 0 || s.seas[1].grid[cell] !== BS_SEA || bsPhoneLocal.flying) return;
+  haptic('medium');
+  bsPhoneApply(0, cell);
+}
+
+/** One shot, yours (seat 0) or the phone's (seat 1): a hit shoots again, a miss passes the turn. */
+function bsPhoneApply(seat, cell) {
+  const s = bsPhoneState();
+  const target = 1 - seat;
+  const out = bsFire(s.seas[target], target === 0 ? s.fleet : s.ai, cell);
+  if (!out) return;
+  s.shots++;
+  s.tally[seat].shots++;
+  if (out.res !== 'miss') s.tally[seat].hits++;
+  s.last = { seat: seat, cell: out.cell, res: out.res, ship: out.res === 'sunk' ? out.ship : null };
+  s.aim = -1;
+  if (out.over) {
+    s.phase = 'done';
+    s.winner = seat;
+    s.scores[seat === 0 ? 'me' : 'ai']++;
+  } else if (out.res === 'miss') s.turn = target;
+  saveToLocal();
+  bsPhoneLocal.flying = motionOff() ? '' : s.gameId + '|' + s.shots;
+  paintBattleship();
+  bsPhoneLocal.busyUntil = Date.now() + 300;
+  bsPhoneMaybeAi();
+}
+
+/** The shell has landed: the page may say what happened, and the phone may fire again. */
+function bsPhoneLanded(shot) {
+  bsShotToast(shot);
+  bsPhoneLocal.flying = '';
+  if (appState.currentView === 'play-battleship') paintBattleship({ landed: true });
+  bsPhoneMaybeAi();
+}
+
+/** The phone's turn: once the last shell has landed and the camera has come round, a moment's aim, then its shot. */
+function bsPhoneMaybeAi() {
+  const s = bsPhoneState();
+  if (s.phase !== 'play' || s.turn !== 1 || bsPhoneTimer || appState.currentView !== 'play-battleship') return;
+  const still = motionOff();
+  const wait = bsViewBusyLeft() + (still ? 400 : 1150) + Math.floor(Math.random() * 450);
+  bsPhoneTimer = setTimeout(() => {
+    bsPhoneTimer = null;
+    const st = bsPhoneState();
+    if (st.phase !== 'play' || st.turn !== 1 || appState.currentView !== 'play-battleship') return;
+    if (bsViewBusyLeft() > 0 || bsPhoneLocal.flying) { bsPhoneMaybeAi(); return; }
+    const cell = bsAiShot(st.seas[0], st.level);
+    if (cell >= 0) bsPhoneApply(1, cell);
+  }, wait);
+}
+
+function bsPhoneStop() {
+  if (bsPhoneTimer) clearTimeout(bsPhoneTimer);
+  bsPhoneTimer = null;
+}
+
+function bsPhoneModel(s, o, flying) {
+  const placing = s.phase === 'place', play = s.phase === 'play', done = s.phase === 'done';
+  const last = s.last;
+  // A shell in the air: the camera stays on the sea it is falling on until it lands.
+  const auto = flying && last ? (last.seat === 0 ? 1 : 0) : play ? (s.turn === 0 ? 1 : 0) : placing ? 0 : 1;
+  const peekKey = [s.gameId, s.phase, s.turn, flying ? 'f' : ''].join('|');
+  if (bsPhoneLocal.peekKey !== peekKey) { bsPhoneLocal.peekKey = peekKey; bsPhoneLocal.peek = null; }
+  const focus = bsPhoneLocal.peek === null ? auto : bsPhoneLocal.peek;
+  const myFire = play && s.turn === 0 && focus === 1;
+  return {
+    key: 'phone|' + s.gameId,
+    loud: true,
+    seas: [
+      { grid: s.seas[0].grid, sunk: s.seas[0].sunk, fleet: s.fleet, color: BS_SIDE_COL[0], mine: true, label: bsT('bs_your_sea') },
+      { grid: s.seas[1].grid, sunk: s.seas[1].sunk, fleet: done && !flying ? s.ai : null, appear: done && !flying && !o.still && motionFirst('bs-reveal|' + s.gameId), color: BS_SIDE_COL[1], label: bsT('bs_phone_sea') }
+    ],
+    focus: focus,
+    both: false,
+    shot: last ? { side: last.seat === 0 ? 1 : 0, cell: last.cell, res: last.res, ship: last.ship } : null,
+    shotKey: last ? s.gameId + '|' + s.shots : '',
+    aim: myFire && s.aim >= 0 ? { side: 1, cell: s.aim } : null,
+    peek: play ? { label: focus === 1 ? bsT('bs_peek_mine') : bsT('bs_peek_enemy'), onClick: () => bsPhonePeek(focus === 1 ? 0 : 1) } : null,
+    input: placing ? { mode: 'place', side: 0, fleet: s.fleet, onFleet: bsPhoneSetFleet, onRefuse: bsRefuseHint }
+      : myFire ? { mode: 'fire', side: 1, onTap: bsPhoneTap } : null,
+    onLand: bsPhoneLanded
+  };
+}
+
+function bsPhoneStatus(s, flying) {
+  const last = s.last;
+  if (flying && last) {
+    return last.seat === 0 ? bsT('bs_you_fired', { coord: bsCoordIso(last.cell) }) : bsT('bs_fired', { name: duelIso(bsT('xo_phone')), coord: bsCoordIso(last.cell) });
+  }
+  if (s.phase === 'place') return bsT('bs_place_title');
+  if (s.phase === 'done') return s.winner === 0 ? '🏆 ' + bsT('bs_you_won') : bsT('bs_phone_won');
+  if (s.turn === 1) return bsT('bs_phone_thinking');
+  if (s.aim >= 0) return bsT('bs_aim', { coord: bsCoordIso(s.aim) });
+  if (last && last.seat === 0 && last.res !== 'miss') return bsT('bs_again_you');
+  return bsT('bs_your_turn');
+}
+
+function bsPhoneHeadHtml(s, flying) {
+  const pills = duelPillsHtml({
+    players: [
+      { name: bsT('xo_you'), score: s.scores.me, mark: bsMark(0), sub: escapeHTML(bsT('bs_afloat', { n: bsAfloatCount(s.seas[0]) })) },
+      { name: bsT('xo_phone'), score: s.scores.ai, mark: bsMark(1), sub: escapeHTML(bsT('bs_afloat', { n: bsAfloatCount(s.seas[1]) })) }
+    ],
+    turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
+    draws: null
+  });
+  const thinking = s.phase === 'play' && s.turn === 1 && !flying;
+  const cls = (s.phase === 'done' && !flying ? 'is-done' : '') + (thinking ? ' is-thinking' : '') + (s.phase === 'play' && s.turn === 0 && !flying ? ' is-mine' : '');
+  return `${pills}<p class="duel-status ${cls}">${escapeHTML(bsPhoneStatus(s, flying))}</p>`;
+}
+
+function bsPhoneBarHtml(s, flying) {
+  if (s.phase === 'place') {
+    return `<p class="bs-bar__say">${escapeHTML(bsT('bs_place_hint'))}</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn--secondary" onclick="bsPhoneRandom()">${escapeHTML(bsT('bs_random'))}</button>
+        <button type="button" class="btn btn--primary btn--lg" onclick="bsPhoneReady()">${escapeHTML(bsT('bs_ready'))}</button>
+      </div>`;
+  }
+  if (s.phase === 'done') {
+    if (flying) return '';
+    return `<button type="button" class="btn btn--primary btn--lg" onclick="bsPhoneNewGame()">${escapeHTML(bsT('duel_next_game'))}</button>`;
+  }
+  if (s.turn !== 0 || flying) return '';
+  if (s.aim >= 0) {
+    return `<button type="button" class="btn btn--primary btn--lg bs-fire" onclick="bsPhoneFire()">${escapeHTML(bsT('bs_fire', { coord: bsCoordIso(s.aim) }))}</button>`;
+  }
+  return `<p class="bs-bar__say">${escapeHTML(bsT('bs_tap_hint'))}</p>`;
+}
+
+function bsPhoneSideHtml(s, model, flying) {
+  const parts = [];
+  if (s.phase !== 'place') {
+    const other = model.focus === 1 ? 0 : 1;
+    const sea = model.seas[other];
+    parts.push(bsMiniHtml(sea, sea.label));
+    parts.push(`<div class="bs-fleets">${bsFleetHtml(s.seas[0], bsT('bs_fleet_you'), BS_SIDE_COL[0])}${bsFleetHtml(s.seas[1], bsT('xo_phone'), BS_SIDE_COL[1])}</div>`);
+  }
+  if (s.phase === 'done' && !flying) {
+    const acc = (k) => (s.tally[k].shots ? Math.round(s.tally[k].hits / s.tally[k].shots * 100) : 0);
+    parts.push(`<p class="bs-tally">${escapeHTML(bsT('bs_tally', { n: s.tally[0].shots, h: s.tally[0].hits, p: acc(0) }))}</p>`);
+  }
+  parts.push(`<div class="duel-actions"><button type="button" class="btn btn--ghost btn--sm" onclick="setupBattleship()">${escapeHTML(bsT('exit'))}</button></div>`);
+  return parts.join('');
+}
+
+function paintBattleship(opts) {
+  const o = opts || {};
+  const s = bsPhoneState();
+  const el = document.getElementById('battleship-stage');
+  if (!el || !s.seas || !s.fleet) return;
+  if (!el.querySelector('.bs-game') || el._bsLang !== appState.lang) { el.innerHTML = bsLayoutHtml(); el._bsLang = appState.lang; }
+  if (o.still) bsPhoneLocal.flying = '';
+  const shotKey = s.last ? s.gameId + '|' + s.shots : '';
+  const flying = !!bsPhoneLocal.flying && bsPhoneLocal.flying === shotKey;
+  const model = bsPhoneModel(s, o, flying);
+  bsViewShow(el.querySelector('[data-bs-host]'), model);
+  bsSetHtml(el, '[data-bs-head]', bsPhoneHeadHtml(s, flying));
+  bsSetHtml(el, '[data-bs-bar]', bsPhoneBarHtml(s, flying));
+  bsSetHtml(el, '[data-bs-side]', bsPhoneSideHtml(s, model, flying));
+  duelPillsAfter(el, 'bs-local', { turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1, scores: [s.scores.me || 0, s.scores.ai || 0] });
+  if (s.phase === 'done' && !flying && duelOnce('bs|' + s.gameId + '|cheer') && !o.still) {
+    const won = s.winner === 0;
+    setTimeout(() => {
+      if (won) {
+        duelSound('win');
+        if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      } else duelSound('lose');
+    }, o.landed ? 900 : 0);
+    haptic(won ? 'double' : 'light');
+  }
+}
+
+/** After a reload: the sea as it was, and the phone fires if it was its turn. */
+function restoreBattleship() {
+  const s = bsPhoneState();
+  if ((s.phase !== 'place' && s.phase !== 'play' && s.phase !== 'done') || !s.seas || !s.fleet || !s.ai) return false;
+  bsPhoneLocal.flying = '';
+  paintBattleship({ still: true });
+  setTimeout(bsPhoneMaybeAi, 0);
+  return true;
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('battleship', {
+    setup: 'setup-battleship', play: 'play-battleship',
+    paintSetup: paintBattleshipSetup, restore: restoreBattleship,
+    repaint: () => paintBattleship({ still: true })
+  });
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-battleship') bsPhoneStop();
+    if (to === 'play-battleship') setTimeout(bsPhoneMaybeAi, 0);
+  });
+}
+
+/* ============================================================================
+   In a room: two duel, the room watches, winner stays on (RoomBattleship.js)
+   ========================================================================= */
+
+// fleet: the fleet this phone is placing (fleetKey: which deal it is for); aim: the square aimed at
+// this turn; peek: the sea asked for this turn; sent: a shot sent and not answered; flying: the shot
+// whose shell is in the air; seen: the newest shot this phone has shown.
+const bsRoomLocal = { fleet: null, fleetKey: '', aim: -1, aimKey: '', peek: null, peekKey: '', sent: '', flying: '', seen: null, turnKey: '', turnSince: 0, clock: null, clockKey: null };
+const BS_DRAFT_KEY = 'ashryBsDraft';
+
+const bsRoomSeat = (state) => (state.youAreScreen ? -1 : ((state.shared || {}).seats || []).indexOf(Room.me));
+
+/** The fleet on this phone's board while placing: the one being moved about, kept across a reload. */
+function bsRoomDraft(state) {
+  const s = state.shared;
+  const seat = bsRoomSeat(state);
+  const key = [state.code, s.dealId || '', s.round, seat].join('|');
+  if (bsRoomLocal.fleetKey !== key) {
+    bsRoomLocal.fleetKey = key;
+    let saved = null;
+    try { const d = JSON.parse(sessionStorage.getItem(BS_DRAFT_KEY) || 'null'); if (d && d.key === key && !bsFleetProblem(d.fleet)) saved = d.fleet; } catch (e) {}
+    bsRoomLocal.fleet = saved || ((state.you || {}).fleet || null);
+  }
+  return bsRoomLocal.fleet;
+}
+
+function bsRoomSetFleet(fleet) {
+  if (bsFleetProblem(fleet)) return;
+  bsRoomLocal.fleet = fleet;
+  try { sessionStorage.setItem(BS_DRAFT_KEY, JSON.stringify({ key: bsRoomLocal.fleetKey, fleet: fleet })); } catch (e) {}
+  bsRoomRedraw();
+}
+
+function bsRoomRandom() {
+  bsSound('place');
+  haptic('light');
+  bsRoomSetFleet(bsRandomFleet());
+}
+
+function bsRoomReady() {
+  const state = Room.state;
+  if (!state || state.game !== 'battleship') return;
+  const fleet = bsRoomDraft(state);
+  if (!fleet || bsFleetProblem(fleet)) return;
+  haptic('medium');
+  roomAct('place', { fleet: fleet });
+}
+
+function bsRoomRedraw() {
+  if (!Room.state || Room.state.game !== 'battleship') return;
+  const el = document.getElementById('view-room-battleship');
+  // Only on the room's own screen: a player looking at the menu is not dragged back.
+  if (Room.state.youAreScreen || !el || appState.currentView !== 'room-battleship') return;
+  ROOM_GAMES.battleship.render(Room.state);
+}
+
+function bsRoomAimOf(state) {
+  const s = state.shared;
+  const key = [state.code, s.round, s.turnSeq].join('|');
+  if (bsRoomLocal.aimKey !== key) { bsRoomLocal.aimKey = key; bsRoomLocal.aim = -1; }
+  return bsRoomLocal.aim;
+}
+
+/** A tap on the other sea: aim there, or fire where you aimed. */
+function bsRoomTap(cell) {
+  const state = Room.state;
+  if (!state || state.game !== 'battleship') return;
+  const s = state.shared;
+  const seat = bsRoomSeat(state);
+  if (s.phase !== 'play' || s.turn !== seat || bsRoomLocal.sent || bsRoomLocal.flying) return;
+  if (s.seas[1 - seat].grid[cell] !== BS_SEA) { bsSound('refuse'); bsViewToast(escapeHTML(bsT('bs_already')), 'is-note'); return; }
+  if (bsRoomAimOf(state) === cell) { bsRoomFire(); return; }
+  bsRoomLocal.aim = cell;
+  bsSound('aim');
+  haptic('light');
+  bsRoomRedraw();
+}
+
+/**
+ * Fire: the shell leaves as the finger lifts (the renderer's launch), and the
+ * server's answer lands it - nothing waits on the round trip.
+ */
+function bsRoomFire() {
+  const state = Room.state;
+  if (!state || state.game !== 'battleship') return;
+  const s = state.shared;
+  const seat = bsRoomSeat(state);
+  const cell = bsRoomAimOf(state);
+  if (s.phase !== 'play' || s.turn !== seat || cell < 0 || s.seas[1 - seat].grid[cell] !== BS_SEA) return;
+  const stamp = [state.code, s.round, s.turnSeq].join('|');
+  if (bsRoomLocal.sent === stamp) return;
+  bsRoomLocal.sent = stamp;
+  bsRoomLocal.aim = -1;
+  const expect = [state.code, s.round, (s.shots || 0) + 1].join('|');
+  if (!motionOff()) bsRoomLocal.flying = expect;
+  if (bsView.r && bsView.r.launch) bsView.r.launch(1, cell);
+  haptic('medium');
+  bsRoomRedraw();
+  Promise.resolve(roomAct('fire', { cell: cell, seq: s.turnSeq })).then(() => {
+    if (bsRoomLocal.sent === stamp) bsRoomLocal.sent = '';
+    const st = Room.state;
+    // Refused (or gone): the shell in the air never lands, and the page says so no longer.
+    if (bsRoomLocal.flying === expect && !(st && st.game === 'battleship' && [st.code, st.shared.round, st.shared.shots].join('|') === expect)) {
+      bsRoomLocal.flying = '';
+      bsRoomRedraw();
+    }
+  });
+}
+
+function bsRoomPeek(side) {
+  bsRoomLocal.peek = side;
+  haptic('light');
+  bsRoomRedraw();
+}
+
+/** The newest shot, noticed once: from now until it lands the page doesn't give its result away. */
+function bsRoomNoteShot(state) {
+  const s = state.shared;
+  const key = s.last ? [state.code, s.round, s.shots].join('|') : '';
+  if (bsRoomLocal.seen === null) { bsRoomLocal.seen = key; return; }
+  if (key && key !== bsRoomLocal.seen) {
+    bsRoomLocal.seen = key;
+    if (!motionOff()) bsRoomLocal.flying = key;
+  }
+}
+
+function bsRoomLanded(shot) {
+  bsShotToast(shot);
+  bsRoomLocal.flying = '';
+  const st = Room.state;
+  if (!st || st.game !== 'battleship') return;
+  if (st.youAreScreen) { const v = document.getElementById('view-room-tv'); if (v) TV_GAMES.battleship.after(st, false); }
+  else bsRoomRedraw();
+}
+
+/**
+ * What a room screen shows. Side 0 is this phone's own sea (the first seat's
+ * for anyone watching, and the TV), side 1 the other. The camera frames the
+ * sea being fired at; a seated player may peek at the other for the turn.
+ */
+function bsRoomModel(state, tv) {
+  const s = state.shared;
+  const seat = tv ? -1 : bsRoomSeat(state);
+  const sides = seat === -1 ? [0, 1] : [seat, 1 - seat];
+  const sideOf = (k) => sides.indexOf(k);
+  const names = duelRoomNames(state);
+  const over = s.phase === 'over', placing = s.phase === 'place', play = s.phase === 'play';
+  const draft = placing && seat !== -1 && !s.ready[seat] ? bsRoomDraft(state) : null;
+  const flying = !!bsRoomLocal.flying;
+  const fleetOf = (k) => {
+    if (over && !flying && s.reveal && s.reveal[k]) return s.reveal[k];
+    if (k === seat) return draft || ((state.you || {}).fleet || null);
+    return null;
+  };
+  let auto;
+  if (placing) auto = 0;
+  else if (over) {
+    const loser = s.result && s.result.loserId ? s.seats.indexOf(s.result.loserId) : -1;
+    auto = seat !== -1 ? 1 : (loser >= 0 ? sideOf(loser) : 1);
+  } else auto = sideOf(1 - s.turn);
+  // A shell in the air: the camera stays on the sea it is falling on until it lands.
+  if (flying && s.last) auto = sideOf(1 - s.last.seat);
+  const peekKey = [state.code, s.round, s.phase, s.turn, flying ? 'f' : ''].join('|');
+  if (bsRoomLocal.peekKey !== peekKey) { bsRoomLocal.peekKey = peekKey; bsRoomLocal.peek = null; }
+  const focus = tv || bsRoomLocal.peek === null ? auto : bsRoomLocal.peek;
+  const myTurn = play && seat !== -1 && s.turn === seat;
+  const label = (k) => (seat !== -1 && k === seat ? bsT('bs_your_sea') : bsT('bs_sea_of', { name: duelIso(names[k] || '') }));
+  const aim = myTurn ? bsRoomAimOf(state) : -1;
+  const revealKey = ['bs-reveal', state.code, s.round, tv ? 'tv' : 'p'].join('|');
+  return {
+    key: ['room', state.code, s.round, s.dealId || '', seat].join('|'),
+    loud: duelRoomLoud(state),
+    seas: sides.map((k) => ({
+      grid: s.seas[k].grid, sunk: s.seas[k].sunk, fleet: fleetOf(k), color: BS_SIDE_COL[k], mine: k === seat, label: label(k),
+      appear: over && !flying && k !== seat && motionFirst(revealKey + '|' + k)
+    })),
+    focus: focus,
+    both: !!tv,
+    shot: s.last ? { side: sideOf(1 - s.last.seat), cell: s.last.cell, res: s.last.res, ship: s.last.ship } : null,
+    shotKey: s.last ? [state.code, s.round, s.shots].join('|') : '',
+    aim: myTurn && focus === 1 && aim >= 0 ? { side: 1, cell: aim } : null,
+    peek: play && !tv && seat !== -1 ? { label: focus === 1 ? bsT('bs_peek_mine') : bsT('bs_peek_enemy'), onClick: () => bsRoomPeek(focus === 1 ? 0 : 1) }
+      : (play && !tv ? { label: bsT('bs_peek_other'), onClick: () => bsRoomPeek(focus === 1 ? 0 : 1) } : null),
+    input: draft ? { mode: 'place', side: 0, fleet: draft, onFleet: bsRoomSetFleet, onRefuse: bsRefuseHint }
+      : myTurn && focus === 1 ? { mode: 'fire', side: 1, onTap: bsRoomTap } : null,
+    onLand: bsRoomLanded
+  };
+}
+
+/** What is happening, in one line: placing, whose shot, a shell in the air, how it ended. */
+function bsRoomStatus(state, flying, tv) {
+  const s = state.shared;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const names = duelRoomNames(state);
+  const seat = tv ? -1 : bsRoomSeat(state);
+  const last = s.last;
+  if (flying && last) {
+    return last.seat === seat ? bsT('bs_you_fired', { coord: bsCoordIso(last.cell) }) : bsT('bs_fired', { name: duelIso(names[last.seat] || ''), coord: bsCoordIso(last.cell) });
+  }
+  if (flying && seat !== -1) return bsT('bs_you_fired', { coord: '…' });
+  if (s.phase === 'over') return duelRoomResultLine(state, t);
+  if (s.phase === 'place') {
+    if (seat === -1) return bsT('bs_both_placing');
+    return s.ready[seat] ? bsT('bs_ready_wait', { name: duelIso(names[1 - seat] || '') }) : bsT('bs_place_title');
+  }
+  const again = last && last.res !== 'miss' && last.seat === s.turn && s.shots > 0;
+  if (seat === s.turn) {
+    const aim = bsRoomAimOf(state);
+    if (aim >= 0) return bsT('bs_aim', { coord: bsCoordIso(aim) });
+    return again ? bsT('bs_again_you') : bsT('bs_your_turn');
+  }
+  return again ? bsT('bs_again_other', { name: duelIso(names[s.turn] || '') }) : bsT('bs_turn_of', { name: duelIso(names[s.turn] || '') });
+}
+
+function bsRoomPills(state, t, tv) {
+  const s = state.shared;
+  const flying = !!bsRoomLocal.flying && s.last;
+  const names = duelRoomNames(state);
+  const scores = s.scores || {};
+  const seat = tv ? -1 : bsRoomSeat(state);
+  const pill = (k) => ({
+    name: names[k],
+    score: scores[s.seats[k]] || 0,
+    mark: bsMark(k),
+    sub: escapeHTML((k === seat ? (t.xo_you || '') + ' · ' : '') + (s.phase === 'place'
+      ? (s.ready[k] ? '✅' : '⏳') : bsT('bs_afloat', { n: bsAfloatCount(s.seas[k]) })))
+  });
+  return duelPillsHtml({ players: [pill(0), pill(1)], turn: flying ? s.last.seat : s.phase === 'play' ? s.turn : -1, draws: null });
+}
+
+function bsRoomBarHtml(state, flying) {
+  const s = state.shared;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const seat = bsRoomSeat(state);
+  if (seat === -1) return duelRoomWatchNote(state, t);
+  if (s.phase === 'place') {
+    if (s.ready[seat]) {
+      return `<button type="button" class="btn btn--ghost btn--sm" onclick="roomAct('unready')">${escapeHTML(bsT('bs_unready'))}</button>`;
+    }
+    return `<p class="bs-bar__say">${escapeHTML(bsT('bs_place_hint'))}</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn--secondary" onclick="bsRoomRandom()">${escapeHTML(bsT('bs_random'))}</button>
+        <button type="button" class="btn btn--primary btn--lg" onclick="bsRoomReady()">${escapeHTML(bsT('bs_ready'))}</button>
+      </div>`;
+  }
+  if (s.phase !== 'play' || s.turn !== seat || flying || bsRoomLocal.sent) return '';
+  const aim = bsRoomAimOf(state);
+  if (aim >= 0) return `<button type="button" class="btn btn--primary btn--lg bs-fire" onclick="bsRoomFire()">${escapeHTML(bsT('bs_fire', { coord: bsCoordIso(aim) }))}</button>`;
+  return `<p class="bs-bar__say">${escapeHTML(bsT('bs_tap_hint'))}</p>`;
+}
+
+function bsRoomFleetsHtml(state) {
+  const s = state.shared;
+  const names = duelRoomNames(state);
+  return `<div class="bs-fleets">${[0, 1].map(k => bsFleetHtml(s.seas[k], names[k] || '', BS_SIDE_COL[k])).join('')}</div>`;
+}
+
+/** The host's way on for a phone that went quiet: after 40 seconds on one step, or at once for one that's away. */
+function bsHostRow(state, tv) {
+  const s = state.shared || {};
+  if (!state.youAreHost || (s.phase !== 'play' && s.phase !== 'place')) return '';
+  const key = [state.code, s.round, s.turnSeq].join('|');
+  if (bsRoomLocal.turnKey !== key) { bsRoomLocal.turnKey = key; bsRoomLocal.turnSince = Date.now(); }
+  const waitingOn = s.phase === 'place' ? (s.seats || []).filter((id, k) => !s.ready[k]) : [s.seats[s.turn]];
+  const quiet = waitingOn.some(id => {
+    const p = (state.players || []).find(x => x.id === id);
+    return p && id !== Room.me && (!p.online || Date.now() - bsRoomLocal.turnSince > 40000);
+  });
+  if (!quiet) return '';
+  const label = '⏭️ ' + bsT(s.phase === 'place' ? 'bs_sail_for' : 'bs_play_for');
+  const press = `roomAct('skipTurn', { seq: ${Number(s.turnSeq) || 0} })`;
+  return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
+}
+
+/* --- the phone's clock ---------------------------------------------------------- */
+
+function bsStopClock() {
+  if (bsRoomLocal.clock) bsRoomLocal.clock.stop();
+  bsRoomLocal.clock = null;
+  bsRoomLocal.clockKey = null;
+}
+
+function bsTickClock(state) {
+  const s = state.shared || {};
+  const endsAt = (s.phase === 'play' || s.phase === 'place') ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-bs-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 5);
+    });
+    return left;
+  };
+  if (!endsAt) { bsStopClock(); return; }
+  paint();
+  if (bsRoomLocal.clockKey === endsAt && bsRoomLocal.clock) return;
+  bsStopClock();
+  bsRoomLocal.clockKey = endsAt;
+  bsRoomLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      if (!st || st.game !== 'battleship') return;
+      const sh = st.shared || {};
+      const seat = bsRoomSeat(st);
+      const mine = seat !== -1 && (sh.phase === 'play' ? sh.turn === seat : sh.phase === 'place' && !sh.ready[seat]);
+      if (left > 0 && left <= 5 && (st.youAreScreen || mine)) playSound('tick');
+    },
+    onEnd: () => { bsRoomLocal.clock = null; paint(); }
+  });
+}
+
+/* --- the lobby: the host's choice, remembered on their phone ---------------------- */
+
+const bsRoomOpts = () => recallOptions('battleshipRoom', { turnClock: 0 });
+
+function setBsRoomClock(v) {
+  rememberOptions('battleshipRoom', { turnClock: BS_CLOCKS.indexOf(Number(v)) !== -1 ? Number(v) : 0 });
+  duelLobbyRedraw();
+}
+
+ROOM_GAMES.battleship = {
+  // Someone who joins mid-game joins the line and watches (routeRoomState).
+  lateJoin: true,
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    const o = bsRoomOpts();
+    return duelLobbyHtml(state, t, '⏱️ ' + bsT('bs_lobby_clock'),
+      BS_CLOCKS.map(v => [v, v ? v + '″' : bsT('gw_clock_off')]), o.turnClock, 'setBsRoomClock', bsT('bs_lobby_clock_hint'));
+  },
+  startPayload() { return { turnClock: bsRoomOpts().turnClock }; },
+
+  render(state) {
+    if (appState.currentView !== 'room-battleship') setView('room-battleship');
+    const el = document.getElementById('view-room-battleship');
+    const s = state.shared;
+    if (!el || !s || !Array.isArray(s.seas)) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    renderRoomFrame(el, ['bsr', state.code, appState.lang].join('|'), bsLayoutHtml);
+    bsRoomNoteShot(state);
+    const model = bsRoomModel(state, false);
+    bsViewShow(el.querySelector('[data-bs-host]'), model);
+    const flying = !!bsRoomLocal.flying;
+    const seat = bsRoomSeat(state);
+    const myTurn = s.phase === 'play' && seat === s.turn;
+    const clock = s.endsAt && (s.phase === 'play' || s.phase === 'place') ? ` <span class="badge badge--accent" data-bs-clock></span>` : '';
+    const cls = (s.phase === 'over' && !flying ? 'is-done' : '') + (myTurn && !flying ? ' is-mine' : '');
+    bsSetHtml(el, '[data-bs-head]', `${bsRoomPills(state, t)}<p class="duel-status ${cls}">${escapeHTML(bsRoomStatus(state, flying))}${clock}</p>`);
+    bsSetHtml(el, '[data-bs-bar]', bsRoomBarHtml(state, flying));
+    const other = model.focus === 1 ? 0 : 1;
+    const side = [];
+    if (s.phase === 'over' && !flying) side.push(duelRoomOverHtml(state, t));
+    if (s.phase !== 'place') side.push(bsMiniHtml(model.seas[other], model.seas[other].label), bsRoomFleetsHtml(state));
+    side.push(`<div data-bs-hostrow></div>`, duelRoomLineHtml(state, t));
+    if ((state.players || []).length > 2) side.push(renderScoreboard(s.board));
+    if (s.phase === 'over' && !flying) side.push(roomShareBtnHtml(state, s.board));
+    side.push(renderRoomPlayerStrip(state));
+    bsSetHtml(el, '[data-bs-side]', side.join(''));
+    const hostRow = el.querySelector('[data-bs-hostrow]');
+    if (hostRow) { const html = bsHostRow(state); if (hostRow._html !== html) { hostRow.innerHTML = html; hostRow._html = html; } }
+    bsTickClock(state);
+    duelPillsAfter(el, 'bsr|' + state.code, {
+      turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
+      scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+    });
+    if (myTurn && !flying && duelOnce(['bs-turn', state.code, s.round, s.turnSeq].join('|'))) haptic('medium');
+    if (s.phase === 'over' && !flying) duelRoomCheer(el, state, ['bs', state.code, s.round].join('|'));
+  },
+  // A shot is not a new step to scroll to; placing, playing and the end of a game are.
+  actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
+};
+
+onRoomClocksReset(() => {
+  bsStopClock();
+  bsRoomLocal.aim = -1;
+  bsRoomLocal.peek = null;
+  bsRoomLocal.sent = '';
+  bsRoomLocal.flying = '';
+  bsRoomLocal.seen = null;
+  const st = Room.state;
+  if (!st || st.game !== 'battleship' || st.phase === 'lobby') bsViewDrop();
+});
+
+/* --- the TV: both seas side by side, the players and the line beside them -------- */
+
+TV_GAMES.battleship = {
+  sig: (state) => ['bs', state.code].join('|'),
+  frame(state, t) {
+    const s = state.shared || {};
+    if (!Array.isArray(s.seas)) return tvLookAtPhones(t);
+    return `<div class="bs-tv duel">
+        <div class="bs-tv__stage"><div class="bs-stage bs-stage--tv" data-bs-host></div></div>
+        <div class="bs-tv__side" data-bs-tvside></div>
+      </div>`;
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    const s = state.shared || {};
+    if (!view || !Array.isArray(s.seas)) return;
+    const host = view.querySelector('[data-bs-host]');
+    if (!host) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    bsRoomNoteShot(state);
+    const model = bsRoomModel(state, true);
+    bsViewShow(host, model);
+    const flying = !!bsRoomLocal.flying;
+    const clock = s.endsAt && (s.phase === 'play' || s.phase === 'place') ? ` <span class="tv-pill" data-bs-clock></span>` : '';
+    const side = view.querySelector('[data-bs-tvside]');
+    const html = `
+      <div class="tv-scale">${bsRoomPills(state, t, true)}</div>
+      <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(bsRoomStatus(state, flying, true))}${clock}</div>
+      ${bsHostRow(state, true)}
+      ${s.phase === 'over' && !flying ? duelRoomOverHtml(state, t, true) : ''}
+      ${s.phase !== 'place' ? `<div class="tv-scale">${bsRoomFleetsHtml(state)}</div>` : ''}
+      <div class="tv-scale">${duelRoomLineHtml(state, t, true)}</div>`;
+    if (side && side._bsHtml !== html) { side.innerHTML = html; side._bsHtml = html; }
+    bsTickClock(state);
+    duelPillsAfter(view, 'bstv|' + state.code, {
+      turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
+      scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+    });
+    if (s.phase === 'over' && !flying) duelRoomCheer(view, state, ['bs', state.code, s.round].join('|'));
+  }
+};
+</script>

@@ -376,6 +376,46 @@ const PROBES = {
       probe('the faces are shown only once the game is over', live, (view) => (hasKey(view.shared, 'reveal') ? 'shared.reveal' : null))
     ];
   },
+  battleship(room) {
+    const s = room.shared || {};
+    const fleets = (room._bs || {}).fleets || [];
+    const live = s.phase === 'place' || s.phase === 'play';
+    const seas = s.seas || [];
+    const afloat = (k, i) => !((seas[k] || {}).sunk || []).some((x) => x.i === i);
+    return [
+      probe('a fleet is on its own phone only', live, (view, pid) => {
+        if (!view.you || view.you.fleet === undefined) return null;
+        const seat = (s.seats || []).indexOf(pid);
+        return seat === -1 || JSON.stringify(view.you.fleet) !== JSON.stringify(fleets[seat]) ? 'you.fleet' : null;
+      }),
+      probe('the table is sent no fleet while it is played', live, (view, pid, idx) =>
+        (hasKey(view.shared, 'reveal') ? 'shared.reveal' : idx.keys.find((k) => /fleet/i.test(k) && k.indexOf('you.') !== 0) || null)),
+      probe('a ship is public only once it has sunk, and then where it really is', live && seas.some((x) => (x.sunk || []).length), (view) => {
+        const vs = (view.shared || {}).seas || [];
+        for (let k = 0; k < 2; k++) {
+          for (const x of ((vs[k] || {}).sunk || [])) {
+            const p = (fleets[k] || [])[x.i];
+            if (!p || p.x !== x.x || p.y !== x.y || p.d !== x.d) return 'shared.seas.' + k + '.sunk';
+          }
+        }
+        return null;
+      }),
+      probe('a square shows a ship only once it has been hit', live, (view) => {
+        const vs = (view.shared || {}).seas || [];
+        for (let k = 0; k < 2; k++) {
+          const g = (vs[k] || {}).grid || [];
+          const occ = new Set();
+          (fleets[k] || []).forEach((p, i) => { const len = [5, 4, 3, 3, 2][i]; for (let n = 0; n < len; n++) occ.add(p.d === 'v' ? (p.y + n) * 10 + p.x : p.y * 10 + p.x + n); });
+          for (let c = 0; c < g.length; c++) {
+            if ((g[c] === 2 || g[c] === 3) !== occ.has(c) && g[c] !== 0) return 'shared.seas.' + k + '.grid.' + c;
+            if ((g[c] === 1 || g[c] === 4) && occ.has(c)) return 'shared.seas.' + k + '.grid.' + c;
+          }
+          for (let i = 0; i < 5; i++) if (afloat(k, i) && (vs[k].sunk || []).some((x) => x.i === i)) return 'shared.seas.' + k + '.sunk';
+        }
+        return null;
+      })
+    ];
+  },
   hangman(room) {
     const s = room.shared || {};
     const h = room._hm || { boards: {} };
@@ -819,6 +859,30 @@ const DRIVERS = {
       const cols = Array.from({ length: s.cols || 7 }, (_, c) => c).sort(() => Math.random() - 0.5);
       for (const col of cols) if (act(T, s.seats[s.turn], 'move', { col, move: s.moves })) break;
     }
+    return S(T).phase === 'over';
+  },
+  battleship() {
+    const T = table('battleship', 3);
+    const play = () => {
+      for (let guard = 0; guard < 400 && (S(T).phase === 'play' || S(T).phase === 'place'); guard++) {
+        const s = S(T);
+        if (s.phase === 'place') {
+          s.seats.forEach((id, k) => { if (!s.ready[k]) must(T, id, 'place', { fleet: T.room.secrets[id].fleet }); });
+          continue;
+        }
+        const open = s.seas[1 - s.turn].grid.map((v, i) => (v === 0 ? i : -1)).filter((i) => i >= 0);
+        must(T, s.seats[s.turn], 'fire', { cell: pick(open), seq: s.turnSeq });
+      }
+    };
+    must(T, T.host, 'start', {});
+    play();
+    must(T, T.host, 'nextRound', { round: S(T).round });
+    play();
+    must(T, T.host, 'backToHub');
+    must(T, T.host, 'chooseGame', { game: 'battleship' });
+    // A clock this time: placing runs out, and every shot is the phone's.
+    must(T, T.host, 'start', { turnClock: 15 });
+    runClock(T, (r) => r.shared.phase === 'over', 400);
     return S(T).phase === 'over';
   },
   guesswho() {

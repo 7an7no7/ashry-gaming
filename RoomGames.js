@@ -115,6 +115,8 @@ const ROOM_GAME_IDS = [
   'herd', 'mafia', 'screw', 'mind', 'timeline', 'uno', 'domino',
   // The duels (RoomDuels.js): two play, the room watches, winner stays on.
   'connect4', 'dots',
+  // حرب السفن (RoomBattleship.js): the duels' line, a secret fleet on each seated phone.
+  'battleship',
   'ludo', 'bank',
   // خمّن مين (RoomGuessWho.js, winner stays on like the duels) and المشنقة (RoomHangman.js).
   'guesswho', 'hangman'
@@ -521,6 +523,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'domino':     dominoAction(room, playerId, action, payload); break;    // RoomDomino.js
     case 'connect4':   connect4Action(room, playerId, action, payload); break;
     case 'dots':       dotsAction(room, playerId, action, payload); break;
+    case 'battleship': battleshipAction(room, playerId, action, payload); break;  // RoomBattleship.js
     case 'ludo':       ludoAction(room, playerId, action, payload); break;      // RoomLudo.js
     case 'bank':       bankAction(room, playerId, action, payload); break;      // RoomBank.js
     case 'guesswho':   guessWhoAction(room, playerId, action, payload); break;  // RoomGuessWho.js
@@ -3383,6 +3386,7 @@ const gameDeadline = (room) => {
   if (room.game === 'ludo') return ludoDeadline(room);
   if (room.game === 'bank') return bankDeadline(room);
   if (room.game === 'guesswho') return gwDeadline(room);
+  if (room.game === 'battleship') return bsDeadline(room);
   if (room.game === 'hangman') return hmDeadline(room);
   return null;
 };
@@ -3495,6 +3499,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'ludo') return ludoTimeout(room, now);
   if (room.game === 'bank') return bankTimeout(room, now);
   if (room.game === 'guesswho') return gwTimeout(room, now);
+  if (room.game === 'battleship') return bsTimeout(room, now);
   if (room.game === 'hangman') return hmTimeout(room, now);
   return false;
 };
@@ -3654,6 +3659,10 @@ const gamePlayerLeft = (room, playerId, name) => {
     case 'guesswho':
       // A seated player loses by forfeit, as in the duels (RoomGuessWho.js).
       gwPlayerLeft(room, playerId);
+      return;
+    case 'battleship':
+      // A seated player loses by forfeit, as in the duels (RoomBattleship.js).
+      bsPlayerLeft(room, playerId);
       return;
     case 'hangman':
       hmPlayerLeft(room, playerId);

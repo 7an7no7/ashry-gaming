@@ -93,6 +93,11 @@
   unbeatable minimax, with a "3 marks only" switch that ends the draws; 🔴 **Connect 4 (كونكت ٤)** and 🔲 **Dots & Boxes
   (نقط ومربعات)**: two on one phone, against the phone at three levels, or a
   room where two play and the rest watch, winner stays on (*The duels*).
+- 🚢 **Battleship (حرب السفن)**: the classic 10×10 with five ships, in real 3D (three.js): against the phone at three levels, or a room where two play and the rest watch, winner stays on (*حرب السفن*).
+- **Cards, in rooms:** **كدّاب (I Doubt It):** lay cards face down and say what they are; anyone can call «كدّاب!», the first tap wins; computer players (*كدّاب*). **الشايب (Old Maid):** draw a card blind from the next hand, pair up, and don't be left holding the drawn old man; drag your cards about while someone is lifting one (*الشايب*).
+- **Sports, real 3D (three.js):** 🎳 **Bowling (بولينج):** swipe the ball down a
+  wooden lane, a curve in the swipe hooks it; solo for a best score, or a
+  room where everyone bowls in turn and everyone watches (*بولينج*).
 - **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
   🚩 Minesweeper, 👑 Queens, ☀️ Tango, 🖼️ Nonogram; 🧵 خيوط, 🔡 كلمات من
   حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 🌍 خمّن الدولة.
@@ -124,6 +129,170 @@ work changed. Add to it when a decision is made or a batch ships.
   player wins; the higher team total wins; play on until only one qualifies).
 
 ### The owner's specs, as built
+
+- **كدّاب (I Doubt It)** - the owner's spec of 23 Sep 2026, every rule asked
+  one at a time, look ب "بلوكات" picked from a design sheet of four games
+  (*كدّاب*):
+  - **A room and the TV, with computer players easy and hard**; not
+    against the phone, not one phone.
+  - **The same rank until a call**: whoever leads names any rank and lays
+    **any number of cards** face down; everyone after lays cards claiming
+    that same rank, or passes.
+  - **Anyone can call كدّاب!, the first tap wins** (the order the server
+    heard them in); the call is open **until the next player lays cards or
+    passes**.
+  - The called play turns over: **a lie, the liar takes the whole pile;
+    true, the caller takes it; whoever was right leads** the next rank.
+  - **Everyone passes after a play: the pile goes out of the game face
+    down, and the last to play leads.**
+  - The end is **a lobby choice: "first out wins" (the default) or "play
+    on for places"** (a podium). **A last play still has to survive a
+    call.** Play again keeps a tally of wins (the board).
+  - **3-12 players (computer players count), one deck up to 6, two decks
+    from 7.** Four of a rank is nothing special.
+  - A turn clock **off by default, 30 or 60 seconds** (the phone passes, or
+    when leading lays one card truthfully); the host's "play for" a quiet
+    phone.
+  - Decided here: only someone still holding cards can call (a player out
+    in "for places" is out of it - calling wrong would hand them the pile
+    back); a follow always claims the rank named, whatever it sends; a
+    player who leaves keeps their seat on the server (so "the next seat"
+    still means the same), their cards leave the game, their last play can
+    no longer be called, and a turn of theirs passes (a lead goes to the
+    next seat, a follow counts as a pass, which can put the pile out);
+    fewer than two holding cards ends the game, and a first place nobody
+    earned at the table (everyone else left) is not counted as a win; the
+    clock's truthful card is one of the rank the hand holds most.
+
+- **الشايب (Old Maid)** - the owner's spec of 23 Sep 2026, every rule asked
+  one at a time, look ب "بلوكات" (*الشايب*):
+  - **A room and the TV only; 2-8 players; no computer players, not against
+    the phone.**
+  - **A drawn الشايب card is added**; a pair is **the same rank and the same
+    colour** (7♥ + 7♦, K♠ + K♣).
+  - **The deck grows with the table: about 8 pairs a player, at most the 26
+    pairs of a whole deck** (52 cards) and الشايب; the pairs of a dealt hand
+    go out at the start, with their motion.
+  - A turn: **draw one card blind from the next player still holding
+    cards**; a pair it makes goes out; **an empty hand is safe** (the order
+    they got out is shown); **the last one holding cards holds الشايب and
+    loses.**
+  - **Hand order, a lobby switch: "rearrange by dragging" (on by default)
+    or "auto-shuffle".** The draw as a board game: the drawer taps a back
+    to **lift** it - every phone and the TV see which one is up - and taps
+    it again (or "take this card") to draw it; meanwhile the one being
+    drawn from may **drag their cards about**, and the lifted card moves
+    with its card (the aim is kept by card id and shown as a position); the
+    drawer sees the backs move. With auto-shuffle the server shuffles every
+    hand after each turn and nobody drags.
+  - **One loser a game, and a tally across play again** (the board: fewest
+    times الشايب first).
+  - A turn clock **off by default, 15 or 30 seconds** (a random card is
+    drawn - the lifted one if there is one); the host's "draw for" a quiet
+    phone.
+  - **Leaving: that player's cards go into the next hand still playing**
+    (and its pairs go out); **fewer than two left ends the game** with no
+    loser; if two or more are still in the room but only one holds cards,
+    that one holds الشايب and loses as usual.
+  - **The end:** الشايب turns over in the loser's hand, the order the others
+    got out on a podium, and the tally.
+  - Decided here: the one drawn from draws next (the turn goes round the
+    table); **a drawn card goes into the drawer's hand at a random place
+    under a fresh id**, so the player who gave it up (who knows what it
+    was) can never follow it across the other hand - their phone sees only
+    positions, and never an id of another hand; a drag is published as a
+    move of a position (from, to), which is exactly what a table sees of a
+    hand being rearranged; the pairs chosen for a smaller table are drawn
+    at random from the 26 (a rank and a colour each); **the draw from a
+    hand of one card stays a tap** - there is only one card to take, but
+    the draw is the game itself (the owner's "the tap is the game" rule,
+    like أونو! and العقل), so it is not made automatic; hands are laid out
+    left to right in both languages, the drawer's row of backs in the same
+    order the other player holds them.
+
+- **حرب السفن (Battleship)** - the owner's spec of 23 Sep 2026, every rule
+  asked one at a time (*حرب السفن*):
+  - **A room: two duel, winner stays on** (the duels' line; the rest watch on
+    their phones or the TV) **and against the phone** (a computer admiral,
+    **easy / medium / hard**). **No computer players in rooms.**
+  - **Classic 10×10, 5 ships**: حاملة طائرات 5، بارجة 4، طرّاد 3، غواصة 3،
+    مدمّرة 2.
+  - **A hit shoots again**; a miss passes the turn.
+  - **Placing: drag a ship, tap it to turn it, or 🎲 for a random fleet;
+    ships may not touch, not even at a corner.** Both place, then each taps
+    ready; the first to fire is random in the first game, the challenger
+    after that (the duels' seats).
+  - **A ship sunk: the shooter learns which ship, it is shown whole on their
+    target grid, and the water round it is marked** (nothing can be there).
+  - **A turn clock, off by default, 15 or 30 seconds**: the phone fires at a
+    random square the player hasn't fired at; the host has "play for" for a
+    quiet phone.
+  - **The look: a 3D sea "like the bowling and golf"** - crafted low-poly
+    ships, moving water, a shell arcing over, a splash on a miss, fire and
+    smoke on a hit, a ship listing and settling when it sinks, seen from
+    above at an angle; the grid tappable and its squares named (A-J, 1-10);
+    on your turn the enemy sea is big, and the camera glides between the
+    seas. A clean flat board where WebGL can't draw.
+  - **Home: the duels' section** (`group: 'duo'`, beside كونكت ٤), modes
+    `['device', 'room', 'tv']` (device = against the phone).
+  - **Hidden information on the server only**: each fleet in `room._bs`,
+    each seated phone its own in `room.secrets[pid]`; shots and results
+    public; a ship's cells public only once it sinks; both fleets shown at
+    the end.
+  - Decided here (open to change, each in one place):
+    - **Firing is two taps**: the first aims (a crosshair, the square's name
+      in the status line and on a big "🔥 اضرب B7" button), the second - or
+      the button - fires. On a 375px phone a square is ~30px, and a mis-tap
+      costs a shot.
+    - **With the turn clock on, placing has a clock too: 90 seconds**
+      (`BS_PLACE_SECS`), after which whoever isn't ready sails with the fleet
+      on their board (the server deals everyone a random one to start from).
+      With the clock off, the host's "play for" does the same.
+    - **Ready can be taken back** ("✏️ غيّر أماكن السفن") while the other
+      hasn't finished.
+    - **A hit doesn't say which ship; a sinking does** (the classic rule).
+    - **Against the phone, who fires first is drawn at random each game**,
+      your last fleet is on the board again for the next game, and the score
+      runs game after game (a tally of wins, like the duels).
+    - The squares are named with Latin letters and western digits in both
+      languages (a physical board, `dir="ltr"`, like the duels').
+    - Watchers' phones and the TV follow the sea being fired at (the TV shows
+      both seas side by side all the time); at the end each seated phone
+      looks at the other's fleet, now revealed.
+    - The phone's hard fleet is the least findable of twelve random ones (the
+      least where a density search looks first, never most ships on an edge).
+
+- **بولينج (Bowling)** - the owner's spec of 23 Sep 2026, asked one at a time;
+  look أ «صالة» from the lead's 3D prototype (*بولينج*):
+  - **Solo (best score kept on the phone) and a room with the TV.** No
+    one-phone pass-around, **no computer players**.
+  - **5 or 10 frames, 5 by default**; real ten-pin scoring (strikes and spares
+    carry; the last frame's bonus balls).
+  - **Swipe the ball**: the direction aims, the swipe's speed is the ball's
+    speed, **a curve in the swipe hooks it**; where the finger starts is where
+    the ball is let go along the foul line.
+  - **Seen from behind the ball, in perspective** (three.js, real 3D).
+  - In a room **everyone bowls in turn and everyone watches every throw**, on
+    their phones and the TV. **No bumpers.**
+  - **The aim guide («مساعدة التصويب») is a switch, off by default**: a line
+    showing where the ball will go while you swipe; no arrow otherwise. Solo a
+    setup option, in a room the host's lobby option; remembered on the phone.
+  - A turn clock **off by default, 20 or 40 seconds**: when it runs out the
+    phone throws a gentle straight ball for the player; the host has a "play
+    for" button for a quiet phone. **No daily.**
+  - The home's **رياضة / Sports** section, 🎳, violet.
+  - **No words in the hall** (the owner, 23 Sep 2026: "no «صالة عشري»"): the
+    masking unit is a panel with a neon line, pinstripes and three glowing
+    pins; the overhead screens are dots, the main lane's showing the pins
+    really standing. No name or brand text anywhere in the scene.
+  - Decided here: one person can open a room game of it (bowl alone with the
+    TV); the order is the room's, whoever joins later watches (`lateJoin`)
+    and bowls the next game; two level on top both win; a player who leaves
+    takes their card off the board and the turn passes on; nobody left to
+    bowl ends the game; the board (and the TV's score strip) stays empty
+    until the game is over, or the strip would give a ball away before its
+    pins fall on screen - so a game abandoned mid-way banks nothing on the
+    night's table.
 
 - **خمّن مين (Guess Who)** - the owner's spec of 22 Sep 2026, every rule
   asked one at a time, look ب "ألبوم" picked from a sheet of three
@@ -1276,6 +1445,67 @@ the word search), `countUp` for streaks and scores.
   older copy of the app cached on the phone is the likely cause. Found on
   the way (*Traps*): a keyframe that doesn't name a property animates it
   back to the element's own value.
+- **23 Sep 2026, كدّاب and الشايب** - two room card games from Plato's
+  list, every rule asked one at a time, look ب "بلوكات" for both (the
+  family of أونو and سكرو): `PlayingCards.js` (shared), `RoomDoubt.js`,
+  `RoomOldMaid.js`, `JS_Cards.html` (the card, the back, الشايب, a hand,
+  the flights), `JS_RoomDoubt.html`, `JS_RoomOldMaid.html`, section 26 of
+  `Style.html`, drawn icons. Decided while building:
+  - **A screen that fell behind catches up** (`dbCatchUp`): a call's reveal
+    takes a few seconds, and computer players don't wait for it, so a phone
+    or the TV that has several moves to show plays the last call and what
+    came after it, and otherwise only the last three moves. A place a card
+    flies to (the pile) is hidden only once the card is on its way, so a
+    pile is never left blank while an earlier move plays.
+  - **No suit symbols in running text**: ♥ and ♦ are emoji on an iPhone and
+    "7♥ و7♦" jumbles in a right-to-left line, so the rules and the lobby
+    say it in words (7 كبة مع 7 ديناري; the 7 of hearts with the 7 of
+    diamonds). The Egyptian suit names are كبة, ديناري, بستوني, سباتي.
+  - **A rank in a claim is plural** (`PC_RANK_PLURAL`: آسات … عشرات، ولاد،
+    بنات، شياب; Aces … Kings); the King is شايب at an Egyptian table, which
+    only appears in كدّاب's claims - الشايب's own card is the drawn old man,
+    never a K.
+  Rules tests: 73 new (30 whole bot games of كدّاب, 40 of الشايب, every
+  card counted after every move); the leak check plays both.
+- **23 Sep 2026, حرب السفن** - Battleship to the owner's rules, asked one at a
+  time: the classic 10×10 and five ships that may not touch, a hit fires
+  again, a sunk ship shown whole with its water marked; against the phone at
+  three levels and in rooms (the duels' winner stays on, no computer
+  players), a turn clock off by default. In real 3D with three.js (the
+  owner's bar: "like the bowling and golf") with a flat board where WebGL
+  can't draw. `Battleship.js` (shared), `RoomBattleship.js`,
+  `JS_Battleship.html`, section 27 of `Style.html`. Rules tests: 44 new
+  (fleets, touching at a corner, shots, sinking and its water, the admiral
+  always legal and finishing, hard ahead of medium ahead of easy and hard
+  beating easy head to head, and every room rule: placing, ready and back,
+  turns, a double tap, winner stays on, the clocks, "play for", a forfeit).
+  The leak check plays three games (one on the clock) with four probes (a
+  fleet on its own phone only; no fleet or reveal on the table while it is
+  played; a sunk ship public only where it really is; a square shows a ship
+  only once hit); proved by putting a fleet into `shared` in a scratch build.
+  Robot tests: 1553, a battleship round among them (placing, a refused
+  fleet, turns, a hit, a sinking, a miss, a game to the end, winner stays on,
+  the host's "play for").
+- **23 Sep 2026, بولينج** - the owner's rules asked one at a time, the look
+  from the approved 3D prototype; real 3D with three.js: `Bowling.js`
+  (improved: belly circles, lying pins spinning, the hook rolling out, the
+  ball never stalling, faster settling), `RoomBowling.js`, `JS_Bowling.html`,
+  section 28. Rules tests: the sheet (300, 150s, open frames, marks), the
+  shot clamping, 120 shots replayed across two copies of the rules to the
+  same pins, a stepped replay equal to the server's throw, the pocket strike
+  rate, settling, and the room (turns, stale taps, the clock's and the host's
+  gentle ball, leaving, the end, play again). The leak check plays it; a
+  robot round in `play-all.mjs`.
+- **23 Sep 2026, the five built together** - the owner asked for كدّاب,
+  الشايب, بولينج and ميني جولف (Plato's games) and then حرب السفن; every
+  rule asked first, the looks picked (بلوكات for the cards, صالة and
+  نجيلة for the sports after a playable 3D preview - the owner found the
+  flat drawings of the design sheet "like a pixeled game from the 80s").
+  Each game was built by its own agent in a git worktree in parallel, then
+  merged here: the conflicts were every game adding its line to the same
+  lists, resolved by re-applying each branch's changes onto master.
+  three.js r158 (UMD) is loaded on demand by `JS_Three.html`. Robot tests
+  after merging بولينج, كدّاب, الشايب and حرب السفن: 1829; ميني جولف follows.
 
 ## Building and Running
 
@@ -1334,8 +1564,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Bowling.js`, and the game files bundled after
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomBowling.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -1463,6 +1693,13 @@ is nowhere to hide the key card.
 | `RoomGuessWho.js` | `guessWhoAction`: the duels' seats and line (`duelSeatNext`, `duelEnd` from `RoomDuels.js`, bundled before it), the secret faces in `room._gw`, questions from the list and out loud, flipping, guessing, the clock and the bots. |
 | `Hangman.js` | المشنقة's letters, the fold (one key a letter), a written word's rules, a board and a guess, and the race's words from the Chameleon boards: shared by the page and the Worker, every name prefixed `hm`. |
 | `RoomHangman.js` | `hangmanAction`: one writes or a race, the word in `room._hm`, each board on its own phone, the points, the word clock, leaving. |
+| `Battleship.js` | حرب السفن's fleets, the no-touching check, a random fleet, one shot and its result (a sinking marks the water round it), and the computer admiral: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `bs` / `BS_`. |
+| `RoomBattleship.js` | `battleshipAction`: the duels' seats and line (`duelSeatNext`, `duelEnd` from `RoomDuels.js`, bundled before it), placing and ready, the fleets in `room._bs`, the shots, the clock (`bsDeadline` / `bsTimeout`), leaving (`bsPlayerLeft`). |
+| `PlayingCards.js` | The playing cards كدّاب and الشايب deal: the deck (one or two), a card's rank and suit, a hand sorted, what makes a pair in الشايب (same rank, same colour), the ranks' names: shared by the page and the Worker, every name prefixed `pc` / `PC_`. |
+| `RoomDoubt.js` | `doubtAction`: كدّاب's claims, the call (first tap wins), the pile, passing and the pile going out, the places, the clock, leaving and the computer players; every hand in `room._doubt`. |
+| `RoomOldMaid.js` | `oldMaidAction`: الشايب's deal (the deck grows with the table), the lift and the draw, dragging or shuffling a hand, pairs, the loser and the tally, the clock, leaving; every hand in `room._om`. |
+| `Bowling.js` | بولينج's lane, pins and one throw as plain arithmetic (the same pins on every phone and the server from four whole numbers), and the score sheet: shared by the page and the Worker, every name prefixed `bowl`. |
+| `RoomBowling.js` | `bowlingAction`: the order, each player's card, a throw run on the server (`bowlThrow`) and replayed by every phone, the clock and the host's gentle ball, leaving, the end. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -3400,6 +3637,337 @@ The owner's rules are in *The owner's specs*.
   colour in the room's frame) shows the kind of word, its blanks and every
   player's man.
 
+### كدّاب
+
+The owner's rules are in *The owner's specs*.
+
+- **`PlayingCards.js`** (shared, no DOM, every name `pc` / `PC_`): the deck
+  (`pcDeck(decks)`), a card as rank + suit (`'7h'`, `'10s'`, `'Qd'`), الشايب
+  as `'OM'`, `pcRank` / `pcSuit` / `pcRed`, `pcSorted` (rank, then suit, OM
+  last), `pcPairs` (same rank, same colour) and `pcRankName`. The page
+  inlines it (`SHARED_LISTS`) and the Worker bundles it before
+  `RoomGames.js` (`FILES`).
+- **`RoomDoubt.js`** (`doubtAction`, bundled after `RoomGames.js`): every
+  hand and the pile (each play with its cards and its claimed rank) are
+  `room._doubt`, never projected; a phone's own hand is
+  `room.secrets[pid].hand`, sorted. `shared` carries `counts`, `rank`,
+  `plays` (who laid how many in this rank), `last` (the play open to a
+  call: `{ id, pid, n, rank }`), `passed`, `turn { pid, stage: 'lead' |
+  'follow' }`, `pileCount`, `places`, `pendingOut` (a player whose last
+  cards are still open to a call), `wins` / `board`, and the events
+  (`deal`, `play`, `pass`, `call` - with the called play's faces only,
+  `truth`, `taker`, `n` - `pileOut`, `out`, `auto`, `win`, `left`). A
+  play's cards are ids; a call aimed at a play already covered (`play`,
+  the id it saw) is dropped; turn moves carry `seq`. `doubtAfterPass` is
+  the one place that decides "everyone passed: the pile goes out, the last
+  to play leads" - a pass and a leaver's turn both go through it.
+- **Computer players** (`ROOM_BOT_GAMES.doubt`, max 12): `pending` asks
+  first whether a bot calls the play on top (decided once per play,
+  `g.botCall`), then whether a bot is up; a bot up after a play waits
+  1.9-2.9s so the table can call first. Hard knows a claim is a lie when
+  the copies it has seen - in its hand and the true ones it laid on this
+  pile itself - plus the claim are more than the decks hold, and calls on a
+  hunch more often on a big claim or a last play; it leads the rank it
+  holds most (sometimes slipping one extra card in), follows truthfully
+  when it can, bluffs more when the pile is small or its hand nearly
+  empty. Easy leads any rank, bluffs and calls at random. `rules.mjs` plays
+  30 whole games (one person on the clock plus 2-6 bots, both endings) and
+  checks no bot move is refused and no card is lost.
+- **No forced moves**: a lead always has a choice of cards and rank, a
+  follow can always bluff or pass.
+- **`JS_RoomDoubt.html`**: the seats strip (a fan of backs and a count,
+  «باص», «آخر ورق!», a medal once out), the table (the claim as a violet
+  bubble, the pile of backs with its count, the rank, the plays of this
+  rank; after a call, the called cards face up with the stamp «كدّاب!» or
+  «صادق» until the next play), the big red **كدّاب!** for every other
+  holding phone while a play is open (pulsing on a last play), your hand
+  (tap to pick; rows of up to 13 upright, one overlapping row on a phone
+  on its side and wider), and the bar: leading, 13 rank chips and
+  "ارمي ٢ × سبعات"; following, that and باص. Picking cards of one rank
+  when leading names it for you. The TV is a ring of seats round the big
+  table with the turn and the moves beside it.
+- **Motion** (`dbPlay`): the deal, cards laid face down onto the pile (your
+  own fly from your hand turning over), باص on a seat, the call - «كدّاب!»
+  bursting from the caller, the play's cards turned over one by one over
+  the pile (`pcRevealRow`), the stamp slammed on them, the pile flying to
+  whoever takes it - the pile going out (backs rising and fading), a medal
+  for a player out. A game that ends on a move plays it on the table first
+  (`dbPlayEnding`); your own move never waits behind the table's
+  (`dbOwnMoveWaiting`). Sounds `pcCard`, `pcSlide`, `pcCall`, `pcLie`,
+  `pcTrue` are added to `FX` from `JS_Cards.html`.
+
+### الشايب
+
+- **`RoomOldMaid.js`** (`oldMaidAction`): every hand, in the order it is
+  held, is `room._om.hands` (`{ i, c }`), the lifted card `room._om.aimId`;
+  never projected. A phone's own hand is `room.secrets[pid].hand` in its
+  order. `shared`: `settings { mode: 'drag' | 'shuffle', turnClock }`,
+  `counts`, `turn { pid, from }`, `aim { pos }` (where the lifted card sits
+  now), `thrown` (every pair out, its faces public), `out` (the order they
+  got out), `pairs` / `deckSize`, `loser`, `reveal` (the loser's hand,
+  published at the end only), `losses` / `board`, and the events (`deal`,
+  `pairs` - two by two, `deal: true` for the start - `draw` with the
+  position taken and never the card, `move { pid, from, to }`, `out`,
+  `shuffle`, `auto`, `over`, `left`). Actions: `lift { pos, seq }`, `take
+  { seq }` (the lifted card; `pos` too, a lift and a take in one, which
+  the phone does not use), `move { card, to }` (any player, their own hand,
+  drag mode only, no `seq`), `skipTurn` (host) and the clock.
+- **`JS_RoomOldMaid.html`**: the seats (the drawer "الدور", the hand being
+  drawn from 🎯, ✓ and the place once safe, 🧓 for the loser), the draw
+  (the other hand as a row of backs, the lifted one up in gold; buttons for
+  the drawer, a picture for everyone else; for the one being drawn from, a
+  line saying so and their own lifted card raised in their hand), the pairs
+  out fanned in the middle, your hand, and the bar with "خد الكارت ده".
+  **A lift and a drag change no frame**: the sig leaves out `aim`, the
+  `move` events and the order of your own hand, and `omLive` puts the
+  lifted back up, slides a moved back from its old place to its new one
+  (FLIP), enables the take button, and puts your own cards in the server's
+  order - except while a drag of yours is still on its way
+  (`omLocal.pending`). Dragging is pointer events on the hand
+  (`touch-action: pan-y`, so an upright swipe still scrolls): past 8px
+  sideways the card follows the finger, the others slide out of its way,
+  and letting go sends one `move`.
+- **Motion** (`omPlay`): the deal, each dealt pair flying out of its hand
+  to the middle two by two (a gold ring where they meet), a card flying
+  from one hand to the other (face down, except on the two phones it
+  concerns: the giver sees it leave face up and turn, the drawer sees it
+  turn up as it lands), a player safe, the shuffle, a leaver's cards
+  flying to the next hand; the end turns الشايب over in the loser's hand.
+
+### The playing cards (`JS_Cards.html`, section 26 of `Style.html`)
+
+One card builder for both games, `pcCardHtml(c, { size })` - a face, the
+back (`null`) or الشايب (`'OM'`) - sized by `--pc-w` (1 : 1.42, the
+default on `:where(.pc-card)`, so every context that sizes a card wins),
+laid out left to right in every language: the index (rank over a small
+suit) top left where an overlapping hand leaves it showing, a big Baloo
+numeral, the suit again bottom right, a soft shine; the suits are drawn
+(`PC_SUIT_PATHS`), never glyphs, since ♥ and ♦ turn into emoji on an
+iPhone. Red suits `--pc-red` (#e5383b), black `--pc-ink` (#23213a), the same
+in both themes (an ink card gets a faint rim on the dark ground). الشايب:
+deep violet, a gold frame, the old man drawn (`PC_OLD_MAN_SVG`: a red fez
+and its tassel, white hair and brows, round glasses, a big white
+moustache), the band «الشايب». A card under ~42px drops its corner (and
+الشايب its band). `pcFitRows` overlaps a row to fit its width;
+`pcFx()` is one table's motion state, and `pcFly`, `pcPop`, `pcRing`,
+`pcStamp`, `pcShout`, `pcShake`, `pcRevealRow`, `pcHold` / `pcRelease`,
+`pcEventsToPlay`, `pcDeferRedraw` are the flights both games use (the
+same shape as أونو's). `pcPlacesPodium` is a podium of places with medals
+and no numbers. Drawn icons `art:doubt` (three backs in a fan and a red ?)
+and `art:oldmaid` (his card) are in `ICON_ART`.
+
+كدّاب (`doubt`, violet, 3-12, 15 min) and الشايب (`oldmaid`, amber, 2-8,
+10 min) are in ورق وطاولة, `modes: ['room', 'tv']`, opening a room
+(`roomCreateFor`). In the hub كدّاب opens from one person (bots make up the
+three), الشايب from two. Both have `GAME_RULES`, `HELP_ENTRIES`
+(`roomOnly`) and `HELP_FOR_VIEW` (`room-doubt`, `room-oldmaid`), and a
+`roomTurnOf` case (`turn_up` for the player up). Lobby choices are kept on
+the host's phone (`recallOptions('doubt' | 'oldmaid')`).
+
+### حرب السفن
+
+The owner's rules are in *The owner's specs*. Three files and a stylesheet
+section (27):
+
+- **`Battleship.js`** (shared, no DOM). A fleet is five `{ x, y, d }` in
+  `BS_SHIPS` order (x the column A-J, y the row 1-10, `d` 'h' running right or
+  'v' running down); a cell is `y * 10 + x`. `bsFleetProblem` says why a fleet
+  can't sail (`shape`, `out`, `overlap`, `touch` - touching includes a
+  corner), `bsCanPlace` whether one ship fits beside the rest (the drag and
+  the turn use it), `bsRandomFleet` deals one. A **sea** is what the other
+  side knows: `{ grid, sunk }`, the grid 100 cells of `BS_SEA`, `BS_MISS`,
+  `BS_HIT`, `BS_SUNK` or `BS_CLEAR` (water round a sunk ship, marked by the
+  game). `bsFire(sea, fleet, cell)` is the one rule for a shot: it changes the
+  sea and says `miss`, `hit` or `sunk` (with the ship, its cells, the water
+  marked and `over`). **The admiral reads a sea, never a fleet**
+  (`bsAiShot`): easy fires at random at water not marked; medium hunts at
+  random and after a hit works along the ship (`bsTargetCells`); hard counts
+  every way the ships afloat could still lie (`bsDensity`: a way is out if it
+  covers a miss or marked water, or if a hit touches it without being on it,
+  since ships never touch; with hits on the board only the ways through them
+  count, weighted by how many they cover) and, hunting, keeps to the parity
+  of the smallest ship afloat. Measured over 60 fleets: hard 41 shots, medium
+  51, easy 87 to sink a fleet; hard beats easy 60 of 60 head to head.
+- **`RoomBattleship.js`** is the room: `shared` carries the duel's fields plus
+  `phase` ('place' | 'play' | 'over'), `settings.turnClock`, `ready`, `seas`
+  (seat k fires at `seas[1 - k]`), `turn`, `turnSeq` (raised at every shot:
+  a shot carries it as `seq`, so a double tap is dropped), `shots`, `last`
+  (the newest shot: seat, cell, result, the ship on a sinking), `tally`,
+  `endsAt` and `reveal`. The server deals each seat a random fleet at the
+  start (`place` replaces it with the phone's, checked with
+  `bsFleetProblem`; `unready` takes it back). A seated player who leaves loses
+  by forfeit, as in the duels.
+- **`JS_Battleship.html`** is everything on the page:
+  - **One sea view per page** (`bsView`): a root element holding the canvas,
+    the labels, the peek pill and the result toast, **moved** into whichever
+    screen shows a sea (`bsViewShow(host, model)`), so there is only ever one
+    WebGL renderer, and a room frame that is rebuilt (`renderRoomFrame`) never
+    loses its canvas - the root is appended to the new host. It is thrown
+    away (`bsViewDrop`: geometries, materials, textures, the renderer, the
+    context) when no screen shows a sea (`onLeaveScreen`, and
+    `onRoomClocksReset` when the room leaves the game); the loop skips a
+    frame while the root is out of the page or the tab is hidden, and draws
+    every other frame when nothing is moving.
+  - **A model** (`bsPhoneModel`, `bsRoomModel`) says what to show: two seas
+    (side 0 is yours - or the first seat's for anyone watching and the TV -
+    side 1 the other), their grids and sunk ships, the fleets that may be
+    drawn (your own; a sunk ship; everything once over), which sea the camera
+    frames (the one being fired at; `peek` lets a player look at the other
+    for the turn), the newest shot and its key (animated once per phone),
+    the aim, and the input (placing or firing).
+  - **The 3D sea** (`bsMake3D`, three.js from `loadThree`): ACES tone
+    mapping, a sky gradient as a PMREM environment (a dusk one in dark mode),
+    a sun with soft shadows; the water is a `MeshPhysicalMaterial` whose two
+    tileable canvas normal maps (sine waves with whole-number directions, so
+    they repeat without a seam) scroll different ways under a clear coat;
+    each sea's board is a transparent canvas texture on the water (the lines,
+    the letters and numbers, the marks: a white ring for a miss, a glow for a
+    hit, a red outline round a sunk ship, a dot on marked water), redrawn
+    only when the sea changes. The ships are built from extruded hull
+    outlines (a pointed bow, red below the waterline, the side's colour as a
+    stripe), each kind with what makes it recognisable: the carrier's flight
+    deck (a canvas texture), island and parked jets; the battleship's three
+    turrets, tower and funnel; the cruiser's two turrets and radar; the
+    submarine's low hull and sail; the destroyer's single gun; foam round
+    every hull; radars turn, ships bob. A shot is a shell on a parabola from
+    one of the shooter's ships (muzzle flash) or from over their sea, with a
+    glowing tail and a smoke trail, then a splash (a water column, a ring) or
+    a blast (a flash of light, fire, sparks, smoke, a small camera shake);
+    hits keep burning and smoking; a sinking blows square by square, and the
+    ship lists, dips and settles low, charred, still there to be seen; at
+    the end the revealed fleet rises from the water. Particles are two pools
+    (`bsParticles`: additive for fire, normal for smoke and spray) in one
+    `Points` each, updated on the CPU. The camera frames a sea (or both on
+    the TV) by searching for the distance at which the board's corners fit
+    the canvas at the angle for its shape (58° upright, 52° wide, 46° for
+    both), glides between seas, and puts the other sea away once settled.
+    Picking is a ray onto the water plane (`pick`): the square under a
+    finger. **A shot's result is never shown before its shell lands**: the
+    sea keeps its state from just before the shot (`bsSeaBefore` works it
+    out from the shot itself) until the landing, and the page holds its
+    status, pills and camera the same way (`bsPhoneLocal.flying`,
+    `bsRoomLocal.flying`), then `onLand` says it with a toast.
+  - **Your own shot leaves as your finger lifts** (the duels' "your own move
+    at once"): in a room `bsRoomFire` calls the renderer's `launch`, the
+    shell flies, and the server's answer lands it; refused, it never lands.
+  - **The flat sea** (`bsMakeFlat`, `bsFlatSeaHtml`): where WebGL can't draw
+    or three.js can't load (offline before a first 3D visit), the same model
+    as DOM - a 10×10 grid with its letters and numbers, bars for ships, the
+    same marks, the same picking, drag and turn. The small map of the other
+    sea beside the big one uses the same builder.
+  - **Placing** (`bsWireInput`, `bsTurnShip`): a press on a ship picks it
+    up, a drag moves it square by square (its footprint green or red), a drop
+    where it touches another goes back with a shake; a tap turns it about its
+    first square, pushed back onto the board or to the nearest place it
+    fits. In a room the fleet being moved is kept in sessionStorage for a
+    reload (`bsRoomDraft`).
+  - Against the phone: `appState.battleship` (restored through
+    `soloRegister`), the admiral fires after the shell has landed and the
+    camera has come round (`bsPhoneMaybeAi`).
+  - Sounds from `fxTone` / `fxNoise` (`bsSound`: the gun, the whistle, a
+    splash, a blast, a sinking, a clunk when a ship is set down); the TV is
+    the room's one voice (`duelRoomLoud`).
+- **Layout** (section 27): upright, the pills and the status, then the sea
+  (about square, sized so the bar under it stays on the first screen), then
+  what to do, then the small map and the fleets; on a phone on its side and
+  from 900px the sea takes the height and the rest is a column beside it;
+  the TV is both seas across the stage with the pills, the fleets and the
+  line beside them.
+
+### بولينج
+
+- **`Bowling.js`** (shared, no DOM; inlined into the page through
+  `SHARED_LISTS` and bundled into the Worker before `RoomGames.js`). Plain
+  arithmetic only (`+ - * /`, `Math.sqrt/floor/abs/min/max`, a polynomial
+  `bowlSinCos`), so the server and every phone get the same pins down from the
+  same four whole numbers `{ x, aim, speed, spin }` (`bowlCleanShot` clamps
+  and rounds them). `bowlStart` / `bowlStep` (1/240 s) / `bowlRun` /
+  `bowlThrow`; the pins are circles on the deck - a standing pin its base, a
+  falling or lying one also its belly and its head along the way it fell - so
+  a pin that goes down sweeps its neighbours (the pin action that turns a
+  pocket hit into a strike). A lying pin spins round its middle (`spinZ`,
+  capped and damped). The hook grips once the oil runs out (12.2 m) and stops
+  when the ball rolls out (`HOOK_MAX`). The ball always carries on into the pit
+  once it has hit (it used to stall among the lying pins). `hopAt`/`hopV` are
+  for the page only (a pin hit hard is lifted into the air for a moment).
+  The score sheet: `bowlScore`, `bowlFrameNext`, `bowlMarks` (X / - …),
+  `bowlBallKind`, and a card: `bowlNewCard`, `bowlApply` (one ball onto it,
+  and the rack for the next), `bowlTotal`. `bowlGentleShot` is the clock's
+  ball. Tuned: a ball into the 1-3 pocket strikes more often than not; every
+  throw settles within about 1.5 s of the first hit (the longest in the tests
+  4.3 s from the release).
+- **`RoomBowling.js`**: `shared` holds the whole game (nothing is secret):
+  `order`, `cards`, `turn`, `turnSeq` (raised every ball; a throw carries it,
+  a stale one is dropped), `throwSeq` and `last { seq, pid, shot, before,
+  after, down, kind, ms, auto }` - the ball every phone replays. The server
+  runs the throw itself (`bowlRun`) and is the authority. `readyAt` is when
+  that ball has been watched (`ms` + `BOWL_SET_MS` 4.2 s: the verdict, the
+  sweep, the rack set again); the turn clock (`endsAt`) counts from it.
+  `skipTurn` (host) and the clock throw `bowlGentleShot` with `auto: 'host' |
+  'clock'`. `bowlPlayerLeft`, `bowlDeadline` / `bowlTimeout`. `board` only at
+  the end; `wins` across play again; `winners`.
+- **`JS_Bowling.html`**:
+  - **The lane** (`bowlGfx`): one renderer per page, made when a bowling
+    screen opens (`bowlGfxMount(stage)` loads three.js with `loadThree`, builds
+    the hall once) and thrown away when it closes (`onLeaveScreen`, and
+    `onRoomClocksReset` when the room leaves the game); the canvas moves into
+    whichever screen shows the lane. Pixel ratio ≤ 2, smaller shadow maps and
+    lathe on small screens, the loop runs only while something moves (a
+    throw, the setter, the camera easing, a drag) and a hidden page plays a
+    ball out at once. No WebGL, or three.js not loaded (offline the first
+    time): a message over the lane (with "try again"); in a room that phone
+    gets a "roll a plain ball" button so the game never waits on it. The
+    context lost by the GPU rebuilds the lane; the loss we cause when
+    disposing is ignored (see *Traps*).
+  - **The hall**: the lane, deck, approach with dots, arrows, foul line, metal
+    gutters, caps, kickbacks, the pit, four lanes beside it with their pins
+    (one `InstancedMesh`), the masking unit (no words), light strips, overhead
+    screens, a ball return with two house balls, blob shadows under the pins
+    (the sun's shadows only cover the lane near the camera), PMREM reflections,
+    ACES, soft shadows.
+  - **A ball**: `bowlGfxThrow(standing, shot)` plays the sim in real time and
+    resolves when the pins settle; the camera rides behind the ball and holds
+    on the pins. `bowlGfxSet(next, { fresh, hold })` is the pinsetter: the
+    sweep bar drops, the deck comes down and lifts what still stands, the bar
+    sweeps the fallen pins into the pit, the rack (the lifted pins on their
+    spots, or a new ten) is set down, then the camera comes home while the
+    ball rolls back from the return. Sounds are made on the app's audio
+    context (`bowlRumbleStart` a rolling rumble following the ball's speed, a
+    hollower one in the gutter; `bowlSound('crash' | 'clack' | 'sweep' |
+    'return')`), the strike: the deck lights flare, `tada`, confetti, the word
+    in gold with pins flying out of it; the spare `ding`; a gutter the duels'
+    sigh.
+  - **The swipe** (`bowlShotFrom`): the start's screen x on the foul line is
+    the release; the aim is the direction the finger drew *on the lane* (both
+    ends ray-cast onto the lane, so perspective is the finger's own); the
+    speed is the last 120 ms in screen heights a second; the spin how far the
+    middle of the swipe bows off the straight line (middle to the left of the
+    chord hooks right). `touch-action: none` only while it is your throw
+    (`.bowl-canvas.is-live`).
+  - **Solo** (`appState.bowling`, `soloRegister('bowling')`): a ball's result
+    is written and saved *before* it is shown (a reload can't take a bad ball
+    back); the sheet shows the card from before the ball until the pins have
+    fallen. Bests `soloRecord('bowling', '5' | '10', { score })`; the end is
+    the solo result sheet (the score, strikes and spares, a new best) and a
+    card over the lane (again / options). Reload mid-game comes back to the
+    rack.
+  - **A room** (`ROOM_GAMES.bowling`, `TV_GAMES.bowling`): every screen replays
+    `shared.last` from its `before`, a ball behind the server - the sheet, the
+    list and the overhead screen move on when the pins have fallen
+    (`bowlRoom.cardsAt[throwSeq]`). The thrower's own phone plays the ball as
+    the finger lifts and waits for the server's word; if the clock or the host
+    threw for it a moment before, that ball is shown instead. Two balls
+    behind, or a reload, or a late join: the lane just shows where the game
+    is. The result screen waits for the last ball to be seen
+    (`bowlRoomOver`). Host "play for" after 40 s from `readyAt`, or at once
+    for a phone that's gone.
+  - **Layout** (section 28 of `Style.html`): the lane gets the screen. A
+    phone upright: the lane is the play area's height, everyone's sheet under
+    it; on its side and from 900 px: the lane beside a narrow column (names
+    and totals only on a phone's side); the TV: the lane big, every sheet
+    beside it. The sheet over the lane is light on dark at every theme (it
+    sits on the hall) and left to right in every language, like a real card.
+
 ### لودو
 
 The owner's rules are in *The owner's specs*. Four files and a stylesheet
@@ -3846,6 +4414,58 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A margin rule on `.row > * + *` loses to the item's own `margin: 0`.**
+The hand's overlap (`--pc-gap`) was set on `.pc-row > * + *` (one class
+of weight) and the card buttons had `margin: 0` on their own class, later
+in the file: the same weight, so the button won and no hand ever
+overlapped - a phone's cards ran off both edges. `.pc-row >
+:not(:first-child)` weighs two, and wins.
+
+**An isolate inside an isolate hides its letters from the outer one.**
+A claim was built as "2 × ⁨سبعات⁩" (the rank isolated by the translation
+helper), then isolated whole inside a line: the outer isolate looks for
+its first strong letter *outside* nested isolates, found none in "2 × ",
+took left to right, and the Arabic line read "سبعات × 2". A phrase that
+will be isolated as a whole is built without isolates inside
+(`dbClaim`). And an Arabic name before ": 2" in an English line pulls
+the number to its side: names in hand-built markup go in `<bdi>`.
+
+**The scratchpad is shared by every agent of a session.** Another
+agent's driver overwrote this one's `cdp.mjs` mid-run (and pointed it at
+its own preview port). Keep test drivers, Chrome profiles and ports in a
+folder and a port range of your own.
+
+**The i18n check reads every `t.x` as a translation.** `check-i18n.js`
+warns about "unfallback-ed t.<key> reads" for any `t.something` in a page
+file - including a three.js texture called `t` (`t.wrapS`) or a GLSL
+variable (`t.a` in a shader string). Name such things anything but `t`.
+
+**Tailwind scans comments too.** A comment with the word "outline" in a
+`JS_*.html` file made `npm run build:css` add a `.outline` utility. Only
+rebuild the CSS when a class was really added, and check the diff.
+
+**A room frame rebuilt with `innerHTML` takes its canvas with it.** A WebGL
+canvas can't be in the frame's markup: keep it in a root the game owns and
+append that root to the new host after every rebuild (a moved canvas
+keeps its context).
+
+**Headless Chrome draws WebGL only with SwiftShader**
+(`--use-angle=swiftshader --enable-unsafe-swiftshader`), and its tabs share
+one `localStorage` - so one room session: give each tab its own browser
+context (`Target.createBrowserContext`) to act as separate phones.
+
+**`forceContextLoss()` fires `webglcontextlost` on the canvas being
+disposed.** The lane listened for a lost context to mark 3D as unavailable;
+leaving a bowling screen disposed the renderer, the event arrived a moment
+later and marked the *next* lane (already built) as "this device can't draw
+3D". The listener now ignores any canvas but the one in use, and dispose
+forgets the canvas before losing its context.
+
+**Headless Chrome with SwiftShader draws a frame in 100 ms or more**, so a
+throw looks slow and screenshots taken on a wall clock miss the moment. To
+look at the crash or the setter, replace the loop (`bowlGfxFrame = () =>
+{}`) and step `bowlGfxUpdate(1/60)` yourself, then render.
 
 **A Durable Object alarm set in the past fires at once.** `scheduleAlarm`
 took the soonest of the game's deadline, the presence check and the idle

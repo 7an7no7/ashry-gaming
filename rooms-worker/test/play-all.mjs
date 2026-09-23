@@ -3541,6 +3541,64 @@ async function main() {
     bsBots.concat([S]).forEach((b) => b.close());
   }
 
+  /* --- شطرنج: two play, the room watches, winner stays on, a clock ------------------ */
+  console.log('• chess (White first, illegal and stale moves refused, a draw offered and refused, mate, winner stays on, resigning, a forfeit, the clock)');
+  {
+    const H = await Bot.host('شطرنج', null);
+    const J = await Bot.join(H.code, 'Jana');
+    const K = await Bot.join(H.code, 'كريم');
+    const S = await Bot.join(H.code, '', true);
+    const chBots = [H, J, K];
+    const mv = (b, u) => b.act('move', { from: u.slice(0, 2), to: u.slice(2, 4), promo: u.slice(4), move: b.state.shared.chess.moves });
+    await H.must('chooseGame', { game: 'chess' });
+    await H.must('start', { clock: '3+2' });
+    await all(chBots.concat([S]), (s) => s.game === 'chess' && s.shared.phase === 'play' && s.shared.seats.length === 2 && s.shared.line.length === 1 &&
+                                        s.shared.chess.clock.left[0] === 180000 && s.shared.chess.g.turn === 0,
+              'chess: two sit down (White first), one waits in line, the clock is the host\'s 3+2');
+    let white = byId(chBots, H.state.shared.seats[0]);
+    let black = byId(chBots, H.state.shared.seats[1]);
+    let watcher = chBots.find((b) => b !== white && b !== black);
+    check((await mv(black, 'e7e5')).ok === false, 'chess: Black can\'t move first');
+    check((await mv(watcher, 'e2e4')).ok === false, 'chess: someone in the line can\'t move');
+    check((await mv(white, 'e2e5')).ok === false, 'chess: an illegal move is refused');
+    check((await S.act('move', { from: 'e2', to: 'e4', move: 0 })).ok === false, 'chess: the TV can\'t move');
+    await white.must('move', { from: 'f2', to: 'f3', move: 0 });
+    await all(chBots.concat([S]), (s) => s.shared.chess.moves === 1 && s.shared.chess.last.to === 'f3' && s.shared.chess.clock.at > 0,
+              'chess: a move reaches every screen, and Black\'s clock starts');
+    await white.act('move', { from: 'f3', to: 'f4', move: 0 });
+    check(white.state.shared.chess.moves === 1, 'chess: a second tap drawn for the board before is dropped');
+    await mv(black, 'e7e5');
+    await black.waitFor((s) => s.shared.chess.moves === 2, 'chess: Black moves');
+    await white.must('offerDraw', { move: 2 });
+    await black.waitFor((s) => s.shared.chess.offer && s.shared.chess.offer.seat === 0, 'chess: the draw offer reaches the other player');
+    await black.must('answerDraw', { accept: false });
+    await all(chBots, (s) => !s.shared.chess.offer && s.shared.phase === 'play', 'chess: refused, the game goes on');
+    await mv(white, 'g2g4');
+    await black.waitFor((s) => s.shared.chess.moves === 3, 'chess: White moves');
+    await mv(black, 'd8h4');
+    await all(chBots.concat([S]), (s) => s.shared.phase === 'over' && s.shared.chess.result.reason === 'mate' && s.shared.result.winnerId === black.pid &&
+                                        s.shared.chess.sans.join(' ') === 'f3 e5 g4 Qh4#' && s.shared.chess.hist.join(' ') === 'f2f3 e7e5 g2g4 d8h4',
+              'chess: the fool\'s mate ends the game on every screen; the moves are kept (for the review)');
+    await watcher.must('nextRound', { round: H.state.shared.round });
+    await all(chBots, (s) => s.shared.phase === 'play' && s.shared.seats[0] === watcher.pid && s.shared.seats[1] === black.pid && s.shared.chess.moves === 0,
+              'chess: the next in line sits down with White against the champion');
+    white = byId(chBots, H.state.shared.seats[0]); black = byId(chBots, H.state.shared.seats[1]);
+    await black.must('resign', { round: H.state.shared.round });
+    await all(chBots, (s) => s.shared.phase === 'over' && s.shared.chess.result.reason === 'resign' && s.shared.result.winnerId === white.pid,
+              'chess: resigning gives the game to the other');
+    await H.must('nextRound', { round: H.state.shared.round });
+    await all(chBots, (s) => s.shared.phase === 'play', 'chess: the next game');
+    // A seated player who leaves loses by forfeit.
+    const seatedNow = H.state.shared.seats.map((id) => byId(chBots, id));
+    const leaver = seatedNow.find((b) => b !== H) || seatedNow[1];
+    const stayer = seatedNow.find((b) => b !== leaver);
+    await api('/leave', { code: H.code, pid: leaver.pid, key: leaver.key });
+    await stayer.waitFor((s) => s.shared.phase === 'over' && s.shared.result.reason === 'left' && s.shared.result.winnerId === stayer.pid,
+                         'chess: a seated player who leaves loses by forfeit');
+    await H.must('backToHub');
+    chBots.concat([S]).forEach((b) => b.close());
+  }
+
   /* --- المشنقة: one writes and the rest guess, then a race ------------------------ */
   console.log('• hangman (a written word kept from the guessers, each board its own, the writer\'s points, a race, the clock)');
   {

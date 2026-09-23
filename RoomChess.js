@@ -27,7 +27,7 @@
    several boards at once; everything a board needs is in these functions,
    none of which touches room.shared or the line):
 
-     chessBoardNew(clockId, opts)  a fresh board: { g, moves, sans, last, lost,
+     chessBoardNew(clockId, opts)  a fresh board: { g, moves, sans, hist, last, lost,
                                    clock, offer, offered, result, armageddon }.
                                    opts.armageddon: a draw on it is Black's win.
      chessBoardMove(bd, seat, payload, now)
@@ -64,6 +64,7 @@ function chessBoardNew(clockId, opts) {
     g: chessNew(),
     moves: 0,
     sans: [],
+    hist: [],                     // the moves as 'e2e4', 'e7e8q': the game's record, for the review
     last: null,
     lost: [[], []],               // what each side has lost, as piece letters, in order
     clock: chessClockNew(clockId),
@@ -105,6 +106,7 @@ function chessBoardMove(bd, seat, payload, now) {
   if (bd.clock) chessClockPress(bd.clock, seat, t, CHESS_GRACE_MS, bd.moves === 0);
   bd.moves++;
   bd.sans.push(info.san);
+  bd.hist.push(info.from + info.to + (info.promo || ''));
   if (info.capture) bd.lost[1 - seat].push(info.capture);
   bd.last = { from: info.from, to: info.to, san: info.san, piece: info.piece, capture: info.capture, captureSq: info.captureSq,
     castle: info.castle, promo: info.promo, check: info.check, seat: seat, n: bd.moves };

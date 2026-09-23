@@ -1225,7 +1225,7 @@ function chessMoveGood(g, mv, analysis) {
   const mat = chessLineMaterial(g, line, color);
   const fork = chessForked(q.board, to, color ^ 1);
   if (fork.length >= 2 && !chessHanging(q.board, to)) out.push({ k: 'fork', piece: CHESS_LETTERS[kind], sq: mv.to, targets: fork.map(chessSqName) });
-  else if (mat.gain >= 200 && info.capture) out.push({ k: 'wins', piece: info.capture, san: info.san });
+  else if (mat.gain >= 80 && info.capture) out.push({ k: 'wins', piece: info.capture, san: info.san });
   else if (mat.gain >= 200) out.push({ k: 'wins_later', san: info.san });
   if (wasHanging && !chessHanging(q.board, to)) out.push({ k: 'saves', piece: CHESS_LETTERS[kind] });
   if (info.castle) out.push({ k: 'castle' });
@@ -1277,9 +1277,10 @@ function chessMoveBad(gBefore, played, best, before, after) {
     else if (before && before.pv && before.pv.length) {
       const bm = chessLineMaterial(gBefore, before.pv.slice(0, 5), color);
       const pm = after && after.pv ? chessLineMaterial(q, after.pv.slice(0, 4), color).gain + (info.capture ? CHESS_VALUE[CHESS_LETTERS.indexOf(info.capture)] : 0) : 0;
-      if (bm.gain >= 200 && bm.gain - pm >= 150) {
-        const bq = chessCloneGame(gBefore);
-        const binfo = chessPlay(bq, best);
+      const bq = chessCloneGame(gBefore);
+      const binfo = chessPlay(bq, best);
+      // A capture that keeps what it takes, or a line that wins a piece: say what was there to win.
+      if ((bm.gain >= 200 && bm.gain - pm >= 150) || (binfo && binfo.capture && bm.gain >= 80 && bm.gain - pm >= 80)) {
         out.push({ k: 'win_missed', san: before.san, piece: binfo && binfo.capture ? binfo.capture : '' });
       }
     }

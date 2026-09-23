@@ -94,6 +94,7 @@
   (نقط ومربعات)**: two on one phone, against the phone at three levels, or a
   room where two play and the rest watch, winner stays on (*The duels*).
 - 🚢 **Battleship (حرب السفن)**: the classic 10×10 with five ships, in real 3D (three.js): against the phone at three levels, or a room where two play and the rest watch, winner stays on (*حرب السفن*).
+- ♞ **Chess (شطرنج)**: the full rules in real 3D (three.js) - a wooden board and Staunton pieces: two on one phone, against the computer at a rating from 400 to 2000 with a coach (a warning before a blunder, hints, a word on every move, the pieces in danger), or a room where two play and the rest watch, winner stays on; a chess clock; every game reviewed move by move (*شطرنج*).
 - **Cards, in rooms:** **كدّاب (I Doubt It):** lay cards face down and say what they are; anyone can call «كدّاب!», the first tap wins; computer players (*كدّاب*). **الشايب (Old Maid):** draw a card blind from the next hand, pair up, and don't be left holding the drawn old man; drag your cards about while someone is lifting one (*الشايب*).
 - **Sports, in real 3D (three.js):** 🎳 **Bowling (بولينج):** swipe the ball down a
   wooden lane, a curve in the swipe hooks it; solo for a best score, or a
@@ -133,6 +134,97 @@ work changed. Add to it when a decision is made or a batch ships.
   player wins; the higher team total wins; play on until only one qualifies).
 
 ### The owner's specs, as built
+
+- **شطرنج (Chess)** - the owner's spec of 23 Sep 2026, asked one question at a
+  time, then the computer's strength and the coach added the same day
+  (*شطرنج*):
+  - **Three ways**: **a room duel with the TV** (the duels' winner stays on:
+    two play, the rest watch on their phones and the TV; the challenger has
+    White), **against the computer**, and **two on one phone**. In the duels'
+    section (`group: 'duo'`), `modes: ['device', 'room', 'tv']`.
+  - **The look: real 3D "like bowling and golf"**: a wooden board (maple and
+    walnut, the frame with a-h and 1-8) and Staunton pieces turned on a lathe
+    (a pawn's collar and ball, a rook's battlements, the cut in a bishop's
+    mitre, a carved knight's head, the queen's coronet, the king's cross),
+    seen at an angle from your side; a move slides (a knight hops), a piece
+    taken is knocked off and set beside the board, the king in check glows
+    red, the last move's squares are tinted; tap a piece for its moves (a dot,
+    a ring round a capture), tap a square - or drag. A flat board where 3D
+    can't draw. Squares a-h / 1-8 (`dir="ltr"`).
+  - **A chess clock, off by default**: off, 3+2, 5+0, 10+0 (minutes +
+    seconds a move) - the host's choice in a room, a setup choice on one
+    phone. **Running out loses, unless the other side has nothing to mate
+    with: then a draw.**
+  - **The full rules**: castling both ways with every condition, en passant,
+    promotion with a choice of four, check, mate, stalemate, threefold
+    repetition, the fifty-move rule, insufficient material; a draw offered
+    (the other accepts or refuses) and resigning.
+  - **In a tournament** (the duels' tournament mode, wired in by the lead): a
+    drawn match is replayed once with the colours swapped; drawn again, one
+    **Armageddon** game where a draw counts as a win for Black. In winner
+    stays a draw is the duels' draw: the champion keeps the seat.
+  - **The computer has a rating, 400 to 2000 in steps of 100** (replacing
+    easy / medium / hard), a slider with a name for each band - مبتدئ 400-700,
+    متوسط 800-1200, قوي 1300-1600, خبير 1700-2000 - remembered on the phone.
+    The strength really follows the number: 400 looks one move ahead with no
+    look at the captures after it (so it leaves pieces hanging and grabs
+    defended ones), wobbles its judgement by up to two pawns and plays a
+    random move a quarter of the time; each step looks deeper, at more
+    positions, wobbling and slipping less; 2000 searches up to 1.5 s with none
+    of it (`chessEloSettings`).
+  - **The coach**, a setup switch, off by default, remembered:
+    - **Live, against the computer only** (it would be unfair against a
+      person): a **warning before a blunder** ("استنى! الوزير بتاعك على d4
+      ممكن يتاكل"), take it back or play it anyway; a **hint** button (the
+      best move as an arrow on the board, and why in one line); **a word after
+      each of your moves** (best / good / inaccuracy / mistake / blunder, why,
+      and the better move); **the pieces in danger** marked (attacked and not
+      defended, or attacked by something cheaper: yours red, theirs green).
+      Each can be switched off in the coach's settings; all on with the coach.
+    - **A review after every game** - against the computer, two on one phone,
+      and a room's once it is over, on each phone: every move rated
+      (brilliant / best / good / inaccuracy / mistake / blunder) with the
+      better move and why, an **accuracy for each player**, **the evaluation
+      as a graph**, the game **replayed on the board with jumps to the key
+      moments** (turning points, missed chances, brilliant moves), and **"try
+      the better move"**: from that moment the better move is played and you
+      carry on against the computer.
+    - **The reasons come from the position**, templated sentences in Arabic
+      and English from what the engine sees - a piece left hanging, a fork, a
+      pin, a mate allowed or missed, material won or lost, the king's safety,
+      development and the centre in the opening - never filler.
+    - The analysis is worked out a position at a time with a progress bar, so
+      the page never freezes; **the last 20 games are kept on the phone** and
+      their reviews open from the chess setup screen.
+  - Decided here (open to change, each in one place):
+    - **Your colour at the bottom** (against the computer and on your own
+      phone in a room; watchers and the TV see White at the bottom). **Two on
+      one phone: White at the bottom, not turned every move** - a board that
+      spins round after each move is hard to follow and loses the last move,
+      and the phone is usually passed, not sat across; a ↻ button turns it any
+      time. The colours swap every game there, as the duels' first move does.
+    - **Threefold repetition and the fifty-move rule end the game by
+      themselves** (as on every app a family plays on), rather than waiting
+      for a claim.
+    - **The clock starts with Black's first move** (White's first move is
+      free, as online) and a move reaching the server up to 0.6 s after the
+      time ran out still counts (the network's share, `CHESS_GRACE_MS`).
+    - **Legal moves are always shown** for the piece you pick up (no switch),
+      and the last move and check always marked.
+    - **Promotion is a small picker over the square**: queen, rook, bishop,
+      knight, or ✕.
+    - **A single legal move is never played for you**: the move is the game
+      and a player is meant to find it unaided - the standing "one thing to do
+      is done for you" rule's own exceptions (*Decided, and why*), like the
+      duels' last move.
+    - A draw offer: once a move each; the other accepts or refuses, and
+      making a move instead says no. Resigning asks first. On one phone a draw
+      is both agreeing (a confirm), against the computer there is none.
+    - The move list is in figurine notation (♞f3) - the same in both
+      languages.
+    - In a tournament's Armageddon both keep the match's clock, and White is
+      drawn by lot (`chessMatchNext`).
+    - The TV shows no review (the owner called it optional); the phones do.
 
 - **ميني جولف (Mini Golf)** - the owner's rules of 23 Sep 2026, asked one at
   a time; look أ «نجيلة» picked from the lead's 3D preview (striped mown grass,
@@ -1598,6 +1690,30 @@ the word search), `countUp` for streaks and scores.
   old physics struck anywhere, and a glancing hit's spin was worked out from
   absolute directions, so a mirrored throw didn't fall mirrored.
 
+- **23 Sep 2026, شطرنج** - chess to the owner's rules, asked one at a time,
+  then the rated computer and the coach the same day (*The owner's specs*,
+  *شطرنج*): every rule once in `Chess.js` (perft on six standard positions),
+  the computer from 400 to 2000, the coach's analysis and the review there
+  too; the room in `RoomChess.js` with the board functions a tournament
+  bracket needs; the 3D board, one phone and the live coach in
+  `JS_Chess.html`, the kept games and the review in `JS_ChessReview.html`, the
+  room and the TV in `JS_RoomChess.html`, section 30 of `Style.html`, a drawn
+  icon (a knight on a corner of the board). Rules tests: 100 new (perft, every
+  castling condition, en passant into a pin, promotion, mate, stalemate,
+  threefold, fifty, material, SAN, the clock and the flag, Armageddon and the
+  match, every rating's move legal, 1800 beats 600 and 1400 beats 400, the
+  verdicts, a blunder and a mate allowed named, the hint's mate in one, ~100%
+  for the engine's own game, a review the same twice, the room: turns, stale
+  taps, mate, winner stays on, a draw offered, refused, declined by a move and
+  accepted, resigning, the clock and a flag that is a draw, a forfeit). The
+  leak check plays two games and one on the clock; a robot round in
+  `play-all.mjs`. Checked in headless Chrome at 375x812, 667x375, 1280x720 and
+  a TV at 1920x1080, Arabic and English, light and dark: against the computer
+  by taps and a drag, the hint, the coach's word, a promotion on the flat
+  board, a game to mate and its review, a reload mid-game and mid-review, and
+  a room with two phones, a watcher and the TV to mate, the review from the
+  room, the next game and a reload. A deploy is needed for the rooms server.
+
 ## Building and Running
 
 ### Development Requirements
@@ -1655,8 +1771,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Bowling.js`, `MiniGolf.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomBowling.js`, `RoomMiniGolf.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `Bowling.js`, `MiniGolf.js`, and the game files bundled after
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomBowling.js`, `RoomMiniGolf.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -1786,6 +1902,8 @@ is nowhere to hide the key card.
 | `RoomHangman.js` | `hangmanAction`: one writes or a race, the word in `room._hm`, each board on its own phone, the points, the word clock, leaving. |
 | `Battleship.js` | حرب السفن's fleets, the no-touching check, a random fleet, one shot and its result (a sinking marks the water round it), and the computer admiral: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `bs` / `BS_`. |
 | `RoomBattleship.js` | `battleshipAction`: the duels' seats and line (`duelSeatNext`, `duelEnd` from `RoomDuels.js`, bundled before it), placing and ready, the fleets in `room._bs`, the shots, the clock (`bsDeadline` / `bsTimeout`), leaving (`bsPlayerLeft`). |
+| `Chess.js` | شطرنج's rules (every one, perft-checked), the clock, the rated computer, the coach's analysis and the review, and a tournament match's next game (`chessMatchNext`, Armageddon): shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `chess` / `CHESS_`. |
+| `RoomChess.js` | `chessAction`: one board per game made and played through `chessBoard*` (the adapter a bracket uses), winner stays on (`duelSeatNext`, `duelEnd`), the clock on the server (`chessDeadline` / `chessTimeout`), a draw offered and answered, resigning, a forfeit (`chessPlayerLeft`). |
 | `PlayingCards.js` | The playing cards كدّاب and الشايب deal: the deck (one or two), a card's rank and suit, a hand sorted, what makes a pair in الشايب (same rank, same colour), the ranks' names: shared by the page and the Worker, every name prefixed `pc` / `PC_`. |
 | `RoomDoubt.js` | `doubtAction`: كدّاب's claims, the call (first tap wins), the pile, passing and the pile going out, the places, the clock, leaving and the computer players; every hand in `room._doubt`. |
 | `RoomOldMaid.js` | `oldMaidAction`: الشايب's deal (the deck grows with the table), the lift and the draw, dragging or shuffling a hand, pairs, the loser and the tally, the clock, leaving; every hand in `room._om`. |
@@ -3857,6 +3975,143 @@ three), الشايب from two. Both have `GAME_RULES`, `HELP_ENTRIES`
 `roomTurnOf` case (`turn_up` for the player up). Lobby choices are kept on
 the host's phone (`recallOptions('doubt' | 'oldmaid')`).
 
+### شطرنج
+
+The owner's rules are in *The owner's specs*. The game's client id is
+**`shatranj`** (the catalog, the help, `setup-shatranj`, `play-shatranj`,
+`review-shatranj`) and the room's is **`chess`** (`ROOM_GAME_IDS`,
+`room-chess`, `ROOM_GAMES.chess`, `TV_GAMES.chess`): `chess` was already the
+chess clock tool's help entry and `play-chess` its screen, so the room's help
+goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
+
+- **`Chess.js`** (shared, no DOM, every name `chess` / `CHESS_`; inlined into
+  the page through `SHARED_LISTS` and bundled into the Worker):
+  - **A game** is one plain object (`board` 64 numbers a1 = 0, a piece its
+    kind 1-6 + 8 for black; `turn`, `castle` bits, `ep`, `half`, `full`, and
+    `keys`, the positions since the last capture or pawn move for threefold -
+    a position's key has an en passant square only when a pawn can really
+    take there). `chessPlay(g, { from, to, promo })` plays a legal move and
+    says what happened (SAN, what was taken and where, castling, check, and
+    `status`); `chessStatus(g)` is mate, stalemate, material, repetition or
+    fifty; `chessLegalMoves`, `chessFen` / `chessFromFen`, `chessCheckSq`.
+  - **Inside**, a position (`chessPos`) with the kings and a two-lane Zobrist
+    hash, pseudo-legal generation over precomputed knight, king and ray
+    tables, make / unmake, and a legality filter. `rules.mjs` runs perft on
+    the standard positions: the start to depth 4 (197,281), Kiwipete to 3
+    (97,862), positions 3 (depth 5, 674,624), 4, 5 and 6 - all in well under
+    a second.
+  - **The clock**: `chessClockNew(id)`, `chessClockLeft`, `chessClockPress`
+    (the first move free, the increment added), `chessClockFlagged`,
+    `chessFlagResult` (a flag against a side that can't mate is a draw:
+    `chessCanMate` - a lone king can't; a lone minor or bishops of one colour
+    only when the other side has something to block with).
+  - **The computer** (`chessBestMove(g, { elo })`): iterative-deepening
+    alpha-beta with a transposition table, MVV-LVA captures, killers and
+    history, a check extension, a null move, late moves searched shallower,
+    quiescence, the "simplified evaluation" piece-square tables tapered to the
+    endgame, and a push of a bare king to the edge. It stops at its time **and**
+    at a node ceiling (a frozen clock can't hold it - *Traps*), keeping the last
+    depth it finished (depth 1 always finishes). The rating is
+    `chessEloSettings(elo)`: depth, nodes, ms, the wobble on each root move
+    (`noise`), the chance of a random move (`blunder`) and how far the
+    captures at the leaves are followed (`qdepth`, 0 at 400).
+  - **The coach's analysis**: `chessAnalyse(g, { nodes })` (the best move, the
+    score for the side to move, mate in n, the line it expects), `chessJudge`
+    (one move against the analyses before and after it: the verdict from the
+    centipawns lost, a score held within ±1000 so a won game stays won -
+    best ≤ 15, good < 50, inaccuracy < 100, mistake < 300, blunder from 300; a
+    mate let slip is at least a mistake, one walked into a blunder; a best
+    move that leaves a piece to be taken for less is **brilliant** - and the
+    accuracy by Lichess's formula from the winning chances lost),
+    `chessMoveGood` / `chessMoveBad` (the reasons, as keys and facts: `hang`,
+    `fork_allowed`, `pin_allowed`, `mate_allowed`, `loses`, `mate_missed`,
+    `win_missed`, `king_walk`, `queen_early`, `castle_better`,
+    `develop_better`, `centre_better`, `better`; `mate_in`, `fork`, `wins`,
+    `saves`, `castle`, `develop`, `centre`, `check`, `improves`, `sacrifice`),
+    `chessThreats` (the pieces in danger), `chessPins`. A review is
+    `chessReviewBegin(record)` → `chessReviewStep` a position at a time →
+    `chessReviewResult` (every move judged, the accuracies, the graph, the key
+    moments); `chessReview` does it all at once for the tests. Bounded by
+    nodes, the same game reviews the same every time.
+  - **The tournament's adapter**: `chessMatchNext(match, rnd)` - the next game
+    of a match (White, Armageddon or not) or its winner - and
+    `chessArmageddonResult`.
+- **`RoomChess.js`** (bundled after `RoomDuels.js`, whose line and seats it
+  uses). **One board** is `shared.chess`, made and played only through the
+  board functions, which never touch the room, so a bracket can hold one per
+  match: `chessBoardNew(clockId, { armageddon })`, `chessBoardMove(bd, seat,
+  payload, now)`, `chessBoardResign`, `chessBoardOffer` / `chessBoardAnswer`,
+  `chessBoardDeadline`, `chessBoardFlag`; a board's `result` is `{ result,
+  reason, winner (the seat), drawn }`, an Armageddon draw coming out as
+  Black's win. The board keeps `hist` (the moves as 'e2e4', for the review),
+  `sans`, `lost` (what each side has lost), `last`, `offer` / `offered`, the
+  clock in the server's time. The room around it is `chessAction` (winner
+  stays on through `duelEnd` / `duelSeatNext`), `chessDeadline` /
+  `chessTimeout` (the flag), `chessPlayerLeft` (a forfeit). A move carries
+  `move` (the count the phone saw) against a double tap; a move that arrives
+  after the time ran out loses on time and isn't played. No computer players,
+  no forced moves.
+- **`JS_Chess.html`** - the board and one phone:
+  - **One board view per page** (`chView`, as `bsView`): a root moved into
+    whichever screen shows a board, thrown away when none does. The 3D board
+    (`chMake3D`) draws **only when something changes or moves**: a tween list
+    and a drag keep the loop running, nothing else (a static board costs
+    nothing). The board top is one canvas texture (the squares' grain, the
+    frame, the names turned to whoever sits at the near side), what sits on
+    the squares another (the last move, the piece picked up and its targets,
+    check, the pieces in danger, arrows - redrawn only when it changes), the
+    pieces lathe profiles plus their parts (battlements, the mitre's cut, the
+    extruded knight's head turned three-quarters so its profile reads, the
+    coronet, the cross), boxwood and ebony `MeshPhysicalMaterial` with a
+    lacquer under a warm room of light (PMREM), soft shadows, and a shadow
+    catcher under the board on the page's own ground. The camera finds the
+    nearest distance that shows the frame, the far pieces' tops and the pieces
+    taken (beside the board on a wide screen, before and behind it upright),
+    from your side. A move is a tween from where the piece is (so a dropped
+    piece slides from under the finger), a capture knocks the piece off in an
+    arc to its place beside the board, castling brings the rook after, a
+    promotion pops the new piece in, check shakes and lights the king, mate
+    topples it. Picking tries the height of a piece's middle first (a tall
+    piece stands in front of the square behind it).
+  - **The flat board** (`chMakeFlat`, `chFlatBoardHtml`): the same model as a
+    grid of squares with drawn pieces (`chPieceSvg`, drawn for this app), for
+    a device without WebGL and while three.js can't load.
+  - **Input**: `chWireInput` (a tap, or past 10px a drag that lifts the piece
+    and follows the finger; `touch-action: none` only while it's your move),
+    `chTapLogic` / `chDropLogic` (shared by one phone and the room), the
+    promotion picker over the square (`chAskPromotion`, kept inside the board).
+  - **One phone** (`appState.shatranj`, restored through `soloRegister`): two
+    on one phone or against the computer, the clock (read from its stamps,
+    never counted down; it stands still while the board is off screen), the
+    tally, the computer thinking after the last move has landed and at least a
+    human moment, capped by its clock. **The live coach** reads one analysis
+    of your position on your turn (`chCoachPrepare`); your move is shown, then
+    judged (`chCoachJudge`): a blunder opens `#ch-warn-modal` (take it back:
+    the position, the clock and what was taken are put back exactly), anything
+    else goes on with the word on the move under the board.
+- **`JS_ChessReview.html`** - the kept games (`ashryChessGames_v1` in
+  localStorage, the last 20, each with its review once worked out, so it
+  reopens at once) and the review screen: the players and their accuracy
+  (counting up), the result, a progress bar while it works (a slice of ~60ms a
+  tick), ⏮ ◀ ▶ ⏭ and the arrow keys, the move's verdict and why, "show the
+  better move" (the position before, the move played in orange and the better
+  one in green), "try the better move", the key moments, the graph (tap to
+  jump), each side's counts, the move list with its verdicts. A room's game is
+  kept on each phone that played it, and anyone in the room can open its review
+  from the result card; leaving the review goes back to the room.
+- **`JS_RoomChess.html`** - the room and the TV: your colour at the bottom;
+  your move drawn as your finger lifts (`chRoomLocal.early`, the same
+  animation key as the server's board, so nothing moves twice; refused, the
+  room's board comes back); the clock read through the smallest gap seen
+  between a clock start and hearing of it; the draw offer's card; the host's
+  clock in the lobby, remembered. `roomTurnOf` answers for your move or a draw
+  offered to you.
+- **Layout** (section 30 of `Style.html`): upright the pills (each with its
+  clock and what it took, wrapping), the status, the board, what to do, the
+  coach's word, the moves; on a phone on its side and from 900px the board
+  takes the height beside a column; the TV is the board with the pills, the
+  status, the moves and the line beside it.
+
 ### حرب السفن
 
 The owner's rules are in *The owner's specs*. Three files and a stylesheet
@@ -4628,6 +4883,20 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A name the app already uses is taken in every file.** The chess game
+could not be `chess` on the page: the chess clock tool is the help entry
+`chess`, the catalog tool `chess` and the screen `play-chess`, and the room
+lobby asks `helpEntry(Room.state.game)` for the rules of the game chosen, so a
+room game called `chess` would have opened the clock's rules. The game is
+`shatranj` on the page and `chess` in rooms, and `ROOM_HELP_KEY` (JS_Utils)
+maps a room game to its help. Before naming a game, grep its id in
+`HELP_ENTRIES`, `GAME_CATALOG`, `VIEW_META` and the view ids.
+
+**`scrollIntoView` on an item in a scrolling list scrolls the page too.** The
+chess review kept the current move in sight with it, and on a phone every
+step scrolled the board off the top of the screen. Set the list's own
+`scrollTop` instead.
 
 **Physics that passes a test can still be wrong everywhere else.** The first
 bowling pins passed "a pocket hit strikes more often than not" - and struck

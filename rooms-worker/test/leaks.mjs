@@ -480,7 +480,40 @@ const PROBES = {
   },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
-  connect4: () => [], dots: () => [], ludo: () => [], bowling: () => []
+  connect4: () => [], dots: () => [], xo: () => [], ludo: () => [], bowling: () => []
+};
+
+/*
+ * A duels' tournament (RoomTournament.js): every match is held to its game's
+ * own rules, on a view of just that match - its game from shared.games, and
+ * the phone's secret only when the secret names that match (you.tm) - so a
+ * face or a fleet of one match on a phone of another fails the game's own
+ * probe. And a secret always names its match, on a phone seated in it.
+ */
+const tourProbes = (room, game) => {
+  const s = room.shared || {};
+  const t = s.tour;
+  if (!t) return [];
+  const out = [
+    probe('tournament: a secret names its match, and is on a phone seated in it', true, (view, pid) => {
+      const you = view.you;
+      if (!you) return null;
+      const m = t.matches.find((x) => x.id === you.tm);
+      return !m || (m.seats || m.p).indexOf(pid) === -1 ? 'you.tm' : null;
+    })
+  ];
+  t.matches.forEach((m) => {
+    const g = (s.games || {})[m.id];
+    if (!g) return;
+    const hidden = (room._tourHidden || {})[m.id] || {};
+    const small = Object.assign({ players: room.players, screens: room.screens, shared: g, secrets: {} }, hidden);
+    (PROBES[game] || (() => []))(small).forEach((pr) => out.push(probe(pr.name, pr.active, (view, pid) => {
+      const mine = view.you && view.you.tm === m.id ? view.you : null;
+      const part = { shared: (view.shared.games || {})[m.id] || {}, you: mine };
+      return pr.check(part, pid, indexView(part));
+    })));
+  });
+  return out;
 };
 
 /* --- the table ------------------------------------------------------------------ */
@@ -499,7 +532,7 @@ const scan = (T, after) => {
     const view = roomView(room, pid, ONLINE);
     return { pid, view, idx: indexView(view) };
   });
-  const probes = GENERIC(room).concat((PROBES[game] || (() => []))(room));
+  const probes = GENERIC(room).concat(T.tourOf ? tourProbes(room, T.tourOf) : (PROBES[game] || (() => []))(room));
   for (const p of probes) {
     if (!r.probes.has(p.name)) r.probes.set(p.name, 0);
     if (!p.active) continue;
@@ -519,8 +552,9 @@ const table = (game, n, opts = {}) => {
     screens: [{ id: SCREEN }], shared: {}, secrets: {}
   };
   if (!report.has(game)) report.set(game, { moves: 0, probes: new Map(), leaks: new Map() });
-  const T = { room, game, ids, host: room.hostId };
-  must(T, T.host, 'chooseGame', { game });
+  // opts.tourOf: a tournament of that duel, reported under its own name ('tour:guesswho').
+  const T = { room, game, ids, host: room.hostId, tourOf: opts.tourOf || null };
+  must(T, T.host, 'chooseGame', { game: opts.tourOf || game });
   return T;
 };
 
@@ -1044,6 +1078,21 @@ const DRIVERS = {
     }
     return S(T).phase === 'gameover';
   },
+  xo() {
+    const T = table('xo', 3);
+    const play = () => {
+      for (let guard = 0; guard < 200 && S(T).phase === 'play'; guard++) {
+        const s = S(T);
+        const free = s.cells.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
+        act(T, s.seats[s.turn], 'move', { cell: pick(free), move: s.moves });
+      }
+    };
+    must(T, T.host, 'start', { three: true });
+    play();
+    must(T, T.host, 'nextRound', { round: S(T).round });
+    play();
+    return S(T).phase === 'over';
+  },
   dots() {
     const T = table('dots', 2);
     must(T, T.host, 'start', { size: 4 });
@@ -1056,14 +1105,77 @@ const DRIVERS = {
   }
 };
 
+/*
+ * A tournament of each duel with a secret, and one without: five or six
+ * players (byes), every match played to its end, and every phone checked
+ * after every move against every match's own rules.
+ */
+const TOUR_DRIVERS = {
+  'tour:guesswho'() {
+    const T = table('tour:guesswho', 6, { tourOf: 'guesswho' });
+    must(T, T.host, 'start', { mode: 'tour', pick: 'choose', size: 16 });
+    for (let guard = 0; guard < 3000 && S(T).tour.phase === 'play'; guard++) {
+      const s = S(T);
+      const live = s.tour.matches.filter((m) => m.state === 'play');
+      if (!live.length) { runClock(T, (r) => r.shared.tour.phase !== 'play' || r.shared.tour.matches.some((m) => m.state === 'play'), 20); continue; }
+      const m = pick(live);
+      const g = s.games[m.id];
+      const base = { match: m.id, mg: m.games };
+      if (g.phase === 'pick') { g.seats.forEach((id, k) => { if (!g.picked[k]) act(T, id, 'pick', Object.assign({ face: pick(g.faces.map((_, i) => i)) }, base)); }); continue; }
+      const me = g.seats[g.turn], other = g.seats[1 - g.turn], seq = g.turnSeq;
+      if (g.stage === 'answer') { const y = Math.random() < 0.5; if (!act(T, other, 'answer', Object.assign({ yes: y, seq }, base))) act(T, other, 'answer', Object.assign({ yes: !y, seq }, base)); continue; }
+      if (g.stage === 'flip') { act(T, me, 'done', Object.assign({ seq }, base)); continue; }
+      if (Math.random() < 0.3) { act(T, me, 'guess', Object.assign({ face: pick(g.faces.map((_, i) => i)), seq }, base)); continue; }
+      const open = Array.from({ length: 18 }, (_, i) => i).filter((i) => g.asked[g.turn].indexOf(i) === -1);
+      if (!open.length || !act(T, me, 'ask', Object.assign({ q: pick(open), seq }, base))) act(T, me, 'loud', Object.assign({ seq }, base));
+    }
+    return S(T).tour.phase === 'over';
+  },
+  'tour:battleship'() {
+    const T = table('tour:battleship', 5, { tourOf: 'battleship' });
+    must(T, T.host, 'start', { mode: 'tour', turnClock: 15 });
+    for (let guard = 0; guard < 6000 && S(T).tour.phase === 'play'; guard++) {
+      const s = S(T);
+      const live = s.tour.matches.filter((m) => m.state === 'play');
+      if (!live.length || guard % 9 === 0) { runClock(T, (r) => r.shared.tour.phase !== 'play' || r.shared.tour.matches.some((m) => m.state === 'play'), 3); if (!live.length) continue; }
+      const m = pick(live);
+      const g = s.games[m.id];
+      if (!g) continue;
+      const base = { match: m.id, mg: m.games };
+      if (g.phase === 'place') {
+        g.seats.forEach((id, k) => { if (!g.ready[k] && T.room.secrets[id] && T.room.secrets[id].fleet) act(T, id, 'place', Object.assign({ fleet: T.room.secrets[id].fleet }, base)); });
+        continue;
+      }
+      if (g.phase !== 'play') continue;
+      const open = g.seas[1 - g.turn].grid.map((v, i) => (v === 0 ? i : -1)).filter((i) => i >= 0);
+      act(T, g.seats[g.turn], 'fire', Object.assign({ cell: pick(open), seq: g.turnSeq }, base));
+    }
+    return S(T).tour.phase === 'over';
+  },
+  'tour:connect4'() {
+    const T = table('tour:connect4', 5, { tourOf: 'connect4' });
+    must(T, T.host, 'start', { mode: 'tour', mode4: 4 });
+    for (let guard = 0; guard < 3000 && S(T).tour.phase === 'play'; guard++) {
+      const s = S(T);
+      const live = s.tour.matches.filter((m) => m.state === 'play');
+      if (!live.length) { runClock(T, (r) => r.shared.tour.phase !== 'play' || r.shared.tour.matches.some((m) => m.state === 'play'), 20); continue; }
+      const m = pick(live);
+      const g = s.games[m.id];
+      act(T, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * g.cols), move: g.moves, match: m.id, mg: m.games });
+    }
+    return S(T).tour.phase === 'over';
+  }
+};
+
 /* --- run ---------------------------------------------------------------------- */
 
 console.log('• the leak check: every game played through, every phone checked after every move');
 const only = process.argv.slice(2);
-for (const game of ROOM_GAME_IDS.filter((g) => !only.length || only.indexOf(g) !== -1)) {
-  if (!DRIVERS[game]) { failed++; console.log(`  ✗ ${game}: no driver in test/leaks.mjs, so its phones are not checked`); continue; }
+for (const game of ROOM_GAME_IDS.concat(Object.keys(TOUR_DRIVERS)).filter((g) => !only.length || only.indexOf(g) !== -1)) {
+  const driver = DRIVERS[game] || TOUR_DRIVERS[game];
+  if (!driver) { failed++; console.log(`  ✗ ${game}: no driver in test/leaks.mjs, so its phones are not checked`); continue; }
   let finished = false, error = null;
-  try { finished = DRIVERS[game](); } catch (e) { error = e.message; }
+  try { finished = driver.call(DRIVERS); } catch (e) { error = e.message; }
   const r = report.get(game) || { moves: 0, probes: new Map(), leaks: new Map() };
   const quiet = [...r.probes].filter(([, n]) => n === 0).map(([name]) => name).filter((n) => n.indexOf('vote shows') === -1);
   const problems = [];

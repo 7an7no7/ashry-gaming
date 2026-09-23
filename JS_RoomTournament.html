@@ -1,0 +1,749 @@
+<script>
+/* ============================================================================
+   THE DUELS' TOURNAMENT on the phones and the TV (23 Sep 2026)
+   ----------------------------------------------------------------------------
+   The rules are RoomTournament.js: a knockout for a room of four or more,
+   every match of a round played at the same time on its own two phones, a
+   draw replayed the other way round, a podium at the end. This file wraps the
+   duels' own renderers (ROOM_GAMES / TV_GAMES of كونكت ٤, نقط ومربعات, إكس أو,
+   خمّن مين and حرب السفن): with no tournament on they are called exactly as
+   before; with one on, a phone either shows a match - its own, or one it
+   picked to watch - through the game's own renderer, given a state shaped
+   like winner stays (tourMatchState), or the bracket.
+
+   Which screen a phone shows (tourFocusId): a match it picked (tourShow), the
+   bracket if it asked for it, or by itself - the match it is playing, the
+   replay of a drawn one, the one it has just won or lost; otherwise the
+   bracket, with "your next match" and its countdown. A new match of its own
+   takes the phone back to it. The duels' shared pieces (duelRoomLineHtml,
+   duelRoomOverHtml) leave a place in a match's screen that this file fills
+   (tourAfterMatch): the round, the other matches to watch, the bracket, and
+   what comes after the match - who goes through, a replay, your next one.
+
+   The TV (tourTvFrame): the bracket with every match being played as a small
+   live board beside it; when only one match is left being played (the final,
+   say) it is shown big, through the game's own TV renderer, and the host can
+   put any match big or go back to the bracket (tourFeature). The end is the
+   podium - the champion, the runner-up and the two semi-finalists.
+
+   Motion (the toolkit's way): the draw is dealt with every name flying from
+   the middle into its slot (tourDealDraw), a winner's name flies to their
+   slot in the next round (tourFlyWinners), the champion's name is crowned
+   and the podium rises before the confetti (afterReveal), and the points
+   count up on the board (animateScoreboards).
+
+   PLUGGING A DUEL IN: one entry in TOUR_CLIENT - its ROOM_GAMES / TV_GAMES
+   are wrapped at load, and `mini(game, names)` is the match's small board on
+   the TV's live cards - besides the adapter in RoomTournament.js. The game's
+   own code reads the room through duelRoomState() and sends moves through
+   duelAct() (JS_RoomConnect4.html), which carry the match.
+   ========================================================================= */
+
+const TOUR_MIN_PEOPLE = 4;
+
+const TOUR_CLIENT = {
+  connect4: {
+    mini: (g) => (Array.isArray(g.grid) && typeof c4BoardHtml === 'function'
+      ? `<div class="c4-game tour-mini__board">${c4BoardHtml({ cols: g.cols, rows: g.rows, n: g.n, grid: g.grid }, { win: g.win, playable: false, next: 1, ghost: false })}</div>` : '')
+  },
+  dots: {
+    mini: (g, names) => (Array.isArray(g.lines) && typeof dotsBoardHtml === 'function'
+      ? `<div class="dots-game tour-mini__board">${dotsBoardHtml({ n: g.size, lines: g.lines, boxes: g.boxes || [] }, { playable: false, next: 1, initials: dotsInitials(names) })}</div>` : '')
+  },
+  xo: {
+    mini: (g) => (Array.isArray(g.cells) ? `<div class="xo-game tour-mini__board">${xoRoomBoardHtml(g, { playable: false })}</div>` : '')
+  },
+  guesswho: {
+    // How many faces each still has up: what the table sees of a real board.
+    mini: (g, names) => (Array.isArray(g.faces) && g.down ? `<div class="tour-mini__count">${[0, 1].map(k =>
+      `<span><b class="metric">${gwUp(g.faces, g.down[k] || []).length}</b><i>${escapeHTML(tourT('tour_faces_left'))}</i></span>`).join('<em>·</em>')}</div>` : '')
+  },
+  battleship: {
+    // The ships still afloat on each side.
+    mini: (g) => (Array.isArray(g.seas) ? `<div class="tour-mini__count">${[0, 1].map(k =>
+      `<span><b class="metric">${bsAfloatCount(g.seas[k])}</b><i>🚢</i></span>`).join('<em>·</em>')}</div>` : '')
+  }
+};
+
+// view: null (by itself), 'bracket', or a match id picked to watch; autoKey: this phone's own match
+// the last time it was drawn; filled: the bracket slots already drawn, per tournament; dealt: the draws flown.
+const tourLocal = { view: null, autoKey: '', filled: {}, dealt: {}, loop: null };
+
+const tourOn = (state) => !!(state && state.shared && state.shared.tour);
+const tourT = (key, vars) => {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || '';
+  Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
+  return s;
+};
+const tourName = (state, id) => (id ? (((state.shared || {}).tour || {}).names || {})[id] || duelRoomPlayerName(state, id) || '' : '');
+const tourMatchOf = (tr, id) => (tr && tr.matches || []).find(m => m.id === id) || null;
+
+/** The round's name: the final, the semi-finals, the quarter-finals, the round of 16, or round n. */
+function tourRoundName(tr, r) {
+  const left = (tr.rounds || 1) - r;
+  if (left === 0) return tourT('tour_round_final');
+  if (left === 1) return tourT('tour_round_semi');
+  if (left === 2) return tourT('tour_round_quarter');
+  if (left === 3) return tourT('tour_round_16');
+  return tourT('tour_round_n', { n: r });
+}
+
+/** Can the host turn this room into a tournament (four people or more)? */
+function tourCanStart(state) {
+  return !!(state && state.youAreHost && TOUR_CLIENT[state.game] &&
+    (state.players || []).filter(p => !p.bot).length >= TOUR_MIN_PEOPLE);
+}
+
+/** This phone's latest match: the one it is playing, waiting for, or last played. */
+function tourMine(tr) {
+  const me = Room.me;
+  if (!tr || !me) return null;
+  return tr.matches.filter(m => m.p.indexOf(me) !== -1).sort((a, b) => b.r - a.r)[0] || null;
+}
+
+/** The match whose winner will meet `m`'s known player, still to be decided. */
+function tourPendingFeeder(tr, m) {
+  const slot = m.p[0] ? 1 : 0;
+  return tr.matches.find(x => x.next === m.id && x.slot === slot) || null;
+}
+
+/** What this phone shows by itself: its own match when there is one to show, otherwise the bracket (null). */
+function tourAutoId(state) {
+  const s = state.shared;
+  const tr = s.tour;
+  if (tr.phase === 'over' || state.youAreScreen) return null;
+  const mine = tourMine(tr);
+  if (!mine) return null;
+  if (mine.state === 'play') return mine.id;
+  if (mine.state === 'ready' && mine.games) return mine.id;              // a replay: the drawn board, and its countdown
+  if (mine.state === 'done') return s.games[mine.id] ? mine.id : null;   // the one just won or lost
+  // Waiting for the other side, or for the next match to start: the match that brought them here,
+  // while its board is still kept (its card says what comes next). A first match: the bracket and the draw.
+  const prev = tr.matches.find(x => x.next === mine.id && x.winner === Room.me);
+  return prev && s.games[prev.id] ? prev.id : null;
+}
+
+/** A new match of this phone's own takes it back to it, whatever it was watching. */
+function tourSyncAuto(state) {
+  const tr = state.shared.tour;
+  const mine = tourMine(tr);
+  const key = [state.code, tr.no, mine ? mine.id + ':' + mine.state + ':' + mine.games : ''].join('|');
+  if (key === tourLocal.autoKey) return;
+  const wasNew = tourLocal.autoKey !== '';
+  tourLocal.autoKey = key;
+  if (!wasNew || (mine && (mine.state === 'play' || mine.state === 'ready'))) tourLocal.view = null;
+}
+
+function tourFocusId(state) {
+  const s = state.shared;
+  const v = tourLocal.view;
+  if (v === 'bracket') return null;
+  if (v && tourMatchOf(s.tour, v) && s.games[v]) return v;
+  return tourAutoId(state);
+}
+
+/**
+ * The room as a match's own renderer should see it: the match's game as
+ * `shared` (with tourMid and tourGames, so moves carry the match), and this
+ * phone's secret only when it is in that match.
+ */
+function tourMatchState(state, id) {
+  const s = state.shared || {};
+  const m = tourMatchOf(s.tour, id);
+  const g = s.games && s.games[id];
+  if (!m || !g) return null;
+  const you = state.you && state.you.tm === id ? state.you : null;
+  return Object.assign({}, state, {
+    shared: Object.assign({}, g, { tourMid: id, tourGames: m.games, board: [], line: [], champ: null, streak: null }),
+    you: you
+  });
+}
+
+/** The match this phone is looking at, shaped for the game's renderer, or null for the bracket. */
+function tourFocusState(state) {
+  if (!tourOn(state)) return null;
+  const id = tourFocusId(state);
+  return id ? tourMatchState(state, id) : null;
+}
+
+/** Look at a match, the bracket ('bracket'), or whatever this phone shows by itself (null). */
+function tourShow(id) {
+  tourLocal.view = id || null;
+  haptic('light');
+  const st = Room.state;
+  if (!st) return;
+  const el = document.getElementById('view-room-' + st.game);
+  if (el) delete el.dataset.sig;
+  if (onRoomView()) { routeRoomState(st); if (typeof scrollToAction === 'function') scrollToAction(); }
+}
+
+/** The TV's big match: the host's pick, or the only match being played; null for the bracket. */
+function tourTvFocusId(state) {
+  const s = state.shared;
+  const tr = s.tour;
+  if (tr.phase === 'over') return null;
+  if (tr.featured === 'bracket') return null;
+  if (tr.featured && s.games[tr.featured]) return tr.featured;
+  const live = tr.matches.filter(m => (m.state === 'play' || (m.state === 'ready' && m.games)) && s.games[m.id]);
+  return live.length === 1 ? live[0].id : null;
+}
+
+/* --- pieces -------------------------------------------------------------------------- */
+
+/** A name, isolated so an Arabic name in an English line (and the other way) keeps its place. */
+const tourNameHtml = (state, id) => `<bdi>${escapeHTML(tourName(state, id))}</bdi>`;
+
+/** A countdown to the server's moment `at` ("starts in 5"), kept counting by tourCountLoop. */
+function tourCountHtml(at, key) {
+  const left = Math.max(0, Math.ceil(((Number(at) || 0) - Date.now()) / 1000));
+  return `<span class="tour-count" data-tour-at="${Number(at) || 0}" data-tour-key="${key || 'tour_starts_in'}">${escapeHTML(tourT(key || 'tour_starts_in', { n: left }))}</span>`;
+}
+
+function tourCountLoop() {
+  if (tourLocal.loop) return;
+  const tick = () => {
+    const els = document.querySelectorAll('[data-tour-at]');
+    if (!els.length) { tourLocal.loop = null; return; }
+    els.forEach(el => {
+      const left = Math.max(0, Math.ceil((Number(el.dataset.tourAt) - Date.now()) / 1000));
+      const text = tourT(el.dataset.tourKey || 'tour_starts_in', { n: left });
+      if (el.textContent !== text) el.textContent = text;
+    });
+    tourLocal.loop = setTimeout(tick, 250);
+  };
+  tourLocal.loop = setTimeout(tick, 250);
+}
+
+/** One match of the bracket: its two slots, and what it is doing. */
+function tourMatchCellHtml(state, m, tv) {
+  const s = state.shared;
+  const tr = s.tour;
+  const me = Room.me;
+  const watchable = !!s.games[m.id] && !tv;
+  const row = (i) => {
+    const id = m.p[i];
+    const won = m.state === 'done' && id && m.winner === id;
+    const lost = m.state === 'done' && id && m.loser === id;
+    const champ = tr.phase === 'over' && !m.next && id && tr.champion === id;
+    let name;
+    if (id) name = tourNameHtml(state, id);
+    else if (m.out[i]) name = `<span class="tour-m__empty">${escapeHTML(m.r === 1 ? tourT('tour_bye') : '—')}</span>`;
+    else name = `<span class="tour-m__empty">…</span>`;
+    return `<span class="tour-m__row ${won ? 'is-won' : ''} ${lost ? 'is-out' : ''} ${id && id === me ? 'is-me' : ''} ${champ ? 'is-champ' : ''}" data-tour-row="${m.id}:${i}">
+        <span class="tour-m__name">${champ ? '<span class="tour-m__crown" aria-hidden="true">👑</span>' : ''}${name}</span>
+        ${won ? '<span class="tour-m__tick" aria-hidden="true">✓</span>' : ''}
+      </span>`;
+  };
+  let badge = '';
+  if (m.state === 'play') badge = `<span class="tour-m__live"><i aria-hidden="true"></i>${escapeHTML(tourT('tour_live'))}</span>`;
+  else if (m.state === 'ready') badge = `<span class="tour-m__soon">${m.games ? '🤝 ' : '⏳ '}${tourCountHtml(m.startAt, m.games ? 'tour_replay_in' : 'tour_starts_in')}</span>`;
+  else if (m.state === 'done' && m.reason === 'left' && m.winner) badge = `<span class="tour-m__note">${escapeHTML(tourT('tour_walkover'))}</span>`;
+  else if (m.state === 'done' && m.draws) badge = `<span class="tour-m__note">🤝 ${escapeHTML(tourT('tour_after_draws', { n: m.draws }))}</span>`;
+  const mine = m.p.indexOf(me) !== -1;
+  const cls = `tour-m is-${m.state} ${mine ? 'is-mine' : ''} ${m.out[0] || m.out[1] ? 'is-bye' : ''} ${tourLocal.view === m.id ? 'is-watching' : ''}`;
+  const inner = `${row(0)}${row(1)}${badge ? `<span class="tour-m__badge">${badge}</span>` : ''}`;
+  return watchable
+    ? `<button type="button" class="${cls}" data-tour-m="${m.id}" onclick="tourShow('${m.id}')" aria-label="${escapeHTML(tourT('tour_watch'))}">${inner}</button>`
+    : `<div class="${cls}" data-tour-m="${m.id}">${inner}</div>`;
+}
+
+/** The bracket: a column a round, the matches of a round in pairs so the lines join them to the next. */
+function tourBracketHtml(state, tv) {
+  const tr = state.shared.tour;
+  const cols = [];
+  for (let r = 1; r <= tr.rounds; r++) {
+    const list = tr.matches.filter(m => m.r === r).sort((a, b) => a.k - b.k);
+    const pairs = [];
+    for (let i = 0; i < list.length; i += 2) pairs.push(list.slice(i, i + 2));
+    cols.push(`<div class="tour-col ${r === tr.rounds ? 'tour-col--final' : ''}">
+        <div class="tour-col__title">${escapeHTML(tourRoundName(tr, r))}</div>
+        <div class="tour-col__body">${pairs.map(p => `<div class="tour-pair ${p.length > 1 ? 'is-pair' : ''}">${p.map(m => tourMatchCellHtml(state, m, tv)).join('')}</div>`).join('')}</div>
+      </div>`);
+  }
+  return `<div class="tour-bracket ${tv ? 'tour-bracket--tv' : ''}" style="--tour-rounds:${tr.rounds}">${cols.join('')}</div>`;
+}
+
+/** The matches being played, as chips to watch (a phone) - the one on screen marked. */
+function tourLiveChipsHtml(state, current) {
+  const s = state.shared;
+  const tr = s.tour;
+  const live = tr.matches.filter(m => (m.state === 'play' || (m.state === 'ready' && m.games)) && s.games[m.id]);
+  if (!live.length) return '';
+  return `<div class="tour-live-row">
+      <span class="tour-live-row__label"><i class="tour-dot" aria-hidden="true"></i>${escapeHTML(tourT('tour_live_now'))}</span>
+      ${live.map(m => `<button type="button" class="tour-chip ${m.id === current ? 'is-on' : ''}" onclick="tourShow('${m.id}')">
+          <span class="tour-chip__round">${escapeHTML(tourRoundName(tr, m.r))}</span>
+          <span class="tour-chip__vs">${tourNameHtml(state, m.p[0])} <em>×</em> ${tourNameHtml(state, m.p[1])}</span>
+        </button>`).join('')}
+    </div>`;
+}
+
+/** Where this phone stands: its next match and its countdown, waiting, out, or watching. */
+function tourMeHtml(state) {
+  const s = state.shared;
+  const tr = s.tour;
+  if (tr.phase === 'over') return '';
+  if (state.youAreScreen) return '';
+  const inIt = tr.entrants.indexOf(Room.me) !== -1;
+  if (!inIt) return `<div class="tour-me tour-me--watch">👀 ${escapeHTML(tourT('tour_latecomer'))}</div>`;
+  const mine = tourMine(tr);
+  if (!mine) return '';
+  if (mine.state === 'ready' || mine.state === 'play') {
+    const other = mine.p.find(id => id !== Room.me);
+    return `<div class="tour-me tour-me--next">
+        <span class="tour-me__round">${escapeHTML(tourRoundName(tr, mine.r))}</span>
+        <span class="tour-me__line">⚔️ ${escapeHTML(tourT('tour_your_next', { name: '⁨' + tourName(state, other) + '⁩' }))}</span>
+        ${mine.state === 'ready' ? tourCountHtml(mine.startAt) : ''}
+      </div>`;
+  }
+  if (mine.state === 'wait') {
+    const f = tourPendingFeeder(tr, mine);
+    if (f && f.p[0] && f.p[1]) {
+      return `<div class="tour-me tour-me--wait">
+          <span class="tour-me__round">${escapeHTML(tourRoundName(tr, mine.r))}</span>
+          <span class="tour-me__line">⏳ ${escapeHTML(tourT('tour_you_wait', { a: '⁨' + tourName(state, f.p[0]) + '⁩', b: '⁨' + tourName(state, f.p[1]) + '⁩' }))}</span>
+          ${s.games[f.id] ? `<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="tourShow('${f.id}')">👀 ${escapeHTML(tourT('tour_watch'))}</button>` : ''}
+        </div>`;
+    }
+    return `<div class="tour-me tour-me--wait">⏳ ${escapeHTML(tourT('tour_you_wait_one'))}</div>`;
+  }
+  if (mine.loser === Room.me || tr.gone[Room.me]) return `<div class="tour-me tour-me--out">🙌 ${escapeHTML(tourT('tour_you_out'))}</div>`;
+  return '';
+}
+
+/** The podium: the champion in the middle, the runner-up beside them, the two semi-finalists sharing third. */
+function tourPodiumHtml(state, tv) {
+  const tr = state.shared.tour;
+  const places = [];
+  if (tr.champion) places.push({ id: tr.champion, rank: 1, label: tourT('tour_champion') });
+  if (tr.runnerUp) places.push({ id: tr.runnerUp, rank: 2, label: tourT('tour_runner') });
+  (tr.semis || []).forEach(id => places.push({ id: id, rank: 3, label: tourT('tour_semi') }));
+  if (!places.length) return '';
+  const rise = motionFirst(['tour-podium', state.code, tr.no, tv ? 'tv' : 'p'].join('|'));
+  const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+  // Third first, then second, the champion last.
+  const atOf = (p, i) => 150 + (p.rank === 3 ? i % 2 * 180 : p.rank === 2 ? 900 : 1500);
+  const win = 1500 + 620;
+  return `<div class="podium tour-podium ${tv ? 'tour-podium--tv' : ''} ${rise ? 'podium--rise' : ''}" ${rise ? `data-reveal-ms="${win}"` : ''}>
+      ${places.map((p, i) => `<div class="podium__place podium__place--${p.rank} podium__place--rank${p.rank}" style="--at:${atOf(p, i)}ms">
+          <div class="podium__who">
+            <span class="podium__medal" aria-hidden="true">${p.rank === 1 ? '👑' : medals[p.rank]}</span>
+            <span class="podium__name">${escapeHTML(tourName(state, p.id))}</span>
+            <span class="tour-podium__label">${escapeHTML(p.label)}</span>
+          </div>
+          <div class="podium__block"><span class="metric">${p.rank}</span></div>
+        </div>`).join('')}
+    </div>`;
+}
+
+/** The end: the champion, the podium, the points, and the host's two ways on. */
+function tourOverHtml(state, tv) {
+  const s = state.shared;
+  const tr = s.tour;
+  const tt = TRANSLATIONS[appState.lang] || {};
+  const champ = tr.champion
+    ? `<div class="tour-champ">${escapeHTML(tourT('tour_champ_line', { name: '⁨' + tourName(state, tr.champion) + '⁩' }))}</div>`
+    : `<div class="tour-champ">${escapeHTML(tourT('tour_no_champ'))}</div>`;
+  const again = `roomAct('tourNew', { mode: 'tour', round: ${Number(s.round) || 0} })`;
+  const stay = `roomAct('tourNew', { mode: 'stay', round: ${Number(s.round) || 0} })`;
+  if (tv) {
+    return `${champ}${tourPodiumHtml(state, true)}
+      ${state.youAreHost ? `<div class="tv-actions">${tvBtn('🏆 ' + tourT('tour_new'), again)}${tvBtn(tourT('tour_to_stay'), stay, 'secondary')}${tvBtn(tt.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+  }
+  return `<div class="card card--accent tour-over">
+      ${champ}
+      ${tourPodiumHtml(state, false)}
+      ${state.youAreHost ? `<div class="btn-stack">
+          <button class="btn btn--primary btn--lg" onclick="${again}">🏆 ${escapeHTML(tourT('tour_new'))}</button>
+          <button class="btn btn--secondary" onclick="${stay}">${escapeHTML(tourT('tour_to_stay'))}</button>
+          <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(tt.room_another_game || '')}</button>
+        </div>` : `<p class="field__hint" style="text-align:center">${escapeHTML(tourT('tour_host_next'))}</p>`}
+    </div>`;
+}
+
+/** A tournament's summary line: the round being played, or how many matches are on. */
+function tourStageLine(tr) {
+  if (tr.phase === 'over') return tourT('tour_over');
+  const live = tr.matches.filter(m => m.state === 'play' || m.state === 'ready');
+  const rounds = [...new Set(live.map(m => m.r))];
+  if (rounds.length === 1) return tourRoundName(tr, rounds[0]);
+  return tourT('tour_matches_on', { n: tr.matches.filter(m => m.state === 'play').length });
+}
+
+/** The bracket screen on a phone: where you stand, what is being played, the bracket, and at the end the podium. */
+function tourScreenHtml(state) {
+  const s = state.shared;
+  const tr = s.tour;
+  const tt = TRANSLATIONS[appState.lang] || {};
+  const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
+  const board = tr.phase === 'over' ? renderScoreboard(s.board, tourT('tour_points')) : '';
+  return `<div class="tour">
+      <div class="tour-head">
+        <span class="tour-head__icon" aria-hidden="true">🏆</span>
+        <span class="tour-head__title">${escapeHTML(tourT('tour_title_of', { game: entry ? (tt[entry.key] || '') : '' }))}</span>
+        <span class="badge badge--accent tour-head__stage">${escapeHTML(tourStageLine(tr))}</span>
+      </div>
+      ${tr.phase === 'over' ? tourOverHtml(state, false) : tourMeHtml(state) + tourLiveChipsHtml(state, null)}
+      <div class="tour-bracket-wrap">${tourBracketHtml(state, false)}</div>
+      ${board ? `${board}<p class="field__hint tour-points-hint">${escapeHTML(tourT('tour_points_hint'))}</p>${roomShareBtnHtml(state, s.board)}` : ''}
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+/** What only the tournament knows, in a match's screen: the round, the other matches, the bracket. */
+function tourStripHtml(state, id, tv) {
+  const s = state.shared;
+  const tr = s.tour;
+  const m = tourMatchOf(tr, id);
+  if (!m) return '';
+  const watching = m.p.indexOf(Room.me) === -1 || state.youAreScreen;
+  const vs = `${tourNameHtml(state, m.p[0])} <em>×</em> ${tourNameHtml(state, m.p[1])}`;
+  if (tv) {
+    const others = tr.matches.filter(x => x.id !== id && x.state === 'play').length;
+    return `<div class="tour-strip tour-strip--tv">
+        <span class="tour-strip__round">🏆 ${escapeHTML(tourRoundName(tr, m.r))}</span>
+        ${others ? `<span class="tour-strip__more">${escapeHTML(tourT('tour_more_live', { n: others }))}</span>` : ''}
+        ${state.youAreHost ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="roomAct('tourFeature', { match: 'bracket' })">${escapeHTML(tourT('tour_bracket'))}</button>` : ''}
+      </div>`;
+  }
+  return `<div class="tour-strip">
+      <div class="tour-strip__head">
+        <span class="tour-strip__round">🏆 ${escapeHTML(tourRoundName(tr, m.r))}</span>
+        ${watching ? `<span class="tour-strip__watch">👀 ${vs}</span>` : ''}
+      </div>
+      ${tourLiveChipsHtml(state, id)}
+      <div class="tour-strip__btns">
+        <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="tourShow('bracket')">🏆 ${escapeHTML(tourT('tour_bracket'))}</button>
+        ${state.youAreHost && roomHasScreen() && tr.featured !== id ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="roomAct('tourFeature', { match: '${id}' })">📺 ${escapeHTML(tourT('tour_host_feature'))}</button>` : ''}
+      </div>
+    </div>`;
+}
+
+/** After a game of a match: a replay's countdown, who goes through, and what this phone does next. */
+function tourMatchOverCardHtml(state, id, tv) {
+  const s = state.shared;
+  const tr = s.tour;
+  const m = tourMatchOf(tr, id);
+  if (!m) return '';
+  let head = '', next = '';
+  if (m.state === 'ready' && m.games) {
+    const first = (m.seats || [])[1];       // the replay swaps the seats: the second seat of this game starts it
+    head = `🤝 ${escapeHTML(tourT('tour_replay', { name: '⁨' + tourName(state, first) + '⁩' }))}`;
+    next = tourCountHtml(m.startAt, 'tour_replay_in');
+  } else if (m.state === 'play') {
+    return '';
+  } else if (m.winner) {
+    const nm = tourMatchOf(tr, m.next);
+    head = nm
+      ? escapeHTML(tourT('tour_through', { name: '⁨' + tourName(state, m.winner) + '⁩', round: tourRoundName(tr, nm.r) }))
+      : escapeHTML(tourT('tour_champ_line', { name: '⁨' + tourName(state, m.winner) + '⁩' }));
+    if (m.reason === 'left') head += ' · ' + escapeHTML(tourT('tour_walkover'));
+    if (!tv && !state.youAreScreen) {
+      if (m.winner === Room.me && nm) {
+        if (nm.state === 'ready' || nm.state === 'play') {
+          const other = nm.p.find(x => x !== Room.me);
+          next = `<p class="tour-over-card__next">⚔️ ${escapeHTML(tourT('tour_your_next', { name: '⁨' + tourName(state, other) + '⁩' }))} ${nm.state === 'ready' ? tourCountHtml(nm.startAt) : ''}</p>`;
+        } else {
+          const f = tourPendingFeeder(tr, nm);
+          next = f && f.p[0] && f.p[1]
+            ? `<p class="tour-over-card__next">⏳ ${escapeHTML(tourT('tour_you_wait', { a: '⁨' + tourName(state, f.p[0]) + '⁩', b: '⁨' + tourName(state, f.p[1]) + '⁩' }))}</p>
+               ${s.games[f.id] ? `<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="tourShow('${f.id}')">👀 ${escapeHTML(tourT('tour_watch'))}</button>` : ''}`
+            : `<p class="tour-over-card__next">⏳ ${escapeHTML(tourT('tour_you_wait_one'))}</p>`;
+        }
+      } else if (m.loser === Room.me) {
+        next = `<p class="tour-over-card__next">🙌 ${escapeHTML(tourT('tour_you_out'))}</p>`;
+      }
+    }
+  } else {
+    head = escapeHTML(tourT('tour_no_champ'));
+  }
+  if (tv) return `<div class="tv-note tour-over-card">${head}${next ? '<br>' + next : ''}</div>`;
+  return `<div class="card card--accent duel-result tour-over-card" data-reveal-ms="400">
+      <p class="tour-over-card__head">${head}</p>
+      ${next}
+    </div>`;
+}
+
+/** Fills the places a match's own screen left for the tournament (duelRoomLineHtml, duelRoomOverHtml). */
+function tourAfterMatch(root, state, id) {
+  if (!root) return;
+  const fill = (sel, html) => root.querySelectorAll(sel).forEach(el => {
+    if (el._tourHtml !== html) { el.innerHTML = html; el._tourHtml = html; }
+  });
+  fill('[data-tour-strip]:not([data-tv])', tourStripHtml(state, id, false));
+  fill('[data-tour-strip][data-tv]', tourStripHtml(state, id, true));
+  fill('[data-tour-over]:not([data-tv])', tourMatchOverCardHtml(state, id, false));
+  fill('[data-tour-over][data-tv]', tourMatchOverCardHtml(state, id, true));
+  tourCountLoop();
+}
+
+/* --- motion ---------------------------------------------------------------------------- */
+
+/** A name flying from one place to another as a chip; the place it lands on is hidden until it lands. */
+function tourFly(fromRect, toEl, html, delay) {
+  if (!toEl || !fromRect || !toEl.animate) return 0;
+  const to = toEl.getBoundingClientRect();
+  if (!to.width) return 0;
+  const ghost = document.createElement('div');
+  ghost.className = 'tour-ghost';
+  ghost.innerHTML = html;
+  ghost.style.left = to.left + 'px';
+  ghost.style.top = to.top + 'px';
+  ghost.style.width = to.width + 'px';
+  ghost.style.height = to.height + 'px';
+  document.body.appendChild(ghost);
+  toEl.classList.add('tour-hold');
+  const dx = (fromRect.left + fromRect.width / 2) - (to.left + to.width / 2);
+  const dy = (fromRect.top + fromRect.height / 2) - (to.top + to.height / 2);
+  const ms = 620;
+  const a = ghost.animate([
+    { transform: `translate(${dx}px, ${dy}px) scale(0.6)`, opacity: 0 },
+    { transform: `translate(${dx * 0.4}px, ${dy * 0.4 - 18}px) scale(1.08)`, opacity: 1, offset: 0.55 },
+    { transform: 'translate(0, 0) scale(1)', opacity: 1 }
+  ], { duration: ms, delay: delay || 0, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' });
+  const land = () => { toEl.classList.remove('tour-hold'); ghost.remove(); };
+  a.onfinish = land;
+  setTimeout(land, (delay || 0) + ms + 400);
+  return (delay || 0) + ms;
+}
+
+/** The draw: every first-round name flies in from the middle of the bracket into its slot, one after another. */
+function tourDealDraw(root, state) {
+  const tr = state.shared.tour;
+  const key = [state.code, tr.no].join('|');
+  if (tourLocal.dealt[key]) return;
+  tourLocal.dealt[key] = true;
+  // Only a draw just made: a reload or a phone arriving later sees the bracket as it is.
+  if (motionOff() || tr.gameSeq > 0 || tr.matches.some(m => m.state === 'play' || (m.state === 'ready' && m.startAt - Date.now() < 1500))) return;
+  const wrap = root.querySelector('.tour-bracket');
+  if (!wrap) return;
+  const r = wrap.getBoundingClientRect();
+  const from = { left: r.left + r.width / 2 - 40, top: r.top + Math.min(r.height / 2, 120), width: 80, height: 24 };
+  let i = 0;
+  tr.matches.filter(m => m.r === 1).forEach(m => [0, 1].forEach(k => {
+    if (!m.p[k]) return;
+    const el = wrap.querySelector(`[data-tour-row="${m.id}:${k}"]`);
+    tourFly(from, el, `<span class="tour-ghost__name">${tourNameHtml(state, m.p[k])}</span>`, 120 + i * 90);
+    i++;
+  }));
+  if (i && duelRoomLoud(state)) setTimeout(() => { try { playSound('success'); } catch (e) {} }, 120 + i * 90 + 400);
+}
+
+/** A slot filled since this screen last drew the bracket: the winner's name flies there from the match they won. */
+function tourFlyWinners(root, state) {
+  const tr = state.shared.tour;
+  const key = [state.code, tr.no].join('|');
+  const now = new Set();
+  tr.matches.forEach(m => [0, 1].forEach(k => { if (m.r > 1 && m.p[k]) now.add(m.id + ':' + k); }));
+  const seen = tourLocal.filled[key];
+  tourLocal.filled[key] = now;
+  if (!seen || motionOff()) return;
+  let i = 0;
+  now.forEach(slot => {
+    if (seen.has(slot)) return;
+    const [id, k] = slot.split(':');
+    const m = tourMatchOf(tr, id);
+    const feeder = tr.matches.find(x => x.next === id && x.slot === Number(k));
+    const winner = m && m.p[Number(k)];
+    if (!feeder || !winner) return;
+    const fromEl = root.querySelector(`[data-tour-row="${feeder.id}:${feeder.p.indexOf(winner)}"]`);
+    const toEl = root.querySelector(`[data-tour-row="${slot}"]`);
+    if (!fromEl || !toEl) return;
+    tourFly(fromEl.getBoundingClientRect(), toEl, `<span class="tour-ghost__name">${tourNameHtml(state, winner)}</span>`, 250 + i * 160);
+    i++;
+  });
+}
+
+/** The end, once per tournament on this screen: the podium has risen, then the confetti and the fanfare. */
+function tourCheer(root, state) {
+  const tr = state.shared.tour;
+  if (tr.phase !== 'over' || !tr.champion || !duelOnce(['tour-cheer', state.code, tr.no, state.youAreScreen ? 'tv' : 'p'].join('|'))) return;
+  if (tr.champion === Room.me) haptic('double');
+  afterReveal(root, () => {
+    if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 160, spread: 90, origin: { y: 0.55 } });
+    else if (duelRoomLoud(state)) duelSound('win');
+  });
+}
+
+function tourAfterPaint(root, state) {
+  tourDealDraw(root, state);
+  tourFlyWinners(root, state);
+  tourCheer(root, state);
+  tourCountLoop();
+}
+
+/* --- the phones ------------------------------------------------------------------------- */
+
+function tourSig(state, focus) {
+  const s = state.shared;
+  const tr = s.tour;
+  return ['tour', state.code, tr.no, tr.phase, focus || '', tourLocal.view || '', tr.featured || '',
+    JSON.stringify(tr.matches.map(m => [m.state, m.p, m.winner, m.games, m.draws, m.startAt])),
+    JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name + (p.online ? 1 : 0)).join(','),
+    state.youAreHost, appState.lang].join('|');
+}
+
+function tourRender(state, id, orig) {
+  const view = 'room-' + id;
+  if (appState.currentView !== view) setView(view);
+  const el = document.getElementById('view-' + view);
+  if (!el) return;
+  tourSyncAuto(state);
+  const focus = tourFocusId(state);
+  const ms = focus ? tourMatchState(state, focus) : null;
+  if (ms) {
+    orig(ms);
+    tourAfterMatch(el, state, focus);
+    return;
+  }
+  const rebuilt = renderRoomFrame(el, tourSig(state, null), () => tourScreenHtml(state));
+  if (!rebuilt) refreshRoomPlayerStrip(el, state);
+  if (rebuilt) tourAfterPaint(el, state);
+}
+
+/** Who a tournament is waiting on: the phone whose turn it is in its own match (roomTurnOf). */
+function tourTurnOf(state) {
+  const tr = state.shared.tour;
+  const mine = tourMine(tr);
+  if (!mine || mine.state !== 'play' || typeof roomTurnOf !== 'function') return null;
+  const ms = tourMatchState(state, mine.id);
+  return ms ? roomTurnOf(ms) : null;
+}
+
+/* --- the TV ---------------------------------------------------------------------------- */
+
+/** A match being played, small: who, the board or the count, whose turn - the host can put it big. */
+function tourLiveCardHtml(state, m) {
+  const s = state.shared;
+  const tr = s.tour;
+  const g = s.games[m.id] || {};
+  const names = [0, 1].map(i => tourName(state, (g.seats || m.p)[i]));
+  const kind = TOUR_CLIENT[state.game];
+  const mini = kind && kind.mini ? kind.mini(g, names) : '';
+  const turn = g.phase === 'play' || g.phase === 'place' || g.phase === 'pick' ? g.turn : -1;
+  const who = (i) => `<span class="tour-live__who ${turn === i && g.phase === 'play' ? 'is-turn' : ''}">${escapeHTML(names[i] || '')}</span>`;
+  const status = m.state === 'ready'
+    ? `🤝 ${tourCountHtml(m.startAt, 'tour_replay_in')}`
+    : `<i class="tour-dot" aria-hidden="true"></i>${escapeHTML(tourT('tour_live'))}`;
+  const press = state.youAreHost ? `onclick="roomAct('tourFeature', { match: '${m.id}' })"` : '';
+  return `<${state.youAreHost ? 'button type="button"' : 'div'} class="tour-live" ${press}>
+      <div class="tour-live__head"><span>${escapeHTML(tourRoundName(tr, m.r))}</span><span class="tour-live__status">${status}</span></div>
+      <div class="tour-live__vs">${who(0)}<em>×</em>${who(1)}</div>
+      ${mini}
+    </${state.youAreHost ? 'button' : 'div'}>`;
+}
+
+function tourTvFrame(state, t) {
+  const s = state.shared;
+  const tour = s.tour;
+  const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
+  const live = tour.matches.filter(m => (m.state === 'play' || (m.state === 'ready' && m.games)) && s.games[m.id]);
+  const soon = tour.matches.filter(m => m.state === 'ready' && !m.games);
+  let side;
+  if (tour.phase === 'over') {
+    side = `${tourOverHtml(state, true)}<div class="tv-scale">${renderScoreboard(s.board, tourT('tour_points'))}</div>`;
+  } else {
+    side = `<div class="tv-title tour-tv__stage">${escapeHTML(tourStageLine(tour))}</div>
+      ${live.length ? `<div class="tour-tv__live">${live.map(m => tourLiveCardHtml(state, m)).join('')}</div>` : ''}
+      ${soon.length ? `<div class="tour-tv__soon">${soon.map(m => `<div class="tour-soon">
+          <span>${escapeHTML(tourRoundName(tour, m.r))}</span>
+          <b>${tourNameHtml(state, m.p[0])} <em>×</em> ${tourNameHtml(state, m.p[1])}</b>
+          ${tourCountHtml(m.startAt)}</div>`).join('')}</div>` : ''}
+      ${state.youAreHost && live.length > 1 ? `<p class="tour-tv__hint">${escapeHTML(tourT('tour_tv_hint'))}</p>` : ''}`;
+  }
+  return `<div class="tour-tv ${tour.phase === 'over' ? 'is-over' : ''}">
+      <div class="tour-tv__main">
+        <div class="tour-tv__title"><span aria-hidden="true">🏆</span> ${escapeHTML(tourT('tour_title_of', { game: entry ? (t[entry.key] || '') : '' }))}</div>
+        ${tourBracketHtml(state, true)}
+      </div>
+      <div class="tour-tv__side">${side}</div>
+    </div>`;
+}
+
+/* --- the lobby: winner stays or a tournament, the host's choice, remembered ------------- */
+
+const tourModeOf = (id) => (recallOptions('tourMode', {})[id] === 'tour' ? 'tour' : 'stay');
+
+function setTourMode(id, mode) {
+  rememberOptions('tourMode', { [id]: mode === 'tour' ? 'tour' : 'stay' });
+  if (typeof duelLobbyRedraw === 'function') duelLobbyRedraw();
+}
+
+/** The switch, only with four people or more (the owner): winner stays is the default. */
+function tourLobbyHtml(state, id) {
+  const people = (state.players || []).filter(p => !p.bot).length;
+  if (people < TOUR_MIN_PEOPLE || !state.youAreHost) return '';
+  const mode = tourModeOf(id);
+  const bots = (state.players || []).some(p => p.bot);
+  const seg = (v, label) => `<button type="button" class="segmented__item ${mode === v ? 'is-active' : ''}" onclick="setTourMode('${id}', '${v}')">${escapeHTML(label)}</button>`;
+  return `<div class="card card--tight tour-lobby">
+      <div class="field">
+        <label class="field__label">${escapeHTML(tourT('tour_mode_label'))}</label>
+        <div class="segmented" role="group">${seg('stay', tourT('tour_mode_stay'))}${seg('tour', '🏆 ' + tourT('tour_mode_tour'))}</div>
+        <p class="field__hint">${escapeHTML(mode === 'tour' ? tourT('tour_mode_hint') : tourT('tour_mode_stay_hint'))}</p>
+        ${mode === 'tour' && bots ? `<p class="field__hint">🤖 ${escapeHTML(tourT('tour_mode_bots'))}</p>` : ''}
+      </div>
+    </div>`;
+}
+
+/* --- wrapping the duels' renderers ------------------------------------------------------- */
+
+function tourWrap(id) {
+  const game = ROOM_GAMES[id];
+  const tv = TV_GAMES[id];
+  if (!game || game._tourWrapped) return;
+  game._tourWrapped = true;
+  const orig = { render: game.render, actionKey: game.actionKey, lobbyOptions: game.lobbyOptions, startPayload: game.startPayload };
+  game.render = (state) => (tourOn(state) ? tourRender(state, id, orig.render) : orig.render(state));
+  game.actionKey = (state) => {
+    if (!tourOn(state)) return orig.actionKey ? orig.actionKey(state) : roomActionKey(state);
+    const tr = state.shared.tour;
+    const focus = tourFocusId(state);
+    const ms = focus ? tourMatchState(state, focus) : null;
+    return [state.code, 'tour', tr.no, tr.phase, focus || 'bracket', ms && orig.actionKey ? orig.actionKey(ms) : ''].join('|');
+  };
+  game.lobbyOptions = (state) => (orig.lobbyOptions ? orig.lobbyOptions(state) : '') + tourLobbyHtml(state, id);
+  game.startPayload = () => {
+    const p = Object.assign({}, orig.startPayload ? orig.startPayload() : {});
+    const st = Room.state;
+    const people = st ? (st.players || []).filter(x => !x.bot).length : 0;
+    if (tourModeOf(id) === 'tour' && people >= TOUR_MIN_PEOPLE) p.mode = 'tour';
+    return p;
+  };
+  if (!tv) return;
+  const tvOrig = { sig: tv.sig, frame: tv.frame, after: tv.after };
+  tv.sig = (state) => {
+    if (!tourOn(state)) return tvOrig.sig(state);
+    const focus = tourTvFocusId(state);
+    const ms = focus ? tourMatchState(state, focus) : null;
+    return ms ? 'tourm|' + focus + '|' + tvOrig.sig(ms) : tourSig(state, 'tv');
+  };
+  tv.frame = (state, t) => {
+    if (!tourOn(state)) return tvOrig.frame(state, t);
+    const focus = tourTvFocusId(state);
+    const ms = focus ? tourMatchState(state, focus) : null;
+    return ms ? tvOrig.frame(ms, t) : tourTvFrame(state, t);
+  };
+  tv.after = (state, rebuilt) => {
+    if (!tourOn(state)) return tvOrig.after ? tvOrig.after(state, rebuilt) : undefined;
+    const view = document.getElementById('view-room-tv');
+    const focus = tourTvFocusId(state);
+    const ms = focus ? tourMatchState(state, focus) : null;
+    if (ms) {
+      if (tvOrig.after) tvOrig.after(ms, rebuilt);
+      tourAfterMatch(view, state, focus);
+      return;
+    }
+    if (rebuilt && view) tourAfterPaint(view, state);
+  };
+}
+
+Object.keys(TOUR_CLIENT).forEach(tourWrap);
+
+onRoomClocksReset(() => {
+  const st = Room.state;
+  // A new tournament, another game or the hub: this phone shows its own screen again.
+  if (!st || !tourOn(st)) { tourLocal.view = null; tourLocal.autoKey = ''; }
+});
+</script>

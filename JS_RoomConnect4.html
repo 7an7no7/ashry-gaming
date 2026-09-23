@@ -23,6 +23,29 @@
 
 /* --- what both duels' rooms share ---------------------------------------------- */
 
+/**
+ * The room as the duel's own code should see it. In winner stays that is the
+ * room; in a tournament (JS_RoomTournament.html) it is the match this phone is
+ * playing or watching, shaped like a winner-stays room - its seats, its board,
+ * this phone's own secret when it is one of the two.
+ */
+function duelRoomState() {
+  const st = Room.state;
+  if (st && st.shared && st.shared.tour && typeof tourFocusState === 'function') return tourFocusState(st) || st;
+  return st;
+}
+
+/** A duel's move, sent for the match on this phone's screen when a tournament is on (payload.match, .mg). */
+function duelAct(action, payload) {
+  const st = Room.state;
+  let p = payload || {};
+  if (st && st.shared && st.shared.tour && typeof tourFocusState === 'function') {
+    const ms = tourFocusState(st);
+    if (ms) p = Object.assign({}, p, { match: ms.shared.tourMid, mg: ms.shared.tourGames });
+  }
+  return roomAct(action, p);
+}
+
 // sent: the board a move was sent from (a second tap is not another move);
 // early: { key, at } the move this phone is already showing, before the server's answer.
 const duelRoomLocal = { sent: '', early: null };
@@ -69,6 +92,8 @@ function duelRoomNext(state) {
 /** The line, as chips: "the next game" first once a game is over, then the rest in order. */
 function duelRoomLineHtml(state, t, tv) {
   const s = state.shared || {};
+  // A tournament's match: the round, the other matches and the bracket instead (filled in by tourAfterMatch).
+  if (s.tourMid) return `<div data-tour-strip${tv ? ' data-tv="1"' : ''}></div>`;
   let ids;
   if (s.phase === 'over') {
     const next = duelRoomNext(state) || [];
@@ -89,6 +114,7 @@ function duelRoomLineHtml(state, t, tv) {
 /** What this phone is doing while two others play: its place in the line, or just watching. */
 function duelRoomWatchNote(state, t) {
   const s = state.shared || {};
+  if (s.tourMid) return '';
   const pos = duelRoomWaiting(state, s.seats || []).indexOf(Room.me);
   if (pos === -1) return '';
   return `<p class="field__hint duel-hint">👀 ${escapeHTML((t.duel_your_place || '').replace('{n}', pos + 1))}</p>`;
@@ -124,6 +150,8 @@ function duelRoomResultLine(state, t) {
  */
 function duelRoomOverHtml(state, t, tv) {
   const s = state.shared || {};
+  // A tournament's match: who goes through, a replay, or what comes next (filled in by tourAfterMatch).
+  if (s.tourMid) return `<div data-tour-over${tv ? ' data-tv="1"' : ''}></div>`;
   const r = s.result || {};
   const next = duelRoomNext(state);
   const streak = s.streak && s.streak.n >= 2 && r.winnerId === s.streak.id
@@ -133,14 +161,17 @@ function duelRoomOverHtml(state, t, tv) {
     : `<div class="waiting-note">${escapeHTML(t.duel_need_two || '')}</div>`;
   const canDeal = !!next && (state.youAreHost || (state.players || []).some(p => p.id === Room.me));
   const press = `roomAct('nextRound', { round: ${Number(s.round) || 0} })`;
+  // Four people or more: the host can turn the room into a knockout (RoomTournament.js).
+  const tour = typeof tourCanStart === 'function' && tourCanStart(state) ? `roomAct('tourNew', { mode: 'tour', round: ${Number(s.round) || 0} })` : '';
   if (tv) {
     return `${streak ? `<div class="tv-note">${streak}</div>` : ''}<div class="tv-note">${who}</div>
-      ${state.youAreHost ? `<div class="tv-actions">${canDeal ? tvBtn(t.duel_next_btn, press) : ''}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+      ${state.youAreHost ? `<div class="tv-actions">${canDeal ? tvBtn(t.duel_next_btn, press) : ''}${tour ? tvBtn('🏆 ' + (t.tour_to_tour || ''), tour, 'secondary') : ''}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
   }
   return `<div class="card card--accent duel-result">
       ${streak}${who}
       <div class="btn-stack">
         ${canDeal ? `<button class="btn btn--primary btn--lg" onclick="${press}">${escapeHTML(t.duel_next_btn || '')}</button>` : ''}
+        ${tour ? `<button class="btn btn--secondary" onclick="${tour}">🏆 ${escapeHTML(t.tour_to_tour || '')}</button>` : ''}
         ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>` : ''}
       </div>
     </div>`;
@@ -190,7 +221,7 @@ function duelRoomSend(state, payload, early) {
     try { early(); } catch (e) { console.error('duel early move', e); }
     if (duelRoomLocal.early) duelRoomLocal.early.stamp = stamp;
   }
-  Promise.resolve(roomAct('move', Object.assign({ move: s.moves }, payload))).then(() => {
+  Promise.resolve(duelAct('move', Object.assign({ move: s.moves }, payload))).then(() => {
     if (duelRoomLocal.sent === stamp) duelRoomLocal.sent = '';
     // The server's answer is in. Had it taken the move, the room's board would
     // have claimed the early one (duelRoomEarlyFor); still unclaimed, it wasn't.
@@ -240,7 +271,7 @@ function setC4RoomMode(mode) {
 }
 
 function c4RoomDrop(col) {
-  const state = Room.state;
+  const state = duelRoomState();
   if (!state || state.game !== 'connect4') return;
   const s = state.shared;
   if (s.phase !== 'play' || (s.seats || [])[s.turn] !== Room.me) return;

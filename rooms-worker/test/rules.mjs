@@ -5203,6 +5203,277 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- إكس أو in rooms, and the duels' tournament (RoomTournament.js, 23 Sep 2026) ----- */
+{
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const people = (n) => 'abcdefghijkl'.split('').slice(0, n);
+  const room = (game, ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const toClock = (r) => { const d = roomDeadline(r); if (d === null) return false; clock = Math.max(clock + 1, d); return roomTimeout(r, clock); };
+
+  // X-O in a room: winner stays, seat 0 is X, classic and 3 marks only.
+  {
+    const r = room('xo', ['a', 'b', 'c'], { three: false });
+    const mark = (cell) => applyRoomAction(r, r.shared.seats[r.shared.turn], 'move', { cell, move: r.shared.moves });
+    check(r.shared.phase === 'play' && r.shared.cells.length === 9 && r.shared.rule3 === false && r.shared.line.length === 1, 'xo room: two sit down on an empty board, one waits in line');
+    mark(4);
+    check(r.shared.cells[4] === 'X' && r.shared.turn === 1, 'xo room: the first seat plays X, and the turn passes');
+    check(refused(() => applyRoomAction(r, r.shared.seats[1], 'move', { cell: 4, move: 1 })), 'xo room: a square already taken is refused');
+    const before = r.shared.moves;
+    applyRoomAction(r, r.shared.seats[1], 'move', { cell: 0, move: 0 });
+    check(r.shared.moves === before, 'xo room: a tap drawn for a board that has moved on is dropped');
+    // A draw: X 4 0? played above; finish a known draw from a fresh board instead.
+    const d = room('xo', ['a', 'b'], {});
+    const dm = (cell) => applyRoomAction(d, d.shared.seats[d.shared.turn], 'move', { cell, move: d.shared.moves });
+    [0, 1, 2, 4, 3, 5, 7, 6, 8].forEach(dm);
+    check(d.shared.phase === 'over' && d.shared.result.draw && d.shared.result.reason === 'full', 'xo room: a full board with no line is a draw');
+    const w = room('xo', ['a', 'b'], { three: true });
+    const wm = (cell) => applyRoomAction(w, w.shared.seats[w.shared.turn], 'move', { cell, move: w.shared.moves });
+    [0, 3, 1, 4, 8, 7].forEach(wm);                       // X 0 1 8, O 3 4 7
+    check(w.shared.rule3 && w.shared.order.X.join() === '0,1,8' && w.shared.order.O.join() === '3,4,7', 'xo room: 3 marks only keeps each side\'s marks, oldest first');
+    check(refused(() => wm(0)), 'xo room: the new mark can\'t go on the square of the one about to leave');
+    wm(2);                                                 // X's fourth: 0 goes
+    check(w.shared.cells[0] === '' && w.shared.cells[2] === 'X' && w.shared.last.gone === 0 && w.shared.order.X.join() === '1,8,2',
+      'xo room: a fourth mark takes the place of the oldest');
+    wm(5);                                                 // O: 3 goes, 4 5 7 - no line
+    wm(0);                                                 // X: 1 goes -> 8 2 0: no line
+    check(w.shared.phase === 'play', 'xo room: with 3 marks only the game goes on past a full count');
+    let guard = 0;
+    while (w.shared.phase === 'play' && guard++ < 400) {
+      const free = w.shared.cells.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
+      try { wm(free[Math.floor(Math.random() * free.length)]); } catch (e) {}
+    }
+    check(w.shared.phase === 'over' && !w.shared.result.draw && w.shared.win.length === 3, 'xo room: 3 marks only ends on a line, never a draw');
+  }
+
+  // The switch: four people or more, and not with three people and a computer player.
+  {
+    const three = newRoom(['a', 'b', 'c']);
+    applyRoomAction(three, 'a', 'chooseGame', { game: 'connect4' });
+    check(refused(() => applyRoomAction(three, 'a', 'start', { mode: 'tour' })) && three.phase === 'lobby', 'tournament: the server refuses one with fewer than four people');
+    const gw = newRoom(['a', 'b', 'c']);
+    applyRoomAction(gw, 'a', 'chooseGame', { game: 'guesswho' });
+    applyRoomAction(gw, 'a', 'addBot', { level: 'easy', name: 'Robo' });
+    check(refused(() => applyRoomAction(gw, 'a', 'start', { mode: 'tour' })), 'tournament: computer players don\'t count toward the four');
+    const four = newRoom(people(4));
+    applyRoomAction(four, 'a', 'chooseGame', { game: 'connect4' });
+    check(refused(() => applyRoomAction(four, 'b', 'start', { mode: 'tour' })), 'tournament: only the host starts one');
+    applyRoomAction(four, 'a', 'start', { mode: 'tour', mode4: 1 });
+    check(four.shared.mode === 'tour' && four.shared.tour.size === 4 && four.shared.tour.rounds === 2 && four.phase === 'play', 'tournament: four people make a bracket of four, two rounds');
+  }
+
+  // Brackets from 4 to 12: the byes of a seeded draw, everyone plays until out, one champion.
+  {
+    let byesRight = true, playedOut = true, oneChamp = true, points = true, simultaneous = true, noLeak = true;
+    for (let n = 4; n <= 12; n++) {
+      for (const game of ['connect4', 'dots', 'xo']) {
+        const r = room(game, people(n), { mode: 'tour', size: 4 });
+        const t = r.shared.tour;
+        let size = 2; while (size < n) size *= 2;
+        const r1 = t.matches.filter((m) => m.r === 1);
+        if (t.size !== size || r1.filter((m) => m.out[0] || m.out[1]).length !== size - n || r1.some((m) => m.out[0] && m.out[1])) byesRight = false;
+        if (r1.filter((m) => m.p[0] && m.p[1]).length > 1 && r1.filter((m) => m.state === 'ready').length < 2) simultaneous = false;
+        for (let guard = 0; guard < 8000 && r.shared.tour.phase === 'play'; guard++) {
+          const live = r.shared.tour.matches.filter((m) => m.state === 'play');
+          if (!live.length) { toClock(r); continue; }
+          if (live.length > 1 && guard % 5 === 0) {
+            // Two matches at once: a move in one leaves the other's board as it was.
+            const other = JSON.stringify(r.shared.games[live[1].id]);
+            const g = r.shared.games[live[0].id];
+            try { applyRoomAction(r, g.seats[g.turn], 'move', { col: 3, cell: g.cells ? g.cells.indexOf('') : 0, edge: g.lines ? g.lines.indexOf(0) : 0, move: g.moves, match: live[0].id, mg: live[0].games }); } catch (e) {}
+            if (JSON.stringify(r.shared.games[live[1].id]) !== other) simultaneous = false;
+            continue;
+          }
+          for (const m of live) {
+            const g = r.shared.games[m.id];
+            const pid = g.seats[g.turn];
+            const pay = { move: g.moves, match: m.id, mg: m.games };
+            if (game === 'connect4') pay.col = Math.floor(Math.random() * g.cols);
+            if (game === 'xo') { const f = g.cells.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0); pay.cell = f[Math.floor(Math.random() * f.length)]; }
+            if (game === 'dots') { const f = g.lines.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0); pay.edge = f[Math.floor(Math.random() * f.length)]; }
+            try { applyRoomAction(r, pid, 'move', pay); } catch (e) {}
+          }
+        }
+        const T = r.shared.tour;
+        if (T.phase !== 'over' || !T.champion) { oneChamp = false; continue; }
+        const losses = {};
+        T.matches.forEach((m) => { if (m.loser) losses[m.loser] = (losses[m.loser] || 0) + 1; });
+        T.entrants.forEach((id) => {
+          const lost = T.matches.find((m) => m.loser === id);
+          if (id === T.champion) { if (lost) playedOut = false; }
+          else if (!lost || losses[id] !== 1 || T.matches.some((m) => m.p.indexOf(id) !== -1 && m.r > lost.r)) playedOut = false;
+        });
+        if (T.matches.filter((m) => !m.next)[0].winner !== T.champion) oneChamp = false;
+        const sc = r.shared.scores;
+        if (sc[T.champion] !== 3 || sc[T.runnerUp] !== 2 || T.semis.some((id) => sc[id] !== 1) || T.semis.length !== 2) points = false;
+        if (Object.keys(r.shared.games).length > 2) noLeak = false;
+      }
+    }
+    check(byesRight, 'tournament: 4 to 12 players, the next power of two, one bye for every missing player and never two in one first-round match');
+    check(simultaneous, 'tournament: the matches of a round start together and a move in one leaves the other alone');
+    check(playedOut, 'tournament: everyone plays until they lose once, and the champion never loses');
+    check(oneChamp, 'tournament: every bracket, three games, ends with exactly one champion, the final\'s winner');
+    check(points, 'tournament: 3 to the champion, 2 to the runner-up, 1 to each semi-finalist');
+    check(noLeak, 'tournament: a match\'s board goes once both its players have moved on');
+  }
+
+  // A draw is replayed with the other player starting, until someone wins.
+  {
+    const r = room('xo', people(4), { mode: 'tour', three: false });
+    toClock(r);
+    const m = r.shared.tour.matches.find((x) => x.state === 'play');
+    const g0 = r.shared.games[m.id];
+    const firstSeats = g0.seats.slice();
+    const play = (cell) => { const g = r.shared.games[m.id]; applyRoomAction(r, g.seats[g.turn], 'move', { cell, move: g.moves, match: m.id, mg: m.games }); };
+    [0, 1, 2, 4, 3, 5, 7, 6, 8].forEach(play);
+    const mm = r.shared.tour.matches.find((x) => x.id === m.id);
+    check(mm.state === 'ready' && mm.draws === 1 && r.shared.games[m.id].result.draw, 'tournament: a drawn game is not the end of the match');
+    check(r.shared.tour.matches.find((x) => x.id === mm.next).p[mm.slot] === null, 'tournament: nobody goes through on a draw');
+    clock = mm.startAt + 1;
+    roomTimeout(r, clock);
+    const g1 = r.shared.games[m.id];
+    check(mm.games === 2 && g1.phase === 'play' && g1.seats[0] === firstSeats[1] && g1.seats[1] === firstSeats[0],
+      'tournament: the replay deals a fresh board, the other player starting');
+    const before = g1.moves;
+    try { applyRoomAction(r, g1.seats[0], 'move', { cell: 0, move: 0, match: m.id, mg: 1 }); } catch (e) {}
+    check(r.shared.games[m.id].moves === before, 'tournament: a tap for the drawn game (the old game number) is dropped');
+    [0, 3, 1, 4, 2].forEach(play);
+    check(mm.state === 'done' && mm.winner === firstSeats[1] && mm.draws === 1, 'tournament: the replay\'s winner goes through');
+    check(refused(() => applyRoomAction(r, 'a', 'move', { cell: 0, match: 'm99' })), 'tournament: a move for a match that doesn\'t exist is refused');
+  }
+
+  // Leaving: a match being played, one about to start, a bye, and both players of one match.
+  {
+    const leave = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id); };
+    const r = room('connect4', people(5), { mode: 'tour' });
+    const t = r.shared.tour;
+    const ready = t.matches.find((m) => m.r === 1 && m.state === 'ready');
+    const byeMatch = t.matches.find((m) => m.r === 1 && (m.out[0] || m.out[1]));
+    const byePlayer = byeMatch.p.find(Boolean);
+    leave(r, ready.p[0]);
+    check(ready.state === 'done' && ready.winner === ready.p[1] && ready.reason === 'left', 'tournament: leaving before your match starts hands it over');
+    leave(r, byePlayer);
+    const next = t.matches.find((m) => m.id === byeMatch.next);
+    toClock(r);
+    check(t.gone[byePlayer] && (next.state === 'done' ? next.winner !== byePlayer : next.p.indexOf(byePlayer) !== -1),
+      'tournament: someone with a bye who leaves is out of the match they would have played');
+    for (let guard = 0; guard < 50 && t.phase === 'play' && !t.matches.some((m) => m.state === 'play'); guard++) toClock(r);
+    const live = t.matches.find((m) => m.state === 'play');
+    if (live) {
+      const g = r.shared.games[live.id];
+      leave(r, g.seats[0]);
+      check(live.state === 'done' && live.winner === g.seats[1] && r.shared.games[live.id].result.reason === 'left',
+        'tournament: leaving mid-game loses the match by forfeit');
+    }
+    // Both players of a match leave: the first hands it to the other, who is then gone from the final.
+    const r2 = room('connect4', people(4), { mode: 'tour' });
+    const t2 = r2.shared.tour;
+    const [m1, m2] = t2.matches.filter((m) => m.r === 1);
+    const [x1, y1] = m1.p;
+    leave(r2, x1);
+    leave(r2, y1);
+    const fin = t2.matches.find((m) => !m.next);
+    check(m1.state === 'done' && m1.winner === y1 && t2.gone[y1] && fin.p[m1.slot] === y1,
+      'tournament: both players of a match leave: the first hands it to the other, who is marked gone');
+    toClock(r2);
+    const g2 = r2.shared.games[m2.id];
+    applyRoomAction(r2, g2.seats[0], 'move', { col: 0, move: g2.moves, match: m2.id, mg: m2.games });
+    // The rest of the semi, won by whoever:
+    for (let guard = 0; guard < 200 && m2.state === 'play'; guard++) {
+      const g = r2.shared.games[m2.id];
+      try { applyRoomAction(r2, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * 7), move: g.moves, match: m2.id, mg: m2.games }); } catch (e) {}
+    }
+    check(t2.phase === 'over' && t2.champion === m2.winner && fin.reason === 'left',
+      'tournament: the other semi\'s winner walks over the final and is champion');
+    // Nobody left on one side of a final: an empty slot, and the other side goes through.
+    const r3 = room('connect4', people(4), { mode: 'tour' });
+    const t3 = r3.shared.tour;
+    const fin3 = t3.matches.find((m) => !m.next);
+    const [s1, s2] = t3.matches.filter((m) => m.r === 1);
+    // Every player of the first semi leaves while its game is being played: the forfeit's winner leaves too.
+    toClock(r3);
+    const g3 = r3.shared.games[s1.id];
+    leave(r3, g3.seats[0]);
+    leave(r3, g3.seats[1]);
+    leave(r3, s2.p[0]);
+    check(t3.phase === 'over' && t3.champion === s2.p[1] && fin3.winner === s2.p[1],
+      'tournament: with everyone else gone, the last one standing is champion');
+  }
+
+  // Guess who and battleship: each match's secrets stay with that match's two phones.
+  {
+    const r = room('guesswho', people(6), { mode: 'tour', size: 16 });
+    toClock(r);
+    const t = r.shared.tour;
+    const live = t.matches.filter((m) => m.state === 'play');
+    let own = live.length === 2;
+    live.forEach((m) => {
+      const g = r.shared.games[m.id];
+      const secret = r._tourHidden[m.id]._gw.secret;
+      g.seats.forEach((pid, k) => { if (!r.secrets[pid] || r.secrets[pid].tm !== m.id || r.secrets[pid].face !== secret[k]) own = false; });
+      if (JSON.stringify(g).indexOf('secret') !== -1 || g.reveal) own = false;
+    });
+    const watchers = r.players.map((p) => p.id).filter((id) => !live.some((m) => m.p.indexOf(id) !== -1));
+    check(own && watchers.every((id) => !r.secrets[id]), 'tournament (guess who): each seated phone holds its own match\'s face, a phone with a bye none');
+    // Play them all out with the server answering (the host's play for).
+    for (let guard = 0; guard < 4000 && t.phase === 'play'; guard++) {
+      const m = t.matches.find((x) => x.state === 'play');
+      if (!m) { toClock(r); continue; }
+      const g = r.shared.games[m.id];
+      const me = g.seats[g.turn];
+      try {
+        if (g.stage === 'answer') applyRoomAction(r, 'a', 'skipTurn', { seq: g.turnSeq, match: m.id, mg: m.games });
+        else if (g.stage === 'flip') applyRoomAction(r, me, 'done', { seq: g.turnSeq, match: m.id, mg: m.games });
+        else applyRoomAction(r, me, 'guess', { face: Math.floor(Math.random() * g.faces.length), seq: g.turnSeq, match: m.id, mg: m.games });
+      } catch (e) {}
+    }
+    check(t.phase === 'over' && !!t.champion, 'tournament (guess who): six players play to a champion');
+    const b = room('battleship', people(5), { mode: 'tour', turnClock: 15 });
+    for (let guard = 0; guard < 6000 && b.shared.tour.phase === 'play'; guard++) toClock(b);
+    check(b.shared.tour.phase === 'over' && !!b.shared.tour.champion, 'tournament (battleship): five players, every shot the clock\'s, to a champion');
+  }
+
+  // After the end: the host deals a new tournament (points kept) or goes back to winner stays (banked).
+  {
+    const r = room('connect4', people(4), { mode: 'tour' });
+    const t = r.shared.tour;
+    for (let guard = 0; guard < 3000 && t.phase === 'play'; guard++) {
+      const m = t.matches.find((x) => x.state === 'play');
+      if (!m) { toClock(r); continue; }
+      const g = r.shared.games[m.id];
+      try { applyRoomAction(r, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * 7), move: g.moves, match: m.id, mg: m.games }); } catch (e) {}
+    }
+    const champ = t.champion;
+    check(refused(() => applyRoomAction(r, 'b', 'tourNew', { mode: 'tour', round: r.shared.round })), 'tournament: only the host deals the next one');
+    applyRoomAction(r, 'a', 'tourFeature', { match: 'm0' });
+    applyRoomAction(r, 'a', 'tourNew', { mode: 'tour', round: r.shared.round });
+    check(r.shared.tour.no === 2 && r.shared.tour.phase === 'play' && r.shared.scores[champ] === 3 && r.shared.board[0].id === champ,
+      'tournament: a new one is a new draw, the points of the last one kept');
+    applyRoomAction(r, 'a', 'tourNew', { mode: 'tour', round: 1 });
+    check(r.shared.tour.no === 2, 'tournament: a second tap for the same new tournament is dropped');
+    check(refused(() => applyRoomAction(r, 'a', 'tourNew', { mode: 'stay', round: r.shared.round })), 'tournament: nothing to switch to until it is over');
+    const t2 = r.shared.tour;
+    for (let guard = 0; guard < 3000 && t2.phase === 'play'; guard++) {
+      const m = t2.matches.find((x) => x.state === 'play');
+      if (!m) { toClock(r); continue; }
+      const g = r.shared.games[m.id];
+      try { applyRoomAction(r, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * 7), move: g.moves, match: m.id, mg: m.games }); } catch (e) {}
+    }
+    applyRoomAction(r, 'a', 'tourNew', { mode: 'stay', round: r.shared.round });
+    check(!r.shared.tour && r.shared.phase === 'play' && r.shared.seats.length === 2 && r.shared.line.length === 2 && Object.keys(r.night || {}).length > 0,
+      'tournament: back to winner stays, with the tournaments banked on the night\'s leaderboard');
+    // And from winner stays, a tournament.
+    const g = r.shared;
+    for (let guard = 0; guard < 200 && g.phase === 'play'; guard++) { try { applyRoomAction(r, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * 7), move: g.moves }); } catch (e) {} }
+    applyRoomAction(r, 'a', 'tourNew', { mode: 'tour', round: r.shared.round });
+    check(r.shared.tour && r.shared.tour.no === 1 && Object.keys(r.shared.scores).length === 0, 'tournament: from winner stays, a tournament starts its points afresh');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

@@ -34,6 +34,8 @@ function roomTurnOf(state) {
   const s = state.shared || {};
   const has = (list) => Array.isArray(list) && list.indexOf(me) !== -1;
   const inRound = !s.roster || has(s.roster);
+  // A duels' tournament: the turn in this phone's own match (JS_RoomTournament.html).
+  if (s.tour && typeof tourTurnOf === 'function') return tourTurnOf(state);
 
   // Any open vote this phone hasn't cast, unless every option is its own
   // (the storyteller in صدق ولا كذب). An owner may be hidden, with only this
@@ -125,6 +127,7 @@ function roomTurnOf(state) {
       return s.phase === 'play' && s.turn && s.turn.pid === me ? 'turn_up' : null;
     case 'connect4':
     case 'dots':
+    case 'xo':
       // The duels: only the seat whose move it is (RoomDuels.js).
       return s.phase === 'play' && Array.isArray(s.seats) && s.seats[s.turn] === me ? 'turn_up' : null;
     case 'uno':

@@ -1169,7 +1169,7 @@ function chState() {
       coachOpts: { warn: true, hint: true, comment: true, threats: true },
       phase: 'setup', g: null, hist: [], sans: [], lost: [[], []], last: null, clk: null, result: null,
       me: 0, firstWhite: 0, gameId: '', scores: [0, 0, 0], flip: false, start: '', comment: null, practice: false,
-      helpLimit: '3', help: chHelpNew(), rating: { r: CH_RATING_START, n: 0 }
+      helpLimit: '3', help: chHelpNew(), rating: { r: CH_RATING_START, n: 0 }, char: 'hassan'
     };
   }
   const s = appState.shatranj;
@@ -1179,7 +1179,94 @@ function chState() {
   if (CH_HELP_LIMITS.indexOf(s.helpLimit) === -1) s.helpLimit = '3';
   if (!s.help) s.help = chHelpNew();
   if (!s.rating || typeof s.rating.r !== 'number') s.rating = { r: CH_RATING_START, n: 0 };
+  // A phone that played before the characters keeps its slider.
+  if (s.char !== 'custom' && !chCharById(s.char)) s.char = 'custom';
   return s;
+}
+
+/* --- the computer's characters (the owner, 24 Sep 2026; the six chosen by Claude) --------------
+   Each is a rating and a style for chessBestMove, a name, one line and a drawn face. «مخصص» is the
+   slider as it always was. Page-only: the rooms server never needs them. */
+
+const CH_CHARACTERS = [
+  { id: 'nono', elo: 400 },
+  { id: 'hassan', elo: 800, style: 'attack' },
+  { id: 'mira', elo: 1100, style: 'solid' },
+  { id: 'captain', elo: 1400 },
+  { id: 'professor', elo: 1700 },
+  { id: 'general', elo: 2000 }
+];
+
+const chCharById = (id) => CH_CHARACTERS.find(c => c.id === id) || null;
+
+/** The character nearest your rating + 100 (the lower one on a tie). */
+function chCharSuggest(rating) {
+  const aim = (Number(rating) || CH_RATING_START) + 100;
+  return CH_CHARACTERS.reduce((best, c) => (Math.abs(c.elo - aim) < Math.abs(best.elo - aim) ? c : best), CH_CHARACTERS[0]);
+}
+
+// Each face: a backdrop, clothes, skin, and what makes it that person. Flat, drawn for this app.
+const CH_FACE_LOOK = {
+  nono: { bg: '#fcd34d', shirt: '#ef4444', skin: '#f3c9a2' },
+  hassan: { bg: '#9fd3a4', shirt: '#eceff3', skin: '#d6a172' },
+  mira: { bg: '#f7b2d2', shirt: '#7c3aed', skin: '#f0c29b' },
+  captain: { bg: '#9cc8fb', shirt: '#1e3a8a', skin: '#e0ac7e' },
+  professor: { bg: '#c9bdfc', shirt: '#475569', skin: '#efc8a4' },
+  general: { bg: '#b7c49a', shirt: '#4d5a2a', skin: '#dcae88' }
+};
+
+/** A character's face: an SVG in a 64 × 64 box with no ids, so a page can hold it any number of times. */
+function chCharFaceSvg(id) {
+  const L = CH_FACE_LOOK[id];
+  if (!L) return '';
+  const o = [`<rect width="64" height="64" fill="${L.bg}"/>`];
+  const eyes = (y, r) => `<circle cx="27" cy="${y}" r="${r}" fill="#fff"/><circle cx="37" cy="${y}" r="${r}" fill="#fff"/><circle cx="27.4" cy="${y + 0.3}" r="${r * 0.55}" fill="#2a1f1a"/><circle cx="37.4" cy="${y + 0.3}" r="${r * 0.55}" fill="#2a1f1a"/>`;
+  const body = `<path d="M9 64C10 51 20 46 32 46S54 51 55 64Z" fill="${L.shirt}"/><rect x="28" y="40" width="8" height="8" rx="3" fill="${L.skin}" style="filter:brightness(.92)"/>`;
+  const head = `<circle cx="19.5" cy="31" r="3.4" fill="${L.skin}"/><circle cx="44.5" cy="31" r="3.4" fill="${L.skin}"/><ellipse cx="32" cy="29" rx="12.5" ry="14" fill="${L.skin}"/>`;
+  if (id === 'nono') {
+    o.push(body, head);
+    o.push('<path d="M19.5 27C18.5 17 25 13 32 13S45.5 17 44.5 27C41 21 37 19.5 32 19.5S23 21 19.5 27Z" fill="#6b4423"/><path d="M31 14.5C32 9 36.5 8 39 9.5 35.5 10.5 34 12.5 33.5 15Z" fill="#6b4423"/>');
+    o.push(eyes(29, 3.4));
+    o.push('<circle cx="23.5" cy="35" r="2.4" fill="#f58a8a" opacity=".55"/><circle cx="40.5" cy="35" r="2.4" fill="#f58a8a" opacity=".55"/>');
+    o.push('<path d="M27.5 36.5Q32 42 36.5 36.5Z" fill="#8a2f22"/>');
+  } else if (id === 'hassan') {
+    o.push('<path d="M9 64C10 51 20 46 32 46S54 51 55 64Z" fill="#eceff3"/><path d="M29 46L32 53 35 46" fill="none" stroke="#b8bec8" stroke-width="1.4"/>');
+    o.push(`<rect x="28" y="40" width="8" height="8" rx="3" fill="${L.skin}" style="filter:brightness(.92)"/>`, head);
+    o.push('<path d="M19.6 30C19.5 25 20.5 22.5 22 21.5L22.5 30Z M44.4 30C44.5 25 43.5 22.5 42 21.5L41.5 30Z" fill="#c9ccd1"/>');
+    o.push('<path d="M21.5 21L23.5 8.5Q32 6.5 40.5 8.5L42.5 21Q32 23 21.5 21Z" fill="#c81e3a"/><path d="M32 7.8Q37 6 39.5 10.5" stroke="#1c1917" stroke-width="1.2" fill="none" stroke-linecap="round"/><path d="M39.5 10.5l-1.3 4h2.6z" fill="#1c1917"/>');
+    o.push('<path d="M24 26q3.5-2.2 7 0M33 26q3.5-2.2 7 0" stroke="#9aa0a8" stroke-width="2" fill="none" stroke-linecap="round"/>');
+    o.push(eyes(29.5, 2.6));
+    o.push('<path d="M32 34.2c-1.8-1-4.9-1.1-7.3 1.3-.8.8-1.8.9-2.5.2.8 3 4.4 3.7 7.1 2.2 1.2-.6 2-1.2 2.7-1.2s1.5.6 2.7 1.2c2.7 1.5 6.3.8 7.1-2.2-.7.7-1.7.6-2.5-.2-2.4-2.4-5.5-2.3-7.3-1.3z" fill="#e5e7eb"/>');
+    o.push('<path d="M28.5 40.2Q32 42 35.5 40.2" stroke="#7a3b2a" stroke-width="1.5" fill="none" stroke-linecap="round"/>');
+  } else if (id === 'mira') {
+    o.push('<path d="M17.5 30C16 16 24 11.5 32 11.5S48 16 46.5 30C47.5 40 47 48 44 52H20C17 48 16.5 40 17.5 30Z" fill="#2b1d16"/>');
+    o.push(body, head);
+    o.push('<path d="M19.5 27.5C19 17 25.5 13.5 32 13.5S45 17 44.5 27.5C40 21 35 19.5 30 21 26 22.5 22.5 24.5 19.5 27.5Z" fill="#2b1d16"/>');
+    o.push('<circle cx="19.5" cy="36.5" r="1.8" fill="#f5b400"/><circle cx="44.5" cy="36.5" r="1.8" fill="#f5b400"/>');
+    o.push(eyes(29.5, 2.8));
+    o.push('<path d="M24 26.5l-1.6-1.4M40 26.5l1.6-1.4" stroke="#2b1d16" stroke-width="1.2" stroke-linecap="round"/>');
+    o.push('<path d="M28.3 36.8Q32 40.3 35.7 36.8Q32 38.2 28.3 36.8Z" fill="#d9466f"/>');
+  } else if (id === 'captain') {
+    o.push(body, '<path d="M26 46L32 52 38 46" fill="#fff"/>', head);
+    o.push('<path d="M20.5 32C21 40 26 44 32 44S43 40 43.5 32C42 37 38 39.5 32 39.5S22 37 20.5 32Z" fill="#5b3a26"/>');
+    o.push('<path d="M18 21.5C17.5 11 46.5 11 46 21.5Z" fill="#f8fafc" stroke="#cbd5e1" stroke-width=".8"/><rect x="18" y="19.5" width="28" height="4.2" rx="1.2" fill="#1f2937"/><path d="M20 23.7Q32 29 44 23.7V25.4Q32 31 20 25.4Z" fill="#111827"/><circle cx="32" cy="17.2" r="2.6" fill="#f5b400"/>');
+    o.push(eyes(30, 2.6));
+    o.push('<path d="M28 36.2Q32 38.8 36 36.2" stroke="#3b2418" stroke-width="1.6" fill="none" stroke-linecap="round"/>');
+  } else if (id === 'professor') {
+    o.push(body, '<path d="M27.5 46.5l4.5 2.4-4.5 2.4zM36.5 46.5L32 48.9l4.5 2.4z" fill="#dc2626"/><circle cx="32" cy="48.9" r="1.3" fill="#b91c1c"/>', head);
+    o.push('<path d="M17 30C14 24 17 19 21 20 20 16 25 14 26.5 18L22 29Z M47 30C50 24 47 19 43 20 44 16 39 14 37.5 18L42 29Z" fill="#f1f5f9"/>');
+    o.push('<path d="M24 25.5q3.5-2 7 0M33 25.5q3.5-2 7 0" stroke="#e2e8f0" stroke-width="2" fill="none" stroke-linecap="round"/>');
+    o.push(eyes(29.5, 2.4));
+    o.push('<g fill="rgba(255,255,255,.2)" stroke="#1f2430" stroke-width="1.5"><circle cx="27" cy="29.7" r="4.4"/><circle cx="37" cy="29.7" r="4.4"/></g><path d="M31.4 29.5h1.2" stroke="#1f2430" stroke-width="1.5"/>');
+    o.push('<path d="M28.5 37q3.5 2.2 7 0" stroke="#7a3b2a" stroke-width="1.5" fill="none" stroke-linecap="round"/>');
+  } else if (id === 'general') {
+    o.push(body, '<path d="M9.5 58C12 52 17 49.5 22 49L20 55Z M54.5 58C52 52 47 49.5 42 49L44 55Z" fill="#e0b43a"/><circle cx="23" cy="56" r="1.8" fill="#dc2626"/><circle cx="27.5" cy="56" r="1.8" fill="#2563eb"/><circle cx="41" cy="56" r="1.8" fill="#16a34a"/>', head);
+    o.push('<path d="M16.5 22C17 10 47 10 47.5 22Z" fill="#3f4a22"/><rect x="18" y="19" width="28" height="4" rx="1" fill="#b91c1c"/><path d="M19.5 23Q32 28.5 44.5 23V24.8Q32 30.5 19.5 24.8Z" fill="#1a1d10"/><path d="M32 12.5l1.2 2.5 2.7.3-2 1.8.6 2.7L32 18.4l-2.5 1.4.6-2.7-2-1.8 2.7-.3z" fill="#f5b400"/>');
+    o.push('<path d="M23.5 27.5l7-1.8M40.5 27.5l-7-1.8" stroke="#3b3b3b" stroke-width="2.2" stroke-linecap="round"/>');
+    o.push(eyes(30.5, 2.3));
+    o.push('<path d="M26.5 35.5q5.5-2.4 11 0-5.5 1.2-11 0z" fill="#6b6b6b"/><path d="M28.8 39h6.4" stroke="#5b2a1c" stroke-width="1.6" stroke-linecap="round"/>');
+  }
+  return `<svg class="ch-face" viewBox="0 0 64 64" aria-hidden="true" focusable="false">${o.join('')}</svg>`;
 }
 
 /* --- your rating against the computer (the owner, 24 Sep 2026) ---------------------------------
@@ -1304,7 +1391,8 @@ function setupShatranj() {
 /** The names on each side: [White's, Black's]. Against the computer, you and "the computer (1200)". */
 function chNames(s) {
   if (s.vs === 'phone') {
-    const you = chT('xo_you'), cpu = chT('ch_cpu', { elo: chOppElo(s) });
+    const you = chT('xo_you');
+    const cpu = s.opp && s.opp.char ? chT('ch_char_' + s.opp.char) : chT('ch_cpu', { elo: chOppElo(s) });
     return s.me === 0 ? [you, cpu] : [cpu, you];
   }
   const n = s.names || [];
@@ -1326,7 +1414,7 @@ function paintShatranjSetup() {
   duelPaintSegmented('shatranj-help', s.helpLimit);
   const phone = s.vs === 'phone';
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
-  show('shatranj-elo-field', phone);
+
   show('shatranj-color-field', phone);
   show('shatranj-coach-field', phone);
   show('shatranj-help-field', phone);
@@ -1343,6 +1431,32 @@ function paintShatranjSetup() {
   const cont = document.getElementById('shatranj-continue');
   if (cont) cont.classList.toggle('hidden', !(s.phase === 'play' && s.g));
   // Your rating, and whether the game about to start counts for it.
+  // The characters: a face, a name and a rating each, and «مخصص» for the slider.
+  const chars = document.getElementById('shatranj-chars');
+  if (chars) {
+    const html = CH_CHARACTERS.map(c => `<button type="button" class="ch-char ${s.char === c.id ? 'is-active' : ''}" onclick="setShatranjOption('char', '${c.id}')" aria-pressed="${s.char === c.id}">
+        <span class="ch-char__face">${chCharFaceSvg(c.id)}</span>
+        <span class="ch-char__name">${escapeHTML(chT('ch_char_' + c.id))}</span>
+        <span class="ch-char__elo metric" dir="ltr">${c.elo}</span>
+      </button>`).join('') + `<button type="button" class="ch-char ch-char--custom ${s.char === 'custom' ? 'is-active' : ''}" onclick="setShatranjOption('char', 'custom')" aria-pressed="${s.char === 'custom'}">
+        <span class="ch-char__face ch-char__face--custom" aria-hidden="true">🎚️</span>
+        <span class="ch-char__name">${escapeHTML(chT('ch_char_custom'))}</span>
+        <span class="ch-char__elo metric" dir="ltr">${s.elo}</span>
+      </button>`;
+    if (chars._chHtml !== html) { chars.innerHTML = html; chars._chHtml = html; }
+  }
+  const pick = chCharById(s.char);
+  show('shatranj-char-field', phone);
+  show('shatranj-elo-field', phone && !pick);
+  const line = document.getElementById('shatranj-char-line');
+  if (line) { line.textContent = pick ? chT('ch_char_' + pick.id + '_line') : ''; line.classList.toggle('hidden', !pick); }
+  const sug = document.getElementById('shatranj-char-suggest');
+  if (sug) {
+    const c = chCharSuggest(s.rating.r);
+    sug.classList.toggle('hidden', !phone || s.char === c.id);
+    sug.innerHTML = `💡 ${escapeHTML(chT('ch_char_suggest', { name: chT('ch_char_' + c.id) }))} <b class="metric" dir="ltr">${c.elo}</b>`;
+    sug.onclick = () => setShatranjOption('char', c.id);
+  }
   const rt = document.getElementById('shatranj-rating');
   if (rt) {
     rt.classList.toggle('hidden', !phone);
@@ -1413,7 +1527,8 @@ function chNewGame(opts) {
   s.help = chHelpNew({ setup: !!o.setup });
   // Whether this game counts for your rating is settled now, and the computer's rating kept with it.
   s.rated = !chUnratedReason(s, { setup: !!o.setup, practice: !!o.practice });
-  s.opp = s.vs === 'phone' ? { elo: s.elo } : null;
+  const who = chCharById(s.char);
+  s.opp = s.vs === 'phone' ? { elo: who ? who.elo : s.elo, style: who && who.style ? who.style : '', char: who ? who.id : '' } : null;
   s.ratingChange = null;
   if (s.vs === 'phone') s.me = o.me !== undefined ? o.me : (s.color === 'b' ? 1 : s.color === 'random' ? (Math.random() < 0.5 ? 0 : 1) : 0);
   s.clk = chessClockNew(s.clock);
@@ -1567,7 +1682,7 @@ function chComputerSoon() {
     let ms = settings.ms;
     if (st.clk && st.clk.at) ms = Math.min(ms, Math.max(80, chessClockLeft(st.clk, st.g.turn, st.g.turn, Date.now()) / 25));
     const t0 = Date.now();
-    const mv = chessBestMove(st.g, { elo: chOppElo(st), ms: ms });
+    const mv = chessBestMove(st.g, { elo: chOppElo(st), ms: ms, style: (st.opp && st.opp.style) || undefined });
     // A move found at once still waits a human moment, so it can be seen coming.
     const pause = Math.max(0, 450 - (Date.now() - t0));
     chLocal.thinking = setTimeout(() => {
@@ -1770,11 +1885,14 @@ function chSetHtml(root, sel, html) {
 }
 
 /** The two players as the duels' pills: the piece colour, the name, the clock and what they have taken. */
-function chPillsHtml(names, turn, scores, clk, lost, subs) {
+function chPillsHtml(names, turn, scores, clk, lost, subs, faces) {
   const pill = (k) => ({
     name: names[k],
     score: scores ? scores[k] : 0,
-    mark: `<span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>`,
+    // A character's face, with its colour as a small king in the corner.
+    mark: faces && faces[k]
+      ? `<span class="ch-mark ch-mark--face" aria-hidden="true">${faces[k]}<span class="ch-mark__side ${k ? 'is-dark' : 'is-light'}">${chPieceSvg(6 | (k ? 8 : 0))}</span></span>`
+      : `<span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>`,
     sub: (subs && subs[k] ? subs[k] + ' ' : '') + (clk ? `<b class="ch-clock metric" data-ch-clock="${k}"></b>` : '') + chTakenHtml(lost ? lost[1 - k] : [], lost ? chLead(lost, k) : 0)
   });
   return duelPillsHtml({ players: [pill(0), pill(1)], turn: turn, draws: null });
@@ -1824,8 +1942,12 @@ function chPaint(opts) {
   // The pills are by colour; the tally is by player.
   const p1Colour = s.vs === 'phone' ? s.me : (s.firstWhite === 0 ? 0 : 1);
   const byColour = p1Colour === 0 ? [scores[0], scores[1]] : [scores[1], scores[0]];
-  const subs = null;
-  chSetHtml(el, '[data-ch-head]', chPillsHtml(names, s.phase === 'play' ? s.g.turn : -1, byColour, s.clk, s.lost, subs) +
+  // Against a character: its face and its rating on the computer's pill.
+  const cpuSide = s.me ? 0 : 1;
+  const char = s.vs === 'phone' && s.opp && s.opp.char ? s.opp.char : '';
+  const subs = char ? [0, 1].map(k => (k === cpuSide ? `<span class="ch-pill-elo metric" dir="ltr">${chOppElo(s)}</span>` : '')) : null;
+  const faces = char ? [0, 1].map(k => (k === cpuSide ? chCharFaceSvg(char) : '')) : null;
+  chSetHtml(el, '[data-ch-head]', chPillsHtml(names, s.phase === 'play' ? s.g.turn : -1, byColour, s.clk, s.lost, subs, faces) +
     `<p class="duel-status ${ended ? 'is-done' : ''} ${chLocal.thinking ? 'is-thinking' : ''}">${escapeHTML(chLocalStatus(s, names))}</p>`);
   chSetHtml(el, '[data-ch-bar]', chLocalBarHtml(s, hint));
   chSetHtml(el, '[data-ch-side]', chLocalSideHtml(s, names));

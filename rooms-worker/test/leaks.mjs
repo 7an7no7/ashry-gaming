@@ -245,7 +245,7 @@ const PROBES = {
     const knows = Object.keys(h.boards).filter((id) => h.boards[id].state === 'won').concat(s.setter ? [s.setter] : []);
     // Where a number may be any count or score, and a word a setting ('ar' is Argentina's code too).
     const counts = ['shared.settings', 'shared.scores', 'shared.board', 'shared.tries', 'shared.progress', 'shared.round', 'shared.rounds',
-      'shared.maxTries', 'shared.pub', 'shared.setterAt', 'shared.endsAt', 'you.board.hints', 'you.n',
+      'shared.maxTries', 'shared.pub', 'shared.setterAt', 'shared.endsAt', 'you.board.hints', 'you.n', 'version',
       // Where a solver's own board has narrowed the number to: its own deduction, which may land on it.
       'you.board.lo', 'you.board.hi'];
     const words = ['shared.settings', 'you.board.hints'];

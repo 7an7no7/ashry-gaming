@@ -14440,4 +14440,282 @@ button.tour-live { cursor: pointer; }
   .xo-cell.is-new, .xo-board.is-lighting .xo-cell.is-win, .tour-dot, .tour-m__live i, .tour-m__crown, .tour-over-card { animation: none; }
 }
 
+/* ==========================================================================
+   34. شطرنج الأربعة
+   JS_RoomChess4.html. The owner's look أ «بطولة» (24 Sep 2026): the 2D chess
+   board's green and cream (--ch2-dark / --ch2-light, section 30), 14 x 14 with
+   the four 3 x 3 corners cut away, the app's drawn pieces tinted per player -
+   red, blue, yellow, green with a darker outline, grey for a player out. The
+   board is the same in both themes, like a real one. Each player's chip sits
+   in a cut corner. Everything on the board is sized from the board itself
+   (a size container), so one markup fits a phone, a laptop and a TV.
+   ========================================================================== */
+:root {
+  --ch4-r: #d6453d; --ch4-r-hi: #f07b70; --ch4-r-lo: #b3322b; --ch4-r-edge: #7a1d18;
+  --ch4-b: #3f73d6; --ch4-b-hi: #7ea6ee; --ch4-b-lo: #2c58b3; --ch4-b-edge: #15306a;
+  --ch4-y: #e9b52a; --ch4-y-hi: #f8d97a; --ch4-y-lo: #c99619; --ch4-y-edge: #7a5608;
+  --ch4-g: #35a35a; --ch4-g-hi: #72cf90; --ch4-g-lo: #268547; --ch4-g-edge: #0f4d24;
+  --ch4-x: #9a9a9a; --ch4-x-hi: #c8c8c8; --ch4-x-lo: #7e7e7e; --ch4-x-edge: #4f4f4f;
+  --ch4-gold: #f5b400;
+}
+
+/* --- the screen: upright one column; sideways and wide the board beside a column --- */
+.ch4-game { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ch4-game__side { display: contents; }
+.ch4-game__side > [data-ch4-over] { order: -3; }
+.ch4-head { order: -2; display: flex; align-items: center; justify-content: center; gap: var(--sp-2); flex-wrap: wrap; text-align: center; }
+.ch4-game__stage { order: -1; min-width: 0; }
+.ch4-game__side > [data-ch4-bar] { order: 0; }
+.ch4-game__side > [data-ch4-log] { order: 1; }
+.ch4-game__side > [data-room-strip] { order: 2; }
+.ch4-status { font-weight: var(--fw-bold); font-size: 1rem; color: var(--text); }
+
+.ch4-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 9rem);
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: size;
+}
+
+/* --- the board ------------------------------------------------------------ */
+.ch4b {
+  position: relative;
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
+  container-type: size;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* On your move a finger on the board moves pieces, it doesn't scroll the page. */
+.ch4b.is-live { touch-action: none; cursor: pointer; }
+.ch4b__sqs {
+  display: grid;
+  grid-template: repeat(14, minmax(0, 1fr)) / repeat(14, minmax(0, 1fr));
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0.2rem 0.45rem rgba(20, 14, 6, 0.28));
+}
+.ch4-void { pointer-events: none; }
+.ch4-sq { position: relative; display: grid; place-items: center; background: var(--ch2-dark); }
+.ch4-sq.is-l { background: var(--ch2-light); }
+.ch4-sq::before { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.ch4-sq.is-last::before { background: var(--ch2-last); }
+.ch4-sq.is-sel::before { background: var(--ch2-sel); }
+.ch4-sq.is-check::before { background: radial-gradient(circle, var(--ch2-check) 0%, rgba(236, 34, 24, 0.55) 40%, rgba(236, 34, 24, 0) 74%); }
+.ch4-dot { position: absolute; z-index: 1; width: 34%; height: 34%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
+.ch4-cap { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 74%, var(--ch2-hint) 78% 100%, transparent 101%); pointer-events: none; }
+.ch4-co { position: absolute; z-index: 1; font-style: normal; font-size: 1.55cqw; font-weight: var(--fw-bold); line-height: 1; pointer-events: none; direction: ltr; }
+.ch4-co--f { bottom: 0.2cqw; right: 0.3cqw; }
+.ch4-co--r { top: 0.2cqw; left: 0.3cqw; }
+.ch4-sq.is-l .ch4-co { color: var(--ch2-dark); }
+.ch4-sq.is-d .ch4-co { color: var(--ch2-light); }
+
+.ch4b__pcs { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.ch4-pc {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(100% / 14);
+  height: calc(100% / 14);
+  transform: translate(calc(var(--x, 0) * 100%), calc(var(--y, 0) * 100%));
+}
+.ch4-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.ch4-pc > .ch4-svg { transition: transform 90ms var(--ease-out); filter: drop-shadow(0 0.08cqw 0.12cqw rgba(0, 0, 0, 0.3)); }
+.ch4-pc.is-moving { z-index: 2; }
+.ch4-pc.is-taken { z-index: 0; }
+.ch4-pc.is-drag { z-index: 4; }
+.ch4-pc.is-drag > .ch4-svg { transform: scale(1.22) translateY(-8%); filter: drop-shadow(0 0.5cqw 0.5cqw rgba(0, 0, 0, 0.35)); }
+/* A mated king topples before its pieces turn grey. */
+.ch4-pc.is-mated > .ch4-svg { transform: rotate(-78deg) translate(-8%, 14%); transition: transform 560ms var(--ease-spring); }
+
+/* --- a player's chip, in the cut corner at their left hand --------------------- */
+.ch4-corner {
+  position: absolute;
+  z-index: 3;
+  width: calc(300% / 14);
+  height: calc(300% / 14);
+  padding: 0.7cqw;
+  box-sizing: border-box;
+  display: grid;
+  pointer-events: none;
+}
+.ch4-corner--tl { top: 0; left: 0; }
+.ch4-corner--tr { top: 0; right: 0; }
+.ch4-corner--bl { bottom: 0; left: 0; }
+.ch4-corner--br { bottom: 0; right: 0; }
+.ch4-chip--r { --pc: var(--ch4-r); --pc-edge: var(--ch4-r-edge); }
+.ch4-chip--b { --pc: var(--ch4-b); --pc-edge: var(--ch4-b-edge); }
+.ch4-chip--y { --pc: var(--ch4-y); --pc-edge: var(--ch4-y-edge); }
+.ch4-chip--g { --pc: var(--ch4-g); --pc-edge: var(--ch4-g-edge); }
+.ch4-chip {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35cqw;
+  padding: 0.6cqw;
+  border-radius: 1.8cqw;
+  background: var(--surface-solid);
+  border: 0.3cqw solid var(--border);
+  box-shadow: var(--sh-2);
+  text-align: center;
+  overflow: hidden;
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out), opacity var(--dur-2);
+}
+.ch4-chip__av {
+  display: grid;
+  place-items: center;
+  width: clamp(1.4rem, 6.4cqw, 4.2rem);
+  height: clamp(1.4rem, 6.4cqw, 4.2rem);
+  border-radius: 50%;
+  background: var(--pc);
+  border: 0.3cqw solid var(--pc-edge);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: var(--fw-black);
+  font-size: clamp(0.7rem, 3.2cqw, 2.2rem);
+  line-height: 1;
+  flex: none;
+}
+.ch4-chip--y .ch4-chip__av { color: #3b2a02; }
+.ch4-chip__name {
+  max-width: 100%;
+  font-size: clamp(0.66rem, 2.6cqw, 1.8rem);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch4-chip__meta { display: flex; align-items: center; justify-content: center; gap: 0.8cqw; font-size: clamp(0.62rem, 2.4cqw, 1.7rem); line-height: 1.1; }
+.ch4-chip__pts { font-weight: var(--fw-black); color: var(--text); }
+.ch4-chip__pts::after { content: ' ★'; color: var(--ch4-gold); font-size: 0.85em; }
+.ch4-chip__clock { font-weight: var(--fw-semi); color: var(--text-2); }
+.ch4-chip__clock.is-low { color: var(--danger); }
+.ch4-chip__tag { font-size: clamp(0.56rem, 2cqw, 1.4rem); color: var(--text-2); font-weight: var(--fw-med); line-height: 1.1; white-space: nowrap; }
+.ch4-chip.is-me .ch4-chip__tag { color: var(--pc-edge); }
+:where(body.dark) .ch4-chip.is-me .ch4-chip__tag { color: var(--pc); }
+.ch4-chip.is-turn { border-color: var(--pc); box-shadow: 0 0 0 0.35cqw color-mix(in srgb, var(--pc) 35%, transparent), var(--sh-2); animation: ch4Turn 1.6s ease-in-out infinite; }
+.ch4-chip.is-turn .ch4-chip__clock { color: var(--text); }
+.ch4-chip.is-out { opacity: 0.62; }
+.ch4-chip.is-out .ch4-chip__av { background: var(--ch4-x); border-color: var(--ch4-x-edge); }
+.ch4-chip.is-won { border-color: var(--ch4-gold); box-shadow: 0 0 0 0.35cqw rgba(245, 180, 0, 0.35), var(--sh-2); opacity: 1; }
+@keyframes ch4Turn { 50% { box-shadow: 0 0 0 0.8cqw color-mix(in srgb, var(--pc) 18%, transparent), var(--sh-2); } }
+
+/* --- what to do, the log, the end ------------------------------------------ */
+.ch4-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.ch4-dot { display: inline-block; width: 0.62rem; height: 0.62rem; border-radius: 50%; flex: none; border: 1px solid rgba(0, 0, 0, 0.25); }
+.ch4-dot--r { background: var(--ch4-r); } .ch4-dot--b { background: var(--ch4-b); }
+.ch4-dot--y { background: var(--ch4-y); } .ch4-dot--g { background: var(--ch4-g); }
+.ch4-log {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.ch4-log__mv { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.1rem 0.45rem; border-radius: var(--r-full); background: var(--surface-3); font-size: 0.8rem; font-weight: var(--fw-semi); }
+.ch4-log__auto { font-size: 0.72rem; }
+.ch4-log__pts { color: var(--success); font-size: 0.72rem; }
+.ch4-log__ev { flex-basis: 100%; display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--text-2); }
+.ch4-over { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ch4-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  color: #fff;
+  text-align: center;
+  animation: ch4Banner 520ms var(--ease-spring) both;
+}
+.ch4-banner--ry { background: linear-gradient(120deg, var(--ch4-r) 0%, var(--ch4-r-lo) 45%, var(--ch4-y-lo) 55%, var(--ch4-y) 100%); }
+.ch4-banner--bg { background: linear-gradient(120deg, var(--ch4-b) 0%, var(--ch4-b-lo) 45%, var(--ch4-g-lo) 55%, var(--ch4-g) 100%); }
+.ch4-banner__pair { display: inline-flex; gap: 0.3rem; }
+.ch4-banner__pair .ch4-dot { width: 0.9rem; height: 0.9rem; border-color: rgba(255, 255, 255, 0.8); }
+.ch4-banner__title { font-family: var(--font-display); font-weight: var(--fw-black); font-size: 1.25rem; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+.ch4-banner__names { font-weight: var(--fw-bold); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+@keyframes ch4Banner { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
+
+/* --- the lobby: the four colours round the board, who sits where --------------- */
+.ch4-seats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas: ". y ." "b m g" ". r .";
+  gap: var(--sp-2);
+  align-items: stretch;
+}
+.ch4-seat { min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.ch4-seat--r { grid-area: r; } .ch4-seat--b { grid-area: b; } .ch4-seat--y { grid-area: y; } .ch4-seat--g { grid-area: g; }
+.ch4-seats__mid { grid-area: m; display: grid; place-items: center; font-size: 1.6rem; }
+.ch4-seat__btn {
+  flex: 1;
+  min-height: 5.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  border: 2px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
+  font: inherit;
+  text-align: center;
+  min-width: 0;
+}
+button.ch4-seat__btn { cursor: pointer; }
+.ch4-seat.is-picked .ch4-seat__btn { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ch4-seat__pc { width: 1.9rem; height: 1.9rem; }
+.ch4-seat__color { font-size: 0.72rem; font-weight: var(--fw-semi); color: var(--text-2); }
+.ch4-seat__who { max-width: 100%; font-size: 0.82rem; font-weight: var(--fw-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch4-seat__who.is-empty { color: var(--text-3); font-weight: var(--fw-med); }
+.ch4-seat__clear { align-self: center; }
+.ch4-watchers { display: flex; flex-direction: column; gap: var(--sp-1); margin-top: var(--sp-2); }
+
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .ch4-game { display: grid; grid-template-columns: auto minmax(13rem, 22rem); justify-content: center; align-items: start; gap: var(--sp-4); }
+  .ch4-game__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  .ch4-game__stage { position: sticky; top: 0; }
+  .ch4-stage { width: min(calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem), 62vw); max-height: none; }
+  .ch4-head { justify-content: flex-start; text-align: start; }
+  .ch4-log { max-height: 14rem; }
+}
+
+/* --- the TV: the board as tall as the stage, the column beside it ------------- */
+.ch4-tv { height: 100%; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 30rem); justify-content: center; align-items: center; gap: calc(var(--tv-gap) * 2.5); }
+.ch4-tv__stage .ch4-stage { width: min(calc(var(--app-h, 100vh) - 17vmin), 62vw); max-height: none; }
+.ch4-tv__side { display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); min-width: 0; }
+.ch4-tv__head { display: flex; justify-content: center; }
+.ch4-tv__head .badge { font-size: var(--tv-sm); padding: 0.4vmin 1.4vmin; }
+.ch4-tv .ch4-log { max-height: 36vmin; padding: 1vmin; gap: 0.6vmin; border-radius: var(--tv-r); }
+.ch4-tv .ch4-log__mv, .ch4-tv .ch4-log__ev { font-size: var(--tv-sm); }
+.ch4-tv .ch4-dot { width: 1.4vmin; height: 1.4vmin; }
+.ch4-tv .ch4-banner__title { font-size: var(--tv-md); }
+.ch4-tv .ch4-banner__names { font-size: var(--tv-sm); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ch4-pc > .ch4-svg, .ch4-pc.is-mated > .ch4-svg, .ch4-chip { transition: none; }
+  .ch4-chip.is-turn, .ch4-banner { animation: none; }
+}
+
 </style>

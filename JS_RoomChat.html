@@ -30,8 +30,12 @@ function roomChatTime(at) {
   try { return new Date(at).toLocaleTimeString(appState.lang === 'ar' ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
 }
 
-/** This phone's side in أسماء الرموز, or null in any other game. */
+/** This phone's side in أسماء الرموز (or its colour's team in شطرنج بالتصويت), or null in any other game. */
 function chatTeamOf(state) {
+  if (state && state.game === 'votechess' && state.phase !== 'lobby') {
+    const k = typeof vcMyTeam === 'function' ? vcMyTeam(state) : -1;
+    return k === -1 ? null : { team: k ? 'b' : 'w' };
+  }
   if (!state || state.game !== 'codenames') return null;
   const mine = ((state.shared || {}).teams || {})[Room.me];
   return mine && (mine.team === 'red' || mine.team === 'blue') ? mine : null;
@@ -40,7 +44,7 @@ function chatTeamOf(state) {
 /** A spymaster mid-game hears the team channel and can't talk into it. */
 const chatTeamMuted = (state, mine) => !!mine && mine.role === 'spymaster' && state.phase === 'playing';
 
-const CHAT_TEAM_ICON = { red: '🔴', blue: '🔵' };
+const CHAT_TEAM_ICON = { red: '🔴', blue: '🔵', w: '⚪', b: '⚫' };
 
 /* Up to three emoji and nothing else are drawn big, the way a messenger does. */
 const CHAT_EMOJI_ONLY = /^(?:\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|\p{Emoji_Modifier})*\s*){1,3}$/u;

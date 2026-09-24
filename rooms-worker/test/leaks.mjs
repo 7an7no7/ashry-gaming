@@ -538,7 +538,28 @@ const PROBES = {
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
   connect4: () => [], dots: () => [], xo: () => [], ludo: () => [], bowling: () => [],
   // شطرنج: the whole game is on the table.
-  chess: () => []
+  chess: () => [],
+  // شطرنج بالتصويت: what anyone voted stays on their own phone until the move is played.
+  votechess(room) {
+    const s = room.shared || {};
+    const votes = (room._vc && room._vc.votes) || {};
+    const open = s.phase === 'play' && !!s.vote && Object.keys(votes).length > 0;
+    return [
+      probe('a vote stays on the phone of whoever cast it until the move is played', open, (view, pid) => {
+        const sv = view.shared.vote || {};
+        const extra = Object.keys(sv).find((k) => ['team', 'n', 'endsAt', 'voted'].indexOf(k) === -1);
+        if (extra) return 'shared.vote.' + extra;
+        if (JSON.stringify(view.shared).indexOf('"votes":') !== -1) return 'shared (votes)';
+        if ((view.shared.tallies || []).some((t) => t.n === s.vote.n)) return 'shared.tallies (this move)';
+        const mine = view.you && view.you.vote;
+        if (mine && JSON.stringify(mine) !== JSON.stringify(votes[pid])) return 'you.vote (not your own)';
+        if (view.you && Object.keys(view.you).some((k) => k !== 'vote' && k !== 'n')) return 'you';
+        return null;
+      })
+    ];
+  },
+  // المخ والإيد: the whole game is on the table (what the Brain named is said out loud).
+  handbrain: () => []
 };
 
 /*
@@ -1214,6 +1235,64 @@ const DRIVERS = {
     const first = CH.chessLegalMoves(s.chess.g)[0];
     must(T, s.seats[0], 'move', { from: first.from, to: first.to, promo: first.promo, move: 0 });
     runClock(T, (r) => r.shared.phase === 'over', 50);
+    return S(T).phase === 'over';
+  },
+  votechess() {
+    // Random votes (changed now and then), the clock closing a vote nobody finished, the host closing one, then a team resigning by vote.
+    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+    const T = table('votechess', 5);
+    must(T, T.host, 'sides', { shuffle: true });
+    must(T, T.host, 'start', { secs: 20 });
+    const play = (limit) => {
+      for (let guard = 0; guard < limit && S(T).phase === 'play'; guard++) {
+        const s = S(T);
+        const team = s.teams[s.vote.team];
+        const n = s.chess.moves;
+        const legal = CH.chessLegalMoves(s.chess.g);
+        if (guard % 9 === 4) { must(T, team[0], 'vote', { ...pick(legal), n }); runClock(T, (r) => r.shared.chess.moves !== n || r.shared.phase !== 'play', 10); continue; }
+        if (guard % 13 === 6) { must(T, team[0], 'vote', { ...pick(legal), n }); must(T, T.host, 'closeVote', { n }); continue; }
+        for (const id of team) {
+          if (S(T).chess.moves !== n) break;
+          act(T, id, 'vote', { ...pick(legal), n });
+          if (S(T).chess.moves === n && Math.random() < 0.3) act(T, id, 'vote', { ...pick(legal), n });
+        }
+      }
+    };
+    play(60);
+    while (S(T).phase === 'play') {
+      const s = S(T);
+      const n = s.chess.moves;
+      s.teams[s.vote.team].forEach((id) => act(T, id, 'vote', { resign: true, n }));
+    }
+    must(T, T.host, 'playAgain', {});
+    play(30);
+    if (S(T).phase === 'play') { const s = S(T); s.teams[s.vote.team].forEach((id) => act(T, id, 'vote', { resign: true, n: s.chess.moves })); }
+    return S(T).phase === 'over';
+  },
+  handbrain() {
+    // Three people and a computer player: the Brains name, the Hands move, the computer on the clock, the host's "play for".
+    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+    const T = table('handbrain', 3);
+    must(T, T.host, 'seats', {});
+    must(T, T.host, 'start', { clock: '10+0', botNames: ['زيزو'] });
+    const kindAt = (g, sq) => g.board['abcdefgh'.indexOf(sq[0]) + 8 * (Number(sq[1]) - 1)] & 7;
+    const play = (limit) => {
+      for (let guard = 0; guard < limit && S(T).phase === 'play'; guard++) {
+        const s = S(T);
+        const g = s.chess.g;
+        const up = s.teams[g.turn][s.stage === 'name' ? 0 : 1];
+        if (T.room.players.some((p) => p.id === up && p.bot)) { runClock(T, (r) => r.shared.chess.moves !== s.chess.moves || r.shared.stage !== s.stage || r.shared.phase !== 'play', 10); continue; }
+        if (guard % 11 === 5) { must(T, T.host, 'skipTurn', { move: s.chess.moves, stage: s.stage }); continue; }
+        const legal = CH.chessLegalMoves(g);
+        if (s.stage === 'name') must(T, up, 'name', { kind: kindAt(g, pick(legal).from), n: s.chess.moves });
+        else must(T, up, 'move', { ...pick(legal.filter((m) => kindAt(g, m.from) === s.named.kind)), move: s.chess.moves });
+      }
+    };
+    play(300);
+    if (S(T).phase === 'play') must(T, S(T).teams[0][0], 'resign', { round: S(T).round });
+    must(T, T.host, 'playAgain', {});
+    play(60);
+    if (S(T).phase === 'play') must(T, S(T).teams[1][1], 'resign', { round: S(T).round });
     return S(T).phase === 'over';
   },
   xo() {

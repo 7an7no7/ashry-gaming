@@ -14475,4 +14475,133 @@ button.tour-live { cursor: pointer; }
   .xo-cell.is-new, .xo-board.is-lighting .xo-cell.is-win, .tour-dot, .tour-m__live i, .tour-m__crown, .tour-over-card { animation: none; }
 }
 
+/* ==========================================================================
+   34. CHESS FOR TEAMS: شطرنج بالتصويت · المخ والإيد (24 Sep 2026)
+   JS_RoomVoteChess.html and JS_RoomHandBrain.html, on the chess screen of
+   section 30 (the board, the duels' pills, the moves). What they add: the
+   members of a team under its pill (a dot fills as each votes, never what
+   for), the vote's clock as a ring, the tally that flies in once the move is
+   played; the Brain's six pieces, its word said big to the table, the seats
+   of the lobby. The piece colours are the board's own, the same in both
+   themes; everything else is the tokens.
+   ========================================================================== */
+.vc-mems, .hb-whos { display: inline-flex; flex-wrap: wrap; gap: 0.15rem 0.5rem; margin-inline-end: 0.25rem; }
+.vc-mem, .hb-who { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--fs-xs); font-weight: var(--fw-med); color: var(--text-2); }
+.vc-mem__dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--border-strong); flex: none; }
+.vc-mem.is-wait .vc-mem__dot { background: none; box-shadow: inset 0 0 0 1.5px var(--text-3); }
+.vc-mem.is-in .vc-mem__dot { background: var(--success); animation: vcDotIn var(--dur-3) var(--ease-spring); }
+.vc-mem.is-in { color: var(--text-strong); }
+.hb-who.is-up { color: var(--accent-ink); font-weight: var(--fw-bold); }
+.vc-mem.is-me, .hb-who.is-me { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-thickness: 2px; }
+@keyframes vcDotIn { from { transform: scale(0.2); } to { transform: scale(1); } }
+
+/* The vote's clock: a ring that runs down (--p, 1 → 0) round the seconds left. */
+.vc-clockrow { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-2); }
+.vc-clockrow__txt { font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--text-2); }
+.vc-clock { --p: 1; position: relative; display: inline-grid; place-items: center; width: 2.6rem; height: 2.6rem; flex: none; }
+.vc-clock__ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--p) * 360deg), var(--surface-sunken) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.3rem), #000 calc(100% - 0.28rem));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 0.3rem), #000 calc(100% - 0.28rem));
+}
+.vc-clock__n { position: relative; font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--text-strong); }
+.vc-clock.is-low .vc-clock__ring { background: conic-gradient(var(--danger) calc(var(--p) * 360deg), var(--surface-sunken) 0); }
+.vc-clock.is-low .vc-clock__n { color: var(--danger-ink); }
+
+/* The tally: what the team played, then how it voted, the winning move on top. */
+.vc-tally { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); border-radius: var(--r-lg); background: var(--accent-soft); border: 1px solid var(--accent-border); }
+.vc-tally__head { margin: 0 0 var(--sp-1); font-weight: var(--fw-semi); color: var(--text); text-align: center; }
+.vc-tally__head b { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--accent-ink); }
+.vc-tally__row { --w: 1; display: grid; grid-template-columns: 4.5rem minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); }
+.vc-tally__move { font-weight: var(--fw-bold); color: var(--text-strong); text-align: start; }
+.vc-tally__bar { display: block; height: 0.55rem; border-radius: var(--r-full); background: var(--border-strong); transform-origin: left center; transform: scaleX(var(--w)); }
+.vc-tally__row.is-pick .vc-tally__bar { background: var(--accent); }
+[dir="rtl"] .vc-tally__bar { transform-origin: right center; }
+.vc-tally__row.is-pick .vc-tally__move { color: var(--accent-ink); }
+.vc-tally__n { color: var(--text-2); }
+.vc-tally__how { margin: var(--sp-1) 0 0; font-size: var(--fs-xs); color: var(--text-2); text-align: center; }
+.vc-tally.is-fresh { animation: vcTallyIn var(--dur-4) var(--ease-out) both; }
+.vc-tally.is-fresh .vc-tally__row { animation: vcRowIn var(--dur-3) var(--ease-out) both; animation-delay: calc(180ms + var(--i) * 110ms); }
+.vc-tally.is-fresh .vc-tally__bar { animation: vcBarIn 520ms var(--ease-out) both; animation-delay: calc(240ms + var(--i) * 110ms); }
+@keyframes vcTallyIn { from { opacity: 0; transform: translateY(-0.6rem) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes vcRowIn { from { opacity: 0; transform: translateY(0.4rem); } to { opacity: 1; transform: none; } }
+@keyframes vcBarIn { from { transform: scaleX(0); } to { transform: scaleX(var(--w)); } }
+
+/* The lobby: the two teams side by side; a name tapped goes to the other side. */
+.vc-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); margin-block: var(--sp-2); }
+.vc-side { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2); border-radius: var(--r-lg); background: var(--surface-sunken); border: 1px solid var(--border); min-width: 0; }
+.vc-side__head { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-weight: var(--fw-bold); color: var(--text-strong); }
+.vc-side__head .ch-mark { width: 1.5rem; height: 1.5rem; }
+.vc-side__chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.vc-side__chip {
+  display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2.25rem; max-width: 100%;
+  padding: 0 var(--sp-3); border-radius: var(--r-full); border: 1px solid var(--border-strong);
+  background: var(--surface-solid); color: var(--text-strong); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-semi);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+button.vc-side__chip { cursor: pointer; }
+button.vc-side__chip span { color: var(--text-3); }
+
+/* المخ والإيد: the Brain's six pieces (only those that can move lit). */
+/* Six in a row where they fit, else as many as keep each name whole (a phone on its side: a narrow column). */
+.hb-kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(3.1rem, 1fr)); gap: var(--sp-1); }
+.hb-kind {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem;
+  min-height: 3.6rem; padding: var(--sp-1) 0; border-radius: var(--r-md); border: 1px solid var(--accent-border);
+  background: var(--surface-solid); color: var(--text-strong); font: inherit; cursor: pointer;
+  box-shadow: var(--sh-1); transition: transform var(--dur-1) var(--ease-out), background var(--dur-2);
+}
+.hb-kind:active:not(:disabled) { transform: scale(0.94); }
+.hb-kind:disabled { opacity: 0.32; box-shadow: none; cursor: default; }
+.hb-kind__pc { width: 2rem; height: 2rem; }
+.hb-kind__name { font-size: var(--fs-xs); font-weight: var(--fw-semi); line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The Brain's word, said to the table: big, and popping in the first time a screen shows it. */
+.hb-call {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-xl);
+  background: var(--accent-soft); border: 1px solid var(--accent-border); color: var(--text-strong);
+}
+.hb-call__pc { width: 2.6rem; height: 2.6rem; flex: none; }
+.hb-call__txt { font-weight: var(--fw-semi); }
+.hb-call__txt b { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--accent-ink); }
+.hb-call.is-fresh { animation: hbCallIn 520ms var(--ease-spring) both; }
+.hb-call.is-fresh .hb-call__pc { animation: hbPcIn 640ms var(--ease-spring) 120ms both; }
+@keyframes hbCallIn { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
+@keyframes hbPcIn { 0% { transform: scale(0.3) rotate(-18deg); } 70% { transform: scale(1.18) rotate(6deg); } 100% { transform: none; } }
+
+.hb-log { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-3); font-size: var(--fs-xs); color: var(--text-2); }
+.hb-log .field__label { width: 100%; margin: 0; }
+.hb-log__row { display: inline-flex; align-items: center; gap: 0.2rem; }
+.hb-log__pc { width: 1.1rem; height: 1.1rem; }
+
+/* The lobby's four seats: a team's Brain and Hand under its colour. */
+.hb-seats { display: flex; flex-direction: column; gap: var(--sp-1); }
+.hb-seat {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.05rem; width: 100%; min-height: 2.9rem;
+  padding: var(--sp-1) var(--sp-2); border-radius: var(--r-md); border: 1px solid var(--border-strong);
+  background: var(--surface-solid); color: var(--text-strong); font: inherit; text-align: start;
+}
+button.hb-seat { cursor: pointer; }
+.hb-seat.is-picked { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+.hb-seat__role { font-size: var(--fs-xs); color: var(--text-3); font-weight: var(--fw-semi); }
+.hb-seat__who { font-size: var(--fs-sm); font-weight: var(--fw-bold); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-seat__empty { color: var(--text-3); font-weight: var(--fw-med); }
+
+/* The TV: the same pieces, sized from the screen. */
+.is-tv-view .vc-clockrow__txt { font-size: 2.1vmin; }
+.is-tv-view .vc-clock { width: 6vmin; height: 6vmin; }
+.is-tv-view .vc-clock__n { font-size: 2.6vmin; }
+.is-tv-view .vc-mem, .is-tv-view .hb-who { font-size: 1.8vmin; }
+.is-tv-view .hb-call { padding: 1.2vmin 2vmin; }
+.is-tv-view .hb-call__pc { width: 7vmin; height: 7vmin; }
+.is-tv-view .hb-call__txt { font-size: 2.4vmin; }
+.is-tv-view .hb-call__txt b { font-size: 4.2vmin; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vc-mem.is-in .vc-mem__dot, .vc-tally.is-fresh, .vc-tally.is-fresh .vc-tally__row, .vc-tally.is-fresh .vc-tally__bar,
+  .hb-call.is-fresh, .hb-call.is-fresh .hb-call__pc { animation: none; }
+}
+
 </style>

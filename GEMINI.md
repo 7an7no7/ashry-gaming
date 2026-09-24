@@ -108,6 +108,7 @@
   two phones, the bracket on the TV, a podium (*The duels' tournament*).
 - 🚢 **Battleship (حرب السفن)**: the classic 10×10 with five ships, in real 3D (three.js): against the phone at three levels, or a room where two play and the rest watch, winner stays on (*حرب السفن*).
 - ♞ **Chess (شطرنج)**: the full rules in real 3D (three.js) - a wooden board and Staunton pieces: two on one phone, against the computer at a rating from 400 to 2000 with a coach (a warning before a blunder, hints, a word on every move, the pieces in danger), or a room where two play and the rest watch, winner stays on; a chess clock; every game reviewed move by move (*شطرنج*).
+- **Chess for teams, in rooms:** 🗳️ **شطرنج بالتصويت (Vote chess):** two teams, every move a secret team vote on everyone's own board, the tally shown once it is played (*شطرنج بالتصويت*). 🧠 **المخ والإيد (Hand and Brain):** 2 against 2, the Brain names a piece, the Hand moves it; computer players fill the seats (*المخ والإيد*).
 - **Cards, in rooms:** **كدّاب (I Doubt It):** lay cards face down and say what they are; anyone can call «كدّاب!», the first tap wins; computer players (*كدّاب*). **الشايب (Old Maid):** draw a card blind from the next hand, pair up, and don't be left holding the drawn old man; drag your cards about while someone is lifting one (*الشايب*).
 - **Sports, in real 3D (three.js):** 🎳 **Bowling (بولينج):** swipe the ball down a
   wooden lane, a curve in the swipe hooks it; solo for a best score, or a
@@ -219,6 +220,51 @@ work changed. Add to it when a decision is made or a batch ships.
       of it.
     - A setter may pick any country; the race asks tier 1 (easy, the
       default) or every country (hard).
+
+- **شطرنج بالتصويت and المخ والإيد (chess for teams)** - the owner's
+  decisions of 24 Sep 2026 (`notes/BATCH4_RUNBOOK.md`, Decisions 1 and 2),
+  rooms only, the TV optional (*شطرنج بالتصويت*, *المخ والإيد*):
+  - **شطرنج بالتصويت**: two teams split by the host in the lobby (at random,
+    then moves across), any number from 2 (1 vs 1 is chess by a vote of one).
+    On a team's move every member taps a move on their own board; **the move
+    with the most votes is played when the vote clock ends or every member
+    present has voted; a tie is drawn at random among the tied moves.** The
+    vote clock **30 s by default** (20 / 30 / 60, the host's). **Votes secret
+    until the move is played** (who voted public, not for what), then the table
+    sees how the team voted (♞f3 ×3, e4 ×1). **No computer players.** Nobody
+    voted: the move with most votes, or a random legal move, said as such. The
+    team chat is the room chat's team channel.
+  - **المخ والإيد**: 2 vs 2, computer players (easy, hard) fill empty seats.
+    On a team's move the **Brain** names a kind (♔ ♕ ♖ ♗ ♘ ♙, only kinds with
+    a legal move lit), then the **Hand** plays any legal move of that kind.
+    **Roles fixed for a game, swapped for the next.** A clock per team, **off
+    by default**, 5+0 / 10+0. The Brain sees the board and can't move; the Hand
+    sees the named pieces lit; what the Brain named is public.
+  - Decided here (open to change, each in one place):
+    - Vote chess: **resigning is a vote** (🏳️ beside the moves) that wins only
+      with more votes than any move - a tie with a move plays the move, never
+      a resignation by lot (`vcClose`). **Play again keeps the teams and swaps
+      the colours**, a newcomer joining the smaller team and the last game's
+      team chat dropped (its colours are the other side's now). A member who
+      leaves drops out of the count (the vote may close on the spot); a team
+      with nobody left loses. A latecomer watches and plays the next game. The
+      host's "close the vote now" is decided by the votes so far.
+    - Hand and Brain: the seats are the host's, like الدومينو's (people first
+      at random, two taps swap two seats, an empty seat included; 🔀 draws
+      again); **the empty seats are filled with easy computer players at the
+      start**, named by the host's phone in its language; more than four people
+      and the rest watch. **Play again swaps the roles and the colours.** A
+      seated player who leaves mid-game: **a computer player (easy) takes the
+      seat** («🤖 منى») so the other three can finish. Either member resigns
+      for the team. The host's "play for" plays as an easy computer player. A
+      Brain with one kind that can move has it named for them, and a Hand with
+      one legal move of the named kind has it played - unless it ends the game.
+    - The Brain's word in Arabic is «المخ (منى) قال: الحصان!»: the role is the
+      subject, so the verb fits any name (a name doesn't say قال or قالت).
+    - Both are in **ورق وطاولة** (Cards & table), beside لودو and بنك الحظ: a
+      board game at the table; «لاتنين على موبايل» isn't true of them.
+    - The icons are drawn (`art:votechess` a ballot with a pawn going into
+      the box, `art:handbrain` a brain and the pawn it names).
 
 - **شطرنج (Chess)** - the owner's spec of 23 Sep 2026, asked one question at a
   time, then the computer's strength and the coach added the same day
@@ -2272,6 +2318,27 @@ the word search), `countUp` for streaks and scores.
   opened from the result card stored the game with no start FEN, so a 960
   room game reviewed from the standard start; and in 960 a king step and
   castling can share a square, which the tap took for a promotion.
+- **24 Sep 2026, chess for teams: شطرنج بالتصويت and المخ والإيد** - the
+  owner's decisions of the day (*The owner's specs*), batch 4's T4.2 and T4.3
+  (`notes/phase-reports/batch4-a.md`): `RoomVoteChess.js` and
+  `RoomHandBrain.js` (bundled after `RoomChess.js`, playing on its board
+  functions), `JS_RoomVoteChess.html` and `JS_RoomHandBrain.html` (the chess
+  board of `JS_Chess.html`: 2D on a phone, 3D on the TV), section 34 of
+  `Style.html`, two drawn icons, the team channel of the chat opened to vote
+  chess (`roomChatTeam`). Rules tests: 28 for vote chess (the split, the
+  secret, the tally, a tie drawn both ways, the clock with and without votes,
+  the host's close, resigning by vote, play again, leaving, the team chat) and
+  24 for Hand and Brain (seats and computer players, naming and moving, the
+  flag, the forced name, the host's "play for", a hard Hand finding a mate,
+  three whole games of computer players, a leaver's seat). The leak check
+  plays both, with a probe that no vote reaches another phone before its move
+  (proved on a scratch build). Robots: 68 new checks (`--only=teamchess`),
+  2232 in all. Looked at in headless Chrome: three phones and a TV playing
+  vote chess through a tie, a timeout, a reload mid-vote and a resignation by
+  vote; two people and two computer players playing Hand and Brain to mate
+  and again with the roles swapped. Found on the way (*Traps*): a vote drop
+  must hand the piece back (`onDrop` returning `'pre'`), and a background
+  tab's pill scores stay at 0 until it draws.
 
 ## Building and Running
 
@@ -2331,7 +2398,7 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
   `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -2491,6 +2558,8 @@ is nowhere to hide the key card.
 | `RoomBattleship.js` | `battleshipAction`: the duels' seats and line (`duelSeatNext`, `duelEnd` from `RoomDuels.js`, bundled before it), placing and ready, the fleets in `room._bs`, the shots, the clock (`bsDeadline` / `bsTimeout`), leaving (`bsPlayerLeft`). |
 | `Chess.js` | شطرنج's rules (every one, perft-checked), the clock, the rated computer, the coach's analysis and the review, and a tournament match's next game (`chessMatchNext`, Armageddon): shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `chess` / `CHESS_`. |
 | `RoomChess.js` | `chessAction`: one board per game made and played through `chessBoard*` (the adapter a bracket uses), winner stays on (`duelSeatNext`, `duelEnd`), the clock on the server (`chessDeadline` / `chessTimeout`), a draw offered and answered, resigning, a forfeit (`chessPlayerLeft`). |
+| `RoomVoteChess.js` | `voteChessAction`: شطرنج بالتصويت - the host's split (`sides`), one board through `chessBoard*`, the secret votes in `room._vc`, the close (`vcClose`: all voted, the clock, the host), the tally, resigning by vote, leaving (`vcPlayerLeft`). |
+| `RoomHandBrain.js` | `handBrainAction`: المخ والإيد - the host's four seats (`seats`), the Brain's name and the Hand's move on one board, the clock per team, computer players (`ROOM_BOT_GAMES.handbrain`) and forced moves, a leaver's seat to a computer player (`hbPlayerLeft`). |
 | `PlayingCards.js` | The playing cards كدّاب and الشايب deal: the deck (one or two), a card's rank and suit, a hand sorted, what makes a pair in الشايب (same rank, same colour), the ranks' names: shared by the page and the Worker, every name prefixed `pc` / `PC_`. |
 | `RoomDoubt.js` | `doubtAction`: كدّاب's claims, the call (first tap wins), the pile, passing and the pile going out, the places, the clock, leaving and the computer players; every hand in `room._doubt`. |
 | `RoomOldMaid.js` | `oldMaidAction`: الشايب's deal (the deck grows with the table), the lift and the draw, dragging or shuffling a hand, pairs, the loser and the tally, the clock, leaving; every hand in `room._om`. |
@@ -5649,6 +5718,82 @@ at a time, your own mark lands as your finger lifts (`duelRoomSend`'s early
 step), and the oldest mark is faded only on its owner's phone, on their turn.
 The setup screen gained the one phone / own phones switch.
 
+### شطرنج بالتصويت
+
+The owner's rules are in *The owner's specs*. Game id `votechess`, view
+`room-votechess`, rooms only.
+
+- **`RoomVoteChess.js`**: the lobby's split is `shared.lobby.sides` (`{ pid:
+  0 | 1 }`; the host's `sides { shuffle }` draws it, `{ move: pid }` puts one
+  across, `{}` keeps it in step with who is here - the host's phone sends that
+  itself, `vcLobbySync`); `vcFitSides` never leaves a side empty. A game is
+  `shared.teams` ([White ids, Black ids] - team k plays colour k), one board
+  (`chessBoardNew('off')`), `shared.vote = { team, n, endsAt, voted }` - who,
+  never what - and `shared.tallies` (the last 12 closed votes: the moves with
+  their counts and SAN, the pick, and `how`: votes, tie, random, host). The
+  votes are `room._vc.votes`, never projected; a voter's own is also
+  `room.secrets[pid] = { vote, n }`, so a reload brings its arrow back. `vote
+  { from, to, promo | resign, n }` (n the move count: a stale tap is dropped)
+  may be changed until the close; `vcClose` runs when everyone present on the
+  team has voted, on the clock (`vcDeadline` / `vcTimeout`, 0.4 s of grace)
+  or on the host's `closeVote { n }`. `shared.tw` is each team's games won
+  (swapped with the colours on play again).
+- **`JS_RoomVoteChess.html`**: the chess screen (`chLayoutHtml`,
+  `chViewShow`) with the duels' pills for the two teams (the members under
+  each, a dot filling as each votes), the vote clock as a ring
+  (`vcPaintClock`, the server's time through `serverNow` / `receivedAt` as
+  the chess room reads it), the tally card that flies in once
+  (`motionFirst`), 🏳️ «صوّت نستسلم» and the host's «اقفل التصويت دلوقتي».
+  **A vote is the chess board's tap or drag, not a move**: `chTapLogic` /
+  `chDropLogic` with a `play` that votes, and a drop returning `'pre'` so the
+  piece goes back to its square and only the blue arrow (`CH_PRE_COLOR`)
+  stays. The vote shows at once (`vcLocal.mine`) and is taken back if the
+  server refuses it. The TV: the 3D board, both teams, the clock, the tally.
+- The team channel: `roomChatTeam` in `RoomGames.js` (and `chatTeamOf` on the
+  phone) gives a vote-chess player the team `w` / `b` (⚪ / ⚫ in the chat).
+- Tests: `rules.mjs`, `leaks.mjs` (`DRIVERS.votechess`, `PROBES.votechess`),
+  `play-all.mjs` (`teamChessRobots`).
+
+### المخ والإيد
+
+The owner's rules are in *The owner's specs*. Game id `handbrain`, view
+`room-handbrain`, rooms only, computer players.
+
+- **`RoomHandBrain.js`**: the lobby's seats are `shared.lobby.order`, four
+  ids or null (White's Brain, White's Hand, Black's Brain, Black's Hand);
+  `hbFitOrder` keeps the seats people have and seats newcomers in empty ones
+  (people before computer players), the host's `seats { shuffle | order }`,
+  `{}` in step with the room (`hbLobbySync` on the host's phone). At the
+  start the empty seats get easy computer players (`hbFillSeats`, named from
+  the host's `botNames`). A game is `shared.teams` ([[brain, hand], [brain,
+  hand]] by colour), `stage` ('name' | 'move'), `named { kind, n, by }`,
+  `calls` (the last ten names, for the log), one board with the clock chosen
+  (`chessBoardNew('off' | '5+0' | '10+0')`: the clock is the team's), `tw`.
+  `name { kind, n }` from the Brain up (a kind with no legal move refused),
+  `move { from, to, promo, move }` from the Hand up (a piece of another kind
+  refused), `resign { round }` from either member, the host's `skipTurn {
+  move, stage }`. Nothing is hidden.
+- **Computer players** (`ROOM_BOT_GAMES.handbrain`, max 4): a Brain names the
+  kind of the engine's move (`hbBotKind`: 1500 on a small budget for hard,
+  600 one ply deep for easy); a Hand plays the best move of the named kind
+  (`hbBotMove`: a mate at once, else each move looked at one reply deep,
+  captures followed, a few hundred positions a move; easy plays at random a
+  third of the time). **Forced moves** (`ROOM_FORCED_GAMES.handbrain`): the
+  only kind that can move is named; the only move of the named kind is played
+  unless it ends the game.
+- **`JS_RoomHandBrain.html`**: the chess screen; the pills say who is Brain
+  🧠 and Hand ✋ of each team (the one up in the accent); the Brain's six
+  buttons (`hbBarHtml`, drawn pieces, the kinds that can't move faded); the
+  Brain's word big over the board («🧠 المخ (منى) قال: الحصان!», popping in
+  and with a chime once per move, `hbCue`); every piece of the named kind
+  that can move lit (`marks`, kind 'chance') on every board; the Hand's
+  board takes only those (`hbModel`'s `onPick` / `onDrop` refuse another
+  kind), and the Hand's move is drawn as the finger lifts (`hbLocal.early`,
+  the duels' rule). The lobby's seats as two teams of two
+  (`hbSeatsHtml`). The TV: the 3D board, the teams, the Brain's word, the
+  clocks.
+- Tests: `rules.mjs`, `leaks.mjs` (`DRIVERS.handbrain`), `play-all.mjs`.
+
 ### The duels' tournament
 
 The owner's decisions are in *The owner's specs*. One engine for every duel,
@@ -5987,6 +6132,15 @@ lands without its motion: a screenshot "mid-move" shows the move done. Emulate
 to photograph a 3D move mid-way replace the page's `performance.now` and
 `requestAnimationFrame` with a manual clock in the test (virtual time did not
 hold it).
+
+**A vote on a chess board must give the piece back.** The chess board's
+drag leaves a dropped piece on its new square when `onDrop` says it was
+played, waiting for the next position to carry it; a vote plays nothing, so
+the piece sat on the wrong square until the next redraw. A vote's `onDrop`
+returns `'pre'` (the premove's answer): the piece goes home and only the
+arrow stays. And in a CDP run the duels' pill scores of a tab that is not in
+front stay at the old number (`countUp` waits for a frame): activate the
+target before reading or screenshotting them.
 
 **A page can't be opened from an answer that came through a redirect.** The
 offline copy saved `./index.html`; GitHub Pages answers that directly, but

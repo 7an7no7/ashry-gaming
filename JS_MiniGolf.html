@@ -3176,6 +3176,19 @@ function paintMiniGolfSetup() {
   if (line) line.textContent = best ? '🏆 ' + mgT('mg_best', { hh, n: best.total, d: mgDelta(best.total - best.par) }) : mgT('mg_no_best', { hh });
   const cont = document.getElementById('minigolf-continue');
   if (cont) cont.classList.toggle('hidden', !mgSoloLive(s));
+  let daily = document.getElementById('minigolf-daily');
+  if (!daily) {
+    const parent = (cont && cont.parentNode) || document.querySelector('#view-setup-minigolf .mode-device-panel') || document.getElementById('view-setup-minigolf');
+    if (parent) {
+      daily = document.createElement('div');
+      daily.id = 'minigolf-daily';
+      if (cont && cont.parentNode === parent) parent.insertBefore(daily, cont);
+      else parent.appendChild(daily);
+    }
+  }
+  if (daily && typeof soloDailyButtonHtml === 'function') {
+    daily.innerHTML = soloDailyButtonHtml('minigolf', 'startMiniGolf(true)');
+  }
 }
 
 function setMiniGolfOption(key, value) {
@@ -3188,13 +3201,33 @@ function setMiniGolfOption(key, value) {
   paintMiniGolfSetup();
 }
 
-function startMiniGolf() {
-  const s = mgSoloState();
+function startMiniGolf(daily) {
+  if (daily && soloDailyResume('minigolf')) return;
+  soloDailySetAside('minigolf');
   soloNewGame('minigolf');
   mgSoloStopTimers();
-  // The holes, drawn from the kind chosen; the ones this phone played lately wait until the kind has gone round.
-  const course = golfDealCourse(s.holes, s.level, (ids, n, lvl) => freshPick('golf_' + lvl, ids, n));
-  Object.assign(s, { phase: 'play', game: { holes: course.length, level: s.level, course, guide: !!s.guide }, hole: 0, n: 0, at: golfHoleById(course[0]).tee.slice(), card: new Array(course.length).fill(null), startedAt: Date.now(), last: null, deal: Date.now().toString(36) });
+  const s = mgSoloState();
+  let course;
+  if (daily) {
+    const ids = GOLF_HOLES.map(h => h.id);
+    const rnd = soloRng(soloDaySeed('minigolf'));
+    const holeId = ids[Math.floor(rnd() * ids.length)];
+    course = [holeId];
+  } else {
+    course = golfDealCourse(s.holes, s.level, (ids, n, lvl) => freshPick('golf_' + lvl, ids, n));
+  }
+  Object.assign(s, {
+    daily: daily ? soloToday() : '',
+    phase: 'play',
+    game: { holes: course.length, level: daily ? 'mix' : s.level, course, guide: !!s.guide },
+    hole: 0,
+    n: 0,
+    at: golfHoleById(course[0]).tee.slice(),
+    card: new Array(course.length).fill(null),
+    startedAt: Date.now(),
+    last: null,
+    deal: Date.now().toString(36)
+  });
   saveToLocal();
   setView('play-minigolf');
   mgSoloPaint();
@@ -3351,6 +3384,13 @@ function mgSoloNext() {
 
 /** The best total for this length and kind, kept once a game (its result is shown later). */
 function mgSoloKeepBest(s) {
+  if (s.daily) {
+    const course = mgSoloCourse(s);
+    const total = (s.card || []).reduce((a, v) => a + (Number(v) || 0), 0);
+    const par = course[0] ? course[0].par : golfParOf(course);
+    soloMarkDaily('minigolf', { strokes: total, par }, s.daily);
+    return;
+  }
   if (s.bestDeal === s.deal) return;
   const g = s.game || { holes: s.holes };
   const course = mgSoloCourse(s);
@@ -3365,24 +3405,40 @@ function mgSoloShowResult() {
   const g = s.game || { holes: s.holes };
   const course = mgSoloCourse(s);
   const total = (s.card || []).reduce((a, v) => a + (Number(v) || 0), 0);
-  const par = golfParOf(course);
+  const par = course[0] ? course[0].par : golfParOf(course);
   const shown = s.resultShown === s.deal;
   const key = mgBestKey(g.level, course.length);
   const hh = mgHolesText(course.length) + ' · ' + mgLevelText(g.level);
-  const rec = shown ? { record: false, prev: soloBest('minigolf', key) }
-    : s.bestDeal === s.deal ? s.bestRec          // kept with the last putt
-    : soloRecord('minigolf', key, { total, par, at: Date.now() }, (a, b) => a.total < b.total);
+  let rec = { record: false, prev: null };
+  if (s.daily) {
+    soloMarkDaily('minigolf', { strokes: total, par }, s.daily);
+  } else {
+    rec = shown ? { record: false, prev: soloBest('minigolf', key) }
+      : s.bestDeal === s.deal ? s.bestRec          // kept with the last putt
+      : soloRecord('minigolf', key, { total, par, at: Date.now() }, (a, b) => a.total < b.total);
+  }
   s.resultShown = s.deal;
   saveToLocal();
   const lines = [escapeHTML(mgT('mg_vs_par', { d: mgDelta(total - par), p: par }))];
-  if (rec.record) lines.push('🏆 ' + escapeHTML(mgT('solo_new_best')));
-  else if (rec.prev) lines.push(escapeHTML(mgT('mg_best', { hh, n: rec.prev.total, d: mgDelta(rec.prev.total - rec.prev.par) })));
+  if (!s.daily) {
+    if (rec.record) lines.push('🏆 ' + escapeHTML(mgT('solo_new_best')));
+    else if (rec.prev) lines.push(escapeHTML(mgT('mg_best', { hh, n: rec.prev.total, d: mgDelta(rec.prev.total - rec.prev.par) })));
+  }
+  const t = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[appState.lang]) || {};
+  const share = s.daily
+    ? `${soloShareHeader(t, s.daily)}\n⛳ ${t.setup_minigolf || ''} · ${total <= par ? '🟢 ' : ''}⛳ ${total} · 🎯 ${par}`
+    : mgT('mg_share', { n: total, hh, d: mgDelta(total - par) }) + '\n' + mgCardText(s.card, course.length);
   soloResult({
-    icon: '⛳', title: mgT('mg_result_title', { hh: mgHolesText(course.length) }), value: total, valueLabel: mgT('mg_total_label'), lines,
-    win: rec.record || total <= par,
+    icon: '⛳',
+    title: s.daily ? (t.solo_solved || mgT('mg_result_title', { hh: mgHolesText(course.length) })) : mgT('mg_result_title', { hh: mgHolesText(course.length) }),
+    value: total,
+    valueLabel: mgT('mg_total_label'),
+    lines,
+    win: s.daily ? total <= par : (rec.record || total <= par),
     quiet: shown,
-    share: mgT('mg_share', { n: total, hh, d: mgDelta(total - par) }) + '\n' + mgCardText(s.card, course.length),
-    again: startMiniGolf, againLabel: '⛳ ' + mgT('mg_again'),
+    share,
+    again: () => startMiniGolf(false),
+    againLabel: '⛳ ' + mgT('mg_again'),
     exit: setupMiniGolf
   });
 }
@@ -3398,8 +3454,9 @@ if (typeof soloRegister === 'function') {
   soloRegister('minigolf', {
     setup: 'setup-minigolf', play: 'play-minigolf',
     paintSetup: paintMiniGolfSetup, restore: restoreMiniGolf,
-    state: () => mgSoloState(),
-    repaint: () => { const root = mgSoloRoot(); if (root) { root.innerHTML = ''; mgSoloPaint(); } }
+    state: mgSoloState, resume: mgContinue,
+    repaint: () => { const root = mgSoloRoot(); if (root) { root.innerHTML = ''; mgSoloPaint(); } },
+    prefs: ['holes', 'level', 'guide']
   });
 }
 

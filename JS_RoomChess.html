@@ -409,7 +409,12 @@ function chRoomRender(state, still) {
   chSetHtml(el, '[data-ch-head]', `${chRoomPills(state)}${chRoomTagHtml(state)}<p class="duel-status ${over ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(chRoomStatus(state))}</p>`);
   chSetHtml(el, '[data-ch-bar]', chRoomBarHtml(state) + chRoomHostRow(state));
   const side = [];
-  if (over) side.push(duelRoomOverHtml(state, t), `<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
+  if (over) {
+    // Kept first, so the share row below finds the game (a watcher keeps none, and has no row).
+    chRoomKeepGame(state);
+    side.push(duelRoomOverHtml(state, t), `<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
+    if (seat !== -1) side.push(chShareRowHtml(chRoomGameKey(state)));
+  }
   const rSet = s.settings || {};
   side.push(chMovesHtml(view.sans, { current: view.sans.length - 1, start: view.start || (s.chess && s.chess.start) || '', variant: rSet.variant || 'standard' }));
   side.push(duelRoomLineHtml(state, t));

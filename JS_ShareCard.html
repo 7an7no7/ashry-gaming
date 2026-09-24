@@ -83,9 +83,13 @@ function shareCardText(html) {
 /**
  * Draws the card and resolves with a PNG blob, or null if the browser would
  * not give one up.
- *   o: { title, icon, rows: [{ name, value } | 'a line'], footer }
+ *   o: { title, icon, rows: [{ name, value } | 'a line'], footer, board }
+ * board (optional, شطرنج): { board: 64 piece codes, last: { from, to }, orient }
+ * - the position drawn big in the middle, the rows under it. A card without it
+ * is drawn exactly as it always was.
  */
 async function drawShareCard(o) {
+  if (o.board && typeof chDrawBoardCanvas === 'function') return drawShareBoardCard(o);
   const c = shareCardColours();
   const rtl = (appState.lang || 'ar') === 'ar';
   const canvas = document.createElement('canvas');
@@ -188,6 +192,74 @@ async function drawShareCard(o) {
   ctx.direction = 'ltr';        // a URL is left-to-right in either language
   ctx.fillText(shareCardFit(ctx, appLink().replace(/^https?:\/\//, ''), SHARE_CARD.w - 120), mid, SHARE_CARD.h - 112);
 
+  return await new Promise((resolve) => {
+    try { canvas.toBlob(resolve, 'image/png'); } catch (e) { resolve(null); }
+  });
+}
+
+/**
+ * The card with a board on it: the icon and the title small at the top, the
+ * position big (the board as the phone draws it in 2D, its style's colours),
+ * up to three rows under it, then the mark and the link.
+ */
+async function drawShareBoardCard(o) {
+  const c = shareCardColours();
+  const rtl = (appState.lang || 'ar') === 'ar';
+  const canvas = document.createElement('canvas');
+  canvas.width = SHARE_CARD.w;
+  canvas.height = SHARE_CARD.h;
+  const ctx = canvas.getContext && canvas.getContext('2d');
+  if (!ctx) return null;
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) {}
+  const font = (weight, px) => { ctx.font = weight + ' ' + px + 'px Cairo, "Segoe UI", sans-serif'; };
+  ctx.textBaseline = 'middle';
+  const ground = ctx.createLinearGradient(0, 0, SHARE_CARD.w, SHARE_CARD.h);
+  ground.addColorStop(0, c.ground[0]); ground.addColorStop(0.52, c.ground[1]); ground.addColorStop(1, c.ground[2]);
+  ctx.fillStyle = ground;
+  ctx.fillRect(0, 0, SHARE_CARD.w, SHARE_CARD.h);
+  const mid = SHARE_CARD.w / 2;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = c.ink;
+  const art = await artIconImage(o.icon, 512);
+  if (art) ctx.drawImage(art, mid - 70, 110, 140, 140);
+  else { font('900', 120); ctx.fillText(String(o.icon || '🏆'), mid, 180); }
+  ctx.direction = rtl ? 'rtl' : 'ltr';
+  font('900', 70);
+  ctx.fillText(shareCardFit(ctx, o.title || '', SHARE_CARD.w - 140), mid, 318);
+  // The board, with a soft frame.
+  const size = 900, bx = (SHARE_CARD.w - size) / 2, by = 390;
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bx - 14, by - 14, size + 28, size + 28, 28); ctx.fill(); }
+  else ctx.fillRect(bx - 14, by - 14, size + 28, size + 28);
+  await chDrawBoardCanvas(ctx, o.board, bx, by, size);
+  // The rows under it: who played, the result, a line of the game's own.
+  const rows = (o.rows || []).slice(0, 3);
+  const rowH = 84, pad = 110, top = by + size + 44;
+  rows.forEach((row, i) => {
+    const y = top + rowH * i + rowH / 2;
+    const name = typeof row === 'string' ? row : (row.name || '');
+    const value = typeof row === 'string' ? '' : (row.value == null ? '' : String(row.value));
+    ctx.direction = rtl ? 'rtl' : 'ltr';
+    ctx.fillStyle = typeof row === 'string' ? 'rgba(255,255,255,0.86)' : c.ink;
+    if (typeof row === 'string') { font('700', 40); ctx.textAlign = 'center'; ctx.fillText(shareCardFit(ctx, name, SHARE_CARD.w - 160), mid, y); return; }
+    font('800', 50);
+    ctx.textAlign = rtl ? 'right' : 'left';
+    ctx.fillText(shareCardFit(ctx, name, SHARE_CARD.w - pad * 2 - 200), rtl ? SHARE_CARD.w - pad : pad, y);
+    if (value !== '') {
+      font('900', 56);
+      ctx.fillStyle = c.token;
+      ctx.textAlign = rtl ? 'left' : 'right';
+      ctx.direction = 'ltr';
+      ctx.fillText(shareCardFit(ctx, value, 200), rtl ? pad : SHARE_CARD.w - pad, y);
+    }
+  });
+  const mark = await shareCardMark();
+  if (mark) ctx.drawImage(mark, mid - 60, SHARE_CARD.h - 250, 120, 120);
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  font('700', 36);
+  ctx.textAlign = 'center';
+  ctx.direction = 'ltr';
+  ctx.fillText(shareCardFit(ctx, appLink().replace(/^https?:\/\//, ''), SHARE_CARD.w - 120), mid, SHARE_CARD.h - 80);
   return await new Promise((resolve) => {
     try { canvas.toBlob(resolve, 'image/png'); } catch (e) { resolve(null); }
   });

@@ -557,7 +557,9 @@ const PROBES = {
         return null;
       })
     ];
-  }
+  },
+  // المخ والإيد: the whole game is on the table (what the Brain named is said out loud).
+  handbrain: () => []
 };
 
 /*
@@ -1265,6 +1267,32 @@ const DRIVERS = {
     must(T, T.host, 'playAgain', {});
     play(30);
     if (S(T).phase === 'play') { const s = S(T); s.teams[s.vote.team].forEach((id) => act(T, id, 'vote', { resign: true, n: s.chess.moves })); }
+    return S(T).phase === 'over';
+  },
+  handbrain() {
+    // Three people and a computer player: the Brains name, the Hands move, the computer on the clock, the host's "play for".
+    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+    const T = table('handbrain', 3);
+    must(T, T.host, 'seats', {});
+    must(T, T.host, 'start', { clock: '10+0', botNames: ['زيزو'] });
+    const kindAt = (g, sq) => g.board['abcdefgh'.indexOf(sq[0]) + 8 * (Number(sq[1]) - 1)] & 7;
+    const play = (limit) => {
+      for (let guard = 0; guard < limit && S(T).phase === 'play'; guard++) {
+        const s = S(T);
+        const g = s.chess.g;
+        const up = s.teams[g.turn][s.stage === 'name' ? 0 : 1];
+        if (T.room.players.some((p) => p.id === up && p.bot)) { runClock(T, (r) => r.shared.chess.moves !== s.chess.moves || r.shared.stage !== s.stage || r.shared.phase !== 'play', 10); continue; }
+        if (guard % 11 === 5) { must(T, T.host, 'skipTurn', { move: s.chess.moves, stage: s.stage }); continue; }
+        const legal = CH.chessLegalMoves(g);
+        if (s.stage === 'name') must(T, up, 'name', { kind: kindAt(g, pick(legal).from), n: s.chess.moves });
+        else must(T, up, 'move', { ...pick(legal.filter((m) => kindAt(g, m.from) === s.named.kind)), move: s.chess.moves });
+      }
+    };
+    play(300);
+    if (S(T).phase === 'play') must(T, S(T).teams[0][0], 'resign', { round: S(T).round });
+    must(T, T.host, 'playAgain', {});
+    play(60);
+    if (S(T).phase === 'play') must(T, S(T).teams[1][1], 'resign', { round: S(T).round });
     return S(T).phase === 'over';
   },
   xo() {

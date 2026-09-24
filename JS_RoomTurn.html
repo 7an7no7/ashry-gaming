@@ -128,6 +128,12 @@ function roomTurnOf(state) {
       const team = (s.teams || []).findIndex(t => (t || []).indexOf(me) !== -1);
       return s.phase === 'play' && v && team === v.team && (v.voted || []).indexOf(me) === -1 ? 'turn_vote' : null;
     }
+    case 'handbrain': {
+      // The Brain to name a piece, or the Hand to move it (RoomHandBrain.js).
+      if (s.phase !== 'play' || !s.chess || s.chess.result) return null;
+      const team = (s.teams || [])[s.chess.g.turn] || [];
+      return team[s.stage === 'name' ? 0 : 1] === me ? 'turn_up' : null;
+    }
     case 'battleship':
       // Your fleet to place, or your shot (RoomBattleship.js).
       if (!Array.isArray(s.seats) || s.seats.indexOf(me) === -1) return null;

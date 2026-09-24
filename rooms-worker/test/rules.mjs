@@ -6839,6 +6839,134 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- المخ والإيد: the seats, the Brain names, the Hand moves, computer players, the clock, play again --- */
+{
+  const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + '\nreturn { chessFromFen, chessLegalMoves };')();
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const botsOf = (r) => r.players.filter((p) => p.bot).map((p) => p.id);
+  const hbRoom = (ids, order, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'handbrain' });
+    applyRoomAction(r, ids[0], 'seats', { order: order });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  // Two people: two easy computer players take the empty seats.
+  {
+    const r = newRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'handbrain' });
+    applyRoomAction(r, 'a', 'seats', {});
+    const lobby = r.shared.lobby.order;
+    check(lobby.length === 4 && lobby.filter(Boolean).sort().join() === 'a,b', 'handbrain: the lobby seats the two people, two seats left empty');
+    applyRoomAction(r, 'a', 'seats', { order: [lobby[1], lobby[0], lobby[2], lobby[3]] });
+    check(r.shared.lobby.order[0] === lobby[1], 'handbrain: the host swaps two seats');
+    applyRoomAction(r, 'a', 'start', { botNames: ['زيزو', 'بندق'] });
+    const s = r.shared;
+    check(r.players.length === 4 && botsOf(r).length === 2 && r.players.filter((p) => p.bot).every((p) => p.bot === 'easy') && r.players.some((p) => p.name === 'زيزو'),
+      'handbrain: the empty seats are filled with easy computer players, named by the host\'s phone');
+    check(s.teams.length === 2 && s.teams.every((t) => t.length === 2) && s.stage === 'name' && !s.chess.clock, 'handbrain: two teams of a Brain and a Hand, the Brain first, no clock by default');
+  }
+  // The Brain names, the Hand moves a piece of that kind; everyone else is refused.
+  {
+    const r = hbRoom(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd'], { clock: '5+0' });
+    const s = r.shared;
+    check(s.teams[0].join() === 'a,b' && s.teams[1].join() === 'c,d' && s.chess.clock && s.chess.clock.left[0] === 300000, 'handbrain: the host\'s seats and 5+0 per team');
+    check(refused(() => applyRoomAction(r, 'b', 'name', { kind: 2, n: 0 })), 'handbrain: the Hand can\'t name');
+    check(refused(() => applyRoomAction(r, 'c', 'name', { kind: 2, n: 0 })), 'handbrain: the other team\'s Brain can\'t name');
+    check(refused(() => applyRoomAction(r, 'a', 'name', { kind: 5, n: 0 })), 'handbrain: a kind with no legal move (the queen at the start) can\'t be named');
+    applyRoomAction(r, 'a', 'name', { kind: 2, n: 0 });
+    check(s.stage === 'move' && s.named.kind === 2 && s.named.by === 'a', 'handbrain: the Brain names the knight, and the table sees it');
+    applyRoomAction(r, 'a', 'name', { kind: 1, n: 0 });
+    check(s.named.kind === 2, 'handbrain: a second name for the same move is dropped');
+    check(refused(() => applyRoomAction(r, 'a', 'move', { from: 'g1', to: 'f3', move: 0 })), 'handbrain: the Brain can\'t move');
+    check(refused(() => applyRoomAction(r, 'b', 'move', { from: 'e2', to: 'e4', move: 0 })), 'handbrain: the Hand must move the kind named');
+    applyRoomAction(r, 'b', 'move', { from: 'g1', to: 'f3', move: 0 });
+    check(s.chess.moves === 1 && s.chess.last.kind === 2 && s.stage === 'name' && !s.named && s.calls.length === 1, 'handbrain: the Hand plays the knight; Black\'s Brain is up');
+    applyRoomAction(r, 'b', 'move', { from: 'f3', to: 'g5', move: 0 });
+    check(s.chess.moves === 1, 'handbrain: a second tap drawn for the move before is dropped');
+    applyRoomAction(r, 'd', 'resign', { round: 1 });
+    check(s.phase === 'over' && s.result.winner === 0 && s.result.reason === 'resign' && s.scores.a === 1 && s.scores.b === 1, 'handbrain: either member resigns for the team');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    const t = r.shared.teams;
+    check(t[0].join() === 'd,c' && t[1].join() === 'b,a' && r.shared.settings.clock === '5+0' && r.shared.round === 2,
+      'handbrain: play again - each team\'s roles swapped, the colours swapped, the clock kept');
+  }
+  // Flag: the clock is the team's.
+  {
+    const r = hbRoom(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd'], { clock: '5+0' });
+    applyRoomAction(r, 'a', 'name', { kind: 1, n: 0 });
+    applyRoomAction(r, 'b', 'move', { from: 'e2', to: 'e4', move: 0 });
+    clock = roomDeadline(r) + 5;
+    roomTimeout(r, clock);
+    check(r.shared.phase === 'over' && r.shared.result.reason === 'time' && r.shared.result.winner === 0, 'handbrain: Black\'s team runs out of time and loses');
+  }
+  // Forced: a Brain with one kind that can move names it; the host's "play for".
+  {
+    const r = hbRoom(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd']);
+    r.shared.chess.g = CH.chessFromFen('7k/8/8/8/8/8/8/K7 w - - 0 1');
+    const f = roomForcedMove(r);
+    check(!!f && f.pid === 'a' && f.move.action === 'name' && f.move.payload.kind === 6, 'handbrain: only the king can move - the Brain\'s name is made for them');
+    const r2 = hbRoom(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd']);
+    check(!roomForcedMove(r2), 'handbrain: a real choice is never made for the Brain');
+    applyRoomAction(r2, 'a', 'skipTurn', { move: 0, stage: 'name' });
+    check(r2.shared.stage === 'move' && !!r2.shared.named, 'handbrain: the host names for a quiet Brain');
+    applyRoomAction(r2, 'a', 'skipTurn', { move: 0, stage: 'move' });
+    check(r2.shared.chess.moves === 1 && r2.shared.chess.last.kind === r2.shared.calls[0].kind && r2.shared.chess.last.auto === 'host', 'handbrain: and moves a piece of that kind for a quiet Hand');
+    check(refused(() => applyRoomAction(r2, 'c', 'skipTurn', { move: 1, stage: 'name' })), 'handbrain: only the host plays for someone');
+  }
+  // A hard computer Hand finds the mate with the kind named.
+  {
+    const r = newRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'handbrain' });
+    applyRoomAction(r, 'a', 'addBot', { level: 'hard', name: 'H1' });
+    applyRoomAction(r, 'a', 'addBot', { level: 'hard', name: 'H2' });
+    const [h1, h2] = botsOf(r);
+    applyRoomAction(r, 'a', 'seats', { order: ['a', h1, 'b', h2] });
+    applyRoomAction(r, 'a', 'start', {});
+    r.shared.chess.g = CH.chessFromFen('6k1/5ppp/8/8/8/8/5PPP/3Q2K1 w - - 0 1');
+    applyRoomAction(r, 'a', 'name', { kind: 5, n: 0 });
+    clock += 5000;
+    roomTimeout(r, clock);
+    check(r.shared.phase === 'over' && r.shared.result.reason === 'mate' && r.shared.chess.last.to === 'd8', 'handbrain: a hard computer Hand told "the queen" finds Qd8#');
+  }
+  // A whole game: one person and three computer players, the host's "play for" on the person's turns.
+  {
+    let ended = 0, legal = true, moves = 0;
+    for (let game = 0; game < 3; game++) {
+      const r = newRoom(['a']);
+      applyRoomAction(r, 'a', 'chooseGame', { game: 'handbrain' });
+      applyRoomAction(r, 'a', 'addBot', { level: game % 2 ? 'hard' : 'easy', name: 'B' });
+      applyRoomAction(r, 'a', 'start', {});
+      for (let step = 0; step < 900 && r.shared.phase === 'play'; step++) {
+        const s = r.shared;
+        const up = s.teams[s.chess.g.turn][s.stage === 'name' ? 0 : 1];
+        if (up === 'a') { try { applyRoomAction(r, 'a', 'skipTurn', { move: s.chess.moves, stage: s.stage }); } catch (e) { legal = false; break; } continue; }
+        const before = s.chess.moves + s.stage;
+        clock += 5000;
+        roomTimeout(r, clock);
+        if (r.shared.phase === 'play' && r.shared.chess.moves + r.shared.stage === before) { legal = false; break; }
+      }
+      moves += r.shared.chess.moves;
+      if (r.shared.phase === 'play') applyRoomAction(r, 'a', 'resign', { round: r.shared.round });
+      if (r.shared.phase === 'over') ended++;
+    }
+    check(ended === 3 && legal, `handbrain: three whole games, one person and three computer players (easy and hard) - every computer move taken, every game ends (${moves} moves)`);
+  }
+  // Leaving mid-game: a computer player takes the seat.
+  {
+    const r = hbRoom(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'name', { kind: 1, n: 0 });
+    r.players = r.players.filter((p) => p.id !== 'b');
+    roomPlayerLeft(r, 'b', 'بسمة');
+    const hand = r.shared.teams[0][1];
+    check(hand !== 'b' && r.players.some((p) => p.id === hand && p.bot === 'easy' && p.name.indexOf('بسمة') !== -1) && r.shared.phase === 'play',
+      'handbrain: the Hand leaves - a computer player takes the seat and the game goes on');
+    clock += 5000;
+    roomTimeout(r, clock);
+    check(r.shared.chess.moves === 1 && r.shared.chess.last.kind === 1, 'handbrain: and plays the pawn its Brain named');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

@@ -364,7 +364,7 @@ async function duelTourRobots() {
   }
 }
 
-/* --- chess for teams: شطرنج بالتصويت (RoomVoteChess.js) ------- */
+/* --- chess for teams: شطرنج بالتصويت and المخ والإيد (RoomVoteChess.js, RoomHandBrain.js) ------- */
 
 async function teamChessRobots() {
   console.log('• votechess (the host\'s teams, secret votes, the tally, a tie, the clock, the host\'s close, resigning by vote, play again, a team left empty)');
@@ -426,6 +426,47 @@ async function teamChessRobots() {
     three.concat([S]).forEach((b) => b.close());
   }
 
+  console.log('• handbrain (computer players fill the seats, the Brain names, the Hand moves, bots on the server\'s clock, the host\'s "play for", resigning, play again swaps roles)');
+  {
+    const H = await Bot.host('هالة', null);
+    const J = await Bot.join(H.code, 'Jad');
+    const S = await Bot.join(H.code, '', true);
+    const two = [H, J];
+    await H.must('chooseGame', { game: 'handbrain' });
+    await H.must('seats', {});
+    await all(two, (s) => s.shared.lobby && s.shared.lobby.order.length === 4 && s.shared.lobby.order.filter(Boolean).length === 2, 'handbrain: the lobby seats the two people, two seats empty');
+    // Mona is White's Brain, Jad White's Hand: the computer plays Black.
+    await H.must('seats', { order: [H.pid, J.pid, null, null] });
+    await H.must('start', { clock: 'off', botNames: ['زيزو', 'بندق'] });
+    await all(two.concat([S]), (s) => s.shared.phase === 'play' && s.players.filter((p) => p.bot).length === 2 && s.shared.teams[0].join() === H.pid + ',' + J.pid && s.shared.stage === 'name',
+      'handbrain: two computer players take the empty seats, White\'s Brain is up');
+    check((await J.act('name', { kind: 2, n: 0 })).ok === false, 'handbrain: the Hand can\'t name');
+    check((await H.act('name', { kind: 5, n: 0 })).ok === false, 'handbrain: a kind with no legal move can\'t be named');
+    await H.must('name', { kind: 2, n: 0 });
+    await all(two.concat([S]), (s) => s.shared.stage === 'move' && s.shared.named && s.shared.named.kind === 2, 'handbrain: "the knight!" reaches every phone and the TV');
+    check((await J.act('move', { from: 'e2', to: 'e4', move: 0 })).ok === false, 'handbrain: the Hand must move the kind named');
+    check((await H.act('move', { from: 'g1', to: 'f3', move: 0 })).ok === false, 'handbrain: the Brain can\'t move');
+    await J.must('move', { from: 'g1', to: 'f3', move: 0 });
+    await all(two.concat([S]), (s) => s.shared.chess.moves >= 2 && s.shared.stage === 'name' && s.shared.chess.g.turn === 0,
+      'handbrain: the Hand plays the knight; Black\'s computer Brain and Hand answer on the server\'s clock', 12000);
+    // The host plays for a quiet Hand.
+    await H.must('name', { kind: 1, n: 2 });
+    await H.must('skipTurn', { move: 2, stage: 'move' });
+    await all(two, (s) => s.shared.chess.moves >= 3 && s.shared.chess.hist.length >= 3, 'handbrain: the host plays a pawn for a quiet Hand');
+    check(H.state.shared.calls.some((c) => c.kind === 1 && c.n === 2), 'handbrain: what the Brain named is kept for the log');
+    await H.waitFor((s) => s.shared.chess.g.turn === 0 && s.shared.stage === 'name', 'handbrain: back to White', 12000);
+    await J.must('resign', { round: 1 });
+    await all(two.concat([S]), (s) => s.shared.phase === 'over' && s.shared.result.reason === 'resign' && s.shared.result.winner === 1, 'handbrain: the Hand resigns for the team');
+    await H.must('playAgain', {});
+    await all(two.concat([S]), (s) => s.shared.phase === 'play' && s.shared.round === 2 && s.shared.teams[1].join() === J.pid + ',' + H.pid,
+      'handbrain: play again - the roles swapped (Jad the Brain, Mona the Hand) and the colours too');
+    // Now the computer is White: it names and moves by itself.
+    await H.waitFor((s) => s.shared.chess.moves >= 1 && s.shared.chess.g.turn === 1, 'handbrain: the computer\'s team opens as White', 12000);
+    await J.must('resign', { round: 2 });
+    await H.waitFor((s) => s.shared.phase === 'over', 'handbrain: the second game ends');
+    await H.must('backToHub');
+    two.concat([S]).forEach((b) => b.close());
+  }
 }
 
 async function main() {

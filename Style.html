@@ -14441,7 +14441,7 @@ button.tour-live { cursor: pointer; }
 }
 
 /* ==========================================================================
-   34. CHESS FOR TEAMS: شطرنج بالتصويت (24 Sep 2026)
+   34. CHESS FOR TEAMS: شطرنج بالتصويت · المخ والإيد (24 Sep 2026)
    JS_RoomVoteChess.html and JS_RoomHandBrain.html, on the chess screen of
    section 30 (the board, the duels' pills, the moves). What they add: the
    members of a team under its pill (a dot fills as each votes, never what
@@ -14450,13 +14450,14 @@ button.tour-live { cursor: pointer; }
    of the lobby. The piece colours are the board's own, the same in both
    themes; everything else is the tokens.
    ========================================================================== */
-.vc-mems { display: inline-flex; flex-wrap: wrap; gap: 0.15rem 0.5rem; margin-inline-end: 0.25rem; }
-.vc-mem { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--fs-xs); font-weight: var(--fw-med); color: var(--text-2); }
+.vc-mems, .hb-whos { display: inline-flex; flex-wrap: wrap; gap: 0.15rem 0.5rem; margin-inline-end: 0.25rem; }
+.vc-mem, .hb-who { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--fs-xs); font-weight: var(--fw-med); color: var(--text-2); }
 .vc-mem__dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--border-strong); flex: none; }
 .vc-mem.is-wait .vc-mem__dot { background: none; box-shadow: inset 0 0 0 1.5px var(--text-3); }
 .vc-mem.is-in .vc-mem__dot { background: var(--success); animation: vcDotIn var(--dur-3) var(--ease-spring); }
 .vc-mem.is-in { color: var(--text-strong); }
-.vc-mem.is-me { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-thickness: 2px; }
+.hb-who.is-up { color: var(--accent-ink); font-weight: var(--fw-bold); }
+.vc-mem.is-me, .hb-who.is-me { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-thickness: 2px; }
 @keyframes vcDotIn { from { transform: scale(0.2); } to { transform: scale(1); } }
 
 /* The vote's clock: a ring that runs down (--p, 1 → 0) round the seconds left. */
@@ -14507,14 +14508,65 @@ button.tour-live { cursor: pointer; }
 button.vc-side__chip { cursor: pointer; }
 button.vc-side__chip span { color: var(--text-3); }
 
+/* المخ والإيد: the Brain's six pieces (only those that can move lit). */
+/* Six in a row where they fit, else as many as keep each name whole (a phone on its side: a narrow column). */
+.hb-kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(3.1rem, 1fr)); gap: var(--sp-1); }
+.hb-kind {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem;
+  min-height: 3.6rem; padding: var(--sp-1) 0; border-radius: var(--r-md); border: 1px solid var(--accent-border);
+  background: var(--surface-solid); color: var(--text-strong); font: inherit; cursor: pointer;
+  box-shadow: var(--sh-1); transition: transform var(--dur-1) var(--ease-out), background var(--dur-2);
+}
+.hb-kind:active:not(:disabled) { transform: scale(0.94); }
+.hb-kind:disabled { opacity: 0.32; box-shadow: none; cursor: default; }
+.hb-kind__pc { width: 2rem; height: 2rem; }
+.hb-kind__name { font-size: var(--fs-xs); font-weight: var(--fw-semi); line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The Brain's word, said to the table: big, and popping in the first time a screen shows it. */
+.hb-call {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-xl);
+  background: var(--accent-soft); border: 1px solid var(--accent-border); color: var(--text-strong);
+}
+.hb-call__pc { width: 2.6rem; height: 2.6rem; flex: none; }
+.hb-call__txt { font-weight: var(--fw-semi); }
+.hb-call__txt b { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--accent-ink); }
+.hb-call.is-fresh { animation: hbCallIn 520ms var(--ease-spring) both; }
+.hb-call.is-fresh .hb-call__pc { animation: hbPcIn 640ms var(--ease-spring) 120ms both; }
+@keyframes hbCallIn { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
+@keyframes hbPcIn { 0% { transform: scale(0.3) rotate(-18deg); } 70% { transform: scale(1.18) rotate(6deg); } 100% { transform: none; } }
+
+.hb-log { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-3); font-size: var(--fs-xs); color: var(--text-2); }
+.hb-log .field__label { width: 100%; margin: 0; }
+.hb-log__row { display: inline-flex; align-items: center; gap: 0.2rem; }
+.hb-log__pc { width: 1.1rem; height: 1.1rem; }
+
+/* The lobby's four seats: a team's Brain and Hand under its colour. */
+.hb-seats { display: flex; flex-direction: column; gap: var(--sp-1); }
+.hb-seat {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.05rem; width: 100%; min-height: 2.9rem;
+  padding: var(--sp-1) var(--sp-2); border-radius: var(--r-md); border: 1px solid var(--border-strong);
+  background: var(--surface-solid); color: var(--text-strong); font: inherit; text-align: start;
+}
+button.hb-seat { cursor: pointer; }
+.hb-seat.is-picked { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+.hb-seat__role { font-size: var(--fs-xs); color: var(--text-3); font-weight: var(--fw-semi); }
+.hb-seat__who { font-size: var(--fs-sm); font-weight: var(--fw-bold); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-seat__empty { color: var(--text-3); font-weight: var(--fw-med); }
+
 /* The TV: the same pieces, sized from the screen. */
 .is-tv-view .vc-clockrow__txt { font-size: 2.1vmin; }
 .is-tv-view .vc-clock { width: 6vmin; height: 6vmin; }
 .is-tv-view .vc-clock__n { font-size: 2.6vmin; }
-.is-tv-view .vc-mem { font-size: 1.8vmin; }
+.is-tv-view .vc-mem, .is-tv-view .hb-who { font-size: 1.8vmin; }
+.is-tv-view .hb-call { padding: 1.2vmin 2vmin; }
+.is-tv-view .hb-call__pc { width: 7vmin; height: 7vmin; }
+.is-tv-view .hb-call__txt { font-size: 2.4vmin; }
+.is-tv-view .hb-call__txt b { font-size: 4.2vmin; }
 
 @media (prefers-reduced-motion: reduce) {
-  .vc-mem.is-in .vc-mem__dot, .vc-tally.is-fresh, .vc-tally.is-fresh .vc-tally__row, .vc-tally.is-fresh .vc-tally__bar { animation: none; }
+  .vc-mem.is-in .vc-mem__dot, .vc-tally.is-fresh, .vc-tally.is-fresh .vc-tally__row, .vc-tally.is-fresh .vc-tally__bar,
+  .hb-call.is-fresh, .hb-call.is-fresh .hb-call__pc { animation: none; }
 }
 
 </style>

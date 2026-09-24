@@ -78,7 +78,7 @@ function svLobbyFields(kind, o) {
   }[kind];
   return `${extra}
     ${svSeg(svT('sv_lobby_rounds'), kind, 'rounds', SV_ROUNDS.map(n => [n, String(n)]), o.rounds)}
-    ${svSeg('⏱️ ' + svT('sv_lobby_clock'), kind, 'clock', SV_CLOCKS[kind].map(v => [v, v ? v + '″' : svT('gw_clock_off')]), o.clock, svT('sv_clock_hint'))}`;
+    ${svSeg('⏱️ ' + svT('sv_lobby_clock'), kind, 'clock', SV_CLOCKS[kind].map(v => [v, v ? v + '″' : svT('gw_clock_off')]), o.clock, o.clock ? svT('sv_clock_hint') : '')}`;
 }
 
 function svLobbyHtml(kind, state) {
@@ -871,7 +871,7 @@ ROOM_GAMES.emoji = {
     if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(svT('sv_emoji_lobby_hint'))}</p>`;
     const o = svRoomOpts('emoji');
     const ways = svSeg(svT('sv_lobby_mode'), 'emoji', 'way', [['setter', svT('sv_mode_setter')], ['race', svT('sv_mode_race')], ['quiz', svT('sv_mode_quiz')]], way,
-      svT(way === 'quiz' ? 'sv_quiz_hint_emoji' : way === 'race' ? 'sv_race_hint_emoji' : 'sv_setter_hint_emoji'));
+      way === 'quiz' ? '' : svT(way === 'race' ? 'sv_race_hint_emoji' : 'sv_setter_hint_emoji'));
     if (way === 'quiz') return `<div class="card card--tight">${ways}</div>${SV_EMOJI_QUIZ.lobbyOptions(state)}`;
     return `<div class="card card--tight">${ways}${svLobbyFields('emoji', o)}</div>`;
   },

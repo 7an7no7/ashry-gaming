@@ -644,10 +644,10 @@ ROOM_GAMES.guesswho = {
     return `<div class="card card--tight">
         ${gwLobbySeg(gwT('gw_lobby_size'), 'size', GW_SIZES.map(n => [n, String(n)]), o.size)}
         ${gwLobbySeg(gwT('gw_lobby_pick'), 'pick', [['random', gwT('gw_pick_random')], ['choose', gwT('gw_pick_choose')]], o.pick)}
-        ${gwLobbySeg(gwT('gw_lobby_flip'), 'autoFlip', [[false, gwT('gw_flip_hand')], [true, gwT('gw_flip_auto')]], o.autoFlip, gwT('gw_flip_hint'))}
+        ${gwLobbySeg(gwT('gw_lobby_flip'), 'autoFlip', [[false, gwT('gw_flip_hand')], [true, gwT('gw_flip_auto')]], o.autoFlip, o.autoFlip ? gwT('gw_flip_hint') : '')}
         ${gwLobbySeg(gwT('gw_lobby_wrong'), 'wrong', [['lose', gwT('gw_wrong_lose')], ['turn', gwT('gw_wrong_turn')]], o.wrong)}
         ${gwLobbySeg('⏱️ ' + gwT('gw_lobby_clock'), 'turnClock', GW_CLOCKS.map(v => [v, v ? v + '″' : gwT('gw_clock_off')]), o.turnClock)}
-        <p class="field__hint" style="text-align:center">${escapeHTML(gwT('gw_lobby_hint'))}</p>
+        ${typeof tourModeOf === 'function' && tourModeOf(state.game) === 'tour' && tourCanStart(state) ? '' : `<p class="field__hint" style="text-align:center">${escapeHTML(gwT('gw_lobby_hint'))}</p>`}
       </div>`;
   },
   startPayload() {

@@ -1168,14 +1168,75 @@ function chState() {
       vs: 'phone', elo: 1200, color: 'w', clock: 'off', names: [], coach: false,
       coachOpts: { warn: true, hint: true, comment: true, threats: true },
       phase: 'setup', g: null, hist: [], sans: [], lost: [[], []], last: null, clk: null, result: null,
-      me: 0, firstWhite: 0, gameId: '', scores: [0, 0, 0], flip: false, start: '', comment: null, practice: false
+      me: 0, firstWhite: 0, gameId: '', scores: [0, 0, 0], flip: false, start: '', comment: null, practice: false,
+      helpLimit: '3', help: chHelpNew()
     };
   }
   const s = appState.shatranj;
   if (!s.coachOpts) s.coachOpts = { warn: true, hint: true, comment: true, threats: true };
   if (!s.scores) s.scores = [0, 0, 0];
   if (!s.lost) s.lost = [[], []];
+  if (CH_HELP_LIMITS.indexOf(s.helpLimit) === -1) s.helpLimit = '3';
+  if (!s.help) s.help = chHelpNew();
   return s;
+}
+
+/* --- undo and hints against the computer: unlimited, 3 a game or none (the owner, 24 Sep 2026) --- */
+
+const CH_HELP_LIMITS = ['unlimited', '3', 'none'];
+
+/** What a game has used: undos and hints counted, the rest as flags (the kept record carries it). */
+const chHelpNew = (o) => Object.assign({ undo: 0, hint: 0, best: false, warn: false, setup: false, odds: false }, o || {});
+
+/** How many undos or hints are left in this game (Infinity when unlimited, 0 when none). */
+function chHelpLeft(s, kind) {
+  if (s.vs !== 'phone') return 0;
+  const lim = s.gameHelp || s.helpLimit || '3';
+  if (lim === 'unlimited') return Infinity;
+  if (lim === 'none') return 0;
+  return Math.max(0, Number(lim) - ((s.help && s.help[kind]) || 0));
+}
+
+/** Your moves so far against the computer. */
+const chMyMoves = (s) => (s.me === 0 ? Math.ceil(s.hist.length / 2) : Math.floor(s.hist.length / 2));
+
+/** Can ↶ be pressed now: against the computer, a game going on, a move of yours to take back, one left. */
+const chCanUndo = (s) => s.vs === 'phone' && s.phase === 'play' && !chLocal.pending && chMyMoves(s) >= 1 && chHelpLeft(s, 'undo') > 0;
+
+/** The game again from its start and the moves in `hist`: the position (repetition keys too), the moves, what was taken. */
+function chRebuildLocal(s, hist) {
+  const g = s.start ? chessFromFen(s.start) : chessNew();
+  const lost = s.lostStart ? [s.lostStart[0].slice(), s.lostStart[1].slice()] : [[], []];
+  const kept = [], sans = [];
+  let last = null;
+  for (let k = 0; k < hist.length; k++) {
+    const mover = g.turn;
+    const info = chessPlay(g, chessFromUci(hist[k]));
+    if (!info) break;
+    kept.push(hist[k]);
+    sans.push(info.san);
+    if (info.capture) lost[1 - mover].push(info.capture);
+    last = { from: info.from, to: info.to, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, n: kept.length };
+  }
+  s.g = g; s.hist = kept; s.sans = sans; s.lost = lost; s.last = last;
+}
+
+/** ↶: your last move and the computer's answer taken back (only yours while it is still thinking). */
+function chUndoLocal() {
+  const s = chState();
+  if (!chCanUndo(s)) return;
+  chStopTimers();
+  if (s.clk && s.clk.at) { const side = s.g.turn; s.clk.left[side] = Math.max(0, chessClockLeft(s.clk, side, side, Date.now())); s.clk.at = null; }
+  const back = s.g.turn === s.me ? 2 : 1;
+  chRebuildLocal(s, s.hist.slice(0, Math.max(0, s.hist.length - back)));
+  s.help.undo++;
+  s.comment = null;
+  chLocal.sel = '';
+  chLocal.hint = null;
+  saveToLocal();
+  haptic('light');
+  chPaint({ still: true });
+  chAfterMove();
 }
 
 function setupShatranj() {
@@ -1206,11 +1267,13 @@ function paintShatranjSetup() {
   duelPaintSegmented('shatranj-vs', s.vs);
   duelPaintSegmented('shatranj-color', s.color);
   duelPaintSegmented('shatranj-clock', s.clock);
+  duelPaintSegmented('shatranj-help', s.helpLimit);
   const phone = s.vs === 'phone';
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
   show('shatranj-elo-field', phone);
   show('shatranj-color-field', phone);
   show('shatranj-coach-field', phone);
+  show('shatranj-help-field', phone);
   show('shatranj-names-field', !phone);
   const elo = document.getElementById('shatranj-elo');
   if (elo && Number(elo.value) !== s.elo) elo.value = s.elo;
@@ -1220,7 +1283,7 @@ function paintShatranjSetup() {
   const coach = document.getElementById('shatranj-coach');
   if (coach) coach.checked = !!s.coach;
   show('shatranj-coach-opts', phone && !!s.coach);
-  ['warn', 'hint', 'comment', 'threats'].forEach(k => { const el = document.getElementById('shatranj-coach-' + k); if (el) el.checked = s.coachOpts[k] !== false; });
+  ['warn', 'comment', 'threats'].forEach(k => { const el = document.getElementById('shatranj-coach-' + k); if (el) el.checked = s.coachOpts[k] !== false; });
   const cont = document.getElementById('shatranj-continue');
   if (cont) cont.classList.toggle('hidden', !(s.phase === 'play' && s.g));
   if (typeof chPaintHistory === 'function') chPaintHistory();
@@ -1267,11 +1330,15 @@ function chNewGame(opts) {
   s.sans = [];
   // A game from a position (try the better move) keeps what had been taken by then.
   s.lost = o.lost ? [o.lost[0].slice(), o.lost[1].slice()] : [[], []];
+  s.lostStart = [s.lost[0].slice(), s.lost[1].slice()];
   s.last = null;
   s.result = null;
   s.comment = null;
   s.flip = false;
   s.practice = !!o.practice;
+  // Undo and hints: this game keeps the limit it was started with, and counts what it used.
+  s.gameHelp = s.helpLimit;
+  s.help = chHelpNew({ setup: !!o.setup });
   if (s.vs === 'phone') s.me = o.me !== undefined ? o.me : (s.color === 'b' ? 1 : s.color === 'random' ? (Math.random() < 0.5 ? 0 : 1) : 0);
   s.clk = chessClockNew(s.clock);
   s.phase = 'play';
@@ -1316,8 +1383,9 @@ function chPlayLocal(from, to, promo) {
   // The coach watches your moves against the computer: a blunder is caught before it counts.
   if (s.vs === 'phone' && s.coach && s.phase === 'play' && (s.coachOpts.warn !== false || s.coachOpts.comment !== false)) {
     chPaint();
-    // Not if the board was left meanwhile (a warning would open over another screen).
-    setTimeout(() => { if (appState.currentView === 'play-shatranj' && chState().phase === 'play') chCoachJudge(before, beforeLost, info, beforeClk); }, 40);
+    // Not if the board was left meanwhile (a warning would open over another screen), or the move taken back.
+    const n = s.hist.length;
+    setTimeout(() => { if (appState.currentView === 'play-shatranj' && chState().phase === 'play' && chState().hist.length === n) chCoachJudge(before, beforeLost, info, beforeClk); }, 40);
     return;
   }
   chPaint();
@@ -1384,7 +1452,8 @@ function chEnd(s, result, reason) {
   if (typeof chStoreGame === 'function') {
     const names = chNames(s);
     chStoreGame({ mode: s.vs === 'phone' ? 'phone' : 'friend', names: names, elo: s.vs === 'phone' ? s.elo : null, me: s.vs === 'phone' ? s.me : null,
-      result: result, reason: reason, start: s.start || '', moves: s.hist.slice(), key: 'local|' + s.gameId });
+      result: result, reason: reason, start: s.start || '', moves: s.hist.slice(), key: 'local|' + s.gameId,
+      help: s.vs === 'phone' ? chHelpNew(s.help) : null });
   }
 }
 
@@ -1502,6 +1571,7 @@ function chCoachJudge(before, beforeLost, info, beforeClk) {
   const verdict = chessJudge(before, mv, pre, after);
   if (s.coachOpts.warn !== false && verdict.cls === 'blunder' && s.phase !== 'done') {
     chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null };
+    if (s.help) s.help.warn = true;
     // Nobody's clock runs while the warning is read: the computer's is stopped where it is, and it
     // runs again on "play it anyway" (chAfterMove); a take back puts yours back as it was.
     chStopTimers();
@@ -1573,12 +1643,17 @@ function chCoachPlayAnyway() {
 /** The hint: the best move as an arrow on the board, and why in one line. */
 function chHint() {
   const s = chState();
-  if (!chHumanTurn(s) || !s.coach) return;
+  if (!chHumanTurn(s) || s.vs !== 'phone' || chLocal.pending) return;
   const key = s.gameId + '|' + s.hist.length;
+  // The hint on the board already is not asked for twice.
+  if (chLocal.hint && chLocal.hint.key === key) return;
+  if (chHelpLeft(s, 'hint') <= 0) return;
   const a = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : chessAnalyse(s.g, { nodes: CH_COACH_NODES, ms: 900 });
   chLocal.coachBefore = a; chLocal.coachKey = key;
   if (!a.move) return;
   chLocal.hint = { move: a.move, san: a.san, reasons: chessMoveGood(s.g, a.move, a), key: key };
+  s.help.hint++;
+  saveToLocal();
   chSound('hint');
   haptic('light');
   chPaint();
@@ -1646,7 +1721,8 @@ function chPaint(opts) {
     key: 'local|' + s.gameId,
     board: s.g.board, orient: chOrient(s), loud: true,
     last: s.last ? { from: s.last.from, to: s.last.to } : null,
-    anim: s.last ? Object.assign({ key: s.gameId + '|' + s.last.n, still: !!o.still }, s.last) : null,
+    // The undo count is in the key: after ↶ the same move number is another move (else the piece snaps).
+    anim: s.last ? Object.assign({ key: s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n, still: !!o.still }, s.last) : null,
     check: chessCheckSq(s.g),
     mate: ended && s.result.reason === 'mate' ? chMateKing(s.g) : '',
     sel: humanTurn ? chLocal.sel : '',
@@ -1703,8 +1779,12 @@ function chLocalBarHtml(s, hint) {
       </div>`;
   }
   const parts = [];
-  if (s.vs === 'phone' && s.coach && s.coachOpts.hint !== false && chHumanTurn(s)) {
-    parts.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chHint()">💡 ${escapeHTML(chT('ch_hint'))}</button>`);
+  if (s.vs === 'phone' && (s.gameHelp || s.helpLimit) !== 'none') {
+    // Each shows what is left in this game (nothing when unlimited).
+    const count = (kind) => { const n = chHelpLeft(s, kind); return n === Infinity ? '' : ` <b class="ch-help-n metric">${n}</b>`; };
+    const hintOn = chHumanTurn(s) && !chLocal.pending && (chHelpLeft(s, 'hint') > 0 || !!hint);
+    parts.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chHint()" ${hintOn ? '' : 'disabled'}>💡 ${escapeHTML(chT('ch_hint'))}${count('hint')}</button>`);
+    parts.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chUndoLocal()" ${chCanUndo(s) ? '' : 'disabled'}>↶ ${escapeHTML(chT('ch_undo'))}${count('undo')}</button>`);
   }
   if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chFlipLocal()" aria-label="${escapeHTML(chT('ch_flip'))}">↻ ${escapeHTML(chT('ch_flip'))}</button>`);
   if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chDrawLocal()">½ ${escapeHTML(chT('ch_draw_agree'))}</button>`);

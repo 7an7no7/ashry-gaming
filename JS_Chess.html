@@ -992,6 +992,26 @@ function chMake3D(THREE, root) {
       og.fill();
       og.restore();
     });
+    // The labels last, over every arrow: a pill at the head, turned to whoever sits at the near side.
+    (m.arrows || []).forEach(ar => {
+      const b = at(ar.to);
+      if (!ar.label || !b) return;
+      const cx = b.x + u / 2, cy = b.y + u / 2, pw = u * 0.86, ph = u * 0.42;
+      og.save();
+      og.translate(cx, cy);
+      if (m.orient) og.rotate(Math.PI);
+      og.fillStyle = ar.color || 'rgba(34, 197, 94, 0.9)';
+      og.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      og.lineWidth = 3;
+      og.beginPath();
+      if (og.roundRect) og.roundRect(-pw / 2, -ph / 2, pw, ph, ph / 2); else og.rect(-pw / 2, -ph / 2, pw, ph);
+      og.fill(); og.stroke();
+      og.fillStyle = ar.ink || '#ffffff';
+      og.font = '800 ' + Math.round(u * 0.28) + 'px Cairo, "Segoe UI", sans-serif';
+      og.textAlign = 'center'; og.textBaseline = 'middle';
+      og.fillText(ar.label, 0, 2);
+      og.restore();
+    });
     overTex.needsUpdate = true;
   }
 
@@ -1337,8 +1357,10 @@ function ch2ArrowsSvg(m, o) {
     const ux = (x1 - x0) / len, uy = (y1 - y0) / len;
     const hx = x1 - ux * 0.42, hy = y1 - uy * 0.42;
     const col = a.color || 'rgba(34,197,94,0.85)';
+    // A label at the arrow's head (the best moves' win chance), on a pill of the arrow's colour.
+    const label = a.label ? `<g class="ch2-arrow-label"><rect x="${x1 - 0.42}" y="${y1 - 0.2}" width="0.84" height="0.4" rx="0.2" fill="${col}" stroke="rgba(0,0,0,0.35)" stroke-width="0.02"/><text x="${x1}" y="${y1 + 0.01}" fill="${a.ink || '#fff'}" font-size="0.27" font-weight="800" text-anchor="middle" dominant-baseline="middle">${escapeHTML(a.label)}</text></g>` : '';
     return `<line x1="${x0 + ux * 0.2}" y1="${y0 + uy * 0.2}" x2="${hx}" y2="${hy}" stroke="${col}" stroke-width="0.19" stroke-linecap="round"/>` +
-      `<polygon points="${x1 - ux * 0.06},${y1 - uy * 0.06} ${hx - uy * 0.3},${hy + ux * 0.3} ${hx + uy * 0.3},${hy - ux * 0.3}" fill="${col}"/>`;
+      `<polygon points="${x1 - ux * 0.06},${y1 - uy * 0.06} ${hx - uy * 0.3},${hy + ux * 0.3} ${hx + uy * 0.3},${hy - ux * 0.3}" fill="${col}"/>` + label;
   }).join('');
   return list ? `<svg class="ch2-arrows" viewBox="0 0 8 8" aria-hidden="true">${list}</svg>` : '';
 }
@@ -2159,8 +2181,9 @@ function chResultLine(result, reason, names) {
    ========================================================================= */
 
 // busy: a second tap too soon; thinking: the computer's timer; tick: the clock's.
-// pre / presel: a premove queued against the computer, and the piece picked up for one.
-const chLocal = { sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '', pre: null, presel: '' };
+// pre / presel: a premove queued against the computer, and the piece picked up for one;
+// best / bestKey: the best-move arrows worked out for a position (and the one being worked out).
+const chLocal = { sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '', pre: null, presel: '', best: null, bestKey: '' };
 
 function chState() {
   if (!appState.shatranj) {
@@ -2298,6 +2321,7 @@ function chUnratedReason(s, o) {
   if (x.setup) return 'ch_unrated_setup';
   if (s.helpLimit !== 'none') return 'ch_unrated_help';
   if (s.coach && s.coachOpts.warn !== false) return 'ch_unrated_warn';
+  if (s.coach && s.coachOpts.best) return 'ch_unrated_best';
   if (!x.setup && !x.practice && chOddsNow(s) !== 'none') return 'ch_unrated_odds';
   return '';
 }
@@ -2544,6 +2568,9 @@ function paintShatranjSetup() {
   if (coach) coach.checked = !!s.coach;
   show('shatranj-coach-opts', phone && !!s.coach);
   ['warn', 'comment', 'threats'].forEach(k => { const el = document.getElementById('shatranj-coach-' + k); if (el) el.checked = s.coachOpts[k] !== false; });
+  // The best-move arrows are off unless switched on (and they make the game unrated).
+  const bestSw = document.getElementById('shatranj-coach-best');
+  if (bestSw) bestSw.checked = !!s.coachOpts.best;
   const cont = document.getElementById('shatranj-continue');
   if (cont) cont.classList.toggle('hidden', !(s.phase === 'play' && s.g));
   // Your rating, and whether the game about to start counts for it.
@@ -2812,8 +2839,9 @@ function chAfterMove() {
     chPaint();
     chPremoveDropped(pre.from);
     if (s.coach) chCoachPrepare();
+    chBestPrepare();
   }
-  else if (s.vs === 'phone' && s.coach) chCoachPrepare();
+  else if (s.vs === 'phone' && s.coach) { chCoachPrepare(); chBestPrepare(); }
 }
 
 function chComputerSoon() {
@@ -2989,6 +3017,68 @@ function chCoachPlayAnyway() {
   chCoachAccept(p.verdict);
 }
 
+/* --- the best moves as arrows (the owner, 24 Sep 2026: a coach switch «أفضل الحركات», off by
+   default, against the computer only; the game is then not rated) ----------------------------
+   On your turn the three best moves are drawn as arrows - green, lighter green, yellow - each with
+   your chance to win if you play it, and a line under the board names them. Worked out in slices so
+   the page never freezes: a short look at the position picks five candidates, then each candidate's
+   position is searched in a tick of its own (bounded by positions, so the same position gives the
+   same arrows), and nothing shows until all are in. */
+
+const CH_BEST = { cands: 5, rootNodes: 4000, nodes: 9000 };
+const CH_BEST_COLORS = [['rgba(22, 163, 74, 0.9)', '#ffffff'], ['rgba(110, 231, 150, 0.9)', '#14532d'], ['rgba(250, 204, 21, 0.92)', '#422006']];
+
+/** Are the best-move arrows on in this game (and is it your move to see them)? */
+const chBestOn = (s) => s.vs === 'phone' && !!s.coach && !!(s.coachOpts && s.coachOpts.best) && s.phase === 'play' && s.g && s.g.turn === s.me && !chLocal.pending;
+
+/** Works the three best moves out, a candidate a tick, then draws them. */
+function chBestPrepare() {
+  const s = chState();
+  if (!chBestOn(s)) return;
+  const key = s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.hist.length;
+  if ((chLocal.best && chLocal.best.key === key) || chLocal.bestKey === key) return;
+  chLocal.bestKey = key;
+  const g0 = chessCloneGame(s.g);
+  const alive = () => { const st = chState(); return appState.currentView === 'play-shatranj' && chLocal.bestKey === key && chBestOn(st) && st.gameId + '|' + ((st.help && st.help.undo) || 0) + '|' + st.hist.length === key; };
+  let cands = [], k = 0;
+  const out = [];
+  const step = () => {
+    if (!alive()) { if (chLocal.bestKey === key) chLocal.bestKey = ''; return; }
+    if (!cands.length && k === 0) {
+      const a = chessAnalyse(g0, { lines: CH_BEST.cands, nodes: CH_BEST.rootNodes, ms: 60000 });
+      cands = (a.lines || (a.move ? [{ move: a.move, san: a.san }] : [])).slice(0, CH_BEST.cands);
+      if (!cands.length) return;
+      k = 0;
+      setTimeout(step, 16);
+      return;
+    }
+    const c = cands[k];
+    const g = chessCloneGame(g0);
+    const info = chessPlay(g, c.move);
+    if (info) {
+      const st = chessStatus(g);
+      const a = st.over ? null : chessAnalyse(g, { nodes: CH_BEST.nodes, ms: 60000 });
+      const score = st.over ? (st.reason === 'mate' ? CHESS_MATE : 0) : -a.score;
+      out.push({ from: info.from, to: info.to, san: info.san, score: score, pct: Math.round(chessWinPct(score)), order: k });
+    }
+    k++;
+    if (k < cands.length) { setTimeout(step, 16); return; }
+    // Best first; a tie keeps the engine's own order.
+    out.sort((x, y) => y.score - x.score || x.order - y.order);
+    chLocal.best = { key: key, lines: out.slice(0, 3) };
+    const s2 = chState();
+    if (s2.help && !s2.help.best) { s2.help.best = true; saveToLocal(); }
+    chPaint();
+  };
+  setTimeout(step, chViewBusyLeft() + 60);
+}
+
+/** The best moves showing now (this position's), or null. */
+function chBestNow(s) {
+  if (!chBestOn(s) || !chLocal.best) return null;
+  return chLocal.best.key === s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.hist.length ? chLocal.best : null;
+}
+
 /** The hint: the best move as an arrow on the board, and why in one line. */
 function chHint() {
   const s = chState();
@@ -3062,6 +3152,7 @@ function chPaint(opts) {
     threats[mine === 'w' ? 'b' : 'w'].forEach(sq => marks.push({ sq: sq, kind: 'theirs' }));
   }
   const hint = chLocal.hint && chLocal.hint.key === s.gameId + '|' + s.hist.length ? chLocal.hint : null;
+  const best = chBestNow(s);
   const ended = s.phase === 'done' && s.result;
   // The computer thinking: your next move can be queued (a premove).
   const preOn = s.vs === 'phone' && s.phase === 'play' && s.g.turn !== s.me && !chLocal.pending;
@@ -3088,7 +3179,7 @@ function chPaint(opts) {
     sel: humanTurn ? chLocal.sel : preOn ? chLocal.presel : '',
     targets: humanTurn ? chTargets(s.g, chLocal.sel) : preOn && chLocal.presel ? chPremoveTargets(s.g.board, chLocal.presel) : [],
     marks: marks,
-    arrows: (hint ? [{ from: hint.move.from, to: hint.move.to }] : []).concat(chLocal.pre && s.phase === 'play' ? [{ from: chLocal.pre.from, to: chLocal.pre.to, color: CH_PRE_COLOR }] : []),
+    arrows: (hint ? [{ from: hint.move.from, to: hint.move.to }] : []).concat(best ? best.lines.map((b, k) => ({ from: b.from, to: b.to, color: CH_BEST_COLORS[k][0], label: b.pct + '%', ink: CH_BEST_COLORS[k][1] })) : [], chLocal.pre && s.phase === 'play' ? [{ from: chLocal.pre.from, to: chLocal.pre.to, color: CH_PRE_COLOR }] : []),
     lost: s.lost,
     input: humanTurn ? { canMove: true, side: side, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
       : preOn ? { canMove: true, side: s.me, premove: true, onPick: (sq, fromDrag) => chPreTapLogic(pctx, sq, fromDrag), onDrop: (from, to) => chPreDropLogic(pctx, from, to) } : null
@@ -3154,8 +3245,10 @@ function chLocalBarHtml(s, hint) {
   if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chFlipLocal()" aria-label="${escapeHTML(chT('ch_flip'))}">↻ ${escapeHTML(chT('ch_flip'))}</button>`);
   if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chDrawLocal()">½ ${escapeHTML(chT('ch_draw_agree'))}</button>`);
   parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chResignLocal()">🏳️ ${escapeHTML(chT('ch_resign'))}</button>`);
+  const best = chBestNow(s);
+  const bestLine = best && best.lines.length ? `<p class="ch-bestline">🎯 ${escapeHTML(chT('ch_best_line'))} ${best.lines.map((b, k) => `<span class="ch-bestline__mv ch-bestline__mv--${k}"><b dir="ltr">${escapeHTML(chFigurine(b.san))}</b> <span dir="ltr">${b.pct}%</span></span>`).join('')}</p>` : '';
   const hintLine = hint ? `<p class="ch-hintline">💡 <b dir="ltr">${escapeHTML(chFigurine(hint.san))}</b> · ${escapeHTML(chReasonsLine(hint.reasons, 1))}</p>` : '';
-  return `${hintLine}<div class="ch-bar__row">${parts.join('')}</div>`;
+  return `${bestLine}${hintLine}<div class="ch-bar__row">${parts.join('')}</div>`;
 }
 
 function chLocalSideHtml(s, names) {

@@ -14469,6 +14469,8 @@ button.tour-live { cursor: pointer; }
 .ch4-game__side > [data-ch4-log] { order: 1; }
 .ch4-game__side > [data-room-strip] { order: 2; }
 .ch4-status { font-weight: var(--fw-bold); font-size: 1rem; color: var(--text); }
+.ch4-vs { display: inline-flex; align-items: center; gap: 0.2rem; direction: ltr; font-size: 0.75rem; color: var(--text-2); }
+.ch4-vs b { margin-inline: 0.15rem; font-weight: var(--fw-bold); }
 
 .ch4-stage {
   position: relative;
@@ -14510,8 +14512,8 @@ button.tour-live { cursor: pointer; }
 .ch4-sq.is-last::before { background: var(--ch2-last); }
 .ch4-sq.is-sel::before { background: var(--ch2-sel); }
 .ch4-sq.is-check::before { background: radial-gradient(circle, var(--ch2-check) 0%, rgba(236, 34, 24, 0.55) 40%, rgba(236, 34, 24, 0) 74%); }
-.ch4-dot { position: absolute; z-index: 1; width: 34%; height: 34%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
-.ch4-cap { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 74%, var(--ch2-hint) 78% 100%, transparent 101%); pointer-events: none; }
+.ch4-hint { position: absolute; z-index: 1; width: 34%; height: 34%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
+.ch4-ring { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 74%, var(--ch2-hint) 78% 100%, transparent 101%); pointer-events: none; }
 .ch4-co { position: absolute; z-index: 1; font-style: normal; font-size: 1.55cqw; font-weight: var(--fw-bold); line-height: 1; pointer-events: none; direction: ltr; }
 .ch4-co--f { bottom: 0.2cqw; right: 0.3cqw; }
 .ch4-co--r { top: 0.2cqw; left: 0.3cqw; }
@@ -14528,7 +14530,8 @@ button.tour-live { cursor: pointer; }
   transform: translate(calc(var(--x, 0) * 100%), calc(var(--y, 0) * 100%));
 }
 .ch4-svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.ch4-pc > .ch4-svg { transition: transform 90ms var(--ease-out); filter: drop-shadow(0 0.08cqw 0.12cqw rgba(0, 0, 0, 0.3)); }
+/* A square of 14 is small on a phone: the drawing is let out a little past its square (it has air round it). */
+.ch4-pc > .ch4-svg { width: 116%; height: 116%; margin: -8%; transition: transform 90ms var(--ease-out); filter: drop-shadow(0 0.08cqw 0.12cqw rgba(0, 0, 0, 0.3)); }
 .ch4-pc.is-moving { z-index: 2; }
 .ch4-pc.is-taken { z-index: 0; }
 .ch4-pc.is-drag { z-index: 4; }
@@ -14660,6 +14663,7 @@ button.tour-live { cursor: pointer; }
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-areas: ". y ." "b m g" ". r .";
+  direction: ltr;                  /* a physical layout, like the board: blue on the left in every language */
   gap: var(--sp-2);
   align-items: stretch;
 }
@@ -14695,17 +14699,21 @@ button.ch4-seat__btn { cursor: pointer; }
 @media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
   .ch4-game { display: grid; grid-template-columns: auto minmax(13rem, 22rem); justify-content: center; align-items: start; gap: var(--sp-4); }
   .ch4-game__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
-  .ch4-game__stage { position: sticky; top: 0; }
-  .ch4-stage { width: min(calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem), 62vw); max-height: none; }
+  /* The grid item carries the width: the stage is a size container, which gives the column no size of its own. */
+  .ch4-game__stage { position: sticky; top: 0; width: min(calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem), 62vw); }
+  .ch4-stage { width: 100%; max-height: none; }
   .ch4-head { justify-content: flex-start; text-align: start; }
   .ch4-log { max-height: 14rem; }
 }
 
 /* --- the TV: the board as tall as the stage, the column beside it ------------- */
 .ch4-tv { height: 100%; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 30rem); justify-content: center; align-items: center; gap: calc(var(--tv-gap) * 2.5); }
-.ch4-tv__stage .ch4-stage { width: min(calc(var(--app-h, 100vh) - 17vmin), 62vw); max-height: none; }
+.ch4-tv__stage { width: min(calc(var(--app-h, 100vh) - 17vmin), 62vw); }
+.ch4-tv__stage .ch4-stage { width: 100%; max-height: none; }
 .ch4-tv__side { display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); min-width: 0; }
-.ch4-tv__head { display: flex; justify-content: center; }
+.ch4-tv__head { display: flex; justify-content: center; align-items: center; gap: var(--tv-gap); }
+.ch4-tv .ch4-status { font-size: var(--tv-md); font-weight: var(--fw-bold); }
+.ch4-tv .ch4-vs { font-size: var(--tv-sm); gap: 0.6vmin; }
 .ch4-tv__head .badge { font-size: var(--tv-sm); padding: 0.4vmin 1.4vmin; }
 .ch4-tv .ch4-log { max-height: 36vmin; padding: 1vmin; gap: 0.6vmin; border-radius: var(--tv-r); }
 .ch4-tv .ch4-log__mv, .ch4-tv .ch4-log__ev { font-size: var(--tv-sm); }

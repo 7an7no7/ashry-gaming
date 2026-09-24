@@ -52,6 +52,8 @@ const ch4NameOf = (state, seat) => {
   const p = (state.players || []).find(x => x.id === id);
   return (p && p.name) || (s.names || [])[seat] || ch4ColorName(seat);
 };
+/** A name inside a translated line, held in its own direction (a Latin name in Arabic, or the other way). */
+const ch4Iso = (state, seat) => duelIso(ch4NameOf(state, seat));
 const ch4IsBot = (state, seat) => {
   const id = (ch4S(state).seats || [])[seat];
   return !!(state.players || []).find(x => x.id === id && x.bot);
@@ -232,10 +234,10 @@ function ch4PaintSquares(root, state, g) {
     const cls = 'ch4-sq ' + (el.classList.contains('is-d') ? 'is-d' : 'is-l') + (marks[i] ? ' ' + marks[i].join(' ') : '');
     if (el.className !== cls) el.className = cls;
     const want = targets[i] || '';
-    const has = el.querySelector('.ch4-dot, .ch4-cap');
-    if ((has ? (has.classList.contains('ch4-cap') ? 'cap' : 'dot') : '') !== want) {
+    const has = el.querySelector('.ch4-hint, .ch4-ring');
+    if ((has ? (has.classList.contains('ch4-ring') ? 'cap' : 'dot') : '') !== want) {
       if (has) has.remove();
-      if (want) el.insertAdjacentHTML('beforeend', `<b class="ch4-${want}"></b>`);
+      if (want) el.insertAdjacentHTML('beforeend', `<b class="${want === 'cap' ? 'ch4-ring' : 'ch4-hint'}"></b>`);
     }
   });
   const board = root.querySelector('[data-ch4-board]');
@@ -316,6 +318,8 @@ function ch4Reconcile(root, g, rot, animate) {
       else { el.innerHTML = ch4PieceSvg(code, grey); el._grey = grey; }
     }
     if (!(ch4Local.drag && ch4Local.drag.el === el)) ch4Place(el, i, rot);
+    // A mated king stays toppled: a player mated in FFA (grey), the mated side's king at the end of a team game.
+    if ((code & 7) === 6 && (g.why[owner] === 'mate' || (g.over && g.result && g.result.reason === 'mate' && g.result.by === owner))) el.classList.add('is-mated');
   }
   // A player out: the king topples if mated, then their pieces turn grey one by one, from the king outward.
   turning.forEach((list, seat) => {
@@ -337,7 +341,6 @@ function ch4Reconcile(root, g, rot, animate) {
         el._grey = true;
         const svg = el.firstElementChild;
         if (svg && svg.animate) svg.animate([{ opacity: 0.35, transform: 'scale(0.86)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 260, easing: 'ease-out' });
-        if (el === king) el.classList.remove('is-mated');
       }, start + k * 70);
     });
   });
@@ -395,9 +398,9 @@ function ch4StatusText(state) {
   const shown = ch4Game(state);
   const inCheck = me >= 0 && !g.out[me] && chess4InCheck(shown, me);
   if (me >= 0 && g.turn === me) return chT('ch4_your_turn') + (inCheck ? ' ' + chT('ch4_check_you') : '');
-  let text = chT('ch4_turn_of', { name: ch4NameOf(state, g.turn) });
+  let text = chT('ch4_turn_of', { name: ch4Iso(state, g.turn) });
   if (me >= 0 && g.out[me]) text = chT('ch4_you_out') + ' · ' + text;
-  else if (me < 0) text = chT('ch4_watching') + ' · ' + text;
+  else if (me < 0 && !state.youAreScreen) text = chT('ch4_watching') + ' · ' + text;
   return text;
 }
 
@@ -408,9 +411,9 @@ function ch4ResultText(state) {
   if (s.g.mode === 'teams') {
     if (r.team !== 0 && r.team !== 1) return '🤝 ' + chT('ch4_draw') + (why ? ' · ' + why : '');
     const a = r.team === 0 ? 0 : 1;
-    return '🏆 ' + chT('ch4_win_team', { a: ch4NameOf(state, a), b: ch4NameOf(state, a + 2) }) + (why ? ' · ' + why : '');
+    return '🏆 ' + chT('ch4_win_team', { a: ch4Iso(state, a), b: ch4Iso(state, a + 2) }) + (why ? ' · ' + why : '');
   }
-  const names = (r.winners || []).map(k => ch4NameOf(state, k)).join(' · ');
+  const names = (r.winners || []).map(k => ch4Iso(state, k)).join(' · ');
   return '🏆 ' + chT('ch4_win_ffa', { names: names }) + (why ? ' · ' + why : '');
 }
 
@@ -418,15 +421,15 @@ function ch4ResultText(state) {
 function ch4LogItem(state, e) {
   const dot = (seat) => `<i class="ch4-dot ch4-dot--${CH4_TINTS[seat]}" aria-hidden="true"></i>`;
   if (e.k === 'mv') {
-    return `<li class="ch4-log__mv">${dot(e.seat)}<bdi dir="ltr">${escapeHTML(e.san)}</bdi>${e.auto ? '<span class="ch4-log__auto" aria-hidden="true">🤖</span>' : ''}${e.pts ? `<b class="ch4-log__pts">+${e.pts}</b>` : ''}</li>`;
+    return `<li class="ch4-log__mv">${dot(e.seat)}<bdi dir="ltr">${escapeHTML(e.san)}</bdi>${e.auto ? '<span class="ch4-log__auto" aria-hidden="true">🤖</span>' : ''}${e.pts ? `<b class="ch4-log__pts" dir="ltr">+${e.pts}</b>` : ''}</li>`;
   }
-  const name = ch4NameOf(state, e.seat);
+  const name = ch4Iso(state, e.seat);
   let text = '';
   if (e.k === 'out') {
     text = (CH4_WHY_ICON[e.why] || '') + ' ' + chT('ch4_out_' + e.why, { name: name });
-    if (e.pts && e.by >= 0) text += ' · ' + chT('ch4_pts_to', { n: e.pts, name: ch4NameOf(state, e.by) });
+    if (e.pts && e.by >= 0) text += ' · ' + chT('ch4_pts_to', { pts: duelIso('+' + e.pts), name: ch4Iso(state, e.by) });
   } else if (e.k === 'pass') text = chT('ch4_pass', { name: name });
-  else if (e.k === 'bot') text = chT('ch4_bot_took', { name: (ch4S(state).names || [])[e.seat] || name });
+  else if (e.k === 'bot') text = chT('ch4_bot_took', { name: duelIso((ch4S(state).names || [])[e.seat] || ch4NameOf(state, e.seat)) });
   else if (e.k === 'mate') text = '♚ ' + chT('ch4_out_mate', { name: name });
   else if (e.k === 'lost') text = (CH4_WHY_ICON[e.why] || '') + ' ' + chT('ch4_out_' + e.why, { name: name });
   else return '';
@@ -455,7 +458,7 @@ function ch4HostButtons(state) {
   }
   if (pid === Room.me) return [];
   const quiet = !p || !p.online || Date.now() - ch4Local.turnSince > 40000;
-  return quiet ? [['⏭️ ' + chT('ch4_play_for', { name: ch4NameOf(state, seat) }), `roomAct('skipTurn', { seq: ${s.turnSeq} })`]] : [];
+  return quiet ? [['⏭️ ' + chT('ch4_play_for', { name: ch4Iso(state, seat) }), `roomAct('skipTurn', { seq: ${s.turnSeq} })`]] : [];
 }
 
 function ch4Resign() {
@@ -596,7 +599,9 @@ function ch4Wire(root) {
 function ch4FrameHtml(state, tv) {
   const rot = Math.max(0, ch4Seat(state));
   const s = ch4S(state);
-  const mode = `<span class="badge badge--accent">${escapeHTML(chT(s.settings.mode === 'ffa' ? 'ch4_mode_ffa' : 'ch4_mode_teams'))}</span>`;
+  // Teams: the two sides as their colours, red and yellow against blue and green.
+  const sides = s.settings.mode === 'teams' ? `<span class="ch4-vs" aria-hidden="true"><i class="ch4-dot ch4-dot--r"></i><i class="ch4-dot ch4-dot--y"></i><b>×</b><i class="ch4-dot ch4-dot--b"></i><i class="ch4-dot ch4-dot--g"></i></span>` : '';
+  const mode = `<span class="badge badge--accent">${escapeHTML(chT(s.settings.mode === 'ffa' ? 'ch4_mode_ffa' : 'ch4_mode_teams'))}</span>${sides}`;
   if (tv) {
     return `<div class="ch4-tv">
         <div class="ch4-tv__stage"><div class="ch4-stage" data-rot="0">${ch4BoardHtml(0)}</div></div>
@@ -704,7 +709,7 @@ function ch4Update(root, state, tv) {
       if (!won) return;
       playSound('success');
       if (typeof confetti === 'function') confetti({ particleCount: tv ? 160 : 120, spread: tv ? 90 : 80, origin: { y: 0.6 } });
-      haptic('double');
+      if (!tv) haptic('double');
     });
   }
 }
@@ -832,8 +837,8 @@ ROOM_GAMES.chess4 = {
   lobbyOptions(state) {
     const lobby = ch4S(state).lobby || {};
     const host = !!state.youAreHost;
-    // The host's remembered choices go to the room once, so every phone sees them.
-    if (host && ch4Local.synced !== state.code) {
+    // The host's remembered choices go to a room that has none yet, so every phone sees them.
+    if (host && ch4Local.synced !== state.code && lobby.mode === undefined) {
       ch4Local.synced = state.code;
       const o = ch4Opts();
       if (lobby.mode !== o.mode || Number(lobby.clock || 0) !== o.clock) setTimeout(() => roomAct('options', { mode: o.mode, clock: o.clock }), 0);
@@ -860,10 +865,10 @@ ROOM_GAMES.chess4 = {
   },
 
   startPayload() {
-    const o = ch4Opts();
     const state = Room.state;
     const names = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).filter(n => !((state && state.players) || []).some(p => samePlayer(p.name, n)));
-    return { mode: o.mode, clock: o.clock, botNames: names.sort(() => Math.random() - 0.5).slice(0, 4) };
+    // The way to play and the clock are the room's (the lobby, which every phone sees), not sent here.
+    return { botNames: names.sort(() => Math.random() - 0.5).slice(0, 4) };
   },
 
   render(state) {

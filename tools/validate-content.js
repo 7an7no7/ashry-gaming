@@ -471,6 +471,50 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`chess openings: ${OPENINGS ? OPENINGS.length : 0} openings`);
 }
 
+/* -------------------------------------------------------- Chess puzzles */
+// ChessPuzzles.js, made by tools/make-chess-puzzles.mjs: every position real, every
+// move legal in order, a mate that mates, no id or position twice, enough of each level.
+{
+  const CH = new Function(fs.readFileSync(ROOT + 'Chess.js', 'utf8') + '; return { chessFromFen, chessFen, chessPlay, chessStatus };')();
+  const PUZ = load(ROOT + 'ChessPuzzles.js', 'CHESS_PUZZLES');
+  const ids = new Set();
+  const spots = new Set();
+  const levels = { 1: 0, 2: 0, 3: 0 };
+  if (!Array.isArray(PUZ) || !PUZ.length) note('chess puzzles: CHESS_PUZZLES is empty');
+  (PUZ || []).forEach((p, i) => {
+    const tag = `chess puzzle [${i}] (id ${p && p.id})`;
+    if (!p || p.id === undefined || p.id === null) { note(`${tag}: no id`); return; }
+    if (ids.has(p.id)) note(`${tag}: id used twice`);
+    ids.add(p.id);
+    if (!(p.level in levels)) note(`${tag}: level ${p.level} is not 1, 2 or 3`);
+    else levels[p.level]++;
+    if (p.theme !== 'mate' && p.theme !== 'material') note(`${tag}: theme "${p.theme}"`);
+    if (typeof p.rating !== 'number' || !(p.rating > 0)) note(`${tag}: no rating`);
+    if (!Array.isArray(p.moves) || !p.moves.length || p.moves.length % 2 !== 1) { note(`${tag}: the moves must be player, reply, …, player`); return; }
+    let g;
+    try { g = CH.chessFromFen(p.fen); } catch (e) { g = null; }
+    if (!g || CH.chessFen(g) !== p.fen) { note(`${tag}: FEN "${p.fen}" is not valid`); return; }
+    if (CH.chessStatus(g).over) { note(`${tag}: the game is already over`); return; }
+    const spot = p.fen.split(' ').slice(0, 4).join(' ');
+    if (spots.has(spot)) note(`${tag}: the same position as another puzzle`);
+    spots.add(spot);
+    let last = null;
+    for (let k = 0; k < p.moves.length; k++) {
+      const m = String(p.moves[k]);
+      if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(m)) { note(`${tag}: move ${k + 1} "${m}" is not a move`); return; }
+      last = CH.chessPlay(g, { from: m.slice(0, 2), to: m.slice(2, 4), promo: m.slice(4, 5) });
+      if (!last) { note(`${tag}: move ${k + 1} "${m}" is not legal`); return; }
+      if (last.status.over && k < p.moves.length - 1) { note(`${tag}: the game ends at move ${k + 1}, before the line does`); return; }
+    }
+    if (p.theme === 'mate') {
+      if (!(last.status.over && last.status.reason === 'mate')) note(`${tag}: a mate puzzle whose last move doesn't mate`);
+      if (p.mateIn !== (p.moves.length + 1) / 2) note(`${tag}: mateIn ${p.mateIn}, but the line mates in ${(p.moves.length + 1) / 2}`);
+    }
+  });
+  [1, 2, 3].forEach(L => { if (levels[L] < 300) note(`chess puzzles: level ${L} has ${levels[L]}, fewer than 300`); });
+  console.log(`chess puzzles: ${(PUZ || []).length} (level 1 ${levels[1]}, level 2 ${levels[2]}, level 3 ${levels[3]})`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

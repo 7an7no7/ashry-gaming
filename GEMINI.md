@@ -608,6 +608,60 @@ work changed. Add to it when a decision is made or a batch ships.
       look, each searched in a tick of its own, the best three kept
       (`CH_BEST`); the share card and the video put ⚪ / ⚫ before the names
       (the chess glyphs become emoji on an iPhone).
+  - **الوزير المستخبي (Hidden queen)** - the owner's decisions of 24 Sep 2026,
+    asked one by one (*شطرنج*, "The hidden queen"):
+    - **A room duel** (winner stays; each on their own phone, the TV
+      optional) **and against the computer**. Not two on one phone (the secret
+      can't be hidden there) and **not in the duels' tournament**: the lobby
+      hides the choice while the tournament switch is on, and says so.
+    - **The pick**: before the first move each player taps one of their own
+      pawns. With the room's clock on, the pick has its own clock, 60 seconds
+      (خمّن مين's), and an unpicked player gets a random pawn; the host's
+      "play for" picks at random too. Against the computer you pick, the
+      computer at random.
+    - **Until revealed it is a pawn for everything the other side sees or is
+      affected by**: it attacks only as a pawn, never gives check, never keeps
+      the other king off a square, and the other side's legal moves never
+      depend on it. Its owner moves it like a pawn (it stays hidden, the secret
+      following it) or like a queen from its square - any queen move a pawn
+      couldn't make - which reveals it: a real queen on the board, capturing
+      or checking like any queen, never taking a king. A queen move a pawn
+      could also make (a step, the double step, a diagonal capture) is a pawn
+      move.
+    - **Reaching the last rank still hidden** it promotes like any pawn (the
+      choice of four) and the secret is gone, told to nobody until the game
+      ends. **Captured while hidden** it is revealed ("👑 كان الوزير!" on
+      every screen) and counts as a queen.
+    - **At the end both picks are shown.**
+    - The look: a third choice in «🎲 نوع اللعبة» (عادي / 960 / «👑 الوزير
+      المستخبي»), its own hint line shown only when it is picked; a gold crown
+      on the hidden pawn on its owner's phone only; «اختار العسكري اللي هيبقى
+      وزيرك المستخبي» with your pawns lit while picking; the reveal a moment on
+      every screen (the pawn turning into a queen with a pop, «👑 وزير
+      مستخبي!»); a revealing move written as a queen move with 👑.
+    - **Never rated, no handicap with it**; 960 and the hidden queen are one
+      choice (`variant`: 'standard' | '960' | 'hq').
+    - Decided while building (each in one place):
+      - **A mate or a stalemate is judged with the hidden queen's moves too**
+        (`chessHqPlay`): a side whose only way out is its hidden queen isn't
+        mated - the game going on is a tell the rules can't avoid (the SAN's
+        # becomes +).
+      - **A pick is final**: one tap picks, a second on the same pawn (or the
+        button) confirms, and it can't be changed.
+      - **The handicap is not offered with it** (hidden on one phone, the lobby
+        and the server ignore it), and a remembered hidden queen starts a
+        tournament standard.
+      - **The computer** considers its own hidden queen's moves at the root of
+        its search only (deeper, every hidden queen is the pawn it looks like),
+        in the same time and node budget; it never knows yours. The host's
+        "play for" may use the hidden queen (the same search, cheap).
+      - **The review** plays a revealing move as the queen's (stored `e2e5*`);
+        its positions show the pawn until it moves. The coach, the hint and
+        the best-move arrows read the board as it looks (hidden queens are
+        pawns), so they never suggest a hidden queen's move; a premove of it
+        is a pawn's.
+      - Nothing ticks while picking on one phone (you are alone); the chess
+        clock starts, as always, with White's first move.
 
 - **The duels' tournament (بطولة)** - the owner's decisions of 23 Sep 2026,
   asked one by one (*The duels' tournament*):
@@ -2571,6 +2625,21 @@ the word search), `countUp` for streaks and scores.
   leak check's drivers press a game of rounds' "next round" (domino failed
   one run in thirty when a game needed a second round). Rules tests grew by
   the audit's checks (`audit/…`, `audit2/…`).
+- **24 Sep 2026, الوزير المستخبي** - the hidden queen, a chess variant to the
+  owner's decisions asked one by one (*The owner's specs*, شطرنج): a room
+  duel (winner stays, never the tournament) and against the computer; each
+  side picks a pawn that is secretly a queen, moves it like a pawn to keep it
+  hidden or like a queen to reveal it; never rated, no handicap. The rules in
+  `Chess.js` (`chessHq*`, standard chess, 960 and every perft untouched), the
+  room in `RoomChess.js`, the pick, the crown, the moment and the end on the
+  phones and the TV (`JS_Chess.html`, `JS_RoomChess.html`), the review of a
+  revealing move. Rules tests: 52 new; the leak check plays two games with
+  three probes; a play-all round with two phones and a TV. Also, the owner's
+  word that every hint line be right and shown only when it applies: the
+  one-phone handicap line hides with no handicap and says nothing about the
+  rating two on one phone; the room lobby's clock line shows only with a
+  clock, its handicap line only with a handicap (half the time with no clock
+  warns, as on one phone), and its variant line explains only the choice made.
 
 ## Building and Running
 
@@ -5282,6 +5351,46 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
   coach's word, the moves; on a phone on its side and from 900px the board
   takes the height beside a column; the TV is the board with the pills, the
   status, the moves and the line beside it.
+
+- **الوزير المستخبي (the hidden queen)**: the owner's rules are under
+  *The owner's specs*. The game object `g` never holds the secret: a hidden
+  queen is a pawn in it, so everything that reads `g` (the other side's moves,
+  check, the boards, the review, the TV) sees a pawn. The secret is one small
+  object per game (`chessHqNew`: `{ sq, pick, how, at }` per colour) kept where
+  secrets live: the server's `room._chq` (never projected) with each seated
+  phone's own square in `room.secrets[pid].hq`, and the one-phone game's
+  `appState.shatranj.hq`. In `Chess.js`: `chessHqEngine` / `chessHqMoves` (the
+  queen moves from the pawn's square a pawn couldn't make, legal, never onto a
+  king - the pawn made a queen for the look and put back), `chessHqPlay` (a
+  move with the secret: a reveal turns the pawn into a queen and plays the
+  queen move through `chessPlay`; a pawn move carries the secret; a promotion
+  ends it; a hidden pawn taken reports `captured` and counts `'q'`; the end
+  judged with the next side's hidden queen), `chessHqReplay`, and the marker:
+  a revealing move is stored `e2e5*`, `chessFromUci` reads `hq: true`, and
+  `chessPlay({ hq: true })` makes the pawn a queen first - so every replay of a
+  stored game (the review, the PGN, the share card, the mistakes' puzzles)
+  works with nothing else knowing the variant. `chessBestMove(g, { hq })` adds
+  its own hidden queen's moves at the root (`CHESS_HQ_BIT` on the engine
+  number, the pawn swapped for a queen and the hash with it around each). In
+  `RoomChess.js`: `chessRoomOptions` takes `'hq'`, `chessRoomDeal` starts
+  `shared.chess.hq = { picking, picked, pickEnds, events, end }` (winner stays
+  only, the usual start, no handicap) and resets the room's slices, `hqPick`
+  (`round` against a stale tap), the pick clock in `chessDeadline` /
+  `chessTimeout` (`CHESS_HQ_PICK_SECS`), `chessHqAutoPick` (the clock and the
+  host), `chessBoardMove(..., hq)`, `chessHqAfterMove` (the reveal or capture
+  the table saw, `bd.last.hq`, and the secrets moved), `chessHqEnd` (both
+  picks, at every way a game ends). On the page: `chMovesFor` / `chTargets(g,
+  sel, hq)` add your hidden queen's moves to a tap and a drop; the mark
+  `kind: 'hq'` is the crown (2D: `.ch2-sq.is-hq` and `.ch2-hq`; 3D: a gold
+  ring); `chHqMoment` the words over the board (`motionFirst`), the room's
+  keyed on the deal with a baseline so a reload or a late join replays nothing
+  (`chRoomHqMoments`); `chAnimOf` draws a reveal as a promotion to a queen;
+  `chHqEndHtml` both picks at the end. The one-phone game: `chHqChosen`,
+  `chHqOf`, `chHqPicking`, `chHqPickLocal`, and `chRebuildLocal` replays the
+  secret for an undo. Tests: `rules.mjs` ("Hidden queen, 24 Sep 2026"),
+  `leaks.mjs` (`VARIANT_DRIVERS['chess:hq']`, `PROBES['chess:hq']`, proved on
+  a scratch build that put the squares in `shared` and gave each phone the
+  other's), `play-all.mjs` (`hiddenQueenRobots`, `--only=hq`).
 
 ### ألغاز شطرنج
 

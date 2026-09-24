@@ -960,6 +960,15 @@ function chMake3D(THREE, root) {
     (m.marks || []).forEach(mk => {
       const p = at(mk.sq);
       if (!p) return;
+      if (mk.kind === 'hq') {
+        // The hidden queen (its owner's phone, or everyone's once the game is over): a gold glow and ring.
+        const grd = og.createRadialGradient(p.x + u / 2, p.y + u / 2, 4, p.x + u / 2, p.y + u / 2, u * 0.5);
+        grd.addColorStop(0, 'rgba(250, 204, 21, 0.55)'); grd.addColorStop(1, 'rgba(250, 204, 21, 0)');
+        og.fillStyle = grd; og.fillRect(p.x, p.y, u, u);
+        og.strokeStyle = 'rgba(234, 179, 8, 0.98)'; og.lineWidth = 10;
+        og.beginPath(); og.arc(p.x + u / 2, p.y + u / 2, u * 0.44, 0, Math.PI * 2); og.stroke();
+        return;
+      }
       og.strokeStyle = mk.kind === 'mine' ? 'rgba(239, 68, 68, 0.95)' : mk.kind === 'user' ? CH_ANNO_COLOR : 'rgba(34, 197, 94, 0.95)';
       og.lineWidth = mk.kind === 'user' ? 12 : 9;
       og.setLineDash(mk.kind === 'user' ? [] : [16, 10]);
@@ -1335,7 +1344,12 @@ function ch2SquareParts(m, i, o, extra) {
   if (m.last && (m.last.from === name || m.last.to === name)) cls.push('is-last');
   if (m.sel === name) cls.push('is-sel');
   if (m.check === name) cls.push('is-check');
-  (m.marks || []).forEach(x => { if (x.sq === name) cls.push(x.kind === 'mine' ? 'is-danger' : x.kind === 'user' ? 'is-anno' : 'is-chance'); });
+  let crown = false;
+  (m.marks || []).forEach(x => {
+    if (x.sq !== name) return;
+    if (x.kind === 'hq') { cls.push('is-hq'); crown = true; return; }
+    cls.push(x.kind === 'mine' ? 'is-danger' : x.kind === 'user' ? 'is-anno' : 'is-chance');
+  });
   if (extra && extra.hover === name) cls.push('is-hover');
   const tg = (m.targets || []).find(x => x.to === name);
   let inner = '';
@@ -1344,6 +1358,8 @@ function ch2SquareParts(m, i, o, extra) {
     if (row === 7) inner += `<i class="ch2-co ch2-co--f">${CH_FILES[i & 7]}</i>`;
   }
   if (tg) inner += `<b class="${tg.capture ? 'ch2-cap' : 'ch2-dot'}"></b>`;
+  // The hidden queen's badge: a small gold crown in the square's corner, over the pawn.
+  if (crown) inner += '<i class="ch2-hq" aria-hidden="true">👑</i>';
   return { cls: cls.join(' '), inner: inner };
 }
 
@@ -1954,12 +1970,15 @@ function chAskPromotion(to, color, onPick) {
   if (typeof haptic === 'function') haptic('light');
 }
 
+/** The moves this phone may make: the game's, and its own hidden queen's (hq: its square, in الوزير المستخبي). */
+const chMovesFor = (g, hq) => (hq ? chessHqLegal(g, hq) : chessLegalMoves(g));
+
 /** A tap on the board, the same wherever it happens: pick a piece of your own, then a square it can go to. */
 function chTapLogic(ctx, sq, fromDrag) {
-  // ctx: { g, side, sel, setSel(sq), play(from, to, promo) }
+  // ctx: { g, side, sel, setSel(sq), play(from, to, promo), hq (your hidden queen's square, or '') }
   const i = chSqIndex(sq);
   const code = ctx.g.board[i];
-  const legal = chessLegalMoves(ctx.g);
+  const legal = chMovesFor(ctx.g, ctx.hq);
   if (ctx.sel && ctx.sel !== sq) {
     const moves = legal.filter(mv => mv.from === ctx.sel && mv.to === sq);
     if (moves.length) {
@@ -1989,9 +2008,9 @@ function chTapLogic(ctx, sq, fromDrag) {
 }
 
 /** The targets of the piece picked up; in 960 a king's castling shows as a ring round its rook (and never on the king's own square). */
-function chTargets(g, sel) {
+function chTargets(g, sel, hq) {
   if (!sel) return [];
-  const out = chessLegalMoves(g).filter(m => m.from === sel && m.to !== sel).map(m => ({ to: m.to, capture: m.capture }))
+  const out = chMovesFor(g, hq).filter(m => m.from === sel && m.to !== sel).map(m => ({ to: m.to, capture: m.capture }))
     .filter((x, k, arr) => arr.findIndex(y => y.to === x.to) === k);
   const ki = chSqIndex(sel);
   if (ki >= 0 && (g.board[ki] & 7) === 6 && chIs960(g)) {
@@ -2006,7 +2025,7 @@ function chTargets(g, sel) {
 
 /** A drop: a move if it is legal (asking for the promotion piece), false (the piece goes back) if not. */
 function chDropLogic(ctx, from, to) {
-  const moves = chessLegalMoves(ctx.g).filter(mv => mv.from === from && mv.to === to);
+  const moves = chMovesFor(ctx.g, ctx.hq).filter(mv => mv.from === from && mv.to === to);
   // The king dropped on its own rook: castling (960's way, and it works in standard chess too).
   if (!moves.length && chCastleByRook(ctx.g, from, to)) { ctx.setSel(''); ctx.play(from, to, ''); return true; }
   if (!moves.length) { chSound('refuse'); ctx.setSel(''); return false; }
@@ -2183,7 +2202,7 @@ function chResultLine(result, reason, names) {
 // busy: a second tap too soon; thinking: the computer's timer; tick: the clock's.
 // pre / presel: a premove queued against the computer, and the piece picked up for one;
 // best / bestKey: the best-move arrows worked out for a position (and the one being worked out).
-const chLocal = { sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '', pre: null, presel: '', best: null, bestKey: '' };
+const chLocal = { hqSel: '', sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '', pre: null, presel: '', best: null, bestKey: '' };
 
 function chState() {
   if (!appState.shatranj) {
@@ -2207,7 +2226,7 @@ function chState() {
   if (s.char !== 'custom' && !chCharById(s.char)) s.char = 'custom';
   // Chess960, the handicap and the clock (T2C.6): a phone from before them plays standard, no odds.
   s.clock = chessClockId(s.clock);
-  if (s.variant !== '960') s.variant = 'standard';
+  if (s.variant !== '960' && s.variant !== 'hq') s.variant = 'standard';
   if (CH_ODDS.indexOf(s.odds) === -1) s.odds = 'none';
   if (s.oddsBy !== 'cpu') s.oddsBy = 'me';
   if (s.oddsColor !== 'b') s.oddsColor = 'w';
@@ -2319,6 +2338,7 @@ function chUnratedReason(s, o) {
   if (s.vs !== 'phone') return 'ch_unrated_friend';
   if (x.practice) return 'ch_unrated_practice';
   if (x.setup) return 'ch_unrated_setup';
+  if (s.variant === 'hq') return 'ch_unrated_hq';
   if (s.helpLimit !== 'none') return 'ch_unrated_help';
   if (s.coach && s.coachOpts.warn !== false) return 'ch_unrated_warn';
   if (s.coach && s.coachOpts.best) return 'ch_unrated_best';
@@ -2380,6 +2400,19 @@ const chCanUndo = (s) => s.vs === 'phone' && s.phase === 'play' && !chLocal.pend
 
 /** The game again from its start and the moves in `hist`: the position (repetition keys too), the moves, what was taken. */
 function chRebuildLocal(s, hist) {
+  const h = chHqOf(s);
+  if (h) {
+    // The hidden queen's game: its picks and its moves again, the secret following them.
+    const r = chessHqReplay(s.start, h.pick, hist);
+    const lostH = s.lostStart ? [s.lostStart[0].slice(), s.lostStart[1].slice()] : [[], []];
+    r.lost.forEach((l, k) => l.forEach(x => lostH[k].push(x)));
+    const n = r.infos.length;
+    const li = r.last;
+    s.g = r.g; s.hq = r.h; s.hist = hist.slice(0, n); s.sans = r.sans; s.lost = lostH;
+    s.last = li ? { from: li.from, to: li.to, capture: li.capture, captureSq: li.captureSq, castle: li.castle, promo: li.promo, check: li.check, n: n,
+      hq: li.hq && (li.hq.reveal || li.hq.captured) ? { reveal: li.hq.reveal, captured: li.hq.captured, by: r.g.turn ^ 1 } : undefined } : null;
+    return;
+  }
   const g = s.start ? chessFromFen(s.start) : chessNew();
   const lost = s.lostStart ? [s.lostStart[0].slice(), s.lostStart[1].slice()] : [[], []];
   const kept = [], sans = [];
@@ -2424,7 +2457,97 @@ function chUndoLocal() {
 const CH_ODDS = ['none', 'pawn', 'knight', 'rook', 'queen', 'time'];
 
 /** The handicap a new game would really get: half the time needs a clock. */
-const chOddsNow = (s) => (s.odds === 'time' && chessClockId(s.clock) === 'off' ? 'none' : (CH_ODDS.indexOf(s.odds) === -1 ? 'none' : s.odds));
+const chOddsNow = (s) => (chHqChosen(s) || (s.odds === 'time' && chessClockId(s.clock) === 'off') ? 'none' : (CH_ODDS.indexOf(s.odds) === -1 ? 'none' : s.odds));
+
+/* --- الوزير المستخبي on one phone: against the computer only (the owner, 24 Sep 2026) ---------
+   Two on one phone can't hide a secret, so the choice isn't offered there (a phone that had it
+   chosen plays standard). Never rated, and no handicap with it. You pick a pawn before the first
+   move (the computer picks at random); s.hq is the secret of both sides (Chess.js's chessHqNew),
+   kept on this phone - the computer's own is read only by its search, never shown. */
+
+/** Is the hidden queen what a new game from the setup would be? */
+const chHqChosen = (s) => s.variant === 'hq' && s.vs === 'phone';
+
+/** The hidden queen's secret of the game on the board (null in any other game). */
+const chHqOf = (s) => (s.gameVariant === 'hq' && s.hq && Array.isArray(s.hq.sq) ? s.hq : null);
+
+/** Still picking your pawn? */
+const chHqPicking = (s) => { const h = chHqOf(s); return !!h && s.phase === 'play' && h.pick[s.me] < 0; };
+
+/** Your hidden queen's square ('' once it is gone, or in another game). */
+const chHqMine = (s) => { const h = chHqOf(s); return h && h.sq[s.me] >= 0 ? chSqName(h.sq[s.me]) : ''; };
+
+/** The pick: your pawn becomes the hidden queen, and the game begins (the computer as White moves first). */
+function chHqPickLocal(sq) {
+  const s = chState();
+  const h = chHqOf(s);
+  if (!h || !chHqPicking(s) || !chessHqPick(h, s.g, s.me, sq)) return;
+  chLocal.hqSel = '';
+  saveToLocal();
+  haptic('medium');
+  chSound('hint');
+  chPaint();
+  chAfterMove();
+}
+
+/** A tap while picking: a pawn of yours is chosen, a second tap on it (or the button) confirms. */
+function chHqTapLocal(sq, fromDrag) {
+  const s = chState();
+  const i = chSqIndex(sq);
+  if (!chHqPicking(s) || i < 0 || s.g.board[i] !== ((s.me << 3) | 1)) { if (chLocal.hqSel) { chLocal.hqSel = ''; chPaint(); } return false; }
+  if (chLocal.hqSel === sq) { if (!fromDrag) chHqPickLocal(sq); return false; }
+  chLocal.hqSel = sq;
+  chSound('pick');
+  chPaint();
+  return false;
+}
+
+/** The words of a hidden queen's moment: its reveal, or its capture while still hidden. */
+const chHqWord = (kind) => chT(kind === 'captured' ? 'ch_hq_was' : 'ch_hq_reveal');
+
+/**
+ * The moment on the board (every screen): the pawn turning into a queen, or a hidden one taken, with
+ * the words over the board once the move has landed. Played once per move (motionFirst on `key`), so a
+ * redraw doesn't replay it; the move list and the status keep the words.
+ */
+function chHqMoment(kind, key) {
+  const root = chView.root;
+  if (!root || typeof motionFirst !== 'function' || !motionFirst('chhq|' + key)) return;
+  setTimeout(() => {
+    if (!chView.root || !chView.root.isConnected) return;
+    const el = document.createElement('div');
+    el.className = 'ch-hq-pop' + (kind === 'captured' ? ' ch-hq-pop--was' : '');
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = `<span>${escapeHTML(chHqWord(kind))}</span>`;
+    chView.root.appendChild(el);
+    chSound('hint');
+    if (typeof haptic === 'function') haptic('double');
+    setTimeout(() => el.remove(), 2000);
+  }, chViewBusyLeft() + 120);
+}
+
+/** The end: which pawn each side had picked, and what became of it («الأبيض: e2 · اتكشف»). ends: [{ pick, how, at }]. */
+function chHqEndHtml(ends, names) {
+  if (!ends || !ends.some(e => e && e.pick)) return '';
+  const row = (e, k) => {
+    if (!e || !e.pick) return '';
+    const how = chT('ch_hq_how_' + (e.how || 'hidden'), { sq: e.at || e.pick });
+    return `<span class="ch-hqend__row"><span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(1 | (k ? 8 : 0))}</span><bdi>${escapeHTML(names[k] || '')}</bdi> <b dir="ltr">${escapeHTML(e.pick)}</b> · ${escapeHTML(how)}</span>`;
+  };
+  return `<p class="ch-hqend">👑 ${escapeHTML(chT('ch_hq_end'))}</p><div class="ch-hqend__list">${row(ends[0], 0)}${row(ends[1], 1)}</div>`;
+}
+
+/** The one-phone game's secrets at the end, as the room shows them. */
+function chHqLocalEnds(h) {
+  return [0, 1].map(c => ({
+    pick: h.pick[c] >= 0 ? chSqName(h.pick[c]) : '',
+    how: h.pick[c] >= 0 ? (h.how[c] || 'hidden') : '',
+    at: h.sq[c] >= 0 ? chSqName(h.sq[c]) : (h.at[c] >= 0 ? chSqName(h.at[c]) : '')
+  }));
+}
+
+/** The move's animation for a board: a reveal draws as the pawn becoming a queen (a promotion's pop). */
+const chAnimOf = (last, key, still) => (last ? Object.assign({ key: key, still: !!still }, last, last.hq && last.hq.reveal ? { promo: 'q' } : {}) : null);
 
 /** The colour that gives the handicap (0 White, 1 Black): you or the computer; two on one phone, as chosen. */
 const chOddsGiver = (s, me) => (s.vs === 'phone' ? (s.oddsBy === 'cpu' ? 1 - me : me) : (s.oddsColor === 'b' ? 1 : 0));
@@ -2479,6 +2602,7 @@ function chCastleRookSquares(a, before, after) {
 function chLocalTagHtml(s, names) {
   const tags = [];
   if (s.gameVariant === '960') tags.push(`<p class="ch-tag ch-tag--960">🎲 ${escapeHTML(chT('ch_pill_960'))}</p>`);
+  if (s.gameVariant === 'hq') tags.push(`<p class="ch-tag ch-tag--hq">👑 ${escapeHTML(chT('ch_var_hq'))}</p>`);
   const o = s.gameOdds;
   if (o && o.kind && o.kind !== 'none') {
     const label = o.kind === 'time' ? chT('ch_pill_odds_time') : chT('ch_pill_odds', { piece: chT('ch_odds_' + o.kind) });
@@ -2523,12 +2647,20 @@ function paintShatranjSetup() {
   }
   duelPaintSegmented('shatranj-clock', s.clock);
   duelPaintSegmented('shatranj-help', s.helpLimit);
-  duelPaintSegmented('shatranj-variant', s.variant);
-  // The hint explains 960 only: it shows when 960 is picked.
-  const varHint = document.getElementById('shatranj-variant-hint');
-  if (varHint) varHint.classList.toggle('hidden', s.variant !== '960');
   const phone = s.vs === 'phone';
+  // The hidden queen is against the computer only: two on one phone see standard and 960.
+  const variantNow = !phone && s.variant === 'hq' ? 'standard' : s.variant;
+  duelPaintSegmented('shatranj-variant', variantNow);
+  const hqBtn = document.querySelector('#shatranj-variant [data-value="hq"]');
+  if (hqBtn) hqBtn.classList.toggle('hidden', !phone);
+  // Each hint explains its own choice, shown only when it is picked.
+  const varHint = document.getElementById('shatranj-variant-hint');
+  if (varHint) varHint.classList.toggle('hidden', variantNow !== '960');
+  const hqHint = document.getElementById('shatranj-variant-hint-hq');
+  if (hqHint) hqHint.classList.toggle('hidden', variantNow !== 'hq');
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+  // No handicap with the hidden queen.
+  show('shatranj-odds-field', variantNow !== 'hq');
   // The handicap: which piece (or half the clock), then who gives it - you or the computer; White or Black.
   const odds = document.getElementById('shatranj-odds');
   if (odds) {
@@ -2544,8 +2676,13 @@ function paintShatranjSetup() {
     duelPaintSegmented('shatranj-oddsby', cur);
   }
   show('shatranj-oddsby-field', s.odds !== 'none');
+  // The line under the handicap: only when one is chosen - half the time with no clock warns; two on one
+  // phone is never rated, so its line says nothing about the rating.
   const oddsHint = document.getElementById('shatranj-odds-hint');
-  if (oddsHint) oddsHint.textContent = s.odds === 'time' && chessClockId(s.clock) === 'off' ? chT('ch_odds_time_noclock') : chT('ch_odds_hint_local');
+  if (oddsHint) {
+    oddsHint.classList.toggle('hidden', s.odds === 'none');
+    oddsHint.textContent = s.odds === 'time' && chessClockId(s.clock) === 'off' ? chT('ch_odds_time_noclock') : chT(phone ? 'ch_odds_hint_local' : 'ch_odds_hint_friend');
+  }
 
   show('shatranj-color-field', phone);
   show('shatranj-coach-field', phone);
@@ -2668,6 +2805,15 @@ function chNewGame(opts) {
   }
   s.g = fen ? chessFromFen(fen) : chessNew();
   s.start = fen;
+  // The hidden queen (against the computer, from the setup): the computer picks a pawn at random now, you before your first move.
+  s.hq = null;
+  chLocal.hqSel = '';
+  if (!o.fen && !o.practice && chHqChosen(s)) {
+    s.gameVariant = 'hq';
+    s.hq = chessHqNew();
+    const cpu = 1 - (s.me || 0);
+    chessHqPick(s.hq, s.g, cpu, chessHqRandom(s.g, cpu));
+  }
   s.hist = [];
   s.sans = [];
   // A game from a position (try the better move) keeps what had been taken by then.
@@ -2731,8 +2877,9 @@ const chOrient = (s) => (s.vs === 'phone' ? s.me : (s.flip ? 1 : 0));
 
 function chPlayLocal(from, to, promo) {
   const s = chState();
-  if (!chHumanTurn(s) || Date.now() < chLocal.busy || chLocal.pending) return;
+  if (!chHumanTurn(s) || Date.now() < chLocal.busy || chLocal.pending || chHqPicking(s)) return;
   const before = chessCloneGame(s.g);
+  const beforeHq = chHqOf(s) ? chessHqClone(s.hq) : null;
   const beforeLost = [s.lost[0].slice(), s.lost[1].slice()];
   // The clock as it was before this move (and when it was made), for a take back.
   const beforeClk = s.clk ? { clk: JSON.parse(JSON.stringify(s.clk)), side: s.g.turn, at: Date.now() } : null;
@@ -2746,7 +2893,7 @@ function chPlayLocal(from, to, promo) {
     chPaint();
     // Not if the board was left meanwhile (a warning would open over another screen), or the move taken back.
     const n = s.hist.length;
-    setTimeout(() => { if (appState.currentView === 'play-shatranj' && chState().phase === 'play' && chState().hist.length === n) chCoachJudge(before, beforeLost, info, beforeClk); }, 40);
+    setTimeout(() => { if (appState.currentView === 'play-shatranj' && chState().phase === 'play' && chState().hist.length === n) chCoachJudge(before, beforeLost, info, beforeClk, beforeHq); }, 40);
     return;
   }
   chPaint();
@@ -2758,13 +2905,16 @@ function chApplyMove(s, mv) {
   const mover = s.g.turn;
   const now = Date.now();
   if (s.clk && chessClockFlagged(s.clk, mover, now, 0)) { chFlag(s, mover); return null; }
-  const info = chessPlay(s.g, mv);
+  const h = chHqOf(s);
+  const info = h ? chessHqPlay(s.g, h, mv) : chessPlay(s.g, mv);
   if (!info) return null;
   if (s.clk) chessClockPress(s.clk, mover, now, 0, s.hist.length === 0);
-  s.hist.push(info.from + info.to + (info.promo || ''));
-  s.sans.push(info.san);
+  const seen = h ? info.hq : null;
+  s.hist.push(h ? info.uci : info.from + info.to + (info.promo || ''));
+  s.sans.push(info.san + (seen && seen.reveal ? CHESS_HQ_MARK : ''));
   if (info.capture) s.lost[1 - mover].push(info.capture);
   s.last = { from: info.from, to: info.to, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, n: s.hist.length };
+  if (seen && (seen.reveal || seen.captured)) s.last.hq = { reveal: seen.reveal, captured: seen.captured, by: mover };
   chLocal.hint = null;
   if (info.status.over) chEnd(s, info.status.result, info.status.reason);
   saveToLocal();
@@ -2826,7 +2976,7 @@ function chEnd(s, result, reason) {
     chStoreGame({ mode: s.vs === 'phone' ? 'phone' : 'friend', names: names, elo: s.vs === 'phone' ? chOppElo(s) : null, me: s.vs === 'phone' ? s.me : null,
       result: result, reason: reason, start: s.start || '', moves: s.hist.slice(), key: 'local|' + s.gameId,
       help: s.vs === 'phone' ? chHelpNew(s.help) : null, rated: !!rating, rating: rating,
-      variant: s.gameVariant === '960' ? '960' : '', odds: s.gameOdds || null });
+      variant: s.gameVariant === '960' ? '960' : s.gameVariant === 'hq' ? 'hq' : '', odds: s.gameOdds || null });
   }
 }
 
@@ -2836,6 +2986,8 @@ function chAfterMove() {
   if (appState.currentView !== 'play-shatranj' || !s.g) return;
   chTickStart();
   if (s.phase !== 'play') return;
+  // The hidden queen: nobody moves before your pawn is picked.
+  if (chHqPicking(s)) return;
   if (s.vs === 'phone' && s.g.turn !== s.me) chComputerSoon();
   else if (s.vs === 'phone' && chLocal.pre && !chLocal.pending) {
     // Your turn, and a move queued: played now if it still is one, else dropped with a shake.
@@ -2863,7 +3015,8 @@ function chComputerSoon() {
     let ms = settings.ms;
     if (st.clk && st.clk.at) ms = Math.min(ms, Math.max(80, chessClockLeft(st.clk, st.g.turn, st.g.turn, Date.now()) / 25));
     const t0 = Date.now();
-    const mv = chessBestMove(st.g, { elo: chOppElo(st), ms: ms, style: (st.opp && st.opp.style) || undefined });
+    const hqs = chHqOf(st);
+    const mv = chessBestMove(st.g, { elo: chOppElo(st), ms: ms, style: (st.opp && st.opp.style) || undefined, hq: hqs ? hqs.sq[st.g.turn] : -1 });
     // A move found at once still waits a human moment, so it can be seen coming.
     const pause = Math.max(0, 450 - (Date.now() - t0));
     chLocal.thinking = setTimeout(() => {
@@ -2945,15 +3098,16 @@ function chCoachPrepare() {
 }
 
 /** Your move against the computer, judged: a blunder waits for you to take it back or play it anyway. */
-function chCoachJudge(before, beforeLost, info, beforeClk) {
+function chCoachJudge(before, beforeLost, info, beforeClk, beforeHq) {
   const s = chState();
   const key = s.gameId + '|' + (s.hist.length - 1);
   const pre = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : chessAnalyse(before, { nodes: CH_COACH_NODES, ms: 900 });
   const after = chessAnalyse(s.g, { nodes: CH_COACH_NODES, ms: 900 });
   const mv = { from: info.from, to: info.to, promo: info.promo || '' };
+  if (info.hq && info.hq.reveal) mv.hq = true;
   const verdict = chessJudge(before, mv, pre, after);
   if (s.coachOpts.warn !== false && verdict.cls === 'blunder' && s.phase !== 'done') {
-    chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null };
+    chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null, hq: beforeHq || null };
     if (s.help) s.help.warn = true;
     // Kept at once: a reload now drops the warning but keeps the move, and the game must stay unrated.
     saveToLocal();
@@ -2998,6 +3152,7 @@ function chCoachTakeBack() {
   if (!p) return;
   s.g = p.before;
   s.lost = p.lost;
+  if (p.hq) s.hq = p.hq;
   s.hist = s.hist.slice(0, p.hist - 1);
   s.sans = s.sans.slice(0, p.hist - 1);
   if (p.clk) {
@@ -3182,8 +3337,17 @@ function chPaint(opts) {
     setSel: (sq) => { chLocal.presel = sq; chPaint(); },
     setPre: (mv) => { chLocal.pre = mv; chPaint(); }
   };
+  // The hidden queen: your pawns lit while you pick; afterwards its crown on your board only (both once it is over).
+  const hq = chHqOf(s);
+  const picking = chHqPicking(s);
+  const hqMine = chHqMine(s);
+  if (hq) {
+    if (picking) chessHqPawns(s.g, s.me).forEach(i => marks.push({ sq: chSqName(i), kind: chSqName(i) === chLocal.hqSel ? 'hq' : 'chance' }));
+    else if (ended) hq.sq.forEach(i => { if (i >= 0) marks.push({ sq: chSqName(i), kind: 'hq' }); });
+    else if (hqMine) marks.push({ sq: hqMine, kind: 'hq' });
+  }
   const ctx = {
-    g: s.g, side: side, sel: chLocal.sel,
+    g: s.g, side: side, sel: chLocal.sel, hq: hqMine,
     setSel: (sq) => { chLocal.sel = sq; chPaint(); },
     play: (from, to, promo) => chPlayLocal(from, to, promo),
     redraw: () => chPaint()
@@ -3193,18 +3357,24 @@ function chPaint(opts) {
     board: s.g.board, orient: chOrient(s), loud: true,
     last: s.last ? { from: s.last.from, to: s.last.to } : null,
     // The undo count is in the key: after ↶ the same move number is another move (else the piece snaps).
-    anim: s.last ? Object.assign({ key: s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n, still: !!o.still }, s.last) : null,
+    anim: s.last ? chAnimOf(s.last, s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n, o.still) : null,
     check: chessCheckSq(s.g),
     mate: ended && s.result.reason === 'mate' ? chMateKing(s.g) : '',
-    sel: humanTurn ? chLocal.sel : preOn ? chLocal.presel : '',
-    targets: humanTurn ? chTargets(s.g, chLocal.sel) : preOn && chLocal.presel ? chPremoveTargets(s.g.board, chLocal.presel) : [],
+    sel: picking ? '' : humanTurn ? chLocal.sel : preOn ? chLocal.presel : '',
+    targets: picking ? [] : humanTurn ? chTargets(s.g, chLocal.sel, hqMine) : preOn && chLocal.presel ? chPremoveTargets(s.g.board, chLocal.presel) : [],
     marks: marks,
     arrows: (hint ? [{ from: hint.move.from, to: hint.move.to }] : []).concat(best ? best.lines.map((b, k) => ({ from: b.from, to: b.to, color: CH_BEST_COLORS[k][0], label: b.pct + '%', ink: CH_BEST_COLORS[k][1] })) : [], chLocal.pre && s.phase === 'play' ? [{ from: chLocal.pre.from, to: chLocal.pre.to, color: CH_PRE_COLOR }] : []),
     lost: s.lost,
-    input: humanTurn ? { canMove: true, side: side, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
+    input: picking ? { canMove: true, side: s.me, onPick: (sq, fromDrag) => chHqTapLocal(sq, fromDrag), onDrop: () => false }
+      : humanTurn ? { canMove: true, side: side, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
       : preOn ? { canMove: true, side: s.me, premove: true, onPick: (sq, fromDrag) => chPreTapLogic(pctx, sq, fromDrag), onDrop: (from, to) => chPreDropLogic(pctx, from, to) } : null
   };
   chViewShow(el.querySelector('[data-ch-host]'), model);
+  if (hq && s.last && s.last.hq && !o.still) {
+    const k = s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n;
+    if (s.last.hq.reveal) chHqMoment('reveal', k + '|r');
+    if (s.last.hq.captured) chHqMoment('captured', k + '|c');
+  }
   const scores = s.scores || [0, 0, 0];
   // The pills are by colour; the tally is by player.
   const p1Colour = s.vs === 'phone' ? s.me : (s.firstWhite === 0 ? 0 : 1);
@@ -3242,7 +3412,8 @@ function chMateKing(g) {
 function chLocalStatus(s, names) {
   if (s.phase === 'done' && s.result) return chResultLine(s.result.result, s.result.reason, names);
   if (chLocal.pending) return chT('ch_coach_wait');
-  const check = chessCheckSq(s.g) ? ' · ' + chT('ch_check') : '';
+  if (chHqPicking(s)) return chT('ch_hq_pick');
+  const check = (chessCheckSq(s.g) ? ' · ' + chT('ch_check') : '') + (s.last && s.last.hq && s.last.n === s.hist.length ? ' · ' + chHqWord(s.last.hq.captured && !s.last.hq.reveal ? 'captured' : 'reveal') : '');
   if (s.vs === 'phone') return (s.g.turn === s.me ? chT('duel_your_turn') : chT('xo_thinking')) + check;
   return chT('duel_turn_of', { name: duelIso(names[s.g.turn]) }) + check;
 }
@@ -3253,6 +3424,12 @@ function chLocalBarHtml(s, hint) {
         <button type="button" class="btn btn--primary btn--lg" onclick="chNextGame()">${escapeHTML(chT('duel_next_game'))}</button>
         <button type="button" class="btn btn--secondary" onclick="chOpenLastReview()">📊 ${escapeHTML(chT('ch_review'))}</button>
       </div>${!s.practice && typeof chShareRowHtml === 'function' ? chShareRowHtml('local|' + s.gameId) : ''}`;
+  }
+  if (chHqPicking(s)) {
+    return `<p class="ch-hq-note">👑 ${escapeHTML(chT('ch_hq_pick_hint'))}</p><div class="ch-bar__row">
+        <button type="button" class="btn btn--primary btn--auto" ${chLocal.hqSel ? '' : 'disabled'} onclick="chHqPickLocal(chLocal.hqSel)">👑 ${escapeHTML(chT('ch_hq_pick_ok'))}${chLocal.hqSel ? ` <b dir="ltr">${escapeHTML(chLocal.hqSel)}</b>` : ''}</button>
+        <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chResignLocal()">🏳️ ${escapeHTML(chT('ch_resign'))}</button>
+      </div>`;
   }
   const parts = [];
   if (s.vs === 'phone' && (s.gameHelp || s.helpLimit) !== 'none') {
@@ -3278,6 +3455,8 @@ function chLocalSideHtml(s, names) {
     out.push(`<p class="ch-rating-result ${rc.delta > 0 ? 'is-up' : rc.delta < 0 ? 'is-down' : ''}">⭐ ${escapeHTML(chT('ch_rating_now', { r: rc.after }))} <b dir="ltr">${chDeltaText(rc.delta)}</b></p>`);
   }
   if (s.comment && s.vs === 'phone' && s.coach) out.push(chCommentHtml(s.comment));
+  const hqEnd = chHqOf(s);
+  if (hqEnd && s.phase === 'done') out.push(chHqEndHtml(chHqLocalEnds(hqEnd), names));
   out.push(chMovesHtml(s.sans, { current: s.sans.length - 1, start: s.start || (s.practice ? 'practice' : ''), variant: s.gameVariant }));
   if (s.practice) out.push(`<p class="field__hint">🎯 ${escapeHTML(chT('ch_practice_note'))}</p>`);
   if (s.help && s.help.setup) {

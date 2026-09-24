@@ -7811,6 +7811,216 @@ Date.now = duelTestClock;
   }
 }
 
+// Hidden queen, 24 Sep 2026: الوزير المستخبي - the rules (Chess.js) and the room (RoomChess.js).
+{
+  const HQ = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
+    '\nreturn { chessNew, chessFromFen, chessPlay, chessPerft, chessLegalMoves, chessStatus, chessHqNew, chessHqPick, chessHqMoves, chessHqPlay, chessHqReplay, chessHqLegal, chessBestMove, chessReview, chessFromUci, chessUci };')();
+  const sq = (n) => 'abcdefgh'.indexOf(n[0]) + (Number(n[1]) - 1) * 8;
+  const tos = (list) => list.map((m) => m.to).sort().join(',');
+
+  // The extra moves: queen moves from the pawn's square that a pawn couldn't make.
+  {
+    const g = HQ.chessNew();
+    const x = tos(HQ.chessHqMoves(g, 'e2'));
+    check(x === 'a6,b5,c4,d3,e5,e6,e7,f3,g4,h5', 'hidden queen: from e2 at the start, the queen moves a pawn couldn\'t make (e5-e7 up the file past its steps, both diagonals) - not e3, e4');
+    check(HQ.chessHqMoves(g, 'e7').length === 0 && HQ.chessHqMoves(g, 'd1').length === 0, 'hidden queen: only a pawn of the side to move has extra moves');
+    const k = HQ.chessFromFen('4k3/8/8/8/8/8/4P3/4K3 w - - 0 1');
+    check(!HQ.chessHqMoves(k, 'e2').some((m) => m.to === 'e8'), 'hidden queen: never onto a king (e2 up the file stops short of e8)');
+    const pin = HQ.chessFromFen('4r1k1/8/8/8/8/8/4P3/4K3 w - - 0 1');
+    check(HQ.chessHqMoves(pin, 'e2').every((m) => m.to[0] === 'e'), 'hidden queen: pinned on the file, it may only move along the pin (never leaving its king in check)');
+    const chk = HQ.chessFromFen('4k3/8/8/8/8/8/3P4/r3K3 w - - 0 1');
+    check(tos(HQ.chessHqMoves(chk, 'd2')) === 'c1,d1', 'hidden queen: in check along the first rank, only the queen moves that block it (c1, d1)');
+  }
+
+  // Pawn moves keep it hidden, the secret follows; a queen move reveals it.
+  {
+    const g = HQ.chessNew();
+    const h = HQ.chessHqNew();
+    check(HQ.chessHqPick(h, g, 0, 'e2') && HQ.chessHqPick(h, g, 1, 'd7'), 'hidden queen: each side picks a pawn of its own');
+    check(!HQ.chessHqPick(h, g, 0, 'd2') && !HQ.chessHqPick(HQ.chessHqNew(), g, 0, 'd7') && !HQ.chessHqPick(HQ.chessHqNew(), g, 0, 'e1'),
+      'hidden queen: a second pick, the other side\'s pawn or another piece is refused');
+    let i = HQ.chessHqPlay(g, h, { from: 'e2', to: 'e4' });
+    check(i && !i.hq.reveal && h.sq[0] === sq('e4') && g.board[sq('e4')] === 1, 'hidden queen: the double step is a pawn move - it stays hidden, the secret on e4');
+    HQ.chessHqPlay(g, h, { from: 'd7', to: 'd5' });
+    i = HQ.chessHqPlay(g, h, { from: 'e4', to: 'd5' });
+    check(i && !i.hq.reveal && i.hq.captured && i.capture === 'q' && h.sq[0] === sq('d5') && h.sq[1] === -1 && h.how[1] === 'captured',
+      'hidden queen: a pawn capture keeps it hidden; taking the other hidden pawn reveals that one, counted as a queen');
+    const opp = HQ.chessLegalMoves(g).map((m) => m.from + m.to).sort().join();
+    const plain = HQ.chessLegalMoves(HQ.chessFromFen('rnbqkbnr/ppp1pppp/8/3P4/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2')).map((m) => m.from + m.to).sort().join();
+    check(opp === plain, 'hidden queen: the other side\'s legal moves are the same as with a plain pawn there');
+    i = HQ.chessHqPlay(g, h, { from: 'c7', to: 'c6' });
+    i = HQ.chessHqPlay(g, h, { from: 'd5', to: 'a8' });
+    check(i === null, 'hidden queen: a queen move through a piece is refused');
+    i = HQ.chessHqPlay(g, h, { from: 'd5', to: 'd6' });
+    check(i && !i.hq.reveal && h.sq[0] === sq('d6'), 'hidden queen: a single step is a pawn move');
+    HQ.chessHqPlay(g, h, { from: 'g8', to: 'f6' });
+    i = HQ.chessHqPlay(g, h, { from: 'd6', to: 'a3' });
+    check(i && i.hq.reveal && i.san === 'Qa3' && i.uci === 'd6a3*' && g.board[sq('a3')] === 5 && h.sq[0] === -1 && h.how[0] === 'reveal' && h.at[0] === sq('a3'),
+      'hidden queen: a queen move reveals it - a real queen on a3 (Qa3), stored as d6a3*');
+  }
+  // En passant keeps the secret; promotion ends it hidden.
+  {
+    const g = HQ.chessFromFen('4k3/3p4/8/4P3/8/8/8/4K3 b - - 0 1');
+    const h = HQ.chessHqNew();
+    HQ.chessHqPick(h, g, 0, 'e5');
+    HQ.chessHqPlay(g, h, { from: 'd7', to: 'd5' });
+    const i = HQ.chessHqPlay(g, h, { from: 'e5', to: 'd6' });
+    check(i && i.ep && !i.hq.reveal && h.sq[0] === sq('d6'), 'hidden queen: en passant is a pawn move - the secret follows it to d6');
+    const p = HQ.chessFromFen('7k/4P3/8/8/8/8/8/4K3 w - - 0 1');
+    const hp = HQ.chessHqNew();
+    HQ.chessHqPick(hp, p, 0, 'e7');
+    const pr = HQ.chessHqPlay(p, hp, { from: 'e7', to: 'e8', promo: 'n' });
+    check(pr && pr.hq.promoted && !pr.hq.reveal && hp.sq[0] === -1 && hp.how[0] === 'promoted' && p.board[sq('e8')] === 2,
+      'hidden queen: reaching the last rank still hidden, it promotes like any pawn (a knight here) and the secret is gone');
+  }
+  // It never gives check while hidden; a way out through it is not mate; perft untouched.
+  {
+    const g = HQ.chessFromFen('4k3/8/8/8/8/8/4P3/4K3 w - - 0 1');
+    const h = HQ.chessHqNew();
+    HQ.chessHqPick(h, g, 0, 'e2');
+    HQ.chessHqPlay(g, h, { from: 'e1', to: 'd1' });
+    check(!HQ.chessStatus(g).check && HQ.chessLegalMoves(g).some((m) => m.from === 'e8' && m.to === 'e7'),
+      'hidden queen: a hidden queen on the file gives no check, and the king may walk onto its line');
+    const m = HQ.chessFromFen('6rk/8/8/8/8/8/5PPP/4r1K1 w - - 0 1');
+    const hm = HQ.chessHqNew();
+    HQ.chessHqPick(hm, m, 0, 'f2');
+    const before = HQ.chessFromFen('6rk/8/8/8/8/8/5PPP/6K1 b - - 0 1');
+    const hb = HQ.chessHqNew();
+    HQ.chessHqPick(hb, before, 0, 'f2');
+    const mated = HQ.chessHqPlay(before, hb, { from: 'g8', to: 'e8' });
+    HQ.chessHqPlay(before, hb, { from: 'g1', to: 'h1' });
+    const back = HQ.chessHqPlay(before, hb, { from: 'e8', to: 'e1' });
+    check(mated && back && !back.status.over && back.status.check && /\+$/.test(back.san),
+      'hidden queen: a "mate" its hidden queen can answer (f2 to f1) is not mate - the game goes on');
+    const esc = HQ.chessHqPlay(before, hb, { from: 'f2', to: 'f1' });
+    check(esc && esc.hq.reveal && before.board[sq('f1')] === 5, 'hidden queen: and the hidden queen blocks it by revealing itself');
+    check([1, 2, 3, 4].map((d) => HQ.chessPerft(HQ.chessNew(), d)).join() === '20,400,8902,197281', 'hidden queen: perft from the start unchanged (20, 400, 8902, 197281)');
+  }
+  // A stored game replays; the review reads the marker; the computer considers its own hidden queen.
+  {
+    const r = HQ.chessHqReplay('', [sq('e2'), sq('d7')], ['e2e4', 'd7d5', 'e4e6*', 'f7e6']);
+    check(r.infos.length === 4 && r.sans.join(' ') === 'e4 d5 Qe6👑 fxe6' && r.h.how[0] === 'reveal' && r.lost[0].join() === 'q',
+      'hidden queen: a stored game replays - the reveal written as a queen move with 👑, the queen then taken');
+    const mv = HQ.chessFromUci('e4e6*');
+    check(mv.hq === true && mv.promo === '' && HQ.chessUci(Object.assign({}, mv)) === 'e4e6*', 'hidden queen: the marker reads and writes back');
+    const rv = HQ.chessReview({ start: '', moves: ['e2e4', 'd7d5', 'e4e6*', 'f7e6'] }, { nodes: 1500 });
+    check(rv.moves.length === 4 && rv.moves[2].san === 'Qe6👑', 'hidden queen: the review plays the revealing move and judges all four');
+    const bot = HQ.chessBestMove(HQ.chessFromFen('4k3/8/8/8/8/8/4P3/4K3 w - - 0 1'), { elo: 2000, hq: sq('e2'), ms: 400, nodes: 20000 });
+    check(bot && bot.hq === true && bot.from === 'e2', 'hidden queen: the computer finds its own hidden queen\'s move when it wins (a lone queen)');
+    const plainBot = HQ.chessBestMove(HQ.chessFromFen('4k3/8/8/8/8/8/4P3/4K3 w - - 0 1'), { elo: 2000, ms: 200, nodes: 8000 });
+    check(plainBot && !plainBot.hq, 'hidden queen: without its square the computer never plays one');
+  }
+
+  // The room: winner stays with the hidden queen.
+  const hqRoom = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'chess' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({ variant: 'hq' }, payload || {}));
+    return r;
+  };
+  const threwH = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const hmv = (r, pid, m) => { const [from, to, promo] = m.split(/[-=]/); applyRoomAction(r, pid, 'move', { from, to, promo, move: r.shared.chess.moves }); };
+  {
+    const r = hqRoom(['a', 'b', 'c'], { odds: 'queen' });
+    const s = r.shared;
+    const [W, B] = s.seats;
+    check(s.settings.variant === 'hq' && s.chess.hq && s.chess.hq.picking && s.chess.g.board.filter((x) => x === 5).length === 1,
+      'hidden queen room: the deal starts a pick, from the usual start (no handicap with it)');
+    check(!s.chess.hq.pickEnds, 'hidden queen room: no pick clock when the room plays without a clock');
+    check(threwH(() => hmv(r, W, 'e2-e4')), 'hidden queen room: no move before both have picked');
+    check(threwH(() => applyRoomAction(r, W, 'hqPick', { sq: 'e7', round: s.round })), 'hidden queen room: a pick of the other side\'s pawn is refused');
+    check(threwH(() => applyRoomAction(r, s.line[0], 'hqPick', { sq: 'e2', round: s.round })), 'hidden queen room: a watcher can\'t pick');
+    applyRoomAction(r, W, 'hqPick', { sq: 'e2', round: s.round - 1 });
+    check(!r.shared.chess.hq.picked[0], 'hidden queen room: a pick drawn for the last game is dropped');
+    applyRoomAction(r, W, 'hqPick', { sq: 'e2', round: s.round });
+    check(r.shared.chess.hq.picked[0] && r.secrets[W].hq === 'e2' && !r.secrets[B].hq && !JSON.stringify(r.shared).includes('"e2"'),
+      'hidden queen room: White\'s pick is on White\'s slice only; the table sees only that White has picked');
+    applyRoomAction(r, W, 'hqPick', { sq: 'd2', round: s.round });
+    check(r.secrets[W].hq === 'e2', 'hidden queen room: a second pick changes nothing');
+    applyRoomAction(r, B, 'hqPick', { sq: 'd7', round: s.round });
+    check(!r.shared.chess.hq.picking && r._chq.sq[1] === sq('d7'), 'hidden queen room: both picked - the game is on');
+    hmv(r, W, 'e2-e4');
+    check(r.secrets[W].hq === 'e4' && !r.shared.chess.last.hq, 'hidden queen room: a pawn move of it - the secret follows it, the table sees a pawn move');
+    check(threwH(() => hmv(r, B, 'c7-a5')), 'hidden queen room: a queen move from a pawn that isn\'t your hidden one is refused');
+    hmv(r, B, 'a7-a6');
+    const n = r.shared.chess.moves;
+    applyRoomAction(r, W, 'move', { from: 'e4', to: 'e6', move: n - 1 });
+    check(r.shared.chess.moves === n, 'hidden queen room: a stale tap is dropped');
+    hmv(r, W, 'e4-e6');
+    const bd = r.shared.chess;
+    check(bd.g.board[sq('e6')] === 5 && bd.last.hq && bd.last.hq.reveal && bd.hist[bd.hist.length - 1] === 'e4e6*' && /👑$/.test(bd.sans[bd.sans.length - 1]) &&
+      bd.hq.events.length === 1 && bd.hq.events[0].kind === 'reveal' && r.secrets[W].hq === '',
+      'hidden queen room: a queen move reveals it on every screen - stored e4e6*, 👑 in the move list, the secret gone');
+    // Black takes it: the queen counts.
+    hmv(r, B, 'f7-e6');
+    check(r.shared.chess.lost[0].join() === 'q', 'hidden queen room: a revealed queen taken counts as a queen');
+    applyRoomAction(r, W, 'resign', { round: r.shared.round });
+    const end = r.shared.chess.hq.end;
+    check(r.shared.phase === 'over' && end && end[0].pick === 'e2' && end[0].how === 'reveal' && end[1].pick === 'd7' && end[1].how === 'hidden' && end[1].at === 'd7',
+      'hidden queen room: the end reveals both picks - and what became of each');
+    applyRoomAction(r, W, 'nextRound', { round: r.shared.round });
+    check(r.shared.chess.hq && r.shared.chess.hq.picking && !r.shared.chess.hq.picked[0] && !r.shared.chess.hq.picked[1] && r._chq.pick[0] === -1 && !Object.keys(r.secrets).some((k) => r.secrets[k].hq),
+      'hidden queen room: play again deals a new pick, the old secrets gone');
+  }
+  // The hidden queen accepted only for its owner; the clock's random pick; the host's pick.
+  {
+    const r = hqRoom(['a', 'b'], { clock: '5+0' });
+    const s = r.shared;
+    const [W, B] = s.seats;
+    check(s.chess.hq.pickEnds === clock + 60000 && roomDeadline(r) === s.chess.hq.pickEnds, 'hidden queen room: with a clock, the pick has a minute of its own');
+    applyRoomAction(r, W, 'hqPick', { sq: 'd2', round: s.round });
+    clock += 60001;
+    check(roomTimeout(r, clock) && !r.shared.chess.hq.picking && r._chq.pick[1] >= 48 && r._chq.pick[1] < 56 && r.secrets[B].hq,
+      'hidden queen room: the pick clock runs out - Black gets a random pawn of their own');
+    check(r.shared.chess.clock.at === null || r.shared.chess.clock.at === undefined, 'hidden queen room: the chess clock hasn\'t started while picking');
+    hmv(r, W, 'e2-e4');
+    const bs = r._chq.sq[1];
+    const bsq = 'abcdefgh'[bs & 7] + ((bs >> 3) + 1);
+    // Black's hidden pawn: a queen move of it for its owner only.
+    const extra = HQ.chessHqMoves(r.shared.chess.g, bsq);
+    check(extra.length > 0, 'hidden queen room: Black\'s hidden pawn has queen moves');
+    const qm = extra[0];
+    check(threwH(() => applyRoomAction(r, W, 'move', { from: qm.from, to: qm.to, move: r.shared.chess.moves })), 'hidden queen room: not White\'s move');
+    applyRoomAction(r, B, 'move', { from: qm.from, to: qm.to, move: r.shared.chess.moves });
+    check(r.shared.chess.last.hq && r.shared.chess.last.hq.reveal && r.shared.chess.g.board[sq(qm.to)] === 13, 'hidden queen room: its owner\'s queen move is accepted and reveals it');
+    // White's pawn d2 is still hidden: someone else's queen move from d2 is refused (d2 isn't theirs to move anyway), and a plain game refuses it.
+    const plain = newRoom(['a', 'b']);
+    applyRoomAction(plain, 'a', 'chooseGame', { game: 'chess' });
+    applyRoomAction(plain, 'a', 'start', {});
+    check(threwH(() => hmv(plain, plain.shared.seats[0], 'e2-e5')) && !plain.shared.chess.hq, 'hidden queen room: in a standard game a pawn never moves like a queen');
+  }
+  {
+    const r = hqRoom(['a', 'b']);
+    const s = r.shared;
+    check(threwH(() => applyRoomAction(r, 'b', 'skipTurn', { move: 0 })), 'hidden queen room: only the host plays for someone');
+    applyRoomAction(r, 'a', 'skipTurn', { move: 0 });
+    check(!r.shared.chess.hq.picking && r._chq.pick[0] >= 8 && r._chq.pick[0] < 16 && r._chq.pick[1] >= 48, 'hidden queen room: the host\'s "play for" picks a random pawn for whoever hasn\'t');
+    // A whole game of host moves: every move legal, the end reveals both.
+    let guard = 0;
+    while (r.shared.phase === 'play' && guard++ < 400) applyRoomAction(r, 'a', 'skipTurn', { move: r.shared.chess.moves });
+    if (r.shared.phase === 'play') applyRoomAction(r, r.shared.seats[0], 'resign', { round: r.shared.round });
+    check(r.shared.phase === 'over' && r.shared.chess.hq.end && r.shared.chess.hq.end.every((e) => e.pick),
+      'hidden queen room: a game played out by the host\'s moves ends with both picks shown');
+  }
+  // A tournament never deals it.
+  {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'chess' });
+    applyRoomAction(r, 'a', 'start', { tournament: true, variant: 'hq' });
+    for (let k = 0; k < 4; k++) { clock += 5000; roomTimeout(r, clock); }
+    const games = Object.values(r.shared.games || {});
+    check(games.length && games.every((g) => !g.chess || !g.chess.hq) && !r._chq, 'hidden queen: a tournament plays it standard (no hidden queens in a bracket)');
+  }
+  // Someone leaves while picking: a forfeit, and the picks shown.
+  {
+    const r = hqRoom(['a', 'b', 'c']);
+    const [W, B] = r.shared.seats;
+    applyRoomAction(r, W, 'hqPick', { sq: 'a2', round: r.shared.round });
+    leave(r, B);
+    check(r.shared.phase === 'over' && r.shared.chess.hq.end && r.shared.chess.hq.end[0].pick === 'a2', 'hidden queen room: a player who leaves while picking loses by forfeit, the picks shown');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

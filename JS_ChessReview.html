@@ -168,6 +168,8 @@ function chPgn(rec) {
   const out = [tag('Event', 'Ashry'), tag('Site', typeof appLink === 'function' ? appLink() : ''), tag('Date', d.getFullYear() + '.' + two(d.getMonth() + 1) + '.' + two(d.getDate())),
     tag('Round', '-'), tag('White', names[0]), tag('Black', names[1]), tag('Result', res)];
   if (rec.variant === '960') out.push(tag('Variant', 'Chess960'));
+  // الوزير المستخبي: a revealing move is written as the queen's (a chess site reads the moves as far as it can).
+  if (rec.variant === 'hq') out.push(tag('Variant', 'Hidden Queen'));
   if (start) { out.push(tag('SetUp', '1')); out.push(tag('FEN', start)); }
   if (rec.reason === 'time') out.push(tag('Termination', 'time forfeit'));
   const g = start ? chessFromFen(start) : chessNew();
@@ -316,7 +318,7 @@ function chShareCardData(rec) {
   const acc = rec.review && rec.review.accuracy ? rec.review.accuracy : null;
   const line = chResultLine(rec.result, rec.reason, names) + (acc ? ' · ' + chT('ch_share_acc') + ' ' + acc.map(a => (a === null ? '-' : Math.round(a) + '%')).join(' / ') : '');
   return {
-    title: chT('setup_shatranj') + (rec.variant === '960' ? ' 960' : ''),
+    title: chT('setup_shatranj') + (rec.variant === '960' ? ' 960' : rec.variant === 'hq' ? ' · 👑 ' + chT('ch_var_hq') : ''),
     icon: (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID.shatranj && CATALOG_BY_ID.shatranj.icon) || '♞',
     rows: [{ name: '⚪ ' + (names[0] || ''), value: pair[0] }, { name: '⚫ ' + (names[1] || ''), value: pair[1] }, line],
     board: { board: end.board, last: end.last, orient: rec.me === 1 ? 1 : 0 },
@@ -382,7 +384,7 @@ function chOpenRoomReview(state) {
   const r = bd.result || {};
   const seat = state.youAreScreen ? -1 : (s.seats || []).indexOf(Room.me);
   const rec = chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: seat, result: r.result || 'd', reason: r.reason || '',
-    start: bd.start || '', moves: bd.hist.slice(), key: chRoomGameKey(state), variant: (s.settings || {}).variant === '960' ? '960' : '' });
+    start: bd.start || '', moves: bd.hist.slice(), key: chRoomGameKey(state), variant: bd.hq ? 'hq' : (s.settings || {}).variant === '960' ? '960' : '' });
   if (rec) chReviewShow(rec);
 }
 

@@ -547,11 +547,67 @@ async function chess4Robots() {
   }
 }
 
+/* --- الوزير المستخبي: a chess room with the hidden queen (run alone with --only=hq) --------------- */
+
+async function hiddenQueenRobots() {
+  console.log('• chess, the hidden queen (a pick each, the secret on its own phone only, a pawn move with it, a reveal, a win, the picks shown, play again)');
+  const H = await Bot.host('سما', null);
+  const J = await Bot.join(H.code, 'Jad');
+  const S = await Bot.join(H.code, '', true);
+  const two = [H, J];
+  const has = (bot, text) => JSON.stringify(bot.state).indexOf(text) !== -1;
+  await H.must('chooseGame', { game: 'chess' });
+  await H.must('start', { variant: 'hq', clock: 'off' });
+  await all(two.concat([S]), (s) => s.game === 'chess' && s.shared.chess && s.shared.chess.hq && s.shared.chess.hq.picking,
+    'hq: the deal asks both for a pick, on every phone and the TV');
+  const st = H.state.shared;
+  const W = st.seats[0] === H.pid ? H : J;
+  const B = W === H ? J : H;
+  check((await W.act('move', { from: 'e2', to: 'e4', move: 0 })).ok === false, 'hq: no move before both have picked');
+  check((await W.act('hqPick', { sq: 'e7', round: st.round })).ok === false, 'hq: a pick of the other side\'s pawn is refused');
+  check((await S.act('hqPick', { sq: 'e2', round: st.round })).ok === false, 'hq: the TV can\'t pick');
+  await W.must('hqPick', { sq: 'e2', round: st.round });
+  await all([B, S], (s) => s.shared.chess.hq.picked[0] === true, 'hq: everyone sees that White has picked');
+  check(W.state.you && W.state.you.hq === 'e2' && !has(B, '"e2"') && !has(S, '"e2"'), 'hq: White\'s pawn is on White\'s phone only - not Black\'s, not the TV');
+  await B.must('hqPick', { sq: 'a7', round: st.round });
+  await all(two.concat([S]), (s) => s.shared.chess.hq.picking === false, 'hq: both picked - the game is on');
+  check(B.state.you && B.state.you.hq === 'a7' && !has(W, '"a7"') && !has(S, '"a7"'), 'hq: Black\'s pawn on Black\'s phone only');
+  await W.must('move', { from: 'e2', to: 'e4', move: 0 });
+  await W.waitFor((s) => s.you && s.you.hq === 'e4' && s.shared.chess.moves === 1, 'hq: a pawn move with it - the secret follows it to e4');
+  check(!(S.state.shared.chess.last || {}).hq, 'hq: the table saw a pawn move');
+  await B.waitFor((s) => s.shared.chess.moves === 1, 'hq: the move reaches Black');
+  await B.must('move', { from: 'h7', to: 'h6', move: 1 });
+  await W.waitFor((s) => s.shared.chess.moves === 2, 'hq: Black\'s move reaches White');
+  await W.must('move', { from: 'e4', to: 'e6', move: 2 });
+  await all(two.concat([S]), (s) => s.shared.chess.moves === 3 && s.shared.chess.last && s.shared.chess.last.hq && s.shared.chess.last.hq.reveal &&
+    s.shared.chess.g.board[44] === 5 && /👑$/.test(s.shared.chess.sans[2]) && (s.shared.chess.hq.events || []).length === 1,
+    'hq: a queen move reveals it - a queen on e6 on every phone and the TV, 👑 in the move list');
+  check(W.state.you.hq === '' && B.state.you.hq === 'a7', 'hq: White\'s secret is gone, Black\'s still there');
+  await B.must('resign', { round: st.round });
+  await all(two.concat([S]), (s) => s.shared.phase === 'over' && s.shared.result.winnerId === W.pid && s.shared.chess.hq.end &&
+    s.shared.chess.hq.end[0].pick === 'e2' && s.shared.chess.hq.end[0].how === 'reveal' && s.shared.chess.hq.end[1].pick === 'a7' && s.shared.chess.hq.end[1].how === 'hidden',
+    'hq: a win - and both picks shown to everyone at the end');
+  await H.must('nextRound', { round: H.state.shared.round });
+  await all(two.concat([S]), (s) => s.shared.phase === 'play' && s.shared.chess.hq && s.shared.chess.hq.picking && !s.shared.chess.hq.picked[0] && !s.shared.chess.hq.picked[1],
+    'hq: play again - a new pick for both');
+  check(!(H.state.you || {}).hq && !(J.state.you || {}).hq, 'hq: the last game\'s secrets are gone');
+  await H.must('skipTurn', { move: 0 });
+  await all(two, (s) => s.shared.chess.hq.picking === false && s.you && /^[a-h][27]$/.test(s.you.hq), 'hq: the host picks a random pawn for both');
+  await H.must('backToHub');
+  two.concat([S]).forEach((b) => b.close());
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
   if (ONLY === 'teamchess') {
     await teamChessRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'hq') {
+    await hiddenQueenRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -4004,6 +4060,7 @@ async function main() {
   }
 
   await teamChessRobots();
+  await hiddenQueenRobots();
   /* --- باغ هاوس: four on two boards, the hands, drops, computer players --------------- */
   console.log('• bughouse (two people and two computer players, two boards, a capture sent to the partner and dropped, the bots on their own, a leaver taken over, resigning, play again)');
   {

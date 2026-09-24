@@ -13,7 +13,12 @@
    nothing to mate with (a draw); draws offered and accepted, and resigning.
    In winner stays a draw is the duels' draw: the champion keeps the seat.
 
-   Nothing is hidden: the whole game is in shared.
+   Nothing is hidden: the whole game is in shared - except in الوزير المستخبي
+   (the hidden queen, settings.variant 'hq', winner stays only): each seated
+   player's secret pawn is room._chq (Chess.js's chessHqNew shape, never
+   projected) and their own square in room.secrets[pid].hq; shared.chess.hq
+   carries only who has picked, the pick clock, the reveals the table saw, and
+   both picks once the game is over (chessHqPublic below).
 
    shared, beside the duel's fields (seats, seatNames, line, champ, result,
    prev, streak, scores, board, round):
@@ -106,25 +111,33 @@ function chessBoardResult(bd, result, reason) {
   return bd.result;
 }
 
-/** One move by `seat`. Returns the result when it ends the game, else null; throws when it can't be played. */
-function chessBoardMove(bd, seat, payload, now) {
+/**
+ * One move by `seat`. Returns the result when it ends the game, else null; throws when it can't be
+ * played. hq: the hidden queen's secret (room._chq) in that variant - the move is then judged with
+ * the mover's hidden queen, and bd.lastHq says what the table saw of it (a reveal, a capture).
+ */
+function chessBoardMove(bd, seat, payload, now, hq) {
   const p = payload || {};
   if (bd.result) throw new Error('اللعبة خلصت');
+  if (bd.hq && bd.hq.picking) throw new Error('استنى لما الاتنين يختاروا الوزير المستخبي');
   if (seat !== bd.g.turn) throw new Error('مش دورك');
   const t = now === undefined ? Date.now() : now;
   if (bd.clock && chessClockFlagged(bd.clock, seat, t, CHESS_GRACE_MS)) {
     bd.endedAt = t;
     return chessBoardResult(bd, chessFlagResult(bd.g.board, seat), 'time');
   }
-  const info = chessPlay(bd.g, { from: p.from, to: p.to, promo: p.promo });
+  const info = hq ? chessHqPlay(bd.g, hq, { from: p.from, to: p.to, promo: p.promo }) : chessPlay(bd.g, { from: p.from, to: p.to, promo: p.promo });
   if (!info) throw new Error('النقلة دي مش مسموحة');
   if (bd.clock) chessClockPress(bd.clock, seat, t, CHESS_GRACE_MS, bd.moves === 0);
   bd.moves++;
-  bd.sans.push(info.san);
-  bd.hist.push(info.from + info.to + (info.promo || ''));
+  const seen = hq ? info.hq : null;
+  bd.sans.push(info.san + (seen && seen.reveal ? CHESS_HQ_MARK : ''));
+  bd.hist.push(hq ? info.uci : info.from + info.to + (info.promo || ''));
   if (info.capture) bd.lost[1 - seat].push(info.capture);
   bd.last = { from: info.from, to: info.to, san: info.san, piece: info.piece, capture: info.capture, captureSq: info.captureSq,
     castle: info.castle, promo: info.promo, check: info.check, seat: seat, n: bd.moves };
+  // What the table saw of a hidden queen: a reveal, a capture - never a promotion (that secret stays till the end).
+  if (seen && (seen.reveal || seen.captured)) bd.last.hq = { reveal: !!seen.reveal, captured: !!seen.captured };
   // Moving is the answer to a draw the other side offered: no.
   if (bd.offer && bd.offer.seat !== seat) bd.offer = null;
   if (info.status.over) {
@@ -175,14 +188,16 @@ function chessBoardFlag(bd, now) {
 
 const chessSeatOf = (s, pid) => (s.seats || []).indexOf(pid);
 
-const CHESS_VARIANTS = ['standard', '960'];
+const CHESS_VARIANTS = ['standard', '960', 'hq'];
 const CHESS_ODDS = ['none', 'pawn', 'knight', 'rook', 'queen', 'time'];
 
 function chessRoomOptions(payload, prev) {
   const p = payload || {};
   const was = prev || {};
   const clock = chessClockId(p.clock !== undefined ? p.clock : was.clock);
-  const variant = (p.variant === '960' || (!p.variant && was.variant === '960')) ? '960' : 'standard';
+  // A phone too old to send the variant keeps what the room had; 'hq' is the hidden queen (winner stays only).
+  const want = p.variant ? p.variant : was.variant;
+  const variant = CHESS_VARIANTS.indexOf(want) !== -1 ? want : 'standard';
   let odds = p.odds !== undefined ? p.odds : was.odds;
   if (CHESS_ODDS.indexOf(odds) === -1) odds = 'none';
   return { clock, variant, odds };
@@ -197,7 +212,9 @@ function chessRoomDeal(room, opts) {
   let oddsSide = null;
 
   const isTour = !!(o.tour || (room && room.shared && room.shared.tour));
-  if (!isTour) {
+  // The hidden queen: winner stays only (never a tournament's match), from the usual start, no handicap.
+  const hidden = !isTour && settings.variant === 'hq';
+  if (!isTour && !hidden) {
     const oddsKind = settings.odds || 'none';
     if (oddsKind !== 'none') {
       const champId = s.champ;
@@ -223,14 +240,94 @@ function chessRoomDeal(room, opts) {
     start: startFen,
     odds: oddsSide && settings.odds === 'time' ? oddsSide : undefined
   });
+  if (!isTour) {
+    // Chess keeps no other secret in winner stays: every deal starts the slices afresh.
+    room.secrets = {};
+    delete room._chq;
+    if (hidden) chessHqDeal(room);
+  }
   s.result = null;
   s.roster = duelHere(room);
   s.phase = 'play';
   room.phase = 'play';
 }
 
+/* --- الوزير المستخبي in the room: the picks, the secret squares, the reveals ---------------- */
+
+// With the room's clock on, picking has a clock of its own (خمّن مين's GW_PICK_SECS): an unpicked player gets a random pawn.
+const CHESS_HQ_PICK_SECS = 60;
+
+/** A hidden-queen deal: nobody has picked; the pick clock when the room plays with a clock. */
+function chessHqDeal(room) {
+  const s = room.shared;
+  const on = chessClockId((s.settings || {}).clock) !== 'off';
+  room._chq = chessHqNew();
+  s.chess.hq = { picking: true, picked: [false, false], pickEnds: on ? Date.now() + CHESS_HQ_PICK_SECS * 1000 : null, events: [], end: null };
+  chessHqSecrets(room);
+}
+
+/** Each seated phone's own secret: its hidden pawn's square ('' once gone) and what became of it. */
+function chessHqSecrets(room) {
+  const s = room.shared;
+  const h = room._chq;
+  if (!h || !s.chess || !s.chess.hq) return;
+  (s.seats || []).forEach((pid, c) => {
+    if (!pid) return;
+    room.secrets[pid] = Object.assign({}, room.secrets[pid] || {}, { hq: h.sq[c] >= 0 ? chessSqName(h.sq[c]) : '', hqHow: h.how[c] || '' });
+  });
+}
+
+/** Picks a random pawn for every seat that hasn't picked (the clock, the host), and starts the game once both have. */
+function chessHqAutoPick(room) {
+  const bd = room.shared.chess;
+  const h = room._chq;
+  if (!bd || !bd.hq || !bd.hq.picking || !h) return false;
+  [0, 1].forEach(c => {
+    if (bd.hq.picked[c]) return;
+    if (chessHqPick(h, bd.g, c, chessHqRandom(bd.g, c))) bd.hq.picked[c] = true;
+  });
+  chessHqPicked(room);
+  return true;
+}
+
+/** After a pick: the secrets written, and the game on once both have picked. */
+function chessHqPicked(room) {
+  const bd = room.shared.chess;
+  if (bd.hq.picked[0] && bd.hq.picked[1]) { bd.hq.picking = false; bd.hq.pickEnds = null; }
+  chessHqSecrets(room);
+}
+
+/** After a move: the reveal or the capture the table saw, and the secrets where the pawn went. */
+function chessHqAfterMove(room) {
+  const bd = room.shared.chess;
+  const h = room._chq;
+  if (!bd || !bd.hq || !h) return;
+  const last = bd.last;
+  if (last && last.hq) {
+    if (last.hq.reveal) bd.hq.events.push({ n: last.n, seat: last.seat, kind: 'reveal', sq: last.to });
+    if (last.hq.captured) bd.hq.events.push({ n: last.n, seat: 1 - last.seat, kind: 'captured', sq: last.captureSq });
+  }
+  chessHqSecrets(room);
+}
+
+/** The game is over: both secrets shown - the pawn each had picked, and what became of it. */
+function chessHqEnd(room) {
+  const bd = (room.shared || {}).chess;
+  const h = room._chq;
+  if (!bd || !bd.hq || !h || bd.hq.end) return;
+  bd.hq.picking = false;
+  bd.hq.pickEnds = null;
+  bd.hq.end = [0, 1].map(c => ({
+    pick: h.pick[c] >= 0 ? chessSqName(h.pick[c]) : '',
+    how: h.pick[c] >= 0 ? (h.how[c] || 'hidden') : '',
+    at: h.sq[c] >= 0 ? chessSqName(h.sq[c]) : (h.at[c] >= 0 ? chessSqName(h.at[c]) : '')
+  }));
+  chessHqSecrets(room);
+}
+
 /** The board's game is over: the duels' line moves on (a draw keeps the champion in the seat). */
 function chessRoomEnd(room, res) {
+  chessHqEnd(room);
   duelEnd(room, res.winner, res.reason);
 }
 
@@ -282,8 +379,21 @@ function chessAction(room, playerId, action, payload) {
     // Drawn for a board that has moved on since: the second tap of a double tap.
     if (staleTap(p, 'move', bd.moves)) return;
     if (seat === -1) throw new Error('انت بتتفرج دلوقتي، استنى دورك في الطابور');
-    const res = chessBoardMove(bd, seat, p, Date.now());
+    const res = chessBoardMove(bd, seat, p, Date.now(), bd.hq ? room._chq : undefined);
+    chessHqAfterMove(room);
     if (res) chessRoomEnd(room, res);
+    return;
+  }
+
+  if (action === 'hqPick') {
+    // الوزير المستخبي: a seated player picks one of their own pawns, once, before the first move.
+    if (s.phase !== 'play' || bd.result || !bd.hq || !bd.hq.picking || !room._chq) return;
+    if (staleTap(p, 'round', s.round)) return;
+    if (seat === -1) throw new Error('انت بتتفرج دلوقتي');
+    if (bd.hq.picked[seat]) return;
+    if (!chessHqPick(room._chq, bd.g, seat, String(p.sq || ''))) throw new Error('اختار عسكري من عساكرك');
+    bd.hq.picked[seat] = true;
+    chessHqPicked(room);
     return;
   }
 
@@ -307,11 +417,15 @@ function chessAction(room, playerId, action, payload) {
     // The host plays for a phone that went quiet: the computer's move at a low rating (chessHostMove).
     requireHost(room, playerId);
     if (s.phase !== 'play' || bd.result || staleTap(p, 'move', bd.moves)) return;
-    const mv = chessHostMove(bd.g);
-    if (!mv) return;
+    // The hidden queen's pick waiting on a quiet phone: a random pawn for whoever hasn't picked.
+    if (bd.hq && bd.hq.picking) { chessHqAutoPick(room); return; }
     const up = bd.g.turn;
-    const res = chessBoardMove(bd, up, mv, Date.now());
+    const hq = bd.hq ? room._chq : undefined;
+    const mv = chessHostMove(bd.g, hq ? hq.sq[up] : -1);
+    if (!mv) return;
+    const res = chessBoardMove(bd, up, mv, Date.now(), hq);
     if (bd.last && bd.last.n === bd.moves) bd.last.auto = 'host';
+    chessHqAfterMove(room);
     if (res) chessRoomEnd(room, res);
     return;
   }
@@ -335,20 +449,24 @@ function chessAction(room, playerId, action, payload) {
  * server's time budget on the free plan is a few milliseconds.
  */
 const CHESS_HOST_ELO = 800;
-function chessHostMove(g) {
-  return chessBestMove(g, { elo: CHESS_HOST_ELO, depth: 1, nodes: 600, ms: 40, noise: 60 });
+function chessHostMove(g, hq) {
+  return chessBestMove(g, { elo: CHESS_HOST_ELO, depth: 1, nodes: 600, ms: 40, noise: 60, hq: typeof hq === 'number' ? hq : -1 });
 }
 
 /* --- the clock ------------------------------------------------------------------ */
 
 function chessDeadline(room) {
   const s = room.shared || {};
+  const hq = s.chess && s.chess.hq;
+  if (s.phase === 'play' && hq && hq.picking) return hq.pickEnds || null;
   return s.phase === 'play' ? chessBoardDeadline(s.chess) : null;
 }
 
 function chessTimeout(room, now) {
   const s = room.shared || {};
   if (s.phase !== 'play' || !s.chess) return false;
+  const hq = s.chess.hq;
+  if (hq && hq.picking) return !!hq.pickEnds && now >= hq.pickEnds && chessHqAutoPick(room);
   const res = chessBoardFlag(s.chess, now);
   if (!res) return false;
   chessRoomEnd(room, res);
@@ -370,6 +488,7 @@ function chessPlayerLeft(room, playerId) {
       chessBoardResult(bd, seat === 0 ? 'b' : 'w', 'left');
       bd.result.drawn = false;
     }
+    chessHqEnd(room);
     duelEnd(room, 1 - seat, 'left');
     return;
   }

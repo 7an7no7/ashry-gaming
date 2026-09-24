@@ -539,6 +539,41 @@ const PROBES = {
   connect4: () => [], dots: () => [], xo: () => [], ludo: () => [], bowling: () => [],
   // شطرنج: the whole game is on the table.
   chess: () => [],
+  // الوزير المستخبي (a chess room with variant 'hq'): each hidden pawn's square on its owner's phone
+  // only, until it is revealed, taken, promoted or the game ends; the table sees who has picked.
+  'chess:hq'(room) {
+    const s = room.shared || {};
+    const bd = s.chess || {};
+    const h = room._chq;
+    const live = !!(h && bd.hq && !bd.hq.end && s.phase === 'play');
+    const name = (i) => 'abcdefgh'[i & 7] + ((i >> 3) + 1);
+    return [
+      probe('hidden queen: a hidden pawn\'s square is on its own phone only', live, (view, pid) => {
+        const you = view.you;
+        if (!you || you.hq === undefined) return null;
+        const seat = (s.seats || []).indexOf(pid);
+        if (seat === -1) return 'you.hq (a phone not playing)';
+        return you.hq === (h.sq[seat] >= 0 ? name(h.sq[seat]) : '') ? null : 'you.hq (not its own)';
+      }),
+      probe('hidden queen: the table sees who picked and what was revealed, never a hidden square', live, (view) => {
+        const vh = ((view.shared || {}).chess || {}).hq;
+        if (!vh) return 'shared.chess.hq (missing)';
+        const extra = Object.keys(vh).find((k) => ['picking', 'picked', 'pickEnds', 'events', 'end'].indexOf(k) === -1);
+        if (extra) return 'shared.chess.hq.' + extra;
+        if (vh.end) return 'shared.chess.hq.end (before the end)';
+        if ((vh.picked || []).some((x) => typeof x !== 'boolean')) return 'shared.chess.hq.picked';
+        if ((vh.events || []).some((e) => h.sq[e.seat] >= 0 || (e.kind !== 'reveal' && e.kind !== 'captured'))) return 'shared.chess.hq.events (a queen still hidden)';
+        const last = (view.shared.chess || {}).last;
+        if (last && last.hq && Object.keys(last.hq).some((k) => k !== 'reveal' && k !== 'captured')) return 'shared.chess.last.hq';
+        if (/"(sq|pick|how|at)":\[/.test(JSON.stringify(view.shared))) return 'shared (a secret\'s shape)';
+        return null;
+      }),
+      probe('hidden queen: both picks are shown once the game is over', !!(bd.hq && bd.hq.end && h), (view) => {
+        const end = ((view.shared.chess || {}).hq || {}).end || [];
+        return [0, 1].every((c) => h.pick[c] < 0 || (end[c] && end[c].pick === name(h.pick[c]))) ? null : 'shared.chess.hq.end';
+      })
+    ];
+  },
   // شطرنج بالتصويت: what anyone voted stays on their own phone until the move is played.
   votechess(room) {
     const s = room.shared || {};
@@ -647,7 +682,7 @@ const table = (game, n, opts = {}) => {
   if (!report.has(game)) report.set(game, { moves: 0, probes: new Map(), leaks: new Map() });
   // opts.tourOf: a tournament of that duel, reported under its own name ('tour:guesswho').
   const T = { room, game, ids, host: room.hostId, tourOf: opts.tourOf || null };
-  must(T, T.host, 'chooseGame', { game: opts.tourOf || game });
+  must(T, T.host, 'chooseGame', { game: opts.tourOf || opts.gameId || game });
   return T;
 };
 
@@ -1477,12 +1512,47 @@ const TOUR_DRIVERS = {
   }
 };
 
+/* A variant of a room game, played through and held to its own probes (PROBES['chess:hq']). */
+const VARIANT_DRIVERS = {
+  'chess:hq'() {
+    // Two games: one on a clock (White picks, Black's pick by the clock), one where the host picks for both;
+    // moves at random, a hidden queen moved like a pawn now and then and like a queen a third of the time.
+    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessHqMoves };')();
+    const T = table('chess:hq', 3, { gameId: 'chess' });
+    const play = () => {
+      for (let guard = 0; guard < 160 && S(T).phase === 'play'; guard++) {
+        const s = S(T);
+        const up = s.seats[s.chess.g.turn];
+        const mine = ((T.room.secrets || {})[up] || {}).hq || '';
+        const extra = mine ? CH.chessHqMoves(s.chess.g, mine) : [];
+        const legal = CH.chessLegalMoves(s.chess.g);
+        const own = legal.filter((m) => m.from === mine);
+        const m = extra.length && Math.random() < 0.33 ? pick(extra) : own.length && Math.random() < 0.4 ? pick(own) : pick(legal);
+        must(T, up, 'move', { from: m.from, to: m.to, promo: m.promo, move: s.chess.moves });
+      }
+      if (S(T).phase === 'play') must(T, S(T).seats[0], 'resign', { round: S(T).round });
+    };
+    must(T, T.host, 'start', { variant: 'hq', clock: '3+2' });
+    let s = S(T);
+    const white = s.seats[0];
+    must(T, white, 'hqPick', { sq: 'e2', round: s.round });
+    runClock(T, (r) => !r.shared.chess.hq.picking, 5);
+    if (S(T).chess.hq.picking) return false;
+    play();
+    must(T, T.host, 'nextRound', { round: S(T).round });
+    must(T, T.host, 'skipTurn', { move: 0 });
+    play();
+    s = S(T);
+    return s.phase === 'over' && !!s.chess.hq.end;
+  }
+};
+
 /* --- run ---------------------------------------------------------------------- */
 
 console.log('• the leak check: every game played through, every phone checked after every move');
 const only = process.argv.slice(2);
-for (const game of ROOM_GAME_IDS.concat(Object.keys(TOUR_DRIVERS)).filter((g) => !only.length || only.indexOf(g) !== -1)) {
-  const driver = DRIVERS[game] || TOUR_DRIVERS[game];
+for (const game of ROOM_GAME_IDS.concat(Object.keys(TOUR_DRIVERS), Object.keys(VARIANT_DRIVERS)).filter((g) => !only.length || only.indexOf(g) !== -1)) {
+  const driver = DRIVERS[game] || TOUR_DRIVERS[game] || VARIANT_DRIVERS[game];
   if (!driver) { failed++; console.log(`  ✗ ${game}: no driver in test/leaks.mjs, so its phones are not checked`); continue; }
   let finished = false, error = null;
   try { finished = driver.call(DRIVERS); } catch (e) { error = e.message; }

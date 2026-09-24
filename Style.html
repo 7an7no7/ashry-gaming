@@ -13674,6 +13674,10 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .ch2-sq.is-anno::after { box-shadow: inset 0 0 0 0.7cqw var(--ch2-anno); border-radius: 50%; }
 .ch2-sq.is-hover::after { box-shadow: inset 0 0 0 0.6cqw var(--ch2-hover); }
 .ch2-dot { position: absolute; z-index: 1; width: 33%; height: 33%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
+/* الوزير المستخبي: its gold crown in the square's corner, over the pawn (the pieces' layer is z-index 2), on its owner's board only. */
+.ch2-sq.is-hq::after { box-shadow: inset 0 0 0 0.5cqmin rgba(234, 179, 8, 0.95); background: radial-gradient(circle, rgba(250, 204, 21, 0.28), rgba(250, 204, 21, 0) 70%); }
+.ch2-hq { position: absolute; z-index: 3; top: 2%; inset-inline-end: 4%; font-size: 4cqmin; line-height: 1; font-style: normal; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
+.ch2-board.is-mini .ch2-hq { display: none; }
 .ch2-cap { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 79%, var(--ch2-hint) 81% 100%, transparent 101%); pointer-events: none; }
 .ch2-co { position: absolute; z-index: 1; font-style: normal; font-size: 2.5cqw; font-weight: var(--fw-bold); line-height: 1; pointer-events: none; direction: ltr; }
 .ch2-co--r { top: 0.45cqw; left: 0.55cqw; }
@@ -14450,6 +14454,32 @@ button.tour-live { cursor: pointer; }
 /* A tournament's replay or Armageddon game, over the status line (phones and the TV). */
 .ch-tag { margin: 0; text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--accent-ink); }
 .ch-tag--arma { color: var(--danger-ink); }
+.ch-tag--hq { color: var(--warning-ink, var(--accent-ink)); }
+/* الوزير المستخبي: the pick's line, the words of a reveal over the board, both picks at the end. */
+.ch-hq-note { margin: 0 0 var(--sp-2); text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+.ch-hq-note .ch-clock { margin-inline-start: var(--sp-1); }
+.ch-hq-pop {
+  position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; pointer-events: none;
+}
+.ch-hq-pop span {
+  padding: 0.5em 1em; border-radius: 999px; font-family: var(--font-display); font-weight: var(--fw-black); font-size: clamp(1.1rem, 7cqmin, 2.6rem);
+  color: #422006; background: linear-gradient(180deg, #fde68a, #f5b400); box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.35), inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+  animation: chHqPop 1.9s var(--ease-out, ease-out) both;
+}
+.ch-hq-pop--was span { color: #fff; background: linear-gradient(180deg, #7c3aed, #4c1d95); }
+@keyframes chHqPop {
+  0% { opacity: 0; transform: scale(0.4) rotate(-6deg); }
+  18% { opacity: 1; transform: scale(1.12) rotate(2deg); }
+  30% { transform: scale(1) rotate(0); }
+  82% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96) translateY(-0.4em); }
+}
+@media (prefers-reduced-motion: reduce) { .ch-hq-pop span { animation: none; } }
+.ch-hqend { margin: var(--sp-2) 0 var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); text-align: center; }
+.ch-hqend__list { display: flex; flex-direction: column; gap: var(--sp-1); align-items: center; margin-bottom: var(--sp-2); font-size: var(--fs-sm); }
+.ch-hqend__row { display: inline-flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; justify-content: center; }
+.ch-hqend__row .ch-mark { width: 1.3em; height: 1.3em; }
+.is-tv-view .ch-hqend, .is-tv-view .ch-hqend__list { font-size: 2.2vmin; }
 .is-tv-view .ch-tag { font-size: 2.2vmin; }
 .tour-tv__soon { display: flex; flex-direction: column; gap: 1vmin; }
 .tour-soon { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1vmin; padding: 1vmin 1.4vmin; border: 1px dashed var(--border-strong); border-radius: var(--tv-r); font-size: 2vmin; }

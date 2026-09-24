@@ -25,12 +25,20 @@
    which carries the match. A tournament's replay and its Armageddon game say
    so above the status (chRoomTagHtml); the TV's live cards are small flat
    boards with their clocks (TOUR_CLIENT.chess in JS_RoomTournament.html).
+
+   الوزير المستخبي (the hidden queen, winner stays only): before the first move
+   each seated phone picks one of its own pawns (hqPick); its square is on this
+   phone only (state.you.hq, the server's room.secrets), wearing a gold crown;
+   the other phone, the watchers and the TV see plain pawns. shared.chess.hq
+   says who has picked, the pick clock, the reveals and captures the table saw
+   (each played once as a moment on every screen, chHqMoment), and both picks
+   once the game is over.
    ========================================================================= */
 
 // sel: the piece picked up; early: this phone's move, drawn before the server answers;
 // offset: the server's clock against this phone's; tick: the clocks' redraw.
 // pre / presel / preKey: your premove (one, on this phone only, never sent until it is played), for this game.
-const chRoomLocal = { sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, turnKey: '', stored: '', pre: null, presel: '', preKey: '' };
+const chRoomLocal = { hqSel: '', hqSeen: null, sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, turnKey: '', stored: '', pre: null, presel: '', preKey: '' };
 
 const chRoomSeat = (state) => (state.youAreScreen ? -1 : ((state.shared || {}).seats || []).indexOf(Room.me));
 
@@ -119,6 +127,8 @@ function chRoomTickStart() {
     const st = chRoomLiveState();
     if (!st) { if (!minis) chRoomTickStop(); return; }
     chRoomPaintClocks(st);
+    const pl = chRoomHqPickLeft(st);
+    if (pl !== null) document.querySelectorAll('[data-ch-hqclock]').forEach(el => { if (el.textContent !== String(pl)) el.textContent = String(pl); });
     const bd = st.shared.chess;
     const seat = chRoomSeat(st);
     const left = chRoomClockLeft(st, bd.g.turn);
@@ -141,15 +151,21 @@ function chRoomPlay(from, to, promo) {
   const s = state.shared;
   const bd = s.chess;
   const seat = chRoomSeat(state);
-  if (s.phase !== 'play' || bd.result || seat !== bd.g.turn || chRoomLocal.early) return;
+  if (s.phase !== 'play' || bd.result || seat !== bd.g.turn || chRoomLocal.early || (bd.hq && bd.hq.picking)) return;
   const g = chessCloneGame(bd.g);
-  const info = chessPlay(g, { from: from, to: to, promo: promo });
+  // The hidden queen: this phone knows only its own (the server judges the move with both).
+  const mine = chRoomHqMine(state);
+  let h = null;
+  if (bd.hq) { h = chessHqNew(); h.sq[seat] = chSqIndex(mine); }
+  const info = h ? chessHqPlay(g, h, { from: from, to: to, promo: promo }) : chessPlay(g, { from: from, to: to, promo: promo });
   if (!info) { chSound('refuse'); return; }
   const lost = [bd.lost[0].slice(), bd.lost[1].slice()];
   if (info.capture) lost[1 - seat].push(info.capture);
   const n = bd.moves + 1;
-  chRoomLocal.early = { code: state.code, round: s.round, n: n, g: g, lost: lost, sans: bd.sans.concat([info.san]),
+  const reveal = !!(h && info.hq && info.hq.reveal);
+  chRoomLocal.early = { code: state.code, round: s.round, n: n, g: g, lost: lost, sans: bd.sans.concat([info.san + (reveal ? CHESS_HQ_MARK : '')]),
     last: { from: info.from, to: info.to, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, n: n } };
+  if (reveal) chRoomLocal.early.last.hq = { reveal: true, captured: false };
   chRoomLocal.sel = '';
   haptic('light');
   chRoomRedraw();
@@ -185,20 +201,29 @@ function chRoomModel(state, tv, still) {
   const bd = s.chess;
   const seat = tv ? -1 : chRoomSeat(state);
   const view = chRoomBoard(state);
-  const mine = !tv && s.phase === 'play' && !bd.result && seat === view.g.turn && !chRoomLocal.early;
+  const mine = !tv && s.phase === 'play' && !bd.result && seat === view.g.turn && !chRoomLocal.early && !(bd.hq && bd.hq.picking);
   const selKey = [roomDealKey(state), s.round, view.n].join('|');
   if (chRoomLocal.selKey !== selKey) { chRoomLocal.selKey = selKey; chRoomLocal.sel = ''; }
+  const hqMine = tv ? '' : chRoomHqMine(state);
   const ctx = {
-    g: view.g, side: seat, sel: chRoomLocal.sel,
+    g: view.g, side: seat, sel: chRoomLocal.sel, hq: hqMine,
     setSel: (sq) => { chRoomLocal.sel = sq; chRoomRedraw(); },
     play: (from, to, promo) => chRoomPlay(from, to, promo),
     redraw: () => chRoomRedraw()
   };
   const over = s.phase === 'over' && bd.result;
+  // The hidden queen: your pawns lit while you pick, then its crown on your board only; both shown once it is over.
+  const marks = [];
+  const picking = chRoomHqPicking(state, tv);
+  if (bd.hq) {
+    if (picking) chessHqPawns(view.g, seat).forEach(i => marks.push({ sq: chSqName(i), kind: chSqName(i) === chRoomLocal.hqSel ? 'hq' : 'chance' }));
+    else if (bd.hq.end) bd.hq.end.forEach(e => { if (e && e.how === 'hidden' && e.at) marks.push({ sq: e.at, kind: 'hq' }); });
+    else if (hqMine) marks.push({ sq: hqMine, kind: 'hq' });
+  }
   // The other side to move (or your own move still on its way): a premove can be queued.
   const preKey = [roomDealKey(state), s.round].join('|');
   if (chRoomLocal.preKey !== preKey) { chRoomLocal.preKey = preKey; chRoomLocal.pre = null; chRoomLocal.presel = ''; }
-  const preOn = !tv && (seat === 0 || seat === 1) && s.phase === 'play' && !bd.result && !mine;
+  const preOn = !tv && (seat === 0 || seat === 1) && s.phase === 'play' && !bd.result && !mine && !(bd.hq && bd.hq.picking);
   if (!preOn && !mine) { chRoomLocal.pre = null; chRoomLocal.presel = ''; }
   const pctx = {
     board: view.g.board, side: seat, sel: chRoomLocal.presel, pre: chRoomLocal.pre,
@@ -210,16 +235,76 @@ function chRoomModel(state, tv, still) {
     board: view.g.board, orient: seat === 1 ? 1 : 0, tv: !!tv,
     loud: duelRoomLoud(state) || !!chRoomLocal.early,
     last: view.last ? { from: view.last.from, to: view.last.to } : null,
-    anim: view.last ? Object.assign({ key: [roomDealKey(state), s.round, view.last.n].join('|'), still: !!still }, view.last) : null,
+    anim: view.last ? chAnimOf(view.last, [roomDealKey(state), s.round, view.last.n].join('|'), still) : null,
     check: chessCheckSq(view.g),
     mate: over && bd.result.reason === 'mate' ? chMateKing(view.g) : '',
-    sel: mine ? chRoomLocal.sel : preOn ? chRoomLocal.presel : '',
-    targets: mine ? chTargets(view.g, chRoomLocal.sel) : preOn && chRoomLocal.presel ? chPremoveTargets(view.g.board, chRoomLocal.presel) : [],
-    marks: [], arrows: preOn && chRoomLocal.pre ? [{ from: chRoomLocal.pre.from, to: chRoomLocal.pre.to, color: CH_PRE_COLOR }] : [],
+    sel: picking ? '' : mine ? chRoomLocal.sel : preOn ? chRoomLocal.presel : '',
+    targets: picking ? [] : mine ? chTargets(view.g, chRoomLocal.sel, hqMine) : preOn && chRoomLocal.presel ? chPremoveTargets(view.g.board, chRoomLocal.presel) : [],
+    marks: marks, arrows: preOn && chRoomLocal.pre && !picking ? [{ from: chRoomLocal.pre.from, to: chRoomLocal.pre.to, color: CH_PRE_COLOR }] : [],
     lost: view.lost,
-    input: mine ? { canMove: true, side: seat, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
+    input: picking ? { canMove: true, side: seat, onPick: (sq, fromDrag) => chRoomHqTap(sq, fromDrag), onDrop: () => false }
+      : mine ? { canMove: true, side: seat, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
       : preOn ? { canMove: true, side: seat, premove: true, onPick: (sq, fromDrag) => chPreTapLogic(pctx, sq, fromDrag), onDrop: (from, to) => chPreDropLogic(pctx, from, to) } : null
   };
+}
+
+/* --- الوزير المستخبي in the room ------------------------------------------------------- */
+
+/** Your hidden queen's square in this room's game ('' when none: gone, not yours, another variant). */
+function chRoomHqMine(state) {
+  const bd = ((state || {}).shared || {}).chess;
+  const you = (state || {}).you || {};
+  return bd && bd.hq && typeof you.hq === 'string' ? you.hq : '';
+}
+
+/** Is this phone still to pick its pawn? */
+function chRoomHqPicking(state, tv) {
+  const s = state.shared || {};
+  const bd = s.chess;
+  const seat = tv ? -1 : chRoomSeat(state);
+  return !!(bd && bd.hq && bd.hq.picking && s.phase === 'play' && !bd.result && (seat === 0 || seat === 1) && !bd.hq.picked[seat]);
+}
+
+/** A tap while picking: a pawn of yours is chosen; a second tap on it (or the button) sends it. */
+function chRoomHqTap(sq, fromDrag) {
+  const state = duelRoomState();
+  if (!state || !chRoomHqPicking(state)) return false;
+  const seat = chRoomSeat(state);
+  const i = chSqIndex(sq);
+  if (i < 0 || state.shared.chess.g.board[i] !== ((seat << 3) | 1)) { if (chRoomLocal.hqSel) { chRoomLocal.hqSel = ''; chRoomRedraw(); } return false; }
+  if (chRoomLocal.hqSel === sq) { if (!fromDrag) chRoomHqPick(sq); return false; }
+  chRoomLocal.hqSel = sq;
+  chSound('pick');
+  chRoomRedraw();
+  return false;
+}
+
+function chRoomHqPick(sq) {
+  const state = duelRoomState();
+  if (!sq || !state || !chRoomHqPicking(state)) return;
+  chRoomLocal.hqSel = '';
+  haptic('medium');
+  chSound('hint');
+  duelAct('hqPick', { sq: sq, round: state.shared.round });
+}
+
+/** The pick clock's seconds left (the server's time), or null. */
+function chRoomHqPickLeft(state) {
+  const hq = (((state || {}).shared || {}).chess || {}).hq;
+  if (!hq || !hq.picking || !hq.pickEnds) return null;
+  return Math.max(0, Math.ceil((hq.pickEnds - (Date.now() - (chRoomLocal.offset || 0))) / 1000));
+}
+
+/** The reveals and captures the table saw, each played once as a moment - never replayed after a reload or a late join. */
+function chRoomHqMoments(state) {
+  const bd = (state.shared || {}).chess;
+  if (!bd || !bd.hq) return;
+  const key = [roomDealKey(state), state.shared.round].join('|');
+  const evs = bd.hq.events || [];
+  const top = evs.reduce((a, e) => Math.max(a, e.n || 0), 0);
+  if (!chRoomLocal.hqSeen || chRoomLocal.hqSeen.key !== key) { chRoomLocal.hqSeen = { key: key, n: top }; return; }
+  evs.forEach(e => { if (e.n > chRoomLocal.hqSeen.n) chHqMoment(e.kind, key + '|' + e.n + '|' + e.kind); });
+  chRoomLocal.hqSeen.n = Math.max(chRoomLocal.hqSeen.n, top);
 }
 
 function chRoomPills(state, tv) {
@@ -255,7 +340,13 @@ function chRoomStatus(state, tv) {
   }
   const view = chRoomBoard(state);
   const seat = tv ? -1 : chRoomSeat(state);
-  const check = chessCheckSq(view.g) ? ' · ' + chT('ch_check') : '';
+  if (bd.hq && bd.hq.picking) {
+    if (chRoomHqPicking(state, tv)) return chT('ch_hq_pick');
+    const waiting = [0, 1].filter(k => !bd.hq.picked[k]).map(k => duelIso(names[k] || ''));
+    return chT('ch_hq_waiting', { name: waiting.join(' · ') });
+  }
+  const lastHq = view.last && view.last.hq;
+  const check = (chessCheckSq(view.g) ? ' · ' + chT('ch_check') : '') + (lastHq ? ' · ' + chHqWord(lastHq.captured && !lastHq.reveal ? 'captured' : 'reveal') : '');
   if (chRoomLocal.early && seat !== -1) return chT('ch_sent') + check;
   if (bd.offer) {
     if (seat !== -1 && seat !== bd.offer.seat) return chT('ch_offer_to_you', { name: duelIso(names[bd.offer.seat]) });
@@ -272,6 +363,15 @@ function chRoomBarHtml(state) {
   const t = TRANSLATIONS[appState.lang] || {};
   if (s.phase !== 'play' || bd.result) return '';
   if (seat === -1) return duelRoomWatchNote(state, t);
+  if (bd.hq && bd.hq.picking) {
+    const left = chRoomHqPickLeft(state);
+    const clock = left === null ? '' : ` <b class="ch-clock metric" data-ch-hqclock>${left}</b>`;
+    if (!chRoomHqPicking(state)) return `<p class="ch-hq-note">👑 ${escapeHTML(chT('ch_hq_picked', { sq: chRoomHqMine(state) }))}${clock}</p>`;
+    const sel = chRoomLocal.hqSel;
+    return `<p class="ch-hq-note">👑 ${escapeHTML(chT('ch_hq_pick_hint'))}${clock}</p><div class="ch-bar__row">
+        <button type="button" class="btn btn--primary btn--auto" ${sel ? '' : 'disabled'} onclick="chRoomHqPick(chRoomLocal.hqSel)">👑 ${escapeHTML(chT('ch_hq_pick_ok'))}${sel ? ` <b dir="ltr">${escapeHTML(sel)}</b>` : ''}</button>
+      </div>`;
+  }
   if (bd.offer && bd.offer.seat !== seat) {
     return `<div class="ch-offer"><p>½ ${escapeHTML(chT('ch_offer_to_you', { name: duelIso(duelRoomNames(state)[bd.offer.seat]) }))}</p>
       <div class="btn-row">
@@ -309,6 +409,7 @@ function chRoomTagHtml(state) {
   if (set.variant === '960') {
     tags.push(`<p class="ch-tag ch-tag--960">🎲 ${escapeHTML(chT('ch_pill_960') || '960')}</p>`);
   }
+  if (bd.hq) tags.push(`<p class="ch-tag ch-tag--hq">👑 ${escapeHTML(chT('ch_var_hq'))}</p>`);
   if (!s.tourMid && set.odds && set.odds !== 'none' && s.champ && (s.seats || []).indexOf(s.champ) !== -1) {
     let label = '';
     if (set.odds === 'time') {
@@ -332,9 +433,13 @@ function chRoomHostRow(state, tv) {
   const s = state.shared || {};
   const bd = s.chess;
   if (!state.youAreHost || s.phase !== 'play' || !bd || bd.result) return '';
-  const key = [roomDealKey(state), s.round, bd.moves].join('|');
+  const picking = !!(bd.hq && bd.hq.picking);
+  const key = [roomDealKey(state), s.round, bd.moves, picking ? 'pick' : ''].join('|');
   if (chRoomLocal.turnKey !== key) { chRoomLocal.turnKey = key; chRoomLocal.turnSince = Date.now(); }
-  const id = (s.seats || [])[bd.g.turn];
+  // The hidden queen's pick waiting on a phone: the host picks a random pawn for whoever hasn't.
+  const upSeat = picking ? [0, 1].find(k => !bd.hq.picked[k]) : bd.g.turn;
+  if (upSeat === undefined) return '';
+  const id = (s.seats || [])[upSeat];
   const p = (state.players || []).find(x => x.id === id);
   if (!p || id === Room.me) return '';
   const wait = 40000 - (Date.now() - chRoomLocal.turnSince);
@@ -347,7 +452,8 @@ function chRoomHostRow(state, tv) {
     }
     return '';
   }
-  const label = '⏭️ ' + chT('ch_play_for', { name: duelIso(duelRoomNames(state)[bd.g.turn] || '') });
+  const label = picking ? '🎲 ' + chT('ch_hq_pick_for', { name: duelIso(duelRoomNames(state)[upSeat] || '') })
+    : '⏭️ ' + chT('ch_play_for', { name: duelIso(duelRoomNames(state)[bd.g.turn] || '') });
   const press = `duelAct('skipTurn', { move: ${Number(bd.moves) || 0} })`;
   return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
 }
@@ -377,7 +483,7 @@ function chRoomKeepGame(state) {
   if (chRoomLocal.storedKeys[key]) return;
   chRoomLocal.storedKeys[key] = true;
   const names = duelRoomNames(state);
-  chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: chRoomSeat(state), result: bd.result.result || 'd', reason: bd.result.reason || '', start: bd.start || '', moves: bd.hist.slice(), key: key, variant: (s.settings || {}).variant === '960' ? '960' : '' });
+  chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: chRoomSeat(state), result: bd.result.result || 'd', reason: bd.result.reason || '', start: bd.start || '', moves: bd.hist.slice(), key: key, variant: bd.hq ? 'hq' : (s.settings || {}).variant === '960' ? '960' : '' });
 }
 
 function chRoomRender(state, still) {
@@ -412,7 +518,9 @@ function chRoomRender(state, still) {
   if (over) {
     // Kept first, so the share row below finds the game (a watcher keeps none, and has no row).
     chRoomKeepGame(state);
-    side.push(duelRoomOverHtml(state, t), `<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
+    side.push(duelRoomOverHtml(state, t));
+    if (bd.hq && bd.hq.end) side.push(chHqEndHtml(bd.hq.end, duelRoomNames(state)));
+    side.push(`<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
     if (seat !== -1) side.push(chShareRowHtml(chRoomGameKey(state)));
   }
   const rSet = s.settings || {};
@@ -430,6 +538,7 @@ function chRoomRender(state, still) {
   if (bd.clock) chRoomTickStart(); else chRoomTickStop();
   duelPillsAfter(el, 'chr|' + state.code, { turn: s.phase === 'play' && !bd.result ? view.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
   if (myTurn && duelOnce(['chturn', roomDealKey(state), s.round, bd.moves].join('|'))) haptic('medium');
+  chRoomHqMoments(state);
   if (preDropped) chPremoveDropped(preDropped);
   if (over) { chRoomKeepGame(state); duelRoomCheer(el, state, ['ch', roomDealKey(state), s.round].join('|')); }
 }
@@ -444,7 +553,7 @@ function setChRoomClock(v) {
 }
 
 function setChRoomVariant(v) {
-  rememberOptions('chessRoom', { variant: v === '960' ? '960' : 'standard' });
+  rememberOptions('chessRoom', { variant: v === '960' || v === 'hq' ? v : 'standard' });
   duelLobbyRedraw();
 }
 
@@ -467,16 +576,22 @@ ROOM_GAMES.chess = {
         <div class="segmented" role="group">
           ${CHESS_CLOCK_IDS.map(v => `<button type="button" class="segmented__item ${v === o.clock ? 'is-active' : ''}" onclick="setChRoomClock('${v}')">${escapeHTML(v === 'off' ? chT('gw_clock_off') : v)}</button>`).join('')}
         </div>
-        <p class="field__hint">${escapeHTML(chT('ch_clock_hint'))}</p>
+        ${o.clock !== 'off' ? `<p class="field__hint">${escapeHTML(chT('ch_clock_hint'))}</p>` : ''}
       </div>`;
+    // The hidden queen is winner stays only: while the tournament switch is on it isn't offered (and a
+    // remembered choice plays standard there). Each hint line explains only the choice made.
+    const variant = isTour && o.variant === 'hq' ? 'standard' : (o.variant === '960' || o.variant === 'hq' ? o.variant : 'standard');
+    const varHint = variant === '960' ? chT('ch_variant_hint') : variant === 'hq' ? chT('ch_variant_hint_hq_room') : '';
     const varHtml = `
       <div class="field">
         <label class="field__label">🎲 ${escapeHTML(chT('ch_variant_label'))}</label>
         <div class="segmented" role="group">
-          <button type="button" class="segmented__item ${o.variant !== '960' ? 'is-active' : ''}" onclick="setChRoomVariant('standard')">${escapeHTML(chT('ch_var_standard'))}</button>
-          <button type="button" class="segmented__item ${o.variant === '960' ? 'is-active' : ''}" onclick="setChRoomVariant('960')">${escapeHTML(chT('ch_var_960'))}</button>
+          <button type="button" class="segmented__item ${variant === 'standard' ? 'is-active' : ''}" onclick="setChRoomVariant('standard')">${escapeHTML(chT('ch_var_standard'))}</button>
+          <button type="button" class="segmented__item ${variant === '960' ? 'is-active' : ''}" onclick="setChRoomVariant('960')">${escapeHTML(chT('ch_var_960'))}</button>
+          ${isTour ? '' : `<button type="button" class="segmented__item ${variant === 'hq' ? 'is-active' : ''}" onclick="setChRoomVariant('hq')">👑 ${escapeHTML(chT('ch_var_hq'))}</button>`}
         </div>
-        <p class="field__hint">${escapeHTML(chT('ch_variant_hint'))}</p>
+        ${varHint ? `<p class="field__hint">${escapeHTML(varHint)}</p>` : ''}
+        ${isTour ? `<p class="field__hint">${escapeHTML(chT('ch_hq_no_tour'))}</p>` : ''}
       </div>`;
     const oddsValues = [
       ['none', chT('ch_odds_none')],
@@ -486,13 +601,16 @@ ROOM_GAMES.chess = {
       ['queen', chT('ch_odds_queen')],
       ['time', chT('ch_odds_time')]
     ];
-    const oddsHtml = isTour ? '' : `
+    // No handicap in a tournament, nor with the hidden queen. Its line only once one is chosen; half the time with no clock warns.
+    const odds = o.odds || 'none';
+    const oddsLine = odds === 'none' ? '' : odds === 'time' && o.clock === 'off' ? chT('ch_odds_time_noclock') : chT('ch_odds_hint');
+    const oddsHtml = isTour || variant === 'hq' ? '' : `
       <div class="field">
         <label class="field__label">⚖️ ${escapeHTML(chT('ch_odds_label'))}</label>
         <div class="segmented" role="group">
-          ${oddsValues.map(v => `<button type="button" class="segmented__item ${v[0] === (o.odds || 'none') ? 'is-active' : ''}" onclick="setChRoomOdds('${v[0]}')">${escapeHTML(v[1])}</button>`).join('')}
+          ${oddsValues.map(v => `<button type="button" class="segmented__item ${v[0] === odds ? 'is-active' : ''}" onclick="setChRoomOdds('${v[0]}')">${escapeHTML(v[1])}</button>`).join('')}
         </div>
-        <p class="field__hint">${escapeHTML(chT('ch_odds_hint'))}</p>
+        ${oddsLine ? `<p class="field__hint">${escapeHTML(oddsLine)}</p>` : ''}
       </div>`;
     return `<div class="card card--tight">
         ${clockHtml}
@@ -503,7 +621,10 @@ ROOM_GAMES.chess = {
   },
   startPayload() {
     const o = chRoomOpts();
-    return { clock: o.clock, variant: o.variant || 'standard', odds: o.odds || 'none' };
+    // A tournament has no hidden queen: a remembered one starts it standard.
+    const isTour = typeof tourModeOf === 'function' && tourModeOf('chess') === 'tour';
+    const variant = o.variant === 'hq' && isTour ? 'standard' : (o.variant || 'standard');
+    return { clock: o.clock, variant: variant, odds: variant === 'hq' ? 'none' : (o.odds || 'none') };
   },
   render(state) {
     if (appState.currentView !== 'room-chess') setView('room-chess');
@@ -516,6 +637,7 @@ ROOM_GAMES.chess = {
 onRoomClocksReset(() => {
   chRoomTickStop();
   chRoomLocal.sel = '';
+  chRoomLocal.hqSel = '';
   chRoomLocal.early = null;
   const st = Room.state;
   // The team games (JS_RoomVoteChess.html, JS_RoomHandBrain.html) keep the one board too.
@@ -553,7 +675,7 @@ TV_GAMES.chess = {
       <div class="tv-scale">${chRoomPills(state, true)}</div>
       ${chRoomTagHtml(state)}
       <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(chRoomStatus(state, true))}</div>
-      ${over ? duelRoomOverHtml(state, t, true) : moves}
+      ${over ? duelRoomOverHtml(state, t, true) + (bd.hq && bd.hq.end ? `<div class="tv-scale">${chHqEndHtml(bd.hq.end, duelRoomNames(state))}</div>` : '') : moves}
       ${chRoomHostRow(state, true)}
       <div class="tv-scale">${duelRoomLineHtml(state, t, true)}</div>`;
     const side = view.querySelector('[data-ch-tvside]');
@@ -567,6 +689,7 @@ TV_GAMES.chess = {
     chRoomPaintClocks(state);
     if (bd.clock) chRoomTickStart(); else chRoomTickStop();
     duelPillsAfter(view, 'chtv|' + state.code, { turn: s.phase === 'play' && !bd.result ? bd.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
+    chRoomHqMoments(state);
     if (over) duelRoomCheer(view, state, ['ch', roomDealKey(state), s.round].join('|'));
   }
 };

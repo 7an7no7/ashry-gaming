@@ -120,6 +120,8 @@ function roomTurnOf(state) {
     case 'chess':
       // Your move, or a draw offered to you (RoomChess.js).
       if (!Array.isArray(s.seats) || s.seats.indexOf(me) === -1 || s.phase !== 'play' || !s.chess || s.chess.result) return null;
+      // الوزير المستخبي: your pawn to pick before the first move.
+      if (s.chess.hq && s.chess.hq.picking) return s.chess.hq.picked[s.seats.indexOf(me)] ? null : 'turn_up';
       if (s.chess.offer && s.seats[s.chess.offer.seat] !== me) return 'turn_up';
       return s.seats[s.chess.g.turn] === me ? 'turn_up' : null;
     case 'votechess': {

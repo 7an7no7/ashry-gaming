@@ -828,6 +828,9 @@ function chessStatus(g) {
  * after the move.
  */
 function chessPlay(g, mv) {
+  // A hidden queen's move from a stored game ('e2e5*', chessFromUci's hq): the pawn on its square is
+  // a queen from here on (الوزير المستخبي below). Nothing else ever passes hq, so standard chess is untouched.
+  if (mv && mv.hq) return chessHqReveal(g, mv);
   const p = chessPos(g);
   const legal = chessLegalPos(p);
   const m = chessFind(p, mv, legal);
@@ -1106,14 +1109,21 @@ function chessBestMove(g, opts) {
   const rnd = typeof o.rnd === 'function' ? o.rnd : Math.random;
   const clockNow = typeof o.now === 'function' ? o.now : () => Date.now();
   const p = chessPos(g);
-  const root = chessLegalPos(p);
+  // A hidden queen of its own (الوزير المستخبي): its queen moves are considered at the root only;
+  // deeper, every hidden queen is the pawn it looks like.
+  const extra = typeof o.hq === 'number' && o.hq >= 0 ? chessHqEngine(p, o.hq) : [];
+  const root = chessLegalPos(p).concat(extra);
   if (!root.length) return null;
-  const out = (m) => ({ from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: chessPromoLetter(chessMPromo(m)) });
+  const out = (m) => {
+    const mv = { from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: chessPromoLetter(chessMPromo(m)) };
+    if (m & CHESS_HQ_BIT) mv.hq = true;
+    return mv;
+  };
   if (root.length === 1) return out(root[0]);
   if (L.blunder && rnd() < L.blunder) return out(root[Math.floor(rnd() * root.length)]);
   const res = chessSearch(p, g, {
     depth: o.depth || L.depth, ms: o.ms || L.ms, nodes: o.nodes || L.nodes, noise: o.noise !== undefined ? o.noise : L.noise,
-    qdepth: L.qdepth, rnd: rnd, now: clockNow, style: o.style
+    qdepth: L.qdepth, rnd: rnd, now: clockNow, style: o.style, extra: extra
   });
   return out(res.move || root[0]);
 }
@@ -1269,7 +1279,23 @@ function chessSearch(p, g, o) {
   };
 
   // The root: every legal move, in the order the last depth ranked them.
-  let rootMoves = order(chessLegalPos(p), 0, 0);
+  let rootMoves = order(chessLegalPos(p).concat(o.extra || []), 0, 0);
+  // A hidden queen's move at the root: the pawn becomes a queen first (and back after), the hash with it.
+  const doRoot = (m) => {
+    if (!(m & CHESS_HQ_BIT)) { chessDo(p, m); return; }
+    const from = chessMFrom(m), pawn = p.b[from], queen = (pawn & 8) | 5;
+    p.hqSave = [from, pawn, p.lo, p.hi];
+    p.lo ^= CHESS_Z[0].piece[pawn * 64 + from] ^ CHESS_Z[0].piece[queen * 64 + from];
+    p.hi ^= CHESS_Z[1].piece[pawn * 64 + from] ^ CHESS_Z[1].piece[queen * 64 + from];
+    p.b[from] = queen;
+    chessDo(p, m);
+  };
+  const undoRoot = (m) => {
+    chessUndo(p);
+    if (!(m & CHESS_HQ_BIT)) return;
+    const sv = p.hqSave;
+    p.b[sv[0]] = sv[1]; p.lo = sv[2]; p.hi = sv[3];
+  };
   let bestMove = rootMoves[0], bestScore = -CHESS_INF, done = 0;
   const noise = {};
   if (o.noise) rootMoves.forEach(m => { noise[m] = Math.round((o.rnd() * 2 - 1) * o.noise); });
@@ -1284,11 +1310,11 @@ function chessSearch(p, g, o) {
     S.path = [rootKey];
     for (let i = 0; i < rootMoves.length; i++) {
       const m = rootMoves[i];
-      chessDo(p, m);
+      doRoot(m);
       const sBonus = o.style ? chessStyleBonus(p, m, o.style, g, side) : 0;
       const fullWin = !!(o.noise || (o.lines && i < o.lines));
       const sc = -negamax(depth - 1, -CHESS_INF, fullWin ? CHESS_INF : -alpha, 1, true) + (noise[m] || 0) + sBonus;
-      chessUndo(p);
+      undoRoot(m);
       if (S.stop) break;
       scores.push([sc, m]);
       if (sc > iterScore) { iterScore = sc; iterBest = m; }
@@ -1316,7 +1342,7 @@ function chessSearch(p, g, o) {
   }
   // The line it expects: the best move, then the table's best move from each position after it.
   const pv = [];
-  if (o.pv && bestMove) {
+  if (o.pv && bestMove && !(bestMove & CHESS_HQ_BIT)) {
     let steps = 0;
     const walk = [bestMove];
     chessDo(p, bestMove); steps++;
@@ -1714,8 +1740,14 @@ function chessJudge(gBefore, played, before, after) {
 /* --- the review of a whole game, in slices ------------------------------------------ */
 
 /** 'e2e4', 'e7e8q' - a move as four or five letters, for a stored game. */
-const chessUci = (m) => (m ? m.from + m.to + (m.promo || '') : '');
-const chessFromUci = (s) => ({ from: String(s).slice(0, 2), to: String(s).slice(2, 4), promo: String(s).slice(4, 5) });
+const chessUci = (m) => (m ? m.from + m.to + (m.promo || '') + (m.hq ? '*' : '') : '');
+// 'e2e5*' is a hidden queen's revealing move (الوزير المستخبي): the pawn on e2 turns into a queen, then goes to e5.
+const chessFromUci = (s) => {
+  const t = String(s);
+  const out = { from: t.slice(0, 2), to: t.slice(2, 4), promo: /[qrbn]/.test(t.slice(4, 5)) ? t.slice(4, 5) : '' };
+  if (t.slice(-1) === '*') out.hq = true;
+  return out;
+};
 
 /**
  * A review to work through a position at a time (so the page never freezes):
@@ -1731,8 +1763,8 @@ function chessReviewBegin(record) {
     const mv = chessFromUci(u);
     const info = chessPlay(g, mv);
     if (!info) return true;
-    moves.push({ from: info.from, to: info.to, promo: info.promo });
-    sans.push(info.san);
+    moves.push(mv.hq ? { from: info.from, to: info.to, promo: info.promo, hq: true } : { from: info.from, to: info.to, promo: info.promo });
+    sans.push(info.san + (mv.hq ? CHESS_HQ_MARK : ''));
     positions.push(chessCloneGame(g));
     return false;
   });
@@ -1791,6 +1823,170 @@ function chessReview(record, opts) {
   const rv = chessReviewBegin(record);
   while (!chessReviewStep(rv, opts)) { /* next position */ }
   return chessReviewResult(rv);
+}
+
+/* --- الوزير المستخبي — HIDDEN QUEEN: a pawn that is secretly a queen ----------------------
+   The owner's rules (24 Sep 2026): before the first move each player picks one of their own
+   pawns. Until it is revealed it is a pawn for everything the other side can see or be affected
+   by - it attacks only as a pawn, never gives check, and the other side's legal moves never
+   depend on it - so the game object g stays an ordinary chess game in which it IS a pawn. Its
+   owner may move it like a pawn (it stays hidden, the secret following it: a double step, a
+   capture, en passant) or like a queen from its square: any queen move a pawn couldn't make,
+   never onto a king. That move reveals it: the pawn becomes a queen and the queen move is played
+   through chessPlay, capturing or checking like any queen move. Reaching the last rank still
+   hidden it promotes like any pawn and the secret is gone; captured while hidden it is revealed
+   ("👑 كان الوزير!") and counts as a queen for material.
+
+   The secret is one small object per game, kept where each side's secrets live (the server's
+   room._chq, the one-phone game's state) and never in g:
+     { sq: [White's square, Black's] (-1 once revealed, captured, promoted, or none picked),
+       pick: [the squares first picked], how: ['' hidden | 'reveal' | 'captured' | 'promoted', …],
+       at: [the square where it was revealed, captured or promoted, or -1] }
+   A revealing move is stored as 'e2e5*' (chessUci / chessFromUci), and chessPlay given
+   { hq: true } turns the pawn into a queen first, so a stored game replays (the review, the PGN,
+   the share card) with nothing else knowing about the variant.
+
+   Decided here: a mate or a stalemate is judged with the hidden queen's moves too - a side whose
+   only way out is its hidden queen is not mated (the game going on is then a tell; the rules
+   can't be otherwise). The computer considers its own hidden queen's moves at the root only
+   (chessBestMove's opts.hq).
+   ========================================================================= */
+
+const CHESS_HQ_BIT = 1 << 22;          // an engine move of a hidden queen (above every flag)
+const CHESS_HQ_MARK = '👑';            // after a revealing move's SAN in a move list
+
+/** A fresh secret: nobody has picked yet. */
+const chessHqNew = () => ({ sq: [-1, -1], pick: [-1, -1], how: ['', ''], at: [-1, -1] });
+const chessHqClone = (h) => ({ sq: h.sq.slice(), pick: h.pick.slice(), how: h.how.slice(), at: h.at.slice() });
+
+/** The squares of a side's pawns (indices): what it may pick from. */
+function chessHqPawns(g, color) {
+  const out = [];
+  for (let sq = 0; sq < 64; sq++) if (g.board[sq] === ((color << 3) | 1)) out.push(sq);
+  return out;
+}
+
+/** Picks `sq` (an index or a name) for `color`: false when it isn't one of that side's pawns, or a pick is made already. */
+function chessHqPick(h, g, color, sq) {
+  const i = typeof sq === 'number' ? sq : chessSq(sq);
+  if (i < 0 || g.board[i] !== ((color << 3) | 1) || h.pick[color] >= 0) return false;
+  h.sq[color] = i; h.pick[color] = i; h.how[color] = ''; h.at[color] = -1;
+  return true;
+}
+
+/** A random pawn of `color` (the computer's pick, the clock's, the host's): the square, or -1. */
+function chessHqRandom(g, color, rnd) {
+  const list = chessHqPawns(g, color);
+  return list.length ? list[Math.floor((rnd || Math.random)() * list.length)] : -1;
+}
+
+/**
+ * The hidden queen's extra moves on the engine's position, as engine numbers with CHESS_HQ_BIT:
+ * the queen moves from `s` that a pawn there couldn't make, that don't leave the king in check and
+ * never go onto a king. Empty unless `s` holds a pawn of the side to move.
+ */
+function chessHqEngine(p, s) {
+  const pawn = s >= 0 && s < 64 ? p.b[s] : 0;
+  if ((pawn & 7) !== 1 || (pawn >> 3) !== p.side) return [];
+  // Where the pawn itself could go (before asking about its king): those are pawn moves.
+  const pawnTos = new Set(chessGen(p, []).filter(m => chessMFrom(m) === s).map(chessMTo));
+  p.b[s] = (pawn & 8) | 5;
+  const out = chessLegalPos(p).filter(m => chessMFrom(m) === s && !pawnTos.has(chessMTo(m)) && (p.b[chessMTo(m)] & 7) !== 6);
+  p.b[s] = pawn;
+  return out.map(m => m | CHESS_HQ_BIT);
+}
+
+/** The hidden queen's extra moves for the page: [{ from, to, promo: '', capture, hq: true }]. */
+function chessHqMoves(g, sq) {
+  const s = typeof sq === 'number' ? sq : chessSq(sq);
+  if (s < 0) return [];
+  const p = chessPos(g);
+  return chessHqEngine(p, s).map(m => ({
+    from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: '', capture: !!(chessMFlags(m) & CHESS_F_CAP), hq: true
+  }));
+}
+
+/** Every move the side to move has, its hidden queen's included (`sq`: its square, or -1). */
+const chessHqLegal = (g, sq) => chessLegalMoves(g).concat(chessHqMoves(g, sq));
+
+/** A stored revealing move replayed (chessPlay's { hq: true }): the pawn turned into a queen, then its move. */
+function chessHqReveal(g, mv) {
+  const from = typeof mv.from === 'number' ? mv.from : chessSq(mv.from);
+  const pawn = from >= 0 ? g.board[from] : 0;
+  if ((pawn & 7) !== 1 || (pawn >> 3) !== g.turn) return null;
+  const to = typeof mv.to === 'number' ? mv.to : chessSq(mv.to);
+  if (to < 0 || (g.board[to] & 7) === 6) return null;
+  g.board[from] = (pawn & 8) | 5;
+  const info = chessPlay(g, { from: mv.from, to: mv.to });
+  if (!info) { g.board[from] = pawn; return null; }
+  info.hq = true;
+  return info;
+}
+
+/**
+ * Plays a move of the side to move on g with the secret h (both changed). Returns null when it
+ * isn't legal, else chessPlay's info plus hq: { reveal (this move revealed the mover's hidden
+ * queen), captured (the other side's hidden queen was taken), promoted (the mover's hidden pawn
+ * promoted: the secret is gone) }, and uci - the move as stored ('e2e5*' for a reveal). A captured
+ * hidden queen counts as a queen (info.capture 'q'); the game's end is judged with the next
+ * side's hidden queen too.
+ */
+function chessHqPlay(g, h, mv) {
+  if (!mv) return null;
+  const side = g.turn;
+  const own = h.sq[side], opp = h.sq[side ^ 1];
+  const from = typeof mv.from === 'number' ? mv.from : chessSq(mv.from);
+  const to = typeof mv.to === 'number' ? mv.to : chessSq(mv.to);
+  let info = null, reveal = false, promoted = false;
+  if (own >= 0 && from === own && chessHqEngine(chessPos(g), own).some(m => chessMTo(m) === to)) {
+    info = chessHqReveal(g, { from: from, to: to });
+    if (!info) return null;
+    reveal = true;
+    h.sq[side] = -1; h.how[side] = 'reveal'; h.at[side] = to;
+  } else {
+    info = chessPlay(g, { from: mv.from, to: mv.to, promo: mv.promo });
+    if (!info) return null;
+    if (own >= 0 && from === own) {
+      if (info.promo) { h.sq[side] = -1; h.how[side] = 'promoted'; h.at[side] = to; promoted = true; }
+      else h.sq[side] = to;
+    }
+  }
+  let captured = false;
+  if (opp >= 0 && info.captureSq && chessSq(info.captureSq) === opp) {
+    h.sq[side ^ 1] = -1; h.how[side ^ 1] = 'captured'; h.at[side ^ 1] = opp;
+    info.capture = 'q';
+    captured = true;
+  }
+  // "No move" is judged with the hidden queen's moves as well: a way out is a way out.
+  const st = info.status;
+  const next = h.sq[g.turn];
+  if (st && st.over && (st.reason === 'mate' || st.reason === 'stalemate') && next >= 0 && chessHqEngine(chessPos(g), next).length) {
+    info.status = { over: false, result: '', reason: '', check: st.check };
+    if (/#$/.test(info.san)) info.san = info.san.slice(0, -1) + '+';
+  }
+  info.hq = { reveal: reveal, captured: captured, promoted: promoted };
+  info.uci = info.from + info.to + (info.promo || '') + (reveal ? '*' : '');
+  return info;
+}
+
+/** A hidden-queen game again from its start, its picks and its stored moves: { g, h, sans, lost, last, infos }. */
+function chessHqReplay(start, picks, hist) {
+  const g = start ? chessFromFen(start) : chessNew();
+  const h = chessHqNew();
+  [0, 1].forEach(c => { if (picks && picks[c] >= 0) chessHqPick(h, g, c, picks[c]); });
+  const sans = [], lost = [[], []], infos = [];
+  let last = null;
+  (hist || []).some(u => {
+    const mover = g.turn;
+    const info = chessHqPlay(g, h, chessFromUci(u));
+    if (!info) return true;
+    infos.push(info);
+    sans.push(info.san + (info.hq.reveal ? CHESS_HQ_MARK : ''));
+    if (info.capture) lost[1 - mover].push(info.capture);
+    last = info;
+    return false;
+  });
+  return { g: g, h: h, sans: sans, lost: lost, last: last, infos: infos };
 }
 
 /* --- باغ هاوس — BUGHOUSE: two boards, the hands, drops --------------------------------

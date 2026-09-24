@@ -2616,6 +2616,18 @@ the word search), `countUp` for streaks and scores.
   size container as a grid item gives its `auto` column no width, and one
   class name used for two things (the log's colour dot and the legal-move
   dot) put a legal-move dot over every move in the log.
+- **24 Sep 2026, the trivia banks checked question by question** - the owner
+  found wrong answers, bad questions and answers inside questions, and Hollywood
+  films in a game played in Arabic. Eight reviewers went through all 854 board
+  items and the 1,156 four-choice questions (both languages) against written
+  rules (a right, verified, single answer; not inside the question; facts that
+  don't change; family and Egyptian; the level fits; ar and en the same); 409
+  changes applied by exact match (216 fixed, 177 replaced, 16 moved to their
+  level), the counts per level kept. The film category was 57 of 86 foreign
+  questions and is Egyptian and Arab now; the Arabic four-choice list lost 22
+  foreign-film questions the same way. The rules are in the banks' own header
+  comments. Found on the way: two reviewers added the same octopus question to
+  two categories - `npm run check` caught it.
 - **24 Sep 2026, the full audit and all 60 fixes** - a read-only audit of the
   whole app after the five batches (18 modules: agy's Gemini for the first
   seven, Claude sub-agents for the rest when agy's quota ran out; a challenge

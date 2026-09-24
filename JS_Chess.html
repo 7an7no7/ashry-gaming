@@ -6,8 +6,9 @@
    This file is what every chess screen is made of:
      - the board (chView): ONE renderer per page, moved into whichever screen
        shows a board (one phone, a room's phone, the TV, the review) and thrown
-       away when none does - real 3D with three.js (loadThree, JS_Three.html)
-       where WebGL can draw, a clean flat board where it can't. It draws only
+       away when none does - a 2D board like chess.com's by default on a phone,
+       real 3D with three.js (loadThree, JS_Three.html) a tap away and always on
+       the TV; three.js is only asked for when a board wants 3D. The 3D draws only
        when something changes or moves: the loop runs while a piece is in the
        air or a finger drags one, and stops;
      - the pieces as drawings (chPieceSvg) for the flat board, the promotion
@@ -1216,7 +1217,7 @@ function chMakeFlat(root) {
    The view: one per page, moved into whichever screen shows a board
    ========================================================================= */
 
-const chView = { root: null, r: null, model: null, loading: false };
+const chView = { root: null, r: null, model: null, loading: false, no3d: false };
 
 function chViewRoot() {
   if (chView.root) return chView.root;
@@ -1231,7 +1232,7 @@ function chViewRoot() {
   return el;
 }
 
-/** Shows `model` in `host`, making the board the first time (3D when it can, flat when it can't). */
+/** Shows `model` in `host`, making the board the first time: 2D, or 3D where this phone chose it (the TV always). */
 function chViewShow(host, model) {
   if (!host) return;
   const root = chViewRoot();
@@ -1244,35 +1245,58 @@ function chViewShow(host, model) {
   if (promo && !promo.hidden && !(model.input && model.input.canMove)) { promo.hidden = true; promo.innerHTML = ''; }
   root.classList.toggle('is-tv', !!model.tv);
   root.setAttribute('data-ch2-style', chLook().style);
+  const want = chViewWant(model);
+  if (!chView.r || (want === 'flat' && chView.r.kind !== 'flat')) chViewMake('flat');
+  else chView.r.setModel(model);
+  // 3D wanted: the 2D board shows the position while three.js loads (the first time only), then gives way.
+  if (want === '3d' && chView.r.kind !== '3d' && !chView.loading) chViewLoad3D();
   chViewTools(root, model);
-  if (chView.r) { chView.r.setModel(model); return; }
-  if (!chView.loading) chViewStart();
 }
 
-function chViewStart() {
+/** Can this device show the 3D board? No WebGL, or three.js that failed to load: 2D only, and no switch. */
+const chCan3D = () => !chView.no3d && typeof loadThree === 'function' && typeof threeCanDraw === 'function' && threeCanDraw();
+
+/** The board a screen wants: the TV's is 3D; a phone's its own choice, 2D until it asks (the owner, 24 Sep 2026). */
+const chViewWant = (model) => (chCan3D() && ((model && model.tv) || chLook().view === '3d') ? '3d' : 'flat');
+
+/** Replaces the board with a new one of that kind, showing the current model at once (no motion). */
+function chViewMake(kind, THREE) {
   const root = chView.root;
-  const flat = () => {
-    root.querySelectorAll('canvas').forEach(c => c.remove());
-    chView.r = chMakeFlat(root);
-    root.classList.add('is-flat');
-    root.classList.remove('is-loading');
-    if (chView.model) chView.r.setModel(chView.model);
-  };
-  if (typeof loadThree !== 'function' || typeof threeCanDraw !== 'function' || !threeCanDraw()) { flat(); return; }
+  const old = chView.r;
+  const r = kind === '3d' ? chMake3D(THREE, root) : chMakeFlat(root);
+  chView.r = r;
+  if (old) { try { old.dispose(); } catch (e) {} }
+  root.classList.toggle('is-flat', kind === 'flat');
+  if (chView.model) r.setModel(chView.model);
+}
+
+/** three.js is asked for only here: when a board wants 3D (never while a phone stays in 2D). */
+function chViewLoad3D() {
+  const root = chView.root;
   chView.loading = true;
   root.classList.add('is-loading');
   loadThree().then((THREE) => {
     if (chView.root !== root) return;
     chView.loading = false;
-    try { chView.r = chMake3D(THREE, root); }
-    catch (e) { console.warn('chess 3d', e); flat(); return; }
-    root.classList.remove('is-loading', 'is-flat');
-    if (chView.model) chView.r.setModel(chView.model);
+    root.classList.remove('is-loading');
+    if (chViewWant(chView.model) !== '3d' || (chView.r && chView.r.kind === '3d')) return;
+    try { chViewMake('3d', THREE); }
+    catch (e) { console.warn('chess 3d', e); chView.no3d = true; chViewMake('flat'); }
+    if (chView.model) chViewTools(root, chView.model);
   }).catch(() => {
+    // It can't load (offline the first time, a blocked CDN): 2D, silently, and no switch until a reload.
     if (chView.root !== root) return;
     chView.loading = false;
-    flat();
+    root.classList.remove('is-loading');
+    chView.no3d = true;
+    if (chView.model) chViewTools(root, chView.model);
   });
+}
+
+/** The switch on the board: 2D ↔ 3D, the game, the piece picked up and the arrows kept (remembered). */
+function chViewToggle() {
+  chToolsPop(false);
+  chLookSet({ view: chLook().view === '3d' ? '2d' : '3d' });
 }
 
 function chViewDrop() {
@@ -1298,7 +1322,11 @@ function chLookPickerHtml(cls) {
 function chViewTools(root, model) {
   const box = root.querySelector('[data-ch-tools]');
   if (!box) return;
-  const html = model.tv ? '' : `<button type="button" class="ch-tool" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}" title="${escapeHTML(chT('ch_look_label'))}">⚙</button>`;
+  const is3d = chLook().view === '3d';
+  const view = !chCan3D() ? '' : is3d
+    ? `<button type="button" class="ch-tool" onclick="chViewToggle()" aria-label="${escapeHTML(chT('ch_view_to2d'))}" title="${escapeHTML(chT('ch_view_to2d'))}">▦ 2D</button>`
+    : `<button type="button" class="ch-tool" onclick="chViewToggle()" aria-label="${escapeHTML(chT('ch_view_to3d'))}" title="${escapeHTML(chT('ch_view_to3d'))}">🧊 3D</button>`;
+  const html = model.tv ? '' : view + `<button type="button" class="ch-tool" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}" title="${escapeHTML(chT('ch_look_label'))}">⚙</button>`;
   if (box._chHtml !== html) { box.innerHTML = html; box._chHtml = html; }
 }
 

@@ -463,6 +463,8 @@ export class Room extends DurableObject {
 
     // Taking someone out needs to know who is connected, which only the room knows.
     if (action === 'kick') return this.kick(pid, payload, ws);
+    // Handing the room on is the room's too: it has to know who is connected.
+    if (action === 'makeHost') return this.makeHost(pid, payload, ws);
 
     // The rules change the room in place and may throw halfway through a move,
     // so they work on a copy that only replaces the room if the move is legal.
@@ -556,6 +558,32 @@ export class Room extends DurableObject {
     if (inRoom) {
       if (this.onlineIds().has(target)) return { ok: false, error: 'ده لسه متصل، مينفعش يطلع' };
       await this.removeDevice(target, 'kicked', ws);
+    }
+    if (!ws) this.polled.set(pid, Date.now());
+    return { ok: true, state: this.project(pid, this.onlineIds()) };
+  }
+
+  /**
+   * The host hands the room to another person here (the owner, 24 Sep 2026):
+   * never a computer player, never a phone that is away, and nothing to do for
+   * themselves. Said in the chat like any change of host.
+   */
+  async makeHost(pid, payload, ws) {
+    const room = this.room;
+    if (room.hostId !== pid) return { ok: false, error: 'المضيف بس اللي يقدر ينقل المضيف' };
+    const target = String((payload && payload.playerId) || '');
+    const p = room.players.find((x) => x.id === target);
+    if (!p || p.bot) return { ok: false, error: 'مينفعش ده يبقى المضيف' };
+    if (target !== pid) {
+      if (!this.onlineIds().has(target)) return { ok: false, error: 'ده مش متصل دلوقتي، مينفعش يبقى المضيف' };
+      room.hostId = target;
+      if (room.lastSeen) delete room.lastSeen[target];
+      roomEvent(room, 'host', { name: p.name });
+      this.touch();
+      await this.save();
+      this.broadcast({ skip: ws });
+      // The new host's socket is watched, as any host's is.
+      await this.scheduleAlarm(Date.now() + SOCKET_SILENT_MS + 1000);
     }
     if (!ws) this.polled.set(pid, Date.now());
     return { ok: true, state: this.project(pid, this.onlineIds()) };

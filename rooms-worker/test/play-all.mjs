@@ -4609,8 +4609,18 @@ async function main() {
   const L5 = await Bot.join(L1.code, 'لبنى');
   await all([L1, L2, L3, L4, L5], (s) => s.players.length === 5 && s.players.every((p) => p.online), 'a room of five');
 
+  // Handing the room on (tap a name, 👑): the host only, to someone here, and back.
+  check((await L2.act('makeHost', { playerId: L3.pid })).ok === false, 'only the host hands the room on');
+  await L1.must('makeHost', { playerId: L2.pid });
+  await all([L1, L2, L3, L4, L5], (s) => s.hostId === L2.pid && s.chat.some((m) => m.sys === 'host' && m.p.name === 'ليث'),
+    'the host hands the room to another player, said in the chat, on every phone');
+  check(L2.state.youAreHost && !L1.state.youAreHost, 'the new host is the host on their own phone, the old one no longer');
+  await L2.must('makeHost', { playerId: L1.pid });
+  await all([L1, L2], (s) => s.hostId === L1.pid, 'and hands it back');
+
   L5.close();
   await L1.waitFor((s) => s.players.find((p) => p.id === L5.pid).online === false, 'a closed phone shows as away');
+  check((await L1.act('makeHost', { playerId: L5.pid })).ok === false, 'a phone that is away cannot be made the host');
   check((await L2.act('kick', { playerId: L5.pid })).ok === false, 'only the host removes a player');
   check((await L1.act('kick', { playerId: L4.pid })).ok === false, 'a player still connected cannot be removed');
   check((await L1.act('kick', { playerId: L1.pid })).ok === false, 'the host cannot remove themselves');

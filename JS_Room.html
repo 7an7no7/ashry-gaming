@@ -570,6 +570,54 @@ function roomKick(playerId) {
   showConfirmModal(msg, () => roomAct('kick', { playerId: playerId }));
 }
 
+/**
+ * The host's menu on a name (the owner, 24 Sep 2026: tap a name, then a menu):
+ * «👑 المضيف يبقى …» for someone here, and taking out a phone that is gone.
+ * Another person's name is a button for the host only; everyone else's names
+ * stay plain text.
+ */
+function roomCanMenu(state, p) {
+  return !!(state && state.youAreHost && p && !p.bot && p.id !== Room.me);
+}
+
+/** A name, as a button that opens the host's menu when it may; plain text otherwise. */
+function roomNameHtml(state, p, inner) {
+  const text = inner === undefined ? escapeHTML(p.name) : inner;
+  if (!roomCanMenu(state, p)) return text;
+  return `<button type="button" class="room-name-btn" onclick="event.stopPropagation(); roomPlayerMenu('${jsStringAttr(p.id)}')">${text}</button>`;
+}
+
+let roomMenuFor = '';
+function roomPlayerMenu(playerId) {
+  const state = Room.state;
+  const p = state && (state.players || []).find(x => x.id === playerId);
+  if (!p || !roomCanMenu(state, p)) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  roomMenuFor = playerId;
+  const fill = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  fill('room-menu-name', p.name);
+  fill('room-menu-host', '👑 ' + (t.room_make_host || '').replace('{name}', p.name));
+  fill('room-menu-away', p.online ? '' : (t.room_menu_away || ''));
+  const host = document.getElementById('room-menu-host');
+  if (host) host.disabled = !p.online;
+  const kick = document.getElementById('room-menu-kick');
+  if (kick) kick.classList.toggle('hidden', !!p.online);
+  document.getElementById('room-player-menu').classList.remove('hidden');
+  haptic('light');
+}
+
+function roomMenuMakeHost() {
+  const id = roomMenuFor;
+  closeModal('room-player-menu');
+  if (id) roomAct('makeHost', { playerId: id });
+}
+
+function roomMenuKick() {
+  const id = roomMenuFor;
+  closeModal('room-player-menu');
+  if (id) roomKick(id);
+}
+
 /** The ✕ beside an offline player, for the host. `cls` picks the look for where it sits. */
 function roomKickButton(state, p, cls) {
   if (!state || !state.youAreHost || !p || p.online || p.id === Room.me) return '';
@@ -956,7 +1004,7 @@ function renderRoomLobby(state) {
       <div class="status-row ${p.online ? '' : 'status-row--out'} ${joined.indexOf(p.id) !== -1 ? 'status-row--new' : ''}">
         <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
         <div class="status-row__body">
-          <div class="status-row__name">${escapeHTML(p.name)}</div>
+          <div class="status-row__name">${roomNameHtml(state, p)}</div>
         </div>
         <div class="status-row__actions">
           ${p.id === Room.me ? `<span class="badge badge--accent">${youLabel}</span>` : ''}

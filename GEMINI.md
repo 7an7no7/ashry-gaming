@@ -2931,6 +2931,17 @@ connected looks again every 10 minutes (`IDLE_RECHECK_MS`), not at once: a
 Durable Object alarm set in the past fires straight away, and that room used
 to wake in a loop until the phone left (*Traps*).
 
+**The host can hand the room on** (the owner, 24 Sep 2026: "tap a name, then a
+menu"). For the host, every other person's name is a button - in the lobby's
+list, the players strip under a game and the TV's strip (`roomNameHtml`, a
+faint dotted underline) - that opens a small centred menu (`#room-player-menu`,
+`roomPlayerMenu`): «👑 المضيف يبقى منى» (worded with the role as the subject,
+so it reads right whatever the name), greyed with a line for a phone that is
+away, and «شيله من الغرفة» for a phone that is gone. The move is `makeHost
+{ playerId }`, handled in `room.js` beside `kick` (it needs to know who is
+connected): the host only, a person (never a computer player) who is here
+now; said in the chat as the `host` event every change of host already is.
+
 **Opening rooms is limited per address.** `/create` answers 429 after 60 rooms
 from one address in 10 minutes (`CREATE_LIMIT`, `CREATE_WINDOW_MS` in
 `index.js`, keyed on `CF-Connecting-IP`), so a script can't fill the free

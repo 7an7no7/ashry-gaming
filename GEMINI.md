@@ -2155,6 +2155,18 @@ the word search), `countUp` for streaks and scores.
   the shot before, the solo clock stopping after an hour, the solo best kept
   with the last putt, a pull back to the room screen, the putt clock frozen
   after leaving and coming back, instanced meshes freed with their hole.
+- **24 Sep 2026, batch 1 of the owner's list** - the owner approved a list of
+  24 additions (the chess ones, chess for four, vote chess, Hand and Brain,
+  bughouse, puzzles; answers in `notes/` and *The owner's specs* as each ships)
+  and asked for them to be built by agy with Claude planning and reviewing.
+  Batch 1: أتوبيس كومبليت's «متسامح» switch (host, off by default: a word the
+  dictionary doesn't know keeps its 10); every word a host taps up from 0 is
+  logged on the rooms server (*The Stop word log*); the first-play card on
+  every setup screen and in a room lobby (*The first-play card*); and ميني
+  جولف's daily hole in تحدي اليوم. Found in review: two spacing tokens that
+  don't exist (`--sp-3-5`, `--sp-2-5`) left the card with no padding (*Traps*),
+  a normal golf game's target read from its first hole only, and «زي المطلوب
+  عن المطلوب» on every golf result that finished on target.
 
 ## Building and Running
 
@@ -3478,6 +3490,22 @@ has no words for. A category with holes is not a bug - no country starts
 with ث - but a real word missing from a list costs a player points until the
 host taps it, so add to the lists when a table keeps tapping the same word.
 
+**«متسامح»** (`settings.lenient` / `shared.lenient`, the host's lobby switch,
+off by default, kept in `ashryStopRoomOpts`): an `unknown` word scores 10
+instead of 0, still marked ❓, and the host can tap it down.
+
+**The Stop word log** is how the dictionary grows from what tables accept.
+When a host's `adjust` raises an `unknown` or `shared` cell from 0, the
+rules push `{ lang, cat, word }` onto `room._stopTaps` (never projected);
+`room.js` takes it off the room and hands it to the `WordLog` Durable Object
+(`src/words.js`, one instance "stop", a count per `lang|cat|word`, at most
+5,000). Nobody's name is kept. `GET /stop-words` answers only with
+`Authorization: Bearer <ADMIN_KEY>` (a Worker secret, set with
+`wrangler secret put ADMIN_KEY`; the key is kept outside the repo, in
+`%USERPROFILE%.ashry-admin-key`), and `cd tools && ASHRY_ADMIN_KEY=… npm run
+stop-words` prints them by category, most-tapped first, saying which are
+already in `StopWords.js`. Words that come up often go into the lists by hand.
+
 **Trivia, two modes.** The room version deals from `TRIVIA_QUESTIONS` on the
 server. The host picks 5, 10, 15 or 20 questions (`TRIVIA_COUNTS`). A right
 answer is `TRIVIA_POINTS` (10) plus a speed bonus: +5 for the first right
@@ -4014,6 +4042,11 @@ countries of خمّن الدولة: about 1,800 words in the Arabic mix. The pla
 screen is full screen (`FULLSCREEN_VIEWS`) and keeps the screen on with the
 Wake Lock API; after a turn every word can be tapped to fix a wrong verdict;
 the end is a podium. A reload mid-turn goes back to that player's "ready".
+
+**ميني جولف's daily hole** (the owner, 24 Sep 2026): one hole drawn from all
+sixty with `soloRng(soloDaySeed('minigolf'))`, played as a one-hole solo game
+(`s.daily`); its result is `soloMarkDaily('minigolf', { strokes, par })`, never
+a best, and the hub's line is «🟢 ⛳ 3 · 🎯 3».
 
 **تحدي اليوم** (`JS_Daily.html`, the `setup-daily` screen, first card of the
 `brain` group and a strip on the home above the recent games): every game's
@@ -5650,6 +5683,17 @@ change that, but it would also stop the phone's music - not done). The
 bomb ticks with its own `playSound('bomb')`, a wooden tick-tock loud enough to
 hear across a table, on the holder's phone and the TV only.
 
+### The first-play card
+
+The first time a phone opens a game's setup screen, or has that game chosen in
+a room lobby (never on a big screen), a card under the hero says how to play
+in three steps: the first three `<li>` of the game's `GAME_RULES` list, as
+plain text, cut at 140 characters (`firstPlaySteps`, `firstPlayCardHtml` in
+`JS_Catalog.html`). «فهمت» or «📘 القواعد كاملة» marks the game seen in
+`ashryFirstPlay_v1` (cleared by "delete all data"). A game whose rules have no
+ordered list gets no card, so a new game's rules should keep the shape the
+Help sheet asks for.
+
 ### The Help sheet
 
 Help is one of the two things in the bottom nav, so it has to earn that slot.
@@ -6070,6 +6114,12 @@ motion that makes every new state wait holds up the player's own next tap
 your own move from the tap to the screen. Your own move is drawn at once (the
 duels' `early`, أونو's `unoOwnMoveWaiting`); other people's may wait their
 turn to animate.
+
+**A custom property that doesn't exist is silently nothing.** The first-play
+card used `var(--sp-3-5)` and `var(--sp-2-5)`; the scale has only whole steps
+(`--sp-1` … `--sp-9`), so its padding and gaps were 0 and its text touched
+the edge. No check fails on it. Grep `--name:` in `Style.html` before using a
+token.
 
 **A default on the base class beats a modifier on the same element.** سكرو's
 card set `--c` (its colour) on `.skr-card`, and each group set it on

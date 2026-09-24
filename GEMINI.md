@@ -257,9 +257,9 @@ work changed. Add to it when a decision is made or a batch ships.
     red, the last move's squares are tinted; tap a piece for its moves (a dot,
     a ring round a capture), tap a square - or drag. A flat board where 3D
     can't draw. Squares a-h / 1-8 (`dir="ltr"`).
-  - **A chess clock, off by default**: off, 3+2, 5+0, 10+0 (minutes +
-    seconds a move) - the host's choice in a room, a setup choice on one
-    phone. **Running out loses, unless the other side has nothing to mate
+  - **A chess clock, off by default**: off, 1+0, 3+0, 3+2, 5+0, 10+0,
+    15+10 (minutes + seconds a move; 1+0, 3+0 and 15+10 added in batch 2) -
+    the host's choice in a room, a setup choice on one phone. **Running out loses, unless the other side has nothing to mate
     with: then a draw.**
   - **The full rules**: castling both ways with every condition, en passant,
     promotion with a choice of four, check, mate, stalemate, threefold
@@ -349,6 +349,69 @@ work changed. Add to it when a decision is made or a batch ships.
     - In a tournament's Armageddon both keep the match's clock, and White is
       drawn by lot (`chessMatchNext`).
     - The TV shows no review (the owner called it optional); the phones do.
+  - **Batch 2** - the owner's decisions of 24 Sep 2026 (approved as a list;
+    the choices marked "Claude's" were proposed and kept, each one place in
+    the code):
+    - **Opening names** as you play (a line over the move list, one phone, a
+      room, the TV) and in the review («خرجت من النظرية في الحركة 7»), about
+      150 openings in both languages, matched by position so transpositions
+      work; never in a 960 or set-up game.
+    - **Your rating**: 800 to start, a normal Elo (K 32 for the first 20 rated
+      games, then 20) against the computer's rating. **Only games with no
+      help count**: no undo, no hint, no best-move arrows, no coach warning,
+      not from a set-up position, no handicap; Chess960 counts. The setup
+      says before the game whether it will count and why not. A new game
+      started over an unfinished rated one asks first and counts it as a
+      loss (chess.com's rule), and so does resigning.
+    - **Undo and hints against the computer**: unlimited / 3 a game / none,
+      **3 by default**, remembered. Undo takes back your move and the
+      computer's; the hint no longer needs the coach; each is counted and
+      shows what is left («↶ 2»).
+    - **Six characters** beside the slider (Claude's): «نونو» 400 (just
+      learning), «عم حسن» 800 (attacks, loves checks), «ميرا» 1100 (solid,
+      trades), «الكابتن» 1400, «الأستاذ» 1700, «الجنرال» 2000; a drawn face
+      each, one line, and a suggestion near your rating + 100; the slider
+      stays as «مخصص».
+    - **Set up a position** (an editor: a palette, whose turn, castling where
+      valid) **and eight famous endgames** (K+Q, K+R, K+P, two bishops,
+      bishop and knight, Lucena, Philidor, Réti's pawn race), each with a line
+      of what to do; checked before play; never rated.
+    - **Chess960, handicap and the new clocks everywhere**: against the
+      computer, two on one phone, room duels and the tournament (the host's
+      lobby choice) - **except handicap, which a tournament doesn't have**.
+      The handicap (Claude's): none, the f-pawn, the b-knight, the a-rook
+      (castling that side lost) or the queen, or half the clock; against the
+      computer you choose who gives it, two on one phone White or Black, in a
+      room **the champion** gives it (with exactly two, the last winner; the
+      first game none).
+    - **Premoves**: only against the computer and on your own phone in a
+      room. One, a blue arrow, played the instant it is your turn if still
+      legal, dropped with a shake if not; a tap anywhere else cancels.
+    - **Arrows and marks by hand**: ✏️ on the board for a finger; on a
+      computer a right-drag draws an arrow and a right-click marks a square -
+      **in 3D with Shift**, since a right-drag turns the 3D board (decided in
+      batch 2 part C2: the 3D camera came first). Green; the same again takes
+      it away; gone when a move is played; never sent to a room.
+    - **Board styles** (done with the 2D board, above).
+    - **Sharing a game**: a picture of the final position (the share card with
+      a board on it), the PGN (copied, or the share sheet), and a short replay
+      video where the phone can record a canvas (0.6 s a move, 20 s at most),
+      the button hidden where it can't.
+    - **Best-move arrows**: a coach switch «أفضل الحركات», **off by default**,
+      against the computer only: on your turn the top 3 moves as arrows
+      (green, lighter green, yellow), each labelled with your winning chance
+      («64%»), and «فوزك لو لعبت: ♞f3 64% · e4 61% · d4 58%» under the board.
+      Using it makes the game unrated.
+    - Decided while building (open to change, each one place): a handicap
+      on a 960 row takes the f-pawn, the knight or rook nearest the a-file, or
+      the queen (`chOddsFen`); in 960 a king step and castling that land on
+      one square - a tap on the square is the step, castling is by the rook
+      (`chTapLogic`); a premove offers the piece's moves on an empty board
+      (Lichess's way) and a pawn premoved to the last rank becomes a queen
+      (`chPremoveTargets`); the best moves are five candidates from a short
+      look, each searched in a tick of its own, the best three kept
+      (`CH_BEST`); the share card and the video put ⚪ / ⚫ before the names
+      (the chess glyphs become emoji on an iPhone).
 
 - **The duels' tournament (بطولة)** - the owner's decisions of 23 Sep 2026,
   asked one by one (*The duels' tournament*):
@@ -2197,6 +2260,18 @@ the word search), `countUp` for streaks and scores.
   and camera (*The owner's specs*, *شطرنج*). Found on the way (*Traps*): a
   headless Chrome reports reduced motion, so a check of an animation there sees
   none unless `prefers-reduced-motion` is emulated as `no-preference`.
+- **24 Sep 2026, chess batch 2** - the owner's list, approved as a whole
+  (*The owner's specs*, شطرنج, *Batch 2*): Chess960, several lines and a
+  style for the engine, the new clocks and the handicap in `Chess.js`; 960
+  and the handicap in rooms and the tournament; on one phone the opening
+  names, undo and hint limits, your rating, six characters with drawn faces,
+  a position editor with eight endgames, 960 / handicap / clocks, premoves
+  (also on your own phone in a room), arrows and marks by hand, sharing a
+  game (a picture, PGN, a video) and the best-move arrows; the 2D board and
+  the polished 3D (the entry above). Found on the way: a room's review
+  opened from the result card stored the game with no start FEN, so a 960
+  room game reviewed from the standard start; and in 960 a king step and
+  castling can share a square, which the tap took for a promotion.
 
 ## Building and Running
 
@@ -3658,10 +3733,13 @@ and desktop every sheet is a centred dialog (the `min-width: 640px` block in
 
 **A result you can send as a picture** (`JS_ShareCard.html`). A result told as
 text is a wall of characters in WhatsApp. `shareResultCard({ title, icon, rows,
-footer, text })` draws it on a 1080x1920 canvas instead - the app's violet
+footer, text, board })` draws it on a 1080x1920 canvas instead - the app's violet
 ground, the game's icon and name, up to ten rows of name and score, a line of
 the game's own, and the mark and the link at the foot - and sends it. Three
-ways out, in order: the phone's share sheet with the picture attached
+ways out (`board`, شطرنج's final position, is optional: with it the position
+is drawn big by `chDrawBoardCanvas` and the rows go under it, in
+`drawShareBoardCard`; without it the card is exactly as before), in order:
+the phone's share sheet with the picture attached
 (`navigator.canShare({ files })`), a download where that isn't offered, and the
 plain text through `shareOrCopy` where neither works, which is exactly what the
 app did before. **Nothing is drawn until a share button is pressed**: the
@@ -4686,6 +4764,21 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
   - **The tournament's adapter**: `chessMatchNext(match, rnd)` - the next game
     of a match (White, Armageddon or not) or its winner - and
     `chessArmageddonResult`.
+  - **Batch 2's rules** (standard chess bit for bit as before - the perft
+    numbers unchanged): **Chess960** - a game carries its castling rooks'
+    files (`g.rooks`, `[wK, wQ, bK, bQ]`, standard `[7, 0, 7, 0]`) through
+    `chessFromFen` / `chessPos` / `chessCloneGame` / `chessFen` (X-FEN),
+    castling to g/c with the rook to f/d, a castling move also accepted as
+    "the king takes its own rook" (`chessFind`); `chess960Start(n)`
+    (Scharnagl numbering, 518 is the standard start) and `chess960Random`;
+    Chess960 perft positions in `rules.mjs`. **Several lines**:
+    `chessAnalyse(g, { lines: n })` returns `lines`, the top n root moves with
+    their scores. **A style** for the computer: `chessBestMove(g, { elo,
+    style: 'attack' | 'solid' })`, a bonus at the root only (never in
+    `chessEvaluate`, so the analysis and the review are unchanged). **The
+    clocks** `1+0`, `3+0`, `15+10` in `CHESS_CLOCK_IDS`; **the handicap**
+    `chessHandicapFen(kind, side)` and `chessClockNew(id, { odds })` (the
+    giver's clock halved).
 - **`RoomChess.js`** (bundled after `RoomDuels.js`, whose line and seats it
   uses). **One board** is `shared.chess`, made and played only through the
   board functions, which never touch the room, so a bracket can hold one per
@@ -4703,6 +4796,13 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
   no forced moves. The host's `skipTurn` plays one move for the side to move
   (`chessHostMove`: `chessBestMove` at 800, depth 1, 600 positions, marked
   `last.auto = 'host'`), carrying `move` against a double tap.
+  **Batch 2**: `chessRoomOptions` is `{ clock, variant: 'standard' | '960',
+  odds }`; `chessBoardNew` takes a start FEN and keeps `bd.start` (the kept
+  game's record and its review use it); a 960 room draws a new start each game
+  (a tournament one per match, `m.start960`, kept through its replay and
+  Armageddon); the handicap comes off **the champion's** side, and a
+  tournament ignores it. An old phone sending only `clock` keeps what the
+  room had (a new room: standard, no handicap).
   `chessBoardDeadline` is the first moment the flag counts (the grace + 1 ms:
   `chessClockFlagged` wants *more* than the grace, and an alarm at the grace
   itself found nothing to do).
@@ -4803,6 +4903,59 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
     judged (`chCoachJudge`): a blunder opens `#ch-warn-modal` (take it back:
     the position, the clock and what was taken are put back exactly), anything
     else goes on with the word on the move under the board.
+  - **Batch 2 on one phone** (24 Sep 2026):
+    - **Help and the rating**: `s.helpLimit` (`CH_HELP_LIMITS`, the game keeps
+      the limit it started with in `s.gameHelp`), `s.help` (`chHelpNew`: undo
+      and hint counted, `best` / `warn` / `setup` / `odds` as flags; the kept
+      record carries it), `chHelpLeft`, `chUndoLocal` (rebuilds from `s.start`
+      and `s.hist` through `chRebuildLocal`, so the repetition keys are right,
+      and the undo count is in the animation key - else the piece snaps).
+      `s.rating` `{ r, n }`, `chRatingDelta`, `chUnratedReason` (the setup's
+      line), `s.rated` settled at the start, `chConfirmReplace` /
+      `chAbandonLocal` (a rated game left counts as a loss); the record keeps
+      `rated` and `rating`; أرقامي shows it.
+    - **The characters**: `CH_CHARACTERS` (id, elo, style), `chCharFaceSvg`
+      (drawn 64 × 64 faces, no ids), `chCharSuggest`; `s.char` ('custom' is
+      the slider), `s.opp` (the rating and style this game is played at).
+    - **Opening names**: `JS_ChessOpenings.html` (`chOpeningMatch`: the
+      deepest known position so far, and where theory ended); the content
+      check plays every line.
+    - **The position editor**: `JS_ChessPosition.html` (view `pos-shatranj`,
+      `chPosOpen`, `CH_ENDGAMES`, `chPosProblem` - one king each, no pawn on
+      the first or last row, the side not to move not in check, a position
+      already over), played through `chNewGame({ fen, setup, eg })`.
+    - **960, the handicap, the clocks**: `s.variant`, `s.odds`, `s.oddsBy`
+      (you / the computer), `s.oddsColor` (two on one phone); a new game's
+      `s.gameVariant` and `s.gameOdds` `{ kind, giver }` (`chOddsNow`,
+      `chOddsGiver`, `chOddsFen`), the tags over the board
+      (`chLocalTagHtml`); the clock buttons are built from `CHESS_CLOCK_IDS`.
+      On every board: a king picked up in 960 shows a ring round the rook it
+      can castle with (`chTargets`, `chIs960`), and a tap or a drop on it
+      castles (`chCastleByRook`); both boards find the castling rook for their
+      animation with `chCastleRookSquares` (the king can land on the rook's
+      square).
+    - **Premoves** (`chPremoveTargets`, `chPreTapLogic`, `chPreDropLogic` -
+      a drop that queues returns `'pre'` and the piece goes home quietly -,
+      `chPremoveLegal`, `chPremoveDropped` and the boards' `nudge(sq)`):
+      `chLocal.pre` played in `chAfterMove` when your turn comes;
+      `chRoomLocal.pre` (keyed on the deal and round) played at the top of
+      `chRoomRender` through `chRoomPlay`.
+    - **Arrows by hand**: `chView.anno` (keyed on the model's key and its
+      animation key, so a move clears it), `chView.pen` (✏️), `chView.draft`
+      (the arrow being drawn); `chAnnoMerge` puts them over the model the
+      screen gave (never into it), `chAnnoToggle`, `chAnnoClear` (🧹); marks
+      of kind `'user'` (`.ch2-sq.is-anno`, `--ch2-anno`; a solid ring in 3D).
+    - **Best moves**: `chBestPrepare` (a candidate a tick, `CH_BEST`),
+      `chBestNow`, `CH_BEST_COLORS`; an arrow's `label` / `ink` are drawn at
+      its head on both boards (the 3D overlay turns the text for Black).
+    - **Sharing** (`JS_ChessReview.html`): `chShareRowHtml(key)` at the end of
+      a game, in the review and on a room's phones once over; `chShareGame`
+      ('pic' | 'pgn' | 'video'), `chShareCardData`, `chDrawBoardCanvas` /
+      `chDrawBoardFrame` (the 2D board on a canvas in the phone's style, the
+      pieces from `chPieceImages` - the page's symbols with their colours
+      written in), `chPgn` (Event, Site, Date, Round, White, Black, Result,
+      Variant, SetUp / FEN, Termination), `chShareVideo` (`chVideoMime`,
+      `chVideoFrames`, MediaRecorder on a canvas painted every 100 ms).
 - **`JS_ChessReview.html`** - the kept games (`ashryChessGames_v1` in
   localStorage, the last 20, each with its review once worked out, so it
   reopens at once) and the review screen: the players and their accuracy

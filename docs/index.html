@@ -106,7 +106,7 @@
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260924163058";
+      window.BUILD_ID = "20260924164916";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -30253,7 +30253,7 @@ const CHESS_PUZZLES = [
                 <button type="button" class="segmented__item is-active" data-value="standard" onclick="setShatranjOption('variant', 'standard')" data-i18n="ch_var_standard">عادي</button>
                 <button type="button" class="segmented__item" data-value="960" onclick="setShatranjOption('variant', '960')" data-i18n="ch_var_960">960</button>
               </div>
-              <p class="field__hint" data-i18n="ch_variant_hint_local">كل دور رقعة بداية جديدة: الحجارة اللي ورا متلخبطة والعساكر زي ما هي. التبييت: دوس على الملك وبعدين على الطابية.</p>
+              <p class="field__hint hidden" id="shatranj-variant-hint" data-i18n="ch_variant_hint_local">كل دور رقعة بداية جديدة: الحجارة اللي ورا متلخبطة والعساكر زي ما هي. التبييت: دوس على الملك وبعدين على الطابية.</p>
             </div>
             <div class="field" id="shatranj-odds-field">
               <label class="field__label">⚖️ <span data-i18n="ch_odds_label">الحسبة (هانديكاب)</span></label>
@@ -103638,6 +103638,9 @@ function paintShatranjSetup() {
   duelPaintSegmented('shatranj-clock', s.clock);
   duelPaintSegmented('shatranj-help', s.helpLimit);
   duelPaintSegmented('shatranj-variant', s.variant);
+  // The hint explains 960 only: it shows when 960 is picked.
+  const varHint = document.getElementById('shatranj-variant-hint');
+  if (varHint) varHint.classList.toggle('hidden', s.variant !== '960');
   const phone = s.vs === 'phone';
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
   // The handicap: which piece (or half the clock), then who gives it - you or the computer; White or Black.

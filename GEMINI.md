@@ -227,6 +227,27 @@ work changed. Add to it when a decision is made or a batch ships.
     two play, the rest watch on their phones and the TV; the challenger has
     White), **against the computer**, and **two on one phone**. In the duels'
     section (`group: 'duo'`), `modes: ['device', 'room', 'tv']`.
+  - **2D or 3D, the player's choice** (the owner, 24 Sep 2026: "the option to
+    play it normal, same look as in chess.com, so it's optional"): **2D by
+    default on a phone**, «🧊 3D» / «▦ 2D» on every board (one phone, a room's
+    phone, the review) keeping the game, the piece picked up and the arrows,
+    remembered on the phone; **the TV keeps 3D** and has no switch; three.js is
+    never loaded while a phone stays in 2D. The 2D board is chess.com's kind:
+    green `#769656` / cream `#eeeed2`, the last move's squares yellow, legal
+    moves as dots and captures as rings, the coordinates in the edge squares'
+    corners, a 0.15 s slide, and **our own drawn piece set** (never a copied
+    one). **Four board styles**, «أخضر» (the default), «خشب», «أزرق», «رخام»,
+    for both boards: in the setup and behind the board's ⚙. The 3D board got
+    the owner's list: a lift, an arc and a settle for every move (a knight
+    hops higher), a capture knocked over away from the attacker with a puff of
+    dust, a red pulse under a king in check, a slow topple and a thud on mate
+    with the camera easing in, castling as one movement, a promotion rising in
+    a sparkle; finer pieces (smoothed profiles, a green felt, a carved knight
+    with mane, ears and eyes, a bevelled cross), real grain, a varnish, a
+    bevelled frame, soft contact shadows; and the camera in the player's hands
+    (two fingers or a right/middle mouse button turn it, a pinch or the wheel
+    zooms, «⬇ من فوق» and «↺»). A room or a table around the board was offered
+    and not chosen.
   - **The look: real 3D "like bowling and golf"**: a wooden board (maple and
     walnut, the frame with a-h and 1-8) and Staunton pieces turned on a lathe
     (a pawn's collar and ball, a rook's battlements, the cut in a bishop's
@@ -2167,6 +2188,15 @@ the word search), `countUp` for streaks and scores.
   don't exist (`--sp-3-5`, `--sp-2-5`) left the card with no padding (*Traps*),
   a normal golf game's target read from its first hole only, and «زي المطلوب
   عن المطلوب» on every golf result that finished on target.
+
+- **24 Sep 2026, chess in 2D and a finer 3D** (batch 2, phase D) - the owner's
+  words: "improve the 3d look and animations ... and also add the option to
+  play it normal, same look as in chess.com". A 2D board with our own drawn
+  piece set, 2D by default on a phone with a switch to 3D on every board, the
+  TV in 3D, four board styles for both, and the 3D board's animations, look
+  and camera (*The owner's specs*, *شطرنج*). Found on the way (*Traps*): a
+  headless Chrome reports reduced motion, so a check of an animation there sees
+  none unless `prefers-reduced-motion` is emulated as `no-preference`.
 
 ## Building and Running
 
@@ -4720,9 +4750,46 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
     promotion pops the new piece in, check shakes and lights the king, mate
     topples it. Picking tries the height of a piece's middle first (a tall
     piece stands in front of the square behind it).
-  - **The flat board** (`chMakeFlat`, `chFlatBoardHtml`): the same model as a
-    grid of squares with drawn pieces (`chPieceSvg`, drawn for this app), for
-    a device without WebGL and while three.js can't load.
+  - **The 2D board** (`chMakeFlat`, `chFlatBoardHtml`, section 30 of
+    `Style.html`): the squares a CSS grid, the pieces a layer over them, each
+    a `<use>` of a `<symbol>` (`chPieceSymbols`, put in the page once by
+    `chPieceDefs`: our own Staunton drawings, `CH2_SHAPES`, in a 45 × 45 box)
+    placed with `transform: translate(var(--x) × 100%, var(--y) × 100%)`. The
+    live board is built once per orientation and updated square by square
+    (`ch2SquareParts`); a move moves the piece's element (a 150 ms Web
+    Animation of its transform), a piece taken fades under it, the rook comes
+    with its king, a promotion pops, a mated king tilts; a drag lifts the
+    piece (`is-drag`) and a refused drop shakes it back (`dragEnd(played, to,
+    refused)`); a piece the finger dropped is not slid again when the move
+    comes back (`dropped`). The static callers draw the markup as it is: the
+    position editor and the tournament's live cards (`mini`: no
+    coordinates). The colours are tokens: `--ch2-light` / `--ch2-dark` /
+    `--ch2-last` / `--ch2-sel` per `[data-ch2-style]`, the pieces'
+    `--ch2-w-*` / `--ch2-b-*` on `:root`, the same in both themes. The 3D
+    board's four styles are `CH3_STYLES` (`applyStyle` recolours the
+    materials and redraws the board's canvas).
+  - **The look and the switch** (`chLook`, `recallOptions('chessLook')`: `{
+    view: '2d' | '3d', style }`; `chLookSet` remembers and redraws):
+    `chViewShow` asks `chViewWant` (the TV's model `tv`, or the phone's
+    choice, and only where `chCan3D`); a 3D board shows the 2D one while
+    three.js loads (`chViewLoad3D`, the one place chess asks for it), a load
+    that fails leaves 2D and hides the switch (`chView.no3d`). The board's
+    buttons are `chViewTools` (`.ch-tools`, a row over the board, a column
+    beside it when the stage is wide - a container query on `.ch-view`).
+  - **The 3D polish** (24 Sep 2026): profiles smoothed between their sharp
+    corners (`chPieceParts`' `smooth`, 64 segments), a felt disc under each
+    piece, the knight's head the 2D knight's own profile (`CH3_KNIGHT`,
+    `ch3KnightPt`) with a ridged mane, ears, eyes and nostrils, turned
+    sideways so its profile reads from both seats; a soft contact shadow
+    (`groundBlobs`) kept on the board as a piece rises; a bevelled rounded
+    frame with grain, the top a varnished `ShapeGeometry`. Motion:
+    `animateMove` (lift, arc, settle), `puff` (dust, sparkles: `Points`
+    cleaned up through `fx` on a new game), `pulse` (check), `topple` (mate:
+    it falls where there is room). The camera: `view` (`az`, `dEl`, `zoom`,
+    `top`, a `focus` ease), clamped in `clampView`, fitted by `aimCamera`;
+    `camera('orbit' | 'zoom' | 'top' | 'reset')`, driven by two fingers, the
+    right or middle mouse button and the wheel in `chWireInput`, and the
+    «⬇ من فوق» / «↺» buttons (`chViewCam`).
   - **Input**: `chWireInput` (a tap, or past 10px a drag that lifts the piece
     and follows the finger; `touch-action: none` only while it's your move),
     `chTapLogic` / `chDropLogic` (shared by one phone and the room), the
@@ -5759,6 +5826,14 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A headless Chrome shows no animation unless told to.** It reports
+`prefers-reduced-motion: reduce`, so `motionOff()` is true and every move
+lands without its motion: a screenshot "mid-move" shows the move done. Emulate
+`prefers-reduced-motion: no-preference` (`Emulation.setEmulatedMedia`), and
+to photograph a 3D move mid-way replace the page's `performance.now` and
+`requestAnimationFrame` with a manual clock in the test (virtual time did not
+hold it).
 
 **A page can't be opened from an answer that came through a redirect.** The
 offline copy saved `./index.html`; GitHub Pages answers that directly, but

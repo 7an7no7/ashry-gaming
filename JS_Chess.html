@@ -165,27 +165,50 @@ function chCanvas(w, h) {
   return [c, c.getContext('2d')];
 }
 
-/** Wood with its grain: a base colour, long wavy lines darker and lighter, rings drawn in. */
+/** Wood with its grain: a base colour, fine wavy lines that run together (a figure), pores, now and then a knot. */
 function chWood(g, x, y, w, h, base, seed, across) {
   const rnd = chRand(seed);
   g.save();
   g.beginPath(); g.rect(x, y, w, h); g.clip();
   g.fillStyle = base; g.fillRect(x, y, w, h);
-  const lines = Math.round((across ? h : w) / 3);
+  // The plank is lighter in one place and darker in another.
+  const lg = across ? g.createLinearGradient(x, y, x, y + h) : g.createLinearGradient(x, y, x + w, y);
+  lg.addColorStop(0, `rgba(255,236,205,${0.04 + rnd() * 0.06})`); lg.addColorStop(0.45 + rnd() * 0.2, 'rgba(40,20,5,0.05)'); lg.addColorStop(1, `rgba(255,236,205,${0.03 + rnd() * 0.05})`);
+  g.fillStyle = lg; g.fillRect(x, y, w, h);
+  const span = across ? h : w, len = across ? w : h;
+  // One wave shared by the lines, so they run together like real grain.
+  const ph0 = rnd() * 6, f0 = 0.006 + rnd() * 0.012, a0 = 1.5 + rnd() * 5;
+  const lines = Math.round(span / 2.1);
   for (let i = 0; i < lines; i++) {
-    const t = rnd();
-    g.strokeStyle = t < 0.5 ? `rgba(40,20,5,${0.05 + rnd() * 0.08})` : `rgba(255,240,215,${0.03 + rnd() * 0.06})`;
-    g.lineWidth = 0.6 + rnd() * 1.6;
+    const off = (i + rnd() * 0.8) * span / lines;
+    const dark = rnd() < 0.62;
+    g.strokeStyle = dark ? `rgba(45,22,6,${0.035 + rnd() * 0.1})` : `rgba(255,238,212,${0.025 + rnd() * 0.06})`;
+    g.lineWidth = 0.35 + rnd() * (rnd() < 0.14 ? 2.6 : 1.1);
+    const amp = a0 * (0.6 + rnd() * 0.8), ph = ph0 + rnd() * 0.5;
     g.beginPath();
-    const off = rnd() * (across ? h : w);
-    const amp = 1 + rnd() * 3, freq = 0.01 + rnd() * 0.02, ph = rnd() * 6;
-    const len = across ? w : h;
-    for (let k = 0; k <= len; k += 6) {
-      const wave = Math.sin(k * freq + ph) * amp;
+    for (let k = 0; k <= len; k += 5) {
+      const wave = Math.sin(k * f0 + ph) * amp + Math.sin(k * f0 * 3.1 + ph * 2) * amp * 0.22;
       if (across) { if (k === 0) g.moveTo(x + k, y + off + wave); else g.lineTo(x + k, y + off + wave); }
       else { if (k === 0) g.moveTo(x + off + wave, y + k); else g.lineTo(x + off + wave, y + k); }
     }
     g.stroke();
+  }
+  // A knot: a few rings round a point.
+  if (rnd() < 0.16) {
+    const kx = x + rnd() * w, ky = y + rnd() * h;
+    for (let r = 1; r <= 5; r++) {
+      g.strokeStyle = `rgba(45,22,6,${0.05 + 0.02 * (5 - r)})`; g.lineWidth = 0.8;
+      g.beginPath();
+      if (across) g.ellipse(kx, ky, r * 5.5, r * 2, 0, 0, Math.PI * 2); else g.ellipse(kx, ky, r * 2, r * 5.5, 0, 0, Math.PI * 2);
+      g.stroke();
+    }
+  }
+  // Pores: short dark dashes along the grain.
+  g.fillStyle = 'rgba(30,14,4,0.07)';
+  const pores = Math.round(w * h / 160);
+  for (let k = 0; k < pores; k++) {
+    const px = x + rnd() * w, py = y + rnd() * h;
+    if (across) g.fillRect(px, py, 1.6 + rnd() * 2.4, 0.6); else g.fillRect(px, py, 0.6, 1.6 + rnd() * 2.4);
   }
   g.restore();
 }
@@ -216,21 +239,28 @@ function chMarble(g, x, y, w, h, base, seed) {
 
 // The 3D board in each of the four styles: the squares, the frame, the pieces' finish (a metal sheen for «أزرق»).
 const CH3_STYLES = {
-  green: { id: 'green', light: '#ebe6c9', dark: '#5f8246', frame: '#3f2c1e', frameMesh: 0x3a281b, pw: 0xf6ead2, pb: 0x2a211c, metal: 0 },
-  wood: { id: 'wood', light: '#dfc08c', dark: '#74421f', frame: '#5a3a24', frameMesh: 0x4a2f1d, pw: 0xf6ead2, pb: 0x2a211c, metal: 0 },
-  blue: { id: 'blue', light: '#d5dde7', dark: '#47627f', frame: '#28303d', frameMesh: 0x232a36, pw: 0xe6eaf0, pb: 0x2d3139, metal: 0.45 },
-  marble: { id: 'marble', light: '#efede7', dark: '#8d9196', frame: '#3f4145', frameMesh: 0x35373b, pw: 0xf7f1e4, pb: 0x171717, metal: 0, marble: true }
+  green: { id: 'green', light: '#ebe6c9', dark: '#5f8246', frame: '#3f2c1e', pw: 0xf6ead2, pb: 0x2a211c, metal: 0 },
+  wood: { id: 'wood', light: '#dfc08c', dark: '#74421f', frame: '#5a3a24', pw: 0xf6ead2, pb: 0x2a211c, metal: 0 },
+  blue: { id: 'blue', light: '#d5dde7', dark: '#47627f', frame: '#28303d', pw: 0xe6eaf0, pb: 0x2d3139, metal: 0.45 },
+  marble: { id: 'marble', light: '#efede7', dark: '#8d9196', frame: '#3f4145', pw: 0xf7f1e4, pb: 0x171717, metal: 0, marble: true }
 };
 
-/** A soft room of light for the lacquer to reflect: warm above, darker below. */
+/** A room of light for the varnish and the lacquer to reflect: a warm ceiling, soft boxes of light, the dark table. */
 function chRoomEnv(THREE, pmrem) {
-  const [c, g] = chCanvas(512, 256);
-  const grd = g.createLinearGradient(0, 0, 0, 256);
-  grd.addColorStop(0, '#fff6ea'); grd.addColorStop(0.45, '#e9dccb'); grd.addColorStop(0.55, '#7a6a5c'); grd.addColorStop(1, '#2a221c');
-  g.fillStyle = grd; g.fillRect(0, 0, 512, 256);
-  // Two windows' worth of light, for highlights along the pieces.
-  g.fillStyle = 'rgba(255,255,255,0.9)';
-  g.fillRect(90, 50, 70, 60); g.fillRect(340, 40, 90, 50);
+  const W = 1024, H = 512;
+  const [c, g] = chCanvas(W, H);
+  const grd = g.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#fff7ec'); grd.addColorStop(0.35, '#f0e4d3'); grd.addColorStop(0.5, '#a89684'); grd.addColorStop(0.56, '#5b4b3e'); grd.addColorStop(1, '#1c1611');
+  g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  // Soft boxes: bright in the middle, fading at the edges, so a highlight slides along a piece.
+  const box = (x, y, w, h, a) => {
+    const rg = g.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, Math.max(w, h) / 2);
+    rg.addColorStop(0, `rgba(255,255,255,${a})`); rg.addColorStop(0.55, `rgba(255,250,240,${a * 0.6})`); rg.addColorStop(1, 'rgba(255,250,240,0)');
+    g.fillStyle = rg; g.fillRect(x, y, w, h);
+  };
+  box(120, 40, 260, 170, 1); box(560, 30, 330, 150, 0.9); box(900, 120, 124, 150, 0.6); box(0, 150, 110, 110, 0.5);
+  // A warm window low on one side for a rim on the pieces.
+  box(400, 200, 220, 70, 0.55);
   const tex = new THREE.CanvasTexture(c);
   tex.mapping = THREE.EquirectangularReflectionMapping;
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -239,49 +269,115 @@ function chRoomEnv(THREE, pmrem) {
   return env;
 }
 
-/** The lathe profiles, [radius, height] from the base up, for each kind; and the extras (battlements, cut, coronet, cross). */
+/** A soft round shadow (a texture), laid on the board under each piece so it sits on it. */
+function chBlobTexture(THREE) {
+  const [c, g] = chCanvas(128, 128);
+  const rg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  rg.addColorStop(0, 'rgba(0,0,0,0.55)'); rg.addColorStop(0.45, 'rgba(0,0,0,0.3)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  return t;
+}
+
+/** A soft round dot (a texture) for the dust and the sparkle. */
+function chDotTexture(THREE) {
+  const [c, g] = chCanvas(64, 64);
+  const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.4, 'rgba(255,255,255,0.55)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+// The knight's head, the 2D piece's own profile turned into the 3D one (so the two sets are one design):
+// commands in the 45 × 45 box, the muzzle to the left; turned to face +x, bottom at the base's top.
+const CH3_KNIGHT = [['M', 14.2, 35], ['C', 14.8, 30.8, 16.4, 27.8, 19, 25.8], ['C', 16.6, 25.6, 13.8, 26, 11.6, 25.6], ['C', 9.7, 25.2, 8.5, 23.7, 8.7, 21.8],
+  ['C', 8.9, 20, 10, 18.7, 11.4, 17.3], ['L', 16.2, 11.6], ['C', 17, 10.5, 18, 9.2, 19.4, 8.6], ['C', 20.6, 8.1, 21.8, 8, 23, 8.3],
+  ['C', 28.6, 8.6, 33.2, 12.8, 34.2, 19.6], ['C', 35, 25.4, 33.6, 30.4, 32.4, 35]];
+const CH3_K = 0.0245, CH3_KOFF = 0.0475;
+const ch3KnightPt = (x, y) => [(22.5 - x) * CH3_K, (40 - y) * CH3_K + CH3_KOFF];
+
+/** The lathe profiles, [radius, height, sharp] from the base up, smoothed between the sharp corners; and the extras. */
 function chPieceParts(THREE) {
-  const V = (pts) => pts.map(([r, y]) => new THREE.Vector2(r, y));
-  const arc = (cy, ry, rx, a0, a1, n) => {
+  const V = (r, y) => new THREE.Vector2(r, y);
+  // A run of points between two sharp corners goes through a spline, so a stem or a head is round, not faceted.
+  const smooth = (pts) => {
     const out = [];
-    for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; out.push([Math.max(0, Math.cos(a) * rx), cy + Math.sin(a) * ry]); }
+    let run = [pts[0]];
+    const flush = () => {
+      if (run.length < 3) run.forEach((p, k) => { if (k || !out.length) out.push(V(p[0], p[1])); });
+      else new THREE.SplineCurve(run.map(p => V(p[0], p[1]))).getPoints((run.length - 1) * 5).forEach((p, k) => { if (k || !out.length) out.push(p); });
+    };
+    for (let i = 1; i < pts.length; i++) {
+      run.push(pts[i]);
+      if (pts[i][2] || i === pts.length - 1) { flush(); run = [pts[i]]; }
+    }
     return out;
   };
-  const base = (r) => [[0, 0], [r, 0], [r, 0.05], [r - 0.03, 0.085], [r - 0.06, 0.1], [r - 0.08, 0.13]];
-  const lathe = (pts) => new THREE.LatheGeometry(V(pts), 40);
+  const S = 1;
+  const arc = (cy, ry, rx, a0, a1, n) => {
+    const out = [];
+    for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; out.push([Math.max(0.001, Math.cos(a) * rx), cy + Math.sin(a) * ry]); }
+    return out;
+  };
+  const base = (r) => [[0.001, 0, S], [r, 0, S], [r, 0.045, S], [r - 0.02, 0.07], [r - 0.05, 0.09], [r - 0.072, 0.125, S]];
+  const lathe = (pts) => new THREE.LatheGeometry(smooth(pts), 64);
   const parts = {};
-  parts[1] = { body: lathe(base(0.29).concat([[0.15, 0.2], [0.11, 0.3], [0.1, 0.35], [0.165, 0.37], [0.165, 0.395], [0.09, 0.415]]).concat(arc(0.51, 0.12, 0.12, -1.25, Math.PI / 2, 10))), h: 0.63 };
-  parts[4] = { body: lathe(base(0.32).concat([[0.21, 0.19], [0.18, 0.46], [0.21, 0.49], [0.245, 0.53], [0.245, 0.66], [0.17, 0.66], [0.17, 0.6], [0.001, 0.6]])), h: 0.74 };
-  parts[3] = { body: lathe(base(0.31).concat([[0.16, 0.21], [0.115, 0.37], [0.105, 0.44], [0.17, 0.46], [0.17, 0.485], [0.1, 0.505]]).concat(arc(0.64, 0.155, 0.135, -1.2, Math.PI / 2 - 0.25, 12)).concat(arc(0.83, 0.045, 0.045, -Math.PI / 2, Math.PI / 2, 6))), h: 0.88 };
-  parts[5] = { body: lathe(base(0.34).concat([[0.2, 0.2], [0.135, 0.44], [0.12, 0.62], [0.185, 0.645], [0.185, 0.67], [0.125, 0.69], [0.15, 0.74], [0.2, 0.86], [0.12, 0.84], [0.06, 0.87], [0.001, 0.875]])), h: 0.98 };
-  parts[6] = { body: lathe(base(0.35).concat([[0.21, 0.2], [0.145, 0.45], [0.13, 0.66], [0.195, 0.685], [0.195, 0.71], [0.135, 0.73], [0.17, 0.81], [0.195, 0.9], [0.12, 0.94], [0.001, 0.95]])), h: 1.15 };
-  parts[2] = { body: lathe(base(0.31).concat([[0.2, 0.16], [0.19, 0.18], [0.001, 0.18]])), h: 0.86 };
-  // The knight's head: a carved profile, extruded and bevelled; it faces +x.
+  parts[1] = { r: 0.29, body: lathe(base(0.29).concat([[0.165, 0.19], [0.125, 0.28], [0.108, 0.345, S], [0.175, 0.36, S], [0.18, 0.377], [0.175, 0.395, S], [0.1, 0.41, S]]).concat(arc(0.51, 0.12, 0.122, -1.2, Math.PI / 2, 14))), h: 0.63 };
+  parts[4] = { r: 0.32, body: lathe(base(0.32).concat([[0.235, 0.19], [0.205, 0.3], [0.19, 0.45], [0.2, 0.48, S], [0.245, 0.52, S], [0.245, 0.655, S], [0.175, 0.655, S], [0.175, 0.6, S], [0.001, 0.6, S]])), h: 0.74 };
+  parts[3] = { r: 0.31, body: lathe(base(0.31).concat([[0.17, 0.2], [0.125, 0.32], [0.108, 0.43, S], [0.172, 0.45, S], [0.176, 0.465], [0.172, 0.48, S], [0.1, 0.5, S]]).concat(arc(0.64, 0.16, 0.138, -1.25, Math.PI / 2 - 0.3, 16)).concat(arc(0.83, 0.048, 0.048, -Math.PI / 2, Math.PI / 2, 8))), h: 0.88 };
+  parts[5] = { r: 0.34, body: lathe(base(0.34).concat([[0.21, 0.2], [0.15, 0.36], [0.125, 0.56], [0.12, 0.62, S], [0.19, 0.64, S], [0.196, 0.655], [0.19, 0.67, S], [0.125, 0.69, S], [0.14, 0.73], [0.2, 0.86, S], [0.12, 0.845, S], [0.06, 0.866], [0.001, 0.875, S]])), h: 0.98 };
+  parts[6] = { r: 0.35, body: lathe(base(0.35).concat([[0.215, 0.2], [0.155, 0.38], [0.132, 0.6], [0.13, 0.66, S], [0.2, 0.68, S], [0.206, 0.695], [0.2, 0.71, S], [0.135, 0.73, S], [0.17, 0.81], [0.2, 0.9, S], [0.13, 0.935], [0.06, 0.955], [0.001, 0.96, S]])), h: 1.15 };
+  parts[2] = { r: 0.31, body: lathe(base(0.31).concat([[0.21, 0.16, S], [0.2, 0.18, S], [0.001, 0.18, S]])), h: 0.9 };
+  // The knight's head: the profile, extruded and bevelled, facing +x.
   const s = new THREE.Shape();
-  s.moveTo(-0.2, 0.16);
-  s.quadraticCurveTo(-0.25, 0.32, -0.21, 0.47);
-  s.quadraticCurveTo(-0.17, 0.6, -0.1, 0.69);
-  s.lineTo(-0.075, 0.8);
-  s.lineTo(-0.035, 0.88);
-  s.lineTo(0.005, 0.77);
-  s.quadraticCurveTo(0.09, 0.745, 0.15, 0.68);
-  s.quadraticCurveTo(0.25, 0.58, 0.32, 0.5);
-  s.quadraticCurveTo(0.35, 0.45, 0.32, 0.405);
-  s.lineTo(0.25, 0.4);
-  s.lineTo(0.22, 0.415);
-  s.quadraticCurveTo(0.13, 0.43, 0.07, 0.47);
-  s.quadraticCurveTo(0.03, 0.43, 0.06, 0.37);
-  s.quadraticCurveTo(0.16, 0.3, 0.19, 0.16);
-  s.lineTo(-0.2, 0.16);
-  const head = new THREE.ExtrudeGeometry(s, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.035, bevelSegments: 5, curveSegments: 12 });
-  head.translate(0, 0, -0.06);
+  CH3_KNIGHT.forEach(cmd => {
+    if (cmd[0] === 'M') s.moveTo(...ch3KnightPt(cmd[1], cmd[2]));
+    else if (cmd[0] === 'L') s.lineTo(...ch3KnightPt(cmd[1], cmd[2]));
+    else s.bezierCurveTo(...ch3KnightPt(cmd[1], cmd[2]), ...ch3KnightPt(cmd[3], cmd[4]), ...ch3KnightPt(cmd[5], cmd[6]));
+  });
+  s.closePath();
+  const head = new THREE.ExtrudeGeometry(s, { depth: 0.2, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.035, bevelSegments: 6, curveSegments: 16 });
+  head.translate(0, 0, -0.1);
   parts[2].head = head;
-  parts.eye = new THREE.SphereGeometry(0.022, 10, 8);
+  // Its mane: a ridged crest along the back of the neck, standing a little proud of the head.
+  const bez = (p0, p1, p2, p3, t) => { const u = 1 - t; return [u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0], u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1]]; };
+  const back = [];
+  [[[23, 8.3], [28.6, 8.6], [33.2, 12.8], [34.2, 19.6]], [[34.2, 19.6], [35, 25.4], [33.6, 30.4], [32.4, 35]]].forEach((seg, si) => {
+    for (let k = si ? 1 : 0; k <= 9; k++) back.push(bez(seg[0], seg[1], seg[2], seg[3], k / 9));
+  });
+  const outer = [], inner = [];
+  back.forEach((p, k) => {
+    const a = back[Math.max(0, k - 1)], b = back[Math.min(back.length - 1, k + 1)];
+    let nx = b[1] - a[1], ny = -(b[0] - a[0]);
+    const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;          // outward: to the right of the way along the back
+    const out = k === 0 || k === back.length - 1 ? 0.5 : (k % 2 ? 1.7 : 1.1);
+    outer.push(ch3KnightPt(p[0] + nx * out, p[1] + ny * out));
+    inner.push(ch3KnightPt(p[0] - nx * 2, p[1] - ny * 2));
+  });
+  const ms = new THREE.Shape();
+  ms.moveTo(...outer[0]); outer.slice(1).forEach(p => ms.lineTo(...p));
+  inner.reverse().forEach(p => ms.lineTo(...p));
+  ms.closePath();
+  parts.mane = new THREE.ExtrudeGeometry(ms, { depth: 0.2, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.012, bevelSegments: 3 });
+  parts.mane.translate(0, 0, -0.1);
+  parts.ear = new THREE.ConeGeometry(0.03, 0.1, 12);
+  parts.eye = new THREE.SphereGeometry(0.02, 12, 10);
+  parts.nostril = new THREE.SphereGeometry(0.013, 10, 8);
   parts.merlon = new THREE.BoxGeometry(0.1, 0.085, 0.075);
-  parts.cut = new THREE.BoxGeometry(0.014, 0.28, 0.33);
-  parts.bead = new THREE.SphereGeometry(0.042, 12, 10);
-  parts.crossV = new THREE.BoxGeometry(0.07, 0.26, 0.07);
-  parts.crossH = new THREE.BoxGeometry(0.2, 0.07, 0.07);
+  parts.cut = new THREE.BoxGeometry(0.012, 0.2, 0.29);
+  parts.bead = new THREE.SphereGeometry(0.042, 16, 12);
+  parts.band = new THREE.TorusGeometry(0.19, 0.016, 10, 48);
+  // The king's cross: one bevelled shape.
+  const cs = new THREE.Shape();
+  [[-0.035, -0.13], [0.035, -0.13], [0.035, -0.005], [0.1, -0.005], [0.1, 0.065], [0.035, 0.065], [0.035, 0.13], [-0.035, 0.13], [-0.035, 0.065], [-0.1, 0.065], [-0.1, -0.005], [-0.035, -0.005]]
+    .forEach((p, k) => (k ? cs.lineTo(p[0], p[1]) : cs.moveTo(p[0], p[1])));
+  cs.closePath();
+  parts.cross = new THREE.ExtrudeGeometry(cs, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 3 });
+  parts.cross.translate(0, 0, -0.025);
+  // The green felt under every piece.
+  parts.felt = {};
+  [1, 2, 3, 4, 5, 6].forEach(k => { parts.felt[k] = new THREE.CylinderGeometry(parts[k].r * 0.94, parts[k].r * 0.94, 0.02, 48); });
+  parts.blob = new THREE.PlaneGeometry(1, 1);
   return parts;
 }
 
@@ -297,41 +393,54 @@ function chMake3D(THREE, root) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.92;
+  renderer.toneMappingExposure = 0.95;
   const pmrem = new THREE.PMREMGenerator(renderer);
   const scene = new THREE.Scene();
   const env = chRoomEnv(THREE, pmrem);
   scene.environment = env;
   const cam = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
   const big = Math.min(window.screen ? Math.max(window.screen.width, window.screen.height) : 1000, 4000) > 1400;
+  const aniso = renderer.capabilities.getMaxAnisotropy();
 
-  const hemi = new THREE.HemisphereLight(0xfff3e2, 0x3b2b20, 0.45);
+  const hemi = new THREE.HemisphereLight(0xfff3e2, 0x3b2b20, 0.42);
   scene.add(hemi);
-  const key = new THREE.DirectionalLight(0xfff4e6, 1.9);
+  const key = new THREE.DirectionalLight(0xfff4e6, 1.85);
   key.position.set(-5, 11, 6);
   key.castShadow = true;
-  key.shadow.mapSize.set(big ? 2048 : 1024, big ? 2048 : 1024);
+  key.shadow.mapSize.set(2048, 2048);
   Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 2, far: 30 });
-  key.shadow.bias = -0.0005;
+  key.shadow.bias = -0.0004;
   key.shadow.normalBias = 0.02;
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0xffe2c4, 0.45);
+  const fill = new THREE.DirectionalLight(0xffe2c4, 0.42);
   fill.position.set(6, 5, -4);
   scene.add(fill);
+  // A light from behind, for a bright edge along the pieces' silhouettes.
+  const rim = new THREE.DirectionalLight(0xffffff, 0.35);
+  rim.position.set(0, 6, -9);
+  scene.add(rim);
 
-  // The board: a walnut frame, and a top of maple and walnut squares with the names round them.
+  /* --- the board: a bevelled frame with its grain, the squares with theirs, the names inlaid, a varnish --- */
+  const BW = 9.9;                               // the board's top, inside the frame's bevel
   const [bc, bg] = chCanvas(1024, 1024);
   const boardTex = new THREE.CanvasTexture(bc);
   boardTex.colorSpace = THREE.SRGBColorSpace;
-  boardTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  boardTex.anisotropy = aniso;
+  const [fc, fg] = chCanvas(512, 512);
+  const frameTex = new THREE.CanvasTexture(fc);
+  frameTex.colorSpace = THREE.SRGBColorSpace;
+  frameTex.wrapS = frameTex.wrapT = THREE.RepeatWrapping;
+  frameTex.repeat.set(0.2, 0.2);
+  frameTex.anisotropy = aniso;
   let boardOrient = '', pal = CH3_STYLES.green;
   function drawBoard(orient) {
     if (boardOrient === orient + '|' + pal.id) return;
     boardOrient = orient + '|' + pal.id;
     const S = 1024, u = S / 10;
     chWood(bg, 0, 0, S, S, pal.frame, 11, true);
-    bg.fillStyle = 'rgba(0,0,0,0.25)';
-    bg.fillRect(u - 6, u - 6, 8 * u + 12, 8 * u + 12);
+    // The frame's inner edge: a shadowed step down to the squares, a thin light inlay round them.
+    bg.fillStyle = 'rgba(0,0,0,0.28)';
+    bg.fillRect(u - 7, u - 7, 8 * u + 14, 8 * u + 14);
     for (let r = 0; r < 8; r++) {
       for (let f = 0; f < 8; f++) {
         const light = (r + f) % 2 === 1;
@@ -341,35 +450,59 @@ function chMake3D(THREE, root) {
     }
     bg.strokeStyle = 'rgba(30,15,5,0.55)'; bg.lineWidth = 3;
     bg.strokeRect(u - 1, u - 1, 8 * u + 2, 8 * u + 2);
-    bg.strokeStyle = 'rgba(240,215,170,0.35)'; bg.lineWidth = 2;
-    bg.strokeRect(u - 10, u - 10, 8 * u + 20, 8 * u + 20);
-    // The names, facing whoever sits at the near side.
-    bg.fillStyle = 'rgba(245,228,196,0.92)';
-    bg.font = `600 ${Math.round(u * 0.36)}px system-ui, sans-serif`;
+    bg.strokeStyle = 'rgba(240,215,170,0.5)'; bg.lineWidth = 2.5;
+    bg.strokeRect(u - 11, u - 11, 8 * u + 22, 8 * u + 22);
+    bg.strokeStyle = 'rgba(20,10,2,0.35)'; bg.lineWidth = 1;
+    bg.strokeRect(u - 13, u - 13, 8 * u + 26, 8 * u + 26);
+    // The names, inlaid in a light wood, facing whoever sits at the near side.
+    bg.font = `700 ${Math.round(u * 0.34)}px system-ui, sans-serif`;
     bg.textAlign = 'center'; bg.textBaseline = 'middle';
     const put = (text, x, y) => {
-      bg.save(); bg.translate(x, y); if (orient) bg.rotate(Math.PI); bg.fillText(text, 0, 0); bg.restore();
+      bg.save(); bg.translate(x, y); if (orient) bg.rotate(Math.PI);
+      bg.fillStyle = 'rgba(0,0,0,0.5)'; bg.fillText(text, 0, 2);
+      bg.fillStyle = 'rgba(240,221,184,0.95)'; bg.fillText(text, 0, 0);
+      bg.restore();
     };
     for (let i = 0; i < 8; i++) {
       put(CH_FILES[i], u + i * u + u / 2, orient ? u / 2 : S - u / 2);
       put(String(i + 1), orient ? S - u / 2 : u / 2, u + (7 - i) * u + u / 2);
     }
+    // A varnish: a faint sheen from one corner.
+    const sheen = bg.createLinearGradient(0, 0, S, S);
+    sheen.addColorStop(0, 'rgba(255,248,235,0.07)'); sheen.addColorStop(0.5, 'rgba(255,248,235,0)'); sheen.addColorStop(1, 'rgba(0,0,0,0.05)');
+    bg.fillStyle = sheen; bg.fillRect(0, 0, S, S);
     boardTex.needsUpdate = true;
+    chWood(fg, 0, 0, 512, 512, pal.frame, 17, true);
+    frameTex.needsUpdate = true;
   }
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a2f1d, roughness: 0.55, metalness: 0 });
-  const frameMesh = new THREE.Mesh(new THREE.BoxGeometry(10, 0.42, 10), woodMat);
-  frameMesh.position.y = -0.215;
+  // The frame: a rounded square extruded downwards with a bevel on its top edge.
+  const rounded = (w, r) => {
+    const sh = new THREE.Shape(), h = w / 2;
+    sh.moveTo(-h + r, -h); sh.lineTo(h - r, -h); sh.quadraticCurveTo(h, -h, h, -h + r); sh.lineTo(h, h - r); sh.quadraticCurveTo(h, h, h - r, h);
+    sh.lineTo(-h + r, h); sh.quadraticCurveTo(-h, h, -h, h - r); sh.lineTo(-h, -h + r); sh.quadraticCurveTo(-h, -h, -h + r, -h);
+    return sh;
+  };
+  const woodMat = new THREE.MeshPhysicalMaterial({ map: frameTex, roughness: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.25, envMapIntensity: 0.55 });
+  const frameGeo = new THREE.ExtrudeGeometry(rounded(BW, 0.2), { depth: 0.33, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 4, curveSegments: 8 });
+  frameGeo.rotateX(Math.PI / 2);                 // the extrusion runs down; its top cap faces up
+  const frameMesh = new THREE.Mesh(frameGeo, woodMat);
+  frameMesh.position.y = -0.052;                 // its top cap (0.05 up in its own space) just under the squares
   frameMesh.receiveShadow = true;
   frameMesh.castShadow = true;
   scene.add(frameMesh);
-  const topMat = new THREE.MeshPhysicalMaterial({ map: boardTex, roughness: 0.5, clearcoat: 0.3, clearcoatRoughness: 0.35, envMapIntensity: 0.45 });
-  const top = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), topMat);
+  // The top: the same rounded square, its texture mapped across it.
+  const topGeo = new THREE.ShapeGeometry(rounded(BW, 0.2), 12);
+  const uv = topGeo.attributes.uv, posA = topGeo.attributes.position;
+  // The texture is 10 units across (the frame's bevel is its last 0.05 each side).
+  for (let k = 0; k < uv.count; k++) uv.setXY(k, (posA.getX(k) + 5) / 10, (posA.getY(k) + 5) / 10);
+  const topMat = new THREE.MeshPhysicalMaterial({ map: boardTex, roughness: 0.42, clearcoat: 0.75, clearcoatRoughness: 0.2, envMapIntensity: 0.6 });
+  const top = new THREE.Mesh(topGeo, topMat);
   top.rotation.x = -Math.PI / 2;
   top.position.y = 0.002;
   top.receiveShadow = true;
   scene.add(top);
   // A shadow on the table under it all (the stage behind is the page's own ground).
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity: 0.28 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity: 0.3 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.44;
   floor.receiveShadow = true;
@@ -379,7 +512,7 @@ function chMake3D(THREE, root) {
   const [oc, og] = chCanvas(1024, 1024);
   const overTex = new THREE.CanvasTexture(oc);
   overTex.colorSpace = THREE.SRGBColorSpace;
-  overTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  overTex.anisotropy = aniso;
   const over = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.MeshBasicMaterial({ map: overTex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
   over.rotation.x = -Math.PI / 2;
   over.position.y = 0.006;
@@ -389,20 +522,23 @@ function chMake3D(THREE, root) {
   // The pieces.
   const parts = chPieceParts(THREE);
   const mats = [
-    { body: new THREE.MeshPhysicalMaterial({ color: 0xf6ead2, roughness: 0.36, clearcoat: 0.6, clearcoatRoughness: 0.18, envMapIntensity: 0.8 }),
-      mark: new THREE.MeshStandardMaterial({ color: 0x7a6247, roughness: 0.7 }) },
-    { body: new THREE.MeshPhysicalMaterial({ color: 0x2a211c, roughness: 0.3, clearcoat: 0.85, clearcoatRoughness: 0.12, envMapIntensity: 0.9 }),
-      mark: new THREE.MeshStandardMaterial({ color: 0x0d0a08, roughness: 0.7 }) }
+    { body: new THREE.MeshPhysicalMaterial({ color: 0xf6ead2, roughness: 0.34, clearcoat: 0.65, clearcoatRoughness: 0.16, envMapIntensity: 0.9, sheen: 0.2, sheenColor: new THREE.Color(0xfff2dc) }),
+      mark: new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.6 }) },
+    { body: new THREE.MeshPhysicalMaterial({ color: 0x2a211c, roughness: 0.28, clearcoat: 0.9, clearcoatRoughness: 0.1, envMapIntensity: 1 }),
+      mark: new THREE.MeshStandardMaterial({ color: 0x0d0a08, roughness: 0.55 }) }
   ];
   const glowMat = [0, 1].map(c => mats[c].body.clone());
   glowMat.forEach(m => { m.emissive = new THREE.Color(0xff2a1a); m.emissiveIntensity = 0.55; });
+  const feltMat = new THREE.MeshStandardMaterial({ color: 0x1f5230, roughness: 1 });
+  const blobTex = chBlobTexture(THREE);
+  const blobMat = new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3 });
+  const dotTex = chDotTexture(THREE);
 
   // The board's style (the owner's four): the squares' colours, the frame, the pieces' finish.
   function applyStyle() {
     const want = CH3_STYLES[chLook().style] || CH3_STYLES.green;
     if (want === pal && boardOrient !== '') return;
     pal = want;
-    woodMat.color.setHex(pal.frameMesh);
     [0, 1].forEach(c => {
       [mats[c].body, glowMat[c]].forEach(mm => { mm.color.setHex(c ? pal.pb : pal.pw); mm.metalness = pal.metal; });
     });
@@ -410,31 +546,38 @@ function chMake3D(THREE, root) {
     drawBoard(orient);
   }
 
+  const FELT = 0.02;                               // the felt's thickness: the piece stands on it
   function buildPiece(code) {
     const kind = code & 7, c = code >> 3;
     const grp = new THREE.Group();
     const P = parts[kind];
-    const add = (geo, mat, x, y, z) => {
+    const add = (geo, mat, x, y, z, parent) => {
       const m = new THREE.Mesh(geo, mat);
-      m.position.set(x || 0, y || 0, z || 0);
+      m.position.set(x || 0, (y || 0) + (parent ? 0 : FELT), z || 0);
       m.castShadow = true;
       m.receiveShadow = true;
-      grp.add(m);
+      (parent || grp).add(m);
       return m;
     };
+    const felt = new THREE.Mesh(parts.felt[kind], feltMat);
+    felt.position.y = FELT / 2;
+    grp.add(felt);
     const body = add(P.body, mats[c].body);
     body.userData.body = true;
     if (kind === 2) {
       const head = add(P.head, mats[c].body);
       head.userData.body = true;
-      // The head looks towards the other side and a little outwards, so its
-      // profile reads from where the players sit (a head seen from straight
-      // behind is a sliver).
-      head.rotation.y = c ? -0.7 : 2.44;
+      // The head looks sideways, turned a little towards the other side, so its
+      // profile reads from both seats (a head seen from straight behind is a blob).
+      head.rotation.y = c ? -0.2 : Math.PI - 0.2;
+      const mane = add(parts.mane, mats[c].body, 0, 0, 0, head);
+      mane.userData.body = true;
       [1, -1].forEach(sgn => {
-        const eye = new THREE.Mesh(parts.eye, mats[c].mark);
-        eye.position.set(0.16, 0.63, sgn * 0.108);
-        head.add(eye);
+        const ear = add(parts.ear, mats[c].body, 0.05, 0.87, sgn * 0.075, head);
+        ear.rotation.z = 0.3;
+        ear.userData.body = true;
+        add(parts.eye, mats[c].mark, 0.104, 0.69, sgn * 0.158, head);
+        add(parts.nostril, mats[c].mark, 0.27, 0.515, sgn * 0.1, head);
       });
     }
     if (kind === 4) {
@@ -447,23 +590,31 @@ function chMake3D(THREE, root) {
     }
     if (kind === 3) {
       // The mitre's cut: a thin dark slab through it, slanting, showing front and back.
-      const cut = add(parts.cut, mats[c].mark, 0, 0.67, 0);
+      const cut = add(parts.cut, mats[c].mark, 0, 0.66, 0);
       cut.rotation.z = c ? -0.62 : 0.62;
     }
     if (kind === 5) {
+      add(parts.band, mats[c].body, 0, 0.852, 0).rotation.x = Math.PI / 2;
       for (let k = 0; k < 8; k++) {
         const a = k * Math.PI / 4;
-        const b = add(parts.bead, mats[c].body, Math.cos(a) * 0.185, 0.875, Math.sin(a) * 0.185);
-        b.userData.body = true;
+        add(parts.bead, mats[c].body, Math.cos(a) * 0.19, 0.878, Math.sin(a) * 0.19).userData.body = true;
       }
       const tb = add(parts.bead, mats[c].body, 0, 0.92, 0);
       tb.scale.setScalar(1.4);
       tb.userData.body = true;
     }
     if (kind === 6) {
-      add(parts.crossV, mats[c].body, 0, 1.07, 0).userData.body = true;
-      add(parts.crossH, mats[c].body, 0, 1.1, 0).userData.body = true;
+      const cr = add(parts.cross, mats[c].body, 0, 1.08, 0);
+      cr.rotation.y = c ? 0 : Math.PI;
+      cr.userData.body = true;
     }
+    // Its soft shadow on the board (kept on the board as the piece lifts: see groundBlobs).
+    const blob = new THREE.Mesh(parts.blob, blobMat);
+    blob.rotation.x = -Math.PI / 2;
+    blob.scale.setScalar(P.r * 2.9);
+    blob.renderOrder = 1;
+    grp.add(blob);
+    grp.userData.blob = blob;
     grp.scale.setScalar(CH_PIECE_SCALE);
     grp.userData.code = code;
     return grp;
@@ -476,10 +627,24 @@ function chMake3D(THREE, root) {
   const yard = [[], []];           // pieces taken, as groups, White's lost and Black's lost
   let model = null, modelKey = '', animKey = '', mateKey = '', aspect = 1, orient = 0;
   const tweens = [];
+  const fx = new Set();            // the clean-ups of what is in the air (dust, sparkles, pulses)
   let busyUntil = 0;
   let drag = null;
 
   function removePiece(grp) { if (grp && grp.parent) grp.parent.remove(grp); }
+
+  /** Each piece's shadow stays on the board, smaller and fainter as the piece rises; none beside the board. */
+  function groundBlobs() {
+    pieces.forEach(grp => {
+      const b = grp.userData.blob;
+      if (!b) return;
+      const up = Math.max(0, grp.position.y);
+      b.visible = Math.abs(grp.rotation.x) + Math.abs(grp.rotation.z) < 0.5;
+      b.position.y = (0.004 - grp.position.y) / grp.scale.y;
+      b.scale.setScalar(parts[grp.userData.code & 7].r * 2.9 * Math.max(0.45, 1 - up * 0.6));
+    });
+    [0, 1].forEach(side => yard[side].forEach(grp => { if (grp.userData.blob) grp.userData.blob.visible = false; }));
+  }
 
   /** Where the n-th piece a side lost sits beside the board. */
   function yardPos(side, n) {
@@ -496,6 +661,7 @@ function chMake3D(THREE, root) {
 
   function placeYard() {
     [0, 1].forEach(side => yard[side].forEach((grp, n) => {
+      if (grp.userData.flying) return;
       const p = yardPos(side, n);
       grp.position.set(p.x, -0.43, p.z);
       grp.rotation.set(0, grp.userData.spin || 0, 0);
@@ -520,7 +686,7 @@ function chMake3D(THREE, root) {
         const p = sqPos(i);
         grp.position.copy(p);
         grp.rotation.set(0, 0, 0);
-        grp.traverse(m => { if (m.userData.body) m.material = mats[grp.userData.code >> 3].body; });
+        grp.scale.setScalar(CH_PIECE_SCALE);
       }
     }
     const lost = model.lost || [[], []];
@@ -536,10 +702,12 @@ function chMake3D(THREE, root) {
           scene.add(grp);
           yard[side][n] = grp;
         }
+        yard[side][n].userData.flying = false;
       });
     });
     placeYard();
     markCheck();
+    groundBlobs();
   }
 
   function markCheck() {
@@ -553,15 +721,50 @@ function chMake3D(THREE, root) {
 
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
   const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+  const easeIn = (t) => t * t * t;
 
-  function tween(dur, update, delay) {
+  function tween(dur, update, delay, done) {
     const t0 = performance.now() + (delay || 0);
-    tweens.push({ t0: t0, dur: dur, update: update });
+    tweens.push({ t0: t0, dur: dur, update: update, done: done });
     busyUntil = Math.max(busyUntil, Date.now() + (delay || 0) + dur);
     kick();
   }
 
-  /** A move played: the piece slides (a knight hops), a piece taken is knocked off to the side, a rook follows its king. */
+  /** A puff of particles (dust from a fall, a sparkle round a new piece): soft dots flying out and fading. */
+  function puff(at, o) {
+    const n = o.n || 18;
+    const pos = new Float32Array(n * 3), vel = [];
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2, sp = (o.speed || 1) * (0.4 + Math.random() * 0.8);
+      vel.push([Math.cos(a) * sp, (o.up || 0.4) * (0.3 + Math.random()), Math.sin(a) * sp]);
+      pos[k * 3] = at.x; pos[k * 3 + 1] = at.y + 0.05; pos[k * 3 + 2] = at.z;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({ map: dotTex, color: o.color || 0xd8c4a4, size: o.size || 0.32, transparent: true, opacity: o.opacity || 0.75, depthWrite: false, blending: o.glow ? THREE.AdditiveBlending : THREE.NormalBlending, sizeAttenuation: true });
+    const pts = new THREE.Points(geo, mat);
+    pts.renderOrder = 3;
+    scene.add(pts);
+    const dur = o.dur || 800;
+    let last = 0;
+    tween(dur, (k) => {
+      const dt = (k - last) * dur / 1000; last = k;
+      for (let i = 0; i < n; i++) {
+        vel[i][1] -= (o.gravity === undefined ? 1.2 : o.gravity) * dt;
+        pos[i * 3] += vel[i][0] * dt; pos[i * 3 + 1] = Math.max(0.02, pos[i * 3 + 1] + vel[i][1] * dt); pos[i * 3 + 2] += vel[i][2] * dt;
+        vel[i][0] *= 0.96; vel[i][2] *= 0.96;
+      }
+      geo.attributes.position.needsUpdate = true;
+      mat.opacity = (o.opacity || 0.75) * (1 - easeIn(k));
+      mat.size = (o.size || 0.32) * (1 + k * (o.grow === undefined ? 0.8 : o.grow));
+    }, o.delay || 0, () => { clean(); });
+    const clean = () => { fx.delete(clean); scene.remove(pts); geo.dispose(); mat.dispose(); };
+    fx.add(clean);
+  }
+
+  /** A move played: the piece lifts, travels in an arc (a knight hops high) and settles with a little bounce;
+      a piece taken is knocked over away from the attacker in a puff of dust, then set beside the board;
+      a rook moves with its king; a promoted pawn sinks and the new piece rises in a sparkle. */
   function animateMove(a) {
     const from = chSqIndex(a.from), to = chSqIndex(a.to);
     const grp = pieces.get(from);
@@ -575,81 +778,144 @@ function chMake3D(THREE, root) {
     const end = sqPos(to);
     const dist = start.distanceTo(end);
     const knight = (grp.userData.code & 7) === 2;
-    const lift = knight ? 0.75 : 0.12 + dist * 0.035;
-    const dur = Math.min(560, 230 + dist * 45);
+    const lift = knight ? 1.05 : 0.22 + dist * 0.07;
+    const dur = Math.min(640, 300 + dist * 48);
+    const travel = 0.84;                       // the rest of the time is the landing
     tween(dur, (k) => {
-      const e = ease(k);
-      grp.position.lerpVectors(start, end, e);
-      grp.position.y = start.y + (end.y - start.y) * e + lift * 4 * e * (1 - e);
+      if (k < travel) {
+        const e = ease(k / travel);
+        grp.position.lerpVectors(start, end, e);
+        grp.position.y = start.y + (end.y - start.y) * e + lift * 4 * e * (1 - e);
+        grp.scale.setScalar(CH_PIECE_SCALE);
+      } else {
+        // Settling: a small squash and a bounce.
+        const s = (k - travel) / (1 - travel);
+        grp.position.copy(end);
+        grp.position.y = 0.035 * Math.sin(s * Math.PI) * (1 - s);
+        const sq = 1 - 0.05 * Math.sin(s * Math.PI);
+        grp.scale.set(CH_PIECE_SCALE / Math.sqrt(sq), CH_PIECE_SCALE * sq, CH_PIECE_SCALE / Math.sqrt(sq));
+      }
     });
     if (victim) {
-      // Knocked off: up, spinning, onto its place beside the board.
+      // Knocked over, away from the one that took it, sliding a little; dust; then beside the board.
       const side = victim.userData.code >> 3;
       const n = yard[side].length;
       yard[side].push(victim);
       victim.userData.spin = (n * 0.7) % 1.2 - 0.6;
+      victim.userData.flying = true;
       const vFrom = victim.position.clone();
-      const dir = new THREE.Vector3().subVectors(vFrom, start).setY(0).normalize();
+      const dir = new THREE.Vector3().subVectors(vFrom, start).setY(0);
+      if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+      dir.normalize();
+      const axis = new THREE.Vector3(dir.z, 0, -dir.x);          // tipping away from the attacker
+      const hitAt = dur * travel * 0.82;
+      const q0 = new THREE.Quaternion();
+      const tipped = new THREE.Quaternion().setFromAxisAngle(axis, 1.45);
+      const h = parts[victim.userData.code & 7].h * CH_PIECE_SCALE;
+      tween(520, (k) => {
+        const e = easeOut(k);
+        victim.quaternion.slerpQuaternions(q0, tipped, Math.min(1, k * 1.25));
+        const fell = Math.sin(Math.min(1, k * 1.25) * 1.45);
+        victim.position.copy(vFrom).addScaledVector(dir, 0.18 + 0.32 * e + fell * 0.05);
+        victim.position.y = 0.16 * fell + 0.03 * Math.sin(k * Math.PI);
+      }, hitAt);
+      puff(vFrom.clone().addScaledVector(dir, 0.15 + h * 0.4), { n: 22, speed: 1.1, up: 0.35, size: 0.34, dur: 900, delay: hitAt + 330, grow: 1.1 });
+      const flyAt = hitAt + 820;
       tween(560, (k) => {
+        if (k === 0) return;
         const e = easeOut(k);
         const p = yardPos(side, n);
-        const knock = vFrom.clone().addScaledVector(dir, 0.35 * Math.min(1, k * 4));
-        victim.position.lerpVectors(knock, new THREE.Vector3(p.x, -0.43, p.z), e);
-        victim.position.y += 1.3 * 4 * e * (1 - e);
-        victim.rotation.x = (1 - e) * 5.5 * (dir.z || 0.4);
-        victim.rotation.z = (1 - e) * -5.5 * (dir.x || 0.4);
-        victim.rotation.y = victim.userData.spin * e;
+        const from2 = victim.userData.from2 || (victim.userData.from2 = victim.position.clone());
+        const qs = victim.userData.q2 || (victim.userData.q2 = victim.quaternion.clone());
+        victim.position.lerpVectors(from2, new THREE.Vector3(p.x, -0.43, p.z), e);
+        victim.position.y += 1.1 * 4 * e * (1 - e);
+        victim.quaternion.slerpQuaternions(qs, new THREE.Quaternion().setFromEuler(new THREE.Euler(0, victim.userData.spin, 0)), e);
         victim.scale.setScalar(CH_PIECE_SCALE * (1 - 0.38 * e));
-      }, dur * 0.72);
+      }, flyAt, () => { victim.userData.flying = false; victim.userData.from2 = null; victim.userData.q2 = null; });
+      camFocus(vFrom, flyAt + 300);
     }
     if (a.castle) {
+      // The rook moves with its king: the same moment, a lower arc.
       const rf = to > from ? to + 1 : to - 2, rt = to > from ? to - 1 : to + 1;
       const rook = pieces.get(rf);
       if (rook) {
         pieces.delete(rf);
         pieces.set(rt, rook);
         const rs = rook.position.clone(), re = sqPos(rt);
-        tween(300, (k) => {
-          const e = ease(k);
+        tween(dur, (k) => {
+          const e = ease(Math.min(1, k / travel));
           rook.position.lerpVectors(rs, re, e);
           rook.position.y = 0.3 * 4 * e * (1 - e);
-        }, dur * 0.5);
+        });
       }
     }
     if (a.promo) {
       const code = CH_LETTER_KIND[a.promo] | (grp.userData.code & 8);
-      setTimeout(() => {
+      tween(260, (k) => { grp.position.y = -0.55 * easeIn(k); grp.scale.setScalar(CH_PIECE_SCALE * (1 - 0.4 * k)); }, dur, () => {
         if (dead || pieces.get(to) !== grp) return;
         const np = buildPiece(code);
         np.position.copy(sqPos(to));
+        np.position.y = -0.7;
         scene.add(np);
         removePiece(grp);
         pieces.set(to, np);
-        tween(420, (k) => { np.scale.setScalar(CH_PIECE_SCALE * (0.3 + 0.7 * easeOut(k)) * (1 + 0.15 * Math.sin(k * Math.PI))); });
-      }, dur);
+        markCheck();
+        tween(520, (k) => { const e = easeOut(k); np.position.y = -0.7 * (1 - e) + 0.12 * Math.sin(k * Math.PI); np.scale.setScalar(CH_PIECE_SCALE * (0.7 + 0.3 * e)); });
+        puff(sqPos(to, 0.5), { n: 26, speed: 0.7, up: 1.6, gravity: -0.2, size: 0.2, color: 0xffd76a, glow: true, opacity: 0.95, dur: 1000, grow: -0.4 });
+      });
     }
     return true;
   }
 
-  /** Mate: the king topples. */
-  function topple(sqName) {
+  /** Mate: the king topples, slowly, lands with a thud; the camera eases towards it. */
+  function topple(sqName, loud) {
     const grp = pieces.get(chSqIndex(sqName));
     if (!grp) return;
     const base = grp.position.clone();
-    tween(1100, (k) => {
-      const e = easeOut(k);
-      grp.rotation.z = 1.45 * e;
-      grp.position.x = base.x + 0.42 * e;
-      grp.position.y = base.y + 0.1 * Math.sin(e * Math.PI);
-    }, busyUntil > Date.now() ? busyUntil - Date.now() + 120 : 120);
+    const wait = busyUntil > Date.now() ? busyUntil - Date.now() + 150 : 150;
+    const q0 = grp.quaternion.clone();
+    // It falls where there is room: towards its own edge of the board, else sideways, else forwards.
+    const i0 = chSqIndex(sqName), f0 = i0 & 7, r0 = i0 >> 3, own = (grp.userData.code >> 3) ? 1 : -1;
+    const free = (df, dr) => { const f = f0 + df, r = r0 + dr; return f < 0 || f > 7 || r < 0 || r > 7 || !(model && model.board[r * 8 + f]); };
+    const way = [[0, own], [1, 0], [-1, 0], [0, -own]].find(([df, dr]) => free(df, dr)) || [0, own];
+    const dir = new THREE.Vector3(way[0], 0, -way[1]);
+    const down = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(dir.z, 0, -dir.x), 1.5);
+    tween(1200, (k) => {
+      // Slow at first, as it tips past its balance, then falling.
+      const e = k < 0.55 ? 0.18 * (k / 0.55) * (k / 0.55) : 0.18 + 0.82 * easeIn((k - 0.55) / 0.45);
+      grp.quaternion.slerpQuaternions(q0, down, e);
+      grp.position.x = base.x + dir.x * 0.5 * e;
+      grp.position.z = base.z + dir.z * 0.5 * e;
+      grp.position.y = base.y + 0.16 * Math.sin(e * 1.5);
+    }, wait, () => {
+      if (dead) return;
+      if (loud) chSound('thud');
+      puff(grp.position.clone().addScaledVector(dir, 0.55), { n: 16, speed: 0.8, up: 0.3, size: 0.3, dur: 800 });
+      tween(160, (k) => { grp.position.y = base.y + 0.16 * Math.sin(1.5) + 0.04 * Math.sin(k * Math.PI); });
+    });
+    camFocus(grp.position.clone(), 0, { hold: true, dur: 1300, k: 0.35 });
   }
 
-  /** The king in check: a short shake. */
-  function shake(sqName) {
+  /** Check: a red pulse on the board under the king (three rings), and a short shake. */
+  const pulseGeo = new THREE.RingGeometry(0.32, 0.5, 48);
+  function pulse(sqName) {
+    const at = sqPos(chSqIndex(sqName), 0.012);
+    const wait = busyUntil > Date.now() ? busyUntil - Date.now() : 0;
+    for (let n = 0; n < 3; n++) {
+      const mat = new THREE.MeshBasicMaterial({ color: 0xff3020, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
+      const ring = new THREE.Mesh(pulseGeo, mat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.copy(at);
+      ring.renderOrder = 3;
+      scene.add(ring);
+      const clean = () => { fx.delete(clean); scene.remove(ring); mat.dispose(); };
+      fx.add(clean);
+      tween(700, (k) => { ring.scale.setScalar(0.7 + k * 0.8); mat.opacity = 0.9 * Math.sin(k * Math.PI) * (1 - k * 0.4); }, wait + n * 330, clean);
+    }
     const grp = pieces.get(chSqIndex(sqName));
     if (!grp) return;
     const bx = sqPos(chSqIndex(sqName)).x;
-    tween(480, (k) => { grp.position.x = bx + Math.sin(k * Math.PI * 6) * 0.05 * (1 - k); }, busyUntil > Date.now() ? busyUntil - Date.now() : 0);
+    tween(480, (k) => { grp.position.x = bx + Math.sin(k * Math.PI * 6) * 0.05 * (1 - k); }, wait);
   }
 
   let overKey = '';
@@ -709,25 +975,39 @@ function chMake3D(THREE, root) {
     overTex.needsUpdate = true;
   }
 
-  /* --- the camera: from your side, at an angle, the board (and what's beside it) filling the view --- */
-  const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
+  /* --- the camera: from your side, at an angle, the board (and what's beside it) filling the view;
+         turned and zoomed by the player (two fingers, a right or middle mouse button, the wheel), from
+         above at a tap, and back; a small ease towards a capture --- */
+  const DEG = Math.PI / 180;
+  const view = { az: 0, dEl: 0, zoom: 1, top: 0, focus: new THREE.Vector3(), focusK: 0, focusAmt: 0.18 };
+  const camLook = new THREE.Vector3();
+  const clampView = () => {
+    view.az = Math.max(-70 * DEG, Math.min(70 * DEG, view.az));
+    view.dEl = Math.max(-26 * DEG, Math.min(40 * DEG, view.dEl));
+    view.zoom = Math.max(0.6, Math.min(1.45, view.zoom));
+  };
   function aimCamera() {
     const w = root.clientWidth, h = root.clientHeight;
     if (!w || !h) return;
     aspect = w / h;
     cam.aspect = aspect;
     const tv = !!(model && model.tv);
-    const el = (tv ? 46 : aspect >= 1.15 ? 47 : 53) * Math.PI / 180;
+    const base = (tv ? 46 : aspect >= 1.15 ? 47 : 53) * DEG;
+    const el = Math.min(88.5 * DEG, Math.max(22 * DEG, base + view.dEl) * (1 - view.top) + 88.5 * DEG * view.top);
+    const az = view.az * (1 - view.top);
     const back = orient ? -1 : 1;
     const wide = aspect >= 1.15;
     // What must be seen: the frame's corners, the tops of the far pieces, the pieces beside the board.
     const pts = [];
     [-5, 5].forEach(x => [-5, 5].forEach(z => pts.push(new THREE.Vector3(x, 0, z))));
-    [-4, 4].forEach(x => pts.push(new THREE.Vector3(x, 1.4, -3.5 * back)));
+    if (view.top < 0.5) [-4, 4].forEach(x => pts.push(new THREE.Vector3(x, 1.4, -3.5 * back)));
     const side = wide ? [[-6.1, -3.3], [-6.1, 3.3], [6.1, -3.3], [6.1, 3.3]] : [[-3.3, -6.1], [3.3, -6.1], [-3.3, 6.1], [3.3, 6.1]];
     side.forEach(([x, z]) => pts.push(new THREE.Vector3(x, 0, z)));
-    const look = new THREE.Vector3(0, 0, wide ? 0 : 0.25 * back);
-    const dir = new THREE.Vector3(0, Math.sin(el), Math.cos(el) * back);
+    const look = new THREE.Vector3(0, 0, wide ? 0 : 0.25 * back * (1 - view.top));
+    const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el) * back, Math.sin(el), Math.cos(az) * Math.cos(el) * back);
+    // Straight down, "up" on the screen is the far side of the board.
+    cam.up.set(0, 1, 0);
+    if (el > 80 * DEG) cam.up.set(0, 0, -back);
     const fits = (d) => {
       cam.position.copy(look).addScaledVector(dir, d);
       cam.lookAt(look);
@@ -737,13 +1017,37 @@ function chMake3D(THREE, root) {
     };
     let lo = 5, hi = 80;
     for (let k = 0; k < 24; k++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
-    camPos.copy(look).addScaledVector(dir, hi);
-    camLook.copy(look);
-    cam.position.copy(camPos);
+    camLook.copy(look).lerp(view.focus, view.focusK * view.focusAmt);
+    cam.position.copy(camLook).addScaledVector(dir, hi * view.zoom * (1 - 0.06 * view.focusK));
     cam.lookAt(camLook);
     cam.updateProjectionMatrix();
     placeYard();
   }
+  let camTw = 0;
+  /** Eases the camera's own values to `to` (az, dEl, zoom, top). */
+  function camTo(to, dur) {
+    const from = { az: view.az, dEl: view.dEl, zoom: view.zoom, top: view.top };
+    const my = ++camTw;
+    tween(dur || 420, (k) => {
+      if (my !== camTw) return;
+      const e = ease(k);
+      Object.keys(to).forEach(key => { view[key] = from[key] + (to[key] - from[key]) * e; });
+      aimCamera();
+    });
+  }
+  /** A small ease towards a square and back (a capture), or towards it to stay (mate). */
+  function camFocus(at, delay, o) {
+    if (motionOff()) return;
+    const opt = o || {};
+    view.focus.copy(at).setY(0);
+    view.focusAmt = opt.k || 0.18;
+    const k0 = view.focusK;
+    tween(opt.dur || 380, (k) => { view.focusK = k0 + (1 - k0) * ease(k); aimCamera(); }, delay || 0, () => {
+      if (opt.hold || dead) return;
+      tween(650, (k) => { view.focusK = 1 - ease(k); aimCamera(); }, 260);
+    });
+  }
+  const camMoved = () => Math.abs(view.az) > 0.01 || Math.abs(view.dEl) > 0.01 || Math.abs(view.zoom - 1) > 0.01 || view.top > 0.01;
 
   /* --- picking: the square under a finger --- */
   const ray = new THREE.Raycaster();
@@ -765,7 +1069,7 @@ function chMake3D(THREE, root) {
       const f = Math.floor(hit.x + 4), r = Math.floor(4 - hit.z);
       return f >= 0 && f < 8 && r >= 0 && r < 8 ? r * 8 + f : -1;
     };
-    const mid = tryAt(0.35);
+    const mid = view.top > 0.5 ? -1 : tryAt(0.35);
     if (mid >= 0 && pieces.has(mid)) return chSqName(mid);
     return chSqName(tryAt(0));
   }
@@ -807,6 +1111,8 @@ function chMake3D(THREE, root) {
       animKey = m.anim ? m.anim.key : '';
       mateKey = m.mate ? m.key + '|mate' : '';
       tweens.length = 0;
+      [...fx].forEach(f => f());
+      view.focusK = 0;
       pieces.forEach(removePiece); pieces.clear();
       yard.forEach(list => { list.forEach(removePiece); list.length = 0; });
       aimCamera();
@@ -820,9 +1126,9 @@ function chMake3D(THREE, root) {
           moved = animateMove(m.anim);
           if (moved) {
             const k = m.anim.capture ? 'capture' : m.anim.castle ? 'castle' : 'move';
-            if (m.loud !== false) chSound(k);
-            if (m.check && m.loud !== false) setTimeout(() => chSound('check'), 260);
-            if (m.check) shake(m.check);
+            if (m.loud !== false) setTimeout(() => { if (!dead) chSound(k); }, 200);
+            if (m.check && m.loud !== false) setTimeout(() => chSound('check'), 420);
+            if (m.check) pulse(m.check);
           }
         }
       }
@@ -833,7 +1139,8 @@ function chMake3D(THREE, root) {
       if (!moved) markCheck();
       if (m.mate && mateKey !== m.key + '|mate') {
         mateKey = m.key + '|mate';
-        if (!motionOff()) topple(m.mate);
+        if (!motionOff()) topple(m.mate, m.loud !== false);
+        if (m.loud !== false) setTimeout(() => { if (!dead) chSound('end'); }, Math.max(0, busyUntil - Date.now()) + 200);
       }
     }
     drawOverlay();
@@ -854,14 +1161,15 @@ function chMake3D(THREE, root) {
       if (now < tw.t0) continue;
       const t = Math.min(1, (now - tw.t0) / tw.dur);
       tw.update(t);
-      if (t >= 1) tweens.splice(k, 1);
+      if (t >= 1) { tweens.splice(k, 1); if (tw.done) tw.done(); }
     }
+    groundBlobs();
     render();
     if (tweens.length || drag) { raf = requestAnimationFrame(frame); running = true; }
     else running = false;
   }
   function kick() {
-    if (raf || paused) return;
+    if (raf || paused || dead) return;
     raf = requestAnimationFrame(frame);
     running = true;
   }
@@ -877,6 +1185,24 @@ function chMake3D(THREE, root) {
   ro.observe(root);
   resize();
 
+  /** The player's camera: turn (a drag's pixels), zoom (a factor), from above (a toggle), back to the start. */
+  function camera(cmd, a, b) {
+    if (cmd === 'orbit') {
+      const w = root.clientWidth || 300;
+      if (view.top > 0.5) return;
+      view.az -= (a / w) * Math.PI * 0.9;
+      view.dEl += (b / w) * Math.PI * 0.6;
+      clampView(); aimCamera(); kick();
+    } else if (cmd === 'zoom') {
+      view.zoom *= a;
+      clampView(); aimCamera(); kick();
+    } else if (cmd === 'top') {
+      camTo(view.top > 0.5 ? { top: 0 } : { top: 1, zoom: 1 }, 480);
+    } else if (cmd === 'reset') {
+      camTo({ az: 0, dEl: 0, zoom: 1, top: 0 }, 480);
+    }
+  }
+
   function dispose() {
     dead = true;
     if (raf) cancelAnimationFrame(raf);
@@ -887,10 +1213,18 @@ function chMake3D(THREE, root) {
       const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
       ms.forEach(mm => { if (!seen.has(mm)) { seen.add(mm); if (mm.map) mm.map.dispose(); mm.dispose(); } });
     });
-    Object.keys(parts).forEach(k => { const p = parts[k]; if (p && p.dispose) p.dispose(); if (p && p.body) { p.body.dispose(); if (p.head) p.head.dispose(); } });
+    Object.keys(parts).forEach(k => {
+      const p = parts[k];
+      if (p && p.dispose) p.dispose();
+      if (p && p.body) { p.body.dispose(); if (p.head) p.head.dispose(); }
+    });
+    Object.keys(parts.felt || {}).forEach(k => parts.felt[k].dispose());
     [mats[0], mats[1]].forEach(s => { s.body.dispose(); s.mark.dispose(); });
     glowMat.forEach(m => m.dispose());
-    boardTex.dispose(); overTex.dispose(); env.dispose(); pmrem.dispose();
+    [feltMat, blobMat, woodMat, topMat].forEach(m => m.dispose());
+    pulseGeo.dispose();
+    [boardTex, overTex, frameTex, blobTex, dotTex, env].forEach(t => t.dispose());
+    pmrem.dispose();
     renderer.dispose();
     try { renderer.forceContextLoss(); } catch (e) {}
     canvas.remove();
@@ -899,7 +1233,7 @@ function chMake3D(THREE, root) {
   return {
     kind: '3d',
     setModel: setModel, pick: pick, dragStart: dragStart, dragMove: dragMove, dragEnd: dragEnd,
-    resize: resize, dispose: dispose,
+    resize: resize, dispose: dispose, camera: camera, camMoved: camMoved, camTop: () => view.top > 0.5,
     pause: (p) => { paused = !!p; if (!p) kick(); },
     busyUntil: () => busyUntil,
     /** Where a square's middle is on the page (the promotion picker; the tests tap there). */
@@ -1267,6 +1601,7 @@ function chViewMake(kind, THREE) {
   chView.r = r;
   if (old) { try { old.dispose(); } catch (e) {} }
   root.classList.toggle('is-flat', kind === 'flat');
+  root.classList.toggle('is-3d', kind === '3d');
   if (chView.model) r.setModel(chView.model);
 }
 
@@ -1326,7 +1661,11 @@ function chViewTools(root, model) {
   const view = !chCan3D() ? '' : is3d
     ? `<button type="button" class="ch-tool" onclick="chViewToggle()" aria-label="${escapeHTML(chT('ch_view_to2d'))}" title="${escapeHTML(chT('ch_view_to2d'))}">▦ 2D</button>`
     : `<button type="button" class="ch-tool" onclick="chViewToggle()" aria-label="${escapeHTML(chT('ch_view_to3d'))}" title="${escapeHTML(chT('ch_view_to3d'))}">🧊 3D</button>`;
-  const html = model.tv ? '' : view + `<button type="button" class="ch-tool" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}" title="${escapeHTML(chT('ch_look_label'))}">⚙</button>`;
+  // In 3D: from above (a toggle) and, once the camera has been turned or zoomed, back to the start.
+  const r3 = chView.r && chView.r.kind === '3d' && chView.r.camera ? chView.r : null;
+  const cam = !r3 ? '' : `<button type="button" class="ch-tool ${r3.camTop() ? 'is-on' : ''}" onclick="chViewCam('top')" aria-pressed="${r3.camTop()}" aria-label="${escapeHTML(chT('ch_cam_top'))}">⬇ ${escapeHTML(chT('ch_cam_top'))}</button>` +
+    (r3.camMoved() ? `<button type="button" class="ch-tool" onclick="chViewCam('reset')" aria-label="${escapeHTML(chT('ch_cam_reset'))}" title="${escapeHTML(chT('ch_cam_reset'))}">↺</button>` : '');
+  const html = model.tv ? '' : view + `<button type="button" class="ch-tool" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}" title="${escapeHTML(chT('ch_look_label'))}">⚙</button>` + cam;
   if (box._chHtml !== html) { box.innerHTML = html; box._chHtml = html; }
 }
 
@@ -1345,10 +1684,31 @@ document.addEventListener('visibilitychange', () => { if (chView.r) chView.r.pau
 /* --- the finger on the board: a tap picks a piece or a square, a drag carries a piece --- */
 
 function chWireInput(root) {
-  let press = null;
+  let press = null, gesture = null;
+  const fingers = new Map();                     // pointer id -> where it is (for two fingers on the 3D board)
+  const is3d = () => !!chView.r && chView.r.kind === '3d' && !!chView.r.camera;
+  const two = () => { const p = [...fingers.values()]; return { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1, x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 }; };
+  const camDone = () => { if (chView.model) chViewTools(root, chView.model); };
   root.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button, [data-ch-pop]')) return;
+    if (e.isPrimary) fingers.clear();
+    fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // The 3D camera: two fingers (pinch to zoom, move to turn), or a right or middle mouse button.
+    if (is3d() && (e.button === 1 || e.button === 2)) {
+      gesture = { mouse: true, id: e.pointerId, x: e.clientX, y: e.clientY };
+      try { root.setPointerCapture(e.pointerId); } catch (x) {}
+      e.preventDefault();
+      return;
+    }
+    if (is3d() && fingers.size === 2) {
+      if (press && press.dragging && chView.r) chView.r.dragEnd(false);
+      press = null;
+      gesture = Object.assign({ mouse: false }, two());
+      return;
+    }
+    if (fingers.size > 1) return;
     const m = chView.model, r = chView.r;
-    if (!m || !r || !m.input || e.button > 0 || e.target.closest('button, [data-ch-pop]')) return;
+    if (!m || !r || !m.input || e.button > 0) return;
     const sq = r.pick(e.clientX, e.clientY);
     press = { id: e.pointerId, x: e.clientX, y: e.clientY, sq: sq, dragging: false, own: false };
     if (!sq || !m.input.canMove) return;
@@ -1357,6 +1717,21 @@ function chWireInput(root) {
     if (press.own) { try { root.setPointerCapture(e.pointerId); } catch (x) {} }
   });
   root.addEventListener('pointermove', (e) => {
+    if (fingers.has(e.pointerId)) fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (gesture && chView.r && chView.r.camera) {
+      if (gesture.mouse) {
+        if (e.pointerId !== gesture.id) return;
+        chView.r.camera('orbit', e.clientX - gesture.x, e.clientY - gesture.y);
+        gesture.x = e.clientX; gesture.y = e.clientY;
+      } else if (fingers.size >= 2) {
+        const now = two();
+        chView.r.camera('zoom', gesture.d / now.d);
+        chView.r.camera('orbit', now.x - gesture.x, now.y - gesture.y);
+        Object.assign(gesture, now);
+      }
+      e.preventDefault();
+      return;
+    }
     if (!press || press.id !== e.pointerId || !press.own) return;
     const r = chView.r;
     if (!press.dragging && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) {
@@ -1369,6 +1744,11 @@ function chWireInput(root) {
     if (press.dragging) { e.preventDefault(); r.dragMove(e.clientX, e.clientY); }
   });
   const end = (e, cancel) => {
+    fingers.delete(e.pointerId);
+    if (gesture) {
+      if (gesture.mouse ? e.pointerId === gesture.id : fingers.size < 2) { gesture = null; camDone(); }
+      return;
+    }
     if (!press || press.id !== e.pointerId) return;
     const pr = press;
     press = null;
@@ -1386,6 +1766,23 @@ function chWireInput(root) {
   };
   root.addEventListener('pointerup', (e) => end(e, false));
   root.addEventListener('pointercancel', (e) => end(e, true));
+  // A mouse wheel zooms the 3D board; a right-click turns it rather than opening the menu.
+  root.addEventListener('wheel', (e) => {
+    if (!is3d() || e.target.closest('[data-ch-pop]')) return;
+    e.preventDefault();
+    chView.r.camera('zoom', e.deltaY > 0 ? 1.07 : 1 / 1.07);
+    clearTimeout(root._chWheel);
+    root._chWheel = setTimeout(camDone, 250);
+  }, { passive: false });
+  root.addEventListener('contextmenu', (e) => { if (is3d()) e.preventDefault(); });
+}
+
+/** The camera buttons on the 3D board: from above (and back), and back to the start. */
+function chViewCam(cmd) {
+  chToolsPop(false);
+  if (!chView.r || !chView.r.camera) return;
+  chView.r.camera(cmd);
+  setTimeout(() => { if (chView.root && chView.model) chViewTools(chView.root, chView.model); }, 520);
 }
 
 /* --- the promotion picker: four pieces over the square the pawn goes to --- */

@@ -288,14 +288,6 @@ function chDotTexture(THREE) {
   return new THREE.CanvasTexture(c);
 }
 
-// The knight's head, the 2D piece's own profile turned into the 3D one (so the two sets are one design):
-// commands in the 45 × 45 box, the muzzle to the left; turned to face +x, bottom at the base's top.
-const CH3_KNIGHT = [['M', 14.2, 35], ['C', 14.8, 30.8, 16.4, 27.8, 19, 25.8], ['C', 16.6, 25.6, 13.8, 26, 11.6, 25.6], ['C', 9.7, 25.2, 8.5, 23.7, 8.7, 21.8],
-  ['C', 8.9, 20, 10, 18.7, 11.4, 17.3], ['L', 16.2, 11.6], ['C', 17, 10.5, 18, 9.2, 19.4, 8.6], ['C', 20.6, 8.1, 21.8, 8, 23, 8.3],
-  ['C', 28.6, 8.6, 33.2, 12.8, 34.2, 19.6], ['C', 35, 25.4, 33.6, 30.4, 32.4, 35]];
-const CH3_K = 0.0245, CH3_KOFF = 0.0475;
-const ch3KnightPt = (x, y) => [(22.5 - x) * CH3_K, (40 - y) * CH3_K + CH3_KOFF];
-
 /** The lathe profiles, [radius, height, sharp] from the base up, smoothed between the sharp corners; and the extras. */
 function chPieceParts(THREE) {
   const V = (r, y) => new THREE.Vector2(r, y);
@@ -327,42 +319,63 @@ function chPieceParts(THREE) {
   parts[3] = { r: 0.31, body: lathe(base(0.31).concat([[0.17, 0.2], [0.125, 0.32], [0.108, 0.43, S], [0.172, 0.45, S], [0.176, 0.465], [0.172, 0.48, S], [0.1, 0.5, S]]).concat(arc(0.64, 0.16, 0.138, -1.25, Math.PI / 2 - 0.3, 16)).concat(arc(0.83, 0.048, 0.048, -Math.PI / 2, Math.PI / 2, 8))), h: 0.88 };
   parts[5] = { r: 0.34, body: lathe(base(0.34).concat([[0.21, 0.2], [0.15, 0.36], [0.125, 0.56], [0.12, 0.62, S], [0.19, 0.64, S], [0.196, 0.655], [0.19, 0.67, S], [0.125, 0.69, S], [0.14, 0.73], [0.2, 0.86, S], [0.12, 0.845, S], [0.06, 0.866], [0.001, 0.875, S]])), h: 0.98 };
   parts[6] = { r: 0.35, body: lathe(base(0.35).concat([[0.215, 0.2], [0.155, 0.38], [0.132, 0.6], [0.13, 0.66, S], [0.2, 0.68, S], [0.206, 0.695], [0.2, 0.71, S], [0.135, 0.73, S], [0.17, 0.81], [0.2, 0.9, S], [0.13, 0.935], [0.06, 0.955], [0.001, 0.96, S]])), h: 1.15 };
-  parts[2] = { r: 0.31, body: lathe(base(0.31).concat([[0.21, 0.16, S], [0.2, 0.18, S], [0.001, 0.18, S]])), h: 0.9 };
-  // The knight's head: the profile, extruded and bevelled, facing +x.
+  parts[2] = { r: 0.31, body: lathe(base(0.31).concat([[0.205, 0.15, S], [0.232, 0.165, S], [0.232, 0.19, S], [0.001, 0.19, S]])), h: 1.0 };
+  // The knight (the coordinator's review, 24 Sep 2026: "a lump, not a horse"): a horse's head and neck
+  // drawn as a side profile - chest, throat, jaw, chin, a muzzle, the nose bridge, forehead, poll, the
+  // arched crest and the back of the neck - facing +x, extruded and bevelled, then shaped: the slab is
+  // pinched towards the muzzle and widened at the neck, so it is a head, not a board.
   const s = new THREE.Shape();
-  CH3_KNIGHT.forEach(cmd => {
-    if (cmd[0] === 'M') s.moveTo(...ch3KnightPt(cmd[1], cmd[2]));
-    else if (cmd[0] === 'L') s.lineTo(...ch3KnightPt(cmd[1], cmd[2]));
-    else s.bezierCurveTo(...ch3KnightPt(cmd[1], cmd[2]), ...ch3KnightPt(cmd[3], cmd[4]), ...ch3KnightPt(cmd[5], cmd[6]));
-  });
+  s.moveTo(-0.215, 0.19);
+  s.lineTo(0.185, 0.19);
+  s.quadraticCurveTo(0.225, 0.34, 0.165, 0.46);    // chest up to the throat
+  s.quadraticCurveTo(0.14, 0.52, 0.22, 0.555);     // the jaw's underside, forward to the chin
+  s.quadraticCurveTo(0.33, 0.565, 0.375, 0.61);    // chin to the mouth
+  s.quadraticCurveTo(0.41, 0.665, 0.375, 0.715);   // the muzzle's front
+  s.quadraticCurveTo(0.27, 0.8, 0.15, 0.895);      // the nose bridge up to the forehead
+  s.quadraticCurveTo(0.1, 0.945, 0.065, 0.99);     // forehead to the poll
+  s.lineTo(-0.02, 1.0);
+  s.quadraticCurveTo(-0.15, 0.985, -0.215, 0.845); // the crest, arched
+  s.quadraticCurveTo(-0.285, 0.665, -0.25, 0.45);  // the back of the neck
+  s.quadraticCurveTo(-0.215, 0.3, -0.215, 0.19);
   s.closePath();
-  const head = new THREE.ExtrudeGeometry(s, { depth: 0.2, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.035, bevelSegments: 6, curveSegments: 16 });
-  head.translate(0, 0, -0.1);
+  const head = new THREE.ExtrudeGeometry(s, { depth: 0.15, bevelEnabled: true, bevelThickness: 0.045, bevelSize: 0.03, bevelSegments: 5, curveSegments: 20 });
+  head.translate(0, 0, -0.075);
+  // Narrower towards the muzzle, fuller at the jowl and the neck's foot.
+  const hp = head.attributes.position;
+  for (let k = 0; k < hp.count; k++) {
+    const x = hp.getX(k), y = hp.getY(k);
+    const muzzle = Math.max(0, Math.min(1, (x - 0.08) / 0.3));
+    const foot = Math.max(0, Math.min(1, (0.36 - y) / 0.17));
+    hp.setZ(k, hp.getZ(k) * (1 - 0.45 * muzzle) * (1 + 0.18 * foot));
+  }
+  head.computeVertexNormals();
   parts[2].head = head;
-  // Its mane: a ridged crest along the back of the neck, standing a little proud of the head.
-  const bez = (p0, p1, p2, p3, t) => { const u = 1 - t; return [u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0], u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1]]; };
+  // The mane: a thin crest standing proud along the back of the neck, its edge in ridges.
+  const q = (p0, p1, p2, t) => { const u = 1 - t; return [u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]]; };
   const back = [];
-  [[[23, 8.3], [28.6, 8.6], [33.2, 12.8], [34.2, 19.6]], [[34.2, 19.6], [35, 25.4], [33.6, 30.4], [32.4, 35]]].forEach((seg, si) => {
-    for (let k = si ? 1 : 0; k <= 9; k++) back.push(bez(seg[0], seg[1], seg[2], seg[3], k / 9));
+  [[[-0.02, 1.0], [-0.15, 0.985], [-0.215, 0.845]], [[-0.215, 0.845], [-0.285, 0.665], [-0.25, 0.45]]].forEach((seg, si) => {
+    for (let k = si ? 1 : 0; k <= 8; k++) back.push(q(seg[0], seg[1], seg[2], k / 8));
   });
   const outer = [], inner = [];
   back.forEach((p, k) => {
     const a = back[Math.max(0, k - 1)], b = back[Math.min(back.length - 1, k + 1)];
-    let nx = b[1] - a[1], ny = -(b[0] - a[0]);
-    const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;          // outward: to the right of the way along the back
-    const out = k === 0 || k === back.length - 1 ? 0.5 : (k % 2 ? 1.7 : 1.1);
-    outer.push(ch3KnightPt(p[0] + nx * out, p[1] + ny * out));
-    inner.push(ch3KnightPt(p[0] - nx * 2, p[1] - ny * 2));
+    let nx = b[1] - a[1], ny = -(b[0] - a[0]);                     // outward: away from the head
+    const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+    const out = k === 0 || k === back.length - 1 ? 0.012 : (k % 2 ? 0.06 : 0.032);
+    outer.push([p[0] + nx * out, p[1] + ny * out]);
+    inner.push([p[0] - nx * 0.05, p[1] - ny * 0.05]);
   });
   const ms = new THREE.Shape();
-  ms.moveTo(...outer[0]); outer.slice(1).forEach(p => ms.lineTo(...p));
-  inner.reverse().forEach(p => ms.lineTo(...p));
+  ms.moveTo(outer[0][0], outer[0][1]); outer.slice(1).forEach(p => ms.lineTo(p[0], p[1]));
+  inner.reverse().forEach(p => ms.lineTo(p[0], p[1]));
   ms.closePath();
-  parts.mane = new THREE.ExtrudeGeometry(ms, { depth: 0.2, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.012, bevelSegments: 3 });
-  parts.mane.translate(0, 0, -0.1);
-  parts.ear = new THREE.ConeGeometry(0.03, 0.1, 12);
-  parts.eye = new THREE.SphereGeometry(0.02, 12, 10);
-  parts.nostril = new THREE.SphereGeometry(0.013, 10, 8);
+  parts.mane = new THREE.ExtrudeGeometry(ms, { depth: 0.07, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.008, bevelSegments: 2 });
+  parts.mane.translate(0, 0, -0.035);
+  // The cheek: a flat round swell each side of the jaw.
+  parts.cheek = new THREE.SphereGeometry(1, 18, 12);
+  parts.ear = new THREE.ConeGeometry(0.032, 0.11, 12);
+  parts.eye = new THREE.SphereGeometry(0.024, 12, 10);
+  parts.nostril = new THREE.SphereGeometry(0.016, 10, 8);
   parts.merlon = new THREE.BoxGeometry(0.1, 0.085, 0.075);
   parts.cut = new THREE.BoxGeometry(0.012, 0.2, 0.29);
   parts.bead = new THREE.SphereGeometry(0.042, 16, 12);
@@ -573,11 +586,14 @@ function chMake3D(THREE, root) {
       const mane = add(parts.mane, mats[c].body, 0, 0, 0, head);
       mane.userData.body = true;
       [1, -1].forEach(sgn => {
-        const ear = add(parts.ear, mats[c].body, 0.05, 0.87, sgn * 0.075, head);
-        ear.rotation.z = 0.3;
+        const ear = add(parts.ear, mats[c].body, 0.02, 1.03, sgn * 0.045, head);
+        ear.rotation.set(sgn * -0.15, 0, 0.3);
         ear.userData.body = true;
-        add(parts.eye, mats[c].mark, 0.104, 0.69, sgn * 0.158, head);
-        add(parts.nostril, mats[c].mark, 0.27, 0.515, sgn * 0.1, head);
+        const cheek = add(parts.cheek, mats[c].body, 0.08, 0.63, sgn * 0.1, head);
+        cheek.scale.set(0.1, 0.075, 0.022);
+        cheek.userData.body = true;
+        add(parts.eye, mats[c].mark, 0.145, 0.84, sgn * 0.107, head);
+        add(parts.nostril, mats[c].mark, 0.355, 0.675, sgn * 0.066, head);
       });
     }
     if (kind === 4) {

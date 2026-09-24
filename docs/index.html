@@ -106,7 +106,7 @@
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260924191609";
+      window.BUILD_ID = "20260924194942";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -3600,6 +3600,43 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 .tb-timer.is-urgent .tb-timer__fill { background: var(--danger); }
 .tb-timer.is-urgent .tb-timer__value { animation: urgentPulse 1s var(--ease-in-out) infinite; }
 .tb-timer.is-up { cursor: default; }
+
+/* The steal (the owner, 24 Sep 2026). The team up has a ring on the board;
+   on the card, who is answering, then the other team's band. */
+.tb-team.is-turn { box-shadow: 0 0 0 3px color-mix(in srgb, var(--team-red) 35%, transparent); }
+.tb-team--b.is-turn { box-shadow: 0 0 0 3px color-mix(in srgb, var(--team-blue) 35%, transparent); }
+.tb-picker { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-1); }
+.tb-picker .eyebrow { margin: 0; text-align: center; }
+.tb-picker .segmented__item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-steal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-3);
+  border: 2px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  text-align: center;
+}
+.tb-steal--a { border-color: var(--team-red); background: color-mix(in srgb, var(--team-red) 10%, var(--surface-solid)); }
+.tb-steal--b { border-color: var(--team-blue); background: color-mix(in srgb, var(--team-blue) 10%, var(--surface-solid)); }
+.tb-steal__title { font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--text-strong); }
+.tb-steal--a .tb-steal__team { color: var(--team-red-ink); }
+.tb-steal--b .tb-steal__team { color: var(--team-blue-ink); }
+.tb-steal__team { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 900; }
+.tb-steal__pts { font-size: var(--fs-sm); color: var(--text-2); }
+.tb-steal.is-in { animation: tb-steal-in var(--dur-3) var(--ease-out) both; }
+.tb-timer.is-restart { animation: tb-restart 0.5s var(--ease-out); }
+@keyframes tb-restart { 0% { transform: scale(1); } 35% { transform: scale(1.05); } 100% { transform: scale(1); } }
+@keyframes tb-steal-in {
+  from { opacity: 0; transform: translateY(-0.75rem) scale(0.94); }
+  60% { opacity: 1; transform: translateY(0) scale(1.03); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tb-steal.is-in, .tb-timer.is-restart { animation: none; }
+}
 
 /* --- Switch ---------------------------------------------------------------- */
 /* An on/off setting on one row with its label. A real checkbox lies over the
@@ -15375,6 +15412,15 @@ button.ch4-seat__btn { cursor: pointer; }
 .hub-ways { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); }
 .hub-ways .filter-chip .art-icon { width: 1.15em; height: 1.15em; }
 .room-hub-back { justify-self: start; margin-bottom: var(--sp-3); }
+
+/* A name the host can tap for the menu (make them the host, take out a phone
+   that is gone): the name itself, with a faint dotted underline to say so. */
+.room-name-btn {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
+  cursor: pointer; text-decoration: underline dotted; text-decoration-color: var(--text-3);
+  text-underline-offset: 0.2em;
+}
+.room-name-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .tv-lobby .room-hub-back { margin-bottom: var(--sp-2); }
 
 </style>
@@ -31111,8 +31157,18 @@ const CHESS_PUZZLES = [
                   <button type="button" class="segmented__item" data-seconds="45" onclick="setTriviaTimerSeconds(45)">45</button>
                   <button type="button" class="segmented__item" data-seconds="60" onclick="setTriviaTimerSeconds(60)">60</button>
                 </div>
-                <p class="field__hint" data-i18n="tb_timer_hint">بالثواني. لما الوقت يخلص، الإجابة بتظهر لوحدها.</p>
+                <p class="field__hint" data-i18n="tb_timer_hint">بالثواني. لما الوقت يخلص، الإجابة بتظهر لوحدها، أو الفرصة تروح للفريق التاني لو السرقة شغالة.</p>
               </div>
+            </div>
+            <div class="field">
+              <label class="switch-row" for="tb-steal-on">
+                <span class="field__label" data-i18n="tb_steal">فرصة للفريق التاني (سرقة)</span>
+                <span class="switch">
+                  <input type="checkbox" id="tb-steal-on" role="switch" checked onchange="tbRememberSetup()">
+                  <span class="switch__track" aria-hidden="true"></span>
+                </span>
+              </label>
+              <p class="field__hint" data-i18n="tb_steal_hint">لو الفريق غلط أو وقته خلص، الإجابة ما بتظهرش: الفريق التاني ياخد فرصة واحدة بنص الوقت، ولو جاوب صح ياخد النقط كلها.</p>
             </div>
             <button onclick="startTriviaBoard()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
           </div>
@@ -31691,6 +31747,19 @@ const CHESS_PUZZLES = [
           <button id="toggle-results-btn" onclick="toggleResults()" class="btn btn--secondary" data-i18n="show_full_results">عرض النتائج كاملة</button>
           <button onclick="goToCurrentSetup()" class="btn btn--secondary"><span aria-hidden="true">⚙️ </span><span data-i18n="tb_settings">تغيير الإعدادات</span></button>
           <button onclick="setView('menu')" class="btn btn--ghost" data-i18n="main_menu">القائمة الرئيسية</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="room-player-menu" class="modal-overlay hidden">
+      <div class="modal-content modal-content--simple">
+        <div class="modal-icon" aria-hidden="true">👤</div>
+        <div class="sheet__title" id="room-menu-name"></div>
+        <p class="sheet__subtitle" id="room-menu-away"></p>
+        <div class="modal-actions">
+          <button type="button" id="room-menu-host" onclick="roomMenuMakeHost()" class="btn btn--primary btn--lg"></button>
+          <button type="button" id="room-menu-kick" onclick="roomMenuKick()" class="btn btn--danger-soft hidden" data-i18n="room_kick">شيله من الغرفة</button>
+          <button type="button" onclick="closeModal('room-player-menu')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>
     </div>
@@ -36756,7 +36825,7 @@ const CHESS_PUZZLES = [
       tb_final: "النتيجة",
       tb_settings: "تغيير الإعدادات",
       tb_timer: "مؤقت لكل سؤال",
-      tb_timer_hint: "بالثواني. لما الوقت يخلص، الإجابة بتظهر لوحدها.",
+      tb_timer_hint: "بالثواني. لما الوقت يخلص، الإجابة بتظهر لوحدها، أو الفرصة تروح للفريق التاني لو السرقة شغالة.",
       tb_time_up: "الوقت خلص!",
       tb_timer_pause: "إيقاف المؤقت",
       tb_timer_resume: "كمّل المؤقت",
@@ -36929,6 +36998,8 @@ const CHESS_PUZZLES = [
       ver_preview: "نسخة تجربة على الجهاز",
       update_downloading: "بنزّل النسخة الجديدة… هتفتح لوحدها",
       room_kick: "شيله من الغرفة",
+      room_make_host: "المضيف يبقى {name}",
+      room_menu_away: "مش متصل دلوقتي، فمينفعش يبقى المضيف.",
       room_kick_confirm: "تشيل {name} من الغرفة؟ يقدر يدخل تاني بالكود.",
       bot_title: "لاعبين كمبيوتر",
       bot_easy: "سهل",
@@ -36997,6 +37068,15 @@ const CHESS_PUZZLES = [
       tb_unfinished: "لعبة لسه ما خلصتش",
       tb_new_confirm: "فيه لعبة لسه ما خلصتش. تبدأ لعبة جديدة وتسيبها؟",
       tb_undo_award: "رجّع آخر سؤال",
+      tb_steal: "فرصة للفريق التاني (سرقة)",
+      tb_steal_hint: "لو الفريق غلط أو وقته خلص، الإجابة ما بتظهرش: الفريق التاني ياخد فرصة واحدة بنص الوقت، ولو جاوب صح ياخد النقط كلها.",
+      tb_steal_band: "فرصة للفريق التاني",
+      tb_steal_points: "لو جاوب صح: {pts} نقطة",
+      tb_answering: "بيجاوب:",
+      tb_right: "صح",
+      tb_wrong: "غلط",
+      tb_steal_missed: "محدش خد النقط",
+      tb_turn: "الدور",
       jo_final: "النتيجة النهائية",
       jo_next_guesser: "المخمّن اللي بعده: {name}",
       jo_see_final: "النتيجة النهائية 🏁",
@@ -40156,7 +40236,7 @@ const CHESS_PUZZLES = [
       tb_final: "Final score",
       tb_settings: "Change settings",
       tb_timer: "Timer per question",
-      tb_timer_hint: "In seconds. When time runs out, the answer shows by itself.",
+      tb_timer_hint: "In seconds. When time runs out, the answer shows by itself, or the other team gets its chance if the steal is on.",
       tb_time_up: "Time's up!",
       tb_timer_pause: "Pause the timer",
       tb_timer_resume: "Resume the timer",
@@ -40329,6 +40409,8 @@ const CHESS_PUZZLES = [
       ver_preview: "A test copy on this computer",
       update_downloading: "Downloading the new version… it will open by itself",
       room_kick: "Remove from the room",
+      room_make_host: "Make {name} the host",
+      room_menu_away: "Not connected right now, so they can't be the host.",
       room_kick_confirm: "Remove {name} from the room? They can join again with the code.",
       bot_title: "Computer players",
       bot_easy: "Easy",
@@ -40397,6 +40479,15 @@ const CHESS_PUZZLES = [
       tb_unfinished: "Unfinished game",
       tb_new_confirm: "A game isn't finished. Start a new one?",
       tb_undo_award: "Undo the last question",
+      tb_steal: "Other team gets a chance (steal)",
+      tb_steal_hint: "If a team misses or runs out of time, the answer stays hidden: the other team gets one try on half the time, for the full points.",
+      tb_steal_band: "The other team's chance",
+      tb_steal_points: "Right answer: {pts} points",
+      tb_answering: "Answering:",
+      tb_right: "Right",
+      tb_wrong: "Wrong",
+      tb_steal_missed: "Nobody scores",
+      tb_turn: "Up",
       jo_final: "Final score",
       jo_next_guesser: "Next guesser: {name}",
       jo_see_final: "Final score 🏁",
@@ -43213,6 +43304,8 @@ const GAME_RULES = {
                 <li>فريقين ومقدم واحد. كل جولة 5 فئات، وفي كل فئة أسئلة من 100 لـ 500 نقطة: الأعلى أصعب.</li>
                 <li>الفريق يختار فئة ونقاط، المقدم يقرأ السؤال ويظهر الإجابة ويدي النقاط.</li>
                 <li>مؤقت اختياري لكل سؤال: اضغط على العداد عشان توقفه، ولما يخلص الإجابة تظهر لوحدها. أزرار + و − لتصحيح النقاط.</li>
+                <li><b>السرقة</b> (مفتوحة من الأول): لو الفريق اللي عليه الدور غلط أو وقته خلص، الإجابة ما بتظهرش، والفريق التاني ياخد <b>فرصة واحدة</b> بنص الوقت. صح؟ ياخد نقط السؤال كلها. غلط أو الوقت خلص؟ الإجابة تظهر ومحدش ياخد حاجة. الدور بيلف عادي بعد كل سؤال.</li>
+                <li>المقدم عنده <b>✅ صح</b> و<b>❌ غلط</b> في كل مرحلة. «👁️ إظهار الإجابة» قبل السرقة بيلغي السرقة ويخليه يدي النقط لأي فريق.</li>
                 <li>اديت النقط غلط؟ <b>رجّع آخر سؤال</b>. ولو سبت لعبة لسه ما خلصتش، تقدر تكمّلها من شاشة الإعداد.</li>
             </ol>`,
         buzzer: `
@@ -44703,6 +44796,8 @@ const GAME_RULES = {
                 <li>Two teams and one host. Each round has 5 categories with questions from 100 to 500 points: the higher, the harder.</li>
                 <li>A team picks a category and a value; the host reads the question, shows the answer and awards the points.</li>
                 <li>An optional clock per question: tap it to pause, and when it runs out the answer shows by itself. + and − correct the scores.</li>
+                <li><b>The steal</b> (on by default): if the team whose turn it is misses or runs out of time, the answer stays hidden and the other team gets <b>one try</b> on half the time. Right? They take the question's full points. Wrong or out of time? The answer is shown and nobody scores. The turn passes as usual after every question.</li>
+                <li>The host has <b>✅ Right</b> and <b>❌ Wrong</b> at each stage. «👁️ Show answer» before the steal skips it and lets the host give the points to either team.</li>
                 <li>Gave the points wrongly? <b>Undo the last question</b>. Left a game unfinished? Carry on from the setup screen.</li>
             </ol>`,
         buzzer: `
@@ -47470,6 +47565,54 @@ function roomKick(playerId) {
   showConfirmModal(msg, () => roomAct('kick', { playerId: playerId }));
 }
 
+/**
+ * The host's menu on a name (the owner, 24 Sep 2026: tap a name, then a menu):
+ * «👑 المضيف يبقى …» for someone here, and taking out a phone that is gone.
+ * Another person's name is a button for the host only; everyone else's names
+ * stay plain text.
+ */
+function roomCanMenu(state, p) {
+  return !!(state && state.youAreHost && p && !p.bot && p.id !== Room.me);
+}
+
+/** A name, as a button that opens the host's menu when it may; plain text otherwise. */
+function roomNameHtml(state, p, inner) {
+  const text = inner === undefined ? escapeHTML(p.name) : inner;
+  if (!roomCanMenu(state, p)) return text;
+  return `<button type="button" class="room-name-btn" onclick="event.stopPropagation(); roomPlayerMenu('${jsStringAttr(p.id)}')">${text}</button>`;
+}
+
+let roomMenuFor = '';
+function roomPlayerMenu(playerId) {
+  const state = Room.state;
+  const p = state && (state.players || []).find(x => x.id === playerId);
+  if (!p || !roomCanMenu(state, p)) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  roomMenuFor = playerId;
+  const fill = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  fill('room-menu-name', p.name);
+  fill('room-menu-host', '👑 ' + (t.room_make_host || '').replace('{name}', p.name));
+  fill('room-menu-away', p.online ? '' : (t.room_menu_away || ''));
+  const host = document.getElementById('room-menu-host');
+  if (host) host.disabled = !p.online;
+  const kick = document.getElementById('room-menu-kick');
+  if (kick) kick.classList.toggle('hidden', !!p.online);
+  document.getElementById('room-player-menu').classList.remove('hidden');
+  haptic('light');
+}
+
+function roomMenuMakeHost() {
+  const id = roomMenuFor;
+  closeModal('room-player-menu');
+  if (id) roomAct('makeHost', { playerId: id });
+}
+
+function roomMenuKick() {
+  const id = roomMenuFor;
+  closeModal('room-player-menu');
+  if (id) roomKick(id);
+}
+
 /** The ✕ beside an offline player, for the host. `cls` picks the look for where it sits. */
 function roomKickButton(state, p, cls) {
   if (!state || !state.youAreHost || !p || p.online || p.id === Room.me) return '';
@@ -47856,7 +47999,7 @@ function renderRoomLobby(state) {
       <div class="status-row ${p.online ? '' : 'status-row--out'} ${joined.indexOf(p.id) !== -1 ? 'status-row--new' : ''}">
         <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
         <div class="status-row__body">
-          <div class="status-row__name">${escapeHTML(p.name)}</div>
+          <div class="status-row__name">${roomNameHtml(state, p)}</div>
         </div>
         <div class="status-row__actions">
           ${p.id === Room.me ? `<span class="badge badge--accent">${youLabel}</span>` : ''}
@@ -59053,7 +59196,7 @@ function renderRoomPlayerStrip(state) {
       ${state.players.map(p => `
         <span class="chip chip--plain ${p.online ? '' : 'is-away'}">
           <span class="presence-dot ${p.online ? 'is-online' : ''}"></span>
-          <span class="chip__label">${p.bot ? '<span aria-hidden="true">🤖</span> ' : ''}${escapeHTML(p.name)}</span>
+          <span class="chip__label">${p.bot ? '<span aria-hidden="true">🤖</span> ' : ''}${typeof roomNameHtml === 'function' ? roomNameHtml(state, p) : escapeHTML(p.name)}</span>
           ${typeof roomKickButton === 'function' ? roomKickButton(state, p) : ''}
         </span>`).join('')}
     </div>`;
@@ -62272,7 +62415,7 @@ function tvStrip(state, t) {
   const chips = state.players.map(p => `
     <span class="tv-chip ${p.online ? '' : 'is-away'}">
       <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
-      <span class="tv-chip__name">${escapeHTML(p.name)}</span>
+      <span class="tv-chip__name">${roomNameHtml(state, p)}</span>
       ${board ? `<b class="tv-chip__score">${scores[p.id] || 0}</b>` : ''}
       ${roomKickButton(state, p)}
     </span>`).join('');
@@ -66441,6 +66584,19 @@ const TRIVIA_BOARD_BANK = [
    beat; that pending step is one timer, so "next round" pressed in the beat
    doesn't move on twice. The setup screen offers to continue a board that
    isn't finished, and asks before a new game throws one away.
+
+   The steal (the owner, 24 Sep 2026; a setup switch, on by default, kept in
+   ashryTriviaTeams with the rest): with it on a card has two stages. `first`
+   is the team whose turn it is (`open.picker`, taken from `turn`, which moves
+   to the other team after every card; the host can switch it on the card).
+   The host's ✅ gives them the points, ❌ - or their clock running out -
+   moves the card to `steal` with the answer still hidden: the other team gets
+   one try on a clock of half the card's time (none when the clock is off),
+   ✅ for the full points, ❌ or the clock shows the answer with nobody scoring
+   (`open.missed`). «👁️ إظهار الإجابة» in the first stage skips the steal and
+   leaves the host today's award buttons. The stage, its length (`secs`) and
+   its deadline are in `open`, so a reload comes back in the same stage with
+   the time it really had left. Off, a card plays exactly as it always did.
    ========================================================================= */
 
 const TB_LEVELS = [100, 200, 300, 400, 500];
@@ -66493,6 +66649,9 @@ function tbRecallSetup() {
   if (timerOn) timerOn.checked = saved.timerOn !== false;
   setTriviaTimerSeconds(TB_TIMER_CHOICES.indexOf(saved.timerSeconds) !== -1 ? saved.timerSeconds : TB_TIMER_DEFAULT, true);
   syncTriviaTimerField(true);
+  // The steal: on until the host turns it off; then as they left it.
+  const steal = document.getElementById('tb-steal-on');
+  if (steal) steal.checked = saved.steal !== false;
 }
 
 /** What the setup screen shows now, as the defaults for next time. */
@@ -66505,7 +66664,8 @@ function tbRememberSetup() {
       b: String(field('tb-team-b').value || '').trim().slice(0, 20),
       rounds: Math.max(1, Math.min(4, Number(field('tb-rounds').value) || 2)),
       timerOn: !!field('tb-timer-on').checked,
-      timerSeconds: TB_TIMER_CHOICES.indexOf(picked) !== -1 ? picked : TB_TIMER_DEFAULT
+      timerSeconds: TB_TIMER_CHOICES.indexOf(picked) !== -1 ? picked : TB_TIMER_DEFAULT,
+      steal: !!field('tb-steal-on').checked
     }));
   } catch (e) {}
 }
@@ -66593,9 +66753,10 @@ function beginTriviaBoard() {
   const timerOn = !!(document.getElementById('tb-timer-on') || {}).checked;
   const picked = Number(((document.getElementById('tb-timer-seconds') || {}).dataset || {}).value);
   const timerSeconds = TB_TIMER_CHOICES.indexOf(picked) !== -1 ? picked : TB_TIMER_DEFAULT;
+  const stealOn = !!(document.getElementById('tb-steal-on') || {}).checked;
   try {
     localStorage.setItem(TB_TEAMS_KEY, JSON.stringify({
-      a: nameA, b: nameB, rounds: rounds, timerOn: timerOn, timerSeconds: timerSeconds
+      a: nameA, b: nameB, rounds: rounds, timerOn: timerOn, timerSeconds: timerSeconds, steal: stealOn
     }));
   } catch (e) {}
 
@@ -66608,6 +66769,9 @@ function beginTriviaBoard() {
     rounds: rounds,
     // Seconds per question; 0 is no timer.
     timer: timerOn ? timerSeconds : 0,
+    // The other team's chance after a miss; `turn` is the team up next (0 or 1).
+    steal: stealOn,
+    turn: 0,
     board: dealTriviaRound([]),
     open: null,
     last: null,
@@ -66652,8 +66816,10 @@ function renderTriviaBoard() {
 
   if (s.finished) { root.innerHTML = triviaBoardResults(s, t); return; }
 
+  // With the steal on the board says whose turn it is (the team a card goes to first).
+  const up = tbStealOn(s) ? tbTurn(s) : -1;
   const team = (i) => `
-    <div class="tb-team tb-team--${i === 0 ? 'a' : 'b'}">
+    <div class="tb-team tb-team--${i === 0 ? 'a' : 'b'}${up === i ? ' is-turn' : ''}"${up === i ? ` aria-current="true" title="${escapeHTML(t.tb_turn || '')}"` : ''}>
       <div class="tb-team__name">${escapeHTML(tbTeamName(i))}</div>
       <div class="tb-team__score">${s.teams[i].score}</div>
       <div class="tb-team__adjust">
@@ -66704,6 +66870,17 @@ function renderTriviaBoard() {
 
 /* --- one card ------------------------------------------------------------ */
 
+/** The steal is on for this board (a board saved before the switch plays as it did). */
+function tbStealOn(s) { return !!(s && s.steal); }
+/** The team up next: the one a card goes to first. */
+function tbTurn(s) { return s && s.turn === 1 ? 1 : 0; }
+/** The open card's points. */
+function tbOpenPoints(s) {
+  const o = s && s.open;
+  const cell = o && s.board[o.c] && s.board[o.c].cells[o.row];
+  return cell ? cell.points : 0;
+}
+
 function openTriviaCell(c, row) {
   const s = appState.triviaBoard;
   if (!s || !s.board[c] || !s.board[c].cells[row] || s.board[c].cells[row].done) return;
@@ -66712,6 +66889,11 @@ function openTriviaCell(c, row) {
     row: row,
     revealed: false,
     timeUp: false,
+    // The steal's two stages: the team up ('first'), then the other ('steal').
+    stage: 'first',
+    picker: tbStealOn(s) ? tbTurn(s) : null,
+    // This stage's whole length, for the bar: the card's time, then half of it.
+    secs: s.timer || 0,
     // A running clock keeps its deadline; a paused one keeps the seconds left.
     endsAt: s.timer ? Date.now() + s.timer * 1000 : null,
     left: null
@@ -66741,14 +66923,117 @@ function showTriviaCell() {
   document.getElementById('tb-q-answer-text').textContent = en ? item[3] : item[1];
   if (o.revealed) paintTriviaAnswer();
   else {
-    const t = tbText();
     document.getElementById('tb-q-answer').classList.add('hidden');
-    document.getElementById('tb-q-actions').innerHTML = `
-      <button class="btn btn--primary btn--lg" onclick="revealTriviaAnswer()">${t.tb_show_answer || 'إظهار الإجابة'}</button>
-      <button class="btn btn--ghost" onclick="closeTriviaCell()">${t.tb_back || 'رجوع'}</button>`;
+    paintTriviaActions();
   }
   document.getElementById('tb-question-modal').classList.remove('hidden');
   startTriviaTimer();
+}
+
+/** The host's buttons while the answer is still hidden. */
+function paintTriviaActions() {
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  const box = document.getElementById('tb-q-actions');
+  if (!o || !box) return;
+  const t = tbText();
+  if (!tbStealOn(s)) {
+    box.innerHTML = `
+      <button class="btn btn--primary btn--lg" onclick="revealTriviaAnswer()">${t.tb_show_answer || 'إظهار الإجابة'}</button>
+      <button class="btn btn--ghost" onclick="closeTriviaCell()">${t.tb_back || 'رجوع'}</button>`;
+    return;
+  }
+  const judge = `
+    <div class="btn-row">
+      <button class="btn btn--success btn--lg" onclick="judgeTriviaCell(true)">✅ ${t.tb_right || 'صح'}</button>
+      <button class="btn btn--danger-soft btn--lg" onclick="judgeTriviaCell(false)">❌ ${t.tb_wrong || 'غلط'}</button>
+    </div>`;
+  if (o.stage === 'steal') {
+    const other = 1 - (o.picker === 1 ? 1 : 0);
+    // Slides in once; a reload or a redraw shows it settled.
+    const fresh = motionFirst('tbsteal|' + s.round + '|' + o.c + '|' + o.row);
+    box.innerHTML = `
+      <div class="tb-steal tb-steal--${other === 0 ? 'a' : 'b'}${fresh ? ' is-in' : ''}" role="status">
+        <span class="tb-steal__title">🔁 ${escapeHTML(t.tb_steal_band || 'فرصة للفريق التاني')}</span>
+        <span class="tb-steal__team">${escapeHTML(tbTeamName(other))}</span>
+        <span class="tb-steal__pts">${escapeHTML((t.tb_steal_points || '{pts}').replace('{pts}', tbOpenPoints(s)))}</span>
+      </div>${judge}`;
+    return;
+  }
+  const p = o.picker === 1 ? 1 : 0;
+  const chip = (i) => `<button type="button" class="segmented__item${p === i ? ' is-active' : ''}" aria-pressed="${p === i}" onclick="setTriviaPicker(${i})">${escapeHTML(tbTeamName(i))}</button>`;
+  box.innerHTML = `
+    <div class="tb-picker">
+      <span class="eyebrow">${escapeHTML(t.tb_answering || 'بيجاوب:')}</span>
+      <div class="segmented" role="group">${chip(0)}${chip(1)}</div>
+    </div>${judge}
+    <div class="btn-row">
+      <button class="btn btn--ghost" onclick="revealTriviaAnswer()">👁️ ${t.tb_show_answer || 'إظهار الإجابة'}</button>
+      <button class="btn btn--ghost" onclick="closeTriviaCell()">${t.tb_back || 'رجوع'}</button>
+    </div>`;
+}
+
+/** Which team the card went to first - the host can put it right on the card. */
+function setTriviaPicker(i) {
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  if (!o || o.revealed || o.stage !== 'first') return;
+  o.picker = i === 1 ? 1 : 0;
+  saveToLocal();
+  paintTriviaActions();
+}
+
+/** The host's ✅ / ❌ with the steal on, in either stage. */
+function judgeTriviaCell(right) {
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  if (!o || o.revealed || !tbStealOn(s)) return;
+  const picker = o.picker === 1 ? 1 : 0;
+  if (o.stage === 'steal') {
+    if (right) awardTriviaCell(1 - picker);
+    else missTriviaSteal();
+    return;
+  }
+  if (right) awardTriviaCell(picker);
+  else enterTriviaSteal();
+}
+
+/** A miss (or the clock) in the first stage: the other team's try, the answer still hidden. */
+function enterTriviaSteal() {
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  if (!o || o.revealed || o.stage !== 'first') return;
+  stopTriviaTimer();
+  // Half the card's time, rounded up; no clock on the card, none for the steal.
+  const secs = s.timer ? Math.max(1, Math.ceil(s.timer / 2)) : 0;
+  o.stage = 'steal';
+  o.timeUp = false;
+  o.secs = secs;
+  o.endsAt = secs ? Date.now() + secs * 1000 : null;
+  o.left = null;
+  saveToLocal();
+  playSound('alarm');
+  haptic('heavy');
+  paintTriviaActions();
+  startTriviaTimer();
+  // The clock fills up again for the other team: a pop says it restarted.
+  const box = document.getElementById('tb-q-timer');
+  if (secs && box && !motionOff()) {
+    box.classList.remove('is-restart');
+    void box.offsetWidth;
+    box.classList.add('is-restart');
+    setTimeout(() => box.classList.remove('is-restart'), 700);
+  }
+}
+
+/** The steal missed (❌ or its clock): the answer is shown and nobody scores. */
+function missTriviaSteal() {
+  const s = appState.triviaBoard;
+  const o = s && s.open;
+  if (!o || o.revealed || o.stage !== 'steal') return;
+  o.missed = true;
+  playSound('alarm');
+  revealTriviaAnswer();
 }
 
 /** The host's button, or the clock running out. */
@@ -66765,7 +67050,15 @@ function revealTriviaAnswer() {
 
 function paintTriviaAnswer() {
   const t = tbText();
+  const s = appState.triviaBoard;
   document.getElementById('tb-q-answer').classList.remove('hidden');
+  // The steal missed too: the answer for the table, and no points for anyone.
+  if (s && s.open && s.open.missed) {
+    document.getElementById('tb-q-actions').innerHTML = `
+      <div class="tb-steal tb-steal--none" role="status"><span class="tb-steal__title">${escapeHTML(t.tb_steal_missed || 'محدش خد النقط')}</span></div>
+      <button class="btn btn--primary btn--lg" onclick="awardTriviaCell(-1)">${t.next || 'التالي'}</button>`;
+    return;
+  }
   document.getElementById('tb-q-actions').innerHTML = `
     <div class="eyebrow">${t.tb_points_to || 'النقاط لـ'}</div>
     <div class="btn-row">
@@ -66793,12 +67086,16 @@ function awardTriviaCell(teamIndex) {
   const cell = s.board[s.open.c].cells[s.open.row];
   cell.done = true;
   cell.team = teamIndex >= 0 ? teamIndex : null;
-  s.last = { c: s.open.c, row: s.open.row, team: cell.team, points: teamIndex >= 0 ? cell.points : 0, round: s.round };
+  // `turn` is what the undo puts back: the card goes back to the team it was up for.
+  s.last = { c: s.open.c, row: s.open.row, team: cell.team, points: teamIndex >= 0 ? cell.points : 0, round: s.round, turn: s.turn };
+  // With the steal on the turn passes after every card, whoever scored it.
+  if (tbStealOn(s)) s.turn = 1 - (s.open.picker === 1 ? 1 : 0);
   if (teamIndex >= 0) {
     s.teams[teamIndex].score += cell.points;
     playSound('success');
     haptic('medium');
-  } else {
+  } else if (!s.open.missed) {
+    // (A missed steal has already sounded.)
     playSound('alarm');
   }
   s.open = null;
@@ -66837,6 +67134,7 @@ function undoTriviaAward() {
   cell.done = false;
   cell.team = null;
   if (l.team !== null && s.teams[l.team]) s.teams[l.team].score = Math.max(0, s.teams[l.team].score - l.points);
+  if (l.turn === 0 || l.turn === 1) s.turn = l.turn;
   s.last = null;
   saveToLocal();
   renderTriviaBoard();
@@ -66862,7 +67160,8 @@ function startTriviaTimer() {
   const box = document.getElementById('tb-q-timer');
   if (!box) return;
   box.classList.remove('is-up', 'is-urgent', 'is-paused');
-  if (!o || !s.timer || (o.revealed && !o.timeUp)) {
+  // A steal on a card with no clock has no clock either (secs 0).
+  if (!o || !s.timer || (o.stage === 'steal' && !o.secs) || (o.revealed && !o.timeUp)) {
     box.classList.add('hidden');
     return;
   }
@@ -66897,7 +67196,8 @@ function paintTriviaTimer(seconds) {
   const value = document.getElementById('tb-q-timer-value');
   const fill = document.getElementById('tb-q-timer-fill');
   if (value) value.textContent = seconds;
-  if (fill) fill.style.transform = 'scaleX(' + Math.max(0, Math.min(1, seconds / s.timer)) + ')';
+  const full = (s.open && s.open.secs) || s.timer;
+  if (fill) fill.style.transform = 'scaleX(' + Math.max(0, Math.min(1, seconds / full)) + ')';
   const urgent = seconds > 0 && seconds <= 5;
   if (box) box.classList.toggle('is-urgent', urgent);
   countdownUrgency(value, seconds);
@@ -66947,6 +67247,18 @@ function triviaTimeUp() {
   o.timeUp = true;
   paintTriviaTimer(0);
   paintTriviaTimerState();
+  if (tbStealOn(s) && o.stage === 'steal') {
+    // The steal ran out too: the answer, and nobody scores.
+    haptic('heavy');
+    missTriviaSteal();
+    return;
+  }
+  if (tbStealOn(s)) {
+    // The team up ran out: the other team's try, the answer still hidden.
+    o.timeUp = false;
+    enterTriviaSteal();
+    return;
+  }
   playSound('alarm');
   haptic('heavy');
   revealTriviaAnswer();
@@ -67013,6 +67325,7 @@ function replayTriviaBoard() {
   stopTriviaTimer();
   s.teams.forEach(x => { x.score = 0; });
   s.round = 1;
+  s.turn = 0;
   s.finished = false;
   s.open = null;
   s.last = null;

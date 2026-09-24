@@ -1,0 +1,473 @@
+<script>
+/* ============================================================================
+   ألغاز شطرنج — CHESS PUZZLES
+   ----------------------------------------------------------------------------
+   The owner's plan (24 Sep 2026): puzzles made by the app's own engine at
+   build time (ChessPuzzles.js, CHESS_PUZZLES - tools/make-chess-puzzles.mjs),
+   easy / medium / hard, a puzzle of the day in تحدي اليوم, a streak of puzzles
+   with three hearts, and puzzles from your own mistakes (from the review).
+
+   The board is the chess game's own (chView in JS_Chess.html): 2D by default,
+   3D a tap away with the same switch, the pieces picked and dragged through
+   chTapLogic / chDropLogic. The player's colour is at the bottom and the side
+   to move is said on top.
+
+   A puzzle is { fen, moves: [player, reply, player …] in UCI }. A move is
+   right when it leads to the same position as the line's (so castling by the
+   rook, or the king's two steps, are one move), or when it mates at once (a
+   mate in 2 found another way is still a mate). A right move flashes green and
+   the reply is played by itself half a second later; a wrong one goes back
+   with a shake and a red flash, and counts once (the board takes no move while
+   the shake plays). What has been played is `hist`, so a reload comes back to
+   the same puzzle at the same move - the reply played then if it was due.
+   appState.chesspuzzle holds it all.
+   ========================================================================= */
+
+const CHPZ_REPLY_MS = 500;     // the reply after a right move
+const CHPZ_SHOW_MS = 750;      // a move of the solution when it is shown
+const CHPZ_LOCK_MS = 650;      // no move while a wrong one shakes back (a double tap counts once)
+
+// sel: the piece picked up; lockUntil: the board takes no move before this; flash: a square lit
+// for a moment ({ sq, kind: 'good' | 'bad' }); timer: the reply or the solution's next move.
+const chPzLocal = { sel: '', lockUntil: 0, flash: null, flashTimer: null, timer: null, unlockTimer: null };
+
+function chPzState() {
+  if (!appState.chesspuzzle) {
+    appState.chesspuzzle = { level: 1, mode: 'free', phase: 'setup', p: null, hist: [], wrong: 0, hint: -1, shown: false, result: '', nonce: 0, daily: '', done: { 1: 0, 2: 0, 3: 0 } };
+  }
+  const s = appState.chesspuzzle;
+  if (!Array.isArray(s.hist)) s.hist = [];
+  if (!s.done) s.done = { 1: 0, 2: 0, 3: 0 };
+  return s;
+}
+
+/* --- the bank ------------------------------------------------------------------ */
+
+let chPzByLevel = null;
+
+/** The puzzles of one level (1, 2, 3), from the bank the build inlined. */
+function chPzBank(level) {
+  if (!chPzByLevel) {
+    chPzByLevel = { 1: [], 2: [], 3: [] };
+    (typeof CHESS_PUZZLES !== 'undefined' ? CHESS_PUZZLES : []).forEach(p => { if (chPzByLevel[p.level]) chPzByLevel[p.level].push(p); });
+  }
+  return chPzByLevel[level] || [];
+}
+
+/** A puzzle as the state keeps it (the bank's own fields, and where it came from). */
+const chPzCopy = (p, extra) => Object.assign({ id: p.id, fen: p.fen, moves: p.moves.slice(), theme: p.theme, mateIn: p.mateIn || 0, level: p.level, rating: p.rating }, extra || {});
+
+/* --- the position ---------------------------------------------------------------- */
+
+/** The puzzle's position now: the game, what each side lost, the last move and the moves as SAN. */
+function chPzGame(s) {
+  const g = chessFromFen(s.p.fen);
+  const lost = [[], []];
+  const sans = [];
+  let last = null;
+  s.hist.forEach((uci, k) => {
+    const mover = g.turn;
+    const info = chessPlay(g, chessFromUci(uci));
+    if (!info) return;
+    if (info.capture) lost[1 - mover].push(info.capture);
+    sans.push(info.san);
+    last = { from: info.from, to: info.to, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, n: k + 1 };
+  });
+  return { g: g, lost: lost, sans: sans, last: last };
+}
+
+/** The side the player plays (the side to move in the puzzle's position). */
+const chPzSide = (s) => (String(s.p.fen).split(' ')[1] === 'b' ? 1 : 0);
+
+/** The position part of a FEN (no move counters): two moves are the same when they lead to the same one. */
+const chPzPlace = (g) => chessFen(g).split(' ').slice(0, 4).join(' ');
+
+/** Does `mv` solve this step? The line's move (by the position it leads to), or a mate at once. */
+function chPzJudge(s, g, mv) {
+  const exp = s.p.moves[s.hist.length];
+  const mine = chessCloneGame(g);
+  const info = chessPlay(mine, mv);
+  if (!info) return { ok: false, legal: false };
+  if (exp) {
+    const want = chessCloneGame(g);
+    if (chessPlay(want, chessFromUci(exp)) && chPzPlace(want) === chPzPlace(mine)) return { ok: true, legal: true, line: true, uci: exp };
+  }
+  const uci = info.from + info.to + (info.promo || '');
+  if (info.status && info.status.reason === 'mate') return { ok: true, legal: true, mate: true, uci: uci };
+  if (typeof chPzAltOk === 'function' && s.p.alt && chPzAltOk(s, g, info, mine)) return { ok: true, legal: true, alt: true, uci: uci };
+  return { ok: false, legal: true, uci: uci };
+}
+
+/** Can the player move now? */
+const chPzCanMove = (s) => s.phase === 'play' && !s.result && !s.showing && s.p && s.hist.length % 2 === 0 && s.hist.length < s.p.moves.length && Date.now() >= chPzLocal.lockUntil;
+
+/* --- starting a puzzle ------------------------------------------------------------ */
+
+function setupChessPuzzles() {
+  chPzStop();
+  setView('setup-chesspuzzles');
+}
+
+/** A board with work on it isn't replaced without asking (today's daily is set aside, never lost). */
+function chPzAsk(go) {
+  return soloConfirmNew('chesspuzzle', (s) => !!s.p && !s.result && (s.hist.length > 0 || s.wrong > 0 || s.hint >= 0) && s.mode !== 'streak', go);
+}
+
+/** «ابدأ»: a free puzzle of the chosen level, one not seen lately. */
+function chPzStartFree() {
+  if (chPzAsk(() => chPzDealFree(true))) return;
+  chPzDealFree(true);
+}
+
+function chPzDealFree() {
+  const s = chPzState();
+  const level = [1, 2, 3].indexOf(Number(s.level)) === -1 ? 1 : Number(s.level);
+  const p = freshPick('chesspuzzle_' + level, chPzBank(level), 1, { key: x => String(x.id) })[0];
+  if (!p) return;
+  chPzBegin({ mode: 'free', p: chPzCopy(p) });
+}
+
+/** Puts a puzzle on the board: `o` { mode, p, daily?, from? }. */
+function chPzBegin(o) {
+  soloDailySetAside('chesspuzzle');
+  soloNewGame('chesspuzzle');
+  chPzStop();
+  const s = chPzState();
+  s.nonce = (s.nonce || 0) + 1;
+  Object.assign(s, {
+    mode: o.mode || 'free', p: o.p, hist: [], wrong: 0, hint: -1, shown: false, showing: false, result: '',
+    phase: 'play', daily: o.daily || '', from: o.from || null, uid: o.p.id + '|' + s.nonce, triedAt: 0
+  });
+  chPzLocal.sel = '';
+  chPzLocal.lockUntil = 0;
+  chPzLocal.flash = null;
+  saveToLocal();
+  if (appState.currentView !== 'play-chesspuzzle') setView('play-chesspuzzle');
+  chPzPaint();
+}
+
+/** «كمّل»: back to the puzzle left on the board. */
+function chPzContinue() {
+  const s = chPzState();
+  if (s.phase !== 'play' || !s.p) return;
+  setView('play-chesspuzzle');
+  chPzPaint({ still: true });
+  chPzAfter();
+}
+
+function chPzStop() {
+  clearTimeout(chPzLocal.timer);
+  chPzLocal.timer = null;
+  clearTimeout(chPzLocal.unlockTimer);
+  chPzLocal.unlockTimer = null;
+}
+
+/* --- a move ------------------------------------------------------------------------ */
+
+/** The player's move, from a tap or a drop. Returns true when it was right (and played). */
+function chPzPlay(mv, byDrop) {
+  const s = chPzState();
+  if (!chPzCanMove(s)) return false;
+  const pos = chPzGame(s);
+  const j = chPzJudge(s, pos.g, mv);
+  if (!j.legal) return false;
+  if (!j.ok) { chPzWrong(s, mv, byDrop); return false; }
+  s.hist.push(j.uci);
+  chPzLocal.sel = '';
+  chPzFlash(mv.to, 'good');
+  haptic('light');
+  const done = j.mate || j.alt || s.hist.length >= s.p.moves.length;
+  if (done) chPzSolved(s);
+  saveToLocal();
+  chPzPaint();
+  if (!done) chPzAfter();
+  return true;
+}
+
+/** A wrong move: it goes back with a shake and a red flash, and counts once. */
+function chPzWrong(s, mv, byDrop) {
+  chPzLocal.lockUntil = Date.now() + CHPZ_LOCK_MS;
+  chPzLocal.sel = '';
+  s.wrong = (s.wrong || 0) + 1;
+  s.triedAt = s.hist.length;
+  if (typeof chPzWrongMode === 'function') chPzWrongMode(s);
+  chPzFlash(mv.to, 'bad');
+  // A drop is shaken back by the board itself; a tap's piece never left its square, so it shakes there.
+  if (!byDrop && chView.r && chView.r.nudge && !motionOff()) chView.r.nudge(mv.from);
+  chSound('refuse');
+  haptic('medium');
+  chPzStageFlash('bad');
+  saveToLocal();
+  chPzPaint();
+  clearTimeout(chPzLocal.unlockTimer);
+  chPzLocal.unlockTimer = setTimeout(() => { if (appState.currentView === 'play-chesspuzzle') { chPzPaint(); chPzAfter(); } }, CHPZ_LOCK_MS + 20);
+}
+
+/** A square lit for a moment on the board: green for a right move, red for a wrong one. */
+function chPzFlash(sq, kind) {
+  chPzLocal.flash = { sq: sq, kind: kind };
+  clearTimeout(chPzLocal.flashTimer);
+  chPzLocal.flashTimer = setTimeout(() => { chPzLocal.flash = null; if (appState.currentView === 'play-chesspuzzle') chPzPaint(); }, 700);
+}
+
+/** The board's frame glows green or red for a moment. */
+function chPzStageFlash(kind) {
+  const el = document.querySelector('#chesspuzzle-stage .ch-stage');
+  if (!el || motionOff()) return;
+  el.classList.remove('is-pz-good', 'is-pz-bad');
+  void el.offsetWidth;
+  el.classList.add(kind === 'good' ? 'is-pz-good' : 'is-pz-bad');
+  setTimeout(() => el.classList.remove('is-pz-good', 'is-pz-bad'), 800);
+}
+
+/** Whatever comes by itself next: the reply after a right move, the next move of a solution being shown. */
+function chPzAfter() {
+  const s = chPzState();
+  clearTimeout(chPzLocal.timer);
+  chPzLocal.timer = null;
+  if (appState.currentView !== 'play-chesspuzzle' || s.phase !== 'play' || !s.p) return;
+  if (s.showing) {
+    if (s.hist.length >= s.p.moves.length) { s.showing = false; saveToLocal(); chPzPaint(); chPzShowDone(s); return; }
+    chPzLocal.timer = soloLater('chesspuzzle', CHPZ_SHOW_MS + chViewBusyLeft(), () => chPzAutoMove(true));
+    return;
+  }
+  if (s.result || s.hist.length % 2 === 0 || s.hist.length >= s.p.moves.length) return;
+  chPzLocal.timer = soloLater('chesspuzzle', CHPZ_REPLY_MS + chViewBusyLeft(), () => chPzAutoMove(false));
+}
+
+/** The line's next move, played by itself (the reply, or the solution being shown). */
+function chPzAutoMove(showing) {
+  const s = chPzState();
+  if (s.phase !== 'play' || !s.p || s.hist.length >= s.p.moves.length) return;
+  if (showing ? !s.showing : (s.result || s.hist.length % 2 === 0)) return;
+  s.hist.push(s.p.moves[s.hist.length]);
+  saveToLocal();
+  chPzPaint();
+  chPzAfter();
+}
+
+/** Solved: the mark kept, the cheer after the move has landed. */
+function chPzSolved(s) {
+  s.result = 'solved';
+  if (s.mode === 'free' && s.p.level) s.done[s.p.level] = (s.done[s.p.level] || 0) + 1;
+  if (typeof chPzSolvedMode === 'function') chPzSolvedMode(s);
+  chPzStageFlash('good');
+  const uid = s.uid;
+  setTimeout(() => {
+    if (appState.currentView !== 'play-chesspuzzle' || chPzState().uid !== uid) return;
+    const stage = document.getElementById('chesspuzzle-stage');
+    afterReveal(stage, () => {
+      duelSound('win');
+      if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 110, spread: 75, origin: { y: 0.6 } });
+    });
+    if (typeof chPzSolvedAfter === 'function') chPzSolvedAfter(s);
+  }, chViewBusyLeft() + 450);
+}
+
+/* --- the hint and the solution ----------------------------------------------------- */
+
+/** 💡: the piece to move, circled (the puzzle is no longer clean). */
+function chPzHint() {
+  const s = chPzState();
+  if (!chPzCanMove(s) || !chPzHintOn(s)) return;
+  s.hint = s.hist.length;
+  haptic('light');
+  saveToLocal();
+  chPzPaint();
+}
+
+const chPzHintOn = (s) => s.mode !== 'streak';
+
+/** The piece the line moves next, for the hint. */
+const chPzHintSq = (s) => { const m = s.p.moves[s.hist.length]; return m ? m.slice(0, 2) : ''; };
+
+/** «شوف الحل»: the rest of the line played on the board, a move at a time. */
+function chPzShow() {
+  const s = chPzState();
+  if (s.phase !== 'play' || !s.p || s.result || s.showing || s.mode === 'streak') return;
+  chPzGiveUp(s);
+}
+
+function chPzGiveUp(s) {
+  chPzStop();
+  s.result = 'failed';
+  s.shown = true;
+  s.showing = true;
+  chPzLocal.sel = '';
+  if (typeof chPzFailedMode === 'function') chPzFailedMode(s);
+  saveToLocal();
+  chPzPaint();
+  chPzAfter();
+}
+
+/** The solution has been shown to its end. */
+function chPzShowDone(s) {
+  if (typeof chPzShowDoneMode === 'function') chPzShowDoneMode(s);
+}
+
+/** «لغز تاني»: the next puzzle of the same kind. */
+function chPzNext() {
+  const s = chPzState();
+  if (typeof chPzNextMode === 'function' && chPzNextMode(s)) return;
+  chPzDealFree();
+}
+
+/* --- drawing ----------------------------------------------------------------------- */
+
+const chPzSideName = (side) => chT(side ? 'ch_color_b' : 'ch_color_w');
+
+/** The line on top: whose move and what to find, then how it is going. */
+function chPzStatus(s, pos) {
+  const side = chPzSideName(chPzSide(s));
+  if (s.result === 'solved') return chT(s.wrong || s.hint >= 0 ? 'chpz_solved' : 'chpz_solved_clean');
+  if (s.showing) return chT('chpz_showing');
+  if (s.shown) return chT('chpz_shown');
+  if (s.result === 'failed') return chT('chpz_failed');
+  if (Date.now() < chPzLocal.lockUntil) return chT('chpz_wrong');
+  if (s.hist.length % 2 === 1) return chT('chpz_right');
+  if (s.hist.length > 0) return chT('chpz_again');
+  if (s.p.theme === 'mate' && s.p.mateIn) return chT(s.p.mateIn === 1 ? 'chpz_turn_mate1' : 'chpz_turn_mate', { side: side, n: s.p.mateIn });
+  return chT('chpz_turn_win', { side: side });
+}
+
+/** The chips over the board: which kind of puzzle, its level and rating. */
+function chPzTagsHtml(s) {
+  const tags = [];
+  if (typeof chPzModeTag === 'function') { const x = chPzModeTag(s); if (x) tags.push(x); }
+  if (s.p.level) tags.push(`<span class="chpz-tag">${escapeHTML(chT(['', 'solo_lvl_easy', 'solo_lvl_medium', 'solo_lvl_hard'][s.p.level]))}</span>`);
+  if (s.p.rating) tags.push(`<span class="chpz-tag chpz-tag--rating"><span aria-hidden="true">⭐</span> <b class="metric" dir="ltr">${s.p.rating}</b></span>`);
+  return `<div class="chpz-tags">${tags.join('')}</div>`;
+}
+
+/** The moves played so far in the puzzle, numbered from its position ("21… ♞g4 22. ♕xg4"). */
+function chPzLineHtml(s, pos) {
+  if (!pos.sans.length) return '';
+  const parts = String(s.p.fen).split(' ');
+  let num = Number(parts[5]) || 1;
+  let turn = parts[1] === 'b' ? 1 : 0;
+  const out = [];
+  pos.sans.forEach((san, k) => {
+    if (turn === 0) out.push(`<span class="chpz-line__n">${num}.</span>`);
+    else if (k === 0) out.push(`<span class="chpz-line__n">${num}…</span>`);
+    out.push(`<b class="chpz-line__mv${k % 2 ? ' is-reply' : ''}">${escapeHTML(chFigurine(san))}</b>`);
+    if (turn === 1) num++;
+    turn = 1 - turn;
+  });
+  return `<p class="chpz-line" dir="ltr">${out.join(' ')}</p>`;
+}
+
+function chPzBarHtml(s) {
+  const btns = [];
+  if (!s.result && !s.showing) {
+    if (chPzHintOn(s)) btns.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chPzHint()" ${chPzCanMove(s) && s.hint !== s.hist.length ? '' : 'disabled'}>💡 ${escapeHTML(chT('chpz_hint'))}</button>`);
+    if (s.mode !== 'streak') btns.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chPzShow()">👀 ${escapeHTML(chT('chpz_show'))}</button>`);
+  }
+  const done = (s.result && !s.showing) ? (typeof chPzDoneBarHtml === 'function' ? chPzDoneBarHtml(s) : '') ||
+    `<button type="button" class="btn btn--primary btn--lg" onclick="chPzNext()">🧩 ${escapeHTML(chT('chpz_next'))}</button>` : '';
+  const hint = s.hint === s.hist.length && !s.result && chPzHintSq(s)
+    ? `<p class="ch-hintline">💡 ${escapeHTML(chT('chpz_hint_line', { piece: chPieceName('pnbrqk'[((chPzGame(s).g.board[chSqIndex(chPzHintSq(s))] & 7) || 1) - 1]) }))}</p>` : '';
+  return `${hint}${done ? `<div class="btn-stack">${done}</div>` : ''}${btns.length ? `<div class="ch-bar__row">${btns.join('')}</div>` : ''}`;
+}
+
+function chPzPaint(opts) {
+  const o = opts || {};
+  const s = chPzState();
+  const el = document.getElementById('chesspuzzle-stage');
+  if (!el || !s.p) return;
+  if (!el.querySelector('.ch-game') || el._chLang !== appState.lang) { el.innerHTML = chLayoutHtml(); el._chLang = appState.lang; el.querySelector('.ch-game').classList.add('chpz'); }
+  const pos = chPzGame(s);
+  const side = chPzSide(s);
+  const can = chPzCanMove(s);
+  const ctx = {
+    g: pos.g, side: side, sel: chPzLocal.sel,
+    setSel: (sq) => { chPzLocal.sel = sq; chPzPaint(); },
+    play: (from, to, promo) => chPzPlay({ from: from, to: to, promo: promo || '' }, false),
+    redraw: () => chPzPaint()
+  };
+  const marks = [];
+  if (chPzLocal.flash) marks.push({ sq: chPzLocal.flash.sq, kind: chPzLocal.flash.kind === 'bad' ? 'mine' : 'theirs' });
+  if (s.hint === s.hist.length && !s.result && chPzHintSq(s)) marks.push({ sq: chPzHintSq(s), kind: 'user' });
+  const status = chessStatus(pos.g);
+  const model = {
+    key: 'puz|' + s.uid,
+    board: pos.g.board, orient: side, loud: true,
+    last: pos.last ? { from: pos.last.from, to: pos.last.to } : null,
+    anim: pos.last ? Object.assign({ key: s.uid + '|' + pos.last.n, still: !!o.still }, pos.last) : null,
+    check: chessCheckSq(pos.g),
+    mate: status.over && status.reason === 'mate' ? chMateKing(pos.g) : '',
+    sel: can ? chPzLocal.sel : '',
+    targets: can ? chTargets(pos.g, chPzLocal.sel) : [],
+    marks: marks, arrows: [], lost: pos.lost,
+    input: can ? {
+      canMove: true, side: side,
+      onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag),
+      onDrop: (from, to) => {
+        // A promotion (or a move that isn't legal) goes the usual way; any other drop is judged here, so a
+        // wrong one is refused and slides back with its shake.
+        const legal = chessLegalMoves(pos.g).filter(mv => mv.from === from && mv.to === to);
+        if (!legal.length || legal.some(mv => mv.promo)) return chDropLogic(ctx, from, to);
+        chPzLocal.sel = '';
+        return chPzPlay({ from: from, to: to, promo: '' }, true);
+      }
+    } : null
+  };
+  chViewShow(el.querySelector('[data-ch-host]'), model);
+  const wrongNow = Date.now() < chPzLocal.lockUntil;
+  const cls = s.result === 'solved' ? 'is-good' : (wrongNow || s.result === 'failed') ? 'is-bad' : '';
+  chSetHtml(el, '[data-ch-head]', (typeof chPzHeadExtraHtml === 'function' ? chPzHeadExtraHtml(s) : '') + chPzTagsHtml(s) +
+    `<p class="duel-status chpz-status ${cls}">${escapeHTML(chPzStatus(s, pos))}</p>`);
+  chSetHtml(el, '[data-ch-bar]', chPzBarHtml(s));
+  chSetHtml(el, '[data-ch-side]', chPzLineHtml(s, pos) + (typeof chPzSideExtraHtml === 'function' ? chPzSideExtraHtml(s) : '') +
+    `<div class="duel-actions"><button type="button" class="btn btn--ghost btn--sm" onclick="setupChessPuzzles()">${escapeHTML(chT('exit'))}</button></div>`);
+}
+
+/* --- the setup screen ---------------------------------------------------------------- */
+
+function chPzSetLevel(level) {
+  const s = chPzState();
+  s.level = [1, 2, 3].indexOf(Number(level)) === -1 ? 1 : Number(level);
+  saveToLocal();
+  paintChessPuzzlesSetup();
+}
+
+function paintChessPuzzlesSetup() {
+  const s = chPzState();
+  document.querySelectorAll('#chpz-level .segmented__item').forEach(el => el.classList.toggle('is-active', Number(el.dataset.value) === Number(s.level || 1)));
+  const hint = document.getElementById('chpz-level-hint');
+  if (hint) {
+    const n = (s.done || {})[s.level || 1] || 0;
+    hint.textContent = chT('chpz_level_hint_' + (s.level || 1)) + (n ? ' · ' + chT('chpz_solved_n', { n: n }) : '');
+  }
+  const ways = document.getElementById('chpz-ways');
+  if (ways) ways.innerHTML = typeof chPzWaysHtml === 'function' ? chPzWaysHtml(s) : '';
+  const cont = document.getElementById('chpz-continue');
+  if (cont) cont.classList.toggle('hidden', !(s.phase === 'play' && s.p && !s.result && s.mode !== 'streak'));
+}
+
+/* --- a reload -------------------------------------------------------------------- */
+
+/** After a reload: the same puzzle at the same move, the reply (or the solution) carrying on. */
+function restoreChessPuzzle() {
+  const s = chPzState();
+  if (s.phase !== 'play' || !s.p || !s.p.fen) return false;
+  chPzLocal.sel = '';
+  chPzLocal.lockUntil = 0;
+  chPzPaint({ still: true });
+  setTimeout(chPzAfter, 0);
+  return true;
+}
+
+soloRegister('chesspuzzle', {
+  setup: 'setup-chesspuzzles', play: 'play-chesspuzzle',
+  paintSetup: paintChessPuzzlesSetup, restore: restoreChessPuzzle,
+  state: chPzState, resume: chPzContinue, prefs: ['level', 'done', 'nonce'],
+  repaint: () => chPzPaint({ still: true })
+});
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-chesspuzzle') chPzStop();
+    if (to === 'play-chesspuzzle') setTimeout(chPzAfter, 0);
+  });
+}
+</script>

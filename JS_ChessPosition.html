@@ -1,0 +1,216 @@
+<script>
+/* ============================================================================
+   شطرنج — SET UP A POSITION, AND FAMOUS ENDGAMES
+   ----------------------------------------------------------------------------
+   The owner (24 Sep 2026): an editor - a flat board, a palette of the twelve
+   pieces and an eraser, whose turn, castling rights where they can be, «مسح»
+   and «الوضع الأصلي» - and a list of famous endgames, each with a line of what
+   to do. A position is checked before it is played (one king each, no pawn on
+   the first or last row, the side not to move not in check) and the problem
+   said in words. It is played through chNewGame({ fen, setup }): against the
+   computer or two on one phone, never rated. A custom position is played with
+   the setup's colour; an endgame gives you the side it is about.
+   ========================================================================= */
+
+// Each: the position, the side you play (0 White, 1 Black), and its name and line in the translations.
+const CH_ENDGAMES = [
+  { id: 'kq', fen: '8/8/8/4k3/8/8/8/3QK3 w - - 0 1', side: 0 },
+  { id: 'kr', fen: '8/8/8/4k3/8/8/8/R3K3 w - - 0 1', side: 0 },
+  { id: 'kp', fen: '4k3/8/4K3/4P3/8/8/8/8 w - - 0 1', side: 0 },
+  { id: 'bb', fen: '8/8/8/4k3/8/8/8/2B1KB2 w - - 0 1', side: 0 },
+  { id: 'bn', fen: '8/8/8/4k3/8/8/8/1N2KB2 w - - 0 1', side: 0 },
+  { id: 'lucena', fen: '1K1k4/1P6/8/8/8/8/r7/2R5 w - - 0 1', side: 0 },
+  { id: 'philidor', fen: '4k3/7R/r7/3KP3/8/8/8/8 b - - 0 1', side: 1 },
+  { id: 'race', fen: '7K/8/k1P5/7p/8/8/8/8 w - - 0 1', side: 0 }
+];
+
+const chEndgameById = (id) => CH_ENDGAMES.find(e => e.id === id) || null;
+
+// The palette: the six white pieces, the six black ones; 0 is the eraser.
+const CH_POS_TOOLS = [6, 5, 4, 3, 2, 1, 14, 13, 12, 11, 10, 9];
+
+// Castling: the bit, the king's square and the rook's (standard places only).
+const CH_POS_CASTLES = [
+  { key: 'wk', bit: 1, king: 4, kc: 6, rook: 7, rc: 4 },
+  { key: 'wq', bit: 2, king: 4, kc: 6, rook: 0, rc: 4 },
+  { key: 'bk', bit: 4, king: 60, kc: 14, rook: 63, rc: 12 },
+  { key: 'bq', bit: 8, king: 60, kc: 14, rook: 56, rc: 12 }
+];
+
+/** The editor's state, kept with the chess game so a reload comes back to it. */
+function chPosState() {
+  const s = chState();
+  if (!s.pos || !Array.isArray(s.pos.board) || s.pos.board.length !== 64) {
+    s.pos = { board: chessNew().board.slice(), turn: 0, castle: 15, tool: 5, eg: '' };
+  }
+  return s.pos;
+}
+
+/** Castling rights that can stand: the king and that rook on their own squares. */
+const chPosCastleOk = (board, c) => board[c.king] === c.kc && board[c.rook] === c.rc;
+
+function chPosCleanCastle(pos) {
+  CH_POS_CASTLES.forEach(c => { if (!chPosCastleOk(pos.board, c)) pos.castle &= ~c.bit; });
+}
+
+/** The position as FEN. */
+function chPosFen(pos) {
+  const c = pos.castle | 0;
+  const castle = ((c & 1 ? 'K' : '') + (c & 2 ? 'Q' : '') + (c & 4 ? 'k' : '') + (c & 8 ? 'q' : '')) || '-';
+  return [chessPlacement(pos.board), pos.turn ? 'b' : 'w', castle, '-', 0, 1].join(' ');
+}
+
+/** What is wrong with a position (a translation key), or '' when it can be played. */
+function chPosProblem(pos) {
+  const b = pos.board;
+  if (b.filter(x => x === 6).length !== 1 || b.filter(x => x === 14).length !== 1) return 'ch_pos_err_kings';
+  for (let f = 0; f < 8; f++) if ((b[f] & 7) === 1 || (b[56 + f] & 7) === 1) return 'ch_pos_err_pawns';
+  const g = chessFromFen(chPosFen(pos));
+  const p = chessPos(g);
+  if (chessAttacked(p.b, p.kings[g.turn ^ 1], g.turn)) return 'ch_pos_err_check';
+  if (chessStatus(g).over) return 'ch_pos_err_over';
+  return '';
+}
+
+/** The editor, from the chess setup. */
+function chPosOpen() {
+  chPosState();
+  chLocal.posErr = '';
+  setView('pos-shatranj');
+  chPosPaint();
+  if (typeof scrollToAction === 'function') scrollToAction();
+}
+
+function chPosPaint() {
+  const el = document.getElementById('pos-shatranj-stage');
+  if (!el) return false;
+  const s = chState();
+  const pos = chPosState();
+  const eg = chEndgameById(pos.eg);
+  const egs = CH_ENDGAMES.map(e => `<button type="button" class="chip chip--plain ch-pos__eg ${pos.eg === e.id ? 'is-active' : ''}" onclick="chPosEndgame('${e.id}')" aria-pressed="${pos.eg === e.id}">${escapeHTML(chT('ch_eg_' + e.id))}</button>`).join('');
+  const egLine = eg ? `<p class="ch-pos__egline">🎯 ${escapeHTML(chT('ch_eg_' + eg.id + '_line'))} <b>${escapeHTML(chT('ch_pos_you_play', { c: chT(eg.side ? 'ch_color_b' : 'ch_color_w') }))}</b></p>` : '';
+  const tools = CH_POS_TOOLS.map(code => `<button type="button" class="ch-pos__tool ${pos.tool === code ? 'is-active' : ''}" onclick="chPosTool(${code})" aria-pressed="${pos.tool === code}" aria-label="${escapeHTML(chT(code >> 3 ? 'ch_color_b' : 'ch_color_w') + ' ' + chT('ch_piece_' + CHESS_LETTERS[code & 7]))}">${chPieceSvg(code)}</button>`).join('');
+  const eraser = `<button type="button" class="ch-pos__tool ch-pos__tool--erase ${pos.tool === 0 ? 'is-active' : ''}" onclick="chPosTool(0)" aria-pressed="${pos.tool === 0}" aria-label="${escapeHTML(chT('ch_pos_eraser'))}">🧽</button>`;
+  const turn = `<div class="segmented" role="group">${[0, 1].map(t => `<button type="button" class="segmented__item ${pos.turn === t ? 'is-active' : ''}" onclick="chPosTurn(${t})">${escapeHTML(chT(t ? 'ch_color_b' : 'ch_color_w'))}</button>`).join('')}</div>`;
+  const castles = CH_POS_CASTLES.map(c => {
+    const ok = chPosCastleOk(pos.board, c);
+    const on = ok && (pos.castle & c.bit);
+    return `<button type="button" class="chip chip--plain ch-pos__castle ${on ? 'is-active' : ''}" onclick="chPosCastle(${c.bit})" aria-pressed="${!!on}" ${ok ? '' : 'disabled'}>${escapeHTML(chT('ch_pos_castle_' + c.key))}</button>`;
+  }).join('');
+  const board = chFlatBoardHtml({ board: pos.board, orient: 0 });
+  el.innerHTML = `<div class="ch-pos">
+      <div class="card ch-pos__eglist">
+        <p class="field__label">📚 ${escapeHTML(chT('ch_pos_endgames'))}</p>
+        <div class="chip-set">${egs}</div>
+        ${egLine}
+      </div>
+      <div class="ch-pos__main">
+        <div class="ch-pos__board" onclick="chPosBoardTap(event)">${board}</div>
+        <div class="ch-pos__side">
+          <p class="field__hint">${escapeHTML(chT('ch_pos_board'))}</p>
+          <div class="ch-pos__tools" dir="ltr">${tools}${eraser}</div>
+          <div class="field"><label class="field__label">${escapeHTML(chT('ch_pos_turn'))}</label>${turn}</div>
+          <div class="field"><label class="field__label">${escapeHTML(chT('ch_pos_castle'))}</label><div class="ch-pos__castles">${castles}</div></div>
+          <div class="btn-row">
+            <button type="button" class="btn btn--ghost btn--sm" onclick="chPosClear()">🧹 ${escapeHTML(chT('ch_pos_clear'))}</button>
+            <button type="button" class="btn btn--ghost btn--sm" onclick="chPosReset()">↺ ${escapeHTML(chT('ch_pos_start'))}</button>
+          </div>
+          <p class="ch-pos__err ${chLocal.posErr ? '' : 'hidden'}" role="alert">${escapeHTML(chLocal.posErr ? chT(chLocal.posErr) : '')}</p>
+          <p class="ch-rated">${escapeHTML(chT('ch_rated_no', { why: chT('ch_unrated_setup') }))}</p>
+          <button type="button" class="btn btn--primary btn--lg" onclick="chPosPlay()">▶ ${escapeHTML(chT('ch_pos_play'))}</button>
+        </div>
+      </div>
+    </div>`;
+  void s;
+  return true;
+}
+
+/** A tap on a square: the picked piece goes there (tapped again, it comes off); a king moves rather than doubles. */
+function chPosBoardTap(ev) {
+  const cell = ev.target && ev.target.closest ? ev.target.closest('[data-sq]') : null;
+  if (!cell) return;
+  const i = chSqIndex(cell.getAttribute('data-sq'));
+  if (i < 0) return;
+  const pos = chPosState();
+  const tool = pos.tool | 0;
+  if (!tool || pos.board[i] === tool) pos.board[i] = 0;
+  else {
+    if ((tool & 7) === 6) { const at = pos.board.indexOf(tool); if (at !== -1) pos.board[at] = 0; }
+    pos.board[i] = tool;
+  }
+  chPosEdited(pos);
+  haptic('light');
+}
+
+function chPosEdited(pos) {
+  pos.eg = '';
+  chPosCleanCastle(pos);
+  chLocal.posErr = '';
+  saveToLocal();
+  chPosPaint();
+}
+
+function chPosTool(code) { const pos = chPosState(); pos.tool = code; saveToLocal(); chPosPaint(); }
+function chPosTurn(t) { const pos = chPosState(); pos.turn = t ? 1 : 0; pos.eg = ''; chLocal.posErr = ''; saveToLocal(); chPosPaint(); }
+function chPosCastle(bit) { const pos = chPosState(); pos.castle ^= bit; chPosCleanCastle(pos); pos.eg = ''; saveToLocal(); chPosPaint(); }
+
+/** «مسح»: everything off but the two kings, so there is always something to build on. */
+function chPosClear() {
+  const pos = chPosState();
+  pos.board = pos.board.map(x => ((x & 7) === 6 ? x : 0));
+  if (pos.board.indexOf(6) === -1) pos.board[4] = 6;
+  if (pos.board.indexOf(14) === -1) pos.board[60] = 14;
+  chPosEdited(pos);
+}
+
+function chPosReset() {
+  const pos = chPosState();
+  pos.board = chessNew().board.slice();
+  pos.turn = 0;
+  pos.castle = 15;
+  chPosEdited(pos);
+}
+
+/** An endgame from the list onto the board. */
+function chPosEndgame(id) {
+  const e = chEndgameById(id);
+  if (!e) return;
+  const g = chessFromFen(e.fen);
+  const pos = chPosState();
+  pos.board = g.board.slice();
+  pos.turn = g.turn;
+  pos.castle = g.castle;
+  pos.eg = id;
+  chLocal.posErr = '';
+  saveToLocal();
+  haptic('light');
+  chPosPaint();
+}
+
+/** ▶: checked, then played (a rated game left unfinished asks first). */
+function chPosPlay() {
+  const pos = chPosState();
+  const why = chPosProblem(pos);
+  if (why) {
+    chLocal.posErr = why;
+    chPosPaint();
+    chSound('refuse');
+    haptic('double');
+    return;
+  }
+  const fen = chPosFen(pos);
+  const eg = chEndgameById(pos.eg);
+  chConfirmReplace(() => {
+    const s = chState();
+    if (s.vsBefore) { s.vs = s.vsBefore; s.vsBefore = null; }
+    s.practice = false;
+    s.scores = [0, 0, 0];
+    s.firstWhite = 0;
+    chNewGame({ fen: fen, setup: true, eg: eg ? eg.id : '', me: eg && s.vs === 'phone' ? eg.side : undefined });
+  });
+}
+
+if (typeof soloRegister === 'function') {
+  soloRegister('shatranjPos', { setup: 'setup-shatranj', play: 'pos-shatranj', restore: chPosPaint, repaint: chPosPaint });
+}
+</script>

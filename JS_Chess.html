@@ -1522,6 +1522,8 @@ function chNewGame(opts) {
   s.comment = null;
   s.flip = false;
   s.practice = !!o.practice;
+  // A set-up position: which famous endgame it is, if one ('' for your own).
+  s.setupEg = o.setup ? (o.eg || '') : '';
   // Undo and hints: this game keeps the limit it was started with, and counts what it used.
   s.gameHelp = s.helpLimit;
   s.help = chHelpNew({ setup: !!o.setup });
@@ -1549,6 +1551,8 @@ function chNewGame(opts) {
 function chNextGame() {
   const s = chState();
   if (s.vs === 'friend') s.firstWhite = 1 - (s.firstWhite || 0);
+  // A set-up position is played again from the same place, the same side yours.
+  if (s.help && s.help.setup && s.start) { chNewGame({ fen: s.start, setup: true, eg: s.setupEg, me: s.vs === 'phone' ? s.me : undefined }); return; }
   chNewGame();
 }
 
@@ -2011,6 +2015,9 @@ function chLocalSideHtml(s, names) {
   if (s.comment && s.vs === 'phone' && s.coach) out.push(chCommentHtml(s.comment));
   out.push(chMovesHtml(s.sans, { current: s.sans.length - 1, start: s.start || (s.practice ? 'practice' : ''), variant: s.variant }));
   if (s.practice) out.push(`<p class="field__hint">🎯 ${escapeHTML(chT('ch_practice_note'))}</p>`);
+  if (s.help && s.help.setup) {
+    out.push(`<p class="field__hint">🧩 ${s.setupEg ? `<b>${escapeHTML(chT('ch_eg_' + s.setupEg))}</b> · ${escapeHTML(chT('ch_eg_' + s.setupEg + '_line'))}` : escapeHTML(chT('ch_pos_title'))}</p>`);
+  }
   out.push(`<div class="duel-actions"><button type="button" class="btn btn--ghost btn--sm" onclick="setupShatranj()">${escapeHTML(chT('exit'))}</button></div>`);
   return out.join('');
 }

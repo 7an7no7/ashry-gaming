@@ -6877,6 +6877,113 @@ Date.now = duelTestClock;
   check(worst < 200, "chess4 bots: a hard decision on the full budget stays well inside the Worker's time");
 }
 
+/* --- شطرنج الأربعة in rooms (RoomChess4.js): the lobby, turns, the clock, play for, leaving, bots --- */
+{
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const C = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') + '\nreturn { chess4Legal };')();
+  const first = (s) => C.chess4Legal(s.g)[0];
+  const isBot = (room, id) => room.players.some((x) => x.id === id && x.bot);
+  const up = (r) => r.shared.seats[r.shared.g.turn];
+
+  // The lobby: the host's way to play and clock, the colours; one person and the rest filled by computer players.
+  const r = newRoom(['h', 'p']);
+  applyRoomAction(r, 'h', 'chooseGame', { game: 'chess4' });
+  check(refused(() => applyRoomAction(r, 'p', 'options', { mode: 'ffa' })), 'chess4 room: only the host sets the way to play');
+  applyRoomAction(r, 'h', 'options', { mode: 'ffa', clock: 3 });
+  check(r.shared.lobby.mode === 'ffa' && r.shared.lobby.clock === 3, 'chess4 room: the host picks everyone for themselves and a 3-minute clock');
+  applyRoomAction(r, 'h', 'addBot', { level: 'hard', name: 'Robo' });
+  const botId = r.players.find((x) => x.bot).id;
+  applyRoomAction(r, 'h', 'seats', { order: ['p', null, 'h', botId] });
+  check(refused(() => applyRoomAction(r, 'h', 'seats', { order: ['p', 'p', 'h', null] })), 'chess4 room: a player sits in one colour only');
+  applyRoomAction(r, 'h', 'start', { botNames: ['زيزو', 'بندق'] });
+  const s = r.shared;
+  check(s.seats[0] === 'p' && s.seats[2] === 'h' && s.seats[3] === botId && isBot(r, s.seats[1]) && r.players.length === 4,
+    'chess4 room: the colours the host set, and an easy computer player for the empty one');
+  check(s.g.mode === 'ffa' && s.clock && s.clock.left.every((x) => x === 180000) && s.clock.at === null, "chess4 room: FFA, 3 minutes each, and a player's first move is free");
+  check(r.phase === 'play' && s.g.turn === 0 && up(r) === 'p', 'chess4 room: red moves first');
+  check(refused(() => applyRoomAction(r, 'h', 'move', Object.assign(first(s), { seq: s.turnSeq }))), 'chess4 room: out of turn is refused');
+  const seq0 = s.turnSeq;
+  applyRoomAction(r, 'p', 'move', Object.assign({}, first(s), { seq: seq0 - 1 }));
+  check(r.shared.turnSeq === seq0 && r.shared.g.ply === 0, 'chess4 room: a tap from a turn that has moved on is dropped');
+  check(refused(() => applyRoomAction(r, 'p', 'move', { from: 0, to: 1, seq: seq0 })), 'chess4 room: an illegal move is refused');
+  applyRoomAction(r, 'p', 'move', Object.assign({}, first(r.shared), { seq: seq0 }));
+  check(r.shared.g.ply === 1 && r.shared.g.turn === 1 && r.shared.log.some((e) => e.k === 'mv' && e.seat === 0), 'chess4 room: the move is played and written in the log');
+  check(typeof r._botAt === 'number', 'chess4 room: a computer player is up next, on the server\'s clock');
+  clock = r._botAt + 1;
+  roomTimeout(r, clock);
+  check(r.shared.g.turn === 2 && r.shared.g.ply === 2, 'chess4 room: the computer player moved');
+  // The clock: yellow's first move is free; after it, time counts.
+  applyRoomAction(r, 'h', 'move', Object.assign({}, first(r.shared), { seq: r.shared.turnSeq }));
+  clock = r._botAt + 1; roomTimeout(r, clock);            // green (a bot)
+  check(r.shared.g.turn === 0 && r.shared.clock.at === clock, "chess4 room: once they have moved, a player's clock runs on their turn");
+  clock += 180000 + 5000;
+  const due = roomDeadline(r);
+  check(due !== null && due <= clock, 'chess4 room: the server looks again when red\'s time is up');
+  roomTimeout(r, clock);
+  check(r.shared.g.out[0] && r.shared.g.why[0] === 'time' && r.shared.g.turn === 1 && r.shared.log.some((e) => e.k === 'out' && e.seat === 0 && e.why === 'time'),
+    'chess4 room FFA: out of time: out, grey walls, and the next player is up');
+  // The host plays for a quiet phone (yellow, the host's own seat here, is a person).
+  while (r.shared.phase === 'play' && isBot(r, up(r))) { clock = r._botAt + 1; roomTimeout(r, clock); }
+  const hs = r.shared.turnSeq;
+  applyRoomAction(r, 'h', 'skipTurn', { seq: hs });
+  check(r.shared.turnSeq > hs && r.shared.log.some((e) => e.k === 'mv' && e.auto === 'host'), 'chess4 room: the host plays an easy move for a phone, marked as such');
+  applyRoomAction(r, 'h', 'skipTurn', { seq: hs });
+  check(r.shared.log.filter((e) => e.auto === 'host').length === 1, 'chess4 room: a second "play for" of the same turn is dropped');
+  applyRoomAction(r, 'h', 'resign', {});
+  check(r.shared.g.out[2] && r.shared.g.why[2] === 'resign', 'chess4 room: resigning is out');
+  for (let k = 0; k < 4000 && r.shared.phase === 'play'; k++) { if (typeof r._botAt !== 'number') break; clock = r._botAt + 1; roomTimeout(r, clock); }
+  check(r.shared.phase === 'over' && r.phase === 'gameover' && r.shared.g.result.winners.length >= 1 && r.shared.board.length === 4,
+    'chess4 room FFA: the computer players play it out; the winners, the board');
+  const was = r.shared.seats.slice();
+  applyRoomAction(r, 'h', 'playAgain', {});
+  check(r.shared.phase === 'play' && r.shared.seats.join() === [was[1], was[2], was[3], was[0]].join() && r.shared.g.mode === 'ffa' && r.shared.round === 2,
+    'chess4 room: play again keeps the table and turns it by one (someone else is red)');
+
+  // Teams: a player who leaves gets a computer player in their seat.
+  const t = newRoom(['h', 'p', 'q', 'w']);
+  applyRoomAction(t, 'h', 'chooseGame', { game: 'chess4' });
+  applyRoomAction(t, 'h', 'start', {});
+  check(t.shared.g.mode === 'teams' && t.shared.seats.join() === 'h,p,q,w' && !t.shared.clock, 'chess4 room: teams and no clock by default, the room in order');
+  applyRoomAction(t, 'h', 'move', Object.assign({}, first(t.shared), { seq: t.shared.turnSeq }));
+  leave(t, 'p');
+  check(isBot(t, t.shared.seats[1]) && t.shared.replaced[1] && t.shared.names[1] === 'P' && t.shared.phase === 'play' && typeof t._botAt === 'number',
+    'chess4 room teams: a player who leaves: a computer player takes their seat and plays on');
+  clock = t._botAt + 1; roomTimeout(t, clock);
+  check(t.shared.g.turn === 2, 'chess4 room teams: …and moves for them');
+  applyRoomAction(t, 'w', 'resign', {});
+  check(t.shared.phase === 'over' && t.shared.g.result.team === 0 && t.shared.wins.h === 1 && t.shared.wins.q === 1 && !t.shared.wins.w,
+    'chess4 room teams: green resigns: red and yellow win, a win each on the night\'s table');
+  const f = newRoom(['h', 'p', 'q']);
+  applyRoomAction(f, 'h', 'chooseGame', { game: 'chess4' });
+  applyRoomAction(f, 'h', 'options', { mode: 'ffa' });
+  applyRoomAction(f, 'h', 'start', {});
+  leave(f, 'q');
+  check(f.shared.g.out[2] && f.shared.g.why[2] === 'left' && f.shared.phase === 'play', 'chess4 room FFA: a player who leaves is out, their pieces walls');
+
+  // Whole games of computer players through the room's own door: both ways, easy and hard.
+  const errorWas = console.error;
+  const errors = [];
+  console.error = (...a) => errors.push(a.join(' '));
+  let games = 0, ended = 0;
+  for (const mode of ['teams', 'ffa']) for (const lvl of ['easy', 'hard', 'mix']) {
+    games++;
+    const b = newRoom(['h']);
+    applyRoomAction(b, 'h', 'becomeScreen', {});
+    applyRoomAction(b, 'h', 'chooseGame', { game: 'chess4' });
+    applyRoomAction(b, 'h', 'options', { mode: mode });
+    for (let k = 0; k < 4; k++) applyRoomAction(b, 'h', 'addBot', { level: lvl === 'mix' ? (k % 2 ? 'hard' : 'easy') : lvl, name: 'B' });
+    applyRoomAction(b, 'h', 'start', {});
+    for (let step = 0; step < 1000 && b.shared.phase === 'play'; step++) {
+      if (typeof b._botAt !== 'number') break;
+      clock = Math.max(clock, b._botAt) + 1;
+      roomTimeout(b, clock);
+    }
+    if (b.shared.phase === 'over' && b.shared.g.over) ended++;
+  }
+  console.error = errorWas;
+  check(ended === games && !errors.length, `chess4 bots: ${games} whole room games of computer players, teams and FFA, easy and hard, all ended, no move refused (${ended})` + (errors.length ? ': ' + errors[0] : ''));
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

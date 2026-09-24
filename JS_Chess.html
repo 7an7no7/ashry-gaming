@@ -1119,7 +1119,15 @@ function chMovesHtml(sans, opts) {
     };
     rows += `<span class="ch-mvn">${i / 2 + 1}.</span>${cell(i)}${cell(i + 1)}`;
   }
-  return `<div class="ch-moves" dir="ltr">${rows}</div>`;
+  let opLine = '';
+  if (o.opening !== false && typeof chOpeningMatch === 'function') {
+    const lim = o.current !== undefined && o.current >= 0 ? o.current + 1 : sans.length;
+    const match = chOpeningMatch(sans, { limit: lim, start: o.start, variant: o.variant });
+    if (match) {
+      opLine = `<div class="ch-opening" title="${escapeHTML(match.name)}"><span class="ch-opening__icon">📖</span> <span class="ch-opening__name">${escapeHTML(match.name)}</span></div>`;
+    }
+  }
+  return `${opLine}<div class="ch-moves" dir="ltr">${rows}</div>`;
 }
 
 const CH_CLASS_ICON = { brilliant: '!!', best: '★', good: '✓', inaccuracy: '?!', mistake: '?', blunder: '??' };
@@ -1708,7 +1716,7 @@ function chLocalBarHtml(s, hint) {
 function chLocalSideHtml(s, names) {
   const out = [];
   if (s.comment && s.vs === 'phone' && s.coach) out.push(chCommentHtml(s.comment));
-  out.push(chMovesHtml(s.sans, { current: s.sans.length - 1 }));
+  out.push(chMovesHtml(s.sans, { current: s.sans.length - 1, start: s.start || (s.practice ? 'practice' : ''), variant: s.variant }));
   if (s.practice) out.push(`<p class="field__hint">🎯 ${escapeHTML(chT('ch_practice_note'))}</p>`);
   out.push(`<div class="duel-actions"><button type="button" class="btn btn--ghost btn--sm" onclick="setupShatranj()">${escapeHTML(chT('exit'))}</button></div>`);
   return out.join('');

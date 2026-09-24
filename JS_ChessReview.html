@@ -310,6 +310,12 @@ function chReviewPaint(fresh, justDone) {
           </span>` : ''}
       </div>`;
   }
+  if (typeof chOpeningMatch === 'function' && !rv.variant && (!rv.start || rv.start === CHESS_START_FEN)) {
+    const fullTheory = chOpeningMatch(rv.sans, { start: rv.start, variant: rv.variant });
+    if (fullTheory && rv.sans.length >= fullTheory.outOfTheoryPly && k === fullTheory.outOfTheoryPly - 1) {
+      note += `<p class="field__hint ch-rv-theory">📖 ${escapeHTML(chT('ch_out_of_theory', { n: fullTheory.outOfTheoryPly }))}</p>`;
+    }
+  }
   chSetHtml(el, '[data-ch-rvnote]', note);
   // The rest: the key moments, the graph, the counts, the moves.
   let body = '';
@@ -324,7 +330,7 @@ function chReviewPaint(fresh, justDone) {
     body += `<div class="ch-counts"><span></span><span class="ch-counts__who"><bdi>${escapeHTML(names[0])}</bdi></span><span class="ch-counts__who"><bdi>${escapeHTML(names[1])}</bdi></span>${kinds.map(kind =>
       `<span class="ch-counts__k">${chClassDot(kind)} ${escapeHTML(chT('ch_cls_' + kind))}</span><b class="metric">${count(0, kind)}</b><b class="metric">${count(1, kind)}</b>`).join('')}</div>`;
   }
-  body += chMovesHtml(rv.sans, { current: chRv.ply - 1, marks: res ? res.moves.map(m => m.cls) : null, onClick: 'chReviewGoMove' });
+  body += chMovesHtml(rv.sans, { current: chRv.ply - 1, marks: res ? res.moves.map(m => m.cls) : null, onClick: 'chReviewGoMove', start: rv.start, variant: rv.variant });
   body += `<div class="duel-actions"><button type="button" class="btn btn--ghost btn--sm" onclick="chReviewExit()">${escapeHTML(chT('exit'))}</button></div>`;
   chSetHtml(el, '[data-ch-rvbody]', body);
   // The current move kept in sight inside the list (never by scrolling the page away from the board).

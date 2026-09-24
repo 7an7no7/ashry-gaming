@@ -386,7 +386,8 @@ function chRoomRender(state, still) {
   chSetHtml(el, '[data-ch-bar]', chRoomBarHtml(state) + chRoomHostRow(state));
   const side = [];
   if (over) side.push(duelRoomOverHtml(state, t), `<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
-  side.push(chMovesHtml(view.sans, { current: view.sans.length - 1 }));
+  const rSet = s.settings || {};
+  side.push(chMovesHtml(view.sans, { current: view.sans.length - 1, start: view.start || (s.chess && s.chess.start) || '', variant: rSet.variant || 'standard' }));
   side.push(duelRoomLineHtml(state, t));
   if ((state.players || []).length > 2 && !s.tourMid) side.push(renderScoreboard(s.board));
   if (over && !s.tourMid) side.push(roomShareBtnHtml(state, s.board));
@@ -515,7 +516,8 @@ TV_GAMES.chess = {
     chViewShow(host, chRoomModel(state, true));
     const bd = s.chess;
     const over = s.phase === 'over';
-    const moves = bd.sans.length ? `<div class="ch-tv__moves">${chMovesHtml(bd.sans, { current: bd.sans.length - 1 })}</div>` : '';
+    const tvSet = s.settings || {};
+    const moves = bd.sans.length ? `<div class="ch-tv__moves">${chMovesHtml(bd.sans, { current: bd.sans.length - 1, start: bd.start || '', variant: tvSet.variant || 'standard' })}</div>` : '';
     const html = `
       <div class="tv-scale">${chRoomPills(state, true)}</div>
       ${chRoomTagHtml(state)}

@@ -1,0 +1,264 @@
+<script>
+/**
+ * Chess Openings database and position matcher.
+ * Matches by board placement after each ply, supporting transpositions.
+ */
+const CH_OPENINGS = [
+  // 1. King's Pawn / Open Game (1. e4 e5)
+  { en: "King's Pawn Opening", ar: "افتتاح بيدق الملك", moves: "e4" },
+  { en: "Open Game", ar: "الدور المفتوح", moves: "e4 e5" },
+  { en: "King's Knight Opening", ar: "افتتاح حصان الملك", moves: "e4 e5 Nf3" },
+  { en: "Italian Game", ar: "الافتتاح الإيطالي", moves: "e4 e5 Nf3 Nc6 Bc4" },
+  { en: "Giuoco Piano", ar: "جيوكو بيانو", moves: "e4 e5 Nf3 Nc6 Bc4 Bc5" },
+  { en: "Giuoco Pianissimo", ar: "جيوكو بيانوسيمو", moves: "e4 e5 Nf3 Nc6 Bc4 Bc5 d3" },
+  { en: "Giuoco Piano: Main Line", ar: "جيوكو بيانو: التفريع الرئيسي", moves: "e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Nf6 d4 exd4 cxd4 Bb4+ Bd2" },
+  { en: "Evans Gambit", ar: "جامبيت إيفانز", moves: "e4 e5 Nf3 Nc6 Bc4 Bc5 b4" },
+  { en: "Evans Gambit Accepted", ar: "جامبيت إيفانز المقبول", moves: "e4 e5 Nf3 Nc6 Bc4 Bc5 b4 Bxb4 c3 Ba5" },
+  { en: "Two Knights Defense", ar: "دفاع الفرسان الاثنين", moves: "e4 e5 Nf3 Nc6 Bc4 Nf6" },
+  { en: "Fried Liver Attack", ar: "هجوم الكبد المقلي", moves: "e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 d5 exd5 Nxd5 Nxf7" },
+  { en: "Two Knights: Polerio Defense", ar: "دفاع الفرسان: بوليريو", moves: "e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 d5 exd5 Na5" },
+  { en: "Two Knights: Traxler Counterattack", ar: "هجوم تراكسلر المضاد", moves: "e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 Bc5" },
+  { en: "Hungarian Defense", ar: "الدفاع المجري", moves: "e4 e5 Nf3 Nc6 Bc4 Be7" },
+
+  // Ruy Lopez / Spanish Opening
+  { en: "Ruy Lopez (Spanish Opening)", ar: "الافتتاح الإسباني (روي لوبيز)", moves: "e4 e5 Nf3 Nc6 Bb5" },
+  { en: "Ruy Lopez: Morphy Defense", ar: "روي لوبيز: دفاع مورفي", moves: "e4 e5 Nf3 Nc6 Bb5 a6" },
+  { en: "Ruy Lopez: Exchange Variation", ar: "روي لوبيز: تفريع التبادل", moves: "e4 e5 Nf3 Nc6 Bb5 a6 Bxc6 dxc6" },
+  { en: "Ruy Lopez: Berlin Defense", ar: "روي لوبيز: دفاع برلين", moves: "e4 e5 Nf3 Nc6 Bb5 Nf6" },
+  { en: "Ruy Lopez: Classical Defense", ar: "روي لوبيز: الدفاع الكلاسيكي", moves: "e4 e5 Nf3 Nc6 Bb5 Bc5" },
+  { en: "Ruy Lopez: Schliemann Defense", ar: "روي لوبيز: دفاع شليمان", moves: "e4 e5 Nf3 Nc6 Bb5 f5" },
+  { en: "Ruy Lopez: Steinitz Defense", ar: "روي لوبيز: دفاع شتاينيتز", moves: "e4 e5 Nf3 Nc6 Bb5 d6" },
+  { en: "Ruy Lopez: Modern Steinitz", ar: "روي لوبيز: شتاينيتز الحديث", moves: "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 d6" },
+  { en: "Ruy Lopez: Closed Defense", ar: "روي لوبيز: الدفاع المغلق", moves: "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7" },
+  { en: "Ruy Lopez: Open Variation", ar: "روي لوبيز: التفريع المفتوح", moves: "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Nxe4" },
+  { en: "Ruy Lopez: Marshall Attack", ar: "روي لوبيز: هجوم مارشال", moves: "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7 Re1 b5 Bb3 O-O c3 d5" },
+  { en: "Ruy Lopez: Chigorin Variation", ar: "روي لوبيز: تفريع تشيجورين", moves: "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7 Re1 b5 Bb3 d6 c3 O-O h3 Na5 Bc2 c5 d4" },
+
+  // Scotch, Four Knights, Petrov, Philidor, Vienna, King's Gambit, etc.
+  { en: "Scotch Game", ar: "الافتتاح الاسكتلندي", moves: "e4 e5 Nf3 Nc6 d4" },
+  { en: "Scotch Game: Classical Variation", ar: "الافتتاح الاسكتلندي: الكلاسيكي", moves: "e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Bc5" },
+  { en: "Scotch Game: Mieses Variation", ar: "الافتتاح الاسكتلندي: تفريع ميزس", moves: "e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Nf6" },
+  { en: "Scotch Gambit", ar: "الجامبيت الاسكتلندي", moves: "e4 e5 Nf3 Nc6 d4 exd4 Bc4" },
+  { en: "Four Knights Game", ar: "افتتاح الفرسان الأربعة", moves: "e4 e5 Nf3 Nc6 Nc3 Nf6" },
+  { en: "Four Knights: Spanish Variation", ar: "الفرسان الأربعة: التفريع الإسباني", moves: "e4 e5 Nf3 Nc6 Nc3 Nf6 Bb5" },
+  { en: "Petrov's Defense (Russian Game)", ar: "الدفاع الروسي (بتروف)", moves: "e4 e5 Nf3 Nf6" },
+  { en: "Petrov's Defense: Classical Attack", ar: "دفاع بتروف: الهجوم الكلاسيكي", moves: "e4 e5 Nf3 Nf6 Nxe5 d6 Nf3 Nxe4 d4" },
+  { en: "Petrov's Defense: Steinitz Attack", ar: "دفاع بتروف: هجوم شتاينيتز", moves: "e4 e5 Nf3 Nf6 d4" },
+  { en: "Philidor Defense", ar: "دفاع فيليدور", moves: "e4 e5 Nf3 d6" },
+  { en: "King's Gambit", ar: "جامبيت الملك", moves: "e4 e5 f4" },
+  { en: "King's Gambit Accepted", ar: "جامبيت الملك المقبول", moves: "e4 e5 f4 exf4" },
+  { en: "King's Gambit Declined", ar: "جامبيت الملك المرفوض", moves: "e4 e5 f4 Bc5" },
+  { en: "Falkbeer Countergambit", ar: "هجوم فالكبير المضاد", moves: "e4 e5 f4 d5" },
+  { en: "Vienna Game", ar: "افتتاح فيينا", moves: "e4 e5 Nc3" },
+  { en: "Vienna Gambit", ar: "جامبيت فيينا", moves: "e4 e5 Nc3 Nf6 f4" },
+  { en: "Vienna Game: Max Lange Defense", ar: "افتتاح فيينا: دفاع ماكس لانجه", moves: "e4 e5 Nc3 Nc6 Bc4 Bc5" },
+  { en: "Bishop's Opening", ar: "افتتاح الفيل", moves: "e4 e5 Bc4" },
+  { en: "Danish Gambit", ar: "الجامبيت الدنماركي", moves: "e4 e5 d4 exd4 c3" },
+  { en: "Ponziani Opening", ar: "افتتاح بونزياني", moves: "e4 e5 Nf3 Nc6 c3" },
+
+  // 2. Sicilian Defense (1. e4 c5)
+  { en: "Sicilian Defense", ar: "دفاع صقلية", moves: "e4 c5" },
+  { en: "Sicilian: Open", ar: "دفاع صقلية: المفتوح", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4" },
+  { en: "Sicilian: Najdorf Variation", ar: "صقلية: تفريع ناجدورف", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6" },
+  { en: "Sicilian: Dragon Variation", ar: "صقلية: تفريع التنين", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6" },
+  { en: "Sicilian: Dragon (Yugoslav Attack)", ar: "صقلية: التنين (الهجوم اليوغوسلافي)", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6 Be3 Bg7 f3 O-O Qd2 Nc6 Bc4" },
+  { en: "Sicilian: Classical Variation", ar: "صقلية: التفريع الكلاسيكي", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 Nc6" },
+  { en: "Sicilian: Richter-Rauzer Attack", ar: "صقلية: هجوم ريختر-راوزر", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 Nc6 Bg5" },
+  { en: "Sicilian: Scheveningen Variation", ar: "صقلية: تفريع شيفينينجن", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 e6" },
+  { en: "Sicilian: Sveshnikov Variation", ar: "صقلية: تفريع سفيشنيكوف", moves: "e4 c5 Nf3 Nc6 d4 cxd4 Nxd4 Nf6 Nc3 e5" },
+  { en: "Sicilian: Kalashnikov Variation", ar: "صقلية: تفريع كلاشينكوف", moves: "e4 c5 Nf3 Nc6 d4 cxd4 Nxd4 e5 Nb5 d6" },
+  { en: "Sicilian: Taimanov Variation", ar: "صقلية: تفريع تايمانوف", moves: "e4 c5 Nf3 e6 d4 cxd4 Nxd4 Nc6" },
+  { en: "Sicilian: Kan Variation", ar: "صقلية: تفريع كان", moves: "e4 c5 Nf3 e6 d4 cxd4 Nxd4 a6" },
+  { en: "Sicilian: Four Knights Variation", ar: "صقلية: تفريع الفرسان الأربعة", moves: "e4 c5 Nf3 e6 d4 cxd4 Nxd4 Nf6 Nc3 Nc6" },
+  { en: "Sicilian: Accelerated Dragon", ar: "صقلية: التنين المسرع", moves: "e4 c5 Nf3 Nc6 d4 cxd4 Nxd4 g6" },
+  { en: "Sicilian: Alapin Variation", ar: "صقلية: تفريع ألابين", moves: "e4 c5 c3" },
+  { en: "Sicilian: Closed", ar: "صقلية: المغلق", moves: "e4 c5 Nc3 Nc6 g3" },
+  { en: "Sicilian: Grand Prix Attack", ar: "صقلية: هجوم الجائزة الكبرى", moves: "e4 c5 Nc3 Nc6 f4" },
+  { en: "Sicilian: Bowdler Attack", ar: "صقلية: هجوم بودلر", moves: "e4 c5 Bc4" },
+  { en: "Sicilian: Smith-Morra Gambit", ar: "صقلية: جامبيت سميث-مورا", moves: "e4 c5 d4 cxd4 c3" },
+  { en: "Sicilian: Moscow Variation", ar: "صقلية: تفريع موسكو", moves: "e4 c5 Nf3 d6 Bb5+" },
+  { en: "Sicilian: Rossolimo Variation", ar: "صقلية: تفريع روسوليمو", moves: "e4 c5 Nf3 Nc6 Bb5" },
+
+  // 3. French Defense (1. e4 e6)
+  { en: "French Defense", ar: "الدفاع الفرنسي", moves: "e4 e6" },
+  { en: "French: Advance Variation", ar: "الفرنسي: تفريع التقدم", moves: "e4 e6 d4 d5 e5" },
+  { en: "French: Winawer Variation", ar: "الفرنسي: تفريع فينافر", moves: "e4 e6 d4 d5 Nc3 Bb4" },
+  { en: "French: Classical Variation", ar: "الفرنسي: التفريع الكلاسيكي", moves: "e4 e6 d4 d5 Nc3 Nf6" },
+  { en: "French: Tarrasch Variation", ar: "الفرنسي: تفريع تاراش", moves: "e4 e6 d4 d5 Nd2" },
+  { en: "French: Tarrasch (Open)", ar: "الفرنسي: تاراش المفتوح", moves: "e4 e6 d4 d5 Nd2 c5 exd5 exd5" },
+  { en: "French: Exchange Variation", ar: "الفرنسي: تفريع التبادل", moves: "e4 e6 d4 d5 exd5 exd5" },
+
+  // 4. Caro-Kann Defense (1. e4 c6)
+  { en: "Caro-Kann Defense", ar: "دفاع كارو-كان", moves: "e4 c6" },
+  { en: "Caro-Kann: Advance Variation", ar: "كارو-كان: تفريع التقدم", moves: "e4 c6 d4 d5 e5" },
+  { en: "Caro-Kann: Classical Variation", ar: "كارو-كان: التفريع الكلاسيكي", moves: "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5" },
+  { en: "Caro-Kann: Modern (Karpov) Variation", ar: "كارو-كان: تفريع كاربوف الحديث", moves: "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Nd7" },
+  { en: "Caro-Kann: Panov-Botvinnik Attack", ar: "كارو-كان: هجوم بانوف-بوتفينيك", moves: "e4 c6 d4 d5 exd5 cxd5 c4" },
+  { en: "Caro-Kann: Exchange Variation", ar: "كارو-كان: تفريع التبادل", moves: "e4 c6 d4 d5 exd5 cxd5 Bd3" },
+  { en: "Caro-Kann: Two Knights Variation", ar: "كارو-كان: تفريع الفرسان الاثنين", moves: "e4 c6 Nc3 d5 Nf3" },
+
+  // 5. Other Semi-Open (Scandinavian, Pirc, Modern, Alekhine)
+  { en: "Scandinavian Defense", ar: "الدفاع الإسكندنافي", moves: "e4 d5" },
+  { en: "Scandinavian: Main Line", ar: "الإسكندنافي: الخط الرئيسي", moves: "e4 d5 exd5 Qxd5 Nc3 Qa5" },
+  { en: "Scandinavian: Modern Variation", ar: "الإسكندنافي: التفريع الحديث", moves: "e4 d5 exd5 Nf6" },
+  { en: "Pirc Defense", ar: "دفاع بيرك", moves: "e4 d6 d4 Nf6 Nc3 g6" },
+  { en: "Pirc: Austrian Attack", ar: "دفاع بيرك: الهجوم النمساوي", moves: "e4 d6 d4 Nf6 Nc3 g6 f4 Bg7 Nf3 O-O" },
+  { en: "Modern Defense", ar: "الدفاع الحديث", moves: "e4 g6" },
+  { en: "Alekhine's Defense", ar: "دفاع ألخين", moves: "e4 Nf6" },
+  { en: "Alekhine: Modern Variation", ar: "دفاع ألخين: التفريع الحديث", moves: "e4 Nf6 e5 Nd5 d4 d6 Nf3" },
+  { en: "Alekhine: Four Pawns Attack", ar: "دفاع ألخين: هجوم البيادق الأربعة", moves: "e4 Nf6 e5 Nd5 d4 d6 c4 Nb6 f4" },
+
+  // 6. Queen's Pawn & Queen's Gambit (1. d4)
+  { en: "Queen's Pawn Game", ar: "افتتاح بيدق الوزير", moves: "d4" },
+  { en: "Queen's Gambit", ar: "جامبيت الوزير", moves: "d4 d5 c4" },
+  { en: "Queen's Gambit Accepted", ar: "جامبيت الوزير المقبول", moves: "d4 d5 c4 dxc4" },
+  { en: "QGA: Central Variation", ar: "جامبيت الوزير المقبول: تفريع الوسط", moves: "d4 d5 c4 dxc4 e4" },
+  { en: "Queen's Gambit Declined", ar: "جامبيت الوزير المرفوض", moves: "d4 d5 c4 e6" },
+  { en: "QGD: Orthodox Defense", ar: "جامبيت الوزير المرفوض: الأرثوذكسي", moves: "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 Nbd7" },
+  { en: "QGD: Exchange Variation", ar: "جامبيت الوزير المرفوض: تفريع التبادل", moves: "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5" },
+  { en: "QGD: Tartakower Defense", ar: "جامبيت الوزير المرفوض: تفريع تارتاكاور", moves: "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 h6 Bh4 b6" },
+  { en: "QGD: Lasker Defense", ar: "جامبيت الوزير المرفوض: تفريع لاسكر", moves: "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 h6 Bh4 Ne4" },
+  { en: "Slav Defense", ar: "الدفاع الصقلبي", moves: "d4 d5 c4 c6" },
+  { en: "Slav: Main Line", ar: "الدفاع الصقلبي: الخط الرئيسي", moves: "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5" },
+  { en: "Slav: Exchange Variation", ar: "الدفاع الصقلبي: تفريع التبادل", moves: "d4 d5 c4 c6 cxd5 cxd5" },
+  { en: "Semi-Slav Defense", ar: "الدفاع شبه الصقلبي", moves: "d4 d5 c4 c6 Nf3 Nf6 Nc3 e6" },
+  { en: "Semi-Slav: Meran Variation", ar: "شبه الصقلبي: تفريع ميران", moves: "d4 d5 c4 c6 Nf3 Nf6 Nc3 e6 e3 Nbd7 Bd3 dxc4 Bxc4 b5 Bd3" },
+  { en: "Albin Countergambit", ar: "هجوم ألبين المضاد", moves: "d4 d5 c4 e5" },
+  { en: "Chigorin Defense", ar: "دفاع تشيجورين", moves: "d4 d5 c4 Nc6" },
+
+  // Other 1. d4 systems
+  { en: "London System", ar: "نظام لندن", moves: "d4 d5 Nf3 Nf6 Bf4" },
+  { en: "Torre Attack", ar: "هجوم توري", moves: "d4 Nf6 Nf3 e6 Bg5" },
+  { en: "Trompowsky Attack", ar: "هجوم ترومبوفسكي", moves: "d4 Nf6 Bg5" },
+  { en: "Colle System", ar: "نظام كولي", moves: "d4 d5 Nf3 Nf6 e3" },
+  { en: "Blackmar-Diemer Gambit", ar: "جامبيت بلاكمار-ديمر", moves: "d4 d5 e4 dxe4 Nc3" },
+
+  // 7. Indian Defenses (1. d4 Nf6)
+  { en: "Indian Defense", ar: "الدفاع الهندي", moves: "d4 Nf6 c4" },
+  { en: "King's Indian Defense", ar: "الدفاع الهندي الملكي", moves: "d4 Nf6 c4 g6 Nc3 Bg7 e4 d6" },
+  { en: "King's Indian: Classical Variation", ar: "الهندي الملكي: التفريع الكلاسيكي", moves: "d4 Nf6 c4 g6 Nc3 Bg7 e4 d6 Nf3 O-O Be2 e5 O-O" },
+  { en: "King's Indian: Mar del Plata Variation", ar: "الهندي الملكي: تفريع مار ديل بلاتا", moves: "d4 Nf6 c4 g6 Nc3 Bg7 e4 d6 Nf3 O-O Be2 e5 O-O Nc6 d5 Ne7" },
+  { en: "King's Indian: Sämisch Variation", ar: "الهندي الملكي: تفريع زيميش", moves: "d4 Nf6 c4 g6 Nc3 Bg7 e4 d6 f3 O-O Be3" },
+  { en: "King's Indian: Averbakh Variation", ar: "الهندي الملكي: تفريع أفرباخ", moves: "d4 Nf6 c4 g6 Nc3 Bg7 e4 d6 Be2 O-O Bg5" },
+  { en: "King's Indian: Four Pawns Attack", ar: "الهندي الملكي: هجوم البيادق الأربعة", moves: "d4 Nf6 c4 g6 Nc3 Bg7 e4 d6 f4 O-O Nf3" },
+
+  // Nimzo-Indian, Queen's Indian, Bogo-Indian
+  { en: "Nimzo-Indian Defense", ar: "الدفاع الهندي النمزوفيتشي", moves: "d4 Nf6 c4 e6 Nc3 Bb4" },
+  { en: "Nimzo-Indian: Classical (Capablanca)", ar: "النمزوفيتشي: تفريع كابابلانكا", moves: "d4 Nf6 c4 e6 Nc3 Bb4 Qc2" },
+  { en: "Nimzo-Indian: Rubinstein System", ar: "النمزوفيتشي: نظام روبنشتاين", moves: "d4 Nf6 c4 e6 Nc3 Bb4 e3" },
+  { en: "Nimzo-Indian: Sämisch Variation", ar: "النمزوفيتشي: تفريع زيميش", moves: "d4 Nf6 c4 e6 Nc3 Bb4 a3 Bxc3+ bxc3" },
+  { en: "Queen's Indian Defense", ar: "الدفاع الهندي الوزيري", moves: "d4 Nf6 c4 e6 Nf3 b6" },
+  { en: "Queen's Indian: Classical Variation", ar: "الهندي الوزيري: التفريع الكلاسيكي", moves: "d4 Nf6 c4 e6 Nf3 b6 g3 Ba6" },
+  { en: "Bogo-Indian Defense", ar: "الدفاع البوغو-هندي", moves: "d4 Nf6 c4 e6 Nf3 Bb4+" },
+
+  // Grünfeld, Benoni, Benko, Budapest, Catalan
+  { en: "Grünfeld Defense", ar: "دفاع جرونفيلد", moves: "d4 Nf6 c4 g6 Nc3 d5" },
+  { en: "Grünfeld: Exchange Variation", ar: "جرونفيلد: تفريع التبادل", moves: "d4 Nf6 c4 g6 Nc3 d5 cxd5 Nxd5 e4 Nxc3 bxc3 Bg7" },
+  { en: "Grünfeld: Russian Variation", ar: "جرونفيلد: التفريع الروسي", moves: "d4 Nf6 c4 g6 Nc3 d5 Nf3 Bg7 Qb3 dxc4 Qxc4" },
+  { en: "Benoni Defense", ar: "دفاع بينوني", moves: "d4 Nf6 c4 c5 d5" },
+  { en: "Modern Benoni", ar: "بينوني الحديث", moves: "d4 Nf6 c4 c5 d5 e6 Nc3 exd5 cxd5 d6 e4 g6" },
+  { en: "Benko Gambit (Volga)", ar: "جامبيت بينكو (فولجا)", moves: "d4 Nf6 c4 c5 d5 b5" },
+  { en: "Budapest Gambit", ar: "جامبيت بودابست", moves: "d4 Nf6 c4 e5" },
+  { en: "Catalan Opening", ar: "الافتتاح الكاتالوني", moves: "d4 Nf6 c4 e6 g3 d5 Bg2" },
+  { en: "Open Catalan", ar: "الكاتالوني المفتوح", moves: "d4 Nf6 c4 e6 g3 d5 Bg2 dxc4" },
+  { en: "Closed Catalan", ar: "الكاتالوني المغلق", moves: "d4 Nf6 c4 e6 g3 d5 Bg2 Be7 Nf3 O-O" },
+
+  // Dutch Defense (1. d4 f5)
+  { en: "Dutch Defense", ar: "الدفاع الهولندي", moves: "d4 f5" },
+  { en: "Dutch: Leningrad Variation", ar: "الهولندي: تفريع لينينغراد", moves: "d4 f5 c4 Nf6 g3 g6 Bg2 Bg7" },
+  { en: "Dutch: Stonewall Variation", ar: "الهولندي: الجدار الحجري", moves: "d4 f5 c4 e6 g3 d5 Bg2 c6 Nf3 Bd6" },
+  { en: "Dutch: Classical Variation", ar: "الهولندي: التفريع الكلاسيكي", moves: "d4 f5 c4 e6 Nf3 Nf6 g3 Be7 Bg2 O-O" },
+
+  // 8. Flank Openings (English, Reti, Bird, etc.)
+  { en: "English Opening", ar: "الافتتاح الإنجليزي", moves: "c4" },
+  { en: "English: Symmetrical Variation", ar: "الإنجليزي: التفريع المتماثل", moves: "c4 c5" },
+  { en: "English: King's English Variation", ar: "الإنجليزي: تفريع ملكي", moves: "c4 e5" },
+  { en: "English: Four Knights Variation", ar: "الإنجليزي: تفريع الفرسان الأربعة", moves: "c4 e5 Nc3 Nf6 Nf3 Nc6" },
+  { en: "English: Anglo-Indian Defense", ar: "الإنجليزي: الدفاع الأنجلو-هندي", moves: "c4 Nf6" },
+  { en: "Réti Opening", ar: "افتتاح ريتي", moves: "Nf3 d5 c4" },
+  { en: "King's Indian Attack", ar: "هجوم الهندي الملكي", moves: "Nf3 d5 g3 Nf6 Bg2 e6 O-O" },
+  { en: "Bird's Opening", ar: "افتتاح بيرد", moves: "f4" },
+  { en: "Bird: From's Gambit", ar: "افتتاح بيرد: جامبيت فروم", moves: "f4 e5" },
+  { en: "Nimzowitsch-Larsen Attack", ar: "هجوم لارسون-نمزوفيتش", moves: "b3" },
+  { en: "Grob Opening", ar: "افتتاح جروب", moves: "g4" }
+];
+
+let CH_OPENING_BY_POS = null;
+
+function chInitOpenings() {
+  if (CH_OPENING_BY_POS) return;
+  CH_OPENING_BY_POS = new Map();
+  for (let i = 0; i < CH_OPENINGS.length; i++) {
+    const op = CH_OPENINGS[i];
+    const g = chessNew();
+    const moves = op.moves.trim().split(/\s+/);
+    let legal = true;
+    for (let j = 0; j < moves.length; j++) {
+      const mv = chFindSan(g, moves[j]);
+      if (!mv) { legal = false; break; }
+      chessPlay(g, mv);
+    }
+    if (legal) {
+      CH_OPENING_BY_POS.set(chessPlacement(g.board), {
+        ar: op.ar,
+        en: op.en,
+        moves: op.moves,
+        depth: moves.length
+      });
+    }
+  }
+}
+
+function chFindSan(g, san) {
+  const p = chessPos(g);
+  const legal = chessLegalPos(p);
+  const clean = san.replace(/[+#?!]/g, '').replace(/0-0-0/g, 'O-O-O').replace(/0-0/g, 'O-O');
+  for (let i = 0; i < legal.length; i++) {
+    const s = chessSanPos(p, legal[i], legal).replace(/[+#?!]/g, '');
+    if (s === clean) {
+      return {
+        from: chessSqName(chessMFrom(legal[i])),
+        to: chessSqName(chessMTo(legal[i])),
+        promo: chessPromoLetter(chessMPromo(legal[i]))
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Match a move sequence against the opening database.
+ * Returns the deepest matched opening, along with lastMatchPly and outOfTheoryPly.
+ * Returns null if not standard chess (960 or setup FEN), or if no opening was matched.
+ */
+function chOpeningMatch(sans, opts) {
+  if (!sans || !sans.length) return null;
+  const o = opts || {};
+  if (o.variant === '960' || (o.start && o.start !== CHESS_START_FEN)) return null;
+  chInitOpenings();
+  const g = chessNew();
+  const limit = typeof o.limit === 'number' ? Math.min(o.limit, sans.length) : sans.length;
+  let deepest = null;
+  let lastPly = 0;
+  for (let ply = 0; ply < limit; ply++) {
+    const mv = chFindSan(g, sans[ply]);
+    if (!mv) break;
+    chessPlay(g, mv);
+    const placement = chessPlacement(g.board);
+    if (CH_OPENING_BY_POS.has(placement)) {
+      deepest = CH_OPENING_BY_POS.get(placement);
+      lastPly = ply + 1;
+    }
+  }
+  if (!deepest) return null;
+  const curLang = typeof lang !== 'undefined' ? lang : (typeof chLang === 'function' ? chLang() : 'ar');
+  return {
+    ar: deepest.ar,
+    en: deepest.en,
+    name: curLang === 'en' ? deepest.en : deepest.ar,
+    lastPly: lastPly,
+    outOfTheoryPly: lastPly + 1,
+    isTheory: limit === lastPly
+  };
+}
+</script>

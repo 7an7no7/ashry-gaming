@@ -417,6 +417,60 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`stop: ${STOP_CATS.length} categories`);
 }
 
+/* -------------------------------------------------------- Chess openings */
+{
+  const chessSrc = fs.readFileSync(ROOT + 'Chess.js', 'utf8');
+  const CH = new Function(chessSrc + '; return { chessNew, chessPlay, chessPlacement, chessPos, chessLegalPos, chessSanPos, chessSqName, chessMFrom, chessMTo, chessMPromo, chessPromoLetter };')();
+
+  function chFindSan(g, san) {
+    const p = CH.chessPos(g);
+    const legal = CH.chessLegalPos(p);
+    const clean = san.replace(/[+#?!]/g, '').replace(/0-0-0/g, 'O-O-O').replace(/0-0/g, 'O-O');
+    for (let i = 0; i < legal.length; i++) {
+      const s = CH.chessSanPos(p, legal[i], legal).replace(/[+#?!]/g, '');
+      if (s === clean) {
+        return {
+          from: CH.chessSqName(CH.chessMFrom(legal[i])),
+          to: CH.chessSqName(CH.chessMTo(legal[i])),
+          promo: CH.chessPromoLetter(CH.chessMPromo(legal[i]))
+        };
+      }
+    }
+    return null;
+  }
+
+  const OPENINGS = load(ROOT + 'JS_ChessOpenings.html', 'CH_OPENINGS');
+  if (!Array.isArray(OPENINGS) || OPENINGS.length < 120 || OPENINGS.length > 160) {
+    note(`chess openings: expected 120-160 entries, got ${OPENINGS ? OPENINGS.length : 0}`);
+  }
+  const seen = new Map();
+  (OPENINGS || []).forEach((op, i) => {
+    if (!op.ar || !op.ar.trim()) note(`chess opening [${i}]: missing Arabic name`);
+    if (!op.en || !op.en.trim()) note(`chess opening [${i}]: missing English name`);
+    if (!op.moves || !op.moves.trim()) {
+      note(`chess opening [${i}] ("${op.en}"): missing moves`);
+      return;
+    }
+    const g = CH.chessNew();
+    const moves = op.moves.trim().split(/\s+/);
+    for (const m of moves) {
+      const mv = chFindSan(g, m);
+      if (!mv) {
+        note(`chess opening [${i}] ("${op.en}"): illegal move "${m}"`);
+        return;
+      }
+      CH.chessPlay(g, mv);
+    }
+    const placement = CH.chessPlacement(g.board);
+    if (seen.has(placement)) {
+      note(`chess openings: duplicate final position between "${seen.get(placement)}" and "${op.en}"`);
+    } else {
+      seen.set(placement, op.en);
+    }
+  });
+  console.log(`chess openings: ${OPENINGS ? OPENINGS.length : 0} openings`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

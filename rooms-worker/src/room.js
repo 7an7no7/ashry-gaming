@@ -242,6 +242,10 @@ export class Room extends DurableObject {
     return this.env.MEMORY.get(this.env.MEMORY.idFromName('prompts'));
   }
 
+  wordsStub() {
+    return this.env.WORDS.get(this.env.WORDS.idFromName('stop'));
+  }
+
   async readMemory() {
     try {
       return { values: await this.memoryStub().read(), changed: {} };
@@ -469,6 +473,11 @@ export class Room extends DurableObject {
     } catch (err) {
       return { ok: false, error: errorText(err) };
     }
+    let stopTaps = null;
+    if (next._stopTaps && next._stopTaps.length) {
+      stopTaps = next._stopTaps;
+      delete next._stopTaps;
+    }
     this.room = next;
     this.touch();
     if (!ws) this.polled.set(pid, Date.now());
@@ -477,6 +486,9 @@ export class Room extends DurableObject {
     await this.save(quick);
     if (memory && Object.keys(memory.changed).length) {
       this.memoryStub().write(memory.changed).catch(() => {});
+    }
+    if (stopTaps && this.env.WORDS) {
+      this.wordsStub().add(stopTaps).catch(() => {});
     }
     if (!quick) await this.scheduleAlarm();
 

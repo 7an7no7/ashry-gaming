@@ -248,6 +248,30 @@ check(stopWordKnown('ar', 'name', 'مححمود') && !stopWordKnown('ar', 'anima
   check(rLenient.shared.roundTotals.c === 10, 'stop lenient: host adjust updates roundTotals');
   applyRoomAction(rLenient, 'a', 'nextRound', {});
   check(rLenient.shared.lenient === true && rLenient.shared.round === 2, 'stop: nextRound preserves lenient');
+
+  // _stopTaps logging on adjust: 0 -> >0 on unknown or shared, not on known or tap down
+  const rLog = newRoom(['a', 'b', 'c']);
+  applyRoomAction(rLog, 'a', 'chooseGame', { game: 'stop' });
+  applyRoomAction(rLog, 'a', 'start', { lang: 'ar', cats: ['name', 'animal'], timer: 0, rounds: 2 });
+  rLog.shared.letter = 'ب';
+  applyRoomAction(rLog, 'a', 'submit', { answers: { name: 'باسم', animal: 'بزززظ' }, stop: true });
+  applyRoomAction(rLog, 'b', 'submit', { answers: { name: 'بسمة', animal: 'بزززظ' } });
+  applyRoomAction(rLog, 'c', 'submit', { answers: { name: 'بلبلخ', animal: 'بطة' } });
+  check(!rLog._stopTaps, 'stop log: no _stopTaps initially before host adjust');
+  applyRoomAction(rLog, 'a', 'adjust', { playerId: 'c', cat: 'animal', pts: 5 });
+  check(!rLog._stopTaps, 'stop log: tapping known cell down does not log');
+  applyRoomAction(rLog, 'a', 'adjust', { playerId: 'c', cat: 'name', pts: 10 });
+  check(Array.isArray(rLog._stopTaps) && rLog._stopTaps.length === 1, 'stop log: 0 -> 10 tap on unknown logs to _stopTaps');
+  check(rLog._stopTaps[0].lang === 'ar' && rLog._stopTaps[0].cat === 'name' && rLog._stopTaps[0].word === 'بلبلخ',
+        'stop log: logged entry has correct lang, cat, and word');
+  applyRoomAction(rLog, 'a', 'adjust', { playerId: 'c', cat: 'name', pts: 0 });
+  check(rLog._stopTaps.length === 1, 'stop log: tapping down 10 -> 0 does not log');
+  applyRoomAction(rLog, 'a', 'adjust', { playerId: 'c', cat: 'name', pts: 5 });
+  check(rLog._stopTaps.length === 2, 'stop log: 0 -> 5 tap on unknown logs to _stopTaps');
+  applyRoomAction(rLog, 'a', 'adjust', { playerId: 'a', cat: 'animal', pts: 0 });
+  check(rLog._stopTaps.length === 2, 'stop log: shared cell 5 -> 0 does not log');
+  applyRoomAction(rLog, 'a', 'adjust', { playerId: 'a', cat: 'animal', pts: 5 });
+  check(rLog._stopTaps.length === 3 && rLog._stopTaps[2].word === 'بزززظ', 'stop log: shared cell 0 -> 5 logs');
 }
 
 /* One typed word against another, everywhere but Stop: spelling is folded away. */

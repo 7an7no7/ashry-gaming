@@ -23,9 +23,10 @@ import { RULES_HASH } from '../generated/rules.js';
 import { Room } from './room.js';
 import { PromptMemory } from './memory.js';
 import { LiveStats } from './live.js';
+import { WordLog } from './words.js';
 import TEST_PAGE from './page.js';
 
-export { Room, PromptMemory, LiveStats };
+export { Room, PromptMemory, LiveStats, WordLog };
 
 // Every phone looking at the مع بعض tab asks for the count; this Worker asks
 // LiveStats at most this often and answers the rest from what it last heard.
@@ -151,6 +152,21 @@ export default {
         }
       }
       return json(liveCache.body);
+    }
+
+    if (url.pathname === '/stop-words') {
+      if (request.method !== 'GET') return new Response('not found', { status: 404 });
+      const auth = request.headers.get('Authorization') || '';
+      const adminKey = env.ADMIN_KEY;
+      if (!adminKey || auth !== `Bearer ${adminKey}`) return new Response('not found', { status: 404 });
+      try {
+        const list = await env.WORDS.get(env.WORDS.idFromName('stop')).list();
+        list.sort((a, b) => b.n - a.n);
+        return json(list);
+      } catch (err) {
+        console.error('/stop-words', (err && err.stack) || err);
+        return json({ ok: false, error: 'unavailable' }, 500);
+      }
     }
 
     if (url.pathname === '/test') {

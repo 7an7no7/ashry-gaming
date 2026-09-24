@@ -703,9 +703,16 @@ const stopAction = (room, playerId, action, payload) => {
     const pts = Number(payload && payload.pts);
     const row = s.results && s.results[pid];
     if (!row || !row[cat] || STOP_POINT_STEPS.indexOf(pts) === -1) return;
+    const prevPts = row[cat].pts;
+    const cellWord = row[cat].word;
+    const cellText = row[cat].text;
     row[cat].pts = pts;
     row[cat].manual = true;
     s.roundTotals[pid] = s.cats.reduce((sum, c) => sum + (row[c] ? row[c].pts : 0), 0);
+    if ((cellWord === 'unknown' || cellWord === 'shared') && prevPts === 0 && pts > 0) {
+      room._stopTaps = room._stopTaps || [];
+      room._stopTaps.push({ lang: s.lang || 'ar', cat: cat, word: cellText });
+    }
     return;
   }
 

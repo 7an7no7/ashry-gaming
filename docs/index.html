@@ -106,7 +106,7 @@
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260924123017";
+      window.BUILD_ID = "20260924131155";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -15040,6 +15040,292 @@ button.hb-seat { cursor: pointer; }
   .bh-hand.is-live .bh-hand__pc { transition: none; }
 }
 
+/* ==========================================================================
+   36. شطرنج الأربعة
+   JS_RoomChess4.html. The owner's look أ «بطولة» (24 Sep 2026): the 2D chess
+   board's green and cream (--ch2-dark / --ch2-light, section 30), 14 x 14 with
+   the four 3 x 3 corners cut away, the app's drawn pieces tinted per player -
+   red, blue, yellow, green with a darker outline, grey for a player out. The
+   board is the same in both themes, like a real one. Each player's chip sits
+   in a cut corner. Everything on the board is sized from the board itself
+   (a size container), so one markup fits a phone, a laptop and a TV.
+   ========================================================================== */
+:root {
+  --ch4-r: #d6453d; --ch4-r-hi: #f07b70; --ch4-r-lo: #b3322b; --ch4-r-edge: #7a1d18;
+  --ch4-b: #3f73d6; --ch4-b-hi: #7ea6ee; --ch4-b-lo: #2c58b3; --ch4-b-edge: #15306a;
+  --ch4-y: #e9b52a; --ch4-y-hi: #f8d97a; --ch4-y-lo: #c99619; --ch4-y-edge: #7a5608;
+  --ch4-g: #35a35a; --ch4-g-hi: #72cf90; --ch4-g-lo: #268547; --ch4-g-edge: #0f4d24;
+  --ch4-x: #9a9a9a; --ch4-x-hi: #c8c8c8; --ch4-x-lo: #7e7e7e; --ch4-x-edge: #4f4f4f;
+  --ch4-gold: #f5b400;
+}
+
+/* --- the screen: upright one column; sideways and wide the board beside a column --- */
+.ch4-game { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ch4-game__side { display: contents; }
+.ch4-game__side > [data-ch4-over] { order: -3; }
+.ch4-head { order: -2; display: flex; align-items: center; justify-content: center; gap: var(--sp-2); flex-wrap: wrap; text-align: center; }
+.ch4-game__stage { order: -1; min-width: 0; }
+.ch4-game__side > [data-ch4-bar] { order: 0; }
+.ch4-game__side > [data-ch4-log] { order: 1; }
+.ch4-game__side > [data-room-strip] { order: 2; }
+.ch4-status { font-weight: var(--fw-bold); font-size: 1rem; color: var(--text); }
+.ch4-vs { display: inline-flex; align-items: center; gap: 0.2rem; direction: ltr; font-size: 0.75rem; color: var(--text-2); }
+.ch4-vs b { margin-inline: 0.15rem; font-weight: var(--fw-bold); }
+
+.ch4-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 9rem);
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: size;
+}
+
+/* --- the board ------------------------------------------------------------ */
+.ch4b {
+  position: relative;
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
+  container-type: size;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* On your move a finger on the board moves pieces, it doesn't scroll the page. */
+.ch4b.is-live { touch-action: none; cursor: pointer; }
+.ch4b__sqs {
+  display: grid;
+  grid-template: repeat(14, minmax(0, 1fr)) / repeat(14, minmax(0, 1fr));
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0.2rem 0.45rem rgba(20, 14, 6, 0.28));
+}
+.ch4-void { pointer-events: none; }
+.ch4-sq { position: relative; display: grid; place-items: center; background: var(--ch2-dark); }
+.ch4-sq.is-l { background: var(--ch2-light); }
+.ch4-sq::before { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.ch4-sq.is-last::before { background: var(--ch2-last); }
+.ch4-sq.is-sel::before { background: var(--ch2-sel); }
+.ch4-sq.is-check::before { background: radial-gradient(circle, var(--ch2-check) 0%, rgba(236, 34, 24, 0.55) 40%, rgba(236, 34, 24, 0) 74%); }
+.ch4-hint { position: absolute; z-index: 1; width: 34%; height: 34%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
+.ch4-ring { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 74%, var(--ch2-hint) 78% 100%, transparent 101%); pointer-events: none; }
+.ch4-co { position: absolute; z-index: 1; font-style: normal; font-size: 1.55cqw; font-weight: var(--fw-bold); line-height: 1; pointer-events: none; direction: ltr; }
+.ch4-co--f { bottom: 0.2cqw; right: 0.3cqw; }
+.ch4-co--r { top: 0.2cqw; left: 0.3cqw; }
+.ch4-sq.is-l .ch4-co { color: var(--ch2-dark); }
+.ch4-sq.is-d .ch4-co { color: var(--ch2-light); }
+
+.ch4b__pcs { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.ch4-pc {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(100% / 14);
+  height: calc(100% / 14);
+  transform: translate(calc(var(--x, 0) * 100%), calc(var(--y, 0) * 100%));
+}
+.ch4-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+/* A square of 14 is small on a phone: the drawing is let out a little past its square (it has air round it). */
+.ch4-pc > .ch4-svg { width: 116%; height: 116%; margin: -8%; transition: transform 90ms var(--ease-out); filter: drop-shadow(0 0.08cqw 0.12cqw rgba(0, 0, 0, 0.3)); }
+.ch4-pc.is-moving { z-index: 2; }
+.ch4-pc.is-taken { z-index: 0; }
+.ch4-pc.is-drag { z-index: 4; }
+.ch4-pc.is-drag > .ch4-svg { transform: scale(1.22) translateY(-8%); filter: drop-shadow(0 0.5cqw 0.5cqw rgba(0, 0, 0, 0.35)); }
+/* A mated king topples before its pieces turn grey. */
+.ch4-pc.is-mated > .ch4-svg { transform: rotate(-78deg) translate(-8%, 14%); transition: transform 560ms var(--ease-spring); }
+
+/* --- a player's chip, in the cut corner at their left hand --------------------- */
+.ch4-corner {
+  position: absolute;
+  z-index: 3;
+  width: calc(300% / 14);
+  height: calc(300% / 14);
+  padding: 0.7cqw;
+  box-sizing: border-box;
+  display: grid;
+  pointer-events: none;
+}
+.ch4-corner--tl { top: 0; left: 0; }
+.ch4-corner--tr { top: 0; right: 0; }
+.ch4-corner--bl { bottom: 0; left: 0; }
+.ch4-corner--br { bottom: 0; right: 0; }
+.ch4-chip--r { --pc: var(--ch4-r); --pc-edge: var(--ch4-r-edge); }
+.ch4-chip--b { --pc: var(--ch4-b); --pc-edge: var(--ch4-b-edge); }
+.ch4-chip--y { --pc: var(--ch4-y); --pc-edge: var(--ch4-y-edge); }
+.ch4-chip--g { --pc: var(--ch4-g); --pc-edge: var(--ch4-g-edge); }
+.ch4-chip {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35cqw;
+  padding: 0.6cqw;
+  border-radius: 1.8cqw;
+  background: var(--surface-solid);
+  border: 0.3cqw solid var(--border);
+  box-shadow: var(--sh-2);
+  text-align: center;
+  overflow: hidden;
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out), opacity var(--dur-2);
+}
+.ch4-chip__av {
+  display: grid;
+  place-items: center;
+  width: clamp(1.4rem, 6.4cqw, 4.2rem);
+  height: clamp(1.4rem, 6.4cqw, 4.2rem);
+  border-radius: 50%;
+  background: var(--pc);
+  border: 0.3cqw solid var(--pc-edge);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: var(--fw-black);
+  font-size: clamp(0.7rem, 3.2cqw, 2.2rem);
+  line-height: 1;
+  flex: none;
+}
+.ch4-chip--y .ch4-chip__av { color: #3b2a02; }
+.ch4-chip__name {
+  max-width: 100%;
+  font-size: clamp(0.66rem, 2.6cqw, 1.8rem);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch4-chip__meta { display: flex; align-items: center; justify-content: center; gap: 0.8cqw; font-size: clamp(0.62rem, 2.4cqw, 1.7rem); line-height: 1.1; }
+.ch4-chip__pts { font-weight: var(--fw-black); color: var(--text); }
+.ch4-chip__pts::after { content: ' ★'; color: var(--ch4-gold); font-size: 0.85em; }
+.ch4-chip__clock { font-weight: var(--fw-semi); color: var(--text-2); }
+.ch4-chip__clock.is-low { color: var(--danger); }
+.ch4-chip__tag { font-size: clamp(0.56rem, 2cqw, 1.4rem); color: var(--text-2); font-weight: var(--fw-med); line-height: 1.1; white-space: nowrap; }
+.ch4-chip.is-me .ch4-chip__tag { color: var(--pc-edge); }
+:where(body.dark) .ch4-chip.is-me .ch4-chip__tag { color: var(--pc); }
+.ch4-chip.is-turn { border-color: var(--pc); box-shadow: 0 0 0 0.35cqw color-mix(in srgb, var(--pc) 35%, transparent), var(--sh-2); animation: ch4Turn 1.6s ease-in-out infinite; }
+.ch4-chip.is-turn .ch4-chip__clock { color: var(--text); }
+.ch4-chip.is-out { opacity: 0.62; }
+.ch4-chip.is-out .ch4-chip__av { background: var(--ch4-x); border-color: var(--ch4-x-edge); }
+.ch4-chip.is-won { border-color: var(--ch4-gold); box-shadow: 0 0 0 0.35cqw rgba(245, 180, 0, 0.35), var(--sh-2); opacity: 1; }
+@keyframes ch4Turn { 50% { box-shadow: 0 0 0 0.8cqw color-mix(in srgb, var(--pc) 18%, transparent), var(--sh-2); } }
+
+/* --- what to do, the log, the end ------------------------------------------ */
+.ch4-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.ch4-dot { display: inline-block; width: 0.62rem; height: 0.62rem; border-radius: 50%; flex: none; border: 1px solid rgba(0, 0, 0, 0.25); }
+.ch4-dot--r { background: var(--ch4-r); } .ch4-dot--b { background: var(--ch4-b); }
+.ch4-dot--y { background: var(--ch4-y); } .ch4-dot--g { background: var(--ch4-g); }
+.ch4-log {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.ch4-log__mv { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.1rem 0.45rem; border-radius: var(--r-full); background: var(--surface-3); font-size: 0.8rem; font-weight: var(--fw-semi); }
+.ch4-log__auto { font-size: 0.72rem; }
+.ch4-log__pts { color: var(--success); font-size: 0.72rem; }
+.ch4-log__ev { flex-basis: 100%; display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--text-2); }
+.ch4-over { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ch4-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  color: #fff;
+  text-align: center;
+  animation: ch4Banner 520ms var(--ease-spring) both;
+}
+.ch4-banner--ry { background: linear-gradient(120deg, var(--ch4-r) 0%, var(--ch4-r-lo) 45%, var(--ch4-y-lo) 55%, var(--ch4-y) 100%); }
+.ch4-banner--bg { background: linear-gradient(120deg, var(--ch4-b) 0%, var(--ch4-b-lo) 45%, var(--ch4-g-lo) 55%, var(--ch4-g) 100%); }
+.ch4-banner__pair { display: inline-flex; gap: 0.3rem; }
+.ch4-banner__pair .ch4-dot { width: 0.9rem; height: 0.9rem; border-color: rgba(255, 255, 255, 0.8); }
+.ch4-banner__title { font-family: var(--font-display); font-weight: var(--fw-black); font-size: 1.25rem; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+.ch4-banner__names { font-weight: var(--fw-bold); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+@keyframes ch4Banner { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
+
+/* --- the lobby: the four colours round the board, who sits where --------------- */
+.ch4-seats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas: ". y ." "b m g" ". r .";
+  direction: ltr;                  /* a physical layout, like the board: blue on the left in every language */
+  gap: var(--sp-2);
+  align-items: stretch;
+}
+.ch4-seat { min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.ch4-seat--r { grid-area: r; } .ch4-seat--b { grid-area: b; } .ch4-seat--y { grid-area: y; } .ch4-seat--g { grid-area: g; }
+.ch4-seats__mid { grid-area: m; display: grid; place-items: center; font-size: 1.6rem; }
+.ch4-seat__btn {
+  flex: 1;
+  min-height: 5.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  border: 2px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
+  font: inherit;
+  text-align: center;
+  min-width: 0;
+}
+button.ch4-seat__btn { cursor: pointer; }
+.ch4-seat.is-picked .ch4-seat__btn { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ch4-seat__pc { width: 1.9rem; height: 1.9rem; }
+.ch4-seat__color { font-size: 0.72rem; font-weight: var(--fw-semi); color: var(--text-2); }
+.ch4-seat__who { max-width: 100%; font-size: 0.82rem; font-weight: var(--fw-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch4-seat__who.is-empty { color: var(--text-3); font-weight: var(--fw-med); }
+.ch4-seat__clear { align-self: center; }
+.ch4-watchers { display: flex; flex-direction: column; gap: var(--sp-1); margin-top: var(--sp-2); }
+
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .ch4-game { display: grid; grid-template-columns: auto minmax(13rem, 22rem); justify-content: center; align-items: start; gap: var(--sp-4); }
+  .ch4-game__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  /* The grid item carries the width: the stage is a size container, which gives the column no size of its own. */
+  .ch4-game__stage { position: sticky; top: 0; width: min(calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem), 62vw); }
+  .ch4-stage { width: 100%; max-height: none; }
+  .ch4-head { justify-content: flex-start; text-align: start; }
+  .ch4-log { max-height: 14rem; }
+}
+
+/* --- the TV: the board as tall as the stage, the column beside it ------------- */
+.ch4-tv { height: 100%; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 30rem); justify-content: center; align-items: center; gap: calc(var(--tv-gap) * 2.5); }
+.ch4-tv__stage { width: min(calc(var(--app-h, 100vh) - 17vmin), 62vw); }
+.ch4-tv__stage .ch4-stage { width: 100%; max-height: none; }
+.ch4-tv__side { display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); min-width: 0; }
+.ch4-tv__head { display: flex; justify-content: center; align-items: center; gap: var(--tv-gap); }
+.ch4-tv .ch4-status { font-size: var(--tv-md); font-weight: var(--fw-bold); }
+.ch4-tv .ch4-vs { font-size: var(--tv-sm); gap: 0.6vmin; }
+.ch4-tv__head .badge { font-size: var(--tv-sm); padding: 0.4vmin 1.4vmin; }
+.ch4-tv .ch4-log { max-height: 36vmin; padding: 1vmin; gap: 0.6vmin; border-radius: var(--tv-r); }
+.ch4-tv .ch4-log__mv, .ch4-tv .ch4-log__ev { font-size: var(--tv-sm); }
+.ch4-tv .ch4-dot { width: 1.4vmin; height: 1.4vmin; }
+.ch4-tv .ch4-banner__title { font-size: var(--tv-md); }
+.ch4-tv .ch4-banner__names { font-size: var(--tv-sm); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ch4-pc > .ch4-svg, .ch4-pc.is-mated > .ch4-svg, .ch4-chip { transition: none; }
+  .ch4-chip.is-turn, .ch4-banner { animation: none; }
+}
+
 </style>
 
     
@@ -21993,6 +22279,730 @@ function chessBugBotMove(g, opts) {
   if (!moves.length) return drops[0];
   const mv = chessBestMove(g, hard ? { elo: 1500, depth: 2, nodes: 2500, ms: 60, rnd: rnd } : { elo: 600, depth: 1, nodes: 400, ms: 30, rnd: rnd });
   return mv || moves[0];
+}
+
+</script>
+    <script>
+/* ============================================================================
+   شطرنج الأربعة — FOUR-PLAYER CHESS: the board, the rules and the computer players
+   ----------------------------------------------------------------------------
+   One copy for both sides: the page inlines this file (SHARED_LISTS in
+   tools/build-*.mjs) to light a phone's squares and draw the board, and the
+   rooms server bundles it (FILES in rooms-worker/build.mjs) to judge a room.
+   No DOM, nothing that runs at load, every name prefixed chess4 / CHESS4_
+   (`c4` is Connect 4's).
+
+   The owner's rules (24 Sep 2026, notes/BATCH5_RUNBOOK.md), with the standard
+   four-player rules (as on chess.com) for the rest:
+     - A 14 x 14 board without its four 3 x 3 corners (160 squares). Four
+       players: red at the bottom, blue on the left, yellow at the top, green on
+       the right; each back row is the 8 squares in the middle of its edge, the
+       pawns in front. The kings and queens stand as on the owner's design
+       sheet (red Q g1 K h1, yellow K g14 Q h14, blue Q a7 K a8, green K n7
+       Q n8): every king faces the queen across the board.
+     - The turns go red, blue, yellow, green. Red moves first.
+     - Pawns go toward the far side, one square or two from their first row,
+       take diagonally forward, no en passant; they become a queen on the 8th
+       row from their own side (everyone for themselves) or the 11th (teams).
+     - Castling both ways, the usual conditions.
+     - Teams: red and yellow against blue and green. Partners never attack each
+       other's king. A team wins when either opponent is mated (or resigns, or
+       runs out of time). A player with no move and not in check passes.
+     - Everyone for themselves (FFA): chess.com's points - a pawn 1, a knight 3,
+       a bishop 5, a rook 5, a queen 9 (a promoted one 1); a mate +20 to whoever's
+       move gave it; a player stalemated is out and scores +20 themselves. A
+       player mated, stalemated, resigning or out of time is out: their pieces
+       turn grey and stay as walls (they neither move, attack nor can be taken).
+       The game ends when one player is left; the highest score wins.
+     - A mate or a stalemate is judged on the player's own turn: someone left
+       in check by one player's move still gets to answer it. So a king is
+       never taken.
+     - Fifty moves each with no capture and no pawn move end the game (FFA: the
+       highest score wins; teams: a draw), and so does a game that has run to
+       CHESS4_MAX_PLIES.
+
+   Squares are numbered i = y * 14 + x from a1 (x the file a..n, y the rank
+   1..14 less one). A piece is a number: its kind (1 pawn, 2 knight, 3 bishop,
+   4 rook, 5 queen, 6 king) + 8 × its seat (0 red, 1 blue, 2 yellow, 3 green)
+   + 32 for a queen that was a pawn. The game is one plain object, shaped for a
+   room's `shared`:
+     { mode: 'teams'|'ffa', board: [196], turn, castle: [4], out: [4],
+       why: [4], points: [4], giver: [4], quiet, ply, passes, over, result }
+   Inside, the rules work on a mailbox of 18 × 18 (two squares of border and
+   the corners marked off), so a knight's jump never wraps round an edge.
+   ========================================================================= */
+
+const CHESS4_N = 14;
+const CHESS4_FILES = 'abcdefghijklmn';
+const CHESS4_SEATS = [0, 1, 2, 3];                   // red, blue, yellow, green: the order of play
+const CHESS4_COLORS = ['r', 'b', 'y', 'g'];
+const CHESS4_MODES = ['teams', 'ffa'];
+const CHESS4_CLOCKS = [0, 1, 3, 5];                 // minutes a player, 0 = no clock
+const CHESS4_INC_MS = 5000;                         // added after every move
+const CHESS4_POINTS = [0, 1, 3, 5, 5, 9, 0];        // FFA: what taking a piece scores (a promoted queen 1)
+const CHESS4_MATE_POINTS = 20;
+const CHESS4_STALEMATE_POINTS = 20;
+const CHESS4_QUIET = 50;                            // moves each with no capture or pawn move
+const CHESS4_MAX_PLIES = 600;                       // 150 moves each: a long game ends as fifty quiet moves would
+const CHESS4_LETTERS = ' PNBRQK';
+
+const CHESS4_W = 18;                                // the mailbox's width
+const CHESS4_OFF = -1;
+
+/** A square on the board (not a cut corner, not off the edge). */
+const chess4Valid = (x, y) => x >= 0 && x < CHESS4_N && y >= 0 && y < CHESS4_N && !((x < 3 || x > 10) && (y < 3 || y > 10));
+const chess4XY = (i) => [i % CHESS4_N, Math.floor(i / CHESS4_N)];
+const chess4Sq = (x, y) => y * CHESS4_N + x;
+const chess4SqName = (i) => { const [x, y] = chess4XY(i); return CHESS4_FILES[x] + (y + 1); };
+const chess4Owner = (code) => (code >> 3) & 3;
+const chess4Kind = (code) => code & 7;
+const chess4Team = (seat) => seat % 2;              // 0: red + yellow, 1: blue + green
+
+// Board index <-> mailbox index, and the mailbox's empty board.
+const CHESS4_MB = [];                               // board i -> mailbox
+const CHESS4_BD = new Int16Array(CHESS4_W * CHESS4_W).fill(-1);   // mailbox -> board i (-1 off)
+(function () {
+  for (let y = 0; y < CHESS4_N; y++) for (let x = 0; x < CHESS4_N; x++) {
+    const m = (y + 2) * CHESS4_W + x + 2;
+    CHESS4_MB[chess4Sq(x, y)] = m;
+    if (chess4Valid(x, y)) CHESS4_BD[m] = chess4Sq(x, y);
+  }
+})();
+
+const CHESS4_ORTH = [1, -1, CHESS4_W, -CHESS4_W];
+const CHESS4_DIAG = [CHESS4_W + 1, CHESS4_W - 1, -CHESS4_W + 1, -CHESS4_W - 1];
+const CHESS4_KING = CHESS4_ORTH.concat(CHESS4_DIAG);
+const CHESS4_KNIGHT = [2 + CHESS4_W, 2 - CHESS4_W, -2 + CHESS4_W, -2 - CHESS4_W, 1 + 2 * CHESS4_W, 1 - 2 * CHESS4_W, -1 + 2 * CHESS4_W, -1 - 2 * CHESS4_W];
+// A pawn's step forward and its two sides, per seat (red up, blue right, yellow down, green left).
+const CHESS4_FWD = [CHESS4_W, 1, -CHESS4_W, -1];
+const CHESS4_SIDE = [1, CHESS4_W, 1, CHESS4_W];
+
+/** How far along its own way a square is for a seat's pawns: 0 its back row .. 13 the far edge. */
+const chess4Along = (seat, x, y) => (seat === 0 ? y : seat === 1 ? x : seat === 2 ? 13 - y : 13 - x);
+const chess4PromoRow = (mode) => (mode === 'ffa' ? 7 : 10);
+
+// The starting rows, as on the owner's design sheet.
+const CHESS4_BACK = [4, 2, 3, 5, 6, 3, 2, 4];       // r n b q k b n r
+function chess4StartBoard() {
+  const b = new Array(CHESS4_N * CHESS4_N).fill(0);
+  for (let k = 0; k < 8; k++) {
+    const p = 3 + k;
+    b[chess4Sq(p, 0)] = CHESS4_BACK[k] + 0;                 // red: Q g1, K h1
+    b[chess4Sq(p, 1)] = 1 + 0;
+    b[chess4Sq(13 - p, 13)] = CHESS4_BACK[k] + 16;          // yellow: K g14, Q h14
+    b[chess4Sq(13 - p, 12)] = 1 + 16;
+    b[chess4Sq(0, p)] = CHESS4_BACK[k] + 8;                 // blue: Q a7, K a8
+    b[chess4Sq(1, p)] = 1 + 8;
+    b[chess4Sq(13, 13 - p)] = CHESS4_BACK[k] + 24;          // green: K n7, Q n8
+    b[chess4Sq(12, 13 - p)] = 1 + 24;
+  }
+  return b;
+}
+
+// Castling, per seat: the king's square, the two rooks' (the lower first), the step along the back row.
+const CHESS4_CASTLE = [
+  { k: chess4Sq(7, 0), rooks: [chess4Sq(3, 0), chess4Sq(10, 0)] },
+  { k: chess4Sq(0, 7), rooks: [chess4Sq(0, 3), chess4Sq(0, 10)] },
+  { k: chess4Sq(6, 13), rooks: [chess4Sq(3, 13), chess4Sq(10, 13)] },
+  { k: chess4Sq(13, 6), rooks: [chess4Sq(13, 3), chess4Sq(13, 10)] }
+];
+
+/** A new game. */
+function chess4NewGame(mode) {
+  return {
+    mode: mode === 'ffa' ? 'ffa' : 'teams',
+    board: chess4StartBoard(),
+    turn: 0,
+    castle: [3, 3, 3, 3],
+    out: [false, false, false, false],
+    why: [null, null, null, null],
+    points: [0, 0, 0, 0],
+    giver: [-1, -1, -1, -1],
+    quiet: 0,
+    ply: 0,
+    passes: 0,
+    over: false,
+    result: null
+  };
+}
+
+/* --- the position the rules work on -------------------------------------------------- */
+
+/** The mailbox of a game: { b, kings, out, mode, castle, pts }. */
+function chess4Pos(g) {
+  const b = new Int16Array(CHESS4_W * CHESS4_W).fill(CHESS4_OFF);
+  const kings = [-1, -1, -1, -1];
+  for (let i = 0; i < g.board.length; i++) {
+    const m = CHESS4_MB[i];
+    if (CHESS4_BD[m] < 0) continue;
+    const c = g.board[i] || 0;
+    b[m] = c;
+    if (c && (c & 7) === 6) kings[(c >> 3) & 3] = m;
+  }
+  return { b: b, kings: kings, out: g.out.slice(), mode: g.mode, castle: g.castle.slice(), pts: g.points.slice() };
+}
+
+/** The seats whose pieces attack `seat`'s king: the other team, or everyone else; never a player who is out. */
+function chess4Foes(p, seat) {
+  let mask = 0;
+  for (let t = 0; t < 4; t++) {
+    if (t === seat || p.out[t]) continue;
+    if (p.mode === 'teams' && (t & 1) === (seat & 1)) continue;
+    mask |= 1 << t;
+  }
+  return mask;
+}
+
+/** Is square m (mailbox) attacked by any seat in `mask`? */
+function chess4Attacked(b, m, mask) {
+  if (!mask) return false;
+  for (let t = 0; t < 4; t++) {
+    if (!(mask & (1 << t))) continue;
+    const back = m - CHESS4_FWD[t], side = CHESS4_SIDE[t];
+    if (b[back - side] === 1 + 8 * t || b[back + side] === 1 + 8 * t) return true;
+  }
+  for (let k = 0; k < 8; k++) {
+    const c = b[m + CHESS4_KNIGHT[k]];
+    if (c > 0 && (c & 7) === 2 && (mask & (1 << ((c >> 3) & 3)))) return true;
+  }
+  for (let k = 0; k < 8; k++) {
+    const c = b[m + CHESS4_KING[k]];
+    if (c > 0 && (c & 7) === 6 && (mask & (1 << ((c >> 3) & 3)))) return true;
+  }
+  for (let k = 0; k < 4; k++) {
+    const d = CHESS4_ORTH[k];
+    let q = m + d;
+    while (b[q] === 0) q += d;
+    const c = b[q];
+    if (c > 0 && ((c & 7) === 4 || (c & 7) === 5) && (mask & (1 << ((c >> 3) & 3)))) return true;
+  }
+  for (let k = 0; k < 4; k++) {
+    const d = CHESS4_DIAG[k];
+    let q = m + d;
+    while (b[q] === 0) q += d;
+    const c = b[q];
+    if (c > 0 && ((c & 7) === 3 || (c & 7) === 5) && (mask & (1 << ((c >> 3) & 3)))) return true;
+  }
+  return false;
+}
+
+const chess4InCheckPos = (p, seat) => p.kings[seat] >= 0 && !p.out[seat] && chess4Attacked(p.b, p.kings[seat], chess4Foes(p, seat));
+
+// A move is a number: from | to << 9 | flags << 18 (mailbox squares, below 512).
+const CHESS4_F_CAP = 1, CHESS4_F_PROMO = 2, CHESS4_F_CASTLE = 4;
+const chess4MFrom = (mv) => mv & 511;
+const chess4MTo = (mv) => (mv >> 9) & 511;
+const chess4MFlags = (mv) => mv >> 18;
+
+/** Can `seat` take what stands on q? Another player's piece, not a partner's, not a grey one, never a king. */
+function chess4CanTake(p, seat, c) {
+  if (c <= 0) return false;
+  const o = (c >> 3) & 3;
+  if (o === seat || p.out[o] || (c & 7) === 6) return false;
+  if (p.mode === 'teams' && (o & 1) === (seat & 1)) return false;
+  return true;
+}
+
+/** Every move `seat` could make, before looking whether it leaves its own king in check. */
+function chess4Pseudo(p, seat, out) {
+  const b = p.b;
+  const list = out || [];
+  const promoRow = chess4PromoRow(p.mode);
+  for (let m = 0; m < b.length; m++) {
+    const c = b[m];
+    if (c <= 0 || ((c >> 3) & 3) !== seat) continue;
+    const kind = c & 7;
+    if (kind === 1) {
+      const f = CHESS4_FWD[seat], s = CHESS4_SIDE[seat];
+      const bi = CHESS4_BD[m];
+      const x = bi % CHESS4_N, y = (bi - x) / CHESS4_N;
+      const along = chess4Along(seat, x, y);
+      const promoFlag = (along + 1 === promoRow) ? CHESS4_F_PROMO : 0;
+      if (b[m + f] === 0) {
+        list.push(m | ((m + f) << 9) | (promoFlag << 18));
+        if (along === 1 && b[m + 2 * f] === 0 && !promoFlag) list.push(m | ((m + 2 * f) << 9));
+      }
+      if (chess4CanTake(p, seat, b[m + f - s])) list.push(m | ((m + f - s) << 9) | ((CHESS4_F_CAP | promoFlag) << 18));
+      if (chess4CanTake(p, seat, b[m + f + s])) list.push(m | ((m + f + s) << 9) | ((CHESS4_F_CAP | promoFlag) << 18));
+      continue;
+    }
+    if (kind === 2 || kind === 6) {
+      const dirs = kind === 2 ? CHESS4_KNIGHT : CHESS4_KING;
+      for (let k = 0; k < 8; k++) {
+        const q = m + dirs[k], t = b[q];
+        if (t === 0) list.push(m | (q << 9));
+        else if (chess4CanTake(p, seat, t)) list.push(m | (q << 9) | (CHESS4_F_CAP << 18));
+      }
+      continue;
+    }
+    const dirs = kind === 3 ? CHESS4_DIAG : kind === 4 ? CHESS4_ORTH : CHESS4_KING;
+    for (let k = 0; k < dirs.length; k++) {
+      const d = dirs[k];
+      let q = m + d;
+      while (b[q] === 0) { list.push(m | (q << 9)); q += d; }
+      if (chess4CanTake(p, seat, b[q])) list.push(m | (q << 9) | (CHESS4_F_CAP << 18));
+    }
+  }
+  // Castling: king and rook unmoved, empty between, the king not in check and never crossing an attacked square.
+  const rights = p.castle[seat];
+  if (rights) {
+    const cs = CHESS4_CASTLE[seat];
+    const km = CHESS4_MB[cs.k];
+    if (b[km] === 6 + 8 * seat) {
+      const foes = chess4Foes(p, seat);
+      for (let r = 0; r < 2; r++) {
+        if (!(rights & (1 << r))) continue;
+        const rm = CHESS4_MB[cs.rooks[r]];
+        if (b[rm] !== 4 + 8 * seat) continue;
+        const d = rm > km ? (rm - km >= CHESS4_W ? CHESS4_W : 1) : (km - rm >= CHESS4_W ? -CHESS4_W : -1);
+        let q = km + d, clear = true;
+        while (q !== rm) { if (b[q] !== 0) { clear = false; break; } q += d; }
+        if (!clear) continue;
+        if (chess4Attacked(b, km, foes) || chess4Attacked(b, km + d, foes) || chess4Attacked(b, km + 2 * d, foes)) continue;
+        list.push(km | ((km + 2 * d) << 9) | (CHESS4_F_CASTLE << 18));
+      }
+    }
+  }
+  return list;
+}
+
+/** Plays a move on a position; returns what to undo it with. */
+function chess4Make(p, mv, seat) {
+  const b = p.b;
+  const from = mv & 511, to = (mv >> 9) & 511, fl = mv >> 18;
+  const piece = b[from], cap = b[to];
+  const u = { mv: mv, piece: piece, cap: cap, castle: p.castle.slice(), king: p.kings[seat], rf: -1, rt: -1, pts: 0 };
+  b[to] = (fl & CHESS4_F_PROMO) ? (5 + 8 * seat + 32) : piece;
+  b[from] = 0;
+  if ((piece & 7) === 6) {
+    p.kings[seat] = to;
+    p.castle[seat] = 0;
+    if (fl & CHESS4_F_CASTLE) {
+      const d = (to - from) / 2;
+      let r = to + d;
+      while (b[r] === 0) r += d;           // the rook at the end of the row
+      u.rf = r; u.rt = from + d;
+      b[u.rt] = b[r]; b[r] = 0;
+    }
+  }
+  // A rook leaving (or taken on) its first square takes that side's castling with it.
+  for (let t = 0; t < 4; t++) {
+    if (!p.castle[t]) continue;
+    const cs = CHESS4_CASTLE[t];
+    for (let r = 0; r < 2; r++) {
+      const rm = CHESS4_MB[cs.rooks[r]];
+      if (rm === from || rm === to) p.castle[t] &= ~(1 << r);
+    }
+  }
+  if (cap > 0 && p.mode === 'ffa') {
+    u.pts = (cap & 32) ? 1 : CHESS4_POINTS[cap & 7];
+    p.pts[seat] += u.pts;
+  }
+  return u;
+}
+
+function chess4Unmake(p, u, seat) {
+  const b = p.b;
+  const from = u.mv & 511, to = (u.mv >> 9) & 511;
+  if (u.rf >= 0) { b[u.rf] = b[u.rt]; b[u.rt] = 0; }
+  b[from] = u.piece;
+  b[to] = u.cap;
+  p.kings[seat] = u.king;
+  p.castle = u.castle;
+  if (u.pts) p.pts[seat] -= u.pts;
+}
+
+/** The moves `seat` may really make (its own king never left in check), as numbers. */
+function chess4LegalPos(p, seat) {
+  const out = [];
+  if (p.out[seat] || p.kings[seat] < 0) return out;
+  const foes = chess4Foes(p, seat);
+  const list = chess4Pseudo(p, seat);
+  for (let k = 0; k < list.length; k++) {
+    const u = chess4Make(p, list[k], seat);
+    if (!chess4Attacked(p.b, p.kings[seat], foes)) out.push(list[k]);
+    chess4Unmake(p, u, seat);
+  }
+  return out;
+}
+
+const chess4MoveObj = (mv) => {
+  const fl = mv >> 18;
+  return { from: CHESS4_BD[mv & 511], to: CHESS4_BD[(mv >> 9) & 511], capture: !!(fl & CHESS4_F_CAP), promo: !!(fl & CHESS4_F_PROMO), castle: !!(fl & CHESS4_F_CASTLE) };
+};
+
+/** The legal moves of the player to move (or `seat`), as { from, to, capture, promo, castle } on board squares. */
+function chess4Legal(g, seat) {
+  const s = seat === undefined ? g.turn : seat;
+  if (g.over) return [];
+  return chess4LegalPos(chess4Pos(g), s).map(chess4MoveObj);
+}
+
+/** Is `seat`'s king attacked right now? */
+const chess4InCheck = (g, seat) => chess4InCheckPos(chess4Pos(g), seat);
+
+/** The seats still playing. */
+const chess4Active = (g) => CHESS4_SEATS.filter(t => !g.out[t]);
+
+/** The next seat to play after `seat`, skipping anyone out. */
+function chess4NextSeat(g, seat) {
+  for (let k = 1; k <= 4; k++) {
+    const t = (seat + k) % 4;
+    if (!g.out[t]) return t;
+  }
+  return seat;
+}
+
+/** A move written for the log: Nf3, exe5, O-O, h8=Q, with + or # added by the caller. */
+function chess4San(p, mv) {
+  const from = mv & 511, to = (mv >> 9) & 511, fl = mv >> 18;
+  if (fl & CHESS4_F_CASTLE) {
+    // The rook next to where the king lands is the short side; one square further, the long.
+    let r = to + (to - from) / 2, n = 1;
+    while (p.b[r] === 0) { r += (to - from) / 2; n++; }
+    return n <= 1 ? 'O-O' : 'O-O-O';
+  }
+  const piece = p.b[from];
+  const toName = chess4SqName(CHESS4_BD[to]);
+  if ((piece & 7) === 1) {
+    const f = chess4SqName(CHESS4_BD[from]);
+    return ((fl & CHESS4_F_CAP) ? f.replace(/\d+/, '') + 'x' : '') + toName + ((fl & CHESS4_F_PROMO) ? '=Q' : '');
+  }
+  return CHESS4_LETTERS[piece & 7] + ((fl & CHESS4_F_CAP) ? 'x' : '') + toName;
+}
+
+/* --- the game ------------------------------------------------------------------------- */
+
+/** Writes a position's board and castling back into the game. */
+function chess4Store(g, p) {
+  for (let i = 0; i < g.board.length; i++) {
+    const m = CHESS4_MB[i];
+    g.board[i] = CHESS4_BD[m] < 0 ? 0 : p.b[m];
+  }
+  g.castle = p.castle.slice();
+}
+
+/** The game is over. FFA: the highest score wins (ties share it). Teams: `team` wins, or null for a draw. */
+function chess4End(g, reason, team, by) {
+  g.over = true;
+  if (g.mode === 'ffa') {
+    const best = Math.max.apply(null, g.points);
+    g.result = { reason: reason, winners: CHESS4_SEATS.filter(t => g.points[t] === best) };
+  } else {
+    g.result = { reason: reason, team: team === 0 || team === 1 ? team : null, by: by === undefined ? -1 : by,
+      winners: team === 0 || team === 1 ? CHESS4_SEATS.filter(t => chess4Team(t) === team) : [] };
+  }
+  return { kind: 'over', reason: reason, winners: g.result.winners.slice(), team: g.result.team };
+}
+
+/** A player goes out (FFA): grey walls from now on. */
+function chess4Out(g, seat, why, by, pts, events) {
+  g.out[seat] = true;
+  g.why[seat] = why;
+  g.giver[seat] = -1;
+  events.push({ kind: 'out', seat: seat, why: why, by: by === undefined ? -1 : by, pts: pts || 0 });
+}
+
+/**
+ * Whoever's turn it is now: out players are skipped, and a player with no move
+ * is judged - mated, stalemated (FFA: out), or passes (teams). Loops until
+ * someone can move or the game is over.
+ */
+function chess4Settle(g, events) {
+  for (let guard = 0; guard < 12 && !g.over; guard++) {
+    const active = chess4Active(g);
+    if (g.mode === 'ffa' && active.length <= 1) { events.push(chess4End(g, 'last')); return; }
+    if (g.out[g.turn]) { g.turn = chess4NextSeat(g, g.turn); continue; }
+    if (g.quiet >= CHESS4_QUIET * active.length) { events.push(chess4End(g, 'fifty', null)); return; }
+    if (g.ply >= CHESS4_MAX_PLIES) { events.push(chess4End(g, 'long', null)); return; }
+    const p = chess4Pos(g);
+    const s = g.turn;
+    if (chess4LegalPos(p, s).length) return;
+    const check = chess4InCheckPos(p, s);
+    if (g.mode === 'teams') {
+      if (check) { events.push({ kind: 'mate', seat: s, by: g.giver[s] }); events.push(chess4End(g, 'mate', 1 - chess4Team(s), s)); return; }
+      events.push({ kind: 'pass', seat: s });
+      g.passes++;
+      if (g.passes >= 4) { events.push(chess4End(g, 'stuck', null)); return; }
+      g.turn = chess4NextSeat(g, s);
+      continue;
+    }
+    if (check) {
+      // The points go to whoever's move gave the check; failing that, a player attacking the king.
+      let by = g.giver[s];
+      if (by < 0 || g.out[by]) {
+        by = -1;
+        for (let t = 0; t < 4 && by < 0; t++) if (t !== s && !g.out[t] && chess4Attacked(p.b, p.kings[s], 1 << t)) by = t;
+      }
+      if (by >= 0) g.points[by] += CHESS4_MATE_POINTS;
+      chess4Out(g, s, 'mate', by, by >= 0 ? CHESS4_MATE_POINTS : 0, events);
+    } else {
+      g.points[s] += CHESS4_STALEMATE_POINTS;
+      chess4Out(g, s, 'stalemate', s, CHESS4_STALEMATE_POINTS, events);
+    }
+    g.turn = chess4NextSeat(g, s);
+  }
+}
+
+/**
+ * The player to move plays { from, to } (board squares). Returns what happened -
+ * { seat, from, to, san, cap, pts, castle: [rookFrom, rookTo], promo, events } -
+ * or null when the move isn't legal (the game is untouched).
+ */
+function chess4Play(g, move) {
+  if (!g || g.over || !move) return null;
+  const s = g.turn;
+  if (g.out[s]) return null;
+  const from = Number(move.from), to = Number(move.to);
+  if (!(from >= 0 && from < 196 && to >= 0 && to < 196)) return null;
+  const p = chess4Pos(g);
+  const mf = CHESS4_MB[from], mt = CHESS4_MB[to];
+  const mv = chess4LegalPos(p, s).find(x => (x & 511) === mf && ((x >> 9) & 511) === mt);
+  if (mv === undefined) return null;
+  // Who is in check before, to tell whose move gave a check.
+  const before = CHESS4_SEATS.map(t => t !== s && chess4InCheckPos(p, t));
+  const san = chess4San(p, mv);
+  const piece = p.b[mf];
+  const u = chess4Make(p, mv, s);
+  const info = { seat: s, from: from, to: to, san: san, cap: u.cap > 0 ? u.cap : 0, pts: u.pts, promo: !!((mv >> 18) & CHESS4_F_PROMO), castle: null, events: [] };
+  if (u.rf >= 0) info.castle = [CHESS4_BD[u.rf], CHESS4_BD[u.rt]];
+  g.points = p.pts.slice();
+  chess4Store(g, p);
+  g.quiet = (u.cap > 0 || (piece & 7) === 1) ? 0 : g.quiet + 1;
+  g.ply++;
+  g.passes = 0;
+  let checks = 0;
+  CHESS4_SEATS.forEach(t => {
+    if (t === s || g.out[t]) return;
+    const now = chess4InCheckPos(p, t);
+    if (now) { checks++; if (!before[t] || g.giver[t] < 0) g.giver[t] = s; }
+    else g.giver[t] = -1;
+  });
+  g.giver[s] = -1;
+  g.turn = chess4NextSeat(g, s);
+  chess4Settle(g, info.events);
+  const mated = info.events.some(e => (e.kind === 'out' && e.why === 'mate' && e.by === s) || e.kind === 'mate');
+  info.san += mated ? '#' : checks ? '+' : '';
+  return info;
+}
+
+/**
+ * A player resigns, runs out of time or leaves. FFA: out, grey walls, and the
+ * turn moves on if it was theirs. Teams: their team loses. Returns the events.
+ */
+function chess4Eliminate(g, seat, why) {
+  const events = [];
+  if (!g || g.over || g.out[seat]) return events;
+  if (g.mode === 'teams') {
+    events.push({ kind: 'lost', seat: seat, why: why });
+    events.push(chess4End(g, why, 1 - chess4Team(seat), seat));
+    return events;
+  }
+  chess4Out(g, seat, why, -1, 0, events);
+  if (g.turn === seat) g.turn = chess4NextSeat(g, seat);
+  // A wall can take away the only move of the player now up: judge the turn again.
+  chess4Settle(g, events);
+  return events;
+}
+
+/* --- the computer players --------------------------------------------------------------
+   easy: one move deep - a capture if there is one (the bigger the better,
+   with some chance in it), otherwise any move.
+   hard: a "paranoid" alpha-beta - the bot (and, in teams, its partner) against
+   everyone else - deepening one ply at a time up to a round of the table,
+   inside a node budget (CHESS4_BOT_NODES) so a decision costs the Worker a few
+   milliseconds. It weighs material, the points (FFA), pieces left hanging,
+   development toward the middle, pawns on their way and the pawns in front of
+   the king. In teams it never takes a partner's piece (nobody can) and counts
+   the partner's pieces and king as its own.
+   ------------------------------------------------------------------------------------- */
+const CHESS4_BOT_NODES = 20000;
+const CHESS4_VAL = [0, 100, 300, 330, 500, 900, 0];
+const CHESS4_MATE = 50000;
+const CHESS4_PTS_W = 40;                             // a point of score, in centipawns
+
+// Centralisation of a mailbox square: 0 at the edge, up to 6 in the middle.
+const CHESS4_CENTRE = (function () {
+  const t = new Int8Array(CHESS4_W * CHESS4_W);
+  for (let m = 0; m < t.length; m++) {
+    const bi = CHESS4_BD[m];
+    if (bi < 0) continue;
+    const x = bi % CHESS4_N, y = (bi - x) / CHESS4_N;
+    t[m] = Math.round(6.5 - Math.max(Math.abs(x - 6.5), Math.abs(y - 6.5)));
+  }
+  return t;
+})();
+
+/** The cheapest piece of `mask` attacking square m, or 0. */
+function chess4LeastAttacker(b, m, mask) {
+  let best = 0;
+  const take = (v) => { if (!best || v < best) best = v; };
+  for (let t = 0; t < 4; t++) {
+    if (!(mask & (1 << t))) continue;
+    const back = m - CHESS4_FWD[t], side = CHESS4_SIDE[t];
+    if (b[back - side] === 1 + 8 * t || b[back + side] === 1 + 8 * t) return 100;
+  }
+  for (let k = 0; k < 8; k++) {
+    const c = b[m + CHESS4_KNIGHT[k]];
+    if (c > 0 && (c & 7) === 2 && (mask & (1 << ((c >> 3) & 3)))) { take(300); break; }
+  }
+  for (let k = 0; k < 8; k++) {
+    const d = k < 4 ? CHESS4_ORTH[k] : CHESS4_DIAG[k - 4];
+    let q = m + d;
+    while (b[q] === 0) q += d;
+    const c = b[q];
+    if (c <= 0 || !(mask & (1 << ((c >> 3) & 3)))) continue;
+    const kind = c & 7;
+    if (kind === 5 || (k < 4 ? kind === 4 : kind === 3)) take(CHESS4_VAL[kind]);
+    else if (kind === 6 && q === m + d) take(2000);
+  }
+  return best;
+}
+
+/** The position from the bot's side: `side` is the mask of seats counted as ours. */
+function chess4Eval(p, side) {
+  const b = p.b;
+  const mat = [0, 0, 0, 0];
+  for (let m = 0; m < b.length; m++) {
+    const c = b[m];
+    if (c <= 0) continue;
+    const o = (c >> 3) & 3;
+    if (p.out[o]) continue;
+    const kind = c & 7;
+    let v = CHESS4_VAL[kind];
+    if (kind === 2 || kind === 3) v += CHESS4_CENTRE[m] * 6;
+    else if (kind === 5) v += CHESS4_CENTRE[m] * 2;
+    else if (kind === 1) {
+      const bi = CHESS4_BD[m], x = bi % CHESS4_N, y = (bi - x) / CHESS4_N;
+      v += chess4Along(o, x, y) * 4;
+    } else if (kind === 6) {
+      // The king: better at home behind its pawns.
+      v -= CHESS4_CENTRE[m] * 12;
+      for (let k = 0; k < 8; k++) if (b[m + CHESS4_KING[k]] === 1 + 8 * o) v += 12;
+    }
+    // A piece of ours left hanging: attacked by something cheaper, or not defended.
+    if ((side & (1 << o)) && kind > 1 && kind < 6) {
+      const foes = chess4Foes(p, o);
+      const least = chess4LeastAttacker(b, m, foes);
+      if (least && (least < CHESS4_VAL[kind] || !chess4Attacked(b, m, 1 << o))) v -= CHESS4_VAL[kind] * 0.55;
+    }
+    mat[o] += v;
+  }
+  let mine = 0, theirs = 0, n = 0;
+  for (let t = 0; t < 4; t++) {
+    const own = (side & (1 << t)) !== 0;
+    const val = mat[t] + (p.mode === 'ffa' ? p.pts[t] * CHESS4_PTS_W : 0);
+    if (own) mine += val;
+    else if (!p.out[t]) { theirs += val; n++; }
+    else if (p.mode === 'ffa') { theirs += p.pts[t] * CHESS4_PTS_W * 0.5; }
+  }
+  return p.mode === 'teams' ? mine - theirs : mine - (n ? theirs / n : 0);
+}
+
+const chess4NextIn = (p, seat) => { for (let k = 1; k <= 4; k++) { const t = (seat + k) % 4; if (!p.out[t]) return t; } return seat; };
+
+/** Captures first, the biggest victim by the smallest attacker. */
+function chess4Order(p, list, first) {
+  const b = p.b;
+  const score = (mv) => {
+    if (mv === first) return 1e6;
+    const fl = mv >> 18;
+    let s = 0;
+    if (fl & CHESS4_F_CAP) s += 10 * CHESS4_VAL[b[(mv >> 9) & 511] & 7] - CHESS4_VAL[b[mv & 511] & 7] / 10 + 1000;
+    if (fl & CHESS4_F_PROMO) s += 800;
+    return s;
+  };
+  const scored = list.map(mv => [score(mv), mv]);
+  scored.sort((a, c) => c[0] - a[0]);
+  return scored.map(x => x[1]);
+}
+
+function chess4Search(p, ctx, seat, depth, alpha, beta, ply) {
+  if (ctx.nodes >= ctx.budget) { ctx.abort = true; return 0; }
+  if (depth <= 0) return chess4Eval(p, ctx.side);
+  const ours = (ctx.side & (1 << seat)) !== 0;
+  const foes = chess4Foes(p, seat);
+  const list = chess4Order(p, chess4Pseudo(p, seat), -1);
+  let legal = 0;
+  let best = ours ? -Infinity : Infinity;
+  for (let k = 0; k < list.length; k++) {
+    const u = chess4Make(p, list[k], seat);
+    if (chess4Attacked(p.b, p.kings[seat], foes)) { chess4Unmake(p, u, seat); continue; }
+    legal++;
+    ctx.nodes++;
+    const v = chess4Search(p, ctx, chess4NextIn(p, seat), depth - 1, alpha, beta, ply + 1);
+    chess4Unmake(p, u, seat);
+    if (ctx.abort) return 0;
+    if (ours) { if (v > best) best = v; if (best > alpha) alpha = best; }
+    else { if (v < best) best = v; if (best < beta) beta = best; }
+    if (alpha >= beta) break;
+  }
+  if (legal) return best;
+  // No move: mated, stalemated, or (teams) a pass.
+  const check = chess4InCheckPos(p, seat);
+  if (p.mode === 'teams') {
+    if (check) return ours ? -CHESS4_MATE + ply : CHESS4_MATE - ply;
+    return chess4Search(p, ctx, chess4NextIn(p, seat), depth - 1, alpha, beta, ply + 1);
+  }
+  if (check) return ours ? -CHESS4_MATE + ply : chess4Eval(p, ctx.side) + CHESS4_MATE_POINTS * CHESS4_PTS_W + 600;
+  return chess4Eval(p, ctx.side) + (ours ? 1 : -1) * CHESS4_STALEMATE_POINTS * CHESS4_PTS_W / 3;
+}
+
+/**
+ * The computer's move for the player to move: { from, to } on board squares,
+ * or null when it has none. `level` 'easy' or 'hard'; `rnd` a random source
+ * (Math.random by default); `nodes` a different budget.
+ */
+function chess4BotMove(g, level, opts) {
+  const o = opts || {};
+  const rnd = o.rnd || Math.random;
+  if (!g || g.over) return null;
+  const s = g.turn;
+  const p = chess4Pos(g);
+  const legal = chess4LegalPos(p, s);
+  if (!legal.length) return null;
+  if (legal.length === 1) return chess4MoveObj(legal[0]);
+  if (level !== 'hard') {
+    let best = null, bestScore = -Infinity;
+    legal.forEach(mv => {
+      const fl = mv >> 18;
+      let sc = rnd() * 60;
+      if (fl & CHESS4_F_CAP) sc += 40 + CHESS4_VAL[p.b[(mv >> 9) & 511] & 7] * (0.4 + rnd() * 0.6) / 4;
+      if (fl & CHESS4_F_PROMO) sc += 120;
+      if (sc > bestScore) { bestScore = sc; best = mv; }
+    });
+    return chess4MoveObj(best);
+  }
+  const side = p.mode === 'teams' ? ((1 << s) | (1 << ((s + 2) % 4))) : (1 << s);
+  const ctx = { side: side, nodes: 0, budget: o.nodes || CHESS4_BOT_NODES, abort: false };
+  let order = chess4Order(p, legal, -1);
+  let bestMove = order[0];
+  let scores = null;
+  for (let depth = 1; depth <= 4; depth++) {
+    const got = [];
+    let alpha = -Infinity;
+    for (let k = 0; k < order.length; k++) {
+      const u = chess4Make(p, order[k], s);
+      ctx.nodes++;
+      const v = chess4Search(p, ctx, chess4NextIn(p, s), depth - 1, alpha - 15, Infinity, 1);
+      chess4Unmake(p, u, s);
+      if (ctx.abort) break;
+      got.push([v, order[k]]);
+      if (v > alpha) alpha = v;
+    }
+    if (ctx.abort) break;
+    got.sort((a, c) => c[0] - a[0]);
+    scores = got;
+    order = got.map(x => x[1]);
+    bestMove = order[0];
+    if (got[0][0] >= CHESS4_MATE / 2) break;
+  }
+  // A little variety among moves as good as the best (a table of bots shouldn't replay itself).
+  if (scores && scores.length > 1) {
+    const top = scores.filter(x => x[0] >= scores[0][0] - 8);
+    bestMove = top[Math.floor(rnd() * top.length)][1];
+  }
+  return chess4MoveObj(bestMove);
 }
 
 </script>
@@ -29278,6 +30288,7 @@ const CHESS_PUZZLES = [
       <div id="view-room-chess" class="hidden" data-accent="amber"></div>
       <div id="view-room-votechess" class="hidden" data-accent="indigo"></div>
       <div id="view-room-handbrain" class="hidden" data-accent="teal"></div>
+      <div id="view-room-chess4" class="hidden" data-accent="green"></div>
 
       <!-- ============ خمّن مين (a room: two duel, the room watches) · المشنقة (two on one phone, or a room) ============ -->
       <div id="view-room-guesswho" class="hidden" data-accent="teal"></div>
@@ -35255,6 +36266,63 @@ const CHESS_PUZZLES = [
       ludo_place_2: "التاني",
       ludo_place_3: "التالت",
       ludo_place_4: "الرابع",
+      setup_chess4: "شطرنج الأربعة",
+      cat_chess4: "أربعة على رقعة كبيرة: فرق أو كل واحد لنفسه.",
+      ch4_color_0: "الأحمر",
+      ch4_color_1: "الأزرق",
+      ch4_color_2: "الأصفر",
+      ch4_color_3: "الأخضر",
+      ch4_mode_label: "طريقة اللعب",
+      ch4_mode_teams: "فرق",
+      ch4_mode_ffa: "كل واحد لنفسه",
+      ch4_mode_teams_hint: "الأحمر والأصفر ضد الأزرق والأخضر، وشريكك قصادك. اعمل مات لأي حد من الفريق التاني وفريقك يكسب.",
+      ch4_mode_ffa_hint: "بالنقط: العسكري 1، الحصان 3، الفيل 5، الطابية 5، الوزير 9، والمات 20. اللي بيخرج قطعه بتفضل رمادي زي الحيطة، ولما يفضل واحد بس الأعلى نقط يكسب.",
+      ch4_clock_label: "الساعة",
+      ch4_clock_off: "من غير",
+      ch4_minutes: "{n} د",
+      ch4_clock_hint: "دقايق لكل لاعب، و5 ثواني زيادة مع كل حركة، وأول حركة ليك ببلاش. الوقت يخلص: تخرج (أو فريقك يخسر).",
+      ch4_seats_label: "مين بأنهي لون",
+      ch4_seats_hint_host: "دوس على لونين تبدّلهم، أو على حد بيتفرج وبعدين على لون. اللون الفاضي بياخده كمبيوتر.",
+      ch4_seats_hint: "المضيف هو اللي بيقعّد كل واحد في لونه.",
+      ch4_seat_empty: "كمبيوتر (سهل)",
+      ch4_seat_clear: "قوّمه",
+      ch4_watching_list: "بيتفرجوا",
+      ch4_lobby_hint: "الأحمر بيبدأ، والدور بيلف: أحمر، أزرق، أصفر، أخضر.",
+      ch4_you: "انت",
+      ch4_partner: "شريكك",
+      ch4_out: "برّه",
+      ch4_your_turn: "دورك!",
+      ch4_check_you: "كش! الملك بتاعك في خطر",
+      ch4_turn_of: "دور {name}",
+      ch4_you_out: "انت خرجت",
+      ch4_watching: "بتتفرج",
+      ch4_resign: "استسلم",
+      ch4_resign_confirm_ffa: "تستسلم؟ هتخرج من اللعبة وقطعك هتفضل على الرقعة رمادي.",
+      ch4_resign_confirm_teams: "تستسلم؟ فريقك كله هيخسر.",
+      ch4_play_for: "العب مكان {name}",
+      ch4_out_mate: "{name} اتعمله مات",
+      ch4_out_stalemate: "{name} اتحاصر من غير حركة (بات)",
+      ch4_out_resign: "{name} استسلم",
+      ch4_out_time: "وقت {name} خلص",
+      ch4_out_left: "{name} خرج من الغرفة",
+      ch4_pts_to: "{pts} لـ{name}",
+      ch4_pass: "{name} مالوش حركة، الدور عدّى",
+      ch4_bot_took: "🤖 الكمبيوتر بيكمّل مكان {name}",
+      ch4_team_won: "الفريق كسب!",
+      ch4_win_team: "كسبوا: {a} و{b}",
+      ch4_win_ffa: "الفايز: {names}",
+      ch4_draw: "تعادل",
+      ch4_why_mate: "بالمات",
+      ch4_why_resign: "بالاستسلام",
+      ch4_why_time: "الوقت خلص",
+      ch4_why_left: "خرج من الغرفة",
+      ch4_why_fifty: "50 حركة من غير أكل",
+      ch4_why_long: "اللعبة طولت",
+      ch4_why_stuck: "محدش عنده حركة",
+      ch4_why_last: "فضل لاعب واحد بس",
+      ch4_again: "العب تاني",
+      ch4_wait_host: "مستنيين المضيف…",
+      ch4_moves: "الحركات",
       ludo_ev_clock: "الوقت خلص: الموبايل لعب بدل {name}",
       ludo_ev_host: "المضيف لعب بدل {name}",
       ludo_ev_left: "{name}: خروج من اللعبة",
@@ -38565,6 +39633,63 @@ const CHESS_PUZZLES = [
       ludo_place_2: "second",
       ludo_place_3: "third",
       ludo_place_4: "fourth",
+      setup_chess4: "Four-Player Chess",
+      cat_chess4: "Four on one big board: in teams or each alone.",
+      ch4_color_0: "Red",
+      ch4_color_1: "Blue",
+      ch4_color_2: "Yellow",
+      ch4_color_3: "Green",
+      ch4_mode_label: "How to play",
+      ch4_mode_teams: "Teams",
+      ch4_mode_ffa: "Everyone for themselves",
+      ch4_mode_teams_hint: "Red and yellow against blue and green, your partner opposite you. Mate either opponent and your team wins.",
+      ch4_mode_ffa_hint: "On points: a pawn 1, a knight 3, a bishop 5, a rook 5, a queen 9, a mate 20. A player who is out stays on the board in grey, as walls; when one is left, the highest score wins.",
+      ch4_clock_label: "Clock",
+      ch4_clock_off: "Off",
+      ch4_minutes: "{n} min",
+      ch4_clock_hint: "Minutes each, plus 5 seconds a move; your first move is free. Out of time: you're out (or your team loses).",
+      ch4_seats_label: "Who plays which colour",
+      ch4_seats_hint_host: "Tap two colours to swap them, or someone watching and then a colour. An empty colour gets a computer player.",
+      ch4_seats_hint: "The host seats everyone in their colour.",
+      ch4_seat_empty: "Computer (easy)",
+      ch4_seat_clear: "Take off",
+      ch4_watching_list: "Watching",
+      ch4_lobby_hint: "Red starts, then the turn goes round: red, blue, yellow, green.",
+      ch4_you: "You",
+      ch4_partner: "Partner",
+      ch4_out: "Out",
+      ch4_your_turn: "Your move!",
+      ch4_check_you: "Check! Your king is attacked",
+      ch4_turn_of: "{name} to move",
+      ch4_you_out: "You're out",
+      ch4_watching: "Watching",
+      ch4_resign: "Resign",
+      ch4_resign_confirm_ffa: "Resign? You'll be out, and your pieces stay on the board in grey.",
+      ch4_resign_confirm_teams: "Resign? Your whole team loses.",
+      ch4_play_for: "Play for {name}",
+      ch4_out_mate: "{name} is checkmated",
+      ch4_out_stalemate: "{name} is stalemated",
+      ch4_out_resign: "{name} resigned",
+      ch4_out_time: "{name} ran out of time",
+      ch4_out_left: "{name} left the room",
+      ch4_pts_to: "{pts} to {name}",
+      ch4_pass: "{name} has no move and passes",
+      ch4_bot_took: "🤖 The computer plays on for {name}",
+      ch4_team_won: "The team wins!",
+      ch4_win_team: "Winners: {a} and {b}",
+      ch4_win_ffa: "Winner: {names}",
+      ch4_draw: "A draw",
+      ch4_why_mate: "by checkmate",
+      ch4_why_resign: "by resignation",
+      ch4_why_time: "on time",
+      ch4_why_left: "a player left",
+      ch4_why_fifty: "50 moves without a capture",
+      ch4_why_long: "the game ran long",
+      ch4_why_stuck: "nobody could move",
+      ch4_why_last: "one player left",
+      ch4_again: "Play again",
+      ch4_wait_host: "Waiting for the host…",
+      ch4_moves: "Moves",
       ludo_ev_clock: "Time's up: the phone played for {name}",
       ludo_ev_host: "The host played for {name}",
       ludo_ev_left: "{name} left the game",
@@ -39979,7 +41104,7 @@ const CHESS_PUZZLES = [
         'setup-bomb', 'play-bomb',
         'setup-emoji', 'play-emoji', 'setup-proverbs', 'play-proverbs', 'setup-fiveseconds', 'play-fiveseconds',
         'room-twotruths', 'room-emoji', 'room-proverbs', 'room-fiveseconds', 'room-telephone', 'room-monkey', 'room-herd', 'room-mafia', 'room-mind', 'room-timeline', 'room-uno', 'room-domino',
-        'room-connect4', 'room-dots', 'room-xo', 'room-battleship', 'room-chess', 'room-votechess', 'room-handbrain', 'room-bughouse', 'room-ludo', 'room-bank', 'room-guesswho', 'room-hangman', 'room-bowling', 'room-doubt', 'room-oldmaid', 'room-minigolf',
+        'room-connect4', 'room-dots', 'room-xo', 'room-battleship', 'room-chess', 'room-votechess', 'room-handbrain', 'room-bughouse', 'room-ludo', 'room-bank', 'room-guesswho', 'room-hangman', 'room-bowling', 'room-doubt', 'room-oldmaid', 'room-minigolf', 'room-chess4',
         // One sets, everyone solves (JS_RoomSolve.html).
         'room-wordle', 'room-guessnum', 'room-flags',
         'setup-stop', 'play-stop',
@@ -40454,6 +41579,7 @@ const CHESS_PUZZLES = [
     'room-chess':        { title: 'setup_shatranj',     up: 'menu',               accent: 'amber' },
     'room-votechess':    { title: 'setup_votechess',    up: 'menu',               accent: 'indigo' },
     'room-handbrain':    { title: 'setup_handbrain',    up: 'menu',               accent: 'teal' },
+    'room-chess4':       { title: 'setup_chess4',       up: 'menu',               accent: 'green' },
     'room-ludo':         { title: 'setup_ludo',         up: 'menu',               accent: 'amber' },
     'room-bank':         { title: 'setup_bank',         up: 'menu',               accent: 'green' },
     'room-guesswho':     { title: 'setup_guesswho',     up: 'menu',               accent: 'teal' },
@@ -40593,6 +41719,11 @@ const CHESS_PUZZLES = [
       '<path d="M39.2 53.5c0-6 3-9.3 5.6-10.8-2-1.2-3.4-3.3-3.4-5.7 0-3.7 3-6.7 6.3-6.7s6.3 3 6.3 6.7c0 2.4-1.4 4.5-3.4 5.7 2.6 1.5 5.6 4.8 5.6 10.8z" fill="#2a211c" stroke="#fbf4e6" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<rect x="36" y="52" width="23" height="5" rx="2.2" fill="#2a211c" stroke="#fbf4e6" stroke-width="1.3"/>',
     // لودو: the board, four yards round the cross, a piece in each.
+    // شطرنج الأربعة: the board as a cross (the corners cut away), a pawn of each colour on its side.
+    chess4: '<path d="M22 8h20v14h14v20H42v14H22V42H8V22h14z" fill="#000" opacity=".18" transform="translate(0 2)"/>' +
+      '<path d="M22 6h20v14h14v20H42v14H22V40H8V20h14z" fill="#eeeed2" stroke="#4d6b36" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<path d="M22 6h10v10H22zM32 16h10v4H32zM8 20h14v10H8zM22 30h10v10H22zM42 30h14v10H42zM32 40h10v10H32z" fill="#769656"/>' +
+      '<circle cx="32" cy="46.4" r="2.7" fill="#d6453d" stroke="#7a1d18" stroke-width="1"/><path d="M28.4 52.6h7.2l-1.4-4.4h-4.4z" fill="#d6453d" stroke="#7a1d18" stroke-width="1" stroke-linejoin="round"/><circle cx="15" cy="28.4" r="2.7" fill="#3f73d6" stroke="#15306a" stroke-width="1"/><path d="M11.4 34.6h7.2l-1.4-4.4h-4.4z" fill="#3f73d6" stroke="#15306a" stroke-width="1" stroke-linejoin="round"/><circle cx="32" cy="10.4" r="2.7" fill="#e9b52a" stroke="#7a5608" stroke-width="1"/><path d="M28.4 16.6h7.2l-1.4-4.4h-4.4z" fill="#e9b52a" stroke="#7a5608" stroke-width="1" stroke-linejoin="round"/><circle cx="49" cy="28.4" r="2.7" fill="#35a35a" stroke="#0f4d24" stroke-width="1"/><path d="M45.4 34.6h7.2l-1.4-4.4h-4.4z" fill="#35a35a" stroke="#0f4d24" stroke-width="1" stroke-linejoin="round"/>',
     ludo: '<rect x="6" y="8" width="52" height="52" rx="8" fill="#000" opacity=".18"/>' +
       '<rect x="6" y="6" width="52" height="52" rx="8" fill="#fff" stroke="#2b2733" stroke-width="1.6"/>' +
       '<rect x="9" y="9" width="19" height="19" rx="4" fill="#1f9d55"/><rect x="36" y="9" width="19" height="19" rx="4" fill="#f5b400"/>' +
@@ -42341,6 +43472,36 @@ const GAME_RULES = {
                 <li>كلّم شريكك! "هات حصان" أو "ماتاكلش الوزير" بتفرق جامد.</li>
                 <li>حصان ينزل جنب الملك بيعمل كش مات كتير.</li>
             </ul>`,
+        chess4: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>أربعة على رقعة كبيرة 14×14 من غير الأركان: <b>الأحمر تحت، الأزرق شمال، الأصفر فوق، الأخضر يمين</b>. على موبايلك الرقعة بتلف ولونك يبقى تحت.</li>
+                <li>الدور بيلف: <b>أحمر، أزرق، أصفر، أخضر</b>. كل القطع بتتحرك زي الشطرنج العادي، والتبييت من الناحيتين.</li>
+                <li>العسكري بيمشي ناحية الجنب التاني (خطوة، أو خطوتين من أول صف)، وبياكل بالوراب لقدام. مفيش أكل في المرور. بيترقّى <b>وزير</b>: في الصف الـ8 من ناحيته (كل واحد لنفسه) أو الـ11 (فرق).</li>
+                <li>الكش ممكن ييجي من أي حد، وماينفعش تسيب الملك بتاعك في كش. المات بيتحسب في دورك: لو في دورك الملك في كش ومالكش حركة يبقى <b>مات</b>.</li>
+            </ol>
+            <p class="help-sub">🤝 فرق</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>الأحمر والأصفر ضد الأزرق والأخضر</b>، وشريكك قصادك. قطع شريكك مابتعملش كش لملكك، ومابتاكلهاش.</li>
+                <li>اعمل مات لأي حد من الفريق التاني وفريقك يكسب. واللي مالوش حركة ومش في كش، دوره بيعدّي.</li>
+            </ul>
+            <p class="help-sub">⚔️ كل واحد لنفسه</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>بالنقط: أكل <b>العسكري 1، الحصان 3، الفيل 5، الطابية 5، الوزير 9</b> (الوزير المترقّي 1)، و<b>المات 20</b> للي حركته عملت الكش.</li>
+                <li>اللي يتعمله مات، أو يتحاصر من غير حركة (بات، وياخد هو 20)، أو يستسلم، أو وقته يخلص: <b>بيخرج</b>، وقطعه بتفضل على الرقعة <b>رمادي زي الحيطة</b>: محدش يحرّكها ولا ياكلها.</li>
+                <li>لما يفضل لاعب واحد بس، <b>الأعلى نقط يكسب</b> (حتى لو كان خرج).</li>
+            </ul>
+            <p class="help-sub">📱 كل واحد من موبايله</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>المضيف بيختار طريقة اللعب والساعة، وبيقعّد كل واحد في لونه. اللون الفاضي بياخده <b>لاعب كمبيوتر</b>، فتقدر تلعب حتى لو لوحدك.</li>
+                <li>دوس على قطعة تشوف حركاتها (نقطة، ودايرة على اللي تاكله)، وبعدين على الخانة؛ أو اسحب القطعة.</li>
+                <li>الساعة اختيارية: 1 أو 3 أو 5 دقايق لكل واحد و5 ثواني مع كل حركة. والمضيف يقدر يلعب حركة بدل حد موبايله سكت.</li>
+                <li>حد خرج من الغرفة؟ في كل واحد لنفسه بيخرج من اللعبة، وفي الفرق الكمبيوتر بيكمّل مكانه.</li>
+                <li>العب تاني: نفس القعدة والرقعة بتلف لفة، فحد تاني يبقى الأحمر ويبدأ.</li>
+            </ul>
+            <p class="help-sub">📺 على التلفزيون</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>الرقعة كبيرة والأحمر تحت، وكل لاعب في ركنه بنقطه وساعته، والحركات جنبها.</li>
+            </ul>`,
         doubt: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>الورق كله بيتوزع، وكل واحد ورقه على موبايله. الهدف: تخلّص ورقك.</li>
@@ -43793,6 +44954,36 @@ const GAME_RULES = {
                 <li>Talk to your partner! "I need a knight" or "don't take the queen" changes everything.</li>
                 <li>A knight dropped next to the king mates more often than you'd think.</li>
             </ul>`,
+        chess4: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Four on a big 14×14 board without its corners: <b>red at the bottom, blue on the left, yellow at the top, green on the right</b>. On your phone the board turns so your colour is at the bottom.</li>
+                <li>The turn goes <b>red, blue, yellow, green</b>. Every piece moves as in ordinary chess, and you can castle both ways.</li>
+                <li>Pawns go toward the far side (one square, or two from their first row) and take diagonally forward. No en passant. A pawn becomes a <b>queen</b> on the 8th row from its side (everyone for themselves) or the 11th (teams).</li>
+                <li>Check can come from anyone, and you may never leave your king in check. A mate is judged on your own turn: in check with no move on your turn is <b>checkmate</b>.</li>
+            </ol>
+            <p class="help-sub">🤝 Teams</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>Red and yellow against blue and green</b>, your partner opposite you. Your partner's pieces never check your king, and you can't take them.</li>
+                <li>Mate either opponent and your team wins. A player with no move who isn't in check passes.</li>
+            </ul>
+            <p class="help-sub">⚔️ Everyone for themselves</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>On points: taking a <b>pawn 1, knight 3, bishop 5, rook 5, queen 9</b> (a promoted queen 1), and <b>a mate 20</b> to the player whose move gave the check.</li>
+                <li>Mated, stalemated (the stalemated player scores 20), resigning or out of time: <b>you're out</b>, and your pieces stay on the board <b>in grey, as walls</b>: nobody moves them or takes them.</li>
+                <li>When one player is left, <b>the highest score wins</b> (even someone who went out).</li>
+            </ul>
+            <p class="help-sub">📱 Each on their own phone</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The host picks the way to play and the clock, and seats everyone in their colour. An empty colour gets a <b>computer player</b>, so even one person can play.</li>
+                <li>Tap a piece to see its moves (a dot, a ring round what it can take), then tap the square; or drag the piece.</li>
+                <li>The clock is optional: 1, 3 or 5 minutes each plus 5 seconds a move. The host can play a move for a phone that went quiet.</li>
+                <li>Someone leaves the room? Everyone for themselves: they're out. Teams: the computer plays on for them.</li>
+                <li>Play again: the same table, turned once, so someone else is red and starts.</li>
+            </ul>
+            <p class="help-sub">📺 On the TV</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The board big with red at the bottom, each player in their corner with their points and clock, the moves beside it.</li>
+            </ul>`,
         doubt: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Every card is dealt, each hand on its own phone. The aim: get rid of your cards.</li>
@@ -44375,6 +45566,7 @@ const GAME_CATALOG = [
   { id: 'ludo',       icon: 'art:ludo',  title: 'setup_ludo',       desc: 'cat_ludo',       accent: 'amber',  players: [1, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-ludo',      open: () => setupLudo() },
   { id: 'bank',       icon: 'art:bank',  title: 'setup_bank',       desc: 'cat_bank',       accent: 'green',  players: [1, 6],  mins: 45, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-bank',      open: () => setupBank() },
   { id: 'doubt',      icon: 'art:doubt', title: 'setup_doubt',      desc: 'cat_doubt',      accent: 'violet', players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('doubt') },
+  { id: 'chess4',     icon: 'art:chess4', title: 'setup_chess4',   desc: 'cat_chess4',     accent: 'green',  players: [1, 4],  mins: 30, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('chess4') },
   { id: 'oldmaid',    icon: 'art:oldmaid', title: 'setup_oldmaid',  desc: 'cat_oldmaid',    accent: 'amber',  players: [2, 8],  mins: 10, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('oldmaid') },
   // Chess for teams: a board game at the table, on everyone's phone (RoomVoteChess.js, RoomHandBrain.js).
   { id: 'votechess',  icon: 'art:votechess', title: 'setup_votechess', desc: 'cat_votechess', accent: 'indigo', players: [2, 12], mins: 25, modes: ['room', 'tv'],          group: 'table', open: () => roomCreateFor('votechess') },
@@ -45983,6 +47175,8 @@ const ROOM_HUB_GAMES = [
   // كدّاب: computer players can make up the three; الشايب has none.
   { id: 'doubt',      icon: 'art:doubt', key: 'setup_doubt',      accent: 'violet', min: 1 },
   { id: 'oldmaid',    icon: 'art:oldmaid', key: 'setup_oldmaid',  accent: 'amber',  min: 2 },
+  // شطرنج الأربعة: computer players fill the empty colours, so one person is enough.
+  { id: 'chess4',     icon: 'art:chess4', key: 'setup_chess4',   accent: 'green',  min: 1 },
   { id: 'minigolf',   icon: '⛳', key: 'setup_minigolf', accent: 'green',  min: 1 },
   // One sets, everyone solves (JS_RoomSolve.html): a setter and a solver at least.
   { id: 'wordle',     icon: '🟩', key: 'setup_wordle',   accent: 'green',  min: 2 },
@@ -48117,6 +49311,7 @@ const HELP_ENTRIES = [
   { key: 'votechess',   title: 'setup_votechess',   icon: 'art:votechess', accent: 'indigo', group: 'games', roomOnly: true },
   { key: 'handbrain',   title: 'setup_handbrain',   icon: 'art:handbrain', accent: 'teal', group: 'games', roomOnly: true },
   { key: 'bughouse',    title: 'setup_bughouse',    icon: 'art:bughouse', accent: 'teal', group: 'games', roomOnly: true },
+  { key: 'chess4',      title: 'setup_chess4',      icon: 'art:chess4', accent: 'green', group: 'games', roomOnly: true },
   { key: 'minigolf',    title: 'setup_minigolf',    icon: '⛳', accent: 'green',  group: 'games', room: true },
   { key: 'sudoku',      title: 'setup_sudoku',      icon: '#️⃣', accent: 'indigo', group: 'games' },
   { key: 'g2048',       title: 'setup_g2048',       icon: '🔷', accent: 'orange', group: 'games' },
@@ -48219,7 +49414,7 @@ const HELP_FOR_VIEW = {
   'setup-hangman': 'hangman', 'play-hangman': 'hangman', 'room-hangman': 'hangman',
   'setup-bowling': 'bowling', 'play-bowling': 'bowling', 'room-bowling': 'bowling',
   'room-doubt': 'doubt', 'room-oldmaid': 'oldmaid',
-  'room-votechess': 'votechess', 'room-handbrain': 'handbrain', 'room-bughouse': 'bughouse',
+  'room-votechess': 'votechess', 'room-handbrain': 'handbrain', 'room-bughouse': 'bughouse', 'room-chess4': 'chess4',
   'setup-minigolf': 'minigolf', 'play-minigolf': 'minigolf', 'room-minigolf': 'minigolf'
 };
 
@@ -106118,6 +107313,917 @@ TV_GAMES.bughouse = {
 
     <script>
 /* ============================================================================
+   شطرنج الأربعة in rooms and on the TV (RoomChess4.js, Chess4.js)
+   ----------------------------------------------------------------------------
+   The owner's look أ «بطولة» (24 Sep 2026): the 2D chess board's green and
+   cream (--ch2-dark / --ch2-light), the four 3 x 3 corners cut away, the
+   app's own drawn pieces (CH2_SHAPES in JS_Chess.html) tinted per player -
+   red, blue, yellow, green, each with a darker outline - and grey for a player
+   who is out. Red sits at the bottom, blue on the left, yellow at the top,
+   green on the right; on your own phone the board turns so your colour is at
+   the bottom. The TV shows it as it is, red at the bottom, big.
+
+   Each player is a chip in the cut corner at their left hand (the one at the
+   bottom in the bottom-left, and so on round the board): their colour, their
+   name, the points (everyone for themselves), the clock; a ring on whoever is
+   to move. The board is a CSS grid of 14 x 14 with the pieces in a layer over
+   it, placed by transform, so a move slides (150 ms), a piece taken fades, a
+   mated king topples, a player who goes out turns grey piece by piece, and the
+   points a move won fly to its chip (flyPoints). The end: a podium by points,
+   or the winning team's banner, with confetti.
+
+   Everything is on the table: every phone and the TV draw the same board from
+   `shared`. Your own move is drawn the moment your finger lifts (the phone
+   plays it on a copy with Chess4.js, the rules the server uses); refused, the
+   room's board comes back. The 3D board is not used here: the chess 3D engine
+   is built for 8 x 8, so the TV shows this large 2D board.
+   ========================================================================= */
+
+const CH4_OPTS_KEY = 'chess4Room';
+const CH4_TINTS = ['r', 'b', 'y', 'g', 'x'];        // the four colours, and grey for a player who is out
+// sel: the piece picked up; early: your move before the server has it; seen: the last log entry drawn;
+// shown: what the board shows (square -> code, and who was out) so a new state knows what moved.
+const ch4Local = {
+  sel: -1, early: null, seen: -1, seenKey: '', pcs: null, out: null, drag: null,
+  offset: null, seenAt: '', tick: null, hostKey: '', turnSince: 0, hostTimer: null,
+  lobbySel: '', synced: '', turnMine: false, sending: false
+};
+
+function ch4Opts() {
+  const o = recallOptions(CH4_OPTS_KEY, { mode: 'teams', clock: 0 });
+  if (CHESS4_MODES.indexOf(o.mode) === -1) o.mode = 'teams';
+  if (CHESS4_CLOCKS.indexOf(Number(o.clock)) === -1) o.clock = 0;
+  return o;
+}
+
+const ch4S = (state) => (state && state.shared) || {};
+const ch4Seat = (state) => (!state || state.youAreScreen ? -1 : (ch4S(state).seats || []).indexOf(Room.me));
+const ch4ColorName = (seat) => chT('ch4_color_' + seat);
+const ch4NameOf = (state, seat) => {
+  const s = ch4S(state);
+  const id = (s.seats || [])[seat];
+  const p = (state.players || []).find(x => x.id === id);
+  return (p && p.name) || (s.names || [])[seat] || ch4ColorName(seat);
+};
+/** A name inside a translated line, held in its own direction (a Latin name in Arabic, or the other way). */
+const ch4Iso = (state, seat) => duelIso(ch4NameOf(state, seat));
+const ch4IsBot = (state, seat) => {
+  const id = (ch4S(state).seats || [])[seat];
+  return !!(state.players || []).find(x => x.id === id && x.bot);
+};
+
+/* --- the board's geometry: the view turned by quarter turns ---------------------- */
+
+/** Where square i is drawn, [column, row] from the top left, with the board turned `rot` quarter turns. */
+function ch4Cell(i, rot) {
+  let c = i % 14, r = 13 - Math.floor(i / 14);
+  for (let k = 0; k < rot; k++) { const nc = r; r = 13 - c; c = nc; }
+  return [c, r];
+}
+
+/** The square drawn at [column, row], or -1 for a cut corner. */
+function ch4SqAt(col, row, rot) {
+  let c = col, r = row;
+  for (let k = 0; k < rot; k++) { const pc = 13 - r; r = c; c = pc; }
+  const x = c, y = 13 - r;
+  return chess4Valid(x, y) ? chess4Sq(x, y) : -1;
+}
+
+/** Where a seat sits as seen: 0 bottom, 1 left, 2 top, 3 right. */
+const ch4Side = (seat, rot) => (seat - rot + 4) % 4;
+
+/* --- the pieces: the chess set's drawings, tinted per player ---------------------- */
+
+function ch4PieceDefs() {
+  if (typeof document === 'undefined' || document.getElementById('ch4-defs') || typeof CH2_SHAPES === 'undefined') return;
+  let out = '<defs>' + CH4_TINTS.map(c => `<linearGradient id="ch4g-${c}" x1="0" y1="0" x2="1" y2="0.35"><stop offset="0" style="stop-color:var(--ch4-${c}-hi)"/><stop offset="0.6" style="stop-color:var(--ch4-${c})"/><stop offset="1" style="stop-color:var(--ch4-${c}-lo)"/></linearGradient>`).join('') + '</defs>';
+  CH4_TINTS.forEach(c => {
+    const body = `style="fill:url(#ch4g-${c});stroke:var(--ch4-${c}-edge);stroke-width:1.6;stroke-linejoin:round"`;
+    const line = `style="fill:none;stroke:var(--ch4-${c}-edge);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;opacity:.85"`;
+    const dot = `style="fill:var(--ch4-${c}-edge);stroke:none"`;
+    for (let k = 1; k <= 6; k++) {
+      out += `<symbol id="ch4pc-${c}${k}" viewBox="0 0 45 45">` + CH2_SHAPES[k].map(([t, d]) => {
+        if (t === 'c' || t === 'dc') { const p = d.split(' '); return `<circle cx="${p[0]}" cy="${p[1]}" r="${p[2]}" ${t === 'c' ? body : dot}/>`; }
+        return `<path d="${d}" ${t === 'b' ? body : t === 'l' ? line : dot}/>`;
+      }).join('') + '</symbol>';
+    }
+  });
+  const holder = document.createElement('div');
+  holder.innerHTML = `<svg id="ch4-defs" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">${out}</svg>`;
+  (document.body || document.documentElement).appendChild(holder.firstChild);
+}
+
+/** A piece drawn: its kind in its player's colour, or grey. */
+function ch4PieceSvg(code, grey) {
+  const kind = code & 7;
+  if (!kind) return '';
+  ch4PieceDefs();
+  const tint = grey ? 'x' : CH4_TINTS[(code >> 3) & 3];
+  return `<svg class="ch4-svg" viewBox="0 0 45 45" aria-hidden="true" focusable="false"><use href="#ch4pc-${tint}${kind}"/></svg>`;
+}
+
+/* --- the board's markup --------------------------------------------------------- */
+
+/** The squares (and the coordinates on the edge squares) for a board turned `rot` times. */
+function ch4SquaresHtml(rot) {
+  const lowRow = [], leftCol = [];
+  for (let col = 0; col < 14; col++) for (let row = 13; row >= 0; row--) if (ch4SqAt(col, row, rot) >= 0) { lowRow[col] = row; break; }
+  for (let row = 0; row < 14; row++) for (let col = 0; col < 14; col++) if (ch4SqAt(col, row, rot) >= 0) { leftCol[row] = col; break; }
+  let html = '';
+  for (let row = 0; row < 14; row++) {
+    for (let col = 0; col < 14; col++) {
+      const i = ch4SqAt(col, row, rot);
+      if (i < 0) { html += '<span class="ch4-void"></span>'; continue; }
+      const [x, y] = chess4XY(i);
+      const name = chess4SqName(i);
+      const file = name.replace(/\d+/, ''), rank = name.replace(/\D+/, '');
+      let co = '';
+      if (lowRow[col] === row) co += `<i class="ch4-co ch4-co--f">${rot % 2 ? rank : file}</i>`;
+      if (leftCol[row] === col) co += `<i class="ch4-co ch4-co--r">${rot % 2 ? file : rank}</i>`;
+      html += `<span class="ch4-sq ${(x + y) % 2 === 0 ? 'is-d' : 'is-l'}" data-sq="${i}">${co}</span>`;
+    }
+  }
+  return html;
+}
+
+/** The whole board: squares, the pieces' layer, a chip in each cut corner. */
+function ch4BoardHtml(rot) {
+  const corners = ['bl', 'tl', 'tr', 'br'];
+  const chips = [0, 1, 2, 3].map(seat => `<div class="ch4-corner ch4-corner--${corners[ch4Side(seat, rot)]}" data-ch4-corner="${seat}"></div>`).join('');
+  return `<div class="ch4b" dir="ltr" data-ch4-board>
+      <div class="ch4b__sqs">${ch4SquaresHtml(rot)}</div>
+      <div class="ch4b__pcs"></div>
+      ${chips}
+    </div>`;
+}
+
+/* --- the room's clock, read by the server's time --------------------------------- */
+
+function ch4NoteClock(state) {
+  if (typeof state.serverNow !== 'number') return;
+  if (ch4Local.seenAt === 'n' + state.serverNow) return;
+  ch4Local.seenAt = 'n' + state.serverNow;
+  const gap = (state.receivedAt || Date.now()) - state.serverNow;
+  ch4Local.offset = ch4Local.offset === null ? gap : Math.min(ch4Local.offset, gap);
+}
+
+function ch4ClockLeft(state, seat) {
+  const s = ch4S(state);
+  const c = s.clock;
+  if (!c) return null;
+  if (c.at === null || c.at === undefined || !s.g || s.g.turn !== seat || s.phase !== 'play') return c.left[seat];
+  return c.left[seat] - Math.max(0, Date.now() - (ch4Local.offset || 0) - c.at);
+}
+
+const ch4ClockText = (ms) => {
+  const secs = Math.max(0, Math.ceil(ms / 1000));
+  return Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+};
+
+function ch4PaintClocks() {
+  const state = Room.state;
+  if (!state || state.game !== 'chess4') return;
+  document.querySelectorAll('[data-ch4-clock]').forEach(el => {
+    const seat = Number(el.dataset.ch4Clock);
+    const left = ch4ClockLeft(state, seat);
+    if (left === null) return;
+    const text = ch4ClockText(left);
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle('is-low', left < 20000 && !ch4S(state).g.out[seat]);
+  });
+}
+
+function ch4TickStart() {
+  if (ch4Local.tick) return;
+  ch4Local.tick = setInterval(() => {
+    const st = Room.state;
+    if (!st || st.game !== 'chess4' || !ch4S(st).clock || ch4S(st).phase !== 'play') { ch4TickStop(); return; }
+    ch4PaintClocks();
+  }, 250);
+}
+function ch4TickStop() { if (ch4Local.tick) clearInterval(ch4Local.tick); ch4Local.tick = null; }
+
+/* --- what the board shows --------------------------------------------------------- */
+
+/** The game this phone shows: the room's, or its own move on top of it until the server has it. */
+function ch4Game(state) {
+  const s = ch4S(state);
+  const e = ch4Local.early;
+  if (e && e.code === state.code && e.seq === s.turnSeq && e.deal === s.dealId) return e.g;
+  if (e && (e.code !== state.code || e.deal !== s.dealId || s.turnSeq !== e.seq)) ch4Local.early = null;
+  return s.g;
+}
+
+const ch4MyTurn = (state) => {
+  const s = ch4S(state);
+  const seat = ch4Seat(state);
+  return seat >= 0 && s.phase === 'play' && s.g && !s.g.over && s.g.turn === seat && !ch4Local.early;
+};
+
+/** Squares to mark: the last move, the kings in check, the piece picked up and where it can go. */
+function ch4Marks(state, g) {
+  const s = ch4S(state);
+  const e = ch4Local.early;
+  const last = e && g === e.g ? e.last : s.last;
+  const marks = {};
+  const add = (i, cls) => { (marks[i] = marks[i] || []).push(cls); };
+  if (last) { add(last.from, 'is-last'); add(last.to, 'is-last'); }
+  if (!g.over) {
+    const p = chess4Pos(g);
+    [0, 1, 2, 3].forEach(t => { if (!g.out[t] && p.kings[t] >= 0 && chess4InCheckPos(p, t)) add(CHESS4_BD[p.kings[t]], 'is-check'); });
+  }
+  const targets = {};
+  if (ch4Local.sel >= 0 && ch4MyTurn(state)) {
+    add(ch4Local.sel, 'is-sel');
+    chess4Legal(g).filter(m => m.from === ch4Local.sel).forEach(m => { targets[m.to] = m.capture ? 'cap' : 'dot'; });
+  }
+  return { marks: marks, targets: targets };
+}
+
+function ch4PaintSquares(root, state, g) {
+  const { marks, targets } = ch4Marks(state, g);
+  root.querySelectorAll('.ch4-sq').forEach(el => {
+    const i = Number(el.dataset.sq);
+    const cls = 'ch4-sq ' + (el.classList.contains('is-d') ? 'is-d' : 'is-l') + (marks[i] ? ' ' + marks[i].join(' ') : '');
+    if (el.className !== cls) el.className = cls;
+    const want = targets[i] || '';
+    const has = el.querySelector('.ch4-hint, .ch4-ring');
+    if ((has ? (has.classList.contains('ch4-ring') ? 'cap' : 'dot') : '') !== want) {
+      if (has) has.remove();
+      if (want) el.insertAdjacentHTML('beforeend', `<b class="${want === 'cap' ? 'ch4-ring' : 'ch4-hint'}"></b>`);
+    }
+  });
+  const board = root.querySelector('[data-ch4-board]');
+  if (board) board.classList.toggle('is-live', ch4MyTurn(state));
+}
+
+/* --- the pieces' layer: every piece an element, moved by transform ------------------ */
+
+const ch4At = (i, rot) => { const [c, r] = ch4Cell(i, rot); return `translate(${c * 100}%, ${r * 100}%)`; };
+
+function ch4Place(el, i, rot) {
+  const [c, r] = ch4Cell(i, rot);
+  el.style.setProperty('--x', c);
+  el.style.setProperty('--y', r);
+  el.dataset.pc = i;
+}
+
+function ch4MakePiece(code, grey) {
+  const el = document.createElement('span');
+  el.className = 'ch4-pc';
+  el.innerHTML = ch4PieceSvg(code, grey);
+  el._code = code;
+  el._grey = !!grey;
+  return el;
+}
+
+function ch4Slide(el, from, to, rot) {
+  if (!el.animate || motionOff()) return;
+  el.classList.add('is-moving');
+  const a = el.animate([{ transform: ch4At(from, rot) }, { transform: ch4At(to, rot) }], { duration: 150, easing: 'cubic-bezier(0.3, 0.7, 0.4, 1)' });
+  a.onfinish = a.oncancel = () => el.classList.remove('is-moving');
+}
+
+/** One move's motion: the piece slides, what it took fades under it, a castling rook follows. */
+function ch4PlayMove(root, e, rot, skipSlide) {
+  const pcs = ch4Local.pcs;
+  const el = pcs.get(e.from);
+  if (!el) return;
+  const victim = pcs.get(e.to);
+  if (victim && victim !== el) {
+    pcs.delete(e.to);
+    victim.classList.add('is-taken');
+    const fade = victim.animate && !motionOff() ? victim.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, delay: 70, fill: 'forwards' }) : null;
+    if (fade) fade.onfinish = () => victim.remove(); else victim.remove();
+  }
+  pcs.delete(e.from);
+  pcs.set(e.to, el);
+  if (!skipSlide) ch4Slide(el, e.from, e.to, rot);
+  ch4Place(el, e.to, rot);
+  if (e.castle) {
+    const rook = pcs.get(e.castle[0]);
+    if (rook) { pcs.delete(e.castle[0]); pcs.set(e.castle[1], rook); ch4Slide(rook, e.castle[0], e.castle[1], rot); ch4Place(rook, e.castle[1], rot); }
+  }
+}
+
+/** Every square's piece as the board says, keeping the elements already right; grey for a player out. */
+function ch4Reconcile(root, g, rot, animate) {
+  const layer = root.querySelector('.ch4b__pcs');
+  if (!layer) return;
+  const pcs = ch4Local.pcs;
+  const was = ch4Local.out || [false, false, false, false];
+  pcs.forEach((el, i) => { if (!g.board[i]) { if (!(ch4Local.drag && ch4Local.drag.el === el)) el.remove(); pcs.delete(i); } });
+  const turning = [[], [], [], []];
+  for (let i = 0; i < g.board.length; i++) {
+    const code = g.board[i];
+    if (!code) continue;
+    const owner = (code >> 3) & 3;
+    const grey = !!g.out[owner];
+    let el = pcs.get(i);
+    if (!el) { el = ch4MakePiece(code, grey && !(animate && !was[owner])); layer.appendChild(el); pcs.set(i, el); }
+    else if (el._code !== code) {
+      el.innerHTML = ch4PieceSvg(code, el._grey);
+      el._code = code;
+      if (animate && (code & 32)) { const svg = el.firstElementChild; if (svg && svg.animate) svg.animate([{ transform: 'scale(0.4)' }, { transform: 'scale(1.2)', offset: 0.65 }, { transform: 'scale(1)' }], { duration: 340, delay: 140, easing: 'ease-out' }); }
+    }
+    if (el._grey !== grey) {
+      if (grey && animate && !was[owner]) turning[owner].push(el);
+      else { el.innerHTML = ch4PieceSvg(code, grey); el._grey = grey; }
+    }
+    if (!(ch4Local.drag && ch4Local.drag.el === el)) ch4Place(el, i, rot);
+    // A mated king stays toppled: a player mated in FFA (grey), the mated side's king at the end of a team game.
+    if ((code & 7) === 6 && (g.why[owner] === 'mate' || (g.over && g.result && g.result.reason === 'mate' && g.result.by === owner))) el.classList.add('is-mated');
+  }
+  // A player out: the king topples if mated, then their pieces turn grey one by one, from the king outward.
+  turning.forEach((list, seat) => {
+    if (!list.length) return;
+    const king = list.find(el => (el._code & 7) === 6);
+    const mated = g.why[seat] === 'mate';
+    if (king && mated) king.classList.add('is-mated');
+    const kpos = king ? Number(king.dataset.pc) : list[0].dataset.pc;
+    const [kx, ky] = chess4XY(Number(kpos));
+    list.sort((a, b) => {
+      const [ax, ay] = chess4XY(Number(a.dataset.pc)), [bx, by] = chess4XY(Number(b.dataset.pc));
+      return Math.hypot(ax - kx, ay - ky) - Math.hypot(bx - kx, by - ky);
+    });
+    const start = mated ? 650 : 150;
+    list.forEach((el, k) => {
+      setTimeout(() => {
+        if (!el.isConnected) return;
+        el.innerHTML = ch4PieceSvg(el._code, true);
+        el._grey = true;
+        const svg = el.firstElementChild;
+        if (svg && svg.animate) svg.animate([{ opacity: 0.35, transform: 'scale(0.86)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 260, easing: 'ease-out' });
+      }, start + k * 70);
+    });
+  });
+  ch4Local.out = g.out.slice();
+}
+
+/* --- the chips in the corners, the status, the log -------------------------------- */
+
+const CH4_WHY_ICON = { mate: '♚', stalemate: '🤝', resign: '🏳️', time: '⏱️', left: '🚪' };
+
+function ch4ChipHtml(state, seat, rot) {
+  const s = ch4S(state);
+  const g = s.g;
+  const me = ch4Seat(state);
+  const name = ch4NameOf(state, seat);
+  const bot = ch4IsBot(state, seat);
+  const out = g.out[seat];
+  const turn = s.phase === 'play' && !g.over && g.turn === seat;
+  const won = s.phase === 'over' && g.result && (g.result.winners || []).indexOf(seat) !== -1;
+  let tag = '';
+  if (out) tag = (CH4_WHY_ICON[g.why[seat]] || '') + ' ' + chT('ch4_out');
+  else if (seat === me) tag = chT('ch4_you');
+  else if (s.settings.mode === 'teams' && me >= 0 && seat === (me + 2) % 4) tag = chT('ch4_partner');
+  const initial = bot ? '🤖' : escapeHTML(String(name).trim().charAt(0) || '?');
+  const pts = s.settings.mode === 'ffa' ? `<b class="ch4-chip__pts metric" data-ch4-pts="${seat}">${g.points[seat]}</b>` : '';
+  const clock = s.clock ? `<span class="ch4-chip__clock metric" data-ch4-clock="${seat}">${ch4ClockText(ch4ClockLeft(state, seat))}</span>` : '';
+  return `<div class="ch4-chip ch4-chip--${CH4_TINTS[seat]} ${turn ? 'is-turn' : ''} ${out ? 'is-out' : ''} ${won ? 'is-won' : ''} ${seat === me ? 'is-me' : ''}" data-ch4-chip="${seat}" aria-label="${escapeHTML(ch4ColorName(seat) + ': ' + name)}">
+      <span class="ch4-chip__av" aria-hidden="true">${won ? '🏆' : initial}</span>
+      <span class="ch4-chip__name"><bdi>${escapeHTML(name)}</bdi></span>
+      ${pts || clock ? `<span class="ch4-chip__meta">${pts}${clock}</span>` : ''}
+      ${tag ? `<span class="ch4-chip__tag">${escapeHTML(tag)}</span>` : ''}
+    </div>`;
+}
+
+function ch4PaintChips(root, state, rot) {
+  root.querySelectorAll('[data-ch4-corner]').forEach(box => {
+    const seat = Number(box.dataset.ch4Corner);
+    const html = ch4ChipHtml(state, seat, rot);
+    if (box._html === html) return;
+    const oldPts = box.querySelector('[data-ch4-pts]');
+    const from = oldPts ? Number(oldPts.textContent) || 0 : null;
+    box.innerHTML = html;
+    box._html = html;
+    const pts = box.querySelector('[data-ch4-pts]');
+    const to = ch4S(state).g.points[seat];
+    if (pts && from !== null && to > from && typeof countUp === 'function' && !motionOff()) countUp(pts, from, to);
+  });
+}
+
+function ch4StatusText(state) {
+  const s = ch4S(state);
+  const g = s.g;
+  if (s.phase === 'over' && g.result) return ch4ResultText(state);
+  const me = ch4Seat(state);
+  const shown = ch4Game(state);
+  const inCheck = me >= 0 && !g.out[me] && chess4InCheck(shown, me);
+  if (me >= 0 && g.turn === me) return chT('ch4_your_turn') + (inCheck ? ' ' + chT('ch4_check_you') : '');
+  let text = chT('ch4_turn_of', { name: ch4Iso(state, g.turn) });
+  if (me >= 0 && g.out[me]) text = chT('ch4_you_out') + ' · ' + text;
+  else if (me < 0 && !state.youAreScreen) text = chT('ch4_watching') + ' · ' + text;
+  return text;
+}
+
+function ch4ResultText(state) {
+  const s = ch4S(state);
+  const r = s.g.result;
+  const why = chT('ch4_why_' + r.reason);
+  if (s.g.mode === 'teams') {
+    if (r.team !== 0 && r.team !== 1) return '🤝 ' + chT('ch4_draw') + (why ? ' · ' + why : '');
+    const a = r.team === 0 ? 0 : 1;
+    return '🏆 ' + chT('ch4_win_team', { a: ch4Iso(state, a), b: ch4Iso(state, a + 2) }) + (why ? ' · ' + why : '');
+  }
+  const names = (r.winners || []).map(k => ch4Iso(state, k)).join(' · ');
+  return '🏆 ' + chT('ch4_win_ffa', { names: names }) + (why ? ' · ' + why : '');
+}
+
+/** One line of the log. */
+function ch4LogItem(state, e) {
+  const dot = (seat) => `<i class="ch4-dot ch4-dot--${CH4_TINTS[seat]}" aria-hidden="true"></i>`;
+  if (e.k === 'mv') {
+    return `<li class="ch4-log__mv">${dot(e.seat)}<bdi dir="ltr">${escapeHTML(e.san)}</bdi>${e.auto ? '<span class="ch4-log__auto" aria-hidden="true">🤖</span>' : ''}${e.pts ? `<b class="ch4-log__pts" dir="ltr">+${e.pts}</b>` : ''}</li>`;
+  }
+  const name = ch4Iso(state, e.seat);
+  let text = '';
+  if (e.k === 'out') {
+    text = (CH4_WHY_ICON[e.why] || '') + ' ' + chT('ch4_out_' + e.why, { name: name });
+    if (e.pts && e.by >= 0) text += ' · ' + chT('ch4_pts_to', { pts: duelIso('+' + e.pts), name: ch4Iso(state, e.by) });
+  } else if (e.k === 'pass') text = chT('ch4_pass', { name: name });
+  else if (e.k === 'bot') text = chT('ch4_bot_took', { name: duelIso((ch4S(state).names || [])[e.seat] || ch4NameOf(state, e.seat)) });
+  else if (e.k === 'mate') text = '♚ ' + chT('ch4_out_mate', { name: name });
+  else if (e.k === 'lost') text = (CH4_WHY_ICON[e.why] || '') + ' ' + chT('ch4_out_' + e.why, { name: name });
+  else return '';
+  return `<li class="ch4-log__ev">${dot(e.seat)}<span>${escapeHTML(text)}</span></li>`;
+}
+
+function ch4LogHtml(state) {
+  const items = (ch4S(state).log || []).slice(-40).map(e => ch4LogItem(state, e)).join('');
+  return items ? `<ol class="ch4-log" aria-label="${escapeHTML(chT('ch4_moves'))}">${items}</ol>` : '';
+}
+
+/** The host's way past a quiet phone: gone, or holding the turn for 40 seconds. */
+function ch4HostButtons(state) {
+  const s = ch4S(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.g || s.g.over) return [];
+  const seat = s.g.turn;
+  const pid = s.seats[seat];
+  const p = (state.players || []).find(x => x.id === pid);
+  if (p && p.bot) return [];
+  const key = state.code + '|' + s.turnSeq;
+  if (ch4Local.hostKey !== key) {
+    ch4Local.hostKey = key;
+    ch4Local.turnSince = Date.now();
+    clearTimeout(ch4Local.hostTimer);
+    ch4Local.hostTimer = setTimeout(() => { const st = Room.state; if (st && st.game === 'chess4') ch4Refresh(st); }, 40500);
+  }
+  if (pid === Room.me) return [];
+  const quiet = !p || !p.online || Date.now() - ch4Local.turnSince > 40000;
+  return quiet ? [['⏭️ ' + chT('ch4_play_for', { name: ch4Iso(state, seat) }), `roomAct('skipTurn', { seq: ${s.turnSeq} })`]] : [];
+}
+
+function ch4Resign() {
+  const state = Room.state;
+  const s = ch4S(state);
+  const seat = ch4Seat(state);
+  if (seat < 0 || s.phase !== 'play' || s.g.out[seat]) return;
+  showConfirmModal(chT(s.settings.mode === 'teams' ? 'ch4_resign_confirm_teams' : 'ch4_resign_confirm_ffa'), () => roomAct('resign', {}));
+}
+
+/** The row under the board: resigning, the host's "play for". */
+function ch4BarHtml(state, tv) {
+  const s = ch4S(state);
+  const seat = ch4Seat(state);
+  const host = ch4HostButtons(state);
+  if (tv) return host.map(b => tvBtn(b[0], b[1], 'ghost')).join('');
+  const resign = seat >= 0 && s.phase === 'play' && !s.g.out[seat]
+    ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="ch4Resign()">🏳️ ${escapeHTML(chT('ch4_resign'))}</button>` : '';
+  const hostBtns = host.map(b => `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="${b[1]}">${escapeHTML(b[0])}</button>`).join('');
+  return resign || hostBtns ? `<div class="ch4-bar">${hostBtns}${resign}</div>` : '';
+}
+
+/** The end: a podium by points (FFA) or the winning team's banner, and what comes next. */
+function ch4OverHtml(state, tv) {
+  const s = ch4S(state);
+  if (s.phase !== 'over' || !s.g.result) return '';
+  const r = s.g.result;
+  let top = '';
+  if (s.g.mode === 'ffa') {
+    const rows = [0, 1, 2, 3].map(k => ({ id: s.seats[k] + '#' + k, name: ch4NameOf(state, k), score: s.g.points[k] })).sort((a, b) => b.score - a.score);
+    top = renderPodium(state, rows);
+  } else if (r.team === 0 || r.team === 1) {
+    const a = r.team === 0 ? 0 : 1;
+    top = `<div class="ch4-banner ch4-banner--${r.team === 0 ? 'ry' : 'bg'}" data-reveal-ms="400">
+        <span class="ch4-banner__pair"><i class="ch4-dot ch4-dot--${CH4_TINTS[a]}"></i><i class="ch4-dot ch4-dot--${CH4_TINTS[a + 2]}"></i></span>
+        <span class="ch4-banner__title">🏆 ${escapeHTML(chT('ch4_team_won'))}</span>
+        <span class="ch4-banner__names"><bdi>${escapeHTML(ch4NameOf(state, a))}</bdi> · <bdi>${escapeHTML(ch4NameOf(state, a + 2))}</bdi></span>
+      </div>`;
+  }
+  let next = '';
+  if (tv) next = state.youAreHost ? `<div class="tv-actions">${tvBtn(chT('ch4_again'), "roomAct('playAgain')")}${tvBtn(chT('room_another_game'), "roomAct('backToHub')", 'ghost')}</div>` : '';
+  else if (state.youAreHost) next = `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(chT('ch4_again'))}</button><button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(chT('room_another_game'))}</button></div>`;
+  else next = `<p class="field__hint" style="text-align:center">${escapeHTML(chT('ch4_wait_host'))}</p>`;
+  const share = !tv && typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, s.board) : '';
+  return `<div class="ch4-over card card--tight">${top}${next}${share}</div>`;
+}
+
+/* --- playing: a tap, or a drag ------------------------------------------------------ */
+
+/** Plays a move: drawn at once on this phone, then sent. */
+function ch4Send(from, to) {
+  const state = Room.state;
+  if (!state || state.game !== 'chess4' || !ch4MyTurn(state)) return false;
+  const s = ch4S(state);
+  const g = JSON.parse(JSON.stringify(s.g));
+  const info = chess4Play(g, { from: from, to: to });
+  if (!info) return false;
+  const seq = s.turnSeq;
+  ch4Local.sel = -1;
+  ch4Local.early = { code: state.code, deal: s.dealId, seq: seq, g: g, last: { from: from, to: to, seat: info.seat }, from: from, to: to, castle: info.castle, drawn: false };
+  haptic('light');
+  chSound(info.cap ? 'capture' : info.castle ? 'castle' : 'move');
+  ch4Refresh(state);
+  Promise.resolve(roomAct('move', { from: from, to: to, seq: seq })).then(() => {
+    const st = Room.state;
+    // Refused (or the table moved on without it): the room's own board comes back.
+    if (ch4Local.early && ch4Local.early.seq === seq && st && ch4S(st).turnSeq === seq) { ch4Local.early = null; ch4Refresh(st); }
+  });
+  return true;
+}
+
+function ch4BoardPoint(board, ev, rot) {
+  const r = board.getBoundingClientRect();
+  const col = Math.floor((ev.clientX - r.left) / r.width * 14);
+  const row = Math.floor((ev.clientY - r.top) / r.height * 14);
+  if (col < 0 || col > 13 || row < 0 || row > 13) return -1;
+  return ch4SqAt(col, row, rot);
+}
+
+function ch4Wire(root) {
+  const board = root.querySelector('[data-ch4-board]');
+  if (!board || board._wired) return;
+  board._wired = true;
+  const rotOf = () => Number(board.dataset.rot || 0);
+  board.addEventListener('pointerdown', (ev) => {
+    const state = Room.state;
+    if (!state || state.game !== 'chess4' || !ch4MyTurn(state) || ev.button > 0) return;
+    const sq = ch4BoardPoint(board, ev, rotOf());
+    if (sq < 0) return;
+    const g = ch4Game(state);
+    const code = g.board[sq];
+    const mine = code && ((code >> 3) & 3) === ch4Seat(state);
+    ch4Local.drag = { sq: sq, x0: ev.clientX, y0: ev.clientY, el: mine ? ch4Local.pcs.get(sq) : null, started: false, id: ev.pointerId, hadSel: ch4Local.sel };
+    if (mine && ch4Local.sel !== sq) { ch4Local.sel = sq; ch4PaintSquares(root, state, g); chSound('pick'); }
+    try { board.setPointerCapture(ev.pointerId); } catch (e) {}
+  });
+  board.addEventListener('pointermove', (ev) => {
+    const d = ch4Local.drag;
+    if (!d || d.id !== ev.pointerId || !d.el) return;
+    if (!d.started && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < 8) return;
+    d.started = true;
+    d.el.classList.add('is-drag');
+    const r = board.getBoundingClientRect();
+    const cell = r.width / 14;
+    d.el.style.transform = `translate(${ev.clientX - r.left - cell / 2}px, ${ev.clientY - r.top - cell / 2}px)`;
+  });
+  const end = (ev, cancel) => {
+    const d = ch4Local.drag;
+    if (!d || d.id !== ev.pointerId) return;
+    ch4Local.drag = null;
+    const state = Room.state;
+    if (d.el) { d.el.classList.remove('is-drag'); d.el.style.transform = ''; }
+    if (!state || state.game !== 'chess4' || cancel) { if (state) ch4Refresh(state); return; }
+    const sq = ch4BoardPoint(board, ev, rotOf());
+    const g = ch4Game(state);
+    const legalTo = (from) => chess4Legal(g).some(m => m.from === from && m.to === sq);
+    if (d.started) {
+      if (sq >= 0 && sq !== d.sq && legalTo(d.sq)) { ch4Send(d.sq, sq); return; }
+      if (sq !== d.sq) chSound('refuse');
+      ch4Refresh(state);
+      return;
+    }
+    // A tap: onto a square the piece picked up can go to, or picking one up (again: putting it down).
+    if (d.hadSel >= 0 && sq !== d.hadSel && legalTo(d.hadSel)) { ch4Send(d.hadSel, sq); return; }
+    const code = g.board[sq];
+    const mine = code && ((code >> 3) & 3) === ch4Seat(state);
+    if (mine && d.hadSel === sq) ch4Local.sel = -1;
+    else if (!mine) ch4Local.sel = -1;
+    ch4PaintSquares(root, state, g);
+  };
+  board.addEventListener('pointerup', (ev) => end(ev, false));
+  board.addEventListener('pointercancel', (ev) => end(ev, true));
+}
+
+/* --- drawing a state ------------------------------------------------------------------- */
+
+/** The frame: the status, the board, what to do, the log (phone); the board and a column beside it (TV). */
+function ch4FrameHtml(state, tv) {
+  const rot = Math.max(0, ch4Seat(state));
+  const s = ch4S(state);
+  // Teams: the two sides as their colours, red and yellow against blue and green.
+  const sides = s.settings.mode === 'teams' ? `<span class="ch4-vs" aria-hidden="true"><i class="ch4-dot ch4-dot--r"></i><i class="ch4-dot ch4-dot--y"></i><b>×</b><i class="ch4-dot ch4-dot--b"></i><i class="ch4-dot ch4-dot--g"></i></span>` : '';
+  const mode = `<span class="badge badge--accent">${escapeHTML(chT(s.settings.mode === 'ffa' ? 'ch4_mode_ffa' : 'ch4_mode_teams'))}</span>${sides}`;
+  if (tv) {
+    return `<div class="ch4-tv">
+        <div class="ch4-tv__stage"><div class="ch4-stage" data-rot="0">${ch4BoardHtml(0)}</div></div>
+        <div class="ch4-tv__side">
+          <div class="ch4-tv__head">${mode}</div>
+          <div class="tv-title tv-center-text ch4-status" data-ch4-status></div>
+          <div data-ch4-over></div>
+          <div class="ch4-tv__log" data-ch4-log></div>
+          <div class="tv-actions" data-ch4-bar></div>
+        </div>
+      </div>`;
+  }
+  return `<div class="ch4-game">
+      <div class="ch4-game__stage"><div class="ch4-stage">${ch4BoardHtml(rot)}</div></div>
+      <div class="ch4-game__side">
+        <div class="ch4-head">${mode}<span class="ch4-status" data-ch4-status></span></div>
+        <div data-ch4-bar></div>
+        <div data-ch4-over></div>
+        <div class="ch4-game__log" data-ch4-log></div>
+        ${renderRoomPlayerStrip(state)}
+      </div>
+    </div>`;
+}
+
+/** Everything that changes during a game, updated in place over the frame. */
+function ch4Update(root, state, tv) {
+  const s = ch4S(state);
+  if (!root || !s.g) return;
+  const boardEl = root.querySelector('[data-ch4-board]');
+  if (!boardEl) return;
+  const rot = tv ? 0 : Math.max(0, ch4Seat(state));
+  boardEl.dataset.rot = rot;
+  ch4NoteClock(state);
+  const key = state.code + '|' + (s.dealId || '') + '|' + rot + '|' + (tv ? 'tv' : 'ph');
+  const g = ch4Game(state);
+  const log = s.log || [];
+  const lastN = log.length ? log[log.length - 1].n : 0;
+  const first = ch4Local.seenKey !== key || !ch4Local.pcs || !boardEl.querySelector('.ch4-pc');
+  if (first) {
+    // A new board on screen (a reload, a new game, the TV coming on): drawn as it is, nothing replayed.
+    ch4Local.seenKey = key;
+    ch4Local.pcs = new Map();
+    ch4Local.out = g.out.slice();
+    ch4Local.seen = lastN;
+    boardEl.querySelectorAll('.ch4-pc').forEach(el => el.remove());
+    ch4Reconcile(root, g, rot, false);
+  } else {
+    const fresh = log.filter(e => e.n > ch4Local.seen);
+    ch4Local.seen = Math.max(ch4Local.seen, lastN);
+    const e0 = ch4Local.early;
+    // This phone's own move, already drawn when the finger lifted.
+    if (e0 && !e0.drawn && g === e0.g) { ch4PlayMove(root, { from: e0.from, to: e0.to, castle: e0.castle }, rot, false); e0.drawn = true; }
+    const animate = !motionOff() && fresh.length <= 8;
+    const loud = typeof duelRoomLoud === 'function' ? duelRoomLoud(state) : true;
+    fresh.forEach(e => {
+      if (!animate) return;
+      if (e.k === 'mv') {
+        const mine = e0 && e0.drawn && e.from === e0.from && e.to === e0.to && e.seat === ch4Seat(state);
+        if (!mine) ch4PlayMove(root, e, rot, false);
+        if (!mine && loud) chSound(/[+#]$/.test(e.san) ? 'check' : e.cap ? 'capture' : e.castle ? 'castle' : 'move');
+        if (e.pts && typeof flyPoints === 'function') {
+          const sqEl = root.querySelector(`.ch4-sq[data-sq="${e.to}"]`);
+          const chip = root.querySelector(`[data-ch4-chip="${e.seat}"]`);
+          if (sqEl && chip) setTimeout(() => flyPoints('+' + e.pts, sqEl.getBoundingClientRect(), chip), 180);
+        }
+      } else if (e.k === 'out' || e.k === 'mate') {
+        if (loud && (e.why === 'mate' || e.k === 'mate')) chSound('thud');
+        if (e.pts && e.by >= 0 && typeof flyPoints === 'function') {
+          const p = chess4Pos(g);
+          const kingSq = p.kings[e.seat] >= 0 ? CHESS4_BD[p.kings[e.seat]] : -1;
+          const sqEl = root.querySelector(`.ch4-sq[data-sq="${kingSq}"]`) || root.querySelector(`[data-ch4-chip="${e.seat}"]`);
+          const chip = root.querySelector(`[data-ch4-chip="${e.by}"]`);
+          if (sqEl && chip) setTimeout(() => flyPoints('+' + e.pts, sqEl.getBoundingClientRect(), chip), 700);
+        }
+        if (e.k === 'mate') {
+          const p = chess4Pos(g);
+          const kingSq = p.kings[e.seat] >= 0 ? CHESS4_BD[p.kings[e.seat]] : -1;
+          const king = ch4Local.pcs.get(kingSq);
+          if (king) king.classList.add('is-mated');
+        }
+      }
+    });
+    ch4Reconcile(root, g, rot, animate);
+  }
+  ch4PaintSquares(root, state, g);
+  ch4PaintChips(root, state, rot);
+  const set = (sel, html) => { const el = root.querySelector(sel); if (el && el._html !== html) { el.innerHTML = html; el._html = html; return el; } return null; };
+  set('[data-ch4-status]', escapeHTML(ch4StatusText(state)));
+  set('[data-ch4-bar]', ch4BarHtml(state, tv));
+  set('[data-ch4-over]', ch4OverHtml(state, tv));
+  const logEl = set('[data-ch4-log]', ch4LogHtml(state));
+  if (logEl) { const ol = logEl.querySelector('.ch4-log'); if (ol) ol.scrollTop = ol.scrollHeight; }
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  if (s.clock && s.phase === 'play') { ch4PaintClocks(); ch4TickStart(); } else ch4TickStop();
+  // Your turn: a buzz and a tick when it comes to this phone.
+  const mineNow = ch4MyTurn(state);
+  if (mineNow && !ch4Local.turnMine && !first) { haptic('medium'); if (typeof playSound === 'function') playSound('tick'); }
+  ch4Local.turnMine = mineNow;
+  // The end: confetti for the winners (and on the TV), once a game.
+  if (s.phase === 'over' && s.g.result && typeof duelOnce === 'function' && duelOnce(['ch4-end', tv ? 'tv' : 'ph', roomDealKey(state), s.round].join('|'))) {
+    const me = ch4Seat(state);
+    const won = tv || (me >= 0 && (s.g.result.winners || []).indexOf(me) !== -1);
+    if (!first || tv) chSound('end');
+    afterReveal(root, () => {
+      if (!won) return;
+      playSound('success');
+      if (typeof confetti === 'function') confetti({ particleCount: tv ? 160 : 120, spread: tv ? 90 : 80, origin: { y: 0.6 } });
+      if (!tv) haptic('double');
+    });
+  }
+}
+
+/** Presence and the host's buttons changed: the same frame, refreshed. */
+function ch4Refresh(state) {
+  if (!state || state.game !== 'chess4' || state.phase === 'lobby') return;
+  const tv = !!state.youAreScreen;
+  const root = document.getElementById(tv ? 'view-room-tv' : 'view-room-chess4');
+  if (root && root.querySelector('[data-ch4-board]')) ch4Update(root, state, tv);
+}
+
+/* --- the lobby: the way to play, the clock, who sits in which colour -------------------- */
+
+/** Who would sit where if the game started now. Mirrors chess4LobbyOrder in RoomChess4.js - keep the two in step. */
+function ch4RoomOrder(state) {
+  const lobby = (ch4S(state).lobby) || {};
+  const players = state.players || [];
+  const ids = players.map(p => p.id);
+  const order = [0, 1, 2, 3].map(k => { const id = Array.isArray(lobby.order) ? lobby.order[k] : null; return id && ids.indexOf(id) !== -1 ? id : null; });
+  const waiting = players.filter(p => !p.bot).concat(players.filter(p => p.bot)).map(p => p.id)
+    .filter(id => order.indexOf(id) === -1 && (lobby.watch || []).indexOf(id) === -1);
+  for (let k = 0; k < 4; k++) if (!order[k] && waiting.length) order[k] = waiting.shift();
+  return order;
+}
+
+function ch4LobbyRedraw() {
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+function setCh4Option(key, value) {
+  const o = ch4Opts();
+  o[key] = key === 'clock' ? Number(value) || 0 : value;
+  rememberOptions(CH4_OPTS_KEY, { mode: o.mode, clock: o.clock });
+  haptic('light');
+  roomAct('options', { mode: o.mode, clock: o.clock });
+}
+
+/** The host's taps on the seats: a colour then another swaps them; someone watching then a colour seats them. */
+function ch4SeatTap(what) {
+  const state = Room.state;
+  if (!state || !state.youAreHost || state.phase !== 'lobby') return;
+  haptic('light');
+  const order = ch4RoomOrder(state);
+  const lobby = ch4S(state).lobby || {};
+  const watch = (lobby.watch || []).slice();
+  const prev = ch4Local.lobbySel;
+  if (!prev || prev === what) { ch4Local.lobbySel = prev === what ? '' : what; ch4LobbyRedraw(); return; }
+  ch4Local.lobbySel = '';
+  const slot = (x) => (x.indexOf('s:') === 0 ? Number(x.slice(2)) : -1);
+  const pid = (x) => (x.indexOf('w:') === 0 ? x.slice(2) : null);
+  const a = slot(prev), b = slot(what);
+  if (a >= 0 && b >= 0) { const t = order[a]; order[a] = order[b]; order[b] = t; }
+  else if (a >= 0 || b >= 0) {
+    const k = a >= 0 ? a : b;
+    const w = pid(a >= 0 ? what : prev);
+    if (w) { if (order[k]) watch.push(order[k]); order[k] = w; }
+  } else { ch4LobbyRedraw(); return; }
+  roomAct('seats', { order: order, watch: watch.filter(id => order.indexOf(id) === -1) });
+}
+
+/** Takes the colour's player off the table (they watch; the colour gets a computer player). */
+function ch4SeatClear(k) {
+  const state = Room.state;
+  if (!state || !state.youAreHost) return;
+  const order = ch4RoomOrder(state);
+  const watch = ((ch4S(state).lobby || {}).watch || []).slice();
+  if (order[k]) watch.push(order[k]);
+  order[k] = null;
+  ch4Local.lobbySel = '';
+  roomAct('seats', { order: order, watch: watch });
+}
+
+function ch4SeatsHtml(state) {
+  const order = ch4RoomOrder(state);
+  const host = !!state.youAreHost;
+  const players = state.players || [];
+  const nameOf = (id) => { const p = players.find(x => x.id === id); return p ? p.name : ''; };
+  const botOf = (id) => { const p = players.find(x => x.id === id); return p && p.bot ? p.bot : null; };
+  const areas = ['r', 'b', 'y', 'g'];
+  const slots = [0, 1, 2, 3].map(k => {
+    const id = order[k];
+    const picked = ch4Local.lobbySel === 's:' + k;
+    const bot = id && botOf(id);
+    const who = id ? (bot ? '🤖 ' : '') + nameOf(id) : '🤖 ' + chT('ch4_seat_empty');
+    const inner = `<span class="ch4-seat__pc" aria-hidden="true">${ch4PieceSvg(6 + 8 * k)}</span>
+        <span class="ch4-seat__color">${escapeHTML(ch4ColorName(k))}</span>
+        <span class="ch4-seat__who ${id ? '' : 'is-empty'}"><bdi>${escapeHTML(who)}</bdi></span>
+        ${id === Room.me ? `<span class="badge">${escapeHTML(chT('ch4_you'))}</span>` : ''}`;
+    const clear = host && picked && id ? `<button type="button" class="btn btn--ghost btn--xs btn--auto ch4-seat__clear" onclick="event.stopPropagation(); ch4SeatClear(${k})">✕ ${escapeHTML(chT('ch4_seat_clear'))}</button>` : '';
+    return host
+      ? `<div class="ch4-seat ch4-seat--${areas[k]} ${picked ? 'is-picked' : ''}"><button type="button" class="ch4-seat__btn" onclick="ch4SeatTap('s:${k}')" aria-pressed="${picked}">${inner}</button>${clear}</div>`
+      : `<div class="ch4-seat ch4-seat--${areas[k]}"><div class="ch4-seat__btn">${inner}</div></div>`;
+  }).join('');
+  const watchers = players.filter(p => order.indexOf(p.id) === -1);
+  const watchHtml = watchers.length ? `<div class="ch4-watchers"><span class="field__hint">👀 ${escapeHTML(chT('ch4_watching_list'))}</span><div class="chip-set">${watchers.map(p => {
+      const picked = ch4Local.lobbySel === 'w:' + p.id;
+      return host
+        ? `<button type="button" class="chip ${picked ? 'is-selected' : ''}" onclick="ch4SeatTap('w:${jsStringAttr(p.id)}')" aria-pressed="${picked}">${p.bot ? '🤖 ' : ''}${escapeHTML(p.name)}</button>`
+        : `<span class="chip">${p.bot ? '🤖 ' : ''}${escapeHTML(p.name)}</span>`;
+    }).join('')}</div></div>` : '';
+  const mid = (ch4S(state).lobby || {}).mode === 'ffa' ? '⚔️' : '🤝';
+  return `<div class="field">
+      <label class="field__label">🎨 ${escapeHTML(chT('ch4_seats_label'))}</label>
+      <div class="ch4-seats">${slots}<div class="ch4-seats__mid" aria-hidden="true">${mid}</div></div>
+      ${watchHtml}
+      <p class="field__hint">${escapeHTML(chT(host ? 'ch4_seats_hint_host' : 'ch4_seats_hint'))}</p>
+    </div>`;
+}
+
+ROOM_GAMES.chess4 = {
+  bots: { max: 4 },
+  // Someone who joins in the middle watches the board, and plays the next game.
+  lateJoin: true,
+  // A move is not a new step to scroll to; the end of the game is drawn from the top.
+  actionKey(state) {
+    const s = ch4S(state);
+    return s.phase === 'over' ? [state.code, s.dealId, s.phase].join('|') : '';
+  },
+
+  lobbyOptions(state) {
+    const lobby = ch4S(state).lobby || {};
+    const host = !!state.youAreHost;
+    // The host's remembered choices go to a room that has none yet, so every phone sees them.
+    if (host && ch4Local.synced !== state.code && lobby.mode === undefined) {
+      ch4Local.synced = state.code;
+      const o = ch4Opts();
+      if (lobby.mode !== o.mode || Number(lobby.clock || 0) !== o.clock) setTimeout(() => roomAct('options', { mode: o.mode, clock: o.clock }), 0);
+    }
+    const mode = lobby.mode === 'ffa' ? 'ffa' : 'teams';
+    const clock = CHESS4_CLOCKS.indexOf(Number(lobby.clock)) !== -1 ? Number(lobby.clock) : 0;
+    const seg = (items, cur, key) => `<div class="segmented" role="group">${items.map(([v, label]) => host
+      ? `<button type="button" class="segmented__item ${v === cur ? 'is-active' : ''}" onclick="setCh4Option('${key}', '${v}')">${escapeHTML(label)}</button>`
+      : `<span class="segmented__item ${v === cur ? 'is-active' : ''}">${escapeHTML(label)}</span>`).join('')}</div>`;
+    return `<div class="card card--tight ch4-lobby">
+        <div class="field">
+          <label class="field__label">♟️ ${escapeHTML(chT('ch4_mode_label'))}</label>
+          ${seg([['teams', chT('ch4_mode_teams')], ['ffa', chT('ch4_mode_ffa')]], mode, 'mode')}
+          <p class="field__hint">${escapeHTML(chT(mode === 'ffa' ? 'ch4_mode_ffa_hint' : 'ch4_mode_teams_hint'))}</p>
+        </div>
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(chT('ch4_clock_label'))}</label>
+          ${seg(CHESS4_CLOCKS.map(v => [v, v ? chT('ch4_minutes', { n: v }) : chT('ch4_clock_off')]), clock, 'clock')}
+          <p class="field__hint">${escapeHTML(chT('ch4_clock_hint'))}</p>
+        </div>
+        ${ch4SeatsHtml(state)}
+        <p class="field__hint" style="text-align:center">${escapeHTML(chT('ch4_lobby_hint'))}</p>
+      </div>`;
+  },
+
+  startPayload() {
+    const state = Room.state;
+    const names = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).filter(n => !((state && state.players) || []).some(p => samePlayer(p.name, n)));
+    // The way to play and the clock are the room's (the lobby, which every phone sees), not sent here.
+    return { botNames: names.sort(() => Math.random() - 0.5).slice(0, 4) };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-chess4') setView('room-chess4');
+    const el = document.getElementById('view-room-chess4');
+    const s = ch4S(state);
+    if (!el || !s.g) return;
+    const seat = ch4Seat(state);
+    const rebuilt = renderRoomFrame(el, ['ch4', seat, appState.lang, state.youAreHost].join('|'), () => ch4FrameHtml(state, false));
+    if (rebuilt) { ch4Local.seenKey = ''; ch4Local.sel = -1; }
+    ch4Wire(el);
+    ch4Update(el, state, false);
+  }
+};
+
+onRoomClocksReset(() => {
+  ch4TickStop();
+  clearTimeout(ch4Local.hostTimer);
+  ch4Local.sel = -1;
+  ch4Local.early = null;
+  ch4Local.drag = null;
+});
+
+/* --- the TV: the board big, red at the bottom, the players in its corners, the log beside it --- */
+
+TV_GAMES.chess4 = {
+  sig: (state) => ['ch4tv', state.code, appState.lang, state.youAreHost].join('|'),
+  frame(state, t) {
+    if (!ch4S(state).g) return tvLookAtPhones(t);
+    return ch4FrameHtml(state, true);
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    if (!view || !ch4S(state).g) return;
+    if (rebuilt) ch4Local.seenKey = '';
+    ch4Update(view, state, true);
+  }
+};
+</script>
+
+    <script>
+/* ============================================================================
    THE DUELS' TOURNAMENT on the phones and the TV (23 Sep 2026)
    ----------------------------------------------------------------------------
    The rules are RoomTournament.js: a knockout for a room of four or more,
@@ -114933,6 +117039,10 @@ function roomTurnOf(state) {
       if (k === -1 || s.phase !== 'play' || !Array.isArray(s.boards)) return null;
       return s.boards[k >> 1].g.turn === (k & 1) ? 'turn_up' : null;
     }
+    case 'chess4':
+      // Your colour to move (RoomChess4.js).
+      if (!Array.isArray(s.seats) || s.phase !== 'play' || !s.g || s.g.over) return null;
+      return s.seats[s.g.turn] === me ? 'turn_up' : null;
     case 'battleship':
       // Your fleet to place, or your shot (RoomBattleship.js).
       if (!Array.isArray(s.seats) || s.seats.indexOf(me) === -1) return null;

@@ -197,7 +197,9 @@ function chReviewTry() {
     chAfterMove();
   };
   // A game left in the middle on this phone isn't replaced without asking.
-  if (s.g && s.phase === 'play' && !s.practice && (s.hist || []).length) showConfirmModal(chT('ch_try_replace'), go);
+  // A rated game left in the middle counts as a loss, and says so (chConfirmReplace).
+  if (typeof chRatedPending === 'function' && chRatedPending(s)) chConfirmReplace(go);
+  else if (s.g && s.phase === 'play' && !s.practice && (s.hist || []).length) showConfirmModal(chT('ch_try_replace'), go);
   else go();
 }
 
@@ -289,6 +291,7 @@ function chReviewPaint(fresh, justDone) {
         <span class="ch-rv-player__acc">${acc[c] === null ? '' : `<b class="metric" data-ch-acc="${c}">${acc[c]}</b><small>%</small>`}</span>
       </div>`).join('')}</div>
     <p class="duel-status is-done">${escapeHTML(chResultLine(rec.result, rec.reason, names))}</p>
+    ${rec.rating ? `<p class="ch-rating-result ${rec.rating.delta > 0 ? 'is-up' : rec.rating.delta < 0 ? 'is-down' : ''}">⭐ ${escapeHTML(chT('ch_rating_now', { r: rec.rating.after }))} <b dir="ltr">${chDeltaText(rec.rating.delta)}</b></p>` : ''}
     ${res ? '' : `<div class="ch-progress"><span class="ch-progress__bar" data-ch-progress style="--p:0%"></span></div><p class="field__hint ch-progress__txt" data-ch-progress-txt>${escapeHTML(chT('ch_reviewing', { p: 0 }))}</p>`}`;
   chSetHtml(el, '[data-ch-rvhead]', head);
   const at = el.querySelector('[data-ch-rvat]');

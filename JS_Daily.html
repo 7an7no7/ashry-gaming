@@ -475,6 +475,17 @@ const STATS_SOLO_GAMES = [
       { key: 'dist:hard', label: 'stats_dist_hard' }
     ],
     format: (b) => (b && typeof b.guesses === 'number') ? `${b.guesses}` : '—'
+  },
+  {
+    // Chess: your rating against the computer (kept with the game's own state, not as a best).
+    id: 'shatranj',
+    title: 'setup_shatranj',
+    icon: '♞',
+    levels: [{ key: 'rating', label: 'ch_rating_label' }],
+    value: () => {
+      const r = typeof appState !== 'undefined' && appState.shatranj && appState.shatranj.rating;
+      return r && r.n ? String(r.r) : '—';
+    }
   }
 ];
 
@@ -495,8 +506,7 @@ function renderStats() {
 
     let levelsHtml = '';
     g.levels.forEach(lvl => {
-      const bestRecord = soloBest(g.id, lvl.key);
-      const valStr = g.format(bestRecord);
+      const valStr = g.value ? g.value(lvl) : g.format(soloBest(g.id, lvl.key));
       const lvlLabel = t[lvl.label] || lvl.key || t.stats_record || 'أفضل رقم';
       levelsHtml += `
         <div class="stats-level-box">
@@ -508,7 +518,7 @@ function renderStats() {
     gamesHtml += `
       <div class="card stats-game-card" data-accent="${accent}">
         <div class="stats-game-head">
-          <span class="tool-icon" aria-hidden="true">${icon}</span>
+          <span class="tool-icon" aria-hidden="true">${typeof iconHtml === 'function' ? iconHtml(icon) : icon}</span>
           <span class="stats-game-title">${escapeHTML(title)}</span>
         </div>
         <div class="stats-levels">

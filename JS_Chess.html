@@ -1169,7 +1169,7 @@ function chState() {
       coachOpts: { warn: true, hint: true, comment: true, threats: true },
       phase: 'setup', g: null, hist: [], sans: [], lost: [[], []], last: null, clk: null, result: null,
       me: 0, firstWhite: 0, gameId: '', scores: [0, 0, 0], flip: false, start: '', comment: null, practice: false,
-      helpLimit: '3', help: chHelpNew()
+      helpLimit: '3', help: chHelpNew(), rating: { r: CH_RATING_START, n: 0 }
     };
   }
   const s = appState.shatranj;
@@ -1178,8 +1178,64 @@ function chState() {
   if (!s.lost) s.lost = [[], []];
   if (CH_HELP_LIMITS.indexOf(s.helpLimit) === -1) s.helpLimit = '3';
   if (!s.help) s.help = chHelpNew();
+  if (!s.rating || typeof s.rating.r !== 'number') s.rating = { r: CH_RATING_START, n: 0 };
   return s;
 }
+
+/* --- your rating against the computer (the owner, 24 Sep 2026) ---------------------------------
+   A normal Elo from 800: K 32 for the first 20 rated games, then 20, against the computer's
+   rating. Only a game with no help counts: no undo, no hint, no best-move arrows, no coach
+   warning, not from a set-up position, no handicap. Leaving a rated game unfinished for a new
+   one counts it as a loss (chess.com's rule). */
+
+const CH_RATING_START = 800;
+
+/** The change to a rating r (after n rated games) from a score (1, 0.5, 0) against a rating opp. */
+function chRatingDelta(r, n, opp, score) {
+  const expected = 1 / (1 + Math.pow(10, (opp - r) / 400));
+  return Math.round((n < 20 ? 32 : 20) * (score - expected));
+}
+
+/** Why a game with these settings would not count ('' when it would): a translation key. o: { setup, practice }. */
+function chUnratedReason(s, o) {
+  const x = o || {};
+  if (s.vs !== 'phone') return 'ch_unrated_friend';
+  if (x.practice) return 'ch_unrated_practice';
+  if (x.setup) return 'ch_unrated_setup';
+  if (s.helpLimit !== 'none') return 'ch_unrated_help';
+  if (s.coach && s.coachOpts.warn !== false) return 'ch_unrated_warn';
+  return '';
+}
+
+/** Was any help used in this game? */
+const chHelpUsed = (h) => !!h && !!(h.undo || h.hint || h.best || h.warn || h.setup || h.odds);
+
+/** The computer's rating in this game (kept at its start, so the setup changed meanwhile doesn't count). */
+const chOppElo = (s) => (s.opp && s.opp.elo) || s.elo;
+
+/** A rated game against the computer going on, with a move of yours in it: leaving it counts as a loss. */
+const chRatedPending = (s) => !!(s.g && s.phase === 'play' && s.rated && !s.practice && s.hist && chMyMoves(s) >= 1);
+
+/** The game ends as a loss for you (a new game started over a rated one). */
+function chAbandonLocal() {
+  const s = chState();
+  if (!chRatedPending(s)) return;
+  const vs = s.vs;
+  s.vs = 'phone';
+  chEnd(s, s.me === 0 ? 'b' : 'w', 'left');
+  s.vs = vs;
+  saveToLocal();
+}
+
+/** Before a new game replaces the one on the board: a rated game left unfinished asks first, then counts as a loss. */
+function chConfirmReplace(go) {
+  const s = chState();
+  if (!chRatedPending(s)) { go(); return; }
+  showConfirmModal(chT('ch_rated_abandon'), () => { chAbandonLocal(); go(); });
+}
+
+/** A rating change as "+12" / "−8" (the caller holds it left to right). */
+const chDeltaText = (d) => (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d);
 
 /* --- undo and hints against the computer: unlimited, 3 a game or none (the owner, 24 Sep 2026) --- */
 
@@ -1248,7 +1304,7 @@ function setupShatranj() {
 /** The names on each side: [White's, Black's]. Against the computer, you and "the computer (1200)". */
 function chNames(s) {
   if (s.vs === 'phone') {
-    const you = chT('xo_you'), cpu = chT('ch_cpu', { elo: s.elo });
+    const you = chT('xo_you'), cpu = chT('ch_cpu', { elo: chOppElo(s) });
     return s.me === 0 ? [you, cpu] : [cpu, you];
   }
   const n = s.names || [];
@@ -1286,6 +1342,20 @@ function paintShatranjSetup() {
   ['warn', 'comment', 'threats'].forEach(k => { const el = document.getElementById('shatranj-coach-' + k); if (el) el.checked = s.coachOpts[k] !== false; });
   const cont = document.getElementById('shatranj-continue');
   if (cont) cont.classList.toggle('hidden', !(s.phase === 'play' && s.g));
+  // Your rating, and whether the game about to start counts for it.
+  const rt = document.getElementById('shatranj-rating');
+  if (rt) {
+    rt.classList.toggle('hidden', !phone);
+    rt.innerHTML = `⭐ ${escapeHTML(chT('ch_rating_you'))} <b class="metric" dir="ltr">${s.rating.r}</b>` +
+      (s.rating.n ? ` <span class="ch-rating__n">· ${escapeHTML(chT('ch_rating_n', { n: s.rating.n }))}</span>` : '');
+  }
+  const rated = document.getElementById('shatranj-rated');
+  if (rated) {
+    const why = chUnratedReason(s);
+    rated.classList.toggle('hidden', !phone);
+    rated.classList.toggle('is-rated', !why);
+    rated.textContent = why ? chT('ch_rated_no', { why: chT(why) }) : chT('ch_rated_yes');
+  }
   if (typeof chPaintHistory === 'function') chPaintHistory();
 }
 
@@ -1301,16 +1371,18 @@ function setShatranjOption(key, value) {
 
 /** Start: a new match (the tally from nothing). */
 function startShatranj() {
-  const s = chState();
-  const read = (id) => ((document.getElementById(id) || {}).value || '').trim().slice(0, 16);
-  s.names = [read('shatranj-name1'), read('shatranj-name2')];
-  s.scores = [0, 0, 0];
-  s.firstWhite = 0;
-  // A practice game left in the middle borrowed "against the computer": the match is the chosen way.
-  if (s.vsBefore) { s.vs = s.vsBefore; s.vsBefore = null; }
-  s.practice = false;
-  s.start = '';
-  chNewGame();
+  chConfirmReplace(() => {
+    const s = chState();
+    const read = (id) => ((document.getElementById(id) || {}).value || '').trim().slice(0, 16);
+    s.names = [read('shatranj-name1'), read('shatranj-name2')];
+    s.scores = [0, 0, 0];
+    s.firstWhite = 0;
+    // A practice game left in the middle borrowed "against the computer": the match is the chosen way.
+    if (s.vsBefore) { s.vs = s.vsBefore; s.vsBefore = null; }
+    s.practice = false;
+    s.start = '';
+    chNewGame();
+  });
 }
 
 function chContinue() {
@@ -1339,6 +1411,10 @@ function chNewGame(opts) {
   // Undo and hints: this game keeps the limit it was started with, and counts what it used.
   s.gameHelp = s.helpLimit;
   s.help = chHelpNew({ setup: !!o.setup });
+  // Whether this game counts for your rating is settled now, and the computer's rating kept with it.
+  s.rated = !chUnratedReason(s, { setup: !!o.setup, practice: !!o.practice });
+  s.opp = s.vs === 'phone' ? { elo: s.elo } : null;
+  s.ratingChange = null;
   if (s.vs === 'phone') s.me = o.me !== undefined ? o.me : (s.color === 'b' ? 1 : s.color === 'random' ? (Math.random() < 0.5 ? 0 : 1) : 0);
   s.clk = chessClockNew(s.clock);
   s.phase = 'play';
@@ -1449,11 +1525,22 @@ function chEnd(s, result, reason) {
     s.scores[winnerColour === p1Colour ? 0 : 1]++;
   }
   chStopTimers();
+  // Your rating: a rated game with no help used, against the computer.
+  let rating = null;
+  if (s.vs === 'phone' && s.rated && !chHelpUsed(s.help) && s.hist.length) {
+    const R = s.rating;
+    const score = result === 'd' ? 0.5 : result === (s.me ? 'b' : 'w') ? 1 : 0;
+    const d = chRatingDelta(R.r, R.n, chOppElo(s), score);
+    rating = { before: R.r, after: R.r + d, delta: d, opp: chOppElo(s) };
+    R.r += d;
+    R.n++;
+  }
+  s.ratingChange = rating;
   if (typeof chStoreGame === 'function') {
     const names = chNames(s);
-    chStoreGame({ mode: s.vs === 'phone' ? 'phone' : 'friend', names: names, elo: s.vs === 'phone' ? s.elo : null, me: s.vs === 'phone' ? s.me : null,
+    chStoreGame({ mode: s.vs === 'phone' ? 'phone' : 'friend', names: names, elo: s.vs === 'phone' ? chOppElo(s) : null, me: s.vs === 'phone' ? s.me : null,
       result: result, reason: reason, start: s.start || '', moves: s.hist.slice(), key: 'local|' + s.gameId,
-      help: s.vs === 'phone' ? chHelpNew(s.help) : null });
+      help: s.vs === 'phone' ? chHelpNew(s.help) : null, rated: !!rating, rating: rating });
   }
 }
 
@@ -1476,11 +1563,11 @@ function chComputerSoon() {
     chLocal.thinking = null;
     const st = chState();
     if (appState.currentView !== 'play-shatranj' || st.phase !== 'play' || st.g.turn === st.me || st.vs !== 'phone') return;
-    const settings = chessEloSettings(st.elo);
+    const settings = chessEloSettings(chOppElo(st));
     let ms = settings.ms;
     if (st.clk && st.clk.at) ms = Math.min(ms, Math.max(80, chessClockLeft(st.clk, st.g.turn, st.g.turn, Date.now()) / 25));
     const t0 = Date.now();
-    const mv = chessBestMove(st.g, { elo: st.elo, ms: ms });
+    const mv = chessBestMove(st.g, { elo: chOppElo(st), ms: ms });
     // A move found at once still waits a human moment, so it can be seen coming.
     const pause = Math.max(0, 450 - (Date.now() - t0));
     chLocal.thinking = setTimeout(() => {
@@ -1795,6 +1882,10 @@ function chLocalBarHtml(s, hint) {
 
 function chLocalSideHtml(s, names) {
   const out = [];
+  if (s.phase === 'done' && s.ratingChange) {
+    const rc = s.ratingChange;
+    out.push(`<p class="ch-rating-result ${rc.delta > 0 ? 'is-up' : rc.delta < 0 ? 'is-down' : ''}">⭐ ${escapeHTML(chT('ch_rating_now', { r: rc.after }))} <b dir="ltr">${chDeltaText(rc.delta)}</b></p>`);
+  }
   if (s.comment && s.vs === 'phone' && s.coach) out.push(chCommentHtml(s.comment));
   out.push(chMovesHtml(s.sans, { current: s.sans.length - 1, start: s.start || (s.practice ? 'practice' : ''), variant: s.variant }));
   if (s.practice) out.push(`<p class="field__hint">🎯 ${escapeHTML(chT('ch_practice_note'))}</p>`);

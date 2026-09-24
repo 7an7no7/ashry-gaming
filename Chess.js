@@ -1768,3 +1768,244 @@ function chessReview(record, opts) {
   while (!chessReviewStep(rv, opts)) { /* next position */ }
   return chessReviewResult(rv);
 }
+
+/* --- باغ هاوس — BUGHOUSE: two boards, the hands, drops --------------------------------
+   The owner's rules (24 Sep 2026): four players on two boards, partners on
+   different boards with opposite colours. What you take goes to your partner's
+   hand; on your move you may drop a piece from your hand onto an empty square
+   instead of moving - a pawn never on the first or last row, a drop may give
+   check or mate, and a promoted piece taken goes over as a pawn.
+
+   A bughouse board is an ordinary game (everything above plays it: the moves,
+   check, castling, en passant, promotion) plus two fields:
+     hand      { w: { q, r, b, n, p }, b: { ... } } - what each side can drop
+     promoted  the squares (indices) of pieces that were pawns
+   A drop is { drop: 'n', to: 'f3' }; its SAN is 'N@f3' ('P@e4' for a pawn).
+
+   Only these functions know about drops, so standard chess (and every perft
+   number) is exactly what it was. In bughouse the game ends on a mate only:
+   no repetition, fifty moves or "too little to mate" - a piece can always
+   arrive - and a side with no move and nothing to drop, not in check, waits
+   for its partner to send one (stuck), its clock running. A mate is judged
+   with the hand as it is: a piece that might come later doesn't save it.
+   What a capture gives is returned (info.gives), and the room puts it in the
+   partner's hand on the other board (chessBugGive).
+   ========================================================================= */
+
+const CHESS_BUG_KINDS = ['q', 'r', 'b', 'n', 'p'];
+const chessBugSideHand = () => ({ q: 0, r: 0, b: 0, n: 0, p: 0 });
+const chessBugHandNew = () => ({ w: chessBugSideHand(), b: chessBugSideHand() });
+
+/** A bughouse board: the start (or a FEN), empty hands, nothing promoted. */
+function chessBugNew(fen) {
+  const g = chessFromFen(fen || CHESS_START_FEN);
+  g.hand = chessBugHandNew();
+  g.promoted = [];
+  return g;
+}
+
+/** A copy of a bughouse board (chessCloneGame, the hands and the promoted squares too). */
+function chessBugClone(g) {
+  const c = chessCloneGame(g);
+  const h = g.hand || chessBugHandNew();
+  c.hand = { w: Object.assign(chessBugSideHand(), h.w), b: Object.assign(chessBugSideHand(), h.b) };
+  c.promoted = (g.promoted || []).slice();
+  return c;
+}
+
+/** Every legal drop of the side to move: [{ drop: 'n', to: 'f3' }]. */
+function chessBugDrops(g) {
+  const side = g.turn ? 1 : 0;
+  const mine = ((g.hand || {})[side ? 'b' : 'w']) || {};
+  const kinds = CHESS_BUG_KINDS.filter(l => (mine[l] | 0) > 0);
+  if (!kinds.length) return [];
+  const b = g.board.slice();
+  let king = -1;
+  for (let sq = 0; sq < 64; sq++) if (b[sq] === ((side << 3) | 6)) king = sq;
+  const out = [];
+  kinds.forEach(l => {
+    const k = CHESS_LETTERS.indexOf(l);
+    const pc = (side << 3) | k;
+    for (let sq = 0; sq < 64; sq++) {
+      if (b[sq]) continue;
+      if (k === 1 && (sq < 8 || sq >= 56)) continue;
+      b[sq] = pc;
+      const ok = king < 0 || !chessAttacked(b, king, side ^ 1);
+      b[sq] = 0;
+      if (ok) out.push({ drop: l, to: chessSqName(sq) });
+    }
+  });
+  return out;
+}
+
+/** Every legal move and drop, for the page: [{ from, to, promo, capture } | { drop, to }]. */
+const chessBugLegal = (g) => chessLegalMoves(g).concat(chessBugDrops(g));
+
+/**
+ * Is the board's game over? Mate only (with the hand as it is). stuck: no move
+ * and nothing to drop, not in check - the side waits for a piece.
+ */
+function chessBugStatus(g) {
+  const p = chessPos(g);
+  const check = chessInCheckPos(p);
+  if (chessLegalPos(p).length || chessBugDrops(g).length) return { over: false, result: '', reason: '', check: check, stuck: false };
+  if (check) return { over: true, result: p.side ? 'w' : 'b', reason: 'mate', check: true, stuck: false };
+  return { over: false, result: '', reason: '', check: false, stuck: true };
+}
+
+/**
+ * Plays a move ({ from, to, promo }) or a drop ({ drop, to }) if it is legal.
+ * Returns null when it isn't, else what chessPlay says (from, to, promo, piece,
+ * capture, captureSq, castle, san, check, status - chessBugStatus) plus drop
+ * (the letter dropped, or '') and gives (the letter the capture sends to the
+ * partner: 'p' for a promoted piece, '' when nothing was taken).
+ */
+function chessBugPlay(g, mv) {
+  if (!mv) return null;
+  if (!g.hand) g.hand = chessBugHandNew();
+  const side = g.turn ? 1 : 0;
+  let info;
+  if (mv.drop) {
+    const l = String(mv.drop).toLowerCase().slice(0, 1);
+    const to = typeof mv.to === 'number' ? chessSqName(mv.to) : String(mv.to || '');
+    if (!chessBugDrops(g).some(d => d.drop === l && d.to === to)) return null;
+    const sq = chessSq(to);
+    g.board = g.board.slice();
+    g.board[sq] = (side << 3) | CHESS_LETTERS.indexOf(l);
+    g.hand[side ? 'b' : 'w'][l]--;
+    g.ep = -1;
+    g.half = (g.half | 0) + 1;
+    if (side === 1) g.full = (g.full || 1) + 1;
+    g.turn = side ^ 1;
+    g.keys = [];
+    info = { from: '', to: to, drop: l, promo: '', piece: l, capture: '', captureSq: '', ep: false, castle: '', gives: '', san: l.toUpperCase() + '@' + to };
+  } else {
+    const p = chessPos(g);
+    const legal = chessLegalPos(p);
+    const m = chessFind(p, mv, legal);
+    if (!m) return null;
+    info = chessMoveInfo(p, m, legal);
+    const flags = chessMFlags(m);
+    const from = chessMFrom(m), to = chessMTo(m);
+    const capSq = flags & CHESS_F_EP ? (p.side ? to + 8 : to - 8) : to;
+    const taken = flags & CHESS_F_CAP ? p.b[capSq] : 0;
+    const promoted = new Set(g.promoted || []);
+    info.gives = taken ? (promoted.has(capSq) ? 'p' : CHESS_LETTERS[taken & 7]) : '';
+    promoted.delete(capSq);
+    if (promoted.has(from)) { promoted.delete(from); promoted.add(to); }
+    if (flags & CHESS_F_PROMO) promoted.add(to);
+    chessDo(p, m);
+    g.board = p.b.slice();
+    g.castle = p.castle;
+    g.ep = p.ep;
+    g.half = p.half;
+    if (side === 1) g.full = (g.full || 1) + 1;
+    g.turn = p.side;
+    g.keys = [];
+    g.promoted = Array.from(promoted).sort((a, b) => a - b);
+    info.drop = '';
+    info.capture = taken ? CHESS_LETTERS[taken & 7] : '';
+    info.captureSq = taken ? chessSqName(capSq) : '';
+    info.san = info.san.replace(/[+#]$/, '');
+  }
+  const status = chessBugStatus(g);
+  info.san += status.over ? '#' : status.check ? '+' : '';
+  info.check = status.check;
+  info.status = status;
+  return info;
+}
+
+/**
+ * What a capture on board `board` by `color` (0 white, 1 black) sends: the
+ * letter goes to the partner - the other board, the other colour.
+ */
+function chessBugGive(games, board, color, letter) {
+  if (!letter) return;
+  const g = games[1 - board];
+  if (!g.hand) g.hand = chessBugHandNew();
+  const key = color ? 'w' : 'b';
+  g.hand[key][letter] = (g.hand[key][letter] | 0) + 1;
+}
+
+/** A side's hand as a count, and its worth in hundredths of a pawn. */
+const chessBugHandCount = (h) => CHESS_BUG_KINDS.reduce((a, l) => a + ((h || {})[l] | 0), 0);
+const chessBugHandValue = (h) => CHESS_BUG_KINDS.reduce((a, l) => a + ((h || {})[l] | 0) * CHESS_VALUE[CHESS_LETTERS.indexOf(l)], 0);
+
+/** Does this move or drop mate (the board's mate, with the hands as they are)? */
+function chessBugMates(g, mv) {
+  const info = chessBugPlay(chessBugClone(g), mv);
+  return !!info && info.status.over;
+}
+
+/** Would this drop give check? (Asked before the mate test, which costs more.) */
+function chessBugDropChecks(g, d) {
+  const side = g.turn ? 1 : 0;
+  const b = g.board.slice();
+  b[chessSq(d.to)] = (side << 3) | CHESS_LETTERS.indexOf(d.drop);
+  for (let sq = 0; sq < 64; sq++) if (b[sq] === (((side ^ 1) << 3) | 6)) return chessAttacked(b, sq, side);
+  return false;
+}
+
+/**
+ * The computer's move on a bughouse board (the owner: easy and hard, a normal
+ * move choice plus sensible drops). First a drop that mates, then a move that
+ * mates; then, with something worth dropping in hand (a piece, or two pawns),
+ * a drop on a safe square near the other king (a check counts for more); else
+ * the chess engine's move, cheap enough for the server (a few thousand
+ * positions at most). Easy sees a mate most of the time, drops at random among
+ * safe squares and plays at a low rating. opts: { level: 'easy' | 'hard', rnd }.
+ * Returns { from, to, promo } or { drop, to }, or null when there is nothing.
+ */
+function chessBugBotMove(g, opts) {
+  const o = opts || {};
+  const rnd = typeof o.rnd === 'function' ? o.rnd : Math.random;
+  const hard = o.level === 'hard';
+  const side = g.turn ? 1 : 0;
+  const drops = chessBugDrops(g);
+  const moves = chessLegalMoves(g);
+  if (!drops.length && !moves.length) return null;
+  const pickOne = (list) => list[Math.floor(rnd() * list.length)];
+  if (hard || rnd() < 0.6) {
+    const mateDrops = drops.filter(d => chessBugDropChecks(g, d) && chessBugMates(g, d));
+    if (mateDrops.length) return pickOne(mateDrops);
+    const mateMoves = moves.filter(mv => {
+      const info = chessBugPlay(chessBugClone(g), mv);
+      return !!info && info.status.over;
+    });
+    if (mateMoves.length) return pickOne(mateMoves);
+  }
+  const hand = (g.hand || {})[side ? 'b' : 'w'] || {};
+  const worth = chessBugHandValue(hand);
+  const wantDrop = drops.length && (!moves.length || worth >= 300 || (hand.p | 0) >= 2 || (!hard && rnd() < 0.25));
+  if (wantDrop) {
+    let king = -1;
+    for (let sq = 0; sq < 64; sq++) if (g.board[sq] === (((side ^ 1) << 3) | 6)) king = sq;
+    const scored = drops.map(d => {
+      const sq = chessSq(d.to), k = CHESS_LETTERS.indexOf(d.drop);
+      const b = g.board.slice();
+      b[sq] = (side << 3) | k;
+      const att = chessAttackers(b, sq, side ^ 1);
+      const cheapest = att.length ? Math.min.apply(null, att.map(s => CHESS_VALUE[b[s] & 7] || 1000)) : Infinity;
+      const safe = !att.length || (chessAttacked(b, sq, side) && cheapest >= CHESS_VALUE[k]);
+      const dist = king >= 0 ? Math.max(Math.abs((sq & 7) - (king & 7)), Math.abs((sq >> 3) - (king >> 3))) : 4;
+      let score = (safe ? 100 : -400) + (8 - dist) * 12 + CHESS_VALUE[k] / 20;
+      if (chessBugDropChecks(g, d)) score += 40;
+      // A pawn does best a little way up the board.
+      if (k === 1) score += (side ? 7 - (sq >> 3) : sq >> 3) * 4;
+      return { d: d, score: score, safe: safe };
+    });
+    const safe = scored.filter(x => x.safe);
+    if (!moves.length) {
+      scored.sort((a, b) => b.score - a.score);
+      return (hard ? scored[0] : pickOne(safe.length ? safe : scored)).d;
+    }
+    if (safe.length) {
+      if (!hard) return pickOne(safe).d;
+      safe.sort((a, b) => b.score - a.score);
+      if (safe[0].score >= 150) return safe[0].d;
+    }
+  }
+  if (!moves.length) return drops[0];
+  const mv = chessBestMove(g, hard ? { elo: 1500, depth: 2, nodes: 2500, ms: 60, rnd: rnd } : { elo: 600, depth: 1, nodes: 400, ms: 30, rnd: rnd });
+  return mv || moves[0];
+}

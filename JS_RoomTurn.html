@@ -134,6 +134,12 @@ function roomTurnOf(state) {
       const team = (s.teams || [])[s.chess.g.turn] || [];
       return team[s.stage === 'name' ? 0 : 1] === me ? 'turn_up' : null;
     }
+    case 'bughouse': {
+      // Your move on your own board (RoomBughouse.js): seat k plays board k >> 1 with colour k & 1.
+      const k = Array.isArray(s.seats) ? s.seats.indexOf(me) : -1;
+      if (k === -1 || s.phase !== 'play' || !Array.isArray(s.boards)) return null;
+      return s.boards[k >> 1].g.turn === (k & 1) ? 'turn_up' : null;
+    }
     case 'battleship':
       // Your fleet to place, or your shot (RoomBattleship.js).
       if (!Array.isArray(s.seats) || s.seats.indexOf(me) === -1) return null;

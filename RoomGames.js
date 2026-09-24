@@ -136,7 +136,9 @@ const ROOM_GAME_IDS = [
   // شطرنج (RoomChess.js): the duels' line, winner stays on, a chess clock.
   'chess',
   // Chess for teams (24 Sep 2026): شطرنج بالتصويت (RoomVoteChess.js) and المخ والإيد (RoomHandBrain.js).
-  'votechess', 'handbrain'
+  'votechess', 'handbrain',
+  // باغ هاوس (RoomBughouse.js): four players on two boards, the hands, drops.
+  'bughouse'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -560,6 +562,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
     case 'votechess':  voteChessAction(room, playerId, action, payload); break;   // RoomVoteChess.js
     case 'handbrain':  handBrainAction(room, playerId, action, payload); break;   // RoomHandBrain.js
+    case 'bughouse':   bughouseAction(room, playerId, action, payload); break;    // RoomBughouse.js
     case 'ludo':       ludoAction(room, playerId, action, payload); break;      // RoomLudo.js
     case 'bank':       bankAction(room, playerId, action, payload); break;      // RoomBank.js
     case 'guesswho':   guessWhoAction(room, playerId, action, payload); break;  // RoomGuessWho.js
@@ -3445,6 +3448,7 @@ const gameDeadline = (room) => {
   if (room.game === 'chess') return chessDeadline(room);
   if (room.game === 'votechess') return vcDeadline(room);
   if (room.game === 'handbrain') return hbDeadline(room);
+  if (room.game === 'bughouse') return bughouseDeadline(room);
   if (room.game === 'hangman') return hmDeadline(room);
   if (room.game === 'bowling') return bowlDeadline(room);
   if (room.game === 'doubt') return doubtDeadline(room);
@@ -3569,6 +3573,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'chess') return chessTimeout(room, now);
   if (room.game === 'votechess') return vcTimeout(room, now);
   if (room.game === 'handbrain') return hbTimeout(room, now);
+  if (room.game === 'bughouse') return bughouseTimeout(room, now);
   if (room.game === 'hangman') return hmTimeout(room, now);
   if (room.game === 'bowling') return bowlTimeout(room, now);
   if (room.game === 'doubt') return doubtTimeout(room, now);
@@ -3751,6 +3756,9 @@ const gamePlayerLeft = (room, playerId, name) => {
     case 'handbrain':
       // A computer player takes the seat for the rest of the game (RoomHandBrain.js).
       hbPlayerLeft(room, playerId, name);
+    case 'bughouse':
+      // A computer player takes their board for the rest of the game (RoomBughouse.js).
+      bughousePlayerLeft(room, playerId, name);
       return;
     case 'hangman':
       hmPlayerLeft(room, playerId);

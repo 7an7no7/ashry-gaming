@@ -13,6 +13,7 @@ deployed. Tests and screenshots are outside the repo in `C:/Users/TPC/agy-tests/
 | T2D.2 The view switch | `669adb1` | `JS_Chess.html` |
 | T2D.3 The 3D board polished | `b630347` | `JS_Chess.html`, `Style.html`, `GEMINI.md` |
 | T2D.1 fix (the dots under the pieces) | `946e99e` | `Style.html` |
+| T2D.3 fix: the 3D knight (review) | `36e56bc` | `JS_Chess.html` |
 
 The fix was found while looking at the screenshots after T2D.3 had been committed (a legal-move dot was
 drawn over a piece being dragged), so it is its own small commit rather than a rewrite of T2D.1.
@@ -96,6 +97,23 @@ Also run: every edited file parses (`Controller.html` fails the check as always,
 node tests T2D.1 (39/39), T2D.2 (15/15), T2D.3 (29/29); no console errors in any browser run; no
 horizontal overflow in the endgame editor at any size.
 
+## After review: the 3D knight
+
+The coordinator found the 3D knight read as a lump from the playing camera. It was rebuilt in
+: a horse's head and neck as a side profile (chest, throat, jaw, chin, muzzle, nose bridge,
+forehead, poll, the arched crest, the back of the neck) extruded with a bevel (20 curve segments), then
+shaped vertex by vertex once at build (pinched 45% towards the muzzle, 18% fuller at the neck's foot);
+a thin ridged mane crest standing proud along the back of the neck; two ears; cheek swells; eyes and
+nostrils; a collar on the turned base. Shared geometry, nothing allocated per frame. White's knights face
+left and Black's right as seen from White (a small turn towards the other side), so neither colour is
+seen from behind from either seat. VERIFIED by screenshots from the default camera
+(, , , ) and
+a close-up (); no console errors; T2D.3 test updated (29/29).
+
+The marble style: it was always drawn -  showed three boards because the screenshot
+montage script (a test helper) dropped its fourth image, not the page.  is
+the 2D marble board; no code change was needed.
+
 ## Decisions made here
 
 - 2D by default on every device that isn't the TV (the owner said "on phones"; one rule is simpler and a
@@ -107,7 +125,7 @@ horizontal overflow in the endgame editor at any size.
 - The mated 2D king tilts; the 3D king topples towards its own edge if free, else sideways.
 - Right-drag orbits the 3D board as the runbook says; T2C.8 (drawing arrows, not built yet) planned
   right-click for arrows - it will have to use right-click only in 2D, or a modifier in 3D.
-- The knight faces sideways in 3D (the old three-quarter turn showed its back from its own seat).
+- The knight faces sideways in 3D (the old three-quarter turn showed its back from its own seat); rebuilt after review (above).
 
 ## Uncertain / not verified
 
@@ -124,6 +142,6 @@ horizontal overflow in the endgame editor at any size.
 3. `2d/shots/m-styles.png` - green / wood / blue in 2D (marble: `2d/shots/q-b-marble.png`)
 4. `2d/shots/v/ar-375-3-dragging.png` - a drag with the hover ring
 5. `2d/shots/v/en-1280-6-3d.png` - the polished 3D board on a laptop
-6. `2d/shots/p4-close-black.png` - the 3D pieces close up (felt, knight, cross, coronet)
+6. `2d/shots/k/k2-close.png` - the 3D pieces close up (the rebuilt knight, felt, cross, coronet)
 7. `2d/shots/f3-11-mate-end.png` - the mate topple
 8. `2d/shots/v/room-tv.png` - the TV in 3D during a room game

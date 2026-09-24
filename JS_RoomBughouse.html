@@ -290,11 +290,18 @@ function bhWireHand(root) {
     press = { id: e.pointerId, x: e.clientX, y: e.clientY, l: btn.dataset.bhDrop, btn: btn, ghost: null };
     try { btn.setPointerCapture(e.pointerId); } catch (x) {}
   });
-  root.addEventListener('pointermove', (e) => {
+  // Move and let go are heard on the document: the button that held the
+  // pointer capture is replaced by the redraw at pick-up, and a finger let go
+  // over the header or the bar must still end the drag.
+  document.addEventListener('pointermove', (e) => {
     if (!press || press.id !== e.pointerId) return;
     if (!press.ghost && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
       // Picked up: its squares light, and the piece follows the finger.
-      if (bhLocal.drop !== press.l) { bhLocal.drop = press.l; bhLocal.sel = ''; bhRedraw(); }
+      if (bhLocal.drop !== press.l) {
+        bhLocal.drop = press.l; bhLocal.sel = ''; bhRedraw();
+        // The redraw replaced the hand's buttons: keep hold of the new one.
+        press.btn = root.querySelector(`[data-bh-drop="${press.l}"]`) || press.btn;
+      }
       const svg = press.btn.querySelector('svg');
       const r = press.btn.getBoundingClientRect();
       const g = document.createElement('div');
@@ -327,15 +334,18 @@ function bhWireHand(root) {
       return;
     }
     // Not a square it can go to: it flies back to the hand.
-    const r = pr.btn.getBoundingClientRect();
+    const btn = root.querySelector(`[data-bh-drop="${pr.l}"]`) || pr.btn;
+    const r = btn.getBoundingClientRect();
+    // The piece is gone from the hand (or the screen moved on): nowhere to fly back to.
+    if (!r.width) { pr.ghost.remove(); if (sq) chSound('refuse'); return; }
     if (pr.ghost.animate && !motionOff()) {
       const a = pr.ghost.animate([{ transform: pr.ghost.style.transform }, { transform: `translate(${r.left + r.width / 2 - pr.size / 2}px, ${r.top + r.height / 2 - pr.size / 2}px) scale(0.8)`, opacity: 0.4 }], { duration: 220, easing: 'ease-in' });
       a.onfinish = a.oncancel = () => pr.ghost.remove();
     } else pr.ghost.remove();
     if (sq) chSound('refuse');
   };
-  root.addEventListener('pointerup', (e) => end(e, false));
-  root.addEventListener('pointercancel', (e) => end(e, true));
+  document.addEventListener('pointerup', (e) => end(e, false));
+  document.addEventListener('pointercancel', (e) => end(e, true));
 }
 
 /* --- motion: a captured piece flies to the partner's hand, a dropped one from the hand to its square --- */
@@ -485,6 +495,8 @@ function bhHostRow(state, tv) {
   const s = bhShared(state);
   if (!state.youAreHost || s.phase !== 'play' || !s.boards) return '';
   const btns = [];
+  // One timer for the sooner of the two boards (a timer each would cancel the other's).
+  let soonest = Infinity;
   s.boards.forEach((bd, b) => {
     const k = bhSeatAt(b, bd.g.turn);
     const id = s.seats[k];
@@ -493,13 +505,11 @@ function bhHostRow(state, tv) {
     const key = [roomDealKey(state), s.round, b, bd.moves].join('|');
     if (bhLocal.turnSince[b] === undefined || bhLocal.turnSince[b].key !== key) bhLocal.turnSince[b] = { key: key, at: Date.now() };
     const wait = 40000 - (Date.now() - bhLocal.turnSince[b].at);
-    if (p.online && wait > 0) {
-      clearTimeout(bhLocal.hostTimer);
-      bhLocal.hostTimer = setTimeout(() => bhRedraw(true), wait + 300);
-      return;
-    }
+    if (p.online && wait > 0) { soonest = Math.min(soonest, wait); return; }
     btns.push(['⏭️ ' + chT('ch_play_for', { name: duelIso(s.names[k] || '') }), `roomAct('skipTurn', { board: ${b}, move: ${Number(bd.moves) || 0} })`]);
   });
+  clearTimeout(bhLocal.hostTimer);
+  if (soonest < Infinity) bhLocal.hostTimer = setTimeout(() => bhRedraw(true), soonest + 300);
   if (!btns.length) return '';
   return tv ? `<div class="tv-actions">${btns.map(x => tvBtn(x[0], x[1], 'ghost')).join('')}</div>` : roomHostRow(btns);
 }

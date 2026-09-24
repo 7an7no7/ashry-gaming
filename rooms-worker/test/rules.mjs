@@ -7527,6 +7527,114 @@ Date.now = duelTestClock;
   check(ended === games && !errors.length, `chess4 bots: ${games} whole room games of computer players, teams and FFA, easy and hard, all ended, no move refused (${ended})` + (errors.length ? ': ' + errors[0] : ''));
 }
 
+// Audit 24 Sep 2026, group 2
+{
+  const { readFileSync } = await import('node:fs');
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+
+  // كدّاب: a follower who leaves on their turn passes, and a pass closes the call window.
+  {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'doubt' });
+    applyRoomAction(r, 'a', 'start', {});
+    const [A, B] = r.shared.order;
+    let n = 70000;
+    const hand = (...cs) => cs.map((c) => ({ i: n++, c }));
+    const hands = [hand('7h'), hand('7d', '3h'), hand('5c', '6c'), hand('9d', '2c')];
+    r.shared.order.forEach((id, k) => { r._doubt.hands[id] = hands[k]; });
+    r._doubt.pile = [];
+    Object.assign(r.shared, { rank: null, plays: [], last: null, passed: [], places: [], pendingOut: null });
+    r.shared.turn = { pid: A, stage: 'lead' };
+    r.shared.turnSeq++;
+    applyRoomAction(r, A, 'play', { cards: [hands[0][0].i], rank: '7', seq: r.shared.turnSeq });
+    check(r.shared.pendingOut === A && r.shared.turn.pid === B, 'audit/doubt: the leader lays their last card, open to a call, and the next follows');
+    leave(r, B);
+    check(!r.shared.last && r.shared.places[0] === A && r.shared.phase === 'gameover',
+      'audit/doubt: the follower leaves on their turn: a pass - the call window closes and the last play stands (first out wins)');
+  }
+
+  // بنك الحظ: no bankruptcy while selling and mortgaging would cover the debt.
+  {
+    const B = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+      '\nreturn { bankNewGame, bankFillTokens, bankRoll, bankBankrupt, bankAuto, bankLiquid };')();
+    const made = B.bankNewGame(['a', 'b'], B.bankFillTokens(['a', 'b'], {}), 'a', { length: 0, firstLap: false }, 0, Math.random);
+    const g = made.g, priv = made.priv;
+    g.own[5] = { by: 'a', lvl: 0, mort: false };
+    g.cash.a = 100; g.pos.a = 0;
+    B.bankRoll(g, priv, 'a', [1, 3], Math.random);
+    check(g.turn.stage === 'debt' && g.debt && B.bankLiquid(g, 'a') >= g.debt.amount, 'audit/bank: a debt the cash can\'t pay but a mortgage can');
+    check(refused(() => B.bankBankrupt(g, priv, 'a', 0)) && g.out.indexOf('a') === -1 && g.turn.stage === 'debt',
+      'audit/bank: going bankrupt is refused while the debt can still be raised');
+    B.bankAuto(g, priv, 'a', Math.random, 0);
+    check(g.out.indexOf('a') === -1 && !g.debt && g.own[5].mort, 'audit/bank: the clock\'s turn for them raises the money and pays, no bankruptcy');
+  }
+
+  // لودو: a leaver's wall no longer in the way - what can move is worked out again.
+  {
+    const L = new Function(readFileSync(new URL('../../Ludo.js', import.meta.url), 'utf8') +
+      '\nreturn { ludoNewGame, ludoMovable, ludoRemovePlayer, ludoWallAt };')();
+    const g = L.ludoNewGame(['a', 'b', 'c'], { a: 'G', b: 'Y', c: 'B' }, 'a');
+    g.pieces.a = [20, 5, -1, -1];
+    g.pieces.b = [46, 46, -1, -1];            // Yellow's rel 46 is square 7: a wall in front of Green's piece on 5
+    g.turn = { pid: 'a', stage: 'move', dice: 3, sixes: 0 };
+    g.movable = L.ludoMovable(g, 'a', 3);
+    check(L.ludoWallAt(g, 7) === 'b' && g.movable.join() === '0', 'audit/ludo: a wall keeps one piece from moving');
+    L.ludoRemovePlayer(g, 'b');
+    check(g.phase === 'play' && g.turn.pid === 'a' && g.movable.join() === '0,1', 'audit/ludo: the wall\'s player leaves: the blocked piece can move now, and is lit');
+  }
+
+  // شطرنج: a handicap on a 960 room takes the piece off that game's 960 row.
+  {
+    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
+      '\nreturn { chessOddsFen, chessHandicapFen, chess960Start, chessFromFen, CHESS_START_FEN };')();
+    check(['pawn', 'knight', 'rook', 'queen'].every((k) => ['w', 'b'].every((sd) => CH.chessOddsFen(CH.CHESS_START_FEN, k, sd) === CH.chessHandicapFen(k, sd))),
+      'audit/chess odds: on the standard start, chessOddsFen is the handicap as before');
+    check(CH.chessOddsFen(CH.CHESS_START_FEN, 'time', 'w') === CH.CHESS_START_FEN, 'audit/chess odds: time odds take no piece');
+    const row = CH.chess960Start(96);
+    const rk = CH.chessFromFen(CH.chessOddsFen(row, 'rook', 'w'));
+    const r0 = CH.chessFromFen(row);
+    check(rk.board.filter((x) => x === 4).length === 1 && !(rk.castle & 2) && (rk.castle & 1) && r0.board.filter((x) => x === 4).length === 2,
+      'audit/chess odds: on a 960 row the rook nearest the a-file goes, and that side\'s castling with it');
+
+    const r = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'chess' });
+    applyRoomAction(r, 'a', 'start', { variant: '960', odds: 'knight' });
+    const [w1, b1] = r.shared.seats;
+    applyRoomAction(r, w1, 'resign', { round: 1 });
+    check(r.shared.champ === b1, 'audit/chess room 960: the first game has a champion');
+    const realRandom = Math.random;
+    Math.random = () => 0.1;                  // the next 960 row: number 96
+    try { applyRoomAction(r, 'a', 'nextRound', { round: 1 }); } finally { Math.random = realRandom; }
+    const side = r.shared.seats.indexOf(b1) === 0 ? 'w' : 'b';
+    const want = CH.chessFromFen(CH.chessOddsFen(row, 'knight', side)).board.join();
+    check(r.shared.chess.g.board.join() === want,
+      'audit/chess room 960: with a champion, the game is still a 960 row, the champion\'s knight taken off it');
+  }
+
+  // شطرنج الأربعة FFA: someone going out off-turn gives the player up no time back, and their move still counts.
+  {
+    const C4 = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') + '\nreturn { chess4Legal };')();
+    const r = newRoom(['h', 'p', 'q', 'w']);
+    applyRoomAction(r, 'h', 'chooseGame', { game: 'chess4' });
+    applyRoomAction(r, 'h', 'options', { mode: 'ffa', clock: 1 });
+    applyRoomAction(r, 'h', 'start', {});
+    const s = () => r.shared;
+    const who = () => s().seats[s().g.turn];
+    for (let k = 0; k < 4; k++) { clock += 1000; applyRoomAction(r, who(), 'move', Object.assign({}, C4.chess4Legal(s().g)[0], { seq: s().turnSeq })); }
+    const upSeat = s().g.turn, upId = who();
+    const at0 = s().clock.at, left0 = s().clock.left[upSeat], seq0 = s().turnSeq;
+    check(at0 === clock, 'audit/chess4: the clock of the player up runs');
+    clock += 40000;
+    const other = s().seats.find((id, k) => k !== upSeat && !s().g.out[k]);
+    applyRoomAction(r, other, 'resign', {});
+    check(s().g.out[s().seats.indexOf(other)] && s().g.turn === upSeat && s().clock.at === at0 && s().turnSeq === seq0,
+      'audit/chess4: another player resigns off-turn: the clock of the player up keeps running from when it started');
+    applyRoomAction(r, upId, 'move', Object.assign({}, C4.chess4Legal(s().g)[0], { seq: seq0 }));
+    check(s().g.turn !== upSeat && s().clock.left[upSeat] <= left0 - 40000 + 5000,
+      'audit/chess4: the move sent meanwhile counts, and the 40 seconds are charged');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

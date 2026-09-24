@@ -280,7 +280,9 @@ function bankBarHtml(c) {
     const to = g.debt.to === 'bank' ? bankT('bank_the_bank') : g.debt.to === 'each' ? bankT('bank_everyone') : (c.names[g.debt.to] || '');
     line = bankT('bank_you_owe', { n: bankFmt(g.debt.amount), to: to });
     sub = (g.cash[c.me] || 0) < g.debt.amount ? bankT('bank_raise_hint') : '';
-    buttons = btn(bankT('bank_pay'), 'payDebt', null, 'primary', (g.cash[c.me] || 0) < g.debt.amount) + btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger');
+    // Bankrupt only when nothing can cover the debt (the server refuses it otherwise).
+    buttons = btn(bankT('bank_pay'), 'payDebt', null, 'primary', (g.cash[c.me] || 0) < g.debt.amount) +
+      (bankLiquid(g, c.me) < g.debt.amount ? btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger') : '');
   } else if (tn.stage === 'act') {
     line = bankT('bank_your_turn');
     sub = bankCanBuyYet(g, c.me) ? bankT('bank_act_hint') : bankT('bank_first_lap_hint');
@@ -555,9 +557,22 @@ function bankSendOffer() {
     give: { cash: tr.give.cash, sqs: tr.give.sqs.slice(), cards: cardsOf(me, tr.give.cards) },
     get: { cash: tr.get.cash, sqs: tr.get.sqs.slice(), cards: cardsOf(tr.to, tr.get.cards) }
   };
-  bankDo('offer', payload);
+  // Close the panel before sending, so a game against the phone (which paints
+  // straight away) draws the table without it.
+  const saved = JSON.parse(JSON.stringify(tr));
   bankUi.panel = null;
   bankResetTrade();
+  bankDo('offer', payload);
+  // Against the phone a refused offer leaves none waiting: give back what was
+  // composed, so the player can fix it instead of starting over.
+  if (appState.currentView === 'play-bank') {
+    const g2 = bankState().g;
+    if (!(g2 && g2.offer && g2.offer.from === 'me')) {
+      bankUi.trade = saved;
+      bankUi.panel = 'trade';
+      bankRepaint();
+    }
+  }
 }
 
 /** The game on screen and who "me" is in it: a game against the phone, or a room. */

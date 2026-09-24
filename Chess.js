@@ -619,6 +619,30 @@ function chessHandicapFen(kind, side) {
 }
 
 /**
+ * Any start without the giver's piece: the standard start through
+ * chessHandicapFen; a 960 row the same way - the f-pawn, or the knight, the
+ * rook (castling that side lost with it) or the queen nearest the a-file.
+ * kind: 'none' | 'pawn' | 'knight' | 'rook' | 'queen' | 'time' (time takes no piece)
+ * side: 'w' | 'b' (or 0 | 1)
+ */
+function chessOddsFen(fen, kind, side) {
+  if (!kind || kind === 'none' || kind === 'time') return fen || CHESS_START_FEN;
+  const s = (side === 'b' || side === 1) ? 1 : 0;
+  if (!fen || fen === CHESS_START_FEN) return chessHandicapFen(kind, s);
+  const g = chessFromFen(fen);
+  if (!g) return fen;
+  const rank = s ? 56 : 0, own = s ? 8 : 0;
+  const find = (k) => { for (let f = 0; f < 8; f++) if (g.board[rank + f] === (k | own)) return rank + f; return -1; };
+  let sq = -1;
+  if (kind === 'pawn') sq = (s ? 48 : 8) + 5;
+  else if (kind === 'knight') sq = find(2);
+  else if (kind === 'queen') sq = find(5);
+  else if (kind === 'rook') { sq = find(4); g.castle &= ~(s ? 8 : 2); }
+  if (sq >= 0) g.board[sq] = 0;
+  return chessFen(g);
+}
+
+/**
  * The position for threefold repetition: the pieces, the side to move, the
  * castling rights and an en passant square only when a pawn could really take
  * there (FIDE: a position is "the same" only if the same moves are possible).

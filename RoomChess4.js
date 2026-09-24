@@ -231,9 +231,19 @@ const chess4NewRoomGame = (room, playerId, action, p) => {
 /** Takes a player out of the game: FFA out (grey walls), teams a loss. */
 const chess4RoomOut = (room, seat, why) => {
   const s = room.shared;
+  const was = s.g.turn, seq = s.turnSeq;
   const events = chess4Eliminate(s.g, seat, why);
   if (!events.length) return;
+  // Someone going out off-turn (FFA) leaves the player up where they were:
+  // their clock keeps running from when it started (no thinking time given
+  // back) and their turn's number stays, so a move they sent meanwhile counts.
+  const same = s.g.turn === was && !s.g.over;
+  const keepAt = same && s.clock ? s.clock.at : undefined;
   chess4After(room, events);
+  if (same) {
+    if (s.clock) s.clock.at = keepAt;
+    s.turnSeq = seq;
+  }
 };
 
 const chess4Action = (room, playerId, action, payload) => {

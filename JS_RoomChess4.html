@@ -636,6 +636,9 @@ function ch4Update(root, state, tv) {
   boardEl.dataset.rot = rot;
   ch4NoteClock(state);
   const key = state.code + '|' + (s.dealId || '') + '|' + rot + '|' + (tv ? 'tv' : 'ph');
+  // Read before ch4Game, which lets go of this phone's own move once the server
+  // has it: the echo of that move must know it was ours (no second slide or sound).
+  const e0 = ch4Local.early;
   const g = ch4Game(state);
   const log = s.log || [];
   const lastN = log.length ? log[log.length - 1].n : 0;
@@ -651,7 +654,6 @@ function ch4Update(root, state, tv) {
   } else {
     const fresh = log.filter(e => e.n > ch4Local.seen);
     ch4Local.seen = Math.max(ch4Local.seen, lastN);
-    const e0 = ch4Local.early;
     // This phone's own move, already drawn when the finger lifted.
     if (e0 && !e0.drawn && g === e0.g) { ch4PlayMove(root, { from: e0.from, to: e0.to, castle: e0.castle }, rot, false); e0.drawn = true; }
     const animate = !motionOff() && fresh.length <= 8;

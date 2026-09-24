@@ -414,8 +414,13 @@ const doubtPlayerLeft = (room, playerId) => {
     }
   } else if (wasTurn) {
     // Their turn passes: a lead goes to the next seat, a follow counts as a pass.
+    // A pass closes the call window first, exactly as doubtPass does: the
+    // play on top can't be called any more, and a last play there stands.
     if (stage === 'lead' || !s.rank) doubtStartTurn(room, doubtNextSeat(room, playerId), 'lead');
-    else doubtAfterPass(room, playerId, lastPid);
+    else {
+      doubtCloseCall(room);
+      if (s.phase === 'play') doubtAfterPass(room, playerId, lastPid);
+    }
   }
   doubtSync(room);
 };

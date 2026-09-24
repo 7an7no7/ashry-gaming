@@ -63,8 +63,10 @@ function hbBoard(state) {
   const s = hbShared(state);
   const bd = s.chess;
   const e = hbLocal.early;
-  if (e && e.key === roomDealKey(state) && e.n === bd.moves + 1) return e;
-  if (e && (e.key !== roomDealKey(state) || bd.moves >= e.n)) hbLocal.early = null;
+  // A finished game never shows a move on top: the server drops a move that
+  // raced a flag or a resignation without an error.
+  if (e && e.key === roomDealKey(state) && e.n === bd.moves + 1 && !bd.result) return e;
+  if (e && (e.key !== roomDealKey(state) || bd.moves >= e.n || bd.result)) hbLocal.early = null;
   return { g: bd.g, last: bd.last, lost: bd.lost, n: bd.moves, sans: bd.sans };
 }
 
@@ -137,7 +139,15 @@ function hbPlay(from, to, promo) {
   hbLocal.sel = '';
   haptic('light');
   hbRedraw();
-  Promise.resolve(Room.act('move', { from: from, to: to, promo: promo, move: bd.moves })).catch((err) => {
+  Promise.resolve(Room.act('move', { from: from, to: to, promo: promo, move: bd.moves })).then(() => {
+    // Answered without taking the move (dropped quietly, as a stale one is):
+    // the room's own board comes back.
+    const e = hbLocal.early;
+    if (!e || e.n !== n) return;
+    const st = Room.state;
+    const b2 = st && st.game === 'handbrain' && hbShared(st).chess;
+    if (!b2 || e.key !== roomDealKey(st) || b2.moves < n) { hbLocal.early = null; hbRedraw(true); }
+  }, (err) => {
     hbLocal.early = null;
     showToast((err && err.message) || '', 'error');
     hbRedraw(true);

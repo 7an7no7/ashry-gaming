@@ -903,6 +903,11 @@ const bankGoBankrupt = (g, priv, pid, to) => {
 /** The player whose turn it is gives up the debt they can't pay. */
 const bankBankrupt = (g, priv, pid, now) => {
   bankMustTurn(g, pid, ['debt']);
+  // Classic bankruptcy: only when selling back and mortgaging can't cover the
+  // debt. A tap beside "pay" must never put someone out who could still pay.
+  // (The bots, the clock and the forced move raise first, so they only get
+  // here once nothing is left to raise.)
+  if (g.debt && bankLiquid(g, pid) >= g.debt.amount) throw new Error('لسه تقدر تدفع: بيع أو ارهن');
   const d = g.debt;
   g.debt = null;
   bankGoBankrupt(g, priv, pid, d ? d.to : 'bank');

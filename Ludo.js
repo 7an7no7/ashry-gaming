@@ -377,6 +377,10 @@ const ludoRemovePlayer = (g, pid) => {
     g.turn = { pid: next, stage: 'roll', dice: null, sixes: 0 };
     if (g.places.indexOf(next) !== -1) ludoNextTurn(g);
     else { g.movable = []; g.turnSeq = (g.turnSeq || 0) + 1; }
+  } else if (g.turn.stage === 'move' && g.turn.pid) {
+    // Their wall may have been in the way of the player up: what can move now
+    // is worked out again, so the pieces lit match the board.
+    g.movable = ludoMovable(g, g.turn.pid, g.turn.dice);
   }
 };
 

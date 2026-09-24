@@ -103,6 +103,21 @@ const TOUR_CLIENT = {
 // the last time it was drawn; filled: the bracket slots already drawn, per tournament; dealt: the draws flown.
 const tourLocal = { view: null, autoKey: '', filled: {}, dealt: {}, loop: null };
 
+/**
+ * The server's time as this phone best knows it: a match's startAt is the
+ * server's clock, and a phone's own clock can be seconds off. The smallest
+ * gap seen between a state's serverNow and its arrival is the network's share
+ * (as the chess clocks read it).
+ */
+function tourNow() {
+  const st = typeof Room !== 'undefined' && Room.state;
+  if (st && typeof st.serverNow === 'number') {
+    const gap = (st.receivedAt || Date.now()) - st.serverNow;
+    if (tourLocal.offset === undefined || gap < tourLocal.offset) tourLocal.offset = gap;
+  }
+  return Date.now() - (tourLocal.offset || 0);
+}
+
 const tourOn = (state) => !!(state && state.shared && state.shared.tour);
 const tourT = (key, vars) => {
   const t = TRANSLATIONS[appState.lang] || {};
@@ -231,7 +246,7 @@ const tourNameHtml = (state, id) => `<bdi>${escapeHTML(tourName(state, id))}</bd
 
 /** A countdown to the server's moment `at` ("starts in 5"), kept counting by tourCountLoop. */
 function tourCountHtml(at, key) {
-  const left = Math.max(0, Math.ceil(((Number(at) || 0) - Date.now()) / 1000));
+  const left = Math.max(0, Math.ceil(((Number(at) || 0) - tourNow()) / 1000));
   return `<span class="tour-count" data-tour-at="${Number(at) || 0}" data-tour-key="${key || 'tour_starts_in'}">${escapeHTML(tourT(key || 'tour_starts_in', { n: left }))}</span>`;
 }
 
@@ -239,10 +254,10 @@ function tourCountLoop() {
   if (tourLocal.loop) return;
   const tick = () => {
     // Only countdowns still running on a screen being shown: a room view left behind keeps its old markup.
-    const els = [...document.querySelectorAll('[data-tour-at]')].filter(el => el.offsetParent !== null && Number(el.dataset.tourAt) > Date.now() - 1000);
+    const els = [...document.querySelectorAll('[data-tour-at]')].filter(el => el.offsetParent !== null && Number(el.dataset.tourAt) > tourNow() - 1000);
     if (!els.length) { tourLocal.loop = null; return; }
     els.forEach(el => {
-      const left = Math.max(0, Math.ceil((Number(el.dataset.tourAt) - Date.now()) / 1000));
+      const left = Math.max(0, Math.ceil((Number(el.dataset.tourAt) - tourNow()) / 1000));
       const text = tourT(el.dataset.tourKey || 'tour_starts_in', { n: left });
       if (el.textContent !== text) el.textContent = text;
     });
@@ -557,7 +572,7 @@ function tourDealDraw(root, state) {
   if (tourLocal.dealt[key]) return;
   tourLocal.dealt[key] = true;
   // Only a draw just made: a reload or a phone arriving later sees the bracket as it is.
-  if (motionOff() || tr.gameSeq > 0 || tr.matches.some(m => m.state === 'play' || (m.state === 'ready' && m.startAt - Date.now() < 1500))) return;
+  if (motionOff() || tr.gameSeq > 0 || tr.matches.some(m => m.state === 'play' || (m.state === 'ready' && m.startAt - tourNow() < 1500))) return;
   const wrap = root.querySelector('.tour-bracket');
   if (!wrap) return;
   const r = wrap.getBoundingClientRect();

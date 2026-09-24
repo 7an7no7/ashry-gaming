@@ -204,17 +204,18 @@ function chessRoomDeal(room, opts) {
       const champSeat = (s.seats || []).indexOf(champId);
       if (champSeat === 0 || champSeat === 1) {
         oddsSide = champSeat === 0 ? 'w' : 'b';
-        if (oddsKind === 'time') {
-          // Time odds handled by clock
-        } else {
-          startFen = chessHandicapFen(oddsKind, oddsSide);
-        }
       }
     }
   }
 
+  // The 960 row first, then the handicap's piece taken off it: a handicap on a
+  // 960 room takes the f-pawn or the knight, rook or queen nearest the a-file
+  // of that row (time odds take no piece: the clock gives them).
   if (!startFen && settings.variant === '960') {
     startFen = chess960Random(Math.random);
+  }
+  if (oddsSide && settings.odds !== 'time') {
+    startFen = chessOddsFen(startFen || CHESS_START_FEN, settings.odds, oddsSide);
   }
 
   s.chess = chessBoardNew(settings.clock, {

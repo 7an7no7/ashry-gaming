@@ -4189,8 +4189,8 @@ Date.now = duelTestClock;
   applyRoomAction(r, others[0], 'whole', { text: 'مدرسه', round: 1 });
   check(s.progress[others[0]].state === 'won' && s.phase === 'guessing', 'hangman: the whole word, typed with ه for ة, solves it');
   ['ث', 'ج', 'ح', 'خ', 'ذ', 'ز'].forEach((l) => applyRoomAction(r, others[1], 'guess', { letter: l, round: 1 }));
-  check(s.phase === 'result' && s.result.word === 'مدرسة' && s.scores[others[0]] === 10 && s.scores[setter] === 5 && !s.scores[others[1]],
-    'hangman: the word ends when all are done; a solve is 10, the writer 5 for each who was hanged');
+  check(s.phase === 'result' && s.result.word === 'مدرسة' && s.scores[others[0]] === 15 && s.scores[setter] === 5 && !s.scores[others[1]],
+    'hangman: the word ends when all are done; the first solve is 10 + 5 with a writer too, the writer 5 for each who was hanged');
   applyRoomAction(r, 'a', 'nextRound', { round: 1 });
   check(s.round === 2 && s.phase === 'writing' && s.setter !== setter && !s.cat, 'hangman: the next word has the next writer, and no hint yet');
   // The writer leaves before writing: the next one writes.

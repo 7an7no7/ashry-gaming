@@ -4152,8 +4152,8 @@ async function main() {
     await guessers[0].must('whole', { text: 'مدرسه', round: 1 });
     for (const l of ['ث', 'ج', 'ح', 'خ', 'ذ', 'ز']) await guessers[1].must('guess', { letter: l, round: 1 });
     await all(hmBots.concat([S]), (s) => s.shared.phase === 'result' && s.shared.result.word === 'مدرسة', 'hangman: the word ends when all are done, and is shown');
-    check(H.state.shared.scores[guessers[0].pid] === 10 && H.state.shared.scores[writer.pid] === 5 && !H.state.shared.scores[guessers[1].pid],
-          'hangman: a solve is 10, the writer 5 for the one who was hanged');
+    check(H.state.shared.scores[guessers[0].pid] === 15 && H.state.shared.scores[writer.pid] === 5 && !H.state.shared.scores[guessers[1].pid],
+          'hangman: the first solve is 10 + 5 with a writer too, the writer 5 for the one who was hanged');
     await H.must('nextRound', { round: 1 });
     await all(hmBots, (s) => s.shared.phase === 'writing' && s.shared.round === 2 && s.shared.setter !== writer.pid, 'hangman: the next word has the next writer');
     await H.must('backToHub');

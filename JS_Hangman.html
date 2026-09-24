@@ -157,15 +157,18 @@ function hmWriteError(text) {
 
 /**
  * The field a word is written in: the letters hidden until the eye is pressed.
- * A text field drawn as dots (-webkit-text-security), never type="password":
- * an iPhone gives a password field only its English keyboard, and the word
- * could not be written in Arabic.
+ * A plain text field whose letters are invisible, with dots drawn over it
+ * (.secret-field, secretDotsPaint): never type="password" (an iPhone gives a
+ * password field only its English keyboard, and the word could not be written
+ * in Arabic), and never -webkit-text-security either (Safari takes a dotted
+ * field for a password and offers to save the word when the game is left -
+ * the owner, 24 Sep 2026).
  */
 function hmWriteFormHtml(submit, placeholderName) {
   return `<form class="hm-write" onsubmit="event.preventDefault(); ${submit}(this)">
       <div class="hm-write__row">
-        <input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          placeholder="${escapeHTML(hmT('hm_write_ph'))}" aria-label="${escapeHTML(hmT('hm_write_ph'))}">
+        <span class="secret-field"><input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          placeholder="${escapeHTML(hmT('hm_write_ph'))}" aria-label="${escapeHTML(hmT('hm_write_ph'))}"><span class="secret-field__dots" aria-hidden="true"></span></span>
         <button type="button" class="btn btn--ghost btn--auto hm-write__eye" onclick="hmToggleEye(this)" aria-label="${escapeHTML(hmT('hm_show_word'))}" title="${escapeHTML(hmT('hm_show_word'))}">👁️</button>
       </div>
       <p class="field__hint">${escapeHTML(hmT('hm_write_hint'))}</p>
@@ -205,7 +208,21 @@ function hmRestoreTyping(el, kept) {
       if (k.sel) { try { inp.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} }
     }
   });
+  secretDotsPaint(el);
 }
+
+/** The dots over every secret field in root: one a letter typed, drawn over the invisible text. */
+function secretDotsPaint(root) {
+  (root || document).querySelectorAll('.secret-field').forEach(box => {
+    const inp = box.querySelector('input');
+    const dots = box.querySelector('.secret-field__dots');
+    if (inp && dots) dots.textContent = '•'.repeat(Array.from(inp.value || '').length);
+  });
+}
+document.addEventListener('input', (e) => {
+  const box = e.target && e.target.closest && e.target.closest('.secret-field');
+  if (box) secretDotsPaint(box.parentNode);
+});
 
 function hmToggleEye(btn) {
   const input = btn.closest('form').querySelector('input[name="w"]');

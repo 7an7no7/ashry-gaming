@@ -1111,9 +1111,11 @@ work changed. Add to it when a decision is made or a batch ships.
     phone guesses it **on its own board**; the writer moves round the table.
     Or **a race**: the app deals one word to everyone, **a single word from
     the app's lists with its category as the hint**.
-  - Scoring: a race's solve is **10 plus a bonus by order** (+5, +4 ... +1);
-    with a writer each solver scores **10** and **the writer 5 for every
-    guesser who didn't**.
+  - Scoring: a solve is **10 plus a bonus by order** (+5, +4 ... +1), **in
+    both ways** (the owner, 24 Sep 2026: "each place should get different,
+    the first the highest"; until then a writer's word gave every solver a
+    flat 10); with a writer, **the writer also scores 5 for every guesser who
+    didn't**.
   - **3, 5 or 10 words** a game, the host's choice; a word clock **off by
     default, 60 or 90 seconds**, and when it runs out whoever hasn't solved it
     has failed.
@@ -7012,9 +7014,14 @@ animation ends on.
 **An iPhone gives a password field only its English keyboard.** المشنقة's
 writer types a word the others mustn't see, and `type="password"` looked like
 the answer - but iOS lets a secure field use only an ASCII keyboard, so the
-word could not be written in Arabic. The field is `type="text"` drawn as dots
-(`-webkit-text-security: disc`, the `is-hidden` class the eye toggles). Hide
-typed text that way everywhere.
+word could not be written in Arabic. The field is `type="text"`, and **not
+`-webkit-text-security` either**: Safari takes a field drawn that way for a
+password and offered to save the word whenever the game was left (the owner, 24
+Sep 2026). A secret field is `.secret-field`: the input's letters are
+transparent (`is-hidden`, which the eye toggles) and `.secret-field__dots` draws
+one dot a letter over them (`secretDotsPaint`, JS_Hangman.html, run on every
+`input` event and after a redraw restores what was typed). Hide typed text that
+way everywhere.
 
 **A flex item's intrinsic size ignores its flex-basis.** المشنقة's tiles were
 `flex: 0 1 2.375rem` with no width, which was fine while they sat straight in

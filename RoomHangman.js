@@ -12,9 +12,10 @@
    own board. A word ends when every guesser has solved it or been hanged, on
    the clock (off, 60 or 90 seconds: whoever hasn't solved it by then has
    failed), or when the host closes it. 3, 5 or 10 words make a game.
-   Scoring: in the race a solve is 10 plus a bonus by the order the solves
-   came in (+5, +4 ... +1); with a writer each solver scores 10 and the writer
-   5 for every guesser who didn't. No computer players.
+   Scoring: a solve is 10 plus a bonus by the order the solves came in (+5,
+   +4 ... +1), in both ways (the owner, 24 Sep 2026: the first to get it gets
+   the most); with a writer, the writer also scores 5 for every guesser who
+   didn't. No computer players.
 
    What is hidden: the word (room._hm.word) until the word ends, and each
    board's letters, which reach their own phone only (room.secrets[pid]); the
@@ -161,7 +162,7 @@ const hmEndWord = (room) => {
     let pts = 0;
     if (b.state === 'won') {
       const at = s.solved.indexOf(pid);
-      pts = HM_SOLVE_POINTS + (race && at !== -1 ? (HM_SPEED_BONUS[at] || 0) : 0);
+      pts = HM_SOLVE_POINTS + (at !== -1 ? (HM_SPEED_BONUS[at] || 0) : 0);
     } else if (here.indexOf(pid) !== -1) {
       failed++;
     }

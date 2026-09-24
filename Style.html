@@ -11740,7 +11740,19 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .hm-write { display: flex; flex-direction: column; gap: var(--sp-2); }
 .hm-write__row { display: flex; gap: var(--sp-2); }
 .hm-write__row input { flex: 1 1 auto; min-width: 0; font-size: 1.125rem; }
-.hm-write__row input.is-hidden { -webkit-text-security: disc; text-security: disc; }
+/* A secret typed as dots: the letters are invisible and .secret-field__dots draws
+   one dot a letter over them. Not -webkit-text-security: Safari takes such a field
+   for a password and offers to save it when the game is left. */
+.secret-field { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
+.secret-field input { flex: 1 1 auto; min-width: 0; font-size: 1.125rem; }
+.secret-field input.is-hidden { color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--text); }
+.secret-field input.is-hidden::placeholder { color: var(--text-3); -webkit-text-fill-color: var(--text-3); }
+.secret-field__dots {
+  position: absolute; inset-block: 0; inset-inline: calc(var(--sp-4) + 1.5px);
+  display: flex; align-items: center; overflow: hidden; white-space: nowrap;
+  pointer-events: none; font-size: 1.125rem; font-weight: 800; letter-spacing: 0.12em; color: var(--text);
+}
+.secret-field input:not(.is-hidden) + .secret-field__dots { display: none; }
 .hm-write__err:empty { display: none; }
 .hm-hint { font-size: 0.875rem; font-weight: 700; color: var(--accent-ink); background: var(--accent-soft); border-radius: var(--r-full); padding: 0.125rem 0.625rem; }
 .hm-board__who { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; min-width: 0; }
@@ -13421,7 +13433,6 @@ span.om-back { cursor: default; }
 .sv-form, .sv-set-flags { display: flex; flex-direction: column; gap: var(--sp-2); }
 .sv-hidden { display: flex; gap: var(--sp-2); }
 .sv-hidden input { flex: 1 1 auto; min-width: 0; font-size: 1.125rem; }
-.sv-hidden input.is-hidden { -webkit-text-security: disc; text-security: disc; }
 .sv-err:empty { display: none; }
 .sv-kinds { justify-content: center; }
 .sv-emoji-input { font-size: 1.5rem; text-align: center; }

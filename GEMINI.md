@@ -2530,6 +2530,34 @@ the word search), `countUp` for streaks and scores.
   size container as a grid item gives its `auto` column no width, and one
   class name used for two things (the log's colour dot and the legal-move
   dot) put a legal-move dot over every move in the log.
+- **24 Sep 2026, the full audit and all 60 fixes** - a read-only audit of the
+  whole app after the five batches (18 modules: agy's Gemini for the first
+  seven, Claude sub-agents for the rest when agy's quota ran out; a challenge
+  pass to break each module's "clean" claims, a cross-check that tried to
+  disprove every finding, the moderates read at the source). 65 findings, 60
+  after duplicates, none critical, 8 moderate; the owner approved fixing all
+  of them. The moderates: العقل's double tap played two cards; بنك الحظ's
+  bankrupt button sat beside Pay with no check (now refused while selling
+  and mortgaging could cover the debt, and shown only then); a room chess
+  duel with 960 and a handicap played the standard start from game 2 (the
+  handicap rule is `chessOddsFen` in `Chess.js` now, the page's `chOddsFen`
+  a wrapper); closing the coach's blunder warning with back froze the game
+  (`chCoachDismissed`); resuming the set-aside puzzle daily rolled back the
+  streak and the solved mistakes; Help and the exit sheet counted as play in
+  a solo board's time; a Draw & Guess viewer who missed a clear kept a wrong
+  drawing (`paintStrokes` remembers its last stroke); and a Codenames pass
+  double tap. Most of the 52 minor ones were one of two shapes: **a host or
+  turn action sent with nothing the phone saw** (the five-seconds and
+  timeline skips, ربع قرد's undo, ارسم واكتب's reveal, a late vote landing
+  in the next round, a late trivia answer - all `staleTap` now, every field
+  optional on the server), and **"play once" forgotten by a reload** (the
+  duels, خمّن مين: `duelRoomFirstSight` marks what is already on the board as
+  seen the first time a page sees a game). Also: the chameleon, spy and fake
+  get the same card as everyone else at a glance; the Stop log counts a cell
+  once and `WordLog` keeps a count instead of listing every word; the
+  leak check's drivers press a game of rounds' "next round" (domino failed
+  one run in thirty when a game needed a second round). Rules tests grew by
+  the audit's checks (`audit/…`, `audit2/…`).
 
 ## Building and Running
 
@@ -6609,6 +6637,15 @@ keys carry `roomDealKey(state)` now, خمّن مين a counter that only goes up
 (`s.logSeq`), and a tournament's game number is `t.no * 1000 + gameSeq`. The same
 mistake kept only the first chess game of a room for review (`chRoomGameKey`
 has the deal in it now).
+
+**A play-once memory is empty after a reload.** `motionFirst` and `duelOnce`
+live in the page, so a reloaded phone, a late joiner and a TV coming on used
+to replay the last disc, its sound, the win line and the confetti. A room
+screen marks what is already on the board as seen the first time the page
+sees that game (`duelRoomFirstSight`), before it draws; a new game from then
+on animates as always. And a host button that moves a round on (skip, undo,
+next) must send what it was pressed for, or a double tap does it twice: the
+audit of 24 Sep 2026 found eight that didn't.
 
 **A 3D screen has to ask, when three.js arrives, whether it is still wanted.**
 Leaving mini golf while three.js was loading found nothing to dispose; the

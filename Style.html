@@ -13555,7 +13555,7 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
    kept games and the review), JS_RoomChess.html (the room and the TV). The
    board is a WebGL canvas (three.js) over a warm gradient, so the stage is
    never an empty box while it loads; where WebGL can't draw it is the flat
-   board (.ch-fboard). The screen is the duels' (section 18): the pills with
+   board (.ch2-board, the 2D one). The screen is the duels' (section 18): the pills with
    each side's clock and what they took, the status, the moves; the board takes
    the space, the rest is a compact column beside it on a phone held sideways
    and on anything wide, and under it upright.
@@ -13609,49 +13609,151 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 }
 @keyframes chShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 
-/* --- The pieces as drawings (the flat board, the picker, the taken pieces, the pills) --- */
-.ch-svg { display: block; width: 100%; height: 100%; }
-.ch-svg path, .ch-svg circle { stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
-.ch-svg.is-light path, .ch-svg.is-light circle { fill: #f7eedb; stroke: #3b2c1f; }
-.ch-svg.is-dark path, .ch-svg.is-dark circle { fill: #2b221c; stroke: #120d0a; }
-.ch-svg .ch-svg-line { fill: none !important; }
-.ch-svg.is-dark .ch-svg-line { stroke: #d9c7a8; }
-.ch-svg .ch-svg-dot { stroke: none; }
-.ch-svg.is-light .ch-svg-dot { fill: #3b2c1f; }
-.ch-svg.is-dark .ch-svg-dot { fill: #d9c7a8; }
+/* --- The pieces as drawings (the 2D board, the picker, the taken pieces, the pills) ---
+   <symbol>s drawn once (chPieceDefs); their colours are these tokens, the same in both themes. */
+:root {
+  --ch2-w-hi: #fffdf7; --ch2-w-mid: #f1e8d6; --ch2-w-lo: #d4c5a8; --ch2-w-edge: #2c2620; --ch2-w-line: #2c2620;
+  --ch2-b-hi: #5e5953; --ch2-b-mid: #37332f; --ch2-b-lo: #1c1a18; --ch2-b-edge: #0c0b0a; --ch2-b-line: #d8cfc1;
+  /* The board's own colours: «أخضر» by default, the other three below. */
+  --ch2-light: #eeeed2; --ch2-dark: #769656;
+  --ch2-light-img: none; --ch2-dark-img: none;
+  --ch2-last: rgba(255, 255, 51, 0.5);
+  --ch2-sel: rgba(255, 255, 51, 0.62);
+  --ch2-hint: rgba(0, 0, 0, 0.15);
+  --ch2-hover: rgba(255, 255, 255, 0.75);
+  --ch2-check: rgba(236, 34, 24, 0.95);
+}
+[data-ch2-style="wood"] {
+  --ch2-light: #edd3aa; --ch2-dark: #b27a4d;
+  --ch2-light-img: repeating-linear-gradient(97deg, rgba(120, 70, 20, 0.05) 0 0.12rem, transparent 0.12rem 0.5rem);
+  --ch2-dark-img: repeating-linear-gradient(83deg, rgba(60, 25, 5, 0.09) 0 0.1rem, transparent 0.1rem 0.45rem);
+  --ch2-last: rgba(255, 222, 60, 0.5); --ch2-sel: rgba(255, 222, 60, 0.64);
+}
+[data-ch2-style="blue"] {
+  --ch2-light: #e1e7ee; --ch2-dark: #7a95b4;
+  --ch2-last: rgba(142, 222, 255, 0.55); --ch2-sel: rgba(142, 222, 255, 0.72);
+}
+[data-ch2-style="marble"] {
+  --ch2-light: #e8e5de; --ch2-dark: #8e949b;
+  --ch2-light-img: radial-gradient(ellipse 60% 40% at 30% 60%, rgba(150, 146, 140, 0.16), transparent 70%), linear-gradient(122deg, transparent 30%, rgba(255, 255, 255, 0.55) 44%, transparent 58%), linear-gradient(28deg, transparent 55%, rgba(130, 128, 125, 0.1) 62%, transparent 70%);
+  --ch2-dark-img: radial-gradient(ellipse 55% 45% at 65% 35%, rgba(255, 255, 255, 0.13), transparent 70%), linear-gradient(122deg, transparent 32%, rgba(255, 255, 255, 0.16) 45%, transparent 58%), linear-gradient(28deg, transparent 52%, rgba(40, 44, 52, 0.12) 60%, transparent 68%);
+  --ch2-last: rgba(255, 226, 90, 0.52); --ch2-sel: rgba(255, 226, 90, 0.66);
+}
+.ch-svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
-/* --- The flat board --- */
-.ch-flat { position: absolute; inset: var(--sp-3); display: flex; align-items: center; justify-content: center; container-type: size; }
-.ch-fboard {
+/* --- The 2D board: squares in a grid, the pieces a layer over them --- */
+.ch-flat { position: absolute; inset: var(--ch-tools-h) 0 0; display: flex; align-items: center; justify-content: center; container-type: size; }
+.ch-view { --ch-tools-h: 2.9rem; }
+.ch-view.is-tv { --ch-tools-h: 0rem; }
+.ch2-board {
   position: relative;
-  display: grid;
-  grid-template: repeat(8, minmax(0, 1fr)) / repeat(8, minmax(0, 1fr));
   width: min(100cqw, 100cqh);
   height: min(100cqw, 100cqh);
-  border: 0.5rem solid #5a3a24;
-  border-radius: var(--r-sm);
-  box-shadow: 0 6px 18px rgba(40, 20, 5, 0.35);
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  box-shadow: 0 0.2rem 0.9rem rgba(20, 14, 6, 0.28);
+  container-type: size;
+  -webkit-user-select: none;
+  user-select: none;
 }
-.ch-fsq { position: relative; display: grid; place-items: center; }
-.ch-fsq.is-light { background: #e7cfa6; }
-.ch-fsq.is-dark { background: #8d5b3a; }
-.ch-fsq.is-last::before, .ch-fsq.is-sel::before, .ch-fsq.is-check::before { content: ''; position: absolute; inset: 0; }
-.ch-fsq.is-last::before { background: rgba(255, 214, 64, 0.42); }
-.ch-fsq.is-sel::before { background: rgba(80, 200, 255, 0.45); }
-.ch-fsq.is-check::before { background: radial-gradient(circle, rgba(255, 40, 20, 0.9), rgba(255, 40, 20, 0) 72%); }
-.ch-fsq.is-danger { box-shadow: inset 0 0 0 3px rgba(239, 68, 68, 0.95); }
-.ch-fsq.is-chance { box-shadow: inset 0 0 0 3px rgba(34, 197, 94, 0.95); }
-.ch-fsq > .ch-svg { position: relative; z-index: 1; width: 88%; height: 88%; }
-.ch-fsq > .ch-svg.is-arrived { animation: chArrive 260ms var(--ease-spring) both; }
-@keyframes chArrive { from { transform: scale(0.7); opacity: 0.4; } to { transform: none; opacity: 1; } }
-.ch-fsq__dot { position: absolute; z-index: 2; width: 30%; height: 30%; border-radius: 50%; background: rgba(20, 60, 90, 0.45); }
-.ch-fsq__cap { position: absolute; z-index: 2; inset: 6%; border-radius: 50%; border: 0.3rem solid rgba(20, 60, 90, 0.5); }
-.ch-fsq__r, .ch-fsq__f { position: absolute; z-index: 2; font-style: normal; font-size: 0.6rem; font-weight: var(--fw-bold); line-height: 1; opacity: 0.8; }
-.ch-fsq__r { top: 2px; left: 3px; }
-.ch-fsq__f { bottom: 2px; right: 3px; }
-.ch-fsq.is-light .ch-fsq__r, .ch-fsq.is-light .ch-fsq__f { color: #8d5b3a; }
-.ch-fsq.is-dark .ch-fsq__r, .ch-fsq.is-dark .ch-fsq__f { color: #f2e0bf; }
-.ch-farrows { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+.ch2-sqs { display: grid; grid-template: repeat(8, minmax(0, 1fr)) / repeat(8, minmax(0, 1fr)); width: 100%; height: 100%; }
+.ch2-sq { position: relative; display: grid; place-items: center; background-color: var(--ch2-dark); background-image: var(--ch2-dark-img); background-size: 250% 250%; background-position: var(--bx, 0) var(--by, 0); }
+.ch2-sq.is-l { background-color: var(--ch2-light); background-image: var(--ch2-light-img); }
+.ch2-sq::before, .ch2-sq::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.ch2-sq.is-last::before { background: var(--ch2-last); }
+.ch2-sq.is-sel::before { background: var(--ch2-sel); }
+.ch2-sq.is-check::before { background: radial-gradient(circle, var(--ch2-check) 0%, rgba(236, 34, 24, 0.55) 38%, rgba(236, 34, 24, 0) 72%); }
+.ch2-sq.is-danger::after { box-shadow: inset 0 0 0 0.45cqw rgba(239, 68, 68, 0.95); }
+.ch2-sq.is-chance::after { box-shadow: inset 0 0 0 0.45cqw rgba(34, 197, 94, 0.95); }
+.ch2-sq.is-hover::after { box-shadow: inset 0 0 0 0.6cqw var(--ch2-hover); }
+.ch2-dot { position: absolute; z-index: 3; width: 33%; height: 33%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
+.ch2-cap { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 79%, var(--ch2-hint) 81% 100%, transparent 101%); pointer-events: none; }
+.ch2-co { position: absolute; z-index: 1; font-style: normal; font-size: 2.5cqw; font-weight: var(--fw-bold); line-height: 1; pointer-events: none; direction: ltr; }
+.ch2-co--r { top: 0.45cqw; left: 0.55cqw; }
+.ch2-co--f { bottom: 0.35cqw; right: 0.6cqw; }
+.ch2-sq.is-l .ch2-co { color: var(--ch2-dark); }
+.ch2-sq.is-d .ch2-co { color: var(--ch2-light); }
+.ch2-pcs { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.ch2-pc {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 12.5%;
+  height: 12.5%;
+  transform: translate(calc(var(--x, 0) * 100%), calc(var(--y, 0) * 100%));
+}
+.ch2-pc > .ch-svg { transition: transform 90ms var(--ease-out), filter 90ms var(--ease-out); }
+.ch2-pc.is-moving { z-index: 2; }
+.ch2-pc.is-taken { z-index: 0; }
+.ch2-pc.is-drag { z-index: 4; }
+.ch2-pc.is-drag > .ch-svg { transform: scale(1.14) translateY(-4%); filter: drop-shadow(0 0.35rem 0.3rem rgba(0, 0, 0, 0.35)); }
+.ch2-pc.is-mated > .ch-svg { transform: rotate(-18deg) translateY(4%); filter: grayscale(0.4); transition: transform 700ms var(--ease-spring), filter 700ms; }
+.ch2-arrows { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+.ch2-board.is-mini { border-radius: 0.4vmin; box-shadow: none; }
+
+/* --- The board's own buttons (its look; 2D / 3D) and the styles over it --- */
+.ch-tools { position: absolute; z-index: 4; top: 0.2rem; inset-inline-end: 0.2rem; display: flex; gap: var(--sp-1); }
+.ch-tools:empty { display: none; }
+.ch-tool {
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  box-shadow: var(--sh-1);
+  cursor: pointer;
+  white-space: nowrap;
+  direction: ltr;
+}
+.ch-tool:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.ch-lookpop {
+  position: absolute;
+  z-index: 6;
+  top: 3rem;
+  inset-inline-end: 0.2rem;
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+}
+.ch-lookpop[hidden] { display: none; }
+.ch-lookpop__title { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+.ch-swatches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); }
+.ch-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 3.4rem;
+  padding: var(--sp-2) var(--sp-1);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+.ch-swatch.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); color: var(--text); }
+.ch-swatch__sq { display: grid; grid-template-columns: 1fr 1fr; width: 2.2rem; height: 2.2rem; border-radius: 0.3rem; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+.ch-swatch__sq i { background: var(--ch2-light); }
+.ch-swatch__sq i:nth-child(2), .ch-swatch__sq i:nth-child(3) { background: var(--ch2-dark); }
+/* The 2D board sits on the page itself, not on the 3D board's warm stage. */
+.ch-stage:has(> .ch-view.is-flat) { background: none; box-shadow: none; overflow: visible; }
+.ch-view { container: chview / size; }
+/* A stage wider than tall: the buttons in a column beside the board, not a row over it. */
+@container chview (min-aspect-ratio: 5 / 4) {
+  .ch-view:not(.is-tv) .ch-flat { inset: 0; inset-inline-end: 3.1rem; }
+  .ch-tools { flex-direction: column; }
+  .ch-lookpop { top: 0.2rem; inset-inline-end: 3.1rem; }
+}
 
 /* --- The promotion picker, over the square the pawn goes to --- */
 .ch-promo {
@@ -13671,7 +13773,7 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .ch-promo[hidden] { display: none; }
 .ch-promo__title { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
 .ch-promo__row { display: flex; gap: var(--sp-1); direction: ltr; }
-.ch-promo__btn { width: 3.25rem; height: 3.25rem; padding: 0.3rem; border-radius: var(--r-md); border: 1px solid var(--border); background: #e7cfa6; cursor: pointer; }
+.ch-promo__btn { width: 3.25rem; height: 3.25rem; padding: 0.2rem; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--ch2-light); cursor: pointer; }
 .ch-promo__btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .ch-promo__x { position: absolute; top: -0.6rem; inset-inline-end: -0.6rem; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-solid); color: var(--text-2); font: inherit; cursor: pointer; }
 
@@ -13862,7 +13964,7 @@ input.ch-elo[type="range"]:focus-visible { outline: 3px solid var(--accent); out
 .ch-pos__egline b { color: var(--text); }
 .ch-pos__main { display: flex; flex-direction: column; gap: var(--sp-4); }
 .ch-pos__board { position: relative; width: 100%; max-width: 30rem; margin-inline: auto; aspect-ratio: 1; container-type: size; }
-.ch-pos__board .ch-fsq { cursor: pointer; }
+.ch-pos__board .ch2-sq { cursor: pointer; }
 .ch-pos__side { display: flex; flex-direction: column; gap: var(--sp-3); }
 .ch-pos__side > .field { margin: 0; }
 .ch-pos__side .field__hint { margin: 0; }
@@ -13997,7 +14099,8 @@ input.ch-elo[type="range"]:focus-visible { outline: 3px solid var(--accent); out
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ch-loading span, .ch-fsq > .ch-svg.is-arrived { animation: none; }
+  .ch-loading span { animation: none; }
+  .ch2-pc > .ch-svg { transition: none; }
   .ch-progress__bar { transition: none; }
 }
 
@@ -14270,10 +14373,8 @@ button.tour-live { cursor: pointer; }
 .tour-mini__count span { display: flex; align-items: baseline; gap: 0.6vmin; }
 .tour-mini__count b { font-size: 4.5vmin; color: var(--text-strong); }
 .tour-mini__count i { font-style: normal; }
-/* شطرنج's live card: a small flat board (a square container, so .ch-fboard fits it), both clocks, Armageddon. */
+/* شطرنج's live card: a small 2D board (a square container, so .ch2-board fits it), both clocks, Armageddon. */
 .tour-mini__board.ch-mini { aspect-ratio: 1; container-type: size; display: grid; place-items: center; }
-.ch-mini .ch-fboard { border-width: 0.5vmin; box-shadow: none; }
-.ch-mini .ch-fsq__r, .ch-mini .ch-fsq__f { display: none; }
 .ch-mini__clocks { display: flex; justify-content: center; gap: 1.6vmin; font-size: 2vmin; }
 .ch-mini__clocks span { display: inline-flex; align-items: center; gap: 0.6vmin; padding: 0.2vmin 0.9vmin; border-radius: 99px; color: var(--text-2); }
 .ch-mini__clocks span.is-running { background: var(--accent-btn, var(--accent)); color: var(--accent-on); }

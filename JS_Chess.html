@@ -45,23 +45,60 @@ function chT(key, vars) {
 
 /* --- the pieces as drawings ----------------------------------------------------- */
 
-// One drawing per kind (1 pawn … 6 king) in a 45 × 45 box, drawn for this app:
-// a light piece in boxwood with a dark line, a dark one in ebony with a light line.
-const CH_PIECE_PATHS = {
-  1: '<path d="M11 39.5h23v-3.8H11z"/><path d="M14.5 35.7c.8-4.8 3.4-8 6-9.2h4c2.6 1.2 5.2 4.4 6 9.2z"/><path d="M17.8 26.6h9.4v-2.7h-9.4z"/><circle cx="22.5" cy="17.4" r="5.9"/>',
-  2: '<path d="M10.5 39.5h24v-3.8h-24z"/><path d="M14 35.7c0-6.2 3.1-9.3 7.2-12.3-3 .4-6 2-8.1 4.6-1.6-1-1.6-3.2 0-4.7l8.2-9.6c.5-2.6 2-4.6 3.5-5.6l1.1 3.1c5.6.5 10.1 5.6 10.6 13.2.5 6.1-.5 9.6-1.5 11.3z"/><circle class="ch-svg-dot" cx="25.3" cy="15.8" r="1.3"/>',
-  3: '<path d="M10.5 39.5h24v-3.8h-24z"/><path d="M14 35.7c1-4.2 3-6.7 5.2-7.7h7.6c2.2 1 4.2 3.5 5.2 7.7z"/><path d="M17.3 28h10.4v-2.8H17.3z"/><path d="M22.5 8.6c-4.6 3-7.2 7.6-7.2 11.6 0 3.1 2.6 5.9 7.2 5.9s7.2-2.8 7.2-5.9c0-4-2.6-8.6-7.2-11.6z"/><circle cx="22.5" cy="6.8" r="2.3"/><path class="ch-svg-line" d="M25 13.2l-4.3 6" fill="none"/>',
-  4: '<path d="M10 39.5h25v-3.8H10z"/><path d="M13.2 35.7h18.6l-1.6-4.2H14.8z"/><path d="M15.2 31.5h14.6V18H15.2z"/><path d="M12 18h21v-6.2h-4.1v2.9h-3.6v-2.9h-5.6v2.9h-3.6v-2.9H12z"/><path class="ch-svg-line" d="M15.2 18h14.6M15.2 31.5h14.6" fill="none"/>',
-  5: '<path d="M10 39.5h25v-3.8H10z"/><path d="M13.5 35.7c1.5-5.2 2.4-10.2 2-15h14c-.4 4.8.5 9.8 2 15z"/><path d="M11.8 21.2L9.3 11.2l6 5 3.2-8.3 4 7.6 4-7.6 3.2 8.3 6-5-2.5 10z"/><circle cx="9" cy="10" r="2.2"/><circle cx="18.5" cy="7" r="2.2"/><circle cx="26.5" cy="7" r="2.2"/><circle cx="36" cy="10" r="2.2"/><path class="ch-svg-line" d="M16 24.5h13" fill="none"/>',
-  6: '<path d="M10 39.5h25v-3.8H10z"/><path d="M13.2 35.7c1.5-5 2.5-9.6 2-14.2h14.6c-.5 4.6.5 9.2 2 14.2z"/><path d="M15.1 21.7c-1-6.1 3-9.7 7.4-9.7s8.4 3.6 7.4 9.7z"/><path d="M21.3 3.8h2.4v3.1h3.1v2.4h-3.1v3.1h-2.4V9.3h-3.1V6.9h3.1z"/><path class="ch-svg-line" d="M15.4 25.3h14.2" fill="none"/>'
+// The 2D set (the owner, 24 Sep 2026: "the same look as chess.com" - a clean flat set, drawn for this
+// app): Staunton silhouettes in a 45 × 45 box, each a few shapes with a dark outline and a soft
+// two-tone shading - a king with its cross, a queen with a coronet of balls, a rook's battlements, the
+// slit in a bishop's mitre, a knight's head with its mane and eye, a pawn. White is ivory with a dark
+// line, Black near-black with a light inner line. Defined once in the page as <symbol>s (ch2pc-w1 …
+// ch2pc-b6) and drawn with <use>, so a board of 32 pieces is 32 tiny elements. The colours are the
+// --ch2-w-* / --ch2-b-* tokens (Style.html), the same in both themes.
+// 'b' a body (filled, outlined), 'c' a round body (cx cy r), 'l' a detail line, 'd' a detail dot, 'dc' a round one.
+const CH2_BASE = (x0, x1) => { const w = x1 - x0; return `M${x0 + 1.6} 40h${(w - 3.2).toFixed(1)}c.9 0 1.6-.7 1.6-1.6v-.6c0-1.5-1.2-2.8-2.8-2.8h-${(w - 5.6).toFixed(1)}c-1.6 0-2.8 1.3-2.8 2.8v.6c0 .9.7 1.6 1.6 1.6z`; };
+const CH2_SHAPES = {
+  1: [['b', CH2_BASE(11.5, 33.5)], ['b', 'M14.2 35C15.4 30.2 17.8 27.4 20.4 26.2h4.2C27.2 27.4 29.6 30.2 30.8 35z'], ['b', 'M17.2 26.6h10.6c1 0 1.7-.7 1.7-1.6s-.7-1.6-1.7-1.6H17.2c-1 0-1.7.7-1.7 1.6s.7 1.6 1.7 1.6z'], ['c', '22.5 17.3 6.2']],
+  2: [['b', CH2_BASE(11, 34)], ['b', 'M14.2 35C14.8 30.8 16.4 27.8 19 25.8C16.6 25.6 13.8 26 11.6 25.6C9.7 25.2 8.5 23.7 8.7 21.8C8.9 20 10 18.7 11.4 17.3L16.2 11.6C17 10.5 18 9.6 19 9L19.9 4.8L23 8.3C28.6 8.6 33.2 12.8 34.2 19.6C35 25.4 33.6 30.4 32.4 35z'],
+    ['l', 'M24.4 10.4C28.9 11.3 31.7 15 32.3 20.1C32.8 25 31.9 30 30.8 34.4'], ['l', 'M19 25.8c1.6-1.7 2.2-4.2 1.4-6.4'], ['l', 'M9.3 23.4c1.1.4 2.1.4 3.1 0'], ['d', 'M16.8 14c.9-.9 2.1-1 3-.3-.9.9-2.1 1-3 .3z'], ['dc', '11.4 20.9 .8']],
+  3: [['b', CH2_BASE(11, 34)], ['b', 'M14.4 35C15.6 31.2 17.6 29 19.8 28.2h5.4C27.4 29 29.4 31.2 30.6 35z'], ['b', 'M17 28.6h11c.9 0 1.6-.7 1.6-1.5s-.7-1.5-1.6-1.5H17c-.9 0-1.6.7-1.6 1.5s.7 1.5 1.6 1.5z'],
+    ['c', '22.5 6.6 2.3'], ['b', 'M22.5 8.4C17.4 11.8 15 16.4 15 20.2c0 3 2.6 5.5 7.5 5.5s7.5-2.5 7.5-5.5c0-3.8-2.4-8.4-7.5-11.8z'], ['l', 'M25.3 12.9l-4.5 6.2']],
+  4: [['b', CH2_BASE(10.5, 34.5)], ['b', 'M12.6 35h19.8l-1.6-3.6H14.2z'], ['b', 'M15.4 31.4h14.2l-1.1-12.2H16.5z'], ['b', 'M14 19.4h17c.8 0 1.2-.5 1.2-1.2v-.9H12.8v.9c0 .7.4 1.2 1.2 1.2z'], ['b', 'M12.8 17.3V10.4h4.1v3h3.2v-3h4.8v3h3.2v-3h4.1v6.9z']],
+  5: [['b', CH2_BASE(10, 35)], ['b', 'M13.8 35c1.4-3.4 2.4-6.6 2.6-9.8h12.2c.2 3.2 1.2 6.4 2.6 9.8z'], ['b', 'M15.6 25.6h13.8c.8 0 1.4-.6 1.4-1.4s-.6-1.4-1.4-1.4H15.6c-.8 0-1.4.6-1.4 1.4s.6 1.4 1.4 1.4z'],
+    ['b', 'M15 22.8L11 12.6l5.6 4.6.8-7.6 3.4 6.8 1.7-8.6 1.7 8.6 3.4-6.8.8 7.6 5.6-4.6-4 10.2z'], ['c', '11 11.6 1.9'], ['c', '17.4 8.4 1.9'], ['c', '22.5 6.4 1.9'], ['c', '27.6 8.4 1.9'], ['c', '34 11.6 1.9'], ['l', 'M15.8 20.2c4.5 1 8.9 1 13.4 0']],
+  6: [['b', CH2_BASE(10, 35)], ['b', 'M13.8 35c1.4-3.4 2.4-6.6 2.6-9.8h12.2c.2 3.2 1.2 6.4 2.6 9.8z'], ['b', 'M15.6 25.6h13.8c.8 0 1.4-.6 1.4-1.4s-.6-1.4-1.4-1.4H15.6c-.8 0-1.4.6-1.4 1.4s.6 1.4 1.4 1.4z'],
+    ['b', 'M21.2 2.4h2.6v2.7h2.7v2.6h-2.7v2.8h-2.6V7.7h-2.7V5.1h2.7z'], ['b', 'M17.2 14.2c.8-2.6 2.9-4.2 5.3-4.2s4.5 1.6 5.3 4.2z'], ['b', 'M15.2 22.8l-1.6-7.6c2.8-1.5 5.8-2.2 8.9-2.2s6.1.7 8.9 2.2l-1.6 7.6z'], ['l', 'M15 19.2c5 1 10 1 15 0']]
 };
+
+/** The <symbol>s of both colours and their shading, as markup (one hidden <svg> holds them). */
+function chPieceSymbols() {
+  let out = '<defs>' + ['w', 'b'].map(c => `<linearGradient id="ch2g-${c}" x1="0" y1="0" x2="1" y2="0.35"><stop offset="0" style="stop-color:var(--ch2-${c}-hi)"/><stop offset="0.55" style="stop-color:var(--ch2-${c}-mid)"/><stop offset="1" style="stop-color:var(--ch2-${c}-lo)"/></linearGradient>`).join('') + '</defs>';
+  ['w', 'b'].forEach(c => {
+    const body = `style="fill:url(#ch2g-${c});stroke:var(--ch2-${c}-edge);stroke-width:1.5;stroke-linejoin:round"`;
+    const line = `style="fill:none;stroke:var(--ch2-${c}-line);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round"`;
+    const dot = `style="fill:var(--ch2-${c}-line);stroke:none"`;
+    for (let k = 1; k <= 6; k++) {
+      out += `<symbol id="ch2pc-${c}${k}" viewBox="0 0 45 45">` + CH2_SHAPES[k].map(([t, d]) => {
+        if (t === 'c' || t === 'dc') { const p = d.split(' '); return `<circle cx="${p[0]}" cy="${p[1]}" r="${p[2]}" ${t === 'c' ? body : dot}/>`; }
+        return `<path d="${d}" ${t === 'b' ? body : t === 'l' ? line : dot}/>`;
+      }).join('') + '</symbol>';
+    }
+  });
+  return out;
+}
+
+/** The symbols in the page, once (before the first piece is drawn). */
+function chPieceDefs() {
+  if (typeof document === 'undefined' || document.getElementById('ch2-defs')) return;
+  const holder = document.createElement('div');
+  holder.innerHTML = `<svg id="ch2-defs" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">${chPieceSymbols()}</svg>`;
+  (document.body || document.documentElement).appendChild(holder.firstChild);
+}
 
 /** A piece drawn: code as on the board (kind, +8 for black). */
 function chPieceSvg(code, cls) {
   const kind = code & 7;
   if (!kind) return '';
+  chPieceDefs();
   const dark = code >> 3;
-  return `<svg class="ch-svg ${dark ? 'is-dark' : 'is-light'} ${cls || ''}" viewBox="0 0 45 45" aria-hidden="true" focusable="false">${CH_PIECE_PATHS[kind]}</svg>`;
+  return `<svg class="ch-svg ${dark ? 'is-dark' : 'is-light'} ${cls || ''}" viewBox="0 0 45 45" aria-hidden="true" focusable="false"><use href="#ch2pc-${dark ? 'b' : 'w'}${kind}"/></svg>`;
 }
 
 const CH_LETTER_KIND = { p: 1, n: 2, b: 3, r: 4, q: 5, k: 6 };
@@ -98,6 +135,13 @@ function chSound(kind) {
       fxTone('sine', [[0, 220], [0.08, 180]], [[0, 0], [0.01, 0.1], [0.12, 0.001]], at);
     } else if (kind === 'hint') {
       fxTone('sine', [[0, 700], [0.18, 1050]], [[0, 0], [0.02, 0.07], [0.22, 0.001]], at);
+    } else if (kind === 'end') {
+      // The end of the game: a low chord, the three notes a moment apart.
+      [[196, 0], [247, 0.05], [294, 0.1]].forEach(([f, d]) => fxTone('triangle', [[0, f], [0.9, f]], [[0, 0], [0.03, 0.07], [1.1, 0.001]], at + d));
+    } else if (kind === 'thud') {
+      // A king falling onto the board.
+      fxNoise('lowpass', 500, 0.8, [[0, 0], [0.004, 0.34], [0.18, 0.001]], at);
+      fxTone('sine', [[0, 120], [0.16, 60]], [[0, 0], [0.006, 0.22], [0.22, 0.001]], at);
     }
   } catch (e) {}
 }
@@ -144,6 +188,38 @@ function chWood(g, x, y, w, h, base, seed, across) {
   }
   g.restore();
 }
+
+/** Marble: a pale or grey ground, soft clouds and a few thin veins. */
+function chMarble(g, x, y, w, h, base, seed) {
+  const rnd = chRand(seed);
+  g.save();
+  g.beginPath(); g.rect(x, y, w, h); g.clip();
+  g.fillStyle = base; g.fillRect(x, y, w, h);
+  for (let k = 0; k < 5; k++) {
+    const cx = x + rnd() * w, cy = y + rnd() * h, r = w * (0.3 + rnd() * 0.5);
+    const grd = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grd.addColorStop(0, rnd() < 0.5 ? 'rgba(255,255,255,0.14)' : 'rgba(60,60,70,0.07)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd; g.fillRect(x, y, w, h);
+  }
+  for (let k = 0; k < 3; k++) {
+    g.strokeStyle = `rgba(70,72,80,${0.12 + rnd() * 0.18})`;
+    g.lineWidth = 0.6 + rnd() * 1.4;
+    g.beginPath();
+    let px = x + rnd() * w, py = y;
+    g.moveTo(px, py);
+    while (py < y + h) { px += (rnd() - 0.5) * w * 0.25; py += h * (0.08 + rnd() * 0.12); g.lineTo(px, py); }
+    g.stroke();
+  }
+  g.restore();
+}
+
+// The 3D board in each of the four styles: the squares, the frame, the pieces' finish (a metal sheen for «أزرق»).
+const CH3_STYLES = {
+  green: { id: 'green', light: '#ebe6c9', dark: '#5f8246', frame: '#3f2c1e', frameMesh: 0x3a281b, pw: 0xf6ead2, pb: 0x2a211c, metal: 0 },
+  wood: { id: 'wood', light: '#dfc08c', dark: '#74421f', frame: '#5a3a24', frameMesh: 0x4a2f1d, pw: 0xf6ead2, pb: 0x2a211c, metal: 0 },
+  blue: { id: 'blue', light: '#d5dde7', dark: '#47627f', frame: '#28303d', frameMesh: 0x232a36, pw: 0xe6eaf0, pb: 0x2d3139, metal: 0.45 },
+  marble: { id: 'marble', light: '#efede7', dark: '#8d9196', frame: '#3f4145', frameMesh: 0x35373b, pw: 0xf7f1e4, pb: 0x171717, metal: 0, marble: true }
+};
 
 /** A soft room of light for the lacquer to reflect: warm above, darker below. */
 function chRoomEnv(THREE, pmrem) {
@@ -247,19 +323,19 @@ function chMake3D(THREE, root) {
   const boardTex = new THREE.CanvasTexture(bc);
   boardTex.colorSpace = THREE.SRGBColorSpace;
   boardTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  let boardOrient = -1;
+  let boardOrient = '', pal = CH3_STYLES.green;
   function drawBoard(orient) {
-    if (boardOrient === orient) return;
-    boardOrient = orient;
+    if (boardOrient === orient + '|' + pal.id) return;
+    boardOrient = orient + '|' + pal.id;
     const S = 1024, u = S / 10;
-    chWood(bg, 0, 0, S, S, '#5a3a24', 11, true);
+    chWood(bg, 0, 0, S, S, pal.frame, 11, true);
     bg.fillStyle = 'rgba(0,0,0,0.25)';
     bg.fillRect(u - 6, u - 6, 8 * u + 12, 8 * u + 12);
     for (let r = 0; r < 8; r++) {
       for (let f = 0; f < 8; f++) {
         const light = (r + f) % 2 === 1;
         const x = u + f * u, y = u + (7 - r) * u;
-        chWood(bg, x, y, u, u, light ? '#dfc08c' : '#74421f', 100 + r * 8 + f, (r + f) % 2 === 0);
+        (pal.marble ? chMarble : chWood)(bg, x, y, u, u, light ? pal.light : pal.dark, 100 + r * 8 + f, (r + f) % 2 === 0);
       }
     }
     bg.strokeStyle = 'rgba(30,15,5,0.55)'; bg.lineWidth = 3;
@@ -319,6 +395,19 @@ function chMake3D(THREE, root) {
   ];
   const glowMat = [0, 1].map(c => mats[c].body.clone());
   glowMat.forEach(m => { m.emissive = new THREE.Color(0xff2a1a); m.emissiveIntensity = 0.55; });
+
+  // The board's style (the owner's four): the squares' colours, the frame, the pieces' finish.
+  function applyStyle() {
+    const want = CH3_STYLES[chLook().style] || CH3_STYLES.green;
+    if (want === pal && boardOrient !== '') return;
+    pal = want;
+    woodMat.color.setHex(pal.frameMesh);
+    [0, 1].forEach(c => {
+      [mats[c].body, glowMat[c]].forEach(mm => { mm.color.setHex(c ? pal.pb : pal.pw); mm.metalness = pal.metal; });
+    });
+    boardOrient = '';
+    drawBoard(orient);
+  }
 
   function buildPiece(code) {
     const kind = code & 7, c = code >> 3;
@@ -710,6 +799,7 @@ function chMake3D(THREE, root) {
     const prevOrient = orient;
     model = m;
     orient = m.orient ? 1 : 0;
+    applyStyle();
     drawBoard(orient);
     if (fresh) {
       modelKey = m.key;
@@ -821,79 +911,300 @@ function chMake3D(THREE, root) {
 }
 
 /* ============================================================================
-   The flat board: where WebGL can't draw, and the review's small boards
+   The 2D board (the owner, 24 Sep 2026: "the option to play it normal, same look as in chess.com")
+   ----------------------------------------------------------------------------
+   Squares as a grid in the style's two colours, the coordinates small in the corners of the edge
+   squares (files along the bottom, ranks up the left, in the other square's colour), the last move's
+   two squares tinted, the piece picked up tinted, a soft dot on a square it can go to and a ring round
+   a piece it can take, a red glow under a king in check, arrows and marks in an SVG layer. The pieces
+   are a layer of their own over the squares, each placed with a transform, so a move slides the piece
+   (150 ms, Web Animations of transform only), a piece taken fades under the one arriving, a rook comes
+   with its king, a promoted piece pops, a dragged piece lifts and follows the finger. The live board
+   is built once and updated square by square; the static callers (the position editor, the
+   tournament's live cards) draw chFlatBoardHtml as it is. It is also where WebGL can't draw.
    ========================================================================= */
 
-/** The board as markup: squares, pieces, marks and arrows. m: the view's model. */
-function chFlatBoardHtml(m) {
-  const o = m.orient ? 1 : 0;
-  const last = m.last ? [m.last.from, m.last.to] : [];
-  const tg = {};
-  (m.targets || []).forEach(x => { tg[x.to] = x.capture ? 'cap' : 'dot'; });
-  const mk = {};
-  (m.marks || []).forEach(x => { mk[x.sq] = x.kind; });
-  let cells = '';
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const f = o ? 7 - col : col, r = o ? row : 7 - row;
-      const i = r * 8 + f, name = chSqName(i);
-      const light = (r + f) % 2 === 1;
-      const cls = ['ch-fsq', light ? 'is-light' : 'is-dark'];
-      if (last.indexOf(name) !== -1) cls.push('is-last');
-      if (m.sel === name) cls.push('is-sel');
-      if (m.check === name) cls.push('is-check');
-      if (mk[name]) cls.push(mk[name] === 'mine' ? 'is-danger' : 'is-chance');
-      const coord = (col === 0 ? `<i class="ch-fsq__r">${r + 1}</i>` : '') + (row === 7 ? `<i class="ch-fsq__f">${CH_FILES[f]}</i>` : '');
-      cells += `<span class="${cls.join(' ')}" data-sq="${name}">${coord}${m.board[i] ? chPieceSvg(m.board[i]) : ''}${tg[name] ? `<b class="ch-fsq__${tg[name]}"></b>` : ''}</span>`;
-    }
+// The board styles (the owner, 24 Sep 2026; «أخضر» the default): the 2D colours are tokens per style
+// in Style.html ([data-ch2-style]); the 3D board's are in CH3_STYLES.
+const CH2_STYLES = ['green', 'wood', 'blue', 'marble'];
+
+/** This phone's board: { view: '2d' | '3d', style }. 2D until the phone asks for 3D (remembered). */
+function chLook() {
+  const o = typeof recallOptions === 'function' ? recallOptions('chessLook', { view: '2d', style: 'green' }) : { view: '2d', style: 'green' };
+  return { view: o.view === '3d' ? '3d' : '2d', style: CH2_STYLES.indexOf(o.style) === -1 ? 'green' : o.style };
+}
+
+/** Remembers a change of the look and shows it on the board and the setup screen at once. */
+function chLookSet(patch) {
+  if (typeof rememberOptions === 'function') rememberOptions('chessLook', patch);
+  if (chView.root && chView.root.parentNode && chView.model) chViewShow(chView.root.parentNode, chView.model);
+  if (appState.currentView === 'setup-shatranj') paintShatranjSetup();
+  if (appState.currentView === 'pos-shatranj' && typeof chPosPaint === 'function') chPosPaint();
+}
+
+/** Where a square is drawn: [column, row] from the top left, White or Black at the bottom. */
+const ch2Cell = (i, o) => (o ? [7 - (i & 7), i >> 3] : [i & 7, 7 - (i >> 3)]);
+
+/** One square's classes and what is drawn in it (the coordinates, a dot or a ring). */
+function ch2SquareParts(m, i, o, extra) {
+  const name = chSqName(i);
+  const [col, row] = ch2Cell(i, o);
+  const cls = ['ch2-sq', ((i >> 3) + (i & 7)) % 2 === 1 ? 'is-l' : 'is-d'];
+  if (m.last && (m.last.from === name || m.last.to === name)) cls.push('is-last');
+  if (m.sel === name) cls.push('is-sel');
+  if (m.check === name) cls.push('is-check');
+  const mk = (m.marks || []).find(x => x.sq === name);
+  if (mk) cls.push(mk.kind === 'mine' ? 'is-danger' : 'is-chance');
+  if (extra && extra.hover === name) cls.push('is-hover');
+  const tg = (m.targets || []).find(x => x.to === name);
+  let inner = '';
+  if (!m.mini) {
+    if (col === 0) inner += `<i class="ch2-co ch2-co--r">${(i >> 3) + 1}</i>`;
+    if (row === 7) inner += `<i class="ch2-co ch2-co--f">${CH_FILES[i & 7]}</i>`;
   }
-  const arrows = (m.arrows || []).map(a => {
-    const p = (name) => { const i = chSqIndex(name); const f = i & 7, r = i >> 3; const col = o ? 7 - f : f, row = o ? r : 7 - r; return [col + 0.5, row + 0.5]; };
+  if (tg) inner += `<b class="${tg.capture ? 'ch2-cap' : 'ch2-dot'}"></b>`;
+  return { cls: cls.join(' '), inner: inner };
+}
+
+/** The arrows (a hint, the review's better move) as one SVG over the board, 8 × 8 units. */
+function ch2ArrowsSvg(m, o) {
+  const list = (m.arrows || []).map(a => {
+    if (chSqIndex(a.from) < 0 || chSqIndex(a.to) < 0) return '';
+    const p = (name) => { const c = ch2Cell(chSqIndex(name), o); return [c[0] + 0.5, c[1] + 0.5]; };
     const [x0, y0] = p(a.from), [x1, y1] = p(a.to);
     const len = Math.hypot(x1 - x0, y1 - y0) || 1;
     const ux = (x1 - x0) / len, uy = (y1 - y0) / len;
-    const hx = x1 - ux * 0.38, hy = y1 - uy * 0.38;
-    return `<line x1="${x0}" y1="${y0}" x2="${hx}" y2="${hy}" stroke="${a.color || 'rgba(34,197,94,0.85)'}" stroke-width="0.17" stroke-linecap="round"/>
-      <polygon points="${x1},${y1} ${hx - uy * 0.3},${hy + ux * 0.3} ${hx + uy * 0.3},${hy - ux * 0.3}" fill="${a.color || 'rgba(34,197,94,0.85)'}"/>`;
+    const hx = x1 - ux * 0.42, hy = y1 - uy * 0.42;
+    const col = a.color || 'rgba(34,197,94,0.85)';
+    return `<line x1="${x0 + ux * 0.2}" y1="${y0 + uy * 0.2}" x2="${hx}" y2="${hy}" stroke="${col}" stroke-width="0.19" stroke-linecap="round"/>` +
+      `<polygon points="${x1 - ux * 0.06},${y1 - uy * 0.06} ${hx - uy * 0.3},${hy + ux * 0.3} ${hx + uy * 0.3},${hy - ux * 0.3}" fill="${col}"/>`;
   }).join('');
-  return `<div class="ch-fboard" dir="ltr">${cells}${arrows ? `<svg class="ch-farrows" viewBox="0 0 8 8" aria-hidden="true">${arrows}</svg>` : ''}</div>`;
+  return list ? `<svg class="ch2-arrows" viewBox="0 0 8 8" aria-hidden="true">${list}</svg>` : '';
+}
+
+/** A piece in the pieces' layer, placed on square i. */
+const ch2PieceHtml = (code, i, o) => { const c = ch2Cell(i, o); return `<span class="ch2-pc" data-pc="${i}" style="--x:${c[0]};--y:${c[1]}">${chPieceSvg(code)}</span>`; };
+
+/** The board as markup: squares, pieces, marks and arrows. m: the view's model (+ style, mini). */
+function chFlatBoardHtml(m) {
+  const o = m.orient ? 1 : 0;
+  let sqs = '', pcs = '';
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const f = o ? 7 - col : col, r = o ? row : 7 - row;
+      const i = r * 8 + f;
+      const p = ch2SquareParts(m, i, o);
+      sqs += `<span class="${p.cls}" data-sq="${chSqName(i)}" style="--bx:${(i * 37) % 100}%;--by:${(i * 61) % 100}%">${p.inner}</span>`;
+    }
+  }
+  const board = m.board || [];
+  for (let i = 0; i < 64; i++) if (board[i]) pcs += ch2PieceHtml(board[i], i, o);
+  return `<div class="ch2-board ${m.mini ? 'is-mini' : ''}" data-ch2-style="${escapeHTML(m.style || chLook().style)}" dir="ltr"><div class="ch2-sqs">${sqs}</div><div class="ch2-pcs">${pcs}</div>${ch2ArrowsSvg(m, o)}</div>`;
 }
 
 function chMakeFlat(root) {
   const box = document.createElement('div');
   box.className = 'ch-flat';
   root.insertBefore(box, root.firstChild);
-  let model = null, animKey = '';
+  let model = null, layout = '', boardEl = null, layer = null, sqEls = [], sqKey = [], arrowsKey = '';
+  let animKey = '', mateKey = '', drag = null, dropped = null, hover = '', busyUntil = 0, dead = false;
+  const pcs = new Map();                     // square index -> the piece's element
+  const orientOf = () => (model && model.orient ? 1 : 0);
+  const moving = () => !motionOff();
+
+  function build(m) {
+    box.innerHTML = chFlatBoardHtml(Object.assign({}, m, { board: [], arrows: [], targets: [], marks: [], last: null, sel: '', check: '' }));
+    boardEl = box.querySelector('.ch2-board');
+    layer = box.querySelector('.ch2-pcs');
+    sqEls = []; sqKey = []; arrowsKey = '';
+    box.querySelectorAll('.ch2-sq').forEach(el => { sqEls[chSqIndex(el.dataset.sq)] = el; });
+    pcs.clear();
+  }
+  function place(el, i) {
+    const c = ch2Cell(i, orientOf());
+    el.style.setProperty('--x', c[0]);
+    el.style.setProperty('--y', c[1]);
+    el.dataset.pc = i;
+  }
+  function makePiece(code) {
+    const el = document.createElement('span');
+    el.className = 'ch2-pc';
+    el.innerHTML = chPieceSvg(code);
+    el._code = code;
+    return el;
+  }
+  const at = (i) => { const c = ch2Cell(i, orientOf()); return `translate(${c[0] * 100}%, ${c[1] * 100}%)`; };
+  function slide(el, from, to, dur) {
+    if (!el.animate) return;
+    el.classList.add('is-moving');
+    const a = el.animate([{ transform: at(from) }, { transform: at(to) }], { duration: dur, easing: 'cubic-bezier(0.3, 0.7, 0.4, 1)' });
+    a.onfinish = a.oncancel = () => el.classList.remove('is-moving');
+    busyUntil = Math.max(busyUntil, Date.now() + dur);
+  }
+  function pop(el) {
+    const svg = el.firstElementChild;
+    if (svg && svg.animate) svg.animate([{ transform: 'scale(0.4)', opacity: 0.3 }, { transform: 'scale(1.18)', opacity: 1, offset: 0.65 }, { transform: 'scale(1)' }], { duration: 320, delay: 120, easing: 'ease-out', fill: 'backwards' });
+  }
+  function shake(el) {
+    const svg = el && el.firstElementChild;
+    if (svg && svg.animate) svg.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-9%)' }, { transform: 'translateX(8%)' }, { transform: 'translateX(-5%)' }, { transform: 'translateX(0)' }], { duration: 260, delay: 150 });
+  }
+
+  /** A move played: the piece slides, the one it took fades under it, a rook follows its king. */
+  function playMove(a) {
+    const from = chSqIndex(a.from), to = chSqIndex(a.to);
+    const el = pcs.get(from);
+    if (!el) return;
+    const capAt = a.captureSq ? chSqIndex(a.captureSq) : (a.capture ? to : -1);
+    const victim = capAt >= 0 ? pcs.get(capAt) : null;
+    if (victim && victim !== el) {
+      pcs.delete(capAt);
+      victim.classList.add('is-taken');
+      const fade = victim.animate ? victim.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, delay: 70, fill: 'forwards' }) : null;
+      if (fade) fade.onfinish = () => victim.remove(); else victim.remove();
+    }
+    pcs.delete(from);
+    pcs.set(to, el);
+    // A piece dropped there by the finger is there already: no slide.
+    const wasDropped = (drag && drag.el === el) || (dropped && dropped.from === from && dropped.to === to && Date.now() - dropped.at < 4000);
+    dropped = null;
+    if (!wasDropped) slide(el, from, to, 150);
+    if (a.castle) {
+      const rf = to > from ? to + 1 : to - 2, rt = to > from ? to - 1 : to + 1;
+      const rook = pcs.get(rf);
+      if (rook) { pcs.delete(rf); pcs.set(rt, rook); place(rook, rt); slide(rook, rf, rt, 150); }
+    }
+    if (!(drag && drag.el === el)) place(el, to);
+  }
+
+  /** Every square's piece as the model says, keeping the elements that are already right. */
+  function reconcile(m, promoted) {
+    const b = m.board;
+    const mate = m.mate ? chSqIndex(m.mate) : -1;
+    pcs.forEach((el, i) => { if (!b[i]) { if (!(drag && drag.el === el)) el.remove(); pcs.delete(i); } });
+    for (let i = 0; i < 64; i++) {
+      const want = b[i] || 0;
+      if (!want) continue;
+      let el = pcs.get(i);
+      if (!el) { el = makePiece(want); layer.appendChild(el); pcs.set(i, el); }
+      else if (el._code !== want) { el.innerHTML = chPieceSvg(want); el._code = want; if (promoted === i && moving()) pop(el); }
+      if (!(drag && drag.el === el)) place(el, i);
+      el.classList.toggle('is-mated', i === mate);
+    }
+  }
+
+  function paintSquares(m) {
+    const o = orientOf();
+    for (let i = 0; i < 64; i++) {
+      const el = sqEls[i];
+      if (!el) continue;
+      const p = ch2SquareParts(m, i, o, { hover: hover });
+      const k = p.cls + '|' + p.inner;
+      if (sqKey[i] === k) continue;
+      sqKey[i] = k;
+      el.className = p.cls;
+      el.innerHTML = p.inner;
+    }
+    const ak = JSON.stringify(m.arrows || []);
+    if (ak !== arrowsKey) {
+      arrowsKey = ak;
+      const old = boardEl.querySelector('.ch2-arrows');
+      if (old) old.remove();
+      const svg = ch2ArrowsSvg(m, o);
+      if (svg) boardEl.insertAdjacentHTML('beforeend', svg);
+    }
+  }
+
   function setModel(m) {
+    if (dead) return;
     const fresh = !model || model.key !== m.key;
     model = m;
-    box.innerHTML = chFlatBoardHtml(m);
-    if (!fresh && m.anim && m.anim.key !== animKey) {
+    const style = m.style || chLook().style;
+    const lay = m.orient ? 1 : 0;
+    if (lay !== layout) { layout = lay; build(m); }
+    if (boardEl.getAttribute('data-ch2-style') !== style) boardEl.setAttribute('data-ch2-style', style);
+    let promoted = -1;
+    if (fresh) { animKey = m.anim ? m.anim.key : ''; mateKey = m.mate ? m.key : ''; }
+    else if (m.anim && m.anim.key !== animKey) {
       animKey = m.anim.key;
-      if (m.loud !== false) chSound(m.anim.capture ? 'capture' : m.anim.castle ? 'castle' : 'move');
-      const el = box.querySelector(`[data-sq="${m.anim.to}"] .ch-svg`);
-      if (el && !motionOff()) el.classList.add('is-arrived');
-    } else if (fresh && m.anim) animKey = m.anim.key;
+      if (!m.anim.still) {
+        if (m.loud !== false) {
+          chSound(m.anim.capture ? 'capture' : m.anim.castle ? 'castle' : 'move');
+          if (m.check) setTimeout(() => chSound('check'), 170);
+        }
+        if (moving()) { playMove(m.anim); if (m.anim.promo) promoted = chSqIndex(m.anim.to); }
+      }
+    }
+    reconcile(m, promoted);
+    paintSquares(m);
+    if (m.mate && mateKey !== m.key) {
+      mateKey = m.key;
+      if (m.loud !== false) setTimeout(() => chSound('end'), 380);
+    }
   }
+
   function pick(clientX, clientY) {
-    const b = box.querySelector('.ch-fboard');
-    if (!b) return '';
-    const r = b.getBoundingClientRect();
+    if (!boardEl) return '';
+    const r = boardEl.getBoundingClientRect();
     const col = Math.floor((clientX - r.left) / r.width * 8), row = Math.floor((clientY - r.top) / r.height * 8);
     if (col < 0 || col > 7 || row < 0 || row > 7) return '';
-    const o = model && model.orient ? 1 : 0;
+    const o = orientOf();
     const f = o ? 7 - col : col, rk = o ? row : 7 - row;
     return chSqName(rk * 8 + f);
   }
+
+  /* --- a piece carried by the finger: lifted, following it, back to its square if not played --- */
+  function dragStart(sq) {
+    const el = pcs.get(chSqIndex(sq));
+    if (!el || !boardEl) return false;
+    drag = { sq: sq, el: el };
+    el.classList.add('is-drag');
+    return true;
+  }
+  function dragMove(clientX, clientY) {
+    if (!drag || !boardEl) return;
+    const r = boardEl.getBoundingClientRect();
+    const s = r.width / 8;
+    const x = Math.max(-s / 2, Math.min(r.width - s / 2, clientX - r.left - s / 2));
+    const y = Math.max(-s / 2, Math.min(r.height - s / 2, clientY - r.top - s / 2));
+    drag.el.style.transform = `translate(${x}px, ${y}px)`;
+    const h = pick(clientX, clientY);
+    if (h !== hover) { hover = h; if (model) paintSquares(model); }
+  }
+  function dragEnd(played, to, refused) {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    hover = '';
+    d.el.classList.remove('is-drag');
+    const from = chSqIndex(d.sq);
+    const now = d.el.style.transform;
+    d.el.style.transform = '';
+    const home = [...pcs.entries()].find(([, el]) => el === d.el);
+    if (played) {
+      // Left where it was dropped; the move itself (now, or when the room answers) doesn't slide it again.
+      const ti = chSqIndex(to || '');
+      if (ti >= 0 && home && home[0] === from) { place(d.el, ti); dropped = { from: from, to: ti, at: Date.now() }; }
+      else if (home) place(d.el, home[0]);
+    } else if (home) {
+      place(d.el, home[0]);
+      if (d.el.animate && moving()) {
+        d.el.animate([{ transform: now || at(home[0]) }, { transform: at(home[0]) }], { duration: 150, easing: 'ease-out' });
+        if (refused) shake(d.el);
+      }
+    } else d.el.remove();
+    if (model) paintSquares(model);
+  }
+
   return {
     kind: 'flat',
     setModel: setModel, pick: pick,
-    dragStart: () => false, dragMove: () => {}, dragEnd: () => {},
+    dragStart: dragStart, dragMove: dragMove, dragEnd: dragEnd,
     resize: () => {}, pause: () => {},
-    dispose: () => box.remove(),
-    busyUntil: () => 0,
+    dispose: () => { dead = true; box.remove(); },
+    busyUntil: () => busyUntil,
     screenOf: (sq) => {
-      const el = box.querySelector(`[data-sq="${sq}"]`);
+      const el = sqEls[chSqIndex(sq)];
       if (!el) return null;
       const r = el.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -911,8 +1222,11 @@ function chViewRoot() {
   if (chView.root) return chView.root;
   const el = document.createElement('div');
   el.className = 'ch-view';
-  el.innerHTML = `<div class="ch-loading" aria-hidden="true"><span></span></div><div class="ch-promo" data-ch-promo hidden></div>`;
+  el.innerHTML = `<div class="ch-loading" aria-hidden="true"><span></span></div><div class="ch-promo" data-ch-promo hidden></div>` +
+    `<div class="ch-tools" data-ch-tools></div><div class="ch-lookpop" data-ch-pop hidden></div>`;
   chWireInput(el);
+  // A tap anywhere else on the board closes the styles.
+  el.addEventListener('pointerdown', (e) => { if (!e.target.closest('[data-ch-pop], [data-ch-tools]')) chToolsPop(false); });
   chView.root = el;
   return el;
 }
@@ -928,6 +1242,9 @@ function chViewShow(host, model) {
   // other side resigned, a flag fell, the review took the board), the picker goes, unchosen.
   const promo = root.querySelector('[data-ch-promo]');
   if (promo && !promo.hidden && !(model.input && model.input.canMove)) { promo.hidden = true; promo.innerHTML = ''; }
+  root.classList.toggle('is-tv', !!model.tv);
+  root.setAttribute('data-ch2-style', chLook().style);
+  chViewTools(root, model);
   if (chView.r) { chView.r.setModel(model); return; }
   if (!chView.loading) chViewStart();
 }
@@ -969,6 +1286,32 @@ function chViewDrop() {
 
 const chViewBusyLeft = () => (chView.r ? Math.max(0, chView.r.busyUntil() - Date.now()) : 0);
 
+/** The four styles as swatches (the board's ⚙ and the setup screen): two squares of each in its colours. */
+function chLookPickerHtml(cls) {
+  const cur = chLook().style;
+  return CH2_STYLES.map(st => `<button type="button" class="ch-swatch ${cls || ''} ${cur === st ? 'is-active' : ''}" data-ch2-style="${st}" onclick="chLookSet({ style: '${st}' }); chToolsPop(false)" aria-pressed="${cur === st}">
+      <span class="ch-swatch__sq" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="ch-swatch__name">${escapeHTML(chT('ch_style_' + st))}</span>
+    </button>`).join('');
+}
+
+/** The small buttons on the board: its look (⚙). None on the TV. */
+function chViewTools(root, model) {
+  const box = root.querySelector('[data-ch-tools]');
+  if (!box) return;
+  const html = model.tv ? '' : `<button type="button" class="ch-tool" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}" title="${escapeHTML(chT('ch_look_label'))}">⚙</button>`;
+  if (box._chHtml !== html) { box.innerHTML = html; box._chHtml = html; }
+}
+
+/** Opens (or closes, or toggles with no argument) the styles over the board. */
+function chToolsPop(open) {
+  const pop = chView.root && chView.root.querySelector('[data-ch-pop]');
+  if (!pop) return;
+  const show = open === undefined ? pop.hidden : !!open;
+  if (show === !pop.hidden) return;
+  if (show) pop.innerHTML = `<p class="ch-lookpop__title">${escapeHTML(chT('ch_look_label'))}</p><div class="ch-swatches">${chLookPickerHtml()}</div>`;
+  pop.hidden = !show;
+}
+
 document.addEventListener('visibilitychange', () => { if (chView.r) chView.r.pause(document.hidden); });
 
 /* --- the finger on the board: a tap picks a piece or a square, a drag carries a piece --- */
@@ -977,7 +1320,7 @@ function chWireInput(root) {
   let press = null;
   root.addEventListener('pointerdown', (e) => {
     const m = chView.model, r = chView.r;
-    if (!m || !r || !m.input || e.button > 0 || e.target.closest('button')) return;
+    if (!m || !r || !m.input || e.button > 0 || e.target.closest('button, [data-ch-pop]')) return;
     const sq = r.pick(e.clientX, e.clientY);
     press = { id: e.pointerId, x: e.clientX, y: e.clientY, sq: sq, dragging: false, own: false };
     if (!sq || !m.input.canMove) return;
@@ -1006,7 +1349,8 @@ function chWireInput(root) {
     if (pr.dragging) {
       const to = cancel ? '' : r.pick(e.clientX, e.clientY);
       const played = !!(to && to !== pr.sq && m.input.onDrop && m.input.onDrop(pr.sq, to));
-      r.dragEnd(played);
+      // Where it was dropped, and whether the drop was refused (a square it can't go to: it shakes).
+      r.dragEnd(played, to, !played && !!to && to !== pr.sq);
       return;
     }
     if (cancel || Math.hypot(e.clientX - pr.x, e.clientY - pr.y) > 14) return;
@@ -1470,6 +1814,9 @@ function paintShatranjSetup() {
     rated.classList.toggle('is-rated', !why);
     rated.textContent = why ? chT('ch_rated_no', { why: chT(why) }) : chT('ch_rated_yes');
   }
+  // The board's look (its style; its 2D or 3D is a button on the board itself).
+  const looks = document.getElementById('shatranj-looks');
+  if (looks) { const html = chLookPickerHtml(); if (looks._chHtml !== html) { looks.innerHTML = html; looks._chHtml = html; } }
   if (typeof chPaintHistory === 'function') chPaintHistory();
 }
 

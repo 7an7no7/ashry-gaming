@@ -3387,7 +3387,7 @@ function mgSoloKeepBest(s) {
   if (s.daily) {
     const course = mgSoloCourse(s);
     const total = (s.card || []).reduce((a, v) => a + (Number(v) || 0), 0);
-    const par = course[0] ? course[0].par : golfParOf(course);
+    const par = golfParOf(course);
     soloMarkDaily('minigolf', { strokes: total, par }, s.daily);
     return;
   }
@@ -3405,7 +3405,7 @@ function mgSoloShowResult() {
   const g = s.game || { holes: s.holes };
   const course = mgSoloCourse(s);
   const total = (s.card || []).reduce((a, v) => a + (Number(v) || 0), 0);
-  const par = course[0] ? course[0].par : golfParOf(course);
+  const par = golfParOf(course);
   const shown = s.resultShown === s.deal;
   const key = mgBestKey(g.level, course.length);
   const hh = mgHolesText(course.length) + ' · ' + mgLevelText(g.level);
@@ -3426,7 +3426,7 @@ function mgSoloShowResult() {
   }
   const t = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[appState.lang]) || {};
   const share = s.daily
-    ? `${soloShareHeader(t, s.daily)}\n⛳ ${t.setup_minigolf || ''} · ${total <= par ? '🟢 ' : ''}⛳ ${total} · 🎯 ${par}`
+    ? `${soloShareHeader(t, s.daily)}\n${total <= par ? '🟢 ' : ''}⛳ ${t.setup_minigolf || ''} · ${total} · 🎯 ${par}`
     : mgT('mg_share', { n: total, hh, d: mgDelta(total - par) }) + '\n' + mgCardText(s.card, course.length);
   soloResult({
     icon: '⛳',

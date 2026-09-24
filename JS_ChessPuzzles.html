@@ -133,6 +133,9 @@ function chPzBegin(o) {
   soloNewGame('chesspuzzle');
   chPzStop();
   const s = chPzState();
+  if (s.mode === 'streak' && o.mode !== 'streak' && s.streak && !s.streak.over && s.p && !s.result && s.phase === 'play') {
+    s.streak.saved = { p: s.p, hist: s.hist.slice(), uid: s.uid };
+  }
   s.nonce = (s.nonce || 0) + 1;
   Object.assign(s, {
     mode: o.mode || 'free', p: o.p, hist: [], wrong: 0, hint: -1, shown: false, showing: false, result: '',
@@ -180,6 +183,7 @@ function chPzPlay(mv, byDrop) {
   if (done) chPzSolved(s);
   saveToLocal();
   chPzPaint();
+  if (done && typeof chPzStreakPop === 'function') chPzStreakPop(s, false);
   if (!done) chPzAfter();
   return true;
 }
@@ -199,6 +203,7 @@ function chPzWrong(s, mv, byDrop) {
   chPzStageFlash('bad');
   saveToLocal();
   chPzPaint();
+  if (typeof chPzStreakPop === 'function') chPzStreakPop(s, true);
   clearTimeout(chPzLocal.unlockTimer);
   chPzLocal.unlockTimer = setTimeout(() => { if (appState.currentView === 'play-chesspuzzle') { chPzPaint(); chPzAfter(); } }, CHPZ_LOCK_MS + 20);
 }
@@ -324,6 +329,7 @@ const chPzSideName = (side) => chT(side ? 'ch_color_b' : 'ch_color_w');
 function chPzStatus(s, pos) {
   const side = chPzSideName(chPzSide(s));
   if (s.result === 'solved') return chT(s.wrong || s.hint >= 0 ? 'chpz_solved' : 'chpz_solved_clean');
+  if (s.mode === 'streak' && s.result === 'failed') return chT('chpz_failed');
   if (s.showing) return chT('chpz_showing');
   if (s.shown) return chT('chpz_shown');
   if (s.result === 'failed') return chT('chpz_failed');
@@ -546,6 +552,161 @@ function chPzWayHtml(icon, name, desc, status, onclick, disabled) {
       <span class="tool-info"><span class="tool-name">${escapeHTML(name)}</span><span class="tool-desc">${escapeHTML(desc)}</span></span>
       <span class="chpz-way__status">${status}</span>
     </button>`;
+}
+
+/* ============================================================================
+   سلسلة الألغاز - the puzzle streak
+   ----------------------------------------------------------------------------
+   Three hearts and no clock. The first puzzle is rated about 500, and each
+   one solved moves the target up by 60 to 80: the next is the unseen puzzle
+   nearest to it (one of the five nearest, so two runs aren't the same). A
+   wrong move costs a heart and ends that puzzle - its solution is played, and
+   the next one comes on a tap; no hint and no "show the solution" here. The
+   third wrong move ends the run: the score is the puzzles solved, the best kept
+   with soloRecord('chesspuzzle', 'streak'). The run lives in s.streak, so a
+   reload keeps it; a free puzzle or the daily dealt in the middle puts the
+   streak's puzzle aside (s.streak.saved) and "continue" brings it back.
+   ========================================================================= */
+
+const CHPZ_STREAK_LIVES = 3;
+const CHPZ_STREAK_START = 500;
+const CHPZ_RECENT = 300;          // puzzles the streak has dealt lately, not dealt again before the rest
+
+/** Is a run going on (not over)? */
+const chPzStreakLive = (s) => !!(s.streak && !s.streak.over);
+
+/** «سلسلة الألغاز»: carries on with a run, or starts one. */
+function chPzStartStreak(fresh) {
+  const s = chPzState();
+  if (!fresh && chPzStreakLive(s)) { chPzStreakContinue(s); return; }
+  s.streak = { lives: CHPZ_STREAK_LIVES, score: 0, target: CHPZ_STREAK_START, seen: [], marks: [], over: false, saved: null };
+  chPzStreakDeal(s);
+}
+
+function chPzStreakContinue(s) {
+  const st = s.streak;
+  if (s.mode === 'streak' && s.p && s.phase === 'play') { setView('play-chesspuzzle'); chPzPaint({ still: true }); chPzAfter(); return; }
+  if (st.saved && st.saved.p) {
+    // Back to the streak's own puzzle, where it was left.
+    soloDailySetAside('chesspuzzle');
+    soloNewGame('chesspuzzle');
+    chPzStop();
+    Object.assign(s, { mode: 'streak', p: st.saved.p, hist: st.saved.hist || [], uid: st.saved.uid, wrong: 0, hint: -1, shown: false, showing: false, result: '', phase: 'play', daily: '', from: null });
+    st.saved = null;
+    chPzLocal.sel = '';
+    chPzLocal.lockUntil = 0;
+    saveToLocal();
+    setView('play-chesspuzzle');
+    chPzPaint({ still: true });
+    chPzAfter();
+    return;
+  }
+  chPzStreakDeal(s);
+}
+
+/** The next puzzle of the run: the unseen one nearest to the target rating. */
+function chPzStreakDeal(s) {
+  const st = s.streak;
+  const all = typeof CHESS_PUZZLES !== 'undefined' ? CHESS_PUZZLES : [];
+  const inRun = new Set(st.seen);
+  const recent = new Set(s.streakRecent || []);
+  let pool = all.filter(p => !inRun.has(p.id) && !recent.has(p.id));
+  if (pool.length < 20) pool = all.filter(p => !inRun.has(p.id));
+  const near = pool.slice().sort((a, b) => Math.abs(a.rating - st.target) - Math.abs(b.rating - st.target)).slice(0, 5);
+  const p = near[Math.floor(Math.random() * near.length)];
+  if (!p) { chPzStreakFinish(s); return; }
+  st.seen.push(p.id);
+  s.streakRecent = (s.streakRecent || []).concat(p.id).slice(-CHPZ_RECENT);
+  chPzBegin({ mode: 'streak', p: chPzCopy(p) });
+}
+
+/** A wrong move in the streak: a heart, and the puzzle is over (its solution is played next). */
+function chPzWrongMode(s) {
+  if (s.mode !== 'streak' || !s.streak) return;
+  s.streak.lives = Math.max(0, s.streak.lives - 1);
+  s.streak.marks.push('❌');
+  s.result = 'failed';
+  s.shown = true;
+  s.showing = true;
+}
+
+/** A solved one: the score, and the next target 60-80 higher. */
+function chPzSolvedMode(s) {
+  if (s.mode !== 'streak' || !s.streak) return;
+  s.streak.score++;
+  s.streak.marks.push('✅');
+  s.streak.target += 60 + Math.floor(Math.random() * 21);
+}
+
+/** The solution of a missed puzzle has been played: the end of the run after the third heart. */
+function chPzShowDoneMode(s) {
+  if (s.mode !== 'streak' || !s.streak || s.streak.lives > 0 || s.streak.over) return;
+  const uid = s.uid;
+  soloLater('chesspuzzle', 900, () => { if (chPzState().uid === uid) chPzStreakFinish(chPzState()); });
+}
+
+/** «اللغز اللي بعده» in the streak. */
+function chPzNextMode(s) {
+  if (s.mode !== 'streak' || !s.streak) return false;
+  if (s.streak.lives <= 0 || s.streak.over) chPzStreakFinish(s);
+  else chPzStreakDeal(s);
+  return true;
+}
+
+/** The end of the run: the score, the best, the sheet to share. */
+function chPzStreakFinish(s) {
+  const st = s.streak;
+  if (!st) return;
+  const first = !st.over;
+  st.over = true;
+  const rec = first ? soloRecord('chesspuzzle', 'streak', { score: st.score }, (a, b) => a.score > b.score) : { record: false, prev: soloBest('chesspuzzle', 'streak') };
+  st.record = first ? rec.record : !!st.record;
+  saveToLocal();
+  const lines = [];
+  if (st.marks.length) lines.push(`<span dir="ltr">${st.marks.join('')}</span>`);
+  if (rec.prev && !st.record) lines.push(escapeHTML(chT('chpz_streak_best', { n: rec.prev.score })));
+  soloResult({
+    icon: '♟️', title: st.record && st.score ? chT('solo_new_best') : chT('chpz_streak_over'),
+    value: st.score, valueLabel: chT('chpz_streak_solved'), lines: lines, win: !!(st.record && st.score), quiet: !first,
+    share: `♟️ ${chT('chpz_streak_title')}: ${st.score}`,
+    again: () => chPzStartStreak(true), againLabel: '🔥 ' + chT('chpz_streak_again'), exit: setupChessPuzzles
+  });
+  if (appState.currentView === 'play-chesspuzzle') chPzPaint({ still: true });
+}
+
+/** The hearts and the score over the board. */
+function chPzHeadExtraHtml(s) {
+  if (s.mode !== 'streak' || !s.streak) return '';
+  const st = s.streak;
+  const hearts = Array.from({ length: CHPZ_STREAK_LIVES }, (_, i) => `<span class="streak-heart${i < st.lives ? '' : ' is-lost'}" data-h="${i}">${i < st.lives ? '❤️' : '🤍'}</span>`).join('');
+  return soloBarHtml([
+    { label: chT('streak_lives'), value: `<span class="streak-hearts" id="chpz-hearts">${hearts}</span>` },
+    { label: chT('chpz_streak_solved'), value: st.score, id: 'chpz-score' }
+  ]);
+}
+
+/** A heart lost jumps; a puzzle solved makes the score jump. */
+function chPzStreakPop(s, lost) {
+  if (s.mode !== 'streak' || !s.streak || motionOff()) return;
+  const el = lost ? document.querySelector(`#chpz-hearts [data-h="${s.streak.lives}"]`) : document.getElementById('chpz-score');
+  if (el && el.animate) el.animate(lost ? [{ transform: 'scale(1.6) rotate(-12deg)' }, { transform: 'scale(0.8) rotate(8deg)' }, { transform: 'none' }] : [{ transform: 'scale(1)' }, { transform: 'scale(1.45)' }, { transform: 'scale(1)' }], { duration: lost ? 520 : 360, easing: 'ease-out' });
+}
+
+function chPzDoneBarHtml(s) {
+  if (s.mode !== 'streak' || !s.streak) return '';
+  if (s.streak.lives <= 0 || s.streak.over) return `<button type="button" class="btn btn--primary btn--lg" onclick="chPzStreakFinish(chPzState())">🏁 ${escapeHTML(chT('solo_look_result'))}</button>`;
+  return `<button type="button" class="btn btn--primary btn--lg" onclick="chPzNext()">➡️ ${escapeHTML(chT('chpz_streak_next'))}</button>`;
+}
+
+/** The streak's way in: the best so far, or "continue" for a run going on. */
+function chPzMoreWaysHtml(s) {
+  const best = soloBest('chesspuzzle', 'streak');
+  const live = chPzStreakLive(s);
+  const status = live ? `<span class="badge">${escapeHTML(chT('daily_continue'))}</span>`
+    : best ? `<span class="badge badge--success">🏆 <b class="metric">${best.score}</b></span>` : '';
+  let out = chPzWayHtml('🔥', chT('chpz_streak_title'), chT('chpz_streak_desc'), status, 'chPzStartStreak()', false);
+  if (typeof chPzMistakeWayHtml === 'function') out += chPzMistakeWayHtml(s);
+  return out;
 }
 
 soloRegister('chesspuzzle', {

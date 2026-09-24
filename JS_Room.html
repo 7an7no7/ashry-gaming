@@ -1118,6 +1118,18 @@ function renderChosenGame(state, game) {
   const options = (game && game.lobbyOptions) ? game.lobbyOptions(state) : '';
   const bots = roomBotControlsHtml(state);
 
+  let firstPlay = '';
+  if (!state.youAreScreen) {
+    const helpKey = (typeof firstPlayKey === 'function')
+      ? firstPlayKey(state.game, true)
+      : (((typeof ROOM_HELP_KEY !== 'undefined' && ROOM_HELP_KEY[state.game])
+          || (typeof HELP_FOR_VIEW !== 'undefined' && HELP_FOR_VIEW['room-' + state.game])
+          || state.game));
+    if (typeof firstPlayCardHtml === 'function') {
+      firstPlay = firstPlayCardHtml(helpKey);
+    }
+  }
+
   return `
     <div class="chosen-game">
       <span class="chosen-game__icon" aria-hidden="true">${entry ? iconHtml(entry.icon) : '🎮'}</span>
@@ -1126,6 +1138,7 @@ function renderChosenGame(state, game) {
         ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('backToHub')">${t.room_change_game || 'تغيير'}</button>`
         : ''}
     </div>
+    ${firstPlay}
     ${bots}
     ${options}`;
 }

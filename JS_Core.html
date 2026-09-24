@@ -366,6 +366,42 @@
     try { localStorage.removeItem(SEEN_KEY); } catch (e) {}
   }
 
+  /* --- FIRST-PLAY CARD STORAGE ---
+     The first time a phone opens a game's setup or has it chosen in a room,
+     a 3-step card introduces it. Once dismissed or opened into rules, that game
+     is marked seen in localStorage['ashryFirstPlay_v1']. */
+  const FIRST_PLAY_KEY = 'ashryFirstPlay_v1';
+
+  function readFirstPlay() {
+    try {
+      const raw = localStorage.getItem(FIRST_PLAY_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function firstPlaySeen(key) {
+    if (!key) return true;
+    return readFirstPlay().indexOf(key) !== -1;
+  }
+
+  function firstPlayMarkSeen(key) {
+    if (!key) return;
+    const list = readFirstPlay();
+    if (list.indexOf(key) === -1) {
+      list.push(key);
+      try {
+        localStorage.setItem(FIRST_PLAY_KEY, JSON.stringify(list));
+      } catch (e) {}
+    }
+  }
+
+  function forgetFirstPlay() {
+    try { localStorage.removeItem(FIRST_PLAY_KEY); } catch (e) {}
+  }
+
   /**
    * Deals `count` items from `pool` that this phone has not had from `listId`.
    *
@@ -913,6 +949,9 @@
       mode_short_room: "كل واحد بموبايله",
       mode_short_tv: "التلفزيون",
       hero_rules: "القوانين",
+      first_play_title: "طريقة اللعب",
+      first_play_dismiss: "فهمت 👍",
+      first_play_rules: "📘 القواعد كاملة",
       bomb_mode_label: "نوع اللعب",
       bomb_mode_category: "فئات",
       bomb_mode_letter: "حروف",
@@ -3982,6 +4021,9 @@
       mode_short_room: "Own phones",
       mode_short_tv: "TV",
       hero_rules: "Rules",
+      first_play_title: "How to play",
+      first_play_dismiss: "Got it 👍",
+      first_play_rules: "📘 Full rules",
       bomb_mode_label: "Play with",
       bomb_mode_category: "Categories",
       bomb_mode_letter: "Letters",

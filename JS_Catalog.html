@@ -686,9 +686,109 @@ function applyHomeFilter(opts) {
    It is drawn by setView (and again on a language change), so the screens
    themselves carry none of it.
    -------------------------------------------------------------------------- */
+/* --- The first-play card on setup screens and room lobby -------------------
+   The first time a phone visits a setup screen (or has a game chosen in a room
+   lobby), a 3-step card introduces the game from its rules in GAME_RULES.
+   Dismissing or opening full rules marks it seen in ashryFirstPlay_v1.
+   -------------------------------------------------------------------------- */
+function firstPlayKey(id, isRoom) {
+  if (isRoom) {
+    if (typeof ROOM_HELP_KEY !== 'undefined' && ROOM_HELP_KEY[id]) return ROOM_HELP_KEY[id];
+    if (typeof HELP_FOR_VIEW !== 'undefined' && HELP_FOR_VIEW['room-' + id]) return HELP_FOR_VIEW['room-' + id];
+    return id;
+  }
+  if (typeof HELP_FOR_VIEW !== 'undefined' && HELP_FOR_VIEW[id]) return HELP_FOR_VIEW[id];
+  return id;
+}
+
+function firstPlaySteps(helpKey, lang) {
+  const rules = (typeof GAME_RULES !== 'undefined' && GAME_RULES[lang]) ? GAME_RULES[lang] : {};
+  const content = rules[helpKey];
+  if (!content) return [];
+  const olMatch = content.match(/<ol[^>]*>([\s\S]*?)<\/ol>/i);
+  if (!olMatch) return [];
+  const items = [];
+  const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+  let match;
+  while ((match = liRegex.exec(olMatch[1])) !== null && items.length < 3) {
+    let text = match[1]
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text.length > 90) {
+      const boundary = text.lastIndexOf(' ', 90);
+      if (boundary > 30) {
+        text = text.slice(0, boundary) + '…';
+      } else {
+        text = text.slice(0, 90) + '…';
+      }
+    }
+    if (text) items.push(text);
+  }
+  return items;
+}
+
+function firstPlayCardHtml(helpKey) {
+  if (!helpKey || (typeof firstPlaySeen === 'function' && firstPlaySeen(helpKey))) return '';
+  const lang = (typeof appState !== 'undefined' && appState.lang) || 'ar';
+  const steps = firstPlaySteps(helpKey, lang);
+  if (!steps || !steps.length) return '';
+  const t = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[lang]) ? TRANSLATIONS[lang] : {};
+  const entry = (typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES.find(g => g.id === helpKey) : null)
+    || (typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[helpKey] : null)
+    || (typeof helpEntry === 'function' ? helpEntry(helpKey) : null);
+  const accentAttr = (entry && entry.accent) ? ` data-accent="${escapeHTML(entry.accent)}"` : '';
+
+  return `
+    <div class="first-play-card"${accentAttr}>
+      <div class="first-play-card__eyebrow">${escapeHTML(t.first_play_title || '')}</div>
+      <ol class="first-play-card__steps">
+        ${steps.map((s, idx) => `
+          <li class="first-play-card__step">
+            <span class="first-play-card__n metric" aria-hidden="true">${idx + 1}</span>
+            <span class="first-play-card__text">${escapeHTML(s)}</span>
+          </li>`).join('')}
+      </ol>
+      <div class="first-play-card__actions">
+        <button type="button" class="btn btn--sm btn--primary btn--auto" onclick="firstPlayDismiss(this, '${escapeHTML(helpKey)}')">${escapeHTML(t.first_play_dismiss || 'فهمت 👍')}</button>
+        <button type="button" class="btn btn--sm btn--ghost btn--auto" onclick="firstPlayOpenRules(this, '${escapeHTML(helpKey)}')">${escapeHTML(t.first_play_rules || '📘 القواعد كاملة')}</button>
+      </div>
+    </div>`;
+}
+
+function firstPlayDismiss(el, helpKey) {
+  if (typeof firstPlayMarkSeen === 'function') firstPlayMarkSeen(helpKey);
+  const card = el ? (el.classList && el.classList.contains('first-play-card') ? el : el.closest('.first-play-card')) : null;
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (!card) return;
+  if (typeof motionOff === 'function' && motionOff()) {
+    card.remove();
+    return;
+  }
+  if (card.animate) {
+    const anim = card.animate([
+      { opacity: 1, transform: 'none' },
+      { opacity: 0, transform: 'translateY(-4px)' }
+    ], { duration: 180, easing: 'ease-out', fill: 'forwards' });
+    anim.onfinish = () => card.remove();
+    setTimeout(() => { if (card.parentNode) card.remove(); }, 220);
+  } else {
+    card.classList.add('is-dismissing');
+    setTimeout(() => { if (card.parentNode) card.remove(); }, 200);
+  }
+}
+
+function firstPlayOpenRules(el, helpKey) {
+  firstPlayDismiss(el, helpKey);
+  if (typeof openHelpModal === 'function') openHelpModal();
+}
+
 function catalogHeroHtml(g, t) {
   const modes = (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean)
     .map(mode => `<span class="meta-bit meta-bit--mode"><span aria-hidden="true">${mode.icon}</span>${escapeHTML(t[mode.short] || t[mode.label] || '')}</span>`).join('');
+  const helpKey = firstPlayKey(g.setup || g.id, false);
+  const card = firstPlayCardHtml(helpKey);
   return `
     <span class="game-hero__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
     <span class="game-hero__text">
@@ -700,7 +800,8 @@ function catalogHeroHtml(g, t) {
       <span aria-hidden="true">📘</span>
       <span class="game-hero__rules-label">${escapeHTML(t.hero_rules || '')}</span>
     </button>
-    <span class="game-hero__meta">${catalogMeta(g, t, true, false)}${modes}</span>`;
+    <span class="game-hero__meta">${catalogMeta(g, t, true, false)}${modes}</span>
+    ${card}`;
 }
 
 function syncGameHero(viewId) {

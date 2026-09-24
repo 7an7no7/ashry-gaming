@@ -787,6 +787,12 @@ function chMake3D(THREE, root) {
     if (!grp) return false;
     const capAt = a.captureSq ? chSqIndex(a.captureSq) : (a.capture ? to : -1);
     const victim = capAt >= 0 ? pieces.get(capAt) : null;
+    // The castling rook, found before the king takes its square (in 960 the king can land on the rook's).
+    let rookMove = null;
+    if (a.castle) {
+      const [rf, rt] = chCastleRookSquares(a, (i) => { const p = pieces.get(i); return p ? p.userData.code : 0; }, model && model.board);
+      if (rf >= 0 && pieces.get(rf)) { rookMove = [pieces.get(rf), rt]; pieces.delete(rf); }
+    }
     pieces.delete(from);
     if (victim) pieces.delete(capAt);
     pieces.set(to, grp);
@@ -850,12 +856,10 @@ function chMake3D(THREE, root) {
       }, flyAt, () => { victim.userData.flying = false; victim.userData.from2 = null; victim.userData.q2 = null; });
       camFocus(vFrom, flyAt + 300);
     }
-    if (a.castle) {
+    if (rookMove) {
       // The rook moves with its king: the same moment, a lower arc.
-      const rf = to > from ? to + 1 : to - 2, rt = to > from ? to - 1 : to + 1;
-      const rook = pieces.get(rf);
-      if (rook) {
-        pieces.delete(rf);
+      const [rook, rt] = rookMove;
+      {
         pieces.set(rt, rook);
         const rs = rook.position.clone(), re = sqPos(rt);
         tween(dur, (k) => {
@@ -1414,17 +1418,19 @@ function chMakeFlat(root) {
       const fade = victim.animate ? victim.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, delay: 70, fill: 'forwards' }) : null;
       if (fade) fade.onfinish = () => victim.remove(); else victim.remove();
     }
+    // The castling rook, found before the king takes its square (in 960 the king can land on the rook's).
+    let rookMove = null;
+    if (a.castle) {
+      const [rf, rt] = chCastleRookSquares(a, (i) => { const e = pcs.get(i); return e ? e._code : 0; }, model && model.board);
+      if (rf >= 0 && pcs.get(rf)) { rookMove = [pcs.get(rf), rf, rt]; pcs.delete(rf); }
+    }
     pcs.delete(from);
     pcs.set(to, el);
     // A piece dropped there by the finger is there already: no slide.
     const wasDropped = (drag && drag.el === el) || (dropped && dropped.from === from && dropped.to === to && Date.now() - dropped.at < 4000);
     dropped = null;
     if (!wasDropped) slide(el, from, to, 150);
-    if (a.castle) {
-      const rf = to > from ? to + 1 : to - 2, rt = to > from ? to - 1 : to + 1;
-      const rook = pcs.get(rf);
-      if (rook) { pcs.delete(rf); pcs.set(rt, rook); place(rook, rt); slide(rook, rf, rt, 150); }
-    }
+    if (rookMove) { const [rook, rf, rt] = rookMove; pcs.set(rt, rook); place(rook, rt); slide(rook, rf, rt, 150); }
     if (!(drag && drag.el === el)) place(el, to);
   }
 
@@ -1835,10 +1841,18 @@ function chTapLogic(ctx, sq, fromDrag) {
     if (moves.length) {
       const from = ctx.sel;
       ctx.setSel('');
-      if (moves.length > 1) chAskPromotion(sq, ctx.side, (p) => { if (p) ctx.play(from, sq, p); });
+      // Several moves to one square are a promotion (in 960 a king step and castling can share one: the step; castling is by the rook).
+      if (moves.some(mv => mv.promo)) chAskPromotion(sq, ctx.side, (p) => { if (p) ctx.play(from, sq, p); });
       else ctx.play(from, sq, moves[0].promo || '');
       return true;
     }
+  }
+  // 960: the king picked up, then its own rook - castling that way (the king may not move at all).
+  if (ctx.sel && ctx.sel !== sq && chCastleByRook(ctx.g, ctx.sel, sq)) {
+    const from = ctx.sel;
+    ctx.setSel('');
+    ctx.play(from, sq, '');
+    return true;
   }
   if (code && (code >> 3) === ctx.side) {
     if (ctx.sel === sq && !fromDrag) { ctx.setSel(''); return false; }
@@ -1850,16 +1864,30 @@ function chTapLogic(ctx, sq, fromDrag) {
   return false;
 }
 
-/** The targets of the piece picked up. */
-const chTargets = (g, sel) => (sel ? chessLegalMoves(g).filter(m => m.from === sel).map(m => ({ to: m.to, capture: m.capture })) : [])
-  .filter((x, k, arr) => arr.findIndex(y => y.to === x.to) === k);
+/** The targets of the piece picked up; in 960 a king's castling shows as a ring round its rook (and never on the king's own square). */
+function chTargets(g, sel) {
+  if (!sel) return [];
+  const out = chessLegalMoves(g).filter(m => m.from === sel && m.to !== sel).map(m => ({ to: m.to, capture: m.capture }))
+    .filter((x, k, arr) => arr.findIndex(y => y.to === x.to) === k);
+  const ki = chSqIndex(sel);
+  if (ki >= 0 && (g.board[ki] & 7) === 6 && chIs960(g)) {
+    const rank = ki & 56;
+    for (let f = 0; f < 8; f++) {
+      const name = chSqName(rank + f);
+      if (chCastleByRook(g, sel, name) && !out.some(x => x.to === name)) out.push({ to: name, capture: true, castle: true });
+    }
+  }
+  return out;
+}
 
 /** A drop: a move if it is legal (asking for the promotion piece), false (the piece goes back) if not. */
 function chDropLogic(ctx, from, to) {
   const moves = chessLegalMoves(ctx.g).filter(mv => mv.from === from && mv.to === to);
+  // The king dropped on its own rook: castling (960's way, and it works in standard chess too).
+  if (!moves.length && chCastleByRook(ctx.g, from, to)) { ctx.setSel(''); ctx.play(from, to, ''); return true; }
   if (!moves.length) { chSound('refuse'); ctx.setSel(''); return false; }
   ctx.setSel('');
-  if (moves.length > 1) { chAskPromotion(to, ctx.side, (p) => { if (p) ctx.play(from, to, p); else ctx.redraw(); }); return true; }
+  if (moves.some(mv => mv.promo)) { chAskPromotion(to, ctx.side, (p) => { if (p) ctx.play(from, to, p); else ctx.redraw(); }); return true; }
   ctx.play(from, to, moves[0].promo || '');
   return true;
 }
@@ -1954,7 +1982,8 @@ function chState() {
       coachOpts: { warn: true, hint: true, comment: true, threats: true },
       phase: 'setup', g: null, hist: [], sans: [], lost: [[], []], last: null, clk: null, result: null,
       me: 0, firstWhite: 0, gameId: '', scores: [0, 0, 0], flip: false, start: '', comment: null, practice: false,
-      helpLimit: '3', help: chHelpNew(), rating: { r: CH_RATING_START, n: 0 }, char: 'hassan'
+      helpLimit: '3', help: chHelpNew(), rating: { r: CH_RATING_START, n: 0 }, char: 'hassan',
+      variant: 'standard', odds: 'none', oddsBy: 'me', oddsColor: 'w'
     };
   }
   const s = appState.shatranj;
@@ -1966,6 +1995,12 @@ function chState() {
   if (!s.rating || typeof s.rating.r !== 'number') s.rating = { r: CH_RATING_START, n: 0 };
   // A phone that played before the characters keeps its slider.
   if (s.char !== 'custom' && !chCharById(s.char)) s.char = 'custom';
+  // Chess960, the handicap and the clock (T2C.6): a phone from before them plays standard, no odds.
+  s.clock = chessClockId(s.clock);
+  if (s.variant !== '960') s.variant = 'standard';
+  if (CH_ODDS.indexOf(s.odds) === -1) s.odds = 'none';
+  if (s.oddsBy !== 'cpu') s.oddsBy = 'me';
+  if (s.oddsColor !== 'b') s.oddsColor = 'w';
   return s;
 }
 
@@ -2076,6 +2111,7 @@ function chUnratedReason(s, o) {
   if (x.setup) return 'ch_unrated_setup';
   if (s.helpLimit !== 'none') return 'ch_unrated_help';
   if (s.coach && s.coachOpts.warn !== false) return 'ch_unrated_warn';
+  if (!x.setup && !x.practice && chOddsNow(s) !== 'none') return 'ch_unrated_odds';
   return '';
 }
 
@@ -2167,6 +2203,89 @@ function chUndoLocal() {
   chAfterMove();
 }
 
+/* --- Chess960, the handicap and the clocks on one phone (the owner, 24 Sep 2026) -------------
+   960 draws a new start every game (chess960Random); the handicap takes a piece off the giver's
+   side (chessHandicapFen, or the same rule on a 960 row) or gives them half the clock. Against the
+   computer you choose who gives it; two on one phone, White or Black. A handicap is never rated;
+   960 is. */
+
+const CH_ODDS = ['none', 'pawn', 'knight', 'rook', 'queen', 'time'];
+
+/** The handicap a new game would really get: half the time needs a clock. */
+const chOddsNow = (s) => (s.odds === 'time' && chessClockId(s.clock) === 'off' ? 'none' : (CH_ODDS.indexOf(s.odds) === -1 ? 'none' : s.odds));
+
+/** The colour that gives the handicap (0 White, 1 Black): you or the computer; two on one phone, as chosen. */
+const chOddsGiver = (s, me) => (s.vs === 'phone' ? (s.oddsBy === 'cpu' ? 1 - me : me) : (s.oddsColor === 'b' ? 1 : 0));
+
+/**
+ * The start without the giver's piece: the standard start through chessHandicapFen; a 960 row the same
+ * way - the f-pawn, the knight, the rook or the queen nearest the a-file (castling that side lost with it).
+ */
+function chOddsFen(fen, kind, side) {
+  if (!kind || kind === 'none' || kind === 'time') return fen || CHESS_START_FEN;
+  if (!fen || fen === CHESS_START_FEN) return chessHandicapFen(kind, side ? 'b' : 'w');
+  const g = chessFromFen(fen);
+  if (!g) return fen;
+  const rank = side ? 56 : 0, own = side ? 8 : 0;
+  const find = (k) => { for (let f = 0; f < 8; f++) if (g.board[rank + f] === (k | own)) return rank + f; return -1; };
+  let sq = -1;
+  if (kind === 'pawn') sq = (side ? 48 : 8) + 5;
+  else if (kind === 'knight') sq = find(2);
+  else if (kind === 'queen') sq = find(5);
+  else if (kind === 'rook') { sq = find(4); g.castle &= ~(side ? 8 : 2); }
+  if (sq >= 0) g.board[sq] = 0;
+  return chessFen(g);
+}
+
+/** Is this a 960 game (castling rooks or king off their standard files)? */
+function chIs960(g) {
+  const r = g && g.rooks;
+  if (r && (r[0] !== 7 || r[1] !== 0 || r[2] !== 7 || r[3] !== 0)) return true;
+  const wk = g ? g.board.indexOf(6) : -1, bk = g ? g.board.indexOf(14) : -1;
+  return !!g && !!g.castle && ((g.castle & 3 && wk !== 4) || (g.castle & 12 && bk !== 60));
+}
+
+/** Castling by the king picked up and its own rook (960: "king takes own rook"), if legal here. */
+function chCastleByRook(g, kingSq, rookSq) {
+  const ki = chSqIndex(kingSq), ri = chSqIndex(rookSq);
+  if (ki < 0 || ri < 0 || (g.board[ki] & 7) !== 6 || (g.board[ri] & 7) !== 4 || (g.board[ki] >> 3) !== (g.board[ri] >> 3)) return false;
+  const m = chessFind(chessPos(g), { from: ki, to: ri });
+  return !!m && !!(chessMFlags(m) & CHESS_F_CASTLE);
+}
+
+/**
+ * The castling rook's two squares, as indices [from, to] (-1s when it didn't move): the rook that went
+ * to f or d is the one of that colour, beyond the king on that side, no longer where it was.
+ * before(i): the piece on square i before the move; after: the board after it.
+ */
+function chCastleRookSquares(a, before, after) {
+  const from = chSqIndex(a.from), to = chSqIndex(a.to);
+  if (from < 0 || to < 0 || !a.castle || !after) return [-1, -1];
+  const rank = to & 56, short = a.castle === 'short';
+  const rt = rank + (short ? 5 : 3);
+  const rook = after[rt];
+  if ((rook & 7) !== 4) return [-1, -1];
+  for (let f = 0; f < 8; f++) {
+    const i = rank + f;
+    if (before(i) !== rook || (short ? f <= (from & 7) : f >= (from & 7))) continue;
+    if (i === rt) return [-1, -1];
+    if (after[i] !== rook) return [i, rt];
+  }
+  return [-1, -1];
+}
+
+/** The tags over the one-phone board: 960, and the handicap with who gives it. */
+function chLocalTagHtml(s, names) {
+  const tags = [];
+  if (s.gameVariant === '960') tags.push(`<p class="ch-tag ch-tag--960">🎲 ${escapeHTML(chT('ch_pill_960'))}</p>`);
+  const o = s.gameOdds;
+  if (o && o.kind && o.kind !== 'none') {
+    const label = o.kind === 'time' ? chT('ch_pill_odds_time') : chT('ch_pill_odds', { piece: chT('ch_odds_' + o.kind) });
+    tags.push(`<p class="ch-tag ch-tag--odds">⚖️ ${escapeHTML(label)} · <bdi>${escapeHTML(names[o.giver] || '')}</bdi></p>`);
+  }
+  return tags.length ? `<div class="ch-tags">${tags.join('')}</div>` : '';
+}
+
 function setupShatranj() {
   chStopTimers();
   setView('setup-shatranj');
@@ -2195,10 +2314,34 @@ function paintShatranjSetup() {
   if (s.vsBefore && !(s.practice && s.phase === 'play')) { s.vs = s.vsBefore; s.vsBefore = null; saveToLocal(); }
   duelPaintSegmented('shatranj-vs', s.vs);
   duelPaintSegmented('shatranj-color', s.color);
+  // The clocks, from the shared list (a clock added there shows here by itself).
+  const clockBox = document.getElementById('shatranj-clock');
+  if (clockBox) {
+    const html = CHESS_CLOCK_IDS.map(v => `<button type="button" class="segmented__item" data-value="${v}" onclick="setShatranjOption('clock', '${v}')">${escapeHTML(v === 'off' ? chT('gw_clock_off') : v)}</button>`).join('');
+    if (clockBox._chHtml !== html) { clockBox.innerHTML = html; clockBox._chHtml = html; }
+  }
   duelPaintSegmented('shatranj-clock', s.clock);
   duelPaintSegmented('shatranj-help', s.helpLimit);
+  duelPaintSegmented('shatranj-variant', s.variant);
   const phone = s.vs === 'phone';
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+  // The handicap: which piece (or half the clock), then who gives it - you or the computer; White or Black.
+  const odds = document.getElementById('shatranj-odds');
+  if (odds) {
+    const html = CH_ODDS.map(k => `<button type="button" class="opt-chip ${s.odds === k ? 'is-active' : ''}" aria-pressed="${s.odds === k}" onclick="setShatranjOption('odds', '${k}')">${k === 'none' || k === 'time' ? '' : chPieceSvg(CH_LETTER_KIND[{ pawn: 'p', knight: 'n', rook: 'r', queen: 'q' }[k]], 'ch-odds__pc')}${escapeHTML(chT('ch_odds_' + k))}</button>`).join('');
+    if (odds._chHtml !== html) { odds.innerHTML = html; odds._chHtml = html; }
+  }
+  const by = document.getElementById('shatranj-oddsby');
+  if (by) {
+    const opts = phone ? [['me', chT('ch_odds_by_me')], ['cpu', chT('ch_odds_by_cpu')]] : [['w', chT('ch_color_w')], ['b', chT('ch_color_b')]];
+    const cur = phone ? s.oddsBy : s.oddsColor;
+    const html = opts.map(([v, label]) => `<button type="button" class="segmented__item" data-value="${v}" onclick="setShatranjOption('${phone ? 'oddsBy' : 'oddsColor'}', '${v}')">${escapeHTML(label)}</button>`).join('');
+    if (by._chHtml !== html) { by.innerHTML = html; by._chHtml = html; }
+    duelPaintSegmented('shatranj-oddsby', cur);
+  }
+  show('shatranj-oddsby-field', s.odds !== 'none');
+  const oddsHint = document.getElementById('shatranj-odds-hint');
+  if (oddsHint) oddsHint.textContent = s.odds === 'time' && chessClockId(s.clock) === 'off' ? chT('ch_odds_time_noclock') : chT('ch_odds_hint_local');
 
   show('shatranj-color-field', phone);
   show('shatranj-coach-field', phone);
@@ -2298,8 +2441,22 @@ function chNewGame(opts) {
   const o = opts || {};
   const s = chState();
   chStopTimers();
-  s.g = o.fen ? chessFromFen(o.fen) : chessNew();
-  s.start = o.fen || '';
+  if (s.vs === 'phone') s.me = o.me !== undefined ? o.me : (s.color === 'b' ? 1 : s.color === 'random' ? (Math.random() < 0.5 ? 0 : 1) : 0);
+  // A game of the setup's own (not a set-up position, not practice): 960 draws a new start every
+  // game, and the handicap takes the giver's piece off it (or half their clock).
+  let fen = o.fen || '';
+  s.gameVariant = 'standard';
+  s.gameOdds = null;
+  if (!o.fen) {
+    if (s.variant === '960') { fen = chess960Random(); s.gameVariant = '960'; }
+    const kind = chOddsNow(s);
+    if (kind !== 'none') {
+      s.gameOdds = { kind: kind, giver: chOddsGiver(s, s.me || 0) };
+      if (kind !== 'time') fen = chOddsFen(fen, kind, s.gameOdds.giver);
+    }
+  }
+  s.g = fen ? chessFromFen(fen) : chessNew();
+  s.start = fen;
   s.hist = [];
   s.sans = [];
   // A game from a position (try the better move) keeps what had been taken by then.
@@ -2314,14 +2471,13 @@ function chNewGame(opts) {
   s.setupEg = o.setup ? (o.eg || '') : '';
   // Undo and hints: this game keeps the limit it was started with, and counts what it used.
   s.gameHelp = s.helpLimit;
-  s.help = chHelpNew({ setup: !!o.setup });
+  s.help = chHelpNew({ setup: !!o.setup, odds: !!s.gameOdds });
   // Whether this game counts for your rating is settled now, and the computer's rating kept with it.
   s.rated = !chUnratedReason(s, { setup: !!o.setup, practice: !!o.practice });
   const who = chCharById(s.char);
   s.opp = s.vs === 'phone' ? { elo: who ? who.elo : s.elo, style: who && who.style ? who.style : '', char: who ? who.id : '' } : null;
   s.ratingChange = null;
-  if (s.vs === 'phone') s.me = o.me !== undefined ? o.me : (s.color === 'b' ? 1 : s.color === 'random' ? (Math.random() < 0.5 ? 0 : 1) : 0);
-  s.clk = chessClockNew(s.clock);
+  s.clk = chessClockNew(s.clock, s.gameOdds && s.gameOdds.kind === 'time' ? { odds: s.gameOdds.giver } : undefined);
   s.phase = 'play';
   s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   chLocal.sel = '';
@@ -2447,7 +2603,8 @@ function chEnd(s, result, reason) {
     const names = chNames(s);
     chStoreGame({ mode: s.vs === 'phone' ? 'phone' : 'friend', names: names, elo: s.vs === 'phone' ? chOppElo(s) : null, me: s.vs === 'phone' ? s.me : null,
       result: result, reason: reason, start: s.start || '', moves: s.hist.slice(), key: 'local|' + s.gameId,
-      help: s.vs === 'phone' ? chHelpNew(s.help) : null, rated: !!rating, rating: rating });
+      help: s.vs === 'phone' ? chHelpNew(s.help) : null, rated: !!rating, rating: rating,
+      variant: s.gameVariant === '960' ? '960' : '', odds: s.gameOdds || null });
   }
 }
 
@@ -2739,7 +2896,7 @@ function chPaint(opts) {
   const char = s.vs === 'phone' && s.opp && s.opp.char ? s.opp.char : '';
   const subs = char ? [0, 1].map(k => (k === cpuSide ? `<span class="ch-pill-elo metric" dir="ltr">${chOppElo(s)}</span>` : '')) : null;
   const faces = char ? [0, 1].map(k => (k === cpuSide ? chCharFaceSvg(char) : '')) : null;
-  chSetHtml(el, '[data-ch-head]', chPillsHtml(names, s.phase === 'play' ? s.g.turn : -1, byColour, s.clk, s.lost, subs, faces) +
+  chSetHtml(el, '[data-ch-head]', chPillsHtml(names, s.phase === 'play' ? s.g.turn : -1, byColour, s.clk, s.lost, subs, faces) + chLocalTagHtml(s, names) +
     `<p class="duel-status ${ended ? 'is-done' : ''} ${chLocal.thinking ? 'is-thinking' : ''}">${escapeHTML(chLocalStatus(s, names))}</p>`);
   chSetHtml(el, '[data-ch-bar]', chLocalBarHtml(s, hint));
   chSetHtml(el, '[data-ch-side]', chLocalSideHtml(s, names));
@@ -2801,7 +2958,7 @@ function chLocalSideHtml(s, names) {
     out.push(`<p class="ch-rating-result ${rc.delta > 0 ? 'is-up' : rc.delta < 0 ? 'is-down' : ''}">⭐ ${escapeHTML(chT('ch_rating_now', { r: rc.after }))} <b dir="ltr">${chDeltaText(rc.delta)}</b></p>`);
   }
   if (s.comment && s.vs === 'phone' && s.coach) out.push(chCommentHtml(s.comment));
-  out.push(chMovesHtml(s.sans, { current: s.sans.length - 1, start: s.start || (s.practice ? 'practice' : ''), variant: s.variant }));
+  out.push(chMovesHtml(s.sans, { current: s.sans.length - 1, start: s.start || (s.practice ? 'practice' : ''), variant: s.gameVariant }));
   if (s.practice) out.push(`<p class="field__hint">🎯 ${escapeHTML(chT('ch_practice_note'))}</p>`);
   if (s.help && s.help.setup) {
     out.push(`<p class="field__hint">🧩 ${s.setupEg ? `<b>${escapeHTML(chT('ch_eg_' + s.setupEg))}</b> · ${escapeHTML(chT('ch_eg_' + s.setupEg + '_line'))}` : escapeHTML(chT('ch_pos_title'))}</p>`);

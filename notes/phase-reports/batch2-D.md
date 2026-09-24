@@ -100,18 +100,18 @@ horizontal overflow in the endgame editor at any size.
 ## After review: the 3D knight
 
 The coordinator found the 3D knight read as a lump from the playing camera. It was rebuilt in
-: a horse's head and neck as a side profile (chest, throat, jaw, chin, muzzle, nose bridge,
+`chPieceParts`: a horse's head and neck as a side profile (chest, throat, jaw, chin, muzzle, nose bridge,
 forehead, poll, the arched crest, the back of the neck) extruded with a bevel (20 curve segments), then
 shaped vertex by vertex once at build (pinched 45% towards the muzzle, 18% fuller at the neck's foot);
 a thin ridged mane crest standing proud along the back of the neck; two ears; cheek swells; eyes and
 nostrils; a collar on the turned base. Shared geometry, nothing allocated per frame. White's knights face
 left and Black's right as seen from White (a small turn towards the other side), so neither colour is
 seen from behind from either seat. VERIFIED by screenshots from the default camera
-(, , , ) and
-a close-up (); no console errors; T2D.3 test updated (29/29).
+(`2d/shots/k/k2-375-white.png`, `k2-375-black.png`, `k2-1280-white.png`, `k2-1280-black.png`) and
+a close-up (`k2-close.png`); no console errors; T2D.3 test updated (29/29).
 
-The marble style: it was always drawn -  showed three boards because the screenshot
-montage script (a test helper) dropped its fourth image, not the page.  is
+The marble style: it was always drawn - `m-styles.png` showed three boards because the screenshot
+montage script (a test helper) dropped its fourth image, not the page. `2d/shots/q-b-marble.png` is
 the 2D marble board; no code change was needed.
 
 ## Decisions made here

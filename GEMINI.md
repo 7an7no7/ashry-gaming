@@ -608,6 +608,50 @@ work changed. Add to it when a decision is made or a batch ships.
       look, each searched in a tick of its own, the best three kept
       (`CH_BEST`); the share card and the video put ⚪ / ⚫ before the names
       (the chess glyphs become emoji on an iPhone).
+  - **The board like chess.com, 2D or 3D in plain sight, looking back, and
+    premoves as a switch** - the owner's requests of 24 Sep 2026, all decided:
+    - **The 2D set redrawn, our own** (never chess.com's art): classic
+      Staunton silhouettes that fill the square - the king about 90% of its
+      height, queen, bishop and knight 88%, the rook 85%, the pawn about three
+      quarters - with bold dark outlines; White near-white with a charcoal
+      outline and a light-to-shade gradient, Black near-black with a thin
+      lighter rim inside its outline so its shape reads on a dark square; a
+      soft small shadow under every piece. The board's colours and four
+      styles unchanged; the coordinates bold, in the corners, in the other
+      square's colour; legal moves a dark translucent dot (30% of the square),
+      captures a ring; the last move yellow; a square under a dragged piece
+      (or a mouse, on your move) a subtle white inner outline; the dragged
+      piece bigger with a shadow. The share card's canvas board uses the same
+      drawings; شطرنج الأربعة draws the new shapes in its colours. 3D untouched.
+    - **«2D | 3D» is a segmented switch** in the board's row of buttons (where
+      the small «🧊 3D» chip was) and on the one-phone setup under «شكل
+      الرقعة», beside the styles; one remembered choice (`chLook().view`), gone
+      where 3D can't draw; the TV has none (it is 3D).
+    - **Undo is real, or not there**: ↶ and 💡 against the computer are drawn
+      only when the setup allows them (not «ممنوع»); two on one phone has no
+      undo (as built - it already worked so; checked).
+    - **Looking back is not undo** (the owner: "when it's off, it's the same
+      as chess.com - it shows me what happened in case I missed it, it doesn't
+      affect the real game"): ⏮ ◀ ▶ ⏭ under the board, ← / → on a computer, a
+      tap on a move in the list - against the computer, two on one phone, and
+      on every phone in a room (players and watchers; the TV skips it). The
+      board shows that position with its move's yellow squares; nothing can
+      be moved; the clock runs on; «👀 بتتفرج على الحركة 12 ♞f3 · ارجع للعبة»
+      takes the status line's place, over the board; it, ⏭ or a tap on the
+      board is the game again. A move played meanwhile leaves you where you
+      are and the line pulses. The game, its record, the clock and the rating
+      are never touched.
+    - **«الحركات المسبقة» (Premoves) is a switch, on by default**, on the
+      setup (near undo and hints) and in the board's ⚙, remembered on the
+      phone; obeyed against the computer and on your own phone in a room.
+      Off: nothing is queued and a tap while it isn't your move does nothing.
+    - Decided here (each one place): the "move 12" is the full-move number
+      with that move's SAN after it (the list numbers moves in pairs); the
+      line replaces the status rather than being added over it, so the board
+      doesn't jump down on a phone; while looking back the board has a frame
+      in the screen's colour, so it isn't taken for the game; a premove
+      queued before looking back still plays when your turn comes (the game
+      goes on); switching premoves off drops one already queued.
   - **الوزير المستخبي (Hidden queen)** - the owner's decisions of 24 Sep 2026,
     asked one by one (*شطرنج*, "The hidden queen"):
     - **A room duel** (winner stays; each on their own phone, the TV
@@ -2678,6 +2722,18 @@ the word search), `countUp` for streaks and scores.
   turn it is and the card says who is answering. Rules, the setup hint and the
   timer's hint updated in both languages; a reload mid-steal comes back in the
   steal with the time it had left.
+- **24 Sep 2026, chess: the chess.com board, looking back, premoves as a
+  switch** - the owner's four requests (*The owner's specs*, شطرنج): the 2D
+  pieces redrawn to fill the square with bold outlines, Black's rim and a
+  shadow, the coordinates, dots, rings and hover as on chess sites; «2D | 3D»
+  as a segmented switch on the board and on the setup; ↶ only when the setup
+  allows it (it already was); ⏮ ◀ ▶ ⏭, ← / → and a tap on a move to look
+  back without touching the game, on one phone and on every phone in a room;
+  «الحركات المسبقة» a remembered switch on the setup and in the ⚙. Checked in
+  headless Chrome at 375x667, 667x375 and 1280x720, Arabic light and English
+  dark, the four styles, White and Black at the bottom, 3D; the screen test
+  (screens, rooms, fixes) and the rules tests pass. Nothing the rooms server
+  runs changed.
 
 ## Building and Running
 
@@ -5305,8 +5361,20 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
     `--ch2-w-*` / `--ch2-b-*` on `:root`, the same in both themes. The 3D
     board's four styles are `CH3_STYLES` (`applyStyle` recolours the
     materials and redraws the board's canvas).
+  - **The pieces** (24 Sep 2026, "like chess.com"): `CH2_SHAPES` built from
+    `CH2_BASE`, `CH2_BAND`, `CH2_SKIRT`; `chPieceSymbols` writes each shape as a
+    filled, outlined body for White, and for Black the fill, a rim (the same
+    shape stroked with `--ch2-b-rim`, clipped to itself by a `clipPath` per
+    shape, `ch2k-<kind>-<n>`) and the outline over it; an ellipse under every
+    piece filled with the radial `ch2sh` is its shadow. Only the types
+    `b c l d dc` exist, so `ch4PieceDefs` (شطرنج الأربعة) keeps reading the
+    same list. `chBoardColours` reads `rim` too, for the share card's canvas.
   - **The look and the switch** (`chLook`, `recallOptions('chessLook')`: `{
-    view: '2d' | '3d', style }`; `chLookSet` remembers and redraws):
+    view: '2d' | '3d', style, premove }`; `chLookSet` remembers and redraws -
+    a premove change repaints the one-phone or room screen and drops a queued
+    one; «2D | 3D» is `chViewSegHtml` / `chViewSet` on the board and
+    `#shatranj-view` on the setup; the ⚙ (`chToolsPop`) shows the premove
+    switch when the model says `preable`):
     `chViewShow` asks `chViewWant` (the TV's model `tv`, or the phone's
     choice, and only where `chCan3D`); a 3D board shows the 2D one while
     three.js loads (`chViewLoad3D`, the one place chess asks for it), a load
@@ -5376,7 +5444,23 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
       `chPremoveLegal`, `chPremoveDropped` and the boards' `nudge(sq)`):
       `chLocal.pre` played in `chAfterMove` when your turn comes;
       `chRoomLocal.pre` (keyed on the deal and round) played at the top of
-      `chRoomRender` through `chRoomPlay`.
+      `chRoomRender` through `chRoomPlay`. Both `preOn`s also ask
+      `chLook().premove` (the switch).
+    - **Looking back** (`chBrowse`, JS_Chess.html): `chReplayPositions(start,
+      hist, lostStart)` plays the game's own record again with `chessPlay`
+      (960's X-FEN start and the hidden queen's '*' moves work as in the
+      review) and keeps every position, extended as moves come
+      (`chReplayMemo`); `chBrowseSync(key, total, paint)` per paint (a new game
+      key goes live, a longer record while looking pulses), `chBrowseGo` /
+      `chBrowseStep` / `chBrowseMove`, `chBrowseModel` (that position, `anim:
+      null` - no motion or sound -, no marks, `input.canMove` false and a tap
+      going live), `chBrowseNavHtml` in the layout's `[data-ch-browse]` (under
+      the board upright, at the top of the side column when wide),
+      `chBrowseNoteHtml` in the status's place, `chBrowseScrollList`, and a
+      keydown listener on `play-shatranj` and `room-chess`. Going live paints
+      with `still`, so the last move isn't played again. The room keys it on
+      the deal, round and tournament match and replays `bd.start` /
+      `bd.hist`; the TV never calls it.
     - **Arrows by hand**: `chView.anno` (keyed on the model's key and its
       animation key, so a move clears it), `chView.pen` (✏️), `chView.draft`
       (the arrow being drawn); `chAnnoMerge` puts them over the model the

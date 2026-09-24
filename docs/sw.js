@@ -1,4 +1,4 @@
-const CACHE = 'ashry-20260924070930';
+const CACHE = 'ashry-20260924110858';
 const SHELL = ['./manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 

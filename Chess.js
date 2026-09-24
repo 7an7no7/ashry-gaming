@@ -111,7 +111,15 @@ function chessPos(g) {
   const b = g.board.slice();
   const kings = [-1, -1];
   for (let sq = 0; sq < 64; sq++) if ((b[sq] & 7) === 6) kings[b[sq] >> 3] = sq;
-  const p = { b: b, side: g.turn ? 1 : 0, castle: g.castle | 0, ep: g.ep === undefined ? -1 : g.ep, half: g.half | 0, kings: kings, lo: 0, hi: 0, stack: [] };
+  const rooks = g.rooks ? g.rooks.slice() : [7, 0, 7, 0];
+  const keep = new Array(64).fill(15);
+  if (kings[0] >= 0) keep[kings[0]] &= ~3;
+  if (kings[1] >= 0) keep[kings[1]] &= ~12;
+  keep[rooks[0]] &= ~1;
+  keep[rooks[1]] &= ~2;
+  keep[56 + rooks[2]] &= ~4;
+  keep[56 + rooks[3]] &= ~8;
+  const p = { b: b, side: g.turn ? 1 : 0, castle: g.castle | 0, ep: g.ep === undefined ? -1 : g.ep, half: g.half | 0, kings: kings, rooks: rooks, keep: keep, lo: 0, hi: 0, stack: [] };
   chessRehash(p);
   return p;
 }
@@ -210,20 +218,53 @@ function chessGen(p, out, capsOnly) {
   return out;
 }
 
+function chessCastleAllowed(b, kFrom, kTo, rf, rt, them) {
+  const kStep = kTo > kFrom ? 1 : (kTo < kFrom ? -1 : 0);
+  for (let s = kFrom; ; s += kStep) {
+    if (chessAttacked(b, s, them)) return false;
+    if (s === kTo) break;
+  }
+  if (kStep !== 0) {
+    for (let s = kFrom + kStep; ; s += kStep) {
+      if (s !== rf && b[s]) return false;
+      if (s === kTo) break;
+    }
+  }
+  const rStep = rt > rf ? 1 : (rt < rf ? -1 : 0);
+  if (rStep !== 0) {
+    for (let s = rf + rStep; ; s += rStep) {
+      if (s !== kFrom && b[s]) return false;
+      if (s === rt) break;
+    }
+  }
+  return true;
+}
+
 /** Castling: the rights still there, the squares between empty, and the king not in, through or into check. */
 function chessGenCastle(p, sq, out) {
   const b = p.b, side = p.side, them = side ^ 1;
-  const home = side ? 60 : 4;
-  if (sq !== home) return;
-  const short = side ? 4 : 1, long = side ? 8 : 2;
-  const rook = (side << 3) | 4;
-  if ((p.castle & short) && b[home + 3] === rook && !b[home + 1] && !b[home + 2] &&
-      !chessAttacked(b, home, them) && !chessAttacked(b, home + 1, them) && !chessAttacked(b, home + 2, them)) {
-    out.push(chessMake(home, home + 2, 0, CHESS_F_CASTLE));
+  const kFrom = p.kings[side];
+  if (sq !== kFrom) return;
+  const rooks = p.rooks || [7, 0, 7, 0];
+  const shortBit = side ? 4 : 1, longBit = side ? 8 : 2;
+  const rankOffset = side ? 56 : 0;
+  const rookPiece = (side << 3) | 4;
+
+  if (p.castle & shortBit) {
+    const rf = rankOffset + rooks[side ? 2 : 0];
+    const kTo = rankOffset + 6;
+    const rt = rankOffset + 5;
+    if (b[rf] === rookPiece && chessCastleAllowed(b, kFrom, kTo, rf, rt, them)) {
+      out.push(chessMake(kFrom, kTo, 0, CHESS_F_CASTLE));
+    }
   }
-  if ((p.castle & long) && b[home - 4] === rook && !b[home - 1] && !b[home - 2] && !b[home - 3] &&
-      !chessAttacked(b, home, them) && !chessAttacked(b, home - 1, them) && !chessAttacked(b, home - 2, them)) {
-    out.push(chessMake(home, home - 2, 0, CHESS_F_CASTLE));
+  if (p.castle & longBit) {
+    const rf = rankOffset + rooks[side ? 3 : 1];
+    const kTo = rankOffset + 2;
+    const rt = rankOffset + 3;
+    if (b[rf] === rookPiece && chessCastleAllowed(b, kFrom, kTo, rf, rt, them)) {
+      out.push(chessMake(kFrom, kTo, 0, CHESS_F_CASTLE));
+    }
   }
 }
 
@@ -236,20 +277,25 @@ function chessDo(p, m) {
   if (flags & CHESS_F_EP) { capSq = side ? to + 8 : to - 8; cap = b[capSq]; }
   p.stack.push(m, cap, p.castle, p.ep, p.half, p.lo, p.hi);
   let lo = p.lo, hi = p.hi;
-  if (cap) { b[capSq] = 0; lo ^= Z0.piece[cap * 64 + capSq]; hi ^= Z1.piece[cap * 64 + capSq]; }
-  const put = promo ? ((side << 3) | promo) : pc;
-  b[from] = 0; lo ^= Z0.piece[pc * 64 + from]; hi ^= Z1.piece[pc * 64 + from];
-  b[to] = put; lo ^= Z0.piece[put * 64 + to]; hi ^= Z1.piece[put * 64 + to];
   if (flags & CHESS_F_CASTLE) {
-    const rf = to > from ? to + 1 : to - 2, rt = to > from ? to - 1 : to + 1;
+    const isShort = (to & 7) === 6;
+    const rooks = p.rooks || [7, 0, 7, 0];
+    const rf = (side ? 56 : 0) + rooks[side ? (isShort ? 2 : 3) : (isShort ? 0 : 1)];
+    const rt = (side ? 56 : 0) + (isShort ? 5 : 3);
     const rk = b[rf];
-    b[rf] = 0; b[rt] = rk;
-    lo ^= Z0.piece[rk * 64 + rf] ^ Z0.piece[rk * 64 + rt];
-    hi ^= Z1.piece[rk * 64 + rf] ^ Z1.piece[rk * 64 + rt];
+    b[from] = 0; lo ^= Z0.piece[pc * 64 + from]; hi ^= Z1.piece[pc * 64 + from];
+    b[rf] = 0; lo ^= Z0.piece[rk * 64 + rf]; hi ^= Z1.piece[rk * 64 + rf];
+    b[to] = pc; lo ^= Z0.piece[pc * 64 + to]; hi ^= Z1.piece[pc * 64 + to];
+    b[rt] = rk; lo ^= Z0.piece[rk * 64 + rt]; hi ^= Z1.piece[rk * 64 + rt];
+  } else {
+    if (cap) { b[capSq] = 0; lo ^= Z0.piece[cap * 64 + capSq]; hi ^= Z1.piece[cap * 64 + capSq]; }
+    const put = promo ? ((side << 3) | promo) : pc;
+    b[from] = 0; lo ^= Z0.piece[pc * 64 + from]; hi ^= Z1.piece[pc * 64 + from];
+    b[to] = put; lo ^= Z0.piece[put * 64 + to]; hi ^= Z1.piece[put * 64 + to];
   }
   if ((pc & 7) === 6) p.kings[side] = to;
   lo ^= Z0.castle[p.castle]; hi ^= Z1.castle[p.castle];
-  p.castle &= CHESS_CASTLE_KEEP[from] & CHESS_CASTLE_KEEP[to];
+  p.castle &= (p.keep ? p.keep[from] & p.keep[to] : CHESS_CASTLE_KEEP[from] & CHESS_CASTLE_KEEP[to]);
   lo ^= Z0.castle[p.castle]; hi ^= Z1.castle[p.castle];
   if (p.ep >= 0) { lo ^= Z0.ep[p.ep & 7]; hi ^= Z1.ep[p.ep & 7]; }
   p.ep = flags & CHESS_F_DOUBLE ? (from + to) >> 1 : -1;
@@ -269,16 +315,24 @@ function chessUndo(p) {
   const from = m & 63, to = (m >> 6) & 63, promo = (m >> 12) & 7, flags = m >> 15;
   p.side ^= 1;
   const side = p.side;
-  const moved = b[to];
-  b[from] = promo ? ((side << 3) | 1) : moved;
-  b[to] = 0;
-  if (flags & CHESS_F_EP) b[side ? to + 8 : to - 8] = cap;
-  else b[to] = cap;
   if (flags & CHESS_F_CASTLE) {
-    const rf = to > from ? to + 1 : to - 2, rt = to > from ? to - 1 : to + 1;
-    b[rf] = b[rt]; b[rt] = 0;
+    const isShort = (to & 7) === 6;
+    const rooks = p.rooks || [7, 0, 7, 0];
+    const rf = (side ? 56 : 0) + rooks[side ? (isShort ? 2 : 3) : (isShort ? 0 : 1)];
+    const rt = (side ? 56 : 0) + (isShort ? 5 : 3);
+    b[to] = 0;
+    b[rt] = 0;
+    b[from] = (side << 3) | 6;
+    b[rf] = (side << 3) | 4;
+    p.kings[side] = from;
+  } else {
+    const moved = b[to];
+    b[from] = promo ? ((side << 3) | 1) : moved;
+    b[to] = 0;
+    if (flags & CHESS_F_EP) b[side ? to + 8 : to - 8] = cap;
+    else b[to] = cap;
+    if ((moved & 7) === 6) p.kings[side] = from;
   }
-  if ((moved & 7) === 6) p.kings[side] = from;
 }
 
 // A move that passes (the phone's search: "if I did nothing, could they still not hurt me?").
@@ -344,11 +398,77 @@ function chessFromFen(fen) {
       f++;
     }
   });
+
+  let wkF = -1, bkF = -1;
+  for (let f = 0; f < 8; f++) {
+    if (board[f] === 6) wkF = f;
+    if (board[56 + f] === 14) bkF = f;
+  }
+
   const c = parts[2] || '-';
+  let castle = 0;
+  let wK = -1, wQ = -1, bK = -1, bQ = -1;
+
+  if (c !== '-') {
+    for (const ch of c) {
+      if (ch === 'K') {
+        castle |= 1;
+        let maxF = -1;
+        for (let f = wkF + 1; f < 8; f++) if (board[f] === 4) maxF = f;
+        wK = maxF >= 0 ? maxF : 7;
+      } else if (ch === 'Q') {
+        castle |= 2;
+        let minF = -1;
+        for (let f = 0; f < wkF; f++) if (board[f] === 4) { minF = f; break; }
+        wQ = minF >= 0 ? minF : 0;
+      } else if (ch === 'k') {
+        castle |= 4;
+        let maxF = -1;
+        for (let f = bkF + 1; f < 8; f++) if (board[56 + f] === 12) maxF = f;
+        bK = maxF >= 0 ? maxF : 7;
+      } else if (ch === 'q') {
+        castle |= 8;
+        let minF = -1;
+        for (let f = 0; f < bkF; f++) if (board[56 + f] === 12) { minF = f; break; }
+        bQ = minF >= 0 ? minF : 0;
+      } else if (ch >= 'A' && ch <= 'H') {
+        const f = ch.charCodeAt(0) - 65;
+        if (wkF >= 0 && f > wkF) { castle |= 1; wK = f; }
+        else { castle |= 2; wQ = f; }
+      } else if (ch >= 'a' && ch <= 'h') {
+        const f = ch.charCodeAt(0) - 97;
+        if (bkF >= 0 && f > bkF) { castle |= 4; bK = f; }
+        else { castle |= 8; bQ = f; }
+      }
+    }
+  }
+
+  if (wK < 0) {
+    let maxF = -1;
+    for (let f = wkF + 1; f < 8; f++) if (board[f] === 4) maxF = f;
+    wK = maxF >= 0 ? maxF : 7;
+  }
+  if (wQ < 0) {
+    let minF = -1;
+    for (let f = 0; f < wkF; f++) if (board[f] === 4) { minF = f; break; }
+    wQ = minF >= 0 ? minF : 0;
+  }
+  if (bK < 0) {
+    let maxF = -1;
+    for (let f = bkF + 1; f < 8; f++) if (board[56 + f] === 12) maxF = f;
+    bK = maxF >= 0 ? maxF : 7;
+  }
+  if (bQ < 0) {
+    let minF = -1;
+    for (let f = 0; f < bkF; f++) if (board[56 + f] === 12) { minF = f; break; }
+    bQ = minF >= 0 ? minF : 0;
+  }
+
   const g = {
     board: board,
     turn: parts[1] === 'b' ? 1 : 0,
-    castle: (c.indexOf('K') !== -1 ? 1 : 0) | (c.indexOf('Q') !== -1 ? 2 : 0) | (c.indexOf('k') !== -1 ? 4 : 0) | (c.indexOf('q') !== -1 ? 8 : 0),
+    castle: castle,
+    rooks: [wK, wQ, bK, bQ],
     ep: parts[3] && parts[3] !== '-' ? chessSq(parts[3]) : -1,
     half: Number(parts[4]) || 0,
     full: Number(parts[5]) || 1,
@@ -359,6 +479,53 @@ function chessFromFen(fen) {
 }
 
 const chessNew = () => chessFromFen(CHESS_START_FEN);
+
+const CHESS_960_KNIGHTS = [
+  [0, 1], [0, 2], [0, 3], [0, 4],
+  [1, 2], [1, 3], [1, 4],
+  [2, 3], [2, 4],
+  [3, 4]
+];
+
+/** Chess960 (Fischer Random) starting position (0-959, Scharnagl numbering) as FEN. */
+function chess960Start(n) {
+  const num = Math.max(0, Math.min(959, Number(n) || 0));
+  const row = new Array(8).fill('');
+  const b1 = num % 4;
+  row[2 * b1 + 1] = 'B';
+  const n1 = Math.floor(num / 4);
+  const b2 = n1 % 4;
+  row[2 * b2] = 'B';
+  const n2 = Math.floor(n1 / 4);
+  const q = n2 % 6;
+  let emptyCount = 0;
+  for (let f = 0; f < 8; f++) {
+    if (!row[f]) {
+      if (emptyCount === q) { row[f] = 'Q'; break; }
+      emptyCount++;
+    }
+  }
+  const n3 = Math.floor(n2 / 6);
+  const [k1, k2] = CHESS_960_KNIGHTS[n3];
+  const empties = [];
+  for (let f = 0; f < 8; f++) if (!row[f]) empties.push(f);
+  row[empties[k1]] = 'N';
+  row[empties[k2]] = 'N';
+  const rest = [];
+  for (let f = 0; f < 8; f++) if (!row[f]) rest.push(f);
+  row[rest[0]] = 'R';
+  row[rest[1]] = 'K';
+  row[rest[2]] = 'R';
+
+  const w = row.join('');
+  const b = w.toLowerCase();
+  return `${b}/pppppppp/8/8/8/8/PPPPPPPP/${w} w KQkq - 0 1`;
+}
+
+const chess960Random = (rnd) => {
+  const r = typeof rnd === 'function' ? rnd() : (typeof rnd === 'number' ? rnd : Math.random());
+  return chess960Start(Math.floor(r * 960));
+};
 
 function chessPlacement(board) {
   let out = '';
@@ -377,10 +544,54 @@ function chessPlacement(board) {
   return out;
 }
 
-const chessCastleText = (c) => ((c & 1 ? 'K' : '') + (c & 2 ? 'Q' : '') + (c & 4 ? 'k' : '') + (c & 8 ? 'q' : '')) || '-';
+function chessCastleText(c, g) {
+  if (typeof c === 'object' && c !== null) { g = c; c = g.castle; }
+  c = Number(c) || 0;
+  if (!c) return '-';
+  if (!g || !g.board) {
+    return ((c & 1 ? 'K' : '') + (c & 2 ? 'Q' : '') + (c & 4 ? 'k' : '') + (c & 8 ? 'q' : '')) || '-';
+  }
+  const rooks = g.rooks || [7, 0, 7, 0];
+  const b = g.board;
+  let wk = -1, bk = -1;
+  for (let sq = 0; sq < 64; sq++) {
+    if (b[sq] === 6) wk = sq;
+    else if (b[sq] === 14) bk = sq;
+  }
+  let out = '';
+  if (c & 1) {
+    const rf = rooks[0];
+    const wkF = wk >= 0 ? (wk & 7) : 4;
+    let maxF = -1;
+    for (let f = wkF + 1; f < 8; f++) if (b[f] === 4) maxF = f;
+    out += (maxF === rf) ? 'K' : CHESS_FILES[rf].toUpperCase();
+  }
+  if (c & 2) {
+    const rf = rooks[1];
+    const wkF = wk >= 0 ? (wk & 7) : 4;
+    let minF = 8;
+    for (let f = 0; f < wkF; f++) if (b[f] === 4) { minF = f; break; }
+    out += (minF === rf) ? 'Q' : CHESS_FILES[rf].toUpperCase();
+  }
+  if (c & 4) {
+    const rf = rooks[2];
+    const bkF = bk >= 0 ? (bk & 7) : 4;
+    let maxF = -1;
+    for (let f = bkF + 1; f < 8; f++) if (b[56 + f] === 12) maxF = f;
+    out += (maxF === rf) ? 'k' : CHESS_FILES[rf];
+  }
+  if (c & 8) {
+    const rf = rooks[3];
+    const bkF = bk >= 0 ? (bk & 7) : 4;
+    let minF = 8;
+    for (let f = 0; f < bkF; f++) if (b[56 + f] === 12) { minF = f; break; }
+    out += (minF === rf) ? 'q' : CHESS_FILES[rf];
+  }
+  return out || '-';
+}
 
 function chessFen(g) {
-  return [chessPlacement(g.board), g.turn ? 'b' : 'w', chessCastleText(g.castle), g.ep >= 0 ? chessSqName(g.ep) : '-', g.half | 0, g.full || 1].join(' ');
+  return [chessPlacement(g.board), g.turn ? 'b' : 'w', chessCastleText(g.castle, g), g.ep >= 0 ? chessSqName(g.ep) : '-', g.half | 0, g.full || 1].join(' ');
 }
 
 /**
@@ -394,7 +605,7 @@ function chessKey(g) {
     const p = chessPos(g);
     if (chessLegalPos(p, true).some(m => (m >> 15) & CHESS_F_EP)) ep = chessSqName(g.ep);
   }
-  return [chessPlacement(g.board), g.turn ? 'b' : 'w', chessCastleText(g.castle), ep].join(' ');
+  return [chessPlacement(g.board), g.turn ? 'b' : 'w', chessCastleText(g.castle, g), ep].join(' ');
 }
 
 /* --- the moves, as the page and the room see them ------------------------------------- */
@@ -411,7 +622,7 @@ function chessMoveInfo(p, m, legal) {
     piece: CHESS_LETTERS[pc & 7],
     capture: !!(flags & CHESS_F_CAP),
     ep: !!(flags & CHESS_F_EP),
-    castle: flags & CHESS_F_CASTLE ? (to > from ? 'short' : 'long') : '',
+    castle: flags & CHESS_F_CASTLE ? ((to & 7) === 6 ? 'short' : 'long') : '',
     san: chessSanPos(p, m, legal)
   };
 }
@@ -437,7 +648,16 @@ function chessFind(p, mv, legal) {
   const list = legal || chessLegalPos(p);
   for (let i = 0; i < list.length; i++) {
     const m = list[i];
-    if (chessMFrom(m) !== from || chessMTo(m) !== to) continue;
+    if (chessMFrom(m) !== from) continue;
+    const mTo = chessMTo(m);
+    let match = (mTo === to);
+    if (!match && (chessMFlags(m) & CHESS_F_CASTLE)) {
+      const isShort = (mTo & 7) === 6;
+      const rooks = p.rooks || [7, 0, 7, 0];
+      const rf = (p.side ? 56 : 0) + rooks[p.side ? (isShort ? 2 : 3) : (isShort ? 0 : 1)];
+      if (to === rf) match = true;
+    }
+    if (!match) continue;
     const pk = chessMPromo(m);
     if (!pk) return m;
     // A promotion needs its piece; one sent without it is the queen.
@@ -451,7 +671,7 @@ function chessSanPos(p, m, legal) {
   const from = chessMFrom(m), to = chessMTo(m), flags = chessMFlags(m);
   const pc = p.b[from], kind = pc & 7;
   let san;
-  if (flags & CHESS_F_CASTLE) san = to > from ? 'O-O' : 'O-O-O';
+  if (flags & CHESS_F_CASTLE) san = (to & 7) === 6 ? 'O-O' : 'O-O-O';
   else {
     const cap = !!(flags & CHESS_F_CAP);
     if (kind === 1) {
@@ -1169,7 +1389,7 @@ function chessMaterialDiff(b, color) {
   return d;
 }
 
-const chessCloneGame = (g) => ({ board: g.board.slice(), turn: g.turn, castle: g.castle, ep: g.ep, half: g.half, full: g.full, keys: (g.keys || []).slice() });
+const chessCloneGame = (g) => ({ board: g.board.slice(), turn: g.turn, castle: g.castle, rooks: (g.rooks || [7, 0, 7, 0]).slice(), ep: g.ep, half: g.half, full: g.full, keys: (g.keys || []).slice() });
 
 /**
  * A line played out from `g` (a list of { from, to, promo }): what side

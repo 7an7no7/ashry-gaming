@@ -5688,7 +5688,7 @@ Date.now = duelTestClock;
   const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
     '\nreturn { chessNew, chessFromFen, chessFen, chessPerft, chessPlay, chessStatus, chessLegalMoves, chessBestMove, chessInsufficient, chessCanMate,' +
     ' chessClockNew, chessClockPress, chessClockFlagged, chessClockLeft, chessFlagResult, chessMatchNext, chessArmageddonResult, chessKey, chessCheckSq,' +
-    ' chessEloSettings, chessEloBand, chessElo, chessClassify, chessMoveAccuracy, chessAnalyse, chessMoveGood, chessReview, chessThreats, chessPins, chessUci };')();
+    ' chessEloSettings, chessEloBand, chessElo, chessClassify, chessMoveAccuracy, chessAnalyse, chessMoveGood, chessReview, chessThreats, chessPins, chessUci, chess960Start, chess960Random };')();
   const threwC = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const perft = (fen, depth) => CH.chessPerft(CH.chessFromFen(fen), depth);
   // The standard perft positions (chessprogramming.org): every legal move counted, deep.
@@ -5701,8 +5701,43 @@ Date.now = duelTestClock;
   check(perft('rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8', 3) === 62379, 'chess: perft position 5 (promotion with capture), depth 3: 62379');
   check(perft('r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10', 3) === 89890, 'chess: perft position 6, depth 3: 89890');
 
+  // Chess960 perft positions (chessprogramming wiki / Ethereal fischer.epd)
+  const P960_1 = 'bqnb1rkr/pp3ppp/3ppn2/2p5/5P2/P2P4/NPP1P1PP/BQ1BNRKR w HFhf - 2 9';
+  const P960_2 = '2nnrbkr/p1qppppp/8/1ppb4/6PP/3PP3/PPP2P2/BQNNRBKR w HEhe - 1 9';
+  const P960_3 = 'b1q1rrkb/pppppppp/3nn3/8/P7/1PPP4/4PPPP/BQNNRKRB w GE - 1 9';
+  const P960_4 = 'qbbnnrkr/2pp2pp/p7/1p2pp2/8/P3PP2/1PPP1KPP/QBBNNR1R w hf - 0 9';
+  const P960_5 = '1nbbnrkr/p1p1ppp1/3p4/1p3P1p/3Pq2P/8/PPP1P1P1/QNBBNRKR w HFhf - 0 9';
+  const P960_6 = 'qnbnr1kr/ppp1b1pp/4p3/3p1p2/8/2NPP3/PPP1BPPP/QNB1R1KR w HEhe - 1 9';
+  check([1, 2, 3].map((d) => perft(P960_1, d)).join() === '21,528,12189', 'chess960: perft position 1, depth 1-3: 21, 528, 12189');
+  check([1, 2, 3].map((d) => perft(P960_2, d)).join() === '21,807,18002', 'chess960: perft position 2, depth 1-3: 21, 807, 18002');
+  check([1, 2, 3].map((d) => perft(P960_3, d)).join() === '20,479,10471', 'chess960: perft position 3, depth 1-3: 20, 479, 10471');
+  check([1, 2, 3].map((d) => perft(P960_4, d)).join() === '22,593,13440', 'chess960: perft position 4, depth 1-3: 22, 593, 13440');
+  check([1, 2, 3].map((d) => perft(P960_5, d)).join() === '28,1120,31058', 'chess960: perft position 5, depth 1-3: 28, 1120, 31058');
+  check([1, 2, 3].map((d) => perft(P960_6, d)).join() === '29,899,26578', 'chess960: perft position 6, depth 1-3: 29, 899, 26578');
+
+  // Chess960 start and round trip
+  check(CH.chess960Start(518) === START, 'chess960: position 518 equals standard start');
+  let roundTripOk = true;
+  for (let n = 0; n < 960; n++) {
+    const f = CH.chess960Start(n);
+    if (CH.chessFen(CH.chessFromFen(f)) !== f) { roundTripOk = false; break; }
+  }
+  check(roundTripOk, 'chess960: all 960 start positions round-trip through FEN');
+
+  // Castling where the king doesn't move
+  {
+    const g = CH.chessFromFen('4k3/8/8/8/8/8/8/6KR w H - 0 1');
+    const r = CH.chessPlay(g, { from: 'g1', to: 'g1' });
+    check(r && r.san === 'O-O' && g.board[6] === 6 && g.board[5] === 4 && !g.board[7], 'chess960: castling where king stays on g1');
+    const g2 = CH.chessFromFen('4k3/8/8/8/8/8/8/6KR w H - 0 1');
+    const r2 = CH.chessPlay(g2, { from: 'g1', to: 'h1' });
+    check(r2 && r2.san === 'O-O' && g2.board[6] === 6 && g2.board[5] === 4 && !g2.board[7], 'chess960: castling where king takes own rook on h1');
+  }
+
   const play = (g, list) => list.every((m) => { const [from, to, promo] = m.split(/[-=]/); return !!CH.chessPlay(g, { from, to, promo }); });
   const can = (fen, from, to) => CH.chessLegalMoves(CH.chessFromFen(fen)).some((m) => m.from === from && m.to === to);
+  // Castling through an attacked square refused
+  check(!can('4k3/8/8/8/8/5r2/8/4K2R w K - 0 1', 'e1', 'g1'), 'chess960: castling through an attacked square refused');
   // Castling: both ways, and every condition.
   const CASTLE = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
   check(can(CASTLE, 'e1', 'g1') && can(CASTLE, 'e1', 'c1') && can(CASTLE.replace(' w ', ' b '), 'e8', 'g8') && can(CASTLE.replace(' w ', ' b '), 'e8', 'c8'),

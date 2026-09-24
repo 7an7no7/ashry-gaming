@@ -7231,6 +7231,302 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- شطرنج الأربعة (Chess4.js): the board, every rule, the points, whole games of computer players --- */
+{
+  const C = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') +
+    '\nreturn { chess4NewGame, chess4Legal, chess4Play, chess4BotMove, chess4InCheck, chess4Eliminate, chess4Sq, chess4Valid, chess4SqName, CHESS4_MAX_PLIES };')();
+  const sq = C.chess4Sq;
+  const P = 1, N = 2, B = 3, R = 4, Q = 5, K = 6;
+  const pc = (kind, seat) => kind + 8 * seat;
+  // An empty board with the four kings at home, no castling, `seat` to move.
+  const bare = (mode, seat) => {
+    const g = C.chess4NewGame(mode);
+    g.board.fill(0);
+    g.castle = [0, 0, 0, 0];
+    g.board[sq(7, 0)] = pc(K, 0); g.board[sq(0, 7)] = pc(K, 1); g.board[sq(6, 13)] = pc(K, 2); g.board[sq(13, 6)] = pc(K, 3);
+    g.turn = seat || 0;
+    return g;
+  };
+  const has = (g, from, to) => C.chess4Legal(g).some((m) => m.from === from && m.to === to);
+
+  let valid = 0;
+  for (let y = 0; y < 14; y++) for (let x = 0; x < 14; x++) if (C.chess4Valid(x, y)) valid++;
+  check(valid === 160, 'chess4: 14 x 14 without the four 3 x 3 corners is 160 squares');
+  const g0 = C.chess4NewGame('ffa');
+  check([0, 1, 2, 3].every((s) => C.chess4Legal(g0, s).length === 20), 'chess4: from the start every colour has 20 moves (16 pawn moves, 4 knight moves)');
+  check(g0.board[sq(7, 0)] === pc(K, 0) && g0.board[sq(6, 0)] === pc(Q, 0) && g0.board[sq(6, 13)] === pc(K, 2) && g0.board[sq(0, 7)] === pc(K, 1) && g0.board[sq(13, 6)] === pc(K, 3),
+    'chess4: the kings and queens stand as on the design sheet (red K h1, yellow K g14, blue K a8, green K n7)');
+  check(g0.turn === 0 && has(g0, sq(7, 1), sq(7, 3)) && !has(g0, sq(0, 4), sq(1, 4)), 'chess4: red moves first; a pawn goes two from its first row');
+  const order = [];
+  const go = C.chess4NewGame('teams');
+  [[sq(7, 1), sq(7, 2)], [sq(1, 7), sq(2, 7)], [sq(6, 12), sq(6, 11)], [sq(12, 6), sq(11, 6)]].forEach((m) => { order.push(go.turn); C.chess4Play(go, { from: m[0], to: m[1] }); });
+  check(order.join() === '0,1,2,3' && go.turn === 0, 'chess4: the turns go red, blue, yellow, green; each pawn toward the far side');
+
+  // Castling both ways, and never through an attacked square.
+  const gc = bare('ffa', 0);
+  gc.castle = [3, 0, 0, 0];
+  gc.board[sq(3, 0)] = pc(R, 0); gc.board[sq(10, 0)] = pc(R, 0);
+  check(has(gc, sq(7, 0), sq(9, 0)) && has(gc, sq(7, 0), sq(5, 0)), 'chess4: red castles both ways');
+  const gs = JSON.parse(JSON.stringify(gc));
+  const cst = C.chess4Play(gs, { from: sq(7, 0), to: sq(9, 0) });
+  check(!!cst && cst.san === 'O-O' && gs.board[sq(9, 0)] === pc(K, 0) && gs.board[sq(8, 0)] === pc(R, 0) && !gs.board[sq(10, 0)] && gs.castle[0] === 0,
+    'chess4: short castling: the king two squares, the rook beside it');
+  const gl = JSON.parse(JSON.stringify(gc));
+  const csl = C.chess4Play(gl, { from: sq(7, 0), to: sq(5, 0) });
+  check(!!csl && /^O-O-O/.test(csl.san) && gl.board[sq(5, 0)] === pc(K, 0) && gl.board[sq(6, 0)] === pc(R, 0) && !gl.board[sq(3, 0)], 'chess4: long castling');
+  gc.board[sq(8, 7)] = pc(R, 1);                          // a blue rook on the i-file: i1 is attacked
+  check(!has(gc, sq(7, 0), sq(9, 0)) && has(gc, sq(7, 0), sq(5, 0)), 'chess4: no castling across an attacked square');
+  const gb = bare('ffa', 1);
+  gb.castle = [0, 3, 0, 0];
+  gb.board[sq(0, 3)] = pc(R, 1); gb.board[sq(0, 10)] = pc(R, 1);
+  check(has(gb, sq(0, 7), sq(0, 9)) && has(gb, sq(0, 7), sq(0, 5)), 'chess4: blue castles along its column too');
+
+  // Promotion: the 8th row in FFA, the 11th in teams; a queen only.
+  const gp = bare('ffa', 0);
+  gp.board[sq(5, 6)] = pc(P, 0);
+  C.chess4Play(gp, { from: sq(5, 6), to: sq(5, 7) });
+  check(gp.board[sq(5, 7)] === pc(Q, 0) + 32, 'chess4 FFA: a pawn on its 8th row becomes a queen');
+  const gt = bare('teams', 0);
+  gt.board[sq(5, 6)] = pc(P, 0);
+  gt.board[sq(4, 9)] = pc(P, 0);
+  C.chess4Play(gt, { from: sq(5, 6), to: sq(5, 7) });
+  check(gt.board[sq(5, 7)] === pc(P, 0), 'chess4 teams: not on the 8th row');
+  gt.turn = 0;
+  C.chess4Play(gt, { from: sq(4, 9), to: sq(4, 10) });
+  check(gt.board[sq(4, 10)] === pc(Q, 0) + 32, 'chess4 teams: a pawn on its 11th row becomes a queen');
+  const gy = bare('ffa', 2);
+  gy.board[sq(8, 7)] = pc(P, 2);
+  C.chess4Play(gy, { from: sq(8, 7), to: sq(8, 6) });
+  const gg = bare('ffa', 3);
+  gg.board[sq(7, 8)] = pc(P, 3);
+  C.chess4Play(gg, { from: sq(7, 8), to: sq(6, 8) });
+  check(gy.board[sq(8, 6)] === pc(Q, 2) + 32 && gg.board[sq(6, 8)] === pc(Q, 3) + 32, 'chess4: yellow promotes going down, green going left');
+
+  // Check from two directions at once.
+  const g2 = bare('ffa', 0);
+  g2.board[sq(4, 0)] = pc(R, 1);                          // along the first row
+  g2.board[sq(10, 3)] = pc(B, 3);                         // down the diagonal
+  const moves2 = C.chess4Legal(g2);
+  check(C.chess4InCheck(g2, 0) && moves2.length > 0 && moves2.every((m) => m.from === sq(7, 0)) && !moves2.some((m) => m.to === sq(8, 1) || m.to === sq(6, 0)),
+    'chess4: check from two players at once: only the king can answer, and not along either line');
+  const gpart = bare('teams', 0);
+  gpart.board[sq(4, 0)] = pc(R, 2);
+  check(!C.chess4InCheck(gpart, 0), "chess4 teams: a partner's rook never checks");
+
+  // A back-rank mate, FFA: judged on red's own turn, +20 to blue, red's pieces grey walls.
+  const mateFfa = () => {
+    const g = bare('ffa', 1);
+    g.board[sq(6, 1)] = pc(P, 0); g.board[sq(7, 1)] = pc(P, 0); g.board[sq(8, 1)] = pc(P, 0);
+    g.board[sq(4, 5)] = pc(R, 1);
+    return g;
+  };
+  const gm = mateFfa();
+  const mv = C.chess4Play(gm, { from: sq(4, 5), to: sq(4, 0) });
+  check(!!mv && mv.san === 'Re1+' && !gm.out[0], 'chess4 FFA: a check; red is not out yet');
+  C.chess4Play(gm, { from: sq(6, 13), to: sq(6, 12) });
+  const lastBefore = C.chess4Play(gm, { from: sq(13, 6), to: sq(12, 6) });
+  check(gm.out[0] && gm.why[0] === 'mate' && gm.points[1] === 20 && gm.turn === 1 && lastBefore.events.some((e) => e.kind === 'out' && e.seat === 0 && e.by === 1),
+    "chess4 FFA: on red's turn, in check with no move: mated, out, +20 to the player whose move gave it");
+  const greys = [sq(6, 1), sq(7, 1), sq(8, 1), sq(7, 0)];
+  gm.board[sq(8, 3)] = pc(N, 1);                          // a blue knight that could reach two grey pawns
+  check(!C.chess4Legal(gm, 1).some((m) => greys.indexOf(m.to) !== -1), "chess4 FFA: an out player's pieces are walls: nobody can take them");
+  gm.board[sq(6, 12)] = 0;
+  gm.board[sq(8, 2)] = pc(K, 2);                          // the yellow king right beside the grey pawns
+  check(!C.chess4InCheck(gm, 2), 'chess4 FFA: grey pieces never give check');
+  check(gm.turn === 1 && !gm.over, 'chess4 FFA: the game goes on with three');
+
+  // Stalemate, FFA: out, and +20 for themselves. Teams: a pass.
+  const stale = (mode) => {
+    const g = bare(mode, 2);
+    [[6, 0], [8, 0], [6, 1], [7, 1], [8, 1]].forEach(([x, y]) => { g.board[sq(x, y)] = pc(P, 0); });
+    // Blockers nobody red can take: an out player's pieces (FFA) or the partner's (teams).
+    const wall = mode === 'ffa' ? 3 : 2;
+    [5, 6, 7, 8, 9].forEach((x) => { g.board[sq(x, 2)] = pc(N, wall); });
+    if (mode === 'ffa') g.out[3] = true;
+    return g;
+  };
+  const gsf = stale('ffa');
+  const ev = C.chess4Play(gsf, { from: sq(6, 13), to: sq(5, 13) });
+  check(!!ev && gsf.out[0] && gsf.why[0] === 'stalemate' && gsf.points[0] === 20 && gsf.turn === 1, 'chess4 FFA: stalemated: out, and +20 to themselves');
+  const gst = stale('teams');
+  gst.turn = 3;                                           // green is up before red in teams
+  const evt = C.chess4Play(gst, { from: sq(13, 6), to: sq(12, 6) });
+  check(!!evt && !gst.out[0] && gst.turn === 1 && evt.events.some((e) => e.kind === 'pass' && e.seat === 0) && !gst.over, 'chess4 teams: no move and not in check: the player passes');
+
+  // Points in FFA: a bishop 5, a queen 9, a promoted queen 1; none in teams.
+  const gpt = bare('ffa', 1);
+  gpt.board[sq(5, 5)] = pc(N, 1);
+  gpt.board[sq(6, 7)] = pc(B, 0);
+  C.chess4Play(gpt, { from: sq(5, 5), to: sq(6, 7) });
+  check(gpt.points[1] === 5, 'chess4 FFA: taking a bishop scores 5');
+  const gq = bare('ffa', 1);
+  gq.board[sq(5, 5)] = pc(N, 1);
+  gq.board[sq(7, 6)] = pc(Q, 2) + 32;
+  C.chess4Play(gq, { from: sq(5, 5), to: sq(7, 6) });
+  const gq2 = bare('ffa', 1);
+  gq2.board[sq(5, 5)] = pc(N, 1);
+  gq2.board[sq(7, 6)] = pc(Q, 2);
+  C.chess4Play(gq2, { from: sq(5, 5), to: sq(7, 6) });
+  check(gq.points[1] === 1 && gq2.points[1] === 9, 'chess4 FFA: a queen 9, a promoted queen 1');
+  const gtp = bare('teams', 1);
+  gtp.board[sq(5, 5)] = pc(N, 1);
+  gtp.board[sq(6, 7)] = pc(B, 0);
+  C.chess4Play(gtp, { from: sq(5, 5), to: sq(6, 7) });
+  check(gtp.points.every((x) => x === 0), 'chess4 teams: no points');
+
+  // Teams: a mate of either opponent wins; resigning loses for the team.
+  const gtm = mateFfa();
+  gtm.mode = 'teams';
+  C.chess4Play(gtm, { from: sq(4, 5), to: sq(4, 0) });
+  C.chess4Play(gtm, { from: sq(6, 13), to: sq(6, 12) });
+  C.chess4Play(gtm, { from: sq(13, 6), to: sq(12, 6) });
+  check(gtm.over && gtm.result.team === 1 && gtm.result.reason === 'mate' && gtm.result.winners.join() === '1,3', 'chess4 teams: red mated: blue and green win');
+  const gtr = C.chess4NewGame('teams');
+  C.chess4Eliminate(gtr, 3, 'resign');
+  check(gtr.over && gtr.result.team === 0 && gtr.result.winners.join() === '0,2', 'chess4 teams: green resigns: red and yellow win');
+  const gfr = C.chess4NewGame('ffa');
+  C.chess4Eliminate(gfr, 0, 'resign');
+  check(gfr.out[0] && gfr.turn === 1 && !gfr.over && C.chess4Legal(gfr, 1).length > 0, 'chess4 FFA: red resigns on its turn: out, and blue plays');
+  C.chess4Eliminate(gfr, 1, 'time'); C.chess4Eliminate(gfr, 2, 'left');
+  check(gfr.over && gfr.result.reason === 'last', 'chess4 FFA: one player left: the game is over');
+  check(C.chess4Play(C.chess4NewGame('ffa'), { from: sq(7, 1), to: sq(7, 4) }) === null, 'chess4: an illegal move is refused');
+  const gq3 = bare('ffa', 0);
+  gq3.quiet = 200;
+  gq3.board[sq(3, 0)] = pc(R, 0);
+  C.chess4Play(gq3, { from: sq(3, 0), to: sq(3, 1) });
+  check(gq3.over && gq3.result.reason === 'fifty', 'chess4: fifty moves each with no capture or pawn move end the game');
+
+  // Whole games of computer players: 20 each mode, easy and hard, every move legal, none past the cap.
+  let games = 0, ended = 0, legalAll = true, longest = 0, hardMs = 0, hardN = 0;
+  for (const mode of ['teams', 'ffa']) for (const lvl of ['easy', 'hard']) for (let rep = 0; rep < 20; rep++) {
+    games++;
+    const g = C.chess4NewGame(mode);
+    for (let guard = 0; guard < 700 && !g.over; guard++) {
+      const t0 = performance.now();
+      const m = C.chess4BotMove(g, lvl, lvl === 'hard' ? { nodes: 2500 } : {});
+      if (lvl === 'hard') { hardMs += performance.now() - t0; hardN++; }
+      if (!m || !C.chess4Play(g, m)) { legalAll = false; break; }
+    }
+    longest = Math.max(longest, g.ply);
+    if (g.over && g.result && g.result.winners) ended++;
+  }
+  check(ended === games && legalAll, `chess4 bots: ${games} whole games (teams and FFA, easy and hard), every move legal, all ended (${ended})`);
+  check(longest <= C.CHESS4_MAX_PLIES, `chess4 bots: no game longer than ${C.CHESS4_MAX_PLIES} moves (the longest ${longest})`);
+  // The full budget, timed: the Worker's CPU.
+  const gh = C.chess4NewGame('ffa');
+  let worst = 0;
+  for (let k = 0; k < 24 && !gh.over; k++) { const t0 = performance.now(); const m = C.chess4BotMove(gh, 'hard'); worst = Math.max(worst, performance.now() - t0); C.chess4Play(gh, m); }
+  console.log(`    (chess4 hard bot: ${(hardMs / Math.max(1, hardN)).toFixed(1)} ms a move on the tests' budget; the full budget's worst ${worst.toFixed(1)} ms)`);
+  check(worst < 200, "chess4 bots: a hard decision on the full budget stays well inside the Worker's time");
+}
+
+/* --- شطرنج الأربعة in rooms (RoomChess4.js): the lobby, turns, the clock, play for, leaving, bots --- */
+{
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const C = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') + '\nreturn { chess4Legal };')();
+  const first = (s) => C.chess4Legal(s.g)[0];
+  const isBot = (room, id) => room.players.some((x) => x.id === id && x.bot);
+  const up = (r) => r.shared.seats[r.shared.g.turn];
+
+  // The lobby: the host's way to play and clock, the colours; one person and the rest filled by computer players.
+  const r = newRoom(['h', 'p']);
+  applyRoomAction(r, 'h', 'chooseGame', { game: 'chess4' });
+  check(refused(() => applyRoomAction(r, 'p', 'options', { mode: 'ffa' })), 'chess4 room: only the host sets the way to play');
+  applyRoomAction(r, 'h', 'options', { mode: 'ffa', clock: 3 });
+  check(r.shared.lobby.mode === 'ffa' && r.shared.lobby.clock === 3, 'chess4 room: the host picks everyone for themselves and a 3-minute clock');
+  applyRoomAction(r, 'h', 'addBot', { level: 'hard', name: 'Robo' });
+  const botId = r.players.find((x) => x.bot).id;
+  applyRoomAction(r, 'h', 'seats', { order: ['p', null, 'h', botId] });
+  check(refused(() => applyRoomAction(r, 'h', 'seats', { order: ['p', 'p', 'h', null] })), 'chess4 room: a player sits in one colour only');
+  applyRoomAction(r, 'h', 'start', { botNames: ['زيزو', 'بندق'] });
+  const s = r.shared;
+  check(s.seats[0] === 'p' && s.seats[2] === 'h' && s.seats[3] === botId && isBot(r, s.seats[1]) && r.players.length === 4,
+    'chess4 room: the colours the host set, and an easy computer player for the empty one');
+  check(s.g.mode === 'ffa' && s.clock && s.clock.left.every((x) => x === 180000) && s.clock.at === null, "chess4 room: FFA, 3 minutes each, and a player's first move is free");
+  check(r.phase === 'play' && s.g.turn === 0 && up(r) === 'p', 'chess4 room: red moves first');
+  check(refused(() => applyRoomAction(r, 'h', 'move', Object.assign(first(s), { seq: s.turnSeq }))), 'chess4 room: out of turn is refused');
+  const seq0 = s.turnSeq;
+  applyRoomAction(r, 'p', 'move', Object.assign({}, first(s), { seq: seq0 - 1 }));
+  check(r.shared.turnSeq === seq0 && r.shared.g.ply === 0, 'chess4 room: a tap from a turn that has moved on is dropped');
+  check(refused(() => applyRoomAction(r, 'p', 'move', { from: 0, to: 1, seq: seq0 })), 'chess4 room: an illegal move is refused');
+  applyRoomAction(r, 'p', 'move', Object.assign({}, first(r.shared), { seq: seq0 }));
+  check(r.shared.g.ply === 1 && r.shared.g.turn === 1 && r.shared.log.some((e) => e.k === 'mv' && e.seat === 0), 'chess4 room: the move is played and written in the log');
+  check(typeof r._botAt === 'number', 'chess4 room: a computer player is up next, on the server\'s clock');
+  clock = r._botAt + 1;
+  roomTimeout(r, clock);
+  check(r.shared.g.turn === 2 && r.shared.g.ply === 2, 'chess4 room: the computer player moved');
+  // The clock: yellow's first move is free; after it, time counts.
+  applyRoomAction(r, 'h', 'move', Object.assign({}, first(r.shared), { seq: r.shared.turnSeq }));
+  clock = r._botAt + 1; roomTimeout(r, clock);            // green (a bot)
+  check(r.shared.g.turn === 0 && r.shared.clock.at === clock, "chess4 room: once they have moved, a player's clock runs on their turn");
+  clock += 180000 + 5000;
+  const due = roomDeadline(r);
+  check(due !== null && due <= clock, 'chess4 room: the server looks again when red\'s time is up');
+  roomTimeout(r, clock);
+  check(r.shared.g.out[0] && r.shared.g.why[0] === 'time' && r.shared.g.turn === 1 && r.shared.log.some((e) => e.k === 'out' && e.seat === 0 && e.why === 'time'),
+    'chess4 room FFA: out of time: out, grey walls, and the next player is up');
+  // The host plays for a quiet phone (yellow, the host's own seat here, is a person).
+  while (r.shared.phase === 'play' && isBot(r, up(r))) { clock = r._botAt + 1; roomTimeout(r, clock); }
+  const hs = r.shared.turnSeq;
+  applyRoomAction(r, 'h', 'skipTurn', { seq: hs });
+  check(r.shared.turnSeq > hs && r.shared.log.some((e) => e.k === 'mv' && e.auto === 'host'), 'chess4 room: the host plays an easy move for a phone, marked as such');
+  applyRoomAction(r, 'h', 'skipTurn', { seq: hs });
+  check(r.shared.log.filter((e) => e.auto === 'host').length === 1, 'chess4 room: a second "play for" of the same turn is dropped');
+  applyRoomAction(r, 'h', 'resign', {});
+  check(r.shared.g.out[2] && r.shared.g.why[2] === 'resign', 'chess4 room: resigning is out');
+  for (let k = 0; k < 4000 && r.shared.phase === 'play'; k++) { if (typeof r._botAt !== 'number') break; clock = r._botAt + 1; roomTimeout(r, clock); }
+  check(r.shared.phase === 'over' && r.phase === 'gameover' && r.shared.g.result.winners.length >= 1 && r.shared.board.length === 4,
+    'chess4 room FFA: the computer players play it out; the winners, the board');
+  const was = r.shared.seats.slice();
+  applyRoomAction(r, 'h', 'playAgain', {});
+  check(r.shared.phase === 'play' && r.shared.seats.join() === [was[1], was[2], was[3], was[0]].join() && r.shared.g.mode === 'ffa' && r.shared.round === 2,
+    'chess4 room: play again keeps the table and turns it by one (someone else is red)');
+
+  // Teams: a player who leaves gets a computer player in their seat.
+  const t = newRoom(['h', 'p', 'q', 'w']);
+  applyRoomAction(t, 'h', 'chooseGame', { game: 'chess4' });
+  applyRoomAction(t, 'h', 'start', {});
+  check(t.shared.g.mode === 'teams' && t.shared.seats.join() === 'h,p,q,w' && !t.shared.clock, 'chess4 room: teams and no clock by default, the room in order');
+  applyRoomAction(t, 'h', 'move', Object.assign({}, first(t.shared), { seq: t.shared.turnSeq }));
+  leave(t, 'p');
+  check(isBot(t, t.shared.seats[1]) && t.shared.replaced[1] && t.shared.names[1] === 'P' && t.shared.phase === 'play' && typeof t._botAt === 'number',
+    'chess4 room teams: a player who leaves: a computer player takes their seat and plays on');
+  clock = t._botAt + 1; roomTimeout(t, clock);
+  check(t.shared.g.turn === 2, 'chess4 room teams: …and moves for them');
+  applyRoomAction(t, 'w', 'resign', {});
+  check(t.shared.phase === 'over' && t.shared.g.result.team === 0 && t.shared.wins.h === 1 && t.shared.wins.q === 1 && !t.shared.wins.w,
+    'chess4 room teams: green resigns: red and yellow win, a win each on the night\'s table');
+  const f = newRoom(['h', 'p', 'q']);
+  applyRoomAction(f, 'h', 'chooseGame', { game: 'chess4' });
+  applyRoomAction(f, 'h', 'options', { mode: 'ffa' });
+  applyRoomAction(f, 'h', 'start', {});
+  leave(f, 'q');
+  check(f.shared.g.out[2] && f.shared.g.why[2] === 'left' && f.shared.phase === 'play', 'chess4 room FFA: a player who leaves is out, their pieces walls');
+
+  // Whole games of computer players through the room's own door: both ways, easy and hard.
+  const errorWas = console.error;
+  const errors = [];
+  console.error = (...a) => errors.push(a.join(' '));
+  let games = 0, ended = 0;
+  for (const mode of ['teams', 'ffa']) for (const lvl of ['easy', 'hard', 'mix']) {
+    games++;
+    const b = newRoom(['h']);
+    applyRoomAction(b, 'h', 'becomeScreen', {});
+    applyRoomAction(b, 'h', 'chooseGame', { game: 'chess4' });
+    applyRoomAction(b, 'h', 'options', { mode: mode });
+    for (let k = 0; k < 4; k++) applyRoomAction(b, 'h', 'addBot', { level: lvl === 'mix' ? (k % 2 ? 'hard' : 'easy') : lvl, name: 'B' });
+    applyRoomAction(b, 'h', 'start', {});
+    for (let step = 0; step < 1000 && b.shared.phase === 'play'; step++) {
+      if (typeof b._botAt !== 'number') break;
+      clock = Math.max(clock, b._botAt) + 1;
+      roomTimeout(b, clock);
+    }
+    if (b.shared.phase === 'over' && b.shared.g.over) ended++;
+  }
+  console.error = errorWas;
+  check(ended === games && !errors.length, `chess4 bots: ${games} whole room games of computer players, teams and FFA, easy and hard, all ended, no move refused (${ended})` + (errors.length ? ': ' + errors[0] : ''));
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

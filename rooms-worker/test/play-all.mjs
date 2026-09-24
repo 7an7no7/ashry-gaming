@@ -470,11 +470,90 @@ async function teamChessRobots() {
   }
 }
 
+/* --- شطرنج الأربعة: a room of people and computer players, both ways (run alone with --only=chess4) --- */
+async function chess4Robots() {
+  console.log('• chess4 (teams: two people and two computer players, the TV, turns, a stale and an illegal move, the bots on the server clock, a player leaving, resigning, play again; FFA: one person and three bots, the clock, out as grey walls)');
+  {
+    const C4 = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') + ';return { chess4Legal };')();
+    const cS = (b) => b.state.shared || {};
+    const upOf = (s) => s.seats[s.g.turn];
+    // Plays whoever of `people` is up, a legal move, until `done` (the bots move on the server's clock).
+    const playUntil = async (people, done, ms = 60000) => {
+      for (const end = Date.now() + ms; Date.now() < end;) {
+        const s = cS(people[0]);
+        if (done(s)) return true;
+        const me = s.phase === 'play' && people.find((b) => b.pid === upOf(s));
+        if (me) {
+          const mv = C4.chess4Legal(s.g)[0];
+          await me.act('move', { from: mv.from, to: mv.to, seq: s.turnSeq });
+          await people[0].waitFor((x) => x.shared.turnSeq !== s.turnSeq || x.shared.phase !== 'play', 'chess4: the move lands', 4000);
+        } else await sleep(60);
+      }
+      return done(cS(people[0]));
+    };
+
+    const H = await Bot.host('نور', null);
+    const J = await Bot.join(H.code, 'Adam');
+    const TV = await Bot.join(H.code, '', true);
+    await H.must('chooseGame', { game: 'chess4' });
+    await H.must('addBot', { level: 'hard', name: 'زيزو' });
+    check((await J.act('options', { mode: 'ffa' })).ok === false, 'chess4: only the host picks the way to play');
+    check((await J.act('start', {})).ok === false, 'chess4: only the host starts');
+    await H.must('seats', { order: [H.pid, null, J.pid, null] });
+    await all([H, J, TV], (s) => s.shared.lobby && s.shared.lobby.order[2] === J.pid, 'chess4: every phone and the TV see the colours the host set');
+    await H.must('start', { botNames: ['بندق'] });
+    await all([H, J, TV], (s) => s.phase === 'play' && s.shared.g && s.shared.g.mode === 'teams' && s.shared.seats[0] === H.pid && s.shared.seats[2] === J.pid,
+      'chess4: teams; the host red and Adam yellow, partners, the empty colours computer players');
+    const s0 = cS(H);
+    check(s0.seats.every(Boolean) && s0.seats.filter((id) => id !== H.pid && id !== J.pid).length === 2, 'chess4: four at the table, two of them computer players');
+    const first = C4.chess4Legal(s0.g)[0];
+    check((await J.act('move', { from: first.from, to: first.to, seq: s0.turnSeq })).ok === false, 'chess4: out of turn is refused');
+    check((await TV.act('move', { from: first.from, to: first.to, seq: s0.turnSeq })).ok === false, 'chess4: the TV can\'t move');
+    check((await H.act('move', { from: first.from, to: first.from, seq: s0.turnSeq })).ok === false, 'chess4: an illegal move is refused');
+    await H.must('move', { from: first.from, to: first.to, seq: s0.turnSeq });
+    check((await H.act('move', { from: first.from, to: first.to, seq: s0.turnSeq })).ok && cS(H).g.ply === 1, 'chess4: the second tap of a double tap is dropped');
+    await all([H, J, TV], (s) => s.shared.g.ply >= 2 && s.shared.log.some((e) => e.k === 'mv' && e.seat === 1), 'chess4: blue, a computer player, moves on the server\'s clock', 8000);
+    check(await playUntil([H, J], (s) => s.g.ply >= 12), 'chess4: three rounds of the table: people and computer players in turn');
+    // Adam leaves: a computer player takes yellow and plays on.
+    J.close();
+    await api('/leave', { code: H.code, pid: J.pid, key: J.key });
+    await H.waitFor((s) => s.shared.replaced && s.shared.replaced[2] && s.shared.seats[2] !== J.pid && s.shared.phase === 'play', 'chess4 teams: a player who leaves: a computer player takes the seat');
+    const ply = cS(H).g.ply;
+    check(await playUntil([H], (s) => s.g.ply >= ply + 4), 'chess4 teams: …and the game goes on');
+    await H.must('resign', {});
+    await all([H, TV], (s) => s.shared.phase === 'over' && s.shared.g.result.team === 1, 'chess4 teams: red resigns: blue and green win');
+    const was = cS(H).seats.slice();
+    await H.must('playAgain', {});
+    await all([H, TV], (s) => s.shared.phase === 'play' && s.shared.seats.join() === [was[1], was[2], was[3], was[0]].join(), 'chess4: play again turns the table: someone else is red');
+    await H.must('backToHub', {});
+
+    // FFA with the clock: one person and three computer players.
+    await H.must('chooseGame', { game: 'chess4' });
+    await H.must('options', { mode: 'ffa', clock: 1 });
+    await H.must('seats', { order: [H.pid, null, null, null] });
+    await H.must('start', {});
+    await all([H, TV], (s) => s.phase === 'play' && s.shared.g.mode === 'ffa' && s.shared.clock && s.shared.clock.left[0] === 60000, 'chess4 FFA: one person and three computer players, a minute each');
+    check(await playUntil([H], (s) => s.g.ply >= 8), 'chess4 FFA: two rounds of the table');
+    await H.must('resign', {});
+    await H.waitFor((s) => s.shared.g.out[0] && s.shared.log.some((e) => e.k === 'out' && e.seat === 0 && e.why === 'resign'), 'chess4 FFA: resigning is out, the pieces grey walls');
+    const after = cS(H).g.ply;
+    await H.waitFor((s) => s.shared.g.ply >= after + 3 || s.shared.phase === 'over', 'chess4 FFA: the computer players play on without red', 12000);
+    H.close();
+    TV.close();
+  }
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
   if (ONLY === 'teamchess') {
     await teamChessRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'chess4') {
+    await chess4Robots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -4284,6 +4363,8 @@ async function main() {
     await H.waitFor((s) => s.phase === 'lobby', 'bowling: back in the hub');
     [H, J, S].forEach((x) => x.close());
   }
+
+  await chess4Robots();
 
   /* --- كدّاب: claims face down, a call, the pile out, the end; computer players ------------ */
   console.log('• doubt (hands on their own phones, a claim, a call turned over, passes and the pile out, first out, bots on the server clock)');

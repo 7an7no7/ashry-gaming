@@ -571,7 +571,9 @@ const PROBES = {
         return b.length === 2 && b.every((x) => x.g && x.g.hand && x.g.hand.w && x.g.hand.b) ? null : 'shared.boards';
       })
     ];
-  }
+  },
+  // شطرنج الأربعة: the whole game is on the table too.
+  chess4: () => []
 };
 
 /*
@@ -1220,6 +1222,29 @@ const DRIVERS = {
       must(T, s.turn.pid, 'throw', { x: Math.round(Math.random() * 40 - 20), aim: Math.round(Math.random() * 30 - 15), speed: 500 + Math.round(Math.random() * 400), spin: Math.round(Math.random() * 120 - 60), seq: s.turnSeq });
     }
     return S(T).phase === 'gameover';
+  },
+  chess4() {
+    // Two people and computer players, both ways: random moves for the people, the host playing
+    // for someone now and then, a resignation (FFA), the clock running out.
+    const C4 = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') + ';return { chess4Legal };')();
+    const game = (mode) => {
+      const T = table('chess4', 2);
+      must(T, T.host, 'options', { mode: mode, clock: 1 });
+      must(T, T.host, 'addBot', { level: 'hard', name: 'زيزو' });
+      must(T, T.host, 'start', { botNames: ['بندق'] });
+      for (let guard = 0; guard < 3000 && S(T).phase === 'play'; guard++) {
+        const s = S(T);
+        const up = s.seats[s.g.turn];
+        if (T.ids.indexOf(up) === -1) { runClock(T, (r) => r.shared.phase !== 'play' || T.ids.indexOf(r.shared.seats[r.shared.g.turn]) !== -1, 60); continue; }
+        if (guard % 37 === 5) { act(T, T.host, 'skipTurn', { seq: s.turnSeq }); continue; }
+        if (guard === 300 && mode === 'ffa') { act(T, up, 'resign', {}); continue; }
+        if (guard % 53 === 7) { clock += 90000; runClock(T, (r) => r.shared.phase !== 'play' || r.shared.turnSeq !== s.turnSeq, 3); continue; }
+        const mv = pick(C4.chess4Legal(s.g));
+        act(T, up, 'move', { from: mv.from, to: mv.to, seq: s.turnSeq });
+      }
+      return S(T).phase === 'over';
+    };
+    return game('ffa') && game('teams');
   },
   chess() {
     // Moves at random until the game ends (mate, a draw, or a resignation after 200), then the next game on a clock that runs out.

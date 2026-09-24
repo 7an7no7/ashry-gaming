@@ -1,0 +1,910 @@
+<script>
+/* ============================================================================
+   شطرنج الأربعة in rooms and on the TV (RoomChess4.js, Chess4.js)
+   ----------------------------------------------------------------------------
+   The owner's look أ «بطولة» (24 Sep 2026): the 2D chess board's green and
+   cream (--ch2-dark / --ch2-light), the four 3 x 3 corners cut away, the
+   app's own drawn pieces (CH2_SHAPES in JS_Chess.html) tinted per player -
+   red, blue, yellow, green, each with a darker outline - and grey for a player
+   who is out. Red sits at the bottom, blue on the left, yellow at the top,
+   green on the right; on your own phone the board turns so your colour is at
+   the bottom. The TV shows it as it is, red at the bottom, big.
+
+   Each player is a chip in the cut corner at their left hand (the one at the
+   bottom in the bottom-left, and so on round the board): their colour, their
+   name, the points (everyone for themselves), the clock; a ring on whoever is
+   to move. The board is a CSS grid of 14 x 14 with the pieces in a layer over
+   it, placed by transform, so a move slides (150 ms), a piece taken fades, a
+   mated king topples, a player who goes out turns grey piece by piece, and the
+   points a move won fly to its chip (flyPoints). The end: a podium by points,
+   or the winning team's banner, with confetti.
+
+   Everything is on the table: every phone and the TV draw the same board from
+   `shared`. Your own move is drawn the moment your finger lifts (the phone
+   plays it on a copy with Chess4.js, the rules the server uses); refused, the
+   room's board comes back. The 3D board is not used here: the chess 3D engine
+   is built for 8 x 8, so the TV shows this large 2D board.
+   ========================================================================= */
+
+const CH4_OPTS_KEY = 'chess4Room';
+const CH4_TINTS = ['r', 'b', 'y', 'g', 'x'];        // the four colours, and grey for a player who is out
+// sel: the piece picked up; early: your move before the server has it; seen: the last log entry drawn;
+// shown: what the board shows (square -> code, and who was out) so a new state knows what moved.
+const ch4Local = {
+  sel: -1, early: null, seen: -1, seenKey: '', pcs: null, out: null, drag: null,
+  offset: null, seenAt: '', tick: null, hostKey: '', turnSince: 0, hostTimer: null,
+  lobbySel: '', synced: '', turnMine: false, sending: false
+};
+
+function ch4Opts() {
+  const o = recallOptions(CH4_OPTS_KEY, { mode: 'teams', clock: 0 });
+  if (CHESS4_MODES.indexOf(o.mode) === -1) o.mode = 'teams';
+  if (CHESS4_CLOCKS.indexOf(Number(o.clock)) === -1) o.clock = 0;
+  return o;
+}
+
+const ch4S = (state) => (state && state.shared) || {};
+const ch4Seat = (state) => (!state || state.youAreScreen ? -1 : (ch4S(state).seats || []).indexOf(Room.me));
+const ch4ColorName = (seat) => chT('ch4_color_' + seat);
+const ch4NameOf = (state, seat) => {
+  const s = ch4S(state);
+  const id = (s.seats || [])[seat];
+  const p = (state.players || []).find(x => x.id === id);
+  return (p && p.name) || (s.names || [])[seat] || ch4ColorName(seat);
+};
+/** A name inside a translated line, held in its own direction (a Latin name in Arabic, or the other way). */
+const ch4Iso = (state, seat) => duelIso(ch4NameOf(state, seat));
+const ch4IsBot = (state, seat) => {
+  const id = (ch4S(state).seats || [])[seat];
+  return !!(state.players || []).find(x => x.id === id && x.bot);
+};
+
+/* --- the board's geometry: the view turned by quarter turns ---------------------- */
+
+/** Where square i is drawn, [column, row] from the top left, with the board turned `rot` quarter turns. */
+function ch4Cell(i, rot) {
+  let c = i % 14, r = 13 - Math.floor(i / 14);
+  for (let k = 0; k < rot; k++) { const nc = r; r = 13 - c; c = nc; }
+  return [c, r];
+}
+
+/** The square drawn at [column, row], or -1 for a cut corner. */
+function ch4SqAt(col, row, rot) {
+  let c = col, r = row;
+  for (let k = 0; k < rot; k++) { const pc = 13 - r; r = c; c = pc; }
+  const x = c, y = 13 - r;
+  return chess4Valid(x, y) ? chess4Sq(x, y) : -1;
+}
+
+/** Where a seat sits as seen: 0 bottom, 1 left, 2 top, 3 right. */
+const ch4Side = (seat, rot) => (seat - rot + 4) % 4;
+
+/* --- the pieces: the chess set's drawings, tinted per player ---------------------- */
+
+function ch4PieceDefs() {
+  if (typeof document === 'undefined' || document.getElementById('ch4-defs') || typeof CH2_SHAPES === 'undefined') return;
+  let out = '<defs>' + CH4_TINTS.map(c => `<linearGradient id="ch4g-${c}" x1="0" y1="0" x2="1" y2="0.35"><stop offset="0" style="stop-color:var(--ch4-${c}-hi)"/><stop offset="0.6" style="stop-color:var(--ch4-${c})"/><stop offset="1" style="stop-color:var(--ch4-${c}-lo)"/></linearGradient>`).join('') + '</defs>';
+  CH4_TINTS.forEach(c => {
+    const body = `style="fill:url(#ch4g-${c});stroke:var(--ch4-${c}-edge);stroke-width:1.6;stroke-linejoin:round"`;
+    const line = `style="fill:none;stroke:var(--ch4-${c}-edge);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;opacity:.85"`;
+    const dot = `style="fill:var(--ch4-${c}-edge);stroke:none"`;
+    for (let k = 1; k <= 6; k++) {
+      out += `<symbol id="ch4pc-${c}${k}" viewBox="0 0 45 45">` + CH2_SHAPES[k].map(([t, d]) => {
+        if (t === 'c' || t === 'dc') { const p = d.split(' '); return `<circle cx="${p[0]}" cy="${p[1]}" r="${p[2]}" ${t === 'c' ? body : dot}/>`; }
+        return `<path d="${d}" ${t === 'b' ? body : t === 'l' ? line : dot}/>`;
+      }).join('') + '</symbol>';
+    }
+  });
+  const holder = document.createElement('div');
+  holder.innerHTML = `<svg id="ch4-defs" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">${out}</svg>`;
+  (document.body || document.documentElement).appendChild(holder.firstChild);
+}
+
+/** A piece drawn: its kind in its player's colour, or grey. */
+function ch4PieceSvg(code, grey) {
+  const kind = code & 7;
+  if (!kind) return '';
+  ch4PieceDefs();
+  const tint = grey ? 'x' : CH4_TINTS[(code >> 3) & 3];
+  return `<svg class="ch4-svg" viewBox="0 0 45 45" aria-hidden="true" focusable="false"><use href="#ch4pc-${tint}${kind}"/></svg>`;
+}
+
+/* --- the board's markup --------------------------------------------------------- */
+
+/** The squares (and the coordinates on the edge squares) for a board turned `rot` times. */
+function ch4SquaresHtml(rot) {
+  const lowRow = [], leftCol = [];
+  for (let col = 0; col < 14; col++) for (let row = 13; row >= 0; row--) if (ch4SqAt(col, row, rot) >= 0) { lowRow[col] = row; break; }
+  for (let row = 0; row < 14; row++) for (let col = 0; col < 14; col++) if (ch4SqAt(col, row, rot) >= 0) { leftCol[row] = col; break; }
+  let html = '';
+  for (let row = 0; row < 14; row++) {
+    for (let col = 0; col < 14; col++) {
+      const i = ch4SqAt(col, row, rot);
+      if (i < 0) { html += '<span class="ch4-void"></span>'; continue; }
+      const [x, y] = chess4XY(i);
+      const name = chess4SqName(i);
+      const file = name.replace(/\d+/, ''), rank = name.replace(/\D+/, '');
+      let co = '';
+      if (lowRow[col] === row) co += `<i class="ch4-co ch4-co--f">${rot % 2 ? rank : file}</i>`;
+      if (leftCol[row] === col) co += `<i class="ch4-co ch4-co--r">${rot % 2 ? file : rank}</i>`;
+      html += `<span class="ch4-sq ${(x + y) % 2 === 0 ? 'is-d' : 'is-l'}" data-sq="${i}">${co}</span>`;
+    }
+  }
+  return html;
+}
+
+/** The whole board: squares, the pieces' layer, a chip in each cut corner. */
+function ch4BoardHtml(rot) {
+  const corners = ['bl', 'tl', 'tr', 'br'];
+  const chips = [0, 1, 2, 3].map(seat => `<div class="ch4-corner ch4-corner--${corners[ch4Side(seat, rot)]}" data-ch4-corner="${seat}"></div>`).join('');
+  return `<div class="ch4b" dir="ltr" data-ch4-board>
+      <div class="ch4b__sqs">${ch4SquaresHtml(rot)}</div>
+      <div class="ch4b__pcs"></div>
+      ${chips}
+    </div>`;
+}
+
+/* --- the room's clock, read by the server's time --------------------------------- */
+
+function ch4NoteClock(state) {
+  if (typeof state.serverNow !== 'number') return;
+  if (ch4Local.seenAt === 'n' + state.serverNow) return;
+  ch4Local.seenAt = 'n' + state.serverNow;
+  const gap = (state.receivedAt || Date.now()) - state.serverNow;
+  ch4Local.offset = ch4Local.offset === null ? gap : Math.min(ch4Local.offset, gap);
+}
+
+function ch4ClockLeft(state, seat) {
+  const s = ch4S(state);
+  const c = s.clock;
+  if (!c) return null;
+  if (c.at === null || c.at === undefined || !s.g || s.g.turn !== seat || s.phase !== 'play') return c.left[seat];
+  return c.left[seat] - Math.max(0, Date.now() - (ch4Local.offset || 0) - c.at);
+}
+
+const ch4ClockText = (ms) => {
+  const secs = Math.max(0, Math.ceil(ms / 1000));
+  return Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+};
+
+function ch4PaintClocks() {
+  const state = Room.state;
+  if (!state || state.game !== 'chess4') return;
+  document.querySelectorAll('[data-ch4-clock]').forEach(el => {
+    const seat = Number(el.dataset.ch4Clock);
+    const left = ch4ClockLeft(state, seat);
+    if (left === null) return;
+    const text = ch4ClockText(left);
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle('is-low', left < 20000 && !ch4S(state).g.out[seat]);
+  });
+}
+
+function ch4TickStart() {
+  if (ch4Local.tick) return;
+  ch4Local.tick = setInterval(() => {
+    const st = Room.state;
+    if (!st || st.game !== 'chess4' || !ch4S(st).clock || ch4S(st).phase !== 'play') { ch4TickStop(); return; }
+    ch4PaintClocks();
+  }, 250);
+}
+function ch4TickStop() { if (ch4Local.tick) clearInterval(ch4Local.tick); ch4Local.tick = null; }
+
+/* --- what the board shows --------------------------------------------------------- */
+
+/** The game this phone shows: the room's, or its own move on top of it until the server has it. */
+function ch4Game(state) {
+  const s = ch4S(state);
+  const e = ch4Local.early;
+  if (e && e.code === state.code && e.seq === s.turnSeq && e.deal === s.dealId) return e.g;
+  if (e && (e.code !== state.code || e.deal !== s.dealId || s.turnSeq !== e.seq)) ch4Local.early = null;
+  return s.g;
+}
+
+const ch4MyTurn = (state) => {
+  const s = ch4S(state);
+  const seat = ch4Seat(state);
+  return seat >= 0 && s.phase === 'play' && s.g && !s.g.over && s.g.turn === seat && !ch4Local.early;
+};
+
+/** Squares to mark: the last move, the kings in check, the piece picked up and where it can go. */
+function ch4Marks(state, g) {
+  const s = ch4S(state);
+  const e = ch4Local.early;
+  const last = e && g === e.g ? e.last : s.last;
+  const marks = {};
+  const add = (i, cls) => { (marks[i] = marks[i] || []).push(cls); };
+  if (last) { add(last.from, 'is-last'); add(last.to, 'is-last'); }
+  if (!g.over) {
+    const p = chess4Pos(g);
+    [0, 1, 2, 3].forEach(t => { if (!g.out[t] && p.kings[t] >= 0 && chess4InCheckPos(p, t)) add(CHESS4_BD[p.kings[t]], 'is-check'); });
+  }
+  const targets = {};
+  if (ch4Local.sel >= 0 && ch4MyTurn(state)) {
+    add(ch4Local.sel, 'is-sel');
+    chess4Legal(g).filter(m => m.from === ch4Local.sel).forEach(m => { targets[m.to] = m.capture ? 'cap' : 'dot'; });
+  }
+  return { marks: marks, targets: targets };
+}
+
+function ch4PaintSquares(root, state, g) {
+  const { marks, targets } = ch4Marks(state, g);
+  root.querySelectorAll('.ch4-sq').forEach(el => {
+    const i = Number(el.dataset.sq);
+    const cls = 'ch4-sq ' + (el.classList.contains('is-d') ? 'is-d' : 'is-l') + (marks[i] ? ' ' + marks[i].join(' ') : '');
+    if (el.className !== cls) el.className = cls;
+    const want = targets[i] || '';
+    const has = el.querySelector('.ch4-hint, .ch4-ring');
+    if ((has ? (has.classList.contains('ch4-ring') ? 'cap' : 'dot') : '') !== want) {
+      if (has) has.remove();
+      if (want) el.insertAdjacentHTML('beforeend', `<b class="${want === 'cap' ? 'ch4-ring' : 'ch4-hint'}"></b>`);
+    }
+  });
+  const board = root.querySelector('[data-ch4-board]');
+  if (board) board.classList.toggle('is-live', ch4MyTurn(state));
+}
+
+/* --- the pieces' layer: every piece an element, moved by transform ------------------ */
+
+const ch4At = (i, rot) => { const [c, r] = ch4Cell(i, rot); return `translate(${c * 100}%, ${r * 100}%)`; };
+
+function ch4Place(el, i, rot) {
+  const [c, r] = ch4Cell(i, rot);
+  el.style.setProperty('--x', c);
+  el.style.setProperty('--y', r);
+  el.dataset.pc = i;
+}
+
+function ch4MakePiece(code, grey) {
+  const el = document.createElement('span');
+  el.className = 'ch4-pc';
+  el.innerHTML = ch4PieceSvg(code, grey);
+  el._code = code;
+  el._grey = !!grey;
+  return el;
+}
+
+function ch4Slide(el, from, to, rot) {
+  if (!el.animate || motionOff()) return;
+  el.classList.add('is-moving');
+  const a = el.animate([{ transform: ch4At(from, rot) }, { transform: ch4At(to, rot) }], { duration: 150, easing: 'cubic-bezier(0.3, 0.7, 0.4, 1)' });
+  a.onfinish = a.oncancel = () => el.classList.remove('is-moving');
+}
+
+/** One move's motion: the piece slides, what it took fades under it, a castling rook follows. */
+function ch4PlayMove(root, e, rot, skipSlide) {
+  const pcs = ch4Local.pcs;
+  const el = pcs.get(e.from);
+  if (!el) return;
+  const victim = pcs.get(e.to);
+  if (victim && victim !== el) {
+    pcs.delete(e.to);
+    victim.classList.add('is-taken');
+    const fade = victim.animate && !motionOff() ? victim.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, delay: 70, fill: 'forwards' }) : null;
+    if (fade) fade.onfinish = () => victim.remove(); else victim.remove();
+  }
+  pcs.delete(e.from);
+  pcs.set(e.to, el);
+  if (!skipSlide) ch4Slide(el, e.from, e.to, rot);
+  ch4Place(el, e.to, rot);
+  if (e.castle) {
+    const rook = pcs.get(e.castle[0]);
+    if (rook) { pcs.delete(e.castle[0]); pcs.set(e.castle[1], rook); ch4Slide(rook, e.castle[0], e.castle[1], rot); ch4Place(rook, e.castle[1], rot); }
+  }
+}
+
+/** Every square's piece as the board says, keeping the elements already right; grey for a player out. */
+function ch4Reconcile(root, g, rot, animate) {
+  const layer = root.querySelector('.ch4b__pcs');
+  if (!layer) return;
+  const pcs = ch4Local.pcs;
+  const was = ch4Local.out || [false, false, false, false];
+  pcs.forEach((el, i) => { if (!g.board[i]) { if (!(ch4Local.drag && ch4Local.drag.el === el)) el.remove(); pcs.delete(i); } });
+  const turning = [[], [], [], []];
+  for (let i = 0; i < g.board.length; i++) {
+    const code = g.board[i];
+    if (!code) continue;
+    const owner = (code >> 3) & 3;
+    const grey = !!g.out[owner];
+    let el = pcs.get(i);
+    if (!el) { el = ch4MakePiece(code, grey && !(animate && !was[owner])); layer.appendChild(el); pcs.set(i, el); }
+    else if (el._code !== code) {
+      el.innerHTML = ch4PieceSvg(code, el._grey);
+      el._code = code;
+      if (animate && (code & 32)) { const svg = el.firstElementChild; if (svg && svg.animate) svg.animate([{ transform: 'scale(0.4)' }, { transform: 'scale(1.2)', offset: 0.65 }, { transform: 'scale(1)' }], { duration: 340, delay: 140, easing: 'ease-out' }); }
+    }
+    if (el._grey !== grey) {
+      if (grey && animate && !was[owner]) turning[owner].push(el);
+      else { el.innerHTML = ch4PieceSvg(code, grey); el._grey = grey; }
+    }
+    if (!(ch4Local.drag && ch4Local.drag.el === el)) ch4Place(el, i, rot);
+    // A mated king stays toppled: a player mated in FFA (grey), the mated side's king at the end of a team game.
+    if ((code & 7) === 6 && (g.why[owner] === 'mate' || (g.over && g.result && g.result.reason === 'mate' && g.result.by === owner))) el.classList.add('is-mated');
+  }
+  // A player out: the king topples if mated, then their pieces turn grey one by one, from the king outward.
+  turning.forEach((list, seat) => {
+    if (!list.length) return;
+    const king = list.find(el => (el._code & 7) === 6);
+    const mated = g.why[seat] === 'mate';
+    if (king && mated) king.classList.add('is-mated');
+    const kpos = king ? Number(king.dataset.pc) : list[0].dataset.pc;
+    const [kx, ky] = chess4XY(Number(kpos));
+    list.sort((a, b) => {
+      const [ax, ay] = chess4XY(Number(a.dataset.pc)), [bx, by] = chess4XY(Number(b.dataset.pc));
+      return Math.hypot(ax - kx, ay - ky) - Math.hypot(bx - kx, by - ky);
+    });
+    const start = mated ? 650 : 150;
+    list.forEach((el, k) => {
+      setTimeout(() => {
+        if (!el.isConnected) return;
+        el.innerHTML = ch4PieceSvg(el._code, true);
+        el._grey = true;
+        const svg = el.firstElementChild;
+        if (svg && svg.animate) svg.animate([{ opacity: 0.35, transform: 'scale(0.86)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 260, easing: 'ease-out' });
+      }, start + k * 70);
+    });
+  });
+  ch4Local.out = g.out.slice();
+}
+
+/* --- the chips in the corners, the status, the log -------------------------------- */
+
+const CH4_WHY_ICON = { mate: '♚', stalemate: '🤝', resign: '🏳️', time: '⏱️', left: '🚪' };
+
+function ch4ChipHtml(state, seat, rot) {
+  const s = ch4S(state);
+  const g = s.g;
+  const me = ch4Seat(state);
+  const name = ch4NameOf(state, seat);
+  const bot = ch4IsBot(state, seat);
+  const out = g.out[seat];
+  const turn = s.phase === 'play' && !g.over && g.turn === seat;
+  const won = s.phase === 'over' && g.result && (g.result.winners || []).indexOf(seat) !== -1;
+  let tag = '';
+  if (out) tag = (CH4_WHY_ICON[g.why[seat]] || '') + ' ' + chT('ch4_out');
+  else if (seat === me) tag = chT('ch4_you');
+  else if (s.settings.mode === 'teams' && me >= 0 && seat === (me + 2) % 4) tag = chT('ch4_partner');
+  const initial = bot ? '🤖' : escapeHTML(String(name).trim().charAt(0) || '?');
+  const pts = s.settings.mode === 'ffa' ? `<b class="ch4-chip__pts metric" data-ch4-pts="${seat}">${g.points[seat]}</b>` : '';
+  const clock = s.clock ? `<span class="ch4-chip__clock metric" data-ch4-clock="${seat}">${ch4ClockText(ch4ClockLeft(state, seat))}</span>` : '';
+  return `<div class="ch4-chip ch4-chip--${CH4_TINTS[seat]} ${turn ? 'is-turn' : ''} ${out ? 'is-out' : ''} ${won ? 'is-won' : ''} ${seat === me ? 'is-me' : ''}" data-ch4-chip="${seat}" aria-label="${escapeHTML(ch4ColorName(seat) + ': ' + name)}">
+      <span class="ch4-chip__av" aria-hidden="true">${won ? '🏆' : initial}</span>
+      <span class="ch4-chip__name"><bdi>${escapeHTML(name)}</bdi></span>
+      ${pts || clock ? `<span class="ch4-chip__meta">${pts}${clock}</span>` : ''}
+      ${tag ? `<span class="ch4-chip__tag">${escapeHTML(tag)}</span>` : ''}
+    </div>`;
+}
+
+function ch4PaintChips(root, state, rot) {
+  root.querySelectorAll('[data-ch4-corner]').forEach(box => {
+    const seat = Number(box.dataset.ch4Corner);
+    const html = ch4ChipHtml(state, seat, rot);
+    if (box._html === html) return;
+    const oldPts = box.querySelector('[data-ch4-pts]');
+    const from = oldPts ? Number(oldPts.textContent) || 0 : null;
+    box.innerHTML = html;
+    box._html = html;
+    const pts = box.querySelector('[data-ch4-pts]');
+    const to = ch4S(state).g.points[seat];
+    if (pts && from !== null && to > from && typeof countUp === 'function' && !motionOff()) countUp(pts, from, to);
+  });
+}
+
+function ch4StatusText(state) {
+  const s = ch4S(state);
+  const g = s.g;
+  if (s.phase === 'over' && g.result) return ch4ResultText(state);
+  const me = ch4Seat(state);
+  const shown = ch4Game(state);
+  const inCheck = me >= 0 && !g.out[me] && chess4InCheck(shown, me);
+  if (me >= 0 && g.turn === me) return chT('ch4_your_turn') + (inCheck ? ' ' + chT('ch4_check_you') : '');
+  let text = chT('ch4_turn_of', { name: ch4Iso(state, g.turn) });
+  if (me >= 0 && g.out[me]) text = chT('ch4_you_out') + ' · ' + text;
+  else if (me < 0 && !state.youAreScreen) text = chT('ch4_watching') + ' · ' + text;
+  return text;
+}
+
+function ch4ResultText(state) {
+  const s = ch4S(state);
+  const r = s.g.result;
+  const why = chT('ch4_why_' + r.reason);
+  if (s.g.mode === 'teams') {
+    if (r.team !== 0 && r.team !== 1) return '🤝 ' + chT('ch4_draw') + (why ? ' · ' + why : '');
+    const a = r.team === 0 ? 0 : 1;
+    return '🏆 ' + chT('ch4_win_team', { a: ch4Iso(state, a), b: ch4Iso(state, a + 2) }) + (why ? ' · ' + why : '');
+  }
+  const names = (r.winners || []).map(k => ch4Iso(state, k)).join(' · ');
+  return '🏆 ' + chT('ch4_win_ffa', { names: names }) + (why ? ' · ' + why : '');
+}
+
+/** One line of the log. */
+function ch4LogItem(state, e) {
+  const dot = (seat) => `<i class="ch4-dot ch4-dot--${CH4_TINTS[seat]}" aria-hidden="true"></i>`;
+  if (e.k === 'mv') {
+    return `<li class="ch4-log__mv">${dot(e.seat)}<bdi dir="ltr">${escapeHTML(e.san)}</bdi>${e.auto ? '<span class="ch4-log__auto" aria-hidden="true">🤖</span>' : ''}${e.pts ? `<b class="ch4-log__pts" dir="ltr">+${e.pts}</b>` : ''}</li>`;
+  }
+  const name = ch4Iso(state, e.seat);
+  let text = '';
+  if (e.k === 'out') {
+    text = (CH4_WHY_ICON[e.why] || '') + ' ' + chT('ch4_out_' + e.why, { name: name });
+    if (e.pts && e.by >= 0) text += ' · ' + chT('ch4_pts_to', { pts: duelIso('+' + e.pts), name: ch4Iso(state, e.by) });
+  } else if (e.k === 'pass') text = chT('ch4_pass', { name: name });
+  else if (e.k === 'bot') text = chT('ch4_bot_took', { name: duelIso((ch4S(state).names || [])[e.seat] || ch4NameOf(state, e.seat)) });
+  else if (e.k === 'mate') text = '♚ ' + chT('ch4_out_mate', { name: name });
+  else if (e.k === 'lost') text = (CH4_WHY_ICON[e.why] || '') + ' ' + chT('ch4_out_' + e.why, { name: name });
+  else return '';
+  return `<li class="ch4-log__ev">${dot(e.seat)}<span>${escapeHTML(text)}</span></li>`;
+}
+
+function ch4LogHtml(state) {
+  const items = (ch4S(state).log || []).slice(-40).map(e => ch4LogItem(state, e)).join('');
+  return items ? `<ol class="ch4-log" aria-label="${escapeHTML(chT('ch4_moves'))}">${items}</ol>` : '';
+}
+
+/** The host's way past a quiet phone: gone, or holding the turn for 40 seconds. */
+function ch4HostButtons(state) {
+  const s = ch4S(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.g || s.g.over) return [];
+  const seat = s.g.turn;
+  const pid = s.seats[seat];
+  const p = (state.players || []).find(x => x.id === pid);
+  if (p && p.bot) return [];
+  const key = state.code + '|' + s.turnSeq;
+  if (ch4Local.hostKey !== key) {
+    ch4Local.hostKey = key;
+    ch4Local.turnSince = Date.now();
+    clearTimeout(ch4Local.hostTimer);
+    ch4Local.hostTimer = setTimeout(() => { const st = Room.state; if (st && st.game === 'chess4') ch4Refresh(st); }, 40500);
+  }
+  if (pid === Room.me) return [];
+  const quiet = !p || !p.online || Date.now() - ch4Local.turnSince > 40000;
+  return quiet ? [['⏭️ ' + chT('ch4_play_for', { name: ch4Iso(state, seat) }), `roomAct('skipTurn', { seq: ${s.turnSeq} })`]] : [];
+}
+
+function ch4Resign() {
+  const state = Room.state;
+  const s = ch4S(state);
+  const seat = ch4Seat(state);
+  if (seat < 0 || s.phase !== 'play' || s.g.out[seat]) return;
+  showConfirmModal(chT(s.settings.mode === 'teams' ? 'ch4_resign_confirm_teams' : 'ch4_resign_confirm_ffa'), () => roomAct('resign', {}));
+}
+
+/** The row under the board: resigning, the host's "play for". */
+function ch4BarHtml(state, tv) {
+  const s = ch4S(state);
+  const seat = ch4Seat(state);
+  const host = ch4HostButtons(state);
+  if (tv) return host.map(b => tvBtn(b[0], b[1], 'ghost')).join('');
+  const resign = seat >= 0 && s.phase === 'play' && !s.g.out[seat]
+    ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="ch4Resign()">🏳️ ${escapeHTML(chT('ch4_resign'))}</button>` : '';
+  const hostBtns = host.map(b => `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="${b[1]}">${escapeHTML(b[0])}</button>`).join('');
+  return resign || hostBtns ? `<div class="ch4-bar">${hostBtns}${resign}</div>` : '';
+}
+
+/** The end: a podium by points (FFA) or the winning team's banner, and what comes next. */
+function ch4OverHtml(state, tv) {
+  const s = ch4S(state);
+  if (s.phase !== 'over' || !s.g.result) return '';
+  const r = s.g.result;
+  let top = '';
+  if (s.g.mode === 'ffa') {
+    const rows = [0, 1, 2, 3].map(k => ({ id: s.seats[k] + '#' + k, name: ch4NameOf(state, k), score: s.g.points[k] })).sort((a, b) => b.score - a.score);
+    top = renderPodium(state, rows);
+  } else if (r.team === 0 || r.team === 1) {
+    const a = r.team === 0 ? 0 : 1;
+    top = `<div class="ch4-banner ch4-banner--${r.team === 0 ? 'ry' : 'bg'}" data-reveal-ms="400">
+        <span class="ch4-banner__pair"><i class="ch4-dot ch4-dot--${CH4_TINTS[a]}"></i><i class="ch4-dot ch4-dot--${CH4_TINTS[a + 2]}"></i></span>
+        <span class="ch4-banner__title">🏆 ${escapeHTML(chT('ch4_team_won'))}</span>
+        <span class="ch4-banner__names"><bdi>${escapeHTML(ch4NameOf(state, a))}</bdi> · <bdi>${escapeHTML(ch4NameOf(state, a + 2))}</bdi></span>
+      </div>`;
+  }
+  let next = '';
+  if (tv) next = state.youAreHost ? `<div class="tv-actions">${tvBtn(chT('ch4_again'), "roomAct('playAgain')")}${tvBtn(chT('room_another_game'), "roomAct('backToHub')", 'ghost')}</div>` : '';
+  else if (state.youAreHost) next = `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(chT('ch4_again'))}</button><button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(chT('room_another_game'))}</button></div>`;
+  else next = `<p class="field__hint" style="text-align:center">${escapeHTML(chT('ch4_wait_host'))}</p>`;
+  const share = !tv && typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, s.board) : '';
+  return `<div class="ch4-over card card--tight">${top}${next}${share}</div>`;
+}
+
+/* --- playing: a tap, or a drag ------------------------------------------------------ */
+
+/** Plays a move: drawn at once on this phone, then sent. */
+function ch4Send(from, to) {
+  const state = Room.state;
+  if (!state || state.game !== 'chess4' || !ch4MyTurn(state)) return false;
+  const s = ch4S(state);
+  const g = JSON.parse(JSON.stringify(s.g));
+  const info = chess4Play(g, { from: from, to: to });
+  if (!info) return false;
+  const seq = s.turnSeq;
+  ch4Local.sel = -1;
+  ch4Local.early = { code: state.code, deal: s.dealId, seq: seq, g: g, last: { from: from, to: to, seat: info.seat }, from: from, to: to, castle: info.castle, drawn: false };
+  haptic('light');
+  chSound(info.cap ? 'capture' : info.castle ? 'castle' : 'move');
+  ch4Refresh(state);
+  Promise.resolve(roomAct('move', { from: from, to: to, seq: seq })).then(() => {
+    const st = Room.state;
+    // Refused (or the table moved on without it): the room's own board comes back.
+    if (ch4Local.early && ch4Local.early.seq === seq && st && ch4S(st).turnSeq === seq) { ch4Local.early = null; ch4Refresh(st); }
+  });
+  return true;
+}
+
+function ch4BoardPoint(board, ev, rot) {
+  const r = board.getBoundingClientRect();
+  const col = Math.floor((ev.clientX - r.left) / r.width * 14);
+  const row = Math.floor((ev.clientY - r.top) / r.height * 14);
+  if (col < 0 || col > 13 || row < 0 || row > 13) return -1;
+  return ch4SqAt(col, row, rot);
+}
+
+function ch4Wire(root) {
+  const board = root.querySelector('[data-ch4-board]');
+  if (!board || board._wired) return;
+  board._wired = true;
+  const rotOf = () => Number(board.dataset.rot || 0);
+  board.addEventListener('pointerdown', (ev) => {
+    const state = Room.state;
+    if (!state || state.game !== 'chess4' || !ch4MyTurn(state) || ev.button > 0) return;
+    const sq = ch4BoardPoint(board, ev, rotOf());
+    if (sq < 0) return;
+    const g = ch4Game(state);
+    const code = g.board[sq];
+    const mine = code && ((code >> 3) & 3) === ch4Seat(state);
+    ch4Local.drag = { sq: sq, x0: ev.clientX, y0: ev.clientY, el: mine ? ch4Local.pcs.get(sq) : null, started: false, id: ev.pointerId, hadSel: ch4Local.sel };
+    if (mine && ch4Local.sel !== sq) { ch4Local.sel = sq; ch4PaintSquares(root, state, g); chSound('pick'); }
+    try { board.setPointerCapture(ev.pointerId); } catch (e) {}
+  });
+  board.addEventListener('pointermove', (ev) => {
+    const d = ch4Local.drag;
+    if (!d || d.id !== ev.pointerId || !d.el) return;
+    if (!d.started && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < 8) return;
+    d.started = true;
+    d.el.classList.add('is-drag');
+    const r = board.getBoundingClientRect();
+    const cell = r.width / 14;
+    d.el.style.transform = `translate(${ev.clientX - r.left - cell / 2}px, ${ev.clientY - r.top - cell / 2}px)`;
+  });
+  const end = (ev, cancel) => {
+    const d = ch4Local.drag;
+    if (!d || d.id !== ev.pointerId) return;
+    ch4Local.drag = null;
+    const state = Room.state;
+    if (d.el) { d.el.classList.remove('is-drag'); d.el.style.transform = ''; }
+    if (!state || state.game !== 'chess4' || cancel) { if (state) ch4Refresh(state); return; }
+    const sq = ch4BoardPoint(board, ev, rotOf());
+    const g = ch4Game(state);
+    const legalTo = (from) => chess4Legal(g).some(m => m.from === from && m.to === sq);
+    if (d.started) {
+      if (sq >= 0 && sq !== d.sq && legalTo(d.sq)) { ch4Send(d.sq, sq); return; }
+      if (sq !== d.sq) chSound('refuse');
+      ch4Refresh(state);
+      return;
+    }
+    // A tap: onto a square the piece picked up can go to, or picking one up (again: putting it down).
+    if (d.hadSel >= 0 && sq !== d.hadSel && legalTo(d.hadSel)) { ch4Send(d.hadSel, sq); return; }
+    const code = g.board[sq];
+    const mine = code && ((code >> 3) & 3) === ch4Seat(state);
+    if (mine && d.hadSel === sq) ch4Local.sel = -1;
+    else if (!mine) ch4Local.sel = -1;
+    ch4PaintSquares(root, state, g);
+  };
+  board.addEventListener('pointerup', (ev) => end(ev, false));
+  board.addEventListener('pointercancel', (ev) => end(ev, true));
+}
+
+/* --- drawing a state ------------------------------------------------------------------- */
+
+/** The frame: the status, the board, what to do, the log (phone); the board and a column beside it (TV). */
+function ch4FrameHtml(state, tv) {
+  const rot = Math.max(0, ch4Seat(state));
+  const s = ch4S(state);
+  // Teams: the two sides as their colours, red and yellow against blue and green.
+  const sides = s.settings.mode === 'teams' ? `<span class="ch4-vs" aria-hidden="true"><i class="ch4-dot ch4-dot--r"></i><i class="ch4-dot ch4-dot--y"></i><b>×</b><i class="ch4-dot ch4-dot--b"></i><i class="ch4-dot ch4-dot--g"></i></span>` : '';
+  const mode = `<span class="badge badge--accent">${escapeHTML(chT(s.settings.mode === 'ffa' ? 'ch4_mode_ffa' : 'ch4_mode_teams'))}</span>${sides}`;
+  if (tv) {
+    return `<div class="ch4-tv">
+        <div class="ch4-tv__stage"><div class="ch4-stage" data-rot="0">${ch4BoardHtml(0)}</div></div>
+        <div class="ch4-tv__side">
+          <div class="ch4-tv__head">${mode}</div>
+          <div class="tv-title tv-center-text ch4-status" data-ch4-status></div>
+          <div data-ch4-over></div>
+          <div class="ch4-tv__log" data-ch4-log></div>
+          <div class="tv-actions" data-ch4-bar></div>
+        </div>
+      </div>`;
+  }
+  return `<div class="ch4-game">
+      <div class="ch4-game__stage"><div class="ch4-stage">${ch4BoardHtml(rot)}</div></div>
+      <div class="ch4-game__side">
+        <div class="ch4-head">${mode}<span class="ch4-status" data-ch4-status></span></div>
+        <div data-ch4-bar></div>
+        <div data-ch4-over></div>
+        <div class="ch4-game__log" data-ch4-log></div>
+        ${renderRoomPlayerStrip(state)}
+      </div>
+    </div>`;
+}
+
+/** Everything that changes during a game, updated in place over the frame. */
+function ch4Update(root, state, tv) {
+  const s = ch4S(state);
+  if (!root || !s.g) return;
+  const boardEl = root.querySelector('[data-ch4-board]');
+  if (!boardEl) return;
+  const rot = tv ? 0 : Math.max(0, ch4Seat(state));
+  boardEl.dataset.rot = rot;
+  ch4NoteClock(state);
+  const key = state.code + '|' + (s.dealId || '') + '|' + rot + '|' + (tv ? 'tv' : 'ph');
+  const g = ch4Game(state);
+  const log = s.log || [];
+  const lastN = log.length ? log[log.length - 1].n : 0;
+  const first = ch4Local.seenKey !== key || !ch4Local.pcs || !boardEl.querySelector('.ch4-pc');
+  if (first) {
+    // A new board on screen (a reload, a new game, the TV coming on): drawn as it is, nothing replayed.
+    ch4Local.seenKey = key;
+    ch4Local.pcs = new Map();
+    ch4Local.out = g.out.slice();
+    ch4Local.seen = lastN;
+    boardEl.querySelectorAll('.ch4-pc').forEach(el => el.remove());
+    ch4Reconcile(root, g, rot, false);
+  } else {
+    const fresh = log.filter(e => e.n > ch4Local.seen);
+    ch4Local.seen = Math.max(ch4Local.seen, lastN);
+    const e0 = ch4Local.early;
+    // This phone's own move, already drawn when the finger lifted.
+    if (e0 && !e0.drawn && g === e0.g) { ch4PlayMove(root, { from: e0.from, to: e0.to, castle: e0.castle }, rot, false); e0.drawn = true; }
+    const animate = !motionOff() && fresh.length <= 8;
+    const loud = typeof duelRoomLoud === 'function' ? duelRoomLoud(state) : true;
+    fresh.forEach(e => {
+      if (!animate) return;
+      if (e.k === 'mv') {
+        const mine = e0 && e0.drawn && e.from === e0.from && e.to === e0.to && e.seat === ch4Seat(state);
+        if (!mine) ch4PlayMove(root, e, rot, false);
+        if (!mine && loud) chSound(/[+#]$/.test(e.san) ? 'check' : e.cap ? 'capture' : e.castle ? 'castle' : 'move');
+        if (e.pts && typeof flyPoints === 'function') {
+          const sqEl = root.querySelector(`.ch4-sq[data-sq="${e.to}"]`);
+          const chip = root.querySelector(`[data-ch4-chip="${e.seat}"]`);
+          if (sqEl && chip) setTimeout(() => flyPoints('+' + e.pts, sqEl.getBoundingClientRect(), chip), 180);
+        }
+      } else if (e.k === 'out' || e.k === 'mate') {
+        if (loud && (e.why === 'mate' || e.k === 'mate')) chSound('thud');
+        if (e.pts && e.by >= 0 && typeof flyPoints === 'function') {
+          const p = chess4Pos(g);
+          const kingSq = p.kings[e.seat] >= 0 ? CHESS4_BD[p.kings[e.seat]] : -1;
+          const sqEl = root.querySelector(`.ch4-sq[data-sq="${kingSq}"]`) || root.querySelector(`[data-ch4-chip="${e.seat}"]`);
+          const chip = root.querySelector(`[data-ch4-chip="${e.by}"]`);
+          if (sqEl && chip) setTimeout(() => flyPoints('+' + e.pts, sqEl.getBoundingClientRect(), chip), 700);
+        }
+        if (e.k === 'mate') {
+          const p = chess4Pos(g);
+          const kingSq = p.kings[e.seat] >= 0 ? CHESS4_BD[p.kings[e.seat]] : -1;
+          const king = ch4Local.pcs.get(kingSq);
+          if (king) king.classList.add('is-mated');
+        }
+      }
+    });
+    ch4Reconcile(root, g, rot, animate);
+  }
+  ch4PaintSquares(root, state, g);
+  ch4PaintChips(root, state, rot);
+  const set = (sel, html) => { const el = root.querySelector(sel); if (el && el._html !== html) { el.innerHTML = html; el._html = html; return el; } return null; };
+  set('[data-ch4-status]', escapeHTML(ch4StatusText(state)));
+  set('[data-ch4-bar]', ch4BarHtml(state, tv));
+  set('[data-ch4-over]', ch4OverHtml(state, tv));
+  const logEl = set('[data-ch4-log]', ch4LogHtml(state));
+  if (logEl) { const ol = logEl.querySelector('.ch4-log'); if (ol) ol.scrollTop = ol.scrollHeight; }
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  if (s.clock && s.phase === 'play') { ch4PaintClocks(); ch4TickStart(); } else ch4TickStop();
+  // Your turn: a buzz and a tick when it comes to this phone.
+  const mineNow = ch4MyTurn(state);
+  if (mineNow && !ch4Local.turnMine && !first) { haptic('medium'); if (typeof playSound === 'function') playSound('tick'); }
+  ch4Local.turnMine = mineNow;
+  // The end: confetti for the winners (and on the TV), once a game.
+  if (s.phase === 'over' && s.g.result && typeof duelOnce === 'function' && duelOnce(['ch4-end', tv ? 'tv' : 'ph', roomDealKey(state), s.round].join('|'))) {
+    const me = ch4Seat(state);
+    const won = tv || (me >= 0 && (s.g.result.winners || []).indexOf(me) !== -1);
+    if (!first || tv) chSound('end');
+    afterReveal(root, () => {
+      if (!won) return;
+      playSound('success');
+      if (typeof confetti === 'function') confetti({ particleCount: tv ? 160 : 120, spread: tv ? 90 : 80, origin: { y: 0.6 } });
+      if (!tv) haptic('double');
+    });
+  }
+}
+
+/** Presence and the host's buttons changed: the same frame, refreshed. */
+function ch4Refresh(state) {
+  if (!state || state.game !== 'chess4' || state.phase === 'lobby') return;
+  const tv = !!state.youAreScreen;
+  const root = document.getElementById(tv ? 'view-room-tv' : 'view-room-chess4');
+  if (root && root.querySelector('[data-ch4-board]')) ch4Update(root, state, tv);
+}
+
+/* --- the lobby: the way to play, the clock, who sits in which colour -------------------- */
+
+/** Who would sit where if the game started now. Mirrors chess4LobbyOrder in RoomChess4.js - keep the two in step. */
+function ch4RoomOrder(state) {
+  const lobby = (ch4S(state).lobby) || {};
+  const players = state.players || [];
+  const ids = players.map(p => p.id);
+  const order = [0, 1, 2, 3].map(k => { const id = Array.isArray(lobby.order) ? lobby.order[k] : null; return id && ids.indexOf(id) !== -1 ? id : null; });
+  const waiting = players.filter(p => !p.bot).concat(players.filter(p => p.bot)).map(p => p.id)
+    .filter(id => order.indexOf(id) === -1 && (lobby.watch || []).indexOf(id) === -1);
+  for (let k = 0; k < 4; k++) if (!order[k] && waiting.length) order[k] = waiting.shift();
+  return order;
+}
+
+function ch4LobbyRedraw() {
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+function setCh4Option(key, value) {
+  const o = ch4Opts();
+  o[key] = key === 'clock' ? Number(value) || 0 : value;
+  rememberOptions(CH4_OPTS_KEY, { mode: o.mode, clock: o.clock });
+  haptic('light');
+  roomAct('options', { mode: o.mode, clock: o.clock });
+}
+
+/** The host's taps on the seats: a colour then another swaps them; someone watching then a colour seats them. */
+function ch4SeatTap(what) {
+  const state = Room.state;
+  if (!state || !state.youAreHost || state.phase !== 'lobby') return;
+  haptic('light');
+  const order = ch4RoomOrder(state);
+  const lobby = ch4S(state).lobby || {};
+  const watch = (lobby.watch || []).slice();
+  const prev = ch4Local.lobbySel;
+  if (!prev || prev === what) { ch4Local.lobbySel = prev === what ? '' : what; ch4LobbyRedraw(); return; }
+  ch4Local.lobbySel = '';
+  const slot = (x) => (x.indexOf('s:') === 0 ? Number(x.slice(2)) : -1);
+  const pid = (x) => (x.indexOf('w:') === 0 ? x.slice(2) : null);
+  const a = slot(prev), b = slot(what);
+  if (a >= 0 && b >= 0) { const t = order[a]; order[a] = order[b]; order[b] = t; }
+  else if (a >= 0 || b >= 0) {
+    const k = a >= 0 ? a : b;
+    const w = pid(a >= 0 ? what : prev);
+    if (w) { if (order[k]) watch.push(order[k]); order[k] = w; }
+  } else { ch4LobbyRedraw(); return; }
+  roomAct('seats', { order: order, watch: watch.filter(id => order.indexOf(id) === -1) });
+}
+
+/** Takes the colour's player off the table (they watch; the colour gets a computer player). */
+function ch4SeatClear(k) {
+  const state = Room.state;
+  if (!state || !state.youAreHost) return;
+  const order = ch4RoomOrder(state);
+  const watch = ((ch4S(state).lobby || {}).watch || []).slice();
+  if (order[k]) watch.push(order[k]);
+  order[k] = null;
+  ch4Local.lobbySel = '';
+  roomAct('seats', { order: order, watch: watch });
+}
+
+function ch4SeatsHtml(state) {
+  const order = ch4RoomOrder(state);
+  const host = !!state.youAreHost;
+  const players = state.players || [];
+  const nameOf = (id) => { const p = players.find(x => x.id === id); return p ? p.name : ''; };
+  const botOf = (id) => { const p = players.find(x => x.id === id); return p && p.bot ? p.bot : null; };
+  const areas = ['r', 'b', 'y', 'g'];
+  const slots = [0, 1, 2, 3].map(k => {
+    const id = order[k];
+    const picked = ch4Local.lobbySel === 's:' + k;
+    const bot = id && botOf(id);
+    const who = id ? (bot ? '🤖 ' : '') + nameOf(id) : '🤖 ' + chT('ch4_seat_empty');
+    const inner = `<span class="ch4-seat__pc" aria-hidden="true">${ch4PieceSvg(6 + 8 * k)}</span>
+        <span class="ch4-seat__color">${escapeHTML(ch4ColorName(k))}</span>
+        <span class="ch4-seat__who ${id ? '' : 'is-empty'}"><bdi>${escapeHTML(who)}</bdi></span>
+        ${id === Room.me ? `<span class="badge">${escapeHTML(chT('ch4_you'))}</span>` : ''}`;
+    const clear = host && picked && id ? `<button type="button" class="btn btn--ghost btn--xs btn--auto ch4-seat__clear" onclick="event.stopPropagation(); ch4SeatClear(${k})">✕ ${escapeHTML(chT('ch4_seat_clear'))}</button>` : '';
+    return host
+      ? `<div class="ch4-seat ch4-seat--${areas[k]} ${picked ? 'is-picked' : ''}"><button type="button" class="ch4-seat__btn" onclick="ch4SeatTap('s:${k}')" aria-pressed="${picked}">${inner}</button>${clear}</div>`
+      : `<div class="ch4-seat ch4-seat--${areas[k]}"><div class="ch4-seat__btn">${inner}</div></div>`;
+  }).join('');
+  const watchers = players.filter(p => order.indexOf(p.id) === -1);
+  const watchHtml = watchers.length ? `<div class="ch4-watchers"><span class="field__hint">👀 ${escapeHTML(chT('ch4_watching_list'))}</span><div class="chip-set">${watchers.map(p => {
+      const picked = ch4Local.lobbySel === 'w:' + p.id;
+      return host
+        ? `<button type="button" class="chip ${picked ? 'is-selected' : ''}" onclick="ch4SeatTap('w:${jsStringAttr(p.id)}')" aria-pressed="${picked}">${p.bot ? '🤖 ' : ''}${escapeHTML(p.name)}</button>`
+        : `<span class="chip">${p.bot ? '🤖 ' : ''}${escapeHTML(p.name)}</span>`;
+    }).join('')}</div></div>` : '';
+  const mid = (ch4S(state).lobby || {}).mode === 'ffa' ? '⚔️' : '🤝';
+  return `<div class="field">
+      <label class="field__label">🎨 ${escapeHTML(chT('ch4_seats_label'))}</label>
+      <div class="ch4-seats">${slots}<div class="ch4-seats__mid" aria-hidden="true">${mid}</div></div>
+      ${watchHtml}
+      <p class="field__hint">${escapeHTML(chT(host ? 'ch4_seats_hint_host' : 'ch4_seats_hint'))}</p>
+    </div>`;
+}
+
+ROOM_GAMES.chess4 = {
+  bots: { max: 4 },
+  // Someone who joins in the middle watches the board, and plays the next game.
+  lateJoin: true,
+  // A move is not a new step to scroll to; the end of the game is drawn from the top.
+  actionKey(state) {
+    const s = ch4S(state);
+    return s.phase === 'over' ? [state.code, s.dealId, s.phase].join('|') : '';
+  },
+
+  lobbyOptions(state) {
+    const lobby = ch4S(state).lobby || {};
+    const host = !!state.youAreHost;
+    // The host's remembered choices go to a room that has none yet, so every phone sees them.
+    if (host && ch4Local.synced !== state.code && lobby.mode === undefined) {
+      ch4Local.synced = state.code;
+      const o = ch4Opts();
+      if (lobby.mode !== o.mode || Number(lobby.clock || 0) !== o.clock) setTimeout(() => roomAct('options', { mode: o.mode, clock: o.clock }), 0);
+    }
+    const mode = lobby.mode === 'ffa' ? 'ffa' : 'teams';
+    const clock = CHESS4_CLOCKS.indexOf(Number(lobby.clock)) !== -1 ? Number(lobby.clock) : 0;
+    const seg = (items, cur, key) => `<div class="segmented" role="group">${items.map(([v, label]) => host
+      ? `<button type="button" class="segmented__item ${v === cur ? 'is-active' : ''}" onclick="setCh4Option('${key}', '${v}')">${escapeHTML(label)}</button>`
+      : `<span class="segmented__item ${v === cur ? 'is-active' : ''}">${escapeHTML(label)}</span>`).join('')}</div>`;
+    return `<div class="card card--tight ch4-lobby">
+        <div class="field">
+          <label class="field__label">♟️ ${escapeHTML(chT('ch4_mode_label'))}</label>
+          ${seg([['teams', chT('ch4_mode_teams')], ['ffa', chT('ch4_mode_ffa')]], mode, 'mode')}
+          <p class="field__hint">${escapeHTML(chT(mode === 'ffa' ? 'ch4_mode_ffa_hint' : 'ch4_mode_teams_hint'))}</p>
+        </div>
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(chT('ch4_clock_label'))}</label>
+          ${seg(CHESS4_CLOCKS.map(v => [v, v ? chT('ch4_minutes', { n: v }) : chT('ch4_clock_off')]), clock, 'clock')}
+          <p class="field__hint">${escapeHTML(chT('ch4_clock_hint'))}</p>
+        </div>
+        ${ch4SeatsHtml(state)}
+        <p class="field__hint" style="text-align:center">${escapeHTML(chT('ch4_lobby_hint'))}</p>
+      </div>`;
+  },
+
+  startPayload() {
+    const state = Room.state;
+    const names = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).filter(n => !((state && state.players) || []).some(p => samePlayer(p.name, n)));
+    // The way to play and the clock are the room's (the lobby, which every phone sees), not sent here.
+    return { botNames: names.sort(() => Math.random() - 0.5).slice(0, 4) };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-chess4') setView('room-chess4');
+    const el = document.getElementById('view-room-chess4');
+    const s = ch4S(state);
+    if (!el || !s.g) return;
+    const seat = ch4Seat(state);
+    const rebuilt = renderRoomFrame(el, ['ch4', seat, appState.lang, state.youAreHost].join('|'), () => ch4FrameHtml(state, false));
+    if (rebuilt) { ch4Local.seenKey = ''; ch4Local.sel = -1; }
+    ch4Wire(el);
+    ch4Update(el, state, false);
+  }
+};
+
+onRoomClocksReset(() => {
+  ch4TickStop();
+  clearTimeout(ch4Local.hostTimer);
+  ch4Local.sel = -1;
+  ch4Local.early = null;
+  ch4Local.drag = null;
+});
+
+/* --- the TV: the board big, red at the bottom, the players in its corners, the log beside it --- */
+
+TV_GAMES.chess4 = {
+  sig: (state) => ['ch4tv', state.code, appState.lang, state.youAreHost].join('|'),
+  frame(state, t) {
+    if (!ch4S(state).g) return tvLookAtPhones(t);
+    return ch4FrameHtml(state, true);
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    if (!view || !ch4S(state).g) return;
+    if (rebuilt) ch4Local.seenKey = '';
+    ch4Update(view, state, true);
+  }
+};
+</script>

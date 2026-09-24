@@ -1091,7 +1091,14 @@ const DRIVERS = {
     const T = table(game, 1);
     for (let i = 0; i < bots; i++) must(T, T.host, 'addBot', { level: i % 2 ? 'hard' : 'easy', name: 'زيزو' });
     must(T, T.host, 'start', options);
-    runClock(T, (r) => r.shared.phase === 'gameover' || r.shared.phase === 'over', steps || 4000);
+    const over = (r) => r.shared.phase === 'gameover' || r.shared.phase === 'over';
+    // A game of rounds (domino, uno's rounds) waits between them for the host's
+    // "next round", which no clock presses: press it, as a host would.
+    for (let round = 0; round < 30; round++) {
+      runClock(T, (r) => over(r) || r.shared.phase === 'roundOver', steps || 4000);
+      if (S(T).phase !== 'roundOver') break;
+      must(T, T.host, 'nextRound', { round: S(T).round });
+    }
     return report.get(game).moves > 20;
   },
   connect4() {

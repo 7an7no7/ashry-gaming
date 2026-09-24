@@ -2434,19 +2434,8 @@ const chOddsGiver = (s, me) => (s.vs === 'phone' ? (s.oddsBy === 'cpu' ? 1 - me 
  * way - the f-pawn, the knight, the rook or the queen nearest the a-file (castling that side lost with it).
  */
 function chOddsFen(fen, kind, side) {
-  if (!kind || kind === 'none' || kind === 'time') return fen || CHESS_START_FEN;
-  if (!fen || fen === CHESS_START_FEN) return chessHandicapFen(kind, side ? 'b' : 'w');
-  const g = chessFromFen(fen);
-  if (!g) return fen;
-  const rank = side ? 56 : 0, own = side ? 8 : 0;
-  const find = (k) => { for (let f = 0; f < 8; f++) if (g.board[rank + f] === (k | own)) return rank + f; return -1; };
-  let sq = -1;
-  if (kind === 'pawn') sq = (side ? 48 : 8) + 5;
-  else if (kind === 'knight') sq = find(2);
-  else if (kind === 'queen') sq = find(5);
-  else if (kind === 'rook') { sq = find(4); g.castle &= ~(side ? 8 : 2); }
-  if (sq >= 0) g.board[sq] = 0;
-  return chessFen(g);
+  // One copy of the rule, in Chess.js, so a room's server takes the same piece (a truthy side is Black here).
+  return chessOddsFen(fen, kind, side ? 1 : 0);
 }
 
 /** Is this a 960 game (castling rooks or king off their standard files)? */

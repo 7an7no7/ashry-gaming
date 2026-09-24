@@ -137,6 +137,10 @@ ROOM_GAMES.xo = {
     const sig = ['xor', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
                  JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name).join(','),
                  state.youAreHost, appState.lang].join('|');
+    // A reload or a late join shows the board as it is (never over this phone's own mark drawn early).
+    if (!(moveKey && duelRoomLocal.early && duelRoomLocal.early.key === moveKey)) {
+      duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light'], once: [moveKey && 'snd|' + moveKey] });
+    }
     // The move this phone already drew as the finger lifted: the room's board is the same, and doesn't pop again.
     duelRoomEarlyFor(moveKey);
     const rebuilt = renderRoomFrame(el, sig, () => `
@@ -184,6 +188,9 @@ TV_GAMES.xo = {
     const s = state.shared || {};
     if (!Array.isArray(s.cells)) return tvLookAtPhones(t);
     const key = ['xo', roomDealKey(state), s.round].join('|');
+    const moveKey = s.last ? key + '|' + s.moves : '';
+    // A TV coming on shows the board as it is: nothing already played pops or sounds again.
+    duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light'], once: [moveKey && 'snd|' + moveKey] });
     return `
       <div class="duel-tv xo-game" data-accent="blue">
         <div class="duel-tv__board" style="--duel-aspect:1">

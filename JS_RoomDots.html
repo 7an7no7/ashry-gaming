@@ -100,9 +100,14 @@ ROOM_GAMES.dots = {
           </div>
         </div>
       </div>`);
+    const key = ['dots', roomDealKey(state), s.round].join('|');
+    const lineKey = s.last ? key + '|' + s.moves : '';
+    // A reload or a late join shows the board as it is: the last line, its sound and the cheer
+    // are marked seen (never over this phone's own line drawn early, which is still drawing).
+    if (!(lineKey && duelRoomLocal.early && duelRoomLocal.early.key === lineKey)) {
+      duelRoomFirstSight(state, key, { motion: [lineKey], once: [lineKey && 'snd|' + lineKey] });
+    }
     if (rebuilt) {
-      const key = ['dots', roomDealKey(state), s.round].join('|');
-      const lineKey = s.last ? key + '|' + s.moves : '';
       dotsAfterPaint(el, board, {
         onDraw: dotsRoomDraw,
         lineKey: lineKey,
@@ -148,8 +153,10 @@ TV_GAMES.dots = {
     if (!el || !s.lines) return;
     const key = ['dots', roomDealKey(state), s.round].join('|');
     const again = dotsRoomAgain(s);
+    const lineKey = s.last ? key + '|' + s.moves : '';
+    duelRoomFirstSight(state, key, { motion: [lineKey], once: [lineKey && 'snd|' + lineKey] });
     dotsAfterPaint(el, dotsRoomBoard(s), {
-      lineKey: s.last ? key + '|' + s.moves : '',
+      lineKey: lineKey,
       ending: s.phase === 'over',
       sound: true
     });

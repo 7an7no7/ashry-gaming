@@ -181,7 +181,30 @@ ROOM_GAMES.codenames = {
       state.youAreHost, s.wins ? s.wins.red + '-' + s.wins.blue : '', appState.lang
     ].join('|');
 
+    // A word swapped, or a card marked, rebuilds the frame while the spymaster
+    // may be typing a clue: keep what they typed, the count and the focus.
+    const clueIn = el.querySelector('#cn-clue-word');
+    const countIn = el.querySelector('#cn-clue-count');
+    const sameBoard = el.dataset.cnDeal === String(s.dealtAt);
+    el.dataset.cnDeal = String(s.dealtAt);
+    const kept = clueIn && sameBoard ? {
+      word: clueIn.value, count: countIn ? countIn.value : '',
+      focus: document.activeElement === clueIn,
+      caret: clueIn.selectionStart
+    } : null;
     const rebuilt = renderRoomFrame(el, sig, () => cnFrame(state, v, t, fresh));
+    if (rebuilt && kept) {
+      const i = el.querySelector('#cn-clue-word');
+      const c = el.querySelector('#cn-clue-count');
+      if (i && !i.value && kept.word) {
+        i.value = kept.word;
+        if (kept.focus) {
+          i.focus({ preventScroll: true });
+          try { i.setSelectionRange(kept.caret, kept.caret); } catch (e) {}
+        }
+      }
+      if (c && kept.count && [...c.options].some(o => o.value === kept.count)) c.value = kept.count;
+    }
     refreshRoomPlayerStrip(el, state);
     refreshCodenamesHostTools(el, state, t);
     if (rebuilt) cnFeedback(state, v, fresh);
@@ -388,7 +411,8 @@ function refreshCodenamesHostTools(root, state, t) {
 function cnHostTools(state, t, L) {
   const s = state.shared || {};
   if (!state.youAreHost || s.winner || !s.board || !s.board.length) return '';
-  const buttons = [[cnPassTurnLabel(t), "roomAct('passTurn')"]];
+  // The team whose turn it is goes with the tap, so a double tap passes one turn, not two.
+  const buttons = [[cnPassTurnLabel(t), `roomAct('passTurn', { turn: '${jsStringAttr(s.turn || '')}' })`]];
   ['red', 'blue'].forEach(team => {
     const sm = cnSpymasterOf(state, team);
     if (sm.here && cnLocal.smPick !== team) return;

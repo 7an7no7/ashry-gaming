@@ -267,11 +267,13 @@ check(stopWordKnown('ar', 'name', 'مححمود') && !stopWordKnown('ar', 'anima
   applyRoomAction(rLog, 'a', 'adjust', { playerId: 'c', cat: 'name', pts: 0 });
   check(rLog._stopTaps.length === 1, 'stop log: tapping down 10 -> 0 does not log');
   applyRoomAction(rLog, 'a', 'adjust', { playerId: 'c', cat: 'name', pts: 5 });
-  check(rLog._stopTaps.length === 2, 'stop log: 0 -> 5 tap on unknown logs to _stopTaps');
+  // The audit of 24 Sep 2026: one cell is one table's one decision, logged once
+  // however often the host cycles it through 0.
+  check(rLog._stopTaps.length === 1, 'stop log: the same unknown cell tapped up again is not logged twice');
   applyRoomAction(rLog, 'a', 'adjust', { playerId: 'a', cat: 'animal', pts: 0 });
-  check(rLog._stopTaps.length === 2, 'stop log: shared cell 5 -> 0 does not log');
+  check(rLog._stopTaps.length === 1, 'stop log: shared cell 5 -> 0 does not log');
   applyRoomAction(rLog, 'a', 'adjust', { playerId: 'a', cat: 'animal', pts: 5 });
-  check(rLog._stopTaps.length === 3 && rLog._stopTaps[2].word === 'بزززظ', 'stop log: shared cell 0 -> 5 logs');
+  check(rLog._stopTaps.length === 2 && rLog._stopTaps[1].word === 'بزززظ', 'stop log: shared cell 0 -> 5 logs');
 }
 
 /* One typed word against another, everywhere but Stop: spelling is folded away. */
@@ -7525,6 +7527,175 @@ Date.now = duelTestClock;
   }
   console.error = errorWas;
   check(ended === games && !errors.length, `chess4 bots: ${games} whole room games of computer players, teams and FFA, easy and hard, all ended, no move refused (${ended})` + (errors.length ? ': ' + errors[0] : ''));
+}
+
+/* --- the audit of 24 Sep 2026: stale taps, leaving, the Stop log ----------------------------- */
+{
+  const leave = (r, id) => {
+    r.players = r.players.filter((p) => p.id !== id);
+    roomPlayerLeft(r, id, id.toUpperCase());
+  };
+  const begin = (game, ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+
+  // أسماء الرموز: the host's pass carries the team it passes.
+  {
+    const r = newRoom(['r1', 'r2', 'b1', 'b2']);
+    applyRoomAction(r, 'r1', 'chooseGame', { game: 'codenames' });
+    [['r1', 'red', 'spymaster'], ['r2', 'red', 'operative'], ['b1', 'blue', 'spymaster'], ['b2', 'blue', 'operative']]
+      .forEach(([id, team, role]) => applyRoomAction(r, id, 'setTeam', { team, role }));
+    applyRoomAction(r, 'r1', 'start', { lang: 'en' });
+    const t0 = r.shared.turn;
+    applyRoomAction(r, 'r1', 'passTurn', { turn: t0 });
+    applyRoomAction(r, 'r1', 'passTurn', { turn: t0 });
+    check(r.shared.turn !== t0, 'audit2/codenames: a double tap on "pass the turn" passes one turn, not two');
+  }
+
+  // تحدي المعلومات: an answer aimed at the last question doesn't land on this one.
+  {
+    const r = begin('trivia', ['a', 'b'], { lang: 'ar', count: 5 });
+    applyRoomAction(r, 'a', 'closeQuestion', {});
+    applyRoomAction(r, 'a', 'nextQuestion', {});
+    applyRoomAction(r, 'b', 'answer', { choice: 0, qIndex: 0 });
+    check(r.shared.qIndex === 1 && r.shared.answered.indexOf('b') === -1, 'audit2/trivia: a late answer to question 1 is dropped on question 2');
+  }
+
+  // العقل: a double tap on the lowest card plays one card.
+  {
+    const r = begin('mind', ['a', 'b', 'c']);
+    r.secrets.a = { cards: [10, 50] };
+    r.secrets.b = { cards: [30] };
+    r.secrets.c = { cards: [70] };
+    r.shared.held = { a: 2, b: 1, c: 1 };
+    const lives = r.shared.lives;
+    applyRoomAction(r, 'a', 'play', { card: 10 });
+    applyRoomAction(r, 'a', 'play', { card: 10 });
+    check(r.secrets.a.cards.join() === '50' && r.shared.lives === lives && r.shared.pile.length === 1,
+      'audit2/mind: the second tap of a double tap is dropped, no card thrown and no heart lost');
+  }
+
+  // خمس ثواني and قبل ولا بعد: the host's skip names the player it skips.
+  {
+    const r = begin('fiveseconds', ['a', 'b', 'c'], { lang: 'ar', rounds: 2 });
+    const up = r.shared.turnId;
+    applyRoomAction(r, 'a', 'skipTurn', { turnId: up });
+    const next = r.shared.turnId;
+    applyRoomAction(r, 'a', 'skipTurn', { turnId: up });
+    check(next !== up && r.shared.turnId === next, 'audit2/five seconds: a double tap on skip skips one player');
+  }
+  {
+    const r = begin('timeline', ['a', 'b', 'c'], { lang: 'ar' });
+    const up = r.shared.turnId;
+    applyRoomAction(r, 'a', 'skipTurn', { turnId: up });
+    const next = r.shared.turnId;
+    applyRoomAction(r, 'a', 'skipTurn', { turnId: up });
+    check(next !== up && r.shared.turnId === next, 'audit2/timeline: a double tap on skip skips one player');
+  }
+
+  // أتوبيس كومبليت: a category that isn't one reaches no prototype; the log counts a cell once.
+  {
+    const r = begin('stop', ['a', 'b', 'c'], { lang: 'ar', cats: ['name', 'animal'], timer: 0, rounds: 2 });
+    r.shared.letter = 'ب';
+    applyRoomAction(r, 'a', 'submit', { answers: { name: 'باسم', animal: 'بزززظ' }, stop: true });
+    applyRoomAction(r, 'b', 'submit', { answers: { name: 'بسمة', animal: 'بزززظ' } });
+    applyRoomAction(r, 'c', 'submit', { answers: { name: 'بلبلخ', animal: 'بطة' } });
+    applyRoomAction(r, 'a', 'adjust', { playerId: 'c', cat: '__proto__', pts: 10 });
+    applyRoomAction(r, 'a', 'adjust', { playerId: '__proto__', cat: 'toString', pts: 10 });
+    const polluted = ({}).pts !== undefined || ({}).manual !== undefined || Object.prototype.toString.pts !== undefined;
+    delete Object.prototype.pts; delete Object.prototype.manual; delete Object.prototype.toString.pts; delete Object.prototype.toString.manual;
+    check(!polluted, 'audit2/stop: an adjust naming "__proto__" touches no prototype');
+    applyRoomAction(r, 'a', 'adjust', { playerId: 'c', cat: 'name', pts: 10 });
+    applyRoomAction(r, 'a', 'adjust', { playerId: 'c', cat: 'name', pts: 0 });
+    applyRoomAction(r, 'a', 'adjust', { playerId: 'c', cat: 'name', pts: 10 });
+    check((r._stopTaps || []).length === 1, 'audit2/stop: a cell cycled through 0 and back is logged once');
+  }
+
+  // لو خيروك, مين أكثر واحد, صدق ولا كذب: a vote from the last ballot doesn't count in this one.
+  {
+    const r = begin('wouldyou', ['a', 'b'], { lang: 'ar' });
+    applyRoomAction(r, 'a', 'vote', { option: 'a', round: 1 });
+    applyRoomAction(r, 'b', 'vote', { option: 'a', round: 1 });
+    applyRoomAction(r, 'a', 'nextRound', { lang: 'ar' });
+    applyRoomAction(r, 'a', 'vote', { option: 'b', round: 1 });
+    check(r.shared.round === 2 && r.shared.vote.voted.length === 0, 'audit2/would you rather: a vote for the last round is dropped');
+  }
+  {
+    const r = begin('mostlikely', ['a', 'b', 'c'], { lang: 'ar' });
+    applyRoomAction(r, 'a', 'closeVote', {});
+    applyRoomAction(r, 'a', 'nextRound', { lang: 'ar' });
+    applyRoomAction(r, 'b', 'vote', { option: 'a', round: 1 });
+    check(r.shared.round === 2 && r.shared.vote.voted.length === 0, 'audit2/most likely: a vote for the last round is dropped');
+  }
+  {
+    const r = begin('twotruths', ['a', 'b', 'c']);
+    ['a', 'b', 'c'].forEach((id) => applyRoomAction(r, id, 'submit', { statements: ['1', '2', '3'], lie: 0 }));
+    const voters = () => r.shared.roster.filter((id) => id !== r.shared.subjectId);
+    voters().forEach((id) => applyRoomAction(r, id, 'vote', { option: 'i0', turn: 0 }));
+    applyRoomAction(r, 'a', 'next', {});
+    const v = voters()[0];
+    applyRoomAction(r, v, 'vote', { option: 'i1', turn: 0 });
+    check(r.shared.turn === 1 && r.shared.vote.voted.length === 0, 'audit2/two truths: a vote on the last storyteller\'s ballot is dropped');
+  }
+
+  // ربع قرد: the host's undo takes back one letter.
+  {
+    const r = begin('monkey', ['a', 'b', 'c'], { lang: 'ar', mode: 'letters', category: 'countries', timer: 0, winners: 1 });
+    applyRoomAction(r, r.shared.turnId, 'letter', { ch: 'م' });
+    applyRoomAction(r, r.shared.turnId, 'letter', { ch: 'ص' });
+    applyRoomAction(r, 'a', 'undo', { n: 2 });
+    applyRoomAction(r, 'a', 'undo', { n: 2 });
+    check(r.shared.letters.length === 1, 'audit2/monkey: a double tap on undo takes back one letter');
+  }
+
+  // ارسم واكتب: the host's «التالي» moves the reveal one step.
+  {
+    const r = begin('telephone', ['a', 'b', 'c'], { lang: 'ar' });
+    for (let k = 0; k < 6 && r.shared.phase !== 'reveal'; k++) {
+      const step = r.shared.step;
+      ['a', 'b', 'c'].forEach((id) => {
+        const task = (r.secrets[id] || {}).task;
+        if (!task || r.shared.submitted.indexOf(id) !== -1) return;
+        applyRoomAction(r, id, 'submit', task.kind === 'draw' ? { strokes: [], step } : { text: 'x' + id, step });
+      });
+    }
+    check(r.shared.phase === 'reveal', 'audit2/telephone: the chains reach the reveal');
+    applyRoomAction(r, 'a', 'revealNext', { at: '0:0' });
+    applyRoomAction(r, 'a', 'revealNext', { at: '0:0' });
+    check(r.shared.reveal.chain === 0 && r.shared.reveal.step === 1, 'audit2/telephone: a double tap on next moves the reveal one step');
+  }
+
+  // شطرنج بالتصويت and المخ والإيد: someone who leaves the lobby comes off its seats.
+  {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'votechess' });
+    applyRoomAction(r, 'a', 'sides', { shuffle: true });
+    leave(r, 'd');
+    check(r.phase === 'lobby' && !Object.prototype.hasOwnProperty.call(r.shared.lobby.sides, 'd'), 'audit2/votechess: a leaver comes off the lobby\'s sides');
+  }
+  {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'handbrain' });
+    applyRoomAction(r, 'a', 'seats', {});
+    leave(r, 'd');
+    const order = (r.shared.lobby && r.shared.lobby.order) || [];
+    check(order.indexOf('d') === -1, 'audit2/handbrain: a leaver comes off the lobby\'s seats');
+  }
+  // المخ والإيد: a leave mid-game runs its own leave only, not bughouse's after it.
+  {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'handbrain' });
+    applyRoomAction(r, 'a', 'seats', { order: ['a', 'b', 'c', 'd'] });
+    applyRoomAction(r, 'a', 'start', {});
+    // A field bughouse's leave would act on: with the fall-through it seated a second computer player.
+    r.shared.seats = ['b'];
+    const before = r.players.length;
+    leave(r, 'b');
+    check(r.players.length === before, 'audit2/handbrain: one computer player takes the leaver\'s seat, and only one');
+  }
 }
 
 Date.now = realNow;

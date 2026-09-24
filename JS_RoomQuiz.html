@@ -14,7 +14,7 @@ const QUIZ_UI = {
   proverbs: { view: 'room-proverbs', ph: 'prov_guess_ph',  hint: 'prov_lobby_hint',  key: 'ashryQuizCount_proverbs' }
 };
 const QUIZ_COUNT_CHOICES = [5, 10, 15, 20];
-const quiz = { clock: null, clockKey: null, myScore: 0, scoreKey: '' };
+const quiz = { clock: null, clockKey: null };
 
 function quizCount(game) {
   try {
@@ -170,15 +170,15 @@ function quizGame(game) {
         if (fresh && gotIt) playSound('success');
         // The points you just won float from the answer card onto your own row.
         // Only this phone's own win: a number leaving someone else's answer
-        // means nothing. The gain is the difference from the board before it.
+        // means nothing. The gain is what the server says this card gave
+        // (s.gained), once per card: every card is a new deal (a new dealId),
+        // so a difference from the last card's board was never taken on the
+        // same key and nothing ever flew; a redraw of the same results (a
+        // language change) must not fly it again either.
         if (fresh) {
-          const key = state.code + '|' + (s.dealId || '');
-          const mine = (s.board || []).find(r => r.id === Room.me);
-          const now = mine ? Number(mine.score) || 0 : 0;
-          const gain = quiz.scoreKey === key ? now - quiz.myScore : 0;
-          quiz.scoreKey = key;
-          quiz.myScore = now;
-          if (gotIt && gain > 0 && typeof flyPoints === 'function') {
+          const gain = Number((s.gained || {})[Room.me]) || 0;
+          if (gotIt && gain > 0 && typeof flyPoints === 'function' &&
+              motionFirst(['quiz-gain', state.code, s.dealId || '', s.qIndex].join('|'))) {
             const card = el.querySelector('.card--accent');
             const row = el.querySelector(`[data-pid="${CSS.escape(Room.me)}"]`);
             if (card && row) flyPoints('+' + gain, card.getBoundingClientRect(), row);

@@ -960,9 +960,9 @@ function chMake3D(THREE, root) {
     (m.marks || []).forEach(mk => {
       const p = at(mk.sq);
       if (!p) return;
-      og.strokeStyle = mk.kind === 'mine' ? 'rgba(239, 68, 68, 0.95)' : 'rgba(34, 197, 94, 0.95)';
-      og.lineWidth = 9;
-      og.setLineDash([16, 10]);
+      og.strokeStyle = mk.kind === 'mine' ? 'rgba(239, 68, 68, 0.95)' : mk.kind === 'user' ? CH_ANNO_COLOR : 'rgba(34, 197, 94, 0.95)';
+      og.lineWidth = mk.kind === 'user' ? 12 : 9;
+      og.setLineDash(mk.kind === 'user' ? [] : [16, 10]);
       og.beginPath(); og.arc(p.x + u / 2, p.y + u / 2, u * 0.43, 0, Math.PI * 2); og.stroke();
       og.setLineDash([]);
     });
@@ -1315,8 +1315,7 @@ function ch2SquareParts(m, i, o, extra) {
   if (m.last && (m.last.from === name || m.last.to === name)) cls.push('is-last');
   if (m.sel === name) cls.push('is-sel');
   if (m.check === name) cls.push('is-check');
-  const mk = (m.marks || []).find(x => x.sq === name);
-  if (mk) cls.push(mk.kind === 'mine' ? 'is-danger' : 'is-chance');
+  (m.marks || []).forEach(x => { if (x.sq === name) cls.push(x.kind === 'mine' ? 'is-danger' : x.kind === 'user' ? 'is-anno' : 'is-chance'); });
   if (extra && extra.hover === name) cls.push('is-hover');
   const tg = (m.targets || []).find(x => x.to === name);
   let inner = '';
@@ -1581,7 +1580,9 @@ function chMakeFlat(root) {
    The view: one per page, moved into whichever screen shows a board
    ========================================================================= */
 
-const chView = { root: null, r: null, model: null, loading: false, no3d: false };
+// anno: the arrows and marks drawn on this board by hand (never sent anywhere), cleared when a move is
+// played; pen: the ✏️ drawing mode for a finger; draft: the arrow being drawn.
+const chView = { root: null, r: null, model: null, loading: false, no3d: false, anno: { key: '', arrows: [], marks: [] }, pen: false, draft: null };
 
 function chViewRoot() {
   if (chView.root) return chView.root;
@@ -1602,7 +1603,11 @@ function chViewShow(host, model) {
   const root = chViewRoot();
   if (root.parentNode !== host) host.appendChild(root);
   chView.model = model;
+  // What was drawn by hand belongs to this position: a move played (or another board) clears it.
+  const annoKey = model.key + '|' + (model.anim ? model.anim.key : '');
+  if (chView.anno.key !== annoKey) chView.anno = { key: annoKey, arrows: [], marks: [] };
   root.classList.toggle('is-live', !!(model.input && model.input.canMove));
+  root.classList.toggle('is-pen', chView.pen && !model.tv);
   // A promotion being chosen belongs to a move this board can still make: once it can't (the
   // other side resigned, a flag fell, the review took the board), the picker goes, unchosen.
   const promo = root.querySelector('[data-ch-promo]');
@@ -1611,7 +1616,7 @@ function chViewShow(host, model) {
   root.setAttribute('data-ch2-style', chLook().style);
   const want = chViewWant(model);
   if (!chView.r || (want === 'flat' && chView.r.kind !== 'flat')) chViewMake('flat');
-  else chView.r.setModel(model);
+  else chView.r.setModel(chAnnoMerge(model));
   // 3D wanted: the 2D board shows the position while three.js loads (the first time only), then gives way.
   if (want === '3d' && chView.r.kind !== '3d' && !chView.loading) chViewLoad3D();
   chViewTools(root, model);
@@ -1632,7 +1637,7 @@ function chViewMake(kind, THREE) {
   if (old) { try { old.dispose(); } catch (e) {} }
   root.classList.toggle('is-flat', kind === 'flat');
   root.classList.toggle('is-3d', kind === '3d');
-  if (chView.model) r.setModel(chView.model);
+  if (chView.model) r.setModel(chAnnoMerge(chView.model));
 }
 
 /** three.js is asked for only here: when a board wants 3D (never while a phone stays in 2D). */
@@ -1671,6 +1676,64 @@ function chViewDrop() {
   chView.root = null;
   chView.model = null;
   chView.loading = false;
+  chView.pen = false;
+  chView.draft = null;
+}
+
+/* --- arrows and marks drawn by hand (the owner, 24 Sep 2026) ----------------------------------
+   On a computer: a right-click drag draws an arrow and a right-click marks a square (in 3D, where a
+   right-drag turns the board, with Shift held). On a phone: ✏️ on the board, then a drag draws an
+   arrow and a tap marks a square. Green; the same arrow or mark again takes it away. They stay on
+   this screen only (a room never hears of them) and go when a move is played. */
+
+const CH_ANNO_COLOR = 'rgba(21, 128, 61, 0.82)';
+
+/** The model with the hand-drawn arrows and marks (and the arrow being drawn) on top of its own. */
+function chAnnoMerge(model) {
+  const a = chView.anno;
+  const d = chView.draft;
+  if (!model || (!a.arrows.length && !a.marks.length && !d)) return model;
+  return Object.assign({}, model, {
+    arrows: (model.arrows || []).concat(a.arrows.map(x => ({ from: x.from, to: x.to, color: CH_ANNO_COLOR })), d ? [{ from: d.from, to: d.to, color: CH_ANNO_COLOR }] : []),
+    marks: (model.marks || []).concat(a.marks.map(sq => ({ sq: sq, kind: 'user' })))
+  });
+}
+
+/** Redraws the board with what is drawn on it now. */
+function chAnnoRefresh() {
+  if (chView.r && chView.model) chView.r.setModel(chAnnoMerge(chView.model));
+  if (chView.root && chView.model) chViewTools(chView.root, chView.model);
+}
+
+/** A mark on a square, or an arrow from one to another: added, or taken away if it is there already. */
+function chAnnoToggle(from, to) {
+  const a = chView.anno;
+  if (!from) return;
+  if (!to || to === from) {
+    const k = a.marks.indexOf(from);
+    if (k === -1) a.marks.push(from); else a.marks.splice(k, 1);
+  } else {
+    const k = a.arrows.findIndex(x => x.from === from && x.to === to);
+    if (k === -1) a.arrows.push({ from: from, to: to }); else a.arrows.splice(k, 1);
+  }
+  if (typeof haptic === 'function') haptic('light');
+}
+
+/** ✏️: the drawing mode for a finger (on and off). */
+function chPenToggle() {
+  chToolsPop(false);
+  chView.pen = !chView.pen;
+  chView.draft = null;
+  if (chView.root) chView.root.classList.toggle('is-pen', chView.pen);
+  chAnnoRefresh();
+}
+
+/** 🧹: everything drawn by hand, gone. */
+function chAnnoClear() {
+  chView.anno.arrows = [];
+  chView.anno.marks = [];
+  chView.draft = null;
+  chAnnoRefresh();
 }
 
 const chViewBusyLeft = () => (chView.r ? Math.max(0, chView.r.busyUntil() - Date.now()) : 0);
@@ -1695,7 +1758,10 @@ function chViewTools(root, model) {
   const r3 = chView.r && chView.r.kind === '3d' && chView.r.camera ? chView.r : null;
   const cam = !r3 ? '' : `<button type="button" class="ch-tool ${r3.camTop() ? 'is-on' : ''}" onclick="chViewCam('top')" aria-pressed="${r3.camTop()}" aria-label="${escapeHTML(chT('ch_cam_top'))}">⬇ ${escapeHTML(chT('ch_cam_top'))}</button>` +
     (r3.camMoved() ? `<button type="button" class="ch-tool" onclick="chViewCam('reset')" aria-label="${escapeHTML(chT('ch_cam_reset'))}" title="${escapeHTML(chT('ch_cam_reset'))}">↺</button>` : '');
-  const html = model.tv ? '' : view + `<button type="button" class="ch-tool" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}" title="${escapeHTML(chT('ch_look_label'))}">⚙</button>` + cam;
+  const drawn = chView.anno.arrows.length + chView.anno.marks.length > 0;
+  const pen = `<button type="button" class="ch-tool ${chView.pen ? 'is-on' : ''}" onclick="chPenToggle()" aria-pressed="${chView.pen}" aria-label="${escapeHTML(chT('ch_pen'))}" title="${escapeHTML(chT('ch_pen'))}">✏️</button>` +
+    (drawn ? `<button type="button" class="ch-tool" onclick="chAnnoClear()" aria-label="${escapeHTML(chT('ch_pen_clear'))}" title="${escapeHTML(chT('ch_pen_clear'))}">🧹</button>` : '');
+  const html = model.tv ? '' : view + `<button type="button" class="ch-tool" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}" title="${escapeHTML(chT('ch_look_label'))}">⚙</button>` + pen + cam;
   if (box._chHtml !== html) { box.innerHTML = html; box._chHtml = html; }
 }
 
@@ -1723,6 +1789,15 @@ function chWireInput(root) {
     if (e.target.closest('button, [data-ch-pop]')) return;
     if (e.isPrimary) fingers.clear();
     fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // Drawing by hand: a right button (with Shift in 3D, where a right-drag turns the board), or a finger in ✏️ mode.
+    const annoBtn = e.button === 2 && (!is3d() || e.shiftKey);
+    if (chView.model && !chView.model.tv && chView.r && (annoBtn || (chView.pen && e.button === 0 && fingers.size === 1))) {
+      const sq = chView.r.pick(e.clientX, e.clientY);
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY, sq: sq, anno: true };
+      try { root.setPointerCapture(e.pointerId); } catch (x) {}
+      if (annoBtn) e.preventDefault();
+      return;
+    }
     // The 3D camera: two fingers (pinch to zoom, move to turn), or a right or middle mouse button.
     if (is3d() && (e.button === 1 || e.button === 2)) {
       gesture = { mouse: true, id: e.pointerId, x: e.clientX, y: e.clientY };
@@ -1732,6 +1807,7 @@ function chWireInput(root) {
     }
     if (is3d() && fingers.size === 2) {
       if (press && press.dragging && chView.r) chView.r.dragEnd(false);
+      if (press && press.anno && chView.draft) { chView.draft = null; chAnnoRefresh(); }
       press = null;
       gesture = Object.assign({ mouse: false }, two());
       return;
@@ -1762,6 +1838,14 @@ function chWireInput(root) {
       e.preventDefault();
       return;
     }
+    if (press && press.anno && press.id === e.pointerId) {
+      // The arrow being drawn follows the finger, square by square.
+      const to = chView.r ? chView.r.pick(e.clientX, e.clientY) : '';
+      const d = to && press.sq && to !== press.sq ? { from: press.sq, to: to } : null;
+      if (JSON.stringify(d) !== JSON.stringify(chView.draft)) { chView.draft = d; chAnnoRefresh(); }
+      e.preventDefault();
+      return;
+    }
     if (!press || press.id !== e.pointerId || !press.own) return;
     const r = chView.r;
     if (!press.dragging && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) {
@@ -1782,6 +1866,12 @@ function chWireInput(root) {
     if (!press || press.id !== e.pointerId) return;
     const pr = press;
     press = null;
+    if (pr.anno) {
+      chView.draft = null;
+      if (!cancel && pr.sq) chAnnoToggle(pr.sq, chView.r ? chView.r.pick(e.clientX, e.clientY) : '');
+      chAnnoRefresh();
+      return;
+    }
     const m = chView.model, r = chView.r;
     if (!m || !r || !m.input) return;
     if (pr.dragging) {
@@ -1807,7 +1897,8 @@ function chWireInput(root) {
     clearTimeout(root._chWheel);
     root._chWheel = setTimeout(camDone, 250);
   }, { passive: false });
-  root.addEventListener('contextmenu', (e) => { if (is3d()) e.preventDefault(); });
+  // A right-click turns the 3D board or draws on either: never the browser's menu over the board.
+  root.addEventListener('contextmenu', (e) => { if (!e.target.closest('[data-ch-pop], [data-ch-tools]')) e.preventDefault(); });
 }
 
 /** The camera buttons on the 3D board: from above (and back), and back to the start. */

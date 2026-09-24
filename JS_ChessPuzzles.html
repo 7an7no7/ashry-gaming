@@ -499,6 +499,12 @@ function chPzDailyPuzzle(day) {
 
 /** «لغز اليوم»: carries on with it if it was begun, else puts it on the board. */
 function chPzStartDaily() {
+  // Resuming a daily that was set aside puts its board back without going through
+  // chPzBegin, so a streak puzzle on the board is put aside here first (as chPzBegin would).
+  const s0 = chPzState();
+  if (s0.mode === 'streak' && s0.streak && !s0.streak.over && s0.p && !s0.result && s0.phase === 'play') {
+    s0.streak.saved = { p: s0.p, hist: s0.hist.slice(), uid: s0.uid };
+  }
   if (soloDailyResume('chesspuzzle')) return;
   // Played once: today's is done (a past day from the archive is played there, soloArchiveDay set).
   if (!soloArchiveDay && soloDailyResult('chesspuzzle')) { showToast(chT('daily_done_today'), 'info'); return; }
@@ -882,7 +888,9 @@ function chPzMistakeWayHtml(s) {
 soloRegister('chesspuzzle', {
   setup: 'setup-chesspuzzles', play: 'play-chesspuzzle',
   paintSetup: paintChessPuzzlesSetup, restore: restoreChessPuzzle,
-  state: chPzState, resume: chPzContinue, prefs: ['level', 'done', 'nonce'],
+  state: chPzState, resume: chPzContinue, prefs: ['level', 'done', 'nonce', 'streak', 'streakRecent', 'mSolved'],
+  // (the streak run, its recent puzzles and the solved mistakes are kept too: a daily
+  // brought back must not roll back what was played while it was set aside)
   repaint: () => chPzPaint({ still: true })
 });
 

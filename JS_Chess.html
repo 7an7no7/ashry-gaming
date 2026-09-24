@@ -2646,6 +2646,10 @@ function startShatranj() {
 }
 
 function chContinue() {
+  // The game in progress goes on the way it was started: a "vs" picked in the setup since is for
+  // the next Start (otherwise you would move the computer's pieces yourself in a game still rated).
+  const s = chState();
+  if (s.gameVs && s.vs !== s.gameVs) { s.vs = s.gameVs; saveToLocal(); }
   setView('play-shatranj');
   chPaint({ still: true });
   chAfterMove();
@@ -2694,6 +2698,7 @@ function chNewGame(opts) {
   s.ratingChange = null;
   s.clk = chessClockNew(s.clock, s.gameOdds && s.gameOdds.kind === 'time' ? { odds: s.gameOdds.giver } : undefined);
   s.phase = 'play';
+  s.gameVs = s.vs;
   s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   chLocal.sel = '';
   chLocal.coachBefore = null; chLocal.coachKey = '';
@@ -2710,6 +2715,15 @@ function chNewGame(opts) {
 /** The next game of the match. */
 function chNextGame() {
   const s = chState();
+  // A "try the better move" game is over: back to the setup as it was chosen, not a real game
+  // against the computer that would count in the match (and for the rating).
+  if (s.practice) {
+    if (s.vsBefore) { s.vs = s.vsBefore; s.vsBefore = null; }
+    s.practice = false;
+    saveToLocal();
+    setupShatranj();
+    return;
+  }
   if (s.vs === 'friend') s.firstWhite = 1 - (s.firstWhite || 0);
   // A set-up position is played again from the same place, the same side yours.
   if (s.help && s.help.setup && s.start) { chNewGame({ fen: s.start, setup: true, eg: s.setupEg, me: s.vs === 'phone' ? s.me : undefined }); return; }
@@ -2949,6 +2963,8 @@ function chCoachJudge(before, beforeLost, info, beforeClk) {
   if (s.coachOpts.warn !== false && verdict.cls === 'blunder' && s.phase !== 'done') {
     chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null };
     if (s.help) s.help.warn = true;
+    // Kept at once: a reload now drops the warning but keeps the move, and the game must stay unrated.
+    saveToLocal();
     // Nobody's clock runs while the warning is read: the computer's is stopped where it is, and it
     // runs again on "play it anyway" (chAfterMove); a take back puts yours back as it was.
     chStopTimers();
@@ -2984,6 +3000,8 @@ function chCoachWarn(verdict) {
 function chCoachTakeBack() {
   const s = chState();
   const p = chLocal.pending;
+  // Cleared before the modal closes, so closeModal's chCoachDismissed sees nothing waiting.
+  chLocal.pending = null;
   closeModal('ch-warn-modal');
   if (!p) return;
   s.g = p.before;
@@ -3010,8 +3028,18 @@ function chCoachTakeBack() {
   chAfterMove();
 }
 
+/** The warning closed without its buttons (✕, the backdrop, the phone's back): the move stands,
+    as "play it anyway" (JS_Core's closeModal calls this). */
+function chCoachDismissed() {
+  const p = chLocal.pending;
+  if (!p) return;
+  chCoachAccept(p.verdict);
+}
+
 function chCoachPlayAnyway() {
   const p = chLocal.pending;
+  // Cleared before the modal closes, so closeModal's chCoachDismissed sees nothing waiting.
+  chLocal.pending = null;
   closeModal('ch-warn-modal');
   if (!p) return;
   chCoachAccept(p.verdict);

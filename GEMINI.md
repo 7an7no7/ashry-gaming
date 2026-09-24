@@ -1812,6 +1812,23 @@ the word search), `countUp` for streaks and scores.
   room ways, the first named «١ ضد ١», with «كل الألعاب» to go back
   (`ROOM_HUB_GROUPS`, `roomHubTiles`, `roomHubOpen`). The help sheet still has
   each game's own rules. A future family of games can be folded the same way.
+- **دوري المعرفة has a steal** (owner, 24 Sep 2026: the usual party rule). A
+  setup switch, «فرصة للفريق التاني (سرقة)», on by default and remembered with
+  the team names. When the team up misses (the host's ❌) or its clock runs
+  out, the answer stays hidden, a band says «فرصة للفريق التاني», and the other
+  team gets one try on a clock of half the card's time (none with the clock
+  off): ✅ is the card's full points to them, ❌ or the clock shows the answer
+  and nobody scores. The turn passes after every card as before. Decided here
+  (open to change, one place each in `JS_TriviaBoard.html`): the board had no
+  turn of its own, so it keeps one now (`turn`, the team up next, ringed on
+  the scores, passing to the other team after every card whoever scored) and
+  the card says who is answering with a two-team switch the host can correct
+  (`open.picker`); «👁️ إظهار الإجابة» stays in the first stage and **skips the
+  steal** - the answer is out, so the host gets today's award buttons (either
+  team or nobody) - rather than being hidden; half the time is rounded up (15
+  of 30, 8 of 15); a steal missed shows only «محدش خد النقط» and «التالي» (a
+  wrong call is put right with «رجّع آخر سؤال», which also gives the turn
+  back). Off, a card plays exactly as it always did.
 - **A table game's score keeper lives inside the game, with a shortcut in the
   tools** (owner, 21 Sep 2026). The domino score keeper became the "على
   الطاولة" side of the Domino setup screen, like سكرو's, and الأدوات → حاسبات
@@ -2642,6 +2659,13 @@ the word search), `countUp` for streaks and scores.
   rating two on one phone; the room lobby's clock line shows only with a
   clock, its handicap line only with a handicap (half the time with no clock
   warns, as on one phone), and its variant line explains only the choice made.
+- **24 Sep 2026, دوري المعرفة's steal** - the owner's party rule (*Decided,
+  and why*): a setup switch on by default; a miss or the clock sends the card,
+  answer hidden, to the other team on half the time for the full points; ❌ or
+  its clock shows the answer with nobody scoring. The board now keeps whose
+  turn it is and the card says who is answering. Rules, the setup hint and the
+  timer's hint updated in both languages; a reload mid-steal comes back in the
+  steal with the time it had left.
 
 ## Building and Running
 
@@ -4021,6 +4045,21 @@ A board question can run on a clock: the setup screen's switch and 15–60 secon
 shows by itself, and the host still gives the points. The open card lives in
 `appState.triviaBoard.open` with a deadline (`endsAt`, or `left` while paused),
 so a reload reopens it with the time it really had left.
+
+**The steal** (a setup switch, on by default, `steal` in `ashryTriviaTeams`
+and on the board; *Decided, and why*). With it on the board keeps `turn` (the
+team up next, `is-turn` on its score) and an open card has `stage`
+('first' | 'steal'), `picker` (the team it went to first, from `turn`, switchable
+on the card with `setTriviaPicker`) and `secs` (the stage's whole length, for
+the bar). `paintTriviaActions` draws the host's buttons for the stage;
+`judgeTriviaCell(right)` is ✅ / ❌; `enterTriviaSteal` (❌, or the first
+clock in `triviaTimeUp`) restarts the clock at half the card's time with a new
+`endsAt`, and the band slides in once (`motionFirst`); `missTriviaSteal` (❌,
+or the steal's clock) sets `open.missed` and reveals the answer, and
+`paintTriviaAnswer` then offers only «التالي» (`awardTriviaCell(-1)`).
+`awardTriviaCell` passes the turn and keeps the turn before in `last`, so
+`undoTriviaAward` gives it back. A board saved before the switch has no
+`steal` and plays as it always did.
 
 **Big screens (شاشة العرض).** A TV, or a laptop plugged into one, joins a room
 as a *screen* rather than a player: `/create` or `/join` with `screen: true`

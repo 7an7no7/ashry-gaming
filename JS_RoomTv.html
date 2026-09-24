@@ -316,7 +316,9 @@ function tvLobbySig(state) {
     (state.screens || []).length,
     JSON.stringify(state.shared || {}),
     // The night's table changes as games are banked, and it is drawn in the lobby.
-    JSON.stringify(state.night || {})
+    JSON.stringify(state.night || {}),
+    // The chess group of the game list, open or not.
+    typeof roomHubGroup !== 'undefined' ? roomHubGroup : ''
   ].join('|');
 }
 
@@ -330,14 +332,17 @@ function tvLobby(state, t) {
   } else if (!state.game) {
     const count = state.players.length;
     control = `
+      ${roomHubBackHtml(t, true)}
       <div class="tv-hub">
-        ${ROOM_HUB_GAMES.map(g => {
-          const enough = count >= g.min;
+        ${roomHubTiles().map(tile => {
+          const g = tile.g;
+          const enough = count >= tile.min;
+          const act = tile.open ? `roomHubOpen('${tile.open}')` : `roomAct('chooseGame', { game: '${g.id}' })`;
           return `
-            <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : 'disabled'}>
+            <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="${act}"` : 'disabled'}>
               <span class="tv-hub__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
-              <span class="tv-hub__name">${t[g.key] || g.id}</span>
-              ${enough ? '' : `<span class="tv-hub__need">${g.min}+</span>`}
+              <span class="tv-hub__name">${escapeHTML(roomHubTileName(tile, t))}</span>
+              ${enough ? '' : `<span class="tv-hub__need">${tile.min}+</span>`}
             </button>`;
         }).join('')}
       </div>`;

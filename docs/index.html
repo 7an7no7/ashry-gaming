@@ -106,7 +106,7 @@
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260924154841";
+      window.BUILD_ID = "20260924163058";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -15325,6 +15325,16 @@ button.ch4-seat__btn { cursor: pointer; }
   .ch4-pc > .ch4-svg, .ch4-pc.is-mated > .ch4-svg, .ch4-chip { transition: none; }
   .ch4-chip.is-turn, .ch4-banner { animation: none; }
 }
+
+/* ==========================================================================
+   37. A HUB: chess as one card with its ways to play (24 Sep 2026)
+   The row of ways under the hero of every chess screen, and the way back to
+   every game when the room list has the chess group open.
+   ========================================================================== */
+.hub-ways { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.hub-ways .filter-chip .art-icon { width: 1.15em; height: 1.15em; }
+.room-hub-back { justify-self: start; margin-bottom: var(--sp-3); }
+.tv-lobby .room-hub-back { margin-bottom: var(--sp-2); }
 
 </style>
 
@@ -34447,7 +34457,16 @@ const CHESS_PUZZLES = [
       setup_battleship: "حرب السفن",
       cat_battleship: "خبّي سفنك واضرب لحد ما تغرّق سفن التاني.",
       setup_shatranj: "شطرنج",
-      cat_shatranj: "شطرنج 3D مع صاحبك أو الكمبيوتر، ومعاك مدرب.",
+      cat_shatranj: "ست طرق شطرنج: عادي، ألغاز، فرق، وأربعة لاعبين.",
+      chess_ways_label: "طرق اللعب",
+      chess_way_classic: "عادي",
+      chess_way_puzzles: "ألغاز",
+      chess_way_vote: "بالتصويت",
+      chess_way_handbrain: "المخ والإيد",
+      chess_way_bughouse: "باغ هاوس",
+      chess_way_chess4: "الأربعة",
+      room_hub_all: "كل الألعاب",
+      room_chess_duel: "١ ضد ١",
       setup_chesspuzzle: "ألغاز شطرنج",
       cat_chesspuzzle: "لاقي النقلة اللي بتكسب، من سهل لصعب.",
       chpz_level_label: "لغز حسب الصعوبة",
@@ -37818,7 +37837,16 @@ const CHESS_PUZZLES = [
       setup_battleship: "Battleship",
       cat_battleship: "Hide your fleet and sink theirs first.",
       setup_shatranj: "Chess",
-      cat_shatranj: "Real 3D chess, and a coach if you want one.",
+      cat_shatranj: "Six ways: classic, puzzles, teams, four players.",
+      chess_ways_label: "Ways to play",
+      chess_way_classic: "Classic",
+      chess_way_puzzles: "Puzzles",
+      chess_way_vote: "Vote",
+      chess_way_handbrain: "Hand & Brain",
+      chess_way_bughouse: "Bughouse",
+      chess_way_chess4: "Four players",
+      room_hub_all: "All games",
+      room_chess_duel: "1 vs 1",
       setup_chesspuzzle: "Chess puzzles",
       cat_chesspuzzle: "Find the winning move, from easy to hard.",
       chpz_level_label: "A puzzle by level",
@@ -45641,12 +45669,12 @@ const GAME_CATALOG = [
   { id: 'ludo',       icon: 'art:ludo',  title: 'setup_ludo',       desc: 'cat_ludo',       accent: 'amber',  players: [1, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-ludo',      open: () => setupLudo() },
   { id: 'bank',       icon: 'art:bank',  title: 'setup_bank',       desc: 'cat_bank',       accent: 'green',  players: [1, 6],  mins: 45, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-bank',      open: () => setupBank() },
   { id: 'doubt',      icon: 'art:doubt', title: 'setup_doubt',      desc: 'cat_doubt',      accent: 'violet', players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('doubt') },
-  { id: 'chess4',     icon: 'art:chess4', title: 'setup_chess4',   desc: 'cat_chess4',     accent: 'green',  players: [1, 4],  mins: 30, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('chess4') },
+  { id: 'chess4',     icon: 'art:chess4', title: 'setup_chess4',   desc: 'cat_chess4',     accent: 'green',  players: [1, 4],  mins: 30, modes: ['room', 'tv'],           group: 'table', hub: 'shatranj', open: () => roomCreateFor('chess4') },
   { id: 'oldmaid',    icon: 'art:oldmaid', title: 'setup_oldmaid',  desc: 'cat_oldmaid',    accent: 'amber',  players: [2, 8],  mins: 10, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('oldmaid') },
   // Chess for teams: a board game at the table, on everyone's phone (RoomVoteChess.js, RoomHandBrain.js).
-  { id: 'votechess',  icon: 'art:votechess', title: 'setup_votechess', desc: 'cat_votechess', accent: 'indigo', players: [2, 12], mins: 25, modes: ['room', 'tv'],          group: 'table', open: () => roomCreateFor('votechess') },
-  { id: 'handbrain',  icon: 'art:handbrain', title: 'setup_handbrain', desc: 'cat_handbrain', accent: 'teal',   players: [1, 4],  mins: 20, modes: ['room', 'tv'],          group: 'table', open: () => roomCreateFor('handbrain') },
-  { id: 'bughouse',   icon: 'art:bughouse', title: 'setup_bughouse', desc: 'cat_bughouse', accent: 'teal', players: [1, 4],  mins: 10, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('bughouse') },
+  { id: 'votechess',  icon: 'art:votechess', title: 'setup_votechess', desc: 'cat_votechess', accent: 'indigo', players: [2, 12], mins: 25, modes: ['room', 'tv'],          group: 'table', hub: 'shatranj', open: () => roomCreateFor('votechess') },
+  { id: 'handbrain',  icon: 'art:handbrain', title: 'setup_handbrain', desc: 'cat_handbrain', accent: 'teal',   players: [1, 4],  mins: 20, modes: ['room', 'tv'],          group: 'table', hub: 'shatranj', open: () => roomCreateFor('handbrain') },
+  { id: 'bughouse',   icon: 'art:bughouse', title: 'setup_bughouse', desc: 'cat_bughouse', accent: 'teal', players: [1, 4],  mins: 10, modes: ['room', 'tv'],           group: 'table', hub: 'shatranj', open: () => roomCreateFor('bughouse') },
 
   /* --- لاتنين على موبايل: two people, one phone --- */
   { id: 'memory',     icon: '🎴',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory',      open: () => setupMemory() },
@@ -45654,7 +45682,7 @@ const GAME_CATALOG = [
   { id: 'connect4',   icon: '🔴',   title: 'setup_connect4',   desc: 'cat_connect4',   accent: 'blue',   players: [1, 2],  mins: 5,  modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-connect4',    open: () => setupConnect4() },
   { id: 'dots',       icon: '🔲',   title: 'setup_dots',       desc: 'cat_dots',       accent: 'indigo', players: [1, 2],  mins: 10, modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-dots',        open: () => setupDots() },
   { id: 'battleship', icon: '🚢',   title: 'setup_battleship', desc: 'cat_battleship', accent: 'teal',   players: [1, 2],  mins: 10, modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-battleship',  open: () => setupBattleship() },
-  { id: 'shatranj',   icon: 'art:chess', title: 'setup_shatranj', desc: 'cat_shatranj', accent: 'amber',  players: [1, 2],  mins: 20, modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-shatranj',  open: () => setupShatranj() },
+  { id: 'shatranj',   icon: 'art:chess', title: 'setup_shatranj', desc: 'cat_shatranj', accent: 'amber',  players: [1, 12],  mins: 20, modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-shatranj',  open: () => setupShatranj() },
   { id: 'guessnum',   icon: '🔢',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 12], mins: 3,  modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-guessnum',    open: () => setupGuessNumber() },
   { id: 'reaction',   icon: '⚡',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-reaction',    open: () => setView('setup-reaction') },
 
@@ -45679,7 +45707,7 @@ const GAME_CATALOG = [
   { id: 'strands',    icon: '🧵',   title: 'setup_strands',    desc: 'cat_strands',    accent: 'teal',   players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-strands', open: () => setupStrands() },
   { id: 'wordwheel',  icon: '🔡',   title: 'setup_wordwheel',  desc: 'cat_wordwheel',  accent: 'orange', players: [1, 1],  mins: 5,  modes: ['device'],               group: 'brain', setup: 'setup-wordwheel', open: () => setupWordWheel() },
   { id: 'flags',      icon: '🌍',   title: 'setup_flags',      desc: 'cat_flags',      accent: 'blue',   players: [1, 12], mins: 3,  modes: ['device', 'room', 'tv'], group: 'brain', setup: 'setup-flags', open: () => setupFlags() },
-  { id: 'chesspuzzle', icon: 'art:chesspuzzle', title: 'setup_chesspuzzle', desc: 'cat_chesspuzzle', accent: 'amber', players: [1, 1], mins: 5, modes: ['device'], group: 'brain', setup: 'setup-chesspuzzles', open: () => setupChessPuzzles() },
+  { id: 'chesspuzzle', icon: 'art:chesspuzzle', title: 'setup_chesspuzzle', desc: 'cat_chesspuzzle', accent: 'amber', players: [1, 1], mins: 5, modes: ['device'], group: 'brain', hub: 'shatranj', setup: 'setup-chesspuzzles', open: () => setupChessPuzzles() },
 
   /* --- أدوات --- */
   { id: 'chooser',   icon: '👆',   title: 'tool_chooser',      desc: 'cat_chooser',    accent: 'orange', group: 'tools', open: () => openChooser() },
@@ -45713,6 +45741,32 @@ function openTableCalc(gameId) {
 
 const CATALOG_BY_ID = {};
 GAME_CATALOG.forEach(g => { CATALOG_BY_ID[g.id] = g; });
+
+/* Chess is one card on the home (the owner, 24 Sep 2026): its other ways to play
+   carry `hub: 'shatranj'`, stay out of the sections and the recent row, answer a
+   search by name, and are a row of chips on the chess screens (HUB_WAYS). */
+const HUB_WAYS = {
+  shatranj: [['shatranj', 'chess_way_classic'], ['chesspuzzle', 'chess_way_puzzles'], ['votechess', 'chess_way_vote'],
+             ['handbrain', 'chess_way_handbrain'], ['bughouse', 'chess_way_bughouse'], ['chess4', 'chess_way_chess4']]
+};
+/** The card a game lives under on the home: its hub's, or its own. */
+const catalogHomeId = (id) => (CATALOG_BY_ID[id] && CATALOG_BY_ID[id].hub) || id;
+
+/** The row of a hub's ways, for the screens of the hub's games; '' for any other game. */
+function hubWaysHtml(g, t) {
+  const ways = HUB_WAYS[g.hub || g.id];
+  if (!ways) return '';
+  return `<div class="hub-ways">
+      <div class="eyebrow">${escapeHTML(t.chess_ways_label || '')}</div>
+      <div class="filter-row hscroll-fade" role="group">${ways.map(([id, key]) => {
+        const w = CATALOG_BY_ID[id];
+        if (!w) return '';
+        const on = id === g.id;
+        return `<button type="button" class="filter-chip ${on ? 'is-active' : ''}" aria-pressed="${on}" data-accent="${w.accent}"
+                  ${on ? '' : `onclick="catalogOpen('${id}', this)"`}><span aria-hidden="true">${iconHtml(w.icon)}</span>${escapeHTML(t[key] || catalogTitle(w, t))}${(w.modes || []).indexOf('device') === -1 ? ' <span aria-hidden="true">📲</span>' : ''}</button>`;
+      }).join('')}</div>
+    </div>`;
+}
 
 /* The three ways of playing, as the badges on a card and the chips in the
    filter row. tv is a room shown on a big screen, so a game that plays in a
@@ -45754,11 +45808,15 @@ const RECENT_KEY = 'ashryRecent_v1';
 const RECENT_MAX = 6;
 
 function readRecent() {
-  try { return (JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') || []).filter(id => CATALOG_BY_ID[id]); }
+  try {
+    const ids = (JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') || []).filter(id => CATALOG_BY_ID[id]).map(catalogHomeId);
+    return ids.filter((id, i) => ids.indexOf(id) === i);
+  }
   catch (e) { return []; }
 }
 
 function rememberRecent(id) {
+  id = catalogHomeId(id);
   const list = [id].concat(readRecent().filter(x => x !== id)).slice(0, RECENT_MAX);
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) {}
 }
@@ -46005,7 +46063,7 @@ function renderHome() {
         <svg class="mark mark--hero" aria-hidden="true"><use href="#ashry-mark"/></svg>
         <div class="home-hero__text">
           <h2 class="home-hero__title">${escapeHTML(t.home_title || '')}</h2>
-          <p class="home-hero__sub">${escapeHTML((t.home_tagline || '').replace('{n}', String(GAME_CATALOG.filter(g => g.group !== 'tools').length)))}</p>
+          <p class="home-hero__sub">${escapeHTML((t.home_tagline || '').replace('{n}', String(GAME_CATALOG.filter(g => g.group !== 'tools' && !g.hub).length)))}</p>
         </div>
         <button type="button" class="home-hero__pick" onclick="homePickForUs(this)"
                 title="${escapeHTML(t.home_pick_btn || '')}">
@@ -46210,6 +46268,8 @@ function applyHomeFilter(opts) {
       const isTool = g.group === 'tools';
       // Tools answer a search only; the chips are about how a game is played.
       let ok = isTool ? searching && homeFilter === 'all' : catalogMatchesFilter(g, homeFilter);
+      // A hub's other ways (chess's) are inside its card, and come out for a search only.
+      if (g.hub && !searching) ok = false;
       if (ok && homePlayers !== 'off') {
         ok = catalogMatchesPlayers(g, homePlayers);
       }
@@ -46381,6 +46441,15 @@ function syncGameHero(viewId) {
     view.insertBefore(hero, view.firstChild);
   }
   hero.innerHTML = catalogHeroHtml(g, t);
+  // A hub's games (chess) carry the row of its ways right under the hero.
+  let ways = view.querySelector(':scope > .hub-ways');
+  const waysHtml = hubWaysHtml(g, t);
+  if (!waysHtml) { if (ways) ways.remove(); return; }
+  const box = document.createElement('div');
+  box.innerHTML = waysHtml;
+  const fresh = box.firstElementChild;
+  if (ways) ways.replaceWith(fresh); else hero.after(fresh);
+  fresh.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
 }
 
 /* --- The Together tab --------------------------------------------------------
@@ -46392,7 +46461,7 @@ function renderTogether() {
   const view = document.getElementById('view-together');
   if (!view) return;
   const t = TRANSLATIONS[appState.lang];
-  const games = GAME_CATALOG.filter(g => (g.modes || []).indexOf('room') !== -1);
+  const games = GAME_CATALOG.filter(g => (g.modes || []).indexOf('room') !== -1 && !g.hub);
   view.innerHTML = `
     <div class="tab-hero">
       <span class="tab-hero__icon" aria-hidden="true">📲</span>
@@ -47573,6 +47642,55 @@ function watchRoomFieldDone(root, redraw) {
 }
 
 let roomHubLocation = recallOptions('roomHubLocation', 'together');
+
+/* Chess is one tile in the room's list (the owner, 24 Sep 2026): a tap opens its
+   room ways, the first of which is the tile itself (1 vs 1). */
+const ROOM_HUB_GROUPS = { chess: ['chess', 'votechess', 'handbrain', 'bughouse', 'chess4'] };
+let roomHubGroup = '';
+const roomHubGroupOf = (id) => Object.keys(ROOM_HUB_GROUPS).find(k => ROOM_HUB_GROUPS[k].indexOf(id) !== -1) || '';
+
+/**
+ * The tiles the list shows, each { g, min, open }: with a group open, its games;
+ * otherwise every game, a group as its first game with open set (a tap opens the
+ * group) and the fewest players any of its games needs.
+ */
+function roomHubTiles() {
+  const byId = (id) => ROOM_HUB_GAMES.find(g => g.id === id);
+  if (roomHubGroup && ROOM_HUB_GROUPS[roomHubGroup]) {
+    return ROOM_HUB_GROUPS[roomHubGroup].map(byId).filter(Boolean).map(g => ({ g: g, min: g.min, open: '' }));
+  }
+  return ROOM_HUB_GAMES.filter(g => {
+    const k = roomHubGroupOf(g.id);
+    return !k || ROOM_HUB_GROUPS[k][0] === g.id;
+  }).map(g => {
+    const k = roomHubGroupOf(g.id);
+    if (!k) return { g: g, min: g.min, open: '' };
+    const min = Math.min.apply(null, ROOM_HUB_GROUPS[k].map(id => (byId(id) || { min: 99 }).min));
+    return { g: g, min: min, open: k };
+  });
+}
+
+/** A tile's name: inside the chess group its first game is '1 vs 1'. */
+function roomHubTileName(tile, t) {
+  if (!tile.open && roomHubGroup === 'chess' && tile.g.id === 'chess') return t.room_chess_duel || '1 vs 1';
+  return t[tile.g.key] || tile.g.id;
+}
+
+/** Opens a group of the list (or '' back to every game), on the phone or the TV. */
+function roomHubOpen(group) {
+  roomHubGroup = group || '';
+  haptic('light');
+  if (!Room.state) return;
+  if (Room.state.youAreScreen && typeof renderRoomTv === 'function') renderRoomTv(Room.state);
+  else if (appState.currentView === 'room-lobby') renderRoomLobby(Room.state);
+}
+
+/** The head of the list with a group open: the way back to every game. */
+function roomHubBackHtml(t, tv) {
+  if (!roomHubGroup) return '';
+  return `<button type="button" class="btn btn--ghost ${tv ? '' : 'btn--sm'} btn--auto room-hub-back" onclick="roomHubOpen('')">
+      <span aria-hidden="true">↩</span> ${escapeHTML(t.room_hub_all || '')}</button>`;
+}
 if (['together', 'apart'].indexOf(roomHubLocation) === -1) roomHubLocation = 'together';
 
 function setRoomHubLocation(loc) {
@@ -47634,22 +47752,23 @@ function renderRoomHub(state) {
         <h2 class="section__title">${t.room_pick_game || 'اختر لعبة'}</h2>
         <span class="section__rule"></span>
       </div>
-      ${chips}
+      ${roomHubGroup ? roomHubBackHtml(t, false) : chips}
       <div class="game-grid">
-        ${ROOM_HUB_GAMES.map(g => {
-          const enough = count >= g.min;
+        ${roomHubTiles().map(tile => {
+          const g = tile.g;
+          const enough = count >= tile.min;
           const cat = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[g.id]) || null;
           const isF2F = !!(cat && cat.faceToFace);
           const showHint = roomHubLocation === 'apart' && isF2F;
           const hint = showHint ? (t.room_hub_facetoface || 'أحسن وانتوا مع بعض') : '';
-          const need = !enough ? `${g.min}+` : '';
+          const need = !enough ? `${tile.min}+` : '';
           const badgeText = hint ? (need ? `${need} · ${hint}` : hint) : need;
           const badge = badgeText ? `<div class="game-card__need">${badgeText}</div>` : '';
           return `
             <div class="game-card ${enough ? '' : 'is-disabled'}" data-accent="${g.accent}"
-                 ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : ''}>
+                 ${enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : ''}>
               <div class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</div>
-              <div class="game-title">${t[g.key] || g.id}</div>
+              <div class="game-title">${escapeHTML(roomHubTileName(tile, t))}</div>
               ${badge}
             </div>`;
         }).join('')}
@@ -61914,7 +62033,9 @@ function tvLobbySig(state) {
     (state.screens || []).length,
     JSON.stringify(state.shared || {}),
     // The night's table changes as games are banked, and it is drawn in the lobby.
-    JSON.stringify(state.night || {})
+    JSON.stringify(state.night || {}),
+    // The chess group of the game list, open or not.
+    typeof roomHubGroup !== 'undefined' ? roomHubGroup : ''
   ].join('|');
 }
 
@@ -61928,14 +62049,17 @@ function tvLobby(state, t) {
   } else if (!state.game) {
     const count = state.players.length;
     control = `
+      ${roomHubBackHtml(t, true)}
       <div class="tv-hub">
-        ${ROOM_HUB_GAMES.map(g => {
-          const enough = count >= g.min;
+        ${roomHubTiles().map(tile => {
+          const g = tile.g;
+          const enough = count >= tile.min;
+          const act = tile.open ? `roomHubOpen('${tile.open}')` : `roomAct('chooseGame', { game: '${g.id}' })`;
           return `
-            <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : 'disabled'}>
+            <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="${act}"` : 'disabled'}>
               <span class="tv-hub__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
-              <span class="tv-hub__name">${t[g.key] || g.id}</span>
-              ${enough ? '' : `<span class="tv-hub__need">${g.min}+</span>`}
+              <span class="tv-hub__name">${escapeHTML(roomHubTileName(tile, t))}</span>
+              ${enough ? '' : `<span class="tv-hub__need">${tile.min}+</span>`}
             </button>`;
         }).join('')}
       </div>`;

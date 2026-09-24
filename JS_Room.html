@@ -1038,6 +1038,55 @@ function watchRoomFieldDone(root, redraw) {
 }
 
 let roomHubLocation = recallOptions('roomHubLocation', 'together');
+
+/* Chess is one tile in the room's list (the owner, 24 Sep 2026): a tap opens its
+   room ways, the first of which is the tile itself (1 vs 1). */
+const ROOM_HUB_GROUPS = { chess: ['chess', 'votechess', 'handbrain', 'bughouse', 'chess4'] };
+let roomHubGroup = '';
+const roomHubGroupOf = (id) => Object.keys(ROOM_HUB_GROUPS).find(k => ROOM_HUB_GROUPS[k].indexOf(id) !== -1) || '';
+
+/**
+ * The tiles the list shows, each { g, min, open }: with a group open, its games;
+ * otherwise every game, a group as its first game with open set (a tap opens the
+ * group) and the fewest players any of its games needs.
+ */
+function roomHubTiles() {
+  const byId = (id) => ROOM_HUB_GAMES.find(g => g.id === id);
+  if (roomHubGroup && ROOM_HUB_GROUPS[roomHubGroup]) {
+    return ROOM_HUB_GROUPS[roomHubGroup].map(byId).filter(Boolean).map(g => ({ g: g, min: g.min, open: '' }));
+  }
+  return ROOM_HUB_GAMES.filter(g => {
+    const k = roomHubGroupOf(g.id);
+    return !k || ROOM_HUB_GROUPS[k][0] === g.id;
+  }).map(g => {
+    const k = roomHubGroupOf(g.id);
+    if (!k) return { g: g, min: g.min, open: '' };
+    const min = Math.min.apply(null, ROOM_HUB_GROUPS[k].map(id => (byId(id) || { min: 99 }).min));
+    return { g: g, min: min, open: k };
+  });
+}
+
+/** A tile's name: inside the chess group its first game is '1 vs 1'. */
+function roomHubTileName(tile, t) {
+  if (!tile.open && roomHubGroup === 'chess' && tile.g.id === 'chess') return t.room_chess_duel || '1 vs 1';
+  return t[tile.g.key] || tile.g.id;
+}
+
+/** Opens a group of the list (or '' back to every game), on the phone or the TV. */
+function roomHubOpen(group) {
+  roomHubGroup = group || '';
+  haptic('light');
+  if (!Room.state) return;
+  if (Room.state.youAreScreen && typeof renderRoomTv === 'function') renderRoomTv(Room.state);
+  else if (appState.currentView === 'room-lobby') renderRoomLobby(Room.state);
+}
+
+/** The head of the list with a group open: the way back to every game. */
+function roomHubBackHtml(t, tv) {
+  if (!roomHubGroup) return '';
+  return `<button type="button" class="btn btn--ghost ${tv ? '' : 'btn--sm'} btn--auto room-hub-back" onclick="roomHubOpen('')">
+      <span aria-hidden="true">↩</span> ${escapeHTML(t.room_hub_all || '')}</button>`;
+}
 if (['together', 'apart'].indexOf(roomHubLocation) === -1) roomHubLocation = 'together';
 
 function setRoomHubLocation(loc) {
@@ -1099,22 +1148,23 @@ function renderRoomHub(state) {
         <h2 class="section__title">${t.room_pick_game || 'اختر لعبة'}</h2>
         <span class="section__rule"></span>
       </div>
-      ${chips}
+      ${roomHubGroup ? roomHubBackHtml(t, false) : chips}
       <div class="game-grid">
-        ${ROOM_HUB_GAMES.map(g => {
-          const enough = count >= g.min;
+        ${roomHubTiles().map(tile => {
+          const g = tile.g;
+          const enough = count >= tile.min;
           const cat = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[g.id]) || null;
           const isF2F = !!(cat && cat.faceToFace);
           const showHint = roomHubLocation === 'apart' && isF2F;
           const hint = showHint ? (t.room_hub_facetoface || 'أحسن وانتوا مع بعض') : '';
-          const need = !enough ? `${g.min}+` : '';
+          const need = !enough ? `${tile.min}+` : '';
           const badgeText = hint ? (need ? `${need} · ${hint}` : hint) : need;
           const badge = badgeText ? `<div class="game-card__need">${badgeText}</div>` : '';
           return `
             <div class="game-card ${enough ? '' : 'is-disabled'}" data-accent="${g.accent}"
-                 ${enough ? `onclick="roomAct('chooseGame', { game: '${g.id}' })"` : ''}>
+                 ${enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : ''}>
               <div class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</div>
-              <div class="game-title">${t[g.key] || g.id}</div>
+              <div class="game-title">${escapeHTML(roomHubTileName(tile, t))}</div>
               ${badge}
             </div>`;
         }).join('')}

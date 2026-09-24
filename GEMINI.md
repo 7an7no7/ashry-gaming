@@ -1743,6 +1743,19 @@ the word search), `countUp` for streaks and scores.
   icon must not repeat another game's or be English letters.
 - **Domino's "can't play" button says باص / Pass** (owner, 21 Sep 2026); it
   said دق / Knock, the table word.
+- **Chess is one card, with its ways inside** (owner, 24 Sep 2026: "every
+  update for chess is counted as a separate game ... all should be inside
+  chess"). Six chess cards had spread over three sections. Now the home has
+  one «شطرنج» card (players 1-12); ألغاز شطرنج, شطرنج بالتصويت, المخ والإيد,
+  باغ هاوس and شطرنج الأربعة carry `hub: 'shatranj'` in `GAME_CATALOG`: out of
+  the sections, the recent row (a recent one shows as chess, `catalogHomeId`),
+  the مع بعض list and the game count, but a search still finds each by name.
+  Every chess screen has a row of the six ways under its hero (`HUB_WAYS`,
+  `hubWaysHtml`; a room-only way is marked 📲 and opens a room). In a room's
+  list, on the phone and the TV, chess is one tile too: a tap opens its five
+  room ways, the first named «١ ضد ١», with «كل الألعاب» to go back
+  (`ROOM_HUB_GROUPS`, `roomHubTiles`, `roomHubOpen`). The help sheet still has
+  each game's own rules. A future family of games can be folded the same way.
 - **A table game's score keeper lives inside the game, with a shortcut in the
   tools** (owner, 21 Sep 2026). The domino score keeper became the "على
   الطاولة" side of the Domino setup screen, like سكرو's, and الأدوات → حاسبات

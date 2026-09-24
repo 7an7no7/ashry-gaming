@@ -256,6 +256,7 @@ function chPzSolved(s) {
   s.result = 'solved';
   if (s.mode === 'free' && s.p.level) s.done[s.p.level] = (s.done[s.p.level] || 0) + 1;
   chPzMarkDaily(s, true);
+  chPzMistakeMark(s);
   if (typeof chPzSolvedMode === 'function') chPzSolvedMode(s);
   chPzStageFlash('good');
   const uid = s.uid;
@@ -337,12 +338,15 @@ function chPzStatus(s, pos) {
   if (s.hist.length % 2 === 1) return chT('chpz_right');
   if (s.hist.length > 0) return chT('chpz_again');
   if (s.p.theme === 'mate' && s.p.mateIn) return chT(s.p.mateIn === 1 ? 'chpz_turn_mate1' : 'chpz_turn_mate', { side: side, n: s.p.mateIn });
+  if (s.mode === 'mistake') return chT('chpz_turn_better', { side: side });
   return chT('chpz_turn_win', { side: side });
 }
 
 /** The chips over the board: which kind of puzzle, its level and rating. */
 function chPzTagsHtml(s) {
   const tags = [];
+  if (s.mode === 'mistake') tags.push(`<span class="chpz-tag chpz-tag--mode">📝 ${escapeHTML(chT('chpz_mistakes_title'))}</span>`);
+  if (s.mode === 'streak') tags.push(`<span class="chpz-tag chpz-tag--mode">🔥 ${escapeHTML(chT('chpz_streak_title'))}</span>`);
   if (s.mode === 'daily') tags.push(`<span class="chpz-tag chpz-tag--mode">📅 ${escapeHTML(s.archive ? s.archive : chT('chpz_daily_title'))}</span>`);
   if (typeof chPzModeTag === 'function') { const x = chPzModeTag(s); if (x) tags.push(x); }
   if (s.p.level) tags.push(`<span class="chpz-tag">${escapeHTML(chT(['', 'solo_lvl_easy', 'solo_lvl_medium', 'solo_lvl_hard'][s.p.level]))}</span>`);
@@ -647,6 +651,7 @@ function chPzShowDoneMode(s) {
 
 /** «اللغز اللي بعده» in the streak. */
 function chPzNextMode(s) {
+  if (s.mode === 'mistake') { chPzMistakeNext(s); return true; }
   if (s.mode !== 'streak' || !s.streak) return false;
   if (s.streak.lives <= 0 || s.streak.over) chPzStreakFinish(s);
   else chPzStreakDeal(s);
@@ -693,6 +698,10 @@ function chPzStreakPop(s, lost) {
 }
 
 function chPzDoneBarHtml(s) {
+  if (s.mode === 'mistake') {
+    return `<button type="button" class="btn btn--primary btn--lg" onclick="chPzNext()">📝 ${escapeHTML(chT('chpz_mistakes_next'))}</button>` +
+      (s.from ? `<button type="button" class="btn btn--secondary" onclick="chPzBackToReview()">📊 ${escapeHTML(chT('chpz_back_review'))}</button>` : '');
+  }
   if (s.mode !== 'streak' || !s.streak) return '';
   if (s.streak.lives <= 0 || s.streak.over) return `<button type="button" class="btn btn--primary btn--lg" onclick="chPzStreakFinish(chPzState())">🏁 ${escapeHTML(chT('solo_look_result'))}</button>`;
   return `<button type="button" class="btn btn--primary btn--lg" onclick="chPzNext()">➡️ ${escapeHTML(chT('chpz_streak_next'))}</button>`;
@@ -703,10 +712,171 @@ function chPzMoreWaysHtml(s) {
   const best = soloBest('chesspuzzle', 'streak');
   const live = chPzStreakLive(s);
   const status = live ? `<span class="badge">${escapeHTML(chT('daily_continue'))}</span>`
-    : best ? `<span class="badge badge--success">🏆 <b class="metric">${best.score}</b></span>` : '';
+    : best ? `<span class="badge badge--success">🏆 <b class="metric">${best.score}</b></span>` : `<span class="badge">${escapeHTML(chT('daily_play'))}</span>`;
   let out = chPzWayHtml('🔥', chT('chpz_streak_title'), chT('chpz_streak_desc'), status, 'chPzStartStreak()', false);
   if (typeof chPzMistakeWayHtml === 'function') out += chPzMistakeWayHtml(s);
   return out;
+}
+
+/* ============================================================================
+   ألغاز من أخطائك - puzzles from your own mistakes
+   ----------------------------------------------------------------------------
+   Every kept game with its review (ashryChessGames_v1, JS_ChessReview.html):
+   each move the review called a mistake or a blunder, when it was yours - your
+   side against the computer or in a room, either side two on one phone - is a
+   one-move puzzle: the position before it, your side to move, the engine's
+   best move the answer. Any other move is right too when it is within 50
+   centipawns of the best: the position after it and the position after the
+   best are analysed alike (CH_REVIEW_NODES each) and compared - a second line
+   of one analysis can't say it (chessAnalyse gives moves outside its lines a
+   bound, not a score). The move played in the game is always wrong. The newest
+   game first; one solved is marked (s.mSolved) and goes to the end.
+   The review's «جرّبها كلغز» opens one move of any reviewed game this way.
+   ========================================================================= */
+
+const CHPZ_ALT_CP = 50;
+let chPzMistakeCache = { raw: null, list: [] };
+
+/** One reviewed move of a kept game as a puzzle (null when it isn't one). */
+function chPzFromRecord(rec, i, positions) {
+  const m = rec.review && rec.review.moves && rec.review.moves[i];
+  const pos = positions && positions[i];
+  if (!m || !m.best || !pos || !rec.moves[i]) return null;
+  const g = chessCloneGame(pos);
+  if (chessStatus(g).over) return null;
+  const best = m.best.from + m.best.to + (m.best.promo || '');
+  const after = chessCloneGame(g);
+  const info = chessPlay(after, chessFromUci(best));
+  if (!info) return null;
+  const mate = info.status && info.status.reason === 'mate';
+  return {
+    id: 'm:' + rec.id + ':' + i, fen: chessFen(g), moves: [best], theme: mate ? 'mate' : 'material', mateIn: mate ? 1 : 0,
+    level: 0, rating: 0, alt: true, played: rec.moves[i], cls: m.cls, game: rec.id, ply: i + 1
+  };
+}
+
+/** Every puzzle from this phone's own mistakes, newest game first (worked out again only when the kept games change). */
+function chPzMistakeList() {
+  let raw = '';
+  try { raw = localStorage.getItem(typeof CH_GAMES_KEY !== 'undefined' ? CH_GAMES_KEY : 'ashryChessGames_v1') || ''; } catch (e) { raw = ''; }
+  if (raw === chPzMistakeCache.raw) return chPzMistakeCache.list;
+  const out = [];
+  const fens = new Set();
+  (typeof chLoadGames === 'function' ? chLoadGames() : []).forEach(rec => {
+    const moves = rec.review && rec.review.moves;
+    if (!moves || !rec.moves) return;
+    const mine = (c) => (rec.mode === 'friend' ? true : (rec.me === 0 || rec.me === 1) && c === rec.me);
+    const idx = [];
+    // The first two moves each from the usual start are left out: there nearly every move is as good
+    // as the best, and "find a better first move" is no puzzle (the review's own button still offers them).
+    const opening = !rec.start || rec.start === CHESS_START_FEN ? 4 : 0;
+    moves.forEach((m, i) => { if (i >= opening && (m.cls === 'mistake' || m.cls === 'blunder') && m.best && mine(m.color)) idx.push(i); });
+    if (!idx.length) return;
+    let positions = null;
+    try { positions = chessReviewBegin(rec).positions; } catch (e) { return; }
+    idx.forEach(i => {
+      const p = chPzFromRecord(rec, i, positions);
+      if (!p) return;
+      const key = p.fen.split(' ').slice(0, 4).join(' ');
+      if (fens.has(key)) return;
+      fens.add(key);
+      out.push(p);
+    });
+  });
+  chPzMistakeCache = { raw: raw, list: out };
+  return out;
+}
+
+/** The list in the order it is played: the ones not solved yet first. */
+function chPzMistakeOrder(s) {
+  const solved = s.mSolved || {};
+  const list = chPzMistakeList();
+  return list.filter(p => !solved[p.id]).concat(list.filter(p => solved[p.id]));
+}
+
+const chPzMistakeLeft = (s) => chPzMistakeList().filter(p => !(s.mSolved || {})[p.id]).length;
+
+/** «ألغاز من أخطائك»: the first one not solved yet (or the first of all, to go round again). */
+function chPzStartMistakes() {
+  const s = chPzState();
+  const order = chPzMistakeOrder(s);
+  if (!order.length) { showToast(chT('chpz_mistakes_none'), 'info'); return; }
+  const go = () => chPzBegin({ mode: 'mistake', p: Object.assign({}, order[0]) });
+  if (chPzAsk(go)) return;
+  go();
+}
+
+/** The next mistake after the one on the board. */
+function chPzMistakeNext(s) {
+  const order = chPzMistakeOrder(s);
+  const cur = s.p ? s.p.id : '';
+  const next = order.find(p => p.id !== cur && !(s.mSolved || {})[p.id]);
+  if (!next) { showToast(chT('chpz_mistakes_done'), 'success'); setupChessPuzzles(); return; }
+  chPzBegin({ mode: 'mistake', p: Object.assign({}, next) });
+}
+
+/** A mistake solved: marked, so it goes to the end of the list. */
+function chPzMistakeMark(s) {
+  if (s.mode !== 'mistake' || !s.p) return;
+  s.mSolved = s.mSolved || {};
+  s.mSolved[s.p.id] = Date.now();
+}
+
+/** The score after a move for the side that made it, from one analysis of the position after it. */
+function chPzScoreAfter(gAfter) {
+  const a = chessAnalyse(gAfter, { nodes: typeof CH_REVIEW_NODES !== 'undefined' ? CH_REVIEW_NODES : 20000 });
+  return a.over ? (a.mated ? CHESS_MATE - 1 : 0) : -a.score;
+}
+
+/** Another move as good as the best (within 50 cp), never the move played in the game. */
+function chPzAltOk(s, g, info, mine) {
+  const uci = info.from + info.to + (info.promo || '');
+  if (uci === s.p.played) return false;
+  if (typeof s.p.bestRef !== 'number') {
+    const b = chessCloneGame(g);
+    if (!chessPlay(b, chessFromUci(s.p.moves[0]))) return false;
+    s.p.bestRef = chPzScoreAfter(b);
+  }
+  return chessClampCp(chPzScoreAfter(mine)) >= chessClampCp(s.p.bestRef) - CHPZ_ALT_CP;
+}
+
+/** «جرّبها كلغز» on a mistake in the review: that one position as a puzzle, with a way back. */
+function chPzFromReview(k) {
+  if (typeof chRv === 'undefined' || !chRv.rec || !chRv.rv) return;
+  const rec = Object.assign({}, chRv.rec, { review: chRv.res || chRv.rec.review });
+  const p = chPzFromRecord(rec, k, chRv.rv.positions);
+  if (!p) return;
+  const go = () => chPzBegin({ mode: 'mistake', p: p, from: { id: rec.id, ply: chRv.ply } });
+  if (chPzAsk(go)) return;
+  go();
+}
+
+/** Back to the review this puzzle came from, at the same move. */
+function chPzBackToReview() {
+  const s = chPzState();
+  if (!s.from || typeof chOpenReview !== 'function') return;
+  const f = s.from;
+  chOpenReview(f.id);
+  if (typeof chReviewGo === 'function') chReviewGo(f.ply);
+}
+
+/** Under the board: what was played in the game here. */
+function chPzSideExtraHtml(s) {
+  if (s.mode !== 'mistake' || !s.p || !s.p.played) return '';
+  const g = chessFromFen(s.p.fen);
+  const info = chessPlay(g, chessFromUci(s.p.played));
+  if (!info) return '';
+  return `<p class="chpz-played">${s.p.cls ? chClassDot(s.p.cls) : ''} ${escapeHTML(chT('chpz_you_played', { san: '⁦' + chFigurine(info.san) + '⁩', cls: chT('ch_cls_' + (s.p.cls || 'mistake')) }))}</p>`;
+}
+
+/** The way in on the setup screen, with how many are left. */
+function chPzMistakeWayHtml(s) {
+  const list = chPzMistakeList();
+  const left = chPzMistakeLeft(s);
+  const name = chT('chpz_mistakes_title') + (list.length ? ` (${left || list.length})` : '');
+  const desc = !list.length ? chT('chpz_mistakes_none') : left ? chT('chpz_mistakes_desc') : chT('chpz_mistakes_all');
+  const status = list.length ? `<span class="badge">${escapeHTML(chT('daily_play'))}</span>` : '';
+  return chPzWayHtml('📝', name, desc, status, list.length ? 'chPzStartMistakes()' : '', !list.length);
 }
 
 soloRegister('chesspuzzle', {

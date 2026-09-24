@@ -128,7 +128,10 @@ TOUR_KINDS.chess = {
     }
     m.whites = (m.whites || []).concat([s.seats[0]]);
     s.line = [];
-    chessRoomDeal(v, { armageddon: arma });
+    if (s.settings.variant === '960') {
+      if (!m.start960) m.start960 = chess960Random(Math.random);
+    }
+    chessRoomDeal(v, { armageddon: arma, start: m.start960, tour: true });
     s.roster = s.seats.slice();
   },
   act: (v, pid, action, payload) => chessAction(v, pid, action, payload),

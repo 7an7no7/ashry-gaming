@@ -58,16 +58,31 @@
 const CHESS_GRACE_MS = 600;
 
 /** A fresh board: the start position, and the clock chosen (or none). */
-function chessBoardNew(clockId, opts) {
-  const o = opts || {};
+function chessBoardNew(clockId, opts, startFen) {
+  let fen = null;
+  let o = opts || {};
+  let clkId = clockId;
+  if (typeof clockId === 'string' && clockId.indexOf('/') !== -1) {
+    fen = clockId;
+    clkId = opts;
+    o = startFen || {};
+  } else if (typeof startFen === 'string') {
+    fen = startFen;
+  } else if (o && typeof o.start === 'string') {
+    fen = o.start;
+  }
+  const g = fen ? chessFromFen(fen) : chessNew();
+  const startStr = fen || chessFen(g);
+  const clk = chessClockNew(clkId, o.odds ? { odds: o.odds } : undefined);
   return {
-    g: chessNew(),
+    g: g,
+    start: startStr,
     moves: 0,
     sans: [],
     hist: [],                     // the moves as 'e2e4', 'e7e8q': the game's record, for the review
     last: null,
     lost: [[], []],               // what each side has lost, as piece letters, in order
-    clock: chessClockNew(clockId),
+    clock: clk,
     offer: null,                  // { seat, at: moves } - a draw offered and not answered
     offered: [-1, -1],            // the move count at which each side last offered
     result: null,
@@ -160,16 +175,53 @@ function chessBoardFlag(bd, now) {
 
 const chessSeatOf = (s, pid) => (s.seats || []).indexOf(pid);
 
+const CHESS_VARIANTS = ['standard', '960'];
+const CHESS_ODDS = ['none', 'pawn', 'knight', 'rook', 'queen', 'time'];
+
 function chessRoomOptions(payload, prev) {
   const p = payload || {};
   const was = prev || {};
-  return { clock: chessClockId(p.clock !== undefined ? p.clock : was.clock) };
+  const clock = chessClockId(p.clock !== undefined ? p.clock : was.clock);
+  const variant = (p.variant === '960' || (!p.variant && was.variant === '960')) ? '960' : 'standard';
+  let odds = p.odds !== undefined ? p.odds : was.odds;
+  if (CHESS_ODDS.indexOf(odds) === -1) odds = 'none';
+  return { clock, variant, odds };
 }
 
 /** A fresh board for the seats just set (opts.armageddon: a tournament's third game of a match). */
 function chessRoomDeal(room, opts) {
+  const o = opts || {};
   const s = room.shared;
-  s.chess = chessBoardNew((s.settings || {}).clock, opts);
+  const settings = s.settings || {};
+  let startFen = o.start || null;
+  let oddsSide = null;
+
+  const isTour = !!(o.tour || (room && room.shared && room.shared.tour));
+  if (!isTour) {
+    const oddsKind = settings.odds || 'none';
+    if (oddsKind !== 'none') {
+      const champId = s.champ;
+      const champSeat = (s.seats || []).indexOf(champId);
+      if (champSeat === 0 || champSeat === 1) {
+        oddsSide = champSeat === 0 ? 'w' : 'b';
+        if (oddsKind === 'time') {
+          // Time odds handled by clock
+        } else {
+          startFen = chessHandicapFen(oddsKind, oddsSide);
+        }
+      }
+    }
+  }
+
+  if (!startFen && settings.variant === '960') {
+    startFen = chess960Random(Math.random);
+  }
+
+  s.chess = chessBoardNew(settings.clock, {
+    armageddon: !!o.armageddon,
+    start: startFen,
+    odds: oddsSide && settings.odds === 'time' ? oddsSide : undefined
+  });
   s.result = null;
   s.roster = duelHere(room);
   s.phase = 'play';

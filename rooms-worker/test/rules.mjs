@@ -6089,6 +6089,46 @@ Date.now = duelTestClock;
     applyRoomAction(r, r.players[0].id, 'nextRound', { round: r.shared.round });
     check(r.shared.phase === 'play' && r.shared.seats.indexOf(leaver) === -1, 'chess room: and the next game seats whoever is here');
     check(roomForcedMove(r) === null, 'chess room: a single legal move is never played for anyone (the move is the game)');
+    // T2B.1 tests
+    // Old phone sending only clock gets standard, no odds
+    {
+      const rLegacy = chRoom(['a', 'b'], { clock: '3+2' });
+      check(rLegacy.shared.settings.clock === '3+2' && rLegacy.shared.settings.variant === 'standard' && rLegacy.shared.settings.odds === 'none',
+        'chess room: old phone sending only clock gets standard, no odds');
+    }
+    // Room 960 game starts from legal 960 position and castle works
+    {
+      const r960 = chRoom(['a', 'b'], { variant: '960' });
+      const s960 = r960.shared;
+      check(s960.settings.variant === '960' && s960.chess.start && s960.chess.start !== START,
+        'chess room: 960 game starts from a 960 position');
+      const startP = CH.chessFromFen(s960.chess.start);
+      check(startP.board.filter(x => x !== 0).length === 32, 'chess room: 960 start has 32 pieces');
+      // Verify castling works on a 960 board in room
+      const rCastle = chRoom(['a', 'b'], { variant: '960' });
+      rCastle.shared.chess.g = CH.chessFromFen('4k3/8/8/8/8/8/8/6KR w H - 0 1');
+      rCastle.shared.chess.start = '4k3/8/8/8/8/8/8/6KR w H - 0 1';
+      mv(rCastle, rCastle.shared.seats[0], 'g1-g1');
+      check(rCastle.shared.chess.last && rCastle.shared.chess.last.san === 'O-O', 'chess room: 960 castle works');
+    }
+    // Odds remove piece from champion's side only
+    {
+      const rOdds = chRoom(['a', 'b', 'c'], { odds: 'queen' });
+      // Round 1: no champion yet, all pieces present
+      check(rOdds.shared.chess.g.board.filter(x => x !== 0).length === 32, 'chess room odds: round 1 has no champion, all 32 pieces');
+      const [w1, b1] = rOdds.shared.seats;
+      // b1 wins round 1
+      applyRoomAction(rOdds, w1, 'resign', { round: 1 });
+      check(rOdds.shared.champ === b1, 'chess room odds: b1 is now champion');
+      // Round 2: challenger sits with White, b1 with Black as champion
+      applyRoomAction(rOdds, rOdds.players[0].id, 'nextRound', { round: 1 });
+      const sRound2 = rOdds.shared;
+      check(sRound2.seats[1] === b1, 'chess room odds: champion b1 sits with Black');
+      const bBoard = sRound2.chess.g.board;
+      // White (seat 0) has queen (piece 5), Black (seat 1, champion) has NO queen (piece 13)
+      check(bBoard.some(p => p === 5), 'chess room odds: challenger has queen');
+      check(!bBoard.some(p => p === 13), 'chess room odds: champion has no queen');
+    }
   }
 }
 
@@ -6456,6 +6496,23 @@ Date.now = duelTestClock;
     check(m.state === 'done' && m.winner === g3b.seats[1] && g3b.result.winner === 1 && g3b.chess.result.drawn === true && g3b.chess.result.result === 'b',
       'chess tournament: a draw in Armageddon sends Black through');
     check(r.shared.tour.matches.find((x) => x.id === m.next).p[m.slot] === g3b.seats[1], 'chess tournament: Black takes the slot in the next round');
+  }
+
+  // Tournament keeps one 960 position through a replay
+  {
+    const rTour960 = room(people(4), { tournament: true, variant: '960' });
+    const m960 = toLive(rTour960)[0];
+    const g1 = rTour960.shared.games[m960.id];
+    const start960 = g1.chess.start;
+    check(start960 && m960.start960 === start960, 'chess tournament: 960 position stored on match');
+    drawAgreed(rTour960, m960);
+    for (let i = 0; i < 5 && m960.state !== 'play'; i++) toClock(rTour960);
+    const g2 = rTour960.shared.games[m960.id];
+    check(g2.chess.start === start960, 'chess tournament: the tournament keeps one 960 position through a replay');
+    drawAgreed(rTour960, m960);
+    for (let i = 0; i < 5 && m960.state !== 'play'; i++) toClock(rTour960);
+    const g3 = rTour960.shared.games[m960.id];
+    check(g3.chess.start === start960 && g3.chess.armageddon === true, 'chess tournament: the tournament keeps one 960 position into Armageddon');
   }
 
   // The clock per match: a flag ends that match only.

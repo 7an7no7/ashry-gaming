@@ -283,14 +283,31 @@ function chRoomGameKey(state) {
   return 'room|' + state.code + '|' + (s.dealId || '') + '|' + s.round;
 }
 
-/** A tournament's game that isn't a match's first: the replay with the colours swapped, or Armageddon. */
+/** A tournament's game that isn't a match's first: the replay with the colours swapped, or Armageddon; plus 960 and handicap tags. */
 function chRoomTagHtml(state) {
   const s = state.shared || {};
   const bd = s.chess;
-  if (!s.tourMid || !bd) return '';
-  if (bd.armageddon) return `<p class="ch-tag ch-tag--arma">⚔️ ${escapeHTML(chT('ch_arma_tag'))}</p>`;
-  if ((s.tourGames || 0) >= 2) return `<p class="ch-tag">🔁 ${escapeHTML(chT('ch_replay_tag'))}</p>`;
-  return '';
+  if (!bd) return '';
+  const tags = [];
+  if (s.tourMid) {
+    if (bd.armageddon) tags.push(`<p class="ch-tag ch-tag--arma">⚔️ ${escapeHTML(chT('ch_arma_tag'))}</p>`);
+    else if ((s.tourGames || 0) >= 2) tags.push(`<p class="ch-tag">🔁 ${escapeHTML(chT('ch_replay_tag'))}</p>`);
+  }
+  const set = s.settings || {};
+  if (set.variant === '960') {
+    tags.push(`<p class="ch-tag ch-tag--960">🎲 ${escapeHTML(chT('ch_pill_960') || '960')}</p>`);
+  }
+  if (!s.tourMid && set.odds && set.odds !== 'none' && s.champ && (s.seats || []).indexOf(s.champ) !== -1) {
+    let label = '';
+    if (set.odds === 'time') {
+      label = chT('ch_pill_odds_time') || 'حسبة: نص الوقت';
+    } else {
+      const pieceName = chT('ch_odds_' + set.odds) || set.odds;
+      label = chT('ch_pill_odds', { piece: pieceName }) || ('حسبة: بدون ' + pieceName);
+    }
+    tags.push(`<p class="ch-tag ch-tag--odds">⚖️ ${escapeHTML(label)}</p>`);
+  }
+  return tags.join('');
 }
 
 /**
@@ -348,7 +365,7 @@ function chRoomKeepGame(state) {
   if (chRoomLocal.storedKeys[key]) return;
   chRoomLocal.storedKeys[key] = true;
   const names = duelRoomNames(state);
-  chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: chRoomSeat(state), result: bd.result.result || 'd', reason: bd.result.reason || '', start: '', moves: bd.hist.slice(), key: key });
+  chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: chRoomSeat(state), result: bd.result.result || 'd', reason: bd.result.reason || '', start: bd.start || '', moves: bd.hist.slice(), key: key });
 }
 
 function chRoomRender(state, still) {
@@ -388,10 +405,20 @@ function chRoomRender(state, still) {
 
 /* --- the lobby: the clock, the host's choice, remembered on their phone ---------- */
 
-const chRoomOpts = () => recallOptions('chessRoom', { clock: 'off' });
+const chRoomOpts = () => recallOptions('chessRoom', { clock: 'off', variant: 'standard', odds: 'none' });
 
 function setChRoomClock(v) {
   rememberOptions('chessRoom', { clock: chessClockId(v) });
+  duelLobbyRedraw();
+}
+
+function setChRoomVariant(v) {
+  rememberOptions('chessRoom', { variant: v === '960' ? '960' : 'standard' });
+  duelLobbyRedraw();
+}
+
+function setChRoomOdds(v) {
+  rememberOptions('chessRoom', { odds: String(v) });
   duelLobbyRedraw();
 }
 
@@ -400,11 +427,53 @@ ROOM_GAMES.chess = {
   lateJoin: true,
   lobbyOptions(state) {
     const t = TRANSLATIONS[appState.lang] || {};
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.duel_lobby_hint || '')}</p>`;
     const o = chRoomOpts();
-    return duelLobbyHtml(state, t, '⏱️ ' + chT('ch_clock_label'),
-      CHESS_CLOCK_IDS.map(v => [`'${v}'`, v === 'off' ? chT('gw_clock_off') : v]), `'${o.clock}'`, 'setChRoomClock', chT('ch_clock_hint'));
+    const isTour = typeof tourModeOf === 'function' && tourModeOf('chess') === 'tour';
+    const clockHtml = `
+      <div class="field">
+        <label class="field__label">⏱️ ${escapeHTML(chT('ch_clock_label'))}</label>
+        <div class="segmented" role="group">
+          ${CHESS_CLOCK_IDS.map(v => `<button type="button" class="segmented__item ${v === o.clock ? 'is-active' : ''}" onclick="setChRoomClock('${v}')">${escapeHTML(v === 'off' ? chT('gw_clock_off') : v)}</button>`).join('')}
+        </div>
+        <p class="field__hint">${escapeHTML(chT('ch_clock_hint'))}</p>
+      </div>`;
+    const varHtml = `
+      <div class="field">
+        <label class="field__label">🎲 ${escapeHTML(chT('ch_variant_label'))}</label>
+        <div class="segmented" role="group">
+          <button type="button" class="segmented__item ${o.variant !== '960' ? 'is-active' : ''}" onclick="setChRoomVariant('standard')">${escapeHTML(chT('ch_var_standard'))}</button>
+          <button type="button" class="segmented__item ${o.variant === '960' ? 'is-active' : ''}" onclick="setChRoomVariant('960')">${escapeHTML(chT('ch_var_960'))}</button>
+        </div>
+        <p class="field__hint">${escapeHTML(chT('ch_variant_hint'))}</p>
+      </div>`;
+    const oddsValues = [
+      ['none', chT('ch_odds_none')],
+      ['pawn', chT('ch_odds_pawn')],
+      ['knight', chT('ch_odds_knight')],
+      ['rook', chT('ch_odds_rook')],
+      ['queen', chT('ch_odds_queen')],
+      ['time', chT('ch_odds_time')]
+    ];
+    const oddsHtml = isTour ? '' : `
+      <div class="field">
+        <label class="field__label">⚖️ ${escapeHTML(chT('ch_odds_label'))}</label>
+        <div class="segmented" role="group">
+          ${oddsValues.map(v => `<button type="button" class="segmented__item ${v[0] === (o.odds || 'none') ? 'is-active' : ''}" onclick="setChRoomOdds('${v[0]}')">${escapeHTML(v[1])}</button>`).join('')}
+        </div>
+        <p class="field__hint">${escapeHTML(chT('ch_odds_hint'))}</p>
+      </div>`;
+    return `<div class="card card--tight">
+        ${clockHtml}
+        ${varHtml}
+        ${oddsHtml}
+        ${isTour && typeof tourCanStart === 'function' && tourCanStart(state) ? '' : `<p class="field__hint" style="text-align:center">${escapeHTML(t.duel_lobby_hint || '')}</p>`}
+      </div>`;
   },
-  startPayload() { return { clock: chRoomOpts().clock }; },
+  startPayload() {
+    const o = chRoomOpts();
+    return { clock: o.clock, variant: o.variant || 'standard', odds: o.odds || 'none' };
+  },
   render(state) {
     if (appState.currentView !== 'room-chess') setView('room-chess');
     chRoomRender(state);

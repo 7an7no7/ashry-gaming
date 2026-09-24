@@ -225,6 +225,29 @@ check(stopWordKnown('ar', 'name', 'مححمود') && !stopWordKnown('ar', 'anima
         'stop: a word the dictionary lacks but two players wrote counts as shared');
   check(res.c.name.word === 'unknown' && res.c.name.pts === 0 && res.c.animal.word === 'known' && res.c.animal.pts === 10,
         'stop: a word nobody else wrote and the dictionary lacks scores 0 for the host to decide');
+
+  // Lenient vs strict on the same answers, adjust to 0, and legacy/older phone defaults
+  check(r.shared.lenient === false, 'stop: an older phone sending no lenient gets strict');
+  const rLenient = newRoom(['a', 'b', 'c']);
+  applyRoomAction(rLenient, 'a', 'chooseGame', { game: 'stop' });
+  applyRoomAction(rLenient, 'a', 'start', { lang: 'ar', cats: ['name', 'animal'], timer: 0, rounds: 2, lenient: true });
+  rLenient.shared.letter = 'ب';
+  applyRoomAction(rLenient, 'a', 'submit', { answers: { name: 'باسم', animal: 'بزززظ' }, stop: true });
+  applyRoomAction(rLenient, 'b', 'submit', { answers: { name: 'بسمة', animal: 'بزززظ' } });
+  applyRoomAction(rLenient, 'c', 'submit', { answers: { name: 'بلبلخ', animal: 'بطة' } });
+  check(rLenient.shared.lenient === true, 'stop: lenient setting published to shared');
+  const resL = rLenient.shared.results;
+  check(resL.c.name.word === 'unknown' && resL.c.name.pts === 10 && resL.c.animal.word === 'known' && resL.c.animal.pts === 10,
+        'stop lenient: unknown scores 10, known scores 10 on the same answers');
+  check(resL.a.animal.word === 'shared' && resL.a.animal.pts === 5,
+        'stop lenient: shared unchanged (5 pts)');
+  check(rLenient.shared.roundTotals.c === 20, 'stop lenient: roundTotals reflects 10 for unknown');
+  applyRoomAction(rLenient, 'a', 'adjust', { playerId: 'c', cat: 'name', pts: 0 });
+  check(rLenient.shared.results.c.name.pts === 0 && rLenient.shared.results.c.name.manual === true,
+        'stop lenient: host adjust to 0 on unknown sets pts to 0');
+  check(rLenient.shared.roundTotals.c === 10, 'stop lenient: host adjust updates roundTotals');
+  applyRoomAction(rLenient, 'a', 'nextRound', {});
+  check(rLenient.shared.lenient === true && rLenient.shared.round === 2, 'stop: nextRound preserves lenient');
 }
 
 /* One typed word against another, everywhere but Stop: spelling is folded away. */

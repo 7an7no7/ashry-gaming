@@ -634,7 +634,8 @@ const stopAction = (room, playerId, action, payload) => {
         lang: lang,
         cats: cats.length >= 2 ? cats : ['name', 'animal', 'plant', 'thing', 'country'],
         timer: STOP_TIMERS.indexOf(timer) !== -1 ? timer : 90,
-        rounds: STOP_ROUNDS.indexOf(rounds) !== -1 ? rounds : 5
+        rounds: STOP_ROUNDS.indexOf(rounds) !== -1 ? rounds : 5,
+        lenient: !!(payload && payload.lenient)
       };
       room._stopTotals = {};
       room._stopRound = 0;
@@ -722,6 +723,8 @@ const dealStopLetter = (room) => {
     cats: o.cats.slice(),
     timer: o.timer,
     rounds: o.rounds,
+    lenient: !!o.lenient,
+    settings: { lenient: !!o.lenient },
     round: room._stopRound,
     letter: letter,
     phase: 'writing',
@@ -764,7 +767,7 @@ const scoreStopRound = (room) => {
       const shared = a.ok && counts[a.f] > 1;
       // known: in the dictionary; shared: not, but someone else wrote it too; unknown: the host decides.
       const word = !a.ok ? '' : a.known ? 'known' : shared ? 'shared' : 'unknown';
-      const pts = !a.ok || word === 'unknown' ? 0 : (shared ? 5 : 10);
+      const pts = !a.ok ? 0 : word === 'unknown' ? (s.lenient ? 10 : 0) : (shared ? 5 : 10);
       results[pid] = results[pid] || {};
       results[pid][cat] = { text: a.raw, pts: pts, ok: a.ok, word: word, manual: false };
     });

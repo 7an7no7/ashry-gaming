@@ -348,15 +348,20 @@ ROOM_GAMES.connect4 = {
           </div>
         </div>
       </div>`);
+    const key = ['c4', roomDealKey(state), s.round].join('|');
+    const dropKey = s.last ? key + '|' + s.moves : '';
+    const endKey = s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '';
+    // (Never over this phone's own move drawn early: that one is still falling. A look, not
+    // duelRoomEarlyFor, which would take it from c4AfterPaint.)
+    const earlyHere = !!(dropKey && duelRoomLocal.early && duelRoomLocal.early.key === dropKey);
+    if (!earlyHere) duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey] });
     if (rebuilt) {
-      const key = ['c4', roomDealKey(state), s.round].join('|');
-      const dropKey = s.last ? key + '|' + s.moves : '';
       c4AfterPaint(el, {
         onDrop: c4RoomDrop,
         dropKey: dropKey,
         early: duelRoomEarlyFor(dropKey),
         win: s.win, draw: !!(s.result && s.result.draw),
-        endKey: s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '',
+        endKey: endKey,
         sound: duelRoomLoud(state)
       });
       duelPillsAfter(el, 'c4r|' + state.code, {
@@ -371,6 +376,28 @@ ROOM_GAMES.connect4 = {
   // A move is not a new step to scroll to: the board is what everyone is watching.
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
 };
+
+/**
+ * The first time this page draws a game (a reload, someone joining late, a TV
+ * coming on), what is already on the board is marked as seen - the last move
+ * and its sound, the winning line, the cheer of a game already over - instead
+ * of played again. Moves made after it animate as ever. `key` is the game's
+ * own key (the deal and the round); `o.motion` the motionFirst keys and
+ * `o.once` the duelOnce keys its screen would play. Call it on every render,
+ * before the screen's after-paint. True on that first sight.
+ */
+const duelFirstSeen = new Set();
+function duelRoomFirstSight(state, key, o) {
+  if (!key || duelFirstSeen.has(key)) return false;
+  if (duelFirstSeen.size > 300) duelFirstSeen.clear();
+  duelFirstSeen.add(key);
+  o = o || {};
+  (o.motion || []).forEach(k => { if (k && typeof motionFirst === 'function') motionFirst(k); });
+  (o.once || []).forEach(k => { if (k) duelOnce(k); });
+  // A game still being played keeps its cheer for when it ends.
+  if ((state.shared || {}).phase === 'over') duelOnce(key + '|cheer');
+  return true;
+}
 
 /**
  * The end of a game in a room: confetti on the winner's own phone (and the
@@ -438,10 +465,13 @@ TV_GAMES.connect4 = {
     const s = state.shared || {};
     if (!el || !s.grid) return;
     const key = ['c4', roomDealKey(state), s.round].join('|');
+    const dropKey = s.last ? key + '|' + s.moves : '';
+    const endKey = s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '';
+    duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey] });
     c4AfterPaint(el, {
-      dropKey: s.last ? key + '|' + s.moves : '',
+      dropKey: dropKey,
       win: s.win, draw: !!(s.result && s.result.draw),
-      endKey: s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '',
+      endKey: endKey,
       sound: true
     });
     duelPillsAfter(el, 'c4tv|' + state.code, {

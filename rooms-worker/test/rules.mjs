@@ -4763,6 +4763,11 @@ Date.now = duelTestClock;
   // In turns: one putt at a time round the table; the honour on the next hole.
   r = mg(['a', 'b', 'c'], { mode: 'turns', holes: 3, clock: 20, guide: true });
   s = r.shared;
+  // Pinned to the straight first hole, as the knock tests below are: the easy hole drawn is random,
+  // and on 'football' the host's "play for" knocked the other ball into the cup, so the turn could
+  // not come back to it (a run failed about one time in twenty).
+  s.holes[0] = 'first';
+  Object.keys(s.balls).forEach((id) => { s.balls[id].at = H('first').tee.slice(); });
   const first = s.turn, second = s.order[1];
   check(s.settings.mode === 'turns' && s.settings.guide === true && s.holes.length === 3 && first === s.order[0], 'minigolf: in turns, the first in the order putts first');
   check(refused(() => applyRoomAction(r, second, 'putt', { dx: 0, dy: 1000, power: 300, t0: clock - s.startedAt, hole: 0, n: 0 })), 'minigolf: in turns, a putt out of turn is refused');

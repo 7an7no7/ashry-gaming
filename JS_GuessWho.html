@@ -421,12 +421,27 @@ function gwOverlay(html, cls, ms) {
  * big bubble; a guess gets the drum roll, then right or wrong. `loud`: this
  * screen plays the sound (the TV when there is one, else the two playing).
  */
+const gwMomentSeen = {};
 function gwMoments(state, loud) {
   const s = state.shared || {};
+  const seq = gwLogSeq(s);
+  // The first sight of a game on this page (a reload, a late join, the TV coming on) plays nothing:
+  // the last answer or the whole drum roll came back with its sound. Seen on every render, a game's
+  // own first state included, so its first answer still plays when it comes.
+  const gameKey = [roomDealKey(state), s.tourMid || '', s.round].join('|');
+  if (gwMomentSeen[gameKey] === undefined) {
+    gwMomentSeen[gameKey] = seq;
+    // Its cheer and its secret faces turning, if it is already over.
+    duelRoomFirstSight(state, ['gw', roomDealKey(state), s.round].join('|'),
+      { motion: [s.phase === 'over' && ['gw-reveal', roomDealKey(state), s.round].join('|')] });
+    return;
+  }
+  if (seq <= gwMomentSeen[gameKey]) return;
+  gwMomentSeen[gameKey] = seq;
   const log = s.log || [];
   const last = log[log.length - 1];
   if (!last || s.phase === 'pick') return;
-  const key = ['gw-moment', roomDealKey(state), s.round, gwLogSeq(s)].join('|');
+  const key = ['gw-moment', roomDealKey(state), s.round, seq].join('|');
   if (!duelOnce(key)) return;
   const quiet = typeof motionOff === 'function' && motionOff();
   const names = duelRoomNames(state);
@@ -592,7 +607,11 @@ function gwHostRow(state, tv) {
   const s = state.shared || {};
   if (!state.youAreHost || (s.phase !== 'play' && s.phase !== 'pick')) return '';
   const key = [state.code, s.round, s.turnSeq].join('|');
-  if (gwLocal.turnKey !== key) { gwLocal.turnKey = key; gwLocal.turnSince = Date.now(); }
+  if (gwLocal.turnKey !== key) {
+    gwLocal.turnKey = key; gwLocal.turnSince = Date.now();
+    // The 40 s come round with nothing pushed: a redraw for them (roomQuietRedraw, JS_Hangman.html).
+    roomQuietRedraw(gwLocal, 'guesswho');
+  }
   const waitingOn = s.phase === 'pick' ? (s.seats || []).filter((id, k) => !s.picked[k])
     : [s.stage === 'answer' ? s.seats[1 - s.turn] : s.seats[s.turn]];
   const quiet = waitingOn.some(id => {
@@ -740,6 +759,8 @@ ROOM_GAMES.guesswho = {
 
 onRoomClocksReset(() => {
   gwStopClock();
+  roomQuietStop(gwLocal);
+  gwLocal.turnKey = '';
   gwLocal.typed = '';
   gwLocal.panel = null;
   gwLocal.guess = null;
@@ -786,7 +807,8 @@ TV_GAMES.guesswho = {
       turn: state.shared.phase === 'play' ? state.shared.turn : -1,
       scores: [(state.shared.scores || {})[state.shared.seats[0]] || 0, (state.shared.scores || {})[state.shared.seats[1]] || 0]
     });
-    if (state.shared.phase === 'over') duelRoomCheer(view, state, ['gw', state.code, state.shared.round].join('|'));
+    // Keyed on the deal: a new game from the hub starts at round 1 again.
+    if (state.shared.phase === 'over') duelRoomCheer(view, state, ['gw', roomDealKey(state), state.shared.round].join('|'));
   }
 };
 </script>

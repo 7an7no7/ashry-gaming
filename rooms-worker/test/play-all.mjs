@@ -103,6 +103,10 @@ class Bot {
       ws.onmessage = (event) => {
         if (event.data === 'pong') return;
         const msg = JSON.parse(event.data);
+        // When a state arrived, as the page's room engine stamps it (receivedAt): a clock read later
+        // is measured from the arrival, never from the reading. Not enumerable, so the leak searches
+        // over JSON.stringify(state) don't see it.
+        if (msg.state) Object.defineProperty(msg.state, 'receivedAt', { value: Date.now(), enumerable: false });
         if (msg.t === 'state') { this.state = msg.state; clearTimeout(timer); resolve(this); }
         else if (msg.t === 'strokes') this.applyStrokes(msg);
         else if (msg.t === 'ack') {
@@ -4221,8 +4225,16 @@ async function main() {
     const golfers = [G1, G2, G3];
     // The hole's clock the way a phone keeps it: the server's clock, not this computer's (they can be
     // seconds apart on the live server), taken from the smallest gap between a change and its arrival.
+    // The gap is the state's arrival less the server's time as it was sent (serverNow), as the page
+    // measures it: measured when it is read, every wait in the test counted as skew and a first putt's
+    // t0 came out ~0, outside the server's 1.5 s on a busy PC.
     const skew = new Map();
-    const seeStamp = (b) => { const st = b.state.shared.stamp; if (!st) return; const gap = Date.now() - st; if (!skew.has(b) || gap < skew.get(b)) skew.set(b, gap); };
+    const seeStamp = (b) => {
+      const s = b.state, sent = s.serverNow || s.shared.stamp;
+      if (!sent) return;
+      const gap = (s.receivedAt || Date.now()) - sent;
+      if (!skew.has(b) || gap < skew.get(b)) skew.set(b, gap);
+    };
     const now = (b) => { seeStamp(b); return Date.now() - (skew.get(b) || 0) - b.state.shared.startedAt; };
     const putt = (b, shot) => b.act('putt', Object.assign({ hole: b.state.shared.hole, n: b.state.shared.balls[b.pid].n, t0: now(b) }, shot));
     await G1.must('chooseGame', { game: 'minigolf' });

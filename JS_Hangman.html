@@ -493,12 +493,37 @@ function hmTickClock(state) {
   });
 }
 
+/**
+ * The host's "move on" button waits 40 seconds for a phone that is there but
+ * quiet, and with no clock nothing is pushed meanwhile: so when a wait starts
+ * (`local.since`), a redraw is set for when it ends. The TV's frame is rebuilt
+ * only on a new signature, so its signature is dropped first. Shared by
+ * المشنقة, the solve rooms and خمّن مين; cleared with the room's clocks.
+ */
+function roomQuietRedraw(local, game) {
+  clearTimeout(local.quietTimer);
+  local.quietTimer = setTimeout(() => {
+    const st = typeof Room !== 'undefined' ? Room.state : null;
+    if (!st || st.game !== game || !st.youAreHost) return;
+    if (st.youAreScreen) {
+      if (appState.currentView !== 'room-tv') return;
+      const tv = document.getElementById('view-room-tv');
+      if (tv) delete tv.dataset.sig;
+    } else if (!onRoomView()) return;
+    routeRoomState(st);
+  }, 40500);
+}
+function roomQuietStop(local) { clearTimeout(local.quietTimer); local.quietTimer = null; }
+
 /** The host's buttons: close the word early; move on from a writer whose phone went quiet. */
 function hmHostButtons(state) {
   const s = state.shared || {};
   if (!state.youAreHost) return [];
   const key = [state.code, s.round, s.phase].join('|');
-  if (hmRoom.sinceKey !== key) { hmRoom.sinceKey = key; hmRoom.since = Date.now(); }
+  if (hmRoom.sinceKey !== key) {
+    hmRoom.sinceKey = key; hmRoom.since = Date.now();
+    if (s.phase === 'writing') roomQuietRedraw(hmRoom, 'hangman'); else roomQuietStop(hmRoom);
+  }
   if (s.phase === 'guessing') return [['⏹️ ' + hmT('hm_close_word'), `roomAct('closeWord', { round: ${Number(s.round) || 0} })`]];
   if (s.phase === 'writing' && s.setter !== Room.me) {
     const p = (state.players || []).find(x => x.id === s.setter);
@@ -650,7 +675,7 @@ ROOM_GAMES.hangman = {
 const HM_ROUNDS_ROOM = [3, 5, 10];
 const HM_CLOCKS_ROOM = [0, 60, 90];
 
-onRoomClocksReset(() => { hmStopClock(); });
+onRoomClocksReset(() => { hmStopClock(); roomQuietStop(hmRoom); hmRoom.sinceKey = ''; });
 
 /* --- the TV: everyone's man, the word and the points ------------------------------ */
 

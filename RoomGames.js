@@ -134,7 +134,9 @@ const ROOM_GAME_IDS = [
   // One sets, everyone solves (RoomSolve.js): خمن الكلمة, خمّن الرقم, خمّن الدولة (and فوازير إيموجي's written way).
   'wordle', 'guessnum', 'flags',
   // شطرنج (RoomChess.js): the duels' line, winner stays on, a chess clock.
-  'chess'
+  'chess',
+  // Chess for teams (24 Sep 2026): شطرنج بالتصويت (RoomVoteChess.js).
+  'votechess'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -189,9 +191,23 @@ const roomEvent = (room, kind, details) => pushChat(room, { sys: kind, p: detail
  * that team - the other team, and a screen facing everyone, never receive it.
  */
 const chatFor = (room, playerId) => {
-  const teams = (room.shared && room.shared.teams) || {};
-  const mine = teams[playerId];
+  const mine = roomChatTeam(room, playerId);
   return (room.chat || []).filter(m => !m.team || (!!mine && mine.team === m.team));
+};
+
+/**
+ * A player's side for the team channel: أسماء الرموز's { team, role }, or in
+ * شطرنج بالتصويت (RoomVoteChess.js) the colour their team plays ('w' / 'b').
+ * Null in any other game, and for a screen.
+ */
+const roomChatTeam = (room, playerId) => {
+  const s = room.shared || {};
+  if (room.game === 'votechess') {
+    const k = typeof vcTeamOf === 'function' && room.phase !== 'lobby' ? vcTeamOf(s, playerId) : -1;
+    return k === -1 ? null : { team: k ? 'b' : 'w' };
+  }
+  const teams = s.teams && !Array.isArray(s.teams) ? s.teams : {};
+  return teams[playerId] || null;
 };
 
 // Must match MAX_PLAYERS and MAX_SCREENS in rooms-worker/src/room.js.
@@ -444,7 +460,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
       // أسماء الرموز: the team's own channel. The projection keeps it from the
       // other team (chatFor). A spymaster in play reads it and can't write to
       // it: the real game lets them hear the table, never talk to it.
-      const mine = room.game === 'codenames' && room.shared && room.shared.teams && room.shared.teams[playerId];
+      const mine = (room.game === 'codenames' || room.game === 'votechess') && roomChatTeam(room, playerId);
       if (!mine) throw new Error('الشات ده للفريق بس');
       if (mine.role === 'spymaster' && room.phase === 'playing') throw new Error('الرئيس بيقرأ بس، مايكتبش لفريقه');
       entry.team = mine.team;
@@ -542,6 +558,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'xo':         xoRoomAction(room, playerId, action, payload); break;     // RoomDuels.js
     case 'battleship': battleshipAction(room, playerId, action, payload); break;  // RoomBattleship.js
     case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
+    case 'votechess':  voteChessAction(room, playerId, action, payload); break;   // RoomVoteChess.js
     case 'ludo':       ludoAction(room, playerId, action, payload); break;      // RoomLudo.js
     case 'bank':       bankAction(room, playerId, action, payload); break;      // RoomBank.js
     case 'guesswho':   guessWhoAction(room, playerId, action, payload); break;  // RoomGuessWho.js
@@ -3425,6 +3442,7 @@ const gameDeadline = (room) => {
   if (room.game === 'guesswho') return gwDeadline(room);
   if (room.game === 'battleship') return bsDeadline(room);
   if (room.game === 'chess') return chessDeadline(room);
+  if (room.game === 'votechess') return vcDeadline(room);
   if (room.game === 'hangman') return hmDeadline(room);
   if (room.game === 'bowling') return bowlDeadline(room);
   if (room.game === 'doubt') return doubtDeadline(room);
@@ -3547,6 +3565,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'guesswho') return gwTimeout(room, now);
   if (room.game === 'battleship') return bsTimeout(room, now);
   if (room.game === 'chess') return chessTimeout(room, now);
+  if (room.game === 'votechess') return vcTimeout(room, now);
   if (room.game === 'hangman') return hmTimeout(room, now);
   if (room.game === 'bowling') return bowlTimeout(room, now);
   if (room.game === 'doubt') return doubtTimeout(room, now);
@@ -3721,6 +3740,10 @@ const gamePlayerLeft = (room, playerId, name) => {
     case 'chess':
       // A seated player loses by forfeit, as in the duels (RoomChess.js).
       chessPlayerLeft(room, playerId);
+      return;
+    case 'votechess':
+      // Out of the count; a team with nobody left loses (RoomVoteChess.js).
+      vcPlayerLeft(room, playerId);
       return;
     case 'hangman':
       hmPlayerLeft(room, playerId);

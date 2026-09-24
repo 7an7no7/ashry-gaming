@@ -364,9 +364,79 @@ async function duelTourRobots() {
   }
 }
 
+/* --- chess for teams: شطرنج بالتصويت (RoomVoteChess.js) ------- */
+
+async function teamChessRobots() {
+  console.log('• votechess (the host\'s teams, secret votes, the tally, a tie, the clock, the host\'s close, resigning by vote, play again, a team left empty)');
+  {
+    const H = await Bot.host('منى', null);
+    const J = await Bot.join(H.code, 'Jana');
+    const K = await Bot.join(H.code, 'كريم');
+    const S = await Bot.join(H.code, '', true);
+    const three = [H, J, K];
+    await H.must('chooseGame', { game: 'votechess' });
+    await H.must('sides', { shuffle: true });
+    await all(three.concat([S]), (s) => s.shared.lobby && Object.keys(s.shared.lobby.sides).length === 3, 'votechess: every phone and the TV see the host\'s split');
+    // Put the host alone on White, the other two on Black.
+    const sides = H.state.shared.lobby.sides;
+    if (sides[H.pid] !== 0) await H.must('sides', { move: H.pid });
+    for (const b of [J, K]) if (H.state.shared.lobby.sides[b.pid] !== 1) await H.must('sides', { move: b.pid });
+    await H.waitFor((s) => s.shared.lobby.sides[H.pid] === 0 && s.shared.lobby.sides[J.pid] === 1 && s.shared.lobby.sides[K.pid] === 1, 'votechess: a tap moves a player to the other side');
+    check((await J.act('sides', { shuffle: true })).ok === false, 'votechess: only the host splits the teams');
+    await H.must('start', { secs: 20 });
+    await all(three.concat([S]), (s) => s.game === 'votechess' && s.shared.phase === 'play' && s.shared.vote && s.shared.vote.team === 0 && s.shared.teams[0].join() === H.pid,
+      'votechess: 1 against 2 - White\'s team votes first, on every phone and the TV');
+    const n0 = H.state.shared.chess.moves;
+    check((await J.act('vote', { from: 'e7', to: 'e5', n: n0 })).ok === false, 'votechess: the other team can\'t vote');
+    check((await S.act('vote', { from: 'e2', to: 'e4', n: n0 })).ok === false, 'votechess: the TV can\'t vote');
+    await H.must('vote', { from: 'f2', to: 'f3', n: 0 });
+    await all(three.concat([S]), (s) => s.shared.chess.moves === 1 && s.shared.tallies.length === 1 && s.shared.tallies[0].list[0].san === 'f3' && s.shared.vote.team === 1,
+      'votechess: a team of one has all voted - the move is played and its tally reaches everyone');
+    // Black: two vote apart, a tie drawn at random between them.
+    await J.must('vote', { from: 'e7', to: 'e5', n: 1 });
+    await H.waitFor((s) => s.shared.vote.voted.indexOf(J.pid) !== -1, 'votechess: who voted reaches every phone');
+    check(!leaks(H, '"e5"') && !leaks(K, '"e5"') && !leaks(S, '"e5"') && J.state.you && J.state.you.vote && J.state.you.vote.to === 'e5',
+      'votechess: what Jana voted is on her phone only - not her teammate\'s, not the other team\'s, not the TV');
+    await K.must('vote', { from: 'e7', to: 'e6', n: 1 });
+    await all(three.concat([S]), (s) => s.shared.chess.moves === 2 && s.shared.tallies[1].how === 'tie' && s.shared.tallies[1].list.length === 2,
+      'votechess: a tie - one of the two drawn at random, and the table told so');
+    // White's vote runs out with nobody voting: a random legal move.
+    await all(three, (s) => s.shared.vote && s.shared.vote.team === 0, 'votechess: White\'s turn again');
+    await H.waitFor((s) => s.shared.chess.moves === 3, 'votechess: the 20-second clock runs out on the server', 30000);
+    check(H.state.shared.tallies[2].how === 'random', 'votechess: nobody voted - a random legal move, said as such');
+    // Black: the host closes a vote that waits on a quiet phone.
+    await J.must('vote', { ...CHM.chessLegalMoves(J.state.shared.chess.g)[0], n: 3 });
+    check((await J.act('closeVote', { n: 3 })).ok === false, 'votechess: only the host closes a vote');
+    await H.must('closeVote', { n: 3 });
+    await all(three.concat([S]), (s) => s.shared.chess.moves === 4 && s.shared.tallies[3].how === 'host', 'votechess: the host closes it - the votes so far decide');
+    // White resigns by vote.
+    await H.must('vote', { resign: true, n: 4 });
+    await all(three.concat([S]), (s) => s.shared.phase === 'over' && s.shared.result.reason === 'resign' && s.shared.result.winner === 1 && (s.shared.scores[J.pid] || 0) === 1,
+      'votechess: the team votes to resign - Black wins, a point to each of them');
+    await H.must('playAgain', {});
+    await all(three, (s) => s.shared.phase === 'play' && s.shared.teams[1].join() === H.pid && s.shared.round === 2, 'votechess: play again - the same teams, the colours swapped');
+    // Mona's side left with nobody: the other team wins.
+    const [w0] = H.state.shared.teams[0];
+    await api('/leave', { code: H.code, pid: w0 === J.pid ? J.pid : K.pid, key: (w0 === J.pid ? J : K).key });
+    await H.waitFor((s) => s.shared.teams[0].length === 1, 'votechess: a member who leaves drops out of the count');
+    const other = [J, K].find((b) => H.state.shared.teams[0].indexOf(b.pid) !== -1);
+    await api('/leave', { code: H.code, pid: other.pid, key: other.key });
+    await H.waitFor((s) => s.shared.phase === 'over' && s.shared.result.reason === 'left' && s.shared.result.winner === 1, 'votechess: a team with nobody left loses');
+    await H.must('backToHub');
+    three.concat([S]).forEach((b) => b.close());
+  }
+
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
+  if (ONLY === 'teamchess') {
+    await teamChessRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
   if (ONLY === 'duels') {
     await duelTourRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
@@ -3807,6 +3877,8 @@ async function main() {
     await H.must('backToHub');
     chBots.concat([S]).forEach((b) => b.close());
   }
+
+  await teamChessRobots();
 
   /* --- المشنقة: one writes and the rest guess, then a race ------------------------ */
   console.log('• hangman (a written word kept from the guessers, each board its own, the writer\'s points, a race, the clock)');

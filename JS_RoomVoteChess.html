@@ -1,0 +1,470 @@
+<script>
+/* ============================================================================
+   شطرنج بالتصويت on the phones and the TV (RoomVoteChess.js)
+   ----------------------------------------------------------------------------
+   Two teams, one board. On a team's move every member taps a move on their
+   own board (the chess board of JS_Chess.html: 2D on a phone, 3D a tap away,
+   3D on the TV) - a vote, not a move: the piece stays where it is and a blue
+   arrow shows this phone's vote, changeable until the vote closes. The vote
+   clock runs down on every screen, a dot fills beside each member who has
+   voted (never what for), and when the move is played the table sees how
+   the team voted: the tally flies in, the winning move on top.
+
+   The vote clock is the server's (shared.vote.endsAt, in the server's time):
+   the phone keeps the smallest gap it has seen between the server's time and
+   hearing it (serverNow and receivedAt), as the chess room does.
+   ========================================================================= */
+
+// sel: the piece picked up for a vote; mine: this phone's vote sent and not yet echoed back;
+// offset: the server's clock against this phone's; tick: the vote clock's redraw.
+const vcLocal = { sel: '', selKey: '', mine: null, offset: null, seenAt: '', tick: null, lastSec: -1, sidesKey: '' };
+
+const vcShared = (state) => (state && state.shared) || {};
+
+/** This phone's team in the game (0 White, 1 Black), or -1 (watching, or the TV). */
+function vcMyTeam(state) {
+  if (!state || state.youAreScreen) return -1;
+  const t = vcShared(state).teams || [];
+  if ((t[0] || []).indexOf(Room.me) !== -1) return 0;
+  if ((t[1] || []).indexOf(Room.me) !== -1) return 1;
+  return -1;
+}
+
+function vcName(state, pid) {
+  const p = (state.players || []).find(x => x.id === pid);
+  return p ? p.name : ((vcShared(state).names || {})[pid] || '');
+}
+
+const vcTeamLabel = (k) => chT(k ? 'vc_team_b' : 'vc_team_w');
+const vcKeyOfVote = (v) => (!v ? '' : v.resign ? 'resign' : v.from + v.to + (v.promo || ''));
+const vcVoteKey = (state) => [roomDealKey(state), (vcShared(state).chess || {}).moves].join('|');
+
+/** The move a vote names, as the table writes it (♞f3), or 🏳️. */
+function vcVoteText(g, v) {
+  if (!v) return '';
+  if (v.resign) return '🏳️ ' + chT('vc_resign_short');
+  const info = chessPlay(chessCloneGame(g), { from: v.from, to: v.to, promo: v.promo });
+  return info ? chFigurine(info.san) : v.from + '-' + v.to;
+}
+
+/** This phone's vote for the move on the board: the one it just sent, or the server's copy of it. */
+function vcMyVote(state) {
+  const s = vcShared(state);
+  if (!s.vote) return null;
+  const l = vcLocal.mine;
+  if (l && l.key === vcVoteKey(state)) return l.v;
+  const y = state.you;
+  return y && y.vote && y.n === s.chess.moves ? y.vote : null;
+}
+
+const vcCanVote = (state) => {
+  const s = vcShared(state);
+  return s.phase === 'play' && !!s.vote && !s.chess.result && vcMyTeam(state) === s.vote.team;
+};
+
+/* --- the vote clock, in the server's time ------------------------------------------ */
+
+function vcNoteClock(state) {
+  if (typeof state.serverNow !== 'number') return;
+  const k = 'n' + state.serverNow;
+  if (vcLocal.seenAt === k) return;
+  vcLocal.seenAt = k;
+  const gap = (state.receivedAt || Date.now()) - state.serverNow;
+  vcLocal.offset = vcLocal.offset === null ? gap : Math.min(vcLocal.offset, gap);
+}
+
+function vcLeft(state) {
+  const v = vcShared(state).vote;
+  if (!v || !v.endsAt) return 0;
+  return Math.max(0, v.endsAt - (Date.now() - (vcLocal.offset || 0)));
+}
+
+function vcPaintClock() {
+  const st = Room.state;
+  if (!st || st.game !== 'votechess' || !vcShared(st).vote) { vcTickStop(); return; }
+  const s = vcShared(st);
+  const left = vcLeft(st);
+  const secs = Math.ceil(left / 1000);
+  const total = ((s.settings || {}).secs || 30) * 1000;
+  document.querySelectorAll('[data-vc-clock]').forEach(el => {
+    const num = el.querySelector('.vc-clock__n');
+    if (num && num.textContent !== String(secs)) num.textContent = String(secs);
+    el.style.setProperty('--p', String(Math.max(0, Math.min(1, left / total))));
+    el.classList.toggle('is-low', left < 6000);
+  });
+  if (secs !== vcLocal.lastSec) {
+    vcLocal.lastSec = secs;
+    // The last seconds tick where they matter: on a voter's phone that hasn't voted, and on the TV.
+    const loud = st.youAreScreen || (vcCanVote(st) && !vcMyVote(st));
+    if (secs > 0 && secs <= 5 && loud) playSound('tick');
+  }
+}
+
+function vcTickStart() {
+  if (vcLocal.tick) return;
+  vcLocal.tick = setInterval(vcPaintClock, 200);
+}
+
+function vcTickStop() {
+  if (vcLocal.tick) clearInterval(vcLocal.tick);
+  vcLocal.tick = null;
+}
+
+/* --- voting -------------------------------------------------------------------------------- */
+
+/** A vote from this phone: shown at once (the arrow), sent, and taken back if the server says no. */
+function vcVote(v) {
+  const state = Room.state;
+  if (!state || state.game !== 'votechess' || !vcCanVote(state)) return;
+  const s = vcShared(state);
+  const key = vcVoteKey(state);
+  vcLocal.mine = { key: key, v: v };
+  vcLocal.sel = '';
+  haptic('light');
+  if (!v.resign) chSound('pick');
+  vcRedraw();
+  Promise.resolve(Room.act('vote', Object.assign({ n: s.chess.moves }, v))).catch((err) => {
+    if (vcLocal.mine && vcLocal.mine.key === key) vcLocal.mine = null;
+    showToast((err && err.message) || '', 'error');
+    vcRedraw();
+  });
+}
+
+function vcVoteResign() {
+  const state = Room.state;
+  if (!state || !vcCanVote(state)) return;
+  const my = vcMyVote(state);
+  if (my && my.resign) return;
+  showConfirmModal(chT('vc_resign_confirm'), () => vcVote({ resign: true }));
+}
+
+function vcCloseNow() {
+  const state = Room.state;
+  if (!state || !state.youAreHost || !vcShared(state).vote) return;
+  roomAct('closeVote', { n: vcShared(state).chess.moves });
+}
+
+function vcRedraw() {
+  const st = Room.state;
+  if (!st || st.game !== 'votechess') return;
+  if (st.youAreScreen) { if (appState.currentView === 'room-tv') TV_GAMES.votechess.after(st, false); return; }
+  if (appState.currentView === 'room-votechess') vcRender(st);
+}
+
+/** The board's model: a voter's board takes taps as a vote, and shows this phone's vote as an arrow. */
+function vcModel(state, tv, still) {
+  const s = vcShared(state);
+  const bd = s.chess;
+  const team = tv ? -1 : vcMyTeam(state);
+  const canVote = !tv && vcCanVote(state);
+  const selKey = vcVoteKey(state);
+  if (vcLocal.selKey !== selKey) { vcLocal.selKey = selKey; vcLocal.sel = ''; }
+  const ctx = {
+    g: bd.g, side: team, sel: vcLocal.sel,
+    setSel: (sq) => { vcLocal.sel = sq; vcRedraw(); },
+    play: (from, to, promo) => vcVote({ from: from, to: to, promo: promo || '' }),
+    redraw: () => vcRedraw()
+  };
+  const my = tv ? null : vcMyVote(state);
+  const over = s.phase === 'over' && bd.result;
+  return {
+    key: ['vc', roomDealKey(state), tv ? 'tv' : 'p'].join('|'),
+    board: bd.g.board, orient: team === 1 ? 1 : 0, tv: !!tv,
+    loud: duelRoomLoud(state),
+    last: bd.last ? { from: bd.last.from, to: bd.last.to } : null,
+    anim: bd.last ? Object.assign({ key: [roomDealKey(state), bd.last.n].join('|'), still: !!still }, bd.last) : null,
+    check: chessCheckSq(bd.g),
+    mate: over && bd.result.reason === 'mate' ? chMateKing(bd.g) : '',
+    sel: canVote ? vcLocal.sel : '',
+    targets: canVote ? chTargets(bd.g, vcLocal.sel) : [],
+    marks: [],
+    arrows: my && !my.resign ? [{ from: my.from, to: my.to, color: CH_PRE_COLOR }] : [],
+    lost: bd.lost,
+    // A drop is a vote: the piece goes back to its square ('pre'), only the arrow stays.
+    input: canVote ? {
+      canMove: true, side: team,
+      onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag),
+      onDrop: (from, to) => (chDropLogic(ctx, from, to) ? 'pre' : false)
+    } : null
+  };
+}
+
+/* --- what the screens show beside the board ------------------------------------------ */
+
+/** The two teams as the duels' pills: the colour, the members (a dot for each who has voted), games won. */
+function vcPills(state, tv) {
+  const s = vcShared(state);
+  const bd = s.chess;
+  const v = s.vote;
+  const pill = (k) => {
+    const members = ((s.teams || [])[k] || []).map(pid => {
+      const voted = v && v.team === k && v.voted.indexOf(pid) !== -1;
+      const cls = v && v.team === k ? (voted ? 'vc-mem is-in' : 'vc-mem is-wait') : 'vc-mem';
+      return `<span class="${cls}${pid === Room.me && !tv ? ' is-me' : ''}"><i class="vc-mem__dot" aria-hidden="true"></i>${escapeHTML(vcName(state, pid))}</span>`;
+    }).join('');
+    return {
+      name: chT(k ? 'vc_side_b' : 'vc_side_w'),
+      score: (s.tw || [])[k] || 0,
+      mark: `<span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>`,
+      sub: `<span class="vc-mems">${members}</span>` + chTakenHtml(bd.lost[1 - k], chLead(bd.lost, k))
+    };
+  };
+  return duelPillsHtml({ players: [pill(0), pill(1)], turn: s.phase === 'play' && !bd.result ? bd.g.turn : -1, draws: null });
+}
+
+/** The vote's clock: seconds and a ring, painted in place. */
+function vcClockHtml(state) {
+  const v = vcShared(state).vote;
+  if (!v) return '';
+  const done = v.voted.length;
+  const of = ((vcShared(state).teams || [])[v.team] || []).length;
+  return `<div class="vc-clockrow">
+      <span class="vc-clock" data-vc-clock><span class="vc-clock__ring" aria-hidden="true"></span><b class="vc-clock__n metric"></b></span>
+      <span class="vc-clockrow__txt">🗳️ ${escapeHTML(chT('vc_voted_count', { n: done, of: of }))}</span>
+    </div>`;
+}
+
+function vcStatus(state, tv) {
+  const s = vcShared(state);
+  const bd = s.chess;
+  if (s.phase === 'over' && s.result) {
+    const how = chT('ch_end_' + s.result.reason) || '';
+    if (s.result.winner === 0 || s.result.winner === 1) return '🏆 ' + chT('vc_won', { team: vcTeamLabel(s.result.winner) }) + (how ? ' · ' + how : '');
+    return '🤝 ' + chT('ch_draw') + (how ? ' · ' + how : '');
+  }
+  const check = chessCheckSq(bd.g) ? ' · ' + chT('ch_check') : '';
+  const v = s.vote;
+  if (!v) return '';
+  if (!tv && vcCanVote(state)) {
+    const my = vcMyVote(state);
+    return (my ? chT('vc_voted_you', { move: vcVoteText(bd.g, my) }) : chT('vc_vote_now')) + check;
+  }
+  return chT('vc_team_voting', { team: vcTeamLabel(v.team) }) + check;
+}
+
+/** The last vote's tally: what was played and how the team voted, the winning move on top. */
+function vcTallyHtml(state, tv) {
+  const s = vcShared(state);
+  const tl = (s.tallies || [])[(s.tallies || []).length - 1];
+  if (!tl) return '';
+  const fresh = motionFirst(['vctally', roomDealKey(state), tl.n, tv ? 'tv' : 'p'].join('|'));
+  const top = Math.max(1, ...tl.list.map(x => x.count));
+  const played = tl.pick === 'resign' ? '🏳️ ' + chT('vc_resign_short')
+    : chFigurine((tl.list.find(x => x.k === tl.pick) || {}).san || tl.san || '');
+  // The move played first, then the rest by their votes.
+  const list = tl.list.slice().sort((x, y) => (y.k === tl.pick) - (x.k === tl.pick) || y.count - x.count);
+  const rows = list.map((x, i) => `
+      <div class="vc-tally__row ${x.k === tl.pick ? 'is-pick' : ''}" style="--i:${i};--w:${(x.count / top).toFixed(3)}">
+        <span class="vc-tally__move" dir="ltr">${escapeHTML(x.resign ? '🏳️' : chFigurine(x.san || ''))}</span>
+        <span class="vc-tally__bar" aria-hidden="true"></span>
+        <b class="vc-tally__n metric">×${x.count}</b>
+      </div>`).join('');
+  const how = tl.how === 'tie' ? chT('vc_how_tie') : tl.how === 'random' ? chT('vc_how_random') : tl.how === 'host' ? chT('vc_how_host') : '';
+  return `<div class="vc-tally ${fresh ? 'is-fresh' : ''}" ${fresh ? 'data-reveal-ms="900"' : ''}>
+      <p class="vc-tally__head">${tl.pick === 'resign' ? `🏳️ ${escapeHTML(chT('vc_tally_resign', { team: vcTeamLabel(tl.team) }))}` : `🗳️ ${escapeHTML(chT('vc_tally_head', { team: vcTeamLabel(tl.team) }))} <b dir="ltr">${escapeHTML(played)}</b>`}</p>
+      ${rows}
+      ${how ? `<p class="vc-tally__how">${escapeHTML(how)}</p>` : ''}
+    </div>`;
+}
+
+/** What a voter can do beside tapping the board, and the host's way on. */
+function vcBarHtml(state) {
+  const s = vcShared(state);
+  if (s.phase !== 'play' || !s.vote) return '';
+  const parts = [];
+  if (vcCanVote(state)) {
+    const my = vcMyVote(state);
+    parts.push(`<div class="ch-bar__row">
+        <button type="button" class="btn btn--ghost btn--sm btn--auto" ${my && my.resign ? 'disabled' : ''} onclick="vcVoteResign()">🏳️ ${escapeHTML(chT('vc_resign_vote'))}</button>
+      </div>`);
+  } else if (vcMyTeam(state) === -1) {
+    parts.push(`<p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_watching'))}</p>`);
+  }
+  if (state.youAreHost) parts.push(roomHostRow([['⏭️ ' + chT('vc_close_now'), 'vcCloseNow()']]));
+  return parts.join('');
+}
+
+function vcOverHtml(state) {
+  const s = vcShared(state);
+  if (s.phase !== 'over') return '';
+  return state.youAreHost
+    ? `<button type="button" class="btn btn--primary" onclick="roomAct('playAgain', {})">🔁 ${escapeHTML(chT('vc_again'))}</button>
+       <p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_again_hint'))}</p>`
+    : `<p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_wait_host'))}</p>`;
+}
+
+function vcRender(state, still) {
+  const el = document.getElementById('view-room-votechess');
+  const s = vcShared(state);
+  if (!el || !s.chess) return;
+  renderRoomFrame(el, ['vc', state.code, appState.lang].join('|'), () => chLayoutHtml());
+  vcNoteClock(state);
+  // The echo of this phone's vote has come back (or the move was played): the local copy goes.
+  const echo = state.you && state.you.vote;
+  if (vcLocal.mine && (vcLocal.mine.key !== vcVoteKey(state) || (echo && vcKeyOfVote(echo) === vcKeyOfVote(vcLocal.mine.v)))) vcLocal.mine = null;
+  chViewShow(el.querySelector('[data-ch-host]'), vcModel(state, false, still));
+  const bd = s.chess;
+  const over = s.phase === 'over';
+  const mineUp = vcCanVote(state) && !vcMyVote(state);
+  chSetHtml(el, '[data-ch-head]', `${vcPills(state)}${vcClockHtml(state)}<p class="duel-status ${over ? 'is-done' : ''} ${mineUp ? 'is-mine' : ''}">${escapeHTML(vcStatus(state))}</p>`);
+  chSetHtml(el, '[data-ch-bar]', vcBarHtml(state));
+  const side = [];
+  if (over) side.push(vcOverHtml(state));
+  side.push(vcTallyHtml(state));
+  side.push(chMovesHtml(bd.sans, { current: bd.sans.length - 1, start: bd.start || '' }));
+  if ((state.players || []).length > 2) side.push(renderScoreboard(s.board));
+  if (over) side.push(roomShareBtnHtml(state, s.board));
+  side.push(renderRoomPlayerStrip(state));
+  chSetHtml(el, '[data-ch-side]', side.join(''));
+  const mv = el.querySelector('.ch-moves');
+  if (mv) mv.scrollTop = mv.scrollHeight;
+  vcPaintClock();
+  if (s.vote) vcTickStart(); else vcTickStop();
+  duelPillsAfter(el, 'vc|' + state.code, { turn: s.phase === 'play' && !bd.result ? bd.g.turn : -1, scores: (s.tw || [0, 0]).slice(0, 2) });
+  if (mineUp && duelOnce(['vcturn', vcVoteKey(state)].join('|'))) haptic('medium');
+  if (over) vcCheer(el, state);
+  if (typeof animateScoreboards === 'function') animateScoreboards(state);
+}
+
+/** The end: the winning team's phones (and the TV) cheer, the others hear the low chord. */
+function vcCheer(el, state) {
+  const s = vcShared(state);
+  if (!s.result || !duelOnce(['vccheer', roomDealKey(state)].join('|'))) return;
+  const mine = vcMyTeam(state);
+  afterReveal(el, () => {
+    if ((mine !== -1 && mine === s.result.winner) || (state.youAreScreen && s.result.winner !== null)) {
+      duelSound('win');
+      if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+    } else if (mine !== -1) chSound('end');
+  });
+}
+
+/* --- the lobby: the host's split, the vote clock -------------------------------------------- */
+
+const vcOpts = () => recallOptions('voteChess', { secs: 30 });
+
+function setVcSecs(v) {
+  rememberOptions('voteChess', { secs: [20, 30, 60].indexOf(Number(v)) !== -1 ? Number(v) : 30 });
+  duelLobbyRedraw();
+}
+
+/** The host's phone keeps the room's split in step with who is here (the server draws it the first time). */
+function vcLobbySync(state) {
+  if (!state || !state.youAreHost || state.phase !== 'lobby' || state.game !== 'votechess') return;
+  const ids = (state.players || []).filter(p => !p.bot).map(p => p.id);
+  const sides = (vcShared(state).lobby || {}).sides || null;
+  const fits = !!sides && ids.every(id => sides[id] === 0 || sides[id] === 1) && Object.keys(sides).every(id => ids.indexOf(id) !== -1);
+  if (fits) { vcLocal.sidesKey = ''; return; }
+  const key = [state.code, ids.join(',')].join('|');
+  if (vcLocal.sidesKey === key) return;
+  vcLocal.sidesKey = key;
+  setTimeout(() => roomAct('sides', {}), 0);
+}
+
+function vcSideTap(pid) {
+  const state = Room.state;
+  if (!state || !state.youAreHost) return;
+  haptic('light');
+  roomAct('sides', { move: pid });
+}
+
+function vcSidesHtml(state) {
+  const sides = (vcShared(state).lobby || {}).sides;
+  if (!sides) return '';
+  const host = !!state.youAreHost;
+  const col = (k) => {
+    const chips = (state.players || []).filter(p => sides[p.id] === k).map(p => host
+      ? `<button type="button" class="vc-side__chip" onclick="vcSideTap('${jsStringAttr(p.id)}')">${escapeHTML(p.name)} <span aria-hidden="true">⇄</span></button>`
+      : `<span class="vc-side__chip">${escapeHTML(p.name)}</span>`).join('');
+    return `<div class="vc-side vc-side--${k ? 'b' : 'w'}">
+        <p class="vc-side__head"><span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>${escapeHTML(vcTeamLabel(k))}</p>
+        <div class="vc-side__chips">${chips}</div>
+      </div>`;
+  };
+  return `<div class="field vc-sides-field">
+      <div class="dom-seating__head">
+        <span class="field__label">👥 ${escapeHTML(chT('vc_teams'))}</span>
+        ${host ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="haptic('light'); roomAct('sides', { shuffle: true })">🔀 ${escapeHTML(chT('vc_shuffle'))}</button>` : ''}
+      </div>
+      <div class="vc-sides">${col(0)}${col(1)}</div>
+      ${host ? `<p class="field__hint">${escapeHTML(chT('vc_sides_hint'))}</p>` : ''}
+    </div>`;
+}
+
+ROOM_GAMES.votechess = {
+  // Someone who joins mid-game watches the board and plays the next game.
+  lateJoin: true,
+  lobbyOptions(state) {
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_lobby_hint'))}</p>`;
+    if (!state.youAreHost) return `<div class="card card--tight">${vcSidesHtml(state)}${hint}</div>`;
+    vcLobbySync(state);
+    const o = vcOpts();
+    return `<div class="card card--tight">
+        ${vcSidesHtml(state)}
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(chT('vc_clock_label'))}</label>
+          <div class="segmented" role="group">
+            ${[20, 30, 60].map(v => `<button type="button" class="segmented__item ${v === o.secs ? 'is-active' : ''}" onclick="setVcSecs(${v})">${v}″</button>`).join('')}
+          </div>
+          <p class="field__hint">${escapeHTML(chT('vc_clock_hint'))}</p>
+        </div>
+        ${hint}
+      </div>`;
+  },
+  startPayload() { return { secs: vcOpts().secs }; },
+  render(state) {
+    if (appState.currentView !== 'room-votechess') setView('room-votechess');
+    vcRender(state);
+  },
+  // A vote closing is not a new step to scroll to: the board is what everyone watches.
+  actionKey: (state) => [state.code, vcShared(state).round, vcShared(state).phase].join('|')
+};
+
+onRoomClocksReset(() => {
+  vcTickStop();
+  vcLocal.sel = '';
+  vcLocal.mine = null;
+});
+
+/* --- the TV: the board big (3D), both teams with their vote dots, the clock, the tally ----------- */
+
+TV_GAMES.votechess = {
+  sig: (state) => ['vc', state.code].join('|'),
+  frame(state, t) {
+    if (!vcShared(state).chess) return tvLookAtPhones(t);
+    return `<div class="ch-tv duel">
+        <div class="ch-tv__stage"><div class="ch-stage ch-stage--tv" data-ch-host></div></div>
+        <div class="ch-tv__side" data-ch-tvside></div>
+      </div>`;
+  },
+  after(state) {
+    const view = document.getElementById('view-room-tv');
+    const s = vcShared(state);
+    if (!view || !s.chess) return;
+    const host = view.querySelector('[data-ch-host]');
+    if (!host) return;
+    vcNoteClock(state);
+    chViewShow(host, vcModel(state, true));
+    const over = s.phase === 'over';
+    const html = `
+      <div class="tv-scale">${vcPills(state, true)}</div>
+      ${vcClockHtml(state)}
+      <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(vcStatus(state, true))}</div>
+      <div class="tv-scale">${vcTallyHtml(state, true)}</div>
+      ${over ? '' : `<div class="ch-tv__moves">${chMovesHtml(s.chess.sans, { current: s.chess.sans.length - 1, start: s.chess.start || '' })}</div>`}
+      ${state.youAreHost && s.vote ? `<div class="tv-actions">${tvBtn('⏭️ ' + chT('vc_close_now'), 'vcCloseNow()', 'ghost')}</div>` : ''}
+      ${over && state.youAreHost ? `<div class="tv-actions">${tvBtn('🔁 ' + chT('vc_again'), "roomAct('playAgain', {})", 'primary')}</div>` : ''}`;
+    const side = view.querySelector('[data-ch-tvside]');
+    if (side && side._chHtml !== html) {
+      side.innerHTML = html;
+      side._chHtml = html;
+      const mv = side.querySelector('.ch-moves');
+      if (mv) mv.scrollTop = mv.scrollHeight;
+    }
+    vcPaintClock();
+    if (s.vote) vcTickStart(); else vcTickStop();
+    duelPillsAfter(view, 'vctv|' + state.code, { turn: s.phase === 'play' && !s.chess.result ? s.chess.g.turn : -1, scores: (s.tw || [0, 0]).slice(0, 2) });
+    if (over) vcCheer(view, state);
+  }
+};
+</script>

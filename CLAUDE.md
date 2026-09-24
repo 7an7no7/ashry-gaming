@@ -32,6 +32,10 @@ The full guide is GEMINI.md — read it before changing anything:
 - Everything stays free and needs no looking after: GitHub Pages and the
   Cloudflare free plan. If Firebase is ever used, it goes on a different Google
   account from the one already tried.
+- A new way to play a game we already have is not a new card on the home: it
+  goes inside that game's card, the way chess holds its six ways (`hub` in
+  `GAME_CATALOG`, the ways row, one tile in a room's list; GEMINI.md, *Chess is
+  one card*). Only a game of its own, with its own name, gets its own card.
 - New games and screens use the motion toolkit wherever it fits (GEMINI.md,
   *Using the motion toolkit in a new game*): reveals, podiums, flights, count-ups.
 - Keep GEMINI.md current: how things work, the traps met on the way, and

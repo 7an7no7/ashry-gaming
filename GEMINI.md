@@ -7575,6 +7575,17 @@ clocks on the first drawn frame; every end state also set by a timer, never
 only by an animation event. New CSS goes in section 14 of `Style.html`, with
 its `prefers-reduced-motion` line in the block at the end of that section.
 
+**A new way to play an existing game is not a new game** (the owner, 24 Sep
+2026). Before giving anything its own card, ask: is this the same game played
+another way (same board, same pieces, same words)? Then it lives inside that
+game's card: its catalog entry carries `hub: '<the game's id>'`, it joins that
+game's row in `HUB_WAYS` (the row under the hero of every screen of the
+family), and if it is a room game its id joins the family in
+`ROOM_HUB_GROUPS` so a room's list shows the family as one tile. It keeps its
+own rules in the help sheet and answers a search by name. Chess is the model
+(*Chess is one card, with its ways inside*, in *Decided, and why*). A game
+with its own name that people ask for gets its own card.
+
 **A new game, start to finish.** The pieces a game needs to be whole, each
 described in its own section of this guide: a `GAME_CATALOG` entry (or it is
 not on the menu); `VIEW_META` for every view (title, `up`, accent); its text in

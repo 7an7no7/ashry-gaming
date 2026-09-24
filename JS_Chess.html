@@ -1253,6 +1253,13 @@ function chMake3D(THREE, root) {
   return {
     kind: '3d',
     setModel: setModel, pick: pick, dragStart: dragStart, dragMove: dragMove, dragEnd: dragEnd,
+    /** A small shake of the piece on a square (a premove that can't be played). */
+    nudge: (sq) => {
+      const grp = pieces.get(chSqIndex(sq));
+      if (!grp || motionOff()) return;
+      const bx = sqPos(chSqIndex(sq)).x;
+      tween(360, (k) => { grp.position.x = bx + Math.sin(k * Math.PI * 5) * 0.06 * (1 - k); });
+    },
     resize: resize, dispose: dispose, camera: camera, camMoved: camMoved, camTop: () => view.top > 0.5,
     pause: (p) => { paused = !!p; if (!p) kick(); },
     busyUntil: () => busyUntil,
@@ -1556,6 +1563,7 @@ function chMakeFlat(root) {
   return {
     kind: 'flat',
     setModel: setModel, pick: pick,
+    nudge: (sq) => { if (moving()) shake(pcs.get(chSqIndex(sq))); },
     dragStart: dragStart, dragMove: dragMove, dragEnd: dragEnd,
     resize: () => {}, pause: () => {},
     dispose: () => { dead = true; box.remove(); },
@@ -1778,7 +1786,10 @@ function chWireInput(root) {
     if (!m || !r || !m.input) return;
     if (pr.dragging) {
       const to = cancel ? '' : r.pick(e.clientX, e.clientY);
-      const played = !!(to && to !== pr.sq && m.input.onDrop && m.input.onDrop(pr.sq, to));
+      const res = to && to !== pr.sq && m.input.onDrop ? m.input.onDrop(pr.sq, to) : false;
+      // A premove queued ('pre'): the piece goes back to its square, quietly - the move waits.
+      if (res === 'pre') { r.dragEnd(false, to, false); return; }
+      const played = !!res;
       // Where it was dropped, and whether the drop was refused (a square it can't go to: it shakes).
       r.dragEnd(played, to, !played && !!to && to !== pr.sq);
       return;
@@ -1892,6 +1903,90 @@ function chDropLogic(ctx, from, to) {
   return true;
 }
 
+/* --- premoves: your next move queued while the other side thinks (the owner, 24 Sep 2026) ---
+   Against the computer and on your own phone in a room, never two on one phone. One at a time,
+   a blue arrow, the piece staying where it is; played the instant it is your turn if it is legal
+   then (through the normal move path), dropped with a small shake if not. A tap anywhere else
+   cancels it. The squares offered are the piece's geometric moves, ignoring what stands in the
+   way and whose move it is (the other side's move can open a line or give a piece to take). */
+
+const CH_PRE_COLOR = 'rgba(59, 130, 246, 0.85)';
+
+/** Where a piece on `from` could be premoved: its moves on an empty board (pawns: forward and both takes; a king: castling too). */
+function chPremoveTargets(board, from) {
+  const i = chSqIndex(from);
+  const pc = i >= 0 ? board[i] : 0;
+  if (!pc) return [];
+  const kind = pc & 7, side = pc >> 3, f = i & 7, r = i >> 3;
+  const out = [];
+  const add = (ff, rr, capture) => { if (ff < 0 || ff > 7 || rr < 0 || rr > 7) return; const j = rr * 8 + ff; if (j !== i && !out.some(x => x.i === j)) out.push({ i: j, capture: !!capture }); };
+  const slide = (dirs) => dirs.forEach(([df, dr]) => { for (let k = 1; k < 8; k++) add(f + df * k, r + dr * k); });
+  if (kind === 1) {
+    const d = side ? -1 : 1;
+    add(f, r + d);
+    if (r === (side ? 6 : 1)) add(f, r + 2 * d);
+    add(f - 1, r + d, true); add(f + 1, r + d, true);
+  } else if (kind === 2) [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]].forEach(([a, b]) => add(f + a, r + b));
+  else if (kind === 3) slide([[1, 1], [1, -1], [-1, 1], [-1, -1]]);
+  else if (kind === 4) slide([[1, 0], [-1, 0], [0, 1], [0, -1]]);
+  else if (kind === 5) slide([[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]]);
+  else if (kind === 6) {
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if (a || b) add(f + a, r + b);
+    // Castling: the king's squares g and c on its home row, and its own rooks there (960's way).
+    if (r === (side ? 7 : 0)) {
+      add(6, r); add(2, r);
+      for (let x = 0; x < 8; x++) if (board[r * 8 + x] === (4 | (side << 3))) add(x, r, true);
+    }
+  }
+  return out.map(x => ({ to: chSqName(x.i), capture: x.capture || (!!board[x.i] && (board[x.i] >> 3) !== side) }));
+}
+
+/** A pawn premoved to the last row becomes a queen (no picker while you wait). */
+const chPremovePromo = (board, from, to) => ((board[chSqIndex(from)] & 7) === 1 && /[18]$/.test(to) ? 'q' : '');
+
+/**
+ * A tap while the other side is to move. ctx: { board, side, sel, setSel(sq), pre, setPre(mv|null) }.
+ * A queued premove is cancelled by any tap; else a piece of yours is picked, then one of its squares queues it.
+ */
+function chPreTapLogic(ctx, sq, fromDrag) {
+  if (ctx.pre && !fromDrag) { ctx.setPre(null); ctx.setSel(''); return false; }
+  if (ctx.sel && ctx.sel !== sq && chPremoveTargets(ctx.board, ctx.sel).some(x => x.to === sq)) {
+    const from = ctx.sel;
+    ctx.setSel('');
+    ctx.setPre({ from: from, to: sq, promo: chPremovePromo(ctx.board, from, sq) });
+    chSound('pick');
+    return true;
+  }
+  const code = ctx.board[chSqIndex(sq)];
+  if (code && (code >> 3) === ctx.side) {
+    if (ctx.pre) ctx.setPre(null);
+    if (ctx.sel === sq && !fromDrag) { ctx.setSel(''); return false; }
+    ctx.setSel(sq);
+    if (!fromDrag) chSound('pick');
+    return false;
+  }
+  if (ctx.sel) ctx.setSel('');
+  return false;
+}
+
+/** A drop while the other side is to move: queued ('pre': the piece goes back to its square, not played yet), or refused. */
+function chPreDropLogic(ctx, from, to) {
+  ctx.setSel('');
+  if (!chPremoveTargets(ctx.board, from).some(x => x.to === to)) { chSound('refuse'); return false; }
+  ctx.setPre({ from: from, to: to, promo: chPremovePromo(ctx.board, from, to) });
+  chSound('pick');
+  return 'pre';
+}
+
+/** Is the queued premove legal now (a move, or castling by the rook)? */
+const chPremoveLegal = (g, pre) => !!pre && (chessLegalMoves(g).some(m => m.from === pre.from && m.to === pre.to) || chCastleByRook(g, pre.from, pre.to));
+
+/** A premove that can't be played: the piece shakes on the board. */
+function chPremoveDropped(sq) {
+  chSound('refuse');
+  if (chView.r && chView.r.nudge) chView.r.nudge(sq);
+}
+
 /* ============================================================================
    What every chess screen shows beside the board
    ========================================================================= */
@@ -1973,7 +2068,8 @@ function chResultLine(result, reason, names) {
    ========================================================================= */
 
 // busy: a second tap too soon; thinking: the computer's timer; tick: the clock's.
-const chLocal = { sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '' };
+// pre / presel: a premove queued against the computer, and the piece picked up for one.
+const chLocal = { sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '', pre: null, presel: '' };
 
 function chState() {
   if (!appState.shatranj) {
@@ -2197,6 +2293,7 @@ function chUndoLocal() {
   s.comment = null;
   chLocal.sel = '';
   chLocal.hint = null;
+  chLocal.pre = null; chLocal.presel = '';
   saveToLocal();
   haptic('light');
   chPaint({ still: true });
@@ -2484,6 +2581,7 @@ function chNewGame(opts) {
   chLocal.coachBefore = null; chLocal.coachKey = '';
   chLocal.hint = null; chLocal.hintKey = '';
   chLocal.pending = null;
+  chLocal.pre = null; chLocal.presel = '';
   saveToLocal();
   if (appState.currentView !== 'play-shatranj') setView('play-shatranj');
   chPaint();
@@ -2615,6 +2713,15 @@ function chAfterMove() {
   chTickStart();
   if (s.phase !== 'play') return;
   if (s.vs === 'phone' && s.g.turn !== s.me) chComputerSoon();
+  else if (s.vs === 'phone' && chLocal.pre && !chLocal.pending) {
+    // Your turn, and a move queued: played now if it still is one, else dropped with a shake.
+    const pre = chLocal.pre;
+    chLocal.pre = null; chLocal.presel = '';
+    if (chPremoveLegal(s.g, pre)) { chLocal.busy = 0; chLocal.sel = ''; chPlayLocal(pre.from, pre.to, pre.promo); return; }
+    chPaint();
+    chPremoveDropped(pre.from);
+    if (s.coach) chCoachPrepare();
+  }
   else if (s.vs === 'phone' && s.coach) chCoachPrepare();
 }
 
@@ -2865,6 +2972,14 @@ function chPaint(opts) {
   }
   const hint = chLocal.hint && chLocal.hint.key === s.gameId + '|' + s.hist.length ? chLocal.hint : null;
   const ended = s.phase === 'done' && s.result;
+  // The computer thinking: your next move can be queued (a premove).
+  const preOn = s.vs === 'phone' && s.phase === 'play' && s.g.turn !== s.me && !chLocal.pending;
+  if (!preOn && s.phase !== 'play') { chLocal.pre = null; chLocal.presel = ''; }
+  const pctx = {
+    board: s.g.board, side: s.me, sel: chLocal.presel, pre: chLocal.pre,
+    setSel: (sq) => { chLocal.presel = sq; chPaint(); },
+    setPre: (mv) => { chLocal.pre = mv; chPaint(); }
+  };
   const ctx = {
     g: s.g, side: side, sel: chLocal.sel,
     setSel: (sq) => { chLocal.sel = sq; chPaint(); },
@@ -2879,12 +2994,13 @@ function chPaint(opts) {
     anim: s.last ? Object.assign({ key: s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n, still: !!o.still }, s.last) : null,
     check: chessCheckSq(s.g),
     mate: ended && s.result.reason === 'mate' ? chMateKing(s.g) : '',
-    sel: humanTurn ? chLocal.sel : '',
-    targets: humanTurn ? chTargets(s.g, chLocal.sel) : [],
+    sel: humanTurn ? chLocal.sel : preOn ? chLocal.presel : '',
+    targets: humanTurn ? chTargets(s.g, chLocal.sel) : preOn && chLocal.presel ? chPremoveTargets(s.g.board, chLocal.presel) : [],
     marks: marks,
-    arrows: hint ? [{ from: hint.move.from, to: hint.move.to }] : [],
+    arrows: (hint ? [{ from: hint.move.from, to: hint.move.to }] : []).concat(chLocal.pre && s.phase === 'play' ? [{ from: chLocal.pre.from, to: chLocal.pre.to, color: CH_PRE_COLOR }] : []),
     lost: s.lost,
-    input: humanTurn ? { canMove: true, side: side, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) } : null
+    input: humanTurn ? { canMove: true, side: side, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
+      : preOn ? { canMove: true, side: s.me, premove: true, onPick: (sq, fromDrag) => chPreTapLogic(pctx, sq, fromDrag), onDrop: (from, to) => chPreDropLogic(pctx, from, to) } : null
   };
   chViewShow(el.querySelector('[data-ch-host]'), model);
   const scores = s.scores || [0, 0, 0];

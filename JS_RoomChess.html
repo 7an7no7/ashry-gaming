@@ -29,7 +29,8 @@
 
 // sel: the piece picked up; early: this phone's move, drawn before the server answers;
 // offset: the server's clock against this phone's; tick: the clocks' redraw.
-const chRoomLocal = { sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, turnKey: '', stored: '' };
+// pre / presel / preKey: your premove (one, on this phone only, never sent until it is played), for this game.
+const chRoomLocal = { sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, turnKey: '', stored: '', pre: null, presel: '', preKey: '' };
 
 const chRoomSeat = (state) => (state.youAreScreen ? -1 : ((state.shared || {}).seats || []).indexOf(Room.me));
 
@@ -194,6 +195,16 @@ function chRoomModel(state, tv, still) {
     redraw: () => chRoomRedraw()
   };
   const over = s.phase === 'over' && bd.result;
+  // The other side to move (or your own move still on its way): a premove can be queued.
+  const preKey = [roomDealKey(state), s.round].join('|');
+  if (chRoomLocal.preKey !== preKey) { chRoomLocal.preKey = preKey; chRoomLocal.pre = null; chRoomLocal.presel = ''; }
+  const preOn = !tv && (seat === 0 || seat === 1) && s.phase === 'play' && !bd.result && !mine;
+  if (!preOn && !mine) { chRoomLocal.pre = null; chRoomLocal.presel = ''; }
+  const pctx = {
+    board: view.g.board, side: seat, sel: chRoomLocal.presel, pre: chRoomLocal.pre,
+    setSel: (sq) => { chRoomLocal.presel = sq; chRoomRedraw(); },
+    setPre: (mv) => { chRoomLocal.pre = mv; chRoomRedraw(); }
+  };
   return {
     key: ['room', roomDealKey(state), s.round, tv ? 'tv' : 'p'].join('|'),
     board: view.g.board, orient: seat === 1 ? 1 : 0, tv: !!tv,
@@ -202,11 +213,12 @@ function chRoomModel(state, tv, still) {
     anim: view.last ? Object.assign({ key: [roomDealKey(state), s.round, view.last.n].join('|'), still: !!still }, view.last) : null,
     check: chessCheckSq(view.g),
     mate: over && bd.result.reason === 'mate' ? chMateKing(view.g) : '',
-    sel: mine ? chRoomLocal.sel : '',
-    targets: mine ? chTargets(view.g, chRoomLocal.sel) : [],
-    marks: [], arrows: [],
+    sel: mine ? chRoomLocal.sel : preOn ? chRoomLocal.presel : '',
+    targets: mine ? chTargets(view.g, chRoomLocal.sel) : preOn && chRoomLocal.presel ? chPremoveTargets(view.g.board, chRoomLocal.presel) : [],
+    marks: [], arrows: preOn && chRoomLocal.pre ? [{ from: chRoomLocal.pre.from, to: chRoomLocal.pre.to, color: CH_PRE_COLOR }] : [],
     lost: view.lost,
-    input: mine ? { canMove: true, side: seat, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) } : null
+    input: mine ? { canMove: true, side: seat, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
+      : preOn ? { canMove: true, side: seat, premove: true, onPick: (sq, fromDrag) => chPreTapLogic(pctx, sq, fromDrag), onDrop: (from, to) => chPreDropLogic(pctx, from, to) } : null
   };
 }
 
@@ -375,6 +387,18 @@ function chRoomRender(state, still) {
   const t = TRANSLATIONS[appState.lang] || {};
   renderRoomFrame(el, ['chr', state.code, appState.lang].join('|'), () => chLayoutHtml());
   chRoomNoteClock(state);
+  // Your turn has come with a premove queued: played now through the normal move (the server's
+  // stale-tap guard sees this board's move count), or dropped with a shake if it isn't legal now.
+  let preDropped = '';
+  {
+    const pre = chRoomLocal.pre;
+    const bd0 = s.chess, seat0 = chRoomSeat(state);
+    if (pre && chRoomLocal.preKey === [roomDealKey(state), s.round].join('|') && s.phase === 'play' && !bd0.result && !chRoomLocal.early && seat0 === bd0.g.turn) {
+      chRoomLocal.pre = null; chRoomLocal.presel = '';
+      if (chPremoveLegal(bd0.g, pre)) { chRoomPlay(pre.from, pre.to, pre.promo); return; }
+      preDropped = pre.from;
+    }
+  }
   const model = chRoomModel(state, false, still);
   chViewShow(el.querySelector('[data-ch-host]'), model);
   const bd = s.chess;
@@ -401,6 +425,7 @@ function chRoomRender(state, still) {
   if (bd.clock) chRoomTickStart(); else chRoomTickStop();
   duelPillsAfter(el, 'chr|' + state.code, { turn: s.phase === 'play' && !bd.result ? view.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
   if (myTurn && duelOnce(['chturn', roomDealKey(state), s.round, bd.moves].join('|'))) haptic('medium');
+  if (preDropped) chPremoveDropped(preDropped);
   if (over) { chRoomKeepGame(state); duelRoomCheer(el, state, ['ch', roomDealKey(state), s.round].join('|')); }
 }
 

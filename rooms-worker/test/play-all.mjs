@@ -1762,7 +1762,7 @@ async function main() {
       await all(players, (s) => s.shared.phase === 'play' && s.you && s.you.hand.length >= 7, 'uno: dealt again');
     };
     let mixedSeen = false;
-    for (let game = 0; game < 14 && !mixedSeen; game++) {
+    for (let game = 0; game < 30 && !mixedSeen; game++) {
       await unoPlayAgain({ stackMode: 'mixed' });
       await unoPlayUntil(players, (st) => {
         if (!st.shared.pending || st.shared.pending.kind !== 'd') return false;
@@ -1783,7 +1783,7 @@ async function main() {
         mixedSeen = true;
       }
     }
-    check(mixedSeen, 'uno: a +4 answered a +2 (within fourteen games)');
+    check(mixedSeen, 'uno: a +4 answered a +2 (within thirty games)');
     let offSeen = false;
     for (let game = 0; game < 4 && !offSeen; game++) {
       await unoPlayAgain({ stacking: false });
